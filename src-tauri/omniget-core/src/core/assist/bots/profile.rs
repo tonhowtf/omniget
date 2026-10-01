@@ -1,7 +1,3 @@
-//! The bot's profile: what it is for, what it may do, how it treats memory.
-//! Keyed by the roster's `AgentDef::id`, which never changes when the model or
-//! the connection does.
-
 use rusqlite::{params, OptionalExtension};
 use serde::{Deserialize, Serialize};
 
@@ -9,22 +5,13 @@ use super::ERR_BOT;
 use crate::core::assist::db::AssistDb;
 use crate::core::llm::agent::{AgentDef, GrantMode, ToolGrant, ToolSource};
 
-/// What a person picks when creating a bot, in words they understand. Each
-/// maps to the tools that module exports (`TOOL_NAMES`), never to strings
-/// typed here.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, PartialOrd, Ord)]
 #[serde(rename_all = "snake_case")]
 pub enum Capability {
-    /// Remember what the user tells it (personal profile + the bot's notes).
     Memory,
-    /// Search and read the web.
     Web,
-    /// Reading journeys, progress, watched films.
     Reading,
-    /// A project folder: read files, and change them / run commands on ask.
-    /// Only in a conversation opened on a project.
     ProjectCode,
-    /// Hand a task to another bot of a room.
     Delegate,
 }
 
@@ -47,7 +34,6 @@ impl Capability {
         }
     }
 
-    /// The tools this capability stands for, from the owning modules.
     pub fn tool_names(self) -> Vec<&'static str> {
         use crate::core::assist::{groups, memory, reading, web};
         use crate::core::llm::code_tools::{READ_TOOLS, WRITE_TOOLS};
@@ -61,16 +47,12 @@ impl Capability {
     }
 }
 
-/// How the bot treats its memory tools.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum MemoryPolicy {
-    /// Saves and recalls on its own.
     #[default]
     Remember,
-    /// Recalls on its own, asks before saving or changing anything.
     Ask,
-    /// Only recalls what is already there.
     ReadOnly,
 }
 
@@ -103,9 +85,6 @@ pub struct BotProfile {
     pub capabilities: Vec<Capability>,
     #[serde(default)]
     pub memory_policy: MemoryPolicy,
-    /// The connection the user picked when creating the bot (a roster agent
-    /// id or an account id), for the UI. The model and runtime themselves live
-    /// on the roster's `AgentDef`.
     #[serde(default)]
     pub default_connection: Option<String>,
     #[serde(default)]
@@ -133,7 +112,6 @@ impl BotProfile {
     }
 }
 
-/// A memory tool that only reads (recall, search, list…).
 pub fn is_memory_read_tool(name: &str) -> bool {
     [
         "recall", "search", "list", "get", "show", "read", "export", "profile",
@@ -142,7 +120,6 @@ pub fn is_memory_read_tool(name: &str) -> bool {
     .any(|w| name.contains(w))
 }
 
-/// The grant mode a capability gives one of its tools.
 pub fn mode_for(cap: Capability, tool: &str, policy: MemoryPolicy) -> Option<GrantMode> {
     use crate::core::llm::code_tools::WRITE_TOOLS;
     match cap {
@@ -158,9 +135,6 @@ pub fn mode_for(cap: Capability, tool: &str, policy: MemoryPolicy) -> Option<Gra
     }
 }
 
-/// Adds the grants of every chosen capability to `agent`. A grant the agent
-/// already carries for the same tool wins (a `Deny` the user set stays a
-/// `Deny`): capabilities only ever add what is missing.
 pub fn apply_capability_grants(agent: &mut AgentDef, profile: &BotProfile) {
     for cap in &profile.capabilities {
         for tool in cap.tool_names() {
@@ -172,7 +146,6 @@ pub fn apply_capability_grants(agent: &mut AgentDef, profile: &BotProfile) {
     }
 }
 
-/// Adds an internal grant unless one for that name is already there.
 pub fn add_grant(agent: &mut AgentDef, tool: &str, mode: GrantMode) {
     let present = agent
         .tools
@@ -233,7 +206,6 @@ pub fn list(db: &AssistDb) -> Result<Vec<BotProfile>, String> {
     })
 }
 
-/// Creates or replaces the profile. `created_at` survives a replace.
 pub fn put(db: &AssistDb, profile: &BotProfile) -> Result<BotProfile, String> {
     if profile.bot_id.trim().is_empty() {
         return Err(format!("{ERR_BOT}: a bot id is required"));
@@ -263,8 +235,6 @@ pub fn put(db: &AssistDb, profile: &BotProfile) -> Result<BotProfile, String> {
     get(db, &profile.bot_id)?.ok_or_else(|| format!("{ERR_BOT}: profile not saved"))
 }
 
-/// Drops the profile and the bot's skill bindings (the bot left the roster).
-/// Reads already traced stay: they are the record of past runs.
 pub fn delete(db: &AssistDb, bot: &str) -> Result<(), String> {
     db.tx(|tx| {
         tx.execute("DELETE FROM bots_profiles WHERE bot_id = ?1", params![bot])
@@ -278,7 +248,6 @@ pub fn delete(db: &AssistDb, bot: &str) -> Result<(), String> {
     })
 }
 
-/// New scoped profile only. A replay never overwrites a local profile edit.
 pub(crate) fn create_scoped_tx(tx: &rusqlite::Transaction, p: &BotProfile) -> Result<(), String> {
     if p.bot_id.is_empty() || p.purpose.len() > 2000 || p.instructions.len() > 20000 {
         return Err("INVALID_EXTERNAL_PROFILE".into());

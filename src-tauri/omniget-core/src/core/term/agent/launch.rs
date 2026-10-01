@@ -1,24 +1,3 @@
-//! Launch recipes: the command line, environment and side files that make an
-//! agent CLI (or a shell) report its state to the terminal that runs it.
-//!
-//! - Claude Code: `claude --settings <file>` with our hooks (through
-//!   `omniget-hook-shim --observe`, which reads `OMNIGET_TERMINAL_ID` from the
-//!   env), the OSC 9;4 progress bar forced on and notifications sent as
-//!   OSC 9 + BEL (`TERM_PROGRAM=OmniGet` is not on Claude's auto list).
-//!   Nothing in `~/.claude` is touched.
-//! - Codex: `-c tui.notification_method="osc9"` and
-//!   `tui.notification_condition="always"`, so "turn complete" and "approval
-//!   requested" arrive as OSC 9 on the PTY; `notify` when the caller has a
-//!   program for it.
-//! - Gemini, OpenCode, Ollama: plain (hooks/plugins come in C2).
-//! - Shells: integration that emits OSC 133 (A/C/D with exit code) and OSC 7
-//!   (cwd): zsh through a `ZDOTDIR` that sources the user's files, bash
-//!   through `--rcfile`, fish through `-C`.
-//!   The same files put the directory of `$OMNIGET_CLI` (the app's own `bin`)
-//!   back at the front of PATH after the user's rc files ran, and once more
-//!   on the first prompt: a `brew shellenv` in `.zshrc`/`.zlogin` would
-//!   otherwise let an older, installed `omniget` shadow the app's CLI.
-
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
@@ -29,20 +8,12 @@ use super::state::AgentKind;
 #[derive(Debug, Clone, Default)]
 pub struct LaunchCtx {
     pub terminal_id: String,
-    /// Extra env (the canvas passes `OMNIGET_CANVAS*`, `OMNIGET_BRIDGE_URL`,
-    /// `OMNIGET_CLI`, `OMNIGET_CANVAS_TOKEN`).
     pub env: HashMap<String, String>,
-    /// `omniget-hook-shim` binary, when installed.
     pub hook_shim: Option<PathBuf>,
-    /// OmniGet data dir, passed to the shim (`--data-dir`).
     pub data_dir: Option<PathBuf>,
-    /// Where the recipe may write its side files (settings, rc files).
     pub work_dir: PathBuf,
-    /// Program for Codex `notify` (argv; Codex appends the JSON).
     pub codex_notify: Option<Vec<String>>,
-    /// Extra arguments for the agent (or the whole argv for `Native`).
     pub args: Vec<String>,
-    /// Shell for `AgentKind::Shell` (default: `$SHELL`).
     pub shell: Option<String>,
 }
 
@@ -53,9 +24,6 @@ pub struct Launch {
     pub files: Vec<PathBuf>,
 }
 
-/// Claude hook events we subscribe to. `PermissionRequest` is left out on
-/// purpose: in observe mode the shim may hold it for an owner's answer; the
-/// `Notification` of type `permission_prompt` already says "blocked".
 const CLAUDE_EVENTS: [&str; 12] = [
     "UserPromptSubmit",
     "PreToolUse",
@@ -79,7 +47,6 @@ fn quote(p: &str) -> String {
     }
 }
 
-/// Claude `--settings` JSON.
 pub fn claude_settings(ctx: &LaunchCtx) -> Value {
     let mut settings = json!({
         "terminalProgressBarEnabled": true,
@@ -180,8 +147,6 @@ add-zsh-hook precmd __omniget_precmd
 add-zsh-hook preexec __omniget_preexec
 "#;
 
-/// zsh: the app's `bin` first on PATH now (after the user's `.zshrc`) and
-/// again on the first prompt (after `.zlogin` and any deferred init).
 const ZSH_PATH: &str = r#"
 __omniget_path() {
   [ -n "$OMNIGET_CLI" ] || return 0
@@ -196,9 +161,6 @@ __omniget_path
 add-zsh-hook precmd __omniget_path_once
 "#;
 
-/// POSIX sh (also zsh and bash) snippet that moves the directory of
-/// `$OMNIGET_CLI` to the front of PATH, dropping its other copies. No-op
-/// without `OMNIGET_CLI`. Used before `exec` of an agent in a login shell.
 pub const POSIX_PATH_FIX: &str = "if [ -n \"$OMNIGET_CLI\" ]; then __og_d=\"${OMNIGET_CLI%/*}\"; __og_r=\"$PATH\"; __og_p=; while [ -n \"$__og_r\" ]; do __og_e=\"${__og_r%%:*}\"; case \"$__og_r\" in *:*) __og_r=\"${__og_r#*:}\";; *) __og_r=;; esac; [ \"$__og_e\" = \"$__og_d\" ] || __og_p=\"$__og_p${__og_p:+:}$__og_e\"; done; PATH=\"$__og_d${__og_p:+:}$__og_p\"; export PATH; unset __og_d __og_r __og_p __og_e; fi";
 
 const BASH_RC: &str = r#"[ -f ~/.bashrc ] && . ~/.bashrc
@@ -235,8 +197,6 @@ trap '__omniget_debug' DEBUG
 
 const FISH_INIT: &str = "if set -q OMNIGET_CLI; set -l __og_d (string replace -r '/[^/]*$' '' -- $OMNIGET_CLI); set -gx PATH $__og_d (string match -v -- $__og_d $PATH); end; function __omniget_pre --on-event fish_preexec; printf '\\e]133;C\\a'; end; function __omniget_post --on-event fish_postexec; printf '\\e]133;D;%s\\a' $status; end; function __omniget_prompt --on-event fish_prompt; printf '\\e]7;file://%s%s\\a' (hostname) (string replace -a ' ' '%20' $PWD); printf '\\e]133;A\\a'; end";
 
-/// zsh file that sources the user's own `name` from their real ZDOTDIR and
-/// then points ZDOTDIR back at ours (so zsh keeps reading our next file).
 fn zsh_passthrough(name: &str, ours: &Path) -> String {
     format!(
         "__omniget_zd=\"${{OMNIGET_USER_ZDOTDIR:-$HOME}}\"\n\
@@ -280,8 +240,6 @@ fn shell_integration(
                 &zsh_passthrough(".zprofile", &dir),
                 files,
             )?;
-            // .zshrc: the user's rc, our hooks, then ZDOTDIR goes back to the
-            // user's so .zlogin and any later lookup are theirs.
             let rc = format!(
                 "__omniget_zd=\"${{OMNIGET_USER_ZDOTDIR:-$HOME}}\"\n\
                  ZDOTDIR=\"$__omniget_zd\"\n\
@@ -292,8 +250,6 @@ fn shell_integration(
                  unset __omniget_zd\n"
             );
             write(&dir.join(".zshrc"), &rc, files)?;
-            // Login + interactive, like a terminal app: .zprofile and .zlogin
-            // run too (through the passthrough / the restored ZDOTDIR).
             Ok(vec![shell, "-l".into(), "-i".into()])
         }
         "bash" => {

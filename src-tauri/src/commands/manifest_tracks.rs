@@ -1,16 +1,3 @@
-//! Downloads › Tools › Pick tracks: paste an HLS (.m3u8) or DASH (.mpd)
-//! manifest, or a page, see every video, audio and subtitle track it
-//! offers, tick the ones to keep and get one file with all of them.
-//!
-//! The idea comes from N_m3u8DL-RE (MIT): its track list (`-sv`, `-sa`,
-//! `-ss`, with language, codec and bitrate per track), parallel segment
-//! downloads (`--thread-count`) and the final mux of every selected track
-//! with its language (`-M`). Reimplemented on top of yt-dlp, which already
-//! parses both manifest kinds: the list comes from its JSON, the download is
-//! `-f video+audio1+audio2 --audio-multistreams` with `-N` fragments in
-//! parallel and the subtitles embedded. No code was copied. Protected (DRM)
-//! tracks are listed by yt-dlp as `has_drm` and are left out.
-
 use std::process::Stdio;
 use std::sync::Mutex;
 
@@ -27,14 +14,12 @@ static CURRENT: Mutex<Option<CancellationToken>> = Mutex::new(None);
 
 #[derive(Debug, Clone, Serialize, PartialEq)]
 pub struct Track {
-    /// yt-dlp format id, or the language code for a subtitle.
     pub id: String,
     pub label: String,
     pub language: Option<String>,
     pub height: Option<u64>,
     pub bitrate_kbps: Option<u64>,
     pub codec: Option<String>,
-    /// Video tracks that already carry sound.
     pub has_audio: bool,
 }
 
@@ -44,7 +29,6 @@ pub struct ManifestTracks {
     pub video: Vec<Track>,
     pub audio: Vec<Track>,
     pub subtitles: Vec<Track>,
-    /// Tracks skipped because they are DRM-protected.
     pub protected: usize,
 }
 
@@ -89,7 +73,6 @@ fn kbps(f: &Value, keys: &[&str]) -> Option<u64> {
         .map(|x| x.round() as u64)
 }
 
-/// Every track of a yt-dlp JSON, best first in each group.
 pub fn parse_tracks(json: &Value) -> ManifestTracks {
     let mut video = Vec::new();
     let mut audio = Vec::new();
@@ -111,7 +94,7 @@ pub fn parse_tracks(json: &Value) -> ManifestTracks {
         let acodec = s(f, "acodec");
         let ext = s(f, "ext").unwrap_or_default();
         if ext == "mhtml" {
-            continue; // storyboards
+            continue;
         }
         let language = s(f, "language");
         if let Some(vc) = vcodec {
@@ -186,7 +169,6 @@ pub fn parse_tracks(json: &Value) -> ManifestTracks {
     }
 }
 
-/// yt-dlp arguments for the chosen tracks (without the URL).
 pub fn download_args(
     video: Option<&str>,
     audio: &[String],
@@ -316,7 +298,6 @@ pub async fn manifest_tracks_download(
     result
 }
 
-/// The percentage in a yt-dlp `[download]  42.0% of ...` line.
 pub fn parse_percent(line: &str) -> Option<f64> {
     let rest = line.trim().strip_prefix("[download]")?.trim_start();
     let pct = rest.split('%').next()?;
@@ -343,7 +324,6 @@ async fn run(
     let reader = tokio::spawn(async move {
         let mut path = None;
         let mut lines = BufReader::new(stdout).lines();
-        // Each track is downloaded in turn; the stage counts them.
         let mut stage = 0u32;
         let mut last = 0f64;
         while let Ok(Some(line)) = lines.next_line().await {

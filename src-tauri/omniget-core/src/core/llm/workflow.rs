@@ -1,50 +1,3 @@
-//! `.omniget/workflow.md`: the project's contract for delegated work (item
-//! 3.10 of the `/llm` roadmap, S12 phase 2, 83#P6).
-//!
-//! A versioned file in the user's repository, YAML on top and a prompt
-//! template below:
-//!
-//! ```text
-//! ---
-//! agent: claude-code
-//! run_mode: auto_edits
-//! isolation: worktree
-//! deadline_min: 30
-//! checks: [cargo test]
-//! hooks:
-//!   after_create: pnpm install --frozen-lockfile
-//!   before_remove: ./scripts/save-logs.sh
-//! include: [.env.local]
-//! ---
-//! You work on {{repo}}, branch {{branch}}.
-//!
-//! {{task}}
-//! ```
-//!
-//! Every job started in that repository (the CLI, `/v1/commands`, MCP
-//! `agent_run`, the window) takes these values for whatever the caller left
-//! out, and its prompt goes through the template.
-//!
-//! - **Strict template.** `{{name}}` must be one of [`VARIABLES`]; anything
-//!   else makes the whole file invalid at load time (not at the first job),
-//!   and the template must use `{{task}}`, so the task can never be dropped.
-//! - **Last known good.** The file is read again every time it is used (job
-//!   start, the jobs page, the CLI), so an edit applies at once without a
-//!   watcher. An edit that does not parse leaves the previous valid version
-//!   in effect (kept in `<llm dir>/workflows.db`, so it survives a restart)
-//!   and the error is shown next to it; with no previous version, a job that
-//!   would use the file is refused with the error instead of silently
-//!   running without it.
-//! - **Trust by SHA-256.** Opening someone else's repository must never run
-//!   its code (Symphony treats its hooks as "fully trusted", `SPEC.md:1762`;
-//!   OmniGet does not). The hooks, the checks and a `run_mode` looser than
-//!   `approval_required` apply only while the SHA-256 of the version in
-//!   effect is the one the person approved (in the window or with `omniget
-//!   agent workflow trust`); any change to the file needs a new approval.
-//!   Untrusted, they are skipped and the job says why. The rest (agent,
-//!   isolation, deadline, template…) only chooses among things the caller
-//!   could have asked for anyway, so it applies without trust.
-//!
 //! Ideas from openai/symphony (`WORKFLOW.md`, Apache-2.0); no code copied.
 
 use std::collections::BTreeMap;
@@ -56,26 +9,17 @@ use rusqlite::{params, Connection, OptionalExtension};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
-/// Where the contract lives, relative to the repository root.
 pub const FILE: &str = ".omniget/workflow.md";
 pub const DB_FILE: &str = "workflows.db";
-/// The file does not parse and there is no earlier valid version.
 pub const ERR_INVALID: &str = "ERR_WORKFLOW_INVALID";
-/// A template variable had no value when a job's prompt was rendered.
 pub const ERR_TEMPLATE: &str = "template_render_error";
-/// A repository hook failed (or timed out).
 pub const ERR_HOOK: &str = "ERR_WORKFLOW_HOOK";
-/// The trust asked for does not match the version in effect.
 pub const ERR_TRUST: &str = "ERR_WORKFLOW_TRUST";
-/// Longest a hook may run (the roadmap's 120 s); then its whole process
-/// tree is killed and the hook counts as failed.
 pub const HOOK_TIMEOUT: Duration = Duration::from_secs(120);
-/// Longest a check (`checks:`) may run after a job.
 pub const CHECK_TIMEOUT: Duration = Duration::from_secs(600);
 const MAX_BYTES: u64 = 64 * 1024;
 const OUTPUT_TAIL: usize = 4000;
 
-/// The template's variables, with what each one holds.
 pub const VARIABLES: &[(&str, &str)] = &[
     ("task", "the task as the caller wrote it"),
     (
@@ -98,23 +42,15 @@ pub const VARIABLES: &[(&str, &str)] = &[
     ("files", "the `include` paths, one per line"),
 ];
 
-// ── the file ────────────────────────────────────────────────────────────
-
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Hooks {
-    /// Runs in a job's new worktree, before the agent starts. A failure
-    /// fails the job.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub after_create: Option<String>,
-    /// Runs in a job's worktree before it is removed. A failure keeps the
-    /// worktree (removal is blocked).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub before_remove: Option<String>,
 }
 
-/// The YAML front matter. Unknown keys are an error (a typo must not be
-/// silently ignored).
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Config {
@@ -134,8 +70,6 @@ pub struct Config {
     pub model: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub effort: Option<String>,
-    /// Commands run in the job's folder after it ends; their exit codes go
-    /// into the job's proof.
     #[serde(
         default,
         alias = "verify",
@@ -145,8 +79,6 @@ pub struct Config {
     pub checks: Vec<String>,
     #[serde(default)]
     pub hooks: Hooks,
-    /// Repo-relative files the job needs: copied into its worktree when git
-    /// ignores them (like `.worktreeinclude`) and listed in `{{files}}`.
     #[serde(
         default,
         deserialize_with = "one_or_many",
@@ -175,22 +107,17 @@ enum Part {
     Var(String),
 }
 
-/// A parsed, valid `.omniget/workflow.md`.
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct Workflow {
     pub config: Config,
-    /// The template as written (the body under the front matter).
     pub template: String,
-    /// Of the whole file, as bytes on disk.
     pub sha256: String,
     #[serde(skip)]
     parts: Vec<Part>,
 }
 
-/// A repository command the file asks OmniGet to run.
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct RepoCommand {
-    /// `after_create | before_remove | check`.
     pub kind: &'static str,
     pub command: String,
 }
@@ -208,8 +135,6 @@ fn is_agent_id(s: &str) -> bool {
             .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'-' | b'_' | b'.' | b':'))
 }
 
-/// Front matter and body, or the whole text as the body when the file does
-/// not start with a `---` line.
 fn split(text: &str) -> Result<(&str, &str), String> {
     let text = text.strip_prefix('\u{feff}').unwrap_or(text);
     let mut lines = text.split_inclusive('\n');
@@ -351,7 +276,6 @@ fn check_config(c: &Config) -> Result<(), String> {
     Ok(())
 }
 
-/// Parses and validates the whole file.
 pub fn parse(text: &str) -> Result<Workflow, String> {
     let (yaml, body) = split(text)?;
     let config: Config = if yaml.trim().is_empty() {
@@ -372,8 +296,6 @@ pub fn parse(text: &str) -> Result<Workflow, String> {
 }
 
 impl Workflow {
-    /// Fills the template. Every variable must have a value (strict): a
-    /// missing one is [`ERR_TEMPLATE`], never an empty string.
     pub fn render(&self, vars: &BTreeMap<&str, String>) -> Result<String, String> {
         let mut out = String::new();
         for p in &self.parts {
@@ -388,7 +310,6 @@ impl Workflow {
         Ok(out)
     }
 
-    /// The repository commands this version asks to run.
     pub fn commands(&self) -> Vec<RepoCommand> {
         let mut out = Vec::new();
         if let Some(c) = &self.config.hooks.after_create {
@@ -412,8 +333,6 @@ impl Workflow {
         out
     }
 
-    /// What waits for the person's trust: the commands, and a run mode that
-    /// lets the agent act without asking.
     pub fn gated(&self) -> Vec<String> {
         let mut out: Vec<String> = self
             .commands()
@@ -427,7 +346,6 @@ impl Workflow {
         out
     }
 
-    /// `run_mode` looser than asking first (D2: more power only by choice).
     pub fn run_mode_needs_trust(&self) -> bool {
         self.config.run_mode.as_deref().is_some_and(|m| {
             crate::core::llm::run_mode::RunMode::parse(m)
@@ -436,10 +354,6 @@ impl Workflow {
     }
 }
 
-// ── where it is ─────────────────────────────────────────────────────────
-
-/// The repository root of `folder` (the nearest ancestor with a `.git`), or
-/// the folder itself outside git; canonical when it can be.
 pub fn root_of(folder: &Path) -> PathBuf {
     let start = std::fs::canonicalize(folder).unwrap_or_else(|_| folder.to_path_buf());
     start
@@ -449,8 +363,6 @@ pub fn root_of(folder: &Path) -> PathBuf {
         .unwrap_or(start)
 }
 
-/// The branch checked out at `root` (from `.git/HEAD`, no process), or the
-/// short commit when detached.
 pub fn checked_out_branch(root: &Path) -> Option<String> {
     let dot = root.join(".git");
     let git_dir = if dot.is_dir() {
@@ -478,45 +390,32 @@ pub fn checked_out_branch(root: &Path) -> Option<String> {
     }
 }
 
-// ── state: last known good and trust ────────────────────────────────────
-
-/// What the jobs page, the CLI and a job start see of a repository's file.
 #[derive(Debug, Clone, Serialize)]
 pub struct Status {
     pub root: String,
     pub path: String,
-    /// `none` (no file), `active` (the file on disk is in effect) or
-    /// `invalid` (it does not parse; `active` is the last good version, if any).
     pub state: &'static str,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub file_sha256: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error: Option<String>,
-    /// The version in effect.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub active: Option<Workflow>,
-    /// `active` is an earlier version kept because the file is invalid now.
     pub from_last_good: bool,
-    /// When `active` was last read as valid (epoch ms).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub loaded_ms: Option<i64>,
-    /// The approved SHA-256 is the one of `active`.
     pub trusted: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub trusted_sha256: Option<String>,
-    /// The repository commands of `active`.
     pub commands: Vec<RepoCommand>,
-    /// What of `active` waits for trust (empty = nothing to approve).
     pub gated: Vec<String>,
 }
 
 impl Status {
-    /// Whether the gated parts of the version in effect may run.
     pub fn may_run_commands(&self) -> bool {
         self.active.is_some() && self.trusted
     }
 
-    /// Why the gated parts are skipped, for a job's log.
     pub fn skipped_reason(&self) -> String {
         match (&self.active, &self.trusted_sha256) {
             (None, _) => "no valid workflow".into(),
@@ -562,7 +461,6 @@ impl Store {
         Self::with(Connection::open(path).map_err(|e| e.to_string())?)
     }
 
-    /// No file: tests.
     pub fn memory() -> Self {
         Self::with(Connection::open_in_memory().expect("in-memory sqlite")).expect("schema")
     }
@@ -585,9 +483,6 @@ impl Store {
         self.db.lock().unwrap_or_else(|e| e.into_inner())
     }
 
-    /// Reads the file of `folder`'s repository now and says what is in
-    /// effect. A valid file becomes the new last good version; an invalid
-    /// one leaves the last good version in effect.
     pub fn status(&self, folder: &Path) -> Status {
         let root = root_of(folder);
         let key = root.to_string_lossy().into_owned();
@@ -623,8 +518,6 @@ impl Store {
             Ok(_) => Some(std::fs::read(&path).map_err(|e| e.to_string())),
         };
         let Some(read) = read else {
-            // No file, no contract: an old version must not come back if a
-            // broken file appears later.
             let _ = db.execute("DELETE FROM workflow_good WHERE root=?1", [&key]);
             return st;
         };
@@ -681,9 +574,6 @@ impl Store {
         st
     }
 
-    /// Approves the version in effect in `folder`'s repository. `sha256`
-    /// (full, or a prefix of at least 8) must be that version's: the person
-    /// approves what they saw, never whatever the file holds by then.
     pub fn trust(&self, folder: &Path, sha256: &str, by: &str) -> Result<Status, String> {
         let st = self.status(folder);
         let Some(w) = &st.active else {
@@ -714,7 +604,6 @@ impl Store {
         Ok(self.status(folder))
     }
 
-    /// Withdraws the approval of `folder`'s repository.
     pub fn untrust(&self, folder: &Path) -> Result<Status, String> {
         let root = root_of(folder).to_string_lossy().into_owned();
         self.conn()
@@ -726,7 +615,6 @@ impl Store {
 
 static STORE: OnceLock<Arc<Store>> = OnceLock::new();
 
-/// Opens `<llm dir>/workflows.db` once for the app.
 pub fn init(path: &Path) -> Result<Arc<Store>, String> {
     if let Some(s) = STORE.get() {
         return Ok(s.clone());
@@ -735,14 +623,10 @@ pub fn init(path: &Path) -> Result<Arc<Store>, String> {
     Ok(STORE.get().cloned().expect("set above"))
 }
 
-/// The app's store, if the app opened one (tests bring their own).
 pub fn active() -> Option<Arc<Store>> {
     STORE.get().cloned()
 }
 
-// ── running a repository command ────────────────────────────────────────
-
-/// One hook or check that ran (or was stopped).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct CommandRun {
     pub kind: String,
@@ -753,13 +637,11 @@ pub struct CommandRun {
     #[serde(default)]
     pub timed_out: bool,
     pub ms: u64,
-    /// The last lines of stdout + stderr.
     #[serde(default)]
     pub output: String,
 }
 
 impl CommandRun {
-    /// One line for a job's log.
     pub fn note(&self) -> String {
         let how = if self.timed_out {
             "timed out".to_string()
@@ -790,8 +672,6 @@ fn tail(s: &str, max: usize) -> String {
     format!("…{}", &s[start..])
 }
 
-/// Runs `command` through the shell in `cwd`, in its own process tree,
-/// killed whole when it outlives `timeout`.
 pub async fn run_command(
     kind: &str,
     command: &str,

@@ -1,45 +1,22 @@
-//! Which ACP agents OmniGet knows how to start, and how each one becomes a
-//! [`DriverInstance`] of the `acp` driver (`id = "acp-<agent>"`).
-//!
-//! Resolution of the launch command, first hit wins:
-//! 1. the instance's own `command`/`args` (a custom agent the user added);
-//! 2. the agent installed from the ACP registry by clitools
-//!    (`<app_data>/agents/acp-installed.json`: npx/uvx command or a verified
-//!    binary);
-//! 3. the agent's own binary on the PATH with its ACP flag (table below).
-//!
-//! Auth: nothing is read from disk. When the agent answers `session/new`
-//! with "authentication required", the driver tries only the *silent*
-//! methods listed here (they reuse a login the CLI already has, or a key the
-//! user put in the instance env) and otherwise emits `auth.status` with the
-//! agent's login command for the user to run.
-
 use std::collections::BTreeMap;
 
 use crate::core::llm::drivers::{DriverInstance, EnvVar};
 
-/// An auth method the driver may call on its own.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SilentAuth {
     pub method: &'static str,
-    /// Only when this env var is set (in the instance env or the app's).
     pub when_env: Option<&'static str>,
 }
 
 #[derive(Debug, Clone, Copy)]
 pub struct AgentSpec {
-    /// Tool id of the briefing table (`gemini`, `cursor`, …).
     pub id: &'static str,
     pub name: &'static str,
-    /// Id in the ACP registry, when listed there.
     pub registry_id: Option<&'static str>,
-    /// Binaries to look for, in order.
     pub binaries: &'static [&'static str],
-    /// Arguments that start the ACP server on stdio.
     pub args: &'static [&'static str],
     pub env: &'static [(&'static str, &'static str)],
     pub silent_auth: &'static [SilentAuth],
-    /// Command that signs the user in (binary + args), when there is one.
     pub login: &'static [&'static str],
     pub login_hint: Option<&'static str>,
 }
@@ -64,8 +41,6 @@ const fn a(
     }
 }
 
-/// Every ACP agent with a documented stdio entry point (study 75 §k, ACP
-/// registry 2026-09-22, T3 Code's Cursor/Grok adapters).
 pub const AGENTS: &[AgentSpec] = &[
     AgentSpec {
         silent_auth: &[
@@ -183,16 +158,13 @@ pub fn spec_by_registry(registry_id: &str) -> Option<&'static AgentSpec> {
     AGENTS.iter().find(|s| s.registry_id == Some(registry_id))
 }
 
-/// How to start one agent.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Launch {
-    /// Agent id (table id, or the registry id for agents not in the table).
     pub agent: String,
     pub name: String,
     pub command: String,
     pub args: Vec<String>,
     pub env: Vec<(String, String)>,
-    /// Where it came from: `instance`, `registry:<npx|uvx|binary>`, `path`.
     pub source: String,
 }
 
@@ -200,7 +172,6 @@ fn registry_launch(registry_id: &str) -> Option<crate::core::clitools::acp_regis
     crate::core::clitools::acp_registry::installed().remove(registry_id)
 }
 
-/// Resolve the launch of a table agent (registry install, then PATH).
 pub fn resolve(spec: &AgentSpec) -> Option<Launch> {
     if let Some(reg) = spec.registry_id.and_then(registry_launch) {
         let mut env: Vec<(String, String)> = reg.env.into_iter().collect();
@@ -233,7 +204,6 @@ pub fn resolve(spec: &AgentSpec) -> Option<Launch> {
     })
 }
 
-/// Instance id of an agent.
 pub fn instance_id(agent: &str) -> String {
     let slug: String = agent
         .chars()
@@ -248,7 +218,6 @@ pub fn instance_id(agent: &str) -> String {
     format!("acp-{slug}")
 }
 
-/// The agent id an instance points at (`acp-gemini` → `gemini`).
 pub fn agent_of(instance: &DriverInstance) -> Option<String> {
     instance
         .id
@@ -274,15 +243,12 @@ fn instance_of(launch: &Launch) -> DriverInstance {
     inst
 }
 
-/// Every ACP agent that can start on this machine right now, as an instance
-/// of the `acp` driver. Cheap: PATH lookups and one small JSON read.
 pub fn instances() -> Vec<DriverInstance> {
     let mut out: Vec<DriverInstance> = AGENTS
         .iter()
         .filter_map(resolve)
         .map(|l| instance_of(&l))
         .collect();
-    // Registry installs of agents the table does not know.
     let installed: BTreeMap<_, _> = crate::core::clitools::acp_registry::installed();
     for (rid, reg) in installed {
         if spec_by_registry(&rid).is_some() {
@@ -301,7 +267,6 @@ pub fn instances() -> Vec<DriverInstance> {
     out
 }
 
-/// The launch for an instance of the `acp` driver.
 pub fn launch_for(instance: &DriverInstance) -> Option<Launch> {
     let env_of = |i: &DriverInstance| -> Vec<(String, String)> {
         i.env
@@ -341,8 +306,6 @@ pub fn launch_for(instance: &DriverInstance) -> Option<Launch> {
     Some(launch)
 }
 
-/// Silent auth methods to try for an agent, given the agent's advertised
-/// methods and the env the child will see.
 pub fn silent_methods(agent: &str, advertised: &[String], env: &[(String, String)]) -> Vec<String> {
     let Some(s) = spec(agent) else {
         return Vec::new();
@@ -359,13 +322,11 @@ pub fn silent_methods(agent: &str, advertised: &[String], env: &[(String, String
         .collect()
 }
 
-/// The login command line to show when the agent needs a sign-in.
 pub fn login_command(agent: &str) -> Option<Vec<String>> {
     let s = spec(agent)?;
     if !s.login.is_empty() {
         return Some(s.login.iter().map(|x| x.to_string()).collect());
     }
-    // Fall back to the clitools table (same ids).
     let tool = crate::core::clitools::table::get(agent)?;
     let bin = tool.binaries.first()?;
     if tool.login.is_empty() {

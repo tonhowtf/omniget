@@ -1,6 +1,3 @@
-//! Google Books volumes API, used only as a metadata provider (no key
-//! needed at the volumes the library looks up).
-
 use serde::Deserialize;
 
 use super::get_json;
@@ -89,7 +86,6 @@ pub async fn lookup(
                 .image_links
                 .as_ref()
                 .and_then(|l| l.thumbnail.clone().or(l.small_thumbnail.clone()))
-                // Bigger picture and https.
                 .map(|t| {
                     t.replace("http://", "https://")
                         .replace("&edge=curl", "")

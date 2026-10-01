@@ -1,7 +1,3 @@
-//! Normalização do gerador (port de `scripts/agentkit-catalog/build.mjs`):
-//! descrição curta, frontmatter sintetizado, modelo lixo, tools do Copilot,
-//! licenças e exclusão das skills proprietárias da Anthropic.
-
 use regex::Regex;
 use serde_json::Value;
 use std::sync::OnceLock;
@@ -34,8 +30,6 @@ fn strip_trailing_lead(s: &str) -> String {
     .to_string()
 }
 
-/// Descrição curta: sem `<example>`/`<commentary>`, espaço colapsado, ≤ 300 chars.
-/// Devolve também as marcas de normalização aplicadas.
 pub fn short_description(raw: &str) -> (String, Vec<&'static str>) {
     let mut marks = Vec::new();
     let unescaped = raw.replace("\\n", "\n");
@@ -67,7 +61,6 @@ pub fn short_description(raw: &str) -> (String, Vec<&'static str>) {
     (s, marks)
 }
 
-/// Descrição longa sem blocos `<example>` (vai no frontmatter do índice).
 pub fn clean_description(raw: &str) -> String {
     let s = strip_examples(raw);
     let lines: Vec<&str> = s.lines().map(|l| l.trim_end()).collect();
@@ -88,7 +81,6 @@ pub fn clean_description(raw: &str) -> String {
     strip_trailing_lead(out.trim())
 }
 
-/// Primeiro parágrafo útil de um corpo Markdown.
 pub fn description_from_body(body: &str) -> String {
     let mut heading: Option<String> = None;
     let mut para: Vec<String> = Vec::new();
@@ -161,7 +153,6 @@ pub fn humanize(name: &str) -> String {
         .join(" ")
 }
 
-/// Modelo válido para Claude Code: alias ou id datado `claude-…-YYYYMMDD`.
 pub fn valid_claude_model(m: &str) -> bool {
     static ID: OnceLock<Regex> = OnceLock::new();
     let v = m.trim();
@@ -232,7 +223,6 @@ const COPILOT_TOOLS: &[&str] = &[
     "runSubagent",
 ];
 
-/// Lista de ferramentas de um frontmatter (`"A, B"` ou `[A, B]`).
 pub fn tool_list(tools: &Value) -> Vec<String> {
     let raw: Vec<String> = match tools {
         Value::Array(a) => a
@@ -262,13 +252,10 @@ fn is_vscode_tool(t: &str) -> bool {
         || t == "microsoft.docs.mcp"
 }
 
-/// Origem do `tools` de um agente.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ToolsOrigin {
     Claude,
-    /// Chatmode do Copilot com ids de ferramenta do VS Code.
     Copilot,
-    /// Ferramentas do Claude misturadas com ids estranhos.
     Mixed,
 }
 
@@ -300,7 +287,6 @@ pub fn tools_origin(tools: &Value, model: Option<&str>) -> ToolsOrigin {
     ToolsOrigin::Claude
 }
 
-/// Licença em texto livre → SPDX (ou `Proprietary`); `None` quando só aponta para arquivo.
 pub fn normalize_license(v: &Value) -> Option<String> {
     let s = match v {
         Value::String(s) => s.clone(),
@@ -364,7 +350,6 @@ pub fn normalize_license_str(s: &str) -> Option<String> {
     Some(v.chars().take(80).collect())
 }
 
-/// Detecta a licença pelo texto de um arquivo LICENSE.
 pub fn detect_license_text(text: &str) -> Option<&'static str> {
     let t: String = text.chars().take(4000).collect();
     let low = t.to_ascii_lowercase();
@@ -432,7 +417,6 @@ pub fn detect_license_text(text: &str) -> Option<&'static str> {
     None
 }
 
-/// Motivo para excluir uma skill (proprietárias da Anthropic), ou `None`.
 pub fn skill_exclusion(name: &str, license: Option<&str>) -> Option<&'static str> {
     if ["docx", "pdf", "pptx", "xlsx", "pdf-anthropic"].contains(&name) {
         return Some("anthropic_proprietary_document_skill");
@@ -446,7 +430,6 @@ pub fn skill_exclusion(name: &str, license: Option<&str>) -> Option<&'static str
     None
 }
 
-/// Tags/keywords: lista YAML ou string separada por vírgula/espaço.
 pub fn to_list(v: Option<&Value>) -> Vec<String> {
     match v {
         Some(Value::Array(a)) => a
@@ -468,7 +451,6 @@ pub fn to_list(v: Option<&Value>) -> Vec<String> {
     }
 }
 
-/// `author` (string ou `{name}`), ou `metadata.author`.
 pub fn author_of(fm: &Value) -> Option<String> {
     let a = fm
         .get("author")
@@ -481,7 +463,6 @@ pub fn author_of(fm: &Value) -> Option<String> {
     }
 }
 
-/// Encurta strings enormes de um JSON guardado como frontmatter.
 pub fn slim_json(v: &Value) -> Value {
     match v {
         Value::String(s) if s.chars().count() > 2000 => {

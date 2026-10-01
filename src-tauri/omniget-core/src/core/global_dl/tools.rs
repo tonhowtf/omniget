@@ -1,7 +1,3 @@
-//! `gd_*` tools: drive the Global Downloader browser, read what it loaded and
-//! write connectors. Core tools, so the MCP server, the /llm broker and the
-//! CLI share them.
-
 use std::path::PathBuf;
 
 use serde_json::{json, Value};
@@ -63,7 +59,6 @@ pub fn entries() -> Vec<ToolEntry> {
               tokio::time::sleep(std::time::Duration::from_millis(300)).await;
               to_json(json!({ "tabs": b.tabs() }))
           }), Cheap),
-        // ── Driving the page like a person (trusted CDP input) ──
         e("gd_snapshot",
           "Read the page in a browser tab (default: the tab shown in OmniGet): an indented role/name tree whose refs (e12) work in gd_click and gd_type, plus the visible text, URL and title.",
           obj(json!({ "tab_id": { "type": "string" }, "max_nodes": { "type": "integer", "maximum": 10000 }, "max_chars": { "type": "integer", "maximum": 200000 } }), &[]),
@@ -288,7 +283,6 @@ pub fn default_out_dir() -> PathBuf {
         .join("OmniGet")
 }
 
-/// A single sniffed media as a one-item tree.
 pub fn tree_for_sniffed(id: u64) -> Result<Node, String> {
     let m = sniffer::sniffed_by_id(id).ok_or("unknown media id")?;
     let format = match m.kind.as_str() {

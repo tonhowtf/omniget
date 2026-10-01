@@ -108,8 +108,6 @@ pub async fn search_videos(
             .and_then(|v| v.as_str())
         {
             Some(u) => u.to_string(),
-            // Only a YouTube id can be turned back into a page; a SoundCloud
-            // entry without a URL used to become a YouTube link to nothing.
             None if platform != "soundcloud" => {
                 format!("https://www.youtube.com/watch?v={}", id)
             }

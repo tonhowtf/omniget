@@ -1,8 +1,3 @@
-//! Drives the Global Downloader core from the shell, for live tests.
-//!
-//! OMNIGET_DATA_DIR=/tmp/gd cargo run -p omniget-core --example gd_probe -- open https://www.udemy.com
-//!   tabs | sniffed | resolve <url> [connector dir] | download <url> <out dir> [max height]
-
 use omniget_core::core::global_dl::{browser, connector, jobs};
 
 #[tokio::main]
@@ -33,7 +28,6 @@ async fn main() -> Result<(), String> {
             }
         }
         "tool" => {
-            // Any gd_* tool, as an agent calls it: tool <name> [json args]
             let name = args.get(1).ok_or("name")?;
             let a: serde_json::Value = args
                 .get(2)
@@ -59,7 +53,6 @@ async fn main() -> Result<(), String> {
             println!("{}", text.chars().take(6000).collect::<String>());
         }
         "view" => {
-            // Frames and input through the embedded view: view <url>
             let b = browser::start(None, false).await?;
             let mut rx = omniget_core::core::global_dl::events().subscribe();
             let tab = b
@@ -99,7 +92,6 @@ async fn main() -> Result<(), String> {
                 }
                 (n, bytes, size)
             });
-            // Person-like input while frames stream: type in the search box, scroll.
             omniget_core::core::global_dl::page::click_at(&b, &tab, 500.0, 330.0, 1).await?;
             for c in "omniget".chars() {
                 b.press(&tab, &c.to_string(), 0).await?;
@@ -149,7 +141,6 @@ async fn main() -> Result<(), String> {
             println!("{}", serde_json::to_string_pretty(&v).unwrap());
         }
         "watch" => {
-            // Network log of every tab for N seconds (status >= 400 and XHR/Fetch/Document).
             browser::start(None, false).await?;
             let secs: u64 = args.get(1).and_then(|x| x.parse().ok()).unwrap_or(60);
             tokio::time::sleep(std::time::Duration::from_secs(secs)).await;
@@ -203,8 +194,6 @@ async fn main() -> Result<(), String> {
                 .ok()
                 .map(|v| v.split(',').map(String::from).collect());
             let mut r = connector::resolve(url, None, None, None).await?;
-            // GD_STALE=1: give every lazy item a dead link, to test the
-            // expired-link path (the job must ask resolveItem again).
             if std::env::var("GD_STALE").is_ok() {
                 fn stale(n: &mut omniget_core::core::global_dl::Node) {
                     for c in &mut n.children {
@@ -239,13 +228,6 @@ async fn main() -> Result<(), String> {
             }
         }
         "probe" => {
-            // One process, end to end, for site sweeps:
-            // probe <url> [out dir] [max height] [wait secs]
-            // Opens the page, waits, resolves with the sniffer (which starts
-            // the player when nothing played yet), downloads what it found
-            // (yt-dlp items are only listed) and stops a file past GD_CAP_MB
-            // (default 50). GD_KICK=1 starts the player first and prints the
-            // state of the page's media elements.
             let b = browser::start(None, true).await?;
             let url = args.get(1).ok_or("url")?;
             let tab = b.open_tab(url).await?;

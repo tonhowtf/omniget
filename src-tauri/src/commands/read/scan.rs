@@ -1,7 +1,3 @@
-//! Library scan: walks the reading folders, reads metadata of new or
-//! changed books (by mtime + size), caches covers and drops rows whose file
-//! is gone. Same shape as the music scan.
-
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -29,8 +25,6 @@ pub fn cancel() {
 const THUMB_W: u32 = 320;
 const THUMB_H: u32 = 480;
 
-/// Stores a cover once per content hash, plus a small JPEG thumbnail for
-/// grids. Returns the hash used by `/c/<hash>`.
 pub fn store_cover(data: &[u8]) -> Option<String> {
     let dir = db::covers_dir()?;
     std::fs::create_dir_all(&dir).ok()?;
@@ -78,7 +72,6 @@ pub fn cover_file(hash: &str, thumb: bool) -> Option<PathBuf> {
     None
 }
 
-/// `cover.jpg` / `folder.jpg` next to the file (Calibre and Komga layouts).
 fn sidecar_cover(path: &Path) -> Option<Vec<u8>> {
     let dir = path.parent()?;
     let stem = path.file_stem()?.to_str()?;
@@ -113,8 +106,6 @@ pub fn is_book_path(p: &Path) -> bool {
         return false;
     }
     match BookFormat::from_path(p) {
-        // Loose HTML/markdown/text files are too often not books; only take
-        // them when the user imports them explicitly.
         Some(BookFormat::Html | BookFormat::Md | BookFormat::Txt) => false,
         Some(_) => true,
         None => false,
@@ -139,7 +130,6 @@ impl Default for IndexOpts {
     }
 }
 
-/// Reads one file (or image folder) and writes its row.
 pub fn index_file(path: &Path, opts: &IndexOpts) -> Result<i64, String> {
     let meta = std::fs::metadata(path).map_err(|e| e.to_string())?;
     let (mtime_ms, size) = stamp(&meta);
@@ -192,7 +182,6 @@ fn walk(root: &Path) -> Vec<PathBuf> {
         .follow_links(true)
         .into_iter()
         .filter_entry(|e| {
-            // OmniGet's own caches and hidden folders.
             e.depth() == 0
                 || !e
                     .file_name()
@@ -223,7 +212,6 @@ async fn scan_inner(app: &AppHandle, full: bool) -> Result<ScanSummary, String> 
     for root in roots {
         let root_path = PathBuf::from(&root);
         if !root_path.exists() {
-            // An unplugged drive: keep its books until it comes back.
             continue;
         }
         let known = db::stamps_under(&root)?;
@@ -295,7 +283,6 @@ async fn scan_inner(app: &AppHandle, full: bool) -> Result<ScanSummary, String> 
         let gone: Vec<String> = known
             .keys()
             .filter(|k| !present.contains(*k))
-            // Image folders and downloaded chapters live outside the walk.
             .filter(|k| !Path::new(k).exists())
             .cloned()
             .collect();

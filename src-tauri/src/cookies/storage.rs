@@ -1,18 +1,3 @@
-//! On-disk layout for the cookie manager.
-//!
-//! ```text
-//! <app_data>/
-//!   cookies/
-//!     <root_domain>/
-//!       _default.txt        # primary account (Netscape, yt-dlp consumable)
-//!       <slug>.txt          # additional accounts (multi-account UX, CK-5)
-//!     _meta.json            # registry: alias, source, captured_at, platform_kind
-//!     _trash/               # 24h-retention bin for `cookies:clear`
-//! ```
-//!
-//! The format inside each file is Netscape — same as the legacy
-//! `chrome-extension-cookies.txt` so yt-dlp consumes it unchanged.
-
 use std::collections::BTreeMap;
 use std::fs;
 use std::path::PathBuf;
@@ -106,8 +91,6 @@ fn safe_slug_segment(slug: &str) -> String {
 }
 
 pub fn load_registry() -> CookieRegistry {
-    // Registro ilegível vai para quarentena antes de virar default: sem isso o
-    // `save_registry` seguinte apagaria todas as contas de cookie do usuário.
     crate::core::state_file::load_or_quarantine(&meta_path(), "registro de cookies")
         .unwrap_or_default()
 }
@@ -368,15 +351,7 @@ pub fn slugify_alias(alias: &str) -> String {
     let lowered = alias.to_lowercase();
     let cleaned: String = lowered
         .chars()
-        .map(|c| {
-            if c.is_ascii_alphanumeric() {
-                c
-            } else if c.is_whitespace() || c == '-' || c == '_' {
-                '-'
-            } else {
-                '-'
-            }
-        })
+        .map(|c| if c.is_ascii_alphanumeric() { c } else { '-' })
         .collect();
     let collapsed: String = cleaned
         .split('-')

@@ -1,14 +1,3 @@
-//! Análise por sessão e agregados sobre o índice.
-//!
-//! Por sessão (sobre a `Session` carregada): duração, tempo do agente ×
-//! tempo de pensar da pessoa, eficiência de cache, custo (gravado pela
-//! ferramenta tem prioridade; o resto sai da tabela LiteLLM), mix de modelos,
-//! tools, componentes (subagentes, slash commands, skills, MCP) e dicas.
-//!
-//! Agregados (sobre as tabelas do índice): uso por dia/semana/mês/modelo/
-//! ferramenta/projeto/conta/hora, heatmap de um ano com sequências, agentes
-//! e padrões A→B→C, grafo de time e retrospectiva de período.
-
 use std::collections::{BTreeMap, HashMap, HashSet};
 
 use chrono::Datelike;
@@ -20,17 +9,10 @@ use super::index::{self, ListFilter, SessionIndex};
 use super::model::{Role, Session, SessionMeta, TokenUsage, ToolStatus};
 use super::util;
 
-// ============================================================================
-// Por sessão
-// ============================================================================
-
 #[derive(Debug, Clone, Default, Serialize)]
 pub struct TimeBreakdown {
-    /// Da mensagem da pessoa até a última resposta antes da próxima mensagem.
     pub agent_ms: u64,
-    /// Da última resposta até a próxima mensagem da pessoa (lacunas < 1 h).
     pub think_ms: u64,
-    /// Lacunas ≥ 1 h (fora do teclado): não contam como pensar.
     pub away_ms: u64,
     pub agent_pct: f64,
     pub think_pct: f64,
@@ -41,9 +23,7 @@ pub struct TimeBreakdown {
 pub struct CacheStats {
     pub read: u64,
     pub write: u64,
-    /// `read / (read + write)`, como o original.
     pub efficiency: f64,
-    /// Fração da entrada servida do cache: `read / (input + read + write)`.
     pub hit_ratio: f64,
 }
 
@@ -83,15 +63,11 @@ pub struct Components {
     pub mcp_servers: Vec<(String, u32)>,
 }
 
-/// Dica por regra. `code` vira chave de i18n
-/// (`llm.central.sessions.tips.<code>`); `value` é o número que disparou.
 #[derive(Debug, Clone, Serialize)]
 pub struct Tip {
     pub code: String,
-    /// `info` | `warn`.
     pub severity: String,
     pub value: f64,
-    /// Texto em inglês de reserva.
     pub message: String,
 }
 
@@ -117,7 +93,6 @@ pub struct SessionAnalysis {
     pub timeline: Vec<TimelineItem>,
     pub components: Components,
     pub counts: Counts,
-    /// Maior contexto de uma resposta (entrada + cache).
     pub max_context: u64,
     pub tips: Vec<Tip>,
 }
@@ -130,8 +105,6 @@ fn sorted_counts(m: HashMap<String, u32>) -> Vec<(String, u32)> {
 
 const WAIT_CAP_MS: i64 = 3_600_000;
 
-/// `recorded_session_cost`: custo gravado no nível da sessão (Claude
-/// `cost-state`, total do Crush/Goose), usado quando as `Turn` não trazem.
 pub fn analyze(
     s: &Session,
     book: &PriceBook,
@@ -144,7 +117,6 @@ pub fn analyze(
         _ => 0,
     };
 
-    // Tempo: blocos "pessoa fala → agente trabalha até a próxima fala".
     let mut time = TimeBreakdown::default();
     let mut i = 0;
     while i < s.turns.len() {
@@ -416,7 +388,6 @@ fn tip(code: &str, severity: &str, value: f64, message: &str) -> Tip {
 fn tips_for(x: &TipInput) -> Vec<Tip> {
     let mut v = Vec::new();
     let input_all = x.usage.input + x.usage.cache_read + x.usage.cache_write;
-    // As seis do original.
     if x.cache.read + x.cache.write > 0 && x.cache.efficiency < 20.0 {
         v.push(tip(
             "low_cache",
@@ -465,7 +436,6 @@ fn tips_for(x: &TipInput) -> Vec<Tip> {
             "Most of the time was spent waiting for the agent: run long work in the background or in parallel sessions.",
         ));
     }
-    // Extras.
     if x.counts.tool_calls >= 10 && x.counts.tool_errors * 5 > x.counts.tool_calls {
         v.push(tip(
             "tool_errors",
@@ -516,10 +486,6 @@ fn tips_for(x: &TipInput) -> Vec<Tip> {
     }
     v
 }
-
-// ============================================================================
-// Agregados
-// ============================================================================
 
 #[derive(Debug, Clone, Default, Serialize)]
 pub struct UsageBucket {
@@ -636,7 +602,6 @@ pub fn usage(idx: &SessionIndex, f: &ListFilter, group_by: &str, book: &PriceBoo
             }
         }
     }
-    // Sessões distintas por chave (não dá para somar entre modelos).
     let sql2 = format!(
         "SELECT {key} AS k, COUNT(DISTINCT u.tool || '/' || u.session_id)
          FROM usage u JOIN sessions s ON s.tool=u.tool AND s.id=u.session_id WHERE {w} GROUP BY k"
@@ -687,8 +652,6 @@ pub fn usage(idx: &SessionIndex, f: &ListFilter, group_by: &str, book: &PriceBoo
     }
 }
 
-// --- heatmap -----------------------------------------------------------------
-
 #[derive(Debug, Clone, Default, Serialize)]
 pub struct HeatDay {
     pub date: String,
@@ -697,7 +660,6 @@ pub struct HeatDay {
     pub user_messages: u32,
     pub tokens: u64,
     pub tool_calls: u32,
-    /// 0..=4 pelos quartis dos dias ativos (mensagens).
     pub level: u8,
 }
 
@@ -714,7 +676,6 @@ pub struct HeatStats {
     pub total_tool_calls: u32,
     pub peak_hour: Option<u32>,
     pub hours: Vec<u32>,
-    /// 0 = segunda … 6 = domingo.
     pub peak_weekday: Option<u32>,
     pub weekdays: Vec<u32>,
     pub busiest_day: Option<String>,
@@ -819,7 +780,6 @@ pub fn heatmap(idx: &SessionIndex, f: &ListFilter) -> Heatmap {
         });
         d += chrono::Duration::days(1);
     }
-    // Níveis pelos quartis dos dias ativos.
     let mut active: Vec<u32> = days
         .iter()
         .filter(|d| d.messages > 0)
@@ -875,7 +835,6 @@ fn streaks(days: &[HeatDay]) -> (u32, u32, Option<String>, Option<String>) {
             run = 0;
         }
     }
-    // Sequência atual: termina hoje, ou ontem se hoje ainda está vazio.
     let mut current = 0;
     let mut it = days.iter().rev().peekable();
     if let Some(last) = it.peek() {
@@ -953,8 +912,6 @@ fn heat_stats(idx: &SessionIndex, f: &ListFilter, days: &[HeatDay]) -> HeatStats
     }
 }
 
-// --- agentes e subagentes --------------------------------------------------
-
 #[derive(Debug, Clone, Default, Serialize)]
 pub struct AgentStat {
     pub name: String,
@@ -990,13 +947,11 @@ pub struct AgentsReport {
     pub popular_hours: Vec<u32>,
     pub by_day: Vec<(String, u32)>,
     pub by_tool: Vec<(String, u32)>,
-    /// Sessões-filhas no índice (arquivos de subagente) por ferramenta.
     pub subagent_sessions: Vec<(String, u32)>,
     pub total_invocations: u32,
     pub agent_types: u32,
     pub top_agent: Option<String>,
     pub avg_invocations_per_type: f64,
-    /// % dos tipos usados mais de uma vez.
     pub adoption_rate: f64,
 }
 
@@ -1090,7 +1045,6 @@ pub fn agents(idx: &SessionIndex, f: &ListFilter) -> AgentsReport {
         }
         *by_day.entry(e.day.clone()).or_default() += 1;
         *by_tool.entry(e.tool.clone()).or_default() += 1;
-        // Padrões: sequência na mesma sessão com intervalos < 30 min.
         let same = matches!(prev, Some((t, s, pts)) if t == e.tool && s == e.session && e.ts - pts < PATTERN_GAP_MS);
         if !same {
             flush(&mut seq, &mut patterns);
@@ -1180,13 +1134,10 @@ fn subagent_where(f: &ListFilter) -> (String, Vec<String>) {
     (w, p)
 }
 
-// --- time (Agent Teams + subagentes) ----------------------------------------
-
 #[derive(Debug, Clone, Default, Serialize)]
 pub struct TeamNode {
     pub id: String,
     pub name: String,
-    /// `lead` | `subagent` | `teammate`.
     pub kind: String,
     pub session_id: Option<String>,
     pub spawned_by: Option<String>,
@@ -1207,7 +1158,6 @@ pub struct TeamNode {
 pub struct TeamEdge {
     pub from: String,
     pub to: String,
-    /// `spawn` | `message`.
     pub kind: String,
     pub count: u32,
     pub samples: Vec<String>,
@@ -1236,7 +1186,6 @@ pub struct TeamMessage {
 pub struct TeamGraph {
     pub tool: String,
     pub session_id: String,
-    /// Houve `TeamCreate`/`SendMessage`/`<teammate-message>` (Agent Teams).
     pub is_team: bool,
     pub nodes: Vec<TeamNode>,
     pub edges: Vec<TeamEdge>,
@@ -1244,8 +1193,6 @@ pub struct TeamGraph {
     pub messages: Vec<TeamMessage>,
 }
 
-/// Filho do líder: a sessão e, quando a ferramenta grava, o tool call que o
-/// criou (`toolUseId` do `.meta.json` do Claude).
 pub struct Child {
     pub session: Session,
     pub spawn_call_id: Option<String>,
@@ -1260,7 +1207,6 @@ fn attr(text: &str, name: &str) -> Option<String> {
     Some(text[i..j].to_string())
 }
 
-/// `<teammate-message teammate_id="x" ...>corpo</teammate-message>`.
 fn teammate_messages(text: &str) -> Vec<(String, String)> {
     let mut out = Vec::new();
     let mut rest = text;
@@ -1304,7 +1250,6 @@ pub fn team(lead: &Session, children: Vec<Child>) -> TeamGraph {
         "lead".to_string()
     };
     let mut nodes: Vec<TeamNode> = vec![node_of(&lead.meta.id, &lead_name, "lead", Some(lead))];
-    // Chamadas de Agent do líder, para casar com os filhos.
     struct Spawn {
         call_id: String,
         ts: i64,
@@ -1356,7 +1301,6 @@ pub fn team(lead: &Session, children: Vec<Child>) -> TeamGraph {
             .map(|t| util::turn_ms(&t.ts))
             .find(|t| *t > 0)
             .unwrap_or(0);
-        // Casamento: pelo id do tool call; senão pela janela −2 s..+120 s.
         let mut matched: Option<usize> = ch
             .spawn_call_id
             .as_ref()
@@ -1390,7 +1334,6 @@ pub fn team(lead: &Session, children: Vec<Child>) -> TeamGraph {
         } else if let Some(t) = &ch.agent_type {
             name = t.clone();
         }
-        // Nome do teammate (Agent Teams) quando a mensagem traz `teammate_id`.
         if let Some(first_user) = ch.session.turns.iter().find(|t| t.role == Role::User) {
             if let Some(tid) = attr(&first_user.text, "teammate_id") {
                 if matched.is_none() {
@@ -1418,7 +1361,6 @@ pub fn team(lead: &Session, children: Vec<Child>) -> TeamGraph {
         nodes.push(n);
         sessions.push((&ch.session, ch.session.meta.id.clone()));
     }
-    // Chamadas de Agent sem arquivo de filho: nó sem sessão.
     for s in spawns.iter().filter(|s| !s.used) {
         let id = format!("call:{}", s.call_id);
         let mut n = node_of(
@@ -1438,7 +1380,6 @@ pub fn team(lead: &Session, children: Vec<Child>) -> TeamGraph {
         add_edge(&lead.meta.id, &id, "spawn", s.description.clone());
         nodes.push(n);
     }
-    // Mensagens e tarefas.
     let mut by_name: HashMap<String, String> = nodes
         .iter()
         .map(|n| (n.name.clone(), n.id.clone()))
@@ -1614,8 +1555,6 @@ fn node_of(id: &str, name: &str, kind: &str, s: Option<&Session>) -> TeamNode {
     n
 }
 
-// --- retrospectiva ---------------------------------------------------------
-
 #[derive(Debug, Clone, Default, Serialize)]
 pub struct Ranked {
     pub name: String,
@@ -1627,8 +1566,6 @@ pub struct Ranked {
 #[derive(Debug, Clone, Default, Serialize)]
 pub struct Milestone {
     pub date: String,
-    /// `first_session` | `sessions` | `tokens` | `new_model` | `new_tool` |
-    /// `biggest_session` | `longest_session` | `longest_streak`.
     pub kind: String,
     pub label: String,
     pub value: f64,
@@ -1659,7 +1596,6 @@ pub struct Retro {
     pub top_slash_commands: Vec<Ranked>,
     pub top_skills: Vec<Ranked>,
     pub top_mcp: Vec<Ranked>,
-    /// Ferramentas (claude, codex…) por sessões.
     pub by_tool: Vec<Ranked>,
     pub most_productive_day: Option<HeatDay>,
     pub peak_hour: Option<u32>,
@@ -1825,7 +1761,6 @@ fn milestones(idx: &SessionIndex, f: &ListFilter, hm: &Heatmap) -> Vec<Milestone
         ""
     };
     let tp: Vec<String> = tool_clause.cloned().into_iter().collect();
-    // Sessões principais em ordem (todas as épocas, para os marcos cumulativos).
     let mut sess: Vec<(i64, i64, String, Option<String>, String)> = Vec::new();
     if let Ok(mut st) = idx.conn().prepare(&format!(
         "SELECT s.started_ms, COALESCE(s.ended_ms, s.started_ms), s.id, s.title, s.tool FROM sessions s
@@ -1872,7 +1807,6 @@ fn milestones(idx: &SessionIndex, f: &ListFilter, hm: &Heatmap) -> Vec<Milestone
             value: (e - s) as f64,
         });
     }
-    // Tokens cumulativos por dia (todas as épocas).
     let mut cum = 0u64;
     let thresholds = [
         1_000_000u64,
@@ -1906,7 +1840,6 @@ fn milestones(idx: &SessionIndex, f: &ListFilter, hm: &Heatmap) -> Vec<Milestone
             }
         }
     }
-    // Primeiro uso de modelo e de ferramenta dentro do período.
     for (col, kind) in [("u.model", "new_model"), ("u.tool", "new_tool")] {
         if let Ok(mut st) = idx.conn().prepare(&format!(
             "SELECT {col}, MIN(u.day) FROM usage u JOIN sessions s ON s.tool=u.tool AND s.id=u.session_id
@@ -1928,7 +1861,6 @@ fn milestones(idx: &SessionIndex, f: &ListFilter, hm: &Heatmap) -> Vec<Milestone
             }
         }
     }
-    // Maior sessão (tokens) do período.
     let (wu, pu) = index::usage_where(f, "u");
     if let Ok(mut st) = idx.conn().prepare(&format!(
         "SELECT u.tool, u.session_id, SUM(u.input+u.output+u.cache_read+u.cache_write+u.reasoning) AS t, MIN(u.day), s.title

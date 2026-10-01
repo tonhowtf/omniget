@@ -271,8 +271,6 @@ async fn main() -> anyhow::Result<()> {
         }
         Commands::Agent { command } => {
             if let Err(e) = commands::agent::execute(command, cli.json).await {
-                // Structured (3.2): the code, the command that starts the
-                // app, and an exit code of its own.
                 if let Some(down) = e.downcast_ref::<commands::launch::AppNotRunning>() {
                     if cli.json {
                         println!("{}", down.to_json());

@@ -1,18 +1,3 @@
-//! OpenCode e Kilo (fork do OpenCode): SQLite `<data>/opencode.db` /
-//! `<data>/kilo.db` (+ canais `opencode-<canal>.db`), com o armazenamento
-//! antigo em `<data>/storage/{session,message,part}/**.json`.
-//!
-//! `<data>` = `$OPENCODE_DATA_DIR` | `$KILO_DATA_DIR`, senão
-//! `${XDG_DATA_HOME:-~/.local/share}/{opencode,kilo}`; `OPENCODE_DB` aponta
-//! um banco direto.
-//!
-//! Tabelas: `session(id, parent_id, directory, title, time_created,
-//! time_updated, …)`, `message(id, session_id, data JSON)`,
-//! `part(id, message_id, session_id?, data JSON)`. `message.data` do
-//! assistente traz `modelID`, `cost` (muitas vezes 0: aí vale a tabela de
-//! preço), `tokens{input, output, reasoning, cache{read, write}}`. As colunas
-//! são lidas por nome (`SELECT *`) para aguentar mudança de esquema.
-
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 
@@ -237,8 +222,6 @@ impl OpenCodeSource {
         Some(Session { meta, turns })
     }
 
-    // --- armazenamento antigo em JSON -------------------------------------
-
     fn legacy_sessions(&self) -> Vec<(PathBuf, PathBuf)> {
         let mut out = Vec::new();
         for st in self.storage_dirs() {
@@ -383,7 +366,6 @@ fn build_turns(msgs: &[(String, Value)], parts: &HashMap<String, Vec<Value>>) ->
                         _ => None,
                     };
                     let mut canon = canonical_tool(&name);
-                    // MCP no OpenCode é `<servidor>_<tool>`.
                     if canon == "Other" && name.contains('_') {
                         canon = "Mcp";
                     }

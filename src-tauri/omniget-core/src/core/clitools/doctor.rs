@@ -1,12 +1,3 @@
-//! Diagnóstico por ferramenta: instalada, versão, dono, login presente,
-//! onde ficam config e logs, e formatos deprecados encontrados.
-//!
-//! Login: roda o comando de status da própria ferramenta (quando existe) ou
-//! confere só a **presença** de um arquivo. Nenhum conteúdo é lido.
-//!
-//! Config/logs: lista mínima própria em `data/tools.json`. Quando o agentkit
-//! expuser `targets::target(id)`, a rodada 2 pode trocar esta fonte.
-
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 use std::time::Duration;
@@ -32,11 +23,8 @@ pub enum AuthState {
 #[derive(Debug, Clone, Serialize)]
 pub struct AuthProbe {
     pub state: AuthState,
-    /// `command`, `file` ou `none`.
     pub via: String,
-    /// Comando rodado ou arquivos conferidos.
     pub detail: String,
-    /// Primeira linha da saída do comando de status (da própria ferramenta).
     pub output: Option<String>,
 }
 
@@ -73,7 +61,6 @@ fn check_path(p: &str, note: Option<String>) -> PathCheck {
         };
     }
     if p.starts_with("npm:") || !(p.starts_with("~") || p.starts_with('/')) {
-        // Pacote ou arquivo de projeto: informativo, sem projeto aberto.
         return PathCheck {
             path: p.into(),
             resolved: None,

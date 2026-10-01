@@ -1,24 +1,11 @@
-//! Unified diffs for the approval card (plan §3.3 "o pedido mostra o diff
-//! completo"). Claude's `can_use_tool` carries the tool *input* (`old_string`
-//! / `new_string`, or the whole new `content`), never a patch, so the driver
-//! replays the edit on the file as it is on disk and diffs before/after.
-//!
-//! Own line diff (LCS), no crate: the approval only needs a readable patch
-//! with 3 lines of context, and files the model edits are small. Past
-//! [`MAX_CELLS`] the diff degrades to a one-hunk summary instead of burning
-//! memory.
-
 use std::path::Path;
 
 use serde_json::Value;
 
-/// LCS table budget (lines(a) × lines(b)).
 const MAX_CELLS: usize = 4_000_000;
-/// Files larger than this are not read for a preview.
 pub const MAX_FILE_BYTES: u64 = 2 * 1024 * 1024;
 const CONTEXT: usize = 3;
 
-/// `diff -u` of two texts. Empty when they are equal.
 pub fn unified(before: &str, after: &str, path: &str, new_file: bool) -> String {
     if before == after {
         return String::new();
@@ -95,7 +82,6 @@ fn split_lines(text: &str) -> Vec<&str> {
     }
 }
 
-/// `(tag, a_index, b_index)` with tag ` `, `-` or `+`.
 fn edit_script(a: &[&str], b: &[&str]) -> Vec<(char, usize, usize)> {
     let (n, m) = (a.len(), b.len());
     let w = m + 1;
@@ -127,12 +113,8 @@ fn edit_script(a: &[&str], b: &[&str]) -> Vec<(char, usize, usize)> {
     ops
 }
 
-/// Replays one `old_string → new_string` edit. `None` when `old_string` is
-/// not in the text (the CLI will refuse the edit anyway; the card then shows
-/// the raw strings).
 pub fn apply_edit(text: &str, old: &str, new: &str, replace_all: bool) -> Option<String> {
     if old.is_empty() {
-        // Claude's Edit with an empty old_string creates the file.
         return if text.is_empty() {
             Some(new.to_string())
         } else {
@@ -149,7 +131,6 @@ pub fn apply_edit(text: &str, old: &str, new: &str, replace_all: bool) -> Option
     })
 }
 
-/// The file an edit tool touches, if any (`file_path`, `notebook_path`).
 pub fn target_path(input: &Value) -> Option<String> {
     input
         .get("file_path")
@@ -159,9 +140,6 @@ pub fn target_path(input: &Value) -> Option<String> {
         .map(str::to_string)
 }
 
-/// Diff of what `tool` would do to the file, given the current content
-/// (`None` = the file does not exist). Handles `Write`, `Edit` and
-/// `MultiEdit`; anything else yields `None`.
 pub fn preview_edit(tool: &str, input: &Value, current: Option<&str>) -> Option<String> {
     let path = target_path(input)?;
     let before = current.unwrap_or("");
@@ -181,8 +159,6 @@ pub fn preview_edit(tool: &str, input: &Value, current: Option<&str>) -> Option<
                 replace_all,
             ) {
                 Some(t) => t,
-                // The old text is not in the file: show the intent instead of
-                // a diff against the wrong base.
                 None => {
                     return Some(unified(
                         &str_of(input, "old_string"),
@@ -214,7 +190,6 @@ pub fn preview_edit(tool: &str, input: &Value, current: Option<&str>) -> Option<
     Some(unified(before, &after, &path, new_file))
 }
 
-/// Reads a file for a preview; `None` when missing, unreadable or too big.
 pub fn read_for_preview(path: &Path) -> Option<String> {
     let meta = std::fs::metadata(path).ok()?;
     if !meta.is_file() || meta.len() > MAX_FILE_BYTES {

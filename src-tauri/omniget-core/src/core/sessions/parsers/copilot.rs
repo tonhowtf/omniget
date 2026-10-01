@@ -1,30 +1,3 @@
-//! GitHub Copilot: CLI e chat do VS Code (estudo 06, Copilot §j; Parte 6 §8).
-//!
-//! CLI (`${COPILOT_HOME:-~/.copilot}`):
-//! - `session-state/<id>/events.jsonl`: envelope `{id, timestamp, parentId,
-//!   type, data}`. Tipos lidos: `session.start`, `session.model_change`,
-//!   `user.message`, `assistant.message` (`content`, `toolRequests[]`),
-//!   `tool.execution_start|complete`, `subagent.*`, `session.shutdown`
-//!   (`modelMetrics.<modelo>.usage.{inputTokens, outputTokens,
-//!   cacheReadTokens, cacheWriteTokens, reasoningTokens}`). O uso por chamada
-//!   (`assistant.usage`) é efêmero e não vai para o disco: sem o
-//!   `session-store.db`, o total do `session.shutdown` é lançado no último
-//!   turno do assistente com aquele modelo (os totais batem; a distribuição
-//!   por turno não).
-//! - `session-store.db`: `sessions(id, cwd, repository, branch, summary,
-//!   created_at, updated_at)` e `assistant_usage_events(session_id,
-//!   turn_index, model, input_tokens, output_tokens, cache_read_tokens,
-//!   cache_write_tokens, reasoning_tokens, created_at)`, uso por turno.
-//!   `inputTokens` do Copilot inclui cache; aqui ele é normalizado.
-//!
-//! VS Code: `<User>/workspaceStorage/<hash>/chatSessions/<id>.json` (retrato)
-//! ou `.jsonl` (log de mutações `{kind:0,v}` estado inicial, `{kind:1,k,v}`
-//! set, `{kind:2,k,v,i?}` push/splice, `{kind:3,k}` delete), mais
-//! `globalStorage/emptyWindowChatSessions/`. Verificado em arquivo real nesta
-//! máquina só o formato de retrato inicial (sessões vazias); requisições e
-//! tokens (`promptTokens`, `result.metadata.{outputTokens, resolvedModel,
-//! toolCallRounds}`) seguem a fixture.
-
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
@@ -56,7 +29,6 @@ fn cli_session_files() -> Vec<PathBuf> {
         .collect()
 }
 
-/// Arquivos de chat do VS Code: (rótulo do editor, arquivo, pasta do projeto).
 fn vscode_files() -> Vec<(String, PathBuf, Option<String>)> {
     let mut out = Vec::new();
     for (label, user) in vscode_user_dirs() {
@@ -92,8 +64,6 @@ fn is_chat_file(p: &Path) -> bool {
         Some("json" | "jsonl")
     )
 }
-
-// ------------------------------------------------------------------ CLI
 
 struct StoreRow {
     turn_index: i64,
@@ -199,7 +169,6 @@ fn session_store(id: &str) -> Option<StoreSession> {
     Some(out)
 }
 
-/// Parser puro do `events.jsonl` do Copilot CLI.
 pub fn parse_cli(events: &[Value], id: &str, source: &Path) -> Session {
     let mut meta = new_meta(TOOL, id, source);
     meta.account = Some("cli".into());
@@ -285,7 +254,6 @@ pub fn parse_cli(events: &[Value], id: &str, source: &Path) -> Session {
                 results.push((id, body, !ok));
             }
             "subagent.started" => {
-                // Chamada `task` já registrada no assistant.message; só anota o tipo.
                 if let (Some(id), Some(name)) = (
                     s(&data, &["toolCallId"]),
                     s(&data, &["agentName", "agentDisplayName", "name"]),
@@ -331,8 +299,6 @@ pub fn parse_cli(events: &[Value], id: &str, source: &Path) -> Session {
             .map(|(i, _)| i)
             .collect();
         for r in store.rows {
-            // turn_index conta interações do usuário; lança no último turno do
-            // assistente daquela interação.
             let target = if r.turn_index >= 0 {
                 let ui = r.turn_index as usize;
                 let start = user_idx.get(ui).copied().unwrap_or(0);
@@ -402,8 +368,6 @@ pub fn parse_cli(events: &[Value], id: &str, source: &Path) -> Session {
     Session { meta, turns }
 }
 
-// ------------------------------------------------------------------ VS Code
-
 fn path_key(k: &Value) -> Option<PathKey> {
     match k {
         Value::String(s) => Some(PathKey::Key(s.clone())),
@@ -444,7 +408,6 @@ fn walk_mut<'a>(root: &'a mut Value, path: &[Value], create: bool) -> Option<&'a
     Some(cur)
 }
 
-/// Reaplica o log de mutações do `chatSessions/*.jsonl` do VS Code.
 pub fn replay_mutations(lines: &[Value]) -> Value {
     let mut state = Value::Null;
     for l in lines {
@@ -564,7 +527,6 @@ fn response_text(resp: &Value) -> String {
     parts.join("")
 }
 
-/// Estado do chat do VS Code em sessão.
 pub fn parse_vscode(
     state: &Value,
     fallback_id: &str,

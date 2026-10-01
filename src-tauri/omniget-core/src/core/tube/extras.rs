@@ -1,7 +1,3 @@
-//! SponsorBlock, DeArrow and Return YouTube Dislike: URLs and response
-//! parsing. SponsorBlock is queried by hash prefix so the server never
-//! learns which video is playing.
-
 use serde_json::Value;
 use sha2::{Digest, Sha256};
 
@@ -25,8 +21,6 @@ fn from_str<T: serde::de::DeserializeOwned>(s: &str) -> Option<T> {
     serde_json::from_value(Value::String(s.to_string())).ok()
 }
 
-/// Segments of `video_id` from a hash-prefix response (which also carries
-/// other videos sharing the prefix), sorted by start.
 pub fn parse_sb(json: &Value, video_id: &str) -> Vec<SbSegment> {
     let Some(list) = json.as_array() else {
         return Vec::new();
@@ -69,8 +63,6 @@ pub fn dearrow_url(video_id: &str) -> String {
     )
 }
 
-/// DeArrow marks "keep this word as typed" with a leading `>`; it is not
-/// meant to be shown.
 fn clean_title(t: &str) -> String {
     let mut out = String::with_capacity(t.len());
     let mut prev_space = true;
@@ -89,8 +81,6 @@ fn trusted(v: &Value) -> bool {
     v["locked"].as_bool().unwrap_or(false) || v["votes"].as_i64().unwrap_or(0) >= 0
 }
 
-/// The server already orders submissions (locked, then votes). Take the
-/// first trusted one; an "original" winner means keep the original.
 pub fn parse_dearrow(json: &Value, video_id: &str) -> DeArrow {
     let title = json["titles"]
         .as_array()
@@ -104,7 +94,6 @@ pub fn parse_dearrow(json: &Value, video_id: &str) -> DeArrow {
         .and_then(|a| a.iter().find(|t| trusted(t)))
         .filter(|t| !t["original"].as_bool().unwrap_or(false))
         .and_then(|t| t["timestamp"].as_f64());
-    // No submissions at all: DeArrow's own fallback is a random frame.
     if time.is_none() && thumbs.is_none_or(|a| a.is_empty()) {
         if let (Some(r), Some(d)) = (
             json["randomTime"].as_f64(),

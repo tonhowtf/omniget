@@ -1,22 +1,3 @@
-//! Guard: security and health scanning of agent components (agents, commands,
-//! skills, hooks, MCP servers, settings, status lines, rules, plugins) for
-//! every coding tool the Central installs into.
-//!
-//! Ported and extended from claude-code-templates' five validators
-//! (structural, integrity, semantic, reference, provenance — codes kept), plus
-//! what the original never checked: every command a hook/MCP/setting/status
-//! line will run (light shell parse), hooks reading env vars that do not
-//! exist, `agent`/`prompt` handlers, supporting files, tool names per origin
-//! tool, and SkillSpector when installed.
-//!
-//! Public API:
-//! - [`scan_component`] — in-memory files (the catalog/installer path);
-//! - [`scan_path`] / [`scan_paths`] — a file or a folder on disk (a folder
-//!   can hold many components; each becomes a report);
-//! - [`scan_installed`] — paths the agentkit resolved for a target/scope;
-//! - [`stats::config_stats`] — the "config health" numbers;
-//! - [`rules::RULES`] — the rule catalogue for the UI.
-
 pub mod config;
 pub mod model;
 pub mod provenance;
@@ -40,7 +21,6 @@ pub use model::*;
 use config::{record_analysis, record_command, CmdSite};
 use text::LineIndex;
 
-/// Component kind. Matches the catalog's `kind` strings.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Kind {
@@ -90,7 +70,6 @@ impl Kind {
             .unwrap_or(Kind::Other)
     }
 
-    /// Kinds whose scripts run without the user asking.
     fn auto_runs(&self) -> bool {
         matches!(
             self,
@@ -99,28 +78,20 @@ impl Kind {
     }
 }
 
-/// Per-scan context shared by the validators.
 pub struct Ctx {
     pub kind: Kind,
-    /// The tool the caller says the component is for (None = detect).
     pub origin: Option<String>,
-    /// Detected native tool of the format.
     pub detected: String,
-    /// Set when the component is in another tool's format than `origin`.
     pub foreign: Option<String>,
-    /// Folder name (skill name check).
     pub dir_name: Option<String>,
     pub strict: bool,
 }
 
-/// Input of [`scan_component`].
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct ComponentInput {
     pub kind: String,
-    /// Relative path → bytes.
     #[serde(default)]
     pub files: BTreeMap<String, Vec<u8>>,
-    /// Main file; picked automatically when absent.
     #[serde(default)]
     pub entry: Option<String>,
     #[serde(default)]
@@ -182,7 +153,6 @@ fn pick_entry(kind: Kind, files: &BTreeMap<String, Vec<u8>>) -> Option<String> {
 static INLINE_BANG: Lazy<Regex> = Lazy::new(|| Regex::new(r"!`([^`\n]+)`").unwrap());
 static GEMINI_BANG: Lazy<Regex> = Lazy::new(|| Regex::new(r"!\{([^}\n]+)\}").unwrap());
 
-/// Scan one component given as in-memory files.
 pub fn scan_component(input: &ComponentInput, opts: &GuardOptions) -> GuardReport {
     scan_inner(input, opts, None)
 }
@@ -218,7 +188,6 @@ fn scan_inner(input: &ComponentInput, opts: &GuardOptions, root: Option<&Path>) 
     let mut fm_version = None;
     let mut fm_license = None;
 
-    // Entry first, then the rest in path order.
     let mut order: Vec<&String> = files.keys().collect();
     order.sort_by_key(|k| (*k != &entry, (*k).clone()));
     for path in order {
@@ -269,8 +238,6 @@ fn scan_inner(input: &ComponentInput, opts: &GuardOptions, root: Option<&Path>) 
             } else {
                 strip_jsonc(&text)
             };
-            // `.json` files that are really JSONC (tsconfig, VS Code) parse on
-            // the second try; only a file that fails both is broken.
             let parsed = serde_json::from_str::<serde_json::Value>(&cleaned).or_else(|e| {
                 serde_json::from_str::<serde_json::Value>(&strip_jsonc(&text)).map_err(|_| e)
             });
@@ -351,7 +318,6 @@ fn scan_inner(input: &ComponentInput, opts: &GuardOptions, root: Option<&Path>) 
         let _ = base;
     }
 
-    // Integrity and provenance.
     let digests = provenance::digests(files);
     provenance::check_integrity(&digests, opts.expected_sha256.as_ref(), &mut sink);
     provenance::check_provenance(
@@ -362,7 +328,6 @@ fn scan_inner(input: &ComponentInput, opts: &GuardOptions, root: Option<&Path>) 
         &mut sink,
     );
 
-    // SkillSpector.
     let mut spec = None;
     if kind == Kind::Skill && opts.skillspector && crate::core::skills::scan::is_available() {
         let status = match root.filter(|r| r.is_dir()) {
@@ -450,14 +415,11 @@ fn merge_skillspector(status: &crate::core::skills::scan::ScanStatus, sink: &mut
     }
 }
 
-/// `!`cmd`` (Claude/OpenCode commands and skills run these on invocation) and
-/// shell fences (examples the model may run: lowered one step).
 fn markdown_commands(path: &str, text: &str, kind: Kind, sink: &mut Sink) {
     let idx = LineIndex::new(text);
     let code = text::CodeMap::new(text);
     for c in INLINE_BANG.captures_iter(text) {
         let m = c.get(1).unwrap();
-        // `!` must start the span: preceded by start, whitespace or `(`.
         let start = c.get(0).unwrap().start();
         let prev = text[..start].chars().last();
         if prev.is_some_and(|p| !p.is_whitespace() && p != '(' && p != ':' && p != '>') {
@@ -513,8 +475,6 @@ fn markdown_commands(path: &str, text: &str, kind: Kind, sink: &mut Sink) {
     }
 }
 
-/// Logical lines of a shell text (backslash continuations joined), with the
-/// byte offset each starts at.
 fn logical_lines(text: &str) -> Vec<(usize, String)> {
     let mut out = Vec::new();
     let mut cur = String::new();
@@ -544,7 +504,6 @@ fn script_shell(path: &str, text: &str, kind: Kind, sink: &mut Sink) {
     let idx = LineIndex::new(text);
     let auto = kind.auto_runs();
     let before = sink.findings.len();
-    // Line by line for locations, skipping here-doc bodies.
     let mut heredoc: Option<String> = None;
     let mut fake_seen = false;
     for (start, l) in logical_lines(text) {
@@ -608,7 +567,6 @@ fn script_shell(path: &str, text: &str, kind: Kind, sink: &mut Sink) {
         };
         record_analysis(site, t, a2, sink);
     }
-    // Whole-script combination (credential read + upload on different lines).
     let whole = shell::analyze(text);
     for h in whole.hits.iter().filter(|h| h.code == "CMD_E006") {
         if !sink.findings[before..].iter().any(|f| f.code == "CMD_E006") {
@@ -688,7 +646,6 @@ fn script_code(path: &str, text: &str, kind: Kind, sink: &mut Sink) {
     }
 }
 
-/// Remove `//` and `/* */` comments and trailing commas (JSONC).
 pub fn strip_jsonc(s: &str) -> String {
     let no_comments = strip_jsonc_pass(s, true);
     strip_jsonc_pass(&no_comments, false)
@@ -761,7 +718,6 @@ fn finish(
     spec: Option<crate::core::skills::scan::ScanStatus>,
     opts: &GuardOptions,
 ) -> GuardReport {
-    // Dedupe identical findings.
     let mut seen = std::collections::BTreeSet::new();
     sink.findings.retain(|f| {
         seen.insert((
@@ -834,13 +790,9 @@ fn finish(
     }
 }
 
-/// 0–100 (higher is safer) and the level. The first finding of a code in a
-/// file costs its full weight; repeats cost a quarter each, capped at twice
-/// the weight, so one noisy rule cannot sink a component alone.
 pub fn score_level(findings: &[Finding], opts: &GuardOptions) -> (u8, Level) {
     let mut per: BTreeMap<(&str, &str), (f64, f64)> = BTreeMap::new();
     for f in findings {
-        // Lowered findings (quoted, in code, negated) weigh half.
         let w = f.severity.weight() * if f.downgraded { 0.5 } else { 1.0 };
         let e = per
             .entry((f.code.as_str(), f.file.as_str()))
@@ -869,8 +821,6 @@ pub fn score_level(findings: &[Finding], opts: &GuardOptions) -> (u8, Level) {
     (score, level)
 }
 
-// ------------------------------------------------------------------ disk
-
 const SKIP_DIRS: &[&str] = &[
     ".git",
     "node_modules",
@@ -898,7 +848,6 @@ const NOT_COMPONENTS: &[&str] = &[
 ];
 const MAX_COMPONENT_FILES: usize = 400;
 
-/// Infer the kind of a file from the nearest meaningful folder name.
 pub fn infer_kind(path: &Path, json: Option<&serde_json::Value>) -> Kind {
     let s = path.to_string_lossy().replace('\\', "/");
     let lower = s.to_lowercase();
@@ -957,7 +906,6 @@ pub fn infer_kind(path: &Path, json: Option<&serde_json::Value>) -> Kind {
             "templates" => Kind::Template,
             _ => continue,
         };
-        // Scripts under hooks/settings are the component's scripts.
         if matches!(
             k,
             Kind::Agent | Kind::Command | Kind::Rule | Kind::Loop | Kind::Workflow
@@ -986,7 +934,6 @@ pub fn infer_kind(path: &Path, json: Option<&serde_json::Value>) -> Kind {
     }
 }
 
-/// A component found on disk.
 struct DiskComponent {
     root: PathBuf,
     kind: Kind,
@@ -1080,7 +1027,6 @@ fn collect(dir: &Path, out: &mut Vec<DiskComponent>, depth: usize) {
     }
     let mut attached: std::collections::BTreeSet<PathBuf> = std::collections::BTreeSet::new();
     let file_list: Vec<&PathBuf> = entries.iter().filter(|p| p.is_file()).collect();
-    // JSON components first, attaching their scripts.
     for p in &file_list {
         let name = p
             .file_name()
@@ -1142,7 +1088,6 @@ fn collect(dir: &Path, out: &mut Vec<DiskComponent>, depth: usize) {
     }
 }
 
-/// One file as a component; JSON hooks/settings pull in their scripts.
 fn file_component(p: &Path, siblings: Option<&Vec<&PathBuf>>) -> Option<DiskComponent> {
     let bytes = read_limited(p)?;
     let name = p.file_name()?.to_string_lossy().to_string();
@@ -1169,7 +1114,6 @@ fn file_component(p: &Path, siblings: Option<&Vec<&PathBuf>>) -> Option<DiskComp
                 }
             }
         }
-        // Scripts a command references by name (`.claude/hooks/x.py`).
         let raw = serde_json::to_string(v).unwrap_or_default();
         for sp in sibs {
             let sn = sp
@@ -1202,8 +1146,6 @@ fn file_component(p: &Path, siblings: Option<&Vec<&PathBuf>>) -> Option<DiskComp
     })
 }
 
-/// Scan a file or a folder. A folder may hold many components (a skill folder
-/// is one component; a catalog tree is hundreds).
 pub fn scan_path(
     path: &Path,
     kind_hint: Option<&str>,
@@ -1257,7 +1199,6 @@ fn comps_len_one_hint(k: &str) -> bool {
     Kind::parse(k) != Kind::Other
 }
 
-/// Scan many paths.
 pub fn scan_paths(
     paths: &[PathBuf],
     origin_tool: Option<&str>,
@@ -1269,10 +1210,6 @@ pub fn scan_paths(
         .collect()
 }
 
-/// Scan what is installed for a target tool. The agentkit resolves the
-/// folders/files for `(target_id, scope, project_dir)`; until it exposes that
-/// resolver the caller passes them in `paths`. `project_dir` is kept on the
-/// options for relative script lookups.
 pub fn scan_installed(
     target_id: &str,
     _scope: &str,

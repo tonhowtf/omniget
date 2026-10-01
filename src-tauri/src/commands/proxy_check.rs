@@ -1,11 +1,3 @@
-//! Downloads › Tools › Proxy check: does this proxy work, which address and
-//! country do sites see through it, and can a given link be read through it.
-//!
-//! The idea comes from ytdlpgui, whose window has a proxy box (pre-filled with
-//! `127.0.0.1:7890`) that goes to yt-dlp's `--proxy` on every download. Here
-//! the proxy is tested before it is used, and can then be saved as the app's
-//! proxy. Reimplemented; ytdlpgui has no license, so nothing was copied.
-
 use std::time::{Duration, Instant};
 
 use serde::Serialize;
@@ -13,14 +5,12 @@ use serde::Serialize;
 #[cfg(not(target_os = "android"))]
 use crate::core::ytdlp;
 
-/// Cloudflare's trace page answers with `ip=` and `loc=` lines.
 const TRACE_URL: &str = "https://www.cloudflare.com/cdn-cgi/trace";
 
 #[derive(Debug, Clone, Default, Serialize, PartialEq)]
 pub struct RouteResult {
     pub ok: bool,
     pub ip: Option<String>,
-    /// Two-letter country code.
     pub country: Option<String>,
     pub ms: Option<u64>,
     pub error: Option<String>,
@@ -36,14 +26,12 @@ pub struct SiteResult {
 
 #[derive(Debug, Clone, Serialize, PartialEq)]
 pub struct ProxyCheck {
-    /// The proxy that was tested, with the password hidden.
     pub proxy: String,
     pub via_proxy: RouteResult,
     pub direct: RouteResult,
     pub site: Option<SiteResult>,
 }
 
-/// `127.0.0.1:7890` → `http://127.0.0.1:7890`, as yt-dlp reads a proxy without a scheme.
 pub fn normalize_proxy(raw: &str) -> Result<String, String> {
     let p = raw.trim();
     if p.is_empty() {
@@ -70,7 +58,6 @@ pub fn normalize_proxy(raw: &str) -> Result<String, String> {
     Ok(with_scheme)
 }
 
-/// Hides the password of `scheme://user:pass@host:port`.
 pub fn redact(proxy: &str) -> String {
     match proxy.split_once("://") {
         Some((scheme, rest)) => match rest.rsplit_once('@') {
@@ -144,8 +131,6 @@ async fn trace(proxy: Option<&str>) -> RouteResult {
     }
 }
 
-/// `proxy`: what to test; empty means the proxy saved in Settings.
-/// `url`: optional link to read through the proxy with yt-dlp.
 #[cfg(not(target_os = "android"))]
 #[tauri::command]
 pub async fn check_proxy(proxy: Option<String>, url: Option<String>) -> Result<ProxyCheck, String> {

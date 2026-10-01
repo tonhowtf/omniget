@@ -1,9 +1,3 @@
-//! `omniget company …`: the companies of agents of the running app, through
-//! the bridge's `POST /v1/company/rpc` (same methods as the window and the
-//! MCP). A company is named by id, issue prefix or name; a person by id,
-//! name or role. Owner decisions (approvals, budgets, firing) stay in the
-//! window, as in the MCP.
-
 use anyhow::{anyhow, bail};
 use clap::Subcommand;
 use serde_json::{json, Value};

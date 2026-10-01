@@ -1,14 +1,3 @@
-//! [`CodexDriver`]: one `codex app-server` process per thread, driven over
-//! JSON-RPC, with its events translated into [`RuntimeEvent`]s.
-//!
-//! Life of a thread: `start_session` spawns the app-server with the
-//! account's `CODEX_HOME`, `initialize`s it and opens the Codex thread
-//! (`thread/resume` with the stored cursor, falling back to `thread/start`
-//! only when Codex says the thread does not exist). Turns go through
-//! `turn/start`; approvals come back as server requests and wait, durably, for
-//! `respond_request`. The process is closed after [`IDLE_SHUTDOWN`] without a
-//! turn and reopened (resumed) on the next one.
-
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
@@ -40,7 +29,6 @@ const T_INTERRUPT: Duration = Duration::from_secs(10);
 const T_CHILD_INTERRUPT: Duration = Duration::from_secs(3);
 const T_PROBE: Duration = Duration::from_secs(5);
 
-/// What the driver can do (also what `register` advertises).
 pub fn capabilities() -> DriverCapabilities {
     DriverCapabilities {
         rollback: true,
@@ -57,7 +45,6 @@ pub fn capabilities() -> DriverCapabilities {
     }
 }
 
-/// `{threadId}` (T3's `CodexResumeCursorSchema`), or a bare string.
 pub fn cursor_thread(cursor: &Value) -> Option<String> {
     match cursor {
         Value::String(s) if !s.is_empty() => Some(s.clone()),
@@ -75,8 +62,6 @@ pub fn cursor_of(provider_thread: &str) -> Value {
     json!({ "threadId": provider_thread })
 }
 
-/// `thread/resume` failed because Codex does not have that thread: start a
-/// fresh one. Anything else is an error (never a silent fresh start).
 pub fn is_missing_thread(err: &RpcError) -> bool {
     let msg = err.message().to_lowercase();
     msg.contains("thread")
@@ -100,9 +85,6 @@ fn rpc_err(what: &str, e: RpcError) -> DriverError {
     DriverError::new(code, format!("{what}: {e}"))
 }
 
-/// `turn/start.input` from the text and the attachments. Images go by path
-/// (`localImage`) or URL; other files are named in the prompt, since Codex
-/// reads the workspace itself.
 pub fn turn_input(text: &str, attachments: &[Value]) -> Vec<p::UserInput> {
     let mut text = text.to_string();
     let mut extra = Vec::new();
@@ -160,12 +142,8 @@ struct Session {
     process: Option<Arc<ProcessHandle>>,
     alive: Arc<AtomicBool>,
     stopping: Arc<AtomicBool>,
-    /// Set when the process died on its own (counts against the budget).
     crashed: Arc<AtomicBool>,
     idle_gen: Arc<AtomicU64>,
-    /// Last collaboration mode sent (`turn/start.collaborationMode`).
-    /// `None` on a fresh process: the first turn always states the mode,
-    /// since a resumed Codex thread may still carry an older one.
     interaction: Mutex<Option<InteractionMode>>,
 }
 
@@ -191,9 +169,7 @@ pub struct CodexDriver {
     connector: Arc<dyn Connector>,
     accounts: Option<Arc<AccountStore>>,
     slots: Mutex<HashMap<String, Slot>>,
-    /// Last `start_session` input per thread, to reopen after a crash/idle.
     known: Mutex<HashMap<String, SessionStart>>,
-    /// Engine thread → Codex thread.
     cursors: Mutex<HashMap<String, String>>,
     budgets: Mutex<HashMap<String, RestartBudget>>,
     idle: Duration,
@@ -240,7 +216,6 @@ impl CodexDriver {
         guard.as_ref().filter(|s| s.alive()).cloned()
     }
 
-    /// The live session of a thread, opening (or reopening, resumed) it.
     async fn ensure(&self, thread: &str) -> Result<Arc<Session>, DriverError> {
         let slot = self.slot(thread);
         let mut guard = slot.lock().await;
@@ -327,7 +302,6 @@ impl CodexDriver {
             msg
         };
 
-        // Handshake.
         let init = match rpc
             .request_value("initialize", Some(launch::initialize_params()), T_INIT)
             .await
@@ -357,7 +331,6 @@ impl CodexDriver {
             .unwrap_or("")
             .to_string();
 
-        // Thread: resume, else start.
         let mode = mode_config(start.access_mode);
         let cursor = self
             .cursors
@@ -382,8 +355,6 @@ impl CodexDriver {
                 .await
             {
                 Ok(v) => {
-                    // Decode only what is needed: history items of any
-                    // version must never break a resume.
                     let id = v
                         .get("thread")
                         .and_then(|t| t.get("id"))
@@ -515,7 +486,6 @@ impl CodexDriver {
         ));
     }
 
-    /// Login state and rate limits, once per process, in the background.
     fn probe_account(&self, thread: &str, session: &Arc<Session>) {
         let rpc = session.rpc.clone();
         let tr = session.tr.clone();
@@ -701,7 +671,6 @@ impl CodexDriver {
             let page = match page {
                 Ok(v) => v,
                 Err(e) if e.is_unknown_method() => {
-                    // Older CLI: full read.
                     let v = session
                         .rpc
                         .request_value(
@@ -749,7 +718,6 @@ impl CodexDriver {
     }
 }
 
-/// Removes `null` members so optional params are omitted, not sent as null.
 fn strip_nulls(v: Value) -> Value {
     match v {
         Value::Object(o) => Value::Object(o.into_iter().filter(|(_, v)| !v.is_null()).collect()),
@@ -845,8 +813,6 @@ impl Driver for CodexDriver {
         };
         let mut value = serde_json::to_value(&params)
             .map_err(|e| DriverError::new(ERR_DRIVER_FAILED, format!("turn/start params: {e}")))?;
-        // Plan mode is `collaborationMode` (experimental API, enabled in
-        // `initialize`). Sent when it changes; it sticks for later turns.
         let last = session.interaction.lock().ok().and_then(|m| *m);
         if last != Some(input.interaction_mode) {
             let model = input
@@ -910,7 +876,6 @@ impl Driver for CodexDriver {
             }
             return Ok(());
         };
-        // 1. Parked prompts first, or Stop deadlocks.
         let (answers, events) = session
             .tr
             .lock()
@@ -922,7 +887,6 @@ impl Driver for CodexDriver {
         for ev in events {
             self.emit(ev);
         }
-        // 2. Sub-agent turns, bounded.
         let children = session
             .tr
             .lock()
@@ -942,7 +906,6 @@ impl Driver for CodexDriver {
                 )
                 .await;
         }
-        // 3. The root's active turn (not a queued one).
         let active = session
             .tr
             .lock()
@@ -1084,7 +1047,6 @@ impl Driver for CodexDriver {
 
     async fn fork(&self, source: &str, target: &str, turn_count: u32) -> Result<(), DriverError> {
         if turn_count == 0 {
-            // Nothing to copy: the target opens a fresh Codex thread.
             return Ok(());
         }
         let session = self.ensure(source).await?;
@@ -1120,8 +1082,6 @@ impl Driver for CodexDriver {
                     "thread/fork answered without a thread id",
                 )
             })?;
-        // The fork was loaded in the source's process; the target reopens it
-        // in its own.
         let _ = session
             .rpc
             .request_value(
@@ -1152,7 +1112,6 @@ impl Driver for CodexDriver {
     }
 
     async fn set_access_mode(&self, thread_id: &str, mode: AccessMode) -> Result<(), DriverError> {
-        // Applied by the next `turn/start` (its overrides stick).
         self.update_known(thread_id, |s| s.access_mode = mode);
         Ok(())
     }
@@ -1177,7 +1136,6 @@ impl Driver for CodexDriver {
             for ev in events {
                 self.emit(ev);
             }
-            // Closing stdin ends the server; the pump announces the exit.
             session.shutdown();
         }
         Ok(())

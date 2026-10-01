@@ -8,9 +8,6 @@ pub fn ai_get_config() -> AiConfigView {
     ai::get().view()
 }
 
-/// `kind` is the provider-table row the settings form picked. With one, the
-/// wire and the default endpoint come from the table; without one (AI off, or
-/// an older form) `provider` stays authoritative.
 #[tauri::command]
 pub fn ai_set_config(
     provider: AiProvider,
@@ -178,9 +175,6 @@ async fn fetch_transcript(url: &str) -> Result<(String, String), String> {
             }
         }
 
-        // No usable subtitles — fall back to Whisper-style audio transcription
-        // (only works on OpenAI-compatible providers; surfaces as no_transcript
-        // otherwise so the UI hint stays accurate).
         match transcribe_via_audio(&ytdlp, url, &tmp).await {
             Ok(t) if !t.trim().is_empty() => Ok((title, t)),
             _ => Err("no_transcript".to_string()),

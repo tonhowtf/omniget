@@ -1,12 +1,3 @@
-//! How an instance becomes a `codex app-server` process: binary, argv,
-//! `CODEX_HOME`, scrubbed environment, and the access-mode table.
-//!
-//! `CODEX_HOME` comes from the account (`cli_runtime/accounts.rs`): the
-//! instance's `config_dir`, or the account's directory looked up by
-//! `account_id`. Empty means the CLI's own default profile (`~/.codex`), the
-//! login the user already has in a terminal. This module never opens anything
-//! inside that directory (no `auth.json`, no `config.toml`).
-
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 
@@ -18,31 +9,14 @@ use super::protocol::{
     ApprovalsReviewer, AskForApproval, AskForApprovalKnown, SandboxMode, SandboxPolicy,
 };
 
-/// Codex's own knobs for one OmniGet access mode.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ModeConfig {
     pub approval_policy: AskForApproval,
-    /// `thread/start|resume|fork.sandbox`.
     pub sandbox: SandboxMode,
-    /// `turn/start.sandboxPolicy`.
     pub sandbox_policy: SandboxPolicy,
-    /// Always sent: omitting it on resume keeps the previous reviewer, so an
-    /// `auto_review` thread would stay auto forever (T3, 01-server.md §3.2).
     pub reviewer: ApprovalsReviewer,
 }
 
-/// The T3 table (estudo 76, 01-server.md §3.2):
-///
-/// | mode | approvalPolicy | sandbox | turn sandboxPolicy | reviewer |
-/// |---|---|---|---|---|
-/// | approval-required | untrusted | read-only | readOnly | user |
-/// | auto-accept-edits | on-request | workspace-write | workspaceWrite | user |
-/// | auto | on-request | workspace-write | workspaceWrite | auto_review |
-/// | full-access | never | danger-full-access | dangerFullAccess | user |
-///
-/// `full-access` is the only path to `danger-full-access`, and only because
-/// the user picked that mode for the thread (the safe default is the first
-/// row: `AccessMode::default()` is `approval-required`).
 pub fn mode_config(mode: AccessMode) -> ModeConfig {
     let known = |k| AskForApproval::Known(k);
     match mode {
@@ -84,22 +58,16 @@ fn workspace_write() -> SandboxPolicy {
     }
 }
 
-/// Everything needed to spawn the app-server of one instance.
 #[derive(Debug, Clone, PartialEq)]
 pub struct LaunchSpec {
     pub program: PathBuf,
     pub args: Vec<String>,
-    /// Set on the child.
     pub env: BTreeMap<String, String>,
-    /// Removed from the child (API keys that would pick the billing account).
     pub scrub: Vec<String>,
     pub cwd: Option<PathBuf>,
-    /// The `CODEX_HOME` in use, `None` for the CLI default.
     pub codex_home: Option<PathBuf>,
 }
 
-/// `CODEX_HOME` of an instance. Pure except for the account lookup, which is
-/// a read of `accounts.json` (paths only, never a credential).
 pub fn codex_home(instance: &DriverInstance, store: Option<&AccountStore>) -> Option<PathBuf> {
     if let Some(dir) = instance
         .config_dir
@@ -123,7 +91,6 @@ pub fn codex_home(instance: &DriverInstance, store: Option<&AccountStore>) -> Op
     Some(account.config_dir)
 }
 
-/// `~` is not expanded for a spawned process (no shell), so do it here.
 pub fn expand_home(path: &str) -> String {
     if path == "~" || path.starts_with("~/") || path.starts_with("~\\") {
         if let Some(home) = dirs::home_dir() {
@@ -133,7 +100,6 @@ pub fn expand_home(path: &str) -> String {
     path.to_string()
 }
 
-/// Builds the spawn spec. `program` is the resolved binary.
 pub fn launch_spec(
     instance: &DriverInstance,
     program: PathBuf,
@@ -152,8 +118,6 @@ pub fn launch_spec(
     }
     let mut args = vec!["app-server".to_string()];
     args.extend(instance.args.iter().cloned());
-    // An API key set on purpose in the instance env is the user's choice; the
-    // OmniGet process's own keys are not.
     let scrub = accounts::SCRUB_ENV
         .iter()
         .filter(|k| !env.contains_key(**k))
@@ -169,18 +133,12 @@ pub fn launch_spec(
     }
 }
 
-/// Env var that carries the first MCP bearer token (never on argv).
 pub const MCP_TOKEN_ENV: &str = "OMNIGET_MCP_TOKEN";
 
 fn toml_str(v: &str) -> String {
-    // A JSON string is a valid TOML basic string for what we pass here.
     serde_json::to_string(v).unwrap_or_else(|_| "\"\"".into())
 }
 
-/// Adds the host's MCP servers (the embedded OmniGet MCP with the session
-/// token) as `-c mcp_servers.<name>.*` overrides. A `Bearer` header goes
-/// through `bearer_token_env_var` so the token stays out of `ps`; other
-/// headers become `http_headers`. SSE has no Codex transport and is skipped.
 pub fn with_mcp(mut spec: LaunchSpec, servers: &[super::super::acp::McpServerSpec]) -> LaunchSpec {
     use super::super::acp::McpServerSpec as S;
     let mut n = 0usize;
@@ -269,8 +227,6 @@ pub fn with_mcp(mut spec: LaunchSpec, servers: &[super::super::acp::McpServerSpe
     spec
 }
 
-/// `initialize` params. `experimentalApi` is what unlocks
-/// `turn/start.collaborationMode` (plan mode) on 0.156.
 pub fn initialize_params() -> Value {
     json!({
         "clientInfo": {

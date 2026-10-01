@@ -1,8 +1,3 @@
-//! Commands for `assist::reading`: the reading panel of a bot and the
-//! `/llm/reading` page. Every command acts as the person at the screen
-//! (`AssistCtx::user()`); the rules (round validation, access status) are the
-//! same backend functions the bot's tools use.
-
 use omniget_core::core::assist::ctx::AssistCtx;
 use omniget_core::core::assist::db;
 use omniget_core::core::assist::reading::{
@@ -18,8 +13,6 @@ fn to_value<T: serde::Serialize>(v: T) -> Result<Value, String> {
     serde_json::to_value(v).map_err(|e| e.to_string())
 }
 
-/// Journeys of a bot (each in detail), its access preferences and whether
-/// the curation skill is installed.
 #[tauri::command]
 pub async fn assist_reading_overview(bot_id: String) -> Result<Value, String> {
     let db = db::global()?;
@@ -34,15 +27,12 @@ pub async fn assist_reading_overview(bot_id: String) -> Result<Value, String> {
         "journeys": details,
         "prefs": reading::get_prefs(&db, &ctx, &bot_id)?,
         "skill": skill::status().ok(),
-        // Whether this bot already has the curation skill linked, so the
-        // panel does not keep asking to link it.
         "skill_bound": omniget_core::core::assist::bots::skills::bindings(&db, &bot_id)
             .map(|b| b.iter().any(|x| x.skill == skill::SKILL_NAME))
             .unwrap_or(false),
     }))
 }
 
-/// Every journey of every bot, newest first (the `/llm/reading` page).
 #[tauri::command]
 pub async fn assist_reading_list_all() -> Result<Value, String> {
     let db = db::global()?;
@@ -73,8 +63,6 @@ pub async fn assist_reading_delete_journey(journey_id: String) -> Result<(), Str
     reading::delete_journey(&db, &user(), &journey_id)
 }
 
-/// `origin` is `manual` (typed by the person) or `reader` (read from the
-/// Study plugin on the person's click).
 #[tauri::command]
 pub async fn assist_reading_record_progress(
     journey_id: String,
@@ -122,7 +110,6 @@ pub async fn assist_reading_note_context(
     )?)
 }
 
-/// planned / watched / abandoned / declined, with an optional short reaction.
 #[tauri::command]
 pub async fn assist_reading_record_viewing(
     journey_id: String,
@@ -155,10 +142,6 @@ pub async fn assist_reading_set_prefs(bot_id: String, patch: PrefsPatch) -> Resu
     to_value(reading::set_prefs(&db, &user(), &bot_id, patch)?)
 }
 
-/// Installs the embedded curation skill through the app's skill installer
-/// (staging + scan). A copy that differs is replaced only with `replace`.
-/// When the scan parks it, the result carries `outcome.needs_confirm` for
-/// `llm_skills_confirm_install`.
 #[tauri::command]
 pub async fn assist_reading_install_skill(replace: Option<bool>) -> Result<Value, String> {
     let out = tokio::task::spawn_blocking(move || skill::install(replace.unwrap_or(false)))

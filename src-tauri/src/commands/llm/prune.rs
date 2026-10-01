@@ -1,10 +1,3 @@
-//! Context pruning, as the settings card sees it. The policy, the judges and
-//! the sticky store live in `core::llm::prune`; this layer only turns the two
-//! settings fields into a `ContextPruner` and swaps it into the Coordinator.
-//!
-//! The Jev key never touches settings: it goes to the secret store, and the
-//! tab only ever learns whether one is stored.
-
 use std::sync::Arc;
 
 use omniget_core::core::llm::prune::jev::JEV_SECRET_ACCOUNT;
@@ -20,7 +13,6 @@ use crate::AppState;
 
 pub const ERR_PRUNE_KEY: &str = "ERR_PRUNE_KEY";
 
-/// The two persisted fields over the defaults ported from the originals.
 pub fn config_from(settings: &LlmSettings) -> PruneConfig {
     PruneConfig {
         enabled: settings.prune_enabled,
@@ -34,14 +26,10 @@ fn has_key() -> bool {
     matches!(secrets::get(secrets::AI_KEYS, JEV_SECRET_ACCOUNT), Ok(Some(k)) if !k.is_empty())
 }
 
-/// Builds the pruner the settings ask for and hands it to the Coordinator.
-/// Jev selected with no key yields no judge, which is the same as off: no
-/// request is ever made without a key.
 pub fn install(app: &AppHandle) {
     install_with(app, &config::load_settings(app).llm);
 }
 
-/// [`install`] for a given snapshot: the settings effect `llm.pruning`.
 pub fn install_with(app: &AppHandle, settings: &LlmSettings) {
     let coordinator = app.state::<AppState>().llm.coordinator();
     let cfg = config_from(settings);
@@ -79,12 +67,10 @@ pub async fn llm_prune_set_config(
         current.llm.prune_judge = judge;
     })
     .map_err(|e| format!("Save: {e}"))?;
-    // The `llm.pruning` effect installs the pruner; answer once it ran.
     crate::storage::settings_effects::settle(&[EffectId::LlmPruning]);
     Ok(json!({ "ok": true }))
 }
 
-/// Stores the TypeSafe key, or forgets it when `key` is empty.
 #[tauri::command]
 pub async fn llm_prune_set_jev_key(app: AppHandle, key: String) -> Result<Value, String> {
     let key = key.trim();

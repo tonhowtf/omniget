@@ -1,28 +1,8 @@
-//! Linux: MangoHud (MIT, github.com/flightlessmango/MangoHud), the
-//! system package, never bundled. OmniGet writes a config that belongs to
-//! the capture only and points `MANGOHUD_CONFIGFILE` at it, which replaces
-//! the whole config search (`src/config.cpp`). The person's own
-//! `~/.config/MangoHud/MangoHud.conf` is never read or written (goverlay
-//! overwrites it; we do not).
-//!
-//! MangoHud lives inside the game (Vulkan layer or `LD_PRELOAD` for
-//! OpenGL), so the game has to be started with the variables: a game that
-//! is already running cannot be measured.
-//!
-//! Log format (`src/logging.cpp`, `writeFileHeaders`): an optional
-//! versioning block, `os,cpu,gpu,ram,kernel,driver,cpuscheduler` and its
-//! values, then `fps,frametime,cpu_load,cpu_power,gpu_load,cpu_temp,
-//! gpu_temp,...,elapsed` with one line per frame when `log_interval=0`
-//! (frametime in ms, elapsed in ns since logging started, ram in GiB).
-//! MangoHud's own `_summary.csv` uses nearest-rank percentiles; it is
-//! ignored and everything is recomputed by [`super::stats`].
-
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 use super::format::{Frame, LaunchCommand, SensorRow};
 
-/// The session's own config. `upload_log(s)` never appears.
 pub fn config(output_folder: &Path, max_seconds: u64) -> String {
     format!(
         "# Written by OmniGet for one capture. Your own MangoHud.conf is not used or changed.\n\
@@ -40,8 +20,6 @@ pub fn config(output_folder: &Path, max_seconds: u64) -> String {
     )
 }
 
-/// POSIX single-quote for display. These strings are shown to be copied
-/// into a terminal or Steam's launch options; OmniGet never runs them.
 pub fn sh_quote(s: &str) -> String {
     if !s.is_empty()
         && s.bytes()
@@ -53,9 +31,6 @@ pub fn sh_quote(s: &str) -> String {
     }
 }
 
-/// How to start the game: Vulkan (the implicit layer turns on with
-/// `MANGOHUD=1`), OpenGL (the `mangohud` wrapper preloads the shim;
-/// `--dlsym` for games that load GL by hand) and Steam launch options.
 pub fn launch_commands(config_file: &Path) -> Vec<LaunchCommand> {
     let cfg = sh_quote(&config_file.display().to_string());
     vec![
@@ -74,7 +49,6 @@ pub fn launch_commands(config_file: &Path) -> Vec<LaunchCommand> {
     ]
 }
 
-/// The newest MangoHud log in `dir` (not its `_summary.csv`).
 pub fn newest_log(dir: &Path) -> Option<PathBuf> {
     std::fs::read_dir(dir)
         .ok()?
@@ -89,14 +63,12 @@ pub fn newest_log(dir: &Path) -> Option<PathBuf> {
         .max_by_key(|p| std::fs::metadata(p).and_then(|m| m.modified()).ok())
 }
 
-/// Column positions of the frame table.
 #[derive(Debug, Clone)]
 pub struct Columns {
     n: usize,
     idx: BTreeMap<String, usize>,
 }
 
-/// One log line.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Row {
     pub elapsed_ms: f64,
@@ -133,7 +105,6 @@ impl Columns {
         };
         let frametime = f("frametime").filter(|x| *x > 0.0)?;
         let elapsed_ms = f("elapsed").map(|ns| ns / 1_000_000.0).unwrap_or(0.0);
-        // MangoHud writes 0 for a sensor it cannot read.
         let s = |k: &str| f(k).filter(|x| *x > 0.0);
         Some(Row {
             elapsed_ms,
@@ -157,14 +128,11 @@ impl Columns {
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct Parsed {
     pub frames: Vec<Frame>,
-    /// MangoHud's own sensor columns averaged per second.
     pub sensors: Vec<SensorRow>,
-    /// `os`, `cpu`, `gpu`, `ram`, `kernel`, `driver`, `cpuscheduler`.
     pub system: BTreeMap<String, String>,
     pub warnings: Vec<String>,
 }
 
-/// Whole log → frames and 1 Hz sensors.
 pub fn parse_csv(text: &str) -> Parsed {
     let mut out = Parsed::default();
     let mut lines = text.lines().peekable();
@@ -200,8 +168,6 @@ pub fn parse_csv(text: &str) -> Parsed {
     }
     let t0 = rows[0].elapsed_ms - rows[0].frametime_ms;
     let sampled = rows.len() >= 20 && {
-        // log_interval > 0 samples on a clock: the spacing of `elapsed`
-        // stops matching the frametimes.
         let span = rows.last().map(|r| r.elapsed_ms).unwrap_or(0.0) - rows[0].elapsed_ms;
         let sum: f64 = rows[1..].iter().map(|r| r.frametime_ms).sum();
         span > 0.0 && (sum / span) < 0.5

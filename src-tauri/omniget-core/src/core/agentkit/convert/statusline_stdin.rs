@@ -1,15 +1,3 @@
-//! Statusline for tools with a Claude-like command statusline (plan §4.3,
-//! estudo 06 §0C.9): Cursor CLI (`~/.cursor/cli-config.json`), Qwen
-//! (`ui.statusLine`), Qoder, Droid (`statusLine` without `type`) and Copilot CLI.
-//! Claude itself goes through the Claude converter.
-//!
-//! The command runs behind a **stdin adapter**: the tool's JSON is rewritten to
-//! Claude's shape ([`adapt_stdin`]) before the script sees it, so the 32
-//! statuslines of the catalog (written for Claude) read `model.display_name`,
-//! `workspace.current_dir`, `cost.*`, `context_window.*` everywhere. The adapter
-//! is the hook shim in statusline mode: `omniget-hook-shim --tool <tool>
-//! --statusline -- '<command>'` ([`statusline_main`]).
-
 use serde_json::{json, Map, Value};
 use std::path::{Path, PathBuf};
 
@@ -21,7 +9,6 @@ use crate::core::agentkit::model::*;
 use crate::core::agentkit::targets::TargetAdapter;
 use crate::core::agentkit::{AgentkitError, Env, Result, Scope};
 
-/// Statusline formats this module writes.
 pub const FORMATS: &[&str] = &["qwen", "droid", "cursor_cli", "qoder", "copilot_cli"];
 
 pub struct StatuslineConverter;
@@ -72,11 +59,6 @@ impl Converter for StatuslineConverter {
     }
 }
 
-// ------------------------------------------------------------------ adapter binary
-
-/// `'<omniget-hook-shim>' --tool <tool> --statusline -- '<command>'`: the hook
-/// shim (k2, [`super::hook_common::shim_path`]) in statusline mode, which calls
-/// [`statusline_main`].
 pub fn wrap_command(env: &Env, tool: &str, command: &str) -> String {
     let os = env.os;
     let q = |s: &str| super::hook_common::quote(s, os);
@@ -91,9 +73,6 @@ pub fn wrap_command(env: &Env, tool: &str, command: &str) -> String {
     .join(" ")
 }
 
-/// Statusline mode of the shim: stdin of `tool` → Claude's JSON → `command`
-/// (run by the shell, in the session's directory); returns (exit, stdout).
-/// Used by `omniget-hook-shim --statusline` and `omniget-cli agentkit statusline-shim`.
 pub fn statusline_main(tool: &str, command: &str, stdin: &[u8]) -> (i32, String) {
     let input: Value = serde_json::from_slice(stdin).unwrap_or_else(|_| json!({}));
     let cwd = std::env::current_dir().ok();
@@ -112,8 +91,6 @@ pub fn statusline_main(tool: &str, command: &str, stdin: &[u8]) -> (i32, String)
     );
     (out.exit, out.stdout)
 }
-
-// ------------------------------------------------------------------ stdin translation
 
 fn pick<'a>(v: &'a Value, paths: &[&str]) -> Option<&'a Value> {
     paths.iter().find_map(|p| {
@@ -156,18 +133,10 @@ fn set_default(m: &mut Map<String, Value>, k: &str, v: Value) {
     }
 }
 
-/// Rewrites a tool's statusline stdin to Claude's shape (estudo 06 Claude (i)):
-/// `model{id,display_name}`, `cwd`, `workspace{current_dir,project_dir}`,
-/// `session_id`, `transcript_path`, `version`, `output_style.name`,
-/// `cost{total_cost_usd,total_duration_ms,total_lines_added,total_lines_removed}`,
-/// `context_window{used_percentage,remaining_percentage,context_window_size,…}`.
-/// Fields already in Claude's shape are kept as they are; unknown fields stay.
-/// `cwd_fallback` fills the directory when the tool sends none.
 pub fn adapt_stdin(tool: &str, input: &Value, cwd_fallback: Option<&Path>) -> Value {
     let mut m = input.as_object().cloned().unwrap_or_default();
     let src = Value::Object(m.clone());
 
-    // model
     let model_id = pick_str(
         &src,
         &[
@@ -199,7 +168,6 @@ pub fn adapt_stdin(tool: &str, input: &Value, cwd_fallback: Option<&Path>) -> Va
         set_default(model, "display_name", json!(n));
     }
 
-    // directories
     let dir = pick_str(
         &src,
         &[
@@ -239,7 +207,6 @@ pub fn adapt_stdin(tool: &str, input: &Value, cwd_fallback: Option<&Path>) -> Va
         set_default(ws, "project_dir", json!(p));
     }
 
-    // session
     if let Some(s) = pick_str(
         &src,
         &[
@@ -270,7 +237,6 @@ pub fn adapt_stdin(tool: &str, input: &Value, cwd_fallback: Option<&Path>) -> Va
     let os_ = obj(&mut m, "output_style");
     set_default(os_, "name", json!(style));
 
-    // cost
     let cost_usd = pick_f64(
         &src,
         &[
@@ -318,7 +284,6 @@ pub fn adapt_stdin(tool: &str, input: &Value, cwd_fallback: Option<&Path>) -> Va
         json!(removed.unwrap_or(0.0) as u64),
     );
 
-    // context window
     let used = pick_f64(
         &src,
         &[
@@ -393,10 +358,6 @@ pub fn adapt_stdin(tool: &str, input: &Value, cwd_fallback: Option<&Path>) -> Va
     Value::Object(m)
 }
 
-// ------------------------------------------------------------------ writer shared with settings
-
-/// Where the statusline's own scripts go for a tool without a scripts folder:
-/// next to the file that holds the statusline (`~/.qwen/scripts/`).
 fn scripts_dir(target: &TargetAdapter, scope: Scope, ctx: &ConvertCtx) -> Option<PathBuf> {
     if let Some(p) = kind_path(target, "statusline_scripts", scope, ctx) {
         return Some(p);
@@ -406,7 +367,6 @@ fn scripts_dir(target: &TargetAdapter, scope: Scope, ctx: &ConvertCtx) -> Option
     Some(file.parent()?.join("scripts"))
 }
 
-/// `.claude/scripts/a/b.py` → `a/b.py`; `~/.claude/scripts/x.sh` → `x.sh`.
 fn script_rel(dest: &str) -> String {
     let d = dest
         .trim()
@@ -420,10 +380,6 @@ fn script_rel(dest: &str) -> String {
     }
 }
 
-/// Files for one statusline command on a non-Claude tool: its scripts, and
-/// the statusline entry merged into the tool's settings (wrapped by the stdin
-/// adapter). Falls back to the global file when the tool keeps the statusline
-/// only there (Cursor CLI, Qwen, Droid, Copilot).
 pub fn statusline_files(
     c: &Component,
     target: &TargetAdapter,

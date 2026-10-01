@@ -1,10 +1,3 @@
-//! Conversions. Native ones need nothing installed: text, Markdown and HTML
-//! to EPUB; EPUB to Kobo kepub; comics prepared for an e-reader (border crop, double-page
-//! split, grayscale, resize to the device) as CBZ or fixed-layout EPUB;
-//! a series' chapters merged into one volume. Everything else goes to the
-//! tools the user has: calibre (`ebook-convert`), KCC (`kcc-c2e`), pandoc,
-//! kepubify and go-comic-converter, run as processes on the side.
-
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -17,8 +10,6 @@ use omniget_core::core::read::epub_writer::{self, EpubMeta};
 use omniget_core::core::read::format::{self, BookFormat};
 
 use super::{blocking, db, scan, server};
-
-// ---------- tools ----------
 
 #[derive(Debug, Clone, Serialize, Default)]
 pub struct Tool {
@@ -75,7 +66,6 @@ fn platform_paths(id: &str) -> Vec<PathBuf> {
 }
 
 pub fn find(id: &str) -> Option<PathBuf> {
-    // A path the user picked wins.
     if let Some(p) = db::kv_get::<String>(&format!("tool:{id}")).filter(|p| Path::new(p).is_file())
     {
         return Some(PathBuf::from(p));
@@ -97,7 +87,6 @@ pub fn find(id: &str) -> Option<PathBuf> {
 }
 
 async fn version_of(path: &Path, id: &str) -> Option<String> {
-    // 7-Zip has no version flag; run bare, it prints its banner first.
     let args: &[&str] = match id {
         "go-comic-converter" => &["-version"],
         "kcc-c2e" => &["--help"],
@@ -200,9 +189,6 @@ pub async fn read_tool_set_path(id: String, path: String) -> Result<(), String> 
     blocking(move || db::kv_set(&format!("tool:{id}"), &path)).await
 }
 
-// ---------- devices ----------
-
-/// E-reader screens (from KCC's profile table), for native comic output.
 pub const DEVICES: &[(&str, &str, u32, u32, bool)] = &[
     ("KPW5", "Kindle Paperwhite 5 / Signature", 1236, 1648, false),
     ("KPW6", "Kindle Paperwhite 6", 1272, 1696, false),
@@ -233,8 +219,6 @@ pub fn read_devices() -> Vec<serde_json::Value> {
         .map(|(id, name, w, h, color)| serde_json::json!({ "id": id, "name": name, "width": w, "height": h, "color": color }))
         .collect()
 }
-
-// ---------- jobs ----------
 
 #[derive(Debug, Clone, Serialize)]
 pub struct Job {
@@ -295,12 +279,9 @@ pub struct ComicOpts {
 pub struct ConvertReq {
     pub book_ids: Vec<i64>,
     pub paths: Vec<String>,
-    /// epub, kepub, azw3, mobi, pdf, cbz, docx, txt, fb2...
     pub to: String,
-    /// auto, native, calibre, kcc, pandoc, kepubify, gcc
     pub engine: String,
     pub comic: ComicOpts,
-    /// Extra command line flags for the external tool.
     pub extra_args: Vec<String>,
     pub output_dir: Option<String>,
     pub add_to_library: bool,
@@ -320,7 +301,6 @@ fn job(label: &str) -> Job {
 
 fn pick_engine(from: Option<BookFormat>, to: &str, want: &str) -> &'static str {
     let Some(from) = from else {
-        // Office documents and other files the library doesn't index.
         return match want {
             "calibre" => "calibre",
             "pandoc" => "pandoc",
@@ -533,7 +513,6 @@ async fn convert_one(
             let mut env = HashMap::new();
             env.insert("PYTHONUNBUFFERED".to_string(), "1".to_string());
             let log = run_tool(app, j, &exe, &args, &env).await?;
-            // KCC exits 0 even when kindlegen fails.
             if let Some(err) = log.lines().find(|l| l.contains("Error:")) {
                 return Err(err.trim().to_string());
             }
@@ -593,7 +572,6 @@ async fn convert_one(
             found(&out)
         }
         "markitdown" => {
-            // File -> Markdown with MarkItDown, then our own Markdown -> EPUB.
             let md = markitdown(input).await?;
             j.progress = 0.7;
             put(app, j);
@@ -644,8 +622,6 @@ async fn convert_one(
     }
 }
 
-/// Runs MarkItDown (installed, or through `uv tool run`) and returns the
-/// Markdown it prints.
 async fn markitdown(input: &Path) -> Result<String, String> {
     let (exe, pre): (PathBuf, Vec<String>) = match find("markitdown") {
         Some(p) => (p, vec![]),
@@ -679,7 +655,6 @@ async fn markitdown(input: &Path) -> Result<String, String> {
     Ok(String::from_utf8_lossy(&out.stdout).to_string())
 }
 
-/// ISO 639-3 codes ebook2audiobook wants.
 fn iso3(lang: &str) -> Option<&'static str> {
     Some(match lang.get(..2)?.to_ascii_lowercase().as_str() {
         "en" => "eng",
@@ -737,8 +712,6 @@ fn newest_new(dir: &Path, before: &std::collections::HashSet<PathBuf>) -> Option
         .max_by_key(|p| std::fs::metadata(p).and_then(|m| m.modified()).ok())
 }
 
-/// Runs a converter, turning `NN%` lines (calibre), KCC stage lines and
-/// go-comic-converter JSON into progress. Returns the combined output.
 async fn run_tool(
     app: &AppHandle,
     j: &mut Job,
@@ -810,11 +783,6 @@ async fn run_tool(
     Ok(log)
 }
 
-// ---------- web novels ----------
-
-/// Saves a web novel or fanfic as EPUB with FanFicFare (fanfiction sites,
-/// AO3...) or lightnovel-crawler (light novel sites). With `update`, an
-/// existing FanFicFare EPUB gets only the new chapters.
 #[tauri::command]
 pub async fn read_webnovel(
     app: AppHandle,
@@ -870,7 +838,6 @@ pub async fn read_webnovel(
         put(&app, &j);
         return Err(j.message.clone());
     }
-    // lncrawl writes into a folder per novel; look one level down too.
     let mut files: Vec<PathBuf> = walkdir::WalkDir::new(&dir)
         .max_depth(4)
         .into_iter()
@@ -906,8 +873,6 @@ pub async fn read_webnovel(
     let _ = app.emit("read-library-changed", ());
     Ok(ids)
 }
-
-// ---------- native ----------
 
 fn meta_for(input: &Path, book: Option<&db::BookRow>) -> EpubMeta {
     match book {
@@ -1009,8 +974,6 @@ fn native(
     }
 }
 
-/// "KCC lite": per page, trim uniform borders, split landscape spreads in
-/// reading order, grayscale for e-ink and fit the device screen.
 fn prepare_pages(raw: &[Vec<u8>], opts: &ComicOpts, rtl: bool) -> Vec<(Vec<u8>, u32, u32)> {
     let (dw, dh, color) = DEVICES
         .iter()
@@ -1067,8 +1030,6 @@ fn prepare_pages(raw: &[Vec<u8>], opts: &ComicOpts, rtl: bool) -> Vec<(Vec<u8>, 
     out
 }
 
-/// Trims rows/columns that are all near the corner colour (white or black
-/// margins), at most 10% per side like KCC.
 pub fn crop_borders(img: image::DynamicImage) -> image::DynamicImage {
     let g = img.to_luma8();
     let (w, h) = g.dimensions();
@@ -1110,8 +1071,6 @@ pub fn crop_borders(img: image::DynamicImage) -> image::DynamicImage {
     img.crop_imm(left, top, w - left - right, h - top - bottom)
 }
 
-/// Joins a series' downloaded chapters (in order) into one CBZ or
-/// fixed-layout EPUB volume, with a TOC entry per chapter.
 #[tauri::command]
 pub async fn read_merge_chapters(
     app: AppHandle,

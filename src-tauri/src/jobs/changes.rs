@@ -1,14 +1,3 @@
-//! `job_changes` (3.4, S19, `85#P4`): the files a job wrote through the
-//! CLI's own file tools, each with its content before the first touch, from
-//! the stream's `originalFile` (SP3, [`omniget_core::core::llm::file_changes`]).
-//!
-//! What it buys: the diff of a job in a shared folder no longer depends on
-//! the shadow snapshots being there. When the snapshot diff is unavailable
-//! (no git, the snapshot failed, a job recorded before snapshots), the diff
-//! is rebuilt from these baselines and the files as they are now. Changes
-//! made through the shell are not in this table (the snapshot remains the
-//! first source when it exists).
-
 use rusqlite::{params, Connection};
 
 use omniget_core::core::llm::file_changes::{self, FileTouch};
@@ -27,7 +16,6 @@ pub(super) fn ensure_schema(db: &Connection) -> Result<(), String> {
     .map_err(|e| format!("{ERR_JOBS}: {e}"))
 }
 
-/// One row: the first touch of `path` by the job.
 #[derive(Debug, Clone, PartialEq)]
 pub struct JobChange {
     pub path: String,
@@ -36,8 +24,6 @@ pub struct JobChange {
     pub too_big: bool,
 }
 
-/// Files the touch under `job` (first touch per path wins: that one has the
-/// content from before the job).
 pub(super) fn insert(db: &Connection, job: &str, touch: &FileTouch, now: i64) {
     let _ = db.execute(
         "INSERT OR IGNORE INTO job_changes (job_id, path, op, baseline, too_big, first_ms)
@@ -75,9 +61,6 @@ pub(super) fn forget(db: &Connection, job: &str) {
     let _ = db.execute("DELETE FROM job_changes WHERE job_id=?1", params![job]);
 }
 
-/// The job's diff from its baselines and the files as they are now. Paths
-/// under `folder` are shown relative to it. A file whose baseline was too
-/// big is listed without lines.
 pub fn diff_from_baselines(folder: Option<&std::path::Path>, rows: &[JobChange]) -> JobDiff {
     let mut out = JobDiff {
         complete: true,
@@ -125,8 +108,6 @@ pub fn diff_from_baselines(folder: Option<&std::path::Path>, rows: &[JobChange])
 }
 
 impl Jobs {
-    /// The sink of [`file_changes::record`]: the touch goes to the job whose
-    /// turn it is (`request`); a turn that is no job's is dropped.
     pub(super) fn record_change(&self, request: &str, touch: FileTouch) {
         let Some(job) = self.job_of_request(request) else {
             return;
@@ -139,7 +120,6 @@ impl Jobs {
         );
     }
 
-    /// What the job wrote through the CLI's file tools, with the baselines.
     pub fn changes(&self, id: &str) -> Vec<JobChange> {
         of_job(&self.db(), id)
     }

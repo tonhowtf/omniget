@@ -1,7 +1,3 @@
-//! Índice carregado: embutido no binário ou atualizado em
-//! `<app_data>/agentkit/catalog/`, mesclado com os itens das fontes do usuário
-//! e das listagens de marketplace já buscadas.
-
 use std::collections::HashMap;
 use std::io::Read;
 use std::sync::{Arc, OnceLock, RwLock};
@@ -12,16 +8,13 @@ use serde_json::Value;
 use super::model::{CatalogIndex, CatalogItem, MarketplaceInfo};
 use super::{catalog_dir, CatalogError, Result, ERR_NOT_FOUND, ERR_PARSE};
 
-/// Índice gerado por `scripts/agentkit-catalog/build.mjs` (passa de 4 MB, então vai o gz).
 static EMBEDDED_INDEX_GZ: &[u8] =
     include_bytes!("../../../../../static/agentkit/catalog-index.json.gz");
-/// Metadados do mesmo build.
 static EMBEDDED_META: &str = include_str!("../../../../../static/agentkit/catalog-meta.json");
 
 pub const INDEX_FILE_GZ: &str = "catalog-index.json.gz";
 pub const INDEX_FILE: &str = "catalog-index.json";
 
-/// Catálogo pronto para busca.
 pub struct Catalog {
     pub items: Vec<CatalogItem>,
     pub by_id: HashMap<String, usize>,
@@ -32,7 +25,6 @@ pub struct Catalog {
 
 #[derive(Debug, Clone, Serialize)]
 pub struct IndexInfo {
-    /// `embedded` ou `updated`.
     pub loaded_from: String,
     pub generated: String,
     pub sources: Vec<Value>,
@@ -59,7 +51,6 @@ fn gunzip(bytes: &[u8]) -> Result<Vec<u8>> {
     Ok(out)
 }
 
-/// Decodifica bytes de índice (gz ou JSON puro).
 pub fn decode_index(bytes: &[u8]) -> Result<CatalogIndex> {
     let raw = if bytes.starts_with(&[0x1f, 0x8b]) {
         gunzip(bytes)?
@@ -70,17 +61,14 @@ pub fn decode_index(bytes: &[u8]) -> Result<CatalogIndex> {
         .map_err(|e| CatalogError::new(ERR_PARSE, format!("catalog index: {e}")))
 }
 
-/// Índice embutido.
 pub fn embedded_index() -> Result<CatalogIndex> {
     decode_index(EMBEDDED_INDEX_GZ)
 }
 
-/// Metadados embutidos (`catalog-meta.json`).
 pub fn embedded_meta() -> Value {
     serde_json::from_str(EMBEDDED_META).unwrap_or(Value::Null)
 }
 
-/// Índice atualizado em disco, se existir e for mais novo que o embutido.
 fn updated_index(embedded_generated: &str) -> Option<CatalogIndex> {
     let dir = catalog_dir().ok()?;
     for name in [INDEX_FILE_GZ, INDEX_FILE] {
@@ -111,12 +99,10 @@ fn build() -> Result<Catalog> {
     let mut items = base.items;
     let mut marketplaces = base.marketplaces;
     let mut extra_counts = HashMap::new();
-    // fontes do usuário (varridas e guardadas em cache)
     for (sid, extra) in super::sources::cached_items() {
         extra_counts.insert(sid, extra.len());
         items.extend(extra);
     }
-    // listagens de marketplace buscadas (curadas atualizadas ou adicionadas)
     for (info, extra) in super::marketplace::cached_listings() {
         let repo = info.repo.clone();
         items.retain(|i| i.source.marketplace.as_deref() != Some(repo.as_str()));
@@ -132,7 +118,6 @@ fn build() -> Result<Catalog> {
     let mut dedup = Vec::with_capacity(items.len());
     for it in items {
         if let Some(&pos) = by_id.get(&it.id) {
-            // o mais recente (fonte do usuário/marketplace) vence
             dedup[pos] = it;
         } else {
             by_id.insert(it.id.clone(), dedup.len());
@@ -148,7 +133,6 @@ fn build() -> Result<Catalog> {
     })
 }
 
-/// Catálogo atual (constrói na primeira chamada).
 pub fn catalog() -> Result<Arc<Catalog>> {
     if let Some(c) = cell().read().ok().and_then(|g| g.clone()) {
         return Ok(c);
@@ -160,14 +144,12 @@ pub fn catalog() -> Result<Arc<Catalog>> {
     Ok(built)
 }
 
-/// Descarta o catálogo em memória (fontes mudaram).
 pub fn invalidate() {
     if let Ok(mut g) = cell().write() {
         *g = None;
     }
 }
 
-/// Um item por id: índice + fontes + marketplaces + MCP Registry em memória.
 pub fn item(id: &str) -> Result<CatalogItem> {
     let c = catalog()?;
     if let Some(i) = c.get(id) {
@@ -179,7 +161,6 @@ pub fn item(id: &str) -> Result<CatalogItem> {
     Err(CatalogError::new(ERR_NOT_FOUND, format!("item `{id}`")))
 }
 
-/// Metadados para a tela: fonte, commit, contagens por tipo, data.
 pub fn meta() -> Result<Value> {
     let c = catalog()?;
     let mut counts: std::collections::BTreeMap<String, usize> = Default::default();

@@ -1,7 +1,3 @@
-//! Windows: power plans through `powercfg` (argv, GUIDs validated), the
-//! "power mode" overlay from the registry, and `PowerSetRequest` for the
-//! hold.
-
 use std::path::Path;
 use std::sync::mpsc;
 
@@ -37,7 +33,6 @@ pub fn schemes() -> Result<Vec<parse::Scheme>, String> {
     Ok(parse::powercfg_list(&powercfg(&["/list"])?))
 }
 
-/// `(ac, dc)` overlay names of the Settings "power mode" slider.
 pub fn overlay() -> (Option<&'static str>, Option<&'static str>) {
     let out = crate::core::process::std_command("reg")
         .args([
@@ -58,7 +53,6 @@ pub fn overlay() -> (Option<&'static str>, Option<&'static str>) {
     )
 }
 
-/// `powercfg /requests` needs an administrator; `Err` says so.
 pub fn requests() -> Result<Vec<parse::SleepBlocker>, String> {
     Ok(parse::powercfg_requests(&powercfg(&["/requests"])?))
 }
@@ -75,8 +69,6 @@ pub fn set_active(g: &str) -> Result<(), String> {
     powercfg(&["/setactive", guid(g)?]).map(|_| ())
 }
 
-/// Copy the hidden Ultimate Performance template; returns the new GUID.
-/// Creating a plan does not need an administrator.
 pub fn duplicate_ultimate() -> Result<String, String> {
     let out = powercfg(&["-duplicatescheme", parse::ULTIMATE_TEMPLATE])?;
     parse::powercfg_active(&out)
@@ -88,7 +80,6 @@ pub fn delete_scheme(g: &str) -> Result<(), String> {
     powercfg(&["/delete", guid(g)?]).map(|_| ())
 }
 
-/// `powercfg /batteryreport` as HTML into our own folder (path in argv).
 pub fn battery_report(out: &Path) -> Result<(), String> {
     let status = crate::core::process::std_command("powercfg")
         .arg("/batteryreport")
@@ -103,7 +94,6 @@ pub fn battery_report(out: &Path) -> Result<(), String> {
     }
 }
 
-/// A power request owned by one thread: created, set, and cleared there.
 pub struct PowerRequestBackend;
 
 impl Backend for PowerRequestBackend {
@@ -132,7 +122,7 @@ impl Backend for PowerRequestBackend {
             .spawn(move || {
                 let mut wide: Vec<u16> = text.encode_utf16().chain(std::iter::once(0)).collect();
                 let mut ctx: REASON_CONTEXT = unsafe { std::mem::zeroed() };
-                ctx.Version = 0; // POWER_REQUEST_CONTEXT_VERSION
+                ctx.Version = 0;
                 ctx.Flags = POWER_REQUEST_CONTEXT_SIMPLE_STRING;
                 ctx.Reason.SimpleReasonString = wide.as_mut_ptr();
                 let h = unsafe { PowerCreateRequest(&ctx) };

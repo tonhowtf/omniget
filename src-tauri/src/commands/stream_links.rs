@@ -1,10 +1,3 @@
-//! Downloads › Tools › Stream links: every stream a page offers, with the
-//! exact size and the direct media URL, before anything is downloaded.
-//!
-//! The idea comes from lux (`lux -i` lists each stream with its size, `lux -j`
-//! prints the extracted URLs as JSON) and from `you-get -u`. Reimplemented on
-//! top of the yt-dlp JSON the app already fetches; no code was copied.
-
 use serde::Serialize;
 use serde_json::Value;
 
@@ -14,7 +7,6 @@ use crate::core::ytdlp;
 #[derive(Debug, Clone, Serialize, PartialEq)]
 pub struct StreamLink {
     pub format_id: String,
-    /// "av" (video with audio), "video" (no audio) or "audio".
     pub kind: &'static str,
     pub ext: String,
     pub resolution: Option<String>,
@@ -23,14 +15,10 @@ pub struct StreamLink {
     pub vcodec: Option<String>,
     pub acodec: Option<String>,
     pub filesize: Option<u64>,
-    /// True when the size is yt-dlp's estimate (`filesize_approx`).
     pub filesize_is_estimate: bool,
     pub tbr: Option<f64>,
-    /// yt-dlp protocol: `https`, `m3u8_native`, `http_dash_segments`...
     pub protocol: String,
-    /// The direct URL, or the playlist/manifest URL for segmented streams.
     pub url: String,
-    /// Headers the server expects (User-Agent, Referer, Cookie...).
     pub headers: Vec<(String, String)>,
     pub note: Option<String>,
 }
@@ -73,7 +61,6 @@ fn stream_of(f: &Value) -> Option<StreamLink> {
     let format_id = str_of(f, "format_id")?;
     let url = str_of(f, "url").or_else(|| str_of(f, "manifest_url"))?;
     let protocol = str_of(f, "protocol").unwrap_or_else(|| "https".to_string());
-    // Storyboards (`mhtml`) are thumbnails, not media.
     if protocol == "mhtml" {
         return None;
     }
@@ -83,8 +70,6 @@ fn stream_of(f: &Value) -> Option<StreamLink> {
     let width = f.get("width").and_then(|v| v.as_u64()).map(|w| w as u32);
     let declared_video = f.get("vcodec").is_some();
     let declared_audio = f.get("acodec").is_some();
-    // Direct files and some extractors leave the codecs out: a stream with a
-    // height is video, and without codec fields it is a whole file (both).
     let has_video = vcodec.is_some() || (!declared_video && (height.is_some() || !declared_audio));
     let has_audio = acodec.is_some() || (!declared_audio && !declared_video);
     let kind = match (has_video, has_audio) {
@@ -118,12 +103,9 @@ fn stream_of(f: &Value) -> Option<StreamLink> {
     })
 }
 
-/// Turns yt-dlp's `-J` output into the list the panel shows: best first
-/// (video with audio, then video, then audio; taller and larger first).
 pub fn parse_stream_links(json: &Value) -> StreamLinks {
     let mut streams: Vec<StreamLink> = match json.get("formats").and_then(|v| v.as_array()) {
         Some(formats) => formats.iter().filter_map(stream_of).collect(),
-        // A direct file has no `formats`: the page itself is the only stream.
         None => {
             let mut whole = json.clone();
             if let Some(o) = whole.as_object_mut() {

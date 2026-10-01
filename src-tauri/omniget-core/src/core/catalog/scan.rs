@@ -1,18 +1,3 @@
-//! O gerador do índice portado para Rust: varre uma pasta (fonte local ou
-//! cópia de um repo Git) e gera itens no formato do contrato, com a mesma
-//! descoberta de tipo por caminho/arquivo e a mesma normalização de
-//! `scripts/agentkit-catalog/build.mjs`.
-//!
-//! Layouts reconhecidos:
-//! - claude-code-templates (`cli-tool/components/<tipo>/<categoria>/…` + `cli-tool/templates`);
-//! - pastas de tipo na raiz (`agents/`, `commands/`, `skills/`, `hooks/`, `mcps/`,
-//!   `settings/`, `statuslines/`, `loops/`, `mods/`, `rules/`, `workflows/`, `sandbox/`),
-//!   com ou sem pasta de categoria (sem categoria → `general`);
-//! - pastas de ferramenta (`.claude/{agents,commands,skills}`, `.agents/skills`,
-//!   `.github/{agents,chatmodes,prompts}`);
-//! - plugin/marketplace Claude (`.claude-plugin/plugin.json` / `marketplace.json`);
-//! - `SKILL.md` solto em qualquer pasta (repo de skills).
-
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::path::{Path, PathBuf};
 
@@ -40,19 +25,14 @@ const SKIP: &[&str] = &[
     "target",
 ];
 
-/// De onde vêm os arquivos varridos.
 #[derive(Debug, Clone, Default)]
 pub struct ScanSource {
-    /// Prefixo do id (`user-…`, `cct`).
     pub id: String,
     pub repo: Option<String>,
     pub commit: Option<String>,
-    /// Pasta da raiz varrida dentro do repo (`""` = raiz do repo).
     pub repo_prefix: String,
-    /// Raiz local para leitura direta (fonte local ou cópia extraída).
     pub local_root: Option<PathBuf>,
     pub updated: Option<String>,
-    /// Licença do repo quando o item não declara nenhuma.
     pub default_license: Option<String>,
 }
 
@@ -107,7 +87,6 @@ fn list_files(d: &Path) -> Vec<PathBuf> {
     v
 }
 
-/// Todos os arquivos sob `dir` (ordenados), pulando pastas por predicado.
 fn walk_files(dir: &Path, skip_dir: &dyn Fn(&Path) -> bool, skip_dot: bool) -> Vec<PathBuf> {
     walk_files_max(dir, skip_dir, skip_dot, MAX_FILES_PER_ITEM)
 }
@@ -320,7 +299,6 @@ impl Ctx<'_> {
             .push((self.repo_path(p), why.to_string()));
     }
 
-    /// Categoria + resto do id de um arquivo sob a pasta do tipo.
     fn cat_and_rest(type_dir: &Path, file: &Path) -> (String, String, bool) {
         let r = rel(type_dir, file);
         let no_ext = {
@@ -626,7 +604,6 @@ impl Ctx<'_> {
                 r
             };
             let parts: Vec<&str> = if base == id_base && base == self.root {
-                // passe na raiz: ignora pastas ocultas e `skills` no caminho
                 let f: Vec<&str> = r
                     .split('/')
                     .filter(|p| !p.starts_with('.') && *p != "skills")
@@ -963,7 +940,7 @@ impl Ctx<'_> {
             if src.url.is_some()
                 || src.repo.as_deref() != self.src.repo.as_deref() && self.src.repo.is_some()
             {
-                continue; // plugin externo: fica para `catalog_marketplace`
+                continue;
             }
             let dir = if src.path.is_empty() {
                 root.to_path_buf()
@@ -971,7 +948,6 @@ impl Ctx<'_> {
                 root.join(&src.path)
             };
             if !dir.join(".claude-plugin").join("plugin.json").is_file() {
-                // marketplace com plugin sem manifesto próprio: manifesto vem da entrada
                 if dir.is_dir() && dir != root {
                     let files: Vec<ItemFile> = walk_files(&dir, &|_| false, true)
                         .iter()
@@ -1020,7 +996,6 @@ fn statusline_script_re() -> &'static regex::Regex {
     RE.get_or_init(|| regex::Regex::new(r"\.claude/scripts/([\w.-]+\.(?:py|sh|js))").expect("re"))
 }
 
-/// Arquivo principal de um template: CLAUDE.md, README.md ou o primeiro arquivo.
 fn template_entry(dir: &Path, skip: &dyn Fn(&Path) -> bool) -> Option<PathBuf> {
     ["CLAUDE.md", "README.md"]
         .iter()
@@ -1029,7 +1004,6 @@ fn template_entry(dir: &Path, skip: &dyn Fn(&Path) -> bool) -> Option<PathBuf> {
         .or_else(|| walk_files(dir, skip, false).into_iter().next())
 }
 
-/// Tipo de uma pasta conhecida (nome relativo à raiz dos componentes).
 const TYPE_DIRS: &[(&str, &str, Option<&str>)] = &[
     ("agents", "agent", None),
     ("commands", "command", None),
@@ -1044,7 +1018,6 @@ const TYPE_DIRS: &[(&str, &str, Option<&str>)] = &[
     (".cursor/rules", "rule", Some("cursor")),
 ];
 
-/// Varre `root` e gera itens. Nunca falha: problemas viram `skipped`.
 pub fn scan(root: &Path, src: &ScanSource) -> ScanReport {
     let mut ctx = Ctx {
         root,
@@ -1060,7 +1033,6 @@ pub fn scan(root: &Path, src: &ScanSource) -> ScanReport {
         root.to_path_buf()
     };
 
-    // plugin único na raiz: o repo inteiro é um plugin
     let root_plugin = root.join(".claude-plugin").join("plugin.json").is_file()
         && !root
             .join(".claude-plugin")
@@ -1121,10 +1093,8 @@ pub fn scan(root: &Path, src: &ScanSource) -> ScanReport {
             ctx.skills(&p, &p);
         }
     }
-    // SKILL.md soltos (repo de skills sem pasta `skills/`)
     ctx.skills(root, root);
 
-    // colisões de nome dentro do mesmo tipo
     let mut groups: HashMap<(String, String), Vec<usize>> = HashMap::new();
     for (i, it) in ctx.report.items.iter().enumerate() {
         groups
@@ -1147,7 +1117,6 @@ pub fn scan(root: &Path, src: &ScanSource) -> ScanReport {
             }
         }
     }
-    // ids duplicados (mesmo arquivo alcançado por dois caminhos): fica o primeiro
     let mut seen = BTreeSet::new();
     ctx.report.items.retain(|i| seen.insert(i.id.clone()));
     ctx.report.items.sort_by(|a, b| a.id.cmp(&b.id));

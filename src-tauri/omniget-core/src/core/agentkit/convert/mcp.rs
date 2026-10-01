@@ -1,11 +1,3 @@
-//! MCP servers for every client format of 06 §0C.6 (F1): JSON `mcpServers` /
-//! `servers` / `mcp` / `context_servers` / `amp.mcpServers`, Codex/Grok TOML
-//! `[mcp_servers.x]`, Vibe `[[mcp_servers]]`, Goose YAML `extensions`, Continue
-//! one-YAML-per-server. Secrets are written as variable references (`${VAR}`,
-//! `${env:VAR}`, `{env:VAR}`, VS Code `inputs`, Codex `bearer_token_env_var` /
-//! `env_vars`), never as values, unless the tool cannot reference a variable.
-//! Remote servers on tools without remote transport go through `mcp-remote`.
-
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 
@@ -20,12 +12,9 @@ use crate::core::agentkit::{AgentkitError, Result, Scope};
 
 pub struct McpConverter;
 
-/// How secrets end up in one surface's file.
 #[derive(Default)]
 struct SecretUse {
-    /// VS Code `inputs` entries to add.
     inputs: Vec<Value>,
-    /// Env vars a Codex-like tool must forward (`env_vars`).
     forward: Vec<String>,
     losses: Vec<String>,
     notes: Vec<String>,
@@ -35,7 +24,6 @@ fn input_id(name: &str) -> String {
     name.to_ascii_lowercase().replace('_', "-")
 }
 
-/// Replaces `{{secret:NAME}}` markers for this surface.
 fn render_secrets(
     s: &str,
     surface: &McpTarget,
@@ -95,7 +83,6 @@ fn is_whole_secret(s: &str) -> Option<&str> {
         .filter(|n| !n.contains('}'))
 }
 
-/// Bearer header → secret name (`Authorization: Bearer {{secret:X}}`).
 fn bearer_secret(headers: &BTreeMap<String, String>) -> Option<(String, String)> {
     headers.iter().find_map(|(k, v)| {
         if !k.eq_ignore_ascii_case("authorization") {
@@ -108,7 +95,6 @@ fn bearer_secret(headers: &BTreeMap<String, String>) -> Option<(String, String)>
     })
 }
 
-/// Server record for one surface.
 fn render_server(
     s: &McpServer,
     surface: &McpTarget,
@@ -303,7 +289,6 @@ fn render_server(
                 }
             }
             other => {
-                // `url` and unknown shapes
                 if other != "url" {
                     use_.notes.push(format!(
                         "remote shape `{other}` written as {{url, headers}}"
@@ -323,7 +308,6 @@ fn render_server(
         return Value::Object(m);
     }
 
-    // stdio (or remote bridged through mcp-remote)
     let (command, args, mut env): (String, Vec<String>, BTreeMap<String, String>) = if bridged {
         let url = s.url.clone().unwrap_or_default();
         let mut args = vec!["-y".to_string(), "mcp-remote@latest".to_string(), url];
@@ -359,7 +343,6 @@ fn render_server(
         .iter()
         .map(|a| render_secrets(a, surface, ctx, use_, file))
         .collect();
-    // Codex forwards secrets from the environment by name
     if codex_like {
         let secret_keys: Vec<String> = env
             .iter()
@@ -684,7 +667,6 @@ impl Converter for McpConverter {
     }
 }
 
-/// What the server runs or connects to, for the "always show the command" rule.
 pub fn server_command_line(s: &McpServer) -> String {
     match s.transport {
         McpTransport::Stdio => {

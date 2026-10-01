@@ -1,25 +1,3 @@
-//! Tool broker: one door for internal tools, MCP servers and skills, with a
-//! per-agent grant. Owned by f2-llm-coordinator.
-//!
-//! Phase 3 shape: the broker holds one spec list fed by three sources —
-//! [`ToolBroker::register_internal`] (the shared `tool_table`),
-//! [`ToolBroker::register_mcp`] (one external MCP server) and
-//! [`ToolBroker::register_skills`] — each with its own [`ToolExecutor`]. The
-//! name decides the route: `mcp:<server>:<tool>` goes to that server's
-//! executor, `skill:<name>` to the skills executor, anything else to the
-//! internal one. That is the same key [`grant_key`] produces, so a grant, a
-//! spec and a route can never drift apart.
-//!
-//! Registration takes `&self`: a server added in the UI shows up in a broker
-//! that is already inside an `Arc`, without rebuilding the coordinator.
-//!
-//! `GrantMode::Ask` emits `BusEvent::ToolAsk` and waits for
-//! [`ToolBroker::answer`] until the ask timeout of its request (the chat's
-//! default, or what [`ToolBroker::set_ask_timeout_resolver`] says for a
-//! background job). Running out of time is not a refusal: the call fails with
-//! `ERR_TOOL_TIMEOUT`, and every ending of an ask — answer, expiry, cancel —
-//! goes out as one `BusEvent::ToolAskResolved`, so an expiry is never silent.
-
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, RwLock};
 use std::time::{Duration, Instant};
@@ -33,38 +11,23 @@ use super::error::LlmError;
 use super::types::ToolSpec;
 use crate::core::omni::bus::{Bus, BusEvent};
 
-/// The agent is not allowed to call this tool.
 pub const ERR_TOOL_DENIED: &str = "ERR_TOOL_DENIED";
-/// The tool is not in the table the broker was given.
 pub const ERR_TOOL_UNKNOWN: &str = "ERR_TOOL_UNKNOWN";
-/// Nobody answered a `GrantMode::Ask` prompt in time.
 pub const ERR_TOOL_TIMEOUT: &str = "ERR_TOOL_TIMEOUT";
 
-/// How long an `Ask` grant waits for the user when nothing else was set.
-/// The app replaces it with the user's `ask_timeout_chat_s` (30 min by
-/// default); 120 s only survives in a broker nobody configured.
 pub const DEFAULT_ASK_TIMEOUT: Duration = Duration::from_secs(120);
-/// No question ever expires sooner than this, whatever a resolver says (a job
-/// one second from its deadline still gets a real chance, and the deadline
-/// then ends the job with its own reason).
 pub const MIN_ASK_TIMEOUT: Duration = Duration::from_secs(1);
 
-/// Picks the ask timeout of one request (`None` = the default).
 pub type AskTimeoutResolver = Arc<dyn Fn(&str) -> Option<Duration> + Send + Sync>;
 
-/// How a question ended.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AskEnd {
-    /// A person (or a stored rule) answered.
     Answered(Answer),
-    /// Nobody answered within the timeout: the action did not run.
     Expired { waited: Duration },
-    /// The turn ended, or the answer could not apply to the durable record.
     Cancelled,
 }
 
 impl AskEnd {
-    /// What the caller acts on: only an explicit yes allows.
     pub fn answer(self) -> Answer {
         match self {
             AskEnd::Answered(a) => a,
@@ -72,7 +35,6 @@ impl AskEnd {
         }
     }
 
-    /// The `outcome` of `BusEvent::ToolAskResolved`.
     pub fn outcome(self) -> &'static str {
         match self {
             AskEnd::Answered(Answer::Deny) => "deny",
@@ -83,7 +45,6 @@ impl AskEnd {
     }
 }
 
-/// The error of a brokered call whose question expired.
 pub fn timeout_error(name: &str, waited: Duration) -> LlmError {
     LlmError::new(
         ERR_TOOL_TIMEOUT,
@@ -94,16 +55,11 @@ pub fn timeout_error(name: &str, waited: Duration) -> LlmError {
     )
 }
 
-/// Runs one tool call. The app implements it over `omniget_core::core::tools::*`
-/// plus the MCP client; the tests implement it in three lines.
 #[async_trait]
 pub trait ToolExecutor: Send + Sync {
     async fn execute(&self, name: &str, input: Value) -> Result<String, LlmError>;
 }
 
-/// Stable key of a grant, matched against the tool name the model emitted.
-/// Internal tools keep their bare name; MCP and skills are namespaced so an
-/// MCP server can never shadow an internal tool.
 pub fn grant_key(source: &ToolSource) -> String {
     match source {
         ToolSource::Internal { name } => name.clone(),
@@ -112,33 +68,23 @@ pub fn grant_key(source: &ToolSource) -> String {
     }
 }
 
-/// What the user said to an `Ask`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Answer {
     Deny,
     Once,
-    /// Allow, and store a rule so the same kind of call stops asking.
     Always,
 }
 
-/// A person's answer to a durable ask, in the words of the approvals API
-/// (item 2.2): `POST /v1/approvals/{id}`, `omniget agent approve`, MCP
-/// `approval_respond`, the window and a paired phone all send one of these.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Decision {
-    /// Allow this call.
     Accept,
-    /// Allow this call and the same tool for the rest of this turn.
     AcceptSession,
-    /// Allow, and store a rule so the same kind of call stops asking.
     AcceptAlways,
     Decline,
-    /// Refuse and stop the turn that asked.
     Cancel,
 }
 
 impl Decision {
-    /// Every decision, in the order the elicitation payload lists them.
     pub const ALL: [&'static str; 5] = [
         "accept",
         "accept_session",
@@ -168,7 +114,6 @@ impl Decision {
         }
     }
 
-    /// The word stored in `runs_permissions.answer`.
     pub fn word(self) -> &'static str {
         match self {
             Decision::Accept => "once",
@@ -179,7 +124,6 @@ impl Decision {
         }
     }
 
-    /// What the waiting call reads.
     pub fn answer(self) -> Answer {
         match self {
             Decision::Accept | Decision::AcceptSession => Answer::Once,
@@ -197,9 +141,6 @@ impl Decision {
     }
 }
 
-/// The question as an MCP `elicitation/create` request (`85#P2`): what a
-/// remote client renders and answers with `{decision}`. Stored with the row,
-/// served by `GET /v1/approvals`; it carries no ids of the turn.
 pub fn elicitation(agent_id: &str, action: &str, preview: &str) -> Value {
     serde_json::json!({
         "method": "elicitation/create",
@@ -221,7 +162,6 @@ pub fn elicitation(agent_id: &str, action: &str, preview: &str) -> Value {
     })
 }
 
-/// Result of one brokered call, for telemetry.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ToolOutcome {
     pub name: String,
@@ -230,36 +170,23 @@ pub struct ToolOutcome {
     pub content: String,
 }
 
-/// The prefix of the internal source: internal tools keep their bare name.
 const INTERNAL_PREFIX: &str = "";
-/// The prefix every skill tool carries, matching [`grant_key`].
 pub const SKILL_PREFIX: &str = "skill:";
 
-/// One place tools come from: the internal table, one MCP server, the skills.
 struct Source {
-    /// Route key. Also the id a later `register_*` replaces.
     prefix: String,
     executor: Arc<dyn ToolExecutor>,
     specs: Vec<ToolSpec>,
 }
 
-/// One question waiting for the user. `permission` is the durable
-/// `PermissionRequest` of the run (when a run registry is active): the answer
-/// must resolve that exact request, once and in time, before it releases the
-/// waiting call.
 struct PendingAsk {
     tx: oneshot::Sender<Answer>,
     request_id: String,
-    /// The tool (or label) asked about: an "accept for the session" answer
-    /// covers the next asks of the same turn for it.
     tool: String,
     permission: Option<(crate::core::assist::runs::Registry, String)>,
-    /// The agent that asked, for the audit line of an "always" (2.8).
     agent: String,
 }
 
-/// The id an ask has in the audit log: its durable id when it has a row,
-/// else the tool call it belongs to.
 fn ask_entity(
     permission: &Option<(crate::core::assist::runs::Registry, String)>,
     call: &str,
@@ -272,17 +199,11 @@ fn ask_entity(
     )
 }
 
-/// Why an answer did not apply.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AnswerRefused {
-    /// No such question is waiting (already answered, never asked).
     Unknown,
-    /// The question ran out of time; the late answer applies to nothing.
     Expired,
-    /// The question already had its answer, or its run was cancelled.
     Resolved,
-    /// The process that asked is gone (a restart): nothing can release that
-    /// call; the turn has to be started again.
     Stale,
 }
 
@@ -292,16 +213,10 @@ pub struct ToolBroker {
     pending: Mutex<HashMap<String, PendingAsk>>,
     ask_timeout: RwLock<Duration>,
     ask_timeout_resolver: RwLock<Option<AskTimeoutResolver>>,
-    /// The run registry of the last durable question, so a late answer can
-    /// still be told apart (expired vs resolved) after its waiter left.
     last_registry: Mutex<Option<crate::core::assist::runs::Registry>>,
-    /// "Accept for the session" answers: request id → tools that stop asking
-    /// for the rest of that turn. Bounded: cleared when it grows past
-    /// [`SESSION_ALLOW_MAX`] turns (a turn then simply asks again).
     session_allow: Mutex<HashMap<String, std::collections::HashSet<String>>>,
 }
 
-/// Turns remembered by `session_allow` before it starts over.
 const SESSION_ALLOW_MAX: usize = 512;
 
 impl std::fmt::Debug for ToolBroker {
@@ -319,8 +234,6 @@ impl std::fmt::Debug for ToolBroker {
 }
 
 impl ToolBroker {
-    /// The internal source, ready to run. `register_internal` replaces it
-    /// later without touching anything else.
     pub fn new(specs: Vec<ToolSpec>, executor: Arc<dyn ToolExecutor>, bus: Arc<Bus>) -> Self {
         let broker = Self {
             sources: RwLock::new(Vec::new()),
@@ -335,8 +248,6 @@ impl ToolBroker {
         broker
     }
 
-    /// The default ask timeout (the chat's), settable on a broker that is
-    /// already shared: the settings change while the app runs.
     pub fn set_ask_timeout(&self, timeout: Duration) {
         *self.ask_timeout.write().unwrap_or_else(|e| e.into_inner()) = timeout;
     }
@@ -345,8 +256,6 @@ impl ToolBroker {
         *self.ask_timeout.read().unwrap_or_else(|e| e.into_inner())
     }
 
-    /// Per-request timeouts: the jobs register one so a background job's
-    /// question waits as long as the job may still run.
     pub fn set_ask_timeout_resolver(&self, resolver: Option<AskTimeoutResolver>) {
         *self
             .ask_timeout_resolver
@@ -354,9 +263,6 @@ impl ToolBroker {
             .unwrap_or_else(|e| e.into_inner()) = resolver;
     }
 
-    /// How long a question of `request_id` would wait. What a resolver
-    /// picks is never under [`MIN_ASK_TIMEOUT`]; the default is taken as set
-    /// (the settings clamp it, the tests shorten it).
     pub fn ask_timeout_for(&self, request_id: &str) -> Duration {
         let resolver = self
             .ask_timeout_resolver
@@ -369,10 +275,6 @@ impl ToolBroker {
         }
     }
 
-    // ── Sources ───────────────────────────────────────────────────────
-
-    /// Replace the internal source (the shared `tool_table`). Returns how many
-    /// specs it now offers.
     pub fn register_internal(
         &self,
         specs: Vec<ToolSpec>,
@@ -381,8 +283,6 @@ impl ToolBroker {
         self.register(INTERNAL_PREFIX.to_string(), specs, executor)
     }
 
-    /// Replace the tools of a named source whose names are already final
-    /// (no namespacing): the assistant tools (`assist`), for one.
     pub fn register_source(
         &self,
         prefix: &str,
@@ -392,12 +292,10 @@ impl ToolBroker {
         self.register(prefix.to_string(), specs, executor)
     }
 
-    /// Drop every skill tool.
     pub fn unregister_skills(&self) -> usize {
         self.unregister(SKILL_PREFIX)
     }
 
-    /// The prefixes currently registered, in order, for diagnostics.
     pub fn sources(&self) -> Vec<String> {
         self.sources
             .read()
@@ -414,8 +312,6 @@ impl ToolBroker {
         executor: Arc<dyn ToolExecutor>,
     ) -> usize {
         let mut sources = self.sources.write().unwrap_or_else(|e| e.into_inner());
-        // A name another source already owns is dropped, not shadowed: the
-        // internal table wins over a server that picked the same name.
         let taken: std::collections::HashSet<String> = sources
             .iter()
             .filter(|s| s.prefix != prefix)
@@ -453,7 +349,6 @@ impl ToolBroker {
         gone
     }
 
-    /// The executor that owns this tool name, if any source does.
     fn executor_for(&self, name: &str) -> Option<Arc<dyn ToolExecutor>> {
         let sources = self.sources.read().unwrap_or_else(|e| e.into_inner());
         sources
@@ -462,7 +357,6 @@ impl ToolBroker {
             .map(|s| s.executor.clone())
     }
 
-    /// Every tool on offer, sources in registration order.
     pub fn specs(&self) -> Vec<ToolSpec> {
         self.sources
             .read()
@@ -472,8 +366,6 @@ impl ToolBroker {
             .collect()
     }
 
-    /// The tools this agent may see, in the order the table has them. A tool
-    /// with no grant, or with `Deny`, is not offered to the model at all.
     pub fn specs_for(&self, grants: &[ToolGrant]) -> Vec<ToolSpec> {
         self.specs()
             .into_iter()
@@ -481,8 +373,6 @@ impl ToolBroker {
             .collect()
     }
 
-    /// `Deny` unless the agent has a grant for this exact tool. Closed by
-    /// default on purpose.
     pub fn mode_for(&self, grants: &[ToolGrant], name: &str) -> GrantMode {
         grants
             .iter()
@@ -491,8 +381,6 @@ impl ToolBroker {
             .unwrap_or(GrantMode::Deny)
     }
 
-    /// Answer a pending `Ask`. Returns false when the id is unknown (already
-    /// answered, or timed out).
     pub fn answer(&self, tool_call_id: &str, allow: bool) -> bool {
         self.answer_with(
             tool_call_id,
@@ -504,8 +392,6 @@ impl ToolBroker {
         self.deliver(tool_call_id, answer).is_ok()
     }
 
-    /// Answers by the durable permission id (the Activity list, the
-    /// projection). A late answer is refused as expired and releases nothing.
     pub fn answer_permission(
         &self,
         permission_id: &str,
@@ -518,11 +404,6 @@ impl ToolBroker {
         )
     }
 
-    /// The one entry of every channel (item 2.2): answers the durable ask
-    /// `permission_id` with `decision`, recording who answered and through
-    /// what. Exactly one answer applies; any later one is refused
-    /// (`Resolved`/`Expired`/`Unknown`). A `stale` ask (its waiter died with
-    /// another boot) takes no answer; `Cancel` closes it.
     pub fn respond(
         &self,
         permission_id: &str,
@@ -532,8 +413,6 @@ impl ToolBroker {
         self.respond_in(None, permission_id, decision, actor)
     }
 
-    /// [`Self::respond`] against a given run record when nobody waits here
-    /// (a handler outside the turn's task, a test); `None` = the active one.
     pub fn respond_in(
         &self,
         registry: Option<&crate::core::assist::runs::Registry>,
@@ -553,8 +432,6 @@ impl ToolBroker {
         if let Some(k) = key {
             return self.deliver_by(&k, decision, actor);
         }
-        // Nobody waits here: tell expired, stale and resolved apart if the
-        // record knows.
         let reg = registry
             .cloned()
             .or_else(crate::core::assist::runs::active)
@@ -595,8 +472,6 @@ impl ToolBroker {
         )
     }
 
-    /// [`Self::answer_with`] with the full decision and who gave it (the
-    /// window's cards answer by tool call id).
     pub fn answer_call_by(
         &self,
         tool_call_id: &str,
@@ -622,7 +497,6 @@ impl ToolBroker {
         let entity = ask_entity(&entry.permission, tool_call_id);
         if let Some((reg, id)) = &entry.permission {
             if let Err(e) = reg.answer_permission_by(id, decision.word(), actor) {
-                // Dropping `entry.tx` makes the waiter read "no".
                 return Err(
                     if e.starts_with(crate::core::assist::runs::ERR_PERMISSION_EXPIRED) {
                         AnswerRefused::Expired
@@ -632,7 +506,6 @@ impl ToolBroker {
                 );
             }
         }
-        // Who answered, through what (2.8): the one line every channel leaves.
         super::audit::log(
             actor.into(),
             "ask.answered",
@@ -663,8 +536,6 @@ impl ToolBroker {
             .map_err(|_| AnswerRefused::Expired)
     }
 
-    /// Whether an "accept for the session" answer already covers `tool` in
-    /// this turn.
     fn session_allows(&self, request_id: &str, tool: &str) -> bool {
         self.session_allow
             .lock()
@@ -673,8 +544,6 @@ impl ToolBroker {
             .is_some_and(|t| t.contains(tool))
     }
 
-    /// Cancels every question of one turn: each resolves as `cancelled` in
-    /// the run record and the waiting calls read "no". Returns how many.
     pub fn cancel_request(&self, request_id: &str) -> usize {
         let gone: Vec<PendingAsk> = {
             let mut pending = self.pending.lock().unwrap_or_else(|e| e.into_inner());
@@ -710,8 +579,6 @@ impl ToolBroker {
         n
     }
 
-    /// The questions this broker waits on, as `(request_id, tool_call_id,
-    /// tool)`: the window's list when no run record is available.
     pub fn pending_calls(&self) -> Vec<(String, String, String)> {
         self.pending
             .lock()
@@ -721,8 +588,6 @@ impl ToolBroker {
             .collect()
     }
 
-    /// Whether a question of this turn waits for a person right now. The
-    /// turn watchdog freezes its idle clock on it.
     pub fn has_pending(&self, request_id: &str) -> bool {
         self.pending
             .lock()
@@ -731,8 +596,6 @@ impl ToolBroker {
             .any(|p| p.request_id == request_id)
     }
 
-    /// Whether this exact question is still unanswered (a notification is
-    /// re-checked against it at delivery).
     pub fn has_pending_call(&self, tool_call_id: &str) -> bool {
         self.pending
             .lock()
@@ -740,10 +603,6 @@ impl ToolBroker {
             .contains_key(tool_call_id)
     }
 
-    /// Run one tool call for `agent_id`, honouring the grant. `request_id` is
-    /// the id of the turn the call belongs to (the one the coordinator put in
-    /// `TurnEvent::Started`), so the UI can tie an ask back to its turn. Emits
-    /// `ToolCalled` and `ToolFinished` on the bus either way.
     pub async fn call(
         &self,
         agent_id: &str,
@@ -776,9 +635,6 @@ impl ToolBroker {
                 LlmError::new(ERR_TOOL_UNKNOWN, format!("unknown tool `{name}`")),
             ));
         };
-        // The grant, the turn's run mode inside it (2.7), the stored rules and
-        // the always-ask tools: the one gate the Claude Code hook uses too
-        // (3.4), so native and CLI give the same verdict.
         let run =
             super::code_tools::current_turn().and_then(|c| super::run_mode::of(&c.conversation));
         let mut mode = super::perm::gate(
@@ -790,8 +646,6 @@ impl ToolBroker {
         )
         .mode;
         if !matches!(mode, GrantMode::Deny) {
-            // A path outside the workspace is its own question, whatever the
-            // grant says; a yes covers this one call.
             let path = input.get("path").and_then(Value::as_str).unwrap_or("");
             if external_context.is_none()
                 && name.starts_with("fs_")
@@ -834,8 +688,6 @@ impl ToolBroker {
                     return Err(self.fail(agent_id, name, start, timeout_error(name, waited)));
                 }
                 let answer = end.answer();
-                // An external run's "Always" covers this call only: it never
-                // becomes a permanent local rule of the executor (L2).
                 if matches!(answer, Answer::Always)
                     && external_context.is_none()
                     && !super::tool_table::always_asks(name)
@@ -854,9 +706,6 @@ impl ToolBroker {
             GrantMode::Auto => {}
         }
 
-        // A mission attached to this conversation may take a permission
-        // away (a `before_tool` policy), never add one; its round log sees
-        // every result.
         let mission_conv = super::code_tools::current_turn()
             .map(|c| c.conversation.clone())
             .filter(|c| crate::core::assist::missions::hooks::mission_of(c).is_some());
@@ -952,8 +801,6 @@ impl ToolBroker {
         err
     }
 
-    /// The same prompt for a caller that is not a brokered tool (an ACP agent
-    /// asking permission for one of its own tools).
     pub async fn ask_user(
         &self,
         agent_id: &str,
@@ -967,8 +814,6 @@ impl ToolBroker {
             .answer()
     }
 
-    /// [`Self::ask_user`], saying how the question ended, so the caller can
-    /// tell its agent "nobody answered" instead of "the user refused".
     pub async fn ask_user_ended(
         &self,
         agent_id: &str,
@@ -987,9 +832,6 @@ impl ToolBroker {
         .await
     }
 
-    /// Ask the user and wait. Only an explicit yes allows; a refusal, a
-    /// timeout, a cancelled turn and nobody listening on the bus (no UI, no
-    /// consent) all come back as something else, each told apart.
     async fn ask_ended(
         &self,
         agent_id: &str,
@@ -998,8 +840,6 @@ impl ToolBroker {
         name: &str,
         input: &Value,
     ) -> AskEnd {
-        // "Accept for the session" already said yes to this tool in this
-        // turn: no new question.
         if self.session_allows(request_id, name) {
             return AskEnd::Answered(Answer::Once);
         }
@@ -1010,15 +850,9 @@ impl ToolBroker {
             Value::String(s) => s.clone(),
             _ => super::code_tools::preview(name, input),
         };
-        // A thread of the Central persists the ask as `request.opened` and
-        // waits for the answer however long it takes (plan §3.3); jobs and
-        // the old chat keep the configurable timeout.
         let durable = super::code_tools::current_turn()
             .map(|ctx| super::drivers::is_durable_conversation(&ctx.conversation))
             .unwrap_or(false);
-        // The durable request (item 2.2: every ask is a row of
-        // `runs_permissions`, with or without a run record): the answer must
-        // resolve exactly this one, in time. A durable thread has no deadline.
         let deadline = if durable {
             i64::MAX
         } else {
@@ -1056,8 +890,6 @@ impl ToolBroker {
                 },
             );
         }
-        // Never the preview (it can hold a file's content): the tool and the
-        // turn are the fact (2.8).
         super::audit::log(
             super::audit::Actor::agent(agent_id),
             "ask.opened",
@@ -1079,8 +911,6 @@ impl ToolBroker {
         } else {
             match tokio::time::timeout(ask_timeout, rx).await {
                 Ok(Ok(answer)) => AskEnd::Answered(answer),
-                // The sender was dropped: the turn was cancelled, or the answer
-                // could not resolve the durable record.
                 Ok(Err(_)) => AskEnd::Cancelled,
                 Err(_) => AskEnd::Expired {
                     waited: asked_at.elapsed(),
@@ -1089,7 +919,6 @@ impl ToolBroker {
         };
         {
             let mut pending = self.pending.lock().unwrap_or_else(|e| e.into_inner());
-            // Only our own entry: a newer question under the same id stays.
             let ours = pending
                 .get(tool_call_id)
                 .map(|p| p.permission.as_ref().map(|(_, id)| id.clone()) == permission_id)
@@ -1098,7 +927,6 @@ impl ToolBroker {
                 pending.remove(tool_call_id);
             }
         }
-        // Timed out: the record says expired, so a late answer is refused.
         if let Some((reg, id)) = &permission {
             if let Some(p) = reg.permission(id) {
                 if p.state == crate::core::assist::runs::PermissionState::Pending {

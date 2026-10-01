@@ -1,7 +1,3 @@
-//! `FakeProvider`: replays a scripted sequence of `TurnEvent`s with optional
-//! delays. UI, coordinator and commands test against it. Owned by
-//! f2-llm-providers; DRAFT by the orchestrator (minimal, keep the constructor).
-
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -28,7 +24,6 @@ impl FakeProvider {
         }
     }
 
-    /// A plain text answer split into `chunks` deltas, then usage and finish.
     pub fn text(answer: &str, chunks: usize) -> Self {
         let chunks = chunks.max(1);
         let chars: Vec<char> = answer.chars().collect();

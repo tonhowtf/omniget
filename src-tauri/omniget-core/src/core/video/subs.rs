@@ -1,10 +1,5 @@
-//! Subtitle model: SRT, WebVTT and ASS/SSA parsed into plain-text cues, with
-//! encoding detection and WebVTT output (the format the webview and Chromecast
-//! understand).
-
 use serde::{Deserialize, Serialize};
 
-/// One subtitle line, plain text (lines joined with `\n`).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Cue {
     pub start_ms: u64,
@@ -12,8 +7,6 @@ pub struct Cue {
     pub text: String,
 }
 
-/// Decodes subtitle bytes: UTF-8 / UTF-16 by BOM, UTF-8 when valid, else
-/// windows-1252.
 pub fn decode_text(bytes: &[u8]) -> String {
     if let Some(rest) = bytes.strip_prefix(&[0xEF, 0xBB, 0xBF]) {
         return String::from_utf8_lossy(rest).into_owned();
@@ -24,7 +17,6 @@ pub fn decode_text(bytes: &[u8]) -> String {
     if bytes.starts_with(&[0xFE, 0xFF]) {
         return encoding_rs::UTF_16BE.decode(bytes).0.into_owned();
     }
-    // UTF-16 without BOM: ASCII text with every other byte zero.
     if bytes.len() >= 4 {
         if bytes[1] == 0 && bytes[3] == 0 && bytes[0] != 0 {
             return encoding_rs::UTF_16LE
@@ -54,8 +46,6 @@ fn normalize_newlines(text: &str) -> String {
         .replace('\r', "\n")
 }
 
-/// Parses a timestamp like `01:02:03,456`, `02:03.456`, `0:01:02.34` or
-/// `1:02:03`. Fractions of 1–2 digits are tenths/hundredths.
 pub fn parse_timestamp(s: &str) -> Option<u64> {
     let s = s.trim();
     let (main, frac) = match s.find([',', '.']) {
@@ -105,14 +95,12 @@ fn decode_entities(s: &str) -> String {
         .replace("&amp;", "&")
 }
 
-/// Removes `<tags>` and `{\override}` blocks, trims lines, drops empty ones.
 fn clean_markup(text: &str) -> String {
     let mut out = String::with_capacity(text.len());
     let mut chars = text.chars().peekable();
     while let Some(c) = chars.next() {
         match c {
             '<' => {
-                // Only strip things that look like tags, keep a lone "<".
                 let rest: String = chars.clone().take(64).collect();
                 if let Some(end) = rest.find('>') {
                     let inner = &rest[..end];
@@ -174,7 +162,6 @@ fn parse_timed(text: &str, vtt: bool) -> Vec<Cue> {
         }
         if trimmed.contains("-->") {
             if let Some(t) = parse_timing(trimmed) {
-                // A numeric index glued to the previous cue belongs to this one.
                 if let Some((_, _, lines)) = current.as_mut() {
                     if lines
                         .last()
@@ -207,7 +194,6 @@ fn parse_timed(text: &str, vtt: bool) -> Vec<Cue> {
                 {
                     skipping_block = true;
                 }
-                // Otherwise an index or cue id: ignored.
             }
         }
     }
@@ -216,18 +202,14 @@ fn parse_timed(text: &str, vtt: bool) -> Vec<Cue> {
     cues
 }
 
-/// Parses SubRip text. Tolerates BOM, CRLF, missing indexes and blank lines.
 pub fn parse_srt(text: &str) -> Vec<Cue> {
     parse_timed(text, false)
 }
 
-/// Parses WebVTT text, skipping the header, NOTE, STYLE and REGION blocks.
 pub fn parse_vtt(text: &str) -> Vec<Cue> {
     parse_timed(text, true)
 }
 
-/// Strips ASS override blocks (and drawings), turns `\N`/`\n` into newlines
-/// and `\h` into spaces.
 fn ass_text(raw: &str) -> String {
     let mut out = String::with_capacity(raw.len());
     let mut drawing = false;
@@ -276,7 +258,6 @@ fn ass_text(raw: &str) -> String {
         .join("\n")
 }
 
-/// Parses ASS/SSA `[Events]` into plain-text cues (styles are dropped).
 pub fn parse_ass(text: &str) -> Vec<Cue> {
     let text = normalize_newlines(text);
     let default_format: Vec<String> = [
@@ -343,7 +324,6 @@ pub fn parse_ass(text: &str) -> Vec<Cue> {
     cues
 }
 
-/// Detects encoding and format (WebVTT, ASS/SSA or SRT) and parses.
 pub fn parse_auto(bytes: &[u8]) -> Vec<Cue> {
     let text = decode_text(bytes);
     let head = text.trim_start_matches('\u{feff}').trim_start();
@@ -379,8 +359,6 @@ fn shift(ms: u64, offset_ms: i64) -> i64 {
     (ms as i64).saturating_add(offset_ms)
 }
 
-/// Renders cues as WebVTT, shifted by `offset_ms` (negative = earlier). Cues
-/// that end before zero are dropped.
 pub fn to_vtt(cues: &[Cue], offset_ms: i64) -> String {
     let mut out = String::from("WEBVTT\n\n");
     for c in cues {
@@ -437,13 +415,11 @@ mod tests {
                 cue(3000, 4000, "Linha 1\nLinha 2")
             ]
         );
-        // Same bytes through parse_auto.
         assert_eq!(parse_auto(src.as_bytes()), cues);
     }
 
     #[test]
     fn srt_tolerant() {
-        // No blank line between cues, dots instead of commas, no hours.
         let src = "1\n00:01.000 --> 00:02.000\nA\n2\n00:00:03.5 --> 00:00:04\nB\n\n\n3\n99:99 --> junk\nC";
         let cues = parse_srt(src);
         assert_eq!(cues, vec![cue(1000, 2000, "A"), cue(3500, 4000, "B")]);
@@ -481,10 +457,8 @@ mod tests {
 
     #[test]
     fn encodings() {
-        // windows-1252 "ação" is not valid UTF-8.
         let bytes = b"1\n00:00:01,000 --> 00:00:02,000\na\xe7\xe3o\n";
         assert_eq!(parse_auto(bytes)[0].text, "ação");
-        // UTF-16 LE with BOM.
         let s = "1\n00:00:01,000 --> 00:00:02,000\nção\n";
         let mut b = vec![0xFF, 0xFE];
         for u in s.encode_utf16() {
@@ -519,7 +493,6 @@ mod tests {
         );
         let out = to_vtt(&cues, 250);
         assert!(out.contains("00:00:00.750 --> 00:00:01.750\ngone"));
-        // Round trip.
         assert_eq!(parse_vtt(&to_vtt(&cues, 0)).len(), 3);
     }
 }

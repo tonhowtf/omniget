@@ -11,11 +11,6 @@ pub(crate) fn managed_bin_dir() -> Option<PathBuf> {
     Some(crate::core::paths::app_data_dir()?.join("bin"))
 }
 
-/// Verificação de integridade dos binários gerenciados.
-///
-/// Regra: **fail-closed**. Se a origem publica um hash e ele não confere, ou
-/// se o hash esperado não pôde ser obtido de uma origem que sabidamente o
-/// publica, o binário é descartado.
 pub mod integrity {
     use anyhow::anyhow;
 
@@ -34,8 +29,6 @@ pub mod integrity {
         candidate.len() == 64 && candidate.bytes().all(|b| b.is_ascii_hexdigit())
     }
 
-    /// Lê um arquivo estilo `sha256sum`: `<64-hex><espaços>[*]<nome>`.
-    /// Linha em branco ou malformada é pulada — não interrompe a busca.
     pub fn parse_sha256sums(text: &str, asset: &str) -> Option<String> {
         for line in text.lines() {
             let mut parts = line.split_whitespace();
@@ -50,13 +43,11 @@ pub mod integrity {
         None
     }
 
-    /// Arquivo `.sha256sum` de asset único (o Deno publica um por asset).
     pub fn parse_single_sha256(text: &str) -> Option<String> {
         let first = text.split_whitespace().next()?;
         is_sha256(first).then(|| first.to_lowercase())
     }
 
-    /// `digest` da API de releases do GitHub, no formato `sha256:<hex>`.
     pub fn parse_github_digest(digest: &str) -> Option<String> {
         let hex = digest.trim().strip_prefix("sha256:")?;
         is_sha256(hex).then(|| hex.to_lowercase())
@@ -76,8 +67,6 @@ pub mod integrity {
         ))
     }
 
-    /// Busca o hash esperado num arquivo de sums remoto. `Err` quando a origem
-    /// publica sums mas não conseguimos obtê-los — o chamador deve abortar.
     pub async fn expected_from_sums_url(
         client: &reqwest::Client,
         sums_url: &str,
@@ -105,14 +94,6 @@ pub mod integrity {
     }
 }
 
-/// yt-dlp onedir (PyInstaller `--onedir`) oficial, extraido uma vez.
-///
-/// O onefile (`yt-dlp_macos`) desempacota 72 MB a cada processo e o macOS
-/// varre tudo de novo: 13-25 s por `--version` (medido 26/09, user 0,8 s). O
-/// `yt-dlp_macos.zip` da mesma release traz o executavel e `_internal/` ja
-/// abertos: a primeira execucao paga a varredura (~20-33 s) e as seguintes
-/// levam 0,34-0,46 s. A varredura e feita aqui, no diretorio ainda em
-/// preparo, e sobrevive ao rename (medido). So macOS: e onde o custo existe.
 pub mod ytdlp_onedir {
     use anyhow::anyhow;
     use std::path::{Path, PathBuf};
@@ -120,7 +101,6 @@ pub mod ytdlp_onedir {
     pub const DIR_NAME: &str = "yt-dlp_onedir";
     const EXE_NAME: &str = "yt-dlp_macos";
 
-    /// Asset da release com o onedir desta plataforma.
     pub fn asset_name() -> Option<&'static str> {
         if cfg!(target_os = "macos") {
             Some("yt-dlp_macos.zip")
@@ -133,7 +113,6 @@ pub mod ytdlp_onedir {
         dir.join(EXE_NAME)
     }
 
-    /// Executavel e `_internal/` presentes (extracao interrompida nao conta).
     pub fn is_complete(dir: &Path) -> bool {
         exe_in(dir).is_file() && dir.join("_internal").is_dir()
     }
@@ -146,10 +125,6 @@ pub mod ytdlp_onedir {
         target.with_file_name(format!("{name}{suffix}"))
     }
 
-    /// Extrai o zip (ja verificado por hash) em `<target>.new`, confere o
-    /// layout, roda `warm` no executavel preparado e so entao troca. A copia
-    /// anterior vai para `<target>.old` e so e apagada na proxima instalacao:
-    /// um yt-dlp em andamento importa modulos de `_internal/` sob demanda.
     pub fn install_from_zip(
         bytes: &[u8],
         target: &Path,
@@ -195,7 +170,6 @@ pub mod ytdlp_onedir {
         }
         let exe = exe_in(target);
         if let Ok(f) = std::fs::File::open(&exe) {
-            // O mtime vem do zip (data do build); a janela de frescor comeca agora.
             let _ = f.set_modified(std::time::SystemTime::now());
         }
         Ok(exe)
@@ -210,8 +184,6 @@ pub fn bin_name(tool: &str) -> String {
     }
 }
 
-/// Traduz o nome interno da ferramenta para o nome que a UI e o arquivo de
-/// overrides usam. `find_tool` recebe "ffmpeg"; a tabela mostra "FFmpeg".
 fn override_name(tool: &str) -> &str {
     match tool {
         "ffmpeg" => "FFmpeg",
@@ -224,8 +196,6 @@ pub async fn find_tool(tool: &str) -> Option<PathBuf> {
     find_tool_with_source(tool).await.map(|(path, _)| path)
 }
 
-/// Worker processes receive only fixed dependencies from their trusted parent.
-/// No discovery, provisioning or background self-update is allowed there.
 pub fn worker_mode() -> bool {
     std::env::var_os("OMNIGET_WORKER_MODE").is_some_and(|v| v == "1")
 }
@@ -242,21 +212,13 @@ pub fn worker_tool(tool: &str) -> Option<PathBuf> {
     (path.is_absolute() && path.is_file()).then_some(path)
 }
 
-/// Like `find_tool` but also returns a source tag: "flatpak", "managed", or "system".
-/// Returns `None` if the tool is not found anywhere.
 pub async fn find_tool_with_source(tool: &str) -> Option<(PathBuf, &'static str)> {
     if worker_mode() {
         return worker_tool(tool).map(|p| (p, "worker-pinned"));
     }
-    // Issue #222. Antes de tudo: o caminho que o usuario escolheu. "custom" e
-    // uma origem propria para a tabela de dependencias poder mostrar de onde o
-    // binario veio, em vez de mentir "managed".
     if let Some(custom) = crate::core::binary_overrides::get(override_name(tool)) {
         return Some((custom, "custom"));
     }
-    // yt-dlp tem resolução própria (zipapp + Python, onefile, PATH) e o
-    // resultado fica em cache: rodar `--version` no onefile aqui custava um
-    // bootstrap de 12 s a cada abertura da tela de dependências.
     if tool == "yt-dlp" {
         if let Some(path) = crate::core::ytdlp::find_ytdlp_cached().await {
             let managed = managed_bin_dir()
@@ -283,7 +245,6 @@ pub async fn find_tool_with_source(tool: &str) -> Option<(PathBuf, &'static str)
         }
     }
 
-    // Check managed bin dir
     if let Some(managed_path) = managed_bin_dir().map(|d| d.join(&name)) {
         if managed_path.exists() {
             let check = {
@@ -308,7 +269,6 @@ pub async fn find_tool_with_source(tool: &str) -> Option<(PathBuf, &'static str)
         }
     }
 
-    // System PATH
     let result = {
         let name2 = name.clone();
         let vf = version_flag.to_string();
@@ -334,8 +294,6 @@ pub async fn find_tool_with_source(tool: &str) -> Option<(PathBuf, &'static str)
     None
 }
 
-/// Resolve a bare binary name to its absolute path via `where` (Windows)
-/// or `which` (Unix). Returns the original name as fallback.
 fn resolve_absolute_path(bin_name: &str) -> PathBuf {
     let finder = if cfg!(target_os = "windows") {
         "where"
@@ -367,12 +325,7 @@ fn version_flag_for(tool: &str) -> &'static str {
     }
 }
 
-/// Read the version string from a tool binary at a known path.
-/// This avoids re-running tool discovery when the path is already known.
 pub async fn check_version_at_path(path: &std::path::Path, tool: &str) -> Option<String> {
-    // `yt-dlp --version` custa um bootstrap inteiro do PyInstaller (72 MB
-    // extraídos); com a fila cheia isso levou 13 a 94 s. A versão só muda
-    // quando o arquivo muda, então (caminho, mtime) é uma chave segura.
     let mtime = std::fs::metadata(path).ok().and_then(|m| m.modified().ok());
     let key = (path.to_path_buf(), mtime);
     if let Ok(cache) = version_cache().lock() {
@@ -495,8 +448,6 @@ pub async fn ensure_ffmpeg() -> anyhow::Result<PathBuf> {
         return worker_tool("ffmpeg")
             .ok_or_else(|| anyhow::anyhow!("WORKER_DEPENDENCY_UNAVAILABLE"));
     }
-    // Always ensure the managed binary exists — the standalone yt-dlp.exe
-    // cannot discover system FFmpeg from PATH.
     if !is_flatpak() {
         let managed = managed_bin_dir().map(|d| d.join(bin_name("ffmpeg")));
         if managed.as_ref().is_none_or(|p| !p.exists()) {
@@ -776,25 +727,16 @@ async fn extract_tar_xz_ffmpeg(
     Ok(())
 }
 
-// --- aria2c ---
-
-// --- deno (JS runtime for yt-dlp nsig challenge) ---
-
-/// Ensures a JavaScript runtime is available for yt-dlp's YouTube nsig
-/// challenge solver. Checks for any existing runtime first (Node.js, Deno,
-/// Bun), then auto-downloads Deno if none is found.
 pub async fn ensure_js_runtime() -> Option<PathBuf> {
     if worker_mode() {
         return worker_tool("deno").or_else(|| worker_tool("node"));
     }
-    // Check system-installed runtimes first.
     for tool in &["deno", "node", "bun"] {
         if let Some(path) = find_tool(tool).await {
             return Some(path);
         }
     }
 
-    // Check well-known install locations on Windows.
     #[cfg(target_os = "windows")]
     {
         let candidates = [
@@ -809,7 +751,6 @@ pub async fn ensure_js_runtime() -> Option<PathBuf> {
         }
     }
 
-    // No runtime found — download Deno (recommended by yt-dlp, fast, single binary).
     match download_deno().await {
         Ok(path) => {
             crate::core::ytdlp::reset_js_runtime_cache();
@@ -939,8 +880,6 @@ async fn download_gallerydl() -> anyhow::Result<PathBuf> {
 
     let target = bin_dir.join(bin_name("gallery-dl"));
 
-    // Os executaveis standalone vivem no repo gdl-org/builds (Windows, Linux
-    // e macOS); o release do mikf/gallery-dl nao publica mais assets.
     #[cfg(target_os = "windows")]
     let url = "https://github.com/gdl-org/builds/releases/latest/download/gallery-dl_windows.exe";
     #[cfg(target_os = "linux")]
@@ -994,7 +933,6 @@ pub async fn ensure_aria2c() -> Option<PathBuf> {
         return Some(path);
     }
 
-    // Auto-download only on Windows
     #[cfg(target_os = "windows")]
     {
         match download_aria2c().await {
@@ -1008,10 +946,6 @@ pub async fn ensure_aria2c() -> Option<PathBuf> {
     None
 }
 
-/// SHA-256 do zip oficial do aria2c para Windows. A release 1.37.0 nao publica
-/// hashes (sem SHA256SUMS e com `digest` nulo na API), entao o valor e fixado
-/// aqui, calculado sobre o asset de 2.475.379 bytes baixado do GitHub em
-/// 27/09/2026. Trocar a URL exige trocar este hash junto.
 #[cfg(target_os = "windows")]
 const ARIA2C_WIN64_ZIP: (&str, &str) = (
     "https://github.com/aria2/aria2/releases/download/release-1.37.0/aria2-1.37.0-win-64bit-build1.zip",
@@ -1041,7 +975,6 @@ async fn download_aria2c() -> anyhow::Result<PathBuf> {
     }
 
     let bytes = response.bytes().await?;
-    // Fail-closed como os outros binarios: zip que nao confere nem e aberto.
     integrity::verify_sha256(&bytes, expected_sha256, "aria2c")?;
 
     let data = bytes.to_vec();

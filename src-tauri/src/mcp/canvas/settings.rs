@@ -1,14 +1,7 @@
-//! `app_settings_get` / `app_settings_set` with the Maestri-shaped keys the
-//! parity checklist uses (`canvas.zoom_step`, `defaults.note.size`,
-//! `terminal.theme`, `power.prevent_sleep`, `agent.presets.<name>`, ...).
-//! Keys of the canvas section go through `crate::canvas::prefs` (validated,
-//! snapped, the window told live); every other key keeps the generic path.
-
 use omniget_core::models::settings::canvas_token;
 use serde_json::{json, Value};
 use tauri::AppHandle;
 
-/// Top-level names that are shorthands for the canvas section.
 const CANVAS_ROOTS: &[&str] = &[
     "background",
     "zoom_step",
@@ -30,9 +23,6 @@ const CANVAS_ROOTS: &[&str] = &[
     "skills",
 ];
 
-/// Maestri key → path inside `AppSettings.canvas`, or None when the key is
-/// not a canvas key. Segments are snake-cased except preset names and env
-/// variable names, which keep their spelling.
 pub fn canvas_path(key: &str) -> Option<Vec<String>> {
     let raw: Vec<&str> = key.trim().split('.').filter(|s| !s.is_empty()).collect();
     if raw.is_empty() {
@@ -47,7 +37,6 @@ pub fn canvas_path(key: &str) -> Option<Vec<String>> {
         }
     }
     let first = canvas_token(raw[i]);
-    // agent.presets.X / presets.X / agent_presets.X
     let (head, rest_from) = match first.as_str() {
         "agent" if raw.get(i + 1).map(|s| canvas_token(s)).as_deref() == Some("presets") => {
             ("agent_presets".to_string(), i + 2)
@@ -74,9 +63,6 @@ pub fn canvas_path(key: &str) -> Option<Vec<String>> {
     Some(segs)
 }
 
-/// `remote.private_only` and `environments.<switch>`: settings that live
-/// outside `AppSettings` (the remote listener's config, the canvas
-/// environment switches).
 fn side_get(key: &str) -> Option<Result<Value, String>> {
     let k = key.trim();
     if let Some(rest) = k.strip_prefix("environments") {
@@ -156,7 +142,6 @@ pub fn get(app: &AppHandle, key: Option<&str>) -> Result<Value, String> {
     if let Some(r) = side_get(k) {
         return r;
     }
-    // A real top-level OmniGet key wins over the canvas shorthand.
     if let Ok(v) = super::super::canvas_ui::settings_get(app, Some(k)) {
         return Ok(v);
     }
@@ -164,7 +149,6 @@ pub fn get(app: &AppHandle, key: Option<&str>) -> Result<Value, String> {
         return super::super::canvas_ui::settings_get(app, Some(k));
     };
     if path == ["terminal", "themes"] {
-        // Built-in schemes plus `~/.omniget/terminal/themes` (read live).
         return Ok(
             json!({ "key": k, "path": "canvas.terminal.themes", "value": crate::canvas::term::theme_ids() }),
         );
@@ -189,8 +173,6 @@ pub fn set(app: &AppHandle, key: &str, value: Value) -> Result<Value, String> {
     match canvas_path(key) {
         Some(path) if !root_known || key.trim().starts_with("canvas") => {
             let now = crate::canvas::prefs::set_path(app, &path, value.clone())?;
-            // Numbers compare by value (`24` is stored `24.0`), objects by
-            // the keys that were sent (M-D18 `terminal.padding`).
             let applied = super::super::canvas_ui::same_value(&now, &value)
                 || matches!((&now, &value), (Value::String(a), Value::String(b)) if canvas_token(a) == canvas_token(b))
                 || matches!((&now, &value), (Value::String(a), Value::String(b))

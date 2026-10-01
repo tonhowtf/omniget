@@ -1,9 +1,3 @@
-//! Whisper models in ONNX (`onnx-community/whisper-*`), pinned to an
-//! immutable Hugging Face revision with size and sha256 for every file, and
-//! downloaded on demand into `<app_data>/tools/models/onnx/<model>/`.
-//! Each file is tried on huggingface.co first and on hf-mirror.com (the
-//! mirror people in mainland China use) when that fails.
-
 use std::path::{Path, PathBuf};
 
 use anyhow::{anyhow, Context};
@@ -13,17 +7,13 @@ use crate::core::tools::ProgressFn;
 
 pub const DEFAULT_MODEL: &str = "whisper-base";
 
-/// Directory override for tests and for anyone who already has the files:
-/// `<dir>/<model>/<file>`.
 pub const DIR_ENV: &str = "OMNIGET_ASR_MODEL_DIR";
 
 const HOSTS: &[&str] = &["https://huggingface.co", "https://hf-mirror.com"];
 
 #[derive(Debug, Clone, Copy)]
 pub struct ModelFile {
-    /// Name on disk.
     pub local: &'static str,
-    /// Path inside the repository.
     pub remote: &'static str,
     pub bytes: u64,
     pub sha256: &'static str,
@@ -149,7 +139,6 @@ pub fn find(id: &str) -> Option<&'static ModelSpec> {
         .find(|m| m.id == id || m.id.trim_start_matches("whisper-") == id)
 }
 
-/// The model to use: the one asked for, else the default.
 pub fn pick(id: Option<&str>) -> anyhow::Result<&'static ModelSpec> {
     match id.map(str::trim).filter(|s| !s.is_empty()) {
         Some(id) => find(id).ok_or_else(|| {
@@ -184,7 +173,6 @@ fn has_file(m: &ModelSpec, f: &ModelFile) -> bool {
         .unwrap_or(false)
 }
 
-/// Every file on disk with the pinned size. Cheap: no hashing.
 pub fn is_downloaded(m: &ModelSpec) -> bool {
     m.files.iter().all(|f| has_file(m, f))
 }
@@ -232,7 +220,6 @@ fn sha256_of(path: &Path) -> anyhow::Result<String> {
     Ok(hex::encode(hasher.finalize()))
 }
 
-/// URLs of one file, main host first, then the mirror.
 pub fn urls(m: &ModelSpec, f: &ModelFile) -> Vec<String> {
     HOSTS
         .iter()
@@ -289,8 +276,6 @@ async fn fetch(
     Err(last_err.unwrap_or_else(|| anyhow!("no URL for {}", f.local)))
 }
 
-/// Downloads whatever is missing of `m` (and the ONNX Runtime when it is not
-/// installed yet). Progress ids are `onnxruntime` and `<model>:<file>`.
 pub async fn install(m: &ModelSpec, progress: &ProgressFn) -> anyhow::Result<PathBuf> {
     if !crate::core::onnxrt::is_installed() {
         crate::core::onnxrt::install_runtime(None, progress).await?;

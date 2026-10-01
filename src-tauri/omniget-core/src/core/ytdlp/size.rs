@@ -1,10 +1,3 @@
-//! Tamanho de um link antes de baixar: o yt-dlp resolve o mesmo seletor `-f`
-//! que o download usaria e imprime o tamanho de cada item, sem baixar nada.
-//!
-//! A ideia vem do PyTube Downloader (thisal-d/pytube-downloader), que mostra
-//! o tamanho ao lado de cada qualidade e de cada vídeo de uma playlist antes
-//! do download. Reimplementado aqui sobre o yt-dlp; nenhum código copiado.
-
 use std::path::Path;
 use std::process::Stdio;
 
@@ -13,20 +6,16 @@ use serde::Serialize;
 
 use super::*;
 
-/// Um item do link (o próprio vídeo, ou cada vídeo de uma playlist).
 #[derive(Debug, Clone, Serialize, PartialEq)]
 pub struct SizeItem {
     pub id: String,
     pub title: String,
-    /// Bytes do formato escolhido; `None` quando o site não informa.
     pub bytes: Option<u64>,
-    /// `true` quando o yt-dlp só tem uma estimativa (`filesize_approx`).
     pub estimate: bool,
     pub duration: Option<f64>,
     pub height: Option<u32>,
 }
 
-/// Seletor `-f` para a qualidade pedida: `None` é a melhor, `Some(0)` é só áudio.
 pub fn size_format_selector(quality_height: Option<u32>, ffmpeg_available: bool) -> String {
     match quality_height {
         Some(0) => download_format_selector(None, None, "audio", ffmpeg_available),
@@ -34,7 +23,6 @@ pub fn size_format_selector(quality_height: Option<u32>, ffmpeg_available: bool)
     }
 }
 
-/// Lê uma linha de `-O "%(.{id,title,filesize,filesize_approx,duration,height})j"`.
 pub fn parse_size_line(line: &str) -> Option<SizeItem> {
     let v: serde_json::Value = serde_json::from_str(line.trim()).ok()?;
     let as_u64 = |k: &str| {
@@ -58,8 +46,6 @@ pub fn parse_size_line(line: &str) -> Option<SizeItem> {
     })
 }
 
-/// Tamanho de cada item do link na qualidade pedida, sem baixar. Uma
-/// playlist é lida até `limit` itens.
 pub async fn measure_sizes(
     ytdlp: &Path,
     url: &str,

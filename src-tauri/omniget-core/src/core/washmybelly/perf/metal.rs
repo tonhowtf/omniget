@@ -1,25 +1,5 @@
-//! macOS: the Metal Performance HUD (`MTL_HUD_ENABLED=1`), a system
-//! feature, so it also covers Rosetta, CrossOver/Wine and D3DMetal games.
-//!
-//! Checked on macOS 26.5.2 (25F84) on 2026-09-27 with a small MTKView app:
-//!
-//! - `MTL_HUD_LOG_ENABLED=1` makes libMTLHud write one line every ~0.5 s,
-//!   `metal-HUD: <frame counter>,<a>,<b>,` followed by four numbers per frame
-//!   since the previous line (frame interval ms, present delay, logical
-//!   frame interval, logical present delay). A stall shows up as its own
-//!   long interval (33.33, 83.33, 100 ms at 60 Hz), so this is per frame,
-//!   not an average.
-//! - The same line goes to the unified log (subsystem `com.apple.metal.hud`,
-//!   category `Logging`), but everything after the first three numbers is
-//!   `<private>`: another process cannot read the frames of a game that is
-//!   already running.
-//! - The line is also on the app's stderr, in clear. So frames are captured
-//!   only when OmniGet itself starts the game (screen action, never an MCP
-//!   tool); a running game gets the HUD instruction and the 1 Hz telemetry.
-
 use super::format::LaunchCommand;
 
-/// Frame intervals (ms) in one HUD log line, and the frame counter.
 pub fn parse_line(line: &str) -> Option<(u64, Vec<f64>)> {
     let (_, rest) = line.split_once("metal-HUD:")?;
     let rest = rest.trim();
@@ -39,8 +19,6 @@ pub fn parse_line(line: &str) -> Option<(u64, Vec<f64>)> {
     Some((counter, intervals))
 }
 
-/// What the person can do by hand to see the HUD on a game OmniGet did
-/// not start. Display only.
 pub fn launch_commands(executable: Option<&str>) -> Vec<LaunchCommand> {
     let exe = executable
         .map(super::mangohud::sh_quote)
@@ -65,8 +43,6 @@ mod mac {
     use std::path::{Path, PathBuf};
     use std::process::{Child, Stdio};
 
-    /// The binary inside a `.app` (its `CFBundleExecutable`), or the path
-    /// itself when it is already an executable file.
     pub fn executable_of(path: &Path) -> Result<PathBuf, String> {
         if path.extension().and_then(|e| e.to_str()) == Some("app") && path.is_dir() {
             let plist = path.join("Contents/Info.plist");
@@ -96,7 +72,6 @@ mod mac {
         Err("NOT_FOUND: pick an app or an executable".into())
     }
 
-    /// Start the game with the HUD and its log on stderr (piped to us).
     pub fn launch(exe: &Path) -> Result<Child, String> {
         let dir = exe.parent().map(Path::to_path_buf).unwrap_or_default();
         crate::core::process::std_command(exe)

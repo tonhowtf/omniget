@@ -1,10 +1,5 @@
-//! A small XML property list reader (what `diskutil info -plist` prints),
-//! turned into JSON so the callers read it with the usual `Value` helpers.
-//! Pure: compiled on every OS and tested with fixtures captured on a Mac.
-
 use serde_json::{Map, Value};
 
-/// Parse an XML plist into JSON. `<data>` and `<date>` stay strings.
 pub fn parse(xml: &str) -> Result<Value, String> {
     let doc = roxmltree::Document::parse_with_options(
         xml,

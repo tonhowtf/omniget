@@ -1,13 +1,3 @@
-//! Routine runner of the canvas: a light ticker in the app (every 5 s)
-//! that types due routines into their terminal nodes. It is not the jobs
-//! cron (`crate::jobs`): that one starts LLM jobs in SQLite and, on boot,
-//! waits for a person; a routine here only types into a PTY that is
-//! already open, so it runs while the app is open and a missed one fires
-//! once when the app comes back.
-//!
-//! Also the app handle the canvas hosts of this area emit with
-//! (`canvas://routine`, `canvas://notify`), and the `routine.*` RPC methods.
-
 use std::collections::HashSet;
 use std::sync::{Mutex, OnceLock};
 use std::time::{Duration, Instant};
@@ -23,21 +13,16 @@ use tauri::{AppHandle, Emitter};
 
 use super::rpc::{NodeCtx, RpcResult};
 
-/// A routine changed (saved, ran, deleted): the routine, or `{id, deleted: true}`.
 pub const EVENT_ROUTINE: &str = "canvas://routine";
-/// Something to show the person: `{workspaceId, floorId?, nodeId?, name?, message, source}`.
 pub const EVENT_NOTIFY: &str = "canvas://notify";
 
 const TICK: Duration = Duration::from_secs(5);
-/// A run later than this after its time is marked late (slept, app closed).
 const LATE_AFTER_SECS: i64 = 30;
 const PRE_RUN_TIMEOUT: Duration = Duration::from_secs(120);
-/// How long one step may run before the next is sent anyway.
 const STEP_MAX: Duration = Duration::from_secs(30 * 60);
 
 static APP: OnceLock<AppHandle> = OnceLock::new();
 static RUNNING: Mutex<Option<HashSet<String>>> = Mutex::new(None);
-/// Lateness of the scheduled run in flight, per routine (read by `record`).
 static LATE: Mutex<Option<std::collections::HashMap<String, Option<u64>>>> = Mutex::new(None);
 
 pub fn app() -> Option<&'static AppHandle> {
@@ -48,8 +33,6 @@ fn store() -> std::sync::Arc<CanvasStore> {
     super::doc::host().store().clone()
 }
 
-/// Binds the app and starts the ticker (idempotent). Call from setup; every
-/// canvas command of this area also calls it.
 pub fn start(app: &AppHandle) {
     if APP.set(app.clone()).is_err() {
         return;
@@ -82,7 +65,6 @@ async fn tick() {
     let now = chrono::Local::now();
     for r in due {
         if claim(&r.id) {
-            // LATE rule: one catch-up run, marked with how late it was.
             let late = routines::next_fire(&r)
                 .map(|n| (now - n).num_seconds())
                 .filter(|s| *s > LATE_AFTER_SECS)
@@ -106,8 +88,6 @@ pub fn emit_routine(r: &Routine) {
     }
 }
 
-/// Shows a message: `canvas://notify` for the canvas, and a system
-/// notification when asked.
 pub fn notify(
     ws: &str,
     floor: Option<&str>,
@@ -134,10 +114,6 @@ pub fn notify(
     }
 }
 
-/// Whether the terminal is busy: the person typing, a busy agent state, or
-/// a program in the foreground even when it prints nothing (`sleep 120`):
-/// `TermManager::is_busy` looks at the foreground process group, so a silent
-/// command no longer reads as idle after the screen goes quiet.
 pub fn is_busy(tid: &str) -> bool {
     busy(tid)
 }
@@ -167,8 +143,6 @@ fn busy(tid: &str) -> bool {
     }
 }
 
-/// Waits for the agent to take the step and finish it: up to 10 s to start,
-/// then until it is quiet for 3 s in a row (or `STEP_MAX`).
 async fn wait_done(tid: &str) {
     let t0 = Instant::now();
     while t0.elapsed() < Duration::from_secs(10) && !busy(tid) {
@@ -245,7 +219,6 @@ fn record_code(
     Ok(out)
 }
 
-/// Runs a routine now (scheduled or "Run now").
 pub async fn run(r: Routine, manual: bool) -> Result<Routine, String> {
     let s = store();
     let Some(node_id) = r.node_id.clone() else {
@@ -283,8 +256,6 @@ pub async fn run(r: Routine, manual: bool) -> Result<Routine, String> {
         );
     };
     let term = crate::pty::term();
-    // Not running (never started in this app run, or killed): start it and
-    // deliver anyway; History says `terminalNotRunning`.
     let was_down = !term.info(&tid).is_some_and(|i| i.alive);
     if was_down && term.info(&tid).is_some() {
         let _ = term.close(&tid, false);
@@ -311,7 +282,6 @@ pub async fn run(r: Routine, manual: bool) -> Result<Routine, String> {
         );
     }
     if was_down {
-        // A fresh agent needs a moment before it takes typing.
         wait_ready(&tid).await;
     }
     if r.skip_if_busy && !manual && !was_down && busy(&tid) {
@@ -380,7 +350,6 @@ pub async fn run(r: Routine, manual: bool) -> Result<Routine, String> {
     record(&r, "fired", None, n as u32, manual)
 }
 
-/// Waits (up to 20 s) until a just-started terminal is quiet for 2 s.
 async fn wait_ready(tid: &str) {
     let t0 = Instant::now();
     let mut quiet = 0;
@@ -394,7 +363,6 @@ async fn wait_ready(tid: &str) {
     }
 }
 
-/// "Run now" from the UI or an agent; refuses while that routine runs.
 pub async fn run_now(id: &str) -> Result<Routine, String> {
     let s = store();
     let r = routines::get(&s, id)?;
@@ -406,19 +374,14 @@ pub async fn run_now(id: &str) -> Result<Routine, String> {
     out
 }
 
-// ---------------------------------------------------------------- rpc
-
 #[derive(Deserialize, Default)]
 #[serde(rename_all = "camelCase", default)]
 struct RoutineArgs {
     id: Option<String>,
     name: Option<String>,
-    /// Target node name (in the caller's team); absent = reminder.
     target: Option<String>,
     prompt: Option<String>,
     schedule: Option<Schedule>,
-    /// Shorthands: `every: "30m" | "2h" | "1d"`, `daily: "09:00"`, `at: RFC 3339`,
-    /// `weekly: {days, time}`.
     every: Option<String>,
     daily: Option<String>,
     at: Option<String>,
@@ -429,7 +392,6 @@ struct RoutineArgs {
     enabled: Option<bool>,
 }
 
-/// Seconds of an `every` shorthand: `30s`, `5m`, `2h`, `1d`, `15` (minutes).
 fn parse_every(s: &str) -> Result<u32, String> {
     let s = s.trim().to_ascii_lowercase();
     let (num, unit) = s.split_at(s.find(|c: char| !c.is_ascii_digit()).unwrap_or(s.len()));
@@ -486,7 +448,6 @@ fn resolve_routine(s: &CanvasStore, ws: &str, key: &str) -> Result<Routine, Stri
         .ok_or_else(|| format!("CANVAS_NOT_FOUND: no routine named '{key}'"))
 }
 
-/// `routine.create` / `maestro.routine.create`.
 pub async fn rpc_create(ctx: &NodeCtx, args: Value) -> Result<Value, String> {
     let (doc, me) = super::maestro::require_maestro(ctx)?;
     let a: RoutineArgs = if args.is_null() {
@@ -557,8 +518,6 @@ pub async fn rpc(ctx: &NodeCtx, method: &str, args: Value) -> RpcResult {
     Some(r)
 }
 
-/// `routine.history {name?, clear?}`: runs of one routine (or all of the
-/// workspace, finished `once` routines included), newest first.
 fn routine_history(ctx: &NodeCtx, args: Value) -> Result<Value, String> {
     let s = store();
     let id = match routine_key(&args) {

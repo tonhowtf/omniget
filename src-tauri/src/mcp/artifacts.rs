@@ -1,5 +1,3 @@
-//! Artifact grants live beside MCP identity; media remains owned by the queue.
-//! A grant selects a locally opened root object, never a caller-supplied path.
 use super::policy::{self, Principal};
 use omniget_core::core::secure_files::{Identity, Root, Snapshot};
 use rusqlite::params;
@@ -9,7 +7,6 @@ use std::path::Path;
 const MAX_BYTES: u64 = 2 * 1024 * 1024 * 1024;
 static TRANSFERS: std::sync::OnceLock<std::sync::Arc<tokio::sync::Semaphore>> =
     std::sync::OnceLock::new();
-/// Includes hashing/copying and streaming lifetime: at most two 2GiB snapshots.
 pub fn admit() -> Result<tokio::sync::OwnedSemaphorePermit, String> {
     TRANSFERS
         .get_or_init(|| std::sync::Arc::new(tokio::sync::Semaphore::new(2)))
@@ -30,9 +27,6 @@ fn db() -> Result<rusqlite::Connection, String> {
     Ok(c)
 }
 
-/// Roots chosen by trusted app code: a local user's selection or the owned
-/// native-capture directory. Remote callers never supply this path. Opens pin
-/// and check the directory's device/inode.
 pub fn grant_root(principal: &str, path: &Path) -> Result<String, String> {
     let c = db()?;
     let valid: bool = c
@@ -77,10 +71,6 @@ pub fn revoke_root(id: &str) -> Result<(), String> {
     Ok(())
 }
 
-/// Root of an external mission workspace, derived from a live local execution
-/// grant (the user chose that folder in the trusted UI). Idempotent per grant.
-/// Transfers from it are re-checked against the execution grant on every
-/// access, so revoking the grant revokes its artifact links too.
 pub fn exec_root(
     principal: &str,
     grant_id: &str,
@@ -170,7 +160,6 @@ pub fn register(p: &Principal, path: &Path) -> Result<Artifact, String> {
             .map_err(|_| "ARTIFACT_UNSAFE_OR_CHANGED")?;
         c.execute_batch("BEGIN IMMEDIATE")
             .map_err(|_| "ARTIFACT_STORE_BUSY")?;
-        // One live grant per recipient/root/path/revision, even when clients poll.
         use rusqlite::OptionalExtension;
         let old:Option<(String,i64)>=c.query_row("SELECT id,expires FROM artifact_grants WHERE principal=?1 AND root=?2 AND relative=?3 AND digest=?4 AND revoked=0 AND expires>?5",params![p.id,root_id,relative.to_str().ok_or("INVALID_ARTIFACT")?,snap.digest,now()],|r|Ok((r.get(0)?,r.get(1)?))).optional().map_err(|_|"ARTIFACT_STORE_UNAVAILABLE")?;
         if let Some((id, expires)) = old {
@@ -240,8 +229,6 @@ pub fn authorized(p: &Principal, id: &str) -> Result<(), String> {
         Err("ARTIFACT_NOT_FOUND_OR_EXPIRED".into())
     }
 }
-/// Metadata of one live grant of this recipient (for `artifact_access`); the
-/// same checks as a transfer, without opening the file.
 pub fn describe(p: &Principal, id: &str) -> Result<Artifact, String> {
     authorized(p, id)?;
     let (relative,digest,bytes,expires):(String,String,u64,i64)=db()?.query_row("SELECT relative,digest,bytes,expires FROM artifact_grants WHERE id=?1 AND principal=?2",params![id,p.id],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?))).map_err(|_|"ARTIFACT_NOT_FOUND_OR_EXPIRED")?;
@@ -297,8 +284,6 @@ pub fn preflight(
     range(range_header, bytes)
 }
 
-/// Single explicit range only. Multipart/suffix ranges are intentionally not
-/// supported, so a small request cannot multiply server work.
 pub fn range(header: Option<&str>, bytes: u64) -> Result<(u64, u64), String> {
     if bytes == 0 {
         return Err("EMPTY_ARTIFACT".into());

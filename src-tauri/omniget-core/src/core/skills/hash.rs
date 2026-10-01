@@ -1,16 +1,3 @@
-//! Content hash of an installed skill folder.
-//!
-//! The hash is what a bot's binding, the broker projection and the run trace
-//! agree on (spec 02, "Capacidade efetiva"): the same bytes give the same hash
-//! on every machine, and any change to any file — `SKILL.md`, a reference, a
-//! script — gives a new one. The install sidecar ([`super::install::SIDECAR`])
-//! is ours, not the skill's, so it is left out.
-//!
-//! Walking a folder and hashing every byte on each turn would be wasteful, so
-//! [`dir_hash`] keeps a small cache keyed by a metadata fingerprint (file
-//! count, total size, newest mtime, the list of paths). Any edit changes the
-//! fingerprint, and a changed fingerprint always re-reads the bytes.
-
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
@@ -20,15 +7,13 @@ use sha2::{Digest, Sha256};
 use super::install::SIDECAR;
 use super::{SkillError, ERR_SKILL_TOO_BIG};
 
-/// Deepest folder nesting we walk. Installs are bounded well below this.
 const MAX_DEPTH: usize = 16;
-/// Most entries we hash, matching the install limit with room to spare.
 const MAX_ENTRIES: usize = 4_000;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct Entry {
     rel: String,
-    kind: u8, // b'F' file, b'L' symlink, b'D' empty dir
+    kind: u8,
     len: u64,
     mtime_ns: u128,
     abs: PathBuf,
@@ -36,7 +21,6 @@ struct Entry {
 
 static CACHE: Mutex<Option<HashMap<PathBuf, (u64, String)>>> = Mutex::new(None);
 
-/// Lowercase hex sha256 of the folder's content, sidecar excluded.
 pub fn dir_hash(dir: &Path) -> Result<String, SkillError> {
     let entries = walk(dir)?;
     let fingerprint = fingerprint(&entries);
@@ -59,12 +43,10 @@ pub fn dir_hash(dir: &Path) -> Result<String, SkillError> {
     Ok(hash)
 }
 
-/// [`dir_hash`] without the cache, for callers that must see the bytes.
 pub fn dir_hash_uncached(dir: &Path) -> Result<String, SkillError> {
     hash_entries(&walk(dir)?)
 }
 
-/// The first `n` hex characters, for names and badges.
 pub fn short(hash: &str, n: usize) -> &str {
     &hash[..hash.len().min(n)]
 }

@@ -1,7 +1,3 @@
-//! The macOS inventory (read-only) and the system facts a leftover search
-//! needs. Only compiled on macOS; the parsing it relies on lives in
-//! `parse.rs` and `plist.rs`.
-
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
@@ -22,7 +18,6 @@ const WORKERS: usize = 8;
 #[derive(Clone, Default)]
 struct Snapshot {
     apps: Vec<App>,
-    /// Third-party receipts: id → absolute paths (collapsed).
     receipts: HashMap<String, Vec<PathBuf>>,
 }
 
@@ -53,7 +48,6 @@ fn progress(done: u64, total: u64, msg: impl Into<String>) {
     super::super::super::progress("apps_list", "scan", done, total, msg);
 }
 
-/// Run `f` over `items` on a few threads, keeping the order.
 fn par_map<T: Sync, R: Send>(items: &[T], f: impl Fn(&T) -> R + Sync) -> Vec<R> {
     use std::sync::atomic::{AtomicUsize, Ordering};
     let next = AtomicUsize::new(0);
@@ -93,8 +87,6 @@ fn run_ok(prog: &str, args: &[&str]) -> Option<String> {
         .then(|| String::from_utf8_lossy(&o.stdout).into_owned())
 }
 
-// ── App bundles ──────────────────────────────────────────────────────
-
 struct Bundle {
     path: PathBuf,
     system: bool,
@@ -126,7 +118,6 @@ fn bundles(home: Option<&Path>) -> Vec<Bundle> {
                     link,
                 });
             } else if m.is_dir() && !link {
-                // One folder deeper: `Utilities`, `Setapp`, vendor folders.
                 let Ok(rd) = std::fs::read_dir(&p) else {
                     continue;
                 };
@@ -152,8 +143,6 @@ fn bundles(home: Option<&Path>) -> Vec<Bundle> {
     out
 }
 
-/// Whether this user can move the bundle without a password: write access
-/// to the bundle (a folder's `..` changes) and to its parent.
 fn user_can_move(p: &Path) -> bool {
     use std::os::unix::ffi::OsStrExt;
     let ok = |q: &Path| {
@@ -203,8 +192,6 @@ fn facts(b: &Bundle) -> BundleFacts {
     }
 }
 
-/// `kMDItemLastUsedDate` and `kMDItemDateAdded`, one attribute per `mdls`
-/// call over a batch of paths.
 fn dates(paths: &[&Path], attr: &str) -> Vec<Option<i64>> {
     let mut out = Vec::with_capacity(paths.len());
     for chunk in paths.chunks(64) {
@@ -217,8 +204,6 @@ fn dates(paths: &[&Path], attr: &str) -> Vec<Option<i64>> {
     }
     out
 }
-
-// ── Homebrew ─────────────────────────────────────────────────────────
 
 fn brew_bin() -> Option<PathBuf> {
     ["/opt/homebrew/bin/brew", "/usr/local/bin/brew"]
@@ -246,7 +231,6 @@ fn casks(bin: &Path) -> Vec<Cask> {
             return c;
         }
     }
-    // Fallback: tokens and versions only.
     brew(bin, &["list", "--cask", "--versions"])
         .map(|t| {
             parse::brew_versions(&t)
@@ -261,8 +245,6 @@ fn casks(bin: &Path) -> Vec<Cask> {
         })
         .unwrap_or_default()
 }
-
-// ── Receipts ─────────────────────────────────────────────────────────
 
 fn receipt(id: &str) -> Option<(PkgInfo, Vec<PathBuf>)> {
     let info = run_ok("/usr/sbin/pkgutil", &["--pkg-info-plist", id])
@@ -281,8 +263,6 @@ fn receipt(id: &str) -> Option<(PkgInfo, Vec<PathBuf>)> {
         .collect();
     Some((info, paths))
 }
-
-// ── The scan ─────────────────────────────────────────────────────────
 
 fn scan() -> Result<Snapshot, String> {
     let home = dirs::home_dir();
@@ -375,7 +355,6 @@ fn scan() -> Result<Snapshot, String> {
         });
     }
 
-    // Homebrew.
     progress(found.len() as u64 + 1, total, "Homebrew");
     if let Some(bin) = brew_bin() {
         let prefix = bin
@@ -440,7 +419,6 @@ fn scan() -> Result<Snapshot, String> {
         }
     }
 
-    // Installer receipts.
     progress(found.len() as u64 + 2, total, "receipts");
     let ids = run_ok("/usr/sbin/pkgutil", &["--pkgs"])
         .map(|t| parse::third_party_pkgs(&t))
@@ -501,8 +479,6 @@ fn scan() -> Result<Snapshot, String> {
     Ok(Snapshot { apps, receipts })
 }
 
-// ── Facts for one uninstall ──────────────────────────────────────────
-
 fn entitlement_groups(app: &Path) -> Vec<String> {
     let path = app.to_string_lossy().to_string();
     let Some(o) = run(
@@ -511,7 +487,6 @@ fn entitlement_groups(app: &Path) -> Vec<String> {
     ) else {
         return Vec::new();
     };
-    // The XML lands on stdout or stderr depending on the macOS version.
     for stream in [&o.stdout, &o.stderr] {
         let text = String::from_utf8_lossy(stream);
         if let Some(i) = text.find("<?xml") {

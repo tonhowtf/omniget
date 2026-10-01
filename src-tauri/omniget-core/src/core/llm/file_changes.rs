@@ -1,53 +1,26 @@
-//! Per-file baselines of a CLI turn (3.4, S19, `85#P4`): the "before" of
-//! every file a Claude turn wrote with its own tools, straight from the
-//! stream. SP3 showed that the `user` event carrying a `Write`/`Edit` result
-//! has `tool_use_result.originalFile` (the content before; `null` with
-//! `type: "create"` for a new file), so no hook and no snapshot is needed to
-//! know what a job touched and what the file held before.
-//!
-//! The parser hands each touch to [`record`]; the host installs a sink
-//! ([`set_sink`]) that files it under the job of that turn (`job_changes` in
-//! `jobs.db`, first touch per path wins). [`patch`] rebuilds a unified diff
-//! from a baseline and the file as it is now, the fallback when the job's
-//! shadow snapshots are not available.
-//!
-//! Limits: a file changed through the shell (`sed -i`, a generator) is not
-//! here, only through the file tools; a baseline above
-//! [`MAX_BASELINE_BYTES`] is kept as "too big" (no content).
-
 use std::path::Path;
 use std::sync::{Arc, RwLock};
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-/// Largest "before" kept per file.
 pub const MAX_BASELINE_BYTES: usize = 1024 * 1024;
 
-/// One file a turn wrote, as the CLI reported it.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct FileTouch {
-    /// Absolute path, as the CLI saw it.
     pub path: String,
-    /// `create` (the file did not exist), `update` (whole-file write) or
-    /// `edit` (a replacement).
     pub op: String,
-    /// The content before; `None` for a created file or a baseline above
-    /// [`MAX_BASELINE_BYTES`] (then `too_big`).
     pub original: Option<String>,
     #[serde(default)]
     pub too_big: bool,
 }
 
-/// The touch in a stream-json `tool_use_result` (SP3 shapes), if any.
 pub fn from_tool_use_result(result: &Value) -> Option<FileTouch> {
     let path = result
         .get("filePath")
         .or_else(|| result.get("notebook_path"))
         .and_then(Value::as_str)?
         .to_string();
-    // A `Read` also has a path (under `file`), never a top-level one with
-    // `originalFile`; only writers carry that key.
     let original = result.get("originalFile")?;
     let op = match result.get("type").and_then(Value::as_str) {
         Some("create") => "create",
@@ -74,12 +47,10 @@ pub fn from_tool_use_result(result: &Value) -> Option<FileTouch> {
 type Sink = Arc<dyn Fn(&str, FileTouch) + Send + Sync>;
 static SINK: RwLock<Option<Sink>> = RwLock::new(None);
 
-/// Installs where the touches of every turn go (`request id`, touch).
 pub fn set_sink(sink: Option<Sink>) {
     *SINK.write().unwrap_or_else(|e| e.into_inner()) = sink;
 }
 
-/// Hands one touch of turn `request` to the sink, if any.
 pub fn record(request: &str, touch: FileTouch) {
     let sink = SINK.read().unwrap_or_else(|e| e.into_inner()).clone();
     if let Some(sink) = sink {
@@ -94,13 +65,9 @@ fn lines(text: &str) -> Vec<&str> {
     text.split_inclusive('\n').collect()
 }
 
-/// Longest common subsequence table is quadratic: past this many cells the
-/// diff is one hunk that replaces the whole file (still correct).
 const LCS_CELLS: usize = 4_000_000;
 
-/// Edit script: (`' '|'-'|'+'`, line).
 fn script<'a>(a: &[&'a str], b: &[&'a str]) -> Vec<(char, &'a str)> {
-    // Common head and tail first: most edits touch a few lines.
     let head = a.iter().zip(b).take_while(|(x, y)| x == y).count();
     let tail = a[head..]
         .iter()
@@ -146,9 +113,6 @@ fn script<'a>(a: &[&'a str], b: &[&'a str]) -> Vec<(char, &'a str)> {
     out
 }
 
-/// Unified diff of `rel` from `before` to `after` (`None` = absent), git
-/// style (`a/` `b/`, 3 lines of context), with its `+`/`-` counts. Empty
-/// patch when nothing changed.
 pub fn patch(rel: &str, before: Option<&str>, after: Option<&str>) -> (String, u64, u64) {
     if before == after {
         return (String::new(), 0, 0);
@@ -170,7 +134,6 @@ pub fn patch(rel: &str, before: Option<&str>, after: Option<&str>) -> (String, u
         }
         Some(_) => out.push_str(&format!("+++ b/{rel}\n")),
     }
-    // Hunks: runs of changes with up to 3 lines of context around them.
     const CTX: usize = 3;
     let changed: Vec<usize> = ops
         .iter()
@@ -209,7 +172,6 @@ pub fn patch(rel: &str, before: Option<&str>, after: Option<&str>) -> (String, u
     (out, adds, dels)
 }
 
-/// The file as it is now, for [`patch`] (`None` when gone or not text).
 pub fn current(path: &Path) -> Option<String> {
     std::fs::read(path)
         .ok()

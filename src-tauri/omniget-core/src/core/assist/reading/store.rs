@@ -1,7 +1,3 @@
-//! Reading records in SQLite: journeys, progress, temporary round context,
-//! access preferences, movie identities, availability and subtitle evidence,
-//! rounds and viewing events. Rules live in [`super::rules`].
-
 use rusqlite::{params, Connection, OptionalExtension, Row};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -175,8 +171,6 @@ fn to_json<T: Serialize>(v: &T) -> String {
     serde_json::to_string(v).unwrap_or_else(|_| "[]".into())
 }
 
-// ── Journeys ─────────────────────────────────────────────────────────────
-
 pub const JOURNEY_STATUSES: &[&str] = &["active", "paused", "finished", "abandoned"];
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -250,8 +244,6 @@ fn clean_terms(terms: Vec<String>) -> Vec<String> {
     out
 }
 
-/// Scope a journey created by `ctx` for `bot` lives in: the bot's private
-/// scope in a direct conversation, the room when that is all it may write.
 fn journey_scope(ctx: &AssistCtx, bot: &str) -> Result<String, String> {
     let own = Scope::Bot {
         bot: bot.to_string(),
@@ -353,8 +345,6 @@ pub fn get_journey(db: &AssistDb, ctx: &AssistCtx, id: &str) -> Result<Journey, 
     }
 }
 
-/// Journeys of `bot` that `ctx` may see, newest first. `bot = None` with the
-/// UI principal lists every journey.
 pub fn list_journeys(
     db: &AssistDb,
     ctx: &AssistCtx,
@@ -472,8 +462,6 @@ fn touch(c: &Connection, journey: &str) -> rusqlite::Result<usize> {
     )
 }
 
-// ── Progress ─────────────────────────────────────────────────────────────
-
 pub const POSITION_KINDS: &[&str] = &["chapter", "page", "percent", "locator"];
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -506,8 +494,6 @@ fn progress_row(r: &Row) -> rusqlite::Result<Progress> {
 const PROGRESS_COLS: &str =
     "id, journey_id, position_kind, value, value_num, edition, origin, note, recorded_ms";
 
-/// Whether two positions can be ordered. Pages and locators only compare
-/// within the same edition; chapters and percentages compare across.
 pub fn compare_progress(a: &Progress, b: &Progress) -> Option<std::cmp::Ordering> {
     if a.position_kind != b.position_kind {
         return None;
@@ -524,9 +510,7 @@ pub fn compare_progress(a: &Progress, b: &Progress) -> Option<std::cmp::Ordering
 
 pub struct ProgressOutcome {
     pub progress: Progress,
-    /// Previous position, when it can be compared with this one.
     pub compared_with: Option<(Progress, std::cmp::Ordering)>,
-    /// Why the previous position was not compared, when it was not.
     pub not_comparable: Option<String>,
 }
 
@@ -654,8 +638,6 @@ pub fn progress_history(db: &AssistDb, journey: &str) -> Result<Vec<Progress>, S
     })
 }
 
-// ── Temporary context ("hoje quero algo leve") ───────────────────────────
-
 pub const DEFAULT_CONTEXT_HOURS: i64 = 12;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -702,7 +684,6 @@ pub fn note_context(
     Ok(rc)
 }
 
-/// Unexpired contexts of a journey at `now`.
 pub fn live_contexts(db: &AssistDb, journey: &str, now: i64) -> Result<Vec<RoundContext>, String> {
     db.with(|c| {
         let mut st = c.prepare(
@@ -721,8 +702,6 @@ pub fn live_contexts(db: &AssistDb, journey: &str, now: i64) -> Result<Vec<Round
         rows.collect()
     })
 }
-
-// ── Access preferences ───────────────────────────────────────────────────
 
 pub const ACCESS_KINDS: &[&str] = &["subscription", "rent", "buy", "free"];
 
@@ -860,7 +839,6 @@ pub fn set_prefs(
     Ok(cur)
 }
 
-/// Canonical platform key: "Amazon Prime Video" and "Prime Video" are one.
 pub fn platform_key(name: &str) -> String {
     let k: String = fold(name)
         .replace('+', "plus")
@@ -879,8 +857,6 @@ pub fn platform_key(name: &str) -> String {
         _ => k,
     }
 }
-
-// ── Movies ───────────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct Movie {
@@ -926,8 +902,6 @@ pub struct NewMovie {
     pub external_ids: Option<Value>,
 }
 
-/// Finds the movie by (original title or title, year) or creates it. A
-/// namesake from another year is another movie.
 pub fn upsert_movie(db: &AssistDb, m: NewMovie) -> Result<(Movie, bool), String> {
     let title = m.title.trim().to_string();
     if title.is_empty() {
@@ -982,8 +956,6 @@ pub fn get_movie(db: &AssistDb, id: &str) -> Result<Movie, String> {
     })?
     .ok_or_else(|| format!("{ERR_READING_NOT_FOUND}: no film `{id}`; record it with reading_record_movie first"))
 }
-
-// ── Evidence ─────────────────────────────────────────────────────────────
 
 pub const EVIDENCE_STATUSES: &[&str] = &["confirmed", "inferred", "absent", "unknown"];
 pub const SOURCE_KINDS: &[&str] = &["platform", "aggregator", "search", "user"];
@@ -1140,8 +1112,6 @@ pub fn get_subtitle(db: &AssistDb, id: &str) -> Result<Subtitle, String> {
     .ok_or_else(|| format!("{ERR_READING_NOT_FOUND}: no subtitle record `{id}`"))
 }
 
-// ── Viewing events ───────────────────────────────────────────────────────
-
 pub const EVENT_KINDS: &[&str] = &["recommended", "planned", "watched", "abandoned", "declined"];
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -1193,8 +1163,6 @@ pub fn insert_event(c: &Connection, e: &ViewingEvent) -> rusqlite::Result<usize>
     )
 }
 
-/// Records what the user did with a film. `recommended` is written only by
-/// a round; nothing here turns a recommendation into "watched".
 #[allow(clippy::too_many_arguments)]
 pub fn record_viewing(
     db: &AssistDb,
@@ -1265,8 +1233,6 @@ pub fn events_of(db: &AssistDb, journey: &str) -> Result<Vec<ViewingEvent>, Stri
     })
 }
 
-/// Forgets the free-text reaction and reasons of one event; the fact that the
-/// film was watched stays. Round explanations that cited it stop citing it.
 pub fn forget_reaction(db: &AssistDb, ctx: &AssistCtx, event_id: &str) -> Result<(), String> {
     let journey: Option<String> = db.with(|c| {
         c.query_row(
@@ -1294,7 +1260,6 @@ pub fn forget_reaction(db: &AssistDb, ctx: &AssistCtx, event_id: &str) -> Result
     Ok(())
 }
 
-/// Folds case and accents so "Eu, Tu, Eles" and "eu tu eles" meet.
 fn fold_title(text: &str) -> String {
     use unicode_normalization::UnicodeNormalization;
     text.nfd()
@@ -1312,14 +1277,6 @@ fn fold_title(text: &str) -> String {
         .join(" ")
 }
 
-/// A memory the user forgot may have been said about a film this journey
-/// also keeps a reaction for ("gostei do humor de X"). That copy would put
-/// the forgotten words back in the prompt through the reading context, so it
-/// goes too: the reaction and reasons of every watched/abandoned event of a
-/// film whose title (or original title) the forgotten text names. The fact
-/// that the film was watched stays. `journey_scopes` limits it to journeys
-/// the caller may change (`None` = the person on the memory screen: all of
-/// theirs). Runs inside the caller's transaction. Returns events cleared.
 pub fn forget_reactions_mentioned(
     tx: &rusqlite::Transaction,
     principal: &str,
@@ -1348,7 +1305,7 @@ pub fn forget_reactions_mentioned(
         rows.collect::<rusqlite::Result<_>>()?
     };
     let mut cleared = 0;
-    let mut named_titles: Vec<(String, String)> = Vec::new(); // (journey scope, folded title)
+    let mut named_titles: Vec<(String, String)> = Vec::new();
     for (event, scope, title, original) in rows {
         if let Some(allowed) = journey_scopes {
             if !allowed.iter().any(|a| a == &scope) {
@@ -1380,13 +1337,8 @@ pub fn forget_reactions_mentioned(
     Ok(cleared)
 }
 
-/// Shown where a sentence citing a forgotten reaction used to be.
 pub const REDACTED: &str = "[motivo removido: você pediu para esquecer]";
 
-/// Round explanations written from a reaction ("na linha do que você curtiu
-/// em X") keep quoting it after the reaction is forgotten. Every sentence of
-/// a round's reason or an item's `why` that names one of these films, in a
-/// journey of that scope, goes; an explanation left empty says so instead.
 fn redact_round_texts(
     tx: &rusqlite::Transaction,
     principal: &str,
@@ -1455,7 +1407,6 @@ fn redact_round_texts(
     Ok(())
 }
 
-/// Sentences of a short explanation, each with its end mark.
 fn split_sentences(text: &str) -> Vec<String> {
     let mut out = Vec::new();
     let mut cur = String::new();
@@ -1476,7 +1427,6 @@ fn split_sentences(text: &str) -> Vec<String> {
     out
 }
 
-/// Latest state per film in a journey (events are newest first).
 pub fn latest_by_movie(events: &[ViewingEvent]) -> Vec<&ViewingEvent> {
     let mut seen = std::collections::HashSet::new();
     events
@@ -1484,8 +1434,6 @@ pub fn latest_by_movie(events: &[ViewingEvent]) -> Vec<&ViewingEvent> {
         .filter(|e| seen.insert(e.movie_id.clone()))
         .collect()
 }
-
-// ── Rounds (rows; validation is in `rules`) ──────────────────────────────
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct Round {

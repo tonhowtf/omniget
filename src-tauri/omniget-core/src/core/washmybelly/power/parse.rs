@@ -1,24 +1,15 @@
-//! Pure parsers for the power module: `pmset`, `powercfg`, `tlp-stat` and
-//! the cpufreq/battery knobs of sysfs (read from any root, so tests point
-//! it at a fixture tree). Compiled on every OS.
-
 use std::path::Path;
 
 use once_cell::sync::Lazy;
 use regex::Regex;
 use serde::Serialize;
 
-// ── macOS ────────────────────────────────────────────────────────────
-
-/// `pmset -g`: the "Currently in use" settings.
 #[derive(Debug, Clone, Default, PartialEq, Serialize)]
 pub struct PmsetSettings {
     pub low_power_mode: Option<bool>,
-    /// `powermode` on Macs with a High Power mode (0 auto, 1 low, 2 high).
     pub power_mode: Option<u8>,
     pub sleep_minutes: Option<u32>,
     pub display_sleep_minutes: Option<u32>,
-    /// Names from `sleep 1 (sleep prevented by a, b, c)`, deduplicated.
     pub sleep_prevented_by: Vec<String>,
 }
 
@@ -52,16 +43,13 @@ pub fn pmset_settings(text: &str) -> PmsetSettings {
     s
 }
 
-/// One thing that keeps the machine (or the display) awake.
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct SleepBlocker {
     pub process: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub pid: Option<u32>,
-    /// `PreventUserIdleSystemSleep`, `DISPLAY`, `SYSTEM`, `sleep`...
     pub kind: String,
     pub reason: String,
-    /// Keeps the display on (not only the system).
     pub display: bool,
 }
 
@@ -69,8 +57,6 @@ static ASSERTION: Lazy<Regex> = Lazy::new(|| {
     Regex::new(r#"^\s*pid (\d+)\(([^)]*)\): \[[^\]]*\] \S+ (\w+) named: "(.*)"\s*$"#).unwrap()
 });
 
-/// Assertion types that stop idle sleep. `UserIsActive` is the person
-/// using the machine, not a blocker; `BackgroundTask` does not block.
 const BLOCKING: &[&str] = &[
     "PreventUserIdleSystemSleep",
     "PreventUserIdleDisplaySleep",
@@ -80,7 +66,6 @@ const BLOCKING: &[&str] = &[
     "NetworkClientActive",
 ];
 
-/// `pmset -g assertions`: the per-process assertions that block sleep.
 pub fn pmset_assertions(text: &str) -> Vec<SleepBlocker> {
     let mut out = Vec::new();
     let mut in_list = false;
@@ -114,8 +99,6 @@ pub fn pmset_assertions(text: &str) -> Vec<SleepBlocker> {
     out
 }
 
-// ── Windows ──────────────────────────────────────────────────────────
-
 static SCHEME: Lazy<Regex> = Lazy::new(|| {
     Regex::new(
         r"(?i)([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\s+\(([^)]*)\)(\s*\*)?",
@@ -123,8 +106,6 @@ static SCHEME: Lazy<Regex> = Lazy::new(|| {
     .unwrap()
 });
 
-/// A power plan from `powercfg`. The labels around the GUID are localized;
-/// only the GUID, the name in parentheses and the `*` are read.
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct Scheme {
     pub guid: String,
@@ -132,7 +113,6 @@ pub struct Scheme {
     pub active: bool,
 }
 
-/// `powercfg /getactivescheme` (and `-duplicatescheme`, same line shape).
 pub fn powercfg_active(text: &str) -> Option<Scheme> {
     let c = SCHEME.captures(text)?;
     Some(Scheme {
@@ -142,7 +122,6 @@ pub fn powercfg_active(text: &str) -> Option<Scheme> {
     })
 }
 
-/// `powercfg /list`.
 pub fn powercfg_list(text: &str) -> Vec<Scheme> {
     text.lines()
         .filter_map(|l| SCHEME.captures(l))
@@ -154,8 +133,6 @@ pub fn powercfg_list(text: &str) -> Vec<Scheme> {
         .collect()
 }
 
-/// `powercfg /requests` (admin): categories (`DISPLAY:`, `SYSTEM:`...) with
-/// `[TYPE] name` entries, each optionally followed by a reason line.
 pub fn powercfg_requests(text: &str) -> Vec<SleepBlocker> {
     let mut out: Vec<SleepBlocker> = Vec::new();
     let mut cat = String::new();
@@ -179,7 +156,6 @@ pub fn powercfg_requests(text: &str) -> Vec<SleepBlocker> {
                 continue;
             };
             let name = name.trim();
-            // Processes are NT device paths: keep the file name.
             let process = if ty == "PROCESS" {
                 name.rsplit('\\').next().unwrap_or(name).to_string()
             } else {
@@ -204,13 +180,11 @@ pub fn powercfg_requests(text: &str) -> Vec<SleepBlocker> {
     out
 }
 
-/// Well-known plan GUIDs.
 pub const BALANCED: &str = "381b4222-f694-41f0-9685-ff5bb260df2e";
 pub const HIGH_PERFORMANCE: &str = "8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c";
 pub const POWER_SAVER: &str = "a1841308-3541-4fab-bc81-f71556f20b4a";
 pub const ULTIMATE_TEMPLATE: &str = "e9a42b02-d5df-448d-aa00-03f14749eb61";
 
-/// Windows 10/11 "power mode" overlays (the Settings slider).
 pub fn overlay_name(guid: &str) -> &'static str {
     match guid.to_ascii_lowercase().as_str() {
         "961cc777-2547-4f9d-8174-7d86181b8a7a" => "best_efficiency",
@@ -227,15 +201,11 @@ pub fn is_guid(s: &str) -> bool {
     RE.is_match(s)
 }
 
-// ── Linux ────────────────────────────────────────────────────────────
-
-/// `tlp-stat -s`: `State = enabled`, `Mode = battery`.
 #[derive(Debug, Clone, Default, PartialEq, Serialize)]
 pub struct TlpStat {
     pub version: Option<String>,
     pub enabled: Option<bool>,
     pub mode: Option<String>,
-    /// TLP 1.7+: `Power profile = performance/AC`.
     pub profile: Option<String>,
 }
 
@@ -261,7 +231,6 @@ pub fn tlp_stat(text: &str) -> TlpStat {
     s
 }
 
-/// What the CPU runs with right now, whoever wrote it.
 #[derive(Debug, Clone, Default, PartialEq, Serialize)]
 pub struct CpuKnobs {
     pub driver: Option<String>,
@@ -269,7 +238,6 @@ pub struct CpuKnobs {
     pub governors: Vec<String>,
     pub epp: Option<String>,
     pub epps: Vec<String>,
-    /// Turbo/boost on.
     pub turbo: Option<bool>,
     pub platform_profile: Option<String>,
     pub platform_profiles: Vec<String>,
@@ -289,7 +257,6 @@ fn words(p: &Path) -> Vec<String> {
         .unwrap_or_default()
 }
 
-/// The cpufreq folders of `<sys>/devices/system/cpu/cpuN/cpufreq`.
 pub fn cpufreq_dirs(sys: &Path) -> Vec<std::path::PathBuf> {
     let mut v: Vec<_> = std::fs::read_dir(sys.join("devices/system/cpu"))
         .into_iter()
@@ -307,7 +274,6 @@ pub fn cpufreq_dirs(sys: &Path) -> Vec<std::path::PathBuf> {
     v
 }
 
-/// Read the knobs from a sysfs root (`/sys` in production).
 pub fn cpu_knobs(sys: &Path) -> CpuKnobs {
     let dirs = cpufreq_dirs(sys);
     let mut k = CpuKnobs {
@@ -331,7 +297,6 @@ pub fn cpu_knobs(sys: &Path) -> CpuKnobs {
     k
 }
 
-/// A battery charge limit the firmware exposes.
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct ChargeLimit {
     pub battery: String,
@@ -340,14 +305,11 @@ pub struct ChargeLimit {
     pub start: Option<u8>,
 }
 
-/// A system battery name we accept (`BAT0`, `BAT1`, `CMB0`, `macsmc-battery`).
 pub fn valid_battery_name(n: &str) -> bool {
     static RE: Lazy<Regex> = Lazy::new(|| Regex::new(r"^[A-Za-z][A-Za-z0-9_-]{0,31}$").unwrap());
     RE.is_match(n)
 }
 
-/// Charge limits under `<sys>/class/power_supply`: system batteries only
-/// (`scope=Device` is a mouse or a gamepad).
 pub fn charge_limits(sys: &Path) -> Vec<ChargeLimit> {
     let root = sys.join("class/power_supply");
     let mut out = Vec::new();
@@ -438,7 +400,6 @@ mod tests {
         assert_eq!(ca.pid, Some(1253));
         assert_eq!(ca.reason, "caffeinate command-line tool");
         assert!(!ca.display);
-        // Kernel assertions and the header are not processes.
         assert!(b.iter().all(|x| x.pid.is_some()));
         assert_eq!(b.len(), 7);
     }

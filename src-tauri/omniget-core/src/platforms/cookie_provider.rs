@@ -142,8 +142,6 @@ pub fn cookie_header_from_netscape(content: &str) -> Option<String> {
 }
 
 pub fn cookie_header_for_domains(domains: &[&str]) -> Option<String> {
-    // managed account cookies take precedence over the manual settings
-    // cookie, which is only a fallback (matches pre-port desktop behavior)
     for domain in domains {
         let Some(path) = cookie_path_for(domain) else {
             continue;

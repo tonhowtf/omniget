@@ -1,8 +1,3 @@
-//! Settings schema 3: the public DTO without secrets, strict patch
-//! validation, secret operations, scoped reset and the one-time appearance
-//! import. Pure functions over [`AppSettings`]; persistence, revisions and
-//! effects belong to the desktop repository.
-
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 
@@ -12,18 +7,14 @@ use super::{
     TubeSettings, TypographySettings, VideoSettings, WashMyBellySettings, WorldSettings,
 };
 
-/// Current `schema_version` of `AppSettings`.
 pub const SETTINGS_SCHEMA_VERSION: u32 = 3;
 
-/// Visual preset of a new install.
 pub const DEFAULT_PRESET: &str = "omniget-desktop";
 
-/// The locales the app ships a catalog for.
 pub const SUPPORTED_LANGUAGES: [&str; 12] = [
     "en", "pt", "es", "fr", "it", "ru", "el", "fa", "lo", "ja", "zh", "zh-TW",
 ];
 
-/// Workspace presets of the legacy `omniget.workspace.appearance.v1` key.
 pub const WORKSPACE_PRESETS: [&str; 6] = [
     "amber-minimal",
     "orange-soft",
@@ -33,8 +24,6 @@ pub const WORKSPACE_PRESETS: [&str; 6] = [
     "orange-vivid",
 ];
 
-/// Named themes of "More styles": selecting one makes it the preset and the
-/// legacy `theme` at the same time.
 pub const NAMED_THEMES: [&str; 12] = [
     "catppuccin-latte",
     "catppuccin-frappe",
@@ -52,9 +41,7 @@ pub const NAMED_THEMES: [&str; 12] = [
 
 pub const MODES: [&str; 3] = ["system", "light", "dark"];
 
-/// The only source the appearance import accepts.
 pub const WORKSPACE_APPEARANCE_SOURCE: &str = "omniget.workspace.appearance.v1";
-/// Largest `rawWorkspace` the import reads, in UTF-8 bytes.
 pub const WORKSPACE_APPEARANCE_MAX_BYTES: usize = 65_536;
 
 const PROXY_TYPES: [&str; 3] = ["http", "https", "socks5"];
@@ -121,7 +108,6 @@ pub enum FieldErrorCode {
     Required,
 }
 
-/// A schema path and a stable code. Never carries the submitted value.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct FieldError {
     pub path: String,
@@ -136,10 +122,6 @@ impl FieldError {
         }
     }
 }
-
-// ---------------------------------------------------------------------------
-// Public DTO
-// ---------------------------------------------------------------------------
 
 #[derive(Debug, Clone, Serialize)]
 pub struct AppearancePublic {
@@ -187,9 +169,6 @@ pub struct BridgePublic {
     pub legacy_agent_routes: bool,
 }
 
-/// What the UI may see of the settings: every known field except the proxy
-/// password, the manual X cookie and the bridge token, which become `has_*`
-/// booleans. Unknown keys of the file never reach it.
 #[derive(Debug, Clone, Serialize)]
 pub struct SettingsPublicV3 {
     pub schema_version: u32,
@@ -222,9 +201,6 @@ pub struct SettingsPublicV3 {
 }
 
 impl AppSettings {
-    /// Defaults of a profile created by this version. Differs from
-    /// [`AppSettings::default`] (which old profiles fall back to field by
-    /// field) only in the visual preset and its typography.
     pub fn fresh_install() -> Self {
         let mut s = Self::default();
         s.appearance.mode = Some("system".into());
@@ -310,8 +286,6 @@ impl AppSettings {
     }
 }
 
-/// Keeps the legacy `theme` coherent with `mode`/`preset` once both exist:
-/// a named theme is its own `theme`, anything else stores the mode.
 pub fn normalize_appearance(s: &mut AppSettings) {
     let a = &mut s.appearance;
     if let (Some(mode), Some(preset)) = (a.mode.as_ref(), a.preset.as_ref()) {
@@ -322,10 +296,6 @@ pub fn normalize_appearance(s: &mut AppSettings) {
         };
     }
 }
-
-// ---------------------------------------------------------------------------
-// JSON paths
-// ---------------------------------------------------------------------------
 
 pub fn get_path<'a>(v: &'a Value, path: &str) -> Option<&'a Value> {
     path.split('.').try_fold(v, |cur, key| cur.get(key))
@@ -349,13 +319,6 @@ pub fn set_path(v: &mut Value, path: &str, new: Value) {
     }
 }
 
-// ---------------------------------------------------------------------------
-// Patch
-// ---------------------------------------------------------------------------
-
-/// Fields a patch may never carry: secrets (they go through
-/// `secretOperations` or dedicated commands), managed metadata and the
-/// migration marker.
 const PROTECTED: [&str; 7] = [
     "schema_version",
     "appearance.migration_version",
@@ -366,7 +329,6 @@ const PROTECTED: [&str; 7] = [
     "bridge.port",
 ];
 
-/// Visual fields locked until the appearance import committed.
 const APPEARANCE_GATED: [&str; 3] = ["appearance.theme", "appearance.mode", "appearance.preset"];
 
 const FINITE_FLOATS: [&str; 2] = ["typography.line_height_base", "typography.spacing_scale"];
@@ -374,12 +336,9 @@ const FINITE_FLOATS: [&str; 2] = ["typography.line_height_base", "typography.spa
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PatchError {
     Invalid(Vec<FieldError>),
-    /// Theme/mode/preset edited before `appearance.migration_version >= 1`.
     AppearanceImportRequired,
 }
 
-/// Every known field with a representative non-null value, so optional
-/// fields are known keys with a known JSON kind.
 fn schema_template() -> Value {
     let mut s = AppSettings::default();
     s.appearance.mode = Some(String::new());
@@ -448,12 +407,6 @@ fn str_at(v: &Value, path: &str) -> Option<String> {
         .map(str::to_string)
 }
 
-/// Validates `patch` (an object of known public fields, snake_case paths)
-/// against `current` and returns the next settings. Nothing is written:
-/// an invalid patch leaves the caller's copy untouched.
-///
-/// Old values that are valid for their Rust type are never re-validated;
-/// product ranges apply only to the fields this patch touches.
 pub fn apply_patch(current: &AppSettings, patch: &Value) -> Result<AppSettings, PatchError> {
     let Value::Object(map) = patch else {
         return Err(PatchError::Invalid(vec![FieldError::new(
@@ -504,7 +457,6 @@ pub fn apply_patch(current: &AppSettings, patch: &Value) -> Result<AppSettings, 
     for path in FINITE_FLOATS {
         if touched(path) {
             if let Some(f) = get_path(&merged, path).and_then(Value::as_f64) {
-                // f32 fields turn a huge JSON number into infinity.
                 let finite = f.is_finite() && (f as f32).is_finite();
                 if !finite {
                     errors.push(FieldError::new(path, FieldErrorCode::OutOfRange));
@@ -579,7 +531,6 @@ pub fn apply_patch(current: &AppSettings, patch: &Value) -> Result<AppSettings, 
         return Err(PatchError::Invalid(errors));
     }
 
-    // A legacy writer that only knows `theme` moves the schema 3 fields.
     if touched("appearance.theme") && !touched("appearance.mode") && !touched("appearance.preset") {
         let theme = next.appearance.theme.clone();
         let a = &mut next.appearance;
@@ -598,10 +549,6 @@ pub fn apply_patch(current: &AppSettings, patch: &Value) -> Result<AppSettings, 
     normalize_appearance(&mut next);
     Ok(next)
 }
-
-// ---------------------------------------------------------------------------
-// Secret operations
-// ---------------------------------------------------------------------------
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub enum SecretOperation {
@@ -681,7 +628,6 @@ fn parse_secret_operation(v: &Value, path: &str) -> Result<SecretOperation, Fiel
     })
 }
 
-/// Parses `secretOperations` (absent or null = keep everything).
 pub fn parse_secret_operations(v: Option<&Value>) -> Result<SecretOperations, Vec<FieldError>> {
     let mut ops = SecretOperations::default();
     let obj = match v {
@@ -732,13 +678,6 @@ pub fn apply_secret_operations(s: &mut AppSettings, ops: &SecretOperations) {
     );
 }
 
-// ---------------------------------------------------------------------------
-// Reset
-// ---------------------------------------------------------------------------
-
-/// The exact allowlist of `reset-policy.json`, by key. Anything not listed
-/// (secrets, bridge token and port, consents, enablement of integrations,
-/// derived calibration, unknown keys) survives every reset.
 pub const RESET_ALLOWLIST: [(&str, SettingsSection); 122] = [
     ("appearance.theme", SettingsSection::Appearance),
     ("appearance.language", SettingsSection::General),
@@ -919,7 +858,6 @@ pub const RESET_ALLOWLIST: [(&str, SettingsSection); 122] = [
     ("llm.approval_notify_delay_s", SettingsSection::Ai),
     ("llm.jobs_max_parallel", SettingsSection::Ai),
     ("llm.jobs_max_per_agent", SettingsSection::Ai),
-    // `newSchemaAllowlist`: the schema 3 appearance fields.
     ("appearance.mode", SettingsSection::Appearance),
     ("appearance.preset", SettingsSection::Appearance),
     ("appearance.legacy_theme", SettingsSection::Appearance),
@@ -931,8 +869,6 @@ pub enum ResetScope {
     Section(SettingsSection),
 }
 
-/// Paths a reset of `scope` restores: the allowlist, or its intersection
-/// with one section.
 pub fn reset_paths(scope: ResetScope) -> Vec<&'static str> {
     RESET_ALLOWLIST
         .iter()
@@ -944,8 +880,6 @@ pub fn reset_paths(scope: ResetScope) -> Vec<&'static str> {
         .collect()
 }
 
-/// Restores the allowlisted fields of `scope` to the defaults of a new
-/// install and keeps every other field, including the migration marker.
 pub fn apply_reset(current: &AppSettings, scope: ResetScope) -> AppSettings {
     let defaults = serde_json::to_value(AppSettings::fresh_install()).expect("serialize");
     let mut value = serde_json::to_value(current).expect("serialize");
@@ -955,20 +889,12 @@ pub fn apply_reset(current: &AppSettings, scope: ResetScope) -> AppSettings {
     }
     let mut next: AppSettings = match serde_json::from_value(value) {
         Ok(next) => next,
-        // Every default is valid for its own type; keep the current values
-        // rather than invent anything if that ever stops being true.
         Err(_) => current.clone(),
     };
     normalize_appearance(&mut next);
     next
 }
 
-// ---------------------------------------------------------------------------
-// Appearance import
-// ---------------------------------------------------------------------------
-
-/// The valid parts of the legacy workspace entry: only `mode` and `preset`,
-/// each validated on its own. Anything else in the payload is ignored.
 pub fn parse_workspace_appearance(raw: Option<&str>) -> (Option<String>, Option<String>) {
     let Some(value) = raw.and_then(|r| serde_json::from_str::<Value>(r).ok()) else {
         return (None, None);
@@ -986,9 +912,6 @@ pub fn parse_workspace_appearance(raw: Option<&str>) -> (Option<String>, Option<
     (mode, preset)
 }
 
-/// Builds the schema 3 appearance: a valid workspace entry wins field by
-/// field, then values already set (a new install), then the legacy theme.
-/// The original theme is kept in `legacy_theme`; the marker becomes 1.
 pub fn import_appearance(current: &AppSettings, raw_workspace: Option<&str>) -> AppSettings {
     let (ws_mode, ws_preset) = parse_workspace_appearance(raw_workspace);
     let mut next = current.clone();
@@ -1090,7 +1013,6 @@ mod tests {
         assert_eq!(s.typography.font_mono, "ui-monospace");
         assert_eq!(s.typography.line_height_base, 1.55);
         assert_eq!(s.typography.spacing_scale, 1.0);
-        // Operational defaults do not move for a new install.
         let d = AppSettings::default();
         assert_eq!(s.download.video_quality, d.download.video_quality);
         assert_eq!(
@@ -1217,7 +1139,6 @@ mod tests {
             err(json!({ "download": { "video_quality": null } }))[0].code,
             FieldErrorCode::InvalidType
         );
-        // Declared nullable fields accept null.
         let next = apply_patch(&s, &json!({ "llm": { "ask_timeout_job_s": null } })).unwrap();
         assert_eq!(next.llm.ask_timeout_job_s, None);
         let next = apply_patch(&s, &json!({ "llm": { "jobs_max_per_agent": null } })).unwrap();
@@ -1247,7 +1168,6 @@ mod tests {
             "proxy.proxy_type",
             FieldErrorCode::InvalidEnum
         )));
-        // Disabled proxy: port 0 and empty host are not an error.
         assert!(apply_patch(&s, &json!({ "proxy": { "enabled": false, "port": 0 } })).is_ok());
     }
 
@@ -1259,7 +1179,6 @@ mod tests {
         let next = apply_patch(&s, &json!({ "download": { "video_quality": "1080p" } })).unwrap();
         assert_eq!(next.llm.ask_timeout_chat_s, 30);
         assert_eq!(next.advanced.max_concurrent_segments, 0);
-        // And a zero the type allows is not turned into a default.
         let next = apply_patch(&s, &json!({ "llm": { "approval_notify_delay_s": 0 } })).unwrap();
         assert_eq!(next.llm.approval_notify_delay_s, 0);
     }
@@ -1275,7 +1194,6 @@ mod tests {
             apply_patch(&s, &json!({ "appearance": { "theme": "dark" } })).unwrap_err(),
             PatchError::AppearanceImportRequired
         );
-        // Language is not behind the visual barrier.
         let next = apply_patch(&s, &json!({ "appearance": { "language": "pt" } })).unwrap();
         assert_eq!(next.appearance.language, "pt");
     }

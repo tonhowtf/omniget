@@ -1,7 +1,3 @@
-//! Shared plumbing the LLM layer uses: AI keys, usage and pricing, the
-//! Ollama and ONNX runtimes, GitHub release downloads, and the progress
-//! callback and HTTP helpers they share.
-
 pub mod ai_keys;
 pub mod github;
 pub mod ollama;
@@ -13,12 +9,9 @@ use std::sync::Arc;
 
 use serde::Serialize;
 
-/// Progresso genérico de uma ferramenta. `id` identifica a operação na UI
-/// (a mesma tela pode ter vários downloads de modelo ao mesmo tempo).
 #[derive(Debug, Clone, Serialize)]
 pub struct ToolProgress {
     pub id: String,
-    /// "started" | "progress" | "done" | "error" | texto livre da etapa
     pub stage: String,
     pub done: u64,
     pub total: Option<u64>,
@@ -48,12 +41,10 @@ pub fn report(
     });
 }
 
-/// Pasta de dados das ferramentas (`<app_data>/tools`).
 pub fn tools_dir() -> Option<std::path::PathBuf> {
     crate::core::paths::app_data_dir().map(|d| d.join("tools"))
 }
 
-/// Pasta temporária própria, para não deixar lixo no `/tmp` do sistema.
 pub fn temp_dir() -> std::path::PathBuf {
     let base = tools_dir().unwrap_or_else(std::env::temp_dir).join("tmp");
     let _ = std::fs::create_dir_all(&base);
@@ -77,7 +68,6 @@ pub fn client() -> anyhow::Result<reqwest::Client> {
     )
 }
 
-/// Baixa uma URL para um arquivo, em streaming, reportando bytes.
 pub async fn download_to(
     client: &reqwest::Client,
     url: &str,

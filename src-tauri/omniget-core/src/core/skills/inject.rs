@@ -1,25 +1,3 @@
-//! Putting skills in front of the model: the index in the system prompt, and
-//! the body on demand.
-//!
-//! Progressive disclosure, the same way the spec describes it:
-//! 1. every skill bound to the bot and usable this turn contributes one line —
-//!    tool name plus description — to the system prompt ([`index_prompt`]);
-//! 2. the model decides it needs one and calls that skill's tool
-//!    (`skill__<name>_<hash8>`, see [`exposed_tool_name`]); without a `file`
-//!    argument the tool returns the Markdown body of `SKILL.md` ([`open`]) and
-//!    the list of the skill's files;
-//! 3. with `file` it returns one file under `references/`, `scripts/`,
-//!    `assets/`… ([`read_file_in`]), which cannot leave the skill folder,
-//!    through `..` or through a symlink anywhere on the path.
-//!
-//! Tool names: providers only accept `^[a-zA-Z0-9_-]{1,64}$`, so the old
-//! `skill:<name>` spelling (still what `broker::grant_key` gives a legacy
-//! `ToolSource::Skill` grant) never reaches the wire. The bot layer maps a
-//! legacy grant to the exposed name.
-//!
-//! Budget: [`index_prompt`] is the only function here that runs on every turn.
-//! It allocates once and concatenates; target ≤ 100 µs for 50 skills.
-
 use std::path::Path;
 
 use super::install::{self, skill_path};
@@ -27,19 +5,12 @@ use super::manifest::{self, SkillManifest, SKILL_FILE};
 use super::{SkillError, ERR_SKILL_PATH, ERR_SKILL_TOO_BIG};
 use crate::core::llm::types::ToolSpec;
 
-/// Namespace of the tool that opens a skill. Provider-safe (no `:`).
 pub const SKILL_TOOL_PREFIX: &str = "skill__";
-/// Provider limit on a tool name.
 pub const MAX_TOOL_NAME: usize = 64;
-/// Most bytes of skill body handed to the model in one call.
 pub const MAX_BODY_BYTES: usize = 64 * 1024;
-/// Most bytes of an auxiliary file handed to the model in one call.
 pub const MAX_FILE_BYTES: usize = 256 * 1024;
-/// Appended when a body or file is cut, so the model knows it is partial.
 pub const TRUNCATION_MARK: &str = "\n\n[cut here: the rest of this file was not loaded]";
 
-/// The short index that goes in the system prompt. Empty when nothing is
-/// active, so the caller can append it unconditionally.
 pub fn index_prompt(active: &[SkillManifest]) -> String {
     if active.is_empty() {
         return String::new();
@@ -54,8 +25,6 @@ pub fn index_prompt(active: &[SkillManifest]) -> String {
     out
 }
 
-/// The index with the exact tool name of each entry (a bot's turn uses the
-/// versioned names from [`exposed_tool_name`]).
 pub fn index_prompt_named(active: &[(String, &SkillManifest)]) -> String {
     if active.is_empty() {
         return String::new();
@@ -92,9 +61,6 @@ fn push_entry(out: &mut String, tool: &str, description: &str) {
     out.push('\n');
 }
 
-/// [`index_prompt`] writing into a buffer the caller owns. A prompt builder that
-/// runs on every turn keeps one `String` and clears it, so the only cost left is
-/// the copy.
 pub fn index_prompt_into(out: &mut String, active: &[SkillManifest]) {
     if active.is_empty() {
         return;
@@ -109,12 +75,8 @@ pub fn index_prompt_into(out: &mut String, active: &[SkillManifest]) {
     }
 }
 
-/// Appends a description as a single line: a block scalar in the frontmatter can
-/// carry newlines, and one skill must not become two entries.
 fn push_one_line(out: &mut String, text: &str) {
     let text = text.trim();
-    // Fast path: almost every description is already one line, and then this is
-    // a single copy instead of a walk over every character.
     if !text
         .as_bytes()
         .iter()
@@ -146,9 +108,6 @@ fn push_tool_name(out: &mut String, name: &str) {
     }
 }
 
-/// The unversioned tool name of a skill (`skill__<name>`). Skill names are at
-/// most 64 characters, so a long one is cut and tagged with a hash of the
-/// name to stay under the provider limit and unique.
 pub fn tool_name(name: &str) -> String {
     let full = format!("{SKILL_TOOL_PREFIX}{name}");
     if full.len() <= MAX_TOOL_NAME {
@@ -159,10 +118,6 @@ pub fn tool_name(name: &str) -> String {
     format!("{SKILL_TOOL_PREFIX}{}_{}", &name[..keep], &tag[..8])
 }
 
-/// The versioned tool name a bot's turn uses: `skill__<name>_<hash8>`. The
-/// hash is part of the name on purpose: a turn that started on one version
-/// can never call into another one by accident, because the old name stops
-/// resolving the moment the projection is re-registered.
 pub fn exposed_tool_name(name: &str, hash: &str) -> String {
     let h8 = super::hash::short(hash, 8);
     let full = format!("{SKILL_TOOL_PREFIX}{name}_{h8}");
@@ -170,13 +125,10 @@ pub fn exposed_tool_name(name: &str, hash: &str) -> String {
         return full;
     }
     let tag = super::catalog::sha256_hex(name.as_bytes());
-    // prefix + name part + `_` + 6 (name tag) + `_` + 8 (version)
     let keep = MAX_TOOL_NAME - SKILL_TOOL_PREFIX.len() - 16;
     format!("{SKILL_TOOL_PREFIX}{}_{}_{h8}", &name[..keep], &tag[..6])
 }
 
-/// The input schema every skill tool takes: nothing (open the body) or one
-/// `file` relative to the skill folder.
 pub fn tool_input_schema() -> serde_json::Value {
     serde_json::json!({
         "type": "object",
@@ -190,7 +142,6 @@ pub fn tool_input_schema() -> serde_json::Value {
     })
 }
 
-/// One spec for one skill under a given tool name.
 pub fn tool_spec(tool: &str, skill: &SkillManifest) -> ToolSpec {
     let mut description = format!(
         "Open the `{}` skill. Without `file`: its instructions and the list of its files. \
@@ -212,7 +163,6 @@ pub fn tool_spec(tool: &str, skill: &SkillManifest) -> ToolSpec {
     }
 }
 
-/// One [`ToolSpec`] per skill under its unversioned name.
 pub fn tool_specs(active: &[SkillManifest]) -> Vec<ToolSpec> {
     active
         .iter()
@@ -220,9 +170,6 @@ pub fn tool_specs(active: &[SkillManifest]) -> Vec<ToolSpec> {
         .collect()
 }
 
-/// The skill's own files (relative, `/`-separated, sorted), without
-/// `SKILL.md` and without our sidecar. Symlinks are listed as nothing: they
-/// cannot be read anyway.
 pub fn list_files_in(root: &Path, name: &str) -> Result<Vec<String>, SkillError> {
     let dir = skill_path(root, name)?;
     let mut out = Vec::new();
@@ -257,13 +204,10 @@ fn collect_files(root: &Path, dir: &Path, depth: usize, out: &mut Vec<String>) {
     }
 }
 
-/// The Markdown body of an installed skill, frontmatter stripped, cut at
-/// [`MAX_BODY_BYTES`].
 pub fn open(name: &str) -> Result<String, SkillError> {
     open_in(&install::skills_dir()?, name)
 }
 
-/// [`open`] against an explicit root.
 pub fn open_in(root: &Path, name: &str) -> Result<String, SkillError> {
     let dir = skill_path(root, name)?;
     let file = dir.join(SKILL_FILE);
@@ -273,14 +217,9 @@ pub fn open_in(root: &Path, name: &str) -> Result<String, SkillError> {
     Ok(cut(body.trim_start(), MAX_BODY_BYTES))
 }
 
-/// An auxiliary file of an installed skill (`references/REFERENCE.md`,
-/// `scripts/run.sh`, …). `rel` cannot walk out of the skill folder, and a
-/// symlink inside it is refused rather than followed.
 pub fn read_file_in(root: &Path, name: &str, rel: &str) -> Result<String, SkillError> {
     let dir = skill_path(root, name)?;
     let file = install::join_inside(&dir, rel)?;
-    // No symlink anywhere between the skill folder and the file: a linked
-    // `references/` folder would otherwise lead out of the skill.
     let mut walked = dir.clone();
     if let Ok(tail) = file.strip_prefix(&dir) {
         for part in tail.components() {
@@ -295,7 +234,6 @@ pub fn read_file_in(root: &Path, name: &str, rel: &str) -> Result<String, SkillE
             }
         }
     }
-    // And the resolved path must still be inside the resolved skill folder.
     let (Ok(real_dir), Ok(real_file)) = (std::fs::canonicalize(&dir), std::fs::canonicalize(&file))
     else {
         return Err(SkillError::new(
@@ -328,7 +266,6 @@ pub fn read_file_in(root: &Path, name: &str, rel: &str) -> Result<String, SkillE
     Ok(cut(&text, MAX_FILE_BYTES))
 }
 
-/// Cuts at a char boundary at or below `max` bytes and says so.
 fn cut(text: &str, max: usize) -> String {
     if text.len() <= max {
         return text.to_string();

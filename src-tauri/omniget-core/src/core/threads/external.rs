@@ -1,12 +1,3 @@
-//! Sessions of CLIs run outside OmniGet as threads (plan §3.7/§3.8, T8).
-//!
-//! `import_external(tool, session_id)` reads the session through
-//! `core::sessions` and makes a read-only "external" thread with its turns
-//! (idempotent: the thread id comes from the session). `resume_external`
-//! opens a new, normal thread on the right driver with the same history and
-//! the session id as the resume cursor, so the driver continues it
-//! (`--resume`).
-
 use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
@@ -27,12 +18,10 @@ pub struct ExternalImport {
     pub thread_id: String,
     pub project_id: String,
     pub turns: u32,
-    /// The thread existed already; nothing was imported again.
     pub existing: bool,
     pub resume_command: Option<String>,
 }
 
-/// `ext_<tool>_<12 hex of sha256(session id)>`.
 pub fn external_thread_id(tool: &str, session_id: &str) -> String {
     let mut h = Sha256::new();
     h.update(session_id.as_bytes());
@@ -59,8 +48,6 @@ fn role_of(r: Role) -> Option<&'static str> {
     }
 }
 
-/// The neutral turns of a session as import messages (tool calls ride on
-/// the assistant message that made them).
 pub fn messages_of(turns: &[Turn]) -> Vec<ImportMessage> {
     let mut out: Vec<ImportMessage> = Vec::new();
     for (i, t) in turns.iter().enumerate() {
@@ -95,7 +82,6 @@ pub fn messages_of(turns: &[Turn]) -> Vec<ImportMessage> {
                     tools,
                 });
             }
-            // A tool-only turn: attach its calls to the previous message.
             None => {
                 if let Some(last) = out.last_mut() {
                     last.tools.extend(tools);
@@ -116,8 +102,6 @@ async fn dispatch(engine: &ThreadsEngine, command: Command) -> Result<(), String
         .map(|_| ())
 }
 
-/// The project of `path` (created when missing), or the shared "External"
-/// project when the session has no folder.
 async fn project_for(engine: &ThreadsEngine, path: Option<&str>) -> Result<String, String> {
     let snap = engine.read(store::snapshot)?;
     let root = path.map(str::trim).filter(|p| !p.is_empty()).unwrap_or("");
@@ -155,7 +139,6 @@ async fn project_for(engine: &ThreadsEngine, path: Option<&str>) -> Result<Strin
     Ok(id)
 }
 
-/// Read-only thread mirroring `tool`/`session_id`.
 pub async fn import_external(
     engine: &Arc<ThreadsEngine>,
     tool: &str,
@@ -226,8 +209,6 @@ pub async fn import_external(
     })
 }
 
-/// The account instance (`<cli>-<account id>`) whose config dir is the one
-/// the session came from; `None` = the target's default instance.
 fn instance_for_target(t: &crate::core::sessions::api::ResumeTarget) -> Option<String> {
     let dir = t.config_dir.as_deref().filter(|d| !d.is_empty())?;
     let want = std::path::Path::new(dir);
@@ -241,9 +222,6 @@ fn instance_for_target(t: &crate::core::sessions::api::ResumeTarget) -> Option<S
     Some(format!("{}-{}", found.cli.as_str(), found.id))
 }
 
-/// A new thread that continues the external one on `instance_id`/`driver`
-/// (default: the tool's own driver and default instance). The session id is
-/// the resume cursor the driver gets in `SessionStart.resume_cursor`.
 pub async fn resume_external(
     engine: &Arc<ThreadsEngine>,
     thread_id: &str,
@@ -262,8 +240,6 @@ pub async fn resume_external(
         .as_str()
         .ok_or_else(|| "ERR_THREADS_INVALID: external thread without a session id".to_string())?
         .to_string();
-    // Where the session continues: the target `core::sessions` computes per
-    // tool (driver, default instance and the cursor in that driver's shape).
     let explicit_driver = driver.filter(|d| !d.is_empty());
     let explicit_instance = instance_id.filter(|i| !i.is_empty());
     let target =
@@ -280,7 +256,6 @@ pub async fn resume_external(
                 .unwrap_or_else(|| instance_for_target(t).unwrap_or_else(|| t.instance_id.clone()));
             (t.driver.clone(), instance, t.cursor.clone())
         }
-        // Another driver chosen by hand: it gets the plain session id.
         (None, Some(d)) => {
             let instance = explicit_instance.unwrap_or_else(|| d.clone());
             (d, instance, Value::String(session_id.clone()))

@@ -1,5 +1,3 @@
-//! Receipts: what a plan actually did, and how to undo it.
-
 use std::path::PathBuf;
 
 use rusqlite::{params, OptionalExtension};
@@ -17,7 +15,6 @@ pub enum ItemStatus {
     Failed,
 }
 
-/// How to bring one item back.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum Undo {
@@ -31,8 +28,6 @@ pub enum Undo {
     TrashMany {
         originals: Vec<PathBuf>,
     },
-    /// The module restores its snapshot (registry value, service state,
-    /// startup item, privacy setting...). `args` usually holds a snapshot id.
     Module {
         module: String,
         action: String,
@@ -149,7 +144,6 @@ pub fn list(ctx: &Ctx, limit: usize) -> Result<Vec<Receipt>, String> {
         .collect())
 }
 
-/// Undo what a receipt did, item by item. Returns one line per item.
 pub fn restore(ctx: &Ctx, id: &str) -> Result<Vec<Value>, String> {
     let mut r = load(ctx, id)?;
     if r.restored_at.is_some() {
@@ -182,8 +176,6 @@ pub fn restore(ctx: &Ctx, id: &str) -> Result<Vec<Value>, String> {
     Ok(out)
 }
 
-/// The Trash can put items back on Windows and Linux. macOS offers no API
-/// for it, so the person uses "Put Back" in Finder.
 fn restore_from_trash(originals: &[PathBuf]) -> Result<String, String> {
     #[cfg(any(
         windows,

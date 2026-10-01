@@ -1,11 +1,3 @@
-//! Downloads › Tools › Size check: how much space a video or a playlist will
-//! take at a chosen quality, and whether it fits in the download folder.
-//!
-//! The idea comes from PyTube Downloader, which prints the size next to every
-//! quality and every playlist video before anything is downloaded.
-//! Reimplemented on top of yt-dlp (`omniget_core::core::ytdlp::measure_sizes`);
-//! no code was copied.
-
 use serde::Serialize;
 
 #[cfg(not(target_os = "android"))]
@@ -13,24 +5,17 @@ use crate::core::ytdlp;
 #[cfg(not(target_os = "android"))]
 use crate::storage::config;
 
-/// Playlists are read up to this many videos: each one is a full metadata
-/// request, and YouTube throttles long bursts.
 pub const SIZE_CHECK_LIMIT: u32 = 50;
 
 #[derive(Debug, Clone, Serialize, PartialEq)]
 pub struct SizeCheck {
     pub items: Vec<omniget_core::core::ytdlp::SizeItem>,
-    /// Sum of the sizes that are known.
     pub total_bytes: u64,
-    /// Items whose size the site does not report.
     pub unknown: usize,
-    /// True when at least one size is yt-dlp's estimate.
     pub estimated: bool,
-    /// True when the playlist may have more than `limit` videos.
     pub limit_reached: bool,
     pub limit: u32,
     pub output_dir: String,
-    /// Free space in the download folder; `None` when it could not be read.
     pub free_bytes: Option<u64>,
 }
 
@@ -56,7 +41,6 @@ pub fn summarize(
     }
 }
 
-/// `quality`: the maximum height (`1080`), `0` for audio only, or none for the best.
 #[cfg(not(target_os = "android"))]
 #[tauri::command]
 pub async fn check_download_size(

@@ -1,16 +1,3 @@
-//! The strip window and the `limits_strip_*` commands.
-//!
-//! The window is created in code, in the mould of `commands::pet`: label
-//! `limits-strip`, undecorated, transparent, always on top, off the taskbar,
-//! with its permissions in `capabilities/limits-strip.json`. It does not exist
-//! until the user switches the strip on, and the engine runs only while it
-//! does.
-//!
-//! | code                  | meaning                                  |
-//! |-----------------------|------------------------------------------|
-//! | `ERR_LIMITS_WINDOW`   | a window operation failed                |
-//! | `ERR_LIMITS_STORE`    | `limits-strip.json` could not be written |
-
 use super::placement::{self, Area};
 use super::prefs::{self, StripPrefs};
 use super::{engine, now_ms, providers, EVENT_PREFS};
@@ -22,24 +9,18 @@ use tauri::{AppHandle, Emitter, Manager, WebviewUrl, WebviewWindow, WebviewWindo
 pub const WINDOW_LABEL: &str = "limits-strip";
 const ERR_WINDOW: &str = "ERR_LIMITS_WINDOW";
 
-/// Moves we made ourselves are not drops: they are ignored until this time.
 static OWN_MOVE_UNTIL: AtomicI64 = AtomicI64::new(0);
 static EXPANDED: AtomicBool = AtomicBool::new(false);
-/// Bumped by every `Moved`; a drop is a move nothing followed.
 static MOVE_SEQ: AtomicU64 = AtomicU64::new(0);
 const OWN_MOVE_MS: i64 = 700;
 const DROP_QUIET: Duration = Duration::from_millis(450);
 
-/// The prefs with every known provider listed, newcomers at the end.
 pub fn load_adopted() -> StripPrefs {
     let mut p = prefs::load();
     p.adopt(&engine::known(&providers::cached(), &p));
     p
 }
 
-/// Re-sizes the collapsed strip after the ring count changed on its own (an
-/// account was added or removed). Left alone while the card is open: folding
-/// it places the window again anyway.
 pub fn reflow(app: &AppHandle) {
     if EXPANDED.load(Ordering::Relaxed) {
         return;
@@ -53,7 +34,6 @@ fn rings_of(p: &StripPrefs) -> usize {
     p.providers.iter().filter(|x| p.is_on(&x.id)).count()
 }
 
-/// Work area of the monitor the strip is on, in logical pixels.
 fn area_of(window: &WebviewWindow) -> Result<Area, String> {
     let monitor = window
         .current_monitor()
@@ -72,8 +52,6 @@ fn area_of(window: &WebviewWindow) -> Result<Area, String> {
     })
 }
 
-/// Sizes and parks the window. Returns how far along the edge the strip sits
-/// inside it, which is only non-zero while the card is open.
 fn place(window: &WebviewWindow, p: &StripPrefs, expanded: bool) -> Result<f64, String> {
     let area = area_of(window)?;
     let rings = rings_of(p);
@@ -97,8 +75,6 @@ fn place(window: &WebviewWindow, p: &StripPrefs, expanded: bool) -> Result<f64, 
     Ok(placement::strip_offset(p.edge, small, rect))
 }
 
-/// The strip was dragged and let go: glue it to the nearest edge and remember
-/// the spot.
 fn dropped(app: &AppHandle) {
     let Some(window) = app.get_webview_window(WINDOW_LABEL) else {
         return;
@@ -145,9 +121,7 @@ fn watch_moves(app: &AppHandle, window: &WebviewWindow) {
     });
 }
 
-/// Whether the compositor can be trusted with an alpha channel. Same reading
-/// as the pet: macOS, Windows and Wayland always composite; on X11 nobody can
-/// tell from here, so the page paints a solid backdrop instead of guessing.
+// WHY: macOS, Windows and Wayland always composite; on X11 it cannot be known, so the page paints a solid backdrop.
 fn transparency_trusted() -> bool {
     #[cfg(any(target_os = "macos", windows))]
     {
@@ -180,6 +154,7 @@ fn build(app: &AppHandle, transparent: bool) -> tauri::Result<WebviewWindow> {
     .always_on_top(true)
     .skip_taskbar(true)
     .visible_on_all_workspaces(true)
+    // WHY: on macOS the first click only focuses the window.
     // Without this the first click on macOS only focuses the window.
     .accept_first_mouse(true)
     .focused(false)
@@ -193,8 +168,6 @@ pub(crate) fn open_window(app: &AppHandle, p: &StripPrefs) -> Result<(), String>
         place(&window, p, false)?;
         return Ok(());
     }
-    // A compositor with no ARGB visual refuses the transparent window; an
-    // opaque strip is still a strip.
     let window = build(app, true)
         .or_else(|error| {
             tracing::warn!("limits strip: no transparent window ({error}), going opaque");
@@ -221,7 +194,6 @@ async fn describe(app: &AppHandle, p: &StripPrefs) -> serde_json::Value {
             "account": r.account(),
             "local": r.local(),
             "beta": r.beta(),
-            // Offline and shallow: does the tool's folder exist on this OS?
             "detected": r.detect().await,
         }));
     }
@@ -237,8 +209,6 @@ pub async fn limits_strip_get_prefs(app: AppHandle) -> Result<serde_json::Value,
     Ok(describe(&app, &load_adopted()).await)
 }
 
-/// Saves the prefs and makes the world match them: the window exists exactly
-/// when the master switch is on.
 #[tauri::command]
 pub async fn limits_strip_set_prefs(
     app: AppHandle,
@@ -250,8 +220,6 @@ pub async fn limits_strip_set_prefs(
     let previous = load_adopted();
     prefs::save(&p)?;
     if let Err(error) = apply(&app, &p) {
-        // Restore both durable preference and engine/window state. Otherwise a
-        // failed window creation leaves an enabled preference behind the UI.
         let saved = prefs::save(&previous);
         let restored = apply(&app, &previous);
         return Err(format!(
@@ -270,7 +238,6 @@ fn apply(app: &AppHandle, p: &StripPrefs) -> Result<(), String> {
         engine::wake();
     } else {
         engine::stop();
-        // After the stop, so the engine's copy is off too and lists no ring.
         engine::set_prefs(app, p.clone());
         if let Some(window) = app.get_webview_window(WINDOW_LABEL) {
             window.close().map_err(|e| format!("{ERR_WINDOW}: {e}"))?;
@@ -286,8 +253,6 @@ pub async fn limits_strip_close(app: AppHandle) -> Result<serde_json::Value, Str
     let previous = load_adopted();
     prefs::save(&p)?;
     if let Err(error) = apply(&app, &p) {
-        // Restore both durable preference and engine/window state. Otherwise a
-        // failed window creation leaves an enabled preference behind the UI.
         let saved = prefs::save(&previous);
         let restored = apply(&app, &previous);
         return Err(format!(
@@ -302,8 +267,6 @@ pub async fn limits_strip_state(app: AppHandle) -> Result<engine::Snapshot, Stri
     Ok(engine::snapshot(&app))
 }
 
-/// Asks for a fresh read of one provider, or of all. Returns the ids that
-/// will be read; one read less than a minute ago is left alone.
 #[tauri::command]
 pub async fn limits_strip_refresh(provider_id: Option<String>) -> Result<Vec<String>, String> {
     let ids = engine::refresh(provider_id.as_deref());
@@ -311,7 +274,6 @@ pub async fn limits_strip_refresh(provider_id: Option<String>) -> Result<Vec<Str
     Ok(ids)
 }
 
-/// Grows the window to make room for the card, or shrinks it back.
 #[tauri::command]
 pub async fn limits_strip_set_expanded(
     app: AppHandle,
@@ -325,7 +287,6 @@ pub async fn limits_strip_set_expanded(
     Ok(json!({ "expanded": expanded, "offset": offset, "edge": p.edge.as_str() }))
 }
 
-/// Reopens the strip at launch when the user left it on.
 pub fn restore(app: &AppHandle) {
     let p = load_adopted();
     if !p.enabled {

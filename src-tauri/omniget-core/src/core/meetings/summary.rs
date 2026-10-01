@@ -1,17 +1,9 @@
-//! Summary, decisions and action items from a transcript, through the AI
-//! provider the person configured (Ollama by default for local setups).
-//!
-//! Small local models have small context windows, so a long meeting goes
-//! map-reduce: each chunk of the transcript becomes dense notes, and the
-//! notes become the final JSON. A short meeting goes straight to JSON.
-
 use anyhow::anyhow;
 use serde_json::Value;
 
 use super::transcript::{to_plain, Segment};
 use super::{ActionItem, Meeting, Summary};
 
-/// ~3-4k tokens: fits the default context of the usual Ollama models.
 const CHUNK_CHARS: usize = 12_000;
 
 const JSON_SHAPE: &str = r#"{
@@ -48,8 +40,6 @@ fn notes_system(lang: Option<&str>) -> String {
     )
 }
 
-/// Splits the plain transcript on line boundaries into chunks of at most
-/// `max` characters (a single longer line is kept whole).
 pub fn chunk(text: &str, max: usize) -> Vec<String> {
     let mut out = Vec::new();
     let mut cur = String::new();
@@ -81,8 +71,6 @@ fn user_context(m: &Meeting) -> String {
     ctx
 }
 
-/// Runs the summary for `m` over `segments`. `lang` forces the output
-/// language; `None` follows the meeting.
 pub async fn summarize(
     m: &Meeting,
     segments: &[Segment],
@@ -130,8 +118,6 @@ pub async fn summarize(
     Ok(summary)
 }
 
-/// Lenient parse: the first `{` to the last `}`, code fences ignored, list
-/// items accepted as strings or objects, action items as strings too.
 pub fn parse_summary(raw: &str) -> Option<Summary> {
     let start = raw.find('{')?;
     let end = raw.rfind('}')?;

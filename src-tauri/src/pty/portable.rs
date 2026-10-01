@@ -1,10 +1,3 @@
-//! `portable-pty` backend of `core::term` (C1). The kill is ours, not the
-//! crate's: `ChildKiller::kill` only sends `SIGHUP` to the shell's pid, so a
-//! Claude or Codex started from that shell (a job in a process group of its
-//! own) survived closing the terminal. Here the kill hits the shell's group
-//! and the foreground job's group, escalating to `SIGKILL`; on Windows the
-//! child goes into a kill-on-close Job Object right after spawn.
-
 use std::io::{Read, Write};
 
 use omniget_core::core::term::session::pty::{
@@ -71,7 +64,6 @@ impl PtyBackend for PortableBackend {
             cmd.env(k, v);
         }
         let child = pair.slave.spawn_command(cmd).map_err(|e| e.to_string())?;
-        // The child holds the slave now; keeping ours would hide EOF.
         drop(pair.slave);
         let pid = child.process_id();
         #[cfg(windows)]

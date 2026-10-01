@@ -1,4 +1,3 @@
-//! Embedded Help adapts the same runtime, broker, roster and download queue as the app.
 use crate::AppState;
 use futures::StreamExt;
 use omniget_core::core::llm::agent::AgentDef;
@@ -24,10 +23,6 @@ fn normalized(s: &str) -> String {
         .collect::<String>()
         .to_lowercase()
 }
-/// Locale of the help turn that is running. The assistant asks for articles
-/// through tool calls, and the model is free to leave `locale` out on a
-/// follow-up call, so an unset field has to mean "the language the user is
-/// already talking to us in" - it used to mean English for everyone.
 static TURN_LOCALE: OnceLock<Mutex<String>> = OnceLock::new();
 
 pub(crate) fn remember_turn_locale(locale: &str) {
@@ -264,7 +259,6 @@ pub async fn dispatch(app: &AppHandle, name: &str, a: Value) -> Result<Value, St
             )
         }
         "help_agent_apply" => {
-            // Serializes journal checks and roster writes; stable planned agent ID recovers after a crash.
             static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
             let _guard = LOCK
                 .get_or_init(|| Mutex::new(()))

@@ -12,11 +12,6 @@ use crate::models::media::{
 pub fn is_playlist_or_series(url: &str) -> bool {
     if let Ok(parsed) = url::Url::parse(url) {
         let path = parsed.path();
-        // Note: /cheese/ URLs are intentionally NOT classified as playlists.
-        // Single-episode cheese URLs (/cheese/play/epNNN) must go through
-        // get_video_info with --no-playlist; yt-dlp's cheese season extractor
-        // emits flat-playlist entries without a top-level "url" key, which
-        // breaks the playlist path (issue #157).
         if path.starts_with("/bangumi/") {
             return true;
         }
@@ -24,16 +19,9 @@ pub fn is_playlist_or_series(url: &str) -> bool {
         {
             return true;
         }
-        // The current 合集 / 系列 link. Bilibili moved collections from
-        // `/channel/collectiondetail?sid=` to `/lists/<sid>`, and only the old
-        // form was listed here — so a collection was fetched as if it were one
-        // video, yt-dlp got the listing page and answered "Unable to download
-        // webpage" (issue #311). yt-dlp's collection and series extractors both
-        // accept the new form.
         if is_space_list_path(path) {
             return true;
         }
-        // bilibili.com/list/<id> — the standalone playlist page.
         if path.starts_with("/list/") {
             return true;
         }
@@ -41,9 +29,6 @@ pub fn is_playlist_or_series(url: &str) -> bool {
     false
 }
 
-/// `/<mid>/lists/<sid>` on space.bilibili.com. The sid has to be there: bare
-/// `/<mid>/lists` is the index of every collection an uploader has, which no
-/// extractor resolves to a video list.
 fn is_space_list_path(path: &str) -> bool {
     let mut parts = path.trim_matches('/').split('/');
     let mid = parts.next().unwrap_or("");
@@ -374,6 +359,7 @@ mod tests {
         ));
     }
 
+    // WHY: collection pages must take the collection path, not the single-video one (#311).
     // Issue #311: the collection page listed its videos in the omnibox but the
     // download went down the single-video path and failed on the listing page.
     #[test]
@@ -402,7 +388,6 @@ mod tests {
 
     #[test]
     fn the_lists_index_is_not_a_playlist() {
-        // No sid — nothing for an extractor to expand.
         assert!(!is_playlist_or_series(
             "https://space.bilibili.com/2142762/lists"
         ));

@@ -1,7 +1,3 @@
-//! Read tools for MCP clients (scope `library`): search the library, a
-//! book's details and highlights, its text in chunks, and new chapters of
-//! followed series. Read-only; nothing here writes or downloads.
-
 use serde_json::{json, Value};
 
 use omniget_core::core::read::{epub, epub_writer, fb2};
@@ -32,7 +28,6 @@ fn book_json(b: &db::BookRow) -> Value {
     })
 }
 
-/// Chapters of plain text for the formats we can read without a renderer.
 fn chapters(b: &db::BookRow) -> Result<Vec<(String, String)>, String> {
     match b.format.as_str() {
         "epub" | "kepub" => {
@@ -173,7 +168,6 @@ pub async fn call(name: &str, a: &Value) -> Result<Value, String> {
     .await
 }
 
-/// `(name, description, properties, required)` for the MCP catalog.
 pub fn defs() -> Vec<(&'static str, &'static str, Value, Value)> {
     vec![
         ("read_library_search", "Search the OmniGet reading library by title, author, series or tag. Empty query lists books.", json!({"query":{"type":"string","maxLength":200},"limit":{"type":"integer","minimum":1,"maximum":100}}), json!([])),

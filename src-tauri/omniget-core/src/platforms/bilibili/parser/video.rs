@@ -75,14 +75,6 @@ pub async fn parse(
         metadata.collection_title = series_title.clone();
         metadata.series_title = series_title;
 
-        // Try to match the requested bvid against ugc_season episodes.
-        // If found, return only that single episode (preserving user intent).
-        // If not found, fall through to normal single-video handling below.
-        //
-        // Skip this shortcut when the caller requested a specific page (?p=N)
-        // or when the video itself has multiple pages: a multi-page video
-        // inside a collection must be handled by the pages branch below,
-        // otherwise only page 1 gets downloaded (issue #146).
         let has_multiple_pages = data
             .get("pages")
             .and_then(Value::as_array)
@@ -145,7 +137,6 @@ pub async fn parse(
                 }
             }
         }
-        // No match found in ugc_season — fall through to single-video handling.
     }
 
     let pages = data.get("pages").and_then(Value::as_array);

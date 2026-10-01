@@ -1,21 +1,3 @@
-//! Claude plugins (`.claude-plugin/plugin.json` + components) for tools that do
-//! not read the Claude plugin format (0C.8). Tools that do (Copilot, Cursor,
-//! Droid, Devin, Grok, Auggie, Junie, Qoder, Codex marketplaces, Vibe) are
-//! served by the Claude converter; this one writes:
-//!
-//! * **Gemini extensions** — `~/.gemini/extensions/<name>/gemini-extension.json`
-//!   (MCP inline with `${extensionPath}`), commands rewritten to TOML, hooks to
-//!   Gemini's dialect;
-//! * **Qwen extensions** — `~/.qwen/extensions/<name>/qwen-extension.json`;
-//! * **Agent Plugins 1.0** (Kiro Powers, OpenHands) — root `plugin.json`,
-//!   `skills/`, `mcp.json`;
-//! * **code plugins** (OpenCode, Kilo, Amp, Pi) — skills into the tool's skills
-//!   folder, MCP into its config, hooks as a generated plugin, the plugin's
-//!   files kept next to it for `${CLAUDE_PLUGIN_ROOT}`.
-//!
-//! Mods (function-hook plugins) stay Claude-only: the Claude converter writes
-//! them into `.claude/skills/<name>/` with the `CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1` note.
-
 use std::path::{Path, PathBuf};
 
 use serde_json::{json, Map, Value};
@@ -40,7 +22,6 @@ pub const FORMATS: &[&str] = &[
 
 pub struct PluginConverter;
 
-/// Folder prefix of the plugin inside `c.files` (`x/` for `x/.claude-plugin/plugin.json`).
 fn prefix(c: &Component) -> String {
     let d = c.entry.rsplit_once('/').map(|(d, _)| d).unwrap_or("");
     let d = d.trim_end_matches(".claude-plugin").trim_end_matches('/');
@@ -51,7 +32,6 @@ fn prefix(c: &Component) -> String {
     }
 }
 
-/// `(path relative to the plugin root, file)`.
 fn files(c: &Component) -> Vec<(String, &ComponentFile)> {
     let pre = prefix(c);
     c.files
@@ -74,7 +54,6 @@ fn json_file(all: &[(String, &ComponentFile)], rel: &str) -> Option<Value> {
     rel_file(all, rel).and_then(|f| serde_json::from_slice(&f.bytes).ok())
 }
 
-/// Replaces `${CLAUDE_PLUGIN_ROOT}` (and the bare form) in every string.
 fn replace_root(v: &Value, to: &str) -> Value {
     match v {
         Value::String(s) => Value::String(replace_root_str(s, to)),
@@ -93,7 +72,6 @@ fn replace_root_str(s: &str, to: &str) -> String {
         .replace("$CLAUDE_PLUGIN_ROOT", to)
 }
 
-/// MCP servers of the plugin (`.mcp.json` and manifest `mcpServers`).
 fn mcp_servers(p: &PluginSpec, all: &[(String, &ComponentFile)]) -> Map<String, Value> {
     let mut out = Map::new();
     let mut take = |v: &Value| {
@@ -121,8 +99,6 @@ fn mcp_servers(p: &PluginSpec, all: &[(String, &ComponentFile)]) -> Map<String, 
     out
 }
 
-/// Hook entries of the plugin (`hooks/hooks.json` and manifest `hooks`), with
-/// the plugin root replaced.
 fn hook_entries(p: &PluginSpec, all: &[(String, &ComponentFile)], root: &str) -> Vec<HookEntry> {
     let mut docs = Vec::new();
     if let Some(v) = json_file(all, "hooks/hooks.json") {
@@ -154,7 +130,6 @@ fn top(rel: &str) -> &str {
     rel.split('/').next().unwrap_or("")
 }
 
-/// Parts of a Claude plugin that no other tool has.
 fn claude_only_losses(all: &[(String, &ComponentFile)], p: &PluginSpec) -> Vec<String> {
     let mut out = Vec::new();
     for (rel, _) in all {
@@ -224,7 +199,6 @@ fn toml_multiline(s: &str) -> String {
     )
 }
 
-/// A Claude command file → Gemini TOML command.
 fn gemini_command(
     name: &str,
     bytes: &[u8],
@@ -269,8 +243,6 @@ fn pretty(v: &Value) -> Vec<u8> {
     s.push('\n');
     s.into_bytes()
 }
-
-// ---------------------------------------------------------------- Gemini
 
 fn gemini_extension(
     c: &Component,
@@ -330,12 +302,10 @@ fn gemini_extension(
             "extension file",
         ));
     }
-    // manifest
     let mut m = manifest_meta(p, c);
     let servers = mcp_servers(p, &all);
     if !servers.is_empty() {
         let v = replace_root(&Value::Object(servers), "${extensionPath}");
-        // Gemini: streamable HTTP servers use httpUrl
         let mut fixed = Map::new();
         for (k, mut s) in v.as_object().cloned().unwrap_or_default() {
             if let Some(obj) = s.as_object_mut() {
@@ -368,7 +338,6 @@ fn gemini_extension(
     );
     manifest.primary = true;
     out.insert(0, manifest);
-    // hooks in Gemini's dialect
     let entries = hook_entries(p, &all, &root_s);
     if !entries.is_empty() {
         let spec = HookSpec {
@@ -406,8 +375,6 @@ fn gemini_extension(
     }
     Ok(out)
 }
-
-// ---------------------------------------------------------------- Qwen
 
 fn qwen_extension(
     c: &Component,
@@ -474,8 +441,6 @@ fn qwen_extension(
     out.insert(0, manifest);
     Ok(out)
 }
-
-// ---------------------------------------------------------------- Agent Plugins 1.0
 
 fn agent_plugin(
     c: &Component,
@@ -560,8 +525,6 @@ fn agent_plugin(
     Ok(out)
 }
 
-// ---------------------------------------------------------------- code plugins
-
 fn code_plugin(
     c: &Component,
     p: &PluginSpec,
@@ -575,7 +538,6 @@ fn code_plugin(
         .name_override
         .clone()
         .unwrap_or_else(|| p.dir_name.clone());
-    // the plugin's own files, for ${CLAUDE_PLUGIN_ROOT}; outside the auto-loaded folder
     let support_root = hooks_dir
         .parent()
         .map(|d| d.join("omniget-plugins").join(&name))
@@ -623,7 +585,6 @@ fn code_plugin(
             }
         }
     }
-    // hooks → generated plugin
     let entries = hook_entries(p, &all, &root_s);
     if !entries.is_empty() {
         let spec = HookSpec {
@@ -643,7 +604,6 @@ fn code_plugin(
             out.insert(0, pf);
         }
     }
-    // MCP → the tool's own config, through the MCP converter
     let servers = mcp_servers(p, &all);
     if !servers.is_empty() {
         let servers = replace_root(&Value::Object(servers), &root_s);

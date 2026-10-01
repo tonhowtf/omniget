@@ -1,7 +1,3 @@
-//! The largest files under some folders, offered as a plan that moves the
-//! chosen ones to the system Trash. Sizes are allocated blocks, so a sparse
-//! VM disk shows what it really takes.
-
 use std::cmp::Reverse;
 use std::collections::{BinaryHeap, HashSet};
 use std::path::{Path, PathBuf};
@@ -14,8 +10,6 @@ use super::super::plan::{Op, PlanItem};
 use super::super::protect::{self, Guard};
 use super::super::{Destination, Risk};
 
-/// Bundles and libraries whose insides are one thing to the person: an app,
-/// a photo library. A file inside is never offered on its own.
 const PACKAGE_EXT: &[&str] = &[
     "app",
     "bundle",
@@ -49,7 +43,6 @@ const PACKAGE_EXT: &[&str] = &[
     "scriptd",
 ];
 
-/// Folders of already-trashed files.
 const TRASH_DIRS: &[&str] = &[".Trash", ".Trashes", "$Recycle.Bin", "$RECYCLE.BIN"];
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -73,14 +66,12 @@ fn skip_dir(p: &Path) -> bool {
     if TRASH_DIRS.iter().any(|t| name == *t) {
         return true;
     }
-    // ~/.local/share/Trash
     if name == "Trash" && p.parent().is_some_and(|q| q.ends_with(".local/share")) {
         return true;
     }
     PACKAGE_EXT.contains(&ext_lower(p).as_str())
 }
 
-/// What kind of file it is, for the list's groups.
 pub fn group_of(p: &Path) -> &'static str {
     match ext_lower(p).as_str() {
         "mp4" | "mov" | "mkv" | "avi" | "webm" | "m4v" | "wmv" | "flv" | "mpg" | "mpeg" | "ts"
@@ -104,8 +95,6 @@ fn link_key(_m: &std::fs::Metadata) -> Option<(u64, u64)> {
     None
 }
 
-/// The `limit` largest files of at least `min_bytes` under `roots`, each one
-/// already cleared by the protection list.
 pub fn find(roots: &[PathBuf], min_bytes: u64, limit: usize) -> (Vec<Found>, u64) {
     let mut heap: BinaryHeap<Reverse<Found>> = BinaryHeap::new();
     let mut seen_links: HashSet<(u64, u64)> = HashSet::new();
@@ -149,7 +138,7 @@ pub fn find(roots: &[PathBuf], min_bytes: u64, limit: usize) -> (Vec<Found>, u64
             }
             let path = e.path().to_path_buf();
             if !seen_paths.insert(path.clone()) {
-                continue; // overlapping roots
+                continue;
             }
             if protect::check(&path, Guard::Picked, Some(root)).is_err() {
                 continue;
@@ -180,7 +169,6 @@ pub fn item_id(p: &Path) -> String {
     format!("large_files:{}", p.display())
 }
 
-/// A plan item for each file (files that vanished since are dropped).
 pub fn items(found: &[Found]) -> Vec<(PlanItem, &Found)> {
     found
         .iter()

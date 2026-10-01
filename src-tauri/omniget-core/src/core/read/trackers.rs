@@ -1,8 +1,3 @@
-//! Reading trackers for followed series: AniList (personal access token
-//! from a client the user creates at anilist.co/settings/developer) and
-//! MangaUpdates (account login). Search, link, and push the last chapter
-//! read.
-
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
@@ -15,8 +10,6 @@ pub struct TrackHit {
     pub chapters: Option<i64>,
     pub status: String,
 }
-
-// ---------- AniList ----------
 
 const ANILIST: &str = "https://graphql.anilist.co";
 
@@ -80,7 +73,6 @@ pub async fn anilist_search(http: &reqwest::Client, query: &str) -> Result<Vec<T
         .collect())
 }
 
-/// Sets progress (and CURRENT/COMPLETED status) on the user's list.
 pub async fn anilist_progress(
     http: &reqwest::Client,
     token: &str,
@@ -97,8 +89,6 @@ pub async fn anilist_progress(
     .await
     .map(|_| ())
 }
-
-// ---------- MangaUpdates ----------
 
 const MU: &str = "https://api.mangaupdates.com/v1";
 
@@ -153,7 +143,6 @@ pub async fn mangaupdates_search(
         .collect())
 }
 
-/// Puts the series on the reading list (list 0) and sets the chapter.
 pub async fn mangaupdates_progress(
     http: &reqwest::Client,
     token: &str,
@@ -162,8 +151,6 @@ pub async fn mangaupdates_progress(
 ) -> Result<(), String> {
     let body =
         json!([{ "series": { "id": series }, "list_id": 0, "status": { "chapter": chapter } }]);
-    // Adding an entry already on a list fails; updating one that isn't
-    // fails too. Try update, then add.
     let up = http
         .post(format!("{MU}/lists/series/update"))
         .bearer_auth(token)

@@ -1,17 +1,3 @@
-//! Fontes extras do usuário, persistidas em `<app_data>/agentkit/sources.json`:
-//!
-//! - `git`: `owner/repo[/path][@ref]` ou URL do GitHub. O commit é resolvido,
-//!   o tarball imutável (`codeload.github.com/<repo>/tar.gz/<sha>`) é extraído
-//!   em `<app_data>/agentkit/sources/<id>/` e varrido por [`super::scan`]; os
-//!   itens apontam para o repo+commit (conteúdo remoto verificado) e para a
-//!   cópia local (leitura direta);
-//! - `local`: uma pasta; varrida no lugar;
-//! - `marketplace`: `owner/repo` com `.claude-plugin/marketplace.json`
-//!   (ver [`super::marketplace`]).
-//!
-//! Os itens varridos ficam em `<app_data>/agentkit/catalog/sources/<id>.json`
-//! e entram no índice em memória.
-
 use std::io::Read;
 use std::path::{Path, PathBuf};
 
@@ -29,9 +15,7 @@ const MAX_TARBALL: usize = 200 * 1024 * 1024;
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct Source {
     pub id: String,
-    /// `git`, `local` ou `marketplace`.
     pub kind: String,
-    /// O que o usuário digitou (normalizado).
     pub spec: String,
     #[serde(default)]
     pub repo: Option<String>,
@@ -82,12 +66,10 @@ fn save_file(f: &SourcesFile) -> Result<()> {
     write_atomic(&sources_path()?, &bytes)
 }
 
-/// Fontes cadastradas.
 pub fn list() -> Vec<Source> {
     load_file().sources
 }
 
-/// Itens em cache de cada fonte `git`/`local` (para o índice em memória).
 pub fn cached_items() -> Vec<(String, Vec<CatalogItem>)> {
     list()
         .into_iter()
@@ -113,7 +95,6 @@ fn slug(s: &str) -> String {
     t.chars().take(60).collect()
 }
 
-/// Spec interpretado.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Spec {
     Local(PathBuf),
@@ -125,8 +106,6 @@ pub enum Spec {
     Marketplace(String),
 }
 
-/// `owner/repo[/path][@ref]`, URL do GitHub (`/tree/<ref>/<path>`), pasta
-/// existente, ou `marketplace:owner/repo`. `kind` força o tipo.
 pub fn parse_spec(spec: &str, kind: Option<&str>) -> Result<Spec> {
     let s = spec.trim();
     if s.is_empty() {
@@ -212,7 +191,6 @@ fn now() -> String {
     chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true)
 }
 
-/// Extrai um tar.gz do GitHub (primeiro componente de caminho removido).
 fn extract_tarball(bytes: &[u8], dest: &Path) -> Result<()> {
     if dest.exists() {
         std::fs::remove_dir_all(dest).map_err(|e| io_err("clean source dir", e))?;
@@ -224,7 +202,7 @@ fn extract_tarball(bytes: &[u8], dest: &Path) -> Result<()> {
         let mut entry = entry.map_err(|e| io_err("tarball entry", e))?;
         let ty = entry.header().entry_type();
         if !(ty.is_file() || ty.is_dir()) {
-            continue; // sem symlink/hardlink
+            continue;
         }
         let path = entry
             .path()
@@ -255,7 +233,6 @@ fn extract_tarball(bytes: &[u8], dest: &Path) -> Result<()> {
     Ok(())
 }
 
-/// Busca/varre uma fonte e grava os itens. Atualiza os campos da fonte.
 async fn refresh(src: &mut Source) -> Result<()> {
     match src.kind.as_str() {
         "marketplace" => {
@@ -346,7 +323,6 @@ async fn refresh(src: &mut Source) -> Result<()> {
             let mut report = tokio::task::spawn_blocking(move || scan(&root, &scan_src))
                 .await
                 .map_err(|e| io_err("scan", e))?;
-            // a cópia local é a raiz do repo; `source.dir` já é relativo a ela
             for it in &mut report.items {
                 it.stars = stars;
             }
@@ -373,7 +349,6 @@ fn write_items(id: &str, items: &[CatalogItem]) -> Result<()> {
     write_atomic(&items_path(id)?, &bytes)
 }
 
-/// Cadastra e varre uma fonte (`kind`: `git`/`local`/`marketplace`, ou deduzido).
 pub async fn add(spec: &str, kind: Option<&str>) -> Result<Source> {
     let parsed = parse_spec(spec, kind)?;
     let mut src = match &parsed {
@@ -438,7 +413,6 @@ pub async fn add(spec: &str, kind: Option<&str>) -> Result<Source> {
         src.added = existing.added.clone();
     }
     refresh(&mut src).await?;
-    // relê: outra chamada pode ter mexido na lista enquanto baixava
     let mut file = load_file();
     file.version = 1;
     file.sources.retain(|s| s.id != src.id);
@@ -448,7 +422,6 @@ pub async fn add(spec: &str, kind: Option<&str>) -> Result<Source> {
     Ok(src)
 }
 
-/// Varre de novo uma fonte cadastrada.
 pub async fn rescan(id: &str) -> Result<Source> {
     let mut file = load_file();
     let mut src = file
@@ -468,7 +441,6 @@ pub async fn rescan(id: &str) -> Result<Source> {
     res.map(|_| src)
 }
 
-/// Remove uma fonte, seu cache de itens e a cópia extraída.
 pub fn remove(id: &str) -> Result<()> {
     let mut file = load_file();
     let Some(src) = file.sources.iter().find(|s| s.id == id).cloned() else {

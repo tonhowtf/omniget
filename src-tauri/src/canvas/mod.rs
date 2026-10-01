@@ -1,5 +1,3 @@
-//! Host do canvas no app (singletons, eventos, bridge).
-
 pub mod chat;
 pub mod clipboard;
 pub mod companion;

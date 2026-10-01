@@ -1,10 +1,3 @@
-//! Personal memory over the MCP server: an agent outside OmniGet (Claude
-//! Code, Codex, Cursor) connected with the `memory_read` scope can recall and
-//! reflect over what OmniGet remembers about the person; with `memory_write`
-//! it can also save and teach. Each connection gets its own private notes
-//! (`bot:mcp-<client>`) next to the person's shared profile, and never sees
-//! another client's notes or a room.
-
 use omniget_core::core::assist::ctx::{AssistCtx, Scope, LOCAL_USER};
 use omniget_core::core::assist::{db, memory, now_ms};
 use serde_json::{json, Value};
@@ -42,7 +35,6 @@ pub fn tools() -> Vec<ToolDef> {
     ]
 }
 
-/// `outputSchema` of the memory tools (see `output_schemas`).
 pub fn output_schema(name: &str) -> Option<Value> {
     let string = json!({"type": "string"});
     let strings = json!({"type": "array", "items": {"type": "string"}});
@@ -78,8 +70,6 @@ pub fn output_schema(name: &str) -> Option<Value> {
     })
 }
 
-/// The scopes a connection gets: the person's profile (read; write with
-/// `memory_write`) and its own private notes.
 fn ctx_for(p: &Principal) -> AssistCtx {
     let own = Scope::Bot {
         bot: format!("mcp-{}", p.id),

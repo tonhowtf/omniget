@@ -1,4 +1,3 @@
-//! Validates an immutable authorized snapshot through a confined pipe-only engine.
 use omniget_core::core::{
     engine_files,
     secure_files::{Identity, Root},
@@ -7,18 +6,12 @@ use serde_json::Value;
 use std::{path::Path, time::Duration};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
-/// Largest output an external job may produce, validate and transfer. It is
-/// the artifact grant limit: the probe itself stays bounded by streaming the
-/// frozen copy through a pipe (ffprobe allocation cap, output cap, timeout),
-/// never by refusing media the transfer path would accept (bench D2).
 pub const MAX_AUTHORIZED_MEDIA_BYTES: u64 = 2 * 1024 * 1024 * 1024;
 const MAX_PROBE_OUTPUT: u64 = 256 * 1024;
-/// Base probe time plus streaming time for large frozen copies.
 fn probe_timeout(bytes: u64) -> Duration {
     Duration::from_secs(15 + (bytes / (1024 * 1024 * 1024)) * 15)
 }
 
-/// Legacy local UI validation; external jobs MUST call probe_authorized.
 pub async fn probe(path: &Path) -> Result<Value, String> {
     if !path.is_absolute() || !path.is_file() {
         return Err("OUTPUT_MISSING: expected a local file".into());
@@ -51,8 +44,6 @@ pub async fn probe_authorized(
     probe_authorized_sized(root, identity, path).await?.1
 }
 
-/// Outer error: the output cannot be frozen (too large: never retryable;
-/// denied). Inner result: the probe of the frozen bytes, whose size is known.
 pub async fn probe_authorized_sized(
     root: &Path,
     identity: &Identity,
@@ -79,8 +70,6 @@ async fn snapshot_authorized(
     tokio::task::spawn_blocking(move || {
         let opened =
             Root::open(&root, Some(&identity)).map_err(|_| "OUTPUT_SNAPSHOT_DENIED".to_owned())?;
-        // Advisory size read (no link follow) only to name the refusal; the
-        // snapshot enforces the limit on the bytes it actually copies.
         if let Ok(meta) = std::fs::symlink_metadata(root.join(&relative)) {
             if meta.is_file() && meta.len() > limit {
                 return Err(too_large(meta.len(), limit));
@@ -132,7 +121,6 @@ async fn probe_snapshot(
     let result = tokio::time::timeout(timeout, async {
         let writer = async {
             let copied = tokio::io::copy(&mut frozen, &mut input).await;
-            // A valid probe may finish after reading only the header.
             if let Err(e) = copied {
                 if e.kind() != std::io::ErrorKind::BrokenPipe {
                     return Err("VALIDATION_INPUT_FAILED".to_owned());
@@ -232,8 +220,6 @@ pub fn check_height(probe: &Value, ceiling: u64) -> Result<(), String> {
         .filter(|s| s["codec_type"] == "video" && s["disposition"]["attached_pic"] != 1)
         .filter_map(|s| s["height"].as_u64())
         .collect();
-    // An audio-only source has no video stream to exceed the ceiling: audio
-    // alone is within it. A file with neither is still refused.
     let has_video = probe["streams"]
         .as_array()
         .into_iter()

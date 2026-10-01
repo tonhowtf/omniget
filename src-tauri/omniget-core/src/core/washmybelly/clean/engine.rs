@@ -1,37 +1,3 @@
-//! The cleanup engine: every rule, whatever its source, goes through here.
-//!
-//! For each rule of the current system it checks `requires` (a path that
-//! must exist, a program on PATH, Full Disk Access, admin), expands the
-//! targets (`~`, `$VAR`, `%VAR%`, `{mount}`, globs in Rust), applies
-//! `include`/`exclude`/`min_age_days`, measures with hardlinks counted once
-//! across all rules, drops what `protect::check` refuses, and marks items
-//! whose app is open. A rule that found nothing does not appear
-//! (BleachBit's auto_hide). Nothing here changes the disk.
-//!
-//! Target and filter language (`Rule` fields keep their shape):
-//!
-//! - `Delete`: each match of each target is one item, removed whole.
-//! - `DeleteContents`: each matching folder is emptied and kept. With no
-//!   filter it is one item; if the folder itself is protected (a root such
-//!   as `~/Library/Logs`, or a folder the protection list names) and the
-//!   target was written literally, each child becomes its own item. With a
-//!   `include` the matching entries inside are listed one by one and
-//!   removed by the `delete_files` action; with only `min_age_days`, the
-//!   direct children whose newest file is old enough (one item as well).
-//!   `exclude` drops matched folders and, inside, the children it names.
-//! - `include`/`exclude` entries: a wildcard on the name (`*.log`),
-//!   `re:<regex>` on the name, `path-re:<regex>` on the whole path, and
-//!   `type:f`/`type:d` (include only). Types must all match; names match
-//!   if any does. Excluded folders are not entered.
-//! - `running`: a process name, or a lock-file glob (anything with a path
-//!   separator, `~` or a variable). An open app leaves the item unticked.
-//! - `{mount}` in a target: every mounted volume (`/Volumes/*` on macOS,
-//!   `/proc/self/mounts` on Linux), for per-volume Trash folders.
-//!
-//! Special variables besides the environment: `XDG_*` with their defaults,
-//! `UID`, `BREW_CACHE` (`brew --cache`) and `PNPM_STORE` (`pnpm store path`),
-//! both accepted only inside the home folder.
-
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
@@ -47,7 +13,6 @@ use super::super::{Destination, Os, Risk};
 use super::catalog;
 use super::rule::{Action, Requirement, Rule};
 
-/// Files one `delete_files` item may carry; the rest waits for the next scan.
 pub const MAX_FILES_PER_ITEM: usize = 5000;
 
 type Lookup = Box<dyn Fn(&str) -> Option<String> + Send + Sync>;
@@ -55,25 +20,20 @@ type Run = Box<dyn Fn(&str, &[&str]) -> Option<String> + Send + Sync>;
 type Get = Box<dyn Fn(&str) -> Option<String> + Send + Sync>;
 type OnPath = Box<dyn Fn(&str) -> bool + Send + Sync>;
 
-/// What the engine may read from the machine. Tests build one over a
-/// temporary home with no programs and no processes.
 pub struct Env {
     pub os: Os,
     lookup: Lookup,
     run: Run,
     snapd: Get,
     on_path: OnPath,
-    /// Lower-case process names (and exe basenames, without `.exe`).
     pub processes: HashSet<String>,
     pub full_disk_access: bool,
     pub mounts: Vec<PathBuf>,
-    /// Run the probes that ask system tools (`docker`, `tmutil`, snapd).
     pub probes: bool,
     computed: Mutex<HashMap<String, Option<String>>>,
 }
 
 impl Env {
-    /// The real machine.
     pub fn system() -> Env {
         Env {
             os: super::super::current_os(),
@@ -89,7 +49,6 @@ impl Env {
         }
     }
 
-    /// A fake machine over `home`: no programs, no processes, no mounts.
     pub fn fake(home: &Path, os: Os) -> Env {
         let home = home.to_string_lossy().into_owned();
         Env {
@@ -122,7 +81,6 @@ impl Env {
         (self.lookup)("HOME").or_else(|| (self.lookup)("USERPROFILE"))
     }
 
-    /// A variable for `expand_vars`, with the XDG defaults and the computed ones.
     pub fn var(&self, name: &str) -> Option<String> {
         if let Some(v) = (self.lookup)(name).filter(|v| !v.is_empty()) {
             return Some(v);
@@ -164,7 +122,6 @@ impl Env {
         value
     }
 
-    /// Every existing path a target names.
     pub fn expand(&self, pattern: &str) -> Vec<PathBuf> {
         let patterns: Vec<String> = if pattern.contains("{mount}") {
             self.mounts
@@ -188,7 +145,6 @@ impl Env {
         out
     }
 
-    /// The first open app or lock file that holds this rule's data.
     pub fn running(&self, rule: &Rule) -> Option<String> {
         for r in &rule.running {
             let lock_file = r.contains('/')
@@ -216,9 +172,6 @@ fn has_wildcard(s: &str) -> bool {
     s.contains(['*', '?', '['])
 }
 
-/// Glob only up to the last segment with a wildcard, then append the
-/// literal rest and check it exists. Faster, and it reaches folders that
-/// can be entered but not listed (`/Volumes/X/.Trashes/<uid>`).
 pub fn glob_fast(pattern: &str) -> Vec<PathBuf> {
     let norm = pattern.replace('\\', "/");
     let segs: Vec<&str> = norm.split('/').collect();
@@ -256,7 +209,6 @@ pub fn glob_fast(pattern: &str) -> Vec<PathBuf> {
     out
 }
 
-/// Case-insensitive lexical containment on macOS and Windows.
 fn inside(child: &str, parent: &str) -> bool {
     let fold = |s: &str| {
         let s = s.replace('\\', "/");
@@ -274,8 +226,6 @@ fn inside(child: &str, parent: &str) -> bool {
 fn overlaps(a: &str, b: &str) -> bool {
     inside(a, b) || inside(b, a)
 }
-
-// ── Include / exclude ────────────────────────────────────────────────
 
 enum Pat {
     Wild(String),
@@ -340,7 +290,6 @@ impl Matcher {
         Ok(m)
     }
 
-    /// An `include` asks for a file-by-file listing (recursive).
     fn filtered(&self) -> bool {
         self.kind.is_some() || !self.names.is_empty()
     }
@@ -365,14 +314,9 @@ fn name_of(p: &Path) -> String {
         .unwrap_or_default()
 }
 
-// ── Scan ─────────────────────────────────────────────────────────────
-
-/// One thing a rule found, ready to become a plan item.
 #[derive(Debug, Clone)]
 pub struct Found {
-    /// Absolute path, or `<kind>:<name>` for things that are not a path.
     pub path: String,
-    /// Replaces the rule label when set (a snap revision, a runtime).
     pub label: Option<String>,
     pub bytes: u64,
     pub files: u64,
@@ -380,7 +324,6 @@ pub struct Found {
     pub admin: bool,
 }
 
-/// A scan result item.
 #[derive(Debug, Clone)]
 pub struct Item {
     pub rule_id: String,
@@ -417,7 +360,6 @@ pub struct Scan {
     pub items: Vec<Item>,
     pub skipped_rules: usize,
     pub needs_full_disk_access: bool,
-    /// Paths a rule matched that the protection refused.
     pub protected: usize,
 }
 
@@ -437,7 +379,6 @@ impl Default for Filter {
 
 type Probe = fn(&Rule, &Env) -> Vec<Found>;
 
-/// Rules whose findings come from a system tool rather than a path.
 fn probe_for(id: &str) -> Option<Probe> {
     Some(match id {
         "macos.simctl_unavailable" => super::rules_macos::probe_simctl_unavailable,
@@ -450,7 +391,6 @@ fn probe_for(id: &str) -> Option<Probe> {
     })
 }
 
-/// The module action behind a native command that needs root.
 pub fn admin_action(rule: &Rule) -> Option<(String, Value)> {
     let Action::Command { program, args, .. } = &rule.action else {
         return None;
@@ -474,7 +414,6 @@ pub fn admin_action(rule: &Rule) -> Option<(String, Value)> {
     }
 }
 
-/// Scan `rules` on `env`. The caller turns the items into a plan.
 pub fn scan(rules: &[&Rule], env: &Env, filter: &Filter) -> Scan {
     let mut out = Scan::default();
     let mut seen: HashSet<(u64, u64)> = HashSet::new();
@@ -580,9 +519,6 @@ pub fn scan(rules: &[&Rule], env: &Env, filter: &Filter) -> Scan {
     out
 }
 
-/// Windows rules that need a service stopped first, or whose files only
-/// the system tool may remove (`rules_windows::maintenance_for`): their
-/// items become administrator module items carrying the maintenance id.
 fn wrap_maintenance(rule: &Rule, found: Vec<Found>) -> Vec<Found> {
     use super::rules_windows::{maintenance_for, Stage};
     let Some((id, stage)) = maintenance_for(&rule.id) else {
@@ -618,7 +554,6 @@ fn wrap_maintenance(rule: &Rule, found: Vec<Found>) -> Vec<Found> {
     }
 }
 
-/// The literal folder a pattern starts from (before the first wildcard).
 fn literal_root(pattern: &Path) -> PathBuf {
     let s = pattern.to_string_lossy().replace('\\', "/");
     let mut parts = Vec::new();
@@ -636,7 +571,6 @@ fn literal_root(pattern: &Path) -> PathBuf {
     })
 }
 
-/// Days since the newest modification inside a tree (the tree itself for a file).
 fn newest_age_days(path: &Path) -> u64 {
     let Ok(m) = std::fs::symlink_metadata(path) else {
         return 0;
@@ -644,7 +578,6 @@ fn newest_age_days(path: &Path) -> u64 {
     if !m.is_dir() || fsops::is_link(&m) {
         return fsops::age_days(&m);
     }
-    // Files only: a folder's own mtime moves whenever a child comes or goes.
     let mut newest: Option<u64> = None;
     for e in walkdir::WalkDir::new(path)
         .follow_links(false)
@@ -666,7 +599,6 @@ fn newest_age_days(path: &Path) -> u64 {
     newest.unwrap_or_else(|| fsops::age_days(&m))
 }
 
-/// `X-wal`, `X-shm`, `X-journal` whose database `X` stays: never removed.
 fn orphans_live_database(path: &Path, taken: &HashSet<PathBuf>) -> bool {
     let name = name_of(path);
     for suffix in ["-wal", "-shm", "-journal"] {
@@ -746,7 +678,6 @@ fn collect(
         return Ok(found);
     }
 
-    // Whole-path candidates of this rule, with the folder each must stay in.
     let mut whole: Vec<(PathBuf, PathBuf)> = Vec::new();
     for target in &rule.targets {
         let literal = !has_wildcard(target) && !target.contains("{mount}");
@@ -800,8 +731,6 @@ fn collect(
                             });
                         }
                     } else if literal {
-                        // A named folder that is itself off limits (a root, or
-                        // named by the protection list): its children, one by one.
                         for e in std::fs::read_dir(&m).into_iter().flatten().flatten() {
                             whole.push((e.path(), m.clone()));
                         }
@@ -916,9 +845,6 @@ fn delete_files_found(
     })
 }
 
-/// `DeleteContents` with `min_age_days` or `exclude` and no `include`: the
-/// direct children not excluded whose newest file is old enough (Kudu's
-/// recency rule), one item.
 fn old_children(
     rule: &Rule,
     matcher: &Matcher,
@@ -961,7 +887,6 @@ fn old_children(
     delete_files_found(rule, root, files, bytes, count, admin)
 }
 
-/// A filtered folder: list what matches inside, one `delete_files` item.
 fn per_file(
     rule: &Rule,
     matcher: &Matcher,
@@ -1039,9 +964,6 @@ fn per_file(
     delete_files_found(rule, root, files, bytes, count, admin)
 }
 
-// ── The real machine ─────────────────────────────────────────────────
-
-/// Run a program (argv, no shell) and return stdout when it succeeds in time.
 pub fn run_with_timeout(program: &str, args: &[&str], limit: Duration) -> Option<String> {
     use std::io::Read;
     let mut child = crate::core::process::std_command(program)
@@ -1110,8 +1032,6 @@ fn process_names() -> HashSet<String> {
     out
 }
 
-/// Read access to the user's TCC database proves Full Disk Access (as
-/// PureMac does). Other systems have no such gate.
 fn full_disk_access() -> bool {
     if !cfg!(target_os = "macos") {
         return true;
@@ -1150,7 +1070,6 @@ fn mounts() -> Vec<PathBuf> {
     }
 }
 
-/// Mount points of real file systems from `/proc/self/mounts`.
 pub fn parse_mounts(text: &str) -> Vec<PathBuf> {
     const PSEUDO: &[&str] = &[
         "proc",

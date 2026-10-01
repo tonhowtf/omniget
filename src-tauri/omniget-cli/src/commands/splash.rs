@@ -1,11 +1,5 @@
-//! The splash `omniget claude` prints before Claude Code opens: Loop, the
-//! OmniGet mascot, in its own colours, and who is about to run. Claude Code's
-//! own header still follows below it: this is Claude Code, launched by OmniGet.
-
 use std::io::IsTerminal;
 
-// Loop, the OmniGet mascot, as a pixel grid (Higgsfield pixel art of static/loop.png,
-// reduced to the mascot palette). One char per pixel; `.` is transparent.
 const LOOP_PALETTE: &[(u8, u8, u8)] = &[
     (17, 17, 17),
     (60, 35, 38),
@@ -64,7 +58,6 @@ const LOOP_PIXELS: &[&str] = &[
     "....addddiiidddddddddddddddddiiddddd",
 ];
 
-/// OmniGet orange, Claude's coral, and a dim grey for the details.
 const OMNIGET_ORANGE: (u8, u8, u8) = (255, 149, 0);
 const CLAUDE_CORAL: (u8, u8, u8) = (217, 119, 87);
 const DIM: (u8, u8, u8) = (150, 150, 150);
@@ -88,7 +81,6 @@ impl Depth {
     }
 }
 
-/// Nearest xterm-256 colour (6x6x6 cube or the grey ramp).
 pub fn to_256((r, g, b): (u8, u8, u8)) -> u8 {
     let level = |v: u8| -> u8 {
         if v < 48 {
@@ -143,7 +135,6 @@ fn pixel(row: &str, x: usize) -> Option<(u8, u8, u8)> {
     LOOP_PALETTE.get((ch - b'a') as usize).copied()
 }
 
-/// The mascot as terminal lines: two pixel rows per line with `▀`/`▄`.
 pub fn art_lines(depth: Depth) -> Vec<String> {
     let width = LOOP_PIXELS.first().map_or(0, |r| r.len());
     let mut out = Vec::new();
@@ -164,8 +155,6 @@ pub fn art_lines(depth: Depth) -> Vec<String> {
     out
 }
 
-/// Text beside the mascot. `version` is Claude Code's own (`claude --version`),
-/// shown as is so an update never looks like a different product.
 pub fn text_lines(
     version: Option<&str>,
     account: &str,
@@ -196,7 +185,6 @@ pub fn text_lines(
     lines
 }
 
-/// Prints the splash when stdout is a terminal wide enough for it.
 pub fn print(version: Option<&str>, account: &str, who: Option<&str>) {
     if !std::io::stdout().is_terminal() {
         return;
@@ -217,7 +205,6 @@ pub fn print(version: Option<&str>, account: &str, who: Option<&str>) {
     let art_width = LOOP_PIXELS.first().map_or(0, |r| r.len());
     let mut out = String::from("\n");
     if cols.is_some_and(|c| c < art_width + 40) {
-        // Narrow terminal: mascot, then the text under it.
         for l in &art {
             out.push_str(&format!("  {l}\n"));
         }

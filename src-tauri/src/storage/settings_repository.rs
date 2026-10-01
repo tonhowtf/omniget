@@ -1,18 +1,3 @@
-//! The single owner of `settings.json`.
-//!
-//! One lock covers the whole transaction: read the latest bytes, compare the
-//! revision, merge, validate, back up when needed, write atomically and only
-//! then publish the confirmed snapshot. Effects run after the lock is
-//! released (`settings_effects`). The file keeps the `app_settings` envelope
-//! and every key this version does not know, and carries the revision as
-//! `_settings_revision` next to it.
-//!
-//! The desktop process is the only writer of a profile: opening the
-//! repository takes an OS file lock, and a second process on the same
-//! profile gets a read-only repository whose mutations fail before touching
-//! the disk. Standalone readers (`config::load_settings_standalone`) keep
-//! reading the file directly.
-
 use std::fs::{self, File, OpenOptions};
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
@@ -32,22 +17,14 @@ pub const RECOVERY_DIR: &str = "settings-recovery";
 const LOCK_FILE: &str = ".settings.lock";
 const TEMP_PREFIX: &str = ".settings-write-";
 
-/// The schema 3 appearance fields that are omitted from the file while
-/// unset; a merge must drop them when the typed value no longer has them.
 const OPTIONAL_APPEARANCE_KEYS: [&str; 4] = ["mode", "preset", "legacy_theme", "migration_version"];
 
-// ---------------------------------------------------------------------------
-// Injectable I/O
-// ---------------------------------------------------------------------------
-
-/// A step of a write or of a backup, in order.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Stage {
     Create,
     Write,
     Sync,
     Replace,
-    /// After the rename: the directory entry is not durable yet.
     DirSync,
     BackupDir,
     BackupCreate,
@@ -55,9 +32,6 @@ pub enum Stage {
     BackupSync,
 }
 
-/// Checked before every file operation of the repository. The real
-/// implementation never fails; tests inject a failure at any stage and the
-/// repository runs its real code up to that point.
 pub trait SettingsIo: Send + Sync {
     fn check(&self, _stage: Stage) -> io::Result<()> {
         Ok(())
@@ -66,10 +40,6 @@ pub trait SettingsIo: Send + Sync {
 
 pub struct RealIo;
 impl SettingsIo for RealIo {}
-
-// ---------------------------------------------------------------------------
-// Public states and errors
-// ---------------------------------------------------------------------------
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -137,7 +107,6 @@ impl PersistenceCode {
     }
 }
 
-/// Why a mutation was not confirmed. Carries codes and schema paths only.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RepoError {
     Validation(Vec<FieldError>),
@@ -153,7 +122,6 @@ pub enum RepoError {
 }
 
 impl RepoError {
-    /// A stable code for the internal writers that still return strings.
     pub fn code(&self) -> &'static str {
         match self {
             Self::Validation(_) => "invalid_request",
@@ -173,7 +141,6 @@ impl std::fmt::Display for RepoError {
     }
 }
 
-/// The IPC form of [`RepoError`] (`06-api-contract.md`, `ApiError`).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum ApiError {
@@ -258,8 +225,6 @@ impl From<RepoError> for ApiError {
     }
 }
 
-/// Parses an IPC revision: canonical decimal u64 (`0`, or digits without a
-/// leading zero), nothing else.
 pub fn parse_revision(s: &str) -> Option<u64> {
     let canonical = s == "0"
         || (!s.is_empty()
@@ -272,13 +237,11 @@ pub fn parse_revision(s: &str) -> Option<u64> {
     s.parse::<u64>().ok()
 }
 
-/// A confirmed mutation.
 #[derive(Debug, Clone)]
 pub struct Commit {
     pub before: AppSettings,
     pub after: AppSettings,
     pub revision: u64,
-    /// False when the mutation changed nothing: no write, no new revision.
     pub changed: bool,
 }
 
@@ -310,15 +273,12 @@ pub enum Gate {
         code: LoadFailure,
         recovery_id: Option<String>,
     },
-    /// The rename happened but its durability is not confirmed: no new
-    /// mutation, no "saved", no effect until a read reconciles.
     Indeterminate {
         attempted: u64,
         observed: Option<u64>,
     },
 }
 
-/// What readers see: the confirmed state.
 #[derive(Debug, Clone)]
 pub struct Snapshot {
     pub settings: AppSettings,
@@ -328,19 +288,12 @@ pub struct Snapshot {
     pub writable: bool,
 }
 
-// ---------------------------------------------------------------------------
-// Repository
-// ---------------------------------------------------------------------------
-
 struct Inner {
-    /// Top-level keys of the file other than the settings themselves are
-    /// kept here verbatim, together with the raw `app_settings` object.
     doc: Map<String, Value>,
     settings: AppSettings,
     revision: u64,
     status: LoadStatus,
     gate: Gate,
-    /// The bytes last read or written (`None` = no file).
     disk: Option<Vec<u8>>,
 }
 
@@ -348,8 +301,6 @@ pub struct SettingsRepository {
     dir: PathBuf,
     io: Arc<dyn SettingsIo>,
     inner: Mutex<Inner>,
-    /// Held for the repository's lifetime; `None` = another process owns
-    /// the profile and this repository is read-only.
     _lock: Option<File>,
 }
 
@@ -407,8 +358,6 @@ impl SettingsRepository {
         }
     }
 
-    /// The confirmed private settings (defaults while the load failed, so
-    /// internal readers keep working; mutations stay blocked).
     pub fn settings(&self) -> AppSettings {
         self.guard().settings.clone()
     }
@@ -416,8 +365,6 @@ impl SettingsRepository {
     pub fn revision(&self) -> u64 {
         self.guard().revision
     }
-
-    // -- load ---------------------------------------------------------------
 
     fn load(&self) -> Inner {
         match fs::read(self.path()) {
@@ -454,8 +401,6 @@ impl SettingsRepository {
                     Ok(s) => (s, LoadStatus::Loaded),
                     Err(_) => {
                         let (s, fields) = recover_settings(raw);
-                        // Recovery is only offered once the exact original
-                        // bytes are safe in an exclusive backup.
                         match self.write_backup(
                             BackupReason::FieldRecovery,
                             Some(revision),
@@ -488,8 +433,6 @@ impl SettingsRepository {
         }
     }
 
-    /// Re-reads the file when it changed behind the repository's back (a
-    /// hand edit), so a mutation always starts from the latest bytes.
     fn refresh_locked(&self, inner: &mut Inner) {
         let current = match fs::read(self.path()) {
             Ok(b) => Some(b),
@@ -529,12 +472,6 @@ impl SettingsRepository {
         }
     }
 
-    // -- mutations ----------------------------------------------------------
-
-    /// The one transaction every writer uses. `expected` = the revision the
-    /// caller edited (`None` for internal writers, which always edit the
-    /// latest). `f` receives the confirmed settings and returns the next
-    /// ones; an error from `f` leaves disk and snapshot untouched.
     pub fn mutate<F>(&self, expected: Option<u64>, f: F) -> Result<Commit, RepoError>
     where
         F: FnOnce(&AppSettings) -> Result<AppSettings, RepoError>,
@@ -555,8 +492,6 @@ impl SettingsRepository {
         let mut next = f(&before)?;
         next.migrate();
         crate::models::settings::normalize_appearance(&mut next);
-        // A recovered document is written in full on the first explicit
-        // edit, even when that edit equals the recovered values.
         let recovered = matches!(inner.status, LoadStatus::Recovered { .. });
         if !recovered && same(&before, &next) {
             return Ok(Commit {
@@ -569,8 +504,6 @@ impl SettingsRepository {
         self.commit_locked(&mut inner, before, next)
     }
 
-    /// The one-time appearance import: idempotent under the same lock, with
-    /// an exclusive backup and the marker in the same commit.
     pub fn import_appearance(
         &self,
         raw_workspace: Option<&str>,
@@ -647,7 +580,6 @@ impl SettingsRepository {
             }
             Err(WriteFailure::Before(code)) => Err(RepoError::Persistence(code)),
             Err(WriteFailure::AfterReplace) => {
-                // No rollback is possible or claimed: report what is on disk.
                 let observed = fs::read(self.path())
                     .ok()
                     .and_then(|b| serde_json::from_slice::<Value>(&b).ok())
@@ -664,10 +596,6 @@ impl SettingsRepository {
         }
     }
 
-    /// Called by reads: retries a failed load and settles an indeterminate
-    /// write (directory sync again, then the bytes on disk become the
-    /// confirmed state). Returns the adopted change, if any, so the caller
-    /// can schedule its effects.
     pub fn reconcile(&self) -> Option<Commit> {
         let mut inner = self.guard();
         match inner.gate.clone() {
@@ -707,8 +635,6 @@ impl SettingsRepository {
         }
     }
 
-    // -- file operations ----------------------------------------------------
-
     fn write_atomic(&self, bytes: &[u8]) -> Result<(), WriteFailure> {
         use PersistenceCode::*;
         let before = |code: PersistenceCode| move |_: io::Error| WriteFailure::Before(code);
@@ -726,8 +652,6 @@ impl SettingsRepository {
         self.io
             .check(Stage::Replace)
             .map_err(before(ReplaceFailed))?;
-        // On error the temp file comes back inside the error and is removed
-        // when dropped; the destination was not touched.
         tmp.persist(self.path())
             .map_err(|_| WriteFailure::Before(ReplaceFailed))?;
         self.sync_dir(Stage::DirSync)
@@ -739,9 +663,6 @@ impl SettingsRepository {
         sync_directory(&self.dir)
     }
 
-    /// Writes `<profile>/settings-recovery/<uuid>.json` with exclusive
-    /// creation. Base64 is an encoding, not encryption: the file is as
-    /// sensitive as `settings.json` and stays private and local.
     fn write_backup(
         &self,
         reason: BackupReason,
@@ -776,7 +697,6 @@ impl SettingsRepository {
             file.sync_all()
         })();
         if written.is_err() {
-            // Only our own partial file goes; nothing else in the folder.
             drop(file);
             let _ = fs::remove_file(&path);
             return Err(());
@@ -809,8 +729,6 @@ fn same(a: &AppSettings, b: &AppSettings) -> bool {
     serde_json::to_value(a).ok() == serde_json::to_value(b).ok()
 }
 
-/// The typed settings laid over the raw object of the file: known fields
-/// take the typed value, unknown keys (a newer version's fields) survive.
 fn merge_known(raw: &Value, typed: Value) -> Value {
     fn merge(raw: &Value, typed: Value) -> Value {
         match (raw, typed) {
@@ -865,7 +783,6 @@ fn restrict_file(f: &File) -> io::Result<()> {
 
 #[cfg(not(unix))]
 fn restrict_file(_f: &File) -> io::Result<()> {
-    // Windows: the file inherits the ACL of the per-user profile folder.
     Ok(())
 }
 
@@ -902,19 +819,11 @@ fn sync_directory(dir: &Path) -> io::Result<()> {
 
 #[cfg(not(unix))]
 fn sync_directory(_dir: &Path) -> io::Result<()> {
-    // Windows has no directory handle to flush; the rename is
-    // MoveFileEx(REPLACE_EXISTING) done by tempfile's persist.
     Ok(())
 }
 
-// ---------------------------------------------------------------------------
-// The process-wide instance
-// ---------------------------------------------------------------------------
-
 static GLOBAL: OnceLock<Arc<SettingsRepository>> = OnceLock::new();
 
-/// The profile's repository, opened on first use for the app data dir
-/// (which honors `OMNIGET_DATA_DIR`).
 pub fn global() -> Arc<SettingsRepository> {
     GLOBAL
         .get_or_init(|| {
@@ -937,7 +846,6 @@ mod tests {
     use serde_json::json;
     use std::sync::atomic::{AtomicBool, Ordering};
 
-    /// Fails `stage` while `armed` is set.
     struct Faulty {
         stage: Stage,
         armed: AtomicBool,
@@ -997,7 +905,6 @@ mod tests {
             .unwrap_or_default()
     }
 
-    // API-01
     #[test]
     fn revisions_are_canonical_decimal_u64() {
         for (s, v) in [
@@ -1025,7 +932,6 @@ mod tests {
         }
     }
 
-    // API-01: overflow refuses the mutation without writing.
     #[test]
     fn a_revision_at_u64_max_refuses_new_mutations() {
         let dir = tmp();
@@ -1061,11 +967,9 @@ mod tests {
             "keep me"
         );
         assert_eq!(disk["app_settings"]["bridge"]["token"], "paired-token");
-        // Same values again: no write, no new revision.
         let c = repo.mutate(Some(8), set_quality("480p")).unwrap();
         assert!(!c.changed);
         assert_eq!(repo.revision(), 8);
-        // No temp file is left behind.
         let leftovers: Vec<_> = fs::read_dir(dir.path())
             .unwrap()
             .filter_map(|e| e.ok())
@@ -1088,7 +992,6 @@ mod tests {
         assert_eq!(mode & 0o777, 0o600);
     }
 
-    // API-04 (backend half): one commit, one conflict, nothing lost.
     #[test]
     fn two_patches_on_the_same_revision_give_one_commit_and_one_conflict() {
         let dir = tmp();
@@ -1119,7 +1022,6 @@ mod tests {
         assert!(results
             .iter()
             .any(|r| matches!(r, Err(RepoError::Conflict { current: 8 }))));
-        // The explicit retry on the current revision keeps both intentions.
         let loser_wanted_quality = results[1].is_ok();
         let retry = if loser_wanted_quality {
             repo.mutate(Some(8), set_quality("480p"))
@@ -1136,7 +1038,6 @@ mod tests {
         assert!(s.start_minimized);
     }
 
-    // API-05
     #[test]
     fn a_failure_before_the_replace_keeps_bytes_and_snapshot() {
         for (stage, code) in [
@@ -1157,7 +1058,6 @@ mod tests {
             assert_eq!(fs::read(dir.path().join(SETTINGS_FILE)).unwrap(), original);
             assert_eq!(repo.revision(), 7);
             assert_eq!(repo.settings().download.video_quality, "1080p");
-            // The failed attempt left no temp file.
             let temps = fs::read_dir(dir.path())
                 .unwrap()
                 .filter_map(|e| e.ok())
@@ -1167,8 +1067,6 @@ mod tests {
         }
     }
 
-    // API-05: after the rename nothing is promised; the gate stays shut
-    // until a read reconciles.
     #[test]
     fn a_failure_after_the_replace_is_indeterminate_until_reconciled() {
         let dir = tmp();
@@ -1183,15 +1081,12 @@ mod tests {
                 observed: Some(8)
             }
         );
-        // Not published as saved.
         assert_eq!(repo.revision(), 7);
         assert_eq!(repo.settings().download.video_quality, "1080p");
-        // No new mutation until reconciliation.
         assert!(matches!(
             repo.mutate(None, set_quality("360p")),
             Err(RepoError::Indeterminate { .. })
         ));
-        // Durability still unconfirmed: reconcile refuses.
         assert!(repo.reconcile().is_none());
         io.armed.store(false, Ordering::SeqCst);
         let adopted = repo.reconcile().expect("reconciled");
@@ -1201,7 +1096,6 @@ mod tests {
         assert!(repo.mutate(Some(8), set_quality("360p")).is_ok());
     }
 
-    // API-09
     #[test]
     fn an_absent_file_is_not_written_by_reading() {
         let dir = tmp();
@@ -1216,7 +1110,6 @@ mod tests {
         assert!(!dir.path().join(SETTINGS_FILE).exists());
     }
 
-    // API-09
     #[test]
     fn an_unreadable_document_blocks_mutations_and_is_never_overwritten() {
         for content in [&b"{ not json"[..], b"[1,2]", br#"{"app_settings": 5}"#] {
@@ -1250,8 +1143,6 @@ mod tests {
         ));
     }
 
-    // API-09 + the audit contract: one bad field is recovered alone, after a
-    // backup of the exact bytes, and nothing is written until an edit.
     #[test]
     fn a_bad_field_is_recovered_alone_after_an_exclusive_backup() {
         let dir = tmp();
@@ -1272,7 +1163,6 @@ mod tests {
         assert_eq!(snap.settings.download.video_quality, "1080p");
         assert_eq!(snap.settings.bridge.token, "paired-token");
         assert_eq!(snap.settings.proxy.port, 8080);
-        // Original untouched; backup holds its exact bytes.
         assert_eq!(fs::read(dir.path().join(SETTINGS_FILE)).unwrap(), original);
         let backup: Value = serde_json::from_slice(
             &fs::read(
@@ -1290,7 +1180,6 @@ mod tests {
                 .unwrap(),
             original
         );
-        // The first explicit edit writes the whole recovered document.
         let c = repo.mutate(Some(7), |s| Ok(s.clone())).unwrap();
         assert!(c.changed);
         let disk: Value =
@@ -1303,7 +1192,6 @@ mod tests {
         assert_eq!(repo.snapshot().status, LoadStatus::Loaded);
     }
 
-    // API-08
     #[test]
     fn a_backup_failure_blocks_recovery_and_keeps_the_original() {
         for stage in [
@@ -1337,7 +1225,6 @@ mod tests {
         }
     }
 
-    // API-07 / API-08
     #[test]
     fn the_appearance_import_runs_once_with_a_backup_and_the_marker_in_one_commit() {
         let dir = tmp();
@@ -1388,8 +1275,6 @@ mod tests {
             assert_eq!((f, d), (0o600, 0o700));
         }
 
-        // The user edits after the import; a late import (lost response,
-        // another WebView) never brings the old appearance back.
         repo.mutate(Some(8), |s| {
             crate::models::settings::apply_patch(s, &json!({ "appearance": { "mode": "dark" } }))
                 .map_err(|_| RepoError::Validation(vec![]))
@@ -1400,7 +1285,6 @@ mod tests {
         assert_eq!(repo.settings().appearance.mode.as_deref(), Some("dark"));
         assert_eq!(recovery_files(dir.path()).len(), 1);
 
-        // A restart reads the marker from disk.
         drop(repo);
         let reopened = SettingsRepository::open(dir.path().into());
         assert_eq!(
@@ -1409,7 +1293,6 @@ mod tests {
         );
     }
 
-    // API-08: a failed backup blocks the migration.
     #[test]
     fn the_import_needs_its_backup() {
         let dir = tmp();
@@ -1425,7 +1308,6 @@ mod tests {
         assert_eq!(fs::read(dir.path().join(SETTINGS_FILE)).unwrap(), original);
     }
 
-    // API-08: an import on a new install backs up "no file" and still commits.
     #[test]
     fn a_new_install_import_records_the_missing_file() {
         let dir = tmp();
@@ -1443,7 +1325,6 @@ mod tests {
         assert_eq!(backup["originalWorkspace"], Value::Null);
     }
 
-    // API-11
     #[test]
     fn a_second_writer_of_the_same_profile_is_refused_before_writing() {
         let dir = tmp();
@@ -1462,14 +1343,12 @@ mod tests {
             RepoError::Unavailable(UnavailableCode::ProfileReadOnly)
         );
         assert_eq!(fs::read(dir.path().join(SETTINGS_FILE)).unwrap(), before);
-        // The second one still reads.
         assert_eq!(second.settings().download.video_quality, "1080p");
         drop(owner);
         drop(second);
         assert!(SettingsRepository::open(dir.path().into()).is_writable());
     }
 
-    // API-11: the standalone reader observes the complete committed file.
     #[test]
     fn a_standalone_read_sees_the_committed_file() {
         let dir = tmp();

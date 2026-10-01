@@ -1,29 +1,3 @@
-//! The mission driver: turns a mission (objective + criteria + tasks, in
-//! `assist.db`) into jobs, checks, and a verified outcome.
-//!
-//! One driver per app, one task per active mission. It never decides that a
-//! mission succeeded: it dispatches ready tasks as jobs (`jobs.db`, kind
-//! `mission`), runs the verifiers of the current criteria against the
-//! artifacts as they are now, and asks the domain (`missions::complete`),
-//! which moves to `succeeded` only when every required criterion passed for
-//! those artifacts. A failing check becomes the next round's prompt, bounded
-//! by the progress guard; a round that changes nothing stops with a
-//! diagnosis.
-//!
-//! What it keeps honest:
-//! - every dispatch reserves on the mission's budget pool first (work, review
-//!   and evaluation calls alike) and settles with what the job reported;
-//!   unknown cost stays unknown;
-//! - every dispatch is an effect in the journal (`task:<id>:job:<job>`); at
-//!   boot a job that finished confirms it, one that was interrupted mid-turn
-//!   leaves it unknown and blocks the task instead of repeating it;
-//! - pins (runtime/account/folder) are checked before a mission resumes;
-//! - commands run only from criteria the user wrote (or presets), in the
-//!   mission workspace, through the same sandboxed shell as the Loop check;
-//! - specialists of a group room run in their room session (room scopes
-//!   only); the coordinator runs in the mission conversation; only the last
-//!   task's result is the mission's delivery.
-
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, OnceLock};
@@ -49,10 +23,8 @@ use crate::llm_manager::sanitize_id;
 pub const EVENT_MISSION: &str = "assist://mission";
 const LEASE_MS: i64 = 10 * 60 * 1000;
 const HEARTBEAT_S: u64 = 60;
-/// Characters of rebuilt context a task prompt carries.
 const CONTEXT_CHARS: usize = 6_000;
 
-/// Tool calls and failed calls of one mission's current round.
 type RoundCalls = (Vec<String>, Vec<String>);
 
 pub struct Driver {
@@ -61,16 +33,10 @@ pub struct Driver {
     running: Mutex<HashSet<String>>,
     instance: String,
     guards: Mutex<std::collections::HashMap<String, Vec<progress::RoundObservation>>>,
-    /// Tool calls of the current round, per mission, collected from every
-    /// task conversation before it is detached (F9).
     calls: Mutex<std::collections::HashMap<String, RoundCalls>>,
-    /// Reservations kept after a job with no terminal result: booked
-    /// (conservatively, at their estimate) on the mission's next step (F6).
     kept: Mutex<std::collections::HashMap<String, Vec<(String, u64)>>>,
 }
 
-/// A budget reservation released on every exit that did not settle or keep
-/// it (early returns, `?`, a dropped future). F2.
 struct Held {
     budget: Arc<BudgetStore>,
     id: Option<String>,
@@ -90,7 +56,6 @@ impl Drop for Held {
     }
 }
 
-/// Cancels a job if the future awaiting it is dropped (a policy timeout).
 struct CancelOnDrop {
     jobs: Arc<jobs::Jobs>,
     id: Option<String>,
@@ -104,7 +69,6 @@ impl Drop for CancelOnDrop {
     }
 }
 
-/// The mission's durable spend as a floor for its lifetime budget pool.
 fn spend_floor(m: &Mission) -> AgentSpend {
     AgentSpend {
         usd: m.spent.usd_known,
@@ -115,15 +79,11 @@ fn spend_floor(m: &Mission) -> AgentSpend {
     }
 }
 
-/// Milliseconds of `max_minutes` left, counting only work time: running and
-/// automated verification. Paused, blocked or queued time, and time spent in
-/// `verifying` waiting for a person's decision, is not spent. F7.
 fn time_left_ms(m: &Mission) -> Option<i64> {
     let max = m.budget.max_minutes? as i64 * 60_000;
     Some(max - missions::active_ms(m, now_ms()) as i64)
 }
 
-/// Epoch ms at which the rest of `max_minutes` runs out for a job starting now.
 fn deadline_ms(m: &Mission) -> Option<u64> {
     time_left_ms(m).map(|left| (now_ms().max(0) + left.max(0)) as u64)
 }
@@ -136,8 +96,6 @@ fn time_limit_reason(m: &Mission) -> String {
     )
 }
 
-/// The block shown when the time limit ran out, with what was used and what
-/// a person can do about it.
 fn time_limit_diagnosis(m: &Mission) -> diag::Diagnosis {
     let used = missions::active_ms(m, now_ms()) as f64 / 60_000.0;
     let max = m.budget.max_minutes.unwrap_or(0);
@@ -156,7 +114,6 @@ fn time_limit_diagnosis(m: &Mission) -> diag::Diagnosis {
     d
 }
 
-/// Rounds whose calls are all status reads are polling, not a loop (F9).
 fn looks_like_polling(calls: &[String]) -> bool {
     !calls.is_empty()
         && calls.iter().all(|c| {
@@ -185,8 +142,6 @@ pub fn driver(app: &AppHandle) -> Result<Arc<Driver>, String> {
     Ok(DRIVER.get().cloned().unwrap_or(d))
 }
 
-/// Boot: reconcile what the last session left, then drive what is queued.
-/// Called once the jobs database is open (its own reconciliation ran).
 pub fn boot(app: &AppHandle) {
     let Ok(d) = driver(app) else {
         tracing::warn!("[missions] no assistant database; missions are off");
@@ -206,10 +161,8 @@ pub fn boot(app: &AppHandle) {
         let job_id = x.key.rsplit(":job:").next()?;
         let job = jobs.job(job_id)?;
         match job.state.as_str() {
-            // `review`: it ended well and wrote files (2.4).
             "done" | "review" => Some(true),
             "failed" | "cancelled" => Some(false),
-            // Interrupted before anything was sent: it never happened.
             "interrupted" | "queued" | "waiting_workspace"
                 if job.started_ms.is_none() && job.request_id.is_none() =>
             {
@@ -227,7 +180,6 @@ pub fn boot(app: &AppHandle) {
                     r.missions.len()
                 );
             }
-            // Recovered tasks read their result back from the job.
             for mid in &r.missions {
                 if let Ok(ts) = missions::tasks(&d.db, mid) {
                     for t in ts.iter().filter(|t| {
@@ -266,7 +218,6 @@ pub fn boot(app: &AppHandle) {
     d.start_group_bridge();
 }
 
-/// A cron/webhook trigger that carries a mission template fires here.
 pub fn start_from_trigger(
     app: &AppHandle,
     t: &jobs::Trigger,
@@ -299,10 +250,7 @@ fn short_hash(s: &str) -> String {
     hex::encode(&Sha256::digest(s.as_bytes())[..8])
 }
 
-/// Session of a task: specialists of a room run in their room session;
-/// everyone else in the mission conversation (or a per-bot sub-conversation).
 pub fn conversation_for(m: &Mission, t: &MissionTask, coordinator: Option<&str>) -> String {
-    // External tasks never enter a personal room or a derived unbound session.
     if omniget_core::core::assist::authority::external(&m.conversation_id) {
         return m.conversation_id.clone();
     }
@@ -341,7 +289,6 @@ impl Driver {
         }
     }
 
-    /// Starts driving `id` unless it is already being driven.
     pub fn start(self: &Arc<Self>, id: &str) {
         {
             let mut r = self.running.lock().unwrap_or_else(|e| e.into_inner());
@@ -376,7 +323,6 @@ impl Driver {
             .contains(id)
     }
 
-    /// Stops the jobs a cancel/pause reported as live.
     pub fn stop_jobs(&self, live: &[String]) {
         if let Ok(j) = self.jobs() {
             for id in live {
@@ -429,9 +375,6 @@ impl Driver {
         policy::Engine::new(policy::defaults())
     }
 
-    /// Books the reservations kept after jobs with no terminal result, at
-    /// their estimate and as unknown cost: the turn may have run, so it is
-    /// counted, and the pool is free again for the next dispatch (F6).
     fn settle_kept(&self, mission_id: &str) {
         let kept = self
             .kept
@@ -468,8 +411,6 @@ impl Driver {
             .unwrap_or_default()
     }
 
-    /// Limits of one job of `m`: the mission's token/USD cap checked after
-    /// every model request against the lifetime pool, and `max_minutes` (F7).
     fn job_guard(&self, m: &Mission) -> jobs::JobGuard {
         let budget = self.llm().budget();
         let pool = missions::budget_pool(&m.id);
@@ -503,10 +444,6 @@ impl Driver {
         }
     }
 
-    /// A prepared job that must not run (the mission was paused/cancelled
-    /// between claim and dispatch): cancel it, settle its effect as not
-    /// happened, give the task back without spending the attempt. The
-    /// reservation is released by its [`Held`] guard. F2.
     fn abandon_prepared(
         &self,
         jobs: &Arc<jobs::Jobs>,
@@ -521,14 +458,11 @@ impl Driver {
             let _ =
                 missions::effect_settle(&self.db, key, false, &format!("not dispatched: {why}"));
         }
-        // Fails harmlessly when a cancel already took the task.
         let _ =
             missions::release_claim(&self.db, task_id, owner, &format!("not dispatched: {why}"));
     }
 
     fn checkpoint(&self, m: &Mission, reason: &str) {
-        // Generic checkpoints snapshot personal bot skill bindings and learning
-        // overlays. External context is rebuilt from mission-owned rows below.
         if omniget_core::core::assist::authority::external(&m.conversation_id) {
             return;
         }
@@ -580,13 +514,10 @@ impl Driver {
                             return Ok(());
                         }
                     }
-                    // A27: the runtime must be able to do what the mission needs.
                     if let Some(agent) = m.bot_id.as_deref().and_then(|b| self.llm().agent(b)) {
                         let caps = if matches!(agent.runtime, RuntimeKind::Native) {
                             omniget_core::core::llm::caps::for_runtime(&agent.runtime)
                         } else {
-                            // Probed, not the conservative default: a restart
-                            // empties the cache and must not strand a mission.
                             omniget_core::core::llm::caps::probe(&agent.runtime).await
                         };
                         let crit = missions::criteria(&self.db, id, None)?;
@@ -646,10 +577,6 @@ impl Driver {
             let ready = missions::ready_tasks(&self.db, id)?;
             if !ready.is_empty() {
                 rounds_without_work = 0;
-                // No mission cap of its own any more (W2): the fan-out is the
-                // job cap, and every task still passes the one job gate, which
-                // lets a job a person started go first and never runs more
-                // than the cap in total. Tasks in the same folder take turns.
                 let width = self.jobs().map(|j| j.max_parallel()).unwrap_or(1);
                 let batch: Vec<MissionTask> = ready.into_iter().take(width).collect();
                 let futs = batch.into_iter().map(|t| {
@@ -677,7 +604,6 @@ impl Driver {
                 continue;
             }
             if ts.iter().any(|t| t.state == TaskState::Pending) {
-                // Pending but not ready: waiting on something that will not come.
                 missions::skip_poisoned(&self.db, id)?;
                 if missions::ready_tasks(&self.db, id)?.is_empty() {
                     let d = diag::Diagnosis::new(
@@ -698,9 +624,6 @@ impl Driver {
                 }
                 continue;
             }
-            // The newest task failed after its attempts: the work did not
-            // happen (provider down, tool refused, budget). Another round
-            // would fail the same way; say what failed instead.
             if let Some(last) = ts
                 .iter()
                 .max_by_key(|t| t.position)
@@ -719,8 +642,6 @@ impl Driver {
                 missions::block(&self.db, id, MissionState::Blocked, &d)?;
                 return Ok(());
             }
-            // Every task is terminal: verify. A mission that was waiting for a
-            // person gets its work clock back while the checks run.
             missions::start_clock(&self.db, id)?;
             let before = self
                 .engine()
@@ -733,8 +654,6 @@ impl Driver {
                 .await;
             let _ = policy::persist(&self.db, id, &before);
             let m = missions::get(&self.db, id)?;
-            // F12: a required verification policy that failed or timed out
-            // never lets `complete` run: nothing can turn it into a pass.
             let (m, verdict) = if let Some(why) = before.blocked.clone() {
                 let crit = missions::criteria(&self.db, id, None)?;
                 let recs = missions::receipts(&self.db, id)?;
@@ -767,15 +686,11 @@ impl Driver {
                     return Ok(());
                 }
                 MissionState::Verifying => {
-                    // Waiting for a person (rubric/human criteria).
                     self.emit(id);
                     return Ok(());
                 }
                 _ => {}
             }
-            // Failing checks: next round, unless the guard says it is a loop.
-            // The calls were collected per mission before each task's
-            // conversation was detached (F9).
             let (calls, fails) = self.take_mission_calls(id);
             let crit = missions::criteria(&self.db, id, None)?;
             let dig = self.digest_fn(&m);
@@ -789,7 +704,6 @@ impl Driver {
                     .iter()
                     .map(|c| format!("{}:{}", c.id, c.status)),
             );
-            // The round counter survives a restart: rebuilt from the events.
             let persisted = if self
                 .guards
                 .lock()
@@ -831,7 +745,6 @@ impl Driver {
                     };
                     d.detail = Some(format!("{reason}\n{}", verdict.summary()));
                     if !fails.is_empty() {
-                        // Which tools kept failing is usually the real cause.
                         let mut seen: Vec<(String, usize)> = Vec::new();
                         for f in &fails {
                             match seen.iter_mut().find(|(n, _)| n == f) {
@@ -902,7 +815,6 @@ impl Driver {
         }
     }
 
-    /// Runs one task as a job, inside the mission's budget and effect journal.
     async fn run_task(self: &Arc<Self>, m: &Mission, t: MissionTask) -> Result<(), String> {
         let owner = format!("{}:{}", self.instance, m.id);
         let t = missions::claim(&self.db, &t.id, &owner, LEASE_MS, now_ms())?;
@@ -939,8 +851,6 @@ impl Driver {
             .and_then(|r| r.coordinator);
         let conv = conversation_for(m, &t, coordinator.as_deref());
         let prompt = self.compose(m, &t, &agent)?;
-        // Budget first, on the mission's lifetime pool (F5), never below the
-        // mission's own durable spend.
         let pool = missions::budget_pool(&m.id);
         let budget = llm.budget();
         budget.seed_lifetime(&pool, &spend_floor(m));
@@ -958,8 +868,6 @@ impl Driver {
                 id: Some(r),
             },
             Err(e) if budget.has_in_flight(&pool) => {
-                // F6: another task of this mission holds a reservation; this
-                // one waits for it instead of blocking the whole mission.
                 tracing::debug!(
                     "[missions] {}: task {} waits for the budget: {}",
                     m.id,
@@ -1032,14 +940,10 @@ impl Driver {
                 return Ok(());
             }
             Err(e) => {
-                // Paused or cancelled right after the claim (F2).
                 self.abandon_prepared(&jobs, &job.id, None, &t.id, &owner, &e);
                 return Ok(());
             }
         }
-        // `task_started` checks the mission state in the transaction that
-        // records the job: a pause/cancel before it refuses here; one after
-        // it sees the job in `live_jobs` and stops it (F2).
         if let Err(e) = missions::task_started(&self.db, &t.id, &owner, &job.id) {
             self.abandon_prepared(&jobs, &job.id, Some(&key), &t.id, &owner, &e);
             return Ok(());
@@ -1072,7 +976,6 @@ impl Driver {
                 }
             })
         };
-        // Its turns also count against the mission's budget policies (3.3).
         let _budget_scope = omniget_core::core::llm::budget::policy::Binding::new(
             &crate::llm_manager::sanitize_id(&job.conversation_id),
             vec![omniget_core::core::llm::budget::policy::Scope::Mission(
@@ -1081,7 +984,6 @@ impl Driver {
         );
         let done: Option<Job> = jobs.run_prepared_guarded(&job.id, self.job_guard(m)).await;
         hb.abort();
-        // F9: the round's calls are read before the conversation is detached.
         let (calls, fails) = hooks::take_calls(&sconv);
         self.note_calls(&m.id, calls, fails);
         hooks::detach(&sconv);
@@ -1091,9 +993,6 @@ impl Driver {
         let Some(done) =
             done.filter(|j| matches!(j.state.as_str(), "done" | "review" | "failed" | "cancelled"))
         else {
-            // No terminal job is not proof that the turn did not run. Keep
-            // its durable effect open; recovery must classify it as Unknown.
-            // The reservation is booked at its estimate on the next step.
             if let Some(r) = reservation.take() {
                 self.kept
                     .lock()
@@ -1116,7 +1015,6 @@ impl Driver {
             )?;
             return Ok(());
         };
-        // Cancelled before it was sent: nothing ran, nothing is booked.
         let never_sent =
             done.state == "cancelled" && done.started_ms.is_none() && done.request_id.is_none();
         if !never_sent {
@@ -1138,8 +1036,6 @@ impl Driver {
             "done" | "review" => TaskEnd::Done {
                 result: done.result.clone().unwrap_or_default(),
             },
-            // While the mission is paused the domain turns this into an
-            // interruption (back to pending, attempt refunded): F1.
             "cancelled" => TaskEnd::Cancelled,
             _ => {
                 let err = done
@@ -1158,7 +1054,6 @@ impl Driver {
         };
         match missions::finish_task(&self.db, &t.id, &owner, end) {
             Ok(_) => {}
-            // A cancel took the task already: nothing left to report.
             Err(e) if e.starts_with(missions::ERR_MISSION_CLAIMED) => return Ok(()),
             Err(e) => return Err(e),
         }
@@ -1167,9 +1062,6 @@ impl Driver {
         Ok(())
     }
 
-    /// The task prompt: the task, what its dependencies delivered, and the
-    /// context rebuilt from the latest checkpoint (objective verbatim,
-    /// criteria, the user's corrections). No transcript dump.
     fn compose(&self, m: &Mission, t: &MissionTask, agent: &AgentDef) -> Result<String, String> {
         let all = missions::tasks(&self.db, &m.id)?;
         let mut out = String::new();
@@ -1216,14 +1108,10 @@ impl Driver {
         Ok(out)
     }
 
-    /// Runs every verifier of the current criteria and records receipts.
     pub async fn verify_all(self: &Arc<Self>, mission_id: &str) -> Result<(), String> {
         let m = missions::get(&self.db, mission_id)?;
         let crit = missions::criteria(&self.db, mission_id, None)?;
         let ws = m.workspace.clone().map(PathBuf::from);
-        // What the receipts verified, by the head the mission's work reached
-        // (2.4): the `head` of the newest proof among its jobs (a commit in
-        // a worktree, a snapshot tree in the shared folder).
         let head = self.work_head(&m.id);
         for c in crit {
             if omniget_core::core::assist::authority::external(&m.conversation_id)
@@ -1299,7 +1187,6 @@ impl Driver {
         Ok(())
     }
 
-    /// The `head` of the newest proof among the mission's jobs.
     fn work_head(&self, mission_id: &str) -> Option<String> {
         let jobs = jobs::get(&self.app).ok()?;
         missions::effects(&self.db, mission_id)
@@ -1406,8 +1293,6 @@ impl Driver {
         }
     }
 
-    /// A rubric review by another bot: recorded with its confidence. It only
-    /// decides a criterion whose acceptance is `single_review`.
     async fn review(
         self: &Arc<Self>,
         m: &Mission,
@@ -1453,11 +1338,8 @@ impl Driver {
         );
         let llm = self.llm();
         let pool = missions::budget_pool(&m.id);
-        // An empty digest lets the receipt bind to the criterion's artifact,
-        // or (no artifact) to the revision of what was delivered (F3).
         let budget = llm.budget();
         budget.seed_lifetime(&pool, &spend_floor(m));
-        // Released on every early exit, and if a policy timeout drops us.
         let mut reservation = match budget.reserve(
             &pool,
             &missions::pool_limits(&m.budget),
@@ -1561,8 +1443,6 @@ impl Driver {
 
 fn usage_of(job: &Job) -> ((u64, u64), Option<f64>) {
     let u = job.usage.clone().unwrap_or(Value::Null);
-    // Input weighted by price: cache reads 0.1x, cache writes 1.25x. The
-    // cache is part of `input_tokens` (legacy raw records are detected).
     let n = |k: &str| u[k].as_u64().unwrap_or(0);
     let input = omniget_core::core::llm::types::billable_input(
         n("input_tokens"),
@@ -1573,7 +1453,6 @@ fn usage_of(job: &Job) -> ((u64, u64), Option<f64>) {
     ((input, output), u["cost_usd"].as_f64())
 }
 
-/// Carries out policy effects for the driver.
 struct Runner {
     driver: Arc<Driver>,
 }
@@ -1631,16 +1510,9 @@ impl policy::EffectRunner for Runner {
     }
 }
 
-// ── C02 bridge: external group tasks run as child external missions ──────
-
 const GROUP_TASK_PREFIX: &str = "omniget-group-task-";
 
 impl Driver {
-    /// Polls external group tasks (created through `group_tasks_create`) and
-    /// runs each one under the external authority of its derived bot: a child
-    /// external mission whose deliverable is a file in the granted workspace,
-    /// verified like any other artifact. Never the legacy LOCAL_USER room
-    /// dispatcher. One task at a time per process (bounded fan-out).
     pub fn start_group_bridge(self: &Arc<Self>) {
         let this = self.clone();
         tauri::async_runtime::spawn(async move {
@@ -1667,7 +1539,6 @@ impl Driver {
         use omniget_core::core::assist::groups::tasks::RunEnd;
         let run_id = format!("grprun-{}", uuid::Uuid::new_v4().simple());
         let run = xc::claim_task(&self.db, principal, task_id, &run_id)?;
-        // Root level: external writes create files only in existing directories.
         let rel = format!("{GROUP_TASK_PREFIX}{task_id}.md");
         let budget = run.authority.max_tokens.clamp(1, 60_000);
         let new = missions::NewMission {
@@ -1793,9 +1664,6 @@ impl Driver {
     }
 }
 
-/// A receipt's `artifact_ref` with the head the verified work reached
-/// (2.4): `<ref>@<head>`, or `head:<head>` when the verifier named no
-/// artifact. Unchanged without a head.
 pub fn artifact_ref_at(artifact_ref: &str, head: Option<&str>) -> String {
     match head.filter(|h| !h.is_empty()) {
         Some(h) if artifact_ref.is_empty() => format!("head:{h}"),

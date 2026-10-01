@@ -1,54 +1,27 @@
-//! What a skill says it needs, read from its manifest.
-//!
-//! Two fields carry it:
-//! - `allowed-tools` (the Agent Skills field; Claude Code reads it as "tools
-//!   this skill may use"): `Read Bash(pdftk:*) WebSearch mcp__files__read`;
-//! - `metadata.requires` (or `metadata.omniget-requires`): OmniGet tool names
-//!   or the same spellings, space- or comma-separated.
-//!
-//! Both are read as **dependencies**, never as grants. A skill that lists
-//! `Bash` does not get a shell: the bot either already has the capability
-//! (and, for scripts, the binding allows running them) or the skill is shown
-//! as missing that dependency and is left out of the turn (spec A02, A20).
-
 use serde::{Deserialize, Serialize};
 
 use super::manifest::SkillManifest;
 
-/// The kind of thing a dependency asks for. The bot layer maps each kind to
-/// the tools that satisfy it.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum DepKind {
-    /// Search or fetch on the web.
     Web,
-    /// Read files of a project folder.
     ProjectRead,
-    /// Change files of a project folder.
     ProjectWrite,
-    /// Run a command (the skill's scripts included).
     Shell,
-    /// The bot's personal memory.
     Memory,
-    /// One tool of one MCP server.
     Mcp { server: String, tool: String },
-    /// One OmniGet tool, by its exact name.
     Tool { name: String },
-    /// A name we cannot check (a tool of another agent product). Shown, not
-    /// enforced.
     Unknown,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Dependency {
-    /// As written in the manifest.
     pub raw: String,
     #[serde(flatten)]
     pub kind: DepKind,
 }
 
-/// Every dependency the manifest declares, deduplicated by kind, in the order
-/// they first appear.
 pub fn dependencies(skill: &SkillManifest) -> Vec<Dependency> {
     let mut raw: Vec<String> = skill.allowed_tools.clone();
     for key in ["requires", "omniget-requires", "omniget_requires"] {
@@ -77,9 +50,7 @@ pub fn dependencies(skill: &SkillManifest) -> Vec<Dependency> {
     out
 }
 
-/// One spelling to its kind.
 pub fn classify(raw: &str) -> DepKind {
-    // `Bash(git:*)` → `bash`.
     let base = raw.split('(').next().unwrap_or(raw).trim();
     let lower = base.to_ascii_lowercase();
     if let Some(rest) = lower.strip_prefix("mcp__") {

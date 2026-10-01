@@ -1,18 +1,8 @@
-//! Pure parsers of the monitor: `ioreg` (battery plist, GPU statistics),
-//! `nvidia-smi` CSV, `/proc/stat`, `/proc/pressure/memory`, the Windows
-//! battery report XML, SMC values and PDH GPU counters. Compiled on every OS
-//! so each CI tests the parsers of the other two.
-
 #![allow(dead_code)]
 
 use serde::Serialize;
 use serde_json::{Map, Value};
 
-// ── XML property list ────────────────────────────────────────────────────
-
-/// Parse an XML plist (`ioreg -a`) into JSON. `<data>` and `<date>` stay
-/// strings. IOKit prints signed values as unsigned 64-bit, so an integer
-/// that only fits in `u64` is read back as the `i64` it stands for.
 pub fn plist(xml: &str) -> Result<Value, String> {
     let doc = roxmltree::Document::parse_with_options(
         xml,
@@ -76,36 +66,28 @@ fn plist_value(n: roxmltree::Node) -> Value {
     }
 }
 
-// ── Battery ──────────────────────────────────────────────────────────────
-
-/// Battery health, the same shape on every system. Fields the system does
-/// not expose stay `None` and are left out of the JSON.
 #[derive(Debug, Clone, Default, Serialize, PartialEq)]
 pub struct Battery {
     pub present: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cycles: Option<i64>,
-    /// Full charge capacity against design capacity, 0-100 (capped).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub health_percent: Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub design_capacity: Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub full_charge_capacity: Option<f64>,
-    /// `mAh` or `mWh`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub capacity_unit: Option<&'static str>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub charge_percent: Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub temperature_c: Option<f64>,
-    /// `charging`, `discharging`, `full`, `not_charging` or `unknown`.
     pub state: &'static str,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub on_ac: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub voltage_v: Option<f64>,
-    /// Positive while charging, negative while discharging.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub power_w: Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -119,8 +101,6 @@ fn round1(v: f64) -> f64 {
     (v * 10.0).round() / 10.0
 }
 
-/// Health from full and design capacity, capped at 100 (a new battery
-/// often reads a little above its design).
 pub fn health(full: f64, design: f64) -> Option<f64> {
     (design > 0.0 && full > 0.0).then(|| round1((full / design * 100.0).min(100.0)))
 }
@@ -137,10 +117,7 @@ fn flag(v: &Value, key: &str) -> Option<bool> {
     v.get(key).and_then(|x| x.as_bool())
 }
 
-/// `ioreg -r -c AppleSmartBattery -a`. On Apple Silicon `MaxCapacity` and
-/// `CurrentCapacity` are percentages (100), so the real full charge is
-/// `AppleRawMaxCapacity`; on Intel `MaxCapacity` is in mAh. Treating the
-/// Apple Silicon `MaxCapacity` as health is the classic bug (100% forever).
+// WHY: on Apple Silicon MaxCapacity is a percentage; the real full charge is AppleRawMaxCapacity.
 pub fn battery_from_ioreg(v: &Value) -> Battery {
     let b = match v {
         Value::Array(a) => a.first(),
@@ -223,8 +200,6 @@ pub fn battery_from_ioreg(v: &Value) -> Battery {
     }
 }
 
-/// `powercfg /batteryreport /xml`: design and full charge capacity in mWh
-/// and the cycle count (many firmwares report 0, which means unknown).
 pub fn battery_from_powercfg(xml: &str) -> Result<Option<Battery>, String> {
     let doc = roxmltree::Document::parse(xml).map_err(|e| format!("battery report: {e}"))?;
     let Some(bat) = doc.descendants().find(|n| n.tag_name().name() == "Battery") else {
@@ -256,13 +231,9 @@ pub fn battery_from_powercfg(xml: &str) -> Result<Option<Battery>, String> {
     }))
 }
 
-// ── GPU ──────────────────────────────────────────────────────────────────
-
-/// One GPU and what the system says about its load.
 #[derive(Debug, Clone, Default, Serialize, PartialEq)]
 pub struct Gpu {
     pub name: String,
-    /// `apple`, `amd`, `intel`, `nvidia` or `unknown`.
     pub vendor: &'static str,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub utilization_percent: Option<f64>,
@@ -289,7 +260,6 @@ pub struct Gpu {
     pub source: &'static str,
 }
 
-/// Value of `"Key"=number` inside an ioreg inline dictionary.
 fn inline_num(dict: &str, key: &str) -> Option<f64> {
     let pat = format!("\"{key}\"=");
     let at = dict.find(&pat)? + pat.len();
@@ -298,7 +268,6 @@ fn inline_num(dict: &str, key: &str) -> Option<f64> {
     rest[..end].trim().parse::<f64>().ok()
 }
 
-/// Value of a `"key" = ...` property line.
 fn prop<'a>(block: &'a str, key: &str) -> Option<&'a str> {
     let pat = format!("\"{key}\" = ");
     block
@@ -322,8 +291,6 @@ fn vendor_from_class(class: &str) -> &'static str {
     }
 }
 
-/// `ioreg -r -d 1 -w 0 -c IOAccelerator`: one block per accelerator, with
-/// `PerformanceStatistics` printed as an inline dictionary.
 pub fn gpus_from_ioreg(text: &str) -> Vec<Gpu> {
     let mut out = Vec::new();
     for block in text.split("+-o ").skip(1) {
@@ -364,9 +331,6 @@ pub fn gpus_from_ioreg(text: &str) -> Vec<Gpu> {
     out
 }
 
-/// `nvidia-smi --query-gpu=index,name,utilization.gpu,temperature.gpu,
-/// fan.speed,power.draw,clocks.gr,memory.used,memory.total
-/// --format=csv,noheader,nounits`. `[N/A]` and `[Not Supported]` are None.
 pub const NVIDIA_QUERY: &str =
     "--query-gpu=index,name,utilization.gpu,temperature.gpu,fan.speed,power.draw,clocks.gr,memory.used,memory.total";
 
@@ -397,9 +361,6 @@ pub fn gpus_from_nvidia_smi(text: &str) -> Vec<Gpu> {
         .collect()
 }
 
-/// PDH `\GPU Engine(*)\Utilization Percentage` items (instance name, value)
-/// into one utilization per adapter: the busiest engine type, summing the
-/// processes of each (`pid_12_luid_0x0_0xC2D4_phys_0_eng_0_engtype_3D`).
 pub fn gpu_util_from_pdh(items: &[(String, f64)]) -> Vec<(String, f64)> {
     use std::collections::BTreeMap;
     let mut by: BTreeMap<(String, String), f64> = BTreeMap::new();
@@ -424,9 +385,6 @@ pub fn gpu_util_from_pdh(items: &[(String, f64)]) -> Vec<(String, f64)> {
     per.into_iter().map(|(l, v)| (l, round1(v))).collect()
 }
 
-// ── Linux /proc ──────────────────────────────────────────────────────────
-
-/// Jiffies of the aggregate `cpu` line of `/proc/stat`.
 #[derive(Debug, Clone, Copy, Default, PartialEq)]
 pub struct CpuTimes {
     pub busy: u64,
@@ -434,8 +392,6 @@ pub struct CpuTimes {
     pub total: u64,
 }
 
-/// The aggregate `cpu` line (user nice system idle iowait irq softirq steal).
-/// guest time is already counted in user, so it is not added again.
 pub fn proc_stat_total(text: &str) -> Option<CpuTimes> {
     let line = text.lines().find(|l| l.starts_with("cpu "))?;
     let v: Vec<u64> = line
@@ -458,14 +414,11 @@ pub fn proc_stat_total(text: &str) -> Option<CpuTimes> {
     })
 }
 
-/// Share of time in iowait between two samples, 0-100.
 pub fn iowait_percent(a: CpuTimes, b: CpuTimes) -> Option<f64> {
     let dt = b.total.checked_sub(a.total)?;
     (dt > 0).then(|| round1(b.iowait.saturating_sub(a.iowait) as f64 / dt as f64 * 100.0))
 }
 
-/// `avg10` of the `some` line of `/proc/pressure/memory`: share of the last
-/// 10 s in which some task waited for memory.
 pub fn psi_some_avg10(text: &str) -> Option<f64> {
     let line = text.lines().find(|l| l.starts_with("some "))?;
     line.split_whitespace()
@@ -473,10 +426,6 @@ pub fn psi_some_avg10(text: &str) -> Option<f64> {
         .and_then(|v| v.parse().ok())
 }
 
-// ── SMC ──────────────────────────────────────────────────────────────────
-
-/// Decode an SMC value by its four-character type. Integers and fixed point
-/// are big-endian; `flt ` is a little-endian f32 (Apple Silicon).
 pub fn smc_decode(ty: &[u8; 4], b: &[u8]) -> Option<f64> {
     let be16 = || b.get(..2).map(|x| u16::from_be_bytes([x[0], x[1]]));
     match ty {
@@ -508,8 +457,6 @@ pub fn smc_decode(ty: &[u8; 4], b: &[u8]) -> Option<f64> {
     }
 }
 
-// ── Process command lines ────────────────────────────────────────────────
-
 const SECRET_WORDS: &[&str] = &[
     "token",
     "password",
@@ -529,9 +476,6 @@ fn is_secret_name(s: &str) -> bool {
     SECRET_WORDS.iter().any(|w| l.contains(w))
 }
 
-/// Join a command line for display, hiding values of arguments that look
-/// like secrets (`--token=abc`, `--password abc`, `API_KEY=abc`) and cutting
-/// it at `max` characters.
 pub fn redact_cmd(args: &[String], max: usize) -> String {
     let mut out: Vec<String> = Vec::with_capacity(args.len());
     let mut hide_next = false;
@@ -598,7 +542,6 @@ mod tests {
         assert_eq!(b.health_percent, Some(73.0));
         assert_eq!(b.charge_percent, Some(74.1));
         assert_eq!(b.state, "discharging");
-        // Amperage printed as u64 is -1000 mA.
         assert_eq!(b.power_w, Some(-11.9));
         assert_eq!(b.time_remaining_min, Some(184));
     }

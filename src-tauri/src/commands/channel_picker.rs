@@ -1,12 +1,3 @@
-//! Downloads › Tools › Channel picker: list a channel or playlist page by
-//! page, filter by title and length, and download only the videos you tick.
-//!
-//! The idea comes from YT Channel Downloader, which lists a channel in
-//! windows ("Fetch Next N") with a duration column and a checkbox per video
-//! and greys out what was already downloaded. Reimplemented on top of yt-dlp
-//! (`omniget_core::core::ytdlp::list_videos_page`); no code was copied.
-//! "Already downloaded" here comes from OmniGet's own history, by video id.
-
 use std::collections::HashSet;
 
 use serde::Serialize;
@@ -18,7 +9,6 @@ use crate::core::ytdlp;
 pub struct PickerVideo {
     #[serde(flatten)]
     pub video: omniget_core::core::ytdlp::ListedVideo,
-    /// A finished download in the history has the same video id or URL.
     pub downloaded: bool,
 }
 
@@ -31,8 +21,6 @@ pub struct PickerPage {
     pub has_more: bool,
 }
 
-/// The id a video URL carries: `v=` on YouTube, the last path part elsewhere
-/// (`/shorts/<id>`, `youtu.be/<id>`, `/video/<id>`).
 pub fn video_key(url: &str) -> Option<String> {
     let no_frag = url.split('#').next().unwrap_or(url);
     if let Some(q) = no_frag.split_once('?').map(|(_, q)| q) {
@@ -52,7 +40,6 @@ pub fn video_key(url: &str) -> Option<String> {
         .map(str::to_string)
 }
 
-/// Ids and URLs of every successful download in the history.
 pub fn downloaded_keys<'a>(done: impl Iterator<Item = &'a str>) -> HashSet<String> {
     let mut keys = HashSet::new();
     for url in done {

@@ -1,8 +1,3 @@
-//! `auth_connection_status` / `auth_connection_request`: an MCP client learns
-//! whether a login is configured in OmniGet and can ask the PERSON to connect
-//! one. The client never receives a cookie, token, cookie name, account alias
-//! or file path, and nothing here performs a login: a request only becomes a
-//! visible prompt in the desktop app that the person resolves or denies.
 use super::{
     policy::{self, Principal},
     ToolDef,
@@ -11,14 +6,9 @@ use rusqlite::{params, OptionalExtension};
 use serde::Serialize;
 use serde_json::{json, Value};
 
-/// A pending request that nobody answers stops being actionable after this.
 pub const REQUEST_TTL_SECS: i64 = 900;
-/// Pending requests one client may hold at a time (all targets together).
 pub const MAX_PENDING: i64 = 5;
-/// Longest client-supplied reason kept; it is untrusted text shown to a person.
 pub const REASON_MAX_CHARS: usize = 200;
-/// Platform keys a client may ask about (`cookies::PlatformKind` minus
-/// `generic`; a generic site is addressed by `host`).
 pub const PLATFORMS: &[&str] = &[
     "youtube",
     "youtube_music",
@@ -54,7 +44,6 @@ pub fn tools() -> Vec<ToolDef> {
     ]
 }
 
-/// Output schemas for the protocol fixer's `outputSchema` table.
 pub fn output_schema(name: &str) -> Option<Value> {
     let request = json!({"type":"object","properties":{
         "requestId":{"type":"string"},
@@ -95,13 +84,9 @@ pub fn output_schema(name: &str) -> Option<Value> {
     }
 }
 
-// ── Target ─────────────────────────────────────────────────────────────
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Target {
-    /// A `PLATFORMS` key, or `generic` for a host without first-class support.
     pub platform: String,
-    /// Registrable domain, only for a generic host.
     pub host: Option<String>,
 }
 impl Target {
@@ -111,7 +96,6 @@ impl Target {
             None => format!("platform:{}", self.platform),
         }
     }
-    /// Cookie Manager buckets (registrable domains) that belong to it.
     fn matches_bucket(&self, bucket: &str) -> bool {
         match &self.host {
             Some(h) => bucket == h,
@@ -134,14 +118,16 @@ pub(super) fn valid_host(raw: &str) -> Option<String> {
         && !h.starts_with('.')
         && !h.starts_with('-')
         && h.split('.').all(|l| !l.is_empty() && l.len() <= 63)
-        && h.bytes().all(|c| c.is_ascii_alphanumeric() || c == b'-' || c == b'.')
-        // A literal address is a device, not a platform login.
+        && h.bytes()
+            .all(|c| c.is_ascii_alphanumeric() || c == b'-' || c == b'.')
         && h.parse::<std::net::IpAddr>().is_err()
-        && !h.rsplit('.').next().is_some_and(|tld| tld.bytes().all(|c| c.is_ascii_digit()));
+        && !h
+            .rsplit('.')
+            .next()
+            .is_some_and(|tld| tld.bytes().all(|c| c.is_ascii_digit()));
     ok.then_some(h)
 }
 
-/// Exactly one of `platform` / `host`.
 pub fn target(a: &Value) -> Result<Target, String> {
     match (a["platform"].as_str(), a["host"].as_str()) {
         (Some(p), None) if PLATFORMS.contains(&p) => Ok(Target {
@@ -157,7 +143,6 @@ pub fn target(a: &Value) -> Result<Target, String> {
                     host: Some(crate::cookies::root_domain_of(&host)),
                 })
             } else {
-                // music.youtube.com is its own platform key; everything else by root.
                 Ok(Target {
                     platform: kind.as_str().into(),
                     host: None,
@@ -169,17 +154,12 @@ pub fn target(a: &Value) -> Result<Target, String> {
     }
 }
 
-// ── Status (pure) ──────────────────────────────────────────────────────
-
-/// Global yt-dlp cookie sources configured in Settings (presence only).
 #[derive(Debug, Clone, Copy, Default)]
 pub struct GlobalSources {
     pub cookie_file: bool,
     pub browser: bool,
 }
 
-/// True when the Netscape file has at least one persistent cookie and all of
-/// them expired. Session cookies (expiry 0) make the answer unknown (false).
 pub fn all_expired(netscape: &str, now_secs: i64) -> bool {
     let mut any = false;
     for raw in netscape.lines() {
@@ -201,7 +181,6 @@ pub fn all_expired(netscape: &str, now_secs: i64) -> bool {
     any
 }
 
-/// Opaque, stable reference to one stored account; never its alias or slug.
 fn account_ref(bucket: &str, slug: &str) -> String {
     use sha2::{Digest, Sha256};
     let d = format!(
@@ -211,8 +190,6 @@ fn account_ref(bucket: &str, slug: &str) -> String {
     format!("acct_{}", &d[..16])
 }
 
-/// `read_file(bucket, slug)` returns the account's Netscape text (read
-/// locally only to derive `expired`; its content never leaves this function).
 pub fn status_for(
     t: &Target,
     registry: &crate::cookies::CookieRegistry,
@@ -246,7 +223,6 @@ pub fn status_for(
         sources.push("browser_cookies");
     }
     let configured = !sources.is_empty();
-    // Global sources may cover any site: their validity is unknown, never expired.
     let state = if !configured {
         "not_connected"
     } else if globals.cookie_file
@@ -270,8 +246,6 @@ pub fn status_for(
     })
 }
 
-// ── Requests (durable, per principal) ──────────────────────────────────
-
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Request {
@@ -284,7 +258,6 @@ pub struct Request {
     pub updated_at: i64,
 }
 
-/// What the desktop shows the person (includes the client name and reason).
 #[derive(Debug, Clone, Serialize)]
 pub struct UiRequest {
     pub id: String,
@@ -335,7 +308,6 @@ fn row(r: &rusqlite::Row) -> rusqlite::Result<Request> {
 }
 const COLUMNS: &str = "id,state,platform,host,created,expires,updated";
 
-/// Untrusted client text for a person: one line, redacted, bounded.
 pub fn clean_reason(raw: &str) -> String {
     let flat: String = raw
         .chars()
@@ -349,7 +321,6 @@ pub fn clean_reason(raw: &str) -> String {
     out
 }
 
-/// Returns the request and whether it reused an equal pending one.
 pub fn create_request(
     p: &Principal,
     t: &Target,
@@ -404,8 +375,6 @@ pub fn create_request(
     Ok((request, false))
 }
 
-/// A principal only ever sees its own requests; another client's id is
-/// indistinguishable from a missing one.
 pub fn get_request(p: &Principal, id: &str, now: i64) -> Result<Request, String> {
     policy::active(p)?;
     let c = db()?;
@@ -420,7 +389,6 @@ pub fn get_request(p: &Principal, id: &str, now: i64) -> Result<Request, String>
     .ok_or_else(|| "AUTH_REQUEST_NOT_FOUND".into())
 }
 
-/// Latest request of this principal for a target (for the status answer).
 fn latest_for(p: &Principal, t: &Target, now: i64) -> Result<Option<Request>, String> {
     let c = db()?;
     expire_stale(&c, now)?;
@@ -433,7 +401,6 @@ fn latest_for(p: &Principal, t: &Target, now: i64) -> Result<Option<Request>, St
     .map_err(|_| "AUTH_REQUESTS_UNAVAILABLE".into())
 }
 
-/// Trusted desktop only: pending requests of live clients.
 pub fn pending_for_ui(now: i64) -> Result<Vec<UiRequest>, String> {
     let c = db()?;
     expire_stale(&c, now)?;
@@ -459,8 +426,6 @@ pub fn pending_for_ui(now: i64) -> Result<Vec<UiRequest>, String> {
         .map_err(|_| "AUTH_REQUESTS_UNAVAILABLE".into())
 }
 
-/// Trusted desktop only: the person's answer. Only a live pending request of
-/// a non-revoked client changes; everything else is `AUTH_REQUEST_NOT_PENDING`.
 pub fn answer(id: &str, outcome: &str, now: i64) -> Result<(), String> {
     if !matches!(outcome, "resolved" | "denied") {
         return Err("INVALID_OUTCOME".into());
@@ -480,8 +445,6 @@ pub fn answer(id: &str, outcome: &str, now: i64) -> Result<(), String> {
     }
 }
 
-// ── MCP dispatch ───────────────────────────────────────────────────────
-
 fn globals(app: &tauri::AppHandle) -> GlobalSources {
     let s = crate::storage::config::load_settings(app);
     GlobalSources {
@@ -497,7 +460,6 @@ fn local_status(app: &tauri::AppHandle, t: &Target, now: i64) -> Value {
     status_for(t, &registry, globals(app), now, &read)
 }
 
-/// Called by `downloads::call` after schema validation and scope check.
 pub async fn call(
     app: &tauri::AppHandle,
     p: &Principal,
@@ -546,7 +508,6 @@ pub async fn call(
             let (request, deduplicated) = match create_request(p, &t, reason, now) {
                 Ok(v) => v,
                 Err(e) => {
-                    // Known refusal with no effect: the key stays usable.
                     let _ = policy::release(p, name, key);
                     return Err(e);
                 }
@@ -566,8 +527,6 @@ pub async fn call(
     }
 }
 
-/// Visible prompt: an in-app event for the banner and a system notification.
-/// The notification names the client and platform, never the reason text.
 fn notify(app: &tauri::AppHandle, p: &Principal, r: &Request) {
     use tauri::Emitter;
     let _ = app.emit(
@@ -587,8 +546,6 @@ fn notify(app: &tauri::AppHandle, p: &Principal, r: &Request) {
         ))
         .show();
 }
-
-// ── Trusted Tauri surface ──────────────────────────────────────────────
 
 #[tauri::command]
 pub fn tool_mcp_auth_requests() -> Result<Vec<UiRequest>, String> {
@@ -719,12 +676,10 @@ mod tests {
             .as_str()
             .unwrap()
             .starts_with("acct_"));
-        // A different platform does not see Instagram's account.
         let x = target(&json!({"platform":"x_twitter"})).unwrap();
         let v = status_for(&x, &registry(), GlobalSources::default(), 100, &read);
         assert_eq!(v["state"], "not_connected");
         assert!(v["accounts"].as_array().unwrap().is_empty());
-        // A global source is unknown, never valid.
         let v = status_for(
             &x,
             &registry(),
@@ -779,11 +734,9 @@ mod tests {
         assert!(!dedup);
         assert_eq!(r.state, "pending");
         assert_eq!(r.expires_at, 1_000 + REQUEST_TTL_SECS);
-        // Equal pending request is reused.
         let (again, dedup) = create_request(&a, &ig, "again", 1_001).unwrap();
         assert!(dedup);
         assert_eq!(again.request_id, r.request_id);
-        // B cannot see or poll A's request; the UI shows the client and a clean reason.
         assert_eq!(
             get_request(&b, &r.request_id, 1_002).unwrap_err(),
             "AUTH_REQUEST_NOT_FOUND"
@@ -797,7 +750,6 @@ mod tests {
             "{}",
             ui[0].reason
         );
-        // Resolved.
         answer(&r.request_id, "resolved", 1_003).unwrap();
         assert_eq!(
             get_request(&a, &r.request_id, 1_004).unwrap().state,
@@ -808,7 +760,6 @@ mod tests {
             "AUTH_REQUEST_NOT_PENDING"
         );
         assert!(answer(&r.request_id, "pending", 1_005).is_err());
-        // Denied.
         let x = target(&json!({"platform":"x_twitter"})).unwrap();
         let (d, _) = create_request(&a, &x, "need X", 2_000).unwrap();
         answer(&d.request_id, "denied", 2_001).unwrap();
@@ -816,7 +767,6 @@ mod tests {
             get_request(&a, &d.request_id, 2_002).unwrap().state,
             "denied"
         );
-        // Expired: never answerable afterwards.
         let (e, _) = create_request(&b, &x, "need X", 3_000).unwrap();
         assert_eq!(
             get_request(&b, &e.request_id, 3_000 + REQUEST_TTL_SECS)
@@ -828,7 +778,6 @@ mod tests {
             answer(&e.request_id, "resolved", 3_000 + REQUEST_TTL_SECS + 1).unwrap_err(),
             "AUTH_REQUEST_NOT_PENDING"
         );
-        // Limit per client.
         for (i, p) in PLATFORMS.iter().take(MAX_PENDING as usize).enumerate() {
             let t = target(&json!({"platform":p})).unwrap();
             create_request(&b, &t, "r", 10_000 + i as i64).unwrap();
@@ -837,7 +786,6 @@ mod tests {
         assert!(create_request(&b, &extra, "r", 10_100)
             .unwrap_err()
             .starts_with("AUTH_REQUEST_LIMIT"));
-        // A revoked client's requests leave the desktop list and cannot be answered.
         policy::revoke(&b.id).unwrap();
         assert!(pending_for_ui(10_200)
             .unwrap()

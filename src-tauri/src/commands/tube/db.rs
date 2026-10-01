@@ -1,10 +1,3 @@
-//! `tube.db`: local OmniTube state that works without an account: followed
-//! channels and their feed, watch history, watch later, auto-download rules
-//! and a small response cache (SponsorBlock, DeArrow, RYD).
-//!
-//! Kept apart from `omniget.db` for the same reason as `video.db`: a feed
-//! refresh writes hundreds of rows and must not hold the download queue's lock.
-
 use std::path::PathBuf;
 use std::sync::{Mutex, OnceLock};
 
@@ -129,8 +122,6 @@ pub fn schema(c: &Connection) -> rusqlite::Result<()> {
     )
 }
 
-// ---------- subs ----------
-
 #[derive(Debug, Clone, Default)]
 pub struct SubRow {
     pub channel_id: String,
@@ -192,8 +183,6 @@ pub fn sub_get(c: &Connection, channel_id: &str) -> rusqlite::Result<Option<SubR
     .optional()
 }
 
-/// Inserts or refreshes a followed channel. Returns true when it is new.
-/// A blank name or avatar never overwrites a known one.
 pub fn sub_upsert(
     c: &Connection,
     channel_id: &str,
@@ -219,8 +208,6 @@ pub fn sub_upsert(
 
 pub fn sub_remove(c: &Connection, channel_id: &str) -> rusqlite::Result<()> {
     c.execute("DELETE FROM subs WHERE channel_id = ?1", [channel_id])?;
-    // Keep feed rows that own downloaded files so retention can still find
-    // them; drop the rest.
     c.execute(
         "DELETE FROM feed WHERE channel_id = ?1 AND path IS NULL AND state <> 'queued'",
         [channel_id],
@@ -254,8 +241,6 @@ pub fn sub_checked_fail(
     )?;
     Ok(())
 }
-
-// ---------- feed ----------
 
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct FeedRow {
@@ -310,9 +295,6 @@ fn best_thumb(v: &VideoItem) -> Option<String> {
         .map(|t| t.url.clone())
 }
 
-/// Stores a video seen on a channel. Returns true when it was not known.
-/// Metadata is refreshed on known rows; `state` is never touched here, so a
-/// `deleted` tombstone stays put.
 pub fn feed_upsert(
     c: &Connection,
     channel_id: &str,
@@ -369,7 +351,6 @@ pub fn feed_upsert(
     Ok(n > 0)
 }
 
-/// Newest videos of the followed channels (tombstones and orphans excluded).
 pub fn feed_recent(c: &Connection, limit: u32) -> rusqlite::Result<Vec<FeedRow>> {
     let mut st = c.prepare(&format!(
         "SELECT {FEED_COLS} FROM feed
@@ -386,7 +367,6 @@ pub fn feed_by_state(c: &Connection, state: &str) -> rusqlite::Result<Vec<FeedRo
     rows.collect()
 }
 
-/// Rows that own a file downloaded by the auto-downloader.
 pub fn feed_owned(c: &Connection) -> rusqlite::Result<Vec<FeedRow>> {
     let mut st = c.prepare(&format!(
         "SELECT {FEED_COLS} FROM feed
@@ -452,8 +432,6 @@ pub fn feed_mark_downloaded(
     Ok(())
 }
 
-/// `seen` (retry later), `skipped` (failed for good) or `deleted` (tombstone:
-/// the auto-downloader never fetches it again).
 pub fn feed_set_state(
     c: &Connection,
     channel_id: &str,
@@ -466,8 +444,6 @@ pub fn feed_set_state(
     )?;
     Ok(())
 }
-
-// ---------- history ----------
 
 const HISTORY_COLS: &str =
     "video_id, title, channel_id, channel_name, thumb, duration_s, position_s, watched_ms, kind";
@@ -495,8 +471,6 @@ fn history_from_row(r: &Row) -> rusqlite::Result<HistoryEntry> {
     })
 }
 
-/// A new viewing session (more than an hour since the last write) bumps
-/// `count`; progress reports inside one session only move the position.
 pub fn history_upsert(c: &Connection, e: &HistoryEntry) -> rusqlite::Result<()> {
     let (cid, cname) = e
         .channel
@@ -532,7 +506,6 @@ pub fn history_upsert(c: &Connection, e: &HistoryEntry) -> rusqlite::Result<()> 
     Ok(())
 }
 
-/// Import path: never moves an existing row backwards in time.
 pub fn history_import(c: &Connection, e: &HistoryEntry) -> rusqlite::Result<bool> {
     let known: Option<i64> = c
         .query_row(
@@ -584,8 +557,6 @@ pub fn history_clear(c: &Connection) -> rusqlite::Result<()> {
     c.execute("DELETE FROM history", [])?;
     Ok(())
 }
-
-// ---------- watch later ----------
 
 pub fn watch_later_add(c: &Connection, v: &VideoItem, now: i64) -> rusqlite::Result<()> {
     let (cid, cname) = v
@@ -653,8 +624,6 @@ pub fn watch_later_has(c: &Connection, video_id: &str) -> rusqlite::Result<bool>
     .map(|o| o.is_some())
 }
 
-// ---------- rules ----------
-
 pub fn rules_all(c: &Connection) -> rusqlite::Result<Vec<AutoRule>> {
     let mut st = c.prepare("SELECT json FROM rules ORDER BY rowid")?;
     let rows = st.query_map([], |r| r.get::<_, String>(0))?;
@@ -682,8 +651,6 @@ pub fn rule_remove(c: &Connection, id: &str) -> rusqlite::Result<()> {
     Ok(())
 }
 
-// ---------- cache ----------
-
 pub fn cache_get(c: &Connection, key: &str, max_age_ms: i64, now: i64) -> Option<String> {
     c.query_row(
         "SELECT json FROM cache WHERE key = ?1 AND at_ms >= ?2",
@@ -704,13 +671,10 @@ pub fn cache_put(c: &Connection, key: &str, json: &str, now: i64) -> rusqlite::R
     Ok(())
 }
 
-/// Drops entries older than a day; every cached kind expires sooner.
 pub fn cache_prune(c: &Connection, now: i64) -> rusqlite::Result<()> {
     c.execute("DELETE FROM cache WHERE at_ms < ?1", [now - 24 * 3_600_000])?;
     Ok(())
 }
-
-// ---------- playlists (imported) ----------
 
 pub fn playlist_import(
     c: &Connection,

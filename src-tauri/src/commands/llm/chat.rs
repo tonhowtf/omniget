@@ -1,6 +1,3 @@
-//! `llm_*` commands: conversations and turns. The turn runs on a background
-//! task; the UI hears it through `llm://turn`. Owned by f2-llm-commands.
-
 use std::time::Instant;
 
 use futures::StreamExt;
@@ -28,11 +25,6 @@ pub async fn llm_conversation_get(
     }))
 }
 
-/// Starts a turn and returns the `request_id` the Coordinator minted for it —
-/// the same one that comes back in `TurnEvent::Started`, in every
-/// `llm://tool-ask` of the turn and in `llm_tool_answer`. Every event arrives
-/// on `llm://turn` as `{ request_id, event }`, with `TextDelta` coalesced to
-/// 30 Hz.
 #[tauri::command]
 pub async fn llm_turn_start(
     app: AppHandle,
@@ -59,22 +51,16 @@ pub async fn llm_turn_start(
     Ok(json!({ "request_id": request_id }))
 }
 
-/// How a forwarded turn ended, for callers that record it elsewhere (rooms).
 #[derive(Debug, Clone, Default)]
 pub struct TurnSummary {
     pub text: String,
     pub error: Option<String>,
     pub cancelled: bool,
-    /// Input + output tokens reported by the provider; `None` when it
-    /// reported nothing (unknown is not zero).
     pub tokens: Option<i64>,
 }
 
 pub type TurnDone = Box<dyn FnOnce(TurnSummary) + Send + 'static>;
 
-/// Re-emits one running turn on `llm://turn` (text coalesced to 30 Hz),
-/// mirrors it as a job and calls `on_done` with how it ended. Shared by the
-/// direct chat and by the members of a group room.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn forward_turn(
     app: AppHandle,
@@ -87,18 +73,12 @@ pub(crate) fn forward_turn(
     on_done: Option<TurnDone>,
 ) {
     spawn_telemetry_ticker(app.clone());
-    // Mirrored as a job so `/llm/jobs` lists everything the agents did.
     let jobs = crate::jobs::get(&app).ok();
     let job_id = jobs
         .as_ref()
         .map(|j| j.chat_started(&agent_id, &conversation_id, &input, &request_id));
-    // The Coordinator persists the conversation itself; this task only
-    // re-emits what it streams.
     tauri::async_runtime::spawn(async move {
         let mut coalescer = DeltaCoalescer::new(DELTA_HZ);
-        // Every event of the turn is forwarded as it comes, `Started`
-        // included: its `request_id` is the one returned to the caller and
-        // the one `llm://tool-ask` carries, so the front filters by equality.
         let mut said = String::new();
         let mut failed: Option<String> = None;
         let mut cancelled = false;
@@ -164,7 +144,6 @@ pub async fn llm_turn_cancel(
     Ok(json!({ "ok": true }))
 }
 
-/// Answers a `GrantMode::Ask` question raised by the tool broker.
 #[tauri::command]
 pub async fn llm_tool_asks_pending(
     state: tauri::State<'_, crate::AppState>,
@@ -184,7 +163,6 @@ pub async fn llm_tool_answer(
     state
         .llm
         .answer_tool(&request_id, &tool_call_id, allow, always.unwrap_or(false))?;
-    // Whoever else was showing the question (the pet, the /llm tab) drops it.
     let _ = app.emit(
         "omni://tool-resolved",
         json!({ "request_id": request_id, "tool_call_id": tool_call_id, "allow": allow }),
@@ -192,7 +170,6 @@ pub async fn llm_tool_answer(
     Ok(json!({ "ok": true }))
 }
 
-/// Switches the model mid-conversation. The next turn uses it.
 #[tauri::command]
 pub async fn llm_switch_model(
     state: State<'_, AppState>,
@@ -208,12 +185,6 @@ pub async fn llm_switch_model(
     }))
 }
 
-/// The folder the coding tools are confined to. With a `conversation_id`
-/// the folder belongs to that conversation only (it becomes a Project
-/// conversation; `null` makes it personal again) and nothing else changes:
-/// not another conversation, not the process-wide folder (O18/O19). Without
-/// one it is the process-wide folder, which only callers outside a turn use
-/// (the embedded MCP server, the `omniget` CLI).
 #[tauri::command]
 pub async fn llm_workspace_set(
     path: Option<String>,
@@ -257,7 +228,6 @@ fn workspace_json(
     };
     let undo_error = path.as_deref().and_then(snapshot::problem);
     serde_json::json!({
-        // `projectless` (personal) or `project`: what the chat header shows.
         "context": if path.is_some() { "project" } else { "projectless" },
         "undo_error": undo_error,
         "path": path.as_ref().map(|p| p.to_string_lossy().to_string()),
@@ -268,14 +238,6 @@ fn workspace_json(
     })
 }
 
-/// Puts the workspace back to how it was before the last turn of this
-/// conversation that wrote files.
-///
-/// Refused (`ERR_UNDO_SHARED`) while another conversation or job works in a
-/// folder that overlaps this one, and (`ERR_UNDO_CONFLICT`) when a file of
-/// that turn changed again after it: the UI then offers
-/// `conversation_only`, which takes the turn's messages back and leaves
-/// every file as it is (t3code's "revert the conversation only", 82#P2).
 #[tauri::command]
 pub async fn llm_turn_undo(
     state: State<'_, AppState>,
@@ -300,17 +262,12 @@ pub async fn llm_turn_undo(
             .unwrap_or_default();
         snapshot::undo(&ws, &conv, &live).await?
     };
-    // The bubbles of that turn go with the files. Nothing is run again: the
-    // records are cut from the conversation, the tools are not replayed.
     let removed = match (undone.messages_before, state.llm.coordinator().dir()) {
         (Some(keep), Some(dir)) => {
             coordinator::truncate_conversation(dir, &conv, keep).map_err(|e| e.to_string())?
         }
         _ => Vec::new(),
     };
-    // A shell command may have written outside the folder (no sandbox on
-    // Windows and Linux, temp dirs everywhere). That is not in the snapshot,
-    // and the UI says so instead of pretending the turn never happened.
     let shell: Vec<String> = removed
         .iter()
         .flat_map(|m| m.parts.iter())
@@ -357,8 +314,6 @@ pub async fn llm_permission_rules_set(
     Ok(serde_json::json!({ "ok": true }))
 }
 
-/// The chat's run mode for one conversation (2.7): what it chose, or the
-/// chat default `auto_edits`, and the choices in picker order.
 #[tauri::command]
 pub async fn llm_conversation_run_mode(
     conversation_id: String,
@@ -373,9 +328,6 @@ pub async fn llm_conversation_run_mode(
     }))
 }
 
-/// Sets (or, with `null`, forgets) the chat's run mode of a conversation.
-/// `full_access` is only ever stored here because the person picked it in
-/// the composer and confirmed.
 #[tauri::command]
 pub async fn llm_conversation_run_mode_set(
     conversation_id: String,

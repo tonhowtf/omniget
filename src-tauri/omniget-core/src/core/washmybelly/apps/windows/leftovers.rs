@@ -1,15 +1,5 @@
-//! What a Windows app leaves behind, with a confidence score.
-//!
 //! Ported design of Bulk Crap Uninstaller's junk finder
 //! (Copyright (c) 2017 Marcin Szeniak, Apache License 2.0, see
-//! `data/washmybelly/bcu/NOTICE`): the confidence weights
-//! (`Junk/Confidence/ConfidenceRecords.cs`), the four levels
-//! (`ConfidenceCollection.cs`), the folder blacklist and questionable names
-//! (`UninstallToolsGlobalConfig.cs`) and the "folder still used by another
-//! program" rule (`JunkCreatorBase.cs`). Rewritten in Rust and modified for
-//! OmniGet: the scanners here read folders, registry key names, shortcuts,
-//! services and scheduled tasks handed in by the caller, so they are tested
-//! on every OS with temporary folders and fake key lists.
 
 use std::path::{Path, PathBuf};
 
@@ -17,27 +7,19 @@ use serde::Serialize;
 
 use super::parse::{lnk_mentions, name_match, norm_path, path_inside, NameMatch};
 
-/// One piece of evidence and its weight.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct Reason {
     pub delta: i32,
     pub text: &'static str,
 }
 
-/// What we know about one candidate.
 #[derive(Debug, Clone, Default)]
 pub struct Facts {
-    /// The app's own Uninstall registry entry.
     pub uninstall_key: bool,
-    /// The app points here (install folder, uninstaller folder, a shortcut
-    /// or service whose target is inside the install folder).
     pub explicit: bool,
     pub name: Option<NameMatch>,
-    /// The parent folder or key is named after the publisher.
     pub publisher_parent: bool,
-    /// The name is the company's, not the product's.
     pub is_publisher_name: bool,
-    /// Levels below the base folder (1 = direct child).
     pub depth: u32,
     pub empty: bool,
     pub no_subdirs: bool,
@@ -46,11 +28,9 @@ pub struct Facts {
     pub has_exe: bool,
     pub name_used_by_other: bool,
     pub publisher_used_by_other: bool,
-    /// Another installed program lives in (or under) this folder.
     pub used_by_other_program: bool,
 }
 
-/// Sum the evidence, BCU weights.
 pub fn score(f: &Facts) -> (i32, Vec<Reason>) {
     let mut r = Vec::new();
     let mut add = |on: bool, delta: i32, text: &'static str| {
@@ -109,7 +89,6 @@ pub fn score(f: &Facts) -> (i32, Vec<Reason>) {
     (total, r)
 }
 
-/// Four levels (BCU: bad / questionable / good / very good).
 pub fn level(score: i32) -> &'static str {
     if score >= 5 {
         "very_high"
@@ -122,7 +101,6 @@ pub fn level(score: i32) -> &'static str {
     }
 }
 
-/// The level in the three words of `Leftover.confidence`.
 pub fn confidence_word(score: i32) -> &'static str {
     match level(score) {
         "very_high" | "high" => "high",
@@ -131,27 +109,20 @@ pub fn confidence_word(score: i32) -> &'static str {
     }
 }
 
-/// Ticked by default: only the two top levels.
 pub fn ticked(score: i32) -> bool {
     score >= 2
 }
 
-/// One leftover found.
 #[derive(Debug, Clone, Serialize)]
 pub struct Found {
-    /// `folder`, `file`, `registry`, `service`, `task`.
     pub kind: &'static str,
-    /// Folder or file path, registry key, service key or task path.
     pub path: String,
     pub bytes: u64,
     pub score: i32,
     pub reasons: Vec<Reason>,
-    /// Only an administrator can remove it.
     pub admin: bool,
-    /// Service name (for `service`).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub service: Option<String>,
-    /// The base folder it was found under (the plan's `root`).
     #[serde(skip)]
     pub base: Option<PathBuf>,
 }
@@ -172,17 +143,14 @@ impl Found {
     }
 }
 
-/// The app whose leftovers we look for.
 #[derive(Debug, Clone, Default)]
 pub struct Target {
     pub name: String,
     pub publisher: Option<String>,
     pub location: Option<String>,
-    /// Other folders the app points to (its uninstaller's folder).
     pub extra_dirs: Vec<String>,
 }
 
-/// Another installed app (for "still used" checks).
 #[derive(Debug, Clone, Default)]
 pub struct Other {
     pub name: String,
@@ -190,7 +158,6 @@ pub struct Other {
     pub location: Option<String>,
 }
 
-/// Folder names that are never a leftover (BCU's list plus Windows own).
 pub const DIR_BLACKLIST: &[&str] = &[
     "microsoft",
     "microsoft games",
@@ -257,7 +224,6 @@ pub const DIR_BLACKLIST: &[&str] = &[
     "adobe",
 ];
 
-/// BCU's questionable names: too generic to trust.
 const QUESTIONABLE: &[&str] = &[
     "install",
     "settings",
@@ -271,7 +237,6 @@ const QUESTIONABLE: &[&str] = &[
     "updater",
 ];
 
-/// Registry key names under `Software` that are never a leftover.
 pub const KEY_BLACKLIST: &[&str] = &[
     "microsoft",
     "classes",
@@ -312,7 +277,6 @@ fn is_publisher(name: &str, t: &Target) -> bool {
         .unwrap_or(false)
 }
 
-/// `Foo Software GmbH` publishes into `Foo`.
 fn first_word_match(name: &str, publisher: &str) -> bool {
     let first = super::parse::normalize_name(publisher)
         .split_whitespace()
@@ -361,7 +325,6 @@ fn explicit(path: &str, t: &Target) -> bool {
         || t.extra_dirs.iter().any(|d| norm_path(d) == p)
 }
 
-/// Files, executables and subfolders of a folder, stopping early.
 fn folder_facts(dir: &Path, f: &mut Facts) {
     let mut files = 0usize;
     let mut subdirs = 0usize;
@@ -417,9 +380,6 @@ fn child_dirs(dir: &Path) -> Vec<(String, PathBuf)> {
     v
 }
 
-/// Folders in the given bases (Program Files, ProgramData, AppData...)
-/// named after the app, its publisher's folder with the app inside, and the
-/// install folder itself. `bool` = only an administrator can remove there.
 pub fn scan_dirs(bases: &[(PathBuf, bool)], t: &Target, others: &[Other]) -> Vec<Found> {
     let mut out: Vec<Found> = Vec::new();
     let push = |path: &Path,
@@ -449,7 +409,6 @@ pub fn scan_dirs(bases: &[(PathBuf, bool)], t: &Target, others: &[Other]) -> Vec
             ..Default::default()
         };
         folder_facts(path, &mut f);
-        // BCU only keeps a candidate with at least one positive piece.
         if !f.explicit && m == NameMatch::None && !f.publisher_parent {
             return;
         }
@@ -480,7 +439,6 @@ pub fn scan_dirs(bases: &[(PathBuf, bool)], t: &Target, others: &[Other]) -> Vec
             }
         }
     }
-    // The install folder may live outside every base (`D:\Games\X`).
     if let Some(loc) = t.location.as_deref().filter(|l| !l.trim().is_empty()) {
         let p = PathBuf::from(loc.trim().trim_end_matches(['\\', '/']));
         if p.is_absolute()
@@ -503,8 +461,6 @@ pub fn scan_dirs(bases: &[(PathBuf, bool)], t: &Target, others: &[Other]) -> Vec
     out
 }
 
-/// Registry keys under `Software` named after the app, or after its
-/// publisher with the app inside. `children(key)` lists subkey names.
 pub fn scan_keys(
     children: &dyn Fn(&str) -> Vec<String>,
     bases: &[(&str, bool)],
@@ -554,8 +510,6 @@ pub fn scan_keys(
                     *admin,
                 ));
             }
-            // The whole publisher key, when the app is the only thing in it
-            // and no other app of this publisher is installed.
             if !pub_used
                 && !kids.is_empty()
                 && kids
@@ -583,7 +537,6 @@ pub fn scan_keys(
     out
 }
 
-/// Start Menu shortcuts (and their folders) for the app.
 pub fn scan_shortcuts(dirs: &[(PathBuf, bool)], t: &Target, others: &[Other]) -> Vec<Found> {
     let mut out = Vec::new();
     for (dir, admin) in dirs {
@@ -628,7 +581,6 @@ pub fn scan_shortcuts(dirs: &[(PathBuf, bool)], t: &Target, others: &[Other]) ->
             {
                 continue;
             }
-            // Inside a folder we already offer: the folder carries it.
             if out
                 .iter()
                 .any(|f: &Found| f.kind == "folder" && path_inside(&p.to_string_lossy(), &f.path))
@@ -665,8 +617,6 @@ pub fn scan_shortcuts(dirs: &[(PathBuf, bool)], t: &Target, others: &[Other]) ->
     out
 }
 
-/// Services whose program lives in the app's folder. `services` holds
-/// `(name, ImagePath)` pairs read from the registry.
 pub fn scan_services(services: &[(String, String)], t: &Target) -> Vec<Found> {
     let Some(loc) = t.location.as_deref().filter(|l| l.trim().len() > 3) else {
         return Vec::new();
@@ -700,7 +650,6 @@ pub fn scan_services(services: &[(String, String)], t: &Target) -> Vec<Found> {
         .collect()
 }
 
-/// Scheduled tasks whose action runs something in the app's folder.
 pub fn scan_tasks(tasks: &[(String, String)], t: &Target) -> Vec<Found> {
     let Some(loc) = t.location.as_deref().filter(|l| l.trim().len() > 3) else {
         return Vec::new();

@@ -1,24 +1,3 @@
-//! Cline e a família que herdou o formato: Roo Code e o Kilo Code legado
-//! (extensão VS Code antes de abril de 2026). Estudo 06, Cline §j, Roo §j,
-//! Kilo §j; Parte 6 §8.3.
-//!
-//! Extensão (qualquer editor da família VS Code):
-//! `<User>/globalStorage/<ext>/tasks/<taskId>/ui_messages.json` (lista de
-//! `ClineMessage {ts, type:"ask"|"say", ask?, say?, text?, modelInfo?}`; o uso
-//! de cada chamada vem em `say:"api_req_started"`, cujo `text` é JSON
-//! `{tokensIn, tokensOut, cacheWrites, cacheReads, cost, apiProtocol?}`),
-//! `api_conversation_history.json` (mensagens Anthropic) e o histórico
-//! (`state/taskHistory.json` no Cline, `tasks/_index.json` ou
-//! `tasks/<id>/history_item.json` no Roo) com `task`, `ts`, `tokensIn/Out`,
-//! `totalCost`, `cwdOnTaskInitialization`/`workspace`, `modelId`.
-//!
-//! Cline CLI/SDK: `~/.cline/data/sessions/<id>/<id>.messages.json`
-//! (`messages[{id, role, ts, content[], modelInfo{id}, metrics{inputTokens,
-//! outputTokens, cacheReadTokens, cacheWriteTokens, cost}}]`) e o manifesto
-//! `<id>.json` (`cwd`, `workspace_root`, `model`, `metadata.title`).
-//!
-//! Nenhuma dessas extensões está instalada nesta máquina: só fixture.
-
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
@@ -50,8 +29,6 @@ impl ClineSource {
             with_cli: false,
         }
     }
-    /// Kilo Code legado (extensão VS Code). O Kilo atual (CLI, `kilo.db`) é do
-    /// grupo a; os dois usam o id `kilo`.
     pub fn kilo_legacy() -> Self {
         Self {
             tool: "kilo",
@@ -60,14 +37,12 @@ impl ClineSource {
         }
     }
 
-    /// (rótulo, pasta da extensão).
     fn ext_dirs(&self) -> Vec<(String, PathBuf)> {
         let mut v: Vec<(String, PathBuf)> = vscode_user_dirs()
             .into_iter()
             .map(|(l, u)| (l, u.join("globalStorage").join(self.ext_id)))
             .filter(|(_, p)| p.is_dir())
             .collect();
-        // Roo CLI roda a extensão num shim de VS Code.
         if let Some(p) = home_join(&[".vscode-mock", "global-storage", self.ext_id]) {
             if p.is_dir() {
                 v.push(("cli".into(), p));
@@ -125,7 +100,6 @@ impl ClineSource {
     }
 }
 
-/// Itens de histórico indexados pelo id da tarefa.
 fn history_index(ext: &Path) -> HashMap<String, Value> {
     let mut map = HashMap::new();
     let mut push_all = |v: Option<Value>| {
@@ -171,7 +145,6 @@ fn api_req_usage(info: &Value) -> TokenUsage {
     let cache_read = u(info, &["cacheReads"]);
     let cache_write = u(info, &["cacheWrites"]);
     let mut input = u(info, &["tokensIn"]);
-    // Roo com protocolo OpenAI conta o cache dentro de tokensIn.
     if info.get("apiProtocol").and_then(Value::as_str) == Some("openai") {
         input = input.saturating_sub(cache_read + cache_write);
     }
@@ -184,8 +157,6 @@ fn api_req_usage(info: &Value) -> TokenUsage {
     }
 }
 
-/// `ui_messages.json` em turnos. Cada `api_req_started` abre um turno do
-/// assistente com o uso/custo daquela chamada.
 pub fn parse_ui_messages(msgs: &[Value], default_model: Option<&str>) -> Vec<Turn> {
     let mut turns: Vec<Turn> = Vec::new();
     let mut model = default_model.map(str::to_string);
@@ -372,7 +343,6 @@ impl ClineSource {
             .and_then(|v| v.as_array().cloned())
             .unwrap_or_default();
         let mut turns = if msgs.is_empty() {
-            // Sem ui_messages: cai para o histórico da API (sem uso).
             let api = read_json(&task.join("api_conversation_history.json"))
                 .and_then(|v| v.as_array().cloned())
                 .unwrap_or_default();
@@ -389,7 +359,6 @@ impl ClineSource {
     }
 }
 
-/// Sessão do Cline CLI a partir do `<id>.messages.json` e do manifesto.
 pub fn parse_cli_session(
     doc: &Value,
     manifest: Option<&Value>,
@@ -527,7 +496,6 @@ impl SessionSource for ClineSource {
     }
 
     fn resume_command(&self, meta: &SessionMeta) -> Option<String> {
-        // Só o Cline CLI retoma por id; as tarefas da extensão abrem no painel.
         (self.tool == "cline" && meta.account.as_deref() == Some("cli"))
             .then(|| format!("cline --id {}", shell_quote(&meta.id)))
     }

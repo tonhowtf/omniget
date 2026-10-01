@@ -1,6 +1,3 @@
-//! Tauri commands of the embedded terminal. The sessions live in
-//! `crate::pty::manager()`; see that module for the event contract.
-
 use tauri::AppHandle;
 
 use crate::pty::{self, Attached, OpenRequest, SessionInfo};

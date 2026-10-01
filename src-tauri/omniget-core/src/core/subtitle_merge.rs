@@ -85,7 +85,6 @@ pub struct Cue {
 }
 
 fn parse_ts(s: &str) -> Option<u64> {
-    // Accepts HH:MM:SS,mmm / HH:MM:SS.mmm / MM:SS.mmm
     let s = s.trim();
     let (hms, ms_part) = if let Some((a, b)) = s.split_once(',') {
         (a, b)
@@ -128,7 +127,6 @@ fn fmt_ts(ms: u64) -> String {
 }
 
 fn parse_ass_ts(s: &str) -> Option<u64> {
-    // ASS uses H:MM:SS.cc (centiseconds, 2 digits).
     let s = s.trim();
     let (hms, cc) = s.rsplit_once('.')?;
     let centis: u64 = cc.chars().take(2).collect::<String>().parse().ok()?;
@@ -318,9 +316,6 @@ fn strip_tags(s: &str) -> String {
     out
 }
 
-// Flattens an SRT/VTT subtitle into plain transcript text. yt-dlp auto-subs
-// roll up and repeat lines heavily, so consecutive duplicate lines are
-// collapsed. Used to feed transcripts to the AI summarizer.
 pub fn extract_transcript(content: &str) -> String {
     let blocks = if content.trim_start().starts_with("WEBVTT") {
         parse_vtt(content)
@@ -440,7 +435,6 @@ mod tests {
         let ass = cues_to_ass(&cues);
         assert!(ass.contains("[Events]"));
         assert!(ass.contains("Dialogue: 0,0:00:01.50,0:00:02.25,Default,,0,0,0,,Hello"));
-        // parse_cues must auto-detect ASS and restore \N as newline.
         let back = parse_cues(&ass);
         assert_eq!(back.len(), 2);
         assert_eq!(back[0].start_ms, 1500);

@@ -1,24 +1,10 @@
-//! Binarios que o usuario apontou, em vez dos que o OmniGet gerencia.
-//!
-//! Pedido na issue #222: quem ja tem yt-dlp ou FFmpeg instalado nao quer uma
-//! segunda copia dentro do diretorio do app. Copiar resolve metade do problema
-//! e cria a outra metade, porque a copia envelhece sozinha.
-//!
-//! Aqui o caminho e guardado e usado no lugar. Se o usuario atualizar o yt-dlp
-//! dele pelo gerenciador de pacotes, o OmniGet passa a usar a versao nova sem
-//! fazer nada.
-//!
-//! O arquivo proprio, e nao um campo no `settings.json`, por dois motivos: nao
-//! obriga migracao para todo mundo por causa de poucos, e um caminho quebrado
-//! aqui nao pode impedir as configuracoes de carregar.
+// WHY: people with yt-dlp or FFmpeg installed do not want a second copy (#222).
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 const OVERRIDES_FILE: &str = "binary-overrides.json";
 
-/// Nomes aceitos. Fechado de proposito: aceitar qualquer string deixaria o
-/// arquivo virar depósito de chave escrita errada que nunca tem efeito.
 pub const SUPPORTED: [&str; 2] = ["yt-dlp", "FFmpeg"];
 
 pub fn is_supported(name: &str) -> bool {
@@ -29,8 +15,6 @@ fn file_path() -> Option<PathBuf> {
     super::paths::app_data_dir().map(|d| d.join(OVERRIDES_FILE))
 }
 
-/// Le o mapa do disco. Um arquivo ilegivel vale como vazio: perder o override
-/// e um incomodo, nao abrir o app e um problema.
 pub fn load() -> BTreeMap<String, String> {
     let Some(path) = file_path() else {
         return BTreeMap::new();
@@ -60,11 +44,6 @@ fn save(map: &BTreeMap<String, String>) -> std::io::Result<()> {
     std::fs::rename(&tmp, &path)
 }
 
-/// Caminho que o usuario apontou para esta ferramenta, se ainda existir.
-///
-/// A checagem de existencia acontece aqui, e nao so na hora de gravar: o
-/// binario pode ter sido removido depois, e nesse caso o certo e voltar para o
-/// gerenciado em silencio, nao falhar o download.
 pub fn get(name: &str) -> Option<PathBuf> {
     let raw = load().get(name)?.clone();
     let path = PathBuf::from(raw);
@@ -80,7 +59,6 @@ pub fn get(name: &str) -> Option<PathBuf> {
     }
 }
 
-/// Motivo pelo qual um caminho nao serve.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Rejeicao {
     NaoSuportado,
@@ -100,8 +78,6 @@ impl Rejeicao {
     }
 }
 
-/// Valida sem tocar em disco de configuracao. Separado de `set` para poder ser
-/// testado sem estado global.
 pub fn validar(name: &str, path: &Path) -> Result<(), Rejeicao> {
     if !is_supported(name) {
         return Err(Rejeicao::NaoSuportado);

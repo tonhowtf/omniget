@@ -1,13 +1,5 @@
-//! Linux: "one power manager only". power-profiles-daemon, TLP,
-//! auto-cpufreq and TuneD all write the same sysfs knobs; two of them
-//! running fight every few seconds and the last writer wins. This module
-//! decides, from what is running, who manages the profile and which
-//! conflict to show. Pure: the Linux reader feeds it.
-
 use serde::Serialize;
 
-/// A manager we know. `TlpPd` and `TunedPpd` are the D-Bus front ends of
-/// TLP and TuneD (same API as power-profiles-daemon): same family.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum Manager {
@@ -55,7 +47,6 @@ impl Manager {
         Manager::ALL.into_iter().find(|m| m.unit() == unit)
     }
 
-    /// The family that owns the knobs.
     pub fn family(self) -> Family {
         match self {
             Manager::PowerProfilesDaemon => Family::Ppd,
@@ -65,8 +56,6 @@ impl Manager {
         }
     }
 
-    /// Speaks `org.freedesktop.UPower.PowerProfiles` (profile switch and
-    /// `HoldProfile` without a password).
     pub fn has_profiles_api(self) -> bool {
         matches!(
             self,
@@ -78,11 +67,9 @@ impl Manager {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum Family {
-    /// Installed on purpose: it wins a conflict against the distro default.
     AutoCpufreq,
     Tlp,
     Tuned,
-    /// The GNOME/KDE default.
     Ppd,
 }
 
@@ -97,30 +84,23 @@ impl Family {
     }
 }
 
-/// Two families running at once, and the one action we offer.
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct Conflict {
     pub a: &'static str,
     pub b: &'static str,
-    /// The family we suggest keeping.
     pub keep: &'static str,
-    /// Units to stop, disable and mask (reversible: unmask + enable).
     pub disable: Vec<&'static str>,
-    /// `resolve_conflict:<keep>`: a plan item id suffix.
     pub action: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct Verdict {
-    /// The manager in charge, when exactly one family runs.
     pub manager: Option<&'static str>,
     pub families: Vec<&'static str>,
     pub conflicts: Vec<Conflict>,
-    /// Nothing runs: text only, we never install anything by ourselves.
     pub suggestion: Option<&'static str>,
 }
 
-/// Decide from the running managers (units active, or processes found).
 pub fn arbitrate(running: &[Manager]) -> Verdict {
     let mut fams: Vec<Family> = running.iter().map(|m| m.family()).collect();
     fams.sort();
@@ -134,7 +114,6 @@ pub fn arbitrate(running: &[Manager]) -> Verdict {
             suggestion: Some("power-profiles-daemon"),
         },
         1 => {
-            // Prefer naming the front end the person sees (tlp-pd over tlp).
             let fam = fams[0];
             let m = running
                 .iter()
@@ -150,7 +129,6 @@ pub fn arbitrate(running: &[Manager]) -> Verdict {
             }
         }
         _ => {
-            // `fams` is sorted by priority: the first is kept.
             let keep = fams[0];
             let mut conflicts = Vec::new();
             for (i, a) in fams.iter().enumerate() {
@@ -179,7 +157,6 @@ pub fn arbitrate(running: &[Manager]) -> Verdict {
     }
 }
 
-/// Units to turn off to keep only `keep` running.
 pub fn units_to_disable(running: &[Manager], keep: &str) -> Vec<&'static str> {
     running
         .iter()

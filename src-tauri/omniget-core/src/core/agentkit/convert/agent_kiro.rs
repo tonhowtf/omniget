@@ -1,9 +1,3 @@
-//! Kiro custom agents: `.kiro/agents/<name>.json` (estudo 06 §0C.2 and the Kiro
-//! (b) sections): `{name, description, prompt, model, tools, allowedTools,
-//! mcpServers, resources, hooks}`. Custom agents do not get steering or skills
-//! on their own, so `resources` points at AGENTS.md, the steering folder and the
-//! agent's skills.
-
 use serde_json::{json, Map, Value};
 
 use super::agent_common::*;
@@ -16,7 +10,6 @@ use crate::core::agentkit::{Result, Scope};
 
 pub struct KiroAgentConverter;
 
-/// Claude tool → Kiro `tools` tag.
 fn kiro_tag(t: &str) -> Option<String> {
     let (base, _) = tool_base(t);
     if let Some((srv, tool)) = split_mcp(base) {
@@ -40,7 +33,6 @@ fn kiro_tag(t: &str) -> Option<String> {
     )
 }
 
-/// Kiro tag → Claude tools.
 fn tag_back(tag: &str) -> Vec<String> {
     if let Some(rest) = tag.strip_prefix('@') {
         if matches!(rest, "mcp" | "builtin" | "powers") {
@@ -63,7 +55,6 @@ fn tag_back(tag: &str) -> Vec<String> {
     v.iter().map(|s| s.to_string()).collect()
 }
 
-/// Claude agent hook events → Kiro agent-embedded (camelCase) triggers.
 fn kiro_event(e: &str) -> Option<&'static str> {
     Some(match e {
         "SessionStart" => "agentSpawn",
@@ -76,7 +67,6 @@ fn kiro_event(e: &str) -> Option<&'static str> {
 }
 
 impl KiroAgentConverter {
-    /// Agent JSON and losses.
     pub fn render(
         c: &Component,
         a: &AgentSpec,
@@ -210,7 +200,6 @@ impl KiroAgentConverter {
         (Value::Object(o), losses)
     }
 
-    /// Agent JSON → canonical spec. `dir` resolves `file://` prompts.
     pub fn read(v: &Value, dir: &std::path::Path, fallback: &str) -> AgentSpec {
         let m = v.as_object().cloned().unwrap_or_default();
         let prompt = match m.get("prompt").and_then(|x| x.as_str()) {
@@ -356,7 +345,6 @@ impl Converter for KiroAgentConverter {
                 out.push(c);
             }
         }
-        // CLI 3.0 / IDE also accept Markdown agents (frontmatter = config)
         for p in files_with(&dir, &[".md"]) {
             let Ok(text) = std::fs::read_to_string(&p) else {
                 continue;

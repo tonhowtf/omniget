@@ -1,20 +1,3 @@
-//! From an [`App`] and what the system said about it to plan items.
-//!
-//! Pure over the file system (fingerprints and sizes of real paths), so the
-//! tests build a fake home in a temporary folder and check the plan.
-//!
-//! Screen contract: the app itself is group `app`; every leftover item's id
-//! ends in `:<path>` with the same path as its [`Leftover`]; the Homebrew
-//! zap alternative is its own item in group `zap`; `extra.cask` is the
-//! token; `extra.notes` are plain English strings; "reset app" is the
-//! leftover ids without the app item.
-//!
-//! The items a person would expect ticked (the app, high-confidence data
-//! in `~/Library`, the receipt of a bare `.pkg`) go back as the plan. The
-//! rest (name-only matches, admin leftovers of an app bundle, everything of
-//! an open app, the zap alternative) come back separately with a reason, so
-//! the caller registers them as candidates outside the default plan.
-
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 
@@ -28,14 +11,12 @@ use super::super::{App, Leftover};
 use super::leftovers::{self, Found, Launchd, Note, Other, Roots, Subject};
 use super::parse;
 
-/// One `.pkg` receipt tied to the app: absolute paths, already collapsed.
 #[derive(Debug, Clone, Default)]
 pub struct Receipt {
     pub id: String,
     pub paths: Vec<PathBuf>,
 }
 
-/// Everything the builder needs from the system, gathered by the caller.
 #[derive(Debug, Clone)]
 pub struct Env {
     pub roots: Roots,
@@ -43,17 +24,13 @@ pub struct Env {
     pub running: bool,
     pub app_groups: Vec<String>,
     pub receipts: Vec<Receipt>,
-    /// Files other third-party receipts also list: never removed.
     pub shared: HashSet<PathBuf>,
     pub uid: u32,
 }
 
-/// A candidate left out of the default plan, and why.
 #[derive(Debug, Clone)]
 pub struct Unticked {
     pub item: PlanItem,
-    /// `open`, `admin`, `medium`, `low`, `alternative`
-    /// (i18n key `washmybelly.apps.mac.why.<why>`).
     pub why: &'static str,
 }
 
@@ -75,7 +52,6 @@ fn tilde(p: &Path, home: &Path) -> String {
 }
 
 fn risk(admin: bool) -> Risk {
-    // The helper removes for good; the Trash and our quarantine can undo.
     if admin {
         Risk::Destructive
     } else {
@@ -83,7 +59,6 @@ fn risk(admin: bool) -> Risk {
     }
 }
 
-/// A plain removal. `None` when the path is gone or protected.
 fn remove_item(
     id: String,
     label: String,
@@ -114,7 +89,7 @@ fn remove_item(
     })
 }
 
-#[allow(clippy::too_many_arguments)] // private builder with two callers; a struct would only rename the fields
+#[allow(clippy::too_many_arguments)]
 fn module_item(
     id: String,
     label: String,
@@ -186,8 +161,6 @@ fn found_item(app: &App, subj: &Subject, f: &Found, home: &Path, uid: u32) -> Op
             json!({ "label": job, "domain": domain }),
         );
     }
-    // The app's own preferences file: removed through cfprefsd, so the
-    // cached copy goes too (see `actions.rs`).
     if let Some(b) = subj.bundle_id.as_deref() {
         if !f.admin && f.path == home.join("Library/Preferences").join(format!("{b}.plist")) {
             let detail = format!(
@@ -221,10 +194,7 @@ fn found_item(app: &App, subj: &Subject, f: &Found, home: &Path, uid: u32) -> Op
     )
 }
 
-/// The subject of a leftover search, from what the inventory knows.
 pub fn subject(app: &App) -> Subject {
-    // A bare id (the app is gone): `app:<bundle id>` from an old listing, or
-    // `removed:<name or bundle id>` from the screen.
     let bare = app
         .id
         .strip_prefix("app:")
@@ -250,7 +220,6 @@ pub fn subject(app: &App) -> Subject {
     if let Some(exe) = app.extra.get("executable").and_then(Value::as_str) {
         names.push(exe.to_string());
     }
-    // A bundle id is not a name.
     names.retain(|n| Some(n.as_str()) != bundle_id.as_deref());
     names.dedup();
     Subject {
@@ -305,7 +274,6 @@ pub fn build(app: &App, env: &Env) -> Built {
         ));
     }
 
-    // Homebrew formulae and casks without an app bundle: brew does the work.
     if app.source == "homebrew_formula" || app.source == "homebrew_cask" {
         let name = app.native_id.clone().unwrap_or_default();
         if parse::valid_brew_token(&name) {
@@ -350,7 +318,6 @@ pub fn build(app: &App, env: &Env) -> Built {
     let mut subj = subject(app);
     subj.app_groups = env.app_groups.clone();
 
-    // The app bundle itself.
     let app_path = subj.app_path.clone();
     if let Some(p) = &app_path {
         if app.removable && std::fs::symlink_metadata(p).is_ok() {
@@ -377,7 +344,6 @@ pub fn build(app: &App, env: &Env) -> Built {
         }
     }
 
-    // Leftovers.
     let (found, search_notes) = leftovers::find(&env.roots, &subj, &env.others);
     let shared_bid = search_notes
         .iter()
@@ -415,7 +381,6 @@ pub fn build(app: &App, env: &Env) -> Built {
         put(it, tick, why, &mut ticked, &mut unticked);
     }
 
-    // Installer receipts.
     let is_pkg = app.source == "pkg";
     let already: HashSet<PathBuf> = ticked
         .iter()
@@ -486,7 +451,6 @@ pub fn build(app: &App, env: &Env) -> Built {
         notes.push(format!("{skipped_shared} file(s) of the installer receipt are also used by another package and stay."));
     }
 
-    // The Homebrew zap, never in the default plan.
     if let (Some(t), false) = (&token, shared_bid) {
         let measure: Vec<PathBuf> = app_path.iter().cloned().collect();
         if let Some(z) = zap_item(app, t, cask.as_ref(), measure) {
@@ -572,8 +536,6 @@ fn extra(
     json!({ "leftovers": leftovers, "notes": notes, "cask": cask, "running": running })
 }
 
-/// The `extra.unticked` rows: candidates outside the default plan, pickable
-/// by id through `wmb_plan`.
 pub fn unticked_json(u: &[Unticked]) -> Value {
     Value::Array(
         u.iter()

@@ -1,11 +1,3 @@
-//! Commands for `assist::bots`: create a bot from the UI, its profile and
-//! capabilities, its skill bindings, the effective capability manifest and
-//! the per-run trace of skill reads. Owner: worker W3.
-//!
-//! The bot's id is the roster's `AgentDef::id`. Model and runtime stay on the
-//! roster agent; switching them (`assist_bot_set_connection`) never changes
-//! the id, the profile, the bindings or the memory (B07).
-
 use omniget_core::core::assist::bots::{
     self, profile, skills as bot_skills, BotEnv, BotProfile, Capability, MemoryPolicy,
 };
@@ -32,8 +24,6 @@ fn roster_agent(state: &AppState, bot_id: &str) -> Result<AgentDef, String> {
         .ok_or_else(|| format!("{}: no bot `{bot_id}` in the roster", bots::ERR_BOT))
 }
 
-/// Keeps `AgentDef::skills` (what the roster editor shows) equal to the
-/// bindings, which are the truth.
 fn mirror_skills(state: &AppState, bot_id: &str) -> Result<(), String> {
     let db = db::global()?;
     let mut agent = roster_agent(state, bot_id)?;
@@ -48,7 +38,6 @@ fn mirror_skills(state: &AppState, bot_id: &str) -> Result<(), String> {
     Ok(())
 }
 
-/// A roster id from a display name: lowercase ascii, dashes, unique.
 fn new_bot_id(state: &AppState, name: &str) -> String {
     let base: String = name
         .to_lowercase()
@@ -85,11 +74,8 @@ pub struct NewBot {
     pub capabilities: Vec<Capability>,
     #[serde(default)]
     pub memory_policy: MemoryPolicy,
-    /// Installed skills to bind (read on, scripts off).
     #[serde(default)]
     pub skills: Vec<String>,
-    /// A roster agent whose model and runtime the bot starts with (a
-    /// connection made in the Accounts tab).
     pub connection_agent_id: String,
 }
 
@@ -111,8 +97,6 @@ fn view(state: &AppState, bot_id: &str) -> Result<BotView, String> {
     })
 }
 
-/// Creates a bot: a roster agent on the chosen connection, with no tools of
-/// its own (no code, no shell), its profile, and its skill bindings.
 #[tauri::command]
 pub async fn assist_bot_create(state: State<'_, AppState>, bot: NewBot) -> Result<Value, String> {
     let name = bot.name.trim();
@@ -158,7 +142,6 @@ pub async fn assist_bot_create(state: State<'_, AppState>, bot: NewBot) -> Resul
         Ok(())
     })();
     if let Err(e) = result {
-        // No half-made bot: the roster entry goes with the failure.
         let _ = state.llm.roster_delete(&id);
         return Err(e);
     }
@@ -171,8 +154,6 @@ pub async fn assist_bot_get(state: State<'_, AppState>, bot_id: String) -> Resul
     to_value(view(&state, &bot_id)?)
 }
 
-/// Saves purpose, instructions, capabilities and memory policy. The id comes
-/// from the argument, never from the payload's body alone.
 #[tauri::command]
 pub async fn assist_bot_save_profile(
     state: State<'_, AppState>,
@@ -186,9 +167,6 @@ pub async fn assist_bot_save_profile(
     to_value(profile::put(&db, &p)?)
 }
 
-/// Moves the bot to another connection (model + runtime of another roster
-/// agent). Id, profile, bindings and memory stay. A conversation already
-/// running keeps the session it pinned (runs layer).
 #[tauri::command]
 pub async fn assist_bot_set_connection(
     state: State<'_, AppState>,
@@ -239,7 +217,6 @@ pub async fn assist_bot_unbind_skill(
     to_value(view(&state, &bot_id)?)
 }
 
-/// Read and run-scripts are two separate switches.
 #[tauri::command]
 pub async fn assist_bot_skill_grants(
     state: State<'_, AppState>,
@@ -253,9 +230,6 @@ pub async fn assist_bot_skill_grants(
     to_value(view(&state, &bot_id)?)
 }
 
-/// The effective capability manifest: for each capability and skill, asked
-/// for / available / missing, with the reason and the fix. Computed from the
-/// agent after every per-turn hook, the broker's real tools and the runtime.
 #[tauri::command]
 pub async fn assist_bot_capabilities(
     state: State<'_, AppState>,
@@ -276,7 +250,6 @@ pub async fn assist_bot_capabilities(
     to_value(report)
 }
 
-/// Which skill, version and file each run really read.
 #[tauri::command]
 pub async fn assist_bot_skill_reads(
     bot_id: Option<String>,

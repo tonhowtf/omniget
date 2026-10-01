@@ -1,19 +1,3 @@
-//! Pi coding agent (estudo 06, Pi §j; Parte 6 §8.1).
-//!
-//! `${PI_AGENT_DIR:-~/.pi/agent}/sessions/--<cwd com / \ : trocados por ->--/
-//! <timestamp>_<uuid>.jsonl`, JSONL em árvore (v3): linhas `title` opcionais,
-//! cabeçalho `{type:"session", version, id, timestamp, cwd, parentSession?}`,
-//! depois entradas com `id`, `parentId`, `timestamp`: `message` (`message.role`
-//! = `user|assistant|toolResult|…`; assistente com `model`, `provider`,
-//! `content[]` com `text|thinking|toolCall{id, name, arguments}` e
-//! `usage{input, output, cacheRead, cacheWrite, reasoning?, totalTokens,
-//! cost{total}}`; `toolResult` com `toolCallId`, `content`, `isError`),
-//! `model_change`, `session_info{name}`, `compaction` etc.
-//! O ramo ativo é o caminho da última entrada até a raiz pelos `parentId`.
-//! O custo em dólar vem gravado por mensagem (`usage.cost.total`).
-//! `reasoning` já está dentro de `output`; aqui ele é separado para o total
-//! não contar duas vezes. Pi não está instalado aqui: só fixture.
-
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
@@ -52,7 +36,6 @@ fn files() -> Vec<PathBuf> {
     out
 }
 
-/// Linhas do ramo ativo, na ordem.
 fn active_branch(entries: &[Value]) -> Vec<&Value> {
     let with_ids = entries.iter().filter(|e| e.get("id").is_some()).count();
     let has_parents = entries.iter().any(|e| e.get("parentId").is_some());
@@ -100,7 +83,6 @@ pub fn parse(lines: &[Value], fallback_id: &str, source: &Path) -> Session {
                 meta.project_path = s(l, &["cwd"]);
                 meta.started = l.get("timestamp").and_then(ts_str);
                 meta.parent_session = s(l, &["parentSession"]).map(|p| {
-                    // Pode ser caminho de arquivo: fica só o id.
                     let st = Path::new(&p)
                         .file_stem()
                         .and_then(|x| x.to_str())
@@ -145,8 +127,6 @@ pub fn parse(lines: &[Value], fallback_id: &str, source: &Path) -> Session {
         let content = m.get("content").cloned().unwrap_or(Value::Null);
         let (text, mut calls, res) = anthropic_blocks(&content);
         results.extend(res);
-        // Pi usa `toolCall` com `arguments`; anthropic_blocks já cobre, mas
-        // garante o formato caso venha só `name` + `arguments` string.
         for c in calls.iter_mut() {
             if let Value::String(st) = &c.input {
                 if let Ok(v) = serde_json::from_str(st) {
@@ -189,7 +169,6 @@ fn load_file(f: &Path) -> Session {
     parse(&read_jsonl(f), &file_stem(f), f)
 }
 
-/// Id do cabeçalho sem ler o arquivo inteiro.
 fn header_id(f: &Path) -> Option<String> {
     let file = std::fs::File::open(f).ok()?;
     use std::io::BufRead;

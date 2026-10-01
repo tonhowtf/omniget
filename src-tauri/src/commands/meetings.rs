@@ -1,11 +1,3 @@
-//! Meetings screen: record, import (file or Teams/SharePoint recording), send a
-//! bot, and everything after (transcript, summary, markdown, post to Teams).
-//! The work itself lives in `omniget_core::core::meetings`; this file wires it
-//! to the window: events, the SharePoint sign-in window and the recorder.
-//!
-//! Events: `meetings://changed` `{id}` when a meeting's state moves, and
-//! `meetings://progress` (a `ToolProgress` whose `id` is the meeting id).
-
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
@@ -22,7 +14,6 @@ use crate::meetings_capture;
 const EV_CHANGED: &str = "meetings://changed";
 const EV_PROGRESS: &str = "meetings://progress";
 
-/// SharePoint session cookies per host, kept for this run of the app only.
 static SHAREPOINT_SESSIONS: Mutex<Option<HashMap<String, String>>> = Mutex::new(None);
 
 fn session_cookie(host: &str) -> Option<String> {
@@ -59,8 +50,6 @@ fn progress_fn(app: &AppHandle) -> ProgressFn {
     })
 }
 
-/// Runs the pipeline in the background. A SharePoint recording that needs a
-/// session opens the sign-in window once and runs again with its cookies.
 fn spawn_process(app: &AppHandle, id: String) {
     let app = app.clone();
     tauri::async_runtime::spawn(async move {
@@ -102,8 +91,6 @@ fn sharepoint_host(id: &str) -> Option<String> {
     }
 }
 
-/// Opens the tenant's sign-in in an app window and returns the session
-/// cookie header once `FedAuth` exists.
 async fn sharepoint_login(app: &AppHandle, host: &str) -> Result<String, String> {
     use crate::commands::auth_webview::{open_auth_webview, AuthWebviewRequest};
     let request = AuthWebviewRequest {
@@ -246,8 +233,6 @@ pub fn meeting_import_file(
     Ok(m)
 }
 
-/// A Teams/SharePoint recording link, a `videomanifest` URL or a transcript
-/// URL. Any other URL is refused: generic media goes through Downloads.
 #[tauri::command]
 pub fn meeting_import_url(
     app: AppHandle,
@@ -298,8 +283,6 @@ pub async fn meeting_post_teams(id: String) -> Result<(), String> {
         .await
         .map_err(|e| format!("{e:#}"))
 }
-
-// ---------------------------------------------------------------- capture
 
 #[tauri::command]
 pub async fn meeting_capture_support() -> meetings_capture::CaptureSupport {
@@ -362,8 +345,6 @@ pub fn meeting_record_status() -> Option<meetings_capture::CaptureStatus> {
     meetings_capture::status()
 }
 
-/// Stops the recorder, mixes the tracks into `audio.m4a` for playback and
-/// starts the transcript.
 #[tauri::command]
 pub async fn meeting_record_stop(app: AppHandle) -> Result<Meeting, String> {
     let stopped = tauri::async_runtime::spawn_blocking(meetings_capture::stop)
@@ -432,8 +413,6 @@ async fn mix_tracks(dir: &std::path::Path, tracks: &[meetings::Track]) -> Result
     }
 }
 
-// ---------------------------------------------------------------- bot
-
 #[tauri::command]
 pub async fn meeting_bot_send(
     app: AppHandle,
@@ -482,8 +461,6 @@ pub struct BotRefresh {
     pub live_segments: usize,
 }
 
-/// Pulls the bot's transcript. While the call runs it only reports progress;
-/// once the bot is done the transcript is stored and summarized.
 #[tauri::command]
 pub async fn meeting_bot_refresh(app: AppHandle, id: String) -> Result<BotRefresh, String> {
     let m = meetings::load(&id).map_err(err)?;
@@ -514,7 +491,6 @@ pub async fn meeting_bot_refresh(app: AppHandle, id: String) -> Result<BotRefres
     })
 }
 
-/// Makes the bot leave and keeps what it transcribed.
 #[tauri::command]
 pub async fn meeting_bot_stop(app: AppHandle, id: String) -> Result<Meeting, String> {
     let m = meetings::load(&id).map_err(err)?;
@@ -536,8 +512,6 @@ pub async fn meeting_bot_stop(app: AppHandle, id: String) -> Result<Meeting, Str
     changed(&app, &id);
     Ok(m)
 }
-
-// ---------------------------------------------------------------- settings
 
 #[tauri::command]
 pub fn meetings_settings_get() -> settings::MeetingSettingsView {

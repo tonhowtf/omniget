@@ -1,16 +1,3 @@
-//! Network transport for OmniTube. Every request to YouTube, YouTube Music
-//! and the side services (SponsorBlock, DeArrow, RYD, LRCLIB) goes through
-//! the clients here.
-//!
-//! * `client()`        JSON/text calls: gzip/brotli, 20 s timeout, no cookie
-//!   store (the account jar lives in `account` and is sent by hand)
-//! * `media_client()`  googlevideo byte ranges for the proxy: no decompression
-//!   and no total timeout (the proxy has its own stall guard)
-//!
-//! `innertube()` signs requests with the account (SAPISIDHASH) when asked,
-//! folds `Set-Cookie` back into the jar, and renews the `visitorData` once
-//! when YouTube rejects the session.
-
 use std::sync::{Mutex, OnceLock};
 use std::time::{Duration, Instant};
 
@@ -20,7 +7,6 @@ use serde_json::Value;
 
 use super::account;
 
-/// Desktop Safari: sw.js_data and the watch page answer it like a browser.
 pub const BROWSER_UA: &str = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.6 Safari/605.1.15";
 
 const VISITOR_TTL: Duration = Duration::from_secs(6 * 3600);
@@ -62,10 +48,6 @@ pub fn media_client() -> &'static reqwest::Client {
     })
 }
 
-// ---------- settings ----------
-
-/// The app settings, re-read at most every few seconds: commands call this
-/// on every request and the store is a JSON file.
 pub fn app_settings() -> AppSettings {
     static CACHE: Mutex<Option<(AppSettings, Instant)>> = Mutex::new(None);
     if let Ok(g) = CACHE.lock() {
@@ -86,7 +68,6 @@ pub fn settings() -> TubeSettings {
     app_settings().tube
 }
 
-/// `(hl, gl)` from the app language: "pt-BR" -> ("pt", "BR"), "en" -> ("en", "US").
 pub fn locale() -> (String, String) {
     locale_of(&app_settings().appearance.language)
 }
@@ -122,7 +103,6 @@ fn locale_of(lang: &str) -> (String, String) {
         }
         .to_string()
     });
-    // YouTube knows zh-CN / zh-TW as their own hl values
     let hl = match (primary.as_str(), region.as_deref()) {
         ("zh", Some(r)) => format!("zh-{r}"),
         _ => primary,
@@ -130,15 +110,11 @@ fn locale_of(lang: &str) -> (String, String) {
     (hl, gl)
 }
 
-// ---------- visitorData ----------
-
 fn visitor_cache() -> &'static tokio::sync::Mutex<Option<(String, Instant)>> {
     static V: OnceLock<tokio::sync::Mutex<Option<(String, Instant)>>> = OnceLock::new();
     V.get_or_init(|| tokio::sync::Mutex::new(None))
 }
 
-/// Anonymous `visitorData`, reused for 6 h. Without it the player answers
-/// "Sign in to confirm you're not a bot".
 pub async fn visitor_data() -> Result<String, String> {
     let mut g = visitor_cache().lock().await;
     if let Some((v, at)) = g.as_ref() {
@@ -151,7 +127,6 @@ pub async fn visitor_data() -> Result<String, String> {
     Ok(v)
 }
 
-/// Forgets the cached visitorData so the next call fetches a fresh one.
 pub async fn reset_visitor_data() {
     *visitor_cache().lock().await = None;
 }
@@ -187,8 +162,6 @@ async fn fetch_visitor_data() -> Result<String, String> {
         .ok_or_else(|| "no visitorData from YouTube".to_string())
 }
 
-// ---------- innertube ----------
-
 fn now_s() -> u64 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -196,8 +169,6 @@ fn now_s() -> u64 {
         .unwrap_or(0)
 }
 
-/// Account headers for a client that takes cookies: Cookie, Authorization
-/// (SAPISIDHASH for the client's origin) and X-Goog-AuthUser.
 pub fn auth_headers(
     jar: &innertube::CookieJar,
     origin: &str,
@@ -218,8 +189,6 @@ fn set_cookies(headers: &reqwest::header::HeaderMap) -> Vec<String> {
         .collect()
 }
 
-/// Folds `Set-Cookie` values of a response from `host` into the account jar
-/// and writes it back when a value changed (Google rotates `__Secure-*PSIDTS`).
 pub fn absorb_cookies(host: &str, headers: &reqwest::header::HeaderMap) {
     let values = set_cookies(headers);
     if values.is_empty() {
@@ -252,7 +221,6 @@ async fn post(
                 req = req.header(*k, v);
             }
         }
-        // skip the EU consent interstitial on anonymous calls
         None => req = req.header(reqwest::header::COOKIE, "SOCS=CAI"),
     }
     let resp = req.send().await.map_err(|e| {
@@ -279,9 +247,6 @@ fn set_visitor(body: &mut Value, visitor: &str) {
     }
 }
 
-/// POST `youtubei/v1/{endpoint}` with client `c`. With `auth`, a client that
-/// takes cookies and an account in the vault, the call is signed. A 401/403
-/// renews the visitorData and retries once.
 pub async fn innertube(
     c: &ClientDef,
     endpoint: &str,
@@ -322,7 +287,6 @@ async fn with_client(
     innertube(&c, endpoint, body, auth).await
 }
 
-/// WEB client (www.youtube.com), signed with the account when there is one.
 pub async fn web(
     endpoint: &str,
     body_fn: impl FnOnce(&ClientDef, Option<&str>, &str, &str) -> Value + Send,
@@ -330,7 +294,6 @@ pub async fn web(
     with_client("WEB", endpoint, true, body_fn).await
 }
 
-/// WEB_REMIX client (music.youtube.com), signed with the account when there is one.
 pub async fn music(
     endpoint: &str,
     body_fn: impl FnOnce(&ClientDef, Option<&str>, &str, &str) -> Value + Send,
@@ -338,7 +301,6 @@ pub async fn music(
     with_client("WEB_REMIX", endpoint, true, body_fn).await
 }
 
-/// Same as `web`/`music` but never signed (typeahead, lyrics lookups).
 pub async fn anonymous(
     client_name: &str,
     endpoint: &str,
@@ -347,8 +309,6 @@ pub async fn anonymous(
     with_client(client_name, endpoint, false, body_fn).await
 }
 
-/// `{"context": ...}` plus the given fields, for endpoints without a body
-/// builder in the core (like, subscribe, edit_playlist, feedback...).
 pub fn body_with(c: &ClientDef, visitor: Option<&str>, hl: &str, gl: &str, extra: Value) -> Value {
     let mut body = innertube::context(c, visitor, hl, gl);
     if let (Some(obj), Value::Object(more)) = (body.as_object_mut(), extra) {
@@ -356,8 +316,6 @@ pub fn body_with(c: &ClientDef, visitor: Option<&str>, hl: &str, gl: &str, extra
     }
     body
 }
-
-// ---------- plain GETs ----------
 
 pub async fn get_json(url: &str) -> Result<Value, String> {
     let resp = client()
@@ -387,7 +345,6 @@ pub async fn get_text(url: &str) -> Result<String, String> {
         .map_err(|_| "invalid response".to_string())
 }
 
-/// Truncated URL for debug logs: googlevideo URLs are credentials.
 pub fn redact(url: &str) -> String {
     let base = url.split('?').next().unwrap_or(url);
     base.chars().take(48).collect()

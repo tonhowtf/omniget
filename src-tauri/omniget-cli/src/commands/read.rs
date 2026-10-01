@@ -1,7 +1,3 @@
-//! `omniget read ...`: the Read building blocks from the terminal. Works
-//! without the desktop app: book metadata, legal catalogs, OPDS feeds,
-//! text to EPUB, and MangaDex chapter lists.
-
 use anyhow::{anyhow, bail};
 use std::path::PathBuf;
 

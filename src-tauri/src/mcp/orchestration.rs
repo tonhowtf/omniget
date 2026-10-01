@@ -1,6 +1,3 @@
-//! External orchestration projection. Authority is selected from local grants;
-//! callers cannot provide raw mission origins, roots, rooms or verifier code.
-//! External native execution uses pinned file capabilities and bounded grants.
 use super::{
     policy::{self, Principal},
     ToolDef,
@@ -85,12 +82,10 @@ struct Create {
     criteria: Vec<ArtifactCriterion>,
     tasks: Vec<Task>,
     budget_tokens: u64,
-    /// Active work minutes (paused/blocked time does not count); default 15.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     max_minutes: Option<u32>,
     idempotency_key: String,
 }
-/// Upper bound of an external mission's active work time.
 const MAX_MISSION_MINUTES: u32 = 240;
 fn parse<T: serde::de::DeserializeOwned>(args: Value) -> Result<T, String> {
     serde_json::from_value(args).map_err(|_| "INVALID_ARGUMENTS".into())
@@ -195,9 +190,6 @@ pub fn tools() -> Vec<ToolDef> {
     all
 }
 
-/// Both a principal match and a durable external execution binding are needed.
-/// Historical reads/cancellation remain available after grant revocation, while
-/// creation/resume must revalidate the live grant and execution boundary.
 fn owned(db: &AssistDb, p: &Principal, mission: &str) -> Result<(), String> {
     id(mission)?;
     let exists:bool=storage(db.with(|c|c.query_row("SELECT EXISTS(SELECT 1 FROM missions_missions m JOIN external_executions e ON e.mission=m.id AND e.conversation=m.conversation_id JOIN external_grants g ON g.id=e.grant_id WHERE m.id=?1 AND m.principal=?2 AND g.principal=?2)",params![mission,p.id],|r|r.get(0))))?;
@@ -207,12 +199,8 @@ fn owned(db: &AssistDb, p: &Principal, mission: &str) -> Result<(), String> {
         Err("MISSION_NOT_AUTHORIZED".into())
     }
 }
-/// A job is readable when it ran a task of a mission this principal owns
-/// (the same rule as `missions_get`); anything else, local jobs included,
-/// is refused without saying whether it exists.
 fn owned_job(db: &AssistDb, p: &Principal, job: &str) -> Result<(), String> {
     id(job)?;
-    // `LIKE` narrows, the JSON decides (`_` is a LIKE wildcard).
     let pattern = format!("%\"{job}\"%");
     let rows: Vec<(String, String)> = storage(db.with(|c| {
         let mut s = c.prepare(
@@ -235,8 +223,6 @@ fn owned_job(db: &AssistDb, p: &Principal, job: &str) -> Result<(), String> {
         Err("JOB_NOT_AUTHORIZED".into())
     }
 }
-/// Most files and patch characters `job_diff` returns (the reply stays under
-/// the 64 KB ceiling).
 const JOB_DIFF_FILES: usize = 200;
 const JOB_DIFF_PATCH: usize = 32 * 1024;
 pub(crate) fn job_diff_reply(
@@ -337,8 +323,6 @@ fn proposal(db: &AssistDb, p: &Principal, draft: &Create) -> Result<(), String> 
     Ok(())
 }
 
-/// A CLI executor qualifies only from probed flags; probe before the sync check
-/// (the cache is empty after a restart).
 async fn probe_executor(app: &AppHandle, bot: &str) {
     let agent = app.state::<crate::AppState>().llm.agent(bot);
     if let Some(a) = agent {
@@ -354,8 +338,6 @@ fn validate_executor(app: &AppHandle, grant: &authority::Ceiling, bot: &str) -> 
     let state = app.state::<crate::AppState>();
     let agent = state.llm.agent(bot).ok_or("EXECUTOR_UNAVAILABLE")?;
     authority::external_runtime(&agent)?;
-    // A derived bot's pins are checked by `for_bot` (source and derivative
-    // revisions); a directly granted executor by the grant's own pin.
     if grant.bots.iter().any(|b| b == bot) {
         if grant.bot_revisions.get(bot) != Some(&authority::agent_revision(&agent)?) {
             return Err("EXECUTOR_REVISION_CHANGED".into());
@@ -385,8 +367,6 @@ struct MissionPaths {
     paths: Vec<String>,
 }
 
-/// Same rule as the executor's file tools and external criteria (M1): shape
-/// plus the protected names (`.git`, `.ssh`, `.env*`, `.omniget-*`, ...).
 fn safe_rel(path: &str) -> Result<(), String> {
     omniget_core::core::assist::external_files::validate_path(path).map_err(|e| {
         if e == "PROTECTED_WORKSPACE_PATH" {
@@ -397,12 +377,8 @@ fn safe_rel(path: &str) -> Result<(), String> {
     })
 }
 
-/// Per-call ceiling of bytes snapshotted by `missions_artifacts` (M3).
 const ARTIFACTS_CALL_BYTES: u64 = 256 * 1024 * 1024;
 
-/// Deterministic precondition of a mission control, checked before the
-/// idempotency receipt is reserved, so a predictable refusal is a known
-/// `ERR_MISSION_STATE` and never poisons the key (F8).
 fn control_precondition(name: &str, state: missions::MissionState) -> Result<(), String> {
     use missions::MissionState as S;
     let ok = match name {
@@ -418,8 +394,6 @@ fn control_precondition(name: &str, state: missions::MissionState) -> Result<(),
     }
 }
 
-/// After the receipt: a domain state refusal rolled its transaction back, so
-/// the outcome is known; the pending receipt is released instead of kept.
 fn control_refused(p: &Principal, name: &str, key: &str, e: String) -> String {
     if e.starts_with("ERR_MISSION_STATE") {
         let _ = policy::release(p, name, key);
@@ -439,8 +413,6 @@ fn mission_grant(db: &AssistDb, mission: &str) -> Result<String, String> {
     }))
 }
 
-/// Why a path could not be snapshotted, for the controller: `NOT_FOUND`
-/// (write it at exactly that path), `IS_DIRECTORY` or `UNSAFE_OR_OVER_LIMIT`.
 fn artifact_unavailable(
     workspace: &std::path::Path,
     path: &str,
@@ -451,10 +423,6 @@ fn artifact_unavailable(
     json!({"available": false, "reason": problem.code(), "detail": problem.describe(path, budget)})
 }
 
-/// Artifacts of an owned mission: the criteria paths plus requested extra
-/// paths, each with its digest as it is NOW (descriptor-pinned snapshot) and
-/// the newest receipt for that criterion. A transfer link is issued only with
-/// the transfer scope and only while the execution grant is live.
 fn mission_artifacts(
     db: &AssistDb,
     p: &Principal,
@@ -510,8 +478,6 @@ fn mission_artifacts(
             "criterionId": criterion,
             "receipt": receipt.map(|r| json!({"receiptId": r.id, "status": r.status, "artifactDigest": r.artifact_digest, "artifactDigestScope": "sha256 of the criterion manifest: sorted JSON list of [path, file sha256]; compare with matchesReceipt, not with the file sha256", "verifier": r.verifier, "createdMs": r.created_ms})),
         });
-        // Criteria paths get the same protected-name rule as extra paths
-        // (defense if an old or local criterion escaped validation).
         if let Err(reason) = safe_rel(&path) {
             item["current"] = json!({"available": false, "reason": reason});
             items.push(item);
@@ -621,11 +587,6 @@ fn approvals(app: &AppHandle, db: &AssistDb, mission: &str) -> Result<Value, Str
     )
 }
 
-/// `approval_respond` (2.2): the same door as the window, the bridge and
-/// the CLI (`crate::approvals::respond`), for the asks of the principal's
-/// own missions only. Refused to an agent session (an agent must never
-/// answer its own questions, `85#P2`) and without `accept_always` (a
-/// permanent rule stays a desktop decision, like on a paired phone).
 fn approval_respond(
     app: &AppHandle,
     db: &AssistDb,
@@ -642,7 +603,6 @@ fn approval_respond(
         return Err("INVALID_ARGUMENTS".into());
     }
     let door = crate::approvals::from_app(app).map_err(|_| "ORCHESTRATION_UNAVAILABLE")?;
-    // Unknown id and someone else's ask look the same from outside.
     let job = door
         .registry
         .permission(&request.approval_id)
@@ -657,9 +617,6 @@ fn approval_respond(
     }))
 }
 
-/// The job a `job_diff` or `approval_respond` call is about, when the
-/// client started it itself (`Job.owner`); `None` sends it down the mission
-/// path, which refuses what it does not own.
 fn started_job(app: &AppHandle, p: &Principal, name: &str, args: &Value) -> Option<String> {
     let jobs = crate::jobs::get(app).ok()?;
     let job = if name == "job_diff" {
@@ -695,7 +652,6 @@ pub async fn call(
     {
         return Err("ARGUMENT_LIMIT_EXCEEDED".into());
     }
-    // The job tools of the command surface (2.5): the client's own jobs.
     if crate::job_commands::handles(name) {
         let cmds = crate::job_commands::from_app(app).map_err(|_| "ORCHESTRATION_UNAVAILABLE")?;
         return crate::job_commands::mcp_call(&cmds, p, name, args)
@@ -703,9 +659,6 @@ pub async fn call(
             .and_then(bounded);
     }
     let db = omniget_core::core::assist::db::global().map_err(|_| "ORCHESTRATION_UNAVAILABLE")?;
-    // `job_diff` and `approval_respond` of a job the client started with
-    // `agent_run` (2.5): the same answers, owned through `Job.owner`
-    // instead of a mission.
     if matches!(name, "job_diff" | "approval_respond") && started_job(app, p, name, &args).is_some()
     {
         let cmds = crate::job_commands::from_app(app).map_err(|_| "ORCHESTRATION_UNAVAILABLE")?;
@@ -717,8 +670,6 @@ pub async fn call(
         "agents_list" | "workspaces_list" => {
             let _: Empty = parse(args)?;
             let grants = authority::list(&db, &p.id).map_err(|_| "EXECUTION_GRANTS_UNAVAILABLE")?;
-            // Grants are locally bounded individually. Refuse an unbounded
-            // result rather than silently claiming discovery is complete.
             if grants.len() > 100 {
                 return Err("GRANT_LIST_LIMIT_EXCEEDED".into());
             }
@@ -776,8 +727,6 @@ pub async fn call(
         "missions_artifacts" => {
             let request: MissionPaths = parse(args)?;
             owned(&db, p, &request.mission_id)?;
-            // Snapshots, digests and link copies are blocking file work: off
-            // the async runtime and behind the shared artifact semaphore (M3).
             let permit = super::artifacts::admit()?;
             let (db, p) = (db.clone(), p.clone());
             tokio::task::spawn_blocking(move || {
@@ -853,7 +802,6 @@ pub async fn call(
                         acceptance: missions::Acceptance::Auto,
                     })
                     .collect(),
-                // A single executor conversation has one turn at a time.
                 tasks: request
                     .tasks
                     .into_iter()
@@ -882,8 +830,6 @@ pub async fn call(
                 &request.grant_id,
                 &request.idempotency_key,
             )?;
-            // Boot reconciliation also drives queued missions if this process
-            // exits after the atomic creation and before this notification.
             driver.start(&detail.mission.id);
             summary(&db, p, &detail.mission.id)?
         }
@@ -929,7 +875,6 @@ pub async fn call(
                 return Err("INVALID_ARGUMENTS".into());
             }
             owned(&db, p, &request.mission_id)?;
-            // A finished replay returns its receipt; a pending one stays unknown.
             if let Some(receipt) = policy::receipt(p, name, &request.idempotency_key, &args)? {
                 return bounded(receipt);
             }
@@ -940,7 +885,6 @@ pub async fn call(
                 return bounded(receipt);
             }
             policy::active(p)?;
-            // Existing driver/domain owns state and live-job cancellation.
             let driver = crate::missions::driver(app).map_err(|_| "MISSION_DRIVER_UNAVAILABLE")?;
             let outcome = if name == "missions_cancel" {
                 missions::cancel(&db, &request.mission_id, "cancelled by external owner")

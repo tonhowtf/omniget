@@ -1,8 +1,5 @@
 use std::sync::{Mutex, OnceLock};
 
-// Holds the OS keep-awake guard while downloads are active. Dropping the
-// guard releases the lock. The settings check happens only on transitions
-// (acquire), never on every queue tick.
 static GUARD: OnceLock<Mutex<Option<keepawake::KeepAwake>>> = OnceLock::new();
 
 fn cell() -> &'static Mutex<Option<keepawake::KeepAwake>> {

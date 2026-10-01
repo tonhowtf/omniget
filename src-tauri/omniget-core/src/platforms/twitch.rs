@@ -80,8 +80,6 @@ impl TwitchClipsDownloader {
                 }
             })
             .collect();
-        // Unsized renditions cannot prove a height ceiling; the MCP worker
-        // then takes this yt-dlp alternative on the page URL instead.
         if available_qualities.iter().any(|q| q.height == 0) {
             available_qualities.push(ytdlp_alternative(url));
         }
@@ -369,9 +367,6 @@ fn ytdlp_alternative(page_url: &str) -> VideoQuality {
     }
 }
 
-/// `videoQualities.quality` is the frame height of landscape renditions
-/// (clip GQL 26/09: 1080/720/480/360 under `/landscape/avc/<q>/`). Portrait
-/// renditions name the short side, so their height is left unknown.
 fn clip_height(quality: &str, source_url: &str) -> u32 {
     if source_url.contains("/portrait/") {
         return 0;
@@ -379,10 +374,6 @@ fn clip_height(quality: &str, source_url: &str) -> u32 {
     quality.parse().unwrap_or(0)
 }
 
-/// The requested quality is a height ceiling (`"720"` from the MCP worker, or
-/// a `"720p"` label): the tallest variant of known height within it, else an
-/// exact label match. The first variant is 1080 on clips, so matching labels
-/// alone ignored a `"720"` ceiling (round-1 regression twitch-1).
 fn select_quality<'a>(
     qualities: &'a [VideoQuality],
     wanted: Option<&str>,
@@ -406,7 +397,6 @@ fn select_quality<'a>(
 mod tests {
     use super::*;
 
-    /// Fixture: clip GQL `videoQualities` of corpus twitch-1 (26/09).
     const GQL: &str = r#"[{"quality":"1080","sourceURL":"https://production.assets.clips.twitchcdn.net/v2/media/x/landscape/avc/1080/index.mp4"},{"quality":"720","sourceURL":"https://production.assets.clips.twitchcdn.net/v2/media/x/landscape/avc/720/index.mp4"},{"quality":"480","sourceURL":"https://production.assets.clips.twitchcdn.net/v2/media/x/landscape/avc/480/index.mp4"},{"quality":"360","sourceURL":"https://production.assets.clips.twitchcdn.net/v2/media/x/landscape/avc/360/index.mp4"}]"#;
 
     fn qualities() -> Vec<VideoQuality> {

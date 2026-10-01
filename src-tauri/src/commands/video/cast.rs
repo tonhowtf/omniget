@@ -1,18 +1,3 @@
-//! Chromecast, written from scratch: mDNS discovery over plain UDP, the
-//! CASTV2 channel over TLS with a hand-rolled `CastMessage` protobuf, and a
-//! LAN listener that exists only while a cast session runs.
-//!
-//! Flow: discover (`_googlecast._tcp.local` PTR, 3 s) → TLS to :8009 →
-//! CONNECT + heartbeat → LAUNCH the Default Media Receiver (CC1AD845) →
-//! CONNECT to its transport → LOAD. The TV can't reach 127.0.0.1, so the
-//! local player server is mirrored on the LAN address that routes to the
-//! device, under a per-session token, with `Access-Control-Allow-Origin: *`
-//! (the receiver fetches WebVTT and HLS by XHR). HLS playlists are rewritten
-//! on the way so their absolute 127.0.0.1 URLs point at the mirror too.
-//!
-//! Reference behaviour: pychromecast `socket_client.py` and catt
-//! `get_local_ip` (see estudos/93-watch/re/lote-5).
-
 use std::collections::{HashMap, HashSet};
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
@@ -50,16 +35,11 @@ const MAX_FRAME: usize = 64 * 1024;
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(10);
 const LOAD_TIMEOUT: Duration = Duration::from_secs(25);
 
-// =====================================================================
-// CastMessage protobuf (cast_channel.proto, fields 1-7, proto2)
-// =====================================================================
-
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct CastMessage {
     pub source_id: String,
     pub destination_id: String,
     pub namespace: String,
-    /// `payload_utf8` (field 6). Binary payloads (device auth) are not used.
     pub payload: String,
 }
 
@@ -97,12 +77,12 @@ fn put_str(out: &mut Vec<u8>, field: u64, s: &str) {
 impl CastMessage {
     pub fn encode(&self) -> Vec<u8> {
         let mut out = Vec::with_capacity(self.payload.len() + 96);
-        put_varint(&mut out, 1 << 3); // protocol_version = CASTV2_1_0
+        put_varint(&mut out, 1 << 3);
         put_varint(&mut out, 0);
         put_str(&mut out, 2, &self.source_id);
         put_str(&mut out, 3, &self.destination_id);
         put_str(&mut out, 4, &self.namespace);
-        put_varint(&mut out, 5 << 3); // payload_type = STRING
+        put_varint(&mut out, 5 << 3);
         put_varint(&mut out, 0);
         put_str(&mut out, 6, &self.payload);
         out
@@ -140,7 +120,6 @@ impl CastMessage {
         (pos == buf.len()).then_some(m)
     }
 
-    /// Length-prefixed frame as it goes on the wire.
     fn frame(&self) -> Vec<u8> {
         let body = self.encode();
         let mut out = Vec::with_capacity(body.len() + 4);
@@ -150,10 +129,6 @@ impl CastMessage {
     }
 }
 
-// =====================================================================
-// mDNS discovery
-// =====================================================================
-
 #[derive(Serialize, Clone, Debug, PartialEq)]
 pub struct CastDevice {
     pub id: String,
@@ -161,7 +136,6 @@ pub struct CastDevice {
     pub model: String,
     pub host: String,
     pub port: u16,
-    /// Always "chromecast" for now.
     pub kind: String,
 }
 
@@ -176,15 +150,13 @@ fn put_name(out: &mut Vec<u8>, name: &str) {
     out.push(0);
 }
 
-/// One PTR question for the Cast service.
 fn mdns_query() -> Vec<u8> {
     let mut q = vec![0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0];
     put_name(&mut q, SERVICE);
-    q.extend_from_slice(&[0, 12, 0, 1]); // PTR, IN
+    q.extend_from_slice(&[0, 12, 0, 1]);
     q
 }
 
-/// Reads a (possibly compressed) name; returns it and the offset after it.
 fn read_name(buf: &[u8], start: usize) -> Option<(String, usize)> {
     let mut labels: Vec<String> = Vec::new();
     let mut pos = start;
@@ -219,7 +191,6 @@ fn norm(name: &str) -> String {
     name.trim_end_matches('.').to_ascii_lowercase()
 }
 
-/// Collects PTR/SRV/TXT/A records of one packet into `rec`.
 fn parse_mdns(buf: &[u8], rec: &mut MdnsRecords) -> Option<()> {
     if buf.len() < 12 {
         return None;
@@ -278,8 +249,6 @@ fn parse_mdns(buf: &[u8], rec: &mut MdnsRecords) -> Option<()> {
     Some(())
 }
 
-/// Turns the records into devices. `from` is the address each instance's
-/// packet came from, used when the A record is missing.
 fn devices_from(rec: &MdnsRecords, from: &HashMap<String, IpAddr>) -> Vec<CastDevice> {
     let mut names: Vec<&String> = rec.ptr.iter().collect();
     for k in rec.srv.keys().chain(rec.txt.keys()) {
@@ -291,11 +260,9 @@ fn devices_from(rec: &MdnsRecords, from: &HashMap<String, IpAddr>) -> Vec<CastDe
     for inst in names {
         let txt = rec.txt.get(inst).cloned().unwrap_or_default();
         let (port, target) = rec.srv.get(inst).cloned().unwrap_or((8009, String::new()));
-        // Other ports are speaker groups (audio only).
         if port != 8009 {
             continue;
         }
-        // `ca` bit 0 = video out; a Chromecast Audio has no screen.
         if let Some(ca) = txt.get("ca").and_then(|c| c.parse::<u64>().ok()) {
             if ca & 1 == 0 {
                 continue;
@@ -332,8 +299,6 @@ fn devices_from(rec: &MdnsRecords, from: &HashMap<String, IpAddr>) -> Vec<CastDe
     out
 }
 
-/// A socket that joins the mDNS group on 5353, when the OS lets two
-/// programs share the port (it usually does; the system responder is there).
 fn passive_socket() -> Option<std::net::UdpSocket> {
     use socket2::{Domain, Protocol, Socket, Type};
     let s = Socket::new(Domain::IPV4, Type::DGRAM, Some(Protocol::UDP)).ok()?;
@@ -346,8 +311,6 @@ fn passive_socket() -> Option<std::net::UdpSocket> {
     Some(s.into())
 }
 
-/// Sends the query a few times and listens for `window`. Answers come back
-/// as legacy unicast to the query socket and, from some devices, multicast.
 async fn discover(window: Duration) -> Vec<CastDevice> {
     let query = mdns_query();
     let active = match std::net::UdpSocket::bind((Ipv4Addr::UNSPECIFIED, 0)) {
@@ -422,13 +385,6 @@ fn devices() -> &'static Mutex<HashMap<String, CastDevice>> {
     D.get_or_init(Default::default)
 }
 
-// =====================================================================
-// CASTV2 channel over TLS
-// =====================================================================
-
-/// The Chromecast presents a self-signed certificate; like every sender we
-/// don't verify it (the receiver is the one that proves identity, and only
-/// to Google's own senders).
 #[derive(Debug)]
 struct AcceptAny(Arc<rustls::crypto::CryptoProvider>);
 
@@ -478,7 +434,6 @@ fn tls_config() -> Result<Arc<rustls::ClientConfig>, String> {
     Ok(Arc::new(cfg))
 }
 
-/// Something the device said that nobody was waiting for.
 enum Incoming {
     Message(String, Value),
     Closed(String),
@@ -601,7 +556,6 @@ impl Channel {
         let _ = self.tx.send(msg.frame());
     }
 
-    /// Sends, opening the virtual connection to `dest` first if needed.
     fn send(&self, dest: &str, ns: &str, v: Value) {
         let first = self
             .open
@@ -650,7 +604,6 @@ impl Channel {
             .lock()
             .map(|mut t| std::mem::take(&mut *t))
             .unwrap_or_default();
-        // Give the writer a moment to flush the CLOSE frames.
         tokio::spawn(async move {
             tokio::time::sleep(Duration::from_millis(300)).await;
             for t in tasks {
@@ -676,20 +629,13 @@ fn connect_payload() -> Value {
     })
 }
 
-// =====================================================================
-// LAN mirror of the local player server
-// =====================================================================
-
 #[derive(Clone)]
 struct LanCtx {
     token: Arc<String>,
-    /// `http://127.0.0.1:<port>` of the player server.
     upstream: Arc<String>,
-    /// `http://<lan ip>:<port>/c/<token>/p`
     public: Arc<String>,
     alive: Arc<AtomicBool>,
     client: reqwest::Client,
-    /// Inline (`data:`) subtitles, served as `/c/<token>/s/<n>.vtt`.
     subs: Arc<Mutex<Vec<String>>>,
 }
 
@@ -702,8 +648,6 @@ struct Lan {
 }
 
 impl Lan {
-    /// The LAN URL for a player-server URL; other URLs go through the
-    /// server's remote proxy first so the TV never needs our headers.
     fn map(&self, url: &str) -> String {
         if let Some(data) = url.strip_prefix("data:") {
             use base64::Engine;
@@ -750,8 +694,6 @@ impl Lan {
     }
 }
 
-/// The local address the OS would use to reach the device (catt's trick:
-/// a connected UDP socket sends nothing but picks the route).
 fn local_ip_for(device: IpAddr) -> Result<IpAddr, String> {
     let s = std::net::UdpSocket::bind((Ipv4Addr::UNSPECIFIED, 0)).map_err(|e| e.to_string())?;
     s.connect((device, 8009))
@@ -778,7 +720,6 @@ async fn start_lan(local: IpAddr, upstream: String) -> Result<Lan, String> {
         upstream: Arc::new(upstream.clone()),
         public: Arc::new(public.clone()),
         alive: alive.clone(),
-        // No total timeout: a movie streams for hours.
         client: reqwest::Client::builder()
             .use_rustls_tls()
             .connect_timeout(Duration::from_secs(8))
@@ -898,14 +839,9 @@ async fn lan_proxy(
         .unwrap_or_else(|_| StatusCode::INTERNAL_SERVER_ERROR.into_response())
 }
 
-// =====================================================================
-// Session and status
-// =====================================================================
-
 #[derive(Serialize, Clone, Debug)]
 pub struct CastStatus {
     pub device: Option<String>,
-    /// "idle" | "connecting" | "buffering" | "playing" | "paused" | "error"
     pub state: String,
     pub position_ms: i64,
     pub duration_ms: i64,
@@ -930,18 +866,14 @@ impl Default for CastStatus {
     }
 }
 
-/// Status plus what is needed to interpolate the position between the
-/// device's own reports (it only sends them on changes).
 struct Live {
     status: CastStatus,
     media_session: Option<i64>,
     app_session: String,
     transport: String,
-    /// Position reported by the device, in the stream's own clock.
     reported_ms: i64,
     reported_at: Instant,
     rate: f64,
-    /// Added to the device position when the stream was reloaded at an offset.
     offset_ms: i64,
     generation: u64,
 }
@@ -1012,7 +944,6 @@ fn set_state(app: &AppHandle, f: impl FnOnce(&mut Live)) {
     emit(app);
 }
 
-/// Applies a `MEDIA_STATUS` / `RECEIVER_STATUS` / `CLOSE` from the device.
 fn on_message(app: &AppHandle, generation: u64, ns: &str, v: &Value) {
     let mut l = match live().lock() {
         Ok(l) => l,
@@ -1024,7 +955,6 @@ fn on_message(app: &AppHandle, generation: u64, ns: &str, v: &Value) {
     match (ns, v["type"].as_str().unwrap_or("")) {
         (NS_MEDIA, "MEDIA_STATUS") => {
             let Some(st) = v["status"].as_array().and_then(|a| a.first()) else {
-                // Empty status: the media ended or was unloaded.
                 if l.media_session.is_some() && l.status.state != "connecting" {
                     l.status.state = "idle".into();
                 }
@@ -1043,7 +973,6 @@ fn on_message(app: &AppHandle, generation: u64, ns: &str, v: &Value) {
                 l.rate = r;
             }
             if let Some(d) = st["media"]["duration"].as_f64().filter(|d| *d > 0.0) {
-                // A reloaded stream reports the remaining length only.
                 l.status.duration_ms = l.status.duration_ms.max(l.offset_ms + (d * 1000.0) as i64);
             }
             match st["playerState"].as_str().unwrap_or("") {
@@ -1083,7 +1012,6 @@ fn on_message(app: &AppHandle, generation: u64, ns: &str, v: &Value) {
                         .iter()
                         .any(|a| a["sessionId"].as_str() == Some(l.app_session.as_str()));
                 if !l.app_session.is_empty() && !ours && l.status.state != "connecting" {
-                    // Someone else took over the TV.
                     l.status.state = "idle".into();
                     l.app_session.clear();
                 }
@@ -1217,7 +1145,6 @@ fn load_payload(info: &PlaybackInfo, lan: &Lan, start_ms: i64, app_session: &str
     )
 }
 
-/// Finds the Default Media Receiver on the device, launching it if needed.
 async fn launch(chan: &Channel) -> Result<(String, String), String> {
     fn find(v: &Value) -> Option<(String, String)> {
         v["status"]["applications"]
@@ -1290,7 +1217,6 @@ fn source_key(info: &PlaybackInfo) -> (String, SourceRef) {
     (info.key.clone(), info.source.clone())
 }
 
-/// Records progress on the PC side while the TV plays.
 async fn save_progress(info: &PlaybackInfo, jf_event: Option<&str>) {
     let (pos, dur, playing) = match live().lock() {
         Ok(l) => (
@@ -1391,8 +1317,6 @@ fn spawn_listener(
     })
 }
 
-/// Ends the current session: stops the media, closes the receiver app and
-/// the LAN mirror.
 async fn end_session(close_app: bool) {
     let Some(s) = session().lock().await.take() else {
         return;
@@ -1435,10 +1359,6 @@ async fn end_session(close_app: bool) {
     }
     emit(&s.app);
 }
-
-// =====================================================================
-// Commands
-// =====================================================================
 
 #[tauri::command]
 pub async fn video_cast_discover() -> Result<Vec<CastDevice>, String> {
@@ -1625,7 +1545,6 @@ pub async fn video_cast_control(action: String, value: Option<f64>) -> Result<()
         "seek" => {
             let target = value.ok_or("Missing position")?.max(0.0) as i64;
             if s.info.seek_reloads {
-                // Piped streams can't seek; reload at the new point.
                 let app_session = live()
                     .lock()
                     .map(|l| l.app_session.clone())

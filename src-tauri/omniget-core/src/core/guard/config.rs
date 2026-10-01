@@ -1,8 +1,3 @@
-//! Config validator for JSON components: hooks, MCP servers, settings and
-//! status lines. Every command that will be executed is parsed and analysed,
-//! and recorded in the report so the UI can show it before anything is
-//! written.
-
 use serde_json::Value;
 use std::collections::BTreeMap;
 
@@ -17,14 +12,12 @@ fn cfg(code: &str, file: &str, detail: impl Into<String>) -> Finding {
     Finding::new(code, Validator::Config, sev(code), file, detail)
 }
 
-/// Line of a JSON string value in the raw text.
 pub fn line_of_value(raw: &str, idx: &LineIndex, value: &str) -> Option<u32> {
     let enc = serde_json::to_string(value).ok()?;
     let off = raw.find(&enc).or_else(|| raw.find(value))?;
     Some(idx.pos(raw, off).0)
 }
 
-/// Where the command came from, for [`record_command`].
 pub struct CmdSite<'a> {
     pub file: &'a str,
     pub origin: &'a str,
@@ -32,11 +25,9 @@ pub struct CmdSite<'a> {
     pub line: Option<u32>,
     pub context: Option<String>,
     pub auto_runs: bool,
-    /// Lower every hit by this many steps (shell fences in Markdown).
     pub drop: u8,
 }
 
-/// Analyse one command line and record findings + the command itself.
 pub fn record_command(site: CmdSite<'_>, command: &str, sink: &mut Sink) -> Analysis {
     let a = shell::analyze(command);
     record_analysis(site, command, a, sink)
@@ -46,7 +37,6 @@ pub fn record_analysis(site: CmdSite<'_>, command: &str, a: Analysis, sink: &mut
     let mut codes = Vec::new();
     let mut worst: Option<Severity> = None;
     for h in &a.hits {
-        // MCP launchers: the unpinned-package note is MCP_W004's job.
         if site.origin == "mcp" && h.code == "CMD_W009" {
             continue;
         }
@@ -111,9 +101,6 @@ pub fn record_analysis(site: CmdSite<'_>, command: &str, a: Analysis, sink: &mut
     a
 }
 
-/// MCP servers in any of the shapes tools use: `mcpServers` (Claude, Cursor,
-/// Gemini, Qwen, Cline…), `servers` (VS Code/Copilot), `mcp` (OpenCode),
-/// `context_servers` (Zed). Returns `(name, server, json path)`.
 pub fn servers_of(v: &Value) -> Vec<(String, &Value, String)> {
     let mut out = Vec::new();
     for key in [
@@ -134,7 +121,6 @@ pub fn servers_of(v: &Value) -> Vec<(String, &Value, String)> {
     out
 }
 
-/// Entry point for one JSON file.
 pub fn check_json(
     ctx: &Ctx,
     file: &str,
@@ -175,7 +161,6 @@ pub fn check_json(
         }
     }
     check_settings(file, raw, &idx, v, sink);
-    // Supporting files (hooks) and inline files (settings).
     if let Some(arr) = v.get("supportingFiles").and_then(|x| x.as_array()) {
         for (i, sfile) in arr.iter().enumerate() {
             let src = sfile.get("source").and_then(|x| x.as_str()).unwrap_or("");
@@ -325,8 +310,6 @@ fn check_hooks(
                         .map(|(hi, h)| (format!("{gpath}.hooks[{hi}]"), h))
                         .collect(),
                     None => {
-                        // Cursor-style `{command}` directly, or the obsolete
-                        // `{name, script, enabled}`.
                         if tool == "claude"
                             && (group.get("command").is_some() || group.get("script").is_some())
                         {
@@ -359,7 +342,6 @@ fn check_hooks(
                             .path(hpath.clone())
                             .snippet(prompt),
                         );
-                        // The prompt goes to a model: injection rules apply.
                         let mut inner = Sink::default();
                         super::semantic::check_prose(file, prompt, false, &mut inner);
                         for mut f in inner.findings {
@@ -434,7 +416,6 @@ fn check_hooks(
     }
 }
 
-/// Shell-quote an argv for display and re-parsing.
 pub fn join_argv(cmd: &str, args: &[String]) -> String {
     let q = |s: &str| {
         if !s.is_empty()
@@ -463,7 +444,6 @@ fn check_mcp(
     path: &str,
     sink: &mut Sink,
 ) {
-    // OpenCode: `command: ["npx", "-y", …]`, `environment`.
     let (command, args): (Option<String>, Vec<String>) = match s.get("command") {
         Some(Value::String(c)) => (
             Some(c.clone()),
@@ -567,7 +547,6 @@ fn check_mcp(
                     .path(path.to_string()),
             );
         }
-        // Inline tokens in args: `--api-key X`, `--token=X`.
         for (i, a) in args.iter().enumerate() {
             let (flag, val) = match a.split_once('=') {
                 Some((f, v)) if f.starts_with('-') => (f.to_string(), Some(v.to_string())),

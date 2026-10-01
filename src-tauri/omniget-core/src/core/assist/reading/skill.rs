@@ -1,14 +1,3 @@
-//! The embedded film-curation skill for reading companions (spec 05: method
-//! of three roles, recommendation format, access verification).
-//!
-//! On 2026-09-24 no curation skill was installed on the owner's machine
-//! (`<app_data>/llm/skills` did not exist; `~/.claude/skills` had none about
-//! films or reading), so the app ships this one and installs it through the
-//! ordinary skill installer (staging + scan + sidecar), where it shows up in
-//! the catalog like any other skill. The sources live next to this module as
-//! `*.md.fixture` files and become `SKILL.md` / `references/*.md` only in a
-//! temporary folder at install time.
-
 use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
@@ -34,8 +23,6 @@ const REFERENCES: &[(&str, &str)] = &[
 pub struct SkillStatus {
     pub name: String,
     pub installed: bool,
-    /// Installed copy differs from the one this build ships (edited by the
-    /// user, or an older version).
     pub differs: bool,
     pub embedded_hash: String,
     pub installed_hash: Option<String>,
@@ -68,7 +55,6 @@ pub fn status() -> Result<SkillStatus, String> {
     Ok(status_in(&root))
 }
 
-/// Writes the skill folder into a fresh temporary directory.
 fn materialise() -> Result<PathBuf, String> {
     let base =
         std::env::temp_dir().join(format!("omniget-reading-skill-{}", super::super::new_id()));
@@ -82,9 +68,6 @@ fn materialise() -> Result<PathBuf, String> {
     Ok(dir)
 }
 
-/// Installs the embedded skill into `root` with `scan`. An installed copy
-/// that differs is left alone unless `replace` is true (it may be the user's
-/// own edit).
 pub fn install_in_with(
     root: &Path,
     replace: bool,
@@ -110,7 +93,6 @@ pub fn install_in_with(
     }))
 }
 
-/// Installs into the app's skills folder with the production scan.
 pub fn install(replace: bool) -> Result<serde_json::Value, String> {
     let root = install::skills_dir().map_err(|e| format!("{ERR_READING_SKILL}: {e:?}"))?;
     install_in_with(&root, replace, &|d: &Path| skills::scan::scan_dir(d))

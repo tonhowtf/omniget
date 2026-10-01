@@ -1,16 +1,3 @@
-//! Factory Droid (estudo 06, Droid §j; Parte 6 §8.1).
-//!
-//! `${DROID_SESSIONS_DIR:-~/.factory/sessions}/<slug-do-projeto>/<uuid>.jsonl`:
-//! 1ª linha `{type:"session_start", id, title, cwd}`, depois
-//! `{type:"message", id?, timestamp, message:{role, content[]}}` com blocos
-//! Anthropic (`text|thinking|tool_use|tool_result|image`) e
-//! `{type:"compaction_state"}`. Ao lado, `<uuid>.settings.json` com `model` e
-//! `tokenUsage{inputTokens, outputTokens, cacheCreationTokens,
-//! cacheReadTokens, thinkingTokens}` acumulado da sessão, sem custo. Como o
-//! uso só existe acumulado, ele vai inteiro para o último turno do assistente
-//! (o total da sessão fica certo; o dia a dia usa o horário desse turno).
-//! Droid não está instalado aqui: só fixture.
-
 use std::path::{Path, PathBuf};
 
 use serde_json::Value;
@@ -37,7 +24,6 @@ fn settings_of(f: &Path) -> Option<Value> {
     read_json(&f.with_file_name(format!("{}.settings.json", file_stem(f))))
 }
 
-/// `custom:Claude-Opus-4.5-[Anthropic]-0` → `Claude-Opus-4.5-0`.
 fn clean_model(m: &str) -> String {
     let m = m.strip_prefix("custom:").unwrap_or(m);
     let mut out = String::new();

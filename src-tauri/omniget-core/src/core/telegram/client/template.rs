@@ -1,23 +1,12 @@
-//! File name templates for every download (`tdl dl --template` parity).
-//!
-//! Variables: `{chat}`, `{chat_id}`, `{msg_id}`, `{date}` (YYYY-MM-DD),
-//! `{time}` (HH-MM-SS), `{file_name}` (with extension), `{stem}` (without),
-//! `{ext}` (no dot), `{type}`, `{caption}` (first 60 chars), `{album}`
-//! (grouped id, empty when the message is not in an album). Slashes in the
-//! template create subfolders; slashes inside values never do. When the last
-//! segment does not end with the file's extension, it is appended.
-
 use std::path::{Path, PathBuf};
 
 use chrono::TimeZone;
 
-/// What a template can refer to.
 #[derive(Debug, Clone, Default)]
 pub struct NameCtx {
     pub chat: String,
     pub chat_id: i64,
     pub msg_id: i32,
-    /// Unix seconds; 0 when unknown.
     pub date: i64,
     pub file_name: String,
     pub media_type: String,
@@ -25,18 +14,15 @@ pub struct NameCtx {
     pub grouped_id: Option<i64>,
 }
 
-/// The layout used by chat downloads and auto-save when no template is set.
 pub const CHAT_DEFAULT: &str = "{chat}/{msg_id}_{file_name}";
 
 const CAPTION_CHARS: usize = 60;
 const SEGMENT_MAX_BYTES: usize = 180;
 
-/// Characters no file system we ship on accepts, plus the path separators.
 fn is_bad_char(c: char) -> bool {
     matches!(c, '/' | '\\' | '<' | '>' | ':' | '"' | '|' | '?' | '*') || c.is_control()
 }
 
-/// One value, made safe to sit inside a single path segment.
 pub fn sanitize_value(s: &str) -> String {
     let cleaned: String = s
         .chars()
@@ -62,7 +48,6 @@ fn clean_segment(seg: &str) -> Option<String> {
     if s.len() <= SEGMENT_MAX_BYTES {
         return Some(s);
     }
-    // Keep the extension when cutting a long name.
     let (stem, ext) = split_ext(&s);
     let budget = SEGMENT_MAX_BYTES.saturating_sub(ext.len() + 1).max(16);
     let mut cut = budget.min(stem.len());
@@ -77,7 +62,6 @@ fn clean_segment(seg: &str) -> Option<String> {
     })
 }
 
-/// `("movie.part1", "mp4")` for `movie.part1.mp4`; `("README", "")` otherwise.
 pub fn split_ext(name: &str) -> (&str, &str) {
     match name.rfind('.') {
         Some(i) if i > 0 && i + 1 < name.len() && name.len() - i - 1 <= 8 => {
@@ -92,7 +76,6 @@ pub fn split_ext(name: &str) -> (&str, &str) {
     }
 }
 
-/// Lower-case extension without the dot.
 pub fn ext_of(name: &str) -> String {
     split_ext(name).1.to_ascii_lowercase()
 }
@@ -137,8 +120,6 @@ fn value_of(var: &str, ctx: &NameCtx) -> Option<String> {
     Some(sanitize_value(&v))
 }
 
-/// The relative path a template gives for one file. Never empty, never
-/// escapes its root.
 pub fn render(template: &str, ctx: &NameCtx) -> PathBuf {
     let mut out = String::new();
     let mut rest = template;
@@ -193,9 +174,6 @@ pub fn render(template: &str, ctx: &NameCtx) -> PathBuf {
     segments.iter().collect()
 }
 
-/// `root/<template>` when a template is given, else `root/<default>`.
-/// `default` may itself be a template (chat downloads) or `None` for the
-/// plain `root/<file name>` layout the single and batch downloads used.
 pub fn resolve(
     root: &Path,
     template: Option<&str>,
@@ -208,7 +186,6 @@ pub fn resolve(
     }
 }
 
-/// True when the template needs message data beyond id and file name.
 pub fn needs_metadata(template: &str) -> bool {
     [
         "{date}",
@@ -222,7 +199,6 @@ pub fn needs_metadata(template: &str) -> bool {
     .any(|v| template.contains(v))
 }
 
-/// `name (1).ext`, `name (2).ext`, … until the path is free.
 pub fn unique_path(path: &Path) -> PathBuf {
     if !path.exists() {
         return path.to_path_buf();

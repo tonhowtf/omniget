@@ -1,11 +1,3 @@
-//! Partitura library (Maestri "partituras", study 95 §3): saved canvas
-//! arrangements, one JSON per partitura in `<app_data>/canvas/partituras/`,
-//! identical to the exported file. Built on `export` (selection → document,
-//! document → floor); this module adds the library, the import review
-//! (every command listed before anything runs, role conflicts resolved one
-//! by one) and the optional fields of study 96 idea 8: budget, permissions
-//! and a setup script, so one file carries the whole team.
-
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::path::{Path, PathBuf};
 
@@ -23,9 +15,6 @@ use super::store::CanvasStore;
 
 pub const BUNDLE_FORMAT: &str = "omniget.partituras";
 
-// ---------------------------------------------------------------- format extras
-
-/// Spending cap the team should respect (read by the agents layer).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct Budget {
@@ -37,22 +26,17 @@ pub struct Budget {
     pub max_minutes: Option<u64>,
 }
 
-/// How much the team may do without asking.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct Permissions {
-    /// `supervised` | `acceptEdits` | `auto` | `full`
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub mode: Option<String>,
-    /// Cords may type raw keys (`ask --raw`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub allow_raw: Option<bool>,
-    /// Portals may run JS (`portal evaluate`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub allow_evaluate: Option<bool>,
 }
 
-/// What the floor needs before the team works (the Conductor-style scripts).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct SetupSpec {
@@ -72,13 +56,11 @@ impl SetupSpec {
     }
 }
 
-/// A partitura as stored in the library (and as exported).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LibraryPartitura {
     #[serde(flatten)]
     pub doc: Partitura,
-    /// Workspace scope; absent = global.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub scope_workspace_id: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -89,26 +71,16 @@ pub struct LibraryPartitura {
     pub permissions: Option<Permissions>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub setup: Option<SetupSpec>,
-    /// What the author left out when saving; "Update Existing…" keeps it so
-    /// a new layout never brings back a command or a note taken out before.
     #[serde(default, skip_serializing_if = "Privacy::is_default")]
     pub privacy: Privacy,
-    /// Format 2 (opt-in "Include chat history"): per partitura node id, its
-    /// chat transcript with the attachments inlined. Stamping copies it into
-    /// the new nodes' own conversations only with `acceptChat`.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub chat: BTreeMap<String, Vec<CarriedEntry>>,
 }
 
-/// Version written when a partitura carries chat (an older app refuses it).
 pub const CHAT_FORMAT_VERSION: u32 = 2;
-/// Largest attachment carried inline; bigger ones travel as a name only.
 pub const CHAT_ATTACHMENT_MAX: u64 = 8 * 1024 * 1024;
-/// Total inline attachment bytes per partitura.
 pub const CHAT_ATTACHMENTS_TOTAL: u64 = 32 * 1024 * 1024;
 
-/// A chat entry travelling inside a partitura: the entry without machine
-/// paths, plus the attachment bytes (base64).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CarriedEntry {
@@ -122,19 +94,15 @@ pub struct CarriedEntry {
 pub struct CarriedFile {
     pub id: String,
     pub filename: String,
-    /// Base64; absent when the file was too big or unreadable.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub data: Option<String>,
 }
 
-/// The privacy options a partitura was saved with.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Privacy {
-    /// Startup commands were left out.
     #[serde(default)]
     pub no_startup_commands: bool,
-    /// Notes ship empty.
     #[serde(default)]
     pub blank_notes: bool,
 }
@@ -145,7 +113,6 @@ impl Privacy {
     }
 }
 
-/// Previous versions kept per partitura (Update Existing… can be undone).
 pub const HISTORY_KEEP: usize = 10;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -179,8 +146,6 @@ fn history_dir(store: &CanvasStore, id: &str) -> Result<PathBuf, String> {
     Ok(library_dir(store).join(".history").join(id))
 }
 
-/// Keeps the current file as a version before it is replaced (newest last,
-/// at most [`HISTORY_KEEP`]).
 fn push_history(store: &CanvasStore, old: &LibraryPartitura) -> Result<(), String> {
     let dir = history_dir(store, &old.doc.id)?;
     std::fs::create_dir_all(&dir).map_err(|e| format!("CANVAS_IO: {e}"))?;
@@ -207,15 +172,12 @@ fn versions_files(dir: &Path) -> Vec<PathBuf> {
     files
 }
 
-/// How many earlier versions a partitura has.
 pub fn version_count(store: &CanvasStore, id: &str) -> usize {
     history_dir(store, id)
         .map(|d| versions_files(&d).len())
         .unwrap_or(0)
 }
 
-/// Undo of "Update Existing…": puts the newest saved version back (and
-/// drops it from the history).
 pub fn restore_previous(store: &CanvasStore, id: &str) -> Result<LibraryPartitura, String> {
     let dir = history_dir(store, id)?;
     let mut files = versions_files(&dir);
@@ -251,8 +213,6 @@ pub fn get(store: &CanvasStore, id: &str) -> Result<LibraryPartitura, String> {
     serde_json::from_slice(&b).map_err(|e| format!("CANVAS_INVALID: partitura {id}: {e}"))
 }
 
-// ---------------------------------------------------------------- list
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Shape {
@@ -279,7 +239,6 @@ pub struct PartituraSummary {
     pub icon: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub color: Option<String>,
-    /// Workspace scope (absent = global, or its workspace is not on this machine).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub scope_workspace_id: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -291,15 +250,12 @@ pub struct PartituraSummary {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub updated_at: Option<String>,
     pub bounds: super::model::Size,
-    /// Schematic preview: node boxes and cords (by node id).
     pub shapes: Vec<Shape>,
     pub cords: Vec<(String, String)>,
     pub has_setup: bool,
     pub has_budget: bool,
-    /// Options it was saved with (kept by Update Existing…).
     #[serde(default)]
     pub privacy: Privacy,
-    /// Earlier versions kept (Update Existing… can be undone while > 0).
     #[serde(default)]
     pub versions: usize,
 }
@@ -351,8 +307,6 @@ fn summarize(p: &LibraryPartitura, ws_names: &HashMap<String, String>) -> Partit
     }
 }
 
-/// `scope`: `all` (default), `global`, or a workspace id (its own + global).
-/// `query` matches name, summary, role names and the workspace name.
 pub fn list(
     store: &CanvasStore,
     scope: Option<&str>,
@@ -393,20 +347,15 @@ pub fn list(
         .collect()
 }
 
-// ---------------------------------------------------------------- save / edit / delete
-
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SaveRequest {
     pub selection: Selection,
     pub options: ExportOptions,
-    /// `global`, or a workspace id (default: the source workspace).
     #[serde(default)]
     pub scope: Option<String>,
-    /// "Update Existing…": replace this partitura's layout, keep its identity.
     #[serde(default)]
     pub update_existing: Option<String>,
-    /// Per node: new startup command, or `null` to drop it.
     #[serde(default)]
     pub commands: HashMap<String, Option<String>>,
     #[serde(default)]
@@ -415,12 +364,10 @@ pub struct SaveRequest {
     pub permissions: Option<Permissions>,
     #[serde(default)]
     pub setup: Option<SetupSpec>,
-    /// Format 2: carry the chat history of the saved terminals.
     #[serde(default)]
     pub include_chat: bool,
 }
 
-/// Chat transcripts of the saved terminals, attachments inlined.
 fn carry_chat(
     store: &CanvasStore,
     ws: &str,
@@ -451,7 +398,6 @@ fn carry_chat(
                                 budget = budget.saturating_sub(b.len() as u64);
                                 base64::engine::general_purpose::STANDARD.encode(b)
                             });
-                        // No machine paths in the file.
                         a.path = String::new();
                         CarriedFile {
                             id: a.id.clone(),
@@ -468,7 +414,6 @@ fn carry_chat(
     out
 }
 
-/// Writes carried transcripts into the stamped nodes' own (new) conversations.
 fn land_chat(
     store: &CanvasStore,
     ws: &str,
@@ -541,7 +486,6 @@ pub fn save(
     floor: &str,
     mut req: SaveRequest,
 ) -> Result<LibraryPartitura, String> {
-    // Update Existing…: what was left out stays out (stricter wins).
     let old = match req.update_existing.as_deref() {
         Some(id) => Some(get(store, id)?),
         None => None,
@@ -600,8 +544,6 @@ pub fn save(
     Ok(p)
 }
 
-/// "Edit…": identity only (name, summary, icon, color, scope). `null`
-/// clears summary/icon/color; scope `"global"` or `null` makes it global.
 pub fn edit(
     store: &CanvasStore,
     id: &str,
@@ -645,7 +587,6 @@ pub fn edit(
     Ok(p)
 }
 
-/// Deleting never touches what is already on a canvas.
 pub fn delete(store: &CanvasStore, id: &str) -> Result<(), String> {
     let f = file_of(store, id)?;
     if !f.exists() {
@@ -657,9 +598,6 @@ pub fn delete(store: &CanvasStore, id: &str) -> Result<(), String> {
     std::fs::remove_file(f).map_err(|e| format!("CANVAS_IO: {e}"))
 }
 
-// ---------------------------------------------------------------- files
-
-/// Parses one exported partitura or a bundle.
 pub fn parse_file(bytes: &[u8]) -> Result<Vec<LibraryPartitura>, String> {
     let v: Value =
         serde_json::from_slice(bytes).map_err(|e| format!("CANVAS_INVALID: not JSON: {e}"))?;
@@ -688,12 +626,9 @@ pub fn read_file(path: &Path) -> Result<Vec<LibraryPartitura>, String> {
 #[serde(rename_all = "camelCase")]
 pub struct LibraryImport {
     pub added: Vec<String>,
-    /// Already in the library (reimporting is a no-op).
     pub skipped: Vec<String>,
 }
 
-/// Library transfer (files or bundles): one consent, existing ids skipped.
-/// A partitura whose workspace is not here becomes global.
 pub fn add_to_library(
     store: &CanvasStore,
     items: Vec<LibraryPartitura>,
@@ -724,7 +659,6 @@ pub fn add_to_library(
     Ok(out)
 }
 
-/// Writes one partitura (or a bundle for several) to `path`.
 pub fn export_file(store: &CanvasStore, ids: &[String], path: &Path) -> Result<(), String> {
     let items: Vec<LibraryPartitura> = ids
         .iter()
@@ -743,8 +677,6 @@ pub fn export_file(store: &CanvasStore, ids: &[String], path: &Path) -> Result<(
     persist::write_atomic(path, &bytes)
 }
 
-// ---------------------------------------------------------------- roles
-
 fn embedded(r: &super::roles::Role) -> EmbeddedRole {
     EmbeddedRole {
         id: r.id.clone(),
@@ -755,8 +687,6 @@ fn embedded(r: &super::roles::Role) -> EmbeddedRole {
     }
 }
 
-/// Roles visible from a workspace: its own first, then the library ones
-/// (same storage and precedence as `roles::list`).
 pub fn local_roles(store: &CanvasStore, ws: &str) -> Vec<EmbeddedRole> {
     super::roles::list(store, ws)
         .iter()
@@ -764,8 +694,6 @@ pub fn local_roles(store: &CanvasStore, ws: &str) -> Vec<EmbeddedRole> {
         .collect()
 }
 
-/// Writes a role through the roles API: a library role is updated in the
-/// library, anything else lands in the workspace (`<ws>/roles/<id>/`).
 pub fn write_role(store: &CanvasStore, ws: &str, role: &EmbeddedRole) -> Result<(), String> {
     if !is_safe_id(&role.id) {
         return Err(format!("CANVAS_INVALID: role id '{}'", role.id));
@@ -797,11 +725,8 @@ pub fn write_role(store: &CanvasStore, ws: &str, role: &EmbeddedRole) -> Result<
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum RoleAction {
-    /// Use the local role (the partitura's terminals point to it).
     KeepMine,
-    /// The local role takes the partitura's prompt, icon and color.
     UseTheirs,
-    /// Keep both: the partitura's role is added under a new name.
     Rename,
 }
 
@@ -809,9 +734,7 @@ pub enum RoleAction {
 #[serde(rename_all = "camelCase")]
 pub struct RolePlan {
     pub role: EmbeddedRole,
-    /// `new` | `same` (identical local role) | `conflict`
     pub status: String,
-    /// Matched by `id` or `name`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub matched_by: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -862,7 +785,6 @@ fn unique_role_name(local: &[EmbeddedRole], base: &str) -> String {
         .expect("infinite")
 }
 
-/// Applies the choices and returns `partitura role id -> local role id`.
 pub fn resolve_roles(
     store: &CanvasStore,
     ws: &str,
@@ -913,8 +835,6 @@ pub fn resolve_roles(
     Ok(map)
 }
 
-// ---------------------------------------------------------------- import review
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CommandLine {
@@ -922,7 +842,6 @@ pub struct CommandLine {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub title: Option<String>,
     pub agent: String,
-    /// What will run (`None` = the agent's default command or a shell).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub command: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -945,11 +864,8 @@ pub struct ImportPreview {
     pub budget: Option<Budget>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub permissions: Option<Permissions>,
-    /// Already in the library with the same id (adding would replace it).
     pub replaces_existing: bool,
     pub warnings: Vec<String>,
-    /// Terminals whose chat history travels with it (format 2); copied only
-    /// when the stamp opts in (`acceptChat`).
     #[serde(default)]
     pub chat_transcripts: usize,
 }
@@ -1020,17 +936,14 @@ pub fn preview(store: &CanvasStore, ws: &str, p: &LibraryPartitura) -> ImportPre
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct StampOptions {
-    /// Per node: edited command, or `null` to run the agent's default.
     #[serde(default)]
     pub commands: HashMap<String, Option<String>>,
     #[serde(default)]
     pub roles: HashMap<String, RoleAction>,
-    /// Append the partitura's setup/run/teardown to the workspace's floor hooks.
     #[serde(default)]
     pub apply_hooks: bool,
     #[serde(default)]
     pub origin: Option<String>,
-    /// Copy a format-2 partitura's chat history into the new terminals.
     #[serde(default)]
     pub accept_chat: bool,
 }
@@ -1050,8 +963,6 @@ fn append_hook(list: &mut Vec<HookCommand>, cmd: &Option<String>, name: &str) {
     });
 }
 
-/// Stamps a partitura on a floor after the review: commands edited, roles
-/// merged, terminals on an isolated floor moved into its folder.
 pub fn stamp(
     store: &CanvasStore,
     ws: &str,
@@ -1064,7 +975,6 @@ pub fn stamp(
     if doc.version > CHAT_FORMAT_VERSION {
         return Err("CANVAS_INVALID: partitura made by a newer OmniGet".into());
     }
-    // Format 2 only adds the chat, which is landed here.
     doc.version = doc.version.min(export::PARTITURA_VERSION);
     apply_commands(&mut doc, &opts.commands);
     let role_map = resolve_roles(store, ws, &doc.roles, &opts.roles)?;
@@ -1102,7 +1012,6 @@ pub fn stamp(
     Ok(result)
 }
 
-/// Loads a library partitura or takes one handed in (a file being reviewed).
 pub fn resolve(
     store: &CanvasStore,
     id: Option<&str>,

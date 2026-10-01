@@ -1,6 +1,3 @@
-//! Registro das fontes do grupo a (dono: worker s1-sessions): Claude Code,
-//! Codex, Gemini CLI, Qwen Code, OpenCode + Kilo, Crush e Goose.
-
 use std::path::PathBuf;
 
 use crate::core::sessions::model::SessionSource;
@@ -33,9 +30,6 @@ pub fn sources() -> Vec<Box<dyn SessionSource>> {
     ]
 }
 
-/// Contas isoladas do OmniGet para um CLI (`claude` | `codex`): o
-/// `accounts.json` do `/llm` e os perfis em `<app_data>/llm/profiles/*`.
-/// Só caminhos de diretório; nada de credencial é lido.
 pub fn account_dirs(cli: &str) -> Vec<(String, PathBuf)> {
     use crate::core::llm::cli_runtime::accounts::{default_profile_dir, AccountStore};
     let mut out: Vec<(String, PathBuf)> = Vec::new();
@@ -47,7 +41,6 @@ pub fn account_dirs(cli: &str) -> Vec<(String, PathBuf)> {
             out.push((a.id.clone(), a.config_dir.clone()));
         }
     }
-    // Perfis criados pelo OmniGet que não estão (mais) no accounts.json.
     if let Some(profiles) =
         default_profile_dir("x").and_then(|p| p.parent().map(|p| p.to_path_buf()))
     {
@@ -61,7 +54,6 @@ pub fn account_dirs(cli: &str) -> Vec<(String, PathBuf)> {
                 if out.iter().any(|(i, d)| *i == id || *d == p) {
                     continue;
                 }
-                // O perfil é de um CLI só: decide pela pasta que ele tem.
                 let has = match cli {
                     "claude" => p.join("projects").is_dir(),
                     "codex" => p.join("sessions").is_dir(),

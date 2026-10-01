@@ -1,10 +1,3 @@
-//! Turns whatever the person pastes into routes: `tg://proxy` and
-//! `t.me/proxy` links, `tg://socks`, `socks5://`, `http://`, `ss://`,
-//! `trojan://`, bare `host:port:secret` lines copied from proxy channels,
-//! or a whole block of text with many of those mixed with chatter.
-//! Protocols we cannot dial ourselves (vmess, vless, hysteria2, tuic…) come
-//! back as `Unsupported` so the screen can say "import it in Clash".
-
 use base64::Engine;
 use serde::Serialize;
 use url::Url;
@@ -18,7 +11,6 @@ pub enum ParsedLink {
     Unsupported { scheme: String, name: String },
 }
 
-/// Parses every link found in `text`. Duplicates (same route id) collapse.
 pub fn parse_many(text: &str, source: RouteSource) -> Vec<ParsedLink> {
     let mut out: Vec<ParsedLink> = Vec::new();
     let mut seen = std::collections::HashSet::new();
@@ -35,8 +27,6 @@ pub fn parse_many(text: &str, source: RouteSource) -> Vec<ParsedLink> {
     out
 }
 
-/// Splits pasted text into candidate tokens: whitespace, quotes and the
-/// full-width punctuation Chinese chats wrap links in.
 fn tokens(text: &str) -> Vec<String> {
     text.split(|c: char| {
         c.is_whitespace()
@@ -66,8 +56,6 @@ fn tokens(text: &str) -> Vec<String> {
     .collect()
 }
 
-/// `代理:tg://proxy?…` or `link=ss://…`: keeps the text from the URL
-/// scheme on, so a link glued to a label is still found.
 fn strip_before_scheme(t: &str) -> String {
     let Some(at) = t.find("://") else {
         return t.to_string();
@@ -95,8 +83,6 @@ pub fn parse_one(raw: &str, source: RouteSource) -> Option<ParsedLink> {
     {
         parse_userinfo_url(s, RouteKind::Socks5)
     } else if lower.starts_with("http://") || lower.starts_with("https://") {
-        // Only proxy-shaped http URLs: host + port, no path. A normal web
-        // page link in the pasted text is not a proxy.
         let u = Url::parse(s).ok()?;
         if u.port().is_none() || (u.path() != "/" && !u.path().is_empty()) || u.query().is_some() {
             return None;
@@ -190,9 +176,6 @@ fn parse_userinfo_url(s: &str, kind: RouteKind) -> Option<Route> {
     Some(r)
 }
 
-/// SIP002 `ss://base64(method:password)@host:port#name`, the legacy
-/// `ss://base64(method:password@host:port)#name`, and the plain
-/// `ss://method:password@host:port` some panels emit for SS2022.
 fn parse_ss(s: &str) -> Option<Route> {
     let body = &s[5..];
     let (body, name) = match body.split_once('#') {
@@ -232,7 +215,6 @@ fn parse_trojan(s: &str) -> Option<Route> {
     let host = u.host_str()?.trim_matches(['[', ']']).to_string();
     let port = u.port().unwrap_or(443);
     let q = query_map(s);
-    // Trojan over WebSocket/gRPC needs a transport we don't speak.
     if let Some(t) = q.get("type") {
         if !t.is_empty() && t != "tcp" {
             return None;
@@ -256,8 +238,6 @@ fn parse_trojan(s: &str) -> Option<Route> {
     Some(r)
 }
 
-/// `host:port:secret` (MTProto, as posted in proxy channels) or
-/// `host:port` (assumed SOCKS5, the common "free proxy list" shape).
 fn parse_bare(s: &str) -> Option<Route> {
     let parts: Vec<&str> = s.split(':').collect();
     match parts.as_slice() {
@@ -313,9 +293,6 @@ fn b64_any(s: &str) -> Option<Vec<u8>> {
     engines.iter().find_map(|e| e.decode(t).ok())
 }
 
-/// MTProto proxy secrets come as hex (`dd…`, `ee…` + hex domain) or as
-/// url-safe base64 (the form Telegram's own "share" button produces for
-/// fake-TLS). Returns lowercase hex, or `None` when it is neither.
 pub fn normalize_secret(raw: &str) -> Option<String> {
     let t = raw.trim();
     if t.len() >= 32 && t.len().is_multiple_of(2) && t.chars().all(|c| c.is_ascii_hexdigit()) {
@@ -325,14 +302,10 @@ pub fn normalize_secret(raw: &str) -> Option<String> {
     (bytes.len() >= 16).then(|| hex::encode(bytes))
 }
 
-/// What an MTProto secret asks for on the wire.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SecretMode {
-    /// 16 raw bytes: obfuscated2 with the plain intermediate tag.
     Plain([u8; 16]),
-    /// `dd` + 16 bytes: obfuscated2 with padded intermediate.
     Padded([u8; 16]),
-    /// `ee` + 16 bytes + domain: fake TLS in front of padded intermediate.
     FakeTls { key: [u8; 16], domain: String },
 }
 

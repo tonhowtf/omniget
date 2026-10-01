@@ -1,11 +1,3 @@
-//! Loops (estudo 03 §6): a loop is a runbook (goal, interval, stop condition,
-//! budget) plus references to other components. The plan already installs the
-//! referenced components (`plan::expand` through the catalog resolver); this
-//! module writes the runbook for tools that have no loops folder of their own
-//! (`.agents/loops/<name>.md`, shared by every tool) and turns a loop into an
-//! OmniGet [`LoopPlan`] that the Loops engine (`jobs.rs` `LoopDef`) runs with any
-//! runner, with a real interval, stop check and budget.
-
 use serde::{Deserialize, Serialize};
 
 use super::{ConvertCtx, Converter, PlannedFile};
@@ -20,7 +12,6 @@ impl Converter for LoopConverter {
         "loop_runbook"
     }
 
-    /// Every tool without a loop format of its own (Claude has `.claude/loops`).
     fn supports(&self, kind: ComponentKind, target: &TargetAdapter) -> bool {
         kind == ComponentKind::Loop && target.format(kind).is_none()
     }
@@ -62,35 +53,23 @@ impl Converter for LoopConverter {
     }
 }
 
-/// A loop ready for OmniGet's Loops engine (mirrors `jobs::LoopDef` inputs).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct LoopPlan {
-    /// Catalog id of the loop.
     pub loop_id: String,
     pub name: String,
-    /// Tool that runs each round (`claude`, `codex` …) or an OmniGet agent id.
     pub runner: String,
-    /// Prompt of each round (the loop's `/loop` line, else its goal).
     pub prompt: String,
-    /// Seconds between rounds; `None` = back to back (`on-demand`).
     pub interval_secs: Option<u64>,
-    /// The interval as written (`10m`, `daily`, `on-demand`).
     pub interval: Option<String>,
-    /// Shell command whose exit 0 ends the loop, when the loop names one.
     pub check_command: Option<String>,
-    /// Stop condition in words (also appended to the prompt).
     pub stop_condition: Option<String>,
     pub max_rounds: u32,
     pub max_minutes: u32,
-    /// Budget text of the runbook.
     pub budget: Option<String>,
-    /// Components the loop brings (`agent:dev/x` …), installed with it.
     pub components: Vec<String>,
     pub workspace: Option<String>,
 }
 
-/// `10m` → 600, `1h` → 3600, `24h`, `7d`, `daily`/`nightly` → 86400,
-/// `hourly`, `weekly`; `on-demand` / unknown → `None`.
 pub fn interval_secs(s: &str) -> Option<u64> {
     let s = s.trim().to_ascii_lowercase();
     match s.as_str() {
@@ -113,7 +92,6 @@ pub fn interval_secs(s: &str) -> Option<u64> {
     Some(n * mult)
 }
 
-/// Text of a `## <title>` section (emoji prefixes ignored).
 fn section<'a>(body: &'a str, title: &str) -> Option<&'a str> {
     let lower_title = title.to_ascii_lowercase();
     let mut start = None;
@@ -133,7 +111,6 @@ fn section<'a>(body: &'a str, title: &str) -> Option<&'a str> {
     start.map(|s| body[s..].trim())
 }
 
-/// The quoted prompt of a `/loop <interval> "<prompt>"` line.
 pub fn loop_line_prompt(body: &str) -> Option<String> {
     for line in body.lines() {
         let t = line.trim();
@@ -151,7 +128,6 @@ pub fn loop_line_prompt(body: &str) -> Option<String> {
     None
 }
 
-/// First inline-code span that looks like a check command (`npm test` …).
 fn check_command(texts: &[&str]) -> Option<String> {
     const STARTS: &[&str] = &[
         "npm ",
@@ -194,7 +170,6 @@ fn check_command(texts: &[&str]) -> Option<String> {
     None
 }
 
-/// Numbers the budget text states (`max 20 iterations`, `30 minutes`, `2h`).
 fn budget_numbers(text: &str) -> (Option<u32>, Option<u32>) {
     let lower = text.to_ascii_lowercase();
     let words: Vec<&str> = lower
@@ -227,11 +202,9 @@ fn budget_numbers(text: &str) -> (Option<u32>, Option<u32>) {
     (rounds, minutes)
 }
 
-/// Default caps when the runbook states none (loops are meant to be bounded).
 pub const DEFAULT_MAX_ROUNDS: u32 = 10;
 pub const DEFAULT_MAX_MINUTES: u32 = 60;
 
-/// Turns a loop component into an OmniGet loop for `runner`.
 pub fn loop_plan(c: &Component, runner: &str, workspace: Option<&str>) -> Result<LoopPlan> {
     let ComponentBody::Loop(l) = &c.body else {
         return Err(AgentkitError::new(

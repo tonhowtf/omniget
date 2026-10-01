@@ -1,13 +1,3 @@
-//! In-memory canvas documents: every workspace's meta, and each floor loaded
-//! lazily on first use. One process-wide store ([`shared`]); the app host
-//! subscribes to it to emit `canvas://patch`, and agents (cords, maestro, MCP,
-//! CLI bridge) call [`CanvasStore::apply`] with their own origin.
-//!
-//! Each floor carries `rev` (persisted, +1 per applied batch), and `epoch` +
-//! `seq` for listeners: `epoch` is new every time the floor is (re)loaded into
-//! memory, `seq` counts batches within it. Clients dedupe patches by
-//! `(epoch, seq)` and reload the snapshot when the epoch changes.
-
 use super::model::{
     is_safe_id, new_id, now_rfc3339, CanvasNode, FloorDoc, FloorMeta, NodeKind, NoteData, Snapshot,
     Workspace, WorkspaceInput, WorkspaceSummary, DEFAULT_WORKSPACE_ID, GROUND_FLOOR_ID,
@@ -21,12 +11,9 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, OnceLock, Weak};
 use std::time::{Duration, Instant, SystemTime};
 
-/// Origin of the user at the keyboard.
 pub const ORIGIN_USER: &str = "user";
-/// Origin of housekeeping done by the app itself.
 pub const ORIGIN_SYSTEM: &str = "system";
 
-/// `agent:<nodeId>`, the origin an agent's ops carry.
 pub fn agent_origin(node_id: &str) -> String {
     format!("agent:{node_id}")
 }
@@ -42,7 +29,6 @@ pub struct ApplyResult {
     pub rebased: bool,
 }
 
-/// Payload of `canvas://patch`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PatchEvent {
@@ -55,7 +41,6 @@ pub struct PatchEvent {
     pub origin: String,
 }
 
-/// Payload of `canvas://note`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NoteEvent {
@@ -68,7 +53,6 @@ pub struct NoteEvent {
 #[derive(Debug, Clone)]
 pub enum StoreEvent {
     Patch(PatchEvent),
-    /// Workspace list or meta changed (create, update, delete, floors).
     Workspaces,
     Note(NoteEvent),
 }
@@ -93,7 +77,6 @@ struct Inner {
     workspaces: BTreeMap<String, WsEntry>,
 }
 
-/// A note file the poller watches for outside edits.
 pub(super) struct WatchEntry {
     pub path: PathBuf,
     pub modified: Option<SystemTime>,
@@ -107,14 +90,12 @@ pub struct CanvasStore {
     listeners: Mutex<Vec<(u64, Listener)>>,
     next_listener: Mutex<u64>,
     saver: OnceLock<Saver>,
-    /// Serializes file writes so a debounced save never races a flush.
     io: Mutex<()>,
     pub(super) note_watch: Mutex<HashMap<(String, String), WatchEntry>>,
 }
 
 static SHARED: OnceLock<Arc<CanvasStore>> = OnceLock::new();
 
-/// The process-wide store rooted at `<app_data>/canvas`.
 pub fn shared() -> Arc<CanvasStore> {
     SHARED
         .get_or_init(|| CanvasStore::open(persist::canvas_root()))
@@ -175,10 +156,6 @@ impl CanvasStore {
         persist::inbox_dir(&self.root, ws, node_id)
     }
 
-    // ------------------------------------------------------------ listeners
-
-    /// Registers a listener for patches, workspace changes and note changes.
-    /// Called outside the store lock, on the thread that made the change.
     pub fn subscribe(&self, f: impl Fn(&StoreEvent) + Send + Sync + 'static) -> u64 {
         let mut n = self.next_listener.lock().unwrap_or_else(|e| e.into_inner());
         let id = *n;
@@ -209,8 +186,6 @@ impl CanvasStore {
             l(&ev);
         }
     }
-
-    // ------------------------------------------------------------ loading
 
     fn lock(&self) -> std::sync::MutexGuard<'_, Inner> {
         let mut g = self.inner.lock().unwrap_or_else(|e| e.into_inner());
@@ -300,8 +275,6 @@ impl CanvasStore {
         Ok(entry.floors.get_mut(floor).expect("inserted"))
     }
 
-    // ------------------------------------------------------------ workspaces
-
     pub fn workspaces(&self) -> Vec<WorkspaceSummary> {
         let mut g = self.lock();
         let ids: Vec<(String, Vec<String>)> = g
@@ -381,7 +354,6 @@ impl CanvasStore {
             return Err(format!("CANVAS_INVALID: workspace id '{id}'"));
         }
         let meta = {
-            // Lock order everywhere: io, then inner.
             let _io = self.io.lock().unwrap_or_else(|e| e.into_inner());
             let mut g = self.lock();
             if g.workspaces.contains_key(&id) {
@@ -408,8 +380,6 @@ impl CanvasStore {
         Ok(meta)
     }
 
-    /// Shallow patch of the meta (`null` clears an optional). `id`, `floors`,
-    /// `createdAt`, `format` and `version` are ignored.
     pub fn update_workspace(
         &self,
         ws: &str,
@@ -458,7 +428,6 @@ impl CanvasStore {
         Ok(meta)
     }
 
-    /// Moves the workspace folder to `<root>/.deleted/<id>-<ts>`.
     pub fn delete_workspace(&self, ws: &str) -> Result<(), String> {
         if self.workspace(ws).is_ok() {
             super::workspace_io::before(self, ws, "delete");
@@ -488,8 +457,6 @@ impl CanvasStore {
         Ok(())
     }
 
-    // ------------------------------------------------------------ floors meta (for the floors module)
-
     pub fn create_floor(&self, ws: &str, mut floor: FloorMeta) -> Result<Workspace, String> {
         if !is_safe_id(&floor.id) {
             return Err(format!("CANVAS_INVALID: floor id '{}'", floor.id));
@@ -515,7 +482,6 @@ impl CanvasStore {
         Ok(meta)
     }
 
-    /// Patches one floor's meta (`id` ignored).
     pub fn update_floor(
         &self,
         ws: &str,
@@ -558,7 +524,6 @@ impl CanvasStore {
         Ok(meta)
     }
 
-    /// Removes a floor (never the ground). Its document goes to `trash/`.
     pub fn delete_floor(&self, ws: &str, floor_id: &str) -> Result<Workspace, String> {
         if floor_id == GROUND_FLOOR_ID {
             return Err("CANVAS_INVALID: the ground floor cannot be deleted".into());
@@ -591,8 +556,6 @@ impl CanvasStore {
         Ok(meta)
     }
 
-    // ------------------------------------------------------------ documents
-
     pub fn snapshot(&self, ws: &str, floor: &str) -> Result<Snapshot, String> {
         let mut g = self.lock();
         let st = self.ensure_floor(&mut g, ws, floor)?;
@@ -612,7 +575,6 @@ impl CanvasStore {
         })
     }
 
-    /// Read access to a floor without cloning it.
     pub fn read<R>(
         &self,
         ws: &str,
@@ -624,12 +586,10 @@ impl CanvasStore {
         Ok(f(&st.doc))
     }
 
-    /// Finds the (workspace, floor) holding a node. Loads every floor.
     pub fn locate_node(&self, node_id: &str) -> Option<(String, String)> {
         self.locate(|d| d.node(node_id).is_some())
     }
 
-    /// Finds the (workspace, floor, node id) of the node bound to a PTY session.
     pub fn locate_terminal(&self, terminal_id: &str) -> Option<(String, String, String)> {
         let (ws, floor) = self.locate(|d| d.node_by_terminal(terminal_id).is_some())?;
         let node = self
@@ -662,9 +622,6 @@ impl CanvasStore {
         None
     }
 
-    /// Applies a batch of ops as `origin` ("user", "agent:<nodeId>", "mcp", ...).
-    /// Atomic; emits one [`StoreEvent::Patch`] with the effective ops.
-    /// `base_rev` is informational: a stale one still applies and sets `rebased`.
     pub fn apply(
         &self,
         ws: &str,
@@ -700,8 +657,6 @@ impl CanvasStore {
             let applied = apply_batch(&mut st.doc, &ops)?;
             st.doc.rev += 1;
             st.seq += 1;
-            // Note files follow their nodes: collect the internal notes removed
-            // (their data sits in the inverse AddNode) and the ones added.
             let removed_ids: Vec<&str> = applied
                 .ops
                 .iter()
@@ -795,8 +750,6 @@ impl CanvasStore {
         Ok(result)
     }
 
-    /// Fills what the caller may leave out: a note's file name, a terminal's
-    /// PTY session id.
     fn prepare(&self, mut ops: Vec<Op>) -> Vec<Op> {
         for op in &mut ops {
             let Op::AddNode { node } = op else { continue };
@@ -826,18 +779,11 @@ impl CanvasStore {
         ops
     }
 
-    /// Serializes a whole-folder rewrite (backup restore, import) against the
-    /// debounced saver. Callers [`flush`](Self::flush) first.
     pub fn with_io<R>(&self, f: impl FnOnce() -> R) -> R {
         let _io = self.io.lock().unwrap_or_else(|e| e.into_inner());
         f()
     }
 
-    /// Re-reads a workspace from disk after its folder was rewritten (backup
-    /// restore, import): meta again, floors dropped (next read loads them under
-    /// a new epoch), and a workspace that was not known (deleted, or new) is
-    /// added. Emits the workspace list change and an empty patch per floor so
-    /// open windows reload their snapshot.
     pub fn reload_workspace(&self, ws: &str) -> Result<Workspace, String> {
         if !is_safe_id(ws) {
             return Err(format!("CANVAS_INVALID: workspace id '{ws}'"));
@@ -890,8 +836,6 @@ impl CanvasStore {
         Ok(meta)
     }
 
-    // ------------------------------------------------------------ saving
-
     fn schedule(&self, key: SaveKey, delay: Duration) {
         match self.saver.get() {
             Some(s) => s.schedule(key, delay),
@@ -927,7 +871,6 @@ impl CanvasStore {
         }
     }
 
-    /// Writes every pending change now (blur, workspace switch, close).
     pub fn flush(&self) -> Result<(), String> {
         let keys = self.saver.get().map(|s| s.take_all()).unwrap_or_default();
         let mut first_err = None;
@@ -942,10 +885,6 @@ impl CanvasStore {
         }
     }
 
-    /// [`flush`](Self::flush), then writes the workspace and every loaded
-    /// floor of `ws` now. A save the debounced saver already took off its
-    /// queue may still be in flight when `flush` returns; callers that read
-    /// the files right after (export, backups) need them current.
     pub fn flush_workspace(&self, ws: &str) -> Result<(), String> {
         let mut first_err = self.flush().err();
         let floors: Vec<String> = {
@@ -973,7 +912,6 @@ impl CanvasStore {
     }
 }
 
-/// File name of an internal note node, if it is one.
 pub(super) fn internal_note_file(node: &CanvasNode) -> Option<String> {
     let d: NoteData = node.data_as()?;
     if d.is_external || d.path.is_some() {
@@ -982,7 +920,6 @@ pub(super) fn internal_note_file(node: &CanvasNode) -> Option<String> {
     d.file_name
 }
 
-/// `<slug>-<first 8 of id>.md`.
 pub fn note_file_name(title: &str, id: &str) -> String {
     let mut slug = String::new();
     for c in title.chars().flat_map(|c| c.to_lowercase()) {

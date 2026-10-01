@@ -1,31 +1,5 @@
-//! BleachBit CleanerML, read from the original XML files.
-//!
-//! Port of the loader and path logic of BleachBit (`bleachbit/CleanerML.py`,
 //! `Action.py`, `General.py`), Copyright (c) 2008-2026 Andrew Ziem,
 //! GPL-3.0-or-later. The XML files are embedded unchanged from
-//! `data/washmybelly/bleachbit/cleaners/` (see `SOURCE.md` there) and turned
-//! into [`Rule`]s once per process. Each `<option>` becomes one rule per
-//! system and per kind of work (remove whole, empty a folder, vacuum), with
-//! the id `bleachbit.<cleaner>.<option>` (`.2`, `.3`... for the extra kinds).
-//!
-//! What the conversion keeps:
-//!
-//! - `search="file|glob|walk.top"` → [`Action::Delete`] of each match;
-//! - `search="walk.all"` → [`Action::DeleteContents`] of the folder;
-//! - `search="walk.files"` → [`Action::DeleteContents`] with `include: ["type:f"]`
-//!   (files only, folders stay);
-//! - `regex`/`nregex` → `re:` entries in `include`/`exclude` (basename),
-//!   `wholeregex`/`nwholeregex` → `path-re:` entries, `type="f|d"` → `type:f|d`;
-//! - `command="sqlite.vacuum"` → [`Action::SqliteVacuum`], `truncate` → [`Action::Truncate`];
-//! - `<running type="exe">` → a process name in `running`, `type="pathname"`
-//!   → a lock-file glob in `running` (anything with a path separator or `~`);
-//! - `$$var$$` expands to every value of the variable for that system
-//!   (cartesian product); `<value search="glob">` stays a glob and is
-//!   expanded at scan time.
-//!
-//! Everything else is left out with a reason ([`Skip`]): registry, JSON and
-//! INI edits, the partial SQL cleanups of `Special.py`, package managers
-//! (the Linux rules use the manager itself), `process`, and `deep` scans.
 
 use roxmltree::{Document, Node};
 use serde::Serialize;
@@ -35,7 +9,6 @@ use super::rule::{Action, Requirement, Rule};
 
 pub const ALL_OS: [Os; 3] = [Os::Macos, Os::Linux, Os::Windows];
 
-/// Something of a cleaner that did not become a rule.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
 pub struct Skip {
     pub cleaner: String,
@@ -50,9 +23,6 @@ pub struct Converted {
     pub skipped: Vec<Skip>,
 }
 
-/// `os=` of CleanerML: comma list, each item negatable with `!`. macOS
-/// matches `macos`, `bsd`, `unix` (and the old alias `darwin`); Linux
-/// matches `linux`, `unix`; Windows matches `windows`.
 pub fn os_match(attr: Option<&str>, os: Os) -> bool {
     let Some(attr) = attr.map(str::trim).filter(|s| !s.is_empty()) else {
         return true;
@@ -90,8 +60,6 @@ pub fn os_match(attr: Option<&str>, os: Os) -> bool {
     pos.is_empty() || pos.iter().any(|t| cur.contains(&t.as_str()))
 }
 
-/// `$$name$$` → every combination of the values of the variables used.
-/// Unknown variables leave the string as it is (the caller drops it).
 pub fn expand_multi_var(s: &str, vars: &[(String, Vec<String>)]) -> Vec<String> {
     if !s.contains("$$") {
         return vec![s.to_string()];
@@ -124,7 +92,6 @@ fn child_text(n: Node, tag: &str) -> String {
         .unwrap_or_default()
 }
 
-/// A path written for another system, or one we cannot resolve.
 fn keep_path(p: &str, os: Os) -> bool {
     if p.contains("$$") || p.trim().is_empty() {
         return false;
@@ -227,7 +194,6 @@ const USER_FILE_OPTIONS: &[&str] = &[
     "vim_swap_root",
 ];
 
-/// Category, risk and destination of a BleachBit option.
 pub fn classify(cleaner: &str, option: &str, action: &Action) -> (String, Risk, Destination) {
     let opt = option.to_ascii_lowercase();
     if matches!(action, Action::SqliteVacuum) {
@@ -251,8 +217,6 @@ pub fn classify(cleaner: &str, option: &str, action: &Action) -> (String, Risk, 
     if USER_FILE_OPTIONS.contains(&opt.as_str()) {
         return ("user_files".into(), Risk::Reversible, Destination::Trash);
     }
-    // History, cookies, sessions, passwords, form data, recent files: the
-    // person may want them back, so quarantine, and never ticked by default.
     ("privacy".into(), Risk::Destructive, Destination::Quarantine)
 }
 
@@ -287,14 +251,12 @@ fn skip_reason(command: &str) -> Option<&'static str> {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct GroupKey {
-    kind: u8, // 0 delete, 1 contents, 2 vacuum, 3 truncate
+    kind: u8,
     include: Vec<String>,
     exclude: Vec<String>,
-    /// Targets outside the home: removed by the administrator helper.
     admin: bool,
 }
 
-/// A target outside the person's own folders (`/var/...`, `%WinDir%`).
 pub fn system_target(p: &str, os: Os) -> bool {
     match os {
         Os::Windows => {
@@ -314,8 +276,6 @@ pub fn system_target(p: &str, os: Os) -> bool {
     }
 }
 
-/// Convert one CleanerML document. `name` is the file stem, used when the
-/// XML has no id.
 pub fn convert(name: &str, xml: &str) -> Result<Converted, String> {
     if xml.contains("<!DOCTYPE") {
         return Err(format!("{name}: CleanerML with a DTD is refused"));
@@ -500,9 +460,6 @@ pub fn convert(name: &str, xml: &str) -> Result<Converted, String> {
                     }
                 }
             }
-            // Actions that differ only in a name filter over the same
-            // targets (`\.tmp$`, `\.temp$`) become one rule that matches
-            // either: one walk instead of two.
             let mut merged: Vec<(GroupKey, Vec<String>)> = Vec::new();
             for (key, targets) in groups {
                 let types = |k: &GroupKey| {
@@ -578,8 +535,6 @@ pub fn convert(name: &str, xml: &str) -> Result<Converted, String> {
     Ok(out)
 }
 
-/// A rule identical to one already converted for another system only adds
-/// that system to it.
 fn merge(rules: &mut Vec<Rule>, rule: Rule) {
     let same = |a: &Rule, b: &Rule| {
         a.id == b.id
@@ -602,7 +557,6 @@ fn merge(rules: &mut Vec<Rule>, rule: Rule) {
     }
 }
 
-/// Every embedded cleaner, converted.
 pub fn all() -> Converted {
     let mut out = Converted::default();
     for (name, xml) in EMBEDDED {
@@ -622,7 +576,6 @@ pub fn all() -> Converted {
     out
 }
 
-// BEGIN GENERATED CLEANERS (scripts/washmybelly/sync_bleachbit.py)
 pub const EMBEDDED: &[(&str, &str)] = &[
     (
         "adobe_reader",
@@ -1045,4 +998,3 @@ pub const EMBEDDED: &[(&str, &str)] = &[
         include_str!("../../../../data/washmybelly/bleachbit/cleaners/zsh.xml"),
     ),
 ];
-// END GENERATED CLEANERS

@@ -1,6 +1,3 @@
-//! Export (versioned JSON + readable Markdown), validated import, and the
-//! app's own database backups that may still hold forgotten text.
-
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 
@@ -19,7 +16,6 @@ use super::{
 pub const EXPORT_FORMAT: &str = "omniget.memory";
 pub const EXPORT_VERSION: u32 = 1;
 
-/// A forgotten record's fingerprint: a hash, never the text.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Tombstone {
     pub hash: String,
@@ -68,8 +64,6 @@ fn gather(db: &AssistDb, ctx: &AssistCtx) -> Result<(Vec<MemoryRecord>, Vec<Tomb
     Ok((records, tombstones))
 }
 
-/// Every record the caller may read (all versions, all statuses) plus the
-/// tombstones of those scopes, as a versioned JSON document.
 pub fn export_json(db: &AssistDb, ctx: &AssistCtx, now: i64) -> Result<String, String> {
     let (records, tombstones) = gather(db, ctx)?;
     let file = ExportFile {
@@ -90,7 +84,6 @@ fn scope_title(s: &Scope) -> String {
     }
 }
 
-/// A readable copy of the active records. Import reads only the JSON export.
 pub fn export_markdown(db: &AssistDb, ctx: &AssistCtx, now: i64) -> Result<String, String> {
     let (records, tombstones) = gather(db, ctx)?;
     let mut out = String::new();
@@ -145,16 +138,11 @@ pub fn export_markdown(db: &AssistDb, ctx: &AssistCtx, now: i64) -> Result<Strin
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 pub struct ImportReport {
     pub imported: usize,
-    /// Already present (same id or same origin); left untouched.
     pub duplicates: usize,
-    /// Forgotten here or in the file; not restored (see `allow_resurrect`).
     pub skipped_forgotten: usize,
-    /// Restored although forgotten, because the person chose to.
     pub resurrected: usize,
-    /// Two active records about the same subject: the newer one stays active.
     pub conflicts_resolved: usize,
     pub tombstones_added: usize,
-    /// One line per record that failed validation.
     pub rejected: Vec<String>,
 }
 
@@ -162,9 +150,6 @@ fn is_hash(s: &str) -> bool {
     s.len() == 64 && s.bytes().all(|b| b.is_ascii_hexdigit())
 }
 
-/// Imports a JSON export. Validates format and version, keeps ids and links
-/// (a version whose predecessor is missing is rejected), skips duplicates,
-/// and never restores a forgotten record unless `allow_resurrect` is set.
 pub fn import_json(
     db: &AssistDb,
     ctx: &AssistCtx,
@@ -210,7 +195,6 @@ pub fn import_json(
 
         let mut records = file.records.clone();
         records.sort_by(|a, b| (a.chain.as_str(), a.version).cmp(&(b.chain.as_str(), b.version)));
-        // file id → id in this database; file chain → chain in this database.
         let mut idmap: HashMap<String, String> = HashMap::new();
         let mut chainmap: HashMap<String, String> = HashMap::new();
         let mut forgotten: HashSet<String> = HashSet::new();
@@ -227,7 +211,6 @@ pub fn import_json(
                 rep.rejected.push(format!("{label}: invalid content, id or version"));
                 continue;
             }
-            // Links: a predecessor must come from the file or exist here.
             if forgotten.contains(&rec.chain) || rec.supersedes.as_ref().map(|s| forgotten.contains(s)).unwrap_or(false) {
                 forgotten.insert(rec.id.clone());
                 rep.skipped_forgotten += 1;
@@ -320,8 +303,6 @@ pub fn import_json(
                     .query_row("SELECT COALESCE(MAX(version),0)+1 FROM memory_records WHERE chain = ?1", [&chain], |r| r.get(0))
                     .map_err(db_err)?;
             }
-            // One active record per subject: the newer stays active; a guess
-            // never displaces a stated preference.
             if out.status == Status::Active {
                 if let (Some(subj), Some(group)) = (&out.subject, out.category.conflict_group()) {
                     let cats: Vec<Category> = [Category::Declared, Category::Inference, Category::Temporary, Category::Procedural]
@@ -357,7 +338,6 @@ pub fn import_json(
             touched.insert(chain);
             rep.imported += 1;
         }
-        // One active version per chain: the highest.
         for chain in &touched {
             tx.execute(
                 "UPDATE memory_records SET status = 'superseded'
@@ -374,8 +354,6 @@ pub fn import_json(
     Ok(report)
 }
 
-/// The app's own copies of the database (`assist.db.bak-*`), taken before
-/// migrations. They can hold forgotten text until they rotate out.
 pub fn backup_files(db: &AssistDb) -> Vec<PathBuf> {
     let Some(path) = db.path() else {
         return Vec::new();
@@ -400,7 +378,6 @@ pub fn backup_files(db: &AssistDb) -> Vec<PathBuf> {
     out
 }
 
-/// Deletes those backups. Returns how many files were removed.
 pub fn delete_backups(db: &AssistDb) -> Result<usize, String> {
     let mut n = 0;
     for p in backup_files(db) {

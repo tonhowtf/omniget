@@ -1,21 +1,12 @@
-//! Utilidades comuns dos parsers e das visões de sessão: tempo, nomes
-//! canônicos de tool, leitura de linhas (com zstd), aspas de shell e a
-//! codificação de diretório de projeto do Claude Code.
-//!
-//! Tudo aqui é puro ou só lê arquivo; nada escreve.
-
 use std::io::{BufRead, BufReader, Read, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
 
 use chrono::{DateTime, Local, TimeZone, Utc};
 
-/// Diretório home, `None` em ambiente sem home.
 pub fn home() -> Option<PathBuf> {
     dirs::home_dir()
 }
 
-/// `$XDG_DATA_HOME` ou `~/.local/share` (as ferramentas Go/TS usam XDG
-/// também no macOS).
 pub fn xdg_data_home() -> Option<PathBuf> {
     match std::env::var_os("XDG_DATA_HOME") {
         Some(v) if !v.is_empty() => Some(PathBuf::from(v)),
@@ -23,8 +14,6 @@ pub fn xdg_data_home() -> Option<PathBuf> {
     }
 }
 
-/// Divide uma variável de ambiente com lista de caminhos (separador do SO e
-/// também vírgula, como o `CLAUDE_CONFIG_DIR` aceita).
 pub fn env_paths(name: &str) -> Vec<PathBuf> {
     let Some(raw) = std::env::var_os(name) else {
         return Vec::new();
@@ -42,8 +31,6 @@ pub fn env_paths(name: &str) -> Vec<PathBuf> {
     out
 }
 
-/// Caminho canônico para comparar raízes (symlink de conta aponta pro mesmo
-/// lugar); cai no próprio caminho se não resolver.
 pub fn canon(p: &Path) -> PathBuf {
     std::fs::canonicalize(p).unwrap_or_else(|_| p.to_path_buf())
 }
@@ -65,7 +52,6 @@ pub fn now_ms() -> i64 {
     Utc::now().timestamp_millis()
 }
 
-/// RFC 3339 com milissegundos, em UTC.
 pub fn ms_to_rfc3339(ms: i64) -> String {
     Utc.timestamp_millis_opt(ms)
         .single()
@@ -73,8 +59,6 @@ pub fn ms_to_rfc3339(ms: i64) -> String {
         .unwrap_or_default()
 }
 
-/// Aceita RFC 3339, `YYYY-MM-DD HH:MM:SS` (SQLite, UTC), época em segundos,
-/// milissegundos ou microssegundos.
 pub fn parse_ts_str(s: &str) -> Option<i64> {
     let s = s.trim();
     if s.is_empty() {
@@ -98,17 +82,16 @@ pub fn parse_ts_str(s: &str) -> Option<i64> {
     None
 }
 
-/// Número de época em qualquer unidade para ms.
 pub fn epoch_to_ms(n: f64) -> i64 {
     let a = n.abs();
     if a >= 1e17 {
-        (n / 1e6) as i64 // ns
+        (n / 1e6) as i64
     } else if a >= 1e14 {
-        (n / 1e3) as i64 // µs
+        (n / 1e3) as i64
     } else if a >= 1e11 {
-        n as i64 // ms
+        n as i64
     } else {
-        (n * 1000.0) as i64 // s
+        (n * 1000.0) as i64
     }
 }
 
@@ -120,12 +103,10 @@ pub fn ts_ms_of(v: Option<&serde_json::Value>) -> Option<i64> {
     }
 }
 
-/// Timestamp RFC 3339 de uma `Turn` para ms (0 se vazio/ruim).
 pub fn turn_ms(ts: &str) -> i64 {
     parse_ts_str(ts).unwrap_or(0)
 }
 
-/// Dia local `YYYY-MM-DD` e hora local 0..23 de um instante em ms.
 pub fn local_day_hour(ms: i64) -> (String, u32) {
     match Local.timestamp_millis_opt(ms).single() {
         Some(d) => (
@@ -148,7 +129,6 @@ pub fn str_of<'a>(v: &'a serde_json::Value, key: &str) -> Option<&'a str> {
         .filter(|s| !s.is_empty())
 }
 
-/// Corta em `max` caracteres (não bytes), com reticências.
 pub fn truncate_chars(s: &str, max: usize) -> String {
     if s.chars().count() <= max {
         return s.to_string();
@@ -158,8 +138,6 @@ pub fn truncate_chars(s: &str, max: usize) -> String {
     out
 }
 
-/// Texto de um valor de resultado arbitrário (string, lista de blocos
-/// `{type:text,text}` ou JSON), cortado.
 pub fn value_text(v: &serde_json::Value, max: usize) -> String {
     let s = match v {
         serde_json::Value::String(s) => s.clone(),
@@ -188,18 +166,14 @@ pub fn value_text(v: &serde_json::Value, max: usize) -> String {
     truncate_chars(&s, max)
 }
 
-/// Tamanho máximo de resultado de tool guardado numa `Turn`.
 pub const RESULT_MAX: usize = 4000;
 
-/// Nome canônico (nomenclatura do Claude) a partir do nome cru de qualquer
-/// ferramenta. Uma tabela só: os nomes quase nunca colidem entre ferramentas.
 pub fn canonical_tool(raw: &str) -> &'static str {
     let lower = raw.to_ascii_lowercase();
     let n = lower.as_str();
     if n.starts_with("mcp__") || n.starts_with("mcp_") || n.starts_with("mcp:") {
         return "Mcp";
     }
-    // Goose: `<extensão>__<tool>`.
     if let Some((ext, tool)) = n.split_once("__") {
         return match ext {
             "developer" => match tool {
@@ -272,7 +246,6 @@ pub fn canonical_tool(raw: &str) -> &'static str {
     }
 }
 
-/// Lê um arquivo de texto inteiro, descomprimindo `.zst`.
 pub fn read_maybe_zst(path: &Path) -> Option<Vec<u8>> {
     let is_zst = path
         .extension()
@@ -291,24 +264,14 @@ pub fn read_maybe_zst(path: &Path) -> Option<Vec<u8>> {
     }
 }
 
-/// Percorre as linhas completas de um JSONL a partir de `from` (bytes).
-/// Devolve o offset logo depois da última linha terminada em `\n`: uma linha
-/// que a ferramenta ainda está escrevendo fica para a próxima passada.
-/// `.zst` é sempre lido do começo e devolve o tamanho descomprimido.
 pub fn for_each_line(path: &Path, from: u64, mut f: impl FnMut(&[u8])) -> Option<u64> {
     let is_zst = path.extension().map(|e| e == "zst").unwrap_or(false);
     if is_zst {
         let buf = read_maybe_zst(path)?;
         let mut consumed = 0u64;
         for line in buf.split_inclusive(|b| *b == b'\n') {
-            if line.last() == Some(&b'\n') {
-                f(trim_line(line));
-                consumed += line.len() as u64;
-            } else {
-                // Arquivo comprimido está completo: a última linha vale.
-                f(trim_line(line));
-                consumed += line.len() as u64;
-            }
+            f(trim_line(line));
+            consumed += line.len() as u64;
         }
         return Some(consumed);
     }
@@ -326,7 +289,7 @@ pub fn for_each_line(path: &Path, from: u64, mut f: impl FnMut(&[u8])) -> Option
             break;
         }
         if line.last() != Some(&b'\n') {
-            break; // parcial
+            break;
         }
         offset += n as u64;
         f(trim_line(&line));
@@ -342,7 +305,6 @@ fn trim_line(line: &[u8]) -> &[u8] {
     &line[..end]
 }
 
-/// Lê as primeiras `max_lines` linhas (até `max_bytes`).
 pub fn head_lines(path: &Path, max_lines: usize, max_bytes: usize) -> Vec<String> {
     let Ok(f) = std::fs::File::open(path) else {
         return Vec::new();
@@ -375,7 +337,6 @@ pub fn head_lines(path: &Path, max_lines: usize, max_bytes: usize) -> Vec<String
     out
 }
 
-/// Linhas completas dos últimos `bytes` do arquivo (a primeira, cortada, cai).
 pub fn tail_lines(path: &Path, bytes: u64) -> Vec<String> {
     let Ok(mut f) = std::fs::File::open(path) else {
         return Vec::new();
@@ -397,7 +358,6 @@ pub fn tail_lines(path: &Path, bytes: u64) -> Vec<String> {
     lines
 }
 
-/// Aspas de shell: POSIX com aspas simples; Windows com aspas duplas.
 pub fn shell_quote(s: &str) -> String {
     if cfg!(windows) {
         format!("\"{}\"", s.replace('"', "\\\""))
@@ -411,7 +371,6 @@ pub fn shell_quote(s: &str) -> String {
     }
 }
 
-/// `cd <dir> && <cmd>` quando há diretório.
 pub fn in_dir(dir: Option<&str>, cmd: String) -> String {
     match dir {
         Some(d) if !d.is_empty() => format!("cd {} && {}", shell_quote(d), cmd),
@@ -419,7 +378,6 @@ pub fn in_dir(dir: Option<&str>, cmd: String) -> String {
     }
 }
 
-/// Prefixo de variável de ambiente para a conta isolada.
 pub fn with_env(var: &str, value: Option<&Path>, cmd: String) -> String {
     match value {
         Some(v) if !v.as_os_str().is_empty() => {
@@ -434,9 +392,6 @@ pub fn with_env(var: &str, value: Option<&Path>, cmd: String) -> String {
     }
 }
 
-/// Nome do diretório de projeto do Claude Code para um cwd: todo caractere
-/// não alfanumérico vira `-`; acima de 200 caracteres corta e junta um hash
-/// (`sanitizePath` do CLI).
 pub fn claude_project_dir_name(cwd: &str) -> String {
     let s: String = cwd
         .chars()
@@ -449,8 +404,6 @@ pub fn claude_project_dir_name(cwd: &str) -> String {
     format!("{}-{}", head, js_string_hash_base36(cwd))
 }
 
-/// Hash de string do JS (`h = (h << 5) - h + c | 0` sobre UTF-16), valor
-/// absoluto em base 36.
 fn js_string_hash_base36(s: &str) -> String {
     let mut h: i32 = 0;
     for u in s.encode_utf16() {
@@ -470,7 +423,6 @@ fn js_string_hash_base36(s: &str) -> String {
     String::from_utf8(out).unwrap_or_default()
 }
 
-/// Abre um SQLite de outra ferramenta só para leitura.
 pub fn open_ro(path: &Path) -> Option<rusqlite::Connection> {
     use rusqlite::OpenFlags;
     let c = rusqlite::Connection::open_with_flags(
@@ -484,7 +436,6 @@ pub fn open_ro(path: &Path) -> Option<rusqlite::Connection> {
     Some(c)
 }
 
-/// Colunas de uma tabela (vazio se não existe).
 pub fn table_columns(c: &rusqlite::Connection, table: &str) -> Vec<String> {
     let Ok(mut st) = c.prepare(&format!(
         "PRAGMA table_info(\"{}\")",
@@ -497,8 +448,6 @@ pub fn table_columns(c: &rusqlite::Connection, table: &str) -> Vec<String> {
         .unwrap_or_default()
 }
 
-/// `SELECT * ...` como objetos JSON por nome de coluna: resiste a mudança de
-/// esquema entre versões da ferramenta.
 pub fn query_json(
     c: &rusqlite::Connection,
     sql: &str,
@@ -533,7 +482,6 @@ pub fn query_json(
     }
 }
 
-/// Uma coluna TEXT com JSON dentro vira `Value` (ou o próprio texto).
 pub fn json_col(m: &serde_json::Map<String, serde_json::Value>, key: &str) -> serde_json::Value {
     match m.get(key) {
         Some(serde_json::Value::String(s)) => {
@@ -568,7 +516,6 @@ pub fn map_f64(m: &serde_json::Map<String, serde_json::Value>, key: &str) -> Opt
     }
 }
 
-/// Instante (ms) de uma coluna de data em qualquer formato.
 pub fn map_ts(m: &serde_json::Map<String, serde_json::Value>, key: &str) -> Option<i64> {
     match m.get(key) {
         Some(serde_json::Value::Number(n)) => n.as_f64().map(epoch_to_ms),

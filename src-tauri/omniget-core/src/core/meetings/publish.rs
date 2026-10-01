@@ -1,9 +1,3 @@
-//! Sends a meeting's summary back to Teams through an incoming webhook
-//! (Teams "Workflows": *Post to a channel when a webhook request is
-//! received*). No Azure app, no Graph permission: the person pastes the
-//! webhook URL once. Agents that need more (chats, calendar, OneDrive) use
-//! the Microsoft 365 MCP server from the MCP catalog instead.
-
 use anyhow::anyhow;
 use serde_json::{json, Value};
 
@@ -31,7 +25,6 @@ fn section(body: &mut Vec<Value>, title: &str, lines: Vec<String>) {
     body.push(text(&lines.join("\n"), json!({ "spacing": "Small" })));
 }
 
-/// The Adaptive Card the Workflows webhook turns into a channel post.
 pub fn card(m: &Meeting) -> Value {
     let mut body = vec![text(
         &m.title,

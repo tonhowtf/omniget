@@ -1,37 +1,26 @@
-//! Markdown export of timestamped notes: YAML front matter plus one list item
-//! per note linking back into the player (`omniget://watch?...&t=754`).
-
 use serde::{Deserialize, Serialize};
 
-/// Everything needed to export the notes of one video.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct NoteDoc {
     pub title: String,
-    /// File path or page URL of the video.
     pub source: String,
     pub course: Option<String>,
     pub module: Option<String>,
     pub lesson: Option<String>,
     pub duration_ms: Option<u64>,
     pub notes: Vec<NoteLine>,
-    /// Deep link without the time, e.g. `omniget://watch?key=local%3Aabc`.
     pub link_base: String,
 }
 
-/// One note.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct NoteLine {
     pub t_ms: u64,
-    /// End of a range note.
     pub t_end_ms: Option<u64>,
     pub text: String,
-    /// Relative path of the captured frame, shown under the note.
     pub image_rel: Option<String>,
-    /// Transcript excerpt the note was made from.
     pub quote: Option<String>,
 }
 
-/// Formats milliseconds as `12:34` or `1:02:03`.
 pub fn fmt_ts(ms: u64) -> String {
     let s = ms / 1000;
     let (h, m, sec) = (s / 3600, (s / 60) % 60, s % 60);
@@ -52,7 +41,6 @@ fn yaml_str(s: &str) -> String {
     format!("\"{escaped}\"")
 }
 
-/// The link for a time: `link_base` plus `t=<seconds>`.
 pub fn time_link(link_base: &str, t_ms: u64) -> String {
     let sep = if link_base.contains('?') {
         if link_base.ends_with('?') || link_base.ends_with('&') {
@@ -66,7 +54,6 @@ pub fn time_link(link_base: &str, t_ms: u64) -> String {
     format!("{link_base}{sep}t={}", t_ms / 1000)
 }
 
-/// YouTube video id of a watch/short/embed/youtu.be URL.
 fn youtube_id(url: &str) -> Option<String> {
     let u = url::Url::parse(url.trim()).ok()?;
     let host = u
@@ -92,7 +79,6 @@ fn youtube_id(url: &str) -> Option<String> {
     .then_some(id)
 }
 
-/// Wraps a link target in `<>` only when it has spaces or parentheses.
 fn md_url(u: &str) -> String {
     let u = u.trim();
     if u.chars()
@@ -104,13 +90,10 @@ fn md_url(u: &str) -> String {
     }
 }
 
-/// Escapes characters that would break the link label or the list item.
 fn md_line(s: &str) -> String {
     s.trim().replace('\r', "")
 }
 
-/// Renders the notes as Markdown with YAML front matter. Notes are sorted by
-/// time; multi-line notes stay inside their list item.
 pub fn export(doc: &NoteDoc) -> String {
     let mut out = String::from("---\n");
     out.push_str(&format!("title: {}\n", yaml_str(&doc.title)));

@@ -1,16 +1,3 @@
-//! ONNX Runtime como binário gerido, no mesmo padrão do PDFium.
-//!
-//! O crate `ort` está com a feature `load-dynamic`: nada de nativo entra no
-//! build do OmniGet. A biblioteca do ONNX Runtime (`libonnxruntime.dylib`,
-//! `onnxruntime.dll`, `libonnxruntime.so`) é baixada sob demanda dos releases
-//! oficiais do `microsoft/onnxruntime` e guardada no diretório de dados do app.
-//! Quem não quiser baixar aponta um arquivo que já tem — igual ao PDFium.
-//!
-//! A versão é fixa e casa com a API que o `ort` espera (`api-27`, ou seja
-//! ONNX Runtime 1.27.x). Uma lib mais velha que isso o `ort` recusa na hora de
-//! carregar, então o download vem com sha256 conferido: um arquivo truncado ou
-//! trocado no meio do caminho falha aqui, não lá dentro do `dlopen`.
-
 use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
@@ -18,13 +5,10 @@ use std::sync::OnceLock;
 use anyhow::{anyhow, Context};
 use serde::Serialize;
 
-/// Versão do ONNX Runtime que o `ort` 2.0.0-rc.13 (`api-27`) pede.
 pub const RUNTIME_VERSION: &str = "1.27.1";
 
 const RELEASE_BASE: &str = "https://github.com/microsoft/onnxruntime/releases/download";
 
-/// Um pacote oficial de release. `sha256` e `bytes` foram conferidos contra o
-/// digest publicado pela API do GitHub em 2026-09-09.
 struct Asset {
     id: &'static str,
     label: &'static str,
@@ -77,9 +61,6 @@ const ASSETS: &[Asset] = &[
     },
 ];
 
-/// Nome com que a lib fica salva no disco. É o nome que o `ort` procura
-/// quando não recebe caminho, então serve tanto ao `init_from` quanto a quem
-/// preferir mexer na variável de ambiente.
 pub fn lib_filename() -> &'static str {
     if cfg!(target_os = "windows") {
         "onnxruntime.dll"
@@ -100,8 +81,6 @@ fn current_os() -> &'static str {
     }
 }
 
-/// Variante recomendada para este SO + arquitetura, ou `None` quando a
-/// Microsoft não publica build oficial (macOS Intel, desde a 1.26).
 pub fn auto_variant_id() -> Option<&'static str> {
     #[cfg(all(target_os = "windows", target_arch = "x86_64"))]
     {
@@ -135,7 +114,6 @@ pub struct RuntimeVariant {
     pub recommended: bool,
 }
 
-/// Variantes que fazem sentido oferecer neste SO.
 pub fn list_variants() -> Vec<RuntimeVariant> {
     let os = current_os();
     let auto = auto_variant_id();
@@ -184,8 +162,6 @@ pub fn version_marker_path() -> Option<PathBuf> {
     target_dir().map(|d| d.join("onnxruntime.version"))
 }
 
-/// A lib em uso e de onde ela veio: `"env"` quando o usuário apontou
-/// `ORT_DYLIB_PATH`, `"managed"` quando é a que o OmniGet baixou.
 pub fn resolve_with_source() -> Option<(PathBuf, &'static str)> {
     if let Ok(raw) = std::env::var("ORT_DYLIB_PATH") {
         let p = PathBuf::from(raw.trim());
@@ -223,12 +199,10 @@ pub fn read_version_marker() -> Option<String> {
 pub struct RuntimeStatus {
     pub installed: bool,
     pub path: Option<String>,
-    /// "env" | "managed"
     pub source: Option<String>,
     pub version: Option<String>,
     pub target_version: String,
     pub lib_filename: String,
-    /// `false` quando não há build oficial para este SO/arquitetura.
     pub can_download: bool,
     pub variants: Vec<RuntimeVariant>,
 }
@@ -247,7 +221,6 @@ pub fn status() -> RuntimeStatus {
     }
 }
 
-/// Mensagem de erro que diz o que fazer, em vez de só reclamar.
 fn missing_runtime_error() -> anyhow::Error {
     let where_to = target_dir()
         .map(|d| d.display().to_string())
@@ -271,15 +244,8 @@ fn missing_runtime_error() -> anyhow::Error {
     }
 }
 
-/// Caminho que o `ort` já está usando, quando o carregamento deu certo uma vez.
 static READY: OnceLock<PathBuf> = OnceLock::new();
 
-/// Aponta o `ort` para a lib resolvida. Idempotente: o `ort` guarda o handle
-/// num `OnceLock` próprio, então a segunda chamada não troca nada — por isso
-/// guardamos o caminho que venceu e devolvemos ele.
-///
-/// Falta de lib vira erro acionável, nunca panic: o `ort` só entra em pânico
-/// se alguém tocar na API dele sem passar por aqui.
 pub fn init() -> anyhow::Result<PathBuf> {
     if let Some(p) = READY.get() {
         return Ok(p.clone());
@@ -309,8 +275,6 @@ fn sha256_of(path: &Path) -> anyhow::Result<String> {
     Ok(hex::encode(hasher.finalize()))
 }
 
-/// Nome de arquivo que conta como biblioteca do ONNX Runtime neste SO.
-/// Deixado público para o teste puro de seleção não precisar de rede.
 pub fn is_runtime_lib(name: &str) -> bool {
     if name.starts_with('.') {
         return false;
@@ -324,8 +288,6 @@ pub fn is_runtime_lib(name: &str) -> bool {
     }
 }
 
-/// Só o que está dentro de `lib/` interessa; o `.dSYM` do macOS carrega um
-/// arquivo com o mesmo nome e não é biblioteca carregável.
 fn is_lib_entry(path: &Path) -> bool {
     let mut has_lib = false;
     for comp in path.components() {
@@ -357,8 +319,6 @@ fn write_atomic(dir: &Path, name: &str, bytes: &[u8]) -> anyhow::Result<PathBuf>
     Ok(dest)
 }
 
-/// Tira do pacote as bibliotecas de `lib/` e devolve o nome da maior — que é
-/// sempre o `libonnxruntime` de verdade, e não um shim de execution provider.
 fn extract_libs(archive: &Path, is_zip: bool, dir: &Path) -> anyhow::Result<String> {
     let mut biggest: Option<(String, u64)> = None;
     let mut note = |name: &str, len: u64| {
@@ -397,7 +357,6 @@ fn extract_libs(archive: &Path, is_zip: bool, dir: &Path) -> anyhow::Result<Stri
         let mut tar = tar::Archive::new(gz);
         for entry in tar.entries()? {
             let mut entry = entry?;
-            // Symlink (`libonnxruntime.dylib` -> versionado) não tem conteúdo.
             if !entry.header().entry_type().is_file() {
                 continue;
             }
@@ -420,8 +379,6 @@ fn extract_libs(archive: &Path, is_zip: bool, dir: &Path) -> anyhow::Result<Stri
     Ok(name)
 }
 
-/// Garante que o nome canônico (`libonnxruntime.dylib` etc.) existe apontando
-/// para o arquivo versionado que veio no pacote.
 fn make_canonical(dir: &Path, extracted: &str) -> anyhow::Result<PathBuf> {
     let canonical = dir.join(lib_filename());
     if extracted == lib_filename() {
@@ -439,7 +396,6 @@ fn make_canonical(dir: &Path, extracted: &str) -> anyhow::Result<PathBuf> {
     Ok(canonical)
 }
 
-/// Instala mesmo que já exista — é o "atualizar" da tela de Modelos.
 pub async fn install_runtime(
     variant: Option<String>,
     progress: &crate::core::tools::ProgressFn,

@@ -1,16 +1,3 @@
-//! On-disk layout of the canvas and the debounced saver.
-//!
-//! `<app_data>/canvas/<workspaceId>/`:
-//! - `workspace.json` (meta, floor list)
-//! - `floors/<floorId>.json` (the floor document)
-//! - `notes/<slug>-<id>.md` (internal notes), `trash/` (deleted notes, floors)
-//! - `roles/<roleId>/`, `inbox/<nodeId>/` (owned by other modules)
-//!
-//! Writes are atomic: temp file + fsync + rename, with the previous version
-//! copied to `<file>.bak` first. Reads fall back to the `.bak` when the main
-//! file is missing or unreadable. Files carry `format` + `version`; older
-//! versions are migrated on read, newer ones open read-only.
-
 use super::model::{FloorDoc, Workspace, FLOOR_FORMAT, FLOOR_VERSION, WORKSPACE_VERSION};
 use serde_json::Value;
 use std::collections::HashMap;
@@ -20,11 +7,8 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Condvar, Mutex};
 use std::time::{Duration, Instant, SystemTime};
 
-/// Debounce for ordinary edits.
 pub const SAVE_DEBOUNCE: Duration = Duration::from_millis(400);
-/// Debounce for camera-only changes (never saved per frame).
 pub const CAMERA_DEBOUNCE: Duration = Duration::from_secs(2);
-/// Trash entries older than this are purged when a workspace opens.
 pub const TRASH_TTL: Duration = Duration::from_secs(7 * 24 * 3600);
 
 pub fn canvas_root() -> PathBuf {
@@ -64,7 +48,6 @@ fn bak_path(path: &Path) -> PathBuf {
     PathBuf::from(s)
 }
 
-/// Atomic write: temp + fsync + rename, previous version kept as `.bak`.
 pub fn write_atomic(path: &Path, bytes: &[u8]) -> Result<(), String> {
     let dir = path.parent().ok_or("path has no parent")?;
     fs::create_dir_all(dir).map_err(|e| format!("CANVAS_IO: create {}: {e}", dir.display()))?;
@@ -86,7 +69,6 @@ pub fn write_atomic(path: &Path, bytes: &[u8]) -> Result<(), String> {
     })
 }
 
-/// Reads a JSON file, falling back to its `.bak`.
 fn read_json(path: &Path) -> Result<Option<Value>, String> {
     let mut last_err = None;
     for p in [path.to_path_buf(), bak_path(path)] {
@@ -113,7 +95,6 @@ fn read_json(path: &Path) -> Result<Option<Value>, String> {
     }
 }
 
-/// A loaded file plus whether it is newer than this build (then read-only).
 pub struct Loaded<T> {
     pub value: T,
     pub read_only: bool,
@@ -156,8 +137,6 @@ pub fn floor_bytes(doc: &FloorDoc) -> Result<Vec<u8>, String> {
     serde_json::to_vec_pretty(doc).map_err(|e| e.to_string())
 }
 
-/// Migrations of `floors/*.json`, one step per version. Version 1 is current;
-/// add `if from < 2 { ... }` blocks here when the format changes.
 fn migrate_floor(v: &mut Value, from: u32) {
     if let Some(obj) = v.as_object_mut() {
         if from < FLOOR_VERSION {
@@ -177,7 +156,6 @@ fn migrate_workspace(v: &mut Value, from: u32) {
     }
 }
 
-/// Workspace ids found on disk (folders holding a `workspace.json`).
 pub fn list_workspace_ids(root: &Path) -> Vec<String> {
     let Ok(rd) = fs::read_dir(root) else {
         return Vec::new();
@@ -193,7 +171,6 @@ pub fn list_workspace_ids(root: &Path) -> Vec<String> {
         .collect()
 }
 
-/// Moves a file into the workspace trash; returns the trash path.
 pub fn move_to_trash(root: &Path, ws: &str, path: &Path) -> Result<PathBuf, String> {
     let dir = trash_dir(root, ws);
     fs::create_dir_all(&dir).map_err(|e| format!("CANVAS_IO: {e}"))?;
@@ -205,7 +182,6 @@ pub fn move_to_trash(root: &Path, ws: &str, path: &Path) -> Result<PathBuf, Stri
     Ok(dest)
 }
 
-/// Drops trash entries older than [`TRASH_TTL`].
 pub fn purge_trash(root: &Path, ws: &str) {
     let Ok(rd) = fs::read_dir(trash_dir(root, ws)) else {
         return;
@@ -229,8 +205,6 @@ pub fn purge_trash(root: &Path, ws: &str) {
     }
 }
 
-// ---------------------------------------------------------------- saver
-
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum SaveKey {
     Workspace(String),
@@ -244,8 +218,6 @@ struct SaverState {
     stop: bool,
 }
 
-/// Background thread that runs `save(key)` once each key's deadline passes.
-/// `save` returns false when its owner is gone, which ends the thread.
 pub struct Saver {
     state: Arc<(Mutex<SaverState>, Condvar)>,
 }
@@ -306,7 +278,6 @@ impl Saver {
         Self { state }
     }
 
-    /// Schedules `key` in `delay`, keeping an earlier deadline if one is pending.
     pub fn schedule(&self, key: SaveKey, delay: Duration) {
         let (lock, cv) = &*self.state;
         let mut g = lock.lock().unwrap_or_else(|e| e.into_inner());
@@ -318,7 +289,6 @@ impl Saver {
         cv.notify_one();
     }
 
-    /// Removes and returns every pending key (for a synchronous flush).
     pub fn take_all(&self) -> Vec<SaveKey> {
         let (lock, _) = &*self.state;
         let mut g = lock.lock().unwrap_or_else(|e| e.into_inner());
@@ -364,14 +334,12 @@ mod tests {
         assert!(!back.read_only);
         assert_eq!(back.value, doc);
 
-        // Second write keeps the first as .bak; a corrupt main file falls back.
         doc.rev = 8;
         write_atomic(&path, &floor_bytes(&doc).unwrap()).unwrap();
         fs::write(&path, b"{ broken").unwrap();
         let rec = load_floor(root, "ws", "ground").unwrap().unwrap();
         assert_eq!(rec.value.rev, 7);
 
-        // A newer format opens read-only.
         let mut v: Value = serde_json::from_slice(&floor_bytes(&doc).unwrap()).unwrap();
         v["version"] = Value::from(FLOOR_VERSION + 1);
         fs::write(&path, serde_json::to_vec(&v).unwrap()).unwrap();

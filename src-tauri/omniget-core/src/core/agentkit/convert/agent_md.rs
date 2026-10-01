@@ -1,11 +1,3 @@
-//! Agents as Markdown with YAML frontmatter in each tool's own dialect (plan
-//! §4.3, estudo 06 §0C.2): Gemini, Qwen, OpenCode/Kilo, Cursor, Copilot
-//! `.agent.md`, Devin, Droid, Cline, Augment, Antigravity, OpenHands and Rovo.
-//!
-//! One converter per format id; each maps the Claude subagent fields it can
-//! express and records the rest as losses. `import` reads the tool's files back
-//! into canonical (Claude-shaped) agents.
-
 use serde_json::{json, Map, Value};
 
 use super::agent_common::*;
@@ -15,7 +7,6 @@ use crate::core::agentkit::parse;
 use crate::core::agentkit::targets::TargetAdapter;
 use crate::core::agentkit::{Result, Scope};
 
-/// Format ids served by [`MdAgentConverter`].
 pub const FORMATS: &[&str] = &[
     "gemini_md",
     "qwen_md",
@@ -31,12 +22,10 @@ pub const FORMATS: &[&str] = &[
     "rovo",
 ];
 
-/// Markdown agent converter for one format id.
 pub struct MdAgentConverter {
     pub format: &'static str,
 }
 
-/// OpenCode permission keys and the Claude tools each one covers.
 const OPENCODE_KEYS: &[(&str, &[&str])] = &[
     ("read", &["Read"]),
     ("edit", &["Edit", "Write"]),
@@ -59,7 +48,6 @@ fn norm(t: &str) -> &str {
     }
 }
 
-/// Gemini agent names: lowercase letters, digits, `-` and `_`.
 fn gemini_name(n: &str) -> String {
     n.chars()
         .map(|c| c.to_ascii_lowercase())
@@ -73,7 +61,6 @@ fn gemini_name(n: &str) -> String {
         .collect()
 }
 
-/// Claude MCP record → Gemini (`httpUrl` for streamable HTTP, `url` for SSE).
 fn gemini_mcp(v: &Value) -> Value {
     let Some(m) = v.as_object() else {
         return v.clone();
@@ -118,7 +105,6 @@ impl MdAgentConverter {
         }
     }
 
-    /// Text of the agent file, losses and notes.
     pub fn render(
         &self,
         c: &Component,
@@ -492,7 +478,6 @@ impl MdAgentConverter {
         (parse::render_frontmatter(&fm, &body), uniq, notes)
     }
 
-    /// Frontmatter of the tool's file → canonical agent spec.
     pub fn read_back(
         &self,
         fm: &Map<String, Value>,
@@ -663,7 +648,6 @@ impl Converter for MdAgentConverter {
         };
         let name = ctx.name_for(c);
         let dir = dir_for(target, "agents", scope, ctx)?;
-        // a Copilot chatmode going back to Copilot is written as it came
         let raw = (self.format == "copilot_agent_md"
             && c.origin_tool == "copilot"
             && ctx.name_override.is_none())
@@ -701,7 +685,6 @@ impl Converter for MdAgentConverter {
         };
         let mut paths = files_with(&dir, &[".md"]);
         if self.format == "devin_md" {
-            // `<name>/AGENT.md` profiles
             if let Ok(rd) = std::fs::read_dir(&dir) {
                 let mut extra: Vec<_> = rd
                     .flatten()

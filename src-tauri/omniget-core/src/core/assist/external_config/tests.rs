@@ -75,8 +75,6 @@ fn count(db: &AssistDb, sql: &str) -> i64 {
     db.with(|c| c.query_row(sql, [], |r| r.get(0))).unwrap()
 }
 
-/// A roster that performs the write and then reports a failure: the process
-/// "crashed" after the roster CAS and before the SQLite finalization.
 struct CrashAfterWrite<'a>(&'a RosterStore);
 impl BotRoster for CrashAfterWrite<'_> {
     fn get(&self, id: &str) -> Option<AgentDef> {
@@ -112,7 +110,6 @@ fn recovery_uses_exact_hashes_and_never_overwrites_local_edits() {
         count(&fx.db, "SELECT count(*) FROM external_derived_bots"),
         0
     );
-    // No derived authority exists before finalization.
     let raw = ceiling(&fx, "A", &fx.grant_a);
     let planned: String = fx
         .db
@@ -130,7 +127,6 @@ fn recovery_uses_exact_hashes_and_never_overwrites_local_edits() {
         1
     );
 
-    // Same crash, then the user edits the planned agent before recovery.
     let req2 = bot_req(&fx.grant_a, "rec2", &["fs_read"]);
     let _ = prepare_bot_with(&fx.db, &CrashAfterWrite(&fx.roster), "A", &req2).unwrap_err();
     let planned2: String = fx
@@ -157,5 +153,3 @@ fn recovery_uses_exact_hashes_and_never_overwrites_local_edits() {
     );
     assert!(profile::get(&fx.db, &planned2).unwrap().is_none());
 }
-
-// ── H1: external rooms / derived bots never reach LOCAL_USER paths ──────

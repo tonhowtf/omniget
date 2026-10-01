@@ -1,11 +1,3 @@
-//! Jellyfin (and Emby) client: sign-in by password or Quick Connect, library
-//! browsing, playback through `PlaybackInfo` and play-state reports.
-//!
-//! One source per server + user. The access token lives in the secret store
-//! (`jf:<source id>`), never in `video.db`. Requests carry the current
-//! `Authorization: MediaBrowser ...` header; Emby reads the same values from
-//! `X-Emby-Authorization`, so both go out. Media URLs carry `ApiKey=`.
-
 use std::collections::HashMap;
 use std::sync::{Mutex, OnceLock};
 use std::time::Duration;
@@ -22,8 +14,6 @@ use super::{
 const TICKS_PER_MS: i64 = 10_000;
 const CALL_LIMIT: Duration = Duration::from_secs(20);
 const LIST_FIELDS: &str = "Overview,ChildCount,PrimaryImageAspectRatio,ProductionYear";
-
-// ---------- identity ----------
 
 fn device_id() -> String {
     if let Some(id) = sources::kv_get("jf_device_id") {
@@ -77,8 +67,6 @@ fn auth_headers(token: Option<&str>) -> Vec<(String, String)> {
     ]
 }
 
-// ---------- low level ----------
-
 struct Conn {
     id: i64,
     base: String,
@@ -129,8 +117,6 @@ impl Conn {
         self.send(reqwest::Method::GET, path, None).await
     }
 
-    /// Tries the current route, then the legacy `/Users/{id}/...` one (Emby,
-    /// older Jellyfin) when the first answers 404.
     async fn get_either(&self, new: &str, legacy: &str) -> Result<Value, String> {
         match self.get(new).await {
             Err(e) if e == "Not found" => self.get(legacy).await,
@@ -138,7 +124,6 @@ impl Conn {
         }
     }
 
-    /// A tracked call: marks the source slow/down like every other source.
     async fn call<T>(
         &self,
         fut: impl std::future::Future<Output = Result<T, String>>,
@@ -193,8 +178,6 @@ fn s(v: &Value, k: &str) -> Option<String> {
 fn i(v: &Value, k: &str) -> Option<i64> {
     v.get(k).and_then(|x| x.as_i64())
 }
-
-// ---------- DTOs ----------
 
 #[derive(Serialize, Clone, Debug)]
 pub struct JfView {
@@ -306,8 +289,6 @@ fn map_items(c: &Conn, v: &Value) -> Vec<JfItem> {
         .unwrap_or_default()
 }
 
-// ---------- sign-in ----------
-
 async fn server_public_info(base: &str) -> Value {
     request(
         base,
@@ -320,7 +301,6 @@ async fn server_public_info(base: &str) -> Value {
     .unwrap_or(Value::Null)
 }
 
-/// Stores a successful `AuthenticationResult` as a source.
 async fn save_auth(base: &str, auth: Value) -> Result<SourceInfo, String> {
     let token = s(&auth, "AccessToken").ok_or("The server did not return a token")?;
     let user = auth.get("User").cloned().unwrap_or(Value::Null);
@@ -442,8 +422,6 @@ pub async fn video_jf_quickconnect_poll(
     .await?;
     save_auth(&base, auth).await.map(Some)
 }
-
-// ---------- browsing ----------
 
 #[tauri::command]
 pub async fn video_jf_views(source: i64) -> Result<Vec<JfView>, String> {
@@ -602,9 +580,6 @@ pub async fn video_jf_children(source: i64, id: String) -> Result<Vec<JfItem>, S
     Ok(map_items(&c, &v))
 }
 
-// ---------- playback ----------
-
-/// What a report needs to know about the running session.
 #[derive(Clone)]
 struct Session {
     media_source: String,
@@ -778,7 +753,6 @@ fn stream_codec(ms: &Value, kind: &str) -> (String, Option<i64>, Option<i64>) {
     }
 }
 
-/// Resolves a Jellyfin item into playback (also used by cast and Continue).
 pub async fn play(app: &AppHandle, source: i64, item_id: &str) -> Result<PlaybackInfo, String> {
     let c = Conn::load(source)?;
     let item = c.call(fetch_item(&c, item_id)).await?;
@@ -841,8 +815,6 @@ pub async fn play(app: &AppHandle, source: i64, item_id: &str) -> Result<Playbac
     server::ensure(app).await?;
     let (url, mode, method, reason) = if direct {
         let ext = container.split(',').next().unwrap_or("mp4").to_string();
-        // Through the local proxy: the webview may refuse plain-http media
-        // from another host, and the token stays out of the page.
         let direct_url = c.url(&format!(
             "/Videos/{item_id}/stream.{ext}?Static=true&MediaSourceId={}&DeviceId={}&PlaySessionId={}&ApiKey={}",
             quote(&ms_id),
@@ -867,7 +839,6 @@ pub async fn play(app: &AppHandle, source: i64, item_id: &str) -> Result<Playbac
         )
     };
 
-    // Text subtitles the server can hand out as files, converted to WebVTT.
     let mut subtitles = Vec::new();
     if let Some(streams) = ms.get("MediaStreams").and_then(|a| a.as_array()) {
         for st in streams {
@@ -920,7 +891,6 @@ pub async fn play(app: &AppHandle, source: i64, item_id: &str) -> Result<Playbac
         .unwrap_or(Value::Null);
     let chapters = chapters_of(&item, runtime_ms, &segments);
 
-    // Neighbours for next/previous episode.
     let (mut prev, mut next) = (None, None);
     if s(&item, "Type").as_deref() == Some("Episode") {
         if let Some(series) = s(&item, "SeriesId") {
@@ -1011,7 +981,6 @@ pub async fn video_jf_play(
     play(&app, source, &item_id).await
 }
 
-/// Sends a play-state report and mirrors it into the local progress.
 pub async fn report(
     source: i64,
     item_id: &str,

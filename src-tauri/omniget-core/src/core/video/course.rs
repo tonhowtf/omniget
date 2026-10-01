@@ -1,11 +1,7 @@
-//! Turns the files of a course folder into modules and numbered lessons in
-//! natural order, and ties attachments (PDF, code, subtitles) to lessons.
-
 use super::naming::{clean_title, fold, is_video_ext, natural_cmp, split_ext};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
-/// A file found under the course root. `path` is relative to the root.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CourseFile {
     pub path: String,
@@ -19,7 +15,6 @@ impl From<&str> for CourseFile {
     }
 }
 
-/// Kind of a non-video file.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum AttachmentKind {
@@ -32,7 +27,6 @@ pub enum AttachmentKind {
     Other,
 }
 
-/// Classifies a file by extension.
 pub fn attachment_kind(path: &str) -> AttachmentKind {
     let name = path.rsplit(['/', '\\']).next().unwrap_or(path);
     let ext = name
@@ -56,17 +50,13 @@ pub fn attachment_kind(path: &str) -> AttachmentKind {
     }
 }
 
-/// A lesson of a module.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct LessonRef {
     pub path: String,
-    /// Display number: `2.10` (module 2, 10th lesson) or `3` for loose files
-    /// in a course without modules.
     pub number: String,
     pub title: String,
 }
 
-/// A module (first-level folder). Index 0 holds loose files ("Geral").
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Module {
     pub index: u32,
@@ -74,7 +64,6 @@ pub struct Module {
     pub lessons: Vec<LessonRef>,
 }
 
-/// A non-video file, tied to a lesson when one matches.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CourseAttachment {
     pub path: String,
@@ -83,7 +72,6 @@ pub struct CourseAttachment {
     pub lesson_path: Option<String>,
 }
 
-/// The whole course.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CourseTree {
     pub title: String,
@@ -91,7 +79,6 @@ pub struct CourseTree {
     pub attachments: Vec<CourseAttachment>,
 }
 
-/// Title of the module of loose files.
 pub const LOOSE_MODULE_TITLE: &str = "Geral";
 
 const JUNK: &[&str] = &["thumbs.db", "desktop.ini", "icon\r", ".ds_store"];
@@ -109,8 +96,6 @@ fn is_junk(comps: &[&str]) -> bool {
         })
 }
 
-/// [`build_titled`] without a root name: the title comes from a single
-/// wrapping folder, if any.
 pub fn build(files: &[CourseFile]) -> CourseTree {
     build_titled("", files)
 }
@@ -120,8 +105,6 @@ struct Entry {
     comps: Vec<String>,
 }
 
-/// Builds the course tree. `root_name` is the course folder name (cleaned
-/// into the title).
 pub fn build_titled(root_name: &str, files: &[CourseFile]) -> CourseTree {
     let mut entries: Vec<Entry> = Vec::new();
     for f in files {
@@ -140,7 +123,6 @@ pub fn build_titled(root_name: &str, files: &[CourseFile]) -> CourseTree {
         });
     }
 
-    // A single wrapping folder ("Course/Module 1/...") is the course itself.
     let mut depth = 0;
     let mut wrapper = String::new();
     loop {
@@ -173,7 +155,6 @@ pub fn build_titled(root_name: &str, files: &[CourseFile]) -> CourseTree {
         }
     };
 
-    // Group videos by first-level folder under the (unwrapped) root.
     let mut groups: BTreeMap<String, Vec<&Entry>> = BTreeMap::new();
     let mut loose: Vec<&Entry> = Vec::new();
     let mut attachments_raw: Vec<&Entry> = Vec::new();
@@ -248,7 +229,6 @@ pub fn build_titled(root_name: &str, files: &[CourseFile]) -> CourseTree {
         });
     }
 
-    // Lessons with their folder, for attachment matching.
     let lessons: Vec<(&Entry, String)> = entries
         .iter()
         .filter(|e| {
@@ -279,7 +259,6 @@ pub fn build_titled(root_name: &str, files: &[CourseFile]) -> CourseTree {
     }
 }
 
-/// True for folder names that are modules, never a wrapping course folder.
 fn looks_like_module(name: &str) -> bool {
     const WORDS: &[&str] = &[
         "modulo", "module", "mod ", "secao", "section", "parte", "part ", "unidade", "unit ",
@@ -289,8 +268,6 @@ fn looks_like_module(name: &str) -> bool {
     lead_numbers(name).is_some() || WORDS.iter().any(|w| f.starts_with(w))
 }
 
-/// Leading number sequence of a name (`03 - x` gives `[3]`, `1.2 y` gives
-/// `[1, 2]`).
 fn lead_numbers(name: &str) -> Option<Vec<u32>> {
     let s = name.trim_start_matches(['[', '(', ' ']);
     let head: String = s
@@ -327,7 +304,6 @@ fn similarity(a: &str, b: &str) -> f64 {
 fn match_lesson(att: &Entry, lessons: &[(&Entry, String)], depth: usize) -> Option<String> {
     let att_file = att.comps.last()?;
     let att_stem = split_ext(att_file).0;
-    // Subtitles keep their language after the video name: "x.pt-BR.srt".
     let att_base = att_stem.split('.').next().unwrap_or(att_stem);
     let att_nums = lead_numbers(att_stem);
     let mut dir: Vec<String> = att.comps[..att.comps.len() - 1].to_vec();
@@ -336,14 +312,12 @@ fn match_lesson(att: &Entry, lessons: &[(&Entry, String)], depth: usize) -> Opti
         let cands: Vec<&(&Entry, String)> = lessons.iter().filter(|(_, d)| *d == here).collect();
         if !cands.is_empty() {
             let stem_of = |e: &Entry| split_ext(e.comps.last().unwrap()).0.to_string();
-            // 1. Same name (or name + language suffix).
             if let Some((e, _)) = cands.iter().find(|(e, _)| {
                 let s = stem_of(e);
                 att_stem == s || att_stem.starts_with(&format!("{s}.")) || att_base == s
             }) {
                 return Some(e.path.clone());
             }
-            // 2. Same leading number.
             if let Some(n) = &att_nums {
                 if let Some((e, _)) = cands
                     .iter()
@@ -352,7 +326,6 @@ fn match_lesson(att: &Entry, lessons: &[(&Entry, String)], depth: usize) -> Opti
                     return Some(e.path.clone());
                 }
             }
-            // 3. Similar name.
             let best = cands
                 .iter()
                 .map(|(e, _)| (similarity(att_stem, &stem_of(e)), e))
@@ -362,8 +335,6 @@ fn match_lesson(att: &Entry, lessons: &[(&Entry, String)], depth: usize) -> Opti
                 return Some(e.path.clone());
             }
         }
-        // Attachments in "Materials/" look in the parent folder, down to the
-        // module folder.
         if dir.len() <= depth + 1 {
             break;
         }

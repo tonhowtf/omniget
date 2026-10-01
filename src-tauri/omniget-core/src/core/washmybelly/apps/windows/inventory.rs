@@ -1,12 +1,5 @@
-//! Turning each Windows source into [`App`]s and joining the duplicates.
-//!
 //! Ported design of Bulk Crap Uninstaller (Copyright (c) 2017 Marcin
 //! Szeniak, Apache License 2.0, see `data/washmybelly/bcu/NOTICE`): the
-//! registry values read per entry (`RegistryFactory.cs`), the merge of
-//! entries from several sources by a relation score
-//! (`ApplicationUninstallerFactory.cs`, `ApplicationEntryTools.cs`) and the
-//! orphan program folders (`DirectoryFactory.cs`). Rewritten in Rust and
-//! modified for OmniGet (winget added, stricter merge threshold).
 
 use std::path::{Path, PathBuf};
 
@@ -19,7 +12,6 @@ use super::parse::{
     Kind, Probe, RegEntry, Root, SteamApp, WingetRow,
 };
 
-/// The disk as seen by [`detect_kind`].
 pub struct DiskProbe;
 
 impl Probe for DiskProbe {
@@ -33,7 +25,6 @@ impl Probe for DiskProbe {
             return false;
         };
         let mut buf = Vec::new();
-        // The marker sits in the stub and the first header: 4 MiB is plenty.
         if f.take(4 << 20).read_to_end(&mut buf).is_err() {
             return false;
         }
@@ -41,7 +32,6 @@ impl Probe for DiskProbe {
     }
 }
 
-/// A string field of `App.extra`.
 pub fn x<'a>(a: &'a App, key: &str) -> Option<&'a str> {
     a.extra
         .get(key)
@@ -59,7 +49,6 @@ fn clean_location(s: &str, env: &dyn Fn(&str) -> Option<String>) -> Option<Strin
     (s.len() > 3).then_some(s)
 }
 
-/// One Uninstall entry as an app. `None` when it has no name.
 pub fn entry_to_app(
     e: &RegEntry,
     probe: &dyn Probe,
@@ -122,7 +111,6 @@ pub fn entry_to_app(
         last_used: None,
         removable,
         reason,
-        // Steam games sit under HKLM but Steam removes them without admin.
         needs_admin: e.root.machine() && steam_appid.is_none(),
         extra: json!({
             "uninstall_string": uninstall,
@@ -142,7 +130,6 @@ pub fn entry_to_app(
     })
 }
 
-/// A product the Windows Installer knows (`MsiEnumProductsEx`).
 #[derive(Debug, Clone, Default)]
 pub struct MsiProduct {
     pub code: String,
@@ -150,7 +137,6 @@ pub struct MsiProduct {
     pub version: Option<String>,
     pub publisher: Option<String>,
     pub location: Option<String>,
-    /// Installed for the machine (not one user).
     pub machine: bool,
 }
 
@@ -209,7 +195,6 @@ pub fn steam_to_app(lib: &str, s: &SteamApp) -> App {
     }
 }
 
-/// Steam games from the library folders (each `steamapps/appmanifest_*.acf`).
 pub fn steam_apps(libraries: &[String]) -> Vec<App> {
     let mut out = Vec::new();
     for lib in libraries {
@@ -234,7 +219,6 @@ pub fn steam_apps(libraries: &[String]) -> Vec<App> {
                 continue;
             };
             if let Some(app) = parse::steam_manifest(&text) {
-                // Steamworks Common Redistributables is not a game.
                 if app.appid != "228980" {
                     out.push(steam_to_app(lib, &app));
                 }
@@ -244,7 +228,6 @@ pub fn steam_apps(libraries: &[String]) -> Vec<App> {
     out
 }
 
-/// Scoop apps in `<scoop root>/apps/<name>/current`.
 pub fn scoop_apps(root: &Path, global: bool) -> Vec<App> {
     let Ok(rd) = std::fs::read_dir(root.join("apps")) else {
         return Vec::new();
@@ -322,8 +305,6 @@ pub fn appx_to_app(p: &AppxPkg) -> App {
     }
 }
 
-// ── Merge ───────────────────────────────────────────────────────────
-
 fn same_text(a: Option<&str>, b: Option<&str>) -> Option<bool> {
     match (a, b) {
         (Some(a), Some(b)) if !a.trim().is_empty() && !b.trim().is_empty() => {
@@ -333,8 +314,6 @@ fn same_text(a: Option<&str>, b: Option<&str>) -> Option<bool> {
     }
 }
 
-/// How sure we are that two entries are the same program (BCU's
-/// `AreEntriesRelated`, three-state checks with a weight for "unknown").
 pub fn related(a: &App, b: &App) -> i32 {
     let eq = |k: &str| match (x(a, k), x(b, k)) {
         (Some(p), Some(q)) => p.eq_ignore_ascii_case(q),
@@ -382,8 +361,6 @@ pub fn related(a: &App, b: &App) -> i32 {
     s
 }
 
-/// Stricter than BCU (which merges at 1): a wrong merge would pick the
-/// wrong uninstaller, so a name alone is never enough.
 pub const MERGE_AT: i32 = 13;
 
 fn fill(dst: &mut App, src: &App) {
@@ -425,7 +402,6 @@ fn fill(dst: &mut App, src: &App) {
     }
 }
 
-/// Add `new` to the list, or fold it into the entry it most likely is.
 pub fn merge_into(list: &mut Vec<App>, new: App) {
     let best = list
         .iter()
@@ -439,8 +415,6 @@ pub fn merge_into(list: &mut Vec<App>, new: App) {
     }
 }
 
-/// Give registry apps their winget id; winget packages with no registry
-/// match become apps of their own. `ARP\...` rows only confirm an entry.
 pub fn attach_winget(list: &mut Vec<App>, rows: &[WingetRow]) {
     for row in rows {
         if let Some((root, key)) = row.arp() {
@@ -514,14 +488,11 @@ pub fn attach_winget(list: &mut Vec<App>, rows: &[WingetRow]) {
                     ..Default::default()
                 });
             }
-            // msstore rows without a Win32 match are Appx: that side lists them.
             None => {}
         }
     }
 }
 
-/// Drop what the list does not show: system components, updates and
-/// entries that are only another program's part.
 pub fn finalize(list: Vec<App>) -> Vec<App> {
     let mut out: Vec<App> = list
         .into_iter()
@@ -536,11 +507,6 @@ pub fn finalize(list: Vec<App>) -> Vec<App> {
     out
 }
 
-// ── Orphan folders in Program Files ─────────────────────────────────
-
-/// Folders in Program Files that no installed program claims: listed with
-/// low confidence (BCU's `DirectoryFactory`: at least one `.exe` within two
-/// levels, at most 40, never a blacklisted name).
 pub fn orphan_dirs(bases: &[PathBuf], apps: &[App]) -> Vec<App> {
     let mut out = Vec::new();
     for base in bases {
@@ -615,7 +581,6 @@ pub fn orphan_dirs(bases: &[PathBuf], apps: &[App]) -> Vec<App> {
     out
 }
 
-/// `reg:<root>:<key>` / `msi:{GUID}` → where to read the entry again.
 pub fn reg_location(a: &App) -> Option<(Root, String)> {
     let root = x(a, "reg_root").and_then(Root::parse)?;
     let key = x(a, "reg_key")?.to_string();

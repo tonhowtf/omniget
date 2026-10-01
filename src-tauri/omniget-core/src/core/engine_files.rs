@@ -1,4 +1,3 @@
-//! Read grants for trusted, fixed host engines. No directory-wide Homebrew grant.
 use std::{
     collections::{BTreeMap, BTreeSet, VecDeque},
     path::{Path, PathBuf},
@@ -119,8 +118,6 @@ fn rpaths(text: &str, owner: &Path, executable: &Path) -> Vec<PathBuf> {
     }
     result
 }
-/// Identity of a granted file: replacing or rewriting it changes the inode,
-/// size or change time (ctime cannot be set from user space).
 #[cfg(unix)]
 fn fingerprint(path: &Path) -> Option<(u64, u64, u64, i64, i64, i64, i64)> {
     use std::os::unix::fs::MetadataExt;
@@ -141,10 +138,6 @@ fn fingerprint(path: &Path) -> Option<(u64, u64, u64, i64, i64, i64, i64)> {
     Some((0, 0, m.len(), 0, 0, 0, 0))
 }
 type Fingerprints = Vec<(PathBuf, (u64, u64, u64, i64, i64, i64, i64))>;
-/// Last results per binary set. Every worker run used to spawn `otool` for
-/// each binary and each non-system dylib again (Homebrew ffmpeg: dozens).
-/// A hit is served only when every file of the result, and every requested
-/// binary, still has the same identity; otherwise it is recomputed.
 type Cache = BTreeMap<Vec<PathBuf>, (Vec<PathBuf>, Fingerprints)>;
 static CACHE: std::sync::Mutex<Option<Cache>> = std::sync::Mutex::new(None);
 fn fingerprints(paths: impl IntoIterator<Item = PathBuf>) -> Option<Fingerprints> {
@@ -159,7 +152,6 @@ fn cached(key: &[PathBuf]) -> Option<Vec<PathBuf>> {
     let current = fingerprints(prints.iter().map(|(p, _)| p.clone()))?;
     (current == *prints).then(|| files.clone())
 }
-/// Paths must come from trusted tool discovery, never model arguments.
 pub async fn dependency_files(binaries: &[PathBuf]) -> Result<Vec<PathBuf>, String> {
     let key = binaries.to_vec();
     if let Some(hit) = cached(&key) {
@@ -202,8 +194,6 @@ async fn dependency_files_uncached(binaries: &[PathBuf]) -> Result<Vec<PathBuf>,
                     continue;
                 }
                 all.insert(path.clone());
-                // dyld resolves directory aliases before the final dylib symlink.
-                // Preserve each exact intermediate spelling for metadata grants.
                 for ancestor in path.ancestors().skip(1) {
                     if let (Ok(base), Ok(tail)) =
                         (ancestor.canonicalize(), path.strip_prefix(ancestor))
@@ -264,7 +254,6 @@ async fn dependency_files_uncached(binaries: &[PathBuf]) -> Result<Vec<PathBuf>,
     .await
     .map_err(|_| error("ENGINE_DEPENDENCY_TIMEOUT"))?
 }
-/// Pipe-only validation process: no network acquisition, no personal directory grants.
 pub fn isolated_command(
     binary: &Path,
     read_files: &[PathBuf],

@@ -1,31 +1,3 @@
-//! Runtime drivers of the Central (plan §3.2): one normalized event stream
-//! ([`RuntimeEvent`], a port of T3 Code's 49 `ProviderRuntimeEvent`s plus
-//! `raw`), one trait every harness implements ([`Driver`]), and a registry
-//! that maps a driver kind (`native`, `claude`, `codex`, `acp`, `opencode`)
-//! to a factory. A driver is the *type*; a [`DriverInstance`] is one
-//! configured account of it (config dir, label, color, redacted env).
-//!
-//! Wire shape (JSON, camelCase like T3): a runtime event is
-//! `{eventId, driver, instanceId, threadId, createdAt, turnId?, itemId?,
-//! requestId?, providerRefs?, raw?, type: "content.delta", payload: {...}}`.
-//!
-//! How a driver plugs in (the workers of round 2 do exactly this):
-//! ```ignore
-//! use omniget_core::core::llm::drivers::*;
-//! register_driver(DriverRegistration {
-//!     kind: "claude".into(),
-//!     label: "Claude Code".into(),
-//!     capabilities: DriverCapabilities { rollback: true, ..Default::default() },
-//!     factory: std::sync::Arc::new(|instance, sink| {
-//!         Ok(std::sync::Arc::new(MyClaudeDriver::new(instance, sink)) as std::sync::Arc<dyn Driver>)
-//!     }),
-//! });
-//! ```
-//! The threads host builds one driver object per instance on first use,
-//! hands it a [`RuntimeSink`] and calls the trait from its reactors. The
-//! driver pushes every event through the sink; the host coalesces deltas
-//! (50 ms), persists them as thread events and fans them out.
-
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::sync::{Arc, RwLock};
@@ -41,20 +13,13 @@ pub mod coalesce;
 pub mod codex;
 pub mod opencode;
 
-// ── Access modes and decisions (plan §3.3) ──────────────────────────────
-
-/// How much a thread's agent may do without asking.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum AccessMode {
-    /// Every write and command asks.
     #[default]
     ApprovalRequired,
-    /// File edits go through; commands still ask.
     AutoAcceptEdits,
-    /// The driver's own "auto" (Codex `on-request`, Claude `auto`).
     Auto,
-    /// Nothing asks.
     FullAccess,
 }
 
@@ -68,7 +33,6 @@ impl AccessMode {
         }
     }
 
-    /// Unknown strings fall back to the safe mode: a typo never grants more.
     pub fn parse(s: &str) -> AccessMode {
         match s.trim() {
             "auto-accept-edits" => AccessMode::AutoAcceptEdits,
@@ -79,7 +43,6 @@ impl AccessMode {
     }
 }
 
-/// Plan mode vs normal turns.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum InteractionMode {
@@ -88,7 +51,6 @@ pub enum InteractionMode {
     Plan,
 }
 
-/// The answer to a `request.opened`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum ApprovalDecision {
@@ -109,8 +71,6 @@ impl ApprovalDecision {
         )
     }
 }
-
-// ── Canonical item / request / stream kinds ─────────────────────────────
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -204,14 +164,11 @@ pub enum TurnEndState {
     Cancelled,
 }
 
-// ── Payloads ────────────────────────────────────────────────────────────
-
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionStartedPayload {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub message: Option<String>,
-    /// Opaque resume cursor (Claude session id, Codex thread id, …).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub resume: Option<Value>,
 }
@@ -233,7 +190,6 @@ pub struct SessionExitedPayload {
     pub reason: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub recoverable: Option<bool>,
-    /// `graceful` or `error`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub exit_kind: Option<String>,
 }
@@ -248,7 +204,6 @@ pub struct ThreadStartedPayload {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ThreadStatePayload {
-    /// `active|idle|archived|closed|compacted|error`.
     pub state: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub before_tokens: Option<u64>,
@@ -267,8 +222,6 @@ pub struct ThreadMetadataPayload {
     pub metadata: Option<Value>,
 }
 
-/// Token accounting of one turn (or of the thread, for the snapshot event).
-/// `input_tokens` excludes cache reads/writes, which are counted apart.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TokenUsage {
@@ -294,7 +247,6 @@ pub struct TokenUsage {
     pub duration_ms: Option<u64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tool_uses: Option<u64>,
-    /// `complete|partial|unavailable`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub usage_status: Option<String>,
 }
@@ -340,7 +292,6 @@ pub struct TurnAbortedPayload {
 #[serde(rename_all = "camelCase")]
 pub struct PlanStep {
     pub step: String,
-    /// `pending|inProgress|completed`.
     pub status: String,
 }
 
@@ -371,8 +322,6 @@ pub struct DiffUpdatedPayload {
     pub unified_diff: String,
 }
 
-/// `item.started|updated|completed`. `data` carries the tool input/output
-/// (`{input, output}`), clipped by the driver.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ItemPayload {
@@ -419,9 +368,6 @@ pub struct ContentDeltaPayload {
     pub summary_index: Option<u32>,
 }
 
-/// What an approval is about. Every field optional: a command approval sets
-/// `command`/`cwd`, an edit sets `diff` and `paths`, a native tool sets
-/// `toolName`/`input`/`preview`.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RequestDetail {
@@ -433,7 +379,6 @@ pub struct RequestDetail {
     pub cwd: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub reason: Option<String>,
-    /// Unified diff / patch of the edit being approved.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub diff: Option<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -473,7 +418,6 @@ pub struct RequestResolvedPayload {
     pub request_type: RequestType,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub decision: Option<ApprovalDecision>,
-    /// Free text: `stale`, `answered-elsewhere`, `timeout`, …
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub resolution: Option<String>,
 }
@@ -511,7 +455,6 @@ fn yes() -> bool {
 #[serde(rename_all = "camelCase")]
 pub struct UserInputRequestedPayload {
     pub questions: Vec<UserInputQuestion>,
-    /// `"message"` for async questions answered by a normal user message.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub response_mode: Option<String>,
 }
@@ -522,7 +465,6 @@ pub struct UserInputResolvedPayload {
     pub answers: Value,
 }
 
-/// Sub-agents and background tasks (`task.*`). One shape for the four events.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TaskPayload {
@@ -531,7 +473,6 @@ pub struct TaskPayload {
     pub description: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub summary: Option<String>,
-    /// `pending|running|waiting|idle|completed|failed|cancelled|interrupted|stopped`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub status: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -570,7 +511,6 @@ pub struct HookPayload {
     pub stdout: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub stderr: Option<String>,
-    /// `success|error|cancelled` on `hook.completed`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub outcome: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -631,7 +571,6 @@ pub struct ValuePayload {
     pub value: Value,
 }
 
-/// One subscription window (5 h, weekly, credits…), normalized at the driver.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RateLimitWindow {
@@ -642,7 +581,6 @@ pub struct RateLimitWindow {
     pub used_percent: Option<f64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub window_minutes: Option<u64>,
-    /// ISO-8601.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub resets_at: Option<String>,
 }
@@ -722,19 +660,15 @@ pub struct RuntimeErrorPayload {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RawPayload {
-    /// `claude.stream-json`, `codex.app-server.notification`, `acp.jsonrpc`, …
     pub source: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub method: Option<String>,
     pub payload: Value,
 }
 
-/// The 49 T3 event types + `raw`. Serialized adjacently tagged:
-/// `{"type": "content.delta", "payload": {...}}`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type", content = "payload")]
 pub enum RuntimeEventKind {
-    // session.* (4)
     #[serde(rename = "session.started")]
     SessionStarted(SessionStartedPayload),
     #[serde(rename = "session.configured")]
@@ -743,14 +677,12 @@ pub enum RuntimeEventKind {
     SessionStateChanged(SessionStatePayload),
     #[serde(rename = "session.exited")]
     SessionExited(SessionExitedPayload),
-    // thread.* (9)
     #[serde(rename = "thread.started")]
     ThreadStarted(ThreadStartedPayload),
     #[serde(rename = "thread.state.changed")]
     ThreadStateChanged(ThreadStatePayload),
     #[serde(rename = "thread.metadata.updated")]
     ThreadMetadataUpdated(ThreadMetadataPayload),
-    /// T3 `thread.token-usage.updated`; the plan calls it `usage.updated`.
     #[serde(rename = "thread.token-usage.updated", alias = "usage.updated")]
     UsageUpdated(UsageUpdatedPayload),
     #[serde(rename = "thread.realtime.started")]
@@ -763,14 +695,12 @@ pub enum RuntimeEventKind {
     RealtimeError(RuntimeWarningPayload),
     #[serde(rename = "thread.realtime.closed")]
     RealtimeClosed(ValuePayload),
-    // turn.* (7)
     #[serde(rename = "turn.started")]
     TurnStarted(TurnStartedPayload),
     #[serde(rename = "turn.completed")]
     TurnCompleted(TurnCompletedPayload),
     #[serde(rename = "turn.aborted")]
     TurnAborted(TurnAbortedPayload),
-    /// The plan calls it `plan.updated`.
     #[serde(rename = "turn.plan.updated", alias = "plan.updated")]
     PlanUpdated(PlanUpdatedPayload),
     #[serde(rename = "turn.proposed.delta")]
@@ -779,7 +709,6 @@ pub enum RuntimeEventKind {
     ProposedCompleted(ProposedCompletedPayload),
     #[serde(rename = "turn.diff.updated")]
     DiffUpdated(DiffUpdatedPayload),
-    // item.* + content (4)
     #[serde(rename = "item.started")]
     ItemStarted(ItemPayload),
     #[serde(rename = "item.updated")]
@@ -788,7 +717,6 @@ pub enum RuntimeEventKind {
     ItemCompleted(ItemPayload),
     #[serde(rename = "content.delta")]
     ContentDelta(ContentDeltaPayload),
-    // requests (4)
     #[serde(rename = "request.opened")]
     RequestOpened(RequestOpenedPayload),
     #[serde(rename = "request.resolved")]
@@ -797,7 +725,6 @@ pub enum RuntimeEventKind {
     UserInputRequested(UserInputRequestedPayload),
     #[serde(rename = "user-input.resolved")]
     UserInputResolved(UserInputResolvedPayload),
-    // task.* (4)
     #[serde(rename = "task.started")]
     TaskStarted(TaskPayload),
     #[serde(rename = "task.progress")]
@@ -806,33 +733,28 @@ pub enum RuntimeEventKind {
     TaskUpdated(TaskPayload),
     #[serde(rename = "task.completed")]
     TaskCompleted(TaskPayload),
-    // hook.* (3)
     #[serde(rename = "hook.started")]
     HookStarted(HookPayload),
     #[serde(rename = "hook.progress")]
     HookProgress(HookPayload),
     #[serde(rename = "hook.completed")]
     HookCompleted(HookPayload),
-    // tool.* (3)
     #[serde(rename = "tool.progress")]
     ToolProgress(ToolProgressPayload),
     #[serde(rename = "tool.summary")]
     ToolSummary(ToolSummaryPayload),
     #[serde(rename = "tool.denied")]
     ToolDenied(ToolDeniedPayload),
-    // account / auth (3)
     #[serde(rename = "auth.status")]
     AuthStatus(AuthStatusPayload),
     #[serde(rename = "account.updated")]
     AccountUpdated(ValuePayload),
     #[serde(rename = "account.rate-limits.updated")]
     RateLimitsUpdated(RateLimitsPayload),
-    // mcp (2)
     #[serde(rename = "mcp.status.updated")]
     McpStatusUpdated(ValuePayload),
     #[serde(rename = "mcp.oauth.completed")]
     McpOauthCompleted(McpOauthPayload),
-    // misc (6)
     #[serde(rename = "model.rerouted")]
     ModelRerouted(ModelReroutedPayload),
     #[serde(rename = "config.warning")]
@@ -845,13 +767,11 @@ pub enum RuntimeEventKind {
     RuntimeWarning(RuntimeWarningPayload),
     #[serde(rename = "runtime.error")]
     RuntimeError(RuntimeErrorPayload),
-    // passthrough (the 50th)
     #[serde(rename = "raw")]
     Raw(RawPayload),
 }
 
 impl RuntimeEventKind {
-    /// The wire name (`"content.delta"`).
     pub fn type_name(&self) -> &'static str {
         use RuntimeEventKind::*;
         match self {
@@ -909,7 +829,6 @@ impl RuntimeEventKind {
     }
 }
 
-/// Native ids of the harness, kept for correlation and debugging.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ProviderRefs {
@@ -921,12 +840,6 @@ pub struct ProviderRefs {
     pub provider_request_id: Option<String>,
 }
 
-/// One normalized event of a harness.
-///
-/// `turn_id` is the id the threads engine minted in `start_turn` (never the
-/// harness's own; that goes in `provider_refs`). `item_id` is stable across
-/// `item.started/updated/completed` and `content.delta` of the same item, and
-/// `request_id` is stable across `request.opened/resolved`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RuntimeEvent {
@@ -934,7 +847,6 @@ pub struct RuntimeEvent {
     pub driver: String,
     pub instance_id: String,
     pub thread_id: String,
-    /// ISO-8601 (RFC 3339).
     pub created_at: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub turn_id: Option<String>,
@@ -949,7 +861,6 @@ pub struct RuntimeEvent {
 }
 
 impl RuntimeEvent {
-    /// A fresh event with a new id and `now` as `created_at`.
     pub fn new(
         driver: &str,
         instance_id: &str,
@@ -990,35 +901,22 @@ pub fn now_iso() -> String {
     chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, true)
 }
 
-// ── Driver trait ────────────────────────────────────────────────────────
-
-/// What a driver can do; the UI hides what is `false`.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DriverCapabilities {
-    /// `rollback(thread, turn_count)` cuts the harness's own history.
     pub rollback: bool,
-    /// `fork` copies a thread's harness state into a new thread.
     pub fork: bool,
     pub interrupt: bool,
-    /// Emits `request.opened` and accepts `respond_request`.
     pub approvals: bool,
-    /// Emits `user-input.requested` and accepts `respond_user_input`.
     pub user_input: bool,
-    /// The model can change between turns of one thread.
     pub model_switch: bool,
     pub plan_mode: bool,
     pub compaction: bool,
-    /// A turn can be continued without a new prompt.
     pub continuation: bool,
-    /// A new turn may start while one is running (steering).
     pub steer: bool,
-    /// Reports `account.rate-limits.updated`.
     pub rate_limits: bool,
 }
 
-/// One environment variable of an instance. `sensitive` values never leave
-/// the host: [`DriverInstance::redacted`] blanks them.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct EnvVar {
@@ -1031,25 +929,18 @@ pub struct EnvVar {
     pub value_redacted: bool,
 }
 
-/// One configured account of a driver.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DriverInstance {
-    /// Slug, `[a-zA-Z][a-zA-Z0-9_-]*`, ≤ 64. The default instance of a driver
-    /// has the driver's own id (`native`, `claude`).
     pub id: String,
-    /// Driver kind: `native|claude|codex|acp|opencode|…`.
     pub driver: String,
     pub label: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub color: Option<String>,
-    /// The `accounts.json` id when the instance is a CLI account.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub account_id: Option<String>,
-    /// `CLAUDE_CONFIG_DIR` / `CODEX_HOME` of the account.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub config_dir: Option<PathBuf>,
-    /// Extra command/args for generic drivers (`acp`: the agent command).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub command: Option<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -1076,7 +967,6 @@ impl DriverInstance {
         }
     }
 
-    /// Copy safe to send to the webview: sensitive env values blanked.
     pub fn redacted(&self) -> Self {
         let mut out = self.clone();
         for var in &mut out.env {
@@ -1089,7 +979,6 @@ impl DriverInstance {
     }
 }
 
-/// Error of a driver call. `code` is a stable `ERR_*` string.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DriverError {
     pub code: String,
@@ -1122,25 +1011,19 @@ pub const ERR_DRIVER_UNAVAILABLE: &str = "ERR_DRIVER_UNAVAILABLE";
 pub const ERR_DRIVER_NO_SESSION: &str = "ERR_DRIVER_NO_SESSION";
 pub const ERR_DRIVER_FAILED: &str = "ERR_DRIVER_FAILED";
 
-/// `start_session` input. One session per thread; the driver keeps it until
-/// `stop`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionStart {
     pub thread_id: String,
     pub instance_id: String,
-    /// Workspace (worktree or project root).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub cwd: Option<PathBuf>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub model: Option<String>,
-    /// The roster agent (native driver only).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub agent_id: Option<String>,
     pub access_mode: AccessMode,
     pub interaction_mode: InteractionMode,
-    /// The last cursor the driver reported (`session.started.resume` or
-    /// `thread.started.providerThreadId`), to resume the harness's session.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub resume_cursor: Option<Value>,
 }
@@ -1149,7 +1032,6 @@ pub struct SessionStart {
 #[serde(rename_all = "camelCase")]
 pub struct TurnStart {
     pub thread_id: String,
-    /// Minted by the engine; every event of the turn carries it.
     pub turn_id: String,
     pub message_id: String,
     pub text: String,
@@ -1168,21 +1050,13 @@ pub struct TurnStartResult {
     pub resume_cursor: Option<Value>,
 }
 
-/// One harness behind the Central. Every method is called by the threads
-/// host's reactors; events go out through the [`RuntimeSink`] the factory
-/// received, never as return values (a turn streams for minutes).
 #[async_trait]
 pub trait Driver: Send + Sync {
     fn kind(&self) -> &str;
     fn capabilities(&self) -> DriverCapabilities;
-    /// Open (or resume) the harness session of one thread. Idempotent: a
-    /// second call for a live session only updates cwd/model/mode.
     async fn start_session(&self, input: SessionStart) -> Result<(), DriverError>;
-    /// Start a turn. Returns as soon as the harness accepted it; the turn's
-    /// events (`turn.started` … `turn.completed`) come through the sink.
     async fn start_turn(&self, input: TurnStart) -> Result<TurnStartResult, DriverError>;
     async fn interrupt(&self, thread_id: &str, turn_id: Option<&str>) -> Result<(), DriverError>;
-    /// Answer a `request.opened`. The driver emits `request.resolved`.
     async fn respond_request(
         &self,
         thread_id: &str,
@@ -1195,9 +1069,7 @@ pub trait Driver: Send + Sync {
         request_id: &str,
         answers: Value,
     ) -> Result<(), DriverError>;
-    /// Keep only the first `turn_count` turns of the harness's history.
     async fn rollback(&self, thread_id: &str, turn_count: u32) -> Result<(), DriverError>;
-    /// Copy `source`'s harness state up to `turn_count` turns into `target`.
     async fn fork(
         &self,
         _source_thread_id: &str,
@@ -1206,7 +1078,6 @@ pub trait Driver: Send + Sync {
     ) -> Result<(), DriverError> {
         Err(DriverError::unsupported("fork"))
     }
-    /// Access mode changed mid-thread.
     async fn set_access_mode(
         &self,
         _thread_id: &str,
@@ -1217,11 +1088,8 @@ pub trait Driver: Send + Sync {
     async fn stop(&self, thread_id: &str) -> Result<(), DriverError>;
 }
 
-/// Where a driver pushes its events. Unbounded on purpose: a driver never
-/// awaits the host; the host coalesces and persists at its own pace.
 pub type RuntimeSink = mpsc::UnboundedSender<RuntimeEvent>;
 
-/// Builds the driver object of one instance.
 pub type DriverFactory =
     Arc<dyn Fn(DriverInstance, RuntimeSink) -> Result<Arc<dyn Driver>, DriverError> + Send + Sync>;
 
@@ -1244,9 +1112,6 @@ impl std::fmt::Debug for DriverRegistration {
 
 static REGISTRY: RwLock<Option<HashMap<String, DriverRegistration>>> = RwLock::new(None);
 
-/// Register (or replace) a driver kind. Call it once at startup (the host
-/// does it for `native` when the threads engine opens; a round-2 driver adds
-/// one line next to it).
 pub fn register_driver(reg: DriverRegistration) {
     let mut guard = REGISTRY.write().unwrap_or_else(|e| e.into_inner());
     guard
@@ -1262,7 +1127,6 @@ pub fn driver_registration(kind: &str) -> Option<DriverRegistration> {
         .and_then(|m| m.get(kind).cloned())
 }
 
-/// Registered kinds, sorted.
 pub fn registered_drivers() -> Vec<String> {
     let mut out: Vec<String> = REGISTRY
         .read()
@@ -1274,8 +1138,6 @@ pub fn registered_drivers() -> Vec<String> {
     out
 }
 
-/// Build the driver of an instance; an unknown kind is `ERR_DRIVER_UNAVAILABLE`
-/// (the UI shows the instance as "unavailable" instead of breaking).
 pub fn build_driver(
     instance: DriverInstance,
     sink: RuntimeSink,
@@ -1289,14 +1151,8 @@ pub fn build_driver(
     (reg.factory)(instance, sink)
 }
 
-// ── Durable asks (plan §3.3) ────────────────────────────────────────────
-
 static DURABLE: RwLock<Option<HashSet<String>>> = RwLock::new(None);
 
-/// Mark a conversation (a native thread id) as durable: the tool broker's
-/// `Ask` then waits for an answer with no timeout, because the question is a
-/// persisted `request.opened` the user can answer hours later. Jobs and the
-/// old chat are never marked and keep the 120 s timeout.
 pub fn set_durable_conversation(conversation_id: &str, durable: bool) {
     let mut guard = DURABLE.write().unwrap_or_else(|e| e.into_inner());
     let set = guard.get_or_insert_with(HashSet::new);

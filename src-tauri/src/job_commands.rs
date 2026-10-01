@@ -1,32 +1,3 @@
-//! The asynchronous, idempotent command surface of the jobs (item 2.5 of the
-//! `/llm` roadmap, S11).
-//!
-//! One door for every outside caller that starts, stops or unblocks work —
-//! `POST /v1/commands` on the local bridge (the CLI, scripts) and the MCP
-//! tools `agent_run`, `job_cancel`, `approval_respond` — with the reads
-//! beside it (`GET /v1/jobs/{id}?after_seq=`, `GET /v1/jobs/{id}/wait`, MCP
-//! `job_get`, `job_wait`, `jobs_state`):
-//!
-//! - a command carries a `command_id` chosen by the caller. The first time,
-//!   it runs and its result is kept in `command_receipts` (`jobs.db`, keyed
-//!   by who sent it); the same id again answers the same result without
-//!   running anything; the same id with another payload is
-//!   `ERR_COMMAND_CONFLICT`. Only accepted commands leave a receipt, so a
-//!   refused one (bad field, unknown agent) can be sent again once fixed.
-//!   The Central keeps its own `command_receipts` in its event store
-//!   (`core/threads/store.rs`); jobs keep theirs next to the jobs;
-//! - `wait` sleeps on the change signal of the job table, never polls, and
-//!   only matches a state whose `state_seq` is newer than what the caller
-//!   already saw (1.3): a stale `done` can never end a new wait. A timeout
-//!   is an error, never a silent "still running";
-//! - a job context never starts a job (delegation depth 1, 2.6): a job's own
-//!   token cannot reach `/v1/commands` (2.1), a request that names a job
-//!   (`X-Omniget-Job`, which `omniget agent` sends when `OMNIGET_JOB_ID` is
-//!   set) is refused, and so is an agent session of the Central on MCP.
-//!
-//! MCP clients only see their own jobs: the one they started (`Job.owner`)
-//! or a job of a mission they own (`mcp::orchestration`).
-
 use std::sync::{Arc, Mutex, MutexGuard, OnceLock};
 use std::time::Duration;
 
@@ -38,31 +9,21 @@ use sha2::{Digest, Sha256};
 
 use crate::approvals::Approvals;
 
-/// What `Jobs::diff` answers: `(job, patch, complete)`.
 pub type DiffAnswer = Result<(Job, Option<String>, bool), String>;
 use crate::jobs::{self, Job};
 
-/// The same `command_id` came back with another payload.
 pub const ERR_COMMAND_CONFLICT: &str = "ERR_COMMAND_CONFLICT";
-/// Malformed command: missing or unknown field, bad value, unknown type.
 pub const ERR_COMMAND_INVALID: &str = "ERR_COMMAND_INVALID";
-/// The caller may not send this command (scope, ownership).
 pub const ERR_COMMAND_FORBIDDEN: &str = "ERR_COMMAND_FORBIDDEN";
-/// A job (or an agent session) tried to start a job: depth is 1.
 pub const ERR_DELEGATION_DEPTH: &str = "ERR_DELEGATION_DEPTH";
-/// The job did not reach the awaited states before `timeout_ms`.
 pub const ERR_WAIT_TIMEOUT: &str = "ERR_WAIT_TIMEOUT";
-/// The job ended in a state the wait did not ask for: it never will.
 pub const ERR_WAIT_UNREACHABLE: &str = "ERR_WAIT_UNREACHABLE";
 pub const ERR_NO_JOB: &str = "ERR_NO_JOB";
 
-/// Longest wait one call may ask for (the CLI and MCP loop on shorter ones).
 pub const WAIT_MAX_MS: u64 = 120_000;
 pub const WAIT_DEFAULT_MS: u64 = 30_000;
-/// The MCP adapter (`omniget-mcp`) gives up on a call after 30 s.
 pub const MCP_WAIT_MAX_MS: u64 = 25_000;
 
-/// What `wait` accepts as `until=terminal`.
 pub const TERMINAL: &[&str] = &[
     "done",
     "review",
@@ -72,7 +33,6 @@ pub const TERMINAL: &[&str] = &[
     "interrupted",
 ];
 
-/// Every state a job can be in (the `until` list is checked against it).
 const STATES: &[&str] = &[
     "queued",
     "waiting_workspace",
@@ -102,24 +62,14 @@ pub fn ensure_schema(db: &Connection) -> Result<(), String> {
     .map_err(|e| e.to_string())
 }
 
-// ── the engine behind the commands ─────────────────────────────────────
-
-/// What the commands need from the job system. The app's is [`Jobs`]
-/// ([`AppEngine`]); the tests (BN5 `delegate`) hand a stand-in that runs a
-/// scripted turn on a real broker.
 pub trait Engine: Send + Sync {
     fn start(&self, spec: &StartSpec, owner: &str) -> Result<Job, String>;
     fn job(&self, id: &str) -> Option<Job>;
-    /// Cancels on `actor`'s behalf (the audit line names who asked, 2.8).
     fn cancel(&self, id: &str, actor: omniget_core::core::llm::audit::Actor)
         -> Result<Job, String>;
-    /// Bumped whenever a job row is saved.
     fn subscribe(&self) -> tokio::sync::watch::Receiver<u64>;
-    /// Newest first.
     fn recent(&self, limit: u32) -> Vec<Job>;
-    /// The connection that holds `command_receipts`.
     fn receipts(&self) -> MutexGuard<'_, Connection>;
-    /// `(job, patch, complete)`, as `Jobs::diff`.
     fn diff<'a>(&'a self, id: &'a str) -> BoxFuture<'a, DiffAnswer>;
 }
 
@@ -156,9 +106,7 @@ impl Engine for AppEngine {
 #[derive(Clone)]
 pub struct Commands {
     pub engine: Arc<dyn Engine>,
-    /// `None` when the run record is unavailable: `approval.respond` fails.
     pub approvals: Option<Approvals>,
-    /// The `.omniget/workflow.md` store (3.10); `None` = no workflow applies.
     pub workflows: Option<Arc<omniget_core::core::llm::workflow::Store>>,
 }
 
@@ -170,38 +118,28 @@ pub fn from_app(app: &tauri::AppHandle) -> Result<Commands, String> {
     })
 }
 
-/// Who sends a command and what it may do.
 #[derive(Debug, Clone)]
 pub struct Caller {
-    /// `token:<id>` (bridge) or `mcp:<client>`; receipts and ownership key.
     pub owner: String,
-    /// `http | cli | mcp`: recorded on an answered ask.
     pub channel: &'static str,
     pub can_operate: bool,
     pub can_respond: bool,
-    /// MCP: only the caller's own jobs (and their asks).
     pub owned_only: bool,
-    /// The job (or agent session) the request comes from: never starts one.
     pub from_job: Option<String>,
-    /// `accept_always` stays a desktop decision for MCP and remote callers.
     pub may_accept_always: bool,
 }
 
 impl Caller {
-    /// The caller as an audit actor (2.8): `token:<id>` or `mcp:<client>`,
-    /// through `http`, `cli` or `mcp`.
     pub fn actor(&self) -> omniget_core::core::llm::audit::Actor {
         omniget_core::core::llm::audit::Actor::via(self.channel, &self.owner)
     }
 }
 
-/// Why a command or a read did not apply.
 #[derive(Debug, Clone, PartialEq)]
 pub struct CmdError {
     pub status: u16,
     pub code: &'static str,
     pub message: String,
-    /// The job as it is, for a wait that timed out or cannot match.
     pub job: Option<Value>,
 }
 
@@ -230,21 +168,15 @@ fn invalid(m: impl Into<String>) -> CmdError {
     CmdError::new(400, ERR_COMMAND_INVALID, m)
 }
 
-// ── job.start ──────────────────────────────────────────────────────────
-
-/// The fields of `job.start` (snake_case on HTTP; MCP maps its camelCase).
 #[derive(Debug, Clone, Default, PartialEq, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct StartSpec {
     #[serde(default)]
     pub command_id: String,
-    /// Empty = the `agent` of the folder's `.omniget/workflow.md` (3.10),
-    /// else [`crate::job_workflow::DEFAULT_AGENT`].
     #[serde(default)]
     pub agent_id: String,
     #[serde(default)]
     pub prompt: String,
-    /// Same as `prompt` (a task for the agent); give one of the two.
     #[serde(default)]
     pub task: Option<String>,
     #[serde(default)]
@@ -257,29 +189,22 @@ pub struct StartSpec {
     pub model: Option<String>,
     #[serde(default)]
     pub effort: Option<String>,
-    /// Stored as given; item 2.7 maps it onto the runtimes.
     #[serde(default)]
     pub run_mode: Option<String>,
     #[serde(default)]
     pub isolation: Option<String>,
     #[serde(default)]
     pub base: Option<String>,
-    /// US$; `budget: {usd}` is accepted too.
     #[serde(default)]
     pub budget_usd: Option<f64>,
     #[serde(default)]
     pub deadline_min: Option<u32>,
     #[serde(default)]
     pub resume_of: Option<String>,
-    /// Resume by itself after a restart or a stall (3.1); `None` = the
-    /// person's setting.
     #[serde(default)]
     pub auto_resume: Option<bool>,
-    /// `false` = start without the folder's `.omniget/workflow.md` (3.10).
     #[serde(default)]
     pub workflow: Option<bool>,
-    /// What the workflow filled in and held back (`Job.origin.workflow`);
-    /// set by [`crate::job_workflow::apply`], never by the caller.
     #[serde(skip)]
     pub applied_workflow: Option<Value>,
 }
@@ -300,11 +225,9 @@ fn is_id(s: &str, max: usize) -> bool {
             .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'-' | b'_' | b'.' | b':'))
 }
 
-/// Parses and checks a `job.start` body (without `type`).
 pub fn parse_start(mut body: Value) -> Result<StartSpec, CmdError> {
     if let Some(map) = body.as_object_mut() {
         map.remove("type");
-        // `budget: {usd: 0.5}` or `budget: 0.5` → `budget_usd`.
         if let Some(b) = map.remove("budget") {
             let usd = b.as_f64().or_else(|| b["usd"].as_f64());
             match usd {
@@ -338,8 +261,6 @@ pub fn parse_start(mut body: Value) -> Result<StartSpec, CmdError> {
         }
     }
     if let Some(m) = &s.run_mode {
-        // The four modes of 2.7 (`approval_required`, `auto_edits`, `auto`,
-        // `full_access`); a typo is a 400 before any receipt.
         jobs::RunMode::parse(m).map_err(invalid)?;
     }
     if let Some(i) = &s.isolation {
@@ -369,10 +290,6 @@ pub fn parse_start(mut body: Value) -> Result<StartSpec, CmdError> {
     Ok(s)
 }
 
-// ── receipts ───────────────────────────────────────────────────────────
-
-/// JSON with its object keys sorted, so a payload hashes the same however
-/// the caller ordered it.
 fn canonical(v: &Value) -> String {
     match v {
         Value::Object(m) => {
@@ -392,7 +309,6 @@ fn canonical(v: &Value) -> String {
     }
 }
 
-/// The payload's digest: the whole command but its id.
 pub fn fingerprint(body: &Value) -> String {
     let mut b = body.clone();
     if let Some(m) = b.as_object_mut() {
@@ -416,8 +332,6 @@ fn read_receipt(
     .map(|row| row.map(|(f, r)| (f, serde_json::from_str(&r).unwrap_or(Value::Null))))
 }
 
-/// One command at a time per process: the receipt check and the effect are
-/// one step, so two copies of a command racing each other run it once.
 fn serial() -> MutexGuard<'static, ()> {
     static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
     LOCK.get_or_init(|| Mutex::new(()))
@@ -425,8 +339,6 @@ fn serial() -> MutexGuard<'static, ()> {
         .unwrap_or_else(|e| e.into_inner())
 }
 
-/// What an outside caller sees of a job (no log, no prompt, no host paths
-/// beyond the ones it gave).
 pub fn job_view(job: &Job) -> Value {
     json!({
         "id": job.id,
@@ -452,8 +364,6 @@ pub fn job_view(job: &Job) -> Value {
 }
 
 impl Commands {
-    /// Runs one command (`{command_id, type, ..}`) and returns its receipt,
-    /// with `true` when it is the stored answer of an earlier copy.
     pub fn execute(&self, c: &Caller, body: &Value) -> Result<(Value, bool), CmdError> {
         let command_id = body["command_id"].as_str().unwrap_or("").to_string();
         if !is_id(&command_id, 128) {
@@ -496,8 +406,6 @@ impl Commands {
                 }
                 let mut spec = parse_start(rest)?;
                 spec.command_id = command_id.clone();
-                // A resumed job keeps its agent; then the folder's workflow
-                // fills what the caller left out (3.10).
                 if spec.agent_id.is_empty() {
                     if let Some(earlier) =
                         spec.resume_of.as_deref().and_then(|r| self.engine.job(r))
@@ -551,7 +459,6 @@ impl Commands {
                     .permission(id)
                     .and_then(|q| (door.job_of)(&q.run_id));
                 if c.owned_only {
-                    // An unknown id and someone else's ask look the same.
                     let mine = job
                         .as_deref()
                         .and_then(|j| self.engine.job(j))
@@ -590,13 +497,11 @@ impl Commands {
             params![c.owner, command_id, kind, print, job_id, receipt.to_string(), crate::llm_manager::now_ms() as i64],
         );
         if let Err(e) = stored {
-            // The effect happened; only a replay would not find it.
             tracing::warn!("[commands] receipt of {command_id}: {e}");
         }
         Ok((receipt, false))
     }
 
-    /// The job, if this caller may see it.
     pub fn readable(&self, c: &Caller, id: &str) -> Result<Job, CmdError> {
         let not_found = || CmdError::new(404, ERR_NO_JOB, format!("no job {id}"));
         let job = self.engine.job(id).ok_or_else(not_found)?;
@@ -606,8 +511,6 @@ impl Commands {
         Ok(job)
     }
 
-    /// Waits until the job is in one of `until` (any change when empty) with
-    /// a `state_seq` above `after_seq`.
     pub async fn wait(
         &self,
         c: &Caller,
@@ -621,8 +524,6 @@ impl Commands {
                 return Err(invalid(format!("unknown state `{s}` in until")));
             }
         }
-        // Subscribed before the first read: a change between the read and
-        // the sleep still wakes it.
         let mut changes = self.engine.subscribe();
         let deadline = tokio::time::Instant::now() + timeout;
         loop {
@@ -673,8 +574,6 @@ pub enum Verdict {
     Never,
 }
 
-/// Pure half of [`Commands::wait`]: only a state newer than `after_seq`
-/// counts, so a wait never ends on what the caller already saw.
 pub fn wait_verdict(job: &Job, until: &[String], after_seq: i64) -> Verdict {
     let fresh = job.state_seq > after_seq;
     let wanted = until.is_empty() || until.iter().any(|s| s == &job.state);
@@ -687,7 +586,6 @@ pub fn wait_verdict(job: &Job, until: &[String], after_seq: i64) -> Verdict {
     }
 }
 
-/// `until=a,b` (`terminal` expands to every end state).
 pub fn parse_until(raw: &str) -> Vec<String> {
     let mut out = Vec::new();
     for s in raw.split(',').map(str::trim).filter(|s| !s.is_empty()) {
@@ -700,7 +598,6 @@ pub fn parse_until(raw: &str) -> Vec<String> {
     out
 }
 
-/// `key=` of a query string.
 pub fn query_param<'a>(query: Option<&'a str>, key: &str) -> Option<&'a str> {
     query
         .unwrap_or("")
@@ -708,16 +605,11 @@ pub fn query_param<'a>(query: Option<&'a str>, key: &str) -> Option<&'a str> {
         .find_map(|pair| pair.strip_prefix(key).and_then(|r| r.strip_prefix('=')))
 }
 
-// ── HTTP (the bridge's handlers call these; the BN5 test serves them) ──
-
 use axum::http::{HeaderMap, StatusCode};
 use axum::response::{IntoResponse, Response};
 
-/// The header `omniget agent` sends from inside a job (`OMNIGET_JOB_ID`).
 pub const JOB_HEADER: &str = "x-omniget-job";
 
-/// The bridge caller: the token the guard accepted, its scopes, and the job
-/// it comes from (its own job token, or the header).
 pub fn http_caller(p: &crate::mcp::policy::Principal, headers: &HeaderMap, cli: bool) -> Caller {
     let has = |s: &str| p.scopes.iter().any(|v| v == s);
     let header_job = headers
@@ -753,7 +645,6 @@ fn no_principal() -> Response {
     error_response(CmdError::new(401, ERR_COMMAND_FORBIDDEN, "no principal"))
 }
 
-/// `POST /v1/commands`: the receipt, `Idempotent-Replayed: true` on a copy.
 pub fn http_command(
     cmds: &Commands,
     p: Option<&crate::mcp::policy::Principal>,
@@ -781,8 +672,6 @@ pub fn http_command(
     }
 }
 
-/// `GET /v1/jobs/{id}?after_seq=N`: the whole row (the CLI reads its log),
-/// plus `changed` when `after_seq` is given.
 pub fn http_job(cmds: &Commands, id: &str, query: Option<&str>) -> Response {
     match cmds.engine.job(id) {
         None => error_response(CmdError::new(404, ERR_NO_JOB, format!("no job {id}"))),
@@ -797,8 +686,6 @@ pub fn http_job(cmds: &Commands, id: &str, query: Option<&str>) -> Response {
     }
 }
 
-/// `GET /v1/jobs/{id}/wait?until=a,b&after_seq=N&timeout_ms=T`: the whole
-/// row once it matches; 408 `ERR_WAIT_TIMEOUT` (with the job) otherwise.
 pub async fn http_wait(
     cmds: &Commands,
     p: Option<&crate::mcp::policy::Principal>,
@@ -825,10 +712,6 @@ pub async fn http_wait(
     }
 }
 
-// ── MCP ────────────────────────────────────────────────────────────────
-
-/// The MCP caller: its client id, its grants, and whether it is an agent
-/// session of the Central (which never starts a job).
 pub fn mcp_caller(p: &crate::mcp::policy::Principal) -> Caller {
     let session = p.id.starts_with(crate::mcp::SESSION_PREFIX);
     Caller {
@@ -846,7 +729,6 @@ pub fn mcp_caller(p: &crate::mcp::policy::Principal) -> Caller {
 #[serde(deny_unknown_fields, rename_all = "camelCase")]
 struct AgentRunArgs {
     command_id: String,
-    /// Absent = the folder's workflow `agent`, else the default agent.
     #[serde(default)]
     agent_id: Option<String>,
     #[serde(default)]
@@ -922,8 +804,6 @@ fn mcp_err(e: CmdError) -> String {
     }
 }
 
-/// A job as an MCP client reads it, with the ids of its pending asks
-/// (answerable with `approval_respond` when that grant is given).
 pub fn mcp_job(cmds: &Commands, job: &Job, after_seq: Option<i64>) -> Value {
     let mut v = job_view(job);
     let clip = |t: &Option<String>, n: usize| {
@@ -935,7 +815,6 @@ pub fn mcp_job(cmds: &Commands, job: &Job, after_seq: Option<i64>) -> Value {
         })
     };
     v["result"] = json!(clip(&job.result, 4_000));
-    // `error` is the MCP error envelope's name: the job's own is `jobError`.
     if let Some(m) = v.as_object_mut() {
         m.remove("error");
     }
@@ -971,7 +850,6 @@ pub fn mcp_job(cmds: &Commands, job: &Job, after_seq: Option<i64>) -> Value {
     v
 }
 
-/// Tools of this module (their grants are in `mcp::policy::scope`).
 pub fn handles(name: &str) -> bool {
     matches!(
         name,
@@ -979,8 +857,6 @@ pub fn handles(name: &str) -> bool {
     )
 }
 
-/// The MCP job tools. `job_diff` and `approval_respond` of a job the client
-/// started come here too (`mcp::orchestration` tries mission ownership first).
 pub async fn mcp_call(
     cmds: &Commands,
     p: &crate::mcp::policy::Principal,
@@ -1028,8 +904,6 @@ pub async fn mcp_call(
                 .map_err(mcp_err)?;
             Ok(mcp_job(cmds, &job, a.after_seq))
         }
-        // 3.10: the verdict, the agent's OUTCOME, the host's proof, the diff
-        // summary and what the workflow did, in one call.
         "job_report" => {
             let a: JobArgs = mcp_args(args)?;
             let job = cmds.readable(&c, &a.job_id).map_err(mcp_err)?;
@@ -1071,8 +945,6 @@ pub async fn mcp_call(
             ) {
                 return Err("INVALID_ARGUMENTS".into());
             }
-            // No command id on this tool: the answer itself is the one-shot
-            // (a second one is ERR_NO_ASK), so it goes straight to the door.
             if !c.can_respond {
                 return Err("APPROVAL_NOT_AUTHORIZED".into());
             }

@@ -1,18 +1,3 @@
-//! `company.db` schema. One file per data root (`<llm>/company.db`), its own
-//! migration list, so nothing here touches `assist.db`.
-//!
-//! Rules every table follows (study 92, area A §5.2):
-//! - every row carries `company_id`;
-//! - links to staff, issues, goals and projects are **composite**
-//!   `(company_id, x_id)` foreign keys against a `UNIQUE (company_id, id)`,
-//!   so the database itself refuses a link across companies (Paperclip only
-//!   checks that in route code);
-//! - ids are text (uuid v4), times are integer milliseconds;
-//! - money is integer micro-dollars (USD × 1e6), so a US$ 0.004 turn is 4000
-//!   and never rounds to zero (Paperclip rounds each run to whole cents).
-//!
-//! Never edit a migration that shipped; add a new version.
-
 use crate::core::assist::db::Migration;
 
 pub const MODULE: &str = "company";

@@ -1,25 +1,3 @@
-//! `acp` driver: any agent that speaks the Agent Client Protocol (v1 schema,
-//! `agentclientprotocol/agent-client-protocol` `schema/v1`, checked
-//! 2026-09-22) behind the Central's [`Driver`] trait. One child process and
-//! one root ACP session per thread.
-//!
-//! Flow: `initialize` (fs + terminal + auth.terminal + elicitation client
-//! capabilities) → `session/load` (resume cursor, when `loadSession`) or
-//! `session/resume` (when `sessionCapabilities.resume`) or `session/new
-//! {cwd, mcpServers}` → modes/model applied (`session/set_mode`,
-//! `session/set_config_option`, `session/set_model`) → `session/prompt` per
-//! turn, `session/cancel` (a notification, never a request) to interrupt.
-//! The agent's `session/update`s become [`RuntimeEvent`]s (see
-//! [`translate`]); its requests are served here: `session/request_permission`
-//! → durable `request.opened` with the canonical type and the agent's own
-//! options, `fs/*` inside the thread's workspace, `terminal/*` with our own
-//! processes, `elicitation/create` → `user-input.requested`.
-//!
-//! Auth: when `session/new` says "authentication required" the driver only
-//! tries silent methods ([`agents::silent_methods`]); otherwise it emits
-//! `auth.status` with the login command and fails the session with
-//! `ERR_ACP_AUTH_REQUIRED`. No credential is ever read.
-
 pub mod agents;
 pub mod client;
 pub mod diff;
@@ -57,11 +35,9 @@ pub const PROTOCOL_VERSION: u64 = 1;
 pub const ERR_ACP_AUTH: &str = "ERR_ACP_AUTH_REQUIRED";
 pub const ERR_ACP: &str = "ERR_ACP";
 
-/// First `initialize` of an npx/uvx agent downloads the package.
 const INIT_TIMEOUT: Duration = Duration::from_secs(180);
 const SESSION_TIMEOUT: Duration = Duration::from_secs(90);
 const SMALL_TIMEOUT: Duration = Duration::from_secs(30);
-/// After `session/cancel`, how long the prompt may take to return.
 const CANCEL_GRACE: Duration = Duration::from_secs(15);
 
 pub fn capabilities() -> DriverCapabilities {
@@ -75,7 +51,6 @@ pub fn capabilities() -> DriverCapabilities {
     }
 }
 
-/// Register the `acp` driver kind. Call once (the threads host setup).
 pub fn register() {
     super::register_driver(DriverRegistration {
         kind: KIND.into(),
@@ -87,14 +62,10 @@ pub fn register() {
     });
 }
 
-/// Every ACP agent that can start here, as instances of this driver.
 pub fn instances() -> Vec<DriverInstance> {
     agents::instances()
 }
 
-// ── MCP injection (plan §3.2: the OmniGet MCP goes into `session/new`) ──
-
-/// One MCP server to hand to an agent in `session/new|load|resume`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "lowercase")]
 pub enum McpServerSpec {
@@ -120,8 +91,6 @@ pub enum McpServerSpec {
     },
 }
 
-/// `(thread_id, instance_id) → servers`. Set by the host once the embedded
-/// MCP has per-session credentials; empty until then.
 pub type McpProvider = Arc<dyn Fn(&str, &str) -> Vec<McpServerSpec> + Send + Sync>;
 
 static MCP: RwLock<Option<McpProvider>> = RwLock::new(None);
@@ -138,7 +107,6 @@ pub fn mcp_servers_for(thread_id: &str, instance_id: &str) -> Vec<McpServerSpec>
         .unwrap_or_default()
 }
 
-/// ACP wire form, filtered by what the agent said it supports.
 fn mcp_json(servers: &[McpServerSpec], http: bool, sse: bool) -> Value {
     let headers = |h: &[(String, String)]| -> Value {
         h.iter()
@@ -165,8 +133,6 @@ fn mcp_json(servers: &[McpServerSpec], http: bool, sse: bool) -> Value {
     )
 }
 
-// ── Modes ───────────────────────────────────────────────────────────────
-
 const PLAN_MODES: &[&str] = &["plan", "architect"];
 const DEFAULT_MODES: &[&str] = &["default", "build", "code", "agent", "normal"];
 const EDIT_MODES: &[&str] = &[
@@ -187,8 +153,6 @@ const FULL_MODES: &[&str] = &[
 ];
 const AUTO_MODES: &[&str] = &["auto"];
 
-/// The mode id to switch to for an access/interaction pair, among the ids the
-/// agent offers. `None` = leave the agent's mode alone.
 pub fn desired_mode(
     available: &[String],
     current: Option<&str>,
@@ -213,7 +177,6 @@ pub fn desired_mode(
             AccessMode::ApprovalRequired => None,
         };
         by_access.or_else(|| {
-            // Leaving plan (or a permissive mode) goes back to the default.
             let cur = current.unwrap_or("");
             let special = PLAN_MODES
                 .iter()
@@ -231,7 +194,6 @@ pub fn desired_mode(
     target.filter(|t| Some(t.as_str()) != current)
 }
 
-/// Values of a `select` config option (flat or grouped).
 fn select_values(opt: &Value) -> Vec<String> {
     let mut out = Vec::new();
     for o in opt
@@ -260,7 +222,6 @@ fn config_option<'a>(opts: Option<&'a Value>, category: &str) -> Option<&'a Valu
     })
 }
 
-/// Would an access mode let this permission through without asking?
 pub fn auto_allows(access: AccessMode, kind: &str) -> bool {
     let read_only = matches!(kind, "read" | "search" | "think");
     match access {
@@ -270,8 +231,6 @@ pub fn auto_allows(access: AccessMode, kind: &str) -> bool {
         AccessMode::ApprovalRequired => false,
     }
 }
-
-// ── Session ─────────────────────────────────────────────────────────────
 
 struct Turn {
     id: String,
@@ -382,7 +341,6 @@ impl Session {
             .or_else(|| st.last_turn.clone())
     }
 
-    /// Main loop: every agent request/notification, in order.
     async fn run(self: Arc<Self>, mut rx: mpsc::UnboundedReceiver<Inbound>) {
         while let Some(msg) = rx.recv().await {
             if msg.method == rpc::EXIT {
@@ -449,7 +407,6 @@ impl Session {
         );
     }
 
-    /// Answer every open permission/question as cancelled and tell the host.
     fn stale_pending(&self, resolution: &str) {
         let (perms, inputs) = {
             let mut st = self.st();
@@ -581,7 +538,6 @@ impl Session {
                 self.reply(msg.id, r).await;
             }
             "terminal/wait_for_exit" => {
-                // Long wait: off the loop.
                 let me = self.clone();
                 let params = p.clone();
                 tokio::spawn(async move {
@@ -613,7 +569,6 @@ impl Session {
                 self.send(ev);
                 self.state_changed(SessionState::Waiting, Some("user-input"));
             }
-            // Cursor extensions (T3 Code's CursorAcpExtension).
             "cursor/update_todos" => {
                 let todos = p
                     .get("todos")
@@ -662,7 +617,6 @@ impl Session {
                 );
                 self.reply(msg.id, Ok(json!({ "accepted": true }))).await;
             }
-            // Grok sometimes completes a prompt without answering the RPC.
             "_x.ai/session/prompt_complete" | "x.ai/session/prompt_complete" => {
                 let active = self.st().turn.as_ref().map(|t| t.id.clone());
                 if let Some(turn) = active {
@@ -769,8 +723,6 @@ impl Session {
             let mut st = self.st();
             match &st.turn {
                 Some(t) if t.id == turn_id => {}
-                // Late answer of a turn already closed (watchdog, Grok's
-                // prompt_complete): ignore.
                 _ => return,
             }
             let turn = st.turn.take().expect("checked above");
@@ -781,7 +733,6 @@ impl Session {
         for e in emits {
             self.emit_translated(Some(&turn.id), e);
         }
-        // Questions the agent left open die with the turn.
         self.stale_pending("stale");
         let completed = match (p.get("result"), p.get("error")) {
             (Some(result), _) if !result.is_null() => {
@@ -986,7 +937,6 @@ impl Session {
                     }
                 })
         } else if models.is_some() {
-            // Unstable `session/set_model` (Grok, Cursor, older Gemini).
             self.conn
                 .request(
                     "session/set_model",
@@ -1022,9 +972,6 @@ impl Session {
     }
 }
 
-/// Lines of the `auth.status` shown when an agent needs a sign-in. The line
-/// starting with `$ ` is the command to run (in the system or embedded
-/// terminal); nothing here is a secret.
 pub fn auth_lines(
     agent_name: &str,
     init: &Value,
@@ -1061,9 +1008,6 @@ pub fn auth_lines(
     out
 }
 
-/// Prompt content blocks for a turn: the text, then attachments the agent
-/// accepts (`image` with base64 when `promptCapabilities.image`, files as
-/// `resource_link`).
 pub fn prompt_blocks(text: &str, attachments: &[Value], prompt_caps: &Value) -> Vec<Value> {
     let mut blocks = Vec::new();
     if !text.is_empty() {
@@ -1126,8 +1070,6 @@ pub fn prompt_blocks(text: &str, attachments: &[Value], prompt_caps: &Value) -> 
     }
     blocks
 }
-
-// ── Driver ──────────────────────────────────────────────────────────────
 
 pub struct AcpDriver {
     instance: DriverInstance,
@@ -1529,8 +1471,6 @@ impl AcpDriver {
         })
     }
 
-    /// An initialize-only probe (no session, no auth): agent info, auth
-    /// methods and capabilities. For the Tools screen / diagnostics.
     pub async fn probe(instance: &DriverInstance) -> Result<Value, String> {
         let launch = agents::launch_for(instance)
             .ok_or_else(|| format!("{ERR_DRIVER_UNAVAILABLE}: no command for {}", instance.id))?;
@@ -1597,7 +1537,6 @@ impl Driver for AcpDriver {
                 }
                 return Ok(());
             }
-            // Workspace moved (worktree): a new process in the new folder.
             self.stop(&input.thread_id).await?;
         }
         let s = self.open(&input).await?;
@@ -1717,9 +1656,7 @@ impl Driver for AcpDriver {
             .conn
             .notify("session/cancel", json!({ "sessionId": s.sid() }))
             .await;
-        // Spec: the client answers every pending permission as cancelled.
         s.stale_pending("cancelled");
-        // Agents that ignore the cancel get stopped after a grace period.
         let watch = s.clone();
         tokio::spawn(async move {
             tokio::time::sleep(CANCEL_GRACE).await;
@@ -1864,7 +1801,6 @@ impl Driver for AcpDriver {
                 }),
             );
         }
-        // Agents that support it drop their session state cleanly first.
         let close_ok = s
             .init
             .lock()
@@ -1896,7 +1832,6 @@ impl Driver for AcpDriver {
     }
 }
 
-/// Deprecation notices of a launch (the old `--experimental-acp` flag).
 pub fn launch_notices(launch: &agents::Launch) -> Vec<NoticePayload> {
     launch
         .args

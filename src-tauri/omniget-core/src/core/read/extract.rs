@@ -1,6 +1,3 @@
-//! One entry point for the library scan: metadata and cover bytes for any
-//! supported file, falling back to the file name when a format has none.
-
 use std::io::Read;
 use std::path::Path;
 
@@ -15,7 +12,6 @@ pub struct Extracted {
     pub cover: Option<Vec<u8>>,
 }
 
-/// `Vol 01 - Title_(2020)` -> `Vol 01 - Title (2020)`.
 pub fn title_from_name(p: &Path) -> String {
     let name = p.file_name().and_then(|n| n.to_str()).unwrap_or("");
     let stem = name
@@ -147,7 +143,6 @@ pub fn extract(path: &Path) -> Result<Extracted, String> {
         meta.title = title_from_name(path);
     }
     if meta.series.is_empty() && format.is_comic() {
-        // `Series/Vol 1.cbz`: the folder names the series.
         if let Some(parent) = path
             .parent()
             .and_then(|p| p.file_name())

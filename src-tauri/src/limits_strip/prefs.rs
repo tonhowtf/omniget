@@ -1,13 +1,8 @@
-//! `limits-strip.json`: everything the user chose about the limits strip. Lives
-//! in its own file under `<data>/llm/limits/`, written through a temp file and
-//! a rename. No secret is ever written here: the file holds switches only.
-
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 
 pub const PREFS_FILE: &str = "limits-strip.json";
-/// Moves the whole folder, for tests and for a portable install.
 pub const DIR_ENV: &str = "OMNIGET_LIMITS_DIR";
 
 #[derive(
@@ -51,43 +46,27 @@ impl Edge {
 #[serde(default)]
 pub struct ProviderPref {
     pub id: String,
-    /// Off = never read, never polled, readings forgotten.
     pub enabled: bool,
-    /// No threshold or reset notification for this one.
     pub muted: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct StripPrefs {
-    /// Master switch. OFF by default: nothing is read and no window exists
-    /// until the user asks. It also reopens the strip on the next launch.
     pub enabled: bool,
     pub edge: Edge,
-    /// Where along each edge the strip sits, 0..1 (0.5 = centred). Each edge
-    /// remembers its own spot.
     pub along: BTreeMap<Edge, f64>,
-    /// Order and switches. Providers found later join the end.
     pub providers: Vec<ProviderPref>,
     pub notify_thresholds: bool,
-    /// Percentages, ascending.
     pub thresholds: Vec<u8>,
     pub notify_reset: bool,
-    /// Warn once per period when a window runs out before it resets at the
-    /// current pace (`super::pace`).
     pub notify_pace: bool,
-    /// How the strip looks; see [`Look`].
     pub size: Size,
-    /// The percentage under each ring, so the numbers read without a click.
     pub show_percent: bool,
-    /// The "on pace" tick on each ring and the pace line on the card.
     pub show_pace: bool,
-    /// Solid backdrop, stronger strokes and text: for bright wallpapers and
-    /// low vision.
     pub contrast: bool,
 }
 
-/// Strip scale. Small fits a crowded menu bar, large reads from afar.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Size {
@@ -107,7 +86,6 @@ impl Size {
     }
 }
 
-/// What the strip page needs to draw itself, sent with every snapshot.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Serialize)]
 pub struct Look {
     pub size: Size,
@@ -159,8 +137,6 @@ impl StripPrefs {
         self.providers.iter().find(|p| p.id == id)
     }
 
-    /// A provider the file does not list is OFF: a reader is only ever run
-    /// because the user ticked its box.
     pub fn is_on(&self, id: &str) -> bool {
         self.enabled && self.provider(id).map(|p| p.enabled).unwrap_or(false)
     }
@@ -169,9 +145,6 @@ impl StripPrefs {
         self.provider(id).map(|p| p.muted).unwrap_or(false)
     }
 
-    /// Adds the providers the list does not know yet at the end, so nothing
-    /// the user placed by hand is overtaken by a newcomer. `known` pairs each
-    /// id with its default: only what stays on this machine starts ticked.
     pub fn adopt<S: AsRef<str>>(&mut self, known: &[(S, bool)]) -> bool {
         let mut changed = false;
         for (id, on) in known {
@@ -191,7 +164,6 @@ impl StripPrefs {
         changed || self.providers.len() != before
     }
 
-    /// Thresholds cleaned up: 1..=100, ascending, no repeats, at most four.
     pub fn sane_thresholds(&self) -> Vec<u8> {
         let mut t: Vec<u8> = self
             .thresholds

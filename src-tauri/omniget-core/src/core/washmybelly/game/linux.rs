@@ -1,11 +1,3 @@
-//! Linux: gamemode over D-Bus (session bus), the portal inside Flatpak, and
-//! a fallback OmniGet undoes by itself when gamemode is not there.
-//!
-//! The D-Bus calls are built in [`super::dbus`] (tested on every system);
-//! this file only sends them. Connections that hold something (the power
-//! profile hold, the screen saver inhibit) live in a thread local of the
-//! watcher thread, so they close with it: even a crash releases them.
-
 use std::cell::RefCell;
 
 use serde_json::{json, Value};
@@ -27,7 +19,6 @@ fn connect(bus: Bus) -> Result<Connection, String> {
     }
 }
 
-/// Send one [`Call`]. Only the argument shapes the module builds.
 fn send(conn: &Connection, c: &Call) -> Result<zbus::message::Message, String> {
     let (d, p, i, m) = (Some(c.dest), c.path, Some(c.iface), c.method);
     let r = match c.args.as_slice() {
@@ -118,14 +109,11 @@ fn self_pid() -> i32 {
     std::process::id() as i32
 }
 
-// ── Priority of OmniGet's own children ───────────────────────────────────
-
 const IOPRIO_WHO_PROCESS: libc::c_int = 1;
 const IOPRIO_CLASS_SHIFT: i32 = 13;
 const IOPRIO_IDLE: i32 = 3 << IOPRIO_CLASS_SHIFT;
 const CHILD_NICE: i32 = 10;
 
-/// Threads of a process: nice and I/O priority are per thread on Linux.
 fn tasks(pid: u32) -> Vec<u32> {
     let mut v: Vec<u32> = std::fs::read_dir(format!("/proc/{pid}/task"))
         .map(|d| {
@@ -212,8 +200,6 @@ fn lower_children(game: u32, known: &[u32]) -> Vec<UndoStep> {
     out
 }
 
-// ── Executor ─────────────────────────────────────────────────────────────
-
 pub struct Sys;
 
 fn with_kept<T>(bus: Bus, f: impl FnOnce(&Connection) -> T) -> Option<T> {
@@ -240,7 +226,6 @@ impl Exec for Sys {
                 };
                 let conn = connect(Bus::Session)?;
                 let code = send_i32(&conn, &call)?;
-                // -1 after the game exited: the daemon already dropped it.
                 Ok(format!(
                     "gamemode: {}",
                     dbus::reply_meaning(Verb::Unregister, code)
@@ -263,10 +248,7 @@ impl Exec for Sys {
             }
             UndoStep::Nice { pid, prev, .. } => set_nice(*pid, *prev)
                 .map(|_| "priority restored".into())
-                .map_err(|e| {
-                    // A normal user may not raise priority back (RLIMIT_NICE).
-                    format!("KEPT_LOWER: {e}; it stays lower until that task ends")
-                }),
+                .map_err(|e| format!("KEPT_LOWER: {e}; it stays lower until that task ends")),
             other => Err(format!("not a Linux step: {other:?}")),
         }
     }
@@ -279,8 +261,6 @@ impl Exec for Sys {
         lower_children(active.pid, &known)
     }
 }
-
-// ── Apply ────────────────────────────────────────────────────────────────
 
 fn try_gamemode(target: &Target, notes: &mut Vec<String>) -> Option<Applied> {
     let conn = match connect(Bus::Session) {
@@ -371,8 +351,6 @@ pub fn plan(target: &Target) -> (ApplyFn, WaiterFn) {
         Box::new(move || Box::new(PollWaiter { pid, started }) as Box<dyn ExitWaiter>),
     )
 }
-
-// ── Status ───────────────────────────────────────────────────────────────
 
 fn install_hint() -> Value {
     let caps = super::super::caps::cached(false);

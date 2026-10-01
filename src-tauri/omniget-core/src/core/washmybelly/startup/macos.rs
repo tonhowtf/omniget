@@ -1,9 +1,5 @@
-//! macOS: LaunchAgents, LaunchDaemons, Login Items and the Background Task
-//! Management database. Parsers are pure and compiled in every test build.
-
 use std::collections::HashMap;
 
-/// `launchctl print <domain>/<label>`: what matters for the list.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct LaunchdState {
     pub running: bool,
@@ -14,7 +10,6 @@ pub struct LaunchdState {
 
 pub fn parse_print(text: &str) -> LaunchdState {
     let mut s = LaunchdState::default();
-    // Only the top level of the service block (one tab deep).
     for line in text.lines() {
         let Some(rest) = line.strip_prefix('\t') else {
             continue;
@@ -36,15 +31,12 @@ pub fn parse_print(text: &str) -> LaunchdState {
     s
 }
 
-/// One record of `sfltool dumpbtm`.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct BtmItem {
     pub uid: i64,
     pub name: String,
     pub developer: Option<String>,
     pub team_id: Option<String>,
-    /// `app`, `login item`, `agent`, `daemon`, `legacy agent`, `legacy daemon`,
-    /// `developer`, `quicklook`, `spotlight`, `dock tile`...
     pub kind: String,
     pub enabled: bool,
     pub allowed: bool,
@@ -82,7 +74,6 @@ pub fn parse_btm(text: &str) -> Vec<BtmItem> {
                 .unwrap_or(0);
             continue;
         }
-        // Item headers are ` #N:` one space in; embedded identifiers are deeper.
         if line.starts_with(" #") && t.ends_with(':') {
             flush(&mut cur, &mut out);
             cur = Some(BtmItem {
@@ -118,7 +109,6 @@ pub fn parse_btm(text: &str) -> Vec<BtmItem> {
     out
 }
 
-/// `file:///Applications/Bar%20Pro.app/` → `/Applications/Bar Pro.app`.
 pub fn file_url_path(url: &str) -> Option<String> {
     let rest = url.strip_prefix("file://")?;
     let bytes = rest.as_bytes();
@@ -140,14 +130,11 @@ pub fn file_url_path(url: &str) -> Option<String> {
     s.starts_with('/').then_some(s)
 }
 
-/// `codesign -dv --verbose=2` (it writes to stderr).
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct Signature {
     pub signed: bool,
-    /// First authority, without the certificate kind and team suffix.
     pub signer: Option<String>,
     pub team_id: Option<String>,
-    /// Chained to Apple's root (Developer ID or Apple itself).
     pub apple_chain: bool,
     pub apple: bool,
 }
@@ -192,7 +179,6 @@ pub fn parse_codesign(text: &str) -> Signature {
     s
 }
 
-/// What the list needs from a launchd plist (`plutil -convert xml1`).
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct PlistInfo {
     pub label: Option<String>,
@@ -259,7 +245,6 @@ impl PlistInfo {
     }
 }
 
-/// Our System Events script prints `name<TAB>path` per line.
 pub fn parse_login_items(text: &str) -> Vec<(String, Option<String>)> {
     text.lines()
         .filter_map(|l| {
@@ -275,7 +260,6 @@ pub fn parse_login_items(text: &str) -> Vec<(String, Option<String>)> {
         .collect()
 }
 
-/// The fixed System Events script behind [`parse_login_items`].
 pub const LOGIN_ITEMS_SCRIPT: &str = "tell application \"System Events\"
 set out to \"\"
 repeat with li in every login item
@@ -423,7 +407,6 @@ mod live {
                     });
                 }
                 items.push(it);
-                // Remember the program for the signer pass.
                 if let Some(last) = items.last_mut() {
                     last.command = if last.command.is_empty() {
                         program
@@ -451,7 +434,6 @@ mod live {
             .run(&argv_array!["launchctl", "print-disabled", "system"])
             .map(|o| print_disabled(&o.stdout))
             .unwrap_or_default();
-        // `sfltool dumpbtm` takes seconds: it runs while the plists are read.
         let (btm_out, mut items) = std::thread::scope(|s| {
             let h = s.spawn(|| sys.run(&argv_array!["sfltool", "dumpbtm"]));
             let items = plist_items(sys, env, &disabled_user, &disabled_system);
@@ -477,8 +459,6 @@ mod live {
             if let Some(b) = by_url.get(&it.location) {
                 it.team_id = b.team_id.clone();
                 it.signer = b.developer.clone();
-                // BTM names the app ("Logitech G HUB"); keep the label when it
-                // only names the program file ("node").
                 let program = Path::new(&it.command)
                     .file_name()
                     .map(|f| f.to_string_lossy().into_owned())
@@ -495,7 +475,6 @@ mod live {
             }
         }
 
-        // Running state and signer, in parallel (one launchctl + one codesign each).
         std::thread::scope(|s| {
             let chunks = items.chunks_mut(4).collect::<Vec<_>>();
             for chunk in chunks {
@@ -529,7 +508,6 @@ mod live {
             }
         });
 
-        // Apple's own agents and daemons, read only.
         if include_system {
             for (dir, kind) in [
                 ("/System/Library/LaunchAgents", "agent"),
@@ -558,12 +536,10 @@ mod live {
             }
         }
 
-        // Legacy login items (System Events).
         let mut login_names: Vec<String> = Vec::new();
         match sys.run(&argv_array!["osascript", "-e", LOGIN_ITEMS_SCRIPT]) {
             Ok(o) if o.ok => {
                 for (name, path) in parse_login_items(&o.stdout) {
-                    // A path System Events does not know: take it from BTM.
                     let path = path.or_else(|| {
                         btm.iter()
                             .find(|b| b.kind == "app" && b.name == name)
@@ -613,15 +589,12 @@ mod live {
             Err(e) => notes.push(format!("login_items_unavailable: {e}")),
         }
 
-        // Background items registered through ServiceManagement that the
-        // plists and System Events do not show: switched in System Settings.
         let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
         for b in &btm {
             let kind = match b.kind.as_str() {
                 "login item" => "login_item",
                 "agent" => "agent",
                 "daemon" => "daemon",
-                // An app that opens at login through SMAppService.mainApp.
                 "app" if b.enabled => "login_item",
                 _ => continue,
             };
@@ -676,8 +649,6 @@ mod live {
         }
     }
 
-    /// The program of a command line whose arguments were joined with spaces:
-    /// the longest leading part that exists on disk.
     fn program_of(command: &str) -> String {
         let words: Vec<&str> = command.split(' ').collect();
         for n in (1..=words.len()).rev() {

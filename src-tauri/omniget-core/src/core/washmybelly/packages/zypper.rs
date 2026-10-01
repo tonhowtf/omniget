@@ -1,19 +1,3 @@
-//! zypper (openSUSE, SLES). Neither Stacer nor Nexis removes with zypper;
-//! this does, with a preview first.
-//!
-//! - list: `zypper --xmlout --non-interactive search --installed-only --details --type package`
-//!   (`<solvable status="installed" name edition arch repository/>`), sizes
-//!   and summaries from `rpm -qa`;
-//! - removal preview: `zypper --xmlout --non-interactive remove --dry-run --clean-deps -- <names>`
-//!   (`<install-summary space-usage-removed><to-remove><solvable name/>`).
-//!   zypper wants root even for a dry run ("Root privileges are required",
-//!   exit 5); without root the preview falls back to `rpm -e --test`, which
-//!   names the installed packages that depend on the target (`exact: false`);
-//! - orphans: `zypper --xmlout packages --unneeded`;
-//! - updates: `zypper --xmlout list-updates` (`<update name edition edition-old>`);
-//! - remove: `zypper --non-interactive remove --clean-deps -- <names>`,
-//!   upgrade: `zypper --non-interactive update -- <names>`.
-
 use std::collections::HashMap;
 use std::path::PathBuf;
 
@@ -34,7 +18,6 @@ fn doc(xml: &str) -> Option<roxmltree::Document<'_>> {
     roxmltree::Document::parse(xml.trim_start_matches('\u{feff}')).ok()
 }
 
-/// Every `<tag>` element with a `name` attribute of kind/type package.
 pub fn parse_solvables(xml: &str, tag: &str) -> Vec<Solvable> {
     let Some(d) = doc(xml) else { return Vec::new() };
     d.descendants()
@@ -64,8 +47,6 @@ pub fn parse_solvables(xml: &str, tag: &str) -> Vec<Solvable> {
         .collect()
 }
 
-/// A removal dry run: names under `<to-remove>` and the bytes freed; the
-/// error text when zypper answered with an error message instead.
 pub fn parse_remove_dry_run(xml: &str) -> Result<(Vec<String>, Option<u64>), String> {
     let d = doc(xml).ok_or("zypper: unreadable XML")?;
     if let Some(err) = d
@@ -87,7 +68,6 @@ pub fn parse_remove_dry_run(xml: &str) -> Result<(Vec<String>, Option<u64>), Str
     Ok((names, freed))
 }
 
-/// `rpm -e --test` failures: `X is needed by (installed) name-ver-rel.arch`.
 pub fn parse_rpm_needed_by(text: &str) -> Vec<String> {
     let mut out: Vec<String> = Vec::new();
     for l in text.lines() {
@@ -95,7 +75,6 @@ pub fn parse_rpm_needed_by(text: &str) -> Vec<String> {
             continue;
         };
         let nevra = nevra.trim();
-        // name-version-release.arch: drop .arch, then the last two -fields.
         let no_arch = nevra.rsplit_once('.').map(|(a, _)| a).unwrap_or(nevra);
         let mut parts: Vec<&str> = no_arch.rsplitn(3, '-').collect();
         if parts.len() == 3 {
@@ -139,7 +118,6 @@ impl PackageBackend for Zypper {
             .map(|p| (p.name.clone(), p))
             .collect();
         if found.is_empty() {
-            // zypper locked by another process: rpm alone still lists.
             return Ok(rpm.values().map(|p| rpm_app("zypper", p)).collect());
         }
         let mut seen = std::collections::HashSet::new();

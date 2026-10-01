@@ -1,9 +1,3 @@
-//! Chat face host: delivers the user's chat messages to the node's terminal
-//! and answers the agent's `omniget canvas say` / `recall` (RPC `chat.say`,
-//! `chat.recall`). Transcript and envelope live in
-//! `omniget_core::core::canvas::chat`. Every new entry is emitted as
-//! `canvas://chat {workspaceId, nodeId, thread, message}`.
-
 use std::collections::HashMap;
 use std::sync::{Mutex, OnceLock};
 use std::time::Duration;
@@ -21,9 +15,6 @@ pub const EVENT_CHAT: &str = "canvas://chat";
 
 static APP: OnceLock<AppHandle> = OnceLock::new();
 
-/// Gives the chat (and roles) host the handle it emits with. Idempotent; the
-/// canvas commands call it, and the app may call it at setup so agent `say`
-/// calls reach the UI before any chat command ran.
 pub fn bind(app: &AppHandle) {
     if APP.set(app.clone()).is_ok() {
         start_turn_watch();
@@ -65,7 +56,6 @@ fn store() -> std::sync::Arc<CanvasStore> {
     super::doc::host().store().clone()
 }
 
-/// The terminal node `node_id` of workspace `ws` (any floor).
 pub fn terminal_node(
     store: &CanvasStore,
     ws: &str,
@@ -88,9 +78,6 @@ pub fn terminal_node(
     Ok((floor, node))
 }
 
-/// Delivers the envelope through the cords delivery loop (waits for the
-/// agent to be idle and the user not typing, pastes, sends Enter apart and
-/// confirms). Runs in the background: the entry is already recorded.
 fn deliver(node_id: &str, text: &str) -> Result<(), String> {
     let node_id = node_id.to_string();
     let text = text.to_string();
@@ -102,9 +89,6 @@ fn deliver(node_id: &str, text: &str) -> Result<(), String> {
     Ok(())
 }
 
-/// User → agent. Records the message, then delivers the envelope (starting
-/// the terminal when this app run has not). Fails before recording anything
-/// when its process exited.
 pub fn send(
     ws: &str,
     node_id: &str,
@@ -118,9 +102,6 @@ pub fn send(
     let data: TerminalData = node
         .data_as()
         .ok_or_else(|| "CANVAS_INVALID: terminal data".to_string())?;
-    // No session in this app run (off screen after a restart) is fine: the
-    // delivery starts it (`cords::deliver_chat` -> `launch::ensure_running`).
-    // A process that exited in this run stays an error.
     let term = crate::pty::term();
     let exited = term.info(&data.terminal_id).is_some_and(|i| !i.alive);
     if exited {
@@ -136,9 +117,6 @@ pub fn send(
     Ok(out.entry)
 }
 
-/// Emitted when the per-node chat state changes (thread selected, turn
-/// opened or closed, unread counts): `{workspaceId, nodeId, activeThread,
-/// turnThread, turnOpen, turnInterrupted, unread, unreadCount}`.
 pub const EVENT_CHAT_STATE: &str = "canvas://chat-state";
 
 pub fn emit_state(ws: &str, node: &str, st: &chat::ChatState) {
@@ -157,8 +135,6 @@ pub fn emit_state(ws: &str, node: &str, st: &chat::ChatState) {
     );
 }
 
-/// Selects the thread the next message goes to (the UI's dots and
-/// `canvas_chat_thread select`). Locked while a turn runs on another thread.
 pub fn select(ws: &str, node_id: &str, thread: u8) -> Result<chat::ChatState, String> {
     let s = store();
     terminal_node(&s, ws, node_id)?;
@@ -168,7 +144,6 @@ pub fn select(ws: &str, node_id: &str, thread: u8) -> Result<chat::ChatState, St
     Ok(st)
 }
 
-/// Marks a thread (or all) read.
 pub fn mark_read(ws: &str, node_id: &str, thread: Option<u8>) -> Result<chat::ChatState, String> {
     let s = store();
     let st = chat::mark_read(&s, ws, node_id, thread)?;
@@ -176,9 +151,6 @@ pub fn mark_read(ws: &str, node_id: &str, thread: Option<u8>) -> Result<chat::Ch
     Ok(st)
 }
 
-/// Esc on the chat face: sends ESC to the agent (as Esc in the terminal
-/// would) and closes the open turn as interrupted. `None` when no turn was
-/// open (the ESC is still sent).
 pub fn interrupt(ws: &str, node_id: &str) -> Result<Option<ChatEntry>, String> {
     let s = store();
     let (_, node) = terminal_node(&s, ws, node_id)?;
@@ -210,16 +182,11 @@ fn close_turn(
     Ok(e)
 }
 
-/// Palette search inside every chat of every workspace.
 pub fn search(query: &str, limit: Option<usize>) -> Vec<chat::SearchHit> {
     let s = store();
     let ids: Vec<String> = s.workspaces().into_iter().map(|w| w.workspace.id).collect();
     chat::search(&s, &ids, query, limit.unwrap_or(50).clamp(1, 500))
 }
-
-// ---------------------------------------------------------------------------
-// Turn watch: a turn the agent ended without `say` (it went back to idle
-// after working, or exited) closes by itself instead of staying open.
 
 #[derive(Default)]
 struct Watched {
@@ -237,10 +204,7 @@ fn lock_turns() -> std::sync::MutexGuard<'static, HashMap<String, Watched>> {
         .unwrap_or_else(|p| p.into_inner())
 }
 
-/// Idle this long after working, with the turn still open = ended silently.
 const SILENT_END: Duration = Duration::from_secs(6);
-/// Same, when "idle" is only guessed from the screen (plain commands, stubs):
-/// a quiet agent is often still thinking, so wait much longer.
 const SILENT_END_ESTIMATED: Duration = Duration::from_secs(90);
 
 fn watch_turn(ws: &str, node_id: &str) {
@@ -315,14 +279,8 @@ fn turn_watch_tick() {
     }
 }
 
-/// Emitted when entries leave a transcript (Delete Message, Clear Chat
-/// History): `{workspaceId, nodeId, removed: [ids], thread?, cleared}`.
 pub const EVENT_CHAT_REMOVED: &str = "canvas://chat-removed";
 
-/// True while the agent is mid-turn on the chat face: a user message was
-/// delivered and no final `say`, interrupt or silent end closed it. Agents
-/// that never report "working" (plain commands) count too. A turn left open
-/// by a previous app run whose process is gone does not.
 pub fn turn_active(store: &CanvasStore, ws: &str, node_id: &str) -> bool {
     use omniget_core::core::canvas::state::NodeState;
     if !chat::load_state(store, ws, node_id).turn_open {
@@ -360,7 +318,6 @@ fn emit_removed(ws: &str, node: &str, r: &chat::Removed, thread: Option<u8>, cle
     );
 }
 
-/// Delete Message: one entry (and its attachment files nobody else uses).
 pub fn delete_entry(
     ws: &str,
     node_id: &str,
@@ -374,8 +331,6 @@ pub fn delete_entry(
     Ok(r)
 }
 
-/// Clear Chat History (every thread, or one): the app's transcript and
-/// attachments only, never the provider's memory. Refused mid-turn.
 pub fn wipe(ws: &str, node_id: &str, thread: Option<u8>) -> Result<chat::Removed, String> {
     let s = store();
     terminal_node(&s, ws, node_id)?;
@@ -389,9 +344,6 @@ pub fn wipe(ws: &str, node_id: &str, thread: Option<u8>) -> Result<chat::Removed
     emit_state(ws, node_id, &chat::load_state(&s, ws, node_id));
     Ok(r)
 }
-
-// ---------------------------------------------------------------------------
-// RPC
 
 fn text_of(v: &Value) -> Option<String> {
     v.as_str().map(str::to_string)
@@ -412,11 +364,6 @@ async fn blocking<T: Send + 'static>(
         .map_err(|e| format!("CANVAS_TASK: {e}"))?
 }
 
-/// `chat.say {text?, progress?, file?, attach?: [path], thread?, cwd?}` →
-/// `{id, thread, text}`.
-/// `chat.recall {thread?, turns?, last?, from?, to?, all?, list?, attachment?}`
-/// → `{thread, turns, text}` (`list` → `{threads, text}`; `attachment` →
-/// `{attachment, text}`).
 pub async fn rpc(ctx: &NodeCtx, method: &str, args: Value) -> RpcResult {
     match method {
         "chat.say" => Some(rpc_say(ctx.clone(), args).await),
@@ -427,7 +374,6 @@ pub async fn rpc(ctx: &NodeCtx, method: &str, args: Value) -> RpcResult {
 
 async fn rpc_say(ctx: NodeCtx, args: Value) -> Result<Value, String> {
     let mut say: SayArgs = parse(&args)?;
-    // The CLI may send the text positionally.
     if say.text.is_none() {
         say.text = args.get("message").and_then(text_of);
     }

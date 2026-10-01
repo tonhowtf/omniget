@@ -1,12 +1,4 @@
 //! Disk usage tree. The idea comes from dust (bootandy/dust, Apache-2.0):
-//! a parallel walk, allocated blocks, a hardlink counted once by
-//! (device, inode), no link followed and no other volume entered. The code
-//! is our own.
-//!
-//! The whole tree stays in memory for ten minutes per root, so a drill-down
-//! into any folder under it answers without a new scan. To keep that tree
-//! small, each folder keeps its subfolders and only its largest files; the
-//! other files fold into a per-folder remainder.
 
 use std::collections::HashSet;
 use std::ffi::OsString;
@@ -20,18 +12,11 @@ use serde_json::{json, Map, Value};
 
 use super::super::fsops;
 
-/// Folder entries with their metadata.
-/// Files kept by name per folder; the rest fold into `rest_*`.
 const KEEP_FILES: usize = 24;
-/// Folder entries with their metadata.
 type Entries = Vec<(OsString, Metadata)>;
-/// Levels listed on the calling thread before the rest splits into jobs.
 const SPLIT_DEPTH: usize = 2;
-/// Children shown per folder in the output, whatever the fraction.
 const MAX_CHILDREN: usize = 120;
-/// A scan answers drill-downs for this long.
 const CACHE_TTL: Duration = Duration::from_secs(600);
-/// Scans kept at once (each can hold a whole home).
 const CACHE_MAX: usize = 3;
 
 #[derive(Debug, Clone)]
@@ -41,7 +26,6 @@ pub struct Node {
     pub files: u64,
     pub is_dir: bool,
     pub children: Vec<Node>,
-    /// Small files folded while scanning.
     pub rest_bytes: u64,
     pub rest_files: u64,
 }
@@ -77,7 +61,6 @@ impl Node {
         self.children.push(child);
     }
 
-    /// Keep the largest files by name; fold the others.
     fn fold_files(&mut self, mut files: Vec<Node>) {
         files.sort_by_key(|f| std::cmp::Reverse(f.bytes));
         for (i, f) in files.into_iter().enumerate() {
@@ -95,7 +78,6 @@ impl Node {
     }
 }
 
-/// A finished scan.
 #[derive(Debug)]
 pub struct Scan {
     pub root: PathBuf,
@@ -141,8 +123,7 @@ impl Walk {
         }
     }
 
-    /// Same volume as the root. Windows has no stable device id in std;
-    /// there mount points are reparse points, which are never entered.
+    // WHY: Windows has no stable device id in std; mount points there are reparse points, never entered.
     fn same_volume(&self, m: &Metadata) -> bool {
         #[cfg(unix)]
         {
@@ -155,7 +136,6 @@ impl Walk {
         }
     }
 
-    /// Allocated bytes of a file, or `None` for a hardlink already counted.
     fn file_bytes(&self, m: &Metadata) -> Option<u64> {
         #[cfg(unix)]
         {
@@ -191,8 +171,6 @@ impl Walk {
         }
     }
 
-    /// The entries of a folder, links and other volumes already dropped.
-    /// Returns (subfolders, files) with their metadata.
     fn list(&self, path: &Path) -> (Entries, Entries) {
         let mut dirs = Vec::new();
         let mut files = Vec::new();
@@ -212,7 +190,6 @@ impl Walk {
                 }
             };
             self.tick(path);
-            // `DirEntry::metadata` does not follow links.
             let m = match entry.metadata() {
                 Ok(m) => m,
                 Err(e) => {
@@ -246,7 +223,6 @@ impl Walk {
         node.fold_files(kept);
     }
 
-    /// Plain recursive walk of one subtree, on the calling thread.
     fn walk(&self, path: &Path, name: String, own: &Metadata) -> Node {
         let mut node = Node::dir(name, fsops::allocated(own));
         let (dirs, files) = self.list(path);
@@ -259,7 +235,6 @@ impl Walk {
     }
 }
 
-/// A folder listed on the calling thread, whose deep subfolders are jobs.
 struct Skel {
     node: Node,
     subs: Vec<Sub>,
@@ -318,7 +293,6 @@ fn display_name(p: &Path) -> String {
         .unwrap_or_else(|| p.display().to_string())
 }
 
-/// Walk `root` with a small pool of threads (no rayon in the core).
 pub fn scan(root: &Path) -> Result<Scan, String> {
     let meta = std::fs::symlink_metadata(root).map_err(|e| format!("{}: {e}", root.display()))?;
     if !meta.is_dir() || fsops::is_link(&meta) {
@@ -371,18 +345,13 @@ pub fn scan(root: &Path) -> Result<Scan, String> {
     })
 }
 
-// ── Cache ────────────────────────────────────────────────────────────
-
 static CACHE: Mutex<Vec<Arc<Scan>>> = Mutex::new(Vec::new());
 
-/// A fresh-enough scan whose root contains `path`.
 pub fn cached_for(path: &Path) -> Option<Arc<Scan>> {
     let mut c = CACHE.lock().unwrap_or_else(|e| e.into_inner());
     c.retain(|s| s.at.elapsed() < CACHE_TTL);
     c.iter()
         .filter(|s| path.starts_with(&s.root))
-        // The deepest root that holds the path: its tree is the most recent
-        // look at that folder.
         .max_by_key(|s| s.root.components().count())
         .cloned()
 }
@@ -398,7 +367,6 @@ pub fn remember(scan: Scan) -> Arc<Scan> {
     scan
 }
 
-/// The folder at `path` inside a scan, if the scan holds it.
 pub fn find<'a>(scan: &'a Scan, path: &Path) -> Option<&'a Node> {
     let rel = path.strip_prefix(&scan.root).ok()?;
     let mut node = &scan.tree;
@@ -412,10 +380,6 @@ pub fn find<'a>(scan: &'a Scan, path: &Path) -> Option<&'a Node> {
     Some(node)
 }
 
-// ── Output ───────────────────────────────────────────────────────────
-
-/// JSON of `node` (at `path`), `depth` levels deep, children smaller than
-/// `threshold` bytes folded into one `other` node per folder.
 pub fn view(node: &Node, path: &Path, depth: u32, threshold: u64) -> Value {
     let mut o = Map::new();
     o.insert("name".into(), json!(node.name));

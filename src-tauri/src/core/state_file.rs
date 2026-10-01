@@ -1,17 +1,3 @@
-//! Leitura de arquivo de estado do usuário sem perda silenciosa.
-//!
-//! O padrão que este módulo substitui é
-//! `read_to_string().ok().and_then(parse).unwrap_or_default()`: quando o
-//! arquivo existe mas não desserializa, o chamador recebe "vazio", e a próxima
-//! gravação sobrescreve o original. O usuário perde tudo sem ver uma linha de
-//! log. Foi assim que o `settings.json` zerou preferências, e o mesmo formato
-//! estava replicado no registro de cookies, nos templates do YouTube e nas
-//! settings de plugin.
-//!
-//! Aqui o arquivo ilegível é **posto em quarentena** antes de qualquer default
-//! ser devolvido: ele é renomeado para `<nome>.corrupt-<epoch_ms>`, o que
-//! impede a gravação seguinte de destruí-lo e deixa uma cópia recuperável.
-
 use std::path::{Path, PathBuf};
 
 fn now_ms() -> u128 {
@@ -21,8 +7,6 @@ fn now_ms() -> u128 {
         .unwrap_or(0)
 }
 
-/// Caminho de quarentena para `path`. Público para os testes e para quem
-/// precisar apontar o usuário ao arquivo preservado.
 pub fn quarantine_path(path: &Path, stamp_ms: u128) -> PathBuf {
     let name = path
         .file_name()
@@ -31,9 +15,6 @@ pub fn quarantine_path(path: &Path, stamp_ms: u128) -> PathBuf {
     path.with_file_name(format!("{}.corrupt-{}", name, stamp_ms))
 }
 
-/// Renomeia o arquivo ilegível para o caminho de quarentena. Devolve o destino
-/// quando conseguiu; `None` quando nem isso foi possível (aí o log é o que
-/// resta, e o chamador segue com o default).
 pub fn quarantine(path: &Path, label: &str) -> Option<PathBuf> {
     let dest = quarantine_path(path, now_ms());
     match std::fs::rename(path, &dest) {
@@ -60,14 +41,6 @@ pub fn quarantine(path: &Path, label: &str) -> Option<PathBuf> {
     }
 }
 
-/// Lê e desserializa um arquivo de estado.
-///
-/// - arquivo ausente → `None`, sem ruído (é o caso normal na primeira execução)
-/// - arquivo ilegível ou corrompido → quarentena + log de erro + `None`
-///
-/// Nunca devolve default silenciosamente: o `None` aqui sempre significa
-/// "não havia estado utilizável", e o motivo está no log quando não for a
-/// primeira execução.
 pub fn load_or_quarantine<T: serde::de::DeserializeOwned>(path: &Path, label: &str) -> Option<T> {
     if !path.exists() {
         return None;
@@ -79,8 +52,6 @@ pub fn load_or_quarantine<T: serde::de::DeserializeOwned>(path: &Path, label: &s
             return None;
         }
     };
-    // Arquivo vazio (queda no meio de uma gravação não atômica) conta como
-    // ausente, não como corrompido — não há o que preservar.
     if content.trim().is_empty() {
         tracing::warn!("[state] {} vazio em {}", label, path.display());
         return None;
@@ -88,8 +59,6 @@ pub fn load_or_quarantine<T: serde::de::DeserializeOwned>(path: &Path, label: &s
     match serde_json::from_str::<T>(&content) {
         Ok(value) => Some(value),
         Err(e) => {
-            // O erro do serde nomeia o campo e a posição, nunca o conteúdo —
-            // seguro de logar mesmo para arquivo de cookie.
             tracing::error!("[state] {} não desserializa: {}", label, e);
             quarantine(path, label);
             None
@@ -108,7 +77,6 @@ mod tests {
     }
 
     fn tmp_dir(nome: &str) -> PathBuf {
-        // Multiple worktrees may execute this suite within the same millisecond.
         let dir =
             std::env::temp_dir().join(format!("omniget-state-{}-{}", nome, uuid::Uuid::new_v4()));
         std::fs::create_dir_all(&dir).unwrap();
@@ -142,8 +110,6 @@ mod tests {
 
     #[test]
     fn arquivo_corrompido_vai_para_quarentena_e_o_original_some_do_lugar() {
-        // O ponto do teste: depois disso, um save() do chamador escreve num
-        // caminho limpo e NÃO destrói o conteúdo que o usuário tinha.
         let dir = tmp_dir("corrompido");
         let path = dir.join("estado.json");
         std::fs::write(&path, "{ isto nao e json").unwrap();
@@ -188,8 +154,6 @@ mod tests {
 
     #[test]
     fn json_valido_de_forma_errada_tambem_e_quarentena() {
-        // Regressao: `serde_json::from_str::<T>` falhando por schema (e nao por
-        // sintaxe) caia no mesmo `unwrap_or_default()` e zerava o estado.
         let dir = tmp_dir("schema");
         let path = dir.join("estado.json");
         std::fs::write(&path, r#"{"contas": "nao e uma lista"}"#).unwrap();

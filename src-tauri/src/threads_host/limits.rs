@@ -1,8 +1,3 @@
-//! `threads_limits()`: the live rate limits the drivers reported
-//! (`account.rate-limits.updated`) merged, by window id, with the windows the
-//! limits strip last probed for the same CLI. Reads the strip's snapshot
-//! only (no probe is started from here).
-
 use omniget_core::core::threads::usage::{merge_windows, LimitWindowView};
 use serde::Serialize;
 use serde_json::Value;
@@ -19,11 +14,8 @@ pub struct InstanceLimitsView {
     pub label: String,
     pub windows: Vec<LimitWindowView>,
     pub credits: Option<Value>,
-    /// When a driver last reported limits in this session.
     pub live_at: Option<String>,
-    /// Strip status of the matching provider (`ok`, `needs_auth`, …).
     pub probe_status: Option<String>,
-    /// Epoch ms of the strip's last read.
     pub probe_at: Option<i64>,
 }
 
@@ -71,7 +63,6 @@ pub fn view(host: &ThreadsHost, app: &AppHandle) -> Vec<InstanceLimitsView> {
             probe_at: ring.and_then(|r| r.read_at),
         });
     }
-    // Live limits of an instance the list does not show (a removed account).
     for l in live {
         if !out.iter().any(|o| o.instance_id == l.instance_id) {
             out.push(InstanceLimitsView {

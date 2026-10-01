@@ -1,8 +1,3 @@
-//! The "cheap model" of the threads glue: branch names and commit messages.
-//! One stateless call on the first configured model that can answer without
-//! a CLI: local servers first (Ollama, LM Studio, llama-server), then an API
-//! key. No model → `None`, and the callers fall back to their heuristics.
-
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -17,7 +12,6 @@ use crate::llm_manager::{provider_available, LlmManager};
 const LOCAL: &[&str] = &["ollama", "lmstudio", "llama-server"];
 const MAX_ANSWER: usize = 4000;
 
-/// Candidate models, local ones first, each once.
 fn candidates(llm: &LlmManager) -> Vec<ModelRef> {
     let mut out: Vec<ModelRef> = Vec::new();
     for agent in llm.roster() {
@@ -73,7 +67,6 @@ async fn ask(llm: &LlmManager, model: ModelRef, system: &str, prompt: &str) -> O
     (!out.is_empty()).then_some(out)
 }
 
-/// The hook `ThreadGit` calls. Tries up to two models, 15 s each.
 pub fn text_gen(llm: Arc<LlmManager>) -> TextGen {
     Arc::new(move |system: String, prompt: String| -> TextFuture {
         let llm = llm.clone();

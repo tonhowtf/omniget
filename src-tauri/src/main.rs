@@ -19,9 +19,6 @@ fn check_portable_mode() {
                     );
                 }
 
-                // Older versions resolved the settings store against Tauri's
-                // own AppData dir, so portable users' settings landed in the
-                // OS profile. Adopt that file once if the portable dir has none.
                 let portable_settings = data_dir.join("settings.json");
                 if !portable_settings.exists() {
                     if let Some(os_settings) = dirs::data_dir()
@@ -36,14 +33,6 @@ fn check_portable_mode() {
     }
 }
 
-/// `pnpm tauri dev` builds the same identifier as the installed app, so without
-/// this a debug build would read and write the real profile: settings, keys,
-/// history, databases. Debug builds get `<data dir>/omniget-dev` instead, unless
-/// the profile is already chosen (`OMNIGET_DATA_DIR`, as `pnpm dev:app` and the
-/// smoke test do, or portable mode) or `OMNIGET_DEV_REAL_PROFILE=1` asks for the
-/// real one. `lib.rs` logs where it went. Setting `OMNIGET_DATA_DIR` also makes
-/// it a second profile there: own bridge port, no single-instance lock, so it
-/// runs next to the installed app.
 #[cfg(debug_assertions)]
 fn use_dev_profile() {
     use omniget_lib::core::paths;
@@ -58,10 +47,6 @@ fn use_dev_profile() {
     let _ = std::fs::create_dir_all(&dir);
     std::env::set_var("OMNIGET_DATA_DIR", &dir);
     std::env::set_var("OMNIGET_DEV_PROFILE", "1");
-    // The keyring is keyed by service name, not by profile: on Linux (Secret
-    // Service is on by default) the dev build would share the installed app's
-    // profile seed and provider keys. The encrypted file store lives inside the
-    // profile, so it follows the dev dir. An explicit choice still wins.
     if std::env::var_os("OMNIGET_KEYRING").is_none()
         && std::env::var_os("OMNIGET_OMNIDISC_KEYRING").is_none()
     {
@@ -88,6 +73,7 @@ fn setup_environment() {
         std::env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1");
     }
 
+    // WHY: AppImage ships its own libwayland, which breaks EGL on some Wayland setups and kills WebKit before any window (#199).
     // Issue #199. AppImages bundle their own libwayland, which conflicts with
     // the system EGL on some Wayland setups (Fedora/KDE, Intel+Mesa) and kills
     // the WebKit process with EGL_BAD_PARAMETER before any window appears
@@ -103,12 +89,6 @@ fn setup_environment() {
     }
 }
 
-/// Usa um WebView2 Fixed Version Runtime descompactado ao lado do executavel.
-///
-/// Issue #218. O Tauri so define `WEBVIEW2_BROWSER_EXECUTABLE_FOLDER` quando o
-/// bundle e compilado em modo `fixedRuntime` (`app.rs`), e nunca a limpa — entao
-/// definir aqui funciona, ao contrario do `WEBVIEW2_USER_DATA_FOLDER`, que o
-/// Tauri sobrescrevia (ver `core/portable.rs`). Nao mexe se o usuario ja definiu.
 #[cfg(windows)]
 fn check_fixed_webview_runtime() {
     if std::env::var_os("WEBVIEW2_BROWSER_EXECUTABLE_FOLDER").is_some() {

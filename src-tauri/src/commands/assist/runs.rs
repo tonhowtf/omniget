@@ -1,13 +1,3 @@
-//! Commands for `assist::runs`: the Activity screen (runs, their state, the
-//! tools they really ran, the diff they left, pending permissions) and the
-//! actions a person takes on an interrupted run. Owner: worker W4. Answering
-//! a permission goes through `crate::approvals` (the one door, item 2.2).
-//!
-//! Also [`install`], called once at boot (from `jobs::boot`): it turns the
-//! durable registry on, sends `assist://run` to the window after every
-//! committed state change, and reconciles what a previous app session left
-//! in flight — marking it, never re-sending it.
-
 use serde::Serialize;
 use serde_json::{json, Value};
 use tauri::{AppHandle, Emitter, State};
@@ -18,11 +8,9 @@ use omniget_core::core::assist::runs::{
 
 use crate::AppState;
 
-/// Tauri event with the `RunUpdate` payload (briefing contract 5).
 pub const EVENT_RUN: &str = "assist://run";
 pub const ERR_ASSIST_RUNS: &str = "ERR_ASSIST_RUNS";
 
-/// Boot wiring. Idempotent.
 pub fn install(app: &AppHandle) {
     runs::enable();
     let emitter = app.clone();
@@ -48,15 +36,12 @@ fn registry() -> Result<Registry, String> {
     runs::active().ok_or_else(|| format!("{ERR_ASSIST_RUNS}: the run record is not available"))
 }
 
-/// One row of the Activity list.
 #[derive(Debug, Serialize)]
 pub struct RunView {
     #[serde(flatten)]
     pub run: RunRecord,
     pub pending_permissions: usize,
-    /// Driven by this app session right now.
     pub live: bool,
-    /// What a person may do: `cancel`, `continue`, `mark_done`, `discard`.
     pub actions: Vec<&'static str>,
     pub tool_calls: usize,
 }
@@ -101,13 +86,11 @@ pub async fn assist_runs_list(
         .collect())
 }
 
-/// A command the run executed, read from its tool calls.
 #[derive(Debug, Serialize)]
 pub struct CommandRun {
     pub command: String,
     pub ok: Option<bool>,
     pub output: String,
-    /// Heuristic from the command line (`test`, `pytest`, `vitest`, …).
     pub is_test: bool,
 }
 
@@ -181,8 +164,6 @@ pub struct RunDetail {
     pub events: Vec<RunEvent>,
     pub permissions: Vec<PermissionRequest>,
     pub commands: Vec<CommandRun>,
-    /// Files the tools said they wrote (the diff is the proof, see
-    /// `assist_run_diff`).
     pub files_touched: Vec<String>,
     pub session: Option<runs::RuntimeSession>,
 }
@@ -205,8 +186,6 @@ pub async fn assist_run_get(run_id: String) -> Result<RunDetail, String> {
     })
 }
 
-/// The real diff of the run, from the shadow snapshot of its folder:
-/// the tree before its first write against the tree when it ended.
 #[tauri::command]
 pub async fn assist_run_diff(run_id: String) -> Result<Value, String> {
     let reg = registry()?;
@@ -229,8 +208,6 @@ pub async fn assist_run_diff(run_id: String) -> Result<Value, String> {
     }
 }
 
-/// Stops a run this app session drives: its questions resolve as
-/// cancelled, its process tree stops, its reservation is released.
 #[tauri::command]
 pub async fn assist_run_cancel(
     state: State<'_, AppState>,
@@ -250,16 +227,10 @@ pub async fn assist_run_cancel(
     state.llm.broker().cancel_request(&run_id);
     match state.llm.cancel(&run_id) {
         Ok(()) => Ok(json!({ "ok": true })),
-        // Not driven by this session (it would be `unknown` after a restart).
         Err(e) => Err(e),
     }
 }
 
-/// What a person decides about an interrupted or unknown run:
-/// - `mark_done`: it finished (the person checked); nothing is sent;
-/// - `discard`: forget it; nothing is sent;
-/// - `continue`: a NEW turn in the same conversation, telling the agent the
-///   previous one was interrupted so it checks before acting again.
 #[tauri::command]
 pub async fn assist_run_resolve(
     app: AppHandle,

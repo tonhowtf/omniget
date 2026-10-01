@@ -1,23 +1,7 @@
-//! winget (Windows).
-//!
-//! - updates: `winget upgrade --include-unknown --accept-source-agreements --disable-interactivity`.
-//!   The output is a table padded by display width (a CJK character takes
-//!   two columns), with translated headers, a progress spinner written with
-//!   `\r` before it, a footer ("6 upgrades available."), and sometimes a
-//!   second table ("require explicit targeting"). Columns are cut at the
-//!   positions of the header words, so the parse does not depend on the
-//!   language. A cell winget cut short ends in `…`: such an id cannot be
-//!   targeted exactly, and the update is listed but never planned;
-//! - upgrade: one process per package,
-//!   `winget upgrade --id <id> --exact --silent --include-unknown --accept-package-agreements --accept-source-agreements --disable-interactivity`,
-//!   judged by [`outcome`] (exit code table of winutil, MIT);
-//! - uninstall lives in `apps/windows.rs`.
-
 use super::{query, App, PackageBackend, RemovePreview, Update};
 
 pub struct Winget;
 
-/// Display width of one character (wide East Asian and fullwidth forms: 2).
 pub fn char_width(c: char) -> usize {
     let u = c as u32;
     let wide = matches!(u,
@@ -31,7 +15,6 @@ pub fn char_width(c: char) -> usize {
     }
 }
 
-/// The text between display columns `a` and `b` of `line`, trimmed.
 fn cut(line: &str, a: usize, b: Option<usize>) -> String {
     let mut col = 0;
     let mut out = String::new();
@@ -44,7 +27,6 @@ fn cut(line: &str, a: usize, b: Option<usize>) -> String {
     out.trim().to_string()
 }
 
-/// Start column of every word of a header line.
 fn header_columns(header: &str) -> Vec<usize> {
     let mut cols = Vec::new();
     let mut col = 0;
@@ -59,9 +41,7 @@ fn header_columns(header: &str) -> Vec<usize> {
     cols
 }
 
-/// Parse `winget upgrade` output (every table in it).
 pub fn parse_upgrade(text: &str) -> Vec<Update> {
-    // What a terminal would show: the text after the last carriage return.
     let lines: Vec<&str> = text
         .lines()
         .map(|l| l.rsplit('\r').next().unwrap_or(l))
@@ -79,7 +59,6 @@ pub fn parse_upgrade(text: &str) -> Vec<Update> {
         if cols.len() < 4 {
             continue;
         }
-        // Name, Id, Version, Available[, Source]
         let bound = |k: usize| cols.get(k).copied();
         while i < lines.len() {
             let l = lines[i];
@@ -113,9 +92,6 @@ pub fn parse_upgrade(text: &str) -> Vec<Update> {
     out
 }
 
-/// What an exit code of `winget upgrade`/`install`/`uninstall` means:
-/// (`succeeded` | `skipped` | `failed`, detail). From winutil's
-/// `Install-WinUtilProgramWinget.ps1` (MIT), plus two common codes.
 pub fn outcome(code: i32) -> (&'static str, String) {
     match code {
         0 => ("succeeded", "done".into()),
@@ -130,7 +106,6 @@ pub fn outcome(code: i32) -> (&'static str, String) {
     }
 }
 
-/// argv (after `winget`) for one package upgrade.
 pub fn upgrade_args(id: &str) -> Vec<String> {
     [
         "upgrade",
@@ -147,7 +122,6 @@ pub fn upgrade_args(id: &str) -> Vec<String> {
     .to_vec()
 }
 
-/// Upgrade one package in its own winget process.
 pub fn upgrade_one(id: &str) -> Result<String, String> {
     if !super::valid_name("winget", id) {
         return Err("BAD_NAME".into());
@@ -174,7 +148,6 @@ impl PackageBackend for Winget {
         cfg!(windows) && super::find_program("winget").is_some()
     }
 
-    /// The Windows inventory (winget, MSI, Appx...) is `apps/windows.rs`.
     fn list(&self) -> Result<Vec<App>, String> {
         Ok(Vec::new())
     }
@@ -217,8 +190,6 @@ impl PackageBackend for Winget {
                 "--disable-interactivity",
             ],
         )?;
-        // winget exits non-zero when there is nothing to upgrade; the table
-        // is the answer either way.
         Ok(parse_upgrade(&r.stdout))
     }
 

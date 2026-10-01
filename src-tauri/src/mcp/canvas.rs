@@ -1,19 +1,3 @@
-//! The World canvas over the MCP server: an external client (Claude Code,
-//! Codex, Cursor) connected with `app_observe` reads the canvas (workspaces,
-//! floors, nodes, cords, terminal screens and states, notes, chat, roles,
-//! partituras, routines, Omni, the inbox, visits); with `app_control` it
-//! drives it like the person at the keyboard: spawns and arranges nodes,
-//! cords them, types into terminals, talks to agents on behalf of a node,
-//! drives portals, runs floors, routines and the Maestro.
-//!
-//! Nothing here is a second canvas: every tool calls the Tauri command the
-//! canvas UI calls (`commands::canvas::*`), the launcher the UI goes through
-//! (`canvas::launch`), the cords host the CLI goes through
-//! (`canvas::cords::host()`), or the agent RPC dispatcher
-//! (`canvas::rpc::dispatch`) with the node's own context. Document writes
-//! carry the origin `mcp`, so the canvas records them as someone else's
-//! edit (its undo never reverts them as the person's own).
-
 use std::collections::HashSet;
 use std::sync::{Arc, OnceLock};
 
@@ -41,28 +25,19 @@ mod schemas;
 mod workspace_io;
 use crate::commands::canvas as cmd;
 
-/// Origin of every document write made through MCP.
 pub const ORIGIN: &str = "mcp";
 
-/// Asks the canvas window to show a floor (and a node): `{workspaceId,
-/// floorId, nodeId?}`. The window follows it when it is on the World canvas.
 pub const EVENT_NAVIGATE: &str = "canvas://navigate";
 
-/// Longest wait of `canvas_agent_ask` (the CLI waits 540 s by default; an
-/// MCP call stays shorter so clients do not time out).
 const ASK_WAIT_MAX_MS: u64 = 300_000;
 const ASK_WAIT_DEFAULT_MS: u64 = 120_000;
-
-// ── Catalog ────────────────────────────────────────────────────────────
 
 struct Def {
     tool: ToolDef,
     write: bool,
     destructive: bool,
     output: Value,
-    /// Scope other than app_observe/app_control (a screenshot is a capture).
     scope: Option<&'static str>,
-    /// Only listed and callable with `OMNIGET_TEST_TOOLS=1`.
     test_only: bool,
 }
 
@@ -138,7 +113,6 @@ fn def(
     output: Value,
 ) -> Def {
     let mut props = props;
-    // Titles are looked up everywhere; a workspace narrows an ambiguous one.
     if let Some(o) = props.as_object_mut() {
         if ["nodeId", "nodeIds", "noteIds", "asNode", "from", "stackId"]
             .iter()
@@ -151,8 +125,6 @@ fn def(
             );
         }
     }
-    // Output records are open (they grow with the canvas): say so where an
-    // object has no listed properties.
     let mut output = output;
     open_records(&mut output);
     Def {
@@ -206,8 +178,6 @@ fn test_only(mut d: Def) -> Def {
     d
 }
 
-/// Arguments of routine_create / routine_update: the flat form plus the
-/// nested `routine` (RoutineInput).
 fn routine_props() -> Value {
     json!({
         "id": s("Routine id (update)"), "name": s("Name (default: the prompt's first line)"), "workspaceId": ws(), "floorId": floor(),
@@ -249,7 +219,6 @@ fn build_defs() -> Vec<Def> {
         &["nodeId", "result"],
     );
     vec![
-        // Workspaces and floors.
         def("workspace_list", "List the canvas workspaces with their floors, working folder and node/terminal counts.", false, json!({}), &[], list_out("workspaces")),
         def("workspace_create", "Create a canvas workspace (optionally bound to a working folder, which terminals start in and floors branch from). It opens in the canvas unless activate is false.", true, json!({
             "name": s("Workspace name"), "workingDirectory": s("Absolute folder of the project"), "dir": s("Same as workingDirectory"), "icon": s("Icon: letters, an emoji (or emoji:🎻) or file:/abs/image.png"), "color": s("Color (#rrggbb)"), "id": s("Chosen id (generated when absent)"), "activate": b("Open it in the canvas (default true)")
@@ -284,7 +253,6 @@ fn build_defs() -> Vec<Def> {
         def("floor_hooks_run", "Run a floor's hooks of one kind (setup, run, teardown), or one hook by id.", true, json!({
             "workspaceId": ws(), "floorId": floor(), "kind": e(&["setup", "run", "teardown"], "Hook kind"), "hookId": s("One hook id")
         }), &["kind"], list_out("runs")),
-        // Document.
         def("canvas_snapshot", "Snapshot of a floor: nodes (terminals, agents, notes, portals, files, shapes, stacks...), cords, drawings, groups, cable ties and camera, with the revision to pass as baseRev.", false, json!({"workspaceId": ws(), "floorId": floor()}), &[], out(json!({
             "workspaceId": ty("string"), "floorId": ty("string"), "epoch": ty("string"), "rev": ty("integer"), "seq": ty("integer"), "camera": ty("object"),
             "nodes": arr(ty("object")), "connections": arr(ty("object")), "drawings": arr(ty("object")), "groups": arr(ty("object")), "cableTies": arr(ty("object"))
@@ -292,7 +260,6 @@ fn build_defs() -> Vec<Def> {
         def("canvas_apply", "Apply raw document ops atomically (add_node, update_node {id, patch}, remove_node, add_connection, update_connection, remove_connection, add_drawing, update_drawing, remove_drawing, set_group, set_cable_tie, set_camera), the same ops the canvas writes. Returns the effective ops. Terminals added this way are not started: call canvas_terminal_ensure.", true, json!({
             "workspaceId": ws(), "floorId": floor(), "ops": json!({"type": "array", "items": {"type": "object", "properties": {"op": e(&["add_node", "update_node", "remove_node", "add_connection", "update_connection", "remove_connection", "add_drawing", "update_drawing", "remove_drawing", "set_group", "set_cable_tie", "set_camera"], "Op"), "id": s("Target id (update/remove)"), "patch": schemas::free("Fields (update ops)"), "node": schemas::free("Node (add_node)"), "connection": schemas::free("Cord (add_connection)"), "drawing": schemas::free("Drawing (add_drawing)")}, "required": ["op"], "additionalProperties": true}, "description": "Ops, e.g. [{\"op\": \"update_node\", \"id\": \"n1\", \"patch\": {\"x\": 40}}]"}), "baseRev": json!({"type": "integer", "minimum": 0, "description": "Revision the ops were computed against"})
         }), &["ops"], apply_out.clone()),
-        // Nodes.
         def("canvas_node_spawn", "Put a node on the canvas the way the canvas does. kind terminal = a terminal running `agent` (claude, codex, gemini, opencode, ollama, shell, native) with optional role, cwd, command and the Maestro flag, started right away; note (text), text, file (path), filetree (path), link/portal (url), shape (shape, text), image (path or url), stack, connector. Without x/y it goes to the nearest free spot. connectFrom cords it to an existing node.", true, json!({
             "workspaceId": ws(), "floorId": floor(), "kind": e(NODE_KINDS, "Node kind"), "agent": e(AGENTS, "Agent of a terminal (default shell)"),
             "title": s("Title"), "name": s("Same as title"), "preset": s("Same as agent"), "fontSize": n("Font size of a text node (8 to 200)"), "fontWeight": e(TEXT_WEIGHTS, "Weight of a text node"), "fontFamily": e(TEXT_FAMILIES, "Family of a text node"), "roleId": s("Role id or name (see role_list)"), "cwd": s("Working folder of a terminal"), "command": s("Own command line of a terminal (overrides the agent preset)"),
@@ -319,7 +286,6 @@ fn build_defs() -> Vec<Def> {
             "workspaceId": ws(), "floorId": floor(), "drawing": schemas::drawing()
         }), &["drawing"], out(json!({"drawing": ty("object"), "rev": ty("integer")}), &["drawing"])),
         destructive(def("canvas_drawing_delete", "Remove drawings.", true, json!({"workspaceId": ws(), "floorId": floor(), "drawingIds": strs("Drawing ids")}), &["drawingIds"], removed_out.clone())),
-        // Cords.
         def("canvas_cord_create", "Connect two nodes with a cord. kind ask (agent to agent, default), message, handoff (the turn's answer flows on condition always|success|failure, after the optional verify command), spawn, note, portal. perms: ask, check, raw, note_ro, portal_drive, eval (empty = defaults of the kind). Ends on different floors or workspaces (\"B @ W2\", \"W2/B\", \"F1/B\" or ids) must both be terminals: each side gets a connector chip and a cord (route crossFloor|crossWorkspace); deleting either half removes both; no undo.", true, json!({
             "from": node(), "to": node(), "kind": e(CORD_KINDS, "Cord kind (default by node kinds)"), "perms": strs("Permissions"),
             "condition": e(CONDITIONS, "Handoff condition"), "verify": s("Shell command run before a handoff flows"), "label": s("Label")
@@ -330,7 +296,6 @@ fn build_defs() -> Vec<Def> {
         }), &["cordId"], out(json!({"connection": ty("object"), "rev": ty("integer")}), &["connection"])),
         destructive(def("canvas_cord_delete", "Remove cords.", true, json!({"cordIds": strs("Cord ids")}), &["cordIds"], removed_out.clone())),
         def("canvas_cord_test", "Check that a cord works end to end (both ends running with the cords environment, bridge up).", false, json!({"cordId": s("Cord id")}), &["cordId"], out(json!({"ok": any()}), &[])),
-        // Terminals.
         def("canvas_terminals_list", "Every terminal/agent node of a workspace (all floors, or one) with its canonical state, whether its process runs, its agent and role.", false, json!({"workspaceId": ws(), "floorId": s("Only this floor")}), &[], list_out("terminals")),
         def("canvas_terminal_ensure", "Start a terminal node's process unless it already runs in this app run (the canvas launch recipe: agent, role, cords env, floor context). Waits until it is ready.", true, json!({"nodeId": node()}), &["nodeId"], terminal_out.clone()),
         def("canvas_terminal_run", "Type a command line into a terminal node and press Enter, as the person would (bracketed paste with paste=true). Starts the terminal when it is not running.", true, json!({
@@ -349,7 +314,6 @@ fn build_defs() -> Vec<Def> {
         def("canvas_terminal_restart", "Restart a terminal node's process (same node, cords and role; a fresh agent conversation).", true, json!({"nodeId": node()}), &["nodeId"], terminal_out.clone()),
         destructive(def("canvas_terminal_unload", "Unload a terminal node: stop its process and keep its history (the node stays; canvas_terminal_ensure or workspace_wake starts it again).", true, json!({"nodeId": node()}), &["nodeId"], out(json!({"nodeId": ty("string"), "closed": ty("boolean")}), &["nodeId", "closed"]))),
         destructive(def("canvas_terminal_kill", "Kill a terminal node's process now (history kept; the node shows it exited).", true, json!({"nodeId": node()}), &["nodeId"], out(json!({"nodeId": ty("string"), "closed": ty("boolean")}), &["nodeId", "closed"]))),
-        // Agent communication.
         def("canvas_agent_ask", "Send a message from one terminal node to a corded peer, as `omniget canvas ask` does: to+text, a batch {name: text}, or raw keys. Waits for the answer (up to timeoutMs) unless wait is false.", true, json!({
             "asNode": as_node(), "to": s("Peer name"), "text": s("Message"), "batch": schemas::string_map("{\"Peer name\": \"message\", ...}"), "raw": s("Raw keys (escapes allowed) instead of a message"),
             "wait": b("Wait for the answer (default true)"), "timeoutMs": i("Wait limit (default 120000)", 1000, ASK_WAIT_MAX_MS)
@@ -373,7 +337,6 @@ fn build_defs() -> Vec<Def> {
         def("canvas_chat_interrupt", "Interrupt the agent's chat turn (Esc on the chat face): sends ESC to the agent and closes the open turn as interrupted.", true, json!({
             "nodeId": node()
         }), &["nodeId"], out(json!({"interrupted": ty("boolean"), "entry": any()}), &["interrupted"])),
-        // Notes.
         def("canvas_note_list", "List the notes of a workspace (name, node id, floor, revision).", false, json!({"workspaceId": ws()}), &[], list_out("notes")),
         def("canvas_note_create", "Create a Markdown note node (optionally corded to a node, e.g. an agent that should read it).", true, json!({
             "workspaceId": ws(), "floorId": floor(), "text": s("Markdown text"), "title": s("Name (default: from the first line)"), "x": n("Left"), "y": n("Top"), "connectTo": s("Node id to cord the note to"),
@@ -386,7 +349,6 @@ fn build_defs() -> Vec<Def> {
         def("canvas_stack_file", "Put a note into a stack (fichário): an existing stack node, or a new one named stackName next to the note.", true, json!({"nodeId": node(), "stackId": s("Stack node id"), "stackName": s("Name of a new stack")}), &["nodeId"], out(json!({"nodeId": ty("string"), "stackId": ty("string")}), &["nodeId", "stackId"])),
         def("canvas_stack_unfile", "Take a note out of its stack (optionally placing it at x, y).", true, json!({"nodeId": node(), "stackId": s("Stack id (checked when given)"), "x": n("Left"), "y": n("Top")}), &["nodeId"], out(json!({"nodeId": ty("string"), "stackId": ty("string")}), &["nodeId"])),
         destructive(def("canvas_note_delete", "Delete a note node (its file goes to the workspace trash).", true, json!({"nodeId": node()}), &["nodeId"], removed_out.clone())),
-        // Portals.
         def("canvas_portal_open", "Open a web portal: an existing portal node (loads its browser, optionally navigating to url), or with only a url a new portal node on the canvas.", true, json!({
             "nodeId": node(), "url": s("URL"), "workspaceId": ws(), "floorId": floor(), "title": s("Title of a new portal"),
             "storageScope": e(&["isolated", "workspace", "global"], "Cookie jar of a new portal (default isolated)"), "x": n("Left"), "y": n("Top"), "width": n("Page width"), "height": n("Page height")
@@ -403,7 +365,6 @@ fn build_defs() -> Vec<Def> {
             "url": s("URL"), "width": n("Page width"), "height": n("Page height"), "preset": s("UA preset: ios, android, chrome, firefox, safari, edge, desktop..."), "value": s("Raw user agent (ua) or option value/label (select)"), "reset": b("Default user agent")
         }), &["nodeId", "action"], portal_out.clone()),
         destructive(def("canvas_portal_close", "Unload a portal's browser (the node stays).", true, json!({"nodeId": node()}), &["nodeId"], out(json!({"nodeId": ty("string"), "closed": ty("boolean")}), &["nodeId"]))),
-        // Roles.
         def("role_list", "Roles available in a workspace (its own and the global library). discover (a folder, or true for the workspace folder) instead lists the role.json files found under <dir>/.omniget/roles and <dir>/.maestri/roles, as candidates, without importing.", false, json!({"workspaceId": ws(), "discover": json!({"type": ["string", "boolean"], "description": "Folder to scan, or true for the workspace folder"})}), &[], list_out("roles")),
         def("role_import", "Import roles discovered in the project (role.json, Maestri portable format accepted) into the workspace. A workspace role with the same name is updated and its terminals restart.", true, json!({"workspaceId": ws(), "dir": s("Folder to scan (default: the workspace folder)"), "names": json!({"type": "array", "items": {"type": "string"}, "description": "Names to import (default: all found)"})}), &[], list_out("roles")),
         def("role_get", "A role with its full prompt.", false, json!({"workspaceId": ws(), "roleId": s("Role id")}), &["roleId"], out(json!({"role": any()}), &["role"])),
@@ -417,7 +378,6 @@ fn build_defs() -> Vec<Def> {
         }), &["roleId"], obj_out("role")),
         destructive(def("role_delete", "Delete a role (force clears it from the nodes using it).", true, json!({"workspaceId": ws(), "roleId": s("Role id"), "scope": e(&["workspace", "global"], "Where it lives"), "force": b("Also unassign it")}), &["roleId"], out(json!({"deleted": ty("string")}), &["deleted"]))),
         def("role_assign", "Give a terminal node a role (or none); a running process restarts with it.", true, json!({"nodeId": node(), "roleId": json!({"type": ["string", "null"], "description": "Role id, or null for none"})}), &["nodeId", "roleId"], out(json!({"nodeId": ty("string"), "role": any()}), &["nodeId"])),
-        // Partituras.
         def("partitura_list", "Saved partituras (reusable team layouts) in the library.", false, json!({"scope": s("global or a workspace id"), "query": s("Search")}), &[], list_out("partituras")),
         def("partitura_create", "Save nodes of a floor as a partitura (a reusable team layout) in the library. Flat form: {name, nodeIds} (ids or titles; default: the window's selection), plus description, includeStartupCommands, blankNotes, scope. Example: {\"name\": \"Review team\", \"nodeIds\": [\"Lead\", \"Coder\", \"Plan\"]}. The nested `request` (SaveRequest) is still accepted. Returns {id, name, partitura}.", true, json!({
             "workspaceId": ws(), "floorId": floor(), "name": s("Name (default: the first node's title)"), "nodeIds": strs("Nodes to save (ids or unique titles); default: the window's selection"),
@@ -431,7 +391,6 @@ fn build_defs() -> Vec<Def> {
             "workspaceId": ws(), "floorId": floor(), "id": s("Library id"), "partitura": schemas::free("Inline partitura document (partitura_export shape)"), "x": n("Left"), "y": n("Top"), "options": schemas::stamp_options()
         }), &[], obj_out("result")),
         destructive(def("partitura_delete", "Delete a partitura from the library.", true, json!({"id": s("Library id")}), &["id"], out(json!({"deleted": ty("string")}), &["deleted"]))),
-        // Routines.
         def("routine_list", "Scheduled routines (prompts sent to a terminal on a schedule).", false, json!({"workspaceId": s("Only this workspace")}), &[], list_out("routines")),
         def("routine_create", "Create a routine that types a prompt into a terminal on a schedule. Flat form: {nodeId, prompt, every: \"30s\"|\"5m\"|\"2h\"|\"1d\"} or daily \"09:00\", at (RFC 3339, once) or weekly {days: [0-6], time}; optional name, endAfter (runs), endOn (date), preRunScript ({{output}} = its stdout), skipIfBusy, notify. Example: {\"nodeId\": \"Coder\", \"prompt\": \"run the tests\", \"every\": \"30m\"}. No nodeId = a reminder (notification only). The nested `routine` (RoutineInput) is still accepted.", true, routine_props(), &[], obj_out("routine")),
         def("routine_update", "Update a routine: id plus the flat fields of routine_create (all of them: routine_list gives the current values), or the nested `routine` with its id.", true, routine_props(), &[], obj_out("routine")),
@@ -440,12 +399,10 @@ fn build_defs() -> Vec<Def> {
         def("routine_history", "Runs of a routine, or of every routine of a workspace (finished once routines included), newest first. Each has status (fired, skipped, reminded, failed), code (sentToTerminal, terminalNotRunning, reminder, skippedByScript, skippedWhileBusy, failed) and lateSecs when it ran late. clear=true empties the history and leaves the routines as they are.", true, json!({"id": s("Routine id (default: every routine of the workspace)"), "workspaceId": ws(), "clear": b("Clear the history instead")}), &[], out(json!({"id": ty("string"), "history": arr(ty("object")), "cleared": ty("integer")}), &[])),
         def("routine_run", "Fire a routine now.", true, json!({"id": s("Routine id")}), &["id"], obj_out("routine")),
         destructive(def("routine_delete", "Delete a routine.", true, json!({"id": s("Routine id")}), &["id"], out(json!({"deleted": ty("string")}), &["deleted"]))),
-        // Maestro.
         def("canvas_maestro_set", "Turn Maestro Mode on or off for a terminal node (a Maestro may recruit, connect, swap, dismiss and notify).", true, json!({"nodeId": node(), "on": b("Maestro on")}), &["nodeId", "on"], out(json!({"nodeId": ty("string"), "maestro": ty("boolean")}), &["nodeId", "maestro"])),
         def("canvas_maestro", "Act as a Maestro node: recruit {name?, agent?, preset?, command?, role?, floor?, workspace?, dir?, replace?}, connect/disconnect {from, to}, swap_role {name, role}, swap_agent {name, agent, command?}, dismiss {name}, notify {message}, status.", true, json!({
             "asNode": as_node(), "action": e(&["recruit", "connect", "disconnect", "swap_role", "swap_agent", "dismiss", "notify", "status"], "Action"), "args": schemas::free("Arguments of the action (see the description)")
         }), &["asNode", "action"], out(json!({"result": any()}), &["result"])),
-        // Omni (companion) and the inbox.
         def("omni_settings_get", "Omni's settings (when it speaks up, which model it uses).", false, json!({}), &[], obj_out("settings")),
         def("omni_settings_set", "Replace Omni's settings (get them first, change fields, send them back).", true, json!({"settings": schemas::companion_settings()}), &["settings"], obj_out("settings")),
         def("omni_events", "What Omni said about the agents (summaries, alerts, suggested actions).", false, json!({"workspaceId": ws(), "limit": i("Entries", 1, 500), "includeDismissed": b("Include dismissed")}), &[], list_out("entries")),
@@ -454,12 +411,10 @@ fn build_defs() -> Vec<Def> {
         def("canvas_inbox", "\"Next needs you\": agents blocked on the person, asking permission, finished and not reviewed, or with a pasted message not sent.", false, json!({"workspaceId": s("Only this workspace")}), &[], list_out("items")),
         def("canvas_asks_list", "Asks in flight between agents (queued, delivered, answered, released, failed).", false, json!({"workspaceId": s("Only this workspace")}), &[], list_out("asks")),
         def("canvas_mark_seen", "Mark a node as seen (clears its needs-you and finished badges).", true, json!({"nodeId": node()}), &["nodeId"], out(json!({"nodeId": ty("string")}), &["nodeId"])),
-        // Visits and phone.
         def("remote_status", "Sharing status: read-only visit room (code, visitors, shared terminals), phone remote access (endpoints, canvas page URLs) and paired devices.", false, json!({}), &[], out(json!({"visit": any(), "remote": any(), "devices": arr(ty("object"))}), &["visit", "remote", "devices"])),
         def("visit_host", "Open a floor for read-only visits; the result carries the room code to share.", true, json!({"workspaceId": ws(), "floorId": floor(), "server": s("Relay URL")}), &[], obj_out("state")),
         def("visit_close", "Stop sharing the canvas for visits.", true, json!({}), &[], obj_out("state")),
         def("visit_share", "Share (or stop sharing) one terminal's screen with visitors.", true, json!({"nodeId": node(), "shared": b("Shared")}), &["nodeId", "shared"], obj_out("state")),
-        // App and window (UI half in canvas_ui.rs + src/lib/canvas/testing/driver.ts).
         def("app_state", "Live state of the window: route, focused element and, on the canvas, workspace, floor, selection, focus, camera, tool, open panel, chat faces, palette and composer.", false, json!({}), &[], out(json!({"route": ty("string"), "canvas": ty("boolean")}), &["route"])),
         scoped(def("app_screenshot", "PNG of the main window, of one node (nodeId) or a region {x,y,w,h} in window px; saved to a file whose path is returned.", false, json!({"nodeId": node(), "region": schemas::rect("{x, y, w, h} in window px")}), &[], out(json!({"path": ty("string"), "width": ty("integer"), "height": ty("integer")}), &["path"])), "app_capture"),
         def("app_key", "Send key combos to the window as the person would: keys like \"cmd+shift+n\", \"escape\", \"ctrl+tab ctrl+tab\" (cmd = ⌘ on macOS, Ctrl elsewhere); text types into the focused field.", true, json!({"keys": json!({"type": ["string", "array"], "description": "Combo(s)"}), "text": s("Text to type"), "repeat": i("Repeat the sequence", 1, 50)}), &[], out(json!({"focusElement": any()}), &[])),
@@ -473,7 +428,6 @@ fn build_defs() -> Vec<Def> {
         def("app_restart", "Quit and relaunch the app (the answer comes before the restart).", true, json!({}), &[], out(json!({"restarting": ty("boolean")}), &["restarting"])),
         def("app_notifications_list", "Notifications the canvas raised (system notifications and in-canvas notices), newest first.", false, json!({"limit": i("Items", 1, 200), "clear": b("Clear after reading")}), &[], list_out("notifications")),
         def("app_window_title", "Title of the main window.", false, json!({}), &[], out(json!({"title": ty("string")}), &["title"])),
-        // Workspaces.
         def("workspace_activate", "Show a workspace (and floor) in the canvas window; the other workspaces keep running.", true, json!({"workspaceId": ws(), "floorId": floor()}), &["workspaceId"], out(json!({"workspaceId": ty("string"), "floorId": ty("string")}), &["workspaceId"])),
         def("workspace_unload", "Unload a workspace: stop every terminal process on it (histories and the layout stay; workspace_wake or opening a node starts them).", true, json!({"workspaceId": ws()}), &["workspaceId"], out(json!({"workspaceId": ty("string"), "unloaded": arr(ty("string"))}), &["unloaded"])),
         def("workspace_wake", "Start every terminal of a workspace (or one floor) that is not running.", true, json!({"workspaceId": ws(), "floorId": s("Only this floor")}), &["workspaceId"], out(json!({"workspaceId": ty("string"), "started": arr(ty("string")), "failed": arr(ty("object"))}), &["started"])),
@@ -481,13 +435,11 @@ fn build_defs() -> Vec<Def> {
         destructive(def("workspace_import", "Import a .omniget workspace file. Without confirm it only returns a preview (nodes, floors, roles, conflicts) and creates nothing; with confirm it creates a NEW workspace with fresh ids.", true, json!({"path": s("Workspace file"), "confirm": b("Create it (default false: preview only)"), "name": s("Name of the new workspace"), "dir": s("Working directory of the new workspace")}), &["path"], out(json!({"created": ty("boolean"), "preview": any(), "workspaceId": ty("string"), "name": ty("string"), "nodeIds": ty("array"), "floors": ty("integer"), "routines": ty("integer")}), &["created"]))),
         def("workspace_backup_list", "Automatic backups of a workspace (hourly when it changed, and before delete, floor delete/land, import and restore). Works for deleted workspaces too. backupNow takes one first.", false, json!({"workspaceId": ws(), "backupNow": b("Take a backup first (skipped when nothing changed)")}), &["workspaceId"], out(json!({"backups": ty("array"), "created": any()}), &["backups"])),
         destructive(def("workspace_backup_restore", "Restore a workspace backup. Without confirm it returns a readable diff (nodes back, removed, notes changed); with confirm it backs up the current state, closes the workspace terminals and restores.", true, json!({"workspaceId": ws(), "backupId": s("Backup id from workspace_backup_list"), "confirm": b("Restore (default false: diff only)")}), &["workspaceId", "backupId"], out(json!({"restored": ty("boolean"), "diff": any(), "workspace": any()}), &["restored"]))),
-        // Floors.
         def("floor_rename", "Rename or recolor a floor.", true, json!({"workspaceId": ws(), "floorId": s("Floor id or name"), "name": s("New name"), "color": json!({"type": ["string", "null"]})}), &["floorId"], out(json!({"workspaceId": ty("string"), "floorId": ty("string")}), &["floorId"])),
         def("floor_landing", "Preview landing a floor: commits, files, conflicts, dirty trees and what blocks it.", false, json!({"workspaceId": ws(), "floorId": s("Floor id or name"), "into": s("Target branch")}), &["floorId"], obj_out("preview")),
         def("floor_unload", "Stop the terminal processes of a floor (history and layout stay).", true, json!({"workspaceId": ws(), "floorId": s("Floor id or name")}), &["floorId"], out(json!({"unloaded": arr(ty("string"))}), &["unloaded"])),
         def("floor_hooks_get", "The workspace's floor hooks (setup, run, teardown commands).", false, json!({"workspaceId": ws()}), &[], obj_out("hooks")),
         def("floor_hooks_set", "Replace the workspace's floor hooks (floor_hooks_get shape).", true, json!({"workspaceId": ws(), "hooks": schemas::floor_hooks()}), &["hooks"], obj_out("hooks")),
-        // Canvas view (live window).
         def("canvas_select", "Select nodes in the canvas window (empty list clears).", true, json!({"nodeIds": strs("Node ids")}), &["nodeIds"], out(json!({"selection": arr(ty("string"))}), &["selection"])),
         def("canvas_node_duplicate", "Duplicate a node next to it (a terminal gets its own new process; a note copies its text).", true, json!({"nodeId": node(), "x": n("Left"), "y": n("Top")}), &["nodeId"], out(json!({"node": ty("object"), "terminal": any()}), &["node"])),
         def("canvas_node_focus", "Fly to a node in the canvas window and give it the keyboard (switches workspace/floor when needed).", true, json!({"nodeId": node()}), &["nodeId"], out(json!({"focus": any()}), &[])),
@@ -505,7 +457,6 @@ fn build_defs() -> Vec<Def> {
         def("canvas_tie_move", "Move a cable tie.", true, json!({"tieId": s("Tie id"), "x": n("World x"), "y": n("World y"), "workspaceId": ws(), "floorId": floor()}), &["tieId", "x", "y"], obj_out("tie")),
         destructive(def("canvas_tie_delete", "Remove a cable tie (the cords stay).", true, json!({"tieId": s("Tie id"), "workspaceId": ws(), "floorId": floor()}), &["tieId"], removed_out.clone())),
         def("canvas_drawing_update", "Change a drawing (fields merged: color, lineWidth, points, origin, textContent...).", true, json!({"drawingId": s("Drawing id"), "patch": schemas::free("Drawing fields to merge (color, lineWidth, points, origin, textContent...)"), "workspaceId": ws(), "floorId": floor()}), &["drawingId", "patch"], out(json!({"drawing": any(), "rev": ty("integer")}), &["drawing"])),
-        // Terminals.
         def("canvas_terminal_wait", "Wait until a terminal's screen matches a regex and/or its state becomes one of the given (idle, working, attention, waiting, blocked, exited, unloaded), up to timeoutMs.", false, json!({
             "nodeId": node(), "pattern": s("Regex over the last lines (use (?m) for ^/$ per line)"), "state": json!({"type": ["string", "array"], "description": "State or states"}), "lines": i("Lines searched (default 200)", 1, 2000), "timeoutMs": i("Limit (default 30000)", 100, 300000)
         }), &["nodeId"], out(json!({"matched": ty("boolean"), "state": ty("string"), "match": any(), "text": ty("string"), "waitedMs": ty("integer")}), &["matched"])),
@@ -516,17 +467,14 @@ fn build_defs() -> Vec<Def> {
             "monitorActivity": b("Watch activity"), "color": s("Node color"), "restart": b("Restart now"),
             "environment": env_record_schema("Where this terminal runs: \"workspace\" (default), \"local\", \"docker:name\" or a record; restarts a running terminal")
         }), &["nodeId"], obj_out("settings")),
-        // Stacks.
         def("canvas_stack_create", "Put notes into a new stack (fichário).", true, json!({"noteIds": strs("Note ids"), "name": s("Name"), "x": n("Left"), "y": n("Top")}), &["noteIds"], out(json!({"stackId": ty("string"), "noteIds": arr(ty("string"))}), &["stackId"])),
         def("canvas_stack_front", "Bring a note of a stack to the front.", true, json!({"stackId": s("Stack id"), "noteId": s("Note id")}), &["stackId", "noteId"], out(json!({"stackId": ty("string"), "front": ty("string")}), &["stackId"])),
         def("canvas_stack_order", "Reorder a stack's notes.", true, json!({"stackId": s("Stack id"), "noteIds": strs("Notes in order")}), &["stackId", "noteIds"], out(json!({"stackId": ty("string"), "tabs": arr(ty("string"))}), &["stackId"])),
         def("canvas_stack_update", "Rename a stack, give it a uniform color, or unstack all its notes.", true, json!({"stackId": s("Stack id"), "name": s("Name"), "uniformColor": json!({"type": ["string", "boolean", "null"]}), "unstackAll": b("Take every note out")}), &["stackId"], out(json!({"stackId": ty("string")}), &["stackId"])),
-        // Chat.
         def("canvas_chat_toggle", "Show a terminal as its chat face (on) or its shell (off); remembered on the node.", true, json!({"nodeId": node(), "on": b("Chat face"), "showShellWindow": b("Keep the shell visible")}), &["nodeId", "on"], out(json!({"nodeId": ty("string"), "on": ty("boolean")}), &["nodeId", "on"])),
         def("canvas_chat_thread", "Select the active chat thread (0-6 = blue, purple, pink, red, orange, yellow, green) of a terminal, as the UI's dots do, or put a Clear divider on one. Selecting another thread while the agent answers fails with CHAT_TURN_ACTIVE.", true, json!({"nodeId": node(), "select": i("Thread", 0, 6), "clear": i("Thread to clear", 0, 6)}), &["nodeId"], out(json!({"nodeId": ty("string"), "thread": any()}), &["nodeId"])),
         def("canvas_chat_clear", "Clear Chat History of a terminal: every thread and its attachments (or only `thread`). Only the app's transcript; the provider's memory is untouched. Refused (CHAT_TURN_ACTIVE) while the agent is answering.", true, json!({"nodeId": node(), "thread": i("Only this thread", 0, 6)}), &["nodeId"], out(json!({"cleared": ty("boolean"), "removed": arr(ty("string")), "attachmentsRemoved": ty("integer"), "remaining": ty("integer")}), &["cleared", "removed", "remaining"])),
         def("canvas_chat_delete_entry", "Delete one chat message (Delete Message) and its attachment files when no other message uses them. `entryId` is the id from canvas_chat_read (a unique prefix of 6+ chars works).", true, json!({"nodeId": node(), "entryId": s("Entry id"), "thread": i("Thread (narrows the lookup)", 0, 6)}), &["nodeId", "entryId"], out(json!({"deleted": ty("boolean"), "removed": arr(ty("string")), "attachmentsRemoved": ty("integer"), "remaining": ty("integer")}), &["deleted", "removed", "remaining"])),
-        // Composer and palette (window).
         def("canvas_composer_open", "Open the Prompt Composer on a terminal (focuses it).", true, json!({"nodeId": node()}), &[], out(json!({"open": ty("boolean")}), &["open"])),
         def("canvas_composer_type", "Type into the open composer (append, or replace=true); returns the text and the open menu (@ mentions, or the # file picker's relative paths).", true, json!({"text": s("Text"), "replace": b("Replace the text")}), &["text"], out(json!({"text": ty("string"), "mentions": arr(ty("string"))}), &["text"])),
         def("canvas_composer_mentions", "What @ can mention from a terminal: its corded agents (\"Name @ Workspace\" for cords to other workspaces), notes, portals and files, then File…, Maestro, New Note, New Portal, Notifications, Routines, the other floors and workspaces.", false, json!({"nodeId": node()}), &[], list_out("targets")),
@@ -537,43 +485,35 @@ fn build_defs() -> Vec<Def> {
         def("palette_open", "Open the canvas command palette (Batuta).", true, json!({}), &[], out(json!({"open": ty("boolean"), "rows": arr(ty("object"))}), &["open"])),
         def("palette_query", "Type a query in the palette and read its results.", true, json!({"text": s("Query"), "waitMs": i("Wait for results", 0, 5000)}), &["text"], out(json!({"query": ty("string"), "rows": arr(ty("object"))}), &["rows"])),
         def("palette_run", "Run a palette result: the first (or index) row, after an optional query.", true, json!({"text": s("Query"), "index": i("Row", 0, 500)}), &[], out(json!({"ran": ty("string")}), &["ran"])),
-        // Portals.
         def("canvas_portal_navigate", "Navigate a portal to a url, or back/forward/reload.", true, json!({"nodeId": node(), "url": s("URL"), "action": e(&["back", "forward", "reload"], "History action")}), &["nodeId"], portal_out.clone()),
         def("canvas_portal_design_select", "Design mode: pick an element or region of a web portal page (rect in viewport CSS px, a CSS selector, or a point) and send the comment, the element's CSS selector, trimmed HTML, a PNG crop of the region and attachments to an agent corded to the portal. Without a cord to the target: CORD_REQUIRED. `send:false` only picks. `interactive:true` arms the in-page overlay for the user instead (result in the app).", true, json!({"nodeId": node(), "rect": schemas::rect("{x,y,w,h} viewport CSS px"), "selector": s("CSS selector"), "point": schemas::point("{x,y} viewport CSS px"), "comment": s("What to do with the selection"), "target": s("Corded agent node (id or name); default the only one"), "attach": strs("Files to attach (absolute paths)"), "send": b("Deliver to the agent (default true)"), "interactive": b("Arm the overlay for the user to pick")}), &["nodeId"], out(json!({"selector": ty("string"), "tag": ty("string"), "html": ty("string"), "box": any(), "screenshotPath": any(), "deliveredTo": any(), "armed": ty("boolean"), "targets": any()}), &[])),
-        // File trees.
         def("canvas_filetree_list", "List a folder of a file-tree node (or any root folder of the workspace).", false, json!({"nodeId": node(), "root": s("Root folder (instead of a node)"), "dir": s("Sub folder"), "showHidden": b("Hidden files")}), &[], list_out("entries")),
         def("canvas_filetree_search", "Search file names (and contents with content=true) under a file tree.", false, json!({"nodeId": node(), "root": s("Root folder"), "query": s("Text"), "content": b("Search contents"), "limit": i("Hits", 1, 1000)}), &["query"], list_out("hits")),
         def("canvas_filetree_read", "Read a text file under a file tree (on SSH/Docker when the tree's data.environment is remote). With fromLine/toLine: also the range quoted as the editor's \"Ask…\" sends it (path:lines + fenced code).", false, json!({"nodeId": node(), "root": s("Root folder"), "path": s("Path relative to the root"), "fromLine": i("First line (1-based) of the quoted range", 1, 10_000_000), "toLine": i("Last line of the range (default fromLine)", 1, 10_000_000)}), &["path"], obj_out("file")),
         def("canvas_filetree_ask", "The editor's \"Ask…\" (Maestri K7): quote lines fromLine-toLine of a file under a file tree (path:lines + fenced code) and paste it into a terminal node, submitted.", true, json!({"nodeId": node(), "root": s("Root folder"), "path": s("Path relative to the root"), "fromLine": i("First line (1-based)", 1, 10_000_000), "toLine": i("Last line (default fromLine)", 1, 10_000_000), "ask": s("Terminal node that receives the quote")}), &["path", "fromLine", "ask"], obj_out("file")),
         def("canvas_filetree_diff", "Git diff of a file tree (or one path).", false, json!({"nodeId": node(), "root": s("Root folder"), "path": s("One path")}), &[], obj_out("diff")),
         def("canvas_filetree_git", "Git on a file tree. action (default status): status, branches, commit (message, only paths when given), pull, fetch (--all), push, sync (pull + push), checkout (branch; origin/x gets a tracking branch), newBranch (branch, start), deleteBranch (branch, force), merge (branch, --no-edit; conflicts give ok=false + conflicts), mergeAbort, stashPush (message, paths, untracked), stashApply/stashPop/stashDrop (index), stashList, stage/unstage/discard (paths; discard moves untracked files to the workspace trash), conflict (paths[0]: Current and Incoming, labeled), removeLock (stale index.lock; force). Paths are relative to the tree root. Unknown actions are errors.", true, json!({"nodeId": node(), "root": s("Root folder"), "action": s("Git action (default status)"), "message": s("Commit or stash message"), "paths": strs("Paths relative to the tree root"), "branch": s("Branch (checkout, newBranch, deleteBranch, merge)"), "start": s("Start point of newBranch"), "force": b("deleteBranch -D; removeLock even if fresh"), "index": i("Stash index", 0, 1000), "untracked": b("stashPush also stashes untracked files (default true)")}), &[], obj_out("status")),
-        // Roles, partituras (extra verbs).
         def("partitura_update", "Change a saved partitura (name, description, budget, permissions... as a patch).", true, json!({"id": s("Library id"), "patch": schemas::free("Fields to change: name, summary, icon, color, scope, budget, permissions, setup; {\"restore\": \"previous\"} undoes the last Update Existing")}), &["id", "patch"], obj_out("partitura")),
         def("partitura_export", "Export library partituras to a file.", true, json!({"ids": strs("Library ids"), "path": s("File")}), &["ids", "path"], out(json!({"path": ty("string")}), &["path"])),
         def("partitura_import", "Read a partitura file; without preview it is added to the library.", true, json!({"path": s("File"), "preview": b("Only read it")}), &["path"], out(json!({"partituras": arr(ty("object")), "added": any()}), &["partituras"])),
-        // Remote and visits.
         def("remote_pair", "Pair a phone-remote device and get its bearer: scope read (guest) or drive (owner). start=true turns phone access on (loopback) first.", true, json!({"scope": e(&["read", "drive", "guest", "owner"], "Access"), "role": e(&["guest", "owner"], "Same as scope"), "name": s("Device name"), "label": s("Pairing label"), "start": b("Turn phone access on"), "bindIp": s("Address to listen on")}), &[], out(json!({"base": ty("string"), "scope": ty("string"), "result": any()}), &["base"])),
         def("remote_call", "One HTTP call to the phone-remote API (/remote/...) with a device token. tls=true uses HTTPS on the same port and trusts only the pinned certificate key (the host's pin, or `pin`).", true, json!({"method": s("GET, POST..."), "path": s("/remote/api/..."), "token": s("Device bearer"), "body": any(), "headers": schemas::string_map("Extra headers {Name: value}"), "tls": b("HTTPS with the pinned certificate"), "pin": s("sha256/... pin to require (default the host's)")}), &["path"], out(json!({"status": ty("integer"), "headers": ty("object"), "body": any()}), &["status"])),
         def("remote_stream", "Follow a phone-remote feed for a few seconds. Default: the canvas Server-Sent Events stream /remote/api/canvas/stream (hello, patch with mutationId and changes, state, inbox, presence; ?workspaceId=&floorId= filters, &wake=1 starts that floor's terminals for an owner). /remote/api/canvas/nodes/<id>/stream is one terminal (geometry, screen). `send` POSTs device messages first ({type:presence,nodeId} any scope; {type:resize,cols,rows} any scope; {type:camera,dx,dy,zoom} and {type:input,text} drive only; a guest's input is dropped). Another path (e.g. /remote/api/events) is polled with after.", false, json!({"path": s("Feed path (default /remote/api/canvas/stream)"), "token": s("Device bearer"), "tls": b("HTTPS with the pinned certificate"), "pin": s("Pin to require"), "seconds": i("Duration", 1, 60), "max": i("Stop after this many messages", 1, 5000), "send": arr(json!({"type": "object", "properties": {"type": e(&["presence", "camera", "resize", "input"], "Message type"), "nodeId": s("Presence: node shown; resize/input: the terminal"), "dx": n("Camera pan x"), "dy": n("Camera pan y"), "zoom": n("Camera zoom factor"), "cols": n("Resize columns"), "rows": n("Resize rows"), "text": s("Input text")}, "required": ["type"], "additionalProperties": true, "description": "Device message, e.g. {\"type\":\"presence\",\"nodeId\":\"B\"}"})), "intervalMs": i("Poll interval (polled paths)", 200, 10000), "after": i("Cursor (polled paths)", 0, u64::MAX)}), &[], out(json!({"messages": arr(any()), "after": ty("integer"), "transport": ty("string"), "status": ty("integer")}), &["messages"])),
         def("remote_devices", "Paired phone-remote devices.", false, json!({}), &[], list_out("devices")),
         def("visit_open", "Visit someone's canvas read-only with their room code.", true, json!({"code": s("Room code"), "server": s("Relay URL")}), &["code"], obj_out("state")),
         def("visit_leave", "Leave a visit.", true, json!({}), &[], obj_out("state")),
-        // Environments (where terminals run).
         def("canvas_env_get", "Where a workspace's terminals run (local, tmux, ssh, docker, sandbox, custom, wsl), the command preview and the environment switches; with nodeId, that terminal's own override and what it really runs in.", false, json!({"workspaceId": ws(), "nodeId": node()}), &[], out(json!({"workspaceId": ty("string"), "environment": any(), "preview": ty("string"), "providers": any(), "terminal": any()}), &["environment"])),
         def("canvas_env_set", "Set where terminals run. Without nodeId: the workspace default (same checks as the app: a workspace with isolated floors cannot go remote; the kind must be switched on). With nodeId: that terminal's override (\"workspace\" = default, \"local\", or a record); a running terminal restarts in it. environment: \"docker:parity\", \"ssh:me@box\", {kind, host, dir, user, sshOptions, runtime, persistent} or null (local).", true, json!({"workspaceId": ws(), "nodeId": node(), "environment": env_record_schema("Record, \"kind:host\", \"workspace\", \"local\" or null")}), &["environment"], out(json!({"workspaceId": ty("string"), "nodeId": ty("string"), "environment": any(), "restarted": ty("boolean")}), &["environment"])),
         def("canvas_env_test", "Test an environment: reachability, folder, writable home, /bin/sh, bash, curl (the omniget CLI shim needs it), tmux. Default: the workspace's; with nodeId, what that terminal runs in; with environment, that record.", false, json!({"workspaceId": ws(), "nodeId": node(), "environment": env_record_schema("A record to test instead")}), &[], out(json!({"environment": any(), "test": any(), "notice": any()}), &["test"])),
         def("canvas_env_providers", "Environment switches (tmux, ssh, docker, sandbox, custom, wsl; local is always on) and custom runtimes. With patch, changes them: {docker: false} hides Docker and running terminals fall back to local with a notice; {runtimes: {podman: {exec, args, interactive, shell, bridgeHost}}} (null removes one).", true, json!({"patch": env_providers_schema()}), &[], obj_out("providers")),
         def("canvas_env_sessions", "Persistent terminal sessions (tmux omniget-*) on this machine and in the remote environments in use (SSH, Docker, Sandbox, runtimes): list, or end one with kill (the node stays).", true, json!({"kill": s("Session name to end"), "env": s("Where it runs, the env label of the list (local, docker:web, ssh:me@box); default: the first that has it")}), &[], list_out("sessions")),
-        // Usage.
         def("usage_get", "Plan usage per provider (Claude, Codex, ...): windows used, resets, last check, from the limits strip.", false, json!({}), &[], obj_out("usage")),
-        // Host (tests only, OMNIGET_TEST_TOOLS=1).
         test_only(def("host_shell", "Test only: run a shell command on this computer.", true, json!({"command": s("Command"), "cwd": s("Folder"), "timeoutMs": i("Limit", 100, 600000)}), &["command"], out(json!({"code": any(), "stdout": ty("string"), "stderr": ty("string")}), &["stdout"]))),
         test_only(def("host_fs_read", "Test only: read a file on this computer.", false, json!({"path": s("Path (~ allowed)"), "maxBytes": i("Limit", 1, 16777216)}), &["path"], out(json!({"path": ty("string"), "text": ty("string"), "size": ty("integer")}), &["text"]))),
         test_only(def("host_fs_write", "Test only: write a file on this computer.", true, json!({"path": s("Path (~ allowed)"), "text": s("Content"), "append": b("Append"), "executable": b("chmod +x")}), &["path", "text"], out(json!({"path": ty("string"), "bytes": ty("integer")}), &["path"]))),
     ]
 }
 
-/// The canvas tools of the catalog.
 pub fn tools() -> Vec<ToolDef> {
     let test = super::canvas_ui::test_tools_enabled();
     defs()
@@ -583,8 +523,6 @@ pub fn tools() -> Vec<ToolDef> {
         .collect()
 }
 
-/// Scope of a canvas tool: reads under `app_observe`, everything that
-/// changes the canvas, a process or a page under `app_control`.
 pub fn scope(name: &str) -> Option<&'static str> {
     defs().iter().find(|d| d.tool.name == name).map(|d| {
         d.scope.unwrap_or(if d.write {
@@ -595,17 +533,14 @@ pub fn scope(name: &str) -> Option<&'static str> {
     })
 }
 
-/// Whether `name` is one of the canvas tools (listed or test-only).
 pub fn owns(name: &str) -> bool {
     defs().iter().any(|d| d.tool.name == name)
 }
 
-/// MCP `destructiveHint`: removes or stops existing work.
 pub fn is_destructive(name: &str) -> bool {
     defs().iter().any(|d| d.tool.name == name && d.destructive)
 }
 
-/// `outputSchema` of the canvas tools (see `output_schemas`).
 pub fn output_schema(name: &str) -> Option<Value> {
     defs()
         .iter()
@@ -613,10 +548,6 @@ pub fn output_schema(name: &str) -> Option<Value> {
         .map(|d| d.output.clone())
 }
 
-// ── Arguments ──────────────────────────────────────────────────────────
-
-/// Closed-schema check (required keys, unknown keys, JSON types, enums):
-/// a malformed call is a protocol error (`-32602`), never a half-done effect.
 fn validate(name: &str, a: &Value) -> Result<(), String> {
     let d = defs()
         .iter()
@@ -687,7 +618,6 @@ fn validate(name: &str, a: &Value) -> Result<(), String> {
     Ok(())
 }
 
-/// Types a JSON Schema `type` allows.
 fn fits_type(rule: &Value, value: &Value) -> bool {
     let types: Vec<&str> = match &rule["type"] {
         Value::String(t) => vec![t.as_str()],
@@ -706,10 +636,6 @@ fn fits_type(rule: &Value, value: &Value) -> bool {
     })
 }
 
-/// Checks inside objects and lists: unknown fields where the schema is
-/// closed (`additionalProperties: false`), required fields, types and enums,
-/// and `oneOf` branches (picked by `kind`/`op` when the value has one). A
-/// nested typo is refused instead of being dropped in silence.
 fn check_nested(path: &str, rule: &Value, value: &Value) -> Result<(), String> {
     if let Some(branches) = rule
         .get("oneOf")
@@ -724,7 +650,6 @@ fn check_nested(path: &str, rule: &Value, value: &Value) -> Result<(), String> {
             match check_nested(path, b, value) {
                 Ok(()) => return Ok(()),
                 Err(e) => {
-                    // The branch that names the value's kind explains best.
                     let named = ["kind", "op", "type"].iter().any(|k| {
                         value.get(*k).is_some_and(|v| {
                             b["properties"][*k]["enum"]
@@ -847,15 +772,10 @@ fn to_value<T: serde::Serialize>(v: T) -> Result<Value, String> {
     serde_json::to_value(v).map_err(|e| e.to_string())
 }
 
-/// `{key: value}`.
 fn wrap<T: serde::Serialize>(key: &str, v: T) -> Result<Value, String> {
     Ok(json!({ key: to_value(v)? }))
 }
 
-// ── Canvas access ──────────────────────────────────────────────────────
-
-/// Binds the canvas hosts to the app (idempotent), like the first canvas
-/// command of the window does, so MCP works before the World is opened.
 fn ready(app: &AppHandle) -> Arc<CanvasStore> {
     crate::canvas::routines::start(app);
     crate::canvas::chat::bind(app);
@@ -872,7 +792,6 @@ async fn blocking<T: Send + 'static>(
         .map_err(|e| format!("CANVAS_TASK: {e}"))?
 }
 
-/// An environment record, `"kind:host"`, `"workspace"`, `"local"` or null.
 fn env_record_schema(desc: &str) -> Value {
     json!({
         "type": ["object", "string", "null"],
@@ -916,8 +835,6 @@ fn env_providers_schema() -> Value {
     })
 }
 
-/// `(workspace, terminal node?)` of an environment tool: `nodeId` wins
-/// (its workspace), else `workspaceId`.
 fn env_target(s: &CanvasStore, a: &Value) -> Result<(String, Option<String>), String> {
     if st(a, "nodeId").is_some() {
         let (ws, _, n) = locate_arg(s, a, "nodeId")?;
@@ -926,10 +843,8 @@ fn env_target(s: &CanvasStore, a: &Value) -> Result<(String, Option<String>), St
     Ok((ws_of(a), None))
 }
 
-/// Workspace of the call (default `home`).
 fn ws_of(a: &Value) -> String {
     let key = st(a, "workspaceId").unwrap_or_else(|| DEFAULT_WORKSPACE_ID.to_string());
-    // A workspace by id, else by its (case-insensitive) name.
     let all = crate::canvas::doc::host().store().workspaces();
     if all.iter().any(|w| w.workspace.id == key) {
         return key;
@@ -940,9 +855,6 @@ fn ws_of(a: &Value) -> String {
         .unwrap_or(key)
 }
 
-/// Workspace and floor of the call (floor default: the active one).
-/// `set_group` in canvas_apply may carry `group.memberIds` (Maestri wire):
-/// turned into `groupId` updates of those nodes or drawings after the group op.
 fn group_member_ops(ops: Value) -> Value {
     let Value::Array(list) = ops else {
         return ops;
@@ -973,8 +885,6 @@ fn group_member_ops(ops: Value) -> Value {
     Value::Array(out)
 }
 
-/// Ops turning the drawings of group `gid` by `deg` around the centre of their
-/// union: each centre orbits the pivot and each rotation grows by `deg`.
 fn rotate_drawing_group(d: &FloorDoc, gid: &str, deg: f64) -> Vec<Op> {
     let members: Vec<&Drawing> = d
         .drawings
@@ -1016,7 +926,6 @@ fn ws_floor(s: &CanvasStore, a: &Value) -> Result<(String, String), String> {
     let ws = ws_of(a);
     let w = s.workspace(&ws)?;
     let floor = match st(a, "floorId") {
-        // A floor by id, else by name.
         Some(f) => w
             .floors
             .iter()
@@ -1033,13 +942,11 @@ fn ws_floor(s: &CanvasStore, a: &Value) -> Result<(String, String), String> {
     Ok((ws, floor))
 }
 
-/// A node by id, else by exact (then case-insensitive) title when unique.
 fn locate(s: &CanvasStore, key: &str) -> Result<(String, String, CanvasNode), String> {
     let prefer = PREFER_WS.try_with(|p| p.clone()).ok().flatten();
     locate_in(s, key, prefer.as_deref())
 }
 
-/// [`locate`], preferring title matches inside `prefer` (a workspace).
 fn locate_in(
     s: &CanvasStore,
     key: &str,
@@ -1119,8 +1026,6 @@ fn apply(
     s.apply(ws, floor, ops, ORIGIN, None)
 }
 
-/// The canvas grid (M-B1): every frame the MCP stores sits on it, the way the
-/// window's drag and resize do.
 const GRID: f64 = omniget_core::core::canvas::model::GRID;
 
 fn snap_grid(v: f64) -> f64 {
@@ -1131,8 +1036,6 @@ fn snap_size(v: f64) -> f64 {
     snap_grid(v).max(GRID)
 }
 
-/// Snaps the frame an op writes: a new node's x/y/w/h, or the numeric
-/// x/y/w/h of an update patch.
 fn snap_op(op: &mut Op) {
     match op {
         Op::AddNode { node } => {
@@ -1162,7 +1065,6 @@ fn node_after(s: &CanvasStore, ws: &str, floor: &str, id: &str) -> Result<Value,
     to_value(n)
 }
 
-/// The node's rpc context (what its own `omniget canvas` token carries).
 fn node_ctx(s: &CanvasStore, a: &Value) -> Result<crate::canvas::rpc::NodeCtx, String> {
     let (ws, floor, n) = locate_arg(s, a, "asNode")?;
     if !n.is_terminal() {
@@ -1197,11 +1099,7 @@ fn navigate_window(app: &AppHandle, ws: &str, floor: &str, node: Option<&str>) {
     );
 }
 
-// ── Calls ──────────────────────────────────────────────────────────────
-
 tokio::task_local! {
-    /// The call's `workspaceId`, resolved: node titles are looked up there
-    /// first (see [`locate`]).
     static PREFER_WS: Option<String>;
 }
 
@@ -1223,7 +1121,6 @@ async fn dispatch(app: &AppHandle, name: &str, a: Value) -> Result<Value, String
     let s = ready(app);
     let app = app.clone();
     match name {
-        // Workspaces and floors.
         "workspace_list" => wrap("workspaces", cmd::doc::canvas_workspaces(app).await?),
         "workspace_create" => {
             let mut input = a.clone();
@@ -1232,7 +1129,6 @@ async fn dispatch(app: &AppHandle, name: &str, a: Value) -> Result<Value, String
             }
             let ws =
                 cmd::doc::canvas_workspace_create(app.clone(), de(input, "workspace")?).await?;
-            // Like the Maestri, the new workspace opens (when the canvas is on screen).
             let activated = if a.get("activate").and_then(Value::as_bool) != Some(false) {
                 let r = super::canvas_ui::ui(
                     &app,
@@ -1276,14 +1172,9 @@ async fn dispatch(app: &AppHandle, name: &str, a: Value) -> Result<Value, String
                     patch.insert(k.into(), v.clone());
                 }
             }
-            // The environment goes through its own save (it refuses to make a
-            // workspace with isolated floors remote), never as a bare mirror.
             let env = patch
                 .remove("environment")
                 .or_else(|| a.get("environment").cloned());
-            // Same checks as the app (no remote workspace with isolated
-            // floors, the kind switched on) and environment.json; "docker:x",
-            // a record or null (local).
             let env_saved = match env {
                 Some(v) => Some(crate::canvas::remote::env_set_workspace(&ws_of(&a), v)?),
                 None => None,
@@ -1404,13 +1295,10 @@ async fn dispatch(app: &AppHandle, name: &str, a: Value) -> Result<Value, String
                 .await?,
             )
         }
-        // Document.
         "canvas_snapshot" => {
             let (ws, floor) = ws_floor(&s, &a)?;
             let mut v = to_value(cmd::doc::canvas_load(app, ws, floor).await?)?;
-            // Cords carrying an ask right now are lit (`isActive`).
             crate::canvas::cords::host().mark_active(&mut v);
-            // File nodes say what they preview (older nodes lack the flags).
             if let Some(nodes) = v.get_mut("nodes").and_then(Value::as_array_mut) {
                 for n in nodes.iter_mut().filter(|n| n["kind"] == "file") {
                     if let Some(d) = n.get_mut("data").and_then(Value::as_object_mut) {
@@ -1428,7 +1316,6 @@ async fn dispatch(app: &AppHandle, name: &str, a: Value) -> Result<Value, String
                 cmd::doc::canvas_apply(app, ws, floor, base, ops, Some(ORIGIN.to_string())).await?,
             )
         }
-        // Nodes.
         "canvas_node_spawn" => spawn(&app, &s, &a).await,
         "canvas_node_update" => {
             let (ws, floor, n) = locate_arg(&s, &a, "nodeId")?;
@@ -1462,8 +1349,6 @@ async fn dispatch(app: &AppHandle, name: &str, a: Value) -> Result<Value, String
                 data.insert("blur".into(), if bl { json!(true) } else { Value::Null });
             }
             text_style(&a, &mut data, n.kind == NodeKind::Text)?;
-            // A text block grows with a bigger font or a longer text (M-B29),
-            // unless this call sizes it itself.
             if n.kind == NodeKind::Text
                 && !data.is_empty()
                 && a.get("w").is_none()
@@ -1483,8 +1368,6 @@ async fn dispatch(app: &AppHandle, name: &str, a: Value) -> Result<Value, String
                     patch.insert("h".into(), json!(h));
                 }
             }
-            // A note's name set by hand stays (Maestri Rename); clearing it
-            // goes back to the first line.
             let mut rename_cleared = false;
             if n.kind == NodeKind::Note {
                 if let Some(t) = a.get("title").filter(|v| v.is_string() || v.is_null()) {
@@ -1535,7 +1418,6 @@ async fn dispatch(app: &AppHandle, name: &str, a: Value) -> Result<Value, String
             })
             .await?;
             if rename_cleared {
-                // Back to automatic: the title follows the first line again.
                 let (s2, w2, f2, id2) = (s.clone(), ws.clone(), floor.clone(), id.clone());
                 let _ = blocking(move || {
                     let c = notes::read(&s2, &w2, &f2, &id2)?;
@@ -1559,7 +1441,6 @@ async fn dispatch(app: &AppHandle, name: &str, a: Value) -> Result<Value, String
             remove_nodes(&s, &ids).await
         }
         "canvas_group_create" if list(&a, "nodeIds").is_empty() => {
-            // A drawing group (Maestri `drawingIds`): members move and rotate together.
             let ids = list(&a, "drawingIds");
             if ids.len() < 2 {
                 return Err("MISSING_ARGUMENT: nodeIds or at least 2 drawingIds".into());
@@ -1662,7 +1543,6 @@ async fn dispatch(app: &AppHandle, name: &str, a: Value) -> Result<Value, String
                 )
                 .await?,
             )?;
-            // Distribute can land between grid lines: put the frames back on it.
             let ops: Vec<Op> = s.read(&ws, &floor, |d| {
                 resolved
                     .iter()
@@ -1710,12 +1590,10 @@ async fn dispatch(app: &AppHandle, name: &str, a: Value) -> Result<Value, String
             let r = blocking(move || apply(&s2, &ws, &floor, ops)).await?;
             Ok(json!({ "removed": ids, "rev": r.rev }))
         }
-        // Cords.
         "canvas_cord_create" => {
             let (ws, floor, from) = omni_cords_remote::locate_end(&s, &a, &need(&a, "from")?)?;
             let (w2, f2, to) = omni_cords_remote::locate_end(&s, &a, &need(&a, "to")?)?;
             if w2 != ws || f2 != floor {
-                // Across floors/workspaces: a connector chip on each side.
                 let (x, y) = ((ws, floor, from), (w2, f2, to));
                 return blocking(move || omni_cords_remote::link(&a, x, y)).await;
             }
@@ -1783,7 +1661,6 @@ async fn dispatch(app: &AppHandle, name: &str, a: Value) -> Result<Value, String
             let mut rev = 0;
             for id in &ids {
                 let (ws, floor) = locate_cord(&s, id)?;
-                // Half of a cross-floor/workspace pair: both halves go.
                 if let Some(pair) = crate::canvas::link::pair_of(&ws, &floor, id) {
                     blocking(move || crate::canvas::link::unlink_pair(&pair, ORIGIN)).await?;
                     continue;
@@ -1804,7 +1681,6 @@ async fn dispatch(app: &AppHandle, name: &str, a: Value) -> Result<Value, String
             let v = cmd::cords::canvas_cord_test(app, ws, floor, id).await?;
             Ok(if v.is_object() { v } else { json!({ "ok": v }) })
         }
-        // Terminals.
         "canvas_terminals_list" => terminals_list(&s, &a),
         "canvas_terminal_ensure" => {
             let (ws, floor, n, _) = terminal_node(&s, &a, "nodeId")?;
@@ -1829,8 +1705,6 @@ async fn dispatch(app: &AppHandle, name: &str, a: Value) -> Result<Value, String
                 }
                 if submit {
                     if !txt.is_empty() {
-                        // Let the program take the text before Enter (agents
-                        // treat a paste with Enter glued to it as a newline).
                         std::thread::sleep(std::time::Duration::from_millis(80));
                     }
                     m.submit(&t2)?;
@@ -1900,8 +1774,6 @@ async fn dispatch(app: &AppHandle, name: &str, a: Value) -> Result<Value, String
             let lines = a.get("lines").and_then(Value::as_u64).unwrap_or(60) as usize;
             let m = crate::canvas::term::host(&app);
             let Some(info) = m.info(&tid) else {
-                // Unloaded (or not started since the app launched): the
-                // scrollback it left on disk.
                 let (c, r) = crate::canvas::launch::grid_for(n.w, n.h);
                 let snap = m.transcript_text(&tid, lines, c, r).ok_or_else(|| {
                     format!(
@@ -1927,8 +1799,6 @@ async fn dispatch(app: &AppHandle, name: &str, a: Value) -> Result<Value, String
         }
         "canvas_terminal_restart" => {
             let (ws, floor, n, tid) = terminal_node(&s, &a, "nodeId")?;
-            // The UI's restart: close, then the launch recipe again; the
-            // `canvas://role` event (restart) makes a mounted node reattach.
             let m = crate::canvas::term::host(&app);
             if m.info(&tid).is_some() {
                 m.close(&tid, false)?;
@@ -1956,7 +1826,6 @@ async fn dispatch(app: &AppHandle, name: &str, a: Value) -> Result<Value, String
             }
             Ok(json!({ "nodeId": n.id, "closed": was }))
         }
-        // Agent communication.
         "canvas_agent_ask" => agent_ask(&s, &a).await,
         "canvas_agent_check" => {
             let ctx = node_ctx(&s, &a)?;
@@ -2051,7 +1920,6 @@ async fn dispatch(app: &AppHandle, name: &str, a: Value) -> Result<Value, String
             let e = cmd::chat::canvas_chat_interrupt(app, ws, n.id).await?;
             Ok(json!({ "interrupted": e.is_some(), "entry": e }))
         }
-        // Notes.
         "canvas_note_list" => wrap("notes", cmd::doc::canvas_note_list(app, ws_of(&a)).await?),
         "canvas_note_create" => note_create(&app, &s, &a).await,
         "canvas_note_read" => {
@@ -2133,7 +2001,6 @@ async fn dispatch(app: &AppHandle, name: &str, a: Value) -> Result<Value, String
                 }
             }
             let at = num(&a, "x").zip(num(&a, "y"));
-            // An unnamed stack left empty is removed with the last page.
             let (sid, ops) = s.read(&ws, &floor, |d| {
                 crate::canvas::cords::stack_unfile_ops(d, &n.id, at)
             })??;
@@ -2141,7 +2008,6 @@ async fn dispatch(app: &AppHandle, name: &str, a: Value) -> Result<Value, String
             blocking(move || apply(&s2, &ws, &floor, ops)).await?;
             Ok(json!({ "nodeId": n.id, "stackId": sid }))
         }
-        // Portals.
         "canvas_portal_open" => portal_open(&app, &s, &a).await,
         "canvas_portal_snapshot" | "canvas_portal_screenshot" | "canvas_portal_console" => {
             let verb = name.trim_start_matches("canvas_portal_");
@@ -2165,7 +2031,6 @@ async fn dispatch(app: &AppHandle, name: &str, a: Value) -> Result<Value, String
             cmd::portal::canvas_portal_close(app, n.id.clone())?;
             Ok(json!({ "nodeId": n.id, "closed": true }))
         }
-        // Roles.
         "role_list" => match a.get("discover") {
             Some(Value::String(d)) => wrap(
                 "roles",
@@ -2257,7 +2122,6 @@ async fn dispatch(app: &AppHandle, name: &str, a: Value) -> Result<Value, String
                 cmd::roles::canvas_roles_assign(app, ws, n.id.clone(), st(&a, "roleId")).await?;
             Ok(json!({ "nodeId": n.id, "role": to_value(role)? }))
         }
-        // Partituras.
         "partitura_list" => wrap(
             "partituras",
             cmd::partituras::canvas_partitura_list(app, st(&a, "scope"), st(&a, "query")).await?,
@@ -2318,7 +2182,6 @@ async fn dispatch(app: &AppHandle, name: &str, a: Value) -> Result<Value, String
             cmd::partituras::canvas_partitura_delete(app, id.clone()).await?;
             Ok(json!({ "deleted": id }))
         }
-        // Routines.
         "routine_list" => wrap(
             "routines",
             cmd::routines::canvas_routine_list(app, st(&a, "workspaceId").map(|_| ws_of(&a)))
@@ -2326,7 +2189,6 @@ async fn dispatch(app: &AppHandle, name: &str, a: Value) -> Result<Value, String
         ),
         "routine_create" | "routine_update" => {
             let mut r = schemas::routine_from_flat(&a)?;
-            // A workspace by name, like every other tool.
             if let Some(w) = r
                 .get("workspaceId")
                 .and_then(Value::as_str)
@@ -2335,7 +2197,6 @@ async fn dispatch(app: &AppHandle, name: &str, a: Value) -> Result<Value, String
                 r["workspaceId"] = json!(ws_of(&json!({ "workspaceId": w })));
             }
             if let Some(key) = r.get("nodeId").and_then(Value::as_str).map(str::to_string) {
-                // Accept a title like the other tools; store the node id.
                 if let Ok((ws, floor, n)) = locate(&s, &key) {
                     r["nodeId"] = json!(n.id);
                     if r.get("workspaceId").is_none() {
@@ -2391,14 +2252,12 @@ async fn dispatch(app: &AppHandle, name: &str, a: Value) -> Result<Value, String
             cmd::routines::canvas_routine_delete(app, id.clone()).await?;
             Ok(json!({ "deleted": id }))
         }
-        // Maestro.
         "canvas_maestro_set" => {
             let (ws, floor, n) = locate_arg(&s, &a, "nodeId")?;
             let on = flag(&a, "on").unwrap_or(true);
             cmd::maestro::canvas_maestro_set(app, ws, floor, n.id.clone(), on).await?;
             Ok(json!({ "nodeId": n.id, "maestro": on }))
         }
-        // Omni and the inbox.
         "omni_settings_get" => wrap(
             "settings",
             cmd::companion::canvas_companion_settings_get(app).await?,
@@ -2459,7 +2318,6 @@ async fn dispatch(app: &AppHandle, name: &str, a: Value) -> Result<Value, String
             cmd::cords::canvas_mark_seen(app, n.id.clone());
             Ok(json!({ "nodeId": n.id }))
         }
-        // Visits and phone.
         "remote_status" => {
             let remote = cmd::remote::canvas_remote_status(app).await?;
             let visit = cmd::remote::canvas_visit_status().await?;
@@ -2478,7 +2336,6 @@ async fn dispatch(app: &AppHandle, name: &str, a: Value) -> Result<Value, String
                 .await?;
             Ok(json!({ "state": v }))
         }
-        // App and window.
         "app_state" => super::canvas_ui::ui(&app, "state", json!({})).await,
         "app_screenshot" => {
             let mut a2 = a.clone();
@@ -2506,7 +2363,6 @@ async fn dispatch(app: &AppHandle, name: &str, a: Value) -> Result<Value, String
                 .ok_or("UI_NO_WINDOW: the main window is not open")?;
             Ok(json!({ "title": w.title().map_err(|e| e.to_string())? }))
         }
-        // Workspaces.
         "workspace_activate" => {
             let (ws, floor) = ws_floor(&s, &a)?;
             let r = super::canvas_ui::ui(
@@ -2597,7 +2453,6 @@ async fn dispatch(app: &AppHandle, name: &str, a: Value) -> Result<Value, String
         "app_menu" | "canvas_node_lift" | "canvas_node_dock" => {
             lift_dock_menu::call(&app, &s, name, &a).await
         }
-        // Floors.
         "floor_rename" => {
             let (ws, floor) = ws_floor(&s, &a)?;
             let color: Option<Option<String>> =
@@ -2615,7 +2470,6 @@ async fn dispatch(app: &AppHandle, name: &str, a: Value) -> Result<Value, String
             cmd::floors::canvas_floor_hooks_set(app, ws_of(&a), de(a["hooks"].clone(), "hooks")?)
                 .await?,
         ),
-        // Canvas view.
         "canvas_select" => {
             let mut ids = Vec::new();
             let prefer = st(&a, "workspaceId").map(|_| ws_of(&a));
@@ -2653,7 +2507,6 @@ async fn dispatch(app: &AppHandle, name: &str, a: Value) -> Result<Value, String
                 id: gid.clone(),
                 group: Some(g.clone()),
             }];
-            // Drawing groups turn around their common centre, in one batch (one undo).
             if let Some(deg) = num(&a, "rotateBy").filter(|d| d.is_finite() && *d != 0.0) {
                 ops.extend(s.read(&ws, &floor, |d| rotate_drawing_group(d, &gid, deg))?);
             }
@@ -2768,14 +2621,12 @@ async fn dispatch(app: &AppHandle, name: &str, a: Value) -> Result<Value, String
             let d = s.read(&ws, &floor, |d| d.drawing(&id).cloned())?;
             Ok(json!({ "drawing": to_value(d)?, "rev": r.rev }))
         }
-        // Terminals.
         "canvas_terminal_wait" => terminal_wait(&app, &s, &a).await,
         "canvas_terminal_settings_get" => {
             let (_, _, n, _) = terminal_node(&s, &a, "nodeId")?;
             Ok(json!({ "settings": terminal_settings(&n) }))
         }
         "canvas_terminal_settings_set" => terminal_settings_set(&app, &s, &a).await,
-        // Stacks.
         "canvas_stack_create" => stack_create(&s, &a).await,
         "canvas_stack_front" => {
             let (ws, floor, st_node) = stack_node(&s, &a)?;
@@ -2834,8 +2685,6 @@ async fn dispatch(app: &AppHandle, name: &str, a: Value) -> Result<Value, String
                         json!({ "stackId": null, "x": st_node.x + (k as f64) * (m.w + 20.0), "y": st_node.y + st_node.h + 40.0 }),
                     ));
                 }
-                // An unnamed fichário left empty goes away (Maestri); a named
-                // one stays as an empty lane.
                 let named = st(&a, "name").is_some()
                     || st_node.data.get("hasCustomName").and_then(Value::as_bool) == Some(true);
                 if named {
@@ -2856,7 +2705,6 @@ async fn dispatch(app: &AppHandle, name: &str, a: Value) -> Result<Value, String
             blocking(move || apply(&s2, &ws, &floor, ops)).await?;
             Ok(json!({ "stackId": st_node.id }))
         }
-        // Chat.
         "canvas_chat_toggle" => {
             let (ws, floor, n) = locate_arg(&s, &a, "nodeId")?;
             let on = flag(&a, "on").unwrap_or(true);
@@ -2926,7 +2774,6 @@ async fn dispatch(app: &AppHandle, name: &str, a: Value) -> Result<Value, String
             v["cleared"] = json!(true);
             Ok(v)
         }
-        // Composer and palette.
         "canvas_composer_open" => {
             let id = match st(&a, "nodeId") {
                 Some(k) => Some(locate(&s, &k)?.2.id),
@@ -2955,7 +2802,6 @@ async fn dispatch(app: &AppHandle, name: &str, a: Value) -> Result<Value, String
         "palette_open" => super::canvas_ui::ui(&app, "paletteOpen", json!({})).await,
         "palette_query" => super::canvas_ui::ui(&app, "paletteQuery", a.clone()).await,
         "palette_run" => super::canvas_ui::ui(&app, "paletteRun", a.clone()).await,
-        // Portals.
         "canvas_portal_navigate" => {
             let verb = match st(&a, "action") {
                 Some(_) => "back",
@@ -2966,14 +2812,12 @@ async fn dispatch(app: &AppHandle, name: &str, a: Value) -> Result<Value, String
             }
             portal_drive(&app, &s, &a, verb).await
         }
-        // File trees.
         "canvas_filetree_list"
         | "canvas_filetree_search"
         | "canvas_filetree_read"
         | "canvas_filetree_ask"
         | "canvas_filetree_diff"
         | "canvas_filetree_git" => filetree(&app, &s, name, &a).await,
-        // Partituras.
         "partitura_update" => wrap(
             "partitura",
             cmd::partituras::canvas_partitura_edit(
@@ -3000,7 +2844,6 @@ async fn dispatch(app: &AppHandle, name: &str, a: Value) -> Result<Value, String
             };
             Ok(json!({ "partituras": listed, "added": added }))
         }
-        // Remote and visits.
         "remote_pair" => super::canvas_ui::remote_pair(&app, &a).await,
         "remote_call" => super::canvas_ui::remote_call(&a).await,
         "remote_stream" => super::canvas_ui::remote_stream(&a).await,
@@ -3053,7 +2896,6 @@ async fn dispatch(app: &AppHandle, name: &str, a: Value) -> Result<Value, String
             "usage",
             crate::limits_strip::commands::limits_strip_state(app).await?,
         ),
-        // Host (tests only).
         "host_shell" => super::canvas_ui::host_shell(&a).await,
         "host_fs_read" => super::canvas_ui::host_fs_read(&a),
         "host_fs_write" => super::canvas_ui::host_fs_write(&a),
@@ -3061,10 +2903,6 @@ async fn dispatch(app: &AppHandle, name: &str, a: Value) -> Result<Value, String
     }
 }
 
-// ── Helpers of the calls ───────────────────────────────────────────────
-
-/// partitura_create: flat {name, nodeIds} or the nested SaveRequest. The
-/// selection defaults to the window's; the name to the first node's title.
 async fn partitura_create(
     app: &AppHandle,
     s: &Arc<CanvasStore>,
@@ -3183,8 +3021,6 @@ fn close_workspace_terminals(s: &CanvasStore, ws: &str) {
     }
 }
 
-/// Removes nodes (grouped by floor, one batch each) and closes the removed
-/// terminals' processes, like deleting them on the canvas.
 async fn remove_nodes(s: &Arc<CanvasStore>, keys: &[String]) -> Result<Value, String> {
     if keys.is_empty() {
         return Err("MISSING_ARGUMENT: nodeIds".into());
@@ -3251,8 +3087,6 @@ fn terminals_list(s: &CanvasStore, a: &Value) -> Result<Value, String> {
                 "terminalId": tid,
                 "running": info.is_some(),
                 "alive": info.as_ref().is_some_and(|i| i.alive),
-                // No process in this run (unloaded) or a dead one: the last
-                // fused signal is stale, say what `canvas_terminal_status` says.
                 "state": match &info {
                     None => json!({ "state": "unloaded", "source": "process" }),
                     Some(i) if !i.alive => json!({ "state": "exited", "source": "process" }),
@@ -3264,7 +3098,6 @@ fn terminals_list(s: &CanvasStore, a: &Value) -> Result<Value, String> {
     Ok(json!({ "terminals": out }))
 }
 
-/// A new node, built like the canvas builds it, then (terminals) started.
 async fn spawn(app: &AppHandle, s: &Arc<CanvasStore>, a: &Value) -> Result<Value, String> {
     let (ws, floor) = ws_floor(s, a)?;
     let kind_name = need(a, "kind")?;
@@ -3274,8 +3107,6 @@ async fn spawn(app: &AppHandle, s: &Arc<CanvasStore>, a: &Value) -> Result<Value
             a["title"] = nm;
         }
     }
-    // A user agent preset (app_settings agent.presets.<name>) wins over a
-    // built-in agent of the same name; `preset` naming a built-in is an alias.
     let user_preset = st(&a, "preset")
         .or_else(|| st(&a, "agent"))
         .and_then(|p| crate::canvas::prefs::preset(app, &p));
@@ -3295,7 +3126,6 @@ async fn spawn(app: &AppHandle, s: &Arc<CanvasStore>, a: &Value) -> Result<Value
         && user_preset.is_none()
         && matches!(a["kind"].as_str(), Some("terminal" | "agent"))
     {
-        // ⌘T semantics: the canvas default agent.
         let d = crate::canvas::prefs::get(app).default_agent;
         a["agent"] = json!(d);
     }
@@ -3369,7 +3199,6 @@ async fn spawn(app: &AppHandle, s: &Arc<CanvasStore>, a: &Value) -> Result<Value
                 let path = need(a, "path")?;
                 data.insert("path".into(), json!(path));
                 crate::canvas::remote::file_flags(&mut data);
-                // The header shows the file's name, not the kind.
                 if title.is_none() {
                     title = std::path::Path::new(&path)
                         .file_name()
@@ -3460,7 +3289,6 @@ async fn spawn(app: &AppHandle, s: &Arc<CanvasStore>, a: &Value) -> Result<Value
     if let Some(c) = st(a, "color") {
         node.color = Some(c);
     }
-    // New Item Defaults (Settings → Canvas), grid-snapped.
     if let Some((w, h)) = crate::canvas::prefs::default_size(app, node.kind.as_str()) {
         node.w = w;
         node.h = h;
@@ -3471,7 +3299,6 @@ async fn spawn(app: &AppHandle, s: &Arc<CanvasStore>, a: &Value) -> Result<Value
     if let Some(h) = num(a, "h") {
         node.h = h.max(24.0);
     }
-    // A text block grows with its font (M-B29): 240×60 cannot hold 100 px.
     if node.kind == NodeKind::Text {
         let (w, h) = text_fit(&node.data, node.w, node.h);
         node.w = w;
@@ -3544,9 +3371,6 @@ async fn spawn(app: &AppHandle, s: &Arc<CanvasStore>, a: &Value) -> Result<Value
     }))
 }
 
-/// Maestri's name for a cord by what it joins (doc wire: `terminal`,
-/// `note`, `noteToNote`, `portal`, `portalToPortal`; a connector chip is a
-/// cord to another floor or workspace).
 fn wire_kind(a: &NodeKind, b: &NodeKind) -> &'static str {
     let notey = |k: &NodeKind| matches!(k, NodeKind::Note | NodeKind::Stack);
     match (a, b) {
@@ -3559,9 +3383,6 @@ fn wire_kind(a: &NodeKind, b: &NodeKind) -> &'static str {
     }
 }
 
-/// Size a text block needs for its text at its font (an estimate of the
-/// canvas' own layout: line height 1.3, average advance per family and
-/// weight). Never smaller than `w`×`h`; lines wider than 1600 wrap.
 fn text_fit(data: &Value, w: f64, h: f64) -> (f64, f64) {
     let size = data
         .get("fontSize")
@@ -3596,9 +3417,6 @@ fn text_fit(data: &Value, w: f64, h: f64) -> (f64, f64) {
 const TEXT_WEIGHTS: &[&str] = &["regular", "medium", "bold"];
 const TEXT_FAMILIES: &[&str] = &["sans", "serif", "mono"];
 
-/// Text block style (M-B29, Maestri: font 8 to 200, regular/medium/bold,
-/// sans/serif/mono, `#RRGGBB` or the theme). Reads the top-level args and
-/// the ones already in `data`, and writes them normalized into `data`.
 fn text_style(a: &Value, data: &mut Map<String, Value>, is_text: bool) -> Result<(), String> {
     let pick = |k: &str, data: &Map<String, Value>| a.get(k).or_else(|| data.get(k)).cloned();
     let any = ["fontSize", "fontWeight", "fontFamily", "textColor"]
@@ -3649,7 +3467,6 @@ fn text_style(a: &Value, data: &mut Map<String, Value>, is_text: bool) -> Result
         }
         data.insert("fontFamily".into(), json!(f));
     }
-    // `textColor` (top level) or `color` inside data: #RRGGBB or empty = theme.
     let color = a
         .get("textColor")
         .cloned()
@@ -3683,7 +3500,6 @@ fn agent_title(agent: &str) -> &'static str {
     }
 }
 
-/// A role id by id or name, as the workspace sees it.
 fn resolve_role(s: &CanvasStore, ws: &str, key: &str) -> Result<String, String> {
     let roles = omniget_core::core::canvas::roles::list(s, ws);
     roles
@@ -3698,8 +3514,6 @@ fn resolve_role(s: &CanvasStore, ws: &str, key: &str) -> Result<String, String> 
         .ok_or_else(|| format!("CANVAS_NOT_FOUND: no role '{key}' (see canvas_roles_list)"))
 }
 
-/// Starts the terminals a partitura import just placed (the canvas starts
-/// them as they mount; an MCP import may happen with the window elsewhere).
 fn start_new_terminals(s: &CanvasStore, ws: &str, floor: &str, result: &Value) {
     let ids: Vec<String> = result
         .get("nodeIds")
@@ -3756,7 +3570,6 @@ async fn note_create(app: &AppHandle, s: &Arc<CanvasStore>, a: &Value) -> Result
         size.w = w;
         size.h = h;
     }
-    // Explicit w/h (snapped to the grid like every stored frame).
     let explicit = (num(a, "w"), num(a, "h"));
     let frame = match explicit {
         (None, None) => (size.w != default_size(&NodeKind::Note).w
@@ -3783,7 +3596,6 @@ async fn note_create(app: &AppHandle, s: &Arc<CanvasStore>, a: &Value) -> Result
     };
     let title = st(a, "title");
     let color = st(a, "color");
-    // External note: `path`, or `data.path` from canvas_node_spawn.
     let external = st(a, "path").or_else(|| {
         a.get("data")
             .and_then(|d| d.get("path"))
@@ -3857,12 +3669,9 @@ async fn note_create(app: &AppHandle, s: &Arc<CanvasStore>, a: &Value) -> Result
     Ok(v)
 }
 
-/// Puts a note into a stack node (existing, or new below the note), the
-/// way the canvas stacks: the stack's `tabs` and the note's `stackId`.
 async fn note_stack(s: &Arc<CanvasStore>, a: &Value) -> Result<Value, String> {
     let (ws, floor, n) = note_node(s, a)?;
     let mut ops = Vec::new();
-    // An empty stackId is a mistake, not a request for a new stack.
     if a.get("stackId")
         .and_then(Value::as_str)
         .is_some_and(|k| k.trim().is_empty())
@@ -3878,8 +3687,6 @@ async fn note_stack(s: &Arc<CanvasStore>, a: &Value) -> Result<Value, String> {
             stack.id
         }
         None => {
-            // A new stack under the note: named when stackName is given
-            // (it persists empty), else unnamed (gone when emptied).
             let z = s.read(&ws, &floor, |d| d.max_z())? + 1.0;
             let title = n.title.clone();
             let node = crate::canvas::cords::new_stack_node(
@@ -3894,7 +3701,6 @@ async fn note_stack(s: &Arc<CanvasStore>, a: &Value) -> Result<Value, String> {
             id
         }
     };
-    // On top, in front; out of any other stack (one fichário per note).
     let file = s.read(&ws, &floor, |d| {
         crate::canvas::cords::stack_file_ops(d, &sid, std::slice::from_ref(&n.id), None)
     })?;
@@ -4049,11 +3855,6 @@ async fn portal_drive(
     Ok(json!({ "nodeId": n.id, "result": r }))
 }
 
-// ── Checklist helpers ──────────────────────────────────────────────────
-
-/// Canonical state in the words of the parity checklist: idle, working,
-/// attention (finished and not seen), waiting (on a peer), blocked (needs
-/// the person), exited, unloaded (no process in this app run).
 fn terminal_status(app: &AppHandle, ws: &str, floor: &str, n: &CanvasNode, tid: &str) -> Value {
     let info = crate::canvas::term::host(app).info(tid);
     let fused = crate::canvas::cords::host().node_state(&n.id);
@@ -4079,8 +3880,6 @@ fn terminal_status(app: &AppHandle, ws: &str, floor: &str, n: &CanvasNode, tid: 
         "workspace": ws,
         "floor": floor,
         "state": state,
-        // A question the user saw stays on the badge (state blocked) but no
-        // longer asks for attention (Maestri `seen`).
         "attention": matches!(canonical, "done" | "stuck")
             || (canonical == "needs_you" && !crate::canvas::cords::host().is_seen(&n.id)),
         "canonical": fused.and_then(|f| serde_json::to_value(f).ok()),
@@ -4251,8 +4050,6 @@ async fn terminal_settings_set(
     Ok(json!({ "settings": terminal_settings(&n2) }))
 }
 
-/// Name of a copy, the way the canvas names one (`engine.uniqueTitle`):
-/// "DN", then "DN 2", "DN 3"… so ⌥-drag, ⌘D and MCP agree (M-B6).
 fn copy_name(taken: &HashSet<String>, base: &str) -> String {
     if !taken.contains(base) {
         return base.to_string();
@@ -4270,7 +4067,6 @@ async fn duplicate(app: &AppHandle, s: &Arc<CanvasStore>, a: &Value) -> Result<V
         let mut args = json!({ "workspaceId": ws, "floorId": floor, "text": text });
         args["x"] = json!(num(a, "x").unwrap_or(n.x + 40.0));
         args["y"] = json!(num(a, "y").unwrap_or(n.y + 40.0));
-        // The copy keeps the frame and the name of the original (M-B6).
         args["w"] = json!(n.w);
         args["h"] = json!(n.h);
         let custom = n.data["hasCustomName"].as_bool() == Some(true);
@@ -4387,7 +4183,6 @@ fn cord_list(s: &CanvasStore, a: &Value) -> Result<Value, String> {
             if let (Some(f), Some(t)) = (doc.node(&c.from), doc.node(&c.to)) {
                 v["wireKind"] = json!(wire_kind(&f.kind, &t.kind));
             }
-            // Cords to a connector chip reach another floor or workspace.
             let chip = [c.from.as_str(), c.to.as_str()]
                 .into_iter()
                 .filter_map(|e| doc.node(e))
@@ -4459,7 +4254,6 @@ async fn stack_create(s: &Arc<CanvasStore>, a: &Value) -> Result<Value, String> 
         notes_in.push(n.id);
     }
     let z = s.read(&ws, &floor, |d| d.max_z())? + 1.0;
-    // Unnamed unless a name is given: it then persists even when emptied.
     let node = crate::canvas::cords::new_stack_node(
         num(a, "x").unwrap_or(head.x),
         num(a, "y").unwrap_or(head.y),
@@ -4469,7 +4263,6 @@ async fn stack_create(s: &Arc<CanvasStore>, a: &Value) -> Result<Value, String> 
     );
     let id = node.id.clone();
     let mut ops = vec![Op::AddNode { node }];
-    // Pages in the given order, each leaving the stack it was in.
     let file = s.read(&ws, &floor, |d| {
         crate::canvas::cords::stack_file_ops(d, &id, &notes_in, Some(0))
     })?;
@@ -4479,8 +4272,6 @@ async fn stack_create(s: &Arc<CanvasStore>, a: &Value) -> Result<Value, String> 
     Ok(json!({ "stackId": id, "noteIds": notes_in }))
 }
 
-/// What the editor's "Ask…" sends (FileEditorNode `askSend`): the path with
-/// the line range, then the lines fenced with the file's language.
 fn ask_quote(path: &str, from: usize, to: usize, body: &str) -> String {
     let range = if from == to {
         from.to_string()
@@ -4507,7 +4298,6 @@ fn ask_quote(path: &str, from: usize, to: usize, body: &str) -> String {
     )
 }
 
-/// File-tree reads through the canvas's own file commands (root-confined).
 async fn filetree(
     app: &AppHandle,
     s: &Arc<CanvasStore>,
@@ -4517,7 +4307,6 @@ async fn filetree(
     let (ws, root) = match st(a, "nodeId") {
         Some(k) => {
             let (w, _, n) = locate(s, &k)?;
-            // A tree on SSH/Docker/sandbox (Maestri §K9) reads over there.
             let env = n.data.get("environment").cloned();
             if cmd::files::node_is_remote(s, &w, env.as_ref())
                 && matches!(
@@ -4584,8 +4373,6 @@ async fn filetree(
             if from.is_none() && name == "canvas_filetree_read" {
                 return wrap("file", file);
             }
-            // A line range (Maestri §K7 "Ask…"): the quote the editor's Ask
-            // button sends, and with `ask` it goes to that terminal.
             let text = file.text.clone().unwrap_or_default();
             let lines: Vec<&str> = text.lines().collect();
             let from = from.unwrap_or(1).max(1) as usize;
@@ -4637,7 +4424,6 @@ async fn filetree(
                         .await?;
                 let status = r.status.clone();
                 let mut v = to_value(r)?;
-                // Same top-level key as the plain status call.
                 v["status"] = serde_json::to_value(status).unwrap_or(Value::Null);
                 Ok(v)
             }

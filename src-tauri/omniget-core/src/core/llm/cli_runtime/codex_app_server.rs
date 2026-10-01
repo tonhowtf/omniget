@@ -1,39 +1,3 @@
-//! Codex turns over `codex app-server` (JSON-RPC over stdio), item 3.6 (S21,
-//! `82#P7`, `81#P7`). The same Codex account, the same `CODEX_HOME`, the same
-//! process tree, watchdog and cancel as every CLI turn (`session.rs`), but a
-//! conversation instead of a one-shot `exec`:
-//!
-//! - `thread/resume` with the thread id the run registry kept for the
-//!   conversation, so only the **new message** travels (the flattened
-//!   transcript of `exec` grew with every turn). Codex no longer knowing the
-//!   thread (`no rollout found`) falls back to `thread/start` with the replayed
-//!   transcript; any other error fails the turn, never a silent fresh start;
-//! - `turn/start` carries the agent's reasoning `effort` and the run mode's
-//!   approval policy, sandbox and reviewer (the T3 table of
-//!   `drivers::codex::launch::mode_config`, under the account's ceiling);
-//! - every `item/*/requestApproval` becomes one durable ask of the broker
-//!   (a `runs_permissions` row, 2.2), answerable from the window, the bridge,
-//!   the CLI, MCP or the phone; the answer goes back as the JSON-RPC response;
-//! - cancel sends `turn/interrupt` and kills the tree after
-//!   [`session::INTERRUPT_GRACE`](super::session::INTERRUPT_GRACE).
-//!
-//! One process per turn, not per conversation: the process is created inside
-//! the turn and is dead before its stream ends, exactly like `exec`, so the
-//! watchdog, the reaper of `runs` and the job slots need nothing new. What a
-//! long-lived process would buy (no resume cost) is a few hundred ms per turn;
-//! what it would cost is a second process lifecycle to supervise.
-//!
-//! `exec --json` stays the fallback, picked by version: the app-server is
-//! used only when the probe saw Codex ≥ [`MIN_VERSION`] answer
-//! `codex app-server --help` (the t3code floor, `82#P7`), and never when
-//! `OMNIGET_CODEX_TRANSPORT=exec` is set.
-//!
-//! Protocol reference: the JSON Schema of codex 0.158
-//! (`codex app-server generate-json-schema`, kept in
-//! `estudos/91-onda3/codex-app-server-schema/`), the Central's driver
-//! (`drivers::codex`, same wire) and t3code (MIT) `CodexSessionRuntime.ts`.
-//! This file never opens `auth.json`: the CLI logs itself in.
-
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex, Weak};
 
@@ -51,12 +15,8 @@ use super::parse::{classify_error_text, CliSignal};
 use super::session::{Duplex, LineParser};
 use super::{ERR_CLI_EXIT, ERR_CLI_RATE};
 
-/// The first Codex whose app-server speaks the v2 protocol this file uses
-/// (t3code requires the same, `82#P7`).
 pub const MIN_VERSION: (u32, u32) = (0, 156);
 
-/// `exec` forces the one-shot fallback (escape hatch, and the "before" side
-/// of BN10).
 pub const ENV_TRANSPORT: &str = "OMNIGET_CODEX_TRANSPORT";
 
 const ID_INIT: i64 = 1;
@@ -65,10 +25,8 @@ const ID_START: i64 = 3;
 const ID_TURN: i64 = 4;
 const ID_INTERRUPT: i64 = 5;
 
-/// Longest tool output handed back as a `ToolResult`.
 const OUTPUT_CLIP: usize = 16 * 1024;
 
-/// `0.158.0` → true. Anything unparsable is false: the fallback is safe.
 pub fn version_supports(version: &str) -> bool {
     let mut parts = version
         .trim()
@@ -81,8 +39,6 @@ pub fn version_supports(version: &str) -> bool {
     }
 }
 
-/// Whether this turn goes over the app-server (the caps say it exists and
-/// nobody forced `exec`).
 pub fn wanted(app_server: bool) -> bool {
     app_server
         && !std::env::var(ENV_TRANSPORT)
@@ -90,9 +46,6 @@ pub fn wanted(app_server: bool) -> bool {
             .unwrap_or(false)
 }
 
-/// The approval policy, sandbox and reviewer of a run mode under the
-/// account's ceiling. A read-only account never asks: Codex's "accept" would
-/// run the command outside the sandbox, which the ceiling forbids.
 pub fn mode_of(effective: Effective) -> ModeConfig {
     match effective {
         Effective::ReadOnly => {
@@ -104,8 +57,6 @@ pub fn mode_of(effective: Effective) -> ModeConfig {
     }
 }
 
-/// A Codex effort word from the agent's `reasoning_effort` (Codex lists
-/// `low|medium|high|xhigh|max|ultra`; `none|minimal` are older names).
 pub fn effort_of(raw: &str) -> Option<String> {
     let w = raw.trim().to_ascii_lowercase();
     match w.as_str() {
@@ -114,35 +65,23 @@ pub fn effort_of(raw: &str) -> Option<String> {
     }
 }
 
-/// Who answers Codex's questions: the broker's durable ask, on behalf of this
-/// agent and this turn (the run id is the turn's request id, so the watchdog
-/// pauses while a person decides and `approvals.rs` can cancel the job).
 #[derive(Clone)]
 pub struct Asker {
     pub broker: Weak<ToolBroker>,
     pub agent_id: String,
     pub request_id: String,
     pub conversation: String,
-    /// The run registry of the turn, captured where the turn was planned: the
-    /// ask runs in a task of its own, outside the coordinator's task-local.
     pub registry: Option<crate::core::assist::runs::Registry>,
 }
 
-/// Everything one app-server turn needs, decided by `CliRuntime`.
 #[derive(Debug, Clone, Default)]
 pub struct AppServerPlan {
     pub cwd: Option<String>,
     pub model: Option<String>,
     pub effort: Option<String>,
-    /// The agent's system prompt plus this turn's system messages
-    /// (`developerInstructions`, sent on start and on resume).
     pub instructions: Option<String>,
-    /// The Codex thread to resume (the run registry's provider handle).
     pub resume: Option<String>,
-    /// What a resumed turn sends: the new message alone.
     pub resume_text: String,
-    /// What a fresh thread gets: the new message, or the replayed transcript
-    /// when the conversation has history Codex does not hold.
     pub fresh_text: String,
     pub effective: Option<Effective>,
 }
@@ -173,9 +112,6 @@ impl AppServerPlan {
         m
     }
 
-    /// The lines written before the first answer: `initialize`,
-    /// `initialized`, then `thread/resume` or `thread/start` (pipelined; the
-    /// server handles them in order).
     pub fn prelude(&self) -> String {
         let mut lines = vec![
             json!({ "id": ID_INIT, "method": "initialize", "params": initialize_params() }),
@@ -196,7 +132,6 @@ impl AppServerPlan {
     fn resume_request(&self, thread: &str) -> Value {
         let mut m = self.thread_params();
         m.insert("threadId".into(), json!(thread));
-        // History items of any version must never break a resume.
         m.insert("excludeTurns".into(), json!(true));
         json!({ "id": ID_RESUME, "method": "thread/resume", "params": m })
     }
@@ -205,8 +140,6 @@ impl AppServerPlan {
         json!({ "id": ID_START, "method": "thread/start", "params": self.thread_params() })
     }
 
-    /// `turn/start`: the text, the effort, and the mode again (Codex keeps
-    /// turn overrides for later turns, so every turn states its own).
     pub fn turn_request(&self, thread: &str, text: &str) -> Value {
         let mode = self.mode();
         let mut m = serde_json::Map::new();
@@ -231,8 +164,6 @@ impl AppServerPlan {
     }
 }
 
-/// `thread/resume` failed because Codex does not have that thread (the
-/// driver's rule, same wording): start a fresh one with the replay.
 fn missing_thread(message: &str) -> bool {
     let msg = message.to_lowercase();
     (msg.contains("thread")
@@ -256,29 +187,21 @@ struct State {
     started: bool,
     errored: bool,
     finished: bool,
-    /// Agent messages that streamed deltas (their `completed` text is not
-    /// repeated).
     streamed: HashSet<String>,
-    /// Tool items opened with `ToolCallStart` and not yet answered.
     open: HashSet<String>,
-    /// File change item → its paths (the approval request only names the item).
     paths: HashMap<String, Vec<String>>,
-    /// Command item → its command line.
     commands: HashMap<String, String>,
-    /// Items OmniGet declined for a person (the note says "the answer was no").
     declined_by_person: HashSet<String>,
     usage: Usage,
     saw_usage: bool,
 }
 
-/// Reads the app-server's stdout and writes its follow-ups (see module doc).
 pub struct AppServerParser {
     plan: AppServerPlan,
     state: Arc<Mutex<State>>,
     out: tokio::sync::mpsc::UnboundedSender<String>,
     outbox: Mutex<Option<tokio::sync::mpsc::UnboundedReceiver<String>>>,
     asker: Option<Asker>,
-    /// Said next to a call nobody allowed (2.7, S5).
     no_surface_note: String,
     refused_note: String,
 }
@@ -458,9 +381,6 @@ impl AppServerParser {
                 }
             }
             "thread/tokenUsage/updated" => {
-                // `last` is one model request; a turn is the sum of its
-                // requests. `inputTokens` holds the cache (OpenAI convention,
-                // the same as `Usage`).
                 if let Some(last) = params.get("tokenUsage").and_then(|u| u.get("last")) {
                     let n = |k: &str| last.get(k).and_then(Value::as_u64).unwrap_or(0) as u32;
                     let mut st = self.state();
@@ -554,8 +474,6 @@ impl AppServerParser {
                 }
             }
             _ => {
-                // A tool that only ever completes (a file change with no
-                // `started`) still opens before it closes.
                 if !self.state().open.contains(id) {
                     self.item_started(item, out);
                 }
@@ -588,10 +506,6 @@ impl AppServerParser {
         }
     }
 
-    /// A question of Codex. Approvals go to the broker (durable, answerable
-    /// from anywhere) in a task of their own: the turn keeps streaming while
-    /// a person decides. Everything OmniGet cannot answer is refused at once,
-    /// so Codex never waits on a question nobody sees.
     fn on_request(&self, id: Value, method: &str, params: &Value) {
         let kind = match method {
             "item/commandExecution/requestApproval" => PendingKind::Command,
@@ -603,7 +517,6 @@ impl AppServerParser {
                 self.send(json!({ "id": id, "result": { "action": "decline" } }));
                 return;
             }
-            // Credentials are the CLI's own business; OmniGet never holds them.
             _ => {
                 self.send(json!({ "id": id, "error": {
                     "code": -32601,
@@ -648,9 +561,6 @@ impl AppServerParser {
         });
     }
 
-    /// (rule label, rule input, preview) of a question. Commands and file
-    /// edits use the native tool names, so one "Always" rule of the agent
-    /// (`perm.rs`) answers the same way for the native harness and Codex.
     fn question(&self, kind: PendingKind, item: &str, params: &Value) -> (String, Value, String) {
         let reason = params
             .get("reason")
@@ -700,8 +610,6 @@ impl AppServerParser {
     }
 }
 
-/// The agent's rules first (an "Always" or a deny of `perm.rs`), else a
-/// person through the broker. Nobody answering is a decline, never a yes.
 async fn decide(
     asker: &Asker,
     call_id: &str,
@@ -745,7 +653,6 @@ async fn decide(
     }
 }
 
-/// `(id, display name, input)` of an item that is a tool call.
 fn tool_of(item: &Value) -> Option<(String, String, Value)> {
     let id = item.get("id").and_then(Value::as_str)?.to_string();
     let s = |k: &str| {

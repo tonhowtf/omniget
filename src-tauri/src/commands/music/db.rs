@@ -1,8 +1,3 @@
-//! `music.db`: the library, playlists, play history and radio favourites.
-//!
-//! Kept apart from `omniget.db` because a scan writes thousands of rows and
-//! should not hold the lock the download queue uses.
-
 use std::path::PathBuf;
 use std::sync::{Mutex, OnceLock};
 
@@ -153,8 +148,6 @@ pub fn now_ms() -> i64 {
     chrono::Utc::now().timestamp_millis()
 }
 
-/// What the frontend keeps in memory for every track: enough to sort,
-/// filter, group into albums/artists and draw a row.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TrackRow {
     pub id: i64,
@@ -291,8 +284,6 @@ pub struct FileStamp {
     pub size: i64,
 }
 
-/// Inserts or refreshes a track from its tags, keeping play stats, rating,
-/// analysis and the date it was first added. Returns the row id.
 pub fn upsert_track(
     c: &Connection,
     path: &str,
@@ -370,7 +361,6 @@ pub fn upsert_track(
     })
 }
 
-/// Path -> (mtime, size) of everything indexed under `root`.
 pub fn stamps_under(root: &str) -> Result<std::collections::HashMap<String, (i64, i64)>, String> {
     with(|c| {
         let mut st =

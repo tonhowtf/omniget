@@ -1,11 +1,3 @@
-//! Project wizard (`/llm/catalog/wizard`): stack → the catalog's 14 project
-//! templates → selectable pieces (commands, agents, settings, hooks, MCP
-//! servers, template guidance) + a generated `AGENTS.md`, installed through the
-//! agentkit plan into every tool the user picks. Unlike cct (estudo 75 01
-//! §2.11) the selection is what gets installed: every piece is its own
-//! component, and placeholder MCP servers (`node path/to/...`, `ruby -e`) are
-//! shown but can not be picked.
-
 use std::collections::{BTreeMap, HashMap};
 use std::path::{Path, PathBuf};
 use std::sync::{Mutex, OnceLock};
@@ -20,7 +12,6 @@ use crate::core::catalog::{self as cat, model::CatalogItem};
 
 pub const ERR_WIZARD: &str = "ERR_AGENTKIT_WIZARD";
 
-/// Templates that apply to a stack, most general first.
 pub fn templates_for(r: &StackReport) -> Vec<&'static str> {
     let mut t = vec!["cct:templates/common"];
     let js = r.has_language("javascript") || r.has_language("typescript");
@@ -69,7 +60,6 @@ pub fn templates_for(r: &StackReport) -> Vec<&'static str> {
     t
 }
 
-/// Every template id of the catalog the wizard knows (the 14 of cct).
 pub const ALL_TEMPLATES: &[&str] = &[
     "cct:templates/common",
     "cct:templates/javascript-typescript",
@@ -87,30 +77,23 @@ pub const ALL_TEMPLATES: &[&str] = &[
     "cct:templates/go",
 ];
 
-/// One selectable thing.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Piece {
-    /// Stable key (`<template>/<kind>/<name>`).
     pub id: String,
-    /// `rule | command | agent | setting | hook | mcp`.
     pub kind: String,
     pub name: String,
     pub description: String,
     pub template: String,
-    /// Pre-checked in the UI.
     pub selected: bool,
-    /// `false` = shown for honesty but can not be installed (placeholder MCP).
     pub available: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub reason: Option<String>,
-    /// Why it is (not) suggested / what it changes.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub notes: Vec<String>,
     #[serde(skip)]
     pub component: Option<Component>,
 }
 
-/// What the wizard shows.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Session {
     pub id: String,
@@ -118,7 +101,6 @@ pub struct Session {
     pub stack: StackReport,
     pub templates: Vec<String>,
     pub pieces: Vec<Piece>,
-    /// Generated AGENTS.md (the `agents-md` piece; editable before install).
     pub agents_md: String,
     pub warnings: Vec<String>,
 }
@@ -162,7 +144,6 @@ fn file_name(p: &str) -> &str {
     p.rsplit('/').next().unwrap_or(p)
 }
 
-/// Placeholder MCP entries of the templates (they do not run anywhere).
 fn placeholder_reason(rec: &Value) -> Option<String> {
     let cmd = rec["command"].as_str().unwrap_or("");
     let args: Vec<&str> = rec["args"]
@@ -203,7 +184,6 @@ fn needs_secret(rec: &Value) -> Vec<String> {
     out
 }
 
-/// Pieces of one template item from its fetched files.
 pub fn pieces_of(item: &CatalogItem, files: &RawFiles) -> (Vec<Piece>, Vec<String>) {
     let mut pieces = Vec::new();
     let mut warnings = Vec::new();
@@ -262,7 +242,6 @@ pub fn pieces_of(item: &CatalogItem, files: &RawFiles) -> (Vec<Piece>, Vec<Strin
             let mut values: Map<String, Value> = v.as_object().cloned().unwrap_or_default();
             let hooks = values.remove("hooks");
             let mut notes = Vec::new();
-            // cct ships `defaultMode: "allowEdits"`, which Claude does not know.
             if let Some(Value::Object(perms)) = values.get_mut("permissions") {
                 if perms.get("defaultMode").and_then(|m| m.as_str()) == Some("allowEdits") {
                     perms.insert("defaultMode".into(), json!("acceptEdits"));
@@ -309,7 +288,6 @@ pub fn pieces_of(item: &CatalogItem, files: &RawFiles) -> (Vec<Piece>, Vec<Strin
                     Err(e) => warnings.push(format!("{path}: {}", e.message)),
                 }
             }
-            // Each hook group is its own piece (cct wrote them all, whatever was picked).
             if let Some(Value::Object(events)) = hooks {
                 for (event, groups) in events {
                     for (gi, group) in groups
@@ -444,9 +422,6 @@ pub fn pieces_of(item: &CatalogItem, files: &RawFiles) -> (Vec<Piece>, Vec<Strin
     (pieces, warnings)
 }
 
-/// A later template's piece with the same kind and name replaces an earlier
-/// one (node-api's `api-endpoint` over the generic one; the MCP servers that
-/// the common template shares with the language ones).
 fn dedupe(pieces: Vec<Piece>) -> Vec<Piece> {
     let mut out: Vec<Piece> = Vec::new();
     for p in pieces {
@@ -464,7 +439,6 @@ fn dedupe(pieces: Vec<Piece>) -> Vec<Piece> {
     out
 }
 
-/// Generated AGENTS.md: facts of the project, no generic essay.
 pub fn agents_md(r: &StackReport) -> String {
     let mut s = String::new();
     let title = r
@@ -583,8 +557,6 @@ fn agents_md_component(markdown: &str) -> Result<Component, String> {
     Ok(c)
 }
 
-/// Detects the stack, fetches the templates it needs and returns the session.
-/// `extra_templates` adds templates the user picked by hand.
 pub async fn start(project: &Path, extra_templates: &[String]) -> Result<Session, String> {
     if !project.is_dir() {
         return Err(format!(
@@ -653,8 +625,6 @@ pub async fn start(project: &Path, extra_templates: &[String]) -> Result<Session
     Ok(s)
 }
 
-/// Components of the chosen pieces (only those, in the order shown), with the
-/// AGENTS.md text the user edited.
 pub fn selected_components(
     session_id: &str,
     selected: &[String],
@@ -690,8 +660,6 @@ pub fn selected_components(
     Ok((s.project, out))
 }
 
-/// The review prompt of "review the setup with an agent" (cct ran it with
-/// `sh -c 'claude "<prompt>"'`; here it is a Job with the chosen runner).
 pub fn review_prompt(r: &StackReport, installed: &BTreeMap<String, Vec<String>>) -> String {
     let mut s = String::from(
         "Review the coding-agent setup of this project. Check that AGENTS.md (and CLAUDE.md or the other tool files) match the real project: the languages, frameworks and commands must be the ones in the manifests, and every command it names must exist. Look at the installed commands, agents, hooks, settings and MCP servers and flag anything that does not fit this code base, needs a tool that is missing, or is too permissive. Do not change files; answer with a short list of concrete fixes, most important first.\n\n",

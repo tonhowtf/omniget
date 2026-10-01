@@ -1,11 +1,4 @@
-//! Innertube client registry, request bodies, headers and the account
-//! cookie jar. The client table ships embedded (`clients.json`) and can be
-//! replaced at runtime by a JSON file, so a `clientVersion` bump or a new
-//! player client goes out without a rebuild.
-//!
-//! Values come from Flow-Desktop `core/clients.rs` and limusic
 //! `crates/innertube/clients.json` (both GPL-3.0), checked live on
-//! 2026-09-30.
 
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -43,18 +36,14 @@ impl Host {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ClientDef {
     pub name: String,
-    /// `X-YouTube-Client-Name`.
     pub id: u32,
     pub version: String,
     pub user_agent: String,
     pub host: String,
-    /// Extra `context.client` fields (osName, deviceMake, platform...).
     #[serde(default)]
     pub context: Value,
-    /// Only WEB and WEB_REMIX send the account cookie and SAPISIDHASH.
     #[serde(default)]
     pub supports_cookies: bool,
-    /// Embedded player: sends `thirdParty.embedUrl` (age gate bypass).
     #[serde(default)]
     pub embed: bool,
 }
@@ -65,9 +54,7 @@ impl ClientDef {
     }
 }
 
-/// Video player ladder (Flow + live test of 2026-09-30).
 pub const PLAYER_LADDER: &[&str] = &["VISIONOS", "ANDROID_VR"];
-/// Audio-only (YT Music) ladder.
 pub const MUSIC_PLAYER_LADDER: &[&str] = &["VISIONOS", "ANDROID_VR"];
 
 fn parse_clients(text: &str) -> Result<Vec<ClientDef>, String> {
@@ -80,8 +67,6 @@ static EMBEDDED: Lazy<Vec<ClientDef>> =
 static OVERRIDE: Lazy<RwLock<HashMap<String, ClientDef>>> =
     Lazy::new(|| RwLock::new(HashMap::new()));
 
-/// Load a user/app-data `clients.json` whose entries replace the embedded
-/// ones by name. A missing or broken file leaves the embedded table alone.
 pub fn set_clients_override(path: PathBuf) {
     let Ok(text) = std::fs::read_to_string(&path) else {
         return;
@@ -113,7 +98,6 @@ pub fn client(name: &str) -> Option<ClientDef> {
         .cloned()
 }
 
-/// Full `{"context": {...}}` object.
 pub fn context(c: &ClientDef, visitor_data: Option<&str>, hl: &str, gl: &str) -> Value {
     let mut client = Map::new();
     client.insert("clientName".into(), json!(c.name));
@@ -273,28 +257,22 @@ pub fn endpoint_url(c: &ClientDef, endpoint: &str) -> String {
     )
 }
 
-/// One Netscape cookie line. Only `.youtube.com` / `.google.com` survive.
 #[derive(Debug, Clone, PartialEq)]
 pub struct CookieEntry {
     pub domain: String,
     pub include_sub: bool,
     pub path: String,
     pub secure: bool,
-    /// Epoch seconds; 0 = session cookie.
     pub expires: i64,
     pub name: String,
     pub value: String,
 }
 
-/// Account cookies for youtube.com, kept in the Netscape shape so they can
-/// be written back to the OmniGet cookie vault after Google rotates them.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct CookieJar {
     pub entries: Vec<CookieEntry>,
 }
 
-/// Identity cookies that a response may never delete (YTubic
-/// `PROTECTED_COOKIES`): only a real sign-out should drop them.
 const PROTECTED_COOKIES: [&str; 9] = [
     "SID",
     "HSID",
@@ -367,7 +345,6 @@ impl CookieJar {
         out
     }
 
-    /// Entry for `name`, preferring the youtube.com copy over google.com.
     fn entry(&self, name: &str) -> Option<&CookieEntry> {
         let mut best: Option<&CookieEntry> = None;
         for e in self.entries.iter().filter(|e| e.name == name) {
@@ -384,7 +361,6 @@ impl CookieJar {
         self.entry(name).map(|e| e.value.as_str())
     }
 
-    /// `Cookie` header for youtube.com requests.
     pub fn header(&self) -> String {
         let mut seen: Vec<&str> = Vec::new();
         let mut parts = Vec::new();
@@ -404,9 +380,6 @@ impl CookieJar {
         self.get("SAPISID").is_some() || self.get("__Secure-3PAPISID").is_some()
     }
 
-    /// Returns true when some cookie value changed (cached `Cookie` headers
-    /// are stale). Host-only cookies belong to `host`; a response may only
-    /// set cookies for its own domain or a parent of it (RFC 6265 5.3.5).
     pub fn merge_set_cookie_from(&mut self, host: &str, values: &[String], now_s: i64) -> bool {
         let host_bare = bare_domain(host);
         let mut changed = false;
@@ -476,7 +449,6 @@ struct SetCookie {
 }
 
 fn parse_cookie_date(s: &str) -> Option<i64> {
-    // "Wed, 30-Sep-2027 12:00:00 GMT" and "Wed, 30 Sep 2027 12:00:00 GMT"
     let cleaned = s.trim().replace('-', " ");
     let cleaned = cleaned
         .trim_end_matches("GMT")
@@ -520,7 +492,6 @@ fn parse_set_cookie(raw: &str, now_s: i64) -> Option<SetCookie> {
             _ => {}
         }
     }
-    // Max-Age wins over Expires (RFC 6265 4.1.2.2).
     if let Some(ma) = max_age {
         sc.delete = ma <= 0;
         sc.expires = now_s.saturating_add(ma);
@@ -537,8 +508,6 @@ fn sid_hash(scheme: &str, sid: &str, origin: &str, now_s: u64) -> String {
     format!("{scheme} {now_s}_{}", hex::encode(h.finalize()))
 }
 
-/// `SAPISIDHASH ts_sha1 SAPISID1PHASH ts_sha1 SAPISID3PHASH ts_sha1` with the
-/// parts whose cookies exist. `now_s` is the epoch in seconds.
 pub fn auth_header(jar: &CookieJar, origin: &str, now_s: u64) -> Option<String> {
     let sapisid = jar
         .get("SAPISID")
@@ -563,8 +532,6 @@ fn find_visitor(v: &Value) -> Option<String> {
     }
 }
 
-/// `https://www.youtube.com/sw.js_data`: drops the `)]}'` guard and finds
-/// the `Cg...` visitor data under `[0][2]`.
 pub fn parse_visitor_data_swjs(body: &str) -> Option<String> {
     let json_start = body.find('[')?;
     let v: Value = serde_json::from_str(body[json_start..].trim()).ok()?;
@@ -574,7 +541,6 @@ pub fn parse_visitor_data_swjs(body: &str) -> Option<String> {
         .or_else(|| find_visitor(&v))
 }
 
-/// YouTube search filter (`sp=`), for the "type" chips.
 pub fn search_params(filter: &str) -> Option<&'static str> {
     match filter {
         "video" | "videos" => Some("EgIQAQ=="),
@@ -587,7 +553,6 @@ pub fn search_params(filter: &str) -> Option<&'static str> {
     }
 }
 
-/// YT Music search filter (SimpMusic `YouTube.SearchFilter`).
 pub fn music_search_params(filter: &str) -> Option<&'static str> {
     match filter {
         "songs" | "song" => Some("EgWKAQIIAWoKEAkQBRAKEAMQBA=="),
@@ -601,7 +566,6 @@ pub fn music_search_params(filter: &str) -> Option<&'static str> {
     }
 }
 
-/// Channel tab `params` for `browse` with a `UC...` id.
 pub fn channel_tab_params(tab: &str) -> Option<&'static str> {
     match tab {
         "videos" => Some("EgZ2aWRlb3PyBgQKAjoA"),
@@ -787,7 +751,6 @@ mod tests {
                 expect("three")
             )
         );
-        // Fixed vector, independent of the helper above.
         let only = CookieJar::from_netscape(".youtube.com\tTRUE\t/\tTRUE\t0\tSAPISID\tabc\n");
         assert_eq!(
             auth_header(&only, "https://www.youtube.com", 1).unwrap(),
@@ -819,7 +782,6 @@ mod tests {
         );
         assert!(changed);
         assert_eq!(jar.get("SID"), Some("new"));
-        // Protected identity cookie survives a server-side expiry.
         assert_eq!(jar.get("SAPISID"), Some("abc/def"));
         let ts = jar
             .entries
@@ -828,7 +790,6 @@ mod tests {
             .unwrap();
         assert_eq!(ts.expires, 2_137_924_800);
         assert!(jar.get("EVIL").is_none());
-        // www.youtube.com may not set a .google.com cookie.
         assert!(jar.entries.iter().all(|e| e.name != "GOOGLE"));
         let vis = jar
             .entries
@@ -836,7 +797,6 @@ mod tests {
             .find(|e| e.name == "VISITOR_INFO1_LIVE")
             .unwrap();
         assert_eq!(vis.domain, ".www.youtube.com");
-        // Deleting a non-protected cookie works.
         assert!(jar.merge_set_cookie_from(
             "www.youtube.com",
             &[

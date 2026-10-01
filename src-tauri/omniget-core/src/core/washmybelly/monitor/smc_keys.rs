@@ -1,17 +1,5 @@
-//! SMC sensor keys by chip generation, ported from Stats
-//! (`Modules/Sensors/values.swift`, `SensorsList`).
-//!
 //! Stats — MIT License, Copyright (c) 2019 Serhiy Mytrovtsiy
-//! <https://github.com/exelban/stats>. Permission is hereby granted, free of
-//! charge, to any person obtaining a copy of this software and associated
-//! documentation files, to deal in the Software without restriction, subject
-//! to including the copyright notice and this permission notice in all copies
-//! or substantial portions of the Software. THE SOFTWARE IS PROVIDED "AS IS",
-//! WITHOUT WARRANTY OF ANY KIND.
-//!
-//! `%` in a key matches any one character of an enumerated SMC key.
 
-/// Chip families a key applies to (bit set).
 pub const INTEL: u16 = 1 << 0;
 pub const M1: u16 = 1 << 1;
 pub const M2: u16 = 1 << 2;
@@ -24,17 +12,13 @@ pub const A18: u16 = 1 << 7;
 pub const APPLE: u16 = M1 | M2 | M3 | M4 | M5 | A18;
 pub const ALL: u16 = INTEL | APPLE;
 
-/// One sensor of the table.
 #[derive(Debug, Clone, Copy)]
 pub struct S {
     pub key: &'static str,
     pub name: &'static str,
-    /// `CPU`, `GPU`, `system` or `sensor`.
     pub group: &'static str,
-    /// `temperature`, `voltage`, `current` or `power`.
     pub kind: &'static str,
     pub on: u16,
-    /// Averaged into the CPU/GPU figure (per-core keys).
     pub average: bool,
 }
 
@@ -1617,7 +1601,6 @@ pub const SENSORS: &[S] = &[
     },
 ];
 
-/// The chip family of a CPU brand string (`Apple M4 Pro`, `Intel(R) Core...`).
 pub fn family(brand: &str) -> u16 {
     let b = brand.to_ascii_lowercase();
     if b.contains("intel") {
@@ -1641,15 +1624,12 @@ pub fn family(brand: &str) -> u16 {
     } else if b.contains("m5") {
         M5
     } else if b.contains("apple") {
-        // A newer Apple chip than the table knows: the generic Apple keys
-        // still work, per-core keys do not.
         APPLE & !(M1 | M2 | M3 | M4 | M5 | A18)
     } else {
         0
     }
 }
 
-/// Whether an SMC key matches a table key with `%` wildcards.
 pub fn key_matches(pattern: &str, key: &str) -> bool {
     pattern.len() == key.len()
         && pattern
@@ -1658,8 +1638,6 @@ pub fn key_matches(pattern: &str, key: &str) -> bool {
             .all(|(p, k)| p == b'%' || p == k)
 }
 
-/// The readable name of `key` in a table entry (`%` in the name becomes the
-/// wildcard character of the key, as Stats does).
 pub fn name_for(entry: &S, key: &str) -> String {
     if !entry.name.contains('%') {
         return entry.name.to_string();

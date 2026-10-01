@@ -1,41 +1,15 @@
-//! Caixa-preta: os ultimos N eventos do app, redigidos, para anexar a um bug
-//! report.
-//!
-//! O `download_log` que ja existe e por download e some no restart. Isto e
-//! global e atravessa downloads, plugins e bootstrap — o que falta quando
-//! alguem diz "parou de funcionar" e nao sabe dizer quando comecou.
-//!
-//! O item aqui e a **redacao**, nao o buffer. Um despejo de log que vaza cookie
-//! ou token e pior que nenhum despejo, porque o usuario cola em issue publica
-//! achando que e seguro. Por isso a redacao e funcao pura e testada por classe
-//! de segredo, e o buffer e so um `VecDeque`.
-
 use std::collections::VecDeque;
 use std::sync::{Mutex, OnceLock};
 
-/// Quantos eventos ficam retidos. Alto o bastante para cobrir uma sessao de
-/// download, baixo o bastante para caber num comentario de issue.
 pub const CAPACITY: usize = 500;
 
-/// Substitui todo segredo conhecido por um marcador estavel.
-///
-/// Blocklist e o inverso do que se quer para seguranca, mas aqui e inevitavel:
-/// a entrada e log arbitrario de yt-dlp, ffmpeg e plugins, e nao existe forma de
-/// enumerar o que e seguro. A mitigacao e cobrir por *classe* de segredo e
-/// testar cada uma, em vez de por padrao literal.
 pub fn redact(line: &str) -> String {
-    // URLs first, by allowlist: a parameter name nobody predicted (`igsh=`,
-    // `hdnts=`, `e=`) must not survive just because the blocklist below never
-    // heard of it.
     redact_keyed(&redact_urls_in_text(line))
 }
 
 const REDACTED: &str = "[REDACTED]";
 
-/// Query parameters that identify public content and never carry a
-/// credential. Everything else keeps its name but loses its value.
 const SAFE_QUERY_KEYS: &[&str] = &[
-    // YouTube
     "v",
     "list",
     "t",
@@ -43,7 +17,6 @@ const SAFE_QUERY_KEYS: &[&str] = &[
     "start",
     "end",
     "time_continue",
-    // generic public ids / pagination
     "id",
     "p",
     "page",
@@ -52,34 +25,19 @@ const SAFE_QUERY_KEYS: &[&str] = &[
     "playlist",
     "pl",
     "item_id",
-    // Bilibili
     "bvid",
     "aid",
     "cid",
     "ep_id",
     "season_id",
-    // Facebook
     "story_fbid",
     "fbid",
-    // locale
     "hl",
     "lang",
 ];
 
-/// Longest value kept even for a safe key: public ids are short, a value this
-/// long under `id=` is a bearer blob wearing a harmless name.
 const SAFE_VALUE_MAX: usize = 64;
 
-/// Redacts one URL for persistence or display, by allowlist.
-///
-/// Keeps scheme, host, port, non-secret path segments and the values of
-/// [`SAFE_QUERY_KEYS`]. Replaces userinfo with `[REDACTED]@`, replaces every other query value and
-/// the whole fragment with `[REDACTED]`, and replaces path segments that look
-/// like tokens (JWTs, long hex/base64 runs). The result is for humans and
-/// logs: it is not executable and must never be fed back to a downloader.
-///
-/// Input that is not an absolute URL goes through [`redact`]-style keyed
-/// redaction and loses anything after `?` or `#`.
 pub fn redact_url(raw: &str) -> String {
     let trimmed = raw.trim();
     let Ok(parsed) = url::Url::parse(trimmed) else {
@@ -91,8 +49,6 @@ pub fn redact_url(raw: &str) -> String {
     let mut out = String::with_capacity(trimmed.len());
     out.push_str(parsed.scheme());
     out.push_str("://");
-    // Credentials are gone, but say so: a retry from this string must know
-    // it lost something (see `is_redacted_url`).
     if !parsed.username().is_empty() || parsed.password().is_some() {
         out.push_str(REDACTED);
         out.push('@');
@@ -163,8 +119,6 @@ fn redact_query(query: &str) -> String {
                     format!("{raw_key}={v}")
                 }
                 Some(_) => format!("{raw_key}={REDACTED}"),
-                // A bare key is either a flag or an opaque token; only
-                // allowlisted flags survive.
                 None if safe => raw_key.to_string(),
                 None => REDACTED.to_string(),
             }
@@ -173,9 +127,6 @@ fn redact_query(query: &str) -> String {
         .join("&")
 }
 
-/// A path segment or value that reads like a credential: a JWT, or an
-/// unbroken alphanumeric run long enough to be a signature/hash. Public ids
-/// (11-char YouTube ids, numeric snowflakes, UUIDs, slugs) stay.
 fn segment_looks_like_token(seg: &str) -> bool {
     let decoded = urlencoding::decode(seg)
         .map(|s| s.into_owned())
@@ -203,21 +154,14 @@ fn segment_looks_like_token(seg: &str) -> bool {
     false
 }
 
-/// True when `url` came out of [`redact_url`] with something removed: it is
-/// display-only and a download from it would fail. Callers that re-run a
-/// download from a stored URL must refuse it with "link expired, paste again"
-/// instead of sending `[REDACTED]` to a server.
 pub fn is_redacted_url(url: &str) -> bool {
     url.contains(REDACTED)
 }
 
-/// Only the URL pass of [`redact`]: URLs inside `text` are redacted, the rest
-/// (paths, flags) is left byte-identical. For shell commands shown to the user.
 pub fn redact_urls(text: &str) -> String {
     redact_urls_in_text(text)
 }
 
-/// Rewrites every `http(s)://` URL inside free text with [`redact_url`].
 fn redact_urls_in_text(text: &str) -> String {
     let lower = text.to_ascii_lowercase();
     let mut out = String::with_capacity(text.len());
@@ -236,9 +180,6 @@ fn redact_urls_in_text(text: &str) -> String {
             .find(|c: char| c.is_whitespace() || matches!(c, '"' | '\'' | '<' | '>' | '`'))
             .map(|n| start + n)
             .unwrap_or(text.len());
-        // Sentence punctuation glued to the URL is not part of it, but the
-        // `]` closing an earlier `[REDACTED]` is: trimming it would redact the
-        // marker again and leave `[REDACTED]]` (N-1).
         while end > start
             && !text[start..end].ends_with(REDACTED)
             && matches!(
@@ -256,8 +197,6 @@ fn redact_urls_in_text(text: &str) -> String {
     out
 }
 
-/// The keyed blocklist pass alone, without the URL pass (avoids recursion
-/// from [`redact_non_url`]).
 fn redact_keyed(line: &str) -> String {
     let mut out = String::with_capacity(line.len());
     let mut rest = line;
@@ -277,12 +216,10 @@ fn redact_keyed(line: &str) -> String {
     redact_home_paths(&out)
 }
 
-/// Acha o proximo segredo: `(offset, comprimento, substituto)`.
 fn next_secret(hay: &str) -> Option<(usize, usize, &'static str)> {
     let lower = hay.to_ascii_lowercase();
     let mut best: Option<(usize, usize, &'static str)> = None;
 
-    // Chave=valor, em query string, header ou linha de config.
     const KEYED: &[&str] = &[
         "cookie=",
         "cookies=",
@@ -322,7 +259,6 @@ fn next_secret(hay: &str) -> Option<(usize, usize, &'static str)> {
         }
     }
 
-    // Headers can contain several credentials; redact the complete value.
     for key in [
         "cookie:",
         "set-cookie:",
@@ -346,14 +282,11 @@ fn next_secret(hay: &str) -> Option<(usize, usize, &'static str)> {
     ] {
         if let Some(i) = lower.find(key) {
             let start = i + key.len();
-            // Quoted shell arguments may contain spaces: discard the remaining
-            // diagnostic command rather than retaining part of a credential.
             if start < hay.len() && best.is_none_or(|(b, _, _)| start < b) {
                 best = Some((start, hay.len() - start, "[REDACTED]"));
             }
         }
     }
-    // URL userinfo (including proxy passwords) is never diagnostic evidence.
     for (i, _) in lower.match_indices("://") {
         let start = i + 3;
         let end = hay[start..]
@@ -367,7 +300,6 @@ fn next_secret(hay: &str) -> Option<(usize, usize, &'static str)> {
         }
     }
 
-    // Header `Authorization: Bearer <token>`.
     if let Some(i) = lower.find("bearer ") {
         let value_start = i + "bearer ".len();
         let value_len = hay[value_start..]
@@ -384,10 +316,6 @@ fn next_secret(hay: &str) -> Option<(usize, usize, &'static str)> {
     best
 }
 
-/// Troca o diretorio pessoal por `~`, nas tres convencoes.
-///
-/// Nome de usuario num path e identificavel e vaza sozinho — muita gente cola o
-/// log sem olhar.
 fn redact_home_paths(line: &str) -> String {
     let mut out = line.to_string();
     for prefix in ["/Users/", "/home/", "\\Users\\"] {
@@ -399,7 +327,7 @@ fn redact_home_paths(line: &str) -> String {
                 .map(|e| after + e)
                 .unwrap_or(out.len());
             if end == after {
-                break; // prefixo sem nome de usuario depois; nada a redigir
+                break;
             }
             out.replace_range(i..end, "~");
         }
@@ -407,12 +335,6 @@ fn redact_home_paths(line: &str) -> String {
     out
 }
 
-/// Buffer circular, sem estado global.
-///
-/// Extraido de proposito: com o buffer atras de um `static`, dois testes que
-/// gravam eventos disputam a mesma estrutura e um deles falha de forma
-/// intermitente. Testar a estrutura direto elimina a corrida em vez de
-/// contorna-la com serializacao de teste.
 #[derive(Debug)]
 pub struct Recorder {
     events: VecDeque<String>,
@@ -427,9 +349,6 @@ impl Recorder {
         }
     }
 
-    /// Grava um evento. A redacao acontece **na entrada**, nao no despejo: um
-    /// segredo que entra em claro ja vazou para quem tiver acesso a memoria, e
-    /// o despejo pode ser esquecido.
     pub fn record(&mut self, event: &str) {
         if self.events.len() >= self.capacity {
             self.events.pop_front();
@@ -437,7 +356,6 @@ impl Recorder {
         self.events.push_back(redact(event));
     }
 
-    /// Do mais antigo ao mais recente.
     pub fn dump(&self) -> Vec<String> {
         self.events.iter().cloned().collect()
     }

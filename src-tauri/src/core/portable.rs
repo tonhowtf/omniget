@@ -1,30 +1,11 @@
-//! Onde o WebView2 guarda os dados dele, no modo portatil.
-//!
-//! O `WEBVIEW2_USER_DATA_FOLDER` definido no `main.rs` e codigo morto: o Tauri
-//! resolve `data_directory` para `LocalData/{identifier}` antes de a variavel
-//! ser lida (`manager/webview.rs`), cria o diretorio, e o wry recebe um caminho
-//! nao-vazio — a variavel nunca e consultada. O `tauri.conf.json` tambem nao
-//! resolve, porque so aceita caminho relativo, resolvido sob `data_local_dir()`.
-//!
-//! A saida e nao deixar o Tauri criar a janela (`"create": false`) e construi-la
-//! no `setup()` com `.data_directory(...)` explicito. Este modulo isola a parte
-//! decidivel — qual diretorio usar — para poder ser testada sem subir o app.
+// WHY: Tauri resolves data_directory before WEBVIEW2_USER_DATA_FOLDER is read, so the portable profile path must be passed here.
 
 use std::path::{Path, PathBuf};
 
-/// Diretorio de dados do WebView2 quando o app roda em modo portatil.
-///
-/// `None` quando nao e portatil: nesse caso o comportamento padrao do Tauri
-/// esta correto e nao deve ser sobrescrito.
 pub fn portable_webview_dir(data_dir: Option<&Path>) -> Option<PathBuf> {
     data_dir.map(|d| d.join("webview"))
 }
 
-/// Le o modo portatil do ambiente, do jeito que o `main.rs` o publica.
-///
-/// Le `OMNIGET_DATA_DIR` em vez de re-detectar o `portable.txt`: a deteccao
-/// acontece uma vez so, antes de qualquer coisa subir, e duplicar a regra aqui
-/// criaria duas fontes de verdade que divergem no primeiro ajuste.
 pub fn portable_webview_dir_from_env() -> Option<PathBuf> {
     if std::env::var("OMNIGET_PORTABLE").ok().as_deref() != Some("1") {
         return None;
@@ -36,11 +17,6 @@ pub fn portable_webview_dir_from_env() -> Option<PathBuf> {
     portable_webview_dir(Some(Path::new(&data_dir)))
 }
 
-/// Diretorio do WebView no perfil de dev de um build de debug.
-///
-/// O `main.rs` (`use_dev_profile`) publica `OMNIGET_DEV_PROFILE=1` e aponta
-/// `OMNIGET_DATA_DIR` para a pasta de dev; o WebView fica em `webview/` dentro
-/// dela. `None` fora do perfil de dev, e sempre em build de release.
 pub fn dev_webview_dir_from_env() -> Option<PathBuf> {
     if !cfg!(debug_assertions) || std::env::var("OMNIGET_DEV_PROFILE").ok().as_deref() != Some("1")
     {
@@ -49,15 +25,6 @@ pub fn dev_webview_dir_from_env() -> Option<PathBuf> {
     crate::core::paths::app_data_dir().map(|d| d.join("webview"))
 }
 
-/// Aponta o WebView de uma janela secundaria (pet, bandeja, faixa de limites,
-/// preview, login) para a pasta do perfil de dev.
-///
-/// Sem isso, no Windows e no Linux, essas janelas caem no diretorio padrao do
-/// Tauri, chaveado pelo identifier, que e o mesmo do app instalado: o build de
-/// debug leria e gravaria os cookies de login e o localStorage dele. A janela
-/// principal resolve isso no `setup()` do `lib.rs`. No macOS o wry ignora
-/// `data_directory`, e o binario de dev ja tem a propria pasta do WebKit; em
-/// release nada muda.
 pub fn with_dev_webview_dir<'a, R, M>(
     builder: tauri::WebviewWindowBuilder<'a, R, M>,
 ) -> tauri::WebviewWindowBuilder<'a, R, M>
@@ -88,13 +55,11 @@ mod tests {
         let dir = PathBuf::from("/media/pendrive/OmniGet/data");
         let got = portable_webview_dir(Some(&dir)).expect("portatil tem diretorio");
         assert_eq!(got, dir.join("webview"));
-        // O ponto da issue #195: nada pode acabar sob o perfil do usuario.
         assert!(got.starts_with(&dir));
     }
 
     #[test]
     fn caminho_com_espaco_sobrevive() {
-        // Windows portatil vive em "C:\Users\x\Downloads\OmniGet 0.7.7\data".
         let dir = PathBuf::from("C:/Users/x/Downloads/OmniGet 0.7.7/data");
         let got = portable_webview_dir(Some(&dir)).expect("portatil tem diretorio");
         assert!(got.to_string_lossy().contains("OmniGet 0.7.7"));
@@ -103,10 +68,6 @@ mod tests {
 
     #[test]
     fn leitor_de_ambiente_exige_as_duas_variaveis() {
-        // Um teste so, sequencial: `set_var` e global ao processo e os testes
-        // rodam em paralelo. Outros testes do crate mexem no
-        // `OMNIGET_DATA_DIR`: todos seguram a mesma trava
-        // (`secrets::test_env`), que tambem devolve os valores no fim.
         let env = crate::secrets::test_env::EnvGuard::acquire();
         env.set("OMNIGET_PORTABLE", None);
         env.set("OMNIGET_DATA_DIR", None);
@@ -145,12 +106,6 @@ mod tests {
     }
 }
 
-/// Nome de pasta que o instalador do Fixed Version Runtime produz.
-///
-/// O pacote da Microsoft descompacta como
-/// `Microsoft.WebView2.FixedVersionRuntime.{versao}.{arch}`. Aceitamos tambem
-/// `WebView2Runtime`, que e o nome curto que da para documentar sem pedir para
-/// o usuario digitar uma versao.
 fn parece_runtime_fixo(name: &str) -> bool {
     name.eq_ignore_ascii_case("WebView2Runtime")
         || name
@@ -158,25 +113,12 @@ fn parece_runtime_fixo(name: &str) -> bool {
             .starts_with("microsoft.webview2.fixedversionruntime.")
 }
 
-/// Versao embutida no nome da pasta, para ordenar quando ha mais de uma.
-///
-/// Retorna vazio para `WebView2Runtime` (sem versao no nome), o que o coloca
-/// abaixo de qualquer pasta versionada — quem descompactou uma versao explicita
-/// provavelmente quer aquela.
 fn versao_do_nome(name: &str) -> Vec<u32> {
     name.split('.')
         .filter_map(|p| p.parse::<u32>().ok())
         .collect()
 }
 
-/// Procura um WebView2 Fixed Version Runtime ao lado do executavel.
-///
-/// Exige o `msedgewebview2.exe` dentro da pasta: apontar o loader para um
-/// diretorio que so parece certo pelo nome falha *depois*, na criacao da janela,
-/// e ai o app nao abre — pior do que simplesmente usar o runtime do sistema.
-///
-/// Pedido na issue #218. Funciona em conjunto com o modo portatil (#195): um
-/// pendrive com o runtime ao lado do exe roda em Windows sem WebView2 instalado.
 pub fn find_fixed_runtime(exe_dir: &Path) -> Option<PathBuf> {
     let mut achados: Vec<(Vec<u32>, PathBuf)> = std::fs::read_dir(exe_dir)
         .ok()?
@@ -228,7 +170,6 @@ mod runtime_fixo_tests {
 
     #[test]
     fn pasta_sem_o_binario_e_recusada() {
-        // O caso que quebra o app se aceito: nome certo, conteudo ausente.
         let d = tempdir("sem-exe");
         cria_runtime(&d, "WebView2Runtime", false);
         assert_eq!(
@@ -261,7 +202,6 @@ mod runtime_fixo_tests {
         let d = tempdir("duas");
         let velha = "Microsoft.WebView2.FixedVersionRuntime.109.0.1518.78.x64";
         let nova = "Microsoft.WebView2.FixedVersionRuntime.120.0.2210.91.x64";
-        // Criada em ordem inversa para que "pegar a primeira" nao passe por acaso.
         cria_runtime(&d, nova, true);
         cria_runtime(&d, velha, true);
         let got = find_fixed_runtime(&d).expect("achou runtime");
@@ -280,17 +220,6 @@ mod runtime_fixo_tests {
     }
 }
 
-/// Linha unica de boot, emitida antes de qualquer coisa poder sair em silencio.
-///
-/// O `tauri-plugin-single-instance` chama `std::process::exit(0)` sem logar nada
-/// quando detecta outra instancia viva. Sem esta linha, um app que sai por esse
-/// caminho e indistinguivel de um que crashou: o log simplesmente para. Custou
-/// uma sessao inteira de investigacao descobrir isso, e o usuario que abrir o
-/// app duas vezes nao tem nem log para olhar.
-///
-/// Com a linha, o diagnostico vira trivial: banner presente e nada depois
-/// significa que outra instancia assumiu; banner ausente significa que o
-/// processo nem chegou a subir.
 pub fn startup_banner(version: &str, pid: u32, portable: bool, data_dir: Option<&Path>) -> String {
     let modo = if portable { "portable" } else { "standard" };
     let dir = data_dir
@@ -314,9 +243,6 @@ mod banner_tests {
 
     #[test]
     fn banner_nao_esconde_diretorio_nao_resolvido() {
-        // Se o data dir nao resolveu, dizer isso vale mais do que omitir: e a
-        // primeira coisa a olhar quando o app se comporta como se nao tivesse
-        // configuracao nenhuma.
         let b = startup_banner("0.7.7", 1, false, None);
         assert!(b.contains("standard mode"));
         assert!(b.contains("<unresolved>"));

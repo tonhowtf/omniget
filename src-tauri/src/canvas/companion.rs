@@ -1,17 +1,3 @@
-//! Omni as the canvas companion (the Maestri "Ombro"): watches every canvas
-//! terminal through `term://state`, and when one finishes real work (at
-//! least `minWorkSecs`), gets blocked or fails, reads the end of its screen,
-//! writes a short summary plus three next steps and emits
-//! `canvas://companion` (the canvas panel and the floating pet both listen).
-//!
-//! Model: the local one first (Ollama, smallest installed chat model), then
-//! the configured cheap agent (its side model, same account), then a
-//! heuristic with no model. Pure parts live in
-//! `omniget_core::core::canvas::companion`.
-//!
-//! Clicking a suggestion pastes it into that agent's terminal and submits
-//! it (`TermManager::send_prompt`), never anything else.
-
 use std::collections::{HashSet, VecDeque};
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -97,8 +83,6 @@ pub fn settings() -> CompanionSettings {
     me().settings.lock().unwrap().clone()
 }
 
-/// Settings with the language filled from the app's own when the front has
-/// not set one yet (MCP calls, the pet before the canvas opened).
 fn effective(app: &AppHandle) -> CompanionSettings {
     let mut cfg = settings();
     if cfg.language.is_none() {
@@ -119,8 +103,6 @@ pub fn set_settings(next: CompanionSettings) -> CompanionSettings {
     next
 }
 
-/// Starts watching (idempotent). The canvas commands and the app setup call
-/// it; nothing runs before the first call.
 pub fn start(app: &AppHandle) {
     let c = me();
     let _ = c.app.set(app.clone());
@@ -143,15 +125,9 @@ pub fn start(app: &AppHandle) {
     register_shortcut(app);
 }
 
-// ---------------------------------------------------------------- window
-
-/// Label of Omni's own floating window (Maestri: the Ombro window, ⌘⇧O).
 pub const OMNI_WINDOW: &str = "omni";
-/// Global shortcut that shows and hides it.
 pub const OMNI_SHORTCUT: &str = "CommandOrControl+Shift+O";
 
-/// Registers ⌘⇧O (Ctrl+Shift+O) system-wide. Called at start and again by
-/// `hotkey::reregister`, which clears every global shortcut first.
 pub fn register_shortcut(app: &AppHandle) {
     use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut};
     let Ok(sc) = OMNI_SHORTCUT.parse::<Shortcut>() else {
@@ -166,8 +142,6 @@ pub fn register_shortcut(app: &AppHandle) {
     }
 }
 
-/// The global-shortcut handler hands every press here first; true when it
-/// was Omni's.
 pub fn on_shortcut(app: &AppHandle, pressed: &tauri_plugin_global_shortcut::Shortcut) -> bool {
     let mine = OMNI_SHORTCUT
         .parse::<tauri_plugin_global_shortcut::Shortcut>()
@@ -183,8 +157,6 @@ pub fn on_shortcut(app: &AppHandle, pressed: &tauri_plugin_global_shortcut::Shor
     mine
 }
 
-/// Shows (`Some(true)`), hides (`Some(false)`) or toggles (`None`) Omni's
-/// window. Returns whether it is visible now.
 pub fn toggle_window(app: &AppHandle, show: Option<bool>) -> Result<bool, String> {
     use tauri::{WebviewUrl, WebviewWindowBuilder};
     if let Some(w) = app.get_webview_window(OMNI_WINDOW) {
@@ -221,11 +193,8 @@ pub fn toggle_window(app: &AppHandle, show: Option<bool>) -> Result<bool, String
     Ok(true)
 }
 
-/// Event every window listens to for a live language change: `{language}`.
 pub const EVENT_LANGUAGE: &str = "app://language";
 
-/// The app language changed (settings screen or `app_settings_set`): Omni
-/// writes its next summaries in it and every window re-renders in it.
 pub fn on_language(app: &AppHandle, language: &str) {
     let lang = language.trim();
     if lang.is_empty() {
@@ -243,7 +212,6 @@ fn app() -> Option<&'static AppHandle> {
     me().app.get()
 }
 
-/// The app handle once anything started the companion (or the chat face).
 pub fn app_handle() -> Option<&'static AppHandle> {
     app().or_else(super::chat::app)
 }
@@ -252,7 +220,6 @@ fn store() -> std::sync::Arc<omniget_core::core::canvas::store::CanvasStore> {
     super::doc::host().store().clone()
 }
 
-/// A canvas terminal node and where it lives: `(ws, floor, node)`.
 fn locate(terminal_id: &str) -> Option<(String, String, CanvasNode)> {
     let s = store();
     let (ws, floor, node_id) = s.locate_terminal(terminal_id)?;
@@ -275,7 +242,6 @@ fn on_state(app: &AppHandle, terminal_id: &str, state: AgentState) {
     if !cfg.wants(kind) {
         return;
     }
-    // Only canvas nodes: the Central's terminals are not Omni's business here.
     let Some((ws, floor, node)) = locate(terminal_id) else {
         return;
     };
@@ -283,8 +249,6 @@ fn on_state(app: &AppHandle, terminal_id: &str, state: AgentState) {
     let tid = terminal_id.to_string();
     tauri::async_runtime::spawn(async move {
         if kind == CompanionKind::Blocked {
-            // A permission prompt flickers through blocked; speak only when
-            // it is still there a moment later.
             tokio::time::sleep(Duration::from_millis(1_500)).await;
             let still = crate::pty::term()
                 .agent_state(&tid)
@@ -305,7 +269,6 @@ fn node_agent(node: &CanvasNode) -> (String, Option<String>, String) {
     (agent, role, tid)
 }
 
-/// Writes one entry for `node` and emits it.
 async fn produce(
     app: &AppHandle,
     kind: CompanionKind,
@@ -344,7 +307,6 @@ async fn produce_inner(
         .unwrap_or_default();
     let screen = core::clean_screen(&raw, core::SCREEN_MAX_CHARS);
     let lang = cfg.language.as_deref();
-    // A "failed" with no error on the screen is a program that stopped.
     let kind = core::refine_kind(kind, &screen);
     let fallback = core::heuristic(kind, &name, &agent, worked_ms, &screen, lang);
     let (summary, source) = generate(
@@ -470,8 +432,6 @@ async fn generate(
     (fallback.clone(), "heuristic".into())
 }
 
-/// A model that answered in prose instead of JSON still said something
-/// true about the screen: keep its words, the heuristic's steps.
 fn plain(text: &str, fallback: &Summary) -> Option<Summary> {
     let t = text.trim();
     if t.is_empty() || t.starts_with('{') || t.starts_with("```") {
@@ -492,7 +452,6 @@ fn plain(text: &str, fallback: &Summary) -> Option<Summary> {
     })
 }
 
-/// A tool-less side turn of `agent_id` on its cheapest model.
 async fn side_call(
     app: &AppHandle,
     agent_id: &str,
@@ -533,9 +492,6 @@ async fn side_call(
     }
 }
 
-// ---------------------------------------------------------------- API
-
-/// Newest first; `ws` filters; dismissed entries are skipped unless asked.
 pub fn history(ws: Option<&str>, limit: usize, include_dismissed: bool) -> Vec<CompanionEntry> {
     me().history
         .lock()
@@ -569,8 +525,6 @@ pub fn dismiss(id: &str) -> bool {
     found
 }
 
-/// Sends suggestion `index` (0-2; 3 = the direct command) of entry `id`, or
-/// `text` when given, to the entry's node. The entry is dismissed after.
 pub fn act(id: &str, index: Option<usize>, text: Option<String>) -> Result<Value, String> {
     let entry = me()
         .history
@@ -597,7 +551,6 @@ pub fn act(id: &str, index: Option<usize>, text: Option<String>) -> Result<Value
     Ok(json!({ "ok": true, "nodeId": entry.node_id, "text": text }))
 }
 
-/// Pastes `text` into a canvas terminal node and submits it.
 pub fn send_to_node(node_id: &str, text: &str) -> Result<(), String> {
     let s = store();
     let (ws, floor) = s
@@ -621,7 +574,6 @@ pub fn send_to_node(node_id: &str, text: &str) -> Result<(), String> {
     term.send_prompt(&tid, text.trim())
 }
 
-/// "Ask Omni" on one node, now, whatever its state.
 pub async fn summarize_node(app: &AppHandle, node_id: &str) -> Result<CompanionEntry, String> {
     let s = store();
     let (ws, floor) = s
@@ -637,21 +589,15 @@ pub async fn summarize_node(app: &AppHandle, node_id: &str) -> Result<CompanionE
     produce(app, CompanionKind::Manual, 0, &ws, &floor, &node, &tid).await
 }
 
-// ---------------------------------------------------------------- free questions
-
-/// Everything Omni reads to answer a free question about a workspace.
 struct AskScene {
     active_floor: String,
     floor_names: Vec<(String, String)>,
     terminals: Vec<core::AskTerminal>,
     notes: Vec<core::AskNote>,
-    /// Agents run on this workspace (`claude`, `codex`...), for the CLI pick.
     used: Vec<String>,
-    /// The asked-about node in depth: role, recent chat, connected notes.
     focus: String,
 }
 
-/// Role, recent chat and connected notes of one terminal node, as text.
 fn focus_context(ws: &str, floor: &str, node: &CanvasNode) -> String {
     use omniget_core::core::canvas::{chat, notes, roles};
     let s = store();
@@ -712,8 +658,6 @@ fn fused_word(node_id: &str) -> String {
         .unwrap_or_else(|| "no_signal".into())
 }
 
-/// Reads terminals (state + last lines) and notes of every floor of `ws`.
-/// `first` (a node id) goes to the top of the terminal list.
 fn ask_scene(ws: &str, first: Option<&str>) -> Result<AskScene, String> {
     use omniget_core::core::canvas::notes;
     let s = store();
@@ -792,8 +736,6 @@ fn ask_scene(ws: &str, first: Option<&str>) -> Result<AskScene, String> {
     })
 }
 
-/// Appends `item` to the workspace's "Omni Notes" note (created on the
-/// active floor the first time). Returns `(node_id, created)`.
 fn omni_note_append(ws: &str, active_floor: &str, item: &str) -> Result<(String, bool), String> {
     use omniget_core::core::canvas::model::NodeKind;
     use omniget_core::core::canvas::{layout, notes};
@@ -827,8 +769,6 @@ fn omni_note_append(ws: &str, active_floor: &str, item: &str) -> Result<(String,
     Ok((id, true))
 }
 
-/// Local model first, then the cheap agent (per the companion settings).
-/// `(answer, sources, source)` or `None` when no model answered.
 async fn ask_model(
     app: &AppHandle,
     cfg: &CompanionSettings,
@@ -848,7 +788,6 @@ async fn ask_model(
                 if let Some((a, s)) = core::parse_answer(&text, known) {
                     return Some((a, s, format!("ollama:{model}")));
                 }
-                // A plain-text reply from a small model is still an answer.
                 let t = text.trim();
                 if !t.is_empty() && !t.starts_with('{') {
                     return Some((t.to_string(), vec![], format!("ollama:{model}")));
@@ -899,11 +838,6 @@ async fn ask_model(
     None
 }
 
-/// A free question to Omni about workspace `ws` (optionally centred on
-/// `node_id`). "Note that ..." appends to the Omni Notes note; "summarize my
-/// notes" reads the notes; anything else is answered from the terminals'
-/// states and screens and the notes. Without a model, a deterministic
-/// digest (who works, who needs you, last lines).
 pub async fn ask(
     app: &AppHandle,
     ws: &str,
@@ -1026,8 +960,6 @@ pub async fn ask(
     }
 }
 
-/// The companion has no agent-facing methods: its summaries read other
-/// nodes' screens, which an agent may only do through a cord (`check`).
 pub async fn rpc(_ctx: &NodeCtx, _method: &str, _args: Value) -> RpcResult {
     None
 }

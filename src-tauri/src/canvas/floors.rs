@@ -1,9 +1,3 @@
-//! App host of floors and environments: events, the spawn context a
-//! terminal on a floor (or in a remote workspace) needs, and the `floor.*`
-//! canvas RPC methods (Maestri `floor create|list|land|delete`).
-//!
-//! Logic lives in `omniget_core::core::canvas::{floors, envs}`.
-
 use std::collections::{BTreeMap, HashMap};
 
 use omniget_core::core::canvas::envs::{self, Wrapped};
@@ -18,9 +12,7 @@ use tauri::Emitter;
 
 use super::rpc::{NodeCtx, RpcResult};
 
-/// Progress of a floor being created (`FloorProgress`).
 pub const EVENT_FLOOR_PROGRESS: &str = "canvas://floor-progress";
-/// Floors of a workspace changed (created, landed, deleted, hooks ran): `{workspaceId, floorId?, reason}`.
 pub const EVENT_FLOORS: &str = "canvas://floors";
 
 fn store() -> std::sync::Arc<CanvasStore> {
@@ -44,8 +36,6 @@ pub fn progress_sink() -> impl Fn(FloorProgress) + Send + Sync {
     }
 }
 
-/// A floor still being made (Maestri `pendingFloors`): progress by phase,
-/// or the error that stopped it (kept until dismissed).
 #[derive(Debug, Clone, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PendingFloor {
@@ -74,12 +64,10 @@ fn with_pending<R>(f: impl FnOnce(&mut Vec<PendingFloor>) -> R) -> R {
     f(&mut g)
 }
 
-/// Floors of `ws` still being made, or that failed and wait to be dismissed.
 pub fn pending_floors(ws: &str) -> Vec<PendingFloor> {
     with_pending(|p| p.iter().filter(|f| f.workspace_id == ws).cloned().collect())
 }
 
-/// Dismisses a pending (usually failed) floor by name, floor id or token.
 pub fn dismiss_pending(ws: &str, key: &str) -> bool {
     let key = key.trim();
     let hit = with_pending(|p| {
@@ -98,8 +86,6 @@ pub fn dismiss_pending(ws: &str, key: &str) -> bool {
     hit
 }
 
-/// Terminals a "Clone Ground layout" copied start at once with their new
-/// PTYs (Maestri), instead of sitting exited until someone opens them.
 fn start_copied_terminals(ws: &str, floor: &str) {
     let ids: Vec<String> = store()
         .read(ws, floor, |d| {
@@ -177,17 +163,12 @@ pub async fn create(ws: &str, input: CreateFloor) -> Result<CreateResult, String
     }
 }
 
-/// Starts making a floor in the background and returns its pending entry
-/// right away (Maestri: the pill with progress; an error stays until
-/// dismissed).
 pub fn create_background(ws: &str, input: CreateFloor) -> PendingFloor {
     let name = input.name.trim().to_string();
     let ws_owned = ws.to_string();
     tauri::async_runtime::spawn(async move {
         let _ = create(&ws_owned, input).await;
     });
-    // `create` registers itself synchronously on its first poll; report
-    // what is known now.
     PendingFloor {
         token: String::new(),
         workspace_id: ws.to_string(),
@@ -201,21 +182,16 @@ pub fn create_background(ws: &str, input: CreateFloor) -> PendingFloor {
     }
 }
 
-/// What the terminals of one floor are doing (floors overview, ⌘⇧\\).
 #[derive(Debug, Clone, Default, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct FloorActivity {
     pub floor_id: String,
-    /// Terminals waiting on the person (blocked).
     pub attention: u32,
-    /// Terminals working, thinking or compacting.
     pub working: u32,
-    /// Terminals whose process runs.
     pub alive: u32,
     pub terminals: u32,
 }
 
-/// Activity of every floor of `ws`, read from the live terminal states.
 pub fn activity(ws: &str) -> Vec<FloorActivity> {
     use omniget_core::core::term::agent::AgentState;
     let s = store();
@@ -262,10 +238,6 @@ pub fn activity(ws: &str) -> Vec<FloorActivity> {
         .collect()
 }
 
-/// Everything a terminal needs to start on `floor` of `ws`: the cwd moved
-/// into the floor, the floor env (`OMNIGET_FLOOR_*`, `PORT`) merged under
-/// the caller's env, and the command wrapped for a remote environment
-/// (ssh / docker / wsl). Call it before `term_open`.
 pub fn spawn_context(
     ws: &str,
     floor: &str,
@@ -283,7 +255,6 @@ pub fn spawn_context(
         merged.insert(k.clone(), v.clone());
     }
     let cwd = floors::remap_cwd(&s, ws, floor, cwd);
-    // The terminal's own environment override (M-Q2), else the workspace's.
     let rec = envs::load_for(
         &s,
         ws,
@@ -292,7 +263,6 @@ pub fn spawn_context(
     envs::wrap(&rec, argv, cwd.as_deref(), &merged)
 }
 
-/// A floor of `ws` by id or exact name (case-insensitive).
 pub fn resolve_floor(s: &CanvasStore, ws: &str, key: &str) -> Result<String, String> {
     let meta = s.workspace(ws)?;
     let key = key.trim();
@@ -333,7 +303,6 @@ fn parse<T: for<'de> Deserialize<'de> + Default>(args: Value) -> Result<T, Strin
     serde_json::from_value(args).map_err(|e| format!("CANVAS_INVALID: {e}"))
 }
 
-/// Maestro-only `floor.create` (also reached as `maestro.floor.create`).
 pub async fn rpc_create(ctx: &NodeCtx, args: Value) -> Result<Value, String> {
     super::maestro::require_maestro(ctx)?;
     let a: FloorArgs = parse(args)?;
@@ -457,8 +426,6 @@ async fn floor_run(ctx: &NodeCtx, args: Value) -> Result<Value, String> {
     serde_json::to_value(runs).map_err(|e| e.to_string())
 }
 
-/// Land with the floor's terminals closed first when the floor goes away
-/// (only after the preview says the land can happen).
 pub async fn land(ws: &str, floor: &str, opts: LandOptions) -> Result<floors::LandOutcome, String> {
     let s = store();
     if !opts.keep_floor {
@@ -473,7 +440,6 @@ pub async fn land(ws: &str, floor: &str, opts: LandOptions) -> Result<floors::La
     Ok(out)
 }
 
-/// Discard with the floor's terminals closed first.
 pub async fn discard(
     ws: &str,
     floor: &str,
@@ -486,7 +452,6 @@ pub async fn discard(
     Ok(out)
 }
 
-/// Closes the PTYs of a floor's terminals before its folder goes away.
 pub fn close_floor_terminals(s: &CanvasStore, ws: &str, floor: &str) {
     let ids: Vec<String> = s
         .read(ws, floor, |d| {

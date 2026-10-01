@@ -1,8 +1,3 @@
-//! Getting books onto e-readers: copy to a Kindle, Kobo, PocketBook or
-//! reMarkable plugged in over USB (detected by their folder layout), or
-//! e-mail them (Send to Kindle, PocketBook Cloud, any address) through the
-//! user's SMTP account.
-
 use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
@@ -14,9 +9,7 @@ pub struct Device {
     pub kind: String,
     pub name: String,
     pub mount: String,
-    /// Where books go on this device.
     pub books_dir: String,
-    /// Formats it reads, best first.
     pub formats: Vec<String>,
     pub free_bytes: Option<u64>,
 }
@@ -103,8 +96,6 @@ pub async fn read_devices_detect() -> Result<Vec<Device>, String> {
     blocking(|| Ok(detect())).await
 }
 
-/// Copies books to a device. Books whose format the device can't read are
-/// reported back so the UI can offer a conversion first.
 #[tauri::command]
 pub async fn read_send_to_device(
     book_ids: Vec<i64>,
@@ -144,19 +135,15 @@ pub async fn read_send_to_device(
     .await
 }
 
-// ---------- e-mail ----------
-
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(default)]
 pub struct MailConfig {
     pub host: String,
     pub port: u16,
-    /// `starttls`, `tls` or `none`.
     pub security: String,
     pub username: String,
     pub password: String,
     pub from: String,
-    /// Default recipient (your `@kindle.com` address).
     pub to: String,
 }
 
@@ -185,8 +172,6 @@ pub async fn read_mail_config(set: Option<MailConfig>) -> Result<MailConfig, Str
     .await
 }
 
-/// Mails books as attachments, one message each (Send to Kindle takes up
-/// to 50 MB per message and EPUB, PDF, DOCX, TXT, RTF, HTML).
 #[tauri::command]
 pub async fn read_send_email(book_ids: Vec<i64>, to: Option<String>) -> Result<usize, String> {
     use lettre::message::{header::ContentType, Attachment, MultiPart, SinglePart};

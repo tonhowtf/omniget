@@ -1,52 +1,21 @@
-//! Where a provider key is named, and the one-time move of the keys that older
-//! builds wrote in plain text.
-//!
-//! Two files used to hold secrets as text: `tools/ai-keys.json` (the vault, one
-//! `key`/`access_token` per entry) and `ai_config.json` (`openai_key`,
-//! `anthropic_key`). Both now hold metadata only; the secret lives in
-//! [`crate::core::secrets`] under the [`crate::core::secrets::AI_KEYS`]
-//! namespace, keyed by the account names below.
-//!
-//! The migration runs on the first read after an update, silently. It is
-//! idempotent: a file with no plaintext left is not rewritten and gets no new
-//! backup. The backup it does write is the untouched old file at
-//! `<name>.bak`, mode 0600, so a failed move is recoverable and the copy is not
-//! world-readable.
-
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 
-// Declared from `ai_keys.rs` as `ai_keys::migrate`, so `super` is that module.
 use super::KeyEntry;
 use crate::core::ai::AiConfig;
 use crate::core::secrets::{self, AI_KEYS};
 
-// ---------------------------------------------------------------------------
-// Account names
-// ---------------------------------------------------------------------------
-
-/// The API key of a vault entry. `kind:id`, so the account says which provider
-/// it belongs to even when read straight out of the store.
 pub fn key_account(kind: &str, id: &str) -> String {
     format!("{}:{}", kind, id)
 }
 
-/// A New API panel access token, kept beside the key of the same entry.
 pub fn token_account(kind: &str, id: &str) -> String {
     format!("{}:{}#access_token", kind, id)
 }
 
-/// The app's own AI config keys, which have no vault entry behind them.
 pub const APP_OPENAI_ACCOUNT: &str = "app:openai_key";
 pub const APP_ANTHROPIC_ACCOUNT: &str = "app:anthropic_key";
 
-// ---------------------------------------------------------------------------
-// Splitting metadata from secrets
-// ---------------------------------------------------------------------------
-
-/// Every (account, value) pair an entry owns, secret or not. An empty value is
-/// included on purpose: the writer turns it into a delete, so clearing a key in
-/// the UI forgets it in the store too.
 pub fn accounts_of(entry: &KeyEntry) -> [(String, String); 2] {
     [
         (
@@ -60,13 +29,10 @@ pub fn accounts_of(entry: &KeyEntry) -> [(String, String); 2] {
     ]
 }
 
-/// True when this entry still carries key material that belongs in the store.
 pub fn entry_has_plaintext(entry: &KeyEntry) -> bool {
     !entry.key.trim().is_empty() || !entry.access_token.trim().is_empty()
 }
 
-/// Blank the secret fields of a list, returning what was taken out. Used by the
-/// normal write path and by the migration alike.
 pub fn take_secrets(entries: &mut [KeyEntry]) -> Vec<(String, String)> {
     let mut out = Vec::new();
     for entry in entries.iter_mut() {
@@ -79,7 +45,6 @@ pub fn take_secrets(entries: &mut [KeyEntry]) -> Vec<(String, String)> {
     out
 }
 
-/// The same for the app config. Returns the pairs and leaves the config blank.
 pub fn take_config_secrets(cfg: &mut AiConfig) -> Vec<(String, String)> {
     let out = vec![
         (
@@ -96,15 +61,9 @@ pub fn take_config_secrets(cfg: &mut AiConfig) -> Vec<(String, String)> {
     out
 }
 
-// ---------------------------------------------------------------------------
-// Migration
-// ---------------------------------------------------------------------------
-
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct Report {
-    /// How many secrets were moved into the store.
     pub moved: usize,
-    /// The backup written, if the file had to be rewritten at all.
     pub backup: Option<PathBuf>,
 }
 
@@ -120,7 +79,6 @@ pub fn backup_path(path: &Path) -> PathBuf {
     PathBuf::from(name)
 }
 
-/// Copy the file aside at 0600 before rewriting it.
 fn write_backup(path: &Path) -> Result<PathBuf, String> {
     let target = backup_path(path);
     let bytes = std::fs::read(path)
@@ -129,8 +87,6 @@ fn write_backup(path: &Path) -> Result<PathBuf, String> {
     Ok(target)
 }
 
-/// Move the plaintext out of the vault file. Returns an empty report when the
-/// file is missing, unreadable or already migrated.
 pub fn migrate_vault_file(path: &Path) -> Report {
     let Ok(text) = std::fs::read_to_string(path) else {
         return Report::default();
@@ -149,8 +105,6 @@ pub fn migrate_vault_file(path: &Path) -> Report {
         }
         match secrets::set(AI_KEYS, &account, &value) {
             Ok(()) => moved += 1,
-            // Rewriting the file after a failed write would lose the key, so
-            // stop and leave the file exactly as it was.
             Err(e) => {
                 tracing::warn!("[ai-keys] could not move {} into the store: {}", account, e);
                 return Report::default();
@@ -183,8 +137,6 @@ pub fn migrate_vault_file(path: &Path) -> Report {
     }
 }
 
-/// The same for `ai_config.json`. The parsed config comes in already read from
-/// disk, because the caller needs it anyway; the keys are taken out of it.
 pub fn migrate_config_file(path: &Path, cfg: &mut AiConfig) -> Report {
     if cfg.openai_key.trim().is_empty() && cfg.anthropic_key.trim().is_empty() {
         return Report::default();
@@ -254,7 +206,6 @@ mod tests {
         assert_eq!(pairs[1].1, "");
         assert!(entries[0].key.is_empty());
         assert!(!entry_has_plaintext(&entries[0]));
-        // ...and the JSON that goes to disk no longer holds it.
         let json = serde_json::to_string(&entries).unwrap();
         assert!(!json.contains("sk-live"), "{json}");
     }

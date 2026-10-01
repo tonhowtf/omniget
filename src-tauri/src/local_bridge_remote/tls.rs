@@ -1,17 +1,3 @@
-//! HTTPS on the remote listener with a pinned self-signed certificate
-//! (Maestri Wire: "self-signed certificate, pinned by the SHA-256 of its
-//! key"). The same port answers TLS and plain HTTP: the accept loop peeks
-//! the first byte (0x16 = a TLS ClientHello).
-//!
-//! The identity is an Ed25519 key and a hand-built X.509 v3 certificate
-//! (no extra crates: `ed25519-dalek` signs, DER is written here), kept in
-//! `<app_data>/remote/tls.json` (0600). The pin is the SHA-256 of the
-//! certificate's SubjectPublicKeyInfo, base64 (`sha256/…`) and hex; a client
-//! trusts the listener when the presented key hashes to it, whatever the
-//! name (a phone reaches the machine by LAN IP, `.local` or `.ts.net`).
-//! Browsers do not take Ed25519 server certificates yet, so the page keeps
-//! plain HTTP (or `tailscale serve` HTTPS) and native clients use the pin.
-
 use std::sync::{Arc, OnceLock};
 
 use base64::Engine as _;
@@ -33,7 +19,6 @@ struct Stored {
 pub struct Identity {
     pub cert_der: Vec<u8>,
     pub key_pkcs8: Vec<u8>,
-    /// base64 SHA-256 of the SubjectPublicKeyInfo.
     pub pin: String,
     pub pin_hex: String,
 }
@@ -64,14 +49,12 @@ fn name(cn: &str) -> Vec<u8> {
     seq(&[tlv(0x31, &atv)])
 }
 
-/// SubjectPublicKeyInfo of an Ed25519 public key.
 pub fn spki(public: &[u8; 32]) -> Vec<u8> {
     let mut bits = vec![0u8];
     bits.extend_from_slice(public);
     seq(&[seq(&[OID_ED25519.to_vec()]), tlv(0x03, &bits)])
 }
 
-/// PKCS#8 v1 of an Ed25519 seed (what rustls/ring load).
 fn pkcs8(seed: &[u8; 32]) -> Vec<u8> {
     seq(&[
         vec![0x02, 0x01, 0x00],
@@ -94,7 +77,6 @@ fn build_cert(key: &ed25519_dalek::SigningKey) -> Vec<u8> {
         tlv(0x17, not_before.as_bytes()),
         tlv(0x17, b"491231235959Z"),
     ]);
-    // subjectAltName: localhost, 127.0.0.1 (pinning clients ignore names).
     let san = seq(&[tlv(0x82, b"localhost"), tlv(0x87, &[127, 0, 0, 1])]);
     let ext = seq(&[OID_SAN.to_vec(), tlv(0x04, &san)]);
     let exts = tlv(0xA3, &seq(&[ext]));
@@ -115,7 +97,6 @@ fn build_cert(key: &ed25519_dalek::SigningKey) -> Vec<u8> {
     seq(&[tbs, alg, tlv(0x03, &bits)])
 }
 
-/// SHA-256 pin of a certificate we issued (its Ed25519 SPKI), or `None`.
 pub fn pin_of_cert(der: &[u8]) -> Option<String> {
     let prefix = [
         0x30, 0x2A, 0x30, 0x05, 0x06, 0x03, 0x2B, 0x65, 0x70, 0x03, 0x21, 0x00,
@@ -201,8 +182,6 @@ pub fn acceptor() -> Result<tokio_rustls::TlsAcceptor, String> {
     .clone()
 }
 
-/// `{pin: "sha256/…", pinHex, algorithm}` for `/api/info`, pairing and the
-/// settings; `null` when the identity could not be made.
 pub fn info() -> Value {
     match identity() {
         Ok(id) => json!({
@@ -215,8 +194,6 @@ pub fn info() -> Value {
     }
 }
 
-/// Client side (tests, the MCP `remote_call tls=true`): trusts exactly the
-/// server whose certificate carries the pinned key.
 #[derive(Debug)]
 struct Pinned {
     pin: String,
@@ -273,7 +250,6 @@ impl rustls::client::danger::ServerCertVerifier for Pinned {
     }
 }
 
-/// A rustls client config that accepts only `pin` (base64, `sha256/` optional).
 pub fn pinned_client(pin: &str) -> rustls::ClientConfig {
     let provider = Arc::new(rustls::crypto::ring::default_provider());
     let pin = pin.trim_start_matches("sha256/").to_string();

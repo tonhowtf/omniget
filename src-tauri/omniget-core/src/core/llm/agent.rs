@@ -1,7 +1,3 @@
-//! Agent definition and policies. Owned by f2-llm-coordinator. DRAFT by the
-//! orchestrator from docs/agents/f2-llm-coordinator.md §5 + §10 (capacity
-//! chain) so commands and UI can code against the shape today.
-
 use serde::{Deserialize, Serialize};
 
 use super::types::{ModelRef, ProviderId};
@@ -78,7 +74,6 @@ pub enum RuntimeKind {
         cli: String,
         account: String,
     },
-    /// Any CLI that speaks the Agent Client Protocol over stdio.
     Acp {
         command: String,
         #[serde(default)]

@@ -1,20 +1,9 @@
-//! Homebrew (macOS).
-//!
-//! - updates: `brew outdated --json=v2` (`formulae[]` and `casks[]` with
-//!   `name`, `installed_versions[]`, `current_version`, `pinned`); pinned
-//!   formulae are listed with a note and never planned;
-//! - upgrade: `brew upgrade --formula|--cask -- <name>`, one process per
-//!   package, no administrator (a cask whose installer asks for a password
-//!   fails and says so);
-//! - the installed inventory and `brew uninstall --zap` live in `apps/macos.rs`.
-
 use serde_json::Value;
 
 use super::{query_env, tail, App, PackageBackend, RemovePreview, Update};
 
 pub struct Brew;
 
-/// Where Homebrew lives (Apple silicon, Intel).
 pub fn path() -> Option<std::path::PathBuf> {
     ["/opt/homebrew/bin/brew", "/usr/local/bin/brew"]
         .into_iter()
@@ -28,7 +17,6 @@ fn program() -> String {
         .unwrap_or_else(|| "brew".into())
 }
 
-/// `brew outdated --json=v2`.
 pub fn parse_outdated(json: &str) -> Vec<Update> {
     let Ok(v) = serde_json::from_str::<Value>(json) else {
         return Vec::new();
@@ -65,7 +53,6 @@ pub fn parse_outdated(json: &str) -> Vec<Update> {
     out
 }
 
-/// argv (after `brew`) to upgrade one formula or cask.
 pub fn upgrade_args(name: &str, scope: &str) -> Vec<String> {
     let kind = if scope == "cask" {
         "--cask"
@@ -125,7 +112,6 @@ impl PackageBackend for Brew {
     }
 
     fn updates(&self) -> Result<Vec<Update>, String> {
-        // No auto-update here: listing must stay a read.
         let r = query_env(
             &program(),
             &["outdated", "--json=v2"],

@@ -1,27 +1,3 @@
-//! Bot identity and effective capability (spec 02, "Bot pessoal" and
-//! "Capacidade efetiva, não configuração aparente"). Owner: worker W3.
-//!
-//! A bot is the roster's `AgentDef` (id, name, model, runtime) plus a profile
-//! kept here, keyed by the same id: purpose, instructions, the capabilities
-//! the user picked in words they understand (personal memory, web search,
-//! reading, project code, delegate), the memory policy and the default
-//! connection. Changing the model or the connection never changes the id, so
-//! memory and skill bindings stay with the bot (B07).
-//!
-//! Skills go through one pipeline ([`skills`]):
-//! catalogue/installed folder → install record with a sha256 of the folder →
-//! a versioned binding per bot (read and run-scripts are separate grants) →
-//! one broker tool per installed version (`skill__<name>_<hash8>`, source
-//! [`skills::SKILL_SOURCE`], re-registered whenever a skill is installed,
-//! updated or removed) → a compact index in the turn's system message, only
-//! for the skills bound and usable this turn → the tool opens the body or one
-//! reference file (no traversal, no symlink) → every read is traced per run
-//! with the hash and the file ([`skills::skill_reads`]).
-//!
-//! [`manifest`] joins all of it into what the UI shows: requested /
-//! available / missing, with the reason and the fix. "A box ticked" is never
-//! reported as "a tool available".
-
 use std::path::PathBuf;
 use std::sync::{Arc, RwLock};
 
@@ -94,21 +70,14 @@ CREATE INDEX bots_skill_reads_bot ON bots_skill_reads(bot_id, at);
 "#,
 }];
 
-/// Bots offer no model-callable tools through the assistant registry; skill
-/// tools are their own broker source ([`skills::SKILL_SOURCE`]).
 pub fn toolset() -> Arc<dyn AssistToolset> {
     Arc::new(EmptyToolset("bots"))
 }
 
-/// Per-turn hook (see `llm::coordinator::TurnAugment`): capability grants,
-/// skill grants and the skill index.
 pub fn augment() -> Arc<dyn crate::core::llm::coordinator::TurnAugment> {
     Arc::new(BotsAugment::new(BotEnv::global(), skills::projection()))
 }
 
-/// Where the bot layer reads and writes. Every field falls back to the
-/// process-wide instance, so production code uses [`BotEnv::global`] and a
-/// test hands its own database, skills folder and broker.
 #[derive(Clone, Default)]
 pub struct BotEnv {
     db: Option<Arc<AssistDb>>,
@@ -118,8 +87,6 @@ pub struct BotEnv {
 
 static BROKER: RwLock<Option<Arc<ToolBroker>>> = RwLock::new(None);
 
-/// The app's broker, installed at boot so the bot layer can tell a granted
-/// tool from a registered one.
 pub fn set_broker(broker: Arc<ToolBroker>) {
     *BROKER.write().unwrap_or_else(|e| e.into_inner()) = Some(broker);
 }

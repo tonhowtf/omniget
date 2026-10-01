@@ -1,11 +1,3 @@
-//! Own skyline bin packer (bottom-left, best-fit on the lowest skyline).
-//!
-//! No packing crate: the atlas format is ours and the packer has to be
-//! deterministic byte for byte, which means the placement order is part of the
-//! contract, not an implementation detail of somebody else's heuristic.
-
-/// One horizontal run of the skyline: everything at or below `y` in
-/// `x..x + w` is occupied.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct Node {
     x: u32,
@@ -43,17 +35,14 @@ impl Skyline {
         self.height
     }
 
-    /// Pixels actually covered by inserted rectangles.
     pub fn used_area(&self) -> u64 {
         self.used
     }
 
-    /// Lowest `y` reached by the skyline; the page can be cropped to it.
     pub fn extent_y(&self) -> u32 {
         self.nodes.iter().map(|n| n.y).max().unwrap_or(0)
     }
 
-    /// Rightmost `x` that carries anything.
     pub fn extent_x(&self) -> u32 {
         self.nodes
             .iter()
@@ -63,15 +52,11 @@ impl Skyline {
             .unwrap_or(0)
     }
 
-    /// Places a `w x h` rectangle, returning its top-left corner.
-    ///
-    /// Picks the candidate with the lowest top edge, breaking ties by the
-    /// leftmost `x`, so the same input always produces the same page.
     pub fn insert(&mut self, w: u32, h: u32) -> Option<(u32, u32)> {
         if w == 0 || h == 0 || w > self.width || h > self.height {
             return None;
         }
-        let mut best: Option<(u32, u32, usize)> = None; // (y, x, node index)
+        let mut best: Option<(u32, u32, usize)> = None;
         for i in 0..self.nodes.len() {
             if let Some(y) = self.fit(i, w) {
                 if y + h > self.height {
@@ -93,8 +78,6 @@ impl Skyline {
         Some((x, y))
     }
 
-    /// Top edge a `w`-wide rectangle would sit at if left-aligned with node `i`,
-    /// or `None` when it runs off the right edge.
     fn fit(&self, i: usize, w: u32) -> Option<u32> {
         let x = self.nodes[i].x;
         if x + w > self.width {
@@ -115,9 +98,6 @@ impl Skyline {
     fn add_level(&mut self, index: usize, x: u32, y: u32, w: u32, h: u32) {
         self.nodes.insert(index, Node { x, y: y + h, w });
 
-        // Trim every run the new level covers. The index never moves: either the
-        // run under it is swallowed whole (and the vector shrinks) or it is
-        // clipped and the trim is done.
         let i = index + 1;
         while i < self.nodes.len() {
             let prev_right = self.nodes[i - 1].x + self.nodes[i - 1].w;
@@ -134,7 +114,6 @@ impl Skyline {
             break;
         }
 
-        // Merge neighbours that ended up at the same height.
         let mut i = 0;
         while i + 1 < self.nodes.len() {
             if self.nodes[i].y == self.nodes[i + 1].y {
@@ -164,7 +143,6 @@ mod tests {
         let mut sky = Skyline::new(32, 32);
         assert_eq!(sky.insert(16, 8), Some((0, 0)));
         assert_eq!(sky.insert(16, 8), Some((16, 0)));
-        // The row is full, so the next one has to climb.
         assert_eq!(sky.insert(16, 8), Some((0, 8)));
     }
 
@@ -180,7 +158,6 @@ mod tests {
 
     #[test]
     fn placements_never_overlap() {
-        // 60 rectangles of varied size, checked pairwise.
         let mut sky = Skyline::new(256, 256);
         let mut placed: Vec<(u32, u32, u32, u32)> = Vec::new();
         for i in 0..60u32 {

@@ -1,25 +1,3 @@
-//! Setting components (Claude `settings.json` fragments, OmniGet profiles) on
-//! the other tools (plan §4.3, estudo 06 (g) of each tool):
-//!
-//! | format        | where                                   | permissions as                         |
-//! |---------------|-----------------------------------------|----------------------------------------|
-//! | `qwen`        | `.qwen/settings.json`                   | Claude rules + `tools.approvalMode`    |
-//! | `qoder`       | `.qoder/settings.json`                  | Claude rules + `general.defaultPermissionMode` |
-//! | `letta`       | `.letta/settings.json`                  | Claude rules (allow/deny) + `env`      |
-//! | `cursor_cli`  | `.cursor/cli.json` / `~/.cursor/cli-config.json` | `Shell()/Read()/Write()/WebFetch()/Mcp()` |
-//! | `codex_toml`  | `config.toml` + `rules/omniget-*.rules` | `sandbox_mode`/`approval_policy`, Starlark `prefix_rule` |
-//! | `opencode`    | `opencode.json` / `kilo.jsonc`          | `permission` map with globs            |
-//! | `gemini`      | `~/.gemini/policies/omniget-*.toml` (user) or `tools.allowed/exclude` (project) | Policy Engine `[[rule]]` |
-//! | `devin`       | `.devin/config.json`                    | `Read()/Write()/Exec()/Fetch()`        |
-//! | `kiro`        | `~/.kiro/settings/permissions.yaml`     | `rules: [{capability, match, effect}]` |
-//! | `copilot_cli` | `~/.copilot/settings.json`              | `allowedUrls/deniedUrls` (+ flags note)|
-//! | `droid`       | `~/.factory/settings.json`              | `commandAllowlist/Denylist`, autonomy  |
-//! | `goose`       | `permission.yaml` + `config.yaml`       | `always_allow/ask_before/never_allow`, `GOOSE_MODE` |
-//!
-//! Keys only Claude has (spinner, output style, announcements …) become losses;
-//! `env` that points at another endpoint (GLM, MiniMax, a proxy, OmniGet's
-//! "alternative provider" profile) is mapped where the tool has an equivalent.
-
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
@@ -34,7 +12,6 @@ use crate::core::agentkit::model::*;
 use crate::core::agentkit::targets::TargetAdapter;
 use crate::core::agentkit::{AgentkitError, Result, Scope};
 
-/// Setting formats this module writes.
 pub const FORMATS: &[&str] = &[
     "qwen",
     "qoder",
@@ -103,8 +80,6 @@ impl Converter for SettingConverter {
     }
 }
 
-// ------------------------------------------------------------------ output collector
-
 struct Out<'a> {
     c: &'a Component,
     t: &'a TargetAdapter,
@@ -155,13 +130,11 @@ impl<'a> Out<'a> {
         )
     }
 
-    /// The tool's settings file for the scope.
     fn settings(&self) -> Result<PathBuf> {
         kind_path(self.t, "settings", self.scope, self.ctx)
             .ok_or_else(|| self.missing("settings file"))
     }
 
-    /// Settings file of another scope (Cursor model/approval live in the user file).
     fn settings_at(&self, scope: Scope) -> Option<PathBuf> {
         kind_path(self.t, "settings", scope, self.ctx)
     }
@@ -234,8 +207,6 @@ fn json_fmt(path: &Path) -> DocFormat {
     format_for_path(path)
 }
 
-/// Model value for a tool: only explicit `model_map` entries (and qualified
-/// `provider/model` ids for OpenCode-style tools).
 fn tool_model(t: &TargetAdapter, model: &str, qualified_ok: bool) -> Option<String> {
     match t.model_map.get(model) {
         Some(m) if !m.is_empty() => Some(m.clone()),
@@ -249,12 +220,8 @@ fn component_slug(c: &Component, ctx: &ConvertCtx) -> String {
     ctx.name_for(c)
 }
 
-// ------------------------------------------------------------------ shared keys
-
-/// `env`, `model`, `statusLine`, `hooks`, `apiKeyHelper` and the Claude-only keys.
 fn common(o: &mut Out, fmt: &str, spec: &SettingSpec, provider: Option<&Provider>) -> Result<()> {
     let values = &spec.values;
-    // env
     if let Some(Value::Object(env)) = values.get("env") {
         let mut claude_only = Vec::new();
         let mut proxy = Vec::new();
@@ -301,11 +268,9 @@ fn common(o: &mut Out, fmt: &str, spec: &SettingSpec, provider: Option<&Provider
             telemetry(o, fmt, !off)?;
         }
     }
-    // model
     if let Some(m) = values.get("model").and_then(|m| m.as_str()) {
         model(o, fmt, m)?;
     }
-    // provider on tools whose writer did not take it
     if let Some(p) = provider {
         if !matches!(fmt, "codex_toml" | "opencode" | "goose" | "qwen") {
             o.loss(provider_loss(o.t, p));
@@ -313,7 +278,6 @@ fn common(o: &mut Out, fmt: &str, spec: &SettingSpec, provider: Option<&Provider
             qwen_provider(o, p)?;
         }
     }
-    // statusLine
     if let Some(Value::Object(sl)) = values.get("statusLine") {
         let cmd = sl.get("command").and_then(|c| c.as_str()).unwrap_or("");
         let sl_fmt = o.t.format(ComponentKind::Statusline).unwrap_or("");
@@ -441,8 +405,6 @@ fn model(o: &mut Out, fmt: &str, m: &str) -> Result<()> {
     Ok(())
 }
 
-// ------------------------------------------------------------------ Claude-syntax tools
-
 fn claude_like(o: &mut Out, perms: &PermissionSet) -> Result<()> {
     if perms.is_empty() {
         return Ok(());
@@ -553,9 +515,6 @@ fn qwen_provider(o: &mut Out, p: &Provider) -> Result<()> {
     Ok(())
 }
 
-// ------------------------------------------------------------------ Cursor CLI
-
-/// Claude rule → Cursor CLI permission token.
 pub fn cursor_token(d: Decision, r: &Rule) -> Option<String> {
     let spec = r.spec.as_deref();
     Some(match r.family() {
@@ -574,7 +533,6 @@ pub fn cursor_token(d: Decision, r: &Rule) -> Option<String> {
             "Read({})",
             spec.map(sp::path_glob).unwrap_or_else(|| "**".into())
         ),
-        // listing and searching are reads for Cursor; denying them alone is not expressible
         Family::Search if d == Decision::Allow => "Read(**)".into(),
         Family::Edit => format!(
             "Write({})",
@@ -639,9 +597,6 @@ fn cursor(o: &mut Out, perms: &PermissionSet) -> Result<()> {
     Ok(())
 }
 
-// ------------------------------------------------------------------ Codex
-
-/// Starlark exec-policy file for the shell rules.
 pub fn codex_rules_file(perms: &PermissionSet, origin: &str) -> (String, Vec<String>) {
     let mut out = format!(
         "# Written by OmniGet from `{origin}`. OmniGet removes this file on uninstall.\n# Exec policy (experimental in Codex): https://developers.openai.com/codex/rules\n\n"
@@ -791,9 +746,6 @@ fn codex(o: &mut Out, perms: &PermissionSet, provider: Option<&Provider>) -> Res
     Ok(())
 }
 
-// ------------------------------------------------------------------ OpenCode / Kilo
-
-/// Claude rule → OpenCode `permission` key and pattern.
 pub fn opencode_key(r: &Rule) -> Option<(String, Option<String>)> {
     let spec = r.spec.clone();
     let key = match r.tool.as_str() {
@@ -856,8 +808,6 @@ fn opencode(o: &mut Out, perms: &PermissionSet, provider: Option<&Provider>) -> 
             .filter(|p| !p.key.is_empty())
             .map(|p| p.key.clone())
             .unwrap_or_else(|| vec!["permission".into()]);
-    // key → (bare decision, [(pattern, decision)]) ; Claude: deny > ask > allow,
-    // OpenCode: last matching rule wins, so patterns go allow → ask → deny.
     type Rules = (Option<Decision>, Vec<(String, Decision)>);
     let mut map: BTreeMap<String, Rules> = BTreeMap::new();
     let mut order: Vec<String> = Vec::new();
@@ -888,7 +838,6 @@ fn opencode(o: &mut Out, perms: &PermissionSet, provider: Option<&Provider>) -> 
         v.extend(extra.iter().map(|k| Seg::Key(k.to_string())));
         v
     };
-    // mode first so explicit rules can refine it
     match perms.mode {
         Some(Mode::Bypass) if !map.contains_key("*") => {
             o.set(&file, fmt, path(&["*"]), json!("allow"))
@@ -983,8 +932,6 @@ fn opencode(o: &mut Out, perms: &PermissionSet, provider: Option<&Provider>) -> 
     Ok(())
 }
 
-// ------------------------------------------------------------------ Gemini
-
 fn toml_str(s: &str) -> String {
     let mut out = String::from("\"");
     for ch in s.chars() {
@@ -1000,7 +947,6 @@ fn toml_str(s: &str) -> String {
     out
 }
 
-/// Gemini tool name(s) for a rule family.
 fn gemini_tools(t: &TargetAdapter, r: &Rule) -> Vec<String> {
     let m = |k: &str, dflt: &str| {
         t.tool_name_map
@@ -1030,7 +976,6 @@ fn gemini_tools(t: &TargetAdapter, r: &Rule) -> Vec<String> {
     }
 }
 
-/// Policy Engine file (`~/.gemini/policies/*.toml`) for a permission set.
 pub fn gemini_policy(
     t: &TargetAdapter,
     perms: &PermissionSet,
@@ -1144,7 +1089,6 @@ fn gemini(o: &mut Out, perms: &PermissionSet) -> Result<()> {
             o.write(dir.join(format!("omniget-{name}.toml")), policy, "policy");
         }
     } else {
-        // workspace policies are disabled in Gemini: use the settings lists
         for (d, r) in &perms.rules {
             let tools = gemini_tools(o.t, r);
             if tools.is_empty() {
@@ -1211,8 +1155,6 @@ fn gemini(o: &mut Out, perms: &PermissionSet) -> Result<()> {
     Ok(())
 }
 
-// ------------------------------------------------------------------ Devin CLI
-
 pub fn devin_token(r: &Rule) -> Option<String> {
     let spec = r.spec.as_deref();
     Some(match (r.tool.as_str(), r.family()) {
@@ -1271,8 +1213,6 @@ fn devin(o: &mut Out, perms: &PermissionSet) -> Result<()> {
     Ok(())
 }
 
-// ------------------------------------------------------------------ Kiro
-
 pub fn kiro_rule(d: Decision, r: &Rule) -> Option<Value> {
     let spec = r.spec.as_deref();
     let (cap, pat): (&str, String) = match r.family() {
@@ -1327,7 +1267,6 @@ fn kiro(o: &mut Out, perms: &PermissionSet) -> Result<()> {
     if perms.is_empty() {
         return Ok(());
     }
-    // workspace permissions live outside the repo, keyed by a hash of its root
     let file = kind_path(o.t, "permissions", Scope::Global, o.ctx)
         .ok_or_else(|| o.missing("permissions"))?;
     if o.scope != Scope::Global {
@@ -1357,9 +1296,6 @@ fn kiro(o: &mut Out, perms: &PermissionSet) -> Result<()> {
     Ok(())
 }
 
-// ------------------------------------------------------------------ Copilot CLI
-
-/// `--allow-tool`/`--deny-tool` flags equivalent to the rules Copilot cannot keep in a file.
 pub fn copilot_flags(perms: &PermissionSet) -> Vec<String> {
     let mut out = Vec::new();
     for (d, r) in &perms.rules {
@@ -1429,8 +1365,6 @@ fn copilot(o: &mut Out, perms: &PermissionSet) -> Result<()> {
     Ok(())
 }
 
-// ------------------------------------------------------------------ Droid
-
 fn droid(o: &mut Out, perms: &PermissionSet) -> Result<()> {
     if perms.is_empty() {
         return Ok(());
@@ -1484,10 +1418,7 @@ fn droid(o: &mut Out, perms: &PermissionSet) -> Result<()> {
     Ok(())
 }
 
-// ------------------------------------------------------------------ Goose
-
 fn goose(o: &mut Out, perms: &PermissionSet, provider: Option<&Provider>) -> Result<()> {
-    // Goose keeps its config and permissions per user only
     let cfg = o
         .settings_at(Scope::Global)
         .ok_or_else(|| o.missing("config.yaml"))?;
@@ -1529,7 +1460,6 @@ fn goose(o: &mut Out, perms: &PermissionSet, provider: Option<&Provider>) -> Res
             };
             let mut names: Vec<String> = name(r).into_iter().collect();
             if r.tool == "Edit" || r.tool == "Write" {
-                // both edit tools share the family on Goose
                 for k in ["Edit", "Write"] {
                     if let Some(n) = o.t.tool_name_map.get(k).filter(|v| !v.is_empty()) {
                         if !names.contains(n) {

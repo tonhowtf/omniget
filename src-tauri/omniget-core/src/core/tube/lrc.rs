@@ -1,14 +1,8 @@
-//! Lyrics for OmniTube Music: LRC text (reusing the `/music` parser),
-//! LRCLIB search results and the timed lyrics the mobile YT Music clients
-//! (`ANDROID_MUSIC`/`IOS_MUSIC`) return.
-
 use serde_json::Value;
 
 use super::model::{LyricLine, Lyrics};
 use crate::core::music::lrc as music_lrc;
 
-/// Timed lines when the text has stamps; otherwise one untimed line per
-/// text line.
 pub fn parse_lrc(text: &str) -> Vec<LyricLine> {
     let parsed = music_lrc::parse(text);
     if parsed.is_synced() {
@@ -51,9 +45,6 @@ fn non_empty(v: &Value) -> Option<&str> {
     v.as_str().filter(|s| !s.trim().is_empty())
 }
 
-/// `/api/search` (array) or `/api/get` (object): the best entry whose
-/// duration is within 2 s, synced lyrics first. `duration_s == 0` skips the
-/// duration check.
 pub fn lrclib_pick(json: &Value, duration_s: u32) -> Option<Lyrics> {
     let list: Vec<&Value> = match json {
         Value::Array(a) => a.iter().collect(),
@@ -96,8 +87,6 @@ fn find_key<'a>(v: &'a Value, key: &str) -> Option<&'a Value> {
     }
 }
 
-/// `timedLyricsData` rows (`lyricLine` + `cueRange.startTimeMilliseconds`)
-/// from a mobile YT Music `browse` of the lyrics tab.
 pub fn parse_timed_lyrics(json: &Value) -> Option<Lyrics> {
     let rows = find_key(json, "timedLyricsData")?.as_array()?;
     let mut lines: Vec<LyricLine> = rows

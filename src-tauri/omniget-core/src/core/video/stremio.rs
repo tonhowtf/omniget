@@ -1,15 +1,8 @@
-//! Client side of the open Stremio addon protocol (JSON over HTTP): tolerant
-//! types, resource URLs and the source policy. Only direct http(s) URLs,
-//! YouTube ids and external links are playable; torrent, magnet, usenet,
-//! remote archives and `p2p` addons are refused here, in the core.
-
 use serde::de::{DeserializeOwned, Deserializer};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::BTreeMap;
 
-/// Lenient field deserializers: wrong types become defaults instead of
-/// failing the whole document.
 mod de {
     use super::*;
 
@@ -118,7 +111,6 @@ mod de {
     }
 }
 
-/// A `resources` entry: `"stream"` or `{ name, types, idPrefixes }`.
 #[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(untagged)]
 pub enum ManifestResource {
@@ -172,7 +164,6 @@ impl<'de> Deserialize<'de> for ManifestResource {
     }
 }
 
-/// A catalog `extra` declaration.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct ExtraProp {
@@ -186,7 +177,6 @@ pub struct ExtraProp {
     pub options_limit: Option<u32>,
 }
 
-/// A catalog declared in the manifest.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct ManifestCatalog {
@@ -198,16 +188,13 @@ pub struct ManifestCatalog {
     pub name: Option<String>,
     #[serde(deserialize_with = "de::vec")]
     pub extra: Vec<ExtraProp>,
-    /// Legacy form: names of required extras.
     #[serde(deserialize_with = "de::strings")]
     pub extra_required: Vec<String>,
-    /// Legacy form: names of supported extras.
     #[serde(deserialize_with = "de::strings")]
     pub extra_supported: Vec<String>,
 }
 
 impl ManifestCatalog {
-    /// The declared extras, merging the legacy `extraRequired/extraSupported`.
     pub fn extras(&self) -> Vec<ExtraProp> {
         let mut out = self.extra.clone();
         for n in self.extra_supported.iter().chain(&self.extra_required) {
@@ -222,7 +209,6 @@ impl ManifestCatalog {
         out
     }
 
-    /// True when every sent extra is declared and every required one is sent.
     pub fn is_extra_supported(&self, extra: &[(String, String)]) -> bool {
         let decl = self.extras();
         extra.iter().all(|(k, _)| decl.iter().any(|e| &e.name == k))
@@ -233,7 +219,6 @@ impl ManifestCatalog {
     }
 }
 
-/// Manifest `behaviorHints`.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct ManifestBehaviorHints {
@@ -249,7 +234,6 @@ pub struct ManifestBehaviorHints {
     pub epg_provider: bool,
 }
 
-/// An addon manifest (`manifest.json`).
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct Manifest {
@@ -278,7 +262,6 @@ pub struct Manifest {
 }
 
 impl Manifest {
-    /// Resource names (`catalog`, `meta`, `stream`, `subtitles`, ...).
     pub fn resource_names(&self) -> Vec<String> {
         let mut out: Vec<String> = Vec::new();
         for r in &self.resources {
@@ -293,7 +276,6 @@ impl Manifest {
     }
 }
 
-/// A catalog item.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct MetaPreview {
@@ -321,7 +303,6 @@ pub struct MetaPreview {
     pub imdb_rating: Option<String>,
 }
 
-/// `behaviorHints` of a meta.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct MetaBehaviorHints {
@@ -331,7 +312,6 @@ pub struct MetaBehaviorHints {
     pub is_live: bool,
 }
 
-/// A full meta item (the `meta` resource).
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct MetaDetail {
@@ -365,8 +345,6 @@ pub struct MetaDetail {
     pub behavior_hints: MetaBehaviorHints,
 }
 
-/// An episode or video of a meta. Addons use `title` or `name`, `episode` or
-/// `number`, `overview` or `description`: read them through the accessors.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct Video {
@@ -412,7 +390,6 @@ impl Video {
     }
 }
 
-/// `proxyHeaders` of a stream.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct ProxyHeaders {
@@ -422,7 +399,6 @@ pub struct ProxyHeaders {
     pub response: BTreeMap<String, String>,
 }
 
-/// Stream `behaviorHints`.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct StreamBehaviorHints {
@@ -442,7 +418,6 @@ pub struct StreamBehaviorHints {
     pub country_whitelist: Vec<String>,
 }
 
-/// A stream. Every source variant is kept so the policy can refuse precisely.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct Stream {
@@ -472,7 +447,6 @@ pub struct Stream {
     pub player_frame_url: Option<String>,
     #[serde(deserialize_with = "de::string")]
     pub name: String,
-    /// Deprecated alias of `description` still used by many addons.
     #[serde(deserialize_with = "de::string")]
     pub title: String,
     #[serde(deserialize_with = "de::string")]
@@ -486,7 +460,6 @@ pub struct Stream {
 }
 
 impl Stream {
-    /// `description`, falling back to the legacy `title`.
     pub fn label(&self) -> &str {
         if self.description.is_empty() {
             &self.title
@@ -496,7 +469,6 @@ impl Stream {
     }
 }
 
-/// A subtitle from the `subtitles` resource or a stream.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Subtitle {
@@ -510,7 +482,6 @@ pub struct Subtitle {
     pub label: Option<String>,
 }
 
-/// `{ metas: [...] }`
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct CatalogResponse {
@@ -518,7 +489,6 @@ pub struct CatalogResponse {
     pub metas: Vec<MetaPreview>,
 }
 
-/// `{ meta: {...} }`
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct MetaResponse {
@@ -526,7 +496,6 @@ pub struct MetaResponse {
     pub meta: Option<MetaDetail>,
 }
 
-/// `{ streams: [...] }`
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct StreamsResponse {
@@ -534,7 +503,6 @@ pub struct StreamsResponse {
     pub streams: Vec<Stream>,
 }
 
-/// `{ subtitles: [...] }`
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct SubtitlesResponse {
@@ -542,10 +510,6 @@ pub struct SubtitlesResponse {
     pub subtitles: Vec<Subtitle>,
 }
 
-// ---- URLs ----
-
-/// Trims the URL and turns `stremio://` into `https://` (adding `https://`
-/// when the scheme is missing).
 pub fn normalize_manifest_url(u: &str) -> String {
     let t = u.trim();
     if let Some(rest) = t.strip_prefix("stremio://") {
@@ -557,8 +521,6 @@ pub fn normalize_manifest_url(u: &str) -> String {
     t.to_string()
 }
 
-/// Splits a manifest URL into the transport base (without `/manifest.json`)
-/// and an optional query string.
 fn split_base(manifest_url: &str) -> (String, Option<String>) {
     let u = normalize_manifest_url(manifest_url);
     let (path, query) = match u.split_once('?') {
@@ -574,13 +536,10 @@ fn split_base(manifest_url: &str) -> (String, Option<String>) {
     (base, query)
 }
 
-/// The transport base of an addon (`https://host/path` without
-/// `/manifest.json`).
 pub fn addon_base(manifest_url: &str) -> String {
     split_base(manifest_url).0
 }
 
-/// `encodeURIComponent`: everything but `A-Z a-z 0-9 - _ . ! ~ * ' ( )`.
 pub fn encode_component(s: &str) -> String {
     let mut out = String::with_capacity(s.len());
     for b in s.bytes() {
@@ -624,41 +583,28 @@ fn resource_url(
     url
 }
 
-/// `{base}/catalog/{type}/{id}[/{extra}].json`
 pub fn catalog_url(base: &str, type_: &str, id: &str, extra: &[(String, String)]) -> String {
     resource_url(base, "catalog", type_, id, extra)
 }
 
-/// `{base}/meta/{type}/{id}.json`
 pub fn meta_url(base: &str, type_: &str, id: &str) -> String {
     resource_url(base, "meta", type_, id, &[])
 }
 
-/// `{base}/stream/{type}/{id}.json`
 pub fn stream_url(base: &str, type_: &str, id: &str) -> String {
     resource_url(base, "stream", type_, id, &[])
 }
 
-/// `{base}/subtitles/{type}/{id}[/{extra}].json` (extras: `videoHash`,
-/// `videoSize`, `filename`).
 pub fn subtitles_url(base: &str, type_: &str, id: &str, extra: &[(String, String)]) -> String {
     resource_url(base, "subtitles", type_, id, extra)
 }
 
-// ---- policy ----
-
-/// What the app may do with a stream.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "kind", content = "value", rename_all = "lowercase")]
 pub enum StreamKind {
-    /// Direct http(s) URL.
     Url(String),
-    /// YouTube video id (resolve with yt-dlp).
     YouTube(String),
-    /// Opens in the browser (http(s) or a `stremio:` deep link).
     External(String),
-    /// Refused, with a short English reason: `torrent`, `usenet`, `archive`,
-    /// `p2p`, `unsupported` or `empty`.
     Refused(String),
 }
 
@@ -678,7 +624,6 @@ fn is_torrent_url(u: &str) -> bool {
     path.ends_with(".torrent")
 }
 
-/// Applies the source policy to one stream.
 pub fn classify(stream: &Stream) -> StreamKind {
     let refused = |r: &str| StreamKind::Refused(r.to_string());
     if stream.info_hash.is_some() {
@@ -730,7 +675,6 @@ pub fn classify(stream: &Stream) -> StreamKind {
     refused("empty")
 }
 
-/// [`classify`] plus the addon-level policy (`p2p` addons are refused).
 pub fn classify_from(manifest: &Manifest, stream: &Stream) -> StreamKind {
     if manifest_is_p2p(manifest) {
         return StreamKind::Refused("p2p".into());
@@ -738,13 +682,10 @@ pub fn classify_from(manifest: &Manifest, stream: &Stream) -> StreamKind {
     classify(stream)
 }
 
-/// True when the addon declares P2P content (installation must be refused).
 pub fn manifest_is_p2p(manifest: &Manifest) -> bool {
     manifest.behavior_hints.p2p
 }
 
-/// Whether the addon serves `resource` for `type_`/`id`. For `catalog`, `id`
-/// is the catalog id; for the others `idPrefixes` must match (absent = any).
 pub fn supports(manifest: &Manifest, resource: &str, type_: &str, id: &str) -> bool {
     if resource == "catalog" {
         return manifest
@@ -829,7 +770,6 @@ mod tests {
             classify_from(&m, &stream(r#"{"url":"https://x"}"#)),
             StreamKind::Refused("p2p".into())
         );
-        // Serialized shape for the frontend.
         assert_eq!(
             serde_json::to_string(&StreamKind::YouTube("a".into())).unwrap(),
             r#"{"kind":"youtube","value":"a"}"#
@@ -872,7 +812,6 @@ mod tests {
         assert!(!supports(&m, "meta", "series", "tt1"));
         assert!(!supports(&m, "subtitles", "movie", "tt1"));
 
-        // Only non-JSON fails; callers must check `id`/`name` themselves.
         assert!(serde_json::from_str::<Manifest>("<html>").is_err());
         assert!(serde_json::from_str::<Manifest>("[]").map_or(true, |m| m.id.is_empty()));
         let empty: Manifest = serde_json::from_str("{}").unwrap();

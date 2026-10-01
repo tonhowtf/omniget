@@ -1,25 +1,12 @@
-//! Which program is in the foreground of a terminal right now.
-//!
-//! - macOS/Linux: the foreground process group of the PTY (`tcgetpgrp` on the
-//!   master, read by the backend through [`super::pty::PtyProcess::foreground_pgid`]). The
-//!   group leader's name comes from `/proc/<pid>/comm` on Linux and from
-//!   `ps -o comm= -p <pid>` on macOS. Names are cached per pid, so a spawn only
-//!   happens when the foreground group actually changes.
-//! - Windows: ConPTY has no foreground group. Best effort: the deepest live
-//!   descendant of the shell, read from one `Win32_Process` snapshot.
-
 use serde::Serialize;
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize)]
 pub struct Foreground {
-    /// Something other than the shell itself is running.
     pub running: bool,
-    /// Short program name ("vim", "pnpm", "zsh").
     pub label: String,
     pub pid: Option<u32>,
 }
 
-/// Remembers the last pid resolved so a name lookup runs once per change.
 #[derive(Default)]
 pub struct NameCache {
     pid: Option<u32>,
@@ -28,7 +15,7 @@ pub struct NameCache {
 
 fn base_name(s: &str) -> String {
     let s = s.trim();
-    let s = s.strip_prefix('-').unwrap_or(s); // login shells: "-zsh"
+    let s = s.strip_prefix('-').unwrap_or(s);
     let s = s.rsplit(['/', '\\']).next().unwrap_or(s);
     let s = s.strip_suffix(".exe").unwrap_or(s);
     s.chars().take(64).collect()
@@ -58,7 +45,6 @@ fn name_of(pid: u32) -> Option<String> {
     (!s.is_empty()).then_some(s)
 }
 
-/// Resolves the foreground program of a unix PTY.
 #[cfg(unix)]
 pub fn resolve(
     fg_pgid: Option<u32>,
@@ -112,8 +98,6 @@ pub fn resolve(
     let Some(table) = windows_process_table() else {
         return idle;
     };
-    // Walk down from the shell, always into the newest child (highest pid is
-    // a fair proxy on Windows for "started last"), skipping console hosts.
     let mut cur = root;
     let mut name = String::new();
     loop {
@@ -145,9 +129,6 @@ pub fn resolve(
     }
 }
 
-/// `(pid, parent pid, image name)` for every process, from one PowerShell CIM
-/// query. Only called while a terminal produces output, and throttled by the
-/// caller.
 #[cfg(windows)]
 fn windows_process_table() -> Option<Vec<(u32, u32, String)>> {
     let out = crate::core::process::std_command("powershell.exe")
@@ -173,7 +154,6 @@ fn windows_process_table() -> Option<Vec<(u32, u32, String)>> {
     (!rows.is_empty()).then_some(rows)
 }
 
-/// Label for a shell or command path ("/bin/zsh" → "zsh").
 pub fn label_for(program: &str) -> String {
     base_name(program)
 }

@@ -1,16 +1,8 @@
-//! KOReader progress sync (the "kosync" protocol): the partial-MD5 document
-//! id every KOReader device computes, and a client for a sync server
-//! (sync.koreader.rocks or self-hosted). The same types back the kosync
-//! endpoints the local server exposes, so KOReader can sync with OmniGet
-//! directly.
-
 use std::io::{Read, Seek, SeekFrom};
 
 use md5::{Digest, Md5};
 use serde::{Deserialize, Serialize};
 
-/// KOReader's `partial_md5`: 1 KiB samples at 256 B, 1 KiB, 4 KiB, ...
-/// 1 GiB (`1024 << 2i` for i in -1..=10), stopping at end of file.
 pub fn partial_md5<R: Read + Seek>(r: &mut R) -> std::io::Result<String> {
     let mut h = Md5::new();
     let mut buf = vec![0u8; 1024];
@@ -38,7 +30,6 @@ pub fn partial_md5_path(p: &std::path::Path) -> Option<String> {
     partial_md5(&mut f).ok()
 }
 
-/// md5 of the password, which is what kosync stores and sends as the key.
 pub fn user_key(password: &str) -> String {
     hex::encode(Md5::digest(password.as_bytes()))
 }
@@ -46,7 +37,6 @@ pub fn user_key(password: &str) -> String {
 #[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
 pub struct Progress {
     pub document: String,
-    /// KOReader xpointer or a page number as text.
     pub progress: String,
     pub percentage: f64,
     pub device: String,
@@ -152,7 +142,6 @@ mod tests {
     fn partial_md5_small_and_empty() {
         let mut c = std::io::Cursor::new(vec![7u8; 5000]);
         let a = partial_md5(&mut c).unwrap();
-        // Samples at 256 and 1024 and 4096 (short read), then EOF.
         let mut h = Md5::new();
         h.update(vec![7u8; 1024]);
         h.update(vec![7u8; 1024]);

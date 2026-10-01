@@ -1,7 +1,5 @@
 use serde_json::Value;
 
-/// Only the lobby leader can start matchmaking, so anything that re-queues has to
-/// check this first — asking as a member just fails.
 pub fn is_leader(lobby: &Value) -> bool {
     lobby
         .get("localMember")
@@ -10,8 +8,6 @@ pub fn is_leader(lobby: &Value) -> bool {
         .unwrap_or(false)
 }
 
-/// Swap requests waiting for an answer, as `(kind, id)`. `kind` is the path
-/// segment the client expects back.
 pub fn pending_swaps(session: &Value) -> Vec<(&'static str, i64)> {
     let mut pending = Vec::new();
     for (field, kind) in [

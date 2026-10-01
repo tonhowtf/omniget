@@ -1,7 +1,3 @@
-//! Comandos `agentkit_*` da Central: catálogo universal → arquivos de cada
-//! ferramenta (plano, diff, aplicar, desinstalar, drift, restaurar, importar).
-//! Toda a lógica mora em `omniget_core::core::agentkit`; aqui só há a ponte.
-
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 
@@ -36,15 +32,12 @@ where
         .map_err(|e| format!("AGENTKIT_TASK: {e}"))?
 }
 
-/// Every tool adapter (embedded manifests + user overrides).
 #[tauri::command]
 pub async fn agentkit_targets() -> Result<Value, String> {
     let env = env()?;
     to_value(ak::targets::load_targets(&env))
 }
 
-/// Which tools are installed here, their version and the scopes available for
-/// `project_dir`.
 #[tauri::command]
 pub async fn agentkit_detect(project_dir: Option<String>) -> Result<Value, String> {
     blocking(move || {
@@ -57,9 +50,6 @@ pub async fn agentkit_detect(project_dir: Option<String>) -> Result<Value, Strin
     .await
 }
 
-/// Parses a component without installing it, with its compatibility per tool.
-/// Give either `path` (file or folder on disk), or `entry` + `files` (text
-/// contents by relative path), or a catalog `item` + `files`.
 #[tauri::command]
 pub async fn agentkit_parse_preview(
     kind: Option<String>,
@@ -96,9 +86,6 @@ pub async fn agentkit_parse_preview(
     .await
 }
 
-/// Plans an install. Components come as canonical JSON (`components_json`) and/or
-/// catalog ids (`catalog_ids`, resolved by the catalog; `path:<kind>:<path>`
-/// works without one). `policy`: `rename` (default) | `skip` | `overwrite`.
 #[tauri::command]
 #[allow(clippy::too_many_arguments)]
 pub async fn agentkit_plan(
@@ -151,7 +138,6 @@ pub async fn agentkit_plan(
     .await
 }
 
-/// Applies a plan made by `agentkit_plan` (kept in memory by id).
 #[tauri::command]
 pub async fn agentkit_apply(plan_id: String) -> Result<Value, String> {
     blocking(move || {
@@ -165,7 +151,6 @@ pub async fn agentkit_apply(plan_id: String) -> Result<Value, String> {
     .await
 }
 
-/// Removes one install: only the files and merged pieces we wrote.
 #[tauri::command]
 pub async fn agentkit_uninstall(
     install_id: String,
@@ -184,7 +169,6 @@ pub async fn agentkit_uninstall(
     .await
 }
 
-/// Installs recorded in the global lock and in the project's lock.
 #[tauri::command]
 pub async fn agentkit_installed(project_dir: Option<String>) -> Result<Value, String> {
     blocking(move || {
@@ -194,7 +178,6 @@ pub async fn agentkit_installed(project_dir: Option<String>) -> Result<Value, St
     .await
 }
 
-/// Files or merged pieces edited by the user since we wrote them.
 #[tauri::command]
 pub async fn agentkit_drift(project_dir: Option<String>) -> Result<Value, String> {
     blocking(move || {
@@ -204,7 +187,6 @@ pub async fn agentkit_drift(project_dir: Option<String>) -> Result<Value, String
     .await
 }
 
-/// Rolls a transaction (install or uninstall) back from its backups.
 #[tauri::command]
 pub async fn agentkit_restore(tx: String) -> Result<Value, String> {
     blocking(move || {
@@ -214,7 +196,6 @@ pub async fn agentkit_restore(tx: String) -> Result<Value, String> {
     .await
 }
 
-/// Backup transactions on disk, newest first.
 #[tauri::command]
 pub async fn agentkit_transactions() -> Result<Value, String> {
     blocking(move || {
@@ -224,8 +205,6 @@ pub async fn agentkit_transactions() -> Result<Value, String> {
     .await
 }
 
-/// What a tool already has installed, as canonical components (to copy it to
-/// another tool with `agentkit_plan`).
 #[tauri::command]
 pub async fn agentkit_import_installed(
     target: String,
@@ -250,11 +229,6 @@ pub async fn agentkit_import_installed(
     .await
 }
 
-// ------------------------------------------------------------------ catálogo, compat, perfis, loops
-
-/// Id do catálogo (`cct:agents/…`), perfil (`omniget:profiles/<id>`) ou
-/// `path:<kind>:<caminho>` → componente. Instala o resolvedor do catálogo na
-/// primeira vez. Rodar em thread bloqueante (o catálogo baixa com `block_on`).
 pub fn resolve_any(id: &str) -> Result<Component, String> {
     super::catalog::install_catalog_resolver();
     if let Some(p) = id.strip_prefix("omniget:profiles/") {
@@ -263,8 +237,6 @@ pub fn resolve_any(id: &str) -> Result<Component, String> {
     Ok(ak::plan::resolve_id(id)?)
 }
 
-/// Compatibilidade de um item com cada ferramenta (nativo / convertido /
-/// convertido com perdas / sem suporte), detectadas primeiro, para a UI.
 #[tauri::command]
 pub async fn agentkit_compat(
     item_id: String,
@@ -273,7 +245,6 @@ pub async fn agentkit_compat(
     blocking(move || compat_report(&item_id, project(project_dir).as_deref())).await
 }
 
-/// Corpo de [`agentkit_compat`] (também usado pela ponte).
 pub fn compat_report(
     item_id: &str,
     project_dir: Option<&std::path::Path>,
@@ -331,8 +302,6 @@ pub fn parse_policy(p: Option<&str>) -> ConflictPolicy {
     }
 }
 
-/// Plugins/extensions de cada ferramenta (Claude, Copilot, Droid, Cursor,
-/// Gemini, Qwen, OpenCode): ligado/desligado, origem e o que cada um traz.
 #[tauri::command]
 pub async fn agentkit_plugins_list(project_dir: Option<String>) -> Result<Value, String> {
     blocking(move || {
@@ -342,8 +311,6 @@ pub async fn agentkit_plugins_list(project_dir: Option<String>) -> Result<Value,
     .await
 }
 
-/// Liga ou desliga um plugin no arquivo da própria ferramenta (`scope`:
-/// user | project | local). Desfazível com `agentkit_restore(tx)`.
 #[tauri::command]
 pub async fn agentkit_plugin_set_enabled(
     tool: String,

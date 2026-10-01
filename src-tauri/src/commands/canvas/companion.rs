@@ -1,6 +1,3 @@
-//! Tauri commands of Omni as the canvas companion. Logic and the
-//! `canvas://companion` event: `crate::canvas::companion`.
-
 use omniget_core::core::canvas::companion::{CompanionEntry, CompanionSettings};
 use serde_json::Value;
 use tauri::AppHandle;
@@ -12,7 +9,6 @@ fn ready(app: &AppHandle) {
     companion::start(app);
 }
 
-/// Current settings (also starts the watcher).
 #[tauri::command]
 pub async fn canvas_companion_settings_get(app: AppHandle) -> Result<CompanionSettings, String> {
     ready(&app);
@@ -28,7 +24,6 @@ pub async fn canvas_companion_settings_set(
     Ok(companion::set_settings(settings))
 }
 
-/// Newest first. `workspaceId` filters; dismissed entries only when asked.
 #[tauri::command]
 pub async fn canvas_companion_history(
     app: AppHandle,
@@ -50,8 +45,6 @@ pub async fn canvas_companion_dismiss(app: AppHandle, id: String) -> Result<bool
     Ok(companion::dismiss(&id))
 }
 
-/// Sends suggestion `index` (0-2, 3 = the direct command) or `text` of
-/// entry `id` to its agent (paste + Enter), then dismisses the entry.
 #[tauri::command]
 pub async fn canvas_companion_act(
     app: AppHandle,
@@ -65,7 +58,6 @@ pub async fn canvas_companion_act(
         .map_err(|e| format!("CANVAS_TASK: {e}"))?
 }
 
-/// "Ask Omni": a summary of `nodeId` right now.
 #[tauri::command]
 pub async fn canvas_companion_summarize(
     app: AppHandle,
@@ -75,7 +67,6 @@ pub async fn canvas_companion_summarize(
     companion::summarize_node(&app, &node_id).await
 }
 
-/// Installed local (Ollama) chat models, smallest first, for the settings.
 #[tauri::command]
 pub async fn canvas_companion_models(app: AppHandle) -> Result<Vec<String>, String> {
     ready(&app);
@@ -87,8 +78,6 @@ pub async fn canvas_companion_models(app: AppHandle) -> Result<Vec<String>, Stri
     Ok(m.into_iter().map(|(n, _)| n).collect())
 }
 
-/// A free question to Omni about a workspace ("what is B doing?", "note
-/// that ...", "summarize my notes"). `nodeId` puts that terminal first.
 #[tauri::command]
 pub async fn canvas_companion_ask(
     app: AppHandle,
@@ -100,7 +89,6 @@ pub async fn canvas_companion_ask(
     companion::ask(&app, &workspace_id, &question, node_id.as_deref()).await
 }
 
-/// Omni's own floating window (⌘⇧O): `show` true/false, or toggle.
 #[tauri::command]
 pub async fn canvas_omni_window(app: AppHandle, show: Option<bool>) -> Result<bool, String> {
     crate::canvas::companion::start(&app);

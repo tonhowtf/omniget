@@ -1,6 +1,3 @@
-//! Chat export in the shape of Telegram Desktop's `result.json` (and a
-//! plain HTML page), optionally with the media files next to it.
-
 use std::collections::HashMap;
 use std::path::PathBuf;
 
@@ -20,7 +17,6 @@ pub struct ExportRequest {
     pub html: bool,
     pub include_media: bool,
     pub output_dir: PathBuf,
-    /// 0 = everything.
     pub limit: usize,
 }
 
@@ -81,8 +77,6 @@ fn html_escape(s: &str) -> String {
         .replace('"', "&quot;")
 }
 
-/// Runs the export; progress as `telegram-export-progress`
-/// `{export_id, stage, messages, media_done, media_total}`.
 pub async fn run(
     handle: &TelegramSessionHandle,
     export_id: u64,
@@ -298,7 +292,6 @@ pub async fn run(
         );
         let p = root.join("messages.html");
         std::fs::write(&p, html)?;
-        // The JSON goes along too: it is the machine-readable copy.
         std::fs::write(
             root.join("result.json"),
             serde_json::to_string_pretty(&doc)?,

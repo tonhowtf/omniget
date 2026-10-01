@@ -1,6 +1,3 @@
-//! `llm_models_list`: the model ids of one provider, fetched only on an
-//! explicit click and cached for an hour. Owned by f2-llm-commands.
-
 use std::collections::HashMap;
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
@@ -42,7 +39,6 @@ fn store(provider: &str, models: &[String]) {
     }
 }
 
-/// A provider id that names a local server instead of a saved account.
 fn local_kind(provider: &str) -> Option<LocalKind> {
     LocalKind::all().into_iter().find(|k| k.id() == provider)
 }

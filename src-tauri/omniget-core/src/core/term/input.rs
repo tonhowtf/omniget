@@ -1,7 +1,3 @@
-//! Keys, text, paste, mouse and wheel → the bytes the program expects, by the
-//! terminal's current modes. The front sends DOM-level events; encoding here
-//! means no race between a mode in JS and the mode the program just set.
-
 use serde::Deserialize;
 
 use super::engine::Modes;
@@ -11,14 +7,10 @@ pub const MOD_ALT: u8 = 2;
 pub const MOD_CTRL: u8 = 4;
 pub const MOD_META: u8 = 8;
 
-/// A non-text key from `keydown` (text goes through `term_text`).
 #[derive(Debug, Clone, Default, Deserialize)]
 #[serde(default)]
 pub struct KeyInput {
-    /// DOM `KeyboardEvent.key` ("Enter", "ArrowUp", "a", "F5").
     pub key: String,
-    /// DOM `KeyboardEvent.code` ("KeyA"), used for Ctrl/Alt + letter when
-    /// the layout gives an odd `key`.
     pub code: String,
     pub mods: u8,
     pub repeat: bool,
@@ -27,41 +19,32 @@ pub struct KeyInput {
 #[derive(Debug, Clone, Default, Deserialize)]
 #[serde(default)]
 pub struct MouseInput {
-    /// "down" | "up" | "move" | "wheel".
     pub kind: String,
-    /// 0 left, 1 middle, 2 right.
     pub button: u8,
     pub col: u16,
     pub row: u16,
     pub mods: u8,
-    /// Wheel lines: positive = up.
     pub wheel: i32,
 }
 
 #[derive(Debug, Clone, Default, Deserialize)]
 #[serde(default)]
 pub struct ScrollInput {
-    /// Positive = towards history (up).
     pub lines: i32,
     pub pages: i32,
-    /// "top" | "bottom".
     pub to: Option<String>,
 }
 
 #[derive(Debug, Clone, Default, Deserialize)]
 #[serde(default)]
 pub struct SelectInput {
-    /// "start" | "update" | "clear" | "all".
     pub kind: String,
-    /// "simple" | "block" | "semantic" | "lines".
     pub ty: Option<String>,
     pub col: u16,
     pub row: u16,
-    /// "left" | "right": which half of the cell the pointer is on.
     pub side: Option<String>,
 }
 
-/// xterm modifier parameter (1 + shift + 2·alt + 4·ctrl + 8·meta).
 fn mod_param(mods: u8) -> u8 {
     1 + (mods & MOD_SHIFT != 0) as u8
         + 2 * (mods & MOD_ALT != 0) as u8
@@ -69,7 +52,6 @@ fn mod_param(mods: u8) -> u8 {
         + 8 * (mods & MOD_META != 0) as u8
 }
 
-/// `CSI 1;m X` or, without modifiers, `CSI X` / `SS3 X` in app cursor mode.
 fn cursor_key(fin: u8, mods: u8, app: bool) -> Vec<u8> {
     if mods == 0 {
         if app {
@@ -82,7 +64,6 @@ fn cursor_key(fin: u8, mods: u8, app: bool) -> Vec<u8> {
     }
 }
 
-/// `CSI n ~` with optional modifiers.
 fn tilde_key(n: u8, mods: u8) -> Vec<u8> {
     if mods == 0 {
         format!("\x1b[{n}~").into_bytes()
@@ -101,7 +82,6 @@ fn with_alt(mods: u8, bytes: Vec<u8>) -> Vec<u8> {
     }
 }
 
-/// Ctrl + a printable character → C0 byte.
 fn ctrl_byte(c: char) -> Option<u8> {
     match c {
         'a'..='z' => Some(c as u8 - b'a' + 1),
@@ -117,8 +97,6 @@ fn ctrl_byte(c: char) -> Option<u8> {
     }
 }
 
-/// Encodes a key. `None` = nothing to send (a bare modifier, or a key the
-/// terminal does not map).
 pub fn encode_key(k: &KeyInput, modes: &Modes) -> Option<Vec<u8>> {
     let mods = k.mods;
     let app = modes.app_cursor;
@@ -177,10 +155,8 @@ pub fn encode_key(k: &KeyInput, modes: &Modes) -> Option<Vec<u8>> {
             let mut chars = key.chars();
             let c = chars.next()?;
             if chars.next().is_some() {
-                // "Shift", "Meta", "Dead", "Unidentified"…
                 return None;
             }
-            // Layout-independent letter for Ctrl/Alt chords.
             let base = if mods & (MOD_CTRL | MOD_ALT) != 0 {
                 k.code
                     .strip_prefix("Key")
@@ -214,9 +190,6 @@ pub fn encode_key(k: &KeyInput, modes: &Modes) -> Option<Vec<u8>> {
     Some(bytes)
 }
 
-/// Removes what could escape a bracketed paste (ESC and C1 CSI) and
-/// normalises newlines to CR, then wraps in `ESC[200~ … ESC[201~` when the
-/// program asked for bracketed paste.
 pub fn encode_paste(text: &str, bracketed: bool) -> Vec<u8> {
     let clean: String = text
         .replace("\r\n", "\r")
@@ -234,7 +207,6 @@ pub fn encode_paste(text: &str, bracketed: bool) -> Vec<u8> {
     }
 }
 
-/// Mouse event → report bytes, if the program asked for this kind of event.
 pub fn encode_mouse(m: &MouseInput, modes: &Modes) -> Option<Vec<u8>> {
     if !modes.mouse_reporting() {
         return None;
@@ -256,7 +228,6 @@ pub fn encode_mouse(m: &MouseInput, modes: &Modes) -> Option<Vec<u8>> {
             if !(modes.mouse_drag || modes.mouse_motion) {
                 return None;
             }
-            // Drag with the button held reports the button; plain motion 3.
             let b = if m.button <= 2 && modes.mouse_drag {
                 m.button
             } else if modes.mouse_motion {
@@ -285,7 +256,6 @@ pub fn encode_mouse(m: &MouseInput, modes: &Modes) -> Option<Vec<u8>> {
     let one = if modes.sgr_mouse {
         format!("\x1b[<{cb};{x};{y}{}", if release { 'm' } else { 'M' }).into_bytes()
     } else {
-        // X10/normal: release is button 3; coordinates capped at 223.
         let b = if release { 3 | mods_bits } else { cb };
         if x > 223 || y > 223 {
             return None;
@@ -295,8 +265,6 @@ pub fn encode_mouse(m: &MouseInput, modes: &Modes) -> Option<Vec<u8>> {
     Some(one.repeat(repeat))
 }
 
-/// Wheel in the alternate screen without mouse reporting (mode 1007): arrow
-/// keys, as xterm does, so `less`/`vim` scroll.
 pub fn encode_alternate_scroll(lines: i32, modes: &Modes) -> Option<Vec<u8>> {
     if !(modes.alt_screen && modes.alternate_scroll) || modes.mouse_reporting() || lines == 0 {
         return None;
@@ -306,7 +274,6 @@ pub fn encode_alternate_scroll(lines: i32, modes: &Modes) -> Option<Vec<u8>> {
     Some(one.repeat(lines.unsigned_abs().min(50) as usize))
 }
 
-/// Focus in/out report (mode 1004).
 pub fn encode_focus(focused: bool, modes: &Modes) -> Option<Vec<u8>> {
     modes.focus_reporting.then(|| {
         if focused {

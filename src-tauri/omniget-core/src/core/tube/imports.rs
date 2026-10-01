@@ -1,11 +1,3 @@
-//! Subscription, history and playlist imports, detected by content (the
-//! Takeout localizes file names). Formats: NewPipe `subscriptions.json`,
-//! FreeTube `.db` files (NDJSON: profiles, history, playlists) and its old
-//! JSON, Invidious JSON, YouTube API JSON, Takeout `subscriptions.csv`,
-//! playlist CSVs and `watch-history.json`/`.html`, OPML, zips of any of
-//! these, and plain lists of links or ids. `newpipe.db` is SQLite: it is
-//! reported as `newpipe_db` for the caller to open.
-
 use std::io::{Cursor, Read};
 
 use once_cell::sync::Lazy;
@@ -16,12 +8,9 @@ use super::model::{ImportedSub, ImportedWatch, LocalSub};
 
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct Imported {
-    /// "newpipe" | "newpipe_db" | "freetube" | "freetube_history" | "invidious"
-    /// | "youtube_api" | "takeout" | "takeout_csv" | "takeout_history" | "opml" | "links"
     pub format: String,
     pub subs: Vec<ImportedSub>,
     pub history: Vec<ImportedWatch>,
-    /// (name, video ids)
     pub playlists: Vec<(String, Vec<String>)>,
 }
 
@@ -97,8 +86,6 @@ fn num_of(v: &Value, key: &str) -> Option<f64> {
         .or_else(|| v[key].as_str().and_then(|s| s.parse().ok()))
 }
 
-// ---- JSON family -----------------------------------------------------------
-
 fn freetube_watch(v: &Value) -> Option<ImportedWatch> {
     let video_id = str_of(v, &["videoId"])?.to_string();
     Some(ImportedWatch {
@@ -126,7 +113,6 @@ const WATCHED_PREFIXES: &[&str] = &[
 ];
 
 fn takeout_watch(v: &Value) -> Option<ImportedWatch> {
-    // Ads the account "watched" carry a details entry; they are not history.
     if v["details"].as_array().is_some_and(|d| !d.is_empty()) {
         return None;
     }
@@ -150,8 +136,6 @@ fn takeout_watch(v: &Value) -> Option<ImportedWatch> {
     })
 }
 
-/// One JSON document (or one NDJSON line). Returns false when it is not a
-/// shape we know.
 fn absorb_json(v: &Value, out: &mut Imported, fmt: &mut Vec<&'static str>) -> bool {
     match v {
         Value::Object(o) => {
@@ -160,7 +144,6 @@ fn absorb_json(v: &Value, out: &mut Imported, fmt: &mut Vec<&'static str>) -> bo
                 let mut kind = if is_profile { "freetube" } else { "newpipe" };
                 for s in subs {
                     match s {
-                        // Invidious: plain ucids.
                         Value::String(id) => {
                             kind = "invidious";
                             out.add_sub(id, "");
@@ -266,7 +249,6 @@ fn parse_json_text(text: &str) -> Option<Imported> {
         }
         return None;
     }
-    // NDJSON (FreeTube .db): one document per line.
     let mut any = false;
     for line in text.lines().map(str::trim).filter(|l| !l.is_empty()) {
         if let Ok(v) = serde_json::from_str::<Value>(line) {
@@ -276,7 +258,6 @@ fn parse_json_text(text: &str) -> Option<Imported> {
     if !any {
         return None;
     }
-    // A profiles file lists the same channel under several profiles.
     out.format = if fmt.contains(&"freetube") {
         "freetube"
     } else {
@@ -286,9 +267,6 @@ fn parse_json_text(text: &str) -> Option<Imported> {
     Some(out)
 }
 
-// ---- CSV -------------------------------------------------------------------
-
-/// RFC 4180 records: quotes, doubled quotes, commas and newlines in fields.
 fn csv_rows(text: &str) -> Vec<Vec<String>> {
     let mut rows = Vec::new();
     let mut row = Vec::new();
@@ -329,7 +307,6 @@ fn csv_rows(text: &str) -> Vec<Vec<String>> {
 fn parse_csv(text: &str, file_name: &str) -> Option<Imported> {
     let rows = csv_rows(text);
     let mut out = Imported::default();
-    // Subscriptions: first column is a channel id, title in the third.
     for r in &rows {
         let id = r[0].trim();
         if CHANNEL_ID_EXACT.is_match(id) {
@@ -341,7 +318,6 @@ fn parse_csv(text: &str, file_name: &str) -> Option<Imported> {
         out.format = "takeout_csv".into();
         return Some(out);
     }
-    // Playlist: a "Video Id" header, ids below it.
     let header = rows
         .iter()
         .position(|r| r.iter().any(|c| c.trim().eq_ignore_ascii_case("video id")))?;
@@ -359,8 +335,6 @@ fn parse_csv(text: &str, file_name: &str) -> Option<Imported> {
     out.format = "takeout_csv".into();
     Some(out)
 }
-
-// ---- XML / HTML ------------------------------------------------------------
 
 fn parse_opml(text: &str) -> Option<Imported> {
     let mut out = Imported {
@@ -388,7 +362,6 @@ fn parse_opml(text: &str) -> Option<Imported> {
                 out.add_sub(&id, name);
             }
         }
-        // Some exporters write OPML that is not well-formed XML.
         Err(_) => {
             static OUTLINE: Lazy<Regex> =
                 Lazy::new(|| Regex::new(r"(?is)<outline\b[^>]*>").unwrap());
@@ -417,8 +390,6 @@ fn unescape(s: &str) -> String {
         .replace("&amp;", "&")
 }
 
-/// Takeout `watch-history.html`: every watch link, with the channel link
-/// that follows it. Dates are localized free text, so they are left out.
 fn parse_history_html(text: &str) -> Option<Imported> {
     static LINK: Lazy<Regex> =
         Lazy::new(|| Regex::new(r#"<a href="([^"]+)">([^<]*)</a>"#).unwrap());
@@ -450,8 +421,6 @@ fn parse_history_html(text: &str) -> Option<Imported> {
     (!out.history.is_empty()).then_some(out)
 }
 
-// ---- Links -----------------------------------------------------------------
-
 fn parse_links(text: &str, file_name: &str) -> Option<Imported> {
     let mut out = Imported {
         format: "links".into(),
@@ -476,8 +445,6 @@ fn parse_links(text: &str, file_name: &str) -> Option<Imported> {
     }
     (!out.is_empty()).then_some(out)
 }
-
-// ---- Entry point -------------------------------------------------------------
 
 fn parse_text(bytes: &[u8], file_name: &str) -> Option<Imported> {
     if bytes.starts_with(SQLITE_MAGIC) {
@@ -562,7 +529,6 @@ pub fn parse_import(bytes: &[u8], file_name: &str) -> Result<Imported, String> {
     parse_text(bytes, file_name).ok_or_else(|| "unrecognized import file".to_string())
 }
 
-/// The raw `newpipe.db` inside a NewPipe export zip, for the SQLite reader.
 pub fn newpipe_db_from_zip(bytes: &[u8]) -> Option<Vec<u8>> {
     let mut zip = zip::ZipArchive::new(Cursor::new(bytes)).ok()?;
     let idx = (0..zip.len()).find(|i| {

@@ -1,6 +1,3 @@
-//! Just enough protobuf to read MANGA Plus answers and Mihon backups
-//! without a schema compiler: fields by tag, nested messages read lazily.
-
 use std::collections::HashMap;
 
 #[derive(Debug, Clone)]
@@ -23,8 +20,6 @@ pub fn varint(b: &[u8], p: &mut usize) -> Option<u64> {
     None
 }
 
-/// Fields of one message by tag, in order. Unknown wire types stop the
-/// parse (what was read is kept).
 pub fn fields(b: &[u8]) -> HashMap<u32, Vec<Field<'_>>> {
     let mut out: HashMap<u32, Vec<Field<'_>>> = HashMap::new();
     let mut p = 0;
@@ -112,7 +107,6 @@ impl<'a> Msg<'a> for HashMap<u32, Vec<Field<'a>>> {
 }
 
 impl<'a> Field<'a> {
-    /// A `float` field (wire type 5) as f32.
     pub fn as_f32(&self) -> Option<f32> {
         match self {
             Field::Fixed(v) => Some(f32::from_bits(*v as u32)),
@@ -121,7 +115,6 @@ impl<'a> Field<'a> {
     }
 }
 
-/// Every string of a repeated string field.
 pub fn strings(m: &HashMap<u32, Vec<Field<'_>>>, tag: u32) -> Vec<String> {
     m.get(&tag)
         .map(|v| {
@@ -135,7 +128,6 @@ pub fn strings(m: &HashMap<u32, Vec<Field<'_>>>, tag: u32) -> Vec<String> {
         .unwrap_or_default()
 }
 
-/// Every number of a repeated varint field, packed or not.
 pub fn numbers(m: &HashMap<u32, Vec<Field<'_>>>, tag: u32) -> Vec<u64> {
     let mut out = Vec::new();
     for f in m.get(&tag).into_iter().flatten() {

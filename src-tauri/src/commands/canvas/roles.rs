@@ -1,7 +1,3 @@
-//! Tauri commands of the canvas roles (library, editor, picker, launch).
-//! Logic lives in `omniget_core::core::canvas::roles`; assigning goes through
-//! `crate::canvas::roles` (it restarts the node, event `canvas://role`).
-
 use std::path::PathBuf;
 use std::sync::Arc;
 
@@ -31,7 +27,6 @@ fn scope_ws(scope: &str, ws: &str) -> Result<Option<String>, String> {
     }
 }
 
-/// Workspace roles, then the global library (seeded with the built-ins).
 #[tauri::command]
 pub async fn canvas_roles_list(
     app: AppHandle,
@@ -51,8 +46,6 @@ pub async fn canvas_roles_get(
     blocking(move || Ok(roles::get(&s, &workspace_id, &role_id).map(|(r, _)| r))).await
 }
 
-/// Creates or updates a role. `scope`: "workspace" | "global". A changed
-/// prompt of a workspace role restarts the terminals holding it.
 #[tauri::command]
 pub async fn canvas_roles_save(
     app: AppHandle,
@@ -63,7 +56,6 @@ pub async fn canvas_roles_save(
     let s = store(&app);
     blocking(move || {
         let target = scope_ws(&scope, &workspace_id)?;
-        // Moving scope: save in the new one, drop the old copy.
         if let Some(id) = input.id.clone() {
             if let Some((_, from)) = roles::get(&s, &workspace_id, &id) {
                 let wanted = if target.is_some() {
@@ -90,8 +82,6 @@ pub async fn canvas_roles_save(
     .await
 }
 
-/// Deletes a role. With `force`, nodes using it are unassigned first;
-/// without, a role in use is refused (`CANVAS_CONFLICT`).
 #[tauri::command]
 pub async fn canvas_roles_delete(
     app: AppHandle,
@@ -119,7 +109,6 @@ pub async fn canvas_roles_delete(
     .await
 }
 
-/// Sets (or clears, `roleId: null`) the role of a terminal node and restarts it.
 #[tauri::command]
 pub async fn canvas_roles_assign(
     app: AppHandle,
@@ -134,8 +123,6 @@ pub async fn canvas_roles_assign(
     .await
 }
 
-/// Writes the role files and returns how to start `agent` with the role
-/// (cwd, extra argv, env; see the core module doc for the per-agent recipe).
 #[tauri::command]
 pub async fn canvas_roles_launch(
     app: AppHandle,
@@ -157,8 +144,6 @@ pub async fn canvas_roles_launch(
     .await
 }
 
-/// Maestri "Discover Roles": `role.json` files under `<dir>/.omniget/roles`
-/// and `<dir>/.maestri/roles` (dir defaults to the workspace's folder).
 #[tauri::command]
 pub async fn canvas_roles_discover(
     app: AppHandle,
@@ -179,9 +164,6 @@ pub async fn canvas_roles_discover(
     .await
 }
 
-/// Imports discovered project roles (`names` empty = all) into the workspace.
-/// A workspace role with the same name is updated from the project's file
-/// and its terminals restart.
 #[tauri::command]
 pub async fn canvas_roles_import(
     app: AppHandle,

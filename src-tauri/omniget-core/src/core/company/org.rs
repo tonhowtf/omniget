@@ -1,16 +1,3 @@
-//! Companies, the org chart, goals and projects.
-//!
-//! Invariants enforced here and in the schema, not only in the UI:
-//! - a manager is in the same company (composite FK) and the reporting tree
-//!   has no cycle (one recursive query with a hop cap, so a pre-existing
-//!   cycle can never loop forever — Paperclip's N+1 walk does, area A §6);
-//! - a goal's parent is in the same company, its level is not above the
-//!   parent's, and there is exactly one root company goal (the mission);
-//! - hiring by an agent needs `can_hire` and, when the company requires it,
-//!   an approval created in the **same** transaction as the pending staff row
-//!   (Paperclip does two calls and can leave an orphan agent);
-//! - `terminated` is final.
-
 use rusqlite::{params, OptionalExtension, Row};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -19,8 +6,6 @@ use super::{
     audit, changed, conflict, forbidden, invalid, new_id, not_found, now_ms, sql, Actor,
     CompanyStore,
 };
-
-// ── Types ────────────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Company {
@@ -75,16 +60,11 @@ pub struct CompanyPatch {
     pub max_parallel: Option<i64>,
 }
 
-/// How a staff member runs.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum Adapter {
-    /// The roster agent `staff.agent_id` (native model, Claude Code, Codex,
-    /// or any ACP agent such as Gemini CLI or OpenCode).
     #[default]
     Roster,
-    /// A local command; the heartbeat context arrives on stdin as JSON and
-    /// stdout becomes the run summary.
     Process {
         command: String,
         #[serde(default)]
@@ -92,7 +72,6 @@ pub enum Adapter {
         #[serde(default)]
         timeout_sec: Option<u64>,
     },
-    /// POST the heartbeat context to a URL; the response body is the summary.
     Http {
         url: String,
         #[serde(default)]
@@ -268,8 +247,6 @@ pub struct ProjectPatch {
     pub status: Option<String>,
 }
 
-// ── Row mapping ──────────────────────────────────────────────────────────
-
 pub(crate) const COMPANY_COLS: &str =
     "id, name, mission, description, status, pause_reason, issue_prefix,
   issue_counter, require_hire_approval, require_strategy_approval, strategy_state, workspace,
@@ -402,8 +379,6 @@ fn level_rank(level: &str) -> Option<u8> {
     }
 }
 
-/// Derives an issue prefix from a name: initials of up to 4 words, or the
-/// first 3 letters, upper case, ASCII only.
 pub fn derive_prefix(name: &str) -> String {
     let words: Vec<String> = name
         .split(|c: char| !c.is_alphanumeric())
@@ -439,8 +414,6 @@ fn valid_prefix(p: &str) -> bool {
     (1..=8).contains(&p.len()) && p.chars().all(|c| c.is_ascii_alphanumeric())
 }
 
-/// `true` if making `staff` report to `manager` closes a loop. One recursive
-/// query, capped at 256 hops, so an already-broken tree still terminates.
 fn reports_cycle(
     tx: &rusqlite::Connection,
     company: &str,
@@ -487,8 +460,6 @@ fn goal_cycle(
     .map_err(sql)
 }
 
-// ── Companies ────────────────────────────────────────────────────────────
-
 impl CompanyStore {
     pub fn company_create(&self, new: NewCompany, actor: &Actor) -> Result<Company, String> {
         let name = new.name.trim().to_string();
@@ -503,7 +474,6 @@ impl CompanyStore {
             return Err(invalid("the issue prefix is 1 to 8 letters or digits"));
         }
         self.write(|tx, ch| {
-            // A taken prefix gets a digit, so creating never fails on it.
             let mut chosen = prefix.clone();
             let mut n = 1;
             while tx
@@ -541,7 +511,6 @@ impl CompanyStore {
                 ],
             )
             .map_err(sql)?;
-            // The mission is the one root goal.
             let mission = if new.mission.trim().is_empty() {
                 name.clone()
             } else {
@@ -657,9 +626,6 @@ impl CompanyStore {
         })
     }
 
-    /// `active` ↔ `paused`, or `archived` (final for the scheduler, still
-    /// readable). Pausing cancels queued wakeups; running jobs are cancelled
-    /// by the engine when it sees the change.
     pub fn company_set_status(
         &self,
         id: &str,
@@ -702,8 +668,6 @@ impl CompanyStore {
         })
     }
 
-    /// Deletes a company and everything in it. The audit lines stay (they
-    /// are the record that it existed).
     pub fn company_delete(&self, id: &str, actor: &Actor) -> Result<(), String> {
         if !actor.is_user() {
             return Err(forbidden("only the owner deletes a company"));
@@ -711,7 +675,6 @@ impl CompanyStore {
         self.write(|tx, ch| {
             get_company(tx, id)?;
             audit::record(tx, id, actor, "company.deleted", "company", id, None)?;
-            // Children first where the FK has no cascade.
             tx.execute("DELETE FROM issue_labels WHERE issue_id IN (SELECT id FROM issues WHERE company_id = ?1)", params![id]).map_err(sql)?;
             tx.execute("DELETE FROM inbox_state WHERE issue_id IN (SELECT id FROM issues WHERE company_id = ?1)", params![id]).map_err(sql)?;
             tx.execute("DELETE FROM relations WHERE company_id = ?1", params![id]).map_err(sql)?;
@@ -732,12 +695,6 @@ impl CompanyStore {
         })
     }
 
-    // ── Staff ────────────────────────────────────────────────────────────
-
-    /// Hires one staff member. The owner hires directly; an agent needs
-    /// `can_hire`, may only place the hire under itself or its own reports,
-    /// and — when the company requires it — the hire waits for an approval
-    /// created in the same transaction.
     pub fn staff_hire(&self, company: &str, new: NewStaff, actor: &Actor) -> Result<Staff, String> {
         if new.agent_id.trim().is_empty()
             || new.name.trim().is_empty()
@@ -865,8 +822,6 @@ impl CompanyStore {
         .ok_or_else(|| not_found("staff", id))
     }
 
-    /// Every live employment of a roster agent (an agent can work for
-    /// several companies).
     pub fn staff_by_agent(&self, agent_id: &str) -> Result<Vec<Staff>, String> {
         self.read(|c| {
             let mut st = c.prepare(&format!(
@@ -877,7 +832,6 @@ impl CompanyStore {
         })
     }
 
-    /// Any staff row by id, without knowing the company.
     pub fn staff_find(&self, id: &str) -> Result<Staff, String> {
         self.read(|c| {
             c.query_row(
@@ -905,8 +859,6 @@ impl CompanyStore {
             if s.status == "terminated" {
                 return Err(conflict("a terminated agent cannot be changed"));
             }
-            // An agent edits only itself or its reports, and never its own
-            // permissions (that is a governance change for the owner).
             if let Some(me) = actor.staff_id() {
                 let own_branch = me == id || reports_cycle(tx, company, id, me)?;
                 if !own_branch {
@@ -988,9 +940,6 @@ impl CompanyStore {
         })
     }
 
-    /// `pause` / `resume` / `terminate`. Terminating hands the agent's open
-    /// issues back to its manager (or to the owner) and moves its reports up
-    /// one level, in one transaction.
     pub fn staff_set_status(
         &self,
         company: &str,
@@ -1049,7 +998,6 @@ impl CompanyStore {
                         params![company, id, s.reports_to, now],
                     )
                     .map_err(sql)?;
-                    // Open work goes to the manager, or back to the owner.
                     let to_user = s.reports_to.is_none() as i64;
                     tx.execute(
                         "UPDATE issues SET assignee_staff_id = ?3, assignee_user = ?4,
@@ -1107,7 +1055,6 @@ impl CompanyStore {
                 .collect()
         }
         let ids: std::collections::HashSet<&str> = live.iter().map(|s| s.id.as_str()).collect();
-        // Roots: no manager, or a manager that is gone.
         let mut roots: Vec<ChartNode> = live
             .iter()
             .filter(|s| s.reports_to.as_deref().is_none_or(|m| !ids.contains(m)))
@@ -1120,7 +1067,6 @@ impl CompanyStore {
         Ok(roots)
     }
 
-    /// The managers of `staff`, nearest first.
     pub fn chain_of_command(&self, company: &str, staff: &str) -> Result<Vec<Staff>, String> {
         let mut out = Vec::new();
         let mut cur = self.staff_get(company, staff)?.reports_to;
@@ -1135,7 +1081,6 @@ impl CompanyStore {
         Ok(out)
     }
 
-    /// Direct reports of `staff`.
     pub fn staff_reports(&self, company: &str, staff: &str) -> Result<Vec<Staff>, String> {
         self.read(|c| {
             let mut st = c.prepare(&format!(
@@ -1145,8 +1090,6 @@ impl CompanyStore {
             rows.collect()
         })
     }
-
-    // ── Goals ────────────────────────────────────────────────────────────
 
     pub fn goal_create(&self, company: &str, new: NewGoal, actor: &Actor) -> Result<Goal, String> {
         let rank = level_rank(&new.level)
@@ -1320,8 +1263,6 @@ impl CompanyStore {
         })
     }
 
-    // ── Projects ─────────────────────────────────────────────────────────
-
     pub fn project_create(
         &self,
         company: &str,
@@ -1476,7 +1417,6 @@ impl CompanyStore {
     }
 }
 
-/// Can `staff` be woken now? `Err` carries the reason (for the skip record).
 pub(crate) fn invokable(tx: &rusqlite::Connection, s: &Staff) -> Result<(), String> {
     let c = get_company(tx, &s.company_id)?;
     if c.status != "active" {

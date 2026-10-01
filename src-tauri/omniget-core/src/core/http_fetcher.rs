@@ -50,8 +50,6 @@ pub struct HttpFetcherConfig {
     pub connect_timeout: Duration,
     pub read_timeout: Duration,
     pub max_retries_per_segment: u32,
-    /// Wait before retrying a failed segment, times the attempt number
-    /// (capped at 5x).
     pub retry_backoff: Duration,
     pub steal_threshold: Duration,
     pub steal_min_chunk_size: u64,
@@ -418,10 +416,6 @@ impl HttpFetcher {
                 .collect(),
         ));
 
-        // Token *filho*: um worker que falha cancela só os outros workers
-        // desta tentativa. Cancelar o token do chamador (o item da fila)
-        // transformava um 429 num segmento em "Download cancelado" para o
-        // item inteiro, e a tentativa seguinte já nascia cancelada.
         let cancel = self.cancel.clone().unwrap_or_default().child_token();
         let progress_done = Arc::new(AtomicU64::new(0));
         for seg in segments.lock().await.iter() {
@@ -589,13 +583,9 @@ struct ProbeResult {
     accept_ranges: bool,
 }
 
-/// The probe got 429 or 503: the server answered "not now". Typed so callers
-/// that own one attempt (the MCP worker) can end it with this verdict instead
-/// of sending more requests.
 #[derive(Debug, Clone)]
 pub struct ServerBusy {
     pub status: u16,
-    /// Raw `Retry-After` value, if the server sent one (bounded).
     pub retry_after: Option<String>,
 }
 impl std::fmt::Display for ServerBusy {
@@ -609,24 +599,15 @@ fn is_busy_status(status: reqwest::StatusCode) -> bool {
     matches!(status.as_u16(), 429 | 503)
 }
 
-/// O que dá para saber de um recurso remoto antes de baixar.
 #[derive(Debug, Clone)]
 pub struct RemoteProbe {
     pub content_length: Option<u64>,
     pub accept_ranges: bool,
     pub content_type: Option<String>,
-    /// Nome sugerido por `Content-Disposition`, se houver.
     pub filename: Option<String>,
-    /// `"HEAD"` ou `"GET range"`: por onde a resposta veio.
     pub method: &'static str,
 }
 
-/// `Content-Length` lido do cabeçalho, não do corpo.
-///
-/// `reqwest::Response::content_length()` vem do *size hint* do corpo, e o
-/// hyper trata a resposta de um `HEAD` como corpo vazio: devolve `Some(0)`
-/// mesmo com `Content-Length: 104857600` no cabeçalho. Era isso que mandava
-/// todo arquivo direto para o stream único (B6): o probe nunca via tamanho.
 pub fn header_content_length(headers: &reqwest::header::HeaderMap) -> Option<u64> {
     headers
         .get(reqwest::header::CONTENT_LENGTH)?
@@ -638,7 +619,6 @@ pub fn header_content_length(headers: &reqwest::header::HeaderMap) -> Option<u64
         .filter(|n| *n > 0)
 }
 
-/// Total de `Content-Range: bytes a-b/total`.
 fn content_range_total(headers: &reqwest::header::HeaderMap) -> Option<u64> {
     let v = headers.get(reqwest::header::CONTENT_RANGE)?.to_str().ok()?;
     let (_, total) = v.trim().rsplit_once('/')?;
@@ -675,10 +655,6 @@ fn header_filename(headers: &reqwest::header::HeaderMap) -> Option<String> {
     None
 }
 
-/// Sonda o recurso: `HEAD` primeiro; se o servidor não responde `HEAD` ou não
-/// diz o tamanho, um `GET` com `Range: bytes=0-0`. O `206` com `Content-Range`
-/// prova as duas coisas de uma vez (tamanho e suporte a Range), e o corpo de
-/// 1 byte é descartado.
 pub async fn probe_remote(
     client: &reqwest::Client,
     url: &str,
@@ -691,9 +667,6 @@ pub async fn probe_remote(
     }
     let head = match tokio::time::timeout(timeout, req.send()).await {
         Ok(Ok(r)) if r.status().is_success() => Some(r),
-        // 429/503 are the server's verdict on this request ("come back
-        // later"), not "HEAD unsupported". Firing the GET range fallback right
-        // after would be a hidden retry: the caller's retry policy owns that.
         Ok(Ok(r)) if is_busy_status(r.status()) => {
             return Err(ServerBusy {
                 status: r.status().as_u16(),
@@ -709,9 +682,6 @@ pub async fn probe_remote(
             tracing::debug!("[http_fetcher] HEAD returned HTTP {}", r.status());
             None
         }
-        // Sem conexão não adianta tentar o GET de 1 byte: é o mesmo host.
-        // Falhar aqui poupa um segundo timeout inteiro por tentativa quando o
-        // servidor está fora (proof.ovh.net levou 495 s para desistir).
         Ok(Err(e)) if e.is_connect() => {
             return Err(anyhow!("unreachable: {}", e));
         }
@@ -796,8 +766,6 @@ pub async fn probe_remote(
             method: "GET range",
         }
     };
-    // Não ler o corpo: fechar a conexão é mais barato do que drenar um GET
-    // completo quando o servidor ignorou o Range.
     drop(resp);
     Ok(probe)
 }
@@ -1008,7 +976,6 @@ async fn download_segment(
         reqwest::header::RANGE,
         format!("bytes={}-{}", range_start, end),
     );
-    // A compressed body would land at the wrong offsets of the file.
     let mut identity = reqwest::header::HeaderMap::new();
     identity.insert(
         reqwest::header::ACCEPT_ENCODING,
@@ -1028,10 +995,6 @@ async fn download_segment(
         return Err(anyhow!("HTTP {}", status));
     }
 
-    // A 206 alone is not proof the server gave us the slice we asked for. If it
-    // answers a different offset and we write the body at ours anyway, the file
-    // still ends up the right size and is silently corrupt — the one failure
-    // mode a segmented download cannot detect later.
     if let Some(start) = content_range_start(resp.headers()) {
         if start != range_start {
             return Err(anyhow!(
@@ -1066,10 +1029,6 @@ async fn download_segment(
         end,
         (end - range_start) + 1
     );
-    // O teto pode encolher no meio (um helper roubou a metade de trás). O
-    // alvo é recalculado a cada chunk: o segmento continua até o teto atual e
-    // para ali, em vez de abortar e voltar como "incomplete segment" — que
-    // custava um retry com sleep e mais uma requisição por roubo.
     let mut stop_reason = "eof";
     loop {
         if cancel.is_cancelled() {
@@ -1669,21 +1628,12 @@ mod tests {
     }
 }
 
-/// The caller's headers with any `Range` taken out.
-///
-/// Requests that set their own `Range` must never inherit one: `RequestBuilder`
-/// appends rather than replaces, so keeping it puts two `Range` lines on the
-/// wire and lets the server choose. The 403 recovery ladder in
-/// `direct_downloader.rs` adds `Range: bytes=0-` to every later attempt, and
-/// that is exactly how a segmented download can write the head of the file into
-/// every segment's offset, finish at the expected size, and be corrupt.
 fn headers_without_range(headers: &reqwest::header::HeaderMap) -> reqwest::header::HeaderMap {
     let mut out = headers.clone();
     out.remove(reqwest::header::RANGE);
     out
 }
 
-/// First byte offset out of a `Content-Range: bytes <start>-<end>/<total>`.
 fn content_range_start(headers: &reqwest::header::HeaderMap) -> Option<u64> {
     let value = headers.get(reqwest::header::CONTENT_RANGE)?.to_str().ok()?;
     let spec = value.trim().strip_prefix("bytes")?.trim_start();
@@ -1713,7 +1663,6 @@ mod range_header_tests {
             "https://example.com/watch",
             "stripping Range must not disturb the auth headers the download needs"
         );
-        // The caller's map is untouched.
         assert!(headers.get(RANGE).is_some());
     }
 
@@ -1751,8 +1700,6 @@ mod range_header_tests {
     }
 }
 
-/// Scripted HTTP/1.1 server for the downloader tests (direct, HLS, fetcher).
-/// One request per connection (`Connection: close`), every request recorded.
 #[cfg(test)]
 pub(crate) mod test_server {
     use std::sync::{Arc, Mutex};
@@ -1774,7 +1721,6 @@ pub(crate) mod test_server {
                 .map(|(_, v)| v.as_str())
         }
 
-        /// `(start, end)` of a `Range: bytes=start-[end]` header.
         pub fn range(&self) -> Option<(u64, Option<u64>)> {
             let spec = self.header("range")?.strip_prefix("bytes=")?;
             let (a, b) = spec.split_once('-')?;
@@ -1786,9 +1732,7 @@ pub(crate) mod test_server {
         pub status: u16,
         pub headers: Vec<(String, String)>,
         pub body: Vec<u8>,
-        /// Send only this many body bytes (Content-Length still announces all).
         pub cut_after: Option<usize>,
-        /// After the cut: hang the connection open instead of closing it.
         pub stall: bool,
     }
 
@@ -1808,7 +1752,6 @@ pub(crate) mod test_server {
         }
     }
 
-    /// 206 slice when a Range is asked for, else 200 with `Accept-Ranges: bytes`.
     pub fn serve_bytes(body: &[u8], req: &Req) -> Reply {
         let total = body.len() as u64;
         if let Some((start, end)) = req.range() {

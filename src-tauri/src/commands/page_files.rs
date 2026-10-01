@@ -1,10 +1,4 @@
-//! Downloads › Tools › Files on a page: open a web page, list every file it
-//! links to (videos, audio, archives, documents, disk images...) with its
-//! size, and download the ones you tick as direct files.
-//!
 //! The idea comes from GDownloader (hstr0100/GDownloader, GPL-3.0), whose
-//! direct-HTTP engine scans an HTML page for media and archive links when no
-//! site extractor takes the URL. Reimplemented here; no code was copied.
 
 use std::collections::HashSet;
 use std::sync::OnceLock;
@@ -12,9 +6,7 @@ use std::sync::OnceLock;
 use regex::Regex;
 use serde::Serialize;
 
-/// Most bytes of HTML read from the page.
 const MAX_HTML_BYTES: usize = 5 * 1024 * 1024;
-/// Most files listed, and most sizes asked for.
 const MAX_FILES: usize = 300;
 const SIZE_LOOKUPS: usize = 8;
 
@@ -57,7 +49,6 @@ pub struct PageFile {
     pub url: String,
     pub name: String,
     pub ext: String,
-    /// video, audio, archive, document, image, disk or torrent.
     pub kind: &'static str,
     pub size: Option<u64>,
 }
@@ -92,7 +83,6 @@ fn kind_of(ext: &str) -> Option<&'static str> {
         .map(|(kind, _)| *kind)
 }
 
-/// `&amp;` and the other entities that show up inside attribute values.
 fn unescape(s: &str) -> String {
     s.replace("&amp;", "&")
         .replace("&#38;", "&")
@@ -100,8 +90,6 @@ fn unescape(s: &str) -> String {
         .replace("&#39;", "'")
 }
 
-/// Every link in `html` that points to a file of a known type, resolved
-/// against `base`, in page order and without repeats.
 pub fn extract_files(base: &url::Url, html: &str) -> (Vec<PageFile>, bool) {
     let mut seen = HashSet::new();
     let mut files = Vec::new();
@@ -202,7 +190,6 @@ pub async fn scan_page_files(url: String) -> Result<PageFiles, String> {
     if !res.status().is_success() {
         return Err(format!("The page answered HTTP {}", res.status().as_u16()));
     }
-    // The page may have redirected; links are relative to where it landed.
     let base = res.url().clone();
     let mut body = Vec::new();
     while let Some(chunk) = res.chunk().await.map_err(|e| e.to_string())? {

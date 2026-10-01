@@ -1,15 +1,3 @@
-//! IPTV: M3U playlists (URL or file), Xtream Codes panels and XMLTV guides.
-//!
-//! Channels live in `iptv_channels`, one row per stream URL per source, so a
-//! refresh keeps ids (and with them favourites, the last channel and the
-//! `iptv:<id>` progress key). Xtream rows store `xtream:<stream id>` and the
-//! real URL is built at play time, so the password stays in the secret store.
-//!
-//! The guide is downloaded to `video/epg/<source>.xml` (kept 12 h), parsed in
-//! streaming into `epg_staging` in small batches, then swapped into
-//! `epg_programmes` in one transaction: readers see the old guide or the new
-//! one, never half. Channels match the guide by `tvg-id`, then by name.
-
 use std::collections::HashMap;
 use std::io::BufReader;
 use std::path::PathBuf;
@@ -34,8 +22,6 @@ const PLAYLIST_LIMIT: Duration = Duration::from_secs(60);
 const EPG_LIMIT: Duration = Duration::from_secs(180);
 const XTREAM_UA: &str = "VLC/3.0.20 LibVLC/3.0.20";
 const MAX_CHANNELS_LISTED: i64 = 5000;
-
-// ---------- DTOs ----------
 
 #[derive(Serialize, Clone, Debug)]
 pub struct EpgProgramme {
@@ -66,10 +52,8 @@ pub struct IptvGroup {
     pub count: i64,
 }
 
-/// channel, start, stop, title, desc, category
 type EpgRow = (String, i64, i64, String, Option<String>, Option<String>);
 
-/// source, name, group, logo, url, headers, guide id
 type ChannelRow = (
     i64,
     String,
@@ -80,7 +64,6 @@ type ChannelRow = (
     Option<String>,
 );
 
-/// A channel as the refresh writes it.
 struct NewChannel {
     name: String,
     group: String,
@@ -91,10 +74,6 @@ struct NewChannel {
     headers: Vec<(String, String)>,
 }
 
-// ---------- helpers ----------
-
-/// Lowercase, no accents, letters and digits only, quality tags dropped:
-/// "Globo HD" and "GLOBO" meet at "globo".
 pub fn norm_name(s: &str) -> String {
     let plain: String = s
         .nfd()
@@ -215,8 +194,6 @@ impl Xtream {
             .map_err(|_| "Unexpected answer from the panel".to_string())
     }
 }
-
-// ---------- playlist refresh ----------
 
 async fn fetch_text(url: &str) -> Result<String, String> {
     let url = url.trim();
@@ -394,8 +371,6 @@ async fn refresh_playlist(row: &SourceRow) -> Result<(), String> {
     Ok(())
 }
 
-// ---------- guide refresh ----------
-
 fn epg_url(row: &SourceRow) -> Option<String> {
     if row.config["type"] == "xtream" {
         return Xtream::of(row).ok().map(|x| x.epg());
@@ -445,7 +420,6 @@ async fn download(url: &str, dest: &PathBuf, xtream: bool) -> Result<(), String>
         .map_err(|e| e.to_string())
 }
 
-/// Parses the cached guide into staging, then swaps it in atomically.
 fn import_epg(source: i64, path: PathBuf) -> Result<usize, String> {
     let file = std::fs::File::open(&path).map_err(|e| e.to_string())?;
     sources::with(|c| c.execute("DELETE FROM epg_staging WHERE source = ?1", [source]))?;
@@ -575,7 +549,6 @@ async fn refresh_epg(row: &SourceRow, force: bool) -> Result<(), String> {
     Ok(())
 }
 
-/// Refreshes the guide in the background when it is older than 12 h.
 fn refresh_stale_guides(source: Option<i64>) {
     let Ok(rows) = sources::list(Some("iptv")) else {
         return;
@@ -610,10 +583,8 @@ fn refresh_stale_guides(source: Option<i64>) {
 
 async fn refresh(id: i64, force_epg: bool) -> Result<(), String> {
     let row = sources::get_kind(id, "iptv")?;
-    // Health reflects the provider answering, not how long the guide import takes.
     sources::tracked(id, PLAYLIST_LIMIT, refresh_playlist(&row)).await?;
     let row = sources::get(id)?;
-    // A broken guide must not hide the channels.
     if let Err(e) = tokio::time::timeout(EPG_LIMIT * 2, refresh_epg(&row, force_epg))
         .await
         .unwrap_or_else(|_| Err("Timed out".into()))
@@ -622,8 +593,6 @@ async fn refresh(id: i64, force_epg: bool) -> Result<(), String> {
     }
     Ok(())
 }
-
-// ---------- commands: sources ----------
 
 #[tauri::command]
 pub async fn video_iptv_add(
@@ -751,8 +720,6 @@ pub async fn video_iptv_add_xtream(
 pub async fn video_iptv_refresh(source: i64) -> Result<(), String> {
     refresh(source, true).await
 }
-
-// ---------- commands: channels and guide ----------
 
 fn programme(r: &rusqlite::Row, channel: i64) -> rusqlite::Result<EpgProgramme> {
     Ok(EpgProgramme {
@@ -913,10 +880,6 @@ pub async fn video_iptv_favorite(channel_id: i64, fav: bool) -> Result<(), Strin
     })
 }
 
-// ---------- playback ----------
-
-/// Resolves a channel into live playback through the local proxy, which
-/// sends the channel's own headers (User-Agent, Referer, ...).
 pub async fn play(app: &AppHandle, channel: i64) -> Result<PlaybackInfo, String> {
     let row: Option<ChannelRow> = sources::with(|c| {
         c.query_row(

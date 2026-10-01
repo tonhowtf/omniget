@@ -1,13 +1,3 @@
-//! Report a Problem (Maestri: Help → Report a Problem...). Builds a local
-//! zip with metadata, the app's recent log lines and its crash reports:
-//! no code, no notes, no terminal output, secrets and the home folder
-//! masked. Nothing is sent: the result carries a pre-filled e-mail and
-//! GitHub issue link, and the user attaches the file themselves.
-//!
-//! The log lines come from a ring buffer layered next to the console
-//! logger ([`init_tracing`]), so the report has the last minutes of
-//! `tracing` output even though the app does not write a log file.
-
 use std::collections::{BTreeMap, VecDeque};
 use std::io::Write;
 use std::path::{Path, PathBuf};
@@ -25,8 +15,6 @@ const ISSUES_URL: &str = "https://github.com/tonhowtf/omniget/issues/new";
 
 static RING: Mutex<VecDeque<String>> = Mutex::new(VecDeque::new());
 
-/// Console logger (as `tracing_subscriber::fmt::init` did) plus the ring
-/// buffer the report reads. INFO and up, like before.
 pub fn init_tracing() {
     let _ = tracing_subscriber::registry()
         .with(tracing_subscriber::fmt::layer())
@@ -78,9 +66,6 @@ impl<S: tracing::Subscriber> Layer<S> for RingLayer {
     }
 }
 
-/// Masks what must not leave the machine: tokens and keys, `key=value`
-/// secrets, long opaque strings, e-mail addresses, the home folder and the
-/// user name.
 pub fn redact(text: &str, home: Option<&str>, user: Option<&str>) -> String {
     use std::sync::OnceLock;
     static RES: OnceLock<Vec<(regex::Regex, &'static str)>> = OnceLock::new();
@@ -125,8 +110,6 @@ fn os_version() -> String {
     }
 }
 
-/// Counts only: how many workspaces, floors, nodes of each kind, terminals
-/// of each agent kind, alive or not. No names, paths or contents.
 fn canvas_stats() -> Value {
     let s = omniget_core::core::canvas::store::shared();
     let mut kinds: BTreeMap<String, u64> = BTreeMap::new();
@@ -170,7 +153,6 @@ fn canvas_stats() -> Value {
     })
 }
 
-/// Crash reports of the app from the last 30 days (newest 5).
 fn crash_reports() -> Vec<PathBuf> {
     let mut dirs: Vec<PathBuf> = Vec::new();
     if let Some(h) = dirs::home_dir() {
@@ -211,8 +193,6 @@ fn url_encode(s: &str) -> String {
     out
 }
 
-/// Builds the report zip in Downloads (or the app data folder) and returns
-/// `{path, files, mailto, issueUrl, summary}`. Sends nothing.
 pub fn build(app: &AppHandle) -> Result<Value, String> {
     let home = dirs::home_dir().map(|h| h.to_string_lossy().into_owned());
     let user = std::env::var("USER").ok();
@@ -297,8 +277,6 @@ pub fn build(app: &AppHandle) -> Result<Value, String> {
     }))
 }
 
-/// Settings → Canvas → Report a Problem: builds the zip; `reveal` shows it
-/// in the file manager. Nothing leaves the machine.
 #[tauri::command]
 pub async fn canvas_report_problem(app: AppHandle, reveal: Option<bool>) -> Result<Value, String> {
     let r = tauri::async_runtime::spawn_blocking(move || build(&app))

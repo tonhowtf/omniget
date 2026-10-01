@@ -1,8 +1,3 @@
-//! "Simulated" subagents for tools without native ones (Crush, Pi, Warp, Amp
-//! without a plugin …), as rulesync does: the agent file goes to
-//! `.agents/agents/<name>.md` (Claude format) and a marked block in the tool's
-//! rules file (AGENTS.md) tells the model when to read it and act as that role.
-
 use std::path::PathBuf;
 
 use super::agent_common::*;
@@ -15,9 +10,6 @@ use crate::core::agentkit::{Result, Scope};
 
 pub struct SimulatedAgentConverter;
 
-/// Where simulated agents live when the manifest has no `paths.agents`.
-/// `paths.simulated_agents` wins over `paths.agents` (Codebuff's `.agents/`
-/// holds TypeScript agent definitions, not Markdown).
 fn agents_dir(target: &TargetAdapter, scope: Scope, ctx: &ConvertCtx) -> Option<PathBuf> {
     kind_path(target, "simulated_agents", scope, ctx)
         .or_else(|| kind_path(target, "agents", scope, ctx))
@@ -27,8 +19,6 @@ fn agents_dir(target: &TargetAdapter, scope: Scope, ctx: &ConvertCtx) -> Option<
         })
 }
 
-/// The Claude-format agent file (raw when possible, so it matches what Goose,
-/// OpenHands and friends read from the same folder).
 pub(crate) fn claude_text(c: &Component, a: &AgentSpec, name: &str) -> String {
     if c.origin_tool == "claude" && name == parse::sanitize_name(&a.name) {
         if let Some(t) = c.entry_text() {
@@ -45,7 +35,6 @@ pub(crate) fn claude_text(c: &Component, a: &AgentSpec, name: &str) -> String {
     parse::render_frontmatter(&super::claude::agent_frontmatter(&spec, name), &spec.prompt)
 }
 
-/// Text of the AGENTS.md block that points at the agent file.
 pub fn pointer_block(name: &str, description: &str, shown_path: &str) -> String {
     let desc = parse::short_description(description);
     let mut s = format!("## Subagent `{name}`\n\n");
@@ -79,8 +68,6 @@ impl Converter for SimulatedAgentConverter {
         };
         let name = ctx.name_for(c);
         let dir = agents_dir(target, scope, ctx).ok_or_else(|| no_path(target, "agents", scope))?;
-        // the AGENTS.md the tool reads (never a first-match file such as Zed's
-        // `.rules`, which would shadow the user's AGENTS.md)
         let rules = super::rule_files::agents_md(target, scope, ctx)
             .map(Ok)
             .unwrap_or_else(|| dir_for(target, "rules", scope, ctx))?;

@@ -1,22 +1,3 @@
-//! Teams / SharePoint / Stream recordings, which yt-dlp does not cover.
-//!
-//! What the Stream player does (read from brendangooden's
-//! ms-teams-sharepoint-downloader, MIT, and checked against the Graph docs):
-//!
-//! - The video plays from `.../transform/videomanifest?...&part=index&format=dash`.
-//!   Cut after `index&format=dash` (the rest is session noise) and ffmpeg
-//!   reads the DASH manifest directly. URLs signed with `tempauth` expire in
-//!   minutes and are refused up front.
-//! - A recording page (`/_layouts/15/stream.aspx?id=<server-relative path>`)
-//!   or a sharing link resolves through the vroom Shares API
-//!   (`/_api/v2.1/shares/u!<base64url>/driveItem`) with the SharePoint
-//!   session cookies (FedAuth/rtFa). The item carries a pre-signed
-//!   `@content.downloadUrl` when the tenant allows downloads.
-//! - The Teams transcript sits at
-//!   `/_api/v2.1/drives/{drive}/items/{item}?$expand=media/transcripts`;
-//!   each entry has a pre-signed `temporaryDownloadUrl` that answers
-//!   `?format=json` with speaker names: Teams already did the diarization.
-
 use std::path::Path;
 
 use anyhow::{anyhow, Context};
@@ -27,17 +8,12 @@ use crate::core::tools::{report, ProgressFn};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TeamsInput {
-    /// A DASH `videomanifest` URL (already trimmed).
     Manifest(String),
-    /// A recording on SharePoint/OneDrive: page, file or sharing link.
     SharePoint {
         host: String,
-        /// `/personal/<user>`, `/sites/<x>` or `/teams/<x>`; empty for root.
         site_path: String,
-        /// What the Shares API gets encoded: the file URL or the sharing link.
         item_url: String,
     },
-    /// A transcript `temporaryDownloadUrl` (or any `/media/transcripts/` URL).
     TranscriptUrl(String),
 }
 
@@ -76,7 +52,6 @@ pub fn classify(raw: &str) -> Option<TeamsInput> {
         }
         format!("https://{host}{id}")
     } else if path.starts_with("/:v:/") || path.starts_with("/:u:/") || path.starts_with("/:f:/") {
-        // Sharing link: the Shares API takes it as is.
         raw.to_string()
     } else if [".mp4", ".m4a", ".mp3", ".webm", ".mov", ".wav"]
         .iter()
@@ -97,8 +72,6 @@ pub fn classify(raw: &str) -> Option<TeamsInput> {
     })
 }
 
-/// `/personal/ana_x_com/Documents/Recordings/a.mp4` → `/personal/ana_x_com`.
-/// Sharing links (`/:v:/g/personal/ana/...`) skip the two marker segments.
 fn site_path_of(path: &str) -> String {
     let segs: Vec<&str> = path.split('/').filter(|s| !s.is_empty()).collect();
     let segs: &[&str] = if segs.first().is_some_and(|s| s.starts_with(':')) {
@@ -114,8 +87,6 @@ fn site_path_of(path: &str) -> String {
     }
 }
 
-/// Cuts the manifest after `index&format=dash`, or before `altManifest`
-/// (the older players append metadata there).
 pub fn trim_manifest(url: &str) -> String {
     const DASH: &str = "index&format=dash";
     if let Some(i) = url.find(DASH) {
@@ -127,7 +98,6 @@ pub fn trim_manifest(url: &str) -> String {
     url.to_string()
 }
 
-/// The Shares API id: `u!` + unpadded base64url of the URL.
 pub fn share_id(url: &str) -> String {
     format!(
         "u!{}",
@@ -138,7 +108,6 @@ pub fn share_id(url: &str) -> String {
 #[derive(Debug, Clone, Default)]
 pub struct ResolvedRecording {
     pub name: String,
-    /// Pre-signed file URL; `None` when the tenant blocks downloads.
     pub download_url: Option<String>,
     pub transcript_url: Option<String>,
 }
@@ -184,7 +153,6 @@ async fn get_json(
         }
         .into());
     }
-    // Without a session SharePoint redirects to the login page (HTML 200).
     let is_json = resp
         .headers()
         .get(reqwest::header::CONTENT_TYPE)
@@ -203,8 +171,6 @@ async fn get_json(
     Ok(resp.json().await?)
 }
 
-/// Finds the file behind a recording page or sharing link, its download URL
-/// and its Teams transcript. `cookie` is the SharePoint session header.
 pub async fn resolve_sharepoint(
     input: &TeamsInput,
     cookie: Option<&str>,
@@ -266,8 +232,6 @@ pub async fn resolve_sharepoint(
     })
 }
 
-/// `{media:{transcripts:[..]}}`, `{value:[..]}` or a single transcript;
-/// the default one wins.
 fn pick_transcript(v: &serde_json::Value) -> Option<String> {
     let list = v["media"]["transcripts"]
         .as_array()
@@ -281,7 +245,6 @@ fn pick_transcript(v: &serde_json::Value) -> Option<String> {
     chosen["temporaryDownloadUrl"].as_str().map(str::to_string)
 }
 
-/// Downloads a Teams transcript: JSON with speakers first, then as served.
 pub async fn fetch_transcript(url: &str, cookie: Option<&str>) -> anyhow::Result<Vec<Segment>> {
     let client = client()?;
     let json_url = if url.contains("format=") {
@@ -311,8 +274,6 @@ pub async fn fetch_transcript(url: &str, cookie: Option<&str>) -> anyhow::Result
     Err(anyhow!("the Teams transcript could not be read"))
 }
 
-/// Pulls the audio of a remote media URL (DASH manifest or a file URL) into
-/// `dest` with ffmpeg, without the video. Reports seconds pulled.
 pub async fn download_audio(
     url: &str,
     dest: &Path,

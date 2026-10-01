@@ -13,7 +13,6 @@ use super::auth::TelegramSessionHandle;
 
 fn mime_to_ext(mime: &str) -> &'static str {
     match mime {
-        // Video
         "video/mp4" => ".mp4",
         "video/x-matroska" => ".mkv",
         "video/webm" => ".webm",
@@ -22,7 +21,6 @@ fn mime_to_ext(mime: &str) -> &'static str {
         "video/mpeg" => ".mpeg",
         "video/3gpp" => ".3gp",
         "video/x-flv" => ".flv",
-        // Audio
         "audio/mpeg" | "audio/mp3" => ".mp3",
         "audio/ogg" => ".ogg",
         "audio/x-opus+ogg" => ".opus",
@@ -31,7 +29,6 @@ fn mime_to_ext(mime: &str) -> &'static str {
         "audio/aac" | "audio/x-aac" => ".aac",
         "audio/mp4" | "audio/x-m4a" => ".m4a",
         "audio/x-ms-wma" => ".wma",
-        // Image
         "image/jpeg" => ".jpg",
         "image/png" => ".png",
         "image/gif" => ".gif",
@@ -39,7 +36,6 @@ fn mime_to_ext(mime: &str) -> &'static str {
         "image/bmp" => ".bmp",
         "image/svg+xml" => ".svg",
         "image/tiff" => ".tiff",
-        // Documents
         "application/pdf" => ".pdf",
         "application/zip" => ".zip",
         "application/x-rar-compressed" | "application/vnd.rar" => ".rar",
@@ -59,7 +55,6 @@ fn mime_to_ext(mime: &str) -> &'static str {
         "application/vnd.ms-powerpoint" => ".ppt",
         "application/x-python-script" | "text/x-python" => ".py",
         "application/javascript" | "text/javascript" => ".js",
-        // Fallback: try to extract from the subtype
         other => {
             if let Some(sub) = other.split('/').nth(1) {
                 match sub {
@@ -932,7 +927,7 @@ pub async fn delete_messages(
     }
 }
 
-#[allow(clippy::too_many_arguments)] // mirrors the command arguments one to one
+#[allow(clippy::too_many_arguments)]
 pub async fn forward_messages(
     handle: &TelegramSessionHandle,
     from_chat_id: i64,
@@ -2153,9 +2148,6 @@ pub async fn list_chats(handle: &TelegramSessionHandle) -> anyhow::Result<Vec<Te
     Ok(chats)
 }
 
-/// Try to resolve a channel's access_hash when missing from local cache.
-/// Strategy: search the dialog list briefly. If the channel appears, we'll have its hash.
-/// Returns None when the channel is not in the user's dialogs.
 async fn scan_dialogs_folder_for_channel(
     client: &Client,
     chat_id: i64,
@@ -3331,9 +3323,6 @@ pub async fn download_media(
     .await
 }
 
-/// [`download_media`] that, with `dedupe`, refuses a file already saved
-/// elsewhere: the error starts with `DUPLICATE_OF:` followed by its path.
-/// Every successful download is registered for later checks.
 #[allow(clippy::too_many_arguments)]
 pub async fn download_media_ex(
     handle: &TelegramSessionHandle,
@@ -3385,8 +3374,6 @@ pub async fn download_media_ex(
     const MAX_REF_RETRIES: u32 = 2;
 
     for ref_attempt in 0..=MAX_REF_RETRIES {
-        // Fetched again on every attempt: a fresh message carries a fresh
-        // file reference (FILE_REFERENCE_EXPIRED).
         let (raw_media, msg_date) = super::parallel_download::fetch_raw_media(
             &client,
             chat_id,
@@ -3438,8 +3425,6 @@ pub async fn download_media_ex(
 
         match result {
             Ok(_) => {
-                // Only a file of the expected size is ever renamed into place;
-                // a 0-byte or short file never counts as done.
                 let on_disk = std::fs::metadata(&part_path).map(|m| m.len()).unwrap_or(0);
                 if on_disk == 0 || (media.size > 0 && on_disk != media.size) {
                     let _ = std::fs::remove_file(&part_path);
@@ -3516,8 +3501,6 @@ pub async fn download_media_with_retry(
     .await
 }
 
-/// [`download_media_with_retry`] with the duplicate check of
-/// [`download_media_ex`].
 #[allow(clippy::too_many_arguments)]
 pub async fn download_media_with_retry_ex(
     handle: &TelegramSessionHandle,

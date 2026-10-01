@@ -1,7 +1,3 @@
-//! MTProto client (ported from the Telegram plugin). Every connection goes
-//! through the bridge of `super::net`; state lives in one lazily built
-//! [`Engine`] shared by the app and the CLI.
-
 pub mod accounts;
 pub mod api;
 pub mod auth;
@@ -44,8 +40,6 @@ use stream_server::StreamServerInfo;
 pub type ActiveDownloads = Arc<Mutex<HashMap<u64, (String, CancellationToken)>>>;
 pub type StreamSlot = Arc<Mutex<Option<Arc<Mutex<StreamServerInfo>>>>>;
 
-/// Process-wide client state: the session, running downloads and the local
-/// streaming server.
 pub struct Engine {
     pub session: TelegramSessionHandle,
     pub active: ActiveDownloads,
@@ -55,8 +49,6 @@ pub struct Engine {
 
 static ENGINE: OnceLock<Arc<Engine>> = OnceLock::new();
 
-/// The engine, built on first use. Background work (stream server, dialog
-/// sync) starts the first time this runs inside a tokio runtime.
 pub fn engine() -> Arc<Engine> {
     let e = ENGINE
         .get_or_init(|| {
@@ -101,8 +93,6 @@ impl Engine {
     }
 }
 
-// ---- session restore ---------------------------------------------------------
-
 static LAST_RESTORE_FAIL: AtomicI64 = AtomicI64::new(0);
 
 fn now_secs() -> i64 {
@@ -112,11 +102,6 @@ fn now_secs() -> i64 {
         .unwrap_or(0)
 }
 
-/// After a restart the client is `None` until something calls
-/// `check_session`. Commands that need the client call this first: when a
-/// session file is on disk it connects the same way `check_session` does.
-/// A failed attempt is not retried for 20 s, so an offline app does not
-/// reconnect on every call.
 pub async fn restore_session(handle: &auth::TelegramSessionHandle) {
     if handle.lock().await.client.is_some() {
         return;
@@ -141,8 +126,6 @@ pub async fn restore_session(handle: &auth::TelegramSessionHandle) {
     }
 }
 
-/// The stream server's `(base_url, token)`, waiting a few seconds for it
-/// to come up right after start.
 pub async fn stream_endpoint() -> Result<(String, String), String> {
     let slot = engine().stream_server.clone();
     for _ in 0..50 {
@@ -156,11 +139,6 @@ pub async fn stream_endpoint() -> Result<(String, String), String> {
     Err("stream server not ready".into())
 }
 
-// ---- settings --------------------------------------------------------------
-
-/// The `telegram` settings object (plugin keys: `download_dir`,
-/// `fix_file_extensions`, `concurrent_downloads`, `max_threads`,
-/// `sync_enabled`, `sync_interval_min`, …).
 pub fn settings() -> serde_json::Value {
     host::get()
         .map(|h| h.settings())
@@ -175,7 +153,6 @@ pub fn setting(key: &str) -> serde_json::Value {
         .unwrap_or(serde_json::Value::Null)
 }
 
-/// Merges `key = value` into the settings object and saves it.
 pub fn save_setting(key: &str, value: serde_json::Value) {
     let Some(h) = host::get() else { return };
     let mut current = settings();
@@ -193,8 +170,6 @@ pub fn concurrent_downloads() -> usize {
     (setting("concurrent_downloads").as_u64().unwrap_or(3) as usize).clamp(1, 10)
 }
 
-/// Where downloads go: the `download_dir` setting, else
-/// `<default output dir>/Telegram`.
 pub fn download_dir() -> PathBuf {
     if let Some(dir) = setting("download_dir")
         .as_str()
@@ -221,11 +196,6 @@ fn apply_settings(saved: &serde_json::Value) {
     }
 }
 
-// ---- migration from the old plugin ----------------------------------------
-
-/// Copies the old plugin's session and data (saved accounts, backups, clone
-/// sessions, resume state, bandwidth) into `host::data_dir()` once, without
-/// overwriting anything already there.
 pub fn migrate_legacy_data() {
     static DONE: Once = Once::new();
     DONE.call_once(|| {

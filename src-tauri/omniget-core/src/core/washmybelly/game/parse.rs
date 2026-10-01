@@ -1,9 +1,5 @@
-//! Text parsers of the game module. Pure, compiled on every system, tested
-//! with fixtures in `tests/washmybelly_fixtures/game/`.
-
 use serde::Serialize;
 
-/// Drop ANSI colour escapes (`gamepolicyctl` colours "on"/"off").
 pub fn strip_ansi(s: &str) -> String {
     let mut out = String::with_capacity(s.len());
     let mut chars = s.chars().peekable();
@@ -26,14 +22,10 @@ pub fn strip_ansi(s: &str) -> String {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct MacGameMode {
-    /// `on` / `off` as the system reports it right now.
     pub on: Option<bool>,
-    /// `automatic`, `on` or `off` (forced by a developer tool).
     pub policy: Option<String>,
 }
 
-/// `gamepolicyctl game-mode status` (Xcode's developer tool): "Game mode is
-/// off." and "Game mode enablement policy is currently automatic."
 pub fn gamepolicyctl_status(text: &str) -> MacGameMode {
     let clean = strip_ansi(text);
     let mut on = None;
@@ -66,8 +58,6 @@ pub fn gamepolicyctl_status(text: &str) -> MacGameMode {
     MacGameMode { on, policy }
 }
 
-/// `reg query HKCU\Software\Microsoft\GameBar /v AutoGameModeEnabled`.
-/// `None` when the value is absent (Windows then uses its default, on).
 pub fn auto_game_mode(reg: &str) -> Option<bool> {
     super::super::parse::reg_query(reg)
         .into_iter()
@@ -82,8 +72,6 @@ pub fn auto_game_mode(reg: &str) -> Option<bool> {
         })
 }
 
-/// How to install gamemode with the package manager this machine has
-/// (`caps.linux.package_managers`), as argv for the person to run.
 pub fn install_command(managers: &[String]) -> Option<(String, Vec<String>)> {
     let pick = |m: &str| -> Option<Vec<&'static str>> {
         Some(match m {
@@ -99,7 +87,6 @@ pub fn install_command(managers: &[String]) -> Option<(String, Vec<String>)> {
         .find_map(|m| pick(m).map(|argv| (m.clone(), argv.into_iter().map(String::from).collect())))
 }
 
-/// A GUID as `8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c` (lower case).
 pub fn guid_string(d1: u32, d2: u16, d3: u16, d4: [u8; 8]) -> String {
     format!(
         "{d1:08x}-{d2:04x}-{d3:04x}-{:02x}{:02x}-{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}",
@@ -107,7 +94,6 @@ pub fn guid_string(d1: u32, d2: u16, d3: u16, d4: [u8; 8]) -> String {
     )
 }
 
-/// The reverse of [`guid_string`]; braces and case are tolerated.
 pub fn parse_guid(s: &str) -> Option<(u32, u16, u16, [u8; 8])> {
     let s = s.trim().trim_start_matches('{').trim_end_matches('}');
     let parts: Vec<&str> = s.split('-').collect();
@@ -131,7 +117,6 @@ pub fn parse_guid(s: &str) -> Option<(u32, u16, u16, [u8; 8])> {
     Some((d1, d2, d3, d4))
 }
 
-/// Windows' built-in "High performance" and "Ultimate Performance" schemes.
 pub const SCHEME_HIGH_PERFORMANCE: &str = "8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c";
 pub const SCHEME_ULTIMATE: &str = "e9a42b02-d5df-448d-aa00-03f14749eb61";
 

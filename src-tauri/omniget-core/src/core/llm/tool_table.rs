@@ -1,19 +1,3 @@
-//! One table for every internal tool: the embedded MCP server
-//! (`src-tauri/src/mcp.rs`), the LLM tool broker and the grant UI all read it,
-//! so a tool is described (name, schema, category, cost) exactly once.
-//! Owned by f3-tool-table.
-//!
-//! Two kinds of entry:
-//!
-//! - [`ToolImpl::Core`]: the whole call lives here, over `core::tools::*`. No
-//!   `AppHandle`, so the core can run it and the tests can call it directly.
-//! - [`ToolImpl::Host`]: the call needs the desktop app (the download queue,
-//!   the torrent session, the extension cookie store). The table still owns the
-//!   name and the schema; the body stays in `mcp.rs` behind [`HostTools`].
-//!
-//! The table is built once into a `OnceLock`, so `tools/list` and every
-//! dispatch are a slice scan, not 37 `json!` allocations.
-
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::{OnceLock, RwLock};
@@ -25,21 +9,15 @@ use serde_json::{json, Value};
 use super::types::ToolSpec;
 use crate::core::washmybelly::Os;
 
-/// The future a [`ToolImpl::Core`] call returns. Boxed so the table can hold
-/// plain `fn` pointers instead of one type per tool.
 pub type BoxFut = Pin<Box<dyn Future<Output = Result<Value, String>> + Send>>;
 
-/// One tool body that runs entirely inside the core.
 pub type CoreCall = fn(Value) -> BoxFut;
 
-/// The tools whose body needs the desktop app. `name` is the table name, so an
-/// implementation is one `match` with no schema knowledge.
 #[async_trait]
 pub trait HostTools: Send + Sync {
     async fn call(&self, name: &str, input: Value) -> Result<Value, String>;
 }
 
-/// Where the body of a tool lives.
 #[derive(Clone, Copy)]
 pub enum ToolImpl {
     Core(CoreCall),
@@ -55,56 +33,37 @@ impl std::fmt::Debug for ToolImpl {
     }
 }
 
-/// What one call is likely to cost the user, for the grant UI. Never a
-/// measurement: it is the shape of the call, not its duration.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum CostHint {
-    /// Local, cheap, read-only (a listing, a lookup).
     Cheap,
-    /// Local but heavy: CPU, disk or a spawned binary.
     Local,
-    /// Talks to the network without an account.
     Network,
-    /// Spends money or a quota (an AI key, a paid account).
     Paid,
 }
 
-/// One tool, described once for every consumer.
 pub struct ToolEntry {
     pub name: &'static str,
     pub description: &'static str,
     pub input_schema: Value,
     pub call: ToolImpl,
-    /// The group this tool belongs to (help, code, downloads).
     pub category: &'static str,
     pub cost_hint: CostHint,
-    /// Systems the tool exists on; empty means every system. A tool of
-    /// another system is never listed nor dispatched.
     pub platforms: &'static [Os],
-    /// Setting that switches the tool on (`washmybelly`); `None` = always.
     pub feature: Option<&'static str>,
-    /// What one call can do to the machine, for the grant UI and the MCP
-    /// annotations. `None` for tools that predate the field.
     pub risk: Option<ToolRisk>,
-    /// Never runs on `Auto`: every call asks, and "Always" is not stored.
     pub always_ask: bool,
 }
 
-/// What a tool can do to the machine (washmybelly and later tools).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum ToolRisk {
-    /// Only reads.
     Read,
-    /// Changes something a receipt can undo.
     Reversible,
-    /// Cannot be undone.
     Destructive,
 }
 
 impl ToolEntry {
-    /// The broker/provider view of this tool.
     pub fn spec(&self) -> ToolSpec {
         ToolSpec {
             name: self.name.to_string(),
@@ -117,7 +76,6 @@ impl ToolEntry {
         matches!(self.call, ToolImpl::Host)
     }
 
-    /// Listed and callable on this system with its feature switched on.
     pub fn available(&self) -> bool {
         (self.platforms.is_empty()
             || self
@@ -129,8 +87,6 @@ impl ToolEntry {
 
 static DISABLED_FEATURES: RwLock<Vec<&'static str>> = RwLock::new(Vec::new());
 
-/// The app mirrors a feature switch here (`washmybelly.enabled`), so every
-/// consumer of the table hides the feature's tools while it is off.
 pub fn set_feature_enabled(feature: &'static str, on: bool) {
     if let Ok(mut off) = DISABLED_FEATURES.write() {
         off.retain(|f| *f != feature);
@@ -147,7 +103,6 @@ pub fn feature_enabled(feature: &str) -> bool {
         .unwrap_or(true)
 }
 
-/// A tool that must ask on every call, whatever the grant says.
 pub fn always_asks(name: &str) -> bool {
     table().iter().any(|e| e.name == name && e.always_ask)
 }
@@ -155,8 +110,6 @@ pub fn always_asks(name: &str) -> bool {
 fn obj(props: Value, required: &[&str]) -> Value {
     json!({ "type": "object", "properties": props, "required": required })
 }
-
-// ── Argument helpers (shared with the host half in `mcp.rs`) ───────────
 
 pub fn s(v: &Value, k: &str) -> String {
     v.get(k).and_then(|x| x.as_str()).unwrap_or("").to_string()
@@ -177,7 +130,6 @@ pub fn num(v: &Value, k: &str) -> Option<u64> {
     v.get(k).and_then(|x| x.as_u64())
 }
 
-/// A required string argument, with a readable error when it is missing.
 pub fn need_str(v: &Value, k: &str) -> Result<String, String> {
     let value = s(v, k);
     if value.trim().is_empty() {
@@ -186,7 +138,6 @@ pub fn need_str(v: &Value, k: &str) -> Result<String, String> {
     Ok(value)
 }
 
-/// A download id: accepts a number or a numeric string.
 pub fn need_id(v: &Value, k: &str) -> Result<u64, String> {
     v.get(k)
         .and_then(|x| {
@@ -200,12 +151,8 @@ pub fn to_json<T: Serialize>(v: T) -> Result<Value, String> {
     serde_json::to_value(v).map_err(|e| e.to_string())
 }
 
-/// The queue status keys the downloads tools accept, and the ones
-/// `QueueStatus` serialises to. The app asserts both sides still match.
 pub const QUEUE_STATUS_KEYS: &[&str] =
     &["queued", "active", "paused", "seeding", "complete", "error"];
-
-// ── The table ─────────────────────────────────────────────────────────
 
 #[allow(clippy::too_many_arguments)]
 fn entry(
@@ -234,7 +181,6 @@ fn core(f: CoreCall) -> ToolImpl {
     ToolImpl::Core(f)
 }
 
-/// Every internal tool. Built once; call [`table`] to read it.
 fn build() -> Vec<ToolEntry> {
     use CostHint::{Cheap, Local, Network, Paid};
     let mut all = vec![
@@ -253,7 +199,6 @@ fn build() -> Vec<ToolEntry> {
         entry("help_setup_inspect", "Inspect sanitized agent connections without secrets or network calls.", obj(json!({}), &[]), ToolImpl::Host, "help", Cheap),
         entry("help_agent_plan", "Plan a new agent or edit an existing agent name/connection. New agents have no tools; edits preserve permissions. Does not save.", obj(json!({"sourceAgentId":{"type":"string"},"name":{"type":"string"},"agentId":{"type":"string"}}), &["sourceAgentId", "name"]), ToolImpl::Host, "help", Cheap),
         entry("help_agent_apply", "Apply a previously reviewed agent plan idempotently. Requires the exact revision.", obj(json!({"planId":{"type":"string"},"expectedRevision":{"type":"string"},"idempotencyKey":{"type":"string"}}), &["planId", "expectedRevision", "idempotencyKey"]), ToolImpl::Host, "help", Cheap),
-        // ── Coding harness (core/llm/code_tools.rs): confined to the workspace ──
         entry("fs_read", "Read a text file of the workspace with line numbers. A directory path lists it. Use offset/limit for long files.",
             obj(json!({ "path": { "type": "string" }, "offset": { "type": "integer", "minimum": 1 }, "limit": { "type": "integer", "minimum": 1 } }), &["path"]),
             core(|a| Box::pin(async move { super::code_tools::fs_read(&a) })), "code", Local),
@@ -346,7 +291,6 @@ fn build() -> Vec<ToolEntry> {
             "downloads",
             Cheap,
         ),
-        // ── Catalog (Central): an agent can equip itself, the owner approves ──
         entry(
             "catalog_search",
             "Search the OmniGet catalog of agent components (agents, commands, skills, MCP servers, hooks, settings, statuslines, plugins) that can be installed into Claude Code, Codex, Gemini CLI, Cursor, OpenCode and other coding tools. Returns ids for catalog_get / catalog_plan_install.",
@@ -379,7 +323,6 @@ fn build() -> Vec<ToolEntry> {
             "catalog",
             Local,
         ),
-        // ── Preview: the thread Browser tab (host body: crate::preview::tools) ──
         entry("preview_servers", "List dev servers listening on local TCP ports from inside a folder (lsof/netstat + HTTP probe). Returns port, url, pid, command, cwd, inWorkspace, html, title. Without cwd, every local listener.", obj(json!({"cwd":{"type":"string","description":"Project or worktree folder"},"all":{"type":"boolean","description":"Also list local listeners outside the folder"}}), &[]), ToolImpl::Host, "code", Cheap),
         entry("preview_navigate", "Open a URL in the thread's Browser preview (opens a hidden preview when none is open) or go back/forward/reload. Waits for the page load and returns {url, title, loading, visible}.", obj(json!({"url":{"type":"string"},"action":{"type":"string","enum":["back","forward","reload"]},"threadId":{"type":"string"}}), &[]), ToolImpl::Host, "code", Local),
         entry("preview_snapshot", "Accessibility-style snapshot of the preview page: an indented role/name tree whose refs (e12) work as selectors in preview_click/preview_type, plus the visible text (and the HTML with includeHtml).", obj(json!({"threadId":{"type":"string"},"maxNodes":{"type":"integer","maximum":10000},"maxChars":{"type":"integer","maximum":200000},"includeHtml":{"type":"boolean"}}), &[]), ToolImpl::Host, "code", Cheap),
@@ -394,36 +337,27 @@ fn build() -> Vec<ToolEntry> {
     all
 }
 
-/// The table, built once.
 pub fn table() -> &'static [ToolEntry] {
     static TABLE: OnceLock<Vec<ToolEntry>> = OnceLock::new();
     TABLE.get_or_init(build)
 }
 
-/// The tools this system has, with their features switched on: what every
-/// consumer lists.
 pub fn available() -> impl Iterator<Item = &'static ToolEntry> {
     table().iter().filter(|e| e.available())
 }
 
-/// One available entry by name.
 pub fn find(name: &str) -> Option<&'static ToolEntry> {
     available().find(|e| e.name == name)
 }
 
-/// Every available tool as a `ToolSpec`, in table order: what the broker
-/// registers and what a provider sees.
 pub fn specs() -> Vec<ToolSpec> {
     available().map(ToolEntry::spec).collect()
 }
 
-/// Available tool names in table order.
 pub fn names() -> Vec<&'static str> {
     available().map(|e| e.name).collect()
 }
 
-/// Run one tool. `host` is the desktop half; without it, a
-/// [`ToolImpl::Host`] tool fails instead of pretending.
 pub async fn dispatch(
     name: &str,
     input: Value,

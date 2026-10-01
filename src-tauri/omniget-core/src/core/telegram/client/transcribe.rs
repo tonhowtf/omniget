@@ -1,10 +1,3 @@
-//! Transcripts of Telegram audio and video. First choice is the local
-//! Whisper engine (`core::asr`, ONNX on this machine, nothing uploaded);
-//! then the AI provider's Whisper-compatible endpoint when one is configured
-//! (ffmpeg pulls the audio into 10-minute MP3 chunks, each becomes timed
-//! segments); last, Telegram Premium's `messages.transcribeAudio`. Cached in
-//! `data_dir/transcripts/`.
-
 use std::path::{Path, PathBuf};
 
 use grammers_client::grammers_tl_types as tl;
@@ -29,8 +22,6 @@ pub struct Transcript {
     pub text: String,
     pub segments: Vec<Segment>,
     pub lang: String,
-    /// `local` (Whisper on this machine), `ai` (Whisper-compatible
-    /// provider) or `telegram` (Premium).
     pub source: String,
     #[serde(default)]
     pub cached: bool,
@@ -72,8 +63,6 @@ fn progress(chat_id: i64, message_id: i32, stage: &str, done: usize, total: usiz
     );
 }
 
-/// The Whisper-compatible endpoint and key of the configured provider, or
-/// `None` when it has no audio API.
 fn audio_endpoint() -> Option<(String, String)> {
     use crate::core::ai::{self, AiProvider};
     let cfg = ai::get();
@@ -93,8 +82,6 @@ fn audio_endpoint() -> Option<(String, String)> {
     }
 }
 
-/// One chunk as timed segments (`verbose_json`), or `None` when the
-/// provider only returns plain text.
 async fn chunk_segments(
     endpoint: &str,
     key: &str,
@@ -144,8 +131,6 @@ async fn chunk_segments(
     (!segs.is_empty()).then_some((lang, segs))
 }
 
-/// The file to read: the saved copy when there is one, else the local
-/// stream URL (ffmpeg reads it with Range requests, no download needed).
 async fn input_for(
     handle: &TelegramSessionHandle,
     chat_id: i64,
@@ -254,7 +239,6 @@ async fn transcribe_ai(
                     }));
                 }
                 None => {
-                    // Provider without segments: one entry for the chunk.
                     let text = crate::core::ai::transcribe(chunk).await?;
                     let dur = crate::core::ffmpeg::probe(chunk)
                         .await
@@ -293,8 +277,6 @@ async fn transcribe_ai(
     result
 }
 
-/// Whisper on this machine. Downloads the runtime and the model the first
-/// time, reporting `telegram-asr-progress`.
 async fn transcribe_local(
     handle: &TelegramSessionHandle,
     chat_id: i64,
@@ -351,8 +333,6 @@ async fn transcribe_local(
     })
 }
 
-/// Download progress of the runtime and model files as
-/// `telegram-asr-progress` `{model, id, stage, done, total, message}`.
 pub fn install_progress(model: Option<&str>) -> crate::core::tools::ProgressFn {
     let model = crate::core::asr::models::pick(model)
         .map(|m| m.id.to_string())
@@ -372,8 +352,6 @@ pub fn install_progress(model: Option<&str>) -> crate::core::tools::ProgressFn {
     })
 }
 
-/// `messages.transcribeAudio` (Premium, or the free trial quota).
-/// `{text, pending, transcription_id}`.
 pub async fn native(
     handle: &TelegramSessionHandle,
     chat_id: i64,
@@ -404,8 +382,6 @@ pub async fn native(
     }))
 }
 
-/// Native transcription, waiting (up to ~40 s) while Telegram still
-/// processes it.
 async fn transcribe_native(
     handle: &TelegramSessionHandle,
     chat_id: i64,
@@ -453,8 +429,6 @@ fn duration_ms(media: &tl::enums::MessageMedia) -> Option<i64> {
     })
 }
 
-/// Transcript of one message: the cache, else local Whisper, else the AI
-/// provider, else Telegram's own transcription.
 pub async fn transcribe(
     handle: &TelegramSessionHandle,
     chat_id: i64,

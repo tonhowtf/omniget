@@ -1,20 +1,3 @@
-//! Codex CLI (`codex exec --json`) as a turn. Owned by f4-cli-runtime.
-//!
-//! Event schema from the serde definitions that produce the JSONL,
-//! `codex-rs/exec/src/exec_events.rs` in openai/codex, and from
-//! learn.chatgpt.com/docs/non-interactive-mode. Top level is
-//! `#[serde(tag = "type")]`: `thread.started`, `turn.started`,
-//! `turn.completed`, `turn.failed`, `item.started|updated|completed`, `error`.
-//! A `ThreadItem` flattens its own `type` next to `id`.
-//!
-//! Isolation is `CODEX_HOME` (default `~/.codex`, holds `config.toml` and
-//! `auth.json`). This file never opens `auth.json`.
-//!
-//! Codex was **not installed on the machine that wrote this** (`which codex`
-//! empty, 18/09/2026), so the fixtures are reconstructed from the schema and
-//! from the sample stream in the docs; `SOURCES.txt` in the fixture folder
-//! says which lines are verbatim and which are not.
-
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use serde_json::Value;
@@ -25,23 +8,6 @@ use super::parse::{classify_error_text, CliSignal};
 use super::session::LineParser;
 use super::ERR_CLI_EXIT;
 
-/// Sandbox for a turn we drive.
-///
-/// The three upstream values are `read-only`, `workspace-write` and
-/// `danger-full-access` (`SandboxModeCliArg`, kebab-cased, in
-/// `codex-rs/utils/cli/src/sandbox_mode_cli_arg.rs`); `--sandbox`/`-s` is a
-/// shared flag, so `codex exec` takes it (`codex-rs/utils/cli/src/shared_options.rs`).
-/// `read-only` is the CLI's own `#[default]`
-/// (`codex-rs/protocol/src/config_types.rs`), and it is the only mode OmniGet
-/// picks unless the user changed the account. **`danger-full-access` is not
-/// modelled here on purpose**: there is no code path that can produce it.
-///
-/// Worth knowing when reading the tool stream: the sandbox governs the shell
-/// commands the model runs, not the MCP servers — those are started as children
-/// of the Codex process itself
-/// (`codex-rs/rmcp-client/src/stdio_server_launcher.rs`, `LocalStdioServerLauncher`:
-/// "starts the configured command as a child of the orchestrator process"), so
-/// `read-only` does not constrain what an MCP server does.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum Sandbox {
     #[default]
@@ -62,8 +28,6 @@ impl From<super::accounts::SandboxMode> for Sandbox {
     fn from(mode: super::accounts::SandboxMode) -> Self {
         match mode {
             super::accounts::SandboxMode::ReadOnly => Sandbox::ReadOnly,
-            // Without a run mode a `full` account is still only a write one:
-            // `danger-full-access` comes from `run_mode::codex_flags` alone.
             super::accounts::SandboxMode::Write | super::accounts::SandboxMode::Full => {
                 Sandbox::WorkspaceWrite
             }
@@ -76,15 +40,10 @@ pub struct CodexArgs {
     pub model: Option<String>,
     pub cwd: Option<String>,
     pub sandbox: Sandbox,
-    /// `codex exec resume <id>`: continue an earlier thread.
     pub resume: Option<String>,
-    /// The run mode's flags (`run_mode::codex_flags`, 2.7). When set they
-    /// replace `--sandbox <sandbox>`; empty = the account's sandbox alone.
     pub permission: Vec<String>,
 }
 
-/// Builds the argv. The trailing `-` makes Codex read the prompt from stdin,
-/// which keeps the conversation out of `ps` exactly like the Claude path.
 pub fn argv(args: &CodexArgs) -> Vec<String> {
     let mut out: Vec<String> = vec!["exec".into()];
     if let Some(thread) = &args.resume {
@@ -92,7 +51,6 @@ pub fn argv(args: &CodexArgs) -> Vec<String> {
         out.push(thread.clone());
     }
     out.push("--json".into());
-    // Turns in a plain directory must not be refused for not being a repo.
     out.push("--skip-git-repo-check".into());
     if args.permission.is_empty() {
         out.push("--sandbox".into());
@@ -112,7 +70,6 @@ pub fn argv(args: &CodexArgs) -> Vec<String> {
     out
 }
 
-/// Same flattening as the Claude path: Codex takes one prompt.
 pub fn render_prompt(messages: &[Message]) -> String {
     let mut out = String::new();
     for message in messages {
@@ -146,9 +103,6 @@ pub fn render_prompt(messages: &[Message]) -> String {
 pub struct CodexParser {
     started: AtomicBool,
     errored: AtomicBool,
-    /// Said next to a call Codex declined (2.7, S5): `codex exec` has no
-    /// approval surface, so a declined call is a denial the user must see
-    /// with its reason.
     denial_note: Option<String>,
 }
 
@@ -167,7 +121,6 @@ impl CodexParser {
         }
     }
 
-    /// The reason given next to a declined call (the turn's run mode).
     pub fn with_denial_note(mut self, note: String) -> Self {
         self.denial_note = Some(note);
         self
@@ -302,12 +255,6 @@ fn item_completed(parser: &CodexParser, item: &Value, out: &mut Vec<CliSignal>) 
                 .unwrap_or("the CLI reported an item error");
             parser.push_error(message, out);
         }
-        // `file_change` is the one item type that is *only* ever emitted as
-        // completed ("emitted only as a completed event once the patch succeeds
-        // or fails", `codex-rs/exec/src/exec_events.rs`), so there is no
-        // `item.started` to pair with. Open and close it here, otherwise the
-        // single thing a turn can do that a read-only sandbox forbids would be
-        // the only thing the timeline never shows.
         "file_change" => {
             if let Some((id, name)) = tool_identity(item) {
                 out.push(CliSignal::Event(TurnEvent::ToolCallStart {
@@ -328,8 +275,6 @@ fn item_completed(parser: &CodexParser, item: &Value, out: &mut Vec<CliSignal>) 
     }
 }
 
-/// `(id, display name)` for the item types that are a tool call. `None` for
-/// everything else.
 fn tool_identity(item: &Value) -> Option<(String, String)> {
     let id = item
         .get("id")
@@ -353,8 +298,6 @@ fn tool_identity(item: &Value) -> Option<(String, String)> {
             .unwrap_or("collab")
             .to_string(),
         "web_search" => "web_search".to_string(),
-        // `apply_patch` is what the user sees Codex call; the item carries the
-        // paths, so the name says how many files moved.
         "file_change" => {
             let n = item
                 .get("changes")
@@ -377,7 +320,6 @@ fn usage_of(usage: &Value) -> Option<Usage> {
         cache_write_tokens: n("cache_write_input_tokens"),
         first_token_ms: None,
         total_ms: 0,
-        // Codex reports no dollar figure; the Observatory prices the tokens.
         cost_usd: None,
     })
 }

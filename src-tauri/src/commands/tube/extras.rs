@@ -1,7 +1,3 @@
-//! Community data layered over videos: SponsorBlock segments, DeArrow titles
-//! and thumbnails, Return YouTube Dislike counts. Each is opt-in through
-//! `TubeSettings` and cached in `tube.db`.
-
 use std::collections::HashMap;
 
 use futures::StreamExt;
@@ -28,12 +24,10 @@ fn store<T: serde::Serialize>(key: &str, value: &T) {
     }
 }
 
-/// SponsorBlock answers 404 when a video has no segments.
 fn is_not_found(err: &str) -> bool {
     err.contains("404")
 }
 
-/// Categories whose mode is anything but "off", sorted for a stable key.
 pub fn active_categories(map: &std::collections::BTreeMap<String, String>) -> Vec<String> {
     map.iter()
         .filter(|(_, mode)| mode.as_str() != "off")
@@ -94,8 +88,6 @@ async fn dearrow_one(video_id: String) -> Option<(String, DeArrow)> {
     Some((video_id, branding))
 }
 
-/// Replacement titles/thumbnails for a batch of cards. Videos without a
-/// community submission are left out of the map.
 #[tauri::command]
 pub async fn tube_dearrow(
     app: AppHandle,

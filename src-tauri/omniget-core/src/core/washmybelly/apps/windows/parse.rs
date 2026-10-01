@@ -1,31 +1,15 @@
-//! Text parsers of the Windows uninstaller. Pure functions, compiled on every
-//! OS so the macOS and Linux CIs test them too.
-//!
-//! Parts of this file port the design of Bulk Crap Uninstaller
 //! (Copyright (c) 2017 Marcin Szeniak, Apache License 2.0, see
-//! `data/washmybelly/bcu/NOTICE`): the installer kind cascade
-//! (`UninstallerTypeAdder.cs`), the update/hotfix rules and `InstallDate`
-//! fallback (`RegistryFactory.cs`) and the exit code meanings
-//! (`BulkUninstallEntry.cs`). Rewritten in Rust and modified for OmniGet.
-//! The winget exit codes follow winutil (MIT, CT Tech Group LLC).
 
 use std::collections::BTreeMap;
 
 use serde::{Deserialize, Serialize};
 
-// ── Registry: Uninstall entries ─────────────────────────────────────
-
-/// One of the four Uninstall roots.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Root {
-    /// `HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall` (64-bit view).
     Hklm,
-    /// `HKLM\SOFTWARE\WOW6432Node\...\Uninstall` (32-bit programs).
     Hklm32,
-    /// `HKCU\Software\Microsoft\Windows\CurrentVersion\Uninstall`.
     Hkcu,
-    /// `HKCU\Software\WOW6432Node\...\Uninstall` (rare, but BCU reads it).
     Hkcu32,
 }
 
@@ -47,7 +31,6 @@ impl Root {
         Root::ALL.into_iter().find(|r| r.as_str() == s)
     }
 
-    /// Installed for every account: uninstalling needs an administrator.
     pub fn machine(self) -> bool {
         matches!(self, Root::Hklm | Root::Hklm32)
     }
@@ -56,7 +39,6 @@ impl Root {
         matches!(self, Root::Hklm32 | Root::Hkcu32)
     }
 
-    /// The Uninstall key as `reg.exe` writes it (explicit WOW6432Node).
     pub fn uninstall_key(self) -> String {
         match self {
             Root::Hklm => format!(r"HKLM\SOFTWARE\{UNINSTALL}"),
@@ -66,7 +48,6 @@ impl Root {
         }
     }
 
-    /// Which root a full key path (`HKEY_LOCAL_MACHINE\SOFTWARE\WOW6432Node\...`) is under.
     pub fn of_key(key: &str) -> Option<Root> {
         let k = key
             .to_ascii_lowercase()
@@ -83,7 +64,6 @@ impl Root {
     }
 }
 
-/// One subkey of an Uninstall root with its values as text (DWORDs as `0x..`).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RegEntry {
     pub root: Root,
@@ -92,7 +72,6 @@ pub struct RegEntry {
 }
 
 impl RegEntry {
-    /// A value by name, case-insensitive, trimmed, `None` when empty.
     pub fn get(&self, name: &str) -> Option<&str> {
         self.values
             .iter()
@@ -101,8 +80,6 @@ impl RegEntry {
             .filter(|v| !v.is_empty())
     }
 
-    /// BCU's hidden value trick: `UninstallString_hidden` counts when the
-    /// plain value is missing.
     pub fn get_prefixed(&self, name: &str) -> Option<&str> {
         self.get(name).or_else(|| {
             let lower = name.to_ascii_lowercase();
@@ -117,12 +94,10 @@ impl RegEntry {
         self.get(name).and_then(dword) == Some(1)
     }
 
-    /// The full key, as `reg export` takes it.
     pub fn key_path(&self) -> String {
         format!(r"{}\{}", self.root.uninstall_key(), self.key_name)
     }
 
-    /// Updates, hotfixes and patches hang under their parent program.
     pub fn is_update(&self) -> bool {
         if self.get("ParentKeyName").is_some() {
             return true;
@@ -136,8 +111,6 @@ impl RegEntry {
         is_kb(&self.key_name) || self.get("").map(is_kb).unwrap_or(false)
     }
 
-    /// Product code: `BundleProviderKey`, the key name, or one inside the
-    /// uninstall string (BCU's order).
     pub fn product_code(&self) -> Option<String> {
         self.get("BundleProviderKey")
             .and_then(guid_in)
@@ -151,7 +124,6 @@ fn is_kb(s: &str) -> bool {
     s.len() > 2 && s[..2].eq_ignore_ascii_case("kb") && s[2..].chars().all(|c| c.is_ascii_digit())
 }
 
-/// `0x1f`, `31` → 31.
 pub fn dword(s: &str) -> Option<u64> {
     let s = s.trim();
     if let Some(h) = s.strip_prefix("0x").or_else(|| s.strip_prefix("0X")) {
@@ -161,7 +133,6 @@ pub fn dword(s: &str) -> Option<u64> {
     }
 }
 
-/// `reg query <Uninstall root> /s` output as entries (one per subkey).
 pub fn entries_from_reg_query(text: &str) -> Vec<RegEntry> {
     let mut out: Vec<RegEntry> = Vec::new();
     for v in super::super::super::parse::reg_query(text) {
@@ -202,8 +173,6 @@ pub fn entries_from_reg_query(text: &str) -> Vec<RegEntry> {
     out
 }
 
-/// `InstallDate` as Unix seconds: `YYYYMMDD`, or `YYYYDDMM` when the month
-/// is impossible (BCU saw both).
 pub fn install_date(s: &str) -> Option<i64> {
     let s = s.trim();
     if s.len() != 8 || !s.chars().all(|c| c.is_ascii_digit()) {
@@ -233,9 +202,6 @@ fn days_from_civil(y: i64, m: u32, d: u32) -> i64 {
     era * 146_097 + doe - 719_468
 }
 
-// ── GUIDs and ids ───────────────────────────────────────────────────
-
-/// `{8-4-4-4-12}` with braces.
 pub fn is_guid(s: &str) -> bool {
     let b = s.as_bytes();
     if b.len() != 38 || b[0] != b'{' || b[37] != b'}' {
@@ -247,7 +213,6 @@ pub fn is_guid(s: &str) -> bool {
     })
 }
 
-/// The first `{GUID}` inside a text, upper case.
 pub fn guid_in(s: &str) -> Option<String> {
     let mut rest = s;
     while let Some(i) = rest.find('{') {
@@ -260,8 +225,6 @@ pub fn guid_in(s: &str) -> Option<String> {
     None
 }
 
-/// A winget package id (`Mozilla.Firefox`, `9NBLGGH4R32N`): letters, digits
-/// and `. _ - +`, never a switch.
 pub fn winget_id_ok(s: &str) -> bool {
     !s.is_empty()
         && s.len() <= 128
@@ -271,7 +234,6 @@ pub fn winget_id_ok(s: &str) -> bool {
             .all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '_' | '-' | '+'))
 }
 
-/// An Appx package name (`Microsoft.BingNews`).
 pub fn appx_name_ok(s: &str) -> bool {
     !s.is_empty()
         && s.len() <= 128
@@ -280,14 +242,12 @@ pub fn appx_name_ok(s: &str) -> bool {
             .all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '_' | '-'))
 }
 
-/// A Microsoft Store product id (`9NBLGGH4R32N`, `XP8BT8DW290MPQ`).
 pub fn store_id_ok(s: &str) -> bool {
     (12..=14).contains(&s.len())
         && s.chars()
             .all(|c| c.is_ascii_uppercase() || c.is_ascii_digit())
 }
 
-/// A Scoop app name.
 pub fn scoop_name_ok(s: &str) -> bool {
     !s.is_empty()
         && s.len() <= 100
@@ -296,23 +256,13 @@ pub fn scoop_name_ok(s: &str) -> bool {
             .all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '_' | '-'))
 }
 
-// ── Command lines ───────────────────────────────────────────────────
-
-/// An UninstallString split into program and arguments.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CmdLine {
     pub program: String,
-    /// Arguments as the program's C runtime will see them.
     pub args: Vec<String>,
-    /// The original argument text, passed back verbatim (`raw_arg`) so the
-    /// vendor's own quoting survives.
     pub raw_args: String,
 }
 
-/// Windows argument rules (`CommandLineToArgvW`/MSVC CRT): whitespace
-/// separates, quotes group, `2n` backslashes before a quote become `n` and
-/// the quote toggles, `2n+1` give `n` and a literal quote, `""` inside
-/// quotes is a literal quote.
 pub fn argv_split(s: &str) -> Vec<String> {
     let c: Vec<char> = s.chars().collect();
     let n = c.len();
@@ -369,9 +319,6 @@ pub fn argv_split(s: &str) -> Vec<String> {
     out
 }
 
-/// Split an UninstallString. A quoted program ends at its quote; an
-/// unquoted one (`C:\Program Files\X\uninst.exe /S`, common) ends at the
-/// first `.exe` that exists, like BCU does, or the first `.exe` at all.
 pub fn split_command(line: &str, exists: &dyn Fn(&str) -> bool) -> Option<CmdLine> {
     let t = line.trim();
     if t.is_empty() {
@@ -413,12 +360,10 @@ pub fn split_command(line: &str, exists: &dyn Fn(&str) -> bool) -> Option<CmdLin
     })
 }
 
-/// Last component of a Windows path (either separator).
 pub fn win_file_name(p: &str) -> &str {
     p.rsplit(['\\', '/']).next().unwrap_or(p)
 }
 
-/// Parent folder of a Windows path, without the trailing separator.
 pub fn win_parent(p: &str) -> &str {
     match p.rfind(['\\', '/']) {
         Some(i) => &p[..i],
@@ -426,22 +371,18 @@ pub fn win_parent(p: &str) -> &str {
     }
 }
 
-/// Lower case, forward separators, no trailing separator, no quotes: for
-/// comparing two Windows paths.
 pub fn norm_path(p: &str) -> String {
     let s = p.trim().trim_matches('"').replace('/', "\\").to_lowercase();
     let s = s.replace("\\\\", "\\");
     s.trim_end_matches('\\').to_string()
 }
 
-/// `child` equals `parent` or sits inside it (normalized).
 pub fn path_inside(child: &str, parent: &str) -> bool {
     let c = norm_path(child);
     let p = norm_path(parent);
     !p.is_empty() && (c == p || c.starts_with(&format!("{p}\\")))
 }
 
-/// `%VAR%` expanded with `lookup` (unknown ones stay as they are).
 pub fn expand_env(s: &str, lookup: &dyn Fn(&str) -> Option<String>) -> String {
     let mut out = String::new();
     let mut rest = s;
@@ -471,8 +412,6 @@ pub fn expand_env(s: &str, lookup: &dyn Fn(&str) -> Option<String>) -> String {
     out
 }
 
-/// Programs an uninstall entry may never run: script hosts and shells
-/// would turn a registry value into a script.
 pub fn program_refused(program: &str) -> Option<&'static str> {
     let name = win_file_name(program).to_ascii_lowercase();
     let name = name.trim_end_matches(".exe");
@@ -487,8 +426,6 @@ pub fn program_refused(program: &str) -> Option<&'static str> {
         _ => None,
     }
 }
-
-// ── Installer kind ──────────────────────────────────────────────────
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -526,22 +463,16 @@ impl Kind {
         .find(|k| k.as_str() == s)
     }
 
-    /// Goes through the Windows Installer (one at a time, system-wide).
     pub fn msi_like(self) -> bool {
         matches!(self, Kind::Msi | Kind::Wix | Kind::Other)
     }
 }
 
-/// Probes the cascade needs from the disk (answered from a fixture in tests).
 pub trait Probe {
     fn exists(&self, path: &str) -> bool;
-    /// The executable's bytes carry the "Nullsoft" marker.
     fn nullsoft(&self, path: &str) -> bool;
 }
 
-/// BCU's cascade: `WindowsInstaller=1`, an `Inno Setup:` value, `msiexec`
-/// or a Burn `Package Cache\{`, `unins###.exe` with its `.dat`, Squirrel's
-/// `Update.exe --uninstall`, and "Nullsoft" inside the executable.
 pub fn detect_kind(e: &RegEntry, probe: &dyn Probe) -> Kind {
     if e.flag("WindowsInstaller") {
         return Kind::Msi;
@@ -582,7 +513,6 @@ pub fn detect_kind(e: &RegEntry, probe: &dyn Probe) -> Kind {
     Kind::Other
 }
 
-/// `unins000.exe`, `unins001.exe`...
 pub fn is_inno_uninstaller(file: &str) -> bool {
     let f = file.to_ascii_lowercase();
     f.len() == 12
@@ -591,14 +521,10 @@ pub fn is_inno_uninstaller(file: &str) -> bool {
         && f[5..8].chars().all(|c| c.is_ascii_digit())
 }
 
-/// The "Nullsoft" marker in an executable's bytes.
 pub fn has_nullsoft(bytes: &[u8]) -> bool {
     bytes.windows(8).any(|w| w == b"Nullsoft")
 }
 
-// ── winget list ─────────────────────────────────────────────────────
-
-/// One row of `winget list`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct WingetRow {
     pub name: String,
@@ -606,17 +532,13 @@ pub struct WingetRow {
     pub version: String,
     #[serde(default)]
     pub available: Option<String>,
-    /// `winget`, `msstore`, or `None` for entries winget only sees in the
-    /// registry (`ARP\...`) or as MSIX (`MSIX\...`).
     #[serde(default)]
     pub source: Option<String>,
-    /// Name or id cut with `…` because the console was narrow.
     #[serde(default)]
     pub truncated: bool,
 }
 
 impl WingetRow {
-    /// `ARP\Machine\X64\<key>` → the Uninstall root and key name.
     pub fn arp(&self) -> Option<(Root, String)> {
         let rest = self.id.strip_prefix(r"ARP\")?;
         let mut parts = rest.splitn(3, '\\');
@@ -633,13 +555,11 @@ impl WingetRow {
         Some((root, key))
     }
 
-    /// An id winget can uninstall by (`--id <x> --exact`).
     pub fn package_id(&self) -> Option<&str> {
         (self.source.is_some() && winget_id_ok(&self.id)).then_some(self.id.as_str())
     }
 }
 
-/// Display width of a char in the console (East Asian wide = 2).
 fn char_width(c: char) -> usize {
     let u = c as u32;
     let wide = (0x1100..=0x115F).contains(&u)
@@ -658,7 +578,6 @@ fn char_width(c: char) -> usize {
     }
 }
 
-/// The text between display columns `[a, b)` of a line.
 fn cut(line: &str, a: usize, b: Option<usize>) -> String {
     let mut col = 0;
     let mut out = String::new();
@@ -672,9 +591,6 @@ fn cut(line: &str, a: usize, b: Option<usize>) -> String {
     out.trim().to_string()
 }
 
-/// `winget list` as a table. Columns come from the header's word positions
-/// (the header is translated, so the words themselves are not trusted);
-/// spinner frames before a `\r` are dropped.
 pub fn parse_winget_list(text: &str) -> Vec<WingetRow> {
     let lines: Vec<&str> = text
         .split('\n')
@@ -693,7 +609,6 @@ pub fn parse_winget_list(text: &str) -> Vec<WingetRow> {
         return Vec::new();
     }
     let header = lines[sep - 1];
-    // Column starts: display columns where a word begins after spaces.
     let mut starts: Vec<(usize, String)> = Vec::new();
     let mut col = 0;
     let mut prev_space = true;
@@ -714,8 +629,6 @@ pub fn parse_winget_list(text: &str) -> Vec<WingetRow> {
         return Vec::new();
     }
     let (id_c, ver_c) = (starts[1].0, starts[2].0);
-    // A fourth column alone is either "Available" or "Source": decide by
-    // the English word, then by the values it holds.
     let mut avail_c = None;
     let mut src_c = None;
     match starts.len() {
@@ -796,15 +709,10 @@ pub fn parse_winget_list(text: &str) -> Vec<WingetRow> {
     out
 }
 
-// ── Exit codes ──────────────────────────────────────────────────────
-
-/// What an exit code means for the person.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct ExitMeaning {
     pub code: i32,
-    /// The program is gone (possibly with a restart pending).
     pub ok: bool,
-    /// Nothing happened, and that is not an error (cancelled, not there).
     pub skipped: bool,
     pub restart: bool,
     pub text: String,
@@ -826,7 +734,6 @@ fn meaning(
     }
 }
 
-/// winget's exit codes, from winutil's table plus "no package found".
 pub fn winget_exit(code: i32) -> ExitMeaning {
     match code {
         0 => meaning(code, true, false, false, "uninstalled"),
@@ -877,7 +784,6 @@ pub fn winget_exit(code: i32) -> ExitMeaning {
     }
 }
 
-/// An uninstaller's exit code (BCU's reading, plus the Windows Installer ones).
 pub fn installer_exit(kind: Kind, code: i32) -> ExitMeaning {
     match code {
         0 => meaning(code, true, false, false, "uninstalled"),
@@ -960,9 +866,6 @@ pub fn installer_exit(kind: Kind, code: i32) -> ExitMeaning {
     }
 }
 
-// ── Steam ───────────────────────────────────────────────────────────
-
-/// A Valve KeyValues (VDF/ACF) node.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Vdf {
     Str(String),
@@ -995,8 +898,6 @@ impl Vdf {
     }
 }
 
-/// Parse KeyValues text: quoted strings (with `\\ \" \n \t` escapes),
-/// braces, `//` comments. Bare words are accepted too.
 pub fn parse_vdf(text: &str) -> Vdf {
     let c: Vec<char> = text.chars().collect();
     let mut i = 0;
@@ -1041,7 +942,6 @@ fn vdf_token(c: &[char], i: &mut usize) -> Option<String> {
                 *i += 1;
             }
             *i += 1;
-            // Mark quoted tokens so a quoted "{" stays a string.
             Some(format!("\u{0}{s}"))
         }
         _ => {
@@ -1067,7 +967,6 @@ fn vdf_map(c: &[char], i: &mut usize) -> Vec<(String, Vdf)> {
             break;
         }
         if tok == "{" {
-            // A block without a key: skip it.
             let _ = vdf_map(c, i);
             continue;
         }
@@ -1082,8 +981,6 @@ fn vdf_map(c: &[char], i: &mut usize) -> Vec<(String, Vdf)> {
     out
 }
 
-/// Library folders from `steamapps/libraryfolders.vdf` (new format with
-/// `path`, and the old one where the value is the path).
 pub fn steam_libraries(text: &str) -> Vec<String> {
     let root = parse_vdf(text);
     let Some(lf) = root
@@ -1119,7 +1016,6 @@ pub struct SteamApp {
     pub last_updated: Option<i64>,
 }
 
-/// One `appmanifest_<id>.acf`.
 pub fn steam_manifest(text: &str) -> Option<SteamApp> {
     let root = parse_vdf(text);
     let st = root.get("AppState")?;
@@ -1136,24 +1032,18 @@ pub fn steam_manifest(text: &str) -> Option<SteamApp> {
     })
 }
 
-// ── Appx (Get-AppxPackage | ConvertTo-Json) ─────────────────────────
-
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AppxPkg {
     pub name: String,
     pub full_name: String,
     pub family: String,
     pub install_location: Option<String>,
-    /// `None`, `Developer`, `Enterprise`, `Store`, `System`.
     pub signature: String,
     pub version: Option<String>,
     pub publisher: Option<String>,
     pub non_removable: bool,
 }
 
-/// The JSON of our fixed `Get-AppxPackage` script (one object or an array;
-/// enums as numbers in PowerShell 5.1, as strings in 7; `Version` as an
-/// object in 5.1). Frameworks and resource packages are dropped.
 pub fn parse_appx_json(text: &str) -> Vec<AppxPkg> {
     let v: serde_json::Value =
         match serde_json::from_str(text.trim().trim_start_matches('\u{feff}')) {
@@ -1222,7 +1112,6 @@ pub fn parse_appx_json(text: &str) -> Vec<AppxPkg> {
         .collect()
 }
 
-/// `CN=Microsoft Corporation, O=Microsoft Corporation, L=Redmond` → the O= or CN= part.
 pub fn publisher_of_dn(dn: &str) -> String {
     let part = |key: &str| {
         dn.split(',')
@@ -1235,9 +1124,6 @@ pub fn publisher_of_dn(dn: &str) -> String {
         .unwrap_or_else(|| dn.to_string())
 }
 
-// ── schtasks /query /fo csv /v /nh ──────────────────────────────────
-
-/// One CSV line, with `""` escapes.
 pub fn csv_line(line: &str) -> Vec<String> {
     let mut out = Vec::new();
     let mut cur = String::new();
@@ -1258,8 +1144,6 @@ pub fn csv_line(line: &str) -> Vec<String> {
     out
 }
 
-/// `(task path, task to run)` pairs of the verbose CSV (columns 1 and 8,
-/// the same in every language), one per task.
 pub fn schtasks_csv(text: &str) -> Vec<(String, String)> {
     let mut out: Vec<(String, String)> = Vec::new();
     for l in text.lines() {
@@ -1276,7 +1160,6 @@ pub fn schtasks_csv(text: &str) -> Vec<(String, String)> {
     out
 }
 
-/// A `.lnk` file mentions `needle` (ANSI or UTF-16 LE), case-insensitive.
 pub fn lnk_mentions(bytes: &[u8], needle: &str) -> bool {
     let n = needle.trim_end_matches(['\\', '/']).to_lowercase();
     if n.len() < 4 {
@@ -1302,10 +1185,6 @@ pub fn lnk_mentions(bytes: &[u8], needle: &str) -> bool {
     false
 }
 
-// ── Names ───────────────────────────────────────────────────────────
-
-/// A product name without versions, architecture and bracketed notes:
-/// `Mozilla Firefox 120.0 (x64 en-US)` → `mozilla firefox`.
 pub fn normalize_name(s: &str) -> String {
     let mut t = String::new();
     let mut depth = 0;
@@ -1377,10 +1256,6 @@ pub enum NameMatch {
     None,
 }
 
-/// BCU's `MatchStringToProductName`: equal (or one edit apart), equal once
-/// the publisher is taken off the product (`Adobe Reader` vs `Reader`),
-/// one inside the other, or close enough. Short names (4 chars or less)
-/// only match exactly.
 pub fn name_match(candidate: &str, product: &str, publisher: Option<&str>) -> NameMatch {
     let c = normalize_name(candidate);
     let p = normalize_name(product);
@@ -1511,12 +1386,10 @@ mod tests {
         assert_eq!(c.program, r"C:\Program Files\VideoLAN\VLC\uninstall.exe");
         assert_eq!(c.args, vec!["/S"]);
         assert_eq!(c.raw_args, "/S");
-        // Unquoted with spaces: the first .exe that exists wins.
         let disk = |p: &str| p == r"C:\Program Files\Foo Bar\unins.exe";
         let c = split_command(r"C:\Program Files\Foo Bar\unins.exe /x C:\a.exe", &disk).unwrap();
         assert_eq!(c.program, r"C:\Program Files\Foo Bar\unins.exe");
         assert_eq!(c.raw_args, r"/x C:\a.exe");
-        // Nothing exists: the first .exe boundary.
         let c = split_command(r"C:\Program Files\Foo\setup.exe --uninstall", &none).unwrap();
         assert_eq!(c.program, r"C:\Program Files\Foo\setup.exe");
         assert_eq!(c.args, vec!["--uninstall"]);

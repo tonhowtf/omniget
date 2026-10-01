@@ -1,7 +1,3 @@
-//! Channel RSS (`/feeds/videos.xml?channel_id=` or `?playlist_id=UULF...`).
-//! No duration and no Short flag in the feed itself; the link of a Short
-//! points at `/shorts/`, which is the only hint.
-
 use roxmltree::{Document, Node};
 
 use super::model::{ChannelRef, Item, ShortItem, Thumb, VideoItem};
@@ -99,7 +95,6 @@ fn parse(xml: &str) -> Option<(String, Vec<(Item, bool)>)> {
     Some((name, entries))
 }
 
-/// Channel name and its latest videos (Shorts included, as videos).
 pub fn parse_channel_feed(xml: &str) -> Option<(String, Vec<VideoItem>)> {
     let (name, entries) = parse(xml)?;
     let videos = entries
@@ -112,7 +107,6 @@ pub fn parse_channel_feed(xml: &str) -> Option<(String, Vec<VideoItem>)> {
     Some((name, videos))
 }
 
-/// Same feed, with `/shorts/` links turned into `Item::Short`.
 pub fn parse_channel_feed_items(xml: &str) -> Option<(String, Vec<Item>)> {
     let (name, entries) = parse(xml)?;
     let items = entries
@@ -183,7 +177,6 @@ mod tests {
         assert_eq!(v.channel.as_ref().unwrap().id, "UCabc");
         assert_eq!(v.thumbs[0].width, 480);
         assert_eq!(v.description_snippet.as_deref(), Some("Descrição"));
-        // Channel comes from the feed when the entry lacks it.
         assert_eq!(videos[1].channel.as_ref().unwrap().name, "Canal & Cia");
         assert_eq!(videos[1].published_ms, Some(1_788_348_600_000));
     }

@@ -1,26 +1,3 @@
-//! `opencode serve` SSE (`GET /event`) → [`RuntimeEvent`] translation, and
-//! the SSE framing itself. Pure; tested against a recorded real turn
-//! (`fixtures/serve-turn.ndjson`, OpenCode 1.18.32).
-//!
-//! Mapping (events are `{id, type, properties}`; only our session's pass):
-//! - `message.updated` → roles/parents (turn ownership); assistant `error`
-//!   → `runtime.error` (+ `auth.status` for `ProviderAuthError`).
-//! - `message.part.updated` / `message.part.delta` of assistant `text` /
-//!   `reasoning` parts → `item.started` + `content.delta` (only the new
-//!   suffix of a snapshot) + `item.completed{detail}`; `tool` parts →
-//!   `item.started|updated|completed` typed by tool name (`bash →
-//!   command_execution`, `edit|write|patch|multiedit → file_change`,
-//!   `webfetch|websearch|codesearch → web_search`, `task → collab_agent_tool_call`),
-//!   live `bash` output → `content.delta{command_output}`; `step-finish`
-//!   → token usage of the turn.
-//! - `permission.asked|replied` → `request.opened|resolved`;
-//!   `question.asked|replied|rejected` → `user-input.requested|resolved`;
-//!   `todo.updated` → `turn.plan.updated`; `session.updated` (title) →
-//!   `thread.metadata.updated`; `session.compacted` → `thread.state.changed`;
-//!   `session.status{retry}` → `runtime.warning`; `session.error` →
-//!   `runtime.error` (aborts are not errors); `session.idle` /
-//!   `session.status{idle}` after the prompt was admitted → end of turn.
-
 use std::collections::{HashMap, HashSet};
 
 use serde_json::{json, Value};
@@ -36,10 +13,6 @@ use crate::core::llm::drivers::{
     UserInputResolvedPayload,
 };
 
-// ── SSE framing ─────────────────────────────────────────────────────────
-
-/// Server-Sent Events parser (WHATWG framing: `data:` lines joined by `\n`,
-/// dispatched on a blank line; comments and other fields ignored).
 #[derive(Debug, Default)]
 pub struct SseParser {
     buf: Vec<u8>,
@@ -51,7 +24,6 @@ impl SseParser {
         Self::default()
     }
 
-    /// Feed bytes; returns the `data` payload of every complete event.
     pub fn push(&mut self, bytes: &[u8]) -> Vec<String> {
         self.buf.extend_from_slice(bytes);
         let mut out = Vec::new();
@@ -84,9 +56,6 @@ impl SseParser {
     }
 }
 
-// ── Translation ─────────────────────────────────────────────────────────
-
-/// One output of the translator.
 #[derive(Debug, Clone, PartialEq)]
 #[allow(clippy::large_enum_variant)]
 pub enum Out {
@@ -96,11 +65,8 @@ pub enum Out {
         request_id: Option<String>,
         provider_item_id: Option<String>,
     },
-    /// The session went idle after our prompt: the turn is over.
     TurnIdle,
-    /// `session.error` during a turn (not an abort).
     TurnFailed(String),
-    /// A permission OpenCode asked for (the driver may answer it itself).
     Permission {
         request_id: String,
         permission: String,
@@ -142,7 +108,6 @@ struct Part {
     text: String,
     started: bool,
     done: bool,
-    // tool parts
     tool: String,
     status: String,
     streamed: String,
@@ -150,7 +115,6 @@ struct Part {
     last_title: String,
 }
 
-/// Pending question of the session (answers are sent in question order).
 #[derive(Debug, Clone)]
 pub struct Question {
     pub ids: Vec<String>,
@@ -176,7 +140,6 @@ pub struct Translator {
     pub questions: HashMap<String, Question>,
 }
 
-/// Item type of an OpenCode tool.
 pub fn item_type(tool: &str) -> ItemType {
     match tool {
         "bash" | "shell" => ItemType::CommandExecution,
@@ -188,7 +151,6 @@ pub fn item_type(tool: &str) -> ItemType {
     }
 }
 
-/// Request type of an OpenCode permission.
 pub fn permission_type(permission: &str) -> RequestType {
     match permission {
         "bash" => RequestType::CommandExecutionApproval,
@@ -199,7 +161,6 @@ pub fn permission_type(permission: &str) -> RequestType {
     }
 }
 
-/// `permission.reply` body value for a decision.
 pub fn reply_for(decision: ApprovalDecision) -> &'static str {
     match decision {
         ApprovalDecision::Accept => "once",
@@ -216,7 +177,6 @@ fn decision_of(reply: &str) -> ApprovalDecision {
     }
 }
 
-/// The session a raw event belongs to.
 pub fn event_session(ev: &Value) -> Option<&str> {
     let p = ev.get("properties")?;
     p.get("sessionID")
@@ -241,7 +201,6 @@ impl Translator {
         &self.session_id
     }
 
-    /// Follow a new session id (fork/rollback) without losing state.
     pub fn set_session(&mut self, id: &str) {
         self.session_id = id.to_string();
     }
@@ -259,7 +218,6 @@ impl Translator {
         self.cost = 0.0;
     }
 
-    /// Close open text items; returns them plus the turn's usage and cost.
     pub fn end_turn(&mut self) -> (Vec<Out>, TokenUsage, f64) {
         let mut out = Vec::new();
         let open: Vec<String> = self
@@ -277,7 +235,6 @@ impl Translator {
         (out, usage, self.cost)
     }
 
-    /// The user already answered this request through us.
     pub fn mark_resolved(&mut self, request_id: &str) {
         self.resolved.insert(request_id.to_string());
     }
@@ -372,7 +329,6 @@ impl Translator {
                 Some(&id),
             ));
         } else if !snapshot.is_empty() && !snapshot.starts_with(&entry.text) {
-            // Rewritten text: the final item carries the truth.
             entry.text = snapshot.to_string();
         }
         if part.pointer("/time/end").is_some() {
@@ -541,7 +497,6 @@ impl Translator {
         out
     }
 
-    /// One event of `GET /event`.
     pub fn on_event(&mut self, event: &Value) -> Vec<Out> {
         let ty = event.get("type").and_then(Value::as_str).unwrap_or("");
         let p = event.get("properties").cloned().unwrap_or(Value::Null);
@@ -647,7 +602,6 @@ impl Translator {
                                         .count() as u64,
                             );
                         }
-                        // Text of this step is final.
                         let ids: Vec<String> = self
                             .parts
                             .iter()
@@ -1006,8 +960,6 @@ fn ev_auth(msg: &str) -> Out {
     }))
 }
 
-/// Body of `POST /question/{id}/reply` from the UI answers
-/// (`{q0: "label" | ["a", "b"], …}`), in question order.
 pub fn question_answers(q: &Question, answers: &Value) -> Value {
     let list: Vec<Value> = q
         .ids
@@ -1036,7 +988,6 @@ pub fn question_answers(q: &Question, answers: &Value) -> Value {
     json!({ "answers": list })
 }
 
-/// Session permission ruleset per access mode (last match wins in OpenCode).
 pub fn ruleset(access: crate::core::llm::drivers::AccessMode) -> Value {
     use crate::core::llm::drivers::AccessMode;
     let r = |perm: &str, pattern: &str, action: &str| json!({ "permission": perm, "pattern": pattern, "action": action });
@@ -1116,7 +1067,6 @@ mod tests {
         let (closing, usage, cost) = t.end_turn();
         out.extend(closing);
         let ks = kinds(&out);
-        // Two permissions, typed, with the diff and the command.
         let opened: Vec<_> = ks
             .iter()
             .filter_map(|k| match k {
@@ -1142,14 +1092,12 @@ mod tests {
             opened[1].detail.as_ref().unwrap().command.as_deref(),
             Some("echo ok")
         );
-        // replied elsewhere (the probe answered): resolved events.
         assert_eq!(
             ks.iter()
                 .filter(|k| matches!(k, RuntimeEventKind::RequestResolved(_)))
                 .count(),
             2
         );
-        // Tool items: read, edit (file change with diff), bash (command).
         let completed: Vec<_> = ks
             .iter()
             .filter_map(|k| match k {
@@ -1171,7 +1119,6 @@ mod tests {
             .find(|p| p.item_type == ItemType::CommandExecution)
             .unwrap();
         assert_eq!(bash.detail.as_deref(), Some("echo ok"));
-        // Final answer text, streamed once.
         let text: String = out
             .iter()
             .filter_map(|o| match o {
@@ -1192,7 +1139,6 @@ mod tests {
             .as_deref()
             .unwrap()
             .starts_with("The user wants me to edit README.txt"));
-        // Usage: three steps of this turn.
         assert_eq!(usage.input_tokens, 3816 + 209 + 218);
         assert_eq!(usage.output_tokens, 135 + 166 + 6);
         assert_eq!(usage.cached_input_tokens, 4608 + 8448 + 8704);

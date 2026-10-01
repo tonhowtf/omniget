@@ -1,11 +1,3 @@
-//! The Whisper decoder loop on two ONNX sessions: the encoder turns a 30 s
-//! log-mel window into hidden states, the merged decoder (one graph with and
-//! without KV cache, switched by `use_cache_branch`) predicts one token per
-//! step. Greedy search with Whisper's own logit rules (suppressed tokens,
-//! paired timestamps that never go back, the initial-timestamp cap), language
-//! detection from the most likely language token, and the seek logic of
-//! `whisper/transcribe.py` to walk long audio window by window.
-
 use std::borrow::Cow;
 use std::collections::HashMap;
 
@@ -18,11 +10,8 @@ use super::models::{self, ModelSpec};
 use super::tokens::Vocab;
 use super::Segment;
 
-/// Most tokens sampled in one window (`n_text_ctx / 2`, like Whisper).
 const MAX_SAMPLE: usize = 224;
-/// Decoder context.
 const MAX_CTX: usize = 448;
-/// One timestamp token step: 20 ms.
 const TS_SAMPLES: usize = SAMPLE_RATE / 50;
 const NO_SPEECH_THRESHOLD: f32 = 0.6;
 const LOGPROB_THRESHOLD: f32 = -1.0;
@@ -37,7 +26,6 @@ pub struct Model {
 }
 
 impl Model {
-    /// Blocking: loads both graphs. The files must already be on disk.
     pub fn load(spec: &'static ModelSpec) -> anyhow::Result<Self> {
         if !models::is_downloaded(spec) {
             return Err(anyhow!("the {} model has not been downloaded yet", spec.id));
@@ -62,7 +50,6 @@ impl Model {
         })
     }
 
-    /// Hidden states of one window's log-mel (`[N_MELS][WINDOW_FRAMES]`).
     fn encode(&mut self, mel: Vec<f32>) -> anyhow::Result<DynValue> {
         let input = Tensor::from_array((vec![1i64, N_MELS as i64, WINDOW_FRAMES as i64], mel))
             .context("building input_features")?;
@@ -85,9 +72,6 @@ impl Model {
             .ok_or_else(|| anyhow!("the encoder has no `{out_name}` output"))
     }
 
-    /// One decoder call. `cache` empty means the first step (no-cache
-    /// branch); it is filled with the new KV values. Returns the logits of
-    /// every input position (`rows × vocab`) and the vocab width.
     fn step(
         &mut self,
         ids: &[u32],
@@ -120,8 +104,6 @@ impl Model {
                     let present = n.replacen("past_key_values", "present", 1);
                     match cache.get(&present) {
                         Some(v) => v.into(),
-                        // First step: the no-cache branch ignores these,
-                        // they only need a valid shape.
                         None => Tensor::from_array((
                             vec![1i64, heads, 1, head_dim],
                             vec![0f32; (heads * head_dim) as usize],
@@ -147,8 +129,6 @@ impl Model {
             .map(|k| k.to_string())
             .collect();
         for n in names {
-            // The encoder half of the cache is computed once, on the first
-            // step; later steps only pass it through.
             if !first && n.contains(".encoder.") {
                 continue;
             }
@@ -159,7 +139,6 @@ impl Model {
         Ok((logits, width))
     }
 
-    /// The most likely language token for this window.
     fn detect_language(&mut self, enc: &DynValue) -> anyhow::Result<u32> {
         let mut cache = HashMap::new();
         let (logits, _) = self.step(&[self.vocab.sot], enc, &mut cache)?;
@@ -189,8 +168,6 @@ impl Model {
                 *l = neg;
             }
         }
-        // Every special token (sot, languages, tasks, no-speech,
-        // no-timestamps) except end-of-text.
         for l in logits.iter_mut().take(tsb.min(n)).skip(eot + 1) {
             *l = neg;
         }
@@ -229,8 +206,6 @@ impl Model {
             }
         }
 
-        // If timestamps together are likelier than any single text token,
-        // a timestamp it is.
         if tsb < n {
             let max = logits.iter().copied().fold(neg, f32::max);
             if max.is_finite() {
@@ -250,8 +225,6 @@ impl Model {
         }
     }
 
-    /// Greedy decode of one window. Returns the sampled tokens (without
-    /// end-of-text), the no-speech probability and the mean log-probability.
     fn decode_window(&mut self, enc: &DynValue, lang: u32) -> anyhow::Result<(Vec<u32>, f32, f32)> {
         let prompt = [self.vocab.sot, lang, self.vocab.transcribe];
         let mut cache = HashMap::new();
@@ -288,8 +261,6 @@ impl Model {
         Ok((sampled, no_speech, avg))
     }
 
-    /// Transcribes a PCM stream from the start. `progress` gets the number
-    /// of samples consumed so far.
     pub fn transcribe(
         &mut self,
         pcm: &mut super::audio::PcmStream,
@@ -319,7 +290,6 @@ impl Model {
             got_audio = true;
             let win_len = samples.len();
             let final_window = win_len < WINDOW_SAMPLES;
-            // A sliver under 0.2 s at the very end carries no words.
             if final_window && win_len < SAMPLE_RATE / 5 && seek > 0 {
                 break;
             }
@@ -364,9 +334,6 @@ impl Model {
     }
 }
 
-/// Segments `(start_ts, end_ts, text tokens)` from one window's tokens, in
-/// timestamp units (20 ms), and how many samples the next window starts
-/// after — Whisper's `transcribe.py` rules.
 fn split_segments(tokens: &[u32], tsb: u32, win_len: usize) -> (Vec<(u32, u32, Vec<u32>)>, usize) {
     let is_ts = |t: u32| t >= tsb;
     let single_ending =
@@ -394,7 +361,6 @@ fn split_segments(tokens: &[u32], tsb: u32, win_len: usize) -> (Vec<(u32, u32, V
         let advance = if single_ending {
             win_len
         } else {
-            // Resume from the last complete timestamp.
             let t = tokens[last - 1].saturating_sub(tsb) as usize;
             (t * TS_SAMPLES).min(win_len)
         };
@@ -415,7 +381,6 @@ fn split_segments(tokens: &[u32], tsb: u32, win_len: usize) -> (Vec<(u32, u32, V
     }
 }
 
-/// The tail repeats one short pattern four times: the decoder is stuck.
 fn looping(tokens: &[u32]) -> bool {
     for k in 1..=16 {
         if tokens.len() < k * 4 {

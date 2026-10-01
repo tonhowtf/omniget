@@ -1,7 +1,3 @@
-//! Window commands of the companies of agents. One entry point for the whole
-//! domain (`company_rpc`, same methods as the bridge, the CLI and the MCP),
-//! plus what only the running engine knows.
-
 use omniget_core::core::company::{self as co, rpc, Actor};
 use serde_json::{json, Value};
 
@@ -30,7 +26,6 @@ pub async fn company_run_stop(run_id: String) -> Result<(), String> {
     }
 }
 
-/// Roster agents a hire can copy (runtime and model), for the hire form.
 #[tauri::command]
 pub async fn company_runtime_templates(app: tauri::AppHandle) -> Result<Value, String> {
     use tauri::Manager;
@@ -43,8 +38,6 @@ pub async fn company_runtime_templates(app: tauri::AppHandle) -> Result<Value, S
         .collect::<Vec<_>>()))
 }
 
-/// Hires with a fresh roster agent copied from `template_agent_id` (its
-/// runtime and model), or with an existing roster agent (`staff.agent_id`).
 #[tauri::command]
 pub async fn company_hire(
     company: String,

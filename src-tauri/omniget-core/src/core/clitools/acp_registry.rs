@@ -1,14 +1,3 @@
-//! Registro ACP (`cdn.agentclientprotocol.com/registry/v1/latest/registry.json`):
-//! listar agentes e instalar pela distribuição declarada.
-//!
-//! - `npx`/`uvx`: nada é baixado; o comando é registrado e devolvido.
-//! - `binary`: o arquivo da plataforma é baixado para
-//!   `<app_data>/agents/bin/<id>/<versão>/`, conferido pelo sha256 do registro
-//!   (fail-closed, padrão do `dependencies.rs`) e extraído. Entrada sem sha256
-//!   só instala com `allow_unverified`.
-//!
-//! O resultado é o comando ACP pronto (`AcpLaunch`) para o driver ACP.
-
 use std::collections::BTreeMap;
 use std::io::Read;
 use std::path::{Path, PathBuf};
@@ -91,19 +80,16 @@ struct CacheFile {
     body: String,
 }
 
-/// Comando ACP pronto para o driver.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AcpLaunch {
     pub agent_id: String,
     pub name: String,
     pub version: String,
-    /// `npx`, `uvx` ou `binary`.
     pub distribution: String,
     pub command: String,
     pub args: Vec<String>,
     #[serde(default)]
     pub env: BTreeMap<String, String>,
-    /// Pasta da instalação (só `binary`).
     #[serde(default)]
     pub dir: Option<PathBuf>,
     #[serde(default)]
@@ -125,11 +111,8 @@ pub struct AgentView {
     pub license: Option<String>,
     pub icon: Option<String>,
     pub methods: Vec<String>,
-    /// Há binário para esta plataforma.
     pub binary_here: bool,
-    /// O binário desta plataforma tem sha256 no registro.
     pub binary_verified: bool,
-    /// Ferramenta da tabela que aponta para este agente.
     pub tool_id: Option<String>,
     pub installed: Option<AcpLaunch>,
 }
@@ -151,7 +134,6 @@ fn now() -> u64 {
         .unwrap_or(0)
 }
 
-/// Chave de plataforma do registro (`darwin-aarch64`, `windows-x86_64`…).
 pub fn platform_key() -> String {
     let os = match std::env::consts::OS {
         "macos" => "darwin",
@@ -202,7 +184,6 @@ fn parse(body: &str) -> Result<RegistryFile, String> {
     serde_json::from_str(body).map_err(|e| format!("{ERR_ACP}: registro inválido: {e}"))
 }
 
-/// Registro cru, com cache de 1 h (em disco). Sem rede, usa o último.
 async fn load(force: bool) -> Result<(RegistryFile, u64, bool, Option<String>), String> {
     let cached: Option<CacheFile> = cache_path()
         .and_then(|p| std::fs::read_to_string(p).ok())
@@ -301,8 +282,6 @@ pub async fn registry(force: bool) -> Result<RegistryView, String> {
     })
 }
 
-/// Escolha da distribuição: pedida, senão binário verificado → npx → uvx →
-/// binário sem sha256.
 pub fn choose(agent: &RegistryAgent, wanted: Option<&str>) -> Option<&'static str> {
     let d = &agent.distribution;
     let here = d.binary.as_ref().and_then(|b| b.get(&platform_key()));
@@ -325,7 +304,6 @@ pub fn choose(agent: &RegistryAgent, wanted: Option<&str>) -> Option<&'static st
     }
 }
 
-/// Caminho do executável dentro da pasta extraída (`./bin/x`, `.\\a\\b.exe`).
 pub fn cmd_path(dir: &Path, cmd: &str) -> Result<PathBuf, String> {
     let mut out = dir.to_path_buf();
     for seg in cmd.split(['/', '\\']) {
@@ -426,7 +404,6 @@ pub async fn install(
     };
 
     let mut map = installed();
-    // Remove versões antigas do mesmo agente (só as que o OmniGet baixou).
     if let (Some(old), Some(new_dir)) = (map.get(agent_id), &launch.dir) {
         if let Some(old_dir) = &old.dir {
             if old_dir != new_dir && old_dir.starts_with(agents_root()?.join("bin")) {
@@ -609,7 +586,6 @@ async fn install_binary(
     })
 }
 
-/// Extrai por extensão. Entradas que escapariam da pasta são recusadas.
 pub fn extract(bytes: &[u8], name: &str, dir: &Path) -> Result<(), String> {
     let lower = name.to_ascii_lowercase();
     let err = |e: std::io::Error| format!("{ERR_ACP}: extração: {e}");
@@ -648,7 +624,6 @@ pub fn extract(bytes: &[u8], name: &str, dir: &Path) -> Result<(), String> {
         ar.set_preserve_permissions(true);
         for entry in ar.entries().map_err(err)? {
             let mut entry = entry.map_err(err)?;
-            // `unpack_in` recusa caminhos que saem de `dir`.
             entry.unpack_in(dir).map_err(err)?;
         }
         Ok(())
@@ -667,8 +642,6 @@ pub fn extract(bytes: &[u8], name: &str, dir: &Path) -> Result<(), String> {
         return unpack(Box::new(std::io::Cursor::new(bytes.to_vec())));
     }
     if lower.ends_with(".tar.bz2") || lower.ends_with(".tbz2") {
-        // Sem codec bzip2 no crate: o `tar` do sistema (macOS, Linux e
-        // Windows 10+) descompacta.
         let tmp = dir.join(".archive.tar.bz2");
         std::fs::write(&tmp, bytes).map_err(err)?;
         let status = crate::core::process::std_command("tar")
@@ -684,7 +657,6 @@ pub fn extract(bytes: &[u8], name: &str, dir: &Path) -> Result<(), String> {
         }
         return Ok(());
     }
-    // Binário cru.
     let out = dir.join(name);
     std::fs::write(&out, bytes).map_err(err)?;
     Ok(())

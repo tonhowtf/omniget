@@ -1,9 +1,3 @@
-//! Preço de tokens de sessão com a tabela do LiteLLM (`core::tools::pricing`).
-//!
-//! `PriceBook` é montado de forma assíncrona (a tabela pode precisar de
-//! download) e depois usado de forma síncrona nas agregações. Cada modelo é
-//! resolvido uma vez por processo e lembrado por uma hora.
-
 use std::collections::HashMap;
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
@@ -22,8 +16,6 @@ type Prices = HashMap<String, Option<ModelPrice>>;
 static MEMO: Mutex<Option<(Instant, Prices)>> = Mutex::new(None);
 const MEMO_TTL: Duration = Duration::from_secs(3600);
 
-/// Nome do modelo como a tabela conhece: sem sufixo de contexto (`[1m]`),
-/// sem data e sem prefixo de provedor quando não acha com ele.
 pub fn normalize_model(m: &str) -> String {
     let mut s = m.trim().to_string();
     if let Some(i) = s.find('[') {
@@ -35,8 +27,6 @@ pub fn normalize_model(m: &str) -> String {
 fn candidates(model: &str) -> Vec<String> {
     let base = normalize_model(model);
     let mut v = vec![base.clone()];
-    // `anthropic/claude-x`, `openai/gpt-x` já são tentados pelo pricing; aqui
-    // tenta também sem sufixos de variante que as ferramentas acrescentam.
     for suffix in ["-thinking", "-high", "-low", "-medium", "-fast", ":free"] {
         if let Some(stripped) = base.strip_suffix(suffix) {
             v.push(stripped.to_string());
@@ -49,7 +39,6 @@ fn candidates(model: &str) -> Vec<String> {
 }
 
 impl PriceBook {
-    /// Resolve todos os modelos pedidos (memo de uma hora).
     pub async fn load(models: impl IntoIterator<Item = String>) -> PriceBook {
         let wanted: Vec<String> = models
             .into_iter()
@@ -101,9 +90,6 @@ impl PriceBook {
         self.prices.get(model).and_then(|p| p.as_ref())
     }
 
-    /// Custo de um uso: entrada fresca pelo preço de entrada, cache lido e
-    /// escrito pelos preços de cache (ou de entrada, se a tabela não tiver),
-    /// saída + raciocínio pelo preço de saída.
     pub fn cost(&self, model: &str, u: &TokenUsage) -> Option<f64> {
         let p = self.price(model)?;
         let inp = p.input_per_m? / 1e6;
@@ -119,25 +105,16 @@ impl PriceBook {
     }
 }
 
-/// Custo consolidado de um conjunto de usos.
 #[derive(Debug, Clone, Default, Serialize)]
 pub struct CostSummary {
     pub cost_usd: f64,
-    /// Parte que veio gravada pela própria ferramenta.
     pub recorded_usd: f64,
-    /// Parte calculada pela tabela de preço.
     pub computed_usd: f64,
-    /// Tokens de modelos sem preço conhecido (não entram no custo).
     pub unpriced_tokens: u64,
     pub unpriced_models: Vec<String>,
-    /// `recorded` | `computed` | `mixed` | `unknown`.
     pub source: String,
-    /// Custo que o CLI gravou para o processo inteiro, subagentes incluídos
-    /// (Claude `cost-state` de uma sessão com filhos). Não entra em
-    /// `cost_usd`, que é só desta sessão.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tree_recorded_usd: Option<f64>,
-    /// Soma calculada pela tabela para esta sessão + subagentes.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tree_computed_usd: Option<f64>,
 }

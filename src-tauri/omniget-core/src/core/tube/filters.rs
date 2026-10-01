@@ -1,14 +1,3 @@
-//! The one distraction filter for every OmniTube list. It removes items
-//! and keeps the structure (FilterTube `filter_logic.js`, MIT): a shelf
-//! only goes away when filtering left it empty. Ads never reach here; the
-//! renderer walker drops them.
-//!
-//! Context exceptions (from `re/_distracoes-catalogo.md`):
-//! - a channel's Shorts tab keeps its Shorts, and its Members tab keeps
-//!   members-only videos (detected as "every item is of that kind");
-//! - a blocked channel still shows in Subscriptions and on its own page;
-//! - YT Music only gets channel and word blocks.
-
 use unicode_normalization::char::is_combining_mark;
 use unicode_normalization::UnicodeNormalization;
 
@@ -37,11 +26,9 @@ pub struct FilterPrefs {
     pub hide_posts: bool,
     pub hide_watched: bool,
     pub watched_threshold: u8,
-    /// Channel ids (`UC...`) or handles (`@name`).
     pub blocked_channels: Vec<String>,
     pub blocked_words: Vec<String>,
     pub whole_word: bool,
-    /// 0 = no limit.
     pub min_duration_s: u32,
     pub max_duration_s: u32,
 }
@@ -77,7 +64,6 @@ impl FilterPrefs {
     }
 }
 
-/// Lowercase, accents stripped (NFD minus combining marks).
 pub fn fold(s: &str) -> String {
     s.nfd()
         .filter(|c| !is_combining_mark(*c))
@@ -89,8 +75,6 @@ fn is_word_char(c: char) -> bool {
     c.is_alphanumeric() || c == '_'
 }
 
-/// `needle` inside `hay`, both already folded. Whole word = Unicode
-/// letter/number boundaries on both sides (FilterTube "Exact").
 fn contains_folded(hay: &str, needle: &str, whole_word: bool) -> bool {
     if needle.is_empty() {
         return false;
@@ -136,7 +120,6 @@ fn one(c: &Option<ChannelRef>) -> Vec<(&str, Option<&str>)> {
         .unwrap_or_default()
 }
 
-/// (id, handle) of every channel an item belongs to.
 fn channels_of(item: &Item) -> Vec<(&str, Option<&str>)> {
     match item {
         Item::Video(v) => one(&v.channel),
@@ -184,7 +167,6 @@ fn video_id(item: &Item) -> Option<&str> {
     }
 }
 
-/// Tab-level exceptions computed once per list.
 #[derive(Clone, Copy, Default)]
 struct Exempt {
     shorts: bool,
@@ -295,8 +277,6 @@ pub fn apply_items(
     items.retain(|it| passes_with(it, p, ctx, watched, ex));
 }
 
-/// Filters every shelf and drops the ones filtering emptied. Shelves that
-/// arrived empty (a header-only section) are left alone.
 pub fn apply_page(
     page: &mut Page,
     p: &FilterPrefs,

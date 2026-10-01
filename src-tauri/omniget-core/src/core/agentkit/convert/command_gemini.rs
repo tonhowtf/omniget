@@ -1,7 +1,4 @@
-//! Gemini CLI custom commands: `.gemini/commands/<name>.toml` with
 //! `description` and `prompt` (estudo 06 Gemini (c), §0C.3): `$ARGUMENTS` →
-//! `{{args}}`, `` !`cmd` `` → `!{cmd}`, `@path` → `@{path}`; positional
-//! arguments do not exist (the text is kept readable and the loss recorded).
 
 use serde_json::json;
 
@@ -15,7 +12,6 @@ use crate::core::agentkit::{Result, Scope};
 pub struct GeminiCommandConverter;
 
 impl GeminiCommandConverter {
-    /// TOML text and losses.
     pub fn render(cmd: &CommandSpec, target: &TargetAdapter) -> (String, Vec<String>) {
         let (body, mut losses) = render_body(&cmd.body, &target.placeholder_map);
         let mut out = String::new();
@@ -39,7 +35,6 @@ impl GeminiCommandConverter {
         (out, losses)
     }
 
-    /// TOML command → canonical spec.
     pub fn read(text: &str, target: &TargetAdapter) -> Option<CommandSpec> {
         let v = etoml::parse(text).ok()?;
         let prompt = v.get("prompt")?.as_str()?;

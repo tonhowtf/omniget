@@ -1,20 +1,3 @@
-//! Cursor.
-//!
-//! Credential (read only): the editor's own global state database, a SQLite
-//! file with the VS Code `ItemTable(key, value)`:
-//!   - macOS:   `~/Library/Application Support/Cursor/User/globalStorage/state.vscdb`
-//!   - Windows: `%APPDATA%\Cursor\User\globalStorage\state.vscdb`
-//!   - Linux:   `~/.config/Cursor/User/globalStorage/state.vscdb`
-//!
-//! Keys `cursorAuth/accessToken` and `cursorAuth/stripeMembershipAuthId` (or
-//! the `sub` claim of the token) form the session the editor itself uses;
-//! `cursorAuth/cachedEmail` and `cursorAuth/stripeMembershipType` are shown.
-//! This is the editor's state file, not a browser cookie store.
-//!
-//! Endpoint: `GET https://cursor.com/api/usage-summary`. Cursor meters a
-//! percentage of the allowance (`individualUsage.plan.totalPercentUsed`), not
-//! requests, and 0 is a reading, not a gap.
-
 use crate::limits_strip::{
     http, iso_ms, json_or_error, net_err, num, LimitWindow, ReadError, Reading, Secret,
     UsageProvider,
@@ -37,14 +20,11 @@ pub fn state_db() -> Option<PathBuf> {
 
 #[derive(Debug)]
 struct Session {
-    /// The session value the editor itself sends, built from its own state.
     cookie: Secret,
     email: Option<String>,
     plan: Option<String>,
 }
 
-/// The `sub` claim of the access token is `provider|user_id`; the user id is
-/// the first half of the session value.
 pub fn user_id_from_jwt(token: &str) -> Option<String> {
     let payload = token.split('.').nth(1)?;
     let bytes = base64::engine::general_purpose::URL_SAFE_NO_PAD
@@ -92,7 +72,6 @@ pub fn parse_usage(v: &serde_json::Value) -> (Vec<LimitWindow>, Option<String>) 
         let enabled = od.get("enabled").and_then(|x| x.as_bool()).unwrap_or(false);
         let limit = num(od.get("limit")).unwrap_or(0.0);
         if let (true, Some(used)) = (enabled && limit > 0.0, num(od.get("used"))) {
-            // Cursor reports money in cents.
             out.push(
                 LimitWindow::ratio("on-demand", "On demand", used / 100.0, limit / 100.0, "usd")
                     .resets(resets),

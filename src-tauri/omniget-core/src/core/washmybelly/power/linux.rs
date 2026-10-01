@@ -1,6 +1,3 @@
-//! Linux: power-profiles-daemon (and tlp-pd / tuned-ppd, same D-Bus API),
-//! systemd units of the other managers, logind inhibitors, sysfs knobs.
-
 use std::collections::HashMap;
 use std::path::Path;
 use std::sync::mpsc;
@@ -49,7 +46,6 @@ fn system() -> Result<zbus::blocking::Connection, String> {
     zbus::blocking::Connection::system().map_err(|e| format!("system bus: {e}"))
 }
 
-/// Which name answers: the current one or the legacy one.
 fn pp_endpoint(conn: &zbus::blocking::Connection) -> Option<(&'static str, &'static str)> {
     for (name, path) in [(PP_NAME, PP_PATH), (PP_LEGACY, PP_LEGACY_PATH)] {
         let has: Result<bool, _> = conn
@@ -68,8 +64,6 @@ fn pp_endpoint(conn: &zbus::blocking::Connection) -> Option<(&'static str, &'sta
     None
 }
 
-/// `ActiveProfile`, `Profiles`, `ActiveProfileHolds`, `Version` and the
-/// process that owns the name.
 pub fn profiles() -> Result<Option<Value>, String> {
     let conn = system()?;
     let Some((name, path)) = pp_endpoint(&conn) else {
@@ -130,7 +124,6 @@ pub fn profiles() -> Result<Option<Value>, String> {
     })))
 }
 
-/// Switch the profile through the daemon (polkit lets the active session).
 pub fn set_profile(profile: &str) -> Result<(), String> {
     let conn = system()?;
     let (name, path) = pp_endpoint(&conn).ok_or("no power profile daemon is running")?;
@@ -157,7 +150,6 @@ fn unit_active(unit: &str) -> bool {
         .unwrap_or(false)
 }
 
-/// Process names under `/proc/*/comm` (15 chars at most).
 fn comms() -> Vec<String> {
     std::fs::read_dir("/proc")
         .into_iter()
@@ -174,7 +166,6 @@ fn comms() -> Vec<String> {
         .collect()
 }
 
-/// Managers running now: systemd units, or processes without systemd.
 pub fn running_managers() -> Vec<Manager> {
     if systemd() {
         return Manager::ALL
@@ -192,13 +183,11 @@ pub fn running_managers() -> Vec<Manager> {
             Manager::TunedPpd => has("tuned-ppd"),
             Manager::Tuned => c.iter().any(|x| x == "tuned"),
             Manager::AutoCpufreq => has("auto-cpufreq"),
-            // TLP is not a daemon: without systemd, look for its config run.
             Manager::Tlp => Path::new("/run/tlp").exists(),
         })
         .collect()
 }
 
-/// `tlp-stat -s` when it answers without root (older versions refuse).
 pub fn tlp_stat() -> Option<parse::TlpStat> {
     let out = crate::core::process::std_command("tlp-stat")
         .arg("-s")
@@ -211,7 +200,6 @@ pub fn tlp_stat() -> Option<parse::TlpStat> {
     s.enabled.is_some().then_some(s)
 }
 
-/// logind inhibitors that block sleep or idle.
 pub fn sleep_blockers() -> Result<Vec<parse::SleepBlocker>, String> {
     let conn = system()?;
     let list: Vec<(String, String, String, String, u32, u32)> = conn
@@ -241,8 +229,6 @@ pub fn sleep_blockers() -> Result<Vec<parse::SleepBlocker>, String> {
         .collect())
 }
 
-// ── Hold: HoldProfile + a logind idle inhibitor, owned by one thread ──
-
 pub struct DbusBackend;
 
 impl Backend for DbusBackend {
@@ -269,8 +255,6 @@ impl Backend for DbusBackend {
                 } else {
                     reason
                 };
-                // The daemon drops the hold when this connection closes, so
-                // the thread keeps it open until release or the deadline.
                 let cookie: Option<(&str, &str, u32)> =
                     pp_endpoint(&conn).and_then(|(name, path)| {
                         conn.call_method(
@@ -322,9 +306,6 @@ impl Backend for DbusBackend {
     }
 }
 
-// ── Administrator side (runs in omniget-elevate as root) ────────────
-
-/// Stop, disable and mask one manager unit, or undo it.
 pub fn manager_unit(unit: &str, on: bool) -> Result<String, String> {
     Manager::from_unit(unit).ok_or_else(|| format!("{unit} is not a power manager unit"))?;
     let steps: Vec<Vec<&str>> = if on {

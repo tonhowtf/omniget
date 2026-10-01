@@ -1,11 +1,3 @@
-//! Plans: the only way anything in washmybelly changes the machine.
-//!
-//! A scan hands its items to [`offer`], which remembers them as candidates
-//! and returns a ready plan with all of them. `wmb_plan` builds a narrower
-//! plan from chosen ids. [`execute`] checks every item again, runs it, and
-//! writes a receipt. Nothing here takes a loose path from the caller: paths
-//! only come from candidates a scan produced.
-
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Mutex;
@@ -22,14 +14,9 @@ use super::receipt::{ItemResult, ItemStatus, Receipt, Undo};
 use super::store::{now, Ctx};
 use super::{Destination, Risk};
 
-/// A plan lives ten minutes: the fingerprints are only worth that long.
 pub const PLAN_TTL_SECS: i64 = 600;
-/// Candidates a scan offered stay pickable for half an hour.
 const CANDIDATE_TTL: Duration = Duration::from_secs(1800);
 
-/// Programs a plan may run for a native cleanup (`brew cleanup`,
-/// `npm cache clean`). Always argv, never a shell; the arguments come from
-/// the rule catalog, not from the caller.
 pub const NATIVE_PROGRAMS: &[&str] = &[
     "brew",
     "npm",
@@ -68,7 +55,6 @@ pub const NATIVE_PROGRAMS: &[&str] = &[
     "nix-collect-garbage",
 ];
 
-/// Where a plan came from. Only the screen may carry `extreme` items.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Source {
@@ -78,33 +64,25 @@ pub enum Source {
     Cli,
 }
 
-/// What one item does.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "op", rename_all = "snake_case")]
 pub enum Op {
-    /// Remove a path the scan found, to the destination the rule chose.
     RemovePath {
         path: PathBuf,
         destination: Destination,
         fp: Fingerprint,
-        /// The folder the rule targets; the path must stay inside it.
         #[serde(default)]
         root: Option<PathBuf>,
         guard: Guard,
-        /// Empty the folder but keep it (cache roots apps expect).
         #[serde(default)]
         contents_only: bool,
     },
-    /// Run a native cleanup command (argv only; program in [`NATIVE_PROGRAMS`]).
     Command {
         program: String,
         args: Vec<String>,
-        /// Folders measured before and after, for an honest "freed".
         #[serde(default)]
         measure: Vec<PathBuf>,
     },
-    /// A module action (uninstall, startup toggle, privacy item, tweak...).
-    /// The module validates `action` against its own closed list.
     Module {
         module: String,
         action: String,
@@ -113,20 +91,16 @@ pub enum Op {
     },
 }
 
-/// One thing a plan will do.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PlanItem {
-    /// Stable id from the scan (the same file gives the same id).
     pub id: String,
     pub label: String,
     #[serde(default)]
     pub detail: Option<String>,
-    /// Category or group for the preview (`browser`, `dev`, `logs`...).
     #[serde(default)]
     pub group: String,
     pub bytes: u64,
     pub risk: Risk,
-    /// Needs `omniget-elevate`.
     #[serde(default)]
     pub admin: bool,
     pub op: Op,
@@ -173,8 +147,6 @@ pub struct Plan {
 }
 
 impl Plan {
-    /// The preview the screen, the ToolAsk and `wmb_plan` show: counts per
-    /// risk and group, bytes, admin, and the items without their fingerprints.
     pub fn preview(&self) -> Value {
         let mut by_risk: HashMap<&str, (usize, u64)> = HashMap::new();
         let mut by_group: HashMap<&str, (usize, u64)> = HashMap::new();
@@ -241,8 +213,6 @@ fn op_summary(op: &Op) -> Value {
     }
 }
 
-// ── Candidates ───────────────────────────────────────────────────────
-
 type Candidates = HashMap<String, (Instant, String, PlanItem)>;
 
 static CANDIDATES: Mutex<Option<Candidates>> = Mutex::new(None);
@@ -265,16 +235,10 @@ fn candidate(kind: &str, id: &str) -> Option<PlanItem> {
     (k == kind && at.elapsed() < CANDIDATE_TTL).then(|| item.clone())
 }
 
-// ── Building ─────────────────────────────────────────────────────────
-
-/// Register items as `wmb_plan` candidates without building a plan (the
-/// unticked items of a scan: privacy, admin, apps that are open).
 pub fn register(kind: &str, items: &[PlanItem]) {
     remember(kind, items);
 }
 
-/// A scan offers its items: they become candidates, and a plan with all of
-/// them (minus `extreme` ones for anything but the screen) is returned.
 pub fn offer(ctx: &Ctx, kind: &str, items: Vec<PlanItem>, source: Source) -> Result<Plan, String> {
     remember(kind, &items);
     let items = items
@@ -284,8 +248,6 @@ pub fn offer(ctx: &Ctx, kind: &str, items: Vec<PlanItem>, source: Source) -> Res
     build(ctx, kind, items, source)
 }
 
-/// A plan from chosen candidate ids. Unknown or expired ids are an error,
-/// so a caller cannot slip in a path no scan produced.
 pub fn from_ids(ctx: &Ctx, kind: &str, ids: &[String], source: Source) -> Result<Plan, String> {
     let mut items = Vec::with_capacity(ids.len());
     let mut missing = Vec::new();
@@ -373,7 +335,6 @@ pub fn save(ctx: &Ctx, plan: &Plan) -> Result<(), String> {
     Ok(())
 }
 
-/// Load a plan; a ready plan past its time comes back `expired`.
 pub fn load(ctx: &Ctx, plan_id: &str) -> Result<Plan, String> {
     let body: Option<String> = ctx
         .open()?
@@ -403,9 +364,6 @@ pub fn set_status(ctx: &Ctx, plan_id: &str, status: PlanStatus) -> Result<Plan, 
     Ok(plan)
 }
 
-// ── Executing ────────────────────────────────────────────────────────
-
-/// Modules that execute plan items of kind [`Op::Module`].
 pub const MODULES: &[&str] = &[
     "clean",
     "apps",
@@ -418,7 +376,6 @@ pub const MODULES: &[&str] = &[
     "power",
 ];
 
-/// What a module reports for one item it ran.
 #[derive(Debug, Clone, Default)]
 pub struct Outcome {
     pub detail: String,
@@ -448,8 +405,6 @@ fn module_execute(
     }
 }
 
-/// The admin half of a module item: the module snapshots what it will
-/// change, then hands back typed operations for the helper.
 fn module_elevated(
     ctx: &Ctx,
     receipt_id: &str,
@@ -488,9 +443,6 @@ pub fn module_undo(ctx: &Ctx, module: &str, action: &str, args: &Value) -> Resul
     }
 }
 
-/// Run a plan and write its receipt. The approval is the caller's job (the
-/// screen's confirm dialog, the broker's ToolAsk, the window prompt for
-/// external clients); this function refuses anything but a ready plan.
 pub fn execute(ctx: &Ctx, plan_id: &str) -> Result<Receipt, String> {
     let mut plan = load(ctx, plan_id)?;
     match plan.status {
@@ -511,9 +463,8 @@ pub fn execute(ctx: &Ctx, plan_id: &str) -> Result<Receipt, String> {
     let receipt_id = format!("rcpt_{}", uuid::Uuid::new_v4().simple());
     let total = plan.items.len() as u64;
     let mut results: Vec<Option<ItemResult>> = vec![None; plan.items.len()];
-    // Admin work is batched into one helper call (one password prompt).
     let mut batch: Vec<ElevatedOp> = Vec::new();
-    let mut batch_owner: Vec<(usize, usize, Option<Undo>)> = Vec::new(); // (item, ops, undo)
+    let mut batch_owner: Vec<(usize, usize, Option<Undo>)> = Vec::new();
 
     for (i, it) in plan.items.iter().enumerate() {
         super::progress("execute", "run", i as u64, total, it.label.clone());
@@ -548,8 +499,6 @@ pub fn execute(ctx: &Ctx, plan_id: &str) -> Result<Receipt, String> {
                     let failed: Vec<_> = mine.iter().filter(|r| !r.ok).collect();
                     let bytes = mine.iter().map(|r| r.bytes).sum();
                     if failed.is_empty() {
-                        // The helper's own summary (sfc, DISM, fstrim...)
-                        // goes into the receipt.
                         let detail = mine
                             .iter()
                             .map(|r| r.detail.trim())
@@ -754,7 +703,6 @@ fn remove(
                 Err(e) => result(it, ItemStatus::Failed, e, 0, None),
             }
         }
-        // A folder emptied in place, or a file on another volume: Trash.
         Destination::Quarantine | Destination::Trash => {
             if contents_only {
                 let mut freed = 0;
@@ -797,10 +745,6 @@ fn quarantine_ok(ctx: &Ctx, path: &std::path::Path) -> bool {
     super::quarantine::same_volume(path, &ctx.dir)
 }
 
-/// The admin items of a plan as terminal commands, for people who would
-/// rather run them themselves. Nothing runs: module hooks are asked for
-/// their operations against a throwaway state folder, so no snapshot of
-/// the real one is written.
 pub fn copy_commands(ctx: &Ctx, plan_id: &str) -> Result<Vec<String>, String> {
     let plan = load(ctx, plan_id)?;
     if !matches!(plan.status, PlanStatus::Ready | PlanStatus::PendingApproval) {
@@ -842,7 +786,6 @@ pub fn copy_commands(ctx: &Ctx, plan_id: &str) -> Result<Vec<String>, String> {
     Ok(out)
 }
 
-/// Screen-only plan actions (`washmybelly_ui` with `plan.<action>`).
 pub async fn ui_action(action: &str, a: Value) -> Result<Value, String> {
     match action {
         "copy_commands" => {
@@ -857,11 +800,7 @@ pub async fn ui_action(action: &str, a: Value) -> Result<Value, String> {
     }
 }
 
-// ── Tools ────────────────────────────────────────────────────────────
-
 fn source_of(a: &Value) -> Source {
-    // The app sets `_source` on calls that come from the screen or an
-    // external client; a bare call is an agent of the /llm broker.
     match a.get("_source").and_then(Value::as_str) {
         Some("ui") => Source::Ui,
         Some("external") => Source::External,
@@ -1013,8 +952,6 @@ mod tests {
         assert!(offer(&ctx, "cleanup", vec![item], Source::Agent).is_err());
     }
 
-    /// Canary: a symlink and (on Windows) a junction inside the scanned tree
-    /// point outside it. Nothing outside may disappear, whatever the plan.
     #[test]
     fn canary_links_never_lead_outside_the_target() {
         let dir = tempfile::tempdir().unwrap();
@@ -1028,8 +965,6 @@ mod tests {
         link_dir(&outside, &root.join("sub/link")).unwrap();
         link_dir(&outside, &root.join("top-link")).unwrap();
 
-        // A plan over the whole root (contents only) and one aimed at the
-        // link itself, plus one aimed at a path *through* the link.
         let mut items = vec![PlanItem {
             id: "root".into(),
             label: "root".into(),
@@ -1073,7 +1008,6 @@ mod tests {
 
     #[cfg(windows)]
     fn link_dir(target: &std::path::Path, link: &std::path::Path) -> std::io::Result<()> {
-        // A junction needs no privilege, unlike a directory symlink.
         let status = std::process::Command::new("cmd")
             .arg("/C")
             .arg("mklink")

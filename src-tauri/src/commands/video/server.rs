@@ -1,29 +1,3 @@
-//! Localhost HTTP server the player's `<video>` reads from.
-//!
-//! Same design as `/music`: 127.0.0.1 on a random port, a per-launch token
-//! (`k=`) on every request, and the `Host` header must be 127.0.0.1 or
-//! localhost so a web page can't reach it through DNS rebinding.
-//!
-//! * `GET /f/{id}`               the file itself, with Range
-//! * `GET /m/{id}/index.m3u8?ss=&ai=`  remux to HLS (fMP4 segments, `-c copy`)
-//! * `GET /a/{id}/index.m3u8?ss=&ai=`  same, audio to AAC
-//! * `GET /t/{id}/index.m3u8?ss=&ai=`  full transcode to H.264 + AAC
-//! * `GET /hs/{job}/{file}`      segments of those playlists
-//!
-//! The ffmpeg tiers write HLS to disk instead of piping MP4: WebKit only
-//! plays progressive MP4 when it can ask for byte ranges, and a pipe has no
-//! length. HLS plays natively in WKWebView and through hls.js elsewhere.
-//! * `GET /s/{id}/{stream}.vtt`  embedded text subtitle as WebVTT (`o=` shifts, ms)
-//! * `GET /x/{id}.vtt?p=&o=`     external subtitle next to the video as WebVTT
-//! * `GET /thumb/{id}?t=`        480px JPEG (10 % in, or at `t` ms), cached
-//! * `GET /frame/{id}?t=`        full-size JPEG of one frame
-//! * `GET /img/{file}`           frames saved with notes
-//! * `GET /r/{rid}?u=`           remote proxy with the headers given to
-//!   `register_remote`; HLS playlists are rewritten to come back here
-//!
-//! `ss` is in seconds; the stream then starts there and the player adds the
-//! offset to `currentTime`.
-
 use std::collections::{HashMap, VecDeque};
 use std::io::SeekFrom;
 use std::path::{Path as FsPath, PathBuf};
@@ -116,8 +90,6 @@ pub fn base(info: &ServerInfo) -> String {
     format!("http://127.0.0.1:{}", info.port)
 }
 
-/// Absolute URL for a server path, token included. Returns the path as is
-/// when the server is not running yet (call `ensure` first).
 pub fn url(path: &str) -> String {
     let Some(info) = SERVER.get() else {
         return path.to_string();
@@ -125,8 +97,6 @@ pub fn url(path: &str) -> String {
     let sep = if path.contains('?') { '&' } else { '?' };
     format!("{}{path}{sep}k={}", base(info), info.token)
 }
-
-// ---------- remote proxy registry ----------
 
 #[derive(Clone)]
 struct Remote {
@@ -136,7 +106,6 @@ struct Remote {
 
 const REMOTE_CAP: usize = 4000;
 
-/// Registered remotes and their insertion order (oldest evicted first).
 type RemoteTable = (HashMap<String, Remote>, VecDeque<String>);
 
 fn remotes() -> &'static Mutex<RemoteTable> {
@@ -144,10 +113,6 @@ fn remotes() -> &'static Mutex<RemoteTable> {
     R.get_or_init(|| Mutex::new((HashMap::new(), VecDeque::new())))
 }
 
-/// Registers a remote URL and the headers it needs (User-Agent, Referer,
-/// cookies...) and returns the absolute proxy URL `/r/<rid>`. Range is passed
-/// through, and HLS playlists are rewritten so every variant, segment and key
-/// also goes through the proxy with the same headers.
 pub fn register_remote(url: &str, headers: Vec<(String, String)>) -> String {
     let Ok(mut g) = remotes().lock() else {
         return url.to_string();
@@ -180,8 +145,6 @@ fn remote_get(rid: &str) -> Option<Remote> {
     remotes().lock().ok()?.0.get(rid).cloned()
 }
 
-// ---------- guards and helpers ----------
-
 fn host_ok(ctx: &Ctx, headers: &HeaderMap) -> bool {
     let Some(host) = headers.get(header::HOST).and_then(|v| v.to_str().ok()) else {
         return false;
@@ -211,7 +174,6 @@ fn with_type(mut r: Response, mime: &str) -> Response {
     r
 }
 
-/// `bytes=a-b`, `bytes=a-`, `bytes=-n`.
 fn parse_range(h: &str, len: u64) -> Option<(u64, u64)> {
     let spec = h.strip_prefix("bytes=")?.split(',').next()?.trim();
     let (a, b) = spec.split_once('-')?;
@@ -286,12 +248,9 @@ fn q_i64(q: &HashMap<String, String>, k: &str) -> i64 {
     q.get(k).and_then(|s| s.parse::<i64>().ok()).unwrap_or(0)
 }
 
-/// Strips a trailing `.vtt`/`.jpg` so `/s/3/2.vtt` and `/x/3.vtt` parse.
 fn id_of(seg: &str) -> Option<i64> {
     seg.split('.').next()?.parse().ok()
 }
-
-// ---------- local files ----------
 
 async fn file(
     State(ctx): State<Ctx>,
@@ -308,8 +267,6 @@ async fn file(
     serve_file(&path, probe::video_mime(&path), &headers).await
 }
 
-// ---------- ffmpeg streaming (remux / transcode) ----------
-
 #[derive(Clone, Copy, PartialEq)]
 enum Pipe {
     Remux,
@@ -317,8 +274,7 @@ enum Pipe {
     Transcode,
 }
 
-/// macOS: set once VideoToolbox failed, so later transcodes go straight to
-/// libx264.
+// WHY: once VideoToolbox fails on macOS, later transcodes go straight to libx264.
 static VT_BROKEN: AtomicBool = AtomicBool::new(false);
 
 fn ffmpeg_args(
@@ -353,6 +309,7 @@ fn ffmpeg_args(
         Pipe::Remux | Pipe::AudioFix => {
             a.extend(["-c:v".into(), "copy".into()]);
             if vcodec == "hevc" {
+                // WHY: WebKit plays HEVC only when tagged hvc1.
                 // WebKit plays HEVC only when tagged hvc1
                 a.extend(["-tag:v".into(), "hvc1".into()]);
             }
@@ -403,9 +360,6 @@ fn ffmpeg_args(
     a
 }
 
-/// HLS output for the ffmpeg tiers: an EVENT playlist that grows while
-/// ffmpeg works (remux runs far ahead of playback), fMP4 segments so HEVC
-/// and AC-3 copies stay valid.
 fn hls_output(dir: &FsPath) -> Vec<String> {
     vec![
         "-f".into(),
@@ -434,7 +388,6 @@ struct HlsJob {
     child: tokio::process::Child,
 }
 
-/// One running ffmpeg per media id: a seek or a tier change replaces it.
 fn hls_jobs() -> &'static tokio::sync::Mutex<HashMap<i64, HlsJob>> {
     static J: OnceLock<tokio::sync::Mutex<HashMap<i64, HlsJob>>> = OnceLock::new();
     J.get_or_init(|| tokio::sync::Mutex::new(HashMap::new()))
@@ -443,7 +396,6 @@ fn hls_jobs() -> &'static tokio::sync::Mutex<HashMap<i64, HlsJob>> {
 fn hls_root() -> Option<PathBuf> {
     static CLEARED: std::sync::Once = std::sync::Once::new();
     let d = db::cache_dir("hls")?;
-    // leftovers from a previous run are useless: jobs never survive a restart
     CLEARED.call_once(|| {
         if let Ok(rd) = std::fs::read_dir(&d) {
             for e in rd.flatten() {
@@ -454,8 +406,6 @@ fn hls_root() -> Option<PathBuf> {
     Some(d)
 }
 
-/// Waits until the playlist lists at least one segment. `None` when ffmpeg
-/// exits first (bad encoder, unreadable file).
 async fn wait_playlist(job: &mut HlsJob) -> Option<String> {
     let pl = job.dir.join("index.m3u8");
     for _ in 0..600 {
@@ -465,7 +415,6 @@ async fn wait_playlist(job: &mut HlsJob) -> Option<String> {
             }
         }
         if let Ok(Some(st)) = job.child.try_wait() {
-            // it may have finished a very short file in one go
             if st.success() {
                 return tokio::fs::read_to_string(&pl).await.ok();
             }
@@ -626,7 +575,6 @@ async fn hls_segment(
         return status(StatusCode::NOT_FOUND);
     };
     let p = root.join(&job).join(&file);
-    // a player can ask for the next segment a moment before ffmpeg renames it
     for _ in 0..100 {
         if tokio::fs::try_exists(&p).await.unwrap_or(false) {
             break;
@@ -666,8 +614,6 @@ async fn transcode(
     pipe_route(ctx, id, q, headers, Pipe::Transcode).await
 }
 
-// ---------- subtitles ----------
-
 fn vtt_response(text: String) -> Response {
     let mut r = Response::new(Body::from(text));
     r.headers_mut().insert(
@@ -679,7 +625,6 @@ fn vtt_response(text: String) -> Response {
     r
 }
 
-/// Extracts one embedded text subtitle stream to a cached WebVTT file.
 pub async fn embedded_vtt_file(path: &str, hash: &str, stream: i64) -> Option<PathBuf> {
     let dir = db::cache_dir("subs")?;
     let out = dir.join(format!("{hash}-{stream}.vtt"));
@@ -738,7 +683,6 @@ async fn embedded_sub(
     vtt_response(shifted_vtt(&bytes, o))
 }
 
-/// True when `sub` sits in the same folder as `video` (no path tricks).
 pub fn same_folder(video: &str, sub: &str) -> bool {
     let (Ok(v), Ok(s)) = (std::fs::canonicalize(video), std::fs::canonicalize(sub)) else {
         return false;
@@ -769,8 +713,6 @@ async fn external_sub(
     vtt_response(shifted_vtt(&bytes, q_i64(&q, "o")))
 }
 
-// ---------- images ----------
-
 fn thumb_gate() -> &'static Semaphore {
     static S: OnceLock<Semaphore> = OnceLock::new();
     S.get_or_init(|| Semaphore::new(3))
@@ -800,7 +742,6 @@ async fn ffmpeg_frame(path: &str, at_ms: i64, width: Option<u32>) -> Option<Vec<
     (out.status.success() && !out.stdout.is_empty()).then_some(out.stdout)
 }
 
-/// Captures one full-size frame to a file (notes).
 pub async fn capture_frame(source: &str, at_ms: i64, out: &FsPath) -> Result<(), String> {
     let bytes = ffmpeg_frame(source, at_ms, None)
         .await
@@ -857,7 +798,6 @@ async fn thumb(
     let Ok(_permit) = thumb_gate().acquire().await else {
         return status(StatusCode::SERVICE_UNAVAILABLE);
     };
-    // another request may have made it while this one waited
     if let Ok(b) = tokio::fs::read(&file).await {
         return jpeg(b, true);
     }
@@ -870,7 +810,6 @@ async fn thumb(
     };
     let bytes = match ffmpeg_frame(&path, at, Some(480)).await {
         Some(b) => Some(b),
-        // too close to the end or a broken index: try the first frame
         None => ffmpeg_frame(&path, 0, Some(480)).await,
     };
     match bytes {
@@ -879,7 +818,6 @@ async fn thumb(
             jpeg(b, true)
         }
         None => {
-            // only remember the failure when the file is really there
             if FsPath::new(&path).exists() {
                 let _ = tokio::fs::write(&miss, b"").await;
             }
@@ -936,8 +874,6 @@ async fn img(
     serve_file(&p, mime, &headers).await
 }
 
-// ---------- remote proxy ----------
-
 fn client() -> &'static reqwest::Client {
     static C: OnceLock<reqwest::Client> = OnceLock::new();
     C.get_or_init(|| {
@@ -950,8 +886,6 @@ fn client() -> &'static reqwest::Client {
     })
 }
 
-/// Rewrites every URI of an HLS playlist to `/r/<rid>?u=<absolute>` so the
-/// player fetches segments, keys and variants through the proxy too.
 fn rewrite_hls(text: &str, final_url: &url::Url, rid: &str) -> String {
     let proxied = |u: &str| -> String {
         let abs = final_url

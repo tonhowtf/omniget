@@ -1,13 +1,3 @@
-//! OpenCode (Go plan).
-//!
-//! Credential (read only): `auth.json` under OpenCode's data folder, which is
-//! `$XDG_DATA_HOME/opencode` or `~/.local/share/opencode` on every OS (the
-//! tool resolves XDG paths the same way on Windows and macOS). Root key
-//! `opencode-go`, usually `{"type":"api","key":"..."}`.
-//!
-//! Endpoint: `GET https://opencode.ai/zen/go/v1/usage`. `percent` is 0-100
-//! used; 403 means the key has no Go subscription, which is not an error.
-
 use crate::limits_strip::{
     http, iso_ms, json_or_error, net_err, num, LimitWindow, ReadError, Reading, Secret,
     UsageProvider, DAY_MS, HOUR_MS,
@@ -66,7 +56,6 @@ impl UsageProvider for OpenCode {
     }
 
     async fn detect(&self) -> bool {
-        // Existence only: the file is not opened until the reader is on.
         auth_path().map(|p| p.is_file()).unwrap_or(false)
     }
 

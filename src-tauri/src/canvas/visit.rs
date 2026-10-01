@@ -1,20 +1,3 @@
-//! Read-only canvas visits (study 98, 03 §A.6) through the existing
-//! `omniworld-server` relay, with no change on the server:
-//!
-//! - the host opens a room with `"house": "canvas-v1"` (the hello is signed
-//!   with the local profile's ed25519 key, as the old house visits were);
-//! - frame `40` carries the scene JSON: nodes (position, size, kind, name,
-//!   agent, role, canonical state), cords and recent reactions. Never a
-//!   terminal's content, unless the host shares that node, and then only its
-//!   rendered screen text, never input;
-//! - frame `43` is the room chat, as before;
-//! - frame `41` from a visitor is only "wave", "point" or "react": it shows
-//!   on the host's canvas and touches no agent;
-//! - frame `42` (interest) asks the host for a fresh scene.
-//!
-//! An old app joining a `canvas-v1` room fails its own codec check; this one
-//! checks `joined.house` before decoding anything.
-
 use std::collections::{HashSet, VecDeque};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
@@ -44,7 +27,6 @@ pub const EVENT_CLOSED: &str = "canvas://visit-closed";
 pub const EVENT_REACTION: &str = "canvas://visit-reaction";
 
 pub const ERR: &str = "ERR_VISIT";
-/// The relay drops frames over 512 KiB; stay well below.
 const SCENE_MAX_BYTES: usize = 400 * 1024;
 const SHARED_SCREEN_LINES: usize = 40;
 const REACTION_TTL_MS: i64 = 6_000;
@@ -62,8 +44,6 @@ struct Session {
     shared: HashSet<String>,
     reactions: VecDeque<Value>,
     force: Arc<AtomicBool>,
-    /// Visitor: the last scene received (what `remote_status`/MCP shows, so a
-    /// visit is testable without the canvas UI).
     last_scene: Option<Value>,
 }
 
@@ -98,7 +78,6 @@ fn emit_state(app: &AppHandle) {
     let _ = app.emit(EVENT_STATE, state_json());
 }
 
-/// `host`, `host:port`, `http(s)://…` or `ws(s)://…` → a `ws(s)://…/v1/room`.
 pub fn normalize_server(raw: Option<String>) -> String {
     let raw = raw
         .map(|s| s.trim().to_string())
@@ -182,8 +161,6 @@ fn signed_hello(app: &AppHandle, op: &str, what: &str, extra: Value) -> Result<V
     Ok(hello)
 }
 
-// ---------------------------------------------------------------- scene
-
 fn node_state(node: &CanvasNode) -> Option<String> {
     let tid = node.data_as::<TerminalData>()?.terminal_id;
     let sig = crate::pty::term().agent_state(&tid)?;
@@ -192,8 +169,6 @@ fn node_state(node: &CanvasNode) -> Option<String> {
         .and_then(|v| v.as_str().map(str::to_string))
 }
 
-/// The scene a visitor sees. Nothing private: no paths, commands, env, URLs
-/// or note bodies; a terminal's screen only when `shared` names it.
 pub fn build_scene(
     ws: &str,
     floor: &str,
@@ -270,15 +245,12 @@ pub fn build_scene(
     }
 }
 
-/// Validates a scene from the network before the UI sees it.
 pub fn accept_scene(bytes: &[u8]) -> Option<Value> {
     let v: Value = serde_json::from_slice(bytes).ok()?;
     (v["v"].as_u64() == Some(SCENE_VERSION) && v["house"] == HOUSE && v["nodes"].is_array())
         .then_some(v)
 }
 
-/// Host loop: rebuilds the scene every second and sends it when it changed
-/// (or when a visitor asked for a fresh one).
 fn spawn_pump(app: AppHandle, cancel: CancellationToken, force: Arc<AtomicBool>) {
     tauri::async_runtime::spawn(async move {
         let mut last: Option<String> = None;
@@ -336,15 +308,12 @@ fn spawn_pump(app: AppHandle, cancel: CancellationToken, force: Arc<AtomicBool>)
             }
             match out.try_send(frame(OP_SCENE, scene.as_bytes())) {
                 Ok(()) => last = Some(scene),
-                // Full: the next tick retries (last stays stale on purpose).
                 Err(mpsc::error::TrySendError::Full(_)) => {}
                 Err(mpsc::error::TrySendError::Closed(_)) => break,
             }
         }
     });
 }
-
-// ---------------------------------------------------------------- socket
 
 fn end(app: &AppHandle, reason: &str) {
     if let Some(s) = session().take() {
@@ -397,7 +366,6 @@ fn on_control(app: &AppHandle, v: &Value) {
             if let Some(s) = session().as_mut() {
                 s.visitors.retain(|(i, _)| *i != id);
                 s.visitors.push((id, name));
-                // The newcomer has no picture yet.
                 s.force.store(true, Ordering::SeqCst);
             }
         }
@@ -432,8 +400,6 @@ fn on_binary(app: &AppHandle, op: u8, payload: &[u8]) {
                 s.force.store(true, Ordering::SeqCst);
             }
         }
-        // A visitor waves, points or reacts. Nothing else is accepted, and
-        // none of it reaches an agent.
         (OP_INPUT, "host") if payload.len() > 4 => {
             let id = u32::from_be_bytes([payload[0], payload[1], payload[2], payload[3]]);
             let Ok(v) = serde_json::from_slice::<Value>(&payload[4..]) else {
@@ -465,7 +431,6 @@ fn on_binary(app: &AppHandle, op: u8, payload: &[u8]) {
     }
 }
 
-/// `{type: wave|point|react, x?, y?, emoji?}` → a sanitized reaction.
 pub fn reaction_of(visitor_id: u32, v: &Value) -> Option<Value> {
     let kind = v["type"].as_str()?;
     if !matches!(kind, "wave" | "point" | "react") {
@@ -491,9 +456,6 @@ fn send(msg: Message) -> Result<(), String> {
         .map_err(|_| format!("{ERR}_BUSY: the connection is saturated"))
 }
 
-// ---------------------------------------------------------------- API
-
-/// Opens `ws`/`floor` for read-only visits; returns the state with the code.
 pub async fn open(
     app: &AppHandle,
     workspace_id: String,
@@ -503,7 +465,6 @@ pub async fn open(
     if session().is_some() {
         return Err(format!("{ERR}_BUSY: close the current visit first"));
     }
-    // Fails early on an unknown floor.
     super::doc::host()
         .store()
         .read(&workspace_id, &floor_id, |_| ())?;
@@ -543,7 +504,6 @@ pub fn close(app: &AppHandle) -> Value {
     state_json()
 }
 
-/// Host: shows (or hides) one terminal's screen text to the visitors.
 pub fn share(app: &AppHandle, node_id: &str, shared: bool) -> Result<Value, String> {
     {
         let mut g = session();
@@ -575,8 +535,6 @@ pub fn share(app: &AppHandle, node_id: &str, shared: bool) -> Result<Value, Stri
     Ok(state_json())
 }
 
-/// Visits a canvas. Answers with the state and the first scene; later
-/// scenes arrive as `canvas://visit-scene`.
 pub async fn join(app: &AppHandle, code: String, server: Option<String>) -> Result<Value, String> {
     if session().is_some() {
         return Err(format!("{ERR}_BUSY: close the current visit first"));
@@ -667,7 +625,6 @@ pub fn chat(text: &str) -> Result<(), String> {
     send(frame(OP_CHAT, text.as_bytes()))
 }
 
-/// Visitor: wave, point at `(x, y)` (world units) or react with an emoji.
 pub fn react(
     kind: &str,
     x: Option<f64>,
@@ -682,7 +639,6 @@ pub fn react(
     send(frame(OP_INPUT, v.to_string().as_bytes()))
 }
 
-/// Visitor: ask the host for a fresh scene.
 pub fn interest() -> Result<(), String> {
     send(frame(OP_INTEREST, b"{\"type\":\"interest\"}"))
 }

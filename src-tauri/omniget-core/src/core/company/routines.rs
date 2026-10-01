@@ -1,13 +1,3 @@
-//! Routines (recurring work that files an issue on a cron) and the cron
-//! parser behind them and behind each agent's timer heartbeat.
-//!
-//! `next_run_ms` is the source of truth; the tick claims a due routine with a
-//! compare-and-set on the value it read, so a slot fires once even with two
-//! tickers. Missed slots (the app was closed) follow the routine's
-//! `catch_up`: `skip`, `once` or `all_capped` (at most 25), and
-//! `skip_if_active` never files a second issue while the last one is open —
-//! the same policies as the durable cron of `/llm` (onda 1, item 1.4).
-
 use chrono::{DateTime, Datelike, Duration, FixedOffset, Local, TimeZone, Timelike, Utc};
 use rusqlite::{params, OptionalExtension, Row, Transaction};
 use serde::{Deserialize, Serialize};
@@ -18,8 +8,6 @@ use super::org::get_staff;
 use super::{audit, changed, invalid, new_id, not_found, now_ms, sql, Actor, CompanyStore};
 
 pub const MAX_CATCH_UP: i64 = 25;
-
-// ── Cron ──────────────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone)]
 struct CronSpec {
@@ -138,15 +126,13 @@ fn day_ok(c: &CronSpec, d: u32, wd: u32) -> bool {
         (true, true) => true,
         (true, false) => dw,
         (false, true) => dm,
-        (false, false) => dm || dw, // classic cron: either restricted field
+        (false, false) => dm || dw,
     }
 }
 
 fn next_in<Tz: TimeZone>(c: &CronSpec, tz: &Tz, after_ms: i64) -> Option<i64> {
     let start = tz.timestamp_millis_opt(after_ms).single()?;
     let mut t = start.with_second(0)?.with_nanosecond(0)? + Duration::minutes(1);
-    // A year of minutes is the ceiling; the skips make it a few hundred
-    // iterations at most.
     for _ in 0..600_000 {
         if !c.month[t.month() as usize] {
             let (y, m) = if t.month() == 12 {
@@ -174,8 +160,6 @@ fn next_in<Tz: TimeZone>(c: &CronSpec, tz: &Tz, after_ms: i64) -> Option<i64> {
     None
 }
 
-/// Next time `expr` fires strictly after `after_ms`, in `tz` (`local`,
-/// `UTC` or `±HH:MM`).
 pub fn next_after(expr: &str, tz: &str, after_ms: i64) -> Result<i64, String> {
     let c = parse(expr)?;
     let out = match tz.trim() {
@@ -195,7 +179,6 @@ pub fn next_after(expr: &str, tz: &str, after_ms: i64) -> Result<i64, String> {
     out.ok_or_else(|| invalid("that cron never fires"))
 }
 
-/// Sets `heartbeat_next_ms` from the agent's cron (or clears it).
 pub(crate) fn schedule_staff_heartbeat(
     tx: &Transaction,
     company: &str,
@@ -216,8 +199,6 @@ pub(crate) fn schedule_staff_heartbeat(
     .map_err(sql)?;
     Ok(())
 }
-
-// ── Routines ──────────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Routine {
@@ -461,7 +442,6 @@ impl CompanyStore {
         })
     }
 
-    /// Files the routine's issue now, outside the schedule.
     pub fn routine_fire(
         &self,
         company: &str,
@@ -484,8 +464,6 @@ impl CompanyStore {
         })
     }
 
-    /// Fires every due routine per its catch-up policy. Returns the issues
-    /// filed.
     pub fn tick_routines(&self, now: i64) -> Result<Vec<String>, String> {
         self.write(|tx, ch| {
             let mut st = tx
@@ -504,7 +482,6 @@ impl CompanyStore {
             let mut filed = Vec::new();
             for r in due {
                 let first = r.next_run_ms.unwrap_or(now);
-                // Count slots between the first due one and now.
                 let mut slots = vec![first];
                 let mut t = first;
                 while slots.len() < (MAX_CATCH_UP + 1) as usize {
@@ -529,7 +506,6 @@ impl CompanyStore {
                 if moved == 0 {
                     continue;
                 }
-                // Grace: a slot within 2 minutes is "on time", not missed.
                 let missed = slots.iter().filter(|s| now - **s > 120_000).count() as i64;
                 let fires: Vec<i64> = match r.catch_up.as_str() {
                     "skip" if missed == slots.len() as i64 => Vec::new(),

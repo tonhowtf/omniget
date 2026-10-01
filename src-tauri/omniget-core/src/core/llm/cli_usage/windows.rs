@@ -1,20 +1,3 @@
-//! The 5 h and 7 d usage windows, per account.
-//!
-//! Two sources, never a third (`estudos/74` §A.2, plan §9.2):
-//!
-//! * [`WindowSource::Real`] — what the CLI itself reported locally: the
-//!   capacity cache the CLI runtime writes from `rate_limit_event` and from
-//!   the installed status line (`<app_data>/llm/cli-capacity.json`), or the
-//!   `rate_limits` block Codex writes into its own rollout. Both are official
-//!   channels. The OmniGet never calls an endpoint and never reads a token.
-//! * [`WindowSource::Estimated`] — tokens summed from the JSONL against a
-//!   configurable per-plan ceiling. Without a ceiling the fraction stays
-//!   `None`: the UI shows tokens, not an invented percentage.
-//!
-//! The 5 h window follows what the CLI does: it opens on the first message
-//! after an idle gap, floored to the hour, and closes exactly five hours
-//! later. A message landing on the boundary opens the next window.
-
 use std::collections::BTreeMap;
 
 use serde::{Deserialize, Serialize};
@@ -23,7 +6,6 @@ use super::parse::{CliUsageEntry, RateLimitSample};
 
 pub const FIVE_HOURS_MS: i64 = 5 * 3_600 * 1_000;
 pub const SEVEN_DAYS_MS: i64 = 7 * 24 * 3_600 * 1_000;
-/// A capacity sample older than this is stale and falls back to `Estimated`.
 pub const CAPACITY_MAX_AGE_MS: i64 = 6 * 3_600 * 1_000;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -60,38 +42,27 @@ impl WindowKind {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum WindowSource {
-    /// The CLI told us, through one of the two official channels.
     Real,
-    /// Summed from the local JSONL.
     Estimated,
 }
 
-/// One window of one account, in the shape the `QuotaMeter` component wants.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct UsageWindow {
     pub account: String,
     pub window: WindowKind,
-    /// Tokens counted in the window. Always filled for `Estimated`; `0` for a
-    /// `Real` window, where the CLI reports a percentage and not tokens.
     pub used_tokens: u64,
-    /// Epoch ms when the window opened.
     pub started_at: i64,
-    /// Epoch ms when it closes.
     pub resets_at: i64,
-    /// 0.0..=1.0, or `None` when no ceiling is known for the plan.
     pub used_fraction: Option<f32>,
     pub source: WindowSource,
 }
 
 impl UsageWindow {
-    /// Share of the window still available, for `router::Capacity`.
     pub fn remaining(&self) -> Option<f32> {
         self.used_fraction.map(|f| (1.0 - f).clamp(0.0, 1.0))
     }
 }
 
-/// Token ceiling of a plan, per window. Both optional because Anthropic and
-/// OpenAI do not publish them: the user types what they observe.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PlanLimits {
     pub five_hour_tokens: Option<u64>,
@@ -114,7 +85,6 @@ impl PlanLimits {
     }
 }
 
-/// One 5 h block of activity, the way the CLI groups it.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Block {
     pub started_at: i64,
@@ -138,8 +108,6 @@ fn billed(e: &CliUsageEntry) -> u64 {
     e.input_tokens + e.output_tokens
 }
 
-/// Split one account's entries into 5 h blocks. Entries must be sorted by
-/// time; [`super::scan::scan_roots`] already returns them that way.
 pub fn five_hour_blocks(entries: &[CliUsageEntry]) -> Vec<Block> {
     let mut blocks: Vec<Block> = Vec::new();
     let mut last_ts = 0i64;
@@ -149,8 +117,6 @@ pub fn five_hour_blocks(entries: &[CliUsageEntry]) -> Vec<Block> {
         }
         let ts = e.ts_ms;
         let open = match blocks.last() {
-            // A gap of five hours or more closes the block, and so does the
-            // window's own end: the next message opens a fresh one.
             Some(b) => ts >= b.ends_at || ts - last_ts >= FIVE_HOURS_MS,
             None => true,
         };
@@ -171,7 +137,6 @@ pub fn five_hour_blocks(entries: &[CliUsageEntry]) -> Vec<Block> {
     blocks
 }
 
-/// Estimated windows for every account present in `entries`.
 pub fn estimated_windows(
     entries: &[CliUsageEntry],
     now_ms: i64,
@@ -187,7 +152,6 @@ pub fn estimated_windows(
     let mut out = Vec::new();
     for (account, list) in by_account {
         let plan = limits.get(&account).copied().unwrap_or_default();
-        // ── 5 h: the block that contains `now`, or an empty one opening now.
         let blocks = five_hour_blocks(&list);
         let active = blocks.iter().rev().find(|b| b.contains(now_ms));
         let (started, ends, used) = match active {
@@ -205,7 +169,6 @@ pub fn estimated_windows(
             ends,
             plan,
         ));
-        // ── 7 d: rolling sum over the last seven days.
         let since = now_ms - SEVEN_DAYS_MS;
         let used: u64 = list
             .iter()
@@ -247,23 +210,14 @@ fn window(
     }
 }
 
-// ── Real source ───────────────────────────────────────────────────────────
-
-/// One window inside the capacity cache written by the CLI runtime.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct CapacityWindow {
-    /// 0..=100, as the status line reports it.
     #[serde(default, alias = "usedPercentage", alias = "used_percent")]
     pub used_percentage: f32,
-    /// Epoch seconds.
     #[serde(default, alias = "resetsAt")]
     pub resets_at: Option<i64>,
 }
 
-/// `<app_data>/llm/cli-capacity.json`, one record per account, as the CLI
-/// runtime writes it. Accepts a single object, an array or a map keyed by
-/// account, so a change of shape on the writer's side degrades instead of
-/// breaking.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct CapacityRecord {
     #[serde(default, alias = "account", alias = "accountId")]
@@ -272,12 +226,10 @@ pub struct CapacityRecord {
     pub five_hour: Option<CapacityWindow>,
     #[serde(default, alias = "sevenDay")]
     pub seven_day: Option<CapacityWindow>,
-    /// Epoch seconds when the sample was taken.
     #[serde(default, alias = "observedAt")]
     pub observed_at: Option<i64>,
 }
 
-/// Parse the capacity cache in any of the three accepted shapes.
 pub fn parse_capacity_cache(text: &str) -> Vec<CapacityRecord> {
     let Ok(v) = serde_json::from_str::<serde_json::Value>(text) else {
         return Vec::new();
@@ -309,9 +261,6 @@ pub fn parse_capacity_cache(text: &str) -> Vec<CapacityRecord> {
     }
 }
 
-/// Windows from the capacity cache. A record older than
-/// [`CAPACITY_MAX_AGE_MS`], or whose window already reset, is dropped: stale
-/// is worse than estimated.
 pub fn real_windows(records: &[CapacityRecord], now_ms: i64) -> Vec<UsageWindow> {
     let mut out = Vec::new();
     for rec in records {
@@ -326,7 +275,7 @@ pub fn real_windows(records: &[CapacityRecord], now_ms: i64) -> Vec<UsageWindow>
             let Some(w) = w else { continue };
             let resets_ms = w.resets_at.map(|s| s * 1000).unwrap_or(0);
             if resets_ms > 0 && resets_ms <= now_ms {
-                continue; // the window already turned over; the value is stale
+                continue;
             }
             let resets_ms = if resets_ms > 0 {
                 resets_ms
@@ -347,7 +296,6 @@ pub fn real_windows(records: &[CapacityRecord], now_ms: i64) -> Vec<UsageWindow>
     out
 }
 
-/// Windows from the rate-limit samples the history itself carries (Codex).
 pub fn windows_from_samples(
     samples: &[(String, RateLimitSample)],
     now_ms: i64,
@@ -392,8 +340,6 @@ pub fn windows_from_samples(
     out
 }
 
-/// One window per `(account, kind)`: a real one always wins, and the token
-/// count of the estimate is kept so the UI can show both.
 pub fn merge_windows(real: Vec<UsageWindow>, estimated: Vec<UsageWindow>) -> Vec<UsageWindow> {
     let mut by_key: BTreeMap<(String, u32), UsageWindow> = BTreeMap::new();
     for w in estimated {
@@ -424,14 +370,13 @@ mod tests {
         }
     }
 
-    const NOON: i64 = 1_772_625_600_000; // 2026-03-04T12:00:00Z
+    const NOON: i64 = 1_772_625_600_000;
 
     #[test]
     fn a_block_closes_exactly_five_hours_after_it_opened() {
         let e = vec![
             entry("a", NOON + 60_000, 10),
             entry("a", NOON + FIVE_HOURS_MS - 1, 10),
-            // Lands on the boundary: opens the next window.
             entry("a", NOON + FIVE_HOURS_MS, 10),
         ];
         let blocks = five_hour_blocks(&e);
@@ -459,7 +404,6 @@ mod tests {
         let mut limits = BTreeMap::new();
         limits.insert("a".to_string(), PlanLimits::new(1_000, 10_000));
         let e = vec![entry("a", NOON, 400)];
-        // Still inside the window.
         let w = estimated_windows(&e, NOON + 3_600_000, &limits);
         let five = w
             .iter()
@@ -467,7 +411,6 @@ mod tests {
             .unwrap();
         assert_eq!(five.used_tokens, 400);
         assert_eq!(five.used_fraction, Some(0.4));
-        // Past the turn: a fresh, empty window.
         let w = estimated_windows(&e, NOON + FIVE_HOURS_MS + 1, &limits);
         let five = w
             .iter()
@@ -491,7 +434,6 @@ mod tests {
             .find(|w| w.window == WindowKind::SevenDays)
             .unwrap();
         assert_eq!(seven.used_tokens, 75);
-        // No ceiling configured: no invented percentage.
         assert_eq!(seven.used_fraction, None);
         assert_eq!(seven.source, WindowSource::Estimated);
     }

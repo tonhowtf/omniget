@@ -171,8 +171,6 @@ impl PlatformDownloader for TelegramDownloader {
         opts: &DownloadOptions,
         progress: mpsc::Sender<crate::models::progress::ProgressUpdate>,
     ) -> anyhow::Result<DownloadResult> {
-        // internals report plain percent values; adapt them to the trait's
-        // ProgressUpdate channel
         let (percent_tx, mut percent_rx) = mpsc::channel::<f64>(32);
         let forward = progress.clone();
         tokio::spawn(async move {

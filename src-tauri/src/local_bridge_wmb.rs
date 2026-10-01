@@ -1,8 +1,3 @@
-//! `POST /v1/wmb/<tool>`: the washmybelly tools for `omniget wmb` (same
-//! bearer as the rest of the bridge). Reads and plans run here; executing a
-//! plan or undoing a receipt only creates an approval request that the
-//! person answers in the OmniGet window, exactly like an external MCP client.
-
 use axum::extract::Path;
 use axum::http::{HeaderMap, StatusCode};
 use axum::response::{IntoResponse, Response};

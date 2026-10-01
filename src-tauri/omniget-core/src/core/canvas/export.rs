@@ -1,13 +1,3 @@
-//! Partitura export/import of a selection: nodes, cords with both ends inside,
-//! drawings, groups, the roles the terminals use (embedded) and the note texts.
-//! "Blueprints, not backups" (Maestri): no scrollback, no run state, no
-//! environment overrides and no absolute paths. A terminal's `cwd` inside the
-//! workspace folder is kept relative and resolved against the destination.
-//!
-//! The partitura library itself (`~/.../partituras/`) belongs to the
-//! partituras module; this file only turns a selection into the document and
-//! stamps a document back onto a floor.
-
 use super::model::{
     new_id, now_rfc3339, CanvasNode, Connection, Drawing, FloorDoc, Group, NodeKind, Point, Rect,
 };
@@ -51,7 +41,6 @@ pub struct Partitura {
     pub created_at: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub source_workspace_id: Option<String>,
-    /// Size of the selection; node and drawing coordinates are relative to its top-left.
     #[serde(default)]
     pub bounds: super::model::Size,
     #[serde(default)]
@@ -64,7 +53,6 @@ pub struct Partitura {
     pub groups: Vec<Group>,
     #[serde(default)]
     pub roles: Vec<EmbeddedRole>,
-    /// Note node id -> markdown.
     #[serde(default)]
     pub note_texts: BTreeMap<String, String>,
 }
@@ -88,10 +76,8 @@ pub struct ExportOptions {
     pub icon: Option<String>,
     #[serde(default)]
     pub color: Option<String>,
-    /// Keep terminal `command` lines (default true).
     #[serde(default)]
     pub include_startup_commands: Option<bool>,
-    /// Ship notes empty.
     #[serde(default)]
     pub blank_notes: bool,
 }
@@ -102,14 +88,10 @@ pub struct ImportResult {
     pub apply: ApplyResult,
     pub node_ids: Vec<String>,
     pub drawing_ids: Vec<String>,
-    /// Roles the partitura carries; the roles module merges them (id, then name).
     pub roles: Vec<EmbeddedRole>,
 }
 
-/// Default role lookup: `<ws>/roles/<roleId>/role.json` (`{id, name, prompt, icon?, color?}`),
-/// with the prompt falling back to a sibling `prompt.md`, `CLAUDE.md` or `AGENTS.md`.
 pub fn role_from_disk(store: &CanvasStore, ws: &str, role_id: &str) -> Option<EmbeddedRole> {
-    // One storage for roles: workspace roles, then the library (core::canvas::roles).
     let (r, _) = super::roles::get(store, ws, role_id)?;
     Some(EmbeddedRole {
         id: r.id,
@@ -125,7 +107,6 @@ fn is_local_url(url: &str) -> bool {
     u.starts_with("file:") || u.starts_with('/') || (u.len() > 2 && u.as_bytes()[1] == b':')
 }
 
-/// `cwd` relative to the workspace folder when inside it, else dropped.
 fn relative_cwd(cwd: &str, base: Option<&str>) -> Option<String> {
     let base = base?;
     let rel = Path::new(cwd).strip_prefix(base).ok()?;
@@ -137,7 +118,6 @@ fn relative_cwd(cwd: &str, base: Option<&str>) -> Option<String> {
     })
 }
 
-/// Builds a partitura from a selection of one floor.
 pub fn export_selection(
     doc: &FloorDoc,
     workspace_id: &str,
@@ -148,7 +128,6 @@ pub fn export_selection(
     resolve_role: &dyn Fn(&str) -> Option<EmbeddedRole>,
 ) -> Result<Partitura, String> {
     let mut wanted: HashSet<&str> = selection.node_ids.iter().map(String::as_str).collect();
-    // A selected stack brings its notes.
     for n in &doc.nodes {
         if let Some(s) = &n.stack_id {
             if wanted.contains(s.as_str()) {
@@ -169,7 +148,6 @@ pub fn export_selection(
         let kind = n.kind.clone();
         let data = n.data.as_object_mut().ok_or("node data is not an object")?;
         match &kind {
-            // Attachments and cross-floor chips don't travel.
             NodeKind::File | NodeKind::Connector | NodeKind::Unknown(_) => continue,
             NodeKind::Terminal | NodeKind::Agent => {
                 for k in ["terminalId", "env", "botId", "appearance"] {
@@ -194,7 +172,6 @@ pub fn export_selection(
             }
             NodeKind::Note => {
                 texts.insert(n.id.clone(), note_body.unwrap_or_default());
-                // External notes become internal ones on the other side.
                 data.remove("path");
                 data.remove("isExternal");
                 data.remove("fileName");
@@ -239,7 +216,6 @@ pub fn export_selection(
     }
 
     let kept: HashSet<String> = nodes.iter().map(|n| n.id.clone()).collect();
-    // Stack tabs pointing at dropped notes go away.
     for n in nodes.iter_mut().filter(|n| n.kind == NodeKind::Stack) {
         if let Some(tabs) = n.data.get_mut("tabs").and_then(|t| t.as_array_mut()) {
             tabs.retain(|t| t.as_str().is_some_and(|s| kept.contains(s)));
@@ -274,7 +250,6 @@ pub fn export_selection(
         .cloned()
         .collect();
 
-    // Normalize coordinates to the selection's top-left.
     let bbox = nodes
         .iter()
         .filter(|n| n.is_on_canvas())
@@ -315,7 +290,6 @@ pub fn export_selection(
     })
 }
 
-/// Store-level export with the default role lookup.
 pub fn export_from_store(
     store: &CanvasStore,
     ws: &str,
@@ -341,10 +315,6 @@ pub fn export_from_store(
     )
 }
 
-/// Stamps a partitura onto a floor with its top-left at `at`. Every id is new;
-/// note texts become note files; relative `cwd`s resolve against the
-/// workspace folder. `role_map` remaps role ids (after the roles module merged
-/// the embedded roles); unmapped ids are kept. Everything arrives in one batch.
 pub fn import_partitura(
     store: &CanvasStore,
     ws: &str,

@@ -1,19 +1,13 @@
-//! Linux: XDG autostart (user and system) and `systemd --user` units.
-//! Parsers are pure and compiled in every test build.
-
 use std::collections::HashMap;
 
-/// What the list needs from an autostart `.desktop` file.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct Desktop {
     pub name: Option<String>,
     pub exec: Option<String>,
     pub hidden: bool,
-    /// `X-GNOME-Autostart-enabled`, when present.
     pub gnome_enabled: Option<bool>,
     pub only_show_in: Vec<String>,
     pub not_show_in: Vec<String>,
-    /// A desktop component (session phase or auto-restart set).
     pub session_part: bool,
 }
 
@@ -22,7 +16,6 @@ impl Desktop {
         !self.hidden && self.gnome_enabled != Some(false)
     }
 
-    /// Runs in this desktop (`XDG_CURRENT_DESKTOP`, `:`-separated).
     pub fn applies_to(&self, current: &str) -> bool {
         let cur: Vec<String> = current
             .split(':')
@@ -41,7 +34,6 @@ fn truthy(v: &str) -> bool {
     matches!(v.trim(), "true" | "1")
 }
 
-/// Keys of the `[Desktop Entry]` group only; localized keys are ignored.
 pub fn parse_desktop(text: &str) -> Desktop {
     let mut d = Desktop::default();
     let mut in_entry = false;
@@ -80,7 +72,6 @@ pub fn parse_desktop(text: &str) -> Desktop {
     d
 }
 
-/// Autostart files that belong to the desktop itself.
 const DESKTOP_PARTS: &[&str] = &[
     "org.gnome.",
     "gnome-",
@@ -129,8 +120,6 @@ pub fn is_desktop_part(file: &str, d: &Desktop) -> bool {
     d.session_part || DESKTOP_PARTS.iter().any(|p| f.starts_with(p))
 }
 
-/// `systemctl --user list-unit-files --state=enabled --no-legend`:
-/// `(unit, state, vendor preset)`.
 pub fn parse_unit_files(text: &str) -> Vec<(String, String, Option<String>)> {
     text.lines()
         .filter_map(|l| {
@@ -149,7 +138,6 @@ pub fn parse_unit_files(text: &str) -> Vec<(String, String, Option<String>)> {
         .collect()
 }
 
-/// `2.105s`, `873ms`, `1min 2.500s`, `1h 2min 3s` → milliseconds.
 pub fn duration_ms(text: &str) -> Option<u64> {
     let mut total = 0f64;
     let mut any = false;
@@ -170,7 +158,6 @@ pub fn duration_ms(text: &str) -> Option<u64> {
     any.then(|| total.round() as u64)
 }
 
-/// `systemd-analyze --user blame`: unit → milliseconds.
 pub fn parse_blame(text: &str) -> HashMap<String, u64> {
     text.lines()
         .filter_map(|l| {
@@ -211,7 +198,6 @@ mod live {
         let mut items: Vec<StartupItem> = Vec::new();
         let current = std::env::var("XDG_CURRENT_DESKTOP").unwrap_or_default();
 
-        // file name → (user copy, first system file)
         let mut files: Vec<(String, Option<PathBuf>, Option<PathBuf>)> = Vec::new();
         for p in desktop_files(&env.autostart_user) {
             let f = p
@@ -285,7 +271,6 @@ mod live {
             });
         }
 
-        // systemd --user units that start with the session.
         let blame = sys
             .run(&argv_array![
                 "systemd-analyze",
@@ -312,7 +297,6 @@ mod live {
                     {
                         continue;
                     }
-                    // The distribution turns it on by default: part of the session.
                     let part = preset.as_deref() == Some("enabled");
                     if part && !include_system {
                         continue;

@@ -1,6 +1,3 @@
-//! Library state: book edits, reading status and progress, shelves (manual
-//! and smart), annotations, reading sessions, statistics and goals.
-
 use std::cmp::Reverse;
 use std::collections::{BTreeMap, HashMap};
 
@@ -15,8 +12,6 @@ fn changed(app: &AppHandle) {
     let _ = app.emit("read-library-changed", ());
 }
 
-// ---------- books ----------
-
 #[tauri::command]
 pub async fn read_books() -> Result<Vec<BookRow>, String> {
     blocking(db::all_books).await
@@ -27,8 +22,6 @@ pub async fn read_book(id: i64) -> Result<BookRow, String> {
     blocking(move || db::book(id)).await
 }
 
-/// Full-text search over title, authors, series, description, subjects and
-/// tags; returns ids best match first.
 #[tauri::command]
 pub async fn read_search(query: String) -> Result<Vec<i64>, String> {
     blocking(move || {
@@ -72,7 +65,6 @@ pub struct BookPatch {
     pub tags: Option<Vec<String>>,
     pub prefs: Option<serde_json::Value>,
     pub rtl: Option<bool>,
-    /// Also rewrite the metadata inside the file (EPUB only).
     pub write_file: bool,
 }
 
@@ -176,7 +168,6 @@ pub async fn read_update_book(
                 isbn: patch.isbn.clone(),
             };
             omniget_core::core::read::epub::write_metadata(std::path::Path::new(&b.path), &edit)?;
-            // Keep the stamp in sync so the next scan doesn't re-read it.
             if let Ok(m) = std::fs::metadata(&b.path) {
                 let mt = m
                     .modified()
@@ -238,8 +229,6 @@ pub async fn read_bulk_update(
     Ok(())
 }
 
-/// Forgets books; with `delete_files` also moves the files to the trash
-/// folder of the library (never a hard delete).
 #[tauri::command]
 pub async fn read_remove_books(
     app: AppHandle,
@@ -279,8 +268,6 @@ fn trash(path: &str) -> Result<(), String> {
         .map_err(|e| e.to_string())
 }
 
-/// Saves where the reader is. `location` is an EPUB CFI for reflowable
-/// books and the page index for comics.
 #[tauri::command]
 pub async fn read_save_progress(
     id: i64,
@@ -306,8 +293,6 @@ pub async fn read_save_progress(
     .await
 }
 
-/// A finished stretch of reading (the reader sends one when it closes or
-/// after a minute idle). Feeds statistics and the time-left estimate.
 #[tauri::command]
 pub async fn read_log_session(
     book_id: Option<i64>,
@@ -337,8 +322,6 @@ pub async fn read_log_session(
     .await
 }
 
-// ---------- shelves ----------
-
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Shelf {
     pub id: i64,
@@ -351,7 +334,6 @@ pub struct Shelf {
 
 #[derive(Debug, Serialize, Deserialize, Clone, Default, PartialEq)]
 pub struct SmartRules {
-    /// `all` or `any`.
     #[serde(default = "all")]
     pub matching: String,
     pub rules: Vec<SmartRule>,
@@ -489,7 +471,6 @@ pub fn shelf_book_ids(id: i64) -> Result<Vec<i64>, String> {
     })
 }
 
-/// `(id, name, count)` for the OPDS server.
 pub fn shelves_raw() -> Result<Vec<(i64, String, usize)>, String> {
     let list: Vec<(i64, String)> = db::with(|c| {
         let mut st = c.prepare("SELECT id, name FROM shelves ORDER BY position, name")?;
@@ -647,8 +628,6 @@ pub async fn read_shelf_remove(
     Ok(())
 }
 
-// ---------- annotations ----------
-
 #[tauri::command]
 pub async fn read_annotations(book_id: Option<i64>) -> Result<Vec<Annotation>, String> {
     blocking(move || {
@@ -747,7 +726,6 @@ fn fmt_date(ms: i64) -> String {
         .unwrap_or_default()
 }
 
-/// Markdown with a deep link back into the reader for every highlight.
 pub fn annotations_markdown(b: &BookRow, list: &[Annotation]) -> String {
     let mut o = format!("# {}\n\n", b.title);
     if !b.authors.is_empty() {
@@ -848,7 +826,6 @@ pub async fn read_annotations_export(
     .await
 }
 
-/// Just enough Markdown -> HTML for the export (quotes, headings, links).
 fn marked_like(md: &str) -> String {
     let esc = omniget_core::core::read::xml::escape;
     let link = regex::Regex::new(r"\[([^\]]*)\]\(([^)]*)\)").expect("static regex");
@@ -869,8 +846,6 @@ fn marked_like(md: &str) -> String {
     out
 }
 
-/// "Live notes": when a folder is set, every change rewrites
-/// `<folder>/<title>.md` (an Obsidian vault works).
 fn live_export(book_id: i64) -> Result<(), String> {
     let Some(dir) = db::kv_get::<String>("notes_dir").filter(|d| !d.is_empty()) else {
         return Ok(());
@@ -908,8 +883,6 @@ pub async fn read_notes_dir(dir: Option<String>) -> Result<String, String> {
     .await
 }
 
-// ---------- stats & goals ----------
-
 #[derive(Debug, Serialize, Default)]
 pub struct Stats {
     pub books: i64,
@@ -924,9 +897,7 @@ pub struct Stats {
     pub year_ms: i64,
     pub streak_days: i64,
     pub longest_streak: i64,
-    /// `YYYY-MM-DD` -> ms, last 371 days.
     pub days: BTreeMap<String, i64>,
-    /// 0..23 -> ms, when you read.
     pub hours: Vec<i64>,
     pub top_authors: Vec<(String, i64)>,
     pub top_books: Vec<(i64, String, i64)>,
@@ -1025,7 +996,6 @@ pub async fn read_stats() -> Result<Stats, String> {
         if !sessions.is_empty() {
             s.avg_session_ms = s.total_ms / sessions.len() as i64;
         }
-        // Streaks over days with at least a minute of reading.
         let mut day = today;
         let active = |d: &chrono::NaiveDate, days: &BTreeMap<String, i64>| {
             days.get(&d.format("%Y-%m-%d").to_string())
@@ -1092,8 +1062,6 @@ pub async fn read_set_goal(goal: Goal) -> Result<(), String> {
     blocking(move || db::kv_set(&format!("goal:{}", goal.year), &goal)).await
 }
 
-// ---------- vocabulary ----------
-
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Word {
     pub id: i64,
@@ -1106,7 +1074,6 @@ pub struct Word {
     pub created_at: i64,
 }
 
-/// Words saved from the dictionary popup, with the sentence they came from.
 #[tauri::command]
 pub async fn read_vocab_add(
     word: String,
@@ -1161,8 +1128,6 @@ pub async fn read_vocab_delete(id: i64) -> Result<(), String> {
         .await
 }
 
-/// Anki-ready: tab-separated front (word + sentence with the word in bold)
-/// and back (definition + book).
 #[tauri::command]
 pub async fn read_vocab_export(path: String) -> Result<usize, String> {
     let words = read_vocab_list().await?;
@@ -1182,8 +1147,6 @@ pub async fn read_vocab_export(path: String) -> Result<usize, String> {
     Ok(words.len())
 }
 
-/// Books that look like the same work: same partial hash, or same
-/// normalized title + first author.
 #[tauri::command]
 pub async fn read_duplicates() -> Result<Vec<Vec<i64>>, String> {
     blocking(|| {
@@ -1228,12 +1191,6 @@ pub async fn read_duplicates() -> Result<Vec<Vec<i64>>, String> {
     .await
 }
 
-// ---------- organize files ----------
-
-/// Fills a naming template: `{author}`, `{authors}`, `{title}`, `{series}`,
-/// `{index}`, `{year}`, `{language}`, `{publisher}`, `{format}`. A segment
-/// in `<...>` is dropped when any field inside it is empty
-/// (`{author}/<{series}/>{title}`).
 pub fn render_template(tpl: &str, b: &BookRow) -> String {
     let field = |k: &str| -> String {
         match k {
@@ -1290,8 +1247,6 @@ pub struct MovePlan {
     pub to: String,
 }
 
-/// Moves books into `<root>/<template>.<ext>`. `dry_run` only returns the
-/// plan. Books inside a manga series folder are left alone.
 #[tauri::command]
 pub async fn read_organize(
     app: AppHandle,

@@ -1,15 +1,3 @@
-//! Grok CLI.
-//!
-//! Credential (read only): `~/.grok/auth.json` on every OS
-//! (`%USERPROFILE%\.grok\auth.json`). An object keyed by
-//! `<issuer>::<client_id>`; each entry has `key` (the bearer), `expires_at`
-//! (ISO) and `email`. Only a session minted by `https://auth.x.ai` is used: the
-//! file can also hold a customer IdP's token meant for a private proxy, and
-//! sending that to the public host would hand a credential to the wrong party.
-//!
-//! Endpoint: `GET https://cli-chat-proxy.grok.com/v1/billing?format=credits`
-//! with `X-XAI-Token-Auth: xai-grok-cli`, the one the CLI's `/usage` asks.
-
 use crate::limits_strip::{
     http, iso_ms, json_or_error, net_err, now_ms, num, LimitWindow, ReadError, Reading, Secret,
     UsageProvider, DAY_MS,
@@ -32,7 +20,6 @@ pub struct Session {
     pub expired: bool,
 }
 
-/// The freshest xAI-issued entry. `None` when the file holds none at all.
 pub fn pick_session(v: &serde_json::Value, now: i64) -> Option<Session> {
     let mut best: Option<(i64, Session)> = None;
     for (key, entry) in v.as_object()? {

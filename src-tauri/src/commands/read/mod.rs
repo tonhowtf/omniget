@@ -1,11 +1,3 @@
-//! `/read` superpower: a local library and reader for books, comics and
-//! manga, plus legal catalogs, followed series and conversions.
-//!
-//! Rust indexes, serves and downloads; the webview reads (foliate-js for
-//! reflowable books and PDFs, our own comic reader for image pages). Pure
-//! building blocks (formats, EPUB/MOBI/FB2/ComicInfo, OPDS, sources,
-//! kosync) live in `omniget_core::core::read` so the CLI can reuse them.
-
 pub mod ai;
 pub mod convert;
 pub mod db;
@@ -34,7 +26,6 @@ pub(crate) async fn blocking<T: Send + 'static>(
         .map_err(|e| e.to_string())?
 }
 
-/// Logins live in the app's secret store, never in `read.db`.
 pub fn secret(key: &str) -> String {
     crate::secrets::load_secret(crate::secrets::READ, key)
         .ok()
@@ -49,8 +40,6 @@ pub fn set_secret(key: &str, value: &str) -> Result<(), String> {
         crate::secrets::save_secret(crate::secrets::READ, key, value)
     }
 }
-
-// ---------- status & folders ----------
 
 #[derive(Serialize)]
 pub struct ReadStatus {
@@ -85,8 +74,6 @@ pub fn default_download_dir() -> String {
         .to_string()
 }
 
-/// The first non-loopback IPv4, so the share panel can show a URL an
-/// e-reader on the same Wi-Fi can type.
 fn lan_ip() -> Option<String> {
     let sock = std::net::UdpSocket::bind("0.0.0.0:0").ok()?;
     sock.connect("192.0.2.1:9").ok()?;
@@ -98,7 +85,6 @@ fn lan_ip() -> Option<String> {
 pub async fn read_status(app: AppHandle) -> Result<ReadStatus, String> {
     let info = server::ensure(&app).await?;
     manga::start_update_loop(app.clone());
-    // Pick up files added while the app was closed, once per run.
     static SCANNED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
     if !db::roots()?.is_empty() && !SCANNED.swap(true, std::sync::atomic::Ordering::SeqCst) {
         let app2 = app.clone();
@@ -208,9 +194,6 @@ pub fn read_scan_cancel() {
     scan::cancel();
 }
 
-/// Adds files or folders outside the watched roots (drag and drop, a
-/// finished download). A folder of images becomes one comic; any other
-/// folder is walked for books.
 #[tauri::command]
 pub async fn read_import_paths(
     app: AppHandle,
@@ -256,8 +239,6 @@ pub async fn read_import_paths(
     Ok(rows)
 }
 
-/// Replaces a book's cover with image bytes (a page picked in the reader,
-/// a rendered PDF page), an image file or an image URL.
 #[tauri::command]
 pub async fn read_set_cover(
     app: AppHandle,
@@ -298,9 +279,6 @@ pub async fn read_set_cover(
     Ok(row)
 }
 
-/// TXT, Markdown and HTML open in the reader as an EPUB made on the fly
-/// (cached next to the covers, rebuilt when the file changes). Returns the
-/// URL the reader fetches it from.
 #[tauri::command]
 pub async fn read_prepare(app: AppHandle, id: i64) -> Result<String, String> {
     let info = server::ensure(&app).await?;
@@ -342,8 +320,6 @@ pub fn prepared_path(b: &BookRow) -> Option<PathBuf> {
     })
 }
 
-/// "Read later": saves a web page as an EPUB in the library (article text
-/// only, no scripts).
 #[tauri::command]
 pub async fn read_save_url(app: AppHandle, url: String) -> Result<BookRow, String> {
     let r = sources::http()
@@ -392,7 +368,6 @@ pub async fn read_save_url(app: AppHandle, url: String) -> Result<BookRow, Strin
     Ok(row)
 }
 
-/// Comic pages: the count, for the reader and OPDS page streaming.
 #[tauri::command]
 pub async fn read_comic_pages(id: i64) -> Result<usize, String> {
     blocking(move || {
@@ -416,7 +391,6 @@ pub async fn read_share_set(
     app: AppHandle,
     mut cfg: server::ShareConfig,
 ) -> Result<Option<u16>, String> {
-    // An unchanged masked password keeps the stored one.
     if cfg.password != "••••••" {
         set_secret("share", &cfg.password)?;
     }

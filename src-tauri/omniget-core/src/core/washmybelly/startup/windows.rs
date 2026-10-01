@@ -1,12 +1,7 @@
-//! Windows: Run/RunOnce keys, the Startup folders, `StartupApproved`,
-//! logon and boot tasks, third-party automatic services. Parsers are pure
-//! and compiled in every test build.
-
 use std::collections::HashMap;
 
 use crate::core::washmybelly::parse::RegValue;
 
-/// `StartupApproved` values by lower-case entry name: `true` = on.
 pub fn approved_map(values: &[RegValue]) -> HashMap<String, bool> {
     values
         .iter()
@@ -16,7 +11,6 @@ pub fn approved_map(values: &[RegValue]) -> HashMap<String, bool> {
         .collect()
 }
 
-/// A tiny CSV reader: quoted fields, `""` escapes, commas inside quotes.
 pub fn csv_rows(text: &str) -> Vec<Vec<String>> {
     let mut rows = Vec::new();
     for line in text.lines() {
@@ -44,7 +38,6 @@ pub fn csv_rows(text: &str) -> Vec<Vec<String>> {
     rows
 }
 
-/// One task of `schtasks /query /fo csv /v` (triggers merged).
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct Task {
     pub path: String,
@@ -53,7 +46,6 @@ pub struct Task {
     pub run: String,
     pub run_as: String,
     pub comment: String,
-    /// Starts at logon or at boot.
     pub at_logon: bool,
     pub at_boot: bool,
 }
@@ -109,8 +101,6 @@ fn has_any(text: &str, words: &[&str]) -> bool {
     words.iter().any(|w| t.contains(w))
 }
 
-/// Tasks with a logon or boot trigger, outside `\Microsoft\`. Columns are
-/// read by position (the header is localized); a header row is skipped.
 pub fn parse_schtasks(csv: &str) -> Vec<Task> {
     let mut by_path: Vec<Task> = Vec::new();
     for row in csv_rows(csv) {
@@ -152,7 +142,6 @@ pub fn parse_schtasks(csv: &str) -> Vec<Task> {
         .collect()
 }
 
-/// `sc.exe query`: service name → (display name, running).
 pub fn parse_sc_query(text: &str) -> HashMap<String, (String, bool)> {
     let mut out = HashMap::new();
     let mut name = String::new();
@@ -178,7 +167,6 @@ pub fn parse_sc_query(text: &str) -> HashMap<String, (String, bool)> {
     out
 }
 
-/// A service from `reg query HKLM\SYSTEM\CurrentControlSet\Services /s`.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct Service {
     pub name: String,
@@ -196,8 +184,6 @@ fn dword(s: &str) -> u32 {
         .unwrap_or_else(|| s.parse().unwrap_or(0))
 }
 
-/// Services (not drivers) from one or more `reg query` outputs of the
-/// Services key; values of the same service are merged.
 pub fn parse_services(texts: &[&str]) -> Vec<Service> {
     let mut map: Vec<Service> = Vec::new();
     for text in texts {
@@ -231,11 +217,9 @@ pub fn parse_services(texts: &[&str]) -> Vec<Service> {
             }
         }
     }
-    // 0x10 own process, 0x20 shared process (drivers are 0x1/0x2).
     map.into_iter().filter(|s| s.kind & 0x30 != 0).collect()
 }
 
-/// Lives in the Windows folder (a component of the system).
 pub fn is_system_path(path: &str) -> bool {
     let p = path.trim().trim_start_matches('"').to_ascii_lowercase();
     p.starts_with("%systemroot%")
@@ -245,7 +229,6 @@ pub fn is_system_path(path: &str) -> bool {
         || p.get(1..).is_some_and(|r| r.starts_with(":\\windows\\"))
 }
 
-/// The program of a command line: the quoted part, or up to `.exe`.
 pub fn program_path(command: &str) -> String {
     let c = command.trim();
     if let Some(rest) = c.strip_prefix('"') {
@@ -258,7 +241,6 @@ pub fn program_path(command: &str) -> String {
     c.split_whitespace().next().unwrap_or("").to_string()
 }
 
-/// Our Authenticode script prints `status<TAB>subject<TAB>path` per file.
 pub fn parse_authenticode(text: &str) -> HashMap<String, (bool, Option<String>)> {
     text.lines()
         .filter_map(|l| {
@@ -278,7 +260,6 @@ pub fn parse_authenticode(text: &str) -> HashMap<String, (bool, Option<String>)>
         .collect()
 }
 
-/// Fixed script; the paths come in `OMNIGET_WMB_PATHS`, one per line.
 pub const AUTHENTICODE_SCRIPT: &str = "$ErrorActionPreference='SilentlyContinue'; foreach ($p in ($env:OMNIGET_WMB_PATHS -split \"`n\")) { if ($p) { $s = Get-AuthenticodeSignature -LiteralPath $p; \"{0}`t{1}`t{2}\" -f $s.Status, $s.SignerCertificate.Subject, $p } }";
 
 #[cfg(windows)]
@@ -317,7 +298,6 @@ mod live {
         let mut notes = Vec::new();
         let mut items: Vec<StartupItem> = Vec::new();
 
-        // Run and RunOnce.
         let keys = [
             ("HKCU", RUN, "Run", "run"),
             ("HKCU", RUN_ONCE, "Run", "run_once"),
@@ -383,7 +363,6 @@ mod live {
             }
         }
 
-        // Startup folders.
         let folders = [
             (
                 std::env::var_os("APPDATA").map(|a| {
@@ -448,7 +427,6 @@ mod live {
             }
         }
 
-        // Logon and boot tasks.
         let me = std::env::var("USERNAME")
             .unwrap_or_default()
             .to_ascii_lowercase();
@@ -496,7 +474,6 @@ mod live {
             Err(e) => notes.push(format!("tasks_unavailable: {e}")),
         }
 
-        // Third-party automatic services: listed, and "set to manual" only.
         let svc_key = r"HKLM\SYSTEM\CurrentControlSet\Services";
         let texts: Vec<String> = [
             "Start",
@@ -583,7 +560,6 @@ mod live {
         out
     }
 
-    /// One PowerShell call for every program's Authenticode signature.
     fn sign(sys: &dyn Sys, items: &mut [StartupItem]) {
         let paths: Vec<String> = items
             .iter()

@@ -1,9 +1,3 @@
-//! EPUB 2/3: metadata, cover and table of contents from the OPF, NCX and
-//! nav document, plus writing metadata back into the OPF.
-//!
-//! The reader itself (foliate-js) parses EPUBs in the webview; this is what
-//! the library needs without opening a view: titles, series, covers.
-
 use std::io::{Read, Seek, Write};
 
 use serde::{Deserialize, Serialize};
@@ -26,13 +20,11 @@ pub struct BookMeta {
     pub publisher: String,
     pub description: String,
     pub subjects: Vec<String>,
-    /// `(scheme, value)`, scheme lowercased (`isbn`, `uuid`, `asin`, ...).
     pub identifiers: Vec<(String, String)>,
     pub series: String,
     pub series_index: Option<f64>,
     pub published: String,
     pub rights: String,
-    /// In-archive path of the cover image, when there is one.
     pub cover: Option<String>,
     pub rtl: bool,
     pub fixed_layout: bool,
@@ -57,7 +49,6 @@ pub fn looks_like_isbn(v: &str) -> bool {
     (digits.len() == 10 || digits.len() == 13) && v.len() <= 20
 }
 
-/// Directory part of an archive path, with trailing slash (`OEBPS/`).
 fn dir_of(path: &str) -> &str {
     match path.rfind('/') {
         Some(i) => &path[..=i],
@@ -65,8 +56,6 @@ fn dir_of(path: &str) -> &str {
     }
 }
 
-/// Resolves `href` relative to `base_dir`, handling `../` and dropping
-/// the fragment.
 pub fn resolve(base_dir: &str, href: &str) -> String {
     let href = href.split('#').next().unwrap_or("");
     let href = urlencoding::decode(href)
@@ -121,7 +110,6 @@ pub fn read<R: Read + Seek>(reader: R) -> Result<BookMeta, String> {
     let opf = opf_path(&mut zip).ok_or("no OPF in EPUB")?;
     let text = read_entry(&mut zip, &opf).ok_or("unreadable OPF")?;
     let mut meta = parse_opf(&text, &opf);
-    // TOC: EPUB 3 nav first, then NCX.
     let root = xml::parse(&text);
     let base = dir_of(&opf).to_string();
     if let Some(manifest) = root.find("manifest") {
@@ -153,7 +141,6 @@ pub fn read<R: Read + Seek>(reader: R) -> Result<BookMeta, String> {
         }
     }
     if meta.cover.is_none() {
-        // Last resort: first image whose name says cover.
         meta.cover = (0..zip.len()).find_map(|i| {
             let n = zip.by_index(i).ok()?.name().to_string();
             (super::format::is_image_name(&n) && n.to_ascii_lowercase().contains("cover"))
@@ -163,8 +150,6 @@ pub fn read<R: Read + Seek>(reader: R) -> Result<BookMeta, String> {
     Ok(meta)
 }
 
-/// Parses an OPF document. `opf_path` is its path in the archive, used to
-/// resolve the cover href.
 pub fn parse_opf(text: &str, opf_path: &str) -> BookMeta {
     let root = xml::parse(text);
     let mut m = BookMeta::default();
@@ -173,7 +158,6 @@ pub fn parse_opf(text: &str, opf_path: &str) -> BookMeta {
     };
     let base = dir_of(opf_path);
     let md = pkg.find("metadata").cloned().unwrap_or_default();
-    // EPUB 3 refinements: <meta refines="#id" property="...">.
     let refines = |id: &str, prop: &str| -> Option<String> {
         let want = format!("#{id}");
         md.children_named("meta")
@@ -341,9 +325,6 @@ fn resolve_keep_fragment(base: &str, href: &str) -> String {
     out
 }
 
-/// Plain text of every spine document, in reading order, with the TOC
-/// title of each when there is one. For agents and search; the reader
-/// renders the real markup.
 pub fn spine_text<R: Read + Seek>(reader: R) -> Result<Vec<(String, String)>, String> {
     let mut zip = zip::ZipArchive::new(reader).map_err(|e| e.to_string())?;
     let opf = opf_path(&mut zip).ok_or("no OPF in EPUB")?;
@@ -394,7 +375,6 @@ pub fn spine_text<R: Read + Seek>(reader: R) -> Result<Vec<(String, String)>, St
     Ok(out)
 }
 
-/// Edits applied by [`write_metadata`]. `None` leaves a field untouched.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct MetaEdit {
     pub title: Option<String>,
@@ -409,9 +389,6 @@ pub struct MetaEdit {
     pub isbn: Option<String>,
 }
 
-/// Rewrites the OPF `<metadata>` of an EPUB in place (via a temp copy),
-/// keeping every other entry byte-for-byte. The `mimetype` entry stays
-/// first and stored, as the spec requires.
 pub fn write_metadata(path: &std::path::Path, edit: &MetaEdit) -> Result<(), String> {
     let src = std::fs::File::open(path).map_err(|e| e.to_string())?;
     let mut zip = zip::ZipArchive::new(src).map_err(|e| e.to_string())?;
@@ -452,8 +429,6 @@ pub fn write_metadata(path: &std::path::Path, edit: &MetaEdit) -> Result<(), Str
     })
 }
 
-/// Replaces the Dublin Core fields named in `edit` inside `<metadata>`.
-/// Works on the text so unknown elements and formatting survive.
 pub fn rewrite_opf(text: &str, edit: &MetaEdit) -> Result<String, String> {
     let open_re = regex::Regex::new(r"<(?:\w+:)?metadata\b[^>]*>").expect("static regex");
     let close_re = regex::Regex::new(r"</(?:\w+:)?metadata>").expect("static regex");

@@ -1,6 +1,3 @@
-//! Tauri command of Maestro Mode: the per-terminal checkbox. The gated
-//! `maestro.*` methods agents call live in `crate::canvas::maestro`.
-
 use tauri::AppHandle;
 
 #[tauri::command]

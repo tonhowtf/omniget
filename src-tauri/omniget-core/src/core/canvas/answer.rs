@@ -1,16 +1,3 @@
-//! Where the answer of an ask comes from (estudo 98/03 §B.10), best first:
-//!
-//! 1. an explicit `omniget canvas reply`, or an ask back from the target;
-//! 2. `last_assistant_message` of the `Stop` hook (Claude), the `notify`
-//!    payload of Codex (`last-assistant-message`), Gemini's `AfterAgent`;
-//! 3. the last assistant message of the `transcript_path` JSONL every
-//!    Claude hook receives;
-//! 4. native node: the final text of the turn;
-//! 5. the shadow screen, what appeared since the delivery (last 80 lines),
-//!    marked `screen`.
-//!
-//! Answers over 64 KiB go to a file and the answer carries the path.
-
 use std::io::{Read, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
 
@@ -19,7 +6,6 @@ use serde_json::Value;
 
 pub const MAX_ANSWER_BYTES: usize = 64 * 1024;
 pub const SCREEN_LINES: usize = 80;
-/// How much of a transcript's tail is read.
 const TRANSCRIPT_TAIL: u64 = 4 * 1024 * 1024;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -50,8 +36,6 @@ impl Answer {
         }
     }
 
-    /// Applies the 64 KiB cap: the full text goes to `<dir>/<id>-answer.md`,
-    /// the answer keeps its head and the path.
     pub fn capped(mut self, dir: &Path, id: &str) -> Self {
         if self.text.len() <= MAX_ANSWER_BYTES {
             return self;
@@ -82,9 +66,6 @@ fn str_of<'a>(v: &'a Value, keys: &[&str]) -> Option<&'a str> {
         .filter(|s| !s.trim().is_empty())
 }
 
-/// The answer a hook payload carries: Claude `Stop`
-/// (`last_assistant_message`), Codex notify (`last-assistant-message`),
-/// Gemini `AfterAgent` (`prompt_response` / `response`).
 pub fn from_hook(payload: &Value) -> Option<String> {
     str_of(
         payload,
@@ -99,7 +80,6 @@ pub fn from_hook(payload: &Value) -> Option<String> {
     .map(|s| s.trim().to_string())
 }
 
-/// Text of one message object (`content` as a string or as blocks).
 fn message_text(m: &Value) -> Option<String> {
     let content = m.get("content")?;
     if let Some(s) = content.as_str() {
@@ -115,9 +95,6 @@ fn message_text(m: &Value) -> Option<String> {
     (!t.trim().is_empty()).then_some(t)
 }
 
-/// Last assistant text of a transcript in JSONL (Claude's format:
-/// `{"type":"assistant","message":{"role":"assistant","content":[...]}}`;
-/// also plain `{"role":"assistant","content":...}` lines).
 pub fn last_assistant_in_jsonl(text: &str) -> Option<String> {
     for line in text.lines().rev() {
         let line = line.trim();
@@ -140,7 +117,6 @@ pub fn last_assistant_in_jsonl(text: &str) -> Option<String> {
     None
 }
 
-/// Reads the tail of a transcript file and returns its last assistant text.
 pub fn from_transcript(path: &Path) -> Option<String> {
     let mut f = std::fs::File::open(path).ok()?;
     let len = f.metadata().ok()?.len();
@@ -149,15 +125,9 @@ pub fn from_transcript(path: &Path) -> Option<String> {
     let mut buf = Vec::new();
     f.read_to_end(&mut buf).ok()?;
     let text = String::from_utf8_lossy(&buf);
-    // A cut first line is not JSON and is skipped by the parser.
     last_assistant_in_jsonl(&text)
 }
 
-/// Background tasks (Claude Code `run_in_background` shells and agents) that
-/// a transcript started at or after `since_ms` (epoch ms) and that have not
-/// reported back yet. A `Stop` while one runs is not the end of the work:
-/// Claude answers "waiting for ..." and starts a new turn when the task's
-/// `<task-notification>` arrives.
 pub fn pending_background_in_jsonl(text: &str, since_ms: i64) -> Vec<String> {
     let mut open: Vec<String> = Vec::new();
     let mut closed: std::collections::HashSet<String> = std::collections::HashSet::new();
@@ -214,7 +184,6 @@ pub fn pending_background_in_jsonl(text: &str, since_ms: i64) -> Vec<String> {
                 }
             }
             "assistant" => {
-                // KillShell / TaskStop end a task without a notification.
                 for b in msg
                     .get("content")
                     .and_then(|c| c.as_array())
@@ -243,8 +212,6 @@ pub fn pending_background_in_jsonl(text: &str, since_ms: i64) -> Vec<String> {
     open
 }
 
-/// Every text a message carries (string content, text blocks and the
-/// string content of tool results).
 fn message_text_any(m: &Value) -> String {
     let Some(content) = m.get("content") else {
         return String::new();
@@ -277,7 +244,6 @@ fn message_text_any(m: &Value) -> String {
     out
 }
 
-/// [`pending_background_in_jsonl`] over the tail of a transcript file.
 pub fn pending_background(path: &Path, since_ms: i64) -> Vec<String> {
     let Ok(mut f) = std::fs::File::open(path) else {
         return Vec::new();
@@ -294,15 +260,10 @@ pub fn pending_background(path: &Path, since_ms: i64) -> Vec<String> {
     pending_background_in_jsonl(&String::from_utf8_lossy(&buf), since_ms)
 }
 
-/// The transcript path a Claude hook carries.
 pub fn transcript_path(payload: &Value) -> Option<PathBuf> {
     str_of(payload, &["transcript_path", "transcriptPath"]).map(PathBuf::from)
 }
 
-/// What appeared on the screen since `before` (both are screen texts, top
-/// to bottom). Handles scrolling: finds the longest suffix of `before` that
-/// is a prefix of `after` and returns what follows it. Falls back to the last
-/// `max_lines` of `after`.
 pub fn screen_diff(before: &str, after: &str, max_lines: usize) -> String {
     let b: Vec<&str> = before.lines().map(str::trim_end).collect();
     let a: Vec<&str> = after.lines().map(str::trim_end).collect();
@@ -311,7 +272,6 @@ pub fn screen_diff(before: &str, after: &str, max_lines: usize) -> String {
         let start = lines.len().saturating_sub(max_lines);
         lines[start..].join("\n").trim().to_string()
     };
-    // Ignore trailing blank lines of `before` (the empty screen below the prompt).
     let mut blen = b.len();
     while blen > 0 && b[blen - 1].is_empty() {
         blen -= 1;
@@ -319,7 +279,6 @@ pub fn screen_diff(before: &str, after: &str, max_lines: usize) -> String {
     let b = &b[..blen];
     for skip in 0..b.len() {
         let tail = &b[skip..];
-        // Too short a tail matches by accident.
         if tail.len() < 3.min(b.len()) {
             break;
         }

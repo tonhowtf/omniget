@@ -1,17 +1,3 @@
-//! Permission rules on top of the per-tool grant: `{tool, pattern, action}` per
-//! agent, the last rule that matches wins, no match means "ask". Shape read
-//! from opencode (`permission/next.ts`, `bash arity`): "Always" on a shell ask
-//! stores the command prefix up to the arity of the program (`git status`,
-//! `npm run test`), never the whole line.
-//!
-//! One source of truth (3.4, S19): the native broker, the Claude Code
-//! `PreToolUse` hook (`omniget hook claude`, [`super::claude_hooks`]) and the
-//! CLI's permission prompt tool all decide with [`gate`] over the same rules,
-//! after mapping Claude's built-in tools onto the native names
-//! ([`from_claude`]): a "deny `fs_write` `**/.env`" bites a `Write` of the CLI
-//! exactly as it bites the native `fs_write`, and an "Always" given in one
-//! place counts in the other.
-
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::RwLock;
@@ -49,15 +35,10 @@ pub fn set_store_file(path: PathBuf) {
     *FILE.write().unwrap_or_else(|e| e.into_inner()) = Some(path);
 }
 
-/// The file the rules live in (the hook of a CLI turn reads it on every
-/// call, so a rule saved mid-turn counts from the next call on).
 pub fn store_file() -> Option<PathBuf> {
     FILE.read().unwrap_or_else(|e| e.into_inner()).clone()
 }
 
-/// The rules of `agent` as saved in `file` (the hook's side of
-/// [`rules_of`]). A missing file is no rules; an unreadable or malformed one
-/// is an error, because the hook must not read "no rules" into it.
 pub fn rules_in_file(file: &Path, agent: &str) -> Result<Vec<Rule>, String> {
     let bytes = match std::fs::read(file) {
         Ok(b) => b,
@@ -104,9 +85,6 @@ pub fn add_rule(agent: &str, rule: Rule) {
     set_rules(agent, rules);
 }
 
-/// How many leading words identify "the same command". Default is 1, which is
-/// also what interpreters get (`node *`): their second word is a script path,
-/// not a subcommand.
 const ARITY: &[(&str, usize)] = &[
     ("npm run", 3),
     ("pnpm run", 3),
@@ -130,7 +108,6 @@ const ARITY: &[(&str, usize)] = &[
     ("brew", 2),
 ];
 
-/// `git status --short` → `git status`; `npm run test -- -t x` → `npm run test`.
 pub fn command_prefix(command: &str) -> String {
     let words: Vec<&str> = command.split_whitespace().collect();
     if words.is_empty() {
@@ -147,8 +124,6 @@ pub fn command_prefix(command: &str) -> String {
     words[..arity.min(words.len())].join(" ")
 }
 
-/// A shell line is only as safe as each command in it: `git status && rm -rf x`
-/// must not ride on an "always git status".
 fn segments(command: &str) -> Vec<String> {
     let mut out = Vec::new();
     let mut cur = String::new();
@@ -184,12 +159,10 @@ fn opaque(command: &str) -> bool {
         || command.contains('>')
 }
 
-/// `*` matches anything; a pattern ending in ` *` also matches the bare prefix.
 pub fn matches(pattern: &str, subject: &str) -> bool {
     if pattern == "*" {
         return true;
     }
-    // Glob habit: `**/.env` also means the `.env` at the top.
     if let Some(rest) = pattern.strip_prefix("**/") {
         if matches(rest, subject) {
             return true;
@@ -213,8 +186,6 @@ pub fn matches(pattern: &str, subject: &str) -> bool {
         .unwrap_or(false)
 }
 
-/// What the rules are matched against: the command for the shell, the path for
-/// the file tools, `*` otherwise.
 pub fn subject(tool: &str, input: &Value) -> String {
     let get = |k: &str| {
         input
@@ -239,12 +210,10 @@ fn decide_one(rules: &[Rule], tool: &str, subject: &str) -> Option<Action> {
         .map(|r| r.action)
 }
 
-/// `None` = no rule has an opinion, the grant mode stands.
 pub fn decide(agent: &str, tool: &str, input: &Value) -> Option<Action> {
     decide_in(&rules_of(agent), tool, input)
 }
 
-/// [`decide`] over a given rule list (the hook reads its own copy).
 pub fn decide_in(rules: &[Rule], tool: &str, input: &Value) -> Option<Action> {
     if rules.is_empty() {
         return None;
@@ -268,9 +237,6 @@ pub fn decide_in(rules: &[Rule], tool: &str, input: &Value) -> Option<Action> {
     verdict
 }
 
-/// The rule behind a [`decide_in`] answer, for the reason shown next to a
-/// denial (the last matching rule with that action, on the whole subject or
-/// on one segment of a shell line).
 pub fn rule_for(rules: &[Rule], tool: &str, input: &Value, action: Action) -> Option<Rule> {
     let subject = subject(tool, input);
     let mut subjects = vec![subject.clone()];
@@ -288,19 +254,12 @@ pub fn rule_for(rules: &[Rule], tool: &str, input: &Value, action: Action) -> Op
         .cloned()
 }
 
-// ── one gate for every harness (3.4) ────────────────────────────────────
-
-/// What settled a [`gate`] verdict.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Source {
-    /// The agent's grant for the tool (the CLI's: [`cli_grant`]).
     Grant,
-    /// The turn's run mode moved the grant (2.7).
     RunMode,
-    /// A stored rule.
     Rule,
-    /// A tool that asks every time (washmybelly plans).
     AlwaysAsks,
 }
 
@@ -310,11 +269,6 @@ pub struct Verdict {
     pub source: Source,
 }
 
-/// The permission of one call, in the order the native broker has always
-/// applied it: the grant, the run mode inside the grant (a `Deny` grant is
-/// never lifted), the stored rules, then the always-ask tools. The
-/// "outside the workspace" question is not here: it is the broker's own
-/// extra question (Claude Code asks its own for a path outside its folders).
 pub fn gate(
     rules: &[Rule],
     run: Option<RunMode>,
@@ -357,10 +311,6 @@ pub fn gate(
     verdict
 }
 
-/// The grant a Claude Code built-in has before the run mode moves it: the
-/// read tools go through (the CLI never asks for them in any mode), edits
-/// and the shell are the CLI's to ask about. The same grants on a native
-/// agent give the same verdicts (BN8).
 pub fn cli_grant(native_tool: &str) -> GrantMode {
     if super::code_tools::READ_TOOLS.contains(&native_tool) {
         GrantMode::Auto
@@ -369,11 +319,6 @@ pub fn cli_grant(native_tool: &str) -> GrantMode {
     }
 }
 
-/// Claude Code's built-in tool call as the native harness's `(name, input)`,
-/// so one rule covers both. File paths are made relative to `workspace`
-/// when they are inside it (the native tools take relative paths). A tool
-/// with no native twin keeps the `cli:<Tool>` name the prompt tool has
-/// always stored its rules under.
 pub fn from_claude(tool: &str, input: &Value, workspace: Option<&Path>) -> (String, Value) {
     let s = |k: &str| input.get(k).and_then(Value::as_str).unwrap_or("");
     let rel = |raw: &str| relative(raw, workspace);
@@ -396,8 +341,6 @@ pub fn from_claude(tool: &str, input: &Value, workspace: Option<&Path>) -> (Stri
     }
 }
 
-/// A native call's input with its `path` made relative the same way as
-/// [`from_claude`] does (the model may send either form).
 pub fn native_input(tool: &str, input: &Value, workspace: Option<&Path>) -> Value {
     let mut out = input.clone();
     if tool.starts_with("fs_") {
@@ -408,7 +351,6 @@ pub fn native_input(tool: &str, input: &Value, workspace: Option<&Path>) -> Valu
     out
 }
 
-/// `raw` relative to `workspace` when it is inside it; `./x` → `x`.
 pub fn relative(raw: &str, workspace: Option<&Path>) -> String {
     let raw = raw.trim();
     let p = Path::new(raw);
@@ -416,7 +358,6 @@ pub fn relative(raw: &str, workspace: Option<&Path>) -> String {
         if let Ok(rest) = p.strip_prefix(ws) {
             return rest.to_string_lossy().replace('\\', "/");
         }
-        // macOS: /var → /private/var and the like.
         if let (Ok(a), Ok(b)) = (
             std::fs::canonicalize(ws),
             p.parent()
@@ -431,7 +372,6 @@ pub fn relative(raw: &str, workspace: Option<&Path>) -> String {
     raw.strip_prefix("./").unwrap_or(raw).to_string()
 }
 
-/// The rule "Always" stores for this call.
 pub fn always_rule(tool: &str, input: &Value) -> Rule {
     let subject = subject(tool, input);
     let pattern = match tool {

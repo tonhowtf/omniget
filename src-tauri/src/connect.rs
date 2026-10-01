@@ -1,21 +1,3 @@
-//! Connect an AI tool (Claude Code, Codex, Gemini CLI, Cursor...) to OmniGet's
-//! MCP server from the tool itself, with one click in the OmniGet window.
-//!
-//! 1. The tool reads `GET /connect?client=<id>`: plain instructions with the
-//!    real port filled in (the `omniget-connect` skill only points here, so
-//!    the steps can change without reinstalling anything).
-//! 2. It asks `POST /v1/connect?client=<id>` and gets a short code.
-//! 3. OmniGet comes to the front and shows who asks, the code, the folder and
-//!    what it may do. Nothing happens until the person answers.
-//! 4. On Allow, OmniGet creates the connection and writes the `omniget` MCP
-//!    entry into the tool's own config (agentkit knows each format). The
-//!    token goes from here to that file and never through the tool's model:
-//!    `GET /v1/connect/<id>` only ever answers a status and a message.
-//!
-//! Browsers are refused (`Origin` / `Sec-Fetch-*`): a web page must not be
-//! able to pop the dialog. The request id is an unguessable UUID and reveals
-//! nothing but the status.
-
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 use std::sync::{Mutex, OnceLock};
@@ -38,21 +20,14 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use tauri::{AppHandle, Emitter, Manager};
 
-/// A request waits this long for an answer.
 const PENDING_MS: i64 = 5 * 60 * 1000;
-/// Answered requests stay readable this long, so a slow poller still sees
-/// the verdict.
 const KEEP_MS: i64 = 15 * 60 * 1000;
-/// At most this many requests wait at once (one per tool).
 const MAX_PENDING: usize = 4;
-/// Longest `?wait=` a poll may hold the connection.
 const MAX_WAIT_S: u64 = 25;
-/// Tokens an execution grant made here may spend.
 const GRANT_MAX_TOKENS: u64 = 2_000_000;
 
 pub const SKILL_NAME: &str = "omniget-connect";
 
-/// What the person can allow, as groups of MCP scopes.
 const DOWNLOAD_SCOPES: &[&str] = &[
     "discover",
     "enqueue",
@@ -83,16 +58,12 @@ pub enum Status {
 #[derive(Debug, Clone, Serialize)]
 pub struct ConnectRequest {
     pub id: String,
-    /// agentkit target id (`claude`, `codex`, `gemini`...).
     pub client: String,
     pub client_name: String,
-    /// Folder the tool was in, where its agents may work (absolute).
     pub workspace: Option<String>,
-    /// Shown in the tool and in the dialog, so the person matches the two.
     pub code: String,
     pub created_ms: i64,
     pub status: Status,
-    /// What the tool is told once answered (never a secret).
     pub message: String,
 }
 
@@ -110,7 +81,6 @@ fn now_ms() -> i64 {
     chrono::Utc::now().timestamp_millis()
 }
 
-/// Expires what waited too long and forgets what nobody reads anymore.
 fn sweep(list: &mut Vec<ConnectRequest>) {
     let now = now_ms();
     for r in list.iter_mut() {
@@ -123,7 +93,6 @@ fn sweep(list: &mut Vec<ConnectRequest>) {
 }
 
 fn code() -> String {
-    // Six characters without look-alikes (0/O, 1/I).
     const ALPHABET: &[u8] = b"ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
     let bytes = uuid::Uuid::new_v4();
     let s: String = bytes
@@ -135,7 +104,6 @@ fn code() -> String {
     format!("{}-{}", &s[..3], &s[3..])
 }
 
-/// Tools that can hold an MCP server entry, which is what connecting writes.
 fn connectable(id: &str) -> Option<&'static ak::targets::TargetAdapter> {
     ak::targets::target(id).filter(|t| t.default_mcp().next().is_some())
 }
@@ -148,8 +116,6 @@ fn connectable_ids() -> Vec<&'static str> {
         .collect()
 }
 
-/// Name of the MCP connection a tool gets. Reconnecting the same tool
-/// replaces the connection with this name.
 fn connection_name(tool_name: &str) -> String {
     format!("{tool_name} · connected")
 }
@@ -157,8 +123,6 @@ fn connection_name(tool_name: &str) -> String {
 fn port(app: &AppHandle) -> u16 {
     crate::storage::config::load_settings(app).bridge.port
 }
-
-// ───────────────────────────── bridge routes ─────────────────────────────
 
 pub fn router<S>(app: AppHandle) -> Router<S>
 where
@@ -214,7 +178,6 @@ fn refuse(status: StatusCode, code: &str, message: String) -> Response {
         .into_response()
 }
 
-/// `GET /connect`: the steps, in words a model follows, with this port.
 fn instructions(app: &AppHandle, client: Option<&str>) -> Response {
     let port = port(app);
     let text = match client.and_then(connectable) {
@@ -271,8 +234,6 @@ struct RequestBody {
     workspace: Option<String>,
 }
 
-/// `POST /v1/connect`: `client` and `workspace` from the query, a JSON body or
-/// a form body (`curl --data-urlencode`).
 fn request(
     app: &AppHandle,
     query: BTreeMap<String, String>,
@@ -330,7 +291,6 @@ fn request(
             return refuse(StatusCode::INTERNAL_SERVER_ERROR, "LOCK", "busy".into());
         };
         sweep(&mut list);
-        // A new request from the same tool replaces the one still waiting.
         for r in list.iter_mut() {
             if r.client == target.id && r.status == Status::Pending {
                 r.status = Status::Expired;
@@ -389,8 +349,6 @@ fn view(r: &ConnectRequest) -> Value {
     })
 }
 
-/// `GET /v1/connect/{id}?wait=N`: the status, waiting up to N seconds for
-/// it to leave `pending`.
 async fn poll(id: &str, wait_s: u64) -> Response {
     let deadline = tokio::time::Instant::now() + Duration::from_secs(wait_s);
     loop {
@@ -409,7 +367,6 @@ async fn poll(id: &str, wait_s: u64) -> Response {
         if r.status != Status::Pending || tokio::time::Instant::now() >= deadline {
             return (StatusCode::OK, Json(view(&r))).into_response();
         }
-        // Wake on an answer, or at the deadline, or every 5 s to notice expiry.
         let nap = deadline
             .saturating_duration_since(tokio::time::Instant::now())
             .min(Duration::from_secs(5));
@@ -427,9 +384,6 @@ fn set_answer(id: &str, status: Status, message: String) {
     changed().notify_waiters();
 }
 
-// ───────────────────────────── connecting ─────────────────────────────
-
-/// What connecting did, for the dialog and the tool.
 #[derive(Debug, Clone, Serialize)]
 pub struct Connected {
     pub client: String,
@@ -449,7 +403,6 @@ fn reload_hint(id: &str, name: &str) -> String {
     }
 }
 
-/// The `omniget` MCP entry for one tool, in agentkit's canonical shape.
 fn mcp_component(url: &str, token: &str) -> Result<Component, String> {
     let record = json!({
         "mcpServers": {
@@ -473,8 +426,6 @@ fn mcp_component(url: &str, token: &str) -> Result<Component, String> {
     Ok(c)
 }
 
-/// Writes components into one tool's global config and returns the paths
-/// written. Every unit must succeed (or already be installed).
 fn install(env: &Env, target: &str, components: Vec<Component>) -> Result<Vec<String>, String> {
     let plan = ak::plan::plan(
         env,
@@ -505,11 +456,8 @@ fn install(env: &Env, target: &str, components: Vec<Component>) -> Result<Vec<St
     Ok(files)
 }
 
-/// Executors (roster agents an external client may run) for a grant.
 fn executors(app: &AppHandle) -> Vec<omniget_core::core::llm::agent::AgentDef> {
     let state = app.state::<crate::AppState>();
-    // Claude Code qualifies only after its installed flags are probed (the
-    // same probe the MCP connections card runs when it opens).
     if let Some(a) = state.llm.roster().into_iter().find(|a| {
         matches!(&a.runtime, omniget_core::core::llm::agent::RuntimeKind::Cli { cli, .. } if cli == "claude")
     }) {
@@ -528,11 +476,6 @@ fn executors(app: &AppHandle) -> Vec<omniget_core::core::llm::agent::AgentDef> {
         .collect()
 }
 
-/// Adds each agent CLI OmniGet can run (Claude Code, Codex) that is
-/// installed here and not in the roster yet, on its terminal login. A person
-/// who just installed OmniGet has only the native agents, which need a
-/// provider first; this is what lets a connected tool start real work.
-/// Answers the names added.
 fn add_cli_agents(app: &AppHandle) -> Vec<String> {
     use omniget_core::core::llm::agent::{AgentDef, AgentRole, ModelPolicy, RuntimeKind};
     use omniget_core::core::llm::cli_runtime::accounts::CliKind;
@@ -546,7 +489,6 @@ fn add_cli_agents(app: &AppHandle) -> Vec<String> {
         {
             continue;
         }
-        // The terminal login of that CLI, which the person already uses.
         let Ok(account) =
             crate::commands::central::run::terminal_account(&state.llm, kind.as_str(), None)
         else {
@@ -557,7 +499,6 @@ fn add_cli_agents(app: &AppHandle) -> Vec<String> {
             .filter(|a| matches!(&a.runtime, RuntimeKind::Cli { cli, .. } if cli == kind.as_str()))
             .collect();
         if !mine.is_empty() {
-            // An agent saved without an account cannot run ("no CLI account").
             for a in mine {
                 if matches!(&a.runtime, RuntimeKind::Cli { account, .. } if account.is_empty()) {
                     let mut fixed = a.clone();
@@ -604,9 +545,6 @@ fn add_cli_agents(app: &AppHandle) -> Vec<String> {
     added
 }
 
-/// Creates the connection and writes it into the tool. `agents` adds the
-/// agent scopes (and an execution grant on `workspace`); `approvals` lets the
-/// tool answer the permission questions of the jobs it starts.
 pub fn connect(
     app: &AppHandle,
     client: &str,
@@ -695,7 +633,6 @@ pub fn connect(
     let files = mcp_component(&url, &grant.token)
         .and_then(|c| install(&env, &target.id, vec![c]))
         .map_err(undo)?;
-    // The tool now holds the new token: the old connections of this tool go.
     for id in previous {
         let _ = crate::mcp::policy::revoke(&id);
     }
@@ -737,10 +674,6 @@ pub fn connect(
     })
 }
 
-// ───────────────────────────── connect skill ─────────────────────────────
-
-/// The skill (or command, for tools without skills) that starts all this
-/// from inside a tool. It only points at `/connect`, which holds the steps.
 pub fn skill_text() -> String {
     format!(
         r##"---
@@ -779,14 +712,10 @@ fn connect_components() -> Result<(Component, Component), String> {
     Ok((skill, command))
 }
 
-/// Installs the connect skill into one tool (a command where the tool has no
-/// skills).
 fn install_skill(env: &Env, id: &str) -> Result<Vec<String>, String> {
     let (skill, command) = connect_components()?;
     install(env, id, vec![skill]).or_else(|_| install(env, id, vec![command]))
 }
-
-// ───────────────────────────── app commands ─────────────────────────────
 
 #[derive(Debug, Clone, Serialize)]
 pub struct ToolView {
@@ -807,7 +736,6 @@ where
         .map_err(|e| e.to_string())?
 }
 
-/// Requests waiting for an answer, oldest first.
 #[tauri::command]
 pub fn connect_pending() -> Vec<ConnectRequest> {
     store()
@@ -822,7 +750,6 @@ pub fn connect_pending() -> Vec<ConnectRequest> {
         .unwrap_or_default()
 }
 
-/// The person's answer to one request.
 #[tauri::command]
 pub async fn connect_answer(
     app: AppHandle,
@@ -862,7 +789,6 @@ pub async fn connect_answer(
     }
 }
 
-/// Every tool that can be connected, with what is on this machine.
 #[tauri::command]
 pub async fn connect_tools() -> Result<Vec<ToolView>, String> {
     blocking(|| {
@@ -907,8 +833,6 @@ pub async fn connect_tools() -> Result<Vec<ToolView>, String> {
     .await
 }
 
-/// Connects a tool from the app itself (the person is already here, so no
-/// request and code are needed).
 #[tauri::command]
 pub async fn connect_tool(
     app: AppHandle,
@@ -924,8 +848,6 @@ pub async fn connect_tool(
     blocking(move || connect(&app, &client, workspace.as_deref(), agents, approvals)).await
 }
 
-/// Installs the `omniget-connect` skill into the given tools (every installed
-/// one when empty). Answers per tool: the files, or why it could not.
 #[tauri::command]
 pub async fn connect_install_skill(targets: Vec<String>) -> Result<Value, String> {
     blocking(move || {
@@ -957,7 +879,6 @@ pub async fn connect_install_skill(targets: Vec<String>) -> Result<Value, String
     .await
 }
 
-/// The sentence the person can paste into any AI tool to start connecting.
 #[tauri::command]
 pub fn connect_prompt(app: AppHandle) -> String {
     format!(

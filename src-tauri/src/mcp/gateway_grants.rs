@@ -1,4 +1,3 @@
-//! Local opt-in for the separate gateway; never selected by an MCP caller.
 use super::{
     policy::{self, Principal},
     worker,
@@ -37,7 +36,6 @@ pub fn get(p: &Principal) -> Result<Boundary, String> {
         boundary_version: 1,
     })
 }
-/// Trusted Tauri surface only. Turning either bit off requires no working worker.
 pub fn set(principal: &str, write: bool, transfer: bool) -> Result<(), String> {
     if (write || transfer) && !worker::isolation_available() {
         return Err("EXECUTION_ISOLATION_REQUIRED".into());

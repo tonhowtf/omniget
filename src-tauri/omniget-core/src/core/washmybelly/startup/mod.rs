@@ -1,28 +1,7 @@
-//! What opens at login or runs in the background, with an off switch that
-//! never deletes anything.
-//!
-//! - macOS ([`macos`]): LaunchAgents and LaunchDaemons (state from
-//!   `launchctl print-disabled` and `launchctl print`), legacy Login Items
-//!   (System Events, read only for the list), the Background Task
-//!   Management database (`sfltool dumpbtm`) and the signer (`codesign -dv`).
-//! - Windows ([`windows`]): Run/RunOnce keys, the Startup folders and their
-//!   `StartupApproved` state (how Task Manager turns items off), logon and
-//!   boot tasks, and third-party automatic services.
-//! - Linux ([`linux`]): XDG autostart (user and system) and `systemd --user`.
-//!
-//! A scan only reads. Turning an item off or on is an [`Action`] carried in
-//! an `Op::Module { module: "startup" }` plan item; the plan engine calls
-//! [`plan_execute`] (or [`plan_elevated`] for admin items), which saves the
-//! state before the change so [`plan_undo`] can put it back. Every command
-//! is argv; [`actions`] builds them apart from running them, so the tests
-//! check the exact commands without touching `launchctl` or the registry.
-
-/// argv from string literals and owned values (visible in the submodules).
 macro_rules! argv {
     ($($x:expr),* $(,)?) => { vec![$(String::from($x)),*] };
 }
 
-/// The same argv as a fixed array, for commands that are only borrowed.
 macro_rules! argv_array {
     ($($x:expr),* $(,)?) => { [$(String::from($x)),*] };
 }
@@ -51,11 +30,9 @@ use super::Risk;
 pub const MODULE: &str = "startup";
 pub const PLAN_KIND: &str = "startup";
 
-/// Measured cost of an item at login, when the system reports one.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct Impact {
     pub ms: u64,
-    /// `low`, `medium`, `high`.
     pub level: String,
 }
 
@@ -75,60 +52,42 @@ impl Impact {
     }
 }
 
-/// One thing that starts with the session or the machine.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct StartupItem {
-    /// Stable id: `startup:<kind>:<key>`.
     pub id: String,
     pub name: String,
-    /// `login_item`, `agent`, `daemon`, `run`, `run_once`, `startup_folder`,
-    /// `task`, `service`, `autostart`, `user_service`.
     pub kind: String,
-    /// `user` or `system`.
     pub scope: String,
-    /// Where it is registered (plist, registry key, task path, .desktop, unit).
     pub location: String,
     pub command: String,
     pub enabled: bool,
-    /// Running right now, when the system says.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub running: Option<bool>,
-    /// Who signed the program (Developer ID name, Authenticode subject).
     #[serde(default)]
     pub signer: Option<String>,
-    /// The signature checks out against a trusted root.
     #[serde(default)]
     pub signer_verified: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub team_id: Option<String>,
-    /// Unix seconds: when the entry was written (file time).
     #[serde(default)]
     pub installed: Option<i64>,
     #[serde(default)]
     pub impact: Option<Impact>,
-    /// We can turn it off / on (without deleting anything).
     pub can_disable: bool,
     pub can_enable: bool,
-    /// Changing it needs the administrator password.
     pub needs_admin: bool,
-    /// Why it cannot be changed here, or what to know first.
     #[serde(default)]
     pub reason: Option<String>,
-    /// Safe to turn off for most people (update checkers).
     #[serde(default)]
     pub recommended: bool,
-    /// Not part of the operating system.
     pub third_party: bool,
-    /// The flip to "off", when there is one.
     #[serde(skip)]
     pub off: Option<Action>,
-    /// The flip to "on", when there is one.
     #[serde(skip)]
     pub on: Option<Action>,
 }
 
 impl StartupItem {
-    /// The plan item that flips this entry to the other state.
     pub fn plan_item(&self) -> Option<PlanItem> {
         let action = if self.enabled {
             self.off.clone()?
@@ -157,27 +116,22 @@ impl StartupItem {
     }
 }
 
-/// A command's result. `ok` is exit status 0.
 #[derive(Debug, Clone, Default)]
 pub struct Output {
     pub ok: bool,
-    /// Exit code, when the process exited normally.
     pub code: Option<i32>,
     pub stdout: String,
     pub stderr: String,
 }
 
-/// Runs argv commands. Production is [`RealSys`]; tests record the calls.
 pub trait Sys: Sync {
     fn run(&self, argv: &[String]) -> Result<Output, String>;
 
-    /// Run with extra environment variables (data for a fixed script).
     fn run_env(&self, argv: &[String], env: &[(String, String)]) -> Result<Output, String> {
         let _ = env;
         self.run(argv)
     }
 
-    /// Run and require success; the error carries stderr.
     fn run_ok(&self, argv: &[String]) -> Result<String, String> {
         let o = self.run(argv)?;
         if o.ok {
@@ -220,14 +174,11 @@ impl Sys for RealSys {
     }
 }
 
-/// Where the user's things live; tests point it at a temporary HOME.
 #[derive(Debug, Clone)]
 pub struct Env {
     pub uid: u32,
     pub home: PathBuf,
-    /// `$XDG_CONFIG_HOME/autostart`.
     pub autostart_user: PathBuf,
-    /// `$XDG_CONFIG_DIRS/autostart` (usually `/etc/xdg/autostart`).
     pub autostart_system: Vec<PathBuf>,
 }
 
@@ -267,8 +218,6 @@ pub fn current_uid() -> u32 {
     0
 }
 
-/// Update checkers: they wake up on their own, and the app still updates
-/// when it is opened. The only items we suggest turning off.
 pub fn looks_like_updater(text: &str) -> bool {
     let t = text.to_ascii_lowercase();
     [
@@ -288,7 +237,6 @@ pub fn looks_like_updater(text: &str) -> bool {
         || t.contains(".updater")
 }
 
-/// Unix seconds of a file's modification time.
 pub fn file_time(path: &std::path::Path) -> Option<i64> {
     let m = std::fs::metadata(path).ok()?.modified().ok()?;
     m.duration_since(std::time::UNIX_EPOCH)
@@ -296,9 +244,6 @@ pub fn file_time(path: &std::path::Path) -> Option<i64> {
         .map(|d| d.as_secs() as i64)
 }
 
-// ── Parsers the actions need on every system ────────────────────────
-
-/// `launchctl print-disabled <domain>`: label → disabled.
 pub fn print_disabled(text: &str) -> std::collections::HashMap<String, bool> {
     text.lines()
         .filter_map(|l| {
@@ -318,7 +263,6 @@ pub fn macos_disabled_lookup(text: &str, label: &str) -> bool {
     print_disabled(text).get(label).copied().unwrap_or(false)
 }
 
-/// First byte of a `StartupApproved` value: 02/06 on, 03/07 off.
 pub fn windows_approved_enabled(hex: &str) -> Option<bool> {
     let b = u8::from_str_radix(hex.trim().get(0..2)?, 16).ok()?;
     match b {
@@ -328,7 +272,6 @@ pub fn windows_approved_enabled(hex: &str) -> Option<bool> {
     }
 }
 
-/// `sc.exe qc <name>` start type as a `service_startup` mode.
 pub fn windows_start_mode(text: &str) -> Option<String> {
     let line = text
         .lines()
@@ -347,9 +290,6 @@ pub fn windows_start_mode(text: &str) -> Option<String> {
     )
 }
 
-// ── Listing ──────────────────────────────────────────────────────────
-
-/// Everything this system starts, plus notes on what could not be read.
 pub struct Collected {
     pub items: Vec<StartupItem>,
     pub notes: Vec<String>,
@@ -387,8 +327,6 @@ fn source_of(a: &Value) -> Source {
     }
 }
 
-/// List, register every flip as a `wmb_plan` candidate, and leave the count
-/// of third-party items that are on for the health score.
 pub fn list_and_offer(
     ctx: &Ctx,
     sys: &dyn Sys,
@@ -407,8 +345,6 @@ pub fn list_and_offer(
     });
     let plan_items: Vec<PlanItem> = items.iter().filter_map(StartupItem::plan_item).collect();
     plan::register(PLAN_KIND, &plan_items);
-    // Agents get a ready plan with the suggested flips only; the screen
-    // builds its own from what the person picks.
     let mut plan_id = Value::Null;
     if source != Source::Ui {
         let suggested: Vec<PlanItem> = items
@@ -432,8 +368,6 @@ pub fn list_and_offer(
     }))
 }
 
-/// Items we turned off that the system stopped listing come back as "off",
-/// so the screen can turn them on again. One listed as on again is dropped.
 fn add_turned_off(ctx: &Ctx, items: &mut Vec<StartupItem>) {
     let mut list = actions::turned_off(ctx);
     let before = list.len();
@@ -498,8 +432,6 @@ pub async fn tool_list(a: Value) -> Result<Value, String> {
     .await
 }
 
-// ── Plan hooks (called by `plan::execute` for `Op::Module { module: "startup" }`) ──
-
 pub fn plan_execute(
     ctx: &Ctx,
     receipt_id: &str,
@@ -532,10 +464,6 @@ pub fn plan_undo(ctx: &Ctx, action: &str, args: &Value) -> Result<String, String
     actions::restore(ctx, &RealSys, &Env::real(), &snap)
 }
 
-// ── Administrator executors (run inside `omniget-elevate`) ────────────
-
-/// Windows services and systemd units that are never touched: security,
-/// updates, networking (SharedAccess runs the mobile hotspot), the session.
 const SERVICE_DENY: &[&str] = &[
     "windefend",
     "wdnissvc",
@@ -581,7 +509,6 @@ const SERVICE_DENY: &[&str] = &[
     "display-manager",
 ];
 
-/// A Windows service name or a systemd unit name we accept from a plan.
 pub fn valid_service_name(name: &str) -> bool {
     static RE: once_cell::sync::Lazy<regex::Regex> = once_cell::sync::Lazy::new(|| {
         regex::Regex::new(r"^[A-Za-z0-9_][A-Za-z0-9_.@:\-]{0,254}$").unwrap()
@@ -595,7 +522,6 @@ fn denied_service(name: &str) -> bool {
     SERVICE_DENY.contains(&base) || base.starts_with("systemd-") || base.starts_with("getty@")
 }
 
-/// Windows start types and systemd verbs the helper accepts.
 pub fn service_argv(name: &str, mode: &str, windows: bool) -> Result<Vec<String>, String> {
     if !valid_service_name(name) {
         return Err(format!("service_startup: invalid service name {name:?}"));
@@ -630,7 +556,6 @@ pub fn elevated_service_startup(name: &str, mode: &str) -> Result<String, String
     Ok(format!("{name}: {mode}"))
 }
 
-/// A scheduled task path: `\Folder\Name`, no quotes or wildcards.
 pub fn valid_task_path(path: &str) -> bool {
     static RE: once_cell::sync::Lazy<regex::Regex> = once_cell::sync::Lazy::new(|| {
         regex::Regex::new(r#"^\\[^"<>|*?\x00-\x1f]{1,259}$"#).unwrap()
@@ -662,14 +587,12 @@ pub fn elevated_task_state(path: &str, enabled: bool) -> Result<String, String> 
     ))
 }
 
-/// A launchd label (`com.vendor.agent`).
 pub fn valid_label(label: &str) -> bool {
     static RE: once_cell::sync::Lazy<regex::Regex> =
         once_cell::sync::Lazy::new(|| regex::Regex::new(r"^[A-Za-z0-9._\-]{1,255}$").unwrap());
     RE.is_match(label)
 }
 
-/// `system` or `gui/<uid>`.
 pub fn valid_domain(domain: &str) -> bool {
     domain == "system"
         || domain.strip_prefix("gui/").is_some_and(|n| {
@@ -691,8 +614,6 @@ pub fn bootout_argv(domain: &str, label: &str) -> Result<Vec<String>, String> {
     ])
 }
 
-/// `launchctl bootout` of a job that is not loaded (exit 3, "No such
-/// process", "Could not find service") already has the state we want.
 pub fn bootout_succeeded(o: &Output) -> bool {
     o.ok || o.code == Some(3)
         || o.stderr.contains("No such process")
@@ -713,8 +634,6 @@ pub fn elevated_bootout(domain: &str, label: &str) -> Result<String, String> {
     }
 }
 
-/// Ready for a future `ElevatedOp::LaunchctlEnable` (see the handoff): turns
-/// a LaunchDaemon off (or on) for good with `launchctl disable|enable`.
 pub fn launchctl_state_argv(
     domain: &str,
     label: &str,
@@ -745,14 +664,8 @@ pub fn elevated_launchctl_state(
     ))
 }
 
-// ── Screen-only actions ──────────────────────────────────────────────
-
-/// Actions only the screen may run (`washmybelly_ui` with `startup.<action>`):
-/// never exposed as MCP tools.
 pub async fn ui_action(action: &str, _a: Value) -> Result<Value, String> {
     match action {
-        // Items only the system settings can switch (BTM login items and
-        // agents of sandboxed apps): open the right pane.
         "open_settings" => {
             super::tools::blocking(|| {
                 let argv: Vec<String> = if cfg!(target_os = "macos") {

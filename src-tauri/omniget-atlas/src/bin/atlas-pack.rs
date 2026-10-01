@@ -1,7 +1,3 @@
-//! `atlas-pack <src>... <out-dir>` — source art into atlas pages.
-//!
-//! Exit codes: 0 packed, 1 the source is wrong, 2 the command line is wrong.
-
 use std::path::PathBuf;
 use std::process::ExitCode;
 

@@ -1,8 +1,3 @@
-//! Takes a meeting from its source to `meeting.md`:
-//! acquire (download / convert) → transcribe → summarize → markdown.
-//! Every status change is reported as a `status` progress event so the UI,
-//! the CLI and the MCP tools can follow the same run.
-
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
@@ -48,7 +43,6 @@ pub fn is_running(id: &str) -> bool {
 #[derive(Clone)]
 pub struct Ctx {
     pub progress: ProgressFn,
-    /// SharePoint session cookie header for Teams recordings.
     pub cookie: Option<String>,
 }
 
@@ -101,7 +95,6 @@ fn fail(id: &str, ctx: &Ctx, err: &anyhow::Error) {
     report(&ctx.progress, id, "status", 0, None, Some("failed".into()));
 }
 
-/// Full run. On error the meeting is left `Failed` with the message.
 pub async fn process(id: &str, ctx: Ctx) -> anyhow::Result<Meeting> {
     let _guard = RunGuard::take(id)?;
     match run(id, &ctx).await {
@@ -124,8 +117,6 @@ async fn run(id: &str, ctx: &Ctx) -> anyhow::Result<Meeting> {
     finish(id, &segments, ctx).await
 }
 
-/// Summary (when asked for and possible) and markdown. A summary failure
-/// does not fail the meeting: the transcript is the part that matters.
 async fn finish(id: &str, segments: &[Segment], ctx: &Ctx) -> anyhow::Result<Meeting> {
     let s = settings::load();
     let m = super::load(id)?;
@@ -161,7 +152,6 @@ async fn summarize_into(
     })
 }
 
-/// Summarize again (after editing notes, or with another model).
 pub async fn resummarize(id: &str, ctx: Ctx) -> anyhow::Result<Meeting> {
     let _guard = RunGuard::take(id)?;
     let segments = super::load_transcript(id);
@@ -182,7 +172,6 @@ pub async fn resummarize(id: &str, ctx: Ctx) -> anyhow::Result<Meeting> {
     }
     .await;
     if let Err(e) = &result {
-        // Keep the meeting usable: back to Ready with the error shown.
         let msg = format!("Summary failed: {e:#}");
         let _ = super::update(id, |m| {
             m.status = MeetingStatus::Ready;
@@ -193,7 +182,6 @@ pub async fn resummarize(id: &str, ctx: Ctx) -> anyhow::Result<Meeting> {
     result
 }
 
-/// Throws the transcript away and runs everything again from the audio.
 pub async fn retranscribe(id: &str, ctx: Ctx) -> anyhow::Result<Meeting> {
     let m = super::load(id)?;
     if m.audio.is_none()
@@ -213,7 +201,6 @@ pub async fn retranscribe(id: &str, ctx: Ctx) -> anyhow::Result<Meeting> {
     process(id, ctx).await
 }
 
-/// Stores segments that came from outside (a bot) and finishes the meeting.
 pub async fn ingest_segments(
     id: &str,
     segments: Vec<Segment>,
@@ -271,7 +258,6 @@ async fn probe_ms(p: &Path) -> u64 {
         .unwrap_or(0)
 }
 
-/// Converts any local media to `audio.m4a` in the meeting folder.
 async fn extract_audio(input: &Path, dest: &Path) -> anyhow::Result<()> {
     let ffmpeg = crate::core::dependencies::ensure_ffmpeg().await?;
     let out = crate::core::process::command(&ffmpeg)
@@ -437,8 +423,6 @@ async fn transcribe_file(
     Ok((t.segments, t.source))
 }
 
-/// SharePoint cookies the person already gave OmniGet (browser extension or
-/// Settings > Cookies) for this tenant.
 fn sharepoint_cookie(input: &TeamsInput) -> Option<String> {
     let TeamsInput::SharePoint { host, .. } = input else {
         return None;

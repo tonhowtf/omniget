@@ -1,17 +1,3 @@
-//! Deterministic packer: source PNGs -> atlas pages + `atlas.json`.
-//!
-//! Determinism is a hard requirement, not a nicety: the art is regenerated often
-//! and a byte-identical output is what keeps a rebuild out of the diff. So every
-//! map is ordered, the placement order is a total order over the frame ids, the
-//! PNG encoder is pinned to one compression and filter setting, and nothing
-//! writes a timestamp.
-//!
-//! Sources are two shapes:
-//! * character: `<src>/<sheet>/<anim>/<DIR>/<n>.png` plus an optional
-//!   `manifest.json` (fps, loop, pivot and z_base per animation);
-//! * tiles: `<src>/{floor,wall,object}/<name>.png` plus a required `tiles.json`.
-//!   The sheet name is the folder name with a trailing `-src` removed.
-
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 
@@ -26,11 +12,8 @@ use crate::skyline::Skyline;
 
 #[derive(Debug, Clone, Copy)]
 pub struct PackOptions {
-    /// Maximum width and height of a page, in pixels.
     pub page_max: u32,
-    /// Transparent gutter between two frames.
     pub padding: u32,
-    /// Edge pixels duplicated around each frame.
     pub extrude: u32,
 }
 
@@ -82,7 +65,6 @@ pub enum PackError {
 }
 
 impl PackError {
-    /// Stable `ERR_ATLAS_*` code, the part the UI and the CI can match on.
     pub fn code(&self) -> &'static str {
         match self {
             PackError::Io { .. } => "ERR_ATLAS_SRC_IO",
@@ -108,11 +90,8 @@ pub struct PackReport {
     pub frame_count: usize,
     pub anim_count: usize,
     pub tile_count: usize,
-    /// Fraction of the pages' pixels covered by frames, 0.0 to 1.0.
     pub fill: f32,
 }
-
-// ---------------------------------------------------------------- source model
 
 #[derive(Debug, Default, Deserialize)]
 struct Manifest {
@@ -166,7 +145,6 @@ struct TileMeta {
     z_base: Option<i32>,
 }
 
-/// One frame ready to be placed on a page.
 struct Entry {
     id: String,
     pivot: [i32; 2],
@@ -182,10 +160,6 @@ struct Collected {
     first_sheet: Option<String>,
 }
 
-// ------------------------------------------------------------------- public API
-
-/// Packs every source folder into `out_dir`, writing `<sheet>-<n>.png` pages and
-/// `atlas.json`. The page name prefix comes from the first sheet seen.
 pub fn pack(sources: &[PathBuf], out_dir: &Path, opts: &PackOptions) -> Result<PackReport> {
     if sources.is_empty() {
         return Err(PackError::Layout {
@@ -211,8 +185,6 @@ pub fn pack(sources: &[PathBuf], out_dir: &Path, opts: &PackOptions) -> Result<P
         .unwrap_or_else(|| "atlas".into());
     write_atlas(collected, &prefix, out_dir, opts)
 }
-
-// -------------------------------------------------------------------- scanning
 
 fn collect_character(src: &Path, out: &mut Collected) -> Result<()> {
     let manifest = read_manifest(src)?;
@@ -372,7 +344,6 @@ fn push_entry(out: &mut Collected, entry: Entry) -> Result<()> {
     Ok(())
 }
 
-/// Ground contact point when nothing declares one: bottom centre of the frame.
 fn default_pivot(image: &RgbaImage) -> [i32; 2] {
     [
         (image.width() / 2) as i32,
@@ -410,7 +381,6 @@ fn load_png(path: &Path) -> Result<RgbaImage> {
     Ok(image.to_rgba8())
 }
 
-/// Sorted child directories, so the scan order never depends on the filesystem.
 fn child_dirs(dir: &Path) -> Result<Vec<PathBuf>> {
     let mut out: Vec<PathBuf> = read_dir(dir)?.into_iter().filter(|p| p.is_dir()).collect();
     out.sort();
@@ -426,7 +396,6 @@ fn pngs(dir: &Path) -> Result<Vec<PathBuf>> {
     Ok(out)
 }
 
-/// PNGs named `<n>.png`, sorted numerically (so `10.png` follows `9.png`).
 fn numbered_pngs(dir: &Path) -> Result<Vec<(u32, PathBuf)>> {
     let mut out = Vec::new();
     for path in pngs(dir)? {
@@ -472,8 +441,6 @@ fn display(path: &Path) -> String {
     path.display().to_string()
 }
 
-// --------------------------------------------------------------------- packing
-
 struct Placement {
     index: usize,
     page: usize,
@@ -481,8 +448,6 @@ struct Placement {
     y: u32,
 }
 
-/// Total order over the frames: tallest first, then widest, then by id. The id
-/// tiebreak is what makes two runs byte-identical.
 fn placement_order(entries: &[Entry]) -> Vec<usize> {
     let mut order: Vec<usize> = (0..entries.len()).collect();
     order.sort_by(|&a, &b| {
@@ -537,7 +502,6 @@ fn write_atlas(
         }
     }
 
-    // Prefer one small page: try square powers of two until everything fits.
     let mut placements: Vec<Placement> = Vec::new();
     let mut pages: Vec<Skyline> = Vec::new();
     let mut size = 16u32;
@@ -571,7 +535,6 @@ fn write_atlas(
         size = (size * 2).min(opts.page_max);
     }
 
-    // Did not fit in one page: spill into as many full-size pages as needed.
     if pages.is_empty() {
         for &i in &order {
             let (aw, ah) = alloc(&entries[i]);
@@ -607,7 +570,6 @@ fn write_atlas(
         }
     }
 
-    // Crop each page to the smallest power of two that still holds it.
     let page_sizes: Vec<[u32; 2]> = pages
         .iter()
         .map(|sky| {
@@ -702,9 +664,6 @@ fn write_atlas(
     })
 }
 
-/// Copies `src` to `(x, y)` and repeats its border `extrude` pixels outwards, so
-/// a linear filter sampling just outside the rect still reads the frame's own
-/// colour instead of the neighbour's.
 fn blit(page: &mut RgbaImage, src: &RgbaImage, x: u32, y: u32, extrude: u32) {
     let (w, h) = (src.width(), src.height());
     for sy in 0..h {
@@ -737,7 +696,6 @@ fn blit(page: &mut RgbaImage, src: &RgbaImage, x: u32, y: u32, extrude: u32) {
             );
         }
     }
-    // Corners.
     for dy in 1..=e {
         for dx in 1..=e {
             put(page, x as i64 - dx, y as i64 - dy, *src.get_pixel(0, 0));
@@ -770,8 +728,6 @@ fn put(page: &mut RgbaImage, x: i64, y: i64, pixel: Rgba<u8>) {
     page.put_pixel(x as u32, y as u32, pixel);
 }
 
-/// Encodes a page with pinned settings. `image` writes no `tIME` and no colour
-/// chunks, so the bytes depend only on the pixels.
 fn encode_png(image: &RgbaImage) -> Result<Vec<u8>> {
     use image::codecs::png::{CompressionType, FilterType, PngEncoder};
     let mut out = Vec::new();
@@ -791,8 +747,6 @@ fn encode_png(image: &RgbaImage) -> Result<Vec<u8>> {
     Ok(out)
 }
 
-/// `atlas-pack` without the filesystem: useful to the tests and to anyone who
-/// wants the placement without writing pages.
 #[cfg(test)]
 pub(crate) fn placement_order_ids(ids_and_sizes: &[(&str, u32, u32)]) -> Vec<String> {
     let entries: Vec<Entry> = ids_and_sizes
@@ -846,7 +800,6 @@ mod tests {
         src.put_pixel(0, 0, Rgba([1, 2, 3, 255]));
         blit(&mut page, &src, 2, 2, 1);
         assert_eq!(*page.get_pixel(2, 2), Rgba([1, 2, 3, 255]));
-        // The extruded ring copies the nearest edge pixel.
         assert_eq!(*page.get_pixel(1, 2), Rgba([1, 2, 3, 255]));
         assert_eq!(*page.get_pixel(2, 1), Rgba([1, 2, 3, 255]));
         assert_eq!(*page.get_pixel(1, 1), Rgba([1, 2, 3, 255]), "corner");

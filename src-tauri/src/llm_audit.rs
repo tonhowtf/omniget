@@ -1,15 +1,3 @@
-//! The app's side of the `/llm` audit log (2.8, S14): opening it at boot,
-//! who a bridge caller is, the lines the bridge and the window write, and the
-//! three doors to read it (`GET /v1/audit`, the window, `omniget audit`).
-//! The log itself (file, redaction, retention) is
-//! `omniget_core::core::llm::audit`.
-//!
-//! Token use on the agent routes: a route that writes its own line (start a
-//! job, cancel it, answer an ask, create an agent, start a Loop) carries the
-//! token as the line's actor; every other agent route gets a `token.use`
-//! line from the guard, reads folded to one per token and route per minute
-//! (the CLI polls).
-
 use std::collections::HashMap;
 use std::sync::Mutex;
 
@@ -21,7 +9,6 @@ use serde_json::{json, Value};
 
 use crate::mcp::policy::Principal;
 
-/// Opens `<llm dir>/audit.db` with the retention the settings ask for.
 pub fn boot(app: &tauri::AppHandle) {
     let Some(dir) = omniget_core::core::llm::roster_store::llm_dir() else {
         return;
@@ -34,8 +21,6 @@ pub fn boot(app: &tauri::AppHandle) {
     }
 }
 
-/// The caller of a bridge route as an audit actor (`token:<id>`,
-/// `job:<id>`, `extension`), with the channel it came through.
 pub fn actor_of(principal: Option<&Principal>, channel: &str) -> Actor {
     Actor::via(
         channel,
@@ -43,7 +28,6 @@ pub fn actor_of(principal: Option<&Principal>, channel: &str) -> Actor {
     )
 }
 
-/// A job someone started: who, and the facts of it (never the prompt).
 pub fn job_created(actor: Actor, job: &crate::jobs::Job) {
     audit::log(
         actor,
@@ -69,21 +53,14 @@ pub fn job_cancelled(actor: Actor, job: &crate::jobs::Job) {
     );
 }
 
-/// A review action on a job's changes (3.5): `job.hunk_discarded`,
-/// `job.integrated`, `job.discarded`. Only the facts (hunk id, strategy,
-/// outcome), never the patch.
 pub fn job_reviewed(actor: Actor, action: &str, job_id: &str, details: Value) {
     audit::log(actor, action, Entity::job(job_id), details);
 }
 
-/// A choice in an Arena (3.8): `arena.applied` (this entry merged) and
-/// `arena.cleaned` (the others removed). Actions only, no content.
 pub fn arena_action(action: &str, arena_id: &str, details: Value) {
     audit::log(Actor::window(), action, Entity::arena(arena_id), details);
 }
 
-/// How a job ended, written by the app (a cancel has its own line, with the
-/// person who asked for it).
 pub fn job_ended(job: &crate::jobs::Job) {
     audit::log(
         Actor::system("system"),
@@ -100,9 +77,6 @@ pub fn job_ended(job: &crate::jobs::Job) {
     );
 }
 
-/// A job the host started again by itself after an infrastructure failure
-/// (3.1): nobody clicked it, so the app is the actor. The reason, the
-/// attempt and whether it continues a CLI session; never the prompt.
 pub fn job_auto_resumed(job: &crate::jobs::Job, reason: &str) {
     audit::log(
         Actor::system("system"),
@@ -120,8 +94,6 @@ pub fn job_auto_resumed(job: &crate::jobs::Job, reason: &str) {
     );
 }
 
-/// A Loop the host set running again by itself (3.1), after a restart or a
-/// round the watchdog stopped; `round` is the job of the lost round, if any.
 pub fn loop_auto_resumed(loop_id: &str, reason: &str, restarts: u32, round: Option<&str>) {
     audit::log(
         Actor::system("system"),
@@ -131,8 +103,6 @@ pub fn loop_auto_resumed(loop_id: &str, reason: &str, restarts: u32, round: Opti
     );
 }
 
-/// The side model judged one round of a Loop (3.7). What it cost goes with
-/// it, since audits are spent on the Loop's budget (3.3); never the reply.
 pub fn loop_audited(loop_id: &str, a: &crate::jobs::LoopAudit) {
     audit::log(
         Actor::system("auditor"),
@@ -145,9 +115,6 @@ pub fn loop_audited(loop_id: &str, a: &crate::jobs::LoopAudit) {
     );
 }
 
-/// The app started with no window (3.2): `cli` when a CLI brought it up
-/// (`--background`), `login` for the login item with agents in the
-/// background, `tray` for "start in tray only".
 pub fn app_started_hidden(how: &str) {
     audit::log(
         Actor::system("system"),
@@ -157,7 +124,6 @@ pub fn app_started_hidden(how: &str) {
     );
 }
 
-/// Routes whose handler writes its own line with the caller as actor.
 fn self_audited(method: &Method, path: &str) -> bool {
     if method != Method::POST {
         return false;
@@ -176,10 +142,8 @@ fn self_audited(method: &Method, path: &str) -> bool {
     )
 }
 
-/// Reads of one token on one route are written once a minute at most.
 const READ_FOLD_MS: u64 = 60_000;
 
-/// Called by the bridge guard once the caller is known.
 pub fn on_route(principal: &Principal, method: &Method, path: &str, now_ms: u64) {
     if self_audited(method, path) {
         return;
@@ -208,10 +172,6 @@ pub fn on_route(principal: &Principal, method: &Method, path: &str, now_ms: u64)
     );
 }
 
-// ── reading ─────────────────────────────────────────────────────────────
-
-/// `since` (`1d`, `12h`, `30m`), `action` (a prefix, `job.`), `entity`,
-/// `limit` of a query string.
 pub fn query_of(raw: Option<&str>, now_ms: u64) -> Result<Query, String> {
     let mut q = Query::default();
     for pair in raw.unwrap_or("").split('&').filter(|p| !p.is_empty()) {
@@ -232,7 +192,6 @@ pub fn query_of(raw: Option<&str>, now_ms: u64) -> Result<Query, String> {
     Ok(q)
 }
 
-/// `GET /v1/audit?since=1d&action=job.&limit=200` (scope `audit:read`).
 pub fn http_list(query: Option<&str>) -> Response {
     match query_of(query, crate::llm_manager::now_ms()) {
         Ok(q) => Json(json!(audit::list(&q))).into_response(),
@@ -240,10 +199,6 @@ pub fn http_list(query: Option<&str>) -> Response {
     }
 }
 
-// ── the window ──────────────────────────────────────────────────────────
-
-/// The lines of the last `since` (default a day), newest first, and the
-/// retention in days.
 #[tauri::command]
 pub async fn llm_audit_list(
     since: Option<String>,
@@ -264,7 +219,6 @@ pub async fn llm_audit_list(
     }))
 }
 
-/// Sets how many days a line is kept (1–3650); older lines go now.
 #[tauri::command]
 pub async fn llm_audit_retention_set(app: tauri::AppHandle, days: u32) -> Result<Value, String> {
     let days = days.clamp(1, 3650);

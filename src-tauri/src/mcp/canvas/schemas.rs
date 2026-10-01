@@ -1,13 +1,3 @@
-//! Full JSON Schemas of the nested arguments of the canvas tools (the serde
-//! structs of `omniget_core::core::canvas::*`, written by hand), and the
-//! flattening of the common forms (`partitura_create {name, nodeIds}`,
-//! `routine_create {nodeId, prompt, every}`) into those structs.
-//!
-//! Rule checked by `super::tests`: every object in an input schema has
-//! `properties` or a typed `additionalProperties`; a free-form map (patches,
-//! payloads, rpc args) is marked `additionalProperties: true` and listed in
-//! [`FREE_FORM`] with the reason.
-
 use serde_json::{json, Map, Value};
 
 fn obj(props: Value, required: &[&str], desc: &str) -> Value {
@@ -30,12 +20,10 @@ fn strs(desc: &str) -> Value {
     json!({"type": "array", "items": {"type": "string"}, "description": desc})
 }
 
-/// A free-form map (see [`FREE_FORM`]).
 pub fn free(desc: &str) -> Value {
     json!({"type": "object", "additionalProperties": true, "description": desc})
 }
 
-/// A map of strings (`{"KEY": "value"}`).
 pub fn string_map(desc: &str) -> Value {
     json!({"type": "object", "additionalProperties": {"type": "string"}, "description": desc})
 }
@@ -68,7 +56,6 @@ fn anchor(desc: &str) -> Value {
     )
 }
 
-/// `model::Drawing` (id optional on add).
 pub fn drawing() -> Value {
     obj(
         json!({
@@ -90,7 +77,6 @@ pub fn drawing() -> Value {
     )
 }
 
-/// `routines::Schedule`.
 pub fn schedule() -> Value {
     json!({
         "description": "When it runs: {\"kind\":\"interval\",\"seconds\":30} or {\"kind\":\"interval\",\"minutes\":30} (minimum 10 s; starts right away) | {\"kind\":\"once\",\"at\":\"2026-10-01T09:00:00-03:00\"} | {\"kind\":\"daily\",\"time\":\"09:00\"} or {\"kind\":\"daily\",\"hour\":9,\"minute\":0} | {\"kind\":\"weekly\",\"days\":[1,3,5],\"time\":\"09:00\"} (0 = Sunday) or Maestri's {\"kind\":\"weekly\",\"weekdays\":[2,4,6],\"hour\":9,\"minute\":0} (1 = Sunday)",
@@ -103,7 +89,6 @@ pub fn schedule() -> Value {
     })
 }
 
-/// `routines::End`.
 pub fn end() -> Value {
     json!({
         "description": "When it stops: {\"kind\":\"never\"} (default) | {\"kind\":\"afterCount\",\"count\":3} | {\"kind\":\"onDate\",\"date\":\"2026-12-31\"}",
@@ -115,7 +100,6 @@ pub fn end() -> Value {
     })
 }
 
-/// `routines::RoutineInput`.
 pub fn routine_input(with_id: bool) -> Value {
     let mut required = vec!["name", "prompt", "schedule"];
     if with_id {
@@ -163,7 +147,6 @@ fn commands_map() -> Value {
     json!({"type": "object", "additionalProperties": {"type": ["string", "null"]}, "description": "Per terminal node id: new startup command, or null to drop it"})
 }
 
-/// `partituras::SaveRequest` (nested form).
 pub fn save_request() -> Value {
     obj(
         json!({
@@ -182,7 +165,6 @@ pub fn save_request() -> Value {
     )
 }
 
-/// `partituras::StampOptions`.
 pub fn stamp_options() -> Value {
     obj(
         json!({
@@ -201,7 +183,6 @@ fn hook_list(desc: &str) -> Value {
     json!({"type": "array", "description": desc, "items": obj(json!({"id": st("Id (generated)"), "command": st("Shell command"), "name": st("Label"), "enabled": boolean("Enabled (default true)")}), &["command"], "Hook")})
 }
 
-/// `floors::FloorHooks`.
 pub fn floor_hooks() -> Value {
     obj(
         json!({"setup": hook_list("Run after a floor is created"), "run": hook_list("Run on demand"), "teardown": hook_list("Run before a floor is deleted"), "autoRunSetup": boolean("Run setup right after creation (default true)")}),
@@ -210,7 +191,6 @@ pub fn floor_hooks() -> Value {
     )
 }
 
-/// `companion::CompanionSettings`.
 pub fn companion_settings() -> Value {
     obj(
         json!({
@@ -226,7 +206,6 @@ pub fn companion_settings() -> Value {
     )
 }
 
-/// Appearance of a terminal node (stored as given; the known fields).
 pub fn appearance() -> Value {
     json!({
         "type": ["object", "null"],
@@ -240,10 +219,6 @@ pub fn appearance() -> Value {
     })
 }
 
-// ── Flat forms ─────────────────────────────────────────────────────────
-
-/// Seconds of an `every` shorthand: `30s`, `5m`, `2h`, `1d`, `15` (minutes).
-/// Below the routine minimum it is refused, never silently rounded.
 pub fn every_seconds(v: &str) -> Result<u32, String> {
     let t = v.trim().to_lowercase();
     let (n, unit) = t.split_at(t.find(|c: char| !c.is_ascii_digit()).unwrap_or(t.len()));
@@ -270,8 +245,6 @@ pub fn every_seconds(v: &str) -> Result<u32, String> {
     Ok(secs)
 }
 
-/// Builds `RoutineInput` JSON from the flat arguments (nested `routine`
-/// wins when given).
 pub fn routine_from_flat(a: &Value) -> Result<Value, String> {
     if let Some(r) = a.get("routine").filter(|r| r.is_object()) {
         return Ok(r.clone());
@@ -340,9 +313,6 @@ pub fn routine_from_flat(a: &Value) -> Result<Value, String> {
     Ok(Value::Object(r))
 }
 
-/// Builds `SaveRequest` JSON from the flat arguments (nested `request`
-/// wins, with `options` defaulted). `selection` = the node/drawing ids
-/// already resolved by the caller; `first_title` names it when no name.
 pub fn save_request_from_flat(
     a: &Value,
     selection: Option<(Vec<String>, Vec<String>)>,

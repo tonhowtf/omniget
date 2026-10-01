@@ -1,27 +1,17 @@
-//! JavaScript of the canvas portals. The base (console ring, element refs,
-//! snapshot/click/type) is the thread preview's script, re-pointed at the
-//! portal report command; this file adds the verbs the canvas CLI has on top
-//! (`@eN` refs, `x,y` points, fill, press, evaluate).
-
 use serde_json::Value;
 
 use crate::preview::script as base;
 
-/// App command the injected script answers through. `ipc_guard` must let
-/// `portal-*` webviews call it (and nothing else).
 pub const REPORT_COMMAND: &str = "canvas_portal_report";
 
 fn repoint(js: &str) -> String {
     js.replace("preview_report", REPORT_COMMAND)
 }
 
-/// Init script (every page load, main frame).
 pub fn init() -> String {
     format!("{}\n{}", repoint(base::INIT), repoint(POPUP_INIT))
 }
 
-/// A popup portal (`window.open`) that calls `window.close()` asks the app to
-/// remove its node; WebKit's close request has no delegate here.
 const POPUP_INIT: &str = r#"(function () {
   // Every portal page: the app only acts for popup portals.
   if (window.__omnigetPopupClose) return;
@@ -39,7 +29,6 @@ const POPUP_INIT: &str = r#"(function () {
   };
 })();"#;
 
-/// Mutes (or unmutes) every `<audio>`/`<video>`, now and as they appear.
 pub fn mute_js(muted: bool) -> String {
     format!(
         r#"(function (m) {{
@@ -57,7 +46,6 @@ pub fn mute_js(muted: bool) -> String {
     )
 }
 
-/// Wraps a function expression; its result comes back under `id`.
 pub fn wrap(id: &str, func: &str, args: &Value) -> String {
     repoint(&base::wrap(id, func, args))
 }
@@ -72,14 +60,11 @@ pub fn type_fn() -> String {
 
 pub const CONSOLE_FN: &str = base::CONSOLE_FN;
 
-/// `@e12` → `e12`; the preview helpers accept `e12`, `ref=e12`, CSS and
-/// `text=`. A bare `x,y` point is handled by [`click_fn`].
 pub fn normalize_selector(raw: &str) -> String {
     let s = raw.trim();
     s.strip_prefix('@').unwrap_or(s).to_string()
 }
 
-/// True for `120,48` (a viewport point in CSS px).
 pub fn is_point(sel: &str) -> bool {
     let mut parts = sel.split(',');
     let (Some(a), Some(b), None) = (parts.next(), parts.next(), parts.next()) else {
@@ -88,9 +73,6 @@ pub fn is_point(sel: &str) -> bool {
     a.trim().parse::<f64>().is_ok() && b.trim().parse::<f64>().is_ok()
 }
 
-/// `{action, selector?, ...}` for the element verbs the CLI has besides
-/// click/fill: hover, scroll, select, check, uncheck, text, html, and
-/// `probe` (one check of `wait`, which loops on the Rust side).
 pub fn element_fn() -> String {
     format!(
         r#"function (a) {{
@@ -150,7 +132,6 @@ pub fn element_fn() -> String {
     )
 }
 
-/// Click by ref/CSS/text (the preview's function) or by `x,y` point.
 pub fn click_fn(selector: &str) -> String {
     if is_point(selector) {
         POINT_CLICK_FN.to_string()
@@ -176,9 +157,6 @@ const POINT_CLICK_FN: &str = r#"function (a) {
   return { clicked: el.tagName.toLowerCase() + (el.id ? '#' + el.id : ''), url: location.href };
 }"#;
 
-/// `{key: "Enter" | "ctrl+a" | "cmd+shift+k", selector?}`: keydown/keypress/
-/// keyup on the target (or the focused element). Enter in a form field
-/// submits the form, as a browser would.
 pub const PRESS_FN: &str = r#"function (a) {
   var P = window.__omnigetPreview || { refs: new Map() };
   var el = document.activeElement || document.body;
@@ -215,8 +193,6 @@ pub const PRESS_FN: &str = r#"function (a) {
   return { pressed: String(a.key), target: el.tagName ? el.tagName.toLowerCase() : 'document', url: location.href };
 }"#;
 
-/// `{code}`: evaluates `code` as an expression (or statements) in the page and
-/// returns a JSON-safe value (strings over 20 000 chars are cut).
 pub const EVALUATE_FN: &str = r#"function (a) {
   var code = String(a.code || '');
   var v;

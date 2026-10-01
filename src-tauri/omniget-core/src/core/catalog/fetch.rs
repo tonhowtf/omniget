@@ -1,13 +1,3 @@
-//! Conteúdo de um item: baixado no commit pinado, conferido e guardado em cache
-//! endereçado por hash (`<app_data>/agentkit/catalog/content/<sha256>`).
-//!
-//! - item com `files` (índice/fonte do usuário): cada arquivo de
-//!   `raw.githubusercontent.com/<repo>/<commit>/<dir>/<path>` (ou da raiz local),
-//!   com o sha256 do índice conferido; skill/mod/template trazem a pasta inteira;
-//! - plugin de marketplace (sem lista de arquivos): árvore do GitHub no commit,
-//!   cada blob conferido pelo sha1 de blob do git;
-//! - MCP Registry: arquivos gerados a partir do `server.json`.
-
 use std::collections::BTreeMap;
 use std::path::{Component, Path, PathBuf};
 
@@ -27,7 +17,6 @@ const PARALLEL: usize = 8;
 
 #[derive(Debug, Clone, Serialize)]
 pub struct FileContent {
-    /// `utf8` ou `base64`.
     pub encoding: &'static str,
     pub content: String,
     pub sha256: String,
@@ -38,13 +27,11 @@ pub struct FileContent {
 pub struct ItemFiles {
     pub id: String,
     pub entry: String,
-    /// `sha256` (índice), `git-blob` (árvore do GitHub) ou `generated` (registry).
     pub verified: &'static str,
     pub total_bytes: u64,
     pub files: BTreeMap<String, FileContent>,
 }
 
-/// Caminho relativo seguro (sem `..`, sem raiz, sem prefixo de drive).
 pub fn safe_rel(p: &str) -> Result<PathBuf> {
     let path = Path::new(p);
     if p.is_empty() || p.contains('\\') || p.contains('\0') {
@@ -77,7 +64,6 @@ fn content_dir() -> Result<PathBuf> {
     Ok(catalog_dir()?.join("content"))
 }
 
-/// Lê do cache por hash (conferindo de novo).
 pub fn cached(sha: &str) -> Option<Vec<u8>> {
     if sha.len() != 64 || !sha.bytes().all(|b| b.is_ascii_hexdigit()) {
         return None;
@@ -141,7 +127,6 @@ async fn fetch_indexed(item: &CatalogItem, f: &ItemFile) -> Result<Vec<u8>> {
     Ok(bytes)
 }
 
-/// sha1 de blob do git: `sha1("blob <len>\0" + bytes)`.
 pub fn git_blob_sha1(bytes: &[u8]) -> String {
     use sha1::{Digest, Sha1};
     let mut h = Sha1::new();
@@ -235,7 +220,6 @@ async fn fetch_plugin_tree(item: &CatalogItem) -> Result<BTreeMap<String, Vec<u8
     Ok(results.into_iter().collect())
 }
 
-/// Bytes crus de todos os arquivos do item (o que o `agentkit::parse_raw` consome).
 pub async fn item_bytes(item: &CatalogItem) -> Result<(BTreeMap<String, Vec<u8>>, &'static str)> {
     if item.source.id == super::registry::SOURCE_ID {
         return Ok((super::registry::generated_files(item)?, "generated"));
@@ -255,8 +239,6 @@ pub async fn item_bytes(item: &CatalogItem) -> Result<(BTreeMap<String, Vec<u8>>
             format!("{}: too large", item.id),
         ));
     }
-    // Owned files: a closure over `&ItemFile` makes the future not Send-general
-    // enough for a Tauri async command (`run_wizard_detect`).
     let files: Vec<_> = item.files.to_vec();
     let results: Vec<(String, Vec<u8>)> =
         futures::stream::iter(files.into_iter().map(|f| async move {
@@ -269,7 +251,6 @@ pub async fn item_bytes(item: &CatalogItem) -> Result<(BTreeMap<String, Vec<u8>>
     Ok((results.into_iter().collect(), "sha256"))
 }
 
-/// Codifica bytes: UTF-8 válido vai como texto; o resto como base64.
 pub fn encode(bytes: &[u8]) -> FileContent {
     let sha256 = sha256_hex(bytes);
     let size = bytes.len() as u64;
@@ -289,7 +270,6 @@ pub fn encode(bytes: &[u8]) -> FileContent {
     }
 }
 
-/// Baixa, confere e devolve o mapa caminho → conteúdo.
 pub async fn item_files(item: &CatalogItem) -> Result<ItemFiles> {
     let (bytes, verified) = item_bytes(item).await?;
     let total_bytes = bytes.values().map(|b| b.len() as u64).sum();

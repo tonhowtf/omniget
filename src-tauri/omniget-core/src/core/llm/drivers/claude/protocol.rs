@@ -1,32 +1,3 @@
-//! Wire of `claude -p --input-format stream-json --output-format stream-json`
-//! as measured on Claude Code 2.1.280 (22/09/2026, fixtures in `fixtures/`).
-//!
-//! Both directions are NDJSON on the child's stdio:
-//!
-//! * **stdin (us → CLI)**
-//!   - prompt: `{"type":"user","message":{"role":"user","content":[…]},
-//!     "parent_tool_use_id":null,"session_id":"","uuid":"<ours>"}`. The `uuid`
-//!     becomes the transcript uuid and comes back in `command_lifecycle`
-//!     (`queued|started|completed|cancelled`) and in `result.user_message_uuids`.
-//!     A prompt written while a turn runs is queued (steer).
-//!   - control: `{"type":"control_request","request_id":"<ours>","request":
-//!     {"subtype":"initialize"|"interrupt"|"set_permission_mode"|"set_model"|
-//!     "get_usage",…}}`; the CLI answers `{"type":"control_response",
-//!     "response":{"subtype":"success"|"error","request_id":…,"response":{…}}}`.
-//!   - answer to a CLI request: `{"type":"control_response","response":
-//!     {"subtype":"success","request_id":"<the CLI's>","response":
-//!     {"behavior":"allow","updatedInput":{…},"updatedPermissions":[…]} |
-//!     {"behavior":"deny","message":"…","interrupt":true?}}}`.
-//! * **stdout (CLI → us)**: the SDK message stream (`system/*`, `stream_event`,
-//!   `assistant`, `user`, `result`, `rate_limit_event`, `command_lifecycle`, …)
-//!   plus `control_request` `can_use_tool {tool_name, input, tool_use_id,
-//!   permission_suggestions?, description?, requires_user_interaction?}` and
-//!   `control_cancel_request {request_id}` when a pending ask is withdrawn.
-//!
-//! `--permission-prompt-tool stdio` is the hidden flag the Agent SDK passes;
-//! it routes every permission prompt to the host over this same stdio (the
-//! binary's own help string: "permission prompts reach the host over stdio").
-
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 
@@ -34,8 +5,6 @@ use serde_json::{json, Value};
 
 use super::super::{AccessMode, ApprovalDecision, InteractionMode};
 
-/// Variables that make a nested `claude` think it runs inside another Claude
-/// Code session (set when OmniGet itself is launched from a Claude terminal).
 pub const NESTING_ENV: &[&str] = &[
     "CLAUDECODE",
     "CLAUDE_CODE_ENTRYPOINT",
@@ -49,8 +18,6 @@ pub const NESTING_ENV: &[&str] = &[
     "CLAUDE_EFFORT",
 ];
 
-/// Flags a user launch arg may not override (T3: "argv order never lets the
-/// user's flag win"). The permission mode comes from the thread's access mode.
 const RESERVED_FLAGS: &[&str] = &[
     "-p",
     "--print",
@@ -70,8 +37,6 @@ const RESERVED_FLAGS: &[&str] = &[
     "--resume-session-at",
 ];
 
-/// `--permission-mode` for a thread. `bypassPermissions` only for the mode
-/// the user picked as full access; plan turns use `plan`.
 pub fn permission_mode(access: AccessMode, interaction: InteractionMode) -> &'static str {
     if interaction == InteractionMode::Plan {
         return "plan";
@@ -84,24 +49,16 @@ pub fn permission_mode(access: AccessMode, interaction: InteractionMode) -> &'st
     }
 }
 
-/// Everything one launch needs. Built by the driver, turned into argv here.
 #[derive(Debug, Clone, Default)]
 pub struct Launch {
     pub model: Option<String>,
     pub access: AccessMode,
     pub interaction: InteractionMode,
-    /// `--resume <id>`.
     pub resume: Option<String>,
-    /// `--resume-session-at <uuid>` (needs `resume`).
     pub resume_at: Option<String>,
-    /// `--fork-session` (needs `resume`).
     pub fork: bool,
-    /// `--session-id <uuid>` for a fresh session, so the cursor exists before
-    /// the first `system/init`.
     pub session_id: Option<String>,
-    /// JSON string or file path for `--mcp-config`.
     pub mcp_config: Option<String>,
-    /// The instance's own launch args (filtered).
     pub extra_args: Vec<String>,
 }
 
@@ -126,8 +83,6 @@ impl Launch {
         out.push("--permission-mode".into());
         out.push(mode.into());
         if self.access == AccessMode::FullAccess {
-            // Needed for bypassPermissions at launch and for switching into it
-            // later with `set_permission_mode`.
             out.push("--allow-dangerously-skip-permissions".into());
         }
         if let Some(model) = self.model.as_deref().filter(|m| !m.trim().is_empty()) {
@@ -164,7 +119,6 @@ impl Launch {
     }
 }
 
-/// Drops reserved flags (and their value) from a user's launch args.
 pub fn filter_user_args(args: &[String]) -> Vec<String> {
     let mut out = Vec::new();
     let mut i = 0;
@@ -172,8 +126,6 @@ pub fn filter_user_args(args: &[String]) -> Vec<String> {
         let arg = &args[i];
         let name = arg.split('=').next().unwrap_or(arg);
         if RESERVED_FLAGS.contains(&name) {
-            // `--flag value` form: skip the value too (flags that take none are
-            // followed by another `-…` or nothing).
             let takes_value = !arg.contains('=')
                 && !matches!(
                     name,
@@ -196,8 +148,6 @@ pub fn filter_user_args(args: &[String]) -> Vec<String> {
     out
 }
 
-/// Environment of the child: the account's config dir plus the instance's
-/// own variables. Empty `config_dir` = the CLI's default profile.
 pub fn child_env(
     config_dir: Option<&PathBuf>,
     instance_env: &[super::super::EnvVar],
@@ -214,8 +164,6 @@ pub fn child_env(
     env
 }
 
-/// Variables removed before launch: API keys (the account decides who is
-/// billed, `accounts::SCRUB_ENV`) and the nesting markers.
 pub fn scrub_env() -> Vec<String> {
     crate::core::llm::cli_runtime::SCRUB_ENV
         .iter()
@@ -224,8 +172,6 @@ pub fn scrub_env() -> Vec<String> {
         .collect()
 }
 
-/// One prompt. Images first, the text block last: the CLI only expands a
-/// slash command when the last block is text (T3 finding).
 pub fn user_message(uuid: &str, text: &str, attachments: &[Value]) -> Value {
     let mut content = Vec::new();
     let mut text = text.to_string();
@@ -281,19 +227,6 @@ pub const DECLINE_MESSAGE: &str = "User declined tool execution.";
 pub const CANCEL_MESSAGE: &str = "User cancelled tool execution.";
 pub const PLAN_CAPTURED_MESSAGE: &str = "The client captured your proposed plan. Stop here and wait for the user's feedback or implementation request in a later turn.";
 
-/// The `can_use_tool` answer for a decision.
-///
-/// * `accept` → allow once.
-/// * `acceptForSession` → allow + the CLI's own suggestions **rescoped to
-///   `session`** (echoing them verbatim could write `.claude/settings.local.json`);
-///   with no suggestion, a session `addRules` for the tool. For an edit the
-///   CLI suggests `setMode acceptEdits` (measured), i.e. "allow edits for the
-///   rest of the session", the same as its own dialog.
-/// * `acceptAlways` → allow + the suggestions as the CLI proposed them
-///   (their own destination, typically `localSettings`); `setMode` stays
-///   session-scoped; with none, a `localSettings` rule for the tool.
-/// * `decline` → deny with the message the model sees.
-/// * `cancel` → deny + `interrupt: true` (the CLI aborts the turn).
 pub fn permission_answer(
     decision: ApprovalDecision,
     tool_name: &str,
@@ -357,8 +290,6 @@ pub fn permission_answer(
     }
 }
 
-/// `--mcp-config` body for MCP servers handed over by the host (the embedded
-/// OmniGet MCP with the session token): Claude's `.mcp.json` shape.
 pub fn mcp_config_json(servers: &[super::super::acp::McpServerSpec]) -> Value {
     use super::super::acp::McpServerSpec as S;
     let headers = |h: &[(String, String)]| -> Value {

@@ -1,27 +1,3 @@
-//! Grok: o oficial Grok Build (xAI) e o grok-cli comunitário
-//! (superagent-ai/grok-cli), que dividem `~/.grok/` (estudo 06, Grok §j;
-//! Parte 6 §8.1/§8.3).
-//!
-//! Grok Build: `${GROK_HOME:-~/.grok}/sessions/<cwd codificado em %>/<id>/`
-//! com `updates.jsonl` (eventos ACP `{"method":"session/update","params":
-//! {sessionId, update:{sessionUpdate, …}, _meta:{agentTimestampMs}}}`:
-//! `user_message_chunk`, `agent_message_chunk`, `agent_thought_chunk`,
-//! `tool_call{toolCallId, title, kind, rawInput}`, `tool_call_update{toolCallId,
-//! status, content, rawOutput}`, `turn_completed{usage, modelUsage,
-//! costUsdTicks}`), `summary.json` (título, horários, modelo, pai) e `.cwd`
-//! quando o nome da pasta é um hash. Uso de `turn_completed`: `inputTokens`
-//! inclui o cache lido, `outputTokens` inclui o raciocínio; aqui são separados.
-//! `costUsdTicks` = 1e-10 USD.
-//!
-//! grok-cli: `~/.grok/grok.db` (SQLite): `workspaces(id, canonical_path)`,
-//! `sessions(id, workspace_id, title, model, cwd_at_start, created_at,
-//! updated_at)`, `messages(session_id, seq, role, message_json, created_at)`
-//! (mensagens AI SDK), `tool_calls(id, session_id, message_seq, tool_call_id,
-//! tool_name, args_json, status)`, `tool_results(tool_call_row_id,
-//! output_json, success)`, `usage_events(session_id, message_seq, model,
-//! input_tokens, output_tokens, cost_micros, created_at)`.
-//! Nenhum dos dois está instalado aqui: só fixture.
-
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
@@ -40,7 +16,6 @@ fn grok_home() -> Option<PathBuf> {
     env_dir("GROK_HOME").or_else(|| home_join(&[".grok"]))
 }
 
-/// Pastas de sessão do Grok Build (contêm `updates.jsonl`).
 fn build_dirs() -> Vec<PathBuf> {
     let Some(h) = grok_home() else {
         return Vec::new();
@@ -58,7 +33,6 @@ fn cli_db() -> Option<PathBuf> {
         .filter(|p| p.is_file())
 }
 
-/// Tipo de tool do ACP (`kind`) para o nome canônico.
 fn acp_kind(kind: &str) -> Option<&'static str> {
     Some(match kind {
         "read" => "Read",
@@ -279,8 +253,6 @@ fn s_title(sm: &Value) -> Option<String> {
     s(sm, &["title", "name"])
 }
 
-// ------------------------------------------------------------ grok-cli (SQLite)
-
 fn cli_sessions(db: &Path, only: Option<&str>) -> Vec<Session> {
     let Some(conn) = open_ro(db) else {
         return Vec::new();
@@ -330,7 +302,6 @@ fn cli_sessions(db: &Path, only: Option<&str>) -> Vec<Session> {
             meta.ended = Some(ms_to_rfc3339(u_));
             meta.mtime_ms = u_;
         }
-        // Mensagens.
         let mut msgs: Vec<(i64, Value, String)> = Vec::new();
         if let Ok(mut ms) = conn.prepare("SELECT seq, role, message_json, created_at FROM messages WHERE session_id = ?1 ORDER BY seq") {
             if let Ok(rows) = ms.query_map([&id], |r| {
@@ -376,7 +347,6 @@ fn cli_sessions(db: &Path, only: Option<&str>) -> Vec<Session> {
             turns.push(t);
         }
         attach_results(&mut turns, results);
-        // Tabela de tools (status e resultado autoritativos).
         if table_exists(&conn, "tool_calls") {
             let has_res = table_exists(&conn, "tool_results");
             let sql = format!(
@@ -444,7 +414,6 @@ fn cli_sessions(db: &Path, only: Option<&str>) -> Vec<Session> {
                 }
             }
         }
-        // Uso.
         if table_exists(&conn, "usage_events") {
             if let Ok(mut ue) = conn.prepare(
                 "SELECT message_seq, model, input_tokens, output_tokens, cost_micros, created_at FROM usage_events WHERE session_id = ?1 ORDER BY id",

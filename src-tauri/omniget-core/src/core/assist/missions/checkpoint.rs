@@ -1,17 +1,3 @@
-//! Structured checkpoints and the context rebuilt from them.
-//!
-//! A checkpoint is state, not a summary: the original objective, the
-//! criteria version, each task's progress, decisions with their origin, what
-//! is pending, the digest of every artifact a criterion depends on, the
-//! grants and skills (with hashes) in force, the memory records selected, the
-//! account/cwd/runtime pins, the last known effect, the budget and the
-//! learning overlays pinned for the run. The readable text a resumed turn
-//! gets is a projection of that state ([`rebuild_context`]), with an explicit
-//! size budget and references instead of logs.
-//!
-//! Checkpoints are written by the domain at task boundaries and before a
-//! compaction (the default policies) — never left to the model to remember.
-
 use std::collections::BTreeMap;
 
 use rusqlite::{params, OptionalExtension};
@@ -41,7 +27,6 @@ pub struct TaskProgress {
 pub struct Decision {
     pub at_ms: i64,
     pub what: String,
-    /// `user`, `domain`, `policy`.
     pub origin: String,
 }
 
@@ -52,8 +37,6 @@ pub struct SkillPin {
     pub hash: String,
 }
 
-/// What the caller knows that the mission tables do not (grants of the bot,
-/// memory selected for the turn, learning overlays pinned for the run).
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Extras {
@@ -95,7 +78,6 @@ pub struct Checkpoint {
     pub created_ms: i64,
 }
 
-/// Builds the state from the tables (plus `extras`) and stores it.
 pub fn create(
     db: &AssistDb,
     mission_id: &str,
@@ -186,8 +168,6 @@ pub fn create(
                 title: t.title.clone(),
                 state: t.state.as_str().into(),
                 attempts: t.attempts,
-                // Checkpoints feed other tasks' prompts and bots: redacted
-                // before they are stored (C11).
                 result_head: t.result.as_deref().map(|r| clip(&redact(r), 400)),
                 error: t.error.as_deref().map(|r| clip(&redact(r), 300)),
             })
@@ -260,8 +240,6 @@ pub fn list(db: &AssistDb, mission_id: &str) -> Result<Vec<Checkpoint>, String> 
     })
 }
 
-/// The user corrects or adds context. It lands in the next checkpoint and
-/// in every rebuilt context, marked as coming from the user.
 pub fn add_note(db: &AssistDb, mission_id: &str, text: &str) -> Result<(), String> {
     let text = text.trim();
     if text.is_empty() {
@@ -279,10 +257,6 @@ pub fn add_note(db: &AssistDb, mission_id: &str, text: &str) -> Result<(), Strin
     Ok(())
 }
 
-/// Deterministic context for a resumed (or next) turn, within `max_chars`.
-/// Order of priority: objective, criteria and their status, user notes,
-/// pending tasks, decisions, artifacts, pins; what does not fit is replaced
-/// by a reference (`checkpoint <seq>`), never silently dropped.
 pub fn rebuild_context(cp: &Checkpoint, max_chars: usize) -> String {
     let s = &cp.state;
     let mut sections: Vec<(String, Vec<String>)> = Vec::new();

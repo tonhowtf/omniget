@@ -1,9 +1,3 @@
-//! C02 projection: an external controller prepares limited derived bots,
-//! rooms of its own derived bots and delegated tasks. All authority checks
-//! live in `assist::external_config` and run on every call; this module only
-//! parses closed DTOs, maps errors to stable codes and bounds replies.
-//! Preparing configuration does not run anything: tasks stay `pending` until
-//! the mission driver runs them under the external authority.
 use super::{policy::Principal, ToolDef};
 use omniget_core::core::assist::db::AssistDb;
 use omniget_core::core::assist::external_config::{self as ext, BotRoster};
@@ -80,8 +74,6 @@ fn parse<T: serde::de::DeserializeOwned>(args: Value) -> Result<T, String> {
     serde_json::from_value(args).map_err(|_| "INVALID_ARGUMENTS".into())
 }
 
-/// Domain errors are stable codes already; group-layer messages carry free
-/// text (bot names, counts), so they are collapsed to codes here.
 fn code(e: String) -> String {
     if e.starts_with("ERR_GROUP_LIMIT") {
         "EXTERNAL_ROOM_LIMIT_REACHED".into()

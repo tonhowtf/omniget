@@ -1,17 +1,3 @@
-//! Claude stream-json → [`RuntimeEvent`]. Pure: no process, no clock beyond
-//! the event timestamps, and file reads go through a closure, so the tests
-//! replay the recorded fixtures line by line.
-//!
-//! Turn bookkeeping follows what 2.1.280 actually emits:
-//! * every prompt we write carries our `uuid`; `command_lifecycle` says when
-//!   it is `queued`, `started`, `completed` or `cancelled`;
-//! * `result.user_message_uuids` lists the prompts a result closes (several
-//!   when queued prompts were absorbed into one turn = steer);
-//! * `result.total_cost_usd` is cumulative per process, `result.usage` is per
-//!   turn, so the turn cost is the delta;
-//! * output that arrives with no turn open (a background sub-agent finishing
-//!   after the result) is emitted with no `turnId` and lands as loose rows.
-
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::path::{Path, PathBuf};
 
@@ -34,19 +20,14 @@ use super::diff;
 use super::protocol;
 
 pub const DRIVER: &str = "claude";
-/// Tool output kept in an item (the model saw all of it; the UI needs a tail).
 const OUTPUT_CLIP: usize = 16 * 1024;
 const INPUT_CLIP: usize = 32 * 1024;
 
-/// What one stdout line turns into.
 #[derive(Debug, Clone, PartialEq)]
 #[allow(clippy::large_enum_variant)]
 pub enum Output {
     Event(RuntimeEvent),
-    /// A line the driver must write to the CLI's stdin right away (answers
-    /// the driver gives on its own: captured plans, unsupported requests).
     Send(Value),
-    /// The CLI answered one of our control requests.
     ControlResult {
         request_id: String,
         ok: bool,
@@ -54,7 +35,6 @@ pub enum Output {
     },
 }
 
-/// A pending `can_use_tool` the user has to answer.
 #[derive(Debug, Clone, PartialEq)]
 pub enum OpenRequest {
     Approval {
@@ -105,16 +85,13 @@ pub struct Translator {
     pub cwd: Option<PathBuf>,
     pub cursor: ClaudeCursor,
     cursor_dirty: bool,
-    /// prompt uuid → engine turn id.
     prompts: HashMap<String, String>,
     queue: VecDeque<String>,
     active: Option<String>,
     started: HashSet<String>,
     completed: HashSet<String>,
     interrupt_requested: bool,
-    /// Last main-chain transcript uuid seen (the rollback boundary).
     last_uuid: Option<String>,
-    // per process
     last_total_cost: f64,
     streamed: HashSet<String>,
     current_message: Option<String>,
@@ -170,7 +147,6 @@ impl Translator {
         }
     }
 
-    /// `system/init` messages seen so far (a process that got going).
     pub fn inits(&self) -> u64 {
         self.init_count
     }
@@ -183,11 +159,6 @@ impl Translator {
         self.active.clone()
     }
 
-    // ── turn bookkeeping ────────────────────────────────────────────────
-
-    /// A prompt was written to stdin. Returns `turn.started` when no other
-    /// turn is running; otherwise the prompt is queued (steer) and starts when
-    /// the CLI says so.
     pub fn register_prompt(
         &mut self,
         turn_id: &str,
@@ -234,7 +205,6 @@ impl Translator {
         }
     }
 
-    /// Content arrived: make sure the queued prompt it belongs to is active.
     fn ensure_active(&mut self, out: &mut Vec<Output>) {
         if self.active.is_none() && !self.queue.is_empty() {
             if let Some(e) = self.activate_next() {
@@ -255,7 +225,6 @@ impl Translator {
         self.interrupt_requested = true;
     }
 
-    /// Forget everything tied to one process (new spawn).
     pub fn reset_process(&mut self) {
         self.last_total_cost = 0.0;
         self.streamed.clear();
@@ -279,8 +248,6 @@ impl Translator {
         ))
     }
 
-    /// Ends every live turn (process died, session stopped). Open tools and
-    /// requests are closed; the engine marks the approvals stale.
     pub fn abort_all(&mut self, state: TurnEndState, reason: &str) -> Vec<RuntimeEvent> {
         let mut turns: Vec<String> = Vec::new();
         if let Some(a) = self.active.take() {
@@ -319,8 +286,6 @@ impl Translator {
         out
     }
 
-    /// Open requests (for stop: each gets a deny so the CLI is never left
-    /// waiting, and a resolution event).
     pub fn drain_requests(&mut self, resolution: &str) -> (Vec<Value>, Vec<RuntimeEvent>) {
         let mut sends = Vec::new();
         let mut events = Vec::new();
@@ -360,9 +325,6 @@ impl Translator {
         (sends, events)
     }
 
-    // ── answers ─────────────────────────────────────────────────────────
-
-    /// The control_response for an approval + the `request.resolved` event.
     pub fn answer_approval(
         &mut self,
         request_id: &str,
@@ -399,12 +361,6 @@ impl Translator {
         Ok((protocol::control_success(request_id, answer), vec![ev]))
     }
 
-    /// The control_response for an `AskUserQuestion` + `user-input.resolved`.
-    ///
-    /// `answers` is `{questionId: "label" | ["a","b"] | {answer|value|label}}`;
-    /// question ids are the question texts, which is also the key the CLI
-    /// looks answers up by (T3 #2388). Multi-select answers are joined with
-    /// ", " as the CLI's own dialog does.
     pub fn answer_questions(
         &mut self,
         request_id: &str,
@@ -459,8 +415,6 @@ impl Translator {
         Ok((line, vec![ev]))
     }
 
-    // ── the stream ──────────────────────────────────────────────────────
-
     pub fn on_line(
         &mut self,
         line: &str,
@@ -471,7 +425,6 @@ impl Translator {
             return Vec::new();
         }
         let Ok(v) = serde_json::from_str::<Value>(line) else {
-            // A stray log line on stdout is never fatal.
             return Vec::new();
         };
         let mut out = Vec::new();
@@ -815,7 +768,6 @@ impl Translator {
                     detail: str_at(v, "error").or_else(|| str_at(v, "message")),
                 }),
             ))),
-            // Progress noise the UI does not show.
             _ => {}
         }
     }
@@ -1200,8 +1152,6 @@ impl Translator {
                     }
                 }
                 "text" | "thinking" if !streamed && parent.is_none() => {
-                    // Backfill: this message never streamed (partial messages
-                    // off, or a replayed snapshot). One delta + completion.
                     let n = self.snapshot_blocks.entry(id.clone()).or_insert(0);
                     let item = format!("{id}:s{n}");
                     *n += 1;
@@ -1314,7 +1264,6 @@ impl Translator {
         for id in ids {
             let tool = self.tools.get_mut(&id).expect("listed above");
             tool.completed = true;
-            // A background agent outlives the turn that launched it.
             if tool.item_type == ItemType::CollabAgentToolCall && completed {
                 continue;
             }
@@ -1344,7 +1293,6 @@ impl Translator {
     }
 
     fn on_result(&mut self, v: &Value, out: &mut Vec<Output>) {
-        // Which turns this result closes.
         let mut uuids: Vec<String> = v
             .get("user_message_uuids")
             .and_then(Value::as_array)
@@ -1392,8 +1340,6 @@ impl Translator {
             }
         }
 
-        // Boundaries: every closed turn (and a synthetic tail) ends at the
-        // latest transcript message.
         if let Some(last) = self.last_uuid.clone() {
             let targets: HashSet<&String> = turns.iter().collect();
             let mut touched = false;
@@ -1413,7 +1359,6 @@ impl Translator {
         }
 
         if turns.is_empty() {
-            // Background output after the turn ended (sub-agent reply).
             if let Some(u) = usage {
                 out.push(Output::Event(self.ev(
                     None,
@@ -1485,7 +1430,6 @@ impl Translator {
         }
     }
 
-    /// T3's `resultOutcome`, trimmed to what 2.1.280 sends.
     fn outcome(&self, v: &Value) -> (TurnEndState, Option<String>) {
         let subtype = str_at(v, "subtype").unwrap_or_default();
         let is_error = v.get("is_error").and_then(Value::as_bool).unwrap_or(false);
@@ -1598,8 +1542,6 @@ impl Translator {
             json!({"error": r.get("error")})
         };
         if ok && payload.get("commands").is_some() && payload.get("models").is_some() {
-            // initialize: capabilities of this CLI build. The account e-mail
-            // is not forwarded.
             if let Some(mode) = str_at(&payload, "current_permission_mode") {
                 self.permission_mode = Some(mode);
             }
@@ -1676,8 +1618,6 @@ impl Translator {
         let r = v.get("request").cloned().unwrap_or(Value::Null);
         let sub = str_at(&r, "subtype").unwrap_or_default();
         if sub != "can_use_tool" {
-            // hook_callback, mcp_message, elicitation, …: nothing registered
-            // on our side. An error answer keeps the CLI from waiting.
             out.push(Output::Send(protocol::control_error(
                 &request_id,
                 &format!("`{sub}` is not handled by OmniGet"),
@@ -1811,8 +1751,6 @@ impl Translator {
     }
 }
 
-// ── helpers ─────────────────────────────────────────────────────────────
-
 fn str_at(v: &Value, key: &str) -> Option<String> {
     v.get(key).and_then(Value::as_str).map(str::to_string)
 }
@@ -1899,7 +1837,6 @@ fn tool_result_text(content: Option<&Value>) -> String {
     }
 }
 
-/// Canonical item type of a Claude tool.
 pub fn classify_tool(name: &str, input: &Value) -> ItemType {
     let lower = name.to_ascii_lowercase();
     if lower == "read" {
@@ -1950,7 +1887,6 @@ fn title_of(t: ItemType) -> &'static str {
     }
 }
 
-/// One-line summary of a tool call for the timeline.
 pub fn tool_summary(name: &str, input: &Value) -> Option<String> {
     let s = |k: &str| input.get(k).and_then(Value::as_str).map(str::to_string);
     let text = match name {
@@ -1975,7 +1911,6 @@ fn clip_head(s: &str, max: usize) -> String {
     }
 }
 
-/// `request.opened.requestType` by tool name (T3's `classifyRequestType`).
 pub fn classify_request(name: &str) -> RequestType {
     let lower = name.to_ascii_lowercase();
     if ["read", "view", "grep", "glob", "search", "ls"]
@@ -2036,7 +1971,6 @@ fn parse_questions(input: &Value) -> Vec<UserInputQuestion> {
                 .map(|(i, q)| {
                     let question = str_at(q, "question").unwrap_or_default();
                     UserInputQuestion {
-                        // The CLI looks answers up by question text.
                         id: if question.is_empty() {
                             format!("q-{i}")
                         } else {
@@ -2078,7 +2012,6 @@ fn result_usage(v: &Value) -> Option<TokenUsage> {
         .and_then(Value::as_u64)
         .unwrap_or(0)
         .min(n("output_tokens"));
-    // Context in use = the last API iteration of the turn.
     let used = u
         .get("iterations")
         .and_then(Value::as_array)
@@ -2157,7 +2090,6 @@ fn bucket_label(id: &str) -> String {
     }
 }
 
-/// `get_usage` answer (utilization 0..100, ISO resets). Opt-in only.
 fn usage_windows(payload: &Value) -> Option<RateLimitsPayload> {
     let limits = payload.get("rate_limits")?;
     let mut windows = Vec::new();

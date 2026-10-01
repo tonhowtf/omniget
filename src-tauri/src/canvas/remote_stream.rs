@@ -1,29 +1,3 @@
-//! Live feed of the canvas for a paired device, as Server-Sent Events, on
-//! the remote listener (`crate::canvas::remote`), plus the device's input
-//! channel (Maestri Wire `presence` and `cameraControl`).
-//!
-//! - `GET  /remote/api/canvas/stream`: `text/event-stream`. Every message is
-//!   one JSON object on a `data:` line with `type`:
-//!   `hello {device, scope}`, `patch {workspaceId, floorId, seq, rev, origin,
-//!   mutationId, changes: [{op, id}]}` (node/cord created, updated, removed),
-//!   `state {terminalId, nodeId, state}` (agent state changes), `inbox
-//!   {count}` (the "needs you" list moved) and `presence` echoes. A comment
-//!   line every 15 s keeps proxies from closing it. Any scope may read.
-//! - `POST /remote/api/canvas/feed`: `{type:"presence", nodeId?, x?, y?}`
-//!   (any scope) draws the device's named cursor on the host canvas;
-//!   `{type:"camera", dx?, dy?, zoom?}` (drive only) pans/zooms the active
-//!   canvas (zoom factor clamped to 0.25..4 per message);
-//!   `{type:"resize", nodeId, cols, rows}` (any scope, Maestri lets a guest
-//!   fit a terminal to its screen) resizes the PTY; `{type:"input", nodeId,
-//!   text}` (drive only; a guest's input is dropped with 403) types into it.
-//! - `GET  /remote/api/canvas/stream?workspaceId=&floorId=&wake=1`: the
-//!   filters keep only that workspace/floor; `wake=1` (drive only) starts the
-//!   terminals of that floor alone (Maestri: opening a workspace from the
-//!   phone wakes only the floor shown). A guest never wakes anything.
-//! - `GET  /remote/api/canvas/nodes/{id}/stream`: one terminal, as
-//!   `geometry {cols, rows}` then `screen {text, altScreen, changedMs}`
-//!   frames whenever it changes (rendered text, never raw PTY bytes).
-
 use std::convert::Infallible;
 use std::time::Duration;
 
@@ -41,9 +15,7 @@ use tokio::sync::mpsc;
 
 use crate::local_bridge_remote::{self as lbr, Peer, Scope};
 
-/// Event the host canvas listens to for a device's cursor.
 pub const EVENT_PRESENCE: &str = "canvas://presence";
-/// Event the host canvas listens to for a device's camera move.
 pub const EVENT_REMOTE_CAMERA: &str = "canvas://remote-camera";
 
 const KEEPALIVE: Duration = Duration::from_secs(15);
@@ -59,7 +31,6 @@ pub fn routes<S: Clone + Send + Sync + 'static>() -> Router<S> {
         )
 }
 
-/// `{op, id}` per op of a patch (what a phone needs to refresh).
 pub fn changes(ops: &[Op]) -> Vec<Value> {
     ops.iter()
         .filter_map(|o| {
@@ -76,12 +47,10 @@ pub fn changes(ops: &[Op]) -> Vec<Value> {
         .collect()
 }
 
-/// One SSE frame.
 pub fn frame(v: &Value) -> String {
     format!("data: {}\n\n", v)
 }
 
-/// Unsubscribes the store listener and the app listener when the stream ends.
 struct Subs {
     store_id: u64,
     app_ids: Vec<tauri::EventId>,
@@ -106,7 +75,6 @@ fn query_of(req: &Request, key: &str) -> Option<String> {
     })
 }
 
-/// Starts the terminals of one floor (the phone opened it).
 async fn wake_floor(ws: &str, floor: &str) -> usize {
     let nodes: Vec<String> = super::doc::host()
         .store()
@@ -210,7 +178,6 @@ async fn api_stream(ConnectInfo(peer): ConnectInfo<Peer>, req: Request) -> Respo
             }
         }));
     }
-    // "Needs you" count, from the cords host's change counter.
     let t = tx.clone();
     tokio::spawn(async move {
         let mut rx = super::cords::host().changes_rx();
@@ -323,7 +290,6 @@ async fn api_feed(ConnectInfo(peer): ConnectInfo<Peer>, req: Request) -> Respons
         }
         Some("input") => {
             if d.scope != Scope::Drive {
-                // Maestri: a guest's terminal input is discarded.
                 return lbr::tag_device(
                     lbr::fail_response(
                         StatusCode::FORBIDDEN,
@@ -371,7 +337,6 @@ fn result(r: Result<Value, String>) -> Response {
     }
 }
 
-/// Running terminal of a node.
 fn terminal_id(node_id: &str) -> Result<String, String> {
     let s = super::doc::host().store();
     let (ws, floor) = s
@@ -390,7 +355,6 @@ fn terminal_id(node_id: &str) -> Result<String, String> {
     Ok(tid)
 }
 
-/// One terminal as SSE: `geometry` then `screen` on every change.
 async fn api_terminal_stream(
     ConnectInfo(peer): ConnectInfo<Peer>,
     axum::extract::Path(id): axum::extract::Path<String>,
@@ -400,7 +364,6 @@ async fn api_terminal_stream(
         Ok(d) => d,
         Err(r) => return r,
     };
-    // Never wakes a terminal: an unloaded one is 409.
     let tid = match terminal_id(&id) {
         Ok(t) => t,
         Err(e) => {

@@ -1,11 +1,3 @@
-//! Map an HTTP domain to a `platform_kind` used by the UI and by plugin
-//! consumers. The mapping is deterministic and intentionally narrow — only
-//! platforms with first-class support get a dedicated kind; everything else
-//! falls back to `generic` and is identified by domain alone.
-//!
-//! Kept separate from `storage.rs` so the platform list can evolve without
-//! touching the on-disk format.
-
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -74,9 +66,6 @@ impl PlatformKind {
     }
 }
 
-/// Second-level public suffixes where the registrable name is three labels
-/// long (`app.rocketseat.com.br` -> `rocketseat.com.br`). Without this the
-/// Cookie Manager filed every Brazilian site under one `com.br` bucket.
 const TWO_LABEL_PUBLIC_SUFFIXES: &[&str] = &[
     "com.br", "net.br", "org.br", "edu.br", "gov.br", "art.br", "eng.br", "co.uk", "org.uk",
     "ac.uk", "gov.uk", "me.uk", "com.au", "net.au", "org.au", "edu.au", "co.jp", "ne.jp", "or.jp",

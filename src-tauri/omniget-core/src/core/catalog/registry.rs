@@ -1,14 +1,3 @@
-//! Official MCP Registry (`registry.modelcontextprotocol.io/v0.1`) → itens `mcp`.
-//!
-//! Busca paginada por cursor (`metadata.nextCursor`), cache em disco de 1 h por
-//! consulta (servido velho se a rede cair) e mapa em memória dos últimos itens
-//! vistos, para `catalog_item(id)` achar um servidor sem nova busca.
-//!
-//! Conversão: `packages[]` npm/pypi/oci/nuget/cargo → servidor stdio
-//! (`npx`/`uvx`/`docker`/`dnx`/`cargo`), `remotes[]` → `{type: http|sse, url, headers}`.
-//! O formato é o `.mcp.json` (`{"mcpServers": {...}}`), igual aos MCPs do
-//! claude-code-templates, então o `agentkit` usa o mesmo caminho de conversão.
-
 use std::collections::{BTreeMap, HashMap};
 use std::sync::{Mutex, OnceLock};
 use std::time::{Duration, SystemTime};
@@ -30,7 +19,6 @@ pub struct RegistryPage {
     pub items: Vec<CatalogItem>,
     pub next_cursor: Option<String>,
     pub count: usize,
-    /// `network`, `cache` ou `stale-cache`.
     pub from: &'static str,
 }
 
@@ -48,7 +36,6 @@ fn remember(item: &CatalogItem, raw: &Value) {
     }
 }
 
-/// Item visto numa busca recente.
 pub fn cached_item(id: &str) -> Option<CatalogItem> {
     memory().lock().ok()?.get(id).map(|(i, _)| i.clone())
 }
@@ -57,13 +44,11 @@ fn cached_raw(id: &str) -> Option<Value> {
     memory().lock().ok()?.get(id).map(|(_, r)| r.clone())
 }
 
-/// Id do item para um nome do registry (`io.github.user/server`).
 pub fn item_id(name: &str) -> String {
     let (ns, rest) = name.split_once('/').unwrap_or(("registry", name));
     format!("{SOURCE_ID}:mcps/{ns}/{rest}")
 }
 
-/// Nome curto de servidor para a chave do `mcpServers`.
 pub fn short_name(name: &str) -> String {
     let base = name.rsplit('/').next().unwrap_or(name);
     let s: String = base
@@ -88,7 +73,6 @@ fn str_of<'a>(v: &'a Value, k: &str) -> Option<&'a str> {
     v.get(k).and_then(Value::as_str).filter(|s| !s.is_empty())
 }
 
-/// Valor de um input: `value` > `default` > placeholder `${NAME}`.
 fn input_value(inp: &Value, name: &str) -> String {
     if let Some(v) = str_of(inp, "value") {
         return v.to_string();
@@ -135,7 +119,6 @@ fn args_from(list: Option<&Value>, inputs: &mut Vec<Value>) -> Vec<String> {
                 inputs.push(input_entry(a, &hint, "argument"));
                 out.push(placeholder());
             }
-            // sem valor nem dica: é uma flag booleana
         } else if has_value {
             out.push(input_value(a, &hint));
         } else {
@@ -161,7 +144,6 @@ fn headers_from(list: Option<&Value>, inputs: &mut Vec<Value>) -> Map<String, Va
     m
 }
 
-/// Um `packages[]` → servidor stdio (ou http local), com os inputs necessários.
 fn package_config(pkg: &Value) -> Option<(String, Value, Vec<Value>)> {
     let reg = str_of(pkg, "registryType").unwrap_or("");
     let ident = str_of(pkg, "identifier")?;
@@ -240,10 +222,7 @@ fn package_config(pkg: &Value) -> Option<(String, Value, Vec<Value>)> {
             a.push("--yes".into());
             (hint.unwrap_or("dnx").to_string(), a)
         }
-        "cargo" => {
-            // não há runner efêmero oficial: instala e roda o binário
-            (hint.unwrap_or(ident).to_string(), runtime_args.clone())
-        }
+        "cargo" => (hint.unwrap_or(ident).to_string(), runtime_args.clone()),
         _ => return None,
     };
     args.extend(package_args);
@@ -300,7 +279,6 @@ fn github_repo_of(url: &str) -> Option<String> {
     super::valid_repo(&repo).then_some(repo)
 }
 
-/// Converte uma entrada `{server, _meta}` do registry num item `mcp`.
 pub fn convert(entry: &Value) -> Option<CatalogItem> {
     let server = entry.get("server").unwrap_or(entry);
     let name = str_of(server, "name")?;
@@ -420,7 +398,6 @@ pub fn convert(entry: &Value) -> Option<CatalogItem> {
     })
 }
 
-/// Converte uma resposta `/v0.1/servers` inteira.
 pub fn convert_page(body: &Value) -> (Vec<CatalogItem>, Option<String>) {
     let mut items = Vec::new();
     for e in body["servers"].as_array().into_iter().flatten() {
@@ -450,7 +427,6 @@ fn fresh(p: &std::path::Path) -> bool {
         .is_some_and(|age| age < CACHE_TTL)
 }
 
-/// Busca no registry (substring no nome; vazio lista tudo), paginada por cursor.
 pub async fn search(
     query: Option<&str>,
     cursor: Option<&str>,
@@ -510,7 +486,6 @@ pub async fn search(
     }
 }
 
-/// Um servidor pelo nome (`io.github.user/server`), versão mais recente.
 pub async fn fetch_server(name: &str) -> Result<CatalogItem> {
     let url = format!(
         "{BASE_URL}/servers/{}/versions/latest",
@@ -525,7 +500,6 @@ pub async fn fetch_server(name: &str) -> Result<CatalogItem> {
     Ok(item)
 }
 
-/// Item do registry por id (memória ou rede).
 pub async fn item(id: &str) -> Result<CatalogItem> {
     if let Some(i) = cached_item(id) {
         return Ok(i);
@@ -536,7 +510,6 @@ pub async fn item(id: &str) -> Result<CatalogItem> {
     fetch_server(name).await
 }
 
-/// Arquivos do item: `<nome>.json` (`.mcp.json` pronto) + `server.json` cru.
 pub fn generated_files(item: &CatalogItem) -> Result<BTreeMap<String, Vec<u8>>> {
     let mut out = BTreeMap::new();
     let mcp =

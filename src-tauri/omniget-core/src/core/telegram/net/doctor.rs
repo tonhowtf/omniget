@@ -1,7 +1,3 @@
-//! Step-by-step connection diagnosis. Each step carries a stable `hint`
-//! key the screen turns into a sentence in the person's language, so the
-//! answer to "why won't it connect" is never a spinner.
-
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -23,9 +19,7 @@ pub enum StepState {
 pub struct Step {
     pub id: &'static str,
     pub state: StepState,
-    /// i18n key under `telegram.doctor.hints`.
     pub hint: &'static str,
-    /// Raw detail (addresses, error text) shown under the sentence.
     pub detail: String,
 }
 
@@ -33,7 +27,6 @@ pub struct Step {
 pub struct Report {
     pub steps: Vec<Step>,
     pub status: Status,
-    /// Short overall verdict key under `telegram.doctor.verdicts`.
     pub verdict: &'static str,
 }
 

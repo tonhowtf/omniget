@@ -1,10 +1,4 @@
-//! Ad and tracker blocking for the Global Downloader browser, applied per tab
-//! with `Network.setBlockedURLs`. The list is short on purpose: the large ad
-//! and tracking networks, never a login, captcha, CDN or player host, so
-//! blocking never breaks a sign-in. A person can switch it off.
-
 const HOSTS: &[&str] = &[
-    // Ad networks
     "doubleclick.net",
     "googlesyndication.com",
     "googleadservices.com",
@@ -37,9 +31,6 @@ const HOSTS: &[&str] = &[
     "propellerads.com",
     "exoclick.com",
     "adsterra.com",
-    // Outstream video ads and the header bidders seen next to them
-    // (w3schools.com, 2026-10): the ad plays as HLS and lands in the
-    // sniffer as if it were the page's media.
     "viously.com",
     "springserve.com",
     "spotxchange.com",
@@ -54,7 +45,6 @@ const HOSTS: &[&str] = &[
     "bricks-co.com",
     "e-planning.net",
     "a-mx.com",
-    // Trackers and analytics
     "google-analytics.com",
     "googletagmanager.com",
     "analytics.google.com",
@@ -106,7 +96,6 @@ const HOSTS: &[&str] = &[
     "bugsnag.com",
 ];
 
-/// `Network.setBlockedURLs` patterns: every scheme and subdomain of each host.
 pub fn patterns() -> Vec<String> {
     let mut out = Vec::with_capacity(HOSTS.len() * 2);
     for h in HOSTS {
@@ -121,16 +110,8 @@ pub fn patterns() -> Vec<String> {
     out
 }
 
-/// Hosts that only serve ad creatives. They are not blocked on the network:
-/// players load the ad SDK from the same hosts (Google IMA's `client.js` is
-/// on 2mdn.net) and break without it. Their media is only kept out of the
-/// sniffed list.
 const AD_MEDIA_HOSTS: &[&str] = &["2mdn.net", "imasdk.googleapis.com"];
 
-/// Path segments that mark an ad creative on a site's own CDN, where the host
-/// cannot be blocked (Niconico serves its pre-rolls from
-/// `cdn.nimg.jp/nicoad/instream/video/…`, next to the real thumbnails).
-/// Whole segments only, so `/videos/instreamer/` stays.
 const AD_MEDIA_SEGMENTS: &[&str] = &[
     "nicoad",
     "instream",
@@ -140,8 +121,6 @@ const AD_MEDIA_SEGMENTS: &[&str] = &[
     "adcreative",
 ];
 
-/// A sniffed response that is an ad, not the page's media: blocked hosts
-/// (when blocking is off they still load), ad-only hosts and ad paths.
 pub fn is_ad_media(url: &str) -> bool {
     let Ok(u) = url::Url::parse(url) else {
         return false;

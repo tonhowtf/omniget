@@ -1,5 +1,3 @@
-/// Categorias que não adianta tentar de novo: a fonte está quebrada ou o
-/// pós-processamento falhou por falta de dados, não por azar de rede.
 pub fn is_terminal_category(category: &str) -> bool {
     matches!(
         category,
@@ -13,9 +11,6 @@ pub fn is_terminal_category(category: &str) -> bool {
     )
 }
 
-/// HTTP status stated next to an HTTP marker ("HTTP 503", "HTTP Error 401:",
-/// "status code 502"). A bare number is not a status: IDs and URLs carry
-/// "404"/"503" by chance.
 fn http_status(lower: &str) -> Option<u16> {
     for marker in [
         "http error ",
@@ -42,7 +37,6 @@ fn http_status(lower: &str) -> Option<u16> {
     None
 }
 
-/// Phrases platforms and yt-dlp use for an age gate.
 fn is_age_statement(lower: &str) -> bool {
     [
         "age-restricted",
@@ -60,9 +54,6 @@ fn is_age_statement(lower: &str) -> bool {
     .any(|p| lower.contains(p))
 }
 
-/// The path out failed (proxy, TLS, DNS, connect timeout) before the platform
-/// answered. yt-dlp appends "please report this issue" to some of these, so
-/// this runs before the extractor rule (benchmark 26/09, Bluesky in the worker).
 pub fn is_egress_failure(lower: &str) -> bool {
     [
         "unable to connect to proxy",
@@ -83,15 +74,9 @@ pub fn is_egress_failure(lower: &str) -> bool {
     ]
     .iter()
     .any(|p| lower.contains(p))
-        // reqwest: "client error (Connect): operation timed out" (Bluesky CDN
-        // edge that never answers from this network, benchmark 26/09).
         || (lower.contains("(connect)") && lower.contains("timed out"))
 }
 
-/// The text with every URL replaced by `<url>`. Ports, IDs and paths carry
-/// "403"/"404"/"429" by chance: gate G05's fixture on 127.0.0.1:63403 turned
-/// an "HTTP 401 ... downloading http://127.0.0.1:63403/..." into
-/// access_denied (1 of 2 runs, the port is random).
 fn without_urls(lower: &str) -> String {
     let mut out = String::with_capacity(lower.len());
     let mut rest = lower;
@@ -125,9 +110,6 @@ pub fn classify_download_error(error: &str) -> (&str, &str) {
         );
     }
 
-    // A platform statement that it blocked this network (TikTok: "Your IP
-    // address is blocked from accessing this post"). Not a rate limit and not
-    // a missing post; waiting or another network is the remedy.
     if lower.contains("ip address is blocked")
         || lower.contains("your ip is blocked")
         || lower.contains("blocked from accessing")
@@ -140,9 +122,6 @@ pub fn classify_download_error(error: &str) -> (&str, &str) {
         );
     }
 
-    // 5xx is the server failing, not the content missing: "HTTP 503 Service
-    // Unavailable" used to match "unavailable" below and became a terminal
-    // not_found. Transient, retried with backoff.
     if status.is_some_and(|s| (500..600).contains(&s))
         || lower.contains("service unavailable")
         || lower.contains("bad gateway")
@@ -156,13 +135,6 @@ pub fn classify_download_error(error: &str) -> (&str, &str) {
         );
     }
 
-    // Antes de tudo que casa com "yt-dlp"/"ffmpeg": a mensagem do Reddit era
-    // "yt-dlp: Preprocessing: Conversion failed!" e caía em `ytdlp_needed`,
-    // que mandava instalar o yt-dlp que já estava instalado.
-    // A 403 on the media data, after the page opened and bytes came, is the
-    // site refusing that download URL (expired signature, throttling), not
-    // missing content: it fell under broken_source ("probably gone") before
-    // (bench 27/09, public Blender films on YouTube). A new try usually works.
     if (lower.contains("unable to download video data")
         || lower.contains("refused part of the download"))
         && (lower.contains("403") || lower.contains("forbidden"))
@@ -204,7 +176,6 @@ pub fn classify_download_error(error: &str) -> (&str, &str) {
     {
         return ("access_denied", "Access was denied. A 403 alone does not identify whether authentication, rate limits, an expired URL or another restriction caused it.");
     }
-    // 401 is the server asking for credentials, unlike an ambiguous 403.
     if status == Some(401)
         || lower.contains("unauthorized")
         || lower.contains("unauthorised")
@@ -228,10 +199,6 @@ pub fn classify_download_error(error: &str) -> (&str, &str) {
         );
     }
 
-    // Age is a statement, never the bare substring: "age" is inside "page",
-    // "webpage", "image", "message", "storage". yt-dlp's "Unable to download
-    // webpage: HTTP Error 412" became "Failed to access the page" and then a
-    // terminal SOURCE_RESTRICTED (benchmark 26/09, Bilibili av114868162141203).
     if lower.contains("private") || lower.contains("restricted") || is_age_statement(&lower) {
         return ("restricted", "This content is private or age-restricted.");
     }
@@ -251,9 +218,6 @@ pub fn classify_download_error(error: &str) -> (&str, &str) {
         return ("not_found", "Content not found or has been deleted.");
     }
 
-    // yt-dlp's own statements, before the broad "ffmpeg"/"yt-dlp" rules below:
-    // "ERROR: [soundcloud] 1: Requested format is not available" used to become
-    // "install yt-dlp" because the line mentions yt-dlp (benchmark 26/09).
     if lower.contains("requested format is not available") {
         return (
             "format_unavailable",
@@ -269,9 +233,6 @@ pub fn classify_download_error(error: &str) -> (&str, &str) {
             "The platform returned no media without a login.",
         );
     }
-    // "extractor is broken" is ytdlp::translate_ytdlp_error's own wording for
-    // the lines above; without it a translated extractor failure fell through
-    // to "unknown" (ENGINE_FAILED in the worker).
     if lower.contains("unable to extract")
         || lower.contains("failed to parse json")
         || lower.contains("please report this issue")
@@ -290,8 +251,6 @@ pub fn classify_download_error(error: &str) -> (&str, &str) {
         );
     }
 
-    // Only a missing/unrunnable binary means "install yt-dlp"; any other line
-    // that mentions yt-dlp is an error yt-dlp reported, not its absence.
     let names_ytdlp = lower.contains("yt-dlp") || lower.contains("ytdlp");
     let missing = [
         "not found",

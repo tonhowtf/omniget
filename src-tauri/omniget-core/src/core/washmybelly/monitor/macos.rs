@@ -1,12 +1,3 @@
-//! macOS readings without root: SMC through IOKit (temperatures, fans,
-//! power), the IORegistry through `ioreg` (GPU load, battery) and
-//! `kern.memorystatus_level` (memory pressure).
-//!
-//! The SMC connection, the key list and each key's type are cached for the
-//! life of the app: enumerating the keys costs a few thousand calls once.
-//! Keys by chip come from the Stats table in [`super::smc_keys`] (MIT).
-//! Only reads: no write selector is ever sent.
-
 use std::collections::HashMap;
 use std::ffi::{c_char, c_void};
 use std::sync::Mutex;
@@ -14,8 +5,6 @@ use std::sync::Mutex;
 use super::parse::{self, Battery, Gpu};
 use super::smc_keys::{self, SENSORS};
 use super::{Fan, Temp};
-
-// ── IOKit FFI ────────────────────────────────────────────────────────────
 
 type KernReturn = i32;
 type MachPort = u32;
@@ -80,7 +69,6 @@ struct KeyInfo {
     attributes: u8,
 }
 
-/// `SMCKeyData_t` of AppleSMC (80 bytes).
 #[repr(C)]
 #[derive(Default, Clone, Copy)]
 struct KeyData {
@@ -109,19 +97,15 @@ fn key_str(k: u32) -> String {
     String::from_utf8_lossy(&k.to_be_bytes()).into_owned()
 }
 
-/// (key, name, group, kind, average).
 type MatchedKey = (u32, String, &'static str, &'static str, bool);
 
 struct Smc {
     conn: IoObject,
     info: HashMap<u32, Option<(u32, [u8; 4])>>,
     keys: Option<Vec<u32>>,
-    /// Table entries of this chip matched against the enumerated keys:
-    /// (key, name, group, kind, average).
     matched: Option<Vec<MatchedKey>>,
 }
 
-// The connection is a mach port number; the struct is only touched under the mutex.
 unsafe impl Send for Smc {}
 
 impl Smc {
@@ -131,7 +115,6 @@ impl Smc {
             if matching.is_null() {
                 return Err("AppleSMC matching failed".into());
             }
-            // Consumes `matching`.
             let service = IOServiceGetMatchingService(0, matching);
             if service == 0 {
                 return Err("no AppleSMC service".into());
@@ -262,8 +245,6 @@ fn family() -> u16 {
     smc_keys::family(&brand)
 }
 
-// ── sysctl ───────────────────────────────────────────────────────────────
-
 fn sysctl_string(name: &str) -> Option<String> {
     let cname = std::ffi::CString::new(name).ok()?;
     let mut len: libc::size_t = 0;
@@ -314,15 +295,11 @@ fn sysctl_i32(name: &str) -> Option<i32> {
     (rc == 0).then_some(v)
 }
 
-/// Memory pressure 0-100 (higher is worse): the kernel's free memory level
-/// (`kern.memorystatus_level`), the figure Activity Monitor's graph follows.
 pub fn memory_pressure() -> Option<f64> {
     sysctl_i32("kern.memorystatus_level")
         .filter(|l| (0..=100).contains(l))
         .map(|l| (100 - l) as f64)
 }
-
-// ── Readings ─────────────────────────────────────────────────────────────
 
 fn valid_temp(v: f64) -> bool {
     v > 0.0 && v < 110.0
@@ -332,11 +309,9 @@ fn avg(v: &[f64]) -> Option<f64> {
     (!v.is_empty()).then(|| ((v.iter().sum::<f64>() / v.len() as f64) * 10.0).round() / 10.0)
 }
 
-/// CPU and GPU temperature: the chip's per-core keys averaged (Stats).
 pub fn main_temps() -> (Option<f64>, Option<f64>) {
     let fam = family();
     with_smc(|smc| {
-        // Intel: a single CPU diode key first.
         if fam == smc_keys::INTEL {
             for k in ["TC0D", "TC0E", "TC0F", "TC0P", "TC0H"] {
                 if let Some(v) = smc.read(fourcc(k)).filter(|v| valid_temp(*v)) {
@@ -368,10 +343,8 @@ pub fn main_temps() -> (Option<f64>, Option<f64>) {
     .unwrap_or((None, None))
 }
 
-/// Temperatures, fans and power readings (name, watts).
 type SmcSensors = (Vec<Temp>, Vec<Fan>, Vec<(String, f64)>);
 
-/// Every temperature and power key of this chip, and the fans.
 pub fn smc_sensors() -> Result<SmcSensors, String> {
     let fam = family();
     with_smc(|smc| {
@@ -415,7 +388,6 @@ pub fn smc_sensors() -> Result<SmcSensors, String> {
     })
 }
 
-/// GPUs from `ioreg -r -d 1 -w 0 -c IOAccelerator` (no root).
 pub fn gpus() -> Result<Vec<Gpu>, String> {
     let out = crate::core::process::std_command("ioreg")
         .args(["-r", "-d", "1", "-w", "0", "-c", "IOAccelerator"])
@@ -429,7 +401,6 @@ pub fn gpus() -> Result<Vec<Gpu>, String> {
     )))
 }
 
-/// `ioreg -r -c AppleSmartBattery -a`.
 pub fn battery() -> Result<Battery, String> {
     let out = crate::core::process::std_command("ioreg")
         .args(["-r", "-c", "AppleSmartBattery", "-a"])
@@ -440,7 +411,6 @@ pub fn battery() -> Result<Battery, String> {
     }
     let text = String::from_utf8_lossy(&out.stdout);
     if text.trim().is_empty() {
-        // No AppleSmartBattery at all: a desktop Mac.
         return Ok(parse::battery_from_ioreg(&serde_json::Value::Array(vec![])));
     }
     Ok(parse::battery_from_ioreg(&parse::plist(&text)?))

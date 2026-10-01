@@ -1,5 +1,3 @@
-//! Comandos Tauri da Central de agentes (catálogo universal + threads + ferramentas). Stubs do orquestrador.
-
 pub mod agentkit;
 pub mod arena;
 pub mod catalog;

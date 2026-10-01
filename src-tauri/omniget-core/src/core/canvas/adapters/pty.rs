@@ -1,41 +1,19 @@
-//! Delivery into a terminal (estudo 98/03 §B.8), the default for any CLI.
-//!
-//! 1. **Gate:** the target is ready for 250 ms (or `needs_you` for a reply to
-//!    its own question) and the user has not typed in it in the last 3 s.
-//!    Focusing the node cancels nothing; only typing holds the delivery.
-//! 2. **Paste:** bracketed when the program turned mode 2004 on.
-//! 3. **Enter apart:** after the paste echoes on the screen (120 ms minimum,
-//!    1.5 s maximum), `\r` outside the paste block.
-//! 4. **Confirm:** up to 3 s waiting for the prompt to be taken
-//!    (`UserPromptSubmit`/`BeforeAgent`, or the agent going busy). Without a
-//!    sign, Enter again, twice at most, 1 s apart; then `stuck`.
-//!
-//! This module holds the timings and the decisions; the app runs the loop.
-
 pub const USER_TYPING_HOLD_MS: u64 = 3_000;
 pub const ECHO_MIN_MS: u64 = 120;
 pub const ECHO_MAX_MS: u64 = 1_500;
 pub const CONFIRM_MS: u64 = 3_000;
 pub const RETRY_GAP_MS: u64 = 1_000;
 pub const MAX_ENTER_RETRIES: u32 = 2;
-/// A queued message waits this long for its gate before failing.
 pub const GATE_TIMEOUT_MS: u64 = 30 * 60 * 1000;
 
-/// What to do after the Enter.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Confirm {
-    /// The prompt was taken.
     Taken,
-    /// Keep waiting.
     Wait,
-    /// Press Enter again.
     Retry,
-    /// Give up: `delivery_stuck`.
     Stuck,
 }
 
-/// `elapsed_ms` since the last Enter, `retries` Enters already repeated,
-/// `taken` = a hook said the prompt was submitted or the agent went busy.
 pub fn confirm_step(elapsed_ms: u64, retries: u32, taken: bool) -> Confirm {
     if taken {
         return Confirm::Taken;
@@ -55,8 +33,6 @@ pub fn confirm_step(elapsed_ms: u64, retries: u32, taken: bool) -> Confirm {
     }
 }
 
-/// The paste has echoed: the screen changed since the paste and the tail of
-/// the pasted text (or the "pasted text" placeholder of the TUI) shows.
 pub fn echoed(before: &str, now: &str, pasted: &str) -> bool {
     if before == now {
         return false;
@@ -81,10 +57,6 @@ pub fn echoed(before: &str, now: &str, pasted: &str) -> bool {
         || lower.contains("[pasted")
 }
 
-/// Every process under `root` right now (`ps`), for a program without turn
-/// hooks: while the child it started for a prompt lives (`sleep`, a build),
-/// its turn is not over even when the screen stays quiet. Empty on Windows
-/// or when `ps` fails.
 pub fn descendants_now(root: u32) -> std::collections::HashSet<u32> {
     #[cfg(unix)]
     {
@@ -110,9 +82,6 @@ pub fn descendants_now(root: u32) -> std::collections::HashSet<u32> {
     }
 }
 
-/// The program still works on a prompt: a process started under it after
-/// the delivery (`before` = what already ran then, helpers that live for
-/// the whole session) is alive.
 pub fn working_children(
     now: &std::collections::HashSet<u32>,
     before: &std::collections::HashSet<u32>,
@@ -120,7 +89,6 @@ pub fn working_children(
     now.iter().any(|p| !before.contains(p))
 }
 
-/// One line, for a program without bracketed paste (a newline would be Enter).
 pub fn flatten(text: &str) -> String {
     text.lines()
         .map(str::trim)
@@ -129,8 +97,6 @@ pub fn flatten(text: &str) -> String {
         .join(" ")
 }
 
-/// Decodes the escapes of `ask --raw`: `\n` Enter (CR), `\r`, `\t`, `\e` ESC,
-/// `\xNN`, `\\`. Anything else is kept as written.
 pub fn decode_escapes(s: &str) -> Vec<u8> {
     let b = s.as_bytes();
     let mut out = Vec::with_capacity(b.len());
@@ -174,8 +140,6 @@ pub fn decode_escapes(s: &str) -> Vec<u8> {
     out
 }
 
-/// Decodes the escapes of a prompt argument: `\n` newline, `\t` tab; `\\n`
-/// stays a literal backslash-n.
 pub fn decode_text(s: &str) -> String {
     let mut out = String::with_capacity(s.len());
     let mut it = s.chars().peekable();

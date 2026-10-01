@@ -1,20 +1,3 @@
-//! JSON-RPC client over the stdio of `codex app-server`.
-//!
-//! Framing (measured on codex-cli 0.156.0, `fixtures/app-server-*.jsonl`):
-//! one JSON object per line, no `"jsonrpc"` field required either way.
-//! `{id, method, params}` is a request, `{method, params}` a notification,
-//! `{id, result}` / `{id, error: {code, message, data?}}` a response. The server
-//! also adds `emittedAtMs` to notifications; unknown keys are ignored.
-//!
-//! The client is transport-agnostic (any `AsyncRead`/`AsyncWrite`), so the
-//! tests drive it through `tokio::io::duplex` with a scripted peer.
-//!
-//! Rules copied from T3's `effect-codex-app-server` transport (estudo 76,
-//! 01-server.md §1.3): sequential integer ids from 1, a pending map of
-//! oneshots failed all at once when the stream ends, and at most
-//! [`MAX_ACTIVE_SERVER_REQUESTS`] unanswered server requests; beyond that the
-//! server gets `-32001` right away instead of an unbounded backlog.
-
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, AtomicI64, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
@@ -26,7 +9,6 @@ use serde_json::{json, Value};
 use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncWrite, AsyncWriteExt, BufReader};
 use tokio::sync::{mpsc, oneshot};
 
-/// Unanswered server → client requests allowed at once.
 pub const MAX_ACTIVE_SERVER_REQUESTS: usize = 32;
 
 pub const CODE_METHOD_NOT_FOUND: i64 = -32601;
@@ -34,20 +16,15 @@ pub const CODE_INVALID_PARAMS: i64 = -32602;
 pub const CODE_INTERNAL: i64 = -32603;
 pub const CODE_OVERLOADED: i64 = -32001;
 
-/// What went wrong with one call.
 #[derive(Debug, Clone, PartialEq)]
 pub enum RpcError {
-    /// The server answered with a JSON-RPC error.
     Remote {
         code: i64,
         message: String,
         data: Option<Value>,
     },
-    /// The process is gone (EOF, write failure, or closed on purpose).
     Closed(String),
-    /// No answer in time.
     Timeout(String),
-    /// The answer did not decode into the expected type.
     Decode(String),
 }
 
@@ -59,9 +36,6 @@ impl RpcError {
         }
     }
 
-    /// The server does not know this method (older or newer CLI). Codex
-    /// answers `-32600 "Invalid request: unknown variant …"` rather than the
-    /// standard `-32601`, so both are recognised.
     pub fn is_unknown_method(&self) -> bool {
         match self {
             RpcError::Remote { code, message, .. } => {
@@ -86,21 +60,17 @@ impl std::fmt::Display for RpcError {
 
 impl std::error::Error for RpcError {}
 
-/// What the server pushed.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Incoming {
     Notification {
         method: String,
         params: Value,
     },
-    /// Must be answered with [`RpcClient::respond`] or
-    /// [`RpcClient::respond_error`], exactly once.
     Request {
         id: Value,
         method: String,
         params: Value,
     },
-    /// The stream ended. Sent once, last.
     Closed {
         reason: String,
     },
@@ -108,7 +78,6 @@ pub enum Incoming {
 
 type Pending = Arc<Mutex<HashMap<i64, (String, oneshot::Sender<Result<Value, RpcError>>)>>>;
 
-/// Cheap to clone; every clone talks to the same process.
 #[derive(Clone)]
 pub struct RpcClient {
     out: mpsc::UnboundedSender<String>,
@@ -118,8 +87,6 @@ pub struct RpcClient {
     active_server_requests: Arc<AtomicUsize>,
 }
 
-/// One classified line of the wire. Pure, so the framing rules are tested
-/// without a process.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Frame {
     Request {
@@ -201,8 +168,6 @@ fn id_key(id: &Value) -> Option<i64> {
 }
 
 impl RpcClient {
-    /// Starts the reader and writer tasks. Everything the server pushes goes
-    /// to `incoming`; the last message is always [`Incoming::Closed`].
     pub fn start<R, W>(reader: R, writer: W, incoming: mpsc::UnboundedSender<Incoming>) -> Self
     where
         R: AsyncRead + Unpin + Send + 'static,
@@ -213,7 +178,6 @@ impl RpcClient {
         let closed = Arc::new(AtomicBool::new(false));
         let active = Arc::new(AtomicUsize::new(0));
 
-        // Writer: one line per message, flushed, in order.
         {
             let closed = closed.clone();
             let pending = pending.clone();
@@ -221,7 +185,6 @@ impl RpcClient {
                 let mut writer = writer;
                 while let Some(line) = out_rx.recv().await {
                     if line.is_empty() {
-                        // `close()`: end stdin so the server sees EOF.
                         break;
                     }
                     let ok = writer.write_all(line.as_bytes()).await.is_ok()
@@ -245,7 +208,6 @@ impl RpcClient {
             active_server_requests: active.clone(),
         };
 
-        // Reader.
         {
             let client = client.clone();
             tokio::spawn(async move {
@@ -289,7 +251,6 @@ impl RpcClient {
                                     let _ = incoming.send(Incoming::Request { id, method, params });
                                 }
                                 Frame::Invalid(why) => {
-                                    // Never log the payload: it can hold file contents.
                                     tracing::debug!("[codex] dropped a line: {why}");
                                 }
                             }
@@ -320,7 +281,6 @@ impl RpcClient {
             .map_err(|_| RpcError::Closed("writer stopped".into()))
     }
 
-    /// Sends a request and waits for its answer.
     pub async fn request_value(
         &self,
         method: &str,
@@ -359,7 +319,6 @@ impl RpcClient {
         }
     }
 
-    /// Typed request: params encoded, result decoded.
     pub async fn request<P: Serialize, R: DeserializeOwned>(
         &self,
         method: &str,
@@ -380,7 +339,6 @@ impl RpcClient {
         self.send_line(&msg)
     }
 
-    /// Answers a server request.
     pub fn respond(&self, id: Value, result: Value) -> Result<(), RpcError> {
         self.release_server_request();
         self.send_line(&json!({ "id": id, "result": result }))
@@ -399,7 +357,6 @@ impl RpcClient {
             });
     }
 
-    /// Stops accepting calls; pending ones fail with `Closed`.
     pub fn close(&self, reason: &str) {
         if !self.closed.swap(true, Ordering::SeqCst) {
             let _ = self.out.send(String::new());

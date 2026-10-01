@@ -1,6 +1,3 @@
-//! `llm_telemetry_snapshot`: the numbers the Observatory shows between the
-//! 2 Hz `llm://telemetry` events. Owned by f2-llm-commands.
-
 use serde_json::Value;
 use tauri::State;
 

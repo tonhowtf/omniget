@@ -1,15 +1,3 @@
-//! The two multilingual models memory uses, both on the XLM-RoBERTa
-//! vocabulary (one `tokenizer.json`, read by [`super::unigram`]):
-//! - `multilingual-e5-small`: 384-d vectors for about 100 languages, so a
-//!   question in Portuguese finds a fact saved in English and back;
-//! - `mmarco-mMiniLMv2-L12-H384-v1`: a cross-encoder that reads the query and
-//!   one memory together and scores how well it answers (the reranker
-//!   Hindsight runs, but multilingual: theirs is the English ms-marco one).
-//!
-//! Same rules as [`super::minilm`]: pinned revisions with sha256 and size,
-//! nothing downloaded without an explicit call, sessions created on first use
-//! and dropped after [`IDLE_TTL`].
-
 use std::path::PathBuf;
 use std::sync::{Mutex, OnceLock};
 use std::time::{Duration, Instant};
@@ -22,11 +10,8 @@ use crate::core::tools::ProgressFn;
 pub const DIM: usize = 384;
 pub const IDLE_TTL: Duration = Duration::from_secs(600);
 const BATCH: usize = 32;
-/// Facts are short; this keeps a batch fast.
 const MAX_LEN: usize = 256;
 
-/// XLM-R tokenizer (the one of the e5 revision; the reranker's has the same
-/// vocabulary and normalizer rules).
 pub const TOKENIZER: Asset = Asset {
     file: "xlmr-tokenizer.json",
     url: "https://huggingface.co/Xenova/multilingual-e5-small/resolve/761b726dd34fb83930e26aab4e9ac3899aa1fa78/tokenizer.json",
@@ -34,7 +19,6 @@ pub const TOKENIZER: Asset = Asset {
     bytes: 17_082_730,
 };
 
-/// `intfloat/multilingual-e5-small`, int8 (MIT).
 pub const E5: Asset = Asset {
     file: "multilingual-e5-small.onnx",
     url: "https://huggingface.co/Xenova/multilingual-e5-small/resolve/761b726dd34fb83930e26aab4e9ac3899aa1fa78/onnx/model_quantized.onnx",
@@ -42,7 +26,6 @@ pub const E5: Asset = Asset {
     bytes: 118_308_185,
 };
 
-/// `cross-encoder/mmarco-mMiniLMv2-L12-H384-v1`, int8 for this CPU
 /// (Apache-2.0).
 #[cfg(target_arch = "aarch64")]
 pub const RERANKER: Asset = Asset {
@@ -74,7 +57,6 @@ impl Model {
     }
 }
 
-/// Files on disk and the ONNX runtime resolvable.
 pub fn is_ready(m: Model) -> bool {
     has_asset(&TOKENIZER) && has_asset(&m.asset()) && crate::core::onnxrt::is_installed()
 }
@@ -83,8 +65,6 @@ pub async fn ensure(m: Model, progress: &ProgressFn) -> Result<PathBuf, EmbedErr
     fetch_asset(&TOKENIZER, progress).await?;
     fetch_asset(&m.asset(), progress).await
 }
-
-// ── Sessions ─────────────────────────────────────────────────────────────
 
 struct Loaded {
     session: ort::session::Session,
@@ -161,9 +141,6 @@ fn with_session<T>(
     out
 }
 
-/// The two sessions hold ≈ 250 MB together; a sleeping thread drops each one
-/// after [`IDLE_TTL`] without work, so memory that is not being searched
-/// costs nothing resident.
 fn start_reaper() {
     static STARTED: OnceLock<()> = OnceLock::new();
     STARTED.get_or_init(|| {
@@ -184,7 +161,6 @@ fn start_reaper() {
     });
 }
 
-/// Drops both sessions (settings changed, quitting).
 pub fn release_now() {
     for m in [Model::E5, Model::Reranker] {
         if let Ok(mut g) = cell(m).lock() {
@@ -238,8 +214,6 @@ fn run(l: &mut Loaded, batch: &[super::tokenizer::Encoding]) -> Result<Outputs, 
     Ok((s.to_vec(), raw.to_vec()))
 }
 
-/// e5 vectors. `query` picks the prefix e5 was trained with: `query: ` for
-/// what is being searched, `passage: ` for what is stored. **Blocking.**
 pub fn embed(texts: &[&str], query: bool) -> Result<Vec<Vec<f32>>, EmbedError> {
     if texts.is_empty() {
         return Ok(Vec::new());
@@ -271,8 +245,6 @@ pub fn embed(texts: &[&str], query: bool) -> Result<Vec<Vec<f32>>, EmbedError> {
     Ok(out)
 }
 
-/// Relevance of each document to `query`, 0..1 (sigmoid of the logit).
-/// **Blocking.**
 pub fn rerank(query: &str, docs: &[&str]) -> Result<Vec<f32>, EmbedError> {
     if docs.is_empty() {
         return Ok(Vec::new());

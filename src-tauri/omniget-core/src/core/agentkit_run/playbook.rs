@@ -1,18 +1,7 @@
-//! Playbooks: a `workflow` item of the catalog (steps with an agent and a tool
-//! per step) turned into a chain of Jobs, where the output of each step becomes
-//! the context of the next. cct only wrote the workflow YAML for Claude to read
-//! (estudo 75 01 §2.10); here the host's Jobs engine runs the steps.
-
 use serde::{Deserialize, Serialize};
 
 use crate::core::agentkit::model::{Component, ComponentBody};
 
-/// Who runs a step (or a loop round, or "run now").
-/// - `agent`: an agent of the OmniGet roster (`id`), native or not;
-/// - `account`: a Claude/Codex account of `cli_runtime::accounts` (`id` = cli,
-///   `account` = account id; empty = the terminal's own login);
-/// - `acp`: an ACP agent of the drivers table (`id` = `gemini`, `qwen` …);
-/// - `tool`: a coding CLI run headless (`id` = `claude`, `codex` …).
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct RunnerSpec {
     pub kind: String,
@@ -21,7 +10,6 @@ pub struct RunnerSpec {
     pub account: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub model: Option<String>,
-    /// `default | plan | accept_edits | bypass` (tool runners only).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub permission: Option<String>,
 }
@@ -47,13 +35,10 @@ impl RunnerSpec {
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct PlaybookStep {
     pub name: String,
-    /// Runner of this step; `None` = the playbook's runner.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub runner: Option<RunnerSpec>,
-    /// Agent used as the role (catalog id, `path:agent:<file>`, …).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub agent: Option<String>,
-    /// Command whose body is the step's prompt (catalog id).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub command: Option<String>,
     #[serde(default)]
@@ -65,19 +50,16 @@ pub struct Playbook {
     pub name: String,
     #[serde(default)]
     pub description: String,
-    /// Catalog id of the workflow it came from.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub source: Option<String>,
     pub runner: RunnerSpec,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub workspace: Option<String>,
     pub steps: Vec<PlaybookStep>,
-    /// MCP servers and other components the steps need, installed before.
     #[serde(default)]
     pub setup: Vec<String>,
 }
 
-/// `agent:dev/test-runner` inside `cct:workflows/x` → `cct:agents/dev/test-runner`.
 pub fn reference_id(reference: &str, from_id: &str) -> String {
     if reference.starts_with("path:")
         || reference.contains(":agents/")
@@ -100,7 +82,6 @@ pub fn reference_id(reference: &str, from_id: &str) -> String {
     }
 }
 
-/// A workflow component → a playbook for `runner`.
 pub fn from_workflow(
     c: &Component,
     runner: RunnerSpec,
@@ -190,7 +171,6 @@ pub fn from_workflow(
     })
 }
 
-/// Longest output of a previous step carried into the next prompt.
 pub const CARRY_MAX: usize = 8_000;
 
 fn tail(s: &str, max: usize) -> &str {
@@ -204,7 +184,6 @@ fn tail(s: &str, max: usize) -> &str {
     &s[cut..]
 }
 
-/// Prompt of step `index` given what the earlier steps answered.
 pub fn step_prompt(
     playbook: &Playbook,
     index: usize,

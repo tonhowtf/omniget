@@ -1,31 +1,3 @@
-//! Baseline vs candidate on the same cases, conditions and budget.
-//!
-//! Cases are split into `dev` and `holdout`. Each case has an input and a
-//! list of trusted checks (pure functions over the output text: contains,
-//! excludes, regex, item counts, spoiler terms, JSON keys). An evaluation
-//! produces, per case, the output of the baseline (what is active now) and of
-//! the candidate version, and runs the checks on both.
-//!
-//! Outputs come from one of two places:
-//! - `offline`: recorded fixtures. A missing fixture is an error for that
-//!   case (`unknown`), never a reason to reach the network or a real tool
-//!   (A17);
-//! - `live`: an [`OutputRunner`] the app provides (a model call inside the
-//!   mission budget), recorded as fixtures for replay. Each variant runs with
-//!   an exact overlay set: the baseline with what is active, the candidate
-//!   with its version *replacing* the active one of the same skill and scope
-//!   (never stacked on it). The runner pins that set; nothing active leaks in.
-//!
-//! The lifecycle write at the end is a compare-and-set on the state the
-//! evaluation put the candidate in: a promotion, a rollback, a revision or a
-//! newer evaluation in the meantime makes this one stale. A stale run is
-//! still recorded, but never changes the candidate's state.
-//!
-//! The promotion policy is fixed before the run and stored with it: minimum
-//! cases per split, minimum improvement on dev, no regression on holdout,
-//! no unknown results. Two successes are two successes, not a statistical
-//! claim; the summary says the sample size.
-
 use async_trait::async_trait;
 use regex::Regex;
 use rusqlite::{params, OptionalExtension};
@@ -44,11 +16,8 @@ use crate::core::assist::{new_id, now_ms};
 pub struct PromotionPolicy {
     pub min_dev_cases: usize,
     pub min_holdout_cases: usize,
-    /// Candidate passes on dev minus baseline passes on dev, at least.
     pub min_dev_gain: i64,
-    /// No holdout case that passed on the baseline may fail on the candidate.
     pub no_holdout_regression: bool,
-    /// Any unknown result (missing fixture, runner error) blocks promotion.
     pub unknown_blocks: bool,
 }
 
@@ -87,17 +56,14 @@ pub enum Check {
     Regex {
         pattern: String,
     },
-    /// Lines matching `pattern` counted within `[min, max]`.
     CountLines {
         pattern: String,
         min: usize,
         max: usize,
     },
-    /// None of these terms (spoilers, banned words), case-insensitive.
     NoTerms {
         terms: Vec<String>,
     },
-    /// The output is JSON with these keys (dot paths).
     JsonKeys {
         keys: Vec<String>,
     },
@@ -235,8 +201,6 @@ pub fn cases(db: &AssistDb, bot: &str, skill: &str) -> Result<Vec<EvalCase>, Str
     })
 }
 
-/// Digest of the case set (ids + checks): an evaluation is only valid for
-/// the set it ran on.
 pub fn case_set_digest(db: &AssistDb, bot: &str, skill: &str) -> Result<String, String> {
     let cs = cases(db, bot, skill)?;
     let text: String = cs
@@ -253,8 +217,6 @@ pub fn case_set_digest(db: &AssistDb, bot: &str, skill: &str) -> Result<String, 
     Ok(super::hash(&[&text]))
 }
 
-/// Variant key of a fixture: `baseline:<candidate>@<v>` or `baseline:none`,
-/// and `candidate:<id>@<v>`.
 pub fn variant_key(prefix: &str, overlay: Option<(&str, i64)>) -> String {
     match overlay {
         Some((c, v)) => format!("{prefix}:{c}@{v}"),
@@ -289,14 +251,9 @@ fn fixture(db: &AssistDb, case_id: &str, variant: &str) -> Result<Option<String>
     })
 }
 
-/// Produces an output for a case under exactly `overlays` (empty = no
-/// overlay at all). The runner must inject these and only these (the app pins
-/// them on the evaluation's conversation), never whatever is active. The app
-/// implements it with a budgeted model call; tests with a stub.
 #[async_trait]
 pub trait OutputRunner: Send + Sync {
     async fn output(&self, case: &EvalCase, overlays: &[ActiveOverlay]) -> Result<String, String>;
-    /// Model/runtime/version label recorded with the run.
     fn label(&self) -> String;
 }
 
@@ -312,7 +269,6 @@ pub struct CaseResult {
     pub case_id: String,
     pub name: String,
     pub split: String,
-    /// `pass|fail|unknown`
     pub baseline: String,
     pub candidate: String,
     pub baseline_notes: Vec<String>,
@@ -326,7 +282,6 @@ pub struct SplitSummary {
     pub baseline_pass: usize,
     pub candidate_pass: usize,
     pub unknown: usize,
-    /// Cases that passed on the baseline and fail on the candidate.
     pub regressions: Vec<String>,
 }
 
@@ -342,7 +297,6 @@ pub struct EvalRun {
     pub results: Vec<CaseResult>,
     pub dev: SplitSummary,
     pub holdout: SplitSummary,
-    /// `eligible|rejected|insufficient|unsupported`
     pub decision: String,
     pub reasons: Vec<String>,
     pub meta: Value,
@@ -367,10 +321,6 @@ fn grade(checks: &[Check], out: Result<String, String>) -> (String, Vec<String>)
     }
 }
 
-/// The overlay sets of both variants: the bot's active overlays (baseline),
-/// and the same set with the candidate's version in place of the active
-/// overlay of its skill and scope (candidate). Other skills' overlays are the
-/// same on both sides.
 pub fn variant_overlays(
     db: &AssistDb,
     c: &super::Candidate,
@@ -378,8 +328,6 @@ pub fn variant_overlays(
 ) -> Result<(Vec<ActiveOverlay>, Vec<ActiveOverlay>), String> {
     let active = super::active_for_bot(db, &c.bot_id)?;
     let same_slot = |o: &ActiveOverlay| o.skill == c.skill && o.scope == c.scope;
-    // An active candidate is not its own baseline: the baseline is then "no
-    // overlay" for that slot (as `base` below says).
     let baseline: Vec<ActiveOverlay> = active
         .iter()
         .filter(|o| !(same_slot(o) && o.candidate_id == c.id))
@@ -398,9 +346,6 @@ pub fn variant_overlays(
     Ok((baseline, cand))
 }
 
-/// Evaluates the candidate's current version against the active baseline.
-/// `runner` is required for `live` and ignored for `offline` (which never
-/// calls anything outside the database).
 pub async fn evaluate(
     db: &AssistDb,
     cid: &str,
@@ -410,8 +355,6 @@ pub async fn evaluate(
     evaluate_as(db, cid, mode, runner, &new_id()).await
 }
 
-/// [`evaluate`] with the run id chosen by the caller (an app that returns the
-/// id at once and evaluates in the background).
 pub async fn evaluate_as(
     db: &AssistDb,
     cid: &str,
@@ -464,9 +407,6 @@ pub async fn evaluate_as(
     let (base_set, cand_set) = variant_overlays(db, &c, &ver)?;
     let cs = cases(db, &c.bot_id, &c.skill)?;
     let case_set = case_set_digest(db, &c.bot_id, &c.skill)?;
-    // The state this evaluation owns: `evaluating`, tagged with its run id so
-    // the final write can tell whether anything moved the candidate since.
-    // An active candidate stays active while it is measured again.
     let token = format!("evaluating (run {run_id})");
     let owns_state = c.state != CandidateState::Active;
     if owns_state {
@@ -611,8 +551,6 @@ pub async fn evaluate_as(
         "rejected" => CandidateState::Rejected,
         _ => CandidateState::Proposed,
     };
-    // Record the run and, only if the candidate is still in the state this
-    // evaluation left it (same version, same `evaluating` token), move it.
     let applied = db.tx(|tx| {
         let applied = owns_state
             && tx
@@ -639,7 +577,6 @@ pub async fn evaluate_as(
         store_conn(tx, &run)?;
         Ok(applied)
     })?;
-    // Opt-in automatic promotion of a local, text-only overlay.
     if applied
         && decision == "eligible"
         && settings.auto_promote_local

@@ -1,9 +1,3 @@
-//! Codex on the canvas. Its hooks need manual trust in `/hooks`, so they
-//! cannot be injected silently; `notify` can, per process:
-//! `-c notify=["<omniget>","canvas","hook","--tool","codex"]`. Codex appends
-//! the JSON (`{"type":"agent-turn-complete","last-assistant-message":...}`)
-//! as the last argument; `omniget canvas hook` reads it from there.
-
 use std::path::Path;
 
 pub fn notify_args(cli: &Path) -> Vec<String> {
@@ -22,8 +16,6 @@ pub fn notify_args(cli: &Path) -> Vec<String> {
     vec!["-c".into(), format!("notify=[{arr}]")]
 }
 
-/// The notify payload as a Claude-shaped hook event (`Stop` with
-/// `last_assistant_message`), or `None` when it is not a turn end.
 pub fn notify_to_hook(payload: &serde_json::Value) -> Option<(String, serde_json::Value)> {
     let ty = payload.get("type").and_then(|t| t.as_str())?;
     if ty != "agent-turn-complete" {

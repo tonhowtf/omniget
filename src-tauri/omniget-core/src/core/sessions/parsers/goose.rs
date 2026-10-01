@@ -1,21 +1,3 @@
-//! Goose (aaif-goose): SQLite `sessions.db` com custo gravado.
-//!
-//! Caminhos: `$GOOSE_PATH_ROOT/data/sessions/sessions.db`,
-//! `~/.local/share/goose/sessions/sessions.db`,
-//! `~/Library/Application Support/goose/sessions/sessions.db`,
-//! `~/.local/share/Block/goose/sessions/sessions.db` e, no Windows,
-//! `%APPDATA%\Block\goose\data\sessions\sessions.db`.
-//!
-//! Tabelas: `sessions(id, name, description, working_dir, created_at,
-//! updated_at, accumulated_*_tokens, accumulated_cost, parent_session_id…)`,
-//! `messages(id, message_id, session_id, role, content_json,
-//! created_timestamp, …)` e `usage_ledger(session_id, created_timestamp,
-//! model, input_tokens, output_tokens, cache_read_tokens, cache_write_tokens,
-//! cost, …)`. Cada linha do ledger é uma chamada: o uso e o custo vão para a
-//! última resposta do assistente até aquele instante. Sem ledger (versão
-//! antiga), o acumulado da sessão vai para a última resposta.
-//! `input_tokens` é tratado como entrada total (cache incluso).
-
 use std::path::{Path, PathBuf};
 
 use serde_json::{Map, Value};
@@ -209,7 +191,6 @@ fn load_db(db: &Path, id: &str) -> Option<Session> {
                         .cloned()
                         .unwrap_or(Value::Null);
                     let mut canon = canonical_tool(&name);
-                    // `developer__text_editor` com `command: view|write`.
                     if name.ends_with("text_editor") {
                         canon = match util::str_of(&input, "command") {
                             Some("view") => "Read",

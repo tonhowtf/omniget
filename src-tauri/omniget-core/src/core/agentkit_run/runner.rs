@@ -1,11 +1,3 @@
-//! Headless run of a coding CLI (`claude -p`, `codex exec`, `gemini -p`,
-//! `opencode run`, `qwen -p`, `agent -p` …) with an agent as the system prompt.
-//! The argv comes from the `[runner]` table of each tool manifest
-//! (`agentkit/targets/data/<id>.toml`), never from code per tool; the output
-//! parser reads the JSON line dialects the manifests ask for (Claude/Qwen/Cursor
-//! stream-json, Codex `--json`, Gemini stream-json, OpenCode `--format json`)
-//! and falls back to plain text.
-
 use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
@@ -18,9 +10,6 @@ use crate::core::llm::drivers::acp::proc;
 
 pub const ERR_RUN: &str = "ERR_AGENTKIT_RUN";
 
-/// Permission level of a headless run. `Default` adds no flag (the CLI's own
-/// defaults); `Bypass` is only ever set by an explicit user choice and the UI
-/// shows the flag it maps to.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Permission {
@@ -51,10 +40,8 @@ impl Permission {
     }
 }
 
-/// One headless run.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct ToolRun {
-    /// Tool id of the briefing table (`claude`, `codex` …).
     pub tool: String,
     pub prompt: String,
     #[serde(default)]
@@ -67,23 +54,17 @@ pub struct ToolRun {
     pub cwd: Option<PathBuf>,
 }
 
-/// The launch of a [`ToolRun`]: program, argv, and what could not be mapped.
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct Launch {
     pub program: String,
     pub args: Vec<String>,
-    /// Flags the permission level added (shown to the user as they are).
     pub permission_flags: Vec<String>,
-    /// `true` when the tool has no system-prompt flag and the agent went in
-    /// front of the prompt instead.
     pub system_in_prompt: bool,
     pub notes: Vec<String>,
 }
 
-/// Tools whose JSON output this module parses; others run in plain text.
 const JSON_TOOLS: &[&str] = &["claude", "codex", "gemini", "qwen", "cursor", "opencode"];
 
-/// The runner config of `tool`, or an error naming the tools that have one.
 pub fn runner_of(
     tool: &str,
 ) -> Result<(&'static TargetAdapter, &'static targets::RunnerConfig), String> {
@@ -103,7 +84,6 @@ pub fn runner_of(
     Ok((t, r))
 }
 
-/// Tools that can run headless, with the binary found on this machine.
 pub fn available_tools() -> Vec<Value> {
     targets::all_targets()
         .iter()
@@ -124,8 +104,6 @@ pub fn available_tools() -> Vec<Value> {
         .collect()
 }
 
-/// The prompt with the agent in front, for runners without a system flag and
-/// for roster agents (the job prompt carries the role).
 pub fn prompt_with_role(system: Option<&str>, prompt: &str) -> String {
     match system.map(str::trim).filter(|s| !s.is_empty()) {
         Some(s) => format!(
@@ -135,9 +113,6 @@ pub fn prompt_with_role(system: Option<&str>, prompt: &str) -> String {
     }
 }
 
-/// Pure argv builder. Subcommand words of `headless` (`exec`, `run`) go first,
-/// flags next, the headless flags (`-p`) right before the prompt, which is the
-/// last argument (Gemini/Qwen read `-p <prompt>`).
 pub fn launch(target: &TargetAdapter, r: &targets::RunnerConfig, run: &ToolRun) -> Launch {
     let mut args: Vec<String> = Vec::new();
     let mut notes = Vec::new();
@@ -210,7 +185,6 @@ pub fn launch(target: &TargetAdapter, r: &targets::RunnerConfig, run: &ToolRun) 
     }
 }
 
-/// Summed usage of a run, same keys as a job's `usage`.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct RunUsage {
     pub model: String,
@@ -221,14 +195,10 @@ pub struct RunUsage {
     pub calls: u64,
 }
 
-/// What one output line meant.
 #[derive(Debug, Clone, PartialEq)]
 pub enum LineEvent {
-    /// Assistant text (a delta or a whole message).
     Text(String),
-    /// A tool started: its name and a short argument.
     Tool(String),
-    /// The final answer the CLI reported (replaces the collected text).
     Final(String),
     Usage(RunUsage),
     Session(String),
@@ -262,7 +232,6 @@ fn short_arg(input: &Value) -> String {
     String::new()
 }
 
-/// Reads one stdout line of any supported dialect. Non-JSON lines are text.
 pub fn parse_line(line: &str) -> Vec<LineEvent> {
     let t = line.trim();
     if t.is_empty() {
@@ -277,7 +246,6 @@ pub fn parse_line(line: &str) -> Vec<LineEvent> {
     let ty = s(&v["type"]);
     let mut out = Vec::new();
     match ty {
-        // Claude / Qwen / Cursor stream-json
         "system" if !s(&v["session_id"]).is_empty() => {
             out.push(LineEvent::Session(s(&v["session_id"]).to_string()))
         }
@@ -330,7 +298,6 @@ pub fn parse_line(line: &str) -> Vec<LineEvent> {
                 out.push(LineEvent::Session(s(&v["session_id"]).to_string()));
             }
         }
-        // Gemini stream-json
         "init" if !s(&v["session_id"]).is_empty() => {
             out.push(LineEvent::Session(s(&v["session_id"]).to_string()))
         }
@@ -338,7 +305,6 @@ pub fn parse_line(line: &str) -> Vec<LineEvent> {
             out.push(LineEvent::Text(s(&v["content"]).to_string()))
         }
         "tool_use" => {
-            // Gemini {tool_name, parameters}; OpenCode {part:{tool, state:{input}}}
             let name = v["tool_name"]
                 .as_str()
                 .or(v["part"]["tool"].as_str())
@@ -360,7 +326,6 @@ pub fn parse_line(line: &str) -> Vec<LineEvent> {
                 .unwrap_or("error")
                 .to_string(),
         )),
-        // Codex --json
         "thread.started" => out.push(LineEvent::Session(s(&v["thread_id"]).to_string())),
         "item.started" | "item.completed" => {
             let item = &v["item"];
@@ -401,7 +366,6 @@ pub fn parse_line(line: &str) -> Vec<LineEvent> {
             }))
         }
         "turn.failed" => out.push(LineEvent::Error(s(&v["error"]["message"]).to_string())),
-        // OpenCode --format json
         "text" => out.push(LineEvent::Text(s(&v["part"]["text"]).to_string())),
         "step_finish" => {
             let part = &v["part"];
@@ -422,7 +386,6 @@ pub fn parse_line(line: &str) -> Vec<LineEvent> {
     out
 }
 
-/// Folds one usage report into a total.
 pub fn add_usage(total: &mut Option<RunUsage>, u: &RunUsage) {
     let t = total.get_or_insert_with(RunUsage::default);
     if t.model.is_empty() {
@@ -437,7 +400,6 @@ pub fn add_usage(total: &mut Option<RunUsage>, u: &RunUsage) {
     }
 }
 
-/// The end of a run.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct RunOutput {
     pub text: String,
@@ -449,7 +411,6 @@ pub struct RunOutput {
     pub cancelled: bool,
 }
 
-/// Accumulates the events of a run into its output.
 #[derive(Default)]
 pub struct Collector {
     text: String,
@@ -460,7 +421,6 @@ pub struct Collector {
 }
 
 impl Collector {
-    /// Folds one line in; returns the log line to show, if any.
     pub fn feed(&mut self, line: &str) -> Vec<String> {
         let mut log = Vec::new();
         for ev in parse_line(line) {
@@ -468,10 +428,7 @@ impl Collector {
                 LineEvent::Text(t) => self.text.push_str(&t),
                 LineEvent::Final(t) => self.final_text = Some(t),
                 LineEvent::Tool(t) => log.push(format!("→ {t}")),
-                LineEvent::Usage(u) => {
-                    // Claude sends one `result` per run with the totals.
-                    add_usage(&mut self.usage, &u)
-                }
+                LineEvent::Usage(u) => add_usage(&mut self.usage, &u),
                 LineEvent::Session(id) if !id.is_empty() => self.session_id = Some(id),
                 LineEvent::Error(e) if !e.is_empty() => {
                     log.push(format!("! {e}"));
@@ -491,9 +448,6 @@ impl Collector {
     }
 }
 
-/// Variables never inherited by a child CLI: nesting markers of a Claude Code
-/// session that started OmniGet, which make a nested `claude` refuse or
-/// change behaviour. API keys are the user's own environment and stay.
 pub const NESTING_ENV: &[&str] = &[
     "CLAUDECODE",
     "CLAUDE_CODE_ENTRYPOINT",
@@ -502,7 +456,6 @@ pub const NESTING_ENV: &[&str] = &[
     "CLAUDE_EFFORT",
 ];
 
-/// Runs the tool on this machine. `on_log` gets each tool line as it happens.
 pub async fn run_local(
     run: &ToolRun,
     cancel: CancellationToken,
@@ -529,7 +482,6 @@ pub async fn run_local(
     drive(spec, cancel, &mut on_log).await
 }
 
-/// Spawns `spec`, streams stdout through a [`Collector`], stops on cancel.
 pub async fn drive(
     spec: proc::Spawn,
     cancel: CancellationToken,
@@ -537,7 +489,6 @@ pub async fn drive(
 ) -> Result<RunOutput, String> {
     let mut child =
         proc::spawn(&spec).map_err(|e| format!("{ERR_RUN}: spawn {}: {e}", spec.command))?;
-    // Headless runs read the prompt from argv; an open stdin makes some CLIs wait.
     drop(child.stdin.take());
     let pid = child.id();
     let stdout = child.stdout.take();

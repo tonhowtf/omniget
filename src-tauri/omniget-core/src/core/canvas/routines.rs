@@ -1,15 +1,3 @@
-//! Routines (Maestri "routines", study 95 P): a prompt typed into a terminal
-//! node on a schedule. `&&` on a line of its own splits it into steps; the
-//! next step goes only after the agent finished the previous one. An
-//! optional pre-run script must exit 0 and its stdout replaces `{{output}}`.
-//! With `skipIfBusy` (default on) a busy terminal skips the run. A routine
-//! without a node is a reminder (a notification, nothing typed).
-//!
-//! This file is the model, the schedule math and the book on disk
-//! (`<app_data>/canvas/routines.json`). The app host runs them: the jobs
-//! cron starts LLM jobs, not PTY prompts, and needs a person on boot, so the
-//! canvas has its own light ticker (`src-tauri/src/canvas/routines.rs`).
-
 use std::sync::Mutex;
 
 use chrono::{DateTime, Datelike, Duration as ChronoDuration, Local, NaiveTime, TimeZone};
@@ -20,28 +8,23 @@ use super::persist;
 use super::store::CanvasStore;
 
 pub const HISTORY_MAX: usize = 50;
-/// Shortest interval: the app ticker looks every few seconds.
 pub const MIN_INTERVAL_SECS: u32 = 10;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum Schedule {
-    /// Once at `at` (RFC 3339).
-    Once { at: String },
-    /// Every `seconds` (or `minutes`), from `startAt` (default: right away,
-    /// like the Maestri: a new interval routine runs when it is saved).
+    Once {
+        at: String,
+    },
     #[serde(rename_all = "camelCase")]
     Interval {
         #[serde(default)]
         minutes: u32,
-        /// Wins over `minutes` when set (Maestri `interval {seconds}`).
         #[serde(default, skip_serializing_if = "Option::is_none")]
         seconds: Option<u32>,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         start_at: Option<String>,
     },
-    /// Every day at `time` (`HH:MM`, local). Maestri's `{hour, minute}` is
-    /// accepted and turned into `time`.
     #[serde(rename_all = "camelCase")]
     Daily {
         #[serde(default)]
@@ -51,8 +34,6 @@ pub enum Schedule {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         minute: Option<u8>,
     },
-    /// On `days` (0 = Sunday … 6 = Saturday) at `time`. Maestri's
-    /// `weekdays` (1 = Sunday … 7) and `{hour, minute}` are accepted too.
     #[serde(rename_all = "camelCase")]
     Weekly {
         #[serde(default)]
@@ -69,7 +50,6 @@ pub enum Schedule {
 }
 
 impl Schedule {
-    /// Seconds between runs of an interval schedule.
     pub fn interval_secs(&self) -> Option<u32> {
         match self {
             Schedule::Interval {
@@ -79,9 +59,6 @@ impl Schedule {
         }
     }
 
-    /// One canonical shape: Maestri's `weekdays` (1 = Sunday) become `days`
-    /// (0 = Sunday), `{hour, minute}` become `time`, an interval keeps
-    /// `seconds` and the matching whole `minutes`.
     pub fn normalize(&mut self) -> Result<(), String> {
         fn hm(
             time: &mut String,
@@ -147,22 +124,15 @@ pub enum End {
 #[serde(rename_all = "camelCase")]
 pub struct RunRecord {
     pub at: String,
-    /// `fired` | `skipped` | `failed` | `reminded`
     pub status: String,
-    /// Maestri's result: `sentToTerminal`, `terminalNotRunning` (it was
-    /// started to take the prompt), `reminder`, `skippedByScript`,
-    /// `skippedWhileBusy`, `failed`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub code: Option<String>,
-    /// Seconds after its time it ran (the machine slept or the app was
-    /// closed); one catch-up run only, never a burst.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub late_secs: Option<u64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub message: Option<String>,
     #[serde(default)]
     pub steps: u32,
-    /// Started by "Run now" rather than the schedule.
     #[serde(default)]
     pub manual: bool,
 }
@@ -175,7 +145,6 @@ pub struct Routine {
     pub workspace_id: String,
     #[serde(default = "ground")]
     pub floor_id: String,
-    /// Target terminal node; absent = reminder only.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub node_id: Option<String>,
     pub prompt: String,
@@ -186,14 +155,12 @@ pub struct Routine {
     pub pre_run: Option<String>,
     #[serde(default = "yes")]
     pub skip_if_busy: bool,
-    /// Also send a system notification when it runs.
     #[serde(default)]
     pub notify: bool,
     #[serde(default = "yes")]
     pub enabled: bool,
     #[serde(default)]
     pub created_at: String,
-    /// Node that created it (an agent through `maestro.routine.create`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub created_by: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -204,13 +171,8 @@ pub struct Routine {
     pub run_count: u32,
     #[serde(default)]
     pub history: Vec<RunRecord>,
-    /// When it was last resumed or rescheduled: the clock counts from here
-    /// when that is later than the last run (a resumed routine never fires
-    /// for the time it was paused).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub anchor_at: Option<String>,
-    /// A `once` routine that already ran: out of the list, its history kept
-    /// (Maestri removes it and still shows its runs in History).
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub archived: bool,
 }
@@ -222,9 +184,6 @@ fn yes() -> bool {
     true
 }
 
-// ---------------------------------------------------------------- prompt
-
-/// Steps of a prompt: `&&` alone on a line separates them.
 pub fn split_steps(prompt: &str) -> Vec<String> {
     let mut out = Vec::new();
     let mut cur: Vec<&str> = Vec::new();
@@ -250,8 +209,6 @@ pub fn fill_output(step: &str, output: Option<&str>) -> String {
     }
 }
 
-// ---------------------------------------------------------------- schedule
-
 pub fn parse_time(s: &str) -> Result<NaiveTime, String> {
     NaiveTime::parse_from_str(s.trim(), "%H:%M")
         .map_err(|_| format!("CANVAS_INVALID: time `{s}` (HH:MM)"))
@@ -263,7 +220,6 @@ fn parse_at(s: &str) -> Result<DateTime<Local>, String> {
         .map_err(|_| format!("CANVAS_INVALID: date `{s}` (RFC 3339)"))
 }
 
-/// A local date at `time`, skipping a DST gap.
 fn at_local(date: chrono::NaiveDate, time: NaiveTime) -> Option<DateTime<Local>> {
     Local.from_local_datetime(&date.and_time(time)).earliest()
 }
@@ -312,9 +268,6 @@ pub fn validate(r: &Routine) -> Result<(), String> {
     Ok(())
 }
 
-/// The next time `r` should fire, counted from its last run (or its
-/// creation). A time in the past means "due now": a routine missed while
-/// the app was closed fires once when it opens, then goes back to schedule.
 pub fn next_fire(r: &Routine) -> Option<DateTime<Local>> {
     if !r.enabled {
         return None;
@@ -350,7 +303,6 @@ pub fn next_fire(r: &Routine) -> Option<DateTime<Local>> {
                 start_at.as_deref().and_then(|s| parse_at(s).ok()),
             ) {
                 (None, _, Some(start)) => start,
-                // New: runs right away (from the moment it was saved).
                 (None, None, None) => from,
                 _ => from + step,
             }
@@ -379,8 +331,6 @@ pub fn next_fire(r: &Routine) -> Option<DateTime<Local>> {
     }
     Some(next)
 }
-
-// ---------------------------------------------------------------- book
 
 static BOOK_LOCK: Mutex<()> = Mutex::new(());
 
@@ -415,9 +365,6 @@ fn refresh_next(r: &mut Routine) {
     r.next_run_at = next_fire(r).map(|d| d.to_rfc3339());
 }
 
-/// Every routine, or those of one workspace.
-/// Every routine, or those of one workspace (finished `once` routines are
-/// left out; [`history`] still has their runs).
 pub fn list(store: &CanvasStore, ws: Option<&str>) -> Vec<Routine> {
     list_all(store, ws)
         .into_iter()
@@ -425,7 +372,6 @@ pub fn list(store: &CanvasStore, ws: Option<&str>) -> Vec<Routine> {
         .collect()
 }
 
-/// Like [`list`], with the finished `once` routines.
 pub fn list_all(store: &CanvasStore, ws: Option<&str>) -> Vec<Routine> {
     let _g = BOOK_LOCK.lock().unwrap_or_else(|e| e.into_inner());
     load_all(store)
@@ -441,21 +387,17 @@ pub fn get(store: &CanvasStore, id: &str) -> Result<Routine, String> {
         .ok_or_else(|| format!("CANVAS_NOT_FOUND: routine {id}"))
 }
 
-/// One run in the History tab: the routine it belongs to and the record.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct HistoryItem {
     pub routine_id: String,
     pub routine_name: String,
-    /// The routine is gone from the list (a finished `once`).
     #[serde(default)]
     pub removed: bool,
     #[serde(flatten)]
     pub record: RunRecord,
 }
 
-/// Runs of one routine, or of every routine of a workspace (including the
-/// finished `once` ones), newest first.
 pub fn history(store: &CanvasStore, ws: Option<&str>, id: Option<&str>) -> Vec<HistoryItem> {
     let mut out: Vec<HistoryItem> = list_all(store, ws)
         .into_iter()
@@ -474,8 +416,6 @@ pub fn history(store: &CanvasStore, ws: Option<&str>, id: Option<&str>) -> Vec<H
     out
 }
 
-/// Clears the history (one routine, or every routine of `ws`); the
-/// routines stay as they are. Finished `once` routines go for good.
 pub fn clear_history(
     store: &CanvasStore,
     ws: Option<&str>,
@@ -497,7 +437,6 @@ pub fn clear_history(
     })
 }
 
-/// What a caller sends to create or edit a routine.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RoutineInput {
@@ -525,7 +464,6 @@ pub struct RoutineInput {
     pub created_by: Option<String>,
 }
 
-/// Creates or replaces (by id) a routine; counters and history are kept.
 pub fn save(store: &CanvasStore, input: RoutineInput) -> Result<Routine, String> {
     store.workspace(&input.workspace_id)?;
     edit(store, |all| {
@@ -570,8 +508,6 @@ pub fn save(store: &CanvasStore, input: RoutineInput) -> Result<Routine, String>
             archived: false,
         };
         if schedule_changed {
-            // A new schedule counts from now and its counters start over
-            // (Maestri); the history stays.
             r.anchor_at = Some(now_rfc3339());
             r.run_count = 0;
             if matches!(r.schedule, Schedule::Once { .. }) {
@@ -599,8 +535,6 @@ pub fn delete(store: &CanvasStore, id: &str) -> Result<(), String> {
     })
 }
 
-/// Replaces every routine of `ws` with `routines` (workspace import and
-/// backup restore). Each one is re-bound to `ws` and gets its next run again.
 pub fn replace_workspace(
     store: &CanvasStore,
     ws: &str,
@@ -626,7 +560,6 @@ pub fn set_enabled(store: &CanvasStore, id: &str, enabled: bool) -> Result<Routi
             .find(|r| r.id == id)
             .ok_or_else(|| format!("CANVAS_NOT_FOUND: routine {id}"))?;
         if enabled && !r.enabled {
-            // Resumed: the paused time does not count as missed runs.
             r.anchor_at = Some(now_rfc3339());
         }
         r.enabled = enabled;
@@ -635,7 +568,6 @@ pub fn set_enabled(store: &CanvasStore, id: &str, enabled: bool) -> Result<Routi
     })
 }
 
-/// Routines whose next time has come.
 pub fn due(store: &CanvasStore, now: DateTime<Local>) -> Vec<Routine> {
     list(store, None)
         .into_iter()
@@ -644,8 +576,6 @@ pub fn due(store: &CanvasStore, now: DateTime<Local>) -> Vec<Routine> {
         .collect()
 }
 
-/// Records a run: `fired`/`reminded`/`failed` count as runs, `skipped`
-/// moves the clock too (the next one is counted from now).
 pub fn record(store: &CanvasStore, id: &str, rec: RunRecord) -> Result<Routine, String> {
     edit(store, |all| {
         let r = all
@@ -664,9 +594,7 @@ pub fn record(store: &CanvasStore, id: &str, rec: RunRecord) -> Result<Routine, 
         r.history.truncate(HISTORY_MAX);
         refresh_next(r);
         if r.next_run_at.is_none() {
-            // Finished (once, count or end date reached).
             r.enabled = false;
-            // A `once` that ran leaves the list (Maestri); History keeps it.
             if ran && !manual && matches!(r.schedule, Schedule::Once { .. }) {
                 r.archived = true;
             }
@@ -675,7 +603,6 @@ pub fn record(store: &CanvasStore, id: &str, rec: RunRecord) -> Result<Routine, 
     })
 }
 
-/// Drops the routines aimed at a node that is gone (called when a node is removed).
 pub fn forget_node(store: &CanvasStore, node_id: &str) -> Result<usize, String> {
     edit(store, |all| {
         let n = all.len();

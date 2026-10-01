@@ -1,13 +1,3 @@
-//! Reflect: answer a question by reasoning over memory only, the way
-//! Hindsight's reflect agent does (estudos/91-hindsight/prompts.md §3), in one
-//! model call over a wide hybrid recall plus the entity notes, instead of a
-//! tool loop: a personal memory fits in one context, and one call is cheaper
-//! and faster.
-//!
-//! Insights the model draws (Hindsight's "opinions") are kept as unconfirmed
-//! guesses in the bot's own scope, with the ids of the facts behind them as
-//! evidence, never as something the person said.
-
 use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
@@ -19,7 +9,6 @@ use super::retain::{json_object, Llm};
 use super::retrieve::{embed_query, hybrid, notes_for};
 use super::{remember, Category, NewMemory, Source};
 
-/// Facts one reflection reads.
 pub const REFLECT_FACTS: usize = 30;
 
 pub const SYSTEM: &str = r#"You answer a question using ONLY the memories given below: saved facts about a person and short notes that summarize them. NEVER make up names, people, events or details.
@@ -41,7 +30,6 @@ pub struct Reflection {
     pub answer: String,
     pub used: Vec<String>,
     pub confidence: f64,
-    /// Ids of the guesses saved from this reflection.
     pub saved_insights: Vec<String>,
 }
 
@@ -135,7 +123,6 @@ pub async fn reflect(
             for ins in list.iter().take(3) {
                 let text = ins.get("text").and_then(Value::as_str).unwrap_or("").trim();
                 let evidence = ids("evidence", ins);
-                // An insight needs at least two facts behind it.
                 if text.is_empty() || evidence.len() < 2 {
                     continue;
                 }

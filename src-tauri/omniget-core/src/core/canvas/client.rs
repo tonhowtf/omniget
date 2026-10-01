@@ -1,18 +1,3 @@
-//! `omniget canvas …`: the client an agent on the canvas runs to use its
-//! cords (estudo 98/03 §B.5–B.7). Raw HTTP/1.1 on a `TcpStream` to the local
-//! bridge (no reqwest), like the hook shim, so the same code serves:
-//!
-//! - `omniget canvas …` of the full CLI (`omniget-cli`), and
-//! - the multi-call `omniget` the app installs in `<app_data>/bin/` (a copy
-//!   of the bundled `omniget-hook` sidecar): called by that name it answers
-//!   `canvas …` and hands any other subcommand to the next `omniget` on PATH.
-//!
-//! Identity comes from the environment of the node's terminal:
-//! `OMNIGET_CANVAS_TOKEN` (`oct_…`, bound to the node) and
-//! `OMNIGET_BRIDGE_URL`. Exit codes: 0 ok, 2 wrong usage or not allowed,
-//! 3 the target has not finished yet, 4 released to avoid a deadlock,
-//! 1 anything else.
-
 use std::io::{IsTerminal, Read, Write};
 use std::net::{TcpStream, ToSocketAddrs};
 use std::path::PathBuf;
@@ -33,12 +18,8 @@ pub const TOKEN_ENV: &str = "OMNIGET_CANVAS_TOKEN";
 pub const URL_ENV: &str = "OMNIGET_BRIDGE_URL";
 pub const NODE_ENV: &str = "OMNIGET_CANVAS_NODE";
 
-/// Default `--timeout` of `ask` (the skill tells agents up to 10 min).
 pub const DEFAULT_ASK_TIMEOUT_S: u64 = 540;
-/// One long-poll slice; the server caps it at 110 s.
 const WAIT_SLICE_MS: u64 = 100_000;
-
-// ------------------------------------------------------------------ transport
 
 #[derive(Debug, Clone)]
 pub struct Conn {
@@ -47,7 +28,6 @@ pub struct Conn {
     pub token: String,
 }
 
-/// `http://host:port[/...]` -> (host, port).
 pub fn parse_url(url: &str) -> Option<(String, u16)> {
     let rest = url.trim().strip_prefix("http://")?;
     let hostport = rest.split('/').next()?;
@@ -56,8 +36,6 @@ pub fn parse_url(url: &str) -> Option<(String, u16)> {
 }
 
 impl Conn {
-    /// From the environment; the bridge port falls back to the app's
-    /// `settings.json` (same lookup as the hook shim).
     pub fn from_env() -> Result<Conn, String> {
         let token = std::env::var(TOKEN_ENV).unwrap_or_default();
         if token.trim().is_empty() {
@@ -87,7 +65,6 @@ impl Conn {
         format!("http://{}:{}", self.host, self.port)
     }
 
-    /// One request. `Ok((status, json))`; `Err` = the app did not answer.
     pub fn request(
         &self,
         method: &str,
@@ -209,7 +186,6 @@ fn err_text(v: &Value) -> String {
         .unwrap_or_else(|| v.to_string())
 }
 
-/// Exit code of an HTTP failure.
 fn exit_of(status: u16) -> i32 {
     match status {
         400 | 401 | 403 | 404 | 409 | 422 | 429 => EXIT_USAGE,
@@ -217,15 +193,12 @@ fn exit_of(status: u16) -> i32 {
     }
 }
 
-// ------------------------------------------------------------------ args
-
 struct Args {
     pos: Vec<String>,
     flags: Map<String, Value>,
     json: bool,
 }
 
-/// Flags that take a value (everything else is a switch).
 const VALUED: &[&str] = &[
     "timeout",
     "lines",
@@ -244,7 +217,6 @@ const VALUED: &[&str] = &[
     "url",
     "offset",
     "limit",
-    // Maestro, routine, floor and workspace verbs.
     "agent",
     "preset",
     "command",
@@ -269,9 +241,6 @@ const VALUED: &[&str] = &[
     "pre-run",
 ];
 
-/// Flags that never take a value. Every other `--flag` takes the next word
-/// as its value unless that word is itself a flag (`--selector @e28` and
-/// `--selector=@e28` both work), so a new flag needs no registration.
 const SWITCHES: &[&str] = &[
     "no-wait",
     "progress",
@@ -328,8 +297,6 @@ fn parse(args: &[String]) -> Args {
         if VALUED.contains(&k.as_str()) || !SWITCHES.contains(&k.as_str()) {
             let v = inline.or_else(|| {
                 let next = args.get(i + 1).cloned();
-                // `--stack` style optional values are handled by callers;
-                // valued flags take the next word unless it is a flag.
                 if next.as_deref().is_some_and(|n| !n.starts_with("--")) {
                     i += 1;
                     next
@@ -338,7 +305,6 @@ fn parse(args: &[String]) -> Args {
                 }
             });
             match (a.flags.get_mut(&k), v) {
-                // Repeatable (`--attach a --attach b`).
                 (Some(Value::Array(arr)), Some(v)) => arr.push(Value::String(v)),
                 (Some(prev), Some(v)) if k == "attach" => {
                     let first = prev.clone();
@@ -372,7 +338,6 @@ impl Args {
     }
 }
 
-/// `-` or nothing with a piped stdin = read stdin.
 fn text_arg(v: Option<&String>) -> Option<String> {
     match v.map(String::as_str) {
         Some("-") => read_stdin(),
@@ -415,9 +380,6 @@ fn print_json(v: &Value) {
     println!("{}", serde_json::to_string_pretty(v).unwrap_or_default());
 }
 
-// ------------------------------------------------------------------ commands
-
-/// Runs `omniget canvas <args>` and returns the exit code.
 pub fn run_cli(args: &[String]) -> i32 {
     let Some(cmd) = args.first().map(String::as_str) else {
         println!("{HELP}");
@@ -430,10 +392,6 @@ pub fn run_cli(args: &[String]) -> i32 {
     if cmd == "hook" {
         return hook_main(&args[1..]);
     }
-    // `<command> [verb] --help` / `-h` anywhere (before `--`) prints that
-    // command's own usage and never reaches the app: a help flag must not
-    // turn into an argument of a real action (`recruit --help` once recruited
-    // an agent named "Recruit").
     if wants_help(&args[1..]) {
         let verb = args[1..]
             .iter()
@@ -467,8 +425,6 @@ pub fn run_cli(args: &[String]) -> i32 {
                 return usage("portal needs a verb (snapshot, click, fill, navigate, ...)");
             };
             let mut words = a.pos[1..].to_vec();
-            // `portal wait "Learn more"` with one corded portal: the first
-            // word is not a portal name, so it is the verb's own argument.
             let named = !matches!(verb.as_str(), "list" | "create" | "open")
                 && a.flag("portal").is_none()
                 && words.first().is_some_and(|w| !looks_like_target(w));
@@ -503,8 +459,6 @@ pub fn run_cli(args: &[String]) -> i32 {
             rpc_print(&conn, method, args, &a)
         }
         "debug" => debug(Some(&conn), &a, None),
-        // Commands of other areas go to their rpc methods: `omniget canvas
-        // role list` -> `role.list`; the manager's verbs -> `maestro.<verb>`.
         "recruit" | "dismiss" | "connect" | "disconnect" | "notify" | "preset" => {
             let method = match (cmd, a.pos.first().map(String::as_str)) {
                 ("preset", Some(v)) => format!("maestro.preset_{v}"),
@@ -545,10 +499,7 @@ fn camel(k: &str) -> String {
     out
 }
 
-/// Generic args of a forwarded command: the words and the flags.
 fn argv_args(pos: &[String], a: &Args) -> Value {
-    // `--keep-floor` / `--pre-run` reach the rpc as `keepFloor` / `preRun`
-    // (the argument structs are camelCase).
     let mut m = Map::new();
     for (k, v) in &a.flags {
         m.insert(camel(k), v.clone());
@@ -557,10 +508,6 @@ fn argv_args(pos: &[String], a: &Args) -> Value {
     Value::Object(m)
 }
 
-/// Maestri's positional portal form: `portal <verb> "<Portal>" [ref-or-selector]
-/// [text]`. The first word is the portal (by name), a bare `@eN` or CSS
-/// selector comes next, then the text / value / key. Flags win over words.
-/// Returns the rpc verb (aliases resolved) and its args.
 fn portal_args(verb: &str, pos: &[String], a: &Args) -> (String, Value) {
     let mut v = argv_args(pos, a);
     let (verb, action) = match verb {
@@ -575,7 +522,6 @@ fn portal_args(verb: &str, pos: &[String], a: &Args) -> (String, Value) {
     }
     let mut rest = pos.iter();
     if verb == "open" {
-        // `portal create URL ["Name"] [--size WxH]`
         if let Some(u) = rest.next() {
             put(&mut v, "url", json!(u));
         }
@@ -590,8 +536,6 @@ fn portal_args(verb: &str, pos: &[String], a: &Args) -> (String, Value) {
         }
         return (verb.to_string(), v);
     }
-    // The portal name may be left out when only one portal is corded:
-    // `portal click @e3` targets that one.
     let first_is_target = pos.first().is_some_and(|w| looks_like_target(w));
     if !first_is_target {
         if let Some(p) = rest.next() {
@@ -708,15 +652,12 @@ fn portal_args(verb: &str, pos: &[String], a: &Args) -> (String, Value) {
     (verb.to_string(), v)
 }
 
-/// Sets `k` unless a flag already did.
 fn put(v: &mut Value, k: &str, val: Value) {
     if let Some(m) = v.as_object_mut() {
         m.entry(k.to_string()).or_insert(val);
     }
 }
 
-/// A word that names an element or a point, never a portal: `@e3`,
-/// `ref=e3`, `#id`, `.class`, `[attr]`, `text=Label`, `120,48`.
 fn looks_like_target(w: &str) -> bool {
     let w = w.trim();
     w.starts_with('@')
@@ -730,15 +671,12 @@ fn looks_like_target(w: &str) -> bool {
         })
 }
 
-/// `-h` / `--help` as a word of its own, before a `--` separator.
 fn wants_help(args: &[String]) -> bool {
     args.iter()
         .take_while(|s| s.as_str() != "--")
         .any(|s| s == "--help" || s == "-h")
 }
 
-/// The rpc method of `<area> <verb>`. Verbs that only a Maestro has live
-/// under `maestro.*`; `role assign` is the Maestro's role swap.
 fn method_of(cmd: &str, verb: &str) -> String {
     match (cmd, verb) {
         ("workspace", "create") => "maestro.workspace.create".into(),
@@ -746,9 +684,6 @@ fn method_of(cmd: &str, verb: &str) -> String {
     }
 }
 
-/// Names of the positional words of a method, in order. The rpc argument
-/// structs read named fields, so `role assign Rev Reviewer` must arrive as
-/// `{target: "Rev", role: "Reviewer"}`, not only as `argv`.
 fn positional_names(method: &str) -> &'static [&'static str] {
     match method {
         "maestro.recruit" | "maestro.dismiss" => &["name"],
@@ -769,9 +704,6 @@ fn positional_names(method: &str) -> &'static [&'static str] {
     }
 }
 
-/// Generic args plus the positional words under their names (a flag with
-/// the same name wins). `notify` takes the whole sentence; `role assign X
-/// none` means no role.
 fn forward_args(method: &str, pos: &[String], a: &Args) -> Value {
     let mut v = argv_args(pos, a);
     let names = positional_names(method);
@@ -801,7 +733,6 @@ fn forward_args(method: &str, pos: &[String], a: &Args) -> Value {
     v
 }
 
-/// Usage of one command (and verb), with its flags.
 fn command_help(cmd: &str, verb: Option<&str>) -> String {
     let body = match (cmd, verb) {
         ("list" | "ls" | "peers", _) => "omniget canvas list [--json]\n  Who you are (You:) and every agent, note and portal connected to you.",
@@ -837,7 +768,6 @@ fn command_help(cmd: &str, verb: Option<&str>) -> String {
 fn simple_get(conn: &Conn, path: &str, a: &Args) -> i32 {
     match conn.get(path, Duration::from_secs(15)) {
         Ok((200, v)) => {
-            // JSON either way: these answers have no text form.
             let _ = a.json;
             print_json(&v);
             EXIT_OK
@@ -958,8 +888,6 @@ fn ask(conn: &Conn, a: &Args) -> i32 {
             json!({ "to": to, "text": text, "request_id": request_id, "wait": !no_wait })
         }
     };
-    // A dropped connection is retried with the same request_id: the app
-    // admits it once.
     let mut sent = None;
     for attempt in 0..3 {
         match conn.post("/v1/canvas/asks", &body, Duration::from_secs(30)) {
@@ -1196,7 +1124,6 @@ fn say(conn: &Conn, a: &Args) -> i32 {
     let mut args = a.flags.clone();
     args.insert("text".into(), json!(text));
     args.insert("progress".into(), json!(a.has("progress")));
-    // `--attach` given once parses as a string; the server takes a list.
     match args.get("attach").cloned() {
         Some(Value::String(one)) => {
             args.insert("attach".into(), json!([one]));
@@ -1214,9 +1141,6 @@ fn say(conn: &Conn, a: &Args) -> i32 {
     rpc_print(conn, "chat.say", Value::Object(args), a)
 }
 
-/// `portal snapshot` as text: the page's title and URL, then the
-/// accessibility tree with its `@eN` refs (what `click`/`fill` take), and the
-/// page text only when there is no tree.
 fn portal_snapshot_print(conn: &Conn, args: Value) -> i32 {
     match rpc(conn, "portal.snapshot", args) {
         Ok(v) => {
@@ -1257,7 +1181,6 @@ fn snapshot_text(v: &Value) -> String {
 fn recall_args(a: &Args) -> Value {
     let mut m = a.flags.clone();
     match a.pos.first().map(String::as_str) {
-        // `recall list` = `recall --list`; `recall attachment <id>`.
         Some("list") => {
             m.insert("list".into(), json!(true));
         }
@@ -1329,7 +1252,6 @@ fn note(conn: &Conn, a: &Args) -> i32 {
     rpc_print(conn, &format!("note.{verb}"), args, a)
 }
 
-/// `POST /v1/canvas/rpc` and prints the result.
 pub fn rpc(conn: &Conn, method: &str, args: Value) -> Result<Value, (String, i32)> {
     let body = json!({ "method": method, "args": args });
     match conn.post("/v1/canvas/rpc", &body, Duration::from_secs(130)) {
@@ -1424,18 +1346,10 @@ fn urlencode(s: &str) -> String {
     out
 }
 
-// ------------------------------------------------------------------ hooks
-
-/// `omniget canvas hook [--tool claude|codex|gemini] [codex-json]`: run by the
-/// agent's own hooks (plugin `hooks.json`, Codex `notify`, Gemini settings).
-/// Reports the event to `/v1/canvas/hook` with the node's token. Never
-/// blocks the agent (2 s), except a `PermissionRequest`, held until the owner
-/// answers (up to 115 s). Outside a canvas node it does nothing.
 pub fn hook_main(args: &[String]) -> i32 {
     let a = parse(args);
     let tool = a.flag("tool").unwrap_or("claude").to_string();
     let Ok(conn) = Conn::from_env() else {
-        // Not a canvas node: stay silent, never break the agent.
         return EXIT_OK;
     };
     let (event, mut payload) = match tool.as_str() {
@@ -1515,11 +1429,6 @@ pub fn hook_main(args: &[String]) -> i32 {
     EXIT_OK
 }
 
-// ------------------------------------------------------------------ multi-call
-
-/// Entry of the multi-call `omniget` (`<app_data>/bin/omniget`): answers
-/// `canvas …`; any other subcommand goes to the next `omniget` on PATH
-/// (the full CLI, when installed).
 pub fn multicall_main() -> i32 {
     let argv: Vec<String> = std::env::args().collect();
     if argv.get(1).map(String::as_str) == Some("canvas") {
@@ -1544,7 +1453,6 @@ pub fn multicall_main() -> i32 {
     EXIT_USAGE
 }
 
-/// The first `name` on PATH that is not `skip`.
 fn next_on_path(name: &str, skip: Option<&std::path::Path>) -> Option<PathBuf> {
     let file = if cfg!(windows) {
         format!("{name}.exe")

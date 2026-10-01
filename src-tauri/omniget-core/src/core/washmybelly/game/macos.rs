@@ -1,11 +1,3 @@
-//! macOS: Game Mode is the system's (automatic when a game is in full
-//! screen, no public way to force it). What OmniGet can do without admin:
-//! take the game out of the background band if something put it there, and
-//! put its own children (yt-dlp, ffmpeg, agents) in the background band
-//! (`PRIO_DARWIN_BG`, the same thing `taskpolicy -b` / `-B -p` does), which
-//! is fully reversible by the same user. A `kqueue` `NOTE_EXIT` watcher
-//! undoes it when the game exits.
-
 use std::path::PathBuf;
 use std::time::Duration;
 
@@ -14,17 +6,12 @@ use serde_json::{json, Value};
 use super::children::own_children;
 use super::{Active, Applied, ApplyFn, Exec, ExitWaiter, PollWaiter, Target, UndoStep, WaiterFn};
 
-// <sys/resource.h>
 const PRIO_DARWIN_PROCESS: libc::c_int = 4;
 const PRIO_DARWIN_BG: libc::c_int = 0x1000;
 
-// <sys/proc_info.h>: `pbi_flags` bits of `PROC_PIDTBSDINFO`.
 const PROC_FLAG_DARWINBG: u32 = 0x8000;
 const PROC_FLAG_EXT_DARWINBG: u32 = 0x10000;
 
-/// Whether `pid` is in the background band. `None` when it cannot be read.
-/// `getpriority(PRIO_DARWIN_PROCESS)` only answers for the caller itself,
-/// so the state of another process comes from `proc_pidinfo`.
 pub fn get_bg(pid: u32) -> Option<bool> {
     let mut info: libc::proc_bsdinfo = unsafe { std::mem::zeroed() };
     let size = std::mem::size_of::<libc::proc_bsdinfo>() as libc::c_int;
@@ -120,7 +107,6 @@ fn apply(target: &Target) -> Result<Applied, String> {
     Ok(out)
 }
 
-/// `kqueue` with `EVFILT_PROC`/`NOTE_EXIT` on the game's pid.
 pub struct KqWaiter {
     kq: libc::c_int,
     exited: bool,
@@ -147,7 +133,6 @@ impl KqWaiter {
             udata: std::ptr::null_mut(),
         };
         let r = unsafe { libc::kevent(kq, &ev, 1, std::ptr::null_mut(), 0, std::ptr::null()) };
-        // ESRCH: the process is already gone.
         let exited = r < 0 && std::io::Error::last_os_error().raw_os_error() == Some(libc::ESRCH);
         if r < 0 && !exited {
             unsafe { libc::close(kq) };
@@ -210,8 +195,6 @@ pub fn plan(target: &Target) -> (ApplyFn, WaiterFn) {
     )
 }
 
-/// Xcode's `gamepolicyctl`, the only reader of the Game Mode state. Found
-/// through `xcode-select -p` (never `xcrun`, which may open an installer).
 fn gamepolicyctl() -> Option<PathBuf> {
     let mut dirs = Vec::new();
     if let Ok(o) = crate::core::process::std_command("xcode-select")

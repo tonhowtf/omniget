@@ -1,10 +1,3 @@
-//! Meetings over the MCP server: an agent connected with `meetings_read`
-//! lists, reads (summary, action items, transcript as markdown) and searches
-//! the person's meetings; with `meetings_write` it can import a Teams
-//! recording by its pre-signed URL. Imports from MCP never use the person's
-//! SharePoint session: only `videomanifest` and transcript URLs, which carry
-//! their own signature, are accepted.
-
 use omniget_core::core::meetings::{
     self, pipeline, settings, teams, vexa, Meeting, MeetingSource, MeetingStatus,
 };
@@ -138,7 +131,6 @@ fn brief(m: &Meeting) -> Value {
     })
 }
 
-/// Keeps the markdown without the transcript section.
 fn without_transcript(md: &str) -> String {
     match md.find("\n## Transcript\n") {
         Some(i) => md[..i + 1].to_string(),
@@ -240,7 +232,6 @@ pub async fn call(app: &AppHandle, p: &Principal, name: &str, a: Value) -> Resul
                         let _ = app.emit("meetings://progress", &pr);
                     })
                 };
-                // No cookie: MCP imports never borrow the person's session.
                 let _ = pipeline::process(&id, pipeline::Ctx::new(progress)).await;
             });
             let _ = app.emit("meetings://changed", json!({ "id": m.id }));

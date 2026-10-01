@@ -1,12 +1,4 @@
 //! Linux cleanup rules of our own (GPL-3.0). BleachBit covers most app
-//! caches; these add what the studies found missing or wrong elsewhere:
-//!
-//! - `~/.cache` one item per app, never the folder at once (Stacer's bug);
-//! - the Trash of every mounted volume (`.Trash-<uid>`, `.Trash/<uid>`);
-//! - package caches through the package manager itself, as administrator;
-//! - `journalctl --vacuum-size`, core dumps, unused Flatpak runtimes;
-//! - old snap revisions read from the snapd REST API, never from the text
-//!   of `snap list`.
 
 use serde_json::{json, Value};
 
@@ -18,7 +10,6 @@ use super::rule::Rule;
 
 const L: &[Os] = &[Os::Linux];
 
-/// Journal size kept by the vacuum.
 pub const JOURNAL_KEEP_MB: u64 = 200;
 
 pub fn rules() -> Vec<Rule> {
@@ -118,9 +109,6 @@ pub fn rules() -> Vec<Rule> {
     ]
 }
 
-// ── Probes ───────────────────────────────────────────────────────────
-
-/// `journalctl --disk-usage`: bytes above the size the vacuum keeps.
 pub fn probe_journal(_rule: &Rule, env: &Env) -> Vec<Found> {
     let Some(out) = env.output("journalctl", &["--disk-usage"]) else {
         return Vec::new();
@@ -146,14 +134,12 @@ pub fn probe_journal(_rule: &Rule, env: &Env) -> Vec<Found> {
     }]
 }
 
-/// "Archived and active journals take up 1.2G in the file system."
 pub fn parse_journal_usage(text: &str) -> Option<u64> {
     let i = text.find("take up ")? + "take up ".len();
     let word = text[i..].split_whitespace().next()?;
     parse_size(word)
 }
 
-/// `1.2G`, `512.0M`, `8K`, `100B` (binary units, as journalctl prints).
 pub fn parse_size(word: &str) -> Option<u64> {
     let w = word.trim().trim_end_matches('B');
     let (num, mult) = match w.chars().last()? {
@@ -167,7 +153,6 @@ pub fn parse_size(word: &str) -> Option<u64> {
     Some((n * mult as f64) as u64)
 }
 
-/// Old snap revisions from `GET /v2/snaps?select=all` on the snapd socket.
 pub fn probe_snaps(rule: &Rule, env: &Env) -> Vec<Found> {
     let Some(body) = env.snapd_get("/v2/snaps?select=all") else {
         return Vec::new();
@@ -199,7 +184,6 @@ pub struct SnapRevision {
     pub bytes: u64,
 }
 
-/// Snap names are `[a-z0-9-]`, revisions digits (or `x<digits>` for local installs).
 pub fn valid_snap(name: &str, revision: &str) -> bool {
     let digits = revision.strip_prefix('x').unwrap_or(revision);
     !name.is_empty()
@@ -223,8 +207,6 @@ pub fn parse_snap_revisions(body: &str) -> Vec<SnapRevision> {
             Value::Number(n) => n.to_string(),
             _ => continue,
         };
-        // "active" is the revision in use; anything else installed is a
-        // disabled older revision snapd keeps for rollback.
         if s["status"].as_str() == Some("active") || !valid_snap(name, &revision) {
             continue;
         }
@@ -237,7 +219,6 @@ pub fn parse_snap_revisions(body: &str) -> Vec<SnapRevision> {
     out
 }
 
-/// Minimal HTTP/1.1 GET over the snapd unix socket (no extra crate).
 #[cfg(target_os = "linux")]
 pub fn snapd_get(path: &str) -> Option<String> {
     use std::io::{Read, Write};
@@ -259,7 +240,6 @@ pub fn snapd_get(_path: &str) -> Option<String> {
     None
 }
 
-/// Body of a raw HTTP/1.1 response, de-chunked when needed.
 pub fn http_body(raw: &str) -> Option<String> {
     let (head, body) = raw.split_once("\r\n\r\n")?;
     if !head.starts_with("HTTP/1.1 200") && !head.starts_with("HTTP/1.0 200") {

@@ -1,16 +1,3 @@
-//! Shoutcast/Icecast in-band metadata ("ICY").
-//!
-//! When a client sends `Icy-MetaData: 1`, the server answers with an
-//! `icy-metaint: N` header and interleaves the audio like this:
-//!
-//! ```text
-//! [N bytes audio][1 byte L][L*16 bytes metadata, NUL padded][N bytes audio]...
-//! ```
-//!
-//! The metadata block is `StreamTitle='Artist - Song';StreamUrl='...';`.
-//! A webview `<audio>` can't read it, so the app proxies the stream through
-//! this demuxer: audio bytes go to the player, titles go to the UI.
-
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct IcyMeta {
     pub stream_title: Option<String>,
@@ -20,9 +7,7 @@ pub struct IcyMeta {
 #[derive(Debug)]
 pub struct IcyDemuxer {
     metaint: usize,
-    /// Audio bytes left before the next length byte.
     until_meta: usize,
-    /// Metadata bytes still to collect for the current block.
     meta_left: usize,
     meta_buf: Vec<u8>,
 }
@@ -37,8 +22,6 @@ impl IcyDemuxer {
         }
     }
 
-    /// Splits `chunk` into audio (appended to `audio`) and any metadata
-    /// blocks completed inside it.
     pub fn push(&mut self, mut chunk: &[u8], audio: &mut Vec<u8>) -> Vec<IcyMeta> {
         let mut metas = Vec::new();
         if self.metaint == 0 {
@@ -80,7 +63,6 @@ impl IcyDemuxer {
 fn field(s: &str, key: &str) -> Option<String> {
     let needle = format!("{key}='");
     let start = s.find(&needle)? + needle.len();
-    // Titles can contain `'`; the value ends at the `';` that closes it.
     let rest = &s[start..];
     let end = rest.find("';").unwrap_or(rest.len());
     let v = rest[..end].trim_end_matches(['\'', ';']).trim().to_string();
@@ -92,7 +74,6 @@ pub fn parse_block(raw: &[u8]) -> Option<IcyMeta> {
     if trimmed.is_empty() {
         return None;
     }
-    // Most servers send UTF-8; old ones send Latin-1.
     let text = match String::from_utf8(trimmed.clone()) {
         Ok(s) => s,
         Err(_) => trimmed.iter().map(|&b| b as char).collect(),
@@ -103,7 +84,6 @@ pub fn parse_block(raw: &[u8]) -> Option<IcyMeta> {
     })
 }
 
-/// "Artist - Title" as most stations send it.
 pub fn split_title(stream_title: &str) -> (Option<String>, String) {
     match stream_title.split_once(" - ") {
         Some((a, t)) if !a.trim().is_empty() && !t.trim().is_empty() => {
@@ -132,7 +112,7 @@ mod tests {
     fn splits_audio_and_titles_across_chunk_boundaries() {
         let mut stream = frame(8, "Band - It's Song");
         stream.extend(vec![0xAA; 8]);
-        stream.push(0); // empty metadata block
+        stream.push(0);
         stream.extend(vec![0xAA; 3]);
         for split in 1..stream.len() {
             let mut d = IcyDemuxer::new(8);

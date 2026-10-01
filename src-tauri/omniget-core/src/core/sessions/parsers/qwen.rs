@@ -1,13 +1,3 @@
-//! Qwen Code: `~/.qwen/projects/<cwd sanitizado>/chats/<sessionId>.jsonl`
-//! (`QWEN_RUNTIME_DIR`, `QWEN_HOME` ou `QWEN_DATA_DIR` sobrepõem a base).
-//!
-//! Registro parecido com o do Claude (`uuid`, `parentUuid`, `sessionId`,
-//! `timestamp`, `cwd`, `gitBranch`, `type: user|assistant|tool_result|system`,
-//! `subtype`), mas `message` é um `Content` do Gemini (`role`, `parts[]` com
-//! `text`, `functionCall{id,name,args}`, `functionResponse{id,name,response}`)
-//! e o uso vem em `usageMetadata` (`promptTokenCount` inclui o cache).
-//! Subagentes gravam no mesmo arquivo com `agentId`/`isSidechain`.
-
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
@@ -137,7 +127,6 @@ impl Parser {
                 responses.push(fr.clone());
             }
         }
-        // Resultado de tool: por `functionResponse` e por `toolCallResult`.
         for fr in &responses {
             let id = util::str_of(fr, "id").unwrap_or("").to_string();
             let resp = fr.get("response").cloned().unwrap_or(Value::Null);

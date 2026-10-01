@@ -1,10 +1,3 @@
-//! Auto-download for followed channels: rules decide what enters the app's
-//! download queue, a disk cap is checked before enqueueing, and retention
-//! trims what the auto-downloader itself fetched (never anything else).
-//!
-//! Scheduling follows ytzero's adaptive refresh (median gap between uploads
-//! / 24, clamped) with jitter added, plus a per-round request budget.
-
 use std::collections::{HashMap, HashSet};
 use std::hash::{Hash, Hasher};
 use std::time::Duration;
@@ -30,21 +23,14 @@ const INTERVAL_DEFAULT_MS: i64 = 2 * HOUR;
 const TICK: Duration = Duration::from_secs(60);
 const ROUND_EVERY_MS: i64 = 5 * MIN;
 const RETENTION_EVERY_MS: i64 = 10 * MIN;
-/// Channels that may hit the network in one round.
 const ROUND_BUDGET: usize = 40;
-/// Candidates resolved (size estimate, Shorts check) per round.
 const ENRICH_BUDGET: usize = 12;
 const ENQUEUE_BUDGET: usize = 8;
-/// Free space kept on the volume after the estimated download.
 const FREE_MARGIN: u64 = 2 * GIB;
-/// A queued row whose download vanished from the queue and its history.
 const QUEUED_LOST_MS: i64 = 6 * HOUR;
 
 static ROUND: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
 
-// ---------- scheduling (pure) ----------
-
-/// Next check interval from the channel's upload dates (any order).
 pub fn adaptive_interval_ms(published: &[i64], now: i64) -> i64 {
     let mut dates: Vec<i64> = published.to_vec();
     dates.sort_unstable();
@@ -56,7 +42,6 @@ pub fn adaptive_interval_ms(published: &[i64], now: i64) -> i64 {
         let median = gaps[gaps.len() / 2];
         (median / 24).clamp(INTERVAL_MIN_MS, INTERVAL_MAX_MS)
     };
-    // A quiet channel is not worth checking every half hour.
     let floor = match dates.last() {
         Some(last) => match now - last {
             d if d <= 2 * DAY => 0,
@@ -69,8 +54,6 @@ pub fn adaptive_interval_ms(published: &[i64], now: i64) -> i64 {
     base.max(floor).min(INTERVAL_MAX_MS)
 }
 
-/// ±10 %, stable for a given channel within a minute, so channels added
-/// together drift apart instead of firing in lockstep.
 pub fn jitter(ms: i64, seed: &str, now: i64) -> i64 {
     let mut h = std::collections::hash_map::DefaultHasher::new();
     seed.hash(&mut h);
@@ -79,19 +62,15 @@ pub fn jitter(ms: i64, seed: &str, now: i64) -> i64 {
     ms + ms * r / 10_000
 }
 
-/// 15 min, 30 min, 1 h... up to a day.
 pub fn backoff_ms(fails: u32) -> i64 {
     let exp = fails.saturating_sub(1).min(10);
     (15 * MIN * (1i64 << exp)).min(DAY)
 }
 
-// ---------- rules (pure) ----------
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Verdict {
     Match,
     Reject,
-    /// Would match if an unknown field (duration, Shorts, date) turns out right.
     NeedsInfo,
 }
 
@@ -110,10 +89,6 @@ fn has_word(haystack: &str, words: &[String]) -> bool {
         .any(|w| haystack.contains(&w))
 }
 
-/// One rule against one feed row. `sub` is the followed channel (None when
-/// the row belongs to a channel no longer followed). Without `max_age_days`
-/// only videos published after the channel was followed count, so turning a
-/// rule on never pulls a channel's back catalog.
 pub fn evaluate(
     rule: &AutoRule,
     sub: Option<&SubRow>,
@@ -184,8 +159,6 @@ pub fn evaluate(
     }
 }
 
-// ---------- sizes and caps (pure) ----------
-
 fn quality_height(quality: &str) -> Option<u32> {
     quality.trim().trim_end_matches('p').parse().ok()
 }
@@ -195,7 +168,6 @@ fn format_bytes(f: &Format, duration_s: u32) -> u64 {
         .unwrap_or(f.bitrate.saturating_mul(duration_s as u64) / 8)
 }
 
-/// Size the rule's quality would produce, from the resolved formats.
 pub fn estimate_bytes(formats: &[Format], duration_s: u32, quality: &str) -> Option<u64> {
     let audio = formats
         .iter()
@@ -218,7 +190,6 @@ pub fn estimate_bytes(formats: &[Format], duration_s: u32, quality: &str) -> Opt
     })
 }
 
-/// Rough size when nothing was resolved: typical bitrates per quality.
 pub fn fallback_bytes(duration_s: Option<u32>, quality: &str) -> u64 {
     let bps: u64 = match quality {
         "audio" => 160_000,
@@ -235,8 +206,6 @@ pub fn fallback_bytes(duration_s: Option<u32>, quality: &str) -> u64 {
     }
 }
 
-/// Retention evicts unpinned files oldest first, so a new download fits a
-/// cap as long as the pinned files plus what is in flight leave room.
 pub fn fits_cap(pinned: u64, in_flight: u64, est: u64, cap: u64) -> bool {
     cap == 0 || pinned.saturating_add(in_flight).saturating_add(est) <= cap
 }
@@ -249,9 +218,6 @@ fn gb(v: f64) -> u64 {
     }
 }
 
-/// Which auto-downloaded files to delete, oldest download first. Per rule:
-/// `keep_days`, `keep_per_channel` (newest by publish date), `max_gb`; then
-/// the global cap over everything left. Pinned rows are never picked.
 pub fn retention_plan(
     owned: &[FeedRow],
     rules: &[AutoRule],
@@ -337,8 +303,6 @@ pub fn retention_plan(
         .collect()
 }
 
-// ---------- rule commands ----------
-
 fn clean_rule(mut rule: AutoRule) -> AutoRule {
     if rule.id.trim().is_empty() {
         rule.id = format!("r{}", db::now_ms());
@@ -410,9 +374,6 @@ fn row_item(row: &FeedRow, sub: Option<&SubRow>) -> Item {
     })
 }
 
-/// What the rule would pick from the cached feeds right now (ignores
-/// `enabled`, so a rule can be tested before it is turned on). Rows whose
-/// duration or Shorts status is still unknown are included.
 #[tauri::command]
 pub async fn tube_rules_preview(rule: AutoRule) -> Result<Vec<Item>, String> {
     let rule = clean_rule(rule);
@@ -435,9 +396,6 @@ pub async fn tube_rules_preview(rule: AutoRule) -> Result<Vec<Item>, String> {
         .collect())
 }
 
-// ---------- storage ----------
-
-/// Nearest existing ancestor, so free space works before the folder exists.
 fn existing_dir(path: &std::path::Path) -> Option<std::path::PathBuf> {
     path.ancestors()
         .find(|p| p.is_dir())
@@ -463,8 +421,6 @@ pub async fn tube_storage_stats(app: AppHandle) -> Result<StorageStats, String> 
     })
 }
 
-// ---------- poller ----------
-
 #[tauri::command]
 pub async fn tube_auto_check_now(app: AppHandle) -> Result<u32, String> {
     if local::paused_until().is_some() {
@@ -475,7 +431,6 @@ pub async fn tube_auto_check_now(app: AppHandle) -> Result<u32, String> {
 
 pub fn spawn_poller(app: AppHandle) {
     tauri::async_runtime::spawn(async move {
-        // Let startup work (queue recovery, history hydrate) settle first.
         tokio::time::sleep(Duration::from_secs(45)).await;
         let mut last_round = 0i64;
         let mut last_retention = 0i64;
@@ -515,8 +470,6 @@ fn notify_new(app: &AppHandle, sub: &SubRow, name: Option<&str>, new: &[VideoIte
         .show();
 }
 
-/// Checks due channels, then enqueues what the enabled rules pick. Returns
-/// how many downloads entered the queue.
 async fn run_round(app: &AppHandle, force: bool) -> Result<u32, String> {
     let _guard = ROUND.lock().await;
     let now = db::now_ms();
@@ -542,11 +495,8 @@ async fn run_round(app: &AppHandle, force: bool) -> Result<u32, String> {
         }
         match local::check_channel(sub).await {
             Ok(checked) => {
-                if !checked.new.is_empty() {
-                    // The first fetch of a channel is its back catalog, not news.
-                    if sub.notify && sub.last_checked_ms.is_some() {
-                        notify_new(app, sub, checked.name.as_deref(), &checked.new);
-                    }
+                if !checked.new.is_empty() && sub.notify && sub.last_checked_ms.is_some() {
+                    notify_new(app, sub, checked.name.as_deref(), &checked.new);
                 }
             }
             Err(e) if local::is_refusal(&e) => break,
@@ -623,7 +573,6 @@ async fn enqueue_matches(app: &AppHandle, rules: &[AutoRule]) -> Result<u32, Str
         }
         let sub = subs_by.get(row.channel_id.as_str()).copied();
 
-        // Resolve once: duration for the rule, formats for the size estimate.
         let mut est = None;
         match super::streams::resolve_for_download(&row.video_id, false).await {
             Ok(set) => {
@@ -656,8 +605,6 @@ async fn enqueue_matches(app: &AppHandle, rules: &[AutoRule]) -> Result<u32, Str
             )
         });
         if evaluate(&rule, sub, &row, now, true) != Verdict::Match {
-            // Stored metadata makes the next round reject it without a
-            // request; an unknown Shorts status is retried later.
             continue;
         }
 
@@ -723,7 +670,6 @@ async fn enqueue_matches(app: &AppHandle, rules: &[AutoRule]) -> Result<u32, Str
     Ok(enqueued)
 }
 
-/// Moves queued rows to downloaded/skipped once the queue settles them.
 async fn reconcile(app: &AppHandle) {
     let Ok(queued) = db::with(|c| db::feed_by_state(c, "queued")) else {
         return;
@@ -791,7 +737,6 @@ async fn reconcile(app: &AppHandle) {
                     db::feed_mark_downloaded(c, &row.channel_id, &row.video_id, &path, bytes, now)
                 })
             }
-            // Failed or removed from the queue by the user: don't retry forever.
             Some(Err(())) => {
                 db::with(|c| db::feed_set_state(c, &row.channel_id, &row.video_id, "skipped"))
             }
@@ -813,8 +758,6 @@ fn discard(path: &std::path::Path) -> Result<(), String> {
     })
 }
 
-/// Deletes (to the system trash) only files recorded in `feed.path` by the
-/// auto-downloader, then leaves a `deleted` tombstone so they never return.
 async fn retention(app: &AppHandle) {
     let now = db::now_ms();
     let _ = db::with(|c| db::cache_prune(c, now));
@@ -824,7 +767,6 @@ async fn retention(app: &AppHandle) {
     if owned.is_empty() {
         return;
     }
-    // A file the user moved or deleted is gone for us too.
     let (present, missing): (Vec<FeedRow>, Vec<FeedRow>) = owned.into_iter().partition(|r| {
         r.path
             .as_deref()

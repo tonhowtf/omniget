@@ -1,16 +1,3 @@
-//! Bringing a person's own browser into the Global Downloader: their logins,
-//! saved passwords, extensions and history.
-//!
-//! - Chromium family (Chrome, Edge, Brave, Chromium, Vivaldi, Opera, Arc):
-//!   the chosen profile is copied into OmniGet's browser profile and that
-//!   same browser runs it. Cookies and passwords stay readable because the
-//!   browser decrypts them with its own key (macOS keychain item, Windows
-//!   `Local State` + DPAPI, Linux keyring), which a copy keeps using.
-//! - Firefox: its cookies are read from `cookies.sqlite` (not encrypted) and
-//!   set into the running browser.
-//!
-//! The source browser's files are only read, never changed.
-
 use std::path::{Path, PathBuf};
 
 use serde::Serialize;
@@ -20,8 +7,6 @@ use super::{browser, data_dir, emit};
 
 #[derive(Debug, Clone, Serialize)]
 pub struct Profile {
-    /// Folder name inside the browser's data dir (`Default`, `Profile 1`) or
-    /// the Firefox profile path.
     pub dir: String,
     pub name: String,
     pub email: Option<String>,
@@ -31,13 +16,10 @@ pub struct Profile {
 pub struct Source {
     pub id: String,
     pub name: String,
-    /// chromium | firefox
     pub family: String,
     pub exe: Option<PathBuf>,
     pub data_dir: PathBuf,
     pub profiles: Vec<Profile>,
-    /// A running browser locks its files on Windows; on macOS and Linux a
-    /// copy works while it runs.
     pub running: bool,
 }
 
@@ -164,7 +146,6 @@ fn data_of(k: &Known) -> Option<PathBuf> {
         return None;
     }
     let base = if cfg!(windows) {
-        // Opera keeps its profile in Roaming; the rest in Local.
         if k.id == "opera" {
             dirs::data_dir()?
         } else {
@@ -199,7 +180,6 @@ fn chromium_profiles(data: &Path, id: &str) -> Vec<Profile> {
                 .collect()
         })
         .unwrap_or_default();
-    // Opera keeps a single profile in the data dir itself.
     if out.is_empty()
         && id == "opera"
         && (data.join("Cookies").exists() || data.join("Network").is_dir())
@@ -302,7 +282,6 @@ fn is_running(exe: &Path) -> bool {
     .unwrap_or(false)
 }
 
-/// Browsers on this computer that OmniGet can take logins from.
 pub fn sources() -> Vec<Source> {
     let mut out = Vec::new();
     for k in CHROMIUMS {
@@ -339,7 +318,6 @@ pub fn sources() -> Vec<Source> {
     out
 }
 
-/// Caches and other folders a copy does not need.
 const SKIP: &[&str] = &[
     "Cache",
     "Code Cache",
@@ -381,7 +359,6 @@ fn copy_tree(from: &Path, to: &Path, bytes: &mut u64) -> std::io::Result<()> {
         if ft.is_dir() {
             copy_tree(&e.path(), &dst, bytes)?;
         } else if ft.is_file() {
-            // A file locked by the running browser is skipped, not fatal.
             if let Ok(n) = std::fs::copy(e.path(), &dst) {
                 *bytes += n;
             }
@@ -390,7 +367,6 @@ fn copy_tree(from: &Path, to: &Path, bytes: &mut u64) -> std::io::Result<()> {
     Ok(())
 }
 
-/// Imports `profile` of `source_id` and restarts the browser with it.
 pub async fn import(source_id: &str, profile: &str) -> Result<Value, String> {
     let src = sources()
         .into_iter()
@@ -441,12 +417,10 @@ async fn import_chromium(src: &Source, prof: &Profile) -> Result<Value, String> 
     let (src_dir, dst_root) = (from.clone(), target.clone());
     let data = src.data_dir.clone();
     let bytes = tokio::task::spawn_blocking(move || -> Result<u64, String> {
-        // Keep what OmniGet itself wrote (runtime file), replace the rest.
         let _ = std::fs::remove_dir_all(&dst_root);
         std::fs::create_dir_all(&dst_root).map_err(|e| e.to_string())?;
         let mut bytes = 0u64;
         copy_tree(&src_dir, &dst_root.join("Default"), &mut bytes).map_err(|e| e.to_string())?;
-        // Local State holds the cookie key on Windows and Linux.
         if let Ok(t) = std::fs::read_to_string(data.join("Local State")) {
             let mut st: Value = serde_json::from_str(&t).unwrap_or_default();
             if let Some(cache) = st["profile"]["info_cache"].as_object().cloned() {
@@ -457,7 +431,6 @@ async fn import_chromium(src: &Source, prof: &Profile) -> Result<Value, String> 
             st["profile"]["last_active_profiles"] = json!(["Default"]);
             let _ = std::fs::write(dst_root.join("Local State"), st.to_string());
         }
-        // The copy must not reopen the source's windows.
         let prefs = dst_root.join("Default").join("Preferences");
         if let Ok(t) = std::fs::read_to_string(&prefs) {
             if let Ok(mut p) = serde_json::from_str::<Value>(&t) {
@@ -523,7 +496,6 @@ async fn import_firefox(src: &Source, prof: &Profile) -> Result<Value, String> {
         let rows = st
             .query_map([], |r| {
                 let mut expiry: i64 = r.get(4)?;
-                // Newer Firefox stores milliseconds.
                 if expiry > 100_000_000_000 {
                     expiry /= 1000;
                 }
@@ -547,7 +519,6 @@ async fn import_firefox(src: &Source, prof: &Profile) -> Result<Value, String> {
             .filter_map(Result::ok)
             .filter(|(exp, c)| *exp > now && !c["domain"].as_str().unwrap_or("").is_empty())
             .map(|(_, mut c)| {
-                // SameSite=None needs Secure in Chromium.
                 if c["sameSite"] == "None" && c["secure"] == false {
                     c["sameSite"] = json!("Lax");
                 }
@@ -590,7 +561,6 @@ async fn import_firefox(src: &Source, prof: &Profile) -> Result<Value, String> {
     Ok(json!({ "from": src.name, "profile": prof.name, "cookies": set, "found": rows.len() }))
 }
 
-/// What was imported last, if anything.
 pub fn imported() -> Value {
     std::fs::read_to_string(data_dir().join("config.json"))
         .ok()

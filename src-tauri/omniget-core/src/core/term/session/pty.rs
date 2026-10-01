@@ -1,31 +1,17 @@
-//! The PTY behind a terminal, as a trait so the core never depends on a PTY
-//! crate. The app provides the `portable-pty` backend (C1); an own
-//! `rustix`/ConPTY backend can replace it later without touching the manager.
-//!
-//! Also here: the kill that `portable-pty` gets wrong for an agent
-//! orchestrator. Its `ChildKiller::kill` sends `SIGHUP` to the shell's pid
-//! only, and on Windows it kills `cmd.exe`/`pwsh` and leaves `node.exe` or
-//! the Codex binary running. [`kill_groups`] signals whole process groups
-//! (the shell's own and the foreground job's), escalating to `SIGKILL`, and
-//! [`WinJob`] puts the child in a kill-on-close Job Object right after spawn.
-
 use std::io::{Read, Write};
 use std::path::PathBuf;
 
-/// What to spawn. `program: None` opens the user's default shell.
 #[derive(Debug, Clone, Default)]
 pub struct PtySpawn {
     pub program: Option<String>,
     pub args: Vec<String>,
     pub cwd: Option<PathBuf>,
     pub env: Vec<(String, String)>,
-    /// Inherited variables removed before `env` is applied.
     pub env_remove: Vec<String>,
     pub cols: u16,
     pub rows: u16,
 }
 
-/// How the program ended.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct PtyExit {
     pub code: Option<i32>,
@@ -36,34 +22,23 @@ pub trait PtyBackend: Send + Sync {
     fn spawn(&self, spec: &PtySpawn) -> Result<Box<dyn PtyProcess>, String>;
 }
 
-/// A spawned program on a PTY. The reader, writer and waiter are taken once
-/// by the session (they move to their own threads).
 pub trait PtyProcess: Send {
     fn pid(&self) -> Option<u32>;
     fn take_reader(&mut self) -> Result<Box<dyn Read + Send>, String>;
     fn take_writer(&mut self) -> Result<Box<dyn Write + Send>, String>;
     fn take_waiter(&mut self) -> Option<Box<dyn PtyWaiter>>;
     fn resize(&self, cols: u16, rows: u16) -> Result<(), String>;
-    /// Foreground process group of the terminal (`tcgetpgrp`), unix only.
     fn foreground_pgid(&self) -> Option<u32>;
-    /// Kills the program and everything it started. Idempotent.
     fn kill(&mut self);
 }
 
 pub trait PtyWaiter: Send {
-    /// Blocks until the program exits.
     fn wait(&mut self) -> PtyExit;
 }
 
-/// Grace between `SIGHUP` and `SIGKILL`.
 #[cfg(unix)]
 const KILL_GRACE: std::time::Duration = std::time::Duration::from_millis(600);
 
-/// Unix: `SIGHUP` to each process group (the shell leads its own after
-/// `setsid`; an interactive shell puts every job in a group of its own, so
-/// the foreground job is passed too), then `SIGKILL` to whatever group still
-/// exists after a short grace, from a detached thread. Groups `<= 1` and the
-/// app's own group are never signalled.
 #[cfg(unix)]
 pub fn kill_groups(groups: &[u32]) {
     // SAFETY: plain syscall.
@@ -106,11 +81,6 @@ pub fn kill_groups(groups: &[u32]) {
 #[cfg(not(unix))]
 pub fn kill_groups(_groups: &[u32]) {}
 
-/// Windows: a Job Object with `JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE` holding
-/// the child (assigned by pid right after spawn), so closing it ends the whole
-/// tree. A child that already started grandchildren before the assignment
-/// leaves those outside the job; the C3 own backend spawns suspended to close
-/// that gap.
 #[cfg(windows)]
 pub struct WinJob {
     job: usize,
@@ -162,7 +132,6 @@ impl WinJob {
         }
     }
 
-    /// Ends every process in the job. Idempotent.
     pub fn kill(&mut self) {
         if self.job == 0 {
             return;
@@ -184,16 +153,11 @@ impl Drop for WinJob {
     }
 }
 
-/// Builds the spawn spec for an argv: empty = the default shell; on unix a
-/// command runs through the login shell (`exec "$0" "$@"`, no quoting) so it
-/// sees the user's PATH. Returns the spec and the label of the program that
-/// "idles" in the terminal.
 pub fn spec_for(argv: &[String]) -> (PtySpawn, String) {
     use super::foreground::label_for;
     if argv.is_empty() {
         #[cfg(unix)]
         if !shell_env_ok() {
-            // $SHELL points at a shell that is gone: open one that exists.
             let sh = available_shell();
             let label = label_for(&sh);
             return (
@@ -210,9 +174,6 @@ pub fn spec_for(argv: &[String]) -> (PtySpawn, String) {
     let label = label_for(&argv[0]);
     #[cfg(unix)]
     {
-        // An absolute zsh or fish is the shell integration itself (it passes
-        // its own `-l`): no wrapper, which would source the profile twice
-        // (and fish cannot run the POSIX wrapper at all).
         if std::path::Path::new(&argv[0]).is_absolute() && matches!(label.as_str(), "zsh" | "fish")
         {
             return (
@@ -225,8 +186,6 @@ pub fn spec_for(argv: &[String]) -> (PtySpawn, String) {
             );
         }
         let shell = available_shell();
-        // The login profile may put another `omniget` first on PATH: the
-        // app's CLI (`$OMNIGET_CLI`) goes back in front before the exec.
         let script = format!(
             "{}; exec \"$0\" \"$@\"",
             crate::core::term::agent::launch::POSIX_PATH_FIX
@@ -255,7 +214,6 @@ pub fn spec_for(argv: &[String]) -> (PtySpawn, String) {
     }
 }
 
-/// `$SHELL` is set and the file exists.
 #[cfg(unix)]
 fn shell_env_ok() -> bool {
     std::env::var("SHELL")
@@ -264,7 +222,6 @@ fn shell_env_ok() -> bool {
         .is_some_and(|s| std::path::Path::new(&s).exists())
 }
 
-/// A shell that exists: `$SHELL`, else zsh, bash, sh (`%ComSpec%` on Windows).
 pub fn available_shell() -> String {
     #[cfg(unix)]
     {
@@ -284,8 +241,6 @@ pub fn available_shell() -> String {
     }
 }
 
-/// The program of `argv` is a path (not a bare name looked up on PATH) that
-/// does not exist: the terminal would only print "not found" and exit.
 pub fn missing_program(argv: &[String]) -> bool {
     let Some(p) = argv.first() else { return false };
     (p.contains('/') || p.contains('\\')) && !std::path::Path::new(p).exists()

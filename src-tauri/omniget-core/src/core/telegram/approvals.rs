@@ -1,14 +1,3 @@
-//! Human approval for the `tg_*` tools that write to the person's account
-//! (send, forward, delete). An agent never writes by itself: the tool asks
-//! here, the OmniGet window shows `telegram-approval-request`
-//! `{id, tool, summary, details, client, created, expires_at}`, and the
-//! person allows or refuses. The tool waits at most [`APPROVAL_TTL_SECS`].
-//! When a request ends (answered or expired) the app gets
-//! `telegram-approval-resolved {id, status}` so the dialog can close.
-//!
-//! Requests live in memory only: a request is worth nothing once the tool
-//! call that waits on it is gone.
-
 use std::collections::HashMap;
 use std::sync::{Mutex, OnceLock};
 use std::time::Duration;
@@ -17,19 +6,14 @@ use serde::Serialize;
 use serde_json::{json, Value};
 use tokio::sync::oneshot;
 
-/// A request waits this long for the person before it expires.
 pub const APPROVAL_TTL_SECS: i64 = 300;
 
 #[derive(Debug, Clone, Serialize)]
 pub struct Request {
     pub id: String,
-    /// The tool that asks (`tg_send_message`, ...).
     pub tool: String,
-    /// One line for the dialog title.
     pub summary: String,
-    /// What exactly will happen: chat, text, files, message ids.
     pub details: Value,
-    /// Who asks: `agent`, an external MCP client name, `cli`.
     pub client: String,
     pub created: i64,
     pub expires_at: i64,
@@ -58,9 +42,6 @@ fn emit(event: &str, payload: Value) {
     }
 }
 
-/// Ask the person and wait for the answer. `Ok(())` only when the person
-/// allowed it; a refusal, an expiry or a missing window is an error the
-/// tool returns as is.
 pub async fn request(
     tool: &str,
     summary: String,
@@ -104,7 +85,6 @@ async fn request_with_ttl(
         Ok(Ok(false)) => Err(format!(
             "APPROVAL_DENIED: the person refused {tool} in the OmniGet window. Do not retry unless they ask."
         )),
-        // Timed out, or the sender was dropped without an answer.
         _ => {
             if remove(&req.id).is_some() {
                 emit(
@@ -132,7 +112,6 @@ fn remove(id: &str) -> Option<Pending> {
     table().lock().ok()?.remove(id)
 }
 
-/// Requests still waiting, oldest first (for a window that opens late).
 pub fn pending() -> Vec<Request> {
     let cutoff = now();
     let mut list: Vec<Request> = table()
@@ -148,12 +127,10 @@ pub fn pending() -> Vec<Request> {
     list
 }
 
-/// The person's answer. The waiting tool resumes right away.
 pub fn answer(id: &str, approve: bool) -> Result<Value, String> {
     let p = remove(id)
         .ok_or_else(|| format!("APPROVAL_NOT_FOUND: {id} (already answered or expired)"))?;
     let status = if approve { "approved" } else { "denied" };
-    // A dropped receiver means the tool call already gave up.
     let delivered = p.tx.send(approve).is_ok();
     emit(
         "telegram-approval-resolved",

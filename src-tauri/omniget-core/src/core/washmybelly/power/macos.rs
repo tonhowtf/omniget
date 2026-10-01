@@ -1,6 +1,3 @@
-//! macOS: `pmset` for Low Power Mode and sleep assertions, `caffeinate`
-//! for the hold.
-
 use std::process::{Child, Stdio};
 
 use super::hold::Backend;
@@ -28,14 +25,11 @@ pub fn assertions() -> Result<Vec<parse::SleepBlocker>, String> {
     Ok(parse::pmset_assertions(&pmset(&["-g", "assertions"])?))
 }
 
-/// Runs as root in the helper, after `elevated_setting` validated the value.
 pub fn set_low_power_mode(on: bool) -> Result<String, String> {
     pmset(&["-a", "lowpowermode", if on { "1" } else { "0" }])?;
     Ok(format!("Low Power Mode {}", if on { "on" } else { "off" }))
 }
 
-/// `caffeinate -i -w <our pid> -t <secs>`: exits on its own when OmniGet
-/// quits or the time is up. We keep the child and end only that PID.
 pub struct CaffeinateBackend;
 
 struct Caffeinate(Child);

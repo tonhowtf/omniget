@@ -1,8 +1,3 @@
-//! Writes EPUB 3 without calibre: reflowable books from chapters of XHTML
-//! (text, Markdown, HTML, web novels) and fixed-layout books from images
-//! (comics for e-readers). Also splits plain text into chapters and
-//! decodes it whatever its charset.
-
 use std::io::Write;
 use std::path::Path;
 
@@ -11,7 +6,6 @@ use super::xml::escape;
 #[derive(Debug, Clone, Default)]
 pub struct Chapter {
     pub title: String,
-    /// Body XHTML (inside `<body>`), already well-formed.
     pub body: String,
 }
 
@@ -189,7 +183,6 @@ fn image_ext_mime(data: &[u8]) -> (&'static str, &'static str) {
     }
 }
 
-/// Reflowable EPUB 3 from chapters. `cover` is image bytes.
 pub fn write_reflowable(
     out: &Path,
     meta: &EpubMeta,
@@ -267,8 +260,6 @@ pub fn write_reflowable(
     std::fs::rename(&tmp, out).map_err(|e| e.to_string())
 }
 
-/// Fixed-layout EPUB 3 with one image per page (comics for e-readers that
-/// don't take CBZ). `size` is the viewport the pages were prepared for.
 pub fn write_fixed_layout(
     out: &Path,
     meta: &EpubMeta,
@@ -351,8 +342,6 @@ pub fn write_fixed_layout(
     std::fs::rename(&tmp, out).map_err(|e| e.to_string())
 }
 
-/// Bytes of a text file in whatever charset it was saved (UTF-8/16 BOMs,
-/// then a statistical guess: Windows-1252, GBK, Shift_JIS...).
 pub fn decode_text(bytes: &[u8]) -> String {
     if let Some((enc, bom)) = encoding_rs::Encoding::for_bom(bytes) {
         return enc
@@ -394,8 +383,6 @@ fn paragraphs(text: &str) -> String {
     out
 }
 
-/// Plain text into chapters by headings like "Chapter 3", "Capítulo IV",
-/// "第十章" or a lone roman numeral; one chapter when none are found.
 pub fn text_chapters(text: &str, fallback_title: &str) -> Vec<Chapter> {
     let text = text.replace("\r\n", "\n").replace('\r', "\n");
     let marks: Vec<(usize, usize, String)> = chapter_re()
@@ -429,7 +416,6 @@ pub fn text_chapters(text: &str, fallback_title: &str) -> Vec<Chapter> {
     out
 }
 
-/// Markdown into chapters, one per level-1 or level-2 heading.
 pub fn markdown_chapters(md: &str, fallback_title: &str) -> Vec<Chapter> {
     use pulldown_cmark::{html, Options, Parser};
     let md = md
@@ -475,8 +461,6 @@ pub fn markdown_chapters(md: &str, fallback_title: &str) -> Vec<Chapter> {
         .collect()
 }
 
-/// HTML into well-formed XHTML for EPUB: scripts, styles, forms and
-/// event handlers removed, void elements closed.
 pub fn to_xhtml(html: &str) -> String {
     static RES: std::sync::OnceLock<Vec<(regex::Regex, &'static str)>> = std::sync::OnceLock::new();
     let res = RES.get_or_init(|| {
@@ -508,13 +492,10 @@ pub fn to_xhtml(html: &str) -> String {
     for (re, rep) in res {
         s = re.replace_all(&s, *rep).to_string();
     }
-    // Stray ampersands break XHTML.
     let amp = regex::Regex::new(r"&([^#a-zA-Z]|$)").expect("static regex");
     amp.replace_all(&s, "&amp;$1").to_string()
 }
 
-/// The `<body>` of an HTML page (or the whole string when there is none),
-/// with a title from `<title>` or the first heading.
 pub fn html_chapter(html: &str, fallback_title: &str) -> Chapter {
     let lower = html.to_lowercase();
     let body = match (lower.find("<body"), lower.rfind("</body>")) {
@@ -544,9 +525,6 @@ pub fn html_chapter(html: &str, fallback_title: &str) -> Chapter {
     }
 }
 
-/// The readable part of a web page: `<article>`/`<main>` when there is one,
-/// else the element holding the most paragraph text. Title from
-/// `og:title`, `<h1>` or `<title>`.
 pub fn article_from_html(html: &str, fallback_title: &str) -> Chapter {
     use scraper::{Html, Selector};
     let doc = Html::parse_document(html);
@@ -583,7 +561,6 @@ pub fn article_from_html(html: &str, fallback_title: &str) -> Chapter {
     })
     .map(|e| e.html())
     .or_else(|| {
-        // Parent of the most paragraph text.
         let p = sel("p")?;
         let mut best: std::collections::HashMap<String, (usize, String)> = Default::default();
         for el in doc.select(&p) {

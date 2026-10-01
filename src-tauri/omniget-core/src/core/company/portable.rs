@@ -1,15 +1,3 @@
-//! A whole company as one JSON package (`omniget.company/1`), and the
-//! built-in templates (which are packages too).
-//!
-//! Export never carries secret values: bindings leave as "fill me" entries.
-//! Import is two steps: [`CompanyStore::import_preview`] returns the plan
-//! and its hash; [`CompanyStore::import_apply`] refuses a package whose plan
-//! hash differs (what you saw is what gets created), and creates everything
-//! in one transaction with fresh ids — a failed import leaves nothing.
-//! Paperclip's `companies.sh` is only in the README (area D §3); its v2
-//! import/export is a server feature with a mandatory preview, which this
-//! mirrors.
-
 use std::collections::HashMap;
 
 use rusqlite::params;
@@ -87,7 +75,6 @@ pub struct PkgStaff {
     pub heartbeat_cron: Option<String>,
     #[serde(default)]
     pub max_concurrent: Option<i64>,
-    /// The roster agent definition to recreate (runtime, model, tools).
     #[serde(default)]
     pub agent: Option<Value>,
 }
@@ -225,8 +212,6 @@ pub struct ImportOptions {
     pub workspace: Option<String>,
     #[serde(default = "yes")]
     pub include_issues: bool,
-    /// Roster agent whose runtime new agents copy when the package does not
-    /// carry one (the app picks a sensible default when `None`).
     #[serde(default)]
     pub runtime_template: Option<String>,
 }
@@ -260,7 +245,6 @@ fn validate(p: &Package) -> Result<Vec<String>, String> {
             super::routines::validate_cron(c)?;
         }
     }
-    // Cycles in the imported org chart.
     for s in &p.staff {
         let mut cur = s.reports_to.clone();
         let mut hops = 0;
@@ -540,8 +524,6 @@ impl CompanyStore {
         })
     }
 
-    /// Creates the company from a previewed package. `expected_hash` must be
-    /// the preview's `plan_hash`.
     pub fn import_apply(
         &self,
         p: &Package,
@@ -575,9 +557,6 @@ impl CompanyStore {
         )?;
         let cid = company.id.clone();
         let prefix = company.issue_prefix.to_lowercase();
-        // Roster agents first (outside the transaction: they live in the
-        // roster). Their ids are fresh, so a failed import leaves only unused
-        // roster entries, which the app removes with the company.
         let mut agent_of: HashMap<String, String> = HashMap::new();
         for s in &p.staff {
             let agent_id = format!("co-{prefix}-{}-{}", slug(&s.name), &new_id()[..4]);
@@ -596,7 +575,6 @@ impl CompanyStore {
         let result = self.write(|tx, ch| {
             let now = now_ms();
             let mut sid: HashMap<String, String> = HashMap::new();
-            // Managers before reports: insert all, then wire reports_to.
             for s in &p.staff {
                 let id = new_id();
                 tx.execute(
@@ -620,7 +598,6 @@ impl CompanyStore {
                 .query_row("SELECT id FROM goals WHERE company_id = ?1 AND level = 'company' AND parent_id IS NULL", params![cid], |r| r.get(0))
                 .map_err(sql)?;
             let mut gid: HashMap<String, String> = HashMap::new();
-            // Parents before children: repeat until nothing is left.
             let mut left: Vec<&PkgGoal> = p.goals.iter().collect();
             let mut guard = 0;
             while !left.is_empty() && guard < 64 {
@@ -768,8 +745,6 @@ impl CompanyStore {
     }
 }
 
-/// The roster definition behind a staff member, as JSON (without secrets:
-/// accounts are names, never keys).
 fn agent_snapshot(agent_id: &str) -> Option<Value> {
     let dir = crate::core::llm::roster_store::llm_dir()?;
     let raw = std::fs::read_to_string(dir.join("roster.json")).ok()?;
@@ -782,8 +757,6 @@ fn agent_snapshot(agent_id: &str) -> Option<Value> {
         .find(|a| a.get("id").and_then(Value::as_str) == Some(agent_id))
         .cloned()
 }
-
-// ── Templates ─────────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone, Serialize)]
 pub struct TemplateInfo {

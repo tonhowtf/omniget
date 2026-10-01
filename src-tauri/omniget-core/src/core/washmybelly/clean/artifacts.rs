@@ -1,22 +1,5 @@
-//! Project build artifacts: `target/`, `node_modules`, `.gradle`,
-//! `__pycache__`... that a build or an install brings back.
-//!
-//! The project table (marker files and artifact folders) is ported from
 //! kondo-lib 0.9, <https://github.com/tbillington/kondo>, MIT License,
 //! Copyright (c) 2020 Trent Billington. Changes from upstream:
-//!
-//! - One table finds and cleans. Upstream `clean()` has its own marker list
-//!   and forgets Gradle, Unreal, Jupyter, Python, .NET and Turborepo.
-//! - A loose `.py` does not make a Python project: it takes `pyproject.toml`,
-//!   `setup.py`, `setup.cfg`, `requirements*.txt`, `Pipfile` or `tox.ini`.
-//! - Sizes are allocated blocks with hardlinks counted once across the whole
-//!   scan (a pnpm `node_modules` is not counted once per link).
-//! - Every marker in a folder counts (a Tauri app is Node and Cargo), and the
-//!   walk goes on inside a project (monorepos) but never into its artifacts,
-//!   hidden folders, `node_modules` or links.
-//! - Age is the newest mtime inside the project outside its artifacts.
-//! - Python also lists `.hypothesis`, and `__pycache__` folders nested in a
-//!   Python project are offered too.
 
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
@@ -31,15 +14,12 @@ use super::super::store::Ctx;
 use super::super::tools::blocking;
 use super::super::{Destination, Risk};
 
-/// One project type: its display name and the folders a build regenerates.
 pub struct Kind {
     pub id: &'static str,
     pub name: &'static str,
     pub dirs: &'static [&'static str],
 }
 
-/// kondo-lib's table (`lib.rs:36-94`), in its order. The first kind that
-/// lists a folder claims it when several kinds share a project folder.
 pub const KINDS: &[Kind] = &[
     Kind {
         id: "cargo",
@@ -207,8 +187,6 @@ fn kind(id: &str) -> usize {
         .expect("kind in table")
 }
 
-/// Kinds a folder is, from the names of its files and subfolders. Pure, so
-/// the table is tested without a disk.
 pub fn detect(files: &[String], subdirs: &[String]) -> Vec<usize> {
     let has = |n: &str| files.iter().any(|f| f == n);
     let ends = |s: &str| files.iter().any(|f| f.ends_with(s));
@@ -293,7 +271,6 @@ pub fn detect(files: &[String], subdirs: &[String]) -> Vec<usize> {
     if has("project.godot") {
         add("godot4");
     }
-    // A .csproj next to project.godot is Godot; next to Assembly-CSharp it is Unity.
     if (ends(".csproj") || ends(".fsproj"))
         && !has("project.godot")
         && !has("Assembly-CSharp.csproj")
@@ -316,7 +293,6 @@ struct Project {
     path: PathBuf,
     kinds: Vec<usize>,
     newest: SystemTime,
-    /// (kind that claims it, artifact folder)
     artifacts: Vec<(usize, PathBuf)>,
 }
 
@@ -356,7 +332,6 @@ fn real_dir(p: &Path) -> bool {
     std::fs::symlink_metadata(p).is_ok_and(|m| m.is_dir() && !fsops::is_link(&m))
 }
 
-/// Walk one root and collect projects with their artifact folders.
 fn walk_root(
     root: &Path,
     projects: &mut Vec<Project>,
@@ -415,7 +390,6 @@ fn walk_root(
                 continue;
             }
             if name == "__pycache__" {
-                // Nested caches of the innermost Python project.
                 if let Some(&owner) = stack
                     .iter()
                     .rev()
@@ -467,7 +441,6 @@ fn walk_root(
     }
 }
 
-/// Code folders that exist in the home, used when no roots are given.
 pub fn default_roots() -> Vec<PathBuf> {
     let Some(home) = dirs::home_dir() else {
         return Vec::new();
@@ -489,8 +462,6 @@ pub fn default_roots() -> Vec<PathBuf> {
     .collect()
 }
 
-/// Roots from the arguments (`~` expanded), or the defaults. Nested roots
-/// collapse into the outer one; links and missing folders are skipped.
 pub fn roots_from(a: &Value, defaults: fn() -> Vec<PathBuf>) -> (Vec<PathBuf>, Vec<String>) {
     let mut skipped = Vec::new();
     let given: Vec<String> = a["roots"]
@@ -542,7 +513,6 @@ fn age_days(t: SystemTime) -> u64 {
     t.elapsed().map(|d| d.as_secs() / 86_400).unwrap_or(0)
 }
 
-/// The scan with an explicit store (tests hand in a temporary one).
 pub fn scan_with(ctx: &Ctx, a: &Value) -> Result<Value, String> {
     let (roots, skipped_roots) = roots_from(a, default_roots);
     let older = a["older_than_days"].as_u64().unwrap_or(0);

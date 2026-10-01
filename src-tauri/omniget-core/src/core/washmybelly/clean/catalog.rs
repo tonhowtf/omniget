@@ -1,9 +1,3 @@
-//! Every cleanup rule of every source, in one list, built once per process.
-//!
-//! Order matters: the engine gives a path to the first rule that claims it,
-//! so hand-written rules (ours, then per system) come before BleachBit, and
-//! the broad "one item per app" sweeps come last.
-
 use std::collections::BTreeMap;
 use std::sync::OnceLock;
 
@@ -13,14 +7,12 @@ use super::super::{Destination, Os, Risk};
 use super::cleanerml::{self, Skip, ALL_OS};
 use super::rule::{Action, Requirement, Rule};
 
-/// Rules that sweep a whole cache root, one item per child. They run last.
 pub const SWEEPS: &[&str] = &[
     "macos.app_caches",
     "macos.container_caches",
     "linux.app_caches",
 ];
 
-/// Hand-written rules that are offered but never ticked by default.
 pub const OFF: &[&str] = &[
     "macos.saved_state",
     "macos.xcode_archives",
@@ -53,7 +45,6 @@ fn build() -> Catalog {
     rules.extend(super::rules_linux::rules());
     rules.extend(super::rules_windows::rules());
     rules.extend(bb.rules);
-    // Sweeps last, keeping their relative order.
     let (sweeps, mut rest): (Vec<Rule>, Vec<Rule>) = rules
         .into_iter()
         .partition(|r| SWEEPS.contains(&r.id.as_str()));
@@ -64,7 +55,6 @@ fn build() -> Catalog {
     }
 }
 
-/// The rules for one system, in engine order.
 pub fn rules_for(os: Os) -> Vec<&'static Rule> {
     catalog()
         .rules
@@ -73,8 +63,6 @@ pub fn rules_for(os: Os) -> Vec<&'static Rule> {
         .collect()
 }
 
-/// Whether an item of this rule starts ticked. Privacy, user files, the
-/// Trash, database vacuums, admin work and rules with a warning start off.
 pub fn default_selected(r: &Rule) -> bool {
     if r.risk >= Risk::Extreme || OFF.contains(&r.id.as_str()) || r.description.contains("Warning:")
     {
@@ -89,7 +77,6 @@ pub fn default_selected(r: &Rule) -> bool {
     !r.requires.contains(&Requirement::Admin)
 }
 
-/// Counts per system and source, and what CleanerML left out and why.
 pub fn stats() -> Value {
     let c = catalog();
     let mut per_os = serde_json::Map::new();
@@ -119,11 +106,8 @@ pub fn stats() -> Value {
     })
 }
 
-// ── Builder for hand-written rules ───────────────────────────────────
-
 pub struct B(Rule);
 
-/// A rule of ours: empties its targets, unlinks, destructive (a cache that
 /// cannot come back but regenerates), GPL-3.0, label key from the id.
 pub fn b(id: &str, os: &[Os], category: &str, label: &str) -> B {
     B(Rule {
@@ -152,7 +136,6 @@ impl B {
         self.0.targets.extend(targets.iter().map(|s| s.to_string()));
         self
     }
-    /// Remove each match whole.
     pub fn delete(mut self) -> Self {
         self.0.action = Action::Delete;
         self
@@ -219,7 +202,6 @@ impl B {
         self.0.description = d.into();
         self
     }
-    /// Privacy data: separate item, quarantined, never ticked by default.
     pub fn privacy(mut self) -> Self {
         self.0.category = "privacy".into();
         self.0.destination = Destination::Quarantine;

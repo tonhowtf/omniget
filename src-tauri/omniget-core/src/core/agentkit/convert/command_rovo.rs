@@ -1,5 +1,3 @@
-//! Rovo Dev saved prompts: an entry in `.rovodev/prompts.yml`
-//! (`prompts: [{name, description, content_file}]`) plus the Markdown content
 //! file next to it (estudo 06 Rovo (c)). Run with `/prompts <name> [extra]`.
 
 use serde_json::json;

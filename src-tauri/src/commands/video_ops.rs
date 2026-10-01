@@ -66,10 +66,6 @@ async fn run_ffmpeg(
     Ok(())
 }
 
-/// Quanto silencio o Smart Speed removeria, sem escrever arquivo nenhum.
-///
-/// Preview antes de aplicar: o usuario ve o ganho de duracao e decide, em vez
-/// de esperar uma conversao inteira para descobrir que nao valia a pena.
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct SilenceEstimate {
     pub total_secs: f64,
@@ -101,10 +97,7 @@ pub async fn video_op_silence_estimate(input: String) -> Result<SilenceEstimate,
         .await
         .map_err(|e| format!("ffmpeg failed: {}", e))?;
 
-    // silencedetect escreve no stderr mesmo em execucao bem sucedida.
     let stderr = String::from_utf8_lossy(&output.stderr);
-    // Desconta o que o filtro silenceremove preserva: sem isso o preview promete
-    // mais corte do que a conversao entrega.
     let silence_secs = ffmpeg_ops::estimate_removable_secs(&stderr);
     let saved_percent = if total_secs > 0.0 {
         (silence_secs / total_secs * 100.0).clamp(0.0, 100.0)
@@ -130,7 +123,6 @@ pub async fn video_op_preset(
 ) -> Result<VideoOpResult, String> {
     let input_path = ensure_input(&input)?;
     let p = ffmpeg_ops::preset(&action, start.as_deref(), end.as_deref())?;
-    // Defense in depth: presets are built safely but still re-validated.
     ffmpeg_ops::validate_transform_args(&p.args)?;
     let output = output_for(&input_path, &action, p.out_ext);
     run_ffmpeg(&app, &input_path, &p.args, &output).await?;
@@ -151,7 +143,6 @@ Use exactly 'ffmpeg -i input <options> output.<ext>'. Choose a sensible output e
 Only use codec/filter/trim options. No shell operators, no extra text, output ONLY the command.";
     let raw = omniget_core::core::ai::chat(system, &instruction).await?;
     let args = ffmpeg_ops::sanitize_ai_command(&raw)?;
-    // Best-effort extension guess from the model's output line.
     let out_ext = raw
         .rsplit('.')
         .next()
@@ -170,8 +161,6 @@ pub async fn video_op_run(
     out_ext: String,
 ) -> Result<VideoOpResult, String> {
     let input_path = ensure_input(&input)?;
-    // The args came back from the frontend after user review — never trust
-    // them; re-run the allowlist before touching ffmpeg.
     ffmpeg_ops::validate_transform_args(&args)?;
     let ext: String = out_ext
         .chars()

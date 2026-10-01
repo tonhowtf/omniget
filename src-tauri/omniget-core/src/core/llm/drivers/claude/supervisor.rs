@@ -1,13 +1,3 @@
-//! The one long-lived `claude` process of a thread: spawn, stdio pumps,
-//! exit watch, and a stop that only ever touches what we started.
-//!
-//! Killing is scoped to the process tree we own: the root is our unreaped
-//! `Child` (its pid cannot be reused while we hold it), and descendants are
-//! found by walking parent pids from that root, each remembered with its
-//! start time (`ps -o lstart`) and re-checked before the hard kill so a
-//! recycled pid is never hit. No process-group signals, no kill by name.
-//! Windows uses `taskkill /T` on our own pid.
-
 use std::collections::{BTreeMap, HashMap};
 use std::path::PathBuf;
 use std::process::Stdio;
@@ -16,7 +6,6 @@ use std::time::Duration;
 use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
 use tokio::sync::{mpsc, oneshot, watch};
 
-/// How long a stop waits for the CLI to exit after stdin closes.
 pub const GRACE: Duration = Duration::from_secs(3);
 const STDERR_TAIL: usize = 8 * 1024;
 
@@ -28,7 +17,6 @@ pub struct SpawnSpec {
     pub cwd: Option<PathBuf>,
 }
 
-/// How the process ended.
 #[derive(Debug, Clone)]
 pub struct Exit {
     pub code: Option<i32>,
@@ -36,8 +24,6 @@ pub struct Exit {
     pub stderr_tail: String,
 }
 
-/// Handle kept by the session. Dropping `stdin` closes the pipe (the CLI then
-/// exits by itself); `kill` asks the watcher for a hard kill of the tree.
 pub struct ProcHandle {
     pub pid: Option<u32>,
     pub stdin: mpsc::UnboundedSender<String>,
@@ -46,9 +32,6 @@ pub struct ProcHandle {
 }
 
 impl ProcHandle {
-    /// Close stdin, wait for a graceful exit, then kill what is left of the
-    /// tree. The descendants are listed *before* stdin closes: once the root
-    /// is gone they are reparented and no longer traceable to it.
     pub async fn shutdown(mut self) {
         let tree = match self.pid {
             Some(pid) => descendants(pid).await,
@@ -71,7 +54,6 @@ impl ProcHandle {
         kill_listed(&tree).await;
     }
 
-    /// Hard kill now (interrupt watchdog).
     pub fn kill_now(&mut self) {
         if let Some(k) = self.kill.take() {
             let _ = k.send(());
@@ -79,8 +61,6 @@ impl ProcHandle {
     }
 }
 
-/// Spawns the CLI. `on_line` gets every stdout line (in order, on one task);
-/// `on_exit` runs once when the process is gone.
 pub fn spawn(
     spec: SpawnSpec,
     on_line: impl Fn(String) + Send + 'static,
@@ -119,7 +99,6 @@ pub fn spawn(
     let stderr = child.stderr.take();
     let stdin = child.stdin.take();
 
-    // stdin pump: one writer, lines in order.
     let (tx, mut rx) = mpsc::unbounded_channel::<String>();
     if let Some(mut pipe) = stdin {
         tokio::spawn(async move {
@@ -130,11 +109,9 @@ pub fn spawn(
                     break;
                 }
             }
-            // Channel closed = stop: dropping the pipe sends EOF.
         });
     }
 
-    // stderr tail, drained so the pipe never blocks the child.
     let (err_tx, err_rx) = oneshot::channel::<String>();
     match stderr {
         Some(mut pipe) => {
@@ -163,7 +140,6 @@ pub fn spawn(
         }
     }
 
-    // stdout: the protocol. Lines can be large (tool results), so no cap.
     let (out_done_tx, out_done_rx) = oneshot::channel::<()>();
     match stdout {
         Some(pipe) => {
@@ -198,8 +174,6 @@ pub fn spawn(
                 child.wait().await.ok()
             }
         };
-        // Let stdout drain so the last lines (the final `result`) are seen
-        // before the exit is reported.
         let _ = tokio::time::timeout(Duration::from_secs(2), out_done_rx).await;
         let stderr_tail = tokio::time::timeout(Duration::from_secs(1), err_rx)
             .await
@@ -222,14 +196,12 @@ pub fn spawn(
     })
 }
 
-/// One process of our tree: pid + start time as `ps` prints it.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Stamped {
     pub pid: u32,
     pub started: String,
 }
 
-/// Parses `ps -A -o pid=,ppid=,lstart=` into `pid → (ppid, lstart)`.
 pub fn parse_ps(text: &str) -> HashMap<u32, (u32, String)> {
     let mut out = HashMap::new();
     for line in text.lines() {
@@ -246,7 +218,6 @@ pub fn parse_ps(text: &str) -> HashMap<u32, (u32, String)> {
     out
 }
 
-/// Every descendant of `root` in a `parse_ps` table, deepest first.
 pub fn tree_of(root: u32, table: &HashMap<u32, (u32, String)>) -> Vec<Stamped> {
     let mut children: HashMap<u32, Vec<u32>> = HashMap::new();
     for (pid, (ppid, _)) in table {
@@ -282,7 +253,6 @@ async fn ps_table() -> HashMap<u32, (u32, String)> {
     }
 }
 
-/// Descendants of our child, stamped.
 pub async fn descendants(root: u32) -> Vec<Stamped> {
     #[cfg(unix)]
     {
@@ -290,7 +260,6 @@ pub async fn descendants(root: u32) -> Vec<Stamped> {
     }
     #[cfg(not(unix))]
     {
-        // `taskkill /T` walks the tree itself; remember only the root.
         vec![Stamped {
             pid: root,
             started: String::new(),
@@ -298,8 +267,6 @@ pub async fn descendants(root: u32) -> Vec<Stamped> {
     }
 }
 
-/// SIGTERM the listed processes, give them a moment, then SIGKILL the ones
-/// still alive **with the same start time**.
 pub async fn kill_listed(list: &[Stamped]) {
     if list.is_empty() {
         return;

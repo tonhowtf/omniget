@@ -1,14 +1,9 @@
-//! Tauri side of the Global Downloader superpower. The work lives in
-//! `omniget_core::core::global_dl`; this file forwards its events to the
-//! window and plugs `ytdlp`/`dash` items into the Downloads queue.
-
 use std::path::PathBuf;
 
 use omniget_core::core::global_dl::{browser, connector, jobs, sniffer, tools, Node};
 use serde_json::{json, Value};
 use tauri::{AppHandle, Emitter};
 
-/// Forwards core events as `global-dl:event` and wires the queue handoff.
 pub fn start_background(app: AppHandle) {
     let mut rx = omniget_core::core::global_dl::events().subscribe();
     let emitter = app.clone();
@@ -143,5 +138,3 @@ pub fn gd_connector_options(id: String) -> Result<Value, String> {
 pub fn gd_connector_options_set(id: String, values: Value) -> Result<Value, String> {
     connector::set_options(&id, &values)
 }
-
-// ── Embedded browser: view, input, navigation, settings ──

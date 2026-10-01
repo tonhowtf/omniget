@@ -1,7 +1,3 @@
-//! The client side of ACP that touches the machine: `fs/read_text_file`,
-//! `fs/write_text_file` (confined to the thread's workspace) and
-//! `terminal/*` (our own processes, output capped by `outputByteLimit`).
-
 use std::collections::HashMap;
 use std::path::{Component, Path, PathBuf};
 use std::sync::{Arc, Mutex as StdMutex};
@@ -13,9 +9,7 @@ use tokio::sync::watch;
 use super::proc::{self, Spawn};
 use super::rpc::{RpcError, CODE_INTERNAL, CODE_INVALID_PARAMS, CODE_RESOURCE_NOT_FOUND};
 
-/// Largest file `fs/read_text_file` returns.
 const MAX_READ: u64 = 16 * 1024 * 1024;
-/// Default output kept per terminal when the agent sets no limit.
 const DEFAULT_OUTPUT_LIMIT: usize = 1024 * 1024;
 
 fn lexical_clean(p: &Path) -> Option<PathBuf> {
@@ -34,9 +28,6 @@ fn lexical_clean(p: &Path) -> Option<PathBuf> {
     Some(out)
 }
 
-/// Resolve `raw` (absolute per spec; relative is taken from `root`) and make
-/// sure it stays inside `root` after symlinks: the nearest existing ancestor
-/// is canonicalized, so a link pointing out of the workspace is refused.
 pub fn contained(root: &Path, raw: &str) -> Result<PathBuf, RpcError> {
     let outside = || {
         RpcError::new(
@@ -51,7 +42,6 @@ pub fn contained(root: &Path, raw: &str) -> Result<PathBuf, RpcError> {
     let joined = if p.is_absolute() { p } else { root.join(p) };
     let clean = lexical_clean(&joined).ok_or_else(outside)?;
     let root_real = std::fs::canonicalize(root).unwrap_or_else(|_| root.to_path_buf());
-    // Walk up to the first ancestor that exists, canonicalize it, re-append.
     let mut existing = clean.clone();
     let mut rest: Vec<std::ffi::OsString> = Vec::new();
     while !existing.exists() {
@@ -77,7 +67,6 @@ pub fn contained(root: &Path, raw: &str) -> Result<PathBuf, RpcError> {
     }
 }
 
-/// `fs/read_text_file {path, line?, limit?}` (1-based line).
 pub fn read_text_file(root: &Path, params: &Value) -> Result<Value, RpcError> {
     let raw = params.get("path").and_then(Value::as_str).unwrap_or("");
     let path = contained(root, raw)?;
@@ -115,7 +104,6 @@ pub fn read_text_file(root: &Path, params: &Value) -> Result<Value, RpcError> {
     Ok(json!({ "content": content }))
 }
 
-/// `fs/write_text_file {path, content}`; creates parent folders.
 pub fn write_text_file(root: &Path, params: &Value) -> Result<Value, RpcError> {
     let raw = params.get("path").and_then(Value::as_str).unwrap_or("");
     let path = contained(root, raw)?;
@@ -126,7 +114,6 @@ pub fn write_text_file(root: &Path, params: &Value) -> Result<Value, RpcError> {
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent).map_err(|e| RpcError::new(CODE_INTERNAL, e.to_string()))?;
     }
-    // Write-then-rename so a crash never leaves half a file.
     let tmp = path.with_extension(format!(
         "{}omniget-acp.tmp",
         path.extension()
@@ -141,8 +128,6 @@ pub fn write_text_file(root: &Path, params: &Value) -> Result<Value, RpcError> {
     Ok(Value::Null)
 }
 
-// ── Terminals ───────────────────────────────────────────────────────────
-
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct ExitStatus {
     pub exit_code: Option<i32>,
@@ -155,8 +140,6 @@ impl ExitStatus {
     }
 }
 
-/// Output buffer that keeps the *end* when over the limit (spec: truncate
-/// from the beginning, at a character boundary).
 #[derive(Debug, Default)]
 pub struct OutputBuf {
     text: String,
@@ -200,10 +183,8 @@ struct Term {
     pid: Option<u32>,
 }
 
-/// Called with `(terminal_id, chunk)` as output arrives.
 pub type OutputSink = Arc<dyn Fn(&str, &str) + Send + Sync>;
 
-/// The terminals of one session.
 pub struct Terminals {
     root: PathBuf,
     env: Vec<(String, String)>,
@@ -227,8 +208,6 @@ fn env_list(params: &Value) -> Vec<(String, String)> {
         .collect()
 }
 
-/// `command` + `args` as the process to start. With no args and a command
-/// line that has spaces (several agents send `"ls -la"`), a shell runs it.
 pub fn argv(command: &str, args: &[String]) -> (String, Vec<String>) {
     if args.is_empty() && command.trim().contains(char::is_whitespace) {
         if cfg!(windows) {
@@ -251,7 +230,6 @@ impl Terminals {
         })
     }
 
-    /// `terminal/create` → `{terminalId}`; returns right away.
     pub fn create(self: &Arc<Self>, params: &Value) -> Result<Value, RpcError> {
         let command = params
             .get("command")
@@ -369,7 +347,6 @@ impl Terminals {
         Ok(f(t))
     }
 
-    /// `terminal/output` → `{output, truncated, exitStatus?}`.
     pub fn output(&self, params: &Value) -> Result<Value, RpcError> {
         self.with(params, |t| {
             let out = t.output.lock().unwrap_or_else(|e| e.into_inner());
@@ -382,7 +359,6 @@ impl Terminals {
         })
     }
 
-    /// `terminal/wait_for_exit` → `{exitCode, signal}` (awaits).
     pub async fn wait_for_exit(&self, params: &Value) -> Result<Value, RpcError> {
         let mut rx = self.with(params, |t| t.exit.clone())?;
         loop {
@@ -395,7 +371,6 @@ impl Terminals {
         }
     }
 
-    /// `terminal/kill`: stop the command, keep the terminal readable.
     pub fn kill(&self, params: &Value) -> Result<Value, RpcError> {
         self.with(params, |t| {
             if t.exit.borrow().is_none() {
@@ -405,7 +380,6 @@ impl Terminals {
         Ok(Value::Null)
     }
 
-    /// `terminal/release`: kill if running and forget it.
     pub fn release(&self, params: &Value) -> Result<Value, RpcError> {
         self.kill(params)?;
         let id = params
@@ -419,7 +393,6 @@ impl Terminals {
         Ok(Value::Null)
     }
 
-    /// Session ending: kill every terminal still running.
     pub fn release_all(&self) {
         let list: Vec<Term> = self
             .list

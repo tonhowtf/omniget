@@ -1,16 +1,3 @@
-//! Codex CLI / Codex Desktop: `$CODEX_HOME/{sessions,archived_sessions}/**/
-//! rollout-*.jsonl[.zst]`. Envelope `{timestamp, type, payload}`.
-//!
-//! Tokens: o `event_msg` `token_count` traz o acumulado da thread
-//! (`total_token_usage`). O total da sessão é o último acumulado; o uso de
-//! cada resposta é a diferença entre dois acumulados seguidos (eventos
-//! repetidos com o mesmo total viram zero). Numa thread bifurcada o primeiro
-//! evento usa `last_token_usage`, porque o acumulado pode trazer o da mãe.
-//! OpenAI conta o cache dentro de `input_tokens` e o raciocínio dentro de
-//! `output_tokens`: aqui os dois saem separados.
-//!
-//! Títulos vêm do `session_index.jsonl` (o nome que o app deu à thread).
-
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
@@ -143,7 +130,6 @@ impl CodexSource {
                 return Some(hit);
             }
         }
-        // O nome do arquivo termina no id da thread.
         for (p, acc) in self.files() {
             if file_id(&p).as_deref() == Some(id) {
                 return Some((p, acc));
@@ -154,7 +140,6 @@ impl CodexSource {
     }
 }
 
-/// `rollout-2026-09-20T20-12-46-<uuid>.jsonl[.zst]` → `<uuid>`.
 pub fn file_id(p: &Path) -> Option<String> {
     let name = p.file_name()?.to_string_lossy().to_string();
     let stem = name.trim_end_matches(".zst").trim_end_matches(".jsonl");
@@ -217,8 +202,6 @@ impl Raw {
     }
 }
 
-/// Texto injetado pelo app (contexto de ambiente, AGENTS.md, plugins…) e
-/// não digitado pela pessoa.
 fn injected(text: &str) -> bool {
     let t = text.trim();
     (t.starts_with('<') && t.ends_with('>'))
@@ -411,8 +394,6 @@ impl CodexParser {
                         if text.is_empty() {
                             return;
                         }
-                        // Um texto novo depois de tools abre outra `Turn`
-                        // só se a atual já tem texto.
                         let reuse = matches!(self.turns.last(), Some(t) if t.role == Role::Assistant && t.text.is_empty());
                         if reuse {
                             let t = self.turns.last_mut().unwrap();
@@ -573,8 +554,6 @@ impl CodexParser {
     }
 
     pub fn into_session(self, mut meta: SessionMeta, titles: &HashMap<String, String>) -> Session {
-        // O id é o do nome do arquivo: um rollout retomado pode começar com o
-        // `session_meta` da thread de origem.
         if file_id(&meta.source).is_none() {
             if let Some(id) = &self.id {
                 meta.id = id.clone();
@@ -654,7 +633,6 @@ fn quick_meta(path: &Path, account: &str, titles: &HashMap<String, String>) -> S
         p.feed(l.as_bytes());
     }
     let head = p.turns.len();
-    // O rodapé traz o último acumulado: vira o total da sessão.
     let mut last_total: Option<Raw> = None;
     let mut last_ms = None;
     for l in util::tail_lines(path, 256 * 1024) {
@@ -780,12 +758,10 @@ mod tests {
             base_meta(Path::new("/x/rollout-a.jsonl"), "default"),
             &HashMap::new(),
         );
-        // Sem uuid no nome, o id vem do `session_meta`.
         assert_eq!(s.meta.id, "01a0c117-ee53-7b43-9930-8d41b55a4f00");
         assert_eq!(s.turns[0].text, "liste os arquivos");
         assert_eq!(s.turns[1].tool_calls[0].name_canonical, "Bash");
         assert_eq!(s.turns[1].tool_calls[0].result.as_deref(), Some("a.txt"));
-        // Total = último acumulado, normalizado.
         assert_eq!(s.meta.usage.input, 300);
         assert_eq!(s.meta.usage.cache_read, 1800);
         assert_eq!(s.meta.usage.output, 60);

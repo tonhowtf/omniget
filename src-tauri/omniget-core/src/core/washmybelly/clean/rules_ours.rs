@@ -1,8 +1,4 @@
 //! Rules of our own (GPL-3.0) for what the studies found missing or done
-//! wrong upstream: developer caches on macOS and Linux with the right scope
-//! (only `~/.cargo/registry/cache`, never the index or git checkouts; pnpm
-//! through `pnpm store prune`), Docker through its own prune with a preview
-//! of what it reclaims, and half-finished downloads that are days old.
 
 use serde_json::Value;
 
@@ -84,7 +80,6 @@ pub fn rules() -> Vec<Rule> {
     ]
 }
 
-/// `docker system df --format '{{json .}}'`: what `prune -f` would reclaim.
 pub fn probe_docker(rule: &Rule, env: &Env) -> Vec<Found> {
     let Some(out) = env.output("docker", &["system", "df", "--format", "{{json .}}"]) else {
         return Vec::new();
@@ -110,7 +105,6 @@ pub fn probe_docker(rule: &Rule, env: &Env) -> Vec<Found> {
     }]
 }
 
-/// Sum of the "Reclaimable" column, except volumes (`prune -f` keeps them).
 pub fn parse_docker_df(text: &str) -> u64 {
     text.lines()
         .filter_map(|l| serde_json::from_str::<Value>(l.trim()).ok())
@@ -128,7 +122,6 @@ pub fn parse_docker_df(text: &str) -> u64 {
         .sum()
 }
 
-/// Docker prints decimal units: `1.2GB`, `512.5MB`, `0B`, `3kB`.
 pub fn parse_decimal_size(s: &str) -> Option<u64> {
     let s = s.trim();
     let split = s.find(|c: char| c.is_ascii_alphabetic()).unwrap_or(s.len());

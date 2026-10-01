@@ -1,8 +1,3 @@
-//! Agents as TOML: Codex `.codex/agents/<name>.toml` (body → `developer_instructions`,
-//! `permissionMode` → `sandbox_mode`, inline `[mcp_servers.x]`) and Mistral Vibe
-//! `.vibe/agents/<name>.toml` (`agent_type = "subagent"`, `instructions`,
-//! `safety`, tool lists). Estudo 06 §0C.2 and the Codex/Vibe (b) sections.
-
 use serde_json::{json, Map, Value};
 
 use super::agent_common::*;
@@ -12,13 +7,11 @@ use crate::core::agentkit::model::*;
 use crate::core::agentkit::targets::TargetAdapter;
 use crate::core::agentkit::{Result, Scope};
 
-/// TOML agent converter (`codex_toml` or `vibe_toml`).
 pub struct TomlAgentConverter {
     pub format: &'static str,
 }
 
 impl TomlAgentConverter {
-    /// Codex agent file text and losses.
     pub fn render_codex(
         c: &Component,
         a: &AgentSpec,
@@ -47,7 +40,6 @@ impl TomlAgentConverter {
                 losses.push(format!("effort `{e}` (mapped to {v})"));
             }
         }
-        // sandbox: plan / a read-only tool list → read-only; acceptEdits → workspace-write
         let sandbox = match a.permission_mode.as_deref() {
             Some("plan") => Some("read-only"),
             Some("acceptEdits") | Some("auto") => Some("workspace-write"),
@@ -94,7 +86,6 @@ impl TomlAgentConverter {
         (out, losses)
     }
 
-    /// Vibe agent file text and losses.
     pub fn render_vibe(
         c: &Component,
         a: &AgentSpec,
@@ -146,7 +137,6 @@ impl TomlAgentConverter {
         (out, losses)
     }
 
-    /// Codex agent TOML → canonical spec.
     pub fn read_codex(v: &Value, fallback: &str) -> AgentSpec {
         let m = v.as_object().cloned().unwrap_or_default();
         let mut a = AgentSpec {
@@ -175,7 +165,6 @@ impl TomlAgentConverter {
         a
     }
 
-    /// Vibe agent TOML → canonical spec.
     pub fn read_vibe(v: &Value, target: &TargetAdapter, fallback: &str) -> AgentSpec {
         let m = v.as_object().cloned().unwrap_or_default();
         let list = |k: &str| -> Vec<String> {

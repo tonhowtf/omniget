@@ -1,20 +1,4 @@
-//! Windows tweaks as data, with their state read from the system and a
-//! snapshot before every change (F4).
-//!
-//! - [`catalog`]: the embedded catalog (Win11Debloat, winutil, Sophia and
-//!   our own items), checked against [`guard`] on load.
-//! - [`state`]: what the system has now; nothing is remembered as "applied".
-//! - [`apply`]: snapshot, change, undo; the helper's typed operations.
-//! - `wmb_tweaks_list` → [`tool_list`]; plan items are
-//!   `Op::Module { module: "tweaks", action: "apply" | "default", args: {id} }`
-//!   in plans of kind `tweaks`.
-//!
-//! Design notes ported with attribution: undo that restores the real old
 //! value and type (optimizerDuck, GPL-3.0; Win11Debloat, MIT), state read
-//! live and items disabled when it cannot be read, HAGS gating (SophiApp,
-//! MIT). A restore point is created before the first administrator batch of
-//! the day with `Checkpoint-Computer`, which keeps Windows' own once-a-day
-//! limit (Sparkle lifts that limit; we do not).
 
 pub mod apply;
 pub mod catalog;
@@ -42,16 +26,9 @@ const ACTIONS: &[&str] = &["apply", "default"];
 const KV_ULTIMATE: &str = "tweaks.ultimate_guid";
 const KV_RESTORE_DAY: &str = "tweaks.restore_point_day";
 
-/// `omniget-elevate` routes `ElevatedOp::Maintenance { id: "win_restore_point" }`
-/// to [`elevated_restore_point`]. Until the orchestrator wires that arm
-/// (handoff `shared_changes`), no restore point is requested, so a missing
-/// route never fails a batch.
 pub const HELPER_HAS_RESTORE_POINT: bool = true;
 pub const RESTORE_POINT_ID: &str = "win_restore_point";
 
-/// Fixed script: the description comes from `OMNIGET_WMB_RP_DESC`. Windows
-/// refuses a second point within 24 hours; that refusal is reported, and
-/// `SystemRestorePointCreationFrequency` is never touched.
 pub const RESTORE_POINT_SCRIPT: &str = "$ErrorActionPreference='Stop'; $d=$env:OMNIGET_WMB_RP_DESC; if (-not $d) { $d='OmniGet washmybelly' }; try { Checkpoint-Computer -Description $d -RestorePointType MODIFY_SETTINGS -WarningVariable w -WarningAction SilentlyContinue; if ($w) { 'skipped: ' + $w[0] } else { 'created' } } catch { 'skipped: ' + $_.Exception.Message }";
 
 pub fn restore_point_argv() -> Vec<String> {
@@ -66,9 +43,6 @@ pub fn restore_point_argv() -> Vec<String> {
     .to_vec()
 }
 
-/// The helper's executor for `win_restore_point`. It never fails the batch:
-/// a point Windows declines (System Protection off, one already today) is
-/// reported in the detail.
 pub fn elevated_restore_point() -> Result<String, String> {
     if !cfg!(windows) {
         return Err("restore points exist only on Windows".into());
@@ -96,8 +70,6 @@ fn key_sets() -> Result<&'static KeySets, String> {
     .as_ref()
     .map_err(Clone::clone)
 }
-
-// ── Listing ──────────────────────────────────────────────────────────
 
 fn item_id(t: &Tweak, default: bool) -> String {
     if default {
@@ -140,7 +112,6 @@ fn plan_item(t: &Tweak, default: bool) -> PlanItem {
     }
 }
 
-/// Why a tweak cannot be offered here, if it cannot.
 fn unavailable(t: &Tweak, facts: &Facts, state: &str) -> Option<String> {
     if !t.applies.edition_ok(&facts.edition) {
         return Some("edition".into());
@@ -169,9 +140,6 @@ fn unavailable(t: &Tweak, facts: &Facts, state: &str) -> Option<String> {
     None
 }
 
-/// Every tweak for this build, with its state read now. Items for other
-/// builds are left out; items this machine cannot take (edition, hardware)
-/// stay with the reason. Registers the plan candidates; builds no plan.
 pub fn list_with(sys: &dyn Sys, facts: &Facts, category: Option<&str>) -> Result<Value, String> {
     let cat = catalog::catalog()?;
     let tweaks: Vec<&Tweak> = cat
@@ -292,8 +260,6 @@ pub async fn tool_list(a: Value) -> Result<Value, String> {
     .await
 }
 
-// ── Plan hooks ───────────────────────────────────────────────────────
-
 fn tweak_and_ops(
     action: &str,
     args: &Value,
@@ -413,7 +379,6 @@ pub fn elevated_with(
         entries,
     };
     let undo = save_snapshot(ctx, receipt_id, &snap)?;
-    // A restore point before the first administrator batch of the day.
     if HELPER_HAS_RESTORE_POINT
         && receipt_id != "preview"
         && ctx.kv_get::<i64>(KV_RESTORE_DAY) != Some(today())
@@ -438,10 +403,8 @@ pub fn plan_elevated(
     elevated_with(&RealSys, ctx, receipt_id, action, args)
 }
 
-/// Runs elevated operations through the helper.
 type HelperFn<'a> = dyn Fn(&[ElevatedOp]) -> Result<Vec<OpResult>, String> + 'a;
 
-/// Undo one item: its snapshot back in place, here or through the helper.
 pub fn undo_with(
     sys: &dyn Sys,
     ctx: &Ctx,
@@ -477,8 +440,6 @@ pub fn plan_undo(ctx: &Ctx, action: &str, args: &Value) -> Result<String, String
     })
 }
 
-// ── The helper's registry executors ─────────────────────────────────
-
 pub fn elevated_reg_set(key: &str, name: &str, kind: &str, data: &str) -> Result<String, String> {
     if !cfg!(windows) {
         return Err("reg_set: only on Windows".into());
@@ -493,11 +454,8 @@ pub fn elevated_reg_delete(key: &str, name: Option<&str>) -> Result<String, Stri
     apply::helper_reg_delete(&RealSys, key, name, key_sets()?)
 }
 
-/// Actions only the screen may run (`washmybelly_ui` with `tweaks.<action>`):
-/// never exposed as MCP tools.
 pub async fn ui_action(action: &str, _a: Value) -> Result<Value, String> {
     match action {
-        // Create a restore point now (one UAC prompt).
         "restore_point" => {
             if !HELPER_HAS_RESTORE_POINT {
                 return Err("NOT_AVAILABLE: restore points need the helper update".into());

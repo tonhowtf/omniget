@@ -1,11 +1,3 @@
-//! Tool names each coding tool understands in a `tools:` / `allowed-tools:`
-//! field, and detection of which tool a component's format belongs to.
-//!
-//! The point: a Copilot chatmode that lists `codebase, editFiles` is fine as a
-//! Copilot item and only "another tool's format" inside a Claude item. It is
-//! never an error.
-
-/// Claude Code tool names (plus permission-rule syntax handled separately).
 const CLAUDE: &[&str] = &[
     "Read",
     "Write",
@@ -39,7 +31,6 @@ const CLAUDE: &[&str] = &[
     "*",
 ];
 
-/// VS Code / GitHub Copilot chat-mode and custom-agent tool ids.
 const COPILOT: &[&str] = &[
     "codebase",
     "search",
@@ -82,7 +73,6 @@ const COPILOT: &[&str] = &[
     "selection",
 ];
 
-/// Copilot ids that no other tool uses; one of them is enough to call a list Copilot's.
 const COPILOT_ONLY: &[&str] = &[
     "codebase",
     "editFiles",
@@ -165,8 +155,6 @@ const DROID: &[&str] = &[
     "*",
 ];
 
-/// Names a tool understands, or `None` when we do not know its list (then no
-/// tool-name check is made at all).
 pub fn known_tools(tool: &str) -> Option<&'static [&'static str]> {
     match tool {
         "claude" | "omniget" => Some(CLAUDE),
@@ -179,38 +167,31 @@ pub fn known_tools(tool: &str) -> Option<&'static [&'static str]> {
     }
 }
 
-/// Split a tool entry into its base name (`Bash(git:*)` → `Bash`,
-/// `edit/editFiles` → `edit/editFiles`, `mcp__x__y` → `mcp__x__y`).
 fn base(entry: &str) -> &str {
     let e = entry.trim();
     e.split_once('(').map(|(b, _)| b.trim()).unwrap_or(e)
 }
 
-/// Is `entry` a valid tool reference for `tool`?
 pub fn is_known(tool: &str, entry: &str) -> bool {
     let b = base(entry);
     if b.is_empty() {
         return true;
     }
-    // MCP tool references are valid everywhere they are written in that tool's style.
     if b.starts_with("mcp__") {
         return matches!(tool, "claude" | "omniget" | "droid");
     }
     let Some(list) = known_tools(tool) else {
         return true;
     };
-    if tool == "copilot" {
-        // Namespaced ids (`edit/editFiles`, `github/*`, `azure-mcp/search`)
-        // and MCP server tool ids are Copilot's normal shape.
-        if b.contains('/') || b.contains('.') || b.contains('_') || b.contains('-') {
-            return true;
-        }
+    if tool == "copilot"
+        && (b.contains('/') || b.contains('.') || b.contains('_') || b.contains('-'))
+    {
+        return true;
     }
     list.iter()
         .any(|t| t.eq_ignore_ascii_case(b) && (tool != "claude" || *t == b))
 }
 
-/// Guess the tool whose format a tool list is written in.
 pub fn tools_fingerprint(entries: &[String]) -> Option<&'static str> {
     if entries.is_empty() {
         return None;
@@ -248,7 +229,6 @@ pub fn tools_fingerprint(entries: &[String]) -> Option<&'static str> {
     if gemini_hits * 2 >= entries.len() && gemini_hits > 0 {
         return Some("gemini");
     }
-    // Copilot custom-agent aliases: lower-case `read, edit, search, shell`.
     let lower_aliases = entries
         .iter()
         .filter(|e| {
@@ -275,7 +255,6 @@ pub fn tools_fingerprint(entries: &[String]) -> Option<&'static str> {
     None
 }
 
-/// Guess the native tool of a component from its path and frontmatter keys.
 pub fn detect_from_path(path: &str) -> Option<&'static str> {
     let p = path.replace('\\', "/").to_lowercase();
     if p.ends_with(".chatmode.md")
@@ -324,7 +303,6 @@ pub fn detect_from_path(path: &str) -> Option<&'static str> {
     None
 }
 
-/// Known hook events per tool; `None` means we do not check.
 pub fn known_events(tool: &str) -> Option<&'static [&'static str]> {
     const CLAUDE_EV: &[&str] = &[
         "PreToolUse",

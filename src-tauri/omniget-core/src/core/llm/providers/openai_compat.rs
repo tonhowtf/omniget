@@ -1,12 +1,3 @@
-//! OpenAI-compatible `chat/completions` client (OpenAI, OpenRouter, DeepSeek,
-//! Groq, xAI, Mistral, SiliconFlow, New API relays, Ollama `/v1`,
-//! llama-server, LM Studio). No SDK: `reqwest` + our own SSE parser.
-//! Owned by f2-llm-providers.
-//!
-//! Split on purpose: `build_body` and `parse_chunk` are pure functions with no
-//! network in them, so every wire detail is testable against recorded
-//! fixtures; `turn()` only does transport, retry and cancellation.
-
 use std::collections::BTreeMap;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -27,7 +18,6 @@ use crate::core::llm::types::{
     ContentPart, FinishReason, Message, ProviderId, Role, ToolSpec, TurnEvent, TurnRequest, Usage,
 };
 
-/// Attempts of the *initial* request when the server says 429/5xx.
 pub const DEFAULT_MAX_ATTEMPTS: u32 = 3;
 const BASE_BACKOFF_MS: u64 = 500;
 const MAX_BACKOFF_MS: u64 = 8_000;
@@ -42,8 +32,6 @@ pub struct OpenAiCompat {
     max_attempts: u32,
 }
 
-/// Base URL of a known provider id, straight from the `ai_keys` table so the
-/// vault and the LLM stack cannot drift apart.
 pub fn default_base_url(provider: &ProviderId) -> Option<&'static str> {
     crate::core::tools::ai_keys::KINDS
         .iter()
@@ -53,8 +41,6 @@ pub fn default_base_url(provider: &ProviderId) -> Option<&'static str> {
 
 fn http_client() -> Result<reqwest::Client, LlmError> {
     crate::core::http_client::apply_global_proxy(reqwest::Client::builder())
-        // Long-lived stream: the read timeout is the per-chunk one below, not
-        // a wall clock on the whole turn.
         .connect_timeout(Duration::from_secs(20))
         .build()
         .map_err(|e| LlmError::new(ERR_LLM_NET, format!("HTTP client: {}", e)))
@@ -75,7 +61,6 @@ impl OpenAiCompat {
         }
         let mut extra_headers = Vec::new();
         if provider.as_str() == "openrouter" {
-            // OpenRouter attributes usage to the app through these two.
             extra_headers.push((
                 "HTTP-Referer".to_string(),
                 "https://github.com/tonhowtf/omniget".to_string(),
@@ -121,11 +106,6 @@ impl OpenAiCompat {
     }
 }
 
-// ── Request body ───────────────────────────────────────────────────────
-
-/// `f32` -> JSON without the `0.30000001192092896` tail: the provider, and the
-/// wire-probe diff that compares what we asked for with what we sent, should
-/// see the number the user typed.
 pub fn f32_json(v: f32) -> Value {
     let cleaned: f64 = v.to_string().parse().unwrap_or(v as f64);
     serde_json::Number::from_f64(cleaned)
@@ -137,8 +117,6 @@ fn data_uri(mime: &str, data_b64: &str) -> String {
     format!("data:{};base64,{}", mime, data_b64)
 }
 
-/// One chat message may expand into several wire messages: a `tool` result is
-/// its own message in the OpenAI schema.
 fn push_message(m: &Message, out: &mut Vec<Value>) {
     let role = match m.role {
         Role::System => "system",
@@ -147,7 +125,6 @@ fn push_message(m: &Message, out: &mut Vec<Value>) {
         Role::Tool => "tool",
     };
 
-    // Tool results always leave as standalone `tool` messages.
     for p in &m.parts {
         if let ContentPart::ToolResult {
             tool_use_id,
@@ -227,8 +204,6 @@ pub fn tools_json(tools: &[ToolSpec]) -> Vec<Value> {
         .collect()
 }
 
-/// Builds the exact JSON body sent to `chat/completions`. Pure: this is what
-/// `wire_probe` compares against the request the user asked for.
 pub fn build_body(req: &TurnRequest) -> Value {
     let mut body = Map::new();
     body.insert("model".into(), json!(req.model.model));
@@ -238,7 +213,6 @@ pub fn build_body(req: &TurnRequest) -> Value {
     }
     body.insert("messages".into(), Value::Array(msgs));
     body.insert("stream".into(), json!(true));
-    // Providers only report token usage on a stream when asked to.
     body.insert("stream_options".into(), json!({ "include_usage": true }));
     if !req.tools.is_empty() {
         body.insert("tools".into(), Value::Array(tools_json(&req.tools)));
@@ -263,8 +237,6 @@ pub fn build_body(req: &TurnRequest) -> Value {
             body.insert("reasoning_effort".into(), json!(e));
         }
     }
-    // `extra` wins over everything above; an explicit null removes the key
-    // (that is how a caller drops `stream_options` for a server that chokes).
     for (k, v) in p.extra.iter() {
         if v.is_null() {
             body.remove(k);
@@ -275,11 +247,8 @@ pub fn build_body(req: &TurnRequest) -> Value {
     Value::Object(body)
 }
 
-// ── Stream decoding ────────────────────────────────────────────────────
-
 #[derive(Debug, Default)]
 pub struct OpenAiStreamState {
-    /// Wire index of a streamed tool call → the id we announced for it.
     tool_ids: BTreeMap<i64, String>,
     finish: Option<FinishReason>,
     usage: Option<Usage>,
@@ -297,11 +266,9 @@ impl OpenAiStreamState {
     pub fn request_id(&self) -> Option<&str> {
         self.request_id.as_deref()
     }
-    /// The error the stream itself reported, if any.
     pub fn error(&self) -> Option<&LlmError> {
         self.error.as_ref()
     }
-    /// Ids still open when the stream ended, in wire order.
     pub fn open_tool_ids(&mut self) -> Vec<String> {
         std::mem::take(&mut self.tool_ids).into_values().collect()
     }
@@ -323,14 +290,11 @@ fn u32_at(v: Option<&Value>, key: &str) -> u32 {
         .unwrap_or(0) as u32
 }
 
-/// Reads the `usage` object of an OpenAI-compatible chunk, including the
-/// cached-token fields OpenAI and DeepSeek report under different names.
 pub fn usage_of(u: &Value) -> Usage {
     let details = u.get("prompt_tokens_details");
     let cache_read = if let Some(d) = details {
         u32_at(Some(d), "cached_tokens")
     } else {
-        // DeepSeek reports a flat hit/miss pair instead.
         u32_at(Some(u), "prompt_cache_hit_tokens")
     };
     Usage {
@@ -344,7 +308,6 @@ pub fn usage_of(u: &Value) -> Usage {
     }
 }
 
-/// Turns one `data:` chunk into zero or more `TurnEvent`s.
 pub fn parse_chunk(state: &mut OpenAiStreamState, v: &Value, out: &mut Vec<TurnEvent>) {
     if let Some(err) = v.get("error") {
         let msg = err
@@ -378,8 +341,6 @@ pub fn parse_chunk(state: &mut OpenAiStreamState, v: &Value, out: &mut Vec<TurnE
         return;
     };
     for ch in choices {
-        // Non-streaming servers (and the last chunk of some relays) put the
-        // whole answer in `message` instead of `delta`.
         let delta = ch.get("delta").or_else(|| ch.get("message"));
         if let Some(d) = delta {
             for key in ["reasoning_content", "reasoning"] {
@@ -445,8 +406,6 @@ pub fn parse_chunk(state: &mut OpenAiStreamState, v: &Value, out: &mut Vec<TurnE
     }
 }
 
-// ── Transport ──────────────────────────────────────────────────────────
-
 pub(crate) fn status_to_error(status: u16, body: &str) -> LlmError {
     let snippet: String = body.chars().take(300).collect();
     let (code, retryable) = match status {
@@ -465,8 +424,6 @@ pub(crate) fn status_to_error(status: u16, body: &str) -> LlmError {
     }
 }
 
-/// `Retry-After` is seconds or an HTTP date; we only honour the seconds form
-/// and fall back to exponential backoff otherwise.
 pub(crate) fn retry_after_ms(headers: &reqwest::header::HeaderMap, attempt: u32) -> u64 {
     if let Some(v) = headers.get(reqwest::header::RETRY_AFTER) {
         if let Some(secs) = v.to_str().ok().and_then(|s| s.trim().parse::<f64>().ok()) {
@@ -485,9 +442,6 @@ pub(crate) fn backoff_ms(attempt: u32) -> u64 {
 #[async_trait]
 impl Provider for OpenAiCompat {
     async fn turn(&self, req: TurnRequest) -> Result<BoxStream<'static, TurnEvent>, LlmError> {
-        // Capture task-local authority before any await. The coordinator
-        // reserves one request; ambiguous external sends cannot be retried
-        // inside the adapter without another durable debit/authority check.
         let external = crate::core::llm::code_tools::current_turn()
             .is_some_and(|ctx| crate::core::assist::authority::external(&ctx.conversation));
         let max_attempts = if external { 1 } else { self.max_attempts };
@@ -709,7 +663,6 @@ impl Provider for OpenAiCompat {
                     }
                 }
                 None => {
-                    // An `error` chunk mid-stream is not a normal finish.
                     let reason = state.finish_reason().unwrap_or(if state.error().is_some() {
                         FinishReason::Other
                     } else {
@@ -728,11 +681,6 @@ impl Provider for OpenAiCompat {
     }
 }
 
-// ── Ollama native `/api/chat` (NDJSON, not SSE) ────────────────────────
-
-/// Ollama's own endpoint answers newline-delimited JSON with a different
-/// shape. We do not route inference through it (the `/v1` shim is the path),
-/// but the Local tab reads it, so the decoder lives here with its fixture.
 pub fn parse_ollama_native(v: &Value, out: &mut Vec<TurnEvent>) -> Option<FinishReason> {
     if let Some(t) = v
         .get("message")
@@ -790,8 +738,6 @@ mod tests {
     async fn external_failed_post_is_never_retried_inside_adapter() {
         use std::sync::atomic::{AtomicUsize, Ordering};
         use tokio::io::{AsyncReadExt, AsyncWriteExt};
-        // Exercise both a retryable status and an ambiguous accepted request
-        // whose connection vanishes without an HTTP response. Local fixture.
         for disconnect in [false, true] {
             let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
             let base = format!("http://{}", listener.local_addr().unwrap());
@@ -896,7 +842,6 @@ mod tests {
         std::fs::read(&p).unwrap_or_else(|e| panic!("fixture {}: {}", p.display(), e))
     }
 
-    /// Feeds a fixture in small chunks, the way the network delivers it.
     fn run_fixture(name: &str, chunk: usize) -> (Vec<TurnEvent>, OpenAiStreamState) {
         let bytes = fixture(name);
         let mut parser = SseParser::new();
@@ -1014,9 +959,6 @@ mod tests {
         assert_eq!(state.finish_reason(), Some(FinishReason::Stop));
     }
 
-    /// Providers disagree on where usage rides: OpenAI sends a last chunk with
-    /// `choices: []` and only usage, OpenRouter and DeepSeek keep the choice
-    /// that carries `finish_reason` on it. Both must decode the same.
     #[test]
     fn usage_is_read_with_and_without_choices() {
         let (_e, openai) = run_fixture("openai_chat_text.txt", 64);

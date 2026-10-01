@@ -1,7 +1,3 @@
-//! Tables of the groups module: conversation context, rooms, members,
-//! messages with typed authorship, shares. Every function takes the database
-//! explicitly so tests use their own file; the app passes `db::global()`.
-
 use std::path::{Path, PathBuf};
 
 use rusqlite::{params, OptionalExtension, Row};
@@ -12,8 +8,6 @@ use super::super::db::AssistDb;
 use super::super::{new_id, now_ms};
 use super::{RoomLimits, ERR_GROUP, ERR_GROUP_NOT_FOUND, ROOM_PREFIX};
 
-// ── conversation context (A04, A05) ──────────────────────────────────────
-
 fn kind_str(k: ContextKind) -> &'static str {
     match k {
         ContextKind::Projectless => "projectless",
@@ -21,8 +15,6 @@ fn kind_str(k: ContextKind) -> &'static str {
     }
 }
 
-/// Stored context of one conversation id (as the coordinator sees it).
-/// Missing row = personal.
 pub fn context_in(
     db: &AssistDb,
     conversation: &str,
@@ -41,8 +33,6 @@ pub fn context_in(
     })
 }
 
-/// Sets the context of one conversation; `None` = personal. The path must
-/// already be canonical (code_tools canonicalises before calling).
 pub fn set_context_in(
     db: &AssistDb,
     conversation: &str,
@@ -66,8 +56,6 @@ pub fn set_context_in(
     Ok(())
 }
 
-/// Imports the legacy `workspaces.json` bindings: only conversations with no
-/// row yet, so a choice made after the import is never overwritten.
 pub fn import_legacy_in(
     db: &AssistDb,
     map: &std::collections::HashMap<String, PathBuf>,
@@ -87,26 +75,18 @@ pub fn import_legacy_in(
     })
 }
 
-// ── rooms ────────────────────────────────────────────────────────────────
-
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct Member {
     pub bot: String,
-    /// Free text shown in the room ("Curador", "Pesquisador").
     #[serde(default)]
     pub role: String,
 }
 
-/// How a user message picks who answers.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum MentionPolicy {
-    /// `@bot` answers alone; without a mention, the coordinator, else the
-    /// room's default bot. Never everybody.
     #[default]
     MentionsOrCoordinator,
-    /// Only explicit mentions start a run; a message without one is kept
-    /// in the room and nobody answers.
     MentionsOnly,
 }
 
@@ -146,8 +126,6 @@ pub fn is_room_id(id: &str) -> bool {
             .all(|c| c.is_ascii_hexdigit())
 }
 
-/// `"<room>~<bot>"` → `(room, bot)`. Also accepts `_` as the separator,
-/// which is what a file-name sanitiser turns `~` into.
 pub fn participant(conversation: &str) -> Option<(&str, &str)> {
     let cut = ROOM_PREFIX.len() + 12;
     if conversation.len() <= cut + 1 || !conversation.is_char_boundary(cut) {
@@ -162,12 +140,10 @@ pub fn participant(conversation: &str) -> Option<(&str, &str)> {
     (!bot.is_empty()).then_some((room, bot))
 }
 
-/// The session id of one member inside a room.
 pub fn participant_id(room: &str, bot: &str) -> String {
     format!("{room}~{bot}")
 }
 
-/// The room a conversation id belongs to (itself or as a participant).
 pub fn room_of(conversation: &str) -> Option<&str> {
     if is_room_id(conversation) {
         return Some(conversation);
@@ -215,7 +191,6 @@ pub fn create_room(db: &AssistDb, draft: &RoomDraft) -> Result<Room, String> {
     get_room(db, &id)
 }
 
-/// Scoped callers attach ownership/idempotency in the same transaction.
 pub(crate) fn create_room_tx(
     tx: &rusqlite::Transaction,
     id: &str,
@@ -242,7 +217,6 @@ pub(crate) fn create_room_tx(
         )
         .map_err(|e| format!("{ERR_GROUP}: {e}"))?;
     write_members(tx, id, &draft.members)?;
-    // A room is a conversation too: personal until a folder is picked.
     tx.execute(
         "INSERT OR IGNORE INTO groups_conversations(id, kind, workspace, imported, updated_ms)
              VALUES (?1, 'projectless', NULL, 0, ?2)",
@@ -265,9 +239,6 @@ fn write_members(tx: &rusqlite::Transaction, room: &str, members: &[Member]) -> 
     Ok(())
 }
 
-/// Replaces the room's settings. Removing a member cuts its future access
-/// (it is no longer resolved into the room); what it already saw stays with
-/// the provider it went to, and the UI says so.
 pub fn update_room(db: &AssistDb, id: &str, draft: &RoomDraft) -> Result<Room, String> {
     validate(draft)?;
     let current = get_room(db, id)?;
@@ -379,14 +350,11 @@ pub fn list_rooms(db: &AssistDb) -> Result<Vec<Room>, String> {
         .collect()
 }
 
-// ── messages ─────────────────────────────────────────────────────────────
-
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum AuthorKind {
     User,
     Bot,
-    /// Notes the app writes into the room (a limit reached, a run cancelled).
     System,
 }
 
@@ -419,7 +387,6 @@ pub struct RoomMessage {
     pub task_id: Option<String>,
     pub round: i64,
     pub text: String,
-    /// `done`, `failed`, `cancelled`, `interrupted`.
     pub status: String,
     pub created_ms: i64,
 }
@@ -510,7 +477,6 @@ fn message_from_row(r: &Row) -> rusqlite::Result<RoomMessage> {
 const MSG_COLS: &str =
     "id, room, seq, author_kind, bot_id, reply_to, run_id, task_id, round, text, status, created_ms";
 
-/// Every message of a room, oldest first (the UI's transcript).
 pub fn messages(db: &AssistDb, room: &str) -> Result<Vec<RoomMessage>, String> {
     db.with(|c| {
         let mut st = c.prepare(&format!(
@@ -521,9 +487,6 @@ pub fn messages(db: &AssistDb, room: &str) -> Result<Vec<RoomMessage>, String> {
     })
 }
 
-/// The last `n` messages everybody in the room can see, oldest first: what
-/// a member's turn receives as room context (never another member's private
-/// session, never delegated work that is still running).
 pub fn recent_visible(db: &AssistDb, room: &str, n: usize) -> Result<Vec<RoomMessage>, String> {
     let mut out: Vec<RoomMessage> = db.with(|c| {
         let mut st = c.prepare(&format!(
@@ -537,24 +500,17 @@ pub fn recent_visible(db: &AssistDb, room: &str, n: usize) -> Result<Vec<RoomMes
     Ok(out)
 }
 
-// ── shares (memory reaches a room only by an explicit user choice) ──────
-
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct Share {
     pub id: String,
     pub room: String,
-    /// Scope key being shared (`user`, `bot:<id>`).
     pub scope: String,
-    /// One memory record, or `None` for the whole scope.
     pub record_id: Option<String>,
-    /// Who chose to share (always the local user; kept for provenance).
     pub shared_by: String,
     pub note: String,
     pub created_ms: i64,
 }
 
-/// Records an explicit share. Only the UI principal may call this (the
-/// command layer); a bot tool never can, so a model cannot widen its scope.
 pub fn add_share(
     db: &AssistDb,
     room: &str,
@@ -605,7 +561,6 @@ pub fn revoke_share(db: &AssistDb, id: &str) -> Result<(), String> {
     Ok(())
 }
 
-/// Active shares of a room (whole scopes and single records).
 pub fn shares(db: &AssistDb, room: &str) -> Result<Vec<Share>, String> {
     db.with(|c| {
         let mut st = c.prepare(

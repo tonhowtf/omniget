@@ -1,7 +1,3 @@
-//! MOBI / AZW3 (KF8) metadata: title, EXTH fields and the cover image,
-//! read straight from the PalmDB records. No decompression is needed for
-//! any of this, so it stays cheap enough for a library scan.
-
 use super::epub::BookMeta;
 
 fn be16(b: &[u8], o: usize) -> Option<u16> {
@@ -41,7 +37,6 @@ impl<'a> Mobi<'a> {
         let Some(r0) = self.record(0) else {
             return (m, None);
         };
-        // PalmDOC header is 16 bytes, MOBI header follows.
         let mobi = &r0[16.min(r0.len())..];
         if mobi.get(0..4) != Some(b"MOBI") {
             let name = &self.data[..32.min(self.data.len())];
@@ -119,7 +114,6 @@ impl<'a> Mobi<'a> {
     }
 }
 
-/// The handful of Windows LCIDs e-books actually use.
 fn locale_to_lang(code: u32) -> &'static str {
     match code {
         0x09 => "en",
@@ -148,14 +142,13 @@ mod tests {
     use super::*;
 
     fn build() -> Vec<u8> {
-        // Minimal PalmDB: header (78) + 2 record entries + records.
         let mut r0 = vec![0u8; 16];
         let mut mobi = b"MOBI".to_vec();
-        mobi.extend(232u32.to_be_bytes()); // header length
+        mobi.extend(232u32.to_be_bytes());
         mobi.extend([0u8; 4]);
         mobi.extend(65001u32.to_be_bytes());
         mobi.resize(232, 0);
-        mobi[92..96].copy_from_slice(&1u32.to_be_bytes()); // first image record
+        mobi[92..96].copy_from_slice(&1u32.to_be_bytes());
         mobi[112..116].copy_from_slice(&0x40u32.to_be_bytes());
         let mut exth = b"EXTH".to_vec();
         let recs: Vec<(u32, Vec<u8>)> = vec![

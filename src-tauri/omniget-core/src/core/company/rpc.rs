@@ -1,11 +1,3 @@
-//! One dispatcher for every surface: the window (`company_rpc` command), the
-//! local bridge (`POST /v1/company/rpc`), the CLI (`omniget company …`) and
-//! the external MCP. Same method names, same arguments, same rules — the
-//! surface only decides the [`Actor`] (and whether it may write).
-//!
-//! Methods are `area.verb`; arguments are one JSON object. Read-only methods
-//! are listed in [`READ_ONLY`] so a read scope can be enforced by name.
-
 use serde::de::DeserializeOwned;
 use serde_json::{json, Value};
 
@@ -54,8 +46,6 @@ pub const READ_ONLY: &[&str] = &[
     "secret.list",
 ];
 
-/// Owner decisions: only the OmniGet window takes them (area C §3.8 — in
-/// Paperclip any local request without a token acts as the board).
 pub const OWNER_ONLY: &[&str] = &[
     "approval.decide",
     "budget.set",
@@ -78,8 +68,6 @@ pub fn is_owner_only(method: &str) -> bool {
     OWNER_ONLY.contains(&method)
 }
 
-/// [`dispatch`] for a surface outside the window (bridge, CLI, MCP): owner
-/// decisions are refused whatever the token allows.
 pub fn dispatch_external(
     st: &CompanyStore,
     method: &str,
@@ -129,8 +117,6 @@ fn ok<T: serde::Serialize>(v: T) -> Result<Value, String> {
     serde_json::to_value(v).map_err(invalid)
 }
 
-/// Runs `method` as `actor`. `write` = false refuses anything outside
-/// [`READ_ONLY`].
 pub fn dispatch(
     st: &CompanyStore,
     method: &str,
@@ -146,7 +132,6 @@ pub fn dispatch(
     }
     let c = || s(a, "company");
     match method {
-        // Companies
         "company.list" => ok(st.company_list()?),
         "company.get" => ok(st.company_get(&c()?)?),
         "company.create" => ok(st.company_create(arg::<NewCompany>(a, "company")?, actor)?),
@@ -181,7 +166,6 @@ pub fn dispatch(
             let o = opt::<ImportOptions>(a, "options")?.unwrap_or_default();
             ok(st.import_apply(&pkg, &o, &s(a, "plan_hash")?, actor)?)
         }
-        // Staff
         "staff.list" => ok(st.staff_list(&c()?)?),
         "staff.get" => ok(st.staff_get(&c()?, &s(a, "staff")?)?),
         "staff.chart" => ok(st.org_chart(&c()?)?),
@@ -199,7 +183,6 @@ pub fn dispatch(
             os(a, "reason").as_deref(),
             actor,
         )?),
-        // Goals and projects
         "goal.list" => ok(st.goal_list(&c()?)?),
         "goal.create" => ok(st.goal_create(&c()?, arg::<NewGoal>(a, "goal")?, actor)?),
         "goal.update" => ok(st.goal_update(
@@ -226,7 +209,6 @@ pub fn dispatch(
             st.project_delete(&c()?, &s(a, "project_id")?, actor)?;
             ok(json!({"ok": true}))
         }
-        // Issues
         "issue.list" => {
             ok(st.issue_list(&c()?, &opt::<IssueFilter>(a, "filter")?.unwrap_or_default())?)
         }
@@ -338,7 +320,6 @@ pub fn dispatch(
             )?;
             ok(json!({"ok": true}))
         }
-        // Governance
         "approval.list" => {
             ok(st.approvals(os(a, "company").as_deref(), os(a, "state").as_deref())?)
         }
@@ -372,7 +353,6 @@ pub fn dispatch(
         "cost.summary" => {
             ok(st.cost_summary(&c()?, os(a, "window").as_deref().unwrap_or("month"))?)
         }
-        // Heartbeats
         "run.list" => ok(st.runs(
             &c()?,
             os(a, "staff").as_deref(),
@@ -394,7 +374,6 @@ pub fn dispatch(
                 .and_then(Value::as_i64)
                 .unwrap_or(super::now_ms() - 30 * 86_400_000),
         )?),
-        // Secrets (values only from the window)
         "secret.list" => ok(st.secret_bindings(&c()?)?),
         "secret.set" => {
             st.secret_set(&c()?, &s(a, "name")?, &s(a, "value")?, actor)?;
@@ -414,7 +393,6 @@ pub fn dispatch(
             st.secret_unbind(&c()?, &s(a, "staff")?, &s(a, "env_key")?, actor)?;
             ok(json!({"ok": true}))
         }
-        // Routines
         "routine.list" => ok(st.routine_list(&c()?)?),
         "routine.create" => {
             ok(st.routine_create(&c()?, arg::<NewRoutine>(a, "routine")?, actor)?)
@@ -432,7 +410,6 @@ pub fn dispatch(
         "routine.fire" => {
             ok(json!({"issue": st.routine_fire(&c()?, &s(a, "routine_id")?, actor)?}))
         }
-        // Audit
         "audit.list" => {
             ok(st.audit_list(&c()?, &opt::<AuditQuery>(a, "query")?.unwrap_or_default())?)
         }
@@ -450,7 +427,6 @@ fn package_of(a: &Value) -> Result<Package, String> {
 }
 
 impl CompanyStore {
-    /// Everything the company page shows at first paint, in one read.
     pub fn dashboard(&self, company: &str) -> Result<Value, String> {
         let c = self.company_get(company)?;
         let staff = self.staff_list(company)?;

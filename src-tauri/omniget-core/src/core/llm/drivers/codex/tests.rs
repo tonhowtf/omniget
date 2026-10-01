@@ -1,6 +1,3 @@
-//! Tests of the Codex driver against the real 0.156 wire (no login) and a
-//! turn built from the schema (see `fixtures/SOURCES.txt`).
-
 use serde_json::{json, Value};
 
 use super::super::{
@@ -23,8 +20,6 @@ fn wire(text: &str) -> Vec<(String, Value)> {
         .collect()
 }
 
-/// Feeds every server → client message to a translator. Returns the events
-/// and the requests it opened (`rpc id → outcome reply`).
 fn replay(tr: &mut Translator, text: &str) -> (Vec<RuntimeEvent>, Vec<(Value, Option<AutoReply>)>) {
     let mut events = Vec::new();
     let mut replies = Vec::new();
@@ -48,8 +43,6 @@ fn replay(tr: &mut Translator, text: &str) -> (Vec<RuntimeEvent>, Vec<(Value, Op
 fn kinds(events: &[RuntimeEvent]) -> Vec<&'static str> {
     events.iter().map(|e| e.type_name()).collect()
 }
-
-// ── protocol ────────────────────────────────────────────────────────────
 
 #[test]
 fn generated_types_decode_the_real_wire() {
@@ -119,15 +112,12 @@ fn generated_types_decode_the_real_wire() {
     }
 }
 
-// ── translator: real unauthenticated turn ───────────────────────────────
-
 #[test]
 fn a_401_turn_becomes_warnings_one_auth_error_and_a_failed_turn() {
     let mut tr = Translator::new("codex", "thr-omni");
     tr.set_provider_thread("01a0cb43-95df-7352-bd76-3558899e01f9");
     tr.begin_turn("eng-1");
     tr.bind_provider_turn("01a0cb43-95ea-7090-8c41-1381d8f58845");
-    // Only the part of the capture before the history calls.
     let text: String = UNAUTH_TURN
         .lines()
         .take_while(|l| !l.contains("\"thread/turns/list\""))
@@ -172,12 +162,9 @@ fn a_401_turn_becomes_warnings_one_auth_error_and_a_failed_turn() {
         &e.kind,
         RuntimeEventKind::ThreadStateChanged(s) if s.state == "error"
     )));
-    // Unknown notification (remoteControl) passes as raw, never persisted.
     assert!(k.contains(&"raw"));
     assert!(tr.active_engine_turn().is_none());
 }
-
-// ── translator: approval turn built from the schema ─────────────────────
 
 #[test]
 fn the_schema_turn_translates_every_item_request_and_the_usage() {
@@ -185,8 +172,6 @@ fn the_schema_turn_translates_every_item_request_and_the_usage() {
     tr.set_provider_thread("thr_codex_1");
     tr.set_model(Some("gpt-6-astra".into()));
     tr.begin_turn("eng-7");
-    // Everything but the final `turn/completed`: the parked requests are
-    // answered while the turn still runs.
     let body: Vec<&str> = APPROVAL_TURN
         .lines()
         .filter(|l| !l.trim().is_empty())
@@ -195,25 +180,21 @@ fn the_schema_turn_translates_every_item_request_and_the_usage() {
     assert!(last.contains("turn/completed"));
     let (mut events, replies) = replay(&mut tr, &head.join("\n"));
 
-    // Every event of the turn carries the engine's turn id.
     for e in &events {
         if !matches!(e.type_name(), "raw" | "account.rate-limits.updated") {
             assert_eq!(e.turn_id.as_deref(), Some("eng-7"), "{}", e.type_name());
         }
     }
 
-    // Reasoning delta + summary text.
     assert!(events.iter().any(|e| matches!(
         &e.kind,
         RuntimeEventKind::ContentDelta(d) if d.stream_kind == StreamKind::ReasoningSummaryText
     )));
-    // Plan.
     assert!(events.iter().any(|e| matches!(
         &e.kind,
         RuntimeEventKind::PlanUpdated(p) if p.plan.len() == 2 && p.plan[0].status == "inProgress"
     )));
 
-    // Command: item + output delta + completed with exit code.
     let cmd_done = events
         .iter()
         .find(|e| e.item_id.as_deref() == Some("item_c") && e.type_name() == "item.completed")
@@ -231,9 +212,6 @@ fn the_schema_turn_translates_every_item_request_and_the_usage() {
         RuntimeEventKind::ContentDelta(d) if d.stream_kind == StreamKind::CommandOutput && d.delta.contains("main.rs")
     ) && e.item_id.as_deref() == Some("item_c")));
 
-    // Requests opened: command, file change (with the diff), permissions,
-    // legacy patch; the question is a user-input request; the unknown one
-    // is refused on the spot.
     let opened: Vec<_> = events
         .iter()
         .filter_map(|e| match &e.kind {
@@ -293,8 +271,6 @@ fn the_schema_turn_translates_every_item_request_and_the_usage() {
         Some(AutoReply::Error { code: -32601, .. })
     ));
 
-    // Codex resolved the first two on its side (`serverRequest/resolved`):
-    // they are closed as answered elsewhere.
     let resolved: Vec<_> = events
         .iter()
         .filter(|e| e.type_name() == "request.resolved")
@@ -302,7 +278,6 @@ fn the_schema_turn_translates_every_item_request_and_the_usage() {
         .collect();
     assert_eq!(resolved, vec![opened[0].0.clone(), opened[1].0.clone()]);
 
-    // The ones still parked are answered with the right JSON-RPC bodies.
     let perm_req = &opened[2].0;
     let ((id, body), ev) = tr
         .answer_request(perm_req, ApprovalDecision::AcceptForSession)
@@ -320,12 +295,10 @@ fn the_schema_turn_translates_every_item_request_and_the_usage() {
         .unwrap();
     assert_eq!(id, json!(4));
     assert!(body["decision"]["denied"]["rejection"].is_string());
-    // Answered once: a second answer is an error (the host marks it stale).
     assert!(tr
         .answer_request(&opened[3].0, ApprovalDecision::Accept)
         .is_err());
 
-    // MCP tool, web search.
     assert!(events.iter().any(|e| matches!(
         &e.kind,
         RuntimeEventKind::ItemCompleted(p) if p.item_type == ItemType::McpToolCall
@@ -338,7 +311,6 @@ fn the_schema_turn_translates_every_item_request_and_the_usage() {
         RuntimeEventKind::ItemStarted(p) if p.item_type == ItemType::WebSearch && p.detail.as_deref() == Some("rust println")
     )));
 
-    // Assistant text: deltas + final detail.
     let text: String = events
         .iter()
         .filter_map(|e| match &e.kind {
@@ -357,7 +329,6 @@ fn the_schema_turn_translates_every_item_request_and_the_usage() {
     let (tail, _) = replay(&mut tr, last);
     events.extend(tail);
 
-    // Diff, rate limits.
     assert!(kinds(&events).contains(&"turn.diff.updated"));
     let rl = events
         .iter()
@@ -377,7 +348,6 @@ fn the_schema_turn_translates_every_item_request_and_the_usage() {
         .unwrap()
         .starts_with("2026-"));
 
-    // turn.completed with the usage of the turn (first turn: the total).
     let done = events
         .iter()
         .find(|e| e.type_name() == "turn.completed")
@@ -400,7 +370,3 @@ fn the_schema_turn_translates_every_item_request_and_the_usage() {
     }
     assert!(tr.active_engine_turn().is_none());
 }
-
-// ── pure helpers ────────────────────────────────────────────────────────
-
-// ── driver end to end over a scripted app-server ────────────────────────

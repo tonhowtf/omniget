@@ -1,12 +1,3 @@
-//! Lift, dock and the canvas menus (Maestri M-B11, M-B12, `app.menu`).
-//!
-//! Lift/dock state lives in the workspace meta (`panels`), so these tools
-//! work with the window anywhere: they write the state, the window follows
-//! `canvas://workspaces` and shows the node at real size, and a navigate
-//! event brings the window to that workspace and floor. `app_menu` lists and
-//! invokes the same menu model the right-click menu renders
-//! (`src/lib/canvas/menu/model.ts`) through the window driver.
-
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -50,7 +41,6 @@ async fn save(
     Ok(p)
 }
 
-/// Width on the 20 pt grid, back to the default when close to it.
 fn snap_width(w: f64) -> f64 {
     let v = (w.max(DOCK_MIN_W) / GRID).round() * GRID;
     if (v - DOCK_DEFAULT_W).abs() <= 30.0 {
@@ -76,7 +66,6 @@ fn apply_dock(p: &mut WorkspacePanels, node: &str, edge: &str, width: Option<f64
     }
 }
 
-/// What the window shows now (best effort: the window may be closed).
 async fn shown(app: &AppHandle) -> Value {
     match super::super::canvas_ui::ui_timeout(app, "state", json!({}), Duration::from_secs(4)).await
     {
@@ -151,7 +140,6 @@ pub async fn call(
             }
             if let Some(key) = st(a, "nodeId") {
                 let (ws, floor, node) = locate(s, &key)?;
-                // The menu acts on the open floor: bring the window there first.
                 let here = super::super::canvas_ui::ui_timeout(
                     app,
                     "state",

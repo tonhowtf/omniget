@@ -1,8 +1,3 @@
-//! Comandos `guard` da Central: varredura de segurança/saúde de componentes
-//! (agentes, comandos, skills, hooks, MCP, settings, statuslines) e as
-//! estatísticas da "Saúde da config". A lógica mora em
-//! `omniget_core::core::guard`; aqui só há a ponte com o front.
-
 use std::collections::{BTreeMap, HashMap};
 use std::path::PathBuf;
 
@@ -16,7 +11,6 @@ async fn blocking<T: Send + 'static>(f: impl FnOnce() -> T + Send + 'static) -> 
         .map_err(|e| format!("GUARD_TASK: {e}"))
 }
 
-/// Scan one component given as in-memory text files (`path → content`).
 #[tauri::command]
 pub async fn guard_scan_component(
     kind: String,
@@ -43,7 +37,6 @@ pub async fn guard_scan_component(
     blocking(move || guard::scan_component(&input, &opts)).await
 }
 
-/// Scan a file or a folder on disk. A folder can hold many components.
 #[tauri::command]
 pub async fn guard_scan_path(
     path: String,
@@ -59,7 +52,6 @@ pub async fn guard_scan_path(
     blocking(move || guard::scan_path(&p, kind.as_deref(), origin_tool.as_deref(), &opts)).await
 }
 
-/// Scan many files/folders.
 #[tauri::command]
 pub async fn guard_scan_paths(
     paths: Vec<String>,
@@ -75,8 +67,6 @@ pub async fn guard_scan_paths(
     blocking(move || guard::scan_paths(&paths, origin_tool.as_deref(), &opts)).await
 }
 
-/// Scan what is installed for one target tool; `paths` are the folders/files
-/// the agentkit resolved for `(target_id, scope, project_dir)`.
 #[tauri::command]
 pub async fn guard_scan_installed(
     target_id: String,
@@ -98,9 +88,6 @@ pub async fn guard_scan_installed(
     .await
 }
 
-/// "Config health": token weight of docs, hooks per event, MCP complexity.
-/// Keys: `command`, `rule`, `agent`, `skill`, `memory`, `hook`, `setting`, `mcp`
-/// (plural accepted).
 #[tauri::command]
 pub async fn guard_config_stats(
     paths_by_kind: BTreeMap<String, Vec<String>>,
@@ -113,7 +100,6 @@ pub async fn guard_config_stats(
     .await
 }
 
-/// Every rule code with its validator, default severity and description.
 #[tauri::command]
 pub fn guard_rules() -> Vec<Rule> {
     guard::rules::RULES.to_vec()

@@ -1,9 +1,3 @@
-//! Pure building blocks for OmniTube (`/youtube`): the innertube client
-//! registry and request bodies, response parsers for YouTube and YouTube
-//! Music, stream selection and the synthetic DASH manifest, distraction
-//! filters, SponsorBlock/DeArrow/RYD payloads, and import formats.
-//! No I/O here: the Tauri side (`commands::tube`) does the HTTP.
-
 pub mod extras;
 pub mod filters;
 pub mod imports;

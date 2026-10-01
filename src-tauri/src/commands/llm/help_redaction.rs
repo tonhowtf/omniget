@@ -1,5 +1,3 @@
-//! Redaction at the Help/model boundary. Local logs and receipts stay intact.
-//! This does not interpret tool text as instructions or change permission decisions.
 use regex::{Captures, Regex};
 use serde_json::Value;
 use std::sync::OnceLock;
@@ -61,7 +59,6 @@ fn redact_url(raw: &str) -> String {
             .collect();
         parsed.query_pairs_mut().clear().extend_pairs(pairs);
     }
-    // OAuth callbacks commonly put access_token in fragments instead of queries.
     if let Some(fragment) = parsed.fragment() {
         let pairs: Vec<(String, String)> = url::form_urlencoded::parse(fragment.as_bytes())
             .map(|(k, v)| {
@@ -106,7 +103,6 @@ pub fn redact_text(text: &str) -> String {
         .into_owned()
 }
 
-/// Keep IDs/status/structured errors useful; strip secrets recursively in every tool result.
 pub fn redact_download_output(value: Value) -> Value {
     match value {
         Value::String(text) => {

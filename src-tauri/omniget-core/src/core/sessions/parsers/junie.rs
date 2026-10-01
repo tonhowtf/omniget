@@ -1,17 +1,3 @@
-//! JetBrains Junie CLI (estudo 06, Junie §j; Parte 6 §8.2).
-//!
-//! `${JUNIE_HOME:-~/.junie}/sessions/<id>/events.jsonl` (id tipo
-//! `session-251209-172932-1ze8`, horário local no nome), mais `index.jsonl`
-//! (registro das sessões) e `transcript.md`. Eventos: o prompt do usuário é
-//! `kind == "UserPromptEvent"` (no topo ou em `event.agentEvent`) com
-//! `prompt`; o uso vem em `event.agentEvent.kind == "LlmResponseMetadataEvent"`
-//! com `modelUsage[{model, inputTokens, outputTokens, cacheInputTokens |
-//! cacheReadInputTokens, cacheCreationInputTokens, cost, time}]` e
-//! `timestampMs`. Os demais eventos do agente (texto, tools) são lidos de forma
-//! tolerante pelo `kind`. Os eventos de estado (`AgentStateUpdatedEvent` etc.)
-//! são grandes e ignorados. Formato documentado só por terceiros; Junie não
-//! está instalado aqui: só fixture.
-
 use std::path::{Path, PathBuf};
 
 use serde_json::Value;
@@ -42,7 +28,6 @@ fn files() -> Vec<PathBuf> {
     find_files(&h.join("sessions"), 2, |p| file_name(p) == "events.jsonl")
 }
 
-/// `session-YYMMDD-HHMMSS-xxxx` → ms (horário local).
 fn id_time(id: &str) -> Option<i64> {
     let mut parts = id.split('-');
     if parts.next()? != "session" {
@@ -196,7 +181,6 @@ pub fn parse(lines: &[Value], id: &str, source: &Path) -> Session {
     Session { meta, turns }
 }
 
-/// Título e projeto do `index.jsonl`, quando existir.
 fn index_info(id: &str) -> (Option<String>, Option<String>) {
     let Some(h) = home_dir() else {
         return (None, None);

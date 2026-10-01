@@ -1,22 +1,3 @@
-//! Apps on macOS (F3): inventory, leftovers by evidence, uninstall plan.
-//!
-//! - [`list`]: app bundles in `/Applications`, `~/Applications` (and one
-//!   folder level below, e.g. `Setapp/`), `/System/Applications` (listed,
-//!   not removable), Homebrew casks and formulae, third-party `.pkg`
-//!   receipts. Read-only: `Info.plist` (XML or binary, parsed here),
-//!   sizes with `fsops::measure`, `mdls` for dates, `codesign` for the Team
-//!   ID, `brew` and `pkgutil` for the rest.
-//! - [`uninstall_items`]: the plan (see `items.rs`), leftovers found by
-//!   evidence (`leftovers.rs`), and the alternatives (Homebrew zap, reset).
-//! - Plan hooks and the helper side live in `actions.rs`.
-//!
-//! Ideas from the study of Pearcleaner (Apache + Commons Clause: ideas
-//! only, no code or lists), Mole (sibling guard) and MacSai; all code and
-//! lists here are our own.
-//!
-//! Real system calls are behind `#[cfg(target_os = "macos")]`; the parsers,
-//! the leftover search and the item builder are pure and tested everywhere.
-
 #![cfg_attr(not(target_os = "macos"), allow(dead_code))]
 
 pub mod actions;
@@ -38,8 +19,6 @@ use super::App;
 #[cfg(target_os = "macos")]
 mod inventory;
 
-/// Every app of this Mac (cached for 30 s: a leftover search right after a
-/// listing reuses it).
 pub fn list() -> Result<Vec<App>, String> {
     #[cfg(target_os = "macos")]
     return inventory::list_cached(false);
@@ -53,8 +32,6 @@ pub fn uninstall_items(ctx: &Ctx, app: &App) -> Result<(Vec<PlanItem>, Value), S
     {
         let env = inventory::env_for(app)?;
         let built = items::build(app, &env);
-        // Unticked candidates stay pickable through `wmb_plan` but are not
-        // in the default plan the caller offers.
         let unticked: Vec<PlanItem> = built.unticked.iter().map(|u| u.item.clone()).collect();
         super::super::plan::register("uninstall", &unticked);
         let mut extra = built.extra;
@@ -91,8 +68,6 @@ pub fn elevated_pkg_forget(id: &str) -> Result<String, String> {
     actions::elevated_pkg_forget(id)
 }
 
-/// Whether a process runs from inside the app bundle (or, when its path is
-/// unknown, has the bundle's executable name).
 pub fn running(app_path: &Path, executable: Option<&str>) -> bool {
     use sysinfo::{ProcessRefreshKind, ProcessesToUpdate, System, UpdateKind};
     let mut sys = System::new();
@@ -113,12 +88,6 @@ pub fn running(app_path: &Path, executable: Option<&str>) -> bool {
     })
 }
 
-/// Screen-only actions (`washmybelly_ui` with `apps.mac.<action>`):
-/// - `icon {app_id | path, size?}` → `{ data_url }` (PNG from the `.icns`,
-///   `null` when the bundle has none);
-/// - `quit {app_id}` → asks the app to quit (an Apple Event, like ⌘Q; never
-///   a kill, so it may ask to save);
-/// - `reveal {path}` → shows it in Finder.
 pub async fn ui_action(action: &str, a: Value) -> Result<Value, String> {
     let s = |k: &str| a.get(k).and_then(Value::as_str).map(String::from);
     match action {
@@ -173,7 +142,6 @@ fn app_by_id(id: &str) -> Result<App, String> {
         .ok_or_else(|| format!("{id}: not installed"))
 }
 
-/// Apps a quit request never goes to: the desktop itself and OmniGet.
 const NEVER_QUIT: &[&str] = &[
     "com.apple.finder",
     "com.apple.dock",
@@ -189,7 +157,6 @@ fn quit(bundle_id: &str) -> Result<(), String> {
     }
     #[cfg(target_os = "macos")]
     {
-        // The id travels as an argument of the script, never inside its text.
         let out = crate::core::process::std_command("/usr/bin/osascript")
             .args([
                 "-e",
@@ -212,7 +179,6 @@ fn quit(bundle_id: &str) -> Result<(), String> {
     Ok(())
 }
 
-/// The `.icns` a bundle names in its `Info.plist`.
 pub fn icon_file(app: &Path) -> Option<std::path::PathBuf> {
     let info = plist::read(&app.join("Contents/Info.plist")).ok()?;
     let name = parse::bundle_info(&info)

@@ -346,10 +346,6 @@ impl PlatformDownloader for GenericYtdlpDownloader {
                 .with_user_agent_override(opts.user_agent.clone())
                 .with_progress(progress.clone());
 
-            // Deep search in the browser extension can capture a playlist that
-            // the page only ever exposed as a `blob:` URL, which is
-            // unreachable from this process. When one was captured for this
-            // exact URL, hand the text straight to the downloader.
             if let Some(text) =
                 crate::core::extension_manifest::load_manifest_for_url(&selected.url)
             {
@@ -522,11 +518,6 @@ impl PlatformDownloader for GenericYtdlpDownloader {
     }
 }
 
-/// Build the Referer for a raw HLS download, in priority order:
-/// explicit referer from options → the page URL the stream was found on →
-/// a known per-platform referer → the m3u8 URL's own origin.
-/// Returns an empty string only for unparseable URLs, in which case the
-/// downloader sends no Referer header at all.
 fn build_hls_referer(
     explicit_referer: Option<&str>,
     page_url: Option<&str>,
@@ -591,9 +582,6 @@ fn platform_referer(url: &str) -> Option<&'static str> {
     None
 }
 
-/// Native extraction first, yt-dlp second. When both fail the caller gets both
-/// causes, yt-dlp outermost (as bluesky.rs chain_fallback): the old
-/// `map_err(|_| native_err)` threw away the yt-dlp verdict (bench reddit-5).
 pub(crate) async fn native_then_ytdlp<F, Fut>(
     tag: &str,
     native: anyhow::Result<MediaInfo>,

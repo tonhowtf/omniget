@@ -1,19 +1,3 @@
-//! What the plan engine runs for the macOS app items (`Op::Module` with
-//! module `apps` and action `mac.<name>`), their undo, and the helper side
-//! of `pkgutil --forget`. Every action re-checks what the scan stored:
-//! labels and ids against a closed alphabet, paths against the protection
-//! list and their fingerprints.
-//!
-//! Actions (closed lists):
-//! - execute: `bootout_agent` (user LaunchAgent: `launchctl bootout
-//!   gui/<uid>/<label>`, then the plist goes to our quarantine),
-//!   `remove_prefs` (the app's `Preferences/<id>.plist` to quarantine, then
-//!   `defaults delete <id>` so `cfprefsd` drops its cached copy);
-//! - elevated: `remove_daemon` (bootout + remove the plist, as root),
-//!   `pkg_forget`;
-//! - undo: `restore_agent` (file back + `launchctl bootstrap`),
-//!   `restore_prefs` (`defaults import`, or the file back).
-
 use std::path::{Path, PathBuf};
 
 use serde_json::{json, Value};
@@ -54,8 +38,6 @@ fn label_arg(a: &Value) -> Result<String, String> {
     Ok(l.to_string())
 }
 
-/// A launchd plist the scan found: `<...>/LaunchAgents|LaunchDaemons/<x>.plist`,
-/// unchanged since, and not protected.
 fn launch_plist(a: &Value, allowed: &[&str]) -> Result<PathBuf, String> {
     let plist = PathBuf::from(arg_str(a, "plist")?);
     let parent = plist.parent().ok_or("apps.mac: bad plist path")?;
@@ -82,8 +64,6 @@ fn uid() -> u32 {
     }
 }
 
-/// Run a system tool with a fixed absolute path. Tests never reach the
-/// real launchd or preferences: the calls are skipped under `cfg(test)`.
 fn system(prog: &str, args: &[&str]) -> Result<String, String> {
     if cfg!(test) || !cfg!(target_os = "macos") {
         return Ok(String::new());
@@ -104,8 +84,6 @@ fn system(prog: &str, args: &[&str]) -> Result<String, String> {
     }
 }
 
-/// Move a path into this receipt's quarantine folder (same volume as the
-/// app data, so a rename). Returns where it went.
 fn stash(ctx: &Ctx, receipt_id: &str, path: &Path) -> Result<PathBuf, String> {
     let name = path.file_name().ok_or("apps.mac: no file name")?;
     let slot = ctx
@@ -129,7 +107,6 @@ pub fn plan_execute(
             let label = label_arg(args)?;
             let plist = launch_plist(args, &["LaunchAgents"])?;
             let bytes = fsops::measure(&plist).0;
-            // Not loaded is fine: the job may only start at login.
             let stopped = system(
                 "/bin/launchctl",
                 &["bootout", &format!("gui/{}/{label}", uid())],
@@ -172,8 +149,6 @@ pub fn plan_execute(
             fsops::unchanged(&plist, &arg_fp(args)?)?;
             let bytes = fsops::measure(&plist).0;
             let dest = stash(ctx, receipt_id, &plist)?;
-            // The file is gone; `defaults delete` makes cfprefsd drop the
-            // copy it keeps in memory, so the app cannot write it back.
             let _ = system("/usr/bin/defaults", &["delete", &bid]);
             Ok(Outcome {
                 detail: "preferences cleared; a copy is in quarantine".into(),
@@ -258,7 +233,6 @@ pub fn plan_undo(_ctx: &Ctx, action: &str, args: &Value) -> Result<String, Strin
             let bid = bundle_arg(args)?;
             let from = PathBuf::from(arg_str(args, "from")?);
             let to = PathBuf::from(arg_str(args, "to")?);
-            // Through cfprefsd when we can, so the app sees the values at once.
             if cfg!(target_os = "macos") && !cfg!(test) {
                 let from_s = from.to_string_lossy().to_string();
                 if system("/usr/bin/defaults", &["import", &bid, &from_s]).is_ok() {
@@ -282,7 +256,6 @@ fn check_pkg_id(id: &str) -> Result<(), String> {
     Ok(())
 }
 
-/// Runs as root inside `omniget-elevate`. The id is checked again here.
 pub fn elevated_pkg_forget(id: &str) -> Result<String, String> {
     check_pkg_id(id)?;
     #[cfg(target_os = "macos")]

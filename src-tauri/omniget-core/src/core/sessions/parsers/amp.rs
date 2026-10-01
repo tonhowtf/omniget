@@ -1,17 +1,3 @@
-//! Amp (estudo 06, Amp §j; Parte 6 §8.1).
-//!
-//! Cópia local das threads: `${AMP_DATA_DIR:-$XDG_DATA_HOME/amp}/threads/T-*.json`
-//! (`~/.local/share/amp/threads` em todos os SOs). Um JSON por thread: `id`
-//! (`T-<uuid>`), `created` (ms), `title`, `env.initial.trees[].uri` (pasta),
-//! `messages[]` com `role`, `messageId`, `content[]` (`text`, `thinking`,
-//! `tool_use{id, name, input}`, `tool_result{toolUseID, run{status, result}}`),
-//! `usage{model, inputTokens, outputTokens, cacheReadInputTokens,
-//! cacheCreationInputTokens, credits}` e `meta.sentAt`; e `usageLedger.events[]`
-//! (`timestamp, model, credits, tokens{input, output, cacheReadInputTokens,
-//! cacheCreationInputTokens}, toMessageId`). O ledger completa o uso das
-//! mensagens que não trazem `usage`. Amp cobra em créditos denominados em
-//! dólar; o valor vai para `cost_usd`. Amp não está instalado aqui: só fixture.
-
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
@@ -78,7 +64,6 @@ pub fn parse(doc: &Value, fallback_id: &str, source: &Path) -> Session {
         })
         .and_then(|x| s(x, &["threadID"]));
 
-    // Ledger por mensagem de destino.
     type Entry = (TokenUsage, Option<String>, Option<f64>, Option<String>);
     let mut ledger: HashMap<i64, Entry> = HashMap::new();
     for ev in doc
@@ -179,7 +164,6 @@ pub fn parse(doc: &Value, fallback_id: &str, source: &Path) -> Session {
         }
         turns.push(t);
     }
-    // Eventos do ledger sem mensagem correspondente viram turnos só de uso.
     let mut rest: Vec<_> = ledger.into_iter().collect();
     rest.sort_by_key(|(k, _)| *k);
     for (_, (us, model, cost, ts)) in rest {

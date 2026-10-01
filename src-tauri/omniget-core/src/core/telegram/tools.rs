@@ -1,13 +1,3 @@
-//! The `tg_*` MCP tools: names, schemas and bodies. The table in
-//! `core::llm::tool_table` appends [`entries`]; the app's external MCP port
-//! goes through [`call_as`] with the client's name. Every body ends in the
-//! same engine the `/telegram` screen uses (`commands::dispatch` or the
-//! client's functions), so an agent and the screen never diverge.
-//!
-//! Tools that write to the person's account (`tg_send_message`,
-//! `tg_send_files`, `tg_forward`, `tg_delete_messages`) always ask the person
-//! first through [`super::approvals`], unless the caller is the screen.
-
 use std::collections::HashMap;
 use std::sync::{Mutex, OnceLock};
 use std::time::{Duration, Instant};
@@ -20,12 +10,10 @@ use super::approvals;
 use super::client::{self, api, auth::TelegramSessionHandle, history};
 use crate::core::llm::tool_table::{BoxFut, CostHint, ToolEntry, ToolImpl, ToolRisk};
 
-/// Who is calling. Only the screen writes without an approval.
 #[derive(Debug, Clone)]
 pub enum Caller {
     Screen,
     Agent,
-    /// An external MCP client, by the name the person gave its grant.
     External(String),
     Cli,
 }
@@ -40,8 +28,6 @@ impl Caller {
         }
     }
 }
-
-// ── Table rows ─────────────────────────────────────────────────────────
 
 fn obj(props: Value, required: &[&str]) -> Value {
     json!({ "type": "object", "properties": props, "required": required })
@@ -93,7 +79,6 @@ fn defs() -> Vec<Def> {
     };
     let limit = |max: u64| json!({ "type": "integer", "minimum": 1, "maximum": max });
     vec![
-        // ── Read ──────────────────────────────────────────────────────
         d("tg_status", "Telegram status in OmniGet: whether an account is logged in (and which), the connection phase and the active network route. Call it first; every other tg_* tool needs a logged-in account.",
             obj(json!({}), &[]), body!("tg_status"), Cheap, Read),
         d("tg_list_chats", "The person's Telegram chats (private, groups, channels), most recent first, with id, title, type, unread count and the last message. query filters by title.",
@@ -118,7 +103,6 @@ fn defs() -> Vec<Def> {
             obj(json!({ "chats": { "type": "array", "items": chat_prop(), "maxItems": 30 }, "sinceHours": { "type": "integer", "minimum": 1, "maximum": 720 }, "maxMessages": { "type": "integer", "minimum": 10, "maximum": 3000 } }), &[]), body!("tg_digest"), Network, Read),
         d("tg_export", "Export a chat's messages as compact markdown or json returned in the result (not a file), oldest first, cut to fit in context. For a file export with media use the /telegram screen.",
             obj(json!({ "chat": chat_prop(), "format": { "type": "string", "enum": ["markdown", "json"] }, "limit": limit(3000), "fromDate": date_prop("Oldest message date"), "toDate": date_prop("Newest message date") }), &["chat"]), body!("tg_export"), Network, Read),
-        // ── Local actions ─────────────────────────────────────────────
         d("tg_download", "Download Telegram files to this computer. Either links (t.me message links) or chat plus filters (mediaTypes, dates, sizes, keyword, extensions; limit defaults to 200 files). Resumes interrupted files. template names files with {chat} {chat_id} {msg_id} {date} {time} {file_name} {stem} {ext} {type} {caption} {album}; slashes make folders.",
             obj(json!({
                 "links": { "type": ["string", "array"], "items": { "type": "string" } },
@@ -149,7 +133,6 @@ fn defs() -> Vec<Def> {
             obj(json!({ "id": { "type": "string" } }), &["id"]), body!("tg_watch_remove"), Cheap, Reversible),
         d("tg_watch_run", "Run an auto-save rule now (all enabled rules without id). Returns how many new files were found and queued.",
             obj(json!({ "id": { "type": "string" } }), &[]), body!("tg_watch_run"), Local, Reversible),
-        // ── Writes to the account (always asks the person) ────────────
         d("tg_send_message", "Send a text message from the person's account. Always asks the person in the OmniGet window first and waits up to 5 minutes; a refusal fails the call.",
             obj(json!({ "chat": chat_prop(), "text": { "type": "string", "minLength": 1, "maxLength": 4096 } }), &["chat", "text"]), body!("tg_send_message"), Network, Destructive),
         d("tg_send_files", "Send local files or folders (recursive) from the person's account; photos and videos are grouped in albums. Always asks the person in the OmniGet window first.",
@@ -161,7 +144,6 @@ fn defs() -> Vec<Def> {
     ]
 }
 
-/// The `tg_*` rows of the tool table.
 pub fn entries() -> Vec<ToolEntry> {
     defs()
         .into_iter()
@@ -175,19 +157,15 @@ pub fn entries() -> Vec<ToolEntry> {
             platforms: &[],
             feature: Some("telegram"),
             risk: Some(d.risk),
-            // The body asks the person itself (with the chat and the text),
-            // so the broker's generic prompt would only ask twice.
             always_ask: false,
         })
         .collect()
 }
 
-/// Every `tg_*` name.
 pub fn all_names() -> Vec<&'static str> {
     defs().into_iter().map(|d| d.name).collect()
 }
 
-/// Tools that write to the person's account and always need an approval.
 pub const WRITE_TOOLS: &[&str] = &[
     "tg_send_message",
     "tg_send_files",
@@ -195,13 +173,10 @@ pub const WRITE_TOOLS: &[&str] = &[
     "tg_delete_messages",
 ];
 
-/// Run one `tg_*` tool as an agent of the /llm broker.
 pub async fn call(name: &str, a: Value) -> Result<Value, String> {
     call_as(Caller::Agent, name, a).await
 }
 
-/// Run one `tg_*` tool for a known caller. The work runs on its own task,
-/// boxed, so the large grammers futures never sit on the caller's stack.
 pub async fn call_as(caller: Caller, name: &str, a: Value) -> Result<Value, String> {
     let name = name.to_string();
     let a = history::camelize(if a.is_object() { &a } else { &Value::Null });
@@ -269,8 +244,6 @@ async fn run(caller: Caller, name: &str, a: Value) -> Result<Value, String> {
     }
 }
 
-// ── Arguments ──────────────────────────────────────────────────────────
-
 fn opt_str(a: &Value, k: &str) -> Option<String> {
     a.get(k)
         .and_then(Value::as_str)
@@ -334,20 +307,11 @@ async fn engine_call(command: &str, args: Value) -> Result<Value, String> {
     super::commands::dispatch(command.to_string(), args).await
 }
 
-// ── Chats: parsing and resolution ──────────────────────────────────────
-
-/// What the caller wrote for `chat`, before talking to Telegram.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ChatRef {
-    /// A numeric id, with its type when the form tells it (Bot API ids,
-    /// `t.me/c/` links, `{chatId, chatType}` objects).
-    Id {
-        id: i64,
-        kind: Option<String>,
-    },
+    Id { id: i64, kind: Option<String> },
     Username(String),
     Title(String),
-    /// The account's own chat ("Saved Messages").
     SelfChat,
 }
 
@@ -356,8 +320,6 @@ fn valid_username(s: &str) -> bool {
 }
 
 fn id_ref(n: i64) -> ChatRef {
-    // Bot API ids: -100<channel id> for channels and supergroups,
-    // -<chat id> for basic groups.
     if n <= -1_000_000_000_000 {
         ChatRef::Id {
             id: -n - 1_000_000_000_000,
@@ -373,8 +335,6 @@ fn id_ref(n: i64) -> ChatRef {
     }
 }
 
-/// Parse the `chat` argument: a number, `@username`, a t.me link, a
-/// `{chatId, chatType}` object or a chat title.
 pub fn parse_chat(v: &Value) -> Result<ChatRef, String> {
     match v {
         Value::Number(n) => n
@@ -443,8 +403,6 @@ fn parse_chat_str(raw: &str) -> Result<ChatRef, String> {
     let no_www = no_scheme.strip_prefix("www.").unwrap_or(no_scheme);
     let hosts = ["t.me/", "telegram.me/", "telegram.dog/"];
     if let Some(host) = hosts.iter().find(|h| no_www.starts_with(**h)) {
-        // Keep the original case of the path (usernames are case-insensitive,
-        // but the title fallback is not used for links anyway).
         let start = s.len() - no_www.len() + host.len();
         let path = s[start..].split(['?', '#']).next().unwrap_or("");
         let mut parts = path.split('/').filter(|p| !p.is_empty());
@@ -475,7 +433,6 @@ fn parse_chat_str(raw: &str) -> Result<ChatRef, String> {
     Ok(ChatRef::Title(s.to_string()))
 }
 
-/// A chat the engine can talk to.
 #[derive(Debug, Clone, Serialize)]
 pub struct Target {
     pub id: i64,
@@ -504,8 +461,6 @@ fn chat_cache() -> &'static ChatCache {
     C.get_or_init(|| Mutex::new(None))
 }
 
-/// The chat list, kept for a minute so resolving a title is not a full
-/// dialog walk every call.
 async fn chats(h: &TelegramSessionHandle) -> Result<Vec<api::TelegramChat>, String> {
     if let Ok(g) = chat_cache().lock() {
         if let Some((at, list)) = g.as_ref() {
@@ -593,8 +548,6 @@ async fn resolve_username(h: &TelegramSessionHandle, name: &str) -> Result<Targe
     }
 }
 
-/// Access hashes seen in a response go into the session, so the next call
-/// for that user or channel works without walking the dialogs.
 async fn remember_hashes(
     h: &TelegramSessionHandle,
     users: &[tl::enums::User],
@@ -700,7 +653,6 @@ async fn resolve(h: &TelegramSessionHandle, r: &ChatRef) -> Result<Target, Strin
     }
 }
 
-/// A supergroup is `group` in the chat list and `channel` in a t.me/c link.
 fn same_kind(asked: &str, listed: &str) -> bool {
     asked == listed
         || (asked == "channel" && listed == "group")
@@ -713,9 +665,6 @@ async fn target_arg(a: &Value, k: &str) -> Result<Target, String> {
     resolve(&h, &r).await
 }
 
-// ── Messages ───────────────────────────────────────────────────────────
-
-/// One message, compact enough for a model's context.
 #[derive(Debug, Clone, Serialize, PartialEq)]
 pub struct Msg {
     pub id: i32,
@@ -781,7 +730,6 @@ fn unpack(
     }
 }
 
-/// `offset` and `len` are UTF-16 code units, as Telegram counts them.
 fn utf16_slice(s: &str, offset: i32, len: i32) -> String {
     let units: Vec<u16> = s.encode_utf16().collect();
     let start = offset.max(0) as usize;
@@ -912,8 +860,6 @@ struct Range {
     to_date: Option<i64>,
 }
 
-/// Messages of one chat in `range`, oldest first. Service messages (joins,
-/// pins) are skipped.
 async fn read_history(
     h: &TelegramSessionHandle,
     t: &Target,
@@ -979,7 +925,6 @@ async fn read_history(
     Ok(out)
 }
 
-/// Messages by id (for the approval preview of a forward or a delete).
 async fn fetch_by_ids(
     h: &TelegramSessionHandle,
     t: &Target,
@@ -1017,8 +962,6 @@ async fn fetch_by_ids(
         })
         .collect())
 }
-
-// ── Read tools ─────────────────────────────────────────────────────────
 
 async fn status() -> Result<Value, String> {
     let h = session();
@@ -1262,19 +1205,14 @@ async fn download_status() -> Result<Value, String> {
     Ok(json!({ "count": list.len(), "active": list }))
 }
 
-// ── Digest and export ──────────────────────────────────────────────────
-
-/// One chat's part of a digest.
 #[derive(Debug, Clone)]
 pub struct DigestChat {
     pub target: Target,
     pub unread: i32,
     pub messages: Vec<Msg>,
-    /// More messages existed in the period than were read.
     pub truncated: bool,
 }
 
-/// Longest digest or export text returned to a model.
 pub const MAX_CONTEXT_CHARS: usize = 100_000;
 const DIGEST_TEXT: usize = 500;
 
@@ -1282,7 +1220,6 @@ fn one_line(s: &str) -> String {
     s.split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
-/// One message as a single line: `#id [time] author: text [media] <links>`.
 pub fn message_line(m: &Msg, time: &str, max_text: usize) -> String {
     let mut line = format!("#{} [{}] {}", m.id, time, m.author);
     if let Some(f) = &m.forwarded_from {
@@ -1315,8 +1252,6 @@ fn local_time(ts: i64, fmt: &str) -> String {
         .unwrap_or_else(|| ts.to_string())
 }
 
-/// The digest text: a header, then one block per chat with messages.
-/// `time` formats a unix timestamp (local `MM-DD HH:MM` in the tool).
 pub fn format_digest(
     chats: &[DigestChat],
     since_hours: u32,
@@ -1477,7 +1412,6 @@ async fn export(a: &Value) -> Result<Value, String> {
     let msgs = read_history(&h, &t, &range).await?;
     let count = msgs.len();
     let (content, truncated) = if format == "json" {
-        // Keep the newest messages that fit.
         let mut keep = msgs;
         let mut s = serde_json::to_string(&keep).unwrap_or_default();
         while s.len() > MAX_CONTEXT_CHARS && keep.len() > 1 {
@@ -1515,8 +1449,6 @@ async fn export(a: &Value) -> Result<Value, String> {
         "content": content,
     }))
 }
-
-// ── Local actions ──────────────────────────────────────────────────────
 
 fn copy_keys(a: &Value, keys: &[&str]) -> serde_json::Map<String, Value> {
     let mut m = serde_json::Map::new();
@@ -1601,8 +1533,6 @@ async fn watch_add(a: &Value) -> Result<Value, String> {
     }
     wrap("rule", engine_call("telegram_watch_add", args).await?)
 }
-
-// ── Writes (approval first) ────────────────────────────────────────────
 
 async fn approve(
     caller: &Caller,

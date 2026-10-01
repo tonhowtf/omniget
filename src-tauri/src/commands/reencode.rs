@@ -74,11 +74,6 @@ pub async fn reencode_video(req: ReencodeRequest) -> Result<ReencodeResult, Stri
         ReencodeCodec::H264 => 22,
     });
 
-    // Try the hardware encoders ffmpeg lists, best first, then the software one.
-    // ffmpeg lists every encoder it was built with (a Windows build lists NVENC,
-    // QSV and AMF on any PC), so each one is first checked on a few blank frames,
-    // and a real run that still fails moves on to the next. The idea comes from
-    // ezytdl's GPU "Auto Detect" and its GPU-to-CPU fallback; reimplemented here.
     let mut failures: Vec<String> = Vec::new();
     let mut used: Option<(String, bool)> = None;
     for (encoder, is_hw) in encoder_ladder(&req.codec, &hw) {
@@ -150,8 +145,6 @@ pub async fn reencode_video(req: ReencodeRequest) -> Result<ReencodeResult, Stri
     })
 }
 
-/// Encoders to try for `codec`, best first: the hardware ones ffmpeg lists,
-/// then the software encoder, which is always last.
 fn encoder_ladder(codec: &ReencodeCodec, hw: &hwaccel::HwAccelInfo) -> Vec<(String, bool)> {
     let (hardware, software): (&[&str], &str) = match codec {
         ReencodeCodec::Av1 => (&["av1_nvenc", "av1_qsv", "av1_amf"], "libsvtav1"),
@@ -172,10 +165,6 @@ fn encoder_ladder(codec: &ReencodeCodec, hw: &hwaccel::HwAccelInfo) -> Vec<(Stri
         .collect()
 }
 
-/// The constant-quality flags each encoder understands. `cq` is on the
-/// x264/x265 CRF scale (lower is better). VideoToolbox has no `-cq` or `-crf`
-/// (ffmpeg stops with "Unrecognized option 'cq'") and takes `-q:v` from 1 to
-/// 100, higher is better; QSV takes `-global_quality`; AMF a constant QP.
 fn quality_args(encoder: &str, cq: u32) -> Vec<String> {
     let q = cq.to_string();
     let args: Vec<&str> = if encoder.ends_with("_nvenc") {
@@ -200,8 +189,6 @@ static ENCODER_CHECKS: std::sync::OnceLock<
     std::sync::Mutex<std::collections::HashMap<String, bool>>,
 > = std::sync::OnceLock::new();
 
-/// Whether `encoder` really encodes on this machine: a few blank frames to
-/// the null muxer, checked once per encoder while the app runs.
 async fn encoder_works(encoder: &str, cq: u32) -> bool {
     let checks = ENCODER_CHECKS.get_or_init(Default::default);
     if let Some(ok) = checks.lock().ok().and_then(|m| m.get(encoder).copied()) {
@@ -248,15 +235,12 @@ async fn run_reencode(
     cq: u32,
 ) -> Result<(), String> {
     let mut args: Vec<String> = vec!["-y".into(), "-hide_banner".into()];
-    // Hardware decoding only goes with a hardware encoder, so the software
-    // attempt at the end of the ladder cannot fail on the decoder either.
     if is_hw {
         args.extend(["-hwaccel", "auto"].map(str::to_string));
     }
     args.extend(["-i".to_string(), input.to_string_lossy().into_owned()]);
     args.extend(["-c:v".to_string(), encoder.to_string()]);
     args.extend(quality_args(encoder, cq));
-    // QuickTime and iOS only play HEVC in MP4 with the hvc1 tag.
     if encoder.starts_with("hevc") || encoder == "libx265" {
         args.extend(["-tag:v", "hvc1"].map(str::to_string));
     }

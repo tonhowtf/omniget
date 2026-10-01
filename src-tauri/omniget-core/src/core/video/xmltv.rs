@@ -1,13 +1,9 @@
-//! Streaming XMLTV guide parser. Handles gzip transparently (by magic bytes)
-//! and converts `YYYYMMDDhhmmss ±zzzz` times to unix milliseconds.
-
 use flate2::bufread::MultiGzDecoder;
 use quick_xml::events::{BytesStart, Event};
 use quick_xml::Reader;
 use serde::{Deserialize, Serialize};
 use std::io::{BufRead, BufReader};
 
-/// One item of the guide, emitted as soon as its element closes.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "lowercase")]
 pub enum XmlEvent {
@@ -26,8 +22,6 @@ pub enum XmlEvent {
     },
 }
 
-/// What a parse produced. `error` is set when the document broke off; the
-/// events before it were still delivered.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct XmltvStats {
     pub channels: usize,
@@ -45,8 +39,6 @@ fn days_from_civil(y: i64, m: i64, d: i64) -> i64 {
     era * 146_097 + doe - 719_468
 }
 
-/// Parses an XMLTV time (`20240101120000 +0200`, `202401011200`, `20240101`,
-/// with `±hhmm`, `±hh:mm`, `Z`/`UTC`/`GMT` or no zone = UTC) to unix ms.
 pub fn parse_time(s: &str) -> Option<i64> {
     let s = s.trim();
     let digits: String = s.chars().take_while(|c| c.is_ascii_digit()).collect();
@@ -72,7 +64,6 @@ pub fn parse_time(s: &str) -> Option<i64> {
         .map(|(i, _)| i)
         .unwrap_or(s.len())..]
         .trim();
-    // Skip fractional seconds some generators add ("…00.000 +0000").
     let rest = rest
         .trim_start_matches(|c: char| c == '.' || c.is_ascii_digit())
         .trim();
@@ -147,8 +138,6 @@ fn set_first(slot: &mut Option<String>, text: &str) {
     }
 }
 
-/// Parses an XMLTV document (plain or gzip) and calls `sink` for every
-/// channel and programme. Never panics on bad input.
 pub fn parse<R: BufRead>(mut reader: R, sink: impl FnMut(XmlEvent)) -> XmltvStats {
     let gz = match reader.fill_buf() {
         Ok(b) => b.len() >= 2 && b[0] == 0x1f && b[1] == 0x8b,
@@ -235,7 +224,6 @@ fn parse_plain<R: BufRead>(input: R, mut sink: impl FnMut(XmlEvent)) -> XmltvSta
                     }
                 }
             }
-            // quick-xml 0.38 reports `&amp;`, `&#233;`… as their own events.
             Event::GeneralRef(r) => {
                 if field != Field::None {
                     let entity = format!("&{};", String::from_utf8_lossy(&r));
@@ -355,7 +343,6 @@ mod tests {
                 icon: Some("http://img/globo.png".into()),
             }
         );
-        // 2024-01-01T10:00:00Z
         assert_eq!(
             ev[2],
             XmlEvent::Programme {

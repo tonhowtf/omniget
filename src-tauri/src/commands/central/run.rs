@@ -1,10 +1,3 @@
-//! Comandos `run_*` da Central (plano F9): o catálogo em execução. Loops do
-//! catálogo no motor de Loops (`crate::jobs`), workflows como playbooks de
-//! jobs encadeados, wizard de projeto, "Rodar agora" com o runner escolhido e
-//! a receita de sandbox (Docker próprio / E2B). A lógica pura mora em
-//! `omniget_core::core::agentkit_run`; aqui fica a costura com o roster, as
-//! contas de CLI e os jobs.
-
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 
@@ -37,12 +30,8 @@ where
         .map_err(|e| format!("{ERR}: {e}"))?
 }
 
-// ------------------------------------------------------------------ runners
-
-/// A runner resolved to what the Jobs engine takes.
 #[derive(Debug, Clone)]
 pub struct Resolved {
-    /// Roster id, or `tool:<id>`.
     pub agent_id: String,
     pub label: String,
     pub model: Option<String>,
@@ -54,8 +43,6 @@ impl Resolved {
         self.agent_id.starts_with(TOOL_PREFIX)
     }
 
-    /// The prompt and spec of a job with `role` as the agent: a tool runner
-    /// gets it as its system prompt, a roster agent in front of the prompt.
     pub fn job(
         &self,
         role: Option<&AgentPrompt>,
@@ -98,8 +85,6 @@ fn slug(s: &str) -> String {
     out.trim_matches('-').to_string()
 }
 
-/// Id of the account that uses the CLI's default profile (terminal login),
-/// created as `<cli>-terminal` (writes allowed unless `plan`) the first time.
 pub(crate) fn terminal_account(
     llm: &crate::llm_manager::LlmManager,
     cli: &str,
@@ -136,8 +121,6 @@ pub(crate) fn terminal_account(
     Ok(id)
 }
 
-/// Runner → roster agent id (creating the agent for an account or an ACP
-/// agent the first time) or `tool:<id>`.
 pub fn resolve_runner(app: &AppHandle, r: &RunnerSpec) -> Result<Resolved, String> {
     use omniget_core::core::llm::agent::{AgentDef, AgentRole, ModelPolicy, RuntimeKind};
     use omniget_core::core::llm::types::{ModelRef, ProviderId};
@@ -180,8 +163,6 @@ pub fn resolve_runner(app: &AppHandle, r: &RunnerSpec) -> Result<Resolved, Strin
             }
             let mut account = r.account.clone().unwrap_or_default();
             if account.is_empty() {
-                // The terminal's own login = an account with an empty config
-                // dir (the CLI's default profile); reuse one or create it.
                 account = terminal_account(&llm, &cli, r.permission.as_deref())?;
             }
             if llm.accounts().get(&account).is_none() {
@@ -291,8 +272,6 @@ pub fn resolve_runner(app: &AppHandle, r: &RunnerSpec) -> Result<Resolved, Strin
     }
 }
 
-/// Every runner this machine offers: roster agents, CLI accounts, ACP agents
-/// that resolve, and coding CLIs that run headless.
 #[tauri::command]
 pub async fn run_runners(app: AppHandle) -> Result<Value, String> {
     use omniget_core::core::llm::agent::RuntimeKind;
@@ -335,8 +314,6 @@ pub async fn run_runners(app: AppHandle) -> Result<Value, String> {
     Ok(json!({ "roster": roster, "accounts": accounts, "acp": acp, "tools": tools }))
 }
 
-/// Resolves an agent reference: catalog id (`cct:agents/…`), `path:agent:<file>`,
-/// an `.md` file path, or empty (no role). Runs on a blocking thread.
 pub fn agent_role(reference: &str) -> Result<Option<AgentPrompt>, String> {
     let r = reference.trim();
     if r.is_empty() {
@@ -358,10 +335,6 @@ pub fn agent_role(reference: &str) -> Result<Option<AgentPrompt>, String> {
     ra::agent_prompt(&c).map(Some)
 }
 
-// ------------------------------------------------------------------ loops
-
-/// Loop do catálogo → plano do Loop + plano de instalação dos componentes que
-/// ele referencia (o próprio runbook incluso) nas ferramentas escolhidas.
 #[tauri::command]
 pub async fn run_loop_prepare(
     item_id: String,
@@ -408,15 +381,12 @@ pub async fn run_loop_prepare(
     .await
 }
 
-/// For the bridge / CLI (`omniget agent loop --catalog <id>`): a catalog loop
-/// straight to a running Loop, with optional overrides and install targets.
 #[derive(Debug, Clone, Deserialize)]
 pub struct CatalogLoopRequest {
     pub id: String,
     pub runner: RunnerSpec,
     #[serde(default)]
     pub workspace: Option<String>,
-    /// Tools to install the loop's referenced components into (project scope).
     #[serde(default)]
     pub targets: Vec<String>,
     #[serde(default)]
@@ -429,12 +399,10 @@ pub struct CatalogLoopRequest {
     pub max_minutes: Option<u32>,
     #[serde(default)]
     pub max_cost_usd: Option<f64>,
-    /// Keep the runbook's interval (default: rounds back to back).
     #[serde(default)]
     pub use_interval: bool,
 }
 
-/// Prepares (loop plan + install plan applied) and starts a catalog loop.
 pub async fn start_catalog_loop(app: &AppHandle, r: CatalogLoopRequest) -> Result<LoopDef, String> {
     let prepared = run_loop_prepare(
         r.id.clone(),
@@ -492,20 +460,16 @@ pub struct LoopStart {
     pub max_minutes: Option<u32>,
     #[serde(default)]
     pub max_cost_usd: Option<f64>,
-    /// Catalog id of the loop.
     #[serde(default)]
     pub source: Option<String>,
-    /// Agent used as the role of every round (catalog id / file).
     #[serde(default)]
     pub agent: Option<String>,
-    /// Install plan (from `run_loop_prepare`) applied before the first round.
     #[serde(default)]
     pub plan_id: Option<String>,
     #[serde(default)]
     pub sandbox: Option<sandbox::SandboxOpts>,
 }
 
-/// Creates the Loop (after applying the install plan, when given).
 pub async fn start_loop(app: &AppHandle, s: LoopStart) -> Result<LoopDef, String> {
     if let Some(plan_id) = s.plan_id.clone().filter(|p| !p.is_empty()) {
         blocking(move || {
@@ -546,10 +510,6 @@ pub async fn run_loop_start(app: AppHandle, start: LoopStart) -> Result<Value, S
     to_value(start_loop(&app, start).await?)
 }
 
-// ------------------------------------------------------------------ run now
-
-/// "Rodar agora": um Job com o agente (ou comando) como papel e o runner
-/// escolhido; com `sandbox`, roda num container sobre uma cópia do projeto.
 #[tauri::command]
 pub async fn run_agent_now(
     app: AppHandle,
@@ -580,9 +540,6 @@ pub async fn run_agent_now(
     )?)
 }
 
-// ------------------------------------------------------------------ playbooks
-
-/// Workflow do catálogo (ou um playbook montado na UI) → playbook resolvido.
 #[tauri::command]
 pub async fn run_playbook_prepare(
     item_id: Option<String>,
@@ -604,9 +561,6 @@ pub async fn run_playbook_prepare(
     .await
 }
 
-/// Starts a playbook: installs its setup components (MCP servers) when
-/// `targets` is given, resolves each step's runner and role, and chains the
-/// steps as jobs visible in `/llm/jobs`.
 #[tauri::command]
 pub async fn run_playbook_start(
     app: AppHandle,
@@ -707,10 +661,6 @@ pub async fn run_playbook_delete(app: AppHandle, id: String) -> Result<Value, St
     Ok(json!({ "ok": true }))
 }
 
-// ------------------------------------------------------------------ wizard
-
-/// Detecta a stack, sugere as peças dos templates do catálogo e as
-/// ferramentas-alvo (instaladas ou com marcador no projeto).
 #[tauri::command]
 pub async fn run_wizard_detect(
     project_dir: String,
@@ -742,8 +692,6 @@ pub async fn run_wizard_detect(
     Ok(v)
 }
 
-/// Plano de instalação das peças escolhidas (e só delas) nas ferramentas
-/// escolhidas, escopo projeto. Aplicar com `agentkit_apply(plan.id)`.
 #[tauri::command]
 pub async fn run_wizard_plan(
     session_id: String,
@@ -775,7 +723,6 @@ pub async fn run_wizard_plan(
     .await
 }
 
-/// "Revisar o setup com um agente": Job read-only com o runner escolhido.
 #[tauri::command]
 pub async fn run_wizard_review(
     app: AppHandle,
@@ -806,14 +753,11 @@ pub async fn run_wizard_review(
     to_value(jobs::get(&app)?.submit_spec("run", &resolved.agent_id, &p, Some(project_dir), s)?)
 }
 
-// ------------------------------------------------------------------ sandbox
-
 #[tauri::command]
 pub async fn run_sandbox_status() -> Result<Value, String> {
     Ok(sandbox::status().await)
 }
 
-/// The generated Dockerfile and image tag of `tool` (shown before a run).
 #[tauri::command]
 pub async fn run_sandbox_dockerfile(tool: String) -> Result<Value, String> {
     let text = sandbox::docker::dockerfile(&tool)?;
@@ -822,7 +766,6 @@ pub async fn run_sandbox_dockerfile(tool: String) -> Result<Value, String> {
     Ok(json!({ "dockerfile": text, "tag": tag, "dir": dir }))
 }
 
-/// Diff of a sandboxed job (its id names the run folder).
 #[tauri::command]
 pub async fn run_sandbox_diff(job_id: String) -> Result<Value, String> {
     blocking(move || {
@@ -833,7 +776,6 @@ pub async fn run_sandbox_diff(job_id: String) -> Result<Value, String> {
     .await
 }
 
-/// Writes the chosen files of a sandboxed job back into the project.
 #[tauri::command]
 pub async fn run_sandbox_apply(
     job_id: String,
@@ -855,18 +797,14 @@ pub async fn run_sandbox_discard(job_id: String) -> Result<Value, String> {
     .await
 }
 
-/// For the bridge / CLI: `omniget agent run <agent> --tool <x> "<prompt>"`.
 #[derive(Debug, Clone, Deserialize)]
 pub struct ToolRunRequest {
-    /// Catalog id, `path:agent:<file>` or empty.
     #[serde(default)]
     pub agent: Option<String>,
-    /// Markdown of an agent file the CLI read.
     #[serde(default)]
     pub agent_markdown: Option<String>,
     #[serde(default)]
     pub agent_name: Option<String>,
-    /// `claude|codex|gemini|opencode|qwen|cursor|…|native`
     pub tool: String,
     pub prompt: String,
     #[serde(default)]
@@ -875,17 +813,14 @@ pub struct ToolRunRequest {
     pub model: Option<String>,
     #[serde(default)]
     pub permission: Option<String>,
-    /// Roster agent for `--tool native` (default `omni`).
     #[serde(default)]
     pub native_agent: Option<String>,
     #[serde(default)]
     pub sandbox: Option<sandbox::SandboxOpts>,
-    /// Append the project's stack ("PROJECT CONTEXT") to the prompt.
     #[serde(default)]
     pub context: bool,
 }
 
-/// Body of the bridge route: resolves the agent and submits the job.
 pub async fn submit_tool_run(app: &AppHandle, req: ToolRunRequest) -> Result<jobs::Job, String> {
     let runner_spec = if req.tool == "native" {
         RunnerSpec {

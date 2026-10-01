@@ -1,8 +1,3 @@
-//! Keeping reading state in step elsewhere: KOReader sync (progress by
-//! document hash, the protocol KOReader and many readers speak), a JSON
-//! backup of everything that isn't a file, and importing a Mihon /
-//! Tachiyomi backup.
-
 use std::collections::HashMap;
 
 use rusqlite::params;
@@ -12,8 +7,6 @@ use tauri::{AppHandle, Emitter};
 use omniget_core::core::read::{kosync, tachibk};
 
 use super::{blocking, db};
-
-// ---------- KOReader sync ----------
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(default)]
@@ -41,8 +34,6 @@ fn client() -> Option<kosync::Client> {
         .then(|| kosync::Client::new(&c.server, &c.username, &c.password, false))
 }
 
-/// Saves the config; with `register` also creates the account. Always
-/// checks the login.
 #[tauri::command]
 pub async fn read_kosync_config(
     set: Option<KosyncConfig>,
@@ -93,7 +84,6 @@ pub async fn read_kosync_push(id: i64) -> Result<(), String> {
     .await
 }
 
-/// What the server has for this book, when it is ahead of us.
 #[tauri::command]
 pub async fn read_kosync_pull(id: i64) -> Result<Option<kosync::Progress>, String> {
     let Some(cl) = client() else { return Ok(None) };
@@ -113,8 +103,6 @@ fn device_id() -> String {
     let _ = db::kv_set("device_id", &id);
     id
 }
-
-// ---------- JSON backup ----------
 
 #[derive(Debug, Serialize, Deserialize, Default)]
 pub struct Backup {
@@ -172,7 +160,6 @@ pub struct SeriesState {
     pub auto_download: bool,
     pub chapter_langs: Vec<String>,
     pub categories: Vec<String>,
-    /// Chapter keys read, and last page of the one in progress.
     pub read: Vec<String>,
     pub bookmarked: Vec<String>,
 }
@@ -313,8 +300,6 @@ pub async fn read_backup_export(path: String) -> Result<usize, String> {
     .await
 }
 
-/// Merges a backup: books are matched by hash, then path; series by source
-/// and key. Existing progress wins when it is further along.
 #[tauri::command]
 pub async fn read_backup_import(app: AppHandle, path: String) -> Result<String, String> {
     let msg = blocking(move || {
@@ -414,7 +399,6 @@ pub async fn read_backup_import(app: AppHandle, path: String) -> Result<String, 
                         params![sid, cat],
                     )?;
                 }
-                // Read marks are applied after the next sync creates the rows.
                 c.execute(
                     "INSERT INTO kv (key, value) VALUES (?1, ?2) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
                     params![format!("pending_read:{sid}"), serde_json::json!({ "read": s.read, "bookmarked": s.bookmarked }).to_string()],
@@ -441,19 +425,12 @@ pub async fn read_backup_import(app: AppHandle, path: String) -> Result<String, 
     Ok(msg)
 }
 
-// ---------- Mihon / Tachiyomi ----------
-
 #[derive(Serialize)]
 pub struct MihonImport {
     pub imported: usize,
-    /// Titles from sources OmniGet can't open (install the matching
-    /// declarative source or use the Suwayomi bridge).
     pub unmatched: Vec<(String, String)>,
 }
 
-/// Imports a `.tachibk`: MangaDex entries become followed series with
-/// their read marks; everything else is listed so the user can bring it
-/// through a source of their own.
 #[tauri::command]
 pub async fn read_import_mihon(app: AppHandle, path: String) -> Result<MihonImport, String> {
     let list = blocking(move || {
@@ -521,7 +498,6 @@ pub async fn read_import_mihon(app: AppHandle, path: String) -> Result<MihonImpo
         })
         .await?;
         imported += 1;
-        // MangaDex rate limit.
         tokio::time::sleep(std::time::Duration::from_millis(400)).await;
     }
     let _ = app.emit("read-series-changed", ());

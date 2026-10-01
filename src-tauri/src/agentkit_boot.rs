@@ -1,19 +1,3 @@
-//! Boot step of the Central's agentkit: puts the hook shim (`omniget-hook-shim`,
-//! a binary of `omniget-cli`) at a stable place, `<app_data>/bin/`, and pins the
-//! converters to that path, so the hook commands written into other tools'
-//! config files survive app updates, moves of the bundle and dev/release
-//! switches.
-//!
-//! Source lookup: next to the running executable (release bundle, where Tauri
-//! puts the `omniget-hook` `externalBin` sidecar without its target triple,
-//! and `cargo run` in dev, where every workspace binary lands in
-//! `target/<profile>/`), then the workspace `target/debug` and
-//! `target/release` folders (dev builds started from another folder). Only a
-//! runnable file counts (`usable_binary`): the empty sidecar placeholder of a
-//! dev/CI build is never installed, and an installed copy that is not
-//! runnable is not pinned. The copy happens only when the destination is
-//! missing or its hash differs. Runs once, off the main thread.
-
 use std::path::{Path, PathBuf};
 
 use omniget_core::core::agentkit::convert::hook_common::{
@@ -38,7 +22,6 @@ fn sha256_file(p: &Path) -> Option<String> {
     Some(hex::encode(sha2::Sha256::digest(&bytes)))
 }
 
-/// Where a built shim may be, in order: the bundled sidecar first.
 fn candidates() -> Vec<PathBuf> {
     let name = exe_name();
     let sidecar = exe(SHIM_SIDECAR);
@@ -49,7 +32,6 @@ fn candidates() -> Vec<PathBuf> {
     {
         out.push(dir.join(&sidecar));
         out.push(dir.join(&name));
-        // macOS bundle: Contents/MacOS/<app> — resources live in Contents/Resources
         if let Some(contents) = dir.parent() {
             out.push(contents.join("Resources").join(&name));
         }
@@ -61,20 +43,15 @@ fn candidates() -> Vec<PathBuf> {
     out
 }
 
-/// The destination: `<app_data>/bin/omniget-hook-shim[.exe]`.
 pub fn shim_destination() -> Option<PathBuf> {
     omniget_core::core::paths::app_data_dir().map(|d| d.join("bin").join(exe_name()))
 }
 
-/// Copies the shim to `<app_data>/bin/` when missing or different and pins the
-/// converters to it. Returns the pinned path (or `None` when no shim exists
-/// anywhere: hook commands then fall back to the core's own lookup).
 pub fn ensure_shim() -> Result<Option<PathBuf>, String> {
     let dst = shim_destination().ok_or("AGENTKIT_BOOT: no app data directory")?;
     ensure_shim_from(&candidates(), &dst)
 }
 
-/// [`ensure_shim`] with the sources and the destination given (tests).
 fn ensure_shim_from(candidates: &[PathBuf], dst: &Path) -> Result<Option<PathBuf>, String> {
     let dst = dst.to_path_buf();
     let src = candidates
@@ -97,8 +74,6 @@ fn ensure_shim_from(candidates: &[PathBuf], dst: &Path) -> Result<Option<PathBuf
         set_shim_path(Some(dst.clone()));
         Ok(Some(dst))
     } else {
-        // An empty or broken copy (an older build installed the placeholder)
-        // goes away: a hook command must never point at it.
         if dst.exists() {
             let _ = std::fs::remove_file(&dst);
             tracing::warn!(
@@ -111,8 +86,7 @@ fn ensure_shim_from(candidates: &[PathBuf], dst: &Path) -> Result<Option<PathBuf
     }
 }
 
-/// Atomic copy with the executable bit (a running shim on Windows keeps the
-/// old file: the rename fails and the next boot tries again).
+// WHY: a running shim on Windows keeps the old file locked: the rename fails and the next boot retries.
 fn install(src: &Path, dst: &Path) -> Result<(), String> {
     let dir = dst.parent().ok_or("AGENTKIT_BOOT: bad destination")?;
     std::fs::create_dir_all(dir).map_err(|e| format!("AGENTKIT_BOOT: {}: {e}", dir.display()))?;
@@ -134,9 +108,6 @@ fn install(src: &Path, dst: &Path) -> Result<(), String> {
     Ok(())
 }
 
-/// The canvas helper (C2): the same binary as the shim, installed as
-/// `<app_data>/bin/omniget`; called by that name it answers
-/// `omniget canvas …` for the agents in canvas terminals.
 fn ensure_canvas_cli(shim: &Path) {
     let Some(dst) = shim.parent().map(|d| d.join(exe("omniget"))) else {
         return;
@@ -149,7 +120,6 @@ fn ensure_canvas_cli(shim: &Path) {
     }
 }
 
-/// Setup hook: runs [`ensure_shim`] on its own thread and logs the outcome.
 pub fn spawn_ensure_shim() {
     let _ = std::thread::Builder::new()
         .name("agentkit-shim".into())

@@ -1,19 +1,7 @@
-//! Who holds a file open, through the Windows Restart Manager
-//! (`RmStartSession`, `RmRegisterResources`, `RmGetList`, `RmEndSession`).
-//! The cleanup engine uses it to mark an item "in use by <app>" instead of
-//! failing half way (idea from Kudu, MIT, `src/main/services/cleaner-blockers.ts`,
-//! which does the same through PowerShell; here it is a direct call).
-//!
-//! Only reads. Outside Windows it returns nothing.
-
 use std::path::PathBuf;
 
-/// Most paths asked about in one call (Kudu uses the same cap).
 pub const MAX_PATHS: usize = 512;
 
-/// For each path that some process holds, the display names of those
-/// processes (`"Windows Explorer"`, `"Google Chrome"`, or the service short
-/// name for a service). Paths nobody holds are left out.
 pub fn lockers(paths: &[PathBuf]) -> Vec<(PathBuf, Vec<String>)> {
     let paths = &paths[..paths.len().min(MAX_PATHS)];
     if paths.is_empty() {
@@ -55,8 +43,6 @@ mod imp {
         String::from_utf16_lossy(&buf[..end]).trim().to_string()
     }
 
-    /// One Restart Manager session over `paths`; the processes holding any
-    /// of them. `None` when the API fails (treated as "unknown", not "free").
     fn holders(paths: &[PathBuf]) -> Option<Vec<String>> {
         let wides: Vec<Vec<u16>> = paths.iter().map(|p| wide(p)).collect();
         let ptrs: Vec<PCWSTR> = wides.iter().map(|w| w.as_ptr()).collect();
@@ -105,7 +91,6 @@ mod imp {
             if rc != ERROR_MORE_DATA {
                 return None;
             }
-            // Processes can start between the two calls: retry a few times.
             for _ in 0..3 {
                 let mut buf: Vec<RM_PROCESS_INFO> =
                     vec![RM_PROCESS_INFO::default(); needed as usize + 4];
@@ -151,9 +136,6 @@ mod imp {
     }
 
     pub fn lockers(paths: &[PathBuf]) -> Vec<(PathBuf, Vec<String>)> {
-        // One session for the whole batch first: nearly always nobody holds
-        // anything and that is a single round trip. Only when someone does,
-        // ask per path to know which file each process holds.
         match holders(paths) {
             Some(v) if v.is_empty() => return Vec::new(),
             None => return Vec::new(),

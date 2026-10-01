@@ -1,6 +1,3 @@
-//! Calendar events that are online meetings: what is coming up (to send a
-//! bot or to prepare) and what just happened (to fetch its transcript).
-
 use serde::Serialize;
 use serde_json::Value;
 
@@ -8,7 +5,6 @@ use serde_json::Value;
 pub struct CalendarMeeting {
     pub id: String,
     pub subject: String,
-    /// UTC, RFC 3339.
     pub start: String,
     pub end: String,
     pub organizer: String,
@@ -19,7 +15,6 @@ pub struct CalendarMeeting {
 }
 
 fn utc(v: &Value) -> String {
-    // With `Prefer: outlook.timezone="UTC"` the time comes without offset.
     let t = v["dateTime"].as_str().unwrap_or("");
     let t = t.split('.').next().unwrap_or(t);
     if t.is_empty() || t.ends_with('Z') {
@@ -34,7 +29,6 @@ fn event(v: &Value) -> CalendarMeeting {
         .as_str()
         .map(str::to_string)
         .or_else(|| {
-            // Some invites only carry the link in the location.
             v["location"]["displayName"]
                 .as_str()
                 .filter(|l| l.starts_with("https://teams.microsoft.com/"))
@@ -61,7 +55,6 @@ fn event(v: &Value) -> CalendarMeeting {
     }
 }
 
-/// Online meetings between `past_days` ago and `days` ahead, by start time.
 pub async fn meetings(
     past_days: i64,
     days: i64,

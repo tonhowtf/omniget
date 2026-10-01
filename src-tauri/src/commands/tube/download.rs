@@ -1,11 +1,6 @@
-//! OmniTube downloads go through the app's download queue (same progress,
-//! history and retries as everything else). What OmniTube adds is the
-//! exact yt-dlp format from the quality menu and the SponsorBlock choice.
-
 use serde::Deserialize;
 use tauri::{AppHandle, Manager};
 
-/// SponsorBlock categories yt-dlp accepts.
 const YTDLP_SB_CATEGORIES: &[&str] = &[
     "sponsor",
     "intro",
@@ -19,36 +14,29 @@ const YTDLP_SB_CATEGORIES: &[&str] = &[
     "poi_highlight",
     "chapter",
 ];
-/// Categories that only make sense as chapter marks.
 const MARK_ONLY: &[&str] = &["poi_highlight", "chapter"];
 
 #[derive(Debug, Clone, Default, Deserialize)]
 pub struct TubeDownloadReq {
     pub video_id: String,
-    /// music.youtube.com URL (audio track of a song).
     #[serde(default)]
     pub music: bool,
-    /// Exact formats from the `StreamSet` (quality menu).
     #[serde(default)]
     pub video_itag: Option<u32>,
     #[serde(default)]
     pub audio_itag: Option<u32>,
     #[serde(default)]
     pub audio_only: bool,
-    /// Height cap when no itag is given; `None` = best.
     #[serde(default)]
     pub height: Option<u32>,
-    /// "off" | "mark" | "remove"; `None` = `settings.tube.sb_download`.
     #[serde(default)]
     pub sponsorblock: Option<String>,
     #[serde(default)]
     pub folder: Option<String>,
-    /// For the SponsorBlock channel whitelist.
     #[serde(default)]
     pub channel_id: Option<String>,
 }
 
-/// What the queue receives.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Plan {
     pub url: String,
@@ -67,9 +55,6 @@ pub fn watch_url(video_id: &str, music: bool) -> String {
     }
 }
 
-/// Full `-f` selector for explicit itags. It always carries a `/` fallback,
-/// which makes the queue pass it to yt-dlp untouched; the fallback keeps the
-/// height when the exact itag is gone by the time the download starts.
 pub fn format_selector(
     video_itag: Option<u32>,
     audio_itag: Option<u32>,
@@ -87,8 +72,6 @@ pub fn format_selector(
     }
 }
 
-/// yt-dlp flags for one download. `--no-sponsorblock` also keeps the app-wide
-/// SponsorBlock setting from applying to this download.
 pub fn sponsorblock_args(mode: &str, categories: &[String]) -> Vec<String> {
     let known = |c: &&String| YTDLP_SB_CATEGORIES.contains(&c.as_str());
     let cats: Vec<&String> = match mode {
@@ -116,8 +99,6 @@ pub fn sponsorblock_args(mode: &str, categories: &[String]) -> Vec<String> {
     vec![flag.into(), list]
 }
 
-/// Categories for a download: "remove" cuts what the player skips; "mark"
-/// turns every visible category into a chapter.
 pub fn download_categories(
     mode: &str,
     map: &std::collections::BTreeMap<String, String>,
@@ -176,7 +157,6 @@ pub fn plan_for(app: &AppHandle, req: &TubeDownloadReq) -> Plan {
     }
 }
 
-/// Hands a plan to the download queue. Returns the queue id.
 pub async fn enqueue(app: &AppHandle, plan: Plan) -> Result<u64, String> {
     let started = crate::commands::downloads::download_from_url_with_args(
         app.clone(),
@@ -201,7 +181,6 @@ pub async fn enqueue(app: &AppHandle, plan: Plan) -> Result<u64, String> {
     Ok(started.id)
 }
 
-/// Returns the queue id as a string.
 #[tauri::command]
 pub async fn tube_download(app: AppHandle, req: TubeDownloadReq) -> Result<String, String> {
     if req.video_id.len() != 11 {

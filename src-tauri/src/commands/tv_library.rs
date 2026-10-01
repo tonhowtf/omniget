@@ -1,15 +1,4 @@
-//! Downloads › Tools › TV library: turns a channel or playlist into a TV
-//! show that Jellyfin, Emby, Kodi and Plex recognise on their own, and keeps
-//! it in sync when run again.
-//!
 //! The layout comes from ytdl-sub's "TV Show by Date" presets (GPL-3.0;
-//! reimplemented here, no code copied): one folder per channel, a
-//! `Season YYYY` folder per upload year, episodes named
-//! `sYYYY.eMMDDNN - Title.ext` (NN = order of the video on that day), a
-//! `-thumb.jpg` and an `episodedetails` NFO next to each episode, a
-//! `tvshow.nfo` at the top, and a download archive so a second run only
-//! fetches what is new. Plex reads no NFO, so it gets the files and the
-//! metadata embedded in the MP4 instead.
 
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
@@ -48,15 +37,12 @@ pub fn xml_escape(s: &str) -> String {
         .replace('"', "&quot;")
 }
 
-/// Kodi cannot show characters outside the Basic Multilingual Plane
-/// (emoji); ytdl-sub swaps them for a box, and so does this.
 pub fn kodi_safe(s: &str) -> String {
     s.chars()
         .map(|c| if (c as u32) > 0xFFFF { '□' } else { c })
         .collect()
 }
 
-/// Tags in alphabetical order, empty ones left out, like ytdl-sub writes them.
 fn nfo(root: &str, mut tags: Vec<(&str, String)>, kodi: bool) -> String {
     tags.retain(|(_, v)| !v.trim().is_empty());
     tags.sort_by(|a, b| a.0.cmp(b.0));
@@ -70,7 +56,6 @@ fn nfo(root: &str, mut tags: Vec<(&str, String)>, kodi: bool) -> String {
     out
 }
 
-/// `20240315` → `("2024", "03", "15")`.
 pub fn split_date(date: &str) -> Option<(&str, &str, &str)> {
     if date.len() == 8 && date.bytes().all(|b| b.is_ascii_digit()) {
         Some((&date[..4], &date[4..6], &date[6..]))
@@ -79,8 +64,6 @@ pub fn split_date(date: &str) -> Option<(&str, &str, &str)> {
     }
 }
 
-/// The next free day index (01, 02...) for `date` among the episode files
-/// already in the season folder.
 pub fn next_day_index(existing: &[String], date: &str) -> u32 {
     let Some((y, m, d)) = split_date(date) else {
         return 1;
@@ -100,7 +83,6 @@ pub fn next_day_index(existing: &[String], date: &str) -> u32 {
     used + 1
 }
 
-/// `s2024.e031501 - Title`
 pub fn episode_stem(date: &str, index: u32, title: &str) -> String {
     let (y, m, d) = split_date(date).unwrap_or(("0000", "00", "00"));
     let clean = omniget_core::core::filename::sanitize_path_component(title);
@@ -155,7 +137,6 @@ pub fn tvshow_nfo(show: &str, genre: &str, rating: &str, kodi: bool) -> String {
     )
 }
 
-/// The show name: the channel, else the uploader, else the playlist.
 pub fn show_name(info: &Value) -> String {
     ["channel", "uploader", "playlist_uploader", "playlist_title"]
         .iter()
@@ -168,7 +149,6 @@ pub fn show_name(info: &Value) -> String {
         .to_string()
 }
 
-/// A stable name for the download archive of one link.
 fn archive_name(url: &str) -> String {
     use std::hash::{Hash, Hasher};
     let mut h = std::collections::hash_map::DefaultHasher::new();
@@ -203,7 +183,6 @@ pub fn download_args(
         "jpg".to_string(),
         "--download-archive".to_string(),
         archive.to_string_lossy().into_owned(),
-        // ytdl-sub's default: no lives, no premieres waiting to start.
         "--match-filter".to_string(),
         "!is_live & live_status!=is_upcoming".to_string(),
     ];
@@ -219,7 +198,6 @@ pub fn download_args(
     a
 }
 
-/// `[download] Downloading item 3 of 10`
 pub fn parse_item(line: &str) -> Option<(u32, u32)> {
     let rest = line.split("Downloading item ").nth(1)?;
     let mut it = rest.split(" of ");
@@ -233,8 +211,6 @@ fn parse_percent(line: &str) -> Option<f64> {
     rest.split('%').next()?.trim().parse().ok()
 }
 
-/// Moves what yt-dlp left in `staging` into the show folder. Returns the
-/// show folder, the show name and the episode files added.
 pub fn arrange(
     staging: &Path,
     library: &Path,
@@ -255,7 +231,6 @@ pub fn arrange(
             }
         }
     }
-    // Oldest first, so the day index follows the upload order.
     infos.sort_by_key(|(v, _)| {
         (
             v.get("upload_date")
@@ -375,7 +350,6 @@ pub async fn tv_library_sync(
     if let Ok(mut cur) = CURRENT.lock() {
         *cur = None;
     }
-    // Whatever finished is filed, even after a stop or an error on one video.
     let genre = genre
         .filter(|g| !g.trim().is_empty())
         .unwrap_or_else(|| "YouTube".to_string());

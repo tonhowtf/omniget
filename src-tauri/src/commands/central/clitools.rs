@@ -1,11 +1,3 @@
-//! Comandos `clitools_*` da Central (`/llm/tools`): tabela de CLIs, detecção
-//! com prova de dono, versão mais nova, planos de instalar/atualizar com o
-//! comando visível, execução com log ao vivo (`clitools://progress`), registro
-//! ACP, login no terminal e diagnóstico.
-//!
-//! A lógica mora em `omniget_core::core::clitools`; aqui só a costura com o
-//! Tauri (eventos e contas).
-
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
@@ -30,7 +22,6 @@ fn to_value<T: serde::Serialize>(v: &T) -> Result<Value, String> {
     serde_json::to_value(v).map_err(|e| format!("{}: {e}", ct::ERR_FAILED))
 }
 
-/// Tabela + última detecção (não roda nada).
 #[tauri::command]
 pub async fn clitools_list() -> Result<Value, String> {
     to_value(&json!({
@@ -40,11 +31,8 @@ pub async fn clitools_list() -> Result<Value, String> {
     }))
 }
 
-/// Varre as ferramentas (cache em memória; `force` refaz).
 #[tauri::command]
 pub async fn clitools_detect(force: Option<bool>) -> Result<Value, String> {
-    // Roda fora do executor: o future de `detect_all` (buffer_unordered com
-    // closure) não passa na checagem de `Send` genérica do handler do Tauri.
     let force = force.unwrap_or(false);
     let list = tauri::async_runtime::spawn_blocking(move || {
         tauri::async_runtime::block_on(detect::detect_all(force))
@@ -54,14 +42,12 @@ pub async fn clitools_detect(force: Option<bool>) -> Result<Value, String> {
     to_value(&*list)
 }
 
-/// Versão instalada × mais nova (`unknown|current|behind_latest`).
 #[tauri::command]
 pub async fn clitools_latest(id: String, force: Option<bool>) -> Result<Value, String> {
     let l = ct::latest(&id, force.unwrap_or(false)).await?;
     to_value(&l)
 }
 
-/// Planos de `install` (um por método) ou `update` (o do dono provado).
 #[tauri::command]
 pub async fn clitools_plan(id: String, action: String) -> Result<Value, String> {
     let action = plan::Action::parse(&action)
@@ -70,16 +56,12 @@ pub async fn clitools_plan(id: String, action: String) -> Result<Value, String> 
     to_value(&plans)
 }
 
-/// Roda um plano; o log sai em `clitools://progress` e o resultado volta aqui.
 #[tauri::command]
 pub async fn clitools_run(app: AppHandle, plan_id: String) -> Result<Value, String> {
     let result = run::run_plan(&plan_id, progress_fn(app)).await?;
     to_value(&result)
 }
 
-/// Login no terminal do sistema, na conta certa. `surface = "embedded"`
-/// devolve só o lançamento (programa, argumentos, ambiente) para o terminal
-/// embutido da rodada 2 abrir.
 #[tauri::command]
 pub async fn clitools_login(
     id: String,
@@ -144,16 +126,12 @@ pub async fn clitools_login(
     to_value(&launch)
 }
 
-/// Registro ACP com os agentes e o que já foi instalado.
 #[tauri::command]
 pub async fn clitools_acp_registry(force: Option<bool>) -> Result<Value, String> {
     let v = acp_registry::registry(force.unwrap_or(false)).await?;
     to_value(&v)
 }
 
-/// Instala um agente do registro e devolve o comando ACP pronto.
-/// `method`: `npx|uvx|binary` (opcional). `allow_unverified`: aceitar binário
-/// sem sha256 no registro (a tela pede confirmação antes).
 #[tauri::command]
 pub async fn clitools_acp_install(
     app: AppHandle,
@@ -171,7 +149,6 @@ pub async fn clitools_acp_install(
     to_value(&launch)
 }
 
-/// Diagnóstico de uma ferramenta.
 #[tauri::command]
 pub async fn clitools_doctor(id: String) -> Result<Value, String> {
     let t: &table::CliTool = ct::tool(&id)?;
@@ -179,13 +156,8 @@ pub async fn clitools_doctor(id: String) -> Result<Value, String> {
     to_value(&report)
 }
 
-// ── Saúde da config e monitor de releases (r3-health) ───────────────────
-
 pub const UPDATES_EVENT: &str = "clitools://updates";
 
-/// Arquivos de config reais de uma ferramenta por escopo (global e, com
-/// `projectDir`, projeto/local): só caminho, existência e tamanho. Nomes de
-/// credencial (auth.json, credentials*, oauth*, *token*) são pulados.
 #[tauri::command]
 pub async fn clitools_config_files(
     tool: String,
@@ -202,14 +174,6 @@ pub async fn clitools_config_files(
     to_value(&files)
 }
 
-/// Instalada × mais nova das ferramentas detectadas (cache de 1 h do
-/// `latest`) com changelog curto dos releases do GitHub.
-///
-/// - `auto = true`: respeita o intervalo de 24 h; se ainda não venceu, devolve
-///   o último relatório (`from_cache = true`) sem rede e sem evento.
-/// - `force = true`: ignora os caches de versão.
-///
-/// Toda checagem feita de verdade emite `clitools://updates` com o relatório.
 #[tauri::command]
 pub async fn clitools_updates(
     app: AppHandle,
@@ -230,7 +194,6 @@ pub async fn clitools_updates(
             }
         }
     }
-    // Mesmo motivo do `clitools_detect`: o future da detecção não é `Send`.
     let report = tauri::async_runtime::spawn_blocking(move || {
         tauri::async_runtime::block_on(async move {
             let dets = detect::detect_all(false).await;
@@ -243,7 +206,6 @@ pub async fn clitools_updates(
     to_value(&report)
 }
 
-/// Último relatório de atualizações guardado (sem rede).
 #[tauri::command]
 pub async fn clitools_updates_cached() -> Result<Value, String> {
     to_value(&omniget_core::core::clitools::updates::cached_report())

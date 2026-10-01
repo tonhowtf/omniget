@@ -1,24 +1,14 @@
-//! File operations every module shares: fingerprint, honest size, and a
-//! removal that never follows a symlink or a Windows junction.
-//!
-//! Sizes are allocated blocks with hardlinks counted once (a pnpm
-//! `node_modules` is not ten times its real size). "Freed" is the sum of
-//! what actually left, never a `statvfs` difference.
-
 use std::collections::HashSet;
 use std::fs::Metadata;
 use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
-/// What a plan remembers of a path, checked again right before it acts.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub struct Fingerprint {
     pub dev: u64,
     pub ino: u64,
-    /// Allocated bytes of the file, or of the whole tree for a folder.
     pub size: u64,
-    /// Modification time in nanoseconds since the epoch.
     pub mtime: i64,
     pub is_dir: bool,
 }
@@ -42,7 +32,6 @@ fn mtime_ns(m: &Metadata) -> i64 {
         .unwrap_or(0)
 }
 
-/// Allocated bytes of one entry (blocks on Unix, length elsewhere).
 pub fn allocated(m: &Metadata) -> u64 {
     #[cfg(unix)]
     {
@@ -55,7 +44,6 @@ pub fn allocated(m: &Metadata) -> u64 {
     }
 }
 
-/// A symlink, or on Windows any reparse point (junction, mount point).
 pub fn is_link(m: &Metadata) -> bool {
     if m.file_type().is_symlink() {
         return true;
@@ -71,14 +59,11 @@ pub fn is_link(m: &Metadata) -> bool {
     false
 }
 
-/// Size of a path in allocated bytes, hardlinks once, links not followed.
-/// Returns `(bytes, files)`.
 pub fn measure(path: &Path) -> (u64, u64) {
     let mut seen = HashSet::new();
     measure_with(path, &mut seen)
 }
 
-/// Same as [`measure`], sharing the hardlink set across several roots.
 pub fn measure_with(path: &Path, seen: &mut HashSet<(u64, u64)>) -> (u64, u64) {
     let Ok(m) = std::fs::symlink_metadata(path) else {
         return (0, 0);
@@ -120,8 +105,6 @@ fn count_once(m: &Metadata, seen: &mut HashSet<(u64, u64)>) -> u64 {
     allocated(m)
 }
 
-/// Fingerprint of a path without following a link. Folders carry the size
-/// of their whole tree.
 pub fn fingerprint(path: &Path) -> Result<Fingerprint, String> {
     let m = std::fs::symlink_metadata(path).map_err(|e| format!("{}: {e}", path.display()))?;
     let (dev, ino) = dev_ino(&m);
@@ -140,10 +123,6 @@ pub fn fingerprint(path: &Path) -> Result<Fingerprint, String> {
     })
 }
 
-/// Cheap fingerprint check: same device, inode and type, and for a file the
-/// same mtime and size. A folder's mtime changes whenever a child comes or
-/// goes, so folders are compared by identity only; each child is removed
-/// through the same no-follow walk.
 pub fn unchanged(path: &Path, fp: &Fingerprint) -> Result<(), String> {
     let m = std::fs::symlink_metadata(path).map_err(|_| "GONE: the path no longer exists")?;
     if is_link(&m) {
@@ -163,10 +142,6 @@ pub fn unchanged(path: &Path, fp: &Fingerprint) -> Result<(), String> {
     Ok(())
 }
 
-/// Remove a path for good. A link is removed itself, never its target; a
-/// folder is emptied depth first through the same rule. `contents_only`
-/// keeps the folder itself (cache roots apps expect to exist).
-/// Returns the bytes that actually left.
 pub fn remove_tree(path: &Path, contents_only: bool) -> Result<u64, String> {
     let m = std::fs::symlink_metadata(path).map_err(|e| format!("{}: {e}", path.display()))?;
     if is_link(&m) {
@@ -199,7 +174,6 @@ pub fn remove_tree(path: &Path, contents_only: bool) -> Result<u64, String> {
         }
     }
     match first_error {
-        // Partial removal still reports what left; the caller records both.
         Some(err) if freed == 0 => Err(err),
         _ => Ok(freed),
     }
@@ -208,8 +182,6 @@ pub fn remove_tree(path: &Path, contents_only: bool) -> Result<u64, String> {
 fn remove_link(path: &Path, _m: &Metadata) -> Result<(), String> {
     #[cfg(windows)]
     {
-        // A directory junction or directory symlink is removed with
-        // RemoveDirectory, which deletes the link and never the target.
         if _m.is_dir() {
             return std::fs::remove_dir(path).map_err(|e| format!("{}: {e}", path.display()));
         }
@@ -217,13 +189,10 @@ fn remove_link(path: &Path, _m: &Metadata) -> Result<(), String> {
     std::fs::remove_file(path).map_err(|e| format!("{}: {e}", path.display()))
 }
 
-/// Send a path to the system Trash.
 pub fn to_trash(path: &Path) -> Result<(), String> {
     trash::delete(path).map_err(|e| format!("{}: {e}", path.display()))
 }
 
-/// Expand `~` and `$VAR`/`%VAR%` in a rule target. Pure string work; the
-/// result is never handed to a shell.
 pub fn expand_vars(pattern: &str, lookup: &dyn Fn(&str) -> Option<String>) -> Option<String> {
     let mut out = String::new();
     let mut rest = pattern;
@@ -274,7 +243,6 @@ pub fn expand_vars(pattern: &str, lookup: &dyn Fn(&str) -> Option<String>) -> Op
     Some(out)
 }
 
-/// The environment lookup `expand_vars` uses at run time.
 pub fn env_lookup(name: &str) -> Option<String> {
     if name == "HOME" {
         return dirs::home_dir().map(|p| p.to_string_lossy().into_owned());
@@ -282,8 +250,6 @@ pub fn env_lookup(name: &str) -> Option<String> {
     std::env::var(name).ok().filter(|v| !v.is_empty())
 }
 
-/// Expand one glob target (`*`, `?`, `**`) in Rust, without a shell and
-/// without following links while descending. Returns existing paths.
 pub fn glob(pattern: &str) -> Vec<PathBuf> {
     let norm = pattern.replace('\\', "/");
     let (prefix, rest) = split_literal_prefix(&norm);
@@ -319,7 +285,6 @@ fn split_literal_prefix(p: &str) -> (String, String) {
     if absolute && !prefix.starts_with('/') {
         prefix.insert(0, '/');
     }
-    // `C:` alone is a drive-relative path; keep it rooted.
     if prefix.len() == 2 && prefix.ends_with(':') {
         prefix.push('/');
     }
@@ -373,8 +338,6 @@ fn read_dirs(dir: &Path) -> Vec<PathBuf> {
         .unwrap_or_default()
 }
 
-/// `*` and `?` match within one path segment. Case-insensitive on Windows
-/// and macOS (their default file systems are).
 pub fn wildcard(pattern: &str, name: &str) -> bool {
     let fold = cfg!(any(windows, target_os = "macos"));
     let (p, n): (Vec<char>, Vec<char>) = if fold {
@@ -408,7 +371,6 @@ pub fn wildcard(pattern: &str, name: &str) -> bool {
     pi == p.len()
 }
 
-/// Days since the last modification (for `min_age_days`).
 pub fn age_days(m: &Metadata) -> u64 {
     m.modified()
         .ok()

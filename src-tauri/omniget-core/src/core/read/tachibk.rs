@@ -1,7 +1,3 @@
-//! Mihon / Tachiyomi backups (`.tachibk`, `.proto.gz`): gzip + protobuf.
-//! Read so a library can move into OmniGet: followed series with their
-//! source URL, categories and read marks per chapter.
-
 use std::io::Read;
 
 use serde::Serialize;
@@ -35,8 +31,6 @@ pub struct BackupManga {
 }
 
 impl BackupManga {
-    /// The MangaDex id when this came from any MangaDex extension
-    /// (their URLs are `/manga/<uuid>`).
     pub fn mangadex_id(&self) -> Option<String> {
         let id = self.url.strip_prefix("/manga/")?.trim_end_matches('/');
         (id.len() == 36 && id.chars().filter(|c| *c == '-').count() == 4).then(|| id.to_string())
@@ -54,7 +48,6 @@ pub fn parse(data: &[u8]) -> Result<Vec<BackupManga>, String> {
         data.to_vec()
     };
     let root = fields(&raw);
-    // Categories: 1 name, 2 order; mangas point at them by order.
     let cats: Vec<(u64, String)> = root.msgs(2).iter().map(|c| (c.num(2), c.str(1))).collect();
     let sources: Vec<(u64, String)> = root
         .msgs(101)
@@ -101,7 +94,6 @@ pub fn parse(data: &[u8]) -> Result<Vec<BackupManga>, String> {
             description: m.str(6),
             genres: strings(&m, 7),
             cover: m.str(9),
-            // Absent means true in the schema.
             favorite: !m.has(100) || m.num(100) != 0,
             categories,
             chapters,

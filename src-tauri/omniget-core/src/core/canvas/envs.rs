@@ -1,25 +1,3 @@
-//! Where a workspace's terminals run (Maestri "environments", study 95 Q):
-//! this machine (plain or inside a persistent tmux session), a host over
-//! SSH, a Docker container, a Docker Sandbox (`sbx`), a custom container
-//! runtime (Podman, Apple `container`, Lima...) or a WSL distro.
-//!
-//! One record per workspace in `<workspace>/environment.json` (the
-//! workspace's own `environment {kind, name}` mirrors it for display); a
-//! terminal node may override it with `data.environment` (`"local"`, or a
-//! full record). Which kinds are turned on, and the custom runtimes, live in
-//! `<canvas root>/environments.json` ([`EnvProviders`]); a record whose kind
-//! is off falls back to local with a visible notice.
-//!
-//! [`wrap`] turns a local spawn (argv, cwd, env) into the one that runs
-//! there. The bridge stays on this machine's loopback; each kind reaches it:
-//! SSH with a reverse tunnel of the same port (`ssh -R`), containers through
-//! their bridge host (`host.docker.internal` by default), WSL 2 through its
-//! localhost forwarding. Secrets never ride in a process argv: containers
-//! take `-e NAME` (value from the docker client's env), SSH and custom
-//! runtimes get an env file pushed over stdin by a first, non-interactive
-//! call. Every remote side gets the `omniget` CLI as a small shell shim that
-//! runs `omniget canvas ...` on the host through the bridge (`env.cli`).
-
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 use std::time::Duration;
@@ -36,13 +14,10 @@ use crate::core::vcs::runner::Invocation;
 pub enum EnvKind {
     #[default]
     Local,
-    /// This machine, inside a tmux session that survives the app.
     Tmux,
     Ssh,
     Docker,
-    /// Docker Sandbox (`sbx exec`).
     Sandbox,
-    /// A runtime defined in [`EnvProviders::custom`], by `runtime` name.
     Custom,
     Wsl,
 }
@@ -83,15 +58,11 @@ impl EnvKind {
         })
     }
 
-    /// Runs somewhere else than this machine's filesystem.
     pub fn is_remote(&self) -> bool {
         !matches!(self, Self::Local | Self::Tmux)
     }
 }
 
-/// `host` is the SSH destination (`user@server`, an alias of `~/.ssh/config`),
-/// the container or sandbox name, or the WSL distro (empty = default distro).
-/// `dir` is the folder on that side.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct EnvRecord {
@@ -100,51 +71,34 @@ pub struct EnvRecord {
     pub host: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub dir: Option<String>,
-    /// Extra `ssh` options (`-p 2222`, `-i key`), split on whitespace.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub ssh_options: Option<String>,
-    /// Docker/runtime: user inside the container; WSL: the Linux user.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub user: Option<String>,
-    /// Custom: name of the runtime in [`EnvProviders::custom`].
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub runtime: Option<String>,
-    /// SSH, containers: keep the shell in a tmux session on that side, so it
-    /// survives the app (reattached on the next launch).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub persistent: Option<bool>,
-    /// Filled by [`resolve`]: the custom runtime's definition.
     #[serde(skip)]
     pub runtime_def: Option<CustomRuntime>,
-    /// Filled by [`resolve`]: printed in the terminal before it starts (the
-    /// kind is off and this fell back to local, ...).
     #[serde(skip)]
     pub notice: Option<String>,
 }
 
-/// A container runtime defined by the user (Maestri "Custom Runtime").
-/// `args` run a non-interactive command (Test, env handoff), `interactive`
-/// the terminal; both are split on whitespace and never go through a shell.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct CustomRuntime {
-    /// Executable (`podman`, `container`, `limactl`...); PATH is searched in
-    /// `/opt/homebrew/bin`, `/usr/local/bin` and `/usr/bin` too.
     pub exec: String,
     #[serde(default)]
     pub args: String,
     #[serde(default)]
     pub interactive: String,
-    /// Shell inside (default `/bin/sh`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub shell: Option<String>,
-    /// How the inside reaches this machine (default `host.containers.internal`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub bridge_host: Option<String>,
 }
 
-/// Which environment kinds are offered (Settings → Environments switches)
-/// and the custom runtimes. Local is always on.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct EnvProviders {
@@ -196,8 +150,6 @@ pub fn providers(store: &CanvasStore) -> EnvProviders {
         .unwrap_or_default()
 }
 
-/// Merges `patch` (`{docker: false, runtimes: {podman: {...}}}`; a runtime
-/// set to null is removed) into the providers and saves them.
 pub fn set_providers(store: &CanvasStore, patch: &Value) -> Result<EnvProviders, String> {
     let cur = providers(store);
     let mut v = serde_json::to_value(&cur).map_err(|e| e.to_string())?;
@@ -259,9 +211,6 @@ pub fn load(store: &CanvasStore, ws: &str) -> EnvRecord {
         .unwrap_or_default()
 }
 
-/// The record a terminal node runs in: its own `data.environment` override
-/// (`"local"`, `"workspace"`/null, or a record), else the workspace's; then
-/// [`resolve`]d against the providers.
 pub fn load_for(store: &CanvasStore, ws: &str, node_id: Option<&str>) -> EnvRecord {
     let own = node_id.and_then(|id| {
         let (w, floor) = store.locate_node(id)?;
@@ -279,8 +228,6 @@ pub fn load_for(store: &CanvasStore, ws: &str, node_id: Option<&str>) -> EnvReco
     resolve(store, rec)
 }
 
-/// `data.environment` of a terminal: `"local"` (pinned to this machine),
-/// `"workspace"`/null (the default), or a record.
 pub fn node_override(v: &Value) -> Option<EnvRecord> {
     match v {
         Value::String(s) if s == "workspace" || s.is_empty() => None,
@@ -293,8 +240,6 @@ pub fn node_override(v: &Value) -> Option<EnvRecord> {
     }
 }
 
-/// Applies the switches (a kind that is off runs locally, with a notice) and
-/// fills the custom runtime.
 pub fn resolve(store: &CanvasStore, mut rec: EnvRecord) -> EnvRecord {
     let p = providers(store);
     if !p.enabled(rec.kind) {
@@ -323,7 +268,6 @@ pub fn resolve(store: &CanvasStore, mut rec: EnvRecord) -> EnvRecord {
     rec
 }
 
-/// Checks a record before it is saved (workspace or terminal override).
 pub fn validate(store: &CanvasStore, rec: &EnvRecord) -> Result<(), String> {
     let p = providers(store);
     if !p.enabled(rec.kind) {
@@ -332,7 +276,6 @@ pub fn validate(store: &CanvasStore, rec: &EnvRecord) -> Result<(), String> {
             rec.kind.as_str()
         ));
     }
-    // A custom runtime names its container in its own arguments.
     let needs_host = matches!(rec.kind, EnvKind::Ssh | EnvKind::Docker | EnvKind::Sandbox);
     if needs_host && rec.host.as_deref().is_none_or(|h| h.trim().is_empty()) {
         return Err(
@@ -356,8 +299,6 @@ pub fn validate(store: &CanvasStore, rec: &EnvRecord) -> Result<(), String> {
     Ok(())
 }
 
-/// Saves the record and mirrors `{kind, name}` on the workspace. A remote
-/// workspace cannot have isolated floors (their worktrees live here).
 pub fn save(store: &CanvasStore, ws: &str, rec: EnvRecord) -> Result<EnvRecord, String> {
     let meta = store.workspace(ws)?;
     validate(store, &rec)?;
@@ -385,14 +326,11 @@ pub fn save(store: &CanvasStore, ws: &str, rec: EnvRecord) -> Result<EnvRecord, 
     Ok(rec)
 }
 
-/// A record from loose JSON (`workspace_update patch.environment`, MCP):
-/// null = local; `{kind, host|name, dir, ...}`.
 pub fn record_from_value(v: &Value) -> Result<EnvRecord, String> {
     if v.is_null() {
         return Ok(EnvRecord::default());
     }
     if let Some(s) = v.as_str() {
-        // `docker:parity`, `ssh:me@box`, `local`.
         let (k, h) = s.split_once(':').unwrap_or((s, ""));
         let kind = EnvKind::parse(k)
             .ok_or_else(|| format!("CANVAS_INVALID: unknown environment '{k}'"))?;
@@ -411,7 +349,6 @@ pub fn record_from_value(v: &Value) -> Result<EnvRecord, String> {
             .ok_or_else(|| format!("CANVAS_INVALID: unknown environment '{k}'"))?;
         o.insert("kind".into(), json!(kind.as_str()));
     }
-    // The workspace mirror calls the host `name`.
     if !o.contains_key("host") {
         if let Some(n) = o.remove("name") {
             o.insert("host".into(), n);
@@ -421,8 +358,6 @@ pub fn record_from_value(v: &Value) -> Result<EnvRecord, String> {
         .map_err(|e| format!("CANVAS_INVALID: environment: {e}"))
 }
 
-/// Env overrides of a terminal cannot replace what identifies it or where
-/// its tools come from (Maestri refuses HOME, PATH and MAESTRI_*).
 pub fn check_env_overrides(env: &Value) -> Result<(), String> {
     let Some(o) = env.as_object() else {
         return Ok(());
@@ -445,7 +380,6 @@ pub fn check_env_overrides(env: &Value) -> Result<(), String> {
     }
 }
 
-/// POSIX single-quote.
 pub fn sh_quote(s: &str) -> String {
     if !s.is_empty()
         && s.chars()
@@ -456,7 +390,6 @@ pub fn sh_quote(s: &str) -> String {
     format!("'{}'", s.replace('\'', r"'\''"))
 }
 
-/// Port of `OMNIGET_BRIDGE_URL` (`http://127.0.0.1:PORT`).
 pub fn bridge_port(env: &BTreeMap<String, String>) -> Option<u16> {
     let url = env.get("OMNIGET_BRIDGE_URL")?;
     let rest = url.split("://").nth(1).unwrap_or(url);
@@ -468,13 +401,10 @@ pub fn bridge_port(env: &BTreeMap<String, String>) -> Option<u16> {
 #[serde(rename_all = "camelCase")]
 pub struct Wrapped {
     pub command: Vec<String>,
-    /// Local cwd of the wrapper process (`None` = home).
     pub cwd: Option<String>,
-    /// Env of the local wrapper process.
     pub env: BTreeMap<String, String>,
 }
 
-/// Env names that describe this machine and must not travel.
 fn local_only(k: &str) -> bool {
     matches!(
         k,
@@ -482,13 +412,8 @@ fn local_only(k: &str) -> bool {
     )
 }
 
-/// Local env var of the wrapper that carries the remote env as a shell file
-/// (`export K='v'` lines); read by the wrapper script, never in an argv.
 const BUNDLE: &str = "OMNIGET_ENV_BUNDLE";
 
-/// The `omniget` shim installed on the other side: `omniget canvas ...`
-/// runs on the host app through the bridge (`POST /v1/canvas/rpc` with
-/// `env.cli`), with the terminal's own token. Needs curl (or wget).
 pub const CLI_SHIM: &str = r#"#!/bin/sh
 # OmniGet CLI shim: runs `omniget canvas ...` on the host app through the
 # canvas bridge, as this terminal (its OMNIGET_CANVAS_TOKEN).
@@ -529,16 +454,12 @@ if [ -z "$code" ]; then printf '%s\n' "$resp" >&2; exit 1; fi
 exit "$code"
 "#;
 
-/// POSIX lines that install the shim, put it first on PATH and point
-/// `OMNIGET_CLI` at it.
 fn shim_install() -> String {
     format!(
         "mkdir -p \"$HOME/.omniget/bin\" 2>/dev/null && cat > \"$HOME/.omniget/bin/omniget\" <<'OMNIGET_SHIM_EOF'\n{CLI_SHIM}OMNIGET_SHIM_EOF\nchmod +x \"$HOME/.omniget/bin/omniget\" 2>/dev/null\n# A login shell resets PATH from /etc/profile: also a link on the system PATH\n# when writable, and the profiles (Maestri \"Add to PATH\").\n[ -w /usr/local/bin ] && ln -sf \"$HOME/.omniget/bin/omniget\" /usr/local/bin/omniget 2>/dev/null\nfor p in \"$HOME/.profile\" \"$HOME/.bashrc\" \"$HOME/.zshrc\"; do [ -f \"$p\" ] || [ \"$p\" = \"$HOME/.profile\" ] || continue; grep -q '.omniget/bin' \"$p\" 2>/dev/null || printf '\\nexport PATH=\"$HOME/.omniget/bin:$PATH\"\\n' >> \"$p\" 2>/dev/null; done\nexport PATH=\"$HOME/.omniget/bin:$PATH\"\nexport OMNIGET_CLI=\"$HOME/.omniget/bin/omniget\"\n"
     )
 }
 
-/// Last line of the inside script: the agent's argv (`"$@"`), or a login
-/// shell; inside tmux when `persistent` and tmux exists there.
 fn final_exec(session: Option<&str>) -> String {
     let plain = "if [ $# -gt 0 ]; then exec \"$@\"; else exec \"${SHELL:-/bin/sh}\" -l; fi";
     match session {
@@ -570,15 +491,12 @@ fn session_name(env: &BTreeMap<String, String>) -> String {
     format!("omniget-{clean}")
 }
 
-/// `export K='v'` lines of `vars`.
 fn bundle(vars: &[(String, String)]) -> String {
     vars.iter()
         .map(|(k, v)| format!("export {k}={}\n", sh_quote(v)))
         .collect()
 }
 
-/// Local `sh -c` wrapper: prints a status line, then runs `script` with
-/// `argv` as `$@`.
 fn local_sh(script: String, argv: &[String]) -> Vec<String> {
     let mut c = vec![
         "/bin/sh".to_string(),
@@ -594,9 +512,6 @@ fn say(msg: &str) -> String {
     format!("printf '%s\\r\\n' {} >&2\n", sh_quote(msg))
 }
 
-/// Turns a local spawn into one that runs in `rec` (already [`resolve`]d).
-/// `argv` empty = the login shell there. `cwd` = where it would run locally;
-/// the other side uses `rec.dir` (or `cwd` when no dir is set).
 pub fn wrap(
     rec: &EnvRecord,
     argv: &[String],
@@ -655,10 +570,6 @@ pub fn wrap(
             }
         }
         EnvKind::Tmux => {
-            // The session's shell reads the env from a 0600 file written by
-            // this wrapper (the tmux server may be older than this launch);
-            // an existing session is reattached and gets the new env for its
-            // next panes through `source-file`.
             let mut wenv = env.clone();
             wenv.insert(BUNDLE.into(), bundle(&remote_env));
             let d = dir.clone().unwrap_or_else(|| "$HOME".into());
@@ -678,9 +589,6 @@ pub fn wrap(
             }
         }
         EnvKind::Ssh => {
-            // 1. Env file pushed over stdin (no secret in any argv).
-            // 2. Interactive login that sources it, installs the CLI shim
-            //    and runs the shell or agent (inside tmux when persistent).
             let mut wenv = env.clone();
             wenv.insert(BUNDLE.into(), bundle(&remote_env));
             let envfile = format!(".omniget/.env-{session}");
@@ -738,8 +646,6 @@ pub fn wrap(
             }
         }
         EnvKind::Docker | EnvKind::Sandbox => {
-            // `-e NAME` takes the value from the docker client's env, which
-            // is this wrapper's: nothing secret in the argv.
             let exe = if rec.kind == EnvKind::Docker {
                 "docker"
             } else {
@@ -828,8 +734,6 @@ pub fn wrap(
             }
         }
         EnvKind::Wsl => {
-            // Env through WSLENV: names only in the argv, values from this
-            // wrapper's env (Windows passes them into the distro).
             let mut command = vec!["wsl.exe".to_string()];
             if !host.is_empty() {
                 command.push("-d".into());
@@ -868,8 +772,6 @@ pub fn wrap(
     }
 }
 
-/// `exec` as given when it has a `/`, else the first hit in PATH and the
-/// usual install folders (a GUI app's PATH misses Homebrew).
 pub fn resolve_exec(exec: &str) -> String {
     let e = exec.trim();
     if e.contains('/') {
@@ -888,14 +790,12 @@ pub fn resolve_exec(exec: &str) -> String {
         .unwrap_or_else(|| e.to_string())
 }
 
-/// The command a record would run, for the settings preview.
 pub fn preview(rec: &EnvRecord) -> String {
     let mut env = BTreeMap::new();
     env.insert("OMNIGET_BRIDGE_URL".into(), "http://127.0.0.1:PORT".into());
     env.insert("OMNIGET_TERMINAL_ID".into(), "T".into());
     let w = wrap(rec, &[], None, &env);
     let tail = w.command.last().cloned().unwrap_or_default();
-    // The local sh wrapper: show its last `exec` line.
     if w.command.first().map(String::as_str) == Some("/bin/sh") {
         return w.command[2]
             .lines()
@@ -915,9 +815,7 @@ pub fn preview(rec: &EnvRecord) -> String {
 #[serde(rename_all = "camelCase")]
 pub struct EnvTest {
     pub ok: bool,
-    /// `pwd` on the other side, or the error.
     pub output: String,
-    /// Each check (`reach`, `dir`, `home`, `shell`, `curl`...) and its result.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub checks: Vec<EnvCheck>,
 }
@@ -931,7 +829,6 @@ pub struct EnvCheck {
     pub detail: String,
 }
 
-/// One non-interactive probe script: reports each check as `name=ok|fail`.
 const PROBE: &str = r#"pwd >/dev/null 2>&1 && echo "dir=ok $(pwd)" || echo "dir=fail"
 [ -w "$HOME" ] && echo "home=ok $HOME" || echo "home=fail $HOME is not writable"
 [ -x /bin/sh ] && echo "shell=ok" || echo "shell=fail no /bin/sh"
@@ -958,14 +855,10 @@ fn parse_probe(text: &str) -> Vec<EnvCheck> {
         .collect()
 }
 
-/// Checks the environment answers: runs the probe in its folder,
-/// non-interactive (BatchMode for SSH), and says what is missing.
 pub async fn test(rec: &EnvRecord) -> EnvTest {
     test_bridge(rec, None).await
 }
 
-/// Probe lines that check the canvas bridge answers from the other side
-/// (any HTTP status counts: the route needs a token, reaching it is enough).
 fn bridge_probe(url: &str) -> String {
     let u = sh_quote(url);
     format!(
@@ -974,10 +867,6 @@ fn bridge_probe(url: &str) -> String {
     )
 }
 
-/// [`test`] that also checks the bridge answers from the other side
-/// (`bridge_port` = the app's canvas bridge): for SSH through the same
-/// reverse tunnel the terminals use, so `AllowTcpForwarding no` fails here
-/// with its cause instead of in the first `omniget canvas` call.
 pub async fn test_bridge(rec: &EnvRecord, bridge_port: Option<u16>) -> EnvTest {
     let host = rec.host.clone().unwrap_or_default();
     let cd = rec
@@ -1169,7 +1058,6 @@ pub async fn test_bridge(rec: &EnvRecord, bridge_port: Option<u16>) -> EnvTest {
     }
 }
 
-/// A hint next to a failed test's raw error.
 fn explain(kind: EnvKind, err: &str) -> String {
     let e = err.to_ascii_lowercase();
     let hint = if e.contains("permission denied (publickey") {
@@ -1198,8 +1086,6 @@ fn explain(kind: EnvKind, err: &str) -> String {
     }
 }
 
-/// Error of a helper program that is not installed, with its own name
-/// (the runner reports every missing program with the git code).
 fn missing_tool(program: &str, e: &crate::core::vcs::runner::VcsError) -> String {
     if e.code() == crate::core::vcs::runner::ERR_GIT_MISSING {
         format!("CANVAS_ENV_MISSING: {program} is not installed on this machine")
@@ -1208,9 +1094,6 @@ fn missing_tool(program: &str, e: &crate::core::vcs::runner::VcsError) -> String
     }
 }
 
-/// Where persistent sessions can live: this machine's tmux, and every
-/// environment (of a workspace or a terminal override) that keeps its shell
-/// in tmux on the other side. Deduplicated by target.
 pub fn session_targets(store: &CanvasStore) -> Vec<EnvRecord> {
     let mut out: Vec<EnvRecord> = vec![EnvRecord {
         kind: EnvKind::Tmux,
@@ -1244,8 +1127,6 @@ pub fn session_targets(store: &CanvasStore) -> Vec<EnvRecord> {
     out
 }
 
-/// Short name of a session target: `local`, `docker:web`, `ssh:me@box`,
-/// `custom:podman/web`.
 pub fn target_label(rec: &EnvRecord) -> String {
     let host = rec.host.clone().unwrap_or_default();
     match rec.kind {
@@ -1263,7 +1144,6 @@ pub fn target_label(rec: &EnvRecord) -> String {
     }
 }
 
-/// A non-interactive `sh -c script` on the target's side.
 fn target_invocation(rec: &EnvRecord, script: &str) -> Result<(String, Invocation), String> {
     let host = rec.host.clone().unwrap_or_default();
     Ok(match rec.kind {
@@ -1325,8 +1205,6 @@ fn target_invocation(rec: &EnvRecord, script: &str) -> Result<(String, Invocatio
     })
 }
 
-/// Runs `sh -c script` on the target's side (non-interactive, `stdin`
-/// piped in when given) and returns its stdout. For the remote file tree.
 pub async fn run_script(
     rec: &EnvRecord,
     script: &str,
@@ -1353,10 +1231,6 @@ pub async fn run_script(
     }
 }
 
-/// Hosts of `~/.ssh/config` (and the files it `Include`s) for the SSH
-/// picker: each concrete `Host` alias with its HostName, User and Port.
-/// Wildcard patterns are skipped; ProxyJump and keys stay in the config,
-/// the alias carries them.
 pub fn ssh_config_hosts() -> Vec<Value> {
     let Some(home) = dirs::home_dir() else {
         return vec![];
@@ -1411,7 +1285,6 @@ pub fn ssh_config_hosts() -> Vec<Value> {
     out
 }
 
-/// `Host` blocks and `Include` lines of one ssh config file.
 pub fn parse_ssh_config(text: &str) -> (Vec<Value>, Vec<String>) {
     let mut hosts: Vec<Value> = Vec::new();
     let mut includes = Vec::new();
@@ -1459,14 +1332,8 @@ pub fn parse_ssh_config(text: &str) -> (Vec<Value>, Vec<String>) {
     (hosts, includes)
 }
 
-/// Folder images and files dropped on a remote terminal land in (Maestri
-/// uses `/tmp/maestri-drops`).
 pub const DROPS_DIR: &str = "/tmp/omniget-drops";
 
-/// A dropped or pasted file for a terminal in `rec`: copied to
-/// [`DROPS_DIR`] on the other side (over stdin, nothing in any argv but
-/// the name), and the path there. Local kinds keep the local path; WSL
-/// gets the `/mnt/<drive>/...` form.
 pub async fn push_file(rec: &EnvRecord, local: &std::path::Path) -> Result<String, String> {
     match rec.kind {
         EnvKind::Local | EnvKind::Tmux => return Ok(local.to_string_lossy().into_owned()),
@@ -1524,7 +1391,6 @@ pub async fn push_file(rec: &EnvRecord, local: &std::path::Path) -> Result<Strin
     }
 }
 
-/// `C:\\Users\\me\\a.png` → `/mnt/c/Users/me/a.png`.
 pub fn wsl_path(p: &str) -> String {
     let b = p.as_bytes();
     if b.len() >= 2 && b[1] == b':' && b[0].is_ascii_alphabetic() {
@@ -1534,10 +1400,6 @@ pub fn wsl_path(p: &str) -> String {
     p.replace('\\', "/")
 }
 
-/// Files on the side where the terminal runs, for the composer's `#`
-/// picker: `(root, [(relative path, is_dir)])`. `dir` = a hint (the
-/// terminal's reported cwd), else the environment's folder, else home.
-/// Empty `query` lists the folder; otherwise a name search 5 levels deep.
 pub async fn list_files(
     rec: &EnvRecord,
     dir: Option<&str>,
@@ -1601,8 +1463,6 @@ pub async fn list_files(
 
 const LIST_SESSIONS: &str = "command -v tmux >/dev/null 2>&1 || { echo OMNIGET_NO_TMUX; exit 0; }\ntmux list-sessions -F '#{session_name}|#{session_created}|#{session_attached}|#{pane_current_command}' 2>/dev/null; exit 0";
 
-/// `omniget-*` tmux sessions of one target. `Err` when the target cannot be
-/// reached; a target without tmux has none.
 pub async fn target_sessions(rec: &EnvRecord) -> Result<Vec<Value>, String> {
     let (program, inv) = target_invocation(rec, LIST_SESSIONS)?;
     let o = inv
@@ -1619,7 +1479,6 @@ pub async fn target_sessions(rec: &EnvRecord) -> Result<Vec<Value>, String> {
         .lines()
         .filter(|l| l.starts_with("omniget-"))
         .map(|l| {
-            // tmux prints a tab as `_` in -F: `|` never appears in a name.
             let p: Vec<&str> = l.splitn(4, '|').collect();
             json!({
                 "session": p.first().copied().unwrap_or(""),
@@ -1634,9 +1493,6 @@ pub async fn target_sessions(rec: &EnvRecord) -> Result<Vec<Value>, String> {
         .collect())
 }
 
-/// Persistent sessions everywhere they can be (Maestri "Processes"): this
-/// machine's tmux and the remote environments in use. A target that does
-/// not answer is listed as `{env, error}` so the list says why.
 pub async fn sessions(store: &CanvasStore) -> Vec<Value> {
     let mut out = Vec::new();
     for rec in session_targets(store) {
@@ -1652,9 +1508,6 @@ pub async fn sessions(store: &CanvasStore) -> Vec<Value> {
     out
 }
 
-/// Ends a persistent session (the node stays; its next start is fresh).
-/// `env` = the target label from [`sessions`]; without it, the first target
-/// that lists the session.
 pub async fn session_kill(
     store: &CanvasStore,
     session: &str,

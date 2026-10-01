@@ -1,16 +1,9 @@
-//! Claude Code on the canvas: started with `--plugin-dir <app_data>/canvas/plugin`,
-//! a plugin that exists only for that session and carries the
-//! `omniget-canvas` skill and the hooks that report the node's state
-//! (`omniget canvas hook`, which posts to `/v1/canvas/hook` with the node's
-//! token taken from the environment). Nothing in `~/.claude` is touched.
-
 use std::path::Path;
 
 use serde_json::{json, Value};
 
 pub const PLUGIN_NAME: &str = "omniget-canvas";
 
-/// The rules of the cords, shared by the skill and `AGENTS.md`.
 pub const SKILL_BODY: &str = r#"You run inside an OmniGet canvas. Other agents, notes and web portals are wired to you by cords. You talk to them with the `omniget canvas` command. If `omniget canvas` is not found or says "unrecognized subcommand 'canvas'" (an older `omniget` earlier on PATH), run `"$OMNIGET_CLI" canvas ...` instead, with the same arguments; `$OMNIGET_CLI` is always the app's own CLI.
 
 Rules:
@@ -38,7 +31,6 @@ pub fn skill_md() -> String {
     )
 }
 
-/// Claude hook events the plugin reports.
 pub const HOOK_EVENTS: [&str; 11] = [
     "SessionStart",
     "UserPromptSubmit",
@@ -53,14 +45,11 @@ pub const HOOK_EVENTS: [&str; 11] = [
     "SessionEnd",
 ];
 
-/// Command every hook runs. The token and the bridge address come from the
-/// node's environment, which every child of the agent inherits.
 pub const HOOK_COMMAND: &str = r#""${OMNIGET_CLI:-omniget}" canvas hook --tool claude"#;
 
 pub fn hooks_json() -> Value {
     let mut hooks = serde_json::Map::new();
     for ev in HOOK_EVENTS {
-        // A permission question is held until the owner answers (up to 115 s).
         let timeout = if ev == "PermissionRequest" { 125 } else { 10 };
         let mut group = json!({ "hooks": [{ "type": "command", "command": HOOK_COMMAND, "timeout": timeout }] });
         if matches!(ev, "PreToolUse" | "PostToolUse" | "PermissionRequest") {
@@ -92,8 +81,6 @@ fn write_if_changed(path: &Path, body: &str) -> std::io::Result<()> {
     std::fs::rename(&tmp, path)
 }
 
-/// Writes the plugin to `dir` (`<app_data>/canvas/plugin`): manifest, skill,
-/// hooks. Idempotent; files are rewritten only when they changed.
 pub fn install_plugin(dir: &Path) -> std::io::Result<()> {
     write_if_changed(
         &dir.join(".claude-plugin").join("plugin.json"),
@@ -116,9 +103,6 @@ pub fn launch_args(plugin_dir: &Path) -> Vec<String> {
     ]
 }
 
-/// Whether Claude Code still has the transcript of `session_id` (any project
-/// under `~/.claude/projects`, or `$CLAUDE_CONFIG_DIR/projects`), so
-/// `--resume <id>` will not fail with "No conversation found".
 pub fn session_exists(session_id: &str) -> bool {
     if session_id.is_empty()
         || !session_id

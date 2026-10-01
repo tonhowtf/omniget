@@ -1,14 +1,5 @@
-//! How an uninstaller is started and watched.
-//!
 //! Ported design of Bulk Crap Uninstaller (Copyright (c) 2017 Marcin
 //! Szeniak, Apache License 2.0, see `data/washmybelly/bcu/NOTICE`): quiet
-//! strings per installer kind (`MsiUninstallStringGenerator.cs`,
-//! `InnoSetupQuietUninstallStringGenerator.cs`), the NSIS `_?=` trick to
-//! keep the exit code (`UninstallManager.cs`), one Windows Installer job and
-//! one windowed uninstaller at a time, and the stall check by CPU and disk
-//! (`BulkUninstallTask.cs`, `BulkUninstallEntry.cs`). Rewritten in Rust and
-//! modified for OmniGet: no UI automation (NSIS gets `/S`), no `cmd /C`,
-//! never a shell; the program must exist and be an `.exe`.
 
 use serde_json::Value;
 
@@ -17,29 +8,20 @@ use super::parse::{
     Probe, RegEntry,
 };
 
-/// What will run for one uninstall, built from the registry entry (never
-/// from the caller's words).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Planned {
-    /// `winget`, `msi`, `inno`, `nsis`, `quiet`, `loud`, `steam`, `scoop`, `appx`.
     pub method: &'static str,
     pub kind: Kind,
     pub program: String,
-    /// Arguments quoted by Rust one by one.
     pub args: Vec<String>,
-    /// Vendor text appended as it is (`raw_arg`), after `args`.
     pub raw: Option<String>,
     pub env: Vec<(String, String)>,
-    /// Runs without a window the person has to answer.
     pub silent: bool,
-    /// Goes through the Windows Installer: one at a time, system-wide.
     pub msi_like: bool,
-    /// NSIS: run a temporary copy of this file so `_?=` can wait for it.
     pub nsis_copy_from: Option<String>,
 }
 
 impl Planned {
-    /// The command as a person would type it (display and "copy command").
     pub fn display(&self) -> String {
         let q = |s: &str| {
             if s.is_empty() || s.contains([' ', '\t', '"']) {
@@ -75,8 +57,6 @@ pub fn powershell(system_root: &str) -> String {
     format!(r"{system_root}\System32\WindowsPowerShell\v1.0\powershell.exe")
 }
 
-/// `msiexec /qb /X{GUID} REBOOT=ReallySuppress /norestart` (BCU; `/qb` shows
-/// a progress bar and no questions).
 pub fn msi_uninstall(code: &str, system_root: &str) -> Result<Planned, String> {
     if !parse::is_guid(code) {
         return Err(format!("not a product code: {code}"));
@@ -99,7 +79,6 @@ pub fn msi_uninstall(code: &str, system_root: &str) -> Result<Planned, String> {
     })
 }
 
-/// `winget uninstall --id <id> --exact --silent ...`.
 pub fn winget_uninstall(id: &str) -> Result<Planned, String> {
     if !parse::winget_id_ok(id) {
         return Err(format!("not a winget id: {id}"));
@@ -138,8 +117,6 @@ fn checked(cmd: &CmdLine, probe: &dyn Probe) -> Result<(), String> {
     Ok(())
 }
 
-/// The uninstall command for a registry entry: silent when the installer
-/// kind allows it, the vendor's own command (with its window) otherwise.
 pub fn for_entry(e: &RegEntry, probe: &dyn Probe, system_root: &str) -> Result<Planned, String> {
     let kind = detect_kind(e, probe);
     let us = e.get_prefixed("UninstallString");
@@ -184,7 +161,6 @@ pub fn for_entry(e: &RegEntry, probe: &dyn Probe, system_root: &str) -> Result<P
             checked(&cmd, probe)?;
             let file = win_file_name(&cmd.program).to_ascii_lowercase();
             if file.contains("uninst") && cmd.args.is_empty() {
-                // `_?=` must be last and unquoted: NSIS reads the rest of the line.
                 let dir = win_parent(&cmd.program).to_string();
                 return Ok(Planned {
                     args: vec!["/S".into()],
@@ -214,7 +190,6 @@ pub fn for_entry(e: &RegEntry, probe: &dyn Probe, system_root: &str) -> Result<P
                 .trim_end_matches(".exe")
                 == "msiexec";
             if msiexec_like {
-                // A Windows Installer entry without WindowsInstaller=1.
                 let code = parse::guid_in(&cmd.raw_args).ok_or("msiexec without a product code")?;
                 return msi_uninstall(&code, system_root);
             }
@@ -224,7 +199,6 @@ pub fn for_entry(e: &RegEntry, probe: &dyn Probe, system_root: &str) -> Result<P
     }
 }
 
-/// Steam asks the person itself (`steam://uninstall/<id>`).
 pub fn steam_uninstall(steam_exe: &str, appid: &str) -> Result<Planned, String> {
     if appid.is_empty() || !appid.chars().all(|c| c.is_ascii_digit()) {
         return Err(format!("not a Steam app id: {appid}"));
@@ -245,7 +219,6 @@ pub fn steam_uninstall(steam_exe: &str, appid: &str) -> Result<Planned, String> 
     })
 }
 
-/// Fixed script: the app name only ever travels in an environment variable.
 pub const SCOOP_SCRIPT: &str = "$ErrorActionPreference='Stop'; if ($env:WMB_SCOOP_GLOBAL -eq '1') { & scoop uninstall $env:WMB_SCOOP_APP --global } else { & scoop uninstall $env:WMB_SCOOP_APP }; exit $LASTEXITCODE";
 
 pub fn scoop_uninstall(name: &str, global: bool, system_root: &str) -> Result<Planned, String> {
@@ -281,8 +254,6 @@ pub fn scoop_uninstall(name: &str, global: bool, system_root: &str) -> Result<Pl
     })
 }
 
-/// Fixed script: removes the package for the current user; the name comes
-/// from an environment variable and is never part of the script text.
 pub const APPX_REMOVE_SCRIPT: &str = "$ErrorActionPreference='Stop'; $p = Get-AppxPackage -Name $env:WMB_APPX; if (-not $p) { exit 3 }; $p | Remove-AppxPackage; if (Get-AppxPackage -Name $env:WMB_APPX) { exit 4 }; exit 0";
 
 pub fn appx_remove(name: &str, system_root: &str) -> Result<Planned, String> {
@@ -310,7 +281,6 @@ pub fn appx_remove(name: &str, system_root: &str) -> Result<Planned, String> {
     })
 }
 
-/// Reinstall from the Store (the undo of an Appx removal).
 pub fn store_install(store_id: &str) -> Result<Planned, String> {
     if !parse::store_id_ok(store_id) {
         return Err(format!("not a Store id: {store_id}"));
@@ -342,9 +312,6 @@ pub fn store_install(store_id: &str) -> Result<Planned, String> {
     })
 }
 
-/// A registry key the uninstaller may remove: under `Software` with at
-/// least a publisher and a product part, or an Uninstall entry. Never the
-/// shared roots (`Microsoft`, `Classes`, `Policies`...).
 pub fn reg_key_ok(key: &str) -> Result<(), String> {
     let k = key.trim();
     if k.contains(['"', '\0', '\n', '/']) || k.ends_with('\\') || k.contains(r"\\") {
@@ -369,7 +336,6 @@ pub fn reg_key_ok(key: &str) -> Result<(), String> {
         rest.remove(0);
     }
     let lower: Vec<String> = rest.iter().map(|p| p.to_ascii_lowercase()).collect();
-    // Uninstall entries: exactly one level below the Uninstall key.
     let un = ["microsoft", "windows", "currentversion", "uninstall"];
     if lower.len() == 5 && lower[..4] == un {
         return Ok(());
@@ -380,8 +346,6 @@ pub fn reg_key_ok(key: &str) -> Result<(), String> {
     Ok(())
 }
 
-/// Stall tracker: a silent uninstaller that shows no CPU and no disk
-/// activity for `limit` checks in a row is stuck (BCU: CPU ≤ 1 %, I/O ≤ 10 KB/s).
 #[derive(Debug, Clone)]
 pub struct IdleTracker {
     limit: u32,
@@ -393,8 +357,6 @@ impl IdleTracker {
         IdleTracker { limit, idle: 0 }
     }
 
-    /// One sample (summed CPU percent, bytes read and written since the
-    /// last sample, one second apart). True when stuck.
     pub fn feed(&mut self, cpu: f32, io_bytes: u64) -> bool {
         if cpu <= 1.0 && io_bytes <= 10 * 1024 {
             self.idle += 1;
@@ -405,19 +367,15 @@ impl IdleTracker {
     }
 }
 
-/// Plain-English summary for the receipt.
 pub fn summary(meaning: &parse::ExitMeaning, name: &str) -> String {
     format!("{name}: {}", meaning.text)
 }
 
-/// Arguments of a module item, read with defaults.
 pub fn arg<'a>(args: &'a Value, k: &str) -> Option<&'a str> {
     args.get(k)
         .and_then(Value::as_str)
         .filter(|s| !s.is_empty())
 }
-
-// ── Windows: starting and watching ──────────────────────────────────
 
 #[cfg(windows)]
 pub mod sys {
@@ -432,14 +390,11 @@ pub mod sys {
     static MSI_LOCK: Mutex<()> = Mutex::new(());
     static LOUD_LOCK: Mutex<()> = Mutex::new(());
 
-    /// Silent uninstaller stuck this many seconds: stopped.
     const STALL_SECS: u32 = 60;
-    /// Windows Installer jobs are never killed; this long idle is reported.
     const MSI_STALL_SECS: u32 = 180;
     const SILENT_LIMIT: Duration = Duration::from_secs(30 * 60);
     const LOUD_LIMIT: Duration = Duration::from_secs(60 * 60);
 
-    /// Wait while another Windows Installer job holds `_MSIExecute`.
     fn wait_windows_installer(max: Duration) {
         use windows_sys::Win32::Foundation::CloseHandle;
         use windows_sys::Win32::System::Threading::OpenMutexW;
@@ -493,7 +448,6 @@ pub mod sys {
         out
     }
 
-    /// How a run ended.
     pub enum Ended {
         Exit(i32),
         Stalled,
@@ -527,10 +481,8 @@ pub mod sys {
                     io += d.read_bytes + d.written_bytes;
                 }
             }
-            // A window waiting for the person is idle on purpose.
             if p.silent && idle.feed(cpu, io) {
                 if !p.msi_like {
-                    // Only the processes we started, never msiexec's service.
                     for pid in tree(&sys, root, false).iter().rev() {
                         if let Some(pr) = sys.process(*pid) {
                             pr.kill();
@@ -549,7 +501,6 @@ pub mod sys {
         }
     }
 
-    /// Run a planned uninstall with the queue rules and the stall check.
     pub fn run(p: &Planned, label: &str) -> Result<Ended, String> {
         let _msi = if p.msi_like {
             wait_windows_installer(Duration::from_secs(600));
@@ -587,7 +538,6 @@ pub mod sys {
                 cmd.raw_arg(raw);
             }
             if p.silent {
-                // No console window flashing for silent runs.
                 cmd.creation_flags(0x0800_0000);
             }
         }
@@ -623,8 +573,6 @@ pub mod sys {
         result
     }
 
-    /// Run a short command and collect its output, killing it after `secs`
-    /// (winget can hang on a source prompt the first time).
     pub fn output_with_timeout(mut cmd: Command, secs: u64) -> Result<Output, String> {
         cmd.stdin(Stdio::null())
             .stdout(Stdio::piped())

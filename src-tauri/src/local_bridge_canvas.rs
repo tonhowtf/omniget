@@ -1,16 +1,3 @@
-//! Bridge routes of the canvas cords (C2, estudo 98/03 §B.7), for
-//! `omniget canvas …` run by an agent inside a canvas terminal. Every route
-//! sits behind the scoped-token guard with `canvas:node`: only a node's own
-//! token (`oct_…`) passes, and the handler takes the node from the
-//! principal (`canvas:<node id>`), never from the request.
-//!
-//! - `GET  /v1/canvas/me`, `GET /v1/canvas/peers`
-//! - `POST /v1/canvas/asks` (`{to,text,request_id}` | `{batch}` | `{to,raw}`)
-//! - `GET  /v1/canvas/asks/{id}/wait?timeout_ms=` (long-poll, 110 s cap)
-//! - `POST /v1/canvas/reply`, `GET /v1/canvas/screen?name=&lines=`
-//! - `POST /v1/canvas/hook` (the hooks of the node's agent)
-//! - `POST /v1/canvas/rpc` (`{method, args}` -> `crate::canvas::rpc::dispatch`)
-
 use axum::extract::{Path, Query};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
@@ -23,7 +10,6 @@ use tauri::AppHandle;
 use crate::canvas::cords::{host, ApiErr};
 use crate::mcp::policy::Principal;
 
-/// Hook payloads carry tool responses; the rest is small.
 const BODY_LIMIT: usize = 4 * 1024 * 1024;
 
 fn node_of(p: &Principal) -> Option<String> {

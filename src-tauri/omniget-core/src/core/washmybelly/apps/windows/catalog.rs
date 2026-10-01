@@ -1,14 +1,3 @@
-//! Which Appx packages may go, and how to bring them back.
-//!
-//! Data, converted by `scripts/washmybelly/win-apps-convert.mjs` and embedded:
-//! - Win11Debloat `Apps.json` (MIT, Raphire): safe / optional / dangerous;
-//! - Sophia Script `$ExcludedAppxPackages` (MIT, farag2): never removed;
-//! - winutil `appx.json` (MIT, CT Tech Group LLC): Store id to reinstall.
-//!
-//! Order: never (Sophia, our own list, System signature, NonRemovable)
-//! wins over any recommendation; then Win11Debloat; anything else the
-//! person installed is `optional`.
-
 use std::collections::HashMap;
 use std::sync::OnceLock;
 
@@ -18,8 +7,6 @@ const WIN11DEBLOAT: &str = include_str!("../../../../../data/washmybelly/win11de
 const SOPHIA: &str = include_str!("../../../../../data/washmybelly/sophia/excluded_appx.json");
 const WINUTIL: &str = include_str!("../../../../../data/washmybelly/winutil/appx.json");
 
-/// Shell hosts and system pieces that are signed as Store apps on some
-/// builds but break Windows when removed (OmniGet's own list).
 const OURS_NEVER: &[&str] = &[
     "Microsoft.SecHealthUI",
     "Microsoft.AAD.BrokerPlugin",
@@ -60,7 +47,6 @@ const OURS_NEVER: &[&str] = &[
     "Windows.PrintDialog",
 ];
 
-/// Name prefixes that are always part of Windows.
 const OURS_NEVER_PREFIX: &[&str] = &[
     "Microsoft.WindowsAppRuntime",
     "Microsoft.VCLibs",
@@ -120,22 +106,16 @@ fn catalog() -> &'static Catalog {
     })
 }
 
-/// How an Appx package is treated.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct AppxClass {
-    /// `safe`, `optional`, `dangerous`, `never`.
     pub classification: &'static str,
-    /// Where the classification came from: `win11debloat`, `sophia`,
-    /// `omniget`, `signature`, `default`.
     pub source: &'static str,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub friendly_name: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
-    /// Microsoft Store id to reinstall it (`winget install --source msstore`).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub store_id: Option<String>,
-    /// Win11Debloat ticks it by default.
     pub suggested: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reason: Option<&'static str>,
@@ -147,8 +127,6 @@ fn wd_match<'a>(name: &str) -> Option<&'a WdApp> {
     let appx = || c.apps.iter().filter(|a| a.removal == "appx");
     appx()
         .find(|a| a.ids.iter().any(|id| id.eq_ignore_ascii_case(name)))
-        // Win11Debloat matches `*<id>*`; we only allow that for ids without
-        // a dot (`Flipboard` → `Flipboard.Flipboard`).
         .or_else(|| {
             appx().find(|a| {
                 a.ids.iter().any(|id| {
@@ -158,12 +136,10 @@ fn wd_match<'a>(name: &str) -> Option<&'a WdApp> {
         })
 }
 
-/// Store id for a package name (winutil).
 pub fn store_id(name: &str) -> Option<String> {
     catalog().store_ids.get(&name.to_ascii_lowercase()).cloned()
 }
 
-/// Classify one package. `signature` is `SignatureKind`.
 pub fn classify_appx(name: &str, signature: &str, non_removable: bool) -> AppxClass {
     let c = catalog();
     let wd = wd_match(name);
@@ -218,8 +194,6 @@ pub fn classify_appx(name: &str, signature: &str, non_removable: bool) -> AppxCl
     }
 }
 
-/// Win32 apps (registry or winget) that are never uninstalled: removing
-/// them breaks Windows or other apps.
 pub fn registry_never(
     name: &str,
     publisher: Option<&str>,
@@ -243,7 +217,6 @@ pub fn registry_never(
     {
         return Some("part of Windows: other apps need it");
     }
-    // Win11Debloat marks these winget removals as dangerous.
     if let Some(id) = winget_id {
         if catalog().apps.iter().any(|a| {
             a.removal == "winget"

@@ -1,12 +1,3 @@
-//! Login: abre o terminal do sistema com o comando de login da ferramenta,
-//! já apontado para a instância (conta) certa. O OmniGet nunca lê o que o
-//! login grava.
-//!
-//! Mesmo desenho do `llm_accounts_login` (script + terminal da plataforma) e
-//! o mesmo ambiente do runtime (`account_env` + `SCRUB_ENV`) quando há conta.
-//! `Surface::Embedded` devolve só o que rodar, para o terminal embutido (PTY)
-//! da rodada 2 abrir sem janela externa.
-
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
@@ -34,15 +25,11 @@ impl Surface {
 #[derive(Debug, Clone, Serialize)]
 pub struct Launch {
     pub surface: Surface,
-    /// O que roda dentro do terminal (binário + argumentos do login).
     pub command: String,
     pub command_args: Vec<String>,
     pub env: BTreeMap<String, String>,
-    /// Variáveis que o terminal precisa apagar antes (as do runtime).
     pub unset: Vec<String>,
-    /// Linha legível (`CLAUDE_CONFIG_DIR=… claude auth login`).
     pub display: String,
-    /// Só em `System`: o script escrito e o programa que abre o terminal.
     pub script_path: Option<PathBuf>,
     pub script: Option<String>,
     pub program: Option<String>,
@@ -54,7 +41,6 @@ fn sh_quote(s: &str) -> String {
     format!("'{}'", s.replace('\'', "'\\''"))
 }
 
-/// Monta o lançamento (puro; quem escreve e abre é `open_system`).
 #[allow(clippy::too_many_arguments)]
 pub fn login_launch(
     tool: &CliTool,
@@ -184,7 +170,6 @@ pub fn login_launch(
     launch
 }
 
-/// Escreve o script e abre o terminal do sistema.
 pub fn open_system(launch: &Launch) -> Result<(), String> {
     let (Some(path), Some(script), Some(program)) =
         (&launch.script_path, &launch.script, &launch.program)

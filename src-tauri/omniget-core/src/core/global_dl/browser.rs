@@ -1,13 +1,3 @@
-//! The Global Downloader's browser: a real Chromium window on its own profile
-//! (`<data>/global-downloader/browser-profile`), driven over CDP. The person
-//! types, logs in and browses in it like any browser; the app lists, opens and
-//! closes its tabs, and sees every response each tab gets.
-//!
-//! Which Chromium: the path in `config.json` (`browser_path`), else an
-//! installed Chrome, Chromium, Edge or Brave, else Chrome for Testing
-//! downloaded once into `<data>/global-downloader/chrome`. The browser outlives
-//! the app: on the next start the app reconnects through `DevToolsActivePort`.
-
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, OnceLock};
@@ -25,8 +15,6 @@ pub struct Tab {
     pub url: String,
     pub title: String,
     pub loading: bool,
-    /// In a throwaway browser context (private tab): its own cookies, gone
-    /// when the tab closes.
     pub private: bool,
     #[serde(skip)]
     pub session: Option<String>,
@@ -34,8 +22,6 @@ pub struct Tab {
     pub context: Option<String>,
 }
 
-/// The tab shown inside OmniGet (embedded mode): its screencast size in CSS
-/// pixels and the device pixel ratio of the panel.
 #[derive(Debug, Clone, Serialize)]
 pub struct View {
     pub tab: String,
@@ -48,19 +34,13 @@ pub struct Browser {
     pub cdp: Arc<Cdp>,
     pub exe: String,
     pub pid: Option<u32>,
-    /// Embedded mode: Chrome runs with no window and OmniGet draws the page.
     pub headless: bool,
     tabs: Mutex<HashMap<String, Tab>>,
     order: Mutex<Vec<String>>,
-    /// `Network.setUserAgentOverride` params for headless mode (the real UA
-    /// without "Headless", with matching client hints).
     ua_override: Mutex<Option<Value>>,
     view: Mutex<Option<View>>,
     private_contexts: Mutex<std::collections::HashSet<String>>,
-    /// Sessions of iframes and workers inside a tab → that tab's id, so the
-    /// sniffer files what an embedded player loads under its page.
     child_sessions: Mutex<HashMap<String, String>>,
-    /// Page sessions whose network recording and overrides are in place.
     ready: Mutex<std::collections::HashSet<String>>,
 }
 
@@ -109,25 +89,18 @@ pub fn set_config(key: &str, value: Value) -> Result<(), String> {
     std::fs::write(data_dir().join("config.json"), c.to_string()).map_err(|e| e.to_string())
 }
 
-/// `embedded` (default): no window, OmniGet shows the page. `window`: a
-/// normal Chrome window.
 pub fn mode() -> String {
     config()["mode"].as_str().unwrap_or("embedded").to_string()
 }
 
-/// Ad and tracker blocking, on by default.
 pub fn block_ads() -> bool {
     config()["block_ads"].as_bool().unwrap_or(true)
 }
 
-/// Starting a page's player when Resolve sees nothing yet (muted
-/// `play()`, then one click on the play button), on by default. Off:
-/// `"autoplay": false` in `config.json`.
 pub fn autoplay() -> bool {
     config()["autoplay"].as_bool().unwrap_or(true)
 }
 
-/// Where files the browser itself downloads land.
 pub fn downloads_dir() -> PathBuf {
     let d = config()["downloads_dir"]
         .as_str()
@@ -143,7 +116,6 @@ pub fn downloads_dir() -> PathBuf {
     d
 }
 
-/// Search for text typed in the address bar.
 pub fn search_url(q: &str) -> String {
     let engine = config()["search"]
         .as_str()
@@ -158,8 +130,6 @@ pub fn search_url(q: &str) -> String {
     }
 }
 
-/// What the address bar should open for `input`: a URL as is, a bare host
-/// with https, anything else as a search.
 pub fn address_to_url(input: &str) -> String {
     let t = input.trim();
     if t.contains("://") || t.starts_with("about:") || t.starts_with("chrome:") {
@@ -179,9 +149,6 @@ fn runtime_file() -> PathBuf {
     profile_dir().join("omniget-runtime.json")
 }
 
-// ── Finding a Chromium ────────────────────────────────────────────────
-
-/// Installed Chromium-family browsers, best first.
 pub fn installed_browsers() -> Vec<(String, PathBuf)> {
     let mut out: Vec<(String, PathBuf)> = Vec::new();
     let mut push = |name: &str, p: PathBuf| {
@@ -288,9 +255,6 @@ fn cft_exe() -> Option<PathBuf> {
     })
 }
 
-/// Downloads the current stable Chrome for Testing (about 150 MB) when no
-/// Chromium is installed. Unzips with the system tool so the macOS bundle
-/// keeps its symlinks and permissions.
 pub async fn download_chrome_for_testing() -> Result<PathBuf, String> {
     let plat = cft_platform().ok_or("Chrome for Testing has no build for this system")?;
     emit(json!({ "kind": "browser", "state": "downloading" }));
@@ -384,8 +348,6 @@ async fn pick_exe(allow_download: bool) -> Result<PathBuf, String> {
     Err("no Chromium browser found (Chrome, Edge, Brave or Chromium)".into())
 }
 
-// ── Launch / connect ──────────────────────────────────────────────────
-
 fn read_active_port(profile: &Path) -> Option<String> {
     let text = std::fs::read_to_string(profile.join("DevToolsActivePort")).ok()?;
     let mut lines = text.lines();
@@ -394,8 +356,6 @@ fn read_active_port(profile: &Path) -> Option<String> {
     Some(format!("ws://127.0.0.1:{port}{path}"))
 }
 
-/// Opens the browser, or returns the one already open. `url` opens in a new
-/// tab (the first one when the browser was just launched).
 pub async fn start(url: Option<String>, allow_download: bool) -> Result<Arc<Browser>, String> {
     let _guard = start_lock().lock().await;
     if let Some(b) = current() {
@@ -406,7 +366,6 @@ pub async fn start(url: Option<String>, allow_download: bool) -> Result<Arc<Brow
     }
     let profile = profile_dir();
 
-    // A browser left open by a previous run of the app.
     if let Some(ws) = read_active_port(&profile) {
         let rt: Value = std::fs::read_to_string(runtime_file())
             .ok()
@@ -427,19 +386,12 @@ pub async fn start(url: Option<String>, allow_download: bool) -> Result<Arc<Brow
     emit(json!({ "kind": "browser", "state": "starting" }));
     let mut cmd = tokio::process::Command::new(&exe);
     if headless {
-        // Chrome's own headless mode: the full browser with no window. Its
-        // UA says "HeadlessChrome"; the flag fixes it for every frame and
-        // worker, the per-target override fixes the client hints.
         cmd.arg("--headless=new");
-        // No window means no speakers to surprise: let players start without
-        // a gesture, so a page's media shows up in the sniffer
-        // (SoundCloud and Bandcamp only load audio once they play).
         cmd.arg("--autoplay-policy=no-user-gesture-required");
         if let Some(ua) = real_user_agent(&exe).await {
             cmd.arg(format!("--user-agent={ua}"));
         }
     } else {
-        // A window moved aside or covered keeps painting.
         cmd.arg("--disable-backgrounding-occluded-windows")
             .arg("--disable-renderer-backgrounding")
             .arg("--disable-background-timer-throttling");
@@ -447,9 +399,6 @@ pub async fn start(url: Option<String>, allow_download: bool) -> Result<Arc<Brow
     cmd.arg(format!("--user-data-dir={}", profile.display()))
         .arg("--remote-debugging-port=0")
         .arg("--remote-allow-origins=*")
-        // With a debugging port Chrome sets `navigator.webdriver = true`, and
-        // login pages (Udemy's among them) refuse the session. This is a
-        // person's browser, not a bot: keep the flag off.
         .arg("--disable-blink-features=AutomationControlled")
         .arg("--no-first-run")
         .arg("--no-default-browser-check")
@@ -482,7 +431,6 @@ pub async fn start(url: Option<String>, allow_download: bool) -> Result<Arc<Brow
         let _ = child.wait().await;
     });
     if let Some(u) = url {
-        // The blank first tab becomes the requested page.
         match b.tabs().into_iter().find(|t| t.url == "about:blank") {
             Some(t) => b.navigate(&t.id, &u).await?,
             None => {
@@ -559,8 +507,6 @@ pub async fn stop() -> Result<(), String> {
     Ok(())
 }
 
-/// The browser's own User-Agent without "Headless", learned once per
-/// executable (a short headless run) and cached.
 async fn real_user_agent(exe: &Path) -> Option<String> {
     let cache = data_dir().join("ua-cache.json");
     let stamp = std::fs::metadata(exe)
@@ -614,7 +560,6 @@ async fn real_user_agent(exe: &Path) -> Option<String> {
     Some(ua)
 }
 
-/// UA without "Headless" and client hints that match it.
 fn ua_override_for(version: &Value) -> Value {
     let ua = version["userAgent"]
         .as_str()
@@ -659,8 +604,6 @@ fn ua_override_for(version: &Value) -> Value {
     })
 }
 
-/// Closes the browser and opens it again in `mode` (`embedded`/`window`) on
-/// the same profile, with the same pages.
 pub async fn switch_mode(new_mode: &str) -> Result<Arc<Browser>, String> {
     set_config("mode", json!(new_mode))?;
     let urls: Vec<String> = current()
@@ -803,8 +746,6 @@ impl Browser {
                     return;
                 };
                 if p["targetInfo"]["type"] != "page" {
-                    // An iframe or worker of a tab (auto-attached, paused):
-                    // same UA as the page, network recorded under the tab.
                     let parent = ev
                         .session
                         .as_deref()
@@ -965,8 +906,6 @@ impl Browser {
         }
     }
 
-    /// Child targets start paused (`waitForDebuggerOnStart`): the override is
-    /// in place before their first request.
     async fn setup_child(&self, sid: &str) {
         let s = Some(sid);
         let ua = self.ua_override.lock().ok().and_then(|u| u.clone());
@@ -977,8 +916,6 @@ impl Browser {
             .cdp
             .call("Network.enable", json!({ "maxPostDataSize": 65536 }), s)
             .await;
-        // Ad iframes run in processes of their own: the tab's blocking does
-        // not reach them, so each child gets the list too.
         if block_ads() {
             let _ = self
                 .cdp
@@ -1036,10 +973,8 @@ impl Browser {
                 )
                 .await;
         }
-        // Page events: dialogs, loading state, screencast frames.
         let _ = self.cdp.call("Page.enable", json!({}), s).await;
         if self.headless {
-            // No native file picker without a window: OmniGet shows its own.
             let _ = self
                 .cdp
                 .call(
@@ -1058,8 +993,6 @@ impl Browser {
             .await;
     }
 
-    /// Shows `tab_id` inside OmniGet: the page is laid out at `width`×`height`
-    /// CSS pixels and its frames stream as `frame` events.
     pub async fn view(
         &self,
         tab_id: &str,
@@ -1124,7 +1057,6 @@ impl Browser {
         Ok(())
     }
 
-    /// Stops streaming the viewed tab and gives it its window size back.
     pub async fn unview(&self) {
         let prev = self.view.lock().ok().and_then(|mut v| v.take());
         if let Some(p) = prev {
@@ -1141,7 +1073,6 @@ impl Browser {
         }
     }
 
-    /// A real mouse event (trusted by the page), in the tab's CSS pixels.
     pub async fn mouse(&self, tab_id: &str, params: Value) -> Result<(), String> {
         let s = self.session_for(tab_id).await?;
         self.cdp
@@ -1155,7 +1086,6 @@ impl Browser {
             .map(|_| ())
     }
 
-    /// A real key event: `Input.dispatchKeyEvent` params.
     pub async fn key(&self, tab_id: &str, params: Value) -> Result<(), String> {
         let s = self.session_for(tab_id).await?;
         self.cdp
@@ -1169,7 +1099,6 @@ impl Browser {
             .map(|_| ())
     }
 
-    /// Types text into whatever has focus (paste, IME, emoji).
     pub async fn insert_text(&self, tab_id: &str, text: &str) -> Result<(), String> {
         let s = self.session_for(tab_id).await?;
         self.cdp
@@ -1178,9 +1107,6 @@ impl Browser {
             .map(|_| ())
     }
 
-    /// Presses a key the way a person would: down, (char), up. `key` is a DOM
-    /// key name (`Enter`, `Tab`, `ArrowDown`, `a`); `modifiers` is the CDP
-    /// bitmask (Alt 1, Ctrl 2, Meta 4, Shift 8).
     pub async fn press(&self, tab_id: &str, key: &str, modifiers: u32) -> Result<(), String> {
         let (code, vk, text) = key_info(key);
         let text = if modifiers & (2 | 4) != 0 {
@@ -1190,6 +1116,7 @@ impl Browser {
         };
         let down = json!({
             "type": if text.is_empty() { "rawKeyDown" } else { "keyDown" },
+            // WHY: no nativeVirtualKeyCode: macOS reads it as a native key code, and a Windows code there hangs the renderer.
             // No nativeVirtualKeyCode: macOS reads it as a native key code,
             // and a Windows code there hangs the renderer on real pages.
             "key": key, "code": code, "windowsVirtualKeyCode": vk,
@@ -1203,7 +1130,6 @@ impl Browser {
         .await
     }
 
-    /// back | forward | reload | stop
     pub async fn history(&self, tab_id: &str, action: &str) -> Result<(), String> {
         let s = self.session_for(tab_id).await?;
         match action {
@@ -1262,7 +1188,6 @@ impl Browser {
         (cur > 0, cur + 1 < n)
     }
 
-    /// PNG of the tab's viewport.
     pub async fn screenshot(&self, tab_id: &str) -> Result<Vec<u8>, String> {
         use base64::Engine;
         let s = self.session_for(tab_id).await?;
@@ -1280,8 +1205,6 @@ impl Browser {
             .map_err(|e| e.to_string())
     }
 
-    /// A tab in its own throwaway context: separate cookies and storage,
-    /// discarded when the tab closes.
     pub async fn open_private_tab(&self, url: &str) -> Result<String, String> {
         let c = self
             .cdp
@@ -1309,7 +1232,6 @@ impl Browser {
         Ok(r["targetId"].as_str().unwrap_or_default().to_string())
     }
 
-    /// Shows the window of window mode in front.
     pub async fn show_window(&self, tab_id: &str) -> Result<(), String> {
         let w = self
             .cdp
@@ -1370,10 +1292,6 @@ impl Browser {
         emit(json!({ "kind": "tabs", "tabs": self.tabs() }));
     }
 
-    /// Opens `url` in a new tab. The tab starts blank and navigates once its
-    /// session records the network (Puppeteer's `newPage` + `goto`): a
-    /// target created with the URL starts loading before we attach, and the
-    /// page document and whatever its player fetches first go unseen.
     pub async fn open_tab(&self, url: &str) -> Result<String, String> {
         let blank = url.is_empty() || url == "about:blank";
         let r = self
@@ -1455,8 +1373,6 @@ impl Browser {
             .map(|_| ())
     }
 
-    /// Evaluates `expression` in the tab, awaiting a promise, and returns the
-    /// value as JSON.
     pub async fn eval(
         &self,
         tab_id: &str,
@@ -1488,7 +1404,6 @@ impl Browser {
         Ok(r["result"]["value"].clone())
     }
 
-    /// Every cookie the browser holds for `host` or a parent domain of it.
     pub async fn cookies_for(&self, host: &str) -> Result<Vec<Value>, String> {
         let r = self.cdp.call("Storage.getCookies", json!({}), None).await?;
         Ok(r["cookies"]
@@ -1515,8 +1430,6 @@ impl Browser {
         r["userAgent"].as_str().map(String::from)
     }
 
-    /// A tab showing a page of exactly this origin, so a `fetch` from it is
-    /// same-origin and carries the site's cookies and Cloudflare clearance.
     pub fn tab_for_origin(&self, url: &str) -> Option<Tab> {
         let target = url::Url::parse(url).ok()?.origin();
         self.tabs().into_iter().find(|t| {
@@ -1544,11 +1457,6 @@ impl Browser {
     }
 }
 
-/// Keeps a tab of `url`'s origin open so the site's bot check (Cloudflare's
-/// `cf_clearance`, `__cf_bm`) stays fresh for downloads that reuse the
-/// browser's cookies. Opens one in the background when none is open; with
-/// `reload`, reloads the existing one. Waits until the page is past the
-/// challenge ("Just a moment..."), up to 30 s. No-op without a browser.
 pub async fn warm_up(url: &str, reload: bool) {
     let Some(b) = current() else { return };
     let Ok(origin) = url::Url::parse(url).map(|u| u.origin().ascii_serialization()) else {
@@ -1593,9 +1501,6 @@ pub async fn warm_up(url: &str, reload: bool) {
     }
 }
 
-/// An HTTP request made through the browser: inside a tab of the same origin
-/// when there is one (real cookies, real TLS, Cloudflare passes), otherwise
-/// from Rust with the browser's cookies and user agent.
 pub async fn fetch(
     url: &str,
     method: &str,
@@ -1673,7 +1578,6 @@ pub async fn fetch(
     Ok(json!({ "status": status, "url": final_url, "headers": hdrs, "body": text }))
 }
 
-/// (code, Windows virtual key code, text) for a DOM key name.
 pub fn key_info(key: &str) -> (String, i64, String) {
     let named: &[(&str, &str, i64)] = &[
         ("Enter", "Enter", 13),
@@ -1733,9 +1637,6 @@ pub fn key_info(key: &str) -> (String, i64, String) {
     (String::new(), 0, String::new())
 }
 
-/// Fetches a sniffed playlist again, with the headers the page sent, so the
-/// sniffer can tell a master from its variants and drop what is not a
-/// playlist.
 async fn inspect_playlist(item: sniffer::Sniffed) {
     let Ok(client) = reqwest::Client::builder()
         .use_rustls_tls()
@@ -1765,8 +1666,6 @@ async fn inspect_playlist(item: sniffer::Sniffed) {
         emit(json!({ "kind": "sniffed_removed", "ids": removed }));
         return;
     }
-    // Live or not shows in a media playlist: a master's first variant is
-    // fetched once more to tell.
     let media = match m3u8_rs::parse_playlist_res(&body) {
         Ok(m3u8_rs::Playlist::MediaPlaylist(p)) => Some(p),
         Ok(m3u8_rs::Playlist::MasterPlaylist(m)) => {

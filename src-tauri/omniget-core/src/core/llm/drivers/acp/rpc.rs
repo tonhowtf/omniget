@@ -1,14 +1,3 @@
-//! JSON-RPC 2.0, newline-delimited, over an ACP agent's stdio. Our own
-//! client, no SDK. Requests we send get numeric ids; the agent's requests
-//! keep whatever id it chose (numbers, strings, even `0`) and are answered
-//! with that exact value. Notifications we send never carry an `id` (Grok CLI
-//! silently drops a `session/cancel` framed as a request).
-//!
-//! Everything the agent sends that is not a response to us (requests and
-//! notifications) goes to one ordered channel, the same one the driver uses
-//! for its own markers (`$/prompt_done`, `$/exit`), so a prompt's completion
-//! is never processed before the updates that preceded it.
-
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, AtomicI64, Ordering};
 use std::sync::{Arc, Mutex as StdMutex};
@@ -21,17 +10,14 @@ use tokio::sync::{mpsc, oneshot, Mutex};
 use super::proc::{self, Spawn, Tail};
 use crate::core::mcp::stdio::LineFramer;
 
-/// One line may carry a whole file (`fs/write_text_file`).
 const MAX_LINE: usize = 32 * 1024 * 1024;
 
-/// JSON-RPC error codes the spec names.
 pub const CODE_AUTH_REQUIRED: i64 = -32000;
 pub const CODE_METHOD_NOT_FOUND: i64 = -32601;
 pub const CODE_INVALID_PARAMS: i64 = -32602;
 pub const CODE_INTERNAL: i64 = -32603;
 pub const CODE_RESOURCE_NOT_FOUND: i64 = -32002;
 
-/// Marker methods the driver injects into the inbound channel.
 pub const EXIT: &str = "$/exit";
 pub const PROMPT_DONE: &str = "$/prompt_done";
 
@@ -66,8 +52,6 @@ impl RpcError {
         }
     }
 
-    /// The agent wants `authenticate` first (spec code, or the message says so:
-    /// Gemini CLI answers `-32000 "Gemini API key is missing or not configured."`).
     pub fn is_auth_required(&self) -> bool {
         if self.code == CODE_AUTH_REQUIRED {
             return true;
@@ -100,10 +84,8 @@ impl std::fmt::Display for RpcError {
     }
 }
 
-/// A request or notification from the agent, or a driver marker.
 #[derive(Debug, Clone)]
 pub struct Inbound {
-    /// `Some` for a request (answer it with [`Connection::respond`]).
     pub id: Option<Value>,
     pub method: String,
     pub params: Value,
@@ -121,12 +103,10 @@ pub struct Connection {
     dead: Arc<AtomicBool>,
     stderr: Tail,
     inbound: mpsc::UnboundedSender<Inbound>,
-    /// Every line in and out, when protocol logging is on (tests, probes).
     log: Option<Arc<StdMutex<Vec<Value>>>>,
 }
 
 impl Connection {
-    /// Start the agent and its reader. Inbound traffic goes to `inbound`.
     pub fn spawn(
         spec: &Spawn,
         inbound: mpsc::UnboundedSender<Inbound>,
@@ -215,7 +195,6 @@ impl Connection {
 
     fn on_line(&self, line: &[u8]) {
         let Ok(msg) = serde_json::from_slice::<Value>(line) else {
-            // Agents sometimes print banners on stdout; keep them for errors.
             self.stderr.push(&String::from_utf8_lossy(line));
             self.stderr.push("\n");
             return;
@@ -264,8 +243,6 @@ impl Connection {
             .map_err(|e| RpcError::new(CODE_INTERNAL, format!("write to agent: {e}")))
     }
 
-    /// Send a request; the returned future resolves with its response.
-    /// Split from the wait so a caller can fire `session/prompt` and return.
     pub async fn send_request(
         &self,
         method: &str,
@@ -291,7 +268,6 @@ impl Connection {
         Ok(rx)
     }
 
-    /// Request + wait, with an optional timeout.
     pub async fn request(
         &self,
         method: &str,
@@ -316,7 +292,6 @@ impl Connection {
             .await
     }
 
-    /// Answer a request of the agent with its own id.
     pub async fn respond(&self, id: Value, result: Result<Value, RpcError>) {
         let msg = match result {
             Ok(v) => json!({ "jsonrpc": "2.0", "id": id, "result": v }),
@@ -333,8 +308,6 @@ impl Connection {
         self.stderr.text()
     }
 
-    /// Push a driver marker into the inbound stream (after everything already
-    /// received).
     pub fn inject(&self, method: &str, params: Value) {
         let _ = self.inbound.send(Inbound {
             id: None,
@@ -343,7 +316,6 @@ impl Connection {
         });
     }
 
-    /// Close stdin and kill the whole process tree.
     pub async fn shutdown(&self) {
         self.stdin.lock().await.take();
         proc::kill_tree(self.pid);

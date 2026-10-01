@@ -1,10 +1,3 @@
-//! Reference validator: URLs and links. No network access, ever.
-//!
-//! Improvements over the original: loopback in an MCP config is normal and
-//! not flagged; XML/JSON-schema namespace URLs (`http://www.w3.org/…`) are
-//! not "insecure HTTP"; cloud metadata endpoints, paste sites / request
-//! catchers, shorteners and raw public IPs are called out.
-
 use once_cell::sync::Lazy;
 use regex::Regex;
 use std::collections::BTreeSet;
@@ -65,7 +58,6 @@ const SUSPICIOUS_TLDS: &[&str] = &[
     ".work", ".xyz",
 ];
 
-/// Host (lower-case, no port/userinfo/brackets) of a URL.
 pub fn host_of(url: &str) -> Option<String> {
     let rest = url.split_once("://")?.1;
     let auth = rest.split(['/', '?', '#']).next().unwrap_or("");
@@ -149,7 +141,6 @@ fn classify_v6(ip: Ipv6Addr) -> HostClass {
     }
 }
 
-/// Check every URL of `text`. `config` = a JSON config (loopback is normal).
 pub fn check(file: &str, text: &str, config: bool, markdown: bool, sink: &mut Sink) {
     let idx = LineIndex::new(text);
     let code = markdown.then(|| CodeMap::new(text));
@@ -221,7 +212,6 @@ pub fn check(file: &str, text: &str, config: bool, markdown: bool, sink: &mut Si
         let drop = if in_code { 1 } else { 0 };
         let scheme = lower.split("://").next().unwrap_or("");
         if matches!(scheme, "ftp" | "file" | "smb") {
-            // ftp is only unencrypted; file/smb reach local or LAN files.
             let extra = if scheme == "ftp" { 1 } else { 0 };
             emit(
                 sink,
@@ -244,8 +234,6 @@ pub fn check(file: &str, text: &str, config: bool, markdown: bool, sink: &mut Si
             continue;
         }
         match classify(&host) {
-            // In documentation it is usually a pentest example; in a config or
-            // script it will be requested.
             HostClass::Metadata => emit(
                 sink,
                 "REF_E006",

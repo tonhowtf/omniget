@@ -1,25 +1,3 @@
-//! Lifecycle events and the policies that react to them.
-//!
-//! An event is a versioned envelope (id, correlation and causation ids,
-//! depth, scope, revision, bounded payload). A policy declares its trigger,
-//! an optional condition (tool name glob), its effect, whether it is
-//! required or advisory, a timeout, a debounce window and how many times it
-//! may fire per mission. The engine:
-//! - deduplicates by event id (a consumer sees an event once);
-//! - never turns a required failure or timeout into a pass: the dispatch
-//!   comes back `blocked` with the reason;
-//! - bounds an advisory policy by its timeout and records the bypass;
-//! - stops recursion: an event caused by a policy carries `depth + 1`, and
-//!   past [`MAX_DEPTH`] it is dropped with a diagnostic, whatever the policy
-//!   says; `max_fires` caps a policy that keeps re-triggering itself;
-//! - runs a `command` effect only for policies the user wrote. Imported and
-//!   proposed policies never run scripts (they come back `refused`).
-//!
-//! The engine decides; effects are carried out by an [`EffectRunner`] the
-//! caller provides (the app: checkpoint writer, verifier, shell through the
-//! broker). The domain keeps the order of mission transitions; policies do
-//! not move missions between states.
-
 use std::collections::{HashMap, HashSet};
 use std::sync::Mutex;
 use std::time::Duration;
@@ -32,7 +10,6 @@ use super::Origin;
 use crate::core::assist::db::AssistDb;
 
 pub const ENVELOPE_VERSION: u32 = 1;
-/// Events caused by events caused by… stop here.
 pub const MAX_DEPTH: u32 = 3;
 pub const DEFAULT_TIMEOUT_MS: u64 = 30_000;
 
@@ -104,7 +81,6 @@ impl Envelope {
         }
     }
 
-    /// An event caused by this one (one level deeper).
     pub fn child(&self, kind: Trigger, payload: Value) -> Self {
         Self {
             v: ENVELOPE_VERSION,
@@ -129,28 +105,29 @@ impl Envelope {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum PolicyEffect {
-    /// Save a structured checkpoint.
     Checkpoint,
-    /// Run the verifiers (one criterion, or all).
     Verify {
         #[serde(default)]
         criterion: Option<String>,
     },
-    /// Refuse the tool call (only meaningful on `before_tool`).
-    DenyTool { reason: String },
-    /// Record a note on the mission.
-    Note { text: String },
-    /// Run a command through the broker's shell tool (user policies only).
-    Command { command: String },
-    /// Emit another event (lets policies chain; bounded by depth).
-    Emit { trigger: Trigger },
+    DenyTool {
+        reason: String,
+    },
+    Note {
+        text: String,
+    },
+    Command {
+        command: String,
+    },
+    Emit {
+        trigger: Trigger,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Policy {
     pub id: String,
     pub trigger: Trigger,
-    /// `*`-glob on the tool name (tool events only).
     #[serde(default)]
     pub tool_glob: Option<String>,
     pub effect: PolicyEffect,
@@ -160,7 +137,6 @@ pub struct Policy {
     pub timeout_ms: u64,
     #[serde(default)]
     pub debounce_ms: u64,
-    /// Most fires per mission (0 = no cap beyond depth).
     #[serde(default)]
     pub max_fires: u32,
     #[serde(default)]
@@ -184,7 +160,6 @@ impl Policy {
     }
 }
 
-/// `*` matches any run of characters; everything else is literal.
 pub fn glob(pattern: &str, text: &str) -> bool {
     let parts: Vec<&str> = pattern.split('*').collect();
     if parts.len() == 1 {
@@ -215,21 +190,11 @@ pub fn glob(pattern: &str, text: &str) -> bool {
 #[serde(tag = "result", rename_all = "snake_case")]
 pub enum PolicyResult {
     Passed,
-    Failed {
-        reason: String,
-    },
-    TimedOut {
-        after_ms: u64,
-    },
-    Denied {
-        reason: String,
-    },
-    /// Within the debounce window of a previous fire: folded into it.
+    Failed { reason: String },
+    TimedOut { after_ms: u64 },
+    Denied { reason: String },
     Coalesced,
-    /// Not run (imported script, fire cap, recursion limit).
-    Refused {
-        reason: String,
-    },
+    Refused { reason: String },
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -244,11 +209,9 @@ pub struct PolicyOutcome {
 }
 
 impl PolicyOutcome {
-    /// Required and not passed: the step it guards must not go on.
     pub fn blocks(&self) -> bool {
         self.required && !matches!(self.result, PolicyResult::Passed | PolicyResult::Coalesced)
     }
-    /// Advisory and not passed: recorded as a bypass with its reason.
     pub fn bypassed(&self) -> Option<String> {
         if self.required {
             return None;
@@ -266,15 +229,11 @@ impl PolicyOutcome {
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct Dispatch {
     pub outcomes: Vec<PolicyOutcome>,
-    /// Set when a required policy failed, timed out or was refused.
     pub blocked: Option<String>,
-    /// Set when a `before_tool` policy denied the call.
     pub denied: Option<String>,
-    /// Events dropped at the recursion limit.
     pub dropped: Vec<String>,
 }
 
-/// What carrying out an effect produced: events to dispatch next.
 #[async_trait]
 pub trait EffectRunner: Send + Sync {
     async fn run(&self, env: &Envelope, effect: &PolicyEffect) -> Result<Vec<Trigger>, String>;
@@ -304,7 +263,6 @@ impl Engine {
         &self.policies
     }
 
-    /// Dispatches `env` and whatever the effects emit, breadth first.
     pub async fn dispatch(&self, env: Envelope, runner: &dyn EffectRunner) -> Dispatch {
         let mut out = Dispatch::default();
         let mut queue = vec![env];
@@ -336,7 +294,6 @@ impl Engine {
             for p in self.policies.iter().filter(|p| p.matches(&env)) {
                 let key = (p.id.clone(), env.mission_id.clone());
                 let started = std::time::Instant::now();
-                // Debounce and fire cap, under the lock.
                 let gate: Option<PolicyResult> = {
                     let mut st = self.state.lock().unwrap_or_else(|e| e.into_inner());
                     let n = st.fires.get(&key).copied().unwrap_or(0);
@@ -429,9 +386,6 @@ impl Engine {
     }
 }
 
-/// Built-in policies of every mission: checkpoint when a task is claimed and
-/// before compaction (advisory, bounded), verification before completion
-/// (required).
 pub fn defaults() -> Vec<Policy> {
     vec![
         Policy {
@@ -470,8 +424,6 @@ pub fn defaults() -> Vec<Policy> {
     ]
 }
 
-/// Writes the outcomes of a dispatch on the mission (bypasses with their
-/// reason, blocks, dropped events).
 pub fn persist(db: &AssistDb, mission_id: &str, d: &Dispatch) -> Result<(), String> {
     for o in &d.outcomes {
         let kind = if o.blocks() {

@@ -1,6 +1,3 @@
-//! Restrained Higgsfield CLI adapter. Only host-side code may configure the
-//! executable or grant a credit budget. No upload/path/shell surface is exposed.
-//! A durable unknown intent precedes submission; it is never submitted again.
 use super::db::{AssistDb, Migration};
 use rusqlite::{params, OptionalExtension};
 use serde::{Deserialize, Serialize};
@@ -150,7 +147,6 @@ impl Generation {
         )))
     }
 }
-/// Credits, not dollars. Integers avoid cumulative floating point under-reservation.
 #[derive(Debug, Serialize)]
 pub struct Quote {
     pub id: String,
@@ -177,7 +173,6 @@ pub struct Job {
     pub license_known: bool,
 }
 
-/// Internal capability; deliberately neither Debug nor Serialize.
 pub(crate) struct OpaqueLocator(String);
 impl OpaqueLocator {
     pub(crate) fn as_url(&self) -> &str {
@@ -186,13 +181,10 @@ impl OpaqueLocator {
 }
 pub struct Cli {
     path: PathBuf,
-    /// Interpreter of a `#!/usr/bin/env` script, resolved at trusted
-    /// configuration time (see `media_tools::resolve_interpreter`).
     interpreter: Option<PathBuf>,
     timeout: std::time::Duration,
 }
 impl Cli {
-    /// The path comes from local trusted configuration, never tool arguments.
     pub fn installed(path: &Path) -> Result<Self, String> {
         if !path.is_absolute() || !path.is_file() {
             return Err("PROVIDER_CLI_UNAVAILABLE".into());
@@ -223,7 +215,6 @@ impl Cli {
             }
             None => tokio::process::Command::new(&self.path),
         };
-        // Only trusted configured directories, never the ambient PATH.
         let search_path = std::env::join_paths([
             self.interpreter
                 .as_deref()
@@ -243,8 +234,6 @@ impl Cli {
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .kill_on_drop(true);
-        // Credentials stay in the CLI's host-local credential store. Never
-        // inherit bearer tokens, endpoint overrides or proxy environment.
         for name in ["HOME", "XDG_CONFIG_HOME", "USER"] {
             if let Some(v) = std::env::var_os(name) {
                 cmd.env(name, v);
@@ -291,8 +280,6 @@ impl Cli {
                         .map_err(|_| "PROVIDER_IO_ERROR".to_string())
                 })?;
             if !status.success() {
-                // Operator log only (redacted, clipped); never returned to the
-                // model or persisted with the intent.
                 let head: String = String::from_utf8_lossy(&stderr).chars().take(400).collect();
                 let out_head: String = String::from_utf8_lossy(&stdout).chars().take(200).collect();
                 tracing::warn!(
@@ -307,7 +294,6 @@ impl Cli {
         })
         .await
         .map_err(|_| "PROVIDER_TIMEOUT".to_string())?;
-        // Neither raw stderr nor raw provider JSON is persisted or returned.
         output
     }
     pub async fn discover(&self) -> Result<Value, String> {
@@ -422,7 +408,6 @@ impl Cli {
         self.submit_inner(db, principal, mission, key, quote, generation, None)
             .await
     }
-    /// External execution context is supplied by the host, never generation arguments.
     #[allow(clippy::too_many_arguments)]
     pub async fn submit_authorized(
         &self,
@@ -463,8 +448,6 @@ impl Cli {
         if !dispatch {
             return Ok(intent);
         }
-        // The committed unknown intent and reservation are already durable.
-        // Any error, timeout, cancellation or crash stays unknown and reserved.
         let raw = match self.run(generation.args("create")?).await {
             Ok(raw) => raw,
             Err(_) => return Ok(intent),
@@ -534,8 +517,6 @@ impl Cli {
         ) {
             return Err("PROVIDER_ARTIFACT_NOT_READY".into());
         }
-        // CLI 1.1.x returns `result_url` for single-output jobs; list-shaped
-        // `results[].url` is kept for multi-output responses.
         let raw_url = raw
             .get("results")
             .and_then(Value::as_array)
@@ -590,8 +571,6 @@ impl Cli {
             })
             .unwrap_or("unknown")
             .to_string();
-        // No URLs, prompts, metadata, errors, credentials or signed locators
-        // cross this projection. Artifact retrieval requires a separate grant.
         Ok(Job {
             intent,
             status,
@@ -644,7 +623,6 @@ fn lookup(
 ) -> Result<Intent, String> {
     conn.query_row("SELECT id,provider_id,state,reserved FROM media_provider_intents WHERE id=?1 AND principal=?2 AND mission=?3",params![id,principal,mission],|r|Ok(Intent{id:r.get(0)?,provider_id:r.get(1)?,state:r.get(2)?,reserved_microcredits:r.get(3)?})).map_err(|_|"PROVIDER_INTENT_DENIED".into())
 }
-/// Trusted local authorization entry point. Never expose this as a model tool.
 pub fn set_local_budget(
     db: &AssistDb,
     principal: &str,

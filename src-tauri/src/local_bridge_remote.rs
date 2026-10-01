@@ -1,42 +1,3 @@
-//! Remote access to the Central (plan §3.9, T11): pair a phone with a QR code
-//! and follow or drive the threads from a small PWA.
-//!
-//! The local bridge (`local_bridge.rs`) keeps listening on `127.0.0.1` only.
-//! Remote access is an explicit opt-in that starts a **second listener** on
-//! one interface the user picks (loopback for `tailscale serve`/`ssh -L`, a
-//! LAN address or the Tailscale address). That listener serves only
-//! `/remote/*`, authenticated per device; every other path answers 401, so
-//! the local routes are never reachable from it.
-//!
-//! Pairing (the T3 flow): the app mints a one-time secret and shows
-//! `http://<host>:<port>/remote/#pair=<secret>&scope=<read|drive>` as a QR
-//! code. The secret sits after the `#`, so it never reaches a server log.
-//! The PWA posts it to `/remote/api/pair` and gets a per-device bearer; only
-//! the bearer's SHA-256 is stored (`<app_data>/remote/devices.json`). The
-//! scope comes from the server-side record of the secret, never from the URL.
-//! The event socket (`GET /remote/ws?ticket=…&after=<seq>`) takes a 60 s,
-//! single-use ticket minted with the bearer (`POST /remote/api/ws-ticket`),
-//! since browsers cannot put headers on a WebSocket.
-//!
-//! The canvas (`crate::canvas::remote`) adds `/remote/canvas/` and
-//! `/remote/api/canvas/*` on the same listener and devices, and a second way
-//! to pair: a 6-digit code typed on the phone (5 min, single use, one live
-//! at a time), throttled per address and globally; a global lockout burns
-//! the live code.
-//!
-//! Scopes: `read` sees threads, timelines, diffs and outside sessions;
-//! `drive` can also send a message, answer an approval or a question, and
-//! interrupt a turn. Nothing else is dispatchable from a phone.
-//!
-//! No relay: the phone reaches the machine over the LAN, over Tailscale
-//! (optionally through `tailscale serve`, run only after the user confirms)
-//! or through an `ssh -L` tunnel. Nothing runs while remote access is off,
-//! and `tailscale` is only spawned when the settings page asks.
-//!
-//! The WebSocket shares the port with axum: a small accept loop peeks the
-//! request line and hands `GET /remote/ws` connections to tungstenite, the
-//! rest to axum (the host's axum is built without its `ws` feature).
-
 use std::collections::{HashMap, VecDeque};
 use std::io::Write as _;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
@@ -66,26 +27,18 @@ use tokio_tungstenite::tungstenite::{self, Message};
 
 pub mod tls;
 
-/// TLS identity of the remote listener (pin), for `/api/info` and pairing.
 pub fn tls_info() -> Value {
     tls::info()
 }
 
 type TlsConn = tokio_rustls::server::TlsStream<TcpStream>;
 
-/// Default port of the remote listener (the local bridge uses 47720..47730).
 pub const DEFAULT_PORT: u16 = 47740;
-/// Default HTTPS port `tailscale serve` publishes on (443 is often taken).
 pub const DEFAULT_TAILSCALE_HTTPS_PORT: u16 = 8443;
-/// Lifetime of a pairing secret.
 pub const PAIR_TTL_SECS: i64 = 600;
-/// Lifetime of a WebSocket ticket.
 pub const TICKET_TTL_SECS: i64 = 60;
-/// Lifetime of a 6-digit pairing code (canvas remote, typed on the phone).
 pub const CODE_TTL_SECS: i64 = 300;
-/// Failed pairings one address may make inside the window.
 const PAIR_FAIL_PER_IP: usize = 5;
-/// UI event: devices, access log or listener state changed.
 pub const EVENT_REMOTE: &str = "remote://changed";
 
 const LOG_CAP: usize = 300;
@@ -94,8 +47,6 @@ const PAIR_FAIL_WINDOW_MS: i64 = 5 * 60 * 1000;
 const PAIR_FAIL_MAX: usize = 10;
 const LAST_USED_PERSIST_MS: i64 = 60 * 1000;
 const WS_PING_SECS: u64 = 25;
-
-// ── PWA shell (embedded so dev and release builds serve the same bytes) ──
 
 const PWA_FILES: &[(&str, &str, &str)] = &[
     (
@@ -134,8 +85,6 @@ const CSP: &str = "default-src 'self'; script-src 'self'; style-src 'self'; img-
 connect-src 'self' ws: wss:; manifest-src 'self'; worker-src 'self'; base-uri 'none'; \
 form-action 'none'; frame-ancestors 'none'";
 
-// ── Model ────────────────────────────────────────────────────────────────
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Scope {
@@ -160,10 +109,6 @@ impl Scope {
     }
 }
 
-/// What a phone may dispatch. `read` nothing; `drive` only the four actions
-/// of the plan (send, approve/decline, answer, interrupt) plus "visited".
-/// `acceptAlways` writes a permanent permission rule, so it stays a desktop
-/// decision.
 pub fn command_allowed(scope: Scope, command: &Command) -> Result<(), &'static str> {
     if scope != Scope::Drive {
         return Err("read-only device");
@@ -211,7 +156,6 @@ pub struct DeviceView {
     pub last_used_at: Option<String>,
     pub last_ip: Option<String>,
     pub user_agent: Option<String>,
-    /// Open event sockets of this device right now.
     pub connected: u32,
 }
 
@@ -224,16 +168,11 @@ struct DevicesFile {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct RemoteConfig {
-    /// The opt-in: the listener comes back on the next launch when true.
     pub enabled: bool,
     pub bind_ip: String,
     pub port: u16,
     pub tailscale_https_port: u16,
-    /// `https://<machine>.<tailnet>.ts.net[:port]` once `tailscale serve`
-    /// was turned on from here.
     pub tailscale_serve_url: Option<String>,
-    /// "Private network only": connections from a public address are closed
-    /// before any byte is read (see [`private_peer`]).
     pub private_only: bool,
 }
 
@@ -266,14 +205,12 @@ pub struct AccessEntry {
 #[serde(rename_all = "camelCase")]
 pub struct InterfaceOption {
     pub ip: String,
-    /// `loopback|lan|tailscale|other`
     pub kind: String,
 }
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Endpoint {
-    /// `direct|tailscale-serve|ssh`
     pub kind: String,
     pub url: String,
 }
@@ -293,10 +230,8 @@ pub struct RemoteStatus {
     pub tailscale_https_port: u16,
     pub tailscale_serve_url: Option<String>,
     pub private_only: bool,
-    /// Last connection "Private network only" refused: `ip` and when.
     pub last_refused: Option<Value>,
     pub last_error: Option<String>,
-    /// HTTPS on the same port: `{pin, pinHex, algorithm}` of the certificate.
     pub tls: Value,
 }
 
@@ -316,12 +251,9 @@ struct PendingPair {
     scope: Scope,
     label: Option<String>,
     expires_ms: i64,
-    /// A short 6-digit code (typed by hand) instead of a QR secret: only
-    /// one lives at a time, and a pairing lockout invalidates it.
     code: bool,
 }
 
-/// A 6-digit pairing code, shown once in the app.
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PairCode {
@@ -341,14 +273,10 @@ struct Running {
     stop: watch::Sender<bool>,
 }
 
-// ── Backend (threads engine + diff); the app one and a test one ─────────
-
 #[async_trait::async_trait]
 pub trait RemoteBackend: Send + Sync + 'static {
     async fn engine(&self) -> Result<Arc<ThreadsEngine>, String>;
     async fn diff(&self, thread_id: &str, turn: Option<u32>) -> Result<Value, String>;
-    /// The door of the durable asks (item 2.2): the jobs' questions, next
-    /// to the threads' own approvals. `None` = not offered by this backend.
     fn approvals(&self) -> Option<crate::approvals::Approvals> {
         None
     }
@@ -378,8 +306,6 @@ impl RemoteBackend for AppBackend {
     }
 }
 
-// ── Hub ──────────────────────────────────────────────────────────────────
-
 pub struct RemoteHub {
     dir: Option<PathBuf>,
     cfg: Mutex<RemoteConfig>,
@@ -399,7 +325,6 @@ pub struct RemoteHub {
 
 static HUB: OnceLock<Arc<RemoteHub>> = OnceLock::new();
 
-/// The process-wide hub, loaded from `<app_data>/remote/` on first use.
 pub fn hub() -> Arc<RemoteHub> {
     HUB.get_or_init(|| {
         RemoteHub::new(omniget_core::core::paths::app_data_dir().map(|d| d.join("remote")))
@@ -538,10 +463,6 @@ impl RemoteHub {
         }
     }
 
-    // ── Pairing ──
-
-    /// Mints a one-time secret for `scope` and returns the link for `base`
-    /// (`http(s)://host:port`, no path).
     pub fn create_pairing(
         &self,
         scope: Scope,
@@ -577,10 +498,6 @@ impl RemoteHub {
         })
     }
 
-    /// A one-time 6-digit code for `scope` (5 min). Replaces the previous
-    /// code; QR secrets stay. Six digits are guessable, so the pairing
-    /// throttle (per address and global) applies and a global lockout
-    /// drops the code (the Maestri Wire rule, study 94/95).
     pub fn create_code_pairing(&self, scope: Scope, label: Option<String>) -> PairCode {
         let n: u32 = rand::random_range(0..1_000_000);
         let code = format!("{n:06}");
@@ -625,7 +542,6 @@ impl RemoteHub {
         f.len() >= PAIR_FAIL_MAX
     }
 
-    /// Trades a pairing secret for a device bearer. Returns `(token, device)`.
     fn redeem_pairing(
         &self,
         secret: &str,
@@ -655,8 +571,6 @@ impl RemoteHub {
                 .or_default()
                 .push_back(now_ms());
             if self.pair_locked() {
-                // Global lockout: the short code is burned, a new one must
-                // be shown in the app.
                 self.pending.lock().unwrap().retain(|x| !x.code);
             }
             return Err((StatusCode::UNAUTHORIZED, "invalid or expired pairing code"));
@@ -684,15 +598,12 @@ impl RemoteHub {
         Ok((token, view))
     }
 
-    /// Seconds until pairing opens again for `ip` (the oldest failure that
-    /// keeps it locked leaves the window); the `Retry-After` of a 429.
     fn pair_retry_secs(&self, ip: &str) -> u64 {
         let now = now_ms();
         let wait = |q: &VecDeque<i64>, limit: usize| -> i64 {
             if q.len() < limit {
                 return 0;
             }
-            // Unlocks when len drops below the limit.
             let k = q.len() - limit;
             q.get(k).map(|t| t + PAIR_FAIL_WINDOW_MS - now).unwrap_or(0)
         };
@@ -737,8 +648,6 @@ impl RemoteHub {
                 .unwrap_or(0),
         }
     }
-
-    // ── Devices ──
 
     pub fn devices(&self) -> Vec<DeviceView> {
         let list = self.devices.lock().unwrap().clone();
@@ -786,7 +695,6 @@ impl RemoteHub {
         ok
     }
 
-    /// The device of a bearer, with its last use bumped.
     fn authenticate(&self, token: &str, ip: &str) -> Option<DeviceRecord> {
         let hash = hash_secret(token);
         let (rec, persist) = {
@@ -815,8 +723,6 @@ impl RemoteHub {
             .cloned()
     }
 
-    // ── Tickets ──
-
     fn mint_ticket(&self, device_id: &str) -> (String, i64) {
         let ticket = random_b64(24);
         let expires_ms = now_ms() + TICKET_TTL_SECS * 1000;
@@ -833,7 +739,6 @@ impl RemoteHub {
         (ticket, expires_ms)
     }
 
-    /// Single use: the ticket is gone after this call either way.
     fn redeem_ticket(&self, ticket: &str) -> Option<DeviceRecord> {
         let t = self.tickets.lock().unwrap().remove(ticket)?;
         if t.expires_ms <= now_ms() {
@@ -841,8 +746,6 @@ impl RemoteHub {
         }
         self.device(&t.device_id)
     }
-
-    // ── Access log ──
 
     fn record(&self, entry: AccessEntry) {
         {
@@ -893,8 +796,6 @@ impl RemoteHub {
         }
         self.notify("access");
     }
-
-    // ── Listener ──
 
     pub fn status(&self) -> RemoteStatus {
         let cfg = self.config();
@@ -950,7 +851,6 @@ impl RemoteHub {
         self.running.lock().unwrap().as_ref().map(|r| r.addr)
     }
 
-    /// Starts (or restarts) the remote listener on `bind_ip:port`.
     pub async fn start(
         self: &Arc<Self>,
         backend: Arc<dyn RemoteBackend>,
@@ -1067,7 +967,6 @@ impl RemoteHub {
         }
     }
 
-    /// Stops the listener and turns the opt-in off. Paired devices stay.
     pub fn stop(&self) {
         self.stop_listener();
         self.cancel_pairings();
@@ -1077,7 +976,6 @@ impl RemoteHub {
         self.notify("stopped");
     }
 
-    /// "Private network only" on/off (saved; applies to the next connection).
     pub fn set_private_only(&self, on: bool) {
         self.cfg.lock().unwrap().private_only = on;
         self.save_config();
@@ -1143,7 +1041,6 @@ pub fn render_qr(content: &str) -> Result<String, String> {
         .build())
 }
 
-/// `http(s)://host[:port]` with no path or trailing slash.
 pub fn normalize_base(base: &str) -> Result<String, String> {
     let u =
         url::Url::parse(base.trim()).map_err(|e| format!("REMOTE_BASE_INVALID: {base:?}: {e}"))?;
@@ -1164,9 +1061,6 @@ pub fn base_for(ip: IpAddr, port: u16) -> String {
 
 static LAST_REFUSED: std::sync::Mutex<Option<Value>> = std::sync::Mutex::new(None);
 
-/// An address of a private network: loopback, RFC 1918, CGNAT 100.64/10
-/// (Tailscale lives there), link-local (`.local` peers) and IPv6 ULA
-/// fc00::/7 (Tailscale's fd7a:115c::/32) or link-local fe80::/10.
 pub fn private_peer(ip: IpAddr) -> bool {
     match ip {
         IpAddr::V4(v4) => {
@@ -1212,8 +1106,6 @@ pub fn classify_ip(ip: IpAddr) -> &'static str {
     }
 }
 
-/// The address the OS would use to reach `target` (a UDP "connect" sends
-/// nothing). Cheap, dependency-free interface discovery.
 fn local_ip_towards(target: &str) -> Option<IpAddr> {
     let s = std::net::UdpSocket::bind("0.0.0.0:0").ok()?;
     s.connect(target).ok()?;
@@ -1273,8 +1165,6 @@ fn bind_remote(ip: IpAddr, port: u16) -> std::io::Result<(SocketAddr, TcpListene
     Err(last.unwrap_or_else(|| std::io::Error::other("no port")))
 }
 
-// ── Accept loop: WebSocket to tungstenite, the rest to axum ─────────────
-
 #[derive(Clone)]
 struct Ctx {
     hub: Arc<RemoteHub>,
@@ -1287,7 +1177,6 @@ struct SplitListener {
     local: SocketAddr,
 }
 
-/// HTTPS connections of the same port (TLS already accepted).
 struct TlsListener {
     rx: mpsc::Receiver<(TlsConn, SocketAddr)>,
     local: SocketAddr,
@@ -1322,7 +1211,6 @@ impl Listener for SplitListener {
     async fn accept(&mut self) -> (Self::Io, Self::Addr) {
         match self.rx.recv().await {
             Some(pair) => pair,
-            // The accept loop is gone (stopping): graceful shutdown ends us.
             None => std::future::pending().await,
         }
     }
@@ -1354,7 +1242,6 @@ async fn route_connection(
     for _ in 0..100 {
         match tokio::time::timeout(Duration::from_secs(10), stream.peek(&mut buf)).await {
             Ok(Ok(0)) | Ok(Err(_)) | Err(_) => return,
-            // A TLS ClientHello: HTTPS with the pinned certificate.
             Ok(Ok(_)) if buf[0] == 0x16 => {
                 let Ok(acceptor) = tls::acceptor() else {
                     return;
@@ -1488,7 +1375,6 @@ async fn send_json(
         .map_err(|e| e.to_string())
 }
 
-/// Replays `(last, head]` into the socket. Returns the new `last`.
 async fn catch_up(
     engine: &Arc<ThreadsEngine>,
     sink: &mut futures::stream::SplitSink<WsStream, Message>,
@@ -1516,7 +1402,6 @@ async fn catch_up(
 
 async fn pump_events(ws: WsStream, auth: WsAuth, ctx: &Ctx) -> Result<(), String> {
     let engine = ctx.backend.engine().await?;
-    // Subscribe before the replay so nothing falls between the two.
     let mut live = engine.subscribe();
     let mut revoked = ctx.hub.revoked.subscribe();
     let mut stop = ctx.stop.clone();
@@ -1580,13 +1465,9 @@ async fn pump_events(ws: WsStream, auth: WsAuth, ctx: &Ctx) -> Result<(), String
     Ok(())
 }
 
-// ── HTTP routes ──────────────────────────────────────────────────────────
-
-/// Device name put on a response so the access log can show it.
 #[derive(Clone)]
 struct LoggedDevice(String, String);
 
-/// A paired device as the canvas routes (`crate::canvas::remote`) see it.
 #[derive(Debug, Clone)]
 pub(crate) struct RemoteDevice {
     pub id: String,
@@ -1594,8 +1475,6 @@ pub(crate) struct RemoteDevice {
     pub scope: Scope,
 }
 
-/// The device of the request's bearer (process-wide hub), with its last
-/// use bumped; `None` = 401.
 pub(crate) fn device_of(headers: &HeaderMap, peer: &Peer) -> Option<RemoteDevice> {
     let token = bearer_of(headers)?;
     let d = hub().authenticate(token, &peer.0.ip().to_string())?;
@@ -1606,7 +1485,6 @@ pub(crate) fn device_of(headers: &HeaderMap, peer: &Peer) -> Option<RemoteDevice
     })
 }
 
-/// Tags a response with the device for the access log.
 pub(crate) fn tag_device(mut r: Response, d: &RemoteDevice) -> Response {
     r.extensions_mut()
         .insert(LoggedDevice(d.id.clone(), d.name.clone()));
@@ -1740,7 +1618,6 @@ async fn access_log(State(ctx): State<Ctx>, req: Request, next: Next) -> Respons
     resp
 }
 
-/// Query string as text pairs (the host's axum has no `query` feature).
 struct Qs(HashMap<String, String>);
 
 impl Qs {
@@ -1991,7 +1868,6 @@ async fn api_dispatch(
     json_result(r, &d)
 }
 
-/// The jobs' pending questions (2.2), for any paired device.
 async fn api_approvals(
     State(ctx): State<Ctx>,
     ConnectInfo(peer): ConnectInfo<Peer>,
@@ -2008,10 +1884,6 @@ async fn api_approvals(
     json_result(r, &d)
 }
 
-/// Answers a job's question from the phone: a `drive` device only, and
-/// never `accept_always` (a permanent rule stays a desktop decision, the
-/// same rule as the threads' `acceptAlways`). Recorded as `remote` by
-/// `device:<id>`.
 async fn api_approval_respond(
     State(ctx): State<Ctx>,
     ConnectInfo(peer): ConnectInfo<Peer>,
@@ -2045,7 +1917,6 @@ async fn api_approval_respond(
     tagged(resp, &d)
 }
 
-/// What a device may answer on a job's question.
 pub fn approval_allowed(scope: Scope, decision: &str) -> Result<(), &'static str> {
     if scope != Scope::Drive {
         return Err("read-only device");
@@ -2098,10 +1969,6 @@ async fn api_session_get(
     json_result(r, &d)
 }
 
-// ── App glue (called from `local_bridge::spawn` and the commands) ───────
-
-/// Brings the remote listener back when the user left it on. Call once at
-/// startup (the local bridge's `spawn` is the natural place).
 pub async fn boot(app: AppHandle) {
     let h = hub();
     h.set_app(&app);
@@ -2128,8 +1995,6 @@ pub async fn start_for_app(
     Ok(h.status())
 }
 
-// ── Tailscale and SSH helpers ────────────────────────────────────────────
-
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TailscaleInfo {
@@ -2140,7 +2005,6 @@ pub struct TailscaleInfo {
     pub dns_name: Option<String>,
     pub ips: Vec<String>,
     pub https_port: u16,
-    /// Target the serve proxies to (the remote listener).
     pub target: Option<String>,
     pub serve_args: Vec<String>,
     pub serve_command: Option<String>,
@@ -2226,7 +2090,6 @@ fn serve_url_for(dns: &str, https_port: u16) -> String {
     }
 }
 
-/// Reads `tailscale status --json` (only when the settings page asks).
 pub async fn tailscale_status(https_port: Option<u16>) -> TailscaleInfo {
     let h = hub();
     let cfg = h.config();
@@ -2315,8 +2178,6 @@ pub struct CommandRun {
     pub serve_url: Option<String>,
 }
 
-/// Turns `tailscale serve` of the remote port on or off. Refuses to run
-/// without `confirm: true` (the page shows the command first).
 pub async fn tailscale_serve(
     enable: bool,
     confirm: bool,
@@ -2366,13 +2227,10 @@ pub struct SshInfo {
     pub host: String,
     pub local_port: u16,
     pub remote_target: String,
-    /// Base to pair with once the tunnel is up (on the other machine).
     pub base: String,
     pub running: bool,
 }
 
-/// `ssh -N -L <local>:<bound ip>:<port> user@host` for whoever prefers a
-/// tunnel; the phone/laptop then opens `http://127.0.0.1:<local>/remote/`.
 pub fn ssh_info(local_port: Option<u16>, host: Option<String>) -> SshInfo {
     let h = hub();
     let bound = h.bound_addr();
@@ -2412,5 +2270,3 @@ pub fn ssh_info(local_port: Option<u16>, host: Option<String>) -> SshInfo {
         running: bound.is_some(),
     }
 }
-
-// ── Tests ────────────────────────────────────────────────────────────────

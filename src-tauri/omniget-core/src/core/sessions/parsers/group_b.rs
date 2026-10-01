@@ -1,10 +1,3 @@
-//! Registro das fontes do grupo b (dono: worker s2-sessions) e utilitários
-//! comuns aos parsers do grupo: Cursor, Copilot, Cline (e Roo/Kilo legados),
-//! Zed, Droid, Kimi, Pi, Amp, Aider, Junie, Auggie, Grok e Kiro.
-//!
-//! Regras de todos os parsers daqui: só leitura, nunca credencial, arquivo
-//! estranho vira vazio (nunca pânico), SQLite aberto em modo somente leitura.
-
 #[path = "aider.rs"]
 pub mod aider;
 #[path = "amp.rs"]
@@ -54,7 +47,6 @@ pub fn sources() -> Vec<Box<dyn SessionSource>> {
     ]
 }
 
-/// Utilitários compartilhados pelos parsers do grupo b.
 pub mod util {
     use std::collections::HashMap;
     use std::fs;
@@ -66,7 +58,6 @@ pub mod util {
 
     use crate::core::sessions::model::{Role, SessionMeta, TokenUsage, ToolCall, ToolStatus, Turn};
 
-    /// Arquivo maior que isto não é lido inteiro (proteção contra lixo).
     pub const MAX_FILE_BYTES: u64 = 512 * 1024 * 1024;
 
     pub fn home() -> Option<PathBuf> {
@@ -81,7 +72,6 @@ pub mod util {
         Some(p)
     }
 
-    /// Variável de ambiente com caminho, ignorando vazia.
     pub fn env_dir(var: &str) -> Option<PathBuf> {
         let v = std::env::var_os(var)?;
         if v.is_empty() {
@@ -90,9 +80,6 @@ pub mod util {
         Some(PathBuf::from(v))
     }
 
-    /// `~/.local/share` no Linux (respeitando `XDG_DATA_HOME`); no macOS e no
-    /// Windows as CLIs de Node/Go/Rust costumam usar o mesmo `~/.local/share`
-    /// literal, então devolvemos os dois candidatos quando diferem.
     pub fn xdg_data_homes() -> Vec<PathBuf> {
         let mut v = Vec::new();
         if let Some(x) = env_dir("XDG_DATA_HOME") {
@@ -117,11 +104,6 @@ pub mod util {
         out
     }
 
-    /// Diretórios `User/` dos editores da família VS Code instalados, com o
-    /// rótulo do editor (vira `SessionMeta.account`). macOS
-    /// `~/Library/Application Support/<App>/User`, Linux `~/.config/<App>/User`,
-    /// Windows `%APPDATA%\<App>\User`, mais os servidores remotos
-    /// (`~/.vscode-server/data/User` etc.).
     pub fn vscode_user_dirs() -> Vec<(String, PathBuf)> {
         const APPS: &[&str] = &[
             "Code",
@@ -180,8 +162,6 @@ pub mod util {
             .unwrap_or_default()
     }
 
-    /// Converte número (s, ms, µs, ns) ou string (RFC 3339, "YYYY-MM-DD
-    /// HH:MM:SS", numérica) em milissegundos desde a época.
     pub fn ts_ms(v: &Value) -> Option<i64> {
         match v {
             Value::Number(n) => {
@@ -237,7 +217,6 @@ pub mod util {
         ts_ms(v).map(ms_to_rfc3339)
     }
 
-    /// Primeiro campo presente (entre `keys`) convertido em timestamp.
     pub fn ts_field(v: &Value, keys: &[&str]) -> Option<i64> {
         keys.iter().find_map(|k| v.get(*k).and_then(ts_ms))
     }
@@ -251,7 +230,6 @@ pub mod util {
         serde_json::from_slice(&bytes).ok()
     }
 
-    /// Lê JSONL linha a linha; linha quebrada é pulada.
     pub fn read_jsonl(p: &Path) -> Vec<Value> {
         let mut out = Vec::new();
         for_each_jsonl(p, |v| out.push(v));
@@ -289,7 +267,6 @@ pub mod util {
         &b[s..e]
     }
 
-    /// Abre SQLite só para leitura, sem criar arquivo e sem travar escritor.
     pub fn open_ro(p: &Path) -> Option<rusqlite::Connection> {
         if !p.is_file() {
             return None;
@@ -323,7 +300,6 @@ pub mod util {
         }
     }
 
-    /// Valor numérico tolerante (int, float, string numérica), nunca negativo.
     pub fn as_u64(v: &Value) -> Option<u64> {
         match v {
             Value::Number(n) => n
@@ -352,7 +328,6 @@ pub mod util {
         }
     }
 
-    /// Primeiro campo numérico presente entre `keys` (0 se nenhum).
     pub fn u(v: &Value, keys: &[&str]) -> u64 {
         keys.iter()
             .find_map(|k| v.get(*k).and_then(as_u64))
@@ -363,7 +338,6 @@ pub mod util {
         keys.iter().find_map(|k| v.get(*k).and_then(as_f64))
     }
 
-    /// Primeira string não vazia entre `keys`.
     pub fn s(v: &Value, keys: &[&str]) -> Option<String> {
         keys.iter().find_map(|k| {
             v.get(*k)
@@ -374,8 +348,6 @@ pub mod util {
         })
     }
 
-    /// Texto de um `content` no formato Anthropic/OpenAI/ACP: string, lista de
-    /// blocos `{type:"text", text}` ou objeto com `text`.
     pub fn content_text(v: &Value) -> String {
         match v {
             Value::String(s) => s.clone(),
@@ -412,7 +384,6 @@ pub mod util {
         }
     }
 
-    /// Resultado de tool em texto (string, blocos ou JSON cru).
     pub fn result_text(v: &Value) -> String {
         match v {
             Value::Null => String::new(),
@@ -437,9 +408,6 @@ pub mod util {
         }
     }
 
-    /// Nome canônico (nomenclatura do Claude) a partir do nome cru de qualquer
-    /// ferramenta. Tabela do §0C.5 do estudo 06 mais os nomes vistos nos logs
-    /// reais (Cursor `read_file_v2`, `run_terminal_command_v2` etc.).
     pub fn canonical_tool(raw: &str) -> String {
         let r = raw.trim();
         let low = r.to_ascii_lowercase();
@@ -592,9 +560,6 @@ pub mod util {
         }
     }
 
-    /// Preenche contagem, soma de uso/custo, modelos e início/fim a partir dos
-    /// turnos. Não sobrescreve `started`/`ended` já definidos; soma de uso só
-    /// substitui a do meta quando os turnos trazem algum número.
     pub fn finalize(meta: &mut SessionMeta, turns: &mut [Turn]) {
         let fallback = meta
             .started
@@ -649,7 +614,6 @@ pub mod util {
         }
     }
 
-    /// Título curto a partir do primeiro prompt.
     pub fn title_from(text: &str) -> String {
         let line = text
             .lines()
@@ -668,7 +632,6 @@ pub mod util {
         out
     }
 
-    /// Aspas de shell portáveis (POSIX); o front mostra o comando para copiar.
     pub fn shell_quote(s: &str) -> String {
         if !s.is_empty()
             && s.chars()
@@ -679,9 +642,6 @@ pub mod util {
         format!("'{}'", s.replace('\'', "'\\''"))
     }
 
-    /// Blocos de conteúdo no estilo Anthropic (`text`, `thinking`,
-    /// `tool_use`, `tool_result`). Devolve texto, chamadas e resultados
-    /// `(tool_use_id, texto, is_error)`.
     pub fn anthropic_blocks(
         content: &Value,
     ) -> (String, Vec<ToolCall>, Vec<(String, String, bool)>) {
@@ -745,7 +705,6 @@ pub mod util {
         (text.join("\n"), calls, results)
     }
 
-    /// Liga resultados de tool às chamadas já vistas, pelo id.
     pub fn attach_results(turns: &mut [Turn], results: Vec<(String, String, bool)>) {
         if results.is_empty() {
             return;
@@ -771,7 +730,6 @@ pub mod util {
         }
     }
 
-    /// Arquivos com um nome/sufixo sob uma raiz, até `depth` níveis.
     pub fn find_files(root: &Path, depth: usize, pred: impl Fn(&Path) -> bool) -> Vec<PathBuf> {
         if !root.is_dir() {
             return Vec::new();
@@ -804,7 +762,6 @@ pub mod util {
         p.parent().map(file_name).unwrap_or_default()
     }
 
-    /// Converte `file:///x/y` (ou caminho já cru) em caminho.
     pub fn uri_to_path(s: &str) -> String {
         let s = s.trim();
         let rest = match s.strip_prefix("file://") {
@@ -812,7 +769,6 @@ pub mod util {
             None => return s.to_string(),
         };
         let decoded = percent_decode(rest);
-        // file:///C:/x no Windows
         let b = decoded.as_bytes();
         if b.len() > 3 && b[0] == b'/' && b[2] == b':' {
             return decoded[1..].to_string();
@@ -838,14 +794,12 @@ pub mod util {
         String::from_utf8_lossy(&out).into_owned()
     }
 
-    /// Mapa `workspaceStorage/<hash>` → pasta aberta (lê `workspace.json`).
     pub fn workspace_folder(ws_dir: &Path) -> Option<String> {
         let v = read_json(&ws_dir.join("workspace.json"))?;
         let f = s(&v, &["folder", "workspace"])?;
         Some(uri_to_path(&f))
     }
 
-    /// Ordena por mtime decrescente (mais recente primeiro).
     pub fn sort_recent(v: &mut [crate::core::sessions::model::SessionMeta]) {
         v.sort_by_key(|m| std::cmp::Reverse(m.mtime_ms));
     }

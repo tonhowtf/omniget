@@ -1,11 +1,3 @@
-//! The engine: one writer thread owns the write connection and the light
-//! read model, and processes commands strictly one at a time (T3's serialized
-//! queue). Each command is normalized (ids, clock), checked against its
-//! receipt, decided, then appended + projected + receipted in ONE
-//! transaction; subscribers hear the events only after the commit.
-//! Readers use their own connection (WAL), so a snapshot never waits for a
-//! turn that is streaming.
-
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
@@ -24,11 +16,8 @@ const BROADCAST_CAP: usize = 4096;
 #[serde(rename_all = "camelCase")]
 pub struct DispatchResult {
     pub command_id: String,
-    /// Sequence of the last event the command produced (or of the head, for
-    /// a no-op).
     pub sequence: i64,
     pub events: Vec<StoredEvent>,
-    /// The command id had an accepted receipt already: nothing was redone.
     pub deduplicated: bool,
 }
 
@@ -61,8 +50,6 @@ fn short(prefix: &str) -> String {
     )
 }
 
-/// Fill what the client may omit: ids and the command id. Pure apart from
-/// the random ids.
 pub fn normalize(env: CommandEnvelope) -> (String, Command) {
     use Command::*;
     let command_id = env
@@ -90,8 +77,6 @@ pub fn normalize(env: CommandEnvelope) -> (String, Command) {
             if thread_id.as_deref().map(str::trim).unwrap_or("").is_empty() {
                 *thread_id = Some(short("thr_"));
             }
-            // A path without a project: the id the project gets if the
-            // decider has to create it.
             if project_id.trim().is_empty()
                 && !project_path
                     .as_deref()
@@ -277,8 +262,6 @@ impl Writer {
 }
 
 impl ThreadsEngine {
-    /// Open the database, catch the projectors up, load the read model and
-    /// start the writer thread.
     pub fn open(path: &Path) -> Result<Arc<Self>, String> {
         let mut conn = store::open(path)?;
         let replayed = store::bootstrap_projectors(&mut conn)?;
@@ -302,9 +285,6 @@ impl ThreadsEngine {
                         Job::Dispatch { env, reply } => {
                             let result = writer.process(env);
                             if result.is_err() {
-                                // A failed transaction rolled back; the model
-                                // was not touched, but a storage error may have
-                                // left it behind the database.
                                 if let Ok(m) = store::load_read_model(&writer.conn) {
                                     if m.sequence != writer.model.sequence {
                                         writer.model = m;
@@ -329,8 +309,6 @@ impl ThreadsEngine {
         &self.path
     }
 
-    /// Every committed event, in sequence order. A lagging receiver gets
-    /// `RecvError::Lagged` and should resume with `events_after`.
     pub fn subscribe(&self) -> broadcast::Receiver<StoredEvent> {
         self.events.subscribe()
     }
@@ -352,15 +330,12 @@ impl ThreadsEngine {
             .map_err(|_| format!("{ERR_THREADS_ENGINE}: writer dropped the reply"))?
     }
 
-    /// Same, for a caller outside the async runtime (tests, the migration).
     pub fn dispatch_blocking(&self, env: CommandEnvelope) -> Result<DispatchResult, String> {
         self.send(env)?
             .blocking_recv()
             .map_err(|_| format!("{ERR_THREADS_ENGINE}: writer dropped the reply"))?
     }
 
-    /// Run a read on the reader connection (blocking; wrap in
-    /// `spawn_blocking` from async code, or use the async helpers below).
     pub fn read<T>(&self, f: impl FnOnce(&Connection) -> Result<T, String>) -> Result<T, String> {
         let conn = self.reader.lock().unwrap_or_else(|e| e.into_inner());
         f(&conn)

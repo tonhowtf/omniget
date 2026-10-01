@@ -1,7 +1,3 @@
-//! Meeting preferences (`<meetings>/settings.json`) and the two secrets they
-//! need: the Vexa API key and the Teams incoming-webhook URL. Secrets live in
-//! the same vault as the AI provider keys, under `meetings:*` accounts.
-
 use serde::{Deserialize, Serialize};
 
 use crate::core::secrets;
@@ -16,8 +12,6 @@ pub const DEFAULT_WHISPER_MODEL: &str = "large-v3-turbo-q5_0";
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum TranscriptionBackend {
-    /// Local whisper.cpp when it and a model are installed, else the AI
-    /// provider's audio endpoint.
     #[default]
     Auto,
     Local,
@@ -29,11 +23,8 @@ pub enum TranscriptionBackend {
 pub struct MeetingSettings {
     pub transcription: TranscriptionBackend,
     pub whisper_model: String,
-    /// "auto" or an ISO code.
     pub language: String,
-    /// Summarize as soon as the transcript is ready.
     pub auto_summarize: bool,
-    /// Language the summary is written in; empty = the meeting's language.
     pub summary_language: String,
     pub vexa_url: String,
     pub bot_name: String,
@@ -53,7 +44,6 @@ impl Default for MeetingSettings {
     }
 }
 
-/// What the UI sees: settings plus whether each secret is set, never the value.
 #[derive(Debug, Clone, Serialize)]
 pub struct MeetingSettingsView {
     #[serde(flatten)]
@@ -109,7 +99,6 @@ pub fn teams_webhook() -> Option<String> {
     secret(TEAMS_WEBHOOK)
 }
 
-/// `None` leaves the secret alone, `Some("")` clears it.
 pub fn set_secrets(vexa_key: Option<&str>, teams_webhook: Option<&str>) -> Result<(), String> {
     if let Some(v) = vexa_key {
         secrets::put_or_delete(secrets::AI_KEYS, VEXA_KEY, v.trim())?;

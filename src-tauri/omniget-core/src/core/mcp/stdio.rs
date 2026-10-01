@@ -1,19 +1,3 @@
-//! stdio transport: the server is a child process, messages are newline
-//! delimited JSON on its stdin/stdout, logs go to stderr.
-//! Owned by f3-mcp-core.
-//!
-//! Spec (2025-06-18, "Transports → stdio"): "Messages are delimited by
-//! newlines, and MUST NOT contain embedded newlines"; "The server MAY write
-//! UTF-8 strings to its standard error for logging purposes. Clients MAY
-//! capture, forward, or ignore this logging." We capture the last 20 lines,
-//! because when a spawn fails the reason is almost always in there.
-//!
-//! Servers do break the rule that stdout carries nothing but MCP messages
-//! (`npx` banners, framework logs), so a line that is not JSON is skipped, not
-//! fatal. What *is* fatal is EOF with requests still in flight: every pending
-//! call is failed with `ERR_MCP_PROTO` carrying the stderr tail, which is how
-//! "the server died in the middle" reaches the user instead of a hang.
-
 use std::collections::{HashMap, VecDeque};
 use std::sync::atomic::{AtomicBool, AtomicI64, Ordering};
 use std::sync::{Arc, Mutex as StdMutex};
@@ -29,17 +13,10 @@ use tokio_util::sync::CancellationToken;
 use super::error::McpError;
 use super::types::{classify, id_key, notification, request, resolve_env, Incoming, SecretLookup};
 
-/// Ceiling for one message. A `tools/call` that returns a whole file is normal,
-/// so this is far above the 1 MiB the SSE parser uses, but it is still a
-/// ceiling: a server stuck printing must not grow our memory forever.
 pub const MAX_LINE_BYTES: usize = 8 * 1024 * 1024;
 
-/// How many stderr lines we keep for the error message.
 const STDERR_TAIL_LINES: usize = 20;
 
-/// Newline framing across chunk boundaries, with a hard cap per line.
-/// Pure and synchronous on purpose: the whole framing contract is unit-tested
-/// without a process.
 #[derive(Debug)]
 pub struct LineFramer {
     buf: Vec<u8>,
@@ -58,7 +35,6 @@ impl LineFramer {
         }
     }
 
-    /// Lines dropped so far for being over the ceiling.
     pub fn dropped(&self) -> usize {
         self.dropped
     }
@@ -86,8 +62,6 @@ impl LineFramer {
             return;
         }
         if self.buf.len() + rest.len() > self.max {
-            // Stop buffering now, not at the newline: a line with no newline at
-            // all must not be able to grow without bound either.
             self.dropped += 1;
             self.dropping = true;
             self.buf.clear();
@@ -96,7 +70,6 @@ impl LineFramer {
         }
     }
 
-    /// Hands over a last line the stream ended without terminating.
     pub fn finish(&mut self, mut on_line: impl FnMut(&[u8])) {
         if self.dropping {
             self.dropping = false;
@@ -128,12 +101,6 @@ pub struct StdioTransport {
 }
 
 impl StdioTransport {
-    /// Spawns the server. The parent environment is inherited (a server needs
-    /// `PATH` to find `node`, `uvx`, `docker`) with `env` applied on top.
-    ///
-    /// `env` values spelled `secret:<id>` are resolved through `lookup` before
-    /// the child sees them, exactly like HTTP headers: a `GITHUB_TOKEN` is as
-    /// secret as an `Authorization` header.
     pub async fn connect(
         command: &str,
         args: &[String],
@@ -156,8 +123,6 @@ impl StdioTransport {
         cmd.stdin(std::process::Stdio::piped())
             .stdout(std::process::Stdio::piped())
             .stderr(std::process::Stdio::piped())
-            // Safety net: even if `close()` is never called (a panic, a dropped
-            // registry), the child does not outlive the process.
             .kill_on_drop(true);
 
         let mut child = cmd
@@ -214,10 +179,6 @@ impl StdioTransport {
                         Ok(0) | Err(_) => break,
                         Ok(n) => framer.push(&buf[..n], |line| dispatch(line, &pending)),
                     }
-                    // A message over the ceiling was thrown away. We cannot know
-                    // whose answer it was, so everyone waiting is told the
-                    // protocol broke — better than every call hanging until its
-                    // timeout for an answer that no longer exists.
                     if framer.dropped() > dropped {
                         dropped = framer.dropped();
                         fail_all(
@@ -257,7 +218,6 @@ impl StdioTransport {
         self.dead.load(Ordering::SeqCst)
     }
 
-    /// Last lines the server logged, for an error message.
     pub fn stderr_tail(&self) -> String {
         tail_text(&self.stderr_tail)
     }
@@ -322,7 +282,6 @@ impl StdioTransport {
         tokio::select! {
             received = rx => match received {
                 Ok(result) => result,
-                // The reader task went away without answering.
                 Err(_) => Err(McpError::proto(format!(
                     "the MCP server stopped answering{}",
                     self.stderr_tail()
@@ -349,8 +308,6 @@ impl StdioTransport {
         }
     }
 
-    /// Closes stdin (the spec's way of asking the server to exit), waits a
-    /// moment, then kills. Nothing is left running when this returns.
     pub async fn close(&self) {
         {
             let mut guard = self.stdin.lock().await;
@@ -394,7 +351,6 @@ impl Drop for StdioTransport {
                 t.abort();
             }
         }
-        // The child itself is covered by `kill_on_drop`.
     }
 }
 
@@ -412,12 +368,10 @@ fn tail_text(tail: &Arc<StdMutex<VecDeque<String>>>) -> String {
     }
 }
 
-/// One stdout line → the pending call that was waiting for it.
 fn dispatch(line: &[u8], pending: &Pending) {
     if line.iter().all(|b| b.is_ascii_whitespace()) {
         return;
     }
-    // Not JSON: a banner or a log the server wrote on stdout. Skip it.
     let Ok(value) = serde_json::from_slice::<Value>(line) else {
         return;
     };
@@ -430,7 +384,6 @@ fn dispatch(line: &[u8], pending: &Pending) {
                 error.code, error.message
             ))),
         ),
-        // Server requests and notifications: nothing we answer today.
         Incoming::ServerMessage { .. } | Incoming::Unknown => return,
     };
     let sender = pending.lock().ok().and_then(|mut m| m.remove(&key));
@@ -501,7 +454,6 @@ mod tests {
         }
         assert!(out.is_empty());
         assert_eq!(f.dropped(), 1);
-        // Memory did not grow with the input.
         assert!(f.buf.len() <= 100, "buffered {}", f.buf.len());
     }
 
@@ -518,7 +470,6 @@ mod tests {
         assert!(pending.lock().unwrap().is_empty());
     }
 
-    /// Servers that answer with `"id":"4"` for our `4` still get matched.
     #[test]
     fn dispatch_matches_a_string_id_against_a_numeric_request() {
         let pending: Pending = Arc::new(StdMutex::new(HashMap::new()));

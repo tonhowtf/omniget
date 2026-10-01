@@ -1,28 +1,15 @@
-//! Serde types for `atlas.json`, the world's visual contract.
-//!
-//! The normative document is `static/world/atlas.schema.json`; this module is its
-//! Rust mirror. Field order in each struct is the field order written to disk, and
-//! every map is a `BTreeMap`, so serialisation is byte-for-byte deterministic.
-
 use std::collections::BTreeMap;
 
 use serde::{Deserialize, Serialize};
 
-/// Hard ceiling for a page's width and height, in pixels.
 pub const PAGE_MAX: u32 = 2048;
-/// Transparent gutter left between two packed frames, in pixels.
 pub const DEFAULT_PADDING: u32 = 2;
-/// Edge pixels duplicated around a frame so linear filtering cannot bleed.
 pub const DEFAULT_EXTRUDE: u32 = 1;
-/// Frames per second used when the source manifest does not say.
 pub const DEFAULT_FPS: u32 = 10;
 
-/// The five directions that carry their own art.
 pub const UNIQUE_DIRS: [&str; 5] = ["S", "SW", "W", "NW", "N"];
-/// The three directions produced by a horizontal flip, and their source.
 pub const MIRROR_DIRS: [(&str, &str); 3] = [("SE", "SW"), ("E", "W"), ("NE", "NW")];
 
-/// Returns the direction a mirrored direction must point at, if it is mirrored.
 pub fn mirror_source(dir: &str) -> Option<&'static str> {
     MIRROR_DIRS
         .iter()
@@ -30,12 +17,10 @@ pub fn mirror_source(dir: &str) -> Option<&'static str> {
         .map(|(_, src)| *src)
 }
 
-/// Root of `atlas.json`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Atlas {
     pub version: u32,
     pub pages: Vec<String>,
-    /// `[w, h]` of each page, same order as `pages`.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub page_sizes: Vec<[u32; 2]>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -50,7 +35,6 @@ pub struct Atlas {
 }
 
 impl Atlas {
-    /// An empty v1 atlas with the packer's defaults declared.
     pub fn empty() -> Self {
         Self {
             version: 1,
@@ -65,7 +49,6 @@ impl Atlas {
     }
 }
 
-/// A rectangle on a page. The rect excludes the extrusion border.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Frame {
     pub page: usize,
@@ -73,13 +56,11 @@ pub struct Frame {
     pub y: u32,
     pub w: u32,
     pub h: u32,
-    /// Ground contact point (centre of the feet) relative to the frame's top-left.
     pub pivot: [i32; 2],
     #[serde(default)]
     pub z_base: i32,
 }
 
-/// One animation clip of one sheet, eight directions.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Anim {
     pub fps: u32,
@@ -92,8 +73,6 @@ fn default_true() -> bool {
     true
 }
 
-/// The eight directions. `S`/`SW`/`W`/`NW`/`N` carry frame lists, the other three
-/// are mirrors; `atlas-check` is what enforces that, so both shapes parse here.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Dirs {
     #[serde(rename = "S")]
@@ -115,7 +94,6 @@ pub struct Dirs {
 }
 
 impl Dirs {
-    /// `(name, entry)` in the on-disk order.
     pub fn iter(&self) -> [(&'static str, &DirEntry); 8] {
         [
             ("S", &self.s),
@@ -129,7 +107,6 @@ impl Dirs {
         ]
     }
 
-    /// Builds the three mirrored entries automatically around five frame lists.
     pub fn from_unique(
         s: Vec<String>,
         sw: Vec<String>,
@@ -156,7 +133,6 @@ impl Dirs {
     }
 }
 
-/// Either the frames of a direction, or a pointer at the direction it mirrors.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum DirEntry {
@@ -169,11 +145,9 @@ pub struct Mirror {
     pub mirror_of: String,
 }
 
-/// A floor, wall or object tile: one frame plus how it behaves in the world.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Tile {
     pub frame: String,
-    /// Vertical extent above the floor plane, in pixels (0 for floors).
     pub height: u32,
     #[serde(default)]
     pub occludes: bool,
@@ -187,8 +161,6 @@ fn default_footprint() -> [u32; 2] {
     [1, 1]
 }
 
-/// Serialises an atlas exactly the way `atlas-pack` writes it: pretty JSON,
-/// trailing newline, maps in key order.
 pub fn to_json(atlas: &Atlas) -> Result<String, serde_json::Error> {
     let mut s = serde_json::to_string_pretty(atlas)?;
     s.push('\n');

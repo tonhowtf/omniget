@@ -1,16 +1,3 @@
-//! Mapa de silencio de uma aula, para o player pular durante a reproducao.
-//!
-//! B52. O `core::silence_map` sabe onde estao os silencios e para onde saltar;
-//! o que faltava era computar o mapa e guardar.
-//!
-//! Pular na reproducao, e nao cortar o arquivo, e a diferenca que importa: o
-//! B36 cortava com `silenceremove` e pagava dois precos — residuo de padding e
-//! saida obrigatoriamente em audio, porque filtro de audio dessincroniza video.
-//! Aqui o video continua video e o padding vira decisao reversivel.
-//!
-//! A sonda e cara (uma passada de ffmpeg no arquivo inteiro), entao roda uma vez
-//! e o mapa fica em disco. Nada e reprocessado ao assistir de novo.
-
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 use std::process::Stdio;
@@ -49,10 +36,6 @@ fn save(map: &BTreeMap<String, SilenceMap>) {
     }
 }
 
-/// Duracao total do arquivo, lida da mesma saida do ffmpeg.
-///
-/// Precisa vir junto porque um `silence_start` sem `silence_end` so pode ser
-/// interpretado sabendo onde o arquivo acaba.
 fn parse_duration_secs(stderr: &str) -> Option<f64> {
     let idx = stderr.find("Duration:")?;
     let resto = &stderr[idx + "Duration:".len()..];
@@ -67,13 +50,10 @@ fn parse_duration_secs(stderr: &str) -> Option<f64> {
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct SilenceMapInfo {
     pub map: SilenceMap,
-    /// Quanto tempo o pulo economiza, em segundos.
     pub savings_secs: f64,
-    /// `true` quando o mapa veio do cache, sem sondar de novo.
     pub from_cache: bool,
 }
 
-/// Computa (ou reaproveita) o mapa de silencio de um arquivo.
 #[tauri::command]
 pub async fn compute_silence_map(
     path: String,
@@ -87,8 +67,6 @@ pub async fn compute_silence_map(
 
     if !force {
         if let Some(cached) = load().get(&path) {
-            // `needs_recompute` compara a versao do algoritmo: um mapa gravado
-            // com outros parametros de sonda descreve outra coisa.
             if !needs_recompute(cached) {
                 return Ok(SilenceMapInfo {
                     savings_secs: savings_secs(cached),

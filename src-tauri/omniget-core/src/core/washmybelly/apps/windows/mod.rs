@@ -1,18 +1,5 @@
-//! Apps on Windows (F3): inventory, uninstall, leftovers.
-//!
-//! This module ports the design of Bulk Crap Uninstaller
 //! (https://github.com/Klocman/Bulk-Crap-Uninstaller, Copyright (c) 2017
 //! Marcin Szeniak, Apache License 2.0; NOTICE in
-//! `src-tauri/omniget-core/data/washmybelly/bcu/NOTICE`). The C# code was
-//! read and rewritten in Rust with changes: winget support, plans and
-//! receipts, the Trash for files and `.reg` backups for keys, no UI
-//! automation, no shell. Appx data comes from Win11Debloat, Sophia Script
-//! and winutil (MIT), see `catalog.rs`.
-//!
-//! Layout: `parse` (pure text parsers), `catalog` (Appx classification),
-//! `inventory` (sources → apps, merge), `leftovers` (confidence), `run`
-//! (commands and the stall check) are compiled everywhere and tested on
-//! every OS; `registry` and `sys` touch Windows and exist only there.
 
 #![cfg_attr(not(windows), allow(dead_code))]
 
@@ -43,8 +30,6 @@ use super::{App, Leftover};
 use inventory::x;
 use leftovers::Found;
 
-// ── Inventory ───────────────────────────────────────────────────────
-
 pub fn list() -> Result<Vec<App>, String> {
     #[cfg(windows)]
     {
@@ -62,8 +47,6 @@ pub fn list() -> Result<Vec<App>, String> {
     Ok(Vec::new())
 }
 
-/// A full listing takes seconds (winget, PowerShell): `wmb_app_leftovers`
-/// right after `wmb_apps_list` reuses it. Any uninstall clears it.
 const CACHE_SECS: u64 = 90;
 
 static CACHE: std::sync::Mutex<Option<(std::time::Instant, Vec<App>)>> =
@@ -87,8 +70,6 @@ fn forget_cache() {
     }
 }
 
-/// What we remember of apps seen in a listing, so leftovers of an app
-/// that is gone can still be searched by its publisher and folder.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct Seen {
     pub name: String,
@@ -127,8 +108,6 @@ pub fn remember(ctx: &Ctx, apps: &[App]) {
     let _ = ctx.kv_set(SEEN_KEY, &m);
 }
 
-/// Fill a bare app (already removed) from what a listing saw: by id, or
-/// by name for the screen's `removed:<name>`.
 pub fn recall(ctx: &Ctx, app: &App) -> App {
     let m: BTreeMap<String, Seen> = ctx.kv_get(SEEN_KEY).unwrap_or_default();
     let wanted = parse::normalize_name(&app.name);
@@ -162,16 +141,12 @@ fn installed(app: &App) -> bool {
     app.source != "removed" && app.reason.as_deref() != Some("not installed anymore")
 }
 
-// ── Uninstall items ─────────────────────────────────────────────────
-
-/// A candidate kept out of the default plan, with the reason.
 #[derive(Debug, Clone)]
 pub struct Unticked {
     pub item: PlanItem,
     pub why: String,
 }
 
-/// What `uninstall_items` builds before registering anything.
 #[derive(Debug, Clone, Default)]
 pub struct Built {
     pub ticked: Vec<PlanItem>,
@@ -181,7 +156,6 @@ pub struct Built {
     pub command: Option<String>,
 }
 
-/// The command a person would run, for display.
 pub fn command_preview(app: &App) -> Option<String> {
     let sr = r"C:\Windows";
     match app.source.as_str() {
@@ -223,8 +197,6 @@ pub fn command_preview(app: &App) -> Option<String> {
     }
 }
 
-/// The item that removes the app itself (group `app`), and whether it is
-/// ticked. `Err` is the reason there is none.
 pub fn main_item(app: &App, running: &[String]) -> Result<(PlanItem, Option<String>), String> {
     if !app.removable {
         return Err(app
@@ -355,7 +327,6 @@ fn leftover_item(f: &Found) -> Option<PlanItem> {
                 detail,
                 group: "files".into(),
                 bytes: f.bytes,
-                // The helper cannot use the Trash: as administrator it is gone for good.
                 risk: if f.admin {
                     Risk::Destructive
                 } else {
@@ -424,7 +395,6 @@ fn leftover_item(f: &Found) -> Option<PlanItem> {
     }
 }
 
-/// Put the pieces together (pure: tested with fake leftovers).
 pub fn assemble(app: &App, running: &[String], found: Vec<Found>) -> Built {
     let mut b = Built {
         command: command_preview(app),
@@ -456,7 +426,6 @@ pub fn assemble(app: &App, running: &[String], found: Vec<Found>) -> Built {
         b.notes
             .push(format!("{} is running: {}.", app.name, running.join(", ")));
     }
-    // While the app stays installed, nothing of it goes on its own.
     let leftovers_may_tick = !is_installed || main_ticked;
     if is_installed && !main_ticked && !found.is_empty() {
         b.notes
@@ -541,8 +510,6 @@ pub fn uninstall_items(ctx: &Ctx, app: &App) -> Result<(Vec<PlanItem>, Value), S
     } else {
         recall(ctx, app)
     };
-    // Store, Steam and Scoop clean up after themselves; their data folders
-    // (saves, settings) are not guessed at by name.
     let search = !matches!(app.source.as_str(), "appx" | "steam" | "scoop");
     #[cfg(windows)]
     let (found, running) = {
@@ -582,9 +549,6 @@ pub fn uninstall_items(ctx: &Ctx, app: &App) -> Result<(Vec<PlanItem>, Value), S
     Ok((b.ticked, extra))
 }
 
-// ── Plan hooks ──────────────────────────────────────────────────────
-
-/// Actions this file runs (`win.<action>`), a closed list.
 pub const ACTIONS: &[&str] = &[
     "uninstall",
     "appx_remove",
@@ -708,7 +672,6 @@ pub fn plan_elevated(
                     if !registry::exists(key) {
                         return Err(format!("{key} is already gone"));
                     }
-                    // Reading HKLM needs no administrator: the backup is ours.
                     sys::reg_export(key, &file)?;
                 }
             }
@@ -758,8 +721,6 @@ pub fn plan_elevated(
             ))
         }
         "uninstall" => {
-            // The helper reads the Uninstall entry again and refuses any
-            // command that differs from the one rebuilt from it.
             #[cfg(windows)]
             {
                 let app_id = run::arg(args, "app_id").ok_or("app id missing")?;
@@ -791,7 +752,6 @@ pub fn plan_elevated(
     }
 }
 
-/// The command an administrator would run for an `uninstall` item.
 fn elevated_command(args: &Value) -> Option<String> {
     #[cfg(windows)]
     {
@@ -811,10 +771,6 @@ fn elevated_command(args: &Value) -> Option<String> {
     }
 }
 
-/// Executor of `ElevatedOp::WinUninstall { app_id, kind, program, args }`:
-/// runs as administrator, reads the
-/// Uninstall entry named by `app_id` again, rebuilds the command from it
-/// and refuses anything that differs from `program`/`args`.
 pub fn elevated_win_uninstall(
     app_id: &str,
     kind: &str,
@@ -825,7 +781,6 @@ pub fn elevated_win_uninstall(
     #[cfg(windows)]
     {
         let (root, key) = if let Some(g) = app_id.strip_prefix("msi:") {
-            // Machine MSI entries live in the 64-bit or the 32-bit view.
             let r = [parse::Root::Hklm, parse::Root::Hklm32]
                 .into_iter()
                 .find(|r| registry::read_entry(*r, g).is_some())
@@ -893,7 +848,6 @@ pub fn plan_undo(ctx: &Ctx, action: &str, args: &Value) -> Result<String, String
     }
 }
 
-/// Screen-only actions: `apps.win.details {app_id}`.
 pub async fn ui_action(action: &str, a: Value) -> Result<Value, String> {
     match action {
         "details" => {

@@ -1,11 +1,3 @@
-//! Local inference servers: detect what is already running on the machine
-//! (Ollama, LM Studio, llama-server) and manage a `llama-server` of our own,
-//! in the mould of `core/tools/whisper.rs` (pinned release + GGUF catalogue +
-//! managed binary). Owned by f2-llm-commands.
-//!
-//! Nothing here runs on its own: every probe, download and spawn happens on an
-//! explicit user action, and the managed `llama-server` dies with the app.
-
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
@@ -59,7 +51,6 @@ impl LocalKind {
         }
     }
 
-    /// Every one of them speaks the OpenAI-compatible surface at `/v1`.
     pub fn openai_base(self, host: &str) -> String {
         format!("{}/v1", normalize_base(host, self.default_url()))
     }
@@ -73,7 +64,6 @@ impl LocalKind {
     }
 }
 
-/// Trims a host down to `scheme://host:port`, falling back to the default.
 pub fn normalize_base(host: &str, default: &str) -> String {
     let h = host.trim().trim_end_matches('/');
     if h.is_empty() {
@@ -95,7 +85,6 @@ pub struct LocalServer {
     #[serde(default)]
     pub models: Vec<String>,
     pub version: Option<String>,
-    /// Where to get it when it is not running.
     pub download_url: String,
 }
 
@@ -103,7 +92,6 @@ pub struct LocalServer {
 pub struct LlamaBinary {
     pub installed: bool,
     pub path: Option<String>,
-    /// "custom" | "managed" | "path"
     pub source: Option<String>,
     pub managed_running: bool,
     pub can_install: bool,
@@ -118,11 +106,6 @@ pub struct LocalStatus {
     pub models: Vec<GgufModel>,
 }
 
-// ── GGUF catalogue ────────────────────────────────────────────────────
-
-/// A small pinned catalogue. `sha256` is `None` where the hash has not been
-/// measured against the real file yet: the download then records the computed
-/// hash next to the model and warns, instead of pretending it verified one.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GgufModel {
     pub id: String,
@@ -137,7 +120,6 @@ pub struct GgufModel {
     pub size_bytes: u64,
 }
 
-/// (id, label, repo path on Hugging Face, file, size MB, note, sha256)
 type CatalogRow = (
     &'static str,
     &'static str,
@@ -215,9 +197,6 @@ pub fn catalog() -> Vec<GgufModel> {
         .collect()
 }
 
-// ── Detection ─────────────────────────────────────────────────────────
-
-/// Model ids out of an OpenAI `/v1/models` body. Pure; no network.
 pub fn parse_openai_models(body: &serde_json::Value) -> Vec<String> {
     body.get("data")
         .and_then(|d| d.as_array())
@@ -230,7 +209,6 @@ pub fn parse_openai_models(body: &serde_json::Value) -> Vec<String> {
         .unwrap_or_default()
 }
 
-/// Model names out of Ollama's `/api/tags` body. Pure; no network.
 pub fn parse_ollama_tags(body: &serde_json::Value) -> Vec<String> {
     body.get("models")
         .and_then(|d| d.as_array())
@@ -284,7 +262,6 @@ async fn probe(client: &reqwest::Client, kind: LocalKind, host: &str) -> LocalSe
     server
 }
 
-/// Probes the three servers in parallel. Only ever called from a command.
 pub async fn detect(hosts: Option<&[(LocalKind, String)]>) -> LocalStatus {
     let client = crate::core::tools::client().ok();
     let mut servers = Vec::new();
@@ -313,13 +290,10 @@ pub async fn detect(hosts: Option<&[(LocalKind, String)]>) -> LocalStatus {
     }
 }
 
-// ── Managed llama-server ──────────────────────────────────────────────
-
 fn managed_dir() -> Option<PathBuf> {
     crate::core::paths::app_data_dir().map(|d| d.join("bin").join("llama-cpp"))
 }
 
-/// Release asset variants this system can install, most wanted first.
 pub fn variants() -> Vec<&'static str> {
     if cfg!(target_os = "windows") {
         vec!["cpu", "vulkan", "cuda"]
@@ -330,8 +304,6 @@ pub fn variants() -> Vec<&'static str> {
     }
 }
 
-/// Does this asset name belong to `variant` on this system? Pure, so it is
-/// testable without hitting the GitHub API.
 pub fn asset_matches(name: &str, variant: &str) -> bool {
     let n = name.to_ascii_lowercase();
     if !n.starts_with("llama-") || !(n.ends_with(".zip") || n.ends_with(".tar.gz")) {
@@ -361,7 +333,6 @@ pub fn asset_matches(name: &str, variant: &str) -> bool {
     }
 }
 
-/// Where `llama-server` lives, and how we found it.
 pub fn locate() -> Option<(PathBuf, &'static str)> {
     if let Some(dir) = managed_dir() {
         let p = dir.join(bin_name("llama-server"));
@@ -391,7 +362,6 @@ pub async fn llama_binary() -> LlamaBinary {
     }
 }
 
-/// Downloads and unpacks the `llama-server` release asset for `variant`.
 pub async fn install(variant: &str, progress: ProgressFn) -> Result<PathBuf, String> {
     if !variants().contains(&variant) {
         return Err(format!(
@@ -418,7 +388,6 @@ pub async fn install(variant: &str, progress: ProgressFn) -> Result<PathBuf, Str
     let exe = crate::core::tools::github::find_file(&staging, &bin_name("llama-server"))
         .ok_or_else(|| format!("{ERR_LOCAL_BINARY}: llama-server not in {}", asset.name))?;
     std::fs::create_dir_all(&dir).map_err(|e| format!("{ERR_LOCAL_BINARY}: {e}"))?;
-    // Keep the whole unpacked tree: llama-server needs its shared libraries.
     let root = exe.parent().unwrap_or(&staging).to_path_buf();
     crate::core::tools::github::swap_dir(&root, &dir)
         .map_err(|e| format!("{ERR_LOCAL_BINARY}: {e}"))?;
@@ -429,11 +398,9 @@ pub async fn install(variant: &str, progress: ProgressFn) -> Result<PathBuf, Str
     Ok(final_exe)
 }
 
-/// The managed child, if one is alive. `Mutex` because start/stop are commands.
 static SERVER: once_cell::sync::Lazy<Arc<Mutex<Option<tokio::process::Child>>>> =
     once_cell::sync::Lazy::new(|| Arc::new(Mutex::new(None)));
 
-/// Command line the managed server runs with. Pure, for the test.
 pub fn server_args(model: &Path, port: u16, ctx: u32) -> Vec<String> {
     vec![
         "-m".into(),
@@ -447,8 +414,6 @@ pub fn server_args(model: &Path, port: u16, ctx: u32) -> Vec<String> {
     ]
 }
 
-/// Starts the managed `llama-server` on a model file. Idempotent: a server
-/// already running is left alone.
 pub async fn start(model: &Path, port: u16) -> Result<String, String> {
     let mut guard = SERVER.lock().await;
     if guard.is_some() {
@@ -462,15 +427,13 @@ pub async fn start(model: &Path, port: u16) -> Result<String, String> {
     let mut cmd = tokio::process::Command::new(exe);
     cmd.args(server_args(model, port, 8192));
     cmd.kill_on_drop(true);
-    // tokio's `Command` has `creation_flags` itself on Windows.
     #[cfg(windows)]
-    cmd.creation_flags(0x0800_0000); // CREATE_NO_WINDOW
+    cmd.creation_flags(0x0800_0000);
     let child = cmd.spawn().map_err(|e| format!("{ERR_LOCAL_SPAWN}: {e}"))?;
     *guard = Some(child);
     Ok(format!("http://127.0.0.1:{port}"))
 }
 
-/// Kills the managed server. Called by the command and on app shutdown.
 pub async fn stop() -> bool {
     let mut guard = SERVER.lock().await;
     match guard.take() {

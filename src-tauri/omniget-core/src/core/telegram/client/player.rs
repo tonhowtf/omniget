@@ -1,6 +1,3 @@
-//! Player support: stream URLs with the file's real size and type, where
-//! the person stopped watching, and handing a stream to VLC/IINA/mpv.
-
 use std::collections::HashMap;
 use std::path::PathBuf;
 
@@ -11,8 +8,6 @@ use serde_json::json;
 use super::auth::TelegramSessionHandle;
 use super::stream_server;
 use crate::core::telegram::host;
-
-// ---- stream URL ------------------------------------------------------------
 
 fn url_encode(s: &str) -> String {
     let mut out = String::with_capacity(s.len());
@@ -26,9 +21,6 @@ fn url_encode(s: &str) -> String {
     out
 }
 
-/// `{url, mime, file_name, file_size, duration_sec?, width?, height?}` for
-/// one message's file. The URL ends with the file name so external players
-/// can tell the format.
 pub async fn stream_url(
     handle: &TelegramSessionHandle,
     chat_id: i64,
@@ -89,7 +81,6 @@ pub async fn stream_url(
         url_encode(&media.file_name),
         token
     );
-    // MKV/AVI/WebM don't open in the WKWebView: offer the HLS remux.
     let playable = !stream_server::needs_remux(&media.file_name, &media.mime);
     let (remux_url, transcode_url) = if playable {
         (None, None)
@@ -118,8 +109,6 @@ pub async fn stream_url(
         "transcode_url": transcode_url,
     }))
 }
-
-// ---- playback positions ----------------------------------------------------
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PlaybackEntry {
@@ -166,7 +155,6 @@ fn key(chat_id: i64, message_id: i32) -> String {
     format!("{}:{}", chat_id, message_id)
 }
 
-/// Watched to the end: within the last 5% or the last 10 seconds.
 fn is_finished(position: f64, duration: f64) -> bool {
     duration > 0.0 && (position >= duration * 0.95 || duration - position <= 10.0)
 }
@@ -226,7 +214,6 @@ pub fn playback_set(
     Ok(out)
 }
 
-/// "Continue watching": started (5 s or more), not finished, newest first.
 pub fn playback_recent(limit: usize) -> Vec<PlaybackEntry> {
     let _g = lock().lock();
     let mut list: Vec<PlaybackEntry> = load()
@@ -237,8 +224,6 @@ pub fn playback_recent(limit: usize) -> Vec<PlaybackEntry> {
     list.truncate(limit.max(1));
     list
 }
-
-// ---- external players --------------------------------------------------------
 
 fn on_path(name: &str) -> Option<PathBuf> {
     let path = crate::core::process::enhanced_path().or_else(|| std::env::var("PATH").ok())?;
@@ -302,7 +287,6 @@ fn installed(player: &str) -> bool {
     }
 }
 
-/// Players this machine has, `default` first.
 pub fn external_players() -> Vec<&'static str> {
     ["default", "vlc", "iina", "mpv"]
         .into_iter()
@@ -321,8 +305,6 @@ fn spawn(program: &std::ffi::OsStr, args: &[&str]) -> Result<(), String> {
         .map_err(|e| format!("Could not start {}: {}", program.to_string_lossy(), e))
 }
 
-/// Opens one of our stream URLs in an external player. Only URLs of the
-/// local stream server are accepted.
 pub fn open_external(url: &str, player: &str) -> Result<(), String> {
     if !url.starts_with("http://127.0.0.1:") || url.contains(char::is_whitespace) {
         return Err("Only Telegram stream URLs can be opened".into());

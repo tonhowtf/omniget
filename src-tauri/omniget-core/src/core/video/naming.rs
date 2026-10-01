@@ -1,8 +1,3 @@
-//! File name parsing for the video library: movies, episodes (SxxEyy, 1x02,
-//! season folders, fansub anime), numbered lessons, natural ordering and title
-//! cleanup. Everything here is pure and tolerant: bad input degrades to a
-//! plain `Video` with a cleaned title.
-
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::cmp::Ordering;
@@ -10,7 +5,6 @@ use std::sync::LazyLock;
 use unicode_normalization::char::is_combining_mark;
 use unicode_normalization::UnicodeNormalization;
 
-/// What a file looks like from its name alone.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum MediaKind {
@@ -22,7 +16,6 @@ pub enum MediaKind {
 }
 
 impl MediaKind {
-    /// The lowercase name stored in the database (`movie`, `episode`, ...).
     pub fn as_str(self) -> &'static str {
         match self {
             MediaKind::Movie => "movie",
@@ -33,34 +26,24 @@ impl MediaKind {
     }
 }
 
-/// Result of [`parse`].
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
 pub struct Parsed {
     pub kind: MediaKind,
-    /// Movie title, episode title, lesson title or cleaned file name.
     pub title: String,
     pub show: Option<String>,
     pub season: Option<u32>,
     pub episode: Option<u32>,
-    /// Last episode of a multi-episode file (`S01E01-E02` gives 2).
     pub episode_end: Option<u32>,
     pub year: Option<u32>,
-    /// Lesson numbering found in the file name (`1.2 Title` gives `[1, 2]`).
     pub lesson_no: Option<Vec<u32>>,
-    /// Name of the folder holding the lesson (`Módulo 2`).
     pub module: Option<String>,
-    /// Number found in the module folder name (`Módulo 2` gives 2).
     pub module_no: Option<u32>,
-    /// Trailer, sample, featurette or anything under an extras folder.
     pub is_extra: bool,
 }
 
-/// A piece of a natural sort key.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Chunk {
-    /// Digits without leading zeros (`"0"` for zero), compared by value.
     Num(String),
-    /// Case- and accent-folded text.
     Text(String),
 }
 
@@ -81,7 +64,6 @@ impl PartialOrd for Chunk {
     }
 }
 
-/// Lowercases and strips diacritics (`Módulo` becomes `modulo`).
 pub fn fold(s: &str) -> String {
     s.nfd()
         .filter(|c| !is_combining_mark(*c))
@@ -89,7 +71,6 @@ pub fn fold(s: &str) -> String {
         .collect()
 }
 
-/// Natural sort key: digit runs compare by value, text ignores case and accents.
 pub fn natural_key(s: &str) -> Vec<Chunk> {
     let folded = fold(s);
     let mut out = Vec::new();
@@ -142,8 +123,6 @@ fn strip_zeros(s: &str) -> String {
     }
 }
 
-/// Natural order: `2` before `10`, case and accents ignored; ties fall back to
-/// the raw strings so the order is total.
 pub fn natural_cmp(a: &str, b: &str) -> Ordering {
     natural_key(a).cmp(&natural_key(b)).then_with(|| a.cmp(b))
 }
@@ -159,14 +138,11 @@ const KNOWN_EXTS: &[&str] = &[
     "html", "part", "strm",
 ];
 
-/// True for extensions the library treats as video files.
 pub fn is_video_ext(ext: &str) -> bool {
     let e = ext.trim_start_matches('.').to_ascii_lowercase();
     VIDEO_EXTS.contains(&e.as_str())
 }
 
-/// Splits `name.ext` into stem and lowercase extension when the suffix looks
-/// like a real extension (not `2019` or `1080p`).
 pub fn split_ext(name: &str) -> (&str, Option<String>) {
     if let Some(i) = name.rfind('.') {
         if i == 0 {
@@ -223,13 +199,10 @@ static RE_LEAD_KEYWORD: LazyLock<Regex> = LazyLock::new(|| {
 
 static RE_SPACES: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\s+").unwrap());
 
-/// True when the name uses dots or underscores instead of spaces
-/// (`Name.2019.1080p`).
 fn is_release_style(stem: &str) -> bool {
     !stem.contains(' ') && (stem.matches('.').count() >= 2 || stem.contains('_'))
 }
 
-/// Applies the separator style of the whole `stem` to a slice of it.
 fn despace_as(stem: &str, part: &str) -> String {
     if is_release_style(stem) {
         part.replace(['.', '_'], " ")
@@ -253,8 +226,6 @@ fn trim_seps(s: &str) -> String {
     RE_SPACES.replace_all(t, " ").into_owned()
 }
 
-/// Removes `[tags]`, `(year)`, release tokens and dotted separators, without
-/// touching leading numbers.
 fn strip_release(stem: &str) -> String {
     let mut s = despace(stem);
     s = RE_BRACKETS.replace_all(&s, " ").into_owned();
@@ -280,15 +251,11 @@ fn strip_release(stem: &str) -> String {
     trim_seps(&s)
 }
 
-/// Cleans a title: drops the extension, leading numbering (`01 - `, `1.2 `,
-/// `Aula 3 - `), `[tags]`, release tokens and separators. Never returns an
-/// empty string for a non-empty input.
 pub fn clean_title(s: &str) -> String {
     let base = s.rsplit(['/', '\\']).next().unwrap_or(s);
     let (stem, _) = split_ext(base);
     let released = strip_release(stem);
     let mut t = released.clone();
-    // Trailing year of a release-style name ("Name 2019").
     if let Some(c) = RE_YEAR_TOKEN.captures_iter(&t).last() {
         let m = c.get(1).unwrap();
         if m.start() > 0 && trim_seps(&t[m.end()..]).is_empty() && is_release_style(stem) {
@@ -310,8 +277,6 @@ pub fn clean_title(s: &str) -> String {
     }
 }
 
-/// Strips a leading lesson number when it is clearly numbering: a keyword
-/// (`Aula 3`), a separator (`3 - `, `3. `), a leading zero or a dotted number.
 fn strip_lead_number(t: &str) -> String {
     if let Some(c) = RE_LEAD_NUMBER.captures(t) {
         let whole = c.get(0).unwrap();
@@ -331,8 +296,6 @@ fn strip_lead_number(t: &str) -> String {
     }
     t.to_string()
 }
-
-// ---- episode patterns ----
 
 static RE_SXE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(
@@ -381,8 +344,6 @@ static RE_EP_WORD: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"(?i)(?:^|[^a-z0-9])(?:ep|episode|epis[oó]dio)[ ._-]*(\d{1,4})(?:$|[^0-9])")
         .unwrap()
 });
-
-// ---- lesson patterns ----
 
 static RE_LESSON_KW: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(
@@ -471,8 +432,6 @@ fn year_of(s: &str) -> Option<u32> {
         .and_then(|c| c.get(1)?.as_str().parse().ok())
 }
 
-/// Show name and year from the nearest folder that is not a season or extras
-/// folder.
 fn show_from_dirs(dirs: &[&str]) -> (Option<String>, Option<u32>) {
     for d in dirs.iter().rev() {
         if season_of_dir(d).is_some() || EXTRA_DIRS.contains(&fold(d.trim()).as_str()) {
@@ -495,7 +454,6 @@ fn ep_title(rest: &str) -> String {
     strip_lead_number(&t)
 }
 
-/// Parses a path relative to a library root into kind, title and numbering.
 pub fn parse(path_relative: &str) -> Parsed {
     let norm = path_relative.replace('\\', "/");
     let comps: Vec<&str> = norm
@@ -518,7 +476,6 @@ pub fn parse(path_relative: &str) -> Parsed {
         .rev()
         .find_map(|(i, d)| season_of_dir(d).map(|s| (i, s)));
 
-    // SxxEyy (and S01E01-E02 / S01E01E02).
     if let Some(c) = RE_SXE.captures(stem) {
         let whole = c.get(0).unwrap();
         p.kind = MediaKind::Episode;
@@ -530,7 +487,6 @@ pub fn parse(path_relative: &str) -> Parsed {
         finish_episode(&mut p, stem);
         return p;
     }
-    // 1x02
     if let Some(c) = RE_NXN.captures(stem) {
         let whole = c.get(0).unwrap();
         p.kind = MediaKind::Episode;
@@ -542,7 +498,6 @@ pub fn parse(path_relative: &str) -> Parsed {
         finish_episode(&mut p, stem);
         return p;
     }
-    // Fansub anime: [Group] Name - 12 [1080p] (absolute numbering).
     let under = stem.replace('_', " ");
     if let Some(c) = RE_FANSUB
         .captures(&under)
@@ -557,7 +512,6 @@ pub fn parse(path_relative: &str) -> Parsed {
             p.season = season_dir.map(|(_, s)| s);
             let whole = c.get(0).unwrap();
             let rest = &under[whole.end()..];
-            // The terminator may have eaten the first letter of the title.
             let tail =
                 under[c.get(2).unwrap().end()..whole.end()].trim_start_matches(|ch: char| {
                     ch.is_whitespace() || ch == '-' || ch == 'v' || ch.is_ascii_digit()
@@ -572,7 +526,6 @@ pub fn parse(path_relative: &str) -> Parsed {
             return p;
         }
     }
-    // Season folder: Show/Season 1/05 - Title.mkv
     if let Some((si, season)) = season_dir {
         let lead = RE_EP_LEAD.captures(&spaced).map(|c| (c, true));
         let word = || RE_EP_WORD.captures(&spaced).map(|c| (c, false));
@@ -595,7 +548,6 @@ pub fn parse(path_relative: &str) -> Parsed {
             return p;
         }
     }
-    // Episode keyword anywhere: "Show Ep 05", "Episode 5".
     if let Some(c) = RE_EP_WORD.captures(&spaced) {
         let whole = c.get(0).unwrap();
         p.kind = MediaKind::Episode;
@@ -607,7 +559,6 @@ pub fn parse(path_relative: &str) -> Parsed {
     }
 
     let strong_lesson = is_strong_lesson(stem);
-    // Movie with the year in the name: "Name (2019)" or "Name.2019.1080p".
     if !strong_lesson {
         if let Some((title, year)) = movie_from_name(stem) {
             p.kind = MediaKind::Movie;
@@ -616,7 +567,6 @@ pub fn parse(path_relative: &str) -> Parsed {
             return p;
         }
     }
-    // Numbered lesson.
     if let Some((nums, rest)) = lesson_numbers(stem) {
         p.kind = MediaKind::Lesson;
         p.lesson_no = Some(nums);
@@ -628,7 +578,6 @@ pub fn parse(path_relative: &str) -> Parsed {
         }
         return p;
     }
-    // Movie folder: "Inception (2010)/movie.mkv".
     if let Some(d) = dirs.last() {
         if let Some(year) = year_of(d) {
             let t = strip_release(d);
@@ -692,13 +641,11 @@ fn lesson_numbers(stem: &str) -> Option<(Vec<u32>, String)> {
     }
     let c = RE_LESSON_NUM.captures(stem)?;
     let n = c.get(1)?.as_str();
-    // Four bare digits look like a year ("1917"): only numbering with a zero.
     let first = n.split('.').next().unwrap_or("");
     if first.len() == 4 && !first.starts_with('0') && !n.contains('.') {
         return None;
     }
     let rest = c.get(3).map(|m| m.as_str()).unwrap_or("").to_string();
-    // "1080p" or "2x" are not lesson numbers.
     if rest.starts_with(|ch: char| ch.is_ascii_alphanumeric())
         && c.get(2).map(|m| m.as_str().is_empty()).unwrap_or(true)
     {

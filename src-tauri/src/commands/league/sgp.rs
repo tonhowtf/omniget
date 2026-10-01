@@ -1,12 +1,3 @@
-//! Service Gateway Proxy: the private HTTP API the League Client itself uses
-//! to talk to Riot's backend. The client hands out the tokens it uses, so the
-//! same calls can be made directly, which reaches data the local API hides or
-//! trims (full match history of any player, ranked stats, replays).
-//!
-//! Hosts come from League Akari's built-in table (packet-captured, MIT). They
-//! are configuration, not protocol: a region missing here is unsupported, and
-//! no host is ever guessed from a region name.
-
 use super::{ensure_enabled, get_client, lcu_get_raw, LcuClient};
 use once_cell::sync::Lazy;
 use serde_json::{json, Value};
@@ -15,11 +6,8 @@ use tokio::sync::Mutex;
 #[derive(Clone, Copy, Debug)]
 pub struct Server {
     pub id: &'static str,
-    /// Host for endpoints that take the entitlements token (match history).
     pub match_history: &'static str,
-    /// Host for endpoints that take the league session token.
     pub common: &'static str,
-    /// The region segment inside paths, when it differs from the id.
     pub region_path: Option<&'static str>,
 }
 
@@ -122,8 +110,6 @@ const SERVERS: &[Server] = &[
     },
 ];
 
-/// Normalises the region the client reports into a server id. Some clients
-/// say "BR", others "BR1"; the table uses one spelling.
 pub fn server_id(region: &str) -> String {
     let upper = region.trim().to_ascii_uppercase();
     match upper.as_str() {
@@ -254,7 +240,6 @@ async fn send(
         .map_err(|e| format!("sgp request failed: {}", e))?;
     let status = response.status();
     if status == reqwest::StatusCode::UNAUTHORIZED || status == reqwest::StatusCode::FORBIDDEN {
-        // A stale token is the common cause; the next call fetches a new one.
         forget_tokens().await;
     }
     if !status.is_success() {
@@ -271,7 +256,6 @@ async fn get_json(target: &Target, kind: TokenKind, path: &str) -> Result<Value,
         .map_err(|e| format!("sgp decode failed: {}", e))
 }
 
-/// Match history in the client's own (match-v5 style) shape.
 async fn match_history_raw(
     target: &Target,
     puuid: &str,
@@ -289,8 +273,6 @@ async fn match_history_raw(
     .await
 }
 
-/// Reshapes one SGP game into the layout the local match-history endpoint
-/// uses, so every stat routine in this module keeps working on either source.
 pub fn game_to_local(game: &Value, puuid: &str) -> Option<Value> {
     let json = game.get("json").unwrap_or(game);
     let participants = json.get("participants")?.as_array()?;
@@ -357,9 +339,6 @@ pub fn game_to_local(game: &Value, puuid: &str) -> Option<Value> {
     }))
 }
 
-/// Games for a player from the backend, already in the local shape. Empty
-/// (not an error) when SGP is off or the region is unsupported, so callers can
-/// fall through quietly.
 pub(crate) async fn match_history_local(
     client: &LcuClient,
     puuid: &str,
@@ -380,7 +359,6 @@ pub(crate) async fn match_history_local(
         .unwrap_or_default())
 }
 
-/// Downloads the replay file for a game into the default download folder.
 #[tauri::command]
 pub async fn league_sgp_download_replay(game_id: i64) -> Result<String, String> {
     ensure_enabled()?;

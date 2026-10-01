@@ -1,48 +1,3 @@
-//! Budget policies with a scope and a consequence (roadmap 3.3, S18,
-//! decision D5; paperclip P3/P4 `80#P3`/`80#P4`, omnigent P6 `85#P6`).
-//!
-//! The day ledger of [`super::BudgetStore`] cuts a turn before it is sent,
-//! but it knows one scope (an agent, or a mission's lifetime pool) and one
-//! metric (dollars the provider reported). This module adds the ceilings a
-//! person writes down — "this loop may spend US$ 0.05", "at most 5 % of this
-//! account's 5 h window", "2 M weighted tokens a day for everything" — and
-//! what happens when one is crossed:
-//!
-//! * **hard** (`hard_stop`): the scope is paused, the work running in it is
-//!   cancelled by whoever owns it (the app listens for
-//!   [`BusEvent::BudgetCrossed`](crate::core::omni::bus::BusEvent)), and an
-//!   **incident** opens with two answers: raise and resume, or keep paused;
-//! * **soft**: the ceiling is a checkpoint. The next turn asks "continue?"
-//!   through the durable approvals (2.2), once per window, and the answer is
-//!   remembered;
-//! * `warn_pct`: a notice and an audit line; nothing stops.
-//!
-//! The check runs before every turn (a paused scope starts nothing) and the
-//! crossing is evaluated when the turn settles, so a scope passes its ceiling
-//! by at most the one turn that crossed it (PROB C1).
-//!
-//! Metrics (D5):
-//! * `usd`: what the provider reported, else the price table's equivalent.
-//!   For a subscription account those dollars are an estimate, and a ceiling
-//!   a person set on them still bites (`85#P6`, PROB C2). A model the table
-//!   does not know asks once instead of counting as free;
-//! * `weighted_tokens`: `billable_input` + output, the weights the mission
-//!   caps already use (cache read 0.1x, cache write 1.25x);
-//! * `quota_pct`: the share of an account's 5 h / 7 d window, read only from
-//!   what the CLI reported on its own stream (`rate_limit_event`, the status
-//!   line). Never the OAuth usage endpoint, never a credential
-//!   (`cli_usage/windows.rs`). Without a reading the policy cannot bite, and
-//!   says so instead of inventing a percentage.
-//!
-//! Nothing here acts without a policy: no policy, no price lookup, no
-//! question, no refusal (B0 unchanged). A turn's ledger line is still
-//! written, because that is how a loop shows what it cost (PROB C5).
-//!
-//! State: `<llm dir>/budget.db` — the policies, one ledger row per scope a
-//! turn touched (so two policies never add the same usage twice, and one
-//! policy counts it once), the incidents, the answers to checkpoints and the
-//! quota baselines.
-
 use std::collections::HashMap;
 use std::path::Path;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -58,7 +13,6 @@ use crate::core::llm::audit::{self, Actor, Entity};
 use crate::core::llm::error::{LlmError, ERR_LLM_BUDGET};
 
 pub const DB_FILE: &str = "budget.db";
-/// Ledger rows older than this are dropped when the file opens.
 const LEDGER_KEEP_MS: i64 = 120 * 24 * 3_600 * 1_000;
 const HOUR_MS: i64 = 3_600 * 1_000;
 
@@ -69,10 +23,6 @@ fn now_ms() -> i64 {
         .unwrap_or(0)
 }
 
-// ── the vocabulary ──────────────────────────────────────────────────────
-
-/// Who a ceiling is for. Written `global`, `agent:<id>`, `job:<id>`,
-/// `loop:<id>`, `mission:<id>`, `account:<id>` everywhere (API, CLI, file).
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Scope {
     Global,
@@ -80,7 +30,6 @@ pub enum Scope {
     Job(String),
     Loop(String),
     Mission(String),
-    /// A CLI account (its id) or a native provider (`provider:<id>`).
     Account(String),
 }
 
@@ -107,7 +56,6 @@ impl Scope {
         }
     }
 
-    /// The id after the colon (`""` for global).
     pub fn id(&self) -> &str {
         match self {
             Scope::Global => "",
@@ -145,8 +93,6 @@ impl Scope {
         })
     }
 
-    /// The scopes whose life is the work itself: their `run` window starts
-    /// with them, not with the policy.
     fn is_work(&self) -> bool {
         matches!(self, Scope::Job(_) | Scope::Loop(_) | Scope::Mission(_))
     }
@@ -236,8 +182,6 @@ impl Window {
         }
     }
 
-    /// Where the ledger sum of a `usd`/`weighted_tokens` policy starts: UTC
-    /// day and ISO week, the rolling 5 h / 7 d, or the scope's whole life.
     fn start_ms(self, now: i64, policy: &BudgetPolicy) -> i64 {
         let today = Utc
             .timestamp_millis_opt(now)
@@ -262,8 +206,6 @@ impl Window {
         }
     }
 
-    /// The window a checkpoint answer holds for: one answer per day, week,
-    /// 5 h / 7 d slice, or for the whole run.
     fn instance(self, now: i64) -> String {
         let day = Utc
             .timestamp_millis_opt(now)
@@ -287,8 +229,6 @@ fn yes() -> bool {
     true
 }
 
-/// One ceiling (D5): `{scope, metric, window, amount, warn_pct, hard_stop}`.
-/// One policy per (scope, metric, window): saving another replaces it.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct BudgetPolicy {
     #[serde(default)]
@@ -296,13 +236,9 @@ pub struct BudgetPolicy {
     pub scope: Scope,
     pub metric: Metric,
     pub window: Window,
-    /// US$, weighted tokens, or percentage points of the quota window.
     pub amount: f64,
-    /// Notice (and audit line) when this share of `amount` is passed.
     #[serde(default)]
     pub warn_pct: Option<f64>,
-    /// `true` = pause and open an incident; `false` = ask "continue?" once
-    /// per window.
     #[serde(default = "yes")]
     pub hard_stop: bool,
     #[serde(default = "yes")]
@@ -365,9 +301,6 @@ impl BudgetPolicy {
     }
 }
 
-/// A hard ceiling that was crossed (or a checkpoint someone refused): the
-/// scope stays paused while it is `open` (needs someone) or `paused` (kept
-/// paused on purpose); `resolved` lets the work go on.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Incident {
     pub id: String,
@@ -377,17 +310,13 @@ pub struct Incident {
     pub window: Window,
     pub observed: f64,
     pub limit: f64,
-    /// `open | paused | resolved`
     pub state: String,
-    /// `hard` (the ceiling) or `checkpoint` (a "continue?" answered no).
     pub kind: String,
-    /// The agent whose turn crossed it.
     #[serde(default)]
     pub agent: Option<String>,
     pub opened_ms: i64,
     #[serde(default)]
     pub resolved_ms: Option<i64>,
-    /// `raised:<amount>`, `kept_paused`, `window_reset`, `policy_removed`.
     #[serde(default)]
     pub resolution: Option<String>,
 }
@@ -398,7 +327,6 @@ impl Incident {
     }
 }
 
-/// Why a turn may not start.
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct Block {
     pub policy_id: String,
@@ -417,23 +345,18 @@ impl Block {
     }
 }
 
-/// A question the gate needs answered before the turn goes out.
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct AskNeed {
-    /// `checkpoint` or `unpriced`.
     pub kind: &'static str,
     pub policy_id: String,
     pub scope: Scope,
-    /// The remembered answer's key.
     pub key: String,
     pub observed: f64,
     pub limit: f64,
-    /// What the question says (no secret, no prompt).
     pub message: String,
 }
 
 impl AskNeed {
-    /// The "tool" name the approval shows.
     pub fn action(&self) -> &'static str {
         match self.kind {
             "checkpoint" => "budget_checkpoint",
@@ -449,33 +372,25 @@ pub enum Verdict {
     Ask(Vec<AskNeed>),
 }
 
-/// A ceiling passed while a turn settled.
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct Crossing {
-    /// `warn` or `hard`.
     pub kind: &'static str,
     pub policy: BudgetPolicy,
     pub observed: f64,
     pub incident: Option<Incident>,
 }
 
-/// One turn, as the gate and the settle see it.
 #[derive(Debug, Clone, Default)]
 pub struct TurnCtx {
     pub request_id: String,
     pub agent_id: String,
-    /// The CLI account the turn runs on, or `provider:<id>` for a native
-    /// model; `None` when unknown.
     pub account: Option<String>,
     pub model: String,
     pub conversation_id: String,
-    /// The history's estimated size (a `turn` token ceiling checks it).
     pub estimate_tokens: u64,
 }
 
 impl TurnCtx {
-    /// Every scope this turn counts against: global, its agent, its account,
-    /// and whatever the owner of the conversation bound (job, loop, mission).
     pub fn scopes(&self) -> Vec<Scope> {
         let mut out = vec![Scope::Global, Scope::Agent(self.agent_id.clone())];
         if let Some(a) = &self.account {
@@ -490,12 +405,9 @@ impl TurnCtx {
     }
 }
 
-/// What a finished turn used.
 #[derive(Debug, Clone, Copy, Default, PartialEq)]
 pub struct TurnUse {
-    /// What the provider reported; `None` = it reported no price.
     pub usd: Option<f64>,
-    /// `billable_input` (cache-weighted).
     pub input_tokens: u64,
     pub output_tokens: u64,
 }
@@ -506,31 +418,24 @@ impl TurnUse {
     }
 }
 
-/// A scope's spend inside a window, for the loop cards and the budgets page.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Serialize)]
 pub struct Spend {
-    /// Reported plus priced dollars.
     pub usd: f64,
-    /// The part of `usd` that came from the price table (an estimate).
     pub usd_estimated: f64,
-    /// Turns whose cost nobody knows (no report, no price).
     pub unpriced_turns: u32,
     pub tokens: u64,
     pub turns: u32,
 }
 
-/// Price per million tokens (input, output).
 #[derive(Debug, Clone, Copy, PartialEq, Serialize)]
 pub struct Price {
     pub input_per_m: f64,
     pub output_per_m: f64,
 }
 
-/// One quota window of an account, as its CLI last reported it.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Serialize)]
 pub struct QuotaWindow {
     pub used_pct: f64,
-    /// Epoch seconds when the window rolls over.
     pub resets_at: Option<i64>,
 }
 
@@ -550,18 +455,12 @@ impl QuotaReading {
     }
 }
 
-/// Reads the last quota an account's CLI reported (the app: the in-memory
-/// capacity fed by `rate_limit_event`). Never a network call.
 pub type QuotaFn = Arc<dyn Fn(&str) -> Option<QuotaReading> + Send + Sync>;
-/// Price of a model name (the app: the LiteLLM table, cached on disk).
 pub type PriceFn = Arc<dyn Fn(String) -> BoxFuture<'static, Option<Price>> + Send + Sync>;
-/// Told about every change (incident opened or settled, warning, policy
-/// saved): the app turns it into `llm://budget`.
 pub type Listener = Arc<dyn Fn(&BudgetEvent) + Send + Sync>;
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct BudgetEvent {
-    /// `incident_opened | incident_changed | warn | policy_saved | policy_removed`
     pub kind: &'static str,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub incident: Option<Incident>,
@@ -571,27 +470,20 @@ pub struct BudgetEvent {
     pub observed: Option<f64>,
 }
 
-/// What a person decided about an incident.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Resolution {
-    /// A new ceiling, above what is already spent; the scope resumes.
     Raise(f64),
     KeepPaused,
 }
 
-/// A policy with where it stands now, for the budgets page and the CLI.
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct PolicyStatus {
     #[serde(flatten)]
     pub policy: BudgetPolicy,
-    /// `None` = cannot be measured now (a quota policy with no reading).
     pub observed: Option<f64>,
-    /// `real` for a CLI's own report, `none` without one (quota only).
     pub source: &'static str,
     pub incident: Option<Incident>,
 }
-
-// ── scope bindings (who a conversation's turns belong to) ──────────────
 
 type Bound = HashMap<String, Vec<(u64, Scope)>>;
 
@@ -602,9 +494,6 @@ fn bindings() -> &'static Mutex<Bound> {
 
 static NEXT_BINDING: AtomicU64 = AtomicU64::new(1);
 
-/// While alive, the turns of `conversation` also count against `scopes`
-/// (a job binds `job:<id>` and its `loop:<id>`, a mission its
-/// `mission:<id>`). Dropped with the owner, however it returns.
 pub struct Binding {
     conversation: String,
     id: u64,
@@ -648,8 +537,6 @@ pub fn bound_scopes(conversation: &str) -> Vec<Scope> {
     out
 }
 
-/// The conversations whose turns count against `scope` right now (what a
-/// hard crossing cancels when the scope is a mission or a job).
 pub fn conversations_in(scope: &Scope) -> Vec<String> {
     let map = bindings().lock().unwrap_or_else(|e| e.into_inner());
     map.iter()
@@ -658,14 +545,11 @@ pub fn conversations_in(scope: &Scope) -> Vec<String> {
         .collect()
 }
 
-// ── the global engine and its hooks ─────────────────────────────────────
-
 static ENGINE: OnceLock<Arc<Engine>> = OnceLock::new();
 static QUOTA: RwLock<Option<QuotaFn>> = RwLock::new(None);
 static PRICE: RwLock<Option<PriceFn>> = RwLock::new(None);
 static LISTENER: RwLock<Option<Listener>> = RwLock::new(None);
 
-/// Opens `<llm dir>/budget.db` once for the app.
 pub fn init(path: &Path) -> Result<Arc<Engine>, String> {
     if let Some(e) = ENGINE.get() {
         return Ok(e.clone());
@@ -675,21 +559,14 @@ pub fn init(path: &Path) -> Result<Arc<Engine>, String> {
     Ok(ENGINE.get().cloned().expect("set above"))
 }
 
-/// The app's engine, if the app opened one (tests and the CLI have none).
 pub fn active() -> Option<Arc<Engine>> {
     ENGINE.get().cloned()
 }
 
-/// Where the app's quota readings come from (set when the CLI runtime is
-/// built; an engine of its own in a test sets its own).
 pub fn set_quota_source(f: QuotaFn) {
     *QUOTA.write().unwrap_or_else(|e| e.into_inner()) = Some(f);
 }
 
-/// The quota source over the CLI runtime's capacity: the last
-/// `rate_limit_event` (or status line) each account's CLI reported, in
-/// percent. Only [`QuotaSource::Real`](crate::core::llm::cli_runtime::QuotaSource)
-/// readings count: an estimate against a plan ceiling is not a quota.
 pub fn quota_from_capacity(capacity: Arc<crate::core::llm::cli_runtime::CliCapacity>) -> QuotaFn {
     Arc::new(move |account: &str| {
         let snap = capacity.get(account)?;
@@ -717,11 +594,8 @@ pub fn set_listener(f: Listener) {
     *LISTENER.write().unwrap_or_else(|e| e.into_inner()) = Some(f);
 }
 
-// ── the engine ──────────────────────────────────────────────────────────
-
 pub struct Engine {
     db: Mutex<Connection>,
-    /// Read before every turn; the file is only read when it changes.
     policies: RwLock<Vec<BudgetPolicy>>,
     quota: RwLock<Option<QuotaFn>>,
     price: RwLock<Option<PriceFn>>,
@@ -751,7 +625,6 @@ impl Engine {
         Self::with(Connection::open(path).map_err(|e| e.to_string())?)
     }
 
-    /// No file: tests.
     pub fn memory() -> Self {
         Self::with(Connection::open_in_memory().expect("in-memory sqlite")).expect("schema")
     }
@@ -866,7 +739,6 @@ impl Engine {
         }
     }
 
-    /// The fast path of every turn: with no enabled policy nothing else runs.
     pub fn has_policies(&self) -> bool {
         self.policies
             .read()
@@ -893,8 +765,6 @@ impl Engine {
             .collect()
     }
 
-    /// Saves a policy. One per (scope, metric, window): the same triple
-    /// again replaces the old one (and keeps its id and creation time).
     pub fn upsert(&self, mut p: BudgetPolicy, actor: Actor) -> Result<BudgetPolicy, String> {
         p.validate()?;
         let now = now_ms();
@@ -945,7 +815,6 @@ impl Engine {
         Ok(p)
     }
 
-    /// Removes a policy; an incident it had stops blocking.
     pub fn delete(&self, id: &str, actor: Actor) -> Result<bool, String> {
         let n = self
             .db()
@@ -974,9 +843,6 @@ impl Engine {
         Ok(n > 0)
     }
 
-    // ── incidents ──────────────────────────────────────────────────────
-
-    /// Incidents, newest first; `blocking_only` = open or kept paused.
     pub fn incidents(&self, blocking_only: bool) -> Vec<Incident> {
         let db = self.db();
         let sql = if blocking_only {
@@ -1036,7 +902,6 @@ impl Engine {
         inc
     }
 
-    /// Opens the incident of a crossed policy, or returns the one it has.
     fn open_incident(
         &self,
         p: &BudgetPolicy,
@@ -1090,9 +955,6 @@ impl Engine {
         inc
     }
 
-    /// "Raise and resume" (the new ceiling must be above what is already
-    /// spent) or "keep paused". Returns the settled incident; the caller
-    /// resumes the work of its scope.
     pub fn resolve(&self, id: &str, what: Resolution, actor: Actor) -> Result<Incident, String> {
         let inc = self
             .incident(id)
@@ -1141,10 +1003,6 @@ impl Engine {
         }
     }
 
-    // ── measuring ──────────────────────────────────────────────────────
-
-    /// The account a scope's turns ran on most recently (for a quota
-    /// policy on a loop or an agent).
     pub fn last_account(&self, scope: &Scope) -> Option<String> {
         if let Scope::Account(a) = scope {
             return Some(a.clone());
@@ -1161,7 +1019,6 @@ impl Engine {
             .flatten()
     }
 
-    /// Sum of a scope's ledger since `since_ms`.
     pub fn spent_since(&self, scope: &Scope, since_ms: i64) -> Spend {
         let db = self.db();
         db.query_row(
@@ -1186,12 +1043,10 @@ impl Engine {
         .unwrap_or_default()
     }
 
-    /// A scope's spend over its whole life (a loop's cost).
     pub fn spent(&self, scope: &Scope) -> Spend {
         self.spent_since(scope, 0)
     }
 
-    /// Where a policy stands now. `None` = a quota policy with no reading.
     fn observe(&self, p: &BudgetPolicy, account: Option<&str>, now: i64) -> Option<f64> {
         match p.metric {
             Metric::Usd | Metric::WeightedTokens => {
@@ -1208,8 +1063,6 @@ impl Engine {
             Metric::QuotaPct => {
                 let account = account?;
                 let w = self.quota_of(account)?.window(p.window)?;
-                // An account (or everything) is measured by the window
-                // itself; any other scope by what it moved since it began.
                 if matches!(p.scope, Scope::Account(_) | Scope::Global) {
                     Some(w.used_pct)
                 } else {
@@ -1219,10 +1072,6 @@ impl Engine {
         }
     }
 
-    /// Points of the window a scope used since its first reading, as of
-    /// the last stored reading and as of `w`. When the window rolls over,
-    /// what it used before is carried and the new window counts from zero.
-    /// `record` stores `w` as the last reading.
     fn quota_delta(
         &self,
         p: &BudgetPolicy,
@@ -1276,8 +1125,6 @@ impl Engine {
             .map(|v| v != 0)
     }
 
-    /// Whether a model's dollars can be counted: the provider reported a
-    /// price for it before, or the price table knows it.
     async fn priced(&self, model: &str) -> bool {
         let reported: bool = self
             .db()
@@ -1293,11 +1140,6 @@ impl Engine {
         reported || self.price_of(model).await.is_some()
     }
 
-    // ── the three moments of a turn ─────────────────────────────────────
-
-    /// A scope paused by an incident, if any of `scopes` is. An incident
-    /// whose policy no longer holds (the window rolled over, the policy was
-    /// raised or removed) is settled here and blocks nothing.
     pub fn blocked(&self, scopes: &[Scope], account: Option<&str>) -> Option<Block> {
         let now = now_ms();
         for inc in self.incidents(true) {
@@ -1312,8 +1154,6 @@ impl Engine {
                 .map(String::from)
                 .or_else(|| self.last_account(&p.scope));
             let observed = self.observe(&p, acct.as_deref(), now);
-            // A checkpoint someone refused holds until they raise it; a
-            // hard ceiling lifts by itself when its window starts over.
             if inc.kind == "hard" && p.window != Window::Turn {
                 if let Some(v) = observed {
                     if v < p.amount {
@@ -1342,9 +1182,6 @@ impl Engine {
         None
     }
 
-    /// Before a turn: a paused scope refuses; a hard ceiling already reached
-    /// opens its incident and refuses; a checkpoint reached, or a model with
-    /// no price under a dollar ceiling, asks once.
     pub async fn gate(&self, ctx: &TurnCtx) -> Verdict {
         if !self.has_policies() {
             return Verdict::Allow;
@@ -1360,7 +1197,6 @@ impl Engine {
         let now = now_ms();
         let mut asks = Vec::new();
         for p in &policies {
-            // A quota policy starts measuring the scope before its first turn.
             if p.metric == Metric::QuotaPct && !matches!(p.scope, Scope::Account(_) | Scope::Global)
             {
                 if let Some(w) = ctx
@@ -1496,8 +1332,6 @@ impl Engine {
         }
     }
 
-    /// Keeps a person's answer to a question of the gate. A refused
-    /// checkpoint pauses its scope (an incident, kind `checkpoint`).
     pub fn answer(&self, need: &AskNeed, allow: bool, agent: Option<&str>) -> Option<Block> {
         let _ = self.db().execute(
             "INSERT OR REPLACE INTO budget_acks (key, allow, ts_ms) VALUES (?1, ?2, ?3)",
@@ -1536,10 +1370,6 @@ impl Engine {
         })
     }
 
-    /// After a turn: one ledger row per scope it touched, then every policy
-    /// of those scopes is measured again. A hard ceiling reached opens its
-    /// incident (the caller tells the owners to stop the scope's work); a
-    /// `warn_pct` passed says so once.
     pub async fn charge(&self, ctx: &TurnCtx, used: TurnUse) -> Vec<Crossing> {
         let scopes = ctx.scopes();
         let policies = if self.has_policies() {
@@ -1547,8 +1377,6 @@ impl Engine {
         } else {
             Vec::new()
         };
-        // Dollars: what the provider reported; else, only when a dollar
-        // ceiling applies (a lookup may read the price table), the table's.
         let (usd, source) = match used.usd {
             Some(v) => (Some(v), "reported"),
             None if policies.iter().any(|p| p.metric == Metric::Usd) => {
@@ -1627,7 +1455,6 @@ impl Engine {
                 let crossed = if p.metric == Metric::QuotaPct
                     && matches!(p.scope, Scope::Account(_) | Scope::Global)
                 {
-                    // An absolute reading: warn once per window instance.
                     after >= mark
                         && self
                             .acked(&format!("warn:{}:{}", p.id, p.window.instance(now)))
@@ -1664,7 +1491,6 @@ impl Engine {
         out
     }
 
-    /// Every policy with where it stands, for the budgets page and the CLI.
     pub fn status(&self) -> Vec<PolicyStatus> {
         let now = now_ms();
         let blocking = self.incidents(true);
@@ -1689,7 +1515,6 @@ impl Engine {
             .collect()
     }
 
-    /// The whole view: policies with their state and the incidents.
     pub fn state_view(&self) -> Value {
         json!({
             "policies": self.status(),

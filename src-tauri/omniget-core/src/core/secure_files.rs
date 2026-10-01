@@ -1,6 +1,3 @@
-//! Descriptor-relative file access for locally granted roots.
-//! No ambient path is accepted after a root has been opened. Symlinks and
-//! multiply-linked files are deliberately unsupported at this boundary.
 use sha2::{Digest, Sha256};
 use std::fs::File;
 use std::io::{Read, Seek, SeekFrom, Write};
@@ -34,7 +31,6 @@ mod os {
     use std::os::fd::{AsRawFd, FromRawFd};
     use std::os::unix::ffi::OsStrExt;
     use std::os::unix::fs::MetadataExt;
-    /// New folders one create may add on the way to its file.
     const MAX_NEW_DIRS: usize = 8;
 
     pub fn identity(file: &File) -> std::io::Result<Identity> {
@@ -49,7 +45,6 @@ mod os {
     }
     pub fn at(dir: &File, n: &std::ffi::OsStr, flags: i32) -> std::io::Result<File> {
         let n = name(n)?;
-        // O_NOFOLLOW applies to the actual object opened, not an earlier stat.
         let fd = unsafe {
             libc::openat(
                 dir.as_raw_fd(),
@@ -78,7 +73,6 @@ mod os {
         Ok(dir)
     }
     pub fn parent(root: &File, path: &Path) -> std::io::Result<(File, std::ffi::OsString)> {
-        // Reject empty/dot components too: Path::components normalizes these.
         let raw = path.as_os_str().as_bytes();
         if raw.is_empty()
             || raw
@@ -102,7 +96,6 @@ mod os {
     }
     pub fn read(root: &File, path: &Path) -> std::io::Result<File> {
         let (dir, n) = parent(root, path)?;
-        // NONBLOCK prevents a malicious FIFO from hanging before fstat.
         let file = at(&dir, &n, libc::O_RDONLY | libc::O_NONBLOCK)?;
         let m = file.metadata()?;
         if !m.is_file() || m.nlink() != 1 {
@@ -110,9 +103,6 @@ mod os {
         }
         Ok(file)
     }
-    /// Like [`parent`], but a missing intermediate folder is created with
-    /// mkdirat on the pinned parent descriptor, then reopened with O_NOFOLLOW:
-    /// a symlink or file planted at that name is never adopted.
     pub fn parent_creating(
         root: &File,
         path: &Path,
@@ -163,8 +153,6 @@ mod os {
             file.write_all(bytes)?;
             file.sync_all()?;
             let n = name(&n)?;
-            // linkat is atomic and refuses ANY existing destination, including
-            // a symlink swapped in after validation. Never truncate a target.
             if unsafe {
                 libc::linkat(
                     staging.as_raw_fd(),
@@ -208,8 +196,6 @@ impl Root {
             Err(denied())
         }
     }
-    /// Create one new child through the pinned directory, without following
-    /// a replaced parent pathname or adopting an existing/symlink directory.
     pub fn create_directory(&self, relative: &Path) -> std::io::Result<()> {
         #[cfg(unix)]
         {
@@ -256,9 +242,6 @@ impl Root {
                 return Err(denied());
             }
             let mut hash = Sha256::new();
-            // Anonymous copy: later changes to the source inode cannot alter
-            // bytes delivered under the recorded digest. Never expose this fd
-            // or its private staging directory to an untrusted worker.
             let mut frozen = tempfile::tempfile()?;
             let mut total = 0u64;
             let mut buf = [0u8; 65536];
@@ -301,10 +284,6 @@ impl Root {
             Err(denied())
         }
     }
-    /// New files only. `staging` MUST be outside all worker grants and denied
-    /// by the worker sandbox, on the same filesystem. Mode 0700 alone does not
-    /// protect a staging pathname from another process running as this user.
-    /// The trusted coordinator supplies this capability, never an MCP caller.
     pub fn create_new(&self, staging: &Root, relative: &Path, bytes: &[u8]) -> std::io::Result<()> {
         if self.identity == staging.identity || self.identity.device != staging.identity.device {
             return Err(denied());
@@ -326,7 +305,6 @@ mod tests {
     use super::*;
     use std::os::unix::fs::symlink;
     fn fixture() -> std::path::PathBuf {
-        // canonicalize temp because macOS /tmp itself is a symlink.
         let p = std::env::temp_dir()
             .canonicalize()
             .unwrap()
@@ -417,7 +395,6 @@ mod tests {
     }
 }
 
-// Descriptor-relative enumeration shared by bounded mission manifests.
 #[cfg(unix)]
 mod manifest_files {
     use super::*;
@@ -469,8 +446,6 @@ mod manifest_files {
             return Err(denied());
         }
         let before = dir.metadata()?;
-        // A new open description keeps directory offsets independent of both
-        // the root descriptor and subsequent manifest passes.
         let scan = open_dir_at(dir, std::ffi::OsStr::new("."))?;
         use std::os::fd::IntoRawFd;
         let fd = scan.into_raw_fd();
@@ -483,7 +458,6 @@ mod manifest_files {
         }
         let stream = Stream(stream);
         loop {
-            // POSIX readdir returns NULL for both EOF and error.
             #[cfg(target_os = "macos")]
             unsafe {
                 *libc::__error() = 0;
@@ -613,8 +587,6 @@ mod manifest_files {
             }
             let name = OsString::from_vec(name.to_vec());
             let relative = prefix.join(&name);
-            // Hidden/ignored subtrees are decided by name BEFORE any open and
-            // never count toward the limit.
             let decision = filter(&relative);
             if decision == super::ScanFilter::Hide {
                 continue;
@@ -669,7 +641,6 @@ mod manifest_files {
             }
         }
         if stamp(&before) != stamp(&dir.metadata()?) {
-            // Discovery only: report the folder instead of failing the tree.
             out.skipped.push((
                 if prefix.as_os_str().is_empty() {
                     PathBuf::from(".")
@@ -706,21 +677,13 @@ mod manifest_files {
     }
 }
 
-/// How [`Root::scan`] treats one entry, decided from its relative path alone
-/// (before anything is opened).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ScanFilter {
-    /// Walk normally.
     Walk,
-    /// Not reported, not opened, not counted (protected names).
     Hide,
-    /// Reported as an entry but not descended (heavy ignored folders).
     ListOnly,
 }
 
-/// Result of a tolerant tree scan: symlinks, hard links, special files and
-/// unreadable entries are reported in `skipped` with a reason instead of
-/// failing the whole walk.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct TreeScan {
     pub entries: Vec<(std::path::PathBuf, bool)>,
@@ -728,9 +691,6 @@ pub struct TreeScan {
 }
 
 impl Root {
-    /// Tolerant bounded walk for discovery tools (never for digests): unlike
-    /// [`Root::entries`] it skips, and reports, objects it will not follow.
-    /// Exceeding `max_entries` is an error naming the limit and the entry.
     pub fn scan(
         &self,
         relative: &Path,
@@ -747,9 +707,6 @@ impl Root {
             Err(denied())
         }
     }
-    /// Identity of the object at `relative` without following a final
-    /// symlink (parents are opened with O_NOFOLLOW). Used to compare what a
-    /// name really resolves to on case/normalization-insensitive filesystems.
     pub fn identity_of(&self, relative: &Path) -> std::io::Result<Identity> {
         #[cfg(unix)]
         {
@@ -782,9 +739,6 @@ impl Root {
     }
 }
 impl Root {
-    /// Bounded files manifest. Rejects every symlink, special object and
-    /// multiply linked file; errors never become partial success. This is not
-    /// an atomic snapshot of an entire changing directory tree.
     pub fn files(
         &self,
         relative: &Path,
@@ -808,8 +762,6 @@ impl Root {
 }
 
 impl Root {
-    /// Deterministic bounded tree manifest; bool distinguishes directories,
-    /// including empty ones, from regular files. Same restrictions as files().
     pub fn entries(
         &self,
         relative: &Path,
@@ -827,53 +779,6 @@ impl Root {
     }
 }
 
-// ───────────── Existing-file replacement (optimistic concurrency) ─────────────
-//
-// Contract of `Root::replace`:
-// * The caller proves which revision it edited by passing the SHA-256 of the
-//   bytes it read earlier. The target is re-read through the pinned parent
-//   descriptor (openat + O_NOFOLLOW), must be a regular file with exactly one
-//   link, owned by this user, and below the size bound, and its digest must
-//   equal the expectation before any byte is written.
-// * The new bytes are written and fsynced into a fresh file inside the
-//   caller-supplied PRIVATE staging root (same filesystem, outside every
-//   worker grant; see `create_new`). The staging name never lives inside the
-//   workspace, so a workspace writer cannot rename or substitute it (audit S02).
-// * Immediately before the commit the target name, the open target descriptor,
-//   the parent path from the root and the staging name are re-checked (full
-//   stat stamp including ctime, which userland cannot forge).
-// * Commit is an atomic exchange of the two names (macOS renameatx_np
-//   RENAME_SWAP, Linux renameat2 RENAME_EXCHANGE); nothing is ever truncated
-//   in place, so the target name always resolves to either the complete old
-//   file or the complete fsynced new file, including after a crash.
-// * After the exchange the swapped-out object (now private) must be the same
-//   inode, still singly linked, and still hash to the expected digest, the new
-//   name must resolve to the staged inode and the parent path must still be the
-//   same directory. Otherwise the call fails with FILE_CHANGED_DURING_COMMIT
-//   and no concurrent bytes are dropped: if the name no longer holds our file
-//   (a concurrent save renamed over it) the exchange is NOT reversed; if it
-//   does, the exchange is reversed. Any object that ends up outside the name
-//   and is not our own untouched staged file (the displaced old revision, a
-//   new file someone appended to, a foreign file) is moved or copied to a
-//   durable sibling `<name>.omniget-recovered-<ms>-<id>` and the error reads
-//   `<CODE>; recovered: <relative path>`. The same holds for
-//   FILE_COMMIT_ROLLBACK_FAILED, because the private staging root is a
-//   temporary directory that its owner deletes.
-//
-// This is NOT a compare-and-swap in the kernel. Residual windows, documented:
-// (1) a process that already holds a descriptor to the old inode and writes
-//     AFTER the post-exchange verification writes into the replaced (now
-//     unlinked) inode and that write is lost, as with every rename-based save;
-// (2) between the exchange and the verification (microseconds) the new content
-//     is visible under the name even if the commit is then reversed;
-// (3) a directory moved out of the root between the last check and the
-//     exchange receives the new file for that same short window before it is
-//     swapped back. An exclusive advisory lock (flock) is held on the old
-//     inode for the whole operation, so cooperating writers are excluded.
-// Extended attributes/ACLs of the old file are not carried over; permission
-// bits (0o777) are.
-
-/// Stable error codes returned by [`Root::replace`].
 pub mod replace_codes {
     pub const PATH_INVALID: &str = "FILE_PATH_INVALID";
     pub const NOT_FOUND: &str = "FILE_NOT_FOUND";
@@ -905,8 +810,6 @@ pub struct Replaced {
 
 #[cfg(test)]
 pub mod replace_test_hook {
-    //! Deterministic race injection for tests: called with the stage name
-    //! ("after_read", "before_precheck", "before_swap", "after_swap").
     use std::cell::RefCell;
     type Hook = Box<dyn FnMut(&str)>;
     thread_local! { static HOOK: RefCell<Option<Hook>> = RefCell::new(None); }
@@ -1083,7 +986,6 @@ mod replace_os {
         }
         Ok(())
     }
-    /// Move without replacing any existing destination (rollback fallback).
     fn move_noreplace(a_dir: &File, a: &CStr, b_dir: &File, b: &CStr) -> std::io::Result<()> {
         #[cfg(target_os = "macos")]
         let r = unsafe {
@@ -1123,8 +1025,6 @@ mod replace_os {
             .is_some_and(|i| &i == expected)
     }
 
-    /// `<leaf>.omniget-recovered-<ms>-<id>`: visible next to the target, never
-    /// under the reserved `.omniget-` prefix, and bounded to NAME_MAX.
     fn recovery_name(leaf: &std::ffi::OsStr) -> std::ffi::OsString {
         let lossy = leaf.to_string_lossy();
         let mut head = String::new();
@@ -1149,9 +1049,6 @@ mod replace_os {
             .to_string_lossy()
             .into_owned()
     }
-    /// Moves the private staging object next to the target (durable), or
-    /// copies its bytes there when the move is impossible. Returns the
-    /// workspace-relative path, or the reason nothing could be kept.
     fn preserve_staged(
         staging: &File,
         tmp: &CStr,
@@ -1237,7 +1134,6 @@ mod replace_os {
         let (dir, leaf) = os::parent(root, relative).map_err(|e| open_code(&e))?;
         let dir_id = os::identity(&dir).map_err(|_| c::IO)?;
         let leaf_c = os::name(&leaf).map_err(|_| c::PATH_INVALID)?;
-        // NONBLOCK: a FIFO swapped in must not hang the executor before fstat.
         let mut target =
             os::at(&dir, &leaf, libc::O_RDONLY | libc::O_NONBLOCK).map_err(|e| open_code(&e))?;
         let before = fstat(&target)?;
@@ -1325,12 +1221,6 @@ mod replace_os {
                     }) && read_all(&mut f, max).is_ok_and(|(_, d)| d == expected)
                 });
         if !verified {
-            // Audit F-R1/F-R2/F-R3: nothing a concurrent actor wrote may be
-            // dropped. The staging root is a private temp dir deleted by the
-            // caller, so every object that does not end up under the target
-            // name and is not provably our own untouched bytes is moved to a
-            // durable sibling `<name>.omniget-recovered-*` next to the target,
-            // and the error names it.
             let untouched_new = |f: &mut File| {
                 fstat(f).is_ok_and(|s| {
                     s.dev == staged_st.dev
@@ -1341,34 +1231,24 @@ mod replace_os {
                 }) && read_all(f, max).is_ok_and(|(_, d)| d == digest)
             };
             if !name_is_new {
-                // The name no longer holds our file: a concurrent save (rename
-                // over it) or a delete won. Never swap its object away.
                 let mut recovered = Vec::new();
                 if stat_at(&dir, &leaf_c).is_err_and(|e| e.raw_os_error() == Some(libc::ENOENT))
                     && move_noreplace(staging, &tmp_c, &dir, &leaf_c).is_ok()
                 {
-                    // Name deleted: the revision the caller based the edit on returns.
                 } else if stat_at(staging, &tmp_c).is_ok() {
                     recovered.push(preserve_staged(staging, &tmp_c, &dir, &leaf, relative));
                 }
-                // Our unlinked inode: if someone wrote into it through the name
-                // before replacing it, keep those bytes too (read via our fd).
                 if !untouched_new(&mut staged) {
                     recovered.push(preserve_bytes(&mut staged, &dir, &leaf, relative, max));
                 }
                 let _ = dir.sync_all();
                 return Err(with_recovery(c::CHANGED, &recovered));
             }
-            // Our file is under the name: reverse the exchange.
             if swap(staging, &tmp_c, &dir, &leaf_c).is_err() {
-                // The name keeps the new revision; the swapped-out one must
-                // survive the private staging dir.
                 let kept = preserve_staged(staging, &tmp_c, &dir, &leaf, relative);
                 let _ = dir.sync_all();
                 return Err(with_recovery(c::ROLLBACK_FAILED, &[kept]));
             }
-            // Whatever is now under the private name came back from the
-            // workspace: drop it only if it is our own untouched staged file.
             let mut recovered = Vec::new();
             let ours_untouched = os::at(staging, tmp_os, libc::O_RDONLY | libc::O_NONBLOCK)
                 .ok()
@@ -1381,8 +1261,6 @@ mod replace_os {
             let _ = dir.sync_all();
             return Err(with_recovery(c::CHANGED, &recovered));
         }
-        // Old revision now only exists privately; drop it and make both
-        // directory entries durable.
         unlink_tmp();
         dir.sync_all().map_err(|_| c::IO)?;
         let _ = staging.sync_all();
@@ -1400,10 +1278,6 @@ mod replace_os {
 }
 
 impl Root {
-    /// Replace an existing regular file whose current SHA-256 equals
-    /// `expected_sha256`. `transform` receives exactly the verified bytes and
-    /// returns the new content. `staging` has the same requirements as in
-    /// [`Root::create_new`]. See the contract above for residual races.
     pub fn replace<F>(
         &self,
         staging: &Root,
@@ -1431,8 +1305,6 @@ impl Root {
         }
         #[cfg(unix)]
         {
-            // The descriptor itself is pinned; this only guards against a
-            // mismatched Root handed in by a caller.
             if os::identity(&self.directory).map_err(|_| c::IO)? != self.identity {
                 return Err(c::ROOT.into());
             }
@@ -1531,8 +1403,6 @@ mod replace_tests {
             replace_codes::LOCKED
         );
         drop(holder);
-        // Foreign regular file substituted under the name right before the
-        // exchange: the exchange is reversed and the foreign file stays.
         let w = ws.clone();
         replace_test_hook::set(move |s| {
             if s == "before_swap" {
@@ -1563,10 +1433,6 @@ mod replace_tests {
         );
         std::fs::read(ws.join(rel)).unwrap()
     }
-    /// Audit F-R1 (reproduction turned regression): a concurrent atomic save
-    /// (write tmp + rename over the target) between the exchange and the
-    /// verification wins; its bytes stay under the name and the displaced old
-    /// revision is kept in a durable sibling, never in the private staging.
     #[test]
     fn f_r1_concurrent_atomic_save_after_swap_is_kept_and_old_revision_recovered() {
         let (_d, root, stage, ws) = fixture();
@@ -1593,9 +1459,6 @@ mod replace_tests {
             "nothing left in the private staging"
         );
     }
-    /// Audit F-R2: bytes appended into the NEW file through the name after the
-    /// exchange survive when the verification then fails for another reason
-    /// (a stale writer touched the old inode).
     #[test]
     fn f_r2_bytes_appended_to_new_file_during_window_are_recovered() {
         use std::io::Write;
@@ -1631,8 +1494,6 @@ mod replace_tests {
         assert_eq!(recovered(&ws, &err), b"ours +THEIR APPEND");
         assert_eq!(std::fs::read_dir(stage_path(&ws)).unwrap().count(), 0);
     }
-    /// Audit F-R3: when the reverse exchange fails the swapped-out revision
-    /// must survive the private staging dir (a TempDir its owner deletes).
     #[test]
     fn f_r3_rollback_failed_keeps_the_swapped_out_revision_outside_staging() {
         use std::io::Write;
@@ -1648,7 +1509,6 @@ mod replace_tests {
         replace_test_hook::set(move |s| {
             if s == "after_swap" {
                 old_fd.write_all(b"X").unwrap();
-                // Staging becomes unwritable: the reverse exchange cannot happen.
                 std::fs::set_permissions(&st2, std::fs::Permissions::from_mode(0o500)).unwrap();
             }
         });
@@ -1663,13 +1523,9 @@ mod replace_tests {
         assert_eq!(std::fs::read(ws.join("f")).unwrap(), b"ours");
         let kept = recovered(&ws, &err);
         assert_eq!(kept, b"Xld");
-        // Deleting the staging dir (what its owner does) loses nothing.
         std::fs::remove_dir_all(&st).unwrap();
         assert_eq!(recovered(&ws, &err), b"Xld");
     }
-    /// Audit F-EF2 support: the tolerant scan reports symlinks, FIFOs and hard
-    /// links, lists ignored folders without descending, hides filtered names
-    /// without counting them, and names the limit when it is exceeded.
     #[test]
     fn scan_skips_links_and_special_files_and_names_the_limit() {
         let (_d, root, _stage, ws) = fixture();
@@ -1690,7 +1546,6 @@ mod replace_tests {
             _ => ScanFilter::Walk,
         };
         let scan = root.scan(Path::new("."), 10, &filter).unwrap();
-        // a.txt and hard are the same inode (nlink 2): both reported, not listed.
         assert_eq!(
             scan.entries,
             vec![(std::path::PathBuf::from("node_modules"), true)]
@@ -1713,7 +1568,6 @@ mod replace_tests {
             err.starts_with("FILE_TREE_LIMIT") && err.contains("more than 2 entries"),
             "{err}"
         );
-        // The strict manifest keeps failing closed for digests.
         assert!(root.entries(Path::new("."), 1000).is_err());
     }
 }

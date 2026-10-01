@@ -1,8 +1,3 @@
-//! One capture at a time: start the backend, sample the machine once a
-//! second into `sensors.csv`, follow the backend's log for a live FPS, stop
-//! by itself at the deadline (or when the game exits), then convert
-//! everything to `omniget-frames/1` and write the summary.
-
 use std::collections::VecDeque;
 use std::io::{Read, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
@@ -21,8 +16,6 @@ pub fn perf_dir(ctx: &Ctx) -> PathBuf {
     ctx.dir.join("perf")
 }
 
-/// Ids are ours (`<ms>-<hex>`); anything else is refused before it becomes
-/// a path.
 pub fn valid_id(id: &str) -> bool {
     !id.is_empty() && id.len() <= 64 && id.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-')
 }
@@ -41,7 +34,6 @@ pub fn now_ms() -> u64 {
         .unwrap_or(0)
 }
 
-/// What a listing shows per session (and what the League tab reads).
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 pub struct SessionSummary {
     pub session_id: String,
@@ -87,7 +79,6 @@ pub fn list_summary(s: &Session, sum: Option<&Summary>) -> SessionSummary {
     }
 }
 
-/// Every session in `ctx`, newest first.
 pub fn list(ctx: &Ctx) -> Vec<SessionSummary> {
     let Ok(rd) = std::fs::read_dir(perf_dir(ctx)) else {
         return vec![];
@@ -105,7 +96,6 @@ pub fn list(ctx: &Ctx) -> Vec<SessionSummary> {
     out
 }
 
-/// Sessions that overlap `[start_ms, end_ms]` (a League match, for one).
 pub fn between(ctx: &Ctx, start_ms: u64, end_ms: u64) -> Vec<SessionSummary> {
     list(ctx)
         .into_iter()
@@ -128,7 +118,6 @@ pub fn read_sensors(dir: &Path) -> Vec<SensorRow> {
         .unwrap_or_default()
 }
 
-/// The summary on disk, or computed now from `frames.csv` and cached.
 pub fn summary_of(ctx: &Ctx, id: &str) -> Result<Summary, String> {
     let dir = session_dir(ctx, id)?;
     let s = load_session(&dir).map_err(|_| "NOT_FOUND: unknown session".to_string())?;
@@ -143,16 +132,12 @@ pub fn summary_of(ctx: &Ctx, id: &str) -> Result<Summary, String> {
     Ok(sum)
 }
 
-// ── The running capture ──────────────────────────────────────────────────
-
-/// Which log the sampler follows for the live FPS.
 enum LiveSource {
     None,
     #[cfg_attr(not(windows), allow(dead_code))]
     PresentMon(PathBuf, Option<super::presentmon::Columns>),
     #[cfg_attr(not(target_os = "linux"), allow(dead_code))]
     MangoHud(PathBuf, Option<super::mangohud::Columns>),
-    /// Frames pushed by the stderr reader (Metal HUD).
     #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
     Pushed,
 }
@@ -161,7 +146,6 @@ enum LiveSource {
 pub struct Live {
     pub frames: usize,
     pub fps_now: Option<f64>,
-    /// Last frametimes, newest last, for the live sparkline.
     pub recent: VecDeque<f64>,
     #[serde(skip)]
     window: VecDeque<(Instant, f64)>,
@@ -225,7 +209,6 @@ pub fn active_id() -> Option<String> {
     ACTIVE.lock().ok()?.as_ref().map(|a| a.id.clone())
 }
 
-/// Live state for the screen.
 pub fn status() -> serde_json::Value {
     let Ok(g) = ACTIVE.lock() else {
         return serde_json::json!({ "active": false });
@@ -250,7 +233,6 @@ pub fn status() -> serde_json::Value {
     })
 }
 
-/// A new session folder with its `session.json`.
 pub struct NewSession {
     pub label: String,
     pub method: &'static str,
@@ -308,7 +290,6 @@ pub fn create(
     Ok((dir, s))
 }
 
-/// Register the running capture and start the 1 Hz sampler.
 #[allow(private_interfaces)]
 fn begin(
     id: String,
@@ -357,7 +338,6 @@ fn pid_alive(pid: u32) -> bool {
     sys.process(p).is_some()
 }
 
-/// Read what was appended to `path` since the last call, whole lines only.
 #[derive(Default)]
 struct Tail {
     pos: u64,
@@ -428,7 +408,6 @@ fn sample_loop(
             return;
         }
         tick += 1;
-        // Sleep in small steps so a stop is quick.
         let until = started + Duration::from_secs(tick);
         while Instant::now() < until && !stop.load(Ordering::Relaxed) {
             std::thread::sleep(Duration::from_millis(100));
@@ -474,8 +453,6 @@ fn follow(source: &mut LiveSource, tail: &mut Tail, dir: &Path, live: &Arc<Mutex
     }
 }
 
-/// Stop the running capture (by the person, the agent, the deadline or the
-/// game exiting), convert the frames and write the summary.
 pub fn finish(why: &str) -> Result<Session, String> {
     let mut a = {
         let mut g = ACTIVE.lock().map_err(|_| "perf lock")?;
@@ -594,8 +571,6 @@ pub fn finish(why: &str) -> Result<Session, String> {
     Ok(s)
 }
 
-// ── Starting a capture, per backend ──────────────────────────────────────
-
 pub struct StartArgs {
     pub pid: Option<u32>,
     pub process_name: Option<String>,
@@ -611,7 +586,6 @@ fn target(a: &StartArgs) -> Target {
     }
 }
 
-/// Only sensors (macOS for a running game, or when nothing else exists).
 pub fn start_telemetry(ctx: &Ctx, a: StartArgs, reason: &str) -> Result<Session, String> {
     let started_ms = now_ms();
     let id = new_id(started_ms);
@@ -660,7 +634,6 @@ pub fn start_presentmon(ctx: &Ctx, a: StartArgs, exe: PathBuf) -> Result<Session
     let session_name = format!("OmniGet-{}", &id[id.len() - 6..]);
     let dir = session_dir(ctx, &id)?;
     let csv = dir.join("presentmon.csv");
-    // A few seconds of slack so our own deadline ends it cleanly first.
     let args = super::presentmon::args(
         &session_name,
         &csv.display().to_string(),
@@ -714,8 +687,6 @@ pub fn start_presentmon(ctx: &Ctx, a: StartArgs, exe: PathBuf) -> Result<Session
     Ok(s)
 }
 
-/// Linux: write the session's MangoHud.conf and wait for the game to be
-/// started with the variables.
 #[cfg_attr(not(target_os = "linux"), allow(dead_code))]
 pub fn start_mangohud(ctx: &Ctx, a: StartArgs) -> Result<Session, String> {
     let started_ms = now_ms();
@@ -747,7 +718,6 @@ pub fn start_mangohud(ctx: &Ctx, a: StartArgs) -> Result<Session, String> {
     std::fs::write(&conf, super::mangohud::config(&dir, a.max_seconds))
         .map_err(|e| e.to_string())?;
     let live = Arc::new(Mutex::new(Live::default()));
-    // Pid is not watched: the game is not running yet.
     begin(
         id,
         dir,
@@ -760,9 +730,6 @@ pub fn start_mangohud(ctx: &Ctx, a: StartArgs) -> Result<Session, String> {
     Ok(s)
 }
 
-/// macOS: start the game ourselves with the Metal HUD and read its frames
-/// from stderr. The reader keeps draining stderr after the capture so the
-/// game never gets a broken pipe.
 #[cfg(target_os = "macos")]
 pub fn start_metal(ctx: &Ctx, mut a: StartArgs, exe: &Path) -> Result<Session, String> {
     use std::io::BufRead;

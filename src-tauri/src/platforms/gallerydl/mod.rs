@@ -57,7 +57,6 @@ pub fn is_gallery_url(url: &str) -> bool {
         .any(|h| host == *h || host.ends_with(&format!(".{}", h)))
 }
 
-/// Twitter path segments that are app routes, not usernames.
 const TWITTER_RESERVED: &[&str] = &[
     "home",
     "explore",
@@ -79,8 +78,6 @@ const TWITTER_RESERVED: &[&str] = &[
     "jobs",
 ];
 
-/// Bulk-listing URLs (profiles, subreddits) that the single-post platform
-/// downloaders can't handle but gallery-dl can enumerate and download.
 pub fn is_bulk_media_url(url: &str) -> bool {
     let Ok(parsed) = url::Url::parse(url) else {
         return false;
@@ -98,10 +95,8 @@ pub fn is_bulk_media_url(url: &str) -> bool {
 
     if host == "reddit.com" || host.ends_with(".reddit.com") {
         return match segments.as_slice() {
-            // subreddit root or its listing sorts, but never a post
             ["r", _] => true,
             ["r", _, sort] => matches!(*sort, "hot" | "new" | "top" | "rising" | "best"),
-            // user profile / submitted media
             ["user" | "u", _] => true,
             ["user" | "u", _, tail] => matches!(*tail, "submitted" | "posts"),
             _ => false,
@@ -252,8 +247,6 @@ impl PlatformDownloader for GalleryDlDownloader {
         let reader_task = tokio::spawn(async move {
             let mut lines = BufReader::new(stdout).lines();
             let mut count: u64 = 0;
-            // gallery-dl prints the path of every file it saves (a skipped one
-            // starts with `#`); those paths are the result of the run.
             let mut saved: Vec<PathBuf> = Vec::new();
             let mut last_emit = std::time::Instant::now();
             while let Ok(Some(line)) = lines.next_line().await {
@@ -312,9 +305,6 @@ impl PlatformDownloader for GalleryDlDownloader {
             return Err(anyhow!(detail));
         }
 
-        // gallery-dl stamps each file with the server's Last-Modified date, so
-        // an mtime check alone calls a fresh album "nothing new". Trust the
-        // paths it printed, and only fall back to mtimes when it printed none.
         let (file_path, total_bytes) = match collect_saved_files(&saved, &opts.output_dir) {
             Some(found) => found,
             None => collect_new_files(&opts.output_dir, started_at),
@@ -336,7 +326,6 @@ impl PlatformDownloader for GalleryDlDownloader {
     }
 }
 
-/// Sizes the files gallery-dl reported saving. `None` when none of them exists.
 fn collect_saved_files(saved: &[PathBuf], dir: &Path) -> Option<(PathBuf, u64)> {
     let found: Vec<(&PathBuf, u64)> = saved
         .iter()

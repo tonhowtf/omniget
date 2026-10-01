@@ -1,8 +1,3 @@
-//! External MCP projection of the companies of agents: two tools over the
-//! same dispatcher the window uses. `company_query` runs read-only methods
-//! (scope `company_read`); `company_command` runs the rest (scope
-//! `company_control`) except the owner's decisions, which stay in the window.
-
 use omniget_core::core::company::{self as co, rpc};
 use serde_json::{json, Value};
 

@@ -1,32 +1,3 @@
-//! Wire probe: proves a generation parameter reached the provider and changed
-//! the reply. Owned by f2-wire-probe.
-//!
-//! HTTP 200 is not evidence. For each parameter the probe runs the same prompt
-//! twice with two different values and then looks at three things:
-//!
-//! 1. the body the provider actually put on the wire (`WireCapture`, already
-//!    redacted by the provider),
-//! 2. whether the parameter is in that body with the value we asked for,
-//! 3. whether the two replies differ.
-//!
-//! From those three facts it gives a verdict:
-//!
-//! | body has it | replies differ | verdict       |
-//! |-------------|----------------|---------------|
-//! | yes         | yes            | `Proven`      |
-//! | yes         | no             | `Sent`        |
-//! | no          | —              | `Ignored`     |
-//! | turn failed / no capture | — | `Unsupported` |
-//!
-//! `Ignored` means our own client dropped the parameter before the request left
-//! the machine; `Unsupported` means no evidence could be obtained at all (the
-//! provider refused the request, or it exposes no wire capture).
-//!
-//! Budget (plan: one standard round ≤ 8 requests, ≤ 200 output tokens each) is
-//! enforced here, not by the caller: cases past [`MAX_PROBE_REQUESTS`] come back
-//! as `Unsupported` with `ERR_LLM_BUDGET` in `detail`, never as extra traffic.
-//! Nothing in this module runs on its own: `run` is only reached by a click.
-
 use std::sync::Arc;
 
 use futures::StreamExt;
@@ -38,15 +9,10 @@ use super::error::{LlmError, ERR_LLM_BUDGET, ERR_LLM_PARSE};
 use super::providers::Provider;
 use super::types::{GenParams, Message, ModelRef, ProviderId, Role, TurnEvent, TurnRequest};
 
-/// Hard ceiling on requests for one round (4 cases × 2 runs).
 pub const MAX_PROBE_REQUESTS: usize = 8;
-/// Output ceiling per request. Every probe prompt is designed to fit in it.
 pub const MAX_OUTPUT_TOKENS: u32 = 200;
-/// Fixed seed, so two runs of the same prompt only differ because of the
-/// parameter under test. Only sent to providers that accept it.
 pub const PROBE_SEED: u64 = 7;
 
-/// One parameter under test: the same prompt run with value `a` and value `b`.
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct ProbeCase {
     pub param: &'static str,
@@ -58,13 +24,9 @@ pub struct ProbeCase {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Verdict {
-    /// In the body with the value we asked for, and the reply changed.
     Proven,
-    /// In the body with the value we asked for, but the reply did not change.
     Sent,
-    /// Our client did not put it on the wire (or rewrote the value).
     Ignored,
-    /// No evidence possible: the turn failed, or the provider has no capture.
     Unsupported,
 }
 
@@ -79,8 +41,6 @@ impl Verdict {
     }
 }
 
-/// Evidence for one case. `sent_a`/`sent_b` are the whole redacted bodies, so
-/// the UI can diff them; `Value::Null` means the provider captured nothing.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ProbeResult {
     pub provider: String,
@@ -93,31 +53,24 @@ pub struct ProbeResult {
     pub differs: bool,
     pub cost_usd: f64,
     pub verdict: Verdict,
-    /// Where the parameter was found in the body (JSON path) or why the verdict
-    /// is not `Proven`. Stable `ERR_LLM_*` codes when it comes from an error.
     pub detail: String,
 }
 
-/// What a round will cost before anyone clicks. Shown next to the button.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub struct ProbeEstimate {
     pub cases: usize,
     pub requests: usize,
     pub input_tokens: u32,
     pub output_tokens: u32,
-    /// `None` when the model has no known price (local models cost nothing but
-    /// are still reported as `Some(0.0)` by the caller that knows that).
     pub cost_usd: Option<f64>,
 }
 
-/// USD per million tokens, as the roster stores it.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub struct TokenPrice {
     pub input_usd_per_mtok: f64,
     pub output_usd_per_mtok: f64,
 }
 
-/// The standard round: exactly 8 requests.
 pub fn default_cases() -> Vec<ProbeCase> {
     vec![
         ProbeCase {
@@ -147,8 +100,6 @@ pub fn default_cases() -> Vec<ProbeCase> {
     ]
 }
 
-/// Optional extra case; it pushes the round past the standard budget on its own,
-/// so the UI offers it as a separate run.
 pub fn reasoning_case() -> ProbeCase {
     ProbeCase {
         param: "reasoning_effort",
@@ -161,7 +112,6 @@ pub fn reasoning_case() -> ProbeCase {
 pub fn estimate(cases: &[ProbeCase], price: Option<TokenPrice>) -> ProbeEstimate {
     let runs = cases.len().min(MAX_PROBE_REQUESTS / 2);
     let requests = runs * 2;
-    // ~4 chars per token, plus a small envelope for the role/format overhead.
     let input_tokens: u32 = cases
         .iter()
         .take(runs)
@@ -182,9 +132,6 @@ pub fn estimate(cases: &[ProbeCase], price: Option<TokenPrice>) -> ProbeEstimate
     }
 }
 
-/// Providers whose bodies accept a `seed`, so temperature/top_p runs are
-/// otherwise deterministic. This is provider configuration, not a guess about
-/// the machine. Anything else gets no seed (an unknown key can be a 400).
 fn accepts_seed(provider: &ProviderId) -> bool {
     matches!(
         provider.as_str(),
@@ -192,9 +139,6 @@ fn accepts_seed(provider: &ProviderId) -> bool {
     )
 }
 
-/// Body keys that carry each parameter across the providers we speak to.
-/// `max_tokens` alone appears under four names (OpenAI's two, Anthropic's and
-/// Ollama's), which is exactly why "it returned 200" proves nothing.
 fn aliases(param: &str) -> &'static [&'static str] {
     match param {
         "temperature" => &["temperature"],
@@ -211,8 +155,6 @@ fn aliases(param: &str) -> &'static [&'static str] {
     }
 }
 
-/// Writes one parameter into `GenParams`. Unknown names go to `extra`, which is
-/// how a provider-specific knob is probed without a new type.
 pub fn apply_param(params: &mut GenParams, param: &str, value: &Value) -> Result<(), LlmError> {
     let bad = |want: &str| {
         Err(LlmError::new(
@@ -257,9 +199,6 @@ pub fn apply_param(params: &mut GenParams, param: &str, value: &Value) -> Result
     Ok(())
 }
 
-/// Depth-first search for any of `keys`, returning the JSON path where it was
-/// found. Nested on purpose: Ollama hides the knobs under `options`, and more
-/// than one gateway hides them under `extra_body`.
 fn find_key<'a>(
     body: &'a Value,
     keys: &[&str],
@@ -305,10 +244,6 @@ fn join_path(path: &str, key: &str) -> String {
     }
 }
 
-/// Is the value on the wire the one we asked for? Numbers are compared with a
-/// tolerance (1.5 can travel as 1.5000001), and a scalar also counts as matched
-/// when it sits inside the object or array the provider built around it
-/// (`reasoning_effort: "high"` → `{"reasoning": {"effort": "high"}}`).
 pub fn values_match(sent: &Value, asked: &Value) -> bool {
     match (sent, asked) {
         (Value::Number(a), Value::Number(b)) => match (a.as_f64(), b.as_f64()) {
@@ -327,8 +262,6 @@ pub fn values_match(sent: &Value, asked: &Value) -> bool {
     }
 }
 
-/// A value that asks for nothing (`null`, `[]`, `""`) may legitimately be left
-/// out of the body; presence is only required on the other side of the pair.
 fn requires_presence(v: &Value) -> bool {
     match v {
         Value::Null => false,
@@ -338,7 +271,6 @@ fn requires_presence(v: &Value) -> bool {
     }
 }
 
-/// Trailing whitespace and stray blank lines are formatting, not a difference.
 fn normalize_reply(s: &str) -> String {
     s.lines()
         .map(|l| l.trim_end())
@@ -474,9 +406,6 @@ fn judge(case: &ProbeCase, a: &TurnOutcome, b: &TurnOutcome, differs: bool) -> (
     }
 }
 
-/// Runs the cases in order, two requests each, sequentially (a probe is never
-/// worth a burst). Never panics and never returns early: a failing case is a
-/// result with a verdict, not a lost round.
 pub async fn run(
     provider: Arc<dyn Provider>,
     model: &ModelRef,
@@ -523,7 +452,6 @@ pub async fn run(
     out
 }
 
-/// A whole round, ready for the UI: the results plus what it cost.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ProbeRound {
     pub provider: String,
@@ -550,8 +478,6 @@ impl ProbeRound {
     }
 }
 
-/// Convenience for a provider client writing its own capture: strips the keys
-/// that must never reach the UI, whatever nesting they sit in.
 pub fn redact(body: &Value) -> Value {
     const SECRET_KEYS: &[&str] = &[
         "authorization",

@@ -1,10 +1,3 @@
-//! Marketplaces de plugin do Claude: `.claude-plugin/marketplace.json` de um
-//! repo `owner/repo` (curado ou adicionado pelo usuário) → itens `plugin`.
-//!
-//! O commit é resolvido na hora (API do GitHub, `Accept: application/vnd.github.sha`)
-//! e a listagem fica em `<app_data>/agentkit/catalog/marketplaces/<owner>__<repo>.json`;
-//! o índice em memória troca os plugins daquele marketplace pelos buscados.
-
 use serde_json::{json, Value};
 
 use super::model::{CatalogItem, ItemSource, MarketplaceInfo};
@@ -14,7 +7,6 @@ use super::{
     CatalogError, Result, ERR_INVALID, ERR_NOT_FOUND,
 };
 
-/// Origem resolvida de um plugin.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct PluginSource {
     pub repo: Option<String>,
@@ -66,7 +58,6 @@ fn github_url_source(url: &str) -> PluginSource {
     }
 }
 
-/// `source` de uma entrada de marketplace → repo/commit/pasta.
 pub fn plugin_source(
     src: &Value,
     market_repo: &str,
@@ -156,7 +147,6 @@ fn parse_json_loose(bytes: &[u8]) -> Option<Value> {
     serde_json::from_str(&re.replace_all(&no_comments, "$1")).ok()
 }
 
-/// Itens `plugin` de um `marketplace.json` (ou `plugin.json` único).
 #[allow(clippy::too_many_arguments)]
 pub fn plugins_from_manifest(
     repo: &str,
@@ -324,7 +314,6 @@ fn cache_file(repo: &str) -> Result<std::path::PathBuf> {
         .join(format!("{}.json", repo.replace('/', "__"))))
 }
 
-/// Listagens de marketplace já buscadas (para o índice em memória).
 pub fn cached_listings() -> Vec<(MarketplaceInfo, Vec<CatalogItem>)> {
     let Ok(dir) = catalog_dir().map(|d| d.join("marketplaces")) else {
         return Vec::new();
@@ -350,7 +339,6 @@ pub fn cached_listings() -> Vec<(MarketplaceInfo, Vec<CatalogItem>)> {
     out
 }
 
-/// Remove a listagem guardada de um marketplace.
 pub fn forget(repo: &str) -> Result<()> {
     let p = cache_file(repo)?;
     if p.exists() {
@@ -360,7 +348,6 @@ pub fn forget(repo: &str) -> Result<()> {
     Ok(())
 }
 
-/// Normaliza `owner/repo`, URL do GitHub ou `github:owner/repo`.
 pub fn parse_repo(spec: &str) -> Result<String> {
     let s = spec.trim().trim_start_matches("github:");
     let s = s
@@ -390,7 +377,6 @@ pub struct MarketplaceListing {
     pub items: Vec<CatalogItem>,
 }
 
-/// Busca o marketplace de um repo, guarda e devolve os plugins.
 pub async fn load(spec: &str) -> Result<MarketplaceListing> {
     let repo = parse_repo(spec)?;
     let info_api = github_api(&format!("repos/{repo}")).await.ok();

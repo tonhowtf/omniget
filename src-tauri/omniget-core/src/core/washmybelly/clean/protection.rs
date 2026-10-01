@@ -1,11 +1,4 @@
-//! App data that looks like cache but is not: the embedded list of the
 //! upstream macOS cleaner (`data/washmybelly/mole/protection.txt`, GPL-3.0,
-//! see its `SOURCE.md`) plus ours (`data/washmybelly/ours/protection.txt`).
-//!
-//! The container rule and the compiled-model check are ported from
-//! `should_protect_path` / `holds_compiled_model_cache` of the same project.
-//! `protect::check` calls [`protection_match`] for every path a cleanup rule
-//! produced.
 
 use std::path::Path;
 use std::sync::OnceLock;
@@ -25,7 +18,6 @@ struct Pattern {
     kind: Kind,
     glob: String,
     origin: &'static str,
-    /// The glob as chars, and lower-cased, computed once.
     chars: Vec<char>,
     lower: Vec<char>,
 }
@@ -66,13 +58,10 @@ fn patterns() -> &'static [Pattern] {
     })
 }
 
-/// How many patterns are loaded (for the catalog stats).
 pub fn pattern_count() -> usize {
     patterns().len()
 }
 
-/// Shell-like match where `*` crosses everything (bash `case`/`[[ == ]]`)
-/// and `?` is one character. No classes: the lists do not use them.
 pub fn star_match(pattern: &str, text: &str, fold: bool) -> bool {
     let (p, t): (Vec<char>, Vec<char>) = if fold {
         (
@@ -115,8 +104,6 @@ fn home() -> String {
         .unwrap_or_default()
 }
 
-/// Bundle id of a sandbox container in the path, unless the path is one of
-/// the container's own cache, tmp or Mail Downloads folders.
 fn container_id(path: &str) -> Option<&str> {
     for marker in ["/Library/Containers/", "/Library/Group Containers/"] {
         if let Some(i) = path.find(marker) {
@@ -140,7 +127,6 @@ fn container_id(path: &str) -> Option<&str> {
     None
 }
 
-/// The pattern that protects `path`, if any (see the module docs).
 pub fn protection_match(path: &Path) -> Option<String> {
     protection_match_with(path, &home())
 }
@@ -181,8 +167,6 @@ pub fn protection_match_with(path: &Path, home: &str) -> Option<String> {
             ));
         }
     }
-    // A folder that directly holds a compiled model cache (Vision, text
-    // recognition): deleting it under a running app breaks it until restart.
     if Path::new(full)
         .join("com.apple.e5rt.e5bundlecache")
         .is_dir()

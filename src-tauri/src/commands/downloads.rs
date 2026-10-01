@@ -182,9 +182,6 @@ fn is_valid_time_range(r: &str) -> bool {
     part_ok(a) && (b == "inf" || part_ok(b))
 }
 
-/// yt-dlp flags for a subtitle language list such as `en` or `en,pt-BR`.
-/// Anything that is not a plain language list is ignored, so the value can
-/// never smuggle another flag in.
 fn subtitle_lang_args(langs: &str) -> Option<Vec<String>> {
     let langs = langs.trim();
     let valid = !langs.is_empty()
@@ -358,8 +355,6 @@ pub async fn download_from_url(
     .await
 }
 
-/// `download_from_url` plus extra yt-dlp flags (OmniTube passes its
-/// SponsorBlock choice per download).
 #[cfg(not(target_os = "android"))]
 #[allow(clippy::too_many_arguments)]
 pub async fn download_from_url_with_args(
@@ -396,8 +391,6 @@ pub async fn download_from_url_with_args(
         }
         (a, b) => a.or(b),
     };
-    // Per-download subtitles (Downloads › Tools › Smart mode presets), on top
-    // of the global subtitle setting.
     if let Some(flags) = subtitle_lang.as_deref().and_then(subtitle_lang_args) {
         custom_ytdlp_args.get_or_insert_with(Vec::new).extend(flags);
     }
@@ -439,14 +432,11 @@ pub async fn download_from_url_with_args(
             return Err("No downloader available for this URL".to_string());
         }
     };
-    // Downloads › Tools › Engine per link: the person picked the engine.
     let (downloader, platform_name) =
         match crate::commands::link_router::forced_engine(&state.registry, engine.as_deref())? {
             Some(forced) => forced,
             None => (resolved.downloader, resolved.platform_name),
         };
-    // Placeholder until metadata arrives: never the raw URL, which can carry
-    // a token into history, events and the extension (N-3).
     let title = crate::core::flight_recorder::redact_url(&url);
     let ytdlp_path = ytdlp::find_ytdlp_cached().await;
 
@@ -586,8 +576,6 @@ pub async fn download_with_custom_args(
     let downloader: Arc<dyn crate::platforms::traits::PlatformDownloader> =
         Arc::new(crate::platforms::generic_ytdlp::GenericYtdlpDownloader::new());
 
-    // Placeholder until metadata arrives: never the raw URL, which can carry
-    // a token into history, events and the extension (N-3).
     let title = crate::core::flight_recorder::redact_url(&url);
     let ytdlp_path = ytdlp::find_ytdlp_cached().await;
 
@@ -683,8 +671,6 @@ pub async fn cancel_generic_download(
         }
     }
     if let Some(s) = state_to_emit {
-        // An external job cancelled while paused: its attempt was settled as
-        // paused with partials kept; settle it as cancelled and clean (D-06).
         if external {
             let _ = tokio::task::spawn_blocking(move || {
                 crate::mcp::download_intents::cancel_paused(download_id)
@@ -787,7 +773,6 @@ pub async fn retry_download(
             Ok("Download re-queued".to_string())
         }
         (Err(e), s) => {
-            // A redacted link was just settled as expired: show it.
             if e == queue::LINK_EXPIRED_MESSAGE {
                 emit_queue_state_from_state(&app, s);
             }
@@ -796,11 +781,6 @@ pub async fn retry_download(
     }
 }
 
-// Deletes only the exact recorded final path (file → unlink, dir → recursive)
-// when it exists, plus http_fetcher sidecars derived from that exact path.
-// Bounded by construction: every target is derived from the stored file_path,
-// so it can never touch an unrelated file. Best-effort: failures here never
-// fail the list removal.
 fn delete_downloaded_path(path: &str) {
     let p = std::path::Path::new(path);
     if !p.is_absolute() {
@@ -870,8 +850,6 @@ pub async fn remove_download(
     }
 }
 
-/// "Editar e tentar de novo": recebe o comando como texto, tokeniza como um
-/// shell faria (sem rodar shell nenhum) e re-enfileira o item com esse argv.
 #[tauri::command]
 pub async fn retry_download_with_command(
     app: tauri::AppHandle,
@@ -926,10 +904,6 @@ pub fn discard_recovery() {
     crate::core::recovery::clear_all();
 }
 
-/// What "Resume downloads" did, so the UI says it honestly (N-2): only
-/// `restored` downloads run again; `reconciled` crash-interrupted jobs were
-/// settled from their folder without downloading; `attention` counts the ones
-/// the person has to act on (interrupted, expired link, not restorable).
 #[derive(Debug, Default, Clone, Copy, serde::Serialize, PartialEq, Eq)]
 pub struct RecoveryOutcome {
     pub restored: u32,
@@ -938,7 +912,6 @@ pub struct RecoveryOutcome {
 }
 
 impl RecoveryOutcome {
-    /// Counts one reconciliation verdict of an interrupted external job.
     fn count_reconciled(&mut self, outcome: Result<&str, ()>) {
         match outcome {
             Ok("completed") => self.reconciled += 1,
@@ -960,14 +933,9 @@ pub async fn restore_recovery(
     let items = crate::core::recovery::list();
     let mut outcome = RecoveryOutcome::default();
     for item in items {
-        // External jobs retain their original authority and cannot recover
-        // through the personal engine/cookies. Keep evidence for reconciliation.
         if item.platform == "mcp_worker" {
             continue;
         }
-        // The log keeps only the redacted URL; a link that carried a secret
-        // cannot be restored. Say so in the list instead of downloading
-        // `[REDACTED]`.
         if crate::core::recovery::is_expired(&item) {
             let snapshot = {
                 let mut q = state.download_queue.lock().await;
@@ -1009,8 +977,6 @@ pub async fn restore_recovery(
             }
         }
     }
-    // Intents may precede the legacy queue WAL at a crash boundary.
-    // Recover those too, with their stable ID and current external authority.
     for intent in crate::mcp::download_intents::all()? {
         match intent.stage.as_str() {
             "prepared" | "admitting" | "enqueued" => {
@@ -1020,9 +986,6 @@ pub async fn restore_recovery(
                     Err(e) => tracing::warn!("[recovery] external intent retained: {}", e),
                 }
             }
-            // Running when the app died (D-08): settle it from its folder
-            // (complete output confirms it, anything else becomes a retryable
-            // interrupted attempt). Never re-downloads; the client owns retry.
             "executing" | "unknown" => {
                 let id = intent.job_id;
                 if state
@@ -1047,7 +1010,6 @@ pub async fn restore_recovery(
                             id,
                             verdict
                         );
-                        // Settled, not gone: into history and the queue (N-2).
                         crate::mcp::downloads::settle_reconciled(&app, id).await;
                         outcome.count_reconciled(Ok(&verdict));
                     }
@@ -1088,16 +1050,12 @@ pub fn parse_batch_file(path: String) -> Result<Vec<String>, String> {
     Ok(urls)
 }
 
-/// The queue's share of the settings: concurrency, stagger and retries.
 fn queue_policy_into(q: &mut queue::DownloadQueue, settings: &AppSettings) {
     q.max_concurrent = settings.advanced.max_concurrent_downloads.max(1);
     q.stagger_delay_ms = settings.advanced.stagger_delay_ms;
     q.default_max_retries = settings.advanced.max_retries;
 }
 
-/// The `downloads.queue` settings effect: updates the running queue's
-/// policy and the keep-awake guard. It never starts, creates or retries a
-/// download; queued items move on the scheduler's next pass as usual.
 pub fn apply_queue_policy(app: &tauri::AppHandle, settings: &AppSettings) {
     use tauri::Manager;
     let queue = app.state::<AppState>().download_queue.clone();
@@ -1367,7 +1325,6 @@ pub async fn open_path_default(path: String) -> Result<(), String> {
     Ok(())
 }
 
-/// Initial presentation snapshot, including an empty queue after a WebView remount.
 #[tauri::command]
 pub async fn get_download_queue(app: tauri::AppHandle) -> Vec<crate::core::queue::QueueItemInfo> {
     use tauri::Manager;

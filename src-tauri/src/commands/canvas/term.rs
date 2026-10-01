@@ -1,8 +1,3 @@
-//! Tauri commands of the canvas terminals. Frames go through the `Channel`
-//! given to `term_subscribe` (format `OGT1`, see
-//! `omniget_core::core::term::wire`); input comes back as small JSON
-//! commands. The subscription is keyed by the calling webview's label.
-
 use omniget_core::core::term::input::{KeyInput, MouseInput, ScrollInput, SelectInput};
 use omniget_core::core::term::screen::ScreenSnapshot;
 use omniget_core::core::term::session::{SearchHit, TermInfo, TermOpen};
@@ -134,9 +129,6 @@ pub fn term_screen(
     host(&app).screen_text(&id, last_lines.unwrap_or(0))
 }
 
-/// Opens (or attaches to) the terminal of a canvas node with the whole launch
-/// recipe (role, cords env, floor context; `crate::canvas::launch`). The UI
-/// passes its measured grid and, for a node it just created, the node itself.
 #[tauri::command]
 #[allow(clippy::too_many_arguments)]
 pub async fn canvas_term_ensure(
@@ -168,31 +160,26 @@ pub async fn canvas_term_ensure(
     .map(|l| l.info)
 }
 
-/// ⌘K: wipes the screen and scrollback of a terminal.
 #[tauri::command]
 pub fn term_clear(app: AppHandle, id: String) -> Result<(), String> {
     host(&app).clear_screen(&id)
 }
 
-/// ⌘⇧B: scroll lock on/off (toggles when `on` is absent); returns the state.
 #[tauri::command]
 pub fn term_scroll_lock(app: AppHandle, id: String, on: Option<bool>) -> Result<bool, String> {
     host(&app).set_scroll_lock(&id, on)
 }
 
-/// Number of matches of a find query (plain text, smart case).
 #[tauri::command]
 pub fn term_search_count(app: AppHandle, id: String, query: String) -> Result<usize, String> {
     host(&app).search_count(&id, &query)
 }
 
-/// Ends a find: no highlight, view back at the bottom.
 #[tauri::command]
 pub fn term_search_clear(app: AppHandle, id: String) -> Result<(), String> {
     host(&app).search_clear(&id)
 }
 
-/// The user's terminal themes (`~/.omniget/terminal/themes`, Ghostty format).
 #[tauri::command]
 pub fn term_themes() -> Vec<crate::canvas::term::UserTheme> {
     crate::canvas::term::user_themes()

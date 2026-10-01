@@ -1,7 +1,3 @@
-//! OPDS catalogs (1.2 Atom and 2.0 JSON) read into one shape, and the
-//! OPDS 1.2 feeds the local library serves to e-readers (KOReader,
-//! Moon+ Reader, Thorium, Panels, Chunky).
-
 use serde::{Deserialize, Serialize};
 
 use super::xml::{self, Node};
@@ -29,11 +25,8 @@ pub struct OpdsEntry {
     pub series_index: Option<f64>,
     pub cover: Option<String>,
     pub thumbnail: Option<String>,
-    /// Files to download (`rel` starts with `http://opds-spec.org/acquisition`).
     pub acquisitions: Vec<OpdsLink>,
-    /// Where a navigation entry leads (a sub-catalog).
     pub navigation: Option<String>,
-    /// OPDS-PSE page streaming (`{pageNumber}` template) and page count.
     pub stream: Option<String>,
     pub stream_count: Option<u32>,
 }
@@ -48,9 +41,7 @@ pub struct OpdsFeed {
     pub prev: Option<String>,
     pub up: Option<String>,
     pub start: Option<String>,
-    /// OpenSearch description document, or an OPDS 2 URI template.
     pub search: Option<String>,
-    /// Facets and groups surfaced as plain links.
     pub facets: Vec<OpdsLink>,
     pub total: Option<u64>,
 }
@@ -74,7 +65,6 @@ fn link_of(n: &Node, base: &str) -> OpdsLink {
     }
 }
 
-/// Parses either format; JSON is detected by its first character.
 pub fn parse(body: &str, base: &str) -> Result<OpdsFeed, String> {
     let t = body.trim_start_matches('\u{feff}').trim_start();
     if t.starts_with('{') {
@@ -112,7 +102,6 @@ pub fn parse_v1(body: &str, base: &str) -> OpdsFeed {
             "up" => f.up = Some(link.href),
             "start" => f.start = Some(link.href),
             "search" => {
-                // Prefer the Atom template over the OpenSearch description.
                 if f.search.is_none() || link.href.contains("{searchTerms}") {
                     f.search = Some(link.href)
                 }
@@ -312,7 +301,6 @@ pub fn parse_v2(body: &str, base: &str) -> Result<OpdsFeed, String> {
     Ok(f)
 }
 
-/// Fills an OpenSearch/URI template with the query.
 pub fn fill_search(template: &str, query: &str) -> String {
     let q = urlencoding::encode(query);
     template
@@ -325,7 +313,6 @@ pub fn fill_search(template: &str, query: &str) -> String {
         .replace("{language?}", "")
 }
 
-/// Pulls the Atom template out of an OpenSearch description document.
 pub fn opensearch_template(desc_xml: &str, base: &str) -> Option<String> {
     let root = xml::parse(desc_xml);
     let mut urls = Vec::new();
@@ -337,8 +324,6 @@ pub fn opensearch_template(desc_xml: &str, base: &str) -> Option<String> {
         .map(|t| abs(base, t))
 }
 
-// ---------- serving ----------
-
 pub struct ServedEntry<'a> {
     pub id: &'a str,
     pub title: &'a str,
@@ -349,7 +334,6 @@ pub struct ServedEntry<'a> {
     pub download_href: &'a str,
     pub mime: &'a str,
     pub cover_href: Option<&'a str>,
-    /// For comics: OPDS-PSE page stream template and count.
     pub stream: Option<(&'a str, u32)>,
 }
 

@@ -1,7 +1,3 @@
-//! Trojan client: a TLS connection whose first bytes are
-//! `hex(sha224(password)) CRLF CMD ATYP ADDR PORT CRLF`, then raw payload.
-//! Second most common protocol in subscriptions after Shadowsocks.
-
 use std::sync::Arc;
 
 use anyhow::{anyhow, Context};
@@ -59,8 +55,6 @@ fn client_config(insecure: bool) -> Arc<rustls::ClientConfig> {
     Arc::new(cfg)
 }
 
-/// `allowInsecure=1` in the share link: the server uses a self-signed
-/// certificate, which many subscription providers do.
 #[derive(Debug)]
 struct NoVerify(Arc<rustls::crypto::CryptoProvider>);
 

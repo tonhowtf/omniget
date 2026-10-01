@@ -1,9 +1,3 @@
-//! E2B provider over its HTTP API (no SDK): create a sandbox with the user's
-//! key from the vault, upload a copy of the project, install the CLI, run it
-//! through envd's `process.Process/Start` (Connect protocol, JSON envelopes),
-//! download what changed into the local copy, kill the sandbox. The local copy
-//! then gives the same reviewable diff as the Docker provider.
-
 use std::collections::BTreeMap;
 use std::time::Duration;
 
@@ -91,7 +85,6 @@ impl Sbx {
         Ok(res.bytes().await.map_err(|e| e.to_string())?.to_vec())
     }
 
-    /// Runs `bash -lc <cmd>`; stdout lines go to `on_stdout`. Returns the exit code.
     async fn exec(
         &self,
         cmd: &str,
@@ -180,7 +173,6 @@ impl Sbx {
     }
 }
 
-/// Connect envelope: flags byte + big-endian length + JSON.
 pub fn envelope(flags: u8, v: &Value) -> Vec<u8> {
     let body = serde_json::to_vec(v).unwrap_or_default();
     let mut out = Vec::with_capacity(body.len() + 5);
@@ -190,7 +182,6 @@ pub fn envelope(flags: u8, v: &Value) -> Vec<u8> {
     out
 }
 
-/// One complete envelope at the start of `buf`: (flags, json, bytes used).
 pub fn take_envelope(buf: &[u8]) -> Option<(u8, Value, usize)> {
     if buf.len() < 5 {
         return None;
@@ -361,7 +352,6 @@ pub async fn run(
             };
             sbx.exec(&cmdline, &env, &cancel, &mut feed, &mut stderr).await?
         };
-        // Bring back what changed.
         let mut listing = String::new();
         let mut collect = |l: &str| {
             listing.push_str(l);

@@ -1,23 +1,3 @@
-//! The D-Bus calls of the Linux game mode, built as plain data so the names
-//! and the argument order are tested on every system (no daemon needed).
-//!
-//! Argument order, checked in the gamemode sources (1.8.2, a74b810):
-//!
-//! - daemon `com.feralinteractive.GameMode`, `RegisterGameByPID(ii)`: the
-//!   daemon reads **(caller, game)** (`daemon/gamemode-dbus.c`,
-//!   `method_register_game_by_pid`, `sd_bus_message_read(m, "ii",
-//!   &callerpid, &gamepid)`). Same for `UnregisterGameByPID` and
-//!   `QueryStatusByPID`.
-//! - the client library sends `pids[0]=game, pids[1]=getpid()`
-//!   (`lib/client_impl.c`, `gamemode_request`), which matches the pidfd
-//!   variant and the portal but is the reverse of what the daemon's `ByPID`
-//!   reads.
-//! - portal `org.freedesktop.portal.GameMode` spells it `RegisterGameByPid`
-//!   (lower-case "id") and takes **(target, requester)**
-//!   (`xdg-desktop-portal/data/org.freedesktop.portal.GameMode.xml`).
-//!
-//! So the daemon gets `(self, game)` and the portal gets `(game, self)`.
-
 use serde::Serialize;
 
 pub const GAMEMODE_NAME: &str = "com.feralinteractive.GameMode";
@@ -54,7 +34,6 @@ pub enum Arg {
     Str(String),
 }
 
-/// One method call, ready for `zbus::blocking::Connection::call_method`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct Call {
     pub bus: Bus,
@@ -66,7 +45,6 @@ pub struct Call {
 }
 
 impl Call {
-    /// The D-Bus signature of the arguments (`ii`, `sss`...).
     pub fn signature(&self) -> String {
         self.args
             .iter()
@@ -103,8 +81,6 @@ fn session(
     }
 }
 
-/// The daemon, asked by OmniGet (`caller`) on behalf of `game`: the
-/// `ByPID` form, so `ListGames` shows OmniGet as the requester.
 pub fn daemon_by_pid(verb: Verb, caller: i32, game: i32) -> Call {
     let method = match verb {
         Verb::Register => "RegisterGameByPID",
@@ -120,7 +96,6 @@ pub fn daemon_by_pid(verb: Verb, caller: i32, game: i32) -> Call {
     )
 }
 
-/// The daemon, one pid used as client and requester.
 pub fn daemon_single(verb: Verb, pid: i32) -> Call {
     let method = match verb {
         Verb::Register => "RegisterGame",
@@ -136,8 +111,6 @@ pub fn daemon_single(verb: Verb, pid: i32) -> Call {
     )
 }
 
-/// The portal (inside Flatpak). The pid is the one this sandbox sees; the
-/// portal translates it.
 pub fn portal(verb: Verb, pid: i32) -> Call {
     let method = match verb {
         Verb::Register => "RegisterGame",
@@ -163,8 +136,6 @@ pub fn list_games() -> Call {
     )
 }
 
-/// power-profiles-daemon: hold `performance` until released or until this
-/// connection closes. Returns a cookie (`u`).
 pub fn hold_profile() -> Call {
     Call {
         bus: Bus::System,
@@ -191,8 +162,6 @@ pub fn release_profile(cookie: u32) -> Call {
     }
 }
 
-/// `org.freedesktop.ScreenSaver.Inhibit(application, reason) -> cookie`,
-/// the same call gamemode makes.
 pub fn screensaver_inhibit() -> Call {
     session(
         SCREENSAVER_NAME,
@@ -213,7 +182,6 @@ pub fn screensaver_uninhibit(cookie: u32) -> Call {
     )
 }
 
-/// What a gamemode reply code means (`gamemode-context.c`).
 pub fn reply_meaning(verb: Verb, code: i32) -> &'static str {
     match (verb, code) {
         (Verb::Query, 0) => "inactive",

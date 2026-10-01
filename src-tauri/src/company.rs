@@ -1,31 +1,3 @@
-//! The company engine: turns due wakeups into runs and runs into jobs.
-//!
-//! One ticker (every 2 s, or at once when something changes): timer
-//! heartbeats, routines, expired decisions, the stranded-work sweep, then
-//! [`CompanyStore::claim`] and one task per claimed run. A run of a roster
-//! agent is an ordinary job (`kind = "company"`) on a stable conversation
-//! `company:<company>:<staff>:<generation>`, so Claude Code resumes its
-//! session run after run and the prompt only carries what changed. A
-//! `process` or `http` staff member gets the heartbeat as JSON instead.
-//!
-//! Budgets bite **during** the run: the job guard checks the company's hard
-//! policies after every model request with what the run has spent so far,
-//! and a crossing cancels the other running jobs of that scope. Paperclip
-//! only counts cost when a run ends (study 80 §3.8).
-//!
-//! On boot, runs the last session left `running` whose job is gone are
-//! closed as `interrupted`, which the core retries with backoff.
-//!
-//! A run's job goes through everything any other job does (waves 2 and 3
-//! of /llm): the job gate (slot, agent share, one writer per folder), the
-//! run mode of its conversation (`auto_edits` unless the person chose
-//! another; the tool questions land in the durable approvals, 2.2), the
-//! /llm budget policies of its agent, account and job (3.3), on top of the
-//! company's own, and the audit log: `job.created` with the company and the
-//! staff member as the actor, `job.ended`, and `job.cancelled` when the
-//! engine stops it. The host never restarts a `company` job by itself
-//! (3.1 leaves the kind out): the retries are the heartbeat's.
-
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, OnceLock};
 use std::time::Duration;
@@ -42,18 +14,14 @@ use tauri::{AppHandle, Emitter, Manager};
 use tokio::sync::Notify;
 
 pub const EVENT: &str = "company://changed";
-/// Company runs the app keeps alive at once, over every company.
 pub const GLOBAL_MAX: usize = 8;
-/// Wall-clock ceiling of one heartbeat run.
 pub const RUN_DEADLINE_MS: u64 = 45 * 60 * 1000;
-/// Runs per session before the conversation rotates (fresh context).
 pub const SESSION_RUNS: i64 = 40;
 
 pub struct Engine {
     app: AppHandle,
     store: Arc<CompanyStore>,
     wake: Notify,
-    /// run id → job id of the runs this process started.
     live: Mutex<HashMap<String, Option<String>>>,
 }
 
@@ -67,11 +35,9 @@ pub fn store() -> Result<Arc<CompanyStore>, String> {
     co::store()
 }
 
-/// Called from the app setup after the jobs boot.
 pub fn boot(app: &AppHandle) {
     let app = app.clone();
     tauri::async_runtime::spawn(async move {
-        // After jobs::boot (3 s) so `jobs::get` finds its resumed state.
         tokio::time::sleep(Duration::from_secs(5)).await;
         let store = match co::store() {
             Ok(s) => s,
@@ -119,7 +85,6 @@ fn llm(app: &AppHandle) -> Arc<crate::llm_manager::LlmManager> {
     app.state::<crate::AppState>().llm.clone()
 }
 
-/// Grants every `company_*` tool on `def` (Auto: the tools are the job).
 fn with_company_grants(mut def: AgentDef) -> AgentDef {
     for name in toolset::tool_names() {
         let has = def
@@ -136,8 +101,6 @@ fn with_company_grants(mut def: AgentDef) -> AgentDef {
     def
 }
 
-/// The roster agent a new hire copies when nothing says otherwise: a Claude
-/// Code agent if there is one, then any CLI/ACP agent, then any agent.
 fn default_template(llm: &crate::llm_manager::LlmManager) -> Option<AgentDef> {
     let roster = llm.roster();
     roster
@@ -198,7 +161,6 @@ fn provision(app: &AppHandle, req: &ProvisionRequest) -> Result<(), String> {
     llm.roster_create(with_company_grants(def)).map(|_| ())
 }
 
-/// Makes sure the roster agent of `staff` exists and can call the tools.
 fn ensure_agent(app: &AppHandle, s: &co::org::Staff) -> Result<(), String> {
     let llm = llm(app);
     match llm.agent(&s.agent_id) {
@@ -223,7 +185,6 @@ fn ensure_agent(app: &AppHandle, s: &co::org::Staff) -> Result<(), String> {
     }
 }
 
-/// Who the /llm audit log names for a company run's job.
 fn audit_actor(company: &str, staff: &str) -> omniget_core::core::llm::audit::Actor {
     omniget_core::core::llm::audit::Actor::via("company", &format!("company:{company}:{staff}"))
 }
@@ -231,8 +192,6 @@ fn audit_actor(company: &str, staff: &str) -> omniget_core::core::llm::audit::Ac
 fn failure_class(job: &crate::jobs::Job) -> Option<String> {
     match job.failure_reason.as_deref() {
         Some("limit") => Some("budget".into()),
-        // The jobs module's name for "the app closed mid-run" (3.1); the
-        // heartbeat retries it like any interrupted run.
         Some("app_restart") => Some("interrupted".into()),
         Some(r) => Some(r.into()),
         None => {
@@ -293,7 +252,6 @@ impl Engine {
                     )
                 });
             if alive {
-                // A job the jobs module resumed: follow it to the end.
                 if let Some(job_id) = r.job_id.clone() {
                     self.live
                         .lock()
@@ -336,7 +294,6 @@ impl Engine {
             self.dispatch();
             tokio::select! {
                 _ = self.wake.notified() => {
-                    // Let a burst settle into one pass (coalescing).
                     tokio::time::sleep(Duration::from_millis(150)).await;
                 }
                 _ = tokio::time::sleep(Duration::from_secs(2)) => {}
@@ -344,8 +301,6 @@ impl Engine {
         }
     }
 
-    /// Cancels live runs whose company or agent was paused, archived or
-    /// terminated, or whose scope hit a hard budget stop.
     fn enforce_pauses(&self) {
         let live: Vec<(String, Option<String>)> = self
             .live
@@ -409,8 +364,6 @@ impl Engine {
                 let out = this.execute(claim).await;
                 let summary = out.summary.clone();
                 let run = this.store.run_finish(&run_id, out);
-                // The agent's closing summary lands on the thread after the
-                // liveness verdict, so it never counts as "progress".
                 if let (Ok(run), Some(text)) = (run, summary) {
                     if let (Some(issue), false) = (&run.issue_id, text.trim().is_empty()) {
                         let _ = this.store.comment_add(
@@ -476,10 +429,6 @@ impl Engine {
             })
     }
 
-    /// The folder a run works in. A project with `isolation = worktree` gets
-    /// one git worktree per issue (branch `omniget/<IDENT>`), reused run after
-    /// run, so parallel issues never write into each other's files; the
-    /// branch is recorded once as a work product of the issue.
     async fn workdir(&self, claim: &Claim) -> Option<String> {
         let base = self.workspace_of(claim)?;
         let (Some(issue), Some(pid)) = (
@@ -542,7 +491,6 @@ impl Engine {
             .store
             .runs(&s.company_id, Some(&s.id), None, 1000)?
             .len() as i64;
-        // `past` includes this run.
         let generation = (past - 1).max(0) / SESSION_RUNS;
         let resumed = (past - 1) % SESSION_RUNS != 0;
         let conversation = format!("company:{}:{}:{generation}", s.company_id, s.id);
@@ -557,7 +505,6 @@ impl Engine {
             .lock()
             .unwrap_or_else(|e| e.into_inner())
             .insert(claim.run.id.clone(), Some(job.id.clone()));
-        // Budget during the run: what is booked plus what this run spent.
         let store = self.store.clone();
         let (company, staff) = (s.company_id.clone(), s.id.clone());
         let project = claim.issue.as_ref().and_then(|i| i.project_id.clone());
@@ -574,7 +521,6 @@ impl Engine {
             }
         });
         let guard = crate::jobs::JobGuard {
-            // An instant (epoch ms), not a duration.
             deadline_ms: Some(co::now_ms().max(0) as u64 + RUN_DEADLINE_MS),
             check: Some(check),
             deadline_reason: "the heartbeat run reached its 45-minute ceiling".into(),
@@ -594,7 +540,6 @@ impl Engine {
         Ok(self.settle(claim, done))
     }
 
-    /// Follows a job resumed after a restart to its end.
     async fn follow(self: Arc<Self>, run_id: String, job_id: String) {
         let Some(jobs) = crate::jobs::try_get() else {
             return;
@@ -687,7 +632,6 @@ impl Engine {
         }
     }
 
-    /// Hard crossings stop the running work of their scope now.
     fn cancel_crossed(&self, company: &str, crossings: &[co::gov::Crossing]) {
         if !crossings.iter().any(|c| c.kind == "hard") {
             return;
@@ -730,7 +674,6 @@ impl Engine {
         Ok(co::exec::run_http(&body, url, timeout).await)
     }
 
-    /// Stops a run now (the "Stop" button).
     pub fn stop_run(&self, run_id: &str) -> Result<(), String> {
         let job = self
             .live
@@ -740,7 +683,6 @@ impl Engine {
             .cloned()
             .flatten();
         match (job, crate::jobs::try_get()) {
-            // The "Stop" button of the company screens: a person.
             (Some(j), Some(jobs)) => jobs
                 .cancel_by(&j, omniget_core::core::llm::audit::Actor::window())
                 .map(|_| ()),

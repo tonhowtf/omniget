@@ -1,16 +1,3 @@
-//! Local meeting capture, no bot in the call: the microphone and the system
-//! audio are recorded as two mono WAV tracks, so the transcript can tell
-//! "You" (mic) from "Others" (what the call plays).
-//!
-//! - Microphone: cpal on every desktop OS.
-//! - System audio: cpal loopback (an input stream on the default output
-//!   device) on Windows (WASAPI) and macOS 14.6+ (Core Audio process tap,
-//!   cpal 0.17+); on Linux, ffmpeg reads the PulseAudio/PipeWire
-//!   `@DEFAULT_MONITOR@` source.
-//!
-//! cpal streams are not `Send` everywhere, so each track lives on its own
-//! thread that owns the stream and the WAV writer until `stop`.
-
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::sync::{mpsc, Arc, Mutex};
@@ -32,9 +19,7 @@ pub struct AudioDevice {
 #[derive(Debug, Clone, Serialize)]
 pub struct CaptureSupport {
     pub inputs: Vec<AudioDevice>,
-    /// System audio can be recorded on this OS.
     pub system_audio: bool,
-    /// Short note the UI shows under the system-audio switch.
     pub system_audio_note: String,
 }
 
@@ -127,8 +112,6 @@ pub fn is_recording() -> bool {
     ACTIVE.lock().unwrap_or_else(|e| e.into_inner()).is_some()
 }
 
-/// Starts both tracks into `dir`. Fails only when no track could start; a
-/// track that failed while the other runs comes back as a warning.
 pub fn start(
     meeting_id: &str,
     dir: &Path,
@@ -229,9 +212,6 @@ fn find_input(id: Option<&str>) -> Option<cpal::Device> {
     }
 }
 
-/// One cpal track. The stream is built on the track's own thread; the
-/// result of building it comes back before `spawn_track` returns so a
-/// missing device or a denied permission is reported at start.
 fn spawn_track(
     role: &'static str,
     path: PathBuf,
@@ -370,8 +350,6 @@ fn spawn_track(
     }
 }
 
-/// Downmixes to mono, keeps a running RMS for the level meter and hands the
-/// chunk to the writer thread.
 fn callback<T: Copy + Send + 'static>(
     tx: mpsc::Sender<Vec<f32>>,
     channels: usize,
@@ -394,8 +372,6 @@ fn callback<T: Copy + Send + 'static>(
     }
 }
 
-/// Linux system audio: ffmpeg on the default monitor source, stopped with
-/// `q` on stdin so the WAV header is finalized.
 fn spawn_ffmpeg_monitor(path: PathBuf, stop: Arc<AtomicBool>) -> Result<TrackRunner, String> {
     let ffmpeg = tauri::async_runtime::block_on(omniget_core::core::dependencies::ensure_ffmpeg())
         .map_err(|e| e.to_string())?;
@@ -422,7 +398,6 @@ fn spawn_ffmpeg_monitor(path: PathBuf, stop: Arc<AtomicBool>) -> Result<TrackRun
         .stderr(std::process::Stdio::piped())
         .spawn()
         .map_err(|e| format!("could not start ffmpeg: {e}"))?;
-    // Give it a moment to fail on a missing PulseAudio/PipeWire.
     std::thread::sleep(Duration::from_millis(600));
     if let Ok(Some(status)) = child.try_wait() {
         let mut err = String::new();
@@ -466,8 +441,6 @@ fn spawn_ffmpeg_monitor(path: PathBuf, stop: Arc<AtomicBool>) -> Result<TrackRun
     })
 }
 
-/// CoreAudio never refuses a blocked microphone: it records silence. Asking
-/// AVFoundation first gets a real answer and raises the system prompt.
 #[cfg(target_os = "macos")]
 fn ensure_microphone_access() -> Result<(), String> {
     use objc2::msg_send;

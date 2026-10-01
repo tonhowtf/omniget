@@ -1,7 +1,3 @@
-//! Smart playlists: rules the user builds in the UI, turned into a
-//! parameterized SQL `WHERE` over the `tracks` table. Field names come from a
-//! fixed list, never from the rule text, so a rule can't inject SQL.
-
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -18,7 +14,6 @@ pub struct Rule {
 pub struct SmartQuery {
     #[serde(default)]
     pub rules: Vec<Rule>,
-    /// true = every rule must match, false = any.
     #[serde(default = "yes")]
     pub match_all: bool,
     #[serde(default)]
@@ -38,7 +33,6 @@ enum Kind {
     Text,
     Number,
     Bool,
-    /// Unix milliseconds.
     Date,
 }
 
@@ -98,10 +92,8 @@ pub enum Param {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Compiled {
-    /// `WHERE ...` body (no keyword), `1` when there are no rules.
     pub where_sql: String,
     pub params: Vec<Param>,
-    /// `ORDER BY ... LIMIT ...` tail, may be empty.
     pub tail: String,
 }
 

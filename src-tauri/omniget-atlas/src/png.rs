@@ -1,27 +1,15 @@
-//! Minimal PNG chunk walker.
-//!
-//! `atlas-check` has to answer two questions that a decoded image cannot answer:
-//! how big the page is *without* decoding it, and whether the file carries an
-//! embedded colour profile. Pages must be plain sRGB, so `iCCP`, `cHRM` and
-//! `gAMA` are rejected on sight — a profile makes the browser and the packer
-//! disagree about the pixels. Reading the chunk table directly is the only way
-//! to see them; `image` drops them.
-
 const SIGNATURE: [u8; 8] = [0x89, b'P', b'N', b'G', 0x0d, 0x0a, 0x1a, 0x0a];
 
-/// Colour chunks that are forbidden on an atlas page.
 pub const COLOR_PROFILE_CHUNKS: [&str; 3] = ["iCCP", "cHRM", "gAMA"];
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PngInfo {
     pub width: u32,
     pub height: u32,
-    /// Chunk types present in the file, in file order, deduplicated.
     pub chunks: Vec<String>,
 }
 
 impl PngInfo {
-    /// Forbidden colour chunks found, in file order.
     pub fn color_profile_chunks(&self) -> Vec<&str> {
         self.chunks
             .iter()
@@ -53,7 +41,6 @@ impl std::fmt::Display for PngError {
 
 impl std::error::Error for PngError {}
 
-/// Walks the chunk table of `bytes` without decoding any pixels.
 pub fn inspect(bytes: &[u8]) -> Result<PngInfo, PngError> {
     if bytes.len() < 8 || bytes[..8] != SIGNATURE {
         return Err(PngError::NotPng);
@@ -73,7 +60,6 @@ pub fn inspect(bytes: &[u8]) -> Result<PngInfo, PngError> {
         let data_end = data_start
             .checked_add(len)
             .ok_or(PngError::BadChunkLength)?;
-        // 4 more bytes of CRC follow the data.
         if data_end + 4 > bytes.len() {
             return Err(PngError::Truncated);
         }
@@ -104,8 +90,6 @@ pub fn inspect(bytes: &[u8]) -> Result<PngInfo, PngError> {
     })
 }
 
-/// Rewrites `bytes` with an extra ancillary chunk inserted right after IHDR.
-/// Only used by tests, to forge a page that carries a colour profile.
 pub fn insert_chunk_after_ihdr(
     bytes: &[u8],
     kind: &[u8; 4],
@@ -140,7 +124,6 @@ pub fn insert_chunk_after_ihdr(
     Err(PngError::MissingIhdr)
 }
 
-/// CRC-32 (IEEE), the one PNG uses. Small enough not to be worth a dependency.
 fn crc32(data: &[u8]) -> u32 {
     let mut crc = 0xffff_ffffu32;
     for byte in data {
@@ -168,7 +151,6 @@ mod tests {
 
     #[test]
     fn crc32_matches_the_known_vector() {
-        // "123456789" -> 0xCBF43926 is the standard CRC-32/ISO-HDLC check value.
         assert_eq!(crc32(b"123456789"), 0xcbf4_3926);
     }
 
@@ -195,7 +177,6 @@ mod tests {
             (3, 5),
             "the forged file still decodes its header"
         );
-        // The forged file must still be a valid PNG for the decoder.
         image::load_from_memory(&forged).expect("still decodable");
     }
 

@@ -1,15 +1,3 @@
-//! `agentkit`: the universal component installer of the Central.
-//!
-//! One canonical shape per component ([`model`]), one data manifest per coding tool
-//! ([`targets`], TOML files embedded at build time), converters from the canonical
-//! shape to each tool's files ([`convert`]), and a transactional writer that plans,
-//! diffs, backs up, writes atomically, records a lockfile and can undo exactly what
-//! it wrote ([`plan`], [`writer`], [`lock`]). Format editors in [`edit`] keep the
-//! user's comments, key order and indentation.
-//!
-//! Every function that touches the disk takes an [`Env`], so tests (and the
-//! `OMNIGET_DATA_DIR` test driver) run against a fake home without touching `~`.
-
 pub mod convert;
 pub mod detect;
 pub mod edit;
@@ -24,7 +12,6 @@ pub mod writer;
 
 use std::path::{Path, PathBuf};
 
-/// Error with a stable code, shown to the front as `"CODE: message"`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AgentkitError {
     pub code: &'static str,
@@ -60,7 +47,6 @@ impl From<AgentkitError> for String {
 
 pub type Result<T> = std::result::Result<T, AgentkitError>;
 
-/// Operating system a path table is resolved for.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Os {
@@ -89,30 +75,21 @@ impl Os {
     }
 }
 
-/// Where the installer looks and writes. [`Env::system`] is the real machine;
-/// tests build one around a temporary home with [`Env::sandbox`].
 #[derive(Debug, Clone)]
 pub struct Env {
     pub home: PathBuf,
-    /// OmniGet's own data dir (`core::paths::app_data_dir`): backups, global lock.
     pub app_data: PathBuf,
     pub os: Os,
     pub xdg_config: PathBuf,
     pub xdg_data: PathBuf,
-    /// macOS `~/Library/Application Support`, Linux `xdg_config`, Windows `%APPDATA%`.
     pub app_support: PathBuf,
-    /// macOS `~/Library/Application Support`, Linux `xdg_data`, Windows `%LOCALAPPDATA%`.
     pub local_app_data: PathBuf,
-    /// `PATH` used to find binaries. `None` = do not look at PATH at all.
     pub path_var: Option<std::ffi::OsString>,
-    /// Where `/Applications`-style bundles live (macOS).
     pub applications_dirs: Vec<PathBuf>,
-    /// Run `<bin> --version` during detection.
     pub probe_versions: bool,
 }
 
 impl Env {
-    /// The real machine. Never used by tests.
     pub fn system() -> Result<Env> {
         let home = dirs::home_dir()
             .ok_or_else(|| AgentkitError::new("AGENTKIT_ENV", "no home directory"))?;
@@ -161,8 +138,6 @@ impl Env {
         })
     }
 
-    /// A self-contained environment rooted at `home` (nothing outside it is read
-    /// or written). PATH lookups are off unless the caller sets `path_var`.
     pub fn sandbox(home: &Path, os: Os) -> Env {
         let home = home.to_path_buf();
         let xdg_config = home.join(".config");
@@ -196,9 +171,6 @@ impl Env {
         self.app_data.join("agentkit")
     }
 
-    /// Expands a path template from a target manifest. Project-relative paths
-    /// (no `~`, no `{var}`, not absolute) are joined to `project`; returns `None`
-    /// when a project path is asked for without a project.
     pub fn expand(&self, template: &str, project: Option<&Path>) -> Option<PathBuf> {
         let t = template.trim();
         if t.is_empty() {
@@ -247,7 +219,6 @@ fn is_absolute_template(t: &str) -> bool {
         || (t.len() > 2 && t.as_bytes()[1] == b':' && t.as_bytes()[0].is_ascii_alphabetic())
 }
 
-/// Install scope.
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
 )]
@@ -282,7 +253,6 @@ impl Scope {
         }
     }
 
-    /// Scopes that live under a project directory.
     pub fn is_project_bound(self) -> bool {
         matches!(self, Scope::Project | Scope::Local)
     }

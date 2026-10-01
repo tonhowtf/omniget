@@ -1,12 +1,3 @@
-//! Downloads › Tools › Record a live: records a live stream from now on, for
-//! a chosen time or until stopped, in the quality asked for, and keeps what
-//! was recorded when it is stopped.
-//!
-//! The idea comes from Streamlink (`-o`, `--stream-segmented-duration`,
-//! `best`/`720p` quality names). The loop itself is in
-//! `omniget_core::core::live_record`; this file resolves a page link to its
-//! live playlist through yt-dlp and reports progress to the panel.
-
 use std::path::PathBuf;
 use std::sync::Mutex;
 use std::time::Duration;
@@ -18,7 +9,6 @@ use tokio_util::sync::CancellationToken;
 
 static CURRENT: Mutex<Option<CancellationToken>> = Mutex::new(None);
 
-/// A link that already is an HLS playlist, recorded without asking yt-dlp.
 pub fn is_playlist_url(url: &str) -> bool {
     let path = url
         .split(['?', '#'])
@@ -28,9 +18,6 @@ pub fn is_playlist_url(url: &str) -> bool {
     path.ends_with(".m3u8") || path.ends_with(".m3u")
 }
 
-/// The live HLS format of a yt-dlp JSON: the tallest at or under
-/// `max_height` (the smallest when all are taller), preferring a higher
-/// bitrate at the same height. Returns its playlist URL and headers.
 pub fn pick_live_format(
     json: &Value,
     max_height: Option<u32>,
@@ -172,7 +159,6 @@ pub async fn live_record_start(
     result
 }
 
-/// Stops the recording; what was recorded so far is saved.
 #[tauri::command]
 pub fn live_record_stop() -> bool {
     match CURRENT.lock() {

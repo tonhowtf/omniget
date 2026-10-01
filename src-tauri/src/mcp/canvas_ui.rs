@@ -1,16 +1,3 @@
-//! The window half of the canvas MCP tools (`super::canvas`): what only the
-//! running window can do or show (keys, pointer, live canvas state, palette,
-//! composer, a screenshot), plus the app-level tools a tester needs (settings,
-//! restart, notifications, usage), the phone remote client and, only when the
-//! process runs with `OMNIGET_TEST_TOOLS=1`, host shell and file access.
-//!
-//! Window operations: Rust evaluates one fixed runner (below) in the main
-//! webview with a named operation and JSON arguments. Generic operations (key,
-//! pointer, state of the page) run in the runner itself; canvas operations go
-//! to `window.__omnigetCanvasDriver` (`src/lib/canvas/testing/driver.ts`,
-//! installed by the mounted canvas). The answer comes back as the event
-//! `mcp-ui://reply {id, value}`. No caller-supplied script is ever evaluated.
-
 use std::collections::{HashMap, VecDeque};
 use std::sync::{Mutex, OnceLock};
 use std::time::Duration;
@@ -19,17 +6,13 @@ use serde_json::{json, Value};
 use tauri::{AppHandle, Listener, Manager};
 use tokio::sync::oneshot;
 
-/// Event the runner answers on.
 pub const EVENT_REPLY: &str = "mcp-ui://reply";
 
-/// Env flag that turns on the host tools (shell, files). Never on by default.
 pub const TEST_TOOLS_ENV: &str = "OMNIGET_TEST_TOOLS";
 
 pub fn test_tools_enabled() -> bool {
     std::env::var(TEST_TOOLS_ENV).ok().as_deref() == Some("1")
 }
-
-// ── Runner ─────────────────────────────────────────────────────────────
 
 type Pending = HashMap<String, oneshot::Sender<Value>>;
 
@@ -57,7 +40,6 @@ fn listen_replies(app: &AppHandle) {
     });
 }
 
-/// JSON as a JS literal (JSON is JS, but for U+2028/U+2029 in strings).
 fn js_literal(v: &Value) -> String {
     serde_json::to_string(v)
         .unwrap_or_else(|_| "null".into())
@@ -65,7 +47,6 @@ fn js_literal(v: &Value) -> String {
         .replace('\u{2029}', "\\u2029")
 }
 
-/// The generic runner: `async (op, a) => result`.
 const RUNNER: &str = r#"async (op, a) => {
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const mac = /Mac|iPhone|iPad/.test(navigator.platform);
@@ -215,7 +196,6 @@ const RUNNER: &str = r#"async (op, a) => {
   }
 }"#;
 
-/// Runs one window operation and waits for its answer (default 20 s).
 pub async fn ui(app: &AppHandle, op: &str, args: Value) -> Result<Value, String> {
     ui_timeout(app, op, args, Duration::from_secs(20)).await
 }
@@ -271,9 +251,6 @@ pub async fn ui_timeout(
     Ok(v)
 }
 
-// ── Screenshot ─────────────────────────────────────────────────────────
-
-/// PNG of the main window, or of a node / a region of it (client px).
 pub async fn screenshot(app: &AppHandle, a: &Value) -> Result<Value, String> {
     let window = app
         .get_webview_window("main")
@@ -291,9 +268,6 @@ pub async fn screenshot(app: &AppHandle, a: &Value) -> Result<Value, String> {
         a.get("region").filter(|r| r.is_object()).cloned()
     };
     let mut img = image::load_from_memory(&png).map_err(|e| format!("UI_CAPTURE: {e}"))?;
-    // Region coords are client CSS px. The snapshot's pixel density is not
-    // always the window's scale factor (WebKit may hand back a 1x image), so
-    // the ratio comes from the image width over the viewport's CSS width.
     let factor = window.scale_factor().unwrap_or(1.0);
     let css_w = window
         .inner_size()
@@ -306,14 +280,11 @@ pub async fn screenshot(app: &AppHandle, a: &Value) -> Result<Value, String> {
     };
     if let Some(r) = region {
         let f = |k: &str| r[k].as_f64().unwrap_or(0.0) * scale;
-        // A node (or region) out of the window has nothing to crop: say so
-        // instead of returning an edge strip of the window.
         let (rx, ry, rw, rh) = (f("x"), f("y"), f("w").max(1.0), f("h").max(1.0));
         if rx >= img.width() as f64 || ry >= img.height() as f64 || rx + rw <= 0.0 || ry + rh <= 0.0
         {
             return Err("UI_OFFSCREEN: the node or region is outside the window (canvas_node_focus or canvas_camera_set first)".into());
         }
-        // Clip to the window: a node half out keeps its visible part.
         let x0 = rx.max(0.0);
         let y0 = ry.max(0.0);
         let x1 = (rx + rw).min(img.width() as f64);
@@ -343,8 +314,6 @@ pub async fn screenshot(app: &AppHandle, a: &Value) -> Result<Value, String> {
     }))
 }
 
-// ── Notifications ──────────────────────────────────────────────────────
-
 const NOTIFY_KEEP: usize = 200;
 
 fn notifications() -> &'static Mutex<VecDeque<Value>> {
@@ -352,8 +321,6 @@ fn notifications() -> &'static Mutex<VecDeque<Value>> {
     N.get_or_init(|| Mutex::new(VecDeque::new()))
 }
 
-/// Records a canvas notification (the system ones and the in-canvas toasts)
-/// for `app_notifications_list`.
 pub fn record_notification(source: &str, title: &str, body: &str, system: bool) {
     let mut n = notifications().lock().unwrap_or_else(|e| e.into_inner());
     n.push_back(json!({
@@ -377,10 +344,6 @@ pub fn notifications_list(limit: usize, clear: bool) -> Value {
     json!({ "notifications": items })
 }
 
-// ── Settings ───────────────────────────────────────────────────────────
-
-/// Paths an MCP client never reads in clear or writes: the bridge (its
-/// bearer), credentials, and the MCP server's own switches.
 fn sensitive(path: &str) -> bool {
     let p = path.to_ascii_lowercase();
     p.starts_with("bridge")
@@ -442,8 +405,6 @@ pub fn settings_get(app: &AppHandle, key: Option<&str>) -> Result<Value, String>
     }
 }
 
-/// Sets one dotted key through the same merge the settings screen uses.
-/// A key the app does not have fails (nothing is silently dropped).
 pub fn settings_set(app: &AppHandle, key: &str, value: Value) -> Result<Value, String> {
     let key = key.trim();
     if key.is_empty() {
@@ -473,8 +434,6 @@ pub fn settings_set(app: &AppHandle, key: &str, value: Value) -> Result<Value, S
     Ok(json!({ "key": key, "value": now, "applied": same_value(&now, &value) }))
 }
 
-/// Whether the stored value is what was asked: numbers compare by value
-/// (`24` is stored as `24.0`), objects by the keys that were sent.
 pub fn same_value(now: &Value, asked: &Value) -> bool {
     match (now, asked) {
         (Value::Number(a), Value::Number(b)) => match (a.as_f64(), b.as_f64()) {
@@ -490,8 +449,6 @@ pub fn same_value(now: &Value, asked: &Value) -> bool {
         _ => now == asked,
     }
 }
-
-// ── Host (test only) ───────────────────────────────────────────────────
 
 fn need_test_tools() -> Result<(), String> {
     if test_tools_enabled() {
@@ -584,8 +541,6 @@ fn expand(p: &str) -> std::path::PathBuf {
     }
 }
 
-// ── Phone remote client ────────────────────────────────────────────────
-
 fn remote_base() -> Result<String, String> {
     let h = crate::local_bridge_remote::hub();
     let addr = h.bound_addr().ok_or(
@@ -606,8 +561,6 @@ fn http() -> reqwest::Client {
         .unwrap_or_default()
 }
 
-/// `tls: true`: the same listener over HTTPS, trusting only the pinned key
-/// (`pin` given, else the host's own). Returns `(base, client)`.
 fn remote_client(a: &Value) -> Result<(String, reqwest::Client), String> {
     let base = remote_base()?;
     if a["tls"].as_bool() != Some(true) {
@@ -629,8 +582,6 @@ fn remote_client(a: &Value) -> Result<(String, reqwest::Client), String> {
     Ok((base.replacen("http://", "https://", 1), client))
 }
 
-/// Pairs a device the way the phone page does: a one-time code for the
-/// scope, redeemed at `/remote/api/pair`. Returns its bearer and device.
 pub async fn remote_pair(app: &AppHandle, a: &Value) -> Result<Value, String> {
     let h = crate::local_bridge_remote::hub();
     h.set_app(app);
@@ -673,7 +624,6 @@ pub async fn remote_pair(app: &AppHandle, a: &Value) -> Result<Value, String> {
     )
 }
 
-/// One HTTP call to the remote API (`/remote/...`) with a device bearer.
 pub async fn remote_call(a: &Value) -> Result<Value, String> {
     let (base, client) = remote_client(a)?;
     let path = a["path"].as_str().ok_or("MISSING_ARGUMENT: path")?;
@@ -718,12 +668,8 @@ pub async fn remote_call(a: &Value) -> Result<Value, String> {
     Ok(json!({ "status": status, "headers": headers, "body": body }))
 }
 
-/// Server-Sent Events path of the canvas feed (`crate::canvas::remote_stream`).
 const CANVAS_STREAM: &str = "/remote/api/canvas/stream";
 
-/// Follows the canvas SSE feed for `seconds` (or until `max` messages),
-/// optionally POSTing `send` messages (presence, camera) to the device input
-/// channel once connected. Messages come back parsed from their `data:` lines.
 async fn remote_sse(a: &Value, path: &str) -> Result<Value, String> {
     let (base, client) = remote_client(a)?;
     let secs = a["seconds"].as_u64().unwrap_or(5).clamp(1, 60);
@@ -757,7 +703,6 @@ async fn remote_sse(a: &Value, path: &str) -> Result<Value, String> {
     if let Some(list) = a["send"].as_array() {
         for m in list {
             let mut call = json!({ "path": "/remote/api/canvas/feed", "method": "POST", "body": m, "tls": a["tls"], "pin": a["pin"] });
-            // A terminal stream's messages go to that node.
             if let Some(node) = path
                 .strip_prefix("/remote/api/canvas/nodes/")
                 .and_then(|r| r.split('/').next())
@@ -808,9 +753,6 @@ async fn remote_sse(a: &Value, path: &str) -> Result<Value, String> {
     )
 }
 
-/// Reads a remote feed for a while. The canvas feed (default) is a real
-/// Server-Sent Events stream; any other path (e.g. the Central's
-/// `/remote/api/events`) is polled with `after`, collecting what arrived.
 pub async fn remote_stream(a: &Value) -> Result<Value, String> {
     let sse_path = a["path"].as_str().unwrap_or(CANVAS_STREAM);
     let terminal_stream = sse_path.starts_with("/remote/api/canvas/nodes/")
@@ -862,7 +804,6 @@ pub async fn remote_stream(a: &Value) -> Result<Value, String> {
     Ok(json!({ "messages": messages, "after": after }))
 }
 
-/// Restarts the app after the answer is sent.
 pub fn restart_later(app: &AppHandle) {
     let app = app.clone();
     tauri::async_runtime::spawn(async move {

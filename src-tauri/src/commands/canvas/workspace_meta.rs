@@ -1,9 +1,3 @@
-//! Workspace extras around the document store (study 100, section A):
-//! runtime facts in the summaries (`loaded`, running terminals, icon
-//! revision, agent-file sync state), CLAUDE.md / AGENTS.md / GEMINI.md
-//! sync, custom icons, "Open in IDE", the boot guard (reopen the last
-//! workspace, safe launch after two failed boots) and moving the data folder.
-
 use std::path::{Path, PathBuf};
 
 use base64::Engine as _;
@@ -14,11 +8,8 @@ use tauri::AppHandle;
 
 use crate::canvas::doc::host;
 
-/// Instruction files kept equal when `syncAgentFiles` is on. CLAUDE.md is the
-/// one written when sync is off.
 pub const AGENT_FILES: [&str; 3] = ["CLAUDE.md", "AGENTS.md", "GEMINI.md"];
 
-/// Installs the summary enricher (idempotent). Called when the canvas host binds.
 pub fn install() {
     cmodel::set_summary_enricher(enrich);
 }
@@ -45,9 +36,6 @@ fn enrich(s: &mut WorkspaceSummary) {
     }
 }
 
-// ---------------------------------------------------------------- icons
-
-/// `file:/abs/path.png` (or a bare absolute image path) → the path.
 fn icon_file(icon: &str) -> Option<PathBuf> {
     let p = icon.strip_prefix("file:").unwrap_or(icon).trim();
     let lower = p.to_ascii_lowercase();
@@ -84,9 +72,6 @@ fn mime_of(p: &Path) -> &'static str {
     }
 }
 
-/// Reads a workspace's image icon: bytes, mime and revision (the remote API
-/// serves it with the revision as ETag).
-/// Bytes, mime type and revision of a workspace icon.
 pub type IconBytes = (Vec<u8>, &'static str, String);
 
 pub fn icon_bytes(workspace_id: &str) -> Result<Option<IconBytes>, String> {
@@ -104,7 +89,6 @@ pub fn icon_bytes(workspace_id: &str) -> Result<Option<IconBytes>, String> {
     Ok(Some((bytes, mime_of(&p), rev)))
 }
 
-/// Image icon of a workspace as a data URL, with its revision.
 #[tauri::command]
 pub async fn canvas_workspace_icon(
     app: AppHandle,
@@ -121,8 +105,6 @@ pub async fn canvas_workspace_icon(
     .map_err(|e| e.to_string())?
 }
 
-// ---------------------------------------------------------- agent files
-
 fn read_opt(p: &Path) -> Option<String> {
     std::fs::read_to_string(p).ok()
 }
@@ -133,8 +115,6 @@ fn write_atomic(p: &Path, text: &str) -> Result<(), String> {
     std::fs::rename(&tmp, p).map_err(|e| format!("{}: {e}", p.display()))
 }
 
-/// State of the three instruction files: which exist, whether they agree,
-/// and which ones differ from CLAUDE.md (or the first that exists).
 pub fn agent_status(dir: &Path) -> Value {
     let files: Vec<(String, Option<String>)> = AGENT_FILES
         .iter()
@@ -159,8 +139,6 @@ pub fn agent_status(dir: &Path) -> Value {
     })
 }
 
-/// Writes the workspace instructions: CLAUDE.md always, the other files too
-/// when `sync` is on.
 pub fn write_instructions(dir: &Path, text: &str, sync: bool) -> Result<Vec<String>, String> {
     if !dir.is_dir() {
         return Err(format!(
@@ -176,8 +154,6 @@ pub fn write_instructions(dir: &Path, text: &str, sync: bool) -> Result<Vec<Stri
     Ok(written)
 }
 
-/// Makes `winner` the version of every instruction file. Without `confirm`
-/// it only reports what each other file would lose and gain.
 pub fn resolve_agent_files(dir: &Path, winner: &str, confirm: bool) -> Result<Value, String> {
     let Some(win) = AGENT_FILES
         .iter()
@@ -230,8 +206,6 @@ pub fn resolve_agent_files(dir: &Path, winner: &str, confirm: bool) -> Result<Va
     }))
 }
 
-/// Agent-file work a workspace patch asks for, pulled out of the patch
-/// before it reaches the store (`instructions` is not stored in the meta).
 #[derive(Default)]
 pub struct AgentPatch {
     instructions: Option<String>,
@@ -239,10 +213,6 @@ pub struct AgentPatch {
     confirm: bool,
 }
 
-/// Normalises a workspace patch: `instructions`, `syncAgentFiles:
-/// "resolve:<file>"` and `confirm` become agent-file work; `jumpNumber` is
-/// checked (1–9) and taken from other workspaces; `icon: "emoji:🎻"` keeps
-/// just the emoji.
 pub fn take_agent_patch(ws: &str, patch: &mut Map<String, Value>) -> Result<AgentPatch, String> {
     let mut out = AgentPatch::default();
     if let Some(v) = patch.remove("instructions") {
@@ -281,7 +251,6 @@ pub fn take_agent_patch(ws: &str, patch: &mut Map<String, Value>) -> Result<Agen
     Ok(out)
 }
 
-/// Runs the agent-file work after the patch was stored.
 pub fn run_agent_patch(ws: &cmodel::Workspace, work: AgentPatch) -> Result<Option<Value>, String> {
     if work.instructions.is_none() && work.resolve.is_none() {
         return Ok(None);
@@ -308,8 +277,6 @@ pub fn run_agent_patch(ws: &cmodel::Workspace, work: AgentPatch) -> Result<Optio
     Ok(Some(Value::Object(out)))
 }
 
-/// Reads (and optionally resolves) the instruction files of a workspace:
-/// status plus the text of CLAUDE.md (or the first that exists).
 #[tauri::command]
 pub async fn canvas_workspace_agent_files(
     app: AppHandle,
@@ -335,9 +302,6 @@ pub async fn canvas_workspace_agent_files(
     .map_err(|e| e.to_string())?
 }
 
-// ------------------------------------------------------------ open in IDE
-
-/// (id, macOS app name, command line launcher)
 const IDES: &[(&str, &str, &str)] = &[
     ("vscode", "Visual Studio Code", "code"),
     (
@@ -375,7 +339,6 @@ fn mac_app(name: &str) -> bool {
         .any(|d| d.join(format!("{name}.app")).is_dir())
 }
 
-/// Editors found on this machine, in the list order.
 pub fn installed_ides() -> Vec<&'static str> {
     IDES.iter()
         .filter(|(_, app, cli)| mac_app(app) || on_path(cli))
@@ -383,8 +346,6 @@ pub fn installed_ides() -> Vec<&'static str> {
         .collect()
 }
 
-/// Opens the workspace folder in `ide` (or the workspace's own `ide`, or the
-/// first editor found) and remembers the choice on the workspace.
 pub fn open_in_ide(workspace_id: &str, ide: Option<&str>) -> Result<Value, String> {
     let store = host().store().clone();
     let ws = store.workspace(workspace_id)?;
@@ -444,14 +405,11 @@ pub async fn canvas_ides() -> Result<Vec<&'static str>, String> {
         .map_err(|e| e.to_string())
 }
 
-// ---------------------------------------------------------- boot guard
-
 #[derive(Debug, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct Session {
     #[serde(default)]
     last_workspace_id: Option<String>,
-    /// Workspace a boot opened that has not reported "ok" yet.
     #[serde(default)]
     pending: Option<String>,
     #[serde(default)]
@@ -479,12 +437,8 @@ fn write_session(s: &Session) {
     }
 }
 
-/// Boots that opened a workspace without reaching "ok" before the safe launch.
 const SAFE_AFTER: u32 = 2;
 
-/// Picks the workspace the window opens on: the last one used (kept in the
-/// data folder, so it follows the profile), unless it failed to open twice in
-/// a row; then another workspace opens and the answer says which one crashed.
 pub fn session_boot(preferred: Option<&str>) -> Result<Value, String> {
     let store = host().store().clone();
     let list = store.workspaces();
@@ -516,8 +470,6 @@ pub fn session_boot(preferred: Option<&str>) -> Result<Value, String> {
             s.attempts = 0;
             s.last_workspace_id = Some(other.clone());
             write_session(&s);
-            // The safe launch shows a toast; it also goes to the notification
-            // list (M-A19) so it can be read back later.
             let label = name.clone().unwrap_or_else(|| t.to_string());
             crate::mcp::canvas_ui::record_notification(
                 "canvas",
@@ -539,7 +491,6 @@ pub fn session_boot(preferred: Option<&str>) -> Result<Value, String> {
         };
         s.pending = Some(t.to_string());
         write_session(&s);
-        // Test hook: simulate a crash while this workspace opens.
         if crate::local_bridge_debug::enabled()
             && std::env::var("OMNIGET_TEST_CRASH_WORKSPACE")
                 .ok()
@@ -552,8 +503,6 @@ pub fn session_boot(preferred: Option<&str>) -> Result<Value, String> {
     Ok(json!({ "workspaceId": target, "safeMode": false, "attempts": s.attempts }))
 }
 
-/// Records the workspace on screen; `ok` means it opened fine (clears the
-/// failed-boot counter).
 pub fn session_mark(workspace_id: &str, ok: bool) {
     let mut s = read_session();
     s.last_workspace_id = Some(workspace_id.to_string());
@@ -586,18 +535,12 @@ pub async fn canvas_session_mark(
     tauri::async_runtime::spawn_blocking(move || session_mark(&workspace_id, ok))
         .await
         .map_err(|e| e.to_string())?;
-    // The workspace opened fine: the terminals off screen come back too
-    // (M-D15), after the safe-launch window so a bad one cannot loop a crash.
     if ok {
         crate::canvas::launch::wake_workspace(&ws);
     }
     Ok(())
 }
 
-// ----------------------------------------------------- data folder move
-
-/// Pointer file next to the default data folder that makes the app use
-/// another one (read by `omniget_core::core::paths::app_data_dir`).
 fn redirect_file() -> Option<PathBuf> {
     omniget_core::core::paths::data_dir_redirect_file()
 }
@@ -616,10 +559,6 @@ fn walk(root: &Path, rel: &Path, out: &mut Vec<(PathBuf, u64)>) -> std::io::Resu
     Ok(())
 }
 
-/// Moves the data folder the Maestri way: the target must be empty (or not
-/// exist), everything is copied and checked file by file (size) before the
-/// switch, and the old folder is left intact. Without `confirm` it only
-/// checks and reports. The switch takes effect on the next launch.
 pub fn move_data_dir(target: &str, confirm: bool) -> Result<Value, String> {
     if std::env::var_os("OMNIGET_DATA_DIR").is_some() {
         return Err("DATA_DIR_PINNED: OMNIGET_DATA_DIR is set for this process".into());

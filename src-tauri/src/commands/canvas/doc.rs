@@ -1,7 +1,3 @@
-//! Tauri commands of the canvas document. Logic lives in
-//! `omniget_core::core::canvas`; the host (`crate::canvas::doc`) emits
-//! `canvas://patch`, `canvas://workspaces` and `canvas://note`.
-
 use std::collections::HashMap;
 
 use omniget_core::core::canvas::export::{self, ExportOptions, ImportResult, Partitura, Selection};
@@ -21,7 +17,6 @@ fn store(app: &AppHandle) -> std::sync::Arc<CanvasStore> {
     host().bind(app).store().clone()
 }
 
-/// Runs store work off the async runtime (it touches the disk).
 async fn blocking<T: Send + 'static>(
     f: impl FnOnce() -> Result<T, String> + Send + 'static,
 ) -> Result<T, String> {
@@ -56,9 +51,6 @@ pub async fn canvas_workspace_update(
         .map(|(ws, _)| ws)
 }
 
-/// Workspace update that also runs the agent-file work of the patch
-/// (`instructions`, `syncAgentFiles: "resolve:<file>"`, `confirm`) and
-/// checks `jumpNumber`; returns what happened to the files.
 pub async fn canvas_workspace_update_with_files(
     app: AppHandle,
     workspace_id: String,
@@ -152,7 +144,6 @@ pub async fn canvas_note_write(
     .await
 }
 
-/// Maestri "Move to…": the note becomes an external file at `dest`.
 #[tauri::command]
 pub async fn canvas_note_move(
     app: AppHandle,

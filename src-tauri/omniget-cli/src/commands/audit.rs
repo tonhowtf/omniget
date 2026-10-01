@@ -1,14 +1,6 @@
-//! `omniget audit --since 1d [--action job.] [--limit N]`: the `/llm` audit
-//! log of the desktop app (2.8), read through the local bridge
-//! (`GET /v1/audit`, scope `audit:read`, which the app's CLI token has).
-//! Who did what to which job, question, grant, token or agent, and through
-//! what; never a prompt or a file's content.
-
 use anyhow::bail;
 use serde_json::Value;
 
-/// The query of `GET /v1/audit`; `since` is checked here first so a typo
-/// never reaches the app.
 fn path_of(since: &str, action: Option<&str>, limit: usize) -> anyhow::Result<String> {
     if omniget_core::core::llm::audit::parse_since(since).is_none() {
         bail!("--since must look like 1d, 12h, 30m or 2w (got `{since}`)");
@@ -65,7 +57,6 @@ pub async fn execute(
         println!("no audit lines in the last {since}");
         return Ok(());
     }
-    // Oldest first, like a log.
     for r in list.iter().rev() {
         println!("{}", line(r));
     }

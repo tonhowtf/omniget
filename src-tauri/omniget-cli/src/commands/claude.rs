@@ -1,14 +1,3 @@
-//! `omniget claude [account] [-- args]`: opens Claude Code in the terminal on
-//! one of the accounts registered in the desktop app (/llm → Accounts).
-//!
-//! Same model as the app's "Enter" button (`login_plan`): the account is only
-//! its config dir, passed as `CLAUDE_CONFIG_DIR`; the CLI keeps its own login
-//! there and this command never reads a credential. API keys in the current
-//! shell are removed (`SCRUB_ENV`) so they never decide which account bills.
-//!
-//! Who an account is (e-mail, plan) comes from `claude auth status --json`,
-//! which Claude Code answers from its own login without printing any token.
-
 use std::io::{BufRead, Write};
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -20,7 +9,6 @@ use omniget_core::core::llm::cli_runtime::accounts::{
 };
 use serde_json::Value;
 
-/// File with the id picked last, so a bare `omniget claude` repeats it.
 fn last_path() -> Option<PathBuf> {
     omniget_core::core::paths::app_data_dir().map(|d| d.join("llm").join("cli-last-account"))
 }
@@ -37,13 +25,10 @@ pub(crate) fn claude_accounts() -> Vec<CliAccount> {
         .unwrap_or_default()
 }
 
-/// The main Claude account: the first one in the app's order (/llm → AI
-/// connections, "Use now"), set from here with `--default`.
 fn main_account() -> Option<CliAccount> {
     AccountStore::default_store().and_then(|s| primary(&s, CliKind::Claude))
 }
 
-/// What `omniget claude` was asked to do besides opening an account.
 #[derive(Debug, Clone, Copy, Default)]
 pub struct Flags {
     pub list: bool,
@@ -55,7 +40,6 @@ pub struct Flags {
     pub no_splash: bool,
 }
 
-/// What `claude auth status` says about an account. Never holds a secret.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct Identity {
     pub logged_in: bool,
@@ -73,8 +57,6 @@ pub fn parse_identity(json: &str) -> Option<Identity> {
     })
 }
 
-/// The `claude` process for an account: config dir set (or the terminal's
-/// default profile), API keys removed.
 fn claude_command(account: Option<&CliAccount>) -> Command {
     let mut cmd = Command::new(CliKind::Claude.bin());
     for key in SCRUB_ENV {
@@ -100,7 +82,6 @@ fn identity(account: &CliAccount) -> Option<Identity> {
     parse_identity(&String::from_utf8_lossy(&out.stdout))
 }
 
-/// Identities of several accounts, asked in parallel (one `claude` each).
 pub(crate) fn identities(accounts: &[CliAccount]) -> Vec<Option<Identity>> {
     std::thread::scope(|s| {
         let handles: Vec<_> = accounts
@@ -114,7 +95,6 @@ pub(crate) fn identities(accounts: &[CliAccount]) -> Vec<Option<Identity>> {
     })
 }
 
-/// "2.1.283" from `claude --version` ("2.1.283 (Claude Code)").
 fn claude_version() -> Option<String> {
     let out = Command::new(CliKind::Claude.bin())
         .arg("--version")
@@ -133,8 +113,6 @@ pub fn parse_version(stdout: &str) -> Option<String> {
         .map(|_| first.to_string())
 }
 
-/// A config dir under the system temp folder is wiped by macOS after a few
-/// days; history and settings of that account would vanish.
 pub fn in_temp_dir(dir: &Path) -> bool {
     let s = dir.to_string_lossy();
     s.starts_with("/var/folders/")
@@ -143,8 +121,6 @@ pub fn in_temp_dir(dir: &Path) -> bool {
         || s.starts_with("/private/tmp/")
 }
 
-/// Matches an id, a label or the e-mail of the login, ignoring case; a unique
-/// prefix also works.
 pub fn find<'a>(
     accounts: &'a [CliAccount],
     emails: &[Option<String>],
@@ -198,7 +174,6 @@ fn describe(a: &CliAccount, who: Option<&Identity>) -> String {
 }
 
 fn pick(accounts: &[CliAccount], who: &[Option<Identity>]) -> anyhow::Result<CliAccount> {
-    // Enter keeps the main account; without one, the account picked last.
     let preferred = main_account().map(|a| a.id).or_else(|| {
         last_path()
             .and_then(|p| std::fs::read_to_string(p).ok())
@@ -235,8 +210,6 @@ fn pick(accounts: &[CliAccount], who: &[Option<Identity>]) -> anyhow::Result<Cli
         .ok_or_else(|| anyhow!("nenhuma conta corresponde a {line:?}"))
 }
 
-/// Arguments for the `claude` process: the skip flag first (unless `safe`),
-/// then whatever came after `--`.
 pub fn claude_args(safe: bool, extra: &[String]) -> Vec<String> {
     let mut args = Vec::new();
     if !safe && !extra.iter().any(|a| a == "--dangerously-skip-permissions") {
@@ -246,7 +219,6 @@ pub fn claude_args(safe: bool, extra: &[String]) -> Vec<String> {
     args
 }
 
-/// An account id from a name: lowercase, `-` for anything else, never empty.
 pub fn slug(name: &str) -> String {
     let mut out = String::new();
     for c in name.trim().to_lowercase().chars() {
@@ -267,8 +239,6 @@ pub fn slug(name: &str) -> String {
     }
 }
 
-/// `--add [name]`: new account in the app's own profiles dir, then Claude
-/// Code's login in it, then the account is named after who logged in.
 fn add(name: Option<String>) -> anyhow::Result<Option<CliAccount>> {
     let store = AccountStore::default_store()
         .ok_or_else(|| anyhow!("pasta de dados do OmniGet não encontrada"))?;
@@ -345,8 +315,6 @@ fn add(name: Option<String>) -> anyhow::Result<Option<CliAccount>> {
     }
 }
 
-/// An account by id, label, e-mail or unique prefix. E-mails are only asked
-/// for when the name did not match, so `omniget claude max` stays instant.
 fn resolve(accounts: &[CliAccount], query: &str) -> anyhow::Result<CliAccount> {
     if let Some(a) = find(accounts, &[], query) {
         return Ok(a.clone());
@@ -360,8 +328,6 @@ fn resolve(accounts: &[CliAccount], query: &str) -> anyhow::Result<CliAccount> {
         .ok_or_else(|| anyhow!("conta {query:?} não encontrada; veja `omniget claude --list`"))
 }
 
-/// `--default`: the account goes to the head of the app's order, so the app
-/// and a bare `omniget claude` both start on it.
 fn make_main(account: &CliAccount) -> anyhow::Result<()> {
     let store = AccountStore::default_store()
         .ok_or_else(|| anyhow!("pasta de dados do OmniGet não encontrada"))?;
@@ -375,8 +341,6 @@ fn make_main(account: &CliAccount) -> anyhow::Result<()> {
     Ok(())
 }
 
-/// `--remove`: forgets the account, like the app's remove button. The login
-/// folder stays, so nothing is logged out by accident.
 fn remove(account: &CliAccount) -> anyhow::Result<()> {
     let store = AccountStore::default_store()
         .ok_or_else(|| anyhow!("pasta de dados do OmniGet não encontrada"))?;
@@ -463,8 +427,6 @@ pub fn execute(account: Option<String>, flags: Flags, extra: Vec<String>) -> any
     }
     let splash = !flags.no_splash && std::env::var_os("OMNIGET_NO_SPLASH").is_none();
     if splash {
-        // Claude Code's version and who is logged in, asked in parallel so the
-        // splash costs one `claude` start, not two.
         let (version, who) = std::thread::scope(|s| {
             let v = s.spawn(claude_version);
             let w = s.spawn(|| chosen.as_ref().and_then(identity));

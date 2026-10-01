@@ -1,33 +1,3 @@
-//! Roles: reusable instructions a terminal node starts with (Maestri "Roles",
-//! estudo 95 E / 04 §1).
-//!
-//! Two scopes:
-//! - workspace: `<canvas>/<ws>/roles/<id>/role.json` plus the generated
-//!   `CLAUDE.md` / `AGENTS.md` (role prompt + "work in the real project" +
-//!   the canvas skill snippet), and `.gemini/settings.json` for Gemini;
-//! - global library: `<canvas>/roles-library/<id>/role.json`, shared by every
-//!   workspace. It is seeded once with the built-in roles; a built-in the user
-//!   deletes stays deleted.
-//!
-//! A node with a `roleId` resolves it workspace first, then library; assigning
-//! a library role copies it into the workspace so the node keeps working if
-//! the library entry changes or goes away.
-//!
-//! How each agent receives the role ([`launch_plan`]):
-//! - Claude Code: started in the real project (its own `CLAUDE.md`, trust and
-//!   session history stay), role through `--append-system-prompt`.
-//! - Codex: started in the real project, role through
-//!   `-c developer_instructions=...` (the role folder + `--add-dir` recipe
-//!   was ignored under Codex's read-only sandbox).
-//! - Gemini CLI: started in the role folder with `AGENTS.md` and
-//!   `.gemini/settings.json` (`context.fileName = AGENTS.md`,
-//!   `includeDirectories = [project]`), exactly like the Maestri.
-//! - OpenCode: started in the project; `OPENCODE_CONFIG` points at a config in
-//!   the role folder whose `instructions` list the role's `AGENTS.md`.
-//! - Ollama: no instruction file; the role text is sent as the first prompt.
-//! - Native agent: the role text is handed over as the system prompt.
-//! - Shell: started in the project, only the `OMNIGET_ROLE_*` env.
-
 use std::collections::{BTreeMap, HashMap};
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -39,34 +9,27 @@ use sha2::{Digest, Sha256};
 use super::model::{is_safe_id, AgentKind};
 use super::store::CanvasStore;
 
-/// Folder of the global library, next to the workspace folders.
 pub const LIBRARY_DIR: &str = "roles-library";
-/// Built-ins already seeded (ids), so deleted ones are not re-created.
 const SEEDED_FILE: &str = ".seeded.json";
-/// Largest prompt accepted (the managed files are refused above this too).
 pub const MAX_PROMPT_BYTES: usize = 128 * 1024;
 const MAX_NAME_CHARS: usize = 80;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Role {
-    /// Portable `role.json` files (Maestri) carry no id: the folder names it.
     #[serde(default)]
     pub id: String,
     pub name: String,
     #[serde(default)]
     pub prompt: String,
-    /// One line shown in the picker under the name.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub summary: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub icon: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub color: Option<String>,
-    /// Agent a new terminal with this role starts by default.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub agent: Option<AgentKind>,
-    /// Absent = global library.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub workspace_id: Option<String>,
     #[serde(default, skip_serializing_if = "is_false")]
@@ -98,18 +61,15 @@ impl Scope {
     }
 }
 
-/// A role as listed: the role, its scope and which nodes use it.
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RoleInfo {
     #[serde(flatten)]
     pub role: Role,
     pub scope: Scope,
-    /// Node ids (this workspace) whose `roleId` is this role.
     pub terminals_in_use: Vec<String>,
 }
 
-/// What the editor sends (create or update).
 #[derive(Debug, Clone, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RoleInput {
@@ -127,9 +87,6 @@ pub struct RoleInput {
     #[serde(default)]
     pub agent: Option<AgentKind>,
 }
-
-// ---------------------------------------------------------------------------
-// Built-ins
 
 struct Builtin {
     id: &'static str,
@@ -308,7 +265,6 @@ Slop is anything that reads as generated filler: comments that restate the code,
     },
 ];
 
-/// The built-in roles (as library roles).
 pub fn builtins() -> Vec<Role> {
     let now = now();
     BUILTINS
@@ -328,9 +284,6 @@ pub fn builtins() -> Vec<Role> {
         })
         .collect()
 }
-
-// ---------------------------------------------------------------------------
-// Paths and small helpers
 
 fn now() -> String {
     chrono::Utc::now().to_rfc3339()
@@ -354,7 +307,6 @@ pub fn role_dir(store: &CanvasStore, ws: Option<&str>, id: &str) -> Result<PathB
     Ok(scope_dir(store, ws).join(id))
 }
 
-/// `Code Reviewer!` → `code-reviewer`.
 pub fn slug(name: &str) -> String {
     let mut out = String::new();
     let mut dash = false;
@@ -379,7 +331,6 @@ pub fn slug(name: &str) -> String {
     }
 }
 
-/// Refuses symlinks and anything that is not a plain file or missing.
 fn safe_target(path: &Path) -> Result<(), String> {
     match fs::symlink_metadata(path) {
         Ok(m) if m.file_type().is_symlink() => {
@@ -390,7 +341,6 @@ fn safe_target(path: &Path) -> Result<(), String> {
     }
 }
 
-/// Atomic write of a managed file (tmp + rename), refusing symlinks.
 fn write_managed(path: &Path, body: &str) -> Result<(), String> {
     if body.len() > MAX_PROMPT_BYTES * 2 {
         return Err("CANVAS_INVALID: role file too large".into());
@@ -421,8 +371,6 @@ fn read_role_file(dir: &Path) -> Option<Role> {
     let v: Value = serde_json::from_slice(&fs::read(&file).ok()?).ok()?;
     let mut role: Role = serde_json::from_value(v).ok()?;
     let asked = dir.file_name()?.to_str()?;
-    // On a case-insensitive disk (APFS, NTFS) `Reviewer` opens `reviewer/`:
-    // the id is the folder's real name, not the spelling asked for.
     let folder = dir
         .parent()
         .and_then(|p| fs::read_dir(p).ok())
@@ -438,7 +386,6 @@ fn read_role_file(dir: &Path) -> Option<Role> {
                 .cloned()
         })
         .unwrap_or_else(|| asked.to_string());
-    // The id must match the folder (Maestri refuses a mismatch); the folder wins.
     if role.id != folder {
         role.id = folder;
     }
@@ -472,14 +419,10 @@ fn validate(input: &RoleInput) -> Result<(), String> {
     Ok(())
 }
 
-// ---------------------------------------------------------------------------
-// Library seeding
-
 fn seeded_ids(dir: &Path) -> Option<Vec<String>> {
     serde_json::from_slice(&fs::read(dir.join(SEEDED_FILE)).ok()?).ok()
 }
 
-/// Creates the built-ins that were never seeded. Cheap after the first run.
 pub fn ensure_library(store: &CanvasStore) {
     let dir = library_dir(store);
     let mut seeded = seeded_ids(&dir).unwrap_or_default();
@@ -504,9 +447,6 @@ pub fn ensure_library(store: &CanvasStore) {
     }
 }
 
-// ---------------------------------------------------------------------------
-// Reading
-
 fn list_dir(dir: &Path) -> Vec<Role> {
     let Ok(rd) = fs::read_dir(dir) else {
         return Vec::new();
@@ -525,7 +465,6 @@ fn list_dir(dir: &Path) -> Vec<Role> {
     out
 }
 
-/// Workspace roles (their `workspaceId` filled).
 pub fn list_workspace(store: &CanvasStore, ws: &str) -> Vec<Role> {
     list_dir(&store.roles_dir(ws))
         .into_iter()
@@ -536,7 +475,6 @@ pub fn list_workspace(store: &CanvasStore, ws: &str) -> Vec<Role> {
         .collect()
 }
 
-/// Global library roles (seeded on first call).
 pub fn list_library(store: &CanvasStore) -> Vec<Role> {
     ensure_library(store);
     list_dir(&library_dir(store))
@@ -548,7 +486,6 @@ pub fn list_library(store: &CanvasStore) -> Vec<Role> {
         .collect()
 }
 
-/// Node ids per role id across every floor of the workspace.
 pub fn usage(store: &CanvasStore, ws: &str) -> HashMap<String, Vec<String>> {
     let mut out: HashMap<String, Vec<String>> = HashMap::new();
     let Ok(meta) = store.workspace(ws) else {
@@ -566,8 +503,6 @@ pub fn usage(store: &CanvasStore, ws: &str) -> HashMap<String, Vec<String>> {
     out
 }
 
-/// Workspace roles first, then the library (a library role shadowed by a
-/// workspace role with the same id is left out).
 pub fn list(store: &CanvasStore, ws: &str) -> Vec<RoleInfo> {
     let used = usage(store, ws);
     let wsr = list_workspace(store, ws);
@@ -592,7 +527,6 @@ pub fn list(store: &CanvasStore, ws: &str) -> Vec<RoleInfo> {
     out
 }
 
-/// Resolves a role id: workspace, then library.
 pub fn get(store: &CanvasStore, ws: &str, id: &str) -> Option<(Role, Scope)> {
     if !is_safe_id(id) {
         return None;
@@ -608,7 +542,6 @@ pub fn get(store: &CanvasStore, ws: &str, id: &str) -> Option<(Role, Scope)> {
     })
 }
 
-/// Case-insensitive lookup by name (workspace first) or by id.
 pub fn find(store: &CanvasStore, ws: &str, name_or_id: &str) -> Option<(Role, Scope)> {
     let key = name_or_id.trim();
     if key.is_empty() {
@@ -624,9 +557,6 @@ pub fn find(store: &CanvasStore, ws: &str, name_or_id: &str) -> Option<(Role, Sc
         .map(|i| (i.role, i.scope))
 }
 
-// ---------------------------------------------------------------------------
-// Writing
-
 fn name_taken(store: &CanvasStore, ws: Option<&str>, name: &str, except: Option<&str>) -> bool {
     let lower = name.trim().to_lowercase();
     let roles = match ws {
@@ -640,9 +570,6 @@ fn name_taken(store: &CanvasStore, ws: Option<&str>, name: &str, except: Option<
 
 fn free_id(store: &CanvasStore, ws: Option<&str>, name: &str) -> String {
     let base = slug(name);
-    // An id used in the other scope would shadow (or be shadowed by) this
-    // role in `list`, so a new id avoids both: the workspace and the library
-    // for a workspace role, the library and every workspace for a global one.
     let mut dirs = vec![scope_dir(store, ws), library_dir(store)];
     if ws.is_none() {
         dirs.extend(
@@ -652,7 +579,6 @@ fn free_id(store: &CanvasStore, ws: Option<&str>, name: &str) -> String {
                 .map(|w| store.roles_dir(&w.workspace.id)),
         );
     }
-    // The library may not be seeded yet: a built-in id is taken either way.
     let builtin: Vec<String> = builtins().into_iter().map(|b| b.id).collect();
     let taken =
         |id: &str| builtin.iter().any(|b| b == id) || dirs.iter().any(|d| d.join(id).exists());
@@ -668,8 +594,6 @@ fn free_id(store: &CanvasStore, ws: Option<&str>, name: &str) -> String {
     format!("{base}-{}", &uuid::Uuid::new_v4().simple().to_string()[..8])
 }
 
-/// Creates or updates a role in a scope (`ws = None` = library). Names are
-/// unique per scope (`CANVAS_CONFLICT`). Regenerates the managed files.
 pub fn save(store: &CanvasStore, ws: Option<&str>, input: RoleInput) -> Result<Role, String> {
     validate(&input)?;
     if ws.is_none() {
@@ -719,8 +643,6 @@ pub fn save(store: &CanvasStore, ws: Option<&str>, input: RoleInput) -> Result<R
     Ok(role)
 }
 
-/// Removes a role folder. `force = false` refuses while nodes use it
-/// (workspace scope only; the caller unassigns first with `force`).
 pub fn delete(store: &CanvasStore, ws: Option<&str>, id: &str) -> Result<(), String> {
     let dir = role_dir(store, ws, id)?;
     if !dir.exists() {
@@ -734,8 +656,6 @@ pub fn delete(store: &CanvasStore, ws: Option<&str>, id: &str) -> Result<(), Str
     fs::remove_dir_all(&dir).map_err(|e| format!("CANVAS_IO: {e}"))
 }
 
-/// Copies a library role into the workspace (same id), unless the workspace
-/// already has it. Returns the workspace role.
 pub fn adopt(store: &CanvasStore, ws: &str, id: &str) -> Result<Role, String> {
     if let Some(mut r) = read_role_file(&store.roles_dir(ws).join(id)) {
         r.workspace_id = Some(ws.to_string());
@@ -744,7 +664,6 @@ pub fn adopt(store: &CanvasStore, ws: &str, id: &str) -> Result<Role, String> {
     let (lib, _) = get(store, ws, id).ok_or_else(|| format!("CANVAS_NOT_FOUND: role {id}"))?;
     let mut role = lib;
     role.workspace_id = Some(ws.to_string());
-    // A workspace role with the same name wins the name; suffix the copy.
     if name_taken(store, Some(ws), &role.name, Some(&role.id)) {
         role.name = format!("{} (global)", role.name);
     }
@@ -754,7 +673,6 @@ pub fn adopt(store: &CanvasStore, ws: &str, id: &str) -> Result<Role, String> {
     Ok(role)
 }
 
-/// Moves a role between scopes (Maestri `role edit --scope`).
 pub fn set_scope(store: &CanvasStore, ws: &str, id: &str, to: Scope) -> Result<Role, String> {
     let (role, from) = get(store, ws, id).ok_or_else(|| format!("CANVAS_NOT_FOUND: role {id}"))?;
     if from == to {
@@ -788,8 +706,6 @@ pub fn set_scope(store: &CanvasStore, ws: &str, id: &str, to: Scope) -> Result<R
     Ok(saved)
 }
 
-/// Roles found in `<dir>/.omniget/roles/*/role.json` and
-/// `<dir>/.maestri/roles/*/role.json` (Maestri "Discover Roles").
 pub fn discover(dir: &Path) -> Vec<Role> {
     let mut out = Vec::new();
     for sub in [".omniget/roles", ".maestri/roles"] {
@@ -805,11 +721,6 @@ pub fn discover(dir: &Path) -> Vec<Role> {
     out
 }
 
-/// Imports roles found by [`discover`] into the workspace (`names` empty =
-/// all of them). The project's file is the source of truth: a workspace role
-/// with the same name is updated in place, anything else becomes a new
-/// workspace role (a global role with the same name stays, the workspace one
-/// wins in the picker). Returns `(role, updated)` per imported role.
 pub fn import_discovered(
     store: &CanvasStore,
     ws: &str,
@@ -863,18 +774,10 @@ pub fn import_discovered(
     Ok(out)
 }
 
-// ---------------------------------------------------------------------------
-// Generated instruction files
-
-/// The canvas skill text every role file carries: the same text the cords
-/// module puts in AGENTS.md and in the Claude plugin skill.
 pub fn canvas_skill_snippet() -> String {
     super::adapters::agents_md_snippet()
 }
 
-/// The role text as it goes into a managed file or a system prompt.
-/// `redirect = Some(project)` adds the Maestri "you were started here to get
-/// the role; the real project is at" block.
 pub fn instructions(role: &Role, project: Option<&str>, redirect: bool) -> String {
     let mut s = String::new();
     s.push_str(&format!(
@@ -905,8 +808,6 @@ The actual project you should be working on is located at:\n",
     s
 }
 
-/// Writes `role.json`, `CLAUDE.md`, `AGENTS.md` and (with a project)
-/// `.gemini/settings.json` into `dir`.
 fn write_role_files(dir: &Path, role: &Role, project: Option<&str>) -> Result<(), String> {
     let mut sidecar = role.clone();
     sidecar.workspace_id = None;
@@ -939,39 +840,23 @@ fn write_instruction_files(dir: &Path, role: &Role, project: Option<&str>) -> Re
     Ok(())
 }
 
-// ---------------------------------------------------------------------------
-// Launch
-
-/// How to start an agent with a role. The caller builds the agent's own argv
-/// (preset or `data.command`), appends `args`, uses `cwd` and merges `env`.
 #[derive(Debug, Clone, Default, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RoleLaunch {
     pub role_id: String,
     pub role_name: String,
-    /// Working directory for the process.
     pub cwd: Option<String>,
-    /// The real project directory the role points at.
     pub project_dir: Option<String>,
-    /// Folder holding the generated files for this launch.
     pub role_dir: String,
-    /// Arguments appended after the agent's own argv.
     pub args: Vec<String>,
     pub env: BTreeMap<String, String>,
-    /// Ollama: send this as the first prompt once the model is up.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub initial_prompt: Option<String>,
-    /// Native agent: system prompt for our runtime.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub system_prompt: Option<String>,
-    /// Human-readable recipe, for the UI and logs.
     pub mode: &'static str,
 }
 
-/// Folder the files for `project` live in: the role folder itself when the
-/// project is the workspace's working directory (or none), else
-/// `<role>/at/<hash>/` so two terminals on different projects never share a
-/// redirect.
 fn launch_dir(role_dir: &Path, project: Option<&str>, ws_dir: Option<&str>) -> PathBuf {
     match project {
         Some(p) if Some(p) != ws_dir => {
@@ -983,9 +868,6 @@ fn launch_dir(role_dir: &Path, project: Option<&str>, ws_dir: Option<&str>) -> P
     }
 }
 
-/// Prepares the files and returns the recipe for starting `agent` with the
-/// role (module doc). `project` is the node's `cwd`, else the workspace's
-/// working directory. A library role is adopted into the workspace first.
 pub fn launch_plan(
     store: &CanvasStore,
     ws: &str,
@@ -1034,10 +916,6 @@ pub fn launch_plan(
             plan.mode = "append-system-prompt";
         }
         AgentKind::Codex => {
-            // Codex reads `developer_instructions` from `-c` (TOML value; a
-            // JSON string is a valid TOML basic string). It runs in the
-            // project itself: the old role-dir + `--add-dir` recipe opened
-            // with "Ignoring --add-dir" under the read-only sandbox.
             let text = instructions(&role, project.as_deref(), false);
             plan.args = vec![
                 "-c".into(),

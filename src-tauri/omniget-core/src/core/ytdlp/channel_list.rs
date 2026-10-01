@@ -1,11 +1,3 @@
-//! Lista paginada dos vídeos de um canal ou playlist, com duração e views,
-//! para escolher o que baixar.
-//!
-//! A ideia vem do YT Channel Downloader (hyperfield/yt-channel-downloader):
-//! a lista do canal chega em janelas ("Fetch Next N"), cada linha com
-//! duração e caixa de seleção. Reimplementado aqui sobre o yt-dlp
-//! `--flat-playlist -J -I início:fim`; nenhum código copiado.
-
 use std::path::Path;
 use std::process::Stdio;
 
@@ -21,9 +13,7 @@ pub struct ListedVideo {
     pub url: String,
     pub duration: Option<f64>,
     pub view_count: Option<u64>,
-    /// Veio da aba Shorts (URL `/shorts/`).
     pub is_short: bool,
-    /// `is_upcoming`, `is_live`, `was_live`... quando o site informa.
     pub live_status: Option<String>,
 }
 
@@ -32,12 +22,9 @@ pub struct ListedPage {
     pub title: String,
     pub uploader: Option<String>,
     pub entries: Vec<ListedVideo>,
-    /// Há mais itens depois desta janela.
     pub has_more: bool,
 }
 
-/// Um canal do YouTube sem aba (`/@nome`, `/channel/UC…`, `/c/…`, `/user/…`)
-/// vira a aba Vídeos: sem aba o yt-dlp devolve as abas como itens.
 pub fn channel_videos_url(url: &str) -> String {
     let trimmed = url.trim().trim_end_matches('/');
     let lower = trimmed.to_ascii_lowercase();
@@ -72,8 +59,6 @@ fn text(v: &serde_json::Value, key: &str) -> Option<String> {
         .map(str::to_string)
 }
 
-/// Lê o JSON de `--flat-playlist -J`. `want` é o tamanho da janela; pedimos
-/// um item a mais para saber se há próxima página.
 pub fn parse_listing(json: &serde_json::Value, want: usize) -> ListedPage {
     let mut entries: Vec<ListedVideo> = json
         .get("entries")
@@ -85,7 +70,6 @@ pub fn parse_listing(json: &serde_json::Value, want: usize) -> ListedPage {
                     let url = text(e, "url")
                         .or_else(|| text(e, "webpage_url"))
                         .unwrap_or_else(|| id.clone());
-                    // Uma aba dentro de outra (canal sem aba) não é vídeo.
                     if e.get("_type").and_then(|t| t.as_str()) == Some("playlist")
                         || url.contains("/playlist?")
                     {
@@ -114,7 +98,6 @@ pub fn parse_listing(json: &serde_json::Value, want: usize) -> ListedPage {
     }
 }
 
-/// Uma janela da lista: itens `start` a `start + count - 1` (a partir de 1).
 pub async fn list_videos_page(
     ytdlp: &Path,
     url: &str,

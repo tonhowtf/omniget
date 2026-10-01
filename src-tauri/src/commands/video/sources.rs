@@ -1,12 +1,3 @@
-//! Remote sources the user brings (Jellyfin/Emby, IPTV, open Stremio
-//! protocol add-ons): the `sources` table, per-source health and the secret
-//! store. Nothing is pre-installed; every row here was added by the user.
-//!
-//! Health: a call slower than 8 s marks the source `slow`, three failures in
-//! a row mark it `down`. A `down` source is skipped by the aggregated calls
-//! (add-on streams, meta) for a few minutes instead of making every screen
-//! wait on it, but its configuration is never touched.
-
 use std::future::Future;
 use std::sync::OnceLock;
 use std::time::{Duration, Instant};
@@ -17,14 +8,9 @@ use tauri::AppHandle;
 
 use super::{db, PlayMode, PlaybackInfo, SourceRef};
 
-/// Calls slower than this mark the source `slow`.
 const SLOW_AFTER: Duration = Duration::from_secs(8);
-/// Failures in a row before a source is `down`.
 const DOWN_AFTER: i64 = 3;
-/// How long aggregated calls skip a `down` source before trying it again.
 const DOWN_RETRY_MS: i64 = 5 * 60 * 1000;
-
-// ---------- schema ----------
 
 fn schema(c: &Connection) -> rusqlite::Result<()> {
     c.execute_batch(
@@ -107,7 +93,6 @@ fn schema(c: &Connection) -> rusqlite::Result<()> {
     )
 }
 
-/// `db::with` for the source tables; creates them on first use.
 pub fn with<T>(f: impl FnOnce(&Connection) -> rusqlite::Result<T>) -> Result<T, String> {
     static READY: OnceLock<Result<(), String>> = OnceLock::new();
     READY.get_or_init(|| db::with(schema)).clone()?;
@@ -122,8 +107,6 @@ pub fn with_mut<T>(f: impl FnOnce(&mut Connection) -> rusqlite::Result<T>) -> Re
 pub fn now_ms() -> i64 {
     db::now_ms()
 }
-
-// ---------- small key/value and HTTP cache ----------
 
 pub fn kv_get(key: &str) -> Option<String> {
     with(|c| {
@@ -150,7 +133,6 @@ pub fn kv_del(key: &str) {
     let _ = with(|c| c.execute("DELETE FROM source_kv WHERE key = ?1", [key]));
 }
 
-/// Cached body younger than `max_age_ms`, or any age with `max_age_ms < 0`.
 pub fn cache_get(key: &str, max_age_ms: i64) -> Option<String> {
     let row: Option<(String, i64)> = with(|c| {
         c.query_row(
@@ -176,10 +158,6 @@ pub fn cache_put(key: &str, body: &str) {
     });
 }
 
-// ---------- secrets ----------
-
-/// Tokens and passwords of the sources. Kept out of `video.db` so a copied
-/// database or a backup never carries them.
 const SECRETS: crate::secrets::Namespace = crate::secrets::Namespace {
     service: "wtf.tonho.omniget.video",
     dir_name: "video",
@@ -204,13 +182,10 @@ pub fn secret_del(account: &str) {
     let _ = crate::secrets::delete_secret(SECRETS, account);
 }
 
-// ---------- HTTP ----------
-
 pub fn user_agent() -> String {
     format!("OmniGet/{}", env!("CARGO_PKG_VERSION"))
 }
 
-/// Shared client for the sources: honest user agent, no cookies, bounded time.
 pub fn http() -> &'static reqwest::Client {
     static CLIENT: OnceLock<reqwest::Client> = OnceLock::new();
     CLIENT.get_or_init(|| {
@@ -224,7 +199,6 @@ pub fn http() -> &'static reqwest::Client {
     })
 }
 
-/// Short English text for a transport error.
 pub fn net_err(e: reqwest::Error) -> String {
     tracing::warn!("[video] request failed: {e:?}");
     if e.is_timeout() {
@@ -251,7 +225,6 @@ pub fn status_err(s: reqwest::StatusCode) -> String {
     }
 }
 
-/// Adds `http://` when missing and drops trailing slashes.
 pub fn normalize_base(url: &str) -> Result<String, String> {
     let t = url.trim().trim_end_matches('/');
     if t.is_empty() {
@@ -269,8 +242,6 @@ pub fn normalize_base(url: &str) -> Result<String, String> {
     Ok(full)
 }
 
-// ---------- rows ----------
-
 #[derive(Serialize, Clone, Debug)]
 pub struct SourceInfo {
     pub id: i64,
@@ -278,7 +249,6 @@ pub struct SourceInfo {
     pub name: String,
     pub url: String,
     pub enabled: bool,
-    /// "ok" | "slow" | "down" | "disabled"
     pub status: String,
     pub last_error: Option<String>,
     pub updated_at: i64,
@@ -327,7 +297,6 @@ pub fn get(id: i64) -> Result<SourceRow, String> {
     .ok_or_else(|| "Source not found".to_string())
 }
 
-/// A source of the given kind, or an error naming what was expected.
 pub fn get_kind(id: i64, kind: &str) -> Result<SourceRow, String> {
     let row = get(id)?;
     if row.kind != kind {
@@ -348,8 +317,6 @@ pub fn list(kind: Option<&str>) -> Result<Vec<SourceRow>, String> {
     })
 }
 
-/// Inserts a source, or updates the one with the same kind and dedupe key
-/// (`config.key`) so reconnecting never duplicates a card.
 pub fn upsert(
     kind: &str,
     name: &str,
@@ -482,9 +449,6 @@ pub fn info_by_id(id: i64) -> Result<SourceInfo, String> {
     Ok(info(&get(id)?))
 }
 
-// ---------- health ----------
-
-/// Records the outcome of one call to a source.
 pub fn mark_status(id: i64, res: Result<(), &str>, elapsed: Duration) {
     let now = now_ms();
     let _ = with(|c| match res {
@@ -506,7 +470,6 @@ pub fn mark_status(id: i64, res: Result<(), &str>, elapsed: Duration) {
     });
 }
 
-/// Runs one call against a source with a hard timeout and records its health.
 pub async fn tracked<T>(
     id: i64,
     limit: Duration,
@@ -525,16 +488,10 @@ pub async fn tracked<T>(
     r
 }
 
-/// True when aggregated calls should skip this source for now.
 pub fn skip_for_now(row: &SourceRow) -> bool {
     !row.enabled || (row.status == "down" && now_ms() - row.updated_at < DOWN_RETRY_MS)
 }
 
-// ---------- playing any source ----------
-
-/// Playback for any `SourceRef`: local files and links go to the library
-/// backend, remote sources to their resolvers. `for_cast` asks local files for
-/// a full transcode when the webview would only have needed a remux.
 pub async fn resolve(
     app: &AppHandle,
     source: SourceRef,
@@ -558,8 +515,6 @@ pub async fn resolve(
         } => super::addons::replay(app, addon, &typ, &id, stream_index).await,
     }
 }
-
-// ---------- commands ----------
 
 #[tauri::command]
 pub async fn video_sources() -> Result<Vec<SourceInfo>, String> {

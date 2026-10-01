@@ -1,34 +1,17 @@
-//! Who is asking and what they may see. Computed in the backend from the bot
-//! and the conversation, never taken from the model's input.
-//!
-//! Default policy (spec 02, "Memória que cresce com o usuário"):
-//! - a direct conversation with bot B reads and writes `User` and `Bot(B)`;
-//! - a group room reads and writes `Room(conv)` only; a bot's private notes
-//!   and the user profile reach a room only through an explicit share
-//!   (`groups` installs the resolver that knows about rooms and shares);
-//! - `Project` scopes are never granted by this module: the project KB is a
-//!   separate store.
-
 use serde::{Deserialize, Serialize};
 use std::sync::{Arc, RwLock};
 
-/// The only principal of a desktop install. Kept explicit so every query
-/// carries it and a future multi-user build has one place to change.
 pub const LOCAL_USER: &str = "local-user";
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, PartialOrd, Ord)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum Scope {
-    /// The user's personal profile, shared by the user's direct bots.
     User,
-    /// One bot's private memory.
     Bot { bot: String },
-    /// Shared memory of one group room.
     Room { conversation: String },
 }
 
 impl Scope {
-    /// Stable string stored in the `scope` columns.
     pub fn key(&self) -> String {
         match self {
             Scope::User => "user".into(),
@@ -52,14 +35,11 @@ impl Scope {
     }
 }
 
-/// Whether a conversation may touch a project folder at all.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum ContextKind {
-    /// Personal conversation: no workspace, project tools absent.
     #[default]
     Projectless,
-    /// A folder the user picked for this conversation.
     Project,
 }
 
@@ -74,8 +54,6 @@ pub struct AssistCtx {
 }
 
 impl AssistCtx {
-    /// The user acting from the UI (memory screen, exports): every scope of
-    /// the local user is theirs.
     pub fn user() -> Self {
         Self {
             principal: LOCAL_USER.into(),
@@ -87,7 +65,6 @@ impl AssistCtx {
         }
     }
 
-    /// True for the UI principal, which is not limited to a scope list.
     pub fn is_user_ui(&self) -> bool {
         self.principal == LOCAL_USER
             && self.bot_id.is_none()
@@ -103,8 +80,6 @@ impl AssistCtx {
         self.is_user_ui() || self.writable.contains(scope)
     }
 
-    /// Scope keys for SQL `IN (...)` filters. Empty for the UI principal,
-    /// which callers must treat as "all of the local user's scopes".
     pub fn readable_keys(&self) -> Vec<String> {
         self.readable.iter().map(Scope::key).collect()
     }
@@ -115,8 +90,6 @@ impl AssistCtx {
     }
 }
 
-/// Direct-conversation policy; what [`resolve`] uses until `groups` installs
-/// its own resolver.
 pub fn direct(bot: &str, conversation: Option<&str>) -> AssistCtx {
     let scopes = vec![
         Scope::User,
@@ -138,12 +111,10 @@ type Resolver = Arc<dyn Fn(&str, Option<&str>) -> AssistCtx + Send + Sync>;
 
 static RESOLVER: RwLock<Option<Resolver>> = RwLock::new(None);
 
-/// `groups` installs the room-aware resolver at boot.
 pub fn set_resolver(f: Resolver) {
     *RESOLVER.write().unwrap_or_else(|e| e.into_inner()) = Some(f);
 }
 
-/// The scopes bot `bot` has in `conversation`.
 pub fn resolve(bot: &str, conversation: Option<&str>) -> AssistCtx {
     if let Some(c) = conversation.filter(|c| super::authority::external(c)) {
         return super::authority::context(c, bot);

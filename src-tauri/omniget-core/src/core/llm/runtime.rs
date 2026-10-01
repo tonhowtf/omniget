@@ -1,17 +1,3 @@
-//! `AgentRuntime`: native providers and CLI agents behind one trait.
-//! Owned by f2-llm-coordinator.
-//!
-//! `NativeRuntime` maps `ModelRef::provider` to a registered [`Provider`].
-//! `CompositeRuntime` is the seam: it dispatches on `AgentDef::runtime`,
-//! sending `RuntimeKind::Cli` agents to the CLI runtime and everything else to
-//! the native one.
-//!
-//! Phase 4 filled that seam: `cli_runtime::CliRuntime` (f4-cli-runtime) is the
-//! registered CLI half, wired with
-//! `CompositeRuntime::new(native).with_cli(Arc::new(CliRuntime::new(accounts,
-//! capacity)))`. Without that call a `RuntimeKind::Cli` agent still gets
-//! `ERR_LLM_MODEL`, which is what the test below pins.
-
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
@@ -32,7 +18,6 @@ pub trait AgentRuntime: Send + Sync {
     ) -> Result<BoxStream<'static, TurnEvent>, LlmError>;
 }
 
-/// Providers keyed by `ProviderId` ("openai", "anthropic", "ollama", …).
 #[derive(Default)]
 pub struct NativeRuntime {
     providers: Mutex<HashMap<String, Arc<dyn Provider>>>,
@@ -89,9 +74,6 @@ impl AgentRuntime for NativeRuntime {
     }
 }
 
-/// Native by default, CLI when the agent says so. The CLI half is
-/// `cli_runtime::CliRuntime`, registered with [`CompositeRuntime::with_cli`];
-/// without it a `RuntimeKind::Cli` agent gets `ERR_LLM_MODEL`.
 pub struct CompositeRuntime {
     native: Arc<dyn AgentRuntime>,
     cli: Option<Arc<dyn AgentRuntime>>,

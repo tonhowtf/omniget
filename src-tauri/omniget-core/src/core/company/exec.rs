@@ -1,15 +1,9 @@
-//! Executors of the non-roster adapters: a local `process` (the heartbeat as
-//! JSON on stdin, stdout = summary) and an `http` endpoint (POST the
-//! heartbeat, body = summary). They live in the core so the engine and the
-//! benches run the same code.
-
 use std::time::Duration;
 
 use serde_json::{json, Value};
 
 use super::heartbeat::{Claim, RunOutcome};
 
-/// The JSON a process or HTTP agent receives.
 pub fn heartbeat_json(claim: &Claim, prompt: &str) -> Value {
     json!({
         "run_id": claim.run.id,
@@ -44,7 +38,6 @@ pub async fn run_process(
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped())
         .kill_on_drop(true);
-    // Only the secrets bound to this agent, never the app's whole store.
     for (k, v) in env {
         cmd.env(k, v);
     }

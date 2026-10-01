@@ -1,13 +1,3 @@
-//! The privacy items of the three systems, built from the embedded
-//! privacy.sexy collections.
-//!
-//! Each script becomes an [`Item`] with the typed [`Fact`]s its function
-//! calls describe (`SetRegistryValue` → a registry value, `DisableService`
-//! → a service start type, `defaults write` → a preference...). Facts are
-//! what the state reader checks and what the executor changes; a script
-//! that also does something no fact describes is `code_only`: the screen
-//! shows its code and never runs it.
-
 use std::collections::BTreeMap;
 use std::sync::OnceLock;
 
@@ -31,23 +21,15 @@ pub const LINUX_YAML: &str = include_str!(concat!(
     "/data/washmybelly/privacy-sexy/linux.yaml"
 ));
 
-/// Top categories whose items weaken the system or uninstall apps: shown
-/// only on the screen, with their own warning, never in a preset or an
-/// agent plan.
 pub const EXTREME_TOPS: &[&str] = &["Privacy over security", "Remove bloatware"];
 
-/// Things washmybelly never offers, even on the screen (the plan's
-/// "left out" list): Defender, SmartScreen, CPU mitigations, VBS, UCPD,
-/// Smart App Control, BitLocker, TrustedInstaller ownership.
 static LEFT_OUT: Lazy<Regex> = Lazy::new(|| {
     Regex::new(r"(?i)defender|smartscreen|windows security|spectre|meltdown|virtualization-based|\bvbs\b|\bucpd\b|smart app control|bitlocker|sehop|control flow guard|exploit guard|\bamsi\b|antimalware")
         .unwrap()
 });
 
-/// Functions whose presence leaves an item out (Defender preferences).
 const LEFT_OUT_FUNCTIONS: &[&str] = &["SetMpPreference"];
 
-/// Functions that only remove files or data: the item is a one-time cleanup.
 const CLEANUP_FUNCTIONS: &[&str] = &[
     "ClearDirectoryContents",
     "DeleteFiles",
@@ -64,7 +46,6 @@ const CLEANUP_FUNCTIONS: &[&str] = &[
     "IterateGlob",
 ];
 
-/// What a registry fact does when privacy.sexy reverts it.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "t", rename_all = "snake_case")]
 pub enum RegRevert {
@@ -73,11 +54,9 @@ pub enum RegRevert {
     Set { kind: String, data: String },
 }
 
-/// One typed piece of an item.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "fact", rename_all = "snake_case")]
 pub enum Fact {
-    /// Windows registry value set to `data`.
     RegSet {
         key: String,
         name: String,
@@ -85,32 +64,36 @@ pub enum Fact {
         data: String,
         revert: RegRevert,
     },
-    /// Windows registry value removed.
     RegDelete {
         key: String,
         name: String,
         revert: RegRevert,
     },
-    /// Windows registry key removed or renamed (read only).
-    RegKeyGone { key: String },
-    /// Windows service start type set to disabled (`sc.exe config`).
-    Service { name: String, default_mode: String },
-    /// Windows service disabled through its `Start` value (may be a
-    /// `Name_*` pattern for per-user services).
-    ServiceReg { name: String, default_mode: String },
-    /// Windows scheduled tasks matching the patterns disabled.
+    RegKeyGone {
+        key: String,
+    },
+    Service {
+        name: String,
+        default_mode: String,
+    },
+    ServiceReg {
+        name: String,
+        default_mode: String,
+    },
     Task {
         path: String,
         name: String,
         enable_on_revert: bool,
     },
-    /// Windows hosts file line (read only; the hosts module writes it).
-    HostsBlock { domain: String },
-    /// Windows Store app removed for this user (read only).
-    StoreApp { package: String },
-    /// Windows Explorer `DisallowRun` entry for an executable (read only).
-    DisallowRun { exe: String },
-    /// macOS `defaults write` (user domain unless `sudo`).
+    HostsBlock {
+        domain: String,
+    },
+    StoreApp {
+        package: String,
+    },
+    DisallowRun {
+        exe: String,
+    },
     Defaults {
         domain: String,
         key: String,
@@ -118,36 +101,43 @@ pub enum Fact {
         value: String,
         sudo: bool,
     },
-    /// macOS `defaults delete domain key`.
     DefaultsDelete {
         domain: String,
         key: String,
         sudo: bool,
     },
-    /// macOS `tccutil reset <service>`: one-time, cannot be undone.
-    TccReset { service: String },
-    /// Linux systemd unit disabled.
-    Systemd { unit: String },
-    /// Linux package removed (read only; packages has the remover).
-    Package { manager: String, name: String },
-    /// Firefox `user.js` preference in every profile.
-    FirefoxPref { name: String, value: String },
-    /// VS Code `settings.json` value (read only).
-    VsCodeSetting { name: String, json: String },
-    /// A configuration file line (read only).
+    TccReset {
+        service: String,
+    },
+    Systemd {
+        unit: String,
+    },
+    Package {
+        manager: String,
+        name: String,
+    },
+    FirefoxPref {
+        name: String,
+        value: String,
+    },
+    VsCodeSetting {
+        name: String,
+        json: String,
+    },
     ConfigLine {
         path: String,
         on: String,
         off: String,
     },
-    /// The item only applies when this command exists.
-    CommandExists { command: String },
-    /// Something no fact describes.
-    Opaque { what: String },
+    CommandExists {
+        command: String,
+    },
+    Opaque {
+        what: String,
+    },
 }
 
 impl Fact {
-    /// The fact can be changed by a typed operation (not free code).
     pub fn executable(&self, os: Os) -> bool {
         match self {
             Fact::RegSet { key, .. } | Fact::RegDelete { key, .. } => {
@@ -157,7 +147,6 @@ impl Fact {
             Fact::Defaults { sudo, .. } | Fact::DefaultsDelete { sudo, .. } => {
                 os == Os::Macos && !sudo
             }
-            // A reset of every permission at once stays copy-only.
             Fact::TccReset { service } => {
                 os == Os::Macos
                     && service != "All"
@@ -170,7 +159,6 @@ impl Fact {
         }
     }
 
-    /// Needs the administrator helper.
     pub fn admin(&self) -> bool {
         match self {
             Fact::RegSet { key, .. } | Fact::RegDelete { key, .. } => hive(key) != Some(Hive::User),
@@ -185,7 +173,6 @@ impl Fact {
         }
     }
 
-    /// Cannot be undone (no snapshot can bring it back).
     pub fn destructive(&self) -> bool {
         matches!(self, Fact::TccReset { .. } | Fact::Package { .. })
     }
@@ -197,7 +184,6 @@ pub enum Hive {
     Machine,
 }
 
-/// `HKCU\...` is the person's own; everything else needs admin.
 pub fn hive(key: &str) -> Option<Hive> {
     let root = key.split('\\').next()?.to_ascii_uppercase();
     match root.as_str() {
@@ -209,7 +195,6 @@ pub fn hive(key: &str) -> Option<Hive> {
     }
 }
 
-/// Windows build range an item is limited to (privacy.sexy version names).
 #[derive(Debug, Clone, Copy, Default, PartialEq, Serialize, Deserialize)]
 pub struct Builds {
     pub min: Option<u32>,
@@ -222,8 +207,6 @@ impl Builds {
     }
 }
 
-/// Build numbers of the version names used by `minimumWindowsVersion` and
-/// `maximumWindowsVersion` (the same table as privacy.sexy's setup code).
 pub fn windows_build(name: &str, maximum: bool) -> Option<u32> {
     Some(match (name.trim(), maximum) {
         ("Windows11-FirstRelease", _) | ("Windows11-21H2", _) => 22000,
@@ -239,7 +222,6 @@ pub fn windows_build(name: &str, maximum: bool) -> Option<u32> {
     })
 }
 
-/// A fact with the Windows versions it runs on.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Part {
     #[serde(flatten)]
@@ -248,24 +230,18 @@ pub struct Part {
     pub builds: Builds,
 }
 
-/// One privacy.sexy script.
 #[derive(Debug, Clone)]
 pub struct Item {
-    /// `privacy:<os>:<script name>` (names are unique in a collection).
     pub id: String,
     pub os: Os,
     pub name: String,
-    /// Category path from the top.
     pub path: Vec<String>,
     pub docs: String,
     pub recommend: Option<String>,
     pub parts: Vec<Part>,
-    /// Facts of an inline revert script (macOS `defaults` lines).
     pub revert_parts: Option<Vec<Part>>,
     pub restart: Vec<String>,
-    /// A one-time cleanup, not a setting with a state.
     pub cleanup: bool,
-    /// Needs TrustedInstaller or evaluates PowerShell: never run by us.
     pub opaque_reason: Option<String>,
     pub has_revert: bool,
     pub script: ScriptData,
@@ -284,7 +260,6 @@ impl Item {
         EXTREME_TOPS.contains(&self.top())
     }
 
-    /// Every part is a typed operation (nothing free-form to run).
     pub fn executable(&self) -> bool {
         self.opaque_reason.is_none()
             && self
@@ -312,7 +287,6 @@ impl Item {
         }
     }
 
-    /// Typed parts of "back to the default" (privacy.sexy's revert code).
     pub fn default_parts(&self) -> Option<Vec<Part>> {
         if let Some(r) = &self.revert_parts {
             return (!r.is_empty() && r.iter().all(|p| p.fact.executable(self.os)))
@@ -342,12 +316,10 @@ impl Item {
     }
 }
 
-/// A parsed collection and its items, built once per system.
 pub struct Catalog {
     pub os: Os,
     pub collection: Collection,
     pub items: Vec<Item>,
-    /// Items left out (Defender, mitigations...): count only.
     pub left_out: usize,
 }
 
@@ -360,7 +332,6 @@ impl Catalog {
 static CATALOGS: [OnceLock<Result<Catalog, String>>; 3] =
     [OnceLock::new(), OnceLock::new(), OnceLock::new()];
 
-/// The catalog of a system (parsed on first use, then kept).
 pub fn catalog(os: Os) -> Result<&'static Catalog, String> {
     let (slot, yaml) = match os {
         Os::Windows => (&CATALOGS[0], WINDOWS_YAML),
@@ -412,7 +383,6 @@ fn walk_category(
     Ok(())
 }
 
-/// One script as an item; `None` when it is on the left-out list.
 pub fn item(
     os: Os,
     comp: &Compiler,
@@ -477,7 +447,6 @@ pub fn item(
     }))
 }
 
-/// Turns function calls and shell lines into facts.
 struct Extract {
     os: Os,
     parts: Vec<Part>,
@@ -485,7 +454,6 @@ struct Extract {
     cleanup: bool,
     left_out: bool,
     opaque_reason: Option<String>,
-    /// The function the script called directly (names opaque pieces).
     root: String,
 }
 
@@ -663,7 +631,6 @@ impl Extract {
                 },
                 builds,
             ),
-            // Ends a running process: nothing stays to read or undo.
             (Os::Windows, "TerminateRunningProcess") => {}
             (Os::Windows, "BlockExecutablesFromRunningViaShell") => self.push(
                 Fact::DisallowRun {
@@ -744,8 +711,6 @@ impl Extract {
         Visit::Stop
     }
 
-    /// Facts from inline shell code: `defaults write|delete` and `killall`
-    /// lines; anything else is opaque.
     fn shell(&mut self, code: &str, builds: Builds) {
         let mut any = false;
         for line in code.lines() {
@@ -776,9 +741,6 @@ enum ShellLine {
     Restart(String),
 }
 
-/// Words of one simple shell line: single and double quotes and backslash
-/// escapes. `None` for anything with expansion we would have to guess
-/// (`$(...)`, backticks, globs, redirections, pipes, `;`).
 pub fn shell_words(line: &str) -> Option<Vec<String>> {
     let mut words = Vec::new();
     let mut cur = String::new();
@@ -870,7 +832,6 @@ fn shell_fact(line: &str) -> Option<ShellLine> {
         _ => None,
     }
     .filter(|l| match l {
-        // A `$VAR` we cannot resolve makes the line free-form.
         ShellLine::Fact(Fact::Defaults { domain, key, .. })
         | ShellLine::Fact(Fact::DefaultsDelete { domain, key, .. }) => {
             !key.contains('$')
@@ -891,7 +852,6 @@ fn simple_defaults_type(flag: &str) -> bool {
     )
 }
 
-/// Configuration-file probes for inline Linux scripts that edit a known key.
 pub fn config_probes(os: Os, name: &str) -> Option<Fact> {
     if os != Os::Linux {
         return None;
@@ -919,7 +879,6 @@ pub fn config_probes(os: Os, name: &str) -> Option<Fact> {
     })
 }
 
-/// Counts by kind of fact, for the coverage report.
 pub fn coverage(c: &Catalog) -> BTreeMap<&'static str, usize> {
     let mut m = BTreeMap::new();
     m.insert("items", c.items.len());
@@ -941,8 +900,6 @@ pub fn coverage(c: &Catalog) -> BTreeMap<&'static str, usize> {
     m
 }
 
-/// What keeps settings (not cleanups) from being read: opaque pieces by
-/// function, for the coverage report.
 pub fn blockers(c: &Catalog) -> BTreeMap<String, usize> {
     let mut m = BTreeMap::new();
     for it in c

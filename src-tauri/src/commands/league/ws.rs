@@ -27,8 +27,6 @@ static SWAPS_HANDLED: once_cell::sync::Lazy<
     tokio::sync::Mutex<std::collections::HashSet<(&'static str, i64)>>,
 > = once_cell::sync::Lazy::new(|| tokio::sync::Mutex::new(std::collections::HashSet::new()));
 
-/// A queue pops after roughly twelve seconds without an answer, so a longer
-/// delay would simply waste the queue slot.
 const MAX_ACCEPT_DELAY: u8 = 11;
 
 pub fn is_connected() -> bool {
@@ -43,14 +41,10 @@ fn accept_delay_seconds(setting: u8) -> u8 {
     setting.min(MAX_ACCEPT_DELAY)
 }
 
-/// A ready check is only worth accepting while it is still open and the user has
-/// not answered it: an explicit decline must never be overridden.
 fn should_accept_ready_check(state: &str, player_response: &str) -> bool {
     pending_ready_check(state) && player_response == "None"
 }
 
-/// A queue popping while the user looks at another window is exactly the moment
-/// a notification earns its keep; firing one over a focused app would be noise.
 fn notify_ready_check() {
     if !league_settings().notify_ready_check {
         return;
@@ -125,7 +119,6 @@ pub fn start(app: tauri::AppHandle) {
                 let mut cached = super::CACHED_CLIENT.lock().await;
                 *cached = None;
             }
-            // Backend tokens belong to the session that just ended.
             super::sgp::forget_tokens().await;
             backoff = 2;
             tokio::time::sleep(std::time::Duration::from_secs(2)).await;
@@ -179,9 +172,6 @@ async fn run_session(client: &LcuClient) -> Result<(), String> {
                 if text.is_empty() {
                     continue;
                 }
-                // The subscription is the whole firehose, and the client emits from
-                // every plugin it runs. Scanning the raw text for a uri we handle is
-                // far cheaper than parsing megabytes of JSON we would discard.
                 if !is_interesting(&text) {
                     continue;
                 }
@@ -199,8 +189,6 @@ async fn run_session(client: &LcuClient) -> Result<(), String> {
     Ok(())
 }
 
-/// Pushes the current phase once after connecting, so automations and the UI
-/// don't have to wait for the next transition to learn where the client is.
 async fn seed_state(client: &LcuClient) {
     if let Ok(phase) = lcu_get_raw(client, "/lol-gameflow/v1/gameflow-phase").await {
         let phase = phase.as_str().unwrap_or("").to_string();
@@ -209,14 +197,6 @@ async fn seed_state(client: &LcuClient) {
     }
 }
 
-/// The client republishes the champion select session several times per second —
-/// the phase timer alone changes on every tick. Re-emitting the whole object that
-/// often floods the webview: every event replaces a large state object and forces
-/// each mounted panel to re-render, which is enough to lock the UI thread.
-///
-/// The fingerprint covers what the UI actually reacts to, so a session that only
-/// advanced its clock is dropped. A slower heartbeat still gets through, so a
-/// missed change can never leave the panel stale for long.
 fn champ_select_fingerprint(session: &Value) -> String {
     let mut parts: Vec<String> = Vec::new();
     parts.push(
@@ -291,10 +271,6 @@ fn champ_select_fingerprint(session: &Value) -> String {
     parts.join("|")
 }
 
-/// True when a payload is worth pushing to the UI: its fingerprint changed, or
-/// the heartbeat window elapsed. Every hot event goes through here — the client
-/// republishes lobby and ready-check state as often as champion select, and each
-/// one that reaches the webview forces a re-render.
 async fn should_emit(event: &'static str, fingerprint: String) -> bool {
     const HEARTBEAT: std::time::Duration = std::time::Duration::from_millis(1500);
     let mut seen = LAST_EMITTED.lock().await;
@@ -307,8 +283,6 @@ async fn should_emit(event: &'static str, fingerprint: String) -> bool {
     }
 }
 
-/// The lobby republishes on every queue-estimate tick while searching, so the
-/// fingerprint covers the membership and the queue, not the countdown.
 fn lobby_fingerprint(lobby: &Value) -> String {
     let mut parts = vec![
         lobby
@@ -348,7 +322,6 @@ fn lobby_fingerprint(lobby: &Value) -> String {
     parts.join("|")
 }
 
-/// The ready check ticks its own timer; only the state and the answer matter.
 fn ready_check_fingerprint(data: &Value) -> String {
     format!(
         "{}:{}",
@@ -359,8 +332,6 @@ fn ready_check_fingerprint(data: &Value) -> String {
     )
 }
 
-/// Uris this client acts on. Anything else the League client publishes is noise
-/// for us.
 const HANDLED_URIS: [&str; 5] = [
     "/lol-gameflow/v1/gameflow-phase",
     "/lol-matchmaking/v1/ready-check",
@@ -415,14 +386,10 @@ async fn handle_event(client: &LcuClient, value: &Value) {
                 if delay == 0 {
                     accept_ready_check(client).await;
                 } else if !ACCEPT_PENDING.swap(true, Ordering::SeqCst) {
-                    // The client re-emits the ready check every tick, so the
-                    // countdown must be started only once.
                     let client = client.clone();
                     tauri::async_runtime::spawn(async move {
                         tokio::time::sleep(std::time::Duration::from_secs(delay as u64)).await;
                         ACCEPT_PENDING.store(false, Ordering::SeqCst);
-                        // The user may have declined during the countdown, so
-                        // the current state decides, not the event that started it.
                         match lcu_get_raw(&client, "/lol-matchmaking/v1/ready-check").await {
                             Ok(current) => {
                                 let state =
@@ -534,8 +501,6 @@ async fn on_phase(client: &LcuClient, phase: &str) {
     }
 }
 
-/// Answers incoming champion-trade requests according to the configured
-/// strategy; anything other than "accept" or "decline" leaves them alone.
 async fn handle_trades(
     client: &LcuClient,
     settings: &omniget_core::models::settings::LeagueSettings,
@@ -575,8 +540,6 @@ async fn handle_trades(
             Ok(_) => {
                 TRADES_HANDLED.lock().await.insert(id);
                 tracing::info!("[league] trade request {}: {}ed", id, strategy);
-                // Without clearing it the client keeps the request pending in the
-                // UI even though it was already answered.
                 let cleared = lcu_post_raw(
                     client,
                     &format!("/lol-champ-select/v1/ongoing-trade/{}/clear", id),
@@ -591,8 +554,6 @@ async fn handle_trades(
     }
 }
 
-/// Starting the search only works for the lobby leader, and the lobby takes a
-/// moment to exist after play-again, hence the short retry.
 async fn requeue_if_leader(client: &LcuClient) {
     for attempt in 0..3 {
         tokio::time::sleep(std::time::Duration::from_millis(700 * (attempt + 1))).await;
@@ -613,8 +574,6 @@ async fn requeue_if_leader(client: &LcuClient) {
     }
 }
 
-/// Accepts position and pick-order swap requests, then clears the pending state
-/// so the client stops showing the prompt.
 async fn handle_swaps(
     client: &LcuClient,
     settings: &omniget_core::models::settings::LeagueSettings,
@@ -649,8 +608,6 @@ async fn handle_swaps(
     }
 }
 
-/// Posts the configured greeting once per champion select. The chat room can
-/// lag behind the session by a few seconds, so the send is retried briefly.
 fn send_auto_message(
     client: &LcuClient,
     settings: &omniget_core::models::settings::LeagueSettings,
@@ -672,8 +629,6 @@ fn send_auto_message(
     });
 }
 
-/// Honors one eligible ally from the end-of-game ballot. The lobby members the
-/// player queued with come first; otherwise the first listed ally is used.
 async fn honor_from_ballot(client: &LcuClient, ballot: &Value) {
     let eligible: Vec<Value> = ballot
         .get("eligibleAllies")

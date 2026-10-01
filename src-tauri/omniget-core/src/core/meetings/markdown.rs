@@ -1,7 +1,3 @@
-//! `meeting.md`: YAML frontmatter (the same fields `minutes` uses, so tools
-//! that read those notes read these) plus summary, action items and the
-//! transcript. Plain markdown for Obsidian, grep and any agent.
-
 use super::transcript::{fmt_clock, merge_turns, Segment};
 use super::{Meeting, MeetingSource};
 

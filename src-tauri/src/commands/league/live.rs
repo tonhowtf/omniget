@@ -1,8 +1,6 @@
 use serde::Serialize;
 use serde_json::Value;
 
-/// Respawn windows are balance constants and move between patches, so every
-/// number derived from them is presented as an estimate.
 const BARON_RESPAWN: f64 = 360.0;
 const DRAGON_RESPAWN: f64 = 300.0;
 const INHIBITOR_RESPAWN: f64 = 300.0;
@@ -51,9 +49,6 @@ fn event_name(event: &Value) -> &str {
     event.get("EventName").and_then(Value::as_str).unwrap_or("")
 }
 
-/// Turns the kill events into "when does it come back" timers. Objectives whose
-/// window already elapsed are dropped: an expired timer says nothing the map
-/// doesn't already show.
 pub fn objective_timers(events: &[Value], game_time: f64) -> Vec<ObjectiveTimer> {
     let mut timers = Vec::new();
     for (kind, event, window) in [
@@ -78,8 +73,6 @@ pub fn objective_timers(events: &[Value], game_time: f64) -> Vec<ObjectiveTimer>
     timers
 }
 
-/// Normalises the raw event list into a feed the UI can render without knowing
-/// the shape of every event type.
 pub fn game_events(events: &[Value], limit: usize) -> Vec<GameEvent> {
     let mut feed: Vec<GameEvent> = events
         .iter()
@@ -130,7 +123,6 @@ pub fn game_events(events: &[Value], limit: usize) -> Vec<GameEvent> {
             })
         })
         .collect();
-    // Newest first, and the client is not guaranteed to keep them ordered.
     feed.sort_by(|a, b| b.at.total_cmp(&a.at).then(b.id.cmp(&a.id)));
     feed.truncate(limit);
     feed

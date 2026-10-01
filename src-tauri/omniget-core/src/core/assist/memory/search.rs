@@ -1,6 +1,3 @@
-//! Retrieval: FTS recall filtered by scope in SQL, the compact profile (with
-//! its derived cache), the per-turn text and the index rebuild.
-
 use std::collections::HashSet;
 
 use rusqlite::types::Value as SqlValue;
@@ -12,11 +9,8 @@ use super::super::db::AssistDb;
 use super::records::{clear_cache, expire_due, query_records, scope_filter, COLS};
 use super::{record_hash, sha, Category, MemoryRecord};
 
-/// Characters of the profile block.
 pub const PROFILE_BUDGET: usize = 1400;
-/// Characters of the whole per-turn memory block (profile + recollections).
 pub const AUGMENT_BUDGET: usize = 3000;
-/// Recollections added to a turn, at most.
 pub const AUGMENT_RECALL: usize = 8;
 
 const STOPWORDS: &[&str] = &[
@@ -43,9 +37,6 @@ fn fold(s: &str) -> String {
         .collect()
 }
 
-/// An FTS5 query from free text: words only (no operators reach FTS), stop
-/// words dropped, long words matched by prefix so "familiar" finds
-/// "família". `None` when nothing searchable is left.
 pub(super) fn fts_query(input: &str) -> Option<String> {
     let lower = fold(&input.to_lowercase());
     let mut seen = HashSet::new();
@@ -69,8 +60,6 @@ pub(super) fn fts_query(input: &str) -> Option<String> {
     (!terms.is_empty()).then(|| terms.join(" OR "))
 }
 
-/// Active, still-valid records relevant to `query`, best first. The scope
-/// filter is part of the same SQL as the ranking and the `LIMIT`.
 pub fn recall(
     db: &AssistDb,
     ctx: &AssistCtx,
@@ -140,8 +129,6 @@ fn short(id: &str) -> String {
     id.chars().take(64).collect()
 }
 
-/// "(source: conversation 1a2b3c4d, 2026-09-24)": readable provenance for the
-/// prompt, without the conversation's content.
 pub fn source_line(rec: &MemoryRecord) -> String {
     let what = match rec.source.kind.as_str() {
         "user" => "stated on the memory screen".to_string(),
@@ -180,9 +167,7 @@ fn line(rec: &MemoryRecord) -> String {
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 pub struct Profile {
-    /// Compact text, empty when nothing is saved.
     pub text: String,
-    /// Records the text mentions.
     pub ids: Vec<String>,
 }
 
@@ -196,9 +181,6 @@ fn cache_key(ctx: &AssistCtx) -> String {
     sha(&["profile", &ctx.principal, &joined])
 }
 
-/// The compact profile for `ctx`: stated preferences, current context,
-/// working notes, unconfirmed guesses (labelled) and a few recent events,
-/// within [`PROFILE_BUDGET`]. Cached until a write or an expiry.
 pub fn profile(db: &AssistDb, ctx: &AssistCtx, now: i64) -> Result<Profile, String> {
     expire_due(db, now)?;
     let key = cache_key(ctx);
@@ -290,9 +272,6 @@ pub fn profile(db: &AssistDb, ctx: &AssistCtx, now: i64) -> Result<Profile, Stri
     Ok(Profile { text, ids })
 }
 
-/// The memory block for one turn: profile plus up to [`AUGMENT_RECALL`]
-/// recollections relevant to `user_input`, each with its source, within
-/// [`AUGMENT_BUDGET`]. `None` when there is nothing to say.
 pub fn augment_text(db: &AssistDb, ctx: &AssistCtx, user_input: &str, now: i64) -> Option<String> {
     let prof = profile(db, ctx, now).ok()?;
     let seen: HashSet<&str> = prof.ids.iter().map(String::as_str).collect();
@@ -368,7 +347,6 @@ pub fn augment_text(db: &AssistDb, ctx: &AssistCtx, user_input: &str, now: i64) 
 }
 
 pub(super) fn rebuild_index(conn: &Connection) -> rusqlite::Result<usize> {
-    // Records a tombstone covers do not come back, whatever put them here.
     let tombs: HashSet<String> = {
         let mut s = conn.prepare("SELECT hash FROM memory_tombstones")?;
         let rows = s.query_map([], |r| r.get::<_, String>(0))?;
@@ -400,8 +378,6 @@ pub(super) fn rebuild_index(conn: &Connection) -> rusqlite::Result<usize> {
     Ok(n)
 }
 
-/// Rebuilds the FTS index from `memory_records`, respecting tombstones.
-/// Returns how many records are indexed.
 pub fn reindex(db: &AssistDb) -> Result<usize, String> {
     let n = db.tx(|tx| {
         rebuild_index(tx).map_err(|e| format!("{}: {e}", super::super::db::ERR_ASSIST_DB))
@@ -410,8 +386,6 @@ pub fn reindex(db: &AssistDb) -> Result<usize, String> {
     Ok(n)
 }
 
-/// Merges the FTS segments (dropping deleted entries) and checkpoints the
-/// WAL, so removed text does not linger in index pages or the log.
 pub(super) fn compact(db: &AssistDb) {
     let _ = db.with(|c| c.execute("INSERT INTO memory_fts(memory_fts) VALUES('optimize')", []));
     let _ = db.with(|c| c.query_row("PRAGMA wal_checkpoint(TRUNCATE)", [], |_| Ok(())));

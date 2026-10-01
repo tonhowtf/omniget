@@ -1,20 +1,3 @@
-//! Maintenance with a real effect: DNS cache, LaunchServices, Spotlight, Quick Look, verify disk, sfc/DISM, fstrim (F7).
-//!
-//! Each task is a row of a closed table: an id, the operating system it
-//! belongs to, whether it needs administrator rights, and the exact argv of
-//! every step (programs by absolute path). The screen asks for a plan of
-//! kind `maintenance` with the ids it wants; every item is an
-//! `Op::Module { module: "maintenance", action: <id> }`. The plan engine
-//! runs the ones that need no administrator through [`plan_execute`] and
-//! hands the rest to the helper as `ElevatedOp::Maintenance { id }`, where
-//! [`elevated_run`] rebuilds the argv from the id alone. Nothing from the
-//! plan besides the id reaches a command line.
-//!
-//! None of these tasks can be undone, and none needs to: they rebuild a
-//! cache the system fills again, check a disk, or repair system files from
-//! Windows' own store. What is not here on purpose: `purge`, `periodic`,
-//! `DISM /ResetBase`, anything sold as a speed-up.
-
 use serde::Serialize;
 use serde_json::{json, Value};
 
@@ -27,22 +10,16 @@ use super::{current_os, Os, Risk};
 pub const MODULE: &str = "maintenance";
 pub const PLAN_KIND: &str = "maintenance";
 
-/// One maintenance task of the closed table.
 #[derive(Debug, Clone, Copy, Serialize)]
 pub struct Task {
     pub id: &'static str,
     #[serde(skip)]
     pub os: Os,
-    /// Runs through `omniget-elevate` (one password or UAC prompt per plan).
     pub admin: bool,
-    /// Rough duration in minutes, for the card ("about 20 min").
     pub minutes: u32,
-    /// Takes long enough that the screen warns before running.
     pub long: bool,
-    /// `network`, `apps`, `search`, `disk`, `system`.
     pub group: &'static str,
     pub title: &'static str,
-    /// What it does and what changes after it, in plain words.
     pub what: &'static str,
 }
 
@@ -50,7 +27,6 @@ const LSREGISTER: &str =
     "/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister";
 
 pub const TASKS: &[Task] = &[
-    // ── macOS ──
     Task {
         id: "dns_flush",
         os: Os::Macos,
@@ -101,7 +77,6 @@ pub const TASKS: &[Task] = &[
         title: "Check the startup disk",
         what: "Reads the file system of the startup disk and reports problems, like Disk Utility's First Aid. It only checks; nothing is repaired or changed.",
     },
-    // ── Windows ──
     Task {
         id: "dns_flush",
         os: Os::Windows,
@@ -132,7 +107,6 @@ pub const TASKS: &[Task] = &[
         title: "Repair the Windows component store",
         what: "DISM /RestoreHealth fixes the store sfc repairs from, downloading clean parts through Windows Update. Run it when sfc says it could not fix everything, then run sfc again. Old updates are kept.",
     },
-    // ── Linux ──
     Task {
         id: "fstrim",
         os: Os::Linux,
@@ -155,15 +129,10 @@ pub const TASKS: &[Task] = &[
     },
 ];
 
-/// The task `id` of `os`.
 pub fn task(os: Os, id: &str) -> Option<&'static Task> {
     TASKS.iter().find(|t| t.os == os && t.id == id)
 }
 
-/// The argv of every step of task `id` on `os`, programs by absolute path.
-/// `sysroot` is `%SystemRoot%` on Windows; `exists` picks among the fixed
-/// places a Linux distribution keeps a program. The closed table: an id
-/// that is not here gets `None`.
 pub fn steps_for(
     os: Os,
     id: &str,
@@ -178,8 +147,6 @@ pub fn steps_for(
             v(&["/usr/bin/dscacheutil", "-flushcache"]),
             v(&["/usr/bin/killall", "-HUP", "mDNSResponder"]),
         ],
-        // `lsregister -kill` is gone from current macOS; garbage-collect the
-        // database, then force a rescan of the local, system and user domains.
         (Os::Macos, "launchservices_rebuild") => vec![
             v(&[LSREGISTER, "-gc"]),
             v(&[LSREGISTER, "-r", "-f", "-all", "local,system,user"]),
@@ -189,7 +156,6 @@ pub fn steps_for(
         (Os::Macos, "disk_verify") => vec![v(&["/usr/sbin/diskutil", "verifyVolume", "/"])],
         (Os::Windows, "dns_flush") => vec![vec![sys32("ipconfig.exe"), "/flushdns".into()]],
         (Os::Windows, "sfc_scan") => vec![vec![sys32("sfc.exe"), "/scannow".into()]],
-        // Never `/ResetBase`: it makes installed updates impossible to remove.
         (Os::Windows, "dism_restore_health") => vec![vec![
             sys32("Dism.exe"),
             "/Online".into(),
@@ -223,12 +189,10 @@ fn file_exists(p: &str) -> bool {
     std::path::Path::new(p).is_file()
 }
 
-/// Steps of `id` on this machine.
 fn steps(id: &str) -> Option<Vec<Vec<String>>> {
     steps_for(current_os(), id, &sysroot(), &file_exists)
 }
 
-/// The tasks of this OS with whether they can run here.
 pub fn list() -> Value {
     let os = current_os();
     let tasks: Vec<Value> = TASKS
@@ -257,7 +221,6 @@ pub fn list() -> Value {
     json!({ "os": os.as_str(), "tasks": tasks })
 }
 
-/// Plan items for the chosen ids (unknown ids are an error).
 pub fn items(os: Os, ids: &[String]) -> Result<Vec<PlanItem>, String> {
     let mut out = Vec::new();
     for id in ids {
@@ -283,8 +246,6 @@ pub fn items(os: Os, ids: &[String]) -> Result<Vec<PlanItem>, String> {
     Ok(out)
 }
 
-/// Windows tools like sfc write UTF-16LE to a pipe; everything else is UTF-8
-/// (or the OEM code page, read lossily).
 pub fn decode_output(bytes: &[u8]) -> String {
     let zeros = bytes.iter().skip(1).step_by(2).filter(|b| **b == 0).count();
     if bytes.len() >= 4 && zeros * 2 >= bytes.len() / 2 {
@@ -300,7 +261,6 @@ pub fn decode_output(bytes: &[u8]) -> String {
     }
 }
 
-/// The last meaningful lines of a tool's output, for the receipt.
 pub fn summarize(text: &str) -> String {
     let lines: Vec<&str> = text
         .lines()
@@ -329,7 +289,6 @@ pub fn summarize(text: &str) -> String {
     }
 }
 
-/// Run the steps of a task, streaming each output line as progress.
 fn run_steps(id: &str, steps: &[Vec<String>]) -> Result<String, String> {
     use std::io::{BufRead, Read};
     let total = steps.len() as u64;
@@ -360,8 +319,6 @@ fn run_steps(id: &str, steps: &[Vec<String>]) -> Result<String, String> {
         });
         let mut out = String::new();
         if let Some(mut stdout) = child.stdout.take() {
-            // sfc and DISM write UTF-16 on Windows: a byte split on `\n`
-            // would cut it, so Windows reads the whole output at once.
             if cfg!(windows) {
                 let mut b = Vec::new();
                 let _ = stdout.read_to_end(&mut b);
@@ -397,8 +354,6 @@ fn run_steps(id: &str, steps: &[Vec<String>]) -> Result<String, String> {
     let s = summarize(&all);
     Ok(if s.is_empty() { "done".into() } else { s })
 }
-
-// ── Plan hooks (called by `plan::execute` for `Op::Module { module: "maintenance" }`) ──
 
 pub fn plan_execute(
     _ctx: &Ctx,
@@ -446,15 +401,11 @@ pub fn plan_undo(_ctx: &Ctx, action: &str, _args: &Value) -> Result<String, Stri
     ))
 }
 
-/// Runs as root inside `omniget-elevate`. Only the administrator tasks of
-/// this OS; the argv comes from the closed table, never from the plan.
 pub fn elevated_run(id: &str) -> Result<String, String> {
     elevated_steps(current_os(), id, &sysroot(), &file_exists)
         .and_then(|steps| run_steps(id, &steps))
 }
 
-/// The steps `elevated_run` would take: refuses unknown ids and tasks that
-/// do not need administrator rights.
 pub fn elevated_steps(
     os: Os,
     id: &str,
@@ -469,7 +420,6 @@ pub fn elevated_steps(
     }
 }
 
-/// The command line of maintenance task `id` (display only).
 pub fn command_line(id: &str) -> String {
     let os = current_os();
     command_line_for(os, id, &sysroot(), &file_exists)
@@ -511,8 +461,6 @@ pub fn command_line_for(os: Os, id: &str, sysroot: &str, exists: &dyn Fn(&str) -
     }
 }
 
-/// Actions only the screen may run (`washmybelly_ui` with `maintenance.<action>`):
-/// never exposed as MCP tools.
 pub async fn ui_action(action: &str, a: Value) -> Result<Value, String> {
     match action {
         "list" => super::tools::blocking(|| Ok(list())).await,

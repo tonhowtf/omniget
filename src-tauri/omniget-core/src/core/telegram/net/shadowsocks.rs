@@ -1,11 +1,3 @@
-//! Shadowsocks client (AEAD and SIP022 "2022-blake3-*"), just enough to
-//! carry MTProto: the most common protocol in the subscriptions people in
-//! mainland China buy, and simple enough to own instead of shipping a core.
-//!
-//! The encrypted stream runs in two background tasks joined to the caller
-//! by an in-memory duplex pipe, which keeps the cipher state machines out of
-//! hand-written `poll_*` code.
-
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use aes_gcm::aead::{AeadInPlace, KeyInit};
@@ -141,8 +133,6 @@ impl Cipher {
     }
 }
 
-/// OpenSSL `EVP_BytesToKey` with MD5, what every classic SS client uses to
-/// turn the password into the master key.
 fn evp_bytes_to_key(password: &[u8], key_len: usize) -> Vec<u8> {
     use md5::{Digest, Md5};
     let mut key = Vec::with_capacity(key_len + 16);
@@ -182,8 +172,6 @@ fn master_key(m: Method, password: &str) -> anyhow::Result<Vec<u8>> {
         Flavor::Aead => Ok(evp_bytes_to_key(password.as_bytes(), m.key_len)),
         Flavor::Ss2022 => {
             use base64::Engine;
-            // Multi-user servers hand out "iPSK:uPSK"; single-user is the
-            // norm for subscriptions and is what we speak.
             let psk = password.rsplit(':').next().unwrap_or(password);
             let key = base64::engine::general_purpose::STANDARD
                 .decode(psk.trim())
@@ -204,8 +192,6 @@ fn now_secs() -> u64 {
         .unwrap_or(0)
 }
 
-/// Opens a Shadowsocks session over `server` towards `target` and returns
-/// the plaintext end.
 pub async fn connect<S>(server: S, route: &Route, target: &Target) -> anyhow::Result<DuplexStream>
 where
     S: AsyncRead + AsyncWrite + Send + Unpin + 'static,
@@ -216,8 +202,6 @@ where
     rand::rng().fill(&mut salt[..]);
     let mut enc = Cipher::new(m.algo, &session_key(m, &master, &salt)?)?;
 
-    // Request header goes out immediately; MTProto always speaks first, but
-    // SS2022 forbids a header without payload or padding, so we pad.
     let addr = socks_addr(target);
     let mut first = salt.clone();
     match m.flavor {
@@ -325,7 +309,6 @@ mod tests {
 
     #[test]
     fn evp_matches_reference() {
-        // shadowsocks-rust test vector: "foobar", 32 bytes.
         let k = evp_bytes_to_key(b"foobar", 32);
         assert_eq!(hex::encode(&k[..16]), "3858f62230ac3c915f300c664312c63f");
     }
@@ -341,8 +324,6 @@ mod tests {
 
     #[tokio::test]
     async fn aead_round_trip_against_ourselves() {
-        // Encrypt a request like the client does and decrypt it like a
-        // server would: proves chunk framing and key schedule agree.
         let m = method("chacha20-ietf-poly1305").unwrap();
         let master = master_key(m, "pw").unwrap();
         let salt = [7u8; 32];

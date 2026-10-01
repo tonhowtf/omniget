@@ -1,6 +1,3 @@
-//! A batch of files whose final paths are already decided (templates, chat
-//! downloads, auto-save). Same events and resume path as the other batches.
-
 use std::collections::HashSet;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU32, Ordering};
@@ -32,14 +29,11 @@ pub struct Outcome {
     pub skipped: u32,
     pub failed: u32,
     pub deleted: u32,
-    /// Files not downloaded because the same file was already saved.
     pub duplicates: u32,
     pub cancelled: bool,
-    /// Files written by this batch.
     pub paths: Vec<PathBuf>,
 }
 
-/// Where one item of a chat goes under `root`.
 pub fn plan_item(
     root: &std::path::Path,
     template: Option<&str>,
@@ -69,8 +63,6 @@ pub fn plan_item(
     }
 }
 
-/// Two items with the same target path get the message id appended so none
-/// overwrites the other.
 pub fn dedupe_paths(items: &mut [Planned]) {
     let mut seen: HashSet<PathBuf> = HashSet::new();
     for it in items.iter_mut() {
@@ -92,19 +84,12 @@ pub fn dedupe_paths(items: &mut [Planned]) {
     }
 }
 
-/// True when the file is already on disk with the expected size.
 pub fn already_there(it: &Planned) -> bool {
     std::fs::metadata(&it.path)
         .map(|m| m.len() > 0 && (it.file_size == 0 || m.len() == it.file_size))
         .unwrap_or(false)
 }
 
-/// Starts the batch in the background. Returns its id right away and a
-/// handle that resolves when every file is done.
-///
-/// With `skip_same`, a file already there with the same size is skipped;
-/// without it, the new copy gets a ` (n)` suffix. With `dedupe`, a file
-/// already saved anywhere (see `dedupe.rs`) is not downloaded again.
 #[allow(clippy::too_many_arguments)]
 pub async fn start(
     handle: TelegramSessionHandle,

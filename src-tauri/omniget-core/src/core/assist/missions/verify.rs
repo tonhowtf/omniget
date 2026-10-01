@@ -1,20 +1,3 @@
-//! Verifiers and the completion verdict.
-//!
-//! A verifier looks at the artifact as it is now and writes a receipt tied
-//! to its digest. The verdict counts only receipts that are still valid for
-//! the current criteria version and the current digest. Missing, timed out,
-//! incomplete or unknown is never a pass, and a command that exits 0 proves
-//! that one check, not the others.
-//!
-//! What runs where:
-//! - `artifact` and `tool_result` checks are pure and run here;
-//! - `command` checks run in the mission workspace through the app's shell
-//!   tool (the same boundary as the Loop check); this module only decides
-//!   whether a criterion may run a command at all ([`command_allowed`]);
-//! - `rubric` and `human` criteria never produce a machine pass: a review
-//!   records a receipt with its confidence, and the acceptance policy decides
-//!   whether that is enough or a person must accept.
-
 use std::path::{Component, Path};
 
 use serde::{Deserialize, Serialize};
@@ -24,12 +7,9 @@ use super::{Acceptance, Criterion, CriterionKind, MissionReceipt, Origin, Severi
 use crate::core::assist::db::AssistDb;
 
 pub const VERIFIER_VERSION: &str = "2";
-/// Largest file an artifact check reads.
 pub const ARTIFACT_MAX_BYTES: u64 = 4 * 1024 * 1024;
-/// Digest of a criterion that has no artifact to look at.
 pub const NO_ARTIFACT: &str = "none";
 
-/// A relative path that stays inside the workspace.
 pub fn check_rel_path(p: &str) -> Result<(), String> {
     let path = Path::new(p);
     if p.trim().is_empty() || path.is_absolute() {
@@ -49,13 +29,9 @@ fn sha256_hex(bytes: &[u8]) -> String {
     hex::encode(Sha256::digest(bytes))
 }
 
-/// Maximum aggregate bytes copied and hashed for one criterion. Reaching a
-/// bound or encountering an inaccessible object means unknown, never identity.
 pub const DIGEST_MAX_BYTES: u64 = 256 * 1024 * 1024;
 pub const DIGEST_MAX_FILES: usize = 5_000;
 
-/// Digest over effective-open snapshots, not metadata placeholders. No error,
-/// missing file, symlink, unsupported object or exhausted bound is a digest.
 pub fn artifact_digest(workspace: Option<&Path>, paths: &[String]) -> Option<String> {
     artifact_digest_pinned(workspace, paths, None)
 }
@@ -85,9 +61,6 @@ pub fn artifact_digest_pinned(
             .err()
             .is_some_and(|e| e.kind() == std::io::ErrorKind::NotFound)
         {
-            // Confirmed absent through the pinned descriptors (ENOENT on a
-            // component opened with O_NOFOLLOW): a revision of its own, so
-            // a `must_exist: false` receipt can be matched.
             entries.push((path, "absent".to_string()));
         } else {
             if expected.is_some() {
@@ -107,7 +80,6 @@ pub fn artifact_digest_pinned(
                     return None;
                 }
             }
-            // Include the directory dependency even when empty.
             entries.push((format!("directory:{path}"), "directory".to_string()));
             directories.push((path, files));
         }
@@ -125,10 +97,7 @@ pub fn artifact_digest_pinned(
     Some(sha256_hex(&serde_json::to_vec(&entries).ok()?))
 }
 
-/// Directories skipped anywhere: VCS metadata, dependency trees, bytecode.
 const SKIP_ANYWHERE: &[&str] = &[".git", "node_modules", "__pycache__"];
-/// Build output skipped only at the workspace root: `src/build/*.rs` is
-/// source and must invalidate a command receipt (F-V1).
 const SKIP_AT_ROOT: &[&str] = &["target", ".svelte-kit", "build", "dist", ".next"];
 
 fn skipped_dir(name: &[u8], depth: usize) -> bool {
@@ -136,16 +105,6 @@ fn skipped_dir(name: &[u8], depth: usize) -> bool {
         || (depth == 0 && SKIP_AT_ROOT.iter().any(|s| s.as_bytes() == name))
 }
 
-/// Invalidation-only digest of a whole workspace (a command criterion with
-/// no declared artifact). Descriptor-relative walk: every entry is classified
-/// with `fstatat(AT_SYMLINK_NOFOLLOW)` and opened with
-/// `openat(O_NOFOLLOW|O_NONBLOCK)` and checked again with `fstat` on the
-/// descriptor, so a name swapped for a symlink or a FIFO after the listing is
-/// never followed nor blocks (F-V2). Symlinks are recorded by their target
-/// bytes (never followed), special files by their kind (never opened).
-/// Reads are bounded by the bytes actually read. `.git`, `node_modules` and
-/// `__pycache__` are skipped at any depth, build output only at the root. Any
-/// bound reached or entry that changed kind makes it unknown (`None`).
 #[cfg(unix)]
 pub fn workspace_digest(root: &Path) -> Option<String> {
     use std::ffi::{CStr, CString};
@@ -238,7 +197,6 @@ pub fn workspace_digest(root: &Path) -> Option<String> {
             } else {
                 format!("{prefix}/{shown}")
             };
-            // Lossless identity for names that are not UTF-8.
             let rel = if std::str::from_utf8(&name).is_ok() {
                 rel
             } else {
@@ -274,7 +232,6 @@ pub fn workspace_digest(root: &Path) -> Option<String> {
                 }
                 k if k == libc::S_IFREG as u32 => {
                     let file = open_at(dir, &c_name, libc::O_RDONLY)?;
-                    // The object actually opened must still be a regular file.
                     if !file.metadata().ok()?.is_file() {
                         return None;
                     }
@@ -283,7 +240,6 @@ pub fn workspace_digest(root: &Path) -> Option<String> {
                     *remaining = remaining.checked_sub(bytes.len() as u64)?;
                     entries.push((rel, sha256_hex(&bytes)));
                 }
-                // FIFOs, sockets, devices: recorded, never opened.
                 _ => entries.push((rel, "special".into())),
             }
             if entries.len() > DIGEST_MAX_FILES * 4 {
@@ -348,8 +304,6 @@ pub fn workspace_digest(root: &Path) -> Option<String> {
     Some(sha256_hex(&serde_json::to_vec(&entries).ok()?))
 }
 
-/// Digest for one criterion with the mission's workspace. Tool results use
-/// their own digest (what they point at in the database).
 pub fn digest_for(
     db: Option<&AssistDb>,
     workspace: Option<&Path>,
@@ -358,8 +312,6 @@ pub fn digest_for(
 ) -> Option<String> {
     match c.kind {
         CriterionKind::ToolResult => tool_result_digest(db?, c, since_ms),
-        // A command with no declared artifact depends on the whole workspace:
-        // any change there invalidates its receipt.
         CriterionKind::Command if c.artifact_paths().is_empty() && workspace.is_some() => {
             workspace_digest(workspace?)
         }
@@ -367,7 +319,6 @@ pub fn digest_for(
     }
 }
 
-/// Whether a criterion may run its command, and why not.
 pub fn command_allowed(c: &Criterion) -> Result<(), String> {
     if c.kind != CriterionKind::Command {
         return Err("not a command criterion".into());
@@ -382,10 +333,8 @@ pub fn command_allowed(c: &Criterion) -> Result<(), String> {
     Ok(())
 }
 
-/// What a check found, before it becomes a receipt.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct CheckOutcome {
-    /// `pass|fail|unknown`
     pub status: String,
     pub digest: String,
     pub evidence: String,
@@ -405,23 +354,15 @@ impl CheckOutcome {
     }
 }
 
-/// Why an artifact path could not be snapshotted as a regular file. It only
-/// names the cause for the receipt and the controller; the check itself stays
-/// bound to the descriptor-based snapshot.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ArtifactProblem {
-    /// Nothing at that path (or a folder on the way is missing).
     NotFound,
-    /// The path is a folder; criteria check files.
     IsDirectory,
-    /// Larger than the limit a check reads (bytes found).
     TooLarge(u64),
-    /// A symlink, hard link, special file or a file that changed mid-read.
     Unsafe(&'static str),
 }
 
 impl ArtifactProblem {
-    /// Stable code for machines (`missions_artifacts`).
     pub fn code(&self) -> &'static str {
         match self {
             Self::NotFound => "NOT_FOUND",
@@ -430,7 +371,6 @@ impl ArtifactProblem {
         }
     }
 
-    /// One plain sentence naming the path.
     pub fn describe(&self, path: &str, max_bytes: u64) -> String {
         match self {
             Self::NotFound => format!("not found: {path} (paths are relative to the mission folder; check the file name and the folder it is in)"),
@@ -441,8 +381,6 @@ impl ArtifactProblem {
     }
 }
 
-/// Names why `rel` under `root` could not be snapshotted (`err` is what the
-/// snapshot returned). Read-only metadata, never followed through symlinks.
 pub fn classify_artifact_error(
     root: &Path,
     rel: &str,
@@ -458,7 +396,6 @@ pub fn classify_artifact_error(
     if missing(err) {
         return ArtifactProblem::NotFound;
     }
-    // A folder on the way that is a symlink is refused, like the snapshot does.
     let mut cur = root.to_path_buf();
     let parts: Vec<&str> = rel.split(['/', '\\']).filter(|p| !p.is_empty()).collect();
     for (i, part) in parts.iter().enumerate() {
@@ -496,8 +433,6 @@ pub fn classify_artifact_error(
     ArtifactProblem::Unsafe("cannot be inspected")
 }
 
-/// Files elsewhere in the workspace with the same name as a missing path
-/// (e.g. written into a subfolder by mistake). Bounded, never follows links.
 pub fn same_name_elsewhere(root: &Path, rel: &str) -> Vec<String> {
     let Some(name) = Path::new(rel).file_name().map(|n| n.to_os_string()) else {
         return Vec::new();
@@ -533,8 +468,6 @@ pub fn same_name_elsewhere(root: &Path, rel: &str) -> Vec<String> {
     out
 }
 
-/// Artifact criterion: `{ path, must_exist?, contains?[], not_contains?[],
-/// json_keys?[], max_bytes?, min_bytes? }`.
 pub fn check_artifact(workspace: Option<&Path>, c: &Criterion) -> CheckOutcome {
     check_artifact_pinned(workspace, c, None)
 }
@@ -561,8 +494,6 @@ pub fn check_artifact_pinned(
         .unwrap_or(true);
     let mut snapshot = match safe_root.snapshot(Path::new(path), ARTIFACT_MAX_BYTES) {
         Ok(snapshot) => snapshot,
-        // Absence confirmed on the descriptor is what `must_exist: false`
-        // asks for (F-V3).
         Err(e) if !must_exist_spec && e.kind() == std::io::ErrorKind::NotFound => {
             return match artifact_digest_pinned(Some(root), &c.artifact_paths(), expected) {
                 Some(digest) => CheckOutcome {
@@ -580,8 +511,6 @@ pub fn check_artifact_pinned(
         Err(e) => {
             let problem = classify_artifact_error(root, path, &e, ARTIFACT_MAX_BYTES);
             let why = problem.describe(path, ARTIFACT_MAX_BYTES);
-            // Missing or a folder is a finding about the work, not about the
-            // checker: it fails, bound to the revision seen (absent/folder).
             let fail = match problem {
                 ArtifactProblem::NotFound if must_exist_spec => {
                     let elsewhere = same_name_elsewhere(root, path);
@@ -685,8 +614,6 @@ pub fn check_artifact_pinned(
             }
         }
     }
-    // Bind acceptance to the immutable bytes actually checked. Recomputing
-    // only before/after path hashes could accidentally attest an ABA revision.
     let mut manifest = Vec::new();
     let mut remaining = DIGEST_MAX_BYTES;
     for dependency in c.artifact_paths() {
@@ -753,8 +680,6 @@ fn str_list(spec: &Value, key: &str) -> Vec<String> {
         .unwrap_or_default()
 }
 
-/// Tool-result digest: what the check points at (the newest reading round
-/// of the journey recorded after the mission started, …).
 pub fn tool_result_digest(db: &AssistDb, c: &Criterion, since_ms: i64) -> Option<String> {
     match c.spec.get("check").and_then(Value::as_str)? {
         "reading_round" => {
@@ -780,13 +705,6 @@ pub fn tool_result_digest(db: &AssistDb, c: &Criterion, since_ms: i64) -> Option
     }
 }
 
-/// `tool_result` criterion. Supported checks:
-/// - `reading_round { journey_id, min_items?, max_items?, first_round_roles? }`:
-///   a round recorded by the reading rules after the mission started. The
-///   rules themselves (roles, spoilers, access status, repeats) already
-///   refused anything invalid, so a stored round is evidence; this check adds
-///   the count and reports each film's access status as recorded (probable
-///   stays probable).
 pub fn check_tool_result(db: &AssistDb, c: &Criterion, since_ms: i64) -> CheckOutcome {
     let check = c.spec.get("check").and_then(Value::as_str).unwrap_or("");
     match check {
@@ -897,8 +815,6 @@ fn check_reading_round(db: &AssistDb, c: &Criterion, since_ms: i64) -> CheckOutc
     }
 }
 
-/// Command outcome as the shell tool reported it. `timed_out` or a missing
-/// exit code is `unknown`, never a pass.
 pub fn command_outcome(
     exit_code: Option<i64>,
     timed_out: bool,
@@ -945,8 +861,6 @@ fn tail(s: &str, max: usize) -> String {
     format!("[…]\n{}", &s[cut..])
 }
 
-// ── Verdict ───────────────────────────────────────────────────────────────
-
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct CriterionStatus {
     pub id: String,
@@ -955,11 +869,9 @@ pub struct CriterionStatus {
     pub severity: Severity,
     pub acceptance: Acceptance,
     pub objective: bool,
-    /// `pass|fail|unknown|missing|stale|awaiting_human`
     pub status: String,
     pub receipt_id: Option<String>,
     pub detail: String,
-    /// Rubric reviews: what the reviewer said about its confidence.
     pub confidence: Option<String>,
 }
 
@@ -971,11 +883,8 @@ pub struct Verdict {
     pub missing: Vec<String>,
     pub awaiting_human: Vec<String>,
     pub advisory_failing: Vec<String>,
-    /// Required criteria met only in part, with the reason recorded.
     #[serde(default)]
     pub partial: Vec<String>,
-    /// `auto` when every required criterion is objective; `human` when a
-    /// person's judgement is part of the conclusion.
     pub completion: String,
 }
 
@@ -1004,10 +913,6 @@ impl Verdict {
     }
 }
 
-/// Decides, for the current criteria, which ones pass. `current` gives the
-/// digest of each criterion's artifact now (`None` = unknown: a receipt
-/// cannot be matched, so it does not count). A quick view without current
-/// digests must report unknown, never treat historical receipts as current.
 pub fn verdict(
     criteria: &[Criterion],
     receipts: &[MissionReceipt],
@@ -1032,7 +937,6 @@ pub fn verdict(
                     && r.invalidated_ms.is_none()
             })
             .collect();
-        // Newest valid receipt for the artifact as it is now.
         let latest = mine
             .iter()
             .filter(|r| {
@@ -1139,8 +1043,6 @@ pub fn verdict(
     v
 }
 
-/// [`next_round_prompt`] that also names the exact file each failing
-/// artifact criterion reads, so the executor writes it where it is checked.
 pub fn next_round_prompt_for(objective: &str, v: &Verdict, criteria: &[Criterion]) -> String {
     let mut lines = vec![
         format!("Objective: {objective}"),

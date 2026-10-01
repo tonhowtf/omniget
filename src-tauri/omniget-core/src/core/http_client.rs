@@ -66,10 +66,6 @@ pub fn apply_proxy(
 }
 
 pub fn apply_global_proxy(builder: reqwest::ClientBuilder) -> reqwest::ClientBuilder {
-    // Pin rustls (webpki roots). Workspace feature unification turns on
-    // reqwest's native-tls (librqbit default-tls, livekit), which silently
-    // becomes the default backend; under the worker's Seatbelt profile trustd
-    // is unreachable and every handshake fails with "bad certificate format".
     let builder = builder.use_rustls_tls();
     let proxy = get_proxy_snapshot();
     apply_proxy(builder, &proxy)
@@ -87,12 +83,6 @@ pub fn inject_ua_header(headers: &mut reqwest::header::HeaderMap, opts_ua: Optio
 mod tests {
     use super::*;
 
-    /// The `-p omniget-core -p omniget` test binary has reqwest's native-tls
-    /// unified in, like the workspace-built worker (librqbit/livekit). A server
-    /// answering the ClientHello with plain HTTP makes each backend fail with
-    /// its own wording: rustls says "corrupt message", SecureTransport says
-    /// something else. Under the worker Seatbelt (no trustd) native-tls fails
-    /// every handshake with "bad certificate format" (benchmark 26/09).
     #[tokio::test]
     async fn global_builder_is_pinned_to_rustls() {
         use tokio::io::{AsyncReadExt, AsyncWriteExt};
@@ -125,10 +115,6 @@ mod tests {
         assert!(chain.to_lowercase().contains("corrupt message"), "{chain}");
     }
 
-    /// Every reqwest builder the worker can reach through a platform must go
-    /// through apply_global_proxy (rustls pin); a bare builder falls back to
-    /// native-tls and dies under the worker Seatbelt ("bad certificate
-    /// format", bench 26/09 reddit-1). Scans the platform sources.
     #[test]
     fn platform_builders_go_through_apply_global_proxy() {
         let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/platforms");
@@ -148,7 +134,6 @@ mod tests {
             let src = src.split("#[cfg(test)]").next().unwrap_or("");
             let lines: Vec<&str> = src.lines().collect();
             for (i, line) in lines.iter().enumerate() {
-                // `Client::` itself, not a wrapper like `ApiClient::new()`.
                 let bare = ["Client::builder()", "Client::new()"].iter().any(|pat| {
                     line.match_indices(pat).any(|(at, _)| {
                         !line[..at]

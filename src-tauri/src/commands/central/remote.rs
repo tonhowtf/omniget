@@ -1,8 +1,3 @@
-//! `remote_*` commands of the `/llm/remote` page (T11): turn the remote
-//! listener on/off on a chosen interface, pair a device with a QR code, list
-//! and revoke devices, read the access log, and the Tailscale/SSH helpers.
-//! The logic lives in `crate::local_bridge_remote`; nothing here polls.
-
 use tauri::AppHandle;
 
 use crate::local_bridge_remote::{
@@ -17,9 +12,6 @@ pub async fn remote_status(app: AppHandle) -> Result<RemoteStatus, String> {
     Ok(h.status())
 }
 
-/// The explicit opt-in: starts the second listener on `bindIp` (one of
-/// `remote_status().interfaces`, or any local address) and remembers it for
-/// the next launch.
 #[tauri::command]
 pub async fn remote_start(
     app: AppHandle,
@@ -29,8 +21,6 @@ pub async fn remote_start(
     remote::start_for_app(&app, &bind_ip, port).await
 }
 
-/// "Private network only": refuse connections from public addresses
-/// (only loopback, LAN, CGNAT/Tailscale and link-local get in).
 #[tauri::command]
 pub async fn remote_private_only_set(app: AppHandle, on: bool) -> Result<RemoteStatus, String> {
     let h = remote::hub();
@@ -47,9 +37,6 @@ pub async fn remote_stop(app: AppHandle) -> Result<RemoteStatus, String> {
     Ok(h.status())
 }
 
-/// A one-time pairing link (10 min) for `scope` (`read|drive`). `base` is
-/// the origin the phone will use (an endpoint of `remote_status`, the
-/// `tailscale serve` URL or the SSH base); default: the listener itself.
 #[tauri::command]
 pub async fn remote_pair_create(
     app: AppHandle,
@@ -82,7 +69,6 @@ pub async fn remote_devices() -> Result<Vec<DeviceView>, String> {
     Ok(remote::hub().devices())
 }
 
-/// Revokes a device: its bearer stops working and its sockets close now.
 #[tauri::command]
 pub async fn remote_device_revoke(id: String) -> Result<bool, String> {
     Ok(remote::hub().revoke(&id))
@@ -93,7 +79,6 @@ pub async fn remote_device_rename(id: String, name: String) -> Result<bool, Stri
     Ok(remote::hub().rename(&id, &name))
 }
 
-/// Newest first.
 #[tauri::command]
 pub async fn remote_access_log(limit: Option<usize>) -> Result<Vec<AccessEntry>, String> {
     Ok(remote::hub().access_log(limit.unwrap_or(100).min(300)))
@@ -105,14 +90,11 @@ pub async fn remote_access_log_clear() -> Result<(), String> {
     Ok(())
 }
 
-/// Detects `tailscale` and reads its status (spawns it only on this call).
 #[tauri::command]
 pub async fn remote_tailscale_status(https_port: Option<u16>) -> Result<TailscaleInfo, String> {
     Ok(remote::tailscale_status(https_port).await)
 }
 
-/// Runs `tailscale serve` on (or off) for the remote port. Without
-/// `confirm: true` it only answers `REMOTE_CONFIRM_REQUIRED: <command>`.
 #[tauri::command]
 pub async fn remote_tailscale_serve(
     enable: bool,
@@ -122,7 +104,6 @@ pub async fn remote_tailscale_serve(
     remote::tailscale_serve(enable, confirm.unwrap_or(false), https_port).await
 }
 
-/// The `ssh -L` command to reach the remote port through a tunnel.
 #[tauri::command]
 pub async fn remote_ssh_command(
     local_port: Option<u16>,

@@ -1,16 +1,3 @@
-//! Reading the system: the state of each op ("applied" means Windows is in
-//! that state now, never a flag we saved), the build and edition, and the
-//! hardware checks some tweaks need.
-//!
-//! Every reader goes through [`Sys`] (argv only), so the tests drive them
-//! with a fake registry; every text parser is a pure function tested with
-//! fixtures on every OS.
-//!
-//! HAGS gating follows SophiApp (MIT, `Accessors.cs` `GPUScheduling`): a
-//! dedicated GPU, not a virtual machine, and `WddmVersion_Min` ≥ 2700. The
-//! GPU test is ours: SophiApp's `DetectDACType` returns true for almost any
-//! adapter, so we look at the adapter names instead.
-
 use serde::Serialize;
 use serde_json::Value;
 
@@ -18,8 +5,6 @@ use super::super::parse::{reg_query, RegValue};
 use super::super::startup::Sys;
 use super::catalog::{Hive, TweakOp};
 
-/// Canonical text of a value, for comparing what the system has with what
-/// a tweak wants: numbers in decimal, binary as upper-case hex.
 pub fn norm_data(kind: &str, data: &str) -> Option<String> {
     let d = data.trim();
     match kind {
@@ -44,8 +29,6 @@ fn parse_num(d: &str) -> Option<u64> {
     }
 }
 
-/// `HKCU` keys are read as the signed-in user; the elevated helper gets them
-/// as `HKU\<sid>` so an over-the-shoulder admin never writes its own hive.
 pub fn full_key(hive: Hive, key: &str, sid: Option<&str>) -> String {
     match (hive, sid) {
         (Hive::Hkcu, Some(sid)) => format!("HKU\\{sid}\\{key}"),
@@ -53,7 +36,6 @@ pub fn full_key(hive: Hive, key: &str, sid: Option<&str>) -> String {
     }
 }
 
-/// `reg.exe` refusing because of permissions, in the languages we ship.
 pub fn denied(stderr: &str) -> bool {
     let s = stderr.to_lowercase();
     [
@@ -71,16 +53,11 @@ pub fn denied(stderr: &str) -> bool {
     .any(|w| s.contains(w))
 }
 
-/// What a value is right now.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, serde::Deserialize)]
 #[serde(tag = "state", rename_all = "snake_case")]
 pub enum ValState {
     Absent,
-    Present {
-        kind: String,
-        data: String,
-    },
-    /// Could not read it (permissions): never guessed.
+    Present { kind: String, data: String },
     Unknown,
 }
 
@@ -98,12 +75,10 @@ pub fn reg_query_argv(full: &str, name: Option<&str>) -> Vec<String> {
     v
 }
 
-/// The data `reg query` prints for a default value that was never set.
 fn unset_default(v: &RegValue) -> bool {
     v.name.is_empty() && v.kind == "REG_SZ" && v.data.starts_with('(') && v.data.ends_with(')')
 }
 
-/// One key as `reg query <key>` (no `/s`) shows it.
 #[derive(Debug, Clone)]
 enum KeyRead {
     Missing,
@@ -122,7 +97,6 @@ fn read_key(sys: &dyn Sys, full: &str) -> KeyRead {
             KeyRead::Missing
         };
     }
-    // The first key line is the key itself; later ones are its subkeys.
     let own = o
         .stdout
         .lines()
@@ -137,8 +111,6 @@ fn read_key(sys: &dyn Sys, full: &str) -> KeyRead {
     )
 }
 
-/// Reads keys once and answers every value under them; [`Reader::prefetch`]
-/// runs the `reg query` calls a few at a time.
 pub struct Reader<'a> {
     pub sys: &'a dyn Sys,
     cache: std::sync::Mutex<std::collections::HashMap<String, KeyRead>>,
@@ -164,7 +136,6 @@ impl<'a> Reader<'a> {
         k
     }
 
-    /// Read these keys in parallel (8 at a time) before asking about them.
     pub fn prefetch(&self, keys: &[String]) {
         let chunks: Vec<&[String]> = keys.chunks(keys.len().div_ceil(8).max(1)).collect();
         std::thread::scope(|s| {
@@ -202,7 +173,6 @@ impl<'a> Reader<'a> {
         }
     }
 
-    /// `Some(true)` exists, `Some(false)` missing, `None` unreadable.
     pub fn exists(&self, full: &str) -> Option<bool> {
         match self.key(full) {
             KeyRead::Missing => Some(false),
@@ -212,7 +182,6 @@ impl<'a> Reader<'a> {
     }
 }
 
-/// A value read fresh (no cache): what a snapshot records.
 pub fn read_value(sys: &dyn Sys, full: &str, name: &str) -> ValState {
     Reader::new(sys).value(full, name)
 }
@@ -221,12 +190,9 @@ pub fn key_exists(sys: &dyn Sys, full: &str) -> Option<bool> {
     Reader::new(sys).exists(full)
 }
 
-/// A key with everything under it, as `reg query /s` shows it.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, serde::Deserialize)]
 pub struct Tree {
-    /// Every key, parents first.
     pub keys: Vec<String>,
-    /// (key, name, kind, data)
     pub values: Vec<(String, String, String, String)>,
 }
 
@@ -247,7 +213,6 @@ pub fn parse_tree(text: &str) -> Tree {
     t
 }
 
-/// `None` unreadable, `Some(None)` missing.
 pub fn read_tree(sys: &dyn Sys, full: &str) -> Option<Option<Tree>> {
     let mut argv = reg_query_argv(full, None);
     argv.insert(3, "/s".into());
@@ -261,13 +226,11 @@ pub fn read_tree(sys: &dyn Sys, full: &str) -> Option<Option<Tree>> {
     }
 }
 
-/// Start type of a service: `None` unreadable, `Some(None)` no such service.
 pub fn service_mode(sys: &dyn Sys, name: &str) -> Option<Option<String>> {
     let o = sys
         .run(&["sc.exe".into(), "qc".into(), name.to_string()])
         .ok()?;
     if !o.ok {
-        // 1060: the service does not exist.
         return if o.stdout.contains("1060") || o.stderr.contains("1060") {
             Some(None)
         } else {
@@ -277,7 +240,6 @@ pub fn service_mode(sys: &dyn Sys, name: &str) -> Option<Option<String>> {
     super::super::startup::windows_start_mode(&o.stdout).map(Some)
 }
 
-/// `<Enabled>` from `schtasks /query /xml` (not localized): missing = true.
 pub fn parse_task_xml(xml: &str) -> Option<bool> {
     let xml = xml.trim_start_matches('\u{feff}');
     let doc = roxmltree::Document::parse(xml).ok()?;
@@ -308,7 +270,6 @@ fn split_csv(line: &str) -> Vec<String> {
     out
 }
 
-/// `None` unreadable, `Some(None)` no such task.
 pub fn task_enabled(sys: &dyn Sys, path: &str) -> Option<Option<bool>> {
     let o = sys
         .run(&[
@@ -328,14 +289,10 @@ pub fn task_enabled(sys: &dyn Sys, path: &str) -> Option<Option<bool>> {
     Some(None)
 }
 
-// ── Power plans ─────────────────────────────────────────────────────
-
 pub const BALANCED: &str = "381b4222-f694-41f0-9685-ff5bb260df2e";
 pub const HIGH_PERFORMANCE: &str = "8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c";
-/// Hidden template `powercfg /duplicatescheme` copies into a real plan.
 pub const ULTIMATE_TEMPLATE: &str = "e9a42b02-d5df-448d-aa00-03f14749eb61";
 
-/// The first GUID in `powercfg` output (`/getactivescheme`, `/duplicatescheme`).
 pub fn parse_guid(text: &str) -> Option<String> {
     static RE: once_cell::sync::Lazy<regex::Regex> = once_cell::sync::Lazy::new(|| {
         regex::Regex::new(
@@ -353,8 +310,6 @@ pub fn active_scheme(sys: &dyn Sys) -> Option<String> {
     o.ok.then(|| parse_guid(&o.stdout)).flatten()
 }
 
-/// Whether the active plan is the one a scheme names. Ultimate is a copy
-/// with a new GUID, so we compare with the copy we made (kept in kv).
 pub fn scheme_matches(scheme: &str, active: &str, ultimate: Option<&str>) -> bool {
     match scheme {
         "balanced" => active == BALANCED,
@@ -366,11 +321,6 @@ pub fn scheme_matches(scheme: &str, active: &str, ultimate: Option<&str>) -> boo
     }
 }
 
-// ── Optional features ───────────────────────────────────────────────
-
-/// Fixed script; the feature name travels in `OMNIGET_WMB_FEATURE` and is
-/// checked against `catalog::FEATURES` first. Prints `InstallState`
-/// (1 enabled, 2 disabled, 3 absent) or `missing`.
 pub const FEATURE_SCRIPT: &str = "$ErrorActionPreference='Stop'; $n=$env:OMNIGET_WMB_FEATURE; if ($n -notmatch '^[A-Za-z0-9.-]+$') { exit 2 }; $f=Get-CimInstance -ClassName Win32_OptionalFeature -Filter (\"Name='\" + $n + \"'\"); if ($f) { $f.InstallState } else { 'missing' }";
 
 pub fn parse_feature_state(text: &str) -> Option<Option<bool>> {
@@ -400,15 +350,10 @@ pub fn feature_enabled(sys: &dyn Sys, name: &str) -> Option<Option<bool>> {
     o.ok.then(|| parse_feature_state(&o.stdout)).flatten()
 }
 
-// ── The machine ─────────────────────────────────────────────────────
-
-/// What the list needs to know about this Windows.
 #[derive(Debug, Clone, Default, Serialize)]
 pub struct Facts {
     pub build: u32,
     pub edition: String,
-    /// Why HAGS is not offered (`no_dedicated_gpu`, `virtual_machine`,
-    /// `old_driver`, `unknown`), or `None` when it is.
     pub hags_blocked: Option<&'static str>,
     #[serde(skip)]
     pub ultimate_guid: Option<String>,
@@ -421,10 +366,8 @@ pub struct Gpu {
     pub dac: String,
 }
 
-/// Fixed script: video controllers and the computer model, as JSON.
 pub const HW_SCRIPT: &str = "$ErrorActionPreference='SilentlyContinue'; $g=@(Get-CimInstance Win32_VideoController | Select-Object Name,AdapterCompatibility,AdapterDACType); $c=Get-CimInstance Win32_ComputerSystem | Select-Object Manufacturer,Model; [pscustomobject]@{gpus=$g;system=$c} | ConvertTo-Json -Compress -Depth 3";
 
-/// `(gpus, "manufacturer model")` from [`HW_SCRIPT`]'s JSON.
 pub fn parse_hw(json: &str) -> Option<(Vec<Gpu>, String)> {
     let v: Value = serde_json::from_str(json.trim().trim_start_matches('\u{feff}')).ok()?;
     let s = |x: &Value, k: &str| x.get(k).and_then(Value::as_str).unwrap_or("").to_string();
@@ -450,7 +393,6 @@ pub fn parse_hw(json: &str) -> Option<(Vec<Gpu>, String)> {
     ))
 }
 
-/// A graphics card with its own memory (not the processor's graphics).
 pub fn dedicated(g: &Gpu) -> bool {
     static INTEL_DGPU: once_cell::sync::Lazy<regex::Regex> =
         once_cell::sync::Lazy::new(|| regex::Regex::new(r"\barc\b.*\b[ab]\d{3}m?\b").unwrap());
@@ -464,7 +406,6 @@ pub fn dedicated(g: &Gpu) -> bool {
         || v.contains("advanced micro devices")
         || v.contains("amd")
     {
-        // APUs are "Radeon(TM) Graphics", "Radeon Vega 8 Graphics", "Radeon 780M Graphics".
         if n.trim_end().ends_with("graphics") {
             return false;
         }
@@ -514,7 +455,6 @@ pub fn hags_blocked(gpus: &[Gpu], model: &str, wddm: Option<u64>) -> Option<&'st
     }
 }
 
-/// `whoami /user /fo csv /nh` → the SID column.
 pub fn parse_whoami_user(csv: &str) -> Option<String> {
     let line = csv.lines().find(|l| !l.trim().is_empty())?;
     let cols = split_csv(line.trim());
@@ -587,15 +527,11 @@ pub fn read_facts(sys: &dyn Sys, want_hags: bool) -> Facts {
     f
 }
 
-// ── Detection ───────────────────────────────────────────────────────
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum OpState {
     Applied,
     NotApplied,
     Unknown,
-    /// The thing is not on this machine (a task or service that is not
-    /// installed): it does not count.
     NotApplicable,
 }
 
@@ -674,8 +610,6 @@ pub fn op_state(r: &Reader, op: &TweakOp, facts: &Facts) -> OpState {
     }
 }
 
-/// `applied` when every op that counts is in place, `not_applied` when none
-/// is, `partial` in between, `unknown` when one could not be read.
 pub fn aggregate(states: &[OpState]) -> &'static str {
     let counted: Vec<OpState> = states
         .iter()

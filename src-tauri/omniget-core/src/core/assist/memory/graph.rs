@@ -1,25 +1,12 @@
-//! The derived memory graph: when a fact happened, its vector, the entities it
-//! mentions and its links to other facts (Hindsight's "memory units" and
-//! "links", on the same SQLite file as the records).
-//!
-//! Everything here hangs off `memory_records.id` and is derived: forgetting a
-//! record calls [`purge`], which drops its vector, entity refs, links, the
-//! entity notes that quoted it and any entity left without a record, so no
-//! forgotten text survives in a summary.
-
 use std::collections::{HashMap, HashSet};
 
 use rusqlite::{params, Connection, OptionalExtension};
 use serde::{Deserialize, Serialize};
 
-/// Semantic links: at most this many neighbours per new fact…
 pub const SEMANTIC_LINKS: usize = 5;
-/// …and only above this cosine.
 pub const SEMANTIC_LINK_MIN: f32 = 0.72;
-/// Two entity names closer than this (bigram Dice) are the same entity.
 pub const ENTITY_MERGE_MIN: f64 = 0.86;
 
-/// An entity as extraction or the model names it.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct EntityRef {
     pub name: String,
@@ -31,7 +18,6 @@ fn default_kind() -> String {
     "thing".into()
 }
 
-/// One entity of the principal, for the UI and for query matching.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct Entity {
     pub id: String,
@@ -42,8 +28,6 @@ pub struct Entity {
     #[serde(default)]
     pub note: Option<String>,
 }
-
-// ── Text helpers ─────────────────────────────────────────────────────────
 
 pub(crate) fn fold(s: &str) -> String {
     s.chars()
@@ -66,8 +50,6 @@ const ARTICLES: &[&str] = &[
     "minha", "my",
 ];
 
-/// The key two spellings of one entity share: folded, punctuation gone,
-/// leading articles dropped ("a Maria" = "Maria" = "maria").
 pub fn entity_norm(name: &str) -> String {
     let folded = fold(name);
     let words: Vec<&str> = folded
@@ -86,7 +68,6 @@ fn bigrams(s: &str) -> Vec<(char, char)> {
     chars.windows(2).map(|w| (w[0], w[1])).collect()
 }
 
-/// Sørensen–Dice over character bigrams, 0..1.
 pub fn dice(a: &str, b: &str) -> f64 {
     let (x, y) = (bigrams(a), bigrams(b));
     if x.is_empty() || y.is_empty() {
@@ -129,10 +110,6 @@ pub(crate) fn dot(a: &[f32], b: &[f32]) -> f32 {
     a.iter().zip(b).map(|(x, y)| x * y).sum()
 }
 
-// ── Writes ───────────────────────────────────────────────────────────────
-
-/// Finds or creates the entity `name` for `principal`. Exact key first, then
-/// a near spelling of the same kind ("Joao Silva" / "João da Silva").
 pub(crate) fn upsert_entity(
     conn: &Connection,
     principal: &str,
@@ -168,8 +145,6 @@ pub(crate) fn upsert_entity(
             let mut best: Option<(f64, String)> = None;
             for row in rows {
                 let (id, other) = row?;
-                // Both names must share their first letter: "Ana" never
-                // swallows "Hana".
                 if other.chars().next() != norm.chars().next() {
                     continue;
                 }
@@ -201,7 +176,6 @@ pub(crate) fn upsert_entity(
     }
 }
 
-/// When the fact happened (ms range) and how many times it was confirmed.
 pub(crate) fn set_meta(
     conn: &Connection,
     record_id: &str,
@@ -222,7 +196,6 @@ pub(crate) fn set_meta(
     Ok(())
 }
 
-/// The same fact arrived again: one more proof.
 pub(crate) fn reinforce(conn: &Connection, record_id: &str) -> rusqlite::Result<i64> {
     conn.execute(
         "INSERT INTO memory_meta(record_id, proofs) VALUES (?1, 2)
@@ -236,7 +209,6 @@ pub(crate) fn reinforce(conn: &Connection, record_id: &str) -> rusqlite::Result<
     )
 }
 
-/// Recall used these facts in a turn.
 pub(crate) fn touch(conn: &Connection, ids: &[String], now: i64) -> rusqlite::Result<()> {
     let mut stmt = conn.prepare(
         "INSERT INTO memory_meta(record_id, hits, last_hit_ms) VALUES (?1, 1, ?2)
@@ -307,8 +279,6 @@ pub(crate) fn add_link(
     Ok(())
 }
 
-/// Active records of `principal` with a vector from `source`, as
-/// `(id, scope, vector)`.
 pub(crate) fn active_vectors(
     conn: &Connection,
     principal: &str,
@@ -325,7 +295,6 @@ pub(crate) fn active_vectors(
     rows.collect()
 }
 
-/// Links a new fact to its nearest active neighbours of the same principal.
 pub(crate) fn link_semantic(
     conn: &Connection,
     principal: &str,
@@ -348,7 +317,6 @@ pub(crate) fn link_semantic(
     Ok(near.len())
 }
 
-/// Entities whose name appears in `text` (whole words), longest first.
 pub(crate) fn entities_in_text(
     conn: &Connection,
     principal: &str,
@@ -370,10 +338,6 @@ pub(crate) fn entities_in_text(
     Ok(found.into_iter().map(|f| f.1).take(8).collect())
 }
 
-// ── Forgetting ───────────────────────────────────────────────────────────
-
-/// Drops everything derived from `ids`: meta, vectors, refs, links, notes that
-/// quoted them, and entities no record mentions any more.
 pub(crate) fn purge(conn: &Connection, ids: &[String]) -> rusqlite::Result<()> {
     if ids.is_empty() {
         return Ok(());
@@ -394,8 +358,6 @@ pub(crate) fn purge(conn: &Connection, ids: &[String]) -> rusqlite::Result<()> {
         conn.execute("DELETE FROM memory_entity_refs WHERE record_id = ?1", [id])?;
         conn.execute("DELETE FROM memory_links WHERE src = ?1 OR dst = ?1", [id])?;
     }
-    // A note that quoted a forgotten fact goes whole; it is rebuilt from what
-    // is left on the next consolidation.
     let notes: Vec<(String, String, String)> = {
         let mut s = conn.prepare("SELECT entity_id, scope, ids FROM memory_entity_notes")?;
         let rows = s.query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))?;
@@ -432,7 +394,6 @@ pub(crate) fn purge(conn: &Connection, ids: &[String]) -> rusqlite::Result<()> {
     Ok(())
 }
 
-/// Derived rows whose record is gone (a crash between writes, an old import).
 pub(crate) fn sweep_orphans(conn: &Connection) -> rusqlite::Result<()> {
     let ids: Vec<String> = {
         let mut s = conn.prepare(
@@ -452,11 +413,6 @@ pub(crate) fn sweep_orphans(conn: &Connection) -> rusqlite::Result<()> {
     Ok(())
 }
 
-// ── Reads for the UI ─────────────────────────────────────────────────────
-
-/// Entities of `principal` mentioned by at least one record the caller can
-/// read, most mentioned first, with the entity note of the first readable
-/// scope that has one.
 pub(crate) fn list_entities(
     conn: &Connection,
     principal: &str,

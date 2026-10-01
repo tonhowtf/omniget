@@ -1,23 +1,3 @@
-//! Game mode (`wmb_game_mode`): turn on what helps a running game and turn
-//! it all off by itself when the game exits.
-//!
-//! - Linux: gamemode over D-Bus (`com.feralinteractive.GameMode`, or the
-//!   `org.freedesktop.portal.GameMode` portal inside Flatpak); the daemon
-//!   undoes itself when the game exits. Without gamemode: hold the
-//!   `performance` power profile, inhibit the screen saver and lower the
-//!   priority of OmniGet's own children.
-//! - Windows: a performance power plan, `AboveNormal` priority and EcoQoS off
-//!   for the game, the display kept awake; a watcher thread waits on the
-//!   process handle and undoes everything.
-//! - macOS: Game Mode is automatic and cannot be forced. We only move the
-//!   game out of the background band if it is there and put OmniGet's own
-//!   children in the background band; a `kqueue` watcher undoes it.
-//!
-//! One watcher thread per game owns the session: it applies, waits for the
-//! exit (or `disable`, or OmniGet closing), and undoes in reverse order.
-//! The state is also in `kv` (`game_mode_active`) so a crash is cleaned up
-//! on the next start ([`recover`]).
-
 pub mod children;
 pub mod dbus;
 pub mod parse;
@@ -44,49 +24,54 @@ use super::store::{now, Ctx};
 
 pub const KV_KEY: &str = "game_mode_active";
 
-/// One thing to put back, in the order it was done (undone in reverse).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "step", rename_all = "snake_case")]
 pub enum UndoStep {
-    /// gamemode (or the portal) registration. The daemon also drops it by
-    /// itself when the game exits.
     GamemodeUnregister {
         portal: bool,
         caller: i32,
         game: i32,
     },
-    /// power-profiles-daemon hold; also released when OmniGet's bus
-    /// connection closes.
-    ReleaseProfile { cookie: u32 },
-    /// `org.freedesktop.ScreenSaver` inhibit cookie.
-    UnInhibit { cookie: u32 },
-    /// Nice value of one of OmniGet's own children, before we raised it.
-    Nice { pid: u32, started: u64, prev: i32 },
-    /// Linux I/O priority of one of OmniGet's own children, before idle.
-    IoPrio { pid: u32, started: u64, prev: i32 },
-    /// macOS background band (`PRIO_DARWIN_BG`) to put back.
+    ReleaseProfile {
+        cookie: u32,
+    },
+    UnInhibit {
+        cookie: u32,
+    },
+    Nice {
+        pid: u32,
+        started: u64,
+        prev: i32,
+    },
+    IoPrio {
+        pid: u32,
+        started: u64,
+        prev: i32,
+    },
     DarwinBg {
         pid: u32,
         started: u64,
         restore: bool,
     },
-    /// Windows power scheme active before, and the one we set.
-    PowerScheme { prev: String, set: String },
-    /// Windows priority class of the game before.
-    PriorityClass { pid: u32, started: u64, prev: u32 },
-    /// Windows EcoQoS state of the game before (`ControlMask`, `StateMask`).
+    PowerScheme {
+        prev: String,
+        set: String,
+    },
+    PriorityClass {
+        pid: u32,
+        started: u64,
+        prev: u32,
+    },
     PowerThrottling {
         pid: u32,
         started: u64,
         control: u32,
         state: u32,
     },
-    /// Windows `SetThreadExecutionState` held by the watcher thread.
     ExecutionState,
 }
 
 impl UndoStep {
-    /// The process a step belongs to: nothing to undo once it is gone.
     fn target(&self) -> Option<(u32, u64)> {
         match *self {
             UndoStep::Nice { pid, started, .. }
@@ -111,23 +96,18 @@ impl UndoStep {
     }
 }
 
-/// A game with game mode on, as the screen and `kv` see it.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Active {
     pub pid: u32,
     pub name: String,
-    /// Process start time, so a reused pid is never mistaken for the game.
     pub started: u64,
-    /// `feral_gamemode`, `portal`, `native`, `windows`, `macos`.
     pub method: String,
     pub since: i64,
-    /// Codes of what was turned on (`gamemode`, `power_profile`, ...).
     pub applied: Vec<String>,
     pub notes: Vec<String>,
     pub undo: Vec<UndoStep>,
 }
 
-/// What an OS module turned on.
 #[derive(Debug, Default)]
 pub struct Applied {
     pub method: String,
@@ -136,27 +116,20 @@ pub struct Applied {
     pub undo: Vec<UndoStep>,
 }
 
-/// Runs the undo steps (and the periodic re-check) of one system. Tests use
-/// a fake that only records.
 pub trait Exec: Send + Sync + 'static {
     fn undo(&self, step: &UndoStep) -> Result<String, String>;
-    /// About every three seconds while the game runs: new steps (a new
-    /// yt-dlp started by OmniGet gets lowered too).
     fn tick(&self, _active: &Active) -> Vec<UndoStep> {
         Vec::new()
     }
-    /// Whether the process is still the same one.
     fn alive(&self, pid: u32, started: u64) -> bool {
         alive(pid, started)
     }
 }
 
-/// Blocks up to `timeout`; `true` once the process has exited.
 pub trait ExitWaiter: Send {
     fn wait(&mut self, timeout: Duration) -> bool;
 }
 
-/// Portable waiter: checks the pid and its start time.
 pub struct PollWaiter {
     pub pid: u32,
     pub started: u64,
@@ -180,7 +153,6 @@ impl ExitWaiter for PollWaiter {
     }
 }
 
-/// The process `pid` exists and started at `started` (0: any start time).
 pub fn alive(pid: u32, started: u64) -> bool {
     let mut sys = System::new();
     let p = Pid::from_u32(pid);
@@ -191,7 +163,6 @@ pub fn alive(pid: u32, started: u64) -> bool {
     );
     match sys.process(p) {
         Some(proc_) => {
-            // A zombie waiting to be reaped has already exited.
             if matches!(
                 proc_.status(),
                 sysinfo::ProcessStatus::Zombie | sysinfo::ProcessStatus::Dead
@@ -204,9 +175,6 @@ pub fn alive(pid: u32, started: u64) -> bool {
     }
 }
 
-// ── Which pid may be touched ─────────────────────────────────────────────
-
-/// The game as validated: same user, not OmniGet, not the session.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Target {
     pub pid: u32,
@@ -234,7 +202,6 @@ const SESSION_NAMES: &[&str] = &[
     "registry",
 ];
 
-/// Why a pid is refused, or `None`. Pure, so the rules are tested alone.
 pub fn refuse_reason(pid: u32, own_pid: u32, name: &str, same_user: bool) -> Option<&'static str> {
     if pid <= 1 {
         return Some("REFUSED: pid 0 and 1 belong to the system");
@@ -287,8 +254,6 @@ fn pid_arg(a: &Value) -> Result<u32, String> {
         .ok_or_else(|| "pid (integer) is required".into())
 }
 
-// ── Sessions ─────────────────────────────────────────────────────────────
-
 struct Live {
     id: u64,
     stop: Arc<AtomicBool>,
@@ -322,7 +287,6 @@ fn kv_drop(ctx: Option<&Ctx>, pid: u32, since: i64) {
     let _ = ctx.kv_set(KV_KEY, &all);
 }
 
-/// Undo in reverse order; steps of a process that is gone are skipped.
 pub fn undo_all(exec: &dyn Exec, steps: &[UndoStep]) -> Vec<Value> {
     steps
         .iter()
@@ -345,16 +309,11 @@ pub fn undo_all(exec: &dyn Exec, steps: &[UndoStep]) -> Vec<Value> {
 type ApplyFn = Box<dyn FnOnce() -> Result<Applied, String> + Send>;
 type WaiterFn = Box<dyn FnOnce() -> Box<dyn ExitWaiter> + Send>;
 
-/// How long the watcher waits for the exit between two looks at the stop
-/// flag; every third look runs `Exec::tick`. Unit tests use a short one so
-/// a stop or a tick never waits a whole second.
 #[cfg(not(test))]
 const TICK: Duration = Duration::from_secs(1);
 #[cfg(test)]
 const TICK: Duration = Duration::from_millis(50);
 
-/// Start a session: a thread applies, watches and undoes. Returns once the
-/// apply step has finished.
 pub fn start(
     target: &Target,
     ctx: Option<Ctx>,
@@ -444,8 +403,6 @@ pub fn start(
 
     match ready_rx.recv_timeout(Duration::from_secs(30)) {
         Ok(Ok(a)) => {
-            // The watcher may already have seen the exit and cleaned up; in
-            // that case do not leave a dead entry behind.
             let mut live = LIVE.lock().unwrap_or_else(|e| e.into_inner());
             if !handle.is_finished() {
                 live.insert(
@@ -472,7 +429,6 @@ pub fn start(
     }
 }
 
-/// Stop one session now and wait for its undo report.
 pub fn stop(pid: u32) -> Option<Vec<Value>> {
     let l = LIVE
         .lock()
@@ -497,8 +453,6 @@ pub fn active_list() -> Vec<Active> {
     v
 }
 
-/// Undo every session now (OmniGet is closing). Bounded: never blocks the
-/// exit for more than a few seconds.
 pub fn shutdown() {
     let all: Vec<Live> = LIVE
         .lock()
@@ -529,8 +483,6 @@ fn register_exit_cleanup() {
     });
 }
 
-/// Undo sessions left in `kv` by an OmniGet that did not close cleanly
-/// (sessions of this run are skipped).
 pub fn recover_with(ctx: &Ctx, exec: &dyn Exec) -> Vec<Value> {
     let live: Vec<(u32, i64)> = active_list().iter().map(|a| (a.pid, a.since)).collect();
     let stale: Vec<Active> = {
@@ -548,8 +500,6 @@ pub fn recover_with(ctx: &Ctx, exec: &dyn Exec) -> Vec<Value> {
         .collect()
 }
 
-/// Once per run: clean what a crash left behind. Also for the app to call
-/// at startup.
 pub fn recover() {
     static ONCE: Once = Once::new();
     ONCE.call_once(|| {
@@ -559,8 +509,6 @@ pub fn recover() {
         }
     });
 }
-
-// ── The system's executor ────────────────────────────────────────────────
 
 #[cfg(target_os = "linux")]
 fn system_exec() -> Arc<dyn Exec> {
@@ -603,7 +551,6 @@ fn status(pid: Option<u32>) -> Value {
     v
 }
 
-/// What the screen and agents see of a session (no internal undo detail).
 fn public(a: &Active) -> Value {
     json!({
         "pid": a.pid,
@@ -644,11 +591,8 @@ pub async fn tool_game_mode(a: Value) -> Result<Value, String> {
     .await
 }
 
-/// Actions only the screen may run (`washmybelly_ui` with `game.<action>`):
-/// never exposed as MCP tools.
 pub async fn ui_action(action: &str, _a: Value) -> Result<Value, String> {
     match action {
-        // "Turn everything off" from the screen.
         "disable_all" => {
             super::tools::blocking(|| {
                 let pids: Vec<u32> = active_list().iter().map(|a| a.pid).collect();

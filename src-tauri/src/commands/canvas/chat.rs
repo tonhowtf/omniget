@@ -1,7 +1,3 @@
-//! Tauri commands of the chat face and the Prompt Composer's attachments.
-//! Transcript logic: `omniget_core::core::canvas::chat`; delivery and the
-//! `canvas://chat` event: `crate::canvas::chat`.
-
 use std::sync::Arc;
 
 use base64::Engine;
@@ -22,9 +18,6 @@ async fn blocking<T: Send + 'static>(
         .map_err(|e| format!("CANVAS_TASK: {e}"))?
 }
 
-/// A page of one thread (newest 80, or 60 before `before`), plus the thread
-/// list, the active thread and the unread counts. Reading marks the thread
-/// read unless `peek`.
 #[tauri::command]
 pub async fn canvas_chat_history(
     app: AppHandle,
@@ -59,8 +52,6 @@ pub async fn canvas_chat_history(
     .await
 }
 
-/// Selects the thread the next message goes to. `CHAT_TURN_ACTIVE` while
-/// the agent answers on another thread.
 #[tauri::command]
 pub async fn canvas_chat_select_thread(
     app: AppHandle,
@@ -72,7 +63,6 @@ pub async fn canvas_chat_select_thread(
     blocking(move || crate::canvas::chat::select(&workspace_id, &node_id, thread)).await
 }
 
-/// Marks one thread (or every thread) of a node as read.
 #[tauri::command]
 pub async fn canvas_chat_mark_read(
     app: AppHandle,
@@ -84,8 +74,6 @@ pub async fn canvas_chat_mark_read(
     blocking(move || crate::canvas::chat::mark_read(&workspace_id, &node_id, thread)).await
 }
 
-/// Esc on the chat face: ESC to the agent and the open turn closed as
-/// interrupted (the entry, or null when no turn was open).
 #[tauri::command]
 pub async fn canvas_chat_interrupt(
     app: AppHandle,
@@ -96,8 +84,6 @@ pub async fn canvas_chat_interrupt(
     blocking(move || crate::canvas::chat::interrupt(&workspace_id, &node_id)).await
 }
 
-/// Palette: entries of every chat (all workspaces, threads and terminals)
-/// holding every word of `query`, no case and no accents, newest first.
 #[tauri::command]
 pub async fn canvas_chat_search(
     app: AppHandle,
@@ -108,8 +94,6 @@ pub async fn canvas_chat_search(
     blocking(move || Ok(crate::canvas::chat::search(&query, limit))).await
 }
 
-/// User → agent: records the message on `thread` and pastes the chat
-/// envelope into the node's terminal (bracketed paste + Enter).
 #[tauri::command]
 pub async fn canvas_chat_send(
     app: AppHandle,
@@ -134,7 +118,6 @@ pub async fn canvas_chat_send(
     .await
 }
 
-/// "Clear": a divider on the thread; `recall` stops there unless `--all`.
 #[tauri::command]
 pub async fn canvas_chat_clear(
     app: AppHandle,
@@ -151,8 +134,6 @@ pub async fn canvas_chat_clear(
     .await
 }
 
-/// Delete Message: removes one transcript entry (and its attachment files
-/// when no other entry uses them).
 #[tauri::command]
 pub async fn canvas_chat_delete_entry(
     app: AppHandle,
@@ -166,8 +147,6 @@ pub async fn canvas_chat_delete_entry(
         .await
 }
 
-/// Clear Chat History: every thread (or `thread`) and the attachments.
-/// Refused with `CHAT_TURN_ACTIVE` while the agent is mid-turn.
 #[tauri::command]
 pub async fn canvas_chat_wipe(
     app: AppHandle,
@@ -179,8 +158,6 @@ pub async fn canvas_chat_wipe(
     blocking(move || crate::canvas::chat::wipe(&workspace_id, &node_id, thread)).await
 }
 
-/// Saves a pasted/dropped file (base64) into `<ws>/inbox/attachments` and
-/// returns its absolute path (the composer inserts it into the prompt).
 #[tauri::command]
 pub async fn canvas_attachment_save(
     app: AppHandle,

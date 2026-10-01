@@ -1,14 +1,8 @@
-//! Microsoft 365 (Teams) in the Meetings screen: set the app registration,
-//! sign in with a device code, export chats, list calendar meetings and
-//! import official transcripts. The work is `omniget_core::core::msgraph`,
-//! shared with `omniget teams` and the MCP tools.
-
 use std::sync::Mutex;
 
 use omniget_core::core::msgraph::{self, calendar, chats, transcripts, DeviceCode};
 use tauri::{AppHandle, Emitter};
 
-/// The device code between "show it" and "wait for it".
 static PENDING: Mutex<Option<DeviceCode>> = Mutex::new(None);
 
 fn e(err: anyhow::Error) -> String {
@@ -30,7 +24,6 @@ pub fn teams_configure(
     Ok(msgraph::status())
 }
 
-/// Step 1: the code and the page to type it in.
 #[tauri::command]
 pub async fn teams_sign_in_start() -> Result<DeviceCode, String> {
     let code = msgraph::start_sign_in().await.map_err(e)?;
@@ -38,7 +31,6 @@ pub async fn teams_sign_in_start() -> Result<DeviceCode, String> {
     Ok(code)
 }
 
-/// Step 2: waits until the person finished in the browser.
 #[tauri::command]
 pub async fn teams_sign_in_finish() -> Result<msgraph::Status, String> {
     let code = PENDING
@@ -73,7 +65,6 @@ pub struct ExportResult {
     pub errors: Vec<String>,
 }
 
-/// Exports the chosen chats (Markdown, or JSON) into the export folder.
 #[tauri::command]
 pub async fn teams_export(
     chat_ids: Vec<String>,

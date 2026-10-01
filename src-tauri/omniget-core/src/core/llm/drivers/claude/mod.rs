@@ -1,22 +1,3 @@
-//! `claude` driver of the Central (plan §3.2, line `claude`): one long-lived
-//! Claude Code process per thread, driven over stream-json on stdio, with the
-//! permission prompts answered by the host (`--permission-prompt-tool stdio`,
-//! the Agent SDK's own control protocol; see [`protocol`] for the wire as
-//! measured on 2.1.280).
-//!
-//! * [`protocol`]: argv, env, the stdin messages and the permission answers.
-//! * [`translate`]: stdout → [`RuntimeEvent`] (pure; tested on the recorded
-//!   fixtures in `fixtures/`).
-//! * [`supervisor`]: spawn, pumps, exit watch, scoped tree kill.
-//! * [`cursor`]: resume cursor (session id + turn boundaries) and its file.
-//! * [`diff`]: the unified diff shown on an edit approval.
-//!
-//! Lifecycle: `start_session` records the thread's settings; the process is
-//! spawned by the first `start_turn` (or after a crash, with `--resume`) and
-//! stays up between turns; `stop` closes stdin, waits, and kills only our own
-//! process tree. Rollback and fork use `--resume <id> --resume-session-at
-//! <uuid> --fork-session` at the next launch.
-
 pub mod cursor;
 pub mod diff;
 pub mod protocol;
@@ -47,10 +28,7 @@ use protocol::Launch;
 use supervisor::{Exit, ProcHandle, SpawnSpec};
 use translate::{Output, Translator, DRIVER};
 
-/// An interrupt that the CLI has not honoured after this long becomes a hard
-/// stop of the process (T3 saw `interrupt` acked while work continued).
 const INTERRUPT_WATCHDOG: Duration = Duration::from_secs(10);
-/// Crashes in a row (no turn finished in between) before giving up.
 const MAX_CRASHES: u32 = 3;
 
 pub fn capabilities() -> DriverCapabilities {
@@ -62,7 +40,6 @@ pub fn capabilities() -> DriverCapabilities {
         user_input: true,
         model_switch: true,
         plan_mode: true,
-        // `/compact` is an ordinary prompt to the CLI.
         compaction: true,
         continuation: false,
         steer: true,
@@ -81,13 +58,10 @@ pub fn registration() -> DriverRegistration {
     }
 }
 
-/// Registers the `claude` kind. Idempotent.
 pub fn register() {
     register_driver(registration());
 }
 
-/// One process-wide cursor file: several instances (accounts) share it, and
-/// two in-memory copies would overwrite each other.
 fn shared_store() -> Arc<CursorStore> {
     static STORE: OnceLock<Arc<CursorStore>> = OnceLock::new();
     STORE
@@ -108,16 +82,12 @@ struct Inner {
     tr: Translator,
     config: Config,
     proc: Option<ProcHandle>,
-    /// Bumped on every spawn; callbacks of an older process are ignored.
     generation: u64,
-    /// The process was launched with `--allow-dangerously-skip-permissions`.
     launched_full: bool,
-    /// Permission mode last set in the CLI.
     mode: String,
     control_seq: u64,
     waiters: HashMap<String, oneshot::Sender<(bool, Value)>>,
     crashes: u32,
-    /// `system/init` count of the current process.
     inits_at_spawn: u64,
     hard_interrupt: bool,
     persisted: ClaudeCursor,
@@ -128,7 +98,6 @@ struct Session {
     inner: Mutex<Inner>,
 }
 
-/// `<app_data>/llm/mcp/claude-<hash of thread>.json`, owner-only.
 fn embedded_mcp_path(thread_id: &str) -> Option<PathBuf> {
     use sha2::Digest;
     let h = hex::encode(sha2::Sha256::digest(thread_id.as_bytes()));
@@ -136,8 +105,6 @@ fn embedded_mcp_path(thread_id: &str) -> Option<PathBuf> {
         .map(|d| d.join("mcp").join(format!("claude-{}.json", &h[..16])))
 }
 
-/// Writes the host's MCP servers for this thread (`acp::mcp_servers_for`,
-/// which mints a session token) and returns the path for `--mcp-config`.
 fn embedded_mcp_file(thread_id: &str, instance_id: &str) -> Option<String> {
     let servers = super::acp::mcp_servers_for(thread_id, instance_id);
     if servers.is_empty() {
@@ -165,7 +132,6 @@ fn remove_embedded_mcp_file(thread_id: &str) {
     }
 }
 
-/// What the process callbacks need (they outlive any `&self` borrow).
 struct Shared {
     instance: DriverInstance,
     sink: RuntimeSink,
@@ -235,7 +201,6 @@ impl Shared {
     fn on_exit(&self, session: &Arc<Session>, generation: u64, exit: Exit) {
         let mut inner = session.inner.lock().unwrap_or_else(|e| e.into_inner());
         if inner.generation != generation || inner.proc.is_none() {
-            // Our own stop, or a newer process already replaced this one.
             return;
         }
         inner.proc = None;
@@ -270,9 +235,6 @@ impl Shared {
         let live = inner.tr.has_live_turn();
         if !hard {
             inner.crashes += 1;
-            // Died before the first `system/init` while resuming: the saved
-            // session is unusable (deleted transcript, other account). Start
-            // fresh next time instead of failing forever.
             if inner.tr.inits() == inner.inits_at_spawn && !inner.tr.cursor.session_id.is_empty() {
                 inner.tr.cursor = ClaudeCursor::default();
                 self.emit(self.event(
@@ -369,8 +331,6 @@ impl ClaudeDriver {
     }
 
     fn stored_cursor(&self, thread_id: &str, fallback: Option<&Value>) -> ClaudeCursor {
-        // Our own file wins: it is written on every change, including the
-        // rollbacks the engine's copy has not seen yet.
         self.shared
             .store
             .get(thread_id)
@@ -426,7 +386,6 @@ impl ClaudeDriver {
         Ok(found)
     }
 
-    /// Writes one control request; returns its id.
     fn control(inner: &mut Inner, request: Value) -> Option<String> {
         let proc = inner.proc.as_ref()?;
         inner.control_seq += 1;
@@ -436,7 +395,6 @@ impl ClaudeDriver {
         Some(id)
     }
 
-    /// Spawns the CLI for a session (caller holds no lock).
     async fn spawn(&self, session: &Arc<Session>) -> Result<(), DriverError> {
         let program = self.binary().await?;
         let mut inner = session.inner.lock().unwrap_or_else(|e| e.into_inner());
@@ -461,8 +419,6 @@ impl ClaudeDriver {
             resume_at: cursor.resume_at.clone(),
             fork: cursor.fork,
             session_id: None,
-            // An explicit config wins; otherwise the host's embedded MCP
-            // (session token) goes in a private temp file, not on argv.
             mcp_config: inner
                 .config
                 .mcp_config
@@ -504,8 +460,6 @@ impl ClaudeDriver {
         Ok(())
     }
 
-    /// Kills the live process (if any) so the next turn relaunches with the
-    /// current settings. Only when idle.
     fn relaunch_if_idle(inner: &mut Inner) -> Option<ProcHandle> {
         if inner.tr.has_live_turn() {
             return None;
@@ -551,8 +505,6 @@ impl Driver for ClaudeDriver {
 
     async fn start_turn(&self, input: TurnStart) -> Result<TurnStartResult, DriverError> {
         let s = self.session_or_create(&input.thread_id, None);
-        // Settings of this turn, and a relaunch when full access needs the
-        // launch flag the live process does not have.
         let old = {
             let mut inner = s.inner.lock().unwrap_or_else(|e| e.into_inner());
             inner.config.access = input.access_mode;
@@ -587,7 +539,6 @@ impl Driver for ClaudeDriver {
                 "Claude is not running",
             ));
         }
-        // Mode (plan turns switch to `plan` and back) and model.
         let want = protocol::permission_mode(input.access_mode, input.interaction_mode).to_string();
         if want != inner.mode {
             Self::control(
@@ -665,7 +616,6 @@ impl Driver for ClaudeDriver {
             );
             inner.generation
         };
-        // Watchdog: a turn still alive after the grace becomes a hard stop.
         let s2 = s.clone();
         tokio::spawn(async move {
             tokio::time::sleep(INTERRUPT_WATCHDOG).await;
@@ -750,7 +700,6 @@ impl Driver for ClaudeDriver {
                     return Ok(());
                 }
                 inner.tr.cursor = c.clone();
-                // The live process still holds the long history.
                 inner.generation += 1;
                 let old = inner.proc.take();
                 for ev in inner
@@ -812,7 +761,6 @@ impl Driver for ClaudeDriver {
             .truncate(turn_count as usize)
             .map_err(|e| DriverError::new(ERR_DRIVER_FAILED, e))?;
         if !cut && !c.session_id.is_empty() {
-            // Whole history: still a copy, never the source's own session.
             c.fork = true;
         }
         self.shared.store.put(target_thread_id, &c);
@@ -844,8 +792,6 @@ impl Driver for ClaudeDriver {
             if inner.proc.is_none() {
                 None
             } else if mode == AccessMode::FullAccess && !inner.launched_full {
-                // bypassPermissions needs the launch flag: relaunch (resume)
-                // when idle, otherwise at the next turn.
                 Self::relaunch_if_idle(&mut inner)
             } else {
                 let want = protocol::permission_mode(mode, inner.config.interaction).to_string();

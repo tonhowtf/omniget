@@ -1,12 +1,8 @@
-//! Linux sysfs knobs written by the administrator helper, and the owner
-//! of the profiles API. No D-Bus here, so the tests run on every OS.
-
 use std::path::Path;
 
 use super::arbiter::Manager;
 use super::parse;
 
-/// Who owns the profiles API, from the process name or the `Version`.
 pub fn owner_manager(comm: Option<&str>, version: Option<&str>) -> Option<Manager> {
     if version.is_some_and(|v| v.starts_with("tlp-pd")) {
         return Some(Manager::TlpPd);
@@ -19,8 +15,6 @@ pub fn owner_manager(comm: Option<&str>, version: Option<&str>) -> Option<Manage
     }
 }
 
-/// Write `value` to `name` in every cpufreq folder, after checking it is
-/// one of the values the kernel lists as available.
 pub fn write_cpu_knob(
     sys: &Path,
     name: &str,
@@ -45,7 +39,6 @@ pub fn write_cpu_knob(
     Ok(format!("{name} = {value} on {n} CPUs (until restart)"))
 }
 
-/// `BAT0:80`.
 pub fn write_charge_limit(sys: &Path, value: &str) -> Result<String, String> {
     let (bat, pct) = value
         .split_once(':')
@@ -68,7 +61,6 @@ pub fn write_charge_limit(sys: &Path, value: &str) -> Result<String, String> {
         .map(|f| dir.join(f))
         .find(|p| p.exists())
         .ok_or("charge_limit: no threshold file")?;
-    // A start threshold above the new end is refused by most drivers.
     for start in ["charge_control_start_threshold", "charge_start_threshold"] {
         let sp = dir.join(start);
         if let Some(cur) = std::fs::read_to_string(&sp)

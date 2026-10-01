@@ -1,16 +1,3 @@
-//! Administrator work, through the small `omniget-elevate` helper.
-//!
-//! The app never runs as admin. When a plan has admin items, their typed
-//! operations are written to a file, signed with an HMAC key only this user
-//! can read, and the helper is started elevated (macOS `osascript ... with
-//! administrator privileges`, Windows UAC `runas`, Linux `pkexec`). The
-//! helper accepts nothing but this closed enum: no command, no script, no
-//! free path. It checks the signature, the expiry, the protected paths and
-//! the fingerprints again before touching anything.
-//!
-//! Without elevation the screen offers [`copy_command`]: the same work as
-//! commands the person can read and run in a terminal.
-
 use std::path::{Path, PathBuf};
 
 use hmac::{Hmac, Mac};
@@ -21,8 +8,6 @@ use super::fsops::Fingerprint;
 use super::protect::Guard;
 use super::store::{now, Ctx};
 
-/// Every operation the helper knows. Adding one means a new variant here and
-/// its executor in [`execute_local`]; nothing else reaches root.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(tag = "op", rename_all = "snake_case")]
 pub enum ElevatedOp {
@@ -35,11 +20,9 @@ pub enum ElevatedOp {
         #[serde(default)]
         contents_only: bool,
     },
-    /// Windows registry (HKLM and other hives the user cannot write).
     RegSet {
         key: String,
         name: String,
-        /// `REG_DWORD`, `REG_QWORD`, `REG_SZ`, `REG_EXPAND_SZ`, `REG_MULTI_SZ`, `REG_BINARY`.
         kind: String,
         data: String,
     },
@@ -48,57 +31,63 @@ pub enum ElevatedOp {
         #[serde(default)]
         name: Option<String>,
     },
-    /// Windows service or Linux systemd unit start type.
     ServiceStartup {
         name: String,
-        /// `automatic`, `manual`, `disabled` (Windows); `enable`, `disable`, `mask` (systemd).
         mode: String,
     },
-    /// Windows scheduled task state.
-    TaskState { path: String, enabled: bool },
-    /// Remove packages through the system manager (apt, dnf, pacman, zypper,
-    /// snap, flatpak --system, winget machine scope).
-    PackageRemove { manager: String, names: Vec<String> },
-    /// Upgrade packages through the system manager (apt, dnf, pacman whole
-    /// system, zypper, snap, flatpak --system).
-    PackageUpgrade { manager: String, names: Vec<String> },
-    /// Windows: run an app's own uninstaller as administrator. The helper
-    /// rebuilds the command from the registry entry named by `app_id` and
-    /// refuses when `program`/`args`/`kind` differ.
+    TaskState {
+        path: String,
+        enabled: bool,
+    },
+    PackageRemove {
+        manager: String,
+        names: Vec<String>,
+    },
+    PackageUpgrade {
+        manager: String,
+        names: Vec<String>,
+    },
     WinUninstall {
         app_id: String,
         kind: String,
         program: String,
         args: Vec<String>,
     },
-    /// Windows one-time setup for frame capture: join (or leave) the
-    /// Performance Log Users group (S-1-5-32-559). The user must sign out.
-    PerfLogUsers { user_sid: String, join: bool },
-    /// macOS: forget a `.pkg` receipt after its files are gone.
-    PkgForget { id: String },
-    /// macOS: stop a LaunchDaemon before its plist leaves.
-    LaunchctlBootout { domain: String, label: String },
-    /// macOS: `launchctl disable|enable <domain>/<label>` (survives restarts).
+    PerfLogUsers {
+        user_sid: String,
+        join: bool,
+    },
+    PkgForget {
+        id: String,
+    },
+    LaunchctlBootout {
+        domain: String,
+        label: String,
+    },
     LaunchctlState {
         domain: String,
         label: String,
         enabled: bool,
     },
-    /// macOS: thin local Time Machine snapshots.
-    TmutilThin { bytes: u64 },
-    /// Linux: `journalctl --vacuum-size`.
-    JournalVacuum { max_mb: u64 },
-    /// Replace the hosts file with the content of a file we staged.
-    WriteHosts { staged: PathBuf },
-    /// Windows power setting, macOS `pmset` key, Linux sysfs knob.
-    PowerSetting { key: String, value: String },
-    /// macOS/Linux maintenance with a fixed argv chosen by the module
-    /// (`id` picks it from the module's own table; the helper re-derives
-    /// the argv from the id and never trusts one from the plan).
-    Maintenance { id: String },
-    /// Linux package-cache and snap-revision cleanup; the helper rebuilds
-    /// the argv from `id` with `clean::native_argv` (closed table).
-    CleanNative { id: String },
+    TmutilThin {
+        bytes: u64,
+    },
+    JournalVacuum {
+        max_mb: u64,
+    },
+    WriteHosts {
+        staged: PathBuf,
+    },
+    PowerSetting {
+        key: String,
+        value: String,
+    },
+    Maintenance {
+        id: String,
+    },
+    CleanNative {
+        id: String,
+    },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -109,13 +98,11 @@ pub struct OpResult {
     pub bytes: u64,
 }
 
-/// What the app writes and the helper reads.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SignedBatch {
     pub ops: Vec<ElevatedOp>,
     pub expires: i64,
     pub nonce: String,
-    /// Hex HMAC-SHA256 of `ops|expires|nonce` with the user's key.
     pub mac: String,
 }
 
@@ -125,7 +112,6 @@ fn key_path(dir: &Path) -> PathBuf {
     dir.join(KEY_FILE)
 }
 
-/// The HMAC key, created 0600 on first use.
 pub fn key(dir: &Path) -> Result<Vec<u8>, String> {
     let path = key_path(dir);
     if let Ok(k) = std::fs::read(&path) {
@@ -185,7 +171,6 @@ pub fn verify(key: &[u8], b: &SignedBatch) -> Result<(), String> {
         .map_err(|_| "BAD_SIGNATURE".to_string())
 }
 
-/// Path of the helper next to the running binary (bundle or `target/`).
 pub fn helper_path() -> Option<PathBuf> {
     let exe = std::env::current_exe().ok()?;
     let dir = exe.parent()?;
@@ -198,8 +183,6 @@ pub fn helper_path() -> Option<PathBuf> {
     p.is_file().then_some(p)
 }
 
-/// Run a batch as administrator: one prompt for the whole batch. Returns one
-/// result per operation, in order.
 pub fn run(ctx: &Ctx, ops: &[ElevatedOp]) -> Result<Vec<OpResult>, String> {
     if crate::core::dependencies::is_flatpak() {
         return Err(
@@ -234,8 +217,6 @@ pub fn run(ctx: &Ctx, ops: &[ElevatedOp]) -> Result<Vec<OpResult>, String> {
 
 #[cfg(target_os = "macos")]
 fn launch_elevated(helper: &Path, plan: &Path, out: &Path) -> Result<(), String> {
-    // Paths travel as argv of osascript and are quoted by AppleScript's own
-    // `quoted form of`; no path is ever spliced into the script text.
     let status = std::process::Command::new("/usr/bin/osascript")
         .arg("-e")
         .arg("on run argv")
@@ -285,8 +266,6 @@ fn launch_elevated(helper: &Path, plan: &Path, out: &Path) -> Result<(), String>
     fn wide(s: &std::ffi::OsStr) -> Vec<u16> {
         s.encode_wide().chain(std::iter::once(0)).collect()
     }
-    // Our own data paths have no quotes; each is wrapped in quotes as one
-    // argument for CommandLineToArgvW.
     let params = format!("--plan \"{}\" --out \"{}\"", plan.display(), out.display());
     if params.matches('"').count() != 4 {
         return Err("unexpected quote in a data path".into());
@@ -318,8 +297,6 @@ fn launch_elevated(helper: &Path, plan: &Path, out: &Path) -> Result<(), String>
     }
 }
 
-/// Run one operation in the current process. Only `omniget-elevate` calls
-/// this (as admin); tests call it on temporary folders.
 pub fn execute_local(op: &ElevatedOp) -> OpResult {
     let r: Result<(String, u64), String> = match op {
         ElevatedOp::RemovePath {
@@ -401,9 +378,6 @@ pub fn execute_local(op: &ElevatedOp) -> OpResult {
     }
 }
 
-/// Windows maintenance steps of the clean rules (stop Windows Update before
-/// its cache goes, Delivery Optimization's own cleanup). The argv comes from
-/// a fixed table under System32; nothing from the plan reaches it.
 fn windows_maintenance(id: &str) -> Result<(String, u64), String> {
     let root = std::env::var("SystemRoot").unwrap_or_else(|_| "C:\\Windows".into());
     let steps = super::clean::rules_windows::maintenance_argv(id, &root)
@@ -414,7 +388,6 @@ fn windows_maintenance(id: &str) -> Result<(String, u64), String> {
             .args(args)
             .output()
             .map_err(|e| format!("{prog}: {e}"))?;
-        // `net stop` of a service that is not running is not a failure.
         if !out.status.success() && !String::from_utf8_lossy(&out.stdout).contains("not started") {
             return Err(format!(
                 "{id}: {}",
@@ -425,11 +398,9 @@ fn windows_maintenance(id: &str) -> Result<(String, u64), String> {
     Ok((format!("{id} done"), 0))
 }
 
-/// Entry point of the helper binary: read, verify, run, write results.
 pub fn helper_main(plan: &Path, out: &Path) -> Result<(), String> {
     let text = std::fs::read_to_string(plan).map_err(|e| e.to_string())?;
     let batch: SignedBatch = serde_json::from_str(&text).map_err(|e| format!("BAD_PLAN: {e}"))?;
-    // The key sits next to the plan folder: <data>/washmybelly/elevate.key.
     let data = plan
         .parent()
         .and_then(Path::parent)
@@ -442,7 +413,6 @@ pub fn helper_main(plan: &Path, out: &Path) -> Result<(), String> {
         serde_json::to_vec(&results).map_err(|e| e.to_string())?,
     )
     .map_err(|e| e.to_string())?;
-    // The result file must stay readable by the user that asked.
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
@@ -451,8 +421,6 @@ pub fn helper_main(plan: &Path, out: &Path) -> Result<(), String> {
     Ok(())
 }
 
-/// The same work as terminal commands, for people who would rather run them
-/// themselves. Display only: nothing here is ever executed by OmniGet.
 pub fn copy_command(ops: &[ElevatedOp]) -> Vec<String> {
     let q = |s: &str| {
         if cfg!(windows) {

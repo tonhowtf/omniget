@@ -1,5 +1,3 @@
-//! music.youtube.com (WEB_REMIX client) responses -> OmniTube model.
-
 use serde_json::Value;
 
 use crate::core::tube::model::*;
@@ -8,7 +6,6 @@ use crate::core::tube::walk::{
     log_unknown, runs, shelves_of, str_at, text, thumbs,
 };
 
-/// `sectionListRenderer` of the first tab of a single-column browse page.
 fn section_list(json: &Value) -> Option<&Value> {
     json.pointer("/contents/singleColumnBrowseResultsRenderer/tabs/0/tabRenderer/content/sectionListRenderer")
         .or_else(|| json.pointer("/contents/sectionListRenderer"))
@@ -39,19 +36,14 @@ fn music_page(json: &Value, default_kind: ShelfKind) -> Page {
     }
 }
 
-/// `browse FEmusic_home`. The mood chips come in the page itself, with the
-/// browse `params` as the chip token.
 pub fn music_home(json: &Value) -> Page {
     let p = music_page(json, ShelfKind::Carousel);
     log_unknown("music_home");
     p
 }
 
-/// FEmusic_explore, FEmusic_moods_and_genres(_category), FEmusic_charts,
-/// FEmusic_new_releases and any other browse page.
 pub fn music_browse(json: &Value) -> Page {
     let mut p = music_page(json, ShelfKind::Carousel);
-    // Loose navigation buttons (explore's top row) render as a mood grid.
     for s in &mut p.shelves {
         if s.items.iter().all(|i| matches!(i, Item::Mood(_))) {
             s.kind = ShelfKind::Moods;
@@ -61,10 +53,6 @@ pub fn music_browse(json: &Value) -> Page {
     p
 }
 
-/// `search` on music.youtube.com. The top result card becomes the first
-/// shelf; filter chips carry the search `params`.
-/// Since Sep 2026 the "All" search tab sends one `itemSectionRenderer` per
-/// result instead of titled shelves: fold runs of untitled lists into one.
 fn merge_untitled_lists(shelves: Vec<Shelf>) -> Vec<Shelf> {
     let mut out: Vec<Shelf> = Vec::with_capacity(shelves.len());
     for shelf in shelves {
@@ -110,8 +98,6 @@ pub fn music_search(json: &Value) -> Page {
     p
 }
 
-/// `continuationContents` (legacy) or `onResponseReceivedActions` (new
-/// playlist pages).
 pub fn music_continuation(json: &Value) -> Page {
     let mut shelves = Vec::new();
     let mut continuation = None;
@@ -151,8 +137,6 @@ pub fn music_continuation(json: &Value) -> Page {
     }
 }
 
-/// Album / playlist header: `musicResponsiveHeaderRenderer` (2024+) or the
-/// older `musicDetailHeaderRenderer` / editable wrapper.
 fn detail_header(json: &Value) -> Option<&Value> {
     find_first(json, "musicResponsiveHeaderRenderer")
         .or_else(|| json.pointer("/header/musicDetailHeaderRenderer"))
@@ -244,8 +228,6 @@ fn tracks_of(json: &Value) -> (Vec<SongItem>, Option<String>) {
     (songs, cont)
 }
 
-/// `browse MPREb_...`. Tracks inherit the album cover, name and artists
-/// (the rows don't repeat them).
 pub fn music_album(json: &Value, browse_id: &str) -> AlbumPage {
     let h = detail_header(json).unwrap_or(&Value::Null);
     let title = h.get("title").and_then(text).unwrap_or_default();
@@ -326,7 +308,6 @@ pub fn music_album(json: &Value, browse_id: &str) -> AlbumPage {
     }
 }
 
-/// `browse UC...` on music.youtube.com.
 pub fn music_artist(json: &Value, browse_id: &str) -> ArtistPage {
     let h = json
         .pointer("/header/musicImmersiveHeaderRenderer")
@@ -383,7 +364,6 @@ pub fn music_artist(json: &Value, browse_id: &str) -> ArtistPage {
     page
 }
 
-/// `browse VL<id>` on music.youtube.com.
 pub fn music_playlist(json: &Value, id: &str) -> PlaylistPage {
     let editable = find_first(json, "musicEditablePlaylistDetailHeaderRenderer").is_some();
     let h = detail_header(json).unwrap_or(&Value::Null);
@@ -400,7 +380,6 @@ pub fn music_playlist(json: &Value, id: &str) -> PlaylistPage {
                 })
         })
         .or_else(|| {
-            // Old header: "Playlist • Owner • 2024"
             let sub = h.get("subtitle")?;
             walk::channel_from_runs(sub).filter(|c| !c.id.is_empty())
         });
@@ -445,7 +424,6 @@ fn tab_browse_id(json: &Value, page_type: &str, prefix: &str) -> Option<String> 
     .map(|(id, _, _)| id.to_string())
 }
 
-/// `next` on music.youtube.com (song, radio or its continuation).
 pub fn music_queue(json: &Value) -> QueuePage {
     let panel = find_first(json, "playlistPanelRenderer")
         .or_else(|| json.pointer("/continuationContents/playlistPanelContinuation"))
@@ -476,9 +454,6 @@ pub fn music_queue(json: &Value) -> QueuePage {
     }
 }
 
-/// Lyrics tab (`browse MPLY...`): plain text from
-/// `musicDescriptionShelfRenderer`, or timed lines (`timedLyricsModel`)
-/// when the client gets them. `None` when the song has no lyrics.
 pub fn music_lyrics(json: &Value) -> Option<Lyrics> {
     if let Some(timed) = find_first(json, "timedLyricsModel") {
         let lines: Vec<LyricLine> = timed
@@ -527,16 +502,12 @@ pub fn music_lyrics(json: &Value) -> Option<Lyrics> {
     })
 }
 
-/// Related tab (`browse MPTR...`).
 pub fn music_related(json: &Value) -> Page {
     let p = music_page(json, ShelfKind::Carousel);
     log_unknown("music_related");
     p
 }
 
-/// Library pages (FEmusic_liked_playlists, FEmusic_liked_videos,
-/// FEmusic_library_corpus_track_artists, FEmusic_liked_albums,
-/// FEmusic_history...). Song lists come as List shelves, cards as grids.
 pub fn music_library(json: &Value) -> Page {
     let p = if json.get("continuationContents").is_some()
         || json.get("onResponseReceivedActions").is_some()
@@ -574,8 +545,6 @@ pub fn music_library(json: &Value) -> Page {
     p
 }
 
-/// `music/get_search_suggestions`: text suggestions only (the second
-/// section holds item shortcuts).
 pub fn music_suggestions(json: &Value) -> Vec<String> {
     find_key(json, "searchSuggestionRenderer")
         .into_iter()
@@ -671,7 +640,6 @@ mod tests {
             "{:?}",
             top.items[0]
         );
-        // top result + the flat list of the new layout
         assert!(p.shelves.len() >= 2);
         assert!(p.shelves[1].items.len() >= 5);
 

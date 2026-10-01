@@ -1,8 +1,3 @@
-//! `decide(model, command, ctx) -> events`: pure, no I/O, no clock (the
-//! engine passes `now`), no id minting (the engine normalizes the command
-//! first). Everything that changes a thread goes through here, including the
-//! runtime events of a driver, which are folded into domain events.
-
 use serde_json::{json, Value};
 
 use super::model::{Activity, Command, DomainEvent, ReadModel, ThreadState, WorktreeSpec};
@@ -43,7 +38,6 @@ impl std::fmt::Display for DecideError {
 
 impl std::error::Error for DecideError {}
 
-/// One finished turn of a source thread, loaded by the engine for `fork`.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ForkTurn {
     pub turn_id: String,
@@ -51,7 +45,6 @@ pub struct ForkTurn {
     pub state: String,
     pub requested_at: String,
     pub completed_at: Option<String>,
-    /// `(message_id, role, text, created_at)`.
     pub messages: Vec<(String, String, String, String)>,
     pub activities: Vec<Activity>,
 }
@@ -61,7 +54,6 @@ pub struct ForkSource {
     pub turns: Vec<ForkTurn>,
 }
 
-/// What the decider may know besides the model.
 #[derive(Debug, Clone, Copy)]
 pub struct DecideCtx<'a> {
     pub now: &'a str,
@@ -90,7 +82,6 @@ fn required(v: &Option<String>, what: &str) -> Result<String, DecideError> {
         .ok_or_else(|| DecideError::new(ERR_THREADS_INVALID, format!("missing {what}")))
 }
 
-/// First line of a message, ≤ 60 chars: the title of a fresh thread.
 pub fn title_from(text: &str) -> String {
     let first = text
         .lines()
@@ -106,7 +97,6 @@ pub fn title_from(text: &str) -> String {
 
 pub const DEFAULT_THREAD_TITLE: &str = "New thread";
 
-/// Last component of a folder path (`Project` when there is none).
 pub fn folder_title(root: &str) -> String {
     root.rsplit(['/', '\\'])
         .find(|s| !s.is_empty())
@@ -114,8 +104,6 @@ pub fn folder_title(root: &str) -> String {
         .to_string()
 }
 
-/// Host-observed facts `thread.host.record` accepts. Everything else a
-/// client or a driver asks for goes through its own command.
 pub fn host_recordable(e: &DomainEvent) -> bool {
     matches!(
         e,
@@ -253,7 +241,6 @@ pub fn decide(model: &ReadModel, cmd: &Command, ctx: &DecideCtx) -> R {
                 .as_deref()
                 .map(str::trim)
                 .filter(|p| !p.is_empty());
-            // An explicit project wins; a path finds (or makes) its project.
             let (project, root) = match model.projects.get(project_id) {
                 Some(p) if !p.deleted => (p.id.clone(), p.workspace_root.clone()),
                 _ => match path {
@@ -854,8 +841,6 @@ pub fn decide(model: &ReadModel, cmd: &Command, ctx: &DecideCtx) -> R {
     }
 }
 
-/// Which canonical item a tool name is, for tools whose names we know
-/// (the native harness and the common CLI tool names).
 pub fn item_type_of_tool(name: &str) -> ItemType {
     let lower = name.to_ascii_lowercase();
     if lower.starts_with("mcp:") || lower.starts_with("mcp__") {
@@ -910,8 +895,6 @@ fn end_state(state: TurnEndState) -> &'static str {
     }
 }
 
-/// Every approval and question still open for this turn becomes `stale`:
-/// the harness that asked is gone.
 fn close_stale(t: &ThreadState, turn_id: Option<&str>, now: &str) -> Vec<DomainEvent> {
     let mut out = Vec::new();
     let mut approvals: Vec<&String> = t
@@ -978,7 +961,6 @@ fn activity(ev: &RuntimeEvent, id: String, tone: &str, summary: String) -> Domai
     }
 }
 
-/// Runtime event → domain events (T3 `ProviderRuntimeIngestion`, folded).
 pub fn fold_runtime(t: &ThreadState, ev: &RuntimeEvent) -> Vec<DomainEvent> {
     use RuntimeEventKind as K;
     let now = ev.created_at.clone();
@@ -1027,8 +1009,6 @@ pub fn fold_runtime(t: &ThreadState, ev: &RuntimeEvent) -> Vec<DomainEvent> {
             match item.item_type {
                 ItemType::UserMessage => Vec::new(),
                 ItemType::AssistantMessage | ItemType::Reasoning => {
-                    // Text arrives as `content.delta`; `completed` may carry
-                    // the final text in `detail`, which then wins.
                     if !completed {
                         return Vec::new();
                     }
@@ -1267,7 +1247,6 @@ pub fn fold_runtime(t: &ThreadState, ev: &RuntimeEvent) -> Vec<DomainEvent> {
             markdown: Some(p.plan_markdown.clone()),
             updated_at: now,
         }],
-        // Not worth a row: the bytes are large and transient.
         K::Raw(_) | K::RealtimeAudioDelta(_) => Vec::new(),
         K::DiffUpdated(_) => vec![activity(ev, format!("{scope}:diff"), "info", "diff".into())],
         K::RuntimeError(p) => vec![activity(
@@ -1375,7 +1354,6 @@ pub fn fold_runtime(t: &ThreadState, ev: &RuntimeEvent) -> Vec<DomainEvent> {
     }
 }
 
-/// Canonical request type of a native tool approval.
 pub fn request_type_of_tool(name: &str) -> RequestType {
     match item_type_of_tool(name) {
         ItemType::CommandExecution => RequestType::CommandExecutionApproval,

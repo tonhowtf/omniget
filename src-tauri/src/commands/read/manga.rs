@@ -1,7 +1,3 @@
-//! Followed series: chapter lists synced from their source, read marks,
-//! the updates feed, categories, migration between sources and chapter
-//! downloads (saved as CBZ with ComicInfo.xml and added to the library).
-
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -18,7 +14,6 @@ use omniget_core::core::read::sources::{Hit, RemoteChapter};
 use super::db::{self, ChapterRow, SeriesRow};
 use super::{blocking, scan, sources};
 
-/// Sources whose terms allow streaming only.
 pub fn stream_only(source: &str) -> bool {
     source == "mangaplus"
 }
@@ -63,9 +58,6 @@ fn store_series(hit: &Hit, source: &str, key: &str, in_library: bool) -> Result<
     })
 }
 
-/// Sources list chapters newest first, or sort volumes as text (MangaDex puts
-/// volume 15 before volume 2), so order by chapter number. An unnumbered
-/// chapter (an extra, a oneshot) stays after the numbered one it followed.
 fn reading_order(list: &[RemoteChapter]) -> Vec<&RemoteChapter> {
     let mut last = f64::NEG_INFINITY;
     let mut keyed: Vec<(f64, &RemoteChapter)> = list
@@ -81,8 +73,6 @@ fn reading_order(list: &[RemoteChapter]) -> Vec<&RemoteChapter> {
     keyed.into_iter().map(|(_, ch)| ch).collect()
 }
 
-/// Merges a fresh chapter list; returns the ids of chapters seen for the
-/// first time. Read marks and downloads are kept.
 fn store_chapters(series_id: i64, list: &[RemoteChapter]) -> Result<Vec<i64>, String> {
     let now = db::now_ms();
     let list = reading_order(list);
@@ -134,12 +124,10 @@ fn store_chapters(series_id: i64, list: &[RemoteChapter]) -> Result<Vec<i64>, St
             params![now, series_id],
         )?;
         tx.commit()?;
-        // A first sync isn't "new chapters".
         Ok(if known.is_empty() { vec![] } else { new_ids })
     })
 }
 
-/// Read marks restored from a backup before the chapter rows existed.
 fn apply_pending(series_id: i64) -> Result<(), String> {
     let key = format!("pending_read:{series_id}");
     let Some(p) = db::kv_get::<serde_json::Value>(&key) else {
@@ -199,8 +187,6 @@ async fn sync(series_id: i64) -> Result<Vec<i64>, String> {
     .await
 }
 
-/// Opens a series from a source (without following it) so its page can
-/// show chapters and read marks.
 #[tauri::command]
 pub async fn read_series_open(
     source: String,
@@ -332,8 +318,6 @@ pub async fn read_series_update(
     Ok(row)
 }
 
-// ---------- chapters ----------
-
 #[tauri::command]
 pub async fn read_chapters_mark(app: AppHandle, ids: Vec<i64>, read: bool) -> Result<(), String> {
     let ids_for_push = ids.first().copied();
@@ -366,7 +350,6 @@ pub async fn read_chapters_mark(app: AppHandle, ids: Vec<i64>, read: bool) -> Re
     Ok(())
 }
 
-/// Marks every chapter before this one (by position) as read.
 #[tauri::command]
 pub async fn read_chapters_mark_previous(app: AppHandle, id: i64) -> Result<(), String> {
     blocking(move || {
@@ -400,7 +383,6 @@ pub async fn read_chapter_bookmark(app: AppHandle, id: i64, on: bool) -> Result<
     Ok(())
 }
 
-/// Page position inside a chapter; reaching the last page marks it read.
 #[tauri::command]
 pub async fn read_chapter_progress(
     app: AppHandle,
@@ -435,8 +417,6 @@ pub async fn read_chapter_progress(
     Ok(finished)
 }
 
-/// "Delete after reading": when on, drops the downloaded file of a chapter
-/// `keep` chapters behind the one just finished (bookmarked ones stay).
 fn after_read(chapter_id: i64) -> Result<(), String> {
     let keep: Option<i64> = db::kv_get("delete_after_read");
     let Some(keep) = keep.filter(|k| *k >= 0) else {
@@ -463,9 +443,7 @@ fn after_read(chapter_id: i64) -> Result<(), String> {
 
 #[derive(Serialize)]
 pub struct ChapterOpen {
-    /// Downloaded: read the local book.
     pub book_id: Option<i64>,
-    /// Online: proxied page URLs.
     pub pages: Vec<String>,
     pub external_url: Option<String>,
     pub start_page: i64,
@@ -516,8 +494,6 @@ pub async fn read_chapter_open(
         start_page,
     })
 }
-
-// ---------- updates ----------
 
 #[derive(Serialize, Clone)]
 pub struct UpdateItem {
@@ -583,9 +559,6 @@ pub struct UpdateSummary {
     pub series_with_new: Vec<(i64, String, usize)>,
 }
 
-/// Checks every followed series (skipping completed ones unless asked),
-/// three at a time. New chapters of series with auto-download on are
-/// queued.
 pub async fn check_updates(
     app: &AppHandle,
     include_completed: bool,
@@ -656,8 +629,6 @@ pub async fn read_updates_check(
     r
 }
 
-/// Background loop: checks followed series every `update_interval_h`
-/// hours (0 = off). Started once by `read_status`.
 pub fn start_update_loop(app: AppHandle) {
     static STARTED: AtomicBool = AtomicBool::new(false);
     if STARTED.swap(true, Ordering::SeqCst) {
@@ -724,8 +695,6 @@ pub async fn read_update_settings(set: Option<UpdateSettings>) -> Result<UpdateS
     .await
 }
 
-// ---------- categories ----------
-
 #[derive(Serialize, Deserialize, Clone)]
 pub struct Category {
     pub id: i64,
@@ -782,11 +751,6 @@ pub async fn read_category_delete(id: i64) -> Result<(), String> {
     .await
 }
 
-// ---------- migration ----------
-
-/// Moves a followed series to another source: follows the new one, carries
-/// read marks (matched by chapter number), categories, reader settings and
-/// notes, then unfollows the old one.
 #[tauri::command]
 pub async fn read_series_migrate(
     app: AppHandle,
@@ -827,8 +791,6 @@ pub async fn read_series_migrate(
     changed(&app);
     Ok(to)
 }
-
-// ---------- downloads ----------
 
 #[derive(Serialize, Clone)]
 pub struct QueueItem {
@@ -1084,7 +1046,6 @@ async fn download_chapter(app: &AppHandle, id: i64) -> Result<(), String> {
     let series_dir = PathBuf::from(super::default_download_dir())
         .join("Manga")
         .join(sanitize_filename::sanitize(&s.title));
-    // The same chapter in two languages or by two groups gets its own file.
     let mut file = series_dir.join(sanitize_filename::sanitize(format!("{label}.cbz")));
     if file.exists() {
         let tag = [ch.lang.as_str(), ch.scanlator.as_str()]
@@ -1155,7 +1116,6 @@ async fn download_chapter(app: &AppHandle, id: i64) -> Result<(), String> {
     }
 }
 
-/// MangaDex asks clients to report how its image servers behave.
 fn report_mangadex(
     client: &reqwest::Client,
     url: &str,
@@ -1184,7 +1144,6 @@ fn report_mangadex(
     });
 }
 
-/// Deletes downloaded chapter files (the chapters stay in the list).
 #[tauri::command]
 pub async fn read_chapters_delete_downloads(app: AppHandle, ids: Vec<i64>) -> Result<(), String> {
     blocking(move || {
@@ -1206,8 +1165,6 @@ pub async fn read_chapters_delete_downloads(app: AppHandle, ids: Vec<i64>) -> Re
     Ok(())
 }
 
-/// While reading chapter `id`, keeps the next `download_ahead` chapters
-/// downloaded (0 = off).
 #[tauri::command]
 pub async fn read_download_ahead(app: AppHandle, id: i64) -> Result<(), String> {
     let n: i64 = db::kv_get("download_ahead").unwrap_or(0);
@@ -1236,8 +1193,6 @@ pub async fn read_download_ahead(app: AppHandle, id: i64) -> Result<(), String> 
     Ok(())
 }
 
-// ---------- trackers ----------
-
 use omniget_core::core::read::trackers::{self, TrackHit};
 
 #[derive(Serialize)]
@@ -1264,8 +1219,6 @@ pub async fn read_tracker_status() -> Result<TrackerStatus, String> {
     })
 }
 
-/// AniList takes a personal access token; MangaUpdates a user and password
-/// (only the session token is kept). Empty values log out.
 #[tauri::command]
 pub async fn read_tracker_login(
     service: String,
@@ -1307,8 +1260,6 @@ pub async fn read_tracker_search(service: String, query: String) -> Result<Vec<T
     }
 }
 
-/// Links (or with `hit = null` unlinks) a series to a tracker entry and
-/// pushes the current progress right away.
 #[tauri::command]
 pub async fn read_tracker_link(
     app: AppHandle,
@@ -1345,7 +1296,6 @@ pub async fn read_tracker_link(
     Ok(())
 }
 
-/// Sends the highest chapter read to every linked tracker. Best effort.
 pub async fn push_tracking(series_id: i64) {
     let Ok((s, last, total)) = blocking(move || {
         let s = db::series(series_id)?;

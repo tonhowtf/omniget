@@ -1,13 +1,3 @@
-//! Arquivos de configuração reais de uma ferramenta (aba "Configuração" do
-//! `/llm/tools`): regras/`AGENTS.md`, agentes, comandos, skills, hooks, MCP e
-//! settings, por escopo (global e do projeto escolhido), a partir dos
-//! manifestos do `agentkit` e dos `config_paths` da tabela de CLIs.
-//!
-//! Só caminho, existência e tamanho: nada aqui abre arquivo. Arquivos com
-//! nome de credencial (`auth.json`, `credentials*`, `.credentials.json`,
-//! `oauth*`, `*token*`) nem entram na lista de entrada da varredura/stats;
-//! aparecem só como "pulados".
-
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 
@@ -17,41 +7,24 @@ use crate::core::agentkit::{targets, Env, Scope};
 
 use super::table;
 
-/// Limite de arquivos contados dentro de uma pasta (tamanho/contagem).
 const DIR_WALK_LIMIT: usize = 5000;
-/// Profundidade máxima ao somar uma pasta.
 const DIR_WALK_DEPTH: usize = 6;
 
 #[derive(Debug, Clone, Serialize)]
 pub struct ConfigEntry {
-    /// `global | project | local`.
     pub scope: String,
-    /// Chave do manifesto (`rules`, `agents`, `mcp`, `settings`…) ou `config`
-    /// (caminho da tabela de CLIs).
     pub key: String,
-    /// Tipo para `guard_config_stats` (`rule|agent|command|skill|hook|setting|mcp`),
-    /// quando o arquivo entra nas estatísticas.
     pub stat_kind: Option<String>,
     pub path: String,
-    /// Modelo do manifesto (`~/.claude/agents`).
     pub template: String,
     pub exists: bool,
     pub is_dir: bool,
-    /// Bytes (arquivo) ou soma dos arquivos (pasta, sem os de credencial).
     pub size: u64,
-    /// Arquivos dentro da pasta (1 para arquivo).
     pub files: u32,
-    /// A contagem parou no limite.
     pub truncated: bool,
-    /// Pasta que contém outras entradas do mesmo escopo (ex.: `~/.cursor` como
-    /// pasta de scripts): não é somada nem varrida, para não pegar a casa
-    /// inteira da ferramenta.
     pub container: bool,
-    /// Local alternativo que a ferramenta também lê.
     pub alt: bool,
-    /// Superfície do MCP (`cli`, `vscode`…).
     pub surface: Option<String>,
-    /// Formato do arquivo (`json`, `toml`…) quando conhecido.
     pub format: Option<String>,
 }
 
@@ -59,21 +32,15 @@ pub struct ConfigEntry {
 pub struct ConfigFiles {
     pub tool: String,
     pub name: String,
-    /// Manifesto do agentkit usado (mesmo id), se houver.
     pub target: Option<String>,
     pub project_dir: Option<String>,
     pub entries: Vec<ConfigEntry>,
-    /// Entrada pronta para `guard_config_stats`, por escopo: tipo → caminhos
-    /// existentes (só JSON/JSONC para hook/setting/mcp).
     pub stats_input: BTreeMap<String, BTreeMap<String, Vec<String>>>,
-    /// Entrada pronta para `guard_scan_installed`, por escopo.
     pub scan_paths: BTreeMap<String, Vec<String>>,
-    /// Arquivos pulados por nome de credencial (nunca abertos).
     pub skipped: Vec<String>,
     pub total_bytes: u64,
 }
 
-/// Nome de arquivo que pode guardar credencial: nunca abrir, nem varrer.
 pub fn is_credential_name(name: &str) -> bool {
     let n = name.to_ascii_lowercase();
     n == "auth.json"
@@ -95,7 +62,6 @@ fn is_credential_path(p: &Path) -> bool {
         .unwrap_or(false)
 }
 
-/// Chave do manifesto → tipo das estatísticas.
 pub fn stat_kind_of(key: &str) -> Option<&'static str> {
     match key {
         "rules" | "scoped_rules" => Some("rule"),
@@ -109,7 +75,6 @@ pub fn stat_kind_of(key: &str) -> Option<&'static str> {
     }
 }
 
-/// Ordem de exibição das chaves.
 fn key_rank(key: &str) -> usize {
     const ORDER: &[&str] = &[
         "rules",
@@ -142,7 +107,6 @@ fn is_json_file(p: &Path) -> bool {
     )
 }
 
-/// Tamanho e contagem sem abrir nada (só metadados); pula credenciais.
 fn measure(path: &Path, skipped: &mut BTreeSet<String>) -> (bool, bool, u64, u32, bool) {
     let Ok(meta) = std::fs::metadata(path) else {
         return (false, false, 0, 0, false);
@@ -189,13 +153,11 @@ struct Candidate {
     format: Option<String>,
 }
 
-/// Arquivos de configuração de `tool_id` nos escopos global, local e do projeto.
 pub fn config_files(tool_id: &str, project: Option<&Path>) -> Result<ConfigFiles, String> {
     let env = Env::system().map_err(|e| e.to_string())?;
     config_files_in(&env, tool_id, project)
 }
 
-/// Mesma coisa com um `Env` explícito (testes usam `Env::sandbox`).
 pub fn config_files_in(
     env: &Env,
     tool_id: &str,
@@ -271,7 +233,6 @@ pub fn config_files_in(
     }
     if let Some(c) = cli {
         for raw in &c.config_paths {
-            // Pelo `Env` (não pelo HOME do processo): o sandbox dos testes vale.
             let p = env
                 .expand(raw, None)
                 .unwrap_or_else(|| table::expand_home(raw));
@@ -289,8 +250,6 @@ pub fn config_files_in(
         }
     }
 
-    // Um caminho aparece uma vez por escopo; a chave mais específica vence
-    // (settings.json serve hooks, settings e statusline: fica "hooks").
     cands.sort_by(|a, b| {
         (a.scope, key_rank(&a.key), a.alt).cmp(&(b.scope, key_rank(&b.key), b.alt))
     });
@@ -326,7 +285,6 @@ pub fn config_files_in(
             .then(|| stat_kind_of(&c.key).map(str::to_string))
             .flatten();
         if let Some(k) = stat_kind.as_deref() {
-            // hook/setting/mcp só são lidos pelas estatísticas como JSON.
             if matches!(k, "hook" | "setting" | "mcp") && (is_dir || !is_json_file(&c.path)) {
                 stat_kind = None;
             }

@@ -1,13 +1,3 @@
-//! `omniget agentkit search|show|install|uninstall|list|doctor|import|export|profiles`:
-//! the Catalog from the terminal. Talks to the running app through the local
-//! bridge (`POST /v1/agentkit/<action>`, the CLI's scoped token); the app
-//! owns the plan, the backups and the lockfiles, so the CLI and the UI see the
-//! same installs. `statusline-shim` runs locally (no app needed).
-//!
-//! Every install shows its plan first (tools, files, what is lost in the
-//! conversion, commands that will run). `--dry-run` stops there and prints the
-//! diffs; `--yes` applies without asking (required when stdin is not a terminal).
-
 use std::collections::BTreeMap;
 use std::io::{IsTerminal, Read, Write};
 use std::time::Duration;
@@ -35,15 +25,11 @@ impl Bridge {
             .ok_or_else(|| anyhow!("the app has no bridge port yet: open OmniGet once"))?;
         Ok(Self {
             base: format!("http://127.0.0.1:{port}"),
-            // The same scoped token as `omniget agent` (2.5 closes the S1
-            // residue: the Catalog routes want `jobs:operate`); the
-            // extension key only as the deprecated last resort.
             token: super::agent::resolve_token(
                 std::env::var("OMNIGET_TOKEN").ok(),
                 std::fs::read_to_string(dir.join("llm").join("cli-token")).ok(),
                 bridge["token"].as_str(),
             ),
-            // catalog downloads can take a while on the first install
             http: reqwest::Client::builder()
                 .timeout(Duration::from_secs(300))
                 .build()?,
@@ -68,7 +54,6 @@ impl Bridge {
     }
 }
 
-/// Options shared by everything that installs.
 #[derive(clap::Args, Clone, Default)]
 pub struct InstallOpts {
     #[arg(help = "Tools to install into (comma list). Default: the installed ones")]
@@ -317,7 +302,6 @@ fn has_changes(plan: &Value) -> bool {
         .unwrap_or(false)
 }
 
-/// `--yes`, or a `y` typed on a terminal. Never waits on a pipe.
 fn confirm(yes: bool, question: &str) -> anyhow::Result<bool> {
     if yes {
         return Ok(true);

@@ -1,12 +1,3 @@
-//! The `company_*` tools an employee calls while it works.
-//!
-//! They reach the agent through the scoped MCP projection (CLI and ACP
-//! runtimes) or the broker (native runtime), with the identity fixed by the
-//! session: the conversation `company:<company>:<staff>` the engine opened,
-//! or the roster agent of the turn. Nothing the model sends can act as
-//! someone else. Decisions (approve, reject, budgets) are not here: only the
-//! owner decides, in the app.
-
 use std::sync::{Arc, OnceLock};
 
 use async_trait::async_trait;
@@ -23,23 +14,19 @@ use crate::core::llm::types::ToolSpec;
 
 pub const ERR_COMPANY_TOOL: &str = "ERR_COMPANY_TOOL";
 
-/// What the app needs to create the roster agent behind a hire.
 #[derive(Debug, Clone)]
 pub struct ProvisionRequest {
     pub agent_id: String,
     pub name: String,
     pub role: String,
     pub instructions: String,
-    /// Roster agent whose runtime and model the new one copies.
     pub template_agent_id: Option<String>,
-    /// A full roster definition to recreate (imports).
     pub agent_def: Option<serde_json::Value>,
 }
 
 pub type ProvisionHook = Arc<dyn Fn(&ProvisionRequest) -> Result<(), String> + Send + Sync>;
 static PROVISION: OnceLock<ProvisionHook> = OnceLock::new();
 
-/// The app registers how a hire becomes a roster agent (it owns the roster).
 pub fn set_provision_hook(h: ProvisionHook) {
     let _ = PROVISION.set(h);
 }
@@ -51,7 +38,6 @@ pub fn provision(req: &ProvisionRequest) -> Result<(), String> {
     }
 }
 
-/// Every tool name, for the grants the engine gives an employee.
 pub fn tool_names() -> Vec<String> {
     specs().into_iter().map(|s| s.name).collect()
 }
@@ -150,7 +136,6 @@ fn strs(input: &Value, k: &str) -> Vec<String> {
         .unwrap_or_default()
 }
 
-/// The employee behind this tool call.
 fn whoami(st: &CompanyStore, ctx: &AssistCtx) -> Result<Staff, String> {
     if let Some(conv) = &ctx.conversation_id {
         if let Some(rest) = conv.strip_prefix("company:") {
@@ -178,7 +163,6 @@ fn whoami(st: &CompanyStore, ctx: &AssistCtx) -> Result<Staff, String> {
     }
 }
 
-/// Resolves a person by id, name, role or title in the company.
 fn person(st: &CompanyStore, company: &str, who: &str) -> Result<Staff, String> {
     let all = st.staff_list(company)?;
     let w = who.trim().to_lowercase();
@@ -237,8 +221,6 @@ impl AssistToolset for CompanyTools {
     }
 }
 
-/// The tool bodies, callable without the async trait (tests, benches, the
-/// app's own bridge).
 pub fn call(
     st: &CompanyStore,
     me: &Staff,

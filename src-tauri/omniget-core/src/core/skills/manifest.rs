@@ -1,27 +1,3 @@
-//! `SKILL.md` parsing and validation.
-//!
-//! Primary source for the format (read 18/09/2026):
-//! - Agent Skills specification — <https://agentskills.io/specification>
-//!   (the `spec/agent-skills-spec.md` of `anthropics/skills` now only points
-//!   there). Directory with a required `SKILL.md`; YAML frontmatter with
-//!   required `name` (≤ 64 chars, `[a-z0-9-]`, no leading/trailing hyphen, no
-//!   `--`, must match the parent directory) and `description` (1–1024 chars),
-//!   optional `license`, `compatibility` (≤ 500), `metadata` (string → string)
-//!   and `allowed-tools` (space-separated list, experimental); Markdown body
-//!   after the frontmatter; conventional `scripts/`, `references/`, `assets/`.
-//! - <https://github.com/anthropics/skills> — the reference skill set.
-//!
-//! Two deliberate departures from the letter of the spec, both so that folders
-//! written for other clients still install:
-//! - the parent directory does not have to match `name`; the installer is the
-//!   one that puts the folder at `<root>/<name>`;
-//! - `allowed-tools` also accepts a comma-separated string or a YAML list,
-//!   because that is what real skills in `~/.claude/skills` carry.
-//!
-//! The YAML read here is a deliberate subset (scalars, block scalars, flow and
-//! block sequences, one level of nested map). Frontmatter is a header, not a
-//! document, and the core has no YAML dependency.
-
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
@@ -32,19 +8,12 @@ use super::{
     ERR_SKILL_PARSE, ERR_SKILL_TOO_BIG,
 };
 
-/// The one required file of a skill directory.
 pub const SKILL_FILE: &str = "SKILL.md";
-/// Hard cap on `SKILL.md`. The spec recommends under 500 lines; this only
-/// stops a pathological file from being read into memory.
 pub const MAX_SKILL_MD_BYTES: u64 = 256 * 1024;
-/// Spec limit for `name`.
 pub const MAX_NAME_CHARS: usize = 64;
-/// Spec limit for `description`.
 pub const MAX_DESCRIPTION_CHARS: usize = 1024;
-/// Spec limit for `compatibility`.
 pub const MAX_COMPATIBILITY_CHARS: usize = 500;
 
-/// One installed (or inspected) skill, as the rest of the stack sees it.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SkillManifest {
     pub name: String,
@@ -60,18 +29,12 @@ pub struct SkillManifest {
     pub compatibility: Option<String>,
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub metadata: BTreeMap<String, String>,
-    /// Size of the Markdown body in bytes, so the UI can warn before the
-    /// 64 KiB cut of [`super::inject::open`].
     #[serde(default)]
     pub body_bytes: usize,
-    /// What the security scan said at install time, read from the same sidecar
-    /// as [`Self::source`]. Defaults to [`super::scan::ScanStatus::NotScanned`]
-    /// for a folder that was put here by hand or installed before we scanned.
     #[serde(default)]
     pub scan: super::scan::ScanStatus,
 }
 
-/// The frontmatter alone, after validation. Pure: no paths, no I/O.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct Frontmatter {
     pub name: String,
@@ -82,7 +45,6 @@ pub struct Frontmatter {
     pub metadata: BTreeMap<String, String>,
 }
 
-/// Read and validate `<dir>/SKILL.md`. Target: ≤ 1 ms.
 pub fn parse(dir: &Path) -> Result<SkillManifest, SkillError> {
     let file = dir.join(SKILL_FILE);
     let meta = std::fs::metadata(&file).map_err(|e| {
@@ -135,23 +97,18 @@ pub fn parse(dir: &Path) -> Result<SkillManifest, SkillError> {
     })
 }
 
-/// [`parse`] without the filesystem: frontmatter plus the body slice.
 pub fn parse_text(text: &str) -> Result<(Frontmatter, &str), SkillError> {
     let (front_text, body) = split_frontmatter(text)?;
     let front = parse_frontmatter(front_text)?;
     Ok((front, body))
 }
 
-/// Reads the installer sidecar, if the folder was installed by us. A folder
-/// dropped in by hand simply has none, which is not an error.
 fn read_sidecar(dir: &Path) -> Option<super::install::Sidecar> {
     let path = dir.join(super::install::SIDECAR);
     let raw = std::fs::read(&path).ok()?;
     serde_json::from_slice::<super::install::Sidecar>(&raw).ok()
 }
 
-/// Splits `---\n … \n---\n` off the front. Accepts CRLF, a leading BOM and the
-/// `...` closing fence.
 pub fn split_frontmatter(text: &str) -> Result<(&str, &str), SkillError> {
     let text = text.strip_prefix('\u{feff}').unwrap_or(text);
     let rest = text
@@ -184,7 +141,6 @@ enum Node {
     Map(BTreeMap<String, String>),
 }
 
-/// Parses the YAML subset described at the top of this file and validates it.
 pub fn parse_frontmatter(front: &str) -> Result<Frontmatter, SkillError> {
     let fields = parse_fields(front)?;
     let get = |key: &str| fields.iter().find(|(k, _)| k == key).map(|(_, v)| v);
@@ -264,8 +220,6 @@ pub fn parse_frontmatter(front: &str) -> Result<Frontmatter, SkillError> {
     })
 }
 
-/// `name` per the spec: 1–64 chars, lowercase alphanumeric plus `-`, no
-/// leading/trailing hyphen, no `--`.
 pub fn validate_name(name: &str) -> Result<String, SkillError> {
     let bad = |why: &str| {
         SkillError::new(
@@ -349,24 +303,21 @@ fn parse_fields(front: &str) -> Result<Vec<(String, Node)>, SkillError> {
         let node = if let Some(style) = rest.strip_prefix(['|', '>']) {
             let folded = rest.starts_with('>');
             let keep = style.contains('+');
-            let strip = style.contains('-');
             let block = take_indented(&lines, &mut i);
-            Node::Scalar(block_scalar(&block, folded, keep, strip))
+            Node::Scalar(block_scalar(&block, folded, keep))
         } else if rest.is_empty() {
             let block = take_indented(&lines, &mut i);
             nested_node(&block, i)?
         } else if rest.starts_with('[') {
             Node::Seq(flow_seq(rest))
         } else {
-            // A plain scalar may run on over indented lines (YAML folds them
-            // with a space); skills in the wild wrap long descriptions so.
             let more = take_indented(&lines, &mut i);
             if more.iter().all(|l| l.trim().is_empty()) {
                 Node::Scalar(unquote(rest))
             } else {
                 let mut block = vec![rest.to_string()];
                 block.extend(more);
-                Node::Scalar(unquote(&block_scalar(&block, true, false, true)))
+                Node::Scalar(unquote(&block_scalar(&block, true, false)))
             }
         };
         out.push((key, node));
@@ -374,8 +325,6 @@ fn parse_fields(front: &str) -> Result<Vec<(String, Node)>, SkillError> {
     Ok(out)
 }
 
-/// Consumes the indented (or blank) run that follows `*i`, returning it dedented
-/// by the indentation of its first non-blank line.
 fn take_indented(lines: &[&str], i: &mut usize) -> Vec<String> {
     let mut raw: Vec<&str> = Vec::new();
     while *i < lines.len() {
@@ -407,7 +356,7 @@ fn take_indented(lines: &[&str], i: &mut usize) -> Vec<String> {
         .collect()
 }
 
-fn block_scalar(block: &[String], folded: bool, keep: bool, strip: bool) -> String {
+fn block_scalar(block: &[String], folded: bool, keep: bool) -> String {
     let mut text = if folded {
         let mut out = String::new();
         for line in block {
@@ -426,9 +375,6 @@ fn block_scalar(block: &[String], folded: bool, keep: bool, strip: bool) -> Stri
     };
     if keep {
         text.push('\n');
-    } else if !strip {
-        // Clip (the default) keeps exactly one trailing newline; callers trim.
-        text = text.trim_end().to_string();
     } else {
         text = text.trim_end().to_string();
     }
@@ -449,13 +395,12 @@ fn nested_node(block: &[String], line_no: usize) -> Result<Node, SkillError> {
             .collect();
         return Ok(Node::Seq(items));
     }
-    // `key:` followed by indented prose is a multi-line plain scalar, not a map.
     let prose = block
         .iter()
         .filter(|l| !l.trim().is_empty() && !l.trim_start().starts_with('#'))
         .any(|l| !l.contains(": ") && !l.trim_end().ends_with(':'));
     if prose {
-        return Ok(Node::Scalar(block_scalar(block, true, false, true)));
+        return Ok(Node::Scalar(block_scalar(block, true, false)));
     }
     let mut map = BTreeMap::new();
     for line in block {
@@ -695,7 +640,6 @@ mod tests {
     #[test]
     fn parse_stays_under_one_millisecond() {
         let root = fixtures().join("good-skill");
-        // warm the page cache first; the budget is about our own work.
         let _ = parse(&root).unwrap();
         let runs = 200;
         let started = std::time::Instant::now();
@@ -710,9 +654,6 @@ mod tests {
         );
     }
 
-    /// The repository keeps no `.md` file, so every fixture markdown is stored
-    /// as `<name>.md.fixture`. This copies the tree into a scratch folder once
-    /// per test process with the real names, which is what `parse` reads.
     fn fixtures() -> PathBuf {
         static ROOT: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();
         ROOT.get_or_init(|| {

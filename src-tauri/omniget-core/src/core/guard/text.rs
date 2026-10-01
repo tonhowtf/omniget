@@ -1,12 +1,5 @@
-//! Text helpers shared by the validators: line/column lookup, snippets with a
-//! length cap, a small YAML-frontmatter reader (no YAML library, on purpose:
-//! frontmatter in agent files is a flat key/value block and a full YAML engine
-//! would accept things no tool reads), Markdown code-span masking and secret
-//! redaction.
-
 use std::collections::BTreeMap;
 
-/// Byte offsets of every line start, for offset → (line, column).
 pub struct LineIndex {
     starts: Vec<usize>,
 }
@@ -22,7 +15,6 @@ impl LineIndex {
         Self { starts }
     }
 
-    /// 1-based line and column (column counted in chars).
     pub fn pos(&self, text: &str, offset: usize) -> (u32, u32) {
         let offset = offset.min(text.len());
         let line = match self.starts.binary_search(&offset) {
@@ -37,7 +29,6 @@ impl LineIndex {
         (line as u32 + 1, col as u32 + 1)
     }
 
-    /// The whole line (without newline) holding `offset`.
     pub fn line_at<'a>(&self, text: &'a str, offset: usize) -> &'a str {
         let offset = offset.min(text.len());
         let line = match self.starts.binary_search(&offset) {
@@ -56,7 +47,6 @@ impl LineIndex {
     }
 }
 
-/// Cut `s` to at most `max` chars on a char boundary, with an ellipsis.
 pub fn clip(s: &str, max: usize) -> String {
     let t = s.trim();
     if t.chars().count() <= max {
@@ -67,14 +57,10 @@ pub fn clip(s: &str, max: usize) -> String {
     out
 }
 
-// ------------------------------------------------------------- frontmatter
-
-/// A frontmatter value as the tools read it.
 #[derive(Debug, Clone, PartialEq)]
 pub enum FmValue {
     Str(String),
     List(Vec<String>),
-    /// Nested mapping or anything else: kept as the raw text.
     Other(String),
 }
 
@@ -86,7 +72,6 @@ impl FmValue {
         }
     }
 
-    /// Items of a list, or of a comma-separated string.
     pub fn items(&self) -> Vec<String> {
         match self {
             FmValue::List(v) => v.clone(),
@@ -104,7 +89,6 @@ impl FmValue {
     }
 }
 
-/// Split a comma-separated list, respecting `Bash(git add:*)` parentheses.
 pub fn split_list(s: &str) -> Vec<String> {
     let s = s.trim();
     let s = s
@@ -154,13 +138,9 @@ fn unquote(s: &str) -> String {
 
 #[derive(Debug, Clone, Default)]
 pub struct Frontmatter {
-    /// True when the file opens with a `---` line.
     pub present: bool,
-    /// Parsed top-level keys.
     pub map: BTreeMap<String, FmValue>,
-    /// Byte offset where the body starts (after the closing `---`).
     pub body_offset: usize,
-    /// Parse problem, with the 1-based line it happened on.
     pub error: Option<(u32, String)>,
 }
 
@@ -174,7 +154,6 @@ impl Frontmatter {
     }
 }
 
-/// Read the frontmatter block at the top of a Markdown file.
 pub fn parse_frontmatter(text: &str) -> Frontmatter {
     let bom = if text.starts_with('\u{feff}') { 3 } else { 0 };
     let t = &text[bom..];
@@ -189,7 +168,6 @@ pub fn parse_frontmatter(text: &str) -> Frontmatter {
         present: true,
         ..Default::default()
     };
-    // Find the closing line.
     let mut lines: Vec<(usize, &str)> = Vec::new();
     let mut pos = first_end + 1;
     let mut closed_at = None;
@@ -228,9 +206,6 @@ pub fn parse_frontmatter(text: &str) -> Frontmatter {
             continue;
         }
         if line.starts_with(' ') {
-            // Continuation of a plain multi-line scalar; YAML accepts it only
-            // under a key, which we already consumed. Stray indentation here
-            // means the previous value was a plain scalar that wrapped.
             i += 1;
             continue;
         }
@@ -244,7 +219,6 @@ pub fn parse_frontmatter(text: &str) -> Frontmatter {
         };
         let key = unquote(&line[..colon]);
         let rest = line[colon + 1..].trim();
-        // Gather the indented block under this key.
         let mut block: Vec<&str> = Vec::new();
         let mut j = i + 1;
         while j < lines.len() {
@@ -291,7 +265,6 @@ pub fn parse_frontmatter(text: &str) -> Frontmatter {
                 body.join("\n")
             })
         } else if rest.starts_with('[') && rest.contains(']') && !rest.trim_end().ends_with(']') {
-            // `argument-hint: [name] | --flag`: tools read it as a string.
             FmValue::Str(rest.to_string())
         } else if rest.starts_with('[') {
             let mut joined = rest.to_string();
@@ -332,7 +305,6 @@ pub fn parse_frontmatter(text: &str) -> Frontmatter {
 }
 
 fn find_key_colon(line: &str) -> Option<usize> {
-    // `key:` where key is a plain or quoted scalar, colon followed by space/EOL.
     let bytes = line.as_bytes();
     let mut in_q: Option<u8> = None;
     for (i, &b) in bytes.iter().enumerate() {
@@ -355,20 +327,13 @@ fn find_key_colon(line: &str) -> Option<usize> {
     None
 }
 
-// ------------------------------------------------------------- code masking
-
-/// Where in a Markdown file an offset sits.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CodeCtx {
     Prose,
-    /// Inside a fenced block; the flag says it is a shell-ish fence.
-    Fence {
-        shell: bool,
-    },
+    Fence { shell: bool },
     Inline,
 }
 
-/// Fenced block and inline-code ranges of a Markdown text.
 pub struct CodeMap {
     fences: Vec<(usize, usize, bool, String)>,
     inline: Vec<(usize, usize)>,
@@ -379,7 +344,7 @@ impl CodeMap {
         let mut fences = Vec::new();
         let mut inline = Vec::new();
         let mut pos = 0usize;
-        let mut open: Option<(usize, String, usize, char)> = None; // (body start, lang, fence len, char)
+        let mut open: Option<(usize, String, usize, char)> = None;
         let mut prose_lines: Vec<(usize, usize)> = Vec::new();
         while pos < text.len() {
             let end = text[pos..]
@@ -457,7 +422,6 @@ impl CodeMap {
         CodeCtx::Prose
     }
 
-    /// `(body start, body end, language)` of the shell fences.
     pub fn shell_fences(&self) -> Vec<(usize, usize, String)> {
         self.fences
             .iter()
@@ -474,14 +438,10 @@ fn is_shell_lang(lang: &str) -> bool {
     )
 }
 
-/// True when the match looks mentioned rather than meant: quoted on its line,
-/// or preceded by a negation/detection word ("never", "detect", "block"...).
 pub fn looks_mentioned(line: &str, col_start_char: usize) -> bool {
     mention_score(line, col_start_char) > 0
 }
 
-/// 0, 1 or 2: one point for being quoted, one for a negation/example word
-/// before it ("never", "detect", "e.g."). Two points = clearly a mention.
 pub fn mention_score(line: &str, col_start_char: usize) -> u8 {
     let before: String = line
         .chars()
@@ -535,9 +495,6 @@ fn negated_before(before: &str) -> bool {
     NEG.iter().any(|n| tail.contains(n))
 }
 
-// ------------------------------------------------------------- secrets
-
-/// Redact a secret-looking value: first 4 chars, then its length.
 pub fn redact(value: &str) -> String {
     let v = value.trim();
     let n = v.chars().count();
@@ -548,7 +505,6 @@ pub fn redact(value: &str) -> String {
     format!("{head}…({n} chars, redacted)")
 }
 
-/// True for placeholder values that are meant to be filled in by the user.
 pub fn is_placeholder(value: &str) -> bool {
     let v = value.trim().trim_matches(|c| c == '"' || c == '\'');
     if v.is_empty() {
@@ -583,7 +539,6 @@ pub fn is_placeholder(value: &str) -> bool {
         })
 }
 
-/// Shannon entropy in bits per char.
 pub fn entropy(s: &str) -> f64 {
     let mut counts = BTreeMap::new();
     let mut n = 0usize;
@@ -603,7 +558,6 @@ pub fn entropy(s: &str) -> f64 {
         .sum()
 }
 
-/// True when a name reads like it holds a secret (`GITHUB_TOKEN`, `apiKey`).
 pub fn is_secret_name(name: &str) -> bool {
     let l = name.to_lowercase().replace(['-', '.'], "_");
     let hits = [
@@ -636,7 +590,6 @@ pub fn is_secret_name(name: &str) -> bool {
         && !l.ends_with("_ttl_ms")
 }
 
-/// True when a value looks like a real secret rather than a placeholder.
 pub fn looks_real_secret(value: &str) -> bool {
     let v = value.trim();
     !is_placeholder(v) && v.len() >= 12 && !v.contains(' ') && entropy(v) >= 3.0

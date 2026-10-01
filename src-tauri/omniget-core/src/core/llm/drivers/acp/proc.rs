@@ -1,16 +1,10 @@
-//! Child-process plumbing shared by the `acp` and `opencode` drivers: binary
-//! lookup on the (enhanced) PATH, a spawn in its own process group, a
-//! whole-tree kill, and a bounded, sanitized stderr tail for error messages.
-
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
 use tokio::io::AsyncReadExt;
 
-/// Characters of stderr kept for diagnostics.
 pub const STDERR_TAIL: usize = 4096;
 
-/// What to start: program, argv, extra env, env to drop, working dir.
 #[derive(Debug, Clone, Default)]
 pub struct Spawn {
     pub command: String,
@@ -20,8 +14,6 @@ pub struct Spawn {
     pub cwd: Option<PathBuf>,
 }
 
-/// PATH as the app's children see it (`process::command` adds the app's own
-/// `bin`, Homebrew and `~/.local/bin`), plus the clitools extra dirs.
 fn search_path() -> Vec<PathBuf> {
     let probe = crate::core::process::std_command("x");
     let from_cmd = probe
@@ -47,9 +39,6 @@ fn search_path() -> Vec<PathBuf> {
     out
 }
 
-/// First match of `bin` on the search path (`PATHEXT` on Windows). An
-/// absolute or relative path with a separator is returned as is when it
-/// exists.
 pub fn which(bin: &str) -> Option<PathBuf> {
     if bin.is_empty() {
         return None;
@@ -100,8 +89,6 @@ fn is_executable(p: &Path) -> bool {
     p.is_file()
 }
 
-/// A tokio command for `spec`, piped stdio, own process group on Unix (so a
-/// kill reaches the npx/node grandchildren too), killed on drop.
 pub fn command(spec: &Spawn) -> tokio::process::Command {
     let program = which(&spec.command)
         .map(|p| p.into_os_string())
@@ -126,16 +113,11 @@ pub fn command(spec: &Spawn) -> tokio::process::Command {
     cmd
 }
 
-/// Start `spec` (retrying the Linux `ETXTBSY` window).
 pub fn spawn(spec: &Spawn) -> std::io::Result<tokio::process::Child> {
     let mut cmd = command(spec);
     crate::core::process::spawn_retrying_busy(|| cmd.spawn())
 }
 
-/// Kill a child and everything it started. Unix: the child leads its own
-/// group (see [`command`]), so the group id is its pid; the syscall, never
-/// the `kill` program (BSD and procps read a negative argument differently).
-/// Windows: `taskkill /T /F`.
 pub fn kill_tree(pid: Option<u32>) {
     let Some(pid) = pid else { return };
     #[cfg(unix)]
@@ -165,7 +147,6 @@ pub fn kill_tree(pid: Option<u32>) {
     }
 }
 
-/// Keeps the last [`STDERR_TAIL`] characters a child wrote to stderr.
 #[derive(Clone, Default)]
 pub struct Tail(Arc<Mutex<String>>);
 
@@ -182,13 +163,11 @@ impl Tail {
         }
     }
 
-    /// The tail, sanitized for a user-facing message.
     pub fn text(&self) -> String {
         sanitize(&self.0.lock().unwrap_or_else(|e| e.into_inner()))
     }
 }
 
-/// Drain a pipe into a [`Tail`] until EOF (a full pipe would block the child).
 pub fn drain_into<R: tokio::io::AsyncRead + Unpin + Send + 'static>(mut pipe: R, tail: Tail) {
     tokio::spawn(async move {
         let mut buf = vec![0u8; 8192];
@@ -201,8 +180,6 @@ pub fn drain_into<R: tokio::io::AsyncRead + Unpin + Send + 'static>(mut pipe: R,
     });
 }
 
-/// Mask what must never reach an error message: the home dir, bearer/basic
-/// credentials, API-key shaped tokens.
 pub fn sanitize(s: &str) -> String {
     use std::sync::OnceLock;
     static RES: OnceLock<Vec<(regex::Regex, &'static str)>> = OnceLock::new();

@@ -1,8 +1,3 @@
-//! `canvas_clipboard`: copy / cut / paste / read through the app's canvas
-//! clipboard (`crate::canvas::clipboard`), the same one ⌘C/⌘X/⌘V use.
-//! Without `nodeIds` the window's selection is copied; without a target the
-//! paste lands on the floor open in the window, at its view centre.
-
 use serde_json::{json, Value};
 use tauri::AppHandle;
 
@@ -12,7 +7,6 @@ use omniget_core::core::canvas::model::Point;
 use super::{blocking, list, locate, num, ready, st, ws_floor};
 use crate::canvas::clipboard::{self as clip, Where};
 
-/// The window's canvas state, when a canvas is mounted.
 async fn window_state(app: &AppHandle) -> Option<Value> {
     super::super::canvas_ui::ui(app, "state", json!({}))
         .await
@@ -108,7 +102,6 @@ pub async fn call(app: &AppHandle, a: &Value) -> Result<Value, String> {
                 (Some(x), Some(y)) => Some(Point { x, y }),
                 _ => None,
             };
-            // The view centre only when the window shows the target floor.
             let center = win
                 .as_ref()
                 .filter(|v| v["workspaceId"] == json!(ws) && v["floorId"] == json!(floor))

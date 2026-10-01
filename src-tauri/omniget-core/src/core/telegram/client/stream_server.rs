@@ -39,8 +39,6 @@ fn generate_token() -> String {
     bytes.iter().map(|b| format!("{:02x}", b)).collect()
 }
 
-/// `(start, end, is_range)`, or `None` when the range cannot be served
-/// (416). A missing or malformed header means the whole file.
 fn parse_range_header(header: Option<&HeaderValue>, total_size: u64) -> Option<(u64, u64, bool)> {
     let whole = Some((0, total_size.saturating_sub(1), false));
     let Some(value) = header.and_then(|v| v.to_str().ok()) else {
@@ -79,8 +77,6 @@ fn parse_range_header(header: Option<&HeaderValue>, total_size: u64) -> Option<(
     Some((start, end, true))
 }
 
-/// A message's media, kept for a few minutes: a player sends many range
-/// requests for one file and each would otherwise refetch the message.
 #[derive(Clone)]
 pub struct CachedMedia {
     pub media: tl::enums::MessageMedia,
@@ -106,8 +102,6 @@ pub fn forget_media(chat_id: i64, message_id: i32) {
     }
 }
 
-/// Mime type from the file name, for media Telegram stores as
-/// `application/octet-stream` (players refuse to guess).
 pub fn mime_from_name(name: &str) -> Option<&'static str> {
     Some(match super::template::ext_of(name).as_str() {
         "mp4" | "m4v" => "video/mp4",
@@ -132,7 +126,6 @@ pub fn mime_from_name(name: &str) -> Option<&'static str> {
     })
 }
 
-/// Fetches (or reuses) the media of one message.
 pub async fn media_for(
     session: &TelegramSessionHandle,
     chat_id: i64,
@@ -193,8 +186,6 @@ async fn handle_stream(
     serve(state, method, chat_type, chat_id, message_id, q, headers).await
 }
 
-/// Same as `handle_stream`; the trailing file name only helps external
-/// players guess the format and show a title.
 async fn handle_stream_named(
     State(state): State<ServerState>,
     method: Method,
@@ -304,8 +295,6 @@ async fn serve(
     }
 
     let inner = parallel_download::stream_file_range(client, media_loc, start, end);
-    // A failed read usually means an expired file reference: drop the
-    // cached message so the player's retry fetches a fresh one.
     let stream = async_stream::stream! {
         let mut inner = std::pin::pin!(inner);
         while let Some(chunk) = futures::StreamExt::next(&mut inner).await {
@@ -318,7 +307,6 @@ async fn serve(
     builder.body(Body::from_stream(stream)).unwrap()
 }
 
-/// A quoted-string-safe version of the name for `Content-Disposition`.
 fn ascii_file_name(name: &str) -> String {
     name.chars()
         .map(|c| {
@@ -398,18 +386,9 @@ pub async fn start(session: TelegramSessionHandle) -> anyhow::Result<Arc<Mutex<S
     Ok(Arc::new(Mutex::new(StreamServerInfo { port, token })))
 }
 
-// ---- remux to HLS (MKV/AVI/WebM in the WKWebView) ---------------------------
-//
-// ffmpeg reads the file from this same server (`/stream/...`, with Range)
-// and writes an HLS EVENT playlist with fMP4 segments to
-// `data_dir/hls/<job>/`, the way /video does for local files. WebKit plays
-// HLS natively; the playlist grows while ffmpeg works.
-
 #[derive(Deserialize)]
 struct RemuxQuery {
     token: Option<String>,
-    /// `copy` (video and audio copied), `aac` (video copied, audio to AAC;
-    /// the default) or `transcode` (H.264 + AAC).
     mode: Option<String>,
     ss: Option<f64>,
 }
@@ -428,7 +407,6 @@ fn hls_jobs() -> &'static Mutex<HashMap<(i64, i32), HlsJob>> {
 fn hls_root() -> std::path::PathBuf {
     static CLEARED: std::sync::Once = std::sync::Once::new();
     let d = crate::core::telegram::host::data_dir().join("hls");
-    // Jobs never survive a restart: what is left is useless.
     CLEARED.call_once(|| {
         let _ = std::fs::remove_dir_all(&d);
     });
@@ -443,7 +421,6 @@ fn safe_name(s: &str) -> bool {
         && !s.contains("..")
 }
 
-/// Video codec of the input (`hevc`, `h264`, …), to tag HEVC as `hvc1`.
 async fn video_codec(input: &str) -> String {
     let out = crate::core::process::command("ffprobe")
         .args([
@@ -552,8 +529,6 @@ fn ffmpeg_args(
     a
 }
 
-/// Waits until the playlist lists a segment. `None` when ffmpeg exits
-/// first (unreadable input, codec the container can't take).
 async fn wait_playlist(job: &mut HlsJob) -> Option<String> {
     let pl = job.dir.join("index.m3u8");
     for _ in 0..900 {
@@ -638,8 +613,6 @@ async fn handle_remux(
             let _ = old.child.kill().await;
             let _ = tokio::fs::remove_dir_all(&old.dir).await;
         }
-        // One conversion at a time across the app: a new video stops the
-        // previous one.
         let others: Vec<(i64, i32)> = jobs.keys().copied().collect();
         for k in others {
             if let Some(mut old) = jobs.remove(&k) {
@@ -709,7 +682,6 @@ async fn handle_hls_segment(
         return plain(StatusCode::BAD_REQUEST, "bad name");
     }
     let p = hls_root().join(&job).join(&file);
-    // A player can ask for the next segment a moment before ffmpeg renames it.
     for _ in 0..100 {
         if tokio::fs::try_exists(&p).await.unwrap_or(false) {
             break;
@@ -729,8 +701,6 @@ async fn handle_hls_segment(
     }
 }
 
-/// Containers the WKWebView `<video>` can't open (they play after the
-/// remux to HLS).
 pub fn needs_remux(file_name: &str, mime: &str) -> bool {
     let ext = super::template::ext_of(file_name);
     matches!(

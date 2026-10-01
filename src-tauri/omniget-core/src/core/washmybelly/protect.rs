@@ -1,16 +1,3 @@
-//! Paths no rule may cross. Checked when a plan is built, again right before
-//! each item runs, and a third time inside `omniget-elevate`.
-//!
-//! Two guards:
-//!
-//! - [`Guard::Rule`]: a target a cleanup rule produced. Strict: never a
-//!   volume root, a system folder, the home itself, Documents, Desktop,
-//!   cloud-synced folders, keys and keychains, or the app data that looks
-//!   like cache but is not (the `extra` list the cleanup module ships).
-//! - [`Guard::Picked`]: a file the person chose on screen (a large file, a
-//!   duplicate, an app). It may live in Documents; system folders, the home
-//!   itself and secrets stay off limits.
-
 use std::path::{Component, Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
@@ -26,8 +13,6 @@ fn home() -> PathBuf {
     dirs::home_dir().unwrap_or_else(|| PathBuf::from("/nonexistent-home"))
 }
 
-/// Exact paths that are never removed themselves (their children may be,
-/// when a rule allows it).
 fn roots_never_removed(home: &Path) -> Vec<PathBuf> {
     let mut v: Vec<PathBuf> = vec![home.to_path_buf()];
     for d in [
@@ -106,7 +91,6 @@ fn roots_never_removed(home: &Path) -> Vec<PathBuf> {
     v
 }
 
-/// Trees nothing enters, whatever the guard.
 fn never_enter(home: &Path) -> Vec<PathBuf> {
     let mut v: Vec<PathBuf> = [
         ".ssh",
@@ -165,8 +149,6 @@ fn never_enter(home: &Path) -> Vec<PathBuf> {
     v
 }
 
-/// Trees a cleanup rule never enters (the person may still pick a file
-/// inside them on screen).
 fn rule_never_enters(home: &Path) -> Vec<PathBuf> {
     let mut v: Vec<PathBuf> = [
         "Documents",
@@ -195,8 +177,6 @@ fn rule_never_enters(home: &Path) -> Vec<PathBuf> {
     v
 }
 
-/// Lexical normalization: no `..`, no `.`, forward slashes compared as
-/// components. Relative paths are refused by the caller.
 pub fn normalize(p: &Path) -> Option<PathBuf> {
     let mut out = PathBuf::new();
     for c in p.components() {
@@ -232,9 +212,6 @@ fn inside(child: &Path, parent: &Path) -> bool {
     c == p || c.starts_with(&format!("{p}/"))
 }
 
-/// Whether `path` may be removed under `guard`, optionally confined to
-/// `root` (the folder the rule that produced it targets). Refuses links:
-/// the caller removes a link itself only through `fsops::remove_tree`.
 pub fn check(path: &Path, guard: Guard, root: Option<&Path>) -> Result<(), String> {
     check_with(path, guard, root, &home())
 }
@@ -287,8 +264,6 @@ pub fn check_with(
             ));
         }
     }
-    // No component of the path may be a link: a symlinked parent would move
-    // the removal somewhere the check never saw.
     let mut cur = PathBuf::new();
     for c in path.components() {
         cur.push(c.as_os_str());
@@ -301,8 +276,6 @@ pub fn check_with(
     Ok(())
 }
 
-/// System links that are part of every path on macOS (`/var` → `/private/var`,
-/// `/tmp`, `/etc`). They are fixed by the OS, not planted in a scan tree.
 fn is_os_alias(p: &Path) -> bool {
     cfg!(target_os = "macos") && matches!(p.to_str(), Some("/var" | "/tmp" | "/etc"))
 }
@@ -312,7 +285,6 @@ mod tests {
     use super::*;
 
     fn h() -> PathBuf {
-        // Not /home on macOS: there it is a link to /System/Volumes/Data.
         PathBuf::from(if cfg!(windows) {
             "C:/Users/u"
         } else if cfg!(target_os = "macos") {

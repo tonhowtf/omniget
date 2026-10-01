@@ -1,10 +1,4 @@
 //! Vexa (Apache-2.0, self-hosted or `api.cloud.vexa.ai`): a bot joins the
-//! Teams / Meet / Zoom call and transcribes it with speaker names. OmniGet
-//! sends the bot, follows its status and pulls the transcript into a meeting.
-//!
-//! API: `POST /bots {platform, native_meeting_id, passcode?, bot_name}`,
-//! `GET /bots/status`, `GET /transcripts/{platform}/{id}`,
-//! `DELETE /bots/{platform}/{id}`, all with `X-API-Key`.
 
 use anyhow::anyhow;
 use serde::Serialize;
@@ -14,20 +8,12 @@ use super::Segment;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct MeetingLink {
-    /// "teams", "google_meet" or "zoom" (Vexa's platform names).
     pub platform: String,
     pub native_id: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub passcode: Option<String>,
 }
 
-/// Reads a join link into what Vexa wants.
-///
-/// - Teams: `teams.microsoft.com/meet/<digits>?p=<passcode>` (also
-///   `teams.live.com`), or the classic `/l/meetup-join/19:meeting_...@thread.v2/...`
-///   whose thread id Vexa takes as the id.
-/// - Meet: `meet.google.com/abc-defg-hij`.
-/// - Zoom: `*.zoom.us/j/<digits>?pwd=<passcode>`.
 pub fn parse_link(raw: &str) -> Option<MeetingLink> {
     let url = url::Url::parse(raw.trim()).ok()?;
     let host = url.host_str()?.to_ascii_lowercase();
@@ -141,8 +127,6 @@ async fn check(resp: reqwest::Response) -> anyhow::Result<serde_json::Value> {
     Ok(serde_json::from_str(&text).unwrap_or(serde_json::Value::Null))
 }
 
-/// Sends the bot. `meeting_url` goes along so Vexa can resolve Teams links
-/// it understands better than OmniGet does.
 pub async fn send_bot(
     link: &MeetingLink,
     meeting_url: &str,
@@ -224,14 +208,12 @@ fn parse_transcript(v: &serde_json::Value) -> BotTranscript {
         .as_array()
         .into_iter()
         .flatten()
-        // Live drafts come as completed:false and are replaced later.
         .filter(|s| s["completed"].as_bool() != Some(false))
         .filter_map(|s| {
             let text = s["text"].as_str()?.trim();
             if text.is_empty() {
                 return None;
             }
-            // Relative seconds when given; else absolute times against start.
             let rel = |k: &str, abs: &str| -> u64 {
                 if let Some(x) = s[k].as_f64() {
                     return (x * 1000.0).max(0.0) as u64;

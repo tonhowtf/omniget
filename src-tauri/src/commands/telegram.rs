@@ -1,7 +1,3 @@
-//! `/telegram` superpower. The engine lives in `omniget_core::core::telegram`
-//! (so the CLI can reuse it); this file installs the app host and exposes
-//! the connection manager and the command dispatcher to the webview.
-
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, OnceLock};
@@ -87,7 +83,6 @@ impl TelegramHost for AppHost {
     }
 }
 
-/// Called once from the app setup.
 pub fn install(app: &AppHandle) {
     let (tx, rx) = mpsc::unbounded_channel();
     let _ = BRIDGE.set(tx);
@@ -95,20 +90,11 @@ pub fn install(app: &AppHandle) {
     host::install(Arc::new(AppHost { app: app.clone() }));
 }
 
-// ---- Telegram downloads in the app's Downloads tab ----------------------------
-//
-// Single downloads and batch rows of the Telegram engine become items of the
-// global download queue (`platform: "telegram"`), driven by the engine's own
-// `telegram-download-*` events: progress, done, error and "open folder" work
-// as for any download, and cancelling there cancels the Telegram job. Events
-// go through one channel so they are applied in order.
-
 static BRIDGE: OnceLock<mpsc::UnboundedSender<(String, Value)>> = OnceLock::new();
 
 struct Mirrored {
     queue_id: u64,
     title: String,
-    /// Cancelled when the Telegram job ends, to stop the cancel watcher.
     done: CancellationToken,
 }
 
@@ -189,7 +175,6 @@ async fn run_bridge(app: AppHandle, mut rx: mpsc::UnboundedReceiver<(String, Val
                     crate::core::queue::emit_queue_state(&app, &q);
                     id
                 };
-                // Cancel in the Downloads tab → cancel the Telegram job.
                 let watch_done = done.clone();
                 tauri::async_runtime::spawn(async move {
                     tokio::select! {
@@ -381,8 +366,6 @@ fn queue_item(
     }
 }
 
-// ---- /video (Watch) -------------------------------------------------------------
-
 fn collect_videos(path: &Path, out: &mut Vec<PathBuf>) {
     if path.is_dir() {
         if let Ok(rd) = std::fs::read_dir(path) {
@@ -403,8 +386,6 @@ fn collect_videos(path: &Path, out: &mut Vec<PathBuf>) {
     }
 }
 
-/// Adds files (folders recursively, videos only) to the /video library:
-/// `{added, skipped, errors: [{path, error}]}`.
 async fn add_to_watch(app: &AppHandle, paths: Vec<PathBuf>) -> Value {
     let mut files = Vec::new();
     for p in &paths {
@@ -450,7 +431,6 @@ pub async fn telegram_call(
     args: Option<Value>,
 ) -> Result<Value, String> {
     let args = args.unwrap_or(Value::Null);
-    // Commands that need the app itself (the /video library).
     if command == "telegram_add_to_watch" {
         let mut paths: Vec<PathBuf> = match args.get("paths").or(args.get("path")) {
             Some(Value::Array(a)) => a
@@ -479,7 +459,6 @@ pub async fn telegram_net_status() -> Result<manager::Status, String> {
 #[tauri::command]
 pub async fn telegram_net_scan() -> Result<manager::Status, String> {
     let mgr = manager::get();
-    // Tell the screen right away that a scan is running.
     let watcher = {
         let mgr = mgr.clone();
         tokio::spawn(async move {
@@ -607,8 +586,6 @@ pub async fn telegram_net_refresh_subscriptions() -> Result<Value, String> {
     status_now();
     Ok(serde_json::to_value(res).unwrap_or_default())
 }
-
-// ---- optional mihomo core (VLESS/Hysteria2/VMess/TUIC… nodes) ----
 
 use omniget_core::core::telegram::net::mihomo::MihomoStatus;
 

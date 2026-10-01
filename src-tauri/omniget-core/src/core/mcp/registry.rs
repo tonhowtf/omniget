@@ -1,20 +1,3 @@
-//! The configured MCP servers and the live clients. Owned by f3-mcp-core.
-//!
-//! Config lives in `<app_data>/llm/mcp-servers.json` and holds no secret, and
-//! that is enforced rather than hoped for: [`McpRegistry::upsert`] calls
-//! `McpServerConfig::extract_secrets`, which moves any literal value of a
-//! secret-looking header or environment variable into the secret store and
-//! leaves a `secret:<id>` reference in the file. The reference is resolved —
-//! for HTTP headers **and** for the environment of a stdio server — at connect
-//! time (see `types::resolve_headers` / `types::resolve_env`).
-//!
-//! Budget (prompt §6): a process is born on the first `client_for` — that is,
-//! on the first `tools()`/`call()` of an agent that was granted the server —
-//! and dies after five idle minutes. The reaper is a `tokio::time` loop that
-//! exists **only while a client is alive**: it is started by the first
-//! connection and it returns as soon as the last client is gone, so a closed
-//! `/llm` section leaves nothing ticking.
-
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex as StdMutex, RwLock, Weak};
@@ -29,7 +12,6 @@ use super::types::{default_lookup, valid_id, McpServerConfig, SecretLookup, SECR
 use crate::core::secrets::SecretStore;
 
 pub const CONFIG_FILE: &str = "mcp-servers.json";
-/// Prompt §6: "morre após 5 min ocioso".
 pub const IDLE_TIMEOUT: Duration = Duration::from_secs(5 * 60);
 const REAP_INTERVAL: Duration = Duration::from_secs(30);
 
@@ -40,9 +22,6 @@ pub struct McpRegistry {
     reaper: StdMutex<Option<JoinHandle<()>>>,
     idle_timeout: Duration,
     reap_interval: Duration,
-    /// Where extracted secrets are written and read. `None` = the process-wide
-    /// store (`core::secrets`), which is what the app uses; a test hands in its
-    /// own file store instead of touching a keychain or a global env var.
     secrets: Option<Arc<dyn SecretStore>>,
 }
 
@@ -61,12 +40,10 @@ impl McpRegistry {
         }
     }
 
-    /// `<app_data>/llm/mcp-servers.json`, or `None` when there is no data dir.
     pub fn default_store() -> Option<Self> {
         default_path().map(Self::at)
     }
 
-    /// How `secret:<id>` is read when a client connects.
     pub fn lookup(&self) -> SecretLookup {
         match self.secrets.clone() {
             Some(store) => Arc::new(move |id: &str| store.get(SECRET_NS, id)),
@@ -100,10 +77,6 @@ impl McpRegistry {
         self.list().into_iter().find(|c| c.id == id)
     }
 
-    /// Adds or replaces a server. A replaced server's live client is closed:
-    /// the next call starts a process with the new command or headers.
-    /// Any literal secret in the config is moved into the secret store first,
-    /// so what reaches the disk is only a `secret:<id>` reference.
     pub async fn upsert(&self, mut cfg: McpServerConfig) -> Result<McpServerConfig, McpError> {
         if !valid_id(&cfg.id) {
             return Err(McpError::spawn(format!(
@@ -116,7 +89,6 @@ impl McpRegistry {
                 McpError::spawn(format!("could not store the secret {:?}: {}", id, e))
             })?;
         }
-        // Belt and braces: never write a config that still holds a literal.
         cfg.validate()?;
         let (changed, previous) = {
             let mut guard = self
@@ -139,16 +111,12 @@ impl McpRegistry {
             self.disconnect(&cfg.id).await;
         }
         if let Err(error) = self.save() {
-            // The file still holds the old list, so the memory has to as well:
-            // otherwise the next list or connect would use a server the disk
-            // never accepted, with references the caller may be rolling back.
             self.restore(&cfg.id, previous);
             return Err(error);
         }
         Ok(cfg)
     }
 
-    /// Puts one entry back the way it was before a failed [`Self::upsert`].
     fn restore(&self, id: &str, previous: Option<McpServerConfig>) {
         let Ok(mut guard) = self.configs.write() else {
             return;
@@ -163,13 +131,9 @@ impl McpRegistry {
         }
     }
 
-    /// Removes a server, stops its process and forgets its secrets. `false`
-    /// when there was none.
     pub async fn remove(&self, id: &str) -> Result<bool, McpError> {
         if let Some(cfg) = self.get(id) {
             for secret in cfg.secret_ids() {
-                // Only ours: a reference the user pointed at a shared secret
-                // (not named after this server) is left alone.
                 if secret.starts_with(&format!("{}-", id)) {
                     self.secret_delete(&secret);
                 }
@@ -191,8 +155,6 @@ impl McpRegistry {
         Ok(removed)
     }
 
-    /// The live client for `id`, starting it if needed. This is the only place
-    /// a process is born.
     pub async fn client_for(self: &Arc<Self>, id: &str) -> Result<Arc<McpClient>, McpError> {
         if let Some(existing) = self.clients.lock().await.get(id).cloned() {
             return Ok(existing);
@@ -200,10 +162,8 @@ impl McpRegistry {
         let cfg = self
             .get(id)
             .ok_or_else(|| McpError::spawn(format!("no MCP server configured as {:?}", id)))?;
-        // Connect outside the map lock: a slow `npx` must not block the others.
         let client = Arc::new(McpClient::connect_with(&cfg, &self.lookup()).await?);
         let mut map = self.clients.lock().await;
-        // Someone may have connected the same server while we were waiting.
         if let Some(existing) = map.get(id).cloned() {
             drop(map);
             client.close().await;
@@ -215,14 +175,12 @@ impl McpRegistry {
         Ok(client)
     }
 
-    /// Ids with a process/session alive right now.
     pub async fn connected(&self) -> Vec<String> {
         let mut ids: Vec<String> = self.clients.lock().await.keys().cloned().collect();
         ids.sort();
         ids
     }
 
-    /// Closes one client, if it is up.
     pub async fn disconnect(&self, id: &str) -> bool {
         let client = self.clients.lock().await.remove(id);
         match client {
@@ -234,8 +192,6 @@ impl McpRegistry {
         }
     }
 
-    /// Closes every client that has been idle past the timeout. Returns the
-    /// ids it closed.
     pub async fn reap_idle(&self) -> Vec<String> {
         let stale: Vec<(String, Arc<McpClient>)> = {
             let map = self.clients.lock().await;
@@ -254,8 +210,6 @@ impl McpRegistry {
         closed
     }
 
-    /// Starts the reaper if it is not running. Holds only a `Weak`, so a
-    /// dropped registry cannot be kept alive by its own timer.
     fn ensure_reaper(self: &Arc<Self>) {
         let Ok(mut guard) = self.reaper.lock() else {
             return;
@@ -273,7 +227,7 @@ impl McpRegistry {
                 };
                 registry.reap_idle().await;
                 if registry.clients.lock().await.is_empty() {
-                    return; // nothing alive: stop ticking
+                    return;
                 }
             }
         }));
@@ -306,7 +260,6 @@ impl Drop for McpRegistry {
                 h.abort();
             }
         }
-        // Live children are killed by `kill_on_drop` on the stdio transport.
     }
 }
 
@@ -314,8 +267,6 @@ pub fn default_path() -> Option<PathBuf> {
     crate::core::llm::roster_store::llm_dir().map(|d| d.join(CONFIG_FILE))
 }
 
-/// A config file that is missing or corrupt is an empty list, never a failure
-/// to start: a hand-edited file must not take the section down.
 fn read_file(path: &Path) -> Vec<McpServerConfig> {
     std::fs::read_to_string(path)
         .ok()

@@ -1,60 +1,40 @@
-//! The auditor of a Loop round (roadmap 3.7, S22, 84#P1): a side call of
-//! the Loop's own agent, on the small model of its provider/account
-//! (`TaskKind::Side`, 84#P3), that reads the objective, what the round's
-//! tools did (`goal_audit::Evidence`) and its last reply, and returns a
-//! verdict. The rules that act on the verdict and the
-//! text of the rounds are in [`omniget_core::core::llm::goal_audit`].
-
 use super::*;
 use omniget_core::core::llm::goal_audit::{self, Audit};
 use omniget_core::core::llm::router::{self, SideReason};
 
-/// Ceiling of one audit: a verdict in one JSON line.
 const AUDIT_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(120);
 
-/// Audits kept on a Loop row (newest last).
 pub const AUDITS_KEPT: usize = 50;
 
-/// One audited round, as the Loops screen shows it.
 #[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
 pub struct LoopAudit {
     pub round: u32,
-    /// `continue|complete|blocked`; `None` = the audit gave no verdict.
     #[serde(default)]
     pub verdict: Option<String>,
     #[serde(default)]
     pub note: String,
-    /// The agent's own claim (a `DONE` line or `Missing: nothing`): kept to
-    /// compare with the verdict, never acted on.
     #[serde(default)]
     pub claimed_done: bool,
-    /// The side model the audit ran on.
     #[serde(default)]
     pub model: String,
-    /// Why that model (`provider_small`, `session_model`, …); `…+fallback`
-    /// when the small model failed and the session's own answered.
     #[serde(default)]
     pub reason: String,
     #[serde(default)]
     pub error: Option<String>,
     #[serde(default)]
     pub cost_usd: Option<f64>,
-    /// Billable tokens of the audit (`billable_of`).
     #[serde(default)]
     pub tokens: u64,
     #[serde(default)]
     pub ms: u64,
-    /// The round it judged, for the overhead (audit ÷ round).
     #[serde(default)]
     pub round_cost_usd: Option<f64>,
     #[serde(default)]
     pub round_tokens: u64,
-    /// The round went out as the short continuation guide (83#P7).
     #[serde(default)]
     pub guided: bool,
 }
 
-/// What one side call returned.
 struct SideAnswer {
     text: String,
     usage: Option<Value>,
@@ -63,10 +43,6 @@ struct SideAnswer {
 }
 
 impl Jobs {
-    /// Whether the next round of this Loop resumes the provider's session
-    /// (Claude `--resume`, Codex `thread/resume`): its session record has a
-    /// handle and the runtime resumes natively. Only then does round ≥ 2 go
-    /// out as the guide (83#P7).
     pub(super) fn loop_resumable(&self, l: &LoopDef) -> bool {
         if l.agent_id.starts_with(TOOL_PREFIX) {
             return false;
@@ -88,8 +64,6 @@ impl Jobs {
             router::SIDE_PREFIX,
             uuid::Uuid::new_v4().simple()
         );
-        // The audit is spent on the Loop (3.3): its budget policies see and
-        // gate it like a round (one mechanism, `loop:<id>`).
         let _budget_scope = omniget_core::core::llm::budget::policy::Binding::new(
             &conv,
             vec![omniget_core::core::llm::budget::policy::Scope::Loop(
@@ -151,10 +125,6 @@ impl Jobs {
         }
     }
 
-    /// Audits one round. `None` = no verdict (the call failed or the answer
-    /// did not parse); the entry says why. When the small model itself fails
-    /// (a name the account does not offer), the audit is asked once more of
-    /// the session's own model.
     pub(super) async fn audit_round(
         &self,
         l: &LoopDef,
@@ -181,7 +151,6 @@ impl Jobs {
                         .side_call(&l.id, &l.agent_id, &input, Some(&session))
                         .await;
                     fallback = true;
-                    // Both calls are paid for.
                     spent = merge_usage(spent, again.usage.clone());
                     answer = again;
                 }
@@ -221,7 +190,6 @@ impl Jobs {
     }
 }
 
-/// The folded usage of two calls, summed field by field.
 fn merge_usage(a: Option<Value>, b: Option<Value>) -> Option<Value> {
     match (a, b) {
         (None, b) => b,
@@ -246,7 +214,6 @@ fn merge_usage(a: Option<Value>, b: Option<Value>) -> Option<Value> {
     }
 }
 
-/// Appends an audit to the Loop's list, keeping the newest [`AUDITS_KEPT`].
 pub(super) fn push_audit(l: &mut LoopDef, entry: LoopAudit) {
     l.audits.push(entry);
     if l.audits.len() > AUDITS_KEPT {
@@ -255,8 +222,6 @@ pub(super) fn push_audit(l: &mut LoopDef, entry: LoopAudit) {
     }
 }
 
-/// The last verdict of a Loop row, for the guide of the next round after a
-/// restart.
 pub(super) fn last_audit(l: &LoopDef) -> Option<Audit> {
     let a = l.audits.last()?;
     let verdict = match a.verdict.as_deref()? {

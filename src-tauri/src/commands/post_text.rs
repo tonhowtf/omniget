@@ -1,12 +1,3 @@
-//! Downloads › Tools › Captions & info: saves the text that comes with a post
-//! or video (caption or description, author, date, link, tags) next to the
-//! downloads, as a `.txt` a person can read and an optional `.json` with every
-//! field the site gave.
-//!
-//! The idea comes from Instaloader, which writes the caption as `<post>.txt`
-//! and the metadata as `<post>.json.xz` beside each download. Reimplemented on
-//! the yt-dlp JSON the app already fetches; no code was copied.
-
 use std::path::{Path, PathBuf};
 
 use serde::Serialize;
@@ -33,7 +24,6 @@ fn s(v: &Value, key: &str) -> Option<String> {
         .map(str::to_string)
 }
 
-/// `20240131` → `2024-01-31`.
 fn upload_date(v: &Value) -> Option<String> {
     let d = s(v, "upload_date")?;
     if d.len() == 8 && d.chars().all(|c| c.is_ascii_digit()) {
@@ -43,7 +33,6 @@ fn upload_date(v: &Value) -> Option<String> {
     }
 }
 
-/// The readable sidecar: a short header, then the caption as the site wrote it.
 pub fn render_txt(v: &Value) -> String {
     let mut out = String::new();
     let title = s(v, "title").or_else(|| s(v, "fulltitle"));
@@ -76,7 +65,6 @@ pub fn render_txt(v: &Value) -> String {
         out.push('\n');
     }
     if let Some(desc) = s(v, "description") {
-        // A caption that only repeats the title adds nothing.
         if title.as_deref() != Some(desc.as_str()) {
             out.push('\n');
             out.push_str(&desc);
@@ -101,8 +89,6 @@ pub fn render_txt(v: &Value) -> String {
     out
 }
 
-/// The JSON sidecar: every field except the stream lists, whose links expire
-/// and would only make the file huge.
 pub fn slim_json(v: &Value) -> Value {
     let mut v = v.clone();
     if let Some(o) = v.as_object_mut() {
@@ -123,7 +109,6 @@ pub fn slim_json(v: &Value) -> Value {
     v
 }
 
-/// `<title> [<id>]`, safe on every system and short enough for Windows paths.
 pub fn base_name(v: &Value) -> String {
     let title = s(v, "title").unwrap_or_else(|| "post".to_string());
     let short: String = title.chars().take(120).collect();
@@ -198,7 +183,6 @@ pub async fn save_post_text(
             out.push(r);
             continue;
         }
-        // One item, not a whole playlist: a playlist link saves its own text.
         let flags = vec!["--flat-playlist".to_string()];
         match ytdlp::get_video_info(&ytdlp_path, url, &flags).await {
             Ok(v) => {

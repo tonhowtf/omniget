@@ -1,7 +1,3 @@
-//! Batch conversion queue: two ffmpeg jobs at a time, each cancellable,
-//! progress from `-progress pipe:1`. Finished files can be added to the
-//! library right away.
-
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -45,13 +41,10 @@ pub struct ConvertRequest {
     pub preset: Preset,
     #[serde(default)]
     pub options: ConvertOptions,
-    /// Empty = next to the source file.
     #[serde(default)]
     pub out_dir: String,
-    /// Empty = keep the source file name.
     #[serde(default)]
     pub template: String,
-    /// Apply the track's ReplayGain value into the output.
     #[serde(default)]
     pub bake_replaygain: bool,
     #[serde(default)]
@@ -136,7 +129,6 @@ pub async fn start(app: AppHandle, req: ConvertRequest) -> Result<Vec<Job>, Stri
         let meta = tags::read(&src).map(|(m, _)| m).unwrap_or_default();
         let mut out = output_for(&src, &req, &meta);
         if out == src {
-            // converting into the same format and place: never clobber the source
             let stem = out
                 .file_stem()
                 .map(|s| s.to_string_lossy().to_string())
@@ -210,8 +202,6 @@ async fn run_job(
     if gain.is_some() {
         opts.gain_db = gain;
     }
-    // ffmpeg writes to "<name>.part.<ext>" and the file is renamed only when
-    // it finished, so a crash or cancel never leaves a truncated song behind
     let part = {
         let stem = out
             .file_stem()

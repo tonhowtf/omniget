@@ -1,18 +1,3 @@
-//! Incremental scanner over the CLI history folders.
-//!
-//! Rules that the budget and the privacy promise rest on:
-//!
-//! * **Only `*.jsonl` is ever opened.** `.credentials.json`, `*.lock`,
-//!   `*.sock` and everything else are filtered out by extension before any
-//!   `File::open`, so the scanner physically cannot read a credential file.
-//! * **Resume by offset.** `ScanState` remembers how many bytes of each file
-//!   were already consumed. Only whole lines advance the offset, so a line the
-//!   CLI is still writing is ignored now and read on the next pass.
-//! * **Rewrite detection.** A file shorter than its recorded offset was
-//!   rotated or rewritten, so it is read from zero again.
-//! * Files are read on a small thread pool (one chunk of the file list per
-//!   thread), which is what keeps a cold 500 MB history inside the budget.
-
 use std::collections::HashMap;
 use std::io::{Read, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
@@ -21,18 +6,14 @@ use serde::{Deserialize, Serialize};
 
 use super::parse::{codex_tool_name, CliKind, CliUsageEntry, FileParser, Parsed, RateLimitSample};
 
-/// How much of a history file is read per syscall.
 const CHUNK: usize = 4 * 1024 * 1024;
 
-/// Stable error codes the UI maps (house style: `ERR_*`).
 pub const ERR_CLI_USAGE_IO: &str = "ERR_CLI_USAGE_IO";
 pub const ERR_CLI_USAGE_STATE: &str = "ERR_CLI_USAGE_STATE";
 
-/// One folder to sweep, with the account it belongs to.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ScanRoot {
     pub cli: CliKind,
-    /// Account label; `"default"` for the user's own config dir.
     pub account: String,
     pub path: PathBuf,
 }
@@ -46,8 +27,6 @@ impl ScanRoot {
         }
     }
 
-    /// A bare path, with the CLI guessed from the folder name. Used by the
-    /// `scan(&[PathBuf], ..)` entry point of the contract.
     pub fn guess(path: impl Into<PathBuf>) -> Self {
         let path = path.into();
         let looks_codex = path
@@ -65,8 +44,6 @@ impl ScanRoot {
     }
 }
 
-/// Byte offset already consumed per file. Persisted as
-/// `<app_data>/llm/cli-usage-state.json`.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct ScanState {
     offsets: HashMap<PathBuf, u64>,
@@ -93,13 +70,10 @@ impl ScanState {
         self.offsets.is_empty()
     }
 
-    /// Forget everything, so the next scan re-reads the whole history.
     pub fn clear(&mut self) {
         self.offsets.clear();
     }
 
-    /// Drop entries whose file no longer exists, so the state file does not
-    /// grow forever with deleted sessions.
     pub fn prune_missing(&mut self) {
         self.offsets.retain(|p, _| p.exists());
     }
@@ -111,7 +85,6 @@ impl ScanState {
             .unwrap_or_default()
     }
 
-    /// Atomic write (tmp + rename), same shape as `roster_store`.
     pub fn save(&self, path: &Path) -> Result<(), String> {
         if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent).map_err(|e| format!("{ERR_CLI_USAGE_STATE}: {e}"))?;
@@ -130,7 +103,6 @@ pub struct ScanStats {
     pub files_read: u32,
     pub bytes_read: u64,
     pub lines: u64,
-    /// Lines left for the next pass because they had no terminating newline.
     pub partial_lines: u32,
     pub elapsed_ms: u64,
 }
@@ -138,26 +110,19 @@ pub struct ScanStats {
 #[derive(Debug, Clone, Default)]
 pub struct ScanOutcome {
     pub entries: Vec<CliUsageEntry>,
-    /// Rate-limit samples found in the history itself (Codex writes them).
     pub limits: Vec<(String, RateLimitSample)>,
     pub stats: ScanStats,
 }
 
-/// Contract entry point: sweep bare folders, guessing the CLI from the path.
 pub fn scan(roots: &[PathBuf], state: &mut ScanState) -> Vec<CliUsageEntry> {
     let roots: Vec<ScanRoot> = roots.iter().map(ScanRoot::guess).collect();
     scan_roots(&roots, state).entries
 }
 
-/// Full sweep: entries, rate-limit samples and statistics.
 pub fn scan_roots(roots: &[ScanRoot], state: &mut ScanState) -> ScanOutcome {
     scan_roots_since(roots, state, None)
 }
 
-/// [`scan_roots`] limited to the files written at or after `modified_since`.
-/// A log last touched before that moment cannot hold a newer entry, and the
-/// history grows forever (gigabytes for a daily Claude Code user), so a
-/// report over the last days has no reason to parse years of it.
 pub fn scan_roots_since(
     roots: &[ScanRoot],
     state: &mut ScanState,
@@ -178,7 +143,7 @@ pub fn scan_roots_since(
             let size = meta.len();
             let mut from = state.offset(&path);
             if from > size {
-                from = 0; // rotated or rewritten
+                from = 0;
             }
             jobs.push(Job {
                 cli: root.cli,
@@ -192,8 +157,6 @@ pub fn scan_roots_since(
     }
     let files_seen = jobs.len() as u32;
     let todo: Vec<Job> = jobs.into_iter().filter(|j| j.size > j.from).collect();
-    // Half the cores at most: this runs while the user works, and a scan that
-    // takes every core makes the whole machine (and the app) stutter.
     let threads = std::thread::available_parallelism()
         .map(|n| (n.get() / 2).max(1))
         .unwrap_or(1)
@@ -274,8 +237,6 @@ fn read_file(job: &Job) -> FileResult {
         return res;
     }
     let mut parser = FileParser::new(job.cli, &job.account, &job.project, session_hint);
-    // Whole blocks are read at once and split on newlines in memory: one
-    // `read` syscall per 4 MiB instead of one `read_until` per line.
     let mut block = vec![0u8; CHUNK];
     let mut carry: Vec<u8> = Vec::with_capacity(CHUNK + 64 * 1024);
     loop {
@@ -295,20 +256,15 @@ fn read_file(job: &Job) -> FileResult {
         }
         carry.drain(..start);
     }
-    // Anything left has no newline: the CLI is still writing it, so it stays
-    // for the next pass and the offset does not move past it.
     res.partial = !carry.is_empty();
     res
 }
 
-/// One complete line, without its newline.
 fn handle_line(line: &[u8], job: &Job, parser: &mut FileParser, res: &mut FileResult) {
     if !super::parse::may_carry_usage(job.cli, line) {
         if job.cli == CliKind::Codex && super::parse::may_be_tool_call(line) {
             if let Ok(text) = std::str::from_utf8(line) {
                 if let Some(tool) = codex_tool_name(text) {
-                    // Tool calls sit on their own line in a Codex rollout; the
-                    // heat map only needs the name and the hour.
                     res.entries.push(CliUsageEntry {
                         cli: CliKind::Codex,
                         account: job.account.clone(),
@@ -342,9 +298,6 @@ fn handle_line(line: &[u8], job: &Job, parser: &mut FileParser, res: &mut FileRe
     }
 }
 
-/// Every `*.jsonl` below `root`, with the first path component under the root
-/// as the project label. Symlinks are not followed and no other extension is
-/// ever opened.
 pub fn walk_jsonl(root: &Path) -> Vec<(PathBuf, String)> {
     let mut out = Vec::new();
     let mut stack = vec![(root.to_path_buf(), String::new())];
@@ -382,9 +335,6 @@ pub fn walk_jsonl(root: &Path) -> Vec<(PathBuf, String)> {
     out
 }
 
-/// Default folders: the user's own Claude and Codex histories plus one folder
-/// per isolated account config dir. `CLAUDE_CONFIG_DIR` may hold several paths
-/// separated by the platform list separator, as the CLI documents.
 pub fn default_roots(accounts: &[(String, PathBuf)]) -> Vec<ScanRoot> {
     let mut roots = Vec::new();
     if let Some(home) = dirs::home_dir() {
@@ -468,7 +418,6 @@ mod tests {
         let mut state = ScanState::new();
         let first = scan(std::slice::from_ref(&dir), &mut state);
         assert_eq!(first.len(), 1, "the half-written line must not count");
-        // The CLI finishes the line.
         std::fs::write(&f, format!("{whole}\n{next}\n")).unwrap();
         let second = scan(std::slice::from_ref(&dir), &mut state);
         assert_eq!(second.len(), 1);
@@ -502,8 +451,6 @@ mod tests {
         std::fs::remove_dir_all(&dir).ok();
     }
 
-    /// The promise of the section: a credential file is never opened, because
-    /// only `*.jsonl` reaches `File::open`.
     #[test]
     fn only_jsonl_files_are_ever_opened() {
         let dir = tmpdir("creds");
@@ -583,8 +530,6 @@ mod tests {
             &[ScanRoot::new(CliKind::Claude, "default", &dir)],
             &mut state,
         );
-        // 3 real turns + the duplicate; the API error, the synthetic model and
-        // the half-written last line are out.
         assert_eq!(out.entries.len(), 4, "{:?}", out.entries);
         assert_eq!(out.stats.partial_lines, 1);
         assert!(out.entries.iter().any(|e| e.sidechain));
@@ -609,8 +554,6 @@ mod tests {
             &mut state,
         );
         assert_eq!(out.entries.len(), 2);
-        // Older lines have no `output_tokens_details`: reasoning is 0, not a
-        // parse failure.
         assert!(out.entries.iter().all(|e| e.reasoning_tokens == 0));
         assert_eq!(out.entries[0].input_tokens, 12_100);
         std::fs::remove_dir_all(&dir).ok();

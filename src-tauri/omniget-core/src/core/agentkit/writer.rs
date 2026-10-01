@@ -1,9 +1,3 @@
-//! Transactional writer (plan §4.4): apply a plan with a backup of every file it
-//! touches under `<app_data>/agentkit/backups/<tx>/`, atomic writes, idempotent
-//! merges and a lockfile entry per install; `uninstall` removes only what we
-//! wrote (merged pieces included, checked by hash), `drift` reports user edits,
-//! `restore` rolls a whole transaction back.
-
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
@@ -20,10 +14,6 @@ pub(crate) fn value_sha(v: &Value) -> String {
     sha256_hex(serde_json::to_string(v).unwrap_or_default().as_bytes())
 }
 
-// ------------------------------------------------------------------ pure merge logic
-
-/// Is `value` already in `arr` under this dedupe rule? `Err` = same identity
-/// with another value (a conflict).
 pub(crate) fn already_there(
     arr: &[Value],
     value: &Value,
@@ -90,22 +80,14 @@ pub(crate) fn already_there(
     }
 }
 
-/// Result of applying ops to one document.
 #[derive(Debug, Clone, Default)]
 pub struct Applied {
     pub text: String,
     pub undo: Vec<UndoOp>,
-    /// Ops that did nothing (already present) or were skipped, for the report.
     pub notes: Vec<String>,
-    /// Undo candidates for pieces that were already there with our exact value
-    /// (a block, entry or key another install may own). The writer keeps one
-    /// only when another install really holds the same piece, so the piece is
-    /// reference-counted and goes out with its last holder.
     pub shared: Vec<UndoOp>,
 }
 
-/// Applies merge ops to a document's text. Pure; used by the plan (preview) and
-/// by `apply` (for real) so both produce the same bytes.
 pub fn apply_ops(format: DocFormat, text: &str, ops: &[PatchOp]) -> Result<Applied> {
     let mut out = Applied {
         text: text.to_string(),
@@ -254,8 +236,6 @@ fn prune(doc: &mut dyn Editor, path: &[Seg], start_len: usize, prune_to: usize) 
     Ok(())
 }
 
-/// Undoes merged pieces on a text. Returns the new text, whether the document
-/// is now empty, and pieces that were not ours anymore (drift).
 pub fn undo_ops(
     format: DocFormat,
     text: &str,
@@ -307,7 +287,6 @@ pub fn undo_ops(
                 prune_to,
             } => {
                 if !doc.remove_item(path, value)? {
-                    // edited or already gone: nothing of ours to take out
                     if let Some(Value::Array(a)) = doc.get(path) {
                         if !a.is_empty() && !force {
                             drift.push(format!(
@@ -330,7 +309,6 @@ pub fn undo_ops(
     Ok((doc.text().to_string(), empty, drift))
 }
 
-/// Pieces of a merged file that no longer match what we wrote (read-only).
 pub fn check_undo(format: DocFormat, text: &str, undo: &[UndoOp]) -> Vec<String> {
     let mut out = Vec::new();
     if format == DocFormat::Markdown {
@@ -375,18 +353,14 @@ pub fn check_undo(format: DocFormat, text: &str, undo: &[UndoOp]) -> Vec<String>
     out
 }
 
-// ------------------------------------------------------------------ transactions
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BackupEntry {
     pub path: String,
     pub existed: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub backup: Option<String>,
-    /// The path was a symlink to this target (restored as a link).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub link: Option<String>,
-    /// A folder link: restoring its absence removes the link or the copied folder.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub folder: bool,
 }
@@ -399,7 +373,6 @@ pub struct TxManifest {
     pub entries: Vec<BackupEntry>,
 }
 
-/// A backup transaction: every file is copied once before its first change.
 pub struct Tx {
     pub id: String,
     dir: PathBuf,
@@ -427,7 +400,6 @@ impl Tx {
         })
     }
 
-    /// Saves the current bytes of `path` (or its absence) once.
     pub fn backup(&mut self, path: &Path) -> Result<()> {
         let key = path.display().to_string();
         if self.manifest.entries.iter().any(|e| e.path == key) {
@@ -462,8 +434,6 @@ impl Tx {
         self.save()
     }
 
-    /// Records a folder-link path once: absent, or a symlink (its target kept).
-    /// A real folder or file there is never replaced by the writer.
     pub fn backup_link(&mut self, path: &Path) -> Result<()> {
         let key = path.display().to_string();
         if self.manifest.entries.iter().any(|e| e.path == key) {
@@ -491,7 +461,6 @@ impl Tx {
     }
 }
 
-/// Writes through a temporary file in the same folder and renames it in place.
 pub fn atomic_write(path: &Path, bytes: &[u8], executable: Option<bool>) -> Result<()> {
     let dir = path.parent().ok_or_else(|| {
         AgentkitError::new("AGENTKIT_IO", format!("{} has no parent", path.display()))
@@ -534,8 +503,6 @@ pub fn atomic_write(path: &Path, bytes: &[u8], executable: Option<bool>) -> Resu
     Ok(())
 }
 
-/// Creates the parent folders of `path`, returning the ones that did not exist
-/// (outermost first).
 pub(crate) fn ensure_parent(path: &Path) -> Result<Vec<PathBuf>> {
     let mut missing = Vec::new();
     let mut cur = path.parent();
@@ -567,7 +534,6 @@ fn save_lock(tx: &mut Tx, path: &Path, lock: &Lockfile) -> Result<()> {
         if path.exists() {
             std::fs::remove_file(path).map_err(|e| AgentkitError::io("removing", path, &e))?;
         }
-        // `.omniget/` of a project goes too when nothing else is in it
         if let Some(dir) = path.parent() {
             if dir
                 .file_name()
@@ -583,13 +549,10 @@ fn save_lock(tx: &mut Tx, path: &Path, lock: &Lockfile) -> Result<()> {
     atomic_write(path, &lock.to_bytes(), Some(false))
 }
 
-// ------------------------------------------------------------------ folder links
-
 thread_local! {
     static FORCE_COPY_LINKS: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
 }
 
-/// What a correct link to `to` looks like to the plan (compared with [`link_state`]).
 pub fn link_bytes(to: &Path) -> Vec<u8> {
     format!("link:{}", to.display()).into_bytes()
 }
@@ -600,7 +563,6 @@ fn is_symlink(path: &Path) -> bool {
         .unwrap_or(false)
 }
 
-/// `rel → sha256` of every file under `root` (`/`-separated).
 fn dir_digest(root: &Path) -> BTreeMap<String, String> {
     let mut out = BTreeMap::new();
     for e in walkdir::WalkDir::new(root)
@@ -626,9 +588,6 @@ fn dir_digest(root: &Path) -> BTreeMap<String, String> {
     out
 }
 
-/// State of a folder-link path: `link:<target>` for a symlink, the same for a
-/// folder whose files equal `to`'s (a copy made where links are not allowed),
-/// `dir:<hash>` for another folder, the bytes of a file, `None` when absent.
 pub fn link_state(path: &Path, to: &Path) -> Option<Vec<u8>> {
     let md = std::fs::symlink_metadata(path).ok()?;
     if md.file_type().is_symlink() {
@@ -646,7 +605,6 @@ pub fn link_state(path: &Path, to: &Path) -> Option<Vec<u8>> {
     std::fs::read(path).ok()
 }
 
-/// Removes a symlink (file or folder link on every OS).
 fn remove_link(path: &Path) -> Result<()> {
     match std::fs::remove_file(path) {
         Ok(()) => Ok(()),
@@ -654,7 +612,6 @@ fn remove_link(path: &Path) -> Result<()> {
     }
 }
 
-/// Copies the folder `from` to `to`; returns the files copied.
 fn copy_dir(from: &Path, to: &Path) -> Result<Vec<lock::LinkedFile>> {
     std::fs::create_dir_all(to).map_err(|e| AgentkitError::io("creating", to, &e))?;
     let mut out = Vec::new();
@@ -698,8 +655,6 @@ fn copy_dir(from: &Path, to: &Path) -> Result<Vec<lock::LinkedFile>> {
     Ok(out)
 }
 
-/// Makes `path` a folder symlink to `to`, or a copy of it where links are not
-/// allowed. Returns `(copied, files copied)`.
 fn make_link(path: &Path, to: &Path) -> Result<(bool, Vec<lock::LinkedFile>)> {
     if !FORCE_COPY_LINKS.with(|c| c.get()) {
         #[cfg(unix)]
@@ -715,7 +670,6 @@ fn make_link(path: &Path, to: &Path) -> Result<(bool, Vec<lock::LinkedFile>)> {
     Ok((true, copy_dir(to, path)?))
 }
 
-/// Takes out a link we made (or the files of its copy). Returns drift notes.
 fn remove_linked(
     tx: &mut Tx,
     path: &Path,
@@ -765,8 +719,6 @@ fn remove_linked(
     Ok((!path.exists(), drift))
 }
 
-// ------------------------------------------------------------------ apply
-
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct ApplyReport {
     pub tx: String,
@@ -777,9 +729,7 @@ pub struct ApplyReport {
     pub notes: Vec<String>,
 }
 
-/// Applies a plan. Fails with `AGENTKIT_PLAN_STALE` when a file changed since the plan.
 pub fn apply(env: &Env, plan: &InstallPlan) -> Result<ApplyReport> {
-    // stale check first: nothing is touched if a file moved under us
     for f in &plan.files {
         let now = match &f.link_to {
             Some(to) => link_state(&f.path, to).map(|b| sha256_hex(&b)),
@@ -801,7 +751,6 @@ pub fn apply(env: &Env, plan: &InstallPlan) -> Result<ApplyReport> {
         ..Default::default()
     };
 
-    // updates: take the old install out first
     for u in &plan.units {
         if u.status == UnitStatus::Update {
             if let Some(old) = &u.replaces {
@@ -811,7 +760,6 @@ pub fn apply(env: &Env, plan: &InstallPlan) -> Result<ApplyReport> {
         }
     }
 
-    // what other installs already own (after the updates above took theirs out)
     let prior = lock::all_locks(env, plan.project_dir.as_deref());
     let prior_created = |p: &str| prior.iter().any(|(_, l)| l.created_elsewhere(p, ""));
     let prior_pieces = |p: &str| -> Vec<UndoOp> {
@@ -851,7 +799,6 @@ pub fn apply(env: &Env, plan: &InstallPlan) -> Result<ApplyReport> {
         );
     }
 
-    // one pass per path, in plan order
     for fp in &plan.files {
         let path = &fp.path;
         let contributions: Vec<(&str, &super::convert::PlannedFile)> = plan
@@ -881,7 +828,6 @@ pub fn apply(env: &Env, plan: &InstallPlan) -> Result<ApplyReport> {
             let (copied, files) = if state.as_deref() == Some(desired.as_slice()) {
                 report.unchanged.push(key.clone());
                 if !(fp.owned_by_update || prior_created(&key)) {
-                    // the same link was already there and is not ours
                     continue;
                 }
                 let copied = !is_symlink(path);
@@ -955,8 +901,6 @@ pub fn apply(env: &Env, plan: &InstallPlan) -> Result<ApplyReport> {
             } else {
                 report.unchanged.push(path.display().to_string());
             }
-            // a file identical to ours but not written by us stays the user's
-            // (unless another install of ours wrote it: then it is co-owned)
             let ours = !same
                 || !existed
                 || fp.owned_by_update
@@ -976,7 +920,6 @@ pub fn apply(env: &Env, plan: &InstallPlan) -> Result<ApplyReport> {
             }
             continue;
         }
-        // merges, possibly from several units
         let format = contributions[0].1.format.unwrap_or(DocFormat::Json);
         let mut text = current
             .as_deref()
@@ -993,8 +936,6 @@ pub fn apply(env: &Env, plan: &InstallPlan) -> Result<ApplyReport> {
             text = a.text;
             report.notes.extend(a.notes);
             let mut undo = a.undo;
-            // a piece already there that another install of ours owns: hold it
-            // too, so it leaves with its last holder
             for cand in a.shared {
                 if let Some(own) = owners.iter().find(|o| o.same_piece(&cand)) {
                     if !undo.iter().any(|u| u.same_piece(&cand)) {
@@ -1038,7 +979,6 @@ pub fn apply(env: &Env, plan: &InstallPlan) -> Result<ApplyReport> {
         }
     }
 
-    // locks
     let (lock_path, is_project) = (
         lock::lock_path(env, plan.scope, plan.project_dir.as_deref())?,
         plan.scope.is_project_bound(),
@@ -1079,8 +1019,6 @@ pub fn apply(env: &Env, plan: &InstallPlan) -> Result<ApplyReport> {
     Ok(report)
 }
 
-// ------------------------------------------------------------------ uninstall / drift / restore
-
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct UninstallReport {
     pub tx: String,
@@ -1106,8 +1044,6 @@ fn find_record(
     ))
 }
 
-/// Removes an install: only files and pieces we wrote; edited pieces are kept
-/// and reported unless `force`.
 pub fn uninstall(
     env: &Env,
     install_id: &str,
@@ -1133,7 +1069,6 @@ fn uninstall_in(
         tx: tx.id.clone(),
         ..Default::default()
     };
-    // every lock, mutable: shared pieces pass to the installs that stay
     let mut locks = lock::all_locks(env, project);
     if !locks.iter().any(|(p, _)| *p == lock_path) {
         locks.push((lock_path.clone(), Lockfile::load(&lock_path)?));
@@ -1192,7 +1127,6 @@ fn uninstall_in(
                 created_file,
                 undo,
             } => {
-                // pieces another install still holds stay (reference count)
                 let held: Vec<UndoOp> = locks
                     .iter()
                     .flat_map(|(_, l)| {
@@ -1239,7 +1173,6 @@ fn uninstall_in(
     dirs.sort_by_key(|d| std::cmp::Reverse(d.components().count()));
     let mut kept_dirs: Vec<String> = Vec::new();
     for d in dirs {
-        // only when empty; a folder shared with other files stays
         if std::fs::read_dir(&d)
             .map(|mut it| it.next().is_none())
             .unwrap_or(false)
@@ -1249,9 +1182,6 @@ fn uninstall_in(
             kept_dirs.push(d.display().to_string());
         }
     }
-    // (k1-convert) a folder we created that still holds another install's files
-    // passes to that install, so the last one out removes it (`.gemini/` holding
-    // both an agent and a command installed as two units).
     for d in kept_dirs {
         'outer: for (lp, l) in locks.iter_mut() {
             if let Some(heir) = l.installs.iter_mut().find(|x| {
@@ -1296,7 +1226,6 @@ fn uninstall_in(
     Ok(report)
 }
 
-/// Depth of the shallowest node an undo op created (`prune_to` + 1), and its path.
 fn created_root(u: &UndoOp) -> Option<(&[Seg], usize)> {
     match u {
         UndoOp::Remove { path, prune_to, .. } | UndoOp::RemoveItem { path, prune_to, .. } => {
@@ -1306,10 +1235,6 @@ fn created_root(u: &UndoOp) -> Option<(&[Seg], usize)> {
     }
 }
 
-/// Hands what the leaving install `gone` created in `path` to the installs of
-/// `l` that stay there: the "file created by us" flag (so the last one out
-/// deletes an emptied file) and the containers it created above their pieces
-/// (so the last one out prunes them). Returns whether `l` changed.
 fn hand_over(
     l: &mut Lockfile,
     gone: &str,
@@ -1364,12 +1289,10 @@ pub struct DriftItem {
     pub component: String,
     pub target: String,
     pub path: String,
-    /// `missing | modified | piece_changed`.
     pub state: String,
     pub detail: Vec<String>,
 }
 
-/// Files/pieces that no longer match what we wrote.
 pub fn drift(env: &Env, project: Option<&Path>) -> Result<Vec<DriftItem>> {
     let mut out = Vec::new();
     for (_, l) in lock::all_locks(env, project) {
@@ -1433,7 +1356,6 @@ pub fn drift(env: &Env, project: Option<&Path>) -> Result<Vec<DriftItem>> {
     Ok(out)
 }
 
-/// Every install we know of (global + project).
 pub fn installed(env: &Env, project: Option<&Path>) -> Vec<InstallRecord> {
     let mut out = Vec::new();
     for (_, l) in lock::all_locks(env, project) {
@@ -1456,8 +1378,6 @@ pub struct RestoreReport {
     pub removed: Vec<String>,
 }
 
-/// Rolls a transaction back: every file it touched returns to its backup (or is
-/// deleted when it did not exist), lockfiles included.
 pub fn restore(env: &Env, tx_id: &str) -> Result<RestoreReport> {
     if tx_id.contains('/') || tx_id.contains('\\') || tx_id.contains("..") {
         return Err(AgentkitError::new("AGENTKIT_TX", "bad transaction id"));
@@ -1474,7 +1394,6 @@ pub fn restore(env: &Env, tx_id: &str) -> Result<RestoreReport> {
     for e in m.entries.iter().rev() {
         let path = PathBuf::from(&e.path);
         if e.folder {
-            // a folder link: take out what is there now, put the old link back
             if is_symlink(&path) {
                 remove_link(&path)?;
                 report.removed.push(e.path.clone());
@@ -1513,7 +1432,6 @@ pub fn restore(env: &Env, tx_id: &str) -> Result<RestoreReport> {
     Ok(report)
 }
 
-/// Transactions on disk, newest first.
 pub fn transactions(env: &Env) -> Vec<TxManifest> {
     let dir = env.agentkit_dir().join("backups");
     let mut out: Vec<TxManifest> = std::fs::read_dir(&dir)
@@ -1527,7 +1445,6 @@ pub fn transactions(env: &Env) -> Vec<TxManifest> {
     out
 }
 
-/// Scope of a record, for callers that only have the id.
 pub fn record(env: &Env, install_id: &str, project: Option<&Path>) -> Result<InstallRecord> {
     find_record(env, install_id, project).map(|(_, r)| r)
 }

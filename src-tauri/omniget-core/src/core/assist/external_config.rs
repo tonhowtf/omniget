@@ -1,31 +1,3 @@
-//! C02: limited configuration by an external controller.
-//!
-//! An external principal (selected from a local execution grant, never from
-//! request JSON) may prepare:
-//! - a derived bot: a real roster `AgentDef` + a real `bots_profiles` row,
-//!   Native, model/connection inherited from a granted executor, tools =
-//!   requested subset of the grant, no memory/local capabilities, no skills;
-//! - a room: a real `groups_rooms` room whose members are only its own
-//!   derived bots, with conservative limits bounded by the grant;
-//! - delegated tasks in that room, bound to principal + key + fingerprint.
-//!
-//! Derived bots share the parent grant id and its debit ledger: there are no
-//! child grants and so no multiplication of the ceiling. Revoking the parent
-//! grant, or any change of the pinned source executor, invalidates them.
-//!
-//! The roster lives in a JSON file and the rest in SQLite, so bot preparation
-//! is an explicit saga: a durable intent is committed before the roster is
-//! touched, the roster write is a compare-and-swap (`apply_planned`), and the
-//! profile/ownership rows are finalized in one later transaction. Recovery
-//! compares exact hashes and never overwrites a local edit.
-//!
-//! Nothing here runs a turn. The legacy room dispatcher (`groups::send_user_
-//! message`) is LOCAL_USER-only and must not be used for external work; the
-//! mission driver runs claimed tasks through [`task_run`] / [`claim_task`] /
-//! [`finish_task`] under the external authority. The local entries enforce
-//! that in the domain with [`deny_local_dispatch`] / [`local_turn_allowed`]:
-//! an external room or a derived bot is never dispatched as LOCAL_USER.
-
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::{Arc, RwLock};
 
@@ -54,36 +26,24 @@ CREATE TABLE external_room_tasks(task TEXT PRIMARY KEY REFERENCES groups_tasks(i
 }, Migration {
     module: "external_config",
     version: 2,
-    // Set when the parent grant (or the whole client) is revoked: the room is
-    // archived and the derived bot disabled; both stay visible, read-only.
     sql: "
 ALTER TABLE external_rooms ADD COLUMN retired_ms INTEGER;
 ALTER TABLE external_derived_bots ADD COLUMN retired_ms INTEGER;
 ",
 }];
 
-/// Local (LOCAL_USER) entries refuse external rooms and derived bots.
 pub const ERR_LOCAL_DISPATCH: &str = "EXTERNAL_ROOM_LOCAL_DISPATCH_DENIED";
-/// A derived bot the person revoked from the desktop.
 pub const ERR_DERIVED_REVOKED: &str = "DERIVED_BOT_REVOKED";
-/// External execution needs the macOS worker sandbox.
 pub const ERR_ISOLATION: &str = "EXECUTION_ISOLATION_REQUIRED";
 
-/// Per grant: derived bots (ready or in flight) and rooms.
 pub const MAX_DERIVED_PER_GRANT: i64 = 8;
 pub const MAX_ROOMS_PER_GRANT: i64 = 4;
 pub const MAX_ROOM_MEMBERS: usize = 6;
-/// External room ceiling. Rooms never get more than this whatever is asked.
 pub const EXT_MAX_DELEGATIONS: u32 = 4;
 pub const EXT_MAX_TURNS: u32 = 8;
 pub const EXT_MAX_TASK_MS: u64 = 900_000;
 pub const EXT_UNKNOWN_RUN_TOKENS: u64 = 4_000;
 
-// ── roster access ───────────────────────────────────────────────────────
-
-/// The real roster, as the external layer needs it. The app installs an
-/// adapter over `LlmManager`; tests use a `RosterStore`. Without one, every
-/// derived operation fails closed.
 pub trait BotRoster: Send + Sync {
     fn get(&self, id: &str) -> Option<AgentDef>;
     fn apply_planned(
@@ -123,13 +83,10 @@ fn roster() -> Result<Arc<dyn BotRoster>, String> {
     installed_roster().ok_or_else(|| "EXTERNAL_ROSTER_UNAVAILABLE".into())
 }
 
-// ── requests (closed DTOs) ──────────────────────────────────────────────
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields, rename_all = "camelCase")]
 pub struct BotRequest {
     pub grant_id: String,
-    /// A granted executor; model/connection/runtime are inherited from it.
     pub source_executor_id: String,
     pub name: String,
     #[serde(default)]
@@ -157,7 +114,6 @@ pub struct RoomRequest {
     pub grant_id: String,
     pub title: String,
     pub member_bot_ids: Vec<String>,
-    /// Creator of every external task in the room; one of the members.
     pub coordinator_id: String,
     #[serde(default)]
     pub limits: Option<RoomLimitsRequest>,
@@ -168,7 +124,6 @@ pub struct RoomRequest {
 #[serde(deny_unknown_fields, rename_all = "camelCase")]
 pub struct TaskRequest {
     pub room_id: String,
-    /// Exact bot id of a member (not the coordinator).
     pub to: String,
     pub question: String,
     #[serde(default)]
@@ -180,8 +135,6 @@ pub struct TaskRequest {
     pub idempotency_key: String,
 }
 
-// ── public views (never the private AgentDef) ───────────────────────────
-
 #[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DerivedBotView {
@@ -189,7 +142,6 @@ pub struct DerivedBotView {
     pub grant_id: String,
     pub source_executor_id: String,
     pub tools: Vec<String>,
-    /// `ready` or `invalid` (revoked grant, changed source or local edit).
     pub state: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reason: Option<String>,
@@ -237,8 +189,6 @@ impl From<&Task> for TaskView {
     }
 }
 
-// ── helpers ─────────────────────────────────────────────────────────────
-
 fn sha(parts: &[&str]) -> String {
     let mut h = Sha256::new();
     for p in parts {
@@ -284,7 +234,6 @@ fn storage<E: std::fmt::Display>(_: E) -> String {
     "EXTERNAL_CONFIG_STORAGE".into()
 }
 
-/// Live, unrevoked grant body of this principal, read inside `c`.
 fn live_grant(c: &Connection, grant_id: &str, principal: &str) -> Result<Ceiling, String> {
     let body: Option<String> = c
         .query_row(
@@ -305,7 +254,6 @@ struct DerivedRow {
     source_hash: String,
     hash: String,
     tools: Vec<String>,
-    /// Revoked by the person (or with its grant): never usable again.
     retired: bool,
 }
 
@@ -330,11 +278,6 @@ fn derived_row(c: &Connection, bot: &str) -> Result<Option<DerivedRow>, String> 
     .map_err(storage)
 }
 
-/// The effective authority of a derived bot under `grant_id`: the live parent
-/// grant restricted to this bot, its pinned revision and its tool subset.
-/// Fails when the grant is revoked, the principal differs, the source executor
-/// left the grant or changed (grant pin or roster), the derived agent was
-/// edited locally, or no roster is available.
 pub fn derived_ceiling(
     c: &Connection,
     grant_id: &str,
@@ -382,7 +325,6 @@ pub fn derived_ceiling(
     })
 }
 
-/// A member bot must be a live derived bot of this principal and grant.
 fn owned_bot(
     c: &Connection,
     grant: &Ceiling,
@@ -397,8 +339,6 @@ fn owned_bot(
         }
     })
 }
-
-// ── derived bots ────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct BotPlan {
@@ -415,7 +355,6 @@ enum Stage {
     Apply(Box<BotPlan>),
 }
 
-/// Validates against the live grant and the current source; returns the plan.
 fn plan_bot(
     grant: &Ceiling,
     roster: &dyn BotRoster,
@@ -468,7 +407,6 @@ fn plan_bot(
                 .iter()
                 .find(|g| matches!(&g.source, ToolSource::Internal { name: n } if n == name))
                 .map(|g| g.mode)
-                // Absent → Ask; an owner Deny stays Deny (never widened).
                 .unwrap_or(GrantMode::Ask),
             source: ToolSource::Internal { name: name.clone() },
         })
@@ -548,7 +486,6 @@ pub fn prepare_bot_with(
     }
     validate_bot_request(req)?;
     let fp = fingerprint("bot", req)?;
-    // Phase 1: durable intent before any roster write.
     let stage = db.tx(|tx| {
         let old: Option<(String, String, String, String)> = tx
             .query_row(
@@ -602,8 +539,6 @@ pub fn prepare_bot_with(
         Stage::Ready(bot) => return ready_view(db, principal, &bot, roster),
         Stage::Apply(plan) => *plan,
     };
-    // Phase 2: roster compare-and-swap. The source must still be the pinned
-    // revision; an existing agent under this id must be exactly the plan.
     let existing = roster.get(&plan.agent.id);
     match existing {
         Some(a) if authority::agent_revision(&a)? == plan.hash => {}
@@ -628,7 +563,6 @@ pub fn prepare_bot_with(
             }
         }
     }
-    // Phase 3: profile + ownership + intent in one transaction.
     db.tx(|tx| {
         let state: Option<(String, String)> = tx
             .query_row(
@@ -716,9 +650,6 @@ pub fn list_bots_with(
         .collect()
 }
 
-// ── rooms ───────────────────────────────────────────────────────────────
-
-/// Conservative limits for an external room, bounded by the grant.
 pub fn external_limits(
     req: Option<&RoomLimitsRequest>,
     grant: &Ceiling,
@@ -752,7 +683,6 @@ pub fn external_limits(
     Ok(limits)
 }
 
-/// A room edited locally past the external ceiling is not usable externally.
 fn limits_within(l: &RoomLimits, grant: &Ceiling) -> bool {
     l.max_depth <= 1
         && l.max_delegations_per_round <= EXT_MAX_DELEGATIONS
@@ -876,7 +806,6 @@ fn room_owner(db: &AssistDb, principal: &str, room: &str) -> Result<String, Stri
     grant.ok_or_else(|| "ROOM_NOT_AUTHORIZED".into())
 }
 
-/// Owned room metadata. History stays readable after revocation.
 pub fn room_view(db: &AssistDb, principal: &str, room_id: &str) -> Result<RoomView, String> {
     let grant_id = room_owner(db, principal, room_id)?;
     let room = rooms::get_room(db, room_id).map_err(|_| "ROOM_REMOVED_LOCALLY")?;
@@ -892,7 +821,6 @@ pub fn room_view(db: &AssistDb, principal: &str, room_id: &str) -> Result<RoomVi
     })
 }
 
-/// External tasks of an owned room (never local tasks of the same room).
 pub fn room_tasks(db: &AssistDb, principal: &str, room_id: &str) -> Result<Vec<TaskView>, String> {
     room_owner(db, principal, room_id)?;
     let ids: Vec<String> = db.with(|c| {
@@ -907,10 +835,6 @@ pub fn room_tasks(db: &AssistDb, principal: &str, room_id: &str) -> Result<Vec<T
         .collect()
 }
 
-// ── delegated tasks ─────────────────────────────────────────────────────
-
-/// Everything a task needs to be admitted or run now: the live grant, the
-/// room within its external ceiling, and live owned coordinator/recipient.
 struct RoomAuthority {
     grant: Ceiling,
     room: rooms::Room,
@@ -1012,7 +936,6 @@ pub fn create_task_with(
                 {
                     return Err("IDEMPOTENCY_CONFLICT".into());
                 }
-                // The grant must still be live in the admitting transaction.
                 live_grant(tx, &grant_id, principal)?;
                 tx.execute(
                     "INSERT INTO external_room_tasks(task,room,principal,key,fingerprint) VALUES(?1,?2,?3,?4,?5)",
@@ -1035,11 +958,6 @@ pub fn create_task_with(
     Ok(TaskView::from(&task))
 }
 
-// ── driver bridge ───────────────────────────────────────────────────────
-
-/// What the mission driver needs to run one external room task: the task,
-/// the recipient's effective (derived) authority under the parent grant and
-/// the input text. Revalidated on every call.
 #[derive(Debug, Clone)]
 pub struct ExternalTaskRun {
     pub task: Task,
@@ -1097,7 +1015,6 @@ pub fn task_run_with(
     })
 }
 
-/// Revalidates, then claims the task for `run_id` (single transactional claim).
 pub fn claim_task(
     db: &AssistDb,
     principal: &str,
@@ -1124,15 +1041,10 @@ pub fn claim_task_with(
     )
 }
 
-/// The platform predicate of external execution (the worker sandbox exists
-/// on macOS only). Same predicate as the MCP `missions_create` gate.
 pub fn execution_isolation_available() -> bool {
     cfg!(target_os = "macos")
 }
 
-/// [`claim_task_with`] with the platform predicate injected (tests). Without
-/// isolation the owned pending task fails closed, with a stable error, so it
-/// neither runs nor stays pending forever in front of the bridge.
 pub(crate) fn claim_task_gated(
     db: &AssistDb,
     roster: &dyn BotRoster,
@@ -1157,7 +1069,6 @@ pub(crate) fn claim_task_gated(
     Ok(run)
 }
 
-/// Records the end of an owned, claimed task run.
 #[allow(clippy::too_many_arguments)]
 pub fn finish_task(
     db: &AssistDb,
@@ -1177,12 +1088,6 @@ pub fn finish_task(
     tasks::task(db, task_id).map(|t| TaskView::from(&t))
 }
 
-/// Pending external tasks for the driver (principal, task), fair by
-/// principal: at most ONE task per principal (its oldest), principals ordered
-/// by the age of that head task. A driver sweep therefore runs one task of
-/// each principal before a second one of any, so a principal with many tasks
-/// delays another by at most one task per sweep. Tasks of revoked grants are
-/// never returned.
 pub fn pending_tasks(db: &AssistDb, limit: usize) -> Result<Vec<(String, String)>, String> {
     Ok(pending_heads(db, limit)?
         .into_iter()
@@ -1208,19 +1113,14 @@ fn pending_heads(db: &AssistDb, limit: usize) -> Result<Vec<(String, String, i64
     })
 }
 
-// ── local isolation (H1) ────────────────────────────────────────────────
-
 fn tolerant<T: Default>(r: rusqlite::Result<T>) -> Result<T, String> {
     match r {
         Ok(v) => Ok(v),
-        // A database opened without the external tables has no external
-        // rooms or derived bots (module tests open partial schemas).
         Err(e) if e.to_string().contains("no such table") => Ok(T::default()),
         Err(e) => Err(storage(e)),
     }
 }
 
-/// Whether `room` is an external room (live, revoked or retired).
 pub fn is_external_room(c: &Connection, room: &str) -> Result<bool, String> {
     tolerant(c.query_row(
         "SELECT EXISTS(SELECT 1 FROM external_rooms WHERE room=?1)",
@@ -1229,7 +1129,6 @@ pub fn is_external_room(c: &Connection, room: &str) -> Result<bool, String> {
     ))
 }
 
-/// Whether `bot` is a derived bot of some external principal.
 pub fn is_derived_bot(c: &Connection, bot: &str) -> Result<bool, String> {
     tolerant(c.query_row(
         "SELECT EXISTS(SELECT 1 FROM external_derived_bots WHERE bot=?1)",
@@ -1238,10 +1137,6 @@ pub fn is_derived_bot(c: &Connection, bot: &str) -> Result<bool, String> {
     ))
 }
 
-/// Domain guard of every LOCAL_USER entry (room message, local delegation,
-/// room dispatcher): refuses an external room and a derived bot, whatever
-/// the grant state. External work only runs through the mission driver in a
-/// bound `external-mcp-*` conversation.
 pub fn deny_local_dispatch(c: &Connection, room: Option<&str>, bot: &str) -> Result<(), String> {
     if let Some(room) = room {
         if is_external_room(c, room)? {
@@ -1254,11 +1149,6 @@ pub fn deny_local_dispatch(c: &Connection, room: Option<&str>, bot: &str) -> Res
     Ok(())
 }
 
-/// Guard of a turn outside an `external-mcp-*` conversation (direct chat,
-/// room participant `<room>~<bot>`, local mission, bridge): a derived bot or
-/// an external room never runs there. External conversations are governed by
-/// `authority`. Without the assistant database it fails closed for room
-/// participants and derived-looking ids (`ext-…`).
 pub fn local_turn_allowed(conversation: &str, bot: &str) -> Result<(), String> {
     if authority::external(conversation) {
         return Ok(());
@@ -1271,9 +1161,6 @@ pub fn local_turn_allowed(conversation: &str, bot: &str) -> Result<(), String> {
     }
 }
 
-/// Archives the external rooms and disables the derived bots of every revoked
-/// grant, and fails their still-pending tasks. Runs inside the revoking
-/// transaction (`authority::revoke_principal` / `authority::revoke`).
 pub fn retire_revoked(c: &Connection) -> Result<(), String> {
     let now = now_ms();
     let revoked = "SELECT id FROM external_grants WHERE revoked=1";
@@ -1292,8 +1179,6 @@ pub fn retire_revoked(c: &Connection) -> Result<(), String> {
     Ok(())
 }
 
-/// How the local UI shows an external object: read-only, labelled by its
-/// client (principal) rather than by the controller-chosen name or title.
 #[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ExternalMark {
@@ -1329,12 +1214,10 @@ fn marks(db: &AssistDb, table: &str, key: &str) -> Result<BTreeMap<String, Exter
     Ok(rows.into_iter().collect())
 }
 
-/// External rooms by room id, for the local room list.
 pub fn room_marks(db: &AssistDb) -> Result<BTreeMap<String, ExternalMark>, String> {
     marks(db, "external_rooms", "room")
 }
 
-/// A derived bot as the desktop lists it under its client's grants.
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct DerivedLocal {
     pub bot: String,
@@ -1346,7 +1229,6 @@ pub struct DerivedLocal {
     pub grant_active: bool,
 }
 
-/// Every derived bot, newest first (trusted desktop view, read-only).
 pub fn derived_local(db: &AssistDb) -> Result<Vec<DerivedLocal>, String> {
     db.with(|c| {
         Ok(tolerant((|| {
@@ -1369,9 +1251,6 @@ pub fn derived_local(db: &AssistDb) -> Result<Vec<DerivedLocal>, String> {
     })?
 }
 
-/// Trusted desktop revocation of ONE derived bot: it is retired (kept,
-/// read-only) and its next authority check fails with
-/// [`ERR_DERIVED_REVOKED`]; the grant and its other bots stay live.
 pub fn retire_derived(db: &AssistDb, bot: &str) -> Result<(), String> {
     let changed = db.with(|c| {
         Ok(tolerant(c.execute(
@@ -1385,7 +1264,6 @@ pub fn retire_derived(db: &AssistDb, bot: &str) -> Result<(), String> {
     Ok(())
 }
 
-/// Derived bots by bot id, for local rosters and pickers.
 pub fn derived_bot_marks(db: &AssistDb) -> Result<BTreeMap<String, ExternalMark>, String> {
     marks(db, "external_derived_bots", "bot")
 }

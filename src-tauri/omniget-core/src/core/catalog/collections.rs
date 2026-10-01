@@ -1,7 +1,3 @@
-//! Coleções e stacks locais em `<app_data>/agentkit/collections.db`, com
-//! exportação/importação de arquivo `.omnistack` (JSON: ids + alvos + escopo +
-//! hash de conteúdo; campo `signature` reservado para assinar depois).
-
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
@@ -22,10 +18,8 @@ pub const STACK_VERSION: u32 = 1;
 pub struct CollectionItem {
     pub item_id: String,
     pub position: i64,
-    /// Ids de ferramenta-alvo (`claude`, `codex`…); vazio = decidir na instalação.
     #[serde(default)]
     pub targets: Vec<String>,
-    /// `user`, `project`, `local`… ; `None` = padrão da coleção.
     #[serde(default)]
     pub scope: Option<String>,
     #[serde(default)]
@@ -56,7 +50,6 @@ fn now() -> String {
     chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true)
 }
 
-/// Loja de coleções (uma conexão protegida por mutex).
 pub struct Store {
     conn: Mutex<Connection>,
 }
@@ -280,7 +273,6 @@ impl Store {
         })
     }
 
-    /// Adiciona (ou atualiza alvos/escopo de) um item no fim da coleção.
     pub fn add(
         &self,
         id: &str,
@@ -363,7 +355,6 @@ impl Store {
         })
     }
 
-    /// Move um item para a posição `to` (0 = primeiro; além do fim = último).
     pub fn move_item(&self, id: &str, item_id: &str, to: usize) -> Result<Collection> {
         self.with(|c| {
             let tx = c.transaction().map_err(db_err)?;
@@ -384,7 +375,6 @@ impl Store {
         })
     }
 
-    /// Reordena as próprias coleções.
     pub fn move_collection(&self, id: &str, to: usize) -> Result<Vec<Collection>> {
         self.with(|c| {
             let mut ids: Vec<String> = {
@@ -414,7 +404,6 @@ impl Store {
     }
 }
 
-/// Loja padrão em `<app_data>/agentkit/collections.db`.
 pub fn store() -> Result<&'static Store> {
     static STORE: std::sync::OnceLock<Store> = std::sync::OnceLock::new();
     if let Some(s) = STORE.get() {
@@ -424,12 +413,9 @@ pub fn store() -> Result<&'static Store> {
     Ok(STORE.get_or_init(|| s))
 }
 
-// ---------------------------------------------------------------- .omnistack
-
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct StackItem {
     pub id: String,
-    /// Hash de conteúdo no índice na hora da exportação (`None` p/ plugin/registry).
     #[serde(default)]
     pub content_hash: Option<String>,
     #[serde(default)]
@@ -453,14 +439,11 @@ pub struct StackFile {
     #[serde(default)]
     pub generator: Option<String>,
     pub items: Vec<StackItem>,
-    /// sha256 do JSON canônico de `{name, targets, scope, items}`.
     pub hash: String,
-    /// Reservado (ed25519 depois).
     #[serde(default)]
     pub signature: Option<Value>,
 }
 
-/// JSON canônico (chaves ordenadas, sem espaço) do que o hash cobre.
 pub fn stack_hash(
     name: &str,
     targets: &[String],
@@ -481,7 +464,6 @@ pub fn stack_hash(
     sha256_hex(canonical_json(&v).as_bytes())
 }
 
-/// JSON com chaves ordenadas em todo nível, sem espaço (independe de `preserve_order`).
 pub fn canonical_json(v: &Value) -> String {
     match v {
         Value::Object(o) => {
@@ -501,7 +483,6 @@ pub fn canonical_json(v: &Value) -> String {
     }
 }
 
-/// Monta o `.omnistack` de uma coleção (hash de conteúdo tirado do catálogo atual).
 pub fn build_stack(col: &Collection, lookup: impl Fn(&str) -> Option<String>) -> StackFile {
     let items: Vec<StackItem> = col
         .items
@@ -529,7 +510,6 @@ pub fn build_stack(col: &Collection, lookup: impl Fn(&str) -> Option<String>) ->
     }
 }
 
-/// Lê e valida um `.omnistack` (formato, versão, hash).
 pub fn parse_stack(bytes: &[u8]) -> Result<StackFile> {
     let s: StackFile = serde_json::from_slice(bytes)
         .map_err(|e| CatalogError::new(ERR_INVALID, format!("omnistack: {e}")))?;
@@ -553,7 +533,6 @@ fn catalog_hash(id: &str) -> Option<String> {
     super::index::item(id).ok().and_then(|i| content_hash(&i))
 }
 
-/// Exporta uma coleção para `path` (acrescenta `.omnistack` se faltar).
 pub fn export(id: &str, path: &Path) -> Result<PathBuf> {
     let col = store()?.get(id)?;
     let stack = build_stack(&col, catalog_hash);
@@ -570,13 +549,10 @@ pub fn export(id: &str, path: &Path) -> Result<PathBuf> {
 #[derive(Debug, Clone, Serialize)]
 pub struct ImportReport {
     pub collection: Collection,
-    /// Itens que não estão no catálogo atual.
     pub missing: Vec<String>,
-    /// Itens cujo conteúdo mudou desde a exportação.
     pub changed: Vec<String>,
 }
 
-/// Importa um `.omnistack` como coleção nova.
 pub fn import(path: &Path) -> Result<ImportReport> {
     let bytes = std::fs::read(path).map_err(|e| super::io_err("read omnistack", e))?;
     let stack = parse_stack(&bytes)?;

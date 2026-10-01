@@ -1,16 +1,3 @@
-//! The pollers, the shared snapshot and the `limits://state` event.
-//!
-//! One task, alive only while the strip window exists. Every tick it drains
-//! the bus into the activity tracker, fills the `omniget` ring from the app's
-//! own telemetry, and starts a read for each provider that is switched on and
-//! due. The rules that protect the user are pure functions with tests:
-//!
-//!   - [`due`]: nothing is due while the window is closed, the master switch
-//!     is off, or the provider's own switch is off;
-//!   - [`next_delay`]: never sooner than [`MIN_INTERVAL`], doubling on every
-//!     failure, and never sooner than a provider's `Retry-After`;
-//!   - [`may_refresh`]: a manual refresh cannot be used to hammer a provider.
-
 use super::activity::{Activity, Tracker, EXTERNAL_WINDOW_SECS};
 use super::alerts::{self, Alert};
 use super::prefs::{Edge, Look, StripPrefs};
@@ -23,14 +10,10 @@ use std::time::Duration;
 use tauri::{AppHandle, Emitter, Manager};
 use tokio_util::sync::CancellationToken;
 
-/// No provider is asked more often than this, whatever its reader says.
 pub const MIN_INTERVAL: Duration = Duration::from_secs(300);
-/// Where the doubling stops. A longer `Retry-After` is still honoured.
 pub const MAX_BACKOFF: Duration = Duration::from_secs(3600);
-/// A manual refresh is ignored when the last read is younger than this.
 pub const MANUAL_FLOOR_MS: i64 = 60_000;
 const TICK: Duration = Duration::from_secs(5);
-/// The session logs are stat'ed every other tick.
 const EXTERNAL_EVERY: u64 = 2;
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -39,10 +22,7 @@ pub struct Ring {
     pub label: String,
     pub local: bool,
     pub beta: bool,
-    /// Which login this ring reads (account name and e-mail), when the tool
-    /// can hold several.
     pub account: Option<super::AccountTag>,
-    /// `pending`, `ok`, `absent`, `needs_auth`, `rate_limited`, `error`.
     pub status: &'static str,
     pub message: Option<String>,
     pub reading: Option<Reading>,
@@ -55,7 +35,6 @@ pub struct Ring {
 pub struct Snapshot {
     pub open: bool,
     pub edge: Edge,
-    /// Size, labels, pace tick and contrast, from the prefs.
     pub look: Look,
     pub rings: Vec<Ring>,
 }
@@ -66,22 +45,15 @@ struct Chime {
     alerts: Vec<Alert>,
 }
 
-// ---------------------------------------------------------------------------
-// The rules
-// ---------------------------------------------------------------------------
-
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct Slot {
-    /// Epoch ms of the next allowed read; 0 = as soon as the strip is open.
     pub next_at: i64,
     pub failures: u32,
     pub read_at: Option<i64>,
     pub in_flight: bool,
-    /// Set while a provider asked us to stay away.
     pub rate_limited: bool,
 }
 
-/// Wait before the next read and the new failure count.
 pub fn next_delay(
     interval: Duration,
     outcome: Result<(), &ReadError>,
@@ -102,7 +74,6 @@ pub fn next_delay(
     (doubled.max(asked), failures)
 }
 
-/// The providers to read now, in the user's order.
 pub fn due(
     prefs: &StripPrefs,
     slots: &HashMap<String, Slot>,
@@ -126,7 +97,6 @@ pub fn due(
         .collect()
 }
 
-/// Whether a manual refresh may pull the next read forward.
 pub fn may_refresh(slot: &Slot, now: i64) -> bool {
     !slot.in_flight
         && !slot.rate_limited
@@ -136,43 +106,32 @@ pub fn may_refresh(slot: &Slot, now: i64) -> bool {
             .unwrap_or(true)
 }
 
-// ---------------------------------------------------------------------------
-// Shared state
-// ---------------------------------------------------------------------------
-
 #[derive(Debug, Clone, Default)]
 struct Held {
     status: Option<&'static str>,
     message: Option<String>,
     reading: Option<Reading>,
-    /// `(window id, resets_at)` of the pace warnings already raised: one per
-    /// window period.
     paced: Vec<(String, i64)>,
 }
 
 #[derive(Default)]
 struct Inner {
     prefs: StripPrefs,
-    /// The readers as of the last look at `accounts.json`.
     readers: Vec<Arc<dyn UsageProvider>>,
     slots: HashMap<String, Slot>,
     held: HashMap<String, Held>,
     tracker: Tracker,
     cancel: Option<CancellationToken>,
     last_emitted: Option<Snapshot>,
-    /// The menu bar usage icon (`crate::usage_tray`): while it is on, the task
-    /// stays alive without the strip window and also reads the rings it lists.
     tray_on: bool,
     tray_ids: Vec<String>,
     last_tray: Option<Snapshot>,
 }
 
-/// Whether a ring is read: the strip has it on, or the usage icon lists it.
 fn reads(g: &Inner, id: &str) -> bool {
     g.prefs.is_on(id) || (g.tray_on && id != OMNIGET_ID && g.tray_ids.iter().any(|t| t == id))
 }
 
-/// The task has someone to serve: the strip window, or the usage icon.
 fn alive(app: &AppHandle) -> bool {
     window_open(app) || inner().tray_on
 }
@@ -190,9 +149,6 @@ fn window_open(app: &AppHandle) -> bool {
         .is_some()
 }
 
-/// Ids and defaults for `StripPrefs::adopt`: only what never leaves this
-/// machine starts ticked, and a newly saved account (`claude:<id>`) starts
-/// like the ring of its CLI (`claude`) is set now.
 pub fn known(readers: &[Arc<dyn UsageProvider>], prefs: &StripPrefs) -> Vec<(String, bool)> {
     let mut out = vec![(OMNIGET_ID.to_string(), true)];
     out.extend(readers.iter().map(|p| {
@@ -210,7 +166,6 @@ fn build_snapshot(inner: &Inner, open: bool, now: i64) -> Snapshot {
     build_snapshot_for(inner, open, now, false)
 }
 
-/// `for_tray`: the rings the usage icon lists instead of the strip's.
 fn build_snapshot_for(inner: &Inner, open: bool, now: i64, for_tray: bool) -> Snapshot {
     let readers = &inner.readers;
     let rings = inner
@@ -287,15 +242,10 @@ fn emit_if_changed(app: &AppHandle) {
     }
 }
 
-/// The rings the usage icon lists, for its panel and its first paint.
 pub fn tray_snapshot(app: &AppHandle) -> Snapshot {
     build_snapshot_for(&inner(), window_open(app), now_ms(), true)
 }
 
-/// Turns the usage icon's demand on or off and says which rings it wants.
-/// On, the task starts (or keeps running) even with the strip closed; off,
-/// the rings only it wanted are forgotten, and the task stops when the strip
-/// is closed too.
 pub fn set_tray(app: &AppHandle, on: bool, ids: Vec<String>) {
     {
         let mut g = inner();
@@ -313,8 +263,6 @@ pub fn set_tray(app: &AppHandle, on: bool, ids: Vec<String>) {
     emit_if_changed(app);
 }
 
-/// The engine's copy of the prefs. Readings of anything that is now off are
-/// forgotten on the spot.
 pub fn set_prefs(app: &AppHandle, prefs: StripPrefs) {
     {
         let mut g = inner();
@@ -338,8 +286,6 @@ fn forget_off(g: &mut Inner) {
     }
 }
 
-/// Takes a fresh reader list (an account was added or removed in the app)
-/// and lists newcomers in the prefs. Returns whether the prefs changed.
 fn take_readers(g: &mut Inner, readers: Vec<Arc<dyn UsageProvider>>) -> bool {
     let known = known(&readers, &g.prefs);
     g.readers = readers;
@@ -350,8 +296,6 @@ fn take_readers(g: &mut Inner, readers: Vec<Arc<dyn UsageProvider>>) -> bool {
     changed
 }
 
-/// Pulls the next read of one provider (or of all) forward. Returns the ids
-/// that will actually be read; the others were read too recently.
 pub fn refresh(provider_id: Option<&str>) -> Vec<String> {
     let now = now_ms();
     let mut g = inner();
@@ -374,12 +318,6 @@ pub fn refresh(provider_id: Option<&str>) -> Vec<String> {
     out
 }
 
-// ---------------------------------------------------------------------------
-// The OmniGet ring
-// ---------------------------------------------------------------------------
-
-/// OmniGet's own agents: one window per saved account, from the telemetry the
-/// app already keeps in memory. No file, no network.
 pub fn omniget_reading(t: &crate::llm_manager::TelemetrySnapshot) -> Reading {
     let windows: Vec<LimitWindow> = t
         .quotas
@@ -404,10 +342,6 @@ pub fn omniget_reading(t: &crate::llm_manager::TelemetrySnapshot) -> Reading {
     }
 }
 
-// ---------------------------------------------------------------------------
-// The task
-// ---------------------------------------------------------------------------
-
 fn apply(
     app: &AppHandle,
     reader: &Arc<dyn UsageProvider>,
@@ -419,7 +353,6 @@ fn apply(
     {
         let mut g = inner();
         if !reads(&g, id) {
-            // Switched off while the read was in the air: the answer is dropped.
             g.slots.remove(id);
             g.held.remove(id);
             return;
@@ -456,17 +389,12 @@ fn apply(
                     &g.prefs.sane_thresholds(),
                     now,
                 );
-                // Periods that ended are dropped; the new ones warned about
-                // join, whether or not the user wants to hear it, so turning
-                // the switch on later does not replay an old forecast.
                 let mut paced: Vec<(String, i64)> = held
                     .paced
                     .iter()
                     .filter(|(_, r)| *r > now)
                     .cloned()
                     .collect();
-                // No forecast on a first reading: opening the strip halfway
-                // through a heavy session is not news.
                 if held.reading.is_some() {
                     for a in alerts::pace(&reading, &paced, now) {
                         if let alerts::Alert::Pace { window, .. } = &a {
@@ -498,7 +426,6 @@ fn apply(
                     paced,
                 }
             }
-            // The last good reading stays on the card next to the error.
             Some(Err(e)) => Held {
                 status: Some(e.code()),
                 message: Some(e.message()),
@@ -535,14 +462,10 @@ fn spawn_read(app: AppHandle, reader: Arc<dyn UsageProvider>) {
     });
 }
 
-/// Starts the task if it is not running. Called once the window exists.
 pub fn start(app: &AppHandle) {
     if inner().cancel.is_some() {
         return;
     }
-    // Disk first, lock after: `start` can run on the main thread (the usage
-    // icon's menu, app setup), and every other caller of `inner()` would wait
-    // behind a file read.
     let readers = providers::cached();
     let prefs = super::prefs::load();
     let cancel = {
@@ -566,8 +489,6 @@ pub fn start(app: &AppHandle) {
                 break;
             }
             if tick > 0 && tick.is_multiple_of(EXTERNAL_EVERY) {
-                // Accounts created or removed in the app show up (or leave)
-                // here, without a restart.
                 if let Ok(fresh) = tokio::task::spawn_blocking(providers::all).await {
                     let (changed, prefs) = {
                         let mut g = inner();
@@ -651,7 +572,6 @@ pub fn start(app: &AppHandle) {
                 }
                 let mut ids = due(&g.prefs, &g.slots, window_open(&app), now);
                 if g.tray_on {
-                    // The usage icon's rings the strip does not read itself.
                     for id in &g.tray_ids {
                         let free = g
                             .slots
@@ -672,7 +592,6 @@ pub fn start(app: &AppHandle) {
             for id in to_read {
                 match readers.iter().find(|r| r.id() == id) {
                     Some(reader) => spawn_read(app.clone(), reader.clone()),
-                    // Listed in the prefs but gone from the accounts.
                     None => {
                         if let Some(slot) = inner().slots.get_mut(&id) {
                             slot.in_flight = false;
@@ -688,27 +607,21 @@ pub fn start(app: &AppHandle) {
                 _ = tokio::time::sleep(TICK) => {}
             }
         }
-        // Left because the window went away on its own (not through `stop`,
-        // which cancels the token first): forget everything just the same.
         if !cancel.is_cancelled() {
             stop();
         }
     });
 }
 
-/// Wakes the task before its next tick: a switch flipped, a refresh asked.
 pub fn wake() {
     WAKE.notify_one();
 }
 
 static WAKE: tokio::sync::Notify = tokio::sync::Notify::const_new();
 
-/// Stops the task and forgets every reading: a closed strip holds nothing.
 pub fn stop() {
     let mut g = inner();
     if g.tray_on {
-        // The usage icon still wants its rings: the task keeps running and
-        // only what the strip alone read is forgotten.
         g.last_emitted = None;
         forget_off(&mut g);
         return;

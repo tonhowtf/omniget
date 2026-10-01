@@ -1,12 +1,3 @@
-//! Meetings: a recording (local capture, an imported file, a Teams/SharePoint
-//! recording or a bot's transcript) becomes a transcript, a summary with
-//! decisions and action items, and a markdown note agents can read over MCP.
-//!
-//! Each meeting is a folder under `<app_data>/meetings/<id>/`:
-//! `meeting.json` (this struct), `transcript.json` (segments), `meeting.md`
-//! (the export) and the audio file when there is one. The desktop app, the
-//! CLI and the MCP tools all read the same folders.
-
 pub mod markdown;
 pub mod pipeline;
 pub mod publish;
@@ -31,13 +22,16 @@ pub const MARKDOWN_FILE: &str = "meeting.md";
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum MeetingSource {
-    /// Recorded on this machine: mic and/or system audio.
-    Capture { mic: bool, system: bool },
-    /// A local audio/video file (or a transcript file).
-    File { path: String },
-    /// A Teams/SharePoint/Stream recording link or a `videomanifest` URL.
-    Teams { url: String },
-    /// A Vexa bot that joined the call.
+    Capture {
+        mic: bool,
+        system: bool,
+    },
+    File {
+        path: String,
+    },
+    Teams {
+        url: String,
+    },
     Bot {
         platform: String,
         meeting_url: String,
@@ -109,16 +103,12 @@ pub struct Meeting {
     pub status: MeetingStatus,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub error: Option<String>,
-    /// Audio file name inside the meeting folder.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub audio: Option<String>,
-    /// Mic and system tracks of a capture, kept apart so the transcript can
-    /// tell "You" from "Others".
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub tracks: Vec<Track>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub language: Option<String>,
-    /// "teams", "vexa", "whisper-local", "whisper-api" or "file".
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub transcript_source: Option<String>,
     #[serde(default)]
@@ -127,7 +117,6 @@ pub struct Meeting {
     pub speakers: Vec<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub summary: Option<Summary>,
-    /// The person's own notes, fused into the summary prompt.
     #[serde(default)]
     pub notes: String,
     #[serde(default)]
@@ -136,7 +125,6 @@ pub struct Meeting {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Track {
-    /// "mic" or "system".
     pub role: String,
     pub file: String,
 }
@@ -148,7 +136,6 @@ pub fn now_ms() -> u64 {
         .unwrap_or(0)
 }
 
-/// `<app_data>/meetings`. `OMNIGET_MEETINGS_DIR` moves it (tests, portable).
 pub fn root() -> Option<PathBuf> {
     if let Ok(dir) = std::env::var("OMNIGET_MEETINGS_DIR") {
         if !dir.trim().is_empty() {
@@ -249,7 +236,6 @@ pub fn load(id: &str) -> anyhow::Result<Meeting> {
     Ok(serde_json::from_str(&text)?)
 }
 
-/// Load, change, save. Returns the saved meeting.
 pub fn update(id: &str, f: impl FnOnce(&mut Meeting)) -> anyhow::Result<Meeting> {
     let mut m = load(id)?;
     f(&mut m);
@@ -257,7 +243,6 @@ pub fn update(id: &str, f: impl FnOnce(&mut Meeting)) -> anyhow::Result<Meeting>
     Ok(m)
 }
 
-/// Newest first.
 pub fn list() -> Vec<Meeting> {
     let Some(root) = root() else {
         return Vec::new();
@@ -297,7 +282,6 @@ pub fn load_transcript(id: &str) -> Vec<Segment> {
         .unwrap_or_default()
 }
 
-/// Renders and writes `meeting.md`; returns its path.
 pub fn write_markdown(m: &Meeting) -> anyhow::Result<PathBuf> {
     let segs = load_transcript(&m.id);
     let md = markdown::render(m, &segs);
@@ -315,7 +299,6 @@ pub fn read_markdown(id: &str) -> anyhow::Result<String> {
     }
 }
 
-/// Meetings stuck in a busy state belong to a process that died.
 pub fn recover_interrupted() {
     for m in list() {
         if m.status.is_busy() || m.status == MeetingStatus::Recording {
@@ -334,15 +317,12 @@ pub struct SearchHit {
     pub id: String,
     pub title: String,
     pub created_at_ms: u64,
-    /// "title", "summary", "action_item" or "transcript".
     pub field: String,
     pub snippet: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub at_ms: Option<u64>,
 }
 
-/// Case-insensitive search over titles, summaries, action items and
-/// transcripts. Every word of the query has to appear in the same field.
 pub fn search(query: &str, limit: usize) -> Vec<SearchHit> {
     let words: Vec<String> = query
         .split_whitespace()
@@ -408,14 +388,11 @@ pub struct OpenItem {
     pub meeting_id: String,
     pub meeting_title: String,
     pub meeting_date_ms: u64,
-    /// Position in the meeting's action items (for marking it done).
     pub index: usize,
     #[serde(flatten)]
     pub item: ActionItem,
 }
 
-/// Action items across every meeting, newest meeting first. `owner` filters
-/// by a case-insensitive substring; done items only with `include_done`.
 pub fn action_items(include_done: bool, owner: Option<&str>) -> Vec<OpenItem> {
     let owner = owner
         .map(|o| o.trim().to_lowercase())
@@ -448,7 +425,6 @@ pub fn action_items(include_done: bool, owner: Option<&str>) -> Vec<OpenItem> {
     out
 }
 
-/// Marks one action item done (or open again) and rewrites the markdown.
 pub fn set_action_done(id: &str, index: usize, done: bool) -> anyhow::Result<Meeting> {
     let current = load(id)?;
     if current
@@ -471,8 +447,6 @@ pub fn set_action_done(id: &str, index: usize, done: bool) -> anyhow::Result<Mee
     Ok(m)
 }
 
-/// Where an input file for a meeting should be copied: the meeting folder,
-/// keeping the extension so ffmpeg can sniff it.
 pub fn audio_path(id: &str, ext: &str) -> anyhow::Result<PathBuf> {
     let ext = ext.trim_start_matches('.');
     let ext = if ext.is_empty() { "m4a" } else { ext };

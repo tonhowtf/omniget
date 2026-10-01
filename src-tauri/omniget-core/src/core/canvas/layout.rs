@@ -1,12 +1,7 @@
-//! Placement math shared by the UI and agents: nearest free spot, tidy,
-//! align/distribute, and recruits placed under their Maestro. Pure functions
-//! over rectangles; [`arrange_ops`] turns a result into `update_node` ops.
-
 use super::model::{CanvasNode, FloorDoc, Point, Rect, GRID};
 use super::ops::Op;
 use serde::{Deserialize, Serialize};
 
-/// Free space kept between nodes.
 pub const GAP: f64 = 40.0;
 
 fn snap(v: f64) -> f64 {
@@ -28,8 +23,6 @@ fn free(r: &Rect, obstacles: &[Rect], gap: f64) -> bool {
         .all(|o| !probe.intersects(&o.inflate(gap / 2.0)))
 }
 
-/// Top-left of the free `w`×`h` spot nearest to `near` (which is the wanted
-/// top-left), searched on the grid in growing square rings.
 pub fn nearest_free_spot(obstacles: &[Rect], w: f64, h: f64, near: Point, gap: f64) -> Point {
     let start = Point {
         x: snap(near.x),
@@ -44,7 +37,6 @@ pub fn nearest_free_spot(obstacles: &[Rect], w: f64, h: f64, near: Point, gap: f
     if free(&at(0, 0), obstacles, gap) {
         return start;
     }
-    // Rings up to ~20k units away; past that the canvas is absurdly full.
     for ring in 1..=1000i64 {
         let mut best: Option<(f64, Rect)> = None;
         for i in -ring..=ring {
@@ -65,7 +57,6 @@ pub fn nearest_free_spot(obstacles: &[Rect], w: f64, h: f64, near: Point, gap: f
     start
 }
 
-/// Free spot on a floor, ignoring nodes in `skip`.
 pub fn free_spot_in(doc: &FloorDoc, w: f64, h: f64, near: Option<Point>, skip: &[&str]) -> Point {
     let near = near.unwrap_or_else(|| {
         let c = doc.camera;
@@ -88,10 +79,8 @@ pub enum ArrangeMode {
     DistributeY,
 }
 
-/// New top-left per node id.
 pub type Moves = Vec<(String, Point)>;
 
-/// Arranges `ids` (locked nodes stay put and are not counted as movers).
 pub fn arrange(doc: &FloorDoc, ids: &[String], mode: ArrangeMode) -> Moves {
     let nodes: Vec<&CanvasNode> = ids
         .iter()
@@ -161,11 +150,8 @@ pub fn arrange(doc: &FloorDoc, ids: &[String], mode: ArrangeMode) -> Moves {
     }
 }
 
-/// Reading-order grid: rows of roughly √n nodes, starting at the selection's
-/// top-left, each row as tall as its tallest node.
 fn tidy(nodes: &[&CanvasNode], bbox: Rect) -> Moves {
     let mut v: Vec<&CanvasNode> = nodes.to_vec();
-    // Row-major by current position so the tidy result keeps the rough order.
     v.sort_by(|a, b| {
         let ra = (a.y / 200.0).floor();
         let rb = (b.y / 200.0).floor();
@@ -187,8 +173,6 @@ fn tidy(nodes: &[&CanvasNode], bbox: Rect) -> Moves {
     out
 }
 
-/// Top-left for `count` recruits of size `size` spread evenly in a row under
-/// `anchor` (the Maestro), pushed further down until the row is free.
 pub fn place_recruits(doc: &FloorDoc, anchor: &Rect, count: usize, size: (f64, f64)) -> Vec<Point> {
     if count == 0 {
         return Vec::new();
@@ -222,7 +206,6 @@ pub fn place_recruits(doc: &FloorDoc, anchor: &Rect, count: usize, size: (f64, f
         }
         y = snap(y + GRID * 4.0);
     }
-    // Fallback: one by one, nearest free spot below the anchor.
     let mut obs = obs;
     (0..count)
         .map(|i| {
@@ -247,7 +230,6 @@ pub fn place_recruits(doc: &FloorDoc, anchor: &Rect, count: usize, size: (f64, f
         .collect()
 }
 
-/// `update_node` ops for a set of moves, skipping no-ops.
 pub fn arrange_ops(doc: &FloorDoc, moves: &Moves) -> Vec<Op> {
     moves
         .iter()

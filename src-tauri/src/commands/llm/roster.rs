@@ -1,6 +1,3 @@
-//! `llm_*` commands: roster CRUD on top of `core/llm/roster_store.rs`.
-//! Owned by f2-llm-commands.
-
 use omniget_core::core::llm::agent::AgentDef;
 use omniget_core::core::llm::roster_store;
 use serde_json::Value;
@@ -41,8 +38,6 @@ pub async fn llm_roster_delete(
     ok(state.llm.roster_delete(&agent_id)?)
 }
 
-/// Applies a team template on top of the roster. Idempotent: an agent whose id
-/// is already there is left untouched.
 #[tauri::command]
 pub async fn llm_roster_apply_template(
     state: State<'_, AppState>,
@@ -51,8 +46,6 @@ pub async fn llm_roster_apply_template(
     ok(state.llm.roster_apply_template(&template)?)
 }
 
-/// ACP-capable CLIs found on the PATH (Gemini CLI, claude-code-acp, codex-acp,
-/// goose, opencode), for the Accounts tab.
 #[tauri::command]
 pub async fn llm_acp_detect() -> Result<serde_json::Value, String> {
     Ok(serde_json::json!(
@@ -60,8 +53,6 @@ pub async fn llm_acp_detect() -> Result<serde_json::Value, String> {
     ))
 }
 
-/// Adds an agent of the roster that runs on an ACP CLI. Any command works, not
-/// only the detected ones.
 #[tauri::command]
 pub async fn llm_acp_agent_create(
     state: tauri::State<'_, crate::AppState>,
@@ -74,7 +65,6 @@ pub async fn llm_acp_agent_create(
     if command.trim().is_empty() {
         return Err("ERR_LLM_ACP: empty command".into());
     }
-    // A retry of the same intent returns the existing roster, not another agent.
     let roster = state.llm.roster();
     if roster.iter().any(|a| {
         a.name == name
@@ -111,7 +101,6 @@ pub async fn llm_acp_agent_create(
         },
         role: AgentRole::Worker,
         system_prompt: String::new(),
-        // The CLI picks its own model; this is only a label for the UI.
         model: ModelPolicy::Fixed {
             model: ModelRef {
                 provider: ProviderId::new("acp"),

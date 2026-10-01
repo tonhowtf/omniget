@@ -1,6 +1,3 @@
-//! Sending files and folders to a chat the person picked (`tdl up`
-//! parity). Never runs on its own: only `telegram_upload_paths` starts it.
-
 use std::path::{Path, PathBuf};
 use std::pin::Pin;
 use std::sync::Arc;
@@ -27,8 +24,6 @@ pub struct UploadOpts {
     pub group_albums: bool,
 }
 
-/// Files under `paths` (folders recursively, hidden files skipped), in a
-/// stable order.
 pub fn collect_files(paths: &[String]) -> Vec<PathBuf> {
     let mut out = Vec::new();
     for p in paths {
@@ -61,7 +56,6 @@ enum Kind {
     Other,
 }
 
-/// Telegram refuses compressed photos over 10 MB.
 const PHOTO_MAX: u64 = 10 * 1024 * 1024;
 
 fn kind_of(path: &Path, size: u64) -> Kind {
@@ -73,7 +67,6 @@ fn kind_of(path: &Path, size: u64) -> Kind {
     }
 }
 
-/// Counts bytes as grammers reads the file, for the progress bar.
 struct ProgressReader<R> {
     inner: R,
     read: u64,
@@ -101,8 +94,6 @@ impl<R: AsyncRead + Unpin> AsyncRead for ProgressReader<R> {
     }
 }
 
-/// Reads the file into Telegram, emitting `telegram-upload-progress` for
-/// the file (throttled to 4 per second).
 async fn upload_one(
     client: &grammers_client::Client,
     path: &Path,
@@ -233,7 +224,6 @@ fn emit_complete(
     );
 }
 
-/// Waits out a FLOOD_WAIT (up to 5 minutes) and says whether to try again.
 async fn flood_pause(err: &str, cancel: &CancellationToken) -> bool {
     match api::parse_flood_wait(err) {
         Some(secs) if secs <= 300 => {
@@ -253,10 +243,6 @@ struct Entry {
     kind: Kind,
 }
 
-/// Sends every file, one message each, or as albums of up to 10 photos and
-/// videos when `group_albums` is on. Returns right away; progress comes as
-/// `telegram-upload-progress` / `telegram-upload-complete` (`kind` =
-/// `item` per file, `batch` for the whole job, whose `id` is the batch id).
 pub async fn start(
     handle: TelegramSessionHandle,
     active: super::ActiveDownloads,
@@ -300,7 +286,6 @@ pub async fn start(
         })
         .collect();
 
-    // Groups: consecutive photos/videos share an album (max 10).
     let mut groups: Vec<Vec<Entry>> = Vec::new();
     for e in entries {
         let albumable =
@@ -344,7 +329,6 @@ pub async fn start(
                 }
                 continue;
             }
-            // The caption goes on every single message, and once per album.
             let cap = if group.len() > 1 && first_caption_used {
                 String::new()
             } else {

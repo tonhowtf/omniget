@@ -1,6 +1,3 @@
-//! A tabela de CLIs: um registro por ferramenta, carregado de `data/tools.json`
-//! (embutido no binário). Só dados; quem decide é `detect`, `plan` e `doctor`.
-
 use std::path::PathBuf;
 use std::sync::OnceLock;
 
@@ -25,12 +22,10 @@ pub enum ToolKind {
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct Installer {
-    /// Script oficial para macOS/Linux (`curl -fsSL <url> | <unix_shell>`).
     #[serde(default)]
     pub unix: Option<String>,
     #[serde(default = "default_shell")]
     pub unix_shell: String,
-    /// Script oficial para Windows (`irm <url> | iex`).
     #[serde(default)]
     pub windows: Option<String>,
 }
@@ -47,8 +42,6 @@ pub struct Brew {
 }
 
 impl Brew {
-    /// Nome sem o tap (`charmbracelet/tap/crush` → `crush`): é o que aparece
-    /// em `Cellar/<nome>` e `Caskroom/<nome>`.
     pub fn short(&self) -> &str {
         self.name.rsplit('/').next().unwrap_or(&self.name)
     }
@@ -56,27 +49,20 @@ impl Brew {
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct AcpInfo {
-    /// Id no registro ACP (`cdn.agentclientprotocol.com`).
     #[serde(default)]
     pub registry_id: Option<String>,
-    /// Argumentos do modo ACP nativo do próprio binário.
     #[serde(default)]
     pub native_args: Option<Vec<String>>,
-    /// Adaptador fora do registro (programa + argumentos).
     #[serde(default)]
     pub adapter: Option<Vec<String>>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct SelfUpdate {
-    /// Subcomando do auto-updater nativo (`claude update`).
     #[serde(default)]
     pub args: Option<Vec<String>>,
-    /// Sem subcomando: rodar de novo o instalador oficial é o update.
     #[serde(default)]
     pub rerun_installer: bool,
-    /// Caminhos que provam que o instalador do fornecedor é dono do binário
-    /// (o caminho real precisa estar dentro de um deles).
     #[serde(default)]
     pub markers: Vec<String>,
 }
@@ -89,8 +75,6 @@ pub struct Apps {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Deprecated {
-    /// `~/…` (home), `bin:<nome>` (binário no PATH), `npm:<pacote>` (informativo)
-    /// ou caminho relativo (arquivo de projeto).
     pub path: String,
     pub note: String,
 }
@@ -108,7 +92,6 @@ pub struct CliTool {
     pub repo: Option<String>,
     #[serde(default)]
     pub binaries: Vec<String>,
-    /// Subcomando fixo antes de tudo (Rovo: `acli rovodev …`).
     #[serde(default)]
     pub subcommand: Vec<String>,
     #[serde(default = "default_version_args")]
@@ -117,7 +100,6 @@ pub struct CliTool {
     pub apps: Apps,
     #[serde(default)]
     pub npm: Option<String>,
-    /// O pacote precisa do postinstall (npm 12 bloqueia e sai com 0).
     #[serde(default)]
     pub npm_scripts: bool,
     #[serde(default)]
@@ -134,21 +116,16 @@ pub struct CliTool {
     pub scoop: Option<String>,
     #[serde(default)]
     pub acp: AcpInfo,
-    /// Argumentos do login (vazio = só abrir a ferramenta; ver `login_hint`).
     #[serde(default)]
     pub login: Vec<String>,
     #[serde(default)]
     pub login_hint: Option<String>,
-    /// Comando da própria ferramenta que diz se há login.
     #[serde(default)]
     pub auth_status: Option<Vec<String>>,
-    /// Saída 0 do `auth_status` significa "logado".
     #[serde(default)]
     pub auth_status_exit_means_auth: bool,
-    /// Arquivos cuja **presença** indica login. Nunca são lidos.
     #[serde(default)]
     pub auth_files: Vec<String>,
-    /// Variável que move a pasta de config (instâncias/contas).
     #[serde(default)]
     pub config_env: Option<String>,
     #[serde(default)]
@@ -168,7 +145,6 @@ fn default_version_args() -> Vec<String> {
 }
 
 impl CliTool {
-    /// De onde vem a "versão mais nova".
     pub fn latest_source(&self) -> LatestSource {
         if let Some(p) = &self.npm {
             LatestSource::Npm(p.clone())
@@ -202,7 +178,6 @@ struct TableFile {
 
 const DATA: &str = include_str!("data/tools.json");
 
-/// Todas as ferramentas, na ordem da tabela.
 pub fn all() -> &'static [CliTool] {
     static TABLE: OnceLock<Vec<CliTool>> = OnceLock::new();
     TABLE.get_or_init(|| {
@@ -219,7 +194,6 @@ pub fn get(id: &str) -> Option<&'static CliTool> {
     all().iter().find(|t| t.id == id)
 }
 
-/// Expande `~/` para o HOME (respeita `HOME` no unix, útil para testes).
 pub fn expand_home(path: &str) -> PathBuf {
     if let Some(rest) = path.strip_prefix("~/") {
         if let Some(home) = dirs::home_dir() {

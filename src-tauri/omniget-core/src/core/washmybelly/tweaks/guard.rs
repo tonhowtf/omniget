@@ -1,22 +1,3 @@
-//! What the registry side of washmybelly may touch.
-//!
-//! Two lists, checked both when the catalog loads and again inside the
-//! elevated helper (which trusts nothing from the plan):
-//!
-//! - roots: the only places an administrator write can land
-//!   (`HKLM\SOFTWARE`, `HKLM\SYSTEM\CurrentControlSet\Services|Control`, the
-//!   signed-in user's hive by SID, NetworkService's Delivery Optimization key);
-//! - forbidden: keys and values washmybelly never changes, from the plan's
-//!   "left out" list: Defender, CPU mitigations, VBS (memory integrity is the
-//!   one exception, as an `extreme` item), UCPD, Smart App Control, BitLocker,
-//!   LSA, Safe Boot, auto-start hijack points, and the placebo tweaks.
-//!
-//! A whole key is deleted only when the uninstaller's own check
-//! (`apps::windows::run::reg_key_ok`) accepts it, when a catalog `.reg`
-//! deletes exactly that key, or when it is a key a tweak created (a catalog
-//! key or an ancestor of one, deep enough and not a shared parent).
-
-/// Keys with quotes, control characters, empty parts or `..` never pass.
 pub fn plain_key(key: &str) -> Result<(), String> {
     let k = key.trim();
     if k.is_empty()
@@ -32,7 +13,6 @@ pub fn plain_key(key: &str) -> Result<(), String> {
     Ok(())
 }
 
-/// `HKEY_LOCAL_MACHINE\x` → `HKLM\X` (upper case, short hive, no `/reg`).
 pub fn normalize(full: &str) -> Result<String, String> {
     plain_key(full)?;
     let (root, rest) = full.split_once('\\').unwrap_or((full, ""));
@@ -54,7 +34,6 @@ pub fn normalize(full: &str) -> Result<String, String> {
     Ok(format!("{hive}\\{}", rest.to_ascii_uppercase()))
 }
 
-/// Upper-case component prefix test (`A\B` is under `A`, not under `A\BC`).
 fn under(key: &str, prefix: &str) -> bool {
     key == prefix
         || key
@@ -62,7 +41,6 @@ fn under(key: &str, prefix: &str) -> bool {
             .is_some_and(|r| r.starts_with('\\'))
 }
 
-/// A user SID (`S-1-5-21-…` local/domain, `S-1-12-1-…` Entra ID).
 pub fn user_sid(s: &str) -> bool {
     let parts: Vec<&str> = s.split('-').collect();
     let digits = |p: &[&str]| {
@@ -82,7 +60,6 @@ const MACHINE_ROOTS: &[&str] = &[
     "HKU\\S-1-5-20\\SOFTWARE\\MICROSOFT\\WINDOWS\\CURRENTVERSION\\DELIVERYOPTIMIZATION",
 ];
 
-/// Inside one of the roots above (normalized key).
 pub fn in_roots(k: &str) -> bool {
     if MACHINE_ROOTS.iter().any(|r| under(k, r)) {
         return true;
@@ -98,8 +75,6 @@ pub fn in_roots(k: &str) -> bool {
     false
 }
 
-/// Keys never touched (normalized, component prefix). The user-hive forms
-/// are matched after the `HKU\<sid>` → `HKCU` rewrite.
 const FORBIDDEN_KEYS: &[(&str, &str)] = &[
     (
         "HKLM\\SOFTWARE\\POLICIES\\MICROSOFT\\WINDOWS DEFENDER",
@@ -194,11 +169,9 @@ const FORBIDDEN_KEYS: &[(&str, &str)] = &[
     ),
 ];
 
-/// DeviceGuard is off limits (VBS) except the memory integrity switch.
 const DEVICEGUARD: &str = "HKLM\\SYSTEM\\CURRENTCONTROLSET\\CONTROL\\DEVICEGUARD";
 const HVCI: &str = "HKLM\\SYSTEM\\CURRENTCONTROLSET\\CONTROL\\DEVICEGUARD\\SCENARIOS\\HYPERVISORENFORCEDCODEINTEGRITY";
 
-/// Services whose key (and start type) is never touched.
 const FORBIDDEN_SERVICES: &[&str] = &[
     "windefend",
     "wdnissvc",
@@ -228,7 +201,6 @@ const FORBIDDEN_SERVICES: &[&str] = &[
     "vmcompute",
 ];
 
-/// Value names never written, wherever they live.
 const FORBIDDEN_VALUES: &[(&str, &str)] = &[
     ("FEATURESETTINGSOVERRIDE", "CPU mitigations"),
     ("FEATURESETTINGSOVERRIDEMASK", "CPU mitigations"),
@@ -258,8 +230,6 @@ const FORBIDDEN_VALUES: &[(&str, &str)] = &[
     ("DISABLEWINDOWSUPDATEACCESS", "Windows Update off"),
 ];
 
-/// Auto-start points: deleting a value there is fine (removing leftovers),
-/// writing one is not.
 const NO_WRITE_KEYS: &[&str] = &[
     "HKLM\\SOFTWARE\\MICROSOFT\\WINDOWS\\CURRENTVERSION\\RUN",
     "HKLM\\SOFTWARE\\MICROSOFT\\WINDOWS\\CURRENTVERSION\\RUNONCE",
@@ -270,7 +240,6 @@ const NO_WRITE_KEYS: &[&str] = &[
     "HKCU\\SOFTWARE\\MICROSOFT\\WINDOWS\\CURRENTVERSION\\RUNONCE",
 ];
 
-/// `HKU\<user sid>\x` → `HKCU\x`, so one list covers both forms.
 fn as_user(k: &str) -> String {
     if let Some(rest) = k.strip_prefix("HKU\\") {
         if let Some((sid, tail)) = rest.split_once('\\') {
@@ -289,7 +258,6 @@ pub fn forbidden_service(name: &str) -> Option<&'static str> {
         .then_some("a protected Windows service")
 }
 
-/// Why this key/value is never changed, if it is not.
 pub fn forbidden(full: &str, name: Option<&str>) -> Option<&'static str> {
     let Ok(k) = normalize(full) else {
         return Some("not a plain key");
@@ -319,7 +287,6 @@ pub fn forbidden(full: &str, name: Option<&str>) -> Option<&'static str> {
     None
 }
 
-/// Words in a tweak id or label that belong to the left-out list.
 pub fn forbidden_words(id: &str, label: &str) -> Option<&'static str> {
     let text = format!("{id} {label}").to_ascii_lowercase();
     const WORDS: &[(&str, &str)] = &[
@@ -345,7 +312,6 @@ pub fn forbidden_words(id: &str, label: &str) -> Option<&'static str> {
         .map(|(_, why)| *why)
 }
 
-/// May the helper set, or delete one value of, this key?
 pub fn value_write_ok(full: &str, name: &str, deleting: bool) -> Result<String, String> {
     let k = normalize(full)?;
     if !in_roots(&k) {
@@ -364,7 +330,6 @@ pub fn value_write_ok(full: &str, name: &str, deleting: bool) -> Result<String, 
     Ok(k)
 }
 
-/// Shared parents a created-key cleanup must never remove.
 const SHARED_PARENTS: &[&str] = &[
     "HKLM\\SOFTWARE\\POLICIES\\MICROSOFT\\WINDOWS",
     "HKLM\\SOFTWARE\\POLICIES\\MICROSOFT\\WINDOWS NT",
@@ -383,9 +348,6 @@ const SHARED_PARENTS: &[&str] = &[
     "HKCU\\SOFTWARE\\CLASSES\\CLSID",
 ];
 
-/// A key a tweak may have created: at or above a catalog key, deep enough,
-/// never a shared parent, and nowhere under `SYSTEM` (drivers and services
-/// keys are never removed whole).
 pub fn created_key_ok(k: &str, catalog_keys: &std::collections::HashSet<String>) -> bool {
     let u = as_user(k);
     let depth = u.split('\\').count();
@@ -395,7 +357,6 @@ pub fn created_key_ok(k: &str, catalog_keys: &std::collections::HashSet<String>)
     catalog_keys.iter().any(|c| under(c, &u))
 }
 
-/// May the helper delete this whole key?
 pub fn key_delete_ok(
     full: &str,
     catalog_keys: &std::collections::HashSet<String>,
@@ -414,7 +375,5 @@ pub fn key_delete_ok(
     if whole_deletes.contains(&u) || created_key_ok(&k, catalog_keys) {
         return Ok(k);
     }
-    // The uninstaller's leftovers: its own check, which also refuses
-    // shared vendor keys.
     super::super::apps::windows::run::reg_key_ok(full).map(|_| k)
 }

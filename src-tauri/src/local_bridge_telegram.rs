@@ -1,7 +1,3 @@
-//! `POST /v1/telegram/<command>`: the /telegram engine for `omniget tg`
-//! (same bearer as the rest of the bridge). Reads, local downloads,
-//! auto-save rules and exports only: nothing that writes to the account.
-
 use axum::extract::Path;
 use axum::http::{HeaderMap, StatusCode};
 use axum::response::{IntoResponse, Response};
@@ -45,8 +41,6 @@ fn fail(status: StatusCode, message: impl Into<String>) -> Response {
     (status, Json(json!({ "error": message.into() }))).into_response()
 }
 
-/// The bridge token, or the app's own CLI token (what `omniget tg` sends;
-/// scoped tokens live in `jobs.db`).
 fn authorized(headers: &HeaderMap, token: &str, guard: &crate::bridge_tokens::Guard) -> bool {
     if check_bearer(headers, token) {
         return true;

@@ -1,17 +1,9 @@
-//! Project stack detection for the wizard and for global agents (the "PROJECT
-//! CONTEXT" block). Port of cct's `detectProject` without its bugs (estudo 75
-//! 01 §2.11): every language found is reported (not only the first), the
-//! Django/Flask file checks really look at the files, frameworks come from the
-//! manifests of each ecosystem (package.json, pyproject/requirements/Pipfile,
-//! Gemfile, Cargo.toml, go.mod), and the scan skips dependency and build dirs.
-
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-/// Directories never scanned.
 const SKIP_DIRS: &[&str] = &[
     "node_modules",
     "target",
@@ -28,29 +20,21 @@ const SKIP_DIRS: &[&str] = &[
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct Detected {
     pub id: String,
-    /// Why (`package.json: react`, `Cargo.toml`, `*.py`).
     pub evidence: String,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct StackReport {
     pub root: PathBuf,
-    /// `javascript`, `typescript`, `python`, `ruby`, `rust`, `go`.
     pub languages: Vec<Detected>,
-    /// `react`, `next`, `vue`, `nuxt`, `angular`, `svelte`, `sveltekit`,
-    /// `express`, `fastify`, `koa`, `nestjs`, `django`, `flask`, `fastapi`,
-    /// `rails`, `sinatra`, `tauri`, `axum`, `actix`, `gin`, `echo`, `fiber`.
     pub frameworks: Vec<Detected>,
-    /// `npm`, `pnpm`, `yarn`, `bun`, `pip`, `poetry`, `uv`, `bundler`, `cargo`, `go`.
     pub package_managers: Vec<String>,
     pub build_command: Option<String>,
     pub test_command: Option<String>,
     pub lint_command: Option<String>,
     pub dev_command: Option<String>,
     pub has_git: bool,
-    /// Top-level folders (structure section of AGENTS.md).
     pub top_dirs: Vec<String>,
-    /// Agent config already present (`CLAUDE.md`, `AGENTS.md`, `.cursor` …).
     pub agent_files: Vec<String>,
     pub name: Option<String>,
     pub description: Option<String>,
@@ -69,7 +53,6 @@ fn read(p: &Path) -> Option<String> {
     std::fs::read_to_string(p).ok()
 }
 
-/// Files up to `depth` levels under `root`, skipping dot dirs and [`SKIP_DIRS`].
 fn walk(root: &Path, depth: usize, out: &mut Vec<PathBuf>) {
     let Ok(rd) = std::fs::read_dir(root) else {
         return;
@@ -100,7 +83,6 @@ fn push(list: &mut Vec<Detected>, id: &str, evidence: impl Into<String>) {
     }
 }
 
-/// Dependency names of a package.json (deps + devDeps + peerDeps).
 fn npm_deps(pkg: &Value) -> BTreeSet<String> {
     let mut s = BTreeSet::new();
     for k in ["dependencies", "devDependencies", "peerDependencies"] {
@@ -111,7 +93,6 @@ fn npm_deps(pkg: &Value) -> BTreeSet<String> {
     s
 }
 
-/// Python requirement names mentioned in any of the manifests (lowercase).
 fn python_deps(root: &Path) -> (BTreeSet<String>, Vec<&'static str>) {
     let mut names = BTreeSet::new();
     let mut sources = Vec::new();
@@ -143,8 +124,6 @@ fn python_deps(root: &Path) -> (BTreeSet<String>, Vec<&'static str>) {
     ] {
         if let Some(t) = read(&root.join(f)) {
             sources.push(label);
-            // pyproject: dependency arrays are quoted strings; lines like
-            // `"django>=5",` become `django`.
             take(&t);
         }
     }
@@ -189,7 +168,6 @@ fn go_requires(text: &str) -> Vec<String> {
         .collect()
 }
 
-/// Detects the stack of `root` (scan depth 2).
 pub fn detect(root: &Path) -> StackReport {
     let mut r = StackReport {
         root: root.to_path_buf(),
@@ -205,7 +183,6 @@ pub fn detect(root: &Path) -> StackReport {
     };
     let exists = |p: &str| root.join(p).exists();
 
-    // Top dirs and agent files.
     if let Ok(rd) = std::fs::read_dir(root) {
         let mut dirs: Vec<String> = rd
             .flatten()
@@ -238,7 +215,6 @@ pub fn detect(root: &Path) -> StackReport {
         }
     }
 
-    // JavaScript / TypeScript
     if let Some(pkg) =
         read(&root.join("package.json")).and_then(|t| serde_json::from_str::<Value>(&t).ok())
     {
@@ -324,7 +300,6 @@ pub fn detect(root: &Path) -> StackReport {
         push(&mut r.languages, "javascript", "*.js");
     }
 
-    // Python
     let (py, py_sources) = python_deps(root);
     if !py_sources.is_empty() || ext("py") {
         push(
@@ -341,7 +316,6 @@ pub fn detect(root: &Path) -> StackReport {
                 push(&mut r.frameworks, fw, format!("python deps: {dep}"));
             }
         }
-        // The original awaited `.length` of a promise here; these really look.
         if exists("manage.py") || files.iter().any(|p| p.ends_with("settings.py")) {
             push(&mut r.frameworks, "django", "manage.py / settings.py");
         }
@@ -377,7 +351,6 @@ pub fn detect(root: &Path) -> StackReport {
         }
     }
 
-    // Ruby
     let gemfile = read(&root.join("Gemfile"));
     if gemfile.is_some() || ext("rb") {
         push(
@@ -415,7 +388,6 @@ pub fn detect(root: &Path) -> StackReport {
         }
     }
 
-    // Rust
     let cargo = read(&root.join("Cargo.toml"));
     let cargo_nested = files
         .iter()
@@ -473,7 +445,6 @@ pub fn detect(root: &Path) -> StackReport {
             .get_or_insert(format!("{prefix}cargo clippy"));
     }
 
-    // Go
     let gomod = read(&root.join("go.mod"));
     if gomod.is_some() || ext("go") {
         push(
@@ -499,7 +470,6 @@ pub fn detect(root: &Path) -> StackReport {
     r
 }
 
-/// The "PROJECT CONTEXT" block cct's global agents appended to the prompt.
 pub fn context_block(r: &StackReport) -> String {
     let mut s = String::from("PROJECT CONTEXT\n");
     if let Some(n) = &r.name {

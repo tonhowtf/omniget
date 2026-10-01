@@ -1,6 +1,3 @@
-//! Project Gutenberg through Gutendex (https://gutendex.com): 75k+ public
-//! domain books with EPUB, Kindle and plain text files.
-
 use serde::Deserialize;
 
 use super::{get_json, Download, Hit, Page};
@@ -41,9 +38,6 @@ pub struct Book {
     pub download_count: u64,
 }
 
-/// `languages` is a comma list of two-letter codes; `topic` matches
-/// subjects and bookshelves; `sort` is `popular` (default), `ascending` or
-/// `descending` by id.
 pub fn search_url(query: &str, languages: &str, topic: &str, sort: &str) -> String {
     let mut u = url::Url::parse(BASE).expect("static url");
     {
@@ -60,13 +54,11 @@ pub fn search_url(query: &str, languages: &str, topic: &str, sort: &str) -> Stri
         if !sort.is_empty() && sort != "popular" {
             q.append_pair("sort", sort);
         }
-        // Only public-domain books.
         q.append_pair("copyright", "false");
     }
     u.to_string()
 }
 
-/// Gutenberg names people "Last, First"; show them "First Last".
 pub fn display_name(n: &str) -> String {
     match n.split_once(", ") {
         Some((last, first)) if !first.contains(',') => format!("{first} {last}"),
@@ -127,8 +119,6 @@ pub async fn search(client: &reqwest::Client, url: &str) -> Result<Page, String>
     })
 }
 
-/// Gutendex first; when it fails (it is often slow or down), the official
-/// catalog kept in `cache` (refreshed daily).
 pub async fn search_or_catalog(
     client: &reqwest::Client,
     url: &str,
@@ -188,14 +178,8 @@ pub async fn catalog_text(
     Ok(out)
 }
 
-// ---------- offline catalog ----------
-
-/// Project Gutenberg's own nightly catalog (about 5 MB gzipped). Used when
-/// Gutendex is down, which happens.
 pub const CATALOG_URL: &str = "https://www.gutenberg.org/cache/epub/feeds/pg_catalog.csv.gz";
 
-/// Splits one CSV record (quotes may contain commas and newlines, handled
-/// by the caller feeding whole records).
 fn csv_records(text: &str) -> Vec<Vec<String>> {
     let mut rows = Vec::new();
     let mut row = Vec::new();
@@ -225,7 +209,6 @@ fn csv_records(text: &str) -> Vec<Vec<String>> {
     rows
 }
 
-/// Gutenberg writes "Last, First, 1839-1908"; keep "First Last".
 fn catalog_author(a: &str) -> String {
     let parts: Vec<&str> = a.split(", ").collect();
     let parts: Vec<&str> = parts
@@ -237,8 +220,6 @@ fn catalog_author(a: &str) -> String {
     display_name(&name)
 }
 
-/// Searches the catalog CSV: every word of `query` in title or authors,
-/// optional two-letter `languages` (comma list).
 pub fn search_catalog(csv: &str, query: &str, languages: &str, limit: usize) -> Vec<Hit> {
     let words: Vec<String> = query
         .to_lowercase()

@@ -1,13 +1,3 @@
-//! What each runtime really supports, so the UI and the bot's capability
-//! manifest never promise more than the executable can do (spec 02,
-//! "Contrato de runtime"). Owner: worker W4.
-//!
-//! [`for_runtime`] is synchronous and conservative: it answers from the last
-//! probe of that executable when there is one, else from what the runtime
-//! kind guarantees on its own. [`probe`] runs the installed binary
-//! (`--version`, `--help`) and caches what it found; flags are read from the
-//! help text of the version on this machine, never assumed.
-
 use std::collections::HashMap;
 use std::path::Path;
 use std::sync::RwLock;
@@ -18,44 +8,28 @@ use super::agent::RuntimeKind;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RuntimeCaps {
-    /// Human label of the runtime and the version detected, when known.
     pub label: String,
     pub version: Option<String>,
-    /// The provider keeps the session and we can resume it by handle.
     pub native_resume: bool,
-    /// We rebuild the session by replaying our own transcript.
     pub history_replay: bool,
     pub streaming: bool,
-    /// New input can be sent while a turn runs.
     pub steering: bool,
     pub attachments: bool,
-    /// OmniGet's broker executes the tools (native runtime).
     pub managed_tools: bool,
-    /// OmniGet's assistant tools reach the runtime through an MCP projection.
     pub mcp_projection: bool,
-    /// Permission requests round-trip to the user while the turn waits.
     pub interactive_permissions: bool,
     pub usage_reporting: bool,
-    /// The runtime brings its own web search/fetch (e.g. Claude Code).
     pub builtin_web: bool,
-    /// Honest notes shown in "advanced details".
     #[serde(default)]
     pub limits: Vec<String>,
-    /// Long flags the installed executable lists in its help (probe only).
     #[serde(default)]
     pub flags: Vec<String>,
-    /// The `--permission-mode` choices the help lists (Claude Code); run
-    /// mode `auto` is only used when `auto` is one of them (2.7).
     #[serde(default)]
     pub permission_modes: Vec<String>,
-    /// Codex ≥ 0.156 answered `codex app-server --help`: turns go over the
-    /// app-server (resume, per-call approvals, effort), else `exec --json`.
     #[serde(default)]
     pub app_server: bool,
-    /// True when this answer comes from running the executable.
     #[serde(default)]
     pub probed: bool,
-    /// The executable was looked for and is not installed.
     #[serde(default)]
     pub missing: bool,
 }
@@ -83,7 +57,6 @@ fn remember(key: &str, caps: &RuntimeCaps) {
         .insert(key.to_string(), caps.clone());
 }
 
-/// The last probe of `cli` (`claude`, `codex`), if any ran in this process.
 pub fn cached_cli(cli: &str) -> Option<RuntimeCaps> {
     CACHE
         .read()
@@ -92,8 +65,6 @@ pub fn cached_cli(cli: &str) -> Option<RuntimeCaps> {
         .and_then(|m| m.get(&format!("cli:{}", cli.to_ascii_lowercase())).cloned())
 }
 
-/// Capabilities of a runtime kind: the probed answer when there is one, else
-/// the conservative one.
 pub fn for_runtime(runtime: &RuntimeKind) -> RuntimeCaps {
     if let Some(found) = CACHE
         .read()
@@ -139,7 +110,6 @@ fn conservative(runtime: &RuntimeKind) -> RuntimeCaps {
     }
 }
 
-/// Every `--long-flag` the help text mentions, deduplicated, in order.
 pub fn parse_help_flags(help: &str) -> Vec<String> {
     let mut out: Vec<String> = Vec::new();
     for raw in help.split(|c: char| {
@@ -163,10 +133,6 @@ pub fn parse_help_flags(help: &str) -> Vec<String> {
     out
 }
 
-/// The `(choices: "a", "b", …)` a help text lists for `flag`, in order.
-/// `claude --help` 2.1.284 wraps them over lines:
-/// `--permission-mode <mode>  … (choices: "acceptEdits", "auto",` ↵
-/// `"bypassPermissions", "manual", "dontAsk", "plan")`.
 pub fn parse_help_choices(help: &str, flag: &str) -> Vec<String> {
     let Some(at) = help.find(&format!("{flag} ")) else {
         return Vec::new();
@@ -175,7 +141,6 @@ pub fn parse_help_choices(help: &str, flag: &str) -> Vec<String> {
     let Some(open) = rest.find("(choices:") else {
         return Vec::new();
     };
-    // The choices must belong to this flag, not to the next one.
     let next_flag = rest[flag.len()..]
         .find("\n  -")
         .map(|i| i + flag.len())
@@ -191,7 +156,6 @@ pub fn parse_help_choices(help: &str, flag: &str) -> Vec<String> {
         .collect()
 }
 
-/// `2.1.282 (Claude Code)` → `2.1.282`; `codex-cli 0.50.0` → `0.50.0`.
 pub fn parse_version(text: &str) -> Option<String> {
     text.split_whitespace()
         .map(|t| t.trim_start_matches('v'))
@@ -205,8 +169,6 @@ pub fn parse_version(text: &str) -> Option<String> {
         .map(str::to_string)
 }
 
-/// Pure: what a Claude Code / Codex binary of this version with these flags
-/// can do.
 pub fn cli_caps(cli: &str, version: Option<String>, flags: Vec<String>) -> RuntimeCaps {
     let has = |f: &str| flags.iter().any(|x| x == f);
     let mut limits = Vec::new();
@@ -275,8 +237,6 @@ pub fn cli_caps(cli: &str, version: Option<String>, flags: Vec<String>) -> Runti
     caps
 }
 
-/// What the Codex app-server adds over `exec` (3.6): the thread is resumed
-/// by id, and each approval round-trips to a person while the turn waits.
 pub fn with_app_server(caps: &mut RuntimeCaps) {
     caps.app_server = true;
     caps.native_resume = true;
@@ -289,7 +249,6 @@ pub fn with_app_server(caps: &mut RuntimeCaps) {
     );
 }
 
-/// A CLI that is not installed: nothing is promised.
 pub fn missing_cli(cli: &str) -> RuntimeCaps {
     RuntimeCaps {
         label: cli.into(),
@@ -319,7 +278,6 @@ async fn run_capture(binary: &Path, args: &[&str]) -> Option<String> {
     Some(text)
 }
 
-/// The command exits 0 within the probe's window.
 async fn runs_ok(binary: &Path, args: &[&str]) -> bool {
     matches!(
         tokio::time::timeout(
@@ -336,7 +294,6 @@ async fn runs_ok(binary: &Path, args: &[&str]) -> bool {
     )
 }
 
-/// Runs `<binary> --version` and `--help` and caches the result for `cli`.
 pub async fn probe_binary(cli: &str, binary: &Path) -> RuntimeCaps {
     let version = run_capture(binary, &["--version"])
         .await
@@ -363,7 +320,6 @@ pub async fn probe_binary(cli: &str, binary: &Path) -> RuntimeCaps {
     caps
 }
 
-/// Probes the executable behind `runtime` (finds it on the PATH first).
 pub async fn probe(runtime: &RuntimeKind) -> RuntimeCaps {
     match runtime {
         RuntimeKind::Native => conservative(runtime),

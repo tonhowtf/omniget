@@ -58,16 +58,10 @@ fn schema(conn: &Connection) -> rusqlite::Result<()> {
     )
 }
 
-/// History is disk + UI + MCP + extension bridge: only the redacted URL ever
-/// lives here. A signed link is expired by the time anyone re-downloads from
-/// history anyway, and the UI tells the user to paste it again.
 fn safe_url(url: &str) -> String {
     crate::core::flight_recorder::redact_url(url)
 }
 
-/// The title is the URL until metadata arrives (and stays the URL when the
-/// extraction fails): any URL inside it is redacted too (N-3). A real title
-/// passes through byte-identical.
 fn safe_title(title: &str) -> String {
     crate::core::flight_recorder::redact_urls(title)
 }
@@ -115,7 +109,6 @@ fn row_to_entry(row: &rusqlite::Row) -> rusqlite::Result<HistoryEntry> {
     let url: String = row.get(1)?;
     Ok(HistoryEntry {
         id: id as u64,
-        // Rows written before redaction existed are scrubbed on read too.
         url: safe_url(&url),
         platform: row.get(2)?,
         title: safe_title(&row.get::<_, String>(3)?),
@@ -173,8 +166,6 @@ pub fn init_from_disk() {
     db::with_conn(scrub_existing_rows);
 }
 
-/// Rewrites rows persisted before URL redaction, so the secret leaves the
-/// disk instead of merely being hidden on read.
 fn scrub_existing_rows(conn: &Connection) -> rusqlite::Result<()> {
     type Row = (i64, String, String, Option<String>, Option<String>);
     let rows: Vec<Row> = {

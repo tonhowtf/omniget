@@ -1,12 +1,3 @@
-//! Escolha do downloader para uma URL, com a sondagem de arquivo direto (B4).
-//!
-//! `Platform::from_url` e `registry.find_platform` decidem só pela URL. Um
-//! `https://host/100MB.bin` de extensão que ninguém conhece caía no generic e
-//! ficava minutos em `connecting` esperando o extractor do yt-dlp. Aqui, se a
-//! URL não é de plataforma conhecida e tem extensão desconhecida, um `HEAD`
-//! curto decide: não é página e tem tamanho de arquivo ⇒ `direct_file`, que
-//! usa o `HttpFetcher` segmentado.
-
 use std::sync::Arc;
 
 use omniget_core::core::registry::PlatformRegistry;

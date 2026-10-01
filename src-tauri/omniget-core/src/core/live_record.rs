@@ -1,24 +1,3 @@
-//! Records a live HLS stream to a file, from the live edge forward, until a
-//! time limit, the end of the stream, a stop request or a stream that stops
-//! sending new segments.
-//!
-//! The normal HLS download fetches the whole playlist once, which on a live
-//! stream means the replay window the server keeps (often ten minutes of the
-//! past) and nothing after it. Recording is a different loop, taken from
-//! Streamlink (BSD-2-Clause; reimplemented here, no code copied):
-//! - start a few segments behind the live edge (`--hls-live-edge`, 3);
-//! - reload the media playlist every target duration, and after half of it
-//!   when nothing new arrived;
-//! - write each new segment once, in playlist order;
-//! - stop when the written segments add up to the limit
-//!   (`--stream-segmented-duration`), at `#EXT-X-ENDLIST`, or when no new
-//!   segment arrives for a while (`--stream-timeout`);
-//! - a segment that fails three times is skipped and counted, not fatal.
-//!
-//! Unlike Streamlink, the result is remuxed into an MP4 when ffmpeg is there,
-//! so the file plays everywhere, and a separate audio rendition is recorded
-//! alongside the video and muxed in.
-
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
@@ -34,19 +13,12 @@ const SEGMENT_ATTEMPTS: u32 = 3;
 const SEGMENT_TIMEOUT: Duration = Duration::from_secs(20);
 
 pub struct LiveRecordOptions {
-    /// A master or media playlist (`.m3u8`).
     pub playlist_url: String,
-    /// Highest video height to pick from a master playlist; `None` = best.
     pub max_height: Option<u32>,
-    /// Stop after this much recorded media; `None` = until stopped or ended.
     pub max_seconds: Option<f64>,
-    /// Output path without extension: `.mp4` after the remux, `.ts` without ffmpeg.
     pub output_stem: PathBuf,
-    /// Extra request headers (Referer, Cookie...) the site expects.
     pub headers: Vec<(String, String)>,
-    /// Segments behind the live edge to start from (Streamlink's default is 3).
     pub live_edge: usize,
-    /// Give up when no new segment arrived for this long.
     pub stall_timeout: Duration,
 }
 
@@ -70,9 +42,7 @@ pub struct LiveRecordProgress {
     pub bytes: u64,
     pub segments: usize,
     pub skipped: usize,
-    /// "1280x720" (or the bandwidth) of the chosen variant.
     pub variant: Option<String>,
-    /// False when the playlist turned out to be a finished (VOD) stream.
     pub is_live: bool,
 }
 
@@ -93,15 +63,10 @@ pub struct LiveRecordResult {
     pub segments: usize,
     pub skipped: usize,
     pub ended: LiveRecordEnd,
-    /// True when ffmpeg turned the transport stream into an MP4.
     pub remuxed: bool,
     pub variant: Option<String>,
 }
 
-/// The variant to record and, when its audio lives in a separate rendition,
-/// that rendition's URI. Highest bandwidth at or under `max_height`; when
-/// every variant is taller, the smallest one. Video-less variants lose to any
-/// variant with a picture.
 pub fn pick_variant(
     master: &MasterPlaylist,
     max_height: Option<u32>,
@@ -167,8 +132,6 @@ pub fn pick_variant(
     Some((chosen.uri.clone(), audio, label))
 }
 
-/// Where a new recording starts in a playlist: at the first segment of a
-/// finished stream, else `live_edge` segments before the end.
 pub fn start_sequence(playlist: &MediaPlaylist, live_edge: usize) -> u64 {
     if playlist.end_list {
         playlist.media_sequence
@@ -177,7 +140,6 @@ pub fn start_sequence(playlist: &MediaPlaylist, live_edge: usize) -> u64 {
     }
 }
 
-/// Absolute URL of `relative` against the playlist at `base`.
 pub fn resolve(base: &str, relative: &str) -> String {
     match url::Url::parse(base).and_then(|b| b.join(relative)) {
         Ok(u) => u.to_string(),
@@ -185,7 +147,6 @@ pub fn resolve(base: &str, relative: &str) -> String {
     }
 }
 
-/// AES-128 IV: the explicit one, else the media sequence number, big-endian.
 fn iv_for(explicit: Option<&str>, sequence: u64) -> [u8; 16] {
     let mut iv = [0u8; 16];
     if let Some(hex) = explicit {
@@ -307,7 +268,6 @@ async fn record_track(
             Ok(Err(e)) if next_seq.is_none() => anyhow::bail!("Not a readable HLS playlist ({e})"),
             Err(e) if next_seq.is_none() => return Err(e),
             _ => {
-                // A reload failed mid-recording: the stream may come back.
                 if last_new.elapsed() > stall_timeout {
                     break LiveRecordEnd::Stalled;
                 }
@@ -322,7 +282,6 @@ async fn record_track(
         let start = match next_seq {
             None => start_sequence(&playlist, live_edge),
             Some(s) if s < first => {
-                // The window moved past us (a slow reload): those segments are gone.
                 skipped += (first - s) as usize;
                 first
             }
@@ -333,7 +292,6 @@ async fn record_track(
         let mut map: Option<m3u8_rs::Map> = None;
         let mut range_end: HashMap<String, u64> = HashMap::new();
         for (i, seg) in playlist.segments.iter().enumerate() {
-            // EXT-X-KEY and EXT-X-MAP apply to every following segment.
             if seg.key.is_some() {
                 key = seg.key.clone();
             }
@@ -427,7 +385,6 @@ async fn record_track(
     })
 }
 
-/// `stem` plus `ext`, or `stem (2)`, `stem (3)`... when that file exists.
 pub fn free_path(stem: &Path, ext: &str) -> PathBuf {
     let base = stem.as_os_str().to_string_lossy().into_owned();
     let mut candidate = PathBuf::from(format!("{base}.{ext}"));
@@ -456,8 +413,6 @@ async fn remux(video: &Path, audio: Option<&Path>, out: &Path) -> bool {
     matches!(cmd.status().await, Ok(s) if s.success())
 }
 
-/// Records `opts.playlist_url` until the limit, the end of the stream, a stall
-/// or `cancel`. What was recorded before a stop is kept.
 pub async fn record(
     opts: LiveRecordOptions,
     cancel: CancellationToken,
@@ -507,7 +462,6 @@ pub async fn record(
             on_progress(&p);
         }
     };
-    // The audio track stops with the video one: same limit, and cancelled when the video ends.
     let audio_stop = cancel.child_token();
     let video = async {
         let r = record_track(

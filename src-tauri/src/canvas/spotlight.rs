@@ -1,27 +1,6 @@
-//! Spotlight (Maestri: workspaces, terminals and note contents are found by
-//! the system search; the result opens the item in the app, floors too).
-//!
-//! Decision (estudo 100, M-A9): no Core Spotlight binding exists in the
-//! tree (no `objc2-core-spotlight`), so the canvas is mirrored as `.webloc`
-//! files in `~/Library/Application Support/OmniGet Spotlight/<profile>/`,
-//! a folder Spotlight indexes. Each file:
-//! - is named after the item (`Title — Workspace.webloc`), which Spotlight
-//!   matches by name;
-//! - carries the searchable text (kind, workspace, floor, a note's body up
-//!   to 8 KB) in `com.apple.metadata:kMDItemFinderComment`, a binary plist
-//!   that Spotlight imports, so `mdfind <word of the note>` finds it;
-//! - points at `omniget://canvas/open?ws=..&floor=..&node=..`, so opening
-//!   the result opens OmniGet on that node ([`open_link`]).
-//!
-//! The mirror is rebuilt a few seconds after the canvas changes; only files
-//! whose content changed are rewritten, and files of deleted items go away.
-//! Nothing outside that folder is touched. macOS only; elsewhere a no-op.
-
 use serde_json::json;
 use tauri::{AppHandle, Emitter, Manager};
 
-/// Handles `omniget://canvas/open?ws=&floor=&node=` (a Spotlight result, a
-/// link in a note). Returns false for any other URL.
 pub fn open_link(app: &AppHandle, raw: &str) -> bool {
     let Some(rest) = raw.strip_prefix("omniget://canvas") else {
         return false;
@@ -92,8 +71,6 @@ mod mirror {
         pub text: String,
     }
 
-    /// `~/Library/Application Support/OmniGet Spotlight/<profile key>`: one
-    /// folder per data folder, so a test profile never mixes with the real one.
     pub fn dir() -> Option<PathBuf> {
         let data = omniget_core::core::paths::app_data_dir()?;
         let mut h: u64 = 0xcbf29ce484222325;
@@ -135,7 +112,6 @@ mod mirror {
         format!("omniget://canvas/open?{}", q.finish())
     }
 
-    /// Every workspace and every titled node of every floor.
     pub fn items(store: &CanvasStore) -> Vec<Item> {
         let mut out = Vec::new();
         for w in store.workspaces() {
@@ -217,8 +193,6 @@ mod mirror {
         format!("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\n<plist version=\"1.0\">\n<dict>\n\t<key>URL</key>\n\t<string>{esc}</string>\n</dict>\n</plist>\n")
     }
 
-    /// A binary plist holding one string (what Spotlight reads from a
-    /// `com.apple.metadata:*` attribute).
     pub fn bplist_string(s: &str) -> Vec<u8> {
         let mut out = b"bplist00".to_vec();
         let ascii = s.is_ascii();
@@ -251,10 +225,10 @@ mod mirror {
             }
         }
         let table = out.len() as u64;
-        out.push(8); // offset of object 0
+        out.push(8);
         out.extend([0u8; 6]);
-        out.push(1); // offset int size
-        out.push(1); // object ref size
+        out.push(1);
+        out.push(1);
         out.extend(1u64.to_be_bytes());
         out.extend(0u64.to_be_bytes());
         out.extend(table.to_be_bytes());
@@ -284,7 +258,6 @@ mod mirror {
         format!("{h:016x}")
     }
 
-    /// Brings the folder in line with the canvas. Returns files written.
     pub fn sync(store: &CanvasStore) -> Result<usize, String> {
         let Some(dir) = dir() else { return Ok(0) };
         let items = items(store);
@@ -349,7 +322,6 @@ mod mirror {
     }
 }
 
-/// Starts the Spotlight mirror (once). `OMNIGET_NO_SPOTLIGHT=1` turns it off.
 pub fn start() {
     #[cfg(target_os = "macos")]
     {

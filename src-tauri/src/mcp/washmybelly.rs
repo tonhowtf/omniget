@@ -1,13 +1,3 @@
-//! washmybelly over the external MCP port. The bodies are the core's `wmb_*`
-//! tools; this module only tags the caller as external (so a plan never
-//! carries screen-only items) and declares the output schemas.
-//!
-//! An external client never executes anything by itself: `wmb_execute` and
-//! `wmb_restore` create an approval request that the OmniGet window shows
-//! (`washmybelly-approval`), and answer `pending_approval`. The client polls
-//! `wmb_plan_show` (or `wmb_receipts`) until the plan is `executed`,
-//! `denied` or `expired`.
-
 use serde_json::{json, Value};
 use tauri::{AppHandle, Emitter};
 
@@ -64,8 +54,6 @@ fn plan_preview() -> Value {
     }))
 }
 
-/// Output schema of each `wmb_*` tool. Objects stay open: a new field is
-/// not a breaking change.
 pub fn output_schema(name: &str) -> Option<Value> {
     if !name.starts_with("wmb_") {
         return None;

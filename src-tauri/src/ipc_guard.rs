@@ -1,38 +1,20 @@
-//! Which webview may call which app command.
-//!
-//! Tauri injects `__TAURI_INTERNALS__` into every webview, remote pages
-//! included, and the app has no ACL manifest for its own commands, so without
-//! this guard a page loaded in a thread's Browser preview (`preview-*`) or in a
-//! login window (`auth-*`) could call any app command. Plugin commands are
-//! still gated by the capabilities in `capabilities/*.json`; this covers the
-//! app half.
-
 use tauri::ipc::Invoke;
 use tauri::Wry;
 
-/// Commands a remote preview page may call: the report channel of the script
-/// the preview injects, and the test driver's report (inert unless the process
-/// runs with `OMNIGET_TEST_DRIVER=1`).
 const PREVIEW_COMMANDS: &[&str] = &["preview_report", "debug_report"];
 
-/// True when the webview `label` may call the app command `command`.
 pub fn allowed(label: &str, command: &str) -> bool {
     match label {
-        // The app's own windows (the menu bar usage panel included).
         "main" | "pet" | "limits-strip" | "usage-panel" | "omni" => true,
         l if l.starts_with("preview-") => PREVIEW_COMMANDS.contains(&command),
-        // Canvas portals: the injected automation script only reports back.
         l if l.starts_with("portal-") => {
             command == "canvas_portal_report" || command == "debug_report"
         }
-        // Login windows load third-party sites; the app reads their cookies
-        // and navigation from Rust, it never needs a call from the page.
         l if l.starts_with("auth-") => command == "debug_report",
         _ => false,
     }
 }
 
-/// Wraps the generated invoke handler with [`allowed`].
 pub fn guard<F>(handler: F) -> impl Fn(Invoke<Wry>) -> bool + Send + Sync + 'static
 where
     F: Fn(Invoke<Wry>) -> bool + Send + Sync + 'static,
@@ -71,9 +53,6 @@ mod tests {
         assert!(!allowed("somewhere-else", "threads_dispatch"));
     }
 
-    /// Every window the app opens with its own label is an app window: a
-    /// renamed or new one must be added to `allowed`, or its page gets
-    /// ERR_IPC_FORBIDDEN on every call.
     #[test]
     fn every_app_window_label_is_allowed() {
         for l in [

@@ -1,11 +1,3 @@
-//! /telegram over the external MCP port. The bodies are the core's `tg_*`
-//! tools; this module only tags the caller with the client's name (so the
-//! approval dialog says who asks) and declares the output schemas.
-//!
-//! An external client never writes to the account by itself: the write
-//! tools wait (up to 5 minutes) for the person to approve in the OmniGet
-//! window (`telegram-approval-request`).
-
 use serde_json::{json, Value};
 
 use super::policy::Principal;
@@ -30,8 +22,6 @@ fn chat() -> Value {
     o(json!({ "id": t("integer"), "type": t("string"), "title": t("string") }))
 }
 
-/// Output schema of each `tg_*` tool. Objects stay open: a new field is
-/// not a breaking change.
 pub fn output_schema(name: &str) -> Option<Value> {
     if !name.starts_with("tg_") {
         return None;

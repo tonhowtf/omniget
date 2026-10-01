@@ -1,14 +1,3 @@
-//! Prova de dono: quem instalou o binário que está no PATH.
-//!
-//! Regra (estudo 76/01 §9.6): **nunca rodar um gerenciador contra uma
-//! instalação que ele não criou**. Primeiro o caminho real sugere uma hipótese
-//! (`classify`, pura e testada); depois `prove` confirma com o próprio
-//! gerenciador (`npm prefix -g`, `brew --prefix <f>`, `uv tool dir`…). Só uma
-//! hipótese provada vira comando executável; o resto é comando para copiar.
-//!
-//! Ordem: auto-updater nativo → bun → pnpm → npm → brew → pipx/uv/pip → cargo
-//! → desconhecido.
-
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
@@ -31,25 +20,19 @@ pub enum OwnerMethod {
     Uv,
     Pip,
     Cargo,
-    /// Binário baixado pelo próprio OmniGet (registro ACP).
     Omniget,
-    /// App de GUI (atualiza sozinho ou pela loja).
     App,
     Unknown,
 }
 
-/// Um comando que pode rodar (ou só ser mostrado).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct CommandSpec {
     pub program: String,
     pub args: Vec<String>,
     #[serde(default)]
     pub env: BTreeMap<String, String>,
-    /// Texto exato mostrado antes de rodar.
     pub display: String,
-    /// Chave do lock: instalações que dividem um prefixo serializam.
     pub lock_key: String,
-    /// `curl … | bash` e afins: roda via shell.
     #[serde(default)]
     pub via_shell: bool,
 }
@@ -68,7 +51,6 @@ impl CommandSpec {
         }
     }
 
-    /// Linha de shell (instalador oficial). `display` é a própria linha.
     pub fn shell(line: impl Into<String>, lock_key: impl Into<String>) -> Self {
         let line = line.into();
         let (program, args) = if cfg!(windows) {
@@ -99,15 +81,10 @@ impl CommandSpec {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct Owner {
     pub method: OwnerMethod,
-    /// A hipótese foi confirmada pelo próprio gerenciador.
     pub proven: bool,
-    /// Prefixo/raiz provada (npm prefix, keg do brew, pasta do uv…).
     pub prefix: Option<PathBuf>,
-    /// Frase curta com a evidência (ou por que não provou).
     pub evidence: String,
-    /// Comando de atualização que pode rodar (só quando `proven`).
     pub update: Option<CommandSpec>,
-    /// Comando para copiar quando não dá para rodar.
     pub manual: Option<String>,
 }
 
@@ -124,7 +101,6 @@ impl Owner {
     }
 }
 
-/// Hipótese tirada só do caminho.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Candidate {
     Native { marker: PathBuf },
@@ -140,9 +116,6 @@ pub enum Candidate {
     Unknown,
 }
 
-/// Classifica pelo caminho resolvido (`resolved`, o que está no PATH) e pelo
-/// real (`real`, sem symlink). Pura: nenhum processo, só `exists()` do shim
-/// do Windows.
 pub fn classify(tool: &CliTool, resolved: &Path, real: &Path) -> Candidate {
     let real_s = slashy(real);
     let res_s = slashy(resolved);
@@ -154,7 +127,6 @@ pub fn classify(tool: &CliTool, resolved: &Path, real: &Path) -> Candidate {
         }
     };
 
-    // 1. Instalador do fornecedor.
     if let Some(su) = &tool.self_update {
         for m in &su.markers {
             let marker = expand_home(m);
@@ -167,7 +139,6 @@ pub fn classify(tool: &CliTool, resolved: &Path, real: &Path) -> Candidate {
         }
     }
 
-    // OmniGet (binário do registro ACP).
     if let Some(data) = crate::core::paths::app_data_dir() {
         let agents = slashy(&exec::real_path(&data.join("agents").join("bin")));
         if real_s.starts_with(&format!("{agents}/")) {
@@ -175,8 +146,6 @@ pub fn classify(tool: &CliTool, resolved: &Path, real: &Path) -> Candidate {
         }
     }
 
-    // Homebrew (keg ou cask): um keg é dono de tudo que tem dentro, até de
-    // um node_modules empacotado em libexec, então é conferido antes do npm.
     if let Some(b) = &tool.brew {
         let short = b.short();
         let keg = if b.cask {
@@ -194,15 +163,12 @@ pub fn classify(tool: &CliTool, resolved: &Path, real: &Path) -> Candidate {
 
     if let Some(pkg) = &tool.npm {
         let seg = norm(&format!("/node_modules/{pkg}/"));
-        // 2. bun.
         if real_s.contains(&norm("/.bun/install/global/node_modules/")) && real_s.contains(&seg) {
             return Candidate::Bun { pkg: pkg.clone() };
         }
-        // 3. pnpm.
         if real_s.contains("/pnpm/") && real_s.contains("/global/") && real_s.contains(&seg) {
             return Candidate::Pnpm { pkg: pkg.clone() };
         }
-        // 4. npm: <prefix>/lib/node_modules/<pkg>/ (unix) ou <prefix>/node_modules/<pkg>/ (win).
         let lib_seg = norm(&format!("/lib/node_modules/{pkg}/"));
         if let Some(i) = real_s.find(&lib_seg) {
             return Candidate::Npm {
@@ -217,7 +183,6 @@ pub fn classify(tool: &CliTool, resolved: &Path, real: &Path) -> Candidate {
                     pkg: pkg.clone(),
                 };
             }
-            // Shim `.cmd` ao lado de `node_modules/<pkg>/package.json`.
             if let Some(dir) = resolved.parent() {
                 let manifest = pkg
                     .split('/')
@@ -233,7 +198,6 @@ pub fn classify(tool: &CliTool, resolved: &Path, real: &Path) -> Candidate {
         }
     }
 
-    // 6. Python.
     if let Some(pkg) = &tool.pip {
         if real_s.contains(&norm(&format!("/pipx/venvs/{pkg}/"))) {
             return Candidate::Pipx { pkg: pkg.clone() };
@@ -244,7 +208,6 @@ pub fn classify(tool: &CliTool, resolved: &Path, real: &Path) -> Candidate {
         return Candidate::Pip { pkg: pkg.clone() };
     }
 
-    // 7. cargo.
     if let Some(krate) = &tool.cargo {
         let cargo_bin = std::env::var_os("CARGO_HOME")
             .map(PathBuf::from)
@@ -260,7 +223,6 @@ pub fn classify(tool: &CliTool, resolved: &Path, real: &Path) -> Candidate {
     Candidate::Unknown
 }
 
-/// Respostas dos gerenciadores, calculadas uma vez por varredura.
 #[derive(Default)]
 pub struct Probes {
     npm: OnceCell<Option<PathBuf>>,
@@ -291,7 +253,6 @@ impl Probes {
             .clone()
     }
 
-    /// Versão do npm do PATH (decide o `--allow-scripts`).
     pub async fn npm_version(&self) -> Option<String> {
         self.npm_version
             .get_or_init(|| async {
@@ -302,7 +263,6 @@ impl Probes {
             .clone()
     }
 
-    /// `npm prefix -g` do npm do PATH.
     pub async fn npm_prefix(&self) -> Option<PathBuf> {
         self.npm_prefix
             .get_or_init(|| async {
@@ -363,8 +323,6 @@ impl Probes {
     }
 }
 
-/// npm 12 bloqueia o postinstall por padrão e ainda sai com 0; o pacote que
-/// precisa dele recebe `--allow-scripts=<pkg>`.
 pub fn needs_allow_scripts(npm_version: Option<&str>, tool: &CliTool) -> bool {
     tool.npm_scripts
         && npm_version
@@ -374,7 +332,6 @@ pub fn needs_allow_scripts(npm_version: Option<&str>, tool: &CliTool) -> bool {
             .unwrap_or(false)
 }
 
-/// Comando npm global para `pkg` num prefixo (provado ou pedido).
 pub fn npm_install_spec(
     npm: &Path,
     prefix: Option<&Path>,
@@ -401,7 +358,6 @@ fn same_dir(a: &Path, b: &Path) -> bool {
     exec::real_path(a) == exec::real_path(b)
 }
 
-/// Confirma a hipótese com o gerenciador e monta o comando.
 pub async fn prove(
     tool: &CliTool,
     resolved: &Path,
@@ -511,9 +467,6 @@ pub async fn prove(
             }
         }
         Candidate::Npm { prefix, pkg } => {
-            // O npm do próprio prefixo (nvm/volta têm um npm por versão) e,
-            // se não houver, o do PATH. Os dois precisam responder o mesmo
-            // prefixo que o caminho real indica.
             let own_npm = if cfg!(windows) {
                 prefix.join("npm.cmd")
             } else {
@@ -650,7 +603,6 @@ pub async fn prove(
             }
         }
         Candidate::Pip { pkg } => {
-            // Script de console do pip: a primeira linha é `#!<python>`.
             let python = std::fs::read(resolved).ok().and_then(|bytes| {
                 let head = String::from_utf8_lossy(&bytes[..bytes.len().min(512)]).into_owned();
                 let line = head.lines().next()?.strip_prefix("#!")?.trim().to_string();

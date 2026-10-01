@@ -1,8 +1,3 @@
-//! Comandos `sessions` da Central: analytics das sessões de todos os agentes
-//! de código (Claude, Codex, Gemini, Qwen, OpenCode, Kilo, Crush, Goose e o
-//! grupo B). A lógica vive em `omniget_core::core::sessions`; aqui só a
-//! ponte. Erros no formato `"CODE: mensagem"`.
-
 use omniget_core::core::sessions::analysis::{
     AgentsReport, Heatmap, Retro, SessionAnalysis, TeamGraph, UsageReport,
 };
@@ -12,7 +7,6 @@ use omniget_core::core::sessions::import::ImportOutcome;
 use omniget_core::core::sessions::index::{ListFilter, ListPage, RefreshStats};
 use omniget_core::core::sessions::search::{Hit, SearchQuery, SearchResult};
 
-/// Grava o texto de "Salvar como" no caminho escolhido no diálogo.
 #[tauri::command]
 pub async fn sessions_save_text(dest: String, content: String) -> Result<String, String> {
     if let Some(parent) = std::path::Path::new(&dest).parent() {
@@ -26,13 +20,11 @@ pub async fn sessions_save_text(dest: String, content: String) -> Result<String,
     Ok(dest)
 }
 
-/// Lista de sessões do índice (filtro por ferramenta/conta/projeto/data/título).
 #[tauri::command]
 pub async fn sessions_list(filter: Option<ListFilter>) -> Result<ListPage, String> {
     api::list(filter.unwrap_or_default()).await
 }
 
-/// Sessão completa; com `page`, paginação reversa (0 = mais recentes).
 #[tauri::command]
 pub async fn sessions_get(
     tool: String,
@@ -62,8 +54,6 @@ pub async fn sessions_analysis(tool: String, id: String) -> Result<SessionAnalys
     api::session_analysis(tool, id).await
 }
 
-/// `group_by`: `day` | `week` | `month` | `model` | `tool` | `project` |
-/// `account` | `hour` | `session`.
 #[tauri::command]
 pub async fn sessions_usage(
     range: Option<ListFilter>,
@@ -103,8 +93,6 @@ pub async fn sessions_retro(
     api::retro(from, to, tool).await
 }
 
-/// `format`: `json` | `markdown` | `context` (com `target` = ferramenta onde
-/// o contexto vai ser colado).
 #[tauri::command]
 pub async fn sessions_export(
     tool: String,
@@ -115,8 +103,6 @@ pub async fn sessions_export(
     api::export(tool, id, format, target).await
 }
 
-/// Importa um JSON exportado: `claude`/`codex` gravam uma sessão retomável;
-/// outra ferramenta devolve Markdown de contexto.
 #[tauri::command]
 pub async fn sessions_import(
     path: String,
@@ -140,7 +126,6 @@ pub async fn sessions_active(window_secs: Option<u64>) -> Result<Vec<ActiveSessi
     api::active(window_secs.unwrap_or(600)).await
 }
 
-/// Varre agora; `full` apaga o índice e relê tudo.
 #[tauri::command]
 pub async fn sessions_refresh(full: Option<bool>) -> Result<RefreshStats, String> {
     api::refresh(full.unwrap_or(false)).await

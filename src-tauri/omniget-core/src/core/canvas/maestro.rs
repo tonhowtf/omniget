@@ -1,8 +1,3 @@
-//! Maestro Mode (Maestri, study 95 §2 / N): a terminal flagged `isManager`
-//! may recruit, connect, swap, dismiss, schedule routines and create
-//! workspaces and floors. The gate is checked on the server for every call;
-//! this file holds the pure parts (flag, team tree, names, recruit nodes).
-
 use std::collections::{HashSet, VecDeque};
 
 use serde::{Deserialize, Serialize};
@@ -15,11 +10,9 @@ use super::model::{
 };
 use super::ops::Op;
 
-/// `maestro.notify` message cap (Maestri: 500 characters).
 pub const NOTIFY_MAX: usize = 500;
 pub const NOT_MAESTRO: &str =
     "CANVAS_FORBIDDEN: This terminal is not the Maestro. Turn on Maestro Mode on it first.";
-/// Perms of the cord between a Maestro and a recruit.
 pub const RECRUIT_PERMS: &[&str] = &["ask", "check"];
 
 pub fn is_maestro(node: &CanvasNode) -> bool {
@@ -42,7 +35,6 @@ pub fn name_of(node: &CanvasNode) -> String {
         })
 }
 
-/// `base`, or `base (2)`, `(3)`… when taken (case-insensitive).
 pub fn unique_name(taken: &HashSet<String>, base: &str) -> String {
     let base = base.trim();
     let base = if base.is_empty() { "Recruit" } else { base };
@@ -64,8 +56,6 @@ pub fn names_on(doc: &FloorDoc) -> HashSet<String> {
         .collect()
 }
 
-/// The Maestro's team tree: itself, what it is connected to, and what its
-/// recruits are connected to (their notes, portals and peers).
 pub fn team(doc: &FloorDoc, maestro: &str) -> HashSet<String> {
     let mut seen: HashSet<String> = HashSet::from([maestro.to_string()]);
     let mut q: VecDeque<(String, u8)> = VecDeque::from([(maestro.to_string(), 0)]);
@@ -84,7 +74,6 @@ pub fn team(doc: &FloorDoc, maestro: &str) -> HashSet<String> {
     seen
 }
 
-/// Finds a node by exact name among `within` (all nodes when `None`).
 pub fn find<'a>(
     doc: &'a FloorDoc,
     name: &str,
@@ -112,7 +101,6 @@ pub fn find<'a>(
 pub struct RecruitSpec {
     #[serde(default)]
     pub name: Option<String>,
-    /// Agent preset (`claude`, `codex`…); default: the Maestro's own.
     #[serde(default)]
     pub agent: Option<String>,
     #[serde(default)]
@@ -125,8 +113,6 @@ pub struct RecruitSpec {
     pub preset_id: Option<String>,
 }
 
-/// A recruit node: a copy of the Maestro's agent unless told otherwise,
-/// never a Maestro itself, with a fresh PTY id.
 pub fn recruit_node(
     maestro: Option<&CanvasNode>,
     spec: &RecruitSpec,
@@ -147,8 +133,6 @@ pub fn recruit_node(
         .as_deref()
         .map(|a| AgentKind::parse(a.trim()))
         .filter(AgentKind::is_known);
-    // `--command parity-stub` alone is that program, not the Maestro's agent
-    // running it: the agent follows the program (shell for anything else).
     let own_command = spec
         .command
         .as_deref()
@@ -226,8 +210,6 @@ pub fn cord(from: &str, to: &str) -> Connection {
     }
 }
 
-/// Ops that add recruits in an even row under the Maestro, each tied to it.
-/// Returns the ops and `(node id, name)` per recruit.
 pub fn recruit_ops(
     doc: &FloorDoc,
     maestro: &CanvasNode,
@@ -250,8 +232,6 @@ pub fn recruit_ops(
     (ops, out)
 }
 
-/// Patch that restarts a terminal with another agent (same node, position,
-/// cords and routines; a new PTY id makes the canvas start a new process).
 pub fn swap_agent_patch(agent: &str, command: Option<&str>) -> Result<Value, String> {
     let a = AgentKind::parse(agent.trim());
     if !a.is_known() {
@@ -269,17 +249,11 @@ pub fn swap_agent_patch(agent: &str, command: Option<&str>) -> Result<Value, Str
     }))
 }
 
-/// A command line typed by a person or an agent (`recruit --command`,
-/// a node's `data.command`) as argv, with POSIX quoting:
-/// `bash -c "echo X; exec bash"` is three words. Unbalanced quotes fall
-/// back to whitespace.
 pub fn split_command(command: &str) -> Vec<String> {
     shell_words::split(command.trim())
         .unwrap_or_else(|_| command.split_whitespace().map(str::to_string).collect())
 }
 
-/// The built-in agent a command line runs (`claude --model x` = claude),
-/// `shell` for any other program.
 pub fn agent_of_command(command: &str) -> &'static str {
     let words = split_command(command);
     let prog = words.first().map(String::as_str).unwrap_or("");
@@ -299,8 +273,6 @@ pub fn agent_of_command(command: &str) -> &'static str {
     }
 }
 
-/// Patch that restarts a terminal on its own command line (`--replace X
-/// --command C` without an agent): the agent follows the program.
 pub fn swap_command_patch(command: &str) -> Result<Value, String> {
     let c = command.trim();
     if c.is_empty() {
@@ -316,7 +288,6 @@ pub fn swap_command_patch(command: &str) -> Result<Value, String> {
     }))
 }
 
-/// Patch that swaps (or clears) the role and restarts the process.
 pub fn swap_role_patch(role_id: Option<&str>) -> Value {
     json!({
         "data": {

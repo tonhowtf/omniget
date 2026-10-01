@@ -1,14 +1,9 @@
-//! The washmybelly database: plans, receipts, setting snapshots and pending
-//! approvals, in `<app_data>/washmybelly/wmb.db`.
-
 use std::path::{Path, PathBuf};
 
 use rusqlite::{params, Connection, OptionalExtension};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 
-/// Where washmybelly keeps its state. Production uses [`Ctx::app`]; tests
-/// hand in a temporary folder so they never touch the real app data.
 #[derive(Debug, Clone)]
 pub struct Ctx {
     pub dir: PathBuf,
@@ -48,7 +43,6 @@ impl Ctx {
         Ok(db)
     }
 
-    /// A small JSON value by key (module state: holds, perf sessions index...).
     pub fn kv_get<T: DeserializeOwned>(&self, key: &str) -> Option<T> {
         let db = self.open().ok()?;
         let body: Option<String> = db
@@ -71,7 +65,6 @@ impl Ctx {
         Ok(())
     }
 
-    /// Save the state a module had before it changed it, for undo.
     pub fn snapshot_put<T: Serialize>(
         &self,
         receipt_id: &str,
@@ -101,7 +94,6 @@ impl Ctx {
     }
 }
 
-/// Seconds since the epoch.
 pub fn now() -> i64 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)

@@ -1,15 +1,3 @@
-//! "SnapShot": list the windows of other apps and capture one to a PNG under
-//! `<app_data>/snapshots/`, so the composer can attach it. Also captures a
-//! rectangle of the screen for the preview window on Windows/Linux.
-//!
-//! macOS: own FFI to `CGWindowListCopyWindowInfo` (no JXA, no crate) and
-//! `/usr/sbin/screencapture -l <windowId> -o -x -t png`. Without the Screen
-//! Recording permission the list has no titles for other apps and the
-//! capture comes out as wallpaper; `permission` says which case we are in.
-//! Windows: PowerShell + user32 (`EnumWindows` through `Get-Process`,
-//! `PrintWindow` with PW_RENDERFULLCONTENT). Linux: `wmctrl -lp` + ImageMagick
-//! `import -window`, `grim` on Wayland for the whole screen. Best effort.
-
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
@@ -20,7 +8,6 @@ use omniget_core::core::process;
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct WindowInfo {
-    /// `screen` for the whole screen, otherwise the OS window id/handle.
     pub id: String,
     pub app: String,
     pub title: String,
@@ -35,9 +22,7 @@ pub struct WindowInfo {
 #[serde(rename_all = "camelCase")]
 pub struct WindowList {
     pub windows: Vec<WindowInfo>,
-    /// macOS: Screen Recording granted. Other OSes: always true.
     pub permission: bool,
-    /// What the list could not do on this platform (e.g. Wayland).
     pub note: Option<String>,
 }
 
@@ -64,7 +49,6 @@ pub fn new_png_path(prefix: &str) -> Result<PathBuf, String> {
     Ok(snapshots_dir()?.join(format!("{prefix}-{stamp}-{}.png", &short[..6])))
 }
 
-/// Width/height from the IHDR chunk; `None` when this is not a PNG.
 pub fn png_size(bytes: &[u8]) -> Option<(u32, u32)> {
     const SIG: [u8; 8] = [0x89, b'P', b'N', b'G', 0x0D, 0x0A, 0x1A, 0x0A];
     if bytes.len() < 24 || bytes[..8] != SIG || &bytes[12..16] != b"IHDR" {
@@ -112,8 +96,6 @@ async fn run_status(program: &str, args: &[String]) -> Result<String, String> {
     }
     Ok(String::from_utf8_lossy(&out.stdout).into_owned())
 }
-
-// ── macOS ─────────────────────────────────────────────────────────────────
 
 #[cfg(target_os = "macos")]
 #[allow(non_upper_case_globals, non_snake_case)]
@@ -222,7 +204,6 @@ mod mac {
         CStr::from_ptr(buf.as_ptr()).to_string_lossy().into_owned()
     }
 
-    /// Every window, on-screen only unless `all`.
     pub fn windows(all: bool) -> Vec<RawWindow> {
         let mut res = Vec::new();
         unsafe {
@@ -270,7 +251,6 @@ mod mac {
     }
 }
 
-/// macOS: the CGWindowID of one of our own windows, by exact title.
 #[cfg(target_os = "macos")]
 pub fn own_window_number(title: &str) -> Option<u32> {
     let pid = std::process::id();
@@ -280,7 +260,6 @@ pub fn own_window_number(title: &str) -> Option<u32> {
         .map(|w| w.number)
 }
 
-/// Asks the OS for the Screen Recording permission (macOS). Elsewhere a no-op.
 pub fn request_permission() -> bool {
     #[cfg(target_os = "macos")]
     {
@@ -292,7 +271,6 @@ pub fn request_permission() -> bool {
     }
 }
 
-/// The windows the user can pick, biggest apps first, our own left out.
 pub async fn list_windows() -> Result<WindowList, String> {
     let screen = WindowInfo {
         id: "screen".into(),
@@ -407,7 +385,6 @@ pub async fn list_windows() -> Result<WindowList, String> {
         let own = std::process::id();
         if let Ok(out) = run_status("wmctrl", &["-lpG".into()]).await {
             for line in out.lines() {
-                // 0x03a00003  0 4242   10 20 800 600 host Title words
                 let cols: Vec<&str> = line.split_whitespace().collect();
                 if cols.len() < 8 {
                     continue;
@@ -453,7 +430,6 @@ pub async fn list_windows() -> Result<WindowList, String> {
     })
 }
 
-/// Captures one window (id from [`list_windows`], or `screen`) to a new PNG.
 pub async fn capture_window(id: &str) -> Result<Captured, String> {
     let path = new_png_path("snapshot")?;
     let p = path.to_string_lossy().into_owned();
@@ -470,8 +446,6 @@ pub async fn capture_window(id: &str) -> Result<Captured, String> {
         match run_status("/usr/sbin/screencapture", &args).await {
             Ok(_) => return finish(&path),
             Err(e) if id != "screen" => {
-                // `-l` refuses some windows ("could not create image from
-                // window"); fall back to the window rectangle on screen.
                 let n: u32 = id.parse().unwrap_or(0);
                 let bounds = tauri::async_runtime::spawn_blocking(move || {
                     mac::windows(false)
@@ -563,8 +537,6 @@ pub async fn capture_window(id: &str) -> Result<Captured, String> {
     Err(format!("SNAPSHOT_UNSUPPORTED: {id} {p}"))
 }
 
-/// Captures a rectangle of the screen in physical pixels (preview window on
-/// Windows/Linux, where there is no per-window capture of our own webview).
 pub async fn capture_rect(
     x: i32,
     y: i32,
@@ -576,7 +548,6 @@ pub async fn capture_rect(
     let p = path.to_string_lossy().into_owned();
     #[cfg(target_os = "macos")]
     {
-        // screencapture -R takes points; callers on macOS use the window id.
         let args: Vec<String> = vec![
             "-x".into(),
             "-t".into(),
@@ -632,7 +603,6 @@ pub async fn capture_rect(
     Err(format!("SNAPSHOT_UNSUPPORTED: {x} {y} {w} {h} {p}"))
 }
 
-/// macOS: captures one of our own windows by its CGWindowID.
 #[cfg(target_os = "macos")]
 pub async fn capture_own_window(number: u32, prefix: &str) -> Result<Captured, String> {
     let path = new_png_path(prefix)?;

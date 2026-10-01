@@ -1,6 +1,3 @@
-//! Optional OAuth resource gateway. Only /mcp and resource metadata are routed.
-//! An external OAuth provider owns authorization, PKCE, registration and login.
-//! Start explicitly with a private config file; never auto-publish a tunnel.
 use anyhow::{bail, Context, Result};
 use axum::{
     body::{Body, Bytes},
@@ -611,8 +608,6 @@ async fn mcp(State(app): State<App>, headers: HeaderMap, body: Bytes) -> Respons
         && app.config.enable_artifact_transfer
         && boundary(&app, auth.index, TRANSFER).await;
     sanitize(&mut value, &app, &auth, transfer);
-    // Desktop content.text mirrors structuredContent; replace it after redaction so
-    // transfer descriptors cannot survive in an independently serialized copy.
     if method == "tools/call" && value["result"].get("structuredContent").is_some() {
         value["result"]["content"] =
             json!([{"type":"text","text":value["result"]["structuredContent"].to_string()}]);
@@ -714,7 +709,6 @@ async fn relay_next(mut state: Relay) -> Result<Option<(Bytes, Relay)>, std::io:
                 }
             }
         }
-        // Revalidate again after a slow upstream read, before releasing new bytes.
         if state.checked.elapsed() >= Duration::from_secs(1) {
             let renewed = introspect(&state.app, &state.auth.bearer)
                 .await

@@ -52,13 +52,8 @@ async fn discover_client() -> Option<LcuClient> {
 }
 
 async fn get_client() -> Result<LcuClient, String> {
-    // The cached client is copied out before the reachability probe: holding the
-    // lock across a request would put every league command in a single file
-    // behind one network round trip, and a slow client stalls all of them.
     let cached = { CACHED_CLIENT.lock().await.clone() };
     if let Some(client) = cached {
-        // The websocket task already proves the client is alive; probing it
-        // again would add a round-trip to every single command.
         if ws::is_connected() || lcu_reachable(&client).await {
             return Ok(client);
         }
@@ -92,8 +87,6 @@ async fn lcu_reachable(client: &LcuClient) -> bool {
         .is_ok()
 }
 
-/// The client's own web server is easy to swamp: a scouting pass touches ten
-/// players at once, so requests are queued instead of fired all together.
 static LCU_GATE: Lazy<tokio::sync::Semaphore> = Lazy::new(|| tokio::sync::Semaphore::new(4));
 
 async fn lcu_send(
@@ -108,8 +101,6 @@ async fn lcu_send(
         match result {
             Ok(v) => return Ok(v),
             Err(e) => {
-                // Retry transient failures only; a 404 means the resource is
-                // genuinely absent and retrying would just waste time.
                 let transient = e.contains("request failed")
                     || e.contains(" 429 ")
                     || e.contains(" 500 ")
@@ -168,8 +159,6 @@ async fn lcu_send_once(
     Ok(resp.json::<Value>().await.unwrap_or(Value::Null))
 }
 
-/// Static game data changes only with a patch, and finished games never change
-/// at all, so both are answered from memory instead of hitting the client again.
 enum CacheKind {
     PatchStatic,
     Immutable,
@@ -262,9 +251,6 @@ async fn lcu_post_raw(client: &LcuClient, path: &str) -> Result<Value, String> {
     lcu_send(client, reqwest::Method::POST, path, None).await
 }
 
-/// Settings are read on every websocket event, and reading them means parsing the
-/// settings file from disk. A short cache keeps that off the hot path while still
-/// picking up a toggle the user just flipped.
 static SETTINGS_CACHE: Lazy<
     std::sync::Mutex<
         Option<(
@@ -337,9 +323,6 @@ pub async fn league_get(path: String) -> Result<Value, String> {
     lcu_get_raw(&client, &path).await
 }
 
-/// Restarts only the client's interface process. The classic fix for a client
-/// stuck spinning or with a broken window size, and it keeps the queue spot —
-/// which is why it is worth offering instead of asking the user to close the game.
 #[tauri::command]
 pub async fn league_restart_ux() -> Result<(), String> {
     ensure_enabled()?;
@@ -531,8 +514,6 @@ pub async fn league_reroll() -> Result<(), String> {
     Ok(())
 }
 
-/// Spends the reroll to widen the bench but keeps the champion the user already
-/// had: the roll is read before it happens, then swapped back from the bench.
 #[tauri::command]
 pub async fn league_reroll_keeping_champion() -> Result<Value, String> {
     ensure_enabled()?;
@@ -543,8 +524,6 @@ pub async fn league_reroll_keeping_champion() -> Result<Value, String> {
         .and_then(|v| v.as_i64());
     lcu_post_raw(&client, "/lol-champ-select/v1/session/my-selection/reroll").await?;
     let Some(champion_id) = before.filter(|id| *id > 0) else {
-        // Without knowing the previous champion there is nothing to restore, and
-        // the reroll itself already went through.
         return Ok(json!({ "restored": false, "championId": Value::Null }));
     };
     let swapped = lcu_post_raw(
@@ -607,9 +586,6 @@ fn player_identity(entry: &Value, is_ally: bool) -> Value {
     })
 }
 
-/// The gameflow session tags every player with the party it queued in, which is
-/// the server's own grouping — far better than guessing from shared history.
-/// Champ select does not carry it, so it stays null there.
 fn party_id(entry: &Value) -> Value {
     match entry.get("teamParticipantId") {
         Some(Value::String(s)) if !s.is_empty() => json!(s),
@@ -830,7 +806,6 @@ fn compute_history_stats(games: &[Value], puuid: &str) -> Value {
             .get("goldEarned")
             .and_then(Value::as_f64)
             .unwrap_or(0.0);
-        // Slot 1 is the D key, slot 2 the F key; Flash is spell id 4.
         match (
             participant.get("spell1Id").and_then(Value::as_i64),
             participant.get("spell2Id").and_then(Value::as_i64),
@@ -966,8 +941,6 @@ pub async fn league_player_report(
         .cloned()
         .unwrap_or(Value::Null);
 
-    // The summoner record states privacy explicitly; an empty history only
-    // means the request came back thin, which is not the same thing.
     let summoner = lcu_get_raw(
         &client,
         &format!("/lol-summoner/v2/summoners/puuid/{}", puuid),
@@ -1001,8 +974,6 @@ pub async fn league_player_report(
             Vec::new()
         }
     };
-    // The local endpoint trims or refuses other players' histories; the
-    // backend answers for anyone, so it fills the gap when allowed.
     let mut sgp_used = false;
     if games.is_empty() && !is_private {
         if let Ok(backend) = sgp::match_history_local(&client, &puuid, 0, 20).await {
@@ -1024,9 +995,6 @@ pub async fn league_player_report(
         compute_history_stats(&games, &puuid)
     };
 
-    // Impact needs team totals, which only the full game detail carries. Five
-    // extra requests per player would swamp the client during a scouting pass,
-    // so it is only computed when the caller asks for it.
     let recent_ids: Vec<i64> = if with_impact {
         history_ids.into_iter().take(5).collect()
     } else {
@@ -1098,11 +1066,6 @@ pub async fn league_player_report(
     }))
 }
 
-/// Extracts rank plus, when trustworthy, the season win/loss record.
-///
-/// For anyone other than the local player the client reports `losses = 0` and a
-/// career-long `wins` total, so a non-zero win count with zero losses is treated
-/// as "hidden" instead of a perfect record.
 fn ranked_entry_parts(entry: &Value) -> (Option<f64>, u32, u32) {
     let tier = entry.get("tier").and_then(Value::as_str).unwrap_or("");
     let division = entry.get("division").and_then(Value::as_str).unwrap_or("");
@@ -1128,8 +1091,6 @@ fn ranked_entry_parts(entry: &Value) -> (Option<f64>, u32, u32) {
     (rank, wins, losses)
 }
 
-/// Full pre-game analysis: per-player strength, team win probability and the
-/// premade groups inferred from overlapping match histories.
 #[tauri::command]
 pub async fn league_match_analysis() -> Result<Value, String> {
     ensure_enabled()?;
@@ -1292,8 +1253,6 @@ pub async fn league_match_analysis() -> Result<Value, String> {
     let groups = if from_party {
         official
     } else {
-        // Fallback for champ select, where the party id is absent: two players
-        // who keep appearing in the same games are queueing together.
         let mut pairs: Vec<(usize, usize, u32)> = Vec::new();
         for i in 0..players.len() {
             for j in (i + 1)..players.len() {
@@ -1333,9 +1292,6 @@ pub async fn league_match_analysis() -> Result<Value, String> {
     }))
 }
 
-/// Build reference for a champion in a position: skill order, items by phase,
-/// summoner spells and counters, from the same public op.gg API the tier list
-/// uses. Presented as reference, never applied automatically.
 #[tauri::command]
 pub async fn league_champion_meta(
     champion_id: i64,
@@ -1415,8 +1371,6 @@ pub async fn league_champion_meta(
     }))
 }
 
-/// Sets the summoner icon. Any owned icon id works; the client rejects ids the
-/// account does not own, and that error is surfaced as-is.
 #[tauri::command]
 pub async fn league_set_icon(icon_id: i64) -> Result<Value, String> {
     ensure_enabled()?;
@@ -1433,7 +1387,6 @@ pub async fn league_set_icon(icon_id: i64) -> Result<Value, String> {
     .await
 }
 
-/// Sets the splash art behind the profile, chosen from a skin the account owns.
 #[tauri::command]
 pub async fn league_set_profile_background(skin_id: i64) -> Result<Value, String> {
     ensure_enabled()?;
@@ -1450,9 +1403,6 @@ pub async fn league_set_profile_background(skin_id: i64) -> Result<Value, String
     .await
 }
 
-/// Chat availability and status message. Only the fields the user changed are
-/// touched: the payload is read first and patched, because a full replacement
-/// wipes the presence data the client keeps there.
 #[tauri::command]
 pub async fn league_set_status(
     availability: Option<String>,
@@ -1478,8 +1428,6 @@ pub async fn league_set_status(
     lcu_send(&client, reqwest::Method::PUT, "/lol-chat/v1/me", Some(me)).await
 }
 
-/// Skins the account owns for a champion, so the background picker offers only
-/// what can actually be set.
 #[tauri::command]
 pub async fn league_owned_skins(champion_id: i64) -> Result<Value, String> {
     ensure_enabled()?;
@@ -1516,8 +1464,6 @@ pub async fn league_owned_skins(champion_id: i64) -> Result<Value, String> {
     Ok(json!({ "skins": skins }))
 }
 
-/// Role preferences for the next queue. The client takes both slots at once, and
-/// the second may be empty ("FILL" is expressed as an unset second choice).
 #[tauri::command]
 pub async fn league_set_positions(first: String, second: Option<String>) -> Result<Value, String> {
     ensure_enabled()?;
@@ -1536,9 +1482,6 @@ pub async fn league_set_positions(first: String, second: Option<String>) -> Resu
     .await
 }
 
-/// Full detail of one match: every participant with runes, items, spells and the
-/// long tail of stats the client keeps but its own end-of-game screen hides,
-/// plus the puuid needed to look a player up afterwards.
 #[tauri::command]
 pub async fn league_match_detail(game_id: i64) -> Result<Value, String> {
     ensure_enabled()?;
@@ -1699,8 +1642,6 @@ pub async fn league_match_detail(game_id: i64) -> Result<Value, String> {
     }))
 }
 
-/// Recent games of any player by puuid, for looking someone up straight from a
-/// scoreboard instead of retyping their name.
 #[tauri::command]
 pub async fn league_player_history(
     puuid: String,
@@ -1735,7 +1676,6 @@ pub async fn league_player_history(
     if local_games > 0 {
         return local;
     }
-    // Nothing locally: the backend may still have it.
     let count = (end - beg + 1).clamp(1, 50) as u32;
     match sgp::match_history_local(&client, &puuid, beg as u32, count).await {
         Ok(games) if !games.is_empty() => {
@@ -1745,8 +1685,6 @@ pub async fn league_player_history(
     }
 }
 
-/// Perk metadata (name and icon) so runes can be rendered without hardcoding
-/// paths. Cached by the patch-static rule.
 #[tauri::command]
 pub async fn league_perks() -> Result<Value, String> {
     ensure_enabled()?;
@@ -1769,8 +1707,6 @@ pub async fn league_perks() -> Result<Value, String> {
     Ok(json!({ "perks": list }))
 }
 
-/// Objective respawn estimates and a readable feed of what just happened,
-/// derived from the in-game event log.
 #[tauri::command]
 pub async fn league_live_events() -> Result<Value, String> {
     ensure_enabled()?;
@@ -1812,8 +1748,6 @@ pub async fn league_live_events() -> Result<Value, String> {
     }))
 }
 
-/// Live economy snapshot: gold carried in items, CS and level for every player,
-/// plus the difference against the opponent in the same position.
 #[tauri::command]
 pub async fn league_live_metrics() -> Result<Value, String> {
     ensure_enabled()?;
@@ -1910,7 +1844,6 @@ pub async fn league_live_metrics() -> Result<Value, String> {
         }));
     }
 
-    // Match each player against the opponent holding the same position.
     let mut enriched: Vec<Value> = Vec::new();
     for row in &rows {
         let position = row.get("position").and_then(Value::as_str).unwrap_or("");
@@ -1952,7 +1885,6 @@ pub async fn league_live_metrics() -> Result<Value, String> {
     }))
 }
 
-/// Computes the composite impact score for one player in one finished game.
 fn impact_from_detail(detail: &Value, puuid: &str) -> Option<f64> {
     let identities = detail.get("participantIdentities")?.as_array()?;
     let participants = detail.get("participants")?.as_array()?;
@@ -2009,7 +1941,6 @@ fn impact_from_detail(detail: &Value, puuid: &str) -> Option<f64> {
     Some(stats::impact_score(&input))
 }
 
-/// Aggregates a player's champion records the way a profile page shows them.
 fn champion_records_from_history(games: &[Value]) -> Vec<analysis::ChampionRecord> {
     let mut map: std::collections::HashMap<i64, analysis::ChampionRecord> =
         std::collections::HashMap::new();
@@ -2072,8 +2003,6 @@ fn champion_records_json(records: &[analysis::ChampionRecord]) -> Vec<Value> {
         .collect()
 }
 
-/// Timeline-derived aggressiveness markers: kills taken alone and deaths
-/// before the 15-minute mark, averaged over recent Summoner's Rift games.
 async fn deep_timeline_stats(client: &LcuClient, puuid: &str, games: &[Value]) -> Value {
     let ids: Vec<i64> = games
         .iter()
@@ -2163,8 +2092,6 @@ async fn deep_timeline_stats(client: &LcuClient, puuid: &str, games: &[Value]) -
     })
 }
 
-/// Resolves a Riot ID to a full profile: rank, level, champion records and
-/// mastery, in the shape a profile page needs.
 #[tauri::command]
 pub async fn league_search_player(game_name: String, tag_line: String) -> Result<Value, String> {
     ensure_enabled()?;
@@ -2229,7 +2156,6 @@ pub async fn league_search_player(game_name: String, tag_line: String) -> Result
     }))
 }
 
-/// Teammates the player wins the most with, ranked by shrunk win rate.
 #[tauri::command]
 pub async fn league_duos(sample: Option<u32>) -> Result<Value, String> {
     ensure_enabled()?;
@@ -2385,7 +2311,6 @@ pub async fn league_duos(sample: Option<u32>) -> Result<Value, String> {
     Ok(json!({ "analysedGames": analysed, "duos": list }))
 }
 
-/// Early-game map reading for a jungler, from match timelines.
 #[tauri::command]
 pub async fn league_jungle_report(puuid: String, sample: Option<u32>) -> Result<Value, String> {
     ensure_enabled()?;
@@ -2412,7 +2337,6 @@ pub async fn league_jungle_report(puuid: String, sample: Option<u32>) -> Result<
 
     let mut tasks = Vec::new();
     for game in &games {
-        // Only Summoner's Rift games carry a meaningful jungle path.
         if game.get("mapId").and_then(Value::as_i64) != Some(11) {
             continue;
         }
@@ -2605,7 +2529,6 @@ pub async fn league_jungle_report(puuid: String, sample: Option<u32>) -> Result<
     }))
 }
 
-/// Applies a rune page for a champion, replacing a page OmniGet owns.
 #[tauri::command]
 pub async fn league_apply_runes(
     name: String,
@@ -2621,7 +2544,6 @@ pub async fn league_apply_runes(
     }
     let client = get_client().await?;
 
-    // Reuse our own page when it exists so the user's own pages survive.
     let pages = lcu_get_raw(&client, "/lol-perks/v1/pages")
         .await
         .unwrap_or(Value::Null);
@@ -2648,8 +2570,6 @@ pub async fn league_apply_runes(
         .await;
     }
 
-    // Creating a page into a full book fails with an opaque error, so the
-    // inventory is checked first and the reason is said out loud.
     if let Ok(inventory) = lcu_get_raw(&client, "/lol-perks/v1/inventory").await {
         let can_add = inventory
             .get("canAddCustomPage")
@@ -2687,7 +2607,6 @@ pub async fn league_apply_runes(
     Ok(page)
 }
 
-/// Sends a line to the champion-select (or lobby) chat.
 #[tauri::command]
 pub async fn league_send_chat(message: String) -> Result<(), String> {
     ensure_enabled()?;
@@ -2731,10 +2650,6 @@ async fn send_champ_select_chat(client: &LcuClient, text: &str) -> Result<(), St
     Ok(())
 }
 
-/// Rune and summoner-spell setups the game client itself recommends.
-///
-/// This is the client's own recommendation engine, so it always matches the
-/// installed patch and comes localized — no scraping involved.
 #[tauri::command]
 pub async fn league_rune_recommendations(
     champion_id: i64,
@@ -2786,10 +2701,6 @@ pub async fn league_rune_recommendations(
     Ok(json!({ "championId": champion_id, "position": pos, "pages": list }))
 }
 
-/// Champion tier rankings, per position, from op.gg's public champion API.
-///
-/// The response is passed through with only the fields the UI needs; the
-/// numeric `tier` (1 = best) is what op.gg renders as S+/S/A and friends.
 #[tauri::command]
 pub async fn league_champion_tiers(
     region: Option<String>,
@@ -2870,13 +2781,6 @@ pub async fn league_champion_tiers(
     Ok(json!({ "region": region, "bracket": bracket, "champions": entries }))
 }
 
-/// Item build for a champion, derived from games this client can actually see.
-///
-/// Third-party build sites either forbid third-party use of their API or ask
-/// crawlers to stay out, and Riot's own `recommended` blocks ship empty, so the
-/// sample here is the player's own recent matches: every participant on that
-/// champion across those games contributes their finished items. The response
-/// always reports how many games backed it so a thin sample is obvious.
 #[tauri::command]
 pub async fn league_champion_build(champion_id: i64, sample: Option<u32>) -> Result<Value, String> {
     ensure_enabled()?;
@@ -2924,7 +2828,6 @@ pub async fn league_champion_build(champion_id: i64, sample: Option<u32>) -> Res
         }));
     }
 
-    // (games seen, games won) per item and per summoner-spell pair.
     let mut items: std::collections::HashMap<i64, (u32, u32)> = std::collections::HashMap::new();
     let mut spells: std::collections::HashMap<(i64, i64), (u32, u32)> =
         std::collections::HashMap::new();
@@ -2951,7 +2854,6 @@ pub async fn league_champion_build(champion_id: i64, sample: Option<u32>) -> Res
             if won {
                 wins += 1;
             }
-            // Slot 6 is the trinket, which is not part of a build.
             for slot in 0..6 {
                 let item = stats
                     .get(format!("item{}", slot))
@@ -3014,10 +2916,6 @@ pub async fn league_champion_build(champion_id: i64, sample: Option<u32>) -> Res
     }))
 }
 
-/// Ability haste granted by an item, read from its own description text.
-///
-/// The game data files expose stats only as markup, so the number is pulled
-/// from the `<attention>N</attention> Ability Haste` fragment.
 fn item_ability_haste(description: &str) -> i64 {
     let lower = description.to_ascii_lowercase();
     let Some(idx) = lower.find("ability haste") else {
@@ -3033,7 +2931,6 @@ fn item_ability_haste(description: &str) -> i64 {
     head[open + 1..close].trim().parse::<i64>().unwrap_or(0)
 }
 
-/// Cooldown after ability haste, using the game's own diminishing formula.
 fn haste_cooldown(base: f64, haste: i64) -> f64 {
     if base <= 0.0 {
         return 0.0;
@@ -3042,11 +2939,6 @@ fn haste_cooldown(base: f64, haste: i64) -> f64 {
     (reduced * 10.0).round() / 10.0
 }
 
-/// Ability ranks a player of a given level most likely has.
-///
-/// Levelling order varies, so this is the standard shape — ultimate at 6/11/16,
-/// the remaining points spread across the basic abilities — and it is labelled
-/// as an estimate wherever it is shown.
 fn estimated_ranks(level: i64) -> [i64; 4] {
     let level = level.clamp(1, 18);
     let ult = if level >= 16 {
@@ -3060,7 +2952,6 @@ fn estimated_ranks(level: i64) -> [i64; 4] {
     };
     let spent_on_ult = ult;
     let basic_points = (level - spent_on_ult).max(0);
-    // Spread the basic points across Q, W and E, favouring the earlier slots.
     let base = basic_points / 3;
     let extra = basic_points % 3;
     let mut ranks = [base.min(5), base.min(5), base.min(5), ult];
@@ -3074,8 +2965,6 @@ static HASTE_TABLE: Lazy<Mutex<Option<(std::time::Instant, std::collections::Has
     Lazy::new(|| Mutex::new(None));
 const HASTE_TABLE_TTL: std::time::Duration = std::time::Duration::from_secs(6 * 60 * 60);
 
-/// Ability-haste per item, from the English game-data mirror. The client
-/// localises item text, so the number cannot be read from the local copy.
 async fn load_haste_table(http: &reqwest::Client) -> std::collections::HashMap<i64, i64> {
     {
         let cached = HASTE_TABLE.lock().await;
@@ -3116,7 +3005,6 @@ async fn load_haste_table(http: &reqwest::Client) -> std::collections::HashMap<i
     table
 }
 
-/// Live cooldown estimates for every champion in the running game.
 #[tauri::command]
 pub async fn league_ability_cooldowns() -> Result<Value, String> {
     ensure_enabled()?;
@@ -3153,8 +3041,6 @@ pub async fn league_ability_cooldowns() -> Result<Value, String> {
         }
     }
 
-    // Summoner spells are matched by their localized name, since that is the
-    // only identifier the in-game data server exposes.
     let spell_meta = lcu_get_raw(&client, "/lol-game-data/assets/v1/summoner-spells.json")
         .await
         .unwrap_or(Value::Null);
@@ -3171,8 +3057,6 @@ pub async fn league_ability_cooldowns() -> Result<Value, String> {
                     .and_then(Value::as_str)
                     .unwrap_or("")
                     .to_string();
-                // Game-mode variants reuse the same name with a zero cooldown;
-                // a real cooldown must never be replaced by one of those.
                 spell_by_name
                     .entry(name.to_string())
                     .and_modify(|existing| {
@@ -3265,8 +3149,6 @@ pub async fn league_ability_cooldowns() -> Result<Value, String> {
             })
             .unwrap_or_default();
 
-        // Boots of Lucidity are the only summoner-haste source visible from
-        // item data; runes are hidden, so the number stays an estimate.
         let summoner_haste = if item_ids.contains(&3158) { 10 } else { 0 };
         let spell_slots = ["summonerSpellOne", "summonerSpellTwo"];
         let spell_timers: Vec<Value> = spell_slots
@@ -3308,7 +3190,6 @@ pub async fn league_ability_cooldowns() -> Result<Value, String> {
     Ok(json!({ "players": rows, "estimated": true }))
 }
 
-/// Launches the spectator client on another player's running game.
 #[tauri::command]
 pub async fn league_spectate(puuid: String, riot_id: String) -> Result<(), String> {
     ensure_enabled()?;
@@ -3332,8 +3213,6 @@ pub async fn league_spectate(puuid: String, riot_id: String) -> Result<(), Strin
     Ok(())
 }
 
-/// Quits champion select through the login-session proxy, taking the dodge
-/// penalty. There is no supported endpoint for this, hence the raw invoke.
 #[tauri::command]
 pub async fn league_dodge() -> Result<(), String> {
     ensure_enabled()?;
@@ -3488,8 +3367,6 @@ async fn handle_champ_select(
                 Some(p) => p,
                 None => continue,
             };
-            // Bans avoid what allies want; a random pick does too, so the
-            // roulette never hovers a champion a teammate already called.
             let avoid: HashSet<i64> = if action_type == "ban" || random_pick {
                 ally_intents.clone()
             } else {
@@ -3518,8 +3395,6 @@ async fn handle_champ_select(
                     continue;
                 }
             }
-            // A ban that is declared but never confirmed accomplishes nothing, so
-            // the confirm modes only apply to picks.
             let complete_action = if action_type == "ban" {
                 true
             } else {
@@ -3527,8 +3402,6 @@ async fn handle_champ_select(
                     champ_select::pick_confirm(settings.auto_lock, settings.auto_lock_at_timeout);
                 let lock = champ_select::should_lock_now(mode, champ_select::time_left_ms(session));
                 if !lock && CS_DECLARED.lock().await.contains(&action_id) {
-                    // Intent is already showing; nothing to send until it is time
-                    // to lock (or never, when the user does the locking).
                     continue;
                 }
                 lock

@@ -15,13 +15,8 @@ pub enum AiProvider {
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct AiConfig {
-    /// Which wire `chat()` speaks. Derived from [`AiConfig::kind`] since the LLM
-    /// expansion (`set_from_key`), not chosen by hand.
     #[serde(default)]
     pub provider: AiProvider,
-    /// Never serialised: `ai_config.json` holds metadata only and the key lives
-    /// in the secret store. Deserialising still works, which is how a file
-    /// written by an older build is read once and migrated.
     #[serde(default, skip_serializing)]
     pub openai_key: String,
     #[serde(default, skip_serializing)]
@@ -30,24 +25,15 @@ pub struct AiConfig {
     pub local_base_url: String,
     #[serde(default)]
     pub model: String,
-    /// The `ai_keys::Kind::id` behind this config ("openai", "openrouter",
-    /// "gemini", …) — the `ProviderId` the LLM layer routes on. Empty on a
-    /// config that predates the expansion.
     #[serde(default)]
     pub kind: String,
-    /// The `ai_keys` entry this came from, so the vault and the app config stop
-    /// drifting apart.
     #[serde(default)]
     pub key_id: String,
 }
 
-// Sent to the frontend instead of AiConfig: key material is replaced with
-// presence booleans so a raw key can never reach the UI, logs, or telemetry.
 #[derive(Clone, Debug, Serialize)]
 pub struct AiConfigView {
     pub provider: AiProvider,
-    /// The `ai_keys` provider id behind `provider`; empty before the first
-    /// `use_in_app`.
     pub kind: String,
     pub model: String,
     pub local_base_url: String,
@@ -72,9 +58,6 @@ impl AiConfig {
             AiProvider::None => false,
             AiProvider::Openai => !self.openai_key.is_empty(),
             AiProvider::Anthropic => !self.anthropic_key.is_empty(),
-            // `Local` is every OpenAI-shaped provider that is not api.openai.com,
-            // so the endpoint is what makes it usable. A key is only required by
-            // the rows that take one: a local server answers without it.
             AiProvider::Local => {
                 !self.local_base_url.is_empty()
                     && (!self.kind_needs_key() || !self.openai_key.is_empty())
@@ -82,8 +65,6 @@ impl AiConfig {
         }
     }
 
-    /// Whether the provider this config routes on takes a credential. A config
-    /// without a kind (older builds) routes as `custom`, which does not.
     fn kind_needs_key(&self) -> bool {
         crate::core::tools::ai_keys::kind_of(&self.provider_id()).needs_key()
     }
@@ -99,9 +80,6 @@ fn file_path() -> Option<std::path::PathBuf> {
     crate::core::paths::app_data_dir().map(|d| d.join(AI_CONFIG_FILE))
 }
 
-/// Read the config and put the keys back on it from the secret store. A file
-/// written before the LLM expansion still carries them in plain text: that is
-/// migrated here, once, with a 0600 backup beside the file.
 fn load_from_disk() -> AiConfig {
     let Some(path) = file_path() else {
         return AiConfig::default();
@@ -110,8 +88,6 @@ fn load_from_disk() -> AiConfig {
         Ok(c) => serde_json::from_str(&c).unwrap_or_default(),
         Err(_) => AiConfig::default(),
     };
-    // The migration takes the keys off `cfg` and into the store, so either way
-    // the hydration below is what puts them back.
     crate::core::tools::ai_keys::migrate::migrate_config_file(&path, &mut cfg);
     hydrate_keys(&mut cfg);
     cfg
@@ -133,7 +109,6 @@ fn hydrate_keys(cfg: &mut AiConfig) {
     cfg.anthropic_key = stored_key(migrate::APP_ANTHROPIC_ACCOUNT);
 }
 
-/// The API keys never enter JSON: the fields are `skip_serializing`.
 fn write_config_file(path: &std::path::Path, cfg: &AiConfig) -> Result<(), String> {
     use std::io::Write;
 
@@ -159,9 +134,6 @@ fn write_config_file(path: &std::path::Path, cfg: &AiConfig) -> Result<(), Strin
     Ok(())
 }
 
-/// Persist secrets first and the atomic config file last. If either layer
-/// fails, restore every secret already written so memory and disk keep the
-/// previous configuration. Secret values are never included in errors.
 fn persist_config(
     previous: &AiConfig,
     next: &AiConfig,
@@ -235,8 +207,6 @@ pub fn get() -> AiConfig {
     store().lock().unwrap().clone()
 }
 
-// Key fields are Option: None keeps the stored key untouched (so the UI never
-// has to round-trip secrets), Some("") clears it.
 pub fn set(
     provider: AiProvider,
     model: String,
@@ -262,11 +232,6 @@ pub fn set(
     Ok(next)
 }
 
-/// Configure the app's AI by picking a row of the provider table in Settings.
-///
-/// The wire is derived from the kind (the same rule as [`provider_for_kind`]),
-/// and a provider whose endpoint is fixed in the table gets it without the form
-/// carrying one. Key fields follow [`set`]: `None` keeps, `Some("")` clears.
 pub fn set_kind(
     kind: &str,
     model: String,
@@ -282,12 +247,6 @@ pub fn set_kind(
     Ok(next)
 }
 
-/// The config [`set_kind`] stores, without touching disk.
-///
-/// Switching providers never carries the previous provider's credential over:
-/// both OpenAI-shaped providers share the `openai_key` slot, so a blank key
-/// field on a switch would otherwise send the first provider's key to the
-/// second one's endpoint as a bearer token.
 fn apply_kind(
     previous: &AiConfig,
     kind: &str,
@@ -298,17 +257,12 @@ fn apply_kind(
 ) -> AiConfig {
     let kind = kind.trim();
     let provider = provider_for_kind(kind);
-    // Turning AI off keeps the keys (Settings says so), so coming back from
-    // off is not a switch; the kind recorded before it is gone by then.
     let switched = previous.provider != AiProvider::None && previous.provider_id() != kind;
     let mut next = previous.clone();
     next.provider = provider;
     next.model = model.trim().to_string();
     next.local_base_url = match provider {
-        // The OpenAI and Anthropic wires have a fixed endpoint in `chat()`.
         AiProvider::Openai | AiProvider::Anthropic | AiProvider::None => String::new(),
-        // A row whose table URL is only a shape (custom, a relay) has no
-        // endpoint until the user types one.
         AiProvider::Local
             if base_url.trim().is_empty()
                 && kind != "ollama"
@@ -334,7 +288,6 @@ fn apply_kind(
         || previous.openai_key != next.openai_key
         || previous.anthropic_key != next.anthropic_key
     {
-        // The vault entry no longer describes what is stored.
         next.key_id.clear();
     }
     next.kind = kind.to_string();
@@ -347,13 +300,10 @@ fn clear_changed_connection_metadata(previous: &AiConfig, next: &mut AiConfig) {
         next.key_id.clear();
     } else if previous.openai_key != next.openai_key || previous.anthropic_key != next.anthropic_key
     {
-        // A manual replacement/removal no longer represents the vault entry.
         next.key_id.clear();
     }
 }
 
-/// Which wire an `ai_keys` kind speaks. `Local` is not a downgrade: it is the
-/// OpenAI dialect against a base URL that is not api.openai.com.
 pub fn provider_for_kind(kind: &str) -> AiProvider {
     match crate::core::tools::ai_keys::kind_of(kind).wire {
         "anthropic" => AiProvider::Anthropic,
@@ -363,9 +313,6 @@ pub fn provider_for_kind(kind: &str) -> AiProvider {
 }
 
 impl AiConfig {
-    /// The `ProviderId` this config represents. Falls back to the wire when the
-    /// kind is empty (a config from before the expansion) or stale (the user
-    /// switched provider by hand in Settings).
     pub fn provider_id(&self) -> String {
         if !self.kind.is_empty() && provider_for_kind(&self.kind) == self.provider {
             return self.kind.clone();
@@ -386,10 +333,6 @@ fn http_client() -> Result<reqwest::Client, String> {
         .map_err(|e| format!("HTTP client error: {}", e))
 }
 
-/// The `Provider` behind the app's configured account. Built per turn because
-/// the config can change between calls, and shared with `core::llm`: the app
-/// and the agents speak through the same client, the same retry policy and the
-/// same SSE parser.
 pub fn provider_from_config(
     cfg: &AiConfig,
 ) -> Result<std::sync::Arc<dyn crate::core::llm::providers::Provider>, String> {
@@ -430,7 +373,6 @@ pub fn provider_from_config(
     }
 }
 
-/// A turn that costs nothing: a server on this machine, or Ollama.
 fn is_free_endpoint(cfg: &AiConfig) -> bool {
     if cfg.kind == "ollama" {
         return true;
@@ -442,11 +384,6 @@ fn is_free_endpoint(cfg: &AiConfig) -> bool {
         || base.contains("://0.0.0.0")
 }
 
-/// Single-shot chat kept for the whole app (`humanize`, `ai_test`,
-/// `ai_summarize_url`, legendas, coach da League): the signature is the same as
-/// before the LLM expansion, but underneath it is now one `TurnRequest` on the
-/// `core::llm` stack — streaming, retry with backoff, cancellation and the
-/// provider-reported `usage`. Anthropic no longer truncates at 1024 tokens.
 pub async fn chat(system: &str, user: &str) -> Result<String, String> {
     let cfg = get();
     if cfg.model.is_empty() {
@@ -461,7 +398,6 @@ pub async fn chat(system: &str, user: &str) -> Result<String, String> {
     .await
 }
 
-/// `chat` against an explicit config and cancellation token.
 pub async fn chat_with(
     cfg: &AiConfig,
     system: &str,
@@ -504,7 +440,6 @@ pub async fn chat_with(
         }
     }
 
-    // Ledger de custo (Tools → Custos de IA), agora com cache e latência.
     let free = is_free_endpoint(cfg);
     let mut entry =
         crate::core::tools::usage::UsageEntry::now("chat", &cfg.provider_id(), &cfg.model);
@@ -534,8 +469,6 @@ pub async fn chat_with(
     Ok(trimmed.to_string())
 }
 
-/// Endpoint and key of the configured provider's OpenAI-style
-/// `/audio/transcriptions`.
 pub fn transcription_target(cfg: &AiConfig) -> Result<(String, String), String> {
     Ok(match cfg.provider {
         AiProvider::Openai => (
@@ -555,9 +488,6 @@ pub fn transcription_target(cfg: &AiConfig) -> Result<(String, String), String> 
     })
 }
 
-// Whisper-style transcription via the OpenAI-compatible audio endpoint. Only
-// available for Openai/Local providers (Anthropic has no audio API). Reuses
-// the configured key/base so no separate model management is needed.
 pub async fn transcribe(audio_path: &std::path::Path) -> Result<String, String> {
     let cfg = get();
     let (endpoint, key) = transcription_target(&cfg)?;
@@ -596,9 +526,6 @@ pub async fn transcribe(audio_path: &std::path::Path) -> Result<String, String> 
     if !status.is_success() {
         return Err(format!("Transcription error ({})", status.as_u16()));
     }
-    // Ledger: o Whisper é cobrado por minuto de áudio, então a linha leva
-    // `seconds` (do ffprobe, melhor esforço) e os caracteres transcritos —
-    // os dois campos que existiam no `UsageEntry` e nunca eram escritos.
     let seconds = crate::core::ffmpeg::probe(audio_path)
         .await
         .map(|p| p.duration_seconds)

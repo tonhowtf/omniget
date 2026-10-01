@@ -1,7 +1,3 @@
-//! Unified diff of two texts (own LCS, 3 lines of context). Used to turn an
-//! ACP `diff` content (`oldText`/`newText`) into the patch a `request.opened`
-//! shows. Big inputs get a one-line summary instead of a quadratic table.
-
 pub fn unified_diff(old: &str, new: &str, path: &str) -> String {
     if old == new {
         return String::new();

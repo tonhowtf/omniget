@@ -1,15 +1,9 @@
-//! Repository discovery and read-only queries: root, branch, remote, porcelain
-//! v2 status, ahead/behind, branches and log.
-
 use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
 use super::runner::{redact, Invocation, VcsError, VcsResult};
 
-/// Where git commands run. `Repo` is a normal checkout (main or linked
-/// worktree); `Shadow` is a private git dir under the app data dir whose work
-/// tree is a folder that has no git of its own.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum GitCtx {
     Repo {
@@ -32,7 +26,6 @@ impl GitCtx {
         matches!(self, GitCtx::Shadow { .. })
     }
 
-    /// A `git` invocation bound to this context.
     pub fn git(&self) -> Invocation {
         match self {
             GitCtx::Repo { work_tree } => Invocation::git().arg("-C").arg(work_tree).cwd(work_tree),
@@ -49,7 +42,6 @@ impl GitCtx {
         }
     }
 
-    /// Absolute git dir (per-worktree for a linked worktree).
     pub async fn git_dir(&self) -> VcsResult<PathBuf> {
         match self {
             GitCtx::Shadow { git_dir, .. } => Ok(git_dir.clone()),
@@ -70,11 +62,9 @@ pub struct RepoPaths {
     pub root: PathBuf,
     pub git_dir: PathBuf,
     pub common_dir: PathBuf,
-    /// A linked worktree (`.git` is a file), not the main checkout.
     pub linked_worktree: bool,
 }
 
-/// Finds the repository that contains `path`. `NotRepo` when there is none.
 pub async fn discover(path: &Path) -> VcsResult<RepoPaths> {
     if !path.exists() {
         return Err(VcsError::NotFound(format!(
@@ -143,11 +133,8 @@ pub struct StatusFile {
     pub path: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub orig_path: Option<String>,
-    /// Index (staged) state letter, `.` when unchanged.
     pub index: char,
-    /// Work tree state letter, `.` when unchanged.
     pub worktree: char,
-    /// modified | added | deleted | renamed | copied | typechange | untracked | conflict | ignored
     pub kind: String,
 }
 
@@ -180,7 +167,6 @@ fn kind_of(x: char, y: char) -> &'static str {
     }
 }
 
-/// Parses `git status --porcelain=v2 --branch -z`.
 pub fn parse_porcelain_v2(raw: &[u8]) -> Porcelain {
     let mut p = Porcelain::default();
     let recs: Vec<&[u8]> = raw.split(|b| *b == 0).collect();
@@ -289,9 +275,7 @@ pub fn parse_porcelain_v2(raw: &[u8]) -> Porcelain {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct RemoteInfo {
     pub name: String,
-    /// Fetch URL with any credential blanked.
     pub url: String,
-    /// github | gitlab | bitbucket | azure | forgejo | unknown
     pub host_kind: String,
 }
 
@@ -302,7 +286,6 @@ pub struct RepoStatus {
     pub git_dir: Option<PathBuf>,
     pub common_dir: Option<PathBuf>,
     pub linked_worktree: bool,
-    /// Lives under OmniGet's own worktrees dir.
     pub omniget_worktree: bool,
     pub branch: Option<String>,
     pub head: Option<String>,
@@ -317,9 +300,7 @@ pub struct RepoStatus {
     pub untracked: u32,
     pub conflicts: u32,
     pub files: Vec<StatusFile>,
-    /// `gh-merge-base` recorded for the branch (base of an OmniGet worktree).
     pub base_branch: Option<String>,
-    /// An `index.lock` is present; status was not taken.
     pub index_locked: bool,
 }
 
@@ -351,7 +332,6 @@ impl RepoStatus {
     }
 }
 
-/// Classifies a remote URL by its host.
 pub fn host_kind(url: &str) -> &'static str {
     let lower = url.to_ascii_lowercase();
     let host = lower
@@ -382,7 +362,6 @@ pub fn host_kind(url: &str) -> &'static str {
     }
 }
 
-/// Primary remote: `origin`, else the first one.
 pub async fn primary_remote(ctx: &GitCtx) -> VcsResult<Option<RemoteInfo>> {
     let out = ctx.git().arg("remote").unchecked().run().await?;
     let names: Vec<String> = out
@@ -426,8 +405,6 @@ pub async fn config_get(ctx: &GitCtx, key: &str) -> Option<String> {
     (out.ok() && !v.is_empty()).then_some(v)
 }
 
-/// Full status of the checkout that contains `path`. A path outside any repo
-/// answers `is_repo: false` instead of an error.
 pub async fn status(path: &Path) -> VcsResult<RepoStatus> {
     let paths = match discover(path).await {
         Ok(p) => p,
@@ -510,7 +487,6 @@ pub struct BranchInfo {
     pub oid: String,
     pub upstream: Option<String>,
     pub updated_at: i64,
-    /// Checked out in some worktree (path), if any.
     pub worktree: Option<PathBuf>,
 }
 

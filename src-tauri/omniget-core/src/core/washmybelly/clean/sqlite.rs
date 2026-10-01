@@ -1,11 +1,3 @@
-//! SQLite vacuum and log truncation, done the careful way.
-//!
-//! A database is compacted through SQLite itself (rusqlite, bundled): a
-//! `wal_checkpoint(TRUNCATE)` first, then `VACUUM`. If another program holds
-//! the database, SQLite says so and we stop with a reason. The `-wal` and
-//! `-shm` files are never touched by hand: deleting a WAL with the database
-//! open can lose committed data (a bug the studies found upstream).
-
 use std::path::Path;
 use std::time::Duration;
 
@@ -13,8 +5,6 @@ use rusqlite::{Connection, OpenFlags};
 
 use super::super::fsops;
 
-/// How long a vacuum waits for another program's lock before it gives up.
-/// Unit tests hold the lock on purpose, so they wait less.
 const BUSY_WAIT: Duration = if cfg!(test) {
     Duration::from_millis(50)
 } else {
@@ -23,8 +13,6 @@ const BUSY_WAIT: Duration = if cfg!(test) {
 
 const MAGIC: &[u8; 16] = b"SQLite format 3\0";
 
-/// Bytes a `VACUUM` would give back, from the header: free pages × page
-/// size. `None` when the file is not a SQLite database.
 pub fn estimate(path: &Path) -> Option<u64> {
     use std::io::Read;
     let mut head = [0u8; 100];
@@ -66,7 +54,6 @@ fn locked(e: &rusqlite::Error) -> bool {
     )
 }
 
-/// Checkpoint and vacuum. Returns the bytes given back (database + WAL).
 pub fn vacuum(path: &Path) -> Result<u64, String> {
     if is_side_file(path) {
         return Err(
@@ -103,7 +90,6 @@ pub fn vacuum(path: &Path) -> Result<u64, String> {
     Ok(before.saturating_sub(size_with_wal(path)))
 }
 
-/// Truncate a log file to zero bytes; the app keeps its handle.
 pub fn truncate(path: &Path) -> Result<u64, String> {
     let m = std::fs::symlink_metadata(path).map_err(|e| e.to_string())?;
     if !m.is_file() || fsops::is_link(&m) {

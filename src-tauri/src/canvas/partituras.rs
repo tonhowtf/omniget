@@ -1,7 +1,3 @@
-//! App host of the partitura library: the `partitura.*` canvas RPC methods.
-//! Agents can list the library; only a Maestro stamps one (it starts
-//! terminals), always under itself and with local roles winning.
-
 use std::collections::HashMap;
 
 use omniget_core::core::canvas::layout;
@@ -81,7 +77,6 @@ fn stamp(ctx: &NodeCtx, args: Value) -> Result<Value, String> {
                 .unwrap_or(false),
         },
     )?;
-    // The CLI has no review sheet: say what started and what it runs.
     let cmds: Vec<String> = p
         .doc
         .nodes

@@ -1,14 +1,3 @@
-//! Junk cleanup: one rule engine fed by BleachBit CleanerML, Kudu, Mole,
-//! PureMac and our own rules.
-//!
-//! - [`catalog`]: every rule of every source, in engine order;
-//! - [`engine`]: scans the rules of this system (nothing changes);
-//! - [`tool_junk_scan`]: the `wmb_junk_scan` tool, which hands the items to
-//!   `plan::offer`;
-//! - [`plan_execute`] / [`plan_elevated`]: the module actions the plan
-//!   engine calls back (`delete_files`, `truncate`, `sqlite_vacuum`, and the
-//!   administrator ones).
-
 pub mod artifacts;
 pub mod catalog;
 pub mod cleanerml;
@@ -51,8 +40,6 @@ fn risk_arg(a: &Value) -> Risk {
         .unwrap_or(Risk::Extreme)
 }
 
-/// Scan, then offer: every item becomes a candidate for `wmb_plan`, and the
-/// returned plan holds only the items ticked by default.
 pub fn junk_scan(
     ctx: &Ctx,
     env: &engine::Env,
@@ -69,7 +56,6 @@ pub fn junk_scan(
     if env.os == Os::Windows {
         mark_locked(&mut scan.items);
     }
-    // What the plan engine would refuse never reaches it.
     scan.items.retain(|it| match &it.plan.op {
         Op::RemovePath {
             path, root, guard, ..
@@ -100,8 +86,6 @@ pub fn junk_scan(
         .collect();
     let mut plan_id = Value::Null;
     if !all.is_empty() {
-        // Every item is pickable through `wmb_plan`; the returned plan holds
-        // only the ticked ones.
         plan::register("cleanup", &all);
         if !selected.is_empty() {
             plan_id = json!(plan::offer(ctx, "cleanup", selected, source)?.id);
@@ -126,8 +110,6 @@ pub fn junk_scan(
     }))
 }
 
-/// Windows: files a process holds open (Restart Manager, `locks::lockers`)
-/// leave their item unticked with "in use by <names>".
 fn mark_locked(items: &mut [engine::Item]) {
     let mut owner: Vec<(usize, PathBuf)> = Vec::new();
     for (i, it) in items.iter().enumerate() {
@@ -167,7 +149,6 @@ pub async fn tool_junk_scan(a: Value) -> Result<Value, String> {
         let ctx = Ctx::app()?;
         let full = categories.is_empty() && max_risk == Risk::Extreme;
         let out = junk_scan(&ctx, &engine::Env::system(), categories, max_risk, source)?;
-        // Only a full scan speaks for the whole machine.
         if full {
             record_score(&ctx, out["selected_bytes"].as_u64().unwrap_or(0));
         }
@@ -176,8 +157,6 @@ pub async fn tool_junk_scan(a: Value) -> Result<Value, String> {
     .await
 }
 
-/// Leaves what a full scan would clean by default for the health score
-/// (`score_inputs.junk_bytes`), keeping the other modules' fields.
 fn record_score(ctx: &Ctx, bytes: u64) {
     let mut v: Value = ctx.kv_get("score_inputs").unwrap_or_else(|| json!({}));
     if !v.is_object() {
@@ -195,11 +174,7 @@ fn record_score(ctx: &Ctx, bytes: u64) {
     let _ = ctx.kv_set("score_inputs", &v);
 }
 
-// ── Plan hooks (called by `plan::execute` for `Op::Module { module: "clean" }`) ──
-
-/// Actions this module runs itself (no administrator).
 pub const ACTIONS: &[&str] = &["delete_files", "apfs_clone", "truncate", "sqlite_vacuum"];
-/// Actions that only run through `omniget-elevate`.
 pub const ADMIN_ACTIONS: &[&str] = &[
     "journal_vacuum",
     "tmutil_thin",
@@ -226,13 +201,11 @@ fn fp_arg(v: &Value) -> Result<Fingerprint, String> {
         .map_err(|e| format!("bad fingerprint: {e}"))
 }
 
-/// A path the scan found, checked again: protection, root, fingerprint.
 fn revalidate(path: &Path, root: &Path, fp: &Fingerprint) -> Result<(), String> {
     protect::check(path, Guard::Rule, Some(root))?;
     fsops::unchanged(path, fp)
 }
 
-/// The processes or lock files named by the rule, open right now.
 fn still_running(args: &Value) -> Option<String> {
     let names: Vec<String> = args
         .get("running")
@@ -255,8 +228,6 @@ pub fn plan_execute(
 ) -> Result<Outcome, String> {
     match action {
         "delete_files" => delete_files(args),
-        // Duplicates on APFS: the copy becomes a clone of the kept file
-        // (the files module does the checks and the swap).
         "apfs_clone" => {
             let keep = path_arg(args, "keep")?;
             let replace = path_arg(args, "replace")?;
@@ -317,7 +288,6 @@ fn delete_files(args: &Value) -> Result<Outcome, String> {
         let size = fsops::measure(&path).0;
         let r = match dest {
             Destination::Unlink => fsops::remove_tree(&path, false),
-            // Many small files: the system Trash, restorable as a group.
             Destination::Trash | Destination::Quarantine => fsops::to_trash(&path).map(|()| {
                 trashed.push(path.clone());
                 size
@@ -407,7 +377,6 @@ pub fn plan_elevated(
                 None,
             ))
         }
-        // The helper re-derives the argv from the id (closed table).
         "pkg_cache" | "snap_revision" => {
             let id = native_id(action, args)?;
             native_argv(&id)?;
@@ -425,7 +394,6 @@ fn windows_maintenance_id(id: &str) -> Result<(), String> {
 
 pub fn plan_undo(_ctx: &Ctx, action: &str, _args: &Value) -> Result<String, String> {
     if action == "apfs_clone" {
-        // Same bytes before and after: there is nothing to bring back.
         return Ok("nothing to undo: the file kept identical content".into());
     }
     Err(format!(
@@ -433,10 +401,6 @@ pub fn plan_undo(_ctx: &Ctx, action: &str, _args: &Value) -> Result<String, Stri
     ))
 }
 
-// ── Administrator executors (run inside `omniget-elevate`) ──────────
-
-/// A system program by absolute path. As root we never search PATH (the
-/// app's PATH includes folders the user can write).
 #[cfg(unix)]
 fn system_program(name: &str) -> Result<PathBuf, String> {
     for dir in ["/usr/bin", "/bin", "/usr/sbin", "/sbin"] {
@@ -547,9 +511,6 @@ fn native_id(action: &str, args: &Value) -> Result<String, String> {
     }
 }
 
-/// The fixed argv and the folders measured before and after, for an
-/// administrator cleanup id (`pkg_cache:apt`, `snap_revision:<name>:<rev>`).
-/// The helper derives it again from the id; nothing else reaches root.
 pub fn native_argv(id: &str) -> Result<(Vec<String>, Vec<&'static str>), String> {
     let v = |xs: &[&str]| xs.iter().map(|s| s.to_string()).collect::<Vec<_>>();
     if let Some(manager) = id.strip_prefix("pkg_cache:") {
@@ -589,7 +550,6 @@ pub fn native_argv(id: &str) -> Result<(Vec<String>, Vec<&'static str>), String>
     Err(format!("unknown cleanup id {id}"))
 }
 
-/// The terminal equivalent of [`native_argv`] (display only).
 pub fn native_command_line(id: &str) -> String {
     match native_argv(id) {
         Ok((argv, _)) => format!("sudo {}", argv.join(" ")),
@@ -597,8 +557,6 @@ pub fn native_command_line(id: &str) -> String {
     }
 }
 
-/// Executor for a future `ElevatedOp::CleanNative { id }`: re-derives the
-/// argv from the id, checks a snap revision is still disabled, measures.
 pub fn elevated_native(id: &str) -> Result<(String, u64), String> {
     let (argv, measure) = native_argv(id)?;
     #[cfg(target_os = "linux")]
@@ -634,18 +592,12 @@ pub fn elevated_native(id: &str) -> Result<(String, u64), String> {
     }
 }
 
-/// App data that looks like cache but is not (the upstream protection list
-/// and ours). Returns the matching pattern when `path` must never be
-/// removed by a rule.
 pub fn protection_match(path: &Path) -> Option<String> {
     protection::protection_match(path)
 }
 
-/// Actions only the screen may run (`washmybelly_ui` with `clean.<action>`):
-/// never exposed as MCP tools.
 pub async fn ui_action(action: &str, _a: Value) -> Result<Value, String> {
     match action {
-        // The rules this system has, with their defaults, for the settings list.
         "catalog" => {
             let os = super::current_os();
             let rules: Vec<Value> = catalog::rules_for(os)

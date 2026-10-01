@@ -1,22 +1,6 @@
-//! Audio analysis over decoded mono PCM (f32, -1..1).
-//!
-//! Everything here is pure so it can be tested without ffmpeg: the caller
-//! decodes (see `analysis::decode_args`) and hands the samples over.
-//!
-//! - `peaks`: the waveform drawn under the seek bar.
-//! - `bpm`: spectral-flux onset envelope + autocorrelation with a log-normal
-//!   prior around 120 BPM (the approach librosa's `beat.tempo` uses).
-//! - `key`: 12-bin chroma matched against the Krumhansl-Kessler profiles.
-//! - `spectral_cutoff`: highest band with real energy, to flag lossless files
-//!   that were made from a lossy source (a 16 kHz wall means a 128k MP3).
-//! - `silence_bounds` / `outro_start`: where the music starts and where the
-//!   fade-out begins, for gapless trimming and automatic crossfades.
-
 use rustfft::{num_complex::Complex, FftPlanner};
 use serde::{Deserialize, Serialize};
 
-/// Max |sample| per bucket, 255 = full scale. Not normalized per track, so
-/// a quiet master looks quiet (the UI can still stretch it).
 pub fn peaks(samples: &[f32], buckets: usize) -> Vec<u8> {
     if samples.is_empty() || buckets == 0 {
         return Vec::new();
@@ -39,7 +23,6 @@ fn hann(n: usize) -> Vec<f32> {
         .collect()
 }
 
-/// Magnitude spectra of successive frames.
 fn stft(samples: &[f32], frame: usize, hop: usize, mut f: impl FnMut(&[f32])) {
     if samples.len() < frame {
         return;
@@ -63,7 +46,6 @@ fn stft(samples: &[f32], frame: usize, hop: usize, mut f: impl FnMut(&[f32])) {
     }
 }
 
-/// Averages pairs of samples until the rate is at most `target`.
 pub fn downsample(samples: &[f32], rate: u32, target: u32) -> (Vec<f32>, u32) {
     let mut s = samples.to_vec();
     let mut r = rate;
@@ -77,14 +59,11 @@ pub fn downsample(samples: &[f32], rate: u32, target: u32) -> (Vec<f32>, u32) {
     (s, r)
 }
 
-/// Onset strength per frame (log spectral flux, half-wave rectified, with
-/// the local mean removed).
 fn onset_envelope(samples: &[f32], rate: u32) -> (Vec<f32>, f32) {
     let frame = 1024;
     let hop = 256;
     let mut prev: Option<Vec<f32>> = None;
     let mut env = Vec::new();
-    // Ignore sub-bass rumble and the top octave: kicks and snares live below 8 kHz.
     let max_bin = ((8000.0 / rate as f32) * frame as f32) as usize;
     stft(samples, frame, hop, |m| {
         let cur: Vec<f32> = m[..max_bin.min(m.len())]
@@ -102,7 +81,6 @@ fn onset_envelope(samples: &[f32], rate: u32) -> (Vec<f32>, f32) {
         env.push(flux);
         prev = Some(cur);
     });
-    // subtract a moving average (~0.5 s) to keep only the pulses
     let fps = rate as f32 / hop as f32;
     let w = (fps * 0.5) as usize;
     let mut out = vec![0f32; env.len()];
@@ -121,13 +99,11 @@ fn onset_envelope(samples: &[f32], rate: u32) -> (Vec<f32>, f32) {
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub struct Tempo {
     pub bpm: f32,
-    /// 0..1, how much the winning lag stands out from the rest.
     pub confidence: f32,
 }
 
 pub fn bpm(samples: &[f32], rate: u32) -> Option<Tempo> {
     let (s, r) = downsample(samples, rate, 22050);
-    // 3 minutes are plenty and keep long mixes fast.
     let s = &s[..s.len().min(r as usize * 180)];
     let (env, fps) = onset_envelope(s, r);
     if env.len() < (fps * 8.0) as usize {
@@ -141,7 +117,6 @@ pub fn bpm(samples: &[f32], rate: u32) -> Option<Tempo> {
     if energy <= f32::EPSILON {
         return None;
     }
-    // Autocorrelation up to 4x the slowest lag, for the comb below.
     let acf_len = (max_lag * 4 + 8).min(centered.len() - 1);
     let acf: Vec<f32> = (0..=acf_len)
         .map(|lag| {
@@ -153,8 +128,6 @@ pub fn bpm(samples: &[f32], rate: u32) -> Option<Tempo> {
                 / energy
         })
         .collect();
-    // aubio's shift-invariant comb: a true beat period also lines up at
-    // 2x, 3x, 4x its lag, which damps half/double-tempo errors.
     let comb = |lag: usize| -> f32 {
         let mut sum = 0f32;
         for a in 1..=4usize {
@@ -174,7 +147,6 @@ pub fn bpm(samples: &[f32], rate: u32) -> Option<Tempo> {
             continue;
         }
         let bpm = 60.0 * fps / lag as f32;
-        // log-normal prior centred on 120 BPM, one octave wide
         let prior = (-0.5 * ((bpm / 120.0).log2() / 1.0).powi(2)).exp();
         scores.push(comb(lag) * prior);
     }
@@ -185,7 +157,6 @@ pub fn bpm(samples: &[f32], rate: u32) -> Option<Tempo> {
     if best_score <= 0.0 || best == 0 {
         return None;
     }
-    // parabolic interpolation around the peak for sub-frame precision
     let lag = if best > min_lag && best + 1 < scores.len() {
         let (a, b, c) = (scores[best - 1], scores[best], scores[best + 1]);
         let d = a - 2.0 * b + c;
@@ -198,7 +169,6 @@ pub fn bpm(samples: &[f32], rate: u32) -> Option<Tempo> {
         best as f32
     };
     let mut bpm = 60.0 * fps / lag;
-    // fold into the range most music is written in
     while bpm < 70.0 {
         bpm *= 2.0;
     }
@@ -222,15 +192,12 @@ const MAJOR: [f32; 12] = [
 const MINOR: [f32; 12] = [
     6.33, 2.68, 3.52, 5.38, 2.60, 3.53, 2.54, 4.75, 3.98, 2.69, 3.34, 3.17,
 ];
-/// Camelot wheel position for each tonic, major (B) and minor (A).
 const CAMELOT_MAJOR: [u8; 12] = [8, 3, 10, 5, 12, 7, 2, 9, 4, 11, 6, 1];
 const CAMELOT_MINOR: [u8; 12] = [5, 12, 7, 2, 9, 4, 11, 6, 1, 8, 3, 10];
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct MusicalKey {
-    /// "A minor", "Eb major".
     pub name: String,
-    /// DJ notation: "8A", "5B".
     pub camelot: String,
     pub confidence: f32,
 }
@@ -258,7 +225,6 @@ pub fn chroma(samples: &[f32], rate: u32) -> [f32; 12] {
     let frame = 4096;
     let mut chroma = [0f32; 12];
     let bin_hz = r as f32 / frame as f32;
-    // map each FFT bin (55 Hz .. 2 kHz) to a pitch class once
     let classes: Vec<Option<usize>> = (0..frame / 2)
         .map(|i| {
             let f = i as f32 * bin_hz;
@@ -302,7 +268,6 @@ pub fn key(samples: &[f32], rate: u32) -> Option<MusicalKey> {
     Some(MusicalKey {
         name,
         camelot,
-        // the gap to the runner-up (often the relative major/minor) is the signal
         confidence: ((score - second) * 5.0).clamp(0.0, 1.0),
     })
 }
@@ -310,15 +275,10 @@ pub fn key(samples: &[f32], rate: u32) -> Option<MusicalKey> {
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub struct Cutoff {
     pub hz: f32,
-    /// The file's own Nyquist, so the UI can tell "full band" from "cut".
     pub nyquist: f32,
 }
 
-/// Highest frequency where the average spectrum is still within 50 dB of the
-/// loudest band. Lossy encoders low-pass hard (MP3 128k ~16 kHz, 192k ~19 kHz,
-/// 320k ~20 kHz), so a "lossless" file with a wall there was transcoded.
 pub fn spectral_cutoff(samples: &[f32], rate: u32) -> Option<Cutoff> {
-    // sample up to 60 frames spread over the track
     spectral_cutoff_hop(samples, rate, (samples.len() / 60).max(4096))
 }
 
@@ -339,7 +299,6 @@ fn spectral_cutoff_hop(samples: &[f32], rate: u32, hop: usize) -> Option<Cutoff>
         .iter()
         .map(|p| 10.0 * (p / frames as f64 + 1e-20).log10())
         .collect();
-    // smooth over ~100 Hz so single bins don't decide
     let bin_hz = rate as f64 / frame as f64;
     let w = ((100.0 / bin_hz) as usize).max(1);
     let smooth: Vec<f64> = (0..db.len())
@@ -350,9 +309,6 @@ fn spectral_cutoff_hop(samples: &[f32], rate: u32, hop: usize) -> Option<Cutoff>
         })
         .collect();
     let ref_level = smooth.iter().cloned().fold(f64::MIN, f64::max);
-    // A lossy encoder's low-pass is a cliff: > 25 dB lost within ~500 Hz,
-    // landing near the floor. Natural roll-off is gradual. Scan from the top
-    // and take the highest cliff; with none, the file is full band.
     let span = ((500.0 / bin_hz) as usize).max(2);
     let mut cut = None;
     for i in (span..smooth.len().saturating_sub(span)).rev() {
@@ -375,8 +331,6 @@ fn spectral_cutoff_hop(samples: &[f32], rate: u32, hop: usize) -> Option<Cutoff>
     })
 }
 
-/// Streaming version of `spectral_cutoff` for full-rate audio that is too
-/// long to keep in memory: feed every sample, it keeps one frame every `stride`.
 pub struct CutoffAccumulator {
     rate: u32,
     stride: usize,
@@ -388,7 +342,6 @@ pub struct CutoffAccumulator {
 impl CutoffAccumulator {
     const FRAME: usize = 4096;
 
-    /// `expected_samples` spreads ~60 frames over the track.
     pub fn new(rate: u32, expected_samples: usize) -> Self {
         Self {
             rate,
@@ -417,7 +370,6 @@ impl CutoffAccumulator {
     }
 }
 
-/// Like `spectral_cutoff` but every consecutive 4096-sample frame is used.
 fn spectral_cutoff_frames(frames: &[f32], rate: u32) -> Option<Cutoff> {
     if frames.len() < 4096 {
         return None;
@@ -427,9 +379,7 @@ fn spectral_cutoff_frames(frames: &[f32], rate: u32) -> Option<Cutoff> {
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub struct Bounds {
-    /// First audible sample, seconds.
     pub start_s: f32,
-    /// Last audible sample, seconds.
     pub end_s: f32,
 }
 
@@ -444,7 +394,6 @@ fn db(v: f32) -> f32 {
     20.0 * (v.max(1e-9)).log10()
 }
 
-/// Leading and trailing silence under `threshold_db` (dBFS), in 10 ms blocks.
 pub fn silence_bounds(samples: &[f32], rate: u32, threshold_db: f32) -> Option<Bounds> {
     let block = (rate as usize / 100).max(1);
     let rms = rms_blocks(samples, block);
@@ -457,9 +406,6 @@ pub fn silence_bounds(samples: &[f32], rate: u32, threshold_db: f32) -> Option<B
     })
 }
 
-/// Where the ending fade starts: the last moment the 1 s loudness is within
-/// 9 dB of the track's typical (median) level. Used to begin automatic
-/// crossfades before the tail gets quiet.
 pub fn outro_start(samples: &[f32], rate: u32) -> Option<f32> {
     let block = rate as usize;
     let rms = rms_blocks(samples, block);
@@ -473,7 +419,6 @@ pub fn outro_start(samples: &[f32], rate: u32) -> Option<f32> {
     Some(((last_loud + 1) * block) as f32 / rate as f32)
 }
 
-/// Grayscale spectrogram, `cols` x `rows`, row 0 = highest frequency.
 pub fn spectrogram(samples: &[f32], cols: usize, rows: usize) -> Vec<u8> {
     let frame = 2048;
     if samples.len() < frame || cols == 0 || rows == 0 {
@@ -499,7 +444,6 @@ pub fn spectrogram(samples: &[f32], cols: usize, rows: usize) -> Vec<u8> {
     let mut out = vec![0u8; cols * rows];
     for (x, col) in columns.iter().enumerate() {
         for (r, v) in col.iter().enumerate() {
-            // -120 dB .. 0 dB -> 0..255
             let norm = ((v + 120.0) / 120.0).clamp(0.0, 1.0);
             let y = rows - 1 - r;
             out[y * cols + x] = (norm * 255.0) as u8;

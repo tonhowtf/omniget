@@ -1,14 +1,3 @@
-//! Local embeddings (MiniLM-L6-v2 over `ort`, own WordPiece). Plan §2.1 line 17.
-//!
-//! Default source is the ONNX model we manage ourselves (`minilm`): offline,
-//! no external process, 384 dimensions. When the user has Ollama installed and
-//! picks it in Settings, `ollama_embed` answers instead — with its own
-//! dimension count, so whoever stores vectors must store which source produced
-//! them (see `EmbedSource::dim`).
-//!
-//! Everything here is blocking except `ensure_model` and the Ollama path: call
-//! `embed_batch` from inside `tokio::task::spawn_blocking`.
-
 pub mod minilm;
 pub mod ollama_embed;
 pub mod tokenizer;
@@ -32,8 +21,6 @@ pub const ERR_EMBED_INFER: &str = "ERR_EMBED_INFER";
 pub const ERR_EMBED_SHAPE: &str = "ERR_EMBED_SHAPE";
 pub const ERR_EMBED_OLLAMA: &str = "ERR_EMBED_OLLAMA";
 
-/// Same shape as `LlmError`: a stable code the UI can map plus a message for
-/// the log. No `retryable` here — an embedding never rate-limits.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct EmbedError {
     pub code: Cow<'static, str>,
@@ -57,15 +44,11 @@ impl std::fmt::Display for EmbedError {
 
 impl std::error::Error for EmbedError {}
 
-/// Where the vectors come from. Stored next to every vector, because two
-/// sources produce different dimensions and are not comparable.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum EmbedSource {
-    /// MiniLM-L6-v2 in ONNX, managed by us. The default.
     #[default]
     Onnx,
-    /// `nomic-embed-text` on a local Ollama, when the user has one.
     Ollama,
 }
 
@@ -77,8 +60,6 @@ impl EmbedSource {
         }
     }
 
-    /// Dimensions of each source. Fixed per model, so an index that mixes
-    /// sources is a bug the caller can catch before storing.
     pub fn dim(&self) -> usize {
         match self {
             EmbedSource::Onnx => DIM,
@@ -86,7 +67,6 @@ impl EmbedSource {
         }
     }
 
-    /// Parses the Settings value; anything unknown falls back to the default.
     pub fn parse(s: &str) -> Self {
         match s.trim().to_ascii_lowercase().as_str() {
             "ollama" => EmbedSource::Ollama,
@@ -95,13 +75,10 @@ impl EmbedSource {
     }
 }
 
-/// The contract of §4: 384-d normalized vectors, in batches, blocking.
 pub fn embed_batch(texts: &[&str]) -> Result<Vec<Dim>, EmbedError> {
     minilm::embed_batch(texts)
 }
 
-/// Same thing through whichever source the user picked. Async because Ollama
-/// is a local HTTP service; the ONNX path just hops to `spawn_blocking`.
 pub async fn embed_batch_with(
     source: EmbedSource,
     texts: &[&str],
@@ -120,10 +97,6 @@ pub async fn embed_batch_with(
     }
 }
 
-/// Cosine similarity. Vectors out of this module are already L2-normalized, so
-/// this is a dot product — but we divide anyway, because callers also feed it
-/// stored vectors that may come from elsewhere. Returns 0.0 for a zero vector
-/// or a length mismatch instead of `NaN`.
 pub fn cosine(a: &[f32], b: &[f32]) -> f32 {
     if a.len() != b.len() || a.is_empty() {
         return 0.0;
@@ -142,8 +115,6 @@ pub fn cosine(a: &[f32], b: &[f32]) -> f32 {
     (dot / (na.sqrt() * nb.sqrt())).clamp(-1.0, 1.0)
 }
 
-/// Indices of the `k` closest vectors to `query`, best first. Small and
-/// linear on purpose: agent memory is thousands of entries, not millions.
 pub fn top_k(query: &[f32], corpus: &[Vec<f32>], k: usize) -> Vec<(usize, f32)> {
     let mut scored: Vec<(usize, f32)> = corpus
         .iter()

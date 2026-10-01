@@ -99,7 +99,6 @@ impl PlatformDownloader for MagnetDownloader {
 
         let output_dir = &opts.output_dir;
 
-        // Get or create the shared session, recreating if output_dir changed
         let session = {
             let mut guard = self.session.lock().await;
             let mut dir_guard = self.session_output_dir.lock().await;
@@ -250,8 +249,6 @@ impl PlatformDownloader for MagnetDownloader {
                             downloaded as f64 / 1_048_576.0,
                             total as f64 / 1_048_576.0,
                         );
-                        // Fallback: detect completion from stats when
-                        // wait_until_completed() doesn't resolve
                         if downloaded >= total {
                             tracing::info!("[magnet] download complete from stats (id={})", torrent_id);
                             break;

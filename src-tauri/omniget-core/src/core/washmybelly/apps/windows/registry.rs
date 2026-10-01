@@ -1,7 +1,3 @@
-//! Read-only registry access through `windows-sys` (Windows only). Writes
-//! never happen here: key removal goes through `reg.exe` with a backup
-//! first, or through the elevated helper.
-
 use std::collections::BTreeMap;
 
 use windows_sys::Win32::Foundation::{ERROR_MORE_DATA, ERROR_NO_MORE_ITEMS, ERROR_SUCCESS};
@@ -17,7 +13,6 @@ fn wide(s: &str) -> Vec<u16> {
     s.encode_utf16().chain(std::iter::once(0)).collect()
 }
 
-/// An open key, closed on drop.
 pub struct Key(HKEY);
 
 impl Drop for Key {
@@ -64,8 +59,6 @@ impl Key {
         out
     }
 
-    /// Every value as text: strings as they are, DWORD/QWORD as `0x..`,
-    /// multi-strings joined by newlines, binary values skipped.
     pub fn values(&self) -> BTreeMap<String, String> {
         let mut out = BTreeMap::new();
         let mut name = vec![0u16; 16_384];
@@ -135,7 +128,6 @@ fn utf16(d: &[u8]) -> String {
         .to_string()
 }
 
-/// Hive, subkey path and view of an Uninstall root.
 fn root_parts(root: Root) -> (HKEY, String, u32) {
     match root {
         Root::Hklm => (
@@ -157,7 +149,6 @@ fn root_parts(root: Root) -> (HKEY, String, u32) {
     }
 }
 
-/// All entries under one Uninstall root.
 pub fn read_entries(root: Root) -> Vec<RegEntry> {
     let (hive, path, view) = root_parts(root);
     let Some(k) = Key::open(hive, &path, view) else {
@@ -176,7 +167,6 @@ pub fn read_entries(root: Root) -> Vec<RegEntry> {
         .collect()
 }
 
-/// One entry, read again right before acting on it.
 pub fn read_entry(root: Root, key_name: &str) -> Option<RegEntry> {
     if key_name.is_empty() || key_name.contains('\\') {
         return None;
@@ -190,9 +180,6 @@ pub fn read_entry(root: Root, key_name: &str) -> Option<RegEntry> {
     })
 }
 
-/// `HKCU\...` / `HKLM\SOFTWARE\WOW6432Node\...` → hive, path, view. The
-/// WOW6432Node part stays in the path and the 64-bit view is used, so the
-/// key is exactly the one written.
 pub fn split_full(full: &str) -> Option<(HKEY, String, u32)> {
     let (hive, rest) = full.split_once('\\')?;
     let hive = match hive.to_ascii_uppercase().as_str() {
@@ -209,7 +196,6 @@ pub fn exists(full: &str) -> bool {
         .is_some()
 }
 
-/// Subkey names of a full key path (empty when it cannot be read).
 pub fn children(full: &str) -> Vec<String> {
     split_full(full)
         .and_then(|(h, p, v)| Key::open(h, &p, v))
@@ -217,7 +203,6 @@ pub fn children(full: &str) -> Vec<String> {
         .unwrap_or_default()
 }
 
-/// One string value of a full key path.
 pub fn value(full: &str, name: &str) -> Option<String> {
     let (h, p, v) = split_full(full)?;
     let k = Key::open(h, &p, v)?;
@@ -227,7 +212,6 @@ pub fn value(full: &str, name: &str) -> Option<String> {
         .map(|(_, v)| v)
 }
 
-/// `(service name, ImagePath)` for every service.
 pub fn services() -> Vec<(String, String)> {
     let base = r"SYSTEM\CurrentControlSet\Services";
     let Some(k) = Key::open(HKEY_LOCAL_MACHINE, base, KEY_WOW64_64KEY) else {

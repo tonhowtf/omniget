@@ -1,21 +1,3 @@
-//! Localhost proxy the OmniTube players read from. googlevideo throttles an
-//! open range (`bytes=X-`) to ~2x realtime and sends no CORS headers, so the
-//! webview never talks to it directly.
-//!
-//! Same design as the `/video` and `/music` servers: 127.0.0.1 on a random
-//! port, a per-launch token (`k=`) on every request, and the `Host` header must
-//! be 127.0.0.1 or localhost. CORS is limited to the app's own origins, never
-//! `*`, so no web page can read the responses.
-//!
-//! * `GET /yt/{s}/{itag}`          googlevideo with Range, fetched upstream in
-//!   bounded chunks of 4 MiB; 403/expired re-resolves and resumes at the byte
-//!   where it stopped (up to 3 times)
-//! * `GET /yt/{s}/manifest.mpd?v=137,136&a=140`  synthetic DASH manifest
-//! * `GET /yt/{s}/hls.m3u8`        live/HLS playlist, rewritten to `/yt/{s}/h?u=`
-//! * `GET /yt/{s}/h?u=`            HLS variants and segments (YouTube hosts only)
-//! * `GET /yt/{s}/cc/{i}.vtt?tlang=`  caption track as WebVTT
-//! * `GET /yt/{s}/sb/{n}.jpg`      storyboard sheet
-
 use std::collections::{HashMap, VecDeque};
 use std::sync::{Arc, Mutex, OnceLock};
 use std::time::{Duration, Instant};
@@ -37,10 +19,7 @@ use tower_http::cors::{AllowOrigin, CorsLayer};
 
 use super::http;
 
-/// Largest range asked upstream in one request: big enough to be served at
-/// full speed, small enough that a seek abandons little (limusic audioproxy).
 const CHUNK: u64 = 4 * 1024 * 1024;
-/// One upstream read may make no progress for this long.
 const STALL: Duration = Duration::from_secs(20);
 const MAX_RECOVERIES: u32 = 3;
 const SESSION_CAP: usize = 64;
@@ -63,7 +42,6 @@ pub async fn ensure(_app: &AppHandle) -> Result<ServerInfo, String> {
     start().await
 }
 
-/// `ensure` without an app handle (downloads, tests).
 pub async fn start() -> Result<ServerInfo, String> {
     SERVER
         .get_or_try_init(|| async {
@@ -102,16 +80,11 @@ pub fn base(info: &ServerInfo) -> String {
     format!("http://127.0.0.1:{}", info.port)
 }
 
-/// `http://127.0.0.1:PORT/yt/<session>` (the `StreamSet.base`).
 pub fn session_base(info: &ServerInfo, session: &str) -> String {
     format!("{}/yt/{session}", base(info))
 }
 
-// ---------- CORS ----------
-
-/// The webview origins: `tauri://localhost` (macOS, Linux),
-/// `http(s)://tauri.localhost` (Windows), and the Vite dev server in debug
-/// builds (`devUrl`, or the port `pnpm dev:app` picked).
+// WHY: webview origins differ: tauri://localhost on macOS/Linux, http(s)://tauri.localhost on Windows.
 fn app_origins() -> Vec<String> {
     let mut v: Vec<String> = [
         "tauri://localhost",
@@ -160,23 +133,17 @@ fn cors() -> CorsLayer {
         .allow_private_network(true)
 }
 
-// ---------- sessions ----------
-
-/// A caption source: `raw` is a timedtext `baseUrl` that still needs
-/// `fmt=vtt` (innertube); otherwise the URL already serves WebVTT (yt-dlp).
 #[derive(Clone, Debug, Default)]
 pub struct CaptionSrc {
     pub url: String,
     pub raw: bool,
 }
 
-/// Upstream URLs a session serves besides the formats.
 #[derive(Clone, Debug, Default)]
 pub struct Extras {
     pub music: bool,
     pub hls: Option<String>,
     pub captions: Vec<CaptionSrc>,
-    /// Sheet URL template with `$M`.
     pub storyboard: Option<String>,
 }
 
@@ -204,8 +171,6 @@ pub fn new_session_id() -> String {
     uuid::Uuid::new_v4().simple().to_string()[..16].to_string()
 }
 
-/// Registers the formats of `set` (with their upstream URLs) under
-/// `set.session`, fetched with `user_agent`.
 pub fn register(set: &StreamSet, formats_with_urls: Vec<Format>, user_agent: String) {
     register_full(set, formats_with_urls, user_agent, Extras::default());
 }
@@ -276,8 +241,6 @@ fn remember_len(sid: &str, itag: u32, len: u64) {
     }
 }
 
-/// Re-resolves an expired session in place, once per burst: concurrent
-/// chunks that hit the same 403 wait on the gate and reuse the result.
 async fn refresh_session(sid: &str) -> bool {
     let (gate, video_id, music) = {
         let Ok(g) = sessions().lock() else {
@@ -336,8 +299,6 @@ async fn refresh_session(sid: &str) -> bool {
     true
 }
 
-// ---------- guards and helpers ----------
-
 fn host_ok(ctx: &Ctx, headers: &HeaderMap) -> bool {
     let Some(host) = headers.get(header::HOST).and_then(|v| v.to_str().ok()) else {
         return false;
@@ -360,7 +321,6 @@ fn status(code: StatusCode) -> Response {
     code.into_response()
 }
 
-/// `bytes=a-b`, `bytes=a-`, `bytes=-n`.
 fn parse_range(h: &str, len: u64) -> Option<(u64, u64)> {
     let spec = h.strip_prefix("bytes=")?.split(',').next()?.trim();
     let (a, b) = spec.split_once('-')?;
@@ -379,7 +339,6 @@ fn parse_range(h: &str, len: u64) -> Option<(u64, u64)> {
     (start <= end && start < len).then_some((start, end))
 }
 
-/// `clen=` of a googlevideo URL.
 fn clen(url: &str) -> Option<u64> {
     let q = url.split_once('?')?.1;
     q.split('&')
@@ -387,7 +346,6 @@ fn clen(url: &str) -> Option<u64> {
         .and_then(|v| v.parse().ok())
 }
 
-/// Total of a `Content-Range: bytes a-b/total`.
 fn range_total(v: &str) -> Option<u64> {
     v.rsplit_once('/')?.1.trim().parse().ok()
 }
@@ -411,7 +369,6 @@ async fn no_stall<F: std::future::Future>(f: F) -> Option<F::Output> {
     tokio::time::timeout(STALL, f).await.ok()
 }
 
-/// Length from a 1-byte probe when neither the format nor the URL has it.
 async fn probe_len(sid: &str, itag: u32) -> Option<u64> {
     for _ in 0..2 {
         let t = target(sid, itag)?;
@@ -440,8 +397,6 @@ async fn probe_len(sid: &str, itag: u32) -> Option<u64> {
     }
     None
 }
-
-// ---------- routes ----------
 
 async fn entry(
     State(ctx): State<Ctx>,
@@ -520,8 +475,6 @@ async fn media(sid: &str, itag: u32, headers: &HeaderMap, head_only: bool) -> Re
     resp
 }
 
-/// Streams `start..=end` of one format to `tx` in bounded upstream chunks.
-/// Stops quietly when the player drops the connection (send fails).
 async fn pump(
     sid: String,
     itag: u32,
@@ -568,7 +521,6 @@ async fn pump(
             }
             continue;
         }
-        // a 200 means the range was ignored; only usable from byte 0
         if code != reqwest::StatusCode::PARTIAL_CONTENT
             && !(code == reqwest::StatusCode::OK && pos == 0)
         {
@@ -595,7 +547,6 @@ async fn pump(
                     }
                 }
                 Some(None) => break,
-                // stalled or broken mid-chunk: resume from `pos`
                 _ => {
                     failures += 1;
                     break;
@@ -643,7 +594,6 @@ fn manifest(ctx: &Ctx, sid: &str, q: &HashMap<String, String>) -> Response {
     r
 }
 
-/// Rewrites every URI of an HLS playlist to `/yt/{s}/h?u=<absolute>`.
 fn rewrite_hls(text: &str, final_url: &url::Url, prefix: &str, token: &str) -> String {
     let proxied = |u: &str| -> String {
         let abs = final_url

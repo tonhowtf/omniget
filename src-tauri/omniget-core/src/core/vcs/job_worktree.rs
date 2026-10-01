@@ -1,32 +1,3 @@
-//! Worktrees of background jobs (roadmap 2.3, S10), built on the Central's
-//! worktree per thread ([`super::worktree`]): the same root, the same guard
-//! ([`super::worktree::is_omniget_worktree`]) and the same staged `create`,
-//! with the thread id `job-<id>` and the branch `omniget/job-<id>`. What a
-//! job needs on top of a thread:
-//!
-//! - **The user's uncommitted work comes along** (81#P5, "nothing is lost"):
-//!   the work tree is staged into a *private* index (`GIT_INDEX_FILE`, see
-//!   [`super::checkpoint::live_tree`]) and committed on top of `HEAD` without
-//!   moving anything of the user's; the worktree starts from that commit, so
-//!   the job sees the code as it is on disk and its own diff (`base..tip`)
-//!   holds only what the job did.
-//! - **Ignored dependencies**: `node_modules` is linked (symlink, junction on
-//!   Windows) and the literal paths of `.worktreeinclude` are copied, each
-//!   only when it exists in the main checkout *and* is gitignored; `target/`
-//!   is never shared (Cargo's lock would serialise the builds).
-//! - **Removal that never loses work**: a preflight lists what is not
-//!   committed, that work is saved on the job's branch first (a failure keeps
-//!   the worktree), the folder goes to a trash folder, `git worktree prune`
-//!   drops the admin entry, and the branch goes with `branch -d`: one git
-//!   considers unmerged is preserved and reported.
-//! - **Recreation** of a worktree that vanished, from its branch, when the
-//!   job is resumed (t3code P6), and the listing the orphan GC walks.
-//!
-//! The include/share rules and the removal order are adapted from
-//! stablyai/orca (MIT): `worktree-include-file.ts`,
-//! `worktree-shared-directories.ts`, `worktree-removal-preflight.ts`,
-//! `worktree-removal.ts`, `worktree-branch-removal.ts`.
-
 use std::path::{Path, PathBuf};
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
@@ -39,17 +10,11 @@ use super::repo::{self, GitCtx};
 use super::runner::{VcsError, VcsResult};
 use super::worktree::{self, BRANCH_PREFIX};
 
-/// Thread id (and folder suffix) of a job's worktree: `job-<id>`.
 pub const JOB_THREAD_PREFIX: &str = "job-";
-/// Repo-root list of gitignored paths copied into each new worktree
-/// (cross-tool convention).
 pub const INCLUDE_FILE: &str = ".worktreeinclude";
 const INCLUDE_MAX_BYTES: u64 = 256 * 1024;
 const INCLUDE_MAX_ENTRIES: usize = 1000;
-/// Ignored folders linked, never copied: one install serves every worktree.
 pub const SHARED_DIRS: &[&str] = &["node_modules"];
-/// Folder under the worktrees root where removed worktrees wait to be
-/// deleted, so a removal returns at once.
 pub const TRASH_DIR: &str = ".trash";
 const AUTHOR_NAME: &str = "OmniGet";
 const AUTHOR_EMAIL: &str = "omniget@users.noreply.github.com";
@@ -62,36 +27,23 @@ pub fn branch_of(job_id: &str) -> String {
     format!("{BRANCH_PREFIX}{JOB_THREAD_PREFIX}{job_id}")
 }
 
-/// Where the worktree of job `job_id` of the repository rooted at
-/// `repo_root` lives (whether it exists or not).
 pub fn path_of(repo_root: &Path, job_id: &str) -> VcsResult<PathBuf> {
     worktree::worktree_path_for(repo_root, &thread_of(job_id))
 }
 
-/// A job's worktree as it was made (or found).
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
 pub struct JobWorktree {
     pub path: PathBuf,
     pub branch: String,
-    /// The commit the worktree started from: the base the caller named, or
-    /// the user's `HEAD`, or the commit carrying their uncommitted work.
     pub base_oid: String,
-    /// The user's `HEAD` when the job started (equal to `base_oid` unless
-    /// work was carried).
     pub start_oid: String,
-    /// Files whose uncommitted state was carried in.
     pub carried: Vec<String>,
-    /// Ignored folders linked from the main checkout.
     pub shared: Vec<String>,
-    /// `.worktreeinclude` paths copied.
     pub copied: Vec<String>,
     pub took_ms: u64,
-    /// The worktree already existed (a resumed job) or was recreated.
     pub reused: bool,
 }
 
-/// The root of the git repository at `path` when it has at least one commit
-/// (a worktree needs one to start from), else `None`.
 pub async fn repo_root(path: &Path) -> Option<PathBuf> {
     let paths = repo::discover(path).await.ok()?;
     let ctx = GitCtx::Repo {
@@ -116,8 +68,6 @@ async fn rev(ctx: &GitCtx, what: &str) -> VcsResult<String> {
         .trimmed())
 }
 
-/// `commit-tree` with one parent, as OmniGet (no hooks, no signing, no ref
-/// moved).
 async fn commit_on(ctx: &GitCtx, tree: &str, parent: &str, message: &str) -> VcsResult<String> {
     Ok(ctx
         .git()
@@ -153,10 +103,6 @@ async fn names_between(ctx: &GitCtx, from: &str, to: &str) -> VcsResult<Vec<Stri
         .collect())
 }
 
-/// The user's checkout as a commit on top of `HEAD`: `(base, head, files)`.
-/// Nothing uncommitted → `base == head`, no commit made. Only a private
-/// index is written; the user's index, branch, stash and files never move.
-/// `git_dir` is the checkout's absolute git dir (saves a spawn).
 pub async fn carry_uncommitted(
     ctx: &GitCtx,
     git_dir: &Path,
@@ -190,10 +136,6 @@ pub async fn carry_uncommitted(
     Ok((carry, head, files))
 }
 
-/// Creates the worktree of job `job_id` from the repository at `repo`:
-/// from `base` when given (then nothing uncommitted is carried: it belongs
-/// to another commit), else from the user's checkout as it is on disk.
-/// An existing worktree of the job is reused as is.
 pub async fn create(repo: &Path, job_id: &str, base: Option<&str>) -> VcsResult<JobWorktree> {
     let t0 = Instant::now();
     let paths = repo::discover(repo).await?;
@@ -253,9 +195,6 @@ pub async fn create(repo: &Path, job_id: &str, base: Option<&str>) -> VcsResult<
     })
 }
 
-/// Makes sure the job's worktree is at `path`: nothing to do when it is,
-/// else it is added again from `branch` (the job's work lives there). `Ok(true)`
-/// when it was recreated.
 pub async fn ensure(repo: &Path, path: &Path, branch: &str) -> VcsResult<bool> {
     if path.join(".git").is_file() {
         return Ok(false);
@@ -295,12 +234,6 @@ pub async fn ensure(repo: &Path, path: &Path, branch: &str) -> VcsResult<bool> {
     Ok(true)
 }
 
-// ---- ignored dependencies ----
-
-/// `.worktreeinclude` lines as repo-relative literal paths: blank lines and
-/// `#` comments skipped, `\` → `/`, `./` and trailing `/` dropped, deduped.
-/// Globs, negations and anything that could leave the repository
-/// (absolute, `..`, `.git`) are skipped.
 pub fn parse_worktree_include(text: &str) -> Vec<String> {
     let mut out: Vec<String> = Vec::new();
     for raw in text.lines() {
@@ -346,7 +279,6 @@ async fn is_ignored(ctx: &GitCtx, rel: &str) -> bool {
         .unwrap_or(false)
 }
 
-/// Status lines of `rel` in `wt` (empty = git does not see it).
 async fn visible(wt: &Path, rel: &str) -> bool {
     let ctx = GitCtx::Repo {
         work_tree: wt.to_path_buf(),
@@ -365,7 +297,6 @@ fn link_dir(src: &Path, dst: &Path) -> std::io::Result<()> {
     std::os::unix::fs::symlink(src, dst)
 }
 
-/// A junction: no Developer Mode needed, unlike a directory symlink.
 #[cfg(windows)]
 fn link_dir(src: &Path, dst: &Path) -> std::io::Result<()> {
     let out = std::process::Command::new("cmd")
@@ -385,7 +316,6 @@ fn link_dir(src: &Path, dst: &Path) -> std::io::Result<()> {
 fn copy_tree(src: &Path, dst: &Path) -> std::io::Result<()> {
     let meta = std::fs::symlink_metadata(src)?;
     if meta.file_type().is_symlink() {
-        // Never followed: a link out of the repository stays out of the copy.
         return Ok(());
     }
     if meta.is_dir() {
@@ -402,9 +332,6 @@ fn copy_tree(src: &Path, dst: &Path) -> std::io::Result<()> {
     }
 }
 
-/// Links [`SHARED_DIRS`] and copies the `.worktreeinclude` paths, each only
-/// when it exists in the main checkout, is gitignored there and is not in
-/// the worktree yet. Returns `(linked, copied)`. Never fails the creation.
 pub async fn share_ignored(main_root: &Path, wt: &Path) -> (Vec<String>, Vec<String>) {
     let main = GitCtx::Repo {
         work_tree: main_root.to_path_buf(),
@@ -418,9 +345,6 @@ pub async fn share_ignored(main_root: &Path, wt: &Path) -> (Vec<String>, Vec<Str
         if link_dir(&src, &dst).is_err() {
             continue;
         }
-        // A `node_modules/` pattern (trailing slash) matches directories
-        // only, and a link is not one to git: then the link would show as a
-        // new file in the job's diff. Drop it rather than pollute the diff.
         if visible(wt, d).await {
             let _ = std::fs::remove_file(&dst).or_else(|_| std::fs::remove_dir(&dst));
             continue;
@@ -438,10 +362,6 @@ pub async fn share_ignored(main_root: &Path, wt: &Path) -> (Vec<String>, Vec<Str
     (linked, copied)
 }
 
-/// Copies each repo-relative path of `paths` from the main checkout into
-/// the worktree when it exists there, git ignores it and the worktree does
-/// not have it yet (the rule of `.worktreeinclude`; also the `include:` of
-/// `.omniget/workflow.md`, 3.10). Returns what was copied.
 pub async fn copy_included(main_root: &Path, wt: &Path, paths: &[String]) -> Vec<String> {
     let main = GitCtx::Repo {
         work_tree: main_root.to_path_buf(),
@@ -462,10 +382,6 @@ pub async fn copy_included(main_root: &Path, wt: &Path, paths: &[String]) -> Vec
     copied
 }
 
-// ---- saving and removing ----
-
-/// Paths `git status` reports in the worktree (tracked changes, untracked
-/// files; ignored ones are not work).
 pub async fn dirty_files(wt: &Path) -> VcsResult<Vec<String>> {
     let ctx = GitCtx::Repo {
         work_tree: wt.to_path_buf(),
@@ -491,10 +407,6 @@ pub async fn dirty_files(wt: &Path) -> VcsResult<Vec<String>> {
     Ok(files)
 }
 
-/// Commits whatever is not committed in the worktree onto its branch, as
-/// OmniGet, through a private index (no hooks run, nothing signed), then
-/// points the worktree's own index at the new commit. `Ok(None)` when there
-/// was nothing to save.
 pub async fn save_work(wt: &Path, message: &str) -> VcsResult<Option<String>> {
     let ctx = GitCtx::Repo {
         work_tree: wt.to_path_buf(),
@@ -527,25 +439,17 @@ pub async fn save_work(wt: &Path, message: &str) -> VcsResult<Option<String>> {
         .args(["update-ref", &format!("refs/heads/{branch}"), &commit, head])
         .run()
         .await?;
-    // The files are the commit already; only the index is behind.
     ctx.git().args(["reset", "-q"]).run().await?;
     Ok(Some(commit))
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
 pub struct RemoveOutcome {
-    /// Files the preflight found not committed.
     pub dirty: Vec<String>,
-    /// The commit that saved them on the branch before the removal.
     pub saved: Option<String>,
-    /// The branch was kept because it holds work not merged anywhere
-    /// (`branch -d` refused): the job's result, for the user to take.
     pub preserved_branch: Option<String>,
     pub branch_deleted: Option<String>,
-    /// Moved to the trash folder (deleted in the background).
     pub trashed: bool,
-    /// What the repository's `before_remove` hook did (or why it was
-    /// skipped), set by the job side (3.10); a log line.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub hook_note: Option<String>,
 }
@@ -554,12 +458,6 @@ fn trash_root() -> VcsResult<PathBuf> {
     Ok(worktree::worktrees_root()?.join(TRASH_DIR))
 }
 
-/// Removes job worktree `path` of the repository at `repo` and settles its
-/// `branch`, never losing work: uncommitted files are saved on the branch
-/// first (a failure there keeps the worktree), and a branch with work git
-/// considers unmerged is preserved. `base_oid` is where the job started: a
-/// branch still at it has nothing of the job and is deleted outright. A
-/// folder that is not an OmniGet worktree is refused.
 pub async fn remove(
     repo: &Path,
     path: &Path,
@@ -595,13 +493,10 @@ pub async fn remove(
         ));
         out.trashed = std::fs::rename(path, &bin).is_ok();
         if out.trashed {
-            // Deleting a big tree takes seconds; the worktree is already gone
-            // for git after the prune below.
             std::thread::spawn(move || {
                 let _ = std::fs::remove_dir_all(&bin);
             });
         } else {
-            // A file held open (Windows) can block the rename: let git try.
             main.git()
                 .args(["worktree", "remove", "--force"])
                 .arg(path)
@@ -649,13 +544,10 @@ pub async fn remove(
     Ok(out)
 }
 
-/// A job id as `jobs.rs` makes them (`j` + 10 hex): a thread whose name
-/// merely contains `-job-` is never taken for a job's worktree.
 fn is_job_id(id: &str) -> bool {
     id.len() == 11 && id.starts_with('j') && id[1..].chars().all(|c| c.is_ascii_hexdigit())
 }
 
-/// The branch checked out in `wt`, if any.
 pub async fn branch_at(wt: &Path) -> Option<String> {
     let ctx = GitCtx::Repo {
         work_tree: wt.to_path_buf(),
@@ -663,7 +555,6 @@ pub async fn branch_at(wt: &Path) -> Option<String> {
     worktree::current_branch(&ctx).await.ok().flatten()
 }
 
-/// Job worktrees under the root: `(job id, path)`.
 pub fn list_job_worktrees() -> Vec<(String, PathBuf)> {
     let Ok(root) = worktree::worktrees_root() else {
         return Vec::new();
@@ -682,7 +573,6 @@ pub fn list_job_worktrees() -> Vec<(String, PathBuf)> {
         .collect()
 }
 
-/// The repository a job worktree belongs to (its main checkout).
 pub async fn main_repo_of(wt: &Path) -> Option<PathBuf> {
     let paths = repo::discover(wt).await.ok()?;
     match worktree::main_ctx(&paths.common_dir) {
@@ -691,7 +581,6 @@ pub async fn main_repo_of(wt: &Path) -> Option<PathBuf> {
     }
 }
 
-/// The machine's name, for the host's stamp on a job's proof (2.4).
 pub fn host_label() -> String {
     sysinfo::System::host_name()
         .map(|h| h.trim().to_string())
@@ -699,7 +588,6 @@ pub fn host_label() -> String {
         .unwrap_or_else(|| "localhost".into())
 }
 
-/// Deletes what a crash left in the trash folder.
 pub fn empty_trash() -> usize {
     let Ok(t) = trash_root() else { return 0 };
     let Ok(rd) = std::fs::read_dir(&t) else {

@@ -1,15 +1,9 @@
-//! Whisper's vocabulary: GPT-2 byte-level BPE for text (only decoding is
-//! needed, so `vocab.json` is enough, no merges), plus the special tokens
-//! read from `generation_config.json`.
-
 use std::collections::HashMap;
 use std::path::Path;
 
 use anyhow::{anyhow, Context};
 use serde::Deserialize;
 
-/// The GPT-2 `bytes_to_unicode` table, inverted: printable stand-in char
-/// back to the raw byte.
 fn unicode_to_byte() -> HashMap<char, u8> {
     let mut bs: Vec<u32> = (b'!' as u32..=b'~' as u32)
         .chain(0xA1..=0xAC)
@@ -48,7 +42,6 @@ struct GenerationConfig {
 }
 
 pub struct Vocab {
-    /// Byte sequence of each text token, indexed by id (`< eot`).
     bytes: Vec<Vec<u8>>,
     pub sot: u32,
     pub eot: u32,
@@ -57,7 +50,6 @@ pub struct Vocab {
     pub no_speech: u32,
     pub timestamp_begin: u32,
     pub max_initial_timestamp: u32,
-    /// `(code, token id)`, e.g. `("pt", 50267)`.
     pub languages: Vec<(String, u32)>,
     pub suppress: Vec<u32>,
     pub begin_suppress: Vec<u32>,
@@ -121,7 +113,6 @@ impl Vocab {
 
     pub fn language_id(&self, code: &str) -> Option<u32> {
         let code = code.trim().to_ascii_lowercase();
-        // Accept `pt-BR`, `zh_CN` and the like.
         let base = code.split(['-', '_']).next().unwrap_or("");
         self.languages
             .iter()
@@ -136,7 +127,6 @@ impl Vocab {
             .map(|(c, _)| c.as_str())
     }
 
-    /// Text of the given tokens; special and timestamp tokens are skipped.
     pub fn decode(&self, ids: &[u32]) -> String {
         let mut out = Vec::new();
         for id in ids {

@@ -1,14 +1,3 @@
-//! Modelos ONNX geridos: catálogo, download conferido e sessão de inferência.
-//!
-//! `core/onnxrt.rs` cuida da **runtime** (a lib nativa). Aqui cuidamos dos
-//! **modelos**: cada um é um `.onnx` baixado uma vez, guardado em
-//! `<app_data>/tools/models/onnx/` e conferido por sha256. Nenhuma tool baixa
-//! modelo por conta própria — quem precisa chama `ensure_model` e recebe o
-//! caminho, e `session_for` devolve a sessão pronta.
-//!
-//! Os sha256 e tamanhos do catálogo foram conferidos baixando cada arquivo em
-//! 2026-09-09 (os md5 batem com os que o rembg declara para os mesmos assets).
-
 use std::io::Read;
 use std::path::PathBuf;
 
@@ -17,8 +6,6 @@ use serde::Serialize;
 
 use super::ProgressFn;
 
-/// Um modelo do catálogo. `family` agrupa modelos que servem à mesma tool
-/// (`"rembg"` = remoção de fundo), para a UI filtrar sem saber de detalhe.
 #[derive(Debug, Clone, Copy)]
 pub struct ModelSpec {
     pub id: &'static str,
@@ -29,7 +16,6 @@ pub struct ModelSpec {
     pub bytes: u64,
     pub license: &'static str,
     pub source: &'static str,
-    /// Recomendado dentro da família.
     pub recommended: bool,
 }
 
@@ -148,8 +134,6 @@ pub struct OnnxStatus {
     pub models_dir: Option<String>,
 }
 
-/// Estado da runtime e dos modelos. Sem argumento devolve o catálogo inteiro;
-/// com `family` devolve só a família pedida.
 pub fn status(family_filter: Option<&str>) -> OnnxStatus {
     let models = CATALOG
         .iter()
@@ -179,8 +163,6 @@ fn sha256_of(path: &std::path::Path) -> anyhow::Result<String> {
     Ok(hex::encode(hasher.finalize()))
 }
 
-/// Garante o modelo no disco. Se já está lá com o tamanho certo, não baixa de
-/// novo. O sha256 é conferido no arquivo recém-baixado, antes de virar oficial.
 pub async fn ensure_model(id: &str, progress: &ProgressFn) -> anyhow::Result<PathBuf> {
     let spec = find(id).ok_or_else(|| anyhow!("modelo desconhecido: {id}"))?;
     let dest = model_path(id).ok_or_else(|| anyhow!("não achei o diretório de dados do app"))?;
@@ -233,7 +215,6 @@ pub async fn ensure_model(id: &str, progress: &ProgressFn) -> anyhow::Result<Pat
     Ok(dest)
 }
 
-/// Apaga um modelo baixado.
 pub fn remove_model(id: &str) -> anyhow::Result<()> {
     let path = model_path(id).ok_or_else(|| anyhow!("não achei o diretório de dados do app"))?;
     if path.is_file() {
@@ -242,17 +223,12 @@ pub fn remove_model(id: &str) -> anyhow::Result<()> {
     Ok(())
 }
 
-/// Quantas threads dar ao ONNX Runtime. Deixa pelo menos um núcleo livre para
-/// a interface não travar em lote grande.
 fn intra_threads() -> usize {
     std::thread::available_parallelism()
         .map(|n| (n.get().saturating_sub(1)).max(1))
         .unwrap_or(1)
 }
 
-/// Sessão pronta para um modelo já baixado. Bloqueante: chame de dentro de um
-/// `spawn_blocking`. A runtime é inicializada aqui, então um erro de lib
-/// faltando sai com a mensagem acionável do `onnxrt`, não como panic.
 pub fn session_for(id: &str) -> anyhow::Result<ort::session::Session> {
     let path = model_path(id).ok_or_else(|| anyhow!("não achei o diretório de dados do app"))?;
     if !path.is_file() {
@@ -265,14 +241,10 @@ pub fn session_for(id: &str) -> anyhow::Result<ort::session::Session> {
     session_from_file(&path)
 }
 
-/// Sessão a partir de um arquivo qualquer — útil para modelo que o usuário
-/// aponta e para os testes.
 pub fn session_from_file(path: &std::path::Path) -> anyhow::Result<ort::session::Session> {
     use ort::session::builder::GraphOptimizationLevel;
     let mut builder = ort::session::Session::builder()
         .map_err(|e| anyhow!("não criei o builder de sessão ONNX: {e}"))?
-        // Builds mínimos do ONNX Runtime não têm otimização de grafo; nesse
-        // caso o `ort` devolve o próprio builder de volta, então seguimos.
         .with_optimization_level(GraphOptimizationLevel::Level3)
         .unwrap_or_else(|e| e.recover())
         .with_intra_threads(intra_threads())

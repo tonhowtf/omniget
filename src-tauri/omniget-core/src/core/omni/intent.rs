@@ -1,15 +1,5 @@
-//! Mascot `intent` (Phase 5). Owned by f5-omni-intent.
-//!
-//! The mascot never reacts to free text. An agent expresses itself through a
-//! closed enum pair (`Animation`, `Mood`) plus an optional one-liner, emitted
-//! inside the turn that is already streaming (an ```omni { ... }``` fenced
-//! block, or a bare JSON object at the very end of the message). Anything that
-//! does not parse falls back to `Idle`/`Neutral`: the parser never panics and
-//! never invents an animation.
-
 use serde::{Deserialize, Serialize};
 
-/// Hard cap for `Intent::line`, in characters (not bytes).
 pub const MAX_LINE_CHARS: usize = 80;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
@@ -67,7 +57,6 @@ impl Animation {
         }
     }
 
-    /// Case-insensitive, trimmed. Unknown name -> `None` (caller falls back).
     pub fn parse(raw: &str) -> Option<Animation> {
         let raw = raw.trim();
         Animation::ALL
@@ -111,7 +100,6 @@ impl Mood {
 pub struct Intent {
     pub animation: Animation,
     pub mood: Mood,
-    /// At most `MAX_LINE_CHARS` characters; `None` when the mascot stays quiet.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub line: Option<String>,
 }
@@ -123,7 +111,6 @@ impl Default for Intent {
 }
 
 impl Intent {
-    /// The fallback the whole module agrees on: idle body, neutral face, no line.
     pub const fn neutral() -> Self {
         Intent {
             animation: Animation::Idle,
@@ -140,16 +127,12 @@ impl Intent {
         }
     }
 
-    /// Attaches a line, trimmed and truncated to `MAX_LINE_CHARS` characters.
-    /// An empty (or whitespace-only) line is dropped.
     pub fn with_line(mut self, line: impl Into<String>) -> Self {
         self.line = normalise_line(&line.into());
         self
     }
 }
 
-/// Collapses whitespace, trims, truncates to `MAX_LINE_CHARS` chars.
-/// Returns `None` for an empty result.
 fn normalise_line(raw: &str) -> Option<String> {
     let mut out = String::with_capacity(raw.len().min(MAX_LINE_CHARS * 4));
     let mut pending_space = false;

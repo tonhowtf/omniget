@@ -1,5 +1,3 @@
-//! AI keys, usage report and the MCP server switch the LLM screens use.
-
 use omniget_core::core::tools::{ai_keys, usage};
 use serde::Serialize;
 
@@ -12,10 +10,6 @@ pub async fn tool_usage_report(days: Option<u32>) -> usage::UsageReport {
     usage::report(days.unwrap_or(30)).await
 }
 
-// ── Chaves de API (estudo 24) ──
-
-/// A table row plus the flags a settings form reads from it, so a provider
-/// added to the table later cannot be missing from a second list in the UI.
 #[derive(Serialize)]
 pub struct KindView {
     #[serde(flatten)]
@@ -53,22 +47,10 @@ pub async fn tool_keys_test(id: String) -> Result<ai_keys::KeyView, String> {
     ai_keys::test(&id).await.map_err(err)
 }
 
-// ── Sign in with OpenRouter (OAuth PKCE, sem backend) ──
-//
-// Two steps, because the browser round-trip happens in between: the UI opens
-// `url`, OpenRouter sends the user back to `omniget://openrouter-auth?state=…`
-// with `code` appended, and the deep-link handler hands both to `_finish`. The
-// state is mandatory there: a callback without the one this process generated is
-// refused. The verifier stays in the core and the key goes straight into the
-// secret store — neither ever reaches the frontend.
-
-/// Starts the flow: returns the URL to open and the state to echo back.
 #[tauri::command]
 pub fn tool_ai_keys_openrouter_pkce() -> ai_keys::PkceStart {
     ai_keys::pkce_start()
 }
-
-// ── Servidor MCP ──
 
 #[derive(Serialize)]
 pub struct McpStatus {
@@ -113,8 +95,6 @@ pub fn tool_mcp_set_enabled(enabled: bool) -> Result<bool, String> {
     Ok(crate::mcp::enabled())
 }
 
-/// Faz um `initialize` + `tools/list` de verdade contra o proprio endpoint,
-/// para provar que a porta, o token e o servidor respondem.
 #[tauri::command]
 pub async fn tool_mcp_selftest(app: tauri::AppHandle) -> Result<String, String> {
     let settings = crate::storage::config::load_settings(&app);
@@ -174,8 +154,6 @@ pub async fn tool_mcp_selftest(app: tauri::AppHandle) -> Result<String, String> 
     Ok(format!("{} · {} tools · {}", version, n, url))
 }
 
-// ── MCP clients and grants ──
-
 #[tauri::command]
 pub fn tool_mcp_clients() -> Result<Vec<crate::mcp::policy::Principal>, String> {
     crate::mcp::policy::list()
@@ -214,12 +192,10 @@ pub fn tool_mcp_client_snippets(
     ))
 }
 
-/// Trusted desktop grant creation. Remote tools can only select this ceiling.
 #[tauri::command]
 pub async fn tool_mcp_executors(
     state: tauri::State<'_, crate::AppState>,
 ) -> Result<serde_json::Value, String> {
-    // Claude Code qualifies only after its installed flags are probed.
     for a in state.llm.roster() {
         if matches!(&a.runtime,omniget_core::core::llm::agent::RuntimeKind::Cli{cli,..} if cli=="claude")
         {
@@ -230,8 +206,6 @@ pub async fn tool_mcp_executors(
     Ok(executors_now(&state))
 }
 fn executors_now(state: &tauri::State<'_, crate::AppState>) -> serde_json::Value {
-    // Bots derived by an external client belong to its grant; they are not
-    // executors a person can hand to another grant.
     let derived = omniget_core::core::assist::db::global()
         .ok()
         .and_then(|db| omniget_core::core::assist::external_config::derived_bot_marks(&db).ok())
@@ -311,17 +285,12 @@ pub fn tool_mcp_execution_grant(
     )
 }
 
-/// Trusted desktop revocation of ONE execution grant (L4): its derived bots
-/// are disabled, its rooms archived and its pending tasks failed; running
-/// missions stop at the next authority check. The client and its other
-/// grants stay live.
 #[tauri::command]
 pub fn tool_mcp_execution_grant_revoke(grant_id: String) -> Result<(), String> {
     let db = omniget_core::core::assist::db::global()?;
     omniget_core::core::assist::authority::revoke(&db, &grant_id)
 }
 
-/// `/Users/me/x` → `~/x`, for display only.
 fn short_path(p: &str) -> String {
     match dirs::home_dir().and_then(|h| h.to_str().map(str::to_owned)) {
         Some(h)
@@ -336,16 +305,11 @@ fn short_path(p: &str) -> String {
     }
 }
 
-/// Trusted, read-only view of what each MCP client may execute (execution
-/// grants) and which folder it may transfer from (file roots). Tokens and
-/// identities are never returned.
 #[tauri::command]
 pub fn tool_mcp_execution_grants_list(
     state: tauri::State<'_, crate::AppState>,
 ) -> Result<serde_json::Value, String> {
     use serde_json::json;
-    // Names of every client, revoked ones included (a revoked client's grants
-    // still show who they belonged to). The policy store is opened read-only.
     let policy = omniget_core::core::tools::tools_dir()
         .map(|d| d.join("mcp").join("policy.sqlite3"))
         .filter(|p| p.is_file())
@@ -374,7 +338,6 @@ pub fn tool_mcp_execution_grants_list(
                 }
             }
         }
-        // The table only exists once a transfer folder was granted.
         if let Ok(mut st) = c.prepare(
             "SELECT id,principal,path FROM file_roots WHERE revoked=0 AND id NOT LIKE 'exec:%'",
         ) {
@@ -419,8 +382,6 @@ pub fn tool_mcp_execution_grants_list(
             "revoked":revoked!=0||client_revoked,
         }));
     }
-    // Bots the clients derived (`agents_prepare`), read-only, under their
-    // client's grants; revoked with `assist_mcp_derived_bot_revoke`.
     let derived:Vec<serde_json::Value>=omniget_core::core::assist::external_config::derived_local(&db).unwrap_or_default().into_iter().map(|d|{
         let (name,client_revoked)=names.get(&d.principal).cloned().unwrap_or_else(||(d.principal.clone(),false));
         json!({

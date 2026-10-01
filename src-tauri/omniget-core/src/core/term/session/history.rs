@@ -1,32 +1,18 @@
-//! Bounded transcript of one terminal: the last `cap` bytes in memory, mirrored
-//! to `<app_data>/terminal/<id>.log` with coalesced writes.
-//!
-//! The file is append-only between rewrites. When appending would push it past
-//! one and a half caps, it is rewritten from the in-memory tail (temp file and
-//! rename), so the disk never holds much more than the cap and a crash never
-//! leaves a half-written log.
-
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
 pub const DEFAULT_CAP: usize = 2 * 1024 * 1024;
-/// Smallest cap accepted: below this a single screenful does not fit.
 pub const MIN_CAP: usize = 64 * 1024;
 
 pub struct History {
     cap: usize,
     buf: Vec<u8>,
     path: Option<PathBuf>,
-    /// Bytes appended since the last flush.
     unwritten: Vec<u8>,
-    /// Size of the file on disk as far as this process knows.
     disk_len: usize,
-    /// The in-memory tail was trimmed since the last flush in a way that the
-    /// file must be rewritten to match.
     rewrite: bool,
 }
 
-/// Work to do on disk, taken under the session lock and run outside it.
 pub enum DiskJob {
     Append(PathBuf, Vec<u8>),
     Rewrite(PathBuf, Vec<u8>),
@@ -50,11 +36,8 @@ impl History {
         if self.path.is_some() && !self.rewrite {
             self.unwritten.extend_from_slice(data);
         }
-        // Trim with slack so trimming is not a memmove per read.
         if self.buf.len() > self.cap + self.cap / 4 {
             let mut cut = self.buf.len() - self.cap;
-            // Start on a line boundary so replay never begins inside an escape
-            // sequence or a UTF-8 character.
             let window = &self.buf[cut..(cut + 8192).min(self.buf.len())];
             if let Some(nl) = window.iter().position(|&c| c == b'\n') {
                 cut += nl + 1;
@@ -122,18 +105,14 @@ fn rewrite(path: &Path, data: &[u8]) -> std::io::Result<()> {
     std::fs::rename(&tmp, path)
 }
 
-/// Directory holding the transcripts.
 pub fn dir() -> Option<PathBuf> {
     crate::core::paths::app_data_dir().map(|d| d.join("terminal"))
 }
 
-/// File that remembers the agent's own session id for a terminal (Claude's
-/// `session_id`, Codex's thread id), next to its transcript.
 fn session_path(id: &str) -> Option<PathBuf> {
     path_for(id).map(|p| p.with_extension("session"))
 }
 
-/// The agent session id carried by a hook payload, if any.
 pub fn session_id_of(payload: &serde_json::Value) -> Option<String> {
     let pick = |v: &serde_json::Value| {
         ["session_id", "sessionId", "thread-id", "thread_id"]
@@ -151,7 +130,6 @@ pub fn session_id_of(payload: &serde_json::Value) -> Option<String> {
         })
 }
 
-/// Stores the agent session id of terminal `id` (written only on change).
 pub fn save_agent_session(id: &str, session: &str) {
     let Some(p) = session_path(id) else { return };
     if std::fs::read_to_string(&p).ok().as_deref() == Some(session) {
@@ -163,22 +141,18 @@ pub fn save_agent_session(id: &str, session: &str) {
     let _ = std::fs::write(&p, session);
 }
 
-/// The last agent session id seen in terminal `id`.
 pub fn agent_session(id: &str) -> Option<String> {
     let s = std::fs::read_to_string(session_path(id)?).ok()?;
     let s = s.trim().to_string();
     (!s.is_empty()).then_some(s)
 }
 
-/// Forgets the agent session of terminal `id` (the node was deleted, or the
-/// session could not be resumed).
 pub fn forget_agent_session(id: &str) {
     if let Some(p) = session_path(id) {
         let _ = std::fs::remove_file(p);
     }
 }
 
-/// Transcript path for a session id, if the id is safe as a file name.
 pub fn path_for(id: &str) -> Option<PathBuf> {
     if id.is_empty()
         || id.len() > 128
@@ -192,8 +166,6 @@ pub fn path_for(id: &str) -> Option<PathBuf> {
     dir().map(|d| d.join(format!("{id}.log")))
 }
 
-/// Reads the last `cap` bytes of a transcript left on disk (a session from a
-/// previous run of the app).
 pub fn read_tail(id: &str, cap: usize) -> Option<Vec<u8>> {
     let data = std::fs::read(path_for(id)?).ok()?;
     if data.len() <= cap {

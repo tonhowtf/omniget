@@ -1,9 +1,3 @@
-//! LM Studio, the runtime on this machine.
-//!
-//! No credential. One loopback request: `GET http://127.0.0.1:1234/v1/models`,
-//! the models its local server offers (`data[].id`). Nothing leaves the
-//! machine, and a server that is not running is a quiet reading, not an error.
-
 use crate::limits_strip::{json_or_error, LocalModel, ReadError, Reading, UsageProvider};
 
 const ENDPOINT: &str = "http://127.0.0.1:1234/v1/models";

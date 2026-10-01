@@ -1,16 +1,3 @@
-//! Arena, parte 3.8 do roteiro (S23): a estimativa de custo antes de
-//! começar e a comparação lado a lado com os arquivos em que as entradas
-//! divergem ("where they split", `m78:40`).
-//!
-//! - **Estimativa:** por coluna, a média do placar (mesmo driver e modelo)
-//!   quando há histórico; senão o preço de tabela do modelo × um turno típico
-//!   de código; senão desconhecida. O total soma só o que se conhece e diz
-//!   quantas colunas ficaram de fora — nunca conta desconhecido como grátis.
-//! - **Divergência:** para cada arquivo que alguma entrada tocou, o resultado
-//!   de cada uma (o blob novo, "apagado" ou "igual à base" quando não tocou).
-//!   Mais de um resultado distinto = o arquivo diverge. É o que o usuário
-//!   precisa olhar para escolher; o resto é igual em todas.
-
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 use std::time::Duration;
@@ -20,9 +7,6 @@ use serde::Serialize;
 
 use super::{gctx, EntrySpec, ScoreRow};
 
-/// Um turno típico de agente de código num repositório pequeno: quase todo o
-/// contexto é relido a cada passo (entra como entrada). Só a ordem de
-/// grandeza; a UI mostra a fonte "price" como aproximada.
 pub const TYPICAL_INPUT_TOKENS: u64 = 60_000;
 pub const TYPICAL_OUTPUT_TOKENS: u64 = 4_000;
 
@@ -32,9 +16,7 @@ pub struct EntryEstimate {
     pub driver: String,
     pub model: Option<String>,
     pub usd: Option<f64>,
-    /// `history` (média do placar) | `price` (tabela × turno típico) | `unknown`.
     pub source: String,
-    /// Corridas do placar por trás da média (0 fora de `history`).
     pub runs: i64,
     pub avg_duration_ms: Option<f64>,
 }
@@ -43,9 +25,7 @@ pub struct EntryEstimate {
 #[serde(rename_all = "camelCase")]
 pub struct ArenaEstimate {
     pub entries: Vec<EntryEstimate>,
-    /// Soma das colunas com estimativa (`None` se nenhuma tem).
     pub total_usd: Option<f64>,
-    /// Colunas sem estimativa (assinatura sem preço, modelo fora da tabela).
     pub unknown: usize,
 }
 
@@ -58,8 +38,6 @@ fn same_model(a: Option<&str>, b: Option<&str>) -> bool {
     n(a) == n(b)
 }
 
-/// A estimativa, pura: `board` = placar, `prices[i]` = preço de tabela do
-/// modelo da coluna `i` (se houver).
 pub fn estimate_from(
     specs: &[EntrySpec],
     board: &[ScoreRow],
@@ -111,12 +89,9 @@ pub fn estimate_from(
     }
 }
 
-/// O que uma entrada fez num arquivo.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Touch {
-    /// `A` | `M` | `D` (o `--raw` do git, renomes desligados).
     pub status: char,
-    /// Blob novo (`D` = zeros).
     pub blob: String,
     pub additions: Option<i64>,
     pub deletions: Option<i64>,
@@ -126,12 +101,9 @@ pub struct Touch {
 #[serde(rename_all = "camelCase")]
 pub struct CompareCell {
     pub entry_id: String,
-    /// `=` (não tocou: igual à base) | `A` | `M` | `D`.
     pub status: String,
     pub additions: Option<i64>,
     pub deletions: Option<i64>,
-    /// Índice do resultado: 0 = igual à base; entradas com o mesmo número
-    /// chegaram ao mesmo conteúdo.
     pub variant: usize,
 }
 
@@ -140,9 +112,7 @@ pub struct CompareCell {
 pub struct CompareFile {
     pub path: String,
     pub divergent: bool,
-    /// Entradas que tocaram o arquivo.
     pub touched_by: usize,
-    /// Resultados distintos (a base conta como um quando alguém não tocou).
     pub variants: usize,
     pub cells: Vec<CompareCell>,
 }
@@ -151,23 +121,18 @@ pub struct CompareFile {
 #[serde(rename_all = "camelCase")]
 pub struct ArenaCompare {
     pub arena_id: String,
-    /// Entradas comparadas, na ordem das colunas.
     pub entries: Vec<String>,
-    /// Entradas sem commit ainda (rodando, ou falharam antes de gravar).
     pub pending: Vec<String>,
-    /// Divergentes primeiro, depois por caminho.
     pub files: Vec<CompareFile>,
     pub divergent: usize,
     pub agreed: usize,
 }
 
-/// A matriz arquivo × entrada, pura. `per_entry` na ordem das colunas.
 pub fn divergence(per_entry: &[(String, BTreeMap<String, Touch>)]) -> Vec<CompareFile> {
     let paths: BTreeSet<&String> = per_entry.iter().flat_map(|(_, m)| m.keys()).collect();
     let mut files: Vec<CompareFile> = paths
         .into_iter()
         .map(|path| {
-            // Resultado 0 = base; os outros numerados na ordem em que aparecem.
             let mut seen: Vec<String> = Vec::new();
             let mut base_used = false;
             let cells: Vec<CompareCell> = per_entry
@@ -216,8 +181,6 @@ pub fn divergence(per_entry: &[(String, BTreeMap<String, Touch>)]) -> Vec<Compar
     files
 }
 
-/// `git diff --raw` + `--numstat` de `base..commit`, renomes desligados (um
-/// renome vira D + A: dois arquivos, o que a comparação quer).
 pub async fn touches(
     root: &Path,
     base: &str,
@@ -265,7 +228,6 @@ pub async fn touches(
     Ok(out)
 }
 
-/// `:<modo> <modo> <blob> <blob> <S>\0<caminho>\0`…
 pub fn parse_raw(bytes: &[u8]) -> BTreeMap<String, Touch> {
     let parts: Vec<&[u8]> = bytes.split(|b| *b == 0).collect();
     let mut out = BTreeMap::new();
@@ -296,7 +258,6 @@ pub fn parse_raw(bytes: &[u8]) -> BTreeMap<String, Touch> {
     out
 }
 
-/// `<a>\t<d>\t<caminho>\0`… (`-` para binário).
 pub fn parse_numstat(bytes: &[u8]) -> Vec<(String, Option<i64>, Option<i64>)> {
     bytes
         .split(|b| *b == 0)

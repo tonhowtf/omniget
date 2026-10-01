@@ -1,14 +1,3 @@
-//! `OMNIGET_DATA_DIR` for tests. The env is process-wide and cargo runs the
-//! tests of this crate on threads, so a test that moved the data dir while
-//! another read it made both flaky. Every test that sets it goes through
-//! here, for its whole length:
-//!
-//! - [`shared_data_dir`]: the dir the git tests (vcs, threads, review, the
-//!   job gate, snapshots) agree on. Many hold it at once.
-//! - [`exclusive`]: any other value (or other env of the same kind). It waits
-//!   for every holder of the shared dir and puts the previous values back
-//!   when dropped.
-
 use std::cell::RefCell;
 use std::ffi::{OsStr, OsString};
 use std::ops::Deref;
@@ -36,7 +25,6 @@ pub struct Exclusive {
     previous: RefCell<Vec<(String, Option<OsString>)>>,
 }
 
-/// The env to change as one likes until the guard drops.
 pub fn exclusive() -> Exclusive {
     Exclusive {
         _write: DATA_DIR_ENV.write().unwrap_or_else(|e| e.into_inner()),
@@ -45,7 +33,6 @@ pub fn exclusive() -> Exclusive {
 }
 
 impl Exclusive {
-    /// Sets (`Some`) or removes (`None`) `key`; the old value comes back on drop.
     pub fn set(&self, key: &str, value: Option<&OsStr>) {
         self.previous
             .borrow_mut()

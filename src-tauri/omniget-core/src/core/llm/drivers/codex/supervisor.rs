@@ -1,14 +1,3 @@
-//! The `codex app-server` process: spawn, stderr tail, exit watch, and a
-//! stop that kills only what OmniGet started (the app-server and its own
-//! descendants: the shells and MCP servers Codex launched), never a process
-//! group or anything else on the machine.
-//!
-//! Restart policy (the driver applies it): a process that dies on its own is
-//! restarted on the next call that needs it, resuming the same Codex thread
-//! (`thread/resume` with the cursor), at most [`RESTART_LIMIT`] times per
-//! [`RESTART_WINDOW`]. Nothing is restarted while no one asks: an idle thread
-//! costs no process.
-
 use std::collections::VecDeque;
 use std::process::Stdio;
 use std::sync::{Arc, Mutex};
@@ -23,18 +12,15 @@ use super::launch::LaunchSpec;
 
 pub const RESTART_LIMIT: usize = 3;
 pub const RESTART_WINDOW: Duration = Duration::from_secs(5 * 60);
-/// After SIGTERM, how long the tree gets before the hard kill.
 const KILL_GRACE: Duration = Duration::from_secs(2);
 const STDERR_TAIL_LINES: usize = 20;
 
-/// Crash restarts allowed in a sliding window.
 #[derive(Debug, Default)]
 pub struct RestartBudget {
     times: VecDeque<Instant>,
 }
 
 impl RestartBudget {
-    /// Records a restart at `now` if the budget allows it.
     pub fn allow(&mut self, now: Instant) -> bool {
         while let Some(first) = self.times.front() {
             if now.duration_since(*first) > RESTART_WINDOW {
@@ -51,8 +37,6 @@ impl RestartBudget {
     }
 }
 
-/// Descendants of `root` in a `(pid, ppid)` table, deepest first, so a kill
-/// in this order never lets a child be re-parented before it is reached.
 pub fn descendants(table: &[(u32, u32)], root: u32) -> Vec<u32> {
     let mut levels: Vec<Vec<u32>> = Vec::new();
     let mut frontier = vec![root];
@@ -73,7 +57,6 @@ pub fn descendants(table: &[(u32, u32)], root: u32) -> Vec<u32> {
     levels.into_iter().rev().flatten().collect()
 }
 
-/// Parses `ps -A -o pid= -o ppid=`.
 pub fn parse_ps(text: &str) -> Vec<(u32, u32)> {
     text.lines()
         .filter_map(|l| {
@@ -96,7 +79,6 @@ fn process_table() -> Vec<(u32, u32)> {
         .unwrap_or_default()
 }
 
-/// Asks the tree rooted at `pid` to stop: descendants first, then the root.
 #[cfg(unix)]
 fn terminate_tree(pid: u32) {
     let table = process_table();
@@ -123,7 +105,6 @@ fn kill_tree_hard(pid: u32) {
 
 #[cfg(windows)]
 fn terminate_tree(pid: u32) {
-    // `/T` walks the tree of this pid only.
     let _ = crate::core::process::std_command("taskkill")
         .args(["/PID", &pid.to_string(), "/T", "/F"])
         .stdin(Stdio::null())
@@ -142,9 +123,6 @@ fn terminate_tree(_pid: u32) {}
 #[cfg(not(any(unix, windows)))]
 fn kill_tree_hard(_pid: u32) {}
 
-/// Drops ANSI escapes and Codex's own tracing lines
-/// (`2026-09-22T22:36:39Z ERROR codex_api::…: …`), which duplicate the
-/// `error` notifications. What is left is a real crash message.
 pub fn stderr_line_of_interest(line: &str) -> Option<String> {
     let mut clean = String::with_capacity(line.len());
     let mut chars = line.chars().peekable();
@@ -178,17 +156,14 @@ pub fn stderr_line_of_interest(line: &str) -> Option<String> {
     Some(clean.to_string())
 }
 
-/// A live app-server process owned by one session.
 pub struct ProcessHandle {
     pub pid: Option<u32>,
     kill: Mutex<Option<oneshot::Sender<()>>>,
-    /// `None` while running; `Some(code)` once it exited.
     pub exit: watch::Receiver<Option<Option<i32>>>,
     pub stderr_tail: Arc<Mutex<VecDeque<String>>>,
 }
 
 impl ProcessHandle {
-    /// Stops the tree (idempotent).
     pub fn stop(&self) {
         if let Some(tx) = self.kill.lock().ok().and_then(|mut k| k.take()) {
             let _ = tx.send(());
@@ -202,7 +177,6 @@ impl ProcessHandle {
             .unwrap_or_default()
     }
 
-    /// Waits a moment for the exit code (after the stdout EOF).
     pub async fn exit_code(&self, wait: Duration) -> Option<i32> {
         let mut rx = self.exit.clone();
         if let Some(code) = *rx.borrow() {
@@ -220,21 +194,17 @@ impl Drop for ProcessHandle {
     }
 }
 
-/// The pipes of one app-server.
 pub struct Connection {
     pub reader: Box<dyn AsyncRead + Unpin + Send>,
     pub writer: Box<dyn AsyncWrite + Unpin + Send>,
     pub process: Option<ProcessHandle>,
 }
 
-/// Opens an app-server. The real one spawns the CLI; tests plug a scripted
-/// peer over `tokio::io::duplex`.
 #[async_trait]
 pub trait Connector: Send + Sync {
     async fn connect(&self, spec: &LaunchSpec) -> Result<Connection, DriverError>;
 }
 
-/// Spawns `codex app-server` for real.
 pub struct ProcessConnector;
 
 async fn resolve_program(spec: &LaunchSpec) -> Result<std::path::PathBuf, DriverError> {

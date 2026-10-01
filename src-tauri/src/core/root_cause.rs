@@ -1,63 +1,28 @@
-//! Traduz o stderr do yt-dlp em causa nomeada mais a correcao correspondente.
-//!
-//! O usuario nao le stderr. Ele le "falhou" e abre uma issue, ou desiste. Este
-//! modulo e o que converte o B41, o B42 e o B43 em algo acionavel: sem ele,
-//! cada um entrega capacidade que o usuario nao consegue acionar.
-//!
-//! Cada causa carrega **uma acao**, e a acao e o que a tela vira botao. Causa
-//! sem acao correspondente e so um erro melhor escrito, e nao era isso o pedido.
-//!
-//! A ordem de deteccao importa: a primeira que casar vence, e as mais
-//! especificas vem antes. Um 403 por fingerprint e um 403 por conteudo privado
-//! parecem iguais no fim da mensagem, e mandar o usuario atras da solucao errada
-//! e pior que nao sugerir nada.
-//!
-//! Origem: painel unico de causa raiz em controle de trafego aereo — uma tela
-//! onde cada alarme tem causa e acao ao lado, em vez de uma lista de sintomas.
-
 use serde::Serialize;
 
-/// O que o usuario pode fazer. Vira botao na tela.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Remedy {
-    /// Importar cookies do navegador.
     ImportCookies,
-    /// Tentar de novo imitando um navegador (`--impersonate`).
     UseImpersonation,
-    /// Subir ou configurar o provedor de PO Token.
     SetUpPotProvider,
-    /// Trocar o client do YouTube — a cascata do B41 ja faz sozinha.
     SwitchPlayerClient,
-    /// Esperar e tentar de novo; nada a configurar.
     WaitAndRetry,
-    /// Liberar espaco em disco.
     FreeDiskSpace,
-    /// Atualizar o yt-dlp.
     UpdateYtdlp,
-    /// Nada que o app saiba sugerir.
     None,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct Diagnosis {
-    /// Chave de i18n. Nunca texto pronto: a mensagem e traduzida na tela.
     pub cause_key: &'static str,
     pub remedy: Remedy,
-    /// Detalhe tecnico, para o painel de debug. Nao vai para o toast.
     pub detail: Option<String>,
 }
 
-/// Diagnostica uma falha de download a partir do stderr.
-///
-/// `None` significa que o app nao sabe — melhor admitir do que inventar causa,
-/// porque um diagnostico errado manda o usuario para a solucao errada e ele
-/// perde mais tempo do que se nao houvesse diagnostico nenhum.
 pub fn diagnose(stderr: &str) -> Option<Diagnosis> {
     let s = stderr.to_lowercase();
 
-    // Mais especificas primeiro. Varias destas terminam em 403 ou em
-    // "unavailable", e a ordem e o que evita casar pela razao errada.
     if crate::core::pot_provider::stderr_indicates_missing_token(&s) {
         return Some(Diagnosis {
             cause_key: "error.cause.po_token_required",
@@ -90,8 +55,6 @@ pub fn diagnose(stderr: &str) -> Option<Diagnosis> {
         });
     }
 
-    // Auth antes de fingerprint: "private video" e "members-only" sao
-    // inequivocos, enquanto 403 sozinho e ambiguo.
     if s.contains("private video")
         || s.contains("video is private")
         || s.contains("members-only")
@@ -128,8 +91,6 @@ pub fn diagnose(stderr: &str) -> Option<Diagnosis> {
     None
 }
 
-/// Stable machine diagnosis. This deliberately distinguishes observations
-/// (HTTP access denied) from hypotheses (authentication/fingerprint).
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MachineDiagnosis {
@@ -141,13 +102,9 @@ pub struct MachineDiagnosis {
     pub unknowns: Vec<&'static str>,
 }
 impl MachineDiagnosis {
-    /// The single retry predicate shared by queue status, the durable terminal
-    /// receipt, `download_diagnose` and `download_retry` admission.
     pub fn is_retryable(&self) -> bool {
         matches!(self.retryable, "bounded" | "after_cooldown")
     }
-    /// Minimum wait before an explicit retry. A class without a server-given
-    /// Retry-After still waits: rate limits a minute, platform blocks longer.
     pub fn cooldown_seconds(&self) -> u64 {
         match self.code {
             "BLOCKED_BY_PLATFORM" => 900,
@@ -157,10 +114,6 @@ impl MachineDiagnosis {
     }
 }
 
-/// Fixed machine codes emitted by the confined worker and the MCP finalizer.
-/// They are matched before free-text heuristics: a worker code is evidence
-/// already classified at the source, and heuristics on labels (e.g. a bare
-/// "not found" or a "429" inside an ID) must not relabel it.
 const CODE_RULES: &[(&str, &str, &str, &str)] = &[
     (
         "BLOCKED_BY_PLATFORM",
@@ -193,15 +146,12 @@ const CODE_RULES: &[(&str, &str, &str, &str)] = &[
         "never",
         "inspect_job_before_retry",
     ),
-    // OmniGet's egress policy refused the connection (not a remote 403).
     (
         "EGRESS_BLOCKED",
         "connection",
         "after_user_action",
         "grant_local_network_access",
     ),
-    // OmniGet's per-download egress budget (egress.rs LimitReason): a policy
-    // refusal, never retried as is. Emitted by src/mcp/worker.rs egress_limit.
     ("LIMIT_BYTES", "validation", "never", "choose_lower_quality"),
     ("LIMIT_TIME", "validation", "never", "choose_lower_quality"),
     (
@@ -210,16 +160,11 @@ const CODE_RULES: &[(&str, &str, &str, &str)] = &[
         "never",
         "choose_lower_quality",
     ),
-    // HTTP 5xx: the server failed, the content is not known to be gone.
     ("SERVER_ERROR", "connection", "bounded", "retry_transient"),
-    // Proxy/TLS/DNS/connect failure of the path out (worker EGRESS_FAILED): transient, retried.
     ("EGRESS_FAILED", "connection", "bounded", "retry_transient"),
-    // The stored URL is the redacted display form (history, recovery): the
-    // original link must be pasted again; retrying would send `[REDACTED]`.
     ("LINK_EXPIRED", "validation", "never", "paste_original_link"),
 ];
 
-/// Diagnosis carried by a fixed worker/finalizer code, if the text has one.
 pub fn diagnose_code(text: &str) -> Option<MachineDiagnosis> {
     for (code, phase, retryable, action) in CODE_RULES {
         if text.contains(code) {
@@ -325,7 +270,6 @@ pub fn machine_diagnose(text: &str) -> MachineDiagnosis {
             "change_network_or_wait",
         ),
         (
-            // HTTP 5xx: the server failed; the content is not known to be gone.
             &[
                 "http error 500",
                 "http error 502",

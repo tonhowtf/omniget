@@ -1,4 +1,3 @@
-//! Trusted local exceptions: an exact literal address and port, never a LAN wildcard.
 use super::policy::{self, Principal};
 use rusqlite::params;
 use std::{collections::BTreeSet, net::SocketAddr};
@@ -16,7 +15,6 @@ fn endpoint(raw: &str) -> Result<SocketAddr, String> {
     }
     Ok(socket)
 }
-/// Local UI only. Replaces this client's finite exception set atomically.
 pub fn set(principal: &str, endpoints: &[String]) -> Result<(), String> {
     if endpoints.len() > 16 {
         return Err("NETWORK_GRANT_LIMIT".into());

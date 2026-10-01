@@ -1,10 +1,3 @@
-//! Renderer walker shared by the YouTube and YouTube Music parsers.
-//!
-//! Innertube responses change shape through A/B tests, so nothing here
-//! deserializes into fixed structs: every renderer is read field by field
-//! from a `serde_json::Value`, missing fields fall back to `None`, and an
-//! unknown renderer is skipped (and counted) instead of failing the page.
-
 use std::cell::RefCell;
 use std::collections::BTreeMap;
 
@@ -14,11 +7,6 @@ use super::model::*;
 
 const YT: &str = "https://www.youtube.com";
 
-// ---------------------------------------------------------------------------
-// Text
-// ---------------------------------------------------------------------------
-
-/// `simpleText`, `runs[].text` or the `content` of a view model.
 pub fn text(v: &Value) -> Option<String> {
     let s = match v {
         Value::String(s) => s.clone(),
@@ -44,7 +32,6 @@ pub fn text(v: &Value) -> Option<String> {
     (!s.is_empty()).then_some(s)
 }
 
-/// Text at a JSON pointer (`/title`, `/header/0/title`...).
 pub(crate) fn text_at(v: &Value, ptr: &str) -> Option<String> {
     v.pointer(ptr).and_then(text)
 }
@@ -55,9 +42,6 @@ pub(crate) fn str_at<'a>(v: &'a Value, ptr: &str) -> Option<&'a str> {
         .filter(|s| !s.is_empty())
 }
 
-/// Formatted text with links. Handles classic `runs` (with
-/// `navigationEndpoint`) and view-model `content` + `commandRuns`, whose
-/// indices count UTF-16 code units.
 pub fn runs(v: &Value) -> Vec<TextRun> {
     if let Some(rs) = v.get("runs").and_then(Value::as_array) {
         return rs
@@ -134,8 +118,6 @@ pub fn runs(v: &Value) -> Vec<TextRun> {
     Vec::new()
 }
 
-/// Unwraps `onTap` / `innertubeCommand` / `command` containers down to the
-/// object that holds the actual `*Endpoint`.
 pub(crate) fn endpoint(v: &Value) -> &Value {
     let mut cur = v;
     for _ in 0..4 {
@@ -190,7 +172,6 @@ fn absolute_url(u: &str) -> String {
     }
 }
 
-/// `youtube.com/redirect?...&q=<target>` -> target.
 fn unwrap_redirect(u: &str) -> String {
     let abs = absolute_url(u);
     if abs.contains("youtube.com/redirect") {
@@ -202,10 +183,6 @@ fn unwrap_redirect(u: &str) -> String {
     }
     abs
 }
-
-// ---------------------------------------------------------------------------
-// Images
-// ---------------------------------------------------------------------------
 
 const THUMB_WRAPPERS: &[&str] = &[
     "thumbnail",
@@ -230,8 +207,6 @@ const THUMB_WRAPPERS: &[&str] = &[
     "backupRenderer",
 ];
 
-/// `thumbnails[]`, `sources[]` or any of the usual wrappers around them.
-/// Protocol-relative and `http:` URLs become `https:`.
 pub fn thumbs(v: &Value) -> Vec<Thumb> {
     fn list(v: &Value, depth: u8) -> Option<&Vec<Value>> {
         if depth > 6 {
@@ -257,7 +232,6 @@ pub fn thumbs(v: &Value) -> Vec<Thumb> {
                 }
             }
         }
-        // `thumbnails: [{thumbnails: [...]}]` (playlistRenderer)
         if let Some(first) = v.get("thumbnails").and_then(|a| a.get(0)) {
             return list(first, depth + 1);
         }
@@ -289,16 +263,10 @@ fn https(u: &str) -> String {
     }
 }
 
-/// Largest image URL, for single-avatar fields.
 pub(crate) fn best_thumb(v: &Value) -> Option<String> {
     thumbs(v).into_iter().max_by_key(|t| t.width).map(|t| t.url)
 }
 
-// ---------------------------------------------------------------------------
-// Numbers
-// ---------------------------------------------------------------------------
-
-/// `"1:02:03"` -> 3723. Rejects anything that isn't `[[h:]m:]s` digits.
 pub fn parse_duration(s: &str) -> Option<u32> {
     let s = s.trim();
     if s.is_empty() {
@@ -318,11 +286,6 @@ pub fn parse_duration(s: &str) -> Option<u32> {
     Some(total)
 }
 
-/// Counts as the service writes them: `"1.2M views"`, `"1,234 views"`,
-/// `"1,2 mi de visualizações"`, `"12 mil"`, `"8.66 million subscribers"`,
-/// `"1,2 M de visualizaciones"`. Without a multiplier every separator is a
-/// thousands separator; with one, a trailing `.`/`,` group of 1-2 digits is
-/// the decimal part.
 pub fn parse_count(s: &str) -> Option<u64> {
     let chars: Vec<char> = s.chars().collect();
     let start = chars.iter().position(|c| c.is_ascii_digit())?;
@@ -338,7 +301,6 @@ pub fn parse_count(s: &str) -> Option<u64> {
             end += 1;
             continue;
         }
-        // "1 234 567" (fr/ru groups with a (narrow) no-break space)
         if matches!(c, '\u{a0}' | '\u{202f}' | ' ') && next_digit {
             let group = chars[end + 1..]
                 .iter()
@@ -361,7 +323,6 @@ pub fn parse_count(s: &str) -> Option<u64> {
         .split(|c: char| !c.is_alphabetic())
         .filter(|w| !w.is_empty())
         .map(str::to_lowercase);
-    // Only a word glued to the number or right after one space counts.
     let gap = chars[end..]
         .iter()
         .take_while(|c| c.is_whitespace() || **c == '\u{a0}')
@@ -370,7 +331,6 @@ pub fn parse_count(s: &str) -> Option<u64> {
     let mult: f64 = match word.as_deref() {
         Some("k" | "thousand" | "tsd" | "tys" | "rb" | "b\u{0131}n") => 1e3,
         Some("mil") => {
-            // es: "1,2 mil M" / "mil millones" = billions
             if words
                 .next()
                 .is_some_and(|w| w == "m" || w.starts_with("mill"))
@@ -410,11 +370,6 @@ pub fn parse_count(s: &str) -> Option<u64> {
     Some((n * mult).round() as u64)
 }
 
-// ---------------------------------------------------------------------------
-// Tree search
-// ---------------------------------------------------------------------------
-
-/// Every value stored under `key`, depth first, in document order.
 pub fn find_key<'a>(v: &'a Value, key: &str) -> Vec<&'a Value> {
     fn rec<'a>(v: &'a Value, key: &str, out: &mut Vec<&'a Value>) {
         match v {
@@ -455,9 +410,6 @@ pub(crate) fn find_first<'a>(v: &'a Value, key: &str) -> Option<&'a Value> {
     rec(v, key)
 }
 
-/// Token of a `continuationItemRenderer` / `nextContinuationData` /
-/// `nextRadioContinuationData`. The shallowest one wins (the page's own
-/// continuation, not a comment's replies), and the last among equals.
 pub fn find_continuation(v: &Value) -> Option<String> {
     fn token_of(k: &str, val: &Value) -> Option<String> {
         match k {
@@ -512,10 +464,6 @@ pub fn find_continuation(v: &Value) -> Option<String> {
     best.map(|(_, t)| t)
 }
 
-// ---------------------------------------------------------------------------
-// Unknown renderer bookkeeping
-// ---------------------------------------------------------------------------
-
 thread_local! {
     static UNKNOWN: RefCell<BTreeMap<String, u32>> = const { RefCell::new(BTreeMap::new()) };
 }
@@ -524,12 +472,10 @@ fn note_unknown(name: &str) {
     UNKNOWN.with(|u| *u.borrow_mut().entry(name.to_string()).or_default() += 1);
 }
 
-/// Renderers the walker met but doesn't know, since the last call.
 pub fn take_unknown() -> Vec<(String, u32)> {
     UNKNOWN.with(|u| std::mem::take(&mut *u.borrow_mut()).into_iter().collect())
 }
 
-/// Logs (debug) and clears the unknown renderers of the parse that just ran.
 pub(crate) fn log_unknown(page: &str) {
     let unknown = take_unknown();
     if !unknown.is_empty() {
@@ -537,12 +483,6 @@ pub(crate) fn log_unknown(page: &str) {
     }
 }
 
-// ---------------------------------------------------------------------------
-// Endpoints
-// ---------------------------------------------------------------------------
-
-/// `(browseId, params, pageType)` of a browse endpoint anywhere in `ep`'s
-/// command wrappers.
 pub(crate) fn browse_of(ep: &Value) -> Option<(&str, Option<&str>, Option<&str>)> {
     let ep = endpoint(ep);
     let b = ep.get("browseEndpoint")?;
@@ -585,7 +525,6 @@ fn handle_from_url(u: &str) -> Option<String> {
         .map(str::to_string)
 }
 
-/// First run that browses to a channel: `ownerText`, `shortBylineText`...
 pub(crate) fn channel_from_runs(v: &Value) -> Option<ChannelRef> {
     let rs = v.get("runs").and_then(Value::as_array)?;
     for r in rs {
@@ -609,7 +548,6 @@ pub(crate) fn channel_from_runs(v: &Value) -> Option<ChannelRef> {
             }
         }
     }
-    // A byline without a link still names the channel.
     let name = text(v)?;
     Some(ChannelRef {
         name,
@@ -644,7 +582,6 @@ fn owner_flags(r: &Value) -> (bool, bool) {
     (verified, artist)
 }
 
-/// Verified / artist check from a view model's `attachmentRuns` icons.
 fn attachment_flags(v: &Value) -> (bool, bool) {
     let mut verified = false;
     let mut artist = false;
@@ -661,11 +598,6 @@ fn attachment_flags(v: &Value) -> (bool, bool) {
     (verified, artist)
 }
 
-// ---------------------------------------------------------------------------
-// Items
-// ---------------------------------------------------------------------------
-
-/// Renderers that are never shown: ads, merch, promos. No item, no log.
 const JUNK: &[&str] = &[
     "adSlotRenderer",
     "inFeedAdLayoutRenderer",
@@ -752,8 +684,6 @@ const JUNK: &[&str] = &[
     "thumbnailOverlayTimeStatusRenderer",
 ];
 
-/// Structural renderers the walker goes through without a shelf of their
-/// own (unless they carry a header title, see `titled_shelf`).
 const TRANSPARENT: &[&str] = &[
     "twoColumnBrowseResultsRenderer",
     "singleColumnBrowseResultsRenderer",
@@ -780,7 +710,6 @@ const TRANSPARENT: &[&str] = &[
     "reloadContinuationItemsCommand",
 ];
 
-/// Plain (non-renderer) keys that lead to items.
 const DESCEND_KEYS: &[&str] = &[
     "contents",
     "content",
@@ -810,7 +739,6 @@ const DESCEND_KEYS: &[&str] = &[
     "expandedContent",
 ];
 
-/// Keys never worth descending into.
 const SKIP_KEYS: &[&str] = &[
     "menu",
     "frameworkUpdates",
@@ -829,7 +757,6 @@ const SKIP_KEYS: &[&str] = &[
     "header",
 ];
 
-/// One renderer wrapper (`{"videoRenderer": {...}}`) -> `Item`.
 pub fn item(v: &Value) -> Option<Item> {
     let o = v.as_object()?;
     o.iter().find_map(|(k, inner)| {
@@ -918,7 +845,6 @@ fn is_item_renderer(k: &str) -> bool {
     )
 }
 
-/// Every item under `v`, in order, shelves flattened.
 pub fn collect_items(v: &Value) -> Vec<Item> {
     let mut b = Builder::new(ShelfKind::List);
     b.visit(v);
@@ -941,7 +867,6 @@ fn overlay_time(r: &Value) -> Option<String> {
 }
 
 fn not_interested_token(menu: &Value) -> Option<String> {
-    // Classic menus: menuServiceItemRenderer with the NOT_INTERESTED icon.
     for it in find_key(menu, "menuServiceItemRenderer") {
         if str_at(it, "/icon/iconType") == Some("NOT_INTERESTED") {
             if let Some(t) = find_first(it, "feedbackToken").and_then(Value::as_str) {
@@ -949,7 +874,6 @@ fn not_interested_token(menu: &Value) -> Option<String> {
             }
         }
     }
-    // Lockup sheets: listItemViewModel with the same icon name.
     for it in find_key(menu, "listItemViewModel") {
         let icon = find_first(it, "imageName").and_then(Value::as_str);
         if icon == Some("NOT_INTERESTED") {
@@ -1098,8 +1022,6 @@ fn shorts_lockup(r: &Value) -> Option<Item> {
     }))
 }
 
-/// Overlay badge texts of a lockup thumbnail (duration, "LIVE", "Mix",
-/// "50 videos") with their styles.
 fn lockup_badges(img: &Value) -> Vec<(String, String)> {
     find_key(img, "thumbnailBadgeViewModel")
         .into_iter()
@@ -1285,7 +1207,6 @@ fn lockup(r: &Value) -> Option<Item> {
         }));
     }
 
-    // Video
     let mut badges = Vec::new();
     let mut duration = None;
     for (t, style) in &badges_raw {
@@ -1344,12 +1265,9 @@ fn lockup(r: &Value) -> Option<Item> {
     {
         badges.push(Badge::Streamed);
     }
-    if badges.contains(&Badge::Live) || badges.contains(&Badge::Upcoming) {
-        // "1.2K watching" / "Scheduled for ..." are not view counts.
-        if badges.contains(&Badge::Upcoming) {
-            published_text = views_text.take().or(published_text);
-            views = None;
-        }
+    if badges.contains(&Badge::Upcoming) {
+        published_text = views_text.take().or(published_text);
+        views = None;
     }
     badges.dedup();
     let watched_pct = find_first(img, "thumbnailOverlayProgressBarViewModel")
@@ -1388,8 +1306,6 @@ fn channel_renderer(r: &Value) -> Option<Item> {
     let (verified, artist) = owner_flags(r);
     let sub = r.get("subscriberCountText").and_then(text);
     let vids = r.get("videoCountText").and_then(text);
-    // A/B: the handle sometimes sits in subscriberCountText and the
-    // subscriber count in videoCountText.
     let (handle, subscribers_text, video_count_text) = match (&sub, &vids) {
         (Some(s), v) if s.starts_with('@') => (Some(s.clone()), v.clone(), None),
         _ => (
@@ -1474,8 +1390,6 @@ fn playlist_renderer(k: &str, r: &Value) -> Option<Item> {
     }))
 }
 
-// --- YouTube Music ---------------------------------------------------------
-
 fn is_explicit(r: &Value) -> bool {
     find_key(r, "musicInlineBadgeRenderer")
         .iter()
@@ -1520,7 +1434,6 @@ fn is_year(t: &str) -> bool {
     t.len() == 4 && t.bytes().all(|b| b.is_ascii_digit())
 }
 
-/// Run of a music byline that links to an artist / channel.
 fn artist_from_run(r: &Value) -> Option<ChannelRef> {
     let ep = r.get("navigationEndpoint")?;
     let (id, _, page_type) = browse_of(ep)?;
@@ -1556,8 +1469,6 @@ fn album_from_run(r: &Value) -> Option<AlbumRef> {
     })
 }
 
-/// Artists, album, duration and play count spread over the byline runs of
-/// a song row (search, album, playlist, quick picks).
 struct SongByline {
     artists: Vec<ChannelRef>,
     album: Option<AlbumRef>,
@@ -1637,7 +1548,6 @@ fn music_list_item(r: &Value) -> Option<Item> {
         });
         let mut artists = byline.artists;
         if artists.is_empty() {
-            // "Various Artists" and podcast hosts come without a link.
             if let Some(name) = byline.plain.last() {
                 artists.push(ChannelRef {
                     name: name.clone(),
@@ -1812,8 +1722,6 @@ fn music_two_row(r: &Value) -> Option<Item> {
         _ => {
             let pid = id.strip_prefix("VL").unwrap_or(id).to_string();
             let channel = byline.artists.into_iter().next().or_else(|| {
-                // "Playlist • YouTube Music • 50 songs": the owner is the
-                // middle plain run.
                 (texts.len() >= 3).then(|| ChannelRef {
                     name: texts[1].to_string(),
                     ..Default::default()
@@ -1873,8 +1781,6 @@ fn mood_button(r: &Value) -> Option<Item> {
     }))
 }
 
-/// YT Music queue row (`next`). Also used by `item()` when a panel row
-/// carries a music video type.
 pub(crate) fn song_from_panel(r: &Value) -> Option<SongItem> {
     let r = r
         .get("primaryRenderer")
@@ -1918,12 +1824,6 @@ pub(crate) fn song_from_panel(r: &Value) -> Option<SongItem> {
     })
 }
 
-// ---------------------------------------------------------------------------
-// Shelves
-// ---------------------------------------------------------------------------
-
-/// Groups items into shelves by their containers. Loose items (not inside
-/// a titled container) become untitled shelves of `default_kind`.
 pub(crate) struct Builder {
     pub shelves: Vec<Shelf>,
     loose: Vec<Item>,
@@ -2003,8 +1903,6 @@ impl Builder {
     }
 }
 
-/// Drops empty shelves, fixes the kind of all-Shorts / all-mood shelves and
-/// numbers them.
 pub(crate) fn finalize(shelves: Vec<Shelf>) -> Vec<Shelf> {
     shelves
         .into_iter()
@@ -2024,7 +1922,6 @@ pub(crate) fn finalize(shelves: Vec<Shelf>) -> Vec<Shelf> {
         .collect()
 }
 
-/// Items of a container (no nested shelves kept).
 fn container_items(v: &Value) -> Vec<Item> {
     collect_items(v)
 }
@@ -2092,7 +1989,6 @@ fn titled_shelf(k: &str, r: &Value) -> Option<Shelf> {
             ))
         }
         "itemSectionRenderer" => {
-            // History groups by day with an itemSectionHeaderRenderer.
             let title = text_at(r, "/header/itemSectionHeaderRenderer/title")?;
             Some(shelf(
                 Some(title),
@@ -2176,7 +2072,6 @@ fn titled_shelf(k: &str, r: &Value) -> Option<Shelf> {
     }
 }
 
-/// The big "Top result" card of YT Music search.
 fn music_card_top(r: &Value) -> Option<Item> {
     let title_run = r.pointer("/title/runs/0")?;
     let title = r.get("title").and_then(text).unwrap_or_default();
@@ -2233,15 +2128,12 @@ fn music_card_top(r: &Value) -> Option<Item> {
     }
 }
 
-/// Shelves of any browse / search / continuation subtree.
 pub(crate) fn shelves_of(v: &Value, default_kind: ShelfKind) -> Vec<Shelf> {
     let mut b = Builder::new(default_kind);
     b.visit(v);
     b.finish()
 }
 
-/// Filter chips: YouTube `chipCloudChipRenderer` / `chipViewModel`
-/// (continuation token or search params) and YT Music chips (browse params).
 pub(crate) fn chips(v: &Value) -> Vec<Chip> {
     let mut out = Vec::new();
     for c in find_key(v, "chipCloudChipRenderer") {
@@ -2284,17 +2176,12 @@ fn chip_token(ep: &Value) -> Option<String> {
         .map(str::to_string)
 }
 
-// ---------------------------------------------------------------------------
-// Test support
-// ---------------------------------------------------------------------------
-
 #[cfg(test)]
 pub(crate) mod testutil {
     use serde_json::Value;
     use std::io::Read;
     use std::path::PathBuf;
 
-    /// Loads `parse/fixtures/<name>.json.gz`.
     pub fn fixture(name: &str) -> Value {
         let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("src/core/tube/parse/fixtures")
@@ -2307,8 +2194,6 @@ pub(crate) mod testutil {
         serde_json::from_str(&s).expect("fixture json")
     }
 
-    /// JSON from the studied repos (rustypipe / ytmapi-rs test data), which
-    /// stay outside the repository. `None` when the file isn't there.
     pub fn external(rel: &str) -> Option<Value> {
         let base = std::env::var("OMNITUBE_STUDIES")
             .map(PathBuf::from)
@@ -2387,7 +2272,6 @@ mod tests {
 
     #[test]
     fn command_runs_use_utf16_offsets() {
-        // "😀 go" : the emoji is two UTF-16 units.
         let v = json!({
             "content": "😀 go here now",
             "commandRuns": [{"startIndex": 6, "length": 4, "onTap": {"innertubeCommand": {

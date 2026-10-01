@@ -1,6 +1,3 @@
-//! Opens a byte stream to a target address through a route. Everything
-//! above this layer (MTProto framing, obfuscation) sees just a stream.
-
 use std::net::SocketAddr;
 use std::pin::Pin;
 use std::time::Duration;
@@ -17,8 +14,6 @@ pub type BoxStream = Pin<Box<dyn IoStream>>;
 
 pub const CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
 
-/// Where the tunnel should end up: Telegram DCs are IPs, but SOCKS/HTTP can
-/// also carry a hostname (used by the DoH-free path through a proxy).
 #[derive(Debug, Clone)]
 pub enum Target {
     Ip(SocketAddr),
@@ -34,8 +29,6 @@ impl std::fmt::Display for Target {
     }
 }
 
-/// Dials `target` through `route`. MTProto proxies are not tunnels (they
-/// pick the DC themselves) and are handled in `mtproxy`.
 pub async fn open(route: &Route, target: &Target, prefer_doh: bool) -> anyhow::Result<BoxStream> {
     let fut = async {
         match route.kind {
@@ -77,8 +70,6 @@ pub async fn open(route: &Route, target: &Target, prefer_doh: bool) -> anyhow::R
         .map_err(|_| anyhow!("timed out reaching {} via {}", target, route.name))?
 }
 
-/// TCP to the proxy server itself, resolving its name without trusting the
-/// local DNS when asked to.
 pub async fn connect_proxy_host(route: &Route, prefer_doh: bool) -> anyhow::Result<TcpStream> {
     let ips = super::dns::resolve(&route.host, prefer_doh).await?;
     let mut last = None;
@@ -101,8 +92,6 @@ pub async fn connect_proxy_host(route: &Route, prefer_doh: bool) -> anyhow::Resu
     ))
 }
 
-/// SOCKS5 address block (ATYP + address + port), also used by Shadowsocks
-/// and Trojan headers.
 pub fn socks_addr(target: &Target) -> Vec<u8> {
     let mut out = Vec::with_capacity(22);
     match target {
@@ -224,7 +213,6 @@ pub async fn http_connect<S: AsyncRead + AsyncWrite + Unpin>(
     }
     req.push_str("\r\n");
     s.write_all(req.as_bytes()).await?;
-    // Read the header byte by byte so no tunnel bytes are swallowed.
     let mut head = Vec::with_capacity(256);
     let mut b = [0u8; 1];
     while !head.ends_with(b"\r\n\r\n") {

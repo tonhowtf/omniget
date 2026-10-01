@@ -1,6 +1,3 @@
-//! `download_video`: the retry loop, the stdout reader, the user-edited command
-//! and the subtitle sidecars.
-
 use super::*;
 
 pub(super) fn parse_destination_line(line: &str) -> Option<String> {
@@ -29,9 +26,6 @@ pub(super) fn adjusted_multi_stream_progress(
     max_reported: f64,
     percent: f64,
 ) -> f64 {
-    // Some external downloader output does not include a second Destination line.
-    // Detect the second stream when the raw percentage resets after the first
-    // stream has reached the 50% boundary.
     if *phase <= 1
         && max_reported >= 49.0
         && last_raw_percent.is_some_and(|last| last >= 95.0 && percent < 95.0)
@@ -73,7 +67,6 @@ pub async fn download_video(
 
     let _ = progress.send(ProgressUpdate::percent(-1.0)).await;
     let download_started_at = std::time::SystemTime::now();
-    // Conta para o orçamento global de conexões (adaptive_concurrency).
     let _active = crate::core::adaptive_concurrency::ActiveDownloadGuard::new();
 
     let mode = download_mode.unwrap_or("auto");
@@ -219,17 +212,10 @@ pub async fn download_video(
     let mut base_args = vec![
         "-f".to_string(),
         format_selector,
-        // Um `yt-dlp.conf` do usuário não pode mudar o comportamento do app por
-        // baixo dos panos; quem quer flags extras tem `extra_ytdlp_flags`.
         "--ignore-config".to_string(),
         "--no-embed-info-json".to_string(),
         "--encoding".to_string(),
         "utf-8".to_string(),
-        // NOTE: `after_move` is the only print stage where yt-dlp populates
-        // %(filepath)s (it is NA at `after_video`). Any --print implies
-        // --quiet (and therefore noprogress), which would starve our stdout
-        // parsing of progress / Destination / Merger lines — so explicitly
-        // restore verbose output and progress below.
         "--print".to_string(),
         "after_move:OMNIGET_FILEPATH:%(filepath)s".to_string(),
         "--no-quiet".to_string(),
@@ -246,16 +232,11 @@ pub async fn download_video(
             base_args.push("-x".to_string());
             base_args.push("--audio-format".to_string());
             base_args.push(target_fmt.to_string());
-            // Sem isto o yt-dlp reencoda na qualidade 5 (MP3 VBR ~130 kbps);
-            // 0 é a melhor VBR, o padrão do gydl (benchmark 30/09).
             base_args.push("--audio-quality".to_string());
             base_args.push("0".to_string());
         }
     }
 
-    // Seletor completo também funde em mp4: sem isso h264+opus caía em mkv, e
-    // o muxer mkv do ffmpeg 9 recusa pacote MPEG-TS (HLS) sem timestamp
-    // ("Conversion failed!", benchmark 26/09, youtube-2).
     if (format_id.is_none() || full_selector) && mode != "audio" && ffmpeg_available {
         base_args.push("--merge-output-format".to_string());
         base_args.push("mp4".to_string());
@@ -292,15 +273,11 @@ pub async fn download_video(
         base_args.push(loc.clone());
     }
 
-    // `-N` e `--concurrent-fragments` são a mesma opção do yt-dlp. Empurrar as
-    // duas fazia a segunda vencer no argparse e anular o freio de 429 abaixo.
     let requested_fragments = if concurrent_fragments == 0 {
         concurrent_fragments_value()
     } else {
         concurrent_fragments
     };
-    // O número da Config é o teto; o valor usado vem do tuner por host, que
-    // sobe devagar com ganho medido e cai pela metade a cada 429.
     let tuned_fragments = tuned_concurrency(&tuner_host, requested_fragments).await;
     let effective_fragments = if is_youtube_url(url) {
         let rate_limit_count = rate_limit_429_count();
@@ -336,9 +313,6 @@ pub async fn download_video(
         base_args.push("--sleep-subtitles".to_string());
         base_args.push("5".to_string());
 
-        // Depois do primeiro 429 da sessão, espaçar as requisições de
-        // metadata (são elas que gastam a cota, não os bytes de vídeo). Custa
-        // segundos por vídeo; um 429 de verdade custa minutos.
         if rate_limit_429_count() > 0 {
             base_args.extend([
                 "--sleep-requests".to_string(),
@@ -352,9 +326,6 @@ pub async fn download_video(
     }
 
     base_args.extend(["--buffer-size".to_string(), "16M".to_string()]);
-    // Chunked range requests break some HLS fragment servers ("Conflicting
-    // range. (start=66361 > end=66360)", Pinterest, benchmark 26/09); the
-    // worker never uses them and the app drops them on retry (below).
     if !is_youtube_url(url) && !crate::core::dependencies::worker_mode() {
         base_args.extend(["--http-chunk-size".to_string(), "10M".to_string()]);
     }
@@ -402,8 +373,6 @@ pub async fn download_video(
     base_args.extend(proxy_args());
     base_args.extend(extra_flags.iter().cloned());
 
-    // A caller that already chose (OmniTube passes its own flags) wins over
-    // the global setting.
     let caller_sponsorblock = extra_flags
         .iter()
         .any(|f| f.starts_with("--sponsorblock") || f == "--no-sponsorblock");
@@ -501,9 +470,6 @@ pub async fn download_video(
         Vec::new()
     };
 
-    // Extração única: se o get_video_info deste URL acabou de gravar o JSON,
-    // a primeira tentativa baixa dele (--load-info-json) e a seguinte, se
-    // precisar, volta ao URL. A tentativa extra não conta no orçamento.
     let mut info_json = fresh_info_json(url);
     let max_attempts: usize = if crate::core::dependencies::worker_mode() {
         1
@@ -570,10 +536,6 @@ pub async fn download_video(
                 } else {
                     effective_fragments.clamp(8, 16)
                 };
-                // CVE-2026-50574: entregar manifesto (m3u8/dash) ao aria2c
-                // permite escrita arbitrária de arquivo. O yt-dlp 2026.06.09
-                // removeu o suporte; aqui o downloader externo fica restrito a
-                // http/ftp e fragmento vai pelo nativo com `-N`.
                 args.extend(aria2c_downloader_args(
                     &a2_path.to_string_lossy(),
                     conns,
@@ -768,8 +730,6 @@ pub async fn download_video(
         last_error = stderr_content;
         let stderr_lower = last_error.to_lowercase();
 
-        // O JSON salvo falhou (URL assinada expirou, 403, formato sumiu): a
-        // próxima tentativa extrai pelo URL, sem julgar este erro terminal.
         if attempt == 0 && info_json.take().is_some() {
             forget_info_json(url);
             tracing::warn!("[yt-dlp] download from saved info JSON failed, retrying with the URL");
@@ -889,10 +849,6 @@ pub async fn download_video(
                 tracing::warn!("[yt-dlp] 403 forbidden, adding --force-ipv4");
             }
 
-            // B43: quando o site bloqueia por fingerprint de TLS, nenhuma troca
-            // de player_client resolve — o que muda o resultado e o yt-dlp se
-            // apresentar como um navegador de verdade. O binario empacotado ja
-            // traz curl_cffi, entao o caso comum e ter alvo disponivel.
             if crate::core::impersonation::stderr_indicates_fingerprint_block(&stderr_lower)
                 && !extra_args.iter().any(|a| a == "--impersonate")
             {
@@ -917,19 +873,12 @@ pub async fn download_video(
                 }
             }
 
-            // B42: PO token ausente. O provedor nao e embarcado (roda como
-            // Docker ou servidor Node separado), entao so agimos se o usuario
-            // tiver configurado um — caso contrario o erro fica visivel, que e
-            // o que o painel de causa raiz traduz.
             if crate::core::pot_provider::stderr_indicates_missing_token(&stderr_lower) {
                 match pot_provider_base_url() {
                     Some(base) => {
                         let health = probe_pot_provider(&base).await;
                         let args = crate::core::pot_provider::extractor_args(&health, &base);
                         if args.is_empty() {
-                            // Apontar para um provedor morto e pior do que nao
-                            // apontar: o yt-dlp espera o timeout em todo
-                            // download seguinte.
                             tracing::warn!(
                                 "[yt-dlp] provedor de PO token em {} nao respondeu; seguindo sem ele",
                                 base
@@ -1046,10 +995,6 @@ pub async fn download_video(
     Err(translate_ytdlp_error(&last_error))
 }
 
-/// Lê o stdout do yt-dlp e converte em `ProgressUpdate`. Extraído do laço de
-/// tentativas para o caminho "comando editado pelo usuário" usar o mesmo
-/// parser — a tela não pode se comportar diferente só porque o comando veio
-/// da caixa de edição.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn spawn_stdout_reader(
     mut lines: tokio::io::Lines<BufReader<tokio::process::ChildStdout>>,
@@ -1071,15 +1016,10 @@ pub(super) fn spawn_stdout_reader(
         let mut last_send = std::time::Instant::now();
         let throttle = std::time::Duration::from_millis(250);
         let mut last_stream_id: Option<String> = None;
-        // Bytes reais: o `dl:` do template é do stream atual; somando os
-        // streams já terminados a tela mostra "123 MB" de verdade em vez
-        // de zero até o merge (o total continua desconhecido em bv+ba
-        // porque o tamanho do áudio só aparece quando ele começa).
         let mut prev_streams_bytes: u64 = 0;
         let mut current_stream_bytes: u64 = 0;
         let mut planned_count: usize = 0;
         while let Ok(Some(line)) = lines.next_line().await {
-            // Primeira linha: o Python já está de pé, o bootstrap acabou.
             if let Some(slot) = boot_slot.take() {
                 release_boot_slot(&slot);
             }
@@ -1234,8 +1174,6 @@ pub(super) fn spawn_stdout_reader(
     })
 }
 
-/// Roda o comando editado pelo usuário como está. Uma tentativa só: quem edita
-/// o comando quer ver o resultado *daquele* comando, não da cascata de retries.
 #[allow(clippy::too_many_arguments)]
 pub(super) async fn run_override_command(
     ytdlp: &Path,

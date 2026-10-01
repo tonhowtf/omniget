@@ -49,8 +49,6 @@ impl BlueskyDownloader {
                 blob,
                 height,
             } => {
-                // Original upload first (single MP4 from the author's PDS, as
-                // gallery-dl bluesky.py:63-70), HLS as fallback.
                 let blob_src = match blob {
                     Some((did, cid)) => self
                         .resolve_pds(&did)
@@ -135,9 +133,6 @@ impl BlueskyDownloader {
         None
     }
 
-    /// The AppView answers 400 NotFound for an at:// URI with a custom-domain
-    /// handle (cinny.bun.how, 26/09) although the handle resolves; yt-dlp fails
-    /// the same way. Resolve to the DID first, keep the handle on failure.
     async fn resolve_did(&self, user: &str) -> String {
         if user.starts_with("did:") {
             return user.to_string();
@@ -239,8 +234,6 @@ fn blob_url(pds: &str, did: &str, cid: &str) -> String {
     )
 }
 
-/// `video.bsky.app/watch/<did>/<cid>/playlist.m3u8` names the blob's owner
-/// and CID, also for quoted posts.
 fn blob_ref_from_playlist(playlist: &str) -> Option<(String, String)> {
     let parsed = url::Url::parse(playlist).ok()?;
     let mut segs = parsed.path_segments()?;
@@ -264,9 +257,6 @@ fn video_from_view(view: &serde_json::Value) -> Option<BlueskyMedia> {
     })
 }
 
-/// Height of the original upload from the embed's `aspectRatio`, which the
-/// official clients fill with the pixel size (1920x1080 on the round-1
-/// fixtures). A reduced ratio (16:9) is not a size: unknown (0).
 fn original_height(view: &serde_json::Value) -> u32 {
     let dim = |k: &str| {
         view.pointer(&format!("/aspectRatio/{k}"))
@@ -281,14 +271,12 @@ fn original_height(view: &serde_json::Value) -> u32 {
     }
 }
 
-/// Ceiling from the download options (`"720"` or `"720p"`).
 fn ceiling_of(quality: Option<&str>) -> Option<u32> {
     quality
         .and_then(|q| q.trim_end_matches('p').parse().ok())
         .filter(|h| *h > 0)
 }
 
-/// The original blob is used only when it provably fits the ceiling.
 fn blob_allowed(q: &VideoQuality, ceiling: Option<u32>) -> bool {
     match ceiling {
         None => true,
@@ -317,7 +305,6 @@ fn video_qualities(blob_src: Option<String>, height: u32, hls_url: String) -> Ve
     q
 }
 
-/// Both causes survive: the native one as context, yt-dlp's as the source.
 fn chain_fallback(native: anyhow::Error, ytdlp: anyhow::Error) -> anyhow::Error {
     ytdlp.context(format!("native: {native:#}; yt-dlp fallback failed"))
 }
@@ -341,15 +328,12 @@ fn extract_media(embed: &serde_json::Value) -> Option<BlueskyMedia> {
 
     match embed_type {
         "app.bsky.embed.video#view" => video_from_view(embed),
-        "app.bsky.embed.record#view" => {
-            // Quote post: the media lives in the quoted record.
-            embed
-                .get("record")?
-                .get("embeds")?
-                .as_array()?
-                .iter()
-                .find_map(extract_media)
-        }
+        "app.bsky.embed.record#view" => embed
+            .get("record")?
+            .get("embeds")?
+            .as_array()?
+            .iter()
+            .find_map(extract_media),
         "app.bsky.embed.images#view" => {
             let images = embed.get("images")?.as_array()?;
             let urls: Vec<String> = images
@@ -596,9 +580,6 @@ impl PlatformDownloader for BlueskyDownloader {
     }
 }
 
-/// getPostThread answers 400 with an XRPC error body (`NotFound` for a deleted
-/// post or a handle that no longer resolves): name it so the classifier says
-/// "not found" instead of a bare HTTP status.
 fn thread_http_error(status: u16, body: &str) -> anyhow::Error {
     let xrpc = serde_json::from_str::<serde_json::Value>(body)
         .ok()
@@ -682,7 +663,6 @@ mod tests {
         );
     }
 
-    /// Quote posts (corpus bluesky-3) carry the video inside the quoted record.
     #[test]
     fn quoted_video_is_extracted() {
         let embed = json!({"$type":"app.bsky.embed.record#view","record":{"$type":"app.bsky.embed.record#viewRecord","embeds":[{"$type":"app.bsky.embed.video#view","playlist":PLAYLIST}]}});
@@ -716,9 +696,6 @@ mod tests {
         assert_eq!(only[0].format, "hls");
     }
 
-    /// Round-1 regression (26/09): bluesky-1/-3 are 1920x1080 originals; the
-    /// blob was downloaded and refused at maxHeight=720. The fixture is the
-    /// real getPostThread embed; the HLS master has 360p and 720p.
     #[test]
     fn original_above_ceiling_is_skipped_for_hls() {
         let embed = json!({"$type":"app.bsky.embed.record#view","record":{"embeds":[{"$type":"app.bsky.embed.video#view","playlist":PLAYLIST,"aspectRatio":{"height":1080,"width":1920}}]}});
@@ -730,7 +707,6 @@ mod tests {
         assert_eq!(ceiling_of(Some("720")), Some(720));
         assert_eq!(ceiling_of(Some("720p")), Some(720));
         assert!(!blob_allowed(&q[0], ceiling_of(Some("720"))));
-        // Unknown size is not proof of fitting either.
         let no_size = video_qualities(Some("b".into()), 0, "h".into());
         assert!(!blob_allowed(&no_size[0], Some(720)));
         assert!(blob_allowed(
@@ -738,7 +714,6 @@ mod tests {
             Some(720)
         ));
         assert!(blob_allowed(&q[0], ceiling_of(None)));
-        // A reduced ratio is not a pixel size.
         assert_eq!(
             original_height(&json!({"aspectRatio":{"width":16,"height":9}})),
             0

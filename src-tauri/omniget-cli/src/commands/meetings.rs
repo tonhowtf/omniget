@@ -1,7 +1,3 @@
-//! `omniget meetings`: the meetings of the desktop app, straight from the
-//! data folder (the app does not have to be running). `import` runs the whole
-//! pipeline here: download or convert, Whisper, summary, markdown.
-
 use std::sync::Arc;
 
 use anyhow::bail;

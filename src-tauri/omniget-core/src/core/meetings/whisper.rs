@@ -1,14 +1,3 @@
-//! Speech to text for meetings. Two backends:
-//!
-//! - **Local whisper.cpp** (the Meetily model: nothing leaves the machine).
-//!   `whisper-cli` comes from the official release on Windows and Linux and
-//!   from Homebrew (`brew install whisper-cpp`) on macOS; GGML models come
-//!   from Hugging Face into `<app_data>/models/whisper/`.
-//! - **The AI provider's audio endpoint** (OpenAI, or any OpenAI-compatible
-//!   server such as Groq, speaches or a whisper.cpp server), asked for
-//!   `verbose_json` so the segments keep their timestamps. Long recordings
-//!   are cut into chunks under the 25 MB upload cap.
-
 use std::path::{Path, PathBuf};
 
 use anyhow::anyhow;
@@ -21,8 +10,6 @@ use crate::core::tools::{self, github, report, ProgressFn};
 
 const REPO: &str = "ggml-org/whisper.cpp";
 const HF_BASE: &str = "https://huggingface.co/ggerganov/whisper.cpp/resolve/main";
-/// Upload chunk length for the API backend: 20 min of 16 kHz mono at
-/// 32 kbps is ~4.8 MB, far below the 25 MB cap even with container overhead.
 const API_CHUNK_SECONDS: u64 = 1200;
 
 #[derive(Debug, Clone, Serialize)]
@@ -33,7 +20,6 @@ pub struct ModelInfo {
     pub installed: bool,
 }
 
-/// (id, approximate MB, short note)
 const MODELS: &[(&str, u64, &str)] = &[
     ("base-q5_1", 60, "fast, basic quality"),
     ("small-q5_1", 190, "balanced for slower machines"),
@@ -109,7 +95,6 @@ pub async fn locate() -> Option<PathBuf> {
             return Some(p);
         }
     }
-    // Homebrew installs `whisper-cli`; older builds called it whisper-cpp.
     for name in ["whisper-cli", "whisper-cpp"] {
         if let Some((p, _)) = dependencies::find_tool_with_source(name).await {
             return Some(p);
@@ -135,10 +120,8 @@ pub struct WhisperStatus {
     pub installed: bool,
     pub path: Option<String>,
     pub can_install: bool,
-    /// Shown instead of an install button where upstream ships no binary.
     pub install_hint: String,
     pub models: Vec<ModelInfo>,
-    /// The AI provider can transcribe (OpenAI or an OpenAI-compatible URL).
     pub api_available: bool,
 }
 
@@ -189,11 +172,9 @@ pub async fn install(progress: ProgressFn) -> anyhow::Result<PathBuf> {
 pub struct Transcription {
     pub language: Option<String>,
     pub segments: Vec<Segment>,
-    /// "whisper-local" or "whisper-api".
     pub source: &'static str,
 }
 
-/// Which backend `settings` resolves to right now, or why none can run.
 pub async fn pick_backend(settings: &MeetingSettings) -> anyhow::Result<TranscriptionBackend> {
     let local_ready = || async {
         locate().await.is_some()
@@ -248,7 +229,6 @@ pub async fn transcribe(
     }
 }
 
-/// ffmpeg to whatever the backend wants, into a temp file.
 async fn convert(input: &Path, args: &[&str], ext: &str) -> anyhow::Result<PathBuf> {
     let ffmpeg = dependencies::ensure_ffmpeg().await?;
     let out = tools::temp_dir().join(format!("meeting-{}.{ext}", uuid::Uuid::new_v4()));
@@ -300,7 +280,6 @@ async fn transcribe_local(
         .spawn()
         .map_err(|e| anyhow!("could not start whisper-cli: {e}"))?;
 
-    // `-pp` writes "progress = 42%" to stderr.
     let stderr = child.stderr.take();
     let p2 = progress.clone();
     let id2 = progress_id.to_string();
@@ -362,7 +341,6 @@ fn parse_whisper_cpp_json(text: &str) -> anyhow::Result<(String, Vec<Segment>)> 
     Ok((language, segments))
 }
 
-/// Whisper's stock hallucinations on silence.
 fn is_noise(t: &str) -> bool {
     let low = t.to_lowercase();
     matches!(
@@ -381,7 +359,6 @@ async fn transcribe_api(
     let cfg = crate::core::ai::get();
     let (endpoint, key) = crate::core::ai::transcription_target(&cfg).map_err(|e| anyhow!(e))?;
 
-    // Cut into mono 16 kHz 32 kbps mp3 chunks; each keeps its offset.
     let ffmpeg = dependencies::ensure_ffmpeg().await?;
     let chunk_dir = tools::temp_dir().join(format!("meeting-chunks-{}", uuid::Uuid::new_v4()));
     std::fs::create_dir_all(&chunk_dir)?;
@@ -499,9 +476,6 @@ async fn transcribe_api(
     })
 }
 
-/// OpenAI `verbose_json` (`language`, `segments[{start,end,text}]` in
-/// seconds). Servers that ignore the format and answer plain text still
-/// produce one segment instead of an error.
 fn parse_verbose_json(body: &str, offset_ms: u64) -> (Option<String>, Vec<Segment>) {
     let Ok(json) = serde_json::from_str::<serde_json::Value>(body) else {
         let t = body.trim();
@@ -547,7 +521,6 @@ fn parse_verbose_json(body: &str, offset_ms: u64) -> (Option<String>, Vec<Segmen
     (language, out)
 }
 
-/// OpenAI answers the language as a name ("portuguese"); keep ISO codes.
 fn normalize_language(l: &str) -> String {
     match l.to_lowercase().as_str() {
         "english" => "en",

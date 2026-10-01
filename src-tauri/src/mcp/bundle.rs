@@ -1,10 +1,3 @@
-//! `diagnostic_bundle_create`: one redacted, bounded diagnostic package for a
-//! job the caller owns. Assembled from the same sources as `download_status`,
-//! `download_diagnose` and `download_logs` (queue item, durable terminal
-//! receipt, persistent journal, rule-based diagnosis), with allowlisted
-//! fields and a second redaction pass at the export boundary. It is returned
-//! inline (bounded) and kept as the idempotent receipt of the key; it is never
-//! written to a file, uploaded or offered for transfer.
 use super::{
     policy::{self, Principal},
     ToolDef,
@@ -12,9 +5,7 @@ use super::{
 use crate::core::flight_recorder::{redact, redact_url};
 use serde_json::{json, Value};
 
-/// Hard ceiling of the serialized bundle.
 pub const BUNDLE_MAX_BYTES: usize = 48 * 1024;
-/// Timeline events requested from the journal (it caps bytes by itself too).
 pub const TIMELINE_MAX_EVENTS: usize = 100;
 const TIMELINE_BUDGET: usize = 24 * 1024;
 const EVIDENCE_MAX: usize = 8;
@@ -29,7 +20,6 @@ pub fn tools() -> Vec<ToolDef> {
     }]
 }
 
-/// Output schema for the protocol fixer's `outputSchema` table.
 pub fn output_schema(name: &str) -> Option<Value> {
     (name == "diagnostic_bundle_create").then(|| json!({"type":"object","properties":{
         "bundleId":{"type":"string"},
@@ -57,9 +47,6 @@ pub fn output_schema(name: &str) -> Option<Value> {
     },"required":["bundleId","manifest","diagnosis","evidence","timeline","environment"]}))
 }
 
-/// Everything the assembler needs, already fetched. Strings are raw here and
-/// are reduced/redacted by `assemble`. `item` is the serialized
-/// `QueueItemInfo` (the same JSON `download_status` returns).
 pub struct Inputs {
     pub download_id: u64,
     pub item: Option<Value>,
@@ -91,7 +78,6 @@ fn clip(text: &str, max: usize) -> String {
         s
     }
 }
-/// A local path becomes its file name only (the folder is personal).
 fn file_name(path: &str) -> String {
     std::path::Path::new(path)
         .file_name()
@@ -192,7 +178,6 @@ pub fn assemble(bundle_id: &str, created_at: i64, input: Inputs) -> Value {
             (vec![], Value::Null)
         }
     };
-    // Diagnosis from the same text `download_diagnose` uses: terminal receipt first.
     let text = input
         .receipt
         .iter()
@@ -237,8 +222,6 @@ pub fn assemble(bundle_id: &str, created_at: i64, input: Inputs) -> Value {
         "timelinePage": timeline_meta,
         "environment": environment,
     });
-    // Fit the ceiling by dropping the newest timeline events first (the
-    // first error and the evidence excerpts are the part worth keeping).
     let mut omitted = 0usize;
     loop {
         bundle["timeline"] = json!(timeline);
@@ -261,8 +244,6 @@ pub fn assemble(bundle_id: &str, created_at: i64, input: Inputs) -> Value {
         omitted += drop;
     }
     if bundle.to_string().len() > BUNDLE_MAX_BYTES {
-        // Evidence alone overflowed (cannot with the per-field caps, but the
-        // ceiling is a promise): keep the manifest and diagnosis only.
         bundle["evidence"] = json!([]);
         if let Some(g) = bundle["manifest"]["gaps"].as_array_mut() {
             g.push(json!("Evidence omitted to respect the size ceiling."));
@@ -273,7 +254,6 @@ pub fn assemble(bundle_id: &str, created_at: i64, input: Inputs) -> Value {
     bundle
 }
 
-/// Scope, liveness and ownership, the same rule every per-job tool uses.
 pub fn admit(p: &Principal, id: u64) -> Result<(), String> {
     policy::active(p)?;
     if !policy::allowed(p, "diagnostic_bundle_create") {
@@ -282,8 +262,6 @@ pub fn admit(p: &Principal, id: u64) -> Result<(), String> {
     policy::own(p, id)
 }
 
-/// Called by `downloads::call` (schema and ownership already checked there;
-/// `admit` repeats them so this entry point is safe on its own).
 pub async fn create(
     app: &tauri::AppHandle,
     p: &Principal,
@@ -318,7 +296,6 @@ pub async fn create(
     let receipt = intent
         .as_ref()
         .and_then(|_| super::download_intents::receipt(id).ok().flatten());
-    // A durable intent of another principal is never mixed into this bundle.
     let intent = intent.filter(|i| i.principal == p.id);
     let inputs = Inputs {
         download_id: id,

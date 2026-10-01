@@ -1,7 +1,3 @@
-//! Versão mais nova de cada ferramenta: registro do npm, PyPI ou releases do
-//! GitHub (e `brew info` quando o dono provado é o brew, que atrasa em
-//! relação ao npm). Cache de 1 h em memória e em disco; timeout de 4 s.
-
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Mutex;
@@ -31,7 +27,6 @@ pub struct Latest {
     pub latest: Option<String>,
     pub installed: Option<String>,
     pub state: VersionState,
-    /// Segundos desde a época, de quando o valor foi buscado.
     pub checked_at: u64,
     pub error: Option<String>,
 }
@@ -103,7 +98,6 @@ fn client() -> Result<reqwest::Client, String> {
         .map_err(|e| e.to_string())
 }
 
-/// `@scope/name` → `@scope%2fname` (o registro aceita o `/` escapado).
 pub fn npm_url(pkg: &str) -> String {
     format!(
         "https://registry.npmjs.org/{}/latest",
@@ -154,7 +148,6 @@ fn source_key(source: &LatestSource) -> (String, String) {
     }
 }
 
-/// Mais nova da fonte, respeitando o cache (a não ser com `force`).
 pub async fn latest_version(
     source: &LatestSource,
     force: bool,
@@ -189,7 +182,6 @@ pub async fn latest_version(
             (version, at, None)
         }
         Err(e) => {
-            // Sem rede: devolve o último valor conhecido, mesmo velho.
             let stale = cache().lock().ok().and_then(|m| m.get(&ck).cloned());
             match stale {
                 Some(s) => (s.version, s.at, Some(e)),
@@ -199,7 +191,6 @@ pub async fn latest_version(
     }
 }
 
-/// Versão estável que o brew oferece (`brew info --json=v2`).
 pub async fn brew_latest(name: &str, cask: bool) -> Option<String> {
     let brew = super::exec::which("brew")?;
     let mut args = vec!["info".to_string(), "--json=v2".to_string()];
@@ -224,7 +215,6 @@ pub async fn brew_latest(name: &str, cask: bool) -> Option<String> {
     }
 }
 
-/// Estado de versão de uma ferramenta. `installed`/`brew` vêm da detecção.
 pub async fn for_tool(
     tool: &CliTool,
     installed: Option<String>,
@@ -232,7 +222,6 @@ pub async fn for_tool(
     force: bool,
 ) -> Latest {
     if let Some((name, cask)) = brew_owner {
-        // Dono provado é o brew: o que importa é o que o brew consegue entregar.
         let latest = brew_latest(&name, cask).await;
         return Latest {
             id: tool.id.clone(),

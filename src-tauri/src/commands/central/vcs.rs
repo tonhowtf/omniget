@@ -1,7 +1,3 @@
-//! Comandos `vcs_*` da Central: status, branches e log; worktree por thread
-//! (com progresso em `central://vcs/worktree-setup`); checkpoints por turno,
-//! diffs e restauração; commit, push e PR. Erros no formato `"CODE: msg"`.
-
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -38,8 +34,6 @@ fn path_of(p: &str) -> Result<PathBuf, String> {
     Ok(pb)
 }
 
-// ---- repository ----
-
 #[tauri::command]
 pub async fn vcs_status(path: String) -> Result<RepoStatus, String> {
     Ok(repo::status(&path_of(&path)?).await?)
@@ -59,10 +53,6 @@ pub async fn vcs_log(
     Ok(repo::log(&path_of(&path)?, n.unwrap_or(50), rev.as_deref()).await?)
 }
 
-// ---- worktrees ----
-
-/// Creates (or reuses) the thread's worktree. Every stage change is emitted
-/// on `central://vcs/worktree-setup` as a `SetupSnapshot`.
 #[tauri::command]
 pub async fn vcs_worktree_create(
     app: AppHandle,
@@ -88,8 +78,6 @@ pub async fn vcs_worktree_create(
     Ok(out?)
 }
 
-/// Asks a running setup to stop; it removes what it made. `false` when no
-/// setup is running for the thread.
 #[tauri::command]
 pub async fn vcs_worktree_cancel(thread: String) -> Result<bool, String> {
     let map = cancels().lock().unwrap_or_else(|e| e.into_inner());
@@ -133,8 +121,6 @@ pub async fn vcs_worktree_cleanup(path: String) -> Result<Vec<PathBuf>, String> 
     Ok(worktree::cleanup(&path_of(&path)?).await?)
 }
 
-// ---- checkpoints and diffs ----
-
 #[tauri::command]
 pub async fn vcs_checkpoint_capture(
     path: String,
@@ -149,7 +135,6 @@ pub async fn vcs_checkpoint_list(path: String, thread: String) -> Result<Vec<Che
     Ok(checkpoint::list(&path_of(&path)?, &thread).await?)
 }
 
-/// Deletes the checkpoints after `after_turn`, or all of them when omitted.
 #[tauri::command]
 pub async fn vcs_checkpoint_delete(
     path: String,
@@ -179,7 +164,6 @@ pub async fn vcs_diff_turn(
     .await?)
 }
 
-/// Baseline → `to_turn`, or → the live work tree when `to_turn` is omitted.
 #[tauri::command]
 pub async fn vcs_diff_full(
     path: String,
@@ -196,8 +180,6 @@ pub async fn vcs_diff_full(
     .await?)
 }
 
-/// Puts the files back to checkpoint `turn`. Outside an OmniGet worktree it
-/// fails with `ERR_VCS_UNSAFE` unless `confirm` is true.
 #[tauri::command]
 pub async fn vcs_restore_turn(
     path: String,
@@ -215,8 +197,6 @@ pub async fn vcs_restore_turn(
     )
     .await?)
 }
-
-// ---- actions ----
 
 #[tauri::command]
 pub async fn vcs_working_changes(path: String) -> Result<Vec<ChangeSummary>, String> {

@@ -1,8 +1,3 @@
-//! Raw catalog files → canonical [`Component`] (the catalog contract's
-//! `parse_raw`). Lenient on purpose: 7 cct agents and 53 commands have no
-//! frontmatter, descriptions carry `<example>` blocks, tools come as a string or
-//! a list, and 64 "agents" are Copilot chatmodes.
-
 use std::collections::BTreeMap;
 use std::path::Path;
 
@@ -12,7 +7,6 @@ use super::edit::{jsonc, yaml};
 use super::model::*;
 use super::{AgentkitError, Result};
 
-/// Files of one component: path relative to the component folder → bytes.
 pub type RawFiles = BTreeMap<String, Vec<u8>>;
 
 const MAX_COMPONENT_BYTES: usize = 64 * 1024 * 1024;
@@ -21,7 +15,6 @@ fn perr(msg: impl Into<String>) -> AgentkitError {
     AgentkitError::new("AGENTKIT_PARSE", msg)
 }
 
-/// Splits `---` frontmatter off a Markdown text. No fence → no frontmatter.
 pub fn split_frontmatter(text: &str) -> (Option<&str>, &str) {
     let t = text.strip_prefix('\u{feff}').unwrap_or(text);
     let Some(rest) = t
@@ -41,7 +34,6 @@ pub fn split_frontmatter(text: &str) -> (Option<&str>, &str) {
     (None, t)
 }
 
-/// Frontmatter as an object (empty when absent or unreadable) plus the body.
 pub fn frontmatter(text: &str) -> (Map<String, Value>, &str) {
     let (front, body) = split_frontmatter(text);
     let map = front
@@ -54,7 +46,6 @@ pub fn frontmatter(text: &str) -> (Map<String, Value>, &str) {
     (map, body)
 }
 
-/// Renders frontmatter + body (keys in the given order).
 pub fn render_frontmatter(entries: &[(String, Value)], body: &str) -> String {
     if entries.is_empty() {
         return body.to_string();
@@ -74,14 +65,12 @@ pub fn render_frontmatter(entries: &[(String, Value)], body: &str) -> String {
     out
 }
 
-/// A list field that may be a YAML list or a comma/space separated string.
 pub fn string_list(v: Option<&Value>) -> Vec<String> {
     match v {
         Some(Value::String(s)) => s
             .split([',', '\n'])
             .flat_map(|part| {
                 let p = part.trim();
-                // `Bash(git:*)` keeps its spaces inside parentheses
                 if p.contains('(') {
                     vec![p.to_string()]
                 } else {
@@ -112,7 +101,6 @@ fn str_field(m: &Map<String, Value>, keys: &[&str]) -> Option<String> {
     })
 }
 
-/// Description for cards: `<example>` blocks removed, whitespace folded, ≤ 300 chars.
 pub fn short_description(desc: &str) -> String {
     let mut s = desc.to_string();
     for tag in ["example", "commentary"] {
@@ -173,7 +161,6 @@ fn is_executable_name(p: &str) -> bool {
         || p.ends_with(".zsh")
 }
 
-/// VS Code / Copilot tool ids that mark an "agent" as a Copilot chatmode.
 const COPILOT_TOOLS: &[&str] = &[
     "codebase",
     "editFiles",
@@ -196,8 +183,6 @@ const COPILOT_TOOLS: &[&str] = &[
     "searchResults",
 ];
 
-/// Parses one catalog item into the canonical shape (the catalog contract).
-/// `entry_path` is relative to the component folder and must be in `files`.
 pub fn parse_raw(kind: ComponentKind, entry_path: &str, files: &RawFiles) -> Result<Component> {
     let total: usize = files.values().map(|b| b.len()).sum();
     if total > MAX_COMPONENT_BYTES {
@@ -464,7 +449,6 @@ fn parse_skill(entry: &str, files: &RawFiles) -> Result<Parsed> {
     ))
 }
 
-/// Lowercase, `[a-z0-9-_.]` only, for file and folder names we create.
 pub fn sanitize_name(s: &str) -> String {
     let mut out = String::new();
     for c in s.trim().chars() {
@@ -529,8 +513,6 @@ fn parse_mcp(entry: &str, files: &RawFiles) -> Result<Parsed> {
     ))
 }
 
-/// Reads one server record in any dialect (Claude/Cursor/VS Code/OpenCode/Goose/
-/// Windsurf/Gemini/Codex-as-JSON) into the canonical record.
 pub fn mcp_from_record(name: &str, rec: &Value) -> McpServer {
     let mut extra = rec.as_object().cloned().unwrap_or_default();
     let take = |m: &mut Map<String, Value>, k: &str| m.remove(k);
@@ -540,7 +522,6 @@ pub fn mcp_from_record(name: &str, rec: &Value) -> McpServer {
     let description = take(&mut extra, "description")
         .and_then(|v| v.as_str().map(str::to_string))
         .unwrap_or_default();
-    // command: string or array (OpenCode), `cmd` (Goose), `{path,args}` (old Zed)
     let (mut command, mut args): (Option<String>, Vec<String>) = (None, vec![]);
     match take(&mut extra, "command").or_else(|| take(&mut extra, "cmd")) {
         Some(Value::String(s)) => command = Some(s),
@@ -563,7 +544,6 @@ pub fn mcp_from_record(name: &str, rec: &Value) -> McpServer {
     if let Some(a) = take(&mut extra, "args") {
         args.extend(string_list(Some(&a)).into_iter().filter(|_| true));
         if let Value::Array(arr) = &a {
-            // keep args with spaces intact
             args = arr
                 .iter()
                 .filter_map(|x| x.as_str().map(str::to_string))
@@ -632,7 +612,6 @@ pub fn mcp_from_record(name: &str, rec: &Value) -> McpServer {
             });
         }
     };
-    // env values
     for (k, v) in env.iter_mut() {
         let secretish = looks_secret_key(k);
         if let Some((_, orig)) = placeholder_secret(v) {
@@ -643,7 +622,6 @@ pub fn mcp_from_record(name: &str, rec: &Value) -> McpServer {
             *v = format!("{{{{secret:{k}}}}}");
         }
     }
-    // headers, url, args: replace placeholders inside the string
     for v in headers.values_mut() {
         *v = replace_placeholders(v, &mut secrets);
     }
@@ -703,8 +681,6 @@ fn upper_snake(s: &str) -> String {
     t.strip_prefix("YOUR_").map(str::to_string).unwrap_or(t)
 }
 
-/// A whole-value placeholder: `${VAR}`, `$VAR`, `${env:VAR}`, `${input:x}`,
-/// `<YOUR_TOKEN>`, `{{secret:X}}` → (NAME, original).
 pub fn placeholder_secret(v: &str) -> Option<(String, String)> {
     let t = v.trim();
     if let Some(inner) = t
@@ -731,7 +707,6 @@ pub fn placeholder_secret(v: &str) -> Option<(String, String)> {
     None
 }
 
-/// Replaces `${…}` and `<…>` placeholders inside a string with `{{secret:NAME}}`.
 fn replace_placeholders(s: &str, secrets: &mut Vec<SecretRef>) -> String {
     let with_env = replace_env_refs(s, secrets);
     let mut out = String::new();
@@ -793,7 +768,6 @@ fn replace_env_refs(s: &str, secrets: &mut Vec<SecretRef>) -> String {
     out
 }
 
-/// Reads a Claude hook record `{Event: [{matcher, hooks: [handler]}]}`.
 pub fn hook_entries(hooks: &Value) -> Vec<HookEntry> {
     let mut out = Vec::new();
     let Some(events) = hooks.as_object() else {
@@ -817,10 +791,7 @@ pub fn hook_entries(hooks: &Value) -> Vec<HookEntry> {
                 .get("hooks")
                 .and_then(|h| h.as_array())
                 .cloned()
-                .unwrap_or_else(|| {
-                    // flat shape (Cursor/Copilot): the group is the handler
-                    vec![g.clone()]
-                });
+                .unwrap_or_else(|| vec![g.clone()]);
             for h in handlers {
                 out.push(HookEntry {
                     event: event.clone(),
@@ -864,8 +835,6 @@ fn handler_from(h: &Value) -> HookHandler {
     }
 }
 
-/// Support files: `supportingFiles` entries plus same-basename `.py`/`.sh` next
-/// to the hook JSON (the original CLI's probe), both with their destination.
 fn support_files(v: &Value, entry: &str, files: &RawFiles, default_dir: &str) -> Vec<SupportFile> {
     let mut out: Vec<SupportFile> = Vec::new();
     if let Some(list) = v.get("supportingFiles").and_then(|x| x.as_array()) {
@@ -934,7 +903,6 @@ fn parse_hook(entry: &str, files: &RawFiles) -> Result<Parsed> {
 }
 
 fn script_sidecars(command: &str, entry: &str, files: &RawFiles) -> Vec<SupportFile> {
-    // `.claude/scripts/<x>.py` referenced by the command and shipped next to the JSON
     let mut out = Vec::new();
     let dir = entry
         .rsplit_once('/')
@@ -1001,7 +969,6 @@ fn parse_setting(entry: &str, files: &RawFiles) -> Result<Parsed> {
             }
         }
     }
-    // a same-name sidecar the settings reference is already covered; drop others
     supporting.retain(|s| s.source.starts_with("inline:") || files.contains_key(&s.source));
     Ok((
         stem(entry),
@@ -1357,8 +1324,6 @@ fn parse_stack(entry: &str, files: &RawFiles) -> Result<Parsed> {
     ))
 }
 
-/// Parses a catalog index item (contract `catalog-index.json`) with its files,
-/// filling id, category, source, license, author and tags from the item.
 pub fn parse_item(item: &Value, files: &RawFiles) -> Result<Component> {
     let kind = item
         .get("kind")
@@ -1407,9 +1372,6 @@ pub fn parse_item(item: &Value, files: &RawFiles) -> Result<Component> {
     Ok(c)
 }
 
-/// Reads a component from disk: a single file (agent/command/rule/loop/hook/
-/// setting/mcp) with the sibling files it may reference, or a folder (skill,
-/// mod, plugin). Returns the entry path relative to the component root.
 pub fn load_path(kind: ComponentKind, path: &Path) -> Result<(String, RawFiles)> {
     let io = |p: &Path, e: std::io::Error| AgentkitError::io("reading", p, &e);
     let mut files = RawFiles::new();
@@ -1461,7 +1423,6 @@ pub fn load_path(kind: ComponentKind, path: &Path) -> Result<(String, RawFiles)>
     files.insert(name.clone(), std::fs::read(path).map_err(|e| io(path, e))?);
     let dir = path.parent().unwrap_or(Path::new("."));
     let base = stem(&name);
-    // same-basename scripts and a same-name folder (supportingFiles)
     for ext in ["py", "sh", "js"] {
         let p = dir.join(format!("{base}.{ext}"));
         if p.is_file() {
@@ -1518,7 +1479,6 @@ pub fn load_path(kind: ComponentKind, path: &Path) -> Result<(String, RawFiles)>
     Ok((name, files))
 }
 
-/// [`load_path`] + [`parse_raw`].
 pub fn parse_path(kind: ComponentKind, path: &Path) -> Result<Component> {
     let (entry, files) = load_path(kind, path)?;
     let mut c = parse_raw(kind, &entry, &files)?;
@@ -1530,11 +1490,9 @@ pub fn parse_path(kind: ComponentKind, path: &Path) -> Result<Component> {
     Ok(c)
 }
 
-/// Neutral command placeholders and the conversion to/from each dialect.
 pub mod placeholders {
     use std::collections::BTreeMap;
 
-    /// Claude dialect → neutral markers. Exact inverse of [`to_claude`].
     pub fn to_canonical(body: &str) -> String {
         let mut out = String::with_capacity(body.len());
         let b = body.as_bytes();
@@ -1606,7 +1564,6 @@ pub mod placeholders {
         out
     }
 
-    /// Neutral markers → Claude dialect.
     pub fn to_claude(body: &str) -> String {
         let map: BTreeMap<String, String> = [
             ("args", "$ARGUMENTS"),
@@ -1620,9 +1577,6 @@ pub mod placeholders {
         render(body, &map).0
     }
 
-    /// Neutral markers → a target dialect given its `placeholder_map`
-    /// (`args`, `arg` with `N`, `shell` with `{cmd}`, `file` with `{path}`).
-    /// Returns the text and what could not be expressed.
     pub fn render(body: &str, map: &BTreeMap<String, String>) -> (String, Vec<String>) {
         let mut out = String::with_capacity(body.len());
         let mut lost: Vec<String> = Vec::new();
@@ -1700,7 +1654,6 @@ pub mod placeholders {
         }
     }
 
-    /// Plain-text rendering when the dialect cannot express the marker.
     fn fallback(name: &str, arg: Option<&str>) -> String {
         match (name, arg) {
             ("arg", Some(n)) => format!("<argument {n}>"),

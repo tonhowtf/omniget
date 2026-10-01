@@ -1,45 +1,19 @@
-//! Makes a raw PTY transcript safe to replay into a fresh emulator.
-//!
-//! A transcript is what the program wrote, not what the screen showed. Played
-//! back as is it would:
-//! - answer terminal queries a second time (DA, DSR, DECRQM, XTVERSION, OSC
-//!   colour queries, DECRQSS/XTGETTCAP), typing the answers into the shell;
-//! - touch the clipboard again (OSC 52) and ring every bell ever rung;
-//! - flash every full-screen program that ran and exited (alternate screen);
-//! - leave input modes (mouse, bracketed paste, focus, application cursor)
-//!   in whatever order the toggles happened to be cut by the history cap.
-//!
-//! [`sanitize_for_replay`] drops the queries, the clipboard, bells and the
-//! alternate-screen content of programs that already exited, strips every
-//! input-mode toggle and re-emits only the final state of each mode at the end.
-//! A full-screen program still running keeps its alternate screen, so the live
-//! output that follows lands where it expects.
-
 const ESC: u8 = 0x1b;
 const BEL: u8 = 0x07;
 
-/// DEC private modes that select the alternate screen.
 const ALT_MODES: [u32; 3] = [47, 1047, 1049];
-/// DEC private modes that change how input is reported. Only the final state
-/// of each is replayed.
 const INPUT_MODES: [u32; 9] = [1, 1000, 1002, 1003, 1004, 1005, 1006, 1015, 2004];
-/// Cursor visibility: final state only.
 const CURSOR_MODE: u32 = 25;
-/// Synchronized output: transient by definition, never replayed.
 const SYNC_MODE: u32 = 2026;
 
 #[derive(Debug, PartialEq)]
 pub(crate) enum Token<'a> {
     Text(&'a [u8]),
-    /// A single C0 control byte outside any sequence.
     Ctl(u8),
     Csi(&'a [u8]),
     Osc(&'a [u8]),
-    /// DCS, SOS, PM, APC: `ESC P|X|^|_ … ST`.
     Str(u8, &'a [u8]),
-    /// `ESC` plus intermediates and a final byte.
     Esc(&'a [u8]),
-    /// A sequence the transcript ends in the middle of.
     Partial(&'a [u8]),
 }
 
@@ -78,7 +52,6 @@ pub(crate) fn tokenize(input: &[u8]) -> Vec<Token<'_>> {
                         out.push(Token::Partial(&input[start..]));
                         break;
                     } else {
-                        // Cancelled (CAN/SUB) or interrupted by a new ESC.
                         if input[j] != ESC {
                             j += 1;
                         }
@@ -150,7 +123,6 @@ pub(crate) fn tokenize(input: &[u8]) -> Vec<Token<'_>> {
     out
 }
 
-/// Splits `ESC [ <prefix> params <intermediates> final`.
 struct Csi<'a> {
     prefix: Option<u8>,
     params: &'a [u8],
@@ -187,32 +159,22 @@ fn param_list(params: &[u8]) -> Vec<Option<u32>> {
         .collect()
 }
 
-/// True for control sequences that make the terminal send something back.
 fn csi_is_query(c: &Csi<'_>) -> bool {
-    match (c.prefix, c.inter, c.fin) {
-        // DA1/DA2/DA3.
-        (_, b"", b'c') => true,
-        // DSR / DECDSR.
-        (None | Some(b'?'), b"", b'n') => true,
-        // Window ops: reports, and resizes/moves that make no sense on replay.
-        (None, b"", b't') => true,
-        // DECRQM.
-        (_, b"$", b'p') => true,
-        // XTVERSION.
-        (Some(b'>'), b"", b'q') => true,
-        // Kitty keyboard protocol query.
-        (Some(b'?'), b"", b'u') => true,
-        // DECREQTPARM.
-        (None, b"", b'x') => true,
-        // XTQMODKEYS.
-        (Some(b'?'), b"", b'm') => true,
-        _ => false,
-    }
+    matches!(
+        (c.prefix, c.inter, c.fin),
+        (_, b"", b'c')
+            | (None | Some(b'?'), b"", b'n')
+            | (None, b"", b't')
+            | (_, b"$", b'p')
+            | (Some(b'>'), b"", b'q')
+            | (Some(b'?'), b"", b'u')
+            | (None, b"", b'x')
+            | (Some(b'?'), b"", b'm')
+    )
 }
 
 #[derive(Default)]
 struct Modes {
-    /// Last state seen for each input mode, in first-seen order.
     input: Vec<(u32, bool)>,
     cursor_hidden: Option<bool>,
 }
@@ -229,8 +191,6 @@ impl Modes {
 
 struct Replay {
     main: Vec<u8>,
-    /// Content of the alternate screen currently open, with the mode that
-    /// opened it.
     alt: Option<(u32, Vec<u8>)>,
     modes: Modes,
 }
@@ -254,18 +214,14 @@ impl Replay {
         for p in params {
             let Some(p) = p else { continue };
             if ALT_MODES.contains(&p) {
-                // Flush what was kept so far so ordering survives.
                 self.flush_kept(&mut kept, c.fin);
                 if on {
                     if self.alt.is_none() {
                         self.alt = Some((p, Vec::new()));
                     }
                 } else if self.alt.is_some() {
-                    // The program exited: its screen is gone on a real terminal too.
                     self.alt = None;
                 } else {
-                    // The history starts inside a full-screen program: everything
-                    // before this exit was its screen.
                     self.main.clear();
                 }
             } else if INPUT_MODES.contains(&p) {
@@ -291,7 +247,6 @@ impl Replay {
 }
 
 fn osc_is_dangerous(seq: &[u8]) -> bool {
-    // Strip `ESC ]` and the terminator.
     let body = &seq[2..];
     let body = body
         .strip_suffix(b"\x1b\\")
@@ -302,9 +257,7 @@ fn osc_is_dangerous(seq: &[u8]) -> bool {
         .ok()
         .and_then(|s| s.parse().ok());
     match num {
-        // Clipboard: never on replay.
         Some(52) => true,
-        // Colour/palette queries answer back.
         Some(4 | 5 | 10..=19 | 104 | 105 | 110..=119) => body[num_end..].contains(&b'?'),
         _ => false,
     }
@@ -312,7 +265,6 @@ fn osc_is_dangerous(seq: &[u8]) -> bool {
 
 fn str_is_query(kind: u8, seq: &[u8]) -> bool {
     match kind {
-        // DECRQSS (`$q`) and XTGETTCAP (`+q`).
         b'P' => {
             let body = &seq[2..];
             let body = body
@@ -321,12 +273,10 @@ fn str_is_query(kind: u8, seq: &[u8]) -> bool {
             let head: Vec<u8> = body.take(2).copied().collect();
             head == b"$q" || head == b"+q"
         }
-        // APC (kitty graphics, queries included), PM and SOS: nothing to replay.
         _ => true,
     }
 }
 
-/// Returns a copy of `input` that is safe to write into a fresh emulator.
 pub fn sanitize_for_replay(input: &[u8]) -> Vec<u8> {
     let mut r = Replay {
         main: Vec::with_capacity(input.len()),
@@ -336,7 +286,6 @@ pub fn sanitize_for_replay(input: &[u8]) -> Vec<u8> {
     for tok in tokenize(input) {
         match tok {
             Token::Text(t) => r.sink().extend_from_slice(t),
-            // Bells and ENQ (answerback) are dropped; other C0 bytes kept.
             Token::Ctl(BEL) | Token::Ctl(0x05) => {}
             Token::Ctl(b) => r.sink().push(b),
             Token::Csi(seq) => {
@@ -363,7 +312,6 @@ pub fn sanitize_for_replay(input: &[u8]) -> Vec<u8> {
             }
             Token::Esc(seq) => {
                 if seq == b"\x1bc" {
-                    // RIS wipes everything before it.
                     r.main.clear();
                     r.alt = None;
                     r.modes = Modes::default();
@@ -371,9 +319,7 @@ pub fn sanitize_for_replay(input: &[u8]) -> Vec<u8> {
                     r.sink().extend_from_slice(seq);
                 }
             }
-            // The live stream finishes it.
             Token::Partial(seq) => {
-                // Kept raw at the very end, after the mode restore below.
                 let mut out = finish(r);
                 out.extend_from_slice(seq);
                 return out;

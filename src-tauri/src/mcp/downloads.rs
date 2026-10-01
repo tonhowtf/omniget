@@ -1,4 +1,3 @@
-//! External download projection over the desktop queue (not another engine).
 use super::{
     policy::{self, Principal},
     ToolDef,
@@ -13,11 +12,7 @@ pub fn catalog(p: &Principal) -> Vec<Value> {
             || matches!(tool.name, "teams_transcript_import" | "auth_connection_request" | "diagnostic_bundle_create" | "catalog_install" | "memory_retain");
         let open_world = matches!(tool.name, "meeting_import" | "meeting_bot_send" | "teams_chats_list" | "teams_chat_read" | "teams_channels_list" | "teams_channel_read" | "teams_calendar" | "teams_transcript_import" | "download_enqueue" | "downloads_batch_enqueue" | "download_retry" | "download_resume" | "media_inspect" | "media_collection_list");
         let mut value = serde_json::to_value(&tool).expect("static tool schema serializes");
-        // MCP semantics: destructive = may undo or discard existing work
-        // (cancel/pause); creating or enqueueing is additive and, with its
-        // idempotency key, idempotent.
         let destructive = writes && (matches!(tool.name, "download_cancel" | "download_pause" | "missions_cancel" | "missions_pause" | "wmb_execute" | "job_cancel" | "tg_delete_messages") || super::canvas::is_destructive(tool.name));
-        // Canvas writes create nodes, send keys and messages: never idempotent.
         let idempotent = !matches!(tool.name,"omniget_app_capture"|"omniget_app_export"|"meeting_import"|"meeting_bot_send"|"teams_transcript_import") && !(writes && super::canvas::owns(tool.name));
         value["annotations"] = json!({"readOnlyHint":!writes,"destructiveHint":destructive,"idempotentHint":idempotent,"openWorldHint":open_world});
         value
@@ -250,8 +245,6 @@ pub async fn call(app: &AppHandle, p: &Principal, name: &str, a: Value) -> Resul
         }
         return super::call_catalog(app, p, name, a).await;
     }
-    // Telegram tools take chats as ids or names and message ids as lists of
-    // integers, which the generic validator below does not accept.
     if name.starts_with("tg_") {
         if !policy::allowed(p, name) {
             return Err("TOOL_NOT_AUTHORIZED".into());
@@ -350,8 +343,6 @@ pub async fn call(app: &AppHandle, p: &Principal, name: &str, a: Value) -> Resul
                 })
                 .map(|i| serde_json::to_value(i).map_err(|e| e.to_string()))
                 .collect::<Result<Vec<_>, _>>()?;
-            // Jobs the in-memory queue lost (crash, restart) stay visible
-            // from the journal until they are reconciled (D-08).
             if status.is_empty() || status == "unknown" {
                 items.extend(orphaned(&ids, &queued).iter().map(journal_item));
             }
@@ -362,7 +353,6 @@ pub async fn call(app: &AppHandle, p: &Principal, name: &str, a: Value) -> Resul
             if queued {
                 json!({"item":item,"nextPollAfterMs":1000})
             } else {
-                // Journal-only: nothing will change until the client acts.
                 json!({"item":item,"nextPollAfterMs":null,"nextActions":actions_for(id, None)})
             }
         }
@@ -425,14 +415,9 @@ pub async fn call(app: &AppHandle, p: &Principal, name: &str, a: Value) -> Resul
                 .collect::<Vec<_>>();
             let interrupted = queued.is_none() && matches!(stage.as_str(), "unknown" | "executing");
             if evidence.is_empty() && interrupted {
-                // A crash leaves no warning: the last progress lines are the
-                // evidence of how far the attempt got.
                 let n = page.events.len().saturating_sub(8);
                 evidence = page.events[n..].iter().map(excerpt).collect();
             }
-            // The durable terminal receipt is the same message the queue
-            // status and download_retry admission were derived from; it leads
-            // so the diagnosis class cannot disagree with them.
             let receipt = super::download_intents::receipt(id).ok().flatten();
             let text = receipt
                 .iter()
@@ -490,8 +475,6 @@ pub async fn call(app: &AppHandle, p: &Principal, name: &str, a: Value) -> Resul
                 .filter(|i| ids.contains(&i.id))
                 .map(|i| serde_json::to_value(i).map_err(|e| e.to_string()))
                 .collect::<Result<Vec<_>, _>>()?;
-            // An interrupted job never reached history or the queue: list it
-            // from the journal so it cannot silently disappear (D-08).
             let known: std::collections::HashSet<u64> = items
                 .iter()
                 .filter_map(|i| i["id"].as_u64())
@@ -520,9 +503,6 @@ pub async fn call(app: &AppHandle, p: &Principal, name: &str, a: Value) -> Resul
                 if primary.as_ref().is_some_and(|f| !f.starts_with(&root)) {
                     return Err("ARTIFACT_NOT_AUTHORIZED".into());
                 }
-                // Every produced file of the job (a carousel writes several),
-                // read from its exclusive folder; the engine result names only
-                // the last one (bench D1). Each file gets its own grant/digest.
                 let (names, more) = tokio::task::spawn_blocking(move || {
                     super::download_intents::job_files(&intent)
                 })
@@ -553,8 +533,6 @@ pub async fn call(app: &AppHandle, p: &Principal, name: &str, a: Value) -> Resul
                         Err(error) => ("existence_only", None, Some(error)),
                     };
                     let mut entry = json!({"artifactId":format!("{id}:{index}"),"bytes":bytes,"name":name,"primary":is_primary,"validation":level,"media":media,"validationError":error,"transferAllowed":false});
-                    // A name the source forced to start with dots is still the
-                    // output; offer a visible name to save it under (D-07).
                     if name.starts_with('.') {
                         entry["suggestedName"] = json!(name.trim_start_matches('.'));
                     }
@@ -579,8 +557,6 @@ pub async fn call(app: &AppHandle, p: &Principal, name: &str, a: Value) -> Resul
                     files.push(entry);
                 }
             }
-            // Success with nothing to hand over is a failure to report, not
-            // an empty list next to a success status (D-07).
             if complete && files.is_empty() {
                 return Err(
                     "ARTIFACT_MISSING: the job completed but its folder holds no produced file"
@@ -611,7 +587,6 @@ pub async fn call(app: &AppHandle, p: &Principal, name: &str, a: Value) -> Resul
                     return Ok(sanitize(receipt));
                 }
                 let intent = super::download_intents::prepare_retry(p, id, key, name, &a)?;
-                // Resume is a new attempt from zero; say so and make it true.
                 let restart = if name == "download_resume" {
                     let snapshot = intent.clone();
                     Some(
@@ -634,13 +609,8 @@ pub async fn call(app: &AppHandle, p: &Principal, name: &str, a: Value) -> Resul
             let mut internal = a.clone();
             internal.as_object_mut().unwrap().remove("idempotencyKey");
             return keyed(p, name, key, &a, async {
-                // A refusal here (`cannot pause download … (complete)`) ran no
-                // effect: `keyed` frees the key instead of poisoning it (N-4).
                 let mut value = super::call(app, name, internal).await?;
                 if name == "download_cancel" {
-                    // Cancelling a paused job: its attempt was already settled as
-                    // paused with partials kept; settle it as cancelled and clean.
-                    // The cancel already happened, so nothing here may fail it.
                     let removed = tokio::task::spawn_blocking(move || {
                         super::download_intents::cancel_paused(id)
                     })
@@ -658,9 +628,6 @@ pub async fn call(app: &AppHandle, p: &Principal, name: &str, a: Value) -> Resul
     policy::active(p)?;
     Ok(sanitize(result))
 }
-/// `omniget_health` over HTTP: answering at all means the desktop was
-/// reached. Same facts the stdio adapter adds (reachability, versions,
-/// protocol), so a client sees one shape on both transports (D-14).
 pub(crate) fn health(negotiated: &str) -> Value {
     json!({
         "app": "running",
@@ -672,8 +639,6 @@ pub(crate) fn health(negotiated: &str) -> Value {
         "supportedProtocolVersions": super::SUPPORTED_PROTOCOLS,
     })
 }
-/// Reconcile durable authority with the one desktop queue. No URL lookup and
-/// no personal downloader fallback are permitted for an external intent.
 pub async fn restore_intent(
     app: &AppHandle,
     intent: super::download_intents::Intent,
@@ -687,8 +652,6 @@ pub async fn restore_intent(
     }
     if intent.stage == "terminal" {
         if let Some(receipt) = super::download_intents::receipt(intent.job_id)? {
-            // Same shape as the first answer (D-17): the item is the live queue
-            // entry when there is one, else the journal view.
             let item = match super::queue_item(app, intent.job_id).await {
                 Ok(item) => serde_json::to_value(item).map_err(|e| e.to_string())?,
                 Err(_) => journal_item(&intent),
@@ -699,12 +662,7 @@ pub async fn restore_intent(
         }
         return Err("OUTCOME_UNKNOWN: terminal evidence missing".into());
     }
-    // Execution and queue matching use the executable URL; only this process
-    // memory holds it in clear.
     let intent = super::download_intents::hydrate(intent)?;
-    // A prepared new attempt replaces only the inert terminal placeholder.
-    // This also reconstructs the worker after app restart, never the Noop or
-    // personal downloader stored in queue history.
     if intent.attempt > 0 && matches!(intent.stage.as_str(), "prepared" | "admitting" | "enqueued")
     {
         let state = app.state::<crate::AppState>();
@@ -730,8 +688,6 @@ pub async fn restore_intent(
             return Err("DOWNLOAD_ID_CONFLICT".into());
         }
         let item = crate::core::queue::redacted_for_display(vec![item]).remove(0);
-        // A restored placeholder is not evidence that an interrupted effect
-        // completed. Preserve the ID without making an execution claim.
         if intent.stage == "executing"
             && item.started_at_ms.is_none()
             && !matches!(
@@ -780,8 +736,6 @@ pub async fn restore_intent(
         json!({"download_id":intent.job_id,"attempt":intent.attempt,"outcome":"queued","item":item}),
     ))
 }
-/// Replay of an intent whose effect may have run: visible, never re-executed,
-/// with the typed way out (D-08).
 fn unknown_outcome(intent: &super::download_intents::Intent) -> Value {
     let mut view = intent.clone();
     view.stage = "unknown".into();
@@ -796,21 +750,15 @@ async fn enqueue_durable(
     let intent = if let Some(i) = super::download_intents::by_key(p, key, a)? {
         i
     } else {
-        // Legacy completed receipts remain readable; an unfinished legacy
-        // receipt has no snapshot and reserve must return Unknown.
         if policy::receipt_exists(p, "download_enqueue", key)? {
             return policy::reserve(p, "download_enqueue", key, a)?.ok_or("OUTCOME_UNKNOWN".into());
         }
         let url = checked_url(a)?;
         check_network(p, &url).await?;
-        // Only a live job manages its URL (same rule as the queue's has_url):
-        // a failed or cancelled job must not dead-end a fresh enqueue.
         let snapshot = super::queue_snapshot_raw(app).await;
         if snapshot.iter().any(|i| i.url == url && live(&i.status)) {
             return Err("URL_ALREADY_MANAGED".into());
         }
-        // A job interrupted by a crash may still hold this URL's output: a
-        // second download must wait until that one is reconciled (D-08).
         let running: Vec<u64> = snapshot
             .iter()
             .filter(|i| live(&i.status))
@@ -869,8 +817,6 @@ async fn enqueue_durable(
     policy::finish(p, "download_enqueue", key, &value)?;
     Ok(value)
 }
-/// The queue entry when the in-memory queue holds the job, else a queue-shaped
-/// view from the durable journal (`true` = live queue entry).
 async fn current_item(app: &AppHandle, id: u64) -> Result<(Value, bool), String> {
     if let Ok(item) = super::queue_item(app, id).await {
         return Ok((serde_json::to_value(item).map_err(|e| e.to_string())?, true));
@@ -879,8 +825,6 @@ async fn current_item(app: &AppHandle, id: u64) -> Result<(Value, bool), String>
         super::download_intents::load(id)?.ok_or_else(|| format!("no download with id {id}"))?;
     Ok((journal_item(&intent), false))
 }
-/// Queue-shaped view of a job the in-memory queue does not hold (restart,
-/// crash). Only durable evidence; the URL is the redacted one.
 pub fn journal_item(i: &super::download_intents::Intent) -> Value {
     let receipt = super::download_intents::receipt(i.job_id).ok().flatten();
     let status = match (i.stage.as_str(), receipt.as_ref()) {
@@ -897,7 +841,6 @@ pub fn journal_item(i: &super::download_intents::Intent) -> Value {
     };
     json!({"id":i.job_id,"url":crate::core::flight_recorder::redact_url(&i.options.url),"title":null,"platform":"mcp_worker","status":status,"attempt":i.attempt,"file_path":receipt.as_ref().and_then(|r|r.file_path.clone()),"file_size_bytes":receipt.as_ref().and_then(|r|r.bytes),"source":"journal"})
 }
-/// Owned, unsettled intents that neither the queue nor history holds.
 fn orphaned(
     owned: &[u64],
     known: &std::collections::HashSet<u64>,
@@ -931,11 +874,6 @@ fn actions_for(id: u64, queued: Option<&crate::core::queue::QueueStatus>) -> Vec
         None,
     )
 }
-/// A login problem points at `auth_connection_request` (as the diagnostic
-/// bundle does), placed before the generic local-action step. Honest about
-/// the limit: MCP downloads run in the confined worker, which never reads
-/// local logins, so connecting helps downloads the person starts in OmniGet
-/// and a retry from this client still runs without the login.
 fn with_auth_action(mut actions: Vec<Value>, code: &str, host: Option<&str>) -> Vec<Value> {
     if !matches!(code, "AUTH_REQUIRED" | "AUTH_EXPIRED") {
         return actions;
@@ -943,10 +881,7 @@ fn with_auth_action(mut actions: Vec<Value>, code: &str, host: Option<&str>) -> 
     let mut args = json!({});
     let mut requires = vec!["reason", "idempotencyKey"];
     match host {
-        // Only a host the tool accepts is suggested (N-6).
         Some(h) if super::auth::valid_host(h).is_some() => args["host"] = json!(h),
-        // A literal address or `localhost` is a device, not a platform login:
-        // the tool would refuse it, so there is no login to ask for.
         Some(_) => return actions,
         None => requires.insert(0, "host"),
     }
@@ -967,8 +902,6 @@ fn with_auth_action(mut actions: Vec<Value>, code: &str, host: Option<&str>) -> 
     actions.insert(at, action);
     actions
 }
-/// Typed next steps derived from the durable state and the diagnosis (D-10).
-/// Tools that change state also need a fresh `idempotencyKey`.
 fn next_actions(
     id: u64,
     stage: &str,
@@ -1009,12 +942,6 @@ fn next_actions(
     }
     out
 }
-/// `download_retry` with `strategyId=reconcile`: settle a job interrupted by a
-/// crash from its folder. Never downloads; idempotent under its key.
-/// One idempotent mutation under `key`: a replay returns the stored receipt;
-/// a refusal (`effect` failed, so it ran nothing) releases the key, so a
-/// replay meets the same refusal instead of `OUTCOME_UNKNOWN` (N-4); a success
-/// is sanitized and stored as the receipt.
 async fn keyed<F>(p: &Principal, op: &str, key: &str, a: &Value, effect: F) -> Result<Value, String>
 where
     F: std::future::Future<Output = Result<Value, String>>,
@@ -1043,7 +970,6 @@ async fn reconcile_job(
 ) -> Result<Value, String> {
     keyed(p,"download_retry",key,a,async{
         let queued=super::queue_item(app,id).await.ok().map(|i|i.status);
-        // Only a job no process of this app is running can be judged.
         if matches!(queued,Some(crate::core::queue::QueueStatus::Active|crate::core::queue::QueueStatus::Seeding|crate::core::queue::QueueStatus::Paused)) {
             return Err::<Value,String>("RECONCILE_NOT_NEEDED: the job is still managed by the queue".into());
         }
@@ -1051,13 +977,10 @@ async fn reconcile_job(
         let (outcome,removed)=tokio::task::spawn_blocking(move||super::download_intents::reconcile(Some(&principal),id)).await.map_err(|e|e.to_string())??;
         let intent=super::download_intents::load(id)?.ok_or("DOWNLOAD_INTENT_MISSING")?;
         let receipt=super::download_intents::receipt(id)?;
-        // The settled job returns to history and the queue (N-2).
         settle_reconciled(app,id).await;
         Ok(json!({"download_id":id,"attempt":intent.attempt,"outcome":outcome,"removedLeftovers":removed.len(),"item":journal_item(&intent),"receipt":receipt,"nextActions":actions_for(id,None)}))
     }).await
 }
-/// History entry of a job settled by crash reconciliation, from its durable
-/// intent and receipt; `None` while it is not a reconciled terminal job.
 pub fn reconciled_history_entry(
     i: &super::download_intents::Intent,
     r: &super::download_intents::TerminalReceipt,
@@ -1085,10 +1008,6 @@ pub fn reconciled_history_entry(
         kind: Some(crate::core::queue::kind_from_platform("mcp_worker")),
     })
 }
-/// A job settled by reconciliation (MCP `download_retry strategyId=reconcile`
-/// or the UI "Resume downloads") leaves the journal-only view: it goes into
-/// history with its outcome and back into the queue as a finished item, so
-/// neither the MCP tools nor the UI lose it (N-2). Idempotent.
 pub async fn settle_reconciled(app: &AppHandle, id: u64) {
     let Ok(Some(intent)) = super::download_intents::load(id) else {
         return;
@@ -1110,7 +1029,6 @@ pub async fn settle_reconciled(app: &AppHandle, id: u64) {
     };
     crate::core::queue::emit_queue_state_from_state(app, snapshot);
 }
-/// A job manages its URL only while it can still run or produce output.
 fn live(status: &crate::core::queue::QueueStatus) -> bool {
     use crate::core::queue::QueueStatus::*;
     matches!(status, Queued | Active | Paused | Seeding)

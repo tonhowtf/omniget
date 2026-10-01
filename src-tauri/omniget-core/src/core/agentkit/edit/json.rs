@@ -1,7 +1,3 @@
-//! Plain JSON (`.mcp.json`, `settings.json`, `hooks.json`). Same engine as
-//! [`super::jsonc`]; a file with comments is still read (some tools tolerate
-//! them) and they are kept untouched.
-
 use serde_json::Value;
 
 use super::jsonc::JsoncDoc;
@@ -37,7 +33,6 @@ impl Editor for JsonDoc {
     }
 }
 
-/// A whole new JSON file: pretty, two-space indent, trailing newline.
 pub fn to_text(value: &Value) -> String {
     format!("{}\n", super::jsonc::pretty(value, "", "  "))
 }

@@ -1,11 +1,3 @@
-//! Project knowledge base: plain markdown the whole team of agents shares.
-//! `AGENTS.md` at the workspace root is the standing brief; `.omniget/kb/*.md`
-//! are notes the agents write and search (`kb_write`, `kb_search`). The shape
-//! follows `compozy/kb` (a Karpathy-style markdown KB the agent maintains),
-//! with mem0/letta's split between a small always-in-context index and a
-//! searchable store. Files stay in the repo on purpose: the user can read,
-//! edit and commit them.
-
 use std::path::{Path, PathBuf};
 
 use serde_json::{json, Value};
@@ -58,8 +50,6 @@ fn notes(ws: &Path) -> Vec<(String, String)> {
     out
 }
 
-/// What goes into the system prompt of every turn that has a workspace: the
-/// brief, and one line per note. Empty when the project has neither.
 pub fn index_prompt(ws: &Path) -> String {
     let mut out = String::new();
     for name in ["AGENTS.md", "agents.md", "CLAUDE.md"] {
@@ -94,7 +84,6 @@ fn words(s: &str) -> Vec<String> {
         .collect()
 }
 
-/// Notes split on headings so a hit is a section, not a whole file.
 fn sections(name: &str, text: &str) -> Vec<(String, String)> {
     let mut out = Vec::new();
     let mut head = title_of(text, name);
@@ -145,7 +134,6 @@ pub async fn kb_search(a: Value) -> Result<Value, String> {
             json!({ "hits": [], "note": "the knowledge base is empty; write the first note with kb_write" }),
         );
     }
-    // Semantic when the local embedding model is on disk, by word otherwise.
     let texts: Vec<&str> = std::iter::once(query.as_str())
         .chain(chunks.iter().map(|c| c.1.as_str()))
         .collect();

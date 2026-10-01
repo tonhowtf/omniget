@@ -1,35 +1,15 @@
-//! Incremental sniffer of the sequences the emulator ignores but the canvas
-//! needs: titles (OSC 0/2), cwd (OSC 7, OSC 1337 CurrentDir), notifications
-//! (OSC 9, 99, 777), progress (OSC 9;4), semantic prompts (OSC 133) and BEL.
-//!
-//! Built on the replay tokenizer of `session::sanitize`. A sequence cut
-//! between two reads is carried over (bounded) and finished by the next read,
-//! so no signal is lost to the PTY's chunking.
-
 use super::session::sanitize::{tokenize, Token};
 
-/// Longest unfinished sequence carried between reads. Anything longer is a
-/// runaway string (or a DCS/APC payload we do not care about) and is dropped.
 const CARRY_MAX: usize = 64 * 1024;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum OscEvent {
-    /// OSC 0 / OSC 2.
     Title(String),
-    /// OSC 7 `file://host/path` or OSC 1337 `CurrentDir=`.
     Cwd(String),
-    /// OSC 9 (iTerm2), OSC 777 `notify` (rxvt, VS Code, Ghostty), OSC 99
-    /// (kitty).
     Notify { title: Option<String>, body: String },
-    /// OSC 9;4 (ConEmu / Windows Terminal): `state` 0 remove, 1 value,
-    /// 2 error, 3 indeterminate, 4 paused/warning.
     Progress { state: u8, value: Option<u8> },
-    /// OSC 133 (FinalTerm): A prompt start, B command start, C output
-    /// start, D command finished (with its exit code).
     Prompt { mark: char, exit: Option<i32> },
-    /// OSC 1337 `SetUserVar=name=base64`.
     UserVar { name: String, value: String },
-    /// BEL outside any string.
     Bell,
 }
 
@@ -43,7 +23,6 @@ impl Sniffer {
         Self::default()
     }
 
-    /// Feeds one read from the PTY and returns the events it completed.
     pub fn feed(&mut self, chunk: &[u8]) -> Vec<OscEvent> {
         let mut out = Vec::new();
         if self.carry.is_empty() && !chunk.iter().any(|&b| b == 0x1b || b == 0x07) {
@@ -67,8 +46,6 @@ impl Sniffer {
                         out.push(ev);
                     }
                 }
-                // Only OSC-like strings matter across reads; a cut CSI is
-                // carried too (cheap) so the tokenizer stays aligned.
                 Token::Partial(seq) if seq.len() <= CARRY_MAX => {
                     rest = Some(seq.to_vec());
                 }
@@ -105,10 +82,8 @@ fn cwd_from_url(url: &str) -> Option<String> {
     let rest = url
         .strip_prefix("file://")
         .or_else(|| url.strip_prefix("kitty-shell-cwd://"))?;
-    // Skip the host part.
     let path = &rest[rest.find('/')?..];
     let mut p = percent_decode(path);
-    // file:///C:/Users → /C:/Users on Windows.
     if p.len() > 3 && p.as_bytes()[0] == b'/' && p.as_bytes()[2] == b':' {
         p.remove(0);
     }
@@ -123,7 +98,6 @@ fn b64_text(s: &str) -> String {
         .unwrap_or_default()
 }
 
-/// Parses one complete `ESC ] … (BEL | ESC \)` sequence.
 pub fn parse_osc(seq: &[u8]) -> Option<OscEvent> {
     let body = seq.strip_prefix(b"\x1b]")?;
     let body = body
@@ -156,8 +130,6 @@ pub fn parse_osc(seq: &[u8]) -> Option<OscEvent> {
                     .map(|v| v.min(100) as u8);
                 return Some(OscEvent::Progress { state, value });
             }
-            // Other ConEmu sub-commands are numeric (`9;1;…`); real iTerm2
-            // messages are text.
             let first = arg.split(';').next().unwrap_or("");
             if !first.is_empty() && first.chars().all(|c| c.is_ascii_digit()) {
                 return None;
@@ -168,7 +140,6 @@ pub fn parse_osc(seq: &[u8]) -> Option<OscEvent> {
             })
         }
         "99" => {
-            // `99;metadata;payload`: keep the payload; `p=title` marks a title.
             let (meta, payload) = match arg.find(';') {
                 Some(i) => (&arg[..i], &arg[i + 1..]),
                 None => ("", arg),

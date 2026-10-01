@@ -1,12 +1,3 @@
-//! On-disk index of a chat's media (`data_dir/index/<chat>.sqlite`), so
-//! previews, whole-chat downloads, searches and auto-save backfills read
-//! the history once and then only what is new.
-//!
-//! The index covers a contiguous id range `[oldest_id, newest_id]`: every
-//! message in it was read. An update first reads what arrived after
-//! `newest_id`, then walks older pages only while the caller still needs
-//! more, up to `max_scan` messages per call.
-
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::{Mutex, OnceLock};
@@ -26,8 +17,6 @@ use crate::core::telegram::host;
 
 const PAGE: i32 = 100;
 
-/// Stable id of the file behind a message (`d<document id>` or
-/// `p<photo id>`): the same file forwarded to many chats keeps it.
 pub fn file_uid(media: &tl::enums::MessageMedia) -> Option<String> {
     match media {
         tl::enums::MessageMedia::Document(d) => match d.document.as_ref()? {
@@ -74,14 +63,12 @@ fn open(chat_id: i64) -> Result<Connection, String> {
     Ok(c)
 }
 
-/// What the index covers.
 #[derive(Debug, Clone, Copy, Default, Serialize)]
 pub struct Coverage {
     pub newest_id: i32,
     pub oldest_id: i32,
     pub complete: bool,
     pub updated_at: i64,
-    /// Date of the oldest message read (0 when unknown).
     pub oldest_date: i64,
 }
 
@@ -126,7 +113,6 @@ pub fn coverage(chat_id: i64) -> Coverage {
     open(chat_id).map(|c| coverage_of(&c)).unwrap_or_default()
 }
 
-/// `{chat_id, indexed, newest_id, oldest_id, complete, updated_at}`.
 pub fn stats(chat_id: i64) -> serde_json::Value {
     let (indexed, cov) = if db_path(chat_id).is_file() {
         match open(chat_id) {
@@ -150,7 +136,6 @@ pub fn stats(chat_id: i64) -> serde_json::Value {
     })
 }
 
-/// Deletes one chat's index, or all of them.
 pub fn clear(chat_id: Option<i64>) {
     match chat_id {
         Some(id) => {
@@ -201,8 +186,6 @@ fn upsert(c: &mut Connection, rows: &[Row]) -> Result<(), String> {
     tx.commit().map_err(|e| e.to_string())
 }
 
-/// Indexed media matching `filter`, newest first. `after_id` keeps only
-/// larger ids. `limit` in the filter is applied.
 pub fn query(chat_id: i64, filter: &MediaFilter, after_id: i32) -> Vec<TelegramMediaItem> {
     query_rows(chat_id, filter, after_id)
         .into_iter()
@@ -210,7 +193,6 @@ pub fn query(chat_id: i64, filter: &MediaFilter, after_id: i32) -> Vec<TelegramM
         .collect()
 }
 
-/// Same as [`query`], with each item's file uid.
 pub fn query_rows(
     chat_id: i64,
     filter: &MediaFilter,
@@ -283,14 +265,11 @@ pub fn query_rows(
     out
 }
 
-// ---- scans and cancellation -------------------------------------------------
-
 fn scans() -> &'static Mutex<HashMap<String, CancellationToken>> {
     static S: OnceLock<Mutex<HashMap<String, CancellationToken>>> = OnceLock::new();
     S.get_or_init(|| Mutex::new(HashMap::new()))
 }
 
-/// Registers a scan so `telegram_scan_cancel` can stop it.
 pub fn register_scan(scan_id: &str) -> CancellationToken {
     let token = CancellationToken::new();
     scans()
@@ -325,10 +304,8 @@ pub fn new_scan_id() -> String {
     format!("scan{}", events::next_id())
 }
 
-/// What an update did.
 #[derive(Debug, Clone, Copy, Default)]
 pub struct UpdateResult {
-    /// Messages read from Telegram in this call.
     pub scanned: usize,
     pub coverage: Coverage,
     pub cancelled: bool,
@@ -336,16 +313,10 @@ pub struct UpdateResult {
 
 pub struct UpdateOpts<'a> {
     pub scan_id: &'a str,
-    /// Stop after reading this many messages (0 = no cap).
     pub max_scan: usize,
     pub takeout: bool,
-    /// Filter used for the `matched` count of the progress event and for
-    /// deciding when enough was read.
     pub filter: Option<&'a MediaFilter>,
-    /// Stop walking older pages once the index reaches this id (the
-    /// auto-save's `lastMessageId`, a `fromMessageId`).
     pub stop_at_id: i32,
-    /// Emit `telegram-chat-scan` events.
     pub emit: bool,
 }
 
@@ -358,8 +329,6 @@ fn messages_of(result: tl::enums::messages::Messages) -> Vec<tl::enums::Message>
     }
 }
 
-/// One page of the history: `(rows, lowest id, highest id, oldest date,
-/// raw count)`.
 async fn page(
     client: &grammers_client::Client,
     peer: &tl::enums::InputPeer,
@@ -412,9 +381,6 @@ async fn page(
     Ok((rows, lowest, highest, oldest_date, messages.len()))
 }
 
-/// Brings the index up to date: first what is new, then older pages while
-/// `need_more(coverage, matched)` says so. Never reads more than
-/// `opts.max_scan` messages.
 pub async fn update(
     handle: &TelegramSessionHandle,
     chat_id: i64,
@@ -464,7 +430,6 @@ pub async fn update(
     };
 
     let result: anyhow::Result<()> = async {
-        // 1. What arrived after `newest_id` (everything, when the index is empty).
         if cov.newest_id > 0 {
             let mut offset_id = 0;
             let mut top = cov.newest_id;
@@ -508,8 +473,6 @@ pub async fn update(
             if reached {
                 cov.newest_id = top;
             } else {
-                // Capped before reaching the old range: the index now covers
-                // only what was just read, from the top.
                 cov.newest_id = top;
                 cov.oldest_id = lowest_read;
                 cov.complete = false;
@@ -518,7 +481,6 @@ pub async fn update(
             save_coverage(&conn, &cov);
         }
 
-        // 2. Older pages, while the caller still needs more.
         while !cov.complete && !cap_hit(scanned) && need_more(&cov, matched) {
             if cancel.is_cancelled() {
                 return Ok(());
@@ -572,8 +534,6 @@ pub async fn update(
     })
 }
 
-/// Whether the index (after an update) can answer `filter` without reading
-/// the part of the history it has not covered yet.
 pub fn needs_more_for(filter: &MediaFilter, cov: &Coverage, matched: usize) -> bool {
     if cov.complete {
         return false;
@@ -610,11 +570,6 @@ fn search_filter_for(kind: &str) -> Option<tl::enums::MessagesFilter> {
     })
 }
 
-/// Fast path for filters that name media types: ask Telegram for only
-/// those messages (`messages.search` with a media filter) instead of
-/// walking the whole history. A video channel with 100k messages usually
-/// has a few thousand videos, so this is one to two orders of magnitude
-/// fewer pages. The rows land in the same index, so later queries see them.
 async fn search_by_type(
     handle: &TelegramSessionHandle,
     chat_id: i64,
@@ -718,9 +673,7 @@ async fn search_by_type(
     })
 }
 
-/// Updates the index as far as `filter` needs and returns the matches,
-/// newest first, plus how many messages were read.
-#[allow(clippy::too_many_arguments)] // mirrors the command arguments one to one
+#[allow(clippy::too_many_arguments)]
 pub async fn scan_filtered(
     handle: &TelegramSessionHandle,
     chat_id: i64,
@@ -740,8 +693,6 @@ pub async fn scan_filtered(
         stop_at_id: after_id.max(filter.from_message_id.unwrap_or(0) as i32),
         emit: true,
     };
-    // Only media types asked and the history not fully indexed yet: search
-    // by type instead of reading every message.
     let kinds: Vec<String> = filter.media_types.clone().unwrap_or_default();
     let by_type = !kinds.is_empty()
         && kinds.iter().all(|k| search_filter_for(k).is_some())

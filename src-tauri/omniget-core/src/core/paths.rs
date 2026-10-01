@@ -3,8 +3,6 @@ pub fn app_data_dir() -> Option<std::path::PathBuf> {
         return Some(std::path::PathBuf::from(dir));
     }
 
-    // Data folder moved by the user (Settings, `canvas_data_dir_move`): a
-    // pointer file next to the default folder names the new one.
     if let Some(p) = data_dir_redirect_file() {
         if let Ok(to) = std::fs::read_to_string(&p) {
             let to = std::path::PathBuf::from(to.trim());
@@ -42,23 +40,14 @@ pub fn app_data_dir() -> Option<std::path::PathBuf> {
     Some(new_path)
 }
 
-/// Pointer file that relocates the default data folder (holds an absolute path).
 pub fn data_dir_redirect_file() -> Option<std::path::PathBuf> {
     Some(dirs::data_dir()?.join("wtf.tonho.omniget.location"))
 }
 
-/// Set to `1` to make a debug build of the app use the installed app's profile
-/// again instead of [`dev_profile_dir`].
 pub const DEV_REAL_PROFILE_ENV: &str = "OMNIGET_DEV_REAL_PROFILE";
 
-/// Folder, under the platform data dir, of the profile debug builds use.
 pub const DEV_PROFILE_DIR_NAME: &str = "omniget-dev";
 
-/// The profile a debug build of the app (`pnpm tauri dev`) uses so it never
-/// reads or writes the installed app's: `<platform data dir>/omniget-dev`.
-/// `None` when the profile is already chosen (`OMNIGET_DATA_DIR`, portable
-/// mode) or when `OMNIGET_DEV_REAL_PROFILE=1` asks for the real one. Pure so
-/// the rule can be tested; the app's `main.rs` calls it only in debug builds.
 pub fn dev_profile_dir(
     data_dir_set: bool,
     portable: bool,
@@ -85,8 +74,6 @@ fn copy_dir_recursive(src: &std::path::Path, dst: &std::path::Path) -> std::io::
     Ok(())
 }
 
-/// Spellings of `root` as it may appear in a message: as given and resolved
-/// (on macOS `/tmp` and `/var` are `/private/tmp` and `/private/var`).
 fn spellings(root: &std::path::Path) -> Vec<String> {
     let mut out = vec![root.display().to_string()];
     if let Ok(real) = std::fs::canonicalize(root) {
@@ -109,8 +96,6 @@ fn spellings(root: &std::path::Path) -> Vec<String> {
     out
 }
 
-/// End of the path token that starts at `start`: whitespace, a quote, or a
-/// `:` that ends the path (`reading /a/b.md: not found`).
 fn path_end(text: &str, start: usize) -> usize {
     let bytes = text.as_bytes();
     let mut i = start;
@@ -127,9 +112,6 @@ fn path_end(text: &str, start: usize) -> usize {
     i
 }
 
-/// Rewrites every path under `root` in `text` relative to it, prefixed with
-/// `label` (`reading /…/skills/x/guide.md` → `reading x/guide.md` with an
-/// empty label). For messages a model will read.
 pub fn rebase_paths(text: &str, root: &std::path::Path, label: &str) -> String {
     let mut out = text.to_string();
     for s in spellings(root) {
@@ -140,10 +122,6 @@ pub fn rebase_paths(text: &str, root: &std::path::Path, label: &str) -> String {
     out
 }
 
-/// Cuts every path under the app's own data directory (the profile: keys,
-/// memory, skills, logs) down to its file name, unless it is under `keep`
-/// (the turn's workspace). Tool errors pass through this before a model sees
-/// them: the profile's absolute path is private and useless to the model.
 pub fn redact_private_paths(text: &str, keep: Option<&std::path::Path>) -> String {
     let Some(data) = app_data_dir() else {
         return text.to_string();
@@ -156,7 +134,6 @@ pub fn redact_private_paths(text: &str, keep: Option<&std::path::Path>) -> Strin
         for p in &prefixes {
             if text[i..].starts_with(p.as_str()) {
                 let after = &text[i + p.len()..];
-                // Only the directory itself or something inside it.
                 if !(after.is_empty()
                     || after.starts_with('/')
                     || after.starts_with('\\')

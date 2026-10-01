@@ -1,13 +1,3 @@
-//! OmniGet profiles (plan §4.3 "Perfis", F6): one permission/provider intent
-//! written once in Claude's settings schema and applied to every detected tool
-//! through the normal plan (each tool's converter translates it: Codex sandbox,
-//! OpenCode `permission`, Gemini policies, Cursor `Shell()/Read()/Write()` …).
-//!
-//! Built-in profiles: `read-only`, `dev` (edits freely, asks before shell),
-//! `no-network`, `autonomous-guarded` (runs on its own, dangerous commands and
-//! secrets blocked) and `provider` (another endpoint: base URL + key read from
-//! an environment variable, never the key itself).
-
 use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
@@ -19,7 +9,6 @@ use super::plan::{self, ConflictPolicy, InstallPlan, PlanRequest};
 use super::targets;
 use super::{AgentkitError, Env, Result, Scope};
 
-/// One parameter of a profile (only `provider` has any).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProfileParam {
     pub key: String,
@@ -38,7 +27,6 @@ pub struct ProfileInfo {
     pub description: String,
     #[serde(default)]
     pub params: Vec<ProfileParam>,
-    /// The Claude-schema settings the profile writes (without params filled).
     pub settings: Value,
 }
 
@@ -97,7 +85,6 @@ fn autonomous_guarded() -> Value {
     })
 }
 
-/// Every built-in profile.
 pub fn list() -> Vec<ProfileInfo> {
     PROFILE_IDS.iter().filter_map(|id| info(id)).collect()
 }
@@ -197,7 +184,6 @@ fn valid_env_name(s: &str) -> bool {
             .all(|c| c.is_ascii_uppercase() || c.is_ascii_digit() || c == '_')
 }
 
-/// Settings of the `provider` profile for its parameters.
 pub fn provider_settings(params: &Value) -> Result<(Value, bool)> {
     let bad = |m: &str| AgentkitError::new("AGENTKIT_PROFILE", m.to_string());
     let protocol = param(params, "protocol").unwrap_or("anthropic");
@@ -224,7 +210,6 @@ pub fn provider_settings(params: &Value) -> Result<(Value, bool)> {
             if let Some(s) = small {
                 env.insert("ANTHROPIC_SMALL_FAST_MODEL".into(), json!(s));
             }
-            // Claude sends the helper's output as the key: the value stays in the variable
             values.insert(
                 "apiKeyHelper".into(),
                 json!(format!("printf %s \"${key}\"")),
@@ -252,7 +237,6 @@ pub fn provider_settings(params: &Value) -> Result<(Value, bool)> {
     Ok((Value::Object(values), claude_ok))
 }
 
-/// The profile as a Setting component (`omniget:profiles/<id>`).
 pub fn component(id: &str, params: &Value) -> Result<Component> {
     let inf = info(id).ok_or_else(|| {
         AgentkitError::new(
@@ -307,9 +291,6 @@ pub fn component(id: &str, params: &Value) -> Result<Component> {
     Ok(c)
 }
 
-/// Where a profile can go: every target with its compatibility (tools that
-/// cannot hold it come back `unsupported`). The `provider` profile over the
-/// OpenAI protocol is unsupported on Claude Code (it only speaks Anthropic's).
 pub fn compat(c: &Component, all: &[targets::TargetAdapter]) -> Vec<(String, Compat)> {
     let mut map = compute_compat(c, all);
     if c.id == "omniget:profiles/provider" {
@@ -334,20 +315,16 @@ pub fn compat(c: &Component, all: &[targets::TargetAdapter]) -> Vec<(String, Com
         .collect()
 }
 
-/// Request of [`plan_profile`].
 #[derive(Debug, Clone, Default)]
 pub struct ProfileRequest {
     pub id: String,
     pub params: Value,
-    /// `None`: every installed tool that can hold the profile.
     pub targets: Option<Vec<String>>,
     pub scope: Option<Scope>,
     pub project_dir: Option<PathBuf>,
     pub policy: ConflictPolicy,
 }
 
-/// Plans a profile on many tools at once (the plan is stored like any other:
-/// apply it with `writer::apply`).
 pub fn plan_profile(env: &Env, req: ProfileRequest) -> Result<InstallPlan> {
     let c = component(&req.id, &req.params)?;
     let all = targets::load_targets(env);
@@ -412,7 +389,6 @@ pub fn plan_profile(env: &Env, req: ProfileRequest) -> Result<InstallPlan> {
             secret_values: Default::default(),
         },
     )?;
-    // tools left out are reported with the plan (the stored copy only needs the units)
     p.warnings.extend(warnings);
     Ok(p)
 }

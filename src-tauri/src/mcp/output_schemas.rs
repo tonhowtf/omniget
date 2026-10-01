@@ -1,21 +1,5 @@
-//! `outputSchema` of every MCP tool (revision 2025-06-18), applied where
-//! `tools/list` is built. Each schema describes the tool's `structuredContent`
-//! and also admits the business-error envelope `{"error":{code,message}}`
-//! that `tools/call` returns with `isError: true` (clients such as the
-//! official SDK validate `structuredContent` even on errors).
-//!
-//! Objects stay open (no `additionalProperties: false`): a new field is not a
-//! breaking change, while declared fields and `required` keys are checked by
-//! tests against real `structuredContent`.
-//!
-//! Adding a schema for a new tool: return it from the tool module's
-//! `output_schema(name) -> Option<Value>` (see `auth`, `bundle`,
-//! `artifact_access`) and chain that function in [`for_tool`], or add an arm
-//! to `own`. A tool without an entry is listed without `outputSchema`, which
-//! MCP allows; `every_catalog_tool_declares_an_output_schema` names it.
 use serde_json::{json, Value};
 
-/// Adds `outputSchema` to each listed tool that has one; others unchanged.
 pub fn apply(mut tools: Vec<Value>) -> Vec<Value> {
     for tool in &mut tools {
         let schema = tool["name"].as_str().and_then(for_tool);
@@ -26,7 +10,6 @@ pub fn apply(mut tools: Vec<Value>) -> Vec<Value> {
     tools
 }
 
-/// Output schema of one tool, with the error envelope admitted.
 pub fn for_tool(name: &str) -> Option<Value> {
     own(name)
         .or_else(|| crate::native_agent::output_schema(name))
@@ -47,7 +30,6 @@ fn error_envelope() -> Value {
     json!({"type":"object","properties":{"code":{"type":"string"},"message":{"type":"string"}},"required":["code","message"]})
 }
 
-/// `required` keys hold for a success; an error result carries only `error`.
 fn with_error_branch(mut schema: Value) -> Value {
     let combined = schema.get("anyOf").is_some()
         || schema.get("oneOf").is_some()
@@ -80,8 +62,6 @@ fn obj(properties: Value, required: &[&str]) -> Value {
     json!({"type": "object", "properties": properties, "required": required})
 }
 
-/// A queue entry (`QueueItemInfo`) or its journal view when the in-memory
-/// queue lost the job (`source: "journal"`, `status.type: "Unknown"`).
 fn item() -> Value {
     obj(
         json!({
@@ -123,7 +103,6 @@ fn item() -> Value {
 fn next_actions() -> Value {
     arr(ty("object"))
 }
-/// `download_enqueue`/`retry`/`resume` receipt (first answer and replays).
 fn intent_receipt() -> Value {
     obj(
         json!({
@@ -485,7 +464,6 @@ fn own(name: &str) -> Option<Value> {
             }),
             &["missionId", "tasks"],
         ),
-        // The company dispatcher answers any JSON; it comes wrapped.
         "company_query" | "company_command" => obj(
             json!({"method": ty("string"), "result": {}}),
             &["method", "result"],

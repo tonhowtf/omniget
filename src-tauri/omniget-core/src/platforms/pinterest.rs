@@ -116,8 +116,6 @@ impl PinterestDownloader {
         response.text().await.map_err(Into::into)
     }
 
-    /// gallery-dl pinterest.py:526-527 (`/resource/PinResource/get/`, no
-    /// login) with its API headers (pinterest.py:419-432).
     async fn fetch_pin_resource(&self, pin_id: &str) -> anyhow::Result<serde_json::Value> {
         let data = serde_json::json!({"options": {"id": pin_id, "field_set_key": "detailed"}});
         let response = self
@@ -139,9 +137,6 @@ impl PinterestDownloader {
         Ok(response.json().await?)
     }
 
-    /// Best progressive MP4 of a video_list: V_720P first (gallery-dl
-    /// pinterest.py:203-204 keeps it as the HLS fallback), else the widest
-    /// non-HLS .mp4. HLS entries are left to yt-dlp.
     fn progressive_from_video_list(list: &serde_json::Value) -> Option<(String, Option<f64>, u32)> {
         let map = list.as_object()?;
         let is_mp4 = |v: &serde_json::Value| {
@@ -366,8 +361,6 @@ impl PinterestDownloader {
             });
         }
 
-        // No .mp4 in the HTML: ask the Pin API before settling for an image,
-        // otherwise a video pin yields its thumbnail or falls to HLS.
         let resource = match self.fetch_pin_resource(&pin_id).await {
             Ok(json) => Some(json),
             Err(e) => {
@@ -398,8 +391,6 @@ impl PinterestDownloader {
                 file_size_bytes: None,
             });
         }
-        // A video pin whose API answer has only HLS: its HTML images are the
-        // cover, not the media. Leave it to yt-dlp.
         if resource
             .as_ref()
             .and_then(|r| r.pointer("/resource_response/data/videos/video_list"))
@@ -462,10 +453,6 @@ impl PinterestDownloader {
     }
 }
 
-/// Upper bound on the height of a `/720p/` MP4. Pinterest scales it to 720 px
-/// wide (V_720P of a 1080x1920 source measured 720x1280 on 26/09); the entry's
-/// `width`/`height` are the source's. Bound = max(720, 720*h/w), which covers
-/// both a width-720 and a short-side-720 scaling. Other URLs: unknown (0).
 fn height_bound(url: &str, entry: &serde_json::Value) -> u32 {
     if !url.contains("/720p/") {
         return 0;
@@ -478,8 +465,6 @@ fn height_bound(url: &str, entry: &serde_json::Value) -> u32 {
     u32::try_from((720 * h).div_ceil(w).max(720)).unwrap_or(0)
 }
 
-/// yt-dlp on the pin page: the MCP worker takes it under a height ceiling
-/// when the native MP4 cannot prove it fits (HLS renditions go down to 240p).
 fn ytdlp_alternative(pin_id: &str) -> VideoQuality {
     VideoQuality {
         label: "auto".to_string(),
@@ -494,10 +479,6 @@ fn ytdlp_alternative(pin_id: &str) -> VideoQuality {
 mod tests {
     use super::*;
 
-    // PinResource answer captured 26/09 for the corpus pin
-    // /pin/dive-into-serenity-...--2885187256207927 (trimmed). The pin HTML
-    // had no .mp4, so the adapter fell back to yt-dlp's HLS, which failed with
-    // "fragment failure" in the baseline (pinterest-1, BROKEN_SOURCE).
     const PIN_RESOURCE_VIDEO: &str = r#"{"resource_response": {"status": "success", "data": {"id": "2885187256207927", "videos": {"video_list": {"V_720P": {"url": "https://v1.pinimg.com/videos/iht/720p/ec/e1/c5/ece1c59e8cc370b60000396c5952a72d.mp4", "width": 1080, "height": 1920, "duration": 7967}, "V_HLSV4": {"url": "https://v1.pinimg.com/videos/iht/hls/ec/e1/c5/ece1c59e8cc370b60000396c5952a72d.m3u8", "width": 1080, "height": 1920, "duration": 7967}, "V_HLSV3_MOBILE": {"url": "https://v1.pinimg.com/videos/iht/hls/ec/e1/c5/ece1c59e8cc370b60000396c5952a72d.m3u8", "width": 1080, "height": 1920, "duration": 7967}}}, "images": {"orig": {"width": 736, "height": 1308, "url": "https://i.pinimg.com/originals/c0/0a/2e/c00a2e5b706c1cfb9d35d2874ebd822a.jpg"}}, "story_pin_data": null}}}"#;
 
     #[test]
@@ -509,14 +490,9 @@ mod tests {
             "https://v1.pinimg.com/videos/iht/720p/ec/e1/c5/ece1c59e8cc370b60000396c5952a72d.mp4"
         );
         assert_eq!(duration, Some(7.967));
-        // Measured 26/09 (ffprobe): this V_720P is 720x1280.
         assert_eq!(height, 1280);
     }
 
-    /// Round-1 regression (26/09): pinterest-1 (story pin, source 640x1138,
-    /// V_EXP7 under /720p/) and pinterest-2 (V_720P of a 1080x1920 source =
-    /// 720x1280) were downloaded natively and refused at maxHeight=720. Their
-    /// HLS has 360x640, so yt-dlp's ceiling selector fits.
     #[test]
     fn portrait_720p_is_bounded_and_ytdlp_is_offered() {
         let v = serde_json::json!({"url":"https://v1.pinimg.com/videos/mc/720p/c8/a.mp4","width":640,"height":1138});
@@ -553,7 +529,6 @@ mod tests {
         assert!(PinterestDownloader::video_from_pin_resource(&json).is_none());
     }
 
-    // Idea pins keep the video under story_pin_data.pages[].blocks[].video.
     #[test]
     fn story_pin_video_block_is_found() {
         let json = serde_json::json!({"resource_response":{"data":{"videos":null,

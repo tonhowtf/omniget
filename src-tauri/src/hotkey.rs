@@ -7,8 +7,6 @@ use std::sync::Mutex;
 use crate::models::settings::AppSettings;
 use crate::storage::config;
 
-/// The shortcuts this module registered, by label. Only these are ever
-/// unregistered here, so a shortcut owned by another feature survives.
 static REGISTERED: Mutex<Vec<(&'static str, Shortcut)>> = Mutex::new(Vec::new());
 
 pub fn register_from_settings(app: &tauri::AppHandle) {
@@ -16,13 +14,9 @@ pub fn register_from_settings(app: &tauri::AppHandle) {
     if let Err(e) = apply_bindings(app, &settings) {
         tracing::warn!("[hotkey] kept the previous shortcuts: {}", e);
     }
-    // Omni's window (⌘⇧O) lives outside the download settings.
     crate::canvas::companion::register_shortcut(app);
 }
 
-/// The `shortcuts.registration` effect. Every enabled binding is parsed and
-/// every new one registered before any old one is released; if one fails,
-/// the new ones are rolled back and the previous bindings stay in place.
 pub fn apply_bindings(app: &tauri::AppHandle, settings: &AppSettings) -> Result<(), String> {
     let d = &settings.download;
     let mut desired: Vec<(&'static str, Shortcut)> = Vec::new();
@@ -124,12 +118,6 @@ fn matches_binding(pressed: &Shortcut, binding: &str) -> bool {
         .unwrap_or(false)
 }
 
-/// Resultado de um acionamento do atalho global, sempre reportado à interface.
-///
-/// Antes, cada caminho de falha fazia `return` mudo: quem apertava o atalho com
-/// o clipboard errado via o app não fazer absolutamente nada e concluía que o
-/// atalho estava quebrado (issue #198). O evento de sucesso existia mas ninguém
-/// escutava, então nem o caminho feliz dava sinal.
 fn emit_hotkey_result(app: &tauri::AppHandle, outcome: &str, url: Option<&str>) {
     let _ = app.emit(
         "hotkey-download-result",

@@ -1,26 +1,15 @@
-//! Screen text for agents: what `omniget check` / `ask` and the MCP read of
-//! another terminal. Taken from the emulator's grid (not from a transcript),
-//! so it is exactly what a person looking at the node would see.
-
 use serde::Serialize;
 
 use super::engine::TermEngine;
 
 #[derive(Debug, Clone, Default, Serialize)]
 pub struct ScreenSnapshot {
-    /// Last lines, oldest first, joined with `\n`, trailing blanks trimmed.
     pub text: String,
-    /// Index of the cursor's line inside `text` (-1 when not included).
     pub cursor_row: i64,
-    /// Epoch ms of the last change on screen.
     pub changed_ms: i64,
-    /// A full-screen program (alternate screen) is showing.
     pub alt_screen: bool,
 }
 
-/// The last `last_lines` lines up to the last non-blank line of the live
-/// screen (or the cursor line, whichever is lower), reaching into scrollback
-/// when `last_lines` is larger than the screen. `0` = the whole screen.
 pub fn snapshot(engine: &dyn TermEngine, last_lines: usize, changed_ms: i64) -> ScreenSnapshot {
     let (_, rows) = engine.size();
     let rows = rows as i32;
@@ -59,8 +48,6 @@ pub fn snapshot(engine: &dyn TermEngine, last_lines: usize, changed_ms: i64) -> 
     }
 }
 
-/// Last few non-blank lines, for the heuristics (lower cost than a full
-/// snapshot).
 pub fn tail(engine: &dyn TermEngine, lines: usize) -> String {
     let (_, rows) = engine.size();
     let screen = engine.lines_text(0, rows as i32);

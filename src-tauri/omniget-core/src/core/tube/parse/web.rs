@@ -1,5 +1,3 @@
-//! www.youtube.com (WEB client) responses -> OmniTube model.
-
 use serde_json::Value;
 
 use crate::core::tube::model::*;
@@ -9,7 +7,6 @@ use crate::core::tube::walk::{
     text_at, thumbs,
 };
 
-/// The content of the selected tab of a two-column browse page.
 fn selected_tab(json: &Value) -> Option<&Value> {
     let tabs = json
         .pointer("/contents/twoColumnBrowseResultsRenderer/tabs")
@@ -30,7 +27,6 @@ fn selected_tab(json: &Value) -> Option<&Value> {
         .and_then(|t| t.get("content"))
 }
 
-/// Keeps shelves that aren't the page's own chip bar.
 fn page_from(content: &Value, default_kind: ShelfKind) -> Page {
     let shelves = shelves_of(content, default_kind);
     let header = content
@@ -46,9 +42,6 @@ fn page_from(content: &Value, default_kind: ShelfKind) -> Page {
     }
 }
 
-/// `browse FEwhat_to_watch`. With no watch history the service answers
-/// with a nudge ("Try searching to get started") instead of videos; that
-/// text comes back as the page header so the UI can show it.
 pub fn home(json: &Value) -> Page {
     let Some(content) = selected_tab(json) else {
         return Page::default();
@@ -67,7 +60,6 @@ pub fn home(json: &Value) -> Page {
     page
 }
 
-/// `search`. Filter chips carry the search `params` in `token`.
 pub fn search(json: &Value) -> Page {
     let primary = json
         .pointer("/contents/twoColumnSearchResultsRenderer/primaryContents")
@@ -101,8 +93,6 @@ pub(crate) fn corrected_query(json: &Value) -> Option<String> {
     None
 }
 
-/// Items of every `onResponseReceived*` action (append or reload) or of a
-/// legacy `continuationContents`.
 pub fn continuation(json: &Value) -> Page {
     let mut page = Page::default();
     let mut item_roots: Vec<&Value> = Vec::new();
@@ -169,8 +159,6 @@ fn handle_of(ep: &Value) -> Option<String> {
         .map(str::to_string)
 }
 
-/// `subscribed` only means something with an account; anonymous pages send
-/// a sign-in endpoint instead.
 fn subscribed_state(button: Option<&Value>) -> Option<bool> {
     let b = button?;
     if find_first(b, "signInEndpoint").is_some() {
@@ -220,7 +208,6 @@ fn chapters(json: &Value) -> Vec<Chapter> {
             });
         }
     }
-    // Older layout: the player bar's chapter list.
     if out.is_empty() {
         for c in find_key(json, "chapterRenderer") {
             let (Some(title), Some(ms)) = (
@@ -280,7 +267,6 @@ fn comments_section(json: &Value) -> (Option<String>, Option<String>) {
 
 fn likes(json: &Value) -> (Option<u64>, Option<String>, Option<Rating>) {
     let Some(seg) = find_first(json, "segmentedLikeDislikeButtonViewModel") else {
-        // Old layout: toggle button with the count in its text.
         let t = find_key(json, "toggleButtonRenderer")
             .into_iter()
             .find(|b| str_at(b, "/defaultIcon/iconType") == Some("LIKE"));
@@ -355,8 +341,6 @@ fn watch_playlist(json: &Value) -> Option<WatchPlaylist> {
     })
 }
 
-/// `next` for a video: metadata, related, comments entry and the playlist
-/// being played, if any.
 pub fn watch(json: &Value) -> WatchInfo {
     let results = json
         .pointer("/contents/twoColumnWatchNextResults/results/results/contents")
@@ -450,8 +434,6 @@ pub fn watch(json: &Value) -> WatchInfo {
     info
 }
 
-/// Comment sort options (`sortFilterSubMenuRenderer`), from a `next`
-/// response (watch page) or a comments page.
 pub fn comment_sorts(json: &Value) -> Vec<CommentSort> {
     let Some(menu) = find_first(json, "sortFilterSubMenuRenderer") else {
         return Vec::new();
@@ -580,7 +562,6 @@ fn comment_from_vm(
     })
 }
 
-/// Pre-2024 `commentRenderer`.
 fn comment_from_renderer(c: &Value, thread: Option<&Value>) -> Option<Comment> {
     let author_ep = c.get("authorEndpoint").unwrap_or(&Value::Null);
     let author_id = browse_of(author_ep)
@@ -614,7 +595,6 @@ fn comment_from_renderer(c: &Value, thread: Option<&Value>) -> Option<Comment> {
     })
 }
 
-/// A comments (or replies) page: `next` with the comments continuation.
 pub fn comments(json: &Value) -> CommentsPage {
     let entities = entity_map(json);
     let mut page = CommentsPage {
@@ -727,8 +707,6 @@ fn metadata_parts(vm: &Value) -> Vec<(String, Option<String>)> {
     out
 }
 
-/// A channel page (any tab). `pageHeaderViewModel` today,
-/// `c4TabbedHeaderRenderer` on older layouts.
 pub fn channel(json: &Value) -> ChannelPage {
     let meta = json
         .pointer("/metadata/channelMetadataRenderer")
@@ -835,15 +813,11 @@ pub fn channel(json: &Value) -> ChannelPage {
     }
 }
 
-/// `navigation/resolve_url` -> `(browseId, params)` of the target
-/// (`@handle`, `c/...`, `user/...` -> `UC...`).
 pub fn resolve_url(json: &Value) -> Option<(String, Option<String>)> {
     let ep = json.get("endpoint")?;
     browse_of(ep).map(|(id, params, _)| (id.to_string(), params.map(str::to_string)))
 }
 
-/// A playlist (`browse VL<id>`). Header is `pageHeaderViewModel` (new) or
-/// `playlistHeaderRenderer` (old); the description is optional in both.
 pub fn playlist(json: &Value) -> PlaylistPage {
     let mut p = PlaylistPage::default();
     let md = json
@@ -884,7 +858,6 @@ pub fn playlist(json: &Value) -> PlaylistPage {
             p.description = Some(d);
         }
         p.thumbs = vm.get("heroImage").map(thumbs).unwrap_or_default();
-        // Owner: the avatar stack ("by X") or the first part with a channel link.
         for row in vm
             .pointer("/metadata/contentMetadataViewModel/metadataRows")
             .and_then(Value::as_array)
@@ -987,8 +960,6 @@ pub fn playlist(json: &Value) -> PlaylistPage {
     p
 }
 
-/// Any other browse page: FEsubscriptions, FEhistory, FElibrary/FEyou,
-/// FEplaylist_aggregation, FEshorts, FEchannels...
 pub fn feed(json: &Value) -> Page {
     let Some(content) = selected_tab(json) else {
         return continuation(json);
@@ -1023,7 +994,6 @@ pub fn feed(json: &Value) -> Page {
     page
 }
 
-/// `account/account_menu`.
 pub fn account_menu(json: &Value) -> Account {
     let Some(h) = find_first(json, "activeAccountHeaderRenderer") else {
         return Account::default();
@@ -1045,8 +1015,6 @@ pub fn account_menu(json: &Value) -> Account {
     }
 }
 
-/// suggestqueries.google.com: JSONP (`window.google.ac.h([...])`, entries
-/// `["text", 0, [...]]`) or plain JSON (`["q", ["a", "b"]]`).
 pub fn suggestions(body: &str) -> Vec<String> {
     let (Some(start), Some(end)) = (body.find('['), body.rfind(']')) else {
         return Vec::new();
@@ -1065,7 +1033,6 @@ pub fn suggestions(body: &str) -> Vec<String> {
         .unwrap_or_default()
 }
 
-/// `playlist/get_add_to_playlist` -> `(playlistId, title, contains)`.
 pub fn save_playlists(json: &Value) -> Vec<(String, String, bool)> {
     let mut out: Vec<(String, String, bool)> = find_key(json, "playlistAddToOptionRenderer")
         .into_iter()
@@ -1077,7 +1044,6 @@ pub fn save_playlists(json: &Value) -> Vec<(String, String, bool)> {
             ))
         })
         .collect();
-    // View-model layout: listItemViewModel rows with a toggle per playlist.
     if out.is_empty() {
         for it in find_key(json, "listItemViewModel") {
             let Some(id) = find_key(it, "playlistId")
@@ -1167,7 +1133,6 @@ mod tests {
         let items = all_items(&pt);
         let vs = videos(&items);
         assert!(vs.len() >= 5);
-        // "1.234.567 visualizações" / "1,2 mi de visualizações"
         assert!(
             vs.iter().filter(|v| v.views.is_some()).count() >= vs.len() / 2,
             "{:?}",

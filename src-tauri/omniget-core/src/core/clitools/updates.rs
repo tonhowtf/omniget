@@ -1,11 +1,3 @@
-//! Monitor de releases das ferramentas detectadas: versão instalada × mais
-//! nova (reaproveita o cache de 1 h do `latest`) e, quando a fonte é um
-//! release do GitHub, um trecho curto do changelog.
-//!
-//! Nada roda em repouso: a tela chama `clitools_updates` ao abrir, e o relógio
-//! diário mora no front, só enquanto a janela está visível. O modo `auto`
-//! respeita o intervalo de 24 h (devolve o último relatório sem rede).
-
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 use std::sync::Mutex;
@@ -19,7 +11,6 @@ use super::latest::{self, VersionState};
 use super::owner::OwnerMethod;
 use super::table;
 
-/// Intervalo mínimo entre checagens automáticas.
 pub const AUTO_INTERVAL: u64 = 24 * 3600;
 const CHANGELOG_LINES: usize = 12;
 const CHANGELOG_CHARS: usize = 900;
@@ -43,7 +34,6 @@ pub struct ToolUpdate {
     pub state: VersionState,
     pub source: String,
     pub update_available: bool,
-    /// O dono provado atualiza sozinho (o botão "Atualizar" roda o plano dele).
     pub auto_updates: bool,
     pub changelog: Option<Changelog>,
     pub error: Option<String>,
@@ -53,7 +43,6 @@ pub struct ToolUpdate {
 pub struct UpdatesReport {
     pub checked_at: u64,
     pub next_auto_at: u64,
-    /// `true` quando o relatório veio do último guardado, sem checar.
     pub from_cache: bool,
     pub available: usize,
     pub tools: Vec<ToolUpdate>,
@@ -102,12 +91,10 @@ fn save(report: &UpdatesReport) {
     }
 }
 
-/// Último relatório (memória ou disco), sem rede.
 pub fn last_report() -> Option<UpdatesReport> {
     store().lock().ok().and_then(|g| g.clone())
 }
 
-/// A checagem automática já pode rodar?
 pub fn due(at: u64) -> bool {
     match last_report() {
         Some(r) => at.saturating_sub(r.checked_at) >= AUTO_INTERVAL,
@@ -115,8 +102,6 @@ pub fn due(at: u64) -> bool {
     }
 }
 
-/// Primeiras linhas úteis de um corpo de release (Markdown), sem imagens nem
-/// comentários HTML, cortadas em `max_lines`/`max_chars`.
 pub fn excerpt(body: &str, max_lines: usize, max_chars: usize) -> (String, bool) {
     let mut out: Vec<String> = Vec::new();
     let mut chars = 0usize;
@@ -203,7 +188,6 @@ fn changelog_from(v: &serde_json::Value) -> Option<Changelog> {
     })
 }
 
-/// Release do GitHub que corresponde a `version` (latest, `v<ver>` ou `<ver>`).
 pub async fn changelog(repo: &str, version: &str) -> Option<Changelog> {
     let client = client().ok()?;
     if let Some(v) = release(&client, repo, "latest").await {
@@ -220,8 +204,6 @@ pub async fn changelog(repo: &str, version: &str) -> Option<Changelog> {
     None
 }
 
-/// Compara instalada × mais nova para as ferramentas instaladas com binário
-/// em `detections`, busca o changelog das atrasadas e guarda o relatório.
 pub async fn check(detections: &[Detection], force: bool) -> UpdatesReport {
     let previous: BTreeMap<String, ToolUpdate> = last_report()
         .map(|r| r.tools.into_iter().map(|t| (t.id.clone(), t)).collect())
@@ -241,7 +223,6 @@ pub async fn check(detections: &[Detection], force: bool) -> UpdatesReport {
                 let mut log = None;
                 if behind {
                     if let (Some(repo), Some(ver)) = (t.repo.as_deref(), l.latest.as_deref()) {
-                        // Notas de release não mudam: reaproveita a do relatório anterior.
                         log = prev
                             .and_then(|p| p.changelog.filter(|_| p.latest.as_deref() == Some(ver)));
                         if log.is_none() {
@@ -281,7 +262,6 @@ pub async fn check(detections: &[Detection], force: bool) -> UpdatesReport {
     report
 }
 
-/// Relatório guardado marcado como vindo do cache (para o modo `auto`).
 pub fn cached_report() -> Option<UpdatesReport> {
     last_report().map(|mut r| {
         r.from_cache = true;

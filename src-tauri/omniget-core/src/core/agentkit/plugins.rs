@@ -1,20 +1,4 @@
-//! Plugin and extension inventory of the coding tools (plan F10): what each tool
-//! has installed, whether it is on, where it came from (marketplace) and what it
-//! brings (skills, agents, commands, hooks, MCP/LSP servers …), plus the switch
-//! that turns one on or off in the tool's own file.
-//!
-//! | tool     | installed                                              | on/off                                                     |
-//! |----------|--------------------------------------------------------|------------------------------------------------------------|
-//! | Claude   | `~/.claude/plugins/installed_plugins.json` (+ cache)   | `enabledPlugins` in settings.json (user/project/local)     |
-//! | Copilot  | `~/.copilot/installed-plugins/<mkt>/<plugin>/`         | `enabledPlugins` in `~/.copilot/settings.json`, `.github/copilot/settings*.json` |
-//! | Droid    | `~/.factory/plugins/**/.factory-plugin/plugin.json`    | `enabledPlugins` in `~/.factory/settings.json`, `.factory/settings*.json` |
-//! | Cursor   | `~/.cursor/plugins/{cache/<mkt>/<plugin>/<sha>,local/<plugin>}` | kept in Cursor's app state (read only here)       |
-//! | Gemini   | `~/.gemini/extensions/<name>/gemini-extension.json`    | `~/.gemini/extensions/extension-enablement.json` path rules |
-//! | Qwen     | `~/.qwen/extensions/<name>/qwen-extension.json`        | same rules file (imported by Qwen's extension store)       |
 //! | OpenCode | `plugin` in opencode.json(c) + `.opencode/plugins/*.ts` | npm entry removed/restored; file renamed `*.disabled`     |
-//!
-//! Only plugin and settings files are read (never credential files). Every
-//! switch goes through a backup transaction, so `writer::restore` undoes it.
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
@@ -26,12 +10,10 @@ use super::edit::{self, DocFormat, Seg};
 use super::writer::{self, Tx};
 use super::{AgentkitError, Env, Result};
 
-/// Tools this module knows.
 pub const PLUGIN_TOOLS: [&str; 7] = [
     "claude", "copilot", "droid", "cursor", "gemini", "qwen", "opencode",
 ];
 
-/// What a plugin brings.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct PluginComponents {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -40,7 +22,6 @@ pub struct PluginComponents {
     pub agents: Vec<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub commands: Vec<String>,
-    /// Hook event names.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub hooks: Vec<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -49,7 +30,6 @@ pub struct PluginComponents {
     pub lsp_servers: Vec<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub rules: Vec<String>,
-    /// Anything else present (output styles, monitors, themes, policies, code …).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub other: Vec<String>,
 }
@@ -60,11 +40,9 @@ impl PluginComponents {
     }
 }
 
-/// One plugin/extension of one tool.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PluginInfo {
     pub tool: String,
-    /// Key the tool uses (`name@marketplace`, extension name, `npm:<spec>`, `file:<name>`).
     pub id: String,
     pub name: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -73,21 +51,14 @@ pub struct PluginInfo {
     pub description: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub marketplace: Option<String>,
-    /// Where the marketplace or the plugin comes from (`github:owner/repo`, URL, path, npm).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub source: Option<String>,
-    /// Scope it is installed at: `user | project | local`.
     pub scope: String,
-    /// Files are on disk (a plugin can be switched on in settings but not installed).
     pub installed: bool,
-    /// Effective state for the project asked about (or the user); `None` = the
-    /// tool keeps it where we cannot read it.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub enabled: Option<bool>,
-    /// Explicit value per scope where one is set (`user`, `project`, `local`).
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub enabled_in: BTreeMap<String, bool>,
-    /// Scopes [`set_enabled`] can write for this plugin.
     #[serde(default)]
     pub toggle_scopes: Vec<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -120,7 +91,6 @@ impl PluginInfo {
     }
 }
 
-/// Result of [`set_enabled`].
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ToggleReport {
     pub tx: String,
@@ -128,10 +98,7 @@ pub struct ToggleReport {
     pub plugin: Option<PluginInfo>,
 }
 
-// ------------------------------------------------------------------ small readers
-
 fn read_json(path: &Path) -> Option<Value> {
-    // the JSONC parser takes plain JSON too and tolerates comments
     let text = std::fs::read_to_string(path).ok()?;
     edit::parse_value(DocFormat::Jsonc, &text).ok()
 }
@@ -184,7 +151,6 @@ fn file_stem(p: &Path) -> String {
     n
 }
 
-/// `enabledPlugins` of one settings file.
 fn enabled_map(path: &Path) -> BTreeMap<String, bool> {
     read_json(path)
         .and_then(|v| v.get("enabledPlugins").cloned())
@@ -197,7 +163,6 @@ fn enabled_map(path: &Path) -> BTreeMap<String, bool> {
         .unwrap_or_default()
 }
 
-/// Marketplace source as one short string.
 fn source_text(src: &Value) -> Option<String> {
     if let Some(s) = src.as_str() {
         return Some(s.to_string());
@@ -213,8 +178,6 @@ fn source_text(src: &Value) -> Option<String> {
     }
 }
 
-// ------------------------------------------------------------------ components
-
 const MANIFESTS: [&str; 9] = [
     ".claude-plugin/plugin.json",
     ".cursor-plugin/plugin.json",
@@ -227,7 +190,6 @@ const MANIFESTS: [&str; 9] = [
     "qwen-extension.json",
 ];
 
-/// The plugin's manifest (first one found) as a value.
 pub fn manifest(root: &Path) -> Value {
     for m in MANIFESTS {
         let p = m.split('/').fold(root.to_path_buf(), |p, s| p.join(s));
@@ -238,7 +200,6 @@ pub fn manifest(root: &Path) -> Value {
     Value::Object(Map::new())
 }
 
-/// Folders a manifest key points at (string or list), else the defaults.
 fn dirs_for(root: &Path, man: &Value, key: &str, defaults: &[&str]) -> Vec<PathBuf> {
     let from = |s: &str| -> PathBuf {
         s.trim_start_matches("./")
@@ -253,8 +214,6 @@ fn dirs_for(root: &Path, man: &Value, key: &str, defaults: &[&str]) -> Vec<PathB
     }
 }
 
-/// Keys of a server map, whether the file wraps it in `mcpServers`/`servers`
-/// or not.
 fn server_names(v: &Value) -> Vec<String> {
     let map = v
         .get("mcpServers")
@@ -278,7 +237,6 @@ fn hook_events(v: &Value) -> Vec<String> {
         .unwrap_or_default()
 }
 
-/// Scans a plugin folder for what it brings.
 pub fn scan_components(root: &Path, man: &Value) -> PluginComponents {
     let mut c = PluginComponents::default();
     for d in dirs_for(root, man, "skills", &["skills"]) {
@@ -318,7 +276,6 @@ pub fn scan_components(root: &Path, man: &Value) -> PluginComponents {
             push_unique(&mut c.commands, parts.join(":"));
         }
     }
-    // hooks: manifest (inline or path) or hooks/hooks.json
     let hooks_val = match man.get("hooks") {
         Some(Value::Object(_)) => man.get("hooks").cloned(),
         Some(Value::String(s)) => read_json(&dirs_for(root, &Value::Null, "", &[s.as_str()])[0]),
@@ -335,7 +292,6 @@ pub fn scan_components(root: &Path, man: &Value) -> PluginComponents {
             push_unique(&mut c.hooks, e);
         }
     }
-    // MCP: manifest map or path, else .mcp.json / mcp.json
     let mcp_val = match man.get("mcpServers") {
         Some(Value::Object(m)) => Some(Value::Object(m.clone())),
         Some(Value::String(s)) => read_json(&dirs_for(root, &Value::Null, "", &[s.as_str()])[0]),
@@ -406,9 +362,6 @@ fn fill_from_manifest(p: &mut PluginInfo, root: &Path) {
     p.path = Some(root.display().to_string());
 }
 
-// ------------------------------------------------------------------ settings-driven tools
-
-/// Settings files with `enabledPlugins` per scope, for Claude, Copilot and Droid.
 fn settings_files(env: &Env, tool: &str, project: Option<&Path>) -> Vec<(String, PathBuf)> {
     let mut v = Vec::new();
     let (user, proj, local): (PathBuf, Option<PathBuf>, Option<PathBuf>) = match tool {
@@ -443,8 +396,6 @@ fn settings_files(env: &Env, tool: &str, project: Option<&Path>) -> Vec<(String,
     v
 }
 
-/// Applies `enabledPlugins` of every scope (later scopes win) to the list, adding
-/// plugins that are switched on but not installed.
 fn apply_enabled(
     env: &Env,
     tool: &str,
@@ -489,7 +440,6 @@ fn claude(env: &Env, project: Option<&Path>) -> Vec<PluginInfo> {
     let installed = read_json(&base.join("installed_plugins.json")).unwrap_or(Value::Null);
     if let Some(map) = installed.get("plugins").and_then(|v| v.as_object()) {
         for (id, entries) in map {
-            // v2: a list of installs; v1: one object
             let list: Vec<Value> = match entries {
                 Value::Array(a) => a.clone(),
                 v @ Value::Object(_) => vec![v.clone()],
@@ -539,7 +489,6 @@ fn claude(env: &Env, project: Option<&Path>) -> Vec<PluginInfo> {
                 .and_then(|m| m.get("source"))
                 .and_then(source_text);
         }
-        // a non-strict marketplace entry carries parts of the plugin itself
         let cat = catalogs.entry(mkt.clone()).or_insert_with(|| {
             let dir = known
                 .get(&mkt)
@@ -559,7 +508,6 @@ fn claude(env: &Env, project: Option<&Path>) -> Vec<PluginInfo> {
     out
 }
 
-/// Description, version and inline servers/hooks of a marketplace entry.
 fn merge_market_entry(p: &mut PluginInfo, e: &Value) {
     if p.description.is_empty() {
         p.description = str_of(e, "description").unwrap_or_default();
@@ -584,7 +532,6 @@ fn merge_market_entry(p: &mut PluginInfo, e: &Value) {
     }
 }
 
-/// Plugin folders under `root` that carry a manifest, skipping marketplace clones.
 fn plugin_dirs(root: &Path, max_depth: usize) -> Vec<PathBuf> {
     let mut out: Vec<PathBuf> = Vec::new();
     let mut it = walkdir::WalkDir::new(root).max_depth(max_depth).into_iter();
@@ -663,7 +610,6 @@ fn droid(env: &Env, project: Option<&Path>) -> Vec<PluginInfo> {
             .components()
             .map(|c| c.as_os_str().to_string_lossy().to_string())
             .collect();
-        // cache/<marketplace>/<plugin>/<version> or <marketplace>/<plugin>
         let (mkt, dir_name) = match rel.as_slice() {
             [c, m, p, ..] if c == "cache" => (Some(m.clone()), p.clone()),
             [m, p, ..] => (Some(m.clone()), p.clone()),
@@ -743,9 +689,6 @@ fn cursor(env: &Env) -> Vec<PluginInfo> {
     out
 }
 
-// ------------------------------------------------------------------ Gemini / Qwen extensions
-
-/// `/a/b/` form Gemini uses for paths in its rules.
 fn slash_path(p: &Path) -> String {
     let mut s = p.display().to_string().replace('\\', "/");
     if !s.starts_with('/') {
@@ -757,7 +700,6 @@ fn slash_path(p: &Path) -> String {
     s
 }
 
-/// One rule of `extension-enablement.json` (`[!]<path>[*]`).
 #[derive(Debug, Clone, PartialEq)]
 struct Rule {
     base: String,
@@ -789,7 +731,6 @@ impl Rule {
         )
     }
 
-    /// Gemini's glob: `<base>*` matches the folder and everything below it.
     fn matches(&self, path: &str) -> bool {
         if self.subdirs {
             let b = self.base.trim_end_matches('/');
@@ -804,7 +745,6 @@ impl Rule {
     }
 }
 
-/// Gemini's `isEnabled`: the last matching rule wins, default on.
 pub fn extension_enabled(rules: &[String], path: &Path) -> bool {
     let p = slash_path(path);
     let mut on = true;
@@ -817,7 +757,6 @@ pub fn extension_enabled(rules: &[String], path: &Path) -> bool {
     on
 }
 
-/// Gemini's `enable`/`disable` (with subfolders) for `scope_path`.
 pub fn set_extension_rule(rules: &[String], scope_path: &Path, enabled: bool) -> Vec<String> {
     let new = Rule {
         base: slash_path(scope_path),
@@ -900,8 +839,6 @@ fn extensions(env: &Env, tool: &str, project: Option<&Path>) -> Vec<PluginInfo> 
     out
 }
 
-// ------------------------------------------------------------------ OpenCode
-
 fn opencode_configs(env: &Env, project: Option<&Path>) -> Vec<(String, PathBuf)> {
     let mut v = Vec::new();
     let g = env.xdg_config.join("opencode");
@@ -937,7 +874,6 @@ fn opencode_dirs(env: &Env, project: Option<&Path>) -> Vec<(String, PathBuf)> {
 
 const CODE_EXT: [&str; 5] = [".ts", ".js", ".mjs", ".mts", ".cjs"];
 
-/// OmniGet's memory of npm plugin entries it took out of a config (to put back).
 fn disabled_store(env: &Env) -> PathBuf {
     env.agentkit_dir().join("plugins-disabled.json")
 }
@@ -976,7 +912,6 @@ fn opencode(env: &Env, project: Option<&Path>) -> Vec<PluginInfo> {
             let name = if local {
                 spec.clone()
             } else {
-                // `@scope/pkg@1.2` → `@scope/pkg`
                 let at = spec[1..].find('@').map(|i| i + 1);
                 at.map(|i| spec[..i].to_string())
                     .unwrap_or_else(|| spec.clone())
@@ -1040,10 +975,6 @@ fn opencode(env: &Env, project: Option<&Path>) -> Vec<PluginInfo> {
     out
 }
 
-// ------------------------------------------------------------------ public API
-
-/// Every plugin/extension of every tool this module knows (tools with nothing
-/// installed contribute nothing).
 pub fn list(env: &Env, project: Option<&Path>) -> Vec<PluginInfo> {
     let mut out = Vec::new();
     for t in PLUGIN_TOOLS {
@@ -1052,7 +983,6 @@ pub fn list(env: &Env, project: Option<&Path>) -> Vec<PluginInfo> {
     out
 }
 
-/// Plugins of one tool.
 pub fn list_tool(env: &Env, tool: &str, project: Option<&Path>) -> Vec<PluginInfo> {
     match tool {
         "claude" => claude(env, project),
@@ -1069,14 +999,12 @@ fn err(code: &'static str, msg: impl Into<String>) -> AgentkitError {
     AgentkitError::new(code, msg)
 }
 
-/// Writes `text` over `path` inside the transaction.
 fn write_in(tx: &mut Tx, path: &Path, text: &str) -> Result<()> {
     tx.backup(path)?;
     writer::ensure_parent(path)?;
     writer::atomic_write(path, text.as_bytes(), None)
 }
 
-/// Sets one key of a JSON(C) file, keeping its formatting.
 fn set_json_key(tx: &mut Tx, path: &Path, keys: &[Seg], value: &Value) -> Result<()> {
     let text = std::fs::read_to_string(path).unwrap_or_default();
     let fmt = super::convert::format_for_path(path);
@@ -1102,8 +1030,6 @@ fn set_json_key(tx: &mut Tx, path: &Path, keys: &[Seg], value: &Value) -> Result
     write_in(tx, path, &new)
 }
 
-/// Turns a plugin on or off in the tool's own file. `scope`: `user | project |
-/// local` (what the plugin's `toggle_scopes` lists).
 pub fn set_enabled(
     env: &Env,
     tool: &str,
@@ -1193,7 +1119,6 @@ pub fn set_enabled(
             };
             let new = set_extension_rule(&rules, &at, enabled);
             all.insert(p.name.clone(), serde_json::json!({ "overrides": new }));
-            // Gemini writes this file with JSON.stringify(_, null, 2)
             let text = serde_json::to_string_pretty(&Value::Object(all)).unwrap_or_default();
             write_in(&mut tx, &f, &text)?;
             f

@@ -1,7 +1,3 @@
-//! Tabela de preços de modelos (estudos 14, 15, 17): o JSON do LiteLLM é
-//! baixado uma vez por dia para `<app_data>/tools/pricing/litellm.json`.
-//! Preços internos ficam por token em dólares; a UI mostra por milhão.
-
 use std::path::PathBuf;
 
 use anyhow::anyhow;
@@ -67,7 +63,6 @@ async fn load(force: bool) -> anyhow::Result<serde_json::Value> {
             Ok(v)
         }
         other => {
-            // Sem rede: usa o que tiver em disco, mesmo velho.
             if let Ok(text) = tokio::fs::read_to_string(&path).await {
                 if let Ok(v) = serde_json::from_str(&text) {
                     return Ok(v);
@@ -124,7 +119,6 @@ pub async fn info(force_refresh: bool) -> anyhow::Result<PricingInfo> {
     })
 }
 
-/// Busca por substring nas chaves; todas as palavras precisam bater.
 pub async fn search(query: &str, mode: &str, limit: usize) -> anyhow::Result<Vec<ModelPrice>> {
     let v = load(false).await?;
     let obj = v
@@ -157,8 +151,6 @@ pub async fn search(query: &str, mode: &str, limit: usize) -> anyhow::Result<Vec
     Ok(out)
 }
 
-/// Normaliza como o LiteLLM: tenta a chave exata, sem prefixo de provedor,
-/// com prefixo conhecido e sem sufixo de data.
 pub async fn price_for(model: &str) -> Option<ModelPrice> {
     let v = load(false).await.ok()?;
     let obj = v.as_object()?;
@@ -178,7 +170,6 @@ pub async fn price_for(model: &str) -> Option<ModelPrice> {
     ] {
         candidates.push(format!("{}{}", p, m));
     }
-    // "claude-sonnet-4-5-20250929" -> "claude-sonnet-4-5"
     if m.len() > 9 {
         let (head, tail) = m.split_at(m.len() - 9);
         if tail.starts_with('-') && tail[1..].chars().all(|c| c.is_ascii_digit()) {
@@ -193,7 +184,6 @@ pub async fn price_for(model: &str) -> Option<ModelPrice> {
     None
 }
 
-/// Custo em dólares de uma chamada, se o modelo estiver na tabela.
 pub fn cost(price: &ModelPrice, input_tokens: u64, output_tokens: u64) -> Option<f64> {
     let i = price.input_per_m? / 1_000_000.0 * input_tokens as f64;
     let o = price.output_per_m.unwrap_or(0.0) / 1_000_000.0 * output_tokens as f64;

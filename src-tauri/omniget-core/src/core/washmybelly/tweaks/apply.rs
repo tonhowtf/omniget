@@ -1,17 +1,3 @@
-//! Applying a tweak and bringing the machine back.
-//!
-//! Before anything changes, every op records what the system really had
-//! (value and type, or "did not exist"; the service start type; the task
-//! state; the active power plan) in one snapshot. Undo restores exactly
-//! that, not a value someone decided is the default (the optimizerDuck and
-//! Win11Debloat backup model). "Back to the Windows default" is a separate
-//! action that applies the source's own undo file, with its own snapshot.
-//!
-//! The user's hive is written directly with `reg.exe` by argv. Everything
-//! else becomes typed [`ElevatedOp`]s for `omniget-elevate`; `HKCU` ops of an
-//! admin tweak go there as `HKU\<sid>` so an administrator who approves the
-//! prompt for someone else never writes their own hive.
-
 use serde::{Deserialize, Serialize};
 
 use super::super::elevate::ElevatedOp;
@@ -20,7 +6,6 @@ use super::catalog::{Hive, TweakOp};
 use super::guard;
 use super::state::{self, full_key, Tree, ValState};
 
-/// One thing to run.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Step {
     SetValue {
@@ -50,7 +35,6 @@ pub enum Step {
     PowerActive {
         guid: String,
     },
-    /// Copy the Ultimate Performance template and turn the copy on.
     PowerDuplicate,
     PowerDelete {
         guid: String,
@@ -61,7 +45,6 @@ pub enum Step {
     },
 }
 
-/// The state one op found before it ran.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "t", rename_all = "snake_case")]
 pub enum Prev {
@@ -69,13 +52,11 @@ pub enum Prev {
         full: String,
         name: String,
         prev: ValState,
-        /// The topmost key the write created (removed again on undo).
         #[serde(default)]
         created_root: Option<String>,
     },
     Key {
         full: String,
-        /// `None`: the key was not there.
         tree: Option<Tree>,
     },
     Service {
@@ -97,17 +78,14 @@ pub enum Prev {
     },
 }
 
-/// What a receipt keeps to undo one item.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Snapshot {
     pub tweak: String,
     pub action: String,
-    /// Restored through the helper.
     pub elevated: bool,
     pub entries: Vec<Prev>,
 }
 
-/// Where the catalog lets whole keys go (see `guard::key_delete_ok`).
 pub struct KeySets {
     pub catalog: std::collections::HashSet<String>,
     pub whole: std::collections::HashSet<String>,
@@ -121,7 +99,6 @@ fn name_args(name: &str) -> Vec<String> {
     }
 }
 
-/// argv of a step that runs without the helper.
 pub fn step_argv(step: &Step) -> Result<Vec<String>, String> {
     let reg = |verb: &str, full: &str| vec!["reg".to_string(), verb.to_string(), full.to_string()];
     Ok(match step {
@@ -188,8 +165,6 @@ pub fn step_argv(step: &Step) -> Result<Vec<String>, String> {
     })
 }
 
-/// The helper's form of a step. Power plans are the user's own and never
-/// go there; optional features have no helper op yet.
 pub fn step_elevated(step: &Step) -> Result<ElevatedOp, String> {
     Ok(match step {
         Step::SetValue {
@@ -236,10 +211,8 @@ pub fn step_elevated(step: &Step) -> Result<ElevatedOp, String> {
     })
 }
 
-/// `ElevatedOp::RegSet` with this kind creates the key only (`reg add <key> /f`).
 pub const KEY_KIND: &str = "KEY";
 
-/// Run one step here. Returns the plan a duplicate created.
 pub fn run_step(sys: &dyn Sys, step: &Step) -> Result<Option<String>, String> {
     let argv = step_argv(step)?;
     let out = sys.run_ok(&argv)?;
@@ -254,8 +227,6 @@ pub fn run_step(sys: &dyn Sys, step: &Step) -> Result<Option<String>, String> {
     }
 }
 
-/// The topmost missing key between `full` and its parents that a restore
-/// may delete again (never a shared parent).
 fn created_root(sys: &dyn Sys, full: &str, keys: &KeySets) -> Option<String> {
     let mut root = None;
     let mut cur = full.to_string();
@@ -276,8 +247,6 @@ fn created_root(sys: &dyn Sys, full: &str, keys: &KeySets) -> Option<String> {
     root
 }
 
-/// Read what `op` will change and say what to run. `sid` is set for the
-/// helper's form of `HKCU`.
 pub fn capture(
     sys: &dyn Sys,
     op: &TweakOp,
@@ -443,7 +412,6 @@ pub fn capture(
     })
 }
 
-/// The steps that put one entry back.
 pub fn restore_steps(p: &Prev) -> Vec<Step> {
     match p {
         Prev::Value {
@@ -529,15 +497,10 @@ pub fn restore_steps(p: &Prev) -> Vec<Step> {
     }
 }
 
-/// Every step of a snapshot's undo, last change first. A value that was
-/// absent is removed; a value whose DeleteValue fails because it is
-/// already gone is fine, so those run through [`run_restore`].
 pub fn undo_steps(s: &Snapshot) -> Vec<Step> {
     s.entries.iter().rev().flat_map(restore_steps).collect()
 }
 
-/// Apply `ops` here (no helper): capture each, run it; on failure put back
-/// what already changed and fail.
 pub fn apply_direct(sys: &dyn Sys, ops: &[TweakOp], keys: &KeySets) -> Result<Vec<Prev>, String> {
     let mut done: Vec<Prev> = Vec::new();
     for op in ops {
@@ -574,7 +537,6 @@ pub fn apply_direct(sys: &dyn Sys, ops: &[TweakOp], keys: &KeySets) -> Result<Ve
     Ok(done)
 }
 
-/// Undo a direct snapshot here. Deleting what is already gone is not an error.
 pub fn run_restore(sys: &dyn Sys, s: &Snapshot) -> Result<usize, String> {
     let mut n = 0;
     let mut errors = Vec::new();
@@ -601,7 +563,6 @@ pub fn run_restore(sys: &dyn Sys, s: &Snapshot) -> Result<usize, String> {
     }
 }
 
-/// Capture every op and return the helper's operations for them.
 pub fn plan_for_helper(
     sys: &dyn Sys,
     ops: &[TweakOp],
@@ -633,15 +594,10 @@ pub fn plan_for_helper(
     Ok((prevs, out))
 }
 
-/// The helper's operations that undo a snapshot.
 pub fn restore_for_helper(s: &Snapshot) -> Result<Vec<ElevatedOp>, String> {
     undo_steps(s).iter().map(step_elevated).collect()
 }
 
-// ── The helper's executors ──────────────────────────────────────────
-
-/// `ElevatedOp::RegSet`: checked against the roots and the forbidden list,
-/// then `reg add` by argv (64-bit view).
 pub fn helper_reg_set(
     sys: &dyn Sys,
     key: &str,
@@ -671,8 +627,6 @@ pub fn helper_reg_set(
     Ok(format!("{key}\\{name} set"))
 }
 
-/// `ElevatedOp::RegDelete`: one value, or a whole key when the catalog, a
-/// key a tweak created, or the uninstaller's own check allows it.
 pub fn helper_reg_delete(
     sys: &dyn Sys,
     key: &str,

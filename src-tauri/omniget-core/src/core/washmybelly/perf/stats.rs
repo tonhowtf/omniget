@@ -1,31 +1,4 @@
-//! Frametime statistics, always computed by OmniGet whatever tool captured
-//! the frames, so a Windows, Linux and Mac session read the same way.
-//!
 //! The formulas are the ones of CapFrameX (MIT, "Copyright (c) 2018-2026
-//! DevTechProfile", github.com/CXWorld/CapFrameX), file
-//! `source/CapFrameX.Statistics.NetStandard/FrametimeStatisticProvider.cs`:
-//!
-//! - average FPS = `n * 1000 / Σft` (`GetFpsMetricValue`, `EMetric.Average`);
-//! - percentiles with MathNet's `Quantile`, definition R-8
-//!   (`SortedArrayStatistics.Quantile`); FPS percentiles run over `1000/ft`;
-//! - "x% low average" = `1000 / mean(ft ≥ Q(ft, 1 - x))`
-//!   (`GetPercentageHighAverageSequence`);
-//! - "x% low integral" (MSI Afterburner's definition): sort frametimes from
-//!   the slowest, add them up until the sum reaches `x · total time`, the
-//!   frametime where it crossed is the answer (`GetPercentageHighIntegralSequence`);
-//! - stutter: `ft[i] > 2.5 · ma[i]`, `ma` the causal moving average of
-//!   `SampleBasedMovingAverage.cs` with a window of
-//!   `Convert.ToInt32(sqrt(mean ft) · 10)` frames, where a frame more than 3×
-//!   its predecessor counts as the predecessor (`GetMovingAverage`,
-//!   `GetStutteringTimePercentage`, factor 2.5 in `CapFrameXConfiguration.cs`);
-//! - low-FPS time: frames that are not stutters and run under 25 FPS
-//!   (`GetLowFPSTimePercentage`);
-//! - frame-to-frame variance buckets `<2, <4, <8, <12, ≥12 ms`
-//!   (`GetVariancePercentages`);
-//! - freeze: a frame of 100 ms or more (`cfx_find_freezes` in the CapFrameX MCP).
-//!
-//! Pure functions over `&[f64]`; the golden vectors in the tests include
-//! the cases of CapFrameX's own `FrametimeStatisticProviderTest.cs`.
 
 use serde::{Deserialize, Serialize};
 
@@ -33,8 +6,6 @@ pub const STUTTER_FACTOR: f64 = 2.5;
 pub const FREEZE_MS: f64 = 100.0;
 pub const LOW_FPS_THRESHOLD: f64 = 25.0;
 
-/// MathNet `Quantile` (R-8, approximately median-unbiased) over a sequence
-/// that is sorted ascending. `None` for an empty sequence or `p` off [0, 1].
 pub fn quantile_sorted(sorted: &[f64], p: f64) -> Option<f64> {
     if sorted.is_empty() || !(0.0..=1.0).contains(&p) {
         return None;
@@ -61,21 +32,17 @@ fn sum(seq: &[f64]) -> f64 {
     seq.iter().sum()
 }
 
-/// Average FPS: total frames over total time.
 pub fn fps_avg(ft: &[f64]) -> Option<f64> {
     let s = sum(ft);
     (!ft.is_empty() && s > 0.0).then(|| ft.len() as f64 * 1000.0 / s)
 }
 
-/// Mean of the frametimes at or above the `p` quantile (p = 0.99 for 1%).
 pub fn high_average(ft: &[f64], p: f64) -> Option<f64> {
     let q = quantile(ft, p)?;
     let slow: Vec<f64> = ft.iter().copied().filter(|x| *x >= q).collect();
     (!slow.is_empty()).then(|| sum(&slow) / slow.len() as f64)
 }
 
-/// The frametime where the slowest frames, added up from the slowest,
-/// reach `(1 - p)` of the total time (p = 0.99 for 1%).
 pub fn high_integral(ft: &[f64], p: f64) -> Option<f64> {
     if ft.is_empty() {
         return None;
@@ -95,8 +62,6 @@ pub fn high_integral(ft: &[f64], p: f64) -> Option<f64> {
     Some(desc[idx])
 }
 
-/// CapFrameX's moving-average window: `Convert.ToInt32(sqrt(mean) * 10)`,
-/// which rounds half to even.
 pub fn moving_window(ft: &[f64]) -> usize {
     if ft.is_empty() {
         return 1;
@@ -105,7 +70,6 @@ pub fn moving_window(ft: &[f64]) -> usize {
     ((mean.sqrt() * 10.0).round_ties_even() as usize).max(1)
 }
 
-/// Causal sample-based moving average (`SampleBasedMovingAverage.cs`).
 pub fn moving_average(ft: &[f64], window: usize) -> Vec<f64> {
     let window = window.max(1);
     let mut out = Vec::with_capacity(ft.len());
@@ -131,13 +95,11 @@ pub fn moving_average(ft: &[f64], window: usize) -> Vec<f64> {
     out
 }
 
-/// Indexes of the frames above `factor ×` their moving average.
 pub fn stutter_indexes(ft: &[f64], factor: f64) -> Vec<usize> {
     let ma = moving_average(ft, moving_window(ft));
     (0..ft.len()).filter(|&i| ft[i] > factor * ma[i]).collect()
 }
 
-/// Share of the frame-to-frame changes in each bucket `<2, <4, <8, <12, ≥12 ms`.
 pub fn variance_buckets(ft: &[f64]) -> [f64; 5] {
     let mut b = [0usize; 5];
     let mut n = 0usize;
@@ -179,15 +141,12 @@ fn to_fps(ms: Option<f64>) -> Option<f64> {
     ms.filter(|x| *x > 0.0).map(|x| 1000.0 / x)
 }
 
-/// One frame event worth pointing at in the timeline.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct Event {
     pub t_ms: f64,
     pub frametime_ms: f64,
 }
 
-/// Everything the summary shows for one frametime sequence. `None` means
-/// the number cannot be computed (empty or sampled capture).
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 pub struct Stats {
     pub frames: usize,
@@ -205,10 +164,8 @@ pub struct Stats {
     pub frametime_median_ms: Option<f64>,
     pub frametime_p99_ms: Option<f64>,
     pub frametime_p99_9_ms: Option<f64>,
-    /// 1% low by average (CapFrameX's default "1% low").
     pub low_1: Option<f64>,
     pub low_01: Option<f64>,
-    /// 1% low by integral (MSI Afterburner's definition).
     pub low_1_integral: Option<f64>,
     pub low_01_integral: Option<f64>,
     pub stutters: usize,
@@ -216,12 +173,9 @@ pub struct Stats {
     pub low_fps_time_pct: Option<f64>,
     pub freezes: usize,
     pub freeze_time_ms: f64,
-    /// Share of frame-to-frame changes `<2, <4, <8, <12, ≥12 ms`.
     pub variance: [f64; 5],
 }
 
-/// Full statistics of a frametime sequence (ms). `t_ms` (same length, or
-/// empty) places stutters and freezes on the timeline.
 pub fn compute(ft: &[f64], t_ms: &[f64]) -> (Stats, Vec<Event>, Vec<Event>) {
     let ft: Vec<f64> = ft
         .iter()
@@ -295,7 +249,6 @@ pub fn compute(ft: &[f64], t_ms: &[f64]) -> (Stats, Vec<Event>, Vec<Event>) {
     (stats, stutters, freezes)
 }
 
-/// Metrics compared between sessions, and whether higher is better.
 pub const COMPARED: &[(&str, bool)] = &[
     ("fps_avg", true),
     ("fps_median", true),
@@ -325,9 +278,6 @@ pub fn metric(s: &Stats, name: &str) -> Option<f64> {
     }
 }
 
-/// How much each compared metric moves between the two halves of one
-/// session, in percent: the run-to-run noise a before/after difference has
-/// to beat. For percentage metrics (stutter time) the spread is in points.
 pub fn half_spread(ft: &[f64]) -> Vec<(&'static str, Option<f64>)> {
     let mid = ft.len() / 2;
     if mid < 50 {
@@ -351,19 +301,14 @@ pub fn half_spread(ft: &[f64]) -> Vec<(&'static str, Option<f64>)> {
         .collect()
 }
 
-/// One line of a before/after comparison.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct Delta {
     pub metric: String,
     pub before: Option<f64>,
     pub after: Option<f64>,
     pub delta: Option<f64>,
-    /// Percent change; for `_pct` metrics the change in points.
     pub delta_pct: Option<f64>,
-    /// The noise the change had to beat (largest half-to-half spread of
-    /// the two sessions, at least 1%).
     pub noise_pct: Option<f64>,
-    /// `better`, `worse`, `same` (within noise) or `unknown`.
     pub verdict: String,
 }
 
@@ -415,14 +360,11 @@ pub fn compare(
         .collect()
 }
 
-/// Frametime histogram for the screen: `bins` equal buckets from the
-/// fastest frame to the 99.9th percentile, plus a last bucket for the rest.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct Histogram {
     pub start_ms: f64,
     pub width_ms: f64,
     pub counts: Vec<usize>,
-    /// Frames slower than the last regular bucket.
     pub overflow: usize,
 }
 
@@ -467,9 +409,6 @@ pub fn histogram(ft: &[f64], bins: usize) -> Histogram {
     }
 }
 
-/// Min/max downsampling for the frametime-over-time chart: at most
-/// `points` buckets, each keeping its slowest and fastest frame so spikes
-/// survive.
 pub fn downsample(t_ms: &[f64], ft: &[f64], points: usize) -> Vec<[f64; 3]> {
     let n = ft.len().min(t_ms.len());
     if n == 0 {

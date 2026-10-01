@@ -1,9 +1,3 @@
-//! `omniget teams`: Microsoft Teams through Microsoft Graph, as the person.
-//! Chats and channels come out as Markdown an LLM reads (or JSON with
-//! `--json`), the calendar lists online meetings with their join links, and
-//! `transcript` turns a meeting's official transcript into an OmniGet
-//! meeting. The sign-in is shared with the desktop app.
-
 use std::path::PathBuf;
 
 use anyhow::bail;
@@ -144,7 +138,6 @@ pub async fn execute(cmd: TeamsCommand, json: bool) -> anyhow::Result<()> {
         }
         TeamsCommand::Login => {
             let code = msgraph::start_sign_in().await?;
-            // The instructions go to stderr so `--json` stays parseable.
             eprintln!("{}", code.message);
             let account = msgraph::finish_sign_in(&code).await?;
             if json {

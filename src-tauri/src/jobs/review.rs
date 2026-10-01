@@ -1,22 +1,9 @@
-//! Review of a job's changes (roadmap 3.5, S20): hunks with ids and the
-//! discard of one, notes that go back to the agent as a follow-up turn in
-//! the same conversation (and worktree), the integration of a worktree
-//! job's branch into the user's checkout, discarding that work, and the
-//! walkthrough on demand. The git and prompt work is in
-//! `omniget_core::core::llm::review` and `omniget_core::core::vcs::integrate`;
-//! this is the job side: which folder, which lock, what the row records.
-//!
-//! Every write here refuses while a job writes in an overlapping folder
-//! (`ERR_REVIEW_BUSY`), and runs under the review lock of the folder it
-//! touches.
-
 use super::*;
 use omniget_core::core::llm::review::{self, Note, Target, Walkthrough, ERR_REVIEW_BUSY};
 use omniget_core::core::llm::snapshot;
 use omniget_core::core::vcs::diff::{parse_hunks, split_patch};
 use omniget_core::core::vcs::{integrate, job_worktree};
 
-/// Longest note body (a review note, not a document).
 pub const NOTE_MAX_BYTES: usize = 8 * 1024;
 
 pub(super) fn ensure_notes_schema(db: &Connection) -> Result<(), String> {
@@ -45,8 +32,6 @@ fn row_to_note(r: &rusqlite::Row<'_>) -> rusqlite::Result<Note> {
     })
 }
 
-/// The patch file next to `jobs.db`: written when there is a patch, removed
-/// when there is none (as `record_diff` does).
 fn store_patch(job_id: &str, patch: Option<&str>) {
     let Some(path) = patch_path(job_id) else {
         return;
@@ -66,8 +51,6 @@ fn store_patch(job_id: &str, patch: Option<&str>) {
     }
 }
 
-/// The job id that owns the worktree of `job` (its branch names it): a
-/// follow-up job works in the worktree of the job it follows.
 pub(super) fn worktree_owner(job: &Job) -> &str {
     job.branch
         .as_deref()
@@ -76,7 +59,6 @@ pub(super) fn worktree_owner(job: &Job) -> &str {
         .unwrap_or(&job.id)
 }
 
-/// The first line of the job's prompt, the title of its commits.
 fn title_of(job: &Job) -> String {
     let first: String = job
         .prompt
@@ -104,8 +86,6 @@ impl Jobs {
             .ok_or_else(|| format!("{ERR_JOBS}: no job {id}"))
     }
 
-    /// Refuses while this job runs or any job writes in a folder that
-    /// overlaps `folder` (the undo guard's rule).
     fn ensure_quiet(&self, job: &Job, folder: &std::path::Path) -> Result<(), String> {
         if is_active(&job.state) {
             return Err(format!(
@@ -123,7 +103,6 @@ impl Jobs {
         Ok(())
     }
 
-    /// Where the job's changes are and what they are measured from.
     async fn review_target(&self, job: &Job) -> Result<Target, String> {
         if job.worktree_path.is_some() {
             let base_oid = job
@@ -155,7 +134,6 @@ impl Jobs {
         })
     }
 
-    /// The main checkout of a worktree job's repository.
     async fn repo_of(&self, job: &Job) -> Result<std::path::PathBuf, String> {
         if let Some((repo, _)) = worktree_root(job).await {
             return Ok(repo);
@@ -183,10 +161,6 @@ impl Jobs {
         }
     }
 
-    // ── hunks ────────────────────────────────────────────────────────
-
-    /// The job's diff as hunks with ids, and the patch of each file (what
-    /// the review panel draws). `actionable` = a hunk can be discarded now.
     pub async fn review_hunks(&self, id: &str) -> Result<Value, String> {
         let (job, patch, complete) = self.diff(id).await?;
         let patch = patch.unwrap_or_default();
@@ -219,8 +193,6 @@ impl Jobs {
         }))
     }
 
-    /// Discards one hunk (see `review::discard_hunk`) and records the diff
-    /// as it is after it. A job left with nothing to review is `done`.
     pub async fn discard_hunk(
         &self,
         id: &str,
@@ -234,8 +206,6 @@ impl Jobs {
         let mut diff = out.diff.clone();
         diff.patch = out.patch.clone();
         if matches!(target, Target::Shared { .. }) {
-            // The folder may hold later changes of others: the job keeps
-            // showing its own files.
             let own: Vec<String> = job
                 .diff_files
                 .iter()
@@ -262,8 +232,6 @@ impl Jobs {
         self.save_job_checked(&job)?;
         Ok(json!({ "hunk": out.hunk, "job": job }))
     }
-
-    // ── notes ────────────────────────────────────────────────────────
 
     pub fn notes(&self, id: &str) -> Vec<Note> {
         let db = self.db();
@@ -350,10 +318,6 @@ impl Jobs {
         Ok(())
     }
 
-    /// Sends the notes not sent yet to the agent: a follow-up job in the
-    /// same conversation (the CLI runtime resumes its session: the turn
-    /// costs the notes, not the task) and the same folder or worktree. The
-    /// job being reviewed hands its review to the follow-up (`done`).
     pub async fn notes_send(self: &Arc<Self>, id: &str) -> Result<Job, String> {
         let mut job = self.job_or_err(id)?;
         if is_active(&job.state) {
@@ -405,8 +369,6 @@ impl Jobs {
         next.base_oid = job.base_oid.clone();
         next.worktree_path = job.worktree_path.clone();
         if next.worktree_path.is_none() && next.branch.is_some() {
-            // The worktree was removed: the follow-up recreates it from the
-            // branch (`enter_worktree` → `ensure`), at the owner's path.
             let repo = self.repo_of(&job).await?;
             next.worktree_path = Some(
                 job_worktree::path_of(&repo, worktree_owner(&job))
@@ -446,11 +408,6 @@ impl Jobs {
         Ok(next)
     }
 
-    // ── integrate / discard ──────────────────────────────────────────
-
-    /// What integrating the job's branch would do: the target branch, what
-    /// blocks it, the commits it brings, and what is still uncommitted in
-    /// the worktree (saved on the branch first).
     pub async fn integrate_preview(&self, id: &str) -> Result<Value, String> {
         let job = self.job_or_err(id)?;
         let branch = self.branch_of_job(&job)?;
@@ -478,12 +435,6 @@ impl Jobs {
         }))
     }
 
-    /// Merges the job's branch into the user's checkout (`merge --no-ff` or
-    /// `--squash`), after saving what is left in the worktree (discarded
-    /// hunks included) on the branch. On success the job is `done` and its
-    /// worktree goes (its branch too once merged; after a squash the branch
-    /// is deleted, its content being the new commit). A conflict is undone
-    /// and reported; the job stays in review.
     pub async fn integrate(
         &self,
         id: &str,
@@ -581,10 +532,6 @@ impl Jobs {
         Ok((out, job))
     }
 
-    /// Throws the job's work away: its worktree goes (2.3's removal, which
-    /// saves what is uncommitted on the branch first) and then the branch.
-    /// The log keeps the tip, so `git branch <name> <sha>` brings it back
-    /// until git collects it.
     pub async fn discard_work(&self, id: &str) -> Result<Value, String> {
         let mut job = self.job_or_err(id)?;
         let branch = self.branch_of_job(&job)?;
@@ -627,11 +574,6 @@ impl Jobs {
         Ok(json!({ "removed": removed, "branch": branch, "tip": tip, "job": job }))
     }
 
-    // ── walkthrough ──────────────────────────────────────────────────
-
-    /// A guided tour of the job's diff by the job's own agent, on demand,
-    /// cached by the hunks it covers. Refused, not cut, when the diff is too
-    /// large (`ERR_WALKTHROUGH_TOO_LARGE`).
     pub async fn walkthrough(&self, id: &str, refresh: bool) -> Result<Walkthrough, String> {
         let (job, patch, complete) = self.diff(id).await?;
         if !complete {

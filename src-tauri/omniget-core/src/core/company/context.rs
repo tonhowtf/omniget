@@ -1,23 +1,9 @@
-//! The heartbeat prompt.
-//!
-//! Two shapes, to keep the cached prefix stable and the fresh input small:
-//! - **brief** (first run of an agent, or a new session): who you are, the
-//!   company and its mission, your place in the org chart, the working
-//!   agreement (how the `company_*` tools are used), then the wake;
-//! - **delta** (resumed session): only why you woke, what changed on the
-//!   issue since your last run, and your queue.
-//!
-//! The agent pulls anything else with the tools (issue details, documents,
-//! search), like Paperclip's "thin" context mode — but the delta carries the
-//! new comments inline, so a mention does not cost a tool round trip.
-
 use std::fmt::Write as _;
 
 use super::heartbeat::Claim;
 use super::issues::IssueFilter;
 use super::CompanyStore;
 
-/// Characters of an issue body or comment copied into the prompt.
 const CLIP: usize = 2400;
 
 fn clip(s: &str, n: usize) -> String {
@@ -40,8 +26,6 @@ pub const WORKING_AGREEMENT: &str = "How you work here:
 - Stay inside your role. Keep the company's mission in mind; say so when a task does not serve it.";
 
 impl CompanyStore {
-    /// Builds the prompt of a claimed run. `resumed` = the agent's session
-    /// continues (send only the delta).
     pub fn heartbeat_prompt(&self, claim: &Claim, resumed: bool) -> Result<String, String> {
         let s = &claim.staff;
         let company = self.company_get(&s.company_id)?;
@@ -126,7 +110,6 @@ impl CompanyStore {
             let _ = writeln!(p, "\n{WORKING_AGREEMENT}\n");
         }
 
-        // Why you woke.
         let _ = writeln!(p, "## Why you are awake");
         for w in &claim.wakes {
             let _ = writeln!(p, "- {} ({})", w.reason, w.source);
@@ -230,7 +213,6 @@ impl CompanyStore {
             }
         }
 
-        // Your queue (short: the tools give the rest).
         let queue = self
             .issue_list(
                 &s.company_id,

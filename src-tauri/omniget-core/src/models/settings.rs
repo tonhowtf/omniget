@@ -19,11 +19,6 @@ pub struct AppSettings {
     pub start_minimized: bool,
     #[serde(default)]
     pub exit_on_close: bool,
-    /// "Run agents in the background" (3.2): the app starts hidden at login
-    /// (`--autostart`) and closing the window keeps it in the tray, so jobs,
-    /// Loops and routines keep running and the CLI finds the bridge. Wins
-    /// over `exit_on_close`; the settings screen turns one off when the
-    /// other goes on.
     #[serde(default)]
     pub run_in_background: bool,
     #[serde(default)]
@@ -55,78 +50,38 @@ pub struct AppSettings {
     pub world: WorldSettings,
     #[serde(default)]
     pub llm: LlmSettings,
-    /// The agent canvas (`/world` → Canvas): look, gestures, new-item
-    /// defaults, terminals, attention, sleep prevention and agent presets.
     #[serde(default)]
     pub canvas: CanvasSettings,
 }
 
-/// Settings of the `/llm` section that are not per-agent.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LlmSettings {
-    /// Context pruning master switch. Off: the Coordinator keeps a disabled
-    /// pruner and nothing is judged or rewritten.
     #[serde(default)]
     pub prune_enabled: bool,
-    /// `"local"` (offline MiniLM) or `"jev"` (TypeSafe System One). Anything
-    /// unknown parses as local, so a typo never sends spans to a third party.
-    /// The Jev key is not here: it lives in the secret store.
     #[serde(default = "default_prune_judge")]
     pub prune_judge: String,
-    /// Conversation size (estimated tokens) under which nothing is judged.
-    /// The ported default suits cloud models; a small local context wants less.
     #[serde(default = "default_prune_min_tokens")]
     pub prune_min_tokens: u32,
-    /// A CLI turn (`claude -p`, `codex exec`) with no stdout line for this
-    /// long is stuck: its process tree is killed and the job fails `stalled`.
-    /// 600 s is ~39x the longest silence measured over the 33 missions x 3
-    /// reps of round r2 (15.3 s, `estudos/87-onda1/sp4-stream-gaps.json`),
-    /// kept generous because those missions never compact nor think long.
     #[serde(default = "default_turn_idle_timeout_s")]
     pub turn_idle_timeout_s: u32,
-    /// The same window while a tool the CLI started has not answered yet
-    /// (`tool_use` without `tool_result`): a test suite or a build is silent
-    /// by nature, and killing it would lose real work.
     #[serde(default = "default_turn_tool_idle_timeout_s")]
     pub turn_tool_idle_timeout_s: u32,
-    /// No line at all this long after the spawn = the prompt never took
-    /// (`ERR_CLI_NO_START`). The stream's `system/init` comes before any
-    /// model call, so a healthy CLI prints within a couple of seconds.
     #[serde(default = "default_turn_start_timeout_s")]
     pub turn_start_timeout_s: u32,
-    /// Wall-clock ceiling of every background job (`run`, `loop` round,
-    /// `trigger`) that does not set its own. A mission keeps its own guard.
     #[serde(default = "default_job_deadline_min")]
     pub job_default_deadline_min: u32,
-    /// How long a permission question of the chat waits for an answer. The
-    /// old fixed 120 s denied in silence whenever nobody looked in time.
     #[serde(default = "default_ask_timeout_chat_s")]
     pub ask_timeout_chat_s: u32,
-    /// The same for a background job. `None` = until the job's own deadline,
-    /// so a question never outlives the job nor dies before it.
     #[serde(default)]
     pub ask_timeout_job_s: Option<u32>,
-    /// A question still unanswered this long after it was raised becomes an
-    /// OS notification ("needs you"). One answered sooner never notifies.
     #[serde(default = "default_approval_notify_delay_s")]
     pub approval_notify_delay_s: u32,
-    /// Background jobs (runs, Loop rounds, triggers, mission tasks) running
-    /// at the same time, 1–16. The old fixed 2 queued the third job behind
-    /// any mission (W1, W2); 4 is Orca's coordinator default (`78#P4`).
     #[serde(default = "default_jobs_max_parallel")]
     pub jobs_max_parallel: u32,
-    /// Jobs of one agent at the same time; `None` = only the global cap.
     #[serde(default)]
     pub jobs_max_per_agent: Option<u32>,
-    /// Resume by itself after a restart (3.1, S16): a job the app lost while
-    /// it ran starts again with `--resume` and a "check before repeating"
-    /// note, but only after an infrastructure failure (the app closed, the
-    /// watchdog stopped it) and only when it ran in its own worktree or had
-    /// not started a tool that writes. Off by default: every such run is an
-    /// action a person did not click; a job or Loop can say otherwise.
     #[serde(default)]
     pub auto_resume: bool,
-    /// Days the audit log (`<llm dir>/audit.db`, 2.8) keeps a line.
     #[serde(default = "default_audit_retention_days")]
     pub audit_retention_days: u32,
 }
@@ -192,72 +147,40 @@ impl Default for LlmSettings {
     }
 }
 
-/// Settings of `/world`, the agent canvas.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WorldSettings {
-    /// Shows `/world` in the navigation.
     #[serde(default = "default_world_enabled")]
     pub enabled: bool,
 }
 
-/// Grid of the canvas: every stored frame and default size snaps to it.
 pub const CANVAS_GRID: f64 = 20.0;
 
-/// Settings of the agent canvas (Maestri's Settings → Canvas, General,
-/// Terminal, Notifications, Agents). Every field has a default, so an old
-/// settings file loads unchanged; `normalize` clamps and snaps what the user
-/// or an agent wrote.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct CanvasSettings {
-    /// `grid` (dots), `plain` or `transparent`.
     pub background: String,
-    /// Zoom change per wheel notch and per ⌘+/⌘− (0.05–1).
     pub zoom_step: f64,
-    /// Modifier that turns the wheel into zoom: `alt`, `ctrl` or `cmd`.
     pub zoom_modifier: String,
-    /// Dragging with the right button pans the canvas.
     pub right_drag_pan: bool,
-    /// Hovering a terminal, note, portal or tree gives it the keyboard.
     pub focus_on_hover: bool,
-    /// `solid`, `dashed`, `corners`, `corner_dots` or `elevation`.
     pub selection_style: String,
-    /// `opaque` or `glass`.
     pub node_material: String,
-    /// `bezier`, `rope` or `circuit`.
     pub cord_style: String,
-    /// `behind_nodes`, `avoid_nodes` or `circuit`.
     pub rope_routing: String,
-    /// Spell check in notes, text blocks and the composer. Off by default:
-    /// notes are often code and paths, and system autocorrect mangles them.
     pub spell_check: bool,
-    /// Agent of a new terminal made with ⌘T / the T tool: `shell`, a built-in
-    /// agent (`claude`, `codex`, ...) or the name of a preset.
     pub default_agent: String,
     pub defaults: CanvasDefaults,
     pub terminal: CanvasTerminalSettings,
     pub notifications: CanvasNotificationSettings,
     pub power: CanvasPowerSettings,
-    /// "Bring your own agent": name → how to start it.
     pub agent_presets: std::collections::BTreeMap<String, AgentPreset>,
-    /// Settings → Canvas → Shortcuts: action (`new_note`, `lift`, ...) →
-    /// combination (`mod+shift+y`); an empty string unbinds the action.
-    /// Actions left out keep their default key.
     pub shortcuts: std::collections::BTreeMap<String, String>,
-    /// Settings → Canvas → Skills: where the canvas skill is installed.
     pub skills: CanvasSkillSettings,
 }
 
-/// Where the `omniget-canvas` skill goes for each agent (Maestri Settings →
-/// Skills). It always rides along with a canvas Claude session
-/// (`--plugin-dir <app data>/canvas/plugin`); a folder here also gets
-/// `<folder>/omniget-canvas/SKILL.md` when a terminal of that agent starts
-/// (`~/.claude/skills`, `~/.codex/skills`, a project's `.claude/skills`).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct CanvasSkillSettings {
-    /// agent (`claude`, `codex`, `gemini`, `opencode`) → skills folder; empty
-    /// = not installed there.
     pub roots: std::collections::BTreeMap<String, String>,
 }
 
@@ -284,37 +207,26 @@ pub struct CanvasDefaults {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct CanvasNoteDefaults {
-    /// `WxH` in canvas points, snapped to the grid.
     pub size: String,
-    /// Font family of new notes; empty = the app font.
     pub font: String,
-    /// `formatted` or `raw`.
     pub render: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(default)]
 pub struct CanvasSizeDefault {
-    /// `WxH`; empty = the node kind's own default.
     pub size: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct CanvasTerminalSettings {
-    /// Empty = the app's mono font.
     pub font_family: String,
-    /// 0 = automatic.
     pub font_size: f64,
-    /// `system`, `dark`, `light` or a custom scheme id.
     pub theme: String,
     pub padding: CanvasPadding,
-    /// ⌥ sends Meta (ESC prefix) instead of typing layout characters.
     pub option_as_meta: bool,
-    /// Kills a terminal's child process above this RSS (MB); 0 = off. The
-    /// shell itself is kept.
     pub memory_limit_mb: u32,
-    /// When the stored shell is gone, start another available one.
     pub shell_fallback: bool,
 }
 
@@ -328,24 +240,19 @@ pub struct CanvasPadding {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct CanvasNotificationSettings {
-    /// System notification when an agent needs attention (even in front).
     pub attention: bool,
-    /// Red attention badge also on terminals that are not the Maestro.
     pub badges_for_non_maestro: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct CanvasPowerSettings {
-    /// `never`, `always` or `while_working` (agents actually working).
     pub prevent_sleep: String,
 }
 
-/// A user agent preset (Maestri presets / "bring your own agent").
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(default)]
 pub struct AgentPreset {
-    /// Program to run (resolved on PATH).
     pub command: String,
     pub args: Vec<String>,
     pub env: std::collections::BTreeMap<String, String>,
@@ -353,7 +260,6 @@ pub struct AgentPreset {
     pub color: Option<String>,
     pub maestro: bool,
     pub start_in_chat_mode: bool,
-    /// Working directory; empty = the workspace's.
     pub cwd: Option<String>,
 }
 
@@ -423,8 +329,6 @@ impl Default for CanvasPowerSettings {
     }
 }
 
-/// `"333x211"` → `Some((340, 220))`: parsed and snapped to the grid (at least
-/// one cell). Empty or malformed → None.
 pub fn parse_canvas_size(s: &str) -> Option<(f64, f64)> {
     let (w, h) = s.trim().split_once(['x', 'X', '×'])?;
     let w: f64 = w.trim().parse().ok()?;
@@ -443,8 +347,6 @@ fn snap_size(s: &mut String) {
     };
 }
 
-/// Lower-case, `camelCase`/`kebab-case` → `snake_case`, so `cornerDots`,
-/// `corner-dots` and `corner_dots` are one value.
 pub fn canvas_token(s: &str) -> String {
     let mut out = String::new();
     for (i, c) in s.trim().chars().enumerate() {
@@ -481,8 +383,6 @@ impl CanvasSettings {
     pub const ROUTINGS: &'static [&'static str] = &["behind_nodes", "avoid_nodes", "circuit"];
     pub const SLEEP_MODES: &'static [&'static str] = &["never", "always", "while_working"];
 
-    /// Clamps numbers, snaps sizes to the grid and resets unknown choices to
-    /// their default. Idempotent.
     pub fn normalize(&mut self) {
         let d = Self::default();
         pick(&mut self.background, Self::BACKGROUNDS, &d.background);
@@ -571,8 +471,6 @@ pub struct AccessibilitySettings {
     pub disable_haptics: bool,
 }
 
-/// `/music` superpower. Player preferences (EQ, crossfade, volume) are per
-/// device and live in the webview; only the on/off switch is here.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MusicSettings {
     #[serde(default = "default_music_enabled")]
@@ -591,8 +489,6 @@ impl Default for MusicSettings {
     }
 }
 
-/// `/video` superpower (Watch). Player preferences live in `video.db`; only
-/// the on/off switch is here.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct VideoSettings {
     #[serde(default = "default_video_enabled")]
@@ -611,19 +507,13 @@ impl Default for VideoSettings {
     }
 }
 
-/// OmniTube (`/youtube`): YouTube + YouTube Music client. Mirror of
-/// `TubeSettings` in `src/lib/tube/types.ts`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct TubeSettings {
     pub enabled: bool,
-    /// "classic" (YouTube palette) or "app" (follow the OmniGet theme).
     pub look: String,
-    /// "video" | "music"
     pub start_face: String,
-    /// "home" | "subscriptions" | "library"
     pub start_page: String,
-    /// Use the youtube.com account from the cookie vault when present.
     pub use_account: bool,
     pub default_quality: String,
     pub prefer_codec: String,
@@ -632,16 +522,12 @@ pub struct TubeSettings {
     pub autoplay_on_open: bool,
     pub preview_on_hover: bool,
     pub normalize_volume: bool,
-    /// Report plays to the account history (logged in only).
     pub send_history: bool,
     pub endless_radio: bool,
     pub sponsorblock: bool,
-    /// Category -> "skip" | "ask" | "show" | "off".
     pub sb_categories: std::collections::BTreeMap<String, String>,
     pub sb_server: String,
-    /// Channel ids where SponsorBlock is off.
     pub sb_whitelist: Vec<String>,
-    /// "off" | "mark" | "remove"
     pub sb_download: String,
     pub dearrow: bool,
     pub dearrow_thumbs: bool,
@@ -662,18 +548,14 @@ pub struct TubeSettings {
     pub hide_chips: bool,
     pub hide_metrics: bool,
     pub infinite_scroll: bool,
-    /// 0 = automatic by width.
     pub grid_columns: u8,
     pub blocked_channels: Vec<TubeBlockedChannel>,
     pub blocked_words: Vec<String>,
     pub whole_word: bool,
-    /// 0 = no limit.
     pub min_duration_s: u32,
     pub max_duration_s: u32,
-    /// "auto" | "youtube" | "lrclib" | "off"
     pub lyrics_provider: String,
     pub download_folder: Option<String>,
-    /// Cap for auto-downloads, in GB (0 = no cap).
     pub storage_cap_gb: f64,
 }
 
@@ -754,9 +636,6 @@ impl Default for TubeSettings {
     }
 }
 
-/// `/read` superpower. Reader preferences (fonts, themes, layout) are per
-/// device and live in the webview; library state is in `read.db`. Only the
-/// on/off switch is here.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ReadSettings {
     #[serde(default = "default_read_enabled")]
@@ -815,21 +694,16 @@ pub struct LeagueSettings {
     pub pick_champions: Vec<i64>,
     #[serde(default)]
     pub ban_champions: Vec<i64>,
-    /// Auto-pick ignores the list and locks a random legal champion instead.
     #[serde(default)]
     pub pick_random: bool,
-    /// Rolls a random owned skin (and chroma) the moment a champion is locked.
     #[serde(default)]
     pub skin_roulette: bool,
     #[serde(default)]
     pub skin_roulette_include_base: bool,
-    /// Rolls a random owned ward skin on lock-in.
     #[serde(default)]
     pub ward_roulette: bool,
-    /// Falls back to the client's backend (SGP) when the local history is thin.
     #[serde(default = "default_sgp_enabled")]
     pub sgp_enabled: bool,
-    /// Tone of the AI coach: "objective", "roast" or "praise".
     #[serde(default = "default_coach_style")]
     pub coach_style: String,
 }
@@ -842,23 +716,16 @@ fn default_coach_style() -> String {
     "objective".to_string()
 }
 
-/// The washmybelly superpower (cleanup, uninstall, privacy, power, FPS).
-/// On by default because nothing runs on its own: no scan starts until the
-/// person opens the screen or an agent calls a `wmb_*` tool.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WashMyBellySettings {
     #[serde(default = "default_wmb_enabled")]
     pub enabled: bool,
-    /// Days a quarantined item is kept before it is purged for good.
     #[serde(default = "default_wmb_quarantine_days")]
     pub quarantine_days: u32,
-    /// Extra folders no rule may touch, on top of the built-in list.
     #[serde(default)]
     pub protected_paths_extra: Vec<String>,
-    /// Hold the performance power profile while big downloads and agents run.
     #[serde(default)]
     pub auto_hold_power: bool,
-    /// A PresentMon (Windows) or MangoHud path picked by the person.
     #[serde(default)]
     pub perf_tool_path: String,
 }
@@ -967,23 +834,14 @@ pub struct LastDownloadOptions {
 pub struct AppearanceSettings {
     pub theme: String,
     pub language: String,
-    /// Sidebar shown as an icon-only rail.
     #[serde(default)]
     pub sidebar_collapsed: bool,
-    /// Schema 3: `system`, `light` or `dark`. `None` on a profile written
-    /// before schema 3; the public DTO derives it from `theme` until the
-    /// appearance import sets it.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub mode: Option<String>,
-    /// Schema 3: `omniget-desktop`, a legacy workspace preset id or a named
-    /// theme id ("More styles"). `None` until set, like `mode`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub preset: Option<String>,
-    /// The original `theme` of the profile when the appearance import ran.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub legacy_theme: Option<String>,
-    /// 0 = the appearance import never committed; 1 = imported. Only the
-    /// repository's import writes it.
     #[serde(default, skip_serializing_if = "is_zero_u32")]
     pub migration_version: u32,
 }
@@ -1159,8 +1017,6 @@ pub struct AdvancedSettings {
     pub twitter_manual_cookie: String,
     #[serde(default)]
     pub user_agent: String,
-    /// Desliga a verificação de certificado TLS do yt-dlp. Default `false`:
-    /// só existe para rede corporativa com TLS interceptado.
     #[serde(default)]
     pub insecure_tls: bool,
 }
@@ -1233,12 +1089,8 @@ fn default_caption_locale() -> String {
 pub struct TelegramSettings {
     pub concurrent_downloads: u32,
     pub fix_file_extensions: bool,
-    /// `/telegram` superpower switch.
     #[serde(default = "default_telegram_enabled")]
     pub enabled: bool,
-    /// The engine's own settings object (download folder, threads, sync).
-    /// The network setup lives in `<data>/telegram/network.json`, owned by
-    /// the connection manager.
     #[serde(default)]
     pub prefs: serde_json::Value,
 }
@@ -1331,28 +1183,14 @@ fn default_spacing_scale() -> f32 {
     1.0
 }
 
-/// Local HTTP bridge that lets the browser extension talk to the desktop app
-/// without depending on a Chrome native-messaging manifest (which would
-/// otherwise force us to maintain an explicit allowlist of extension IDs).
-///
-/// The token is generated lazily on first launch and shown in the app
-/// Settings; the user pastes it into the extension's options page once,
-/// after which the extension authenticates each request with
-/// `Authorization: Bearer <token>`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BridgeSettings {
     #[serde(default = "default_bridge_enabled")]
     pub enabled: bool,
-    /// Bound port on `127.0.0.1`. `0` means "pick at startup, then persist".
     #[serde(default)]
     pub port: u16,
-    /// Random token used to authenticate extension requests.
-    /// Empty means "regenerate on next launch".
     #[serde(default)]
     pub token: String,
-    /// Grace period of 2.1: the extension token still works on the agent
-    /// routes (`/v1/agent/*`, `/v1/jobs*`…) with a deprecation warning. On by
-    /// default in this version; the next one turns it off, then removes it.
     #[serde(default = "default_bridge_enabled")]
     pub legacy_agent_routes: bool,
 }
@@ -1386,15 +1224,6 @@ impl Default for TypographySettings {
 }
 
 impl AppSettings {
-    /// One-time upgrades of a stored settings file. Returns true when
-    /// something changed and the file should be written back.
-    ///
-    /// v2 (0.10.0): the World left the experimental flag. Installs from before
-    /// have `world.enabled: false` on disk and would never see `/world`.
-    ///
-    /// v3 (settings redesign): only adds optional appearance fields, which
-    /// stay unset until the appearance import commits them
-    /// (`appearance.migration_version`). Nothing is removed or reset.
     pub fn migrate(&mut self) -> bool {
         if self.schema_version >= SETTINGS_SCHEMA_VERSION {
             return false;
@@ -1550,7 +1379,6 @@ mod backcompat_tests {
         let again = c.clone();
         c.normalize();
         assert_eq!(c, again);
-        // Old settings files load with the defaults.
         let mut old = serde_json::to_value(AppSettings::default()).unwrap();
         old.as_object_mut().unwrap().remove("canvas");
         let s: AppSettings = serde_json::from_value(old).unwrap();
@@ -1566,7 +1394,6 @@ mod backcompat_tests {
         old.world.enabled = false;
         assert!(old.migrate());
         assert!(old.world.enabled);
-        // The user's later choice is theirs: no second migration.
         old.world.enabled = false;
         assert!(!old.migrate());
         assert!(!old.world.enabled);
@@ -1574,8 +1401,6 @@ mod backcompat_tests {
 
     #[test]
     fn settings_com_campos_da_cidade_e_do_omnidisc_ainda_carregam() {
-        // settings.json de antes da remocao da cidade e do motor isometrico:
-        // os campos que sairam sao ignorados, o resto continua igual.
         let mut json = serde_json::to_value(AppSettings::default()).unwrap();
         json["omnidisc"] =
             serde_json::json!({ "voice": { "ptt_key": "F8", "vad_threshold_db": -40.0 } });
@@ -1599,11 +1424,6 @@ mod backcompat_tests {
 
     #[test]
     fn settings_da_v0_7_6_carregam_com_tls_verificado() {
-        // settings.json de uma instalacao 0.7.6, antes de `insecure_tls`
-        // existir. O campo ausente precisa virar `false` (certificado
-        // verificado) sem derrubar a desserializacao nem tocar em nenhuma
-        // outra preferencia de `advanced`. Essa e a categoria de bug que ja
-        // zerou as preferencias de usuarios neste projeto.
         let json = serde_json::json!({
             "max_concurrent_segments": 20,
             "max_retries": 3,
@@ -1641,14 +1461,6 @@ mod backcompat_tests {
         assert!(back.insecure_tls);
     }
 
-    // A #220 adicionou `accessibility` ao AppSettings sem teste de migracao.
-    // Um settings.json escrito antes da 0.8.0 nao tem esse campo; se ele perder
-    // o `serde(default)` num refactor, todo usuario existente perde a
-    // configuracao inteira, em silencio, no primeiro boot depois do update.
-    //
-    // Em vez de escrever um JSON antigo a mao (que envelhece e vira ficcao),
-    // este teste serializa o default atual e *remove* a chave nova — que e
-    // exatamente a forma de um arquivo gravado antes de o campo existir.
     #[test]
     fn settings_json_sem_accessibility_ainda_abre() {
         let atual = serde_json::to_value(AppSettings::default()).expect("serializa");
@@ -1665,7 +1477,6 @@ mod backcompat_tests {
 
         assert!(!parsed.accessibility.reduce_motion);
         assert!(!parsed.accessibility.reduce_transparency);
-        // E o que o usuario ja tinha nao pode sumir junto.
         assert_eq!(
             parsed.appearance.theme,
             AppSettings::default().appearance.theme
@@ -1752,9 +1563,6 @@ mod backcompat_tests {
         assert!(back.exit_on_close);
     }
 
-    /// A settings file written before the watchdog knew nothing of it: the
-    /// `/llm` block loads with the documented defaults, never zeros (a zero
-    /// idle window would kill every turn on its first silence).
     #[test]
     fn an_llm_block_without_the_watchdog_fields_loads_the_defaults() {
         let old = serde_json::json!({
@@ -1771,15 +1579,12 @@ mod backcompat_tests {
         assert_eq!(llm.ask_timeout_chat_s, 1800);
         assert_eq!(llm.ask_timeout_job_s, None);
         assert_eq!(llm.approval_notify_delay_s, 5);
-        // And a whole file without the block at all.
         let mut all = serde_json::to_value(AppSettings::default()).expect("serialize");
         all.as_object_mut().expect("object").remove("llm");
         let parsed: AppSettings = serde_json::from_value(all).expect("loads");
         assert_eq!(parsed.llm.turn_idle_timeout_s, 600);
     }
 
-    /// 1.6: a settings file from before the parallel cap loads with 4 jobs
-    /// at a time and no per-agent cap (the old constant was 2).
     #[test]
     fn an_llm_block_without_the_jobs_fields_loads_the_defaults() {
         let llm: LlmSettings =

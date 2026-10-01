@@ -1,17 +1,3 @@
-//! GitHub Copilot.
-//!
-//! Credential (read only), the GitHub CLI's own session, in this order:
-//!   1. `GH_TOKEN`, then `GITHUB_TOKEN`.
-//!   2. `hosts.yml` of the GitHub CLI: `$GH_CONFIG_DIR`, else
-//!      `$XDG_CONFIG_HOME/gh`, else `~/.config/gh` (macOS and Linux) or
-//!      `%APPDATA%\GitHub CLI` (Windows); the `oauth_token:` under `github.com:`.
-//!      Often absent because `gh` prefers the OS keyring.
-//!   3. `gh auth token --hostname github.com`, which reads that keyring for us.
-//!
-//! Endpoint: `GET https://api.github.com/copilot_internal/user`, the quota the
-//! editors' own Copilot panels show. `quota_snapshots.<id>` carries
-//! `entitlement`, `remaining`, `unlimited`; `quota_reset_date` is ISO.
-
 use crate::limits_strip::{
     epoch_ms, http, iso_ms, json_or_error, net_err, num, LimitWindow, ReadError, Reading, Secret,
     UsageProvider,
@@ -44,8 +30,6 @@ pub fn gh_config_dir() -> Option<PathBuf> {
     }
 }
 
-/// The `oauth_token:` inside the `github.com:` block of `hosts.yml`. A tiny
-/// line reader is enough for the two-level file `gh` writes.
 pub fn token_from_hosts(yaml: &str) -> Option<Secret> {
     let mut in_host = false;
     for line in yaml.lines() {

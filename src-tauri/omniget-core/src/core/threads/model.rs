@@ -1,6 +1,3 @@
-//! Commands, persisted events and the light in-memory read model the decider
-//! works on. Wire shape is camelCase (T3-compatible), tags are T3's names.
-
 use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
@@ -57,7 +54,6 @@ impl ActorKind {
             _ => ActorKind::Client,
         }
     }
-    /// T3 `inferActorKind`: the command id prefix decides.
     pub fn of_command(command_id: &str) -> ActorKind {
         if command_id.starts_with("provider:") {
             ActorKind::Provider
@@ -69,27 +65,19 @@ impl ActorKind {
     }
 }
 
-// ── Commands ────────────────────────────────────────────────────────────
-
-/// One message of an imported history (C-5 migration, fork).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ImportMessage {
     #[serde(default)]
     pub message_id: Option<String>,
-    /// `user|assistant|system|reasoning`.
     pub role: String,
     pub text: String,
     #[serde(default)]
     pub created_at: Option<String>,
-    /// Tool calls done by the assistant in this message, as activities
-    /// (`{name, input, output, isError}`).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub tools: Vec<Value>,
 }
 
-/// What a client (or the host) asks for. `commandId` is the idempotency key:
-/// dispatching the same id twice returns the first result.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CommandEnvelope {
@@ -121,9 +109,6 @@ pub enum Command {
     },
     #[serde(rename = "project.delete", rename_all = "camelCase")]
     ProjectDelete { project_id: String },
-    /// `projectId`, or `projectPath` (the project of that folder, created on
-    /// the spot when missing). `worktree: true` gives the thread its own git
-    /// worktree (branch `omniget/<hex>` off `baseBranch`), set up by the host.
     #[serde(rename = "thread.create", rename_all = "camelCase")]
     ThreadCreate {
         #[serde(default)]
@@ -222,11 +207,8 @@ pub enum Command {
         #[serde(default)]
         agent_id: Option<String>,
     },
-    /// Keep the first `turnCount` turns (conversation revert; files are T2).
     #[serde(rename = "thread.revert", rename_all = "camelCase")]
     Revert { thread_id: String, turn_count: u32 },
-    /// New thread with the history of `threadId` up to `turnCount` turns
-    /// (all when absent).
     #[serde(rename = "thread.fork", rename_all = "camelCase")]
     Fork {
         thread_id: String,
@@ -239,9 +221,6 @@ pub enum Command {
     },
     #[serde(rename = "thread.session.stop", rename_all = "camelCase")]
     SessionStop { thread_id: String },
-    /// "Edit from here": keep the first `turn` turns; with `restoreFiles` the
-    /// host also puts the files back to checkpoint `turn` before cutting the
-    /// conversation (and the driver rolls back).
     #[serde(
         rename = "thread.revert-to-turn",
         alias = "thread.revert_to_turn",
@@ -253,15 +232,10 @@ pub enum Command {
         #[serde(default, alias = "restore_files")]
         restore_files: bool,
     },
-    /// Internal: a fact the host observed (worktree setup, checkpoint, PR,
-    /// terminal, cost, external link). Only the kinds in
-    /// `decider::HOST_RECORDABLE` pass.
     #[serde(rename = "thread.host.record", rename_all = "camelCase")]
     HostRecord { event: DomainEvent },
-    /// Internal: one normalized runtime event of a driver.
     #[serde(rename = "thread.runtime.append", rename_all = "camelCase")]
     RuntimeAppend { event: RuntimeEvent },
-    /// Internal: a whole history at once (C-5 migration).
     #[serde(rename = "thread.history.import", rename_all = "camelCase")]
     HistoryImport {
         thread_id: String,
@@ -311,7 +285,6 @@ impl Command {
         }
     }
 
-    /// The aggregate the receipt is filed under.
     pub fn aggregate(&self) -> (AggregateKind, String) {
         use Command::*;
         match self {
@@ -358,8 +331,6 @@ impl Command {
     }
 }
 
-// ── Events ──────────────────────────────────────────────────────────────
-
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ForkedFrom {
@@ -367,9 +338,6 @@ pub struct ForkedFrom {
     pub turn_count: u32,
 }
 
-/// One entry of the timeline besides messages: tool calls, tasks, hooks,
-/// errors, reroutes… `activityId` is stable across the lifecycle of an item
-/// so later events replace the row.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Activity {
@@ -377,14 +345,12 @@ pub struct Activity {
     #[serde(default)]
     pub turn_id: Option<String>,
     pub kind: String,
-    /// `info|tool|approval|error|warning`.
     pub tone: String,
     pub summary: String,
     pub payload: Value,
     pub created_at: String,
 }
 
-/// The worktree a `thread.create` asked for.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct WorktreeSpec {
@@ -392,12 +358,10 @@ pub struct WorktreeSpec {
     pub base_branch: Option<String>,
 }
 
-/// One file of a turn's diff (numstat).
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CheckpointFile {
     pub path: String,
-    /// `added|deleted|modified|renamed|binary`.
     pub status: String,
     pub additions: u32,
     pub deletions: u32,
@@ -446,8 +410,6 @@ pub enum DomainEvent {
         worktree_path: Option<String>,
         #[serde(default)]
         forked_from: Option<ForkedFrom>,
-        /// A worktree was asked for; the host sets it up
-        /// (`thread.worktree-updated`).
         #[serde(default, skip_serializing_if = "Option::is_none")]
         worktree: Option<WorktreeSpec>,
         created_at: String,
@@ -510,8 +472,6 @@ pub enum DomainEvent {
         #[serde(default)]
         agent_id: Option<String>,
     },
-    /// `streaming: true` appends `text`; `false` with a non-empty `text`
-    /// replaces it; `false` with an empty `text` only closes the stream.
     #[serde(rename = "thread.message-sent", rename_all = "camelCase")]
     MessageSent {
         thread_id: String,
@@ -550,8 +510,6 @@ pub enum DomainEvent {
         model: Option<String>,
         started_at: String,
     },
-    /// A finished turn copied from elsewhere (fork, C-5 migration). Reactors
-    /// never act on it.
     #[serde(rename = "thread.turn-imported", rename_all = "camelCase")]
     TurnImported {
         thread_id: String,
@@ -563,7 +521,6 @@ pub enum DomainEvent {
         #[serde(default)]
         completed_at: Option<String>,
     },
-    /// `state`: `completed|failed|interrupted|cancelled`.
     #[serde(rename = "thread.turn-completed", rename_all = "camelCase")]
     TurnCompleted {
         thread_id: String,
@@ -683,8 +640,6 @@ pub enum DomainEvent {
     Reverted { thread_id: String, turn_count: u32 },
     #[serde(rename = "thread.session-stop-requested", rename_all = "camelCase")]
     SessionStopRequested { thread_id: String },
-    /// `state`: `pending|preparing|ready|failed|removed`. `setup` is the
-    /// vcs `SetupSnapshot` (stages fetch/checkout/submodules/setup-script).
     #[serde(rename = "thread.worktree-updated", rename_all = "camelCase")]
     WorktreeUpdated {
         thread_id: String,
@@ -701,8 +656,6 @@ pub enum DomainEvent {
         error: Option<String>,
         updated_at: String,
     },
-    /// Checkpoint `turnCount` (0 = baseline before the first turn) with the
-    /// numstat of the turn (checkpoint N-1 → N).
     #[serde(rename = "thread.checkpoint-captured", rename_all = "camelCase")]
     CheckpointCaptured {
         thread_id: String,
@@ -712,7 +665,6 @@ pub enum DomainEvent {
         #[serde(rename = "ref")]
         ref_name: String,
         commit: String,
-        /// `ready|error`.
         status: String,
         #[serde(default)]
         files: Vec<CheckpointFile>,
@@ -736,7 +688,6 @@ pub enum DomainEvent {
         files: Vec<String>,
         restored_at: String,
     },
-    /// The PR/MR of the thread's branch (`null` clears the badge).
     #[serde(rename = "thread.pr-updated", rename_all = "camelCase")]
     PrUpdated {
         thread_id: String,
@@ -757,7 +708,6 @@ pub enum DomainEvent {
         thread_id: String,
         terminal_id: String,
     },
-    /// A read-only thread mirroring a session of a CLI run outside OmniGet.
     #[serde(rename = "thread.external-linked", rename_all = "camelCase")]
     ExternalLinked {
         thread_id: String,
@@ -868,7 +818,6 @@ impl DomainEvent {
         }
     }
 
-    /// Split into `(type, payload)` for storage.
     pub fn to_parts(&self) -> (String, Value) {
         let v = serde_json::to_value(self).unwrap_or(Value::Null);
         let payload = v.get("payload").cloned().unwrap_or(Value::Null);
@@ -880,7 +829,6 @@ impl DomainEvent {
     }
 }
 
-/// An event as stored and as sent to clients (`threads://event`).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct StoredEvent {
@@ -903,8 +851,6 @@ pub struct StoredEvent {
     pub metadata: Value,
 }
 
-// ── Light read model (decider state) ────────────────────────────────────
-
 #[derive(Debug, Clone, PartialEq)]
 pub struct ProjectState {
     pub id: String,
@@ -917,7 +863,6 @@ pub struct ProjectState {
 pub struct OpenRequest {
     pub turn_id: Option<String>,
     pub request_type: Option<RequestType>,
-    /// A response was already sent to the driver; waiting for `resolved`.
     pub answered: bool,
 }
 
@@ -936,18 +881,13 @@ pub struct ThreadState {
     pub deleted: bool,
     pub pinned: bool,
     pub snoozed_until: Option<String>,
-    /// Ordinal of the last turn (= number of turns).
     pub turn_count: u32,
-    /// The pending or running turn.
     pub active_turn: Option<String>,
     pub session_status: Option<SessionState>,
     pub open_approvals: HashMap<String, OpenRequest>,
     pub open_inputs: HashMap<String, OpenRequest>,
-    /// Message ids that exist (to tell a first delta from a later one).
     pub has_user_message: bool,
-    /// `pending|preparing|ready|failed|removed`; `None` = no worktree.
     pub worktree_state: Option<String>,
-    /// Mirror of a session run outside OmniGet: read-only.
     pub external: bool,
 }
 
@@ -959,8 +899,6 @@ pub struct ReadModel {
 }
 
 impl ReadModel {
-    /// The in-memory projector: pure, used by the engine after each commit
-    /// and by the tests to replay a log.
     pub fn apply(&mut self, stored: &StoredEvent) {
         self.sequence = self.sequence.max(stored.sequence);
         self.apply_event(&stored.event);

@@ -1,9 +1,3 @@
-//! Hook dialects stored as JSON: Cursor (flat camelCase, `version: 1`),
-//! Copilot native (`.github/hooks/*.json`, `bash`/`powershell`, `timeoutSec`),
-//! Gemini (own event names, ms), Kiro v1 (`{version:"v1",hooks:[{trigger,
-//! matcher,action}]}`), Windsurf Cascade (snake_case, no matcher), Goose (Open
-//! Plugins hooks.json), Devin CLI `hooks.v1.json` and Crush.
-
 use serde_json::{json, Map, Value};
 
 use super::hook_common::{
@@ -16,7 +10,6 @@ use crate::core::agentkit::model::{Component, HookSpec};
 use crate::core::agentkit::targets::TargetAdapter;
 use crate::core::agentkit::{Os, Result, Scope};
 
-/// Events whose matcher is a tool name (the rest match a source/reason string).
 pub fn tool_event(event: &str) -> bool {
     matches!(
         event,
@@ -24,7 +17,6 @@ pub fn tool_event(event: &str) -> bool {
     )
 }
 
-/// `Edit|Write` style list → `^(Edit|Write)$`; a real regex stays as is.
 pub fn anchored(m: &str) -> String {
     let simple = m
         .chars()
@@ -36,14 +28,12 @@ pub fn anchored(m: &str) -> String {
     }
 }
 
-/// The matcher to write natively, and the one the shim must check instead.
 fn split_matcher(p: &Prepared, native_ok: bool) -> (Option<String>, Option<&str>) {
     match &p.matcher {
         None => (None, None),
         Some(m) if native_ok && tool_event(&p.event) => {
             let nm = p.native_matcher.clone().unwrap_or_else(|| m.clone());
             if nm.is_empty() {
-                // every name mapped to "" (no such tool there): let the shim filter
                 (None, Some(m.as_str()))
             } else {
                 (Some(nm), None)
@@ -72,8 +62,6 @@ fn finish(
     files.extend(support);
     files
 }
-
-// ---------------------------------------------------------------- Cursor
 
 pub fn cursor(
     c: &Component,
@@ -139,8 +127,6 @@ pub fn cursor(
     Ok(finish(c, ctx, vec![pf], support, losses, commands))
 }
 
-// ---------------------------------------------------------------- Copilot
-
 pub fn copilot(
     c: &Component,
     h: &HookSpec,
@@ -148,7 +134,6 @@ pub fn copilot(
     scope: Scope,
     ctx: &ConvertCtx,
 ) -> Result<Vec<PlannedFile>> {
-    // every *.json in .github/hooks (or ~/.copilot/hooks) loads: one file per component
     let base_scope = if scope == Scope::Local {
         Scope::Project
     } else {
@@ -215,8 +200,6 @@ pub fn copilot(
     Ok(finish(c, ctx, vec![pf], support, losses, commands))
 }
 
-// ---------------------------------------------------------------- Gemini
-
 pub fn gemini(
     c: &Component,
     h: &HookSpec,
@@ -253,7 +236,6 @@ pub fn gemini(
     Ok(finish(c, ctx, vec![pf], support, losses, commands))
 }
 
-/// Gemini groups `{matcher, hooks:[{name,type,command,timeout(ms)}]}` per native event.
 pub fn gemini_groups(
     prep: &[Prepared],
     target: &TargetAdapter,
@@ -296,8 +278,6 @@ pub fn gemini_groups(
     out
 }
 
-// ---------------------------------------------------------------- Kiro
-
 pub fn kiro(
     c: &Component,
     h: &HookSpec,
@@ -305,7 +285,6 @@ pub fn kiro(
     scope: Scope,
     ctx: &ConvertCtx,
 ) -> Result<Vec<PlannedFile>> {
-    // every *.json under .kiro/hooks loads: one file per component
     let dir = hook_file(target, scope, ctx)?
         .parent()
         .map(|p| p.to_path_buf())
@@ -362,9 +341,6 @@ pub fn kiro(
     Ok(finish(c, ctx, vec![pf], support, losses, commands))
 }
 
-// ---------------------------------------------------------------- Windsurf Cascade
-
-/// The Claude tool a Cascade event is about.
 fn cascade_subject(native: &str) -> &'static str {
     match native.split_once('_').map(|x| x.1).unwrap_or("") {
         "run_command" => "Bash",
@@ -388,8 +364,6 @@ pub fn cascade(
     let mut ops = Vec::new();
     for p in &prep {
         for native in &p.natives {
-            // no matcher field: keep only the events the matcher can fire on,
-            // and let the shim check the rest
             let subject = cascade_subject(native);
             if let Some(m) = &p.matcher {
                 if !subject.is_empty() && tool_event(&p.event) {
@@ -447,8 +421,6 @@ pub fn cascade(
     Ok(finish(c, ctx, vec![pf], support, losses, commands))
 }
 
-// ---------------------------------------------------------------- Goose
-
 pub fn goose(
     c: &Component,
     h: &HookSpec,
@@ -479,7 +451,6 @@ pub fn goose(
                 hk.insert("timeout".into(), num(t));
             }
             let mut g = Map::new();
-            // a bare `*` makes goose skip the rule: no matcher = everything
             if let Some(m) = &native_m {
                 g.insert("matcher".into(), json!(anchored(m)));
             }
@@ -502,8 +473,6 @@ pub fn goose(
     Ok(finish(c, ctx, vec![pf], support, losses, commands))
 }
 
-// ---------------------------------------------------------------- Devin CLI
-
 pub fn devin(
     c: &Component,
     h: &HookSpec,
@@ -512,7 +481,6 @@ pub fn devin(
     ctx: &ConvertCtx,
 ) -> Result<Vec<PlannedFile>> {
     let file = hook_file(target, scope, ctx)?;
-    // .devin/hooks.v1.json is the bare hooks object; config.json keeps it under "hooks"
     let bare = file
         .file_name()
         .and_then(|n| n.to_str())
@@ -574,8 +542,6 @@ pub fn devin(
     );
     Ok(finish(c, ctx, vec![pf], support, losses, commands))
 }
-
-// ---------------------------------------------------------------- Crush
 
 pub fn crush(
     c: &Component,

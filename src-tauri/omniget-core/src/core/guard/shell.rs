@@ -1,11 +1,3 @@
-//! A light POSIX-shell reader and the command analyser built on it.
-//!
-//! Not a shell: it splits a command line into pipelines and simple commands,
-//! honours quotes, escapes, comments, redirections, `$(…)`, backticks,
-//! `<(…)`, here-docs and `sh -c '…'`, which is all a hook one-liner or an MCP
-//! launcher needs for "what programs will this run, with what". Anything it
-//! does not understand stays a plain word, so it errs towards seeing more.
-
 use once_cell::sync::Lazy;
 use regex::Regex;
 
@@ -14,13 +6,9 @@ use super::rules::sev;
 
 #[derive(Debug, Clone, Default)]
 pub struct Cmd {
-    /// Unquoted words, redirection targets removed.
     pub words: Vec<String>,
-    /// `(operator, target)`.
     pub redirects: Vec<(String, String)>,
-    /// Inner texts of `$(…)`, backticks and `<(…)` found in this command.
     pub subs: Vec<String>,
-    /// Here-doc bodies fed to this command.
     pub heredocs: Vec<String>,
 }
 
@@ -34,7 +22,6 @@ pub struct Script {
     pub pipelines: Vec<Pipeline>,
 }
 
-/// Split `src` into pipelines of simple commands.
 #[allow(unused_assignments)]
 pub fn parse(src: &str) -> Script {
     let chars: Vec<char> = src.chars().collect();
@@ -44,9 +31,8 @@ pub fn parse(src: &str) -> Script {
     let mut word = String::new();
     let mut in_word = false;
     let mut pending_redirect: Option<String> = None;
-    let mut pending_heredocs: Vec<(String, bool)> = Vec::new(); // (delimiter, strip tabs)
+    let mut pending_heredocs: Vec<(String, bool)> = Vec::new();
     let mut i = 0usize;
-    // Inside `[[ … ]]`: `&&`, `||`, `<`, `>`, `(`, `)` are test operators.
     let mut dbl = false;
 
     macro_rules! end_word {
@@ -194,7 +180,6 @@ pub fn parse(src: &str) -> Script {
             '\n' => {
                 end_pipe!();
                 i += 1;
-                // Here-doc bodies start on the next line.
                 for (delim, strip) in std::mem::take(&mut pending_heredocs) {
                     let mut body = String::new();
                     while i < chars.len() {
@@ -224,7 +209,6 @@ pub fn parse(src: &str) -> Script {
             ';' | '&' | '|' => {
                 let next = chars.get(i + 1).copied();
                 if c == '&' && next == Some('>') {
-                    // `&>file`
                     end_word!();
                     let op = if chars.get(i + 2) == Some(&'>') {
                         "&>>"
@@ -248,7 +232,6 @@ pub fn parse(src: &str) -> Script {
                 i += 1;
             }
             '<' | '>' => {
-                // `2>` / `2>&1`: a digits-only word just before is the fd.
                 if in_word && word.chars().all(|d| d.is_ascii_digit()) {
                     word.clear();
                     in_word = false;
@@ -259,7 +242,6 @@ pub fn parse(src: &str) -> Script {
                 i += 1;
                 while i < chars.len() && matches!(chars[i], '<' | '>' | '&' | '-') && op.len() < 3 {
                     if chars[i] == '&' {
-                        // `>&2` — fd duplication, no file target.
                         op.push('&');
                         i += 1;
                         while i < chars.len() && (chars[i].is_ascii_digit() || chars[i] == '-') {
@@ -336,9 +318,6 @@ fn backtick(chars: &[char], mut i: usize) -> (String, usize) {
     (out, i + 1)
 }
 
-// ------------------------------------------------------------------ analysis
-
-/// One risky thing found in a command.
 #[derive(Debug, Clone)]
 pub struct Hit {
     pub code: &'static str,
@@ -352,7 +331,6 @@ pub struct Analysis {
     pub programs: Vec<String>,
     pub network: bool,
     pub reads_sensitive: bool,
-    /// `$CLAUDE_*` variables that the tool never sets.
     pub fake_env: Vec<String>,
 }
 
@@ -499,12 +477,10 @@ pub static WEBHOOK_CHAT: Lazy<Regex> = Lazy::new(|| {
 pub static WEBHOOK_CATCHER: Lazy<Regex> = Lazy::new(|| {
     Regex::new(r"(?i)webhook\.site|requestbin|pipedream\.net|\.ngrok(-free)?\.(io|app)|pastebin\.com|paste\.ee|hastebin|transfer\.sh|0x0\.st|termbin\.com|file\.io\b|\bix\.io\b|sprunge\.us|beeceptor|interact\.sh|\.oast\.(fun|me|pro|site|live|online)|burpcollaborator|requestcatcher|webhook\.cool|temp\.sh").unwrap()
 });
-/// `$CLAUDE_*` names hooks read that Claude Code never sets.
 pub static FAKE_ENV: Lazy<Regex> = Lazy::new(|| {
     Regex::new(r"\$\{?(CLAUDE_TOOL_FILE_PATH|CLAUDE_TOOL_NAME|CLAUDE_TOOL_INPUT|CLAUDE_TOOL_INPUT_FILE|CLAUDE_TOOL_OUTPUT|CLAUDE_TOOL_COMMAND|CLAUDE_TOOL_ARGS|CLAUDE_FILE_PATHS?|CLAUDE_AGENT_NAME|CLAUDE_TOOL_RESULT)\b").unwrap()
 });
 
-/// Program name of a word: basename, lower-case, `.exe` stripped.
 pub fn program_name(word: &str) -> String {
     let w = word.trim();
     let base = w.rsplit(['/', '\\']).next().unwrap_or(w);
@@ -514,8 +490,6 @@ pub fn program_name(word: &str) -> String {
         .unwrap_or(base)
 }
 
-/// The program a simple command runs and the index of its first argument,
-/// skipping assignments and wrappers. Also reports whether `sudo` was seen.
 pub fn resolve(cmd: &Cmd) -> Option<(String, usize, bool)> {
     let mut i = 0;
     let mut sudo = false;
@@ -536,7 +510,6 @@ pub fn resolve(cmd: &Cmd) -> Option<(String, usize, bool)> {
                 sudo = true;
             }
             i += 1;
-            // Skip the wrapper's own flags (`sudo -u root`, `timeout 5`).
             while i < cmd.words.len() {
                 let n = &cmd.words[i];
                 if n.starts_with('-') {
@@ -564,7 +537,6 @@ pub fn resolve(cmd: &Cmd) -> Option<(String, usize, bool)> {
     None
 }
 
-/// Analyse a shell command line (or a whole shell script).
 pub fn analyze(src: &str) -> Analysis {
     let mut a = Analysis::default();
     analyze_into(src, &mut a, 0);
@@ -619,8 +591,6 @@ fn analyze_into(src: &str, a: &mut Analysis, depth: u8) {
             let joined = args.join(" ");
             let all_text = format!("{prog} {joined}");
 
-            // ---- sensitive reads
-            // Using a key (ssh -i, chmod, ssh-keygen) or a public key is not reading a secret.
             const KEY_USERS: &[&str] = &[
                 "ssh",
                 "ssh-keygen",
@@ -672,7 +642,6 @@ fn analyze_into(src: &str, a: &mut Analysis, depth: u8) {
                 }
             }
 
-            // ---- network
             let is_fetcher = FETCHERS.contains(&prog.as_str());
             let is_sender = NET_SENDERS.contains(&prog.as_str())
                 || args.iter().any(|w| w.contains("/dev/tcp/"));
@@ -727,7 +696,6 @@ fn analyze_into(src: &str, a: &mut Analysis, depth: u8) {
             };
             if uploads {
                 script_uploads = true;
-                // curl -d @~/.ssh/id_rsa: the file goes straight out.
                 let at_file = args.iter().find(|w| {
                     let v = w.split_once('@').map(|(_, r)| r).unwrap_or("");
                     !v.is_empty() && (SENSITIVE_HARD.is_match(v) || SENSITIVE_SOFT.is_match(v))
@@ -762,7 +730,6 @@ fn analyze_into(src: &str, a: &mut Analysis, depth: u8) {
                 chat_webhook = true;
             }
 
-            // ---- download then execute
             if is_fetcher {
                 let mut out: Option<String> = None;
                 let mut k = 0;
@@ -819,7 +786,6 @@ fn analyze_into(src: &str, a: &mut Analysis, depth: u8) {
                 }
             }
 
-            // ---- pipe into interpreter
             let is_interp = INTERPRETERS.contains(&prog.as_str()) || prog.starts_with("python");
             if is_interp && ci > 0 {
                 if let Some(f) = fetch_at.filter(|f| *f < ci) {
@@ -830,7 +796,6 @@ fn analyze_into(src: &str, a: &mut Analysis, depth: u8) {
                     a.hit("CMD_W005", format!("decoded payload | {prog}"));
                 }
             }
-            // `bash <(curl …)`, `sh -c "$(curl …)"`, `eval "$(curl …)"`
             if is_interp || prog == "eval" {
                 for s in &cmd.subs {
                     let sub_prog = parse(s)
@@ -857,7 +822,6 @@ fn analyze_into(src: &str, a: &mut Analysis, depth: u8) {
                 decode_at.get_or_insert(ci);
             }
 
-            // ---- nested shells / inline code
             if SHELLS.contains(&prog.as_str()) {
                 if let Some(pos) = args.iter().position(|w| {
                     *w == "-c" || (w.starts_with('-') && w.ends_with('c') && !w.starts_with("--"))
@@ -891,7 +855,6 @@ fn analyze_into(src: &str, a: &mut Analysis, depth: u8) {
                 analyze_into(s, a, depth + 1);
             }
 
-            // ---- destruction
             match prog.as_str() {
                 "rm" | "remove-item" | "rmdir" | "del" | "rd" => check_rm(&prog, &args, a),
                 "find" => {
@@ -1020,7 +983,6 @@ fn analyze_into(src: &str, a: &mut Analysis, depth: u8) {
                 }
                 _ => {}
             }
-            // Redirections that persist or destroy.
             for (op, target) in &cmd.redirects {
                 if !op.starts_with('>') && !op.starts_with("&>") {
                     continue;
@@ -1050,7 +1012,6 @@ fn analyze_into(src: &str, a: &mut Analysis, depth: u8) {
                     a.hit("CMD_W007", format!("{op} {target}"));
                 }
             }
-            // A function definition that pipes itself into itself: `:(){ :|:& };:`.
             if prog.ends_with("(){") || prog.ends_with("()") && args.first() == Some(&"{") {
                 let name = prog.trim_end_matches("(){").trim_end_matches("()");
                 if !name.is_empty() && src.contains(&format!("{name}|{name}")) {
@@ -1059,7 +1020,6 @@ fn analyze_into(src: &str, a: &mut Analysis, depth: u8) {
             }
         }
     }
-    // Credential read and upload in the same script, even if not piped.
     if script_uploads && script_sensitive_hard && !a.hits.iter().any(|h| h.code == "CMD_E006") {
         a.hit(
             "CMD_E006",
@@ -1158,7 +1118,6 @@ fn check_rm(prog: &str, args: &[&str], a: &mut Analysis) {
     }
     for t in &targets {
         let tt = t.trim_matches(|c| c == '"' || c == '\'');
-        // `$DIR/…` or `${X}/*` where an empty variable turns it into `/…`.
         if (tt.starts_with('$') && (tt.contains('/') || tt.ends_with('*')))
             && !tt.starts_with("$HOME")
             && !tt.starts_with("${HOME")
@@ -1201,8 +1160,6 @@ fn check_git(args: &[&str], a: &mut Analysis) {
     }
 }
 
-// ------------------------------------------------------------ other languages
-
 static CODE_SHELL_CALL: Lazy<Regex> = Lazy::new(|| {
     Regex::new(r#"(?s)(?:os\.system|os\.popen|subprocess\.(?:run|call|check_output|check_call|Popen)|execSync|exec|spawnSync|child_process\.exec|system|`|Runtime\.getRuntime\(\)\.exec)\s*\(\s*(?:f|r)?("(?:[^"\\\n]|\\.){3,400}"|'(?:[^'\\\n]|\\.){3,400}')"#).unwrap()
 });
@@ -1210,8 +1167,6 @@ static CODE_NET: Lazy<Regex> = Lazy::new(|| {
     Regex::new(r"(?i)\b(requests\.(post|put)|urllib\.request|urlopen|http\.client|fetch\(|axios\.(post|put)|XMLHttpRequest|socket\.connect|net\.connect|httpx\.(post|put)|aiohttp|Net::HTTP|smtplib)").unwrap()
 });
 
-/// Analyse Python/JS/Ruby/etc. source: shell strings passed to
-/// `subprocess`/`os.system`/`execSync`, plus credential-read + network combos.
 pub fn analyze_code(src: &str) -> Analysis {
     let mut a = Analysis::default();
     analyze_code_into(src, &mut a);
@@ -1221,7 +1176,6 @@ pub fn analyze_code(src: &str) -> Analysis {
             a.fake_env.push(name);
         }
     }
-    // Python/JS read the fake names without `$`.
     static BARE: Lazy<Regex> = Lazy::new(|| {
         Regex::new(r#"(?:environ(?:\.get)?\s*[\[(]\s*|process\.env\.|getenv\(\s*|ENV\[\s*)["']?(CLAUDE_TOOL_FILE_PATH|CLAUDE_TOOL_NAME|CLAUDE_TOOL_INPUT|CLAUDE_TOOL_OUTPUT|CLAUDE_TOOL_COMMAND|CLAUDE_FILE_PATHS?)"#).unwrap()
     });
@@ -1248,8 +1202,6 @@ fn analyze_code_into(src: &str, a: &mut Analysis) {
     let keychain = KEYCHAIN_CMD.is_match(src);
     let net = CODE_NET.is_match(src);
     if let Some(s) = &sensitive {
-        // Only a read when the path appears inside a string or open() call,
-        // not in a comment listing what to protect.
         let read_like = Regex::new(&format!(
             r#"(?i)(open|read|readFile|readFileSync|Path|expanduser|cat)\W[^\n]{{0,80}}{}"#,
             regex::escape(s)

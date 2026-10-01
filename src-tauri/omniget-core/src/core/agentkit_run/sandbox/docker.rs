@@ -1,8 +1,3 @@
-//! Docker provider: a minimal image per tool (Dockerfile generated into
-//! `<app_data>/sandbox/<tool>/`), the project copied into the run folder and
-//! mounted at `/work`, the tool's API key passed as `-e NAME` with the value
-//! only in the docker client's environment.
-
 use std::path::Path;
 use std::time::Duration;
 
@@ -13,7 +8,6 @@ use super::super::runner::{self, RunOutput, ToolRun};
 use super::{key_env, root, run_dir, save_record, tree, RunRecord, SandboxOpts, ERR_SANDBOX};
 use crate::core::llm::drivers::acp::proc;
 
-/// Tools the generated image knows how to install (npm package).
 pub const SUPPORTED: &[(&str, &str)] = &[
     ("claude", "@anthropic-ai/claude-code"),
     ("codex", "@openai/codex"),
@@ -26,7 +20,6 @@ pub fn package_of(tool: &str) -> Option<&'static str> {
     SUPPORTED.iter().find(|(t, _)| *t == tool).map(|(_, p)| *p)
 }
 
-/// The Dockerfile for `tool`: Node slim, git, ripgrep, the CLI, non-root user.
 pub fn dockerfile(tool: &str) -> Result<String, String> {
     let pkg = package_of(tool).ok_or_else(|| {
         format!(
@@ -54,7 +47,6 @@ pub fn image_tag(tool: &str, dockerfile: &str) -> String {
     format!("omniget-sandbox-{tool}:{}", &h[..12])
 }
 
-/// `{available, version, error}`; a missing daemon is a clear message.
 pub async fn probe() -> serde_json::Value {
     let Some(bin) = proc::which("docker") else {
         return serde_json::json!({ "available": false, "error": "Docker is not installed (docker was not found on the PATH)" });
@@ -91,7 +83,6 @@ async fn docker(args: &[&str]) -> Result<std::process::Output, String> {
         .map_err(|e| format!("{ERR_SANDBOX}: docker: {e}"))
 }
 
-/// Builds the image once per Dockerfile text.
 pub async fn ensure_image(
     tool: &str,
     on_log: &mut (dyn FnMut(&str) + Send),
@@ -129,7 +120,6 @@ fn mount(host: &Path) -> String {
     format!("{}:/work", host.to_string_lossy())
 }
 
-/// The `docker run` argv (pure; the key values are not in it).
 pub fn run_args(
     name: &str,
     image: &str,
@@ -149,8 +139,6 @@ pub fn run_args(
         "-w".into(),
         "/work".into(),
     ];
-    // Docker Desktop maps file ownership for bind mounts; a Linux daemon does
-    // not, so the container runs as the user who owns the copy.
     #[cfg(target_os = "linux")]
     {
         // SAFETY: plain getters.
@@ -259,7 +247,6 @@ pub async fn run(
         tokio::spawn(async move {
             tokio::select! {
                 _ = cancel.cancelled() => {
-                    // The container outlives the docker client: stop it by name.
                     let _ = crate::core::process::command("docker").args(["kill", &name]).output().await;
                     inner.cancel();
                 }

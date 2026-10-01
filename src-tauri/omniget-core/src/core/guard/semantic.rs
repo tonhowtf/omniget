@@ -1,14 +1,3 @@
-//! Semantic validator: prompt injection, jailbreaks, credential exfiltration,
-//! hard-coded secrets (redacted), XSS/HTML, over-permissive wording,
-//! destructive commands in prose, hidden Unicode and hidden HTML comments.
-//!
-//! Improvements over the original: a match that is quoted, inside code, or
-//! preceded by a negation/detection word ("never", "detect", "block") is
-//! lowered one step and marked `downgraded`, so a security agent that
-//! *describes* injection is not blocked while one that *does* it is. "System
-//! prompt" alone is not flagged (only asking to reveal it). Secrets use
-//! known formats plus an entropy test, and are always redacted.
-
 use once_cell::sync::Lazy;
 use regex::Regex;
 
@@ -20,7 +9,6 @@ use super::text::{clip, looks_mentioned, mention_score, redact, CodeCtx, CodeMap
 struct Pat {
     re: Regex,
     code: &'static str,
-    /// Steps to lower when inside code / quoted.
     code_drop: u8,
 }
 
@@ -122,7 +110,6 @@ static PROSE: Lazy<Vec<Pat>> = Lazy::new(|| {
     ]
 });
 
-/// Known-format secrets (code SEM_E021) — always critical, never lowered.
 static KNOWN_SECRETS: Lazy<Vec<(Regex, &'static str)>> = Lazy::new(|| {
     [
         (r"\b(AKIA|ASIA)[0-9A-Z]{16}\b", "AWS access key id"),
@@ -146,7 +133,6 @@ static KNOWN_SECRETS: Lazy<Vec<(Regex, &'static str)>> = Lazy::new(|| {
     .collect()
 });
 
-/// `name = value` secrets (SEM_E011/E012/E013), value then entropy-tested.
 static ASSIGNED: Lazy<Vec<(Regex, &'static str)>> = Lazy::new(|| {
     [
         (r#"(?i)\b(password|passwd|pwd)\b["']?\s*[:=]\s*["']?([^\s"'`,;)]{6,})"#, "SEM_E011"),
@@ -194,7 +180,6 @@ fn finding_at(
         .snippet(idx.line_at(text, start))
 }
 
-/// Scan prose-like text (Markdown, prompts, TOML prompts, hook prompts).
 pub fn check_prose(file: &str, text: &str, strict: bool, sink: &mut Sink) {
     let idx = LineIndex::new(text);
     let code = CodeMap::new(text);
@@ -220,7 +205,6 @@ pub fn check_prose(file: &str, text: &str, strict: bool, sink: &mut Sink) {
     check_hidden(file, text, &idx, sink);
 }
 
-/// Secrets only (for scripts and JSON).
 pub fn check_secrets_only(file: &str, text: &str, sink: &mut Sink) {
     let idx = LineIndex::new(text);
     check_secrets(file, text, &idx, sink);
@@ -272,7 +256,6 @@ fn check_secrets(file: &str, text: &str, idx: &LineIndex, sink: &mut Sink) {
             }
             seen_lines.insert(line);
             let lt = idx.line_at(text, whole.start());
-            // Examples in a documentation code block are lowered one step.
             let drop = if cmap
                 .as_ref()
                 .is_some_and(|m| m.ctx(whole.start()) != CodeCtx::Prose)
@@ -297,7 +280,6 @@ fn check_secrets(file: &str, text: &str, idx: &LineIndex, sink: &mut Sink) {
     }
 }
 
-/// `process.env.X`, `os.getenv(...)`, `${{ secrets.X }}`, function calls: not literal secrets.
 fn looks_like_code_ref(v: &str) -> bool {
     let has_digit = v.chars().any(|c| c.is_ascii_digit());
     let is_uuid = v.len() == 36
@@ -326,7 +308,6 @@ fn looks_like_code_ref(v: &str) -> bool {
 }
 
 fn check_exfil(file: &str, text: &str, idx: &LineIndex, code: &CodeMap, sink: &mut Sink) {
-    // Paragraph windows.
     let mut start = 0usize;
     let bytes = text.as_bytes();
     let mut paras: Vec<(usize, usize)> = Vec::new();
@@ -394,7 +375,6 @@ fn check_exfil(file: &str, text: &str, idx: &LineIndex, code: &CodeMap, sink: &m
             }
         }
     }
-    // Webhook sends without a sensitive path.
     for m in WEBHOOK_CATCHER.find_iter(text).take(3) {
         let line = idx.line_at(text, m.start());
         if SEND_VERB.is_match(line)
@@ -428,8 +408,6 @@ fn check_hidden(file: &str, text: &str, idx: &LineIndex, sink: &mut Sink) {
             .map(|c| format!("U+{:04X}", c as u32))
             .unwrap_or_default();
         let (line, col) = idx.pos(text, off + m.start());
-        // A few zero-width spaces/joiners are normal (emoji, copy-paste from
-        // docs). Bidi overrides, tag characters or a dense cluster are not.
         static DANGEROUS: Lazy<Regex> = Lazy::new(|| {
             Regex::new("[\u{202A}-\u{202E}\u{2066}-\u{2069}\u{E0000}-\u{E007F}]|[\u{200B}\u{200C}\u{2060}\u{2062}-\u{2064}]{3,}").unwrap()
         });

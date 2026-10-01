@@ -1,7 +1,3 @@
-//! `omniget wmb`: washmybelly from the terminal, through the running app
-//! (the local bridge). Scans and plans answer here; `execute` and `restore`
-//! only ask: the person approves in the OmniGet window.
-
 use std::time::Duration;
 
 use anyhow::bail;

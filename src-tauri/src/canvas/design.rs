@@ -1,20 +1,3 @@
-//! Portal design-select (Maestri "Design mode", study 100 M-L4): pick an
-//! element or a region of a web portal page and ask a corded agent about it.
-//! The agent gets the comment, the element's CSS selector, a trimmed
-//! `outerHTML`, the box, a PNG crop of the region and any attachments
-//! (better than Maestri's image-only recorte).
-//!
-//! Two ways in:
-//! - interactive: [`arm`] installs an overlay in the page (hover outline,
-//!   drag a rectangle or click an element, Esc cancels); a poller emits
-//!   `canvas://design-select {workspaceId, nodeId, cancelled?, pick?,
-//!   screenshotPath?, targets}` to the main window, whose sheet calls
-//!   [`send`] (`canvas_portal_design_send`).
-//! - direct (MCP `canvas_portal_design_select`): [`select`] with a rect, a
-//!   selector or a point, optionally delivering right away.
-//!
-//! Delivery needs a cord between the portal and the target terminal.
-
 use std::path::PathBuf;
 use std::time::Duration;
 
@@ -26,14 +9,10 @@ use tauri::{AppHandle, Emitter};
 use crate::portal;
 
 pub const EVENT_DESIGN: &str = "canvas://design-select";
-/// How long an armed overlay waits for the user.
 const ARM_WAIT: Duration = Duration::from_secs(300);
 const POLL_EVERY: Duration = Duration::from_millis(350);
 const HTML_MAX: usize = 4000;
 
-/// Shared page-side picker: `pick(a)` with `a = {rect?, selector?, point?}`
-/// (viewport CSS px). Returns the element, its selector, trimmed HTML, the
-/// selection box and the viewport (for the crop scale).
 const PICK_LIB: &str = r#"
   var OVERLAY_ATTR = 'data-omniget-design';
   function esc(s) { return (window.CSS && CSS.escape) ? CSS.escape(s) : String(s).replace(/[^a-zA-Z0-9_-]/g, '\\$&'); }
@@ -97,7 +76,6 @@ const PICK_LIB: &str = r#"
 
 const PICK_BODY: &str = "return pick(a || {});";
 
-/// Installs the overlay; the result lands in `window.__omnigetDesign`.
 const ARM_BODY: &str = r#"
   var old = document.querySelector('[' + OVERLAY_ATTR + ']');
   if (old) old.remove();
@@ -179,7 +157,6 @@ pub struct Viewport {
     pub dpr: f64,
 }
 
-/// What the page answered for a selection.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Pick {
@@ -204,7 +181,6 @@ pub struct Pick {
 
 fn pick_from(v: &Value) -> Result<Pick, String> {
     let mut p: Pick = serde_json::from_value(v.clone()).map_err(|e| format!("DESIGN_PAGE: {e}"))?;
-    // `box` is a keyword on the Rust side.
     p.box_ = v
         .get("box")
         .and_then(|b| serde_json::from_value(b.clone()).ok());
@@ -220,7 +196,6 @@ fn pick_json(p: &Pick) -> Value {
     v
 }
 
-/// A terminal corded to the portal (a valid design-select target).
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Target {
@@ -250,7 +225,6 @@ fn portal_node(portal_id: &str) -> Result<(String, String, CanvasNode), String> 
     Ok((ws, floor, n))
 }
 
-/// Terminals corded directly to the portal.
 pub fn targets(portal_id: &str) -> Result<Vec<Target>, String> {
     let (ws, floor, _) = portal_node(portal_id)?;
     store().read(&ws, &floor, |d| {
@@ -310,9 +284,6 @@ fn app_handle() -> Result<AppHandle, String> {
     })
 }
 
-/// Screenshot of the portal cropped to `p.box` (viewport px → PNG px by the
-/// ratio of the PNG width to the viewport width). Saved under
-/// `<workspace>/files/design/`.
 async fn crop(app: &AppHandle, ws: &str, portal_id: &str, p: &Pick) -> Result<String, String> {
     let bytes = portal::snapshot_png(app, portal_id).await?;
     let dir: PathBuf = store().workspace_dir(ws).join("files").join("design");
@@ -338,7 +309,6 @@ async fn crop(app: &AppHandle, ws: &str, portal_id: &str, p: &Pick) -> Result<St
     .map_err(|e| format!("DESIGN_TASK: {e}"))?
 }
 
-/// The message the agent receives.
 pub fn message(
     comment: &str,
     p: &Pick,
@@ -391,8 +361,6 @@ async fn page_call(
     portal::eval_fn(app, portal_id, &func(body), args).await
 }
 
-/// Direct selection (MCP): `rect`, `selector` or `point`; with `send`,
-/// delivers to `target` (or the only corded agent).
 #[derive(Debug, Clone, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SelectArgs {
@@ -410,7 +378,6 @@ pub struct SelectArgs {
 pub async fn select(portal_id: &str, a: SelectArgs) -> Result<Value, String> {
     let app = app_handle()?;
     let (ws, _, node) = portal_node(portal_id)?;
-    // Refuse before touching the page when delivery can't happen.
     let send = a.send.unwrap_or(true);
     let target = if send {
         Some(resolve_target(portal_id, a.target.as_deref())?)
@@ -456,9 +423,6 @@ async fn deliver(t: &Target, text: String) -> Result<(), String> {
     if super::cords::host().deliver_chat(&t.node_id, text).await {
         return Ok(());
     }
-    // The chat confirm step can miss an agent that took the paste without
-    // the screen change it waits for (the stub, a shell). The terminal
-    // itself is the judge: the selection's first line on screen = delivered.
     if marker_count(&t.node_id, &marker) > before {
         return Ok(());
     }
@@ -468,8 +432,6 @@ async fn deliver(t: &Target, text: String) -> Result<(), String> {
     ))
 }
 
-/// A short, distinctive piece of the message that survives flattening and
-/// line wrapping on the target's screen.
 fn delivery_marker(text: &str) -> String {
     let first = text.lines().next().unwrap_or("");
     let quoted = first.split('"').nth(1).unwrap_or("");
@@ -477,7 +439,6 @@ fn delivery_marker(text: &str) -> String {
     base.chars().take(48).collect()
 }
 
-/// Occurrences of `marker` on the target's screen and scrollback tail.
 fn marker_count(node_id: &str, marker: &str) -> usize {
     let Some(tid) = store()
         .locate_node(node_id)
@@ -497,7 +458,6 @@ fn marker_count(node_id: &str, marker: &str) -> usize {
     let Ok(snap) = crate::pty::term().screen_text(&tid, 400) else {
         return 0;
     };
-    // Wrapped lines break the marker: compare with whitespace removed.
     let squash = |s: &str| s.chars().filter(|c| !c.is_whitespace()).collect::<String>();
     let m = squash(marker);
     if m.is_empty() {
@@ -506,8 +466,6 @@ fn marker_count(node_id: &str, marker: &str) -> usize {
     squash(&snap.text).matches(&m).count()
 }
 
-/// Interactive: arms the overlay and polls until the user picks, cancels or
-/// the wait ends; the result goes out as [`EVENT_DESIGN`].
 pub async fn arm(portal_id: &str, hint: Option<String>) -> Result<Value, String> {
     let app = app_handle()?;
     let (ws, _, _) = portal_node(portal_id)?;
@@ -527,7 +485,6 @@ pub async fn arm(portal_id: &str, hint: Option<String>) -> Result<Value, String>
             match portal::eval_fn(&app2, &id, &func(POLL_BODY), json!({})).await {
                 Ok(v) if v["done"].as_bool() == Some(true) => break v,
                 Ok(v) if v["armed"].as_bool() == Some(false) => {
-                    // Page navigated away: the overlay is gone.
                     break json!({ "cancelled": true, "reason": "navigated" });
                 }
                 Ok(_) => {}
@@ -561,7 +518,6 @@ pub async fn disarm(portal_id: &str) -> Result<Value, String> {
     portal::eval_fn(&app, portal_id, &func(DISARM_BODY), json!({})).await
 }
 
-/// The sheet's Send: delivers a pick already made.
 pub async fn send(
     portal_id: &str,
     target: &str,

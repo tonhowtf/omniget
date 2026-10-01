@@ -1,12 +1,3 @@
-//! Canonical state of a canvas node and the fusion of its signals
-//! (estudo 98/03 §B.9). Sources, most trusted first: hooks (through the
-//! shim), the bus (native nodes, exact), terminal sequences (OSC/title), the
-//! shadow screen and silence. The terminal engine (`core::term`) already ranks
-//! hook > OSC/title > heuristic inside its `AgentSignal`; this module maps
-//! that signal, plus what only the canvas knows (a stuck delivery, whether the
-//! user has seen a finished turn, the process being gone), onto the states
-//! the UI and the delivery gate use. Pure: the caller passes `now_ms`.
-
 use serde::{Deserialize, Serialize};
 
 use crate::core::term::agent::{AgentSignal, AgentState, SignalSource};
@@ -17,14 +8,10 @@ pub enum NodeState {
     Starting,
     Ready,
     Working,
-    /// Permission, question, elicitation: the human is needed.
     NeedsYou,
-    /// Finished a turn the user has not looked at yet.
     Done,
-    /// A delivery did not take.
     Stuck,
     Exited,
-    /// No hook and nothing conclusive on screen: never a guess.
     NoSignal,
 }
 
@@ -43,7 +30,6 @@ impl NodeState {
     }
 }
 
-/// How much the state can be trusted; the UI says "estimated" below `Reported`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Confidence {
@@ -70,32 +56,22 @@ pub struct Fused {
     pub state: NodeState,
     pub source: Source,
     pub confidence: Confidence,
-    /// Extra detail (`waiting_peer`, `failed`, the last tool...).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub detail: Option<String>,
     pub since_ms: i64,
 }
 
-/// Everything the fusion looks at for one node.
 #[derive(Debug, Clone, Default)]
 pub struct Inputs {
-    /// Terminal nodes: the engine's signal. Native nodes: built from the bus.
     pub signal: Option<AgentSignal>,
-    /// The process is running (terminal) / the runtime is up (native).
     pub alive: bool,
-    /// Epoch ms the node's process started.
     pub started_ms: i64,
-    /// Native node: the bus is the source (exact).
     pub from_bus: bool,
-    /// A delivery to this node gave up (`delivery_stuck`).
     pub stuck: bool,
-    /// The user focused or marked the node after its last finished turn.
     pub seen: bool,
-    /// A permission question of this node is pending in the broker.
     pub permission_pending: bool,
 }
 
-/// Grace after spawn during which "no signal" reads as "starting".
 pub const STARTING_GRACE_MS: i64 = 8_000;
 
 fn confidence_of(src: SignalSource, from_bus: bool) -> (Source, Confidence) {
@@ -170,13 +146,6 @@ pub fn fuse(i: &Inputs, now_ms: i64) -> Fused {
     }
 }
 
-/// Is the node free to receive a paste now?
-///
-/// - ready (idle or a finished turn) for at least `settle_ms` (the TUI redraws
-///   its input box after `Stop`);
-/// - `needs_you` only for a reply to that node's own question;
-/// - with no signal at all, only when the screen has been still for
-///   `quiet_ms` (silence is the last resort).
 pub fn deliverable(
     sig: &AgentSignal,
     screen_changed_ms_ago: i64,
@@ -196,7 +165,6 @@ pub fn deliverable(
     }
 }
 
-/// A turn ended: busy before, not busy now.
 pub fn turn_ended(before: AgentState, now: AgentState) -> bool {
     let busy = |s: AgentState| {
         matches!(

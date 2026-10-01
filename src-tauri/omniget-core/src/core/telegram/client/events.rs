@@ -1,6 +1,3 @@
-//! Events sent to the UI. Replaces the plugin's `generic-download-*` and
-//! `host:queue:external:*` events with `telegram-download-*`.
-
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, Instant};
 
@@ -16,8 +13,6 @@ pub fn emit(event: &str, payload: serde_json::Value) {
     }
 }
 
-/// Millisecond timestamp plus a counter, so ids made in the same
-/// millisecond never collide.
 pub fn next_id() -> u64 {
     let now_ms = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -27,11 +22,6 @@ pub fn next_id() -> u64 {
     now_ms.wrapping_mul(1000).wrapping_add(bump % 1000)
 }
 
-/// One row of the downloads list: `telegram-download-queued`, then throttled
-/// `telegram-download-progress`, then one `telegram-download-complete`.
-///
-/// `kind` is `single`, `batch` (aggregate row of a batch, percent = files
-/// done) or `item` (one file inside a batch, carries `batch_id`).
 pub struct DownloadReporter {
     pub id: u64,
     title: String,
@@ -82,8 +72,6 @@ impl DownloadReporter {
         }
     }
 
-    /// `percent` in 0..=100. Bytes and speed are derived from the total
-    /// when it is known. Throttled except for 0 and 100.
     pub fn progress(&mut self, percent: f64) {
         let percent = percent.clamp(0.0, 100.0);
         let now = Instant::now();
@@ -147,7 +135,6 @@ impl DownloadReporter {
         );
     }
 
-    /// [`Self::complete`] with extra fields merged into the payload.
     #[allow(clippy::too_many_arguments)]
     pub fn complete_with(
         &self,
@@ -200,8 +187,6 @@ pub fn batch_file_status(
     );
 }
 
-/// `telegram-batch-file-status` for a file skipped because it was already
-/// saved at `existing`.
 pub fn batch_file_duplicate(batch_id: u64, message_id: i32, existing: &str) {
     emit(
         "telegram-batch-file-status",

@@ -1,22 +1,3 @@
-//! Durable record of execution (spec 02 "Modelo de dados mínimo" and
-//! "Contrato de runtime"): runtime sessions (pinned account, cwd, executable
-//! version, provider handle, generation), runs and their states, events
-//! (stable internal id + provider id, sequence, dedup), operation receipts
-//! (operation id + fingerprint, one admission) and permission requests (exact
-//! action, deadline, one answer). Owner: worker W4.
-//!
-//! Rules this module enforces, whoever calls it:
-//! - a state change is committed before anyone is told about it (the sink
-//!   runs after the transaction);
-//! - a terminal run (`completed|failed|cancelled`) never changes again;
-//! - `unknown` never becomes `queued` by itself: after a restart
-//!   [`Registry::reconcile`] marks what was in flight and waits for a person
-//!   (continue, mark done, discard);
-//! - a permission answer applies once, to the request it names, and only
-//!   while the request is pending and inside its deadline; cancelling a run
-//!   resolves its pending requests as cancelled;
-//! - payloads are clipped: a run cannot grow the database without bound.
-
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, OnceLock, RwLock};
 
@@ -28,19 +9,13 @@ use super::ctx::AssistCtx;
 use super::db::{AssistDb, Migration};
 
 pub const ERR_RUNS: &str = "ERR_RUNS";
-/// Same operation id, different content: refused, never merged.
 pub const ERR_RUNS_FINGERPRINT: &str = "ERR_RUNS_FINGERPRINT";
-/// The transition is not allowed from the current state.
 pub const ERR_RUNS_STATE: &str = "ERR_RUNS_STATE";
 pub const ERR_RUNS_NOT_FOUND: &str = "ERR_RUNS_NOT_FOUND";
-/// A permission answer arrived after the deadline.
 pub const ERR_PERMISSION_EXPIRED: &str = "ERR_PERMISSION_EXPIRED";
-/// A permission request already had its one answer (or was cancelled).
 pub const ERR_PERMISSION_RESOLVED: &str = "ERR_PERMISSION_RESOLVED";
 
-/// Event payloads are clipped to this many bytes of JSON.
 pub const EVENT_PAYLOAD_MAX: usize = 4 * 1024;
-/// Events kept per run; later ones only bump the run's `events_dropped`.
 pub const EVENTS_PER_RUN_MAX: i64 = 2_000;
 
 pub const MIGRATIONS: &[Migration] = &[
@@ -135,12 +110,6 @@ CREATE INDEX runs_permissions_run ON runs_permissions(run_id, state);
 ",
     },
     Migration {
-        // Item 2.2 (S09): `runs_permissions` is the one table of asks, answerable
-        // from the window, the bridge, the CLI, MCP and a paired phone. `channel`
-        // and `decided_by` say who answered and through what; `instance_id` is
-        // the boot that holds the waiter (another boot's pending ask is `stale`
-        // after a restart); `payload` is the question in MCP `elicitation/create`
-        // shape; `note` is the plain reason of a stale/cancelled ending.
         module: "runs",
         version: 2,
         sql: "
@@ -155,8 +124,6 @@ CREATE INDEX runs_permissions_state ON runs_permissions(state, created_ms);
     },
 ];
 
-// ── Types ─────────────────────────────────────────────────────────────────
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum RunState {
@@ -167,9 +134,7 @@ pub enum RunState {
     Completed,
     Failed,
     Cancelled,
-    /// Stopped before anything reached the provider (safe to retry).
     Interrupted,
-    /// Dispatched, outcome not known (never retried by itself).
     Unknown,
 }
 
@@ -217,7 +182,6 @@ impl RunState {
         )
     }
 
-    /// The state machine of spec 02. Same-state is a no-op, not an error.
     pub fn can_go(self, to: RunState) -> bool {
         use RunState::*;
         if self == to {
@@ -234,22 +198,17 @@ impl RunState {
                 to,
                 Running | Completed | Failed | Cancelled | Interrupted | Unknown
             ),
-            // Only a person moves these on: continue, mark done, discard.
             Interrupted | Unknown => matches!(to, Running | Completed | Cancelled | Failed),
             Completed | Failed | Cancelled => false,
         }
     }
 }
 
-/// How a runtime rebuilt the conversation for this run.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ResumeKind {
-    /// The provider kept the session; we resumed it by handle.
     Native,
-    /// We replayed our own transcript into a fresh session.
     Replay,
-    /// A new session with no prior history.
     New,
 }
 
@@ -263,7 +222,6 @@ impl ResumeKind {
     }
 }
 
-/// The `assist://run` payload (briefing contract 5).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct RunUpdate {
     pub run_id: String,
@@ -281,16 +239,12 @@ pub struct RuntimeSession {
     pub id: String,
     pub conversation_id: String,
     pub bot_id: String,
-    /// `native`, `cli:claude`, `cli:codex`, `acp:<command>`.
     pub runtime: String,
-    /// Connection profile pinned at creation (CLI account id).
     pub account: Option<String>,
     pub exe_version: Option<String>,
     pub cwd: Option<String>,
     pub context_kind: String,
-    /// The provider's own session id (Claude Code `session_id`, ACP `sessionId`).
     pub provider_handle: Option<String>,
-    /// Bumped whenever a pin changes and the handle is dropped.
     pub generation: i64,
     pub state: String,
     pub native_resume: bool,
@@ -298,9 +252,6 @@ pub struct RuntimeSession {
     pub updated_ms: i64,
 }
 
-/// What a runtime pins for a session. A different pin starts a new
-/// generation: the old provider handle is never reused under another
-/// account, folder or executable.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct SessionPins {
     pub runtime: String,
@@ -328,12 +279,9 @@ pub struct RunRecord {
     pub input_preview: String,
     pub summary: Option<String>,
     pub error: Option<String>,
-    /// How a person closed an interrupted/unknown run:
-    /// `continued:<run>`, `marked_done`, `discarded`.
     pub resolution: Option<String>,
     pub tokens_in: i64,
     pub tokens_out: i64,
-    /// `None` = unknown cost (never shown as free).
     pub cost_usd: Option<f64>,
     pub events_dropped: i64,
     pub created_ms: i64,
@@ -358,7 +306,6 @@ pub struct Receipt {
     pub operation_id: String,
     pub run_id: Option<String>,
     pub fingerprint: String,
-    /// `admitted|completed|failed|unknown`
     pub state: String,
     pub result: Option<String>,
     pub error: Option<String>,
@@ -366,13 +313,9 @@ pub struct Receipt {
     pub updated_ms: i64,
 }
 
-/// Result of [`Registry::admit`].
 #[derive(Debug, Clone, PartialEq)]
 pub enum Admission {
-    /// First time this operation is seen: go ahead.
     New(Receipt),
-    /// Seen before with the same fingerprint: do NOT run again; here is
-    /// what happened.
     Existing(Receipt),
 }
 
@@ -395,9 +338,6 @@ pub enum PermissionState {
     Denied,
     Expired,
     Cancelled,
-    /// The process that waited on it is gone (the app closed or crashed):
-    /// nothing can release that call any more. The person restarts the turn
-    /// or dismisses it (`cancelled`); it never turns into a silent "no".
     Stale,
 }
 
@@ -429,42 +369,30 @@ pub struct PermissionRequest {
     pub id: String,
     pub run_id: String,
     pub tool_call_id: String,
-    /// The exact action asked about (tool name, `acp:<kind>`, …).
     pub action: String,
     pub scope: String,
     pub preview: String,
     pub options: Vec<String>,
     pub deadline_ms: i64,
     pub state: PermissionState,
-    /// `once|session|always|deny|cancel` once answered.
     pub answer: Option<String>,
     pub version: i64,
     pub created_ms: i64,
     pub resolved_ms: Option<i64>,
-    /// The agent that asked.
     #[serde(default)]
     pub agent_id: String,
-    /// The boot that holds the waiter ([`instance_id`]).
     #[serde(default)]
     pub instance_id: String,
-    /// The question in MCP `elicitation/create` shape (`85#P2`).
     #[serde(default)]
     pub payload: Value,
-    /// Where the answer came from: `window|http|cli|mcp|remote`, or
-    /// `timeout|boot` for an ending nobody chose.
     #[serde(default)]
     pub channel: Option<String>,
-    /// Who answered: the principal (`token:<id>`, `mcp:<client>`,
-    /// `device:<id>`, `window`).
     #[serde(default)]
     pub decided_by: Option<String>,
-    /// Why it ended without an answer (stale: "restart the turn").
     #[serde(default)]
     pub note: Option<String>,
 }
 
-/// Who answers a permission request and through what (item 2.2): recorded
-/// in `channel` / `decided_by` with the answer.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Actor {
     pub channel: String,
@@ -479,13 +407,11 @@ impl Actor {
         }
     }
 
-    /// A person at the desktop window.
     pub fn window() -> Self {
         Self::new("window", "window")
     }
 }
 
-/// What a new permission request carries besides the run it belongs to.
 #[derive(Debug, Clone, Default)]
 pub struct NewAsk {
     pub run_id: String,
@@ -498,19 +424,14 @@ pub struct NewAsk {
     pub payload: Value,
 }
 
-/// The note a stale request carries: the app closed while it waited.
 pub const STALE_NOTE: &str =
     "the app closed while this question waited; nothing ran. Restart the turn to ask again";
 
-/// A fresh request id: 128 random bits (`apr_` + 32 hex). Never derived
-/// from the run or the tool call, and never shown to the agent that asked.
 pub fn new_ask_id() -> String {
     let mut buf = [0u8; 16];
     rand::Rng::fill_bytes(&mut rand::rng(), &mut buf);
     format!("apr_{}", hex::encode(buf))
 }
-
-// ── Process-wide wiring ───────────────────────────────────────────────────
 
 type Sink = Arc<dyn Fn(&RunUpdate) + Send + Sync>;
 
@@ -522,28 +443,20 @@ tokio::task_local! {
     static CURRENT: Registry;
 }
 
-/// This process's boot id: a run started by another instance is, after a
-/// restart, a run nobody is driving any more.
 pub fn instance_id() -> String {
     INSTANCE
         .get_or_init(|| format!("boot-{}", super::new_id()))
         .clone()
 }
 
-/// The app turns the registry on at boot (`jobs::boot`). Until then — and in
-/// unit tests of other modules — nothing is recorded and no database is
-/// opened behind anyone's back.
 pub fn enable() {
     ENABLED.store(true, Ordering::SeqCst);
 }
 
-/// Where `assist://run` updates go (the app emits them to the window).
 pub fn set_sink(f: Sink) {
     *SINK.write().unwrap_or_else(|e| e.into_inner()) = Some(f);
 }
 
-/// The registry of the running turn (a test or a coordinator put one in
-/// scope), else the app's once it is enabled.
 pub fn active() -> Option<Registry> {
     if let Ok(r) = CURRENT.try_with(Clone::clone) {
         return Some(r);
@@ -554,7 +467,6 @@ pub fn active() -> Option<Registry> {
     None
 }
 
-/// Runs `fut` with `reg` as [`active`] (runtimes read it inside the turn).
 pub async fn scope<F: std::future::Future>(reg: Option<Registry>, fut: F) -> F::Output {
     match reg {
         Some(r) => CURRENT.scope(r, fut).await,
@@ -562,8 +474,6 @@ pub async fn scope<F: std::future::Future>(reg: Option<Registry>, fut: F) -> F::
     }
 }
 
-/// Called by the tool registry after every assistant tool call, so a run
-/// records which tools really executed (spec 02 pipeline step 6).
 pub fn note_tool_use(ctx: &AssistCtx, tool: &str, ok: bool) {
     let (Some(run), Some(reg)) = (ctx.run_id.as_deref(), active()) else {
         return;
@@ -599,8 +509,6 @@ fn clip_json(v: Value) -> Value {
     json!({ "clipped": true, "bytes": text.len(), "head": clip(&text, EVENT_PAYLOAD_MAX - 64) })
 }
 
-/// Stable internal id of a provider event: the same provider id in the same
-/// run always maps to the same row.
 fn event_id(run_id: &str, provider_id: &str) -> String {
     use sha2::{Digest, Sha256};
     let mut h = Sha256::new();
@@ -610,7 +518,6 @@ fn event_id(run_id: &str, provider_id: &str) -> String {
     format!("ev-{}", &hex::encode(h.finalize())[..32])
 }
 
-/// Fingerprint helper for callers: sha256 of the canonical JSON.
 pub fn fingerprint(v: &Value) -> String {
     use sha2::{Digest, Sha256};
     let mut h = Sha256::new();
@@ -719,7 +626,6 @@ fn row_receipt(r: &rusqlite::Row<'_>) -> rusqlite::Result<Receipt> {
 const RECEIPT_COLS: &str =
     "operation_id, run_id, fingerprint, state, result, error, created_ms, updated_ms";
 
-/// New run to open.
 #[derive(Debug, Clone, Default)]
 pub struct NewRun {
     pub id: String,
@@ -730,18 +636,13 @@ pub struct NewRun {
     pub input_preview: String,
 }
 
-/// What reconciliation found after a restart.
 #[derive(Debug, Clone, Default, PartialEq, Serialize)]
 pub struct Reconciled {
     pub interrupted: Vec<String>,
     pub unknown: Vec<String>,
-    /// Pending asks another boot held: now `stale` (2.2), never expired
-    /// silently.
     pub permissions_stale: usize,
     pub receipts_unknown: usize,
 }
-
-// ── Registry ──────────────────────────────────────────────────────────────
 
 #[derive(Clone)]
 pub struct Registry {
@@ -793,8 +694,6 @@ impl Registry {
         }
     }
 
-    // ── sessions ──────────────────────────────────────────────────────
-
     pub fn session(&self, conversation: &str, bot: &str) -> Option<RuntimeSession> {
         self.db
             .with(|c| {
@@ -809,10 +708,6 @@ impl Registry {
             .flatten()
     }
 
-    /// The session of (conversation, bot) with these pins. Same pins: the
-    /// existing session and its handle. A changed pin: same session id, a new
-    /// generation, the handle dropped (it belonged to another account, folder
-    /// or executable). Returns the session and whether it was re-pinned.
     pub fn open_session(
         &self,
         conversation: &str,
@@ -880,7 +775,6 @@ impl Registry {
         })
     }
 
-    /// Stores the provider's session id (Claude Code's `session_id`).
     pub fn set_handle(&self, session_id: &str, handle: &str) -> Result<(), String> {
         self.db.with(|c| {
             c.execute(
@@ -891,7 +785,6 @@ impl Registry {
         })
     }
 
-    /// The handle stopped working (the provider forgot it): next turn replays.
     pub fn drop_handle(&self, session_id: &str) -> Result<(), String> {
         self.db.with(|c| {
             c.execute(
@@ -902,10 +795,6 @@ impl Registry {
         })
     }
 
-    // ── runs ──────────────────────────────────────────────────────────
-
-    /// Opens a run in `queued`, persisted before the caller confirms
-    /// anything to the frontend. Opening an id that exists returns it.
     pub fn open_run(&self, new: NewRun) -> Result<RunRecord, String> {
         let now = super::now_ms();
         let preview = clip(&new.input_preview, 400);
@@ -962,8 +851,6 @@ impl Registry {
             .unwrap_or_default()
     }
 
-    /// Moves a run along the state machine and commits before the sink hears
-    /// about it. Refuses a transition the machine does not allow.
     pub fn transition(
         &self,
         id: &str,
@@ -1026,7 +913,6 @@ impl Registry {
         Ok(run)
     }
 
-    /// Attaches the run to its session and records how the runtime rebuilt it.
     pub fn bind_session(
         &self,
         run_id: &str,
@@ -1053,8 +939,6 @@ impl Registry {
         Ok(())
     }
 
-    /// Records the process a run launched: launch id (ours, unique) + pid.
-    /// A pid alone never proves ownership; the launch id ties it to us.
     pub fn set_process(
         &self,
         run_id: &str,
@@ -1070,7 +954,6 @@ impl Registry {
         })
     }
 
-    /// Final numbers of a run. `cost` stays `None` when unknown.
     pub fn set_outcome(
         &self,
         run_id: &str,
@@ -1088,9 +971,6 @@ impl Registry {
         })
     }
 
-    /// A person closes an interrupted/unknown run. `continued_by` names the
-    /// run that picks the work up; `done` marks it completed; neither
-    /// discards it. Nothing is re-sent by this call.
     pub fn resolve_run(
         &self,
         run_id: &str,
@@ -1129,11 +1009,6 @@ impl Registry {
         }
     }
 
-    /// After a restart: every run another instance left live becomes
-    /// `interrupted` (nothing reached the provider: queued/preparing) or
-    /// `unknown` (dispatched: running/waiting_user). Pending permissions of
-    /// those runs expire; admitted receipts become `unknown`. Nothing is
-    /// re-sent: the caller shows the runs and waits for a person.
     pub fn reconcile(&self) -> Result<Reconciled, String> {
         let now = super::now_ms();
         let stale: Vec<RunRecord> = self.db.with(|c| {
@@ -1164,10 +1039,6 @@ impl Registry {
                 )
             })?;
         }
-        // Every ask another boot was waiting on: its waiter died with that
-        // process, so it can never release the call. It becomes `stale` with
-        // the reason (restart the turn), and the person sees it (2.2, focus
-        // of review 2) — whatever state its run is in now.
         out.permissions_stale += self.db.with(|c| {
             c.execute(
                 "UPDATE runs_permissions SET state='stale', channel='boot', note=?3, resolved_ms=?2, version=version+1 WHERE state='pending' AND instance_id <> ?1",
@@ -1175,7 +1046,6 @@ impl Registry {
             )
         })?;
         if out.permissions_stale > 0 {
-            // The audit log says how many questions a restart left (2.8).
             crate::core::llm::audit::log(
                 crate::core::llm::audit::Actor::system("boot"),
                 "ask.stale",
@@ -1186,11 +1056,6 @@ impl Registry {
         Ok(out)
     }
 
-    // ── events ────────────────────────────────────────────────────────
-
-    /// Appends one event. With a `provider_id` the internal id is derived
-    /// from it, so a replayed provider event is the same row (returns
-    /// `Ok(None)` for a duplicate). Returns the new event's sequence.
     pub fn add_event(
         &self,
         run_id: &str,
@@ -1278,11 +1143,6 @@ impl Registry {
             .unwrap_or_default()
     }
 
-    // ── receipts ──────────────────────────────────────────────────────
-
-    /// Admits an operation once. Same id and fingerprint: the stored receipt
-    /// (`Existing`, do not run again). Same id, other fingerprint:
-    /// `ERR_RUNS_FINGERPRINT`. Unique inside one transaction.
     pub fn admit(
         &self,
         operation_id: &str,
@@ -1340,11 +1200,6 @@ impl Registry {
             .flatten()
     }
 
-    // ── permissions ───────────────────────────────────────────────────
-
-    /// [`Self::open_permission`] with everything a durable ask carries (2.2):
-    /// the agent, the elicitation payload, and this boot as its holder. The
-    /// run need not exist (an MCP owner ask has none): the row is the ask.
     pub fn open_ask(&self, ask: NewAsk) -> Result<PermissionRequest, String> {
         let id = new_ask_id();
         let now = super::now_ms();
@@ -1408,7 +1263,6 @@ impl Registry {
             .unwrap_or_default()
     }
 
-    /// Requests in one state (newest first, at most `limit`), any run.
     pub fn permissions_in(&self, state: PermissionState, limit: usize) -> Vec<PermissionRequest> {
         self.db
             .with(|c| {
@@ -1422,10 +1276,6 @@ impl Registry {
             .unwrap_or_default()
     }
 
-    /// The one answer of a request. Applies only while it is pending and
-    /// before its deadline; a late answer marks it expired and is refused
-    /// (`ERR_PERMISSION_EXPIRED`), a second answer is refused
-    /// (`ERR_PERMISSION_RESOLVED`). `answer` ∈ `once|session|always|deny|cancel`.
     pub fn answer_permission(&self, id: &str, answer: &str) -> Result<PermissionRequest, String> {
         self.answer_permission_at(id, answer, super::now_ms())
     }
@@ -1439,7 +1289,6 @@ impl Registry {
         self.answer_permission_by_at(id, answer, &Actor::window(), now)
     }
 
-    /// [`Self::answer_permission`], recording who answered and through what.
     pub fn answer_permission_by(
         &self,
         id: &str,
@@ -1511,8 +1360,6 @@ impl Registry {
         Ok(req)
     }
 
-    /// A person closes a `stale` request (it can no longer be answered: its
-    /// waiter is gone). It becomes `cancelled`, with who closed it.
     pub fn dismiss_stale(&self, id: &str, actor: &Actor) -> Result<PermissionRequest, String> {
         let now = super::now_ms();
         let n = self.db.with(|c| {
@@ -1533,7 +1380,6 @@ impl Registry {
         Ok(req)
     }
 
-    /// The wait ran out with no answer.
     pub fn expire_permission(&self, id: &str) -> Result<Option<PermissionRequest>, String> {
         let now = super::now_ms();
         let n = self.db.with(|c| {
@@ -1551,7 +1397,6 @@ impl Registry {
         Ok(req)
     }
 
-    /// Every pending request of a run becomes `cancelled` (cancel of the run).
     pub fn cancel_permissions(&self, run_id: &str) -> Result<usize, String> {
         let now = super::now_ms();
         let n = self.db.with(|c| {
@@ -1573,7 +1418,6 @@ impl Registry {
             Some(&format!("perm:{}:{}", req.id, req.version)),
             json!({ "permission": req.id, "state": req.state.as_str(), "answer": req.answer }),
         );
-        // Nothing else pending: the run is working again.
         let still = self.permissions(Some(&req.run_id), true);
         if still.is_empty() {
             if let Some(run) = self.run(&req.run_id) {
@@ -1585,12 +1429,9 @@ impl Registry {
     }
 }
 
-/// How a person closes an interrupted or unknown run.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RunResolution {
     ContinuedBy(String),
     MarkedDone,
     Discarded,
 }
-
-// ── Tests ─────────────────────────────────────────────────────────────────

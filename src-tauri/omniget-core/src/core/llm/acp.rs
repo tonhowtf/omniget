@@ -1,18 +1,3 @@
-//! `AcpRuntime`: any CLI that speaks the Agent Client Protocol (Gemini CLI,
-//! `claude-code-acp`, `codex-acp`, goose…) as one more agent of the roster.
-//! Our own client, no SDK: newline-delimited JSON-RPC 2.0 over stdio, read from
-//! `agentclientprotocol/agent-client-protocol` (schema) and `compozy/acp-go-sdk`
-//! (flow): `initialize` → `session/new { cwd }` → `session/prompt`, with the
-//! agent streaming `session/update` notifications and calling back into us for
-//! `session/request_permission`, `fs/read_text_file` and `fs/write_text_file`.
-//!
-//! The MCP stdio transport only routes responses, so ACP has its own reader:
-//! it must also answer requests the agent makes. Line framing is shared.
-//!
-//! One child per conversation, kept alive between turns so the agent keeps its
-//! own context; permissions go through our broker (`ToolAsk` on the bus, the
-//! same prompt the native tools use, "Always" included).
-
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, AtomicI64, Ordering};
@@ -37,7 +22,6 @@ const MAX_LINE: usize = 16 * 1024 * 1024;
 
 type Pending = Arc<StdMutex<HashMap<i64, oneshot::Sender<Result<Value, String>>>>>;
 
-/// A request or notification the agent sent us.
 struct Inbound {
     id: Option<Value>,
     method: String,
@@ -54,14 +38,10 @@ struct Session {
     session_id: String,
     cwd: PathBuf,
     command: String,
-    /// The agent can reopen a session by id (`loadSession` capability).
     load_session: bool,
-    /// Projection token of this session (refreshed every turn).
     grant_id: Option<String>,
 }
 
-/// What `start` should do about the session: create one, or reopen the one
-/// the agent gave us before (only when it announces `loadSession`).
 struct StartOptions {
     mcp_server: Option<Value>,
     grant_id: Option<String>,
@@ -159,8 +139,6 @@ async fn start(
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::null())
         .kill_on_drop(true);
-    // claude-code-acp 0.16 hangs in `session/new` on the Claude Code bundled in
-    // its SDK; the user's own `claude` (the one that is logged in) answers.
     if command.contains("claude-code-acp") && std::env::var_os("CLAUDE_CODE_EXECUTABLE").is_none() {
         let found = std::env::var_os("PATH").and_then(|path| {
             std::env::split_paths(&path)
@@ -221,7 +199,6 @@ async fn start(
     let init = wait(rx).await.map_err(|e| format!("initialize: {e}"))?;
     let caps = &init["agentCapabilities"];
     session.load_session = caps["loadSession"].as_bool().unwrap_or(false);
-    // Our assistant tools go in only over a transport the agent announced.
     let http = caps["mcpCapabilities"]["http"].as_bool().unwrap_or(false);
     let servers: Vec<Value> = match (&opts.mcp_server, http) {
         (Some(server), true) => {
@@ -230,7 +207,6 @@ async fn start(
         }
         _ => Vec::new(),
     };
-    // Reopen the agent's own session when it can; otherwise a new one.
     if let (Some(id), true) = (&opts.load, session.load_session) {
         let (msg, rx) = call(
             &session,
@@ -240,8 +216,6 @@ async fn start(
         session.write(&msg).await?;
         if wait(rx).await.is_ok() {
             session.session_id = id.clone();
-            // The agent replays the history as `session/update`s; drop them
-            // so the next turn does not show the past again.
             if let Ok(mut inbound) = session.inbound.try_lock() {
                 while inbound.try_recv().is_ok() {}
             }
@@ -290,8 +264,6 @@ fn text_of(message: &Message) -> String {
         .join("\n")
 }
 
-/// A fresh child has no memory: it gets the transcript. A live one only needs
-/// the last user message.
 fn prompt_for(req: &TurnRequest, fresh: bool) -> String {
     let last_user = req.messages.iter().rposition(|m| m.role == Role::User);
     let last = last_user
@@ -349,15 +321,12 @@ impl AgentRuntime for AcpRuntime {
                 format!("agent `{}` is not an ACP agent", agent.id),
             ));
         };
-        // The coordinator opens the turn scope around this call.
         let ctx = super::code_tools::current_turn();
         let conversation = ctx
             .as_ref()
             .map(|c| c.conversation.clone())
             .unwrap_or_else(|| format!("acp-{}", agent.id));
         let request_id = ctx.as_ref().map(|c| c.request.clone()).unwrap_or_default();
-        // The conversation's own folder; a personal conversation runs in an
-        // empty private folder of the bot, never in the last folder used.
         let workspace = ctx
             .as_ref()
             .and_then(|c| super::code_tools::workspace_of(&c.conversation));
@@ -386,7 +355,6 @@ impl AgentRuntime for AcpRuntime {
             match live {
                 Some(s) => (s, false, false),
                 None => {
-                    // A token for this session, when the bridge is up.
                     let (mcp_server, grant_id) =
                         match (&registry, crate::core::assist::projection::endpoint()) {
                             (Some(reg), Some(url)) => match crate::core::assist::projection::issue(
@@ -415,8 +383,6 @@ impl AgentRuntime for AcpRuntime {
                             },
                             _ => (None, None),
                         };
-                    // The agent's handle from an earlier app session, if the
-                    // folder and command are the same.
                     let load = registry.as_ref().and_then(|reg| {
                         reg.session(&conversation, &agent.id)
                             .filter(|s| {
@@ -447,7 +413,6 @@ impl AgentRuntime for AcpRuntime {
                 }
             }
         };
-        // Each turn: this turn's grants and run on the session's token.
         if let (Some(reg), Some(id)) = (&registry, &session.grant_id) {
             let _ = crate::core::assist::projection::refresh(
                 reg.db(),
@@ -590,11 +555,9 @@ async fn handle_inbound(
                 "agent_thought_chunk" if !chunk.is_empty() => {
                     let _ = tx.send(TurnEvent::ThinkingDelta { text: chunk }).await;
                 }
-                // The agent runs its own tools: shown, never re-executed by us.
                 "tool_call" | "tool_call_update"
                     if registry.is_some() && u["toolCallId"].is_string() =>
                 {
-                    // Recorded once per id and status (the agent's own tools).
                     if let Some(reg) = registry {
                         let id = u["toolCallId"].as_str().unwrap_or("");
                         let status = u["status"].as_str().unwrap_or("pending");
@@ -667,8 +630,6 @@ async fn handle_inbound(
             let preview = format!("{title}\n{raw}");
             let label = format!("acp:{kind}");
             let subject = json!({ "command": title });
-            // The conversation's run mode answers what it allows without a
-            // question (2.7); a stored deny rule still wins.
             let preallowed = super::run_mode::of(conversation)
                 .and_then(|m| super::run_mode::acp_preallowed(m, kind))
                 .unwrap_or(false);
@@ -746,7 +707,6 @@ async fn handle_inbound(
     }
 }
 
-/// ACP-capable CLIs we know how to launch, for the detection in the Accounts tab.
 pub const KNOWN: &[(&str, &str, &str, &[&str])] = &[
     ("gemini", "Gemini CLI", "gemini", &["--experimental-acp"]),
     (
@@ -760,7 +720,6 @@ pub const KNOWN: &[(&str, &str, &str, &[&str])] = &[
     ("opencode", "opencode", "opencode", &["acp"]),
 ];
 
-/// Which of [`KNOWN`] are on the PATH right now.
 pub async fn detect() -> Vec<Value> {
     let mut out = Vec::new();
     for (id, name, bin, args) in KNOWN {

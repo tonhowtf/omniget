@@ -1,11 +1,3 @@
-//! Commands for `assist::groups`: rooms, their messages and runs, shares,
-//! conversation context and app-owned worktrees. Owner: worker W5.
-//!
-//! Member turns are real turns of the roster bots, each in its own session
-//! (`"<room>~<bot>"`), started through [`AppDispatcher`] and streamed on
-//! `llm://turn` like a direct chat. Room changes are announced on
-//! `assist://group` as `{ room_id, kind }` so the open room reloads.
-
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -31,7 +23,6 @@ fn emit(app: &AppHandle, room: &str, kind: &str, extra: Value) {
     let _ = app.emit(EVENT_GROUP, payload);
 }
 
-/// Starts member turns for the room engine and reports their end back.
 pub struct AppDispatcher {
     app: AppHandle,
 }
@@ -39,7 +30,6 @@ pub struct AppDispatcher {
 #[async_trait::async_trait]
 impl tasks::RoomDispatcher for AppDispatcher {
     async fn start(&self, room: &str, bot: &str, input: String) -> Result<String, String> {
-        // LOCAL_USER dispatcher: never an external room or a derived bot (H1).
         db::global()?.with(|c| Ok(xc::deny_local_dispatch(c, Some(room), bot)))??;
         let manager = self.app.state::<AppState>().llm.clone();
         ensure_wired(&self.app);
@@ -99,7 +89,6 @@ impl tasks::RoomDispatcher for AppDispatcher {
     }
 }
 
-/// Installs the dispatcher the first time a room is used in this session.
 fn dispatcher(app: &AppHandle) -> Arc<dyn tasks::RoomDispatcher> {
     if let Some(d) = tasks::dispatcher() {
         return d;
@@ -122,7 +111,6 @@ fn to_value<T: serde::Serialize>(v: T) -> Result<Value, String> {
     serde_json::to_value(v).map_err(|e| e.to_string())
 }
 
-/// External rooms are read-only locally; local rooms take no derived bot.
 fn local_edit_allowed(room: Option<&str>, draft: Option<&RoomDraft>) -> Result<(), String> {
     let db = db::global()?;
     db.with(|c| {
@@ -138,9 +126,6 @@ fn local_edit_allowed(room: Option<&str>, draft: Option<&RoomDraft>) -> Result<(
     })?
 }
 
-/// Rooms with, for an external one, `external: { principal, grantId,
-/// grantActive, retired, readOnly }` so the UI shows it as a read-only
-/// object of that client instead of a normal room.
 #[tauri::command]
 pub async fn assist_group_list() -> Result<Value, String> {
     let db = db::global()?;
@@ -203,7 +188,6 @@ pub async fn assist_group_delete(app: AppHandle, room_id: String) -> Result<Valu
     Ok(json!({ "ok": true }))
 }
 
-/// The room transcript plus its runs and delegated tasks (activity).
 #[tauri::command]
 pub async fn assist_group_messages(room_id: String) -> Result<Value, String> {
     let db = db::global()?;
@@ -215,8 +199,6 @@ pub async fn assist_group_messages(room_id: String) -> Result<Value, String> {
     }))
 }
 
-/// A user message: persisted, routed (mention → that member; none →
-/// coordinator or default bot), and only the routed members start a run.
 #[tauri::command]
 pub async fn assist_group_send(
     app: AppHandle,
@@ -231,7 +213,6 @@ pub async fn assist_group_send(
     to_value(out)
 }
 
-/// Cancels what is still running in the room; finished answers stay.
 #[tauri::command]
 pub async fn assist_group_cancel(app: AppHandle, room_id: String) -> Result<Value, String> {
     let db = db::global()?;
@@ -245,9 +226,6 @@ pub async fn assist_group_shares(room_id: String) -> Result<Value, String> {
     to_value(store::shares(&*db::global()?, &room_id)?)
 }
 
-/// The user shares a scope (`user` = personal profile, `bot:<id>` = a bot's
-/// private memory) or one record into a room. Only this command creates a
-/// share; no tool can.
 #[tauri::command]
 pub async fn assist_group_share(
     app: AppHandle,
@@ -258,7 +236,6 @@ pub async fn assist_group_share(
 ) -> Result<Value, String> {
     let scope =
         Scope::parse(&scope).ok_or_else(|| format!("{}: unknown scope", groups::ERR_GROUP))?;
-    // Local memory is never shared into an external room.
     local_edit_allowed(Some(&room_id), None)?;
     let share = store::add_share(
         &*db::global()?,
@@ -282,7 +259,6 @@ pub async fn assist_group_unshare(
     Ok(json!({ "ok": true }))
 }
 
-/// `{ kind: "projectless" | "project", path }` of one conversation.
 #[tauri::command]
 pub async fn assist_conversation_context(conversation_id: String) -> Result<Value, String> {
     let (kind, path) = groups::context_of(&crate::llm_manager::sanitize_id(&conversation_id));

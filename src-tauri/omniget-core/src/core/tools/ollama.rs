@@ -1,6 +1,3 @@
-//! Ollama (estudo 18): detectar o daemon em `127.0.0.1:11434`, listar,
-//! baixar (stream NDJSON de `/api/pull`) e remover modelos.
-
 use anyhow::anyhow;
 use serde::{Deserialize, Serialize};
 

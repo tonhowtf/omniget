@@ -1,8 +1,3 @@
-//! `wmb_capabilities`: what this machine is and which modules make sense on
-//! it. The screen and the agents decide what to show from this one answer,
-//! so a module of another system never appears, and a module of this system
-//! missing a requirement appears with the reason.
-
 use std::path::Path;
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
@@ -19,7 +14,6 @@ pub struct Linux {
     pub distro_name: String,
     pub package_managers: Vec<String>,
     pub flatpak_sandbox: bool,
-    /// `power-profiles-daemon`, `tlp`, `auto-cpufreq`, `tuned`: the ones running.
     pub power_managers: Vec<String>,
     pub gamemode: bool,
     pub mangohud: bool,
@@ -47,7 +41,6 @@ pub struct Macos {
 pub struct Module {
     pub id: &'static str,
     pub available: bool,
-    /// i18n key under `washmybelly.reason.*` when something is missing.
     pub reason_key: Option<&'static str>,
     pub state: &'static str,
 }
@@ -69,7 +62,6 @@ pub struct Capabilities {
     pub helper_installed: bool,
 }
 
-/// Every module in screen order, and the systems it exists on.
 pub const MODULES: &[(&str, &[Os], &str)] = &[
     ("overview", &[], "stable"),
     ("clean", &[], "stable"),
@@ -117,7 +109,6 @@ fn is_admin() -> bool {
     }
     #[cfg(windows)]
     {
-        // `net session` only succeeds in an elevated token; no extra API.
         crate::core::process::std_command("net")
             .args(["session"])
             .output()
@@ -232,8 +223,6 @@ fn detect_windows() -> Windows {
     }
 }
 
-/// Full Disk Access is only known by reading a protected file (the TCC
-/// database of the user), as PureMac does.
 fn full_disk_access() -> bool {
     let Some(home) = dirs::home_dir() else {
         return false;
@@ -283,8 +272,6 @@ fn os_version() -> String {
     }
 }
 
-/// Which modules this machine gets. Pure over the detected facts, so the
-/// rules are tested for all three systems on any CI.
 pub fn modules_for(os: Os, linux: Option<&Linux>, macos: Option<&Macos>) -> Vec<Module> {
     MODULES
         .iter()
@@ -300,10 +287,7 @@ pub fn modules_for(os: Os, linux: Option<&Linux>, macos: Option<&Macos>) -> Vec<
                 ("packages", Os::Linux) if linux.is_some_and(|l| l.package_managers.is_empty()) => {
                     reason = Some("washmybelly.reason.no_package_manager")
                 }
-                ("clean", Os::Macos) if macos.is_some_and(|m| !m.full_disk_access) => {
-                    // Still available: most caches do not need Full Disk
-                    // Access; the screen shows the hint for the rest.
-                }
+                ("clean", Os::Macos) if macos.is_some_and(|m| !m.full_disk_access) => {}
                 _ => {}
             }
             Module {
@@ -349,7 +333,6 @@ pub fn detect() -> Capabilities {
 
 static CACHE: Mutex<Option<(Instant, Value)>> = Mutex::new(None);
 
-/// Cached for five minutes; `refresh` recomputes.
 pub fn cached(refresh: bool) -> Value {
     if !refresh {
         if let Ok(c) = CACHE.lock() {

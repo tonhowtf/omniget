@@ -1,20 +1,3 @@
-//! Integrating a job's branch into the user's checkout (roadmap 3.5, S20,
-//! 78#P3): a local `git merge --no-ff` or `--squash` + commit, never a PR.
-//!
-//! It is the first time OmniGet writes in the user's repository outside an
-//! agent's folder, so the rules are strict:
-//! - the checkout must be on a branch (not detached) with no tracked change
-//!   and no merge, rebase, cherry-pick or revert in progress; untracked files
-//!   are allowed (git itself refuses a merge that would overwrite one, before
-//!   anything starts);
-//! - the merge commit and the squash commit are the user's: their git
-//!   identity and their hooks (`pre-merge-commit`, `pre-commit`,
-//!   `commit-msg`) run, and a hook that fails is a failure with its output;
-//! - on a conflict or any failure the merge is undone (`merge --abort`, then
-//!   `reset --merge` if something is still left) and the checkout is checked
-//!   again: the answer says `clean` only when there is no `MERGE_HEAD`, no
-//!   `SQUASH_MSG` and no tracked change.
-
 use std::path::Path;
 use std::time::Duration;
 
@@ -26,10 +9,8 @@ use super::runner::{VcsError, VcsResult};
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum Strategy {
-    /// `merge --no-ff`: one merge commit, the job's commits kept.
     #[default]
     Merge,
-    /// `merge --squash` + one commit with the job's title.
     Squash,
 }
 
@@ -43,24 +24,17 @@ impl Strategy {
     }
 }
 
-/// What the checkout looks like before an integration.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
 pub struct Preview {
-    /// The branch the job would be merged into (`None` = detached HEAD).
     pub target_branch: Option<String>,
     pub head: String,
-    /// Tracked files changed in the checkout (they block the merge).
     pub dirty: Vec<String>,
-    /// `MERGE_HEAD`, `rebase-merge`… : an operation already in progress.
     pub in_progress: Option<String>,
-    /// `git log --oneline HEAD..branch`: what the merge brings, newest first.
     pub commits: Vec<String>,
-    /// The branch holds nothing the checkout lacks.
     pub up_to_date: bool,
 }
 
 impl Preview {
-    /// Why the merge cannot start, or `None`.
     pub fn blocker(&self) -> Option<String> {
         if self.target_branch.is_none() {
             return Some("your checkout is on a detached HEAD: switch to a branch first".into());
@@ -87,18 +61,12 @@ impl Preview {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
 pub struct Outcome {
-    /// `merged` | `up_to_date` | `conflict` | `failed`
     pub status: String,
     pub strategy: Strategy,
     pub target_branch: String,
-    /// The new commit on the target branch.
     pub commit: Option<String>,
-    /// Files in conflict (status `conflict`).
     pub conflicts: Vec<String>,
-    /// Tail of git's output (hook messages included) when it failed.
     pub output: String,
-    /// After a conflict or failure: the checkout was verified back to where
-    /// it was (no `MERGE_HEAD`, no `SQUASH_MSG`, no tracked change).
     pub clean: bool,
 }
 
@@ -112,7 +80,6 @@ async fn text(ctx: &GitCtx, args: &[&str]) -> VcsResult<String> {
     Ok(ctx.git().args(args).run().await?.trimmed())
 }
 
-/// Tracked changes (staged or not) of the checkout, by path.
 async fn tracked_dirty(ctx: &GitCtx) -> VcsResult<Vec<String>> {
     let out = ctx
         .git()
@@ -127,7 +94,6 @@ async fn tracked_dirty(ctx: &GitCtx) -> VcsResult<Vec<String>> {
         .collect())
 }
 
-/// The operation in progress in the checkout, by its marker in the git dir.
 fn in_progress(git_dir: &Path) -> Option<String> {
     [
         ("MERGE_HEAD", "merge"),
@@ -141,7 +107,6 @@ fn in_progress(git_dir: &Path) -> Option<String> {
     .map(|(_, op)| op.to_string())
 }
 
-/// What integrating `branch` into the checkout at `repo` would do.
 pub async fn preview(repo: &Path, branch: &str) -> VcsResult<Preview> {
     if branch.starts_with('-') || branch.is_empty() {
         return Err(VcsError::Invalid(format!("bad branch name `{branch}`")));
@@ -183,8 +148,6 @@ pub async fn preview(repo: &Path, branch: &str) -> VcsResult<Preview> {
     })
 }
 
-/// Undoes whatever a failed merge left and says whether the checkout is
-/// back: no `MERGE_HEAD`, no `SQUASH_MSG`, no tracked change.
 async fn restore(ctx: &GitCtx, git_dir: &Path) -> bool {
     if git_dir.join("MERGE_HEAD").exists() {
         let _ = ctx.git().args(["merge", "--abort"]).unchecked().run().await;
@@ -194,9 +157,6 @@ async fn restore(ctx: &GitCtx, git_dir: &Path) -> bool {
         .map(|d| !d.is_empty())
         .unwrap_or(true);
     if git_dir.join("MERGE_HEAD").exists() || dirty {
-        // A squash has no MERGE_HEAD for `--abort` to use; `reset --merge`
-        // puts back the tracked files the merge touched and keeps untracked
-        // ones. The checkout was clean before, so nothing of the user's goes.
         let _ = ctx.git().args(["reset", "--merge"]).unchecked().run().await;
     }
     let _ = std::fs::remove_file(git_dir.join("SQUASH_MSG"));
@@ -220,9 +180,6 @@ async fn conflicted(ctx: &GitCtx) -> Vec<String> {
         .unwrap_or_default()
 }
 
-/// Merges `branch` into the branch checked out at `repo`. `Err` = refused
-/// before anything was touched (a precondition); `Ok` with `conflict` or
-/// `failed` = tried and undone (`clean` says the checkout is back).
 pub async fn integrate(
     repo: &Path,
     branch: &str,
@@ -312,9 +269,6 @@ pub async fn integrate(
     Ok(out)
 }
 
-/// Deletes a job branch the user chose to throw away (`branch -D`), and
-/// returns the commit it pointed at, so the log can say how to get it back
-/// (`git branch <name> <sha>`) until git collects it.
 pub async fn delete_branch(repo: &Path, branch: &str) -> VcsResult<Option<String>> {
     if branch.starts_with('-') || branch.is_empty() {
         return Err(VcsError::Invalid(format!("bad branch name `{branch}`")));

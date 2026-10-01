@@ -1,15 +1,3 @@
-//! The assistant database: one SQLite file, versioned migrations owned by
-//! each module, a consistent backup before any pending migration runs.
-//!
-//! Every module declares `pub const MIGRATIONS: &[Migration]` with its own
-//! `module` name and increasing `version`s. [`AssistDb::open`] applies what is
-//! missing, one migration per transaction, and records it in
-//! `schema_migrations`. A migration that fails rolls back alone and `open`
-//! returns the error: the file keeps the previous, usable schema, and the
-//! backup taken before the first pending migration is still on disk.
-//!
-//! Never edit a migration that shipped; add a new version.
-
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, OnceLock, RwLock};
 
@@ -17,7 +5,6 @@ use rusqlite::{Connection, Transaction};
 
 pub const ERR_ASSIST_DB: &str = "ERR_ASSIST_DB";
 pub const DB_FILE: &str = "assist.db";
-/// Backups kept next to the database (`assist.db.bak-<ms>`), newest first.
 pub const KEEP_BACKUPS: usize = 3;
 
 #[derive(Debug, Clone, Copy)]
@@ -27,7 +14,6 @@ pub struct Migration {
     pub sql: &'static str,
 }
 
-/// Every module's migrations, in the order they are applied on a new file.
 pub fn all_migrations() -> Vec<Migration> {
     let mut out = Vec::new();
     out.extend_from_slice(super::bots::MIGRATIONS);
@@ -65,25 +51,17 @@ fn err<E: std::fmt::Display>(what: &str, e: E) -> String {
 }
 
 impl AssistDb {
-    /// Opens (creating) the file and applies every pending migration.
     pub fn open(path: &Path) -> Result<Self, String> {
         Self::open_with(path, &all_migrations())
     }
 
-    /// [`open`] with an explicit migration list (tests inject failures here).
     pub fn open_with(path: &Path, migrations: &[Migration]) -> Result<Self, String> {
-        // The first launch opens the file from two threads at once; SQLite
-        // does not always wait for the lock while switching a new file to
-        // WAL, so openers in this process take turns. Another process (the
-        // CLI) is covered by the immediate transaction of each migration.
         static OPENING: Mutex<()> = Mutex::new(());
         let _turn = OPENING.lock().unwrap_or_else(|e| e.into_inner());
         if let Some(dir) = path.parent() {
             std::fs::create_dir_all(dir).map_err(|e| err("creating the folder", e))?;
         }
         let conn = Connection::open(path).map_err(|e| err("opening", e))?;
-        // Before any pragma: switching to WAL needs the lock too, and another
-        // opener may hold it on the first launch.
         conn.busy_timeout(std::time::Duration::from_secs(5))
             .map_err(|e| err("opening", e))?;
         let db = Self {
@@ -95,7 +73,6 @@ impl AssistDb {
         Ok(db)
     }
 
-    /// A private database in memory, with every migration applied.
     pub fn open_in_memory() -> Result<Self, String> {
         let conn = Connection::open_in_memory().map_err(|e| err("opening", e))?;
         let db = Self {
@@ -153,14 +130,10 @@ impl AssistDb {
         if pending.is_empty() {
             return Ok(());
         }
-        // Old data exists: copy it aside before touching the schema.
         if self.path.is_some() && self.has_user_tables() {
             self.backup_now()?;
         }
         for m in pending {
-            // Another connection may be migrating the same file at the same
-            // time (two parts of the app open it on the first launch): take
-            // the write lock first and skip what it already applied.
             let mut conn = self.conn.lock().unwrap_or_else(|e| e.into_inner());
             let tx = conn
                 .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
@@ -190,8 +163,6 @@ impl AssistDb {
         Ok(())
     }
 
-    /// A consistent copy of the whole database (`VACUUM INTO`), kept next to
-    /// it; only the newest [`KEEP_BACKUPS`] survive. Returns the file.
     pub fn backup_now(&self) -> Result<PathBuf, String> {
         let Some(path) = self.path.clone() else {
             return Err(err("backup", "in-memory database"));
@@ -202,7 +173,6 @@ impl AssistDb {
         Ok(dest)
     }
 
-    /// `VACUUM INTO` a file of the caller's choice (exports, tests).
     pub fn backup_to(&self, dest: &Path) -> Result<(), String> {
         if dest.exists() {
             return Err(err("backup", format!("{} already exists", dest.display())));
@@ -211,13 +181,11 @@ impl AssistDb {
         self.with(|c| c.execute_batch(&format!("VACUUM INTO '{target}'")))
     }
 
-    /// Runs `f` with the connection. Keep it short: every caller shares it.
     pub fn with<T>(&self, f: impl FnOnce(&Connection) -> rusqlite::Result<T>) -> Result<T, String> {
         let conn = self.conn.lock().unwrap_or_else(|e| e.into_inner());
         f(&conn).map_err(|e| err("query", e))
     }
 
-    /// Runs `f` inside one transaction; any `Err` rolls everything back.
     pub fn tx<T>(&self, f: impl FnOnce(&Transaction) -> Result<T, String>) -> Result<T, String> {
         let mut conn = self.conn.lock().unwrap_or_else(|e| e.into_inner());
         let tx = conn.transaction().map_err(|e| err("begin", e))?;
@@ -251,22 +219,16 @@ fn prune_backups(path: &Path) {
     }
 }
 
-// ── The process-wide instance ─────────────────────────────────────────────
-
 static GLOBAL: OnceLock<RwLock<Option<Arc<AssistDb>>>> = OnceLock::new();
 
 fn slot() -> &'static RwLock<Option<Arc<AssistDb>>> {
     GLOBAL.get_or_init(|| RwLock::new(None))
 }
 
-/// Installs the database the tools and commands use (the app does this at
-/// boot with `<llm>/assist.db`; tests with a temp file or memory).
 pub fn set_global(db: Arc<AssistDb>) {
     *slot().write().unwrap_or_else(|e| e.into_inner()) = Some(db);
 }
 
-/// The installed database. Opens `<llm dir>/assist.db` on first use when no
-/// one installed one.
 pub fn global() -> Result<Arc<AssistDb>, String> {
     if let Some(db) = slot().read().unwrap_or_else(|e| e.into_inner()).clone() {
         return Ok(db);
@@ -330,7 +292,6 @@ mod tests {
         }
         let failed = AssistDb::open_with(&path, &[A1, A2_BROKEN]);
         assert!(failed.is_err(), "the broken migration must surface");
-        // Old schema and row intact, and the pre-migration backup exists.
         let db = AssistDb::open_with(&path, &[A1]).unwrap();
         let v: String = db
             .with(|c| c.query_row("SELECT v FROM t_items WHERE id='a'", [], |r| r.get(0)))
@@ -343,7 +304,6 @@ mod tests {
             .count();
         assert!(backups >= 1);
         drop(db);
-        // The fixed migration applies once; opening again changes nothing.
         let db = AssistDb::open_with(&path, &[A1, A2_FIXED]).unwrap();
         drop(db);
         let db = AssistDb::open_with(&path, &[A1, A2_FIXED]).unwrap();

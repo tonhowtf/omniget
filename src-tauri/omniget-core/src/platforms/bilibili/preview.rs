@@ -237,7 +237,6 @@ pub async fn fetch(client: &ApiClient, item: &EpisodeItem, kind: &UrlKind) -> Re
     }
 }
 
-/// A Bilibili login is the SESSDATA cookie with a value.
 fn has_login_cookie(cookie_header: Option<&str>) -> bool {
     cookie_header.is_some_and(|h| {
         h.split(';').any(|c| {
@@ -248,8 +247,6 @@ fn has_login_cookie(cookie_header: Option<&str>) -> bool {
     })
 }
 
-/// Query of the UGC wbi playurl. Anonymous calls add try_look=1 like the web
-/// player and yt-dlp (bilibili.py:221-222, 832-833); logged-in ones must not.
 fn ugc_playurl_params(bvid: &str, cid: u64, logged_in: bool) -> Vec<(&'static str, String)> {
     let mut params: Vec<(&'static str, String)> = vec![
         ("bvid", bvid.to_string()),
@@ -622,9 +619,6 @@ mod tests {
         assert_eq!(picked.qn, AUDIO_HIRES);
     }
 
-    // yt-dlp bilibili.py:221-222 and 832-833: without a login the web
-    // player asks playurl with try_look=1, which lifts the 480p cap for
-    // anonymous viewers; a logged-in session must not send it.
     #[test]
     fn anonymous_ugc_playurl_asks_try_look() {
         let params = ugc_playurl_params("BV1xx411c7mD", 123, false);

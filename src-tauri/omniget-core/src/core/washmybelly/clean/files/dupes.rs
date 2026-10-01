@@ -1,7 +1,3 @@
-//! Exact duplicates: group by size, then a hash of the first and last 64 KB,
-//! then a full xxh3-128 hash. Hashes are cached by (dev, inode, size, mtime)
-//! in `hashcache.sqlite`; hardlinks of one inode are one file, not copies.
-
 use std::collections::{HashMap, HashSet};
 use std::io::{Read, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
@@ -53,7 +49,6 @@ fn collect(roots: &[PathBuf], min: u64) -> Vec<File> {
                 continue;
             }
             let (dev, ino) = dev_ino(&m, e.path());
-            // Another name of an inode already seen: the same file, not a copy.
             if !seen_ino.insert((dev, ino)) {
                 continue;
             }
@@ -85,7 +80,6 @@ fn read_full(f: &mut std::fs::File, buf: &mut [u8]) -> std::io::Result<usize> {
     Ok(n)
 }
 
-/// Head and tail; a file up to 128 KB is hashed whole (then it is also the full hash).
 fn partial_hash(p: &Path, len: u64) -> Option<u128> {
     let mut f = std::fs::File::open(p).ok()?;
     if len <= 2 * EDGE {
@@ -118,7 +112,6 @@ fn full_hash(p: &Path) -> Option<u128> {
     Some(h.digest128())
 }
 
-/// Map in parallel with scoped threads (no rayon in the core).
 fn par_map<T: Sync, R: Send + Default + Clone>(items: &[T], f: impl Fn(&T) -> R + Sync) -> Vec<R> {
     let threads = std::thread::available_parallelism()
         .map(|n| n.get())
@@ -149,8 +142,6 @@ fn par_map<T: Sync, R: Send + Default + Clone>(items: &[T], f: impl Fn(&T) -> R 
     }
     out
 }
-
-// ── Hash cache ───────────────────────────────────────────────────────
 
 struct Cache {
     db: Option<Connection>,
@@ -220,7 +211,6 @@ impl Cache {
     }
 }
 
-/// Hash `files` (indices into `all`) with the cache, computing misses in parallel.
 fn hashes(
     all: &[File],
     idx: &[usize],
@@ -242,7 +232,6 @@ fn hashes(
     for (k, h) in missing.into_iter().zip(computed) {
         if let Some(h) = h {
             cache.put(&all[idx[k]], col, h);
-            // Small files: the partial hash is the whole file.
             if col == "partial" && all[idx[k]].len <= 2 * EDGE {
                 cache.put(&all[idx[k]], "full", h);
             }
@@ -266,11 +255,7 @@ fn group_by(idx: Vec<usize>, keys: Vec<Option<u128>>, all: &[File]) -> Vec<(u128
         .collect()
 }
 
-/// Download folders, caches and temp folders hold the copy to let go.
 fn in_scratch_place(p: &Path) -> bool {
-    // Judge only what is below the home folder (or below the first folder
-    // of the volume): `/tmp/...` or `/var/folders/.../T/` as a whole is not
-    // what makes one copy more disposable than another.
     let home = dirs::home_dir();
     let rel: &Path = match home.as_deref().and_then(|h| p.strip_prefix(h).ok()) {
         Some(r) => r,
@@ -290,8 +275,6 @@ fn in_scratch_place(p: &Path) -> bool {
     })
 }
 
-/// Which file of a group to keep: outside Downloads/caches first, then the
-/// oldest, then the shortest path.
 pub(super) fn pick_keep(paths: &[(&Path, i64)]) -> usize {
     (0..paths.len())
         .min_by_key(|&i| {
@@ -335,7 +318,6 @@ pub fn find_duplicates(ctx: &Ctx, a: &Value) -> Result<Value, String> {
     let all = collect(&roots, min);
     let scanned = all.len();
 
-    // 1. Size.
     let mut by_size: HashMap<u64, Vec<usize>> = HashMap::new();
     for (i, f) in all.iter().enumerate() {
         by_size.entry(f.len).or_default().push(i);
@@ -346,7 +328,6 @@ pub fn find_duplicates(ctx: &Ctx, a: &Value) -> Result<Value, String> {
         .flatten()
         .collect();
 
-    // 2. Partial hash.
     let mut cache = Cache::open(ctx);
     let partial = hashes(&all, &idx, &mut cache, "partial", "partial_hash");
     let pmap: HashMap<usize, u128> = idx
@@ -356,7 +337,6 @@ pub fn find_duplicates(ctx: &Ctx, a: &Value) -> Result<Value, String> {
         .collect();
     let groups = group_by(idx, partial, &all);
 
-    // 3. Full hash (files up to 128 KB were hashed whole already).
     let (small, big): (Vec<usize>, Vec<usize>) = groups
         .into_iter()
         .flat_map(|(_, v)| v)
@@ -367,7 +347,6 @@ pub fn find_duplicates(ctx: &Ctx, a: &Value) -> Result<Value, String> {
     let small_keys = small.iter().map(|i| pmap.get(i).copied()).collect();
     final_groups.extend(group_by(small, small_keys, &all));
 
-    // Keep one per group; offer the others.
     let mut out_groups = Vec::new();
     let mut trash_items = Vec::new();
     let mut kept_items: Vec<PlanItem> = Vec::new();
@@ -391,8 +370,6 @@ pub fn find_duplicates(ctx: &Ctx, a: &Value) -> Result<Value, String> {
                 .push(json!({ "path": f.path, "mtime": f.mtime / 1_000_000_000, "keep": is_keep }));
             let root = &roots[f.root];
             if is_keep {
-                // The kept copy is a candidate too (unticked), so the screen
-                // can switch which file of the group stays.
                 if protect::check(&f.path, Guard::Picked, Some(root)).is_ok() {
                     if let Ok(fp) = fsops::fingerprint(&f.path) {
                         kept_items.push(PlanItem {
@@ -494,8 +471,6 @@ pub fn find_duplicates(ctx: &Ctx, a: &Value) -> Result<Value, String> {
     } else {
         Some(plan::offer(ctx, "duplicates", trash_items, source)?.id)
     };
-    // The clone alternative is its own plan over the same kind: pick either
-    // the Trash items or the clone items of a file, never both.
     let clone_plan_id = if clone_items.is_empty() {
         None
     } else {

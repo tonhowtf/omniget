@@ -1,6 +1,3 @@
-//! `/video` superpower (Watch): library, courses, player server, study tools
-//! and pluggable sources.
-
 pub mod addons;
 pub mod anilist;
 pub mod cast;
@@ -18,8 +15,6 @@ pub mod study;
 use serde::{Deserialize, Serialize};
 
 pub use server::ServerInfo;
-
-// ---------- shared types (mirror src/lib/video/types.ts) ----------
 
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
@@ -102,7 +97,6 @@ pub struct Chapter {
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct StreamInfo {
     pub index: i64,
-    /// "video" | "audio" | "subtitle"
     pub kind: String,
     pub codec: String,
     pub lang: String,
@@ -125,7 +119,6 @@ pub struct Progress {
     pub watched: bool,
     pub play_count: i64,
     pub last_played: Option<i64>,
-    /// 0..1, share of distinct seconds actually watched
     pub seen_ratio: f64,
 }
 
@@ -176,7 +169,6 @@ pub struct ItemsQuery {
     pub offset: Option<i64>,
 }
 
-/// What to play. Tagged by `kind`, like the TS union.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 #[serde(tag = "kind", rename_all = "lowercase")]
 pub enum SourceRef {
@@ -210,7 +202,6 @@ pub struct ContinueEntry {
     pub subtitle: String,
     pub thumb: Option<String>,
     pub progress: Progress,
-    /// "resume" | "next"
     pub kind: String,
     pub source: SourceRef,
 }
@@ -233,7 +224,6 @@ pub struct CourseSummary {
 pub struct Attachment {
     pub path: String,
     pub name: String,
-    /// "pdf" | "code" | "subtitle" | "archive" | "image" | "doc" | "other"
     pub kind: String,
 }
 
@@ -317,11 +307,9 @@ pub struct SubtitleTrack {
     pub id: String,
     pub label: String,
     pub lang: String,
-    /// WebVTT, absolute, token included
     pub url: String,
     pub default: bool,
     pub forced: bool,
-    /// "embedded" | "external" | "online" | "generated" | "remote"
     pub source: String,
 }
 
@@ -351,12 +339,9 @@ pub struct PlayPrefs {
     pub subtitle_id: Option<String>,
     pub audio_index: Option<i64>,
     pub subtitle_delay_ms: i64,
-    /// percent, 100 = default
     pub subtitle_size: i64,
     pub subtitle_bg: bool,
-    /// 0..1
     pub volume: f64,
-    /// "off" | "skip" | "speed"
     pub skip_silence: String,
     pub auto_pause: bool,
 }
@@ -384,16 +369,12 @@ pub struct PlaybackInfo {
     pub title: String,
     pub subtitle: String,
     pub source: SourceRef,
-    /// absolute URL the `<video>` loads
     pub url: String,
     pub mode: PlayMode,
-    /// true when the URL starts at `offset_ms` (remux/transcode with ss)
     pub seek_reloads: bool,
     pub offset_ms: i64,
-    /// short English "why this mode"
     pub reason: String,
     pub duration_ms: i64,
-    /// resume point (already minus 5 s)
     pub start_ms: i64,
     pub is_live: bool,
     pub subtitles: Vec<SubtitleTrack>,
@@ -407,7 +388,6 @@ pub struct PlaybackInfo {
 }
 
 impl PlaybackInfo {
-    /// A blank remote playback, for the source resolvers to fill in.
     pub fn remote(key: String, source: SourceRef, url: String) -> Self {
         Self {
             key,
@@ -506,8 +486,6 @@ pub struct ScanProgress {
     pub finished: bool,
 }
 
-// ---------- plumbing ----------
-
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::{Mutex, OnceLock};
@@ -561,7 +539,6 @@ fn folder_name(p: &str) -> String {
         .unwrap_or_default()
 }
 
-/// Title and one-line subtitle for a local item.
 pub fn local_labels(row: &MediaRow) -> (String, String) {
     let it = &row.item;
     match it.kind {
@@ -609,8 +586,6 @@ pub fn local_labels(row: &MediaRow) -> (String, String) {
     }
 }
 
-// ---------- progress rules (thin adapters over the core) ----------
-
 fn rule_should_record(pos: i64, dur: i64) -> bool {
     rules::Rules::default().should_record(pos.max(0) as u64, dur.max(0) as u64)
 }
@@ -642,11 +617,8 @@ fn sessions() -> &'static Mutex<HashMap<String, Session>> {
     S.get_or_init(|| Mutex::new(HashMap::new()))
 }
 
-/// A gap this long between reports starts a new viewing session (a new
-/// history row and a new chance to count a play).
 const SESSION_GAP_MS: i64 = 30 * 60 * 1000;
 
-/// Title, subtitle and source for any key, for history rows.
 fn labels_for_key(key: &str) -> (String, String, Option<SourceRef>) {
     if let Some(hash) = key.strip_prefix("local:") {
         if let Ok(Some(row)) = db::media_by_hash(hash) {
@@ -714,7 +686,6 @@ fn progress_apply(r: &ProgressReport) -> Result<Progress, String> {
     }
     let s = sess.get_mut(&r.key).ok_or("session missing")?;
 
-    // distinct seconds actually watched
     let dur_s = (dur / 1000).max(1) as u64;
     let mut bits = match &old_seen {
         Some(b) => rules::SeenBits::from_bytes(b.clone()),
@@ -722,8 +693,6 @@ fn progress_apply(r: &ProgressReport) -> Result<Progress, String> {
     };
     let from = match r.watched_from_ms {
         Some(f) => Some(f),
-        // no hint from the caller: trust continuous playback between reports
-        // (up to 4x speed plus slack), never a seek
         None if !fresh && pos > s.last_pos => {
             let elapsed = now - s.last_report;
             (pos - s.last_pos <= elapsed * 4 + 5_000).then_some(s.last_pos)
@@ -782,7 +751,6 @@ fn progress_apply(r: &ProgressReport) -> Result<Progress, String> {
         })?;
     }
 
-    // history: one row per session, once it counts as "watched a bit"
     if record {
         match s.history_id {
             Some(id) => {
@@ -823,9 +791,6 @@ fn progress_apply(r: &ProgressReport) -> Result<Progress, String> {
     })
 }
 
-// ---------- public helpers used by the sources (W4) and cast ----------
-
-/// Records one progress report for any key (`jf:`, `iptv:`, `addon:`...).
 pub fn progress_record(
     key: &str,
     position_ms: i64,
@@ -841,8 +806,6 @@ pub fn progress_record(
     })
 }
 
-/// Stores title, subtitle and thumbnail of a remote item so Continue and
-/// History can show it without asking the source again.
 pub fn remember_item(
     key: &str,
     title: &str,
@@ -853,8 +816,6 @@ pub fn remember_item(
     db::set_item_meta(key, title, subtitle, thumb, source)
 }
 
-/// Resume point for a key: `(start_ms, progress)`. `start_ms` is 0 when the
-/// item should start from the beginning (short, watched or barely started).
 pub fn resume_for(key: &str) -> Result<(i64, Option<Progress>), String> {
     let Some((p, ..)) = db::progress_get(key)? else {
         return Ok((0, None));
@@ -867,8 +828,6 @@ pub fn resume_for(key: &str) -> Result<(i64, Option<Progress>), String> {
     Ok((start, Some(p)))
 }
 
-/// Resolves a `local` or `url` source into something playable. `force` picks
-/// a delivery mode for local files (cast prefers `Transcode`).
 pub async fn resolve_play(
     app: &AppHandle,
     source: SourceRef,
@@ -882,8 +841,6 @@ pub async fn resolve_play(
     }
 }
 
-// ---------- prefs ----------
-
 fn overlay(base: &mut serde_json::Value, top: &serde_json::Value) {
     if let (Some(b), Some(t)) = (base.as_object_mut(), top.as_object()) {
         for (k, v) in t {
@@ -894,7 +851,6 @@ fn overlay(base: &mut serde_json::Value, top: &serde_json::Value) {
     }
 }
 
-/// Global, then group (course or show), then the item itself.
 pub fn merged_prefs(scopes: &[String]) -> PlayPrefs {
     let mut v = serde_json::to_value(PlayPrefs::default()).unwrap_or_default();
     for sc in std::iter::once("global".to_string()).chain(scopes.iter().cloned()) {
@@ -940,7 +896,6 @@ pub async fn video_prefs_get(
     .await
 }
 
-/// Patches the prefs of a scope; a `null` field goes back to inheriting.
 #[tauri::command]
 pub async fn video_prefs_set(scope: String, prefs: serde_json::Value) -> Result<(), String> {
     blocking(move || {
@@ -966,8 +921,6 @@ pub async fn video_prefs_set(scope: String, prefs: serde_json::Value) -> Result<
     })
     .await
 }
-
-// ---------- status & roots ----------
 
 #[derive(Serialize)]
 pub struct VideoStatus {
@@ -1028,8 +981,6 @@ fn add_root(path: &str, kind: RootKind) -> Result<String, String> {
     Ok(norm)
 }
 
-/// Forgets a root and its rows (the files stay on disk, progress stays too:
-/// it is keyed by content).
 fn forget_root(path: &str) -> Result<(), String> {
     db::with_mut(|c| {
         let tx = c.transaction()?;
@@ -1060,7 +1011,6 @@ pub async fn video_roots_remove(app: AppHandle, path: String) -> Result<Vec<Root
     db::roots()
 }
 
-/// Starts a scan in the background; progress comes as `video-scan-progress`.
 #[tauri::command]
 pub async fn video_scan(app: AppHandle) -> Result<(), String> {
     tauri::async_runtime::spawn(async move {
@@ -1070,8 +1020,6 @@ pub async fn video_scan(app: AppHandle) -> Result<(), String> {
     });
     Ok(())
 }
-
-// ---------- items ----------
 
 fn escape_like(s: &str) -> String {
     s.replace('\\', "\\\\")
@@ -1116,7 +1064,6 @@ pub async fn video_items(query: ItemsQuery) -> Result<Vec<MediaItem>, String> {
             }),
             Some(MediaKind::Episode) => {
                 rows.sort_by(|a, b| natural(a.item.show.as_deref().unwrap_or(""), b.item.show.as_deref().unwrap_or("")));
-                // stable within a show
                 let mut grouped: Vec<MediaRow> = Vec::with_capacity(rows.len());
                 let mut i = 0;
                 while i < rows.len() {
@@ -1151,10 +1098,6 @@ pub async fn video_item(id: i64) -> Result<MediaItem, String> {
     blocking(move || db::media_by_id(id).map(|r| r.item)).await
 }
 
-// ---------- shows ----------
-
-/// Next episode/lesson to watch in an ordered list: after the one played
-/// last, the first not watched; if nothing was played, the first not watched.
 fn next_up(ordered: &[MediaRow]) -> Option<&MediaRow> {
     let last = ordered
         .iter()
@@ -1243,8 +1186,6 @@ pub async fn video_show(name: String) -> Result<ShowDetail, String> {
     })
     .await
 }
-
-// ---------- courses ----------
 
 fn course_rows(id: i64) -> Result<Vec<MediaRow>, String> {
     let mut rows = db::media_where("WHERE m.course_id = ?1", &[&id])?;
@@ -1375,7 +1316,6 @@ pub async fn video_course(id: i64) -> Result<CourseDetail, String> {
                 }),
             }
         }
-        // attachments tied to a lesson that is no longer there
         loose.extend(by_lesson.into_values().flatten());
         Ok(CourseDetail {
             course: summary,
@@ -1386,7 +1326,6 @@ pub async fn video_course(id: i64) -> Result<CourseDetail, String> {
     .await
 }
 
-/// Adds a folder as a course and indexes it before returning.
 #[tauri::command]
 pub async fn video_course_import(app: AppHandle, path: String) -> Result<CourseSummary, String> {
     let norm = add_root(&path, RootKind::Course)?;
@@ -1399,7 +1338,6 @@ pub async fn video_course_import(app: AppHandle, path: String) -> Result<CourseS
     .await
 }
 
-/// Takes a course out of the library. Files and progress stay.
 #[tauri::command]
 pub async fn video_course_remove(app: AppHandle, id: i64) -> Result<(), String> {
     blocking(move || {
@@ -1411,12 +1349,9 @@ pub async fn video_course_remove(app: AppHandle, id: i64) -> Result<(), String> 
     Ok(())
 }
 
-// ---------- home ----------
-
 fn continue_entries() -> Result<Vec<ContinueEntry>, String> {
     let mut out: Vec<(i64, ContinueEntry)> = Vec::new();
     let mut groups_with_resume = std::collections::HashSet::new();
-    // resumes
     type ResumeRow = (String, i64, i64, i64, Option<i64>, Option<Vec<u8>>);
     let rows: Vec<ResumeRow> = db::with(|c| {
         let mut st = c.prepare(
@@ -1487,7 +1422,6 @@ fn continue_entries() -> Result<Vec<ContinueEntry>, String> {
         };
         out.push((last.unwrap_or(0), entry));
     }
-    // next episode / lesson of groups in progress
     let hidden: std::collections::HashSet<String> = db::with(|c| {
         let mut st = c.prepare("SELECT key FROM progress WHERE hidden = 1")?;
         let rows = st.query_map([], |r| r.get(0))?;
@@ -1535,7 +1469,6 @@ fn continue_entries() -> Result<Vec<ContinueEntry>, String> {
             .map(|p| p.position_ms > 0 && !p.watched)
             .unwrap_or(false)
         {
-            // already listed as a resume (or too short to resume)
             continue;
         }
         let (title, subtitle) = local_labels(next);
@@ -1584,8 +1517,6 @@ pub async fn video_home(app: AppHandle) -> Result<Home, String> {
     .await
 }
 
-// ---------- watch state ----------
-
 #[tauri::command]
 pub async fn video_progress(report: ProgressReport) -> Result<Progress, String> {
     blocking(move || progress_apply(&report)).await
@@ -1628,7 +1559,6 @@ pub async fn video_set_watched(keys: Vec<String>, watched: bool) -> Result<(), S
     .await
 }
 
-/// Takes an item off "Continue" without touching its progress.
 #[tauri::command]
 pub async fn video_continue_remove(key: String) -> Result<(), String> {
     blocking(move || {
@@ -1694,8 +1624,6 @@ pub async fn video_history_clear() -> Result<(), String> {
     .await
 }
 
-// ---------- play ----------
-
 fn probe_of(id: i64) -> Result<Option<probe::ProbeData>, String> {
     let raw: Option<String> = db::with(|c| {
         c.query_row(
@@ -1744,7 +1672,6 @@ async fn ensure_probe(row: &MediaRow) -> Result<probe::ProbeData, String> {
     Ok(d)
 }
 
-/// Ordered neighbours: the course, else the show, else the folder.
 fn siblings(row: &MediaRow) -> Result<Vec<i64>, String> {
     let rows = if let Some(c) = row.item.course_id {
         course_rows(c)?
@@ -1783,8 +1710,6 @@ pub async fn play_local(
     if row.item.offline || !path.exists() {
         return Err("This video is offline. Reconnect its drive or folder and scan again.".into());
     }
-    // without ffprobe there is nothing to decide on: try the file as is and
-    // let the player's fallback take over
     let (d, probed) = match ensure_probe(&row).await {
         Ok(d) => (d, true),
         Err(e) => {
@@ -1802,7 +1727,6 @@ pub async fn play_local(
     })
     .await?;
 
-    // audio tracks, `index` is the position among audio streams (the `ai=`)
     let audios: Vec<&StreamInfo> = d.audio_streams().collect();
     let audio_tracks: Vec<AudioTrack> = audios
         .iter()
@@ -1858,7 +1782,6 @@ pub async fn play_local(
     let offset_ms = if seek_reloads { start_ms } else { 0 };
     let url = server::url(&mode_path(mode, id, offset_ms, ai));
 
-    // subtitles: external files with the same name, then embedded text tracks
     let shift = if offset_ms > 0 {
         format!("&o={}", -offset_ms)
     } else {
@@ -1906,8 +1829,6 @@ pub async fn play_local(
             source: "embedded".into(),
         });
     }
-    // the user's choice wins; forced tracks only when nothing was chosen
-    // subtitle_id "off" = turned off on purpose: nothing is enabled
     let off = prefs.subtitle_id.as_deref() == Some("off");
     let pick = prefs
         .subtitle_id
@@ -1982,8 +1903,6 @@ pub async fn video_play(app: AppHandle, source: SourceRef) -> Result<PlaybackInf
     sources::resolve(&app, source, false).await
 }
 
-/// Maps a progress key (from an `omniget://watch?key=` link in exported
-/// notes) back to something playable.
 #[tauri::command]
 pub async fn video_source_for_key(key: String) -> Result<SourceRef, String> {
     blocking(move || {
@@ -2004,9 +1923,6 @@ pub async fn video_source_for_key(key: String) -> Result<SourceRef, String> {
     .await
 }
 
-/// Plays a file picked or dropped from outside the library. It is indexed
-/// under its own folder (without adding that folder as a root) so progress,
-/// notes and history work like any other video.
 #[tauri::command]
 pub async fn video_open_path(app: AppHandle, path: String) -> Result<PlaybackInfo, String> {
     server::ensure(&app).await?;
@@ -2018,8 +1934,6 @@ pub async fn video_open_path(app: AppHandle, path: String) -> Result<PlaybackInf
     play_local(id, None, None).await
 }
 
-/// The next delivery layer after `failed_mode`
-/// (direct → remux → transcode_audio → transcode).
 #[tauri::command]
 pub async fn video_play_fallback(
     app: AppHandle,
@@ -2039,12 +1953,9 @@ pub async fn video_play_fallback(
             .await
         }
         SourceRef::Url { url } => link::resolve_fallback(&app, &url, failed_mode).await,
-        // remote sources already pick their own delivery; ask them again
         other => sources::resolve(&app, other, false).await,
     }
 }
-
-// ---------- external player & reveal ----------
 
 fn find_in_path(names: &[&str]) -> Option<PathBuf> {
     names.iter().find_map(|n| which::which(n).ok())

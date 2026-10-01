@@ -1,7 +1,3 @@
-//! YouTube Music browsing commands (WEB_REMIX on music.youtube.com): home,
-//! explore, search, albums, artists, playlists, the up-next queue and
-//! lyrics (YT Music first, then LRCLIB).
-
 use omniget_core::core::tube::filters::FilterCtx;
 use omniget_core::core::tube::parse::music as pm;
 use omniget_core::core::tube::{
@@ -92,7 +88,6 @@ pub async fn tube_music_playlist(id: String) -> Result<PlaylistPage, String> {
     Ok(page)
 }
 
-/// Fields the YT Music web app sends with `next` for a song queue.
 fn queue_fields(body: &mut Value) {
     if let Some(obj) = body.as_object_mut() {
         obj.insert("isAudioOnly".into(), json!(true));
@@ -118,8 +113,6 @@ async fn next(
     .await
 }
 
-/// Up-next queue. `radio` starts the endless radio of the song
-/// (`RDAMVM<id>`, params `wAEB`).
 #[tauri::command]
 pub async fn tube_music_next(
     video_id: String,
@@ -176,8 +169,6 @@ async fn lrclib_lyrics(
     Ok(lrc::lrclib_pick(&http::get_json(&url).await?, duration_s))
 }
 
-/// `lyrics_provider`: "auto" (YT Music, then LRCLIB when YT Music has no
-/// synced text), "youtube", "lrclib" or "off".
 #[tauri::command]
 pub async fn tube_music_lyrics(
     video_id: String,
@@ -199,7 +190,6 @@ pub async fn tube_music_lyrics(
                 .await
                 .ok()
                 .flatten();
-            // synced beats plain text, whoever has it
             match (yt, lrclib) {
                 (_, Some(l)) if l.synced => Ok(Some(l)),
                 (Some(y), _) => Ok(Some(y)),
@@ -229,8 +219,6 @@ fn library_browse_id(kind: &str) -> Option<&'static str> {
     })
 }
 
-/// The account's library. Without an account: an empty page (the front
-/// shows the sign-in invite).
 #[tauri::command]
 pub async fn tube_music_library(kind: String) -> Result<Page, String> {
     if !account::is_logged_in() {
@@ -239,7 +227,6 @@ pub async fn tube_music_library(kind: String) -> Result<Page, String> {
     let id = library_browse_id(&kind).ok_or("unknown library section")?;
     let json = browse(id, None).await?;
     if id == "VLLM" {
-        // "Liked music" is a playlist; show it as one list
         let pl = pm::music_playlist(&json, "LM");
         return Ok(Page {
             shelves: vec![Shelf {

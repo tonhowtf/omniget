@@ -1,11 +1,3 @@
-//! Shared pieces of the hook converters (plan §4.3 "Hook", F5).
-//!
-//! Every non-Claude dialect runs the original hook command through
-//! `omniget-hook-shim` ([`super::hook_shim`]): the shim turns the tool's stdin
-//! into Claude's hook JSON, runs the command, and turns Claude's answer (exit 2,
-//! `hookSpecificOutput.permissionDecision`, `decision`) back into what the tool
-//! expects. So the 62 catalog hooks run unchanged everywhere.
-
 use std::path::{Path, PathBuf};
 use std::sync::RwLock;
 
@@ -16,20 +8,10 @@ use crate::core::agentkit::model::{Component, HookEntry, HookSpec};
 use crate::core::agentkit::targets::TargetAdapter;
 use crate::core::agentkit::{AgentkitError, Env, Os, Result, Scope};
 
-/// File name of the shim binary (without `.exe`).
 pub const SHIM_NAME: &str = "omniget-hook-shim";
 
-/// The same binary as the release bundle ships it: a Tauri `externalBin`
-/// sidecar under its own name. `tauri-build` copies every sidecar into
-/// `target/<profile>/` under that name, and in a dev or CI build the sidecar
-/// is an empty placeholder (`build.rs`): named `omniget-hook-shim`, it would
-/// overwrite the cargo binary of the same name in the shared target.
 pub const SHIM_SIDECAR: &str = "omniget-hook";
 
-/// Whether `p` can be run as the shim: a non-empty file that starts like an
-/// executable (Mach-O, ELF, PE or a `#!` script). The empty sidecar
-/// placeholder of a dev build is not one: a hook command pointing at it
-/// fails in the shell, which Claude Code reads as "no objection".
 pub fn usable_binary(p: &Path) -> bool {
     use std::io::Read;
     let Ok(meta) = std::fs::metadata(p) else {
@@ -60,16 +42,12 @@ pub fn usable_binary(p: &Path) -> bool {
 
 static SHIM_OVERRIDE: RwLock<Option<PathBuf>> = RwLock::new(None);
 
-/// Pins the shim path written into hook commands (tests, or the host after it
-/// copied the shim somewhere stable). `None` restores the lookup.
 pub fn set_shim_path(p: Option<PathBuf>) {
     if let Ok(mut g) = SHIM_OVERRIDE.write() {
         *g = p;
     }
 }
 
-/// The path [`set_shim_path`] pinned, if any (the host's copy in
-/// `<app_data>/bin/`).
 pub fn pinned_shim() -> Option<PathBuf> {
     SHIM_OVERRIDE.read().ok().and_then(|g| g.clone())
 }
@@ -82,14 +60,11 @@ fn exe_name(os: Os) -> String {
     }
 }
 
-/// Absolute path of the shim for hook commands: the override, else next to the
-/// running executable when it is there, else `<app_data>/bin/`.
 pub fn shim_path(env: &Env) -> PathBuf {
     if let Some(p) = SHIM_OVERRIDE.read().ok().and_then(|g| g.clone()) {
         return p;
     }
     let name = exe_name(env.os);
-    // a sandboxed env (tests, compat) never points at the machine's binaries
     let sandboxed = env.path_var.is_none() && !env.probe_versions;
     if !sandboxed {
         if let Some(dir) = std::env::current_exe()
@@ -105,8 +80,6 @@ pub fn shim_path(env: &Env) -> PathBuf {
     env.app_data.join("bin").join(name)
 }
 
-/// Quotes one argument for the shell the tool runs hook commands with
-/// (`sh -c` on macOS/Linux, `cmd /C` on Windows).
 pub fn quote(s: &str, os: Os) -> String {
     if os == Os::Windows {
         if !s.is_empty() && !s.contains([' ', '"', '&', '|', '<', '>', '^', '%', '\t']) {
@@ -126,19 +99,15 @@ pub fn quote(s: &str, os: Os) -> String {
     }
 }
 
-/// PowerShell single-quoted literal.
 pub fn ps_quote(s: &str) -> String {
     format!("'{}'", s.replace('\'', "''"))
 }
 
-/// Arguments that go between the shim and `--` for one hook.
 #[derive(Debug, Clone, Default)]
 pub struct ShimCall<'a> {
     pub tool: &'a str,
     pub event: &'a str,
     pub native_event: Option<&'a str>,
-    /// Canonical (Claude) matcher checked by the shim, for tools that cannot
-    /// filter by tool name themselves.
     pub matcher: Option<&'a str>,
 }
 
@@ -162,7 +131,6 @@ impl ShimCall<'_> {
     }
 }
 
-/// `'<shim>' --tool x --event E -- '<original>'` for a POSIX/cmd shell.
 pub fn shim_command(env: &Env, call: &ShimCall, original: &str) -> String {
     let os = env.os;
     let mut parts = vec![quote(&shim_path(env).display().to_string(), os)];
@@ -172,7 +140,6 @@ pub fn shim_command(env: &Env, call: &ShimCall, original: &str) -> String {
     parts.join(" ")
 }
 
-/// The same line for a PowerShell field (Copilot `powershell`, Cascade `powershell`).
 pub fn shim_command_ps(env: &Env, call: &ShimCall, original: &str) -> String {
     let mut parts = vec![format!(
         "& {}",
@@ -184,8 +151,6 @@ pub fn shim_command_ps(env: &Env, call: &ShimCall, original: &str) -> String {
     parts.join(" ")
 }
 
-/// Support scripts of a hook placed for a target, plus the command rewrites
-/// (`.claude/hooks/x.py` → `.cursor/hooks/x.py`, absolute in global scope).
 pub fn support_files(
     c: &Component,
     h: &HookSpec,
@@ -235,8 +200,6 @@ pub fn apply_rewrites(cmd: &str, rewrites: &[(String, String)]) -> String {
     out
 }
 
-/// One hook entry ready for a dialect: canonical event, native events, command
-/// (support paths rewritten, not yet wrapped), matcher both ways, timeout (s).
 #[derive(Debug, Clone)]
 pub struct Prepared {
     pub event: String,
@@ -248,9 +211,6 @@ pub struct Prepared {
     pub entry: HookEntry,
 }
 
-/// Walks a hook's entries for a target: maps events, rewrites support paths,
-/// and collects what is lost (events without equivalent, non-command handlers,
-/// Claude-only handler fields).
 pub fn prepare(
     h: &HookSpec,
     target: &TargetAdapter,
@@ -314,7 +274,6 @@ pub fn prepare(
     (out, losses, commands)
 }
 
-/// Number for a JSON timeout field (integer when whole).
 pub fn num(v: f64) -> Value {
     if v.fract() == 0.0 {
         Value::from(v as i64)
@@ -323,7 +282,6 @@ pub fn num(v: f64) -> Value {
     }
 }
 
-/// Note shown on every file whose commands go through the shim.
 pub fn shim_note(env: &Env) -> String {
     format!(
         "hook commands run through {} (translates the tool's hook input/output to Claude's); it must stay at that path",
@@ -331,7 +289,6 @@ pub fn shim_note(env: &Env) -> String {
     )
 }
 
-/// Merges `losses`/`commands`/`notes` into the first planned file.
 pub fn annotate(
     files: &mut [PlannedFile],
     losses: Vec<String>,
@@ -357,7 +314,6 @@ pub fn annotate(
     }
 }
 
-/// Claude-only env vars the catalog uses that no other tool sets.
 pub fn legacy_env_loss(c: &Component) -> Option<String> {
     c.files
         .iter()
@@ -369,8 +325,6 @@ pub fn legacy_env_loss(c: &Component) -> Option<String> {
         .then(|| "uses $CLAUDE_TOOL_FILE_PATH/$CLAUDE_TOOL_NAME, which no tool sets (the shim gives the JSON on stdin)".to_string())
 }
 
-/// `true` when a canonical matcher could match this Claude tool name
-/// (letters-only matchers are exact lists, anything else a regex).
 pub fn matcher_matches(matcher: &str, tool: &str) -> bool {
     let m = matcher.trim();
     if m.is_empty() || m == "*" {
@@ -390,7 +344,6 @@ pub fn matcher_matches(matcher: &str, tool: &str) -> bool {
         .unwrap_or(false)
 }
 
-/// The installed name of the unit (collision rename honoured).
 pub fn unit_name(c: &Component, ctx: &ConvertCtx) -> String {
     ctx.name_for(c)
 }

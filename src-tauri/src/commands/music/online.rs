@@ -1,10 +1,3 @@
-//! Free web services the music app talks to. None need an API key.
-//!
-//! * LRCLIB: synced lyrics by artist/title/album/duration.
-//! * MusicBrainz + Cover Art Archive: fill tags and covers. MusicBrainz asks
-//!   for at most one request per second and a descriptive User-Agent.
-//! * Radio Browser: the community station directory.
-
 use std::sync::OnceLock;
 use std::time::{Duration, Instant};
 
@@ -30,8 +23,6 @@ fn client() -> &'static reqwest::Client {
     })
 }
 
-// ---------- LRCLIB ----------
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LrclibRecord {
@@ -52,8 +43,6 @@ pub struct LrclibRecord {
     pub synced_lyrics: Option<String>,
 }
 
-/// Exact match first (`/api/get` accepts ±2 s of duration drift), then a
-/// search ranked by synced lyrics and duration distance.
 pub async fn lrclib_find(
     artist: &str,
     title: &str,
@@ -72,7 +61,6 @@ pub async fn lrclib_find(
         if duration_s > 0.0 {
             q.push(("duration", format!("{}", duration_s.round() as i64)));
         }
-        // LRCLIB matches the album exactly when given, so retry without it
         let mut attempts = vec![q.clone()];
         if !album.is_empty() {
             attempts.push(q.into_iter().filter(|(k, _)| *k != "album_name").collect());
@@ -135,8 +123,6 @@ pub async fn lrclib_find(
     }
     Ok(out)
 }
-
-// ---------- MusicBrainz ----------
 
 static MB_LAST: OnceLock<Mutex<Option<Instant>>> = OnceLock::new();
 
@@ -224,7 +210,6 @@ pub async fn musicbrainz_search(
     for rec in v["recordings"].as_array().cloned().unwrap_or_default() {
         let artist = credit(&rec["artist-credit"]);
         let releases = rec["releases"].as_array().cloned().unwrap_or_default();
-        // prefer official albums over compilations and bootlegs
         let mut rels = releases.clone();
         rels.sort_by_key(|r| {
             let official = r["status"].as_str() == Some("Official");
@@ -294,7 +279,6 @@ pub async fn musicbrainz_search(
     Ok(out)
 }
 
-/// Downloads an image (cover art), following the Archive's redirects.
 pub async fn fetch_image(url: &str) -> Result<Vec<u8>, String> {
     let u = url::Url::parse(url).map_err(|e| e.to_string())?;
     if !matches!(u.scheme(), "http" | "https") {
@@ -313,8 +297,6 @@ pub async fn fetch_image(url: &str) -> Result<Vec<u8>, String> {
     }
     Ok(bytes.to_vec())
 }
-
-// ---------- Radio Browser ----------
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct RbStation {
@@ -367,7 +349,6 @@ async fn rb_base() -> String {
     if let Some(b) = g.as_ref() {
         return b.clone();
     }
-    // the directory spreads load across mirrors; pick one that answers
     let mut picked = None;
     if let Ok(r) = client()
         .get("https://all.api.radio-browser.info/json/servers")
@@ -403,7 +384,6 @@ async fn rb_get(path: &str, query: &[(&str, String)]) -> Result<serde_json::Valu
             Ok(r) => last_err = r.status().to_string(),
             Err(e) => last_err = e.to_string(),
         }
-        // this mirror failed: forget it so the next call picks again
         if let Some(lock) = RB_BASE.get() {
             *lock.lock().await = None;
         }
@@ -473,14 +453,12 @@ pub async fn radio_tags() -> Result<Vec<RbTag>, String> {
     serde_json::from_value(v).map_err(|e| e.to_string())
 }
 
-/// Tells the directory a station was played (its popularity ranking).
 pub async fn radio_click(uuid: &str) {
     if uuid.chars().all(|c| c.is_ascii_hexdigit() || c == '-') && !uuid.is_empty() {
         let _ = rb_get(&format!("/json/url/{uuid}"), &[]).await;
     }
 }
 
-/// `.pls` / `.m3u` links point at the real stream; players need the stream.
 pub async fn resolve_stream(url: &str) -> Result<String, String> {
     let lower = url.to_ascii_lowercase();
     let path = lower.split('?').next().unwrap_or(&lower).to_string();

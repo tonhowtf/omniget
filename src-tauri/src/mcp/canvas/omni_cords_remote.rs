@@ -1,14 +1,9 @@
-//! Canvas MCP helpers of package "omni-cords-remote": node addressing the
-//! way the checklist writes it ("B @ W2", "W1/A", "ground/A") and cords
-//! across floors and workspaces (`crate::canvas::link`).
-
 use omniget_core::core::canvas::model::CanvasNode;
 use omniget_core::core::canvas::store::CanvasStore;
 use serde_json::{json, Value};
 
 use super::{list, locate_in, st, ws_of};
 
-/// Nodes titled `name` (exact, else case-insensitive) in `ws`, optionally one floor.
 fn find_in(
     s: &CanvasStore,
     ws: &str,
@@ -68,8 +63,6 @@ fn floor_by(s: &CanvasStore, ws: &str, key: &str) -> Option<String> {
     })
 }
 
-/// A node from `key`: an id or title, "Name @ Workspace" (or "Name @ Floor"),
-/// "Workspace/Name" or "Floor/Name" (floor of the call's workspace).
 pub fn locate_end(
     s: &CanvasStore,
     a: &Value,
@@ -97,7 +90,6 @@ pub fn locate_end(
             return find_in(s, &ws, Some(&f), name);
         }
         if let Some(w) = workspace_by(s, place) {
-            // "W1/ground/A" or "W1/A".
             if let Some((fl, n2)) = name.split_once('/') {
                 if let Some(f) = floor_by(s, &w, fl) {
                     return find_in(s, &w, Some(&f), n2.trim());
@@ -109,7 +101,6 @@ pub fn locate_end(
     direct
 }
 
-/// `canvas_cord_create` between two ends on different floors/workspaces.
 pub fn link(
     a: &Value,
     from: (String, String, CanvasNode),

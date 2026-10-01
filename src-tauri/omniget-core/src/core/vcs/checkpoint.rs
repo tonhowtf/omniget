@@ -1,14 +1,3 @@
-//! Per-turn checkpoints as hidden refs
-//! `refs/omniget/checkpoints/<b64url(thread)>/turn/<N>`, one commit each,
-//! built through a temporary `GIT_INDEX_FILE`: the user's index, branch,
-//! stash and HEAD never move. Untracked files are captured, ignored ones are
-//! not (`add -A` honors `.gitignore`). Turn 0 is the baseline before the
-//! first turn.
-//!
-//! A folder with no git gets the same thing in a shadow git dir under the app
-//! data dir, the way `llm::snapshot` does its undo (same exclude list, never a
-//! `.git` inside the user's folder).
-
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
@@ -45,7 +34,6 @@ pub struct Checkpoint {
     pub commit: String,
     pub tree: String,
     pub at: i64,
-    /// Taken in a shadow git dir (the folder has no git).
     pub shadow: bool,
 }
 
@@ -68,8 +56,6 @@ fn shadow_dir_for(work_tree: &Path) -> VcsResult<PathBuf> {
     Ok(shadow_root()?.join(hex))
 }
 
-/// The context checkpoints of `path` live in: its repository, or a shadow
-/// git dir when there is none (created on first use).
 pub async fn context_for(path: &Path) -> VcsResult<GitCtx> {
     match repo::discover(path).await {
         Ok(p) => Ok(GitCtx::Repo { work_tree: p.root }),
@@ -102,7 +88,6 @@ pub async fn context_for(path: &Path) -> VcsResult<GitCtx> {
     }
 }
 
-/// A temporary index file that is removed (with its lock) on drop.
 struct TempIndex {
     path: PathBuf,
 }
@@ -126,15 +111,11 @@ async fn has_head(ctx: &GitCtx) -> VcsResult<bool> {
         .ok())
 }
 
-/// Builds a temp index that mirrors the work tree right now (tracked +
-/// untracked, minus ignored). The real index is only read, never written.
 async fn stage_worktree(ctx: &GitCtx) -> VcsResult<TempIndex> {
     let git_dir = ctx.git_dir().await?;
     stage_worktree_at(ctx, &git_dir).await
 }
 
-/// [`stage_worktree`] when the caller already knows the git dir (one git
-/// spawn less: the job diff and the job worktree run on every job end).
 async fn stage_worktree_at(ctx: &GitCtx, git_dir: &Path) -> VcsResult<TempIndex> {
     let tmp = TempIndex {
         path: git_dir.join(format!(
@@ -144,21 +125,16 @@ async fn stage_worktree_at(ctx: &GitCtx, git_dir: &Path) -> VcsResult<TempIndex>
     };
     let real = git_dir.join("index");
     let mut seeded = false;
-    if real.is_file() {
-        // Copying keeps the stat cache (fast `add -A` on big trees). The copy's
-        // mtime goes 1 s before the original's so git's racy-clean check still
-        // re-reads any file touched in the same second as the real index.
-        if std::fs::copy(&real, &tmp.path).is_ok() {
-            if let Ok(meta) = std::fs::metadata(&real) {
-                if let Ok(m) = meta.modified() {
-                    let back = m.checked_sub(Duration::from_secs(1)).unwrap_or(m);
-                    if let Ok(f) = std::fs::OpenOptions::new().write(true).open(&tmp.path) {
-                        let _ = f.set_modified(back);
-                    }
+    if real.is_file() && std::fs::copy(&real, &tmp.path).is_ok() {
+        if let Ok(meta) = std::fs::metadata(&real) {
+            if let Ok(m) = meta.modified() {
+                let back = m.checked_sub(Duration::from_secs(1)).unwrap_or(m);
+                if let Ok(f) = std::fs::OpenOptions::new().write(true).open(&tmp.path) {
+                    let _ = f.set_modified(back);
                 }
             }
-            seeded = true;
         }
+        seeded = true;
     }
     if !seeded && has_head(ctx).await? {
         ctx.git()
@@ -184,9 +160,6 @@ async fn stage_worktree_at(ctx: &GitCtx, git_dir: &Path) -> VcsResult<TempIndex>
             .timeout(Some(Duration::from_secs(300)))
     };
     if let Err(e) = add(&[]).run().await {
-        // Nested repos without a commit and unreadable files: keep going with
-        // what can be staged instead of losing the whole checkpoint.
-        // `--ignore-errors` still exits 1 after skipping; 128 is a real failure.
         let retry = add(&["--ignore-errors"]).unchecked().run().await?;
         if retry.code == Some(128) || retry.code.is_none() {
             return Err(e);
@@ -205,13 +178,11 @@ async fn write_tree(ctx: &GitCtx, idx: &TempIndex) -> VcsResult<String> {
         .trimmed())
 }
 
-/// Tree id of the work tree as it is now, without writing any ref.
 pub async fn live_tree(ctx: &GitCtx) -> VcsResult<String> {
     let idx = stage_worktree(ctx).await?;
     write_tree(ctx, &idx).await
 }
 
-/// [`live_tree`] with the (absolute, per-worktree) git dir already known.
 pub async fn live_tree_at(ctx: &GitCtx, git_dir: &Path) -> VcsResult<String> {
     let idx = stage_worktree_at(ctx, git_dir).await?;
     write_tree(ctx, &idx).await
@@ -236,8 +207,6 @@ async fn commit_tree(ctx: &GitCtx, tree: &str, message: &str) -> VcsResult<Strin
         .trimmed())
 }
 
-/// Captures turn `turn` of `thread` in the checkout at `path`. Capturing the
-/// same turn again moves the ref (the last capture wins).
 pub async fn capture(path: &Path, thread: &str, turn: u32) -> VcsResult<Checkpoint> {
     validate_thread(thread)?;
     let ctx = context_for(path).await?;
@@ -334,7 +303,6 @@ async fn resolve(ctx: &GitCtx, thread: &str, turn: u32) -> VcsResult<String> {
     Ok(out.trimmed())
 }
 
-/// Diff of one turn: checkpoint `turn - 1` → `turn`.
 pub async fn diff_turn(
     path: &Path,
     thread: &str,
@@ -349,7 +317,6 @@ pub async fn diff_turn(
     diff_range(path, thread, turn - 1, Some(turn), opts).await
 }
 
-/// Diff between two checkpoints; `to = None` diffs against the live work tree.
 pub async fn diff_range(
     path: &Path,
     thread: &str,
@@ -371,7 +338,6 @@ pub async fn diff_range(
     Ok(r)
 }
 
-/// Whole-thread diff: the first checkpoint (baseline) → `to` (or the live tree).
 pub async fn diff_full(
     path: &Path,
     thread: &str,
@@ -387,7 +353,6 @@ pub async fn diff_full(
     diff_range(path, thread, first, to, opts).await
 }
 
-/// Deletes the refs of turns after `turn` (after a revert). Returns how many.
 pub async fn delete_after(path: &Path, thread: &str, turn: u32) -> VcsResult<u32> {
     let ctx = context_for(path).await?;
     let mut n = 0;
@@ -403,7 +368,6 @@ pub async fn delete_after(path: &Path, thread: &str, turn: u32) -> VcsResult<u32
     Ok(n)
 }
 
-/// Deletes every checkpoint of the thread.
 pub async fn delete_all(path: &Path, thread: &str) -> VcsResult<u32> {
     let ctx = context_for(path).await?;
     let mut n = 0;
@@ -420,15 +384,10 @@ pub async fn delete_all(path: &Path, thread: &str) -> VcsResult<u32> {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct RestoreResult {
     pub turn: u32,
-    /// Files whose content changed back (added, rewritten or removed).
     pub files: Vec<String>,
     pub dropped_later: u32,
 }
 
-/// Puts the work tree back to checkpoint `turn`. Allowed on its own only in
-/// an OmniGet worktree; anywhere else (the user's own checkout, a shadow
-/// folder) it needs `confirm`. Works through a temp index, so the real index
-/// and HEAD stay as they are; ignored files are not touched.
 pub async fn restore(
     path: &Path,
     thread: &str,
@@ -482,7 +441,6 @@ pub async fn restore(
             .timeout(Some(Duration::from_secs(300)))
             .run()
             .await?;
-        // Folders emptied by the restore go too.
         let root = ctx.work_tree().to_path_buf();
         for f in &files {
             let mut dir = root.join(f);

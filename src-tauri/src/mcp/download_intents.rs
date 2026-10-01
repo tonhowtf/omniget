@@ -1,5 +1,3 @@
-//! Durable admission journal for the existing queue. This is not a scheduler.
-//! Missing evidence of a completed effect never licenses automatic replay.
 use super::policy::{self, Principal};
 use omniget_core::core::secure_files::{Identity, Root};
 use rusqlite::{params, Connection, OptionalExtension};
@@ -10,8 +8,6 @@ use std::path::Path;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Options {
-    /// Persisted form is the redacted display URL; `sealed` means the
-    /// executable URL lives in the encrypted secret store (see [`hydrate`]).
     pub url: String,
     #[serde(default)]
     pub sealed: bool,
@@ -37,19 +33,10 @@ pub struct Intent {
     #[serde(default)]
     pub attempt: u32,
 }
-/// Worker path ceiling for parallel fragments. The worker runs yt-dlp with
-/// no fragment retries through the broker; its default (4) is the proven
-/// value, the desktop's 8 broke a long YouTube DASH download (bench D3).
 pub const WORKER_MAX_FRAGMENTS: u32 = 4;
-/// Explicit retries per job (the shared retry ceiling).
 pub const MAX_RETRIES: u32 = 2;
-/// At most this many produced files are exposed per job.
 pub const MAX_JOB_ARTIFACTS: usize = 20;
-/// A job folder untouched for this long has no live writer: reconciliation
-/// after a crash may judge its contents.
 pub const RECONCILE_QUIET_MS: u64 = 10_000;
-/// Executable URLs that carry credentials (signed queries, tokens) never go
-/// into the journal in clear; only while the job may still run.
 const EXEC_URLS: crate::secrets::Namespace = crate::secrets::Namespace {
     service: "wtf.tonho.omniget.mcp-downloads",
     dir_name: "mcp_downloads",
@@ -58,7 +45,6 @@ const EXEC_URLS: crate::secrets::Namespace = crate::secrets::Namespace {
 fn exec_account(id: u64) -> String {
     format!("download-url-{id}")
 }
-/// Redacted display URL for persistence; the raw one when it differs.
 fn seal(mut options: Options) -> (Options, Option<String>) {
     let display = crate::core::flight_recorder::redact_url(&options.url);
     if display == options.url {
@@ -68,7 +54,6 @@ fn seal(mut options: Options) -> (Options, Option<String>) {
     options.sealed = true;
     (options, Some(raw))
 }
-/// The intent with the executable URL, for execution only.
 pub fn hydrate(mut i: Intent) -> Result<Intent, String> {
     if i.options.sealed {
         i.options.url = crate::secrets::load_secret(EXEC_URLS, &exec_account(i.job_id))
@@ -144,8 +129,6 @@ pub fn reserve(p: &Principal, key: &str, args: &Value, options: Options) -> Resu
     }
     let raw = options.url.clone();
     let i = reserve_in(&mut connection()?, p, key, args, options)?;
-    // Same key + fingerprint means the same raw URL: rewriting the secret is
-    // idempotent and repairs a crash between the commit and this write.
     if i.options.sealed && i.stage != "terminal" {
         crate::secrets::save_secret(EXEC_URLS, &exec_account(i.job_id), &raw)
             .map_err(|_| "EXECUTION_URL_STORE_UNAVAILABLE")?;
@@ -179,7 +162,6 @@ fn reserve_in(
         }
         return decode(b, s);
     }
-    // A legacy reservation without our original options cannot be reconciled.
     let legacy:bool=tx.query_row("SELECT EXISTS(SELECT 1 FROM receipts WHERE principal=?1 AND operation='download_enqueue' AND key=?2)",params![p.id,key],|r|r.get(0)).map_err(error)?;
     if legacy {
         return Err("OUTCOME_UNKNOWN: legacy intent has no durable execution snapshot".into());
@@ -222,8 +204,6 @@ fn reserve_in(
     tx.commit().map_err(error)?;
     Ok(i)
 }
-/// Create the private destination once. Crash between mkdir and identity
-/// persistence is ambiguous: never adopt an existing directory by pathname.
 pub fn prepare_destination(p: &Principal, id: u64) -> Result<Intent, String> {
     policy::active(p)?;
     let mut c = connection()?;
@@ -262,9 +242,6 @@ pub fn prepare_destination(p: &Principal, id: u64) -> Result<Intent, String> {
     tx.commit().map_err(error)?;
     Ok(i)
 }
-/// Called under the existing queue lock immediately before constructing item.
-/// It must precede q.enqueue and is safe to replay: actual effect admission is
-/// a separate durable gate, before the first worker invocation.
 pub fn admitting(id: u64) -> Result<(), String> {
     let c = connection()?;
     let n=c.execute("UPDATE download_intents SET stage='admitting' WHERE job_id=?1 AND stage IN ('prepared','admitting','enqueued')",[id]).map_err(error)?;
@@ -288,11 +265,7 @@ pub fn enqueued(id: u64) -> Result<(), String> {
         Err("DOWNLOAD_ADMISSION_CONFLICT".into())
     }
 }
-/// Durable effect gate. A second dispatcher or recovered executing record is
-/// denied. Queue item and principal must agree, even when called by local UI.
 pub fn before_execute(id: u64) -> Result<Intent, String> {
-    // Resolve the executable URL before the durable gate: a missing secret
-    // must fail while the attempt is still replayable, not after `executing`.
     let url = hydrate(load(id)?.ok_or("DOWNLOAD_INTENT_MISSING")?)?
         .options
         .url;
@@ -301,9 +274,6 @@ pub fn before_execute(id: u64) -> Result<Intent, String> {
     i.options.sealed = false;
     Ok(i)
 }
-/// The current attempt is a `download_resume` of a paused attempt: a user
-/// action, not a failure recovery, so failure cooldowns and the retry budget
-/// do not apply to it.
 fn resumes_pause(c: &Connection, id: u64, attempt: u32) -> Result<bool, String> {
     if attempt == 0 {
         return Ok(false);
@@ -324,7 +294,6 @@ fn resumes_pause(c: &Connection, id: u64, attempt: u32) -> Result<bool, String> 
                 .is_some_and(|t| t.outcome == "paused")
     }))
 }
-/// Explicit failure retries spent by this job; resumes of a pause are free.
 fn retries_used_in(c: &Connection, id: u64) -> Result<u32, String> {
     let attempts: Vec<u32> = {
         let mut q = c
@@ -418,11 +387,8 @@ pub struct TerminalReceipt {
     pub ended_at: u64,
     pub next_allowed_at: u64,
     pub retryable: bool,
-    /// Every produced file of a successful attempt; `bytes` is their sum
-    /// (the engine result names only the last file of a carousel).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub files: Vec<ReceiptFile>,
-    /// Settled by reconciliation after a crash, not by the worker's result.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub reconciled: Option<String>,
 }
@@ -431,7 +397,6 @@ pub struct ReceiptFile {
     pub name: String,
     pub bytes: u64,
 }
-/// A user action or a crash, not a server answer: never a retry cooldown.
 fn is_user_or_crash_outcome(outcome: &str, message: &str) -> bool {
     matches!(outcome, "paused" | "cancelled") || message.starts_with("INTERRUPTED")
 }
@@ -455,8 +420,6 @@ fn host_hash(url: &str) -> Result<String, String> {
     ))
 }
 fn retry_after(error: &str) -> Option<u64> {
-    // WorkerFailure exposes only numeric seconds; never parse a provider URL
-    // or invent a shorter interval when an explicit value is very large.
     error
         .split("retry_after_seconds=")
         .nth(1)
@@ -493,8 +456,6 @@ pub fn terminal_receipt(
     forget_if_final(&c, id);
     Ok(())
 }
-/// Produced files of the job with their sizes, best effort (the receipt is
-/// evidence, the artifact listing re-validates every file).
 fn sized_job_files(i: &Intent) -> Vec<ReceiptFile> {
     let Ok((names, _)) = job_files(i) else {
         return vec![];
@@ -510,7 +471,6 @@ fn sized_job_files(i: &Intent) -> Vec<ReceiptFile> {
         })
         .collect()
 }
-/// Drop the protected executable URL once no attempt can use it again.
 fn forget_if_final(c: &Connection, id: u64) {
     let Ok(Some(i)) = load_in(c, id) else { return };
     let Ok(Some(r)) = receipt_in_conn(c, &i) else {
@@ -603,9 +563,6 @@ fn write_terminal(
     {
         return Err("OUTCOME_UNKNOWN: interrupted effect".into());
     }
-    // The class decides the minimum wait (rate limit 60 s, platform block
-    // 15 min, otherwise 5 s); an explicit Retry-After can only lengthen it.
-    // A pause, a cancel or a crash is no answer from the server: no wait.
     let diagnosis = crate::core::root_cause::machine_diagnose(message);
     let delay = if outcome == "success" || is_user_or_crash_outcome(outcome, message) {
         0
@@ -614,8 +571,6 @@ fn write_terminal(
             .unwrap_or(0)
             .max(diagnosis.cooldown_seconds())
     };
-    // A platform block names this post/job, not the host: other jobs on the
-    // same host keep the ordinary short spacing.
     let host_delay = if diagnosis.code == "BLOCKED_BY_PLATFORM" {
         delay.min(5)
     } else {
@@ -676,8 +631,6 @@ pub fn receipt(id: u64) -> Result<Option<TerminalReceipt>, String> {
     let i = load_in(&c, id)?.ok_or("DOWNLOAD_INTENT_MISSING")?;
     receipt_in_conn(&c, &i)
 }
-/// A normal wrapper return is not enough after a dropped worker future.
-/// Call only after the worker acknowledges kill/wait and broker shutdown.
 pub fn settled(id: u64, attempt: u32, cancelled: Option<&str>) -> Result<(), String> {
     let mut c = connection()?;
     let i = load_in(&c, id)?.ok_or("DOWNLOAD_INTENT_MISSING")?;
@@ -693,9 +646,6 @@ pub fn settled(id: u64, attempt: u32, cancelled: Option<&str>) -> Result<(), Str
                 Some(outcome.into()),
                 None,
                 None,
-                // A cancelled attempt is not advertised as retryable (status
-                // says so too); the URL can be enqueued again. A pause is
-                // resumable through download_resume.
                 outcome == "paused",
                 now_ms(),
             )?;
@@ -709,9 +659,6 @@ pub fn settled(id: u64, attempt: u32, cancelled: Option<&str>) -> Result<(), Str
     forget_if_final(&c, id);
     Ok(())
 }
-/// A pause settles the attempt as `paused` (resumable) and keeps its partial
-/// files. Cancelling it afterwards turns that receipt into `cancelled`, so the
-/// job folder is cleaned like any cancelled attempt (D-06). No-op otherwise.
 pub fn cancel_paused(id: u64) -> Result<Vec<String>, String> {
     let mut c = connection()?;
     if !cancel_paused_in(&mut c, id)? {
@@ -831,8 +778,6 @@ fn prepare_retry_in(
     {
         return Err("RETRY_REQUIRES_LOCAL_ACTION_OR_MORE_EVIDENCE".into());
     }
-    // Resuming a pause is the user continuing their own job: no failure
-    // cooldown and no retry budget (D-03). Everything else is a retry.
     let resume = operation == "download_resume" && terminal.outcome == "paused";
     if !resume {
         if retries_used_in(&tx, id)? >= MAX_RETRIES {
@@ -862,8 +807,6 @@ fn prepare_retry_in(
     }
     i.attempt += 1;
     i.stage = "prepared".into();
-    // Parallel fragments over the mediated egress are the likely cause of a
-    // fragment failure: the one bounded retry uses a single connection.
     if terminal
         .error
         .as_deref()
@@ -886,10 +829,6 @@ fn prepare_retry_in(
     tx.commit().map_err(error)?;
     Ok(i)
 }
-/// Engine leftovers and OS bookkeeping that are never a produced artifact.
-/// A leading dot alone is not one: the engine may name a real output
-/// `......name.mp4` from a hostile URL, and hiding it turned a completed job
-/// into success without artifacts (D-07).
 pub fn is_partial_name(name: &str) -> bool {
     let lower = name.to_ascii_lowercase();
     is_os_junk(&lower)
@@ -909,7 +848,6 @@ fn is_os_junk(lower: &str) -> bool {
         || lower.starts_with(".nfs")
         || lower.starts_with(".fuse_hidden")
 }
-/// yt-dlp per-format intermediates such as `name.f251.webm` / `name.f398.mp4`.
 fn is_intermediate_stream(lower: &str) -> bool {
     let mut parts = lower.rsplit('.');
     let (_ext, format) = (parts.next(), parts.next());
@@ -917,8 +855,6 @@ fn is_intermediate_stream(lower: &str) -> bool {
         f.len() > 1 && f.starts_with('f') && f[1..].bytes().all(|b| b.is_ascii_digit())
     })
 }
-/// Produced files of a completed job, read from its exclusive folder (the
-/// engine result names only the last file of a carousel). Sorted, bounded.
 pub fn job_files(i: &Intent) -> Result<(Vec<String>, bool), String> {
     let identity = i
         .destination_identity
@@ -934,7 +870,6 @@ fn list_job_files(dir: &Path, identity: &Identity) -> Result<(Vec<String>, bool)
         .take(1024)
     {
         let entry = entry.map_err(|_| "ARTIFACT_UNAVAILABLE")?;
-        // file_type() does not follow symlinks: links and directories are skipped.
         if !entry.file_type().is_ok_and(|t| t.is_file()) {
             continue;
         }
@@ -950,12 +885,6 @@ fn list_job_files(dir: &Path, identity: &Identity) -> Result<(Vec<String>, bool)
     names.truncate(MAX_JOB_ARTIFACTS);
     Ok((names, truncated))
 }
-/// After a failed or cancelled attempt, remove what it left in the job's own
-/// exclusive folder (partials, fragments, .ytdl, thumbnails, intermediates and
-/// any rejected output). A failed job exposes no artifact, and a later
-/// successful attempt in the same folder must not expose stale files. Only
-/// runs once the attempt is durably terminal (worker teardown acknowledged).
-/// Returns the removed file names for the job journal.
 pub fn cleanup_failed_attempt(id: u64) -> Result<Vec<String>, String> {
     let i = load(id)?.ok_or("DOWNLOAD_INTENT_MISSING")?;
     if i.stage != "terminal" {
@@ -993,7 +922,6 @@ fn cleanup_dir(dir: &Path, identity: &Identity) -> Result<Vec<String>, String> {
     Ok(removed)
 }
 
-/// Reconciliation cannot prove whether an admitted effect completed.
 pub fn unknown(id: u64) -> Result<(), String> {
     connection()?
         .execute(
@@ -1003,11 +931,6 @@ pub fn unknown(id: u64) -> Result<(), String> {
         .map_err(error)?;
     Ok(())
 }
-/// Owned intents whose effect may have run and nobody settled (a crash):
-/// the URL stays managed by that job until it is reconciled. A job still live
-/// in the queue (`live`) is running, not interrupted. URLs are compared
-/// exactly: two signed links that differ only in a secret redact to the same
-/// display string, so a sealed intent is compared through its stored URL.
 pub fn unresolved_for_url(p: &Principal, url: &str, live: &[u64]) -> Result<Option<u64>, String> {
     let display = crate::core::flight_recorder::redact_url(url);
     let c = connection()?;
@@ -1026,7 +949,6 @@ pub fn unresolved_for_url(p: &Principal, url: &str, live: &[u64]) -> Result<Opti
             continue;
         }
         let same = if i.options.sealed {
-            // Unreadable stored URL: keep the conservative answer.
             hydrate(i.clone())
                 .map(|h| h.options.url == url)
                 .unwrap_or(true)
@@ -1039,7 +961,6 @@ pub fn unresolved_for_url(p: &Principal, url: &str, live: &[u64]) -> Result<Opti
     }
     Ok(None)
 }
-/// Every attempt of a job, oldest first, as bounded evidence (D-10).
 pub fn attempts(id: u64) -> Result<Vec<Value>, String> {
     let c = connection()?;
     let mut q = c
@@ -1072,10 +993,6 @@ pub fn attempts(id: u64) -> Result<Vec<Value>, String> {
     }
     Ok(out)
 }
-/// A resume restarts from zero for every engine: what the paused attempt left
-/// is removed first, so the claim made to the client is always true (yt-dlp
-/// would continue some formats and the direct path none). Only before the
-/// new attempt is admitted. Returns (files, bytes) discarded.
 pub fn discard_for_restart(i: &Intent) -> Result<(usize, u64), String> {
     let Some(identity) = i
         .destination_identity
@@ -1105,7 +1022,6 @@ fn scan_folder(dir: &Path, identity: &Identity) -> Result<FolderScan, String> {
             .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
             .map_or(0, |d| d.as_millis() as u64)
     };
-    // A live writer touches the file it writes; that is the signal.
     let mut scan = FolderScan::default();
     for entry in std::fs::read_dir(dir)
         .map_err(|_| "ARTIFACT_UNAVAILABLE")?
@@ -1136,11 +1052,6 @@ fn scan_folder(dir: &Path, identity: &Identity) -> Result<FolderScan, String> {
     scan.complete.sort_by(|a, b| a.name.cmp(&b.name));
     Ok(scan)
 }
-/// Settle a job whose attempt was running when the app died (D-08). The
-/// caller has established that no live queue item runs it in this process;
-/// a folder written to recently is refused (a writer may still be alive).
-/// Complete output with no partial leftovers confirms the effect; anything
-/// else is an interrupted, retryable attempt. Never starts a download.
 pub fn reconcile(p: Option<&Principal>, id: u64) -> Result<(String, Vec<String>), String> {
     let i = load(id)?.ok_or("DOWNLOAD_INTENT_MISSING")?;
     if p.is_some_and(|p| p.id != i.principal) {
@@ -1207,7 +1118,6 @@ fn reconcile_in(
         write_terminal(&tx, &i, "failed", Some("INTERRUPTED: the app stopped while this download was running; no complete artifact was confirmed".into()), None, None, true, now, vec![], Some("no_complete_artifact".into()))?;
         "interrupted"
     };
-    // The folder is quiet and no process of this app runs the attempt.
     tx.execute(
         "UPDATE download_attempts SET settled=1 WHERE job_id=?1 AND number=?2",
         params![id, i.attempt],

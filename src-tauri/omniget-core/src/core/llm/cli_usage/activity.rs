@@ -1,7 +1,3 @@
-//! Is a coding CLI working outside the app right now? Answered from the mtime
-//! of its session logs, never from their content: `~/.claude/projects/<slug>/*.jsonl`
-//! and `~/.codex/sessions/**/rollout-*.jsonl`. Cheap enough to poll.
-
 use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime};
 
@@ -20,7 +16,6 @@ fn newest_jsonl(dir: &Path, depth: usize, best: &mut Option<(SystemTime, PathBuf
         let Ok(meta) = entry.metadata() else { continue };
         if meta.is_dir() {
             if depth > 0 {
-                // Only folders touched recently can hold a fresh log.
                 newest_jsonl(&path, depth - 1, best);
             }
         } else if path.extension().map(|e| e == "jsonl").unwrap_or(false) {
@@ -34,7 +29,6 @@ fn newest_jsonl(dir: &Path, depth: usize, best: &mut Option<(SystemTime, PathBuf
 }
 
 fn claude_project(path: &Path) -> String {
-    // `-Users-me-code-myapp` → `myapp`
     path.parent()
         .and_then(|p| p.file_name())
         .map(|n| {
@@ -48,7 +42,6 @@ fn claude_project(path: &Path) -> String {
         .unwrap_or_else(|| "project".into())
 }
 
-/// CLIs whose newest session log changed within `window`.
 pub fn poll(window: Duration) -> Vec<Active> {
     let Some(home) = dirs::home_dir() else {
         return Vec::new();

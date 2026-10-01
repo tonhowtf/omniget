@@ -1,9 +1,3 @@
-//! Bridge to a Suwayomi-Server the user runs (https://github.com/Suwayomi):
-//! its GraphQL API exposes every Mihon extension installed there as a
-//! source. OmniGet stays the owner of the library, progress and downloads;
-//! Suwayomi only runs sources. Images are fetched through Suwayomi, which
-//! applies each extension's headers and interceptors.
-
 use serde::Deserialize;
 use serde_json::{json, Value};
 
@@ -48,7 +42,6 @@ impl Conn {
         }
     }
 
-    /// Server name and version; doubles as the "is it running" probe.
     pub async fn about(&self) -> Result<String, String> {
         let r = self
             .with_auth(
@@ -86,8 +79,6 @@ impl Conn {
         Ok(v["data"].clone())
     }
 
-    /// Absolute URL for a path the server returns (thumbnails, pages),
-    /// with credentials inlined so the image proxy can fetch it.
     fn abs(&self, path: &str) -> String {
         if path.starts_with("http") {
             return path.to_string();
@@ -112,7 +103,6 @@ impl Conn {
             .await?;
         let mut list: Vec<SourceNode> =
             serde_json::from_value(d["sources"]["nodes"].clone()).map_err(|e| e.to_string())?;
-        // "Local source" (id 0) is the server's own folder; OmniGet has its own.
         list.retain(|s| s.id != "0");
         for s in &mut list {
             s.icon_url = self.abs(&s.icon_url);
@@ -227,7 +217,6 @@ impl Conn {
                 )
             })
             .collect();
-        // Mihon's source order is newest first.
         chapters.sort_by_key(|c| std::cmp::Reverse(c.0));
         Ok((hit, chapters.into_iter().map(|(_, c)| c).collect()))
     }
@@ -252,7 +241,6 @@ impl Conn {
             .collect())
     }
 
-    /// Adds a Mihon extension repository to the server.
     pub async fn add_repo(&self, index_url: &str) -> Result<(), String> {
         self.gql(
             "mutation($url: String!) { addExtensionStore(input: { indexUrl: $url }) { clientMutationId } }",
@@ -283,7 +271,6 @@ impl Conn {
             .collect())
     }
 
-    /// `action`: install, update or uninstall.
     pub async fn extension(&self, pkg: &str, action: &str) -> Result<(), String> {
         let patch = match action {
             "install" => json!({ "install": true }),

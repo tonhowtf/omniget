@@ -1,6 +1,3 @@
-//! FictionBook 2 (`.fb2`, and `.fb2.zip`/`.fbz`): metadata and the
-//! embedded cover from `<description><title-info>` and `<binary>`.
-
 use base64::Engine;
 
 use super::epub::BookMeta;

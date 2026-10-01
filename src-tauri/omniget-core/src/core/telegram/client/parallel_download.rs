@@ -550,7 +550,6 @@ fn flood_wait_secs(name: &str) -> Option<u64> {
     None
 }
 
-/// Where the resumable download keeps the indexes of finished chunks.
 pub fn chunks_sidecar(part_path: &Path) -> std::path::PathBuf {
     std::path::PathBuf::from(format!("{}.chunks", part_path.display()))
 }
@@ -574,12 +573,6 @@ fn read_done_chunks(sidecar: &Path, total: u64, chunk: u64) -> std::collections:
     done
 }
 
-/// Resumable download into `part_path`. The file is preallocated and every
-/// finished 512 KiB chunk is recorded in a `.chunks` sidecar, so a later
-/// call (after a crash, a network drop or an expired file reference with a
-/// fresh `media`) only fetches what is missing. FLOOD_WAIT sleeps for the
-/// time Telegram asks. On success the sidecar is removed; the caller checks
-/// the size and renames.
 pub async fn download_file_resumable(
     client: &Client,
     media: &MediaLocation,
@@ -786,14 +779,8 @@ pub async fn download_file_resumable(
     Ok(total)
 }
 
-/// How many 512 KiB parts of a stream are requested ahead of the one being
-/// sent. One request at a time topped out near 1 MB/s through the bridge;
-/// keeping several in flight fills the connection and makes seeks answer
-/// as soon as the first part lands.
 const STREAM_PREFETCH: usize = 6;
 
-/// One part of a file for the streaming server, retrying the errors that
-/// only need a different DC, a fresh authorization or a wait.
 async fn fetch_stream_part(
     client: Client,
     location: tl::enums::InputFileLocation,
@@ -881,8 +868,6 @@ fn flood_wait_in_text(text: &str) -> Option<u64> {
     digits.parse().ok()
 }
 
-/// Bytes `range_start..=range_end` of a file, for the streaming server.
-/// Parts are fetched `STREAM_PREFETCH` at a time and sent in order.
 pub fn stream_file_range(
     client: Client,
     media: MediaLocation,
@@ -922,7 +907,7 @@ pub fn stream_file_range(
                 }
             };
             let part_start = offset as u64;
-            let part_end = part_start + bytes.len() as u64; // exclusive
+            let part_end = part_start + bytes.len() as u64;
             let from = range_start.max(part_start);
             let to = (range_end + 1).min(part_end);
             if to > from {
@@ -930,7 +915,6 @@ pub fn stream_file_range(
                 global_stream_tracker().record(slice.len() as u64).await;
                 yield Ok(Bytes::copy_from_slice(slice));
             }
-            // A short part is the end of the file.
             if (bytes.len() as u64) < chunk || to > range_end {
                 break;
             }

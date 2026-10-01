@@ -1,10 +1,3 @@
-//! Slash commands as Markdown in each tool's dialect (estudo 06 §0C.3): Qwen,
-//! OpenCode/Kilo, Cursor (plain), Copilot `.prompt.md`, Cline workflows,
-//! Windsurf/Antigravity workflows, Crush (`$NAME`), Kiro prompts, Pi prompt
-//! templates, Continue prompts, Junie (`$argName`) and Roo. Also the fallback for
-//! tools without commands (a skill with `disable-model-invocation: true`) and the
-//! deprecated Codex `~/.codex/prompts` (only on request, never auto-picked).
-
 use std::collections::BTreeMap;
 
 use serde_json::{json, Value};
@@ -16,7 +9,6 @@ use crate::core::agentkit::parse;
 use crate::core::agentkit::targets::TargetAdapter;
 use crate::core::agentkit::{Result, Scope};
 
-/// Format ids served by [`MdCommandConverter`].
 pub const FORMATS: &[&str] = &[
     "qwen_md",
     "opencode_md",
@@ -37,7 +29,6 @@ pub struct MdCommandConverter {
     pub format: &'static str,
 }
 
-/// Placeholder dialect for a format (manifest map plus format specifics).
 pub(crate) fn dialect(
     format: &str,
     target: &TargetAdapter,
@@ -63,7 +54,6 @@ pub(crate) fn dialect(
             }
         }
         "opencode_md" => {
-            // OpenCode/Kilo read the Claude placeholders 1:1
             m.insert("args".into(), "$ARGUMENTS".into());
             m.insert("arg".into(), "$N".into());
             m.insert("shell".into(), "!`{cmd}`".into());
@@ -87,7 +77,6 @@ impl MdCommandConverter {
         }
     }
 
-    /// Command file text, losses and notes.
     pub fn render(
         &self,
         c: &Component,
@@ -196,7 +185,6 @@ impl MdCommandConverter {
             losses
                 .push("allowed-tools (the command runs with the tool's normal permissions)".into());
         }
-        // argument-hint is UI sugar: dropping it changes nothing the model sees
         let _ = kept_hint;
         if cmd.model.is_some() && !kept_model {
             losses.push(format!("model `{}`", cmd.model.as_deref().unwrap_or("")));
@@ -211,7 +199,6 @@ impl MdCommandConverter {
         (parse::render_frontmatter(&fm, &body), uniq, notes)
     }
 
-    /// A command file of this format → canonical spec.
     pub fn read_back(&self, text: &str, target: &TargetAdapter) -> CommandSpec {
         let (fm, body) = if matches!(self.format, "crush_md" | "cursor_md" | "cline_workflow") {
             (Default::default(), text)
@@ -222,7 +209,6 @@ impl MdCommandConverter {
         let map = dialect(self.format, target, hint.as_deref());
         let mut body = canonical_body(body, &map);
         if self.format == "copilot_prompt" {
-            // `${input:args:hint}` → {{args}}
             while let Some(a) = body.find("${input:args") {
                 let Some(e) = body[a..].find('}') else { break };
                 body.replace_range(a..a + e + 1, "{{args}}");
@@ -335,14 +321,8 @@ impl Converter for MdCommandConverter {
     }
 }
 
-// ------------------------------------------------------------------ command → skill
-
-/// Tools without commands (Codex, Devin CLI, Kimi, Vibe, Warp, Zed, Amp …): the
-/// command becomes a user-invoked skill (`/name`), hidden from the model.
 pub struct SkillCommandConverter;
 
-/// Where command-skills go: the manifest's `paths.commands` (Devin, Vibe, Warp,
-/// Zed point it at their skills folder) or the skills folder.
 fn skill_base(
     target: &TargetAdapter,
     scope: Scope,
@@ -352,7 +332,6 @@ fn skill_base(
 }
 
 impl SkillCommandConverter {
-    /// SKILL.md text and losses.
     pub fn render(
         c: &Component,
         cmd: &CommandSpec,
@@ -454,7 +433,6 @@ impl Converter for SkillCommandConverter {
         ));
         let mut out = vec![pf];
         if target.id == "codex" {
-            // Codex's own switch for "only when asked"
             let mut meta = PlannedFile::write(
                 &target.id,
                 c,
@@ -519,11 +497,6 @@ impl Converter for SkillCommandConverter {
     }
 }
 
-// ------------------------------------------------------------------ Codex legacy prompts
-
-/// Deprecated Codex custom prompts (`~/.codex/prompts/<name>.md`, user scope
-/// only). Never picked by the registry (`supports` is false): call it through
-/// `Registry::by_id("command_codex_prompts")` when the user asks for the legacy file.
 pub struct CodexPromptConverter;
 
 impl Converter for CodexPromptConverter {

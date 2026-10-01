@@ -1,20 +1,3 @@
-//! Converters: canonical component → files for one tool (plan §4.3).
-//!
-//! A converter is a pure function from `(Component, TargetAdapter, ConvertCtx)`
-//! to [`PlannedFile`]s; it never touches the disk (the plan reads current file
-//! contents, the writer applies). The [`Registry`] picks one per `(kind, target)`:
-//!
-//! 1. MCP → [`mcp::McpConverter`] (every surface of the target).
-//! 2. The target's format for the kind is `"claude"` → [`claude::ClaudeConverter`]
-//!    writing into the target's own paths (Codex `hooks.json`, Droid …).
-//! 3. The target reads the Claude file natively (`reads_claude`) →
-//!    [`claude::ClaudeConverter`] writing into Claude's paths (compat `native`).
-//! 4. A converter registered for `(kind, format)` (round 2 adds them here).
-//! 5. Otherwise `unsupported`.
-//!
-//! Adding a converter in round 2: create `convert/<kind>_<format>.rs`, implement
-//! [`Converter`], and add one line to [`Registry::builtin`].
-
 pub mod agent_common;
 pub mod agent_kiro;
 pub mod agent_md;
@@ -54,70 +37,51 @@ use super::model::{Compat, Component, ComponentKind};
 use super::targets::TargetAdapter;
 use super::{Env, Result, Scope};
 
-/// How the writer treats an existing element when merging.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "by", rename_all = "snake_case")]
 pub enum Dedupe {
-    /// Skip when an equal element is already there.
     Equal,
-    /// Skip when an element has equal values for these fields; a different value
-    /// under the same fields is a conflict.
     Fields { fields: Vec<String> },
-    /// Claude hook groups `{matcher, hooks:[handler]}`: skip when a group with
-    /// the same matcher already holds a handler with the same command/url/prompt.
     ClaudeHook,
-    /// Flat hook records (`{command, matcher}` Cursor/Copilot/Kimi): skip when an
-    /// element has the same `command`/`bash` and matcher.
     FlatHook,
 }
 
-/// One patch of a structured file.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "op", rename_all = "snake_case")]
 pub enum PatchOp {
-    /// Set a value. When the path exists with another value it is a conflict; the
-    /// segment at `rename_at` holds a name the plan may rename (MCP server name).
     Set {
         path: Vec<Seg>,
         value: Value,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         rename_at: Option<usize>,
     },
-    /// Append to an array unless already present.
     Append {
         path: Vec<Seg>,
         value: Value,
         dedupe: Dedupe,
     },
-    /// Marker-delimited block in a Markdown/text file.
-    TextBlock { id: String, content: String },
+    TextBlock {
+        id: String,
+        content: String,
+    },
 }
 
-/// What happens to one file.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum FileAction {
-    /// Whole file written by us (created, or replaced after a backup).
     Write,
-    /// Patched in place.
     Merge,
-    /// A folder symlink to [`PlannedFile::link_to`] (a copy of it where links
-    /// cannot be made).
     Link,
 }
 
-/// Support files placed for a target, plus the command rewrites (`from`, `to`)
-/// that point at them.
 pub type SupportPlan = (Vec<PlannedFile>, Vec<(String, String)>);
 
-/// A file a converter wants on disk.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct PlannedFile {
     pub target: String,
     pub component_id: String,
     pub path: PathBuf,
     pub action: FileAction,
-    /// Content for [`FileAction::Write`].
     #[serde(default, skip_serializing_if = "Option::is_none", with = "opt_bytes")]
     pub content: Option<Vec<u8>>,
     #[serde(default)]
@@ -126,25 +90,18 @@ pub struct PlannedFile {
     pub format: Option<DocFormat>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub ops: Vec<PatchOp>,
-    /// Target of a [`FileAction::Link`].
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub link_to: Option<PathBuf>,
-    /// Folder that belongs to this unit as a whole (a skill dir): a collision on
-    /// it renames the whole unit.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub unit_root: Option<PathBuf>,
-    /// Name-bearing file of the unit (agent/command file, skill SKILL.md).
     #[serde(default)]
     pub primary: bool,
-    /// What is lost on this target.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub losses: Vec<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub notes: Vec<String>,
-    /// Commands this file makes a tool run (hook, MCP, statusline): always shown.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub commands: Vec<String>,
-    /// Short label for the UI (`agent`, `mcp server`, `hook script` …).
     #[serde(default)]
     pub label: String,
 }
@@ -241,7 +198,6 @@ impl PlannedFile {
 }
 
 impl PlannedFile {
-    /// A folder link `path` → `to` (both absolute).
     pub fn link(
         target: &str,
         c: &Component,
@@ -269,17 +225,12 @@ impl PlannedFile {
     }
 }
 
-/// Inputs every converter gets besides the component and the target.
 pub struct ConvertCtx<'a> {
     pub env: &'a Env,
     pub project: Option<&'a Path>,
     pub scope: Scope,
-    /// The Claude adapter, for writing Claude files on behalf of tools that read them.
     pub claude: &'a TargetAdapter,
-    /// Name to install under instead of the component's own (collision rename).
     pub name_override: Option<String>,
-    /// Secret values the user typed, only used for tools that cannot reference an
-    /// environment variable (the plan warns that the value lands in the file).
     pub secret_values: &'a BTreeMap<String, String>,
 }
 
@@ -291,13 +242,9 @@ impl ConvertCtx<'_> {
     }
 }
 
-/// A converter for some `(kind, format)` pairs.
 pub trait Converter: Send + Sync {
-    /// Stable id (`claude`, `mcp`, `agent_codex_toml` …).
     fn id(&self) -> &'static str;
-    /// Whether it handles this kind for this target (usually by `target.format(kind)`).
     fn supports(&self, kind: ComponentKind, target: &TargetAdapter) -> bool;
-    /// Canonical → files. Losses go in each file's `losses`.
     fn convert(
         &self,
         c: &Component,
@@ -305,7 +252,6 @@ pub trait Converter: Send + Sync {
         scope: Scope,
         ctx: &ConvertCtx,
     ) -> Result<Vec<PlannedFile>>;
-    /// Files on disk → canonical components already installed in the tool.
     fn import(
         &self,
         _kind: ComponentKind,
@@ -315,15 +261,12 @@ pub trait Converter: Send + Sync {
     ) -> Result<Vec<Component>> {
         Ok(vec![])
     }
-    /// `true` when the output is the tool's own native file for the source format.
     fn native_for(&self, _c: &Component, _target: &TargetAdapter) -> bool {
         false
     }
 }
 
-/// How a `(kind, target)` pair is served.
 pub enum Resolution<'r> {
-    /// Converter plus whether it writes into Claude's paths on the target's behalf.
     Use {
         converter: &'r dyn Converter,
         via_claude: bool,
@@ -331,18 +274,15 @@ pub enum Resolution<'r> {
     Unsupported(String),
 }
 
-/// All converters.
 pub struct Registry {
     converters: Vec<Box<dyn Converter>>,
 }
 
 impl Registry {
-    /// The built-in set. Round 2: add one `Box::new(...)` line per converter.
     pub fn builtin() -> Registry {
         Registry {
             converters: vec![
                 Box::new(mcp::McpConverter),
-                // k1: canonical .agents/skills store; answers to `skill_dir`, so it must precede the F0 copier
                 Box::new(skill_link::SkillLinkConverter),
                 Box::new(claude::SkillDirConverter),
                 Box::new(claude::ClaudeConverter::own_paths()),
@@ -351,7 +291,6 @@ impl Registry {
                 Box::new(loop_runbook::LoopConverter),
                 Box::new(hook_convert::HookConverter),
                 Box::new(plugin_convert::PluginConverter),
-                // k1: agents, commands, rules
                 Box::new(agent_toml::TomlAgentConverter {
                     format: "codex_toml",
                 }),
@@ -424,8 +363,6 @@ impl Registry {
                 Box::new(command_md::MdCommandConverter { format: "junie" }),
                 Box::new(command_md::MdCommandConverter { format: "roo" }),
                 Box::new(rule_files::RuleConverter),
-                // round 2 converters go here, e.g.:
-                // Box::new(agent_codex::CodexAgentConverter),
             ],
         }
     }
@@ -443,7 +380,6 @@ impl Registry {
         self.converters().find(|c| c.id() == id)
     }
 
-    /// Picks the converter for a component kind on a target.
     pub fn resolve(&self, kind: ComponentKind, target: &TargetAdapter) -> Resolution<'_> {
         if kind == ComponentKind::Mcp {
             return match self.by_id("mcp") {
@@ -459,14 +395,12 @@ impl Registry {
         }
         let fmt = target.format(kind);
         let claude = self.by_id("claude").expect("claude converter is built in");
-        // a. the tool's format for this kind is Claude's: write it in the tool's own paths
         if fmt == Some("claude") && claude::claude_supports(kind) {
             return Resolution::Use {
                 converter: claude,
                 via_claude: false,
             };
         }
-        // b. skills go to the tool's own skills folder, unchanged
         if kind == ComponentKind::Skill && fmt == Some("skill_dir") {
             if let Some(c) = self.by_id("skill_dir") {
                 return Resolution::Use {
@@ -475,10 +409,6 @@ impl Registry {
                 };
             }
         }
-        // c. the tool reads Claude's file: write the Claude file (native). Rules
-        //    skip this when the tool has its own rules converter: many tools read
-        //    CLAUDE.md only as a fallback when AGENTS.md is absent, and scoped
-        //    rules in .claude/rules are read by Claude and Copilot alone.
         let own_rule = kind == ComponentKind::Rule && self.own_converter(kind, target).is_some();
         if !own_rule && target.reads_claude(kind) && claude::claude_supports(kind) {
             return Resolution::Use {
@@ -486,7 +416,6 @@ impl Registry {
                 via_claude: true,
             };
         }
-        // d. a converter for the tool's own format
         if let Some(c) = self.own_converter(kind, target) {
             return Resolution::Use {
                 converter: c,
@@ -502,8 +431,6 @@ impl Registry {
         }
     }
 
-    /// The first converter for the tool's own format (never the Claude, MCP or
-    /// skill-folder ones, which [`Registry::resolve`] picks by rule).
     pub fn own_converter(
         &self,
         kind: ComponentKind,
@@ -513,10 +440,6 @@ impl Registry {
             .find(|c| !matches!(c.id(), "claude" | "mcp" | "skill_dir") && c.supports(kind, target))
     }
 
-    /// [`Registry::resolve`] with the component at hand: a component that came
-    /// from this very tool (`origin_tool == target.id`, e.g. a Copilot chatmode
-    /// going to Copilot) is written in the tool's own format when a converter
-    /// for it exists, instead of the Claude copy the tool would also read.
     pub fn resolve_for(&self, c: &Component, target: &TargetAdapter) -> Resolution<'_> {
         let kind = c.kind;
         if !matches!(
@@ -536,7 +459,6 @@ impl Registry {
         self.resolve(kind, target)
     }
 
-    /// Runs the resolved converter.
     pub fn convert(
         &self,
         c: &Component,
@@ -582,8 +504,6 @@ impl Registry {
     }
 }
 
-/// Reads what a tool already has installed (agents, commands, skills, hooks,
-/// MCP servers) back into canonical components, for "copy to another tool".
 pub fn import_installed(
     env: &Env,
     target_id: &str,
@@ -631,15 +551,12 @@ pub fn import_installed(
     Ok(out)
 }
 
-/// Result of converting one component for one target.
 #[derive(Debug, Clone)]
 pub struct Conversion {
     pub files: Vec<PlannedFile>,
     pub compat: Compat,
 }
 
-/// Fills `component.compat` for every target (dry conversion into a fake
-/// project under a fake home: nothing is read or written).
 pub fn compute_compat(c: &Component, targets: &[TargetAdapter]) -> BTreeMap<String, Compat> {
     let env = Env::sandbox(
         Path::new("/agentkit-compat/home"),
@@ -681,9 +598,6 @@ pub fn compute_compat(c: &Component, targets: &[TargetAdapter]) -> BTreeMap<Stri
     out
 }
 
-// ---------------------------------------------------------------- helpers shared by converters
-
-/// Where a kind lives for a target/scope, as an absolute path.
 pub fn kind_path(
     target: &TargetAdapter,
     key: &str,
@@ -691,7 +605,6 @@ pub fn kind_path(
     ctx: &ConvertCtx,
 ) -> Option<PathBuf> {
     let t = target.path_template(key, scope, ctx.env.os).or_else(|| {
-        // `local` falls back to the project path for kinds without a local variant
         if scope == Scope::Local {
             target.path_template(key, Scope::Project, ctx.env.os)
         } else {
@@ -701,12 +614,6 @@ pub fn kind_path(
     ctx.env.expand(t, ctx.project)
 }
 
-/// Resolves a support-file destination written for Claude (`.claude/hooks/x.py`,
-/// `~/.claude/scripts/x.sh`) to an absolute path for this target and scope, and
-/// returns the string the command line should use.
-///
-/// `claude_dir_key` names the Claude folder kind (`hook_scripts`, `statusline_scripts`)
-/// whose target equivalent replaces `.claude/<sub>/`.
 pub fn place_support(
     dest: &str,
     target: &TargetAdapter,
@@ -716,7 +623,6 @@ pub fn place_support(
 ) -> Option<(PathBuf, String)> {
     let dest = dest.trim();
     if let Some(rest) = dest.strip_prefix("~/") {
-        // explicit home destination: keep it, but move `.claude/` to the target's dir
         let (abs, _) = map_claude_prefix(rest, target, dir_key, Scope::Global, ctx)
             .unwrap_or_else(|| (ctx.env.home.join(rest), String::new()));
         let shown = abs.display().to_string();
@@ -732,8 +638,6 @@ pub fn place_support(
     Some((abs, shown))
 }
 
-/// `.claude/<sub>/rest` → target dir for `dir_key` + rest. Returns (absolute path,
-/// project-relative string for commands).
 fn map_claude_prefix(
     rel: &str,
     target: &TargetAdapter,
@@ -776,8 +680,6 @@ fn map_claude_prefix(
     }
 }
 
-/// Rewrites every occurrence of `from` in a command line to `to` (quoted when it
-/// holds spaces), and `$CLAUDE_PROJECT_DIR/<from>` to the same.
 pub fn rewrite_command(cmd: &str, from: &str, to: &str) -> String {
     if from == to || from.is_empty() {
         return cmd.to_string();
@@ -806,7 +708,6 @@ pub fn rewrite_command(cmd: &str, from: &str, to: &str) -> String {
     out.replace(from, &to_q)
 }
 
-/// Document format by file extension.
 pub fn format_for_path(p: &Path) -> DocFormat {
     match p.extension().and_then(|e| e.to_str()).unwrap_or("") {
         "toml" => DocFormat::Toml,
@@ -814,7 +715,6 @@ pub fn format_for_path(p: &Path) -> DocFormat {
         "jsonc" => DocFormat::Jsonc,
         "json" => {
             let name = p.file_name().and_then(|n| n.to_str()).unwrap_or("");
-            // VS Code-family settings/mcp files accept comments
             if name == "settings.json" && p.to_string_lossy().contains("Code")
                 || name == "opencode.json"
                 || name == "kilo.json"

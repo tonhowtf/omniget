@@ -1,16 +1,3 @@
-//! Crush (charmbracelet): um SQLite por projeto em `<projeto>/.crush/crush.db`.
-//!
-//! Descoberta dos projetos: o registro `projects.json` do Crush
-//! (`${XDG_DATA_HOME:-~/.local/share}/crush/projects.json`, no Windows
-//! `%LOCALAPPDATA%\crush`), os `project_path` que o índice já conhece das
-//! outras ferramentas e os irmãos desses diretórios (só um `stat` cada).
-//!
-//! Tabelas: `sessions(id, parent_session_id, title, message_count,
-//! prompt_tokens, completion_tokens, cost, created_at, updated_at)` e
-//! `messages(id, session_id, role, parts JSON, model, provider, created_at)`.
-//! Tokens e custo só existem por sessão: são repartidos igualmente entre as
-//! respostas do assistente para as visões por dia (o total não muda).
-
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
@@ -26,8 +13,6 @@ pub const TOOL: &str = "crush";
 pub struct CrushSource {
     extra_projects: Vec<PathBuf>,
     registry: Vec<PathBuf>,
-    /// `~/.crush/crush.db`: `None` keeps a source built from given projects
-    /// off the person's real data (the tests).
     home: Option<PathBuf>,
 }
 
@@ -56,7 +41,6 @@ impl CrushSource {
         }
     }
 
-    /// Only these projects (and their siblings): no registry, no home.
     pub fn with_projects(projects: Vec<PathBuf>) -> Self {
         Self {
             extra_projects: projects,
@@ -65,7 +49,6 @@ impl CrushSource {
         }
     }
 
-    /// (banco, diretório do projeto)
     pub fn dbs(&self) -> Vec<(PathBuf, PathBuf)> {
         let mut out: Vec<(PathBuf, PathBuf)> = Vec::new();
         let mut push = |db: PathBuf, proj: PathBuf| {
@@ -169,7 +152,6 @@ fn meta_of(db: &Path, proj: &Path, r: &Map<String, Value>) -> SessionMeta {
     }
 }
 
-/// Uma parte do `parts`: embrulhada (`{type, data}`) ou plana.
 fn part_parts(p: &Value) -> (String, &Value) {
     let t = util::str_of(p, "type").unwrap_or("").to_string();
     (t, p.get("data").filter(|d| d.is_object()).unwrap_or(p))
@@ -275,7 +257,6 @@ fn load_db(db: &Path, proj: &Path, id: &str) -> Option<Session> {
             }
         }
     }
-    // Reparte o uso/custo da sessão entre as respostas.
     let idxs: Vec<usize> = turns
         .iter()
         .enumerate()
@@ -353,8 +334,6 @@ impl SessionSource for CrushSource {
     }
 
     fn resume_command(&self, meta: &SessionMeta) -> Option<String> {
-        // O TUI do Crush lista as sessões do projeto; `run --session`
-        // continua uma sessão sem TUI.
         Some(util::in_dir(
             meta.project_path.as_deref(),
             "crush".to_string(),
@@ -368,9 +347,6 @@ mod tests {
 
     #[test]
     fn per_project_db_with_wrapped_parts() {
-        // Hermetic: the project sits alone in its own folder, so the sibling
-        // scan sees nothing else of `$TMPDIR`, and `with_projects` never
-        // reads `~/.crush` (the person's real sessions).
         let root = std::env::temp_dir().join(format!(
             "omniget-crush-{}-{}",
             std::process::id(),

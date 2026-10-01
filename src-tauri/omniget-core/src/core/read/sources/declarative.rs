@@ -1,12 +1,3 @@
-//! Declarative sources: a JSON file describes how to list, search, open a
-//! series and get its pages with CSS selectors, JSON paths and regexes.
-//! No code runs. Most manga sites are built on a handful of CMS themes, so
-//! a source can name a `template` (`madara`, `mangathemesia`) and override
-//! only what differs.
-//!
-//! Users add sources by pasting a repository URL (an index listing source
-//! files with their sha256) or a single source file. OmniGet ships none.
-
 use std::collections::HashMap;
 
 use scraper::{ElementRef, Html, Selector};
@@ -23,14 +14,12 @@ pub struct DeclarativeSource {
     pub id: String,
     pub name: String,
     pub lang: String,
-    /// `manga` (series with chapters) or `book`.
     pub kind: Option<String>,
     pub base_url: String,
     pub icon: Option<String>,
     pub nsfw: bool,
     pub template: Option<String>,
     pub headers: HashMap<String, String>,
-    /// Minimum delay between requests, in ms.
     pub rate_limit_ms: u64,
     pub popular: Option<ListSpec>,
     pub latest: Option<ListSpec>,
@@ -47,7 +36,6 @@ pub struct Request {
     pub url: String,
     pub method: Option<String>,
     pub body: Option<String>,
-    /// Parse the response as JSON instead of HTML.
     pub json: bool,
 }
 
@@ -56,12 +44,10 @@ pub struct Request {
 pub struct ListSpec {
     #[serde(flatten)]
     pub request: Request,
-    /// CSS selector of each item, or a JSON path when `json`.
     pub list: String,
     pub key: Extractor,
     pub title: Extractor,
     pub cover: Option<Extractor>,
-    /// Truthy when there is another page.
     pub has_next: Option<Extractor>,
 }
 
@@ -89,8 +75,6 @@ pub struct ChaptersSpec {
     pub number: Option<Extractor>,
     pub date: Option<Extractor>,
     pub scanlator: Option<Extractor>,
-    /// Order the site lists chapters in: `desc` (newest first, the usual)
-    /// or `asc`.
     pub order: Option<String>,
 }
 
@@ -101,36 +85,24 @@ pub struct PagesSpec {
     pub request: Request,
     pub list: String,
     pub image: Extractor,
-    /// Regex whose first group is a JSON array of image URLs (sites that
-    /// put the page list in a script).
     pub script_json: Option<String>,
-    /// Send the chapter URL as Referer when fetching images.
     pub referer: Option<bool>,
 }
 
-/// How to get a string out of an element or JSON value.
-///
-/// Short form: `"h3 a"` (text) or `"h3 a@href"` / `"img@data-src|src"`.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase", default)]
 pub struct Extractor {
     pub css: Option<String>,
-    /// Attribute(s) to read, first non-empty wins.
     pub attr: Option<Vec<String>>,
     pub json: Option<String>,
-    /// Constant value.
     pub value: Option<String>,
-    /// Regex applied to the value; group 1 when present.
     pub regex: Option<String>,
     pub replace: Option<(String, String)>,
     pub prefix: Option<String>,
-    /// Every match joined into a list (authors, genres).
     pub all: bool,
-    /// Make the value an absolute URL against the page URL.
     pub abs: bool,
 }
 
-/// Accepts the short string form as well as the object form.
 fn normalize_extractors(v: &mut Value) {
     const KEYS: &[&str] = &[
         "key",
@@ -255,7 +227,6 @@ pub fn template(name: &str) -> Option<Value> {
     })
 }
 
-/// Parses a source file (object form or short form, with template).
 pub fn parse_source(v: Value) -> Result<DeclarativeSource, String> {
     let mut v = v;
     if let Some(t) = v.get("template").and_then(|t| t.as_str()) {
@@ -290,8 +261,6 @@ struct RepoEntry {
     kind: Option<String>,
 }
 
-/// Downloads a repository index and every declarative source in it (each
-/// checked against its sha256), or a single source file.
 pub async fn fetch_repo(
     client: &reqwest::Client,
     url: &str,
@@ -342,8 +311,6 @@ pub async fn fetch_repo(
     }
     Ok(out)
 }
-
-// ---------- evaluation ----------
 
 enum Doc {
     Html(Html),
@@ -426,12 +393,10 @@ async fn throttle(id: &str, ms: u64) {
 }
 
 fn sel(css: &str) -> Option<Selector> {
-    // `:contains()` is common in scraper configs but not CSS; drop it.
     let re = regex::Regex::new(r":contains\([^)]*\)").ok()?;
     Selector::parse(&re.replace_all(css, "")).ok()
 }
 
-/// JSON path: dot-separated keys, numeric indexes and `*` for every item.
 pub fn json_path<'a>(v: &'a Value, path: &str) -> Vec<&'a Value> {
     let mut cur = vec![v];
     for seg in path
@@ -470,7 +435,6 @@ fn value_str(v: &Value) -> String {
 
 fn post(ex: &Extractor, raw: String, page_url: &str) -> String {
     let mut s = raw.trim().to_string();
-    // `srcset="a.jpg 1x, b.jpg 2x"`: take the first URL.
     if s.contains(", ") && s.split(", ").all(|p| p.contains(' ')) {
         s = s.split(' ').next().unwrap_or("").to_string();
     }
@@ -568,8 +532,6 @@ fn one_json(ex: &Extractor, v: &Value, url: &str) -> String {
     from_json(ex, v, url).into_iter().next().unwrap_or_default()
 }
 
-/// Keys become absolute URLs when they look like paths, so `{key}` works
-/// as a URL template.
 fn abs_key(k: String, page_url: &str) -> String {
     if k.starts_with('/') || k.starts_with("./") || k.starts_with("../") {
         url::Url::parse(page_url)
@@ -699,8 +661,6 @@ pub async fn details(
         s,
         &[("key", key)],
     );
-    // The parsed page is not Send: read everything from it before the next
-    // await and let it drop.
     let (h, same_page) = {
         let (doc, final_url) = fetch(client, s, &d.request, &url).await?;
         let mut h = hit(s, key.to_string(), String::new(), None);
@@ -759,7 +719,6 @@ async fn fetch_chapters(
         Ok((doc, page_url)) => return Ok(parse_chapters(s, c, &doc, &page_url)),
         Err(e) => e,
     };
-    // Older Madara installs only answer admin-ajax.
     if s.template.as_deref() != Some("madara") {
         return Err(err);
     }
@@ -850,14 +809,12 @@ fn parse_chapters(
             }
         }
     }
-    // Oldest first, like every other source.
     if c.order.as_deref().unwrap_or("desc") == "desc" {
         out.reverse();
     }
     out
 }
 
-/// Absolute dates in common formats, and "3 days ago" style relative ones.
 pub fn parse_date(s: &str) -> Option<i64> {
     let t = s.trim();
     if t.is_empty() {
@@ -991,7 +948,6 @@ pub struct HealthReport {
     pub sample: Option<String>,
 }
 
-/// Runs the whole path once and says where it broke (`None` = fine).
 pub async fn health(client: &reqwest::Client, s: &DeclarativeSource) -> HealthReport {
     let mut r = HealthReport::default();
     let list = browse(client, s, "popular", "", 1, &Value::Null).await;

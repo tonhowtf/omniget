@@ -1,5 +1,3 @@
-//! The model's door to memory (tools) and the per-turn hook.
-
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -244,7 +242,6 @@ fn parse_kind(input: &Value) -> Result<Option<Category>, String> {
     }
 }
 
-/// Runs one memory tool against `db` (the trait impl passes the app's).
 pub fn call_tool(
     db: &AssistDb,
     ctx: &AssistCtx,
@@ -317,8 +314,6 @@ pub fn call_tool(
             let mut cat = parse_kind(&input)?.unwrap_or(old.category);
             if cat == Category::Declared && !explicit {
                 if old.category == Category::Declared {
-                    // Rewording a stated preference without the person
-                    // saying so turns it into a guess.
                     cat = Category::Inference;
                 } else {
                     return Err(format!(
@@ -353,7 +348,6 @@ pub fn call_tool(
     }
 }
 
-/// True when the agent (after the bots hook) may call `memory_recall`.
 pub fn has_recall_grant(agent: &AgentDef) -> bool {
     agent.tools.iter().any(|g| {
         g.mode != GrantMode::Deny
@@ -419,7 +413,6 @@ impl crate::core::llm::coordinator::TurnAugment for MemoryAugment {
     }
 }
 
-/// Vectors for records written without one, then the entity notes.
 pub(super) fn spawn_upkeep(db: Arc<AssistDb>) {
     let Ok(rt) = tokio::runtime::Handle::try_current() else {
         return;
@@ -435,8 +428,6 @@ pub(super) fn spawn_upkeep(db: Arc<AssistDb>) {
     });
 }
 
-/// True when the agent may save memories on its own (the `Remember` policy
-/// gives `memory_remember` an automatic grant; `Ask` and read-only do not).
 fn may_retain(agent: &AgentDef) -> bool {
     agent.tools.iter().any(|g| {
         g.mode == GrantMode::Auto
@@ -444,8 +435,6 @@ fn may_retain(agent: &AgentDef) -> bool {
     })
 }
 
-/// Per-turn hook: profile + relevant recollections, only for agents that
-/// hold the `memory_recall` grant.
 pub fn augment() -> Arc<dyn crate::core::llm::coordinator::TurnAugment> {
     Arc::new(MemoryAugment)
 }

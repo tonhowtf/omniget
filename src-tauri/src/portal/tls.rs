@@ -1,28 +1,11 @@
-//! Self-signed HTTPS in portals (Maestri accepts it; M-L1).
-//!
-//! WebKit rejects an untrusted server certificate unless the navigation
-//! delegate answers `webView:didReceiveAuthenticationChallenge:completionHandler:`.
-//! wry's delegate does not, so the method is added to its class once at bind
-//! time, before any portal exists (WebKit caches which delegate methods exist
-//! when the delegate is set, so it must be there first).
-//!
-//! The decision is per portal: loopback hosts (`localhost`, `*.localhost`,
-//! `127.0.0.1`, `::1`) are dev servers and pass; any other host with a bad
-//! certificate is refused once and reported as `certError` on the portal's
-//! state, so the node shows the warning and "Proceed" (`trust`) adds the host
-//! to that portal only (persisted in the node's `data.trustedHosts`). Webviews
-//! that are not portals (the app itself) get WebKit's default handling.
-
 use std::collections::{HashMap, HashSet};
 use std::sync::{Mutex, OnceLock};
 
-/// label → hosts the user accepted for that portal.
 fn trusted() -> &'static Mutex<HashMap<String, HashSet<String>>> {
     static T: OnceLock<Mutex<HashMap<String, HashSet<String>>>> = OnceLock::new();
     T.get_or_init(Default::default)
 }
 
-/// label → (host, url) of the last refused certificate.
 fn errors() -> &'static Mutex<HashMap<String, (String, String)>> {
     static E: OnceLock<Mutex<HashMap<String, (String, String)>>> = OnceLock::new();
     E.get_or_init(Default::default)
@@ -39,7 +22,6 @@ pub fn is_loopback(host: &str) -> bool {
             .is_ok_and(|ip| ip.is_loopback())
 }
 
-/// Hosts accepted for `label` (seeded from the node's `trustedHosts`).
 pub fn set_trusted(label: &str, hosts: impl IntoIterator<Item = String>) {
     if let Ok(mut t) = trusted().lock() {
         let e = t.entry(label.to_string()).or_default();
@@ -67,7 +49,6 @@ pub fn is_trusted(label: &str, host: &str) -> bool {
             .unwrap_or(false)
 }
 
-/// `(host, url)` of the certificate this portal refused last, if any.
 pub fn cert_error(label: &str) -> Option<(String, String)> {
     errors().lock().ok().and_then(|e| e.get(label).cloned())
 }
@@ -93,8 +74,6 @@ fn record_error(label: &str, host: &str) {
     if let Ok(mut e) = errors().lock() {
         e.insert(label.to_string(), (host.to_string(), url));
     }
-    // The page will never finish: wake whoever waits for the load and let the
-    // node show the warning.
     super::host().set(label, |s| s.loading = false);
     super::host().fire_loads(label);
     if let Some(app) = super::app() {
@@ -102,8 +81,6 @@ fn record_error(label: &str, host: &str) {
     }
 }
 
-/// Adds the challenge handler to the navigation delegate class of `ww`
-/// (the main window: same class as every portal's). Idempotent.
 #[cfg(target_os = "macos")]
 pub fn install(ww: &tauri::WebviewWindow) {
     static DONE: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
@@ -160,8 +137,6 @@ mod mac {
         CStr::from_ptr(p).to_string_lossy().into_owned()
     }
 
-    /// Portal label of a WKWebView, from its window title
-    /// (`OmniGet Portal portal-<id>`, see `super::super::window_title`).
     unsafe fn portal_label(webview: *mut c_void) -> Option<String> {
         let win = send0(webview, sel!(window));
         let title = string(send0(win, sel!(title)));

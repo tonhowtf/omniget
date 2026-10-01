@@ -1,11 +1,3 @@
-//! Downloads › Tools › Gallery: every image (or video) of a page, through
-//! gallery-dl, for any link gallery-dl understands, not only the hosts the
-//! main queue routes to it. Filters by kind of file and minimum size.
-//!
-//! Mechanism from gallery-dl itself (`--filter`, `--filesize-min`, `-d` with
-//! one folder per site and gallery); the code here only builds its command
-//! line and reads the paths it prints.
-
 use std::path::PathBuf;
 use std::process::Stdio;
 use std::sync::Mutex;
@@ -27,7 +19,6 @@ pub struct GalleryGrabResult {
     pub folder: String,
     pub files: usize,
     pub bytes: u64,
-    /// Files gallery-dl skipped because they were already there.
     pub skipped: usize,
 }
 
@@ -45,8 +36,6 @@ fn quoted(exts: &[&str]) -> String {
         .join(", ")
 }
 
-/// The `--filter` expression for the kinds of file the person kept
-/// (`images`, `videos`, `other`). `None` keeps everything.
 pub fn kind_filter(kinds: &[String]) -> Option<String> {
     let has = |k: &str| kinds.iter().any(|x| x == k);
     let (img, vid, other) = (has("images"), has("videos"), has("other"));
@@ -73,7 +62,6 @@ pub fn kind_filter(kinds: &[String]) -> Option<String> {
     Some(format!("extension.lower() in ({})", quoted(&kept)))
 }
 
-/// gallery-dl arguments for one run.
 pub fn grab_args(
     url: &str,
     output_dir: &str,
@@ -191,7 +179,6 @@ async fn run(
             if line.is_empty() || line.starts_with('[') {
                 continue;
             }
-            // gallery-dl prints each saved path, and `# <path>` for a skipped one.
             if line.starts_with('#') {
                 skipped += 1;
             } else {
@@ -236,7 +223,6 @@ async fn run(
         .filter_map(|p| std::fs::metadata(p).ok())
         .map(|m| m.len())
         .sum();
-    // The folder of the first saved file: gallery-dl makes one per site and gallery.
     let folder = saved
         .first()
         .and_then(|p| p.parent())

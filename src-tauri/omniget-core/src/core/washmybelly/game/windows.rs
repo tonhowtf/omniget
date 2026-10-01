@@ -1,11 +1,3 @@
-//! Windows: while the game runs, a performance power plan (the previous one
-//! is remembered), `AboveNormal` priority and EcoQoS off for the game only,
-//! and the display kept awake by the watcher thread. The watcher waits on
-//! the process handle and undoes everything when the game exits.
-//!
-//! Windows' own Game Mode is a tweak (another module); here it is only read
-//! (`HKCU\Software\Microsoft\GameBar\AutoGameModeEnabled`).
-
 use std::time::Duration;
 
 use serde_json::{json, Value};
@@ -57,7 +49,6 @@ fn set_scheme(s: &str) -> Result<(), String> {
     }
 }
 
-/// A process handle that closes itself.
 struct Proc(HANDLE);
 
 impl Proc {
@@ -94,7 +85,6 @@ fn get_throttling(p: &Proc) -> (u32, u32) {
             std::mem::size_of::<PROCESS_POWER_THROTTLING_STATE>() as u32,
         )
     };
-    // Not readable: treat as "the system decides" (both masks 0).
     if ok == 0 {
         (0, 0)
     } else {
@@ -129,7 +119,6 @@ impl Exec for Sys {
     fn undo(&self, step: &UndoStep) -> Result<String, String> {
         match step {
             UndoStep::PowerScheme { prev, set } => {
-                // Someone picked another plan meanwhile: leave theirs.
                 if active_scheme().as_deref() != Some(set.as_str()) {
                     return Ok("power plan was changed since; left as is".into());
                 }
@@ -160,13 +149,11 @@ impl Exec for Sys {
     }
 }
 
-/// Runs on the watcher thread, so the execution state belongs to it.
 fn apply(target: &Target) -> Result<Applied, String> {
     let mut out = Applied {
         method: "windows".into(),
         ..Default::default()
     };
-    // Power plan.
     match active_scheme() {
         Some(prev) if prev == SCHEME_HIGH_PERFORMANCE || prev == SCHEME_ULTIMATE => {
             out.notes.push("power_plan_already_performance".into())
@@ -183,7 +170,6 @@ fn apply(target: &Target) -> Result<Applied, String> {
         },
         None => out.notes.push("power_plan_unreadable".into()),
     }
-    // Priority and EcoQoS of the game only.
     match Proc::open(
         target.pid,
         PROCESS_SET_INFORMATION | PROCESS_QUERY_INFORMATION | PROCESS_QUERY_LIMITED_INFORMATION,
@@ -191,8 +177,6 @@ fn apply(target: &Target) -> Result<Applied, String> {
         Ok(p) => {
             let prev = unsafe { GetPriorityClass(p.0) };
             if prev == NORMAL_PRIORITY_CLASS {
-                // Only from Normal: a class someone chose on purpose (high,
-                // below normal...) is left alone.
                 if unsafe { SetPriorityClass(p.0, ABOVE_NORMAL_PRIORITY_CLASS) } != 0 {
                     out.applied.push("priority".into());
                     out.undo.push(UndoStep::PriorityClass {
@@ -219,7 +203,6 @@ fn apply(target: &Target) -> Result<Applied, String> {
         }
         Err(_) => out.notes.push("game_not_accessible".into()),
     }
-    // Display awake, owned by this thread.
     if unsafe { SetThreadExecutionState(ES_CONTINUOUS | ES_SYSTEM_REQUIRED | ES_DISPLAY_REQUIRED) }
         != 0
     {
@@ -233,13 +216,11 @@ fn apply(target: &Target) -> Result<Applied, String> {
     Ok(out)
 }
 
-/// `WaitForSingleObject` on the game's handle.
 struct HandleWaiter {
     h: Option<Proc>,
     fallback: PollWaiter,
 }
 
-// The handle is only used by the watcher thread that owns it.
 unsafe impl Send for HandleWaiter {}
 
 impl ExitWaiter for HandleWaiter {
@@ -287,7 +268,6 @@ pub fn status(_pid: Option<u32>) -> Value {
         "can_force": true,
         "reason": Value::Null,
         "system": {
-            // null: the value is absent and Windows uses its default (on).
             "auto_game_mode": auto,
             "active_power_plan": scheme,
             "performance_plan_active": scheme.as_deref().is_some_and(|s| s == SCHEME_HIGH_PERFORMANCE || s == SCHEME_ULTIMATE),

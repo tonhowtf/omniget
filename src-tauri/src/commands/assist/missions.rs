@@ -1,9 +1,3 @@
-//! Commands for missions (`assist::missions` + the driver in `crate::missions`):
-//! create from the Chat or the Activity screen, follow tasks, criteria,
-//! receipts, budget and checkpoints, correct the context, accept or reject a
-//! subjective criterion, resume, pause, cancel, export a redacted
-//! diagnostic bundle, and apply the presets.
-
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use tauri::{AppHandle, State};
@@ -30,9 +24,6 @@ pub struct MissionRow {
     pub tasks_total: usize,
     pub tasks_done: usize,
     pub verdict: String,
-    /// How many required criteria are in each state, counted from the same
-    /// verdict the detail view counts (the English `verdict` summary joins
-    /// titles with commas, so a title with a comma was counted twice).
     pub verdict_counts: VerdictCounts,
     pub completion: String,
     pub driving: bool,
@@ -71,8 +62,6 @@ pub async fn assist_mission_list(
         let ts = missions::tasks(db, &m.id)?;
         let crit = missions::criteria(db, &m.id, Some(m.criteria_version))?;
         let recs = missions::receipts(db, &m.id)?;
-        // The artifacts as they are now, like `missions::detail`: a list that
-        // trusts stored receipts alone disagrees with the detail view.
         let ws = m.workspace.clone().map(std::path::PathBuf::from);
         let since = m.created_ms;
         let dflt = |c: &Criterion| verify::digest_for(Some(db), ws.as_deref(), c, since);
@@ -123,7 +112,6 @@ fn app_state_budget(
     Some(app.state::<AppState>().llm.budget())
 }
 
-/// Creates (and, with `start`, queues) a mission.
 #[tauri::command]
 pub async fn assist_mission_create(
     app: AppHandle,
@@ -158,9 +146,6 @@ pub struct FromChat {
     pub start: bool,
 }
 
-/// From the Chat: the request becomes the objective; the conversation's
-/// project folder (if any) becomes the workspace; the turns run in the same
-/// conversation, so the chat shows them.
 #[tauri::command]
 pub async fn assist_mission_from_chat(
     app: AppHandle,
@@ -260,7 +245,6 @@ pub async fn assist_mission_delete(app: AppHandle, id: String) -> Result<(), Str
     missions::delete(d.db(), &id)
 }
 
-/// The person corrects or adds context; it reaches every later task.
 #[tauri::command]
 pub async fn assist_mission_note(app: AppHandle, id: String, text: String) -> Result<(), String> {
     let d = driver(&app)?;
@@ -282,8 +266,6 @@ pub async fn assist_mission_revise_criteria(
     to_value(m)
 }
 
-/// A person accepts or rejects a criterion (rubric or human). The receipt is
-/// tied to the artifact as it is now.
 #[tauri::command]
 pub async fn assist_mission_accept(
     app: AppHandle,
@@ -337,7 +319,6 @@ pub async fn assist_mission_accept(
     let out = if matches!(cur.state, MissionState::Verifying | MissionState::Running) {
         let (m2, v) = missions::complete(d.db(), &id, &dig)?;
         if m2.state == MissionState::Running && !accept {
-            // Rejected: the next round works on it.
             missions::add_task(
                 d.db(),
                 &id,
@@ -393,10 +374,6 @@ pub async fn assist_mission_allow_replay(app: AppHandle, id: String) -> Result<V
     to_value(missions::get(d.db(), &id)?)
 }
 
-/// A person raises (or sets) a mission's limits, e.g. more work minutes after
-/// the time limit blocked it; fields left out keep their value. An external
-/// mission stays inside its execution grant's token ceiling. With `resume`, a
-/// blocked mission continues at once.
 #[tauri::command]
 pub async fn assist_mission_revise_budget(
     app: AppHandle,
@@ -427,7 +404,6 @@ pub async fn assist_mission_revise_budget(
             MissionState::Blocked | MissionState::Partial | MissionState::Paused
         )
     {
-        // The task the limit stopped must run again, or the mission re-blocks.
         missions::reopen_budget_blocked(d.db(), &id)?;
         missions::resume(d.db(), &id, "limits revised by the user")?;
         d.start(&id);
@@ -436,20 +412,14 @@ pub async fn assist_mission_revise_budget(
     to_value(missions::get(d.db(), &id)?)
 }
 
-/// Trusted desktop revocation of ONE bot an MCP client derived with
-/// `agents_prepare`: it is retired (still listed, read-only) and every
-/// later authority check for it fails; the grant and its other bots stay.
 #[tauri::command]
 pub async fn assist_mcp_derived_bot_revoke(bot: String) -> Result<(), String> {
     let db = omniget_core::core::assist::db::global()?;
     omniget_core::core::assist::external_config::retire_derived(&db, &bot)
 }
 
-/// Missions whose re-check runs in the background right now.
 static VERIFYING: std::sync::Mutex<Vec<String>> = std::sync::Mutex::new(Vec::new());
 
-/// Marks `id` as being re-checked; false when a re-check already runs (a
-/// double click or the webview's IPC re-send of a long request).
 pub fn claim_verify(id: &str) -> bool {
     let mut v = VERIFYING.lock().unwrap_or_else(|e| e.into_inner());
     if v.iter().any(|x| x == id) {
@@ -466,12 +436,6 @@ pub fn release_verify(id: &str) {
         .retain(|x| x != id);
 }
 
-/// Runs the verifiers now (after the person changed something by hand).
-/// Command checks and reviews can take many minutes, longer than the webview
-/// keeps an IPC request open (it would re-send the command and verify
-/// twice), so this returns at once with `{ mission, started, already_running }`
-/// and verifies in the background; the result arrives as `assist://mission`
-/// events like any other change.
 #[tauri::command]
 pub async fn assist_mission_verify(app: AppHandle, id: String) -> Result<Value, String> {
     let d = driver(&app)?;
@@ -524,8 +488,6 @@ async fn verify_now(
         }
         missions::transition(d.db(), &id, MissionState::Running, "re-check", None)?;
     }
-    // Automated checks are work, also for a mission that was waiting for a
-    // person (its clock was stopped); `complete` stops it again if needed.
     missions::start_clock(d.db(), &id)?;
     d.verify_all(&id).await?;
     let ws = m.workspace.clone();
@@ -551,7 +513,6 @@ async fn verify_now(
     Ok(())
 }
 
-/// Redacted diagnostic bundle; written to `path` when given.
 #[tauri::command]
 pub async fn assist_mission_diagnostics(
     app: AppHandle,
@@ -581,7 +542,6 @@ pub async fn assist_mission_diagnostics(
     Ok(bundle)
 }
 
-/// Redacted, paginated log of a task's jobs (tool calls, errors).
 #[tauri::command]
 pub async fn assist_mission_log(
     app: AppHandle,
@@ -623,14 +583,11 @@ pub async fn assist_mission_presets() -> Result<Value, String> {
 #[derive(Debug, Deserialize)]
 pub struct ApplyPreset {
     pub preset_id: String,
-    /// A roster agent whose model and runtime the new bots start with.
     pub connection_agent_id: String,
-    /// Create the group room too (off = the coordinator bot alone).
     #[serde(default)]
     pub with_group: bool,
 }
 
-/// Creates the preset's bots (and room), binding skills that are installed.
 #[tauri::command]
 pub async fn assist_mission_apply_preset(
     app: AppHandle,
@@ -715,8 +672,6 @@ pub async fn assist_mission_apply_preset(
     )
 }
 
-/// The tasks of a group preset mission: specialists first, the coordinator
-/// delivers. With one bot, one task.
 #[tauri::command]
 pub async fn assist_mission_group_plan(
     app: AppHandle,

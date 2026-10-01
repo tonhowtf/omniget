@@ -1,7 +1,3 @@
-//! Profile editor: everything the client lets the player change about how
-//! they look to others without touching the game itself. The endpoints and
-//! payloads mirror what league_profile_tool and league-tools send (both MIT).
-
 use super::{ensure_enabled, get_client, lcu_get_raw, lcu_send, LcuClient};
 use rand::RngExt;
 use serde_json::{json, Value};
@@ -27,7 +23,6 @@ fn valid_tier(tier: &str) -> bool {
     TIERS.contains(&tier)
 }
 
-/// Apex tiers have no division; the client shows "NA" for them.
 pub fn normalise_division(tier: &str, division: &str) -> String {
     if matches!(tier, "MASTER" | "GRANDMASTER" | "CHALLENGER" | "UNRANKED") {
         "NA".to_string()
@@ -40,7 +35,6 @@ async fn chat_me(client: &LcuClient) -> Result<Value, String> {
     lcu_get_raw(client, "/lol-chat/v1/me").await
 }
 
-/// The three challenge tokens (or fewer) plus the title the profile shows.
 pub fn summary_preferences(summary: &Value) -> (Vec<i64>, String, String) {
     let tokens: Vec<i64> = summary
         .get("topChallenges")
@@ -75,7 +69,6 @@ pub fn summary_preferences(summary: &Value) -> (Vec<i64>, String, String) {
     (tokens, title, banner)
 }
 
-/// One snapshot with everything the profile tab renders.
 #[tauri::command]
 pub async fn league_profile_state() -> Result<Value, String> {
     ensure_enabled()?;
@@ -139,8 +132,6 @@ pub async fn league_profile_state() -> Result<Value, String> {
     }))
 }
 
-/// Rank shown on the chat hovercard and social cards. Only the `lol` block is
-/// patched, so presence data the client keeps there survives.
 #[tauri::command]
 pub async fn league_set_chat_rank(
     queue: String,
@@ -179,7 +170,6 @@ pub async fn league_set_chat_rank(
     .await
 }
 
-/// Puts the real rank back, read from the ranked service.
 #[tauri::command]
 pub async fn league_reset_chat_rank() -> Result<Value, String> {
     ensure_enabled()?;
@@ -209,7 +199,6 @@ pub async fn league_reset_chat_rank() -> Result<Value, String> {
     league_set_chat_rank(queue, tier, division).await
 }
 
-/// The challenge crystal level and points shown next to the rank.
 #[tauri::command]
 pub async fn league_set_challenge_crystal(level: String, points: i64) -> Result<Value, String> {
     ensure_enabled()?;
@@ -231,8 +220,6 @@ pub async fn league_set_challenge_crystal(level: String, points: i64) -> Result<
     .await
 }
 
-/// Icon shown in chat and hovercards. Unlike the profile icon, the chat
-/// service accepts any icon id here.
 #[tauri::command]
 pub async fn league_set_chat_icon(icon_id: i64) -> Result<Value, String> {
     ensure_enabled()?;
@@ -249,7 +236,6 @@ pub async fn league_set_chat_icon(icon_id: i64) -> Result<Value, String> {
     .await
 }
 
-/// Challenge medals the account has earned, and the titles it may wear.
 #[tauri::command]
 pub async fn league_challenges() -> Result<Value, String> {
     ensure_enabled()?;
@@ -316,8 +302,6 @@ pub async fn league_challenges() -> Result<Value, String> {
     Ok(json!({ "tokens": tokens, "titles": titles }))
 }
 
-/// Applies the three medals, the title and the banner accent in one call.
-/// Anything not given keeps its current value.
 #[tauri::command]
 pub async fn league_set_challenge_prefs(
     challenge_ids: Option<Vec<i64>>,
@@ -358,7 +342,6 @@ pub async fn league_set_challenge_prefs(
     .await
 }
 
-/// The friends list, trimmed to what the manager shows.
 #[tauri::command]
 pub async fn league_friends() -> Result<Value, String> {
     ensure_enabled()?;
@@ -388,8 +371,6 @@ pub async fn league_friends() -> Result<Value, String> {
     Ok(json!({ "friends": list }))
 }
 
-/// Removes friends one by one, spaced out so the chat service does not choke.
-/// Returns how many went through and which ids failed.
 #[tauri::command]
 pub async fn league_remove_friends(ids: Vec<String>) -> Result<Value, String> {
     ensure_enabled()?;
@@ -425,7 +406,6 @@ pub async fn league_remove_friends(ids: Vec<String>) -> Result<Value, String> {
     Ok(json!({ "removed": removed, "failed": failed }))
 }
 
-/// Champions the account can play right now, for the raffle.
 #[tauri::command]
 pub async fn league_random_champion(class: Option<String>) -> Result<Value, String> {
     ensure_enabled()?;
@@ -468,7 +448,6 @@ pub async fn league_random_champion(class: Option<String>) -> Result<Value, Stri
     }))
 }
 
-/// Hovers (or locks) a champion in the local player's open pick action.
 #[tauri::command]
 pub async fn league_declare_champion(
     champion_id: i64,

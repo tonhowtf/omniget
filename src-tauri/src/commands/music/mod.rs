@@ -1,9 +1,3 @@
-//! `/music` superpower: a local music library and player.
-//!
-//! Rust indexes, analyzes and serves; the webview plays (see `server.rs` for
-//! why). Pure building blocks (tags, LRC, loudness, DSP, playlists) live in
-//! `omniget_core::core::music` so the CLI can reuse them.
-
 pub mod analysis;
 pub mod convert;
 pub mod db;
@@ -29,8 +23,6 @@ async fn blocking<T: Send + 'static>(
         .await
         .map_err(|e| e.to_string())?
 }
-
-// ---------- status & library ----------
 
 #[derive(Serialize)]
 pub struct MusicStatus {
@@ -132,8 +124,6 @@ pub async fn music_tracks_by_ids(ids: Vec<i64>) -> Result<Vec<TrackRow>, String>
     blocking(move || db::tracks_by_ids(&ids)).await
 }
 
-/// Adds files or folders outside the watched roots (drag and drop, a fresh
-/// download). `source_url` records where a download came from.
 #[tauri::command]
 pub async fn music_import_paths(
     paths: Vec<String>,
@@ -215,7 +205,6 @@ pub async fn music_record_play(
                 .optional()
         })?
         .unwrap_or(0);
-        // a "play" is what scrobblers count: finished, or 4 min, or half the track
         let counts = completed || ms_played >= 240_000 || (dur > 0 && ms_played * 2 >= dur);
         let now = db::now_ms();
         db::with(|c| {
@@ -267,8 +256,6 @@ pub async fn music_set_liked(ids: Vec<i64>, liked: bool) -> Result<(), String> {
     })
     .await
 }
-
-// ---------- tags ----------
 
 #[derive(Serialize)]
 pub struct TagDetail {
@@ -349,7 +336,6 @@ pub async fn music_tags_write(
     .await
 }
 
-/// Writes the analyzed ReplayGain values into the files (loudgain style).
 #[tauri::command]
 pub async fn music_write_replaygain(ids: Vec<i64>) -> Result<WriteReport, String> {
     blocking(move || {
@@ -392,10 +378,6 @@ pub async fn music_write_replaygain(ids: Vec<i64>) -> Result<WriteReport, String
     .await
 }
 
-// ---------- analysis ----------
-
-/// Waveform for the seek bar; computed on the spot (fast, mono 11 kHz) when
-/// the track was never analyzed.
 #[tauri::command]
 pub async fn music_peaks(id: i64) -> Result<Vec<u8>, String> {
     if let Some(p) = analysis::load_peaks(id) {
@@ -423,11 +405,8 @@ pub async fn music_spectrogram(id: i64) -> Result<analysis::Spectrogram, String>
     analysis::spectrogram(&t.path, 900, 256).await
 }
 
-// ---------- lyrics ----------
-
 #[derive(Serialize)]
 pub struct LyricsPayload {
-    /// "sidecar", "tag", "subtitles", "cache" or "none"
     pub source: String,
     pub raw: String,
     pub lyrics: lrc::Lyrics,
@@ -511,8 +490,6 @@ pub async fn music_lyrics_search(
     online::lrclib_find(&artist, &title, &t.album, t.duration_ms as f64 / 1000.0).await
 }
 
-/// `target`: "sidecar" (a .lrc next to the file), "tag" (inside the file)
-/// or "cache" (app folder, for read-only music folders).
 #[tauri::command]
 pub async fn music_lyrics_save(
     id: i64,
@@ -538,7 +515,6 @@ pub async fn music_lyrics_save(
             _ => std::fs::write(path.with_extension("lrc"), &text).map_err(|e| e.to_string()),
         };
         if res.is_err() {
-            // read-only folder or format without lyrics support: keep it in the app
             let p = lyrics_cache(id).ok_or("no app data folder")?;
             if let Some(d) = p.parent() {
                 std::fs::create_dir_all(d).map_err(|e| e.to_string())?;
@@ -561,8 +537,6 @@ pub async fn music_lyrics_save(
     })
     .await
 }
-
-// ---------- playlists ----------
 
 #[derive(Serialize)]
 pub struct Playlist {
@@ -680,7 +654,6 @@ pub async fn music_playlist_tracks(id: i64) -> Result<Vec<TrackRow>, String> {
     .await
 }
 
-/// Preview of a smart query before it is saved.
 #[tauri::command]
 pub async fn music_smart_preview(query: smart::SmartQuery) -> Result<Vec<TrackRow>, String> {
     blocking(move || playlist_track_rows(0, Some(&query))).await
@@ -806,8 +779,6 @@ pub struct ImportReport {
     pub streams: Vec<playlist_file::PlaylistEntry>,
 }
 
-/// Imports an .m3u/.m3u8/.pls: local files become a playlist (indexed if
-/// they weren't), URLs come back as radio stations to save.
 #[tauri::command]
 pub async fn music_playlist_import(path: String) -> Result<ImportReport, String> {
     blocking(move || {
@@ -878,7 +849,6 @@ pub async fn music_playlist_export(id: i64, path: String) -> Result<usize, Strin
     .await
 }
 
-/// Exports any list of tracks (the queue, an album, a selection).
 #[tauri::command]
 pub async fn music_export_m3u(track_ids: Vec<i64>, path: String) -> Result<usize, String> {
     blocking(move || {
@@ -907,8 +877,6 @@ fn write_m3u(tracks: &[TrackRow], path: &str) -> Result<usize, String> {
     std::fs::write(path, playlist_file::write_m3u(&entries, base)).map_err(|e| e.to_string())?;
     Ok(entries.len())
 }
-
-// ---------- history, stats, duplicates ----------
 
 #[derive(Serialize)]
 pub struct HistoryEntry {
@@ -956,9 +924,7 @@ pub struct Stats {
     pub total_bytes: i64,
     pub listened_ms_30d: i64,
     pub plays_30d: i64,
-    /// (day start ms, ms listened) for the last 30 days
     pub per_day: Vec<(i64, i64)>,
-    /// ms listened per hour of the day (local time offset applied by UI)
     pub per_hour: Vec<i64>,
     pub top_tracks: Vec<(i64, i64)>,
     pub top_artists: Vec<(String, i64)>,
@@ -1026,7 +992,6 @@ pub async fn music_stats(tz_offset_min: Option<i64>) -> Result<Stats, String> {
 
 fn norm_key(s: &str) -> String {
     let lower = s.to_lowercase();
-    // "Song (Remastered 2011)" and "Song - 2011 Remaster" are the same song
     let cut = lower
         .split(" (")
         .next()
@@ -1052,8 +1017,6 @@ fn quality_rank(t: &TrackRow) -> i64 {
     score
 }
 
-/// Same artist + title (ignoring remaster/version suffixes) within 4 s of
-/// each other. Each group is sorted best quality first.
 #[tauri::command]
 pub async fn music_duplicates() -> Result<Vec<Vec<TrackRow>>, String> {
     blocking(|| {
@@ -1072,7 +1035,6 @@ pub async fn music_duplicates() -> Result<Vec<Vec<TrackRow>>, String> {
                 continue;
             }
             g.sort_by_key(|t| t.duration_ms);
-            // split into clusters whose durations are close
             let mut cluster: Vec<TrackRow> = Vec::new();
             for t in g {
                 if let Some(last) = cluster.last() {
@@ -1098,8 +1060,6 @@ pub async fn music_duplicates() -> Result<Vec<Vec<TrackRow>>, String> {
     })
     .await
 }
-
-// ---------- rename ----------
 
 #[derive(Serialize)]
 pub struct RenamePlan {
@@ -1168,7 +1128,6 @@ pub async fn music_rename_apply(
                 std::fs::create_dir_all(d).map_err(|e| e.to_string())?;
             }
             if std::fs::rename(&p.from, &to).is_err() {
-                // across drives: copy then delete
                 std::fs::copy(&p.from, &to).map_err(|e| e.to_string())?;
                 std::fs::remove_file(&p.from).map_err(|e| e.to_string())?;
             }
@@ -1192,8 +1151,6 @@ pub async fn music_rename_apply(
     .await
 }
 
-// ---------- MusicBrainz ----------
-
 #[tauri::command]
 pub async fn music_mb_search(
     id: i64,
@@ -1209,8 +1166,6 @@ pub async fn music_mb_search(
     )
     .await
 }
-
-// ---------- conversion ----------
 
 #[tauri::command]
 pub async fn music_convert(
@@ -1234,8 +1189,6 @@ pub async fn music_convert_jobs() -> Vec<convert::Job> {
 pub async fn music_convert_clear() {
     convert::clear_finished().await;
 }
-
-// ---------- radio ----------
 
 #[tauri::command]
 pub async fn music_radio_search(

@@ -1,15 +1,7 @@
-//! Property lists, XML and binary (`bplist00`), read into `serde_json::Value`
-//! without spawning `plutil`. Pure functions, compiled and tested everywhere.
-//!
-//! Mapping: dict → object, array/set → array, string → string, integer and
-//! uid → number, real → number, true/false → bool, date → ISO 8601 string,
-//! data → `{"$data": <length>}` (nothing here needs the bytes).
-
 use serde_json::{Map, Number, Value};
 
 const MAX_DEPTH: usize = 64;
 
-/// Parse either format, by the magic at the start.
 pub fn parse(bytes: &[u8]) -> Result<Value, String> {
     if bytes.starts_with(b"bplist00") {
         parse_binary(bytes)
@@ -19,13 +11,10 @@ pub fn parse(bytes: &[u8]) -> Result<Value, String> {
     }
 }
 
-/// Read and parse a plist file. A missing or unreadable file is an error.
 pub fn read(path: &std::path::Path) -> Result<Value, String> {
     let bytes = std::fs::read(path).map_err(|e| format!("{}: {e}", path.display()))?;
     parse(&bytes).map_err(|e| format!("{}: {e}", path.display()))
 }
-
-// ── XML ──────────────────────────────────────────────────────────────
 
 pub fn parse_xml(text: &str) -> Result<Value, String> {
     let opts = roxmltree::ParsingOptions {
@@ -96,8 +85,6 @@ fn xml_value(n: roxmltree::Node, depth: usize) -> Result<Value, String> {
     })
 }
 
-// ── Binary ───────────────────────────────────────────────────────────
-
 struct Bin<'a> {
     b: &'a [u8],
     offsets: Vec<usize>,
@@ -146,7 +133,6 @@ impl Bin<'_> {
             .ok_or_else(|| "bplist: out of bounds".to_string())
     }
 
-    /// Length of a collection/string and where its payload starts.
     fn len_at(&self, at: usize, lo: u8) -> Result<(usize, usize), String> {
         if lo != 0xF {
             return Ok((lo as usize, at + 1));
@@ -182,7 +168,6 @@ impl Bin<'_> {
             0x1 => {
                 let n = 1usize << lo;
                 let raw = self.slice(at + 1, n)?;
-                // 16-byte integers keep their low 8 bytes.
                 let raw = &raw[raw.len().saturating_sub(8)..];
                 let v = be(raw);
                 if n >= 8 {
@@ -206,7 +191,6 @@ impl Bin<'_> {
             0x3 => {
                 let raw = self.slice(at + 1, 8)?;
                 let secs = f64::from_be_bytes(raw.try_into().map_err(|_| "bplist: date")?);
-                // Seconds since 2001-01-01T00:00:00Z.
                 let unix = 978_307_200i64 + secs.floor() as i64;
                 chrono::DateTime::from_timestamp(unix, 0)
                     .map(|d| Value::String(d.format("%Y-%m-%dT%H:%M:%SZ").to_string()))

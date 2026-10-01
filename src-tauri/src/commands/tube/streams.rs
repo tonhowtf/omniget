@@ -1,14 +1,3 @@
-//! Stream resolution for the players and the download menu.
-//!
-//! 1. cache per (video, music) until 5 min before the URLs expire;
-//! 2. innertube ladder (`PLAYER_LADDER`, anonymous with visitorData, 6 s per
-//!    client, 30 min blocklist per video and client);
-//! 3. the picked audio (and video) URL must answer its last 256 bytes: URLs
-//!    capped at the first MiB pass at byte 0 and fail later (limusic);
-//! 4. yt-dlp when the ladder fails, the video needs an account, or a
-//!    Premium account wants high-quality music audio;
-//! 5. the result is registered as a proxy session (`server`).
-
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, OnceLock};
 use std::time::{Duration, Instant};
@@ -27,7 +16,6 @@ const BLOCK_FOR: Duration = Duration::from_secs(30 * 60);
 const CACHE_MARGIN_MS: i64 = 5 * 60 * 1000;
 const DEFAULT_TTL_MS: i64 = 5 * 3600 * 1000;
 
-/// What a resolver found, before it becomes a proxy session.
 #[derive(Clone, Debug, Default)]
 struct Resolved {
     video_id: String,
@@ -39,7 +27,6 @@ struct Resolved {
     expires_ms: i64,
     is_live: bool,
     hls: Option<String>,
-    /// (lang, name, auto, source)
     captions: Vec<(String, String, bool, CaptionSrc)>,
     storyboard: Option<(String, Storyboard)>,
     title: Option<String>,
@@ -47,7 +34,6 @@ struct Resolved {
     thumbs: Vec<Thumb>,
 }
 
-/// Fresh upstream URLs for a session that expired mid-play.
 pub(crate) struct Fresh {
     pub formats: Vec<Format>,
     pub ua: String,
@@ -55,7 +41,6 @@ pub(crate) struct Fresh {
 }
 
 type Key = (String, bool);
-/// Resolved set, winning client's user agent, and the extras kept server-side.
 type Cached = (StreamSet, String, Extras);
 
 fn cache() -> &'static Mutex<HashMap<Key, Cached>> {
@@ -68,7 +53,6 @@ fn blocklist() -> &'static Mutex<HashMap<(String, String), Instant>> {
     B.get_or_init(|| Mutex::new(HashMap::new()))
 }
 
-/// One resolution per key at a time: a hover prefetch and the click share it.
 fn inflight(key: &Key) -> Arc<tokio::sync::Mutex<()>> {
     static F: OnceLock<Mutex<HashMap<Key, Arc<tokio::sync::Mutex<()>>>>> = OnceLock::new();
     let map = F.get_or_init(|| Mutex::new(HashMap::new()));
@@ -109,8 +93,6 @@ fn block(video_id: &str, client: &str) {
     }
 }
 
-/// Clears everything tied to the account (Premium formats, watch-time
-/// sessions). Called on login and logout.
 pub fn forget_account_state() {
     if let Ok(mut g) = cache().lock() {
         g.clear();
@@ -125,6 +107,7 @@ fn pick_prefs() -> PickPrefs {
     PickPrefs {
         max_height: s.default_quality.parse::<u32>().ok(),
         codec: s.prefer_codec.clone(),
+        // WHY: WKWebView and WebKitGTK are unreliable with Opus/VP9 in MSE.
         // WKWebView and WebKitGTK are unreliable with Opus/VP9 in MSE
         webkit: cfg!(any(target_os = "macos", target_os = "linux")),
         audio_quality: s.audio_quality.clone(),
@@ -147,9 +130,6 @@ fn expires_from(formats: &[Format]) -> Option<i64> {
         .map(|s| s * 1000)
 }
 
-// ---------- validation ----------
-
-/// GET of the last 256 bytes with the client's UA (limusic `validate_stream`).
 async fn validate(f: &Format, ua: &str) -> bool {
     let len = f
         .content_length
@@ -172,12 +152,8 @@ async fn validate(f: &Format, ua: &str) -> bool {
     }
 }
 
-// ---------- innertube ladder ----------
-
 enum Miss {
-    /// Needs a signed-in client (age, members, bot check): try yt-dlp.
     Account(String),
-    /// Nothing will play it now (premiere not started).
     Final(String),
     Failed(String),
 }
@@ -320,8 +296,6 @@ async fn ladder(video_id: &str, music: bool) -> Result<Resolved, Miss> {
     })
 }
 
-// ---------- yt-dlp ----------
-
 fn s(v: &Value, k: &str) -> Option<String> {
     v.get(k)
         .and_then(Value::as_str)
@@ -343,14 +317,10 @@ fn mime_for(kind: FormatKind, ext: &str) -> String {
     format!("{top}/{sub}")
 }
 
-/// Rank for picking one entry per itag: original language first, DRC last.
 fn itag_rank(f: &Format) -> (bool, bool) {
     (f.audio_default, !f.drc)
 }
 
-/// yt-dlp `--dump-single-json` -> the same shape the ladder produces. There
-/// are no init/index ranges here, so these sets play in `<video>`+`<audio>`
-/// mode (or muxed) instead of the synthetic MPD.
 fn from_ytdlp(json: &Value, video_id: &str) -> Resolved {
     let mut by_itag: HashMap<u32, Format> = HashMap::new();
     let mut ua: Option<String> = None;
@@ -468,7 +438,6 @@ fn from_ytdlp(json: &Value, video_id: &str) -> Resolved {
             let Some(url) = s(entry, "url") else {
                 continue;
             };
-            // automatic captions list every machine translation; keep the source
             if auto && url.contains("tlang=") {
                 continue;
             }
@@ -548,8 +517,6 @@ async fn via_ytdlp(video_id: &str, music: bool) -> Result<Resolved, String> {
     Ok(r)
 }
 
-/// Logged in, "premium" audio chosen and not known to be free: try yt-dlp
-/// with the account for Premium audio (141/774). Slower to start, so opt-in.
 fn wants_premium(music: bool) -> bool {
     music
         && http::settings().audio_quality == "premium"
@@ -579,7 +546,6 @@ async fn resolve(video_id: &str, music: bool, force_ytdlp: bool) -> Result<Resol
     }
 }
 
-/// Registers `r` as a proxy session and builds the `StreamSet` the webview gets.
 fn open(r: Resolved, music: bool, info: &server::ServerInfo) -> (StreamSet, String, Extras) {
     let session = server::new_session_id();
     let base = server::session_base(info, &session);
@@ -670,7 +636,6 @@ pub async fn tube_streams(
     streams(&video_id, music, false).await
 }
 
-/// Skips the innertube ladder (the player could not play what it returned).
 #[tauri::command]
 pub async fn tube_streams_fallback(
     app: AppHandle,
@@ -681,13 +646,10 @@ pub async fn tube_streams_fallback(
     streams(&video_id, music, true).await
 }
 
-/// The same `StreamSet` the player gets (formats carry their upstream URLs
-/// on the Rust side), for downloads.
 pub async fn resolve_for_download(video_id: &str, music: bool) -> Result<StreamSet, String> {
     streams(video_id, music, false).await
 }
 
-/// New upstream URLs for a session whose URLs expired (`server`).
 pub(crate) async fn refresh(video_id: &str, music: bool) -> Result<Fresh, String> {
     if let Ok(mut g) = cache().lock() {
         g.remove(&(video_id.to_string(), music));
@@ -699,8 +661,6 @@ pub(crate) async fn refresh(video_id: &str, music: bool) -> Result<Fresh, String
         hls: r.hls,
     })
 }
-
-// ---------- watch history on the account ----------
 
 struct Track {
     playback: String,
@@ -716,7 +676,6 @@ fn tracks() -> &'static Mutex<HashMap<String, Track>> {
     T.get_or_init(|| Mutex::new(HashMap::new()))
 }
 
-/// 16-char Content Playback Nonce, one per playback.
 fn cpn() -> String {
     const CHARS: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
     let mut bytes = [0u8; 16];
@@ -727,8 +686,6 @@ fn cpn() -> String {
         .collect()
 }
 
-/// `s.youtube.com/api/stats/...` -> `www.youtube.com/api/stats/...` plus
-/// the client, version and nonce the stats endpoints expect.
 fn stats_url(url: &str, cpn: &str, extra: &[(&str, String)]) -> String {
     let mut u = url.replacen("://s.youtube.com/", "://www.youtube.com/", 1);
     let mut add = |k: &str, v: &str| {
@@ -775,8 +732,6 @@ async fn report_inner(video_id: &str, position_s: f64) -> Result<(), String> {
         .map(|g| g.contains_key(video_id))
         .unwrap_or(false);
     if !known {
-        // the anonymous player's tracking URLs are not tied to the account:
-        // ask the signed WEB client for its own
         let json = http::web("player", |c, v, hl, gl| {
             innertube::player_body(c, v, hl, gl, video_id, None)
         })
@@ -839,8 +794,6 @@ async fn report_inner(video_id: &str, position_s: f64) -> Result<(), String> {
     Ok(())
 }
 
-/// Sends playback progress to the account history (`playbackTracking`),
-/// when signed in and `send_history` is on. Errors are only logged.
 pub async fn report_watchtime(video_id: &str, position_s: f64) {
     if let Err(e) = report_inner(video_id, position_s).await {
         tracing::debug!("[tube] watch time for {video_id} not sent: {e}");

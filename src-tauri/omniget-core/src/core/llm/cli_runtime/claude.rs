@@ -1,17 +1,3 @@
-//! Claude Code (`claude -p --output-format stream-json --verbose`) as a turn.
-//! Owned by f4-cli-runtime.
-//!
-//! Flags checked against the installed 2.1.276 (`claude --help`, 18/09/2026):
-//! `-p/--print`, `--output-format stream-json`, `--verbose`,
-//! `--include-partial-messages`, `--model`, `--append-system-prompt`,
-//! `--max-budget-usd`, `--session-id`, `--no-session-persistence`,
-//! `--permission-prompts none`, `--settings`. The prompt goes in on **stdin**,
-//! so nothing about the conversation shows up in `ps`.
-//!
-//! Quota comes from `rate_limit_event` only (plan §9.2, `estudos/74` §A.3).
-//! This file never opens `.credentials.json`, never touches the keychain and
-//! never calls an HTTP endpoint.
-
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
@@ -26,95 +12,44 @@ use super::parse::{
 use super::session::LineParser;
 use super::ERR_CLI_EXIT;
 
-/// Arguments for one non-interactive turn. `prompt` is **not** here: it goes
-/// on stdin.
 #[derive(Debug, Clone, Default)]
 pub struct ClaudeArgs {
     pub model: Option<String>,
     pub system_prompt: Option<String>,
     pub max_budget_usd: Option<f64>,
-    /// Ask for token-level deltas. On by default: without it the CLI only
-    /// emits whole assistant messages and the UI cannot stream.
     pub partial_messages: bool,
-    /// Session id to resume, when the coordinator keeps one per conversation.
     pub resume: Option<String>,
-    /// Extra settings file (`--settings`), used to install the status line.
     pub settings: Option<String>,
-    /// `--permission-mode`: Claude Code's half of the sandbox knob. `plan` is
-    /// the read-only mode (the model may read and reason, not edit) and
-    /// `acceptEdits` is the write one. `None` leaves the CLI's own default,
-    /// which the runtime never selects: [`super::mod`]'s plan always sets one.
     pub permission_mode: Option<&'static str>,
-    /// `--mcp-config <file>`: OmniGet's scoped projection of the assistant
-    /// tools (a private temp file, deleted after the turn).
     pub mcp_config: Option<String>,
-    /// `--allowedTools`: pre-approved tools (the projection's server; its
-    /// own grants are checked by OmniGet on every call).
     pub allowed_tools: Vec<String>,
-    /// `--tools`: the built-in tools available at all. `Some` only for a
-    /// personal (projectless) conversation, which gets web tools and no
-    /// file/shell tools.
     pub tools: Option<String>,
-    /// `--disallowedTools`, belt and braces with `tools`.
     pub disallowed_tools: Vec<String>,
-    /// `--permission-prompt-tool`: routes permission prompts to OmniGet (via
-    /// the projection) instead of denying them. Switches
-    /// `--permission-prompts` to `host`.
     pub permission_prompt_tool: Option<String>,
-    /// `--restricted`: drops code-running built-ins and ignores the user's
-    /// own settings/hooks (external missions).
     pub restricted: bool,
-    /// `--strict-mcp-config`: only the MCP servers of `--mcp-config` (none
-    /// at all when there is no config).
     pub strict_mcp: bool,
-    /// `--exclude-dynamic-system-prompt-sections`: cwd, env and git status go
-    /// to the first user message, so the system prefix is the same for every
-    /// job and is read from the prompt cache across jobs.
     pub exclude_dynamic: bool,
-    /// `--effort` (`low`..`max`), already normalised by [`effort_level`].
     pub effort: Option<String>,
-    /// `--system-prompt` instead of `--append-system-prompt`: the whole
-    /// system prompt is ours (a side call, 3.7), without Claude Code's own.
     pub replace_system_prompt: bool,
-    /// `--no-session-persistence`: nothing to resume later (a side call).
     pub no_session_persistence: bool,
 }
 
-/// `--effort` of a side call: a verdict in one JSON line needs no thinking.
 pub const SIDE_EFFORT: &str = "low";
 
-/// Environment of a side call: no extended thinking at all. Measured on
-/// 2.1.284 with Haiku: an audit at `--effort low` spent 823 thinking tokens
-/// of 862 (US$ 0.0050); with this, 32 output tokens (US$ 0.0008).
 pub const SIDE_ENV: &[(&str, &str)] = &[("MAX_THINKING_TOKENS", "0")];
 
-/// Built-in tools an external (MCP-controlled) mission never gets: every
-/// file, shell, web and agent tool. It acts only through OmniGet's projection,
-/// where the external grant is checked on each call.
 pub const EXTERNAL_DENIED: &str = "Bash,Edit,Write,MultiEdit,NotebookEdit,Read,Glob,Grep,LS,KillShell,BashOutput,WebSearch,WebFetch,Task,Agent,TodoWrite,ExitPlanMode,SlashCommand,Skill";
 
-/// Built-in tools a personal conversation may use: web only.
 pub const PROJECTLESS_TOOLS: &str = "WebSearch,WebFetch";
-/// Built-in tools a personal conversation never gets (file and shell).
 pub const PROJECTLESS_DENIED: &str =
     "Bash,Edit,Write,MultiEdit,NotebookEdit,Read,Glob,Grep,LS,KillShell,BashOutput";
 
-/// Built-in tools of a project job: the coding set plus web. `ToolSearch`
-/// stays, or Claude Code loads every MCP tool schema up front (82k tokens of
-/// context measured on 2.1.283 against ~13k with it).
 pub const PROJECT_TOOLS: &str = "Bash,Read,Edit,Write,Glob,Grep,WebFetch,WebSearch,ToolSearch";
 
-/// Appended to a project job's system prompt: fewer turns, fewer resends of
-/// the whole context.
 pub const PROJECT_BATCHING: &str = "Work in as few turns as possible: batch independent tool calls in one message (read every file you need at once), make all the edits, then run the tests once at the end. Do not re-read files you just wrote or re-run checks that already passed. Stop as soon as the result is verified.";
 
-/// `--effort` of a lean project job when the turn does not ask for one.
-/// Measured on 2.1.283 (missions, sonnet, 3 reps): median 152.8 s -> 125.6 s
-/// for the 11 missions, cost unchanged (US$ 0.33-0.41 per round), 33/33 ok.
 pub const PROJECT_EFFORT: &str = "low";
 
-/// Maps a `reasoning_effort` (OpenAI-style or Claude Code's own) to a level
-/// `claude --effort` accepts (2.1.283: low, medium, high, xhigh, max).
 pub fn effort_level(raw: &str) -> Option<&'static str> {
     match raw.trim().to_ascii_lowercase().as_str() {
         "none" | "minimal" | "low" => Some("low"),
@@ -126,10 +61,6 @@ pub fn effort_level(raw: &str) -> Option<&'static str> {
     }
 }
 
-/// `--permission-mode` value for a [`super::accounts::SandboxMode`]. Verified
-/// against `claude --help` of 2.1.276: the accepted choices are `acceptEdits`,
-/// `auto`, `bypassPermissions`, `manual`, `dontAsk` and `plan`. The bypass one
-/// is never produced here.
 pub fn permission_mode(sandbox: super::accounts::SandboxMode) -> &'static str {
     match sandbox {
         super::accounts::SandboxMode::ReadOnly => "plan",
@@ -146,22 +77,15 @@ impl ClaudeArgs {
     }
 }
 
-/// The permission half of the argv, in one place (2.7): who answers the
-/// prompts and the `--permission-mode` of the turn's run mode
-/// (`run_mode::claude_permission`). `scripts/llm/missions_eval.py`
-/// (`permission_flags`) mirrors exactly this function.
 pub fn permission_flags(prompt_tool: Option<&str>, mode: Option<&str>) -> Vec<String> {
     let mut out: Vec<String> = Vec::new();
     match prompt_tool {
-        // Prompts go to OmniGet's user through the projection.
         Some(tool) => {
             out.push("--permission-prompts".into());
             out.push("host".into());
             out.push("--permission-prompt-tool".into());
             out.push(tool.to_string());
         }
-        // Nobody is at the keyboard: anything that would prompt is denied
-        // instead of hanging the turn forever (and the parser says why).
         None => {
             out.push("--permission-prompts".into());
             out.push("none".into());
@@ -174,7 +98,6 @@ pub fn permission_flags(prompt_tool: Option<&str>, mode: Option<&str>) -> Vec<St
     out
 }
 
-/// Builds the argv. Pure, so the test can pin the flags of a version.
 pub fn argv(args: &ClaudeArgs) -> Vec<String> {
     let mut out: Vec<String> = vec![
         "-p".into(),
@@ -250,9 +173,6 @@ pub fn argv(args: &ClaudeArgs) -> Vec<String> {
     out
 }
 
-/// The text of every system message, for `--append-system-prompt` when the
-/// provider keeps the history (resume): instructions and this turn's context
-/// still reach the model, the transcript does not travel again.
 pub fn system_text(messages: &[Message]) -> String {
     messages
         .iter()
@@ -266,7 +186,6 @@ pub fn system_text(messages: &[Message]) -> String {
         .join("")
 }
 
-/// Only the newest user message: what a resumed session needs.
 pub fn last_user_text(messages: &[Message]) -> String {
     messages
         .iter()
@@ -285,9 +204,6 @@ pub fn last_user_text(messages: &[Message]) -> String {
         .unwrap_or_default()
 }
 
-/// Flattens a conversation into the single prompt the CLI takes. The CLI owns
-/// its own history when `--resume` is used; without it the whole conversation
-/// is replayed, which is also what a reroute does (plan §9.2).
 pub fn render_prompt(messages: &[Message]) -> String {
     let mut out = String::new();
     for message in messages {
@@ -320,23 +236,14 @@ pub fn render_prompt(messages: &[Message]) -> String {
     out
 }
 
-/// Line parser for Claude Code's stream-json. State is the minimum that keeps
-/// the stream well formed: `Started` once, `Error` once, and the map from an
-/// SSE block index to the tool id it opened (the deltas only carry `index`).
 pub struct ClaudeParser {
     partial: bool,
     started: AtomicBool,
     errored: AtomicBool,
     tool_blocks: Mutex<HashMap<u64, String>>,
-    /// The turn asked for `--permission-mode auto`: `system/init` must say
-    /// `auto`, or the user is told the turn runs in another mode (SP2).
     expect_auto: bool,
-    /// Said next to every call the CLI denied (2.7, S5).
     denial_note: String,
-    /// Tool calls whose denial already carries the note.
     explained: Mutex<std::collections::HashSet<String>>,
-    /// The turn whose file baselines are recorded (3.4): each `Write`/`Edit`
-    /// result's `originalFile` goes to [`crate::core::llm::file_changes`].
     baselines: Option<String>,
 }
 
@@ -354,14 +261,11 @@ impl ClaudeParser {
         }
     }
 
-    /// Records the "before" of every file this turn (`request`) writes.
     pub fn with_baselines(mut self, request: String) -> Self {
         self.baselines = Some(request);
         self
     }
 
-    /// The turn's run mode as the parser needs it: whether `auto` was asked
-    /// for, and the reason to give next to a denial.
     pub fn with_permission(mut self, expect_auto: bool, denial_note: String) -> Self {
         self.expect_auto = expect_auto;
         self.denial_note = denial_note;
@@ -394,7 +298,6 @@ impl LineParser for ClaudeParser {
     fn parse_line(&self, line: &str) -> Vec<CliSignal> {
         let mut out = Vec::new();
         let Ok(value) = serde_json::from_str::<Value>(line) else {
-            // Not JSON: a stray log line. Never fatal (plan Fase 4 "Plano B").
             tracing::debug!("[claude] non-json line: {}", head(line));
             return vec![CliSignal::Ignored];
         };
@@ -453,7 +356,6 @@ impl LineParser for ClaudeParser {
                     error.retryable = code == super::ERR_CLI_RATE;
                     self.push_error(error, &mut out);
                 } else if !self.partial {
-                    // Whole-message mode: the text arrives once, here.
                     if let Some(message) = message {
                         let text = collect_text(message);
                         if !text.is_empty() {
@@ -466,8 +368,6 @@ impl LineParser for ClaudeParser {
                 }
             }
             "result" => {
-                // A denial the tool result did not carry (another wording, or
-                // no result at all) still gets its reason, once per call.
                 for denial in value
                     .get("permission_denials")
                     .and_then(Value::as_array)
@@ -493,8 +393,6 @@ impl LineParser for ClaudeParser {
                     .unwrap_or(false);
                 let subtype = value.get("subtype").and_then(Value::as_str).unwrap_or("");
                 if is_error || subtype.starts_with("error") {
-                    // The success arm carries `result`; the error arm carries
-                    // `errors: string[]` and no `result` at all.
                     let text = value
                         .get("result")
                         .and_then(Value::as_str)
@@ -545,9 +443,6 @@ impl LineParser for ClaudeParser {
                     out.push(CliSignal::Rate(snapshot));
                 }
             }
-            // `user` records carry what the CLI's own tools answered:
-            // `{"type":"user","message":{"content":[{"type":"tool_result",
-            // "tool_use_id":"toolu_…","content":"…" | [{"type":"text",…}]}]}}`.
             "user" => {
                 if let (Some(request), Some(touch)) = (
                     &self.baselines,
@@ -615,8 +510,6 @@ fn head(line: &str) -> String {
 }
 
 impl ClaudeParser {
-    /// One raw Anthropic SSE event, as `--include-partial-messages` wraps it
-    /// (`stream_event.event` is the `data:` object verbatim).
     fn partial_event(&self, event: &Value, out: &mut Vec<CliSignal>) {
         let kind = event.get("type").and_then(Value::as_str).unwrap_or("");
         let index = event.get("index").and_then(Value::as_u64).unwrap_or(0);
@@ -677,14 +570,10 @@ impl ClaudeParser {
                             }));
                         }
                     }
-                    // `signature_delta` always precedes the stop of a thinking
-                    // block and carries no user-visible text.
                     _ => {}
                 }
             }
             "content_block_stop" => {
-                // Only a tool block closes a tool call; a text block closing is
-                // not a `ToolCallEnd`.
                 let id = self
                     .tool_blocks
                     .lock()
@@ -741,14 +630,9 @@ fn tool_uses(message: &Value) -> Vec<(String, String)> {
         .collect()
 }
 
-/// `result.usage` + `result.total_cost_usd` + `result.duration_ms`. The CLI
-/// calls the cost a "client-side estimate" (`estudos/74` §A.2) and we keep it
-/// as such: the Observatory shows it, the budget does not bill on it.
 fn result_usage(value: &Value) -> Option<Usage> {
     let usage = value.get("usage")?;
     let n = |key: &str| usage.get(key).and_then(Value::as_u64).unwrap_or(0) as u32;
-    // The CLI reports Anthropic's raw shape (input = fresh only); the Usage
-    // contract wants the whole input, cache included, like every runtime.
     Some(Usage {
         input_tokens: n("input_tokens")
             .saturating_add(n("cache_read_input_tokens"))
@@ -768,20 +652,6 @@ fn result_usage(value: &Value) -> Option<Usage> {
     })
 }
 
-/// Reads the quota out of a `rate_limit_event`.
-///
-/// Two shapes are in the wild and both are handled:
-///
-/// * **Documented** (`SDKRateLimitEvent`, code.claude.com/docs/en/agent-sdk/
-///   typescript): `rate_limit_info: { status, resetsAt?, utilization?,
-///   errorCode? }` — flat, with **no** per-window breakdown. The single number
-///   lands on the 5 h window, because that is the one a session actually hits.
-/// * **Observed live on 2.1.275** (`estudos/74` §A.2):
-///   `unifiedWindows.{five_hour,seven_day}.{utilization, resetsAt}`.
-///
-/// Neither doc pins the range of `utilization`; the live reading was `0..1`
-/// and the status line's sibling `used_percentage` is `0..100`, so
-/// [`window_at`] decides by value: above 1.0 it can only be a percentage.
 pub fn rate_snapshot(value: &Value) -> Option<RateSnapshot> {
     let info = value
         .get("rate_limit_info")
@@ -801,7 +671,6 @@ pub fn rate_snapshot(value: &Value) -> Option<RateSnapshot> {
     let mut five = window_at(windows, "five_hour").or_else(|| window_at(windows, "fiveHour"));
     let seven = window_at(windows, "seven_day").or_else(|| window_at(windows, "sevenDay"));
     if five.is_none() && seven.is_none() {
-        // Flat documented shape: one utilization for the whole session.
         five = flat_window(info);
     }
     if five.is_none() && seven.is_none() && status == RateStatus::Unknown {
@@ -835,8 +704,6 @@ fn window_at(parent: &Value, key: &str) -> Option<RateWindow> {
         .or_else(|| node.get("resets_at"))
         .and_then(epoch_seconds);
     if let Some(util) = node.get("utilization").and_then(Value::as_f64) {
-        // 0..1 on the stream; some builds send 0..100. Above 1 it can only be
-        // a percentage.
         return Some(if util > 1.0 {
             RateWindow::from_percentage(util, resets)
         } else {
@@ -850,11 +717,8 @@ fn window_at(parent: &Value, key: &str) -> Option<RateWindow> {
     Some(RateWindow::from_percentage(pct, resets))
 }
 
-/// `resetsAt` is epoch seconds on the stream and an RFC 3339 string in some
-/// builds; both land on epoch seconds.
 fn epoch_seconds(value: &Value) -> Option<i64> {
     if let Some(n) = value.as_i64() {
-        // Milliseconds would put the reset in the year 57000.
         return Some(if n > 100_000_000_000 { n / 1000 } else { n });
     }
     if let Some(f) = value.as_f64() {

@@ -1,6 +1,3 @@
-//! Tauri commands of the canvas clipboard (⌘C / ⌘X / ⌘V and the menus).
-//! Logic in `crate::canvas::clipboard`.
-
 use omniget_core::core::canvas::clipboard::ClipSelection;
 use omniget_core::core::canvas::model::Point;
 use serde_json::Value;
@@ -33,8 +30,6 @@ pub async fn canvas_clipboard_copy(
         .await
 }
 
-/// `at`: top-left of the paste (right-click Paste). `center`: the view centre
-/// (⌘V), with the cascade of repeated pastes.
 #[tauri::command]
 pub async fn canvas_clipboard_paste(
     app: AppHandle,

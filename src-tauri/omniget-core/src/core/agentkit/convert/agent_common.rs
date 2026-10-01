@@ -1,8 +1,3 @@
-//! Helpers shared by the agent, command, rule and skill converters of round 2
-//! (`agent_*`, `command_*`, `rule_*`, `skill_link`): tool-name, model and
-//! permission mapping, loss bookkeeping, reading installed files back into
-//! canonical components, and small text emitters (YAML block scalars, TOML).
-
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
@@ -15,7 +10,6 @@ use crate::core::agentkit::parse::{self, placeholders};
 use crate::core::agentkit::targets::TargetAdapter;
 use crate::core::agentkit::{AgentkitError, Result, Scope};
 
-/// Error for a target that has no location for a kind in a scope.
 pub(crate) fn no_path(target: &TargetAdapter, what: &str, scope: Scope) -> AgentkitError {
     AgentkitError::new(
         "AGENTKIT_NO_PATH",
@@ -27,7 +21,6 @@ pub(crate) fn no_path(target: &TargetAdapter, what: &str, scope: Scope) -> Agent
     )
 }
 
-/// `kind_path` or an `AGENTKIT_NO_PATH` error.
 pub(crate) fn dir_for(
     target: &TargetAdapter,
     key: &str,
@@ -44,9 +37,6 @@ pub(crate) fn push_unique(v: &mut Vec<String>, s: impl Into<String>) {
     }
 }
 
-// ------------------------------------------------------------------ tool names
-
-/// Claude spellings that are aliases of another Claude tool.
 fn claude_alias(t: &str) -> &str {
     match t {
         "Task" => "Agent",
@@ -59,7 +49,6 @@ fn claude_alias(t: &str) -> &str {
     }
 }
 
-/// `Bash(git:*)` → (`Bash`, true).
 pub(crate) fn tool_base(t: &str) -> (&str, bool) {
     match t.find('(') {
         Some(i) if t.ends_with(')') => (t[..i].trim(), true),
@@ -67,7 +56,6 @@ pub(crate) fn tool_base(t: &str) -> (&str, bool) {
     }
 }
 
-/// `mcp__srv__tool` / `mcp__srv` / `mcp__srv__*` → (server, tool or `*`).
 pub(crate) fn split_mcp(t: &str) -> Option<(String, String)> {
     let rest = t.strip_prefix("mcp__")?;
     let (srv, tool) = match rest.split_once("__") {
@@ -77,7 +65,6 @@ pub(crate) fn split_mcp(t: &str) -> Option<(String, String)> {
     (!srv.is_empty()).then(|| (srv.to_string(), tool.to_string()))
 }
 
-/// Copilot chatmode / `.agent.md` tool id → Claude tools. `None` = no equivalent.
 pub fn copilot_to_claude(id: &str) -> Option<Vec<String>> {
     let raw = id.trim().trim_matches(['\'', '"']);
     let lower = raw.to_ascii_lowercase();
@@ -145,7 +132,6 @@ pub fn copilot_to_claude(id: &str) -> Option<Vec<String>> {
         if BUILTIN_NS.contains(&ns) {
             return pick(ns).map(|v| v.iter().map(|s| s.to_string()).collect());
         }
-        // `github/*`, `server/tool`: an MCP server
         let srv = raw.split_once('/').map(|(a, _)| a).unwrap_or(raw);
         let tool = raw.split_once('/').map(|(_, b)| b).unwrap_or("*");
         return Some(vec![if tool == "*" {
@@ -157,7 +143,6 @@ pub fn copilot_to_claude(id: &str) -> Option<Vec<String>> {
     pick(&lower).map(|v| v.iter().map(|s| s.to_string()).collect())
 }
 
-/// Claude tool → Copilot `.agent.md` tool alias (`execute`, `read`, `edit` …).
 pub fn claude_to_copilot(t: &str) -> Option<String> {
     let (base, _) = tool_base(t);
     if let Some((srv, tool)) = split_mcp(base) {
@@ -178,8 +163,6 @@ pub fn claude_to_copilot(t: &str) -> Option<String> {
     )
 }
 
-/// An agent's tools in Claude names. Copilot chatmodes (`origin_tool = copilot`)
-/// are translated back; ids with no Claude equivalent come back as losses.
 pub fn claude_tools(tools: &[String], origin: &str) -> (Vec<String>, Vec<String>) {
     let mut out: Vec<String> = Vec::new();
     let mut lost: Vec<String> = Vec::new();
@@ -196,8 +179,6 @@ pub fn claude_tools(tools: &[String], origin: &str) -> (Vec<String>, Vec<String>
     (out, lost)
 }
 
-/// Claude tool names → the target's names via `tool_name_map`. Returns the
-/// mapped names and what could not be expressed.
 pub fn map_tools(tools: &[String], target: &TargetAdapter) -> (Vec<String>, Vec<String>) {
     let mut out: Vec<String> = Vec::new();
     let mut lost: Vec<String> = Vec::new();
@@ -243,7 +224,6 @@ pub fn map_tools(tools: &[String], target: &TargetAdapter) -> (Vec<String>, Vec<
     (out, lost)
 }
 
-/// The target's tool name → Claude name (inverse of `tool_name_map`).
 pub fn reverse_tool(target: &TargetAdapter, name: &str) -> Option<String> {
     const ORDER: &[&str] = &[
         "Bash",
@@ -285,14 +265,12 @@ pub fn reverse_tool(target: &TargetAdapter, name: &str) -> Option<String> {
             });
         }
     }
-    // already a Claude name (tools that accept Claude aliases)
     ORDER
         .iter()
         .find(|k| k.eq_ignore_ascii_case(n))
         .map(|k| k.to_string())
 }
 
-/// Inverse of an MCP id pattern like `mcp_{server}_{tool}`.
 fn unpattern(pattern: &str, name: &str) -> Option<(String, String)> {
     let (pre, rest) = pattern.split_once("{server}")?;
     let (sep, post) = rest.split_once("{tool}")?;
@@ -304,7 +282,6 @@ fn unpattern(pattern: &str, name: &str) -> Option<(String, String)> {
     (!s.is_empty() && !t.is_empty()).then(|| (s.to_string(), t.to_string()))
 }
 
-/// Reverses a list of target tool names; unknown ones are kept as-is.
 pub fn reverse_tools(target: &TargetAdapter, names: &[String]) -> Vec<String> {
     let mut out = Vec::new();
     for n in names {
@@ -316,7 +293,6 @@ pub fn reverse_tools(target: &TargetAdapter, names: &[String]) -> Vec<String> {
     out
 }
 
-/// A list of Claude tools grants no edit and no shell.
 pub fn is_read_only(tools: &[String]) -> bool {
     !tools.is_empty()
         && tools.iter().all(|t| {
@@ -325,11 +301,8 @@ pub fn is_read_only(tools: &[String]) -> bool {
         })
 }
 
-// ------------------------------------------------------------------ model
-
 const CLAUDE_ALIASES: &[&str] = &["sonnet", "opus", "haiku", "fable", "inherit"];
 
-/// Model value for an agent/command on a target, plus a loss when dropped.
 pub fn model_for(
     model: Option<&str>,
     origin: &str,
@@ -363,7 +336,6 @@ pub fn model_for(
             ),
         };
     }
-    // a concrete model id
     let lower = m.to_ascii_lowercase();
     let keep = match target.id.as_str() {
         "opencode" | "kilo" => {
@@ -403,14 +375,10 @@ pub fn model_for(
     }
 }
 
-/// Undoes `model_for` for import (`anthropic/claude-x` → `claude-x`).
 pub fn model_back(m: &str) -> String {
     m.strip_prefix("anthropic/").unwrap_or(m).to_string()
 }
 
-// ------------------------------------------------------------------ losses
-
-/// Losses for every set agent field that is not in `keep` (Claude names).
 pub fn dropped_fields(a: &AgentSpec, keep: &[&str], target: &TargetAdapter) -> Vec<String> {
     let mut v = Vec::new();
     let mut lose = |set: bool, field: &str| {
@@ -451,7 +419,6 @@ pub fn dropped_fields(a: &AgentSpec, keep: &[&str], target: &TargetAdapter) -> V
     v
 }
 
-/// The agent spec of an agent component.
 pub(crate) fn agent_of(c: &Component) -> Option<&AgentSpec> {
     match &c.body {
         ComponentBody::Agent(a) => Some(a),
@@ -459,7 +426,6 @@ pub(crate) fn agent_of(c: &Component) -> Option<&AgentSpec> {
     }
 }
 
-/// The command spec of a command component.
 pub(crate) fn command_of(c: &Component) -> Option<&CommandSpec> {
     match &c.body {
         ComponentBody::Command(x) => Some(x),
@@ -467,13 +433,11 @@ pub(crate) fn command_of(c: &Component) -> Option<&CommandSpec> {
     }
 }
 
-/// Body with CRLF folded and a single leading newline dropped.
 pub(crate) fn clean_body(s: &str) -> String {
     let t = s.replace("\r\n", "\n");
     t.strip_prefix('\n').unwrap_or(&t).to_string()
 }
 
-/// Claude colors → hex (OpenCode wants hex or a theme token).
 pub(crate) fn color_hex(c: &str) -> String {
     match c {
         "red" => "#ef4444",
@@ -489,7 +453,6 @@ pub(crate) fn color_hex(c: &str) -> String {
     .to_string()
 }
 
-/// Hex → Claude color name when it is one of ours.
 pub(crate) fn color_name(c: &str) -> String {
     for n in [
         "red", "blue", "green", "yellow", "purple", "orange", "pink", "cyan",
@@ -501,10 +464,6 @@ pub(crate) fn color_name(c: &str) -> String {
     c.to_string()
 }
 
-// ------------------------------------------------------------------ placeholders
-
-/// Neutral command body → a target dialect. Dialects without an arguments
-/// placeholder (the typed text is appended) get a readable stand-in.
 pub fn render_body(body: &str, map: &BTreeMap<String, String>) -> (String, Vec<String>) {
     let no_args = map.get("args").map(|s| s.is_empty()).unwrap_or(true);
     let src = if no_args && body.contains("{{args}}") {
@@ -530,14 +489,11 @@ fn is_claude_dialect(map: &BTreeMap<String, String>) -> bool {
         && map.get("shell").map(String::as_str) == Some("!`{cmd}`")
 }
 
-/// A target dialect → neutral markers (inverse of `render_body` for the parts
-/// the dialect has).
 pub fn canonical_body(text: &str, map: &BTreeMap<String, String>) -> String {
     if is_claude_dialect(map) {
         return placeholders::to_canonical(text);
     }
     let mut out = text.to_string();
-    // `{{ args }}` (Goose) and dialect args → {{args}}
     if let Some(a) = map.get("args").filter(|a| !a.is_empty()) {
         if a != "{{args}}" {
             out = out.replace(a.as_str(), "{{args}}");
@@ -547,7 +503,6 @@ pub fn canonical_body(text: &str, map: &BTreeMap<String, String>) -> String {
         let Some(tpl) = map.get(key).filter(|t| !t.is_empty()) else {
             continue;
         };
-        // `!{{cmd}}` renders `!{` + cmd + `}`: split on the bare variable
         let Some((pre, post)) = tpl.split_once(var) else {
             continue;
         };
@@ -574,7 +529,6 @@ pub fn canonical_body(text: &str, map: &BTreeMap<String, String>) -> String {
         out = res;
     }
     if let Some(a) = map.get("arg").filter(|a| a.contains('N')) {
-        // `$N` style: `$1`..`$9`
         if let Some(pre) = a.split('N').next().filter(|p| !p.is_empty()) {
             let mut res = String::new();
             let mut rest = out.as_str();
@@ -597,9 +551,6 @@ pub fn canonical_body(text: &str, map: &BTreeMap<String, String>) -> String {
     out
 }
 
-// ------------------------------------------------------------------ import helpers
-
-/// Files with one of the suffixes directly inside `dir`, sorted.
 pub(crate) fn files_with(dir: &Path, suffixes: &[&str]) -> Vec<PathBuf> {
     let mut v: Vec<PathBuf> = std::fs::read_dir(dir)
         .map(|rd| {
@@ -619,7 +570,6 @@ pub(crate) fn files_with(dir: &Path, suffixes: &[&str]) -> Vec<PathBuf> {
     v
 }
 
-/// File stem without one of the suffixes (`x.agent.md` → `x`).
 pub(crate) fn stem_of(p: &Path, suffixes: &[&str]) -> String {
     let n = p.file_name().and_then(|n| n.to_str()).unwrap_or("");
     for s in suffixes {
@@ -630,7 +580,6 @@ pub(crate) fn stem_of(p: &Path, suffixes: &[&str]) -> String {
     n.to_string()
 }
 
-/// Canonical agent component from a spec read back from a tool's file.
 pub(crate) fn agent_component(
     spec: &AgentSpec,
     target: &TargetAdapter,
@@ -650,7 +599,6 @@ pub(crate) fn agent_component(
     Some(c)
 }
 
-/// Canonical command component from a spec read back from a tool's file.
 pub(crate) fn command_component(
     name: &str,
     spec: &CommandSpec,
@@ -700,13 +648,8 @@ pub(crate) fn u32_of(m: &Map<String, Value>, keys: &[&str]) -> Option<u32> {
     })
 }
 
-// ------------------------------------------------------------------ emitters
-
-/// `key: value` YAML, with multi-line strings as literal block scalars.
 pub(crate) fn yaml_entry(key: &str, v: &Value, indent: usize) -> String {
     if let Value::String(s) = v {
-        // a first line that starts with a space would need an indentation
-        // indicator; those strings stay quoted
         let lead_space = s.starts_with(' ') || s.starts_with('\t');
         if s.contains('\n') && !lead_space {
             let pad = " ".repeat(indent + 2);
@@ -737,7 +680,6 @@ fn eyaml_key(k: &str) -> String {
     }
 }
 
-/// Whole YAML document from ordered entries.
 pub(crate) fn yaml_doc(entries: &[(&str, Value)]) -> String {
     let mut out = String::new();
     for (k, v) in entries {
@@ -749,13 +691,10 @@ pub(crate) fn yaml_doc(entries: &[(&str, Value)]) -> String {
     out
 }
 
-/// `key = value` TOML line.
 pub(crate) fn toml_line(k: &str, v: &Value) -> String {
     format!("{} = {}\n", etoml::key_text(k), etoml::inline(v))
 }
 
-/// Claude MCP record (agent `mcpServers` entry) normalised to a plain
-/// `{command,args,env,cwd}` / `{url,headers}` object, `type` dropped.
 pub(crate) fn plain_mcp(v: &Value) -> Value {
     let mut m = match v {
         Value::Object(m) => m.clone(),
@@ -765,8 +704,6 @@ pub(crate) fn plain_mcp(v: &Value) -> Value {
     Value::Object(m)
 }
 
-/// Claude MCP record → Codex TOML table body (`command`, `args`, `env`, `cwd` /
-/// `url`, `http_headers`).
 pub(crate) fn codex_mcp_lines(v: &Value) -> (String, Option<String>) {
     let Some(m) = v.as_object() else {
         return (
@@ -808,7 +745,6 @@ pub(crate) fn codex_mcp_lines(v: &Value) -> (String, Option<String>) {
     (out, None)
 }
 
-/// Codex TOML MCP table → Claude MCP record.
 pub(crate) fn codex_mcp_back(v: &Value) -> Value {
     let Some(m) = v.as_object() else {
         return v.clone();
@@ -830,7 +766,6 @@ pub(crate) fn codex_mcp_back(v: &Value) -> Value {
     Value::Object(o)
 }
 
-/// Relative path from `from_dir` to `to` when `to` is under `from_dir`, with `/`.
 pub(crate) fn rel_slash(from_dir: &Path, to: &Path) -> Option<String> {
     let r = to.strip_prefix(from_dir).ok()?;
     Some(

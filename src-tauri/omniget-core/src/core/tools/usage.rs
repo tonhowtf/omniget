@@ -1,7 +1,3 @@
-//! Ledger local de uso de IA (estudo 17, ccusage): cada chamada a LLM/TTS
-//! vira uma linha em `<app_data>/tools/ai_usage.jsonl`. O custo é calculado
-//! na leitura, com a tabela de preços do momento, para poder recalcular.
-
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 
@@ -10,8 +6,6 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct UsageEntry {
     pub ts: String,
-    /// Texto livre: "chat", "grok", "transcribe", "humanize", ou o que o agente
-    /// quiser. A UI agrupa por ele sem tabela fechada.
     pub task: String,
     pub provider: String,
     pub model: String,
@@ -23,28 +17,19 @@ pub struct UsageEntry {
     pub characters: u64,
     #[serde(default)]
     pub seconds: f64,
-    /// Custo informado na hora (ex.: 0 para Ollama). `None` = calcular.
     #[serde(default)]
     pub cost_usd: Option<f64>,
-    // ── Campos da expansao LLM (f2-llm-providers). Todos com `default`, e por
-    // isso as linhas antigas do JSONL continuam sendo lidas sem migracao.
-    /// Agente dono da chamada (`AgentDef::id`); vazio quando veio do app.
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub agent_id: String,
-    /// Tokens de entrada que o provedor serviu do cache de prompt.
     #[serde(default)]
     pub cache_read_tokens: u64,
-    /// Tokens gravados no cache de prompt (Anthropic cobra a mais por eles).
     #[serde(default)]
     pub cache_write_tokens: u64,
-    /// Latencia ate o primeiro token, em ms (so no streaming).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub first_token_ms: Option<u32>,
 }
 
 impl UsageEntry {
-    /// Entrada carimbada com o instante atual; os campos de numero ficam em
-    /// zero para quem so tem alguns deles.
     pub fn now(task: &str, provider: &str, model: &str) -> Self {
         Self {
             ts: chrono::Utc::now().to_rfc3339(),
@@ -60,7 +45,6 @@ fn path() -> Option<PathBuf> {
     super::tools_dir().map(|d| d.join("ai_usage.jsonl"))
 }
 
-/// Grava sem bloquear quem chamou; erro de disco vira só um log.
 pub fn record(
     task: &str,
     provider: &str,
@@ -77,8 +61,6 @@ pub fn record(
     });
 }
 
-/// Grava uma linha inteira (com agente, cache e latencia). Mesma politica do
-/// `record`: erro de disco vira log, nunca erro para quem chamou.
 pub fn record_entry(mut entry: UsageEntry) {
     if entry.ts.is_empty() {
         entry.ts = chrono::Utc::now().to_rfc3339();
@@ -136,15 +118,6 @@ pub struct Bucket {
     pub unknown_price: u64,
 }
 
-/// Custo de uma linha com a tabela de precos, levando o cache em conta: token
-/// servido do cache sai do preco de entrada e entra pelo preco de leitura de
-/// cache; token gravado no cache entra pelo preco de escrita. Sem esses precos
-/// na tabela, tudo volta a valer o preco de entrada (o que o `pricing::cost`
-/// ja fazia).
-///
-/// Convencao do `UsageEntry`: `input_tokens` e o total de entrada, cache
-/// incluso, como o `prompt_tokens` da OpenAI. Os clientes normalizam a
-/// Anthropic (que reporta os tres separados) para essa mesma forma.
 pub fn cost_of(price: &super::pricing::ModelPrice, e: &UsageEntry) -> Option<f64> {
     let in_per = price.input_per_m? / 1_000_000.0;
     let out_per = price.output_per_m.unwrap_or(0.0) / 1_000_000.0;
@@ -172,7 +145,6 @@ pub struct UsageReport {
     pub by_day: Vec<Bucket>,
     pub by_model: Vec<Bucket>,
     pub by_task: Vec<Bucket>,
-    /// Chave = `agent_id`; linhas sem agente caem em "app".
     pub by_agent: Vec<Bucket>,
     pub entries_path: Option<String>,
 }

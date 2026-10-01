@@ -1,15 +1,3 @@
-//! Coordinator: owner of the turn. Streams the model through, resolves the
-//! tool loop, cuts on budget, reroutes on rate limits without losing the turn,
-//! persists the conversation and hands off between agents.
-//! Owned by f2-llm-coordinator.
-//!
-//! The returned stream is the only thing the commands layer needs: every tool
-//! call, reroute and retry already happened inside it. Everything the UI shows
-//! beyond the text (tool asks, telemetry, the mascot) comes from the bus.
-//!
-//! Conversations are appended to `<app_data>/llm/conversations/<id>.jsonl`, one
-//! JSON record per line (`OMNIGET_DATA_DIR` overrides the root).
-
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Instant;
@@ -33,18 +21,12 @@ use super::types::{
 };
 use crate::core::omni::bus::{Bus, BusEvent};
 
-/// The agent asked for more tool calls than its budget allows in one turn.
 pub const ERR_LLM_TOOL_LIMIT: &str = "ERR_LLM_TOOL_LIMIT";
-/// The conversation id is not a safe file name.
 pub const ERR_LLM_CONVERSATION: &str = "ERR_LLM_CONVERSATION";
 
-/// Used when `Budget::max_tool_calls_per_turn` is 0 (unset), so a fresh agent
-/// can still use tools.
 pub const DEFAULT_MAX_TOOL_CALLS: u8 = 48;
-/// Buffer of the event channel handed to the caller.
 const CHANNEL_CAP: usize = 64;
 
-/// One line of `<id>.jsonl`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ConversationRecord {
     pub ts: String,
@@ -53,13 +35,10 @@ pub struct ConversationRecord {
     pub message: Message,
 }
 
-/// `<app_data>/llm/conversations`.
 pub fn default_conversations_dir() -> Option<PathBuf> {
     crate::core::paths::app_data_dir().map(|d| d.join("llm").join("conversations"))
 }
 
-/// Conversation ids become file names, so they are restricted to
-/// `[A-Za-z0-9_-]` (uuids and slugs pass, `../` does not).
 pub fn is_safe_id(id: &str) -> bool {
     !id.is_empty()
         && id.len() <= 128
@@ -78,8 +57,6 @@ pub fn conversation_path(dir: &Path, id: &str) -> Result<PathBuf, LlmError> {
     Ok(dir.join(format!("{id}.jsonl")))
 }
 
-/// Cut a conversation back to its first `keep` messages and return what was
-/// removed. Undo uses it: the tools of the removed turn are not run again.
 pub fn truncate_conversation(dir: &Path, id: &str, keep: usize) -> Result<Vec<Message>, LlmError> {
     let path = conversation_path(dir, id)?;
     let Ok(text) = std::fs::read_to_string(&path) else {
@@ -107,8 +84,6 @@ pub fn truncate_conversation(dir: &Path, id: &str, keep: usize) -> Result<Vec<Me
     Ok(removed)
 }
 
-/// Read a conversation back. Unparseable lines are skipped: a truncated file
-/// must not take the chat down.
 pub fn load_conversation(dir: &Path, id: &str) -> Result<Vec<Message>, LlmError> {
     let path = conversation_path(dir, id)?;
     let Ok(text) = std::fs::read_to_string(&path) else {
@@ -122,7 +97,6 @@ pub fn load_conversation(dir: &Path, id: &str) -> Result<Vec<Message>, LlmError>
         .collect())
 }
 
-/// Append one message. Best effort: a read-only disk must not fail the turn.
 pub fn append_message(dir: &Path, id: &str, agent: Option<&str>, message: &Message) {
     let Ok(path) = conversation_path(dir, id) else {
         return;
@@ -149,11 +123,6 @@ pub fn append_message(dir: &Path, id: &str, agent: Option<&str>, message: &Messa
     }
 }
 
-/// Rough token estimate for the budget gate: ~4 characters per token. Cheap on
-/// purpose; the real number comes back in `Usage`.
-/// The project brief and the KB index, folded into the first system message of
-/// the request. Read fresh each time (an agent may have just written a note)
-/// and never persisted, so the transcript does not grow with it.
 fn with_project_kb(conversation_id: &str, history: &[Message]) -> Vec<Message> {
     let mut messages = history.to_vec();
     let Some(ws) = super::code_tools::workspace_of(conversation_id) else {
@@ -172,8 +141,6 @@ fn with_project_kb(conversation_id: &str, history: &[Message]) -> Vec<Message> {
     messages
 }
 
-/// The augments' context for this request, folded into the system message
-/// the same way as the KB index: fresh every request, never persisted.
 fn with_turn_context(mut messages: Vec<Message>, extra: &[String]) -> Vec<Message> {
     if extra.is_empty() {
         return messages;
@@ -188,7 +155,6 @@ fn with_turn_context(mut messages: Vec<Message>, extra: &[String]) -> Vec<Messag
     messages
 }
 
-/// Ceiling for one tool result of a CLI agent kept in the transcript.
 const CLI_RESULT_MAX_CHARS: usize = 12_000;
 
 fn clip_cli_result(content: &str) -> String {
@@ -207,8 +173,6 @@ fn clip_cli_result(content: &str) -> String {
     )
 }
 
-/// The account a turn is charged to (3.3): a CLI agent's account, or
-/// `provider:<id>` for a native model; an ACP agent has none.
 fn account_of(agent: &AgentDef, model: Option<&ModelRef>) -> Option<String> {
     match &agent.runtime {
         super::agent::RuntimeKind::Cli { account, .. } => Some(account.clone()),
@@ -233,7 +197,6 @@ pub fn estimate_tokens(messages: &[Message]) -> u32 {
     (chars / 4) as u32
 }
 
-/// A tool call being assembled from the stream deltas.
 #[derive(Debug, Clone, Default)]
 struct PendingCall {
     id: String,
@@ -247,13 +210,6 @@ impl PendingCall {
     }
 }
 
-/// A per-turn hook: adjusts the agent the turn runs with (extra grants, a
-/// skill binding) and returns context for this request only. The text goes
-/// into the system message of the request and is never persisted in the
-/// transcript, so memory and skill indexes are read fresh every turn.
-///
-/// Implementations: `assist::bots` (skills + capability grants),
-/// `assist::memory` (recalled profile), `assist::reading`, `assist::groups`.
 pub trait TurnAugment: Send + Sync {
     fn augment(
         &self,
@@ -262,9 +218,6 @@ pub trait TurnAugment: Send + Sync {
         user_input: &str,
     ) -> Option<String>;
 
-    /// Called once a turn finished normally, off the stream (the reply was
-    /// already sent). Must not block: spawn anything slow. `assist::memory`
-    /// extracts facts here.
     fn after_turn(
         &self,
         _agent: &AgentDef,
@@ -284,17 +237,8 @@ pub struct Coordinator {
     router: Arc<Router>,
     dir: Option<PathBuf>,
     params: GenParams,
-    /// Context pruning. Disabled until someone calls `with_prune`, and even
-    /// then it only ever runs between turns. Behind a lock so a settings
-    /// change swaps it without rebuilding the coordinator; a turn in flight
-    /// keeps the one it started with.
     pruner: std::sync::RwLock<Arc<ContextPruner>>,
-    /// Durable run record. `None` falls back to `assist::runs::active()`
-    /// (the app's, once enabled at boot).
     runs: std::sync::RwLock<Option<crate::core::assist::runs::Registry>>,
-    /// Budget policies (3.3). `None` falls back to the app's engine
-    /// (`budget::policy::active()`); without either, or without a policy,
-    /// nothing below changes.
     policies: std::sync::RwLock<Option<Arc<super::budget::policy::Engine>>>,
 }
 
@@ -344,10 +288,6 @@ impl Coordinator {
             .or_else(crate::core::assist::runs::active)
     }
 
-    /// The policy gate of one turn (3.3): refuses a paused scope or a
-    /// reached ceiling, and asks the questions it needs through the durable
-    /// approvals (2.2) — a checkpoint "continue?", a model with no price
-    /// under a dollar ceiling — each once, remembered.
     async fn policy_gate(
         &self,
         engine: &super::budget::policy::Engine,
@@ -392,7 +332,6 @@ impl Coordinator {
         self
     }
 
-    /// Same as [`with_prune`], on a coordinator that is already shared.
     pub fn set_prune(&self, pruner: Arc<ContextPruner>) {
         match self.pruner.write() {
             Ok(mut slot) => *slot = pruner,
@@ -407,13 +346,11 @@ impl Coordinator {
         }
     }
 
-    /// Where conversations are written; `None` keeps the turn in memory.
     pub fn with_dir(mut self, dir: Option<PathBuf>) -> Self {
         self.dir = dir;
         self
     }
 
-    /// Adds a per-turn hook; hooks run in the order they were added.
     pub fn add_augment(&self, augment: Arc<dyn TurnAugment>) {
         self.augments
             .write()
@@ -421,8 +358,6 @@ impl Coordinator {
             .push(augment);
     }
 
-    /// Runs every hook over a copy of `agent`. Public so the app can show
-    /// the effective agent (grants, skills) without starting a turn.
     pub fn effective_agent(
         &self,
         agent: &AgentDef,
@@ -430,11 +365,7 @@ impl Coordinator {
         user_input: &str,
     ) -> (AgentDef, Vec<String>) {
         let mut agent = agent.clone();
-        // Personal overlays, room context and reading data have local-only
-        // legacy stores. External runs receive only the explicitly pinned
-        // executor prompt until each augment has principal-aware queries.
         if crate::core::assist::authority::external(conversation_id) {
-            // Grant ∩ the executor's own modes: Deny stays out, Ask stays Ask.
             let own = std::mem::take(&mut agent.tools);
             if let Ok(ceiling) = crate::core::assist::db::global().and_then(|db| {
                 crate::core::assist::authority::resolve(&db, conversation_id, &agent.id)
@@ -489,8 +420,6 @@ impl Coordinator {
         }
     }
 
-    /// Which model serves the next attempt, plus its routing key. `tried` holds
-    /// the keys already burned in this turn.
     fn resolve(&self, agent: &AgentDef, tried: &[String]) -> Result<(ModelRef, String), LlmError> {
         match &agent.model {
             ModelPolicy::Fixed { model } => Ok((
@@ -506,9 +435,6 @@ impl Coordinator {
         }
     }
 
-    /// Hand the conversation from one agent to another with a written summary.
-    /// The summary lands in the transcript as a system message, so the next
-    /// agent's first turn already carries it.
     pub fn handoff(
         &self,
         conversation_id: &str,
@@ -530,8 +456,6 @@ impl Coordinator {
         Ok(message)
     }
 
-    /// Run one user turn. The returned stream already has the tool loop, the
-    /// reroutes and the cancellation resolved.
     pub fn run_turn(
         self: &Arc<Self>,
         conversation_id: &str,
@@ -548,10 +472,6 @@ impl Coordinator {
         )
     }
 
-    /// Same turn, with the caller's own id. The commands layer mints the id it
-    /// already handed to the front end and passes it here, so
-    /// `TurnEvent::Started { request_id }` and `BusEvent::ToolAsk.request_id`
-    /// carry that id and the UI can tie an ask back to its turn.
     pub fn run_turn_with_id(
         self: &Arc<Self>,
         request_id: String,
@@ -592,7 +512,6 @@ impl Coordinator {
         }
         let authority_agent = agent.clone();
         let (agent, turn_context) = self.effective_agent(&agent, &conversation_id, &user_input);
-        // The run is on disk before anything reaches the provider or the UI.
         let runs = self.runs();
         if crate::core::assist::authority::external(&conversation_id) && runs.is_none() {
             let _ = tx
@@ -630,17 +549,7 @@ impl Coordinator {
         let mut turn_error: Option<String> = None;
         let mut history = self.history(&conversation_id).unwrap_or_default();
         super::snapshot::mark_turn(&request_id, history.len());
-        // Replay the decisions a previous turn already froze. This is a map
-        // lookup and a string swap, never a judge call: if the judgement of
-        // the last turn is still running, this turn simply uses the history as
-        // it stands and picks the omissions up next time.
-        //
-        // `history` itself stays whole: the omissions are applied to the copy
-        // each request is built from (see the loop below), so the judge always
-        // sees the real outputs and a verdict that lands in the middle of a
-        // long turn takes effect on the very next request of that turn.
         if history.is_empty() && !agent.system_prompt.is_empty() {
-            // Persisted too, so a resumed conversation replays identically.
             let system = Message::text(Role::System, agent.system_prompt.clone());
             self.persist(&conversation_id, &agent.id, &system);
             history.push(system);
@@ -649,10 +558,7 @@ impl Coordinator {
         self.persist(&conversation_id, &agent.id, &user_msg);
         history.push(user_msg);
 
-        // Gate before anything reaches the network.
         let estimate = estimate_tokens(&history);
-        // The per-turn token ceiling, then a reservation against the day:
-        // two turns of the same agent cannot both slip under the cap.
         let reservation = self
             .budget
             .check(&agent.id, &agent.budget, estimate)
@@ -671,9 +577,6 @@ impl Coordinator {
                     },
                 )
             });
-        // Budget policies (3.3): a paused scope, a hard ceiling already
-        // reached, or a question someone must answer first. Skipped whole
-        // when no policy exists.
         let policy_turn = self.policies().map(|engine| {
             let model = self.resolve(&agent, &[]).map(|(m, _)| m).ok();
             let ctx = super::budget::policy::TurnCtx {
@@ -724,7 +627,6 @@ impl Coordinator {
             }
         };
 
-        // Running: persisted before the frontend hears `Started`.
         if let Some(reg) = &runs {
             let _ = reg.transition(
                 &request_id,
@@ -732,8 +634,6 @@ impl Coordinator {
                 None,
             );
         }
-        // A CLI agent runs its own tool loop: it reaches the assistant tools
-        // through a scoped MCP projection with this turn's grants.
         let projection = match (
             &agent.runtime,
             &runs,
@@ -789,7 +689,6 @@ impl Coordinator {
             .await
             .is_err()
         {
-            // Nobody listens any more: nothing was sent, free everything.
             self.budget.release(&reservation);
             if let Some(reg) = &runs {
                 let _ = reg.transition(
@@ -817,8 +716,6 @@ impl Coordinator {
                 if spec.name == "fs_glob" {
                     spec.description="Find paths relative to the granted workspace using *, ** or ?. Braces, character classes and protected paths are unsupported.".into();
                 }
-                // External missions get the external file tools' own schemas
-                // (revision-bound edits, create-only writes).
                 if let Some((d, schema)) =
                     crate::core::assist::external_files::external_spec(&spec.name)
                 {
@@ -909,8 +806,6 @@ impl Coordinator {
                     }
                 }
             }
-            // A CLI or ACP agent edits files with its own tools, which never
-            // pass through the broker: the undo snapshot is taken up front.
             if !matches!(agent.runtime, super::agent::RuntimeKind::Native) {
                 if let Some(ws) = super::code_tools::workspace_of(&conversation_id) {
                     if let Err(e) =
@@ -1042,11 +937,8 @@ impl Coordinator {
                     } => {
                         cli_results.push((id, content, is_error));
                     }
-                    // Only the Coordinator writes receipts.
                     TurnEvent::PruneReceipt { .. } => {}
                     TurnEvent::Usage { usage } => {
-                        // `input_tokens` already holds the cache (one
-                        // Usage convention); caps count the weighted input.
                         request_input = Some(
                             request_input
                                 .unwrap_or(0)
@@ -1077,8 +969,6 @@ impl Coordinator {
                 }
             }
 
-            // External budget: settle the conservative debit with the usage
-            // the provider reported for this request (unknown keeps the bound).
             if let (Some(debit), Some(_)) = (external_debit.take(), request_input) {
                 let used = request_billable_input + request_output as u64;
                 let _ = if matches!(agent.runtime, super::agent::RuntimeKind::Native) {
@@ -1114,17 +1004,7 @@ impl Coordinator {
                 break 'turn FinishReason::Other;
             }
 
-            // A CLI agent (Claude Code, Codex, ACP) runs its own tools inside
-            // its own process: what it streamed is a record of work already
-            // done, not a request for the broker. Re-running it would call
-            // tools we do not have and start the CLI all over again.
             if !matches!(agent.runtime, super::agent::RuntimeKind::Native) {
-                // What it did is still worth remembering: the next turn replays
-                // the conversation, and without these pairs the CLI reads the
-                // same files again. Only complete pairs are kept (a call with
-                // no result would be an invalid request for a native model),
-                // each result clipped, and from there on they are ordinary
-                // candidates for the pruner.
                 let pairs: Vec<(&PendingCall, &(String, String, bool))> = calls
                     .iter()
                     .filter_map(|c| cli_results.iter().find(|r| r.0 == c.id).map(|r| (c, r)))
@@ -1204,9 +1084,6 @@ impl Coordinator {
                 break 'turn FinishReason::Other;
             }
 
-            // The assistant message that asked for the tools, then one tool
-            // message per result; both go to disk so a resumed conversation
-            // replays the same loop.
             let mut parts: Vec<ContentPart> = Vec::new();
             if !text.is_empty() {
                 parts.push(ContentPart::Text { text: text.clone() });
@@ -1259,8 +1136,6 @@ impl Coordinator {
                 };
                 let (content, is_error) = match outcome {
                     Ok(o) => (super::compress::tool_output(&c.name, &o.content), false),
-                    // No path inside the app's profile reaches the model
-                    // (the turn's own workspace stays readable).
                     Err(e) => (
                         format!(
                             "{}: {}",
@@ -1300,9 +1175,6 @@ impl Coordinator {
                 tool_calls_used += 1;
             }
 
-            // A long turn is many requests. The judge looks at what is already
-            // old inside this same turn, in its own task; whatever it freezes
-            // is applied to the next request above. Never awaited here.
             if !crate::core::assist::authority::external(&conversation_id) && pruner.is_active() {
                 let (pruner, id, snapshot) =
                     (pruner.clone(), conversation_id.clone(), history.clone());
@@ -1320,12 +1192,9 @@ impl Coordinator {
                 })
                 .await;
         }
-        // Close the record before the stream says `Finished`: whoever reads
-        // the run after the turn sees its final state.
         let used_anything =
             total.input_tokens + total.output_tokens > 0 || total.cost_usd.is_some();
         if matches!(finish, FinishReason::Cancelled) && !used_anything {
-            // Cancelled before the provider billed anything: free the room.
             self.budget.release(&reservation);
         } else {
             self.budget.settle(
@@ -1374,7 +1243,6 @@ impl Coordinator {
             }
         }
         if matches!(finish, FinishReason::Cancelled) {
-            // Questions of this turn resolve as cancelled, never later.
             self.broker.cancel_request(&request_id);
         }
         if let Some(ws) = super::code_tools::workspace_of(&conversation_id)
@@ -1407,7 +1275,6 @@ impl Coordinator {
                 total.output_tokens as u64,
                 total.cost_usd,
             );
-            // A run a person already moved (cancelled from elsewhere) stays.
             let terminal = reg.transition(&request_id, state, error.as_deref());
             if crate::core::assist::authority::external(&conversation_id)
                 && (outcome.is_err() || terminal.is_err())
@@ -1444,10 +1311,6 @@ impl Coordinator {
             }
         }
 
-        // Context pruning runs here and only here: the turn is over, the
-        // stream is closed, and the judge — a model or a network call — gets
-        // its own task so nothing in the SSE path ever awaits it. The verdicts
-        // land in the sticky store and take effect on the next turn.
         let pruner = self.pruner();
         if !crate::core::assist::authority::external(&conversation_id) && pruner.is_active() {
             let id = conversation_id;
@@ -1457,8 +1320,6 @@ impl Coordinator {
         }
     }
 
-    /// Rate limited? Burn this candidate, put it on cooldown and tell the bus
-    /// where the turn moved. The conversation is resent whole by the caller.
     fn maybe_reroute(
         &self,
         agent: &AgentDef,

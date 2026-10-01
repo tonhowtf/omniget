@@ -45,12 +45,6 @@ fn wal_path() -> Option<PathBuf> {
     crate::core::paths::app_data_dir().map(|d| d.join(WAL_FILE))
 }
 
-/// Anexa um registro ao log, com `fsync` por registro.
-///
-/// Isto e o ponto do B32: o formato anterior reescrevia o arquivo inteiro a
-/// cada mudanca, entao um crash no meio da escrita podia levar a fila toda.
-/// Anexar so pode corromper o ultimo registro, e o `decode_log` descarta a
-/// linha truncada e mantem o resto.
 fn append(record: &crate::core::queue_wal::WalRecord) {
     let Some(path) = wal_path() else { return };
     let Some(parent) = path.parent() else { return };
@@ -69,8 +63,6 @@ fn append(record: &crate::core::queue_wal::WalRecord) {
             .open(&path)?;
         f.write_all(line.as_bytes())?;
         f.write_all(b"\n")?;
-        // Sem o fsync, o WAL nao vale mais que o JSON: o kernel pode nao ter
-        // escrito nada quando o processo morre.
         f.sync_all()?;
         Ok(())
     })();
@@ -79,30 +71,18 @@ fn append(record: &crate::core::queue_wal::WalRecord) {
     }
 }
 
-/// The recovery log is on disk and listed in the UI: only redacted URLs.
-///
-/// A public link survives unchanged (redaction removes nothing) and is
-/// restored as before. A link that carried a secret (signed query, token) is
-/// kept in its display form; restoring it fails honestly with "link expired,
-/// paste again" instead of sending `[REDACTED]` to the server. The executable
-/// URL is not kept anywhere: by the time the app is back after a crash a
-/// signed link has usually expired anyway.
 fn scrub(mut item: RecoveryItem) -> RecoveryItem {
     use crate::core::flight_recorder::{redact_url, redact_urls};
     item.url = redact_url(&item.url);
-    // The placeholder title is the URL (N-3): same redaction, same log.
     item.title = redact_urls(&item.title);
     item.referer = item.referer.as_deref().map(redact_url);
     item
 }
 
-/// True when the item can no longer be restored: its URL lost its secret.
 pub fn is_expired(item: &RecoveryItem) -> bool {
     crate::core::flight_recorder::is_redacted_url(&item.url)
 }
 
-/// Rewrites the log with the given items (atomic rename). Used once at boot
-/// when older records still held a raw URL.
 fn rewrite(items: &[RecoveryItem]) {
     let Some(path) = wal_path() else { return };
     let tmp = path.with_extension("wal.tmp");
@@ -154,24 +134,11 @@ fn recovered_to_item(r: &crate::core::queue_wal::RecoveredItem) -> RecoveryItem 
     })
 }
 
-/// Converte um `recovery.json` da 0.7.x para o WAL, uma vez so.
-///
-/// Retorna os itens migrados. O JSON e renomeado em vez de apagado: se algo
-/// der errado na primeira execucao com o WAL, o arquivo original ainda esta la.
-/// Ordem em que os itens do `recovery.json` entram no WAL.
-///
-/// Estavel por id: o JSON nao guardava posicao, e inventar uma ordem arbitraria
-/// mudaria a fila do usuario sem motivo. Separado do I/O para poder ser testado
-/// sem tocar em disco nem no estado global.
 fn ordenar_para_migracao(mut itens: Vec<RecoveryItem>) -> Vec<RecoveryItem> {
     itens.sort_by_key(|i| i.id);
     itens
 }
 
-/// Le um `recovery.json` da 0.7.x e devolve os registros equivalentes.
-///
-/// Puro de proposito: e a funcao que o teste de migracao precisa exercitar, e
-/// e onde um campo esquecido some em silencio.
 fn json_para_registros(content: &str) -> Vec<crate::core::queue_wal::WalRecord> {
     let parsed: RecoveryFile = match serde_json::from_str(content) {
         Ok(v) => v,
@@ -192,8 +159,6 @@ fn migrate_from_json() -> Vec<RecoveryItem> {
         return Vec::new();
     };
 
-    // Mesma funcao que o teste de migracao exercita. Se a producao parseasse
-    // por fora, o teste estaria provando algo que ninguem executa.
     let registros = json_para_registros(&content);
     if registros.is_empty() && !content.trim().is_empty() {
         tracing::warn!("[recovery] recovery.json ilegivel ou vazio, nada migrado");
@@ -223,15 +188,12 @@ pub fn init_from_disk() {
         Some(contents) => {
             let (records, descartados) = crate::core::queue_wal::decode_log(&contents);
             if descartados > 0 {
-                // Esperado apos um crash: a ultima linha estava pela metade.
                 tracing::warn!(
                     "[recovery] {} registro(s) truncado(s) descartado(s)",
                     descartados
                 );
             }
             let replayed = crate::core::queue_wal::replay(&records);
-            // Records written before redaction held the raw URL: rewrite the
-            // log so the secret leaves the disk, not only the UI.
             let stale = replayed.iter().any(|r| {
                 let scrubbed = recovered_to_item(r);
                 scrubbed.url != r.url || scrubbed.referer != r.referer || scrubbed.title != r.title
@@ -288,7 +250,6 @@ mod migracao_tests {
     use super::*;
     use crate::core::queue_wal::{replay, WalRecord};
 
-    /// Recorte no formato exato que a 0.7.x gravava, com `referer` preenchido.
     const JSON_0_7_X: &str = r#"{
       "items": [
         {
@@ -314,9 +275,6 @@ mod migracao_tests {
 
     #[test]
     fn migracao_preserva_o_referer() {
-        // O `Enqueued` do WAL nao tinha `referer` quando a #217 foi escrita.
-        // Sem este teste, migrar teria descartado o campo em silencio, e o
-        // download so falharia depois, no site que exige o header.
         let registros = json_para_registros(JSON_0_7_X);
         let itens = replay(&registros);
         let com_referer = itens.iter().find(|i| i.id == 7).expect("item 7");
@@ -341,8 +299,6 @@ mod migracao_tests {
 
     #[test]
     fn campos_opcionais_ausentes_nao_quebram_a_migracao() {
-        // O item 2 do recorte nao tem download_mode, quality, format_id nem
-        // referer — arquivo de quem so usou os padroes.
         let itens = replay(&json_para_registros(JSON_0_7_X));
         let i = itens.iter().find(|i| i.id == 2).expect("item 2");
         assert_eq!(i.platform, "instagram");
@@ -352,8 +308,6 @@ mod migracao_tests {
 
     #[test]
     fn ordem_da_fila_sobrevive_a_migracao() {
-        // O JSON guardava um mapa sem ordem. Ordenar por id e a unica escolha
-        // que nao embaralha a fila de quem atualizar.
         let itens = replay(&json_para_registros(JSON_0_7_X));
         assert_eq!(itens.len(), 2);
         assert_eq!(itens[0].id, 2, "o menor id vem primeiro");
@@ -364,19 +318,15 @@ mod migracao_tests {
 
     #[test]
     fn json_corrompido_nao_derruba_o_boot() {
-        // Um arquivo ilegivel nao pode impedir o app de subir; a fila perdida e
-        // ruim, o app que nao abre e pior.
         assert!(json_para_registros("{ isto nao e json").is_empty());
         assert!(json_para_registros("").is_empty());
     }
 
     #[test]
     fn url_assinada_nunca_vai_para_o_log() {
-        // G06/D-11: recovery.json/queue.wal held signed queries in clear.
         let item = RecoveryItem {
             id: 9,
             url: "https://cdn.example.com/v.mp4?X-Amz-Signature=SYNTHETIC_SECRET&token=SYNTHETIC_SECRET".into(),
-            // N-3: before metadata arrives the title is the URL itself.
             title: "https://cdn.example.com/v.mp4?X-Amz-Signature=SYNTHETIC_SECRET&token=SYNTHETIC_SECRET".into(),
             platform: "generic".into(),
             output_dir: "/d".into(),

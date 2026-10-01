@@ -1,21 +1,3 @@
-//! Claude Code: `<config>/projects/<cwd codificado>/<session>.jsonl`, com
-//! subagentes em `<session>/subagents/agent-*.jsonl` (+ `.meta.json`).
-//!
-//! Raízes: `CLAUDE_CONFIG_DIR` (lista), senão `~/.claude` e
-//! `~/.config/claude`; mais as contas isoladas do OmniGet.
-//!
-//! Regras de contagem:
-//! * Uma mensagem da API vira várias linhas (uma por bloco de conteúdo) que
-//!   repetem `message.id` e `usage`. Tudo com a mesma chave
-//!   `message.id:requestId` vira uma `Turn` só, com o maior valor de cada
-//!   campo de uso (o streaming grava parciais crescentes).
-//! * `input` é a entrada fresca; `cache_read`/`cache_write` separados;
-//!   `reasoning` = `output_tokens_details.thinking_tokens`, descontado de
-//!   `output` (o total da API inclui o raciocínio).
-//! * A linha `cost-state` é o custo que o próprio CLI calculou. Cada processo
-//!   (`startTime`) acumula desde que abriu; o custo da sessão é a soma do
-//!   último valor de cada processo.
-
 use std::collections::{BTreeMap, HashMap};
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
@@ -32,16 +14,13 @@ pub const TOOL: &str = "claude";
 #[derive(Debug, Clone)]
 pub struct Root {
     pub account: String,
-    /// Diretório de configuração (`CLAUDE_CONFIG_DIR`), `None` = padrão.
     pub config_dir: Option<PathBuf>,
     pub projects: PathBuf,
 }
 
 pub struct ClaudeSource {
     roots: Vec<Root>,
-    /// Metadados baratos por arquivo, válidos enquanto (mtime, tamanho) não mudam.
     cache: Mutex<HashMap<PathBuf, (i64, u64, SessionMeta)>>,
-    /// id → (arquivo, conta), preenchido pelo `list`.
     ids: Mutex<HashMap<String, (PathBuf, String)>>,
 }
 
@@ -68,7 +47,6 @@ impl ClaudeSource {
         &self.roots
     }
 
-    /// Todos os arquivos de sessão: (arquivo, conta, id, sessão-mãe).
     pub fn files(&self) -> Vec<(PathBuf, String, String, Option<String>)> {
         let mut out = Vec::new();
         for root in &self.roots {
@@ -184,8 +162,6 @@ pub fn default_roots() -> Vec<Root> {
     roots
 }
 
-/// `<arquivo>.meta.json` de um subagente: tipo, descrição e o `tool_use` que
-/// o criou na sessão-mãe.
 #[derive(Debug, Clone, Default, Deserialize, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SubagentMeta {
@@ -205,8 +181,6 @@ pub fn subagent_meta(session_file: &Path) -> Option<SubagentMeta> {
     serde_json::from_str(&text).ok()
 }
 
-/// Uma linha do JSONL, só com os campos usados (o resto é pulado sem
-/// construir árvore, o que mantém a varredura fria rápida).
 #[derive(Deserialize, Default)]
 #[serde(rename_all = "camelCase", default)]
 struct Line {
@@ -231,7 +205,6 @@ struct Line {
     start_time: Option<i64>,
 }
 
-/// Parser incremental: alimente linhas, leia o estado.
 #[derive(Default)]
 pub struct ClaudeParser {
     pub turns: Vec<Turn>,
@@ -244,10 +217,7 @@ pub struct ClaudeParser {
     pub summary: Option<String>,
     pub agent_name: Option<String>,
     pub first_user: Option<String>,
-    /// `startTime` do processo → último `totalCostUSD` visto.
     pub cost_states: BTreeMap<i64, f64>,
-    /// Resultados de tool cujo `tool_use` não está nesta leitura (leitura
-    /// incremental do índice).
     pub orphan_results: Vec<(String, ToolStatus)>,
     pub first_ms: Option<i64>,
     pub last_ms: Option<i64>,
@@ -538,7 +508,6 @@ impl ClaudeParser {
         });
     }
 
-    /// Custo gravado pelo CLI (soma do último `cost-state` de cada processo).
     pub fn recorded_cost(&self) -> Option<f64> {
         if self.cost_states.is_empty() {
             None
@@ -547,7 +516,6 @@ impl ClaudeParser {
         }
     }
 
-    /// Só títulos gravados explicitamente (sem cair na primeira mensagem).
     pub fn explicit_title(&self) -> Option<String> {
         self.custom_title
             .clone()
@@ -613,7 +581,6 @@ impl ClaudeParser {
     }
 }
 
-/// Lê o arquivo a partir de `from`; devolve o parser e o offset final.
 pub fn parse_from(path: &Path, from: u64) -> (ClaudeParser, u64) {
     let mut p = ClaudeParser::new();
     let end = util::for_each_line(path, from, |l| p.feed(l)).unwrap_or(from);
@@ -640,7 +607,6 @@ fn base_meta(path: &Path, account: &str, id: &str, parent: Option<String>) -> Se
     }
 }
 
-/// Sessão-mãe de um arquivo `.../<sessão>/subagents/agent-x.jsonl`.
 pub fn parent_of(path: &Path) -> Option<String> {
     let dir = path.parent()?;
     if dir.file_name()?.to_str()? != "subagents" {
@@ -649,7 +615,6 @@ pub fn parent_of(path: &Path) -> Option<String> {
     Some(dir.parent()?.file_name()?.to_string_lossy().to_string())
 }
 
-/// Sessão completa de um arquivo.
 pub fn load_file(path: &Path, account: &str, id: &str) -> Session {
     let (p, _) = parse_from(path, 0);
     let mut s = p.into_session(base_meta(path, account, id, parent_of(path)));
@@ -674,7 +639,6 @@ pub fn decorate_subagent(path: &Path, meta: &mut SessionMeta) {
     }
 }
 
-/// Metadados baratos: cabeçalho + rodapé do arquivo.
 fn quick_meta(path: &Path, account: &str, id: &str, parent: Option<String>) -> SessionMeta {
     let mut p = ClaudeParser::new();
     for l in util::head_lines(path, 20, 128 * 1024) {
@@ -759,8 +723,6 @@ impl SessionSource for ClaudeSource {
     }
 }
 
-/// Estado ao vivo de um arquivo pelo rodapé: último papel e se há tool
-/// esperando resultado.
 pub fn tail_state(path: &Path) -> (Option<Role>, bool) {
     let mut p = ClaudeParser::new();
     for l in util::tail_lines(path, 128 * 1024) {

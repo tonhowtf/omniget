@@ -1,31 +1,3 @@
-//! Personal memory: scoped records with provenance, versions, corrections,
-//! tombstones, a derived FTS index, export/import. Owner: worker W1.
-//!
-//! The table `memory_records` is the only source of truth. Everything else
-//! (`memory_fts`, `memory_profile_cache`) is derived and rebuilt from it by
-//! [`reindex`]; tombstones (`memory_tombstones`) keep a forgotten record from
-//! coming back through a reindex or an import, and hold hashes only, never the
-//! forgotten text.
-//!
-//! Rules this module enforces (spec 02 "Memória que cresce com o usuário"):
-//! - every query carries the caller's [`AssistCtx`] and filters by its scopes
-//!   in SQL, before ranking and `LIMIT`; a record outside those scopes is
-//!   indistinguishable from one that does not exist;
-//! - writes are idempotent per origin (same source + same content → the same
-//!   record);
-//! - an inference is a candidate until the person confirms it; it never
-//!   becomes a stated preference on its own, and it never displaces one;
-//! - a correction supersedes the previous version (one active record per
-//!   subject and kind), keeping the chain for the history screen;
-//! - forgetting removes every version, the index rows and the cached profile,
-//!   and leaves hashes behind.
-//!
-//! On top of the records sits the Hindsight-style layer (estudos/91-hindsight):
-//! [`retain`] extracts facts from each turn, [`graph`] keeps their dates,
-//! vectors, entities and links, [`retrieve`] recalls with four fused arms,
-//! [`consolidate`] keeps a note per entity and [`reflect`] answers from memory.
-//! All of it is derived from `memory_records` and purged with it.
-
 pub mod consolidate;
 pub mod graph;
 mod records;
@@ -64,7 +36,6 @@ pub const ERR_MEMORY_FORGOTTEN: &str = "ERR_MEMORY_FORGOTTEN";
 pub const ERR_MEMORY_INACTIVE: &str = "ERR_MEMORY_INACTIVE";
 pub const ERR_MEMORY_IMPORT: &str = "ERR_MEMORY_IMPORT";
 
-/// Longest text one record may hold.
 pub const MAX_CONTENT_CHARS: usize = 4000;
 
 pub const MIGRATIONS: &[Migration] = &[
@@ -198,7 +169,6 @@ CREATE TABLE memory_settings(
     },
 ];
 
-/// Every tool this module offers; `bots` maps the `memory` capability to these.
 pub const TOOL_NAMES: &[&str] = &[
     "memory_recall",
     "memory_remember",
@@ -209,19 +179,13 @@ pub const TOOL_NAMES: &[&str] = &[
     "memory_retain",
 ];
 
-/// What kind of knowledge a record is.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Category {
-    /// A fact or preference the person stated (or confirmed).
     Declared,
-    /// Something that happened: a movie marked watched, a reaction to it.
     Observation,
-    /// A guess with evidence and confidence; a candidate until confirmed.
     Inference,
-    /// Context that holds for a while ("today I want something light").
     Temporary,
-    /// A working note on how to do something for this person.
     Procedural,
 }
 
@@ -247,8 +211,6 @@ impl Category {
         })
     }
 
-    /// Records of the same group and subject cannot be active together.
-    /// Observations are events: many can coexist.
     fn conflict_group(self) -> Option<&'static str> {
         match self {
             Category::Declared | Category::Inference => Some("preference"),
@@ -271,11 +233,8 @@ impl Category {
 #[serde(rename_all = "snake_case")]
 pub enum Status {
     Active,
-    /// Replaced by a later version of the same chain.
     Superseded,
-    /// Withdrawn without a replacement ("that was not it").
     Retracted,
-    /// Temporary context whose validity ran out.
     Expired,
 }
 
@@ -300,10 +259,8 @@ impl Status {
     }
 }
 
-/// Where a record came from. `author` is `"user"` or `"bot:<id>"`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Source {
-    /// `message` | `event` | `document` | `conversation` | `user` | `import`.
     pub kind: String,
     #[serde(default)]
     pub id: Option<String>,
@@ -314,7 +271,6 @@ pub struct Source {
 }
 
 impl Source {
-    /// The person typing on the memory screen.
     pub fn user(now: i64) -> Self {
         Self {
             kind: "user".into(),
@@ -351,7 +307,6 @@ pub struct MemoryRecord {
     pub updated_ms: i64,
 }
 
-/// A record about to be written.
 #[derive(Debug, Clone)]
 pub struct NewMemory {
     pub scope: Scope,
@@ -402,10 +357,6 @@ impl NewMemory {
     }
 }
 
-// ── Hashing (tombstones and idempotency) ──────────────────────────────────
-
-/// Lowercase, single spaces, no punctuation at the ends: two spellings of
-/// the same sentence hash the same.
 pub(crate) fn normalize(s: &str) -> String {
     let lower = s.to_lowercase();
     let collapsed = lower.split_whitespace().collect::<Vec<_>>().join(" ");
@@ -455,12 +406,9 @@ pub(crate) fn not_found() -> String {
     format!("{ERR_MEMORY_NOT_FOUND}: no such memory")
 }
 
-// ── The Hindsight-style layer, for the app ───────────────────────────────
-
 use super::ctx::AssistCtx;
 use super::db::AssistDb;
 
-/// Counts for the memory screen.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 pub struct Stats {
     pub active: i64,
@@ -468,14 +416,12 @@ pub struct Stats {
     pub entities: i64,
     pub notes: i64,
     pub links: i64,
-    /// Retains logged in the last 24 hours, and facts they saved.
     pub retains_today: i64,
     pub facts_today: i64,
     #[serde(default)]
     pub last_retain_ms: Option<i64>,
     #[serde(default)]
     pub last_retain_error: Option<String>,
-    /// The local embedding model is loaded (meaning search works).
     pub semantic_ready: bool,
     pub auto_retain: bool,
     pub consolidate: bool,
@@ -522,14 +468,11 @@ pub fn stats(db: &AssistDb, now: i64) -> Result<Stats, String> {
     Ok(s)
 }
 
-/// Entities the caller can see, most mentioned first, with their notes.
 pub fn entities(db: &AssistDb, ctx: &AssistCtx, limit: usize) -> Result<Vec<Entity>, String> {
     let keys = (!ctx.is_user_ui()).then(|| ctx.readable_keys());
     db.with(|c| graph::list_entities(c, &ctx.principal, keys.as_deref(), limit.clamp(1, 500)))
 }
 
-/// Hybrid search with the reasons, for the memory screen. Blocking (it may
-/// run the local model): call from `spawn_blocking`.
 pub fn search_explained(
     db: &AssistDb,
     ctx: &AssistCtx,
@@ -541,9 +484,6 @@ pub fn search_explained(
     retrieve::hybrid(db, ctx, query, qvec.as_deref(), limit, now)
 }
 
-/// Downloads once the multilingual models (vectors and reranker, ≈ 250 MB)
-/// and the ONNX runtime if missing, embeds every record, then rebuilds the
-/// entity notes.
 pub async fn prepare_semantic(db: std::sync::Arc<AssistDb>) -> Result<usize, String> {
     let progress = crate::core::tools::noop_progress();
     if !crate::core::onnxrt::is_installed() {
@@ -566,8 +506,6 @@ pub async fn prepare_semantic(db: std::sync::Arc<AssistDb>) -> Result<usize, Str
     Ok(n)
 }
 
-/// Vectors for records without one, then the entity notes, in the
-/// background.
 pub fn upkeep(db: std::sync::Arc<AssistDb>) {
     toolset::spawn_upkeep(db);
 }

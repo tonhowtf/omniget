@@ -1,12 +1,3 @@
-//! Connectors: a folder with `manifest.json` and a script. The script defines
-//! `resolve(url, ctx)` and returns a tree (`{ title, children: [...] }`). It
-//! runs in QuickJS with no file system and no sockets: `ctx.fetch` reaches
-//! only the manifest's `domains`, going through a browser tab of the same
-//! origin when one is open.
-//!
-//! Installed connectors live in `<data>/global-downloader/connectors/<id>`;
-//! a developer folder is linked in place (`connectors.json` → `dev`).
-
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
@@ -38,9 +29,6 @@ pub struct Manifest {
     pub entry: String,
     #[serde(default)]
     pub min_omniget: String,
-    /// Settings the person can change, shown by the app and passed to the
-    /// script as `ctx.options`: `[{ id, label, type: boolean|string|select,
-    /// default, choices? }]`.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub options: Vec<Value>,
 }
@@ -82,7 +70,6 @@ fn save_dev_dirs(dirs: &[PathBuf]) -> Result<(), String> {
     std::fs::write(dev_list_file(), v.to_string()).map_err(|e| e.to_string())
 }
 
-/// Reads and checks a connector folder.
 pub fn load(dir: &Path) -> Result<Manifest, String> {
     let text = std::fs::read_to_string(dir.join("manifest.json"))
         .map_err(|e| format!("{}: no manifest.json ({e})", dir.display()))?;
@@ -154,7 +141,6 @@ pub fn list() -> Vec<Connector> {
     out
 }
 
-/// Links a local folder in developer mode: edits take effect on the next run.
 pub fn install_dev(dir: &Path) -> Result<Manifest, String> {
     let dir = dir.canonicalize().map_err(|e| e.to_string())?;
     let m = load(&dir)?;
@@ -176,15 +162,12 @@ pub fn remove(id: &str) -> Result<(), String> {
     Ok(())
 }
 
-// ── Options ───────────────────────────────────────────────────────────
-
 fn options_file(id: &str) -> PathBuf {
     let d = data_dir().join("connector-options");
     let _ = std::fs::create_dir_all(&d);
     d.join(format!("{id}.json"))
 }
 
-/// Defaults from the manifest, then what the person saved, then `overrides`.
 pub fn option_values(m: &Manifest, overrides: Option<&Value>) -> Value {
     let mut out = serde_json::Map::new();
     for o in &m.options {
@@ -320,10 +303,7 @@ function resolve(url, ctx) {
 }
 "#;
 
-/// The contract, served to agents by `gd_connector_spec`.
 pub const SPEC: &str = include_str!("SPEC.md");
-
-// ── Running a connector ───────────────────────────────────────────────
 
 const PRELUDE: &str = r#"
 var ctx = (function () {
@@ -370,8 +350,6 @@ pub struct ResolveResult {
     pub ms: u128,
 }
 
-/// Resolves `url` with the matching connector (or `dir`, a connector folder
-/// under development), or with the built-in sniffer when none matches.
 pub async fn resolve(
     url: &str,
     dir: Option<PathBuf>,
@@ -436,9 +414,6 @@ pub async fn resolve(
     })
 }
 
-/// The tab's title, asked from the page when Chrome still reports the
-/// address (it does until the first title paints, and for some SPAs never
-/// updates it).
 async fn page_title(url: &str, tab_id: Option<&str>) -> String {
     let Some(b) = browser::current() else {
         return url.to_string();
@@ -464,7 +439,6 @@ fn looks_like_address(title: &str) -> bool {
     t.is_empty() || (!t.contains(' ') && (t.contains('/') || t.contains("://")))
 }
 
-/// File names players use for every stream, which say nothing about it.
 const GENERIC_STEMS: &[&str] = &[
     "index",
     "master",
@@ -489,14 +463,12 @@ const GENERIC_STEMS: &[&str] = &[
     "api",
 ];
 
-/// A sniffed URL's file name, percent-decoded, split in (stem, extension).
 fn url_file(url: &str) -> (String, String) {
     let path = url.split(['?', '#']).next().unwrap_or(url);
     let last = path.rsplit('/').next().unwrap_or("");
     let decoded = urlencoding::decode(last)
         .map(|c| c.into_owned())
         .unwrap_or_else(|_| last.to_string());
-    // `Content%2Fbig_buck_bunny.mp4` decodes to a path: keep its last part.
     let name = decoded.rsplit('/').next().unwrap_or(&decoded).to_string();
     match name.rsplit_once('.') {
         Some((stem, ext)) if (1..=5).contains(&ext.len()) => (stem.to_string(), ext.to_string()),
@@ -504,9 +476,6 @@ fn url_file(url: &str) -> (String, String) {
     }
 }
 
-/// What to call one sniffed file: its own name when it says something
-/// (`flower`, `big_buck_bunny_720p`), the page title when the name is
-/// generic (`index.m3u8`) or a bare id (`f6441ae0c84311e4af010bc47400a0a4`).
 pub fn media_title(url: &str, page_title: &str) -> String {
     let (stem, _) = url_file(url);
     let lower = stem.to_ascii_lowercase();
@@ -520,9 +489,6 @@ pub fn media_title(url: &str, page_title: &str) -> String {
     }
 }
 
-/// A name made only of ids, qualities and codecs
-/// (`c28d0633-…-master`, `193039199_mp4_h264_aac_hd_7`, `x7tgad0`): it
-/// names the stream for the server, not for a person.
 fn id_like(stem: &str) -> bool {
     const NOISE: &[&str] = &[
         "mp4",
@@ -559,7 +525,6 @@ fn id_like(stem: &str) -> bool {
             && t.chars().all(|c| c.is_ascii_alphanumeric())
     };
     if tokens.len() == 1 {
-        // Bandcamp streams a track as `…/mp3-128/2584466013`.
         return mixed(tokens[0])
             || (tokens[0].len() >= 6 && tokens[0].chars().all(|c| c.is_ascii_digit()))
             || (tokens[0].len() >= 16 && tokens[0].chars().all(|c| c.is_ascii_hexdigit()));
@@ -576,7 +541,6 @@ fn id_like(stem: &str) -> bool {
         })
 }
 
-/// Extension for a file whose URL has none (`/download?id=…`).
 fn ext_for_mime(mime: &str) -> Option<&'static str> {
     Some(match mime.split(';').next().unwrap_or("").trim() {
         "video/mp4" => "mp4",
@@ -597,7 +561,6 @@ fn ext_for_mime(mime: &str) -> Option<&'static str> {
     })
 }
 
-/// Rank for listing: the video first, then audio, subtitles and files.
 fn kind_rank(kind: &str) -> u8 {
     match kind {
         "video" => 0,
@@ -607,7 +570,6 @@ fn kind_rank(kind: &str) -> u8 {
     }
 }
 
-/// How long Resolve waits for a player it started to fetch its media.
 const WAKE_WAIT: Duration = Duration::from_secs(6);
 
 fn has_media(tab: &str) -> bool {
@@ -616,11 +578,6 @@ fn has_media(tab: &str) -> bool {
         .any(|m| matches!(m.kind.as_str(), "hls" | "dash" | "video" | "audio"))
 }
 
-/// Players that wait for a click (SoundCloud, Bandcamp, Vimeo's page,
-/// Commons, podcast pages) load nothing until they play, so the sniffer has
-/// nothing to show. When the tab has no media yet, start the player and wait
-/// up to [`WAKE_WAIT`] for it, plus a moment for the files that come with it
-/// (subtitles, the other renditions). Bounded, and off with `autoplay: false`.
 async fn wake_media(tab: &str) {
     if !browser::autoplay() || has_media(tab) {
         return;
@@ -645,10 +602,8 @@ async fn wake_media(tab: &str) {
     }
 }
 
-/// No connector: what the tab played, plus the page itself for yt-dlp.
 fn generic_tree(url: &str, tab_id: Option<&str>, page_title: &str) -> Node {
     let page_title = if looks_like_address(page_title) {
-        // A bare file opened in a tab: its name, not the whole address.
         let (stem, _) = url_file(url);
         if stem.is_empty() {
             url.to_string()
@@ -678,7 +633,6 @@ fn generic_tree(url: &str, tab_id: Option<&str>, page_title: &str) -> Node {
                 _ => "direct",
             };
             let (_, ext) = url_file(&m.url);
-            // `api.php?…&trackformat=vtt` names the script, not the file.
             let script = matches!(
                 ext.to_ascii_lowercase().as_str(),
                 "php" | "asp" | "aspx" | "jsp" | "cgi" | "ashx" | "pl"
@@ -740,7 +694,6 @@ fn generic_tree(url: &str, tab_id: Option<&str>, page_title: &str) -> Node {
     }
 }
 
-/// `?lang=en` (MediaWiki's timedtext, most subtitle APIs).
 fn query_lang(url: &str) -> Option<String> {
     let u = url::Url::parse(url).ok()?;
     u.query_pairs()
@@ -749,10 +702,6 @@ fn query_lang(url: &str) -> Option<String> {
         .filter(|v| !v.is_empty() && v.len() <= 16)
 }
 
-/// Height a file name states, the way yt-dlp's `parse_resolution`
-/// (yt_dlp/utils/_utils.py) reads it: `1280x720` first, then `720p`/`1080i`
-/// (with an optional frame rate, `720p60`), then `4K`/`8K`. Only whole
-/// tokens of the last path segment count.
 pub fn height_of(url: &str) -> Option<u32> {
     let (stem, _) = url_file(url);
     let tokens: Vec<&str> = stem
@@ -791,8 +740,6 @@ pub fn height_of(url: &str) -> Option<u32> {
         })
 }
 
-/// The URL with its height token taken out: two renditions of one file
-/// share it (`…/x.webm.480p.vp9.webm` and `…/x.webm.1080p.vp9.webm`).
 fn rendition_key(url: &str, height: u32) -> String {
     let path = url.split(['?', '#']).next().unwrap_or(url);
     let (dir, last) = path.rsplit_once('/').unwrap_or(("", path));
@@ -815,9 +762,6 @@ fn rendition_key(url: &str, height: u32) -> String {
     format!("{dir}/{out}")
 }
 
-/// A merged item's name without what tells its renditions apart:
-/// `Big_Buck_Bunny_4K.webm.1080p.vp9` → `Big_Buck_Bunny_4K` (the height, the
-/// codec and the container go; `4K`, part of the title, stays).
 fn strip_rendition(title: &str, heights: &[u32]) -> String {
     const DROP: &[&str] = &[
         "webm", "mp4", "mkv", "mov", "vp8", "vp9", "av1", "h264", "h265", "hevc", "avc",
@@ -831,7 +775,6 @@ fn strip_rendition(title: &str, heights: &[u32]) -> String {
             parts.push(std::mem::take(token));
         } else {
             token.clear();
-            // Drop the separator that led to the token as well.
             if parts
                 .last()
                 .is_some_and(|p| p.len() == 1 && !p.chars().all(|c| c.is_ascii_alphanumeric()))
@@ -860,9 +803,6 @@ fn strip_rendition(title: &str, heights: &[u32]) -> String {
     }
 }
 
-/// Direct videos that are the same file at several heights become one item
-/// with its renditions, so a job does not fetch it twice and its max height
-/// picks one (yt-dlp's `best[height<=N]`).
 fn merge_renditions(media: Vec<Node>) -> Vec<Node> {
     let mut out: Vec<Node> = Vec::with_capacity(media.len());
     let mut groups: Vec<(String, usize)> = Vec::new();
@@ -921,8 +861,6 @@ fn merge_renditions(media: Vec<Node>) -> Vec<Node> {
     out
 }
 
-/// Items that ended up with the same title (68 subtitles all `full.vtt`)
-/// get the path segment that tells them apart (`eu`, `pt-BR`, `720`).
 fn disambiguate(items: &mut [Node]) {
     use std::collections::HashMap;
     let mut count: HashMap<(String, String), usize> = HashMap::new();
@@ -969,16 +907,12 @@ fn domain_allowed(domains: &[String], url: &str) -> Result<(), String> {
     }
 }
 
-/// Which function of the script to call.
 #[derive(Clone)]
 enum Call {
     Resolve,
     Item(String),
 }
 
-/// Resolves one lazy item of a tree the connector made: calls
-/// `resolveItem(key, ctx)`, which returns a source (`{ format, url, ... }`) or
-/// a node (`{ kind, drm, source }`).
 pub async fn resolve_item(
     connector_id: &str,
     connector_dir: Option<&str>,

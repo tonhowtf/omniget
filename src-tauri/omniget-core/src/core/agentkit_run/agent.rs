@@ -1,6 +1,3 @@
-//! An agent of the catalog (or any `.md` subagent file) as the system prompt of
-//! a run: `omniget agent run <agent> --tool <x> "<prompt>"` and "Run now".
-
 use std::path::Path;
 
 use serde::{Deserialize, Serialize};
@@ -13,15 +10,11 @@ pub struct AgentPrompt {
     pub id: String,
     pub name: String,
     pub description: String,
-    /// The Markdown body, used as the system prompt.
     pub system_prompt: String,
-    /// Model alias the agent asks for (`sonnet`, `haiku`, `inherit` …).
     pub model: Option<String>,
     pub tools: Vec<String>,
 }
 
-/// The system prompt of an agent component. A command component becomes a
-/// prompt template instead (see [`command_prompt`]).
 pub fn agent_prompt(c: &Component) -> Result<AgentPrompt, String> {
     match &c.body {
         ComponentBody::Agent(a) => Ok(AgentPrompt {
@@ -65,7 +58,6 @@ pub fn agent_prompt(c: &Component) -> Result<AgentPrompt, String> {
     }
 }
 
-/// A command as a one-shot prompt: its body with `$ARGUMENTS`/`{{args}}` set.
 pub fn command_prompt(c: &Component, args: &str) -> Option<String> {
     let ComponentBody::Command(cmd) = &c.body else {
         return None;
@@ -80,13 +72,11 @@ pub fn command_prompt(c: &Component, args: &str) -> Option<String> {
     Some(text.trim().to_string())
 }
 
-/// An agent `.md` file on disk (Claude subagent format, frontmatter + body).
 pub fn agent_from_file(path: &Path) -> Result<AgentPrompt, String> {
     let c = parse::parse_path(ComponentKind::Agent, path).map_err(String::from)?;
     agent_prompt(&c)
 }
 
-/// An agent from Markdown text (the CLI reads the file and sends it).
 pub fn agent_from_markdown(name: &str, markdown: &str) -> Result<AgentPrompt, String> {
     let file = format!("{}.md", parse::sanitize_name(name));
     let files: RawFiles = [(file.clone(), markdown.as_bytes().to_vec())]
@@ -94,7 +84,6 @@ pub fn agent_from_markdown(name: &str, markdown: &str) -> Result<AgentPrompt, St
         .collect();
     match parse::parse_raw(ComponentKind::Agent, &file, &files) {
         Ok(c) => agent_prompt(&c),
-        // A plain Markdown file with no frontmatter is still a fine role.
         Err(_) => Ok(AgentPrompt {
             id: format!("file:{name}"),
             name: name.to_string(),

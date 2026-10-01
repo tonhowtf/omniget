@@ -1,17 +1,3 @@
-//! Who answers, delegated tasks and the limits that bound them.
-//!
-//! - A user message is routed once: explicit `@mentions` → only those
-//!   members; none → the coordinator, else the room's default bot. A bot's
-//!   message is never routed, so bots cannot trigger each other in a loop.
-//! - A member hands work to another only through `delegate_task`. The task
-//!   is a row with a single, transactional claim; the child runs in its own
-//!   session (`"<room>~<bot>"`) and its result stays in the room with its
-//!   author, even when the coordinator later writes a summary.
-//! - Depth, delegations and turns per round, concurrency, time and tokens are
-//!   checked here, in the backend, whatever the prompt says (B03).
-//! - Cancelling the room (or a parent run/task) cancels what is still active
-//!   and keeps what already finished (B05).
-
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, RwLock};
 
@@ -23,25 +9,14 @@ use super::super::{new_id, now_ms};
 use super::store::{self, AuthorKind, MentionPolicy, NewMessage, Room, RoomMessage};
 use super::{ERR_GROUP, ERR_GROUP_BUSY, ERR_GROUP_CLAIMED, ERR_GROUP_LIMIT, ERR_GROUP_NOT_FOUND};
 
-// ── limits ───────────────────────────────────────────────────────────────
-
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(default)]
 pub struct RoomLimits {
-    /// A task created by a task created by… stops here (1 = only direct
-    /// delegations from a turn the user started).
     pub max_depth: u32,
-    /// Delegated tasks per round (one round = one user message).
     pub max_delegations_per_round: u32,
-    /// Turns (user-routed and delegated) per round.
     pub max_turns_per_round: u32,
-    /// Runs of this room at the same time.
     pub max_concurrency: u32,
-    /// Wall time of one delegated task.
     pub max_task_ms: u64,
-    /// Tokens (input + output, as reported) per round; `None` = no cap.
-    /// Unknown usage is not counted as zero: a run that reported nothing
-    /// counts `unknown_run_tokens`.
     pub max_tokens_per_round: Option<u64>,
     pub unknown_run_tokens: u64,
 }
@@ -77,8 +52,6 @@ impl RoomLimits {
     }
 }
 
-// ── runs of a room ───────────────────────────────────────────────────────
-
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct RoomRun {
     pub run_id: String,
@@ -87,7 +60,6 @@ pub struct RoomRun {
     pub task_id: Option<String>,
     pub reply_to: Option<String>,
     pub round: i64,
-    /// `running`, `completed`, `failed`, `cancelled`, `interrupted`.
     pub state: String,
     pub tokens: Option<i64>,
     pub started_ms: i64,
@@ -163,8 +135,6 @@ fn round_use(
             "SELECT count(*) FROM groups_tasks WHERE room = ?1 AND round = ?2",
             &[&room, &round],
         )?,
-        // A run still going, or one that never reported usage, is charged
-        // the configured estimate: unknown is not free.
         tokens: q(
             "SELECT COALESCE(SUM(COALESCE(tokens, ?3)), 0) FROM groups_runs WHERE room = ?1 AND round = ?2",
             &[&room, &round, &(unknown as i64)],
@@ -199,7 +169,6 @@ fn check_admission(
         ));
     }
     if let Some(max) = l.max_tokens_per_round {
-        // Reserve one unknown run for the one being admitted.
         if u.tokens + l.unknown_run_tokens as i64 > max as i64 {
             return Err(format!(
                 "{ERR_GROUP_LIMIT}: tokens — this round has used about {} of {} tokens",
@@ -238,11 +207,6 @@ fn bot_busy(tx: &rusqlite::Transaction, room: &str, bot: &str) -> Result<bool, S
     .map_err(|e| format!("{ERR_GROUP}: {e}"))
 }
 
-// ── dispatcher (the app starts real turns) ───────────────────────────────
-
-/// What the app implements: start one member turn in its own session
-/// (`"<room>~<bot>"`), cancel one. The run id returned is the turn's request
-/// id; the app reports the end through [`finish_run`].
 #[async_trait::async_trait]
 pub trait RoomDispatcher: Send + Sync {
     async fn start(&self, room: &str, bot: &str, input: String) -> Result<String, String>;
@@ -259,10 +223,6 @@ pub fn dispatcher() -> Option<Arc<dyn RoomDispatcher>> {
     DISPATCHER.read().unwrap_or_else(|e| e.into_inner()).clone()
 }
 
-// ── mentions and routing (B01) ───────────────────────────────────────────
-
-/// The `@handle` of a bot: its name lowercased, spaces as `-`, only
-/// `[a-z0-9_-]`. The composer's autocomplete inserts exactly this.
 pub fn handle_of(name: &str) -> String {
     let mut out = String::new();
     for c in name.trim().chars() {
@@ -276,15 +236,12 @@ pub fn handle_of(name: &str) -> String {
     out.trim_matches('-').to_string()
 }
 
-/// One character folded for matching a mention: lowercase, accents off.
 fn fold_char(c: char) -> char {
     use unicode_normalization::UnicodeNormalization;
     let base = std::iter::once(c).nfd().next().unwrap_or(c);
     base.to_lowercase().next().unwrap_or(base)
 }
 
-/// Length in chars of `candidate` at `chars[start..]`, compared folded,
-/// ending at a word boundary; `None` when it does not match.
 fn match_at(chars: &[char], start: usize, candidate: &str) -> Option<usize> {
     let cand: Vec<char> = candidate.chars().map(fold_char).collect();
     if cand.is_empty() || start + cand.len() > chars.len() {
@@ -301,12 +258,6 @@ fn match_at(chars: &[char], start: usize, candidate: &str) -> Option<usize> {
     boundary.then_some(cand.len())
 }
 
-/// Members mentioned in `text`, in order, without repeats. A mention is `@`
-/// followed by a member's id, its handle (what the autocomplete inserts) or
-/// its display name as shown in the room header ("@Companheiro de leitura"),
-/// compared without case or accents; the longest match wins, so "@Ana Maria"
-/// is not read as "@Ana". Anything else (an e-mail, an unknown name) is
-/// ignored.
 pub fn mentions(text: &str, members: &[(String, String)]) -> Vec<String> {
     let mut out: Vec<String> = Vec::new();
     let chars: Vec<char> = text.chars().collect();
@@ -340,7 +291,6 @@ pub fn mentions(text: &str, members: &[(String, String)]) -> Vec<String> {
     out
 }
 
-/// Who answers a user message.
 pub fn route(room: &Room, text: &str, names: &HashMap<String, String>) -> Vec<String> {
     let members: Vec<(String, String)> = room
         .members
@@ -387,15 +337,10 @@ pub struct SendOutcome {
     pub skipped: Vec<Skipped>,
 }
 
-/// The input a member turn receives for a user message. The room context
-/// (recent visible messages with authors) comes from the turn hook, so the
-/// task text stays the user's words.
 fn user_turn_input(text: &str) -> String {
     text.to_string()
 }
 
-/// Persists a user message, opens a new round and starts a run for each
-/// routed member (and only them). Returns who started and who was skipped.
 pub async fn send_user_message(
     db: &AssistDb,
     dispatcher: &dyn RoomDispatcher,
@@ -408,7 +353,6 @@ pub async fn send_user_message(
         return Err(format!("{ERR_GROUP}: empty message"));
     }
     let room = store::get_room(db, room_id)?;
-    // LOCAL_USER entry: an external room is never dispatched from here (H1).
     db.with(|c| {
         Ok(super::super::external_config::deny_local_dispatch(
             c,
@@ -449,7 +393,6 @@ pub async fn send_user_message(
     let mut skipped = Vec::new();
     for bot in route(&room, text, names) {
         let admitted = db.tx(|tx| {
-            // A derived bot added to a local room never runs as LOCAL_USER.
             super::super::external_config::deny_local_dispatch(tx, None, &bot)?;
             if bot_busy(tx, room_id, &bot)? {
                 return Err(format!(
@@ -479,8 +422,6 @@ pub async fn send_user_message(
     })
 }
 
-// ── delegated tasks (B02, B03) ───────────────────────────────────────────
-
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct Task {
     pub id: String,
@@ -496,7 +437,6 @@ pub struct Task {
     pub limit_ms: i64,
     pub depth: i64,
     pub round: i64,
-    /// `pending`, `claimed`, `completed`, `failed`, `cancelled`, `interrupted`.
     pub state: String,
     pub claim_run: Option<String>,
     pub result: Option<String>,
@@ -556,7 +496,6 @@ pub fn tasks(db: &AssistDb, room: &str) -> Result<Vec<Task>, String> {
     })
 }
 
-/// What a member asks for when it delegates.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct DelegateRequest {
     pub to: String,
@@ -567,14 +506,10 @@ pub struct DelegateRequest {
     pub scopes: Vec<String>,
     #[serde(default)]
     pub deliverable: String,
-    /// Seconds; clamped to the room's `max_task_ms`.
     #[serde(default)]
     pub limit_s: Option<u64>,
 }
 
-/// Validates the limits and records a pending task, in one transaction.
-/// `origin` (`"<run>:<tool call>"`) makes a replayed tool call return the
-/// task it already created instead of a second one.
 pub fn admit_delegation(
     db: &AssistDb,
     room_id: &str,
@@ -585,10 +520,8 @@ pub fn admit_delegation(
 ) -> Result<Task, String> {
     admit_delegation_guarded(db, room_id, creator_bot, creator_run, origin, req, None)
 }
-/// Check run inside the task transaction, right after the task row is written.
 pub(crate) type TaskGuard<'a> = &'a dyn Fn(&rusqlite::Transaction, &Task) -> Result<(), String>;
 
-/// Adds a scoped ownership check/receipt inside the existing task transaction.
 pub(crate) fn admit_delegation_guarded(
     db: &AssistDb,
     room_id: &str,
@@ -599,8 +532,6 @@ pub(crate) fn admit_delegation_guarded(
     guard: Option<TaskGuard<'_>>,
 ) -> Result<Task, String> {
     let room = store::get_room(db, room_id)?;
-    // Only the guarded external admission (`external_config::create_task`)
-    // may delegate in an external room or involve a derived bot (H1).
     if guard.is_none() {
         db.with(|c| {
             Ok(super::super::external_config::deny_local_dispatch(
@@ -655,8 +586,6 @@ pub(crate) fn admit_delegation_guarded(
                 return Ok(t);
             }
         }
-        // Depth and round come from the run that is delegating: a user-routed
-        // run is depth 0; a run working on task T is at T's depth.
         let (parent_task, parent_depth, round) = match creator_run {
             Some(run) => {
                 let r = tx
@@ -745,9 +674,6 @@ pub(crate) fn admit_delegation_guarded(
     })
 }
 
-/// The single acceptance of a task: `pending → claimed` by one run, in one
-/// statement. Claiming again with the same run is a no-op that returns the
-/// task (idempotent after a restart); any other run gets `ERR_GROUP_CLAIMED`.
 pub fn claim(db: &AssistDb, task_id: &str, run_id: &str) -> Result<Task, String> {
     db.tx(|tx| {
         let n = tx
@@ -788,7 +714,6 @@ pub fn claim(db: &AssistDb, task_id: &str, run_id: &str) -> Result<Task, String>
     })
 }
 
-/// The text a delegated member receives.
 pub fn task_input(t: &Task) -> String {
     let mut s = format!(
         "Task delegated to you by @{} in this room.\nQuestion: {}",
@@ -810,8 +735,6 @@ pub fn task_input(t: &Task) -> String {
     s
 }
 
-// ── the end of a run ─────────────────────────────────────────────────────
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum RunEnd {
@@ -832,8 +755,6 @@ impl RunEnd {
     }
 }
 
-/// Waiters of delegated tasks (the `delegate_task` call that is awaiting
-/// its child). In memory only: after a restart nobody waits any more.
 static WAITERS: Mutex<Option<HashMap<String, Arc<tokio::sync::Notify>>>> = Mutex::new(None);
 
 fn waiter(task_id: &str) -> Arc<tokio::sync::Notify> {
@@ -857,9 +778,6 @@ fn wake(task_id: &str) {
     }
 }
 
-/// A turn can end before its run row exists (it failed at once, before
-/// `send_user_message` / `claim` recorded it). Its end waits here and is
-/// applied as soon as the row is written.
 type EarlyEnd = (RunEnd, String, Option<String>, Option<i64>);
 static EARLY: Mutex<Option<HashMap<String, EarlyEnd>>> = Mutex::new(None);
 
@@ -874,11 +792,6 @@ fn apply_early(db: &AssistDb, run_id: &str) {
     }
 }
 
-/// Records the end of a member run: its message in the room (with author,
-/// run id, task and reply), the task result, the tokens used. Idempotent: a
-/// run that already ended is left alone (a late event cannot rewrite it).
-/// Returns the message written, if any, plus runs to cancel (children of a
-/// parent run that did not complete).
 pub fn finish_run(
     db: &AssistDb,
     run_id: &str,
@@ -964,7 +877,6 @@ pub fn finish_run(
             )
             .map_err(|e| format!("{ERR_GROUP}: {e}"))?;
         }
-        // A parent that did not complete takes its still-active children down.
         let cascade = if end != RunEnd::Completed {
             cancel_children_of_run_tx(tx, run_id)?
         } else {
@@ -978,8 +890,6 @@ pub fn finish_run(
     Ok((msg, cascade))
 }
 
-/// Tasks created by `run` (and their descendants) that are still active →
-/// cancelled; returns the runs working on them.
 fn cancel_children_of_run_tx(tx: &rusqlite::Transaction, run: &str) -> Result<Vec<String>, String> {
     let ids: Vec<String> = {
         let mut st = tx
@@ -1044,16 +954,11 @@ fn cancel_task_tree_tx(tx: &rusqlite::Transaction, task_id: &str) -> Result<Vec<
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct CancelOutcome {
-    /// Runs stopped (the app cancels their turns).
     pub cancelled_runs: Vec<String>,
     pub cancelled_tasks: Vec<String>,
-    /// Tasks that had already finished and keep their result.
     pub kept_tasks: Vec<String>,
 }
 
-/// Cancels everything still active in the room (B05). Finished runs and
-/// tasks keep their state and their messages. Calls the dispatcher for each
-/// run stopped, and writes one system note saying what was partial.
 pub fn cancel_room(
     db: &AssistDb,
     room_id: &str,
@@ -1143,9 +1048,6 @@ pub fn cancel_room(
     Ok(out)
 }
 
-/// After a restart nothing is running: runs and claimed tasks become
-/// `interrupted` (never re-run on their own: a turn may have written files),
-/// pending tasks too (the delegating turn that awaited them is gone).
 pub fn recover(db: &AssistDb) -> Result<usize, String> {
     db.tx(|tx| {
         let now = now_ms();
@@ -1165,8 +1067,6 @@ pub fn recover(db: &AssistDb) -> Result<usize, String> {
     })
 }
 
-/// The whole delegation: admit, start the child in its own session, claim,
-/// wait for its end or the time limit. What the `delegate_task` tool runs.
 pub async fn delegate(
     db: &AssistDb,
     dispatcher: &dyn RoomDispatcher,
@@ -1178,7 +1078,6 @@ pub async fn delegate(
 ) -> Result<Task, String> {
     let t = admit_delegation(db, room_id, creator_bot, creator_run, origin, req)?;
     if t.state != "pending" {
-        // A replay of a call that already delegated: report, do not re-run.
         return Ok(t);
     }
     let notify = waiter(&t.id);
@@ -1212,13 +1111,11 @@ pub async fn delegate(
         let n = notify.notified();
         tokio::pin!(n);
         n.as_mut().enable();
-        // Re-check after registering, so a wake between the two is not lost.
         let current = task(db, &t.id)?;
         if !matches!(current.state.as_str(), "pending" | "claimed") {
             return Ok(current);
         }
         if tokio::time::timeout_at(deadline, n).await.is_err() {
-            // Time limit: stop the child, keep whatever it said as partial.
             let (_, cascade) = finish_run(
                 db,
                 &run_id,

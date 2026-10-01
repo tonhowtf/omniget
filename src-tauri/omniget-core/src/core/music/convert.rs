@@ -1,6 +1,3 @@
-//! Audio conversion presets turned into ffmpeg arguments. Tags and cover art
-//! are carried over; the caller runs ffmpeg and reports progress.
-
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -45,7 +42,6 @@ impl Preset {
         }
     }
 
-    /// Containers that can carry an attached cover picture.
     fn keeps_cover(self) -> bool {
         matches!(
             self,
@@ -61,18 +57,12 @@ impl Preset {
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct ConvertOptions {
-    /// Resample (e.g. 44100, 48000). None keeps the source rate (Opus is
-    /// always 48 kHz internally).
     #[serde(default)]
     pub sample_rate: Option<u32>,
-    /// Apply this gain (dB) while converting, e.g. the ReplayGain value, to
-    /// bake normalization into the file.
     #[serde(default)]
     pub gain_db: Option<f64>,
-    /// Cut leading/trailing silence.
     #[serde(default)]
     pub trim_silence: bool,
-    /// Downmix to mono.
     #[serde(default)]
     pub mono: bool,
     #[serde(default)]
@@ -88,7 +78,6 @@ pub struct ConvertOptions {
 fn filters(o: &ConvertOptions, duration_s: Option<f64>) -> Vec<String> {
     let mut f = Vec::new();
     if o.trim_silence {
-        // leading silence, then reverse trick for the tail
         f.push("silenceremove=start_periods=1:start_threshold=-50dB".to_string());
         f.push("areverse".to_string());
         f.push("silenceremove=start_periods=1:start_threshold=-50dB".to_string());
@@ -113,7 +102,6 @@ fn filters(o: &ConvertOptions, duration_s: Option<f64>) -> Vec<String> {
     f
 }
 
-/// Full ffmpeg argument list (without the program name).
 pub fn ffmpeg_args(
     input: &str,
     output: &str,
@@ -158,7 +146,6 @@ pub fn ffmpeg_args(
     a
 }
 
-/// `out_time_us=123456` lines from `-progress pipe:1`.
 pub fn parse_progress_line(line: &str) -> Option<f64> {
     let v = line
         .strip_prefix("out_time_us=")

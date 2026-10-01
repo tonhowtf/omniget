@@ -1,9 +1,3 @@
-//! Subscription import ("机场订阅"): the URL a proxy provider gives its
-//! customers. Depending on the User-Agent it answers with a Clash YAML, a
-//! base64 blob of share links, or SIP008 JSON. We accept all three and keep
-//! the servers we can dial ourselves (Shadowsocks, Trojan, SOCKS5, HTTP);
-//! the rest is counted so the screen can say "N nodes need Clash".
-
 use std::time::Duration;
 
 use base64::Engine;
@@ -15,13 +9,9 @@ use super::route::{Route, RouteKind, RouteSource};
 #[derive(Debug, Clone, Serialize)]
 pub struct Imported {
     pub routes: Vec<Route>,
-    /// Protocol → count of nodes we skipped.
     pub unsupported: Vec<(String, usize)>,
 }
 
-/// Downloads a subscription. Tries the direct network first (provider
-/// URLs are meant to be reachable from mainland China), then through
-/// `via` (a detected local proxy) when given.
 pub async fn fetch(url: &str, via: Option<&Route>) -> anyhow::Result<Imported> {
     let body = match get(url, None).await {
         Ok(b) => b,
@@ -45,8 +35,6 @@ async fn get(url: &str, via: Option<&Route>) -> anyhow::Result<String> {
     let mut b = reqwest::Client::builder()
         .use_rustls_tls()
         .timeout(Duration::from_secs(20))
-        // Providers look at the UA to pick the format; this one gets the
-        // full Clash YAML with every node.
         .user_agent("clash.meta");
     b = match via {
         Some(r) if matches!(r.kind, RouteKind::Socks5 | RouteKind::Http) => {
@@ -177,8 +165,6 @@ fn from_clash_yaml(text: &str) -> (Vec<ParsedLink>, Vec<(String, usize)>) {
         let route = match kind.as_str() {
             "ss" => {
                 let cipher = get("cipher").unwrap_or_default();
-                // Plugins (obfs, v2ray-plugin, shadow-tls) change the wire
-                // format; those need a real core.
                 if p.get("plugin").is_some() || !super::shadowsocks::supported(&cipher) {
                     *skipped.entry("ss+plugin".into()).or_default() += 1;
                     continue;

@@ -1,10 +1,3 @@
-//! Standard Ebooks (https://standardebooks.org): carefully produced public
-//! domain EPUBs. The full OPDS catalog is for Patrons Circle members; the
-//! search and the new-releases feed are open, and that is what we use.
-//!
-//! Downloads need `?source=download`, otherwise the site answers with a
-//! "thanks for downloading" page instead of the file.
-
 use super::{Download, Hit, Page};
 use crate::core::read::opds;
 
@@ -89,8 +82,6 @@ pub fn feed_to_page(f: opds::OpdsFeed) -> Page {
     }
 }
 
-/// Search when there is a query (or a cursor from a previous page), the
-/// new-releases feed otherwise.
 pub async fn browse(
     client: &reqwest::Client,
     query: &str,
@@ -116,7 +107,6 @@ pub async fn browse(
     let base = r.url().to_string();
     let body = r.text().await.map_err(|e| e.to_string())?;
     let mut feed = opds::parse(&body, &base)?;
-    // The Atom new-releases feed links files as enclosures.
     if feed.entries.iter().all(|e| e.acquisitions.is_empty()) {
         let root = crate::core::read::xml::parse(&body);
         let mut entries = Vec::new();

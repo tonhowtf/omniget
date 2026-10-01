@@ -1,5 +1,3 @@
-//! Durable external execution ceilings. Local UI creates grants; MCP can only
-//! select them. Reserved conversation IDs never fall back to local authority.
 use super::{
     ctx::{AssistCtx, Scope},
     db::{AssistDb, Migration},
@@ -66,10 +64,6 @@ pub fn check_agent(
     external_runtime(agent)?;
     Ok(())
 }
-/// Flags a Claude Code binary must list for a projection-only external run:
-/// no built-in tools (`--tools ""`), user settings/hooks ignored
-/// (`--restricted`), only OmniGet's MCP projection (`--strict-mcp-config`),
-/// prompts routed to OmniGet (`--permission-prompt-tool`).
 pub const CLAUDE_PROJECTION_FLAGS: &[&str] = &[
     "--tools",
     "--restricted",
@@ -77,10 +71,6 @@ pub const CLAUDE_PROJECTION_FLAGS: &[&str] = &[
     "--strict-mcp-config",
     "--permission-prompt-tool",
 ];
-/// Runtimes an external mission may run on. Native: every tool call goes
-/// through the broker. Claude Code: only in projection-only mode, where it has
-/// no built-in tools and reaches files through OmniGet's checked projection;
-/// allowed only when the installed binary was probed and lists every flag.
 pub fn external_runtime(agent: &crate::core::llm::agent::AgentDef) -> Result<&'static str, String> {
     use crate::core::llm::agent::RuntimeKind;
     match &agent.runtime {
@@ -96,7 +86,6 @@ pub fn external_runtime(agent: &crate::core::llm::agent::AgentDef) -> Result<&'s
         _ => Err("EXTERNAL_RUNTIME_ISOLATION_REQUIRED".into()),
     }
 }
-/// Trusted local domain entry, not exposed as an MCP tool.
 pub fn grant(db: &AssistDb, mut ceiling: Ceiling) -> Result<String, String> {
     if ceiling.principal.is_empty()
         || ceiling.bots.is_empty()
@@ -137,8 +126,6 @@ pub fn grant(db: &AssistDb, mut ceiling: Ceiling) -> Result<String, String> {
     })?;
     Ok(ceiling.id)
 }
-/// Revokes every grant of a client, and in the same transaction archives its
-/// external rooms, disables its derived bots and fails their pending tasks.
 pub fn revoke_principal(db: &AssistDb, principal: &str) -> Result<(), String> {
     db.tx(|tx| {
         tx.execute(
@@ -149,8 +136,6 @@ pub fn revoke_principal(db: &AssistDb, principal: &str) -> Result<(), String> {
         super::external_config::retire_revoked(tx)
     })
 }
-/// Trusted local entry (L4): revokes ONE execution grant and retires what
-/// was derived from it. Other grants of the same client stay live.
 pub fn revoke(db: &AssistDb, grant_id: &str) -> Result<(), String> {
     db.tx(|tx| {
         let n = tx
@@ -165,9 +150,6 @@ pub fn revoke(db: &AssistDb, grant_id: &str) -> Result<(), String> {
         super::external_config::retire_revoked(tx)
     })
 }
-/// Tools of an external run: the grant's supported tools intersected with the
-/// executor's own grants (L2). An owner `Deny` removes the tool, `Ask` stays
-/// `Ask`, and a tool the executor has no grant for asks (never `Auto`).
 pub fn external_tool_grants(
     own: &[crate::core::llm::agent::ToolGrant],
     ceiling_tools: &[String],
@@ -222,7 +204,6 @@ pub fn list(db: &AssistDb, principal: &str) -> Result<Vec<Ceiling>, String> {
 }
 pub fn bind(db: &AssistDb, ceiling: &Ceiling, mission: &str, bot: &str) -> Result<String, String> {
     let actual = get(db, &ceiling.id, &ceiling.principal)?;
-    // Derived bots (C02) bind under the SAME parent grant id and ledger.
     for_bot(db, &actual, bot)?;
     let conversation = format!("{PREFIX}{}", super::new_id());
     db.with(|c| {
@@ -233,8 +214,6 @@ pub fn bind(db: &AssistDb, ceiling: &Ceiling, mission: &str, bot: &str) -> Resul
     })?;
     Ok(conversation)
 }
-/// Effective authority of `bot` in an external conversation: the raw grant
-/// for a granted executor, or the derived subset/pins for a C02 derived bot.
 pub fn resolve(db: &AssistDb, conversation: &str, bot: &str) -> Result<Ceiling, String> {
     resolve_with(
         db,
@@ -265,9 +244,6 @@ pub fn resolve_with(
         ))
     })?
 }
-/// `get`/`list` stay raw (missions compare the raw body transactionally).
-/// This resolves a bot under a raw ceiling: itself for a granted executor,
-/// or the live derived subset/pins for a derived bot of the same grant.
 pub fn for_bot(db: &AssistDb, ceiling: &Ceiling, bot: &str) -> Result<Ceiling, String> {
     for_bot_with(
         db,
@@ -342,8 +318,6 @@ pub fn check_tool(conversation: &str, bot: &str, name: &str) -> Result<(), Strin
     if !supported_tool(name) {
         return Err("EXTERNAL_EXECUTOR_ISOLATION_REQUIRED".into());
     }
-    // Executable tools need the worker's file/network sandbox. Until that
-    // path is installed they cannot be enabled by a permissive local rule.
     if matches!(name, "shell_exec" | "agent_delegate" | "delegate_task")
         || name.starts_with("reading_")
         || name.starts_with("web_")
@@ -364,8 +338,6 @@ pub fn check_tool(conversation: &str, bot: &str, name: &str) -> Result<(), Strin
     Ok(())
 }
 
-/// Synchronous bounded file transaction. Capabilities are resolved here, never
-/// supplied by model arguments; every call rechecks revocation/root identity.
 pub fn execute_files(
     conversation: &str,
     bot: &str,
@@ -382,8 +354,6 @@ pub fn execute_files(
     let workspace = std::path::Path::new(&ceiling.workspace);
     crate::core::secure_files::Root::open(workspace, Some(identity))
         .map_err(|_| "WORKSPACE_CHANGED")?;
-    // All external file tools deny the reserved staging prefix, including
-    // discovery under a broader grant. No external process has access here.
     let parent = workspace.parent().ok_or("WORKSPACE_PARENT_REQUIRED")?;
     let staging = tempfile::Builder::new()
         .prefix(".omniget-private-")
@@ -403,8 +373,6 @@ pub fn execute_files(
     serde_json::to_string(&result).map_err(|_| "FILE_RESPONSE_ENCODING".into())
 }
 
-/// Replaces a conservative debit by the usage the provider reported for that
-/// request, never raising it (an unreported request keeps its upper bound).
 pub fn settle_model(debit: &str, actual_tokens: u64) -> Result<(), String> {
     if debit.is_empty() || actual_tokens == 0 {
         return Ok(());
@@ -418,9 +386,6 @@ pub fn settle_model(debit: &str, actual_tokens: u64) -> Result<(), String> {
     })?;
     Ok(())
 }
-/// For a CLI run (its own tool loop inside one request): the debit becomes the
-/// usage the CLI reported, even above the up-front bound, so the shared
-/// ledger reflects what really ran; the next request is refused if over.
 pub fn settle_model_actual(debit: &str, actual_tokens: u64) -> Result<(), String> {
     if debit.is_empty() || actual_tokens == 0 {
         return Ok(());
@@ -434,7 +399,6 @@ pub fn settle_model_actual(debit: &str, actual_tokens: u64) -> Result<(), String
     })?;
     Ok(())
 }
-/// [`reserve_model`] returning the debit id to settle after the request.
 pub fn reserve_model_id(conversation: &str, bot: &str, amount: u64) -> Result<String, String> {
     if !external(conversation) {
         return Ok(String::new());
@@ -447,7 +411,6 @@ pub fn reserve_model_id(conversation: &str, bot: &str, amount: u64) -> Result<St
         let (body,mission):(String,String)=tx.query_row("SELECT g.body,e.mission FROM external_executions e JOIN external_grants g ON g.id=e.grant_id WHERE e.conversation=?1 AND e.bot=?2 AND g.revoked=0",params![conversation,bot],|r|Ok((r.get(0)?,r.get(1)?))).map_err(|_|"EXECUTION_NOT_GRANTED")?;
         let grant:Ceiling=serde_json::from_str(&body).map_err(|_|"INVALID_EXECUTION_GRANT")?;
         if grant.max_usd.is_some(){return Err("USD_ESTIMATE_REQUIRED".into());}
-        // Derived bots debit the parent grant's ledger; still check they are live.
         if !grant.bots.iter().any(|b|b==bot){super::external_config::derived_ceiling(tx,&grant.id,&grant.principal,bot,super::external_config::installed_roster().as_deref())?;}
         let (state,budget,principal):(String,String,String)=tx.query_row("SELECT state,budget,principal FROM missions_missions WHERE id=?1",[&mission],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?))).map_err(|_|"MISSION_UNAVAILABLE")?;
         if principal!=grant.principal||!matches!(state.as_str(),"running"|"verifying"){return Err("MISSION_NOT_ACTIVE".into());}
@@ -455,7 +418,6 @@ pub fn reserve_model_id(conversation: &str, bot: &str, amount: u64) -> Result<St
         let mission_cap=budget.tokens.ok_or("EXTERNAL_BUDGET_REQUIRED")?;
         let used:u64=tx.query_row("SELECT COALESCE(SUM(amount),0) FROM external_model_debits WHERE grant_id=?1",[&grant.id],|r|r.get(0)).map_err(|_|"BUDGET_UNAVAILABLE")?;
         let mission_used:u64=tx.query_row("SELECT COALESCE(SUM(amount),0) FROM external_model_debits WHERE mission=?1",[&mission],|r|r.get(0)).map_err(|_|"BUDGET_UNAVAILABLE")?;
-        // Say which limit ran out: the grant's shared ceiling or this mission's cap.
         if used.checked_add(amount).is_none_or(|n|n>grant.max_tokens){return Err(format!("EXTERNAL_BUDGET_EXCEEDED: grant {used} of {} tokens used, this request needs {amount}",grant.max_tokens));}
         if mission_used.checked_add(amount).is_none_or(|n|n>mission_cap){return Err(format!("EXTERNAL_MISSION_BUDGET_EXCEEDED: mission {mission_used} of {mission_cap} tokens used, this request needs {amount}"));}
         let id=super::new_id();

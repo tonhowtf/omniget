@@ -1,5 +1,3 @@
-//! Tauri commands exposed to the Settings → Cookies UI.
-
 use serde::{Deserialize, Serialize};
 
 use super::parsers;

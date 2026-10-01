@@ -1,16 +1,3 @@
-//! Serde types of the canvas document, mirrored in `src/lib/canvas/model/types.ts`.
-//!
-//! Rules copied from Maestri's `CanvasSnapshot` (estudo 95, 01):
-//! - ids are echoed literally, never reformatted;
-//! - enums are open on read (an unknown string survives as `Unknown(s)` and the
-//!   front draws a plain box) and strict on write (`ops` rejects them);
-//! - optional fields are omitted, never `null`;
-//! - `terminalId` (PTY session) is separate from the node id.
-//!
-//! Node payloads stay a JSON object in [`CanvasNode::data`] so keys written by a
-//! newer build survive a round trip; the typed structs below validate writes
-//! and give other modules typed access via [`CanvasNode::data_as`].
-
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
@@ -26,8 +13,6 @@ pub const GRID: f64 = 20.0;
 pub const ZOOM_MIN: f64 = 0.1;
 pub const ZOOM_MAX: f64 = 3.0;
 
-/// Open string enum: known variants serialize as their lowercase-ish tag,
-/// anything else is kept verbatim in `Unknown`.
 macro_rules! open_enum {
     ($(#[$m:meta])* $name:ident { $($variant:ident = $tag:literal),+ $(,)? }) => {
         $(#[$m])*
@@ -81,7 +66,6 @@ macro_rules! open_enum {
 }
 
 open_enum!(
-    /// Node kind. `Unknown` also covers the literal "unknown".
     NodeKind {
         Terminal = "terminal",
         Agent = "agent",
@@ -151,8 +135,6 @@ fn is_false(b: &bool) -> bool {
     !*b
 }
 
-// ---------------------------------------------------------------- geometry
-
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, Default)]
 pub struct Point {
     pub x: f64,
@@ -220,8 +202,6 @@ impl Default for Camera {
     }
 }
 
-// ---------------------------------------------------------------- nodes
-
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CanvasNode {
@@ -245,8 +225,6 @@ pub struct CanvasNode {
     pub group_id: Option<String>,
     #[serde(default, skip_serializing_if = "is_false")]
     pub locked: bool,
-    /// Note living inside a fichário (`stack` node): hidden on the canvas,
-    /// still addressable by id.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub stack_id: Option<String>,
     #[serde(default = "empty_object")]
@@ -267,7 +245,6 @@ impl CanvasNode {
         }
     }
 
-    /// Typed view of the payload. Unknown extra keys are ignored.
     pub fn data_as<T: DeserializeOwned>(&self) -> Option<T> {
         serde_json::from_value(self.data.clone()).ok()
     }
@@ -280,14 +257,11 @@ impl CanvasNode {
         matches!(self.kind, NodeKind::Terminal | NodeKind::Agent)
     }
 
-    /// Visible on the canvas (not tucked inside a stack).
     pub fn is_on_canvas(&self) -> bool {
         self.stack_id.is_none()
     }
 }
 
-/// `data.command` of a terminal node: `"claude --model x"` or
-/// `["bash", "--rcfile", "my file.sh"]`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum CommandSpec {
@@ -295,7 +269,6 @@ pub enum CommandSpec {
     Argv(Vec<String>),
 }
 
-/// Payload of `terminal` and `agent` nodes.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TerminalData {
@@ -305,8 +278,6 @@ pub struct TerminalData {
     pub role_id: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub cwd: Option<String>,
-    /// The program: one line (split on spaces) or argv (a preset with
-    /// arguments that contain spaces).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub command: Option<CommandSpec>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -328,10 +299,8 @@ pub struct TerminalData {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct NoteData {
-    /// Internal note: file name inside `<ws>/notes/`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub file_name: Option<String>,
-    /// External note: absolute path, the file stays where it is.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub path: Option<String>,
     #[serde(default, skip_serializing_if = "is_false")]
@@ -455,7 +424,6 @@ pub struct ShapeData {
     pub text: Option<String>,
 }
 
-/// Fichário (Maestri `noteStack`).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct StackData {
@@ -471,7 +439,6 @@ pub struct StackData {
     pub uniform_color: Option<String>,
 }
 
-/// Chip standing for a node on another floor or workspace.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct ConnectorData {
@@ -485,8 +452,6 @@ pub struct ConnectorData {
     pub remote_workspace_id: Option<String>,
 }
 
-/// Default frame size per kind (Maestri: note 260×200, text 240×60,
-/// fileTree 320×400, terminal 600×420).
 pub fn default_size(kind: &NodeKind) -> Size {
     let (w, h) = match kind {
         NodeKind::Terminal | NodeKind::Agent => (600.0, 420.0),
@@ -505,7 +470,6 @@ pub fn default_size(kind: &NodeKind) -> Size {
     Size { w, h }
 }
 
-/// Strict check of a node about to be written.
 pub fn validate_node(node: &CanvasNode) -> Result<(), String> {
     if node.id.trim().is_empty() {
         return Err("node id is empty".into());
@@ -587,8 +551,6 @@ pub fn validate_node(node: &CanvasNode) -> Result<(), String> {
     Ok(())
 }
 
-// ---------------------------------------------------------------- cords
-
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Connection {
@@ -604,7 +566,6 @@ pub struct Connection {
     pub verify: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub label: Option<String>,
-    /// Flat `[x0, y0, x1, y1, ...]` rope shape; may be stale, draw from the ends.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub points: Vec<f64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -661,8 +622,6 @@ pub fn validate_connection(c: &Connection) -> Result<(), String> {
     Ok(())
 }
 
-// ---------------------------------------------------------------- drawings
-
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DrawingAnchor {
@@ -675,7 +634,6 @@ pub struct DrawingAnchor {
 pub struct Drawing {
     pub id: String,
     pub tool: String,
-    /// Flat `[x, y, ...]`, local to `origin`, rounded to 0.1 on write.
     #[serde(default)]
     pub points: Vec<f64>,
     pub origin: Point,
@@ -716,7 +674,6 @@ pub struct Drawing {
 }
 
 impl Drawing {
-    /// Axis-aligned bounds in canvas coordinates (ignores rotation).
     pub fn bounds(&self) -> Rect {
         let (sx, sy) = match (self.original_size, self.size) {
             (Some(o), Some(s)) if o.w > 0.0 && o.h > 0.0 => (s.w / o.w, s.h / o.h),
@@ -747,8 +704,6 @@ impl Drawing {
     }
 }
 
-/// Drawing tools the canvas knows how to draw: the Maestri wire names plus
-/// the front's short names (`rect`, `smart`) kept for older documents.
 pub const DRAWING_TOOLS: &[&str] = &[
     "pen",
     "brush",
@@ -781,7 +736,6 @@ pub fn is_drawing_tool(tool: &str) -> bool {
     DRAWING_TOOLS.contains(&tool)
 }
 
-/// Middle of one side of `r` (where an attached arrow end sits).
 pub fn edge_point(r: Rect, edge: &Edge) -> Point {
     match edge {
         Edge::Top => Point {
@@ -845,8 +799,6 @@ pub fn validate_drawing(d: &Drawing) -> Result<(), String> {
     Ok(())
 }
 
-// ---------------------------------------------------------------- groups, ties
-
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Group {
@@ -872,9 +824,6 @@ pub struct CableTie {
     pub member_connection_ids: Vec<String>,
 }
 
-// ---------------------------------------------------------------- floor file
-
-/// `floors/<floorId>.json`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct FloorDoc {
@@ -944,7 +893,6 @@ impl FloorDoc {
     }
 }
 
-/// What `canvas_load` returns.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Snapshot {
@@ -960,8 +908,6 @@ pub struct Snapshot {
     pub groups: Vec<Group>,
     pub cable_ties: Vec<CableTie>,
 }
-
-// ---------------------------------------------------------------- workspace
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -982,14 +928,12 @@ pub struct FloorMeta {
     pub branch: Option<String>,
     #[serde(default, skip_serializing_if = "is_false")]
     pub is_git_isolated: bool,
-    /// Working tree of an isolated floor.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub path: Option<String>,
     #[serde(default)]
     pub created_at: String,
 }
 
-/// `workspace.json`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Workspace {
@@ -1023,18 +967,12 @@ pub struct Workspace {
     pub folder_name: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub sort_index: Option<i64>,
-    /// Editor the folder opens in ("vscode", "cursor", "zed", "idea"...).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub ide: Option<String>,
-    /// Fixed jump number (1–9) for ⌃N and the ⌘⌘-number jump; the list
-    /// position is used when absent.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub jump_number: Option<u8>,
-    /// Keep CLAUDE.md, AGENTS.md and GEMINI.md of the working folder equal.
     #[serde(default, skip_serializing_if = "is_false")]
     pub sync_agent_files: bool,
-    /// Lifted and docked panels of the window (Maestri lift/dock), kept per
-    /// workspace so they survive switching and relaunch.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub panels: Option<WorkspacePanels>,
     #[serde(default)]
@@ -1043,8 +981,6 @@ pub struct Workspace {
     pub updated_at: String,
 }
 
-/// A node shown outside the canvas at real size: lifted into the centre or
-/// docked as a full-height column on one edge.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct WorkspacePanels {
@@ -1058,7 +994,6 @@ pub struct WorkspacePanels {
 #[serde(rename_all = "camelCase")]
 pub struct DockedPanel {
     pub node_id: String,
-    /// `left` or `right`.
     pub edge: String,
     pub width: f64,
 }
@@ -1122,18 +1057,12 @@ pub struct WorkspaceSummary {
     pub workspace: Workspace,
     pub node_count: usize,
     pub terminal_count: usize,
-    /// Terminal nodes of every floor (sidebar hold-click list).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub terminals: Vec<WorkspaceTerminal>,
-    /// Some terminal process is alive (filled by the app's runtime probe);
-    /// false means hibernated (Maestri Unload).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub loaded: Option<bool>,
-    /// Changes when a `file:` icon changes (mtime + size), like the Wire's
-    /// `iconRevision`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub icon_revision: Option<String>,
-    /// CLAUDE.md / AGENTS.md / GEMINI.md state when `syncAgentFiles` is on.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub agent_files: Option<Value>,
 }
@@ -1153,8 +1082,6 @@ pub struct WorkspaceTerminal {
     pub running: bool,
 }
 
-/// App hook that completes summaries with runtime facts the core cannot see
-/// (live terminal processes, icon files, agent instruction files).
 pub type SummaryEnricher = fn(&mut WorkspaceSummary);
 static SUMMARY_ENRICHER: std::sync::OnceLock<SummaryEnricher> = std::sync::OnceLock::new();
 
@@ -1180,7 +1107,6 @@ pub struct WorkspaceInput {
     pub working_directory: Option<String>,
     #[serde(default)]
     pub environment: Option<Environment>,
-    /// Caller-chosen id (echoed literally); generated when absent.
     #[serde(default)]
     pub id: Option<String>,
 }
@@ -1193,7 +1119,6 @@ pub fn new_id() -> String {
     uuid::Uuid::new_v4().to_string()
 }
 
-/// Ids become file and folder names: keep them to a safe charset.
 pub fn is_safe_id(id: &str) -> bool {
     !id.is_empty()
         && id.len() <= 128

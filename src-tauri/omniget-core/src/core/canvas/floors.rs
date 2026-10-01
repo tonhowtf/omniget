@@ -1,27 +1,3 @@
-//! Floors: isolated copies of the workspace repository, each with its own
-//! canvas, branch and working tree (Maestri "floors", study 95 §4).
-//!
-//! - macOS: a copy-on-write clone of the whole checkout (`clonefile(2)` on
-//!   the folder, then `cp -c -R`), so `node_modules`, `.env` and build caches
-//!   come along for free. The clone is a full repository on its own branch.
-//! - Elsewhere, on a linked worktree ground, or when the clone fails: a
-//!   `git worktree` on the new branch.
-//! - No repository (or `noGit`): a "plain" floor that shares the ground's
-//!   folder; only the canvas is separate.
-//!
-//! Land brings the floor's commits into the ground repository and moves the
-//! target branch with plumbing (`merge-tree --write-tree`, `commit-tree`,
-//! `update-ref`), so the ground's working tree is only touched when the
-//! target is the branch checked out there (then a clean `read-tree -m -u`).
-//!
-//! Hooks (setup / run / teardown) are per workspace and run with
-//! `$OMNIGET_FLOOR_*` (and the `$MAESTRI_*` names, for hooks brought over).
-//! Each floor gets its own port range (study 96: port per workspace).
-//!
-//! Floor metadata the document owns (`FloorMeta`) goes through the store;
-//! what only this module needs (mode, repo, port, hooks) lives in
-//! `<workspace>/floors.json`.
-
 use std::collections::{BTreeMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
@@ -39,23 +15,16 @@ use crate::core::vcs::repo::{self, GitCtx};
 use crate::core::vcs::runner::{tail, Invocation};
 use crate::core::vcs::worktree::{sanitize_branch_name, slug};
 
-/// First port handed to a floor; each floor owns `PORT_STEP` ports from its base.
 pub const PORT_BASE: u16 = 41000;
 pub const PORT_STEP: u16 = 10;
-/// Hidden ref the ground fetches a cloned floor's branch into before landing.
 const LAND_REF_PREFIX: &str = "refs/omniget/floors/";
 const HOOK_TIMEOUT: Duration = Duration::from_secs(15 * 60);
-
-// ---------------------------------------------------------------- records
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum FloorMode {
-    /// APFS copy-on-write clone of the whole checkout.
     Clone,
-    /// `git worktree` of the ground repository.
     Worktree,
-    /// Shares the ground's folder (no git isolation).
     #[default]
     Plain,
 }
@@ -106,7 +75,6 @@ pub struct FloorHooks {
     pub run: Vec<HookCommand>,
     #[serde(default)]
     pub teardown: Vec<HookCommand>,
-    /// Run the setup hooks right after a floor is created.
     #[serde(default = "yes")]
     pub auto_run_setup: bool,
 }
@@ -125,10 +93,8 @@ impl FloorHooks {
 #[serde(rename_all = "camelCase")]
 pub struct FloorRecord {
     pub mode: FloorMode,
-    /// Top of the ground repository (clone / worktree floors).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub repo_root: Option<String>,
-    /// Branch the ground was on when the floor was made (default Land target).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub base_branch: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -137,7 +103,6 @@ pub struct FloorRecord {
     pub port: Option<u16>,
 }
 
-/// `<workspace>/floors.json`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct FloorsConfig {
@@ -166,7 +131,6 @@ pub fn load_config(store: &CanvasStore, ws: &str) -> FloorsConfig {
         })
 }
 
-/// Read-modify-write of `floors.json` under a process lock.
 pub fn edit_config<R>(
     store: &CanvasStore,
     ws: &str,
@@ -197,8 +161,6 @@ pub fn set_hooks(store: &CanvasStore, ws: &str, hooks: FloorHooks) -> Result<Flo
     })
 }
 
-// ---------------------------------------------------------------- views
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct FloorView {
@@ -212,13 +174,10 @@ pub struct FloorView {
     pub is_ground: bool,
     pub node_count: usize,
     pub terminal_count: usize,
-    /// Commits on the floor branch the base does not have.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub ahead: Option<u32>,
-    /// Tracked files changed and not committed in the floor.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub dirty: Option<u32>,
-    /// The floor folder is gone (deleted outside OmniGet).
     #[serde(default)]
     pub missing: bool,
 }
@@ -229,7 +188,6 @@ pub struct FloorProgress {
     pub workspace_id: String,
     pub floor_id: String,
     pub name: String,
-    /// `clone` | `branch` | `layout` | `setup` | `done` | `failed`
     pub phase: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub message: Option<String>,
@@ -300,7 +258,6 @@ async fn rev(dir: &Path, r: &str) -> Option<String> {
     o.ok().then(|| o.trimmed())
 }
 
-/// Tracked files changed (staged or not) in `dir`.
 async fn tracked_dirty(dir: &Path) -> Vec<String> {
     let Ok(o) = ctx(dir)
         .git()
@@ -318,8 +275,6 @@ async fn tracked_dirty(dir: &Path) -> Vec<String> {
         .collect()
 }
 
-/// Untracked files of a floor (Maestri lists them before a land: they
-/// would stay behind in the floor folder).
 async fn untracked(dir: &Path) -> Vec<String> {
     let Ok(o) = ctx(dir)
         .git()
@@ -337,7 +292,6 @@ async fn untracked(dir: &Path) -> Vec<String> {
         .collect()
 }
 
-/// Branch name git accepts, from a floor name.
 pub fn branch_for(name: &str) -> String {
     let s = slug(name, 48);
     sanitize_branch_name(if s.is_empty() { "floor" } else { &s })
@@ -362,8 +316,6 @@ fn ground_dir(store: &CanvasStore, ws: &str) -> Result<Option<PathBuf>, String> 
         .map(PathBuf::from))
 }
 
-/// A free port range for a new floor: not used by another floor of any
-/// workspace we know, and bindable right now.
 fn allocate_port(store: &CanvasStore) -> Option<u16> {
     let mut used: HashSet<u16> = HashSet::new();
     for w in store.workspaces() {
@@ -383,12 +335,6 @@ fn allocate_port(store: &CanvasStore) -> Option<u16> {
     None
 }
 
-// ---------------------------------------------------------------- env
-
-/// Env of everything that runs on a floor (hooks and terminals):
-/// `OMNIGET_FLOOR_ID|NAME|PATH|PORT`, `OMNIGET_BRANCH_NAME`,
-/// `OMNIGET_ROOT_PATH`, `OMNIGET_PROJECT_NAME`, `PORT`, plus the Maestri
-/// names (`MAESTRI_FLOOR_NAME`, ...) so hooks written for it keep working.
 pub fn floor_env(store: &CanvasStore, ws: &str, floor: &str) -> BTreeMap<String, String> {
     let mut env = BTreeMap::new();
     let Ok(meta) = store.workspace(ws) else {
@@ -436,9 +382,6 @@ pub fn floor_env(store: &CanvasStore, ws: &str, floor: &str) -> BTreeMap<String,
     env
 }
 
-/// Where a terminal on `floor` should start. A `cwd` inside the ground's
-/// folder (or the repository top) is moved to the same place inside the
-/// floor; no `cwd` becomes the floor's folder; anything else is kept.
 pub fn remap_cwd(store: &CanvasStore, ws: &str, floor: &str, cwd: Option<&str>) -> Option<String> {
     let meta = store.workspace(ws).ok()?;
     let f = meta.floors.iter().find(|f| f.id == floor)?;
@@ -451,7 +394,6 @@ pub fn remap_cwd(store: &CanvasStore, ws: &str, floor: &str, cwd: Option<&str>) 
         .cloned()
         .unwrap_or_default();
     let Some(cwd) = cwd.filter(|c| !c.trim().is_empty()) else {
-        // The workspace folder may sit below the repository top.
         return Some(map_under(&rec, meta.working_directory.as_deref(), &fpath).unwrap_or(fpath));
     };
     if Path::new(cwd).starts_with(&fpath) {
@@ -463,7 +405,6 @@ pub fn remap_cwd(store: &CanvasStore, ws: &str, floor: &str, cwd: Option<&str>) 
 fn map_under(rec: &FloorRecord, path: Option<&str>, floor_path: &str) -> Option<String> {
     let path = Path::new(path?);
     let root = Path::new(rec.repo_root.as_deref()?);
-    // Symlinked spellings (`/var` vs `/private/var`) resolve to the same place.
     let canon = |p: &Path| std::fs::canonicalize(p).unwrap_or_else(|_| p.to_path_buf());
     let rel = path
         .strip_prefix(root)
@@ -477,8 +418,6 @@ fn map_under(rec: &FloorRecord, path: Option<&str>, floor_path: &str) -> Option<
             .into_owned(),
     )
 }
-
-// ---------------------------------------------------------------- list
 
 pub async fn list(store: &CanvasStore, ws: &str) -> Result<Vec<FloorView>, String> {
     let meta = store.workspace(ws)?;
@@ -526,30 +465,22 @@ pub async fn list(store: &CanvasStore, ws: &str) -> Result<Vec<FloorView>, Strin
     Ok(out)
 }
 
-// ---------------------------------------------------------------- create
-
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CreateFloor {
     pub name: String,
-    /// Branch to create (default: slug of the name).
     #[serde(default)]
     pub branch: Option<String>,
-    /// Check out `branch` as it is instead of creating it.
     #[serde(default)]
     pub existing_branch: bool,
-    /// Plain floor: same folder as the ground, only the canvas is new.
     #[serde(default)]
     pub no_git: bool,
-    /// Duplicate the ground's notes, terminals and texts.
     #[serde(default)]
     pub copy_ground: bool,
-    /// Force `worktree` even where a clone is possible.
     #[serde(default)]
     pub prefer_worktree: bool,
     #[serde(default)]
     pub color: Option<String>,
-    /// Run the setup hooks (default: the workspace's `autoRunSetup`).
     #[serde(default)]
     pub run_setup: Option<bool>,
 }
@@ -564,7 +495,6 @@ pub struct CreateResult {
     pub warnings: Vec<String>,
 }
 
-/// Copy-on-write clone of a folder. macOS only; `Err` elsewhere.
 #[cfg(target_os = "macos")]
 async fn cow_clone(src: &Path, dest: &Path) -> Result<(), String> {
     use std::ffi::CString;
@@ -586,7 +516,6 @@ async fn cow_clone(src: &Path, dest: &Path) -> Result<(), String> {
     if direct.is_ok() {
         return Ok(());
     }
-    // `cp -c` clones file by file (works across more layouts than one call).
     let _ = std::fs::remove_dir_all(dest);
     let o = Invocation::new("cp")
         .arg("-c")
@@ -700,7 +629,6 @@ pub async fn create(
                 };
                 let r = git_text(&dest, &args).await;
                 if r.is_ok() {
-                    // "Fetch from Source Repo" pulls through this remote.
                     let _ = git_ok(&dest, &["remote", "remove", "omniget-ground"]).await;
                     let _ = git_ok(
                         &dest,
@@ -773,10 +701,6 @@ pub async fn create(
     })
 }
 
-/// "Clone Ground layout": notes, terminals, texts and file trees of the
-/// ground (with the cords between them) get new ids on the floor; terminal
-/// `cwd`s move into the floor's folder and each gets a new PTY; a file tree
-/// is rooted at the same place inside the floor (Maestri CL 0.29.5).
 pub fn copy_ground_layout(store: &CanvasStore, ws: &str, floor: &str) -> Result<usize, String> {
     let ground = store.read(ws, GROUND_FLOOR_ID, |d| d.clone())?;
     let keep = |n: &CanvasNode| {
@@ -789,7 +713,6 @@ pub fn copy_ground_layout(store: &CanvasStore, ws: &str, floor: &str) -> Result<
                 | NodeKind::FileTree
         ) && n.stack_id.is_none()
     };
-    // A path of the ground moved into the floor (unchanged when outside it).
     let moved = |p: &str| remap_cwd(store, ws, floor, Some(p)).unwrap_or_else(|| p.to_string());
     let mut ids = BTreeMap::new();
     let mut ops = Vec::new();
@@ -801,9 +724,6 @@ pub fn copy_ground_layout(store: &CanvasStore, ws: &str, floor: &str) -> Result<
         if let Some(data) = c.data.as_object_mut() {
             match c.kind {
                 NodeKind::Terminal | NodeKind::Agent => {
-                    // Its own terminal (not the ground's), started by the
-                    // app right after the copy; the ground's agent session
-                    // is not resumed twice.
                     data.insert("terminalId".into(), Value::String(new_id()));
                     for k in ["sessionId", "resumeSessionId", "codexSessionId"] {
                         data.remove(k);
@@ -880,8 +800,6 @@ pub fn copy_ground_layout(store: &CanvasStore, ws: &str, floor: &str) -> Result<
     Ok(count)
 }
 
-// ---------------------------------------------------------------- hooks
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct HookRun {
@@ -890,7 +808,6 @@ pub struct HookRun {
     pub command: String,
     pub code: Option<i32>,
     pub ok: bool,
-    /// Tail of stdout + stderr.
     pub output: String,
     pub duration_ms: u64,
 }
@@ -909,7 +826,6 @@ fn floor_dir(store: &CanvasStore, ws: &str, floor: &str) -> Result<PathBuf, Stri
         .ok_or_else(|| "CANVAS_INVALID: the workspace has no folder".to_string())
 }
 
-/// One shell command in the floor folder with the floor env.
 pub async fn run_shell(
     dir: &Path,
     command: &str,
@@ -926,7 +842,6 @@ pub async fn run_shell(
         .timeout(Some(timeout))
         .max_output(4 * 1024 * 1024)
         .unchecked();
-    // Hooks are the user's scripts: give them a normal locale back.
     inv = inv.env_remove("LC_ALL").env_remove("LANG");
     for (k, v) in env {
         inv = inv.env(k, v);
@@ -943,8 +858,6 @@ pub async fn run_shell(
     Ok((o.code, text))
 }
 
-/// Runs the enabled hooks of `kind` (or just `only`), in order; stops at the
-/// first failure.
 pub async fn run_hooks(
     store: &CanvasStore,
     ws: &str,
@@ -981,13 +894,10 @@ pub async fn run_hooks(
     Ok(out)
 }
 
-// ---------------------------------------------------------------- land
-
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct FileStat {
     pub path: String,
-    /// `None` for binary files.
     pub added: Option<u32>,
     pub deleted: Option<u32>,
 }
@@ -997,24 +907,17 @@ pub struct FileStat {
 pub struct LandPreview {
     pub floor_branch: String,
     pub target: String,
-    /// The target branch does not exist in the ground yet (it will be created).
     pub creates_target: bool,
-    /// The target already contains the floor's commits.
     pub up_to_date: bool,
-    /// The target is an ancestor of the floor: no merge commit needed.
     pub fast_forward: bool,
-    /// `git log --oneline target..floor`, newest first (max 50).
     pub commits: Vec<String>,
     pub files: Vec<FileStat>,
     pub conflicts: Vec<String>,
     pub floor_dirty: Vec<String>,
-    /// Files the floor never added to git (they block the land too).
     #[serde(default)]
     pub floor_untracked: Vec<String>,
     pub ground_dirty: Vec<String>,
-    /// The target is the branch checked out in the ground (its files move too).
     pub target_checked_out: bool,
-    /// Branches of the ground, for the target picker.
     pub branches: Vec<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub blocker: Option<String>,
@@ -1078,7 +981,6 @@ async fn land_ctx(store: &CanvasStore, ws: &str, floor: &str) -> Result<LandCtx,
     })
 }
 
-/// Where each branch is checked out: `refs/heads/x` -> worktree path.
 async fn checked_out(ground: &Path) -> BTreeMap<String, PathBuf> {
     let mut out = BTreeMap::new();
     let Ok(text) = git_text(ground, &["worktree", "list", "--porcelain"]).await else {
@@ -1103,8 +1005,6 @@ fn same_dir(a: &Path, b: &Path) -> bool {
     ca == cb
 }
 
-/// Parses `git merge-tree --write-tree --name-only --no-messages` output:
-/// first line the tree, then the conflicted paths (unique, in order).
 pub fn parse_merge_tree(out: &str) -> (String, Vec<String>) {
     let mut lines = out.lines();
     let tree = lines.next().unwrap_or("").trim().to_string();
@@ -1326,7 +1226,6 @@ pub struct LandOptions {
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct LandOutcome {
-    /// `landed` | `up_to_date`
     pub status: String,
     pub target: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -1399,7 +1298,6 @@ pub async fn land(
         .map_err(|e| format!("CANVAS_GIT: update-ref failed: {e}"))?;
         if p.target_checked_out {
             if let Some(old) = &old {
-                // The ground was verified clean: bring its files to the new tip.
                 if let Err(e) = git_text(g, &["read-tree", "-m", "-u", old, &new]).await {
                     let _ = git_text(g, &["update-ref", &target_ref, old, &new]).await;
                     return Err(format!(
@@ -1411,7 +1309,6 @@ pub async fn land(
         out.status = "landed".into();
         out.commit = Some(new);
     }
-    // Mirror the floor branch in the ground (a clone's branch lives in the clone).
     if lc.rec.mode == FloorMode::Clone && lc.branch != p.target && !opts.delete_branch {
         let _ = git_ok(
             g,
@@ -1439,14 +1336,11 @@ pub async fn land(
     Ok(out)
 }
 
-// ---------------------------------------------------------------- discard
-
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DiscardOptions {
     #[serde(default)]
     pub keep_branch: bool,
-    /// Remove even with uncommitted work in the floor.
     #[serde(default)]
     pub force: bool,
 }
@@ -1586,7 +1480,6 @@ pub async fn discard(
     Ok(out)
 }
 
-/// "Fetch from Source Repo": brings a ground branch into a cloned floor.
 pub async fn fetch_from_ground(
     store: &CanvasStore,
     ws: &str,
@@ -1612,7 +1505,6 @@ pub async fn fetch_from_ground(
     Ok(b)
 }
 
-/// Patch for `FloorMeta` renames and colors (goes through the store).
 pub fn update_meta(
     store: &CanvasStore,
     ws: &str,

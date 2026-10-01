@@ -128,7 +128,6 @@ fn parse_instagram(segments: &[&str]) -> (Option<String>, ParsedContentType) {
 }
 
 fn parse_threads(segments: &[&str]) -> (Option<String>, ParsedContentType) {
-    // Format: /@user/post/POST_ID or /t/POST_ID
     if segments.len() >= 3 && segments[0].starts_with('@') && segments[1] == "post" {
         let id = segments[2].to_string();
         return (Some(id), ParsedContentType::Post);
@@ -139,7 +138,6 @@ fn parse_threads(segments: &[&str]) -> (Option<String>, ParsedContentType) {
         return (Some(id), ParsedContentType::Post);
     }
 
-    // Profile: /@user
     if let Some(user) = segments.first() {
         if user.starts_with('@') {
             return (Some(user.to_string()), ParsedContentType::Profile);
@@ -280,7 +278,6 @@ fn parse_vimeo(segments: &[&str]) -> (Option<String>, ParsedContentType) {
 }
 
 fn parse_bilibili(segments: &[&str]) -> (Option<String>, ParsedContentType) {
-    // bilibili.com/video/BV1xxxxx/
     if segments.first() == Some(&"video") {
         let id = segments.get(1).map(|s| s.to_string());
         return (id, ParsedContentType::Video);

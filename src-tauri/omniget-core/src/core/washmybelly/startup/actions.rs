@@ -1,11 +1,3 @@
-//! Turning startup items off and on, without deleting anything.
-//!
-//! Every change is an [`Action`] (a closed list; the plan carries it as
-//! `Op::Module { module: "startup", action, args }`). [`execute`] reads the
-//! state before the change, saves it as a [`Snapshot`], then applies it;
-//! [`restore`] puts the snapshot back. Commands are built by pure functions
-//! (`*_argv`) and run through [`Sys`], so tests check them on a fake.
-
 use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
@@ -17,45 +9,44 @@ use crate::core::washmybelly::plan::Outcome;
 use crate::core::washmybelly::receipt::Undo;
 use crate::core::washmybelly::store::Ctx;
 
-/// One flip. The names are the plan's `action` strings.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "action", rename_all = "snake_case")]
 pub enum Action {
-    /// macOS LaunchAgent in the user's session: `launchctl disable|enable`
-    /// (kept across logins) plus `bootout|bootstrap` (now).
     LaunchdUser {
         label: String,
         plist: PathBuf,
         enable: bool,
     },
-    /// macOS LaunchDaemon: stopped as administrator (`bootout system/<label>`).
-    LaunchdDaemon { label: String, plist: PathBuf },
-    /// macOS legacy Login Item, through System Events.
+    LaunchdDaemon {
+        label: String,
+        plist: PathBuf,
+    },
     LoginItem {
         name: String,
         #[serde(default)]
         path: Option<String>,
         enable: bool,
     },
-    /// Windows `StartupApproved` value: 02 on, 03 off, like Task Manager.
     WinApproved {
         hive: String,
         subkey: String,
         name: String,
         enable: bool,
     },
-    /// Windows scheduled task.
     WinTask {
         path: String,
         enable: bool,
         #[serde(default)]
         admin: bool,
     },
-    /// Windows service start type (administrator).
-    WinService { name: String, mode: String },
-    /// XDG autostart: a copy in `~/.config/autostart` with `Hidden=true`.
-    XdgAutostart { file: String, enable: bool },
-    /// `systemctl --user enable|disable`, with `--now` when `now`.
+    WinService {
+        name: String,
+        mode: String,
+    },
+    XdgAutostart {
+        file: String,
+        enable: bool,
+    },
     SystemdUser {
         unit: String,
         enable: bool,
@@ -65,7 +56,6 @@ pub enum Action {
 }
 
 impl Action {
-    /// `(action name, args)` for `Op::Module`.
     pub fn split(&self) -> (String, Value) {
         let mut v = serde_json::to_value(self).unwrap_or_else(|_| json!({}));
         let name = v
@@ -79,7 +69,6 @@ impl Action {
         (name, v)
     }
 
-    /// Back from `Op::Module`; anything outside the closed list is refused.
     pub fn join(action: &str, args: &Value) -> Result<Action, String> {
         let mut v = if args.is_object() {
             args.clone()
@@ -92,20 +81,19 @@ impl Action {
     }
 }
 
-/// The state before a change, and how to go back to it.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum Snapshot {
-    /// Undo is this action.
-    Apply { action: Action },
-    /// Undo needs the administrator: these helper operations.
-    Elevated { ops: Vec<ElevatedOp> },
-    /// Undo puts this autostart file back (`None`: it did not exist).
+    Apply {
+        action: Action,
+    },
+    Elevated {
+        ops: Vec<ElevatedOp>,
+    },
     File {
         path: PathBuf,
         previous: Option<String>,
     },
-    /// Undo puts this HKCU value back (`None`: it did not exist).
     RegValue {
         key: String,
         name: String,
@@ -122,8 +110,6 @@ fn snapshot(ctx: &Ctx, receipt_id: &str, key: &str, s: &Snapshot) -> Result<Undo
     })
 }
 
-// ── Validation ───────────────────────────────────────────────────────
-
 fn check_label(label: &str) -> Result<(), String> {
     if super::valid_label(label) && !label.starts_with("com.apple.") {
         Ok(())
@@ -132,8 +118,6 @@ fn check_label(label: &str) -> Result<(), String> {
     }
 }
 
-/// A plist we may pass to launchctl: a `.plist` directly inside one of the
-/// launchd folders, not a link.
 fn check_plist(env: &Env, plist: &Path, daemon: bool) -> Result<(), String> {
     let parent = plist.parent().unwrap_or(Path::new(""));
     let allowed: Vec<PathBuf> = if daemon {
@@ -168,7 +152,6 @@ fn check_login_name(name: &str) -> Result<(), String> {
     }
 }
 
-/// An autostart file name: `something.desktop`, no folders.
 pub fn check_desktop_file(file: &str) -> Result<(), String> {
     let ok = file.ends_with(".desktop")
         && file.len() > ".desktop".len()
@@ -197,7 +180,6 @@ fn check_unit(unit: &str) -> Result<(), String> {
 pub const APPROVED_BASE: &str =
     r"Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved";
 
-/// `HKCU|HKLM\...\StartupApproved\Run|Run32|StartupFolder`.
 pub fn approved_key(hive: &str, subkey: &str) -> Result<String, String> {
     if !matches!(hive, "HKCU" | "HKLM") || !matches!(subkey, "Run" | "Run32" | "StartupFolder") {
         return Err(format!("startup: refused key {hive}\\{subkey}"));
@@ -217,11 +199,6 @@ fn check_value_name(name: &str) -> Result<(), String> {
     }
 }
 
-// ── Command builders (pure) ──────────────────────────────────────────
-
-/// Commands for a user LaunchAgent, each with "must succeed". `bootout` of
-/// an agent that is not loaded and `bootstrap` of one that already is are
-/// not failures: the `disable`/`enable` override is what lasts.
 pub fn launchd_user_argv(
     uid: u32,
     label: &str,
@@ -250,7 +227,6 @@ pub fn launchd_user_argv(
     }
 }
 
-/// System Events scripts are fixed; the name or path is `item 1 of argv`.
 pub fn login_item_argv(name: &str, path: Option<&str>, enable: bool) -> Vec<String> {
     let (script, arg) = if enable {
         (
@@ -288,7 +264,6 @@ pub fn login_item_path_argv(name: &str) -> Vec<String> {
     ]
 }
 
-/// FILETIME (100 ns since 1601) as little-endian hex.
 fn filetime_hex(unix_secs: i64) -> String {
     let ft = (unix_secs.max(0) as u64 + 11_644_473_600) * 10_000_000;
     ft.to_le_bytes()
@@ -297,7 +272,6 @@ fn filetime_hex(unix_secs: i64) -> String {
         .collect()
 }
 
-/// The 12 bytes Task Manager writes: `02` on; `03` off plus when.
 pub fn approved_value(enable: bool, unix_secs: i64) -> String {
     if enable {
         "020000000000000000000000".into()
@@ -339,8 +313,6 @@ pub fn systemd_user_argv(unit: &str, enable: bool, now: bool) -> Vec<String> {
     v
 }
 
-/// The `[Desktop Entry]` group with `Hidden=true` (off) or without the keys
-/// that turn it off (on). Other groups and keys stay as they were.
 pub fn set_hidden(content: &str, hidden: bool) -> String {
     let mut out: Vec<String> = Vec::new();
     let mut in_entry = false;
@@ -386,8 +358,6 @@ fn trim_trailing_blank(v: &mut Vec<String>) {
     }
 }
 
-// ── Reading the state before a change ────────────────────────────────
-
 fn launchd_disabled(sys: &dyn Sys, uid: u32, label: &str) -> bool {
     sys.run(&argv_array![
         "launchctl",
@@ -432,9 +402,6 @@ fn no_link(p: &Path) -> Result<(), String> {
     }
 }
 
-// ── Running ──────────────────────────────────────────────────────────
-
-/// Read the state, save it, then apply `a` (non-admin items).
 pub fn execute(
     ctx: &Ctx,
     sys: &dyn Sys,
@@ -555,7 +522,6 @@ pub fn execute(
                 ])
                 .map(|o| o.stdout.trim() == "active")
                 .unwrap_or(false);
-            // Undo goes back to the other state, and restarts it only if it ran.
             let undo = Action::SystemdUser {
                 unit: unit.clone(),
                 enable: !*enable,
@@ -595,7 +561,6 @@ fn done(a: &Action, undo: Option<Undo>) -> Outcome {
     }
 }
 
-/// Apply an action without saving anything (also the undo path).
 pub fn apply(sys: &dyn Sys, env: &Env, a: &Action) -> Result<String, String> {
     match a {
         Action::LaunchdUser {
@@ -677,7 +642,6 @@ pub fn apply(sys: &dyn Sys, env: &Env, a: &Action) -> Result<String, String> {
     }
 }
 
-/// The administrator half: snapshot, then the helper operations.
 pub fn elevated(
     ctx: &Ctx,
     sys: &dyn Sys,
@@ -695,8 +659,6 @@ pub fn elevated(
             };
             check_plist(&env, plist, true)?;
             super::bootout_argv("system", label)?;
-            // Disabled for good (survives restarts), then stopped now. Undo
-            // needs root again, so it is a screen action, not a receipt undo.
             Ok((
                 vec![
                     ElevatedOp::LaunchctlState {
@@ -808,7 +770,6 @@ pub fn elevated(
     }
 }
 
-/// Put a snapshot back.
 pub fn restore(ctx: &Ctx, sys: &dyn Sys, env: &Env, snap: &Snapshot) -> Result<String, String> {
     match snap {
         Snapshot::Apply { action } => {
@@ -864,11 +825,6 @@ pub fn restore(ctx: &Ctx, sys: &dyn Sys, env: &Env, snap: &Snapshot) -> Result<S
     }
 }
 
-// ── Items the system stops listing once they are off ─────────────────
-
-/// Login items, `systemd --user` units and Windows services disappear from
-/// their system list when off; we keep them so the screen can turn them
-/// back on.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct TurnedOff {
     pub id: String,
@@ -881,7 +837,6 @@ pub struct TurnedOff {
 const TURNED_OFF_KEY: &str = "startup_turned_off";
 
 fn turned_off_entry(a: &Action) -> Option<(TurnedOff, bool)> {
-    // (entry, true = now off)
     match a {
         Action::LoginItem { name, path, enable } => Some((
             TurnedOff {
@@ -911,7 +866,6 @@ fn turned_off_entry(a: &Action) -> Option<(TurnedOff, bool)> {
             },
             !enable,
         )),
-        // `mode` here is the mode to go back to.
         Action::WinService { name, mode } => Some((
             TurnedOff {
                 id: format!("startup:service:{name}"),

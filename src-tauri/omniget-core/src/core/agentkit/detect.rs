@@ -1,8 +1,3 @@
-//! Which coding tools are on this machine: binaries on PATH, config folders in
-//! the home, VS Code extensions, app bundles, and the version from `--version`
-//! (short timeout). Only presence is checked: no config or credential file is
-//! ever opened here.
-
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
@@ -25,7 +20,6 @@ pub struct ScopeInfo {
     pub available: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub reason: Option<String>,
-    /// Config folder for this scope (global dir, or project root), for display.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub root: Option<String>,
 }
@@ -38,7 +32,6 @@ pub struct DetectedTarget {
     pub status: TargetStatus,
     pub beta: bool,
     pub installed: bool,
-    /// Suggested default for the "install into" toggles: installed and active.
     pub enabled_by_default: bool,
     pub binaries: Vec<FoundBinary>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -46,12 +39,10 @@ pub struct DetectedTarget {
     pub home_dirs: Vec<String>,
     pub vscode_extensions: Vec<String>,
     pub apps: Vec<String>,
-    /// Project markers of this tool found in the project folder.
     pub project_markers: Vec<String>,
     pub scopes: Vec<ScopeInfo>,
 }
 
-/// PATH entries to search, plus the usual user install folders on the real machine.
 fn search_dirs(env: &Env) -> Vec<PathBuf> {
     let Some(pv) = &env.path_var else {
         return vec![];
@@ -97,7 +88,6 @@ fn find_binary(dirs: &[PathBuf], name: &str, os: Os) -> Option<PathBuf> {
     None
 }
 
-/// First version-looking token of `<bin> <args>`, killed after a short timeout.
 pub fn probe_version(bin: &Path, args: &[String]) -> Option<String> {
     use std::io::Read;
     let mut cmd = crate::core::process::std_command(bin);
@@ -164,7 +154,6 @@ fn installed_extensions(env: &Env) -> Vec<String> {
     out
 }
 
-/// Detects one tool.
 pub fn detect(env: &Env, t: &TargetAdapter, project: Option<&Path>) -> DetectedTarget {
     let dirs = search_dirs(env);
     detect_with(env, t, project, &dirs, &installed_extensions(env))
@@ -311,7 +300,6 @@ fn detect_with(
     }
 }
 
-/// Detects every known tool (version probes run in parallel).
 pub fn detect_all(env: &Env, project: Option<&Path>) -> Vec<DetectedTarget> {
     let all = targets::load_targets(env);
     let dirs = search_dirs(env);

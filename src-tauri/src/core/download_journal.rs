@@ -1,5 +1,3 @@
-//! Persistent, bounded diagnostic journal. Only sanitized text crosses the
-//! worker boundary; a full channel is reported as an evidence gap.
 use rusqlite::{params, Connection};
 use serde::Serialize;
 use std::path::Path;
@@ -9,7 +7,6 @@ use std::sync::{
 };
 
 const MAX_BYTES: i64 = 100 * 1024 * 1024;
-// Pending counters are deliberately bounded atomics: producers never wait on disk.
 static DROPPED: AtomicU64 = AtomicU64::new(0);
 static TRUNCATED: AtomicU64 = AtomicU64::new(0);
 static WORKER: OnceLock<mpsc::SyncSender<Command>> = OnceLock::new();
@@ -41,7 +38,6 @@ pub struct Page {
     pub dropped: u64,
     pub oldest_available: Option<u64>,
     pub truncated: u64,
-    /// Counts are lower bounds after an uncheckpointed process termination.
     pub evidence_incomplete: bool,
     pub accounting_pending: bool,
     pub prior_session_gaps: u64,
@@ -77,39 +73,33 @@ pub fn init() -> Result<(), String> {
             .map_err(|e| e.to_string())?;
     }
     let db = open(&dir.join("events.sqlite3"))?;
-    // A durable marker precedes accepting events. Without a shutdown hook we
-    // conservatively retain it: the next run cannot prove its tail was flushed.
     start_session(&db)?;
     let (tx, rx) = mpsc::sync_channel(2048);
     if WORKER.set(tx).is_err() {
         return Ok(());
     }
-    std::thread::spawn(move || {
-        loop {
-            // Flush even if the last event was rejected and no further traffic
-            // arrives. Failure leaves the counters in RAM, never silently reset.
-            let _ = checkpoint(&db, &DROPPED, &TRUNCATED);
-            let command = match rx.recv_timeout(std::time::Duration::from_millis(250)) {
-                Ok(command) => command,
-                Err(mpsc::RecvTimeoutError::Timeout) => continue,
-                Err(mpsc::RecvTimeoutError::Disconnected) => break,
-            };
-            let result = match command {
-                Command::Begin(id) => begin(&db, id),
-                Command::Diagnose(id, reply) => {
-                    let result = latest(&db, id);
-                    let _ = reply.send(result);
-                    Ok(())
-                }
-                Command::Event(id, line) => append(&db, id, &line),
-                Command::Read(id, cursor, limit, budget, reply) => {
-                    let _ = reply.send(read(&db, id, cursor, limit, budget));
-                    Ok(())
-                }
-            };
-            if result.is_err() {
-                DROPPED.fetch_add(1, Ordering::Relaxed);
+    std::thread::spawn(move || loop {
+        let _ = checkpoint(&db, &DROPPED, &TRUNCATED);
+        let command = match rx.recv_timeout(std::time::Duration::from_millis(250)) {
+            Ok(command) => command,
+            Err(mpsc::RecvTimeoutError::Timeout) => continue,
+            Err(mpsc::RecvTimeoutError::Disconnected) => break,
+        };
+        let result = match command {
+            Command::Begin(id) => begin(&db, id),
+            Command::Diagnose(id, reply) => {
+                let result = latest(&db, id);
+                let _ = reply.send(result);
+                Ok(())
             }
+            Command::Event(id, line) => append(&db, id, &line),
+            Command::Read(id, cursor, limit, budget, reply) => {
+                let _ = reply.send(read(&db, id, cursor, limit, budget));
+                Ok(())
+            }
+        };
+        if result.is_err() {
+            DROPPED.fetch_add(1, Ordering::Relaxed);
         }
     });
     Ok(())
@@ -147,8 +137,6 @@ fn checkpoint(db: &Connection, dropped: &AtomicU64, truncated: &AtomicU64) -> Re
     if losses == 0 && cuts == 0 {
         return Ok(());
     }
-    // Single SQLite statement is atomic; counters are subtracted only after its
-    // durable commit. Concurrent producer increments remain for the next pass.
     db.execute(
         "UPDATE journal_health SET dropped=dropped+?1, truncated=truncated+?2 WHERE singleton=1",
         params![losses, cuts],
@@ -216,11 +204,9 @@ fn append(db: &Connection, id: u64, line: &str) -> Result<(), String> {
         params![id, level, line, phase],
     )
     .map_err(|e| e.to_string())?;
-    // Sample progress is bounded at the source; amortize retention scans.
     if db.last_insert_rowid() % 128 != 0 {
         return Ok(());
     }
-    // Logical retention is enforced continuously; SQLite reuses deleted pages.
     db.execute(
         "DELETE FROM events WHERE timestamp < unixepoch()-1209600",
         [],
@@ -308,8 +294,6 @@ fn read(
     })
 }
 fn latest(db: &Connection, id: u64) -> Result<Page, String> {
-    // Preserve the first error even if thousands of progress lines follow it.
-    // The ordinary log endpoint remains chronological and fully pageable.
     let mut stmt = db.prepare("SELECT id,timestamp,download,attempt,phase,level,message FROM events WHERE download=?1 AND attempt=(SELECT attempt FROM attempts WHERE download=?1) ORDER BY CASE level WHEN 'error' THEN 0 WHEN 'warning' THEN 1 ELSE 2 END, id LIMIT 201").map_err(|e|e.to_string())?;
     let rows = stmt
         .query_map([id], |r| {
@@ -416,7 +400,7 @@ mod tests {
             assert_eq!(persisted, 0);
             db.execute_batch("DROP TRIGGER fault_full;").unwrap();
             checkpoint(&db, &dropped, &truncated).unwrap();
-            checkpoint(&db, &dropped, &truncated).unwrap(); // no double counting
+            checkpoint(&db, &dropped, &truncated).unwrap();
             assert_eq!(dropped.load(Ordering::Relaxed), 0);
         }
         let db = open(&path).unwrap();
@@ -431,7 +415,6 @@ mod tests {
     fn uncheckpointed_loss_is_reported_as_unknown_tail_after_restart() {
         let db = open(Path::new(":memory:")).unwrap();
         start_session(&db).unwrap();
-        // Simulate a crash with losses still in RAM: their exact count is gone.
         start_session(&db).unwrap();
         let (losses, cuts, gaps, _) = health(&db).unwrap();
         assert_eq!((losses, cuts, gaps), (0, 0, 1));

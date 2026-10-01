@@ -1,7 +1,3 @@
-//! The bot's per-turn hook: capability grants, skill grants and the compact
-//! skill index. First in the chain (bots → groups → memory → reading), so the
-//! hooks after it see the grants it added.
-
 use std::collections::HashSet;
 use std::sync::Arc;
 
@@ -23,8 +19,6 @@ impl BotsAugment {
     }
 }
 
-/// The profile of `agent`, importing a roster agent that predates profiles:
-/// its `skills` list becomes bindings once, then the bindings are the truth.
 pub fn ensure_profile(env: &BotEnv, agent: &AgentDef) -> Result<BotProfile, String> {
     let db = env.db()?;
     if let Some(p) = profile::get(&db, &agent.id)? {
@@ -38,8 +32,6 @@ pub fn ensure_profile(env: &BotEnv, agent: &AgentDef) -> Result<BotProfile, Stri
     Ok(p)
 }
 
-/// Everything the hook does except building the text, for the capability
-/// manifest and the tests: returns the ready skills as (tool, manifest).
 pub fn apply(
     env: &BotEnv,
     projection: &SkillProjection,
@@ -56,8 +48,6 @@ pub fn apply(
     let profile = ensure_profile(env, agent)?;
     profile::apply_capability_grants(agent, &profile);
 
-    // Legacy `ToolSource::Skill` grants never resolve (their `skill:` name is
-    // not provider-safe): drop them, keeping a `Deny` as a refusal.
     let denied: HashSet<String> = agent
         .tools
         .iter()
@@ -86,8 +76,6 @@ pub fn apply(
     Ok((profile, ready))
 }
 
-/// The identity block: who the bot is and what it is for. Fresh every turn,
-/// so an edit applies to conversations already open.
 pub fn identity_text(agent: &AgentDef, profile: &BotProfile) -> String {
     if profile.purpose.trim().is_empty() && profile.instructions.trim().is_empty() {
         return String::new();

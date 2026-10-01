@@ -1,26 +1,3 @@
-//! CLI agent runtime: drives an installed Claude Code or Codex inside an
-//! isolated config directory. Owned by f4-cli-runtime.
-//!
-//! The second runtime of the roster (plan §2.1 line 14, §3 Fase 4). It adopts
-//! the *model* of `claude-account`/`claude-swap` and none of their mechanism:
-//! one config directory per account, the CLI itself logging in, and the app
-//! never reading a credential, never refreshing a token and never calling an
-//! undocumented usage endpoint (`estudos/74` §A.3, plan §9.2).
-//!
-//! Shape:
-//!
-//! ```text
-//! AgentDef{ runtime: Cli{cli, account} }
-//!   → CliRuntime::turn            (resolve account, binary, argv, env)
-//!     → session::spawn_turn       (process, stdin = prompt, stdout = JSONL)
-//!       → claude::ClaudeParser / codex::CodexParser  (line → CliSignal)
-//!         → TurnEvent to the coordinator
-//!         → RateSnapshot to CliCapacity → router::CapacitySource
-//! ```
-//!
-//! Budget: nothing runs between turns, and switching accounts is one map of
-//! environment variables, so it costs nothing measurable.
-
 pub mod accounts;
 pub mod claude;
 pub mod codex;
@@ -48,36 +25,16 @@ pub use accounts::{
 pub use parse::{CliSignal, QuotaSource, RateSnapshot, RateStatus, RateWindow};
 pub use session::{LineParser, SpawnSpec, WatchdogConfig};
 
-/// The CLI binary is not installed, or the account points nowhere.
 pub const ERR_CLI_NOT_FOUND: &str = "ERR_CLI_NOT_FOUND";
-/// The process could not be created, or died before saying anything.
 pub const ERR_CLI_SPAWN: &str = "ERR_CLI_SPAWN";
-/// The process exited non-zero; the message carries the code and the stderr tail.
 pub const ERR_CLI_EXIT: &str = "ERR_CLI_EXIT";
-/// The account has no login in its config directory (the CLI says so itself).
 pub const ERR_CLI_AUTH: &str = "ERR_CLI_AUTH";
-/// The account record is missing, duplicated or malformed.
 pub const ERR_CLI_ACCOUNT: &str = "ERR_CLI_ACCOUNT";
-/// Reading or writing `accounts.json` / a profile directory failed.
 pub const ERR_CLI_IO: &str = "ERR_CLI_IO";
-/// The CLI went silent past the watchdog's window (no stdout line for
-/// `idle_timeout`, or `tool_idle_timeout` while one of its tools had not
-/// answered). Its process tree was killed; never rerouted, because the turn
-/// may already have had side effects.
 pub const ERR_CLI_STALLED: &str = "ERR_CLI_STALLED";
-/// The CLI printed nothing at all within `start_timeout` of its spawn: the
-/// prompt never took. Its process tree was killed.
 pub const ERR_CLI_NO_START: &str = "ERR_CLI_NO_START";
-/// Quota exhausted. Defined by the router (F2) because that is what reroutes
-/// on it; re-exported here so this module has one error surface.
 pub use super::router::ERR_CLI_RATE;
 
-/// Last known quota per account id, fed by `rate_limit_event` during turns and
-/// read by the router before the next one.
-///
-/// This is the whole quota story on the OmniGet side: an in-memory map filled
-/// by the official stream events. There is no polling loop, no HTTP call and
-/// no credential read anywhere in it.
 #[derive(Debug, Default)]
 pub struct CliCapacity {
     per_account: RwLock<HashMap<String, RateSnapshot>>,
@@ -98,9 +55,6 @@ impl CliCapacity {
         self.per_account.read().ok()?.get(account_id).cloned()
     }
 
-    /// Same, knowing which CLI the account drives. A Codex account is flagged
-    /// `code_specialist`, which is how the router prefers it for a
-    /// `TaskKind::Code` turn without ever looking at an account itself.
     pub fn capacity_of_cli(
         &self,
         account_id: &str,
@@ -125,8 +79,6 @@ impl CliCapacity {
     }
 }
 
-/// [`CapacitySource`] over a [`CliCapacity`] plus the account list, so the
-/// router can ask about a `Candidate` without knowing any of this.
 pub struct CliCapacitySource {
     capacity: Arc<CliCapacity>,
     accounts: Arc<AccountStore>,
@@ -148,25 +100,18 @@ impl CapacitySource for CliCapacitySource {
                         account.disabled,
                         Some(account.cli),
                     ),
-                    // An account that no longer exists can never serve a turn.
                     None => Capacity::unavailable(),
                 }
             }
-            // Native candidates are somebody else's business.
             super::agent::CandidateRuntime::Native { .. } => Capacity::default(),
         }
     }
 }
 
-/// Options that do not come from the agent definition.
 #[derive(Debug, Clone)]
 pub struct CliRuntimeOptions {
-    /// Ask the CLI for token-level deltas (Claude only).
     pub partial_messages: bool,
-    /// Working directory for the child. `None` leaves it at ours.
     pub cwd: Option<PathBuf>,
-    /// Where personal (projectless) conversations run: an empty private
-    /// folder per bot, `<root>/<bot>`. `None` = `<llm dir>/sandboxes`.
     pub sandbox_root: Option<PathBuf>,
 }
 
@@ -180,11 +125,6 @@ impl Default for CliRuntimeOptions {
     }
 }
 
-/// Extra variables for the turns of one conversation, set by whoever owns
-/// it for as long as it runs: a background job hands its child its own
-/// scoped bridge token (`OMNIGET_JOB_TOKEN`, 2.1) this way. Keyed like
-/// `code_tools::set_conversation_workspace`, so the turn finds it by the same
-/// conversation id. Never part of the argv.
 fn conversation_envs(
 ) -> &'static std::sync::Mutex<HashMap<String, std::collections::BTreeMap<String, String>>> {
     static ENVS: std::sync::OnceLock<
@@ -207,7 +147,6 @@ pub fn clear_conversation_env(conversation: &str) {
         .remove(conversation);
 }
 
-/// What [`set_conversation_env`] left for this conversation (empty if none).
 pub fn conversation_env(conversation: &str) -> std::collections::BTreeMap<String, String> {
     conversation_envs()
         .lock()
@@ -217,64 +156,35 @@ pub fn conversation_env(conversation: &str) -> std::collections::BTreeMap<String
         .unwrap_or_default()
 }
 
-/// How one turn is launched, decided from the session record and the caps.
 #[derive(Debug, Clone)]
 pub struct LaunchPlan {
     pub cwd: Option<PathBuf>,
     pub projectless: bool,
-    /// `Some(handle)` = resume the provider session (`--resume`).
     pub resume: Option<String>,
     pub resume_kind: crate::core::assist::runs::ResumeKind,
     pub mcp_config: Option<PathBuf>,
     pub permission_prompt_tool: Option<String>,
     pub restrict_tools: bool,
-    /// An external (MCP-controlled) mission: no built-in tools at all, a
-    /// private empty folder, only OmniGet's projection.
     pub external: bool,
-    /// A project job whose CLI knows `--tools`, `--strict-mcp-config` and
-    /// `--exclude-dynamic-system-prompt-sections`: launched lean (see
-    /// [`claude::PROJECT_TOOLS`]) when the account can write.
     pub lean_project: bool,
-    /// The CLI lists `--effort` in its help (see [`claude::PROJECT_EFFORT`]).
     pub effort_flag: bool,
-    /// The turn's run mode (2.7): the job's or Loop's binding, else the
-    /// chat's choice. `None` = nobody chose: the chat default `auto_edits`,
-    /// which is the argv every turn had before.
     pub run_mode: Option<super::run_mode::RunMode>,
-    /// `claude --help` lists `auto` among the `--permission-mode` choices.
     pub auto_mode: bool,
-    /// `codex exec --help` lists `--approve-for-me` (Codex's `auto`).
     pub approve_for_me: bool,
-    /// The turn's `--settings` file with OmniGet's permission hooks (3.4,
-    /// [`super::claude_hooks`]). `None` = no hook binary or no `--settings`
-    /// in this CLI: the argv of before.
     pub hook_settings: Option<PathBuf>,
-    /// The turn whose file baselines the parser records (3.4).
     pub baseline_request: Option<String>,
-    /// Codex over its app-server (3.6): who asks on behalf of the turn.
-    /// `None` = the one-shot `exec --json` (older Codex, or forced).
     pub app_server: Option<AppServerTurn>,
-    /// A side call (3.7, [`crate::core::llm::router::TaskKind::Side`]): the
-    /// conversation id starts with `side-`. `None` = an ordinary turn.
     pub side: Option<SideLaunch>,
 }
 
-/// How lean a side call can be launched, from the CLI's help: each flag only
-/// when the installed version lists it.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct SideLaunch {
-    /// `--system-prompt` (ours replaces Claude Code's own).
     pub replace_system: bool,
-    /// `--no-session-persistence`.
     pub no_persist: bool,
-    /// `--tools` (an empty list: no built-in tools).
     pub no_tools: bool,
-    /// `--strict-mcp-config` (none of the user's MCP servers).
     pub strict_mcp: bool,
 }
 
-/// The turn a Codex app-server conversation runs for: its approvals become
-/// durable asks of this agent and request (`runs_permissions`).
 #[derive(Debug, Clone)]
 pub struct AppServerTurn {
     pub agent_id: String,
@@ -282,29 +192,17 @@ pub struct AppServerTurn {
     pub conversation: String,
 }
 
-/// The CLI half of `CompositeRuntime`.
 pub struct CliRuntime {
     accounts: Arc<AccountStore>,
     capacity: Arc<CliCapacity>,
     options: CliRuntimeOptions,
-    /// Resolved binary per CLI, so `find_tool` runs once per process.
     binaries: RwLock<HashMap<CliKind, PathBuf>>,
-    /// Probed (or pinned, in tests) capabilities per CLI.
     caps: RwLock<HashMap<CliKind, super::caps::RuntimeCaps>>,
-    /// The windows every turn is launched under (the app pushes the user's
-    /// settings; the shipped defaults until then).
     watchdog: RwLock<WatchdogConfig>,
-    /// "Is a person being asked something for this request id?" — the
-    /// broker's answer, so a turn waiting on a permission prompt is never
-    /// taken for a stuck one.
     pause_probe: Option<PauseProbe>,
-    /// Where a Codex app-server turn sends its approvals (weak: the runtime
-    /// never keeps the broker alive). `None` = every question is declined
-    /// with the reason, as `exec` did.
     broker: Option<std::sync::Weak<super::broker::ToolBroker>>,
 }
 
-/// See [`CliRuntime::with_pause_probe`].
 pub type PauseProbe = Arc<dyn Fn(&str) -> bool + Send + Sync>;
 
 impl std::fmt::Debug for CliRuntime {
@@ -329,22 +227,16 @@ impl CliRuntime {
         }
     }
 
-    /// The broker that asks a person when Codex (app-server) wants a command
-    /// or an edit approved.
     pub fn with_broker(mut self, broker: std::sync::Weak<super::broker::ToolBroker>) -> Self {
         self.broker = Some(broker);
         self
     }
 
-    /// Freezes a turn's idle clock while `probe(request_id)` says a question
-    /// of that turn waits for a person (`ToolBroker::has_pending`).
     pub fn with_pause_probe(mut self, probe: PauseProbe) -> Self {
         self.pause_probe = Some(probe);
         self
     }
 
-    /// The windows the next turns run under. Turns already running keep the
-    /// ones they started with.
     pub fn set_watchdog(&self, config: WatchdogConfig) {
         if let Ok(mut w) = self.watchdog.write() {
             *w = config;
@@ -355,14 +247,12 @@ impl CliRuntime {
         self.watchdog.read().map(|w| *w).unwrap_or_default()
     }
 
-    /// Pins the capabilities of a CLI (tests; a fake binary has no help).
     pub fn set_caps(&self, cli: CliKind, caps: super::caps::RuntimeCaps) {
         if let Ok(mut map) = self.caps.write() {
             map.insert(cli, caps);
         }
     }
 
-    /// What the installed CLI supports, probed once per process.
     pub async fn caps_of(
         &self,
         cli: CliKind,
@@ -409,8 +299,6 @@ impl CliRuntime {
         self.accounts.clone()
     }
 
-    /// Pins a binary by hand. Used by the tests (and by the binary override
-    /// the user can set) so no real CLI is needed to exercise the runtime.
     pub fn set_binary(&self, cli: CliKind, path: PathBuf) {
         if let Ok(mut map) = self.binaries.write() {
             map.insert(cli, path);
@@ -456,8 +344,6 @@ impl CliRuntime {
         Ok(account)
     }
 
-    /// Builds everything the child needs, without spawning. Public so a test
-    /// (and the verifier) can read the argv and the environment.
     pub fn plan(
         &self,
         account: &CliAccount,
@@ -468,8 +354,6 @@ impl CliRuntime {
         self.plan_with(account, binary, req, system_prompt, None)
     }
 
-    /// [`Self::plan`] for a turn with a session decision. `None` keeps the
-    /// legacy launch (no session record: the whole transcript on stdin).
     pub fn plan_with(
         &self,
         account: &CliAccount,
@@ -492,13 +376,7 @@ impl CliRuntime {
                 let resume = launch
                     .filter(|_| side.is_none())
                     .and_then(|l| l.resume.clone());
-                // Resumed: the provider holds the history; only this turn's
-                // instructions/context and the new message travel.
                 let (system_prompt, stdin) = match &resume {
-                    // A side call: the system prompt is the caller's (it
-                    // replaces Claude Code's when the CLI allows), and only
-                    // the conversation itself goes on stdin, no injected
-                    // context (memory, KB) the auditor must not see.
                     None if side.is_some() => {
                         let talk: Vec<super::types::Message> = req
                             .messages
@@ -524,9 +402,6 @@ impl CliRuntime {
                 let mcp = launch
                     .and_then(|l| l.mcp_config.as_ref())
                     .map(|p| p.display().to_string());
-                // Missions measured on 2.1.283: -25..-70% cost per job, mostly
-                // the fixed context (user MCPs, agent tools) and cross-job
-                // cache reuse; the batching line cuts turns.
                 let lean = !external
                     && side.is_none()
                     && !restrict
@@ -544,8 +419,6 @@ impl CliRuntime {
                 } else {
                     system_prompt
                 };
-                // `None` without a turn context: the account's sandbox alone,
-                // as before 2.7.
                 let claude_permission = launch.filter(|_| !external).map(|l| {
                     super::run_mode::claude_permission(
                         l.run_mode.unwrap_or_default().under(account.sandbox),
@@ -563,9 +436,6 @@ impl CliRuntime {
                         .filter(|_| !external)
                         .and_then(|l| l.hook_settings.as_ref())
                         .map(|p| p.display().to_string()),
-                    // The turn's run mode under the account's ceiling. Always
-                    // set, so a turn never inherits whatever the profile's
-                    // `settings.json` happens to say.
                     permission_mode: Some(if external {
                         "default"
                     } else {
@@ -599,8 +469,6 @@ impl CliRuntime {
                     },
                     permission_prompt_tool: launch.and_then(|l| l.permission_prompt_tool.clone()),
                     restricted: external,
-                    // The app's projection (if any) stays; the user's own
-                    // MCP servers do not ride along on a project job.
                     strict_mcp: external || lean || side.is_some_and(|s| s.strict_mcp),
                     exclude_dynamic: lean,
                     effort: launch
@@ -619,8 +487,6 @@ impl CliRuntime {
                 };
                 let mut env = env;
                 if side.is_some() {
-                    // Haiku thinks even at `--effort low` (823 of 862 output
-                    // tokens on a verdict, 2.1.284): off, the audit costs ~6x less.
                     for (k, v) in claude::SIDE_ENV {
                         env.insert(k.to_string(), v.to_string());
                     }
@@ -632,9 +498,6 @@ impl CliRuntime {
                     scrub,
                     cwd,
                     stdin: Some(stdin),
-                    // Filled by `turn` from the watchdog settings: never part
-                    // of the argv, so the plan (and the missions baseline)
-                    // stays byte-identical.
                     ..SpawnSpec::default()
                 };
                 let parser = claude::ClaudeParser::new(self.options.partial_messages);
@@ -690,7 +553,6 @@ impl CliRuntime {
                     } else {
                         last
                     },
-                    // A side call only answers: read-only, whatever the account allows.
                     effective: Some(l.run_mode.unwrap_or_default().under(if l.side.is_some() {
                         accounts::SandboxMode::ReadOnly
                     } else {
@@ -719,8 +581,6 @@ impl CliRuntime {
                 )
             }
             CliKind::Codex => {
-                // With a turn context the run mode decides the flags, capped
-                // by the account; without one, the account's sandbox alone.
                 let permission = launch.map(|l| {
                     super::run_mode::codex_flags(
                         l.run_mode.unwrap_or_default().under(account.sandbox),
@@ -744,9 +604,6 @@ impl CliRuntime {
                     scrub,
                     cwd,
                     stdin: Some(codex::render_prompt(&req.messages)),
-                    // Filled by `turn` from the watchdog settings: never part
-                    // of the argv, so the plan (and the missions baseline)
-                    // stays byte-identical.
                     ..SpawnSpec::default()
                 };
                 let parser = match permission {
@@ -760,8 +617,6 @@ impl CliRuntime {
     }
 }
 
-/// The CLI takes a model alias, not a `provider/model` pair. An empty or
-/// synthetic model name means "whatever the CLI is configured for".
 fn model_of(req: &TurnRequest) -> Option<String> {
     let model = req.model.model.trim();
     if model.is_empty() || model == "default" {
@@ -812,8 +667,6 @@ impl AgentRuntime for CliRuntime {
             ..Default::default()
         };
 
-        // Inside a coordinator turn: pin the session, decide resume vs
-        // replay, pick the folder, project the assistant tools.
         let turn = super::code_tools::current_turn();
         let registry = crate::core::assist::runs::active();
         let mut launch: Option<LaunchPlan> = None;
@@ -821,8 +674,6 @@ impl AgentRuntime for CliRuntime {
         if let Some(turn) = &turn {
             let caps = self.caps_of(kind, &binary).await;
             let external = crate::core::assist::authority::external(&turn.conversation);
-            // External missions never run the CLI in the granted workspace:
-            // its files are reached only through the projection's checked tools.
             let workspace = if external {
                 None
             } else {
@@ -878,8 +729,6 @@ impl AgentRuntime for CliRuntime {
                     },
                 ),
             };
-            // Codex resumes its thread only over the app-server; `exec`
-            // keeps replaying the transcript.
             let native_resume = match kind {
                 CliKind::Claude => caps.native_resume,
                 CliKind::Codex => plan.app_server.is_some(),
@@ -900,9 +749,6 @@ impl AgentRuntime for CliRuntime {
                 };
                 match reg.open_session(&turn.conversation, &agent.id, &pins) {
                     Ok((sess, repinned)) => {
-                        // A named session resumes even with no reply in our
-                        // history: the app died mid-turn (3.1), and the CLI's
-                        // own transcript holds what the agent already did.
                         let resumable = has_history || sess.provider_handle.is_some();
                         if native_resume && !repinned && resumable {
                             if let Some(handle) = sess.provider_handle.clone() {
@@ -931,8 +777,6 @@ impl AgentRuntime for CliRuntime {
                     Err(e) => tracing::warn!("[cli] session record: {e}"),
                 }
             }
-            // The coordinator issued a projection for this turn: hand it to
-            // Claude Code through a private config file.
             if kind == CliKind::Claude && caps.has_flag("--mcp-config") && plan.side.is_none() {
                 if let Some(p) = crate::core::assist::projection::current_turn() {
                     let dir = std::env::temp_dir().join("omniget-mcp");
@@ -952,9 +796,6 @@ impl AgentRuntime for CliRuntime {
                     }
                 }
             }
-            // OmniGet's rules also judge the CLI's own tools (3.4): a
-            // `PreToolUse` hook per call, from a private per-turn folder. A
-            // side call (3.7) has no tools to judge: its argv stays lean.
             if kind == CliKind::Claude
                 && !external
                 && plan.side.is_none()
@@ -982,8 +823,6 @@ impl AgentRuntime for CliRuntime {
                         }
                     }
                     None => {
-                        // Once per process at `warn`: a release without the
-                        // bundled sidecar must be visible in the log.
                         static SAID: std::sync::atomic::AtomicBool =
                             std::sync::atomic::AtomicBool::new(false);
                         if !SAID.swap(true, std::sync::atomic::Ordering::Relaxed) {
@@ -1001,7 +840,6 @@ impl AgentRuntime for CliRuntime {
 
         let (mut spec, parser) =
             self.plan_with(&account, binary, &req, system_prompt, launch.as_ref());
-        // Timing only: the argv the plan built is left exactly as it is.
         self.watchdog().apply(&mut spec);
         if let Some(turn) = &turn {
             spec.env.extend(conversation_env(&turn.conversation));
@@ -1022,8 +860,6 @@ impl AgentRuntime for CliRuntime {
             }));
         }
         let stream = session::spawn_turn_with(spec, parser, req.cancel.clone(), hooks)?;
-        // A resumed handle the provider no longer knows: forget it, so the
-        // next turn replays instead of failing the same way.
         let forget = match (&launch, &registry, &turn) {
             (Some(l), Some(reg), Some(t)) if l.resume.is_some() => reg
                 .session(&t.conversation, &agent.id)
@@ -1121,8 +957,6 @@ mod tests {
         }
     }
 
-    /// A shell script that replays a fixture and exits 0. The whole runtime is
-    /// exercised end to end with no CLI installed.
     #[cfg(unix)]
     fn fake_cli_replaying(name: &str, fixture_name: &str) -> PathBuf {
         let fixture_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))

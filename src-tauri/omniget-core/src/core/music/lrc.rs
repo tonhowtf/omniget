@@ -1,11 +1,3 @@
-//! LRC lyrics: the `[mm:ss.xx] line` format used by sidecar `.lrc` files,
-//! by LRCLIB and by most players.
-//!
-//! Handles the variants seen in the wild: several stamps on one line
-//! (`[00:12.00][01:40.00] chorus`), the `[offset:+/-ms]` tag, two or three
-//! fraction digits, and the "enhanced" per-word stamps (`<00:12.30> word`),
-//! which are kept per line so karaoke highlighting can use them.
-
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -24,14 +16,11 @@ pub struct LrcLine {
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct Lyrics {
-    /// Timed lines sorted by time. Empty for plain (unsynced) lyrics.
     pub lines: Vec<LrcLine>,
-    /// Plain text when the source had no stamps at all.
     pub plain: Option<String>,
     pub title: Option<String>,
     pub artist: Option<String>,
     pub album: Option<String>,
-    /// Already applied to `lines`; kept so a re-save writes it back as 0.
     pub offset_ms: i64,
 }
 
@@ -40,7 +29,6 @@ impl Lyrics {
         !self.lines.is_empty()
     }
 
-    /// Index of the line being sung at `pos_ms`, if any.
     pub fn line_at(&self, pos_ms: i64) -> Option<usize> {
         if self.lines.is_empty() || pos_ms < self.lines[0].time_ms {
             return None;
@@ -50,8 +38,6 @@ impl Lyrics {
     }
 }
 
-/// `mm:ss`, `mm:ss.x`, `mm:ss.xx`, `mm:ss.xxx`, also `mm:ss:xx` (seen in
-/// some old rips). Hours are allowed as `hh:mm:ss.xx`.
 fn parse_stamp(s: &str) -> Option<i64> {
     let s = s.trim();
     let (main, frac) = match s.rfind(['.', ',']) {
@@ -62,7 +48,6 @@ fn parse_stamp(s: &str) -> Option<i64> {
     let (h, m, sec, frac) = match (parts.len(), frac) {
         (2, f) => (0, parts[0], parts[1], f),
         (3, None) if parts[2].len() == 2 && parts[0].len() <= 3 => {
-            // mm:ss:xx (centiseconds after a colon)
             (0, parts[0], parts[1], Some(parts[2]))
         }
         (3, f) => (parts[0].parse::<i64>().ok()?, parts[1], parts[2], f),
@@ -202,7 +187,6 @@ pub fn parse(input: &str) -> Lyrics {
     }
 
     if any_stamp {
-        // A positive offset means the lyrics come earlier (LRC convention).
         let off = out.offset_ms;
         for l in &mut out.lines {
             l.time_ms = (l.time_ms - off).max(0);
@@ -228,7 +212,6 @@ fn fmt_stamp(ms: i64) -> String {
     format!("{m:02}:{s:02}.{cs:02}")
 }
 
-/// Writes the lyrics back as LRC (offset already applied, so it is omitted).
 pub fn serialize(l: &Lyrics) -> String {
     let mut out = String::new();
     if let Some(v) = &l.title {
@@ -266,8 +249,6 @@ pub fn serialize(l: &Lyrics) -> String {
     out
 }
 
-/// Converts WebVTT or SRT subtitles (what yt-dlp saves) into timed lines, so
-/// a downloaded music video's captions can serve as lyrics.
 pub fn from_subtitles(input: &str) -> Lyrics {
     let mut out = Lyrics::default();
     let mut pending: Option<i64> = None;

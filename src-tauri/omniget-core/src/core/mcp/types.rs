@@ -1,12 +1,3 @@
-//! Wire types of MCP, shared by our client (`core/mcp`) and our server
-//! (`src-tauri/src/mcp.rs`). One definition of `ToolDef` for both directions is
-//! the whole point: a tool we publish and a tool we consume cannot drift.
-//! Owned by f3-mcp-core.
-//!
-//! Everything here is pure: building a request, classifying an incoming
-//! message, reading a tool result, resolving a `secret:<id>` header. No I/O, so
-//! every wire detail is unit-tested without a server.
-
 use std::collections::BTreeMap;
 
 use serde::{Deserialize, Serialize};
@@ -14,25 +5,15 @@ use serde_json::{json, Map, Value};
 
 use super::error::{McpError, ERR_MCP_HTTP, ERR_MCP_SPAWN};
 
-/// Version we ask for. The server may answer with an older one it supports.
 pub const PROTOCOL_VERSION: &str = "2025-06-18";
 
-/// Versions we know how to talk. `2024-11-05` and `2025-03-26` differ from
-/// `2025-06-18` in ways that do not touch what this client uses (initialize,
-/// tools/list, tools/call, resources/list, prompts/list).
 pub const SUPPORTED_PROTOCOL_VERSIONS: &[&str] = &["2024-11-05", "2025-03-26", "2025-06-18"];
 
-/// How the config file spells "this value lives in the secret store".
 pub const SECRET_PREFIX: &str = "secret:";
-/// Namespace passed to `core::secrets::get`.
 pub const SECRET_NS: &str = "mcp";
 
-/// What the client says it is.
 pub const CLIENT_NAME: &str = "OmniGet";
 
-// ── Tools ──────────────────────────────────────────────────────────────
-
-/// One tool, as `tools/list` returns it and as our own server publishes it.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ToolDef {
     pub name: String,
@@ -65,14 +46,11 @@ impl ToolDef {
         }
     }
 
-    /// A tool whose schema is not an object is not callable by a model: every
-    /// provider's function-calling API requires an object at the top.
     pub fn schema_is_object(&self) -> bool {
         self.input_schema.get("type").and_then(|t| t.as_str()) == Some("object")
     }
 }
 
-/// Server identity from `initialize`.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct ServerInfo {
     #[serde(default)]
@@ -99,8 +77,6 @@ impl InitializeResult {
     }
 }
 
-// ── JSON-RPC framing ───────────────────────────────────────────────────
-
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct RpcError {
     pub code: i64,
@@ -110,17 +86,11 @@ pub struct RpcError {
     pub data: Option<Value>,
 }
 
-/// What an incoming line/event turned out to be.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Incoming {
-    /// A reply to one of our requests.
     Result { id: String, result: Value },
-    /// A reply that failed.
     Failure { id: String, error: RpcError },
-    /// A request or notification coming *from* the server. We display none of
-    /// them today (no sampling, no roots), so the client only logs and skips.
     ServerMessage { method: String },
-    /// Valid JSON, but not a JSON-RPC message we can place.
     Unknown,
 }
 
@@ -145,7 +115,6 @@ pub fn notification(method: &str, params: Option<Value>) -> Value {
     Value::Object(m)
 }
 
-/// Params of `initialize`, the way every server expects them.
 pub fn initialize_params(client_version: &str) -> Value {
     json!({
         "protocolVersion": PROTOCOL_VERSION,
@@ -154,9 +123,6 @@ pub fn initialize_params(client_version: &str) -> Value {
     })
 }
 
-/// A JSON-RPC id normalised to a string. The spec allows a number **or** a
-/// string, and real servers echo `3` back as `"3"`, so the pending table is
-/// keyed by this instead of by `i64`.
 pub fn id_key(v: &Value) -> Option<String> {
     match v {
         Value::Number(n) => Some(n.to_string()),
@@ -192,9 +158,6 @@ pub fn classify(v: &Value) -> Incoming {
     }
 }
 
-/// The `tools` array of a `tools/list` result, skipping entries that are not
-/// usable instead of failing the whole listing: one broken tool in a server of
-/// forty must not hide the other thirty-nine.
 pub fn parse_tools(result: &Value) -> Vec<ToolDef> {
     result
         .get("tools")
@@ -208,8 +171,6 @@ pub fn parse_tools(result: &Value) -> Vec<ToolDef> {
         .unwrap_or_default()
 }
 
-/// `true` when the server reported a tool-level failure (spec: a failing tool
-/// answers with a normal result carrying `isError: true`, not a JSON-RPC error).
 pub fn is_tool_error(result: &Value) -> bool {
     result
         .get("isError")
@@ -217,7 +178,6 @@ pub fn is_tool_error(result: &Value) -> bool {
         .unwrap_or(false)
 }
 
-/// The human-readable part of a tool result: every `text` block joined.
 pub fn tool_result_text(result: &Value) -> String {
     let parts: Vec<&str> = result
         .get("content")
@@ -231,8 +191,6 @@ pub fn tool_result_text(result: &Value) -> String {
     parts.join("\n")
 }
 
-// ── Server configuration ───────────────────────────────────────────────
-
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "lowercase")]
 pub enum Transport {
@@ -240,8 +198,6 @@ pub enum Transport {
         command: String,
         #[serde(default)]
         args: Vec<String>,
-        /// Extra environment on top of the inherited one. A server needs `PATH`
-        /// to find `node`/`uvx`, so the parent environment is not cleared.
         #[serde(default)]
         env: BTreeMap<String, String>,
         #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -262,7 +218,6 @@ pub struct McpServerConfig {
     pub transport: Transport,
     #[serde(default = "enabled_default")]
     pub enabled: bool,
-    /// Per-call deadline. `None` = [`DEFAULT_TIMEOUT_MS`].
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub timeout_ms: Option<u64>,
 }
@@ -271,8 +226,6 @@ fn enabled_default() -> bool {
     true
 }
 
-/// Long enough for a tool that shells out (a `git clone`, a browser step),
-/// short enough that a hung server does not freeze a turn forever.
 pub const DEFAULT_TIMEOUT_MS: u64 = 60_000;
 
 impl McpServerConfig {
@@ -284,20 +237,10 @@ impl McpServerConfig {
         matches!(self.transport, Transport::Stdio { .. })
     }
 
-    /// Deterministic id of the secret behind one header/env entry. Stable on
-    /// purpose: editing a server twice overwrites one entry in the store
-    /// instead of leaving a trail of orphans.
     pub fn secret_id_for(&self, kind: &str, name: &str) -> String {
         secret_id(&self.id, kind, name)
     }
 
-    /// Takes every literal secret out of the config, replaces it with a
-    /// `secret:<id>` reference, and hands the caller the `(id, value)` pairs to
-    /// write into the secret store. After this, serialising the config cannot
-    /// put a token on disk.
-    ///
-    /// Returns an empty vector when there was nothing to take: a value that is
-    /// already a reference, an empty value, or a name that is not secret-ish.
     pub fn extract_secrets(&mut self) -> Vec<(String, String)> {
         let id = self.id.clone();
         let take = |kind: &str,
@@ -320,8 +263,6 @@ impl McpServerConfig {
         out
     }
 
-    /// Ids of every secret this config points at, so removing a server can
-    /// remove its secrets too.
     pub fn secret_ids(&self) -> Vec<String> {
         let values: Vec<&String> = match &self.transport {
             Transport::Stdio { env, .. } => env.values().collect(),
@@ -333,9 +274,6 @@ impl McpServerConfig {
             .collect()
     }
 
-    /// Refuses a config the registry must not save: a bad id, or a literal
-    /// secret still sitting in a header or in the environment. Call
-    /// [`Self::extract_secrets`] first and this always passes.
     pub fn validate(&self) -> Result<(), McpError> {
         if !valid_id(&self.id) {
             return Err(McpError::new(
@@ -375,8 +313,6 @@ impl McpServerConfig {
     }
 }
 
-/// Same slug rule as the agent roster, so an id is safe in a file name, in a
-/// tool prefix (`server__tool`) and in a URL.
 pub fn valid_id(id: &str) -> bool {
     !id.is_empty()
         && id.len() <= 64
@@ -385,9 +321,6 @@ pub fn valid_id(id: &str) -> bool {
             .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-' || c == '_')
 }
 
-// ── Secret references ──────────────────────────────────────────────────
-
-/// The secret id inside a `secret:<id>` reference, if that is what this is.
 pub fn secret_ref(value: &str) -> Option<&str> {
     value
         .strip_prefix(SECRET_PREFIX)
@@ -395,22 +328,13 @@ pub fn secret_ref(value: &str) -> Option<&str> {
         .filter(|s| !s.is_empty())
 }
 
-/// How a secret is read at connect time. A function instead of a hard call to
-/// `core::secrets` so the registry can hand its own store down and a test can
-/// prove the whole path without touching a keychain or a process-wide env var.
 pub type SecretLookup =
     std::sync::Arc<dyn Fn(&str) -> Result<Option<String>, String> + Send + Sync>;
 
-/// Production wiring: the app's secret store under the `mcp` namespace.
 pub fn default_lookup() -> SecretLookup {
     std::sync::Arc::new(|id: &str| crate::core::secrets::get(SECRET_NS, id))
 }
 
-/// A header or environment variable whose value must never sit in
-/// `mcp-servers.json` in clear. Deliberately broad: a false positive costs one
-/// entry in the secret store, a false negative leaks a token into a file the
-/// user will paste into an issue.
-/// `<server>-<kind>-<name>`: the id under which one header/env value is stored.
 pub fn secret_id(server_id: &str, kind: &str, name: &str) -> String {
     let slug: String = name
         .to_ascii_lowercase()
@@ -447,8 +371,6 @@ where
     }
 }
 
-/// Resolve `secret:<id>` header values through `lookup`. Pure: the store is the
-/// caller's business, which is what makes this testable without a keychain.
 pub fn resolve_headers_with<F>(
     headers: &BTreeMap<String, String>,
     lookup: F,
@@ -470,8 +392,6 @@ pub fn resolve_headers(
     resolve_headers_with(headers, |id| lookup(id))
 }
 
-/// Same for the environment of a stdio server. A `GITHUB_TOKEN` is exactly as
-/// secret as an `Authorization` header, and it used to reach the child raw.
 pub fn resolve_env_with<F>(
     env: &BTreeMap<String, String>,
     lookup: F,
@@ -493,8 +413,6 @@ pub fn resolve_env(
     resolve_env_with(env, |id| lookup(id))
 }
 
-/// Headers with every value that came from a secret (or looks like a token)
-/// replaced, for logs and for anything the UI shows.
 pub fn redacted(headers: &BTreeMap<String, String>) -> BTreeMap<String, String> {
     headers
         .iter()
@@ -574,8 +492,6 @@ mod tests {
         assert_eq!(classify(&json!({ "hello": 1 })), Incoming::Unknown);
     }
 
-    /// A server request (method **and** id) is still a server message: the
-    /// pending table must not be woken by it.
     #[test]
     fn a_server_request_is_not_mistaken_for_a_reply() {
         assert!(matches!(
@@ -595,7 +511,6 @@ mod tests {
         let tools = parse_tools(&result);
         assert_eq!(tools.len(), 2);
         assert_eq!(tools[0].name, "a");
-        // A tool with no schema still gets a callable object schema.
         assert_eq!(tools[1].name, "b");
         assert!(tools[1].schema_is_object());
     }
@@ -617,7 +532,6 @@ mod tests {
         let bad = json!({ "content": [{ "type": "text", "text": "boom" }], "isError": true });
         assert!(is_tool_error(&bad));
         assert_eq!(tool_result_text(&bad), "boom");
-        // Blocks with no text (an image) do not blow up the join.
         let img = json!({ "content": [{ "type": "image", "data": "..." }] });
         assert_eq!(tool_result_text(&img), "");
     }
@@ -795,7 +709,6 @@ mod tests {
         assert!(text.contains("secret:gh-header-authorization"));
         assert!(text.contains("\"X-Trace\":\"on\""), "{}", text);
         cfg.validate().unwrap();
-        // Idempotent: running it again takes nothing and keeps the reference.
         assert!(cfg.extract_secrets().is_empty());
         assert_eq!(
             cfg.secret_ids(),

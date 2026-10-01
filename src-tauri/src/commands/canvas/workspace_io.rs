@@ -1,7 +1,3 @@
-//! Whole-workspace export/import (one `.omniget` file) and backups. Logic in
-//! `omniget_core::core::canvas::workspace_io`; the MCP tools call the same
-//! functions through [`export`], [`import_preview`], [`restore`] and friends.
-
 use std::path::PathBuf;
 use std::sync::Arc;
 
@@ -40,7 +36,6 @@ fn path_arg(p: &str) -> Result<PathBuf, String> {
     Ok(PathBuf::from(p))
 }
 
-/// Closes every terminal of a workspace (restore rewrites its documents).
 pub fn close_workspace_terminals(s: &CanvasStore, ws: &str) {
     let Ok(w) = s.workspace(ws) else { return };
     for f in &w.floors {
@@ -88,7 +83,6 @@ pub async fn restore(s: Arc<CanvasStore>, ws: String, backup: String) -> Result<
         let running = running_terminals(&s, &ws);
         close_workspace_terminals(&s, &ws);
         let meta = wio::restore_backup(&s, &ws, &backup)?;
-        // The terminals that were running come back (the restored ones only).
         for (floor, node) in running {
             let still = s
                 .read(&ws, &floor, |d| {
@@ -104,7 +98,6 @@ pub async fn restore(s: Arc<CanvasStore>, ws: String, backup: String) -> Result<
     .await
 }
 
-/// `(floor, node)` of every terminal node of `ws` whose process is alive.
 fn running_terminals(s: &CanvasStore, ws: &str) -> Vec<(String, String)> {
     let Ok(w) = s.workspace(ws) else {
         return Vec::new();
@@ -133,8 +126,6 @@ fn running_terminals(s: &CanvasStore, ws: &str) -> Vec<(String, String)> {
     out
 }
 
-/// Hourly backup job, started once with the canvas host. Waits a few
-/// minutes after boot, then snapshots every workspace that changed.
 pub fn start_backup_scheduler(s: Arc<CanvasStore>) {
     use std::sync::atomic::{AtomicBool, Ordering};
     static ON: AtomicBool = AtomicBool::new(false);

@@ -1,29 +1,3 @@
-//! `opencode` driver: OpenCode through its own HTTP server (`opencode serve`)
-//! instead of ACP. Our own HTTP + SSE client (reqwest + [`translate::SseParser`]),
-//! no SDK.
-//!
-//! One server per thread: `opencode serve --hostname=127.0.0.1 --port=<free>`
-//! with a random `OPENCODE_SERVER_PASSWORD` (HTTP Basic `opencode:<pw>`; a
-//! request without it gets 401 — checked against 1.18.32). Readiness is the
-//! stdout line `opencode server listening on http://…`.
-//!
-//! - session: `POST /session {title, permission: ruleset(access)}`; resume =
-//!   `GET /session/{id}` (404 ⇒ new; other directory ⇒ `POST …/fork` into the
-//!   new one) + `PATCH /session/{id} {permission}`.
-//! - turn: `POST /session/{id}/prompt_async {parts, model?, agent}`; events
-//!   from `GET /event` (SSE) until `session.idle`.
-//! - interrupt: `POST /session/{id}/abort`.
-//! - approvals: `permission.asked` → `request.opened`;
-//!   `POST /permission/{id}/reply {reply: once|always|reject}`.
-//! - questions: `question.asked` → `user-input.requested`;
-//!   `POST /question/{id}/reply {answers}` or `…/reject`.
-//! - rollback/fork: `POST /session/{id}/fork {messageID}` keeps the messages
-//!   *before* `messageID` (verified live), so "keep N turns" forks at the
-//!   (N+1)-th user message. OpenCode's own `revert` is not used: it rewrites
-//!   files, and files are the checkpoints' job.
-//! - MCP: `POST /mcp {name, config}` for the servers of
-//!   [`super::acp::mcp_servers_for`].
-
 pub mod translate;
 
 use std::collections::HashMap;
@@ -70,7 +44,6 @@ pub fn capabilities() -> DriverCapabilities {
     }
 }
 
-/// Register the `opencode` driver kind. Call once (the threads host setup).
 pub fn register() {
     super::register_driver(DriverRegistration {
         kind: KIND.into(),
@@ -82,7 +55,6 @@ pub fn register() {
     });
 }
 
-/// The default instance, when OpenCode can start here.
 pub fn instances() -> Vec<DriverInstance> {
     let inst = DriverInstance::new(KIND, KIND, "OpenCode");
     if base_command(&inst).is_some() {
@@ -92,9 +64,6 @@ pub fn instances() -> Vec<DriverInstance> {
     }
 }
 
-/// Program + leading args that run the OpenCode CLI (before `serve …`):
-/// the instance's command, the `opencode` binary, or the ACP registry
-/// install (its `… acp` launch minus `acp`).
 pub fn base_command(instance: &DriverInstance) -> Option<(String, Vec<String>)> {
     if let Some(cmd) = instance.command.clone().filter(|c| !c.trim().is_empty()) {
         return Some((cmd, instance.args.clone()));
@@ -118,15 +87,12 @@ fn free_port() -> Option<u16> {
         .map(|a| a.port())
 }
 
-/// Parse the readiness line.
 pub fn listening_url(line: &str) -> Option<String> {
     let rest = line.split("listening on").nth(1)?.trim();
     let url: String = rest.chars().take_while(|c| !c.is_whitespace()).collect();
     url.starts_with("http")
         .then(|| url.trim_end_matches('/').to_string())
 }
-
-// ── Server ──────────────────────────────────────────────────────────────
 
 struct Server {
     base: String,
@@ -210,7 +176,6 @@ impl Server {
                 return Err(http_err(&format!("opencode serve {why}"), tail.text()));
             }
         };
-        // Keep draining stdout: a full pipe blocks OpenCode.
         let rest = lines.into_inner();
         proc::drain_into(rest, tail.clone());
         let dead = Arc::new(AtomicBool::new(false));
@@ -305,8 +270,6 @@ fn url_encode(s: &str) -> String {
     }
     out
 }
-
-// ── Session ─────────────────────────────────────────────────────────────
 
 struct Turn {
     id: String,
@@ -424,8 +387,6 @@ impl Session {
                     }
                 }
                 Out::Permission { request_id, .. } => {
-                    // Full access still gets asks that bypass the ruleset
-                    // (doom-loop, subagents): answer `once`, never `always`.
                     if *self.access.lock().unwrap_or_else(|e| e.into_inner())
                         == AccessMode::FullAccess
                     {
@@ -530,7 +491,6 @@ impl Session {
         Ok(())
     }
 
-    /// The SSE pump: `GET /event` until the server goes away.
     fn start_pump(self: &Arc<Self>) {
         let me = self.clone();
         let handle = tokio::spawn(async move {
@@ -643,7 +603,6 @@ impl Session {
             .collect())
     }
 
-    /// Fork keeping the first `turn_count` turns; `None` keeps everything.
     async fn fork_at(&self, turn_count: Option<u32>) -> Result<String, DriverError> {
         let users = self.user_message_ids().await?;
         let body = match turn_count {
@@ -666,13 +625,10 @@ impl Session {
     }
 }
 
-// ── Driver ──────────────────────────────────────────────────────────────
-
 pub struct OpenCodeDriver {
     instance: DriverInstance,
     sink: RuntimeSink,
     sessions: Mutex<HashMap<String, Arc<Session>>>,
-    /// Forked sessions waiting for their thread's `start_session`.
     pending_forks: StdMutex<HashMap<String, String>>,
 }
 
@@ -760,7 +716,6 @@ impl OpenCodeDriver {
                     if same {
                         Some(id)
                     } else {
-                        // The thread moved (worktree): keep the history there.
                         let forked = server
                             .ok(
                                 reqwest::Method::POST,

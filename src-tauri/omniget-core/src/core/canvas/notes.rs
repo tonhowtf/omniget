@@ -1,13 +1,3 @@
-//! Notes are real `.md` files. Internal ones live in `<ws>/notes/` and belong
-//! to their node (deleting the node trashes the file); external ones keep the
-//! absolute path they were dropped from and are never deleted by the canvas.
-//!
-//! `revision` = first 16 hex chars of SHA-256 of the UTF-8 text (Maestri).
-//! Writes may carry `ifRevision`; a mismatch is `CANVAS_NOTE_CONFLICT: <current>`
-//! and the UI decides. No file watcher crate is in the workspace, so outside
-//! edits are caught by polling: every note read is watched for a while and
-//! [`poll_changes`] compares mtimes (the app host calls it every 2 s).
-
 use super::model::{CanvasNode, NodeKind, NoteData};
 use super::ops::Op;
 use super::store::{CanvasStore, NoteEvent, StoreEvent, WatchEntry, ORIGIN_SYSTEM};
@@ -16,9 +6,7 @@ use sha2::{Digest, Sha256};
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant, SystemTime};
 
-/// Notes unread for this long drop out of the poll set.
 pub const WATCH_TTL: Duration = Duration::from_secs(10 * 60);
-/// Longest note the canvas reads or writes.
 pub const MAX_NOTE_BYTES: usize = 8 * 1024 * 1024;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -60,7 +48,6 @@ pub fn revision(text: &str) -> String {
     hex::encode(digest)[..16].to_string()
 }
 
-/// Display name from the first non-empty line, without markdown heading marks.
 pub fn derive_name(text: &str) -> String {
     let line = text
         .lines()
@@ -111,7 +98,6 @@ fn read_text(path: &Path) -> Result<String, String> {
     Ok(String::from_utf8_lossy(&bytes).into_owned())
 }
 
-/// Resolves a note node to its file.
 pub fn note_path(
     store: &CanvasStore,
     ws: &str,
@@ -172,8 +158,6 @@ fn watch(store: &CanvasStore, ws: &str, node_id: &str, path: &Path, rev: &str) {
         );
 }
 
-/// Where the previous version of a note file is kept: under the app data dir,
-/// never next to the note (a `.bak` inside the user's repo would end up in git).
 pub fn backup_path(store: &CanvasStore, path: &Path) -> PathBuf {
     let digest = Sha256::digest(path.to_string_lossy().as_bytes());
     let name = path
@@ -189,8 +173,6 @@ pub fn backup_path(store: &CanvasStore, path: &Path) -> PathBuf {
         .join(format!("{}-{name}.bak", &hex::encode(digest)[..16]))
 }
 
-/// Atomic note write (temp + fsync + rename in the same dir) that keeps the
-/// previous version in [`backup_path`] instead of a sibling `.bak`.
 pub fn write_note_file(store: &CanvasStore, path: &Path, bytes: &[u8]) -> Result<(), String> {
     use std::io::Write;
     let dir = path.parent().ok_or("path has no parent")?;
@@ -218,7 +200,6 @@ pub fn write_note_file(store: &CanvasStore, path: &Path, bytes: &[u8]) -> Result
     })
 }
 
-/// Reads a note. A missing internal file reads as empty (it is created lazily).
 pub fn read(
     store: &CanvasStore,
     ws: &str,
@@ -237,9 +218,6 @@ pub fn read(
     Ok(c)
 }
 
-/// Writes a note. With `if_revision`, the write only happens when the file
-/// still has that revision. Unless the note has a custom name, the node title
-/// follows the first line (applied as `origin`).
 pub fn write(
     store: &CanvasStore,
     ws: &str,
@@ -286,8 +264,6 @@ pub fn write(
     Ok(c)
 }
 
-/// Every note of a workspace: internal files in `notes/` (with the node that
-/// owns each, when there is one) plus external notes referenced by nodes.
 pub fn list(store: &CanvasStore, ws: &str) -> Result<Vec<NoteSummary>, String> {
     let meta = store.workspace(ws)?;
     let mut owned: Vec<(String, CanvasNode)> = Vec::new();
@@ -322,7 +298,6 @@ pub fn list(store: &CanvasStore, ws: &str) -> Result<Vec<NoteSummary>, String> {
             preview: c.preview,
         });
     }
-    // Orphan internal files (written by an agent, or left by a crash).
     if let Ok(rd) = std::fs::read_dir(store.notes_dir(ws)) {
         for e in rd.flatten() {
             let p = e.path();
@@ -347,8 +322,6 @@ pub fn list(store: &CanvasStore, ws: &str) -> Result<Vec<NoteSummary>, String> {
     Ok(out)
 }
 
-/// Creates a note node with `text` at `(x, y)` and returns its node id.
-/// For agents: `create(&store, ws, floor, x, y, "# Plan\n...", &agent_origin(me))`.
 pub fn create(
     store: &CanvasStore,
     ws: &str,
@@ -385,8 +358,6 @@ pub fn create(
     Ok(id)
 }
 
-/// Resolves a user-given note path: `~` expands to home, a relative path is
-/// taken from the workspace folder, and a folder gets `<name>.md` inside it.
 pub fn resolve_note_target(
     store: &CanvasStore,
     ws: &str,
@@ -424,9 +395,6 @@ pub fn resolve_note_target(
     Ok(p)
 }
 
-/// Creates a note node backed by an external file (Maestri: a `.md`,
-/// `.markdown` or `.txt` dropped on the canvas stays where it is). A missing
-/// file is created with `text`; an existing one is never overwritten here.
 #[allow(clippy::too_many_arguments)]
 pub fn create_external(
     store: &CanvasStore,
@@ -479,10 +447,6 @@ pub fn create_external(
     Ok(id)
 }
 
-/// Maestri "Move to…": writes the note to `dest` and makes it an external
-/// note there (deleting the node later keeps that file). An internal file
-/// goes to the workspace trash; a previous external file is left alone.
-/// Refuses to overwrite a different existing file.
 pub fn move_to(
     store: &CanvasStore,
     ws: &str,
@@ -534,9 +498,6 @@ pub fn move_to(
     read(store, ws, floor, node_id)
 }
 
-/// Checks watched notes for outside edits; emits `StoreEvent::Note` (origin
-/// "system") for each changed one and returns them. Cheap: one `stat` per
-/// watched note, a read only when the mtime moved.
 pub fn poll_changes(store: &CanvasStore) -> Vec<NoteEvent> {
     let now = Instant::now();
     let mut changed = Vec::new();

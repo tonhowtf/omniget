@@ -1,11 +1,3 @@
-//! Structural validator: size, encoding, frontmatter, required fields per
-//! kind, description length, tool names per origin tool, model id, sections.
-//!
-//! Improvements over the original: required fields follow what each tool
-//! actually loads (Claude agents need `name` + `description`, not `tools`;
-//! commands need no frontmatter at all), and a tool list in another tool's
-//! vocabulary is reported as "another tool's format", never as an error.
-
 use super::model::{Finding, Severity, Sink, Validator};
 use super::rules::sev;
 use super::text::{parse_frontmatter, Frontmatter, LineIndex};
@@ -19,7 +11,6 @@ fn f(code: &str, file: &str, detail: impl Into<String>) -> Finding {
     Finding::new(code, Validator::Structural, sev(code), file, detail)
 }
 
-/// Byte-level checks for any text file. Returns the text when it decodes.
 pub fn check_bytes(
     file: &str,
     bytes: &[u8],
@@ -62,7 +53,6 @@ pub fn check_bytes(
     }
 }
 
-/// The tool whose format a Markdown component is written in.
 pub fn detect_tool(file: &str, fm: &Frontmatter) -> String {
     if let Some(t) = tools::detect_from_path(file) {
         return t.to_string();
@@ -93,7 +83,6 @@ pub fn detect_tool(file: &str, fm: &Frontmatter) -> String {
     "claude".into()
 }
 
-/// Checks for a Markdown file of the component.
 pub fn check_markdown(
     ctx: &mut Ctx,
     file: &str,
@@ -135,7 +124,6 @@ pub fn check_markdown(
         }
     }
 
-    // Required fields.
     if fm.present {
         let required: &[&str] = match (ctx.kind, effective.as_str()) {
             (Kind::Agent, "copilot") => &["description"],
@@ -171,7 +159,6 @@ pub fn check_markdown(
                 None => {}
             }
         }
-        // Tool list.
         let key = ["tools", "allowed-tools", "allowed_tools"]
             .into_iter()
             .find(|k| fm.get(k).is_some());
@@ -184,7 +171,6 @@ pub fn check_markdown(
             let fp = tools::tools_fingerprint(&items);
             let line = line_of_key(text, key);
             if let Some(fp) = fp.filter(|fp| *fp != effective.as_str()) {
-                // Written for another tool than the one claimed.
                 ctx.foreign = Some(fp.to_string());
                 let mut x = f(
                     "STRUCT_W012",
@@ -215,10 +201,8 @@ pub fn check_markdown(
                 && ctx.origin.is_none()
                 && effective != "claude"
             {
-                // Detected native format of another tool without a claim: info only.
                 sink.push(f("STRUCT_I005", file, format!("native {effective} format")));
             }
-            // Unrestricted Bash grant in a command/skill.
             if matches!(ctx.kind, Kind::Command | Kind::Skill)
                 && items
                     .iter()
@@ -238,7 +222,6 @@ pub fn check_markdown(
         } else if effective != "claude" && ctx.origin.is_none() {
             sink.push(f("STRUCT_I005", file, format!("native {effective} format")));
         }
-        // Model.
         if let Some(m) = fm.str("model") {
             let m = m.trim();
             if effective == "claude" && !m.is_empty() {
@@ -262,7 +245,6 @@ pub fn check_markdown(
                 }
             }
         }
-        // Skill name ↔ folder.
         if ctx.kind == Kind::Skill {
             if let Some(name) = fm.str("name") {
                 let kebab = !name.is_empty()
@@ -284,7 +266,6 @@ pub fn check_markdown(
         }
     }
 
-    // Body.
     let body = &text[fm.body_offset.min(text.len())..];
     let body_len = body.trim().chars().count();
     if body_len < 50 && matches!(ctx.kind, Kind::Agent | Kind::Skill | Kind::Command) {
@@ -297,7 +278,6 @@ pub fn check_markdown(
     fm
 }
 
-/// Headings outside code fences.
 pub fn count_sections(text: &str) -> usize {
     let mut n = 0;
     let mut in_fence = false;
@@ -330,7 +310,6 @@ fn idx_line<'a>(text: &'a str, _idx: &LineIndex, line: u32) -> &'a str {
         .unwrap_or("")
 }
 
-/// JSON shape required by kind.
 pub fn check_json_shape(kind: Kind, file: &str, v: &serde_json::Value, sink: &mut Sink) {
     let obj = match v.as_object() {
         Some(o) => o,

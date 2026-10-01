@@ -1,13 +1,3 @@
-//! Structural copy and paste of a canvas selection (Maestri M-B21): nodes,
-//! cords with both ends inside, drawings, groups, cable ties, note texts and
-//! each terminal's chat history. Unlike a partitura this is not a blueprint:
-//! terminal `cwd`/`command`, file tree roots and absolute paths travel as they
-//! are. Pasting remaps every id, so the same clip can be pasted many times,
-//! into any workspace or floor.
-//!
-//! The clip is mirrored to the OS clipboard as text (`CLIP_MARKER` + JSON), so
-//! it survives a relaunch and reaches another window.
-
 use super::chat::{self, ChatEntry};
 use super::model::{
     new_id, now_rfc3339, CableTie, CanvasNode, Connection, Drawing, FloorDoc, Group, NodeKind,
@@ -22,9 +12,7 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 
 pub const CLIP_FORMAT: &str = "omniget.canvas-clip";
 pub const CLIP_VERSION: u32 = 1;
-/// First line of the OS clipboard text that carries a clip.
 pub const CLIP_MARKER: &str = "omniget-canvas-clip/v1";
-/// Offset of each repeated paste at the view centre.
 pub const CASCADE: f64 = 40.0;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -39,7 +27,6 @@ pub struct Clip {
     pub source_floor_id: String,
     #[serde(default)]
     pub copied_at: String,
-    /// Size of the selection; coordinates are relative to its top-left.
     #[serde(default)]
     pub bounds: Size,
     #[serde(default)]
@@ -52,10 +39,8 @@ pub struct Clip {
     pub groups: Vec<Group>,
     #[serde(default)]
     pub cable_ties: Vec<CableTie>,
-    /// Note node id -> markdown.
     #[serde(default)]
     pub note_texts: BTreeMap<String, String>,
-    /// Terminal node id -> chat transcript (every thread).
     #[serde(default)]
     pub chats: BTreeMap<String, Vec<ChatEntry>>,
 }
@@ -90,7 +75,6 @@ pub struct ClipSelection {
     pub drawing_ids: Vec<String>,
 }
 
-/// OS clipboard text for a clip.
 pub fn encode_text(clip: &Clip) -> String {
     format!(
         "{CLIP_MARKER}\n{}",
@@ -98,15 +82,12 @@ pub fn encode_text(clip: &Clip) -> String {
     )
 }
 
-/// The clip carried by an OS clipboard text, if it is one of ours.
 pub fn decode_text(text: &str) -> Option<Clip> {
     let rest = text.trim_start().strip_prefix(CLIP_MARKER)?;
     let clip: Clip = serde_json::from_str(rest.trim()).ok()?;
     (clip.format == CLIP_FORMAT && clip.version <= CLIP_VERSION).then_some(clip)
 }
 
-/// Builds a clip from a selection of one floor. A selected stack brings its
-/// notes; cross-floor connector chips stay behind.
 pub fn build(
     doc: &FloorDoc,
     ws: &str,
@@ -133,7 +114,6 @@ pub fn build(
         let mut n = n.clone();
         if n.kind == NodeKind::Note {
             texts.insert(n.id.clone(), note_text(&n).unwrap_or_default());
-            // The copy is its own note file; an external file stays with the original.
             if let Some(d) = n.data.as_object_mut() {
                 for k in ["path", "isExternal", "fileName"] {
                     d.remove(k);
@@ -185,7 +165,6 @@ pub fn build(
             (!t.member_connection_ids.is_empty()).then_some(t)
         })
         .collect();
-    // Groups travel when at least two of their members do.
     let mut members: HashMap<String, usize> = HashMap::new();
     for g in nodes
         .iter()
@@ -253,8 +232,6 @@ pub fn build(
     })
 }
 
-/// Where a paste lands: an explicit top-left (right-click Paste), or centred
-/// on a point with the cascade of repeated pastes.
 #[derive(Debug, Clone, Copy)]
 pub enum Placement {
     At(Point),
@@ -265,7 +242,6 @@ impl Placement {
     pub fn top_left(&self, bounds: Size) -> Point {
         match *self {
             Placement::At(p) => p,
-            // Centred pastes land on the grid (every stored frame is snapped).
             Placement::Centered { center, repeat } => Point {
                 x: snap(center.x - bounds.w / 2.0) + CASCADE * repeat as f64,
                 y: snap(center.y - bounds.h / 2.0) + CASCADE * repeat as f64,
@@ -278,7 +254,6 @@ fn snap(v: f64) -> f64 {
     (v / super::model::GRID).round() * super::model::GRID
 }
 
-/// The ops and side writes of one paste, computed without touching disk.
 #[derive(Debug, Clone, Default)]
 pub struct PastePlan {
     pub ops: Vec<Op>,
@@ -286,11 +261,8 @@ pub struct PastePlan {
     pub connection_ids: Vec<String>,
     pub drawing_ids: Vec<String>,
     pub group_ids: Vec<String>,
-    /// New note node id -> text.
     pub note_writes: Vec<(String, String)>,
-    /// New terminal node id -> transcript with fresh entry ids.
     pub chats: Vec<(String, Vec<ChatEntry>)>,
-    /// New terminal nodes to start.
     pub terminals: Vec<String>,
 }
 
@@ -309,7 +281,6 @@ fn unique_title(taken: &HashSet<String>, base: &str) -> String {
         .expect("free title")
 }
 
-/// Pure: turns a clip into ops for `target` with every id remapped.
 pub fn plan(clip: &Clip, target: &FloorDoc, placement: Placement) -> Result<PastePlan, String> {
     if clip.format != CLIP_FORMAT {
         return Err("CANVAS_INVALID: not a canvas clip".into());
@@ -363,7 +334,6 @@ pub fn plan(clip: &Clip, target: &FloorDoc, placement: Placement) -> Result<Past
         let is_terminal = n.is_terminal();
         let data = n.data.as_object_mut().ok_or("node data is not an object")?;
         if is_terminal {
-            // A fresh process in the same cwd/command.
             data.insert("terminalId".into(), Value::String(new_id()));
             data.remove("isManager");
             p.terminals.push(n.id.clone());
@@ -467,7 +437,6 @@ pub fn plan(clip: &Clip, target: &FloorDoc, placement: Placement) -> Result<Past
     Ok(p)
 }
 
-/// Clip of a selection straight from the store (note texts and chats read from disk).
 pub fn copy_from_store(
     store: &CanvasStore,
     ws: &str,
@@ -488,12 +457,9 @@ pub struct PasteResult {
     pub connection_ids: Vec<String>,
     pub drawing_ids: Vec<String>,
     pub group_ids: Vec<String>,
-    /// Terminal nodes the caller should start.
     pub terminals: Vec<String>,
 }
 
-/// Applies a paste in one batch, then writes the note files and the chat
-/// transcripts (attachments copied next to the new node).
 pub fn paste(
     store: &CanvasStore,
     ws: &str,

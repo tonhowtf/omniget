@@ -1,19 +1,3 @@
-//! `OGT1`: one binary frame per tick per subscriber (a webview), carrying
-//! only what changed in the terminals it shows. Little-endian. The format is
-//! documented in `estudos/98-canvas-decisoes/01-terminal-e-pty.md` §4 and in
-//! the contract the JS decoder follows; in short:
-//!
-//! - header `u32 magic 'OGT1', u32 frame_seq, u16 n_sections`;
-//! - section `u16 slot, u8 kind, u8 flags, u32 len`, payload;
-//! - kinds FULL, ROWS, SCROLL, STYLES, CURSOR, META, AGENT, MINI, SEL,
-//!   GRAPHEMES.
-//!
-//! Damage is per subscriber: each keeps a hash of every row it sent, so two
-//! webviews at different paces each get exactly what they miss, and the
-//! engine's own damage state is never shared. A row that reappears shifted
-//! (log output, `ratatui` scroll) becomes a `SCROLL` plus the new rows.
-//! Credit: at most [`MAX_INFLIGHT`] frames unacknowledged.
-
 use std::collections::{HashMap, VecDeque};
 use std::hash::{Hash, Hasher};
 use std::time::{Duration, Instant};
@@ -40,21 +24,14 @@ pub const MINI: u8 = 7;
 pub const SEL: u8 = 8;
 pub const GRAPHEMES: u8 = 9;
 
-/// STYLES flag: clear the table first.
 pub const STYLES_RESET: u8 = 1;
 
-/// Frames sent and not yet acknowledged, at most.
 pub const MAX_INFLIGHT: usize = 2;
-/// An unacknowledged frame older than this is presumed lost.
 pub const CREDIT_STALL: Duration = Duration::from_secs(3);
-/// Minimap refresh, at most.
 pub const MINI_EVERY: Duration = Duration::from_millis(100);
-/// Styles table size that triggers a reset.
 const STYLES_MAX: usize = 60_000;
-/// `META` bit for "process alive" (the other bits are `Modes::bits`).
 pub const META_ALIVE: u32 = 1 << 13;
 
-/// Level of detail requested for a visible terminal.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(from = "u8", into = "u8")]
 pub enum Lod {
@@ -95,10 +72,8 @@ pub struct SlotInfo {
     pub slot: u16,
 }
 
-/// What the encoder needs from one terminal, borrowed under its lock.
 pub struct SlotInput<'a> {
     pub engine: &'a dyn TermEngine,
-    /// Bumped by the session on every change of the engine's state.
     pub content_seq: u64,
     pub generation: u32,
     pub agent: &'a AgentSignal,
@@ -108,13 +83,9 @@ pub struct SlotInput<'a> {
     pub alive: bool,
 }
 
-/// Where the subscriber reads terminals from (the manager; a map in tests).
 pub trait WireSource {
-    /// Calls `f` with the terminal's input; false when the id is gone.
     fn visit(&self, id: &str, f: &mut dyn FnMut(&SlotInput<'_>)) -> bool;
 }
-
-// ------------------------------------------------------------------ writer
 
 fn put_u16(b: &mut Vec<u8>, v: u16) {
     b.extend_from_slice(&v.to_le_bytes());
@@ -132,7 +103,6 @@ fn put_str16(b: &mut Vec<u8>, s: &str) {
     b.extend_from_slice(&bytes[..n]);
 }
 
-/// Sections of a frame, written back to back.
 #[derive(Default)]
 pub struct Sections {
     buf: Vec<u8>,
@@ -172,8 +142,6 @@ impl Sections {
     }
 }
 
-// ------------------------------------------------------------ subscriber
-
 struct SlotState {
     slot: u16,
     lod: Lod,
@@ -182,8 +150,6 @@ struct SlotState {
     cols: u16,
     rows: Vec<u64>,
     content_seq: Option<u64>,
-    /// Screen generation the front holds (a new process under the same id,
-    /// or a clear, changes it and forces a FULL).
     generation: Option<u32>,
     cursor: Option<CursorView>,
     meta: Option<u64>,
@@ -205,7 +171,6 @@ impl SlotState {
     }
 }
 
-/// Encoder state of one subscriber (one webview).
 pub struct WireSubscriber {
     next_seq: u32,
     inflight: VecDeque<(u32, Instant)>,
@@ -230,7 +195,6 @@ fn hash_row(cells: &[CellView]) -> u64 {
     h.finish()
 }
 
-/// xterm-256 index nearest to an RGB colour (for the minimap).
 fn rgb_to_xterm(r: u8, g: u8, b: u8) -> u8 {
     let q = |v: u8| -> u8 {
         if v < 48 {
@@ -281,8 +245,6 @@ impl WireSubscriber {
         }
     }
 
-    /// Replaces the visible set. Slots are stable for the life of the
-    /// subscriber; an id that (re)enters, or changes LOD, gets a FULL.
     pub fn set_visible(&mut self, visible: &[Visible]) -> Vec<SlotInfo> {
         for st in self.slots.values_mut() {
             st.visible = false;
@@ -330,7 +292,6 @@ impl WireSubscriber {
                 slot: st.slot,
             });
         }
-        // Hidden slots forget what the front had: coming back means FULL.
         for st in self.slots.values_mut() {
             if !st.visible {
                 st.reset();
@@ -360,8 +321,6 @@ impl WireSubscriber {
         }
     }
 
-    /// Whether a frame may go out now. A stalled credit (the webview
-    /// reloaded or dropped a frame) is written off and everything is resent.
     pub fn can_send(&mut self, now: Instant) -> bool {
         if let Some(&(_, at)) = self.inflight.front() {
             if now.duration_since(at) >= CREDIT_STALL {
@@ -372,7 +331,6 @@ impl WireSubscriber {
         self.inflight.len() < MAX_INFLIGHT
     }
 
-    /// Next frame: everything is resent (FULL, styles table rebuilt).
     pub fn resync(&mut self) {
         self.styles.clear();
         self.next_style = 1;
@@ -396,8 +354,6 @@ impl WireSubscriber {
         id
     }
 
-    /// Builds the next frame, or `None` when nothing changed. The second
-    /// value asks the caller to come back soon (throttled minimap work).
     pub fn build(&mut self, src: &dyn WireSource, now: Instant) -> (Option<Vec<u8>>, bool) {
         if self.styles.len() > STYLES_MAX {
             self.resync();
@@ -447,7 +403,6 @@ impl WireSubscriber {
         (Some(frame.into_frame(seq)), retry)
     }
 
-    /// Encodes one row's cells as runs, trimming trailing blanks.
     fn encode_row(
         &mut self,
         y: u16,
@@ -498,7 +453,6 @@ impl WireSubscriber {
         out[n_runs_at..n_runs_at + 2].copy_from_slice(&n_runs.to_le_bytes());
     }
 
-    /// Returns true when work was deferred (minimap throttle).
     fn encode_slot(
         &mut self,
         st: &mut SlotState,
@@ -599,7 +553,6 @@ impl WireSubscriber {
         }
 
         if content_changed {
-            // META for every LOD.
             let modes = e.modes().bits() | if input.alive { META_ALIVE } else { 0 };
             let offset = e.display_offset() as u32;
             let history = e.history_len() as u32;
@@ -682,17 +635,11 @@ impl WireSubscriber {
 }
 
 impl SlotState {
-    /// True when the slot was visible at this LOD before `set_visible` (the
-    /// front still has its content).
     fn visible_before_call(&self, lod: Lod) -> bool {
-        // `visible` was cleared at the start of `set_visible`; a slot that
-        // was shown keeps its caches (not reset), which `rows`/`meta` tell.
         self.lod == lod && (self.meta.is_some() || !self.rows.is_empty())
     }
 }
 
-/// Best whole-screen shift `d` (> 0 = content moved up) so that
-/// `new[i] == old[i + d]` for many rows; only when it beats no shift.
 fn detect_scroll(old: &[u64], new: &[u64]) -> Option<i32> {
     let n = old.len();
     if n < 4 || n != new.len() {
@@ -717,8 +664,6 @@ fn detect_scroll(old: &[u64], new: &[u64]) -> Option<i32> {
     (best.0 >= 3 && best.0 > same + 2).then_some(best.1)
 }
 
-/// What the front's rows hold after applying `SCROLL d` (vacated rows keep
-/// a value no real row hashes to, so they are always resent).
 fn shift(old: &[u64], d: i32) -> Vec<u64> {
     let n = old.len() as i32;
     (0..n)

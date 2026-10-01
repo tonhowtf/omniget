@@ -1,5 +1,3 @@
-//! Canvas de agentes (o World no lugar da casa). Plano: docs/world-canvas-plan.md.
-
 pub mod adapters;
 pub mod answer;
 pub mod chat;

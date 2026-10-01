@@ -1,16 +1,3 @@
-//! Parse cookie payloads from different formats into the canonical
-//! `ExtensionCookie` shape used by `extension_storage` and yt-dlp.
-//!
-//! Two formats are accepted on import:
-//! * Netscape (`# Netscape HTTP Cookie File`, tab-separated 7 fields) — the
-//!   format yt-dlp itself uses; also produced by Loop and
-//!   Get-cookies.txt-LOCALLY.
-//! * JSON array — produced by Edit-This-Cookie and recent
-//!   Get-cookies.txt-LOCALLY versions.
-//!
-//! Detection is content-based, not extension-based: the first non-whitespace
-//! character drives the choice.
-
 use serde::Deserialize;
 
 use crate::extension_storage::ExtensionCookie;

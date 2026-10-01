@@ -1,16 +1,5 @@
-//! Downloads › Tools › Export links: save the links of the history (all,
-//! finished or failed) as a .txt, one per line, to retry them later or open
-//! them in another program. Downloads › Tools › Link router opens the same
-//! file back.
-//!
-//! The idea comes from Vividl (Bluegrams/Vividl), which imports and exports
-//! its download list as a plain text file of links. Reimplemented; no code
-//! was copied.
-
 use std::collections::HashSet;
 
-/// One link per line, in the given order, without repeats, after a `#`
-/// comment line that link lists (and Link router) skip.
 pub fn link_list_text(header: &str, urls: &[String]) -> String {
     let mut seen = HashSet::new();
     let mut out = format!("# {}\n", header.replace('\n', " "));

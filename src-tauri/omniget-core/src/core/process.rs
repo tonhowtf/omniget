@@ -1,7 +1,3 @@
-/// Per-user install folders of the agent CLIs (the same list the agentkit
-/// detector searches). An app opened from the Finder or a desktop launcher
-/// inherits no shell PATH, so without these `claude`, `codex`, `node` and
-/// `npm` installed by their own installers are "not installed".
 #[cfg(not(windows))]
 fn user_bin_dirs() -> Vec<String> {
     let Some(home) = dirs::home_dir() else {
@@ -20,8 +16,6 @@ fn user_bin_dirs() -> Vec<String> {
     .collect()
 }
 
-/// The PATH every spawned tool gets: managed `bin/`, the per-user install
-/// folders, Homebrew and `/usr/local/bin`, then the inherited PATH.
 pub fn enhanced_path() -> Option<String> {
     use std::sync::OnceLock;
     static CACHED: OnceLock<Option<String>> = OnceLock::new();
@@ -110,16 +104,10 @@ pub fn std_command<S: AsRef<std::ffi::OsStr>>(program: S) -> std::process::Comma
     cmd
 }
 
-/// `ETXTBSY`: on Linux a file that was just written cannot be executed while
-/// any process still holds it open for writing, and a `fork` on another thread
-/// keeps that descriptor alive until its own `exec`. The window is a few
-/// milliseconds; a launcher script written and started in the same breath
-/// (ours, or a test's fake CLI) lands in it now and then.
 pub fn is_text_file_busy(err: &std::io::Error) -> bool {
     cfg!(unix) && err.raw_os_error() == Some(26)
 }
 
-/// Runs `spawn`, trying again for a moment when the program is "text file busy".
 pub fn spawn_retrying_busy<T>(mut spawn: impl FnMut() -> std::io::Result<T>) -> std::io::Result<T> {
     let mut tries = 0;
     loop {
@@ -133,27 +121,14 @@ pub fn spawn_retrying_busy<T>(mut spawn: impl FnMut() -> std::io::Result<T>) -> 
     }
 }
 
-// ── Process tree containment ──────────────────────────────────────────────
-//
 // Adapted from herdrdev/herdr (Apache-2.0), src/platform/windows.rs:993-1128
-// @ c33fd40eab3d92b564d7dd25bbfdd462e4b7aba2 (`configure_status_command`,
-// `StatusCommandGuard`, `resume_suspended_process`). Changes: the guard also
-// knows how to let go without killing (`release`), and it has a Unix half
-// (process group plus a walk of the descendants, below) that is not from
 // herdr. Licensed under the Apache License, Version 2.0; a copy is at
-// http://www.apache.org/licenses/LICENSE-2.0.
 
 #[cfg(windows)]
 const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 #[cfg(windows)]
 const CREATE_SUSPENDED: u32 = 0x0000_0004;
 
-/// Windows: the child is created suspended (and without a console window),
-/// so not one instruction of it runs before [`ProcessTreeGuard::new`] has put
-/// it in a kill-on-close Job Object and resumed it. Without this a `claude`
-/// that forks `bash` or an MCP server in its first milliseconds leaves that
-/// grandchild outside the job. Unix: nothing (the caller uses
-/// `process_group(0)`).
 pub fn suspend_on_spawn(cmd: &mut tokio::process::Command) {
     #[cfg(windows)]
     cmd.creation_flags(CREATE_NO_WINDOW | CREATE_SUSPENDED);
@@ -161,56 +136,20 @@ pub fn suspend_on_spawn(cmd: &mut tokio::process::Command) {
     let _ = cmd;
 }
 
-/// Owns the whole process tree of one child.
-///
-/// Windows: a Job Object with `JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE`; every
-/// process the child starts inherits the job, so closing it (`terminate`, or
-/// dropping the guard) ends all of them at once — the only reliable tree kill
-/// there, where a plain `TerminateProcess` of the child leaves `git`, `bash`
-/// and MCP servers running.
-///
-/// Unix: the child leads a process group of its own (`process_group(0)`),
-/// and `killpg` is the fast path, but a descendant that calls `setsid()` or
-/// `setpgid()` (an MCP server, `nohup`, a daemonizing tool, some `node`
-/// launchers) leaves the group and used to survive every cancel. So the
-/// guard also walks the parent links of the process table (`/proc` on Linux,
-/// libproc on macOS) from the child down and signals every descendant it
-/// finds, each one checked by its start time so a recycled pid is never hit.
-/// What the walk cannot see is a process whose whole chain of parents
-/// already exited before the kill (a double fork): the kernel handed it to
-/// `init`/`launchd` and nothing links it to the turn any more.
-///
-/// Deliberately not a `PR_SET_CHILD_SUBREAPER`: that would keep those
-/// orphans linked, but they would become children of the whole app, and
-/// every one of them that exits later (from any turn, any tool) would stay a
-/// zombie until something here reaps it — a reaper thread for the life of the
-/// app, racing tokio's own `waitpid` on the children it spawns.
 pub struct ProcessTreeGuard {
     #[cfg(windows)]
     job: usize,
-    /// The child as (pid, start time); `None` when it was gone before the
-    /// guard could read it (a zombie has no children left to find).
     #[cfg(unix)]
     root: Option<(i32, u64)>,
-    /// The group `killpg` may hit: only when the child leads a group of its
-    /// own, so a caller that forgot `process_group(0)` never gets the app's
-    /// own group killed. The id cannot be recycled while any member lives.
     #[cfg(unix)]
     pgid: Option<i32>,
-    /// Every member seen so far, as (pid, start time): a descendant whose
-    /// parent died during the kill is still reached through this.
     #[cfg(unix)]
     known: std::collections::HashMap<i32, u64>,
-    /// Killed or released: nothing more to do, `Drop` included.
     #[cfg(unix)]
     done: bool,
 }
 
 impl ProcessTreeGuard {
-    /// Puts a child spawned through [`suspend_on_spawn`] in a fresh
-    /// kill-on-close job and only then resumes it. On any failure the job is
-    /// closed (which kills the child if it was already assigned); a child
-    /// that never got assigned stays suspended and the caller must kill it.
     #[cfg(windows)]
     pub fn new(child: &tokio::process::Child) -> std::io::Result<Self> {
         use std::mem::size_of;
@@ -255,22 +194,12 @@ impl ProcessTreeGuard {
         if unsafe { AssignProcessToJobObject(job, process.cast()) } == 0 {
             return close(std::io::Error::last_os_error());
         }
-        // Assigned: from here closing the job kills the child, which is
-        // exactly what a failed resume needs (never leave it suspended).
         if let Err(error) = resume_suspended_process(child.id()) {
             return close(error);
         }
         Ok(Self { job: job as usize })
     }
 
-    /// Unix: records the child (pid and start time) and its group. Never
-    /// fails; the `Result` is the Windows one.
-    ///
-    /// No pidfd for the child (Linux ≥ 5.3): tokio holds it unreaped until
-    /// its `wait`, so its pid cannot be recycled while we signal it, and the
-    /// descendants are not our children, so no pidfd could be opened for
-    /// them without the same pid-then-open race the start time already
-    /// settles.
     #[cfg(unix)]
     pub fn new(child: &tokio::process::Child) -> std::io::Result<Self> {
         let pid = child.id().and_then(|p| i32::try_from(p).ok());
@@ -290,20 +219,12 @@ impl ProcessTreeGuard {
         Ok(Self {})
     }
 
-    /// The polite first half of a kill: `SIGTERM` to the group and to every
-    /// descendant outside it, so a CLI can stop its MCP servers itself.
-    /// Returns whether anything was asked, i.e. whether a grace period is
-    /// worth waiting before [`terminate`](Self::terminate). Windows has no
-    /// such signal: the job close is the only step, so `false`.
     pub fn interrupt(&mut self) -> bool {
         #[cfg(unix)]
         {
             if self.done {
                 return false;
             }
-            // The walk comes before any signal: once the group's members
-            // die, their escaped children are handed to init and the parent
-            // links that lead to them are gone.
             let tree = self.walk();
             self.signal(&tree, libc::SIGTERM);
             true
@@ -312,20 +233,9 @@ impl ProcessTreeGuard {
         false
     }
 
-    /// Kills every process still in the tree. Idempotent.
-    ///
-    /// Unix: freeze, then kill. Everything found gets `SIGSTOP` (a stopped
-    /// process can neither fork nor exit, so the parent links hold still),
-    /// and the walk repeats until a pass finds nobody new and everyone
-    /// signalled is really stopped — that catches a child forked while the
-    /// kill was under way. Bounded by [`SETTLE_LIMIT`]: a process stuck in
-    /// uninterruptible I/O never reports stopped, and a cancel must not
-    /// hang on it. Then `SIGKILL` to the group and to every member.
     pub fn terminate(&mut self) {
         #[cfg(windows)]
         if self.job != 0 {
-            // KILL_ON_JOB_CLOSE ends the child and every descendant still in
-            // the job.
             unsafe {
                 windows_sys::Win32::Foundation::CloseHandle(
                     self.job as windows_sys::Win32::Foundation::HANDLE,
@@ -355,7 +265,6 @@ impl ProcessTreeGuard {
                         fresh = true;
                         // SAFETY: a member of the tree, its start time just read.
                         if unsafe { libc::kill(row.pid, libc::SIGSTOP) } != 0 {
-                            // Not ours to stop (another user): not waited on.
                             stopping.remove(&row.pid);
                         }
                     }
@@ -373,10 +282,6 @@ impl ProcessTreeGuard {
         }
     }
 
-    /// Lets go without killing: after a normal exit, whatever the agent left
-    /// running on purpose (a dev server it started) keeps running, exactly as
-    /// on Unix, where a clean exit sends no `killpg`. The kill-on-close limit
-    /// is cleared first, so closing the last handle no longer kills.
     pub fn release(mut self) {
         #[cfg(windows)]
         if self.job != 0 {
@@ -396,8 +301,6 @@ impl ProcessTreeGuard {
                 )
             } != 0;
             if !cleared {
-                // Could not disarm it: better to leave the handle open for
-                // the life of the app than to kill what the agent left.
                 self.job = 0;
                 return;
             }
@@ -409,16 +312,11 @@ impl ProcessTreeGuard {
         self.terminate();
     }
 
-    /// The tree as it is now: the child, every member seen before (even one
-    /// whose parent is gone) and every group member are the roots, and each
-    /// root is taken only if its start time still matches.
     #[cfg(unix)]
     fn walk(&mut self) -> Vec<ProcRow> {
         let table = process_table();
         let mut roots: Vec<(i32, u64)> = self.known.iter().map(|(&p, &s)| (p, s)).collect();
         if let Some(pg) = self.pgid {
-            // Our group only ever holds our own descendants; one whose
-            // parent already exited still leads to whatever it started.
             roots.extend(
                 table
                     .iter()
@@ -434,9 +332,6 @@ impl ProcessTreeGuard {
         tree
     }
 
-    /// `signal` to the group and to each member that left it. A member still
-    /// in the group is not signalled twice: a second `SIGTERM` is "force
-    /// quit" to some CLIs.
     #[cfg(unix)]
     fn signal(&self, tree: &[ProcRow], signal: libc::c_int) {
         if let Some(pg) = self.pgid {
@@ -454,14 +349,9 @@ impl ProcessTreeGuard {
     }
 }
 
-/// How long [`ProcessTreeGuard::terminate`] waits for the tree to hold still
-/// before it kills whatever it has found.
 #[cfg(unix)]
 const SETTLE_LIMIT: std::time::Duration = std::time::Duration::from_millis(500);
 
-/// One process as the tree walk needs it. `start` tells a process from a
-/// later one that got the same pid (Linux: clock ticks since boot; macOS:
-/// microseconds since the epoch); `frozen` = stopped or already dead.
 #[cfg(any(unix, test))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct ProcRow {
@@ -472,17 +362,12 @@ struct ProcRow {
     frozen: bool,
 }
 
-/// Every process reachable from `roots` by parent links, roots included.
-/// A root counts only while a process with its pid *and* its start time
-/// exists: a pid recycled since it was recorded is someone else, and so are
-/// that someone's children.
 #[cfg(any(unix, test))]
 fn tree_of(table: &[ProcRow], roots: &[(i32, u64)]) -> Vec<ProcRow> {
     use std::collections::{HashMap, HashSet};
     let by_pid: HashMap<i32, &ProcRow> = table.iter().map(|r| (r.pid, r)).collect();
     let mut children: HashMap<i32, Vec<&ProcRow>> = HashMap::new();
     for row in table {
-        // pid 0 (the swapper/kernel_task) lists itself as its own parent.
         if row.ppid != row.pid {
             children.entry(row.ppid).or_default().push(row);
         }
@@ -494,7 +379,6 @@ fn tree_of(table: &[ProcRow], roots: &[(i32, u64)]) -> Vec<ProcRow> {
         .filter_map(|&(pid, start)| by_pid.get(&pid).copied().filter(|r| r.start == start))
         .collect();
     while let Some(row) = queue.pop() {
-        // Never the kernel, init/launchd or ourselves, whatever the table says.
         if row.pid <= 1 || row.pid == std::process::id() as i32 || !seen.insert(row.pid) {
             continue;
         }
@@ -506,17 +390,12 @@ fn tree_of(table: &[ProcRow], roots: &[(i32, u64)]) -> Vec<ProcRow> {
     out
 }
 
-/// One line of `/proc/<pid>/stat`. The second field is the command name in
-/// parentheses, and that name may itself hold spaces and `)` (`(sd-pam)`,
-/// `(my (odd) name)`), so the fields are counted from the *last* `)`:
-/// state, ppid, pgrp, … and the start time is field 22 of the man page.
 #[cfg(any(target_os = "linux", target_os = "android"))]
 fn parse_proc_stat(stat: &str) -> Option<ProcRow> {
     let open = stat.find('(')?;
     let close = stat.rfind(')')?;
     let pid: i32 = stat[..open].trim().parse().ok()?;
     let rest: Vec<&str> = stat.get(close + 1..)?.split_whitespace().collect();
-    // `rest[0]` is field 3 (state), so field N sits at `rest[N - 3]`.
     let state = rest.first()?.chars().next()?;
     Some(ProcRow {
         pid,
@@ -534,7 +413,6 @@ fn process_table() -> Vec<ProcRow> {
     };
     dir.filter_map(|entry| {
         let pid: i32 = entry.ok()?.file_name().to_str()?.parse().ok()?;
-        // Bytes, not a String: the command name need not be UTF-8.
         let stat = std::fs::read(format!("/proc/{pid}/stat")).ok()?;
         parse_proc_stat(&String::from_utf8_lossy(&stat))
     })
@@ -543,8 +421,6 @@ fn process_table() -> Vec<ProcRow> {
 
 #[cfg(target_os = "macos")]
 fn process_table() -> Vec<ProcRow> {
-    // With no buffer libproc answers how many pids there are; the slack
-    // covers the ones started between the two calls.
     let count = unsafe { libc::proc_listallpids(std::ptr::null_mut(), 0) };
     let Ok(count) = usize::try_from(count) else {
         return Vec::new();
@@ -561,8 +437,6 @@ fn process_table() -> Vec<ProcRow> {
     pids.into_iter().filter_map(bsd_row).collect()
 }
 
-/// A process as libproc's `PROC_PIDTBSDINFO` describes it; `None` for one
-/// that is gone or that we may not look at.
 #[cfg(target_os = "macos")]
 fn bsd_row(pid: libc::pid_t) -> Option<ProcRow> {
     if pid <= 0 {
@@ -594,7 +468,6 @@ fn bsd_row(pid: libc::pid_t) -> Option<ProcRow> {
     })
 }
 
-/// Other Unixes: no table, so the group is the whole tree (`killpg` only).
 #[cfg(all(
     unix,
     not(any(target_os = "linux", target_os = "android", target_os = "macos"))
@@ -603,7 +476,6 @@ fn process_table() -> Vec<ProcRow> {
     Vec::new()
 }
 
-/// The start time of one process, to recognise it later.
 #[cfg(unix)]
 fn start_time(pid: i32) -> Option<u64> {
     #[cfg(any(target_os = "linux", target_os = "android"))]
@@ -615,32 +487,19 @@ fn start_time(pid: i32) -> Option<u64> {
     return bsd_row(pid).map(|row| row.start);
     #[cfg(not(any(target_os = "linux", target_os = "android", target_os = "macos")))]
     {
-        // No table to match against: any constant does.
         let _ = pid;
         Some(0)
     }
 }
 
-/// What a process recorded by an earlier session of the app turned out to
-/// be when this one looked (3.1): the CLI of a job that was running when the
-/// app died may outlive it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum StaleProcess {
-    /// No process with that pid.
     Gone,
-    /// A process with that pid but another start time: the pid was reused,
-    /// it is someone else's and was left alone.
     NotOurs,
-    /// It was still running and its tree is dead now.
     Killed,
-    /// It was still running and could not be stopped.
     Survived,
 }
 
-/// An opaque token that tells this process from a later one with the same
-/// pid: the start time as the OS reports it (Linux: clock ticks since boot;
-/// macOS: microseconds since the epoch; Windows: seconds since the epoch).
-/// `None` when no such process exists.
 pub fn start_token(pid: u32) -> Option<u64> {
     #[cfg(unix)]
     {
@@ -670,15 +529,6 @@ fn windows_start_token(pid: u32) -> Option<u64> {
     sys.process(pid).map(|p| p.start_time())
 }
 
-/// Stops the process a previous session recorded as `(pid, start)` together
-/// with everything it started, the same way a cancel does (freeze the tree,
-/// then `SIGKILL`), but only when the start time still matches: a recycled
-/// pid is never touched. A new run of the job must never run beside the old
-/// one; adopting it is not possible either, since its pipes died with the
-/// app that read them.
-///
-/// Windows: the job object was kill-on-close and died with the app, so the
-/// tree is normally gone already; a survivor is ended with `taskkill /T`.
 pub fn stop_stale(pid: u32, start: u64) -> StaleProcess {
     match start_token(pid) {
         None => return StaleProcess::Gone,
@@ -690,7 +540,6 @@ pub fn stop_stale(pid: u32, start: u64) -> StaleProcess {
         let Ok(p) = i32::try_from(pid) else {
             return StaleProcess::NotOurs;
         };
-        // Never the app itself or init, whatever the record says.
         if p <= 1 || p == std::process::id() as i32 {
             return StaleProcess::NotOurs;
         }
@@ -712,8 +561,6 @@ pub fn stop_stale(pid: u32, start: u64) -> StaleProcess {
             .stderr(std::process::Stdio::null())
             .status();
     }
-    // SIGKILL is asynchronous: give the kernel a moment to reap it (it is
-    // not our child, so init/launchd does).
     for _ in 0..50 {
         if start_token(pid) != Some(start) {
             return StaleProcess::Killed;
@@ -724,8 +571,6 @@ pub fn stop_stale(pid: u32, start: u64) -> StaleProcess {
 }
 
 impl Drop for ProcessTreeGuard {
-    /// A guard dropped without `release` (a panic, an early return) takes
-    /// the tree with it: nothing it started may outlive the turn unnoticed.
     fn drop(&mut self) {
         self.terminate();
     }
@@ -755,7 +600,6 @@ fn resume_suspended_process(process_id: Option<u32>) -> std::io::Result<()> {
             return Err(std::io::Error::last_os_error());
         }
         loop {
-            // A process created suspended has exactly one thread: resume it.
             if entry.th32OwnerProcessID == process_id {
                 let thread = unsafe { OpenThread(THREAD_SUSPEND_RESUME, 0, entry.th32ThreadID) };
                 if thread.is_null() {
@@ -785,15 +629,6 @@ fn resume_suspended_process(process_id: Option<u32>) -> std::io::Result<()> {
     result
 }
 
-/// Fake executables for tests that hand a program path to the code under
-/// test (a CLI the runtime launches by path). macOS assesses the first
-/// `exec` of every new executable file, about 0.3 s each and one at a time
-/// across the whole machine, so a suite that writes a fresh script per test
-/// waits seconds on it. Here every fake is a hard link to one launcher that
-/// stays in the temp folder (assessed once per machine), and the launcher
-/// runs `<fake>.body` with `/bin/sh` in the same process. A hard link, not
-/// a symlink: code that canonicalizes the path it was given still finds the
-/// body next to it.
 #[cfg(all(test, unix))]
 pub(crate) mod test_exec {
     use std::path::{Path, PathBuf};
@@ -808,8 +643,6 @@ pub(crate) mod test_exec {
             return path;
         }
         std::fs::create_dir_all(&dir).unwrap();
-        // Written aside and renamed: a test in another process never runs a
-        // half-written launcher.
         let tmp = dir.join(format!("launcher-{}.tmp", uuid::Uuid::new_v4().simple()));
         std::fs::write(&tmp, LAUNCHER).unwrap();
         std::fs::set_permissions(&tmp, std::fs::Permissions::from_mode(0o755)).unwrap();
@@ -817,8 +650,6 @@ pub(crate) mod test_exec {
         path
     }
 
-    /// Makes `path` an executable that runs `body`, a `/bin/sh` script (a
-    /// leading shebang line is just a comment to it).
     pub fn script(path: &Path, body: &str) {
         let mut body_path = path.as_os_str().to_owned();
         body_path.push(".body");
@@ -826,7 +657,6 @@ pub(crate) mod test_exec {
         let _ = std::fs::remove_file(path);
         let launcher = launcher();
         if std::fs::hard_link(&launcher, path).is_err() {
-            // Another file system: a copy works, it just pays the first exec.
             std::fs::copy(&launcher, path).unwrap();
         }
     }

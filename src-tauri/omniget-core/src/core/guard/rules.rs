@@ -1,11 +1,3 @@
-//! The rule catalogue: every stable code the guard can emit, with its
-//! validator, default severity and a one-line description in English and
-//! Portuguese (the UI shows the description; the finding carries the detail).
-//!
-//! Codes keep the original claude-code-templates numbering where a rule was
-//! ported (`STRUCT_E001`, `SEM_E001`…`SEM_E019`, `REF_E002`…) and add new
-//! numbers for what the original did not check. A code never changes meaning.
-
 use serde::Serialize;
 
 use super::model::{Severity, Validator};
@@ -35,7 +27,6 @@ macro_rules! r {
 }
 
 pub const RULES: &[Rule] = &[
-    // ---------------------------------------------------------- structural
     r!("STRUCT_E001", Structural, Medium, "File is empty", "Arquivo vazio"),
     r!("STRUCT_E002", Structural, Medium, "Frontmatter is malformed", "Frontmatter malformado"),
     r!("STRUCT_E003", Structural, Medium, "File is larger than 100 KB", "Arquivo maior que 100 KB"),
@@ -58,13 +49,11 @@ pub const RULES: &[Rule] = &[
     r!("STRUCT_W013", Structural, Low, "Name does not match the folder or is not kebab-case", "Nome não bate com a pasta ou não é kebab-case"),
     r!("STRUCT_I005", Structural, Info, "Native format of another tool (will be converted)", "Formato nativo de outra ferramenta (será convertido)"),
     r!("STRUCT_I006", Structural, Info, "No frontmatter (optional for this kind)", "Sem frontmatter (opcional para este tipo)"),
-    // ----------------------------------------------------------- integrity
     r!("INT_E001", Integrity, Critical, "SHA-256 does not match the expected value", "SHA-256 não bate com o esperado"),
     r!("INT_W001", Integrity, High, "Expected file is missing", "Arquivo esperado ausente"),
     r!("INT_W002", Integrity, Medium, "File not listed in the expected set", "Arquivo fora da lista esperada"),
     r!("INT_I001", Integrity, Info, "No expected hashes: integrity not verified", "Sem hashes esperados: integridade não verificada"),
     r!("INT_I002", Integrity, Info, "All hashes match", "Todos os hashes batem"),
-    // ------------------------------------------------------------ semantic
     r!("SEM_E001", Semantic, Critical, "Prompt injection: ignore previous instructions", "Injeção de prompt: ignorar instruções anteriores"),
     r!("SEM_E002", Semantic, High, "Asks to reveal the system prompt or hidden instructions", "Pede para revelar o prompt de sistema ou instruções ocultas"),
     r!("SEM_E003", Semantic, Low, "Role redefinition (\"you are now a…\")", "Redefinição de papel (\"agora você é…\")"),
@@ -96,7 +85,6 @@ pub const RULES: &[Rule] = &[
     r!("SEM_W004", Semantic, Low, "\"Repeat after me\" (prompt leakage)", "\"Repita comigo\" (vazamento de prompt)"),
     r!("SEM_W005", Semantic, Medium, "Over-permissive wording", "Texto permissivo demais"),
     r!("SEM_W006", Semantic, Low, "Unrestricted tool grant (Bash without a pattern)", "Tool liberada sem restrição (Bash sem padrão)"),
-    // ----------------------------------------------------------- reference
     r!("REF_E002", Reference, Medium, "Blocked URL scheme (file, ftp, data, javascript, vbscript)", "Esquema de URL bloqueado (file, ftp, data, javascript, vbscript)"),
     r!("REF_E004", Reference, Medium, "Private network address (SSRF risk)", "Endereço de rede privada (risco de SSRF)"),
     r!("REF_E005", Reference, High, "Dangerous scheme in a Markdown link", "Esquema perigoso em link Markdown"),
@@ -108,7 +96,6 @@ pub const RULES: &[Rule] = &[
     r!("REF_W007", Reference, Medium, "Paste site or request catcher", "Site de paste ou coletor de requisições"),
     r!("REF_W008", Reference, Low, "URL shortener hides the destination", "Encurtador de URL esconde o destino"),
     r!("REF_W009", Reference, Low, "Raw public IP instead of a host name", "IP público cru em vez de nome"),
-    // ---------------------------------------------------------- provenance
     r!("PROV_W001", Provenance, Low, "No source information", "Sem informação de origem"),
     r!("PROV_W004", Provenance, Low, "Repository is not on a recognized host", "Repositório fora de host conhecido"),
     r!("PROV_W006", Provenance, Medium, "Repository URL uses HTTP", "URL do repositório usa HTTP"),
@@ -116,7 +103,6 @@ pub const RULES: &[Rule] = &[
     r!("PROV_W008", Provenance, Low, "Source is not pinned to a commit", "Origem não fixada num commit"),
     r!("PROV_W009", Provenance, Low, "No license", "Sem licença"),
     r!("PROV_I002", Provenance, Info, "Source pinned", "Origem fixada"),
-    // ------------------------------------------------------------- command
     r!("CMD_E001", Command, Critical, "rm -rf on /, home or a wildcard", "rm -rf em /, home ou curinga"),
     r!("CMD_E002", Command, Critical, "Download piped into an interpreter (curl | sh)", "Download direto para interpretador (curl | sh)"),
     r!("CMD_E003", Command, High, "Downloads a file and executes it", "Baixa um arquivo e executa"),
@@ -139,7 +125,6 @@ pub const RULES: &[Rule] = &[
     r!("CMD_W014", Command, Medium, "Reboots or shuts down the machine", "Reinicia ou desliga a máquina"),
     r!("CMD_W015", Command, Medium, "eval of dynamic text", "eval de texto dinâmico"),
     r!("CMD_I001", Command, Info, "Runs automatically when invoked", "Roda sozinho quando invocado"),
-    // -------------------------------------------------------------- config
     r!("HOOK_E001", Config, Medium, "Hook without a command", "Hook sem comando"),
     r!("HOOK_W001", Config, Medium, "Uses an environment variable that does not exist: this hook does not work (input arrives as JSON on stdin)", "Usa variável de ambiente que não existe: este hook não funciona (a entrada chega como JSON no stdin)"),
     r!("HOOK_W002", Config, Low, "Agent/prompt handler: calls a model on every event", "Handler agent/prompt: chama um modelo a cada evento"),
@@ -166,7 +151,6 @@ pub const RULES: &[Rule] = &[
     r!("SET_W006", Config, Info, "Runs a helper command", "Roda um comando auxiliar"),
     r!("SET_W007", Config, Low, "Exports telemetry to a third party", "Exporta telemetria para terceiro"),
     r!("SET_W008", Config, Info, "Status line command", "Comando de status line"),
-    // --------------------------------------------------------- skillspector
     r!("SPEC_E001", Skillspector, Critical, "SkillSpector recommends not installing", "SkillSpector recomenda não instalar"),
     r!("SPEC_W001", Skillspector, Medium, "SkillSpector finding", "Achado do SkillSpector"),
     r!("SPEC_I001", Skillspector, Info, "SkillSpector could not run", "SkillSpector não rodou"),
@@ -176,7 +160,6 @@ pub fn rule(code: &str) -> Option<&'static Rule> {
     RULES.iter().find(|r| r.code == code)
 }
 
-/// Default severity of a code (Medium for an unknown code, never panics).
 pub fn sev(code: &str) -> Severity {
     rule(code).map(|r| r.severity).unwrap_or(Severity::Medium)
 }

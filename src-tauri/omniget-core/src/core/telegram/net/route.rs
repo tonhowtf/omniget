@@ -1,8 +1,3 @@
-//! A route is one way of reaching Telegram's data centers: straight, through
-//! a local proxy app (Clash, v2rayN…), through an MTProto proxy, or through a
-//! Shadowsocks/Trojan server taken from a subscription. Everything the
-//! connection layer knows how to dial is one of these.
-
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
@@ -17,9 +12,6 @@ pub enum RouteKind {
     Trojan,
 }
 
-/// Where a route came from. Drives the label in the UI and the order in
-/// which automatic mode tries them (local apps first: they are what people
-/// in mainland China already run and pay for).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum RouteSource {
@@ -48,19 +40,14 @@ pub struct Route {
     pub username: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub password: Option<String>,
-    /// MTProto proxy secret, normalized to lowercase hex.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub secret: Option<String>,
-    /// Shadowsocks method (`aes-256-gcm`, `chacha20-ietf-poly1305`, …).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub cipher: Option<String>,
-    /// TLS server name for Trojan.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub sni: Option<String>,
     #[serde(default)]
     pub insecure: bool,
-    /// Set when the endpoint reaches a single data center (Telegram's
-    /// rescue addresses are per-DC): the bridge never uses it for others.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub dc_only: Option<i16>,
     pub source: RouteSource,
@@ -107,7 +94,6 @@ impl Route {
         r
     }
 
-    /// Recomputes the id and fills a default name. Call after mutating fields.
     pub fn finish(&mut self) {
         self.id = self.compute_id();
         if self.name.is_empty() {
@@ -142,7 +128,6 @@ impl Route {
         }
     }
 
-    /// Link that another person can paste into OmniGet or Telegram.
     pub fn share_link(&self) -> Option<String> {
         use urlencoding::encode;
         match self.kind {

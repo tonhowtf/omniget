@@ -1,6 +1,6 @@
 use std::path::Path;
 
-const MAX_CLIPBOARD_FILE_SIZE: u64 = 1_073_741_824; // 1 GB
+const MAX_CLIPBOARD_FILE_SIZE: u64 = 1_073_741_824;
 
 pub async fn copy_file_to_clipboard(path: &Path) -> anyhow::Result<()> {
     let metadata = std::fs::metadata(path)?;

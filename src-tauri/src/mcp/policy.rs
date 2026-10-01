@@ -1,4 +1,3 @@
-//! External MCP identity and grants. Never accepts the extension credential.
 use rusqlite::{params, Connection, OptionalExtension};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -68,26 +67,14 @@ pub const SCOPES: &[&str] = &[
     "catalog",
     "system_read",
     "system_change",
-    // /telegram: reading chats, and acting (downloads, auto-save rules, and
-    // writes to the account, which the person approves one by one).
     "telegram_read",
     "telegram_write",
-    // Item 2.2: answering an owned mission's permission questions. Never part
-    // of any default: the person ticks it explicitly (the MCP connections
-    // card says what it allows).
     "approvals_respond",
-    // Item 2.5: start (and stop) the person's agents as background jobs
-    // (`agent_run`, `job_cancel`). Never a default: the person ticks it,
-    // and the client then only sees the jobs it started.
     "agents_run",
     "memory_read",
     "memory_write",
-    // Meetings: read the minutes and transcripts; write = import a Teams
-    // recording by its pre-signed URL.
     "meetings_read",
     "meetings_write",
-    // Microsoft Teams through the person's Microsoft 365 sign-in: read chats,
-    // channels and the calendar; import official meeting transcripts.
     "teams_read",
     "library",
 ];
@@ -147,9 +134,6 @@ pub fn revoke(id: &str) -> Result<(), String> {
     #[cfg(test)]
     revoke_in(id, Ok(None))
 }
-/// Fail closed (L1): the execution grants (assist.db) are revoked first; if
-/// that database is unavailable nothing is marked and the error surfaces, so
-/// a "revoked" client can never keep live grants behind it.
 pub(super) fn revoke_in(
     id: &str,
     assist: Result<Option<&omniget_core::core::assist::db::AssistDb>, String>,
@@ -183,7 +167,6 @@ pub fn authenticate(token: &str) -> Result<Principal, String> {
         .map_err(|_| "UNAUTHORIZED".into())
 }
 pub fn active(p: &Principal) -> Result<(), String> {
-    // A Central session lives in memory until its thread stops.
     if let Some(thread) = p.id.strip_prefix(super::SESSION_PREFIX) {
         return if super::session_count(thread) > 0 {
             Ok(())
@@ -204,7 +187,6 @@ pub fn active(p: &Principal) -> Result<(), String> {
         Err("REVOKED".into())
     }
 }
-/// Domain recovery loads current scopes, never a persisted bearer credential.
 pub fn principal(id: &str) -> Result<Principal, String> {
     db()?
         .query_row(
@@ -250,8 +232,6 @@ pub fn scope(name: &str) -> Option<&'static str> {
         | "job_diff" => "orchestration_read",
         "missions_cancel" | "missions_pause" | "missions_resume" => "orchestration_control",
         "approval_respond" => "approvals_respond",
-        // `job_report` (3.10) answers the agent that delegated: the grant that
-        // lets it delegate, never a default.
         "agent_run" | "job_cancel" | "job_report" => "agents_run",
         "job_get" | "job_wait" | "jobs_state" => "orchestration_read",
         "missions_create" => "orchestration_create",
@@ -273,8 +253,6 @@ pub fn scope(name: &str) -> Option<&'static str> {
         | "teams_channel_read"
         | "teams_calendar"
         | "teams_transcript_import" => "teams_read",
-        // washmybelly: wmb_execute and wmb_restore from outside only create
-        // an approval request the person answers in the OmniGet window.
         "wmb_plan"
         | "wmb_execute"
         | "wmb_restore"
@@ -283,15 +261,12 @@ pub fn scope(name: &str) -> Option<&'static str> {
         | "wmb_perf_capture_start"
         | "wmb_perf_capture_stop" => "system_change",
         n if n.starts_with("wmb_") => "system_read",
-        // /telegram: the write tools additionally wait for the person to
-        // approve each call in the OmniGet window.
         "tg_download" | "tg_watch_add" | "tg_watch_update" | "tg_watch_remove" | "tg_watch_run"
         | "tg_send_message" | "tg_send_files" | "tg_forward" | "tg_delete_messages" => {
             "telegram_write"
         }
         n if n.starts_with("tg_") => "telegram_read",
         "read_library_search" | "read_book_get" | "read_book_text" | "read_updates" => "library",
-        // The World canvas: reads under app_observe, changes under app_control.
         n if super::canvas::owns(n) => return super::canvas::scope(n),
         _ => return None,
     })
@@ -333,8 +308,6 @@ pub fn owned(p: &Principal) -> Result<Vec<u64>, String> {
     rows.collect::<Result<Vec<_>, _>>()
         .map_err(|e| e.to_string())
 }
-/// Durable reservation before effects. An interrupted reservation is unknown,
-/// never an instruction to repeat an effect.
 pub fn receipt_exists(p: &Principal, op: &str, key: &str) -> Result<bool, String> {
     db()?
         .query_row(
@@ -345,7 +318,6 @@ pub fn receipt_exists(p: &Principal, op: &str, key: &str) -> Result<bool, String
         .map_err(|e| e.to_string())
 }
 
-/// Read an existing intent without reserving a new one. Pending stays unknown.
 pub fn receipt(
     p: &Principal,
     op: &str,
@@ -406,9 +378,6 @@ pub fn reserve(
     .map_err(|e| e.to_string())?;
     Ok(None)
 }
-/// Drops a still-pending reservation after a KNOWN refusal with no effect
-/// (the domain transaction rolled back), so the key is not poisoned.
-/// A finished receipt is never removed.
 pub fn release(p: &Principal, op: &str, key: &str) -> Result<(), String> {
     db()?
         .execute(
@@ -454,8 +423,6 @@ mod tests {
         }
     }
 
-    /// 2.2: answering an ask is its own grant; no other scope (not even
-    /// orchestration control) carries it.
     #[test]
     fn approval_respond_needs_its_own_explicit_grant() {
         assert_eq!(scope("approval_respond"), Some("approvals_respond"));
@@ -476,8 +443,6 @@ mod tests {
         assert!(allowed(&granted, "approval_respond"));
     }
 
-    /// 2.5: starting an agent is its own grant; reading and waiting on the
-    /// jobs the client started is a read.
     #[test]
     fn agent_run_needs_its_own_grant() {
         assert_eq!(scope("agent_run"), Some("agents_run"));
@@ -500,8 +465,6 @@ mod tests {
         assert!(!allowed(&everything_else, "job_report"));
     }
 
-    /// A job's diff is a read of orchestration data: only with that scope
-    /// (and the tool itself checks the job belongs to an owned mission).
     #[test]
     fn job_diff_is_read_scope_and_denied_by_default() {
         let reader = Principal {
@@ -566,7 +529,6 @@ mod persistence_tests {
             .unwrap_err(),
             "IDEMPOTENCY_CONFLICT"
         );
-        // A released pending intent frees the key; a finished one stays.
         let ctl = serde_json::json!({"missionId":"m","idempotencyKey":"k"});
         assert!(reserve(&a.principal, "missions_pause", "k", &ctl)
             .unwrap()
@@ -612,13 +574,11 @@ mod persistence_tests {
             },
         )
         .unwrap();
-        // assist.db unavailable: nothing is marked, the error surfaces.
         assert!(revoke_in(&a.principal.id, Err("ERR_ASSIST_DB".into()))
             .unwrap_err()
             .starts_with("ASSIST_DB_UNAVAILABLE"));
         assert!(active(&a.principal).is_ok());
         assert!(authority::get(&assist, &grant, &a.principal.id).is_ok());
-        // Available: grants first, then the client.
         revoke_in(&a.principal.id, Ok(Some(&assist))).unwrap();
         assert!(authority::get(&assist, &grant, &a.principal.id).is_err());
         assert!(active(&a.principal).is_err());

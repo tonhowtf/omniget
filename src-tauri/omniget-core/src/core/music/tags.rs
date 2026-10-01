@@ -1,7 +1,3 @@
-//! Reading and writing audio tags (ID3v2, Vorbis comments, MP4 atoms, APE)
-//! through `lofty`, flattened into one struct the library and the tag
-//! editor share.
-
 use std::path::Path;
 
 use lofty::config::WriteOptions;
@@ -48,7 +44,6 @@ pub struct TrackMeta {
     pub lyrics: String,
     pub mb_recording_id: String,
     pub mb_release_id: String,
-    // technical properties
     pub duration_ms: u64,
     pub bitrate: Option<u32>,
     pub sample_rate: Option<u32>,
@@ -85,21 +80,18 @@ fn codec_name(ft: FileType, ext: &str) -> String {
     }
 }
 
-/// "01 - Artist - Title", "Artist - Title", "Title" from a file name.
 pub fn guess_from_filename(path: &Path) -> (String, String) {
     let stem = path
         .file_stem()
         .and_then(|s| s.to_str())
         .unwrap_or_default()
         .replace('_', " ");
-    // strip a leading track number ("01 ", "01. ", "01 - ")
     let trimmed = stem.trim_start_matches(|c: char| c.is_ascii_digit());
     let trimmed = if trimmed.len() < stem.len() {
         trimmed.trim_start_matches(['.', '-', ' ']).trim()
     } else {
         stem.trim()
     };
-    // yt-dlp style "Title [videoid]"
     let trimmed = match trimmed.rfind(" [") {
         Some(i) if trimmed.ends_with(']') && trimmed.len() - i <= 16 => trimmed[..i].trim(),
         _ => trimmed,
@@ -235,8 +227,6 @@ pub fn sniff_mime(data: &[u8]) -> &'static str {
     }
 }
 
-/// A partial edit: `None` leaves the field alone, `Some("")` removes it.
-/// Numbers travel as strings so "clear" and "set" share one shape.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct TagPatch {
     pub title: Option<String>,
@@ -280,7 +270,6 @@ fn set_text(tag: &mut Tag, key: ItemKey, v: &Option<String>) {
     }
 }
 
-/// Track/disc numbers: `None` = untouched, `Some(None)` = remove.
 fn position(v: &Option<String>) -> Option<Option<u32>> {
     let v = v.as_ref()?;
     Some(v.trim().parse::<u32>().ok().filter(|n| *n > 0))
@@ -411,8 +400,6 @@ fn open_opus(path: &Path) -> Option<lofty::ogg::OpusFile> {
     lofty::ogg::OpusFile::read_from(&mut f, lofty::config::ParseOptions::new()).ok()
 }
 
-/// Opus keeps gain as `R128_TRACK_GAIN` (Q7.8 relative to -23 LUFS) instead
-/// of ReplayGain tags; returns them as ReplayGain dB (track, album).
 pub fn read_opus_r128(path: &Path) -> (Option<f64>, Option<f64>) {
     let Some(f) = open_opus(path) else {
         return (None, None);
@@ -426,8 +413,6 @@ pub fn read_opus_r128(path: &Path) -> (Option<f64>, Option<f64>) {
     (get("R128_TRACK_GAIN"), get("R128_ALBUM_GAIN"))
 }
 
-/// loudgain's Opus convention: only `R128_*_GAIN` (no peak), and the
-/// ReplayGain-style tags removed so players don't apply both.
 pub fn write_opus_r128(
     path: &Path,
     track_db: Option<f64>,

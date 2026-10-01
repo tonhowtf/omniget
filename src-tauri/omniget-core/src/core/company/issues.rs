@@ -1,20 +1,3 @@
-//! Issues: the unit of work of a company.
-//!
-//! One door for status changes ([`CompanyStore::issue_transition`]): the UI,
-//! the bridge, the MCP tools and the scheduler all go through it, so the
-//! transition table and the guards (assignee for `in_progress`, blockers
-//! resolved, review policy for the verdict) hold everywhere. Paperclip's
-//! `assertTransition` accepts any pair and the guards live in some routes
-//! only (area A §3).
-//!
-//! Side effects are wakeups written in the same transaction: assigning wakes
-//! the assignee, a mention wakes the mentioned, `in_review` wakes the
-//! reviewer, `done` wakes whoever was waiting on it (dependents, the parent
-//! once every child is finished).
-//!
-//! Checkout is a lease: one `UPDATE … WHERE (lease is free or expired)`, so
-//! exactly one run wins and a dead run's lease frees itself by time.
-
 use std::collections::HashSet;
 
 use rusqlite::{params, OptionalExtension, Row, Transaction};
@@ -28,10 +11,7 @@ use super::{
     CompanyStore,
 };
 
-/// How deep agents may delegate (issue created by an agent from an issue
-/// created by an agent…). Stops runaway delegation loops.
 pub const MAX_REQUEST_DEPTH: i64 = 8;
-/// Default checkout lease; the engine renews it while the run is alive.
 pub const LEASE_MS: i64 = 30 * 60 * 1000;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -68,7 +48,6 @@ pub struct Issue {
     pub started_ms: Option<i64>,
     pub completed_ms: Option<i64>,
     pub cancelled_ms: Option<i64>,
-    /// Label names; filled by [`CompanyStore::issue_list`] only.
     #[serde(default)]
     pub labels: Vec<String>,
 }
@@ -175,7 +154,6 @@ pub struct IssuePatch {
     #[serde(default, deserialize_with = "super::double_option")]
     pub billing_code: Option<Option<String>>,
     pub board_rank: Option<f64>,
-    /// Optimistic check: refuse if the issue moved since this `seq`.
     pub expected_seq: Option<i64>,
 }
 
@@ -307,8 +285,6 @@ pub(crate) fn priority_rank(p: &str) -> i64 {
     }
 }
 
-/// The transition table (SPEC-implementation §8.2, plus reopen for the
-/// owner and `todo → backlog`).
 pub fn can_go(from: &str, to: &str) -> bool {
     matches!(
         (from, to),
@@ -385,7 +361,6 @@ fn blocks_cycle(
     from: &str,
     to: &str,
 ) -> Result<bool, String> {
-    // Adding from → to closes a loop if `from` is already reachable from `to`.
     tx.query_row(
         "WITH RECURSIVE down(id, depth) AS (
            SELECT to_id, 1 FROM relations WHERE company_id = ?1 AND from_id = ?2 AND kind = 'blocks'
@@ -399,8 +374,6 @@ fn blocks_cycle(
     .map_err(sql)
 }
 
-/// `@name` mentions → staff ids (by name or role, case-insensitive,
-/// spaces as `-` or `_` also match).
 pub(crate) fn mentions(
     tx: &rusqlite::Connection,
     company: &str,
@@ -457,7 +430,6 @@ fn wake_assignee(
     actor: &Actor,
 ) -> Result<(), String> {
     if let Some(s) = &i.assignee_staff_id {
-        // An agent does not wake itself for its own change.
         if actor.staff_id() != Some(s.as_str()) {
             enqueue_wake(
                 tx,
@@ -474,9 +446,6 @@ fn wake_assignee(
     Ok(())
 }
 
-/// After `id` reached `done`: wake the assignees of issues it was blocking
-/// (when nothing else blocks them) and the parent's assignee once every
-/// child is finished.
 fn wake_waiters(tx: &Transaction, company: &str, id: &str, actor: &Actor) -> Result<(), String> {
     let mut st = tx
         .prepare(&format!(
@@ -812,7 +781,6 @@ impl CompanyStore {
                 if !matches!(v.as_str(), "none" | "anyone" | "not_creator" | "human_only") {
                     return Err(invalid("unknown review policy"));
                 }
-                // Loosening a restrictive policy is the owner's call.
                 if !actor.is_user() && i.review_policy != "none" && v != i.review_policy {
                     return Err(forbidden("only the owner changes a review policy"));
                 }
@@ -866,7 +834,6 @@ impl CompanyStore {
         })
     }
 
-    /// The one door for status changes.
     pub fn issue_transition(
         &self,
         company: &str,
@@ -879,9 +846,6 @@ impl CompanyStore {
         self.write(|tx, ch| transition_tx(tx, ch, company, id, to, note, expected_seq, actor))
     }
 
-    /// Atomic checkout: exactly one run holds an issue at a time. Also moves
-    /// `todo`/`blocked`/`backlog` to `in_progress` and makes the caller the
-    /// assignee if nobody is.
     pub fn issue_checkout(
         &self,
         company: &str,
@@ -893,7 +857,6 @@ impl CompanyStore {
         self.write(|tx, ch| checkout_tx(tx, ch, company, id, staff, run_id, lease_ms))
     }
 
-    /// Frees the lease held by `run_id` (no-op if another run holds it).
     pub fn issue_release(&self, company: &str, id: &str, run_id: &str) -> Result<(), String> {
         self.write(|tx, ch| {
             let n = tx
@@ -998,8 +961,6 @@ impl CompanyStore {
                     Document { id: did, issue_id: i.id.clone(), key: key.clone(), rev: 1, body: body.into(), locked: false, updated_ms: now }
                 }
             };
-            // A new plan revision in planning mode asks the owner to approve
-            // exactly that revision (Paperclip ties plan approval to it).
             if key == "plan" && i.work_mode == "planning" && !actor.is_user() {
                 super::gov::open_approval(
                     tx,
@@ -1146,7 +1107,6 @@ impl CompanyStore {
         })
     }
 
-    /// Replaces the labels of an issue; unknown names are created.
     pub fn issue_set_labels(
         &self,
         company: &str,
@@ -1255,9 +1215,6 @@ impl CompanyStore {
         })
     }
 
-    /// Full-text search (FTS5 trigram, substring-capable like pg_trgm) with
-    /// identifier matches first. Queries under 3 characters fall back to a
-    /// prefix match on the identifier and title.
     pub fn issue_search(
         &self,
         company: &str,
@@ -1272,7 +1229,6 @@ impl CompanyStore {
         self.read(|c| {
             let mut out: Vec<SearchHit> = Vec::new();
             let mut seen = HashSet::new();
-            // 1. exact identifier.
             if let Some(i) = c
                 .query_row(
                     &format!("SELECT {ISSUE_COLS} FROM issues WHERE company_id = ?1 AND identifier = ?2 COLLATE NOCASE"),
@@ -1323,9 +1279,6 @@ impl CompanyStore {
         })
     }
 
-    /// What needs the owner: issues assigned to the owner, reviews only a
-    /// human can close, blocked work, and unread agent comments on the
-    /// owner's issues. Pending approvals come from [`gov`](super::gov).
     pub fn inbox(&self, company: &str) -> Result<Vec<InboxItem>, String> {
         let now = now_ms();
         self.read(|c| {
@@ -1388,9 +1341,6 @@ impl CompanyStore {
         })
     }
 
-    /// Tree control: cancel, hold (block) or release a whole subtree in one
-    /// transaction. Returns how many issues changed. Queued wakeups of the
-    /// subtree are cancelled so nothing starts after the hold.
     pub fn issue_tree(
         &self,
         company: &str,
@@ -1448,7 +1398,6 @@ impl CompanyStore {
                 )
                 .map_err(sql)?;
             } else {
-                // Wake the assignees of what was released.
                 let mut st = tx
                     .prepare(&format!(
                         "SELECT {ISSUE_COLS} FROM issues WHERE company_id = ?1 AND id IN (SELECT value FROM json_each(?2)) AND status = 'todo'"
@@ -1761,8 +1710,6 @@ pub(crate) fn transition_tx(
             "say what it is waiting for (a note or a blocker issue)",
         ));
     }
-    // Review gate: with a policy, an agent sends work to review instead of
-    // closing it, and the verdict obeys the policy under this row lock.
     let mut target = to.to_string();
     if to == "done" && i.review_policy != "none" && from != "in_review" && !actor.is_user() {
         target = "in_review".into();
@@ -1833,7 +1780,6 @@ pub(crate) fn transition_tx(
                     priority_rank(&i.priority),
                 )?;
             } else if let Some(s) = &i.assignee_staff_id {
-                // Default reviewer: the assignee's manager.
                 let mgr: Option<String> = tx
                     .query_row(
                         "SELECT reports_to FROM staff WHERE id = ?1",
@@ -2005,7 +1951,6 @@ pub(crate) fn comment_tx(
             )?;
         }
     }
-    // The owner talking on an agent's issue wakes that agent.
     if actor.is_user() {
         if let Some(a) = &i.assignee_staff_id {
             if woken.insert(a.clone()) && !matches!(i.status.as_str(), "done" | "cancelled") {

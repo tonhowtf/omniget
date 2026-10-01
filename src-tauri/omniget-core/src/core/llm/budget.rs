@@ -1,12 +1,3 @@
-//! Per-agent spend ceiling, cut **before** the turn is sent. Owned by
-//! f2-llm-coordinator.
-//!
-//! State lives in `<app_data>/llm/budget.json` (`OMNIGET_DATA_DIR` overrides the
-//! root, like `core::secrets` and the profile store), keyed by agent id inside a
-//! UTC day window. Everything the check touches is in memory, so the check is a
-//! map lookup and two comparisons; the file is only rewritten when a turn is
-//! recorded.
-
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
@@ -19,7 +10,6 @@ use super::agent::Budget;
 pub mod policy;
 use super::error::{LlmError, ERR_LLM_BUDGET};
 
-/// One agent's spend inside the current UTC day.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct AgentSpend {
     #[serde(default)]
@@ -30,8 +20,6 @@ pub struct AgentSpend {
     pub input_tokens: u64,
     #[serde(default)]
     pub output_tokens: u64,
-    /// Turns whose cost the provider did not report. Never booked as zero
-    /// dollars silently: the UI shows "cost unknown" for them.
     #[serde(default)]
     pub unknown_cost_turns: u32,
 }
@@ -42,35 +30,25 @@ impl AgentSpend {
     }
 }
 
-/// The whole file: one UTC day and the per-agent totals inside it, plus the
-/// lifetime pools (a mission's cap is for the mission, not for a day).
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct BudgetState {
-    /// `YYYY-MM-DD` in UTC. A different day wipes `agents`.
     #[serde(default)]
     pub day: String,
     #[serde(default)]
     pub agents: HashMap<String, AgentSpend>,
-    /// Pools that never roll over ([`is_lifetime_pool`]): a mission's spend
-    /// counts against its cap for as long as the mission lives.
     #[serde(default)]
     pub lifetime: HashMap<String, AgentSpend>,
 }
 
-/// Pools whose ledger is kept for their whole life instead of per UTC day.
 pub const LIFETIME_POOL_PREFIX: &str = "mission:";
 
 pub fn is_lifetime_pool(pool: &str) -> bool {
     pool.starts_with(LIFETIME_POOL_PREFIX)
 }
 
-/// Under a USD cap with no token/turn limit (`strict_unknown`), at most this
-/// many turns of unknown cost are admitted over the pool's life: an unknown
-/// price is never treated as free forever.
 pub const STRICT_UNKNOWN_COST_TURNS_MAX: u32 = 40;
 
 impl BudgetState {
-    /// Drop the day totals when the UTC day turned over. Lifetime pools stay.
     fn roll(&mut self, day: &str) {
         if self.day != day {
             self.day = day.to_string();
@@ -101,35 +79,25 @@ pub fn utc_day(now: DateTime<Utc>) -> String {
     now.format("%Y-%m-%d").to_string()
 }
 
-/// Default location: `<app_data>/llm/budget.json`.
 pub fn default_path() -> Option<PathBuf> {
     crate::core::paths::app_data_dir().map(|d| d.join("llm").join("budget.json"))
 }
 
-/// What a turn is expected to cost before it is sent. `usd: None` means the
-/// price is unknown (CLI subscription, local model): it stays unknown and
-/// the pool's token/turn limits decide instead.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct Estimate {
     pub usd: Option<f64>,
     pub tokens: u64,
 }
 
-/// Admission limits of one pool (an agent's day, a group room). `None` =
-/// no limit of that kind.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct PoolLimits {
     pub usd: Option<f64>,
     pub tokens: Option<u64>,
     pub turns: Option<u32>,
-    /// Under a USD cap with no token/turn limit, admit only one turn of
-    /// unknown cost at a time (a group pool wants this; an agent's own day
-    /// keeps its turns concurrent and only stops once the cap is reached).
     #[serde(default)]
     pub strict_unknown: bool,
 }
 
-/// One reservation in flight.
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct InFlight {
     pub id: String,
@@ -138,13 +106,11 @@ pub struct InFlight {
     pub created_ms: i64,
 }
 
-/// What a pool holds right now, for the UI and the tests.
 #[derive(Debug, Clone, Default, PartialEq, Serialize)]
 pub struct PoolView {
     pub spent: AgentSpend,
     pub in_flight: usize,
     pub reserved_usd: f64,
-    /// Reservations whose cost is unknown (never counted as zero).
     pub reserved_unknown_cost: usize,
     pub reserved_tokens: u64,
 }
@@ -163,8 +129,6 @@ impl Default for BudgetStore {
 }
 
 impl BudgetStore {
-    /// Load from `<app_data>/llm/budget.json`, or start empty if it is missing
-    /// or corrupt (a broken ledger must never block the app).
     pub fn open() -> Self {
         match default_path() {
             Some(p) => Self::at(p),
@@ -185,7 +149,6 @@ impl BudgetStore {
         }
     }
 
-    /// No file at all: tests and the `--no-persist` path.
     pub fn memory() -> Self {
         Self {
             path: None,
@@ -212,15 +175,11 @@ impl BudgetStore {
         state.spend(agent_id)
     }
 
-    /// Dollars left today, `None` when the agent has no daily ceiling.
     pub fn remaining_usd(&self, agent_id: &str, budget: &Budget) -> Option<f64> {
         let cap = budget.usd_per_day?;
         Some((cap - self.spent_today(agent_id).usd).max(0.0))
     }
 
-    /// The gate: called before every turn. Returns `ERR_LLM_BUDGET` when the
-    /// daily ceiling is already reached or when the turn's own token estimate
-    /// is over `tokens_per_turn`.
     pub fn check(
         &self,
         agent_id: &str,
@@ -259,8 +218,6 @@ impl BudgetStore {
         Ok(())
     }
 
-    /// Book a finished turn and persist. Cost is what the provider reported, or
-    /// what the pricing table computed upstream; `None` books zero.
     pub fn record(&self, agent_id: &str, usd: Option<f64>, input_tokens: u32, output_tokens: u32) {
         self.record_at(agent_id, usd, input_tokens, output_tokens, Utc::now());
     }
@@ -288,20 +245,6 @@ impl BudgetStore {
         self.save();
     }
 
-    // ── In-flight reservations (spec 02 "Orçamento", B04) ─────────────
-
-    /// Reserves room for one turn in `pool` before it is dispatched. The
-    /// check and the reservation happen under one lock, so two children near
-    /// the limit cannot both pass. Admission counts what was spent today plus
-    /// everything still in flight:
-    /// - `usd`: known spend + known reservations + this estimate must stay
-    ///   within the cap. An estimate of unknown cost is not zero: under a USD
-    ///   cap with no token/turn limit, only one unknown-cost turn may be in
-    ///   flight at a time, and only while the known spend is under the cap;
-    /// - `tokens`: tokens spent + reserved + estimated ≤ limit;
-    /// - `turns`: turns booked + in flight + 1 ≤ limit.
-    ///
-    /// Returns the reservation id; [`Self::settle`] or [`Self::release`] it.
     pub fn reserve(
         &self,
         pool: &str,
@@ -387,8 +330,6 @@ impl BudgetStore {
         Ok(id)
     }
 
-    /// Replaces the reservation by what the turn really used. Unknown cost
-    /// is booked as unknown (a failed or retried turn still counts).
     pub fn settle(
         &self,
         reservation: &str,
@@ -406,9 +347,6 @@ impl BudgetStore {
         }
     }
 
-    /// Raises a lifetime pool to at least `floor` (the mission's own durable
-    /// spend), so a lost or reset ledger file never gives a mission its cap
-    /// back. Day pools are left alone.
     pub fn seed_lifetime(&self, pool: &str, floor: &AgentSpend) {
         if !is_lifetime_pool(pool) {
             return;
@@ -430,8 +368,6 @@ impl BudgetStore {
         }
     }
 
-    /// Whether `pool` has reservations in flight (a refusal while one is in
-    /// flight may pass once it settles; one without is final).
     pub fn has_in_flight(&self, pool: &str) -> bool {
         self.inflight
             .lock()
@@ -440,8 +376,6 @@ impl BudgetStore {
             .any(|r| r.pool == pool)
     }
 
-    /// Drops a reservation without booking anything (cancelled before the
-    /// provider saw it). Returns whether it was held.
     pub fn release(&self, reservation: &str) -> bool {
         self.inflight
             .lock()
@@ -472,7 +406,6 @@ impl BudgetStore {
         }
     }
 
-    /// Atomic write: temp file next to the target, then rename.
     pub fn save(&self) {
         let Some(path) = self.path.as_ref() else {
             return;

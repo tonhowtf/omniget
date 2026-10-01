@@ -1,11 +1,3 @@
-//! Busca global (projeto, data, texto de mensagens e tool calls) e busca
-//! dentro de uma sessão, com contexto de ~100 caracteres e o índice da
-//! mensagem para o salto.
-//!
-//! A busca global não guarda cópia do texto: filtra as sessões pelo índice
-//! (ferramenta, projeto, datas), descarta arquivos em que os bytes não
-//! contêm o termo (sem parsear) e só então carrega e procura de verdade.
-
 use std::collections::{HashMap, VecDeque};
 use std::path::Path;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
@@ -25,14 +17,9 @@ pub struct SearchQuery {
     pub to: Option<String>,
     #[serde(default)]
     pub include_subagents: bool,
-    /// Máximo de resultados (padrão 200).
     pub limit: Option<u32>,
-    /// Máximo de trechos por sessão (padrão 5).
     pub per_session: Option<u32>,
-    /// Procurar também em entradas e resultados de tools (padrão: sim).
     pub in_tools: Option<bool>,
-    /// Não cancelar a busca global anterior que ainda roda (padrão: uma
-    /// busca nova cancela a anterior, como numa caixa de busca).
     #[serde(default)]
     pub keep_previous: bool,
 }
@@ -44,14 +31,11 @@ pub struct Hit {
     pub title: Option<String>,
     pub project_path: Option<String>,
     pub ended: Option<String>,
-    /// Índice da `Turn` na sessão (`None` quando bateu no título/projeto).
     pub turn: Option<usize>,
     pub role: Option<Role>,
     pub ts: Option<String>,
-    /// `title` | `project` | `text` | `tool_name` | `tool_input` | `tool_result`.
     pub field: String,
     pub snippet: String,
-    /// Posição do termo dentro de `snippet`, em caracteres.
     pub match_start: usize,
     pub match_len: usize,
     pub match_count: u32,
@@ -62,15 +46,10 @@ pub struct SearchResult {
     pub hits: Vec<Hit>,
     pub sessions_scanned: u32,
     pub sessions_matched: u32,
-    /// Parou antes de varrer tudo (limite atingido ou cancelada).
     pub truncated: bool,
-    /// Uma busca mais nova a cancelou; o resultado é parcial.
     pub cancelled: bool,
 }
 
-/// Procura `needle` (case-insensitive) em `hay`: (nº de ocorrências,
-/// trecho com ~100 caracteres em volta da primeira, início e tamanho do
-/// termo no trecho).
 pub fn find_ci(hay: &str, needle: &str) -> Option<(u32, String, usize, usize)> {
     if needle.is_empty() {
         return None;
@@ -136,7 +115,6 @@ fn hit_base(meta: &SessionMeta) -> Hit {
     }
 }
 
-/// Busca dentro de uma sessão já carregada.
 pub fn search_in(s: &Session, needle: &str, in_tools: bool, limit: usize) -> Vec<Hit> {
     let mut out = Vec::new();
     for (i, t) in s.turns.iter().enumerate() {
@@ -179,14 +157,8 @@ pub fn search_in(s: &Session, needle: &str, in_tools: bool, limit: usize) -> Vec
     out
 }
 
-// --- pré-filtro por bytes ----------------------------------------------------
-
-/// Busca de bytes sem diferenciar maiúsculas (UTF-8), com a forma escapada
-/// `\uXXXX` do JSON quando o termo não é ASCII. O motor do `regex` usa
-/// SIMD para literais, bem mais rápido que comparar byte a byte.
 struct Matcher {
     re: regex::bytes::Regex,
-    /// Quantos bytes do fim de um bloco repetir no próximo.
     overlap: usize,
 }
 
@@ -196,7 +168,6 @@ impl Matcher {
         if !needle_lower.is_ascii() {
             let esc = serde_json::to_string(needle_lower).unwrap_or_default();
             let esc = esc.trim_matches('"');
-            // `serde_json` não escapa não-ASCII; escapa à mão como o JS.
             let mut u = String::new();
             for ch in esc.chars() {
                 if ch.is_ascii() {
@@ -221,7 +192,6 @@ impl Matcher {
         })
     }
 
-    /// O arquivo contém o termo? Lê em blocos num buffer reaproveitado.
     fn file_matches(&self, path: &Path, buf: &mut Vec<u8>, stop: &dyn Fn() -> bool) -> bool {
         use std::io::Read;
         const CHUNK: usize = 4 << 20;
@@ -261,7 +231,6 @@ impl Matcher {
     }
 }
 
-/// Fonte de um arquivo por sessão em texto (dá para pré-filtrar os bytes).
 fn raw_file(meta: &SessionMeta) -> bool {
     let ext = meta
         .source
@@ -271,13 +240,9 @@ fn raw_file(meta: &SessionMeta) -> bool {
     (ext == "jsonl" || ext == "json") && meta.source.is_file()
 }
 
-/// Texto pesquisável guardado no índice para fontes sem arquivo de texto
-/// (banco, `.zst`): `(ferramenta, id)` → (impressão digital, texto).
 pub type SearchTexts = HashMap<(String, String), (String, Vec<u8>)>;
-/// Texto novo para gravar no índice: chave, impressão digital, texto.
 pub type NewText = ((String, String), String, Vec<u8>);
 
-/// Os mesmos campos que `search_in` olha, num bloco só.
 pub fn searchable_text(s: &Session) -> Vec<u8> {
     let mut out: Vec<u8> = Vec::new();
     for t in &s.turns {
@@ -297,12 +262,10 @@ pub fn searchable_text(s: &Session) -> Vec<u8> {
     out
 }
 
-/// Fonte de um arquivo por sessão em texto: fica de fora de `SearchTexts`.
 pub fn needs_text(meta: &SessionMeta) -> bool {
     !raw_file(meta)
 }
 
-/// Impressão digital de uma sessão (do índice): muda quando ela muda.
 pub fn fp_of(m: &SessionMeta) -> String {
     format!(
         "{}:{}:{}:{}",
@@ -313,11 +276,6 @@ pub fn fp_of(m: &SessionMeta) -> String {
     )
 }
 
-// --- caches ----------------------------------------------------------------
-
-/// Sessões carregadas recentemente (o parse é a parte cara de uma busca):
-/// digitar "ded", "dedu", "dedupe" reaproveita as mesmas. Orçamento em bytes
-/// de texto; sai a mais antiga.
 struct SessionCache {
     map: HashMap<(String, String), (String, Arc<Session>, usize)>,
     order: VecDeque<(String, String)>,
@@ -326,9 +284,6 @@ struct SessionCache {
 
 const CACHE_BYTES: usize = 64 << 20;
 
-/// Texto pesquisável das sessões de arquivo já parseadas: um arquivo cujo
-/// JSON bate só em campos que a busca não olha (`cwd`, ids) deixa de ser
-/// parseado de novo nas próximas buscas.
 type TextKey = (String, String);
 
 struct TextCache {
@@ -425,8 +380,6 @@ fn cache_put(m: &SessionMeta, fp: String, s: Arc<Session>) {
     c.map.insert(key, (fp, s, size));
 }
 
-/// Sessões que não contêm o último termo buscado. Um termo novo que contém o
-/// anterior ("dedu" → "dedupe") pula todas elas sem ler nada.
 struct Negatives {
     needle_lower: String,
     in_tools: bool,
@@ -435,12 +388,8 @@ struct Negatives {
 
 static NEGATIVES: Mutex<Option<Negatives>> = Mutex::new(None);
 
-/// Cada busca global nova cancela a anterior que ainda roda (a caixa de
-/// busca manda uma por tecla), salvo `SearchQuery.keep_previous`.
 static GENERATION: AtomicU64 = AtomicU64::new(0);
 
-/// Busca global sobre `candidates` (já filtrados pelo índice, mais recentes
-/// primeiro). `load` carrega a sessão completa de um meta.
 pub fn search_global(
     candidates: Vec<SessionMeta>,
     q: &SearchQuery,
@@ -466,7 +415,6 @@ pub fn search_global(
         return (res, Vec::new());
     };
     let new_texts: Mutex<Vec<NewText>> = Mutex::new(Vec::new());
-    // Título e projeto batem sem abrir nada.
     let mut hits: Vec<Hit> = Vec::new();
     for m in &candidates {
         for (field, val) in [
@@ -485,7 +433,6 @@ pub fn search_global(
             }
         }
     }
-    // Negativos herdados de um termo contido neste.
     let inherited: HashMap<(String, String), String> = NEGATIVES
         .lock()
         .ok()
@@ -544,8 +491,6 @@ pub fn search_global(
                     }
                     let cached = cache_get(m, &fp);
                     let raw = raw_file(m);
-                    // Sem arquivo de texto: o texto pesquisável guardado no
-                    // índice faz o papel do pré-filtro.
                     let stored = (!raw)
                         .then(|| texts.get(&key).filter(|(f, _)| *f == fp))
                         .flatten();
@@ -637,7 +582,6 @@ pub fn search_global(
         }
     }
     let mut body = found.into_inner().unwrap_or_default();
-    // Ordem da lista de candidatos (mais recentes primeiro), depois o turno.
     body.sort_by(|a, b| a.0.cmp(&b.0).then(a.1.turn.cmp(&b.1.turn)));
     hits.extend(body.into_iter().map(|(_, h)| h));
     res.truncated = hits.len() > limit || full.load(Ordering::Relaxed) || was_cancelled;

@@ -1,8 +1,3 @@
-//! Disk: volumes (with macOS purgeable space), a usage tree in the style of
-//! dust with drill-down from memory, the largest files as a Trash plan, and
-//! physical disk health. Everything here only reads; the one change, moving
-//! large files to the Trash, goes through a plan.
-
 pub mod health;
 pub mod large;
 pub mod plist;
@@ -30,7 +25,6 @@ fn home() -> Result<PathBuf, String> {
     dirs::home_dir().ok_or_else(|| "no home folder".to_string())
 }
 
-/// A folder the caller named: `~` expanded, absolute, an existing folder.
 fn folder(raw: &str) -> Result<PathBuf, String> {
     let raw = raw.trim();
     let p = if raw == "~" {
@@ -46,8 +40,6 @@ fn folder(raw: &str) -> Result<PathBuf, String> {
     if !p.is_dir() {
         return Err(format!("NOT_A_FOLDER: {}", p.display()));
     }
-    // Resolve the root itself (`/tmp` → `/private/tmp`) so drill-down paths
-    // match the scan; the walk below never follows a link.
     #[cfg(unix)]
     let p = std::fs::canonicalize(&p).unwrap_or(p);
     Ok(p)
@@ -173,8 +165,6 @@ fn large_files(
     }))
 }
 
-/// Actions only the screen may run (`washmybelly_ui` with `disk.<action>`):
-/// never exposed as MCP tools.
 pub async fn ui_action(action: &str, a: Value) -> Result<Value, String> {
     match action {
         "reveal" => {
@@ -192,8 +182,6 @@ pub async fn ui_action(action: &str, a: Value) -> Result<Value, String> {
     }
 }
 
-/// Show a file or folder in the system file manager. The path is absolute
-/// (checked above), so it can never be read as an option.
 fn reveal(p: &Path) -> Result<(), String> {
     #[cfg(target_os = "macos")]
     {
@@ -213,8 +201,6 @@ fn reveal(p: &Path) -> Result<(), String> {
     #[cfg(windows)]
     {
         use std::os::windows::process::CommandExt;
-        // Explorer wants `/select,"<path>"` as one raw argument; a Windows
-        // path cannot hold a double quote, so nothing escapes the quotes.
         let s = p.display().to_string();
         if s.contains('"') {
             return Err("bad path".into());

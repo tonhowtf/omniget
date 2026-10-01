@@ -1,8 +1,3 @@
-//! Linux sensors from sysfs: hwmon (temperatures, fans, power), DRM (GPU
-//! load and frequency) and power_supply (battery). Every reader takes the
-//! class folder as an argument, so tests run them on fixture trees shaped
-//! like `/sys/class/...` on any system.
-
 #![allow(dead_code)]
 
 use std::path::Path;
@@ -28,7 +23,6 @@ fn sorted_dir(dir: &Path) -> Vec<std::path::PathBuf> {
     v
 }
 
-/// Which hwmon chip drives which group.
 fn hwmon_group(chip: &str) -> &'static str {
     match chip {
         "coretemp" | "k10temp" | "zenpower" | "cpu_thermal" | "cpu-thermal" | "soc_thermal" => {
@@ -41,7 +35,6 @@ fn hwmon_group(chip: &str) -> &'static str {
     }
 }
 
-/// Temperatures, fans and power readings of every hwmon chip.
 pub fn read_hwmon(root: &Path) -> (Vec<Temp>, Vec<Fan>, Vec<(String, f64)>) {
     let mut temps = Vec::new();
     let mut fans = Vec::new();
@@ -74,7 +67,6 @@ pub fn read_hwmon(root: &Path) -> (Vec<Temp>, Vec<Fan>, Vec<(String, f64)>) {
             };
             if base.starts_with("temp") && f.ends_with("_input") {
                 let c = v / 1000.0;
-                // Unplugged ACPI zones read -273 or 0; above 150 is garbage.
                 if c > 0.0 && c < 150.0 {
                     temps.push(Temp {
                         name,
@@ -94,7 +86,6 @@ pub fn read_hwmon(root: &Path) -> (Vec<Temp>, Vec<Fan>, Vec<(String, f64)>) {
             } else if base.starts_with("power")
                 && (f.ends_with("_input") || !files.contains(&format!("{base}_input")))
             {
-                // µW; prefer _input, use _average when there is no _input.
                 power.push((name, (v / 1e6 * 10.0).round() / 10.0));
             }
         }
@@ -102,8 +93,6 @@ pub fn read_hwmon(root: &Path) -> (Vec<Temp>, Vec<Fan>, Vec<(String, f64)>) {
     (temps, fans, power)
 }
 
-/// The CPU temperature from hwmon: the package sensor when there is one,
-/// else the hottest CPU sensor, else the first ACPI thermal zone.
 pub fn cpu_temp(temps: &[Temp]) -> Option<f64> {
     let cpu: Vec<&Temp> = temps.iter().filter(|t| t.group == "CPU").collect();
     let pick = |needle: &str| {
@@ -123,16 +112,12 @@ pub fn cpu_temp(temps: &[Temp]) -> Option<f64> {
         })
 }
 
-/// GPUs from `/sys/class/drm/card*/device`: AMD `gpu_busy_percent` and VRAM,
-/// Intel current frequency (i915 `gt_act_freq_mhz`, xe `tile0/gt0/freq0`).
-/// NVIDIA cards are listed without load; `nvidia-smi` fills them.
 pub fn read_drm(root: &Path) -> Vec<Gpu> {
     let mut out = Vec::new();
     for card in sorted_dir(root) {
         let Some(name) = card.file_name().and_then(|n| n.to_str()) else {
             continue;
         };
-        // card0, card1...; connectors (card0-DP-1) and render nodes skipped.
         if !name.starts_with("card") || name.contains('-') {
             continue;
         }
@@ -172,8 +157,6 @@ pub fn read_drm(root: &Path) -> Vec<Gpu> {
     out
 }
 
-/// The first system battery under `/sys/class/power_supply`. Supplies with
-/// `scope=Device` (mice, gamepads) and Logitech `hidpp_battery` are skipped.
 pub fn read_battery(root: &Path) -> Battery {
     let supplies = sorted_dir(root);
     let on_ac = supplies
@@ -227,7 +210,6 @@ pub fn read_battery(root: &Path) -> Battery {
             full_charge_capacity: full,
             capacity_unit: Some(unit),
             charge_percent: f("capacity"),
-            // Tenths of a degree, where the driver exposes it.
             temperature_c: f("temp").map(|t| t / 10.0),
             state,
             on_ac,

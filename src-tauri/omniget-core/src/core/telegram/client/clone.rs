@@ -237,7 +237,7 @@ pub async fn fetch_all_message_ids(
     Ok(ids)
 }
 
-#[allow(clippy::too_many_arguments)] // mirrors the command arguments one to one
+#[allow(clippy::too_many_arguments)]
 pub async fn start_clone(
     handle: TelegramSessionHandle,
     plugin_data_dir: PathBuf,

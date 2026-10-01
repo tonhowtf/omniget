@@ -1,12 +1,3 @@
-//! Anthropic Messages client (`POST {base}/messages`, `stream: true`).
-//! No SDK: `reqwest` + our own SSE parser. Owned by f2-llm-providers.
-//!
-//! Differences from the OpenAI-compatible path that this file exists for:
-//! `system` is a top-level field and not a message, `max_tokens` is required
-//! (we default to 4096, not the 1024 the old `ai.rs` hard-coded), tool results
-//! travel inside a `user` message as content blocks, and the stream is a
-//! sequence of *named* events with indexed content blocks.
-
 use std::collections::BTreeMap;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -29,7 +20,6 @@ use crate::core::llm::types::{
 
 pub const API_VERSION: &str = "2023-06-01";
 pub const DEFAULT_BASE_URL: &str = "https://api.anthropic.com/v1";
-/// The old `ai.rs` sent 1024 and truncated long answers; the contract says 4096.
 pub const DEFAULT_MAX_TOKENS: u32 = 4096;
 
 pub struct AnthropicProvider {
@@ -86,8 +76,6 @@ impl AnthropicProvider {
     }
 }
 
-// ── Request body ───────────────────────────────────────────────────────
-
 fn part_block(p: &ContentPart) -> Option<Value> {
     match p {
         ContentPart::Text { text } => Some(json!({ "type": "text", "text": text })),
@@ -111,9 +99,6 @@ fn part_block(p: &ContentPart) -> Option<Value> {
     }
 }
 
-/// Prompt caching is on by default; `params.extra["cache"] = false` opts out.
-/// A tool loop resends the whole history every request, so the breakpoint on
-/// the latest user turn lets each request read the prefix at 0.1x.
 fn wants_cache(extra: &Map<String, Value>) -> bool {
     match extra.get("cache") {
         Some(Value::Bool(b)) => *b,
@@ -123,8 +108,6 @@ fn wants_cache(extra: &Map<String, Value>) -> bool {
     }
 }
 
-/// Builds the exact JSON body sent to `/messages`. Pure, like its
-/// OpenAI-compatible twin, so `wire_probe` can diff it.
 pub fn build_body(req: &TurnRequest) -> Value {
     let cache = wants_cache(&req.params.extra);
     let mut body = Map::new();
@@ -135,8 +118,6 @@ pub fn build_body(req: &TurnRequest) -> Value {
     );
     body.insert("stream".into(), json!(true));
 
-    // System turns into the top-level field; consecutive same-role messages
-    // are merged because the API rejects two `user` turns in a row.
     let mut system_blocks: Vec<Value> = Vec::new();
     let mut msgs: Vec<Value> = Vec::new();
     for m in &req.messages {
@@ -150,7 +131,6 @@ pub fn build_body(req: &TurnRequest) -> Value {
         }
         let role = match m.role {
             Role::Assistant => "assistant",
-            // Tool results are user turns in the Anthropic schema.
             _ => "user",
         };
         let blocks: Vec<Value> = m.parts.iter().filter_map(part_block).collect();
@@ -175,8 +155,6 @@ pub fn build_body(req: &TurnRequest) -> Value {
         body.insert("system".into(), Value::Array(system_blocks));
     }
     if cache {
-        // Third breakpoint: last block of the latest user turn (tool results
-        // included), so the next request of the loop reads it from cache.
         if let Some(last) = msgs
             .iter_mut()
             .rev()
@@ -219,8 +197,6 @@ pub fn build_body(req: &TurnRequest) -> Value {
     if !p.stop.is_empty() {
         body.insert("stop_sequences".into(), json!(p.stop));
     }
-    // Extended thinking: the budget is derived from max_tokens unless the
-    // caller sets `extra["thinking"]` itself.
     if let Some(effort) = &p.reasoning_effort {
         let max = p.max_tokens.unwrap_or(DEFAULT_MAX_TOKENS);
         let budget = match effort.as_str() {
@@ -233,7 +209,6 @@ pub fn build_body(req: &TurnRequest) -> Value {
                 "thinking".into(),
                 json!({ "type": "enabled", "budget_tokens": budget }),
             );
-            // Thinking mode forbids temperature/top_p.
             body.remove("temperature");
             body.remove("top_p");
         }
@@ -251,8 +226,6 @@ pub fn build_body(req: &TurnRequest) -> Value {
     Value::Object(body)
 }
 
-// ── Stream decoding ────────────────────────────────────────────────────
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum BlockKind {
     Text,
@@ -260,10 +233,8 @@ enum BlockKind {
     Tool,
 }
 
-/// The four counters exactly as Anthropic reports them, before we normalise.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 struct RawUsage {
-    /// Fresh (uncached) input only — NOT the total.
     input: u32,
     output: u32,
     cache_read: u32,
@@ -284,10 +255,6 @@ impl AnthropicStreamState {
         self.finish
     }
 
-    /// Usage in the contract's convention: `input_tokens` is the WHOLE input,
-    /// cache included, the way OpenAI reports `prompt_tokens`. Anthropic sends
-    /// the three apart, so the total is rebuilt here — `usage::cost_of` bills
-    /// the cached slice at the cache price on top of this.
     pub fn usage(&self) -> Usage {
         Usage {
             input_tokens: self
@@ -306,17 +273,11 @@ impl AnthropicStreamState {
         self.message_id.as_deref()
     }
 
-    /// The error the stream itself reported, if any.
     pub fn error(&self) -> Option<&LlmError> {
         self.error.as_ref()
     }
 }
 
-/// Merges a `usage` object into the running counters. Every field Anthropic
-/// reports is CUMULATIVE for the message, so a field that is present always
-/// wins over what we had — including `input_tokens` and
-/// `cache_creation_input_tokens`, which grow mid-turn when the model runs
-/// server-side tools. Absent fields are left alone.
 fn merge_usage(raw: &mut RawUsage, u: &Value) {
     let present = |key: &str| u.get(key).and_then(|v| v.as_u64()).map(|n| n as u32);
     if let Some(v) = present("input_tokens") {
@@ -343,8 +304,6 @@ fn stop_reason_of(s: &str) -> FinishReason {
     }
 }
 
-/// Maps one Anthropic stream event (already JSON-decoded) into `TurnEvent`s.
-/// The `event:` name is redundant with `data.type`, so we trust `type`.
 pub fn parse_event(state: &mut AnthropicStreamState, v: &Value, out: &mut Vec<TurnEvent>) {
     match v.get("type").and_then(|t| t.as_str()).unwrap_or("") {
         "message_start" => {
@@ -409,7 +368,6 @@ pub fn parse_event(state: &mut AnthropicStreamState, v: &Value, out: &mut Vec<Tu
                         });
                     }
                 }
-                // `signature_delta` carries the thinking signature, not text.
                 "signature_delta" => {}
                 "input_json_delta" => {
                     if let Some(t) = delta.get("partial_json").and_then(|t| t.as_str()) {
@@ -431,8 +389,6 @@ pub fn parse_event(state: &mut AnthropicStreamState, v: &Value, out: &mut Vec<Tu
             }
         }
         "message_delta" => {
-            // `message_delta.usage` is the final, cumulative word on every
-            // counter it carries, not just on output_tokens.
             if let Some(u) = v.get("usage") {
                 merge_usage(&mut state.raw, u);
             }
@@ -476,19 +432,13 @@ pub fn parse_event(state: &mut AnthropicStreamState, v: &Value, out: &mut Vec<Tu
             state.error = Some(error.clone());
             out.push(TurnEvent::Error { error });
         }
-        // "ping" and anything the API adds later.
         _ => {}
     }
 }
 
-// ── Transport ──────────────────────────────────────────────────────────
-
 #[async_trait]
 impl Provider for AnthropicProvider {
     async fn turn(&self, req: TurnRequest) -> Result<BoxStream<'static, TurnEvent>, LlmError> {
-        // Capture task-local authority before any await. The coordinator
-        // reserves one request; ambiguous external sends cannot be retried
-        // inside the adapter without another durable debit/authority check.
         let external = crate::core::llm::code_tools::current_turn()
             .is_some_and(|ctx| crate::core::assist::authority::external(&ctx.conversation));
         let max_attempts = if external { 1 } else { self.max_attempts };
@@ -651,8 +601,6 @@ impl Provider for AnthropicProvider {
                 }
             }
 
-            // A server that closes right after the last `data:` line, with no
-            // blank line to dispatch it, still owes us that event.
             sse_events.clear();
             parser.finish(&mut sse_events);
             for ev in sse_events.iter() {
@@ -697,8 +645,6 @@ impl Provider for AnthropicProvider {
                     }
                 }
                 None => {
-                    // A stream that reported an `error` event never reached a
-                    // stop_reason: it did not finish normally.
                     let reason = state.finish_reason().unwrap_or(if state.error().is_some() {
                         FinishReason::Other
                     } else {
@@ -727,8 +673,6 @@ mod tests {
     async fn external_failed_post_is_never_retried_inside_adapter() {
         use std::sync::atomic::{AtomicUsize, Ordering};
         use tokio::io::{AsyncReadExt, AsyncWriteExt};
-        // Exercise both a retryable status and an ambiguous accepted request
-        // whose connection vanishes without an HTTP response. Local fixture.
         for disconnect in [false, true] {
             let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
             let base = format!("http://{}", listener.local_addr().unwrap());
@@ -862,7 +806,6 @@ mod tests {
         let (events, state) = run_fixture("anthropic_text.txt", 64);
         assert_eq!(text_of(&events), "Hello! I am Claude.");
         assert_eq!(state.finish_reason(), Some(FinishReason::Stop));
-        // input_tokens is the WHOLE input: 25 fresh + 12 served from cache.
         assert_eq!(state.usage().input_tokens, 37);
         assert_eq!(state.usage().output_tokens, 15);
         assert_eq!(state.usage().cache_read_tokens, 12);
@@ -908,7 +851,7 @@ mod tests {
             .any(|e| matches!(e, TurnEvent::ToolCallEnd { id } if id == "toolu_01T1x1fJ34qAmk2")));
         assert_eq!(state.finish_reason(), Some(FinishReason::ToolUse));
         assert_eq!(state.usage().cache_write_tokens, 300);
-        assert_eq!(state.usage().input_tokens, 772); // 472 fresh + 300 written
+        assert_eq!(state.usage().input_tokens, 772);
     }
 
     #[test]
@@ -927,9 +870,6 @@ mod tests {
         assert_eq!(state.finish_reason(), None);
     }
 
-    /// Anthropic's `message_delta.usage` is cumulative for the whole message:
-    /// a turn with server-side tools reports a much bigger input there than in
-    /// `message_start`. Taking only `output_tokens` from it billed ~4x short.
     #[test]
     fn message_delta_usage_overrides_message_start() {
         let (_events, state) = run_fixture("anthropic_cumulative_usage.txt", 64);
@@ -940,13 +880,10 @@ mod tests {
             "cache_creation must come from the delta"
         );
         assert_eq!(u.output_tokens, 120);
-        // 400 fresh + 200 written + 50 read, all from message_delta.
         assert_eq!(u.input_tokens, 650);
         assert_eq!(state.finish_reason(), Some(FinishReason::Stop));
     }
 
-    /// The last event of a stream that closes without a blank line must still
-    /// be dispatched: `finish()` is what does it.
     #[test]
     fn the_unterminated_last_event_is_dispatched_by_finish() {
         let p = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -972,7 +909,6 @@ mod tests {
         let (_events, state) = run_fixture("anthropic_error.txt", 64);
         let err = state.error().expect("the state must remember the error");
         assert_eq!(err.code, ERR_LLM_RATE);
-        // No stop_reason ever arrived, so the turn did not finish normally.
         assert_eq!(state.finish_reason(), None);
     }
 }

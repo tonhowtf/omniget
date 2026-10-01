@@ -1,12 +1,3 @@
-//! Item state read from the system, never remembered: "applied" means the
-//! system is in that state right now (SophiApp's rule). Each fact has its
-//! reader; a fact nobody can read makes the item `unknown` and the screen
-//! disables it with the reason.
-//!
-//! Every reader goes through [`Sys`] (argv commands) and [`Env`] (home and
-//! root folders), so tests feed fixtures instead of the real system. The
-//! text parsers are pure functions compiled on every system.
-
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
@@ -18,17 +9,13 @@ use crate::core::washmybelly::parse::{self, RegValue};
 use crate::core::washmybelly::startup::Sys;
 use crate::core::washmybelly::Os;
 
-/// Where the person's files and the system files are. Tests point both at
-/// a temporary folder.
 #[derive(Debug, Clone)]
 pub struct Env {
     pub os: Os,
     pub home: PathBuf,
-    /// `/` (or `C:\`), prefixed to absolute system paths like `/etc/...`.
     pub root: PathBuf,
     pub path_dirs: Vec<PathBuf>,
     pub user: String,
-    /// `%SystemRoot%` on Windows.
     pub system_root: PathBuf,
 }
 
@@ -53,12 +40,10 @@ impl Env {
         }
     }
 
-    /// A system path under [`Env::root`] (`/etc/x` → `<root>/etc/x`).
     pub fn sys_path(&self, p: &str) -> PathBuf {
         self.root.join(p.trim_start_matches('/'))
     }
 
-    /// `~`, `$HOME` and `$USER` in a macOS `defaults` domain.
     pub fn expand(&self, s: &str) -> String {
         let home = self.home.to_string_lossy();
         let s = if s == "~" {
@@ -86,24 +71,20 @@ impl Env {
     }
 }
 
-/// What one fact reads as.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum FactState {
     Applied,
     NotApplied,
-    /// The thing does not exist here (service, task, program, profile).
     Absent,
     Unknown(String),
 }
 
-/// What an item reads as.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case", tag = "state", content = "reason")]
 pub enum ItemState {
     Applied,
     NotApplied,
     Unknown(String),
-    /// Nothing the item touches exists here: the list hides it.
     NotPresent,
 }
 
@@ -118,7 +99,6 @@ impl ItemState {
     }
 }
 
-/// Whether the facts of an item can all be read (the coverage figure).
 pub fn readable(it: &Item) -> bool {
     !it.cleanup
         && it
@@ -131,9 +111,6 @@ pub fn readable(it: &Item) -> bool {
             .all(|p| !matches!(p.fact, Fact::Opaque { .. } | Fact::TccReset { .. }))
 }
 
-// ── Pure parsers ──────────────────────────────────────────────────────
-
-/// Subkeys listed by `reg query <parent>` (lines at column 0 other than the parent).
 pub fn reg_subkeys(text: &str) -> Vec<String> {
     let mut lines = text
         .lines()
@@ -145,8 +122,6 @@ pub fn reg_subkeys(text: &str) -> Vec<String> {
         .collect()
 }
 
-/// Registry data as `reg query` prints it, for comparison with a
-/// privacy.sexy value: DWORD/QWORD as numbers, the rest as text.
 pub fn reg_data_equal(kind: &str, shown: &str, wanted: &str) -> bool {
     match kind.to_ascii_uppercase().as_str() {
         "REG_DWORD" | "REG_QWORD" => match (reg_number(shown), reg_number(wanted)) {
@@ -172,7 +147,6 @@ pub fn reg_number(s: &str) -> Option<u64> {
     }
 }
 
-/// `Start` (+ `DelayedAutostart`) of a service key as a `service_startup` mode.
 pub fn service_mode(values: &[RegValue]) -> Option<String> {
     let get = |n: &str| {
         values
@@ -194,7 +168,6 @@ pub fn service_mode(values: &[RegValue]) -> Option<String> {
     )
 }
 
-/// Output of our fixed `Get-ScheduledTask` listing: `path|name|state` lines.
 pub fn parse_tasks(text: &str) -> Vec<(String, String, bool)> {
     text.lines()
         .filter_map(|l| {
@@ -211,8 +184,6 @@ pub fn parse_tasks(text: &str) -> Vec<(String, String, bool)> {
         .collect()
 }
 
-/// Tasks matching privacy.sexy's path and name patterns (`*` wildcards,
-/// case-insensitive like `Get-ScheduledTask`).
 pub fn matching_tasks<'a>(
     tasks: &'a [(String, String, bool)],
     path: &str,
@@ -228,7 +199,6 @@ pub fn matching_tasks<'a>(
         .collect()
 }
 
-/// The hosts file blocks `domain` (a `0.0.0.0` or `::` line naming it).
 pub fn hosts_blocks(text: &str, domain: &str) -> bool {
     text.lines().any(|l| {
         let l = l.split('#').next().unwrap_or("");
@@ -238,7 +208,6 @@ pub fn hosts_blocks(text: &str, domain: &str) -> bool {
     })
 }
 
-/// `defaults read` output against the value of a `defaults write`.
 pub fn defaults_equal(kind: Option<&str>, shown: &str, wanted: &str) -> bool {
     let shown = shown.trim();
     match kind {
@@ -262,7 +231,6 @@ pub fn defaults_equal(kind: Option<&str>, shown: &str, wanted: &str) -> bool {
     }
 }
 
-/// `systemctl is-enabled` output (stdout first line, stderr, ok).
 pub fn systemd_state(stdout: &str, stderr: &str) -> FactState {
     let s = stdout.lines().next().unwrap_or("").trim();
     match s {
@@ -280,12 +248,10 @@ pub fn systemd_state(stdout: &str, stderr: &str) -> FactState {
     }
 }
 
-/// The exact line privacy.sexy writes to `user.js`.
 pub fn firefox_pref_line(name: &str, value: &str) -> String {
     format!("user_pref(\"{name}\", {value});")
 }
 
-/// Firefox profile folders (`xxxxxxxx.name`) of the three installs.
 pub fn firefox_profiles(home: &Path) -> Vec<PathBuf> {
     let roots = [
         ".mozilla/firefox",
@@ -318,7 +284,6 @@ fn is_profile_name(n: &str) -> bool {
         && b[8] == b'.'
 }
 
-/// JSON with `//` and `/* */` comments and trailing commas (VS Code settings).
 pub fn jsonc_parse(text: &str) -> Option<serde_json::Value> {
     let mut out = String::with_capacity(text.len());
     let mut chars = text.chars().peekable();
@@ -366,9 +331,6 @@ pub fn jsonc_parse(text: &str) -> Option<serde_json::Value> {
     serde_json::from_str(&TRAILING.replace_all(&out, "$1")).ok()
 }
 
-// ── Reading ───────────────────────────────────────────────────────────
-
-/// Run `f` over the inputs on a few threads (reads are many small commands).
 pub fn par_map<T: Sync, R: Send>(inputs: &[T], f: impl Fn(&T) -> R + Sync) -> Vec<R> {
     let threads = 8.min(inputs.len().max(1));
     let chunk = inputs.len().div_ceil(threads).max(1);
@@ -384,7 +346,6 @@ pub fn par_map<T: Sync, R: Send>(inputs: &[T], f: impl Fn(&T) -> R + Sync) -> Ve
     })
 }
 
-/// A registry key: `Ok(None)` when it does not exist.
 pub fn reg_read_key(sys: &dyn Sys, key: &str) -> Result<Option<Vec<RegValue>>, String> {
     let o = sys.run(&["reg".to_string(), "query".to_string(), key.to_string()])?;
     if o.ok {
@@ -402,7 +363,6 @@ pub fn reg_read_key(sys: &dyn Sys, key: &str) -> Result<Option<Vec<RegValue>>, S
     Ok(None)
 }
 
-/// `HKLM\X` and `HKEY_LOCAL_MACHINE\X` are the same key.
 pub fn same_key(a: &str, b: &str) -> bool {
     long_key(a).eq_ignore_ascii_case(&long_key(b))
 }
@@ -438,7 +398,6 @@ pub const SERVICES_KEY: &str = "HKLM\\SYSTEM\\CurrentControlSet\\Services";
 pub const DISALLOW_RUN_KEY: &str =
     "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\Explorer\\DisallowRun";
 
-/// The fixed PowerShell listing of this user's Store apps.
 pub fn store_apps_argv() -> Vec<String> {
     vec![
         "powershell".into(),
@@ -449,8 +408,6 @@ pub fn store_apps_argv() -> Vec<String> {
     ]
 }
 
-/// The fixed PowerShell listing of scheduled tasks (state names are not
-/// localized, unlike `schtasks` output).
 pub fn task_list_argv() -> Vec<String> {
     vec![
         "powershell".into(),
@@ -469,7 +426,6 @@ pub fn read_tasks(sys: &dyn Sys) -> Result<Vec<(String, String, bool)>, String> 
     Ok(parse_tasks(&o.stdout))
 }
 
-/// `defaults read <domain> <key>`: `Ok(None)` when the key is not set.
 pub fn defaults_read(
     sys: &dyn Sys,
     env: &Env,
@@ -491,12 +447,9 @@ pub fn defaults_read(
     }
 }
 
-/// A registry key read: `Ok(None)` when the key does not exist.
 pub type KeyRead = Result<Option<Vec<RegValue>>, String>;
-/// A scheduled task: `(path, name, enabled)`.
 pub type Task = (String, String, bool);
 
-/// Everything read for one catalog pass, so each key or list is read once.
 pub struct Reader<'a> {
     pub sys: &'a dyn Sys,
     pub env: &'a Env,
@@ -530,7 +483,6 @@ impl<'a> Reader<'a> {
         r
     }
 
-    /// Read many registry keys at once (in parallel) into the cache.
     pub fn prefetch(&self, items: &[&Item]) {
         let mut keys: Vec<String> = Vec::new();
         for it in items {
@@ -574,7 +526,6 @@ impl<'a> Reader<'a> {
         g.get_or_insert_with(|| read_tasks(self.sys)).clone()
     }
 
-    /// Service names under `Services` (for `Name_*` per-user patterns).
     fn service_names(&self) -> Result<Vec<String>, String> {
         let mut g = self.services.lock().map_err(|_| "lock")?;
         g.get_or_insert_with(|| {
@@ -590,7 +541,6 @@ impl<'a> Reader<'a> {
         .clone()
     }
 
-    /// Store apps installed for this user (one fixed PowerShell listing).
     fn store_apps(&self) -> Result<Vec<String>, String> {
         let mut g = self.apps.lock().map_err(|_| "lock")?;
         g.get_or_insert_with(|| {
@@ -608,7 +558,6 @@ impl<'a> Reader<'a> {
         .clone()
     }
 
-    /// Service instances a `ServiceReg` name covers.
     pub fn service_instances(&self, name: &str) -> Result<Vec<String>, String> {
         if !name.contains('*') {
             return Ok(vec![name.to_string()]);
@@ -802,7 +751,6 @@ impl<'a> Reader<'a> {
         self.build.is_none_or(|n| b.contains(n))
     }
 
-    /// The item as the system has it now.
     pub fn item(&self, it: &Item) -> ItemState {
         if it.os != self.env.os {
             return ItemState::Unknown("another system".into());

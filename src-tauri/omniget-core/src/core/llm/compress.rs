@@ -1,7 +1,3 @@
-//! Deterministic compression of a tool result before it enters the context
-//! (idea from headroom, no model involved): compact JSON, runs of repeated or
-//! near-identical lines collapsed, and a long log keeps its head and its tail.
-
 use serde_json::Value;
 
 const TEXT_MAX: usize = 24 * 1024;
@@ -85,9 +81,7 @@ fn walk(v: &mut Value) {
     }
 }
 
-/// What the coordinator stores as the tool result.
 pub fn tool_output(tool: &str, content: &str) -> String {
-    // File content goes back verbatim: the model copies it into its edits.
     if content.len() < MIN_LEN
         || matches!(tool, "fs_read" | "fs_edit" | "fs_apply_patch" | "fs_write")
     {

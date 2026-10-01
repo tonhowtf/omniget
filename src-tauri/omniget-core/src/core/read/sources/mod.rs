@@ -1,8 +1,3 @@
-//! Legal catalogs the Read browser searches: public-domain books
-//! (Gutendex, Standard Ebooks, Open Library) and official manga sources
-//! (MangaDex, MANGA Plus). Anything else comes in as an OPDS catalog or a
-//! source the user adds; see `custom`.
-
 pub mod declarative;
 pub mod googlebooks;
 pub mod gutendex;
@@ -42,11 +37,9 @@ pub async fn get_json<T: serde::de::DeserializeOwned>(
     r.json().await.map_err(|e| e.to_string())
 }
 
-/// One result card in the browser, whatever the source.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 pub struct Hit {
     pub source: String,
-    /// Source-specific key used to open details or download.
     pub key: String,
     pub title: String,
     pub authors: Vec<String>,
@@ -55,7 +48,6 @@ pub struct Hit {
     pub language: String,
     pub year: Option<i32>,
     pub subjects: Vec<String>,
-    /// `book` (a file to download) or `series` (manga with chapters).
     pub kind: String,
     pub downloads: Vec<Download>,
     pub url: String,
@@ -76,7 +68,6 @@ pub struct Page {
     pub next: Option<String>,
 }
 
-/// A chapter of an online series.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 pub struct RemoteChapter {
     pub key: String,
@@ -87,17 +78,14 @@ pub struct RemoteChapter {
     pub scanlator: String,
     pub published: Option<i64>,
     pub pages: Option<u32>,
-    /// Hosted elsewhere (MangaDex external links): open in the browser.
     pub external_url: Option<String>,
 }
 
-/// An image page and the headers needed to fetch it.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 pub struct RemotePage {
     pub url: String,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub headers: Vec<(String, String)>,
-    /// MANGA Plus pages are XOR-encrypted with this hex key.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub xor_key: Option<String>,
 }

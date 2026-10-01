@@ -1,18 +1,11 @@
-//! YAML: a lenient reader for frontmatter and tool configs (block maps and
-//! sequences, flow `[..]`/`{..}`, plain/quoted/block scalars, comments) and a
-//! line-preserving editor for block mappings (Goose `extensions`, Kiro, Rovo).
-
 use serde_json::{Map, Value};
 
 use super::{edit_err, nest, ordered_entries, value_at, Editor, Result, Seg, SetOutcome};
 
 #[derive(Debug, Clone)]
 struct Line {
-    /// Column where the content starts.
     indent: usize,
-    /// Byte offset of the line start in the text.
     start: usize,
-    /// Byte offset after the newline.
     end: usize,
     raw: String,
 }
@@ -45,7 +38,6 @@ fn split_lines(text: &str) -> Vec<Line> {
     out
 }
 
-/// Cuts a trailing ` # comment` outside quotes.
 fn strip_comment(s: &str) -> &str {
     let b = s.as_bytes();
     let (mut sq, mut dq) = (false, false);
@@ -65,8 +57,6 @@ fn strip_comment(s: &str) -> &str {
     s.trim_end()
 }
 
-/// `key: rest` → (key, rest). Handles quoted keys; the colon must be followed by
-/// a space or end the line.
 fn split_key(content: &str) -> Option<(String, &str)> {
     let c = content;
     if c.starts_with('"') || c.starts_with('\'') {
@@ -120,11 +110,9 @@ fn is_seq_item(content: &str) -> bool {
     content == "-" || content.starts_with("- ") || content.starts_with("-\t")
 }
 
-/// Parses YAML text into a value (lenient: unknown constructs become strings).
 pub fn parse(text: &str) -> Result<Value> {
     let text = text.strip_prefix('\u{feff}').unwrap_or(text);
     let mut lines = split_lines(text);
-    // skip a leading document marker
     if let Some(first) = lines.iter().position(|l| !l.blank()) {
         if lines[first].raw.trim() == "---" {
             lines[first].raw = String::new();
@@ -165,7 +153,6 @@ impl Parser {
         if split_key(&content).is_some() {
             return self.map(indent);
         }
-        // a lone scalar / flow value possibly continued on more lines
         self.i += 1;
         self.inline_value(&content, indent.saturating_sub(1))
     }
@@ -224,7 +211,6 @@ impl Parser {
             }
             let offset = content.len() - after.len();
             if split_key(after).is_some() || is_seq_item(after) {
-                // the item is a block collection starting on the dash line
                 let col = indent + offset;
                 let line = &mut self.lines[self.i];
                 line.indent = col;
@@ -238,7 +224,6 @@ impl Parser {
         Value::Array(items)
     }
 
-    /// Value after `key:` (or after `- `) on a line whose parent indent is `indent`.
     fn after_key(&mut self, rest: &str, indent: usize) -> Value {
         let rest = rest.trim();
         if rest.is_empty() {
@@ -262,7 +247,6 @@ impl Parser {
 
     fn inline_value(&mut self, rest: &str, indent: usize) -> Value {
         let mut rest = rest.trim().to_string();
-        // tags and anchors
         loop {
             if rest.starts_with('!') || rest.starts_with('&') {
                 match rest.find(' ') {
@@ -308,7 +292,6 @@ impl Parser {
             let end = quote_end(&joined, q).unwrap_or(joined.len());
             return quoted(&joined[..end]).unwrap_or(Value::String(joined));
         }
-        // plain scalar, maybe continued on deeper lines
         let mut text = strip_comment(&rest).to_string();
         while self.i < self.lines.len() {
             let l = &self.lines[self.i];
@@ -349,7 +332,6 @@ impl Parser {
             raw.push(l.raw[ci..].to_string());
             self.i += 1;
         }
-        // trailing blank lines are not part of the scalar body
         let mut trailing = 0;
         while raw.last().map(|s| s.is_empty()).unwrap_or(false) {
             raw.pop();
@@ -429,7 +411,6 @@ fn closed_quote(s: &str, q: char) -> bool {
     quote_end(s, q).is_some()
 }
 
-/// Line folding inside quoted scalars: newline + indentation → one space.
 fn fold_quoted_lines(s: &str) -> String {
     if !s.contains('\n') {
         return s.to_string();
@@ -451,7 +432,6 @@ fn fold_quoted_lines(s: &str) -> String {
     out
 }
 
-/// A quoted scalar (with its quotes) → string.
 fn quoted(s: &str) -> Option<Value> {
     let q = s.chars().next()?;
     if s.len() < 2 || !s.ends_with(q) {
@@ -500,7 +480,6 @@ fn quoted(s: &str) -> Option<Value> {
     Some(Value::String(out))
 }
 
-/// Resolves a plain scalar to null/bool/number/string.
 fn plain(s: &str) -> Value {
     let t = s.trim();
     match t {
@@ -618,8 +597,6 @@ impl<'a> Flow<'a> {
     }
 }
 
-// ------------------------------------------------------------ writing
-
 fn needs_quotes(s: &str) -> bool {
     if s.is_empty()
         || s.trim() != s
@@ -637,7 +614,6 @@ fn needs_quotes(s: &str) -> bool {
     !matches!(plain(s), Value::String(_))
 }
 
-/// A scalar as YAML text.
 pub fn scalar_text(v: &Value) -> String {
     match v {
         Value::Null => "null".into(),
@@ -664,7 +640,6 @@ fn key_out(k: &str) -> String {
     }
 }
 
-/// `key: value` block at `indent` columns, ending with a newline.
 pub fn entry_text(key: &str, v: &Value, indent: usize) -> String {
     let pad = " ".repeat(indent);
     match v {
@@ -692,7 +667,6 @@ fn seq_text(a: &[Value], indent: usize) -> String {
         match item {
             Value::Object(m) if !m.is_empty() => {
                 let body = map_text(m, indent + 2);
-                // put the first entry on the dash line
                 let trimmed = body.strip_prefix(&" ".repeat(indent + 2)).unwrap_or(&body);
                 out.push_str(&format!("{pad}- {trimmed}"));
             }
@@ -705,7 +679,6 @@ fn seq_text(a: &[Value], indent: usize) -> String {
     out
 }
 
-/// Whole document text for a value (maps and sequences at the top).
 pub fn to_text(v: &Value) -> String {
     match v {
         Value::Object(m) => map_text(m, 0),
@@ -714,7 +687,6 @@ pub fn to_text(v: &Value) -> String {
     }
 }
 
-/// A YAML document open for editing (block mappings).
 #[derive(Debug, Clone)]
 pub struct YamlDoc {
     text: String,
@@ -723,7 +695,6 @@ pub struct YamlDoc {
 
 struct Found {
     key_line: usize,
-    /// One past the last non-blank line of the entry.
     block_end: usize,
     map_indent: usize,
 }
@@ -805,7 +776,6 @@ impl YamlDoc {
         let mut t = self.text.clone();
         let mut with = with.to_string();
         if e == t.len() && !t.ends_with('\n') && e > s && !with.is_empty() {
-            // replacing the last line which had no newline
         } else if s == t.len() && !t.is_empty() && !t.ends_with('\n') {
             with.insert(0, '\n');
         }
@@ -813,7 +783,6 @@ impl YamlDoc {
         self.reload(t);
     }
 
-    /// Locates the entry for `path`, returning the found entry for each depth.
     fn walk(&self, path: &[Seg]) -> std::result::Result<Vec<Found>, (usize, usize, usize, usize)> {
         let mut out = Vec::new();
         let (mut from, mut to) = (0usize, self.lines.len());
@@ -876,11 +845,9 @@ impl Editor for YamlDoc {
             }
             Err((i, from, to, indent)) => {
                 if i > 0 {
-                    // the parent must be a block map (or empty)
                     let parent_val = self.get(&path[..i]);
                     match parent_val {
                         Some(Value::Object(ref m)) if m.is_empty() && from == to => {
-                            // `key: {}` or `key:` with nothing below: rewrite the parent entry
                             let found = self
                                 .walk(&path[..i])
                                 .map_err(|_| edit_err("lost the parent entry"))?;
@@ -927,7 +894,6 @@ impl Editor for YamlDoc {
                 };
                 let v = nest(&path[i + 1..], value);
                 let text = entry_text(k, &v, indent);
-                // insert after the last non-blank line of the parent block
                 let mut at = to;
                 while at > from && self.lines[at - 1].blank() {
                     at -= 1;

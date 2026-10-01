@@ -1,12 +1,3 @@
-//! Document ops: the one way to change a floor, for the front, agents, MCP and
-//! the CLI alike. Every op has an inverse, so a batch returns the ops that undo
-//! it (the front's history keeps them per origin, "undo your own").
-//!
-//! A batch is applied on a copy and swapped in only when every op succeeded.
-//! Cascades are made explicit: `remove_node` first emits `remove_connection`
-//! for its cords and fixes the stack it lived in, so the effective op list is
-//! enough for another client to replay the change.
-
 use super::model::{
     edge_point, round_points, validate_connection, validate_drawing, validate_node, CableTie,
     Camera, CanvasNode, Connection, Drawing, DrawingAnchor, FloorDoc, Group, GroupTarget, NodeKind,
@@ -64,7 +55,6 @@ pub enum Op {
 }
 
 impl Op {
-    /// Ops that change what is on the canvas (as opposed to a camera move).
     pub fn is_structural(&self) -> bool {
         matches!(self, Op::AddNode { .. } | Op::RemoveNode { .. })
     }
@@ -73,7 +63,6 @@ impl Op {
         matches!(self, Op::SetCamera { .. })
     }
 
-    /// Convenience: a patch from a JSON object literal.
     pub fn update_node(id: impl Into<String>, patch: Value) -> Op {
         Op::UpdateNode {
             id: id.into(),
@@ -82,16 +71,12 @@ impl Op {
     }
 }
 
-/// Result of applying a batch.
 #[derive(Debug, Clone, Default)]
 pub struct Applied {
-    /// Effective ops, cascades included, in application order.
     pub ops: Vec<Op>,
-    /// Ops that undo the batch, already in the order to apply them.
     pub inverse: Vec<Op>,
 }
 
-/// Applies `ops` atomically. On error `doc` is untouched.
 pub fn apply_batch(doc: &mut FloorDoc, ops: &[Op]) -> Result<Applied, String> {
     let mut work = doc.clone();
     let mut out = Applied::default();
@@ -109,7 +94,6 @@ pub fn apply_batch(doc: &mut FloorDoc, ops: &[Op]) -> Result<Applied, String> {
     Ok(out)
 }
 
-/// Cascade ops that must precede `op`, followed by `op` itself.
 fn expand(doc: &FloorDoc, op: &Op) -> Result<Vec<Op>, String> {
     let mut steps = Vec::new();
     match op {
@@ -191,7 +175,6 @@ fn expand(doc: &FloorDoc, op: &Op) -> Result<Vec<Op>, String> {
             steps.push(op.clone());
         }
         Op::AddDrawing { drawing } => {
-            // An arrow born attached starts on its shapes' edges.
             let mut d = drawing.clone();
             if let Some(ends) = anchored_ends(doc, &d, None) {
                 set_arrow_ends(&mut d, ends);
@@ -203,7 +186,6 @@ fn expand(doc: &FloorDoc, op: &Op) -> Result<Vec<Op>, String> {
             if let Some(cur) = doc.drawing(id) {
                 if let Ok((next, _)) = patch_record::<Drawing>(cur, patch, false) {
                     steps.extend(follow_arrows(doc, &next));
-                    // The arrow itself re-attached (or its anchors changed).
                     if let Some(ends) = anchored_ends(doc, &next, None) {
                         let mut snapped = next.clone();
                         set_arrow_ends(&mut snapped, ends);
@@ -215,7 +197,6 @@ fn expand(doc: &FloorDoc, op: &Op) -> Result<Vec<Op>, String> {
             }
         }
         Op::RemoveDrawing { id } => {
-            // Arrows attached to it stay where they are, detached.
             for d in doc.drawings.iter().filter(|d| &d.id != id) {
                 let mut patch = Map::new();
                 if d.source_connection.as_ref().map(|a| &a.drawing_id) == Some(id) {
@@ -238,8 +219,6 @@ fn expand(doc: &FloorDoc, op: &Op) -> Result<Vec<Op>, String> {
     Ok(steps)
 }
 
-/// Start and end of `arrow` from its anchors, reading `moved` (when given) in
-/// place of the document's copy of that shape. None when it has no anchor.
 fn anchored_ends(
     doc: &FloorDoc,
     arrow: &Drawing,
@@ -296,7 +275,6 @@ fn anchored_ends(
     any.then_some((start, end))
 }
 
-/// Rewrites an arrow as a straight two-point line from `ends.0` to `ends.1`.
 fn set_arrow_ends(d: &mut Drawing, (s, e): (Point, Point)) {
     let ox = s.x.min(e.x);
     let oy = s.y.min(e.y);
@@ -323,7 +301,6 @@ fn arrow_patch(d: &Drawing) -> Op {
     }
 }
 
-/// Updates for the arrows attached to `moved` (its state after the patch).
 fn follow_arrows(doc: &FloorDoc, moved: &Drawing) -> Vec<Op> {
     let mut out = Vec::new();
     for d in &doc.drawings {
@@ -346,8 +323,6 @@ fn follow_arrows(doc: &FloorDoc, moved: &Drawing) -> Vec<Op> {
     out
 }
 
-/// `remove_connection` for each id, preceded by the cable-tie fixes they imply
-/// (computed once for the whole set, so a tie holding several of them ends right).
 fn connection_removal(doc: &FloorDoc, conn_ids: &[String]) -> Vec<Op> {
     let mut steps = Vec::new();
     for tie in doc
@@ -372,7 +347,6 @@ fn connection_removal(doc: &FloorDoc, conn_ids: &[String]) -> Vec<Op> {
     steps
 }
 
-/// Applies one op in place and returns its inverse ops (to be applied in order).
 pub fn apply_one(doc: &mut FloorDoc, op: &Op) -> Result<Vec<Op>, String> {
     match op {
         Op::AddNode { node } => {
@@ -573,9 +547,6 @@ fn invalid(msg: String) -> String {
     format!("CANVAS_INVALID: {msg}")
 }
 
-/// Applies a shallow patch (null removes a key; with `merge_data`, the `data`
-/// object is merged key by key) and returns the patched record plus the patch
-/// that restores the touched keys.
 fn patch_record<T>(
     record: &T,
     patch: &Map<String, Value>,
@@ -614,7 +585,6 @@ where
                         data.insert(dk.clone(), dv.clone());
                     }
                 }
-                // Merge the inverse into an existing entry (same key twice is harmless).
                 inverse.insert("data".into(), Value::Object(inv));
                 continue;
             }

@@ -1,8 +1,3 @@
-//! Open Library: the book search and the metadata lookup (ISBN, title +
-//! author) the library uses to fill in covers, descriptions and series.
-//! Only `ebook_access == "public"` items get download links (public-domain
-//! scans hosted by the Internet Archive); borrowable books are not offered.
-
 use serde::{Deserialize, Serialize};
 
 use super::{get_json, Download, Hit, Page};
@@ -39,7 +34,6 @@ pub fn cover_url(id: i64, size: char) -> String {
     format!("https://covers.openlibrary.org/b/id/{id}-{size}.jpg")
 }
 
-/// `mode`: `everything` or `ebooks` (only public-domain readable books).
 pub fn search_url(query: &str, language: &str, mode: &str, page: u32) -> String {
     let mut u = url::Url::parse("https://openlibrary.org/search.json").expect("static url");
     {
@@ -58,8 +52,6 @@ pub fn search_url(query: &str, language: &str, mode: &str, page: u32) -> String 
     u.to_string()
 }
 
-/// Open Library lists every edition's contributor spelling; keep a few
-/// distinct names.
 fn tidy_authors(list: &[String]) -> Vec<String> {
     let mut out: Vec<String> = Vec::new();
     for a in list {
@@ -145,7 +137,6 @@ pub async fn search(client: &reqwest::Client, url: &str, page: u32) -> Result<Pa
     })
 }
 
-/// Metadata candidate for "fetch metadata" in the library.
 #[derive(Debug, Default, Clone, Serialize, Deserialize, PartialEq)]
 pub struct MetaCandidate {
     pub source: String,
@@ -163,7 +154,6 @@ pub struct MetaCandidate {
     pub url: String,
 }
 
-/// Title/author or ISBN lookup, best matches first.
 pub async fn lookup(
     client: &reqwest::Client,
     title: &str,

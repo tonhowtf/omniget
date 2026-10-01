@@ -109,8 +109,6 @@ pub enum QueueStatus {
     Error { message: String, retryable: bool },
 }
 
-/// Terminal states carry no live transfer: phase names the outcome and no
-/// speed/ETA survives, so a client polling `phase` always terminates.
 fn settle_terminal_run_state(item: &mut QueueItem, phase: &str) {
     item.phase = Some(phase.to_string());
     item.eta_seconds = None;
@@ -122,25 +120,16 @@ pub fn is_retryable_error_message(message: &str) -> bool {
     if lower.contains("cancel") {
         return false;
     }
-    // Fixed worker/finalizer codes carry their own retry class; the generic
-    // classifier would read "FORMAT_UNAVAILABLE" as "not found" and an
-    // unrecognized code as a retryable unknown.
     if let Some(d) = crate::core::root_cause::diagnose_code(message) {
         return d.is_retryable();
     }
     let (category, _) = omniget_core::core::errors::classify_download_error(message);
-    // A platform IP block is retryable only after its cooldown (never
-    // automatically: see `is_retryable_category`).
     matches!(
         category,
         "unknown" | "rate_limited" | "server_error" | "blocked_by_platform"
     )
 }
 
-/// Terminal message of a failed metadata fetch, classified like a failed
-/// download: the class hint leads ("The platform blocked access ... (raw)")
-/// so status, retry and diagnosis see the cause instead of an opaque engine
-/// line. Worker failures are fixed codes already classified in the worker.
 fn inspect_failure_message(platform: &str, raw: &str) -> String {
     let raw = super::flight_recorder::redact(raw);
     if platform == "mcp_worker" {
@@ -154,10 +143,6 @@ fn inspect_failure_message(platform: &str, raw: &str) -> String {
     }
 }
 
-/// Percent to show for one progress update, or `None` when nobody knows it.
-/// The engine's own number wins; an indeterminate update (unknown total at
-/// the engine, e.g. the confined worker) falls back to downloaded/total when
-/// the queue learned the total elsewhere. Never a made-up asymptote (D-04).
 fn resolve_percent(
     update: &omniget_core::models::progress::ProgressUpdate,
     resolved_total: Option<u64>,
@@ -169,26 +154,18 @@ fn resolve_percent(
     })
 }
 
-/// Terminal message for a retry whose stored URL lost its secret parts to
-/// redaction (items reloaded from history or recovery). The UI maps the
-/// `LINK_EXPIRED` code to `downloads.history_link_expired`.
 pub const LINK_EXPIRED_MESSAGE: &str =
     "LINK_EXPIRED: This link has expired or had its access key removed for privacy. Paste the original link again.";
 
-/// External (MCP) jobs: one predicate for status, receipt, diagnosis and retry.
 pub fn external_retryable(message: &str) -> bool {
     !message.to_ascii_lowercase().contains("cancel")
         && crate::core::root_cause::machine_diagnose(message).is_retryable()
 }
 
-/// A failed history entry is retryable only when its class is and its stored
-/// (redacted) URL is still the executable one.
 fn history_retryable(message: &str, url: &str) -> bool {
     is_retryable_error_message(message) && !crate::core::flight_recorder::is_redacted_url(url)
 }
 
-/// Settles an item whose stored URL is the redacted display form as a
-/// terminal, non-retryable "link expired" error. `true` = it was redacted.
 fn expire_redacted_link(item: &mut QueueItem) -> bool {
     if !crate::core::flight_recorder::is_redacted_url(&item.url) {
         return false;
@@ -228,9 +205,6 @@ pub struct QueueItemInfo {
     pub author: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub duration_seconds: Option<f64>,
-    /// Fase atual (`fetching_info`, `downloading_video`, `merging`…), a mesma
-    /// que vai no evento de progresso, para a tela não depender de ter visto
-    /// o evento.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub phase: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -245,11 +219,8 @@ pub struct QueueItemInfo {
     pub fragment_count: Option<u32>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub started_at_ms: Option<u64>,
-    /// Quando a tentativa terminou (sucesso ou erro). Com `started_at_ms`, dá
-    /// a duração medida pelo próprio app, sem depender de quem consulta.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub finished_at_ms: Option<u64>,
-    /// Último comando yt-dlp desta tentativa (redigido), quando houve um.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub command: Option<CommandRecord>,
 }
@@ -302,7 +273,6 @@ pub struct QueueItem {
     pub fragment_count: Option<u32>,
     pub started_at_ms: Option<u64>,
     pub finished_at_ms: Option<u64>,
-    /// Comando completo escrito pelo usuário em "editar e tentar de novo".
     pub ytdlp_argv_override: Option<Vec<String>>,
 }
 
@@ -365,12 +335,6 @@ pub struct DownloadQueue {
     pub max_concurrent: u32,
     pub stagger_delay_ms: u64,
     pub default_max_retries: u32,
-    /// Ultimo id entregue por `next_available_id`. Sem ele, dois `download_from_url`
-    /// simultaneos (um lote colado na omnibox dispara todos de uma vez) pegam o
-    /// mesmo timestamp em ms, soltam o lock para resolver o downloader e so depois
-    /// enfileiram — os dois entram com o mesmo id. Como todo o resto da fila acha
-    /// o item por `find(|i| i.id == id)`, o segundo item some: baixa o primeiro
-    /// duas vezes e o resto do lote nunca sai.
     last_issued_id: u64,
 }
 
@@ -421,8 +385,6 @@ impl DownloadQueue {
             id,
             url,
             platform,
-            // Every title that reaches the queue is display text: a URL in it
-            // (the placeholder before metadata) is the redacted URL (N-3).
             title: crate::core::flight_recorder::redact_urls(&title),
             status: QueueStatus::Queued,
             cancel_token: CancellationToken::new(),
@@ -483,9 +445,6 @@ impl DownloadQueue {
         self.items.push(item);
     }
 
-    /// A recovery item whose URL lost its secret to redaction: shown in the
-    /// list as a terminal "link expired, paste again" failure instead of a
-    /// download sent with `[REDACTED]` in it. Leaves the recovery log.
     pub fn push_expired_link(&mut self, r: &crate::core::recovery::RecoveryItem) {
         if !self.items.iter().any(|i| i.id == r.id) {
             self.enqueue(
@@ -532,9 +491,6 @@ impl DownloadQueue {
         }
     }
 
-    /// Puts one settled history entry back into the queue as a finished item
-    /// (a job settled by crash reconciliation, N-2), with the retry verdict of
-    /// its durable receipt. False when the queue already holds that id.
     pub fn hydrate_entry(
         &mut self,
         entry: &crate::core::queue_history::HistoryEntry,
@@ -558,8 +514,6 @@ impl DownloadQueue {
             QueueStatus::Complete { success: true }
         } else {
             let msg = entry.error.clone().unwrap_or_default();
-            // History keeps only the redacted URL: a retry from it would
-            // send `[REDACTED]` to the server.
             let retryable = retryable.unwrap_or_else(|| history_retryable(&msg, &entry.url));
             QueueStatus::Error {
                 message: msg,
@@ -630,8 +584,6 @@ impl DownloadQueue {
     }
 
     pub fn active_count(&self) -> u32 {
-        // Telegram jobs are only mirrored here (the /telegram engine runs
-        // them with its own limits): they must not take yt-dlp's slots.
         self.items
             .iter()
             .filter(|i| i.status == QueueStatus::Active && i.platform != "telegram")
@@ -650,9 +602,6 @@ impl DownloadQueue {
             .collect()
     }
 
-    /// Reserva um id livre. E `&mut self` de proposito: a reserva precisa
-    /// acontecer dentro do mesmo lock da consulta, senao chamadas concorrentes
-    /// recebem o mesmo numero.
     pub fn next_available_id(&mut self, preferred: u64) -> u64 {
         let mut id = preferred.max(self.last_issued_id.saturating_add(1));
         while self.items.iter().any(|i| i.id == id) {
@@ -676,9 +625,6 @@ impl DownloadQueue {
         }
     }
 
-    /// Estado "vivo" do download (stream atual, fragmento, plano, fase). Vem
-    /// do forwarder de progresso; separado de `update_progress` para não
-    /// engordar a assinatura de números.
     #[allow(clippy::too_many_arguments)]
     pub fn update_run_state(
         &mut self,
@@ -689,8 +635,6 @@ impl DownloadQueue {
         planned: Option<&Vec<String>>,
     ) {
         if let Some(item) = self.items.iter_mut().find(|i| i.id == id) {
-            // A late progress event after cancel/pause/finish must not bring
-            // a terminal item back to "running".
             if item.status != QueueStatus::Active {
                 return;
             }
@@ -775,8 +719,6 @@ impl DownloadQueue {
             } else {
                 let msg = error.unwrap_or_default();
                 let retryable = if item.platform == "mcp_worker" {
-                    // Same predicate as the durable receipt: status never
-                    // advertises a retry that download_retry would refuse.
                     external_retryable(&msg)
                         && crate::mcp::download_intents::receipt(id)
                             .ok()
@@ -1009,7 +951,6 @@ impl DownloadQueue {
         true
     }
 
-    /// Cancel an item. Returns the torrent_id if the item needs torrent cleanup (caller should delete from session).
     pub fn cancel(&mut self, id: u64) -> (bool, Option<usize>) {
         let result = self.cancel_inner(id);
         if result.0 {
@@ -1043,9 +984,6 @@ impl DownloadQueue {
                     return (true, tid);
                 }
                 QueueStatus::Paused => {
-                    // For magnet downloads, the cancel_token was not cancelled during pause,
-                    // so we must cancel it now to stop the background download loop.
-                    // Also return the torrent_id for session cleanup.
                     item.cancel_token.cancel();
                     let tid = if item.platform == "magnet" {
                         item.torrent_id
@@ -1086,9 +1024,6 @@ impl DownloadQueue {
         (false, None)
     }
 
-    /// Re-queues a failed item. An item whose URL is the redacted display
-    /// form (reloaded from history/recovery) fails for good with
-    /// [`LINK_EXPIRED_MESSAGE`] instead of sending `[REDACTED]` to a server.
     pub fn retry(&mut self, id: u64) -> Result<(), String> {
         if let Some(item) = self.items.iter_mut().find(|i| i.id == id) {
             if item.platform == "mcp_worker" {
@@ -1114,9 +1049,6 @@ impl DownloadQueue {
         Err("Download cannot be retried".into())
     }
 
-    /// Re-enfileira com o comando escrito pelo usuário. Só faz sentido para
-    /// item que já rodou o yt-dlp (tem `CommandRecord`); para os outros o
-    /// override é ignorado pela plataforma, então recusamos aqui.
     pub fn retry_with_command(&mut self, id: u64, argv: Vec<String>) -> Result<(), String> {
         let item = self
             .items
@@ -1132,16 +1064,12 @@ impl DownloadQueue {
         ) {
             return Err("Download is still running".to_string());
         }
-        // A completed history entry stays completed; only a failure is
-        // settled as expired.
         if crate::core::flight_recorder::is_redacted_url(&item.url) {
             if matches!(item.status, QueueStatus::Error { .. }) {
                 expire_redacted_link(item);
             }
             return Err(LINK_EXPIRED_MESSAGE.into());
         }
-        // The command shown for editing is redacted; a `[REDACTED]` left in
-        // the edited argv would reach the server as a literal.
         if argv.iter().any(|a| a.contains("[REDACTED]")) {
             return Err(LINK_EXPIRED_MESSAGE.into());
         }
@@ -1164,7 +1092,6 @@ impl DownloadQueue {
         Ok(())
     }
 
-    /// Remove an item. Returns the torrent_id if the item needs torrent cleanup (caller should delete from session).
     pub fn remove(&mut self, id: u64) -> Option<Option<usize>> {
         let result = self.remove_inner(id);
         if result.is_some() {
@@ -1181,7 +1108,6 @@ impl DownloadQueue {
             if item.status == QueueStatus::Active {
                 item.cancel_token.cancel();
             }
-            // For paused magnet items, the cancel_token was not cancelled during pause
             if item.status == QueueStatus::Paused && item.platform == "magnet" {
                 item.cancel_token.cancel();
             }
@@ -1255,8 +1181,6 @@ impl ProgressThrottle {
     }
 }
 
-/// Progress events reach the webview and its listeners: a URL inside a title
-/// goes out redacted whatever built the event (N-3).
 fn serialize_display_title<S: serde::Serializer>(title: &str, s: S) -> Result<S::Ok, S::Error> {
     s.serialize_str(&crate::core::flight_recorder::redact_urls(title))
 }
@@ -1284,15 +1208,10 @@ pub struct QueueItemProgress {
     pub planned_formats: Option<Vec<String>>,
 }
 
-/// Queue snapshot for anything outside the process (webview event, extension
-/// bridge): URLs by allowlist redaction. The executable URL stays on the
-/// in-memory `QueueItem`, which is what the download actually uses.
 pub fn redacted_for_display(mut state: Vec<QueueItemInfo>) -> Vec<QueueItemInfo> {
     use crate::core::flight_recorder::{redact_url, redact_urls};
     for item in &mut state {
         item.url = redact_url(&item.url);
-        // The title is the URL until metadata arrives, and stays the URL
-        // when extraction fails (N-3).
         item.title = redact_urls(&item.title);
         if let Some(t) = item.thumbnail_url.as_mut() {
             *t = redact_url(t);
@@ -1325,8 +1244,6 @@ pub fn emit_queue_state_from_state(app: &tauri::AppHandle, state: Vec<QueueItemI
         .iter()
         .filter(|i| i.status == QueueStatus::Active)
         .collect();
-    // Items with an unknown total have no percent; they do not pull the
-    // average toward a made-up number.
     let known: Vec<f64> = active_items.iter().filter_map(|i| i.percent).collect();
     let avg_percent = if !known.is_empty() {
         let sum: f64 = known.iter().sum();
@@ -1353,15 +1270,6 @@ pub fn emit_queue_state(app: &tauri::AppHandle, queue: &DownloadQueue) {
     emit_queue_state_from_state(app, state);
 }
 
-/// RAII guard that ensures an Active queue item never leaks a slot.
-///
-/// If the download future panics or is dropped before reaching `mark_complete`
-/// / `mark_seeding`, the Drop impl spawns a task that transitions the item to
-/// Error("Download interrupted") and calls `try_start_next`, unblocking the
-/// queue.
-///
-/// When the download reaches a terminal state through the normal paths, the
-/// guard sees the item is no longer Active and does nothing (idempotent).
 struct ActiveJobSlot {
     app: tauri::AppHandle,
     queue: Arc<tokio::sync::Mutex<DownloadQueue>>,
@@ -1435,8 +1343,6 @@ pub fn spawn_download(
     Box::pin(async move {
         let _timer_start = std::time::Instant::now();
         let slot = ActiveJobSlot::new(app.clone(), queue.clone(), item_id);
-        // washmybelly: hold the performance profile while it downloads
-        // (only when the setting is on; shared and released on drop).
         let _power_hold = omniget_core::core::washmybelly::power::auto_hold_begin("download");
         let external_attempt = {
             let q = queue.lock().await;
@@ -1470,8 +1376,6 @@ pub fn spawn_download(
                     )
             });
             drop(q);
-            // Worker teardown is acknowledged and the attempt is durably
-            // terminal: remove its leftovers from the job's exclusive folder.
             if settled.is_ok() && failed {
                 match tokio::task::spawn_blocking(move || {
                     crate::mcp::download_intents::cleanup_failed_attempt(item_id)
@@ -1609,8 +1513,6 @@ async fn spawn_download_inner(
                         _=cancel_token.cancelled()=>return,
                         _=tokio::time::sleep(std::time::Duration::from_millis(wait))=>{},
                     }
-                    // Re-read authority and the durable host deadline before
-                    // any effect; another job may have extended Retry-After.
                 }
                 result => {
                     let error = result
@@ -1736,7 +1638,7 @@ async fn spawn_download_inner(
                     result=&mut worker_future=>Ok(result),
                     _=tokio::time::sleep(std::time::Duration::from_secs(info_timeout_secs))=>{
                         cancel_token.cancel();
-                        let cleanup=worker_future.await; // teardown acknowledgement, never drop-and-retry
+                        let cleanup=worker_future.await;
                         if cleanup.as_ref().err().is_some_and(|e|e.to_string().contains("WORKER_TERMINATION_UNCONFIRMED")) {let _=crate::mcp::download_intents::unknown(item_id);}
                         Err(())
                     }
@@ -1744,9 +1646,6 @@ async fn spawn_download_inner(
             } else {
                 tokio::select! {
                     biased;
-                    // Dropping metadata extraction also drops the confined worker's
-                    // process guard. Preserve the pause/cancel state set by the
-                    // queue instead of turning it into an extraction failure.
                     _ = cancel_token.cancelled() => {
                         try_start_next(app, queue).await;
                         return;
@@ -2008,8 +1907,6 @@ async fn spawn_download_inner(
 
             let now = std::time::Instant::now();
             let resolved_total = update.total_bytes.or(total_bytes);
-            // Unknown total (D-04): no number is invented. The byte count
-            // against a total known from inspect is still a real percent.
             let reported = resolve_percent(&update, resolved_total);
             let known = reported.is_some();
             let percent = reported.unwrap_or(0.0);
@@ -2096,7 +1993,6 @@ async fn spawn_download_inner(
             let phase_value = if percent < 0.0 {
                 percent
             } else if !known && downloaded_bytes > 0 {
-                // Bytes are moving: downloading, whatever the percent.
                 50.0
             } else {
                 clamped
@@ -2320,8 +2216,6 @@ async fn spawn_download_inner(
                 }
             }
 
-            // Explicit MCP ceilings must also hold for native engines, which
-            // may return an original format rather than use yt-dlp's selector.
             let ceiling = opts
                 .format_id
                 .as_deref()
@@ -2438,9 +2332,6 @@ async fn spawn_download_inner(
                 format!("[omniget] download failed: {}", raw_err),
             );
             let (category, hint) = omniget_core::core::errors::classify_download_error(&raw_err);
-            // Worker failures are fixed machine labels already classified in
-            // the worker; wrapping them in a desktop hint mislabels them
-            // ("FORMAT_UNAVAILABLE" read as "Content not found").
             let user_msg = if platform_name == "mcp_worker" {
                 raw_err.clone()
             } else if category != "unknown" {
@@ -2458,10 +2349,6 @@ async fn spawn_download_inner(
             let retry_decision = {
                 let mut q = queue.lock().await;
                 if let Some(item) = q.items.iter_mut().find(|i| i.id == item_id) {
-                    // `cancel()` changes the queue status and cancels the token
-                    // before the downloader future returns. Treat that terminal
-                    // state as authoritative: a cancellation must never flow
-                    // through the generic error retry path and start again.
                     if !can_auto_retry_item(&item.status, &item.cancel_token, category) {
                         None
                     } else {
@@ -2569,9 +2456,6 @@ async fn fetch_and_cache_info(
     platform: &str,
     ytdlp_path: Option<&std::path::Path>,
 ) -> anyhow::Result<MediaInfo> {
-    // A private cached URL may have been authenticated by another principal.
-    // Confined executors must resolve in their own worker, without this cache
-    // or the desktop's special direct yt-dlp optimization.
     if downloader.name() == "mcp_worker" {
         return downloader.get_media_info(url).await;
     }
@@ -2659,11 +2543,6 @@ pub async fn prefetch_info(
     prefetch_info_with_emit(url, downloader, platform, ytdlp_path, None).await;
 }
 
-/// Pré-buscas de info ao mesmo tempo. Cada uma é um yt-dlp inteiro; colar
-/// uma lista de URLs disparava uma por linha e a tempestade de bootstrap
-/// (B1) derrubava o download que já estava rodando. Duas por vez; o resto
-/// espera na fila e ainda cabe no timeout, ou cai fora sem prejuízo — o
-/// download busca a info de novo quando começa.
 fn prefetch_slots() -> &'static tokio::sync::Semaphore {
     static SLOTS: std::sync::OnceLock<tokio::sync::Semaphore> = std::sync::OnceLock::new();
     SLOTS.get_or_init(|| tokio::sync::Semaphore::new(2))
@@ -2791,9 +2670,6 @@ pub async fn try_start_next(app: tauri::AppHandle, queue: Arc<tokio::sync::Mutex
     tracing::debug!("[perf] try_start_next took {:?}", _timer_start.elapsed());
 }
 
-// Periodic tick so a future-scheduled download still starts when its time
-// arrives even if the queue is otherwise idle, and so a download with a
-// stop time is cancelled when that time passes.
 pub fn start_scheduler(app: tauri::AppHandle) {
     tauri::async_runtime::spawn(async move {
         tokio::time::sleep(std::time::Duration::from_secs(15)).await;

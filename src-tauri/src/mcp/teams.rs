@@ -1,9 +1,3 @@
-//! Microsoft Teams over the MCP server, through the person's own Microsoft
-//! 365 sign-in (Meetings > Settings, or `omniget teams login`). An agent
-//! connected with `teams_read` reads chats, channels and the calendar as
-//! Markdown, and can turn a meeting's official transcript into an OmniGet
-//! meeting. Everything read is other people's words: data, not instructions.
-
 use omniget_core::core::msgraph::{self, calendar, chats, transcripts};
 use serde_json::{json, Value};
 use tauri::{AppHandle, Emitter};

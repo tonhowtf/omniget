@@ -1,15 +1,3 @@
-//! dnf (Fedora, RHEL and friends; dnf4 and dnf5 print the same shapes).
-//!
-//! - list: `rpm -qa --qf '%{NAME}\t%{VERSION}-%{RELEASE}\t%{SIZE}\t%{VENDOR}\t%{SUMMARY}\n'` (SIZE in bytes);
-//! - owners of `.desktop` files: `rpm -qf --qf '%{NAME}\n' -- <files>`;
-//! - removal preview: `dnf remove --assumeno -- <names>` (works without root
-//!   on dnf5; answers "no" and exits 1), sections `Removing:`, `Removing
-//!   dependent packages:`, `Removing unused dependencies:` and the freed line
-//!   (`After this operation, 44 MiB will be freed` / `Freed space: 34 M`);
-//! - orphans: `dnf repoquery --unneeded --qf '%{name}\n'`;
-//! - updates: `dnf check-update` (exit 100 = updates, 0 = none);
-//! - remove: `dnf -y remove -- <names>`, upgrade: `dnf -y upgrade -- <names>`.
-
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
@@ -28,7 +16,6 @@ pub struct RpmPkg {
     pub summary: String,
 }
 
-/// `rpm -qa --qf RPM_QF`.
 pub fn parse_rpm_qa(text: &str) -> Vec<RpmPkg> {
     let mut seen = std::collections::HashSet::new();
     text.lines()
@@ -74,8 +61,6 @@ pub fn rpm_app(manager: &str, p: &RpmPkg) -> App {
     )
 }
 
-/// `rpm -qf --qf '%{NAME}\n' -- <files>`: one line per file, in order;
-/// files nobody owns print an error line instead (with spaces).
 pub fn parse_rpm_owners(files: &[PathBuf], text: &str) -> HashMap<PathBuf, String> {
     let mut out = HashMap::new();
     let mut lines = text.lines();
@@ -100,8 +85,6 @@ pub fn rpm_desktop_owners(files: &[PathBuf]) -> HashMap<PathBuf, String> {
         .unwrap_or_default()
 }
 
-/// Package names and the freed bytes of a `dnf remove --assumeno` or
-/// `dnf autoremove --assumeno` transaction table.
 pub fn parse_transaction(text: &str) -> (Vec<String>, Option<u64>) {
     let mut names = Vec::new();
     let mut freed = None;
@@ -133,7 +116,6 @@ pub fn parse_transaction(text: &str) -> (Vec<String>, Option<u64>) {
     (names, freed)
 }
 
-/// `dnf check-update` lines `name.arch version repo` (stops at "Obsoleting").
 pub fn parse_check_update(text: &str) -> Vec<Update> {
     let mut out = Vec::new();
     for l in text.lines() {
@@ -166,7 +148,6 @@ pub fn parse_check_update(text: &str) -> Vec<Update> {
     out
 }
 
-/// `dnf repoquery --qf '%{name}\n'`: names, one per line.
 pub fn parse_names(text: &str) -> Vec<String> {
     text.lines()
         .flat_map(|s| s.split("\\n"))
@@ -182,7 +163,6 @@ impl PackageBackend for Dnf {
     }
 
     fn available(&self) -> bool {
-        // rpm-ostree systems (Silverblue) have dnf but do not remove with it.
         cfg!(target_os = "linux")
             && super::find_program("dnf").is_some()
             && super::find_program("rpm").is_some()

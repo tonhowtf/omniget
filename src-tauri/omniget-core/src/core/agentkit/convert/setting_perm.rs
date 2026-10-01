@@ -1,14 +1,5 @@
-//! Canonical permission model (plan §4.3 "Settings e permissões").
-//!
-//! Every setting component carries Claude's schema (`permissions.allow/ask/deny`
-//! with `Tool(pattern)` rules, `defaultMode`, `env`, `model` …). This module reads
-//! that into a tool-neutral [`PermissionSet`] plus a [`Provider`] (alternative
-//! model endpoint from `env`), and offers the small pure helpers each tool's
-//! writer needs (shell prefixes, domains, MCP ids, glob → regex). No I/O.
-
 use serde_json::{Map, Value};
 
-/// What a rule does.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Decision {
     Allow,
@@ -26,17 +17,13 @@ impl Decision {
     }
 }
 
-/// One `Tool` or `Tool(spec)` rule in Claude's syntax.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Rule {
-    /// Claude tool name (`Bash`, `Read`, `Edit`, `mcp__github__get_issue`, `*`).
     pub tool: String,
-    /// Text between the parentheses, if any.
     pub spec: Option<String>,
 }
 
 impl Rule {
-    /// `Bash(git push *)` → `Rule{tool: Bash, spec: "git push *"}`.
     pub fn parse(s: &str) -> Option<Rule> {
         let s = s.trim();
         if s.is_empty() {
@@ -69,18 +56,15 @@ impl Rule {
         }
     }
 
-    /// Tool family, merging Claude's aliases.
     pub fn family(&self) -> Family {
         family_of(&self.tool)
     }
 }
 
-/// Coarse tool families every tool understands in some way.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Family {
     Shell,
     Read,
-    /// Glob / Grep / LS: reading the tree.
     Search,
     Edit,
     WebFetch,
@@ -89,7 +73,6 @@ pub enum Family {
     Skill,
     Todo,
     Mcp,
-    /// `*`: every tool.
     All,
     Other,
 }
@@ -111,7 +94,6 @@ pub fn family_of(tool: &str) -> Family {
     }
 }
 
-/// Claude permission modes (`permissions.defaultMode`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Mode {
     Default,
@@ -147,13 +129,11 @@ impl Mode {
     }
 }
 
-/// `permissions` of a Claude settings fragment, tool-neutral.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct PermissionSet {
     pub rules: Vec<(Decision, Rule)>,
     pub mode: Option<Mode>,
     pub additional_dirs: Vec<String>,
-    /// Keys of `permissions` we do not model (`disableBypassPermissionsMode` …).
     pub other: Vec<String>,
 }
 
@@ -197,7 +177,6 @@ impl PermissionSet {
         self.rules.is_empty() && self.mode.is_none() && self.additional_dirs.is_empty()
     }
 
-    /// Rules of one decision, in order.
     pub fn of(&self, d: Decision) -> impl Iterator<Item = &Rule> {
         self.rules
             .iter()
@@ -205,7 +184,6 @@ impl PermissionSet {
             .map(|(_, r)| r)
     }
 
-    /// Decision for a bare rule of this family (no pattern), strongest wins.
     pub fn bare(&self, f: Family) -> Option<Decision> {
         self.rules
             .iter()
@@ -214,18 +192,15 @@ impl PermissionSet {
             .max()
     }
 
-    /// Edits and writes are denied outright (read-only profile).
     pub fn writes_denied(&self) -> bool {
         self.bare(Family::Edit) == Some(Decision::Deny)
     }
 
-    /// Shell denied outright.
     pub fn shell_denied(&self) -> bool {
         self.bare(Family::Shell) == Some(Decision::Deny)
     }
 }
 
-/// `Bash(git push *)` → `git push`; `Bash(npm run test:*)` → `npm run test`.
 pub fn shell_prefix(spec: &str) -> String {
     let mut s = spec.trim().to_string();
     loop {
@@ -242,7 +217,6 @@ pub fn shell_prefix(spec: &str) -> String {
     s.trim().to_string()
 }
 
-/// Prefix as argv tokens, `None` when a wildcard sits inside it.
 pub fn shell_tokens(spec: &str) -> Option<Vec<String>> {
     let p = shell_prefix(spec);
     if p.is_empty() || p.contains('*') || p.contains('?') {
@@ -251,13 +225,10 @@ pub fn shell_tokens(spec: &str) -> Option<Vec<String>> {
     Some(p.split_whitespace().map(str::to_string).collect())
 }
 
-/// `domain:example.com` → `example.com`.
 pub fn domain_of(spec: &str) -> Option<&str> {
     spec.strip_prefix("domain:").map(str::trim)
 }
 
-/// `mcp__srv__tool` → (`srv`, Some(`tool`)); `mcp__srv` or `mcp__srv__*` →
-/// (`srv`, None); `mcp__*` → None (every server).
 pub fn mcp_parts(tool: &str) -> Option<(String, Option<String>)> {
     let rest = tool.strip_prefix("mcp__")?;
     if rest == "*" || rest.is_empty() {
@@ -270,7 +241,6 @@ pub fn mcp_parts(tool: &str) -> Option<(String, Option<String>)> {
     }
 }
 
-/// Claude path spec → plain glob (`./src/**` → `src/**`, `//abs` → `/abs`).
 pub fn path_glob(spec: &str) -> String {
     let s = spec.trim();
     if let Some(abs) = s.strip_prefix("//") {
@@ -280,13 +250,11 @@ pub fn path_glob(spec: &str) -> String {
         return rel.to_string();
     }
     if let Some(rel) = s.strip_prefix('/') {
-        // `/x` is project-root relative in Claude
         return rel.to_string();
     }
     s.to_string()
 }
 
-/// Glob → regex body (no anchors): `**` any path, `*` within a segment, `?` one char.
 pub fn glob_to_regex(glob: &str) -> String {
     let mut out = String::new();
     let chars: Vec<char> = glob.chars().collect();
@@ -314,37 +282,29 @@ pub fn glob_to_regex(glob: &str) -> String {
     out
 }
 
-// ------------------------------------------------------------------ provider
-
-/// Wire protocol of an alternative endpoint.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Protocol {
     Anthropic,
     OpenAi,
 }
 
-/// Where the provider comes from.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ProviderKind {
-    /// Base URL + key (GLM, MiniMax, a proxy, a local server).
     Custom,
     Bedrock,
     Vertex,
 }
 
-/// An alternative model endpoint read from `env` (+ `apiKeyHelper`).
 #[derive(Debug, Clone, PartialEq)]
 pub struct Provider {
     pub kind: ProviderKind,
     pub protocol: Protocol,
     pub base_url: Option<String>,
-    /// Environment variable that holds the key (never the key itself).
     pub key_env: Option<String>,
     pub model: Option<String>,
     pub small_model: Option<String>,
 }
 
-/// Env keys a [`Provider`] consumes (they are not reported as losses on their own).
 pub const PROVIDER_ENV: &[&str] = &[
     "ANTHROPIC_BASE_URL",
     "ANTHROPIC_AUTH_TOKEN",
@@ -364,7 +324,6 @@ pub const PROVIDER_ENV: &[&str] = &[
     "ANTHROPIC_VERTEX_PROJECT_ID",
 ];
 
-/// Telemetry switches, `true` when telemetry is turned off.
 pub fn telemetry_off(env: &Map<String, Value>) -> Option<bool> {
     let truthy = |k: &str| {
         env.get(k).map(|v| match v {
@@ -386,14 +345,12 @@ pub fn telemetry_off(env: &Map<String, Value>) -> Option<bool> {
     }
 }
 
-/// Env keys that only steer Claude Code's telemetry (consumed by [`telemetry_off`]).
 pub const TELEMETRY_ENV: &[&str] = &[
     "DISABLE_TELEMETRY",
     "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC",
     "CLAUDE_CODE_ENABLE_TELEMETRY",
 ];
 
-/// Name of the variable referenced by `{{secret:X}}`, `${X}`, `$X`, `{env:X}`.
 pub fn var_ref(s: &str) -> Option<String> {
     let s = s.trim();
     let valid = |v: &str| {
@@ -414,7 +371,6 @@ pub fn var_ref(s: &str) -> Option<String> {
             }
         }
     }
-    // `$X` anywhere (apiKeyHelper = `printf %s "$X"`)
     let bytes: Vec<char> = s.chars().collect();
     let mut i = 0;
     while i < bytes.len() {
@@ -438,7 +394,6 @@ pub fn var_ref(s: &str) -> Option<String> {
     None
 }
 
-/// Reads the provider from `env` and `apiKeyHelper`.
 pub fn provider_from(values: &Map<String, Value>) -> Option<Provider> {
     let env = values.get("env").and_then(|e| e.as_object());
     let get = |k: &str| {
@@ -500,7 +455,6 @@ pub fn provider_from(values: &Map<String, Value>) -> Option<Provider> {
     None
 }
 
-/// Provider id derived from the base URL host (`api.z.ai` → `z-ai`).
 pub fn provider_id(p: &Provider) -> String {
     match p.kind {
         ProviderKind::Bedrock => return "amazon-bedrock".into(),
@@ -537,8 +491,6 @@ pub fn provider_id(p: &Provider) -> String {
     }
 }
 
-/// Top-level Claude keys the neutral model understands; every other key is
-/// Claude-only (spinner, output style, announcements …).
 pub const MODELLED_KEYS: &[&str] = &[
     "permissions",
     "env",

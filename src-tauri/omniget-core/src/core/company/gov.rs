@@ -1,19 +1,3 @@
-//! Governance: one inbox of approvals, budget policies with incidents, and
-//! the cost ledger.
-//!
-//! Better than the reference in the places area C found broken:
-//! - money in **micro-dollars** per model request, so cheap turns add up
-//!   (Paperclip rounds each run to whole cents: a US$ 0.004 run is 0);
-//! - subscription turns with no price still count against **token** and
-//!   **run** policies (Paperclip's only metric is billed cents, so a
-//!   subscription is never limited);
-//! - rollups updated in the same transaction as the event, so the gate is a
-//!   keyed read;
-//! - deciding an approval and applying its effect is **one** transaction, and
-//!   both approve and reject wake the agent that asked;
-//! - crossing a hard limit opens the incident and its approval in the same
-//!   transaction (`INSERT … ON CONFLICT DO NOTHING`), never twice.
-
 use chrono::{Datelike, TimeZone, Utc};
 use rusqlite::{params, OptionalExtension, Row, Transaction};
 use serde::{Deserialize, Serialize};
@@ -26,8 +10,6 @@ use super::{
     audit, changed, conflict, forbidden, invalid, new_id, not_found, now_ms, sql, Actor, Change,
     CompanyStore,
 };
-
-// ── Approvals ─────────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Approval {
@@ -111,8 +93,6 @@ fn subject_hash(kind: &str, payload: &Value) -> String {
     hex::encode(h.finalize())
 }
 
-/// Opens an approval inside the caller's transaction. Returns the existing
-/// pending one when the same subject is already waiting (idempotent).
 pub(crate) fn open_approval(
     tx: &Transaction,
     company: &str,
@@ -191,8 +171,6 @@ pub(crate) fn open_approval(
     .map_err(sql)
 }
 
-// ── Budgets ───────────────────────────────────────────────────────────────
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BudgetPolicy {
     pub id: String,
@@ -244,22 +222,17 @@ pub struct PolicyStatus {
     pub open_incident: Option<Incident>,
 }
 
-/// One model request, as the executor saw it.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct CostEvent {
     pub provider: String,
     pub model: String,
-    /// `metered | subscription | local | unknown`
     pub billing_type: String,
     pub input_tokens: i64,
     pub cached_tokens: i64,
     pub output_tokens: i64,
-    /// `None` = unpriced (subscription CLI, local model).
     pub cost_usd: Option<f64>,
 }
 
-/// A policy crossed by a cost event: the engine cancels running work of a
-/// `hard` scope.
 #[derive(Debug, Clone, Serialize)]
 pub struct Crossing {
     pub kind: String,
@@ -392,8 +365,6 @@ fn applicable(
     rows.collect::<Result<Vec<_>, _>>().map_err(sql)
 }
 
-/// Is there a reason not to start work for this scope right now? A hard
-/// incident open in the current window, or a policy already at its limit.
 pub(crate) fn invocation_block(
     tx: &rusqlite::Connection,
     company: &str,
@@ -424,7 +395,6 @@ pub(crate) fn invocation_block(
     Ok(None)
 }
 
-/// Counts one run for the `runs` metric (called when a run starts).
 pub(crate) fn count_run(
     tx: &Transaction,
     company: &str,
@@ -491,9 +461,6 @@ fn evaluate(
                     params![id, a.id],
                 )
                 .map_err(sql)?;
-                // Queued wakes of the scope stay queued (the claim gate
-                // skips them) and run after "raise and resume"; the engine
-                // cancels the running jobs from the returned crossing.
             }
             audit::record(
                 tx,
@@ -557,7 +524,6 @@ impl CompanyStore {
         .ok_or_else(|| not_found("approval", id))
     }
 
-    /// An agent (or the owner) asks for something.
     pub fn approval_request(
         &self,
         company: &str,
@@ -586,10 +552,6 @@ impl CompanyStore {
         })
     }
 
-    /// Decides and applies in one transaction. `decision` is `approve`,
-    /// `reject`, `revise` or `cancel`; `chosen` picks an option of a
-    /// `decision`. Only the owner decides (the MCP never exposes this to
-    /// agents; area C §3.8).
     pub fn approval_decide(
         &self,
         id: &str,
@@ -634,7 +596,6 @@ impl CompanyStore {
                 }
             }
             let now = now_ms();
-            // CAS on version: a concurrent decision loses cleanly.
             let n = tx
                 .execute(
                     "UPDATE approvals SET state = ?2, chosen = ?3, note = ?4, decided_channel = ?5, decided_ms = ?6,
@@ -660,7 +621,6 @@ impl CompanyStore {
                 params![a.id, final_state, effect.as_ref().err()],
             )
             .map_err(sql)?;
-            // Approve AND reject wake who asked (Paperclip only wakes on approve).
             if let Some(s) = &a.requested_by_staff_id {
                 if state != "cancelled" {
                     let _ = enqueue_wake(
@@ -690,8 +650,6 @@ impl CompanyStore {
         })
     }
 
-    /// Expires decisions past their `expires_ms` and wakes who asked with
-    /// `expired` (never a silent "no").
     pub fn expire_approvals(&self, now: i64) -> Result<u32, String> {
         self.write(|tx, ch| {
             let mut st = tx
@@ -726,8 +684,6 @@ impl CompanyStore {
             Ok(due.len() as u32)
         })
     }
-
-    // ── Budgets ───────────────────────────────────────────────────────────
 
     pub fn policy_upsert(
         &self,
@@ -779,7 +735,6 @@ impl CompanyStore {
                     policy_row,
                 )
                 .map_err(sql)?;
-            // A raised limit above what is used resolves the open incidents.
             let (wk, v) = used(tx, &pol, now_ms())?;
             if v < pol.amount {
                 tx.execute(
@@ -850,9 +805,6 @@ impl CompanyStore {
         })
     }
 
-    /// "Raise and resume" (`raise_to` above what is used) or "keep paused"
-    /// (dismiss the incident, the scope stays blocked until the window
-    /// turns or the limit is raised).
     pub fn incident_resolve(
         &self,
         id: &str,
@@ -926,8 +878,6 @@ impl CompanyStore {
         })
     }
 
-    /// Records one model request of a run: ledger row, rollups for every
-    /// scope, run totals, policy evaluation — one transaction.
     pub fn record_cost(&self, run_id: &str, ev: &CostEvent) -> Result<Vec<Crossing>, String> {
         self.write(|tx, ch| {
             let (company, staff, issue): (String, String, Option<String>) = tx
@@ -971,9 +921,6 @@ impl CompanyStore {
         })
     }
 
-    /// Would `extra` (what a live run spent so far) push a hard policy of
-    /// this scope over its limit? The job guard asks after every model
-    /// request, so a run stops mid-way instead of overshooting.
     pub fn would_exceed(
         &self,
         company: &str,
@@ -1004,7 +951,6 @@ impl CompanyStore {
         })
     }
 
-    /// Would a run of `staff` be blocked by budget right now?
     pub fn budget_block(
         &self,
         company: &str,
@@ -1139,8 +1085,6 @@ fn apply_effect(
             changed(ch, &a.company_id, "issue", iid);
         }
         "budget_override" => {
-            // Resolved through incident_resolve (it needs the new limit);
-            // approving here only dismisses the incident.
             if let Some(inc) = a.payload.get("incident_id").and_then(Value::as_str) {
                 tx.execute(
                     "UPDATE budget_incidents SET state = 'dismissed', resolved_ms = ?2 WHERE id = ?1 AND state = 'open'",
@@ -1184,10 +1128,6 @@ fn reject_effect(tx: &Transaction, a: &Approval, state: &str) -> Result<(), Stri
     Ok(())
 }
 
-// ── Secrets per agent ─────────────────────────────────────────────────────
-
-/// Namespace of the company secrets in the OS secret store; the account is
-/// `<company>:<name>`. Values never touch `company.db`, events or the log.
 pub const SECRET_NS: &str = "company";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -1195,7 +1135,6 @@ pub struct SecretBinding {
     pub staff_id: String,
     pub env_key: String,
     pub secret_name: String,
-    /// Whether the value exists (never the value).
     pub has_value: bool,
 }
 
@@ -1208,7 +1147,6 @@ fn valid_env(k: &str) -> bool {
 }
 
 impl CompanyStore {
-    /// Stores a secret value (owner only, from the window).
     pub fn secret_set(
         &self,
         company: &str,
@@ -1238,7 +1176,6 @@ impl CompanyStore {
         })
     }
 
-    /// Gives `staff` the secret `name` as the environment variable `env_key`.
     pub fn secret_bind(
         &self,
         company: &str,
@@ -1308,8 +1245,6 @@ impl CompanyStore {
             .collect())
     }
 
-    /// `(env_key, value)` of the secrets bound to `staff`, resolved at spawn;
-    /// each resolution is audited (which secret, which run — never the value).
     pub fn secret_env(&self, company: &str, staff: &str) -> Result<Vec<(String, String)>, String> {
         let mut out = Vec::new();
         for b in self

@@ -1,9 +1,3 @@
-//! `read.db`: books and comics on disk, followed online series and their
-//! chapters, shelves, annotations, reading sessions and catalogs.
-//!
-//! Kept apart from `omniget.db` for the same reason as `music.db`: a scan
-//! writes thousands of rows and should not hold the download queue's lock.
-
 use std::path::PathBuf;
 use std::sync::{Mutex, OnceLock};
 
@@ -248,8 +242,6 @@ fn schema(c: &Connection) -> rusqlite::Result<()> {
     )
 }
 
-// ---------- kv ----------
-
 pub fn kv_get<T: serde::de::DeserializeOwned>(key: &str) -> Option<T> {
     with(|c| {
         c.query_row("SELECT value FROM kv WHERE key = ?1", [key], |r| {
@@ -273,8 +265,6 @@ pub fn kv_set<T: Serialize>(key: &str, value: &T) -> Result<(), String> {
     })
     .map(|_| ())
 }
-
-// ---------- books ----------
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct BookRow {
@@ -403,7 +393,6 @@ pub fn books_by_ids(ids: &[i64]) -> Result<Vec<BookRow>, String> {
     Ok(out)
 }
 
-/// Title without leading articles, for sorting (`The Hobbit` -> `hobbit`).
 pub fn sort_key(title: &str) -> String {
     let t = title.trim().to_lowercase();
     for a in [
@@ -433,8 +422,6 @@ pub struct NewBook {
     pub chapter_id: Option<i64>,
 }
 
-/// Inserts or refreshes the file-derived columns; reading state, rating,
-/// shelves and annotations survive a rescan.
 pub fn upsert_book(b: &NewBook) -> Result<i64, String> {
     let m = &b.meta;
     let authors = serde_json::to_string(&m.authors).unwrap_or_else(|_| "[]".into());
@@ -522,8 +509,6 @@ pub fn roots() -> Result<Vec<String>, String> {
         rows
     })
 }
-
-// ---------- series & chapters ----------
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct SeriesRow {
@@ -697,8 +682,6 @@ pub fn chapter(id: i64) -> Result<ChapterRow, String> {
         )
     })
 }
-
-// ---------- annotations ----------
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct Annotation {

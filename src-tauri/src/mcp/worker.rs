@@ -1,6 +1,3 @@
-//! Queue adapter: the existing core downloader runs in a per-execution worker.
-//! No second queue/engine/database. This adapter is only constructed after MCP
-//! domain authorization and receives exact local exceptions from trusted code.
 use super::policy::{self, Principal};
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
@@ -21,7 +18,6 @@ use tokio::{
 };
 use tokio_util::sync::CancellationToken;
 
-/// Fixed error context; no provider URL, command or raw stderr survives here.
 #[derive(Debug)]
 pub struct WorkerFailure {
     pub code: String,
@@ -34,8 +30,6 @@ impl std::fmt::Display for WorkerFailure {
             "AUTH_REQUIRED" => "HTTP 401 authentication required",
             "ACCESS_DENIED" => "HTTP 403 access denied",
             "NOT_FOUND" => "HTTP 404 not found",
-            // Codes keep their token first: diagnosis matches on it and the
-            // desktop's generic "not found"/"429" heuristics must not relabel it.
             "FORMAT_UNAVAILABLE" => "FORMAT_UNAVAILABLE: requested format is not available within the requested options",
             "BROKEN_SOURCE" => "BROKEN_SOURCE: the source stopped serving part of the media (fragment failure)",
             "BLOCKED_BY_PLATFORM" => "BLOCKED_BY_PLATFORM: the platform blocked access from this network",
@@ -43,11 +37,7 @@ impl std::fmt::Display for WorkerFailure {
             "EXTRACTOR_FAILURE" => "EXTRACTOR_FAILURE: unable to extract this page; the site may have changed",
             "SERVER_ERROR" => "SERVER_ERROR: the server had a temporary error (HTTP 5xx); retry later",
             "EGRESS_FAILED" => "EGRESS_FAILED: network egress failed (proxy, TLS or DNS) before the platform answered; retry later",
-            // OmniGet's own egress policy refused the connection: not a remote
-            // 403, and only a local grant (or a public URL) changes it.
             "EGRESS_BLOCKED" => "EGRESS_BLOCKED: blocked by OmniGet network policy, not by the platform; grant this local address to the connection in OmniGet or use a public URL",
-            // OmniGet's per-download budgets (a policy refusal, not an engine
-            // or platform failure): the media is larger or longer than allowed.
             "LIMIT_BYTES" => "LIMIT_BYTES: stopped at OmniGet's per-download size budget; choose a lower quality or a shorter item",
             "LIMIT_TIME" => "LIMIT_TIME: stopped at OmniGet's per-download time budget; choose a lower quality or a shorter item",
             "LIMIT_CONNECTIONS" => "LIMIT_CONNECTIONS: stopped at OmniGet's per-download connection budget",
@@ -61,9 +51,6 @@ impl std::fmt::Display for WorkerFailure {
     }
 }
 impl std::error::Error for WorkerFailure {}
-/// The worker's raw engine error, for the local log only: bounded, control
-/// characters removed, URLs redacted (signed links carry secrets) and local
-/// profile paths cut to file names. Worker output is untrusted input.
 fn operator_diagnostic(event: &Value) -> Option<String> {
     let raw = event["detail"].as_str()?;
     let clean: String = raw
@@ -83,8 +70,6 @@ pub struct WorkerDownloader {
     allowed_sockets: BTreeSet<std::net::SocketAddr>,
     selected_media: Mutex<Option<(String, MediaInfo)>>,
     dependencies: OnceCell<Value>,
-    /// Private per-job directory where the inspect worker leaves yt-dlp's
-    /// info JSON for the download worker (one extraction instead of two).
     info_json: std::sync::OnceLock<Option<InfoJsonDir>>,
 }
 impl WorkerDownloader {
@@ -129,7 +114,6 @@ impl WorkerDownloader {
         }
         Ok(())
     }
-    /// Paginated collection metadata through the same principal/egress boundary.
     pub async fn collection(&self, offset: u64, limit: u64) -> Result<Value> {
         if offset > 10000 || !(1..=50).contains(&limit) {
             return Err(anyhow!("INVALID_PAGE"));
@@ -148,9 +132,7 @@ impl WorkerDownloader {
     }
     async fn tools(&self) -> Value {
         self.dependencies.get_or_init(||async{
-            // find_ytdlp_cached may provision a zipapp; don't invoke it here.
             let ytdlp=omniget_core::core::ytdlp::managed_ytdlp_path().filter(|p|p.is_file());
-            // Onedir (0.4 s per process against 13-25 s for the onefile) when installed.
             let ytdlp=omniget_core::core::ytdlp::managed_ytdlp_onedir_exe().or(ytdlp);
             let (ffmpeg,ffprobe,node,deno)=tokio::join!(
                 omniget_core::core::dependencies::find_tool("ffmpeg"),
@@ -203,7 +185,6 @@ impl WorkerDownloader {
                 request[key] = value.clone();
             }
         }
-        // Match the canonical paths granted by Seatbelt (e.g. /tmp aliases).
         for key in [
             "output_dir",
             "ytdlp_path",
@@ -246,9 +227,6 @@ impl WorkerDownloader {
                 result.map_err(|_| anyhow!("WORKER_DEPENDENCY_FILES_UNAVAILABLE"))?,
         };
         let dependencies_at = started.elapsed();
-        // yt-dlp onedir loads _internal/ (base_library.zip, extension modules via
-        // dlopen) on demand: those are not Mach-O load commands, so the whole
-        // directory is granted read-only (Seatbelt subpath).
         if let Some(dir) = onedir {
             reads.push(dir);
         }
@@ -280,8 +258,6 @@ impl WorkerDownloader {
             .stdin
             .take()
             .ok_or_else(|| anyhow!("WORKER_STDIN"))?;
-        // Retain only a bounded number of stderr bytes, then discard. Never send
-        // raw stderr to diagnostics: core subprocess errors may include secrets.
         let stderr = process
             .child
             .stderr
@@ -306,7 +282,7 @@ impl WorkerDownloader {
             .ok_or_else(|| anyhow!("WORKER_STDOUT"))?;
         let result=async{
             tokio::time::timeout(Duration::from_secs(5),input.write_all(&bytes)).await.map_err(|_|anyhow!("WORKER_INPUT_TIMEOUT"))?.map_err(|_|anyhow!("WORKER_INPUT_FAILED"))?;
-            drop(input); // EOF is the request framing boundary.
+            drop(input);
             let mut reader=BufReader::new(stdout);let mut pending_line=Vec::new();let mut total=0usize;let mut final_result=None;
             let mut tick=tokio::time::interval(Duration::from_millis(250));
             loop{
@@ -329,7 +305,6 @@ impl WorkerDownloader {
                                 if final_result.is_some(){return Err(anyhow!("WORKER_OUTPUT_ORDER"))}
                                 if let Some(tx)=&progress{
                                     let p=progress_from_event(&event);
-                                    // Progress must not prevent revocation polling.
                                     let _=tx.try_send(p);
                                 }
                             },
@@ -346,7 +321,6 @@ impl WorkerDownloader {
                         self.check_network_grants()?;
             let event=final_result.ok_or_else(||anyhow!("WORKER_NO_RESULT"))?;
             if event["success"].as_bool()==Some(false){
-                // Only fixed machine codes, never worker-controlled raw text.
                 let code=event["code"].as_str().filter(|s|s.len()<=64&&s.bytes().all(|b|b.is_ascii_uppercase()||b==b'_')).unwrap_or("WORKER_FAILED");
                 return Err(anyhow!(WorkerFailure { code: code.to_owned(), retry_after_seconds: event["retry_after_seconds"].as_u64() }));
             }
@@ -373,8 +347,6 @@ impl WorkerDownloader {
         })
         .await
         .is_ok();
-        // Operator log only: where the fixed cost of a worker run goes
-        // (prepare -> dependency grants -> spawn -> first event/byte -> exit).
         let ms = |d: Option<Duration>| d.map_or(-1, |d| d.as_millis() as i64);
         tracing::info!(
             "worker timing op={operation} ok={} prepare_ms={} deps_ms={} spawn_ms={} first_event_ms={} first_byte_ms={} output_closed_ms={} total_ms={}",
@@ -393,12 +365,6 @@ impl WorkerDownloader {
         result
     }
 }
-/// A worker failure after the broker refused a connection by policy is
-/// OmniGet's block. Only codes the refusal itself can produce are relabelled
-/// (the engine saw a 403 or an opaque failure); a platform statement stays.
-/// One worker `progress` line as a queue update. `percent: null` (or a
-/// missing number) means the worker does not know the total: the update is
-/// indeterminate instead of a 0% that the queue would read as real (D-04).
 fn progress_from_event(event: &Value) -> ProgressUpdate {
     let phase = match event["phase"].as_str() {
         Some("downloading") => "downloading",
@@ -439,9 +405,6 @@ fn egress_blocked(error: anyhow::Error, policy_denials: u64) -> anyhow::Error {
         error
     }
 }
-/// A failure after a broker budget cut is that budget: the engine only saw its
-/// connections close (fragment failure, opaque error). Cancellation and
-/// authorization changes are independent and stay as they are.
 fn egress_limit(error: anyhow::Error, reason: Option<LimitReason>) -> anyhow::Error {
     let Some(reason) = reason else { return error };
     let independent = matches!(
@@ -468,7 +431,6 @@ fn default_helper() -> Result<PathBuf> {
             "omniget-worker"
         }))
 }
-/// Discovery is conservative; execution still validates dependencies and sandbox.
 pub fn isolation_available() -> bool {
     cfg!(target_os = "macos") && default_helper().is_ok_and(|path| path.is_file())
 }
@@ -500,8 +462,6 @@ impl Drop for RuntimeDir {
         let _ = std::fs::remove_dir_all(&self.0);
     }
 }
-/// Per-job info JSON directory (0700), removed with the job. Stale ones left
-/// by a crash are swept when the next one is created.
 struct InfoJsonDir(PathBuf);
 impl InfoJsonDir {
     fn create() -> Result<Self> {
@@ -544,8 +504,6 @@ impl Drop for InfoJsonDir {
         let _ = std::fs::remove_dir_all(&self.0);
     }
 }
-/// The yt-dlp onedir (`<dir>/yt-dlp_macos` + `<dir>/_internal/`) that holds
-/// this executable, if it is one. Only the trusted managed path reaches here.
 fn onedir_root(exe: &std::path::Path) -> Option<PathBuf> {
     let dir = exe.parent()?;
     (exe.is_file() && dir.join("_internal").is_dir() && dir.parent().is_some())
@@ -557,7 +515,6 @@ fn process_group_gone(pid: i32) -> bool {
         unsafe extern "C" {
             fn kill(pid: i32, sig: i32) -> i32;
         }
-        // ESRCH is 3 on the supported macOS backend. Permission errors are not an ack.
         unsafe { kill(-pid, 0) == -1 && std::io::Error::last_os_error().raw_os_error() == Some(3) }
     }
     #[cfg(not(unix))]
@@ -629,7 +586,6 @@ async fn bounded_line<R: AsyncBufRead + Unpin>(
     }
 }
 tokio::task_local! {
-    /// Queue-scoped cancellation keeps inspect teardown awaitable through the trait.
     pub static INSPECT_CANCEL: CancellationToken;
 }
 
@@ -662,8 +618,6 @@ impl PlatformDownloader for WorkerDownloader {
             .selected_media
             .lock()
             .map_err(|_| anyhow!("WORKER_STATE"))? = Some((platform.to_owned(), info.clone()));
-        // UI/cache metadata cannot trigger an unmediated desktop image fetch.
-        // Preserve source URLs only inside this adapter for the next worker.
         let mut display_info = info;
         display_info.thumbnail_url = None;
         for quality in &mut display_info.available_qualities {

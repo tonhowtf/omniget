@@ -1,10 +1,3 @@
-//! Roster persistence: the list of `AgentDef` the user edits in `/llm`.
-//!
-//! One JSON array in `<app_data>/llm/roster.json`, written atomically
-//! (tmp + rename) and kept in a memory cache so the UI can list the roster
-//! without touching the disk (budget: reads must stay under 1 ms).
-//! Owned by f2-llm-commands.
-
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, OnceLock, RwLock};
 
@@ -13,16 +6,12 @@ use super::agent::{
 };
 use super::types::{ModelRef, ProviderId};
 
-/// Stable error codes the UI maps. They live here (and not in `error.rs`,
-/// owned by f2-llm-providers) so this module owns its own contract.
 pub const ERR_ROSTER_DUP: &str = "ERR_LLM_ROSTER_DUP";
 pub const ERR_ROSTER_MISSING: &str = "ERR_LLM_ROSTER_MISSING";
 pub const ERR_ROSTER_IO: &str = "ERR_LLM_ROSTER_IO";
 pub const ERR_ROSTER_ID: &str = "ERR_LLM_ROSTER_ID";
 pub const ERR_ROSTER_TEMPLATE: &str = "ERR_LLM_ROSTER_TEMPLATE";
 
-/// Error carrying a stable code, in the shape the Tauri layer turns into a
-/// plain string for the frontend.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RosterError {
     pub code: &'static str,
@@ -48,7 +37,6 @@ impl std::error::Error for RosterError {}
 
 pub type Result<T> = std::result::Result<T, RosterError>;
 
-/// Default folder for everything the LLM section persists.
 pub fn llm_dir() -> Option<PathBuf> {
     crate::core::paths::app_data_dir().map(|d| d.join("llm"))
 }
@@ -57,7 +45,6 @@ pub fn default_path() -> Option<PathBuf> {
     llm_dir().map(|d| d.join("roster.json"))
 }
 
-/// An agent id is a slug: lowercase letters, digits, `-` and `_`, 1..=64.
 pub fn valid_id(id: &str) -> bool {
     !id.is_empty()
         && id.len() <= 64
@@ -66,10 +53,6 @@ pub fn valid_id(id: &str) -> bool {
             .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-' || c == '_')
 }
 
-/// The roster a fresh install starts with: one native assistant, no tools
-/// granted. Nothing here calls the network.
-/// The coding tools with the approved defaults: reading is automatic, anything
-/// that writes or runs asks first.
 pub fn code_grants() -> Vec<ToolGrant> {
     use super::code_tools::{READ_TOOLS, WRITE_TOOLS};
     let grant = |name: &str, mode| ToolGrant {
@@ -88,7 +71,6 @@ pub fn code_grants() -> Vec<ToolGrant> {
         .collect()
 }
 
-/// An agent that predates the coding tools gets them once, with the defaults.
 fn with_code_grants(mut agents: Vec<AgentDef>) -> Vec<AgentDef> {
     for a in agents.iter_mut().filter(|a| a.id == "omni") {
         let has = a.tools.iter().any(|g| {
@@ -137,15 +119,6 @@ fn candidate(provider: &str, model: &str) -> super::agent::Candidate {
     }
 }
 
-/// Prompts of the agents this module seeds, of the team templates and of the
-/// help assistant.
-///
-/// They are user-visible (the roster list and the wizard show them) but they
-/// also land in `roster.json` as editable data, so they cannot be plain `$t`
-/// lookups inside the Rust seeds. The tray has the same problem and the same
-/// answer: the frontend resolves the text for the active locale and pushes it
-/// through `sync_llm_prompts`, while the compiled-in English set below stays
-/// the fallback until that first push — and what a headless build keeps using.
 #[derive(Debug, Clone, PartialEq)]
 pub struct PromptDefaults {
     pub omni: String,
@@ -181,7 +154,6 @@ fn prompt_slot() -> &'static RwLock<PromptDefaults> {
     PROMPT_DEFAULTS.get_or_init(|| RwLock::new(PromptDefaults::default()))
 }
 
-/// The prompts for the active locale; English until the frontend pushes them.
 pub fn prompt_defaults() -> PromptDefaults {
     prompt_slot()
         .read()
@@ -189,7 +161,6 @@ pub fn prompt_defaults() -> PromptDefaults {
         .unwrap_or_default()
 }
 
-/// Called by `sync_llm_prompts` on startup and on every locale change.
 pub fn set_prompt_defaults(next: PromptDefaults) {
     if let Ok(mut guard) = prompt_slot().write() {
         *guard = next;
@@ -200,10 +171,7 @@ pub fn default_roster() -> Vec<AgentDef> {
     roster_with_prompts(&prompt_defaults())
 }
 
-/// The three residents, built from whatever prompts are active right now.
 fn roster_with_prompts(prompts: &PromptDefaults) -> Vec<AgentDef> {
-    // Local first, so a fresh install works with nothing but Ollama; the
-    // router walks down the chain when a candidate has no key or no quota.
     let local_first = || ModelPolicy::Route {
         chain: vec![
             candidate("ollama", "qwen3:8b"),
@@ -224,13 +192,10 @@ fn roster_with_prompts(prompts: &PromptDefaults) -> Vec<AgentDef> {
             runtime: RuntimeKind::Native,
             skin: None,
         };
-    // The scout reads and searches; it never writes and never runs a command.
     let read_only: Vec<ToolGrant> = code_grants()
         .into_iter()
         .filter(|g| g.mode == GrantMode::Auto)
         .collect();
-    // Three residents, so the house is a team from the first visit. All of
-    // them are ordinary roster entries: the user edits or deletes them.
     vec![
         agent(
             "omni",
@@ -315,7 +280,6 @@ pub fn template(name: &str) -> Option<Vec<AgentDef>> {
     }
 }
 
-/// Cached, atomically written roster file.
 pub struct RosterStore {
     path: PathBuf,
     mutation: Mutex<()>,
@@ -331,7 +295,6 @@ impl RosterStore {
         }
     }
 
-    /// Store at the default location, or `None` when there is no data dir.
     pub fn default_store() -> Option<Self> {
         default_path().map(Self::at)
     }
@@ -340,14 +303,12 @@ impl RosterStore {
         &self.path
     }
 
-    /// Cached list. Reads disk once; every later call is a clone of the `Arc`.
     pub fn list(&self) -> Arc<Vec<AgentDef>> {
         if let Some(cached) = self.cache.read().ok().and_then(|g| g.clone()) {
             return cached;
         }
         let loaded = Arc::new(self.read_from_disk());
         if let Ok(mut g) = self.cache.write() {
-            // Another reader or writer may have filled the cache while disk was read.
             if let Some(current) = g.as_ref() {
                 return current.clone();
             }
@@ -391,8 +352,6 @@ impl RosterStore {
         Ok(agent)
     }
 
-    /// Compare and swap under the same mutation lock used by every roster writer.
-    /// A retried intent can recognize its exact saved result without repeating a write.
     pub fn apply_planned(
         &self,
         agent: AgentDef,
@@ -460,15 +419,12 @@ impl RosterStore {
         self.save(all)
     }
 
-    /// Replaces the whole roster (used by `apply_template`).
     pub fn replace_all(&self, agents: Vec<AgentDef>) -> Result<Arc<Vec<AgentDef>>> {
         let _guard = self.mutation.lock().unwrap_or_else(|e| e.into_inner());
         self.save(agents)?;
         Ok(self.list())
     }
 
-    /// Applies a team template on top of the current roster: agents whose id
-    /// already exists are left alone, so the call is idempotent.
     pub fn apply_template(&self, name: &str) -> Result<Arc<Vec<AgentDef>>> {
         let _guard = self.mutation.lock().unwrap_or_else(|e| e.into_inner());
         let incoming = template(name).ok_or_else(|| {

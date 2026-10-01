@@ -1,27 +1,3 @@
-//! Conversations with an explicit context, and group rooms.
-//!
-//! **Context (A04, A05).** Every conversation is `Projectless` (default) or
-//! `Project` with one folder the user picked for it. The binding lives in
-//! `groups_conversations` (assist.db) and is what `code_tools::workspace_of`
-//! answers through [`DbBindings`]; there is no fallback to the last folder
-//! opened elsewhere. The turn hook removes project grants (fs, shell, plan,
-//! KB) from a personal conversation, so the effective agent never even sees
-//! them. The process-wide folder (`code_tools::set_workspace`) survives only
-//! for callers outside a turn: the embedded MCP server and the `omniget` CLI.
-//!
-//! **Rooms (B01–B06).** A room has members (existing bots), roles, an
-//! optional coordinator, a mention policy and limits. Each member works in
-//! its own session `"<room>~<bot>"`; its turn receives the room's recent
-//! visible messages (with authors) and the task — never another member's
-//! session. Routing, delegation, limits and cancellation: [`tasks`]. Memory:
-//! the resolver maps a room (or a member session in it) to
-//! `Scope::Room{room}` only; private bot memory and the user profile reach a
-//! room only through a share the user created ([`store::add_share`]).
-//! Parallel code work: serialised writes by default (`code_tools`); a
-//! worktree per job or thread lives in `core::vcs` (`job_worktree`,
-//! `worktree`). The `groups_worktrees` table of the first migration is no
-//! longer written.
-
 pub mod store;
 pub mod tasks;
 
@@ -49,12 +25,8 @@ pub const ERR_GROUP_LIMIT: &str = "ERR_GROUP_LIMIT";
 pub const ERR_GROUP_BUSY: &str = "ERR_GROUP_BUSY";
 pub const ERR_GROUP_CLAIMED: &str = "ERR_GROUP_CLAIMED";
 
-/// Room ids are `grp-` + 12 hex digits: short enough that
-/// `"<room>~<bot>"` stays inside the 64-char conversation-id limit.
 pub const ROOM_PREFIX: &str = "grp-";
 
-/// Tools that only make sense with a project folder; a personal
-/// conversation loses them in [`augment`].
 pub const KB_TOOLS: &[&str] = &["kb_search", "kb_write"];
 
 pub const MIGRATIONS: &[Migration] = &[Migration {
@@ -163,10 +135,7 @@ CREATE TABLE groups_worktrees (
 ",
 }];
 
-/// Every tool this module offers; `bots` maps the `delegate` capability to these.
 pub const TOOL_NAMES: &[&str] = &["delegate_task"];
-
-// ── the installed database ───────────────────────────────────────────────
 
 static INSTALLED: RwLock<Option<Arc<AssistDb>>> = RwLock::new(None);
 
@@ -177,10 +146,6 @@ fn db() -> Result<Arc<AssistDb>, String> {
     super::db::global()
 }
 
-/// Boot: makes `db` the canonical store of conversation contexts (importing
-/// the legacy `workspaces.json` bindings), installs the room-aware memory
-/// resolver and marks what a crash left running as interrupted. Call after
-/// `code_tools::set_store_file` and `db::set_global`.
 pub fn install(db: Arc<AssistDb>) {
     *INSTALLED.write().unwrap_or_else(|e| e.into_inner()) = Some(db.clone());
     code_tools::set_bindings(Some(Arc::new(DbBindings { db: db.clone() })));
@@ -190,10 +155,6 @@ pub fn install(db: Arc<AssistDb>) {
     }
 }
 
-// ── context ──────────────────────────────────────────────────────────────
-
-/// `code_tools`' binding store, backed by `groups_conversations`. A member
-/// session (`"<room>~<bot>"`) shares its room's folder.
 pub struct DbBindings {
     pub db: Arc<AssistDb>,
 }
@@ -219,8 +180,6 @@ impl code_tools::WorkspaceBindings for DbBindings {
     }
 }
 
-/// The context of one conversation: personal, or a project and its folder.
-/// Reads the same binding every coding tool uses, so the two never disagree.
 pub fn context_of(conversation_id: &str) -> (ContextKind, Option<PathBuf>) {
     match code_tools::workspace_of(conversation_id) {
         Some(p) => (ContextKind::Project, Some(p)),
@@ -228,8 +187,6 @@ pub fn context_of(conversation_id: &str) -> (ContextKind, Option<PathBuf>) {
     }
 }
 
-/// Picks the context of one conversation (the chip in the chat header).
-/// Never changes another conversation nor the process-wide folder.
 pub fn set_context(
     conversation_id: &str,
     path: Option<PathBuf>,
@@ -241,11 +198,6 @@ pub fn set_context(
     })
 }
 
-// ── memory scopes in rooms ───────────────────────────────────────────────
-
-/// Room-aware resolver: a room, or a member session in it, reads and writes
-/// the room scope only; whole scopes the user shared into the room are
-/// added read-only. A bot that is not (or no longer) a member gets nothing.
 pub fn resolve(bot: &str, conversation: Option<&str>) -> AssistCtx {
     let Some(room) = conversation.and_then(room_of) else {
         return ctx::direct(bot, conversation);
@@ -275,7 +227,7 @@ pub fn resolve_in(
         if let Some(d) = db {
             for s in store::shares(d, room).unwrap_or_default() {
                 if s.record_id.is_some() {
-                    continue; // single records: the memory module asks `shared_records`
+                    continue;
                 }
                 if let Some(scope) = Scope::parse(&s.scope) {
                     if !readable.contains(&scope) {
@@ -295,15 +247,12 @@ pub fn resolve_in(
     }
 }
 
-// ── per-turn hook ────────────────────────────────────────────────────────
-
 fn is_project_tool(name: &str) -> bool {
     code_tools::READ_TOOLS.contains(&name)
         || code_tools::WRITE_TOOLS.contains(&name)
         || KB_TOOLS.contains(&name)
 }
 
-/// Removes the project grants from `agent` (personal conversation).
 pub fn strip_project_grants(agent: &mut AgentDef) -> usize {
     use crate::core::llm::agent::ToolSource;
     let before = agent.tools.len();
@@ -325,8 +274,6 @@ fn clip(s: &str, max: usize) -> String {
     out
 }
 
-/// The room context one member's turn receives: who is in the room and the
-/// last visible messages with their authors. Nothing else from the room.
 pub fn room_context(db: &AssistDb, room_id: &str, bot: &str, user_input: &str) -> Option<String> {
     let room = store::get_room(db, room_id).ok()?;
     let me = room.members.iter().find(|m| m.bot == bot)?;
@@ -418,7 +365,6 @@ impl crate::core::llm::coordinator::TurnAugment for GroupsAugment {
                 if let Some(text) = room_context(&db, room, bot, user_input) {
                     out.push(text);
                 }
-                // The coordinator can delegate; the backend limits apply anyway.
                 if let Ok(r) = store::get_room(&db, room) {
                     if r.coordinator.as_deref() == Some(bot) && r.members.len() > 1 {
                         grant_delegate(agent);
@@ -448,12 +394,9 @@ fn grant_delegate(agent: &mut AgentDef) {
     }
 }
 
-/// Per-turn hook (see `llm::coordinator::TurnAugment`).
 pub fn augment() -> Arc<dyn crate::core::llm::coordinator::TurnAugment> {
     Arc::new(GroupsAugment)
 }
-
-// ── tools ────────────────────────────────────────────────────────────────
 
 struct GroupsToolset;
 

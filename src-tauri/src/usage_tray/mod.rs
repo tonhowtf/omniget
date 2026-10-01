@@ -1,28 +1,3 @@
-//! The usage icon in the menu bar: a second status item, separate from the
-//! app's own tray icon (`crate::tray`, id `main-tray`), that shows how much of
-//! the Claude Code / Codex limits is used.
-//!
-//! Reference: Claude-Usage-Tracker (github.com/hamed-elfayome/Claude-Usage-Tracker,
-//! MIT), `Claude Usage/MenuBar/MenuBarManager.swift`:
-//!   - a left click toggles a popover anchored under the status item
-//!     (`togglePopover`, ~L523; `showPopover`, ~L614) and a click anywhere
-//!     else closes it (`startMonitoringForOutsideClicks`, ~L670); a click on
-//!     the icon that lands right after that close is the dismissing click and
-//!     does not reopen it (~L590, 0.25 s);
-//!   - a right click opens a short native menu instead (`showContextMenu`,
-//!     ~L630).
-//!
-//! Here the popover is a small undecorated webview (`/usage-panel`) that hides
-//! when it loses focus, and the context menu is the status item's own menu
-//! (`show_menu_on_left_click(false)`). The ring glyph and the forecast are in
-//! `icon.rs` and `view.rs`, with their own references.
-//!
-//! Data: the limits strip's engine (`limits_strip::engine`), which already
-//! reads every Claude and Codex login. `engine::set_tray` keeps it running
-//! while this icon is on and adds the rings listed here; `engine` calls
-//! [`on_state`] whenever those rings change. No reader is duplicated and the
-//! strip's privacy rules hold: a ring is read only once the user lists it.
-
 pub mod icon;
 pub mod prefs;
 pub mod spend;
@@ -45,14 +20,10 @@ use crate::limits_strip::{now_ms, providers};
 pub const TRAY_ID: &str = "usage-tray";
 pub const PANEL_LABEL: &str = "usage-panel";
 pub const EVENT_VIEW: &str = "usage-tray://view";
-/// Menu ids carry this prefix: the tray menu handler Tauri calls is global,
-/// so `crate::tray` routes them here and the main tray never sees a clash.
 pub const MENU_PREFIX: &str = "usage-tray:";
 
 const PANEL_W: f64 = 340.0;
 const PANEL_H: f64 = 420.0;
-/// A click on the icon this soon after the panel hid on blur is the click
-/// that hid it (Claude-Usage-Tracker uses 0.25 s).
 const REOPEN_GUARD_MS: i64 = 300;
 const THRESHOLDS: [(u8, u8); 3] = [(70, 90), (80, 95), (90, 98)];
 
@@ -62,20 +33,13 @@ struct State {
     strings: HashMap<String, String>,
     view: Option<view::View>,
     hidden_at: i64,
-    /// Where the icon was on the last click, to re-anchor after a resize.
     anchor: Option<Rect>,
-    /// Ids the menu was last built with, to rebuild it when accounts change.
     menu_ids: Vec<String>,
-    /// What the status item shows now. Every `set_icon` / `set_title` /
-    /// `set_tooltip` waits for the main thread, so an unchanged look is not
-    /// sent again.
     painted: Option<Painted>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
 struct Painted {
-    /// Whole percent: the ring cannot show less, and a 0.1 % drift would
-    /// repaint on every read.
     used: Option<i64>,
     level: &'static str,
     colored: bool,
@@ -90,10 +54,6 @@ fn state() -> MutexGuard<'static, State> {
         .unwrap_or_else(|e| e.into_inner())
 }
 
-/// Serialises every change of the prefs from read to publish, so two changes
-/// at once (a menu click and a panel switch) cannot both start from the same
-/// copy and the second one silently drop the first. Separate from [`state`]
-/// so readers never wait for a file write.
 fn writer() -> MutexGuard<'static, ()> {
     static W: OnceLock<Mutex<()>> = OnceLock::new();
     W.get_or_init(|| Mutex::new(()))
@@ -101,10 +61,6 @@ fn writer() -> MutexGuard<'static, ()> {
         .unwrap_or_else(|e| e.into_inner())
 }
 
-/// Applies `change` to a copy of the prefs, has `save` write it, and only then
-/// makes it the prefs in memory. A save that fails leaves memory as the disk
-/// has it and answers the error, so nothing shows a choice that a restart
-/// would lose. Returns the prefs before and after.
 fn update_prefs(
     change: impl FnOnce(&mut TrayPrefs),
     save: impl FnOnce(&TrayPrefs) -> Result<(), String>,
@@ -118,11 +74,6 @@ fn update_prefs(
     state().prefs = next.clone();
     Ok((before, next))
 }
-
-// ---------------------------------------------------------------------------
-// Strings: the menu is native, so the frontend pushes the translations
-// (same pattern as `sync_tray_strings`). English is the fallback.
-// ---------------------------------------------------------------------------
 
 fn english(key: &str) -> &'static str {
     match key {
@@ -159,10 +110,6 @@ fn s(key: &str) -> String {
         .unwrap_or_else(|| english(key).to_string())
 }
 
-// ---------------------------------------------------------------------------
-// Accounts the menu offers
-// ---------------------------------------------------------------------------
-
 #[derive(Debug, Clone, Serialize)]
 pub struct CatalogItem {
     pub id: String,
@@ -171,8 +118,6 @@ pub struct CatalogItem {
     pub shown: bool,
 }
 
-/// Every Claude Code / Codex login OmniGet knows (offline: `accounts.json`
-/// and each profile's `.claude.json`, no credential).
 fn catalog(prefs: &TrayPrefs) -> Vec<CatalogItem> {
     let default_login = s("default_login");
     providers::cached()
@@ -195,17 +140,10 @@ fn catalog(prefs: &TrayPrefs) -> Vec<CatalogItem> {
         .collect()
 }
 
-// ---------------------------------------------------------------------------
-// Setup, enabling, the menu
-// ---------------------------------------------------------------------------
-
-/// Called once from the app's setup, after the main tray exists.
 pub fn setup(app: &AppHandle) {
     let loaded = prefs::load();
     let mut p = loaded.clone();
     if p.seed_from(&crate::limits_strip::prefs::load()) {
-        // Seeded only once it is on disk; otherwise keep what the file says
-        // and seed again on the next launch.
         if let Err(e) = prefs::save(&p) {
             tracing::warn!("usage tray: could not save the seeded accounts: {e}");
             p = loaded;
@@ -266,8 +204,6 @@ fn build_tray(app: &AppHandle) -> tauri::Result<()> {
             } = event
             {
                 let app = tray.app_handle().clone();
-                // Never build a window inside the tray callback (it deadlocks
-                // on Windows); hop onto the runtime.
                 tauri::async_runtime::spawn(async move {
                     toggle_panel(&app, rect);
                 });
@@ -373,9 +309,6 @@ fn rebuild_menu(app: &AppHandle) {
     }
 }
 
-/// Saves the prefs, then tells the engine which rings to read and redraws.
-/// A failed save changes nothing at runtime: the menu's check mark is put back
-/// to what is saved and the error goes to the caller.
 fn commit(app: &AppHandle, change: impl FnOnce(&mut TrayPrefs)) -> Result<(), String> {
     let (before, p) = match update_prefs(change, prefs::save) {
         Ok(done) => done,
@@ -394,11 +327,6 @@ fn commit(app: &AppHandle, change: impl FnOnce(&mut TrayPrefs)) -> Result<(), St
     Ok(())
 }
 
-/// Every menu id with [`MENU_PREFIX`] lands here, from `crate::tray`.
-///
-/// Menu events arrive on the main thread; what they trigger saves prefs,
-/// looks up accounts and redraws the status item, so it runs on the async
-/// runtime and the menu bar never waits for it.
 pub fn on_menu(app: &AppHandle, id: &str) {
     if !id.starts_with(MENU_PREFIX) {
         return;
@@ -413,8 +341,6 @@ fn handle_menu(app: &AppHandle, id: &str) {
     let Some(rest) = id.strip_prefix(MENU_PREFIX) else {
         return;
     };
-    // A menu click has nobody to answer: a save that failed is logged, and
-    // `commit` already left memory and the menu as they were.
     let saved = match rest {
         "toggle" => commit(app, |p| p.enabled = !p.enabled),
         "hide" => set_enabled(app, false),
@@ -474,11 +400,6 @@ fn refresh(app: &AppHandle) -> Vec<String> {
     out
 }
 
-// ---------------------------------------------------------------------------
-// State from the engine → icon, tooltip, panel
-// ---------------------------------------------------------------------------
-
-/// Called by the engine when the rings this icon lists change.
 pub fn on_state(app: &AppHandle, snap: &Snapshot) {
     let (p, stale_menu) = {
         let g = state();
@@ -492,14 +413,12 @@ pub fn on_state(app: &AppHandle, snap: &Snapshot) {
     paint(app, &v, &p);
     state().view = Some(v.clone());
     let _ = app.emit_to(PANEL_LABEL, EVENT_VIEW, &v);
-    // A login added or removed in the app shows up in the menu.
     let ids: Vec<String> = catalog(&p).into_iter().map(|i| i.id).collect();
     if ids != stale_menu {
         rebuild_menu(app);
     }
 }
 
-/// Redraws from the engine's current rings (prefs changed, spend landed).
 pub fn republish(app: &AppHandle) {
     if !state().prefs.enabled {
         return;
@@ -568,10 +487,6 @@ fn tooltip(v: &view::View) -> String {
     lines.join("\n")
 }
 
-// ---------------------------------------------------------------------------
-// The panel (left click)
-// ---------------------------------------------------------------------------
-
 fn toggle_panel(app: &AppHandle, rect: Rect) {
     if let Some(w) = app.get_webview_window(PANEL_LABEL) {
         if w.is_visible().unwrap_or(false) {
@@ -585,8 +500,6 @@ fn toggle_panel(app: &AppHandle, rect: Rect) {
     show_panel(app, Some(rect));
 }
 
-/// Shows the panel under `rect` (the icon), or under the icon's current
-/// place when no click told us where it is.
 pub(crate) fn show_panel(app: &AppHandle, rect: Option<Rect>) {
     let rect = rect.or_else(|| {
         app.tray_by_id(TRAY_ID)
@@ -639,8 +552,6 @@ pub(crate) fn show_panel(app: &AppHandle, rect: Option<Rect>) {
     }
 }
 
-/// Under the icon (or above it when the icon sits at the bottom of the
-/// screen, as on a Windows taskbar), kept inside the monitor.
 fn place(window: &tauri::WebviewWindow, height: f64) {
     let Some(rect) = state().anchor else {
         return;
@@ -679,16 +590,10 @@ fn close_panel(app: &AppHandle) {
     }
 }
 
-// ---------------------------------------------------------------------------
-// Terminal launchers
-// ---------------------------------------------------------------------------
-
 fn sh_quote(s: &str) -> String {
     format!("'{}'", s.replace('\'', r"'\''"))
 }
 
-/// The shell line: `omniget claude <account>` for an app account, plain
-/// `claude` for the terminal's own login, `omniget claude --add` to add one.
 pub fn launch_line(ring: Option<&str>, add: bool) -> String {
     if add {
         return "omniget claude --add".to_string();
@@ -699,8 +604,6 @@ pub fn launch_line(ring: Option<&str>, add: bool) -> String {
     }
 }
 
-/// Opens a terminal window running [`launch_line`]. On macOS a `.command`
-/// file opens in Terminal.app, as `/llm → Accounts` already does for logins.
 fn open_terminal(ring: Option<&str>, add: bool) -> Result<(), String> {
     let line = launch_line(ring, add);
     #[cfg(windows)]
@@ -756,10 +659,6 @@ fn open_terminal(ring: Option<&str>, add: bool) -> Result<(), String> {
     }
 }
 
-// ---------------------------------------------------------------------------
-// Commands for the panel and the main window
-// ---------------------------------------------------------------------------
-
 #[derive(Serialize)]
 pub struct Panel {
     pub view: Option<view::View>,
@@ -777,8 +676,6 @@ pub async fn usage_tray_view(app: AppHandle) -> Result<Panel, String> {
 }
 
 fn panel_snapshot(p: TrayPrefs) -> Panel {
-    // `catalog` reads translated strings under the same mutex. Release the
-    // view's temporary guard before evaluating the next struct field.
     let view = state().view.clone();
     let catalog = catalog(&p);
     Panel {
@@ -793,16 +690,12 @@ pub async fn usage_tray_toggle_account(app: AppHandle, id: String) -> Result<(),
     commit(&app, |p| p.toggle_account(&id))
 }
 
-/// `enabled`, `shows`, `percent_text`, `colored`, `warn`, `critical`.
-/// One save for the whole patch; when it fails the answer is the error and the
-/// prefs in memory, the icon and the menu stay as they were.
 #[tauri::command]
 pub async fn usage_tray_set(app: AppHandle, patch: serde_json::Value) -> Result<TrayPrefs, String> {
     commit(&app, |p| apply_patch(p, &patch))?;
     Ok(state().prefs.clone())
 }
 
-/// The fields `usage_tray_set` accepts; anything else in `patch` is ignored.
 fn apply_patch(p: &mut TrayPrefs, patch: &serde_json::Value) {
     if let Some(v) = patch
         .get("shows")
@@ -845,7 +738,6 @@ pub async fn usage_tray_open_app(app: AppHandle) -> Result<(), String> {
     Ok(())
 }
 
-/// The panel measured its content: grow or shrink the window, keep it anchored.
 #[tauri::command]
 pub async fn usage_tray_resize(app: AppHandle, height: f64) -> Result<(), String> {
     let Some(w) = app.get_webview_window(PANEL_LABEL) else {
@@ -863,7 +755,6 @@ pub async fn usage_tray_close_panel(app: AppHandle) -> Result<(), String> {
     Ok(())
 }
 
-/// The frontend's translations for the native menu and the tooltip.
 #[tauri::command]
 pub async fn usage_tray_sync_strings(
     app: AppHandle,

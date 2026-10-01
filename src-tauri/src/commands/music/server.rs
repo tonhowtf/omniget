@@ -1,18 +1,3 @@
-//! Localhost HTTP server the player's `<audio>` elements read from.
-//!
-//! The webview can't open arbitrary local files, can't read Icecast titles
-//! and can't route non-CORS radio through Web Audio (it would go silent), so
-//! every source goes through here. Bound to 127.0.0.1 on a random port; every
-//! request must carry the per-launch token (`k=`), so other local programs
-//! and web pages can't use it to read files.
-//!
-//! * `GET /t/<id>`          track file, with Range (seeking)
-//! * `GET /x/<id>?ss=<s>`   same track transcoded to MP3 by ffmpeg, for
-//!   formats the webview can't decode (APE, WMA, ...)
-//! * `GET /c/<hash>?t=1`    cover art (thumbnail with `t=1`)
-//! * `GET /r?u=<url>&s=<id>` radio proxy: strips ICY metadata, emits titles
-//! * `GET /p?u=<url>`       plain passthrough with CORS (HLS playlists/segments)
-
 use std::collections::HashMap;
 use std::io::SeekFrom;
 use std::sync::Arc;
@@ -119,7 +104,6 @@ pub fn audio_mime(path: &str) -> &'static str {
     }
 }
 
-/// `bytes=a-b`, `bytes=a-`, `bytes=-n`.
 fn parse_range(h: &str, len: u64) -> Option<(u64, u64)> {
     let spec = h.strip_prefix("bytes=")?.split(',').next()?.trim();
     let (a, b) = spec.split_once('-')?;
@@ -246,8 +230,6 @@ async fn transcode(
     let Some(stdout) = child.stdout.take() else {
         return status(StatusCode::INTERNAL_SERVER_ERROR);
     };
-    // the child rides along with the stream so ffmpeg dies when the player
-    // drops the connection (seek, skip, stop)
     let stream = futures::stream::unfold(
         (tokio_util::io::ReaderStream::new(stdout), child),
         |(mut rs, child)| async move { rs.next().await.map(|chunk| (chunk, (rs, child))) },
@@ -280,7 +262,6 @@ async fn cover(
         _ => "image/jpeg",
     };
     let mut r = serve_file(&path, mime, &headers).await;
-    // content-addressed, safe to cache for good
     r.headers_mut().insert(
         header::CACHE_CONTROL,
         HeaderValue::from_static("public, max-age=31536000, immutable"),
@@ -410,8 +391,6 @@ async fn passthrough(
         .and_then(|v| v.to_str().ok())
         .unwrap_or("")
         .to_string();
-    // HLS playlists are small: rewrite their URIs against the address they
-    // really came from (after redirects) so the player can resolve them
     if playlist_file::looks_like_hls(&content_type, final_url.as_str(), b"") {
         let Ok(body) = upstream.bytes().await else {
             return status(StatusCode::BAD_GATEWAY);

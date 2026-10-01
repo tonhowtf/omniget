@@ -1,31 +1,10 @@
 //! Compiler for the privacy.sexy collection files (AGPL-3.0 data in
-//! `data/washmybelly/privacy-sexy/`), written from the format documentation
-//! (`docs/collection-files.md`, `docs/templating.md` upstream).
-//!
-//! - A collection has categories, scripts and functions. A script is inline
-//!   (`code` + `revertCode`) or calls functions (`call`, one or a list).
-//! - A function is inline code or calls other functions. Arguments of a
-//!   nested call are templates compiled with the caller's arguments; an
-//!   empty result drops an optional argument and fails a required one.
-//! - Templates: `{{ $param }}`, `{{ $param | pipe | pipe }}`,
-//!   `{{ with $param }} ... {{ . }} ... {{ end }}`. Only the outermost
-//!   expressions are evaluated per pass, and the result is compiled again
-//!   until no expression is left (so `with` blocks can hold substitutions).
-//! - Pipes: `escapeDoubleQuotes` (`"` → `"^""`) and `inlinePowerShell`
-//!   (joins a multi-line PowerShell script into one line).
-//! - Segments of a call sequence are joined with `\n`, the revert code in
-//!   the same order as the code.
-//!
-//! The output is compared byte for byte with the original TypeScript
-//! compiler by the golden tests (`tests/washmybelly_fixtures/privacy/`).
 
 use std::collections::{BTreeMap, HashMap};
 
 use once_cell::sync::Lazy;
 use regex::Regex;
 use serde::Deserialize;
-
-// ── Collection model (mirrors `collection.yaml.d.ts`) ──────────────────
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct Collection {
@@ -122,9 +101,6 @@ pub fn parse_collection(yaml: &str) -> Result<Collection, String> {
     serde_yaml::from_str(yaml).map_err(|e| format!("privacy.sexy collection: {e}"))
 }
 
-// ── Calls ─────────────────────────────────────────────────────────────
-
-/// Argument values by parameter name (never empty).
 pub type Args = BTreeMap<String, String>;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -142,7 +118,6 @@ fn scalar(v: &serde_yaml::Value) -> Option<String> {
     }
 }
 
-/// A `call` block as a call sequence; every argument must be a non-empty string.
 pub fn parse_calls(data: &CallsData) -> Result<Vec<Call>, String> {
     let list: Vec<&CallData> = match data {
         CallsData::One(c) => vec![c],
@@ -168,19 +143,14 @@ pub fn parse_calls(data: &CallsData) -> Result<Vec<Call>, String> {
         .collect()
 }
 
-/// Code and revert code of one script or call.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Compiled {
     pub code: String,
-    /// Empty when there is nothing to revert.
     pub revert: String,
 }
 
-/// What a walker visitor wants done with a call.
 pub enum Visit {
-    /// The visitor handled it; do not look inside.
     Stop,
-    /// Look at the calls inside (for functions that call others).
     Descend,
 }
 
@@ -204,7 +174,6 @@ impl<'a> Compiler<'a> {
             .ok_or_else(|| format!("called function is not defined: \"{name}\""))
     }
 
-    /// A script's code and revert code, exactly as privacy.sexy prints them.
     pub fn compile_script(&self, s: &ScriptData) -> Result<Compiled, String> {
         let Some(calls) = &s.call else {
             return Ok(Compiled {
@@ -294,8 +263,6 @@ impl<'a> Compiler<'a> {
         Ok(())
     }
 
-    /// A call written inside a function, with its arguments compiled
-    /// against the caller's arguments. Empty optional arguments are dropped.
     pub fn nested_call(&self, nested: &Call, parent: &Args) -> Result<Call, String> {
         let f = self.function(&nested.function)?;
         let mut args = Args::new();
@@ -319,9 +286,6 @@ impl<'a> Compiler<'a> {
         })
     }
 
-    /// Walk a call sequence the way the compiler would, letting the visitor
-    /// stop at the functions it understands. `inline` tells the visitor the
-    /// function is code, not calls (nothing to descend into).
     pub fn walk(
         &self,
         calls: &[Call],
@@ -360,8 +324,6 @@ impl<'a> Compiler<'a> {
     }
 }
 
-// ── Templates ─────────────────────────────────────────────────────────
-
 const PIPELINE: &str = r"((?:\|\s*\b[a-zA-Z]+\b\s*)*)";
 
 static SUBST: Lazy<Regex> =
@@ -380,9 +342,7 @@ enum Kind {
     },
     With {
         name: String,
-        /// Scope as byte range of the code.
         scope: (usize, usize),
-        /// `{{ . }}` inside, as absolute byte ranges with their pipeline.
         vars: Vec<(usize, usize, String)>,
     },
 }
@@ -450,7 +410,6 @@ fn find_with(code: &str) -> Result<Vec<Expr>, String> {
         ));
     }
     tokens.sort_by_key(|t| t.0);
-    // Open `with` blocks: (start, end of the start statement, name, vars).
     type Open = (usize, usize, String, Vec<(usize, usize, String)>);
     let mut open: Vec<Open> = Vec::new();
     let mut out = Vec::new();
@@ -485,7 +444,6 @@ fn find_with(code: &str) -> Result<Vec<Expr>, String> {
     Ok(out)
 }
 
-/// Compile a template with the arguments until no expression is left.
 pub fn expand(code: &str, args: &Args) -> Result<String, String> {
     let mut cur = code.to_string();
     for _ in 0..256 {
@@ -572,8 +530,6 @@ fn evaluate(code: &str, e: &Expr, args: &Args) -> Result<String, String> {
     }
 }
 
-// ── Pipes ─────────────────────────────────────────────────────────────
-
 fn apply_pipeline(value: &str, pipeline: &str) -> Result<String, String> {
     if value.is_empty() {
         return Err("missing value".into());
@@ -593,20 +549,15 @@ fn apply_pipeline(value: &str, pipeline: &str) -> Result<String, String> {
     Ok(v)
 }
 
-/// `"` → `"^""`: the one escape that survives cmd.exe and PowerShell.
 pub fn escape_double_quotes(raw: &str) -> String {
     raw.replace('"', "\"^\"\"")
 }
 
-/// Lines split on `\r\n`, `\r` or `\n`.
 fn split_lines(text: &str) -> Vec<&str> {
     static NL: Lazy<Regex> = Lazy::new(|| Regex::new(r"\r\n|\r|\n").unwrap());
     NL.split(text).collect()
 }
 
-/// Join a multi-line PowerShell script into one line: `#` comments become
-/// `<# #>`, here-strings become strings, backtick and bracket
-/// continuations merge, and the remaining lines end with `;`.
 pub fn inline_powershell(code: &str) -> String {
     if code.is_empty() || !(code.contains('\n') || code.contains('\r')) {
         return code.to_string();
@@ -618,7 +569,6 @@ pub fn inline_powershell(code: &str) -> String {
     merge_new_lines(&s)
 }
 
-/// JS `.` does not match line terminators; Rust's only skips `\n`.
 const DOT: &str = r"[^\n\r\u{2028}\u{2029}]";
 
 fn inline_comments(code: &str) -> String {
@@ -668,10 +618,8 @@ fn is_js_space(c: char) -> bool {
 }
 
 fn merge_brackets(code: &str) -> String {
-    // Opening bracket (the upstream lookbehind `(?<=.*)` always holds).
     static OPEN: Lazy<Regex> = Lazy::new(|| Regex::new(r"\s*\{[\r\n][\s\r\n]*").unwrap());
     let s = OPEN.replace_all(code, " { ").into_owned();
-    // Closing bracket followed by a continuation keyword.
     static CLOSE: Lazy<Regex> = Lazy::new(|| Regex::new(r"\s*\}[\r\n][\s\r\n]*").unwrap());
     let s = replace_with_lookahead(
         &s,
@@ -679,13 +627,10 @@ fn merge_brackets(code: &str) -> String {
         &["elseif", "else", "catch", "finally", "until"],
         None,
     );
-    // `do { ... }` + newline + `while`.
     static DO_CLOSE: Lazy<Regex> = Lazy::new(|| Regex::new(r"[\r\n\s]*\}[\r\n][\r\n\s]*").unwrap());
     replace_with_lookahead(&s, &DO_CLOSE, &["while"], Some(do_block_before))
 }
 
-/// `(?<=do\s*{.*)` at `pos`: a `{` earlier on the same line, with only
-/// whitespace between it and a preceding `do`.
 fn do_block_before(text: &str, pos: usize) -> bool {
     let before = &text[..pos];
     let line_start = before
@@ -701,10 +646,6 @@ fn do_block_before(text: &str, pos: usize) -> bool {
         })
 }
 
-/// `re` followed by one of `ahead` (a lookahead the regex crate lacks),
-/// optionally with a lookbehind test at the match start. A failed candidate
-/// resumes the search just after its `}` so a later match can still start
-/// inside the whitespace the candidate covered, as a backtracking engine does.
 fn replace_with_lookahead(
     text: &str,
     re: &Regex,
@@ -723,7 +664,6 @@ fn replace_with_lookahead(
         let ok_ahead = ahead.iter().any(|w| rest.starts_with(w));
         let start = match behind {
             None => Some(m.start()),
-            // Leftmost start inside the leading whitespace where the lookbehind holds.
             Some(test) => (m.start()..=brace)
                 .filter(|i| text.is_char_boundary(*i))
                 .find(|i| test(text, *i)),

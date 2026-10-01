@@ -1,17 +1,3 @@
-//! Power profile, battery health, holds, conflicts between managers (F5).
-//!
-//! - `wmb_power_status` reads: the profile and who manages it, conflicts
-//!   between Linux managers ("one manager only"), what keeps the machine
-//!   awake, Windows plans and power mode, macOS Low Power Mode, battery
-//!   charge limits. It changes nothing; the changes it can offer are
-//!   registered as `power` plan candidates (`actions`).
-//! - `wmb_power_hold` holds the performance profile / keeps the machine
-//!   awake for at most four hours and lets go on its own ([`hold`]).
-//! - Plan actions (closed list, [`ACTIONS`]): switch a Windows plan, add
-//!   Ultimate Performance, Low Power Mode, apply EPP/governor once, battery
-//!   charge limit, resolve a manager conflict. Each snapshots the state it
-//!   changes and its receipt undoes it.
-
 pub mod arbiter;
 pub mod hold;
 pub mod parse;
@@ -38,10 +24,8 @@ pub use hold::{
 };
 
 const MODULE: &str = "power";
-/// Plan kind of the candidates `wmb_power_status` registers.
 pub const PLAN_KIND: &str = "power";
 
-/// Every action a `power` plan item may carry.
 pub const ACTIONS: &[&str] = &[
     "set_scheme",
     "ultimate",
@@ -52,8 +36,6 @@ pub const ACTIONS: &[&str] = &[
     "resolve_conflict",
 ];
 
-/// Keys `ElevatedOp::PowerSetting` accepts. Values are checked again by
-/// the helper against what the system lists as available.
 pub const SETTING_KEYS: &[&str] = &[
     "cpu_epp",
     "cpu_governor",
@@ -63,16 +45,11 @@ pub const SETTING_KEYS: &[&str] = &[
     "manager_on",
 ];
 
-/// Profiles of the power-profiles API.
 pub const PROFILES: &[&str] = &["power-saver", "balanced", "performance"];
 
-/// Battery health lives with the monitor readers (`monitor::battery`, one
-/// parser per system, tested with fixtures); this is the tool's entry point.
 pub async fn tool_battery_health(a: Value) -> Result<Value, String> {
     super::monitor::tool_battery_health(a).await
 }
-
-// ── Hold backend per system ──────────────────────────────────────────
 
 fn backend() -> Box<dyn hold::Backend> {
     #[cfg(target_os = "linux")]
@@ -101,8 +78,6 @@ fn backend() -> Box<dyn hold::Backend> {
         Box::new(None_)
     }
 }
-
-// ── wmb_power_hold ───────────────────────────────────────────────────
 
 pub async fn tool_hold(a: Value) -> Result<Value, String> {
     let action = crate::core::llm::tool_table::need_str(&a, "action")?;
@@ -140,8 +115,6 @@ pub async fn tool_hold(a: Value) -> Result<Value, String> {
     })
     .await
 }
-
-// ── wmb_power_status ─────────────────────────────────────────────────
 
 fn source_of(a: &Value) -> Source {
     match a.get("_source").and_then(Value::as_str) {
@@ -209,7 +182,6 @@ fn read_status() -> (Value, Vec<PlanItem>) {
             None
         }
     };
-    // The D-Bus owner counts even when its unit has another name.
     if let Some(m) = profiles
         .as_ref()
         .and_then(|p| p["daemon"].as_str())
@@ -254,7 +226,6 @@ fn read_status() -> (Value, Vec<PlanItem>) {
     (v, items)
 }
 
-/// Plan candidates on Linux, from what runs and what the kernel exposes.
 #[cfg_attr(not(target_os = "linux"), allow(dead_code))]
 fn linux_items(
     running: &[arbiter::Manager],
@@ -278,8 +249,6 @@ fn linux_items(
             json!({ "keep": keep, "units": units }),
         ));
     }
-    // "Apply now" only when nobody manages the knobs: otherwise the manager
-    // overwrites it within seconds.
     if verdict.manager.is_none() && verdict.conflicts.is_empty() {
         for e in &knobs.epps {
             if Some(e) != knobs.epp.as_ref() && e != "default" {
@@ -306,7 +275,6 @@ fn linux_items(
             }
         }
     }
-    // TLP and auto-cpufreq restore their own thresholds at boot.
     let limit_owner = running
         .iter()
         .any(|m| matches!(m, arbiter::Manager::Tlp | arbiter::Manager::AutoCpufreq));
@@ -480,19 +448,16 @@ fn read_status() -> (Value, Vec<PlanItem>) {
     )
 }
 
-// ── Plan hooks (called by `plan::execute` for `Op::Module { module: "power" }`) ──
-
-/// What a receipt needs to put things back.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum Snap {
-    /// Windows: the plan that was active, and the one we created (removed on undo).
     Scheme {
         previous: String,
         created: Option<String>,
     },
-    /// Administrator settings to apply again, in order.
-    Settings { ops: Vec<(String, String)> },
+    Settings {
+        ops: Vec<(String, String)>,
+    },
 }
 
 fn check_action(action: &str) -> Result<(), String> {
@@ -573,7 +538,6 @@ pub fn plan_execute(
     ))
 }
 
-/// The administrator settings an action changes: `(key, new, old)`.
 #[allow(unused_variables)]
 fn setting_changes(action: &str, args: &Value) -> Result<Vec<(String, String, String)>, String> {
     match action {
@@ -638,7 +602,6 @@ fn bit(b: bool) -> String {
     if b { "1" } else { "0" }.into()
 }
 
-/// How to put one administrator setting back.
 fn reverse(key: &str, old: &str) -> (String, String) {
     match key {
         "manager_off" => ("manager_on".into(), old.into()),
@@ -711,11 +674,6 @@ fn restore_scheme(previous: &str, created: Option<&str>) -> Result<String, Strin
     Err("power plans only exist on Windows".into())
 }
 
-// ── Administrator helper ─────────────────────────────────────────────
-
-/// Shape check shared by the app (before signing) and the helper (before
-/// touching anything). The helper then checks the value against what the
-/// system lists as available.
 pub fn validate_setting(key: &str, value: &str) -> Result<(), String> {
     if !SETTING_KEYS.contains(&key) {
         return Err(format!("power_setting: key {key:?} is not allowed"));
@@ -744,7 +702,6 @@ pub fn validate_setting(key: &str, value: &str) -> Result<(), String> {
     }
 }
 
-/// Executor of `ElevatedOp::PowerSetting` (runs as administrator).
 pub fn elevated_setting(key: &str, value: &str) -> Result<String, String> {
     validate_setting(key, value)?;
     #[cfg(target_os = "linux")]
@@ -782,8 +739,6 @@ pub fn elevated_setting(key: &str, value: &str) -> Result<String, String> {
     ))
 }
 
-/// The same setting as a terminal command, for people who would rather run
-/// it themselves (`elevate::copy_command`). Display only.
 pub fn command_line(key: &str, value: &str) -> String {
     if validate_setting(key, value).is_err() {
         return format!("# invalid power setting {key}");
@@ -802,13 +757,8 @@ pub fn command_line(key: &str, value: &str) -> String {
     }
 }
 
-// ── Screen-only actions ──────────────────────────────────────────────
-
-/// Actions only the screen may run (`washmybelly_ui` with `power.<action>`):
-/// never exposed as MCP tools.
 pub async fn ui_action(action: &str, a: Value) -> Result<Value, String> {
     match action {
-        // The same switch as the desktop's own menu (no password, polkit).
         "set_profile" => {
             let p = crate::core::llm::tool_table::need_str(&a, "profile")?;
             if !PROFILES.contains(&p.as_str()) {
@@ -833,8 +783,6 @@ pub async fn ui_action(action: &str, a: Value) -> Result<Value, String> {
                     std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
                     let path = dir.join("battery-report.html");
                     windows::battery_report(&path)?;
-                    // Our own file in our own folder: explorer opens it
-                    // with the default browser. Path in argv.
                     let _ = crate::core::process::std_command("explorer")
                         .arg(&path)
                         .spawn();

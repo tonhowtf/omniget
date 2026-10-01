@@ -1,8 +1,3 @@
-//! Minimal Chrome DevTools Protocol client over one WebSocket, in flatten
-//! mode: one connection to the browser target, page sessions addressed by
-//! `sessionId`. Commands get a oneshot for their reply; events go to one
-//! unbounded channel the browser loop reads.
-
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
@@ -22,7 +17,6 @@ pub struct Cdp {
     closed: Arc<AtomicBool>,
 }
 
-/// One CDP event: `method`, `params` and the page session it came from.
 #[derive(Debug, Clone)]
 pub struct Event {
     pub method: String,
@@ -96,7 +90,6 @@ impl Cdp {
                     let _ = tx.send(Err("the browser closed".into()));
                 }
             }
-            // Dropping ev_tx ends the browser loop.
         });
 
         Ok((

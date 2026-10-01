@@ -1,64 +1,29 @@
-//! The pinned `OpenRouterTeam/skills` catalog.
-//!
-//! Verified on 18/09/2026 with `gh api repos/OpenRouterTeam/skills` and a
-//! download of the tarball:
-//!
-//! - repository: <https://github.com/OpenRouterTeam/skills> (256 stars, no
-//!   `LICENSE` file in the tree and `license: null` in the API — the skills
-//!   carry no declared licence, which the UI must say before installing);
-//! - commit of `main` at verification: `012c823da319ef10ee899a64aacd10e83ce39c74`
-//!   (2026-08-25);
-//! - tarball: <https://codeload.github.com/OpenRouterTeam/skills/tar.gz/012c823da319ef10ee899a64aacd10e83ce39c74>,
-//!   503 928 bytes, sha256 `26cb531d...` ([`TARBALL_SHA256`]).
-//!   The `refs/heads/main` tarball is deliberately *not* pinned: it moves.
-//!
-//! The plan says "the 16 skills of OpenRouterTeam". At this commit the repo has
-//! **17** under `skills/`, all with a `SKILL.md` whose `name` matches its
-//! folder. They are listed below with the sha256 of each `SKILL.md`, so an
-//! install can be checked against what was audited ([`verify_installed`]).
-//!
-//! Nothing here touches the network on its own: [`install`] shallow-clones with
-//! the system `git` only when the user asks for one entry, and the UI confirms
-//! first.
-
 use std::path::Path;
 
 use super::install;
 use super::SkillError;
 
-/// Clone URL of the catalog repository.
 pub const REPO_URL: &str = "https://github.com/OpenRouterTeam/skills.git";
-/// Web page of the repository, for the UI.
 pub const REPO_HTML_URL: &str = "https://github.com/OpenRouterTeam/skills";
-/// Commit audited on 18/09/2026; installs pin to it.
 pub const COMMIT: &str = "012c823da319ef10ee899a64aacd10e83ce39c74";
-/// No licence is declared anywhere in the repository.
 pub const LICENSE: Option<&str> = None;
 
-/// One installable entry of the catalog. All data is baked in, so the list
-/// renders with no network call.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
 pub struct CatalogEntry {
     pub name: &'static str,
     pub description: &'static str,
-    /// Path of the skill inside the repository.
     pub subdir: &'static str,
-    /// sha256 of the entry's `SKILL.md` at [`COMMIT`].
     pub skill_md_sha256: &'static str,
-    /// Files the skill carries, at [`COMMIT`].
     pub files: u32,
-    /// Bytes the skill carries, at [`COMMIT`].
     pub bytes: u64,
 }
 
 impl CatalogEntry {
-    /// Web page of this skill, for the "view source" link.
     pub fn html_url(&self) -> String {
         format!("{REPO_HTML_URL}/tree/{COMMIT}/{}", self.subdir)
     }
 }
 
-/// The catalog, in the order the repository lists it.
 pub const ENTRIES: &[CatalogEntry] = &[
     CatalogEntry {
         name: "create-agent-tui",
@@ -198,27 +163,18 @@ pub const ENTRIES: &[CatalogEntry] = &[
     },
 ];
 
-/// The whole catalog.
 pub fn entries() -> &'static [CatalogEntry] {
     ENTRIES
 }
 
-/// One entry by name.
 pub fn entry(name: &str) -> Option<&'static CatalogEntry> {
     ENTRIES.iter().find(|e| e.name == name)
 }
 
-/// Install one catalog entry into the default skills directory. Shallow clone
-/// of [`REPO_URL`] pinned at [`COMMIT`], then the entry's subdirectory. The UI
-/// confirms with the user before calling this: it runs `git` and hits the
-/// network.
 pub fn install(name: &str) -> Result<install::InstallOutcome, SkillError> {
     install_in(&install::skills_dir()?, name)
 }
 
-/// [`install`] against an explicit root. Like every other install it comes back
-/// parked when the scan is over the threshold — a pinned commit is no promise
-/// of safety, only of reproducibility.
 pub fn install_in(root: &Path, name: &str) -> Result<install::InstallOutcome, SkillError> {
     let entry = entry(name).ok_or_else(|| {
         SkillError::new(
@@ -229,7 +185,6 @@ pub fn install_in(root: &Path, name: &str) -> Result<install::InstallOutcome, Sk
     install::install_from_git_in(root, REPO_URL, Some(COMMIT), Some(entry.subdir))
 }
 
-/// sha256 of a byte slice, lowercase hex.
 pub fn sha256_hex(data: &[u8]) -> String {
     use sha2::{Digest, Sha256};
     let mut hasher = Sha256::new();

@@ -1,33 +1,3 @@
-//! Procedural learning, kept apart from personal memory.
-//!
-//! Memory (`assist::memory`) holds what the person said about themselves:
-//! preferences, facts, corrections. An explicit preference goes straight
-//! there and is used from the next turn on, without asking again. This
-//! module holds something else: how a bot does its job. It records
-//! observations with provenance (which bot, skill version and overlay were
-//! loaded, which task, what feedback, what verified outcome), turns them into
-//! versioned candidates for a *local overlay* (extra procedure text appended
-//! to a skill for one bot), evaluates a candidate against the baseline on
-//! development and holdout cases, and promotes or rolls back by policy.
-//!
-//! What it refuses, whatever the prompt says:
-//! - a model's own words are a hypothesis, never support for a candidate;
-//!   duplicates and repeated feedback on the same task count once (A14);
-//! - a candidate is promoted only by an evaluation of that exact version on
-//!   the current case set that shows no holdout regression (A15); never by a
-//!   counter of confidence;
-//! - automatic promotion of a shared procedure is off; a bot may opt in to
-//!   automatic promotion of its own local, text-only overlays (no new tools,
-//!   no scripts);
-//! - executable candidates are `unsupported`: there is no verified isolation
-//!   to run them in (A17);
-//! - revoking an observation invalidates candidates that no longer have
-//!   support, and rolls back an active one (A13);
-//! - rollback restores the previous overlay without deleting history; a run
-//!   that already started keeps the version it pinned (A16);
-//! - turning learning off stops new observations and proposals; explicit
-//!   memory keeps working.
-
 pub mod eval;
 
 use std::collections::{BTreeMap, HashMap, HashSet};
@@ -49,9 +19,7 @@ pub const ERR_LEARN_UNSUPPORTED: &str = "ERR_LEARN_UNSUPPORTED";
 pub const ERR_LEARN_NO_FIXTURE: &str = "ERR_LEARN_NO_FIXTURE";
 pub const ERR_LEARN_DISABLED: &str = "ERR_LEARN_DISABLED";
 
-/// Distinct explicit observations (different tasks) a candidate needs.
 pub const MIN_SUPPORT: usize = 2;
-/// Longest overlay text.
 pub const OVERLAY_MAX: usize = 4_000;
 
 pub const MIGRATIONS: &[Migration] = &[Migration {
@@ -172,18 +140,12 @@ CREATE INDEX learn_promotions_bot ON learn_promotions(bot_id, skill, scope, crea
 ",
 }];
 
-// ── Types ─────────────────────────────────────────────────────────────────
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Source {
-    /// The person said it (a reaction, a correction, a rating).
     ExplicitFeedback,
-    /// Derived by the app from something the person did.
     Inferred,
-    /// Came with an imported pack.
     Import,
-    /// A model's own statement: a hypothesis, never support.
     Model,
 }
 
@@ -225,8 +187,6 @@ impl CandidateState {
 pub struct Settings {
     pub bot_id: String,
     pub enabled: bool,
-    /// Opt-in: promote a bot-local, text-only overlay when its evaluation is
-    /// eligible, without asking.
     pub auto_promote_local: bool,
     pub policy: eval::PromotionPolicy,
 }
@@ -241,11 +201,9 @@ pub struct Observation {
     pub task_ref: String,
     pub scope: String,
     pub source: Source,
-    /// `preference|procedure|fact|hypothesis`
     pub kind: String,
     pub text: String,
     pub polarity: i64,
-    /// `verified_pass|verified_fail|unverified`
     pub outcome: String,
     pub evidence_ref: Option<String>,
     pub content_hash: String,
@@ -278,7 +236,6 @@ pub struct Candidate {
     pub bot_id: String,
     pub skill: String,
     pub scope: String,
-    /// `overlay` (text) or `executable` (script: unsupported).
     pub kind: String,
     pub title: String,
     pub state: CandidateState,
@@ -316,7 +273,6 @@ pub struct Promotion {
     pub bot_id: String,
     pub skill: String,
     pub scope: String,
-    /// `promote|rollback|auto_rollback`
     pub action: String,
     pub candidate_id: Option<String>,
     pub version: Option<i64>,
@@ -363,8 +319,6 @@ pub fn bot_scope(bot: &str) -> String {
     format!("bot:{bot}")
 }
 
-// ── Settings ──────────────────────────────────────────────────────────────
-
 pub fn settings(db: &AssistDb, bot: &str) -> Result<Settings, String> {
     let row: Option<(i64, i64, String)> = db.with(|c| {
         c.query_row(
@@ -402,8 +356,6 @@ pub fn set_settings(db: &AssistDb, s: &Settings) -> Result<Settings, String> {
     settings(db, &s.bot_id)
 }
 
-// ── Observations ──────────────────────────────────────────────────────────
-
 const OBS_COLS: &str = "id, bot_id, skill, skill_hash, overlay_version, task_ref, scope, source, kind, text, polarity, outcome, evidence_ref, content_hash, dup_of, revoked_ms, revoked_reason, created_ms";
 
 fn row_obs(r: &Row<'_>) -> rusqlite::Result<Observation> {
@@ -429,10 +381,6 @@ fn row_obs(r: &Row<'_>) -> rusqlite::Result<Observation> {
     })
 }
 
-/// Records one observation. Returns `None` when learning is off for the bot
-/// (explicit memory is not affected by that switch). A model statement is
-/// stored as a hypothesis; a repeat of the same text on the same task is
-/// stored as a duplicate that never counts twice.
 pub fn observe(db: &AssistDb, o: NewObservation) -> Result<Option<Observation>, String> {
     if o.bot_id.trim().is_empty() || o.text.trim().is_empty() {
         return Err(input_err("an observation needs a bot and a text"));
@@ -514,10 +462,8 @@ pub fn observations(
     })
 }
 
-/// What an observation set is worth as support for a candidate.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct Support {
-    /// Explicit, not revoked, not duplicate, one per task.
     pub counted: Vec<String>,
     pub duplicates: Vec<String>,
     pub model_statements: Vec<String>,
@@ -579,24 +525,10 @@ pub fn support(db: &AssistDb, ids: &[String]) -> Result<Support, String> {
     Ok(s)
 }
 
-/// Stored instead of a revoked observation's reason: the free text the
-/// person typed may repeat what they asked to remove (audit F-L2).
 pub const REVOKED_LABEL: &str = "revoked by the person";
-/// Replaces the overlay text of every candidate version derived from a
-/// revoked observation.
 pub const WITHDRAWN_OVERLAY: &str =
     "[withdrawn: derived from a revoked observation; revise the candidate to propose new text]";
 
-/// Revokes an observation (the person corrected or deleted what it came
-/// from). Returns the candidates touched.
-///
-/// Support is not the only question (audit F-L2): text derived from the
-/// observation may quote it. So every candidate version that cites it has
-/// its overlay, diff and reason withdrawn, its recorded fixtures (outputs
-/// produced with that text) deleted, it leaves the active overlays (rolled
-/// back, repeatedly if the previous one cites it too) and every pinned run,
-/// and a live candidate is rejected: with support left it needs review and
-/// comes back only through [`revise`] with new text.
 pub fn revoke_observation(db: &AssistDb, id: &str, reason: &str) -> Result<Vec<String>, String> {
     revoke_with_label(db, id, reason, REVOKED_LABEL)
 }
@@ -613,7 +545,6 @@ fn revoke_with_label(
             params![id, now_ms(), label],
         )
     })?;
-    // Every version (not only the current one) that cites the observation.
     let affected: Vec<(String, i64)> = db.with(|c| {
         let mut st = c.prepare("SELECT candidate_id, version FROM learn_candidate_versions WHERE observations LIKE ?1 ORDER BY candidate_id, version")?;
         let rows = st.query_map(params![format!("%\"{id}\"%")], |r| Ok((r.get(0)?, r.get(1)?)))?;
@@ -636,8 +567,6 @@ fn revoke_with_label(
         }
         Ok(())
     })?;
-    // Drop it from the active overlays; a rollback may restore another
-    // affected version, so repeat (bounded) until none is active.
     let why = "a source observation was revoked";
     let mut rolled: HashSet<String> = HashSet::new();
     for _ in 0..64 {
@@ -685,7 +614,6 @@ fn revoke_with_label(
     Ok(touched)
 }
 
-/// Memory record changed or forgotten: revoke observations that point at it.
 pub fn on_memory_changed(db: &AssistDb, memory_id: &str, why: &str) -> Result<Vec<String>, String> {
     let ids: Vec<String> = db.with(|c| {
         let mut st = c.prepare(
@@ -709,8 +637,6 @@ pub fn on_memory_changed(db: &AssistDb, memory_id: &str, why: &str) -> Result<Ve
     }
     Ok(touched)
 }
-
-// ── Candidates ────────────────────────────────────────────────────────────
 
 const CAND_COLS: &str =
     "id, bot_id, skill, scope, kind, title, state, current_version, reason, created_ms, updated_ms";
@@ -788,11 +714,9 @@ pub struct NewCandidate {
     pub overlay: String,
     pub reason: String,
     pub observations: Vec<String>,
-    /// `overlay` or `executable`.
     pub kind: Option<String>,
 }
 
-/// Line diff between two overlay texts (`-`/`+` lines), for the UI.
 pub fn line_diff(old: &str, new: &str) -> String {
     let a: Vec<&str> = old.lines().collect();
     let b: Vec<&str> = new.lines().collect();
@@ -812,7 +736,6 @@ pub fn line_diff(old: &str, new: &str) -> String {
     out.join("\n")
 }
 
-/// Text an overlay must not carry: it would widen what the bot can do.
 fn widens_capabilities(text: &str) -> Option<&'static str> {
     let low = text.to_lowercase();
     for (needle, why) in [
@@ -830,9 +753,6 @@ fn widens_capabilities(text: &str) -> Option<&'static str> {
     None
 }
 
-/// Proposes a candidate overlay from observations. Refused without enough
-/// explicit support (model statements, duplicates and one task repeated do
-/// not count), with learning off, or when the text would widen capabilities.
 pub fn propose(db: &AssistDb, n: NewCandidate) -> Result<Candidate, String> {
     if !settings(db, &n.bot_id)?.enabled {
         return Err(format!(
@@ -893,7 +813,6 @@ fn insert_version_tx(
     Ok(())
 }
 
-/// New version of a candidate (after feedback). Its evaluation starts over.
 pub fn revise(
     db: &AssistDb,
     cid: &str,
@@ -948,8 +867,6 @@ pub fn set_state(
     candidate(db, cid)
 }
 
-// ── Active overlays, promotion, rollback ──────────────────────────────────
-
 pub fn active(
     db: &AssistDb,
     bot: &str,
@@ -997,9 +914,6 @@ pub fn active_for_bot(db: &AssistDb, bot: &str) -> Result<Vec<ActiveOverlay>, St
     Ok(out)
 }
 
-/// Promotes `candidate` at its current version. `by` is `user` (a click),
-/// or `auto` (only for a bot that opted in, a bot-local text overlay, and an
-/// eligible evaluation of this exact version on the current case set).
 pub fn promote(db: &AssistDb, cid: &str, eval_run_id: &str, by: &str) -> Result<Promotion, String> {
     let c = candidate(db, cid)?;
     if c.kind != "overlay" {
@@ -1063,8 +977,6 @@ pub fn promote(db: &AssistDb, cid: &str, eval_run_id: &str, by: &str) -> Result<
     promotion(db, &id)
 }
 
-/// Restores what was active before the current overlay (or nothing). The
-/// history keeps every row; a run that pinned the old version keeps it.
 pub fn rollback(
     db: &AssistDb,
     bot: &str,
@@ -1075,7 +987,6 @@ pub fn rollback(
 ) -> Result<Promotion, String> {
     let cur = active(db, bot, skill, scope)?
         .ok_or_else(|| format!("{ERR_LEARN_NOT_FOUND}: nothing active for {skill} in {scope}"))?;
-    // The promotion that made the current one active tells what was before.
     let prev: Option<Value> = db.with(|c| {
         c.query_row(
             "SELECT previous FROM learn_promotions WHERE bot_id = ?1 AND skill = ?2 AND scope = ?3 AND action = 'promote' AND candidate_id = ?4 AND version = ?5 ORDER BY created_ms DESC LIMIT 1",
@@ -1152,12 +1063,8 @@ pub fn promotions(db: &AssistDb, bot: &str) -> Result<Vec<Promotion>, String> {
     })
 }
 
-// ── Pins: a run keeps the version it started with (A16) ───────────────────
-
 static PINS: RwLock<Option<HashMap<String, Vec<ActiveOverlay>>>> = RwLock::new(None);
 
-/// Pins the bot's active overlays for `conversation` (a mission's run). Until
-/// [`unpin`], turns of that conversation use exactly these versions.
 pub fn pin(db: &AssistDb, conversation: &str, bot: &str) -> Result<Vec<ActiveOverlay>, String> {
     let now = active_for_bot(db, bot)?;
     PINS.write()
@@ -1167,8 +1074,6 @@ pub fn pin(db: &AssistDb, conversation: &str, bot: &str) -> Result<Vec<ActiveOve
     Ok(now)
 }
 
-/// Pins exactly `overlays` for `conversation` (an evaluation variant), empty
-/// meaning "no overlay at all". Dropping the guard unpins it.
 pub fn pin_exact(conversation: &str, overlays: Vec<ActiveOverlay>) -> PinGuard {
     PINS.write()
         .unwrap_or_else(|e| e.into_inner())
@@ -1177,7 +1082,6 @@ pub fn pin_exact(conversation: &str, overlays: Vec<ActiveOverlay>) -> PinGuard {
     PinGuard(conversation.to_string())
 }
 
-/// Unpins its conversation when dropped (every exit path of a variant run).
 pub struct PinGuard(String);
 
 impl Drop for PinGuard {
@@ -1186,7 +1090,6 @@ impl Drop for PinGuard {
     }
 }
 
-/// Removes the given overlay versions from every pinned run.
 fn unpin_versions(hit: &HashSet<(String, i64)>) {
     if let Some(m) = PINS.write().unwrap_or_else(|e| e.into_inner()).as_mut() {
         for list in m.values_mut() {
@@ -1195,7 +1098,6 @@ fn unpin_versions(hit: &HashSet<(String, i64)>) {
     }
 }
 
-/// Removes every pinned overlay of `bot` (audit F-L4: `forget`).
 fn unpin_bot(bot: &str) {
     if let Some(m) = PINS.write().unwrap_or_else(|e| e.into_inner()).as_mut() {
         for list in m.values_mut() {
@@ -1210,8 +1112,6 @@ pub fn unpin(conversation: &str) {
     }
 }
 
-/// Overlays a turn uses: the pinned ones for a pinned conversation, else what
-/// is active now.
 pub fn overlays_for(
     db: &AssistDb,
     conversation: Option<&str>,
@@ -1230,7 +1130,6 @@ pub fn overlays_for(
     active_for_bot(db, bot)
 }
 
-/// Text appended to the bot's context for its overlays.
 pub fn overlay_text(overlays: &[ActiveOverlay]) -> Option<String> {
     if overlays.is_empty() {
         return None;
@@ -1267,11 +1166,6 @@ pub fn augment() -> Arc<dyn crate::core::llm::coordinator::TurnAugment> {
     Arc::new(LearningAugment)
 }
 
-// ── Export / forget ───────────────────────────────────────────────────────
-
-/// Everything stored for the bot, without caps (audit F-L3): observations,
-/// candidates with every version, active overlays, promotions, and the
-/// evaluation data (cases, fixtures, runs). `counts` says how many of each.
 pub fn export(db: &AssistDb, bot: &str) -> Result<Value, String> {
     let obs: Vec<Observation> = db.with(|c| {
         let mut st = c.prepare(&format!(
@@ -1338,11 +1232,6 @@ pub fn export(db: &AssistDb, bot: &str) -> Result<Value, String> {
     }))
 }
 
-/// Deletes everything learned for the bot that can hold personal text:
-/// observations, candidates and their versions, evaluation cases, their
-/// fixtures (model outputs) and the evaluation runs of its candidates, and
-/// the overlays pinned by running conversations (audit F-L1/F-L4).
-/// Promotion records keep ids and actions only (minimal metadata, no content).
 pub fn forget(db: &AssistDb, bot: &str) -> Result<usize, String> {
     let n = db.tx(|tx| {
         let n = tx.execute("DELETE FROM learn_observations WHERE bot_id = ?1", params![bot]).map_err(err)?;

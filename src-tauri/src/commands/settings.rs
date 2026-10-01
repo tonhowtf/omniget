@@ -1,9 +1,3 @@
-//! Settings commands. The five `settings_*_v3` commands are the contract of
-//! `06-api-contract.md`; `get_settings`/`update_settings`/`reset_settings`
-//! are transitional wrappers over the same repository. Every one of them
-//! answers with the public DTO: no proxy password, manual cookie or bridge
-//! token ever reaches the UI through here.
-
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -24,15 +18,10 @@ use crate::storage::settings_repository::{
     RepoError, SettingsRepository, UnavailableCode,
 };
 
-/// The login item exists when the person asked for it, or for agents in
-/// the background (3.2: they start hidden at login).
 pub fn autostart_wanted(s: &AppSettings) -> bool {
     s.start_with_system || s.run_in_background
 }
 
-/// "Run agents in the background" and "quit when the window is closed"
-/// contradict each other (3.2). The one just turned on wins; turned on
-/// together, the agents keep running.
 pub fn reconcile_close(s: &mut AppSettings, old_background: bool, old_exit_on_close: bool) {
     if s.run_in_background && s.exit_on_close {
         if old_background && !old_exit_on_close {
@@ -43,15 +32,10 @@ pub fn reconcile_close(s: &mut AppSettings, old_background: bool, old_exit_on_cl
     }
 }
 
-/// Locales with a file in `src/lib/i18n/` (the list of `i18n/index.ts`).
-/// Anything else would show English while claiming to be applied.
 pub const APP_LANGUAGES: &[&str] = &[
     "en", "ru", "el", "pt", "zh", "zh-TW", "ja", "it", "fr", "es", "fa", "lo",
 ];
 
-/// Live state outside the effects table that follows every saved change:
-/// washmybelly's own copy of its settings and the language of the other
-/// windows (the canvas, Omni's window, the pet).
 pub fn apply_live(app: &tauri::AppHandle, before: &AppSettings, after: &AppSettings) {
     crate::commands::washmybelly::sync_settings(&after.washmybelly);
     if after.appearance.language != before.appearance.language {
@@ -59,11 +43,6 @@ pub fn apply_live(app: &tauri::AppHandle, before: &AppSettings, after: &AppSetti
     }
 }
 
-// ---------------------------------------------------------------------------
-// v3 DTOs
-// ---------------------------------------------------------------------------
-
-/// `ReadySnapshot` or `FailedSnapshot` of the contract.
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SettingsSnapshotV3 {
@@ -93,10 +72,6 @@ pub struct ImportResultV3 {
     pub outcome: ImportOutcomeV3,
     pub snapshot: SettingsSnapshotV3,
 }
-
-// ---------------------------------------------------------------------------
-// v3 services (no AppHandle: the tests drive them with a temp profile)
-// ---------------------------------------------------------------------------
 
 pub fn snapshot_v3(
     repo: &SettingsRepository,
@@ -202,8 +177,6 @@ fn patch_error(e: PatchError) -> RepoError {
     }
 }
 
-/// A changed hotkey binding has to parse before it is saved; registering
-/// it (and keeping the old one on failure) is the shortcuts effect.
 fn validate_bindings(before: &AppSettings, next: &AppSettings) -> Result<(), RepoError> {
     use tauri_plugin_global_shortcut::Shortcut;
     let pairs = [
@@ -436,10 +409,6 @@ pub fn import_v3(
     ))
 }
 
-// ---------------------------------------------------------------------------
-// v3 commands
-// ---------------------------------------------------------------------------
-
 async fn blocking<T: Send + 'static>(
     f: impl FnOnce() -> Result<T, ApiError> + Send + 'static,
 ) -> Result<T, ApiError> {
@@ -525,10 +494,6 @@ pub async fn settings_import_appearance_v3(
     .await
 }
 
-// ---------------------------------------------------------------------------
-// Transitional wrappers (same repository, same validation, redacted DTO)
-// ---------------------------------------------------------------------------
-
 #[tauri::command]
 pub fn get_settings(app: tauri::AppHandle) -> Result<SettingsPublicV3, ApiError> {
     let repo = settings_repository::global();
@@ -554,8 +519,6 @@ pub fn update_settings(
     Ok(commit.after.to_public())
 }
 
-/// Resets the app scope of the reset policy; secrets, the bridge token and
-/// port, consents and unknown keys are kept.
 #[tauri::command]
 pub fn reset_settings(app: tauri::AppHandle) -> Result<SettingsPublicV3, ApiError> {
     let commit = settings_repository::global()
@@ -578,9 +541,6 @@ pub fn mark_legal_acknowledged(app: tauri::AppHandle) -> Result<(), String> {
         .map_err(|e| e.to_string())
 }
 
-/// The proxy URL the updater plugin needs, built here so the password never
-/// travels in the settings snapshot. Same rule as the old `proxyUrl()` of
-/// `src/lib/updater.ts`. Never logged.
 #[tauri::command]
 pub fn get_updater_proxy_url() -> Result<Option<String>, String> {
     Ok(updater_proxy_url(
@@ -609,8 +569,6 @@ pub fn updater_proxy_url(proxy: &ProxySettings) -> Option<String> {
     Some(format!("{scheme}://{auth}{}:{}", proxy.host, proxy.port))
 }
 
-/// JavaScript's `encodeURIComponent`: everything but `A-Z a-z 0-9 - _ . ! ~
-/// * ' ( )` becomes UTF-8 percent escapes.
 fn encode_uri_component(s: &str) -> String {
     let mut out = String::with_capacity(s.len());
     for b in s.bytes() {
@@ -631,10 +589,6 @@ pub struct BridgeInfo {
     pub url: String,
 }
 
-/// Returns the localhost bridge connection info for the Settings UI.
-///
-/// `port == 0` means the bridge has not finished binding yet (the user can
-/// retry shortly). `token` may be empty until the first run completes.
 #[tauri::command]
 pub fn get_bridge_info(app: tauri::AppHandle) -> Result<BridgeInfo, String> {
     let settings = config::load_settings(&app);
@@ -651,8 +605,6 @@ pub fn get_bridge_info(app: tauri::AppHandle) -> Result<BridgeInfo, String> {
     })
 }
 
-/// Forces a fresh token to be generated. Used by the Settings UI when the
-/// user wants to revoke a previously-paired browser.
 #[tauri::command]
 pub fn rotate_bridge_token(app: tauri::AppHandle) -> Result<BridgeInfo, String> {
     let token = crate::local_bridge::generate_token();
@@ -669,9 +621,6 @@ pub struct BridgePairStatus {
     pub enabled: bool,
 }
 
-/// Opens a short, single-use, user-consented pairing window so an installed
-/// browser extension can fetch the bearer token from `GET /v1/pair` without
-/// the user copy-pasting it.
 #[tauri::command]
 pub fn bridge_open_pairing(app: tauri::AppHandle) -> Result<BridgePairStatus, String> {
     let settings = config::load_settings(&app);

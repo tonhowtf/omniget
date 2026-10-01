@@ -1,23 +1,3 @@
-//! Canvas portals: a real browser per portal node (`PortalHost`), keyed by
-//! the node id, placed over the node's body when the canvas says it is
-//! "live" and hidden otherwise (the canvas then draws the last native
-//! snapshot). Agents corded to the portal drive it through
-//! `crate::canvas::portal` (snapshot with `@eN` refs, click, fill, press...).
-//!
-//! Hosting (02-motor-do-canvas §7.2, phase 1): Tauri's multiwebview
-//! (`Window::add_child`) is behind the `unstable` feature, which the app does
-//! not enable, so each portal is an undecorated `WebviewWindow` parented to
-//! the main window, like the thread preview (`crate::preview`), whose
-//! injected script and automation functions it reuses. Phase 2 swaps the
-//! window for a child webview behind this same interface.
-//!
-//! Labels are `portal-<nodeId>`; `ipc_guard` lets those pages call only
-//! `canvas_portal_report`. Storage is scoped per portal (`storage`).
-//!
-//! Nothing runs at rest: no timers. The main-window hook repositions visible
-//! portals when the main window moves; a canvas-store listener closes the
-//! portal of a removed node.
-
 pub mod automation;
 pub mod script;
 pub mod storage;
@@ -37,22 +17,15 @@ use tauri::{
 
 pub use storage::Scope;
 
-/// `PortalState` whenever a portal's URL, title, loading or visibility changes.
 pub const EVENT_STATE: &str = "canvas://portal-state";
-/// `{nodeId, by, method, at}` each time an agent drives a portal.
 pub const EVENT_DRIVE: &str = "canvas://portal-drive";
-/// `{nodeId}` when the portal's webview went away (closed or unloaded).
 pub const EVENT_CLOSED: &str = "canvas://portal-closed";
 pub const LABEL_PREFIX: &str = "portal-";
 const MAIN: &str = "main";
 const EVAL_TIMEOUT: Duration = Duration::from_secs(15);
 const LOAD_TIMEOUT: Duration = Duration::from_secs(20);
-/// Hidden portals keep this viewport unless the node says otherwise.
 const DEFAULT_VIEWPORT: (f64, f64) = (1024.0, 720.0);
 
-/// Where the portal goes, in CSS px of the main webview, plus the page's
-/// `devicePixelRatio` and the canvas zoom (page zoom of the portal, so its
-/// layout width stays the node's width in CSS px).
 #[derive(Debug, Clone, Copy, Deserialize, Serialize, Default, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct Bounds {
@@ -78,22 +51,16 @@ pub struct PortalState {
     pub scope: Scope,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub user_agent: Option<String>,
-    /// Viewport of the page in CSS px (what the agent's snapshot sees).
     pub viewport: (f64, f64),
-    /// Host whose untrusted certificate this portal refused (the node shows
-    /// the warning and "Proceed", see [`trust_cert`]).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cert_error: Option<String>,
     pub muted: bool,
-    /// Portal that opened this one with `window.open` (login popups).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub opener_id: Option<String>,
-    /// Portal whose cookies and storage this one uses (portal↔portal cord).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub shares_session_with: Option<String>,
 }
 
-/// What `open` needs; the canvas command fills it from the node.
 #[derive(Debug, Clone, Default)]
 pub struct OpenSpec {
     pub node_id: String,
@@ -101,16 +68,12 @@ pub struct OpenSpec {
     pub url: Option<String>,
     pub scope: Scope,
     pub user_agent: Option<String>,
-    /// Page viewport while hidden (the node body, CSS px).
     pub viewport: Option<(f64, f64)>,
-    /// Hosts whose self-signed certificate the user accepted (node data).
     pub trusted_hosts: Vec<String>,
     pub muted: bool,
 }
 
 struct Session {
-    /// Build generation: a rebuilt window (new User-Agent) must not be
-    /// dropped by the old window's late `Destroyed` event.
     generation: u64,
     node_id: String,
     workspace_id: String,
@@ -123,7 +86,6 @@ struct Session {
     scope: Scope,
     user_agent: Option<String>,
     viewport: (f64, f64),
-    /// Store key in use (see `storage::effective_key`); a change rebuilds.
     store_key: String,
     opener: Option<String>,
     muted: bool,
@@ -148,14 +110,9 @@ pub fn host() -> &'static PortalHost {
     H.get_or_init(PortalHost::default)
 }
 
-/// Hands the host the app handle (agents' RPC has none) and closes portals
-/// whose node is removed from the canvas. Idempotent; call from setup and
-/// from every portal command.
 pub fn bind(app: &AppHandle) {
     let h = host();
     let _ = h.app.set(app.clone());
-    // Before any portal exists: WebKit reads the delegate's methods when a
-    // webview is created (self-signed HTTPS, see `tls`).
     if let Ok(main) = main_window(app) {
         tls::install(&main);
     }
@@ -173,7 +130,6 @@ pub fn bind(app: &AppHandle) {
                 Op::RemoveNode { id } if host().has(id) => {
                     let app3 = app2.clone();
                     let id = id.clone();
-                    // Never destroy a window from inside the store's lock.
                     tauri::async_runtime::spawn(async move {
                         let _ = close(&app3, &id);
                     });
@@ -185,8 +141,6 @@ pub fn bind(app: &AppHandle) {
                     if scope_changed {
                         relink = true;
                     }
-                    // `node_update data.url` (MCP, remote, menu) navigates the
-                    // live page; the portal's own write-back does not.
                     let url = data
                         .and_then(|d| d.get("url"))
                         .and_then(|u| u.as_str())
@@ -194,8 +148,6 @@ pub fn bind(app: &AppHandle) {
                     if let (Some(u), false) = (url, p.origin == PERSIST_ORIGIN) {
                         let current = host().state(id).map(|s| s.url).unwrap_or_default();
                         if !u.is_empty() && u != current && scope_changed {
-                            // The scope rebuild recreates the webview: it
-                            // loads this URL instead of the old page.
                             if let Ok(mut m) = rebuild_urls().lock() {
                                 m.insert(id.clone(), u);
                             }
@@ -228,12 +180,8 @@ pub fn bind(app: &AppHandle) {
     });
 }
 
-/// Origin of the portal's own URL write-back (not a navigation request).
 const PERSIST_ORIGIN: &str = "system:portal";
 
-/// After a portal↔portal cord or a storage scope changed: every open portal
-/// of `ws` whose store key moved is rebuilt on the new store (WebKit takes
-/// the data store only at creation), keeping its page and placement.
 async fn relink_sessions(app: &AppHandle, ws: &str) {
     let moved: Vec<String> = host()
         .sessions
@@ -252,7 +200,6 @@ async fn relink_sessions(app: &AppHandle, ws: &str) {
     for id in moved {
         let _ = rebuild(app, &id, None).await;
     }
-    // A URL that came with a scope that did not move the store: navigate.
     let left: Vec<(String, String)> = rebuild_urls()
         .lock()
         .map(|mut m| m.drain().collect())
@@ -262,8 +209,6 @@ async fn relink_sessions(app: &AppHandle, ws: &str) {
     }
 }
 
-/// URL requested together with a storage scope change (`node_update
-/// {url, storageScope}`), loaded by the rebuild instead of the old page.
 fn rebuild_urls() -> &'static Mutex<HashMap<String, String>> {
     static M: OnceLock<Mutex<HashMap<String, String>>> = OnceLock::new();
     M.get_or_init(Default::default)
@@ -281,12 +226,10 @@ fn node_scope(node_id: &str) -> Option<Scope> {
         .flatten()
 }
 
-/// The bound app handle (set by `bind`).
 pub fn app() -> Option<AppHandle> {
     host().app.get().cloned()
 }
 
-/// `portal-<node id with only [A-Za-z0-9_-]>`.
 pub fn label_for(node_id: &str) -> String {
     let clean: String = node_id
         .chars()
@@ -320,12 +263,10 @@ fn now_ms() -> u64 {
         .unwrap_or(0)
 }
 
-/// Same rules as the preview: http(s) and about:blank only.
 pub fn normalize_url(raw: &str) -> Result<url::Url, String> {
     crate::preview::normalize_url(raw).map_err(|e| e.replacen("PREVIEW_URL", "PORTAL_URL", 1))
 }
 
-/// Presets for `portal.ua` (Maestri's names).
 pub fn user_agent_preset(name: &str) -> Option<&'static str> {
     Some(match name.trim().to_ascii_lowercase().as_str() {
         "ios" | "iphone" | "safari-ios" => "Mozilla/5.0 (iPhone; CPU iPhone OS 18_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.5 Mobile/15E148 Safari/604.1",
@@ -489,8 +430,6 @@ fn hook_main(app: &AppHandle) {
     });
 }
 
-/// Writes the page URL back to the node (`data.url`) so a reopened canvas
-/// comes back where the portal was. Skipped when unchanged.
 fn persist_url(node_id: &str, url: &str) {
     if url.is_empty() || url == "about:blank" {
         return;
@@ -525,8 +464,6 @@ fn build(
     build_with(app, label, spec, url, None, None)
 }
 
-/// `popup`: the `window.open` request of `opener` (same WebKit configuration,
-/// so the popup shares the opener's cookies and `window.opener` works).
 fn build_with(
     app: &AppHandle,
     label: &str,
@@ -560,8 +497,6 @@ fn build_with(
                 )
             })
             .on_new_window(move |u, features| {
-                // Login and OAuth windows become portals next to the opener
-                // ("[Parent] #2"), never free-floating OS windows.
                 match popup_portal(&app_popup, &opener_label, u, features) {
                     Ok(window) => tauri::webview::NewWindowResponse::Create { window },
                     Err(e) => {
@@ -611,12 +546,10 @@ fn build_with(
     if let Some(f) = popup {
         builder = builder.window_features(f);
     }
-    // A preset name (`ios`, `android`...) or a raw User-Agent string.
     if let Some(ua) = spec.user_agent.as_deref().filter(|u| !u.trim().is_empty()) {
         builder = builder.user_agent(user_agent_preset(ua).unwrap_or(ua));
     }
     let store_key = match &opener {
-        // The popup lives in the opener's configuration (and store).
         Some(o) => host()
             .sessions
             .lock()
@@ -679,9 +612,6 @@ fn build_with(
     Ok(ww)
 }
 
-/// `window.open` from the portal `opener_label`: a new portal node right of
-/// the opener, corded to it, named "<Opener> #n", hosting the popup webview.
-/// Runs on the main thread inside WebKit's delegate call.
 fn popup_portal(
     app: &AppHandle,
     opener_label: &str,
@@ -761,7 +691,6 @@ fn popup_portal(
         "from": opener_id, "to": id, "kind": "portal", "perms": [],
     }))
     .map_err(|e| format!("PORTAL_POPUP: {e}"))?;
-    // Not from inside WebKit's delegate call: the store notifies listeners.
     tauri::async_runtime::spawn(async move {
         use omniget_core::core::canvas::ops::Op;
         let _ = crate::canvas::doc::host().store().apply(
@@ -775,8 +704,6 @@ fn popup_portal(
     Ok(ww)
 }
 
-/// Opens (or reuses) the portal of `spec.node_id`, hidden. A different `url`
-/// on an open portal navigates it.
 pub fn open(app: &AppHandle, spec: OpenSpec) -> Result<PortalState, String> {
     bind(app);
     let label = label_for(&spec.node_id);
@@ -810,8 +737,6 @@ pub fn open(app: &AppHandle, spec: OpenSpec) -> Result<PortalState, String> {
         .ok_or_else(|| "PORTAL_OPEN: session vanished".into())
 }
 
-/// Shows the portal over `bounds` (live) or hides it (`None`, or a rect too
-/// small to matter).
 pub fn set_bounds(app: &AppHandle, node_id: &str, bounds: Option<Bounds>) -> Result<(), String> {
     let label = label_for(node_id);
     let ww = window(app, &label)?;
@@ -836,7 +761,6 @@ pub fn set_bounds(app: &AppHandle, node_id: &str, bounds: Option<Bounds>) -> Res
     let was_visible = ww.is_visible().unwrap_or(false);
     if !was_visible {
         ww.show().map_err(|e| format!("PORTAL_SHOW: {e}"))?;
-        // Showing a window makes it key on macOS; the canvas keeps the keyboard.
         if let Ok(main) = main_window(app) {
             let _ = main.set_focus();
         }
@@ -851,8 +775,6 @@ pub fn set_bounds(app: &AppHandle, node_id: &str, bounds: Option<Bounds>) -> Res
     Ok(())
 }
 
-/// Page viewport (CSS px) while the portal is hidden: the node body, or the
-/// size an agent asked for with `portal.resize`.
 pub fn set_viewport(app: &AppHandle, node_id: &str, w: f64, h: f64) -> Result<(), String> {
     let label = label_for(node_id);
     let ww = window(app, &label)?;
@@ -864,7 +786,6 @@ pub fn set_viewport(app: &AppHandle, node_id: &str, w: f64, h: f64) -> Result<()
         .and_then(|s| s.get(&label).map(|x| x.visible))
         .unwrap_or(false);
     if !visible {
-        // Page zoom back to 1 so the viewport is exactly w×h CSS px.
         let _ = ww.set_zoom(1.0);
         ww.set_size(LogicalSize::new(w, h))
             .map_err(|e| format!("PORTAL_RESIZE: {e}"))?;
@@ -892,8 +813,6 @@ pub fn hide_all(app: &AppHandle) {
     }
 }
 
-/// Destroys the webview (frees its content process). The node keeps its
-/// URL; the next `open` starts it again.
 pub fn close(app: &AppHandle, node_id: &str) -> Result<(), String> {
     let label = label_for(node_id);
     let opener = host()
@@ -902,9 +821,6 @@ pub fn close(app: &AppHandle, node_id: &str) -> Result<(), String> {
         .ok()
         .and_then(|s| s.get(&label).map(|x| x.opener.clone()));
     match opener {
-        // A popup shares its opener's WebKit configuration: destroying it
-        // would unregister the IPC handler the opener uses too. It is hidden
-        // and retired, and goes away with its opener.
         Some(Some(op)) => {
             if let Some(ww) = app.get_webview_window(&label) {
                 let _ = ww.hide();
@@ -914,7 +830,6 @@ pub fn close(app: &AppHandle, node_id: &str) -> Result<(), String> {
             }
         }
         _ => {
-            // Retired popups first, then the opener.
             let kids = retired()
                 .lock()
                 .ok()
@@ -941,7 +856,6 @@ pub fn close(app: &AppHandle, node_id: &str) -> Result<(), String> {
     Ok(())
 }
 
-/// opener node id -> labels of its closed (hidden) popup webviews.
 fn retired() -> &'static Mutex<HashMap<String, Vec<String>>> {
     static R: OnceLock<Mutex<HashMap<String, Vec<String>>>> = OnceLock::new();
     R.get_or_init(Default::default)
@@ -958,7 +872,6 @@ async fn wait_load(label: &str) -> bool {
         .unwrap_or(false)
 }
 
-/// Navigates and waits for the load (up to 20 s).
 pub async fn navigate(app: &AppHandle, node_id: &str, raw: &str) -> Result<PortalState, String> {
     let label = label_for(node_id);
     let u = normalize_url(raw)?;
@@ -975,7 +888,6 @@ pub async fn navigate(app: &AppHandle, node_id: &str, raw: &str) -> Result<Porta
         .ok_or_else(|| "PORTAL_NOT_OPEN: portal closed".into())
 }
 
-/// back | forward | reload.
 pub async fn history(app: &AppHandle, node_id: &str, action: &str) -> Result<PortalState, String> {
     let label = label_for(node_id);
     let ww = window(app, &label)?;
@@ -997,7 +909,6 @@ pub async fn history(app: &AppHandle, node_id: &str, action: &str) -> Result<Por
         .ok_or_else(|| "PORTAL_NOT_OPEN: portal closed".into())
 }
 
-/// Runs `func` (a JS function expression) with `args` in the page.
 pub async fn eval_fn(
     app: &AppHandle,
     node_id: &str,
@@ -1006,7 +917,6 @@ pub async fn eval_fn(
 ) -> Result<Value, String> {
     let label = label_for(node_id);
     let ww = window(app, &label)?;
-    // The certificate warning is not a page: nothing would ever answer.
     cert_blocked(&label)?;
     let id = uuid::Uuid::new_v4().simple().to_string();
     let (tx, rx) = tokio::sync::oneshot::channel();
@@ -1043,7 +953,6 @@ pub async fn eval_fn(
     }
 }
 
-/// `PORTAL_CERT_UNTRUSTED` while the portal shows the certificate warning.
 fn cert_blocked(label: &str) -> Result<(), String> {
     match tls::cert_error(label) {
         Some((h, _)) => Err(format!(
@@ -1054,8 +963,6 @@ fn cert_blocked(label: &str) -> Result<(), String> {
     }
 }
 
-/// Entry for `canvas_portal_report`. `label` is the calling webview's real
-/// label (from Tauri), never a value from the page.
 pub fn report(app: &AppHandle, label: &str, kind: &str, id: Option<String>, data: Value) {
     if !label.starts_with(LABEL_PREFIX) {
         return;
@@ -1065,8 +972,6 @@ pub fn report(app: &AppHandle, label: &str, kind: &str, id: Option<String>, data
         "result" => {
             let Some(id) = id else { return };
             let hit = h.pending.lock().ok().and_then(|mut p| match p.get(&id) {
-                // A popup answers through its opener's IPC handler (shared
-                // WebKit configuration): the random id is the match.
                 Some(_) => p.remove(&id),
                 _ => None,
             });
@@ -1087,12 +992,7 @@ pub fn report(app: &AppHandle, label: &str, kind: &str, id: Option<String>, data
             });
             h.emit(app, label);
         }
-        // `window.close()` in a popup portal (WebKit's delegate has no close
-        // hook here): the popup's node goes away, which closes its webview.
         "close" => {
-            // A popup shares its opener's WebKit configuration, IPC handler
-            // included, so the call may carry the opener's label: find the
-            // popup by opener and URL then.
             let url = data.get("url").and_then(|v| v.as_str()).unwrap_or("");
             let popup = h.sessions.lock().ok().and_then(|s| {
                 if let Some(x) = s.get(label).filter(|x| x.opener.is_some()) {
@@ -1131,8 +1031,6 @@ fn remove_node(node_id: &str) {
     }
 }
 
-/// "Proceed" on the certificate warning: this portal accepts the refused
-/// host from now on (kept in the node's `data.trustedHosts`) and reloads.
 pub async fn trust_cert(app: &AppHandle, node_id: &str) -> Result<PortalState, String> {
     let label = label_for(node_id);
     let (host_name, url) = tls::cert_error(&label)
@@ -1166,8 +1064,6 @@ pub async fn trust_cert(app: &AppHandle, node_id: &str) -> Result<PortalState, S
     navigate(app, node_id, &target).await
 }
 
-/// Mutes or unmutes every audio and video element of the page (reapplied on
-/// each load while muted).
 pub async fn set_muted(app: &AppHandle, node_id: &str, muted: bool) -> Result<PortalState, String> {
     let label = label_for(node_id);
     host().set(&label, |s| s.muted = muted);
@@ -1181,7 +1077,6 @@ pub async fn set_muted(app: &AppHandle, node_id: &str, muted: bool) -> Result<Po
         .ok_or_else(|| "PORTAL_NOT_OPEN: this portal has no browser loaded".into())
 }
 
-/// Opens the Web Inspector of the portal page (the engine's devtools).
 #[cfg(debug_assertions)]
 pub fn open_inspector(app: &AppHandle, node_id: &str) -> Result<(), String> {
     let ww = window(app, &label_for(node_id))?;
@@ -1195,8 +1090,7 @@ pub fn open_inspector(app: &AppHandle, node_id: &str) -> Result<(), String> {
     Err("CAPABILITY_UNAVAILABLE: the Web Inspector needs a development build".into())
 }
 
-/// Rebuilds the webview with another User-Agent (WebKit takes it only at
-/// creation), keeping URL, scope and placement. `None` = engine default.
+// WHY: WebKit takes the User-Agent only at creation, so changing it rebuilds the webview.
 pub async fn set_user_agent(
     app: &AppHandle,
     node_id: &str,
@@ -1205,10 +1099,6 @@ pub async fn set_user_agent(
     rebuild(app, node_id, Some(ua)).await
 }
 
-/// Rebuilds the webview (new User-Agent, or a store that changed with a
-/// portal cord or the storage scope), keeping URL and placement. `ua: None`
-/// keeps the current User-Agent; the scope and trusted hosts come from the
-/// node.
 pub async fn rebuild(
     app: &AppHandle,
     node_id: &str,
@@ -1253,7 +1143,6 @@ pub async fn rebuild(
     if let Ok(mut s) = host().sessions.lock() {
         s.remove(&label);
     }
-    // Let the old window finish going away before reusing its label.
     tokio::time::sleep(Duration::from_millis(120)).await;
     let u =
         normalize_url(&url).unwrap_or_else(|_| url::Url::parse("about:blank").expect("static url"));
@@ -1269,9 +1158,6 @@ pub async fn rebuild(
         .ok_or_else(|| "PORTAL_OPEN: session vanished".into())
 }
 
-/// Native pixels of the page (PNG). macOS: `WKWebView.takeSnapshot`, works
-/// while hidden. Elsewhere: the screen rectangle under the window, visible
-/// portals only (CapturePreview / webkit snapshot are phase 2).
 pub async fn snapshot_png(app: &AppHandle, node_id: &str) -> Result<Vec<u8>, String> {
     let label = label_for(node_id);
     let ww = window(app, &label)?;
@@ -1304,7 +1190,6 @@ async fn native_png(ww: &WebviewWindow) -> Result<Vec<u8>, String> {
     Ok(bytes)
 }
 
-/// PNG written under `<app_data>/snapshots/portal-*.png`.
 pub async fn screenshot(
     app: &AppHandle,
     node_id: &str,
@@ -1321,8 +1206,6 @@ pub async fn screenshot(
     })
 }
 
-/// Tells the canvas an agent is driving `node_id` (the "agent is driving"
-/// badge, and a fresh snapshot for the dormant texture).
 pub fn driving(app: &AppHandle, node_id: &str, by: &str, method: &str) {
     let _ = app.emit_to(
         MAIN,
@@ -1331,7 +1214,6 @@ pub fn driving(app: &AppHandle, node_id: &str, by: &str, method: &str) {
     );
 }
 
-/// JSON of a portal's state (`null` when closed).
 pub fn state_json(node_id: &str) -> Value {
     host()
         .state(node_id)

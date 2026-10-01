@@ -1,10 +1,3 @@
-//! Installed apps and packages, leftovers with confidence, uninstall (F3).
-//!
-//! One shape for every system ([`App`], [`Leftover`]); each system fills it
-//! in its own file (`macos.rs`, `windows.rs`, `linux.rs`). Those files hold
-//! the real work behind `#[cfg(target_os)]` and their text parsers as pure
-//! functions compiled everywhere in tests. This file only dispatches.
-
 pub mod linux;
 pub mod macos;
 pub mod windows;
@@ -17,58 +10,40 @@ use super::plan::{self, Outcome, PlanItem, Source};
 use super::receipt::Undo;
 use super::store::Ctx;
 
-/// One installed app or package.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct App {
-    /// Stable id: `<source>:<native id>` (`app:com.apple.Numbers`,
-    /// `msi:{GUID}`, `winget:Mozilla.Firefox`, `apt:vlc`, `flatpak:org.gimp.GIMP`).
     pub id: String,
     pub name: String,
     #[serde(default)]
     pub version: Option<String>,
     #[serde(default)]
     pub publisher: Option<String>,
-    /// `app_bundle`, `homebrew_cask`, `homebrew_formula`, `pkg`, `msi`,
-    /// `registry`, `winget`, `appx`, `steam`, `scoop`, `apt`, `dnf`,
-    /// `pacman`, `zypper`, `snap`, `flatpak`, `appimage`, `desktop_file`.
     pub source: String,
     #[serde(default)]
     pub path: Option<String>,
-    /// Allocated bytes when known.
     #[serde(default)]
     pub bytes: Option<u64>,
-    /// Bundle id (macOS), product code (MSI), package name (Linux).
     #[serde(default)]
     pub native_id: Option<String>,
-    /// Unix seconds.
     #[serde(default)]
     pub installed: Option<i64>,
     #[serde(default)]
     pub last_used: Option<i64>,
-    /// Can we uninstall it at all (system apps, protected Appx: false).
     pub removable: bool,
-    /// Why not, when `removable` is false (i18n key or English text).
     #[serde(default)]
     pub reason: Option<String>,
-    /// Needs administrator rights to uninstall.
     #[serde(default)]
     pub needs_admin: bool,
-    /// Per-system details (winget id, Appx classification, cask token...).
     #[serde(default)]
     pub extra: Value,
 }
 
-/// Something an app left behind.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Leftover {
     pub path: String,
     pub bytes: u64,
-    /// `high` (bundle id / Team ID / receipt / registry link), `medium`,
-    /// `low` (name match only: never ticked by default).
     pub confidence: String,
-    /// What tied it to the app, in plain words.
     pub evidence: String,
-    /// `file`, `folder`, `registry`, `service`, `launchd`, `task`.
     pub kind: String,
 }
 
@@ -81,7 +56,6 @@ fn source_of(a: &Value) -> Source {
     }
 }
 
-/// Every app of this system.
 pub fn list() -> Result<Vec<App>, String> {
     #[cfg(target_os = "macos")]
     return macos::list();
@@ -93,8 +67,6 @@ pub fn list() -> Result<Vec<App>, String> {
     Ok(Vec::new())
 }
 
-/// Plan items to uninstall `app` with its leftovers, plus extra facts for
-/// the screen (`{ leftovers: [...], notes: [...] }`).
 pub fn uninstall_items(ctx: &Ctx, app: &App) -> Result<(Vec<PlanItem>, Value), String> {
     let _ = ctx;
     #[cfg(target_os = "macos")]
@@ -131,8 +103,6 @@ pub async fn tool_leftovers(a: Value) -> Result<Value, String> {
     super::tools::blocking(move || {
         let ctx = Ctx::app()?;
         let apps = list()?;
-        // An app already removed still has leftovers: build a bare App from
-        // the id so the system module can search by it.
         let app = apps.into_iter().find(|x| x.id == app_id).unwrap_or_else(|| App {
             id: app_id.clone(),
             name: app_id.split(':').nth(1).unwrap_or(&app_id).to_string(),
@@ -147,9 +117,6 @@ pub async fn tool_leftovers(a: Value) -> Result<Value, String> {
             .iter()
             .map(|i| json!({ "id": i.id, "label": i.label, "detail": i.detail, "group": i.group, "bytes": i.bytes, "risk": i.risk, "admin": i.admin }))
             .collect();
-        // Candidates left out of the default plan (the app is open, needs a
-        // password, name-only match) are listed too, marked unticked, so the
-        // screen never says "nothing left behind" while there is something.
         if let Some(extra_items) = extra.get("unticked").and_then(Value::as_array) {
             for u in extra_items {
                 let mut u = u.clone();
@@ -166,8 +133,6 @@ pub async fn tool_leftovers(a: Value) -> Result<Value, String> {
     })
     .await
 }
-
-// ── Plan hooks: actions are `<os>.<action>` and go to that system's file ──
 
 pub fn plan_execute(
     ctx: &Ctx,
@@ -206,12 +171,10 @@ pub fn plan_undo(ctx: &Ctx, action: &str, args: &Value) -> Result<String, String
     }
 }
 
-/// `pkgutil --forget` after a `.pkg`'s files are gone (runs as root).
 pub fn elevated_pkg_forget(id: &str) -> Result<String, String> {
     macos::elevated_pkg_forget(id)
 }
 
-/// Screen-only actions: `apps.<os>.<action>` or `apps.icon` etc.
 pub async fn ui_action(action: &str, a: Value) -> Result<Value, String> {
     match action.split_once('.') {
         Some(("mac", x)) => macos::ui_action(x, a).await,

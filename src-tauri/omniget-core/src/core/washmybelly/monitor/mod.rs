@@ -1,24 +1,3 @@
-//! Live monitor: health score, CPU, memory, disk, GPU, temperatures, fans,
-//! power, network, processes and battery health (F1).
-//!
-//! Base on every system: `sysinfo` for CPU, memory, disks, network and
-//! processes. The rest is ours, without root:
-//!
-//! - macOS: SMC through IOKit (temperatures, fans, power; keys by chip from
-//!   Stats, MIT), `ioreg` for GPU load (`IOAccelerator`) and the battery
-//!   (`AppleSmartBattery`), `kern.memorystatus_level` for memory pressure.
-//!   `powermetrics` stays out (root). IOReport (CPU/GPU watts, frequency) is
-//!   a later improvement.
-//! - Windows: PDH `GPU Engine` counters, `GetSystemPowerStatus`,
-//!   `powercfg /batteryreport /xml`; temperatures only where WMI exposes a
-//!   thermal zone.
-//! - Linux: hwmon, DRM sysfs, `nvidia-smi` as fallback, `/proc/stat`
-//!   (iowait), `/proc/pressure/memory`, `/sys/class/power_supply`.
-//!
-//! A reading the machine does not give is left out with a reason, never
-//! guessed. Nothing here changes the system except the two screen-only
-//! actions (`kill`, `priority`), always by exact PID of the same user.
-
 pub mod parse;
 pub mod score;
 
@@ -47,11 +26,9 @@ use self::score::{Readings, ScoreInputs};
 use super::store::Ctx;
 use super::tools::blocking;
 
-/// One temperature sensor.
 #[derive(Debug, Clone, Serialize, PartialEq)]
 pub struct Temp {
     pub name: String,
-    /// `CPU`, `GPU`, `disk`, `battery`, `system` or `sensor`.
     pub group: &'static str,
     pub celsius: f64,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -59,7 +36,6 @@ pub struct Temp {
     pub source: &'static str,
 }
 
-/// One fan.
 #[derive(Debug, Clone, Serialize, PartialEq)]
 pub struct Fan {
     pub name: String,
@@ -74,9 +50,6 @@ fn r1(v: f64) -> f64 {
     (v * 10.0).round() / 10.0
 }
 
-// ── Battery ──────────────────────────────────────────────────────────────
-
-/// Battery health on this system. `present: false` without a battery.
 pub fn battery() -> Result<Battery, String> {
     #[cfg(target_os = "macos")]
     {
@@ -98,13 +71,10 @@ pub fn battery() -> Result<Battery, String> {
     }
 }
 
-/// `wmb_battery_health` (routed through `power::tool_battery_health`).
 pub async fn tool_battery_health(_a: Value) -> Result<Value, String> {
     let b = blocking(battery).await?;
     serde_json::to_value(b).map_err(|e| e.to_string())
 }
-
-// ── Sensors ──────────────────────────────────────────────────────────────
 
 #[derive(Debug, Default)]
 struct Sensors {
@@ -123,8 +93,6 @@ fn reason(s: &mut Sensors, what: &str, why: impl Into<String>) {
 }
 
 #[cfg_attr(target_os = "linux", allow(dead_code))]
-/// Temperatures from `sysinfo::Components` (IOHID on Apple Silicon, hwmon
-/// on Linux, WMI thermal zones on Windows).
 fn component_temps() -> Vec<Temp> {
     let comps = sysinfo::Components::new_with_refreshed_list();
     comps
@@ -201,8 +169,6 @@ fn linux_gpus(s: &mut Sensors) {
     s.gpus = gpus;
 }
 
-/// Everything the sensors tool returns. `light` skips the per-key listing
-/// (the live monitor only needs the main temperature and GPU load).
 fn read_sensors(light: bool) -> Sensors {
     let mut s = Sensors::default();
 
@@ -323,9 +289,6 @@ pub async fn tool_sensors(_a: Value) -> Result<Value, String> {
     .await
 }
 
-// ── Memory and disk ──────────────────────────────────────────────────────
-
-/// Pressure 0-100 (higher is worse) and where it came from.
 fn memory_pressure(sys: &System) -> (Option<f64>, &'static str) {
     #[cfg(target_os = "macos")]
     if let Some(p) = macos::memory_pressure() {
@@ -346,8 +309,6 @@ fn psi_memory() -> Option<f64> {
         .and_then(|t| parse::psi_some_avg10(&t))
 }
 
-/// The volume the system runs from: `/` (on macOS the sealed system shares
-/// the container's free space), `%SystemDrive%\` on Windows.
 fn system_volume() -> Option<Value> {
     let disks = Disks::new_with_refreshed_list();
     #[cfg(windows)]
@@ -374,10 +335,6 @@ fn system_volume() -> Option<Value> {
     }))
 }
 
-// ── System status ────────────────────────────────────────────────────────
-
-/// Findings other modules left in the store. Never creates the database:
-/// before any module wrote, there is nothing to read.
 fn score_inputs() -> ScoreInputs {
     Ctx::app()
         .ok()
@@ -386,9 +343,6 @@ fn score_inputs() -> ScoreInputs {
         .unwrap_or_default()
 }
 
-/// How long CPU counters are sampled between two reads (sysinfo needs at
-/// least its minimum interval). Unit tests check shapes, not readings, so
-/// they wait a few milliseconds instead.
 fn cpu_window(ms: u64) -> Duration {
     if cfg!(test) {
         Duration::from_millis(20)
@@ -474,10 +428,6 @@ pub async fn tool_system_status(_a: Value) -> Result<Value, String> {
     blocking(|| status(score_inputs())).await
 }
 
-// ── Processes ────────────────────────────────────────────────────────────
-
-/// Processes the screen never offers to end, even when they belong to the
-/// person (ending them logs out or crashes the session).
 const PROTECTED_NAMES: &[&str] = &[
     "launchd",
     "loginwindow",
@@ -610,9 +560,6 @@ pub async fn tool_processes(a: Value) -> Result<Value, String> {
     blocking(move || list_processes(sort, limit, &query)).await
 }
 
-/// Check that `pid` may be touched from the screen: not 0, 1, OmniGet or a
-/// session process; same user as OmniGet; and, when the screen passes the
-/// start time it saw, still the same process (PIDs get reused).
 fn check_target(pid: u32, started: Option<u64>) -> Result<(System, Pid), String> {
     if pid == 0 || pid == 1 || pid == std::process::id() {
         return Err("REFUSED: this process cannot be ended from here".into());
@@ -704,8 +651,6 @@ fn priority(pid: u32, level: &str, started: Option<u64>) -> Result<Value, String
     Ok(json!({ "pid": pid, "level": level }))
 }
 
-/// Actions only the screen may run (`washmybelly_ui` with `monitor.<action>`):
-/// never exposed as MCP tools.
 pub async fn ui_action(action: &str, a: Value) -> Result<Value, String> {
     let pid = pid_arg(&a);
     let started = a["started"].as_u64();
@@ -722,8 +667,6 @@ pub async fn ui_action(action: &str, a: Value) -> Result<Value, String> {
         _ => Err(format!("monitor: unknown screen action {action}")),
     }
 }
-
-// ── Live monitor ─────────────────────────────────────────────────────────
 
 struct Live {
     sys: System,
@@ -747,8 +690,6 @@ fn is_loopback(name: &str) -> bool {
     name == "lo" || name.starts_with("lo0") || name.to_ascii_lowercase().contains("loopback")
 }
 
-/// One tick of the live monitor the screen streams as `washmybelly-monitor`
-/// while it is open (cpu, per-core, memory, swap, gpu, temps, net, disk io).
 pub fn live_snapshot() -> Result<Value, String> {
     let mut guard = LIVE.lock().map_err(|_| "monitor lock")?;
     if guard.is_none() {
@@ -788,8 +729,6 @@ pub fn live_snapshot() -> Result<Value, String> {
             (r + d.received(), t + d.transmitted())
         });
 
-    // APFS volumes of one container report the same device counters: count
-    // each device once.
     let mut seen = std::collections::HashSet::new();
     let (dr, dw) = live
         .disks
@@ -836,7 +775,6 @@ pub fn live_snapshot() -> Result<Value, String> {
     }
     drop(guard);
 
-    // Sensors outside the lock: `ioreg` and nvidia-smi take tens of ms.
     let s = read_sensors(true);
     let gpu = s
         .gpus

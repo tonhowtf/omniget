@@ -1,9 +1,3 @@
-//! Teams message bodies are HTML. For an export an LLM reads, plain text with
-//! line breaks, list bullets, links and mentions kept is what matters.
-
-/// HTML → readable text: block tags become line breaks, `<li>` a bullet,
-/// `<a href>` keeps its URL when the text differs, entities are decoded,
-/// `<attachment>` and images leave a marker.
 pub fn to_text(html: &str) -> String {
     let mut out = String::with_capacity(html.len());
     let mut chars = html.char_indices().peekable();
@@ -78,7 +72,6 @@ pub fn to_text(html: &str) -> String {
         }
     }
     let text = decode(&out);
-    // Collapse runs of blank lines and trailing spaces.
     let mut lines: Vec<String> = Vec::new();
     for l in text.lines().map(|l| l.trim_end().to_string()) {
         if l.trim().is_empty() && lines.last().is_some_and(|p: &String| p.trim().is_empty()) {

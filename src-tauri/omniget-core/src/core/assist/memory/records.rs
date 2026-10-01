@@ -1,7 +1,3 @@
-//! Writing, correcting, forgetting and listing records. Every read goes
-//! through [`scope_filter`], so a scope the caller cannot read never reaches
-//! a result, a count or an error message.
-
 use rusqlite::types::Value as SqlValue;
 use rusqlite::{params, Connection, OptionalExtension, Row};
 use serde::{Deserialize, Serialize};
@@ -15,7 +11,6 @@ use super::{
     MAX_CONTENT_CHARS,
 };
 
-/// Columns of `memory_records r`, in the order [`row_to_record`] reads them.
 pub(super) const COLS: &str = "r.id, r.scope, r.category, r.subject, r.content, r.data, \
     r.source_kind, r.source_id, r.source_conversation, r.author, r.source_ms, r.confidence, \
     r.evidence, r.valid_until, r.version, r.chain, r.supersedes, r.status, r.created_ms, r.updated_ms";
@@ -59,8 +54,6 @@ pub(super) fn row_to_record(r: &Row) -> rusqlite::Result<MemoryRecord> {
     })
 }
 
-/// `col IN (<readable scopes>)`, with its parameters. The UI principal reads
-/// every scope of its own; a ctx with no readable scope reads nothing.
 pub(super) fn scope_filter(ctx: &AssistCtx, col: &str) -> (String, Vec<SqlValue>) {
     if ctx.is_user_ui() {
         return ("1=1".into(), Vec::new());
@@ -185,7 +178,6 @@ fn clean_subject(s: Option<&str>) -> Option<String> {
         .map(|s| s.chars().take(120).collect())
 }
 
-/// End of the local day `now` falls in (default validity of temporary context).
 pub(crate) fn end_of_local_day(now: i64) -> i64 {
     use chrono::{Local, TimeZone};
     let Some(dt) = Local.timestamp_millis_opt(now).single() else {
@@ -210,16 +202,10 @@ fn clamp_confidence(c: f64) -> f64 {
 #[derive(Debug, Clone, Serialize)]
 pub struct Written {
     pub record: MemoryRecord,
-    /// False when an equal record already existed (idempotent write) or a
-    /// stated preference already covers the subject.
     pub created: bool,
-    /// `duplicate` | `declared_exists` | `downgraded_to_candidate`.
     pub note: Option<String>,
 }
 
-/// Writes one record. Idempotent per origin; a subject already covered by an
-/// active record of the same group is superseded (a new version of that
-/// chain), except that an inference never displaces a stated preference.
 pub fn remember(
     db: &AssistDb,
     ctx: &AssistCtx,
@@ -254,7 +240,6 @@ pub fn remember(
     }
 
     db.tx(|tx| {
-        // Same origin, same content: the same record.
         let existing = query_records(
             tx,
             &format!("SELECT {COLS} FROM memory_records r WHERE r.principal = ? AND r.origin_hash = ? LIMIT 1"),
@@ -266,8 +251,6 @@ pub fn remember(
         }
         let hits = tombstoned(tx, &[&oh, &ch]).map_err(db_err)?;
         if !hits.is_empty() {
-            // Only the person, on the memory screen, may bring back
-            // something they asked to forget.
             if ctx.is_user_ui() && new.source.author == "user" {
                 for h in &hits {
                     tx.execute("DELETE FROM memory_tombstones WHERE hash = ?1", [h]).map_err(db_err)?;
@@ -353,7 +336,6 @@ fn max_version(conn: &Connection, chain: &str) -> rusqlite::Result<i64> {
     )
 }
 
-/// One record the caller may read, whatever its status.
 pub fn get(db: &AssistDb, ctx: &AssistCtx, id: &str) -> Result<MemoryRecord, String> {
     let (filter, mut p) = scope_filter(ctx, "r.scope");
     let mut params: Vec<SqlValue> = vec![ctx.principal.clone().into(), id.to_string().into()];
@@ -406,7 +388,6 @@ fn active(db: &AssistDb, ctx: &AssistCtx, rec: &MemoryRecord) -> Result<(), Stri
     })
 }
 
-/// A new version of an active record.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct Correction {
     pub content: String,
@@ -422,8 +403,6 @@ pub struct Correction {
     pub valid_until: Option<i64>,
 }
 
-/// "Actually…": the record becomes `superseded` and a new version of its
-/// chain takes its place. Returns the new version.
 pub fn correct(
     db: &AssistDb,
     ctx: &AssistCtx,
@@ -470,8 +449,6 @@ pub fn correct(
         }
         let version = max_version(tx, &old.chain).map_err(db_err)? + 1;
         set_status(tx, &old.id, Status::Superseded, now).map_err(db_err)?;
-        // A different origin can hash like an older version of this same
-        // chain; the origin index is not unique, so the chain stays intact.
         let rec = MemoryRecord {
             id: super::super::new_id(),
             scope: old.scope.clone(),
@@ -500,8 +477,6 @@ pub fn correct(
     })
 }
 
-/// "That was not it": the record leaves recall and profile, and stays in the
-/// history as withdrawn (unlike [`forget`]).
 pub fn retract(db: &AssistDb, ctx: &AssistCtx, id: &str, now: i64) -> Result<MemoryRecord, String> {
     let old = get(db, ctx, id)?;
     writable(ctx, &old)?;
@@ -513,7 +488,6 @@ pub fn retract(db: &AssistDb, ctx: &AssistCtx, id: &str, now: i64) -> Result<Mem
     get(db, ctx, id)
 }
 
-/// The person confirms a candidate: a new version, stated by them.
 pub fn confirm(db: &AssistDb, ctx: &AssistCtx, id: &str, now: i64) -> Result<MemoryRecord, String> {
     if !ctx.is_user_ui() {
         return Err(format!(
@@ -549,15 +523,10 @@ pub fn confirm(db: &AssistDb, ctx: &AssistCtx, id: &str, now: i64) -> Result<Mem
     )
 }
 
-/// Removes the record's whole chain (every version), any other record with
-/// the same text in the same scope, their index rows and the cached
-/// profiles, and leaves hashes behind so nothing brings them back. Returns
-/// how many rows were removed.
 pub fn forget(db: &AssistDb, ctx: &AssistCtx, id: &str, now: i64) -> Result<usize, String> {
     let rec = get(db, ctx, id)?;
     writable(ctx, &rec)?;
     let principal = ctx.principal.clone();
-    // Overwrite freed pages instead of leaving the text in them.
     db.with(|c| c.execute_batch("PRAGMA secure_delete = ON;"))?;
     let removed = db.tx(|tx| {
         let mut chains: Vec<String> = vec![rec.chain.clone()];
@@ -584,8 +553,6 @@ pub fn forget(db: &AssistDb, ctx: &AssistCtx, id: &str, now: i64) -> Result<usiz
                 }
             }
         }
-        // The same words may live on as a film reaction in a reading
-        // journey; forgetting here must reach that copy too.
         let texts: Vec<String> = {
             let mut s = tx
                 .prepare("SELECT content FROM memory_records WHERE principal = ?1 AND chain = ?2")
@@ -645,7 +612,6 @@ pub fn forget(db: &AssistDb, ctx: &AssistCtx, id: &str, now: i64) -> Result<usiz
     Ok(removed)
 }
 
-/// Every version of the record's chain the caller may read, oldest first.
 pub fn history(db: &AssistDb, ctx: &AssistCtx, id: &str) -> Result<Vec<MemoryRecord>, String> {
     let rec = get(db, ctx, id)?;
     let (filter, mut p) = scope_filter(ctx, "r.scope");
@@ -660,7 +626,6 @@ pub fn history(db: &AssistDb, ctx: &AssistCtx, id: &str) -> Result<Vec<MemoryRec
     })
 }
 
-/// Marks temporary context whose validity ended as `expired`.
 pub fn expire_due(db: &AssistDb, now: i64) -> Result<usize, String> {
     db.tx(|tx| {
         let ids: Vec<String> = {
@@ -680,7 +645,6 @@ pub fn expire_due(db: &AssistDb, now: i64) -> Result<usize, String> {
     })
 }
 
-/// Records the caller may read, optionally of one scope; active ones first.
 pub fn list(
     db: &AssistDb,
     ctx: &AssistCtx,
@@ -717,7 +681,6 @@ pub struct ScopeSummary {
     pub inactive: i64,
 }
 
-/// Scopes that hold records the caller may read, with counts.
 pub fn scopes(db: &AssistDb, ctx: &AssistCtx, now: i64) -> Result<Vec<ScopeSummary>, String> {
     expire_due(db, now)?;
     let (filter, mut p) = scope_filter(ctx, "r.scope");
@@ -750,8 +713,6 @@ pub fn scopes(db: &AssistDb, ctx: &AssistCtx, now: i64) -> Result<Vec<ScopeSumma
         .collect())
 }
 
-/// Whether a record id exists at all, any principal or scope. Internal to
-/// import (never exposed through a ctx).
 pub(super) fn exists_id(conn: &Connection, id: &str) -> rusqlite::Result<Option<String>> {
     conn.query_row(
         "SELECT chain FROM memory_records WHERE id = ?1",

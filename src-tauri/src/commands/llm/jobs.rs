@@ -1,5 +1,3 @@
-//! `llm_job_*`, `llm_loop_*`, `llm_trigger_*`: the UI door of `crate::jobs`.
-
 use serde_json::{json, Value};
 use tauri::AppHandle;
 
@@ -19,11 +17,6 @@ pub async fn llm_job_get(app: AppHandle, id: String) -> Result<Value, String> {
     to(jobs::get(&app)?.job(&id))
 }
 
-/// `isolation`: `shared | worktree | auto` (absent = `auto`); `base`: the
-/// ref a worktree starts from (2.3); `run_mode`: what the job may do without
-/// asking (2.7; absent = `auto_edits`, the window's default). The folder's
-/// `.omniget/workflow.md` fills what is left out and renders the prompt
-/// (3.10), as for a job started from outside.
 #[tauri::command]
 pub async fn llm_job_submit(
     app: AppHandle,
@@ -58,15 +51,11 @@ pub async fn llm_job_submit(
     to(job)
 }
 
-/// The `.omniget/workflow.md` of `folder`'s repository (3.10): in effect,
-/// invalid (with the last good version) or none, and whether it is trusted.
 #[tauri::command]
 pub async fn llm_workflow_status(folder: String) -> Result<Value, String> {
     crate::job_workflow::status_of(&folder)
 }
 
-/// Trusts the version in effect (its SHA-256 as shown), or with `revoke`
-/// withdraws the trust: the hooks and checks run only while trusted.
 #[tauri::command]
 pub async fn llm_workflow_trust(
     folder: String,
@@ -81,29 +70,21 @@ pub async fn llm_workflow_trust(
     )
 }
 
-/// Removes a finished job's worktree (2.3): its uncommitted work is saved
-/// on the job's branch first, and a branch with work is kept. Returns what
-/// happened (`dirty`, `saved`, `preserved_branch`, `branch_deleted`).
 #[tauri::command]
 pub async fn llm_job_remove_worktree(app: AppHandle, id: String) -> Result<Value, String> {
     to(jobs::get(&app)?.remove_worktree(&id).await?)
 }
 
-/// What runs, what waits (position and reason) and the limits: the queue
-/// view of the jobs page (the same as `GET /v1/state`).
 #[tauri::command]
 pub async fn llm_jobs_state(app: AppHandle) -> Result<Value, String> {
     Ok(jobs::get(&app)?.state_view())
 }
 
-/// Saves the parallel caps and applies them to the running gate at once.
 #[tauri::command]
 pub async fn llm_jobs_limits_set(
     app: AppHandle,
     limits: jobs::JobLimitsInput,
 ) -> Result<Value, String> {
-    // The runtime exists before the commit, so the `llm.jobs` effect of the
-    // commit updates its gate.
     let j = jobs::get(&app)?;
     crate::storage::config::update_settings(&app, |current| {
         current.llm = jobs::merge_limits(current.llm.clone(), &limits);
@@ -158,8 +139,6 @@ pub async fn llm_triggers_list(app: AppHandle) -> Result<Value, String> {
     Ok(json!({ "triggers": triggers, "bridge": bridge }))
 }
 
-/// Returns the routine as the list shows it (next run, missed), not the raw
-/// row.
 #[tauri::command]
 pub async fn llm_trigger_save(app: AppHandle, trigger: Trigger) -> Result<Value, String> {
     Ok(jobs::trigger_view(&jobs::get(&app)?.trigger_save(trigger)?))
@@ -176,8 +155,6 @@ pub async fn llm_trigger_fire(app: AppHandle, id: String) -> Result<Value, Strin
     to(jobs::get(&app)?.fire(&id, None)?)
 }
 
-/// An interrupted job again (a person asked; the agent is told to check
-/// what was already done first).
 #[tauri::command]
 pub async fn llm_job_resume(app: AppHandle, id: String) -> Result<Value, String> {
     to(jobs::get(&app)?.job_resume(&id)?)
@@ -198,7 +175,6 @@ pub async fn llm_loop_resume(app: AppHandle, id: String) -> Result<Value, String
     to(jobs::get(&app)?.loop_resume(&id)?)
 }
 
-/// `done: true` marks an interrupted Loop finished, `false` discards it.
 #[tauri::command]
 pub async fn llm_loop_settle(app: AppHandle, id: String, done: bool) -> Result<Value, String> {
     to(jobs::get(&app)?.loop_settle(&id, done)?)
@@ -211,9 +187,6 @@ pub async fn llm_trigger_mute(app: AppHandle, id: String, muted: bool) -> Result
     ))
 }
 
-/// What the job changed: files, totals, why it is unavailable, and the
-/// patch (the jobs page; the bridge serves the same as `GET
-/// /v1/jobs/{id}/diff`).
 #[tauri::command]
 pub async fn llm_job_diff(app: AppHandle, id: String) -> Result<Value, String> {
     let j = jobs::get(&app)?;
@@ -229,21 +202,16 @@ pub async fn llm_job_diff(app: AppHandle, id: String) -> Result<Value, String> {
     }
 }
 
-/// The user opened a job: it stops counting as "finished, not seen".
 #[tauri::command]
 pub async fn llm_job_seen(app: AppHandle, id: String) -> Result<Value, String> {
     to(jobs::get(&app)?.mark_seen(&id)?)
 }
 
-/// What the window shows, so a notification about a job already on screen
-/// is not sent (`llm_attention`). Cheap: called on every navigation.
 #[tauri::command]
 pub fn llm_ui_focus(path: String, job_id: Option<String>, conversation_id: Option<String>) {
     crate::llm_attention::report_focus(path, job_id, conversation_id);
 }
 
-/// The notification texts in the interface language (`$lib/llm-notify-strings`);
-/// the backend has no locale of its own, like the tray.
 #[tauri::command]
 pub fn sync_llm_notify_strings(strings: crate::llm_attention::NotifyStrings) {
     crate::llm_attention::push_strings(strings.clone());
@@ -252,11 +220,6 @@ pub fn sync_llm_notify_strings(strings: crate::llm_attention::NotifyStrings) {
     }
 }
 
-// ── bridge access tokens (2.1) ─────────────────────────────────────────
-
-/// The scoped tokens (never their secret) and the grace period of the
-/// extension key on the agent routes: whether it is on and when that key
-/// was last used there, so the page can say "switch this script".
 #[tauri::command]
 pub async fn llm_bridge_tokens(app: AppHandle) -> Result<Value, String> {
     let settings = crate::storage::config::load_settings(&app);
@@ -272,8 +235,6 @@ pub async fn llm_bridge_tokens(app: AppHandle) -> Result<Value, String> {
     }))
 }
 
-/// Mints a user token. The secret is in this answer only: the page offers
-/// to copy it and never prints it.
 #[tauri::command]
 pub async fn llm_bridge_token_mint(
     app: AppHandle,
@@ -285,7 +246,6 @@ pub async fn llm_bridge_token_mint(
         .filter(|d| *d > 0)
         .map(|d| crate::llm_manager::now_ms() + u64::from(d.min(3650)) * 86_400_000);
     let minted = jobs::get(&app)?.token_mint(&name, &scopes, expires_ms)?;
-    // The line names the token by id and scopes, never its secret (2.8).
     omniget_core::core::llm::audit::log(
         omniget_core::core::llm::audit::Actor::window(),
         "token.minted",
@@ -309,7 +269,6 @@ pub async fn llm_bridge_token_revoke(app: AppHandle, id: String) -> Result<Value
     Ok(json!({ "revoked": revoked }))
 }
 
-/// Turns the extension key's grace period on the agent routes on or off.
 #[tauri::command]
 pub async fn llm_bridge_legacy_set(app: AppHandle, allowed: bool) -> Result<Value, String> {
     crate::storage::config::update_settings(&app, |s| s.bridge.legacy_agent_routes = allowed)
@@ -318,16 +277,11 @@ pub async fn llm_bridge_legacy_set(app: AppHandle, allowed: bool) -> Result<Valu
     Ok(json!({ "allowed": allowed }))
 }
 
-// ── review (3.5) ─────────────────────────────────────────────────────
-
-/// The job's diff as hunks with ids and the patch of each file.
 #[tauri::command]
 pub async fn llm_job_hunks(app: AppHandle, id: String) -> Result<Value, String> {
     jobs::get(&app)?.review_hunks(&id).await
 }
 
-/// Puts one hunk back: `hunk_id` and `patch` must be the hunk as it is now,
-/// byte for byte (`ERR_HUNK_STALE` otherwise: refresh).
 #[tauri::command]
 pub async fn llm_job_discard_hunk(
     app: AppHandle,
@@ -350,8 +304,6 @@ pub async fn llm_job_notes_list(app: AppHandle, id: String) -> Result<Value, Str
     to(jobs::get(&app)?.notes(&id))
 }
 
-/// A note on lines `start_line..=end_line` of `path` (new version), or on
-/// the whole file when both are absent.
 #[tauri::command]
 pub async fn llm_job_note_add(
     app: AppHandle,
@@ -374,20 +326,16 @@ pub async fn llm_job_note_delete(
     Ok(json!({ "ok": true }))
 }
 
-/// Sends the unsent notes to the agent: a follow-up job in the same
-/// conversation and worktree. Returns the new job.
 #[tauri::command]
 pub async fn llm_job_notes_send(app: AppHandle, id: String) -> Result<Value, String> {
     to(jobs::get(&app)?.notes_send(&id).await?)
 }
 
-/// What integrating the job's branch would do (target branch, blocker, commits).
 #[tauri::command]
 pub async fn llm_job_integrate_preview(app: AppHandle, id: String) -> Result<Value, String> {
     jobs::get(&app)?.integrate_preview(&id).await
 }
 
-/// `strategy`: `merge` (`--no-ff`, default) or `squash`.
 #[tauri::command]
 pub async fn llm_job_integrate(
     app: AppHandle,
@@ -407,7 +355,6 @@ pub async fn llm_job_integrate(
     Ok(json!({ "outcome": outcome, "job": job }))
 }
 
-/// Throws the worktree job's work away: worktree and branch.
 #[tauri::command]
 pub async fn llm_job_discard_worktree(app: AppHandle, id: String) -> Result<Value, String> {
     let r = jobs::get(&app)?.discard_work(&id).await?;
@@ -420,7 +367,6 @@ pub async fn llm_job_discard_worktree(app: AppHandle, id: String) -> Result<Valu
     Ok(r)
 }
 
-/// The walkthrough of the job's diff, on demand (`refresh` skips the cache).
 #[tauri::command]
 pub async fn llm_job_walkthrough(
     app: AppHandle,

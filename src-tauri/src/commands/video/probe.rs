@@ -1,9 +1,3 @@
-//! ffprobe of a video file and the "can the webview play this?" decision.
-//!
-//! The decision is an informed first guess, never the last word: the player
-//! reports a failure and `video_play_fallback` moves one layer down
-//! (direct → remux → transcode_audio → transcode).
-
 use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
@@ -17,8 +11,6 @@ pub const VIDEO_EXTS: &[&str] = &[
 
 pub const SUB_EXTS: &[&str] = &["srt", "vtt", "ass", "ssa"];
 
-/// Subtitle codecs ffmpeg can turn into WebVTT. Bitmap ones (PGS, VobSub)
-/// would need burning in, which is left to the external player.
 pub const TEXT_SUB_CODECS: &[&str] = &["subrip", "srt", "ass", "ssa", "mov_text", "webvtt", "text"];
 
 pub fn ext_of(path: &Path) -> String {
@@ -52,7 +44,6 @@ pub fn video_mime(path: &str) -> &'static str {
 #[derive(Serialize, Deserialize, Clone, Debug, Default)]
 pub struct ProbeData {
     pub duration_ms: i64,
-    /// ffprobe `format_name` ("mov,mp4,m4a,3gp,3g2,mj2", "matroska,webm", ...)
     pub format: String,
     pub bitrate: Option<i64>,
     pub width: Option<i64>,
@@ -95,8 +86,6 @@ fn tag(v: &serde_json::Value, name: &str) -> String {
         .to_string()
 }
 
-/// Full ffprobe (format, streams, chapters). `ffmpeg::probe` in the core
-/// leaves out chapters, languages and dispositions, which the player needs.
 pub async fn probe(path: &Path) -> Result<ProbeData, String> {
     let out = omniget_core::core::process::command("ffprobe")
         .args([
@@ -139,7 +128,6 @@ pub fn parse_probe(json: &serde_json::Value) -> ProbeData {
         }
         let disp = &s["disposition"];
         let flag = |k: &str| disp[k].as_i64().unwrap_or(0) != 0;
-        // cover art is a "video" stream too
         if kind == "video" && flag("attached_pic") {
             continue;
         }
@@ -170,7 +158,6 @@ pub fn parse_probe(json: &serde_json::Value) -> ProbeData {
         }
         d.streams.push(info);
     }
-    // the default audio track decides the audio codec
     let audio: Vec<&StreamInfo> = d.audio_streams().collect();
     if let Some(a) = audio.iter().find(|a| a.default).or(audio.first()) {
         d.acodec = a.codec.clone();
@@ -188,8 +175,6 @@ pub fn parse_probe(json: &serde_json::Value) -> ProbeData {
     d
 }
 
-// ---------- the decision ----------
-
 fn container_ok(ext: &str, format: &str) -> bool {
     match ext {
         "mp4" | "m4v" | "mov" => format.contains("mp4") || format.contains("mov"),
@@ -202,7 +187,6 @@ fn video_ok(codec: &str, profile: &str, pix_fmt: &str) -> bool {
     let ten_bit = pix_fmt.contains("10") || pix_fmt.contains("12");
     match codec {
         "" => true,
-        // browsers decode 8-bit H.264 only (no High 10 / 4:2:2)
         "h264" => !ten_bit && !profile.contains("10") && !profile.contains("4:2:2"),
         "vp8" | "vp9" | "av1" => true,
         "hevc" => cfg!(target_os = "macos"),
@@ -211,12 +195,8 @@ fn video_ok(codec: &str, profile: &str, pix_fmt: &str) -> bool {
 }
 
 pub fn audio_ok(codec: &str) -> bool {
-    match codec {
-        "" | "aac" | "mp3" | "opus" | "vorbis" | "flac" => true,
-        // WebKit decodes Dolby Digital
-        "ac3" | "eac3" => cfg!(target_os = "macos"),
-        _ => false,
-    }
+    matches!(codec, "" | "aac" | "mp3" | "opus" | "vorbis" | "flac")
+        || (matches!(codec, "ac3" | "eac3") && cfg!(target_os = "macos"))
 }
 
 fn codec_label(c: &str) -> String {
@@ -235,8 +215,6 @@ fn codec_label(c: &str) -> String {
     }
 }
 
-/// First guess at how to deliver the file, with the reason in plain English.
-/// `audio_rel` is the chosen audio track (0 = first audio stream).
 pub fn decide(path: &Path, d: &ProbeData, audio_rel: usize) -> (PlayMode, String) {
     let ext = ext_of(path);
     let acodec = d
@@ -293,7 +271,6 @@ pub fn decide(path: &Path, d: &ProbeData, audio_rel: usize) -> (PlayMode, String
     )
 }
 
-/// The next layer after `failed`.
 pub fn next_mode(failed: PlayMode) -> Option<PlayMode> {
     match failed {
         PlayMode::Direct => Some(PlayMode::Remux),
@@ -319,10 +296,6 @@ pub fn fallback_reason(failed: PlayMode, next: PlayMode) -> String {
     format!("{what}, {then}")
 }
 
-// ---------- external subtitles ----------
-
-/// Subtitle files next to the video with the same base name: `movie.srt`,
-/// `movie.pt-BR.srt`, `movie.en.forced.ass`. Returns `(path, lang, forced)`.
 pub fn external_subs(video: &Path) -> Vec<(PathBuf, String, bool)> {
     let (Some(dir), Some(stem)) = (video.parent(), video.file_stem().and_then(|s| s.to_str()))
     else {
@@ -368,7 +341,6 @@ pub fn external_subs(video: &Path) -> Vec<(PathBuf, String, bool)> {
     out
 }
 
-/// Language code to a short English label ("pt-BR" → "Portuguese (BR)").
 pub fn lang_label(lang: &str) -> String {
     let (base, region) = match lang.split_once(['-', '_']) {
         Some((b, r)) => (b.to_ascii_lowercase(), Some(r.to_ascii_uppercase())),

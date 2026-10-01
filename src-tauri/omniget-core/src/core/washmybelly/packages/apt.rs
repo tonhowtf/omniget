@@ -1,14 +1,3 @@
-//! apt / dpkg (Debian, Ubuntu, Mint...).
-//!
-//! - list: `dpkg-query -W -f='${Package}\t${Version}\t${Installed-Size}\t${db:Status-Abbrev}\t${binary:Summary}\n'`
-//!   (Installed-Size in KiB; only `ii ` rows are installed);
-//! - owners of `.desktop` files: `dpkg-query -S -- <files>` (`pkg[, pkg2]: path`);
-//! - removal preview: `apt-get -s remove -- <names>` as the user (simulation
-//!   needs no root), `Remv name [version]` lines;
-//! - orphans: `apt-get -s autoremove`;
-//! - updates: `apt list --upgradable` (`name/suite new arch [upgradable from: old]`);
-//! - remove: `apt-get -y remove -- <names>`, upgrade: `apt-get -y install --only-upgrade -- <names>`.
-
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
@@ -27,7 +16,6 @@ pub struct DebPkg {
     pub summary: String,
 }
 
-/// `dpkg-query -W` rows that are installed (`ii`, also `hi` held).
 pub fn parse_dpkg_query(text: &str) -> Vec<DebPkg> {
     let mut seen = std::collections::HashSet::new();
     text.lines()
@@ -50,7 +38,6 @@ pub fn parse_dpkg_query(text: &str) -> Vec<DebPkg> {
         .collect()
 }
 
-/// `dpkg-query -S` output: path → first owning package (arch suffix dropped).
 pub fn parse_dpkg_search(text: &str) -> HashMap<PathBuf, String> {
     let mut out = HashMap::new();
     for l in text.lines() {
@@ -69,7 +56,6 @@ pub fn parse_dpkg_search(text: &str) -> HashMap<PathBuf, String> {
     out
 }
 
-/// `Remv name [version]` lines of an `apt-get -s` run.
 pub fn parse_simulation(text: &str) -> Vec<String> {
     text.lines()
         .filter_map(|l| l.strip_prefix("Remv "))
@@ -78,7 +64,6 @@ pub fn parse_simulation(text: &str) -> Vec<String> {
         .collect()
 }
 
-/// `apt list --upgradable`.
 pub fn parse_upgradable(text: &str) -> Vec<Update> {
     text.lines()
         .filter_map(|l| {
@@ -193,8 +178,6 @@ impl PackageBackend for Apt {
     }
 }
 
-/// Split what a manager said it removes into asked and also-removed, with
-/// the bytes of the packages whose size is known.
 pub fn preview_from(
     asked: &[String],
     removed: Vec<String>,

@@ -1,10 +1,3 @@
-//! Track analysis: one ffmpeg decode per file feeds every measurement.
-//!
-//! ffmpeg writes stereo f32 at 44.1 kHz to a pipe. Each chunk goes to the
-//! EBU R128 meter (ReplayGain), to the spectral cutoff accumulator (fake
-//! lossless) and, downmixed and decimated to 11 kHz, into a buffer used for
-//! BPM, key, the waveform and the silence/outro points.
-
 use std::collections::VecDeque;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
@@ -21,7 +14,6 @@ use super::db;
 
 const RATE: u32 = 44_100;
 const LOW_RATE: u32 = 11_025;
-/// Longer files still get loudness; the 11 kHz buffer stops growing here.
 const MAX_LOW_SECONDS: usize = 30 * 60;
 pub const PEAK_BUCKETS: usize = 1800;
 
@@ -42,8 +34,6 @@ pub struct AnalysisResult {
     pub peaks: Vec<u8>,
 }
 
-/// Decodes and measures one file. `peaks_only` skips the heavy parts for a
-/// quick waveform when an unanalyzed track starts playing.
 pub async fn analyze_file(
     path: &str,
     duration_ms: i64,
@@ -95,7 +85,7 @@ pub async fn analyze_file(
     };
     let mut low: Vec<f32> =
         Vec::with_capacity((expected / 4).min(MAX_LOW_SECONDS * LOW_RATE as usize));
-    let decim = (rate / LOW_RATE) as usize; // 4 for 44.1k, 1 for peaks_only
+    let decim = (rate / LOW_RATE) as usize;
     let mut acc = 0f32;
     let mut acc_n = 0usize;
 
@@ -163,7 +153,6 @@ pub async fn analyze_file(
             peaks,
         });
     }
-    // FFT work off the async runtime
     let (tempo, key, bounds, outro) = tokio::task::spawn_blocking(move || {
         (
             dsp::bpm(&low, LOW_RATE),
@@ -240,14 +229,11 @@ fn store(r: &AnalysisResult) -> Result<(), String> {
     .map(|_| ())
 }
 
-/// Album gain from the stored per-track loudness of every fully analyzed album
-/// touched by this batch.
 fn update_album_gains(ids: &[i64]) -> Result<(), String> {
     let tracks = db::tracks_by_ids(ids)?;
     let mut albums: std::collections::HashSet<(String, String)> = std::collections::HashSet::new();
     for t in &tracks {
         if !t.album.trim().is_empty() {
-            // same grouping as the UI: album artist, or the folder for compilations
             let who = if t.album_artist.is_empty() {
                 format!("dir:{}", t.folder)
             } else {
@@ -375,13 +361,11 @@ pub fn progress() -> (usize, usize, bool) {
 pub struct Spectrogram {
     pub cols: usize,
     pub rows: usize,
-    /// row-major, 0..255, row 0 = highest frequency
     pub data: String,
     pub nyquist: f32,
     pub cutoff_hz: Option<f32>,
 }
 
-/// Full-band spectrogram for the "is this really lossless?" view.
 pub async fn spectrogram(path: &str, cols: usize, rows: usize) -> Result<Spectrogram, String> {
     let mut cmd = omniget_core::core::process::command("ffmpeg");
     cmd.args([

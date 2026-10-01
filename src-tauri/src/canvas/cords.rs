@@ -1,25 +1,3 @@
-//! Cords of the canvas (C2, estudo 98/03 Part B): agents on the canvas talk
-//! to each other through the cords that connect their nodes.
-//!
-//! `CanvasHost` is the process-wide owner of:
-//! - the mailboxes (one FIFO per node) and the delivery loop: wait for the
-//!   target to be ready and the user not typing, bracketed paste through the
-//!   `TermManager`, Enter apart, confirm and retry (`core::canvas::adapters::pty`);
-//!   native nodes get a turn of the LLM coordinator instead;
-//! - the asks: long-poll waits, answers (reply, `Stop` hook, transcript,
-//!   native turn, screen diff), the wait-for graph with ask back and ring
-//!   break, and the limits (hops, messages per chain, open asks, ping-pong);
-//! - the node tokens (`oct_…`, minted when a terminal spawns, revoked on exit,
-//!   on delete and at boot) and the environment of a node's terminal;
-//! - hook ingestion (`POST /v1/canvas/hook`), the fused node state and the
-//!   events `canvas://node-state`, `canvas://message`, `canvas://ask`;
-//! - handoff cords (contracts): at the end of a turn, `verify` runs in the
-//!   node's folder and the output goes on by the cord's condition;
-//! - the `note.*` rpc methods (notes have no other owner in Rust).
-//!
-//! Everything is in memory: a restart drops the queues (the terminals die
-//! with the app anyway).
-
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::sync::{Arc, Mutex, OnceLock};
 use std::time::Duration;
@@ -49,13 +27,9 @@ pub const EVENT_NODE_STATE: &str = "canvas://node-state";
 pub const EVENT_MESSAGE: &str = "canvas://message";
 pub const EVENT_ASK: &str = "canvas://ask";
 
-/// Longest a wait call holds (under the bridge's own 120 s).
 pub const WAIT_CAP_MS: u64 = 110_000;
 const TICK: Duration = Duration::from_millis(250);
-/// An answered ask nobody collected within this long goes to the asker as a
-/// `reply` message.
 const COLLECT_GRACE_MS: u64 = 3_000;
-/// A waiting CLI that stopped polling this long ago is no longer blocked.
 const WAIT_GONE_MS: u64 = 5_000;
 const VERIFY_TIMEOUT: Duration = Duration::from_secs(300);
 
@@ -64,7 +38,6 @@ fn now() -> u64 {
 }
 
 fn short_id(prefix: &str) -> String {
-    // Time first so ids sort by creation (the wait graph orders by id).
     format!(
         "{prefix}_{:011x}{}",
         now(),
@@ -72,9 +45,6 @@ fn short_id(prefix: &str) -> String {
     )
 }
 
-// ------------------------------------------------------------------ errors
-
-/// An error of a canvas route: HTTP status, machine code, human text.
 #[derive(Debug, Clone)]
 pub struct ApiErr {
     pub status: u16,
@@ -99,8 +69,6 @@ fn not_found(what: impl std::fmt::Display) -> ApiErr {
     ApiErr::new(404, "not_found", what.to_string())
 }
 
-// ------------------------------------------------------------------ state
-
 #[derive(Debug, Clone)]
 enum AskState {
     Pending,
@@ -116,8 +84,6 @@ struct Ask {
     ws: String,
     text: String,
     state: AskState,
-    /// Released to break a ring: the wait returns `released`, the ask stays
-    /// alive and its answer arrives later as a message.
     released_by: Option<String>,
     created_ms: u64,
     delivered_ms: Option<u64>,
@@ -125,14 +91,10 @@ struct Ask {
     deadline_ms: u64,
     waiters: u32,
     last_poll_ms: u64,
-    /// A wait returned the final state to the CLI.
     collected: bool,
-    /// The answer went to the asker as a `reply` message.
     reply_sent: bool,
     chain: String,
     hop: u32,
-    /// The asker was inside a turn of its own when it asked (a CLI run by
-    /// the agent), not idle (an ask made for it from outside).
     asker_in_turn: bool,
 }
 
@@ -163,8 +125,6 @@ struct Msg {
     created_ms: u64,
 }
 
-/// A node the host follows: every terminal it minted an env for, and every
-/// native node it delivered to.
 #[derive(Debug, Clone)]
 struct Tracked {
     ws: String,
@@ -176,29 +136,21 @@ struct Tracked {
     exited: bool,
     last_state: AgentState,
     fused: Option<Fused>,
-    /// Native: a turn is running.
     native_busy: bool,
     native_failed: bool,
 }
 
-/// The turn a delivery started in a node: what it answers at its end.
 #[derive(Debug, Clone, Default)]
 struct Turn {
     ask_ids: Vec<String>,
     baseline: String,
     started_ms: u64,
-    /// Tail of the pasted envelope: a screen answer starts after its echo.
     echo: String,
-    /// Agent without turn hooks: its turn ends when the screen goes quiet.
     by_screen: bool,
-    /// Hookless program: its pid and the processes under it before the
-    /// paste. A process started under it since then means it still works.
     root_pid: Option<u32>,
     kids_before: HashSet<u32>,
 }
 
-/// A program without turn hooks is done when its screen has not changed for
-/// this long (a CLI that prints "thinking..." for 2 s is still working).
 const QUIET_TURN_END_MS: i64 = 3_500;
 
 #[derive(Default)]
@@ -210,22 +162,15 @@ struct Inner {
     delivering: HashSet<String>,
     graph: WaitGraph,
     ledger: Ledger,
-    /// Inbound chain of a node until its turn ends: `(chain, hop)`.
     inbound: HashMap<String, (String, u32)>,
     turns: HashMap<String, Turn>,
-    /// Nodes between the Enter and the confirmation of a delivery.
     confirming: HashSet<String>,
-    /// `UserPromptSubmit` seen while confirming.
     submitted: HashSet<String>,
     tracked: HashMap<String, Tracked>,
-    /// Nodes whose finished turn the user has seen.
     seen: HashSet<String>,
     stuck: HashSet<String>,
-    /// node -> tool call id of a held permission question.
     permission: HashMap<String, String>,
-    /// When a `Stop` hook closed the node's turn (dedupes the poll).
     hook_turn_end_ms: HashMap<String, u64>,
-    /// Last time the user typed in the node (not our own paste).
     typing_ms: HashMap<String, u64>,
 }
 
@@ -255,14 +200,12 @@ fn term() -> Arc<omniget_core::core::term::session::TermManager> {
     crate::pty::term()
 }
 
-/// OS notifications for canvas nodes (same gate as the jobs').
 struct CanvasSink {
     app: AppHandle,
 }
 
 impl crate::llm_attention::NotifySink for CanvasSink {
     fn show(&self, title: &str, body: &str) {
-        // Settings → Canvas → "Notify when an agent needs attention".
         if !crate::canvas::prefs::get(&self.app).notifications.attention {
             return;
         }
@@ -288,9 +231,6 @@ impl crate::llm_attention::NotifySink for CanvasSink {
     }
 }
 
-// ------------------------------------------------------------------ names and peers
-
-/// The name a node answers to: its title, else its agent and a short id.
 pub fn node_name(n: &CanvasNode) -> String {
     if let Some(t) = n.title.as_deref().map(str::trim).filter(|t| !t.is_empty()) {
         return t.to_string();
@@ -322,7 +262,6 @@ fn agent_of(n: &CanvasNode) -> String {
     n.data_str("agent").unwrap_or("shell").to_string()
 }
 
-/// The node runs a program of its own (a user preset or a custom command).
 fn own_command(n: &CanvasNode) -> bool {
     let cmd = match n.data.get("command") {
         Some(Value::Array(a)) => !a.is_empty(),
@@ -332,8 +271,6 @@ fn own_command(n: &CanvasNode) -> bool {
     cmd || n.data_str("presetId").is_some_and(|p| !p.trim().is_empty())
 }
 
-/// How a message reaches this node (a preset's program takes asks even when
-/// its label is `shell`).
 fn delivery_of_node(n: &CanvasNode) -> adapters::Delivery {
     adapters::delivery_for(&agent_of(n), own_command(n))
 }
@@ -344,8 +281,6 @@ fn terminal_of(n: &CanvasNode) -> Option<String> {
         .filter(|s| !s.is_empty())
 }
 
-/// Starts a PTY peer that has no terminal in this app run (a node off
-/// screen after a restart never mounted), so a message can reach it.
 async fn wake(p: &Peer, kind: Kind) {
     let takes = match delivery_of_node(&p.node) {
         adapters::Delivery::Pty => true,
@@ -366,9 +301,6 @@ async fn wake(p: &Peer, kind: Kind) {
     }
 }
 
-/// Whether a cord may join `a` and `b` (Maestri: terminal↔terminal,
-/// terminal↔note, note↔note, terminal↔portal, portal↔portal; a note or a
-/// fichário never connects to a portal, and a node never to itself).
 pub fn cord_allowed(a: &CanvasNode, b: &CanvasNode) -> Result<(), String> {
     if a.id == b.id {
         return Err("CORD_INVALID: a node cannot connect to itself".into());
@@ -383,7 +315,6 @@ pub fn cord_allowed(a: &CanvasNode, b: &CanvasNode) -> Result<(), String> {
     Ok(())
 }
 
-/// The name of a node's role (its id when the role is gone).
 fn role_name(ws: &str, n: &CanvasNode) -> Option<String> {
     let id = n.data_str("roleId").filter(|r| !r.trim().is_empty())?;
     Some(
@@ -393,7 +324,6 @@ fn role_name(ws: &str, n: &CanvasNode) -> Option<String> {
     )
 }
 
-/// Default permissions of a cord with none set.
 fn perms_of(c: &Connection) -> Vec<String> {
     if !c.perms.is_empty() {
         return c.perms.clone();
@@ -405,7 +335,6 @@ fn perms_of(c: &Connection) -> Vec<String> {
     }
 }
 
-/// A node at the other end of one of the caller's cords.
 #[derive(Debug, Clone)]
 pub struct Peer {
     pub node: CanvasNode,
@@ -422,7 +351,6 @@ impl Peer {
     }
 }
 
-/// Where a node lives.
 fn locate(node_id: &str) -> Result<(String, String, CanvasNode), ApiErr> {
     let s = store();
     let (ws, floor) = s
@@ -435,8 +363,6 @@ fn locate(node_id: &str) -> Result<(String, String, CanvasNode), ApiErr> {
     Ok((ws, floor, node))
 }
 
-/// Every node wired to `me`, with the cord and its permissions. A connector
-/// node (a cord to another floor/workspace) resolves to its remote node.
 fn peers_of(me: &str) -> Result<(String, String, CanvasNode, Vec<Peer>), ApiErr> {
     let (ws, floor, node) = locate(me)?;
     let s = store();
@@ -487,7 +413,6 @@ fn peers_of(me: &str) -> Result<(String, String, CanvasNode, Vec<Peer>), ApiErr>
     Ok((ws, floor, node, out))
 }
 
-/// The peer called `name` (exact, else case-insensitive when unique).
 fn resolve_peer(peers: &[Peer], name: &str) -> Result<Peer, ApiErr> {
     let exact: Vec<&Peer> = peers.iter().filter(|p| p.name == name).collect();
     let hits = if exact.is_empty() {
@@ -498,8 +423,6 @@ fn resolve_peer(peers: &[Peer], name: &str) -> Result<Peer, ApiErr> {
     } else {
         exact
     };
-    // No name matches: a node id (or its first 4+ characters) also works,
-    // which is how two peers with the same name are told apart.
     let hits = if hits.is_empty() && name.trim().len() >= 4 {
         peers
             .iter()
@@ -530,8 +453,6 @@ fn resolve_peer(peers: &[Peer], name: &str) -> Result<Peer, ApiErr> {
     }
 }
 
-// ------------------------------------------------------------------ host
-
 impl CanvasHost {
     fn lock(&self) -> std::sync::MutexGuard<'_, Inner> {
         self.inner.lock().unwrap_or_else(|e| e.into_inner())
@@ -551,8 +472,6 @@ impl CanvasHost {
         self.app.get()
     }
 
-    /// Binds the app (events, token database, LLM) and starts the loops.
-    /// Idempotent.
     pub fn bind(&'static self, app: &AppHandle) -> &'static Self {
         if self.app.set(app.clone()).is_ok() {
             super::doc::host().bind(app);
@@ -560,7 +479,6 @@ impl CanvasHost {
                 crate::llm_attention::Attention::new(Arc::new(CanvasSink { app: app.clone() }));
             att.set_strings(crate::llm_attention::pushed_strings());
             let _ = self.attention.set(att);
-            // A deleted node loses its token and its queue.
             store().subscribe(move |ev| {
                 if let StoreEvent::Patch(p) = ev {
                     for op in &p.ops {
@@ -600,8 +518,6 @@ impl CanvasHost {
         );
     }
 
-    // -------------------------------------------------------------- identity
-
     pub fn me(&self, node_id: &str) -> Result<Value, ApiErr> {
         let (ws, floor, node) = locate(node_id)?;
         Ok(json!({
@@ -620,8 +536,6 @@ impl CanvasHost {
         let mut list = Vec::new();
         for p in &peers {
             let mut j = self.peer_json(p, &peers, true);
-            // Direction of the cord as drawn: `in` = the peer drew it to you
-            // (it can ask you), `out` = you to it. Both ends can talk.
             let dir = if p.conn.to == node_id && p.conn.from != node_id {
                 "in"
             } else {
@@ -655,8 +569,6 @@ impl CanvasHost {
             NodeKind::Note => {
                 let mut children = Vec::new();
                 if nested {
-                    // Chained notes below this one; the direct note peers and
-                    // the asking node itself are listed elsewhere.
                     let mut seen: HashSet<String> = all
                         .iter()
                         .filter(|o| o.node.kind == NodeKind::Note)
@@ -671,7 +583,6 @@ impl CanvasHost {
                     .get("isContentLocked")
                     .and_then(|v| v.as_bool())
                     .unwrap_or(false);
-                // A locked note is read-only whatever the cord allows.
                 let perms: Vec<String> = if locked {
                     vec!["note_ro".into()]
                 } else {
@@ -703,9 +614,6 @@ impl CanvasHost {
         }
     }
 
-    /// Canonical state of a terminal/agent node (what the canvas header and
-    /// `omniget canvas list` show). `None` when the node is not on a canvas.
-    /// Ticks whenever asks, mailboxes or the "needs you" inbox change.
     pub fn changes_rx(&self) -> tokio::sync::watch::Receiver<u64> {
         self.changes.subscribe()
     }
@@ -715,7 +623,6 @@ impl CanvasHost {
         Some(self.fused_of(&n.id, &ws, &floor, &n))
     }
 
-    /// Fused state of any agent node (tracked or not).
     fn fused_of(&self, node_id: &str, ws: &str, floor: &str, n: &CanvasNode) -> Fused {
         if let Some(f) = self
             .lock()
@@ -742,10 +649,6 @@ impl CanvasHost {
         )
     }
 
-    // -------------------------------------------------------------- env
-
-    /// Environment (and extra agent arguments) of a node's terminal about to
-    /// open: mints the node's token, puts `<app_data>/bin` first on PATH.
     pub fn terminal_env(
         &'static self,
         app: &AppHandle,
@@ -759,8 +662,6 @@ impl CanvasHost {
         self.terminal_env_for(app, ws, floor, &node)
     }
 
-    /// `terminal_env` for a node the caller already holds (the UI may launch
-    /// a node before its `add_node` reached the store).
     pub fn terminal_env_for(
         &'static self,
         app: &AppHandle,
@@ -778,7 +679,6 @@ impl CanvasHost {
             let db = jobs.db();
             crate::bridge_tokens::mint_canvas(&db, node_id, &name, now())?.token
         };
-        // Bridge off: a canvas-only listener serves the cords (local_bridge.rs).
         let bridge_port = crate::local_bridge::ensure_running_for_canvas(app)?;
         let data = omniget_core::core::paths::app_data_dir().ok_or("no app data dir")?;
         let bin = data.join("bin");
@@ -840,9 +740,6 @@ impl CanvasHost {
         })
     }
 
-    // -------------------------------------------------------------- asks
-
-    /// `POST /v1/canvas/asks`: one ask, a batch, or raw keys.
     pub async fn submit(&'static self, me: &str, body: Value) -> Result<Value, ApiErr> {
         let request_id = body["request_id"].as_str().unwrap_or("").to_string();
         let wait = body["wait"].as_bool().unwrap_or(true);
@@ -874,7 +771,6 @@ impl CanvasHost {
         if items.iter().any(|(_, t)| t.trim().is_empty()) {
             return Err(ApiErr::new(400, "usage", "empty text"));
         }
-        // Resolve and check every target before admitting any.
         let mut targets = Vec::new();
         for (name, text) in items {
             let p = resolve_peer(&peers, &name)?;
@@ -899,7 +795,6 @@ impl CanvasHost {
                     a.from == me && matches!(a.state, AskState::Pending) && a.released_by.is_none()
                 })
                 .count() as u32;
-            // The batch as a whole against the open-asks cap.
             let lim = g.limits;
             if open + targets.len() as u32 > lim.max_pending_asks_per_node {
                 return Err(ApiErr::new(
@@ -952,7 +847,6 @@ impl CanvasHost {
         json!({ "asks": asks })
     }
 
-    /// Can this peer receive a message at all?
     fn check_target(&self, p: &Peer, kind: Kind) -> Result<(), ApiErr> {
         if !matches!(p.node.kind, NodeKind::Terminal | NodeKind::Agent) {
             return Err(ApiErr::new(
@@ -990,8 +884,6 @@ impl CanvasHost {
         Ok(())
     }
 
-    /// Admits one message under the lock: limits, ask back, ring break,
-    /// queue. Returns the ask id (asks) or the message id.
     #[allow(clippy::too_many_arguments)]
     fn admit_locked(
         &self,
@@ -1006,8 +898,6 @@ impl CanvasHost {
     ) -> Result<String, ApiErr> {
         let to = p.node.id.clone();
         let t = now();
-        // Chain: the sender's inbound chain, one hop further; a sender with no
-        // inbound chain was started by the user.
         let (chain, hop) = match from.and_then(|(f, _)| g.inbound.get(f).cloned()) {
             Some((c, h)) => (c, h + 1),
             None => {
@@ -1043,19 +933,10 @@ impl CanvasHost {
             .map(|(_, n)| n.to_string())
             .unwrap_or_else(|| "OmniGet".into());
 
-        // Ask back: the target is blocked waiting on the sender. This message
-        // is the answer to that wait; nothing is pasted into the target.
         if let Some(f) = from_id.as_deref() {
-            // A late answer to an older ask is not the answer of the newer
-            // one the target is waiting on now (the same pair asked twice).
             let late_reply = kind == Kind::Reply
                 && in_reply_to.is_some_and(|r| g.graph.ask_back(f, &to).is_some_and(|w| w != r));
             if let Some(waiting) = g.graph.ask_back(f, &to).filter(|_| !late_reply) {
-                // The waiter is really blocked in a turn (its CLI polls, or it
-                // is busy): the question rides back on that wait and is
-                // answered at the end of its turn. Otherwise (an ask made for
-                // it from outside, its turn gone) the question is delivered
-                // like any other, so it is never answered by a stale screen.
                 let waiter_live = g.asks.get(&waiting).is_some_and(|a| a.asker_in_turn);
                 let back_id = (kind == Kind::Ask && waiter_live).then(|| short_id("ask"));
                 let released = if kind == Kind::Ask {
@@ -1093,8 +974,6 @@ impl CanvasHost {
                         hop,
                         asker_in_turn: in_turn(g, f),
                     };
-                    // Answered at the end of the target's current turn; a
-                    // screen answer starts from now, not from an old baseline.
                     let baseline = terminal_of(&p.node)
                         .and_then(|tid| term().screen_text(&tid, 200).ok())
                         .map(|s| s.text)
@@ -1116,8 +995,6 @@ impl CanvasHost {
                     return Ok(waiting);
                 }
             }
-            // Ring: the target waits (through others) on the sender. Release
-            // the target's ask on the ring so it can read this message.
             if let Some(edge) = g.graph.cycle_release(f, &to) {
                 g.graph.remove(&edge.ask_id);
                 if let Some(a) = g.asks.get_mut(&edge.ask_id) {
@@ -1178,7 +1055,6 @@ impl CanvasHost {
             self.ask_event(&ask);
             g.asks.insert(id.clone(), ask);
         }
-        // Native nodes are followed from their first message.
         if agent_of(&p.node) == "native" && !g.tracked.contains_key(&to) {
             g.tracked.insert(
                 to.clone(),
@@ -1203,7 +1079,6 @@ impl CanvasHost {
         Ok(ask_id.unwrap_or(msg_id))
     }
 
-    /// Resolves an ask with an answer (idempotent: the first answer wins).
     fn resolve_locked(&self, g: &mut Inner, ask_id: &str, ans: Answer) {
         let Some(a) = g.asks.get_mut(ask_id) else {
             return;
@@ -1239,8 +1114,6 @@ impl CanvasHost {
         self.bump();
     }
 
-    /// `ask --raw`: bytes straight into the peer's PTY (needs the `raw`
-    /// permission, off by default), then its screen as the answer.
     async fn raw(
         &'static self,
         me: &str,
@@ -1302,7 +1175,6 @@ impl CanvasHost {
         Ok(json!({ "asks": [{ "id": id, "to": p.name, "delivery": "answered" }] }))
     }
 
-    /// `GET /v1/canvas/asks/{id}/wait`: long-poll, capped at 110 s.
     pub async fn wait(&'static self, me: &str, ask_id: &str, timeout_ms: u64) -> (u16, Value) {
         let timeout = Duration::from_millis(timeout_ms.min(WAIT_CAP_MS));
         let mut rx = self.changes.subscribe();
@@ -1318,7 +1190,6 @@ impl CanvasHost {
                 a.waiters += 1;
                 a.last_poll_ms = now();
             }
-            // Blocked again after a gap: the edge comes back.
             if matches!(a.state, AskState::Pending)
                 && a.released_by.is_none()
                 && !g.graph.contains(ask_id)
@@ -1372,7 +1243,6 @@ impl CanvasHost {
         let a = g.asks.get(ask_id)?;
         match &a.state {
             AskState::Answered(ans) => {
-                // `ask --json` prints the answer object: status and duration too.
                 let mut v = serde_json::to_value(ans).unwrap_or(Value::Null);
                 if let Some(m) = v.as_object_mut() {
                     m.insert("status".into(), json!("answered"));
@@ -1410,9 +1280,6 @@ impl CanvasHost {
         })
     }
 
-    /// `POST /v1/canvas/reply`: an explicit answer to whoever asked `me`.
-    /// Without `ask_id`: the oldest pending ask to `me` in its current chain,
-    /// else the oldest one at all.
     pub fn reply(
         &'static self,
         me: &str,
@@ -1467,7 +1334,6 @@ impl CanvasHost {
         Ok(json!({ "resolved": id }))
     }
 
-    /// `GET /v1/canvas/screen?name=&lines=`: a peer's screen (`check` perm).
     pub fn screen(&self, me: &str, name: &str, lines: usize) -> Result<Value, ApiErr> {
         let (_ws, _f, _me, peers) = peers_of(me)?;
         let p = resolve_peer(&peers, name)?;
@@ -1493,15 +1359,11 @@ impl CanvasHost {
             "text": snap.text,
             "state": state.state.as_str(),
             "cursor_row": snap.cursor_row,
-            // Milliseconds since the screen last changed.
             "changed_ms": (now() as i64 - snap.changed_ms).max(0),
             "alt_screen": snap.alt_screen,
         }))
     }
 
-    // -------------------------------------------------------------- hooks
-
-    /// `POST /v1/canvas/hook`: a hook of the node's agent, Claude-shaped.
     pub async fn hook(&'static self, me: &str, payload: Value) -> Value {
         let event = payload["hook_event_name"]
             .as_str()
@@ -1554,8 +1416,6 @@ impl CanvasHost {
             .unwrap_or_else(|_| node.to_string())
     }
 
-    /// A turn the user started (not one of our deliveries): new chain at hop
-    /// 0, and a chain the ping-pong guard paused may run again.
     fn user_turn_locked(&self, g: &mut Inner, node: &str) {
         if let Some((old, _)) = g.inbound.remove(node) {
             g.ledger.resume(&old);
@@ -1565,9 +1425,6 @@ impl CanvasHost {
         g.seen.insert(node.to_string());
     }
 
-    /// A permission question held for the owner, the same path as
-    /// `/v1/observe` (broker -> pet/UI -> answer). Nobody answering = `ask`:
-    /// the agent shows its own prompt.
     async fn permission(&'static self, me: &str, v: &Value) -> Value {
         let Some(app) = self.app().cloned() else {
             return json!({ "decision": "ask" });
@@ -1629,8 +1486,6 @@ impl CanvasHost {
         decision
     }
 
-    /// A node finished a turn the user has not seen (the attention dot): one
-    /// OS notification, unless the user is looking at it (M-D8).
     fn turn_done_notice(&self, node: &str, failed: bool) {
         let Some(att) = self.attention.get().cloned() else {
             return;
@@ -1641,8 +1496,6 @@ impl CanvasHost {
             .get(node)
             .and_then(|t| t.terminal.clone());
         let m = term();
-        // A plain shell finishes a "turn" at every command: it only notifies
-        // when its activity is watched (the node's "Monitor activity").
         let shell = tid.as_deref().and_then(|t| m.agent_kind(t))
             == Some(omniget_core::core::term::AgentKind::Shell);
         if shell {
@@ -1695,14 +1548,7 @@ impl CanvasHost {
         });
     }
 
-    // -------------------------------------------------------------- turns
-
-    /// End of a node's turn: answers what the turn owed, runs the handoff
-    /// cords, and marks the node "done" until the user looks at it.
     fn turn_end(&'static self, node: &str, payload: Option<Value>, failed: bool) {
-        // Claude sent a command to the background: its `Stop` says "waiting
-        // for ..." and a new turn starts when the task reports back. The
-        // asks stay open until the turn that really ends the work.
         if !failed {
             if let Some(path) = payload.as_ref().and_then(answer::transcript_path) {
                 let since = self
@@ -1778,8 +1624,6 @@ impl CanvasHost {
         (!diff.trim().is_empty()).then(|| Answer::new(diff, AnswerSource::Screen))
     }
 
-    /// Handoff cords leaving `node`: `verify` in the node's folder, then the
-    /// turn's output goes on when the condition holds.
     fn run_contracts(&'static self, node: &str, t: &Tracked, output: String, failed: bool) {
         let conns: Vec<Connection> = store()
             .read(&t.ws, &t.floor, |d| {
@@ -1855,8 +1699,6 @@ impl CanvasHost {
         });
     }
 
-    // -------------------------------------------------------------- loop
-
     fn tick(&'static self) {
         let t = now();
         let m = term();
@@ -1869,8 +1711,6 @@ impl CanvasHost {
         let mut ends: Vec<String> = Vec::new();
         let mut exits: Vec<String> = Vec::new();
         let mut events: Vec<Value> = Vec::new();
-        // Hookless programs inside a turn whose own child still runs (a
-        // `sleep`, a build): they work even with a quiet screen.
         let open: Vec<(String, u32, HashSet<u32>)> = self
             .lock()
             .turns
@@ -1928,7 +1768,6 @@ impl CanvasHost {
                 }
                 let now_state = sig.as_ref().map(|s| s.state).unwrap_or(AgentState::Unknown);
                 let kid_works = working.contains(node);
-                // A new question after one the user saw asks for attention again.
                 if now_state == AgentState::Blocked && tr.last_state != AgentState::Blocked {
                     g.seen.remove(node);
                 }
@@ -1955,13 +1794,8 @@ impl CanvasHost {
                         ends.push(node.clone());
                     } else if !kid_works
                         && !node_state::is_busy(now_state)
-                        // A next message waiting at the gate (`delivering`)
-                        // waits for this very turn to end: only the paste
-                        // itself (`confirming`) holds the quiet end.
                         && !g.confirming.contains(node)
                     {
-                        // A program without turn hooks: its turn ends when its
-                        // screen has been quiet since the delivery.
                         let quiet_end = g.turns.get(node).is_some_and(|turn| {
                             turn.by_screen
                                 && !turn.ask_ids.is_empty()
@@ -2025,7 +1859,6 @@ impl CanvasHost {
                     }
                 }
             }
-            // Waiting CLIs that stopped polling are no longer blocked.
             let gone: Vec<String> = g
                 .asks
                 .values()
@@ -2040,7 +1873,6 @@ impl CanvasHost {
             for id in gone {
                 g.graph.remove(&id);
             }
-            // Expired asks.
             let expired: Vec<String> = g
                 .asks
                 .values()
@@ -2077,8 +1909,6 @@ impl CanvasHost {
         self.start_deliveries();
     }
 
-    /// Answers whose asker was not waiting any more go to the asker as a
-    /// `reply` message (the skill says: never resend, the answer arrives).
     fn deliver_answers_nobody_collected(&'static self) {
         let t = now();
         let mut g = self.lock();
@@ -2195,7 +2025,6 @@ impl CanvasHost {
                     let x = x.clone();
                     host().msg_event(&x);
                 }
-                // Delivered messages are not kept forever.
                 let cut = now().saturating_sub(60 * 60 * 1000);
                 g.msgs.retain(|_, m| {
                     m.created_ms > cut || matches!(m.state, MsgState::Queued | MsgState::Delivering)
@@ -2206,7 +2035,6 @@ impl CanvasHost {
         }
     }
 
-    /// Delivers one message; `false` = it did not take (stuck or failed).
     async fn deliver(&'static self, msg: &Msg) -> bool {
         let Ok((ws, _floor, node)) = locate(&msg.to) else {
             self.fail_msg(msg, "target_exited", "the node is gone");
@@ -2229,8 +2057,6 @@ impl CanvasHost {
         if agent == "native" {
             return self.deliver_native(msg, &node, text).await;
         }
-        // A CLI that does not know the envelope gets the prompt itself, as a
-        // person would type it (Maestri types the prompt).
         let text = if adapters::reads_envelope(&agent) {
             text
         } else {
@@ -2257,7 +2083,6 @@ impl CanvasHost {
         let m = term();
         let is_reply = msg.kind == Kind::Reply;
         let deadline = now() + pty::GATE_TIMEOUT_MS;
-        // 1. Gate.
         loop {
             if msg.ask_id.as_ref().is_some_and(|id| {
                 self.lock()
@@ -2265,7 +2090,6 @@ impl CanvasHost {
                     .get(id)
                     .is_some_and(|a| !matches!(a.state, AskState::Pending))
             }) {
-                // Answered by an ask back or failed meanwhile: nothing to paste.
                 return true;
             }
             let Some(info) = m.info(tid) else {
@@ -2283,15 +2107,11 @@ impl CanvasHost {
                     .typing_ms
                     .get(&msg.to)
                     .is_some_and(|x| t.saturating_sub(*x) < pty::USER_TYPING_HOLD_MS);
-            // `changed_ms` is the epoch of the last change on screen.
             let changed_ago = m
                 .screen_text(tid, 1)
                 .map(|s| t as i64 - s.changed_ms)
                 .unwrap_or(0);
             let busy_cli = self.lock().graph.is_waiting(&msg.to);
-            // A program without hooks still inside the turn of an earlier
-            // message: the next one waits for that turn to end, never pasted
-            // in the middle of its work.
             let busy_cli = busy_cli
                 || (!adapters::has_turn_hooks(agent)
                     && self
@@ -2311,7 +2131,6 @@ impl CanvasHost {
             }
             tokio::time::sleep(Duration::from_millis(200)).await;
         }
-        // 2. Paste.
         let text = if adapters::bracketed(agent) {
             text
         } else {
@@ -2331,7 +2150,6 @@ impl CanvasHost {
             self.fail_msg(msg, "target_exited", "paste failed");
             return false;
         }
-        // 3. Enter apart, after the echo.
         tokio::time::sleep(Duration::from_millis(pty::ECHO_MIN_MS)).await;
         let echo_deadline = now() + pty::ECHO_MAX_MS - pty::ECHO_MIN_MS;
         loop {
@@ -2343,7 +2161,6 @@ impl CanvasHost {
         }
         let echoed_screen = m.screen_text(tid, 200).map(|s| s.text).unwrap_or_default();
         let _ = m.submit(tid);
-        // 4. Confirm.
         let mut retries = 0u32;
         let mut since = now();
         let taken = loop {
@@ -2352,8 +2169,6 @@ impl CanvasHost {
             let busy = m
                 .agent_state(tid)
                 .is_some_and(|s| node_state::is_busy(s.state));
-            // A program without hooks took the line when its screen moved
-            // after the Enter (the input line cleared, output began).
             let moved = hookless
                 && m.screen_text(tid, 200)
                     .map(|s| s.text != echoed_screen)
@@ -2407,13 +2222,10 @@ impl CanvasHost {
         true
     }
 
-    /// Delivers a user chat envelope (OmniGet Chat) through the same gate,
-    /// paste, Enter and confirm loop as cord messages. `false` = not taken.
     pub async fn deliver_chat(&'static self, node_id: &str, text: String) -> bool {
         let Ok((ws, floor, node)) = locate(node_id) else {
             return false;
         };
-        // Not started in this app run (off screen after a restart): start it.
         let started = terminal_of(&node).is_some_and(|t| term().info(&t).is_some());
         if !started && agent_of(&node) != "native" {
             if let Err(e) = super::launch::ensure_running(&ws, &floor, node_id).await {
@@ -2462,7 +2274,6 @@ impl CanvasHost {
         g.seen.remove(&msg.to);
     }
 
-    /// Native node: one turn of the node's agent through the coordinator.
     async fn deliver_native(&'static self, msg: &Msg, node: &CanvasNode, text: String) -> bool {
         use futures::StreamExt;
         use omniget_core::core::llm::types::TurnEvent;
@@ -2474,7 +2285,6 @@ impl CanvasHost {
             self.fail_msg(msg, "no_agent", "the node has no agent configured");
             return false;
         };
-        // One turn at a time per node.
         loop {
             let busy = self
                 .lock()
@@ -2600,8 +2410,6 @@ impl CanvasHost {
         }
     }
 
-    // -------------------------------------------------------------- UI
-
     pub fn asks_list(&self, ws: Option<&str>) -> Vec<Value> {
         let g = self.lock();
         let name = |id: &str| {
@@ -2633,8 +2441,6 @@ impl CanvasHost {
             .collect()
     }
 
-    /// `(asker, target)` of every ask in flight (queued or delivered, not
-    /// answered, failed or released): the cords between them are lit.
     pub fn active_pairs(&self) -> Vec<(String, String)> {
         self.lock()
             .asks
@@ -2644,9 +2450,6 @@ impl CanvasHost {
             .collect()
     }
 
-    /// Sets `isActive` on the connections of a document snapshot (JSON of
-    /// `CanvasDoc`): true while an ask travels between its two ends (a
-    /// connector end counts as its remote node).
     pub fn mark_active(&self, doc: &mut Value) {
         let pairs = self.active_pairs();
         let remote: HashMap<String, String> = doc["nodes"]
@@ -2678,8 +2481,6 @@ impl CanvasHost {
         }
     }
 
-    /// Nodes that need the user: blocked, a held permission, a stuck
-    /// delivery, or a finished turn not seen yet.
     pub fn inbox(&self, ws: Option<&str>) -> Vec<Value> {
         let g = self.lock();
         let mut out = Vec::new();
@@ -2694,7 +2495,6 @@ impl CanvasHost {
                 "stuck"
             } else {
                 match f.state {
-                    // Seen (Maestri `seen`): the question stays on the badge only.
                     NodeState::NeedsYou if g.seen.contains(id) => continue,
                     NodeState::NeedsYou => "blocked",
                     NodeState::Done => "review",
@@ -2712,14 +2512,10 @@ impl CanvasHost {
         out
     }
 
-    /// The user saw this node (`seen`, focusing it): a finished turn or an
-    /// open question no longer asks for attention; the badge still shows a
-    /// question that is open.
     pub fn is_seen(&self, node: &str) -> bool {
         self.lock().seen.contains(node)
     }
 
-    /// [`is_seen`] by terminal id.
     pub fn terminal_seen(&self, tid: &str) -> bool {
         let g = self.lock();
         g.tracked
@@ -2736,8 +2532,6 @@ impl CanvasHost {
         }
     }
 
-    /// Checks a cord end to end: both ends exist, the transport is up, the
-    /// terminals run, and what the cord allows.
     pub fn cord_test(
         &self,
         app: &AppHandle,
@@ -2792,9 +2586,6 @@ impl CanvasHost {
     }
 }
 
-/// The asker's wait is over: an agent that asked from inside its turn goes
-/// on working; one asked for from outside (idle) goes back to idle instead of
-/// staying "working"/"waiting" forever, which would hold its deliveries.
 fn release_asker(g: &Inner, a: &Ask) {
     let still_waiting = g
         .asks
@@ -2813,8 +2604,6 @@ fn release_asker(g: &Inner, a: &Ask) {
     }
 }
 
-/// A node is inside a turn: its agent works (or runs the CLI), a native
-/// turn runs, or its state is unknown (a program without detection).
 fn in_turn(g: &Inner, node: &str) -> bool {
     let tid = g
         .tracked
@@ -2830,7 +2619,6 @@ fn in_turn(g: &Inner, node: &str) -> bool {
     }
 }
 
-/// The last characters of a pasted text, to find its echo on the screen.
 fn echo_tail(pasted: &str) -> String {
     let flat = pty::flatten(pasted);
     let chars: Vec<char> = flat.chars().collect();
@@ -2841,16 +2629,11 @@ fn echo_tail(pasted: &str) -> String {
         .to_string()
 }
 
-/// A screen answer without the echo of what was pasted: what follows the
-/// first line that shows the tail of the paste (the echo).
 fn strip_echo(diff: &str, echo: &str) -> String {
-    // Whitespace is ignored: a wrap may fall on a space the screen trims.
     let key: String = echo.chars().filter(|c| !c.is_whitespace()).collect();
     if key.is_empty() {
         return diff.to_string();
     }
-    // The echo wraps at the terminal's width: look for it in the lines
-    // joined back together, then keep the lines after the one it ends on.
     let lines: Vec<&str> = diff.lines().collect();
     let mut joined = String::new();
     let mut ends = Vec::with_capacity(lines.len());
@@ -2913,32 +2696,22 @@ async fn run_verify(cmd: &str, cwd: Option<&str>) -> (bool, String) {
     }
 }
 
-/// What a node's terminal is opened with.
 #[derive(Debug, Clone, Serialize)]
 pub struct NodeEnv {
     pub env: HashMap<String, String>,
-    /// Extra arguments for the agent (Claude: `--plugin-dir`, Codex: `notify`).
     pub args: Vec<String>,
-    /// Inherited agent-session variables to drop (`TermOpen.env_remove`).
     pub env_remove: Vec<String>,
 }
 
-// ------------------------------------------------------------------ plugin
-
-/// `<app_data>/canvas/plugin`: skill + hooks, loaded by Claude with
-/// `--plugin-dir` (only for canvas sessions).
 pub fn plugin_dir() -> Option<std::path::PathBuf> {
     omniget_core::core::paths::app_data_dir().map(|d| d.join("canvas").join("plugin"))
 }
 
-/// Writes the plugin (idempotent). Called at boot and before a spawn.
 pub fn install_plugin() -> Result<(), String> {
     let dir = plugin_dir().ok_or("no app data dir")?;
     claude_adapter::install_plugin(&dir).map_err(|e| format!("{}: {e}", dir.display()))
 }
 
-/// Skills folder of `agent` from Settings → Canvas → Skills, `~` expanded;
-/// `None` when not set.
 pub fn skill_root(app: &AppHandle, agent: &str) -> Option<std::path::PathBuf> {
     let raw = crate::canvas::prefs::get(app)
         .skills
@@ -2958,9 +2731,6 @@ pub fn skill_root(app: &AppHandle, agent: &str) -> Option<std::path::PathBuf> {
     Some(path)
 }
 
-/// Writes `<root>/omniget-canvas/SKILL.md` for `agent` when Settings →
-/// Canvas → Skills has a folder for it (Maestri installs its skills there).
-/// Returns the file written.
 pub fn install_skill_root(
     app: &AppHandle,
     agent: &str,
@@ -2978,28 +2748,21 @@ pub fn install_skill_root(
     Ok(Some(file))
 }
 
-/// Text for the `AGENTS.md` of a role folder (Codex, Gemini, OpenCode).
 pub fn agents_md_snippet() -> String {
     adapters::agents_md_snippet()
 }
-
-// ------------------------------------------------------------------ rpc: notes
 
 fn rpc_err(e: impl std::fmt::Display) -> String {
     e.to_string()
 }
 
-/// A note peer: name, workspace, floor, node and the cord's permissions.
 type NotePeer = (String, String, String, CanvasNode, Vec<String>);
 
-/// The note peers of `ctx` (stack pages and chained notes included), by
-/// name, each note once (a note reached by a cord and a stack is one peer).
 fn note_peers(ctx: &NodeCtx) -> Result<Vec<NotePeer>, String> {
     let (_ws, _f, _me, peers) = peers_of(&ctx.node_id).map_err(|e| e.message)?;
     let mut out: Vec<NotePeer> = Vec::new();
     let mut seen: HashSet<String> = HashSet::new();
     seen.insert(ctx.node_id.clone());
-    // Direct note peers first, so a chain never re-parents one of them.
     for p in &peers {
         if p.node.kind == NodeKind::Note {
             seen.insert(p.node.id.clone());
@@ -3037,10 +2800,6 @@ fn note_peers(ctx: &NodeCtx) -> Result<Vec<NotePeer>, String> {
     Ok(out)
 }
 
-/// Notes chained to `note_id` by note→note cords on its floor (Maestri: a
-/// note wired to a note forms a hierarchy the agent walks in order), depth
-/// first, with their depth below `note_id` (1 = direct child). `seen` keeps
-/// cycles and already listed notes out.
 fn note_chain(
     ws: &str,
     floor: &str,
@@ -3075,7 +2834,6 @@ fn note_chain(
     out
 }
 
-/// `children` of a note in `omniget canvas list`: its chained notes, nested.
 fn note_children_json(
     ws: &str,
     floor: &str,
@@ -3101,7 +2859,6 @@ fn note_children_json(
     build(&flat, &mut i, 1)
 }
 
-/// Notes of a stack node, front first.
 fn stack_notes(ws: &str, floor: &str, stack: &CanvasNode) -> Vec<(String, CanvasNode)> {
     let tabs: Vec<String> = stack
         .data
@@ -3177,8 +2934,6 @@ fn numbered(text: &str, offset: usize, limit: usize) -> String {
         .join("\n")
 }
 
-/// Canvas RPC methods owned by this module (see `super::rpc`): `note.*` and
-/// `cords.*`.
 pub async fn rpc(ctx: &NodeCtx, method: &str, args: serde_json::Value) -> RpcResult {
     let ctx = ctx.clone();
     let method = method.to_string();
@@ -3260,7 +3015,6 @@ fn rpc_blocking(ctx: &NodeCtx, method: &str, a: &Value) -> Result<Value, String>
             let (ws, floor, me) = locate(&ctx.node_id).map_err(|e| e.message)?;
             let text = a["text"].as_str().unwrap_or("");
             let size = omniget_core::core::canvas::model::default_size(&NodeKind::Note);
-            // Left of the caller, like the Maestri, in the nearest free spot.
             let near = omniget_core::core::canvas::model::Point {
                 x: me.x - size.w - 40.0,
                 y: me.y,
@@ -3280,8 +3034,6 @@ fn rpc_blocking(ctx: &NodeCtx, method: &str, a: &Value) -> Result<Value, String>
             let stack = a
                 .get("stack")
                 .filter(|v| !v.is_null() && *v != &json!(false));
-            // Filed into a fichário, the note is reached through the
-            // fichário's cord: no direct cord of its own.
             let mut ops = if stack.is_some() {
                 Vec::new()
             } else {
@@ -3369,8 +3121,6 @@ fn rpc_blocking(ctx: &NodeCtx, method: &str, a: &Value) -> Result<Value, String>
     }
 }
 
-/// Puts a note into the stack named `stack` connected to `me` (created, and
-/// connected, when missing; no name = the first connected stack or a new one).
 fn stack_note(
     s: &CanvasStore,
     ws: &str,
@@ -3386,8 +3136,6 @@ fn stack_note(
         .filter(|p| p.node.kind == NodeKind::Stack)
         .find(|p| stack.is_none_or(|n| p.name == n || p.name.eq_ignore_ascii_case(n)))
         .map(|p| (p.node.id.clone(), p.name.clone()));
-    // Not corded yet, but a fichário with that name already sits on the
-    // floor: reuse it (and cord it) instead of making a second one.
     let on_floor = || -> Option<(String, String)> {
         let n = stack?.trim();
         if n.is_empty() {
@@ -3439,8 +3187,6 @@ fn stack_note(
             let title = s
                 .read(ws, floor, |d| d.node(note_id).map(node_name))?
                 .unwrap_or_default();
-            // `--stack` without a name makes an unnamed fichário (it goes
-            // away when emptied); with a name it persists.
             let node = new_stack_node(x, y, z, stack, Some(&title));
             let id = node.id.clone();
             let sname = node_name(&node);
@@ -3459,8 +3205,6 @@ fn stack_note(
     s.apply(ws, floor, ops, origin, None)?;
     Ok(sname)
 }
-
-// ------------------------------------------------------------------ fichários
 
 fn stack_tabs(stack: &CanvasNode) -> Vec<String> {
     stack
@@ -3483,8 +3227,6 @@ fn stack_named(stack: &CanvasNode) -> bool {
         .unwrap_or(false)
 }
 
-/// What a stack becomes once `leaving` pages go: an unnamed fichário left
-/// empty is removed (Maestri), a named one stays as an empty lane.
 fn stack_leave_ops(stack: &CanvasNode, leaving: &[String]) -> Vec<Op> {
     let mut tabs = stack_tabs(stack);
     tabs.retain(|t| !leaving.contains(t));
@@ -3504,10 +3246,6 @@ fn stack_leave_ops(stack: &CanvasNode, leaving: &[String]) -> Vec<Op> {
     )]
 }
 
-/// Ops that file `notes` into the stack `stack_id` of `d` (it may be a stack
-/// added in the same batch). Maestri: the newest page goes on top (`index`
-/// None) and comes to the front; a note lives in one fichário, so it leaves
-/// the one it was in.
 pub fn stack_file_ops(
     d: &omniget_core::core::canvas::model::FloorDoc,
     stack_id: &str,
@@ -3549,8 +3287,6 @@ pub fn stack_file_ops(
     ops
 }
 
-/// Ops that take `note_id` out of its stack, placing it at `at` (top-left)
-/// or beside the stack. An unnamed stack left empty goes away.
 pub fn stack_unfile_ops(
     d: &omniget_core::core::canvas::model::FloorDoc,
     note_id: &str,
@@ -3578,8 +3314,6 @@ pub fn stack_unfile_ops(
     Ok((sid, ops))
 }
 
-/// A new, empty stack node near (x, y). Unnamed (`name` None) it shows its
-/// first page's title and vanishes when emptied; named it persists.
 pub fn new_stack_node(
     x: f64,
     y: f64,

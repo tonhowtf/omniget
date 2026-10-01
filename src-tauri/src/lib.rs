@@ -244,8 +244,6 @@ pub struct AppState {
     pub llm: Arc<llm_manager::LlmManager>,
 }
 
-/// Whether this start shows no window (3.2): `--background`, "start in
-/// tray only", or a start at login with agents in the background.
 fn launched_hidden(app: &tauri::AppHandle) -> bool {
     let s = storage::config::load_settings(app);
     let args: Vec<String> = std::env::args().collect();
@@ -254,11 +252,8 @@ fn launched_hidden(app: &tauri::AppHandle) -> bool {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    // Console log plus the ring buffer Report a Problem reads.
     canvas::diagnostics::init_tracing();
 
-    // Emitido antes do single-instance poder sair em silencio: ver
-    // core::portable::startup_banner.
     tracing::info!(
         "{}",
         core::portable::startup_banner(
@@ -268,7 +263,6 @@ pub fn run() {
             core::paths::app_data_dir().as_deref(),
         )
     );
-    // Set by `main.rs` when a debug build moved itself off the real profile.
     #[cfg(debug_assertions)]
     if std::env::var("OMNIGET_DEV_PROFILE").ok().as_deref() == Some("1") {
         tracing::info!(
@@ -281,8 +275,6 @@ pub fn run() {
     }
 
     let mut registry = core::registry::PlatformRegistry::new();
-    // gallery-dl first: it claims bulk-listing URLs (profiles, subreddits)
-    // that the single-post Twitter/Reddit downloaders would otherwise match
     registry.register(Arc::new(platforms::gallerydl::GalleryDlDownloader::new()));
     registry.register(Arc::new(omniget_core::platforms::InstagramDownloader::new()));
     registry.register(Arc::new(omniget_core::platforms::ThreadsDownloader::new()));
@@ -324,9 +316,6 @@ pub fn run() {
         llm: Arc::new(llm_manager::LlmManager::new()),
     };
 
-    // A second profile (`OMNIGET_DATA_DIR` set by hand or by the debug-build dev
-    // profile in `main.rs`, not by portable mode) is its own app: own settings,
-    // own bridge port, no single-instance lock.
     let second_profile = std::env::var_os("OMNIGET_DATA_DIR").is_some()
         && std::env::var("OMNIGET_PORTABLE").ok().as_deref() != Some("1");
     let builder = tauri::Builder::default();
@@ -356,8 +345,6 @@ pub fn run() {
                 .iter()
                 .any(|a| a == omniget_core::core::app_launch::BACKGROUND_FLAG)
             {
-                // A CLI that starts the app in the background while it is
-                // already running must not pop its window up (3.2).
                 tray::show_window(app);
             }
         }))
@@ -383,35 +370,24 @@ pub fn run() {
         .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_autostart::init(
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
-            // The login item says it is one, so a start at login can stay
-            // hidden when the person runs agents in the background (3.2).
             Some(vec![omniget_core::core::app_launch::AUTOSTART_FLAG]),
         ))
         .setup(|app| {
             crate::agentkit_boot::spawn_ensure_shim();
-            // Terminals (Central and canvas): install the shared manager early
-            // so `term://` events flow before the first terminal command.
             crate::pty::manager().bind(app.handle());
             crate::canvas::chat::bind(app.handle());
             crate::portal::bind(app.handle());
             crate::canvas::routines::start(app.handle());
             crate::canvas::companion::start(app.handle());
             crate::canvas::power::start(app.handle());
-            // Spotlight: the canvas mirrored as .webloc items (macOS).
             crate::canvas::spotlight::start();
-            // Acesso remoto (opt-in): segundo listener só com /remote/*; nada roda desligado.
             tauri::async_runtime::spawn(crate::local_bridge_remote::boot(app.handle().clone()));
-            // Provider keys (and anything else the core stores) go through the
-            // app's store — keychain where the policy allows it — instead of
-            // the core's file default. Must run before any secret is read.
             omniget_core::core::secrets::install(std::sync::Arc::new(secrets::AppSecretStore));
-            // The /llm audit log (2.8) is open before any job or question.
             crate::llm_audit::boot(app.handle());
-            // The budget policies (3.3) too: a paused scope starts nothing.
             crate::llm_budget::boot(app.handle());
-            // `.omniget/workflow.md` (3.10): last good versions and trust.
             crate::job_workflow::boot();
 
+            // WHY: the main window is built here, not in tauri.conf.json, because only here can it get .data_directory() for WebView2.
             // A janela principal e criada aqui, e nao pelo `tauri.conf.json`
             // (`"create": false`), porque so daqui da para passar
             // `.data_directory(...)` ao WebView2. O Tauri resolve esse caminho
@@ -420,31 +396,14 @@ pub fn run() {
             // chega a ser lida — que e a causa da issue #195, o modo portatil
             // deixando uma pasta fora do diretorio do app.
             {
-                // `mut` so e usado no ramo Windows abaixo; sem o cfg_attr isto
-                // vira warning novo em macOS e Linux e reprova o portao de clippy.
                 #[cfg_attr(not(any(windows, target_os = "linux")), allow(unused_mut))]
                 let mut builder = tauri::WebviewWindowBuilder::from_config(
                     app.handle(),
                     &app.config().app.windows[0],
                 )?;
 
-                // Nao e so Windows. No Linux o wry usa este caminho para
-                // `base_data_directory`, `base_cache_directory` e os cookies do
-                // WebKitGTK; sem ele o modo portatil deixa
-                // `XDG_DATA_HOME/wtf.tonho.omniget` no perfil do usuario — a
-                // mesma #209, fora do Windows. Foi o smoke test do B55 que
-                // pegou isso, na primeira vez que rodou.
-                //
-                // macOS fica de fora porque o wry nao le `data_directory` no
-                // WKWebView: incluir daria a impressao de cobrir um caso que
-                // nao esta coberto.
                 #[cfg(any(windows, target_os = "linux"))]
                 let webview_dir = core::portable::portable_webview_dir_from_env();
-                // The debug-build dev profile (`main.rs`) keeps the WebView's
-                // storage apart from the installed app's too; the other windows
-                // get it from `core::portable::with_dev_webview_dir`. macOS
-                // needs nothing: an unbundled dev binary already gets its own
-                // WebKit folder, named after the executable.
                 #[cfg(all(debug_assertions, any(windows, target_os = "linux")))]
                 let webview_dir = webview_dir.or_else(core::portable::dev_webview_dir_from_env);
                 #[cfg(any(windows, target_os = "linux"))]
@@ -464,14 +423,6 @@ pub fn run() {
                     }
                 }
 
-                // macOS nao tem para onde apontar: o wry nao le `data_directory`
-                // no WKWebView (nenhuma referencia em `src/wkwebview/`), ao
-                // contrario do webkitgtk, que a usa para base_data_directory,
-                // base_cache_directory e cookies.
-                //
-                // Entao o modo portatil nao cumpre o que promete aqui, e dizer
-                // isso e melhor do que deixar o usuario achar que o pendrive nao
-                // deixou rastro. Issue #227.
                 #[cfg(target_os = "macos")]
                 if core::portable::portable_webview_dir_from_env().is_some() {
                     tracing::warn!(
@@ -480,21 +431,12 @@ pub fn run() {
                     );
                 }
 
-                // Started hidden (3.2): `--background` from the CLI, or a
-                // start at login with agents in the background. The window
-                // is born invisible instead of flashing and hiding.
                 let builder = builder.visible(!launched_hidden(app.handle()));
                 builder.build()?;
 
-                // A unica prova de que a janela subiu. O CI compila em todas as
-                // plataformas mas nunca abriu o app: foi assim que a #209 passou
-                // batido. O smoke test do CI casa exatamente esta linha.
                 tracing::info!("[startup] main window created");
             }
 
-            // Modo smoke: sobe, prova que a janela existe, e sai sozinho com 0.
-            // So existe para o CI conseguir responder "abre?", que e a pergunta
-            // que compilar nunca responde.
             if let Ok(raw) = std::env::var("OMNIGET_SMOKE_EXIT_MS") {
                 if let Ok(ms) = raw.trim().parse::<u64>() {
                     let handle = app.handle().clone();
@@ -506,7 +448,6 @@ pub fn run() {
                 }
             }
 
-            // The pet survives restarts when the user left it on.
             if commands::pet::load_prefs().enabled {
                 let handle = app.handle().clone();
                 tauri::async_runtime::spawn(async move {
@@ -516,7 +457,6 @@ pub fn run() {
                 });
             }
 
-            // So does the limits strip; off by default, and then this is a no-op.
             limits_strip::commands::restore(app.handle());
 
             {
@@ -528,8 +468,6 @@ pub fn run() {
                     },
                 ));
             }
-            // The one owner of settings.json: opened (and its profile lock
-            // taken) before anything reads or writes the settings.
             let settings = storage::settings_repository::global().settings();
             core::http_client::init_proxy(settings.proxy.clone());
             core::http_fetcher::set_global_max_concurrent_segments(
@@ -690,16 +628,9 @@ pub fn run() {
                 }
                 let app_handle = app.handle().clone();
                 omniget_core::core::log_hook::set_log_sink(std::sync::Arc::new(move |id, line| {
-                    // B33: caixa-preta. Toda linha de log de download passa por
-                    // aqui, e o `record` redige antes de guardar — e o unico
-                    // ponto onde da para capturar o historico sem instrumentar
-                    // cada chamada uma por uma.
                     let line = core::flight_recorder::redact(line);
                     let should_emit = core::download_log::push_line(id, &line);
                     if should_emit {
-                        // A linha vai junto para o card mostrar "a última
-                        // coisa que o yt-dlp disse" sem pedir o log inteiro
-                        // a cada evento.
                         let _ = tauri::Emitter::emit(
                             &app_handle,
                             "download-log-update",
@@ -759,8 +690,6 @@ pub fn run() {
                     for url in event.urls() {
                         let raw = url.to_string();
                         let handle = app_handle.clone();
-                        // Sign in with OpenRouter (PKCE) comes back on the same
-                        // scheme; it is a key exchange, not a media URL.
                         if raw.starts_with("omniget://openrouter-auth") {
                             let code = url
                                 .query_pairs()
@@ -789,11 +718,9 @@ pub fn run() {
                             });
                             continue;
                         }
-                        // Spotlight results and canvas links: open the node.
                         if crate::canvas::spotlight::open_link(&handle, &raw) {
                             continue;
                         }
-                        // links in notes exported by /video: open the player there
                         if raw.starts_with("omniget://watch") {
                             use tauri::Emitter;
                             let q: std::collections::HashMap<String, String> =
@@ -818,10 +745,6 @@ pub fn run() {
                     }
                 });
             }
-            // Make sure the OS routes `omniget://` to this binary even when the
-            // package didn't ship a desktop file with `MimeType=x-scheme-handler/omniget;`
-            // or when the user is running from an AppImage / unpacked build.
-            // No-op on macOS (which uses Info.plist registered by the bundler).
             #[cfg(any(target_os = "linux", target_os = "windows"))]
             {
                 if let Err(error) = app.deep_link().register_all() {
@@ -831,21 +754,10 @@ pub fn run() {
             tray::setup(app.handle())?;
             usage_tray::setup(app.handle());
             hotkey::register_from_settings(app.handle());
-            // From here on, confirmed settings changes reach the running app
-            // through the effects registry (after the boot code above
-            // applied the loaded settings).
             storage::settings_effects::install(app.handle().clone());
 
-            // Migration: drop the manifests / binary copies the previous
-            // native-messaging code left under `~/.config/...` so Chrome and
-            // Firefox stop trying to start the legacy host process.
             extension_storage::cleanup_legacy_native_messaging();
 
-            // Cookie Manager: reparticiona `chrome-extension-cookies.txt` legacy em
-            // `cookies/<domain>/_default.txt` (CK-1). Quando o registry já tem
-            // buckets, a migration vira no-op. Após migration bem-sucedida, o
-            // arquivo legacy é deletado — a partir de CK-7b o multi-file é a
-            // única fonte de verdade.
             if !cookies::storage::has_been_migrated() {
                 match cookies::migrate_legacy_if_needed() {
                     Ok(_) => {
@@ -863,8 +775,6 @@ pub fn run() {
                     Err(err) => tracing::warn!("cookies: legacy migration skipped: {err}"),
                 }
             } else {
-                // Registry já populado — significa migration anterior já rolou; se
-                // o legacy ainda existe (instalação intermediária), remove agora.
                 let legacy = extension_storage::extension_cookie_file_path();
                 if legacy.exists() {
                     if let Err(err) = std::fs::remove_file(&legacy) {
@@ -877,10 +787,6 @@ pub fn run() {
                 }
             }
 
-            // Start the localhost HTTP bridge for the browser extension. This
-            // replaces the previous Chrome native-messaging path, which forced
-            // us to maintain a hard-coded extension-ID allowlist. Bridge auth
-            // is via a per-installation token shown in the Settings UI.
             {
                 let app_handle = app.handle().clone();
                 tauri::async_runtime::spawn(async move {
@@ -897,8 +803,6 @@ pub fn run() {
                         .build()
                         .expect("startup runtime");
                     rt.block_on(async {
-                        // Garante o yt-dlp (zipapp quando há Python, senão o
-                        // onefile) antes do primeiro download pedir por ele.
                         if let Err(e) = core::ytdlp::ensure_ytdlp().await {
                             tracing::warn!("yt-dlp not available at startup: {}", e);
                         }
@@ -907,11 +811,6 @@ pub fn run() {
                             core::ytdlp::cleanup_stale_pyinstaller_dirs,
                         )
                         .await;
-                        // O `--update-to` é um bootstrap inteiro do yt-dlp
-                        // mais rede, e trocar o binário com download ativo
-                        // quebra o processo (B2). Espera o app assentar e só
-                        // roda sem yt-dlp em andamento; se a fila está cheia,
-                        // tenta de novo a cada 5 min por até uma hora.
                         tokio::time::sleep(std::time::Duration::from_secs(45)).await;
                         for _ in 0..12 {
                             let Some(ytdlp) = core::ytdlp::find_ytdlp_cached().await else {
@@ -960,7 +859,6 @@ pub fn run() {
                 if let Some(window) = app.get_webview_window("main") {
                     let _ = window.hide();
                 }
-                // Nobody saw this start: the audit log says who asked for it.
                 let args: Vec<String> = std::env::args().collect();
                 let has = |flag: &str| args.iter().any(|a| a == flag);
                 crate::llm_audit::app_started_hidden(
@@ -973,8 +871,6 @@ pub fn run() {
                     },
                 );
             }
-            // Where this app lives, for the CLI that starts it when it is not
-            // running (3.2).
             if let Some(dir) = omniget_core::core::paths::app_data_dir() {
                 if let Some(launch) = omniget_core::core::app_launch::current(hidden) {
                     if let Err(e) = omniget_core::core::app_launch::record_in(&dir, &launch) {
@@ -989,8 +885,6 @@ pub fn run() {
             tauri::WindowEvent::CloseRequested { api, .. } if window.label() == "main" => {
                 api.prevent_close();
                 let s = storage::config::load_settings(window.app_handle());
-                // Agents in the background (3.2) keep the app in the tray:
-                // closing the window must not stop their jobs.
                 if s.exit_on_close && !s.run_in_background {
                     tray::request_quit(window.app_handle());
                 } else {
@@ -1607,13 +1501,9 @@ pub fn run() {
             commands::app_lifecycle::force_exit_app,
             commands::app_lifecycle::get_debug_info,
             commands::app_lifecycle::get_portable_info,
-            // Fase 1 (perfil local) — f1-perfil-core
             commands::profile::profile_get,
             commands::profile::profile_set_nickname,
             commands::profile::profile_set_skin,
-            // Fase 6 (bench do mundo) — f6-bench
-            // Fase 2 (/llm) — f2-llm-commands, f2-wire-probe; Fase 5 (pet) — f5-pet-window
-            // central:begin (costurado pelo orquestrador; não editar à mão)
             commands::central::agentkit::agentkit_targets,
             commands::central::agentkit::agentkit_detect,
             commands::central::agentkit::agentkit_parse_preview,
@@ -1800,7 +1690,6 @@ pub fn run() {
             commands::central::run::run_sandbox_diff,
             commands::central::run::run_sandbox_apply,
             commands::central::run::run_sandbox_discard,
-            // central:end
             commands::llm::roster::llm_roster_list,
             commands::llm::roster::llm_roster_create,
             commands::llm::roster::llm_roster_update,
@@ -1891,7 +1780,6 @@ pub fn run() {
             usage_tray::usage_tray_sync_strings,
             usage_tray::usage_tray_sync_strings,
             commands::llm::keys::tool_ai_keys_openrouter_pkce,
-            // Rodada 3: Fase 3 (MCP, skills) e Fase 4 (contas)
             commands::llm::mcp::llm_mcp_list,
             commands::llm::mcp::llm_mcp_upsert,
             commands::llm::mcp::llm_mcp_remove,
@@ -1920,8 +1808,6 @@ pub fn run() {
             commands::llm::accounts::llm_accounts_activate,
             commands::llm::accounts::llm_accounts_set_chain,
             commands::llm::accounts::llm_accounts_rotation,
-            // Mundo: a cidade
-            // canvas: stitched from handoffs (begin)
             commands::canvas::doc::canvas_workspaces,
             commands::canvas::doc::canvas_workspace_create,
             commands::canvas::doc::canvas_workspace_update,
@@ -2061,7 +1947,6 @@ pub fn run() {
             commands::canvas::remote::canvas_visit_chat,
             commands::canvas::remote::canvas_visit_react,
             commands::canvas::remote::canvas_visit_refresh,
-            // parity-gaps
             commands::canvas::workspace_io::canvas_workspace_export,
             commands::canvas::workspace_io::canvas_workspace_import_preview,
             commands::canvas::workspace_io::canvas_workspace_import,
@@ -2104,8 +1989,6 @@ pub fn run() {
             commands::canvas::floors::canvas_skills_info,
             commands::central::remote::remote_private_only_set,
             canvas::diagnostics::canvas_report_problem,
-            // canvas: stitched from handoffs (end)
-            // assist:begin
             commands::assist::memory::assist_memory_list,
             commands::assist::memory::assist_memory_scopes,
             commands::assist::memory::assist_memory_history,
@@ -2190,8 +2073,6 @@ pub fn run() {
             commands::assist::groups::assist_group_share,
             commands::assist::groups::assist_group_unshare,
             commands::assist::groups::assist_conversation_context,
-            // assist:end
-            // missions:start (autonomy: missions, learning, packs)
             commands::assist::missions::assist_mission_list,
             commands::assist::missions::assist_mission_get,
             commands::assist::missions::assist_mission_create,
@@ -2238,23 +2119,15 @@ pub fn run() {
             commands::assist::packs::assist_packs_agent_to_bot,
             commands::llm::keys::tool_mcp_execution_grant_revoke,
             commands::llm::keys::tool_mcp_execution_grants_list,
-            // missions:end
         ]))
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
         .run(|app_handle, event| {
             if let tauri::RunEvent::ExitRequested { .. } = &event {
-                // Game mode never outlives OmniGet (Windows power plan,
-                // priorities, screen kept awake).
                 omniget_core::core::washmybelly::game::shutdown();
-                // The optional mihomo core of /telegram dies with the app.
                 omniget_core::core::telegram::net::mihomo::shutdown();
-                // The managed llama-server dies with the app (phase 2).
                 tauri::async_runtime::block_on(omniget_core::core::llm::local_servers::stop());
-                // Central: terminal shells and the CLI driver sessions of the
-                // threads die with the app too (bounded, never blocks exit).
                 crate::pty::manager().shutdown_all();
-                // Canvas: debounced document saves reach the disk before exit.
                 crate::canvas::doc::flush_on_exit();
                 tauri::async_runtime::block_on(async {
                     let _ = tokio::time::timeout(

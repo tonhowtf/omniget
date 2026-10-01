@@ -1,12 +1,8 @@
-//! Text the macOS tools print, read into plain structs. Pure functions,
-//! compiled and tested on every system.
-
 use std::collections::BTreeSet;
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-/// What an app bundle's `Info.plist` tells us.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct BundleInfo {
     pub bundle_id: Option<String>,
@@ -33,7 +29,6 @@ pub fn bundle_info(v: &Value) -> BundleInfo {
     }
 }
 
-/// Letters and digits in lower case ("Visual Studio Code" → "visualstudiocode").
 pub fn normalize(s: &str) -> String {
     s.chars()
         .filter(|c| c.is_alphanumeric())
@@ -41,8 +36,6 @@ pub fn normalize(s: &str) -> String {
         .collect()
 }
 
-/// `8-4-4-4-12` hex, the name of a sandbox container macOS created for an
-/// app it did not name after its bundle id.
 pub fn is_uuid(name: &str) -> bool {
     let b = name.as_bytes();
     b.len() == 36
@@ -52,8 +45,6 @@ pub fn is_uuid(name: &str) -> bool {
         })
 }
 
-/// A reverse-DNS id we are willing to act on: at least two parts, only
-/// letters, digits, `.`, `-` and `_`.
 pub fn valid_bundle_id(id: &str) -> bool {
     id.len() >= 5
         && id.len() <= 255
@@ -66,8 +57,6 @@ pub fn valid_bundle_id(id: &str) -> bool {
             .all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '-' | '_'))
 }
 
-/// A launchd label or pkg id that is safe to hand to `launchctl`/`pkgutil`
-/// as one argument (`^[A-Za-z0-9._-]+$`, not starting with `-`).
 pub fn valid_label(id: &str) -> bool {
     !id.is_empty()
         && id.len() <= 255
@@ -77,7 +66,6 @@ pub fn valid_label(id: &str) -> bool {
             .all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '-' | '_'))
 }
 
-/// A Homebrew token (`firefox`, `visual-studio-code`, `python@3.14`).
 pub fn valid_brew_token(t: &str) -> bool {
     !t.is_empty()
         && t.len() <= 128
@@ -91,28 +79,20 @@ pub fn is_apple(id: &str) -> bool {
     id.to_ascii_lowercase().starts_with("com.apple.")
 }
 
-/// Whether `name` (a file or folder name) belongs to `id` by lineage:
-/// the id itself, or the id followed by a dot (`com.foo.app.plist`,
-/// `com.foo.app.savedState`, `com.foo.app.helper`). Case-insensitive.
 pub fn lineage(name: &str, id: &str) -> bool {
     let n = name.to_ascii_lowercase();
     let i = id.to_ascii_lowercase();
     n == i || (n.len() > i.len() && n.starts_with(&i) && n.as_bytes()[i.len()] == b'.')
 }
 
-// ── codesign ─────────────────────────────────────────────────────────
-
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct Signature {
     pub identifier: Option<String>,
     pub team_id: Option<String>,
-    /// The developer's name from `Developer ID Application: <name> (<team>)`.
     pub developer: Option<String>,
-    /// Signed by the Mac App Store.
     pub app_store: bool,
 }
 
-/// `codesign -dv --verbose=2 -- <app>` writes its report to stderr.
 pub fn codesign(stderr: &str) -> Signature {
     let mut sig = Signature::default();
     for line in stderr.lines() {
@@ -145,7 +125,6 @@ pub fn codesign(stderr: &str) -> Signature {
     sig
 }
 
-/// App groups from `codesign -d --entitlements - --xml -- <app>` (stdout).
 pub fn app_groups(entitlements: &Value) -> Vec<String> {
     entitlements
         .get("com.apple.security.application-groups")
@@ -159,12 +138,6 @@ pub fn app_groups(entitlements: &Value) -> Vec<String> {
         .unwrap_or_default()
 }
 
-// ── mdls ─────────────────────────────────────────────────────────────
-
-/// `mdls -raw -name <one attribute> -- p1 p2 ...`: one value per path,
-/// separated by NUL, `(null)` when unset. Returns `None` when the count
-/// does not match (an error line broke the alignment): better no dates than
-/// dates on the wrong apps.
 pub fn mdls_dates(out: &[u8], expected: usize) -> Option<Vec<Option<i64>>> {
     let text = String::from_utf8_lossy(out);
     let parts: Vec<&str> = text.split('\0').collect();
@@ -179,7 +152,6 @@ pub fn mdls_dates(out: &[u8], expected: usize) -> Option<Vec<Option<i64>>> {
     Some(parts.iter().map(|s| mdls_date(s)).collect())
 }
 
-/// `2026-07-15 16:02:16 +0000` → Unix seconds.
 pub fn mdls_date(s: &str) -> Option<i64> {
     let s = s.trim();
     if s.is_empty() || s == "(null)" {
@@ -190,9 +162,6 @@ pub fn mdls_date(s: &str) -> Option<i64> {
         .map(|d| d.timestamp())
 }
 
-// ── Homebrew ─────────────────────────────────────────────────────────
-
-/// One installed cask from `brew info --cask --json=v2 --installed`.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct Cask {
     pub token: String,
@@ -200,12 +169,8 @@ pub struct Cask {
     pub name: Option<String>,
     pub installed: Option<String>,
     pub installed_time: Option<i64>,
-    /// App bundles it installs: the target path when brew gives one, else
-    /// just the bundle's file name (`Firefox.app`).
     pub apps: Vec<String>,
-    /// What `--zap` removes, one line per stanza entry (`trash: ~/Library/...`).
     pub zap: Vec<String>,
-    /// Launchd labels the cask's own uninstall stops.
     pub launchctl: Vec<String>,
 }
 
@@ -288,8 +253,6 @@ pub fn brew_casks(json: &str) -> Result<Vec<Cask>, String> {
     Ok(out)
 }
 
-/// `brew list --cask --versions` / `brew list --formula --versions`:
-/// `token v1 [v2...]` per line → (token, newest listed version).
 pub fn brew_versions(text: &str) -> Vec<(String, Option<String>)> {
     text.lines()
         .filter_map(|l| {
@@ -300,12 +263,9 @@ pub fn brew_versions(text: &str) -> Vec<(String, Option<String>)> {
         .collect()
 }
 
-/// The file name of a cask app artifact (`/Applications/Firefox.app` → `Firefox.app`).
 pub fn artifact_file_name(a: &str) -> &str {
     a.trim_end_matches('/').rsplit('/').next().unwrap_or(a)
 }
-
-// ── pkgutil ──────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct PkgInfo {
@@ -317,7 +277,6 @@ pub struct PkgInfo {
 }
 
 impl PkgInfo {
-    /// The folder the receipt's relative paths start from.
     pub fn prefix(&self) -> std::path::PathBuf {
         let mut p = std::path::PathBuf::from(if self.volume.is_empty() {
             "/"
@@ -332,7 +291,6 @@ impl PkgInfo {
     }
 }
 
-/// `pkgutil --pkg-info-plist <id>`.
 pub fn pkg_info(v: &Value) -> Option<PkgInfo> {
     let s = |k: &str| v.get(k).and_then(Value::as_str).map(String::from);
     Some(PkgInfo {
@@ -344,7 +302,6 @@ pub fn pkg_info(v: &Value) -> Option<PkgInfo> {
     })
 }
 
-/// `pkgutil --pkgs`, without Apple's own receipts.
 pub fn third_party_pkgs(text: &str) -> Vec<String> {
     text.lines()
         .map(str::trim)
@@ -353,7 +310,6 @@ pub fn third_party_pkgs(text: &str) -> Vec<String> {
         .collect()
 }
 
-/// Extensions of bundles a receipt lists file by file; we remove the bundle.
 const BUNDLE_EXT: &[&str] = &[
     "app",
     "framework",
@@ -382,10 +338,6 @@ fn is_bundle(component: &str) -> bool {
     })
 }
 
-/// Turn `pkgutil --files` (relative paths) into what to remove: the
-/// shallowest bundle for anything inside one, and plain files otherwise.
-/// Folders are never listed: they are usually shared (`Library`,
-/// `usr/local/bin`). `is_dir` tells folders apart (from `--only-dirs`).
 pub fn collapse_receipt(files: &str, is_dir: &dyn Fn(&str) -> bool) -> Vec<String> {
     let mut out = BTreeSet::new();
     for raw in files.lines() {
@@ -400,7 +352,6 @@ pub fn collapse_receipt(files: &str, is_dir: &dyn Fn(&str) -> bool) -> Vec<Strin
             out.insert(p.to_string());
         }
     }
-    // Drop entries inside another kept entry.
     let all: Vec<String> = out.into_iter().collect();
     all.iter()
         .filter(|p| {
@@ -410,8 +361,6 @@ pub fn collapse_receipt(files: &str, is_dir: &dyn Fn(&str) -> bool) -> Vec<Strin
         .cloned()
         .collect()
 }
-
-// ── launchd ──────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct LaunchJob {
@@ -440,9 +389,6 @@ pub fn launch_job(v: &Value) -> LaunchJob {
     }
 }
 
-// ── Container metadata ───────────────────────────────────────────────
-
-/// `MCMMetadataIdentifier` of `.com.apple.containermanagerd.metadata.plist`.
 pub fn container_owner(v: &Value) -> Option<String> {
     v.get("MCMMetadataIdentifier")
         .and_then(Value::as_str)

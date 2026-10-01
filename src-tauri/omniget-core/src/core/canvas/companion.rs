@@ -1,21 +1,3 @@
-//! Omni as a companion (the Maestri "Ombro", study 95 §1): it watches the
-//! canvas agents and, when one of them finishes real work, gets blocked or
-//! fails, writes a short summary of what happened plus three next steps.
-//!
-//! Everything here is pure or plain HTTP so the app side stays thin:
-//! - [`Tracker`]: the trigger. A node fires `done` only after at least
-//!   `min_work_secs` of real work (thinking/working/compacting), `blocked`
-//!   once per blocked episode, `failed` once per failure. This is also the
-//!   celebration threshold (study 97: never celebrate a two-second turn).
-//! - [`clean_screen`]: what the model gets to read from the terminal.
-//! - [`prompt`], [`parse_reply`]: the structured summary (one JSON object).
-//! - [`heuristic`]: the summary with no model at all.
-//! - [`ollama_generate`]: the local model, cheapest one installed.
-//!
-//! The app (`src-tauri/src/canvas/companion.rs`) feeds the tracker from
-//! `term://state`, chooses the model (local first, then the configured cheap
-//! agent, then the heuristic) and emits `canvas://companion`.
-
 use std::collections::HashMap;
 use std::time::Duration;
 
@@ -31,18 +13,12 @@ pub const SCREEN_MAX_CHARS: usize = 4_000;
 pub const DEFAULT_OLLAMA_URL: &str = "http://127.0.0.1:11434";
 const OLLAMA_TIMEOUT: Duration = Duration::from_secs(45);
 
-// ---------------------------------------------------------------- model
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum CompanionKind {
-    /// Finished a turn after real work.
     Done,
-    /// Waiting for the human (permission, question).
     Blocked,
-    /// The turn or the process failed.
     Failed,
-    /// Asked for by the user (the panel's "Ask Omni" button).
     Manual,
 }
 
@@ -57,19 +33,13 @@ impl CompanionKind {
     }
 }
 
-/// How the summary is produced.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ModelMode {
-    /// Local (Ollama) first, then the cheap agent when one is configured,
-    /// then the heuristic.
     #[default]
     Auto,
-    /// Only the local model (heuristic when it is not running).
     Local,
-    /// Only the configured cheap agent (heuristic on failure).
     Cheap,
-    /// Never call a model.
     Heuristic,
 }
 
@@ -77,28 +47,17 @@ pub enum ModelMode {
 #[serde(rename_all = "camelCase", default)]
 pub struct CompanionSettings {
     pub enabled: bool,
-    /// Seconds of real work before a finished turn is worth a summary (and
-    /// a celebration).
     pub min_work_secs: u64,
     pub model_mode: ModelMode,
     pub ollama_url: String,
-    /// Pinned Ollama model; `None` = the smallest installed chat model.
     pub ollama_model: Option<String>,
-    /// Roster agent whose side model (its cheapest) is the fallback. `None`
-    /// = no paid fallback in `auto`; in `cheap` the first roster agent.
     pub cheap_agent_id: Option<String>,
-    /// Show the summary in the floating pet's balloon.
     pub pet_balloon: bool,
     pub on_done: bool,
     pub on_blocked: bool,
     pub on_failed: bool,
-    /// UI language of the summaries (`en`, `pt`, ...). The front sets it.
     pub language: Option<String>,
-    /// With no local model, ask an installed agent CLI headless on its
-    /// cheapest model (no tools, short timeout).
     pub cli_fallback: bool,
-    /// `claude`, `codex` or `gemini`; `None` = the CLI already used on the
-    /// canvas (else the first installed).
     pub cli_agent: Option<String>,
 }
 
@@ -123,7 +82,6 @@ impl Default for CompanionSettings {
 }
 
 impl CompanionSettings {
-    /// Clamps what the UI may send.
     pub fn sanitized(mut self) -> Self {
         self.min_work_secs = self.min_work_secs.clamp(5, 3_600);
         if self.ollama_url.trim().is_empty() {
@@ -159,7 +117,6 @@ impl CompanionSettings {
     }
 }
 
-/// One thing Omni said about one node.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CompanionEntry {
@@ -168,42 +125,30 @@ pub struct CompanionEntry {
     pub workspace_id: String,
     pub floor_id: String,
     pub terminal_id: String,
-    /// Node name as the canvas shows it.
     pub name: String,
     pub agent: String,
     pub kind: CompanionKind,
     pub summary: String,
-    /// Exactly three instructions the user can send to the agent.
     pub suggestions: Vec<String>,
-    /// A direct command (shells) or prompt, when the model gave one.
     #[serde(default)]
     pub command: Option<String>,
-    /// `ollama:<model>`, `llm:<model>` or `heuristic`.
     pub source: String,
     pub at_ms: i64,
     pub worked_ms: i64,
-    /// Finished after at least the work threshold: the pet may celebrate.
     pub celebrate: bool,
     #[serde(default)]
     pub dismissed: bool,
-    /// Heuristic entries (no model): i18n keys and values of the summary and
-    /// the suggestions, so every window shows them in its own language and
-    /// follows a language change live. `{summary: {key, vars}, suggestions: [key]}`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub i18n: Option<Value>,
 }
 
-/// What the model (or the heuristic) produced.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Summary {
     pub summary: String,
     pub suggestions: Vec<String>,
     pub command: Option<String>,
-    /// Set by [`heuristic`]: the i18n keys behind the text.
     pub i18n: Option<Value>,
 }
-
-// ---------------------------------------------------------------- trigger
 
 #[derive(Debug, Clone, Default)]
 struct Track {
@@ -212,7 +157,6 @@ struct Track {
     fired_blocked: bool,
 }
 
-/// Busy states: real work is going on.
 pub fn is_working(s: AgentState) -> bool {
     matches!(
         s,
@@ -220,7 +164,6 @@ pub fn is_working(s: AgentState) -> bool {
     )
 }
 
-/// Per-terminal state machine that decides when Omni speaks.
 #[derive(Debug, Default)]
 pub struct Tracker {
     nodes: HashMap<String, Track>,
@@ -231,8 +174,6 @@ impl Tracker {
         Self::default()
     }
 
-    /// Feeds one state change. Returns `(kind, worked_ms)` when Omni should
-    /// speak about `key`.
     pub fn observe(
         &mut self,
         key: &str,
@@ -252,7 +193,6 @@ impl Tracker {
                 t.fired_blocked = false;
                 None
             }
-            // Waiting on another agent is still the same piece of work.
             AgentState::WaitingPeer => None,
             AgentState::Blocked => {
                 if t.fired_blocked {
@@ -282,14 +222,11 @@ impl Tracker {
     }
 }
 
-// ---------------------------------------------------------------- screen
-
 fn is_chrome(line: &str) -> bool {
     let t = line.trim();
     if t.is_empty() {
         return true;
     }
-    // Box drawing and rules only.
     if t.chars().all(|c| {
         matches!(
             c,
@@ -316,8 +253,6 @@ fn is_chrome(line: &str) -> bool {
     }) {
         return true;
     }
-    // Status footers and warnings of the agent TUIs (Claude Code: "⚠ …",
-    // "⏵⏵ auto mode on", "✻ Brewed for 3s"); an empty prompt line.
     if t.starts_with(['⚠', '⏵', '✻', '✽', '✢', '·']) || t == "❯" || t == ">" {
         return true;
     }
@@ -342,8 +277,6 @@ fn strip_frame(line: &str) -> String {
         .to_string()
 }
 
-/// The last meaningful lines of a terminal screen, capped for a small
-/// model: prompt chrome, rules and repeated lines dropped.
 pub fn clean_screen(text: &str, max_chars: usize) -> String {
     let mut out: Vec<String> = Vec::new();
     for raw in text.lines() {
@@ -380,8 +313,6 @@ fn clip(s: &str, max: usize) -> String {
     out
 }
 
-// ---------------------------------------------------------------- prompt
-
 pub fn is_shell(agent: &str) -> bool {
     matches!(agent, "shell" | "" | "bash" | "zsh" | "fish" | "pwsh")
 }
@@ -406,7 +337,6 @@ fn language_name(lang: Option<&str>) -> &'static str {
     }
 }
 
-/// System and user messages for the structured summary.
 pub fn prompt(
     kind: CompanionKind,
     name: &str,
@@ -456,7 +386,6 @@ pub fn human_duration(ms: i64) -> String {
     }
 }
 
-/// First balanced `{...}` of a reply (models wrap JSON in prose or fences).
 fn first_object(text: &str) -> Option<&str> {
     let start = text.find('{')?;
     let mut depth = 0i32;
@@ -487,8 +416,6 @@ fn first_object(text: &str) -> Option<&str> {
     None
 }
 
-/// Parses the model's JSON. `None` when it has no usable summary; missing
-/// suggestions are topped up from `fallback`.
 pub fn parse_reply(text: &str, fallback: &Summary) -> Option<Summary> {
     let v: Value = serde_json::from_str(first_object(text)?).ok()?;
     let summary = clip(v["summary"].as_str()?.trim(), SUMMARY_MAX_CHARS);
@@ -527,14 +454,10 @@ pub fn parse_reply(text: &str, fallback: &Summary) -> Option<Summary> {
     })
 }
 
-// ---------------------------------------------------------------- heuristic
-
 fn pt(lang: Option<&str>) -> bool {
     lang.is_some_and(|l| l.starts_with("pt"))
 }
 
-/// Words that mark an error on a terminal screen (any language the agents
-/// print in).
 const ERROR_MARKERS: &[&str] = &[
     "error",
     "failed",
@@ -552,9 +475,6 @@ const ERROR_MARKERS: &[&str] = &[
     "segmentation fault",
 ];
 
-/// A "failed" state with no error anywhere near the end of the screen is a
-/// program that stopped (a non-zero exit of a REPL, a Ctrl-C), not an
-/// error: Omni says it finished instead of inventing one.
 pub fn refine_kind(kind: CompanionKind, screen: &str) -> CompanionKind {
     if kind != CompanionKind::Failed {
         return kind;
@@ -573,8 +493,6 @@ pub fn refine_kind(kind: CompanionKind, screen: &str) -> CompanionKind {
     }
 }
 
-/// The last command typed at a shell prompt on the screen (`$ cmd`, `% cmd`,
-/// `> cmd`, `❯ cmd`), if one is visible.
 pub fn last_command(screen: &str) -> Option<String> {
     screen.lines().rev().find_map(|l| {
         let l = l.trim_end();
@@ -590,9 +508,6 @@ pub fn last_command(screen: &str) -> Option<String> {
     })
 }
 
-/// The summary with no model: the last meaningful line and steps that fit
-/// what is on the screen. Text in English or Portuguese here; `i18n` carries
-/// the keys so the windows show it in their own language.
 pub fn heuristic(
     kind: CompanionKind,
     name: &str,
@@ -632,7 +547,6 @@ pub fn heuristic(
     };
     let shell = is_shell(agent);
     let last_cmd = shell.then(|| last_command(screen)).flatten();
-    // (key, English, Portuguese); a shell's steps are commands, not prose.
     let steps: Vec<(String, String, String)> = if shell {
         let mut v: Vec<(String, String, String)> = Vec::new();
         if let Some(c) = &last_cmd {
@@ -732,9 +646,6 @@ pub fn heuristic(
     }
 }
 
-// ---------------------------------------------------------------- ollama
-
-/// Installed Ollama models as `(name, size_bytes)`, chat models only.
 pub async fn ollama_models(base: &str) -> Result<Vec<(String, u64)>, String> {
     let client = crate::core::tools::client().map_err(|e| e.to_string())?;
     let url = format!("{}/api/tags", base.trim_end_matches('/'));
@@ -766,7 +677,6 @@ pub async fn ollama_models(base: &str) -> Result<Vec<(String, u64)>, String> {
         .collect())
 }
 
-/// The pinned model when installed, else the smallest installed one.
 pub fn pick_model(models: &[(String, u64)], pinned: Option<&str>) -> Option<String> {
     if let Some(p) = pinned {
         if let Some((n, _)) = models
@@ -782,7 +692,6 @@ pub fn pick_model(models: &[(String, u64)], pinned: Option<&str>) -> Option<Stri
         .map(|(n, _)| n.clone())
 }
 
-/// One non-streaming chat call with JSON output. Returns `(model, text)`.
 pub async fn ollama_generate(
     base: &str,
     pinned: Option<&str>,
@@ -824,13 +733,9 @@ pub async fn ollama_generate(
     Ok((model, text))
 }
 
-// ---------------------------------------------------------------- agent CLI fallback
-
-/// Agent CLIs Omni may ask headless, cheapest model first.
 pub const CLI_AGENTS: &[&str] = &["claude", "codex", "gemini"];
 const CLI_TIMEOUT: Duration = Duration::from_secs(45);
 
-/// Label of the answer's source, e.g. "via Claude (Haiku)".
 pub fn cli_label(agent: &str) -> &'static str {
     match agent {
         "claude" => "via Claude (Haiku)",
@@ -840,8 +745,6 @@ pub fn cli_label(agent: &str) -> &'static str {
     }
 }
 
-/// The CLI to use: the pinned one, else the first of `used` (agents on the
-/// canvas) that is installed, else the first installed.
 pub fn pick_cli(pinned: Option<&str>, used: &[String]) -> Option<(String, std::path::PathBuf)> {
     use crate::core::clitools::exec::which;
     if let Some(p) = pinned {
@@ -854,9 +757,6 @@ pub fn pick_cli(pinned: Option<&str>, used: &[String]) -> Option<(String, std::p
         .find_map(|a| which(a).map(|b| (a.to_string(), b)))
 }
 
-/// Argument list of a headless, tool-less, cheapest-model call. The prompt
-/// goes on stdin (claude, codex) or as `-p` (gemini). `out` is the file codex
-/// writes its last message to.
 pub fn cli_args(agent: &str, system: &str, out: &std::path::Path, prompt: &str) -> Vec<String> {
     match agent {
         "claude" => vec![
@@ -893,7 +793,6 @@ pub fn cli_args(agent: &str, system: &str, out: &std::path::Path, prompt: &str) 
     }
 }
 
-/// Text of a CLI's answer from its stdout (claude: `{"result": ...}`).
 pub fn cli_text(agent: &str, stdout: &str) -> String {
     if agent == "claude" {
         if let Some(v) = first_object(stdout).and_then(|o| serde_json::from_str::<Value>(o).ok()) {
@@ -905,7 +804,6 @@ pub fn cli_text(agent: &str, stdout: &str) -> String {
     stdout.trim().to_string()
 }
 
-/// One headless call of an agent CLI. Returns `(source label, text)`.
 pub async fn cli_generate(
     agent: &str,
     bin: &std::path::Path,
@@ -969,27 +867,15 @@ pub async fn cli_generate(
     Ok((cli_label(agent).to_string(), text))
 }
 
-// ---------------------------------------------------------------- free questions
-
-/// Title of the note Omni keeps for "note that ..." requests.
 pub const OMNI_NOTES_TITLE: &str = "Omni Notes";
 
-/// What a free question to Omni asks for. Decided without a model.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AskIntent {
-    /// "anote que ...", "note that ...", "remember ...": append to Omni Notes.
     Note(String),
-    /// "resuma minhas notas", "summarize my notes".
     SummarizeNotes,
-    /// Anything else: answered from the canvas context.
     Free,
 }
 
-/// Classifies a question. Prefixes are matched case-insensitively, with the
-/// usual punctuation after them (`:`, `,`).
-/// Language of a question when it is clearly Portuguese (`Some("pt")`);
-/// `None` leaves the app language in charge. Omni answers in the language it
-/// was asked in, also for the replies written without a model.
 pub fn question_language(question: &str) -> Option<&'static str> {
     let low = format!(" {} ", question.to_lowercase());
     const PT: &[&str] = &[
@@ -1027,7 +913,6 @@ pub fn ask_intent(question: &str) -> AskIntent {
     ];
     for p in NOTE {
         if low.starts_with(p) {
-            // Byte offsets match: lowercasing ASCII prefixes keeps lengths.
             let rest = q
                 .get(p.len()..)
                 .unwrap_or("")
@@ -1046,7 +931,6 @@ pub fn ask_intent(question: &str) -> AskIntent {
     AskIntent::Free
 }
 
-/// A terminal as Omni sees it for a free question.
 #[derive(Debug, Clone, Default, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AskTerminal {
@@ -1054,13 +938,10 @@ pub struct AskTerminal {
     pub name: String,
     pub agent: String,
     pub floor: String,
-    /// Fused state (`working`, `needs_you`, `done`, `ready`, ...).
     pub state: String,
-    /// Cleaned last lines of the screen.
     pub screen: String,
 }
 
-/// A note as Omni sees it.
 #[derive(Debug, Clone, Default, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AskNote {
@@ -1082,7 +963,6 @@ fn clip_raw(s: &str, max: usize) -> String {
     out
 }
 
-/// The canvas as text for the model: terminals (state, last lines) and notes.
 pub fn ask_context(
     workspace: &str,
     terminals: &[AskTerminal],
@@ -1127,8 +1007,6 @@ pub fn ask_context(
     clip_raw(&out, max_chars)
 }
 
-/// System and user messages for a free question. The reply is one JSON
-/// object `{"answer": "...", "sources": ["<node id>", ...]}`.
 pub fn ask_prompt(question: &str, context: &str, lang: Option<&str>) -> (String, String) {
     let system = format!(
         "You are Omni, the companion of a canvas of coding agents and terminals. \
@@ -1141,7 +1019,6 @@ pub fn ask_prompt(question: &str, context: &str, lang: Option<&str>) -> (String,
     (system, user)
 }
 
-/// Parses the model's `{answer, sources}` (sources kept only when known).
 pub fn parse_answer(text: &str, known: &[String]) -> Option<(String, Vec<String>)> {
     let v: Value = first_object(text).and_then(|o| serde_json::from_str(o).ok())?;
     let answer = v["answer"].as_str()?.trim().to_string();
@@ -1178,10 +1055,6 @@ fn state_word(state: &str, pt: bool) -> &'static str {
     }
 }
 
-/// The answer with no model: who works, who needs you, their last line.
-/// `terminals` whose name appears in the question come first.
-/// Whether a lowercased question names `name` as a whole word ("B" is in
-/// "what is B doing", not in "about").
 pub fn mentions(question_lower: &str, name: &str) -> bool {
     let name = name.trim().to_lowercase();
     if name.is_empty() {
@@ -1230,7 +1103,6 @@ pub fn status_digest(question: &str, terminals: &[AskTerminal], lang: Option<&st
     lines.join("\n")
 }
 
-/// "Summarize my notes" with no model: one line per note.
 pub fn notes_digest(notes: &[AskNote], lang: Option<&str>) -> String {
     let pt = is_pt(lang);
     if notes.is_empty() {
@@ -1264,7 +1136,6 @@ pub fn notes_digest(notes: &[AskNote], lang: Option<&str>) -> String {
     out.join("\n")
 }
 
-/// The Omni Notes file with one more bullet (created with its heading).
 pub fn append_note(current: &str, item: &str) -> String {
     let item = item.trim().trim_end_matches('.');
     let bullet = format!("- {item}");

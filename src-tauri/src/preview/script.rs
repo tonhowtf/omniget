@@ -1,9 +1,3 @@
-//! JavaScript injected into the preview webview. The init script runs on every
-//! page load (main frame) and keeps a console ring and the element refs in
-//! page memory; nothing is sent to the host until a tool asks, except the URL
-//! of single-page navigations. Answers come back through the app command
-//! `preview_report` (Tauri IPC), keyed by a one-shot request id.
-
 use serde_json::Value;
 
 pub const INIT: &str = r#"(function () {
@@ -75,8 +69,6 @@ pub const INIT: &str = r#"(function () {
   });
 })();"#;
 
-/// Wraps a JS function expression so its (possibly async) result is sent back
-/// as `{ok, value}` / `{ok:false, error}` under `id`.
 pub fn wrap(id: &str, func: &str, args: &Value) -> String {
     let id = serde_json::to_string(id).unwrap_or_else(|_| "\"\"".into());
     let args = serde_json::to_string(args).unwrap_or_else(|_| "null".into());
@@ -97,8 +89,6 @@ pub fn wrap(id: &str, func: &str, args: &Value) -> String {
     )
 }
 
-/// Shared helpers: `find(selector)` (CSS, `e12` / `ref=e12` from the last
-/// snapshot, or `text=Label`) and `describe(el)`.
 pub(crate) const HELPERS: &str = r#"
   var P = window.__omnigetPreview || { refs: new Map() };
   function clean(s, n) { s = (s || '').replace(/\s+/g, ' ').trim(); return s.length > n ? s.slice(0, n) + '…' : s; }

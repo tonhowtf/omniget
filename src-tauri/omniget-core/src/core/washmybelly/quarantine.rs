@@ -1,15 +1,7 @@
-//! Our own quarantine: medium-risk files are renamed into
-//! `<app_data>/washmybelly/quarantine/<receipt>/<n>/<name>` and come back with
-//! one click until they expire (7 days by default).
-//!
-//! A rename only works on the same volume. For a file on another volume the
-//! quarantine falls back to the system Trash, which the receipt records.
-
 use std::path::{Path, PathBuf};
 
 use super::store::Ctx;
 
-/// Move `path` into the quarantine of `receipt_id`. Returns where it went.
 pub fn move_in(ctx: &Ctx, receipt_id: &str, index: usize, path: &Path) -> Result<PathBuf, String> {
     let name = path
         .file_name()
@@ -24,8 +16,6 @@ pub fn move_in(ctx: &Ctx, receipt_id: &str, index: usize, path: &Path) -> Result
     Ok(dest)
 }
 
-/// Put a quarantined path back. Refuses to overwrite: if something new sits
-/// at the original path, the person decides.
 pub fn restore(from: &Path, to: &Path) -> Result<(), String> {
     if std::fs::symlink_metadata(to).is_ok() {
         return Err(format!("EXISTS: {} is in use again", to.display()));
@@ -36,7 +26,6 @@ pub fn restore(from: &Path, to: &Path) -> Result<(), String> {
     std::fs::rename(from, to).map_err(|e| format!("{}: {e}", from.display()))
 }
 
-/// True when a rename between the two paths would cross volumes.
 pub fn same_volume(a: &Path, b: &Path) -> bool {
     #[cfg(unix)]
     {
@@ -64,7 +53,6 @@ pub fn same_volume(a: &Path, b: &Path) -> bool {
     }
 }
 
-/// Remove quarantined receipts older than `days`. Returns bytes freed.
 pub fn purge_expired(ctx: &Ctx, days: u32) -> u64 {
     let Ok(entries) = std::fs::read_dir(ctx.quarantine_dir()) else {
         return 0;

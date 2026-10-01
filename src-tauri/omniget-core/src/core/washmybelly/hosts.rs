@@ -1,27 +1,3 @@
-//! Tracker blocking through the system hosts file (F4).
-//!
-//! No server, driver or proxy: the system resolves names through `hosts`
-//! before it asks DNS, so pointing a domain at `0.0.0.0` stops the
-//! connection at the source.
-//!
-//! Hard rules, carried over from the old `hosts_block` tool:
-//!
-//! - **Nothing outside our block changes.** Everything OmniGet writes lives
-//!   between two markers; the text before and after them is kept byte for
-//!   byte (at most a missing final newline is added). The helper checks this
-//!   again, as root, before it writes.
-//! - **No hidden elevation.** When the file is not writable by the user, the
-//!   finished file is staged in `<data>/washmybelly/hosts/` and the plan item
-//!   is an administrator item (`ElevatedOp::WriteHosts`); the screen always
-//!   offers the exact command to run by hand instead.
-//! - **Nothing is downloaded.** The lists are embedded (see
-//!   `data/washmybelly/hosts/`, AdAway CC BY 3.0 and WindowsSpyBlocker MIT).
-//!
-//! Undo restores a snapshot of the previous file. Writing it back needs the
-//! same permission as applying; when the file is not writable the receipt's
-//! undo answers with the command, and the Trackers screen offers "Remove the
-//! block" as an administrator plan instead.
-
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
@@ -38,25 +14,17 @@ use super::{Os, Risk};
 pub const BEGIN: &str = "# >>> OmniGet block list >>>";
 pub const END: &str = "# <<< OmniGet block list <<<";
 
-/// Lines other tools leave in the hosts file (privacy.sexy tags each of
-/// its lines with this comment). Counted for the status, never touched.
 const FOREIGN_TAG: &str = "managed by privacy.sexy";
 
-/// Biggest hosts file we read or write (a merged list is ~250 KB).
 const MAX_BYTES: u64 = 16 * 1024 * 1024;
 
-/// Plan actions this module runs (checked against this closed list).
 const ACTIONS: &[&str] = &["write"];
 
-// ── Embedded lists ──────────────────────────────────────────────────
-
-/// One embedded block list.
 pub struct BlockList {
     pub id: &'static str,
     pub name: &'static str,
     pub license: &'static str,
     pub source_url: &'static str,
-    /// Systems where the list is ticked by default (empty = every system).
     pub default_on: &'static [Os],
     text: &'static str,
 }
@@ -84,7 +52,6 @@ fn list_by_id(id: &str) -> Option<&'static BlockList> {
     LISTS.iter().find(|l| l.id == id)
 }
 
-/// Domains of an embedded list, parsed once.
 fn list_domains(id: &str) -> Option<&'static [String]> {
     static PARSED: OnceLock<Vec<Vec<String>>> = OnceLock::new();
     let all = PARSED.get_or_init(|| LISTS.iter().map(|l| parse_list(l.text)).collect());
@@ -101,15 +68,11 @@ fn default_lists() -> Vec<String> {
         .collect()
 }
 
-// ── Where the file is ───────────────────────────────────────────────
-
 #[cfg(test)]
 thread_local! {
     static TEST_HOSTS: std::cell::RefCell<Option<PathBuf>> = const { std::cell::RefCell::new(None) };
 }
 
-/// The system hosts file. Fixed per OS: no caller can point it elsewhere
-/// (tests swap it per thread).
 pub fn hosts_path() -> PathBuf {
     #[cfg(test)]
     if let Some(p) = TEST_HOSTS.with(|t| t.borrow().clone()) {
@@ -131,8 +94,6 @@ fn system_hosts_path() -> PathBuf {
     }
 }
 
-/// Opens for writing without truncating: changes nothing, and is the only
-/// check that tells the truth on all three systems.
 pub fn is_writable(path: &Path) -> bool {
     std::fs::OpenOptions::new().write(true).open(path).is_ok()
 }
@@ -151,9 +112,6 @@ fn read_text(path: &Path) -> Result<String, String> {
         .map_err(|_| "the hosts file is not UTF-8 text; OmniGet leaves it alone".to_string())
 }
 
-// ── Parsing ─────────────────────────────────────────────────────────
-
-/// Names that never enter the block: they would break the machine.
 fn is_reserved(domain: &str) -> bool {
     matches!(
         domain,
@@ -180,7 +138,6 @@ fn looks_like_ip(token: &str) -> bool {
                 .all(|p| !p.is_empty() && p.bytes().all(|b| b.is_ascii_digit())))
 }
 
-/// Canonical domain, or `None` when the token is not one.
 pub fn normalize_domain(raw: &str) -> Option<String> {
     let d = raw.trim().trim_end_matches('.').to_ascii_lowercase();
     if d.len() < 4 || d.len() > 253 || !d.contains('.') {
@@ -206,8 +163,6 @@ pub fn normalize_domain(raw: &str) -> Option<String> {
     Some(d)
 }
 
-/// Reads both formats in circulation: `0.0.0.0 domain` (hosts) and one
-/// domain per line. `#` comments are dropped.
 pub fn parse_list(text: &str) -> Vec<String> {
     let mut out = Vec::new();
     for line in text.lines() {
@@ -223,7 +178,6 @@ pub fn parse_list(text: &str) -> Vec<String> {
     out
 }
 
-/// `true` when the domain is whitelisted, itself or as a subdomain.
 pub fn whitelisted(domain: &str, whitelist: &[String]) -> bool {
     whitelist.iter().any(|w| {
         let w = w.trim().trim_end_matches('.').to_ascii_lowercase();
@@ -231,7 +185,6 @@ pub fn whitelisted(domain: &str, whitelist: &[String]) -> bool {
     })
 }
 
-/// Merge, dedupe, drop whitelisted, sort. Returns `(domains, whitelisted)`.
 pub fn merge(lists: &[&[String]], whitelist: &[String]) -> (Vec<String>, usize) {
     let mut set = BTreeSet::new();
     let mut skipped = BTreeSet::new();
@@ -247,8 +200,6 @@ pub fn merge(lists: &[&[String]], whitelist: &[String]) -> (Vec<String>, usize) 
     (set.into_iter().collect(), skipped.len())
 }
 
-// ── The block ───────────────────────────────────────────────────────
-
 fn newline_of(text: &str) -> &'static str {
     if text.contains("\r\n") {
         "\r\n"
@@ -257,9 +208,6 @@ fn newline_of(text: &str) -> &'static str {
     }
 }
 
-/// Byte range of the block, both marker lines included. A `BEGIN` without
-/// `END` runs to the end of the file (an interrupted write): re-applying
-/// repairs it instead of adding a second block.
 fn block_span(text: &str) -> Option<(usize, usize)> {
     let mut begin: Option<usize> = None;
     let mut idx = 0usize;
@@ -281,7 +229,6 @@ pub fn has_block(text: &str) -> bool {
     block_span(text).is_some()
 }
 
-/// The block's inner lines (markers excluded).
 pub fn block_body(text: &str) -> Option<&str> {
     let (start, end) = block_span(text)?;
     let inner = &text[start..end];
@@ -302,7 +249,6 @@ pub fn count_blocked(text: &str) -> usize {
     block_body(text).map(|b| parse_list(b).len()).unwrap_or(0)
 }
 
-/// The date the block header announces (the old Portuguese header too).
 pub fn block_updated_at(text: &str) -> Option<String> {
     block_body(text)?.lines().find_map(|l| {
         let l = l.trim();
@@ -312,7 +258,6 @@ pub fn block_updated_at(text: &str) -> Option<String> {
     })
 }
 
-/// The whole block, markers included, ending in a newline.
 pub fn render_block(domains: &[String], lists: &[&str], updated_at: &str, nl: &str) -> String {
     let mut s = String::with_capacity(domains.len() * 32 + 256);
     for line in [
@@ -335,8 +280,6 @@ pub fn render_block(domains: &[String], lists: &[&str], updated_at: &str, nl: &s
     s
 }
 
-/// Replace (or append) the block. The person's text stays intact; the only
-/// thing that may change outside is a missing final newline.
 pub fn apply_to_text(
     current: &str,
     domains: &[String],
@@ -359,7 +302,6 @@ pub fn apply_to_text(
     }
 }
 
-/// Take the block out and give the rest back exactly as it was.
 pub fn remove_from_text(current: &str) -> String {
     match block_span(current) {
         Some((start, end)) => format!("{}{}", &current[..start], &current[end..]),
@@ -367,10 +309,6 @@ pub fn remove_from_text(current: &str) -> String {
     }
 }
 
-/// Is `next` a safe replacement for `current`? Everything outside the
-/// markers must be the same (a final newline aside), there is at most one
-/// block, and the block holds only comments and `0.0.0.0 <domain>` lines.
-/// The helper runs this as root on what it is about to write.
 pub fn check_replacement(current: &str, next: &str) -> Result<(), String> {
     if next.len() as u64 > MAX_BYTES {
         return Err("the new hosts file is too big".into());
@@ -404,9 +342,6 @@ pub fn check_replacement(current: &str, next: &str) -> Result<(), String> {
     Ok(())
 }
 
-// ── Choices and the finished file ───────────────────────────────────
-
-/// What the person picked on the Trackers tab (kept between visits).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Prefs {
     #[serde(default = "default_lists")]
@@ -449,7 +384,6 @@ fn prefs_from(a: &Value, saved: Prefs) -> Prefs {
     }
 }
 
-/// The finished file for these choices, plus what it means.
 pub struct Built {
     pub current: String,
     pub next: String,
@@ -481,7 +415,6 @@ pub fn build_apply(current: &str, prefs: &Prefs, updated_at: &str) -> Built {
     if !extra.is_empty() {
         labels.push("your own");
     }
-    // Same domains as now: keep the file as it is (applying twice is a no-op).
     let next = if has_block(current) && before == domains {
         current.to_string()
     } else if domains.is_empty() {
@@ -515,8 +448,6 @@ fn staged_name_ok(name: &str) -> Option<&str> {
     (h.len() == 16 && h.bytes().all(|b| b.is_ascii_hexdigit())).then_some(h)
 }
 
-/// Write the finished file where the helper (or the person) can copy it
-/// from. Content-addressed, so the same result is the same file.
 pub fn stage(ctx: &Ctx, text: &str) -> Result<(PathBuf, String), String> {
     let dir = staging_dir(ctx);
     std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
@@ -531,9 +462,6 @@ pub fn stage(ctx: &Ctx, text: &str) -> Result<(PathBuf, String), String> {
     Ok((path, sha))
 }
 
-/// A staged file named by a plan: in our staging folder (this state folder,
-/// or the app's when `copy_commands` asks against a scratch one), a regular
-/// file, and still the content the plan was built from.
 fn load_staged(ctx: &Ctx, args: &Value) -> Result<(PathBuf, String), String> {
     let staged = PathBuf::from(
         args.get("staged")
@@ -575,9 +503,6 @@ fn load_staged(ctx: &Ctx, args: &Value) -> Result<(PathBuf, String), String> {
     Ok((staged, text))
 }
 
-// ── DNS cache ───────────────────────────────────────────────────────
-
-/// Fixed argv that makes the system forget cached names after a change.
 fn dns_flush_argv() -> Vec<Vec<&'static str>> {
     match super::current_os() {
         Os::Macos => vec![
@@ -589,7 +514,6 @@ fn dns_flush_argv() -> Vec<Vec<&'static str>> {
     }
 }
 
-/// The same, as lines to paste in a terminal.
 pub fn dns_flush_commands() -> Vec<String> {
     let sudo = !cfg!(windows);
     dns_flush_argv()
@@ -609,10 +533,7 @@ pub fn dns_flush_commands() -> Vec<String> {
         .collect()
 }
 
-/// Best effort: a failed flush never fails the write (the cache expires by
-/// itself within minutes).
 fn flush_dns() -> &'static str {
-    // Tests never touch the machine's resolver.
     if cfg!(test) {
         return "DNS cache flush skipped in tests";
     }
@@ -629,8 +550,6 @@ fn flush_dns() -> &'static str {
         "the DNS cache clears by itself in a few minutes"
     }
 }
-
-// ── Plan hooks (called by `plan::execute` for `Op::Module { module: "hosts" }`) ──
 
 #[derive(Debug, Serialize, Deserialize)]
 struct Snapshot {
@@ -727,13 +646,6 @@ pub fn plan_undo(ctx: &Ctx, action: &str, args: &Value) -> Result<String, String
     Ok(format!("hosts file restored · {}", flush_dns()))
 }
 
-// ── Helper side (runs as administrator) ─────────────────────────────
-
-/// Write a staged file over the system hosts file. Called by
-/// `omniget-elevate` only. The destination is fixed; the staged file must
-/// sit in `<data>/washmybelly/hosts/` (the folder that holds the helper's
-/// key), be a regular file named by its own hash, and keep everything
-/// outside the OmniGet block exactly as the current file has it.
 pub fn elevated_write(staged: &Path) -> Result<String, String> {
     let target = system_hosts_path();
     let detail = elevated_write_to(staged, &target)?;
@@ -779,7 +691,6 @@ fn elevated_write_to(staged: &Path, target: &Path) -> Result<String, String> {
             }
         }
     }
-    // Read once: what is checked is what is written.
     let next = read_text(&staged)?;
     if hash_of(&next) != sha {
         return Err("REFUSED: the staged file changed after the plan".into());
@@ -792,8 +703,6 @@ fn elevated_write_to(staged: &Path, target: &Path) -> Result<String, String> {
         count_blocked(&next)
     ))
 }
-
-// ── Screen actions ──────────────────────────────────────────────────
 
 fn saved_prefs(ctx: &Ctx) -> Prefs {
     ctx.kv_get(PREFS_KEY).unwrap_or_default()
@@ -834,8 +743,6 @@ fn status(ctx: &Ctx) -> Result<Value, String> {
     }))
 }
 
-/// Lines of the finished file for the preview: the person's lines, then
-/// the head of the block and a count of what is left.
 fn preview_lines(next: &str, max_block: usize) -> (Vec<String>, usize) {
     let mut out = Vec::new();
     let mut in_block = false;
@@ -953,8 +860,6 @@ fn plan_for(ctx: &Ctx, a: &Value) -> Result<Value, String> {
     Ok(out)
 }
 
-/// Actions only the screen may run (`washmybelly_ui` with `hosts.<action>`):
-/// never exposed as MCP tools.
 pub async fn ui_action(action: &str, a: Value) -> Result<Value, String> {
     let action = action.to_string();
     super::tools::blocking(move || {
@@ -1133,26 +1038,22 @@ mod tests {
         let ctx = Ctx::at(&wmb);
         let next = apply_to_text(USER, &doms(&["ads.example.com"]), &["x"], "t");
 
-        // Good file: written.
         let (staged, _) = stage(&ctx, &next).unwrap();
         elevated_write_to(&staged, &target).unwrap();
         assert_eq!(std::fs::read_to_string(&target).unwrap(), next);
 
-        // Tampered after staging: the name no longer matches the content.
         std::fs::write(&target, USER).unwrap();
         std::fs::write(&staged, next.replace("ads.example.com", "adz.example.com")).unwrap();
         assert!(elevated_write_to(&staged, &target)
             .unwrap_err()
             .contains("changed"));
 
-        // Outside the data folder.
         let stray = dir.path().join(staged.file_name().unwrap());
         std::fs::write(&stray, &next).unwrap();
         assert!(elevated_write_to(&stray, &target)
             .unwrap_err()
             .starts_with("REFUSED"));
 
-        // A staged file that rewrites the person's lines.
         let evil = format!("6.6.6.6 bank.example.com\n{next}");
         let (evil_path, _) = stage(&ctx, &evil).unwrap();
         assert!(elevated_write_to(&evil_path, &target)
@@ -1160,7 +1061,6 @@ mod tests {
             .starts_with("HOSTS_CHANGED"));
         assert_eq!(std::fs::read_to_string(&target).unwrap(), USER);
 
-        // Without the key the folder is not ours.
         std::fs::remove_file(wmb.join("elevate.key")).unwrap();
         let (again, _) = stage(&ctx, &next).unwrap();
         assert!(elevated_write_to(&again, &target)
@@ -1204,7 +1104,6 @@ mod tests {
             plan_undo(&ctx, &action, &args).unwrap();
             assert_eq!(std::fs::read_to_string(&target).unwrap(), USER);
 
-            // The elevated form hands over the typed op and snapshots too.
             let (ops, undo) = plan_elevated(
                 &ctx,
                 "rcpt_x",
@@ -1219,7 +1118,6 @@ mod tests {
                 }]
             );
             assert!(undo.is_some());
-            // A wrong hash is refused.
             assert!(plan_elevated(
                 &ctx,
                 "r",

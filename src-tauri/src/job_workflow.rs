@@ -1,24 +1,3 @@
-//! The jobs' side of `.omniget/workflow.md` (item 3.10, S12 phase 2): the
-//! contract a repository keeps for delegated work, parsed and trusted in
-//! `omniget_core::core::llm::workflow`.
-//!
-//! - [`apply`] fills a `job.start` from the file (agent, run mode,
-//!   isolation, base, deadline, budget, model, effort) wherever the caller
-//!   left a field out, and renders the prompt through the strict template.
-//!   Every door that starts a job in a folder goes through it: `/v1/commands`
-//!   (the CLI, scripts), MCP `agent_run`, the deprecated `/v1/agent/run`
-//!   and the window (`llm_job_submit`). What was filled, and what was held
-//!   back for want of trust, is kept on the job (`origin.workflow`).
-//! - [`after_create`], [`before_remove`] and [`run_checks`] run the
-//!   repository's own commands (the hooks deferred by 2.3, and the checks)
-//!   only while the version in effect is trusted by its SHA-256; untrusted,
-//!   they are skipped and the job's log says why. Each run lands in
-//!   `origin.workflow.runs` (and a check in the proof).
-//! - [`report`] is the one-call answer for the agent that delegated
-//!   (`job_report` on MCP, `GET /v1/jobs/{id}/report`, `omniget agent
-//!   report`): the verdict, the agent's `OUTCOME`, the host's proof, the
-//!   diff summary and what the workflow did.
-
 use std::collections::BTreeMap;
 use std::path::Path;
 use std::sync::Arc;
@@ -30,13 +9,9 @@ use omniget_core::core::llm::workflow::{self, CommandRun, Store};
 use crate::job_commands::{CmdError, StartSpec};
 use crate::jobs::{self, Job};
 
-/// The agent of a job nobody named (and no workflow names): the roster's
-/// first agent, what `omniget agent run` always defaulted to.
 pub const DEFAULT_AGENT: &str = "omni";
-/// A prompt after the template stays under the `job.start` ceiling.
 const PROMPT_MAX: usize = 64 * 1024;
 
-/// The app's store (`<llm dir>/workflows.db`), opened at boot.
 pub fn store() -> Option<Arc<Store>> {
     workflow::active()
 }
@@ -60,12 +35,6 @@ fn first_line(s: &str, max: usize) -> String {
         .collect()
 }
 
-/// Fills `spec` from the workflow of its folder's repository and renders
-/// its prompt. Nothing happens without a folder, without a file, for a
-/// resumed job (its conversation already has the task) or when the caller
-/// said `workflow: false`. A file that does not parse and has no earlier
-/// valid version refuses the start: running without the contract the
-/// repository asked for would be a silent surprise.
 pub fn apply(store: Option<&Store>, spec: &mut StartSpec) -> Result<(), CmdError> {
     if spec.workflow == Some(false) || spec.resume_of.is_some() {
         return Ok(());
@@ -211,14 +180,12 @@ pub fn apply(store: Option<&Store>, spec: &mut StartSpec) -> Result<(), CmdError
     Ok(())
 }
 
-/// The agent when, after the workflow, the caller still named none.
 pub fn default_agent(spec: &mut StartSpec) {
     if spec.agent_id.trim().is_empty() {
         spec.agent_id = DEFAULT_AGENT.to_string();
     }
 }
 
-/// The repository a job's workflow came from (only jobs started with one).
 fn root_of_job(job: &Job) -> Option<String> {
     job.origin.as_ref()?["workflow"]["root"]
         .as_str()
@@ -249,10 +216,6 @@ fn record_run(job: &mut Job, run: &CommandRun) {
     }
 }
 
-/// After a job's worktree was made (or made again): the `include` files
-/// are copied (no trust needed: they are the user's own ignored files, and
-/// only inside the repository), then the `after_create` hook runs if the
-/// version in effect is trusted. A failed hook fails the job.
 pub async fn after_create(
     store: Option<&Store>,
     job: &mut Job,
@@ -306,9 +269,6 @@ pub async fn after_create(
     }
 }
 
-/// Before a job's worktree goes: the `before_remove` hook, when trusted.
-/// `Err` = the hook failed and the worktree stays (removal is blocked).
-/// `Ok` carries the log line (empty when there was nothing to run).
 pub async fn before_remove(
     store: Option<&Store>,
     job: &Job,
@@ -355,9 +315,6 @@ pub async fn before_remove(
     }
 }
 
-/// After a job ends: the workflow's `checks`, in the folder the job worked
-/// in, each with its exit code in the proof. Untrusted: skipped, and the
-/// proof says why.
 pub async fn run_checks(store: Option<&Store>, job: &mut Job) {
     let (Some(store), Some(root)) = (store, root_of_job(job)) else {
         return;
@@ -402,9 +359,6 @@ pub async fn run_checks(store: Option<&Store>, job: &mut Job) {
     }
 }
 
-// ── the report for the delegating agent ────────────────────────────────
-
-/// One word for the agent that delegated: what to tell the person.
 pub fn verdict(job: &Job) -> &'static str {
     let checks_failed = job
         .proof
@@ -435,9 +389,6 @@ fn clip(s: &str, n: usize) -> String {
         .collect()
 }
 
-/// Everything the delegating agent needs about a job, in one answer. With
-/// `host_paths = false` (MCP) the host's folders are left out, as in every
-/// MCP job view.
 pub fn report(job: &Job, host_paths: bool) -> Value {
     let proof = job.proof.clone().unwrap_or(Value::Null);
     let short = |v: &Value| v.as_str().map(|s| s.chars().take(12).collect::<String>());
@@ -515,10 +466,6 @@ pub fn report(job: &Job, host_paths: bool) -> Value {
     v
 }
 
-// ── status and trust (window, HTTP, CLI) ───────────────────────────────
-
-/// What the jobs page and `omniget agent workflow show` read: the status,
-/// plus the variables the template may use.
 pub fn status_view(store: &Store, folder: &Path) -> Value {
     let st = store.status(folder);
     let mut v = json!(st);
@@ -543,8 +490,6 @@ pub fn status_of(raw: &str) -> Result<Value, String> {
     Ok(status_view(&store, folder(raw)?))
 }
 
-/// Trusts (or, with `revoke`, stops trusting) the version in effect, on
-/// behalf of `actor` (the audit line names who approved which SHA-256).
 pub fn trust(
     raw: &str,
     sha256: &str,

@@ -1,23 +1,3 @@
-//! Localhost HTTP server the reader and outside e-readers read from.
-//!
-//! The webview can't open arbitrary local files, and foliate-js reads books
-//! lazily through `Range` requests, so books go through here instead of the
-//! IPC. Bound to 127.0.0.1 on a random port; every request carries the
-//! per-launch token (`k=`).
-//!
-//! * `GET /b/<id>`             book file, with Range
-//! * `GET /c/<hash>?t=1`       cover (thumbnail with `t=1`)
-//! * `GET /pg/<id>/<n>`        page `n` (0-based) of a comic book or folder
-//! * `GET /img?u=&h=&x=`       remote page proxy: headers `h` (JSON pairs),
-//!   XOR key `x`
-//!
-//! With "share on the network" on, a second listener on 0.0.0.0 serves the
-//! same library to e-readers over OPDS 1.2 (+ page streaming) and speaks the
-//! KOReader sync protocol, behind HTTP Basic auth:
-//!
-//! * `GET /opds...`            catalog, see `opds_*`
-//! * `/users/create`, `/users/auth`, `/syncs/progress[/<doc>]`  kosync
-
 use std::collections::HashMap;
 use std::io::Read;
 use std::sync::{Arc, Mutex};
@@ -51,7 +31,6 @@ pub struct ServerInfo {
 struct Ctx {
     app: AppHandle,
     token: Arc<String>,
-    /// `true` on the LAN listener: token auth off, Basic auth on.
     lan: bool,
 }
 
@@ -210,8 +189,6 @@ fn basic_ok(headers: &HeaderMap) -> bool {
     constant_time_eq::constant_time_eq(&raw, want.as_bytes())
 }
 
-/// Token for the app, Basic auth for e-readers on the network. Returns the
-/// response to send back when the request is not allowed.
 fn denied(ctx: &Ctx, q: &HashMap<String, String>, headers: &HeaderMap) -> Option<Response> {
     if ctx.lan {
         if basic_ok(headers) {
@@ -300,8 +277,6 @@ async fn cover(
     r
 }
 
-/// Page list of a comic, cached by path + mtime so paging through a CBZ
-/// doesn't re-read the central directory for every image.
 fn comic_pages(path: &str) -> Option<Arc<Vec<String>>> {
     type Cache = Mutex<HashMap<String, (i64, Arc<Vec<String>>)>>;
     static CACHE: std::sync::OnceLock<Cache> = std::sync::OnceLock::new();
@@ -335,8 +310,6 @@ fn comic_pages(path: &str) -> Option<Arc<Vec<String>>> {
     Some(v)
 }
 
-/// The app crate links zip 4 while omniget-core uses zip 2; list pages here
-/// with the same rules as `comic::zip_pages`.
 fn comic_zip_pages<R: Read + std::io::Seek>(z: &mut zip::ZipArchive<R>) -> Vec<String> {
     let mut names: Vec<String> = (0..z.len())
         .filter_map(|i| {
@@ -391,7 +364,6 @@ async fn page(
     let res = tokio::task::spawn_blocking(move || {
         let (bytes, mime) = read_page(&b.path, n)?;
         match width {
-            // Resized for e-readers that ask for a max width (OPDS-PSE).
             Some(w) if w > 0 => {
                 let img = image::load_from_memory(&bytes).ok()?;
                 if img.width() <= w {
@@ -428,7 +400,6 @@ fn proxy_client() -> &'static reqwest::Client {
     C.get_or_init(omniget_core::core::read::sources::client)
 }
 
-/// XOR-decrypts a MANGA Plus page with its hex key.
 pub fn xor_decrypt(data: &mut [u8], hex_key: &str) {
     let Ok(key) = hex::decode(hex_key) else {
         return;
@@ -462,7 +433,6 @@ async fn remote_image(
         .and_then(|h| serde_json::from_str(h).ok())
         .unwrap_or_default();
     for (k, v) in extra {
-        // Sources may set Referer, Origin, cookies and tokens, never Host.
         if !k.eq_ignore_ascii_case("host") {
             req = req.header(k.as_str(), v.as_str());
         }
@@ -500,12 +470,8 @@ async fn remote_image(
     r
 }
 
-// ---------- OPDS ----------
-
 const OPDS_PAGE: usize = 50;
 
-/// An entry's download link, cover link and, for comics, the page-streaming
-/// (OPDS-PSE) URL template with its page count.
 type OpdsLinks = (String, Option<String>, Option<(String, u32)>);
 
 fn xml_response(body: String, kind: &'static str) -> Response {
@@ -517,7 +483,6 @@ fn xml_response(body: String, kind: &'static str) -> Response {
 
 const ATOM: &str = "application/atom+xml;profile=opds-catalog;charset=utf-8";
 
-/// Query suffix that keeps the token on in-app links (`?k=`), empty on LAN.
 fn auth_q(ctx: &Ctx) -> String {
     if ctx.lan {
         String::new()
@@ -661,7 +626,6 @@ async fn opds_feed(
     let Ok(mut books) = db::all_books() else {
         return status(StatusCode::INTERNAL_SERVER_ERROR);
     };
-    // Navigation lists (series, authors, shelves) first.
     let nav_of =
         |items: Vec<(String, usize)>, base: &str| -> Vec<(String, String, String, String)> {
             items
@@ -860,8 +824,6 @@ async fn opds_feed(
     xml_response(body, ATOM)
 }
 
-// ---------- KOReader sync server ----------
-
 fn kosync_user(headers: &HeaderMap) -> Option<String> {
     let cfg = share_config();
     let user = headers.get("x-auth-user")?.to_str().ok()?;
@@ -883,7 +845,6 @@ fn kosync_unauthorized() -> Response {
         .into_response()
 }
 
-/// Accounts are the shared library login; "register" just confirms it.
 async fn kosync_create(Json(body): Json<serde_json::Value>) -> Response {
     let cfg = share_config();
     let user = body["username"].as_str().unwrap_or("");
@@ -921,7 +882,6 @@ async fn kosync_put(
     let ts = chrono::Utc::now().timestamp();
     p.timestamp = Some(ts);
     let _ = db::kv_set(&format!("kosync:{}", p.document), &p);
-    // Mirror into the library when the document is one of our books.
     let pct = p.percentage.clamp(0.0, 1.0);
     let doc = p.document.clone();
     let updated = db::with(|c| {
@@ -947,7 +907,6 @@ async fn kosync_get(headers: HeaderMap, Path(doc): Path<String>) -> Response {
     if let Some(p) = db::kv_get::<kosync::Progress>(&format!("kosync:{doc}")) {
         return Json(p).into_response();
     }
-    // Progress made in OmniGet itself, for a book KOReader also has.
     let from_lib = db::with(|c| {
         use rusqlite::OptionalExtension;
         c.query_row(

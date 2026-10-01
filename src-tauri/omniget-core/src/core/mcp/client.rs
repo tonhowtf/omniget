@@ -1,22 +1,3 @@
-//! One MCP server, seen as a client. Owned by f3-mcp-core.
-//!
-//! Primary source for every protocol decision here: the MCP specification
-//! 2025-06-18 — "Base Protocol → Lifecycle" and "Base Protocol → Transports"
-//! (<https://modelcontextprotocol.io/specification/2025-06-18/basic/transports>,
-//! read 2026-09-18). The lifecycle it pins is:
-//!
-//! 1. the client sends `initialize` with its protocol version and capabilities;
-//! 2. the server answers with the version it will speak;
-//! 3. the client sends the `notifications/initialized` notification;
-//! 4. only then are normal requests allowed.
-//!
-//! Everything else this file does — `tools/list` with cursor paging, a
-//! `tools/call` whose `isError: true` becomes `ERR_MCP_TOOL`, `resources/list`
-//! and `prompts/list` asked for only when the server declared the capability —
-//! follows from that document plus the budget in the prompt: the process is
-//! born on the first `tools()`/`call()`, `tools/list` is cached for the life of
-//! the session, and nothing runs in the background.
-
 use std::sync::{Arc, Mutex as StdMutex, RwLock};
 use std::time::{Duration, Instant};
 
@@ -32,11 +13,9 @@ use super::types::{
     SUPPORTED_PROTOCOL_VERSIONS,
 };
 
-/// A `tools/list` that keeps handing out cursors is either huge or broken.
 const MAX_TOOL_PAGES: usize = 20;
 
 enum Wire {
-    // Boxed: on Linux the stdio transport is almost three times the HTTP one.
     Stdio(Box<StdioTransport>),
     Http(HttpTransport),
 }
@@ -81,15 +60,10 @@ pub struct McpClient {
 }
 
 impl McpClient {
-    /// Connects with the app's secret store behind `secret:<id>` references.
     pub async fn connect(cfg: &McpServerConfig) -> Result<Self, McpError> {
         Self::connect_with(cfg, &default_lookup()).await
     }
 
-    /// Connects and completes the handshake. Returns only after the server has
-    /// answered `initialize` and been told `notifications/initialized`.
-    /// `lookup` resolves the `secret:<id>` references in headers **and** in the
-    /// environment of a stdio server.
     pub async fn connect_with(
         cfg: &McpServerConfig,
         lookup: &SecretLookup,
@@ -140,9 +114,6 @@ impl McpClient {
         if let Wire::Http(t) = &wire {
             t.set_protocol(&init.protocol_version);
         }
-        // A version we have not seen is not a reason to refuse: the four
-        // methods we use have not changed across the three published versions,
-        // and a newer server is more likely to work than to break.
         if let Err(e) = wire.notify("notifications/initialized", None).await {
             wire.close().await;
             return Err(e);
@@ -179,8 +150,6 @@ impl McpClient {
         &self.init.protocol_version
     }
 
-    /// `false` when the server negotiated a version this client has not been
-    /// tested against. The UI shows a banner; nothing is blocked.
     pub fn protocol_is_known(&self) -> bool {
         SUPPORTED_PROTOCOL_VERSIONS.contains(&self.init.protocol_version.as_str())
     }
@@ -189,7 +158,6 @@ impl McpClient {
         self.init.instructions.as_deref()
     }
 
-    /// How long since the last request. The registry's reaper reads this.
     pub fn idle(&self) -> Duration {
         self.last_used
             .lock()
@@ -203,8 +171,6 @@ impl McpClient {
         }
     }
 
-    /// Tool list, cached for the life of the session (budget §6). The cache is
-    /// only dropped by [`Self::refresh_tools`].
     pub async fn tools(&self) -> Result<Arc<Vec<ToolDef>>, McpError> {
         if let Some(cached) = self.tools.read().ok().and_then(|g| g.clone()) {
             return Ok(cached);
@@ -212,7 +178,6 @@ impl McpClient {
         self.refresh_tools().await
     }
 
-    /// Re-reads `tools/list` and replaces the cache.
     pub async fn refresh_tools(&self) -> Result<Arc<Vec<ToolDef>>, McpError> {
         self.touch();
         let mut all: Vec<ToolDef> = Vec::new();
@@ -243,8 +208,6 @@ impl McpClient {
         Ok(tools)
     }
 
-    /// Calls a tool. `isError: true` and a JSON-RPC error both come back as
-    /// `ERR_MCP_TOOL`: from the caller's seat, the tool failed either way.
     pub async fn call(
         &self,
         name: &str,
@@ -270,8 +233,6 @@ impl McpClient {
         Ok(result)
     }
 
-    /// For display only. Asked for just when the server declared it, so a
-    /// server without resources is never bothered.
     pub async fn resources(&self) -> Result<Vec<Value>, McpError> {
         self.list_display("resources/list", "resources").await
     }
@@ -296,13 +257,10 @@ impl McpClient {
             .unwrap_or_default())
     }
 
-    /// Ends the session and stops the process. Idempotent.
     pub async fn close(&self) {
         self.wire.close().await;
     }
 
-    /// The child's pid, when this is a stdio server. Tests use it to prove the
-    /// process is gone after `close()`.
     pub fn is_stdio(&self) -> bool {
         matches!(self.wire, Wire::Stdio(_))
     }
@@ -319,8 +277,6 @@ impl std::fmt::Debug for McpClient {
     }
 }
 
-/// A protocol error raised by `tools/call` is a tool error: the peer answered,
-/// it just refused this call (unknown tool, bad arguments).
 fn tool_level(err: McpError, name: &str) -> McpError {
     if err.code == ERR_MCP_PROTO && err.message.starts_with("JSON-RPC error") {
         return McpError::tool(format!("{}: {}", name, err.message));
@@ -330,9 +286,6 @@ fn tool_level(err: McpError, name: &str) -> McpError {
 
 #[cfg(test)]
 pub(crate) mod fixture {
-    //! Helpers around `scripts/mcp-fixture.mjs`. Everything spawned here is
-    //! killed on drop, which is what makes `pgrep -f mcp-fixture` empty after
-    //! the suite.
 
     use std::collections::BTreeMap;
     use std::path::PathBuf;
@@ -357,8 +310,6 @@ pub(crate) mod fixture {
             .join("mcp_fixtures")
     }
 
-    /// `false` when `node` is not installed: those tests then skip loudly
-    /// instead of failing a machine that cannot run them.
     pub fn have_node() -> bool {
         std::process::Command::new("node")
             .arg("--version")
@@ -386,7 +337,6 @@ pub(crate) mod fixture {
         }
     }
 
-    /// A running HTTP fixture. Killed when dropped.
     pub struct HttpFixture {
         child: Child,
         pub port: u16,
@@ -517,19 +467,14 @@ mod tests {
         client.close().await;
     }
 
-    /// The gate's "servidor que morre no meio devolve ERR_MCP_PROTO, não pânico".
     #[tokio::test]
     async fn stdio_a_server_that_dies_mid_session_fails_with_proto() {
         need_node!();
-        // Exits right after answering `initialize`. The roomy window only
-        // covers `node`'s start-up on a loaded machine: the crash answers at
-        // once, so it never waits it out.
         let client = McpClient::connect(&stdio_config("fx", &["--crash-after", "1"], Some(30_000)))
             .await
             .expect("the handshake still completes");
         let err = client.tools().await.unwrap_err();
         assert_eq!(err.code, super::super::error::ERR_MCP_PROTO, "{}", err);
-        // And a second attempt is a clean error too, not a hang or a panic.
         let again = client.call("add", json!({}), None).await.unwrap_err();
         assert_eq!(again.code, super::super::error::ERR_MCP_PROTO);
         client.close().await;
@@ -548,8 +493,6 @@ mod tests {
     #[tokio::test]
     async fn stdio_a_slow_tool_hits_the_timeout() {
         need_node!();
-        // The handshake gets the roomy window (`node`'s start-up on a loaded
-        // machine); the call gets a short one, far below the tool's minute.
         let mut client = McpClient::connect(&stdio_config("fx", &[], Some(30_000)))
             .await
             .unwrap();
@@ -591,7 +534,6 @@ mod tests {
         let client = McpClient::connect(&stdio_config("fx", &[], Some(30_000)))
             .await
             .unwrap();
-        // 2 MiB in one line: over the 1 MiB SSE ceiling, under the stdio one.
         let out = client
             .call("big", json!({ "kb": 2048 }), None)
             .await
@@ -669,8 +611,6 @@ mod tests {
     #[tokio::test]
     async fn http_an_expired_session_says_so_and_is_retryable() {
         need_node!();
-        // Two POSTs after `initialize` (the `initialized` notification and one
-        // `tools/list`), then every later one is 404.
         let server = http(&["--expire-after", "2"]).await;
         let client = McpClient::connect(&server.config("h", Some(10_000)))
             .await
@@ -779,9 +719,6 @@ mod tests {
         client.close().await;
     }
 
-    /// A message past the 8 MiB ceiling is dropped and reported as a protocol
-    /// error, instead of hanging until the timeout — and the framer never
-    /// buffers it, so 9 MiB on one line does not become 9 MiB of ours.
     #[tokio::test]
     async fn stdio_a_line_over_the_ceiling_is_proto_not_a_hang() {
         need_node!();
@@ -798,7 +735,6 @@ mod tests {
         client.close().await;
     }
 
-    /// Ids come back as `"3"` instead of `3` on real servers.
     #[tokio::test]
     async fn stdio_string_ids_are_matched_against_our_numeric_ones() {
         need_node!();
@@ -825,8 +761,6 @@ mod tests {
         client.close().await;
         server.stop().await;
     }
-
-    // ── Recorded fixtures of real servers (plan §3, "Plano B") ────────
 
     fn recorded(name: &str) -> Value {
         let path = fixture::fixtures_dir().join(format!("{}.json", name));
@@ -873,7 +807,6 @@ mod tests {
                 "{}: the recorded call says nothing",
                 name
             );
-            // The tool that was called is in the recorded listing.
             let called = call["request"]["params"]["name"].as_str().unwrap_or("");
             let tools = parse_tools(&fx["tools_list"]["result"]);
             assert!(

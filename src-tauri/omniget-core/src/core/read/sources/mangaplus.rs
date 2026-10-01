@@ -1,13 +1,3 @@
-//! MANGA Plus by Shueisha (https://mangaplus.shueisha.co.jp): the official,
-//! free simulpub of Jump titles. The API answers in protobuf; the few
-//! messages we need are read with the small decoder below.
-//!
-//! Its terms forbid storing the pages, so MANGA Plus is streaming only:
-//! chapters can be read in the app but not downloaded.
-//!
-//! Every API call carries a random `SESSION-TOKEN`; every image needs the
-//! chapter's `Plus-Vw-Token` and comes XOR-encrypted with a per-page key.
-
 use std::collections::HashMap;
 
 use super::{Hit, Page, RemoteChapter, RemotePage};
@@ -15,14 +5,11 @@ use crate::core::read::protobuf::{fields, Field, Msg};
 
 pub const API: &str = "https://jumpg-webapi.tokyo-cdn.com/api";
 
-// ---------- API ----------
-
 fn session() -> &'static str {
     static S: std::sync::OnceLock<String> = std::sync::OnceLock::new();
     S.get_or_init(|| uuid::Uuid::new_v4().to_string())
 }
 
-/// App language code (`en`, `pt-br`...) to MANGA Plus' `lang`.
 pub fn mp_lang(lang: &str) -> &'static str {
     match lang.to_ascii_lowercase().as_str() {
         l if l.starts_with("pt") => "ptb",
@@ -66,7 +53,6 @@ async fn call(client: &reqwest::Client, path: &str) -> Result<Vec<u8>, String> {
     Ok(r.bytes().await.map_err(|e| e.to_string())?.to_vec())
 }
 
-/// `Response{1: success, 2: error{2: english popup{1 subject, 2 body}}}`.
 fn success(bytes: &[u8]) -> Result<HashMap<u32, Vec<Field<'_>>>, String> {
     let resp = fields(bytes);
     if let Some(err) = resp.msg(2) {
@@ -123,7 +109,6 @@ fn to_hit(t: &Title) -> Hit {
     }
 }
 
-/// Every title (the catalog is small; search filters it locally).
 pub async fn all_titles(client: &reqwest::Client) -> Result<Vec<Title>, String> {
     static CACHE: tokio::sync::Mutex<Option<(std::time::Instant, Vec<Title>)>> =
         tokio::sync::Mutex::const_new(None);
@@ -146,8 +131,6 @@ pub async fn all_titles(client: &reqwest::Client) -> Result<Vec<Title>, String> 
     Ok(out)
 }
 
-/// `popular` = ranking, `latest` = the home page's updated titles, and
-/// `search` = a local filter over every title in the language.
 pub async fn browse(
     client: &reqwest::Client,
     query: &str,
@@ -246,11 +229,8 @@ pub async fn details(
     hit.extra["viewingPeriod"] = serde_json::Value::String(note);
     let mut chapters = Vec::new();
     for g in v.msgs(28) {
-        // 2 = first free chapters, 4 = latest free ones; 3 (the middle)
-        // needs the app's subscription and is skipped.
         for list in [2u32, 4] {
             for c in g.msgs(list) {
-                // An absent sub title means the chapter expired.
                 if !c.has(4) {
                     continue;
                 }

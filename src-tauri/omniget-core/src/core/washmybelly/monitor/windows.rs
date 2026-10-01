@@ -1,7 +1,3 @@
-//! Windows readings without admin: GPU load from the PDH `GPU Engine`
-//! counters (what Task Manager shows), battery from `GetSystemPowerStatus`
-//! and `powercfg /batteryreport /xml`, process priority by exact PID.
-
 use std::sync::Mutex;
 
 use windows_sys::Win32::Foundation::CloseHandle;
@@ -27,7 +23,6 @@ struct GpuQuery {
     primed: bool,
 }
 
-// PDH handles are used only under the mutex.
 unsafe impl Send for GpuQuery {}
 
 static GPU: Mutex<Option<Result<GpuQuery, String>>> = Mutex::new(None);
@@ -53,9 +48,6 @@ fn open_query() -> Result<GpuQuery, String> {
     }
 }
 
-/// GPU load per adapter. PDH needs two samples: the first call primes the
-/// query and returns an empty list; later calls give the load since the
-/// previous one.
 pub fn gpus() -> Result<Vec<Gpu>, String> {
     let mut g = GPU.lock().map_err(|_| "gpu lock")?;
     if g.is_none() {
@@ -89,7 +81,6 @@ pub fn gpus() -> Result<Vec<Gpu>, String> {
         if rc != PDH_MORE_DATA || size == 0 {
             return Ok(Vec::new());
         }
-        // The buffer holds the item array followed by the instance names.
         let words = (size as usize).div_ceil(std::mem::size_of::<u64>());
         let mut buf: Vec<u64> = vec![0; words];
         let items = buf.as_mut_ptr() as *mut PDH_FMT_COUNTERVALUE_ITEM_W;
@@ -137,8 +128,6 @@ fn power_status() -> Option<SYSTEM_POWER_STATUS> {
     (unsafe { GetSystemPowerStatus(&mut s) } != 0).then_some(s)
 }
 
-/// Charge state from `GetSystemPowerStatus`, capacities and cycles from the
-/// battery report (written to a temporary file of ours, path in argv).
 pub fn battery() -> Result<Battery, String> {
     let st = power_status();
     let no_battery = st.map(|s| s.BatteryFlag == 128).unwrap_or(false);
@@ -199,7 +188,6 @@ pub fn battery() -> Result<Battery, String> {
     Ok(b)
 }
 
-/// Priority class of an exact PID.
 pub fn set_priority(pid: u32, level: &str) -> Result<(), String> {
     let class = match level {
         "low" => BELOW_NORMAL_PRIORITY_CLASS,

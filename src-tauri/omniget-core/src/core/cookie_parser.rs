@@ -288,14 +288,13 @@ pub fn parse_bearer_input(input: &str) -> String {
                     cookie_obj.get("value").and_then(|v| v.as_str()),
                 ) {
                     let lower = name.to_lowercase();
-                    if lower.contains("token")
+                    if (lower.contains("token")
                         || lower.contains("auth")
                         || lower.contains("session")
-                        || lower.contains("sid")
+                        || lower.contains("sid"))
+                        && value.len() > 20
                     {
-                        if value.len() > 20 {
-                            return value.to_string();
-                        }
+                        return value.to_string();
                     }
                 }
             }

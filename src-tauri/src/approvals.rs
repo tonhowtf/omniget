@@ -1,25 +1,3 @@
-//! Durable approvals answerable from anywhere (item 2.2 of the `/llm`
-//! roadmap, S09).
-//!
-//! Every permission question of the broker is a row of `runs_permissions`
-//! (the one table of asks: the in-memory list of the window is gone, A6).
-//! This module is the one door every channel goes through to read and answer
-//! them — the window (`llm_approval_respond`), the local bridge
-//! (`GET /v1/approvals`, `POST /v1/approvals/{id}`), the CLI
-//! (`omniget agent approvals|approve`, over the bridge), MCP
-//! (`approval_respond`) and a paired phone (`/remote/api/approvals`) — so
-//! the rules are the same whoever answers:
-//!
-//! - exactly one answer applies; any later one is `ERR_NO_ASK`;
-//! - a question whose waiter died with another boot is `stale` ("restart the
-//!   turn"): no answer releases it, `cancel` closes it;
-//! - `cancel` refuses the call and stops the turn that asked;
-//! - who answered and through what is recorded (`channel`, `decided_by`).
-//!
-//! The ask id (`apr_` + 128 random bits) is never put in anything the agent
-//! reads: not the tool result, not the bus of its turn, not `explain`.
-//! Answering needs `approvals:respond`, which a job's own token never has.
-
 use std::sync::Arc;
 
 use axum::http::StatusCode;
@@ -29,39 +7,24 @@ use omniget_core::core::assist::runs::{self, Actor, PermissionRequest, Permissio
 use omniget_core::core::llm::broker::{AnswerRefused, Decision, ToolBroker};
 use serde_json::{json, Value};
 
-/// No question is waiting under this id any more (answered, expired,
-/// cancelled) or it never existed.
 pub const ERR_NO_ASK: &str = "ERR_NO_ASK";
-/// The process that asked is gone: restart the turn.
 pub const ERR_ASK_STALE: &str = "ERR_ASK_STALE";
-/// The decision is not one of `accept|accept_session|accept_always|decline|cancel`.
 pub const ERR_ASK_DECISION: &str = "ERR_ASK_DECISION";
 
-/// Rows a list returns at most.
 const LIST_MAX: usize = 200;
 
-/// Run (request) id → the job whose turn it is.
 pub type JobOf = Arc<dyn Fn(&str) -> Option<String> + Send + Sync>;
-/// Job id → the run (request) ids of its turns.
 pub type RunsOfJob = Arc<dyn Fn(&str) -> Vec<String> + Send + Sync>;
 
-/// What the approvals door needs: the broker that holds the waiters, the run
-/// record, and how runs map to jobs. The app builds it from its state
-/// ([`from_app`]); the tests build it by hand.
 #[derive(Clone)]
 pub struct Approvals {
     pub broker: Arc<ToolBroker>,
     pub registry: Registry,
-    /// The job whose turn is this run (request) id, if any.
     pub job_of: JobOf,
-    /// The run (request) ids of one job's turns.
     pub runs_of_job: RunsOfJob,
-    /// After a `cancel` decision: stop the turn (or job) that asked.
     pub on_cancel: Arc<dyn Fn(&str) + Send + Sync>,
 }
 
-/// The app's door. `Err` when the run record is not available (no assistant
-/// database): nothing can be listed or answered durably then.
 pub fn from_app(app: &tauri::AppHandle) -> Result<Approvals, String> {
     use tauri::Manager;
     let llm = app.state::<crate::AppState>().llm.clone();
@@ -80,11 +43,8 @@ pub fn from_app(app: &tauri::AppHandle) -> Result<Approvals, String> {
                 .collect()
         }),
         on_cancel: Arc::new(move |run| {
-            // A job stops as a job (its row says cancelled); a chat turn stops
-            // as a turn.
             match crate::jobs::try_get().and_then(|j| j.job_of_request(run).map(|id| (j, id))) {
                 Some((jobs, id)) => {
-                    // The answer's own line says who; this one says why (2.8).
                     let _ =
                         jobs.cancel_by(&id, omniget_core::core::llm::audit::Actor::system("ask"));
                 }
@@ -96,8 +56,6 @@ pub fn from_app(app: &tauri::AppHandle) -> Result<Approvals, String> {
     })
 }
 
-/// The state the API speaks: an answered ask is `resolved`, with its
-/// `decision`.
 pub fn api_state(s: PermissionState) -> &'static str {
     match s {
         PermissionState::Pending => "pending",
@@ -108,7 +66,6 @@ pub fn api_state(s: PermissionState) -> &'static str {
     }
 }
 
-/// The decision of a stored answer word (`runs_permissions.answer`).
 fn decision_of(word: &str) -> &'static str {
     match word {
         "once" => "accept",
@@ -119,7 +76,6 @@ fn decision_of(word: &str) -> &'static str {
     }
 }
 
-/// One approval as every channel shows it.
 pub fn view(a: &Approvals, p: &PermissionRequest) -> Value {
     json!({
         "id": p.id,
@@ -131,7 +87,6 @@ pub fn view(a: &Approvals, p: &PermissionRequest) -> Value {
         "tool": p.action,
         "preview": p.preview,
         "asked_ms": p.created_ms,
-        // A thread of the Central waits with no deadline.
         "deadline_ms": (p.deadline_ms < i64::MAX / 2).then_some(p.deadline_ms),
         "resolved_ms": p.resolved_ms,
         "channel": p.channel,
@@ -141,10 +96,8 @@ pub fn view(a: &Approvals, p: &PermissionRequest) -> Value {
     })
 }
 
-/// `?state=&job_id=&limit=` of `GET /v1/approvals`.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct Filter {
-    /// `pending` (default) | `resolved` | `cancelled` | `stale` | `expired` | `all`.
     pub state: Option<String>,
     pub job_id: Option<String>,
 }
@@ -166,7 +119,6 @@ pub fn parse_query(query: Option<&str>) -> Filter {
     f
 }
 
-/// The approvals in one API state (newest first).
 pub fn list(a: &Approvals, f: &Filter) -> Result<Vec<Value>, String> {
     let states: &[PermissionState] = match f.state.as_deref().unwrap_or("pending") {
         "pending" => &[PermissionState::Pending],
@@ -199,7 +151,6 @@ pub fn list(a: &Approvals, f: &Filter) -> Result<Vec<Value>, String> {
     Ok(rows.iter().map(|p| view(a, p)).collect())
 }
 
-/// Why an answer did not apply, as the API reports it.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Refused {
     pub status: StatusCode,
@@ -229,7 +180,6 @@ impl Refused {
     }
 }
 
-/// Answers the approval `id`. The one function behind every channel.
 pub fn respond(a: &Approvals, id: &str, decision: &str, actor: &Actor) -> Result<Value, Refused> {
     let decision = Decision::parse(decision).ok_or_else(|| {
         Refused::new(
@@ -276,7 +226,6 @@ pub fn respond(a: &Approvals, id: &str, decision: &str, actor: &Actor) -> Result
     Ok(view(a, &after))
 }
 
-/// `GET /v1/approvals?state=pending&job_id=`.
 pub fn http_list(a: &Approvals, query: Option<&str>) -> Response {
     match list(a, &parse_query(query)) {
         Ok(rows) => Json(json!(rows)).into_response(),
@@ -284,9 +233,6 @@ pub fn http_list(a: &Approvals, query: Option<&str>) -> Response {
     }
 }
 
-/// `POST /v1/approvals/{id}` with `{decision, channel?}`. `decided_by` is the
-/// token that authenticated the request (never something the body says);
-/// `channel` is `cli` when the CLI says so, `http` otherwise.
 pub fn http_respond(
     a: &Approvals,
     id: &str,
@@ -305,9 +251,6 @@ pub fn http_respond(
     }
 }
 
-// ── Tauri: the window ──────────────────────────────────────────────────
-
-/// The approvals of one state (default `pending`), optionally of one job.
 #[tauri::command]
 pub async fn llm_approvals_list(
     app: tauri::AppHandle,
@@ -317,7 +260,6 @@ pub async fn llm_approvals_list(
     list(&from_app(&app)?, &Filter { state, job_id })
 }
 
-/// The window's answer: the same door as the bridge, the CLI and MCP.
 #[tauri::command]
 pub async fn llm_approval_respond(
     app: tauri::AppHandle,

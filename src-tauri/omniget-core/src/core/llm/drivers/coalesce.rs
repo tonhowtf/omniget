@@ -1,15 +1,8 @@
-//! 50 ms coalescing of `content.delta` before persistence (T3's live-event
-//! coalescer, applied at ingestion). Consecutive deltas of the same
-//! `(thread, turn, item, stream kind)` merge into one event; any other event
-//! flushes what is pending first, so order is preserved. The clock is an
-//! argument: the logic is testable without sleeping.
-
 use std::time::{Duration, Instant};
 
 use super::{RuntimeEvent, RuntimeEventKind};
 
 pub const COALESCE_WINDOW: Duration = Duration::from_millis(50);
-/// A buffer this large is flushed at once, window or not.
 const MAX_PENDING_BYTES: usize = 64 * 1024;
 
 #[derive(Debug, Default)]
@@ -64,7 +57,6 @@ impl DeltaCoalescer {
         }
     }
 
-    /// Feed one event; returns what must be persisted now, in order.
     pub fn push(&mut self, ev: RuntimeEvent, now: Instant) -> Vec<RuntimeEvent> {
         match key(&ev) {
             Some(k) => {
@@ -77,7 +69,6 @@ impl DeltaCoalescer {
                     _ => false,
                 };
                 if !merged {
-                    // A different stream: what was pending goes out first.
                     out.extend(self.take());
                     self.bytes = match &ev.kind {
                         RuntimeEventKind::ContentDelta(p) => p.delta.len(),
@@ -100,7 +91,6 @@ impl DeltaCoalescer {
         }
     }
 
-    /// When the pending buffer must be flushed, if anything is pending.
     pub fn deadline(&self) -> Option<Instant> {
         self.since.map(|s| s + self.window)
     }

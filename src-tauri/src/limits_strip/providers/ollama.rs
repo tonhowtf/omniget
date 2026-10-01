@@ -1,11 +1,3 @@
-//! Ollama, the runtime on this machine.
-//!
-//! No credential. One loopback request: `GET http://127.0.0.1:11434/api/ps`,
-//! the models held in memory right now. Reply: `models[]` with `name`, `size`,
-//! `size_vram`, `context_length`, `expires_at` (ISO) and
-//! `details.{parameter_size, quantization_level}`. Nothing leaves the machine,
-//! and a runtime that is not running is a quiet reading, not an error.
-
 use crate::limits_strip::{iso_ms, json_or_error, LocalModel, ReadError, Reading, UsageProvider};
 
 const ENDPOINT: &str = "http://127.0.0.1:11434/api/ps";

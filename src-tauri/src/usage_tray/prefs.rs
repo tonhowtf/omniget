@@ -1,22 +1,14 @@
-//! `usage-tray.json`: what the user chose about the menu bar usage icon. Lives
-//! next to `limits-strip.json` (`<data>/llm/limits/`), written through a temp
-//! file and a rename. Switches only: no secret is ever written here.
-
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 
 pub const PREFS_FILE: &str = "usage-tray.json";
 
-/// What the ring on the icon measures.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum Shows {
-    /// The 5 h window of the busiest shown account.
     #[default]
     Session,
-    /// The weekly window of the busiest shown account.
     Weekly,
-    /// Whichever window of whichever shown account is fullest.
     Busiest,
 }
 
@@ -42,22 +34,12 @@ impl Shows {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct TrayPrefs {
-    /// The icon is in the menu bar. On by default on macOS only, where a
-    /// status item is the native home of a usage meter.
     pub enabled: bool,
-    /// Ring ids (`claude`, `claude:<account>`, `codex:<account>`…) the icon
-    /// reads and the panel lists, in this order. Empty = nothing is read:
-    /// the panel asks which accounts to show.
     pub accounts: Vec<String>,
-    /// Set once the list was seeded from the strip's switches, so emptying
-    /// it by hand is respected.
     pub seeded: bool,
     pub shows: Shows,
-    /// "37%" next to the ring (macOS status item title).
     pub percent_text: bool,
-    /// Loop in his colours instead of the monochrome template glyph.
     pub colored: bool,
-    /// The ring turns orange at `warn` and red at `critical` (percent used).
     pub warn: u8,
     pub critical: u8,
 }
@@ -78,7 +60,6 @@ impl Default for TrayPrefs {
 }
 
 impl TrayPrefs {
-    /// Thresholds kept in 1..=100 with `warn < critical`.
     pub fn sane(mut self) -> Self {
         self.warn = self.warn.clamp(1, 99);
         self.critical = self.critical.clamp(self.warn + 1, 100);
@@ -88,8 +69,6 @@ impl TrayPrefs {
         self
     }
 
-    /// First run: the accounts of the Claude and Codex rings the strip already
-    /// reads, so a user who switched those on sees them here too.
     pub fn seed_from(&mut self, strip: &crate::limits_strip::prefs::StripPrefs) -> bool {
         if self.seeded {
             return false;
@@ -115,7 +94,6 @@ impl TrayPrefs {
     }
 }
 
-/// The rings that belong to a CLI with logins: Claude Code and Codex.
 pub fn is_cli_ring(id: &str) -> bool {
     let base = id.split(':').next().unwrap_or(id);
     base == "claude" || base == "codex"

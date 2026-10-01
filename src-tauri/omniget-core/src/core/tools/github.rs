@@ -1,8 +1,3 @@
-//! Releases do GitHub: escolher o asset certo para este sistema, baixar,
-//! conferir o SHA-256 que a API informa e desempacotar. É o mesmo desenho do
-//! Spicetify (`core/spicetify.rs`), generalizado para whisper.cpp,
-//! Real-ESRGAN e afins.
-
 use std::path::{Path, PathBuf};
 
 use anyhow::anyhow;
@@ -34,7 +29,6 @@ pub struct ReleaseAsset {
     pub digest: Option<String>,
 }
 
-/// Primeiro asset da release `tag` (ou da última) que `pick` aceitar.
 pub async fn asset(
     client: &reqwest::Client,
     repo: &str,
@@ -79,8 +73,6 @@ pub async fn asset(
     ))
 }
 
-/// Baixa e confere o hash. Sem digest na API o download é aceito só se
-/// `allow_unverified` (repos antigos não publicam digest).
 pub async fn download(
     client: &reqwest::Client,
     asset: &ReleaseAsset,
@@ -151,8 +143,6 @@ pub fn unpack(data: &[u8], name: &str, dest: &Path) -> anyhow::Result<()> {
     }
 }
 
-/// Procura um arquivo pelo nome dentro de uma árvore (os zips do whisper.cpp
-/// e do Real-ESRGAN têm subpastas diferentes por plataforma).
 pub fn find_file(root: &Path, file_name: &str) -> Option<PathBuf> {
     let mut stack = vec![root.to_path_buf()];
     while let Some(dir) = stack.pop() {
@@ -180,7 +170,6 @@ pub fn make_executable(path: &Path) {
 #[cfg(not(unix))]
 pub fn make_executable(_path: &Path) {}
 
-/// Troca `dir` pela pasta nova só depois que ela está inteira no disco.
 pub fn swap_dir(staging: &Path, dir: &Path) -> anyhow::Result<()> {
     let old = dir.with_extension("old");
     let _ = std::fs::remove_dir_all(&old);

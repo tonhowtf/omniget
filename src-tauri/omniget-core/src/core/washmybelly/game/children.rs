@@ -1,12 +1,7 @@
-//! OmniGet's own descendants (yt-dlp, ffmpeg, agents): the only processes
-//! the game mode ever slows down. Never a process OmniGet did not start.
-
 use std::collections::{HashMap, HashSet};
 
 use sysinfo::{Pid, ProcessRefreshKind, ProcessesToUpdate, System};
 
-/// Every pid below `root` in the `(pid, parent)` table, `root` excluded.
-/// Walks breadth first; a loop in the table (pid reuse) cannot hang it.
 pub fn descendants(root: u32, table: &[(u32, Option<u32>)]) -> Vec<u32> {
     let mut kids: HashMap<u32, Vec<u32>> = HashMap::new();
     for &(pid, parent) in table {
@@ -31,7 +26,6 @@ pub fn descendants(root: u32, table: &[(u32, Option<u32>)]) -> Vec<u32> {
     out
 }
 
-/// A running descendant: pid, start time (to spot pid reuse) and name.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Child {
     pub pid: u32,
@@ -39,8 +33,6 @@ pub struct Child {
     pub name: String,
 }
 
-/// OmniGet's descendants right now, except `skip` (the game, if the game
-/// happens to have been launched by OmniGet).
 pub fn own_children(skip: u32) -> Vec<Child> {
     let mut sys = System::new();
     sys.refresh_processes_specifics(ProcessesToUpdate::All, true, ProcessRefreshKind::nothing());

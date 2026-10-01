@@ -1,18 +1,3 @@
-//! flatpak.
-//!
-//! - list: `flatpak list --app --columns=application,name,version,size,installation`
-//!   (tab separated; sizes by GLib's `g_format_size`, SI units with a
-//!   no-break space: `1.2 GB`);
-//! - removal preview: `flatpak uninstall --user|--system -- <ids>` WITHOUT
-//!   `-y`: flatpak prints the transaction table (`  1.  id  [arch]  branch  r`)
-//!   and, with stdin/stdout not a terminal, answers its own prompt "n"
-//!   (`flatpak_yes_no_prompt`, app/flatpak-tty-utils.c). Nothing is removed;
-//! - orphans: `flatpak uninstall --unused` the same way;
-//! - updates: `flatpak remote-ls --updates --user|--system --columns=application,version,branch,download-size,ref`;
-//! - remove: `flatpak uninstall -y --noninteractive --user -- <ids>` needs no
-//!   administrator (Nexis does the same); `--system` goes through the helper;
-//! - upgrade: `flatpak update -y --noninteractive --user|--system -- <ref>`.
-
 use std::collections::HashMap;
 
 use serde_json::json;
@@ -27,11 +12,9 @@ pub struct FlatpakApp {
     pub name: String,
     pub version: String,
     pub bytes: Option<u64>,
-    /// `user`, `system` or a custom installation name.
     pub installation: String,
 }
 
-/// `flatpak list --app --columns=application,name,version,size,installation`.
 pub fn parse_list(text: &str) -> Vec<FlatpakApp> {
     text.lines()
         .filter_map(|l| {
@@ -54,7 +37,6 @@ pub fn parse_list(text: &str) -> Vec<FlatpakApp> {
         .collect()
 }
 
-/// Ids of the numbered rows of a flatpak transaction table (uninstall ops).
 pub fn parse_transaction(text: &str) -> Vec<String> {
     text.lines()
         .filter_map(|l| {
@@ -69,7 +51,6 @@ pub fn parse_transaction(text: &str) -> Vec<String> {
             {
                 return None;
             }
-            // id [arch] branch op
             let id = w[1];
             let branch = w[w.len() - 2];
             (w[w.len() - 1] == "r" && super::valid_name("flatpak", id))
@@ -78,7 +59,6 @@ pub fn parse_transaction(text: &str) -> Vec<String> {
         .collect()
 }
 
-/// `flatpak remote-ls --updates --columns=application,version,branch,download-size,ref`.
 pub fn parse_remote_updates(
     text: &str,
     scope: &str,
@@ -127,7 +107,6 @@ pub fn installed() -> Result<Vec<FlatpakApp>, String> {
     Ok(parse_list(&r.stdout))
 }
 
-/// App ids per installation, for the stable ids apps/linux builds.
 pub fn to_app(f: &FlatpakApp, id: String) -> App {
     let user = f.installation == "user";
     App {
@@ -159,7 +138,6 @@ fn scope_flag(installation: &str) -> Result<&'static str, String> {
     }
 }
 
-/// Preview a removal in one installation.
 pub fn preview_in(installation: &str, names: &[String]) -> Result<RemovePreview, String> {
     let mut args = vec!["uninstall", scope_flag(installation)?, "--"];
     args.extend(names.iter().map(String::as_str));
@@ -190,7 +168,6 @@ pub fn preview_in(installation: &str, names: &[String]) -> Result<RemovePreview,
     })
 }
 
-/// argv for a removal in the user installation (no administrator).
 pub fn user_remove_argv(names: &[String]) -> Vec<String> {
     let mut v: Vec<String> = [
         "flatpak",
@@ -206,7 +183,6 @@ pub fn user_remove_argv(names: &[String]) -> Vec<String> {
     v
 }
 
-/// Remove from the user installation, in the app's own process.
 pub fn remove_user(names: &[String]) -> Result<String, String> {
     super::validate("flatpak", names, &["flatpak"])?;
     let argv = user_remove_argv(names);
@@ -222,7 +198,6 @@ pub fn remove_user(names: &[String]) -> Result<String, String> {
     }
 }
 
-/// Update one ref in the user installation.
 pub fn upgrade_user(reference: &str) -> Result<String, String> {
     if !super::valid_name("flatpak", reference) {
         return Err("BAD_NAME".into());
@@ -264,7 +239,6 @@ impl PackageBackend for Flatpak {
             .collect())
     }
 
-    /// The system installation (the one the helper removes from).
     fn remove_preview(&self, names: &[String]) -> Result<RemovePreview, String> {
         preview_in("system", names)
     }

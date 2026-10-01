@@ -1,10 +1,3 @@
-//! A tiny owned XML tree over quick-xml.
-//!
-//! OPF, NCX, ComicInfo and OPDS documents are small, so reading them into a
-//! tree and walking it is simpler than a streaming parser per format.
-//! Names keep only the local part (`dc:title` -> `title`); the prefix is
-//! kept in `prefix` for the few places that care (`opf:role`).
-
 use quick_xml::events::Event;
 use quick_xml::Reader;
 
@@ -45,8 +38,6 @@ fn node_from(e: &quick_xml::events::BytesStart<'_>) -> Node {
     }
 }
 
-/// Parses a document; returns a synthetic root whose children are the
-/// top-level elements. Malformed tails are tolerated (what was read is kept).
 pub fn parse(xml: &str) -> Node {
     let mut reader = Reader::from_str(xml);
     reader.config_mut().trim_text(false);
@@ -100,7 +91,6 @@ pub fn parse(xml: &str) -> Node {
     stack.pop().unwrap_or_default()
 }
 
-/// XML entities plus numeric references. Unknown named entities stay as-is.
 pub fn unescape(s: &str) -> String {
     if !s.contains('&') {
         return s.to_string();
@@ -164,7 +154,6 @@ impl Node {
         self.children.iter().filter(move |c| c.name == name)
     }
 
-    /// Depth-first search for the first element with this local name.
     pub fn find(&self, name: &str) -> Option<&Node> {
         for c in &self.children {
             if c.name == name {
@@ -192,7 +181,6 @@ impl Node {
             .filter(|t| !t.is_empty())
     }
 
-    /// Text of this node and every descendant, whitespace collapsed.
     pub fn all_text(&self) -> String {
         let mut s = String::new();
         self.collect_text(&mut s);

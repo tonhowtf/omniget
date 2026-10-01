@@ -1,14 +1,3 @@
-//! Downloads › Tools › When downloads finish: quit OmniGet, put the computer
-//! to sleep or shut it down once the queue is empty.
-//!
-//! The idea comes from Persepolis ("shut down after download/queue",
-//! `persepolis/scripts/shutdown.py` at 5.2.0) and Varia (quit, sleep or shut
-//! down with a cancel window, `src/download/listen.py`). Reimplemented here
-//! without asking for a password: each system's own sleep and shutdown
-//! command runs as the logged-in user. No code was copied.
-//!
-//! Armed state lives in memory only, like in both apps: a restart disarms it.
-
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Mutex;
 use std::time::Duration;
@@ -19,8 +8,6 @@ use tauri::{AppHandle, Manager};
 use crate::core::queue::QueueStatus;
 use crate::AppState;
 
-/// Seconds between "the queue is empty" and the action, so the person can
-/// cancel (Varia waits 30 s too).
 pub const GRACE_SECONDS: u64 = 30;
 const TICK: Duration = Duration::from_secs(2);
 
@@ -45,13 +32,9 @@ impl FinishAction {
 
 #[derive(Debug, Clone, Serialize, PartialEq)]
 pub struct AfterDownloadsState {
-    /// None = disarmed.
     pub action: Option<FinishAction>,
-    /// Downloads still queued or running (seeding and paused ones do not count).
     pub pending: usize,
-    /// True once a download was seen running after arming.
     pub saw_work: bool,
-    /// Seconds left before the action, while counting down.
     pub countdown: Option<u64>,
 }
 
@@ -62,11 +45,8 @@ struct Armed {
 }
 
 static ARMED: Mutex<Option<Armed>> = Mutex::new(None);
-/// Bumped on every change, so an old watcher loop stops by itself.
 static GENERATION: AtomicU64 = AtomicU64::new(0);
 
-/// The command that performs `action` on `os` (`std::env::consts::OS`).
-/// `Quit` is handled inside the app and has no command.
 pub fn power_command(action: FinishAction, os: &str) -> Option<(&'static str, Vec<&'static str>)> {
     match (action, os) {
         (FinishAction::Quit, _) => None,
@@ -85,7 +65,6 @@ pub fn power_command(action: FinishAction, os: &str) -> Option<(&'static str, Ve
     }
 }
 
-/// One step of the watcher: given what the queue holds now, what happens next.
 #[derive(Debug, PartialEq)]
 pub enum Step {
     Wait,
@@ -135,7 +114,7 @@ fn perform(app: &AppHandle, action: FinishAction) {
         #[cfg(windows)]
         {
             use std::os::windows::process::CommandExt;
-            cmd.creation_flags(0x0800_0000); // CREATE_NO_WINDOW
+            cmd.creation_flags(0x0800_0000);
         }
         if let Err(e) = cmd.spawn() {
             tracing::warn!("[after-downloads] {program} failed: {e}");
@@ -188,7 +167,6 @@ pub async fn after_downloads_get(app: AppHandle) -> Result<AfterDownloadsState, 
     Ok(snapshot(pending))
 }
 
-/// `action`: "quit", "sleep", "shutdown", or null/"none" to disarm.
 #[tauri::command]
 pub async fn after_downloads_set(
     app: AppHandle,

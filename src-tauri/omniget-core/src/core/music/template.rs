@@ -1,7 +1,3 @@
-//! File name templates for renaming and conversion output:
-//! `{album_artist}/{album}/{disc}-{track} {title}`. A `/` in the template
-//! makes folders; every tag value is sanitized so it can't.
-
 use super::tags::TrackMeta;
 
 pub const DEFAULT_TEMPLATE: &str = "{album_artist}/{album}/{track} - {title}";
@@ -51,7 +47,6 @@ fn clean(component: &str) -> String {
             replacement: "_",
         },
     );
-    // no hidden files, no trailing dots/spaces (Windows)
     let s = s
         .trim()
         .trim_start_matches('.')
@@ -64,7 +59,6 @@ fn clean(component: &str) -> String {
     }
 }
 
-/// Relative path (with `/` separators) without extension.
 pub fn render(template: &str, m: &TrackMeta) -> String {
     let template = if template.trim().is_empty() {
         DEFAULT_TEMPLATE

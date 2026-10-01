@@ -1,7 +1,3 @@
-//! Command dispatcher shared by the app (`telegram_call`) and the CLI.
-//! Names and argument shapes are the old plugin's, so the UI can call them
-//! unchanged; args accept both `snake_case` and `camelCase`.
-
 use std::collections::{HashMap, HashSet};
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Arc;
@@ -16,7 +12,6 @@ use super::client::events::{self, DownloadReporter};
 use super::client::{self, api, auth, thumbnail_cache};
 use super::host;
 
-/// Every command `dispatch` understands.
 pub const COMMANDS: &[&str] = &[
     "telegram_check_session",
     "telegram_qr_start",
@@ -122,8 +117,6 @@ pub const COMMANDS: &[&str] = &[
     "telegram_approval_answer",
 ];
 
-/// Commands that work without a connected client (login, local files,
-/// settings). Every other command first restores a saved session.
 const OFFLINE_COMMANDS: &[&str] = &[
     "telegram_check_session",
     "telegram_qr_start",
@@ -188,7 +181,6 @@ struct BatchItem {
     file_name: String,
     #[serde(default)]
     file_size: u64,
-    // Optional message data, used by name templates.
     #[serde(default)]
     date: i64,
     #[serde(default)]
@@ -221,7 +213,6 @@ struct BatchCounters {
     skipped: AtomicU32,
     deleted: AtomicU32,
     resumed: AtomicU32,
-    /// Counted in `skipped` too.
     duplicates: AtomicU32,
 }
 
@@ -251,7 +242,6 @@ fn opt_string(args: &serde_json::Value, keys: &[&str]) -> Option<String> {
         .filter(|s| !s.trim().is_empty())
 }
 
-/// `{chatId, chatType}` (or snake_case).
 fn chat_of(args: &serde_json::Value) -> Result<(i64, String), String> {
     let chat_id = args
         .get("chatId")
@@ -297,7 +287,6 @@ fn bool_of(args: &serde_json::Value, keys: &[&str]) -> bool {
         .unwrap_or(false)
 }
 
-/// What a whole-chat download (or its preview) would fetch.
 struct ChatPlan {
     title: String,
     root: std::path::PathBuf,
@@ -307,13 +296,9 @@ struct ChatPlan {
     skip_same: bool,
     dedupe: bool,
     scan_id: String,
-    /// File uid of each item (same order as `items`).
     uids: Vec<Option<String>>,
 }
 
-/// Brings the chat's index up to date as far as `filter` needs and decides
-/// every file's path, oldest first. Emits `telegram-chat-scan {scan_id,
-/// chat_id, scanned, matched, done}` per page.
 async fn plan_chat_download(
     session: &auth::TelegramSessionHandle,
     args: &serde_json::Value,
@@ -382,8 +367,6 @@ async fn plan_chat_download(
     })
 }
 
-/// Runs one command. The work runs on its own task, boxed, so the large
-/// grammers futures never sit on the caller's stack.
 pub async fn dispatch(
     command: String,
     args: serde_json::Value,
@@ -1704,8 +1687,6 @@ async fn dispatch_inner(
                 || min_size.is_some()
                 || max_size.is_some();
             if has_bounds || client::index::coverage(chat_id).complete {
-                // Search the local index (caption and file name), reading
-                // only what the index still lacks.
                 let filter = client::history::MediaFilter {
                     media_types: media_type
                         .clone()
@@ -2096,7 +2077,6 @@ async fn dispatch_inner(
             Ok(json!({ "max_threads": clamped }))
         }
 
-        // ---- new in the app -------------------------------------------------
         "telegram_resolve_links" => {
             let text: String =
                 opt_string(&args, &["text", "url", "urls"]).ok_or("missing 'text'")?;
@@ -2262,7 +2242,6 @@ async fn dispatch_inner(
 
         "telegram_list_commands" => Ok(json!(COMMANDS)),
 
-        // ---- player -----------------------------------------------------------
         "telegram_stream_url" => {
             let (chat_id, chat_type) = chat_of(&args)?;
             let message_id = message_id_of(&args)?;
@@ -2307,7 +2286,6 @@ async fn dispatch_inner(
 
         "telegram_external_players" => Ok(json!(client::player::external_players())),
 
-        // ---- auto-save --------------------------------------------------------
         "telegram_watch_list" => {
             serde_json::to_value(client::watch::list()).map_err(|e| e.to_string())
         }
@@ -2352,7 +2330,6 @@ async fn dispatch_inner(
             Ok(json!({ "interval_min": client::watch::interval_min() }))
         }
 
-        // ---- whole-chat download ------------------------------------------------
         "telegram_preview_chat_download" => {
             let plan = plan_chat_download(&session, &args, fix_ext).await?;
             let total_bytes: u64 = plan.planned.iter().map(|p| p.file_size).sum();
@@ -2431,7 +2408,6 @@ async fn dispatch_inner(
             }))
         }
 
-        // ---- upload -------------------------------------------------------------
         "telegram_upload_paths" => {
             let (chat_id, chat_type) = chat_of(&args)?;
             let paths: Vec<String> = match args.get("paths").or(args.get("path")) {
@@ -2464,7 +2440,6 @@ async fn dispatch_inner(
             .await?;
             Ok(json!({ "batch_id": batch_id, "count": count }))
         }
-        // ---- real time -----------------------------------------------------------
         "telegram_realtime_get" => Ok(client::realtime::state()),
 
         "telegram_realtime_set" => {
@@ -2472,7 +2447,6 @@ async fn dispatch_inner(
             Ok(client::realtime::set_enabled(on))
         }
 
-        // ---- history index ---------------------------------------------------------
         "telegram_scan_chat" => {
             let (chat_id, chat_type) = chat_of(&args)?;
             let scan_id = opt_string(&args, &["scanId", "scan_id"])
@@ -2523,7 +2497,6 @@ async fn dispatch_inner(
             Ok(json!({ "ok": true }))
         }
 
-        // ---- duplicates -------------------------------------------------------------
         "telegram_dedupe_stats" => Ok(client::dedupe::stats()),
 
         "telegram_dedupe_set" => {
@@ -2537,7 +2510,6 @@ async fn dispatch_inner(
             Ok(client::dedupe::stats())
         }
 
-        // ---- transcripts ------------------------------------------------------------
         "telegram_transcribe" => {
             let (chat_id, chat_type) = chat_of(&args)?;
             let message_id = message_id_of(&args)?;
@@ -2569,7 +2541,6 @@ async fn dispatch_inner(
                 .map_err(|e| e.to_string())
         }
 
-        // ---- local Whisper (core::asr) ------------------------------------------------
         "telegram_asr_status" => {
             serde_json::to_value(crate::core::asr::status()).map_err(|e| e.to_string())
         }
@@ -2583,12 +2554,10 @@ async fn dispatch_inner(
             serde_json::to_value(st).map_err(|e| e.to_string())
         }
 
-        // The app answers this one itself (it owns the /video library).
         "telegram_add_to_watch" => {
             Err("Adding to Watch is only available in the OmniGet app".into())
         }
 
-        // ---- approvals of agent actions ----------------------------------------------
         "telegram_approval_list" => {
             serde_json::to_value(super::approvals::pending()).map_err(|e| e.to_string())
         }

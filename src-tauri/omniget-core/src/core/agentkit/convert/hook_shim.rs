@@ -1,22 +1,3 @@
-//! Runtime of `omniget-hook-shim` (the binary in `omniget-cli` is a thin
-//! wrapper around [`main_with`]).
-//!
-//! ```text
-//! omniget-hook-shim --tool <id> --event <Claude event> [--native-event <name>]
-//!                   [--matcher <Claude matcher>] [--timeout <s>] -- <original command>
-//! omniget-hook-shim --tool cline --dispatch <registry.json> [--native-event <name>]
-//! omniget-hook-shim --tool claude --observe --as <id> --data-dir <dir> [--gate] [--wait <s>]
-//! ```
-//!
-//! 1. Reads the tool's hook stdin and normalises it to Claude's hook JSON
-//!    (`session_id, transcript_path, cwd, hook_event_name, tool_name` with the
-//!    canonical Claude tool name, `tool_input` with Claude's field names).
-//! 2. Runs the original command with that stdin, `CLAUDE_PROJECT_DIR` set and
-//!    the project as working directory (or, with `--observe`, reports to the
-//!    OmniGet bridge and waits for the owner's answer on permission events).
-//! 3. Reads Claude's answer (exit 2 + stderr, `hookSpecificOutput`, `decision`,
-//!    `continue`) and writes it back in the tool's own dialect.
-
 use std::collections::BTreeMap;
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
@@ -26,31 +7,19 @@ use serde_json::{json, Map, Value};
 
 use super::hook_common::matcher_matches;
 
-/// Parsed command line.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct ShimArgs {
-    /// Dialect of stdin/stdout (target id).
     pub tool: String,
-    /// Canonical (Claude) event.
     pub event: Option<String>,
     pub native_event: Option<String>,
-    /// Canonical matcher checked here (tools without native matchers).
     pub matcher: Option<String>,
     pub timeout: Option<f64>,
-    /// Cline: registry of Claude-shaped hook groups keyed by native event.
     pub dispatch: Option<PathBuf>,
-    /// Report to the bridge instead of running a command.
     pub observe: bool,
-    /// Observe: the tool this installation reports as.
     pub as_tool: Option<String>,
-    /// OmniGet data dir (settings.json with the bridge port, observe tokens).
     pub data_dir: Option<PathBuf>,
-    /// Observe: hold `PreToolUse` too (not only `PermissionRequest`).
     pub gate: bool,
-    /// Observe: seconds to wait for the owner before letting the tool ask.
     pub wait: Option<u64>,
-    /// Statusline mode: translate the tool's statusline stdin to Claude's and
-    /// print what the original command prints.
     pub statusline: bool,
     pub command: Vec<String>,
 }
@@ -97,7 +66,6 @@ pub fn parse_args(args: &[String]) -> Result<ShimArgs, String> {
     Ok(a)
 }
 
-/// What the shim hands back to the tool.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct Outcome {
     pub exit: i32,
@@ -105,14 +73,11 @@ pub struct Outcome {
     pub stderr: String,
 }
 
-/// Where environment variables come from (the process, or a test map).
 pub type EnvFn<'a> = &'a dyn Fn(&str) -> Option<String>;
 
 pub fn process_env(k: &str) -> Option<String> {
     std::env::var(k).ok().filter(|v| !v.is_empty())
 }
-
-// ------------------------------------------------------------------ normalise
 
 fn first_str(v: &Value, keys: &[&str]) -> Option<String> {
     keys.iter().find_map(|k| {
@@ -129,7 +94,6 @@ fn first_val(v: &Value, keys: &[&str]) -> Option<Value> {
         .find_map(|k| v.get(*k).filter(|x| !x.is_null()).cloned())
 }
 
-/// A string that holds JSON becomes the JSON.
 fn unstring(v: Value) -> Value {
     match &v {
         Value::String(s) => {
@@ -162,8 +126,6 @@ const CANONICAL_ORDER: &[&str] = &[
     "AskUserQuestion",
 ];
 
-/// Native tool name → Claude's, through the target's `tool_name_map` (reversed)
-/// plus aliases the runtimes use besides the documented names.
 pub fn canonical_tool(tool: &str, native: &str) -> String {
     if native.is_empty() {
         return String::new();
@@ -224,7 +186,6 @@ pub fn canonical_tool(tool: &str, native: &str) -> String {
         if let Some(h) = hits.first() {
             return h.to_string();
         }
-        // MCP id pattern (`mcp_{server}_{tool}`, `{server}__{tool}` …)
         if let Some(pat) = t.tool_name_map.get("mcp").filter(|p| !p.is_empty()) {
             if let Some((s, tl)) = match_mcp(pat, native) {
                 return format!("mcp__{s}__{tl}");
@@ -255,7 +216,6 @@ fn match_mcp(pat: &str, name: &str) -> Option<(String, String)> {
     (!s.is_empty() && !t.is_empty()).then(|| (s.to_string(), t.to_string()))
 }
 
-/// Tool input with Claude's field names added next to the native ones.
 pub fn canonical_input(input: Value) -> Value {
     let Value::Object(mut m) = unstring(input) else {
         return json!({});
@@ -304,7 +264,6 @@ pub fn canonical_input(input: Value) -> Value {
     Value::Object(m)
 }
 
-/// Claude event from a native one (reverse of `hook_event_map`).
 pub fn canonical_event(tool: &str, native: &str) -> Option<String> {
     let t = crate::core::agentkit::targets::target(tool)?;
     t.hook_event_map
@@ -313,7 +272,6 @@ pub fn canonical_event(tool: &str, native: &str) -> Option<String> {
         .map(|(k, _)| k.clone())
 }
 
-/// Cascade has no tool name: the event says what kind of action it is.
 fn cascade_tool(native_event: &str, info: &Value) -> String {
     match native_event.split_once('_').map(|x| x.1).unwrap_or("") {
         "run_command" => "Bash".into(),
@@ -342,7 +300,6 @@ const PROJECT_ENVS: &[&str] = &[
     "GEMINI_CWD",
 ];
 
-/// Builds Claude's hook JSON from what the tool sent.
 pub fn normalize(
     tool: &str,
     event: &str,
@@ -350,7 +307,6 @@ pub fn normalize(
     raw: &Value,
     env: EnvFn,
 ) -> Value {
-    // Cline (VS Code) nests the event payload under its camelCase name.
     let nested = [
         "preToolUse",
         "postToolUse",
@@ -532,20 +488,15 @@ pub fn normalize(
     Value::Object(out)
 }
 
-// ------------------------------------------------------------------ verdict
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum Decision {
-    /// No opinion: the tool does what it would have done.
     #[default]
     None,
     Allow,
     Deny,
-    /// Ask the user (the tool's own prompt).
     Ask,
 }
 
-/// Claude's answer, read once and rendered per dialect.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct Verdict {
     pub decision: Decision,
@@ -553,11 +504,9 @@ pub struct Verdict {
     pub context: Option<String>,
     pub system_message: Option<String>,
     pub updated_input: Option<Value>,
-    /// `continue: false`: stop the whole agent.
     pub stop: bool,
 }
 
-/// Reads a Claude hook result.
 pub fn claude_verdict(event: &str, exit: i32, stdout: &str, stderr: &str) -> Verdict {
     let mut v = Verdict::default();
     if exit == 2 {
@@ -636,7 +585,6 @@ pub fn claude_verdict(event: &str, exit: i32, stdout: &str, stderr: &str) -> Ver
     v
 }
 
-/// Claude's own output for a verdict (used for `--tool claude` observe and dispatch).
 pub fn render_claude(event: &str, v: &Verdict) -> Outcome {
     let mut o = Map::new();
     let mut hso = Map::new();
@@ -712,7 +660,6 @@ fn blocking(event: &str) -> bool {
     )
 }
 
-/// The verdict in the tool's own dialect.
 pub fn render(tool: &str, event: &str, native: Option<&str>, v: &Verdict) -> Outcome {
     let deny = v.decision == Decision::Deny;
     let json_out = |o: Value| Outcome {
@@ -940,7 +887,6 @@ pub fn render(tool: &str, event: &str, native: Option<&str>, v: &Verdict) -> Out
             }
             json_out(Value::Object(o))
         }
-        // exit-code dialects: block with 2 + stderr, context on stdout
         "kiro" | "windsurf" => {
             if deny && (blocking(event) || native.starts_with("pre_")) {
                 return exit2(&v.reason);
@@ -950,7 +896,6 @@ pub fn render(tool: &str, event: &str, native: Option<&str>, v: &Verdict) -> Out
                 ..Default::default()
             }
         }
-        // our generated code plugins read this JSON
         "opencode" | "kilo" | "amp" | "pi" => json_out(json!({
             "decision": match v.decision {
                 Decision::Allow => json!("allow"),
@@ -963,7 +908,6 @@ pub fn render(tool: &str, event: &str, native: Option<&str>, v: &Verdict) -> Out
             "updated_input": v.updated_input,
             "stop": v.stop,
         })),
-        // Claude dialect (Claude, Codex, Qwen, Kimi, Droid, Junie …)
         _ => {
             if deny && blocking(event) && v.updated_input.is_none() && v.context.is_none() {
                 return exit2(&v.reason);
@@ -973,9 +917,6 @@ pub fn render(tool: &str, event: &str, native: Option<&str>, v: &Verdict) -> Out
     }
 }
 
-// ------------------------------------------------------------------ running
-
-/// Joins `-- a b c` back into one shell line (one argument = already a line).
 pub fn command_line(cmd: &[String]) -> String {
     if cmd.len() == 1 {
         cmd[0].clone()
@@ -984,7 +925,6 @@ pub fn command_line(cmd: &[String]) -> String {
     }
 }
 
-/// Runs a shell line with `stdin`, in `dir` when it exists, with a timeout.
 pub fn run_shell(
     line: &str,
     stdin: &[u8],
@@ -1102,7 +1042,6 @@ fn subject(claude_in: &Value, event: &str) -> String {
         .to_string()
 }
 
-/// Does a matcher let this call through? No subject (events without one) = yes.
 pub fn passes(matcher: Option<&str>, claude_in: &Value, event: &str) -> bool {
     match matcher {
         None => true,
@@ -1113,7 +1052,6 @@ pub fn passes(matcher: Option<&str>, claude_in: &Value, event: &str) -> bool {
     }
 }
 
-/// The whole shim: arguments + stdin → what to print and the exit code.
 pub fn main_with(args: &ShimArgs, stdin: &[u8], env: EnvFn) -> Outcome {
     let raw: Value = serde_json::from_slice(stdin).unwrap_or_else(|_| json!({}));
     if let Some(reg) = &args.dispatch {
@@ -1177,19 +1115,16 @@ pub fn main_with(args: &ShimArgs, stdin: &[u8], env: EnvFn) -> Outcome {
         args.timeout.map(Duration::from_secs_f64),
     );
     if args.tool == "claude" {
-        // same dialect: hand the hook's own answer back untouched
         return res;
     }
     let v = claude_verdict(&event, res.exit, &res.stdout, &res.stderr);
     let mut out = render(&args.tool, &event, native.as_deref(), &v);
     if res.exit != 0 && res.exit != 2 && !res.stderr.is_empty() {
-        // a failing hook stays non-blocking, but its message is kept
         out.stderr = res.stderr;
     }
     out
 }
 
-/// Cline: one executable per event runs every registered hook for it.
 fn dispatch(args: &ShimArgs, reg: &Path, raw: &Value, env: EnvFn) -> Outcome {
     let native = args
         .native_event
@@ -1263,10 +1198,6 @@ fn dispatch(args: &ShimArgs, reg: &Path, raw: &Value, env: EnvFn) -> Outcome {
     render(&args.tool, &last_event, Some(&native), &total)
 }
 
-// ------------------------------------------------------------------ observe
-
-/// Which coding tool is running this hook right now, from what it leaves in
-/// the environment and the payload. `None` = cannot tell.
 pub fn running_tool(raw: &Value, env: EnvFn) -> Option<&'static str> {
     if raw.get("cursor_version").is_some() || env("CURSOR_VERSION").is_some() {
         return Some("cursor");
@@ -1307,7 +1238,6 @@ fn data_dir(args: &ShimArgs) -> Option<PathBuf> {
         .or_else(crate::core::paths::app_data_dir)
 }
 
-/// Bridge port from `<data>/settings.json` (`app_settings.bridge.port`).
 pub fn bridge_port(data: &Path) -> Option<u16> {
     let v: Value = serde_json::from_slice(&std::fs::read(data.join("settings.json")).ok()?).ok()?;
     let b = &v["app_settings"]["bridge"];
@@ -1317,7 +1247,6 @@ pub fn bridge_port(data: &Path) -> Option<u16> {
     b["port"].as_u64().map(|p| p as u16).filter(|p| *p != 0)
 }
 
-/// Observe tokens file: `<data>/agentkit/observe/tokens.json` = `{tool: token}`.
 pub fn tokens_path(data: &Path) -> PathBuf {
     data.join("agentkit").join("observe").join("tokens.json")
 }
@@ -1330,16 +1259,11 @@ pub fn read_token(data: &Path, tool: &str) -> Option<String> {
         .map(str::to_string)
 }
 
-/// Longest the bridge holds a permission question (it stays under the ask
-/// timeout of the tool broker).
 pub const MAX_WAIT_SECS: u64 = 115;
-/// Default wait when the command line does not say.
 pub const DEFAULT_WAIT_SECS: u64 = 100;
 
 fn observe(args: &ShimArgs, event: &str, claude_in: &Value, raw: &Value, env: EnvFn) -> Verdict {
     let as_tool = args.as_tool.clone().unwrap_or_else(|| args.tool.clone());
-    // a hook written into Claude's settings on behalf of another tool runs in
-    // Claude too: report only when the runner is the tool this entry is for
     if let Some(running) = running_tool(raw, env) {
         if running != as_tool {
             return Verdict::default();
@@ -1389,7 +1313,6 @@ fn observe(args: &ShimArgs, event: &str, claude_in: &Value, raw: &Value, env: En
     v
 }
 
-/// Minimal HTTP/1.1 POST to the loopback bridge (no TLS, no proxies).
 pub fn http_post(
     port: u16,
     path: &str,
@@ -1447,11 +1370,8 @@ fn dechunk(b: &[u8]) -> Vec<u8> {
     out
 }
 
-/// Entry point of the binary: process args + stdin → stdout/stderr/exit.
 pub fn main_entry() -> i32 {
     let argv: Vec<String> = std::env::args().skip(1).collect();
-    // `omniget-hook-shim hook claude …`: OmniGet's own permission hook of a
-    // Claude turn (3.4), the same entry as `omniget hook claude`.
     if argv.first().map(String::as_str) == Some("hook")
         && argv.get(1).map(String::as_str) == Some("claude")
     {
@@ -1491,5 +1411,4 @@ pub fn main_entry() -> i32 {
     out.exit
 }
 
-/// A registry of Claude-shaped groups keyed by native event (Cline dispatch).
 pub type Registry = BTreeMap<String, Vec<Value>>;

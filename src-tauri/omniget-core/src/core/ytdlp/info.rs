@@ -1,14 +1,7 @@
-//! Metadata: the saved info JSON, `get_video_info`, subtitle languages and
-//! playlists.
-
 use super::*;
 
-/// Validade do info JSON salvo. URLs assinadas (YouTube ~6 h, TikTok/Instagram
-/// CDN menos) e cookies de CDN envelhecem; 5 min cobre inspeção → download.
 pub const INFO_JSON_MAX_AGE: std::time::Duration = std::time::Duration::from_secs(5 * 60);
 
-/// Onde o info JSON fica. `OMNIGET_INFO_JSON_DIR` deixa o host apontar um
-/// diretório que sobrevive entre o worker de inspeção e o de download.
 pub(super) fn info_json_dir() -> Option<PathBuf> {
     if let Some(dir) = std::env::var_os("OMNIGET_INFO_JSON_DIR").map(PathBuf::from) {
         if dir.is_absolute() {
@@ -27,8 +20,6 @@ pub(super) fn info_json_file(dir: &Path, url: &str) -> PathBuf {
     dir.join(format!("{}.info.json", &hash[..32]))
 }
 
-/// O JSON serve para `--load-info-json`? Só vídeo único com formatos (um
-/// playlist ou um resultado `url` obrigaria outra extração de qualquer jeito).
 pub(super) fn info_json_is_loadable(info: &serde_json::Value) -> bool {
     let kind = info
         .get("_type")
@@ -61,9 +52,6 @@ pub(super) fn prune_info_json_dir(dir: &Path, now: std::time::SystemTime) {
     }
 }
 
-/// Grava o JSON cru do `--dump-single-json` para o download reaproveitar a
-/// extração. Chave: o URL pedido e o `webpage_url` (é o que o download recebe).
-/// Arquivo 0600: o JSON pode trazer cookies de CDN dos formatos.
 pub fn save_info_json(url: &str, raw: &[u8], info: &serde_json::Value) {
     if !info_json_is_loadable(info) {
         return;
@@ -103,7 +91,6 @@ pub fn save_info_json(url: &str, raw: &[u8], info: &serde_json::Value) {
     }
 }
 
-/// Info JSON salvo para este URL, se ainda dentro da validade.
 pub fn fresh_info_json(url: &str) -> Option<PathBuf> {
     let path = info_json_file(&info_json_dir()?, url);
     if info_json_fresh(&path, std::time::SystemTime::now()) {
@@ -113,20 +100,17 @@ pub fn fresh_info_json(url: &str) -> Option<PathBuf> {
     None
 }
 
-/// Descarta o info JSON deste URL (falhou ao baixar dele).
 pub fn forget_info_json(url: &str) {
     if let Some(dir) = info_json_dir() {
         let _ = std::fs::remove_file(info_json_file(&dir, url));
     }
 }
 
-/// O JSON fresco deste URL já lido, quando existe.
 pub(super) fn cached_video_info(url: &str) -> Option<serde_json::Value> {
     let raw = std::fs::read(fresh_info_json(url)?).ok()?;
     serde_json::from_slice(&raw).ok()
 }
 
-/// Fim do comando: `--load-info-json <arq>` quando há JSON válido, senão o URL.
 pub(super) fn url_or_info_json_args(url: &str, info_json: Option<&Path>) -> Vec<String> {
     match info_json {
         Some(path) => vec![
@@ -308,8 +292,6 @@ pub(super) async fn select_available_subtitle_lang(
     include_auto: bool,
 ) -> anyhow::Result<Option<String>> {
     let requested = requested_caption_locales();
-    // O JSON que o get_video_info acabou de gravar já lista as legendas: sem
-    // ele, esta checagem era uma extração inteira a mais por download.
     let json = match cached_video_info(url) {
         Some(json) => json,
         None => get_video_info(ytdlp, url, extra_flags).await?,
@@ -550,9 +532,6 @@ pub(super) fn parse_playlist_dump(stdout: &str, source_url: &str) -> (String, Ve
                 .and_then(|v| v.as_str())
                 .unwrap_or("unknown")
                 .to_string();
-            // Flat-playlist entries usually carry a top-level "url"; some
-            // extractors (e.g. Bilibili cheese seasons) emit full info dicts
-            // that only have "webpage_url".
             let url = json
                 .get("url")
                 .or_else(|| json.get("webpage_url"))
@@ -561,6 +540,7 @@ pub(super) fn parse_playlist_dump(stdout: &str, source_url: &str) -> (String, Ve
             let url = match url {
                 Some(u) => u,
                 None => {
+                    // WHY: only build a youtube.com/watch URL for real YouTube entries (#157).
                     // Only fabricate a youtube.com/watch URL when the entry is
                     // actually a YouTube video; otherwise skip the entry rather
                     // than produce a bogus URL (issue #157).
@@ -604,10 +584,6 @@ pub struct PlaylistEntry {
     pub duration: Option<f64>,
 }
 
-/// yt-dlp `--download-archive` line prefix for a channel URL, or `None` when
-/// the platform's archive id format is not known well enough to rely on
-/// `--break-on-existing`. Callers that get `None` should fall back to a full
-/// (non-incremental) listing and dedupe in their own seen-set.
 pub fn archive_extractor_prefix(url: &str) -> Option<&'static str> {
     let host = url::Url::parse(url)
         .ok()
@@ -615,18 +591,10 @@ pub fn archive_extractor_prefix(url: &str) -> Option<&'static str> {
     if host.contains("youtube.com") || host.contains("youtu.be") {
         Some("youtube")
     } else {
-        // Other platforms' archive id formats are not stable enough across
-        // yt-dlp versions to rely on --break-on-existing; callers fall back to
-        // a full listing + seen-set dedupe, which stays correct either way.
         None
     }
 }
 
-/// Incremental playlist listing for channel polling. Writes a temporary
-/// yt-dlp archive built from `seen_ids` and passes `--break-on-existing` so
-/// yt-dlp stops enumerating as soon as it reaches a video that was already
-/// seen. Tolerates the non-zero exit yt-dlp returns when it breaks early and
-/// still parses whatever entries were emitted before the stop.
 pub async fn get_playlist_info_incremental(
     ytdlp: &Path,
     url: &str,
@@ -707,8 +675,6 @@ pub async fn get_playlist_info_incremental(
     if !output.status.success() && entries.is_empty() {
         let stderr = String::from_utf8_lossy(&output.stderr);
         let stderr_lower = stderr.to_lowercase();
-        // An empty result with a clean "stopped due to --break-on-existing"
-        // is the normal "no new videos" case, not a failure.
         if stderr_lower.contains("--break-on-existing")
             || stderr_lower.contains("already been recorded")
             || stderr_lower.contains("stopping further")
@@ -816,7 +782,6 @@ mod single_extraction_tests {
         let b = fresh_info_json("https://site/v/1").expect("pelo webpage_url");
         assert_ne!(a, b);
         assert_eq!(std::fs::read(&a).unwrap(), raw);
-        // A checagem de legendas lê este mesmo JSON em vez de extrair de novo.
         assert_eq!(
             cached_video_info("https://site/v/1?utm=x"),
             Some(info.clone())

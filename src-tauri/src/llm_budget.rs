@@ -1,15 +1,3 @@
-//! The app's side of the budget policies (3.3, S18, D5): opening
-//! `<llm dir>/budget.db` at boot, the price table and the `llm://budget`
-//! event, and the three doors to the policies and incidents — the window
-//! (`llm_budget_*`), the bridge (`GET /v1/budget`, `POST /v1/budget/policies`,
-//! `POST /v1/budget/incidents/{id}`) and `omniget agent budget`. The engine
-//! itself (scopes, ledger, gate, incidents) is
-//! `omniget_core::core::llm::budget::policy`.
-//!
-//! "Raise and resume" settles the incident and restarts every Loop it had
-//! paused (`Jobs::budget_resumed`); the cancelled jobs of the scope stay
-//! cancelled, as their result is unknown.
-
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use axum::Json;
@@ -21,12 +9,8 @@ use serde::Deserialize;
 use serde_json::{json, Value};
 use tauri::{AppHandle, Emitter};
 
-/// Every change of a policy or an incident, and every warning.
 pub const EVENT_BUDGET: &str = "llm://budget";
 
-/// Opens the policies before any turn runs and wires the price table and
-/// the event. The quota readings are wired where the CLI runtime is built
-/// (`llm_manager`).
 pub fn boot(app: &AppHandle) {
     let Some(dir) = omniget_core::core::llm::roster_store::llm_dir() else {
         return;
@@ -44,7 +28,6 @@ pub fn boot(app: &AppHandle) {
     }));
 }
 
-/// The CLI's model aliases, as the price table names them.
 fn table_name(model: &str) -> &str {
     match model.trim() {
         "haiku" => "claude-haiku-4-5",
@@ -54,9 +37,6 @@ fn table_name(model: &str) -> &str {
     }
 }
 
-/// A model's price from the LiteLLM table (read from its cache on disk,
-/// fetched once a day). Only asked when a dollar ceiling applies to a turn
-/// whose provider reported no price.
 async fn price_of(model: &str) -> Option<Price> {
     let p = omniget_core::core::tools::pricing::price_for(table_name(model)).await?;
     Some(Price {
@@ -69,7 +49,6 @@ fn engine() -> Result<std::sync::Arc<Engine>, String> {
     policy::active().ok_or_else(|| "ERR_LLM_BUDGET: the budget policies are not open".to_string())
 }
 
-/// What a person sends to save a policy: the D5 fields, as words.
 #[derive(Debug, Clone, Deserialize)]
 pub struct PolicyBody {
     #[serde(default)]
@@ -105,7 +84,6 @@ impl PolicyBody {
     }
 }
 
-/// `raise` (with `amount`) or `keep_paused`.
 #[derive(Debug, Clone, Deserialize)]
 pub struct ResolveBody {
     pub action: String,
@@ -127,7 +105,6 @@ impl ResolveBody {
     }
 }
 
-/// Settles an incident and, on a raise, resumes what it paused.
 pub fn resolve(id: &str, body: &ResolveBody, actor: Actor) -> Result<Value, String> {
     let inc = engine()?.resolve(id, body.resolution()?, actor)?;
     let resumed = if inc.state == "resolved" {
@@ -145,9 +122,6 @@ pub fn save(body: PolicyBody, actor: Actor) -> Result<Value, String> {
     Ok(json!(p))
 }
 
-// ── the window ──────────────────────────────────────────────────────────
-
-/// Policies with where each stands, and the incidents (newest first).
 #[tauri::command]
 pub async fn llm_budget_state() -> Result<Value, String> {
     Ok(engine()?.state_view())
@@ -171,8 +145,6 @@ pub async fn llm_budget_incident_resolve(
 ) -> Result<Value, String> {
     resolve(&id, &ResolveBody { action, amount }, Actor::window())
 }
-
-// ── the bridge (`omniget agent budget`) ────────────────────────────────
 
 fn status_of(e: &str) -> StatusCode {
     if e.contains("no incident") {

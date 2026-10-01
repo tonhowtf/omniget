@@ -1,9 +1,5 @@
-//! Windows only: reading the sources and running the actions. Every text
-//! parser and every decision lives in the pure modules next to this one.
-//!
 //! Inventory steps follow Bulk Crap Uninstaller (Copyright (c) 2017 Marcin
 //! Szeniak, Apache License 2.0, see `data/washmybelly/bcu/NOTICE`), with
-//! winget added. Modified for OmniGet.
 
 use std::path::{Path, PathBuf};
 
@@ -25,9 +21,6 @@ fn env_dir(k: &str) -> Option<PathBuf> {
     env(k).map(PathBuf::from)
 }
 
-// ── Sources ─────────────────────────────────────────────────────────
-
-/// Every Uninstall entry as an app (merged, not yet filtered).
 pub fn registry_apps() -> Vec<App> {
     let mut apps = Vec::new();
     for root in Root::ALL {
@@ -72,7 +65,6 @@ fn msi_property(code: &[u16], context: i32, prop: windows_sys::core::PCWSTR) -> 
     None
 }
 
-/// Products the Windows Installer knows, for this user and the machine.
 pub fn msi_products() -> Vec<inventory::MsiProduct> {
     use windows_sys::Win32::System::ApplicationInstallationAndServicing::{
         MsiEnumProductsExW, INSTALLPROPERTY_INSTALLEDPRODUCTNAME, INSTALLPROPERTY_INSTALLLOCATION,
@@ -201,7 +193,6 @@ fn scoop_roots() -> Vec<(PathBuf, bool)> {
     v
 }
 
-/// The whole inventory, in BCU's order with winget added.
 pub fn list() -> Result<Vec<App>, String> {
     const STEPS: u64 = 7;
     progress(
@@ -274,8 +265,6 @@ pub fn list() -> Result<Vec<App>, String> {
     Ok(apps)
 }
 
-// ── Leftovers ───────────────────────────────────────────────────────
-
 pub fn others_for(target_id: &str, target_name: &str) -> Vec<Other> {
     let tn = parse::normalize_name(target_name);
     registry_apps()
@@ -306,7 +295,6 @@ fn schtasks_rows() -> Vec<(String, String)> {
         .unwrap_or_default()
 }
 
-/// Everything the scanners look at, on this machine.
 pub fn leftovers(
     t: &Target,
     others: &[Other],
@@ -372,13 +360,10 @@ pub fn leftovers(
     out
 }
 
-// ── Actions ─────────────────────────────────────────────────────────
-
 fn reg_exe() -> String {
     format!(r"{}\System32\reg.exe", run::system_root())
 }
 
-/// `reg export <key> <file> /y /reg:64`: the backup taken before a key goes.
 pub fn reg_export(key: &str, file: &Path) -> Result<(), String> {
     if let Some(dir) = file.parent() {
         std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
@@ -431,7 +416,6 @@ pub fn reg_import(file: &Path) -> Result<(), String> {
     }
 }
 
-/// Run a planned command and read its exit code.
 pub fn run_planned(p: &Planned, label: &str) -> Result<i32, String> {
     match run::sys::run(p, label)? {
         Ended::Exit(code) => Ok(code),
@@ -441,7 +425,6 @@ pub fn run_planned(p: &Planned, label: &str) -> Result<i32, String> {
     }
 }
 
-/// Programs running from a folder (to ask the person to close them).
 pub fn running_in(dir: &str) -> Vec<String> {
     if dir.trim().len() < 4 {
         return Vec::new();
@@ -466,8 +449,6 @@ pub fn running_in(dir: &str) -> Vec<String> {
     names
 }
 
-/// Uninstall by the module item's arguments. Everything is read again
-/// from the system: the arguments only say which app.
 pub fn uninstall(args: &Value) -> Result<(String, u64), String> {
     let app_id = run::arg(args, "app_id").ok_or("app_id missing")?;
     let label = run::arg(args, "name").unwrap_or(app_id).to_string();
@@ -532,13 +513,11 @@ pub fn uninstall(args: &Value) -> Result<(String, u64), String> {
     Ok((detail, before.saturating_sub(after)))
 }
 
-/// The registry entry named by the item, read again now.
 pub fn entry_of(args: &Value, app_id: &str) -> Result<parse::RegEntry, String> {
     let root = run::arg(args, "reg_root")
         .and_then(Root::parse)
         .ok_or("registry root missing")?;
     let key = run::arg(args, "reg_key").ok_or("registry key missing")?;
-    // The id and the key must agree (`msi:{GUID}` or `reg:<root>:<key>`).
     let agrees = app_id == format!("reg:{}:{}", root.as_str(), key)
         || app_id
             .strip_prefix("msi:")
@@ -553,7 +532,6 @@ pub fn entry_of(args: &Value, app_id: &str) -> Result<parse::RegEntry, String> {
 fn uninstall_registered(args: &Value, app_id: &str, label: &str) -> Result<String, String> {
     let entry = entry_of(args, app_id)?;
     let still_there = || registry::read_entry(entry.root, &entry.key_name).is_some();
-    // winget first when it knows the package; "no package found" falls back.
     if let Some(id) = run::arg(args, "winget_id").filter(|id| parse::winget_id_ok(id)) {
         if winget_exists() {
             let p = run::winget_uninstall(id)?;
@@ -578,7 +556,6 @@ fn uninstall_registered(args: &Value, app_id: &str, label: &str) -> Result<Strin
     Ok(run::summary(&m, label))
 }
 
-/// Remove an Appx package for this user.
 pub fn appx_remove(name: &str) -> Result<String, String> {
     let p = run::appx_remove(name, &run::system_root())?;
     match run_planned(&p, name)? {
@@ -599,7 +576,6 @@ pub fn store_reinstall(store_id: &str) -> Result<String, String> {
     }
 }
 
-/// The raw facts of one app for the details sheet.
 pub fn details(a: &App) -> Value {
     let entry = inventory::reg_location(a).and_then(|(r, k)| registry::read_entry(r, &k));
     let planned = entry

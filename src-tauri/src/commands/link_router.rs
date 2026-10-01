@@ -1,12 +1,3 @@
-//! Downloads › Tools › Engine per link: paste a list of links (or open a .txt),
-//! see which engine OmniGet picks for each one, change it where you know
-//! better, and queue them all.
-//!
-//! The idea comes from Media Downloader (mhogomchungu/media-downloader), whose
-//! Batch tab reads links from a file and lets each row use its own engine
-//! (yt-dlp, gallery-dl, aria2c...), with URL rules as the default.
-//! Reimplemented on top of OmniGet's own routing; no code was copied.
-
 use std::sync::Arc;
 
 use serde::Serialize;
@@ -14,21 +5,15 @@ use serde::Serialize;
 use crate::core::registry::PlatformRegistry;
 use omniget_core::platforms::traits::PlatformDownloader;
 
-/// Engines a person can force on a web link. Torrents, magnets and P2P codes
-/// keep their own engine.
 pub const FORCEABLE_ENGINES: &[&str] = &["generic", "gallery", "direct_file"];
 
-/// Most links one check takes, so a huge file cannot stall the window.
 const MAX_LINKS: usize = 1000;
 
 #[derive(Debug, Default, Clone, Serialize, PartialEq)]
 pub struct ParsedList {
     pub links: Vec<String>,
-    /// Links that were already in the list.
     pub duplicates: usize,
-    /// Non-empty lines (or words) that are not links. `#` comments do not count.
     pub ignored: usize,
-    /// True when the list was cut at `MAX_LINKS`.
     pub truncated: bool,
 }
 
@@ -39,9 +24,6 @@ fn is_link(s: &str) -> bool {
         || s.starts_with("p2p:")
 }
 
-/// One link per line, or several on a line separated by spaces. Blank lines
-/// and `#` comments are skipped, `url|anything` keeps the URL (the format the
-/// batch file of the home screen already accepts), and repeats are dropped.
 pub fn parse_link_list(text: &str) -> ParsedList {
     let mut out = ParsedList::default();
     let mut seen = std::collections::HashSet::new();
@@ -70,10 +52,8 @@ pub fn parse_link_list(text: &str) -> ParsedList {
     out
 }
 
-/// A downloader and the platform name the queue records for it.
 pub type ForcedEngine = (Arc<dyn PlatformDownloader>, String);
 
-/// The downloader for an engine the person picked, or `None` for "auto".
 pub fn forced_engine(
     registry: &PlatformRegistry,
     engine: Option<&str>,
@@ -94,10 +74,7 @@ pub fn forced_engine(
 #[derive(Debug, Clone, Serialize)]
 pub struct RoutedLink {
     pub url: String,
-    /// Name of the downloader OmniGet picks on its own (`youtube`, `generic`,
-    /// `gallery`, `direct_file`, `magnet`...). Empty when none takes the link.
     pub engine: String,
-    /// Engines that can be forced on this link (empty: it keeps its own).
     pub choices: Vec<&'static str>,
 }
 
@@ -133,8 +110,6 @@ pub async fn route_links(
 ) -> Result<RouteReport, String> {
     let parsed = parse_link_list(&text);
     let registry = &state.registry;
-    // The direct-file check sends a short HEAD to unknown hosts: a few at a
-    // time, so a long list neither waits in line nor floods one server.
     let mut links = Vec::with_capacity(parsed.links.len());
     for chunk in parsed.links.chunks(6) {
         let mut batch = Vec::with_capacity(chunk.len());

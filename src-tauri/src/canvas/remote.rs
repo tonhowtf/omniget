@@ -1,37 +1,3 @@
-//! The canvas from a phone (Maestri Remote, study 95 §2-3), served by the
-//! remote listener of `crate::local_bridge_remote` (opt-in, one interface,
-//! per-device bearer). Routes:
-//!
-//! - `GET  /remote/canvas/`: a single inline page (no build step).
-//! - `GET  /remote/api/canvas/overview`: workspaces, floors and terminal
-//!   nodes with their canonical state, the "needs you" inbox and the
-//!   companion's latest summaries.
-//! - `GET  /remote/api/canvas/nodes/{id}/screen?lines=`: the node's screen
-//!   text (rendered text only, never the raw PTY stream).
-//! - `POST /remote/api/canvas/nodes/{id}/prompt {text}`: paste + Enter.
-//! - `POST /remote/api/canvas/nodes/{id}/approve|deny`: the pending
-//!   permission of that node (never "always": a permanent rule stays a
-//!   desktop decision).
-//! - `POST /remote/api/canvas/nodes/{id}/seen`
-//!
-//! Scopes: `read` devices see everything above but every write answers 403;
-//! `drive` devices may also prompt, approve and deny. Pairing is the
-//! existing QR secret or a 6-digit code (`canvas_remote_pair_code`), both
-//! redeemed at `/remote/api/pair`; devices are revoked from the app.
-//!
-//! What we keep from the Maestri Wire and what we avoid (study 94 §2):
-//! the listener binds one chosen interface (never 0.0.0.0), there is no
-//! CORS, the `Host` header must be an IP literal, `localhost`, `.local` or
-//! `.ts.net` (anti DNS rebinding), the bearer is stored only as SHA-256,
-//! pairing is throttled per address and globally (a global lockout burns the
-//! 6-digit code), and a phone can never type raw bytes into a terminal: it
-//! sends a whole prompt or answers a permission. TLS comes from
-//! `tailscale serve` (HTTPS with a real certificate) or an `ssh -L` tunnel,
-//! as for the Central's remote.
-//!
-//! TODO(android): a native Android client and Android portals are future
-//! work (see the handoff); this page is the only client for now.
-
 use std::sync::Arc;
 
 use axum::extract::{ConnectInfo, Path, Request};
@@ -51,8 +17,6 @@ use crate::local_bridge_remote::{self as lbr, Peer, RemoteDevice, Scope};
 fn store() -> Arc<CanvasStore> {
     super::doc::host().store().clone()
 }
-
-// ---------------------------------------------------------------- routes
 
 pub fn routes<S: Clone + Send + Sync + 'static>() -> Router<S> {
     Router::new()
@@ -91,13 +55,9 @@ pub fn routes<S: Clone + Send + Sync + 'static>() -> Router<S> {
         .merge(super::remote_stream::routes())
 }
 
-/// `Host` must name this machine the way a LAN or tailnet client does:
-/// an IP literal, `localhost`, `*.local` or `*.ts.net`. A DNS-rebinding page
-/// on some other name gets 403 before anything else runs.
 pub fn host_allowed(host: &str) -> bool {
     let h = host.trim().to_ascii_lowercase();
     let name = if let Some(rest) = h.strip_prefix('[') {
-        // [v6]:port
         return rest
             .split(']')
             .next()
@@ -178,8 +138,6 @@ async fn blocking(
         .map_err(|e| format!("CANVAS_TASK: {e}"))?
 }
 
-// ---------------------------------------------------------------- model
-
 fn state_str(s: AgentState) -> String {
     serde_json::to_value(s)
         .ok()
@@ -193,7 +151,6 @@ fn terminal_of(node: &CanvasNode) -> Option<String> {
         .filter(|t| !t.is_empty())
 }
 
-/// Pending permission (broker) of a canvas node: its tool call id.
 fn pending_permission(node_id: &str) -> Option<String> {
     let app = super::companion::app_handle()?;
     let broker = app.state::<crate::AppState>().llm.broker();
@@ -205,7 +162,6 @@ fn pending_permission(node_id: &str) -> Option<String> {
         .map(|(_, call, _)| call)
 }
 
-/// Every workspace with its floors and terminal nodes, for a phone.
 pub fn overview() -> Result<Value, String> {
     let s = store();
     let term = crate::pty::term();
@@ -292,9 +248,6 @@ pub fn screen(node_id: &str, lines: usize) -> Result<Value, String> {
     }))
 }
 
-/// Approves (`allow`) or denies the node's pending permission. A question
-/// held by the broker is answered there (once, never "always"); otherwise a
-/// blocked TUI prompt gets Enter (its highlighted default) or Escape.
 pub fn answer(node_id: &str, allow: bool) -> Result<Value, String> {
     let (_, _, node) = locate(node_id)?;
     if let Some(call) = pending_permission(node_id) {
@@ -317,8 +270,6 @@ pub fn answer(node_id: &str, allow: bool) -> Result<Value, String> {
         .screen_text(&tid, 40)
         .map(|s| s.text)
         .unwrap_or_default();
-    // A plain program's `[Y/n]` never makes the node "blocked": the prompt
-    // on screen is enough.
     if !blocked && pending_prompt(&screen).is_none() {
         return Err("CANVAS_NOTHING_PENDING: the agent is not waiting for an answer".into());
     }
@@ -338,10 +289,8 @@ pub fn answer(node_id: &str, allow: bool) -> Result<Value, String> {
     Ok(json!({ "ok": true, "via": "terminal", "answer": choice.label() }))
 }
 
-/// How to answer the prompt on screen.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Choice {
-    /// Raw bytes typed (`y\r`, a menu number) and what they mean.
     Keys(Vec<u8>, String),
     Enter,
     Escape,
@@ -357,9 +306,6 @@ impl Choice {
     }
 }
 
-/// The question an agent waits on, from the bottom of its screen: a
-/// `[Y/n]` style prompt or a numbered menu (Claude Code, Codex). `None` when
-/// nothing looks like one.
 pub fn pending_prompt(screen: &str) -> Option<String> {
     let lines: Vec<&str> = screen
         .lines()
@@ -410,8 +356,6 @@ fn menu_options(lines: &[&str]) -> Vec<(String, String)> {
     lines.iter().filter_map(|l| menu_line(l)).collect()
 }
 
-/// Approve = a one-time "yes" (never the "always"/"don't ask again" one);
-/// deny = the "no" option. `[Y/n]` prompts get `y` or `n` and Enter.
 pub fn choose_answer(screen: &str, allow: bool) -> Choice {
     let lines: Vec<&str> = screen
         .lines()
@@ -466,8 +410,6 @@ pub fn choose_answer(screen: &str, allow: bool) -> Choice {
     }
 }
 
-// ---------------------------------------------------------------- handlers
-
 async fn api_overview(ConnectInfo(peer): ConnectInfo<Peer>, headers: HeaderMap) -> Response {
     let d = match gate(&headers, &peer, false) {
         Ok(d) => d,
@@ -481,8 +423,6 @@ async fn api_overview(ConnectInfo(peer): ConnectInfo<Peer>, headers: HeaderMap) 
     reply(r, &d)
 }
 
-/// Image icon of a workspace, with its revision as ETag (Wire `iconRevision`);
-/// 304 when the client already has it, 404 for letter and emoji icons.
 async fn api_workspace_icon(
     ConnectInfo(peer): ConnectInfo<Peer>,
     headers: HeaderMap,
@@ -524,8 +464,6 @@ async fn api_workspace_icon(
     lbr::tag_device(resp, &d)
 }
 
-/// Media type of a file a file node previews: images, PDF, video; `None`
-/// for anything else.
 pub fn preview_mime(path: &str) -> Option<&'static str> {
     let ext = std::path::Path::new(path)
         .extension()?
@@ -550,7 +488,6 @@ pub fn preview_mime(path: &str) -> Option<&'static str> {
     })
 }
 
-/// `isImage` / `isVideo` / `isPdf` of a file node's data, from its path.
 pub fn file_flags(data: &mut serde_json::Map<String, Value>) {
     let Some(path) = data.get("path").and_then(Value::as_str).map(str::to_string) else {
         return;
@@ -569,8 +506,6 @@ pub fn file_flags(data: &mut serde_json::Map<String, Value>) {
 
 const PREVIEW_MAX: u64 = 32 * 1024 * 1024;
 
-/// `GET /remote/api/canvas/nodes/{id}/file/preview`: the bytes of a file
-/// node's image, PDF or video (PNG stays PNG, transparency included).
 async fn api_file_preview(
     ConnectInfo(peer): ConnectInfo<Peer>,
     headers: HeaderMap,
@@ -649,8 +584,6 @@ async fn api_prompt(
         Ok(d) => d,
         Err(r) => return r,
     };
-    // `{text}` or Wire `{segments: [{text} | {attachmentId}]}`: an
-    // attachment becomes its file path on this machine.
     let text: String = match body["segments"].as_array() {
         Some(segs) => {
             let mut out = String::new();
@@ -688,7 +621,6 @@ async fn api_prompt(
     let mutation = body["mutationId"].as_str().map(str::to_string);
     let r = blocking(move || {
         super::companion::send_to_node(&id, &text)?;
-        // Prompting from the device answers whatever the node wanted.
         super::cords::host().mark_seen(&id);
         Ok(json!({ "ok": true, "mutationId": mutation }))
     })
@@ -739,8 +671,6 @@ async fn api_seen(
     reply(Ok(json!({ "ok": true, "stillBlocked": attention })), &d)
 }
 
-/// Brings the app to the front on this node (Maestri `focus`): its
-/// workspace and floor open, the node selected and given the keyboard.
 async fn api_focus(
     ConnectInfo(peer): ConnectInfo<Peer>,
     headers: HeaderMap,
@@ -778,9 +708,6 @@ async fn api_focus(
     reply(r, &d)
 }
 
-// ---------------------------------------------------------------- attachments
-
-/// Wire limits: 8 MiB per file, 64 live files, 15 minutes.
 pub const ATTACH_MAX: usize = 8 * 1024 * 1024;
 const ATTACH_LIVE: usize = 64;
 const ATTACH_TTL_MS: i64 = 15 * 60 * 1000;
@@ -793,7 +720,6 @@ fn attach_dir() -> Option<std::path::PathBuf> {
     Some(d)
 }
 
-/// Drops expired attachments; returns the live ones, oldest first.
 fn attach_sweep() -> Vec<std::path::PathBuf> {
     let Some(dir) = attach_dir() else {
         return vec![];
@@ -817,7 +743,6 @@ fn attach_sweep() -> Vec<std::path::PathBuf> {
     live.into_iter().map(|(_, p)| p).collect()
 }
 
-/// Path of a live attachment by id (`<id>-<name>` on disk).
 fn attachment_path(id: &str) -> Option<String> {
     if !id.chars().all(|c| c.is_ascii_alphanumeric()) || id.is_empty() {
         return None;
@@ -911,8 +836,6 @@ async fn api_attachment(
     reply(r, &d)
 }
 
-/// `@`/`#` from the phone: files under the terminal's folder whose path
-/// contains `query` (case-insensitive), git-tracked first.
 async fn api_files(
     ConnectInfo(peer): ConnectInfo<Peer>,
     headers: HeaderMap,
@@ -936,7 +859,6 @@ async fn api_files(
     reply(r, &d)
 }
 
-/// Folder a terminal node works in (its cwd, else the workspace's).
 fn node_dir(node_id: &str) -> Result<std::path::PathBuf, String> {
     let (ws, _, node) = locate(node_id)?;
     let term_cwd = terminal_of(&node)
@@ -1010,7 +932,6 @@ pub fn files_for(node_id: &str, query: &str, limit: usize) -> Result<Value, Stri
             }
         }
     }
-    // Shorter and name matches first.
     hits.sort_by_key(|h| {
         let name = h.rsplit('/').next().unwrap_or(h).to_lowercase();
         (!name.contains(&q), h.len())
@@ -1018,11 +939,6 @@ pub fn files_for(node_id: &str, query: &str, limit: usize) -> Result<Value, Stri
     Ok(json!({ "root": root.to_string_lossy(), "files": hits }))
 }
 
-// ---------------------------------------------------------------- mutations
-
-/// Wire mutations from an owner device: the patch goes out on the feed with
-/// origin `remote:<mutationId>` (and `mutationId`), so the device matches
-/// its own echo.
 fn mutation_origin(id: Option<&str>) -> (String, String) {
     let id = id
         .filter(|m| {
@@ -1091,8 +1007,6 @@ async fn api_node_create(
     reply(r, &d)
 }
 
-/// `{workspaceId, floorId?, baseRev?, mutationId?, ops}`: canvas ops as the
-/// app applies them (update_node, remove_node, add_connection...).
 async fn api_mutations(
     ConnectInfo(peer): ConnectInfo<Peer>,
     headers: HeaderMap,
@@ -1120,8 +1034,6 @@ async fn api_mutations(
     reply(r, &d)
 }
 
-/// `GET /remote/api/info` (no token): what this host is and speaks, so a
-/// client can decide before pairing (Maestri Wire `/api/info`).
 async fn api_info(headers: HeaderMap) -> Response {
     let host = headers
         .get(header::HOST)
@@ -1195,11 +1107,6 @@ connect-src 'self'; img-src 'self' data:; base-uri 'none'; form-action 'none'; f
     r
 }
 
-/// Agent-facing method of the remote environments: `env.cli {argv, token}`
-/// is what the `omniget` shim inside SSH, containers and custom runtimes
-/// calls (see `omniget_core::core::canvas::envs::CLI_SHIM`). It runs the
-/// app's own CLI here with that terminal's identity and returns
-/// `{code, out, err}` (base64, so the shim needs no JSON parser).
 pub async fn rpc(ctx: &NodeCtx, method: &str, args: Value) -> RpcResult {
     match method {
         "env.cli" => Some(env_cli(ctx, args).await),
@@ -1207,7 +1114,6 @@ pub async fn rpc(ctx: &NodeCtx, method: &str, args: Value) -> RpcResult {
         "env.test" => Some(env_test(&ctx.workspace_id, Some(&ctx.node_id)).await),
         "env.providers" => Some(Ok(json!(envs::providers(&store())))),
         "env.set" => {
-            // Changing where terminals run is the Maestro's call.
             let manager = locate(&ctx.node_id)
                 .map(|(_, _, n)| n.data.get("isManager").and_then(|v| v.as_bool()) == Some(true))
                 .unwrap_or(false);
@@ -1267,16 +1173,8 @@ pub async fn rpc(ctx: &NodeCtx, method: &str, args: Value) -> RpcResult {
     }
 }
 
-// ------------------------------------------------------- environments API
-//
-// Shared by the canvas RPC (`omniget canvas env ...`) and the MCP tools
-// (`canvas_env_*`): where a workspace's terminals run, and a terminal's
-// own override (M-Q2).
-
 use omniget_core::core::canvas::envs;
 
-/// The workspace record, the providers and, for a terminal, what it
-/// really runs in (its override resolved).
 pub fn env_get(ws: &str, node: Option<&str>) -> Result<Value, String> {
     let s = store();
     s.workspace(ws)?;
@@ -1302,8 +1200,6 @@ pub fn env_get(ws: &str, node: Option<&str>) -> Result<Value, String> {
     Ok(out)
 }
 
-/// `workspace_update environment` and `env.set`: through the same checks
-/// as the UI (isolated floors, switches, host).
 pub fn env_set_workspace(ws: &str, value: Value) -> Result<Value, String> {
     let s = store();
     let rec = envs::record_from_value(&value)?;
@@ -1311,8 +1207,6 @@ pub fn env_set_workspace(ws: &str, value: Value) -> Result<Value, String> {
     Ok(json!({ "workspaceId": ws, "environment": saved }))
 }
 
-/// A terminal's own environment: `"workspace"`/null (default), `"local"`, or
-/// a record. A running terminal restarts in it (Maestri does the same).
 pub async fn env_set_terminal(node_id: &str, value: Value) -> Result<Value, String> {
     let s = store();
     let (ws, floor, node) = locate(node_id)?;
@@ -1345,7 +1239,6 @@ pub async fn env_set_terminal(node_id: &str, value: Value) -> Result<Value, Stri
     Ok(json!({ "nodeId": node_id, "environment": stored, "restarted": restarted }))
 }
 
-/// Closes a running terminal and starts it again (new environment).
 async fn restart_terminal(ws: &str, floor: &str, node_id: &str) -> Result<bool, String> {
     let (_, _, node) = locate(node_id)?;
     let Some(tid) = terminal_of(&node) else {
@@ -1361,8 +1254,6 @@ async fn restart_terminal(ws: &str, floor: &str, node_id: &str) -> Result<bool, 
     Ok(true)
 }
 
-/// Runs the environment test for a workspace, or for what a terminal
-/// really runs in.
 pub async fn env_test(ws: &str, node: Option<&str>) -> Result<Value, String> {
     let s = store();
     let rec = envs::load_for(&s, ws, node);
@@ -1372,7 +1263,6 @@ pub async fn env_test(ws: &str, node: Option<&str>) -> Result<Value, String> {
     Ok(json!({ "environment": rec, "test": t, "notice": rec.notice }))
 }
 
-/// The app's CLI binary (`<app data>/bin/omniget`, else next to the app).
 fn host_cli() -> std::path::PathBuf {
     let name = if cfg!(windows) {
         "omniget.exe"
@@ -1415,8 +1305,6 @@ async fn env_cli(ctx: &NodeCtx, args: Value) -> Result<Value, String> {
     if argv.iter().any(|a| a.len() > 64 * 1024) || argv.len() > 256 {
         return Err("CANVAS_INVALID: argv too large".into());
     }
-    // The bridge already authenticated this token as `ctx.node_id`; the CLI
-    // needs it again to call back as that node.
     let token = args
         .get("token")
         .and_then(|v| v.as_str())
@@ -1449,8 +1337,6 @@ async fn env_cli(ctx: &NodeCtx, args: Value) -> Result<Value, String> {
         "err": b64(&out.stderr),
     }))
 }
-
-// ---------------------------------------------------------------- page
 
 const PAGE: &str = r###"<!doctype html>
 <html lang="en">

@@ -1,14 +1,3 @@
-//! Turn watchdog, job deadline and permission-question timing, as the
-//! settings card sees them (items 1.2 and 1.3 of the `/llm` roadmap).
-//!
-//! The values live in `LlmSettings`; this layer clamps them into something
-//! that cannot hurt (a 0 s idle window would kill every turn on its first
-//! silence, a 0 s ask timeout would deny every question) and pushes them into
-//! the running pieces: the CLI runtime's watchdog and the broker's default ask
-//! timeout. The jobs read the rest (deadline, job ask timeout, notification
-//! delay) through [`limits`] when they need it, so a change applies to the
-//! next job without a restart.
-
 use std::time::Duration;
 
 use omniget_core::core::llm::cli_runtime::WatchdogConfig;
@@ -20,29 +9,22 @@ use tauri::{AppHandle, Manager};
 use crate::storage::config;
 use crate::AppState;
 
-/// Every timing the watchdog and the asks use, already clamped.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Limits {
     pub watchdog: WatchdogConfig,
     pub job_deadline_min: u32,
     pub ask_chat: Duration,
-    /// `None` = a job's question waits until the job's own deadline.
     pub ask_job: Option<Duration>,
     pub notify_delay: Duration,
 }
 
 const DAY_S: u32 = 86_400;
 
-/// The persisted fields, clamped. The same bounds apply on write
-/// ([`llm_watchdog_set`]) and on read, so a hand-edited file cannot slip a
-/// zero through either.
 pub fn limits_from(s: &LlmSettings) -> Limits {
     let idle = s.turn_idle_timeout_s.clamp(60, DAY_S);
     Limits {
         watchdog: WatchdogConfig {
             idle: Some(Duration::from_secs(idle.into())),
-            // Never shorter than the plain window: a tool gets at least as
-            // long as a silent model.
             tool_idle: Some(Duration::from_secs(
                 s.turn_tool_idle_timeout_s.clamp(idle, DAY_S).into(),
             )),
@@ -59,18 +41,14 @@ pub fn limits_from(s: &LlmSettings) -> Limits {
     }
 }
 
-/// The current limits, from the settings store.
 pub fn limits(app: &AppHandle) -> Limits {
     limits_from(&config::load_settings(app).llm)
 }
 
-/// Pushes the settings into the runtime and the broker. Called once when the
-/// LLM stack is wired, and again on every change.
 pub fn install(app: &AppHandle) {
     install_with(app, &config::load_settings(app).llm);
 }
 
-/// [`install`] for a given snapshot: the settings effect `llm.watchdog`.
 pub fn install_with(app: &AppHandle, settings: &LlmSettings) {
     let l = limits_from(settings);
     let llm = app.state::<AppState>().llm.clone();
@@ -92,7 +70,6 @@ fn view(s: &LlmSettings) -> Value {
         "ask_timeout_chat_s": l.ask_chat.as_secs(),
         "ask_timeout_job_s": l.ask_job.map(|d| d.as_secs()),
         "approval_notify_delay_s": l.notify_delay.as_secs(),
-        // Resume by itself after a restart (3.1); off by default.
         "auto_resume": s.auto_resume,
     })
 }
@@ -102,9 +79,6 @@ pub async fn llm_watchdog_get(app: AppHandle) -> Result<Value, String> {
     Ok(view(&config::load_settings(&app).llm))
 }
 
-/// What the card sends: every field optional, so it can save one at a time.
-/// `ask_timeout_job_s: 0` means "until the job's deadline" (JSON cannot tell
-/// a missing field from `null` through `Option<Option<_>>` without ceremony).
 #[derive(Debug, Default, Deserialize)]
 pub struct WatchdogInput {
     pub turn_idle_timeout_s: Option<u32>,
@@ -117,7 +91,6 @@ pub struct WatchdogInput {
     pub auto_resume: Option<bool>,
 }
 
-/// Applies the input over the stored settings, clamped like [`limits_from`].
 pub fn merge(mut s: LlmSettings, input: &WatchdogInput) -> LlmSettings {
     if let Some(v) = input.turn_idle_timeout_s {
         s.turn_idle_timeout_s = v.clamp(60, DAY_S);
@@ -152,7 +125,6 @@ pub async fn llm_watchdog_set(app: AppHandle, config: WatchdogInput) -> Result<V
         current.llm = merge(current.llm.clone(), &config);
     })
     .map_err(|e| format!("Save: {e}"))?;
-    // The `llm.watchdog` effect pushes the limits; answer once it ran.
     crate::storage::settings_effects::settle(&[
         crate::storage::settings_effects::EffectId::LlmWatchdog,
     ]);

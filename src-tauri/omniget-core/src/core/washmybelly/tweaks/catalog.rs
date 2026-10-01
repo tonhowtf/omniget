@@ -1,22 +1,3 @@
-//! The tweak catalog: "tweak as data", never free PowerShell.
-//!
-//! Four embedded sources, each with its license and `SOURCE.md` under
-//! `data/washmybelly/`:
-//!
-//! - `win11debloat-features/` (MIT): converted from `Features.json`; the ops
-//!   come from the upstream `.reg` files, parsed by [`super::regfile`], and
-//!   the Undo `.reg` is "Back to the Windows default".
-//! - `winutil-tweaks/` (MIT): the registry part of a curated list of
-//!   `tweaks.json` entries.
-//! - `sophia-tweaks/` (MIT): a handful extracted by hand from `Sophia.psm1`.
-//! - `tweaks/ours.json`: our own items (HAGS gating from SophiApp, memory
-//!   integrity, power plans, update deferral) and the old `win_tweaks.rs`.
-//!
-//! Every op is checked on load against [`super::guard`]: an item that
-//! touches something washmybelly never changes (Defender, CPU mitigations,
-//! VBS, UCPD, Smart App Control, BitLocker, placebo keys) makes the whole
-//! catalog fail to load, and a test keeps it that way.
-
 use std::collections::{HashMap, HashSet};
 use std::sync::OnceLock;
 
@@ -44,27 +25,18 @@ impl Hive {
     }
 }
 
-/// The closed list of things a tweak can do.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "op", rename_all = "snake_case")]
 pub enum TweakOp {
     RegSet {
         hive: Hive,
         key: String,
-        /// Empty = the key's default value.
         name: String,
-        /// `REG_DWORD`, `REG_QWORD`, `REG_SZ`, `REG_EXPAND_SZ`, `REG_MULTI_SZ`, `REG_BINARY`.
         kind: String,
-        /// DWORD/QWORD in decimal, binary as hex without separators,
-        /// multi-string joined with `\0`.
         data: String,
-        /// What an absent value means to Windows (winutil's `DefaultState`):
-        /// the op counts as applied when the value is absent and this equals
-        /// `data`.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         absent_means: Option<String>,
     },
-    /// A value (`name`) or, with no name, the whole key.
     RegDelete {
         hive: Hive,
         key: String,
@@ -73,16 +45,13 @@ pub enum TweakOp {
     },
     ServiceStartup {
         name: String,
-        /// `automatic`, `delayed`, `manual`, `disabled`.
         mode: String,
     },
     TaskState {
         path: String,
         enabled: bool,
     },
-    /// The active power plan; undo goes back to the plan that was active.
     PowerSetting {
-        /// `balanced`, `high_performance`, `ultimate`.
         scheme: String,
     },
     OptionalFeature {
@@ -92,7 +61,6 @@ pub enum TweakOp {
 }
 
 impl TweakOp {
-    /// Needs `omniget-elevate`: anything outside the user's own hive.
     pub fn needs_admin(&self) -> bool {
         match self {
             TweakOp::RegSet { hive, .. } | TweakOp::RegDelete { hive, .. } => *hive != Hive::Hkcu,
@@ -120,7 +88,6 @@ pub struct Applies {
     pub min_build: Option<u32>,
     #[serde(default)]
     pub max_build: Option<u32>,
-    /// `EditionID` values (`Professional`, `Enterprise`...); none = every edition.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub editions: Option<Vec<String>>,
 }
@@ -152,13 +119,11 @@ pub struct Tweak {
     pub category: String,
     pub applies: Applies,
     pub ops: Vec<TweakOp>,
-    /// "Back to the Windows default" (the source's undo), when it has one.
     pub default_ops: Option<Vec<TweakOp>>,
     pub group: Option<String>,
     pub risk: Risk,
     pub needs_restart: bool,
     pub warning: Option<String>,
-    /// Hardware checks: `hags` (dedicated GPU, not a VM, WDDM 2.7+).
     pub requires: Vec<String>,
     pub source: String,
     pub license: String,
@@ -237,9 +202,6 @@ impl Catalog {
         self.by_id.get(id).map(|&i| &self.tweaks[i])
     }
 
-    /// Every key a catalog op writes or deletes, as `HIVE\key`, upper case.
-    /// The helper only deletes whole keys that are one of these or their
-    /// ancestors (see `guard::key_delete_ok`).
     pub fn reg_keys(&self) -> HashSet<String> {
         self.tweaks
             .iter()
@@ -251,7 +213,6 @@ impl Catalog {
             .collect()
     }
 
-    /// Keys a catalog op deletes whole (`[-KEY]` in a `.reg`).
     pub fn whole_key_deletes(&self) -> HashSet<String> {
         self.tweaks
             .iter()
@@ -292,7 +253,6 @@ const REG_KINDS: &[&str] = &[
     "REG_BINARY",
 ];
 pub const SCHEMES: &[&str] = &["balanced", "high_performance", "ultimate"];
-/// Optional features a tweak may switch (Win11Debloat's two).
 pub const FEATURES: &[&str] = &[
     "Containers-DisposableClientVM",
     "Microsoft-Windows-Subsystem-Linux",
@@ -328,8 +288,6 @@ fn reg_file(name: &str) -> Result<Vec<TweakOp>, String> {
     super::regfile::parse(&super::regfile::decode(bytes)?).map_err(|e| format!("{name}: {e}"))
 }
 
-/// A well-formed op: plain keys, known kinds, numbers that parse, names the
-/// helper will accept, and nothing [`super::guard`] forbids.
 pub fn validate_op(op: &TweakOp) -> Result<(), String> {
     if let Some((hive, key, name)) = op.reg_target() {
         super::guard::plain_key(key)?;
@@ -397,7 +355,6 @@ pub fn validate_op(op: &TweakOp) -> Result<(), String> {
     }
 }
 
-/// Load and check every source. Pure over the embedded files.
 pub fn load() -> Result<Catalog, String> {
     let mut tweaks = Vec::new();
     let mut groups = Vec::new();

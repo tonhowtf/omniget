@@ -1,19 +1,3 @@
-//! Hybrid recall, after Hindsight's four-way retrieval (TEMPR): keyword
-//! (FTS5 bm25), meaning (local vectors), graph (entities named in the query,
-//! links and shared entities of the best seeds) and time (the window the
-//! query names). Each arm ranks on its own, Reciprocal Rank Fusion (k = 60)
-//! merges them, and a light rerank folds in recency, temporal proximity, how
-//! many times a fact was confirmed and the confidence of guesses.
-//!
-//! Differences from Hindsight, on purpose:
-//! - no server, no Postgres: one SQLite file and a brute-force dot product
-//!   over 384-d vectors (a personal memory holds thousands of facts, not
-//!   millions; 10k facts score in a few ms);
-//! - the scope filter runs in SQL on every arm and again on the final fetch,
-//!   so a graph walk can never surface a record the caller may not read;
-//! - every hit carries `why` (which arms found it and with what score), so
-//!   the UI and the model can see why a memory came back.
-
 use std::collections::{HashMap, HashSet};
 
 use rusqlite::types::Value as SqlValue;
@@ -27,32 +11,17 @@ use super::search::fts_query;
 use super::temporal::{self, Window};
 use super::{Category, MemoryRecord};
 
-/// RRF constant (Hindsight and the original paper use 60).
 pub const RRF_K: f32 = 60.0;
-/// Each arm contributes at most this many candidates before fusion.
 pub const ARM_CAP: usize = 50;
-/// Cosine below this is noise for MiniLM.
 pub const SEMANTIC_MIN: f32 = 0.22;
-/// Seeds for the graph walk need at least this cosine.
 pub const SEED_MIN: f32 = 0.40;
-/// Recency half-life: a fact this old is neutral, younger ones gain.
 pub const RECENCY_HALF_LIFE_DAYS: f32 = 90.0;
-/// Cosine cut-offs per vector source. Measured on the benchmark's facts
-/// (`bench::similarity_calibration`): MiniLM spreads unrelated facts around
-/// 0.31 (max 0.82), e5 packs them around 0.81 (max 0.94) with paraphrases at
-/// 0.92–0.99, so one set of numbers cannot serve both.
 #[derive(Debug, Clone, Copy)]
 pub struct Cutoffs {
-    /// Below this a vector hit is noise. Kept low: the arm is a wide net for
-    /// fusion and the reranker, which do the ordering.
     pub semantic_min: f32,
-    /// Seeds of the graph walk: at least this…
     pub seed_min: f32,
-    /// …and within this much of the query's best match.
     pub seed_spread: f32,
-    /// Semantic links between facts.
     pub link_min: f32,
-    /// Two facts this close are the same fact.
     pub same_fact: f32,
 }
 
@@ -75,22 +44,14 @@ pub fn cutoffs(source: &str) -> Cutoffs {
     }
 }
 
-/// Switches the benchmark flips to compare configurations in one process.
 pub(crate) mod bench_knobs {
     use std::sync::atomic::AtomicBool;
-    /// Use the English MiniLM even when e5 is on disk.
     pub static MINILM: AtomicBool = AtomicBool::new(false);
-    /// Skip the cross-encoder.
     pub static NO_RERANK: AtomicBool = AtomicBool::new(false);
 }
 
-/// Candidates the cross-encoder reads per query.
 pub const RERANK_POOL: usize = 30;
 
-/// The vector source memory uses: the multilingual e5 when it is on disk,
-/// else the English MiniLM, else none (keyword, graph and time still work).
-/// Always a local model, so memory works offline; vectors of another source
-/// are ignored until [`super::retain::backfill_vectors`] redoes them.
 pub fn vector_source() -> Option<&'static str> {
     use crate::core::embed::xlmr::{is_ready, Model};
     if is_ready(Model::E5) && !bench_knobs::MINILM.load(std::sync::atomic::Ordering::Relaxed) {
@@ -102,7 +63,6 @@ pub fn vector_source() -> Option<&'static str> {
     }
 }
 
-/// Vectors of stored texts in the current source. **Blocking.**
 pub fn embed_passages(texts: &[&str]) -> Option<(&'static str, Vec<Vec<f32>>)> {
     let src = vector_source()?;
     let vecs = match src {
@@ -116,10 +76,8 @@ pub fn embed_passages(texts: &[&str]) -> Option<(&'static str, Vec<Vec<f32>>)> {
     Some((src, vecs))
 }
 
-/// Why a memory came back.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 pub struct Why {
-    /// Arms that found it: `keyword`, `semantic`, `graph`, `temporal`.
     pub arms: Vec<String>,
     #[serde(default)]
     pub semantic: Option<f32>,
@@ -130,10 +88,8 @@ pub struct Why {
     #[serde(default)]
     pub temporal: Option<f32>,
     pub rrf: f32,
-    /// Cross-encoder relevance, 0..1, when the reranker ran.
     #[serde(default)]
     pub rerank: Option<f32>,
-    /// How many times the fact was stated again.
     pub proofs: i64,
     #[serde(default)]
     pub occurred_start: Option<i64>,
@@ -148,19 +104,15 @@ pub struct Hit {
     pub why: Why,
 }
 
-/// What the query looked like to recall.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 pub struct Probe {
     pub hits: Vec<Hit>,
-    /// Entities named in the query.
     pub entities: Vec<String>,
     #[serde(default)]
     pub window: Option<(i64, i64)>,
-    /// False when the local model was not ready and meaning was skipped.
     pub semantic: bool,
 }
 
-/// The query vector, when the local model is loaded. Never downloads.
 pub fn embed_query(text: &str) -> Option<Vec<f32>> {
     let t: String = text.chars().take(2000).collect();
     match vector_source()? {
@@ -186,9 +138,6 @@ struct Meta {
     proofs: i64,
 }
 
-/// Hybrid recall over what `ctx` may read. `qvec` is the query vector (pass
-/// [`embed_query`]'s result); without it the meaning arm is skipped and the
-/// graph walk seeds from keywords and named entities only.
 pub fn hybrid(
     db: &AssistDb,
     ctx: &AssistCtx,
@@ -205,7 +154,6 @@ pub fn hybrid(
         (!ctx.is_user_ui()).then(|| ctx.readable_keys().into_iter().collect());
     let can = |scope: &str| readable.as_ref().map(|r| r.contains(scope)).unwrap_or(true);
 
-    // Arm 1 — keyword.
     let keyword: Vec<(String, f32)> = match fts_query(query) {
         Some(q) => {
             let (ff, fp) = scope_filter(ctx, "f.scope");
@@ -228,7 +176,6 @@ pub fn hybrid(
         None => Vec::new(),
     };
 
-    // Arm 2 — meaning.
     let mut sims: HashMap<String, f32> = HashMap::new();
     if let (Some(q), Some(src)) = (qvec, vector_source()) {
         let all = db.with(|c| graph::active_vectors(c, &principal, src))?;
@@ -246,9 +193,6 @@ pub fn hybrid(
             .collect(),
     );
 
-    // Arm 3 — graph: spreading activation over facts, their entities and
-    // their links, two hops deep (Hindsight stops at one, which is why
-    // multi-hop is its weakest category).
     let named = db.with(|c| graph::entities_in_text(c, &principal, query))?;
     let mut seeds: Vec<(String, f32)> = semantic
         .iter()
@@ -266,8 +210,6 @@ pub fn hybrid(
     }
     let graph_scores: HashMap<String, f32> = db.with(|c| {
         let mut score: HashMap<String, f32> = HashMap::new();
-        // Records naming the query's entities: tanh(shared × 0.5), like
-        // Hindsight's entity expansion (1 → 0.46, 2 → 0.76, 3 → 0.91).
         let mut shared: HashMap<String, f32> = HashMap::new();
         {
             let mut s = c.prepare(
@@ -317,8 +259,6 @@ pub fn hybrid(
             Ok(reached)
         };
         let hop1 = spread(&seeds, &mut score)?;
-        // Second hop from the best facts the first one reached (not the
-        // seeds), at half strength.
         let mut next: Vec<(String, f32)> = hop1
             .into_iter()
             .filter(|(id, _)| !seeds.iter().any(|(s, _)| s == id))
@@ -335,7 +275,6 @@ pub fn hybrid(
     })?;
     let graph_arm = rank_ids(graph_scores.iter().map(|(k, v)| (k.clone(), *v)).collect());
 
-    // Arm 4 — time.
     let temporal_arm: Vec<(String, f32)> = match window {
         Some(win) => {
             let (rf, rp) = scope_filter(ctx, "r.scope");
@@ -362,8 +301,6 @@ pub fn hybrid(
                 rows.into_iter()
                     .map(|(id, s, e)| {
                         let prox = temporal::proximity(&win, s, e);
-                        // Among facts of the same period, the one that also
-                        // means something close to the query wins.
                         let sem = sims.get(&id).copied().unwrap_or(0.0).max(0.0);
                         (id, prox + 0.5 * sem)
                     })
@@ -374,7 +311,6 @@ pub fn hybrid(
         None => Vec::new(),
     };
 
-    // Fusion.
     let arms: [(&str, &Vec<(String, f32)>); 4] = [
         ("semantic", &semantic),
         ("keyword", &keyword),
@@ -400,10 +336,6 @@ pub fn hybrid(
     }
     let mut pool: Vec<(String, Why)> = fused.into_iter().collect();
     pool.sort_by(|a, b| b.1.rrf.total_cmp(&a.1.rrf));
-    // What the reranker reads: round-robin over the arms (meaning first), so
-    // each arm's best hits get a slot. Cutting by fused score instead lets a
-    // well-linked arm crowd out the one fact only meaning found (Hindsight
-    // avoids it by reranking 300 candidates; this keeps it to 30).
     let mut shortlist: Vec<String> = Vec::new();
     let depth = arms.iter().map(|(_, l)| l.len()).max().unwrap_or(0);
     'fill: for i in 0..depth {
@@ -429,7 +361,6 @@ pub fn hybrid(
         ok
     });
 
-    // Final fetch through the scope filter, then rerank.
     let ids: Vec<String> = pool.iter().map(|p| p.0.clone()).collect();
     let records = fetch(db, ctx, &ids, now)?;
     let metas = db.with(|c| {
@@ -455,9 +386,6 @@ pub fn hybrid(
         Ok(out)
     })?;
     let max_rrf = pool.first().map(|p| p.1.rrf).unwrap_or(1.0).max(1e-6);
-    // The cross-encoder reads the query with each of the best candidates,
-    // each prefixed with its date like Hindsight does, so "when" questions
-    // see the date.
     let ce: HashMap<String, f32> =
         if crate::core::embed::xlmr::is_ready(crate::core::embed::xlmr::Model::Reranker)
             && !bench_knobs::NO_RERANK.load(std::sync::atomic::Ordering::Relaxed)
@@ -506,7 +434,6 @@ pub fn hybrid(
         });
     }
     hits.sort_by(|a, b| b.score.total_cmp(&a.score));
-    // One version per chain, one copy per text.
     let mut seen = HashSet::new();
     hits.retain(|h| seen.insert(super::normalize(&h.record.content)));
     hits.truncate(limit);
@@ -528,10 +455,6 @@ pub fn hybrid(
     })
 }
 
-/// Hindsight multiplies a cross-encoder score by recency (±10 %), temporal
-/// proximity (±10 %) and evidence (±5 %). Same here, over the multilingual
-/// cross-encoder when it is on disk; without it, the base is the normalized
-/// fusion score blended with the raw cosine.
 fn rerank(
     rec: &MemoryRecord,
     why: &Why,
@@ -542,9 +465,6 @@ fn rerank(
 ) -> f32 {
     let fused = why.rrf / max_rrf;
     let base = if reranked {
-        // Hindsight drops the fusion score once the cross-encoder ran; we
-        // keep a little of it so a candidate the reranker did not read (past
-        // the pool) or scored near zero still orders by fusion.
         0.85 * why.rerank.unwrap_or(0.0) + 0.15 * fused
     } else {
         0.7 * fused + 0.3 * why.semantic.unwrap_or(0.0).max(0.0)
@@ -599,8 +519,6 @@ fn fetch(
     Ok(rows.into_iter().map(|r| (r.id.clone(), r)).collect())
 }
 
-/// Entity notes (Hindsight's observations / mental models) for the entities
-/// named in `query`, from the scopes `ctx` may read.
 pub fn notes_for(
     db: &AssistDb,
     ctx: &AssistCtx,

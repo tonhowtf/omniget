@@ -29,19 +29,10 @@ pub fn get_debug_info(app: AppHandle) -> DebugInfo {
 pub struct PortableInfo {
     pub is_portable: bool,
     pub data_dir: Option<String>,
-    /// Whether the UI should warn that the WebView is not portable here.
-    ///
-    /// Only macOS: wry does not read `data_directory` on WKWebView, so the
-    /// session data stays under `~/Library` no matter where the app runs from.
-    /// Windows and Linux redirect it in `lib.rs`, so there is nothing to warn
-    /// about there. See issue #227.
+    // WHY: wry ignores data_directory on WKWebView, so on macOS session data stays under ~/Library.
     pub macos_webview_notice: bool,
 }
 
-/// Reports what portable mode actually covers on this platform.
-///
-/// Reads the same environment `main.rs` publishes rather than re-detecting
-/// `portable.txt`, so there is a single source of truth for the mode.
 #[tauri::command]
 pub fn get_portable_info() -> PortableInfo {
     let is_portable = std::env::var("OMNIGET_PORTABLE").ok().as_deref() == Some("1");

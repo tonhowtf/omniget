@@ -1,8 +1,3 @@
-/// tauri-build requires every `externalBin` to exist at compile time. The
-/// sidecars (the confined worker, the washmybelly `omniget-elevate` helper
-/// and the `omniget-hook` permission hook) are produced by `scripts/mcp/build-worker.mjs` (the release
-/// `beforeBuildCommand`); `cargo test`/`clippy` in CI never run it. An empty
-/// placeholder lets those compile; a release build overwrites it first.
 fn ensure_sidecar(name: &str) {
     let (Ok(dir), Ok(target)) = (std::env::var("CARGO_MANIFEST_DIR"), std::env::var("TARGET"))
     else {
@@ -30,10 +25,8 @@ fn ensure_sidecar(name: &str) {
 fn main() {
     ensure_sidecar("omniget-worker");
     ensure_sidecar("omniget-elevate");
-    // The permission hook of Claude Code turns (3.4), bundled under its own
-    // name: `omniget-hook-shim` would collide with the cargo binary when
-    // tauri-build copies the placeholder into `target/<profile>/`.
     ensure_sidecar("omniget-hook");
+    // WHY: bundled SQLite symbols get auto-exported by ld when webkit2gtk references them, which crashes on Linux; keep them local.
     // The bundled SQLite (libsqlite3-sys "bundled") defines sqlite3_* symbols
     // in this executable. When a linked shared library (webkit2gtk and its
     // deps reference sqlite3_open_v2, sqlite3_prepare_v2, ...) has an
@@ -64,6 +57,7 @@ fn main() {
             }
         }
     }
+    // WHY: the Common Controls v6 manifest is linked into every MSVC target, and the test executable has no resource file for it.
     // On Windows/MSVC the manifest that asks for Common Controls v6 is linked
     // into every target of this package instead of going in through the app's
     // resource file. The unit-test executable has no resource file, and without

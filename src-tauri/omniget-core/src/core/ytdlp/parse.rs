@@ -1,6 +1,3 @@
-//! Reading yt-dlp's output: log sanitizing, error messages, progress lines,
-//! the downloaded file and the format list.
-
 use super::*;
 
 pub(super) fn sanitize_log_line(line: &str) -> String {
@@ -34,10 +31,6 @@ pub(super) fn sanitize_log_line(line: &str) -> String {
     result
 }
 
-/// Erros que outra tentativa não resolve (B5): a fonte sumiu ou está
-/// quebrada. O Reddit de 2017 custava 3 tentativas de ~60 s para fragmentos
-/// HLS 404. Só o que o yt-dlp já desistiu depois dos próprios retries conta;
-/// 429 e rede nunca entram aqui.
 pub(crate) fn is_terminal_ytdlp_error(stderr_lower: &str) -> bool {
     if stderr_lower.contains("http error 429") {
         return false;
@@ -61,7 +54,6 @@ pub(crate) fn is_terminal_ytdlp_error(stderr_lower: &str) -> bool {
     PATTERNS.iter().any(|p| stderr_lower.contains(p))
 }
 
-/// Status in yt-dlp's "HTTP Error NNN:" wording, if any.
 pub(super) fn stated_http_error(lower: &str) -> Option<u16> {
     let at = lower.find("http error ")? + "http error ".len();
     let digits: String = lower[at..]
@@ -71,10 +63,6 @@ pub(super) fn stated_http_error(lower: &str) -> Option<u16> {
     (digits.len() == 3).then(|| digits.parse().ok()).flatten()
 }
 
-/// Last `ERROR:` line of yt-dlp's stderr, redacted (signed URLs, tokens,
-/// cookies, home paths) and bounded. Kept as the anyhow source under the
-/// friendly message: `{:#}` (worker classifier, operator diagnostic) sees it,
-/// `to_string()` (what the user reads) does not.
 pub(super) fn raw_error_line(stderr: &str) -> Option<String> {
     let line = stderr.lines().rev().map(str::trim).find(|l| {
         let t = l.to_lowercase();
@@ -109,12 +97,6 @@ pub(super) fn friendly_ytdlp_error(stderr: &str) -> anyhow::Error {
             "Console encoding error (non-UTF-8 locale). Update yt-dlp in Settings → Dependencies, or run `chcp 65001` in a terminal and reopen the app."
         );
     }
-    // The path out (proxy, TLS, DNS) failed before the site answered. yt-dlp
-    // adds "please report this issue" to some of these, which used to become
-    // "extractor is broken" and EXTRACTOR_FAILURE; a proxy's "Tunnel
-    // connection failed: 403" is not the site's 403 either.
-    // Only ERROR lines count: a WARNING about a side request (subtitles,
-    // thumbnail) that hit a DNS hiccup does not explain the failure.
     let error_lines: String = lower
         .lines()
         .filter(|l| l.trim_start().starts_with("error"))
@@ -130,19 +112,11 @@ pub(super) fn friendly_ytdlp_error(stderr: &str) -> anyhow::Error {
             "Network egress failed (proxy, TLS or DNS) before the site answered. Retry; check the connection if it persists."
         );
     }
-    // Instagram's logged-out media answer is empty: the post needs a login.
-    // Its stderr also says "please report this issue", which used to become
-    // "extractor is broken" and then an unclassified ENGINE_FAILED (bench 26/09,
-    // /tv/BkfuX9UB-eK). Keep the phrase errors.rs classifies as auth_required.
     if lower.contains("empty media response") {
         return anyhow!(
             "Instagram sent an empty media response: this post requires login. Import cookies for this site in Settings → Cookies, then retry."
         );
     }
-    // HTTP 412 on a page or API fetch is an anti-crawler refusal (Bilibili's
-    // risk control answers 412 to a network it flagged; the same URL
-    // downloads from another network or later). yt-dlp words its own 412 as
-    // "Request is blocked by server (412)" (extractor/bilibili.py).
     if lower.contains("http error 412") || lower.contains("blocked by server") {
         return anyhow!(
             "The platform blocked access from this network (HTTP 412 Precondition Failed, anti-crawler risk control). Wait or change network, then retry."
@@ -152,9 +126,6 @@ pub(super) fn friendly_ytdlp_error(stderr: &str) -> anyhow::Error {
     if lower.contains("http error 429") {
         return anyhow!("Server returned error 429 (too many requests). Try again later.");
     }
-    // A 403 in the middle of the media transfer is the site refusing the
-    // download URL (expired or throttled), not a private video: the page
-    // opened and the first bytes came (bench 27/09, public Blender films).
     if lower.contains("unable to download video data") && lower.contains("http error 403") {
         return anyhow!(
             "The site refused part of the download (HTTP 403 on the media data, not on the page). It is usually temporary: retry; if it keeps happening, update yt-dlp in Settings."
@@ -218,8 +189,6 @@ pub(super) fn friendly_ytdlp_error(stderr: &str) -> anyhow::Error {
         return anyhow!("Unsupported URL. Check that the link is correct.");
     }
     if lower.contains("unable to download") && lower.contains("webpage") {
-        // Keep the status: without it the classifier had nothing but "page"
-        // to go on (a Twitter 500 and a Bilibili 412 became "restricted").
         return match stated_http_error(&lower) {
             Some(status) => anyhow!(
                 "Failed to access the page (HTTP {status}). Check the link and your connection."
@@ -259,13 +228,6 @@ pub(super) fn friendly_ytdlp_error(stderr: &str) -> anyhow::Error {
     anyhow!("yt-dlp: {}", msg)
 }
 
-/// Corpo de uma linha do nosso `--progress-template`.
-///
-/// O `download:` no início do template é consumido pelo yt-dlp como o *tipo*
-/// da template (`[TYPES:]TEMPLATE`), então a linha impressa começa direto
-/// pelo percentual: `  0.5%|eta:NA|spd:…`. Reconhecemos a linha pelos campos
-/// que só o nosso template tem (`|eta:` e `|spd:`), com o prefixo opcional
-/// para o caso de o yt-dlp mudar de ideia.
 pub(super) fn template_body(line: &str) -> Option<&str> {
     let t = line.trim();
     if let Some(rest) = t.strip_prefix("download:") {
@@ -349,8 +311,6 @@ pub(super) fn parse_downloaded_bytes_line(line: &str) -> Option<u64> {
         .map(|v| v as u64)
 }
 
-/// `fid:…|h:…|…` do template → stream em download. `None` fora de linha de
-/// progresso ou quando o yt-dlp não preencheu `format_id`.
 pub(super) fn parse_stream_info(line: &str) -> Option<StreamInfo> {
     let format_id = template_field(line, "fid:")?.to_string();
     let num = |key: &str| template_field(line, key).and_then(|v| v.parse::<f64>().ok());
@@ -368,7 +328,6 @@ pub(super) fn parse_stream_info(line: &str) -> Option<StreamInfo> {
     })
 }
 
-/// `(índice, total)` de fragmentos, só para formato fragmentado.
 pub(super) fn parse_fragment_progress(line: &str) -> Option<(u32, u32)> {
     let idx = template_field(line, "fi:")?.parse::<f64>().ok()? as u32;
     let count = template_field(line, "fc:")?.parse::<f64>().ok()? as u32;
@@ -378,7 +337,6 @@ pub(super) fn parse_fragment_progress(line: &str) -> Option<(u32, u32)> {
     Some((idx, count))
 }
 
-/// `[info] abc: Downloading 2 format(s): 299+140` → `["299", "140"]`.
 pub(super) fn parse_planned_formats(line: &str) -> Option<Vec<String>> {
     if !line.contains("[info]") {
         return None;
@@ -397,8 +355,6 @@ pub(super) fn parse_planned_formats(line: &str) -> Option<Vec<String>> {
     }
 }
 
-/// Pós-processadores do yt-dlp que aparecem no stdout como `[Nome]`. O
-/// `[Merger]` fica fora porque já vira a fase `merging` no leitor.
 pub(super) fn postprocess_phase(line: &str) -> Option<&'static str> {
     let t = line.trim_start();
     if t.starts_with("[ExtractAudio]") {
@@ -448,9 +404,6 @@ pub(super) fn parse_size_token(token: &str) -> Option<f64> {
     Some(value * mult)
 }
 
-/// Parse the default (non-template) yt-dlp download line used for live /
-/// size-unknown streams, e.g. `[download]  2.87MiB at  506.63KiB/s (00:00:07)`.
-/// Returns (downloaded_bytes, speed_bytes_per_sec).
 pub(super) fn parse_default_download_line(line: &str) -> Option<(f64, f64)> {
     let body = line.split("[download]").nth(1)?.trim();
     if body.contains('%') {
@@ -533,10 +486,10 @@ pub(super) async fn find_downloaded_file(output_dir: &Path, url: &str) -> anyhow
                     continue;
                 }
                 if let Ok(modified) = meta.modified() {
-                    if now.duration_since(modified).unwrap_or_default() < fallback_limit {
-                        if newest.as_ref().map_or(true, |(_, t)| modified > *t) {
-                            newest = Some((path, modified));
-                        }
+                    if now.duration_since(modified).unwrap_or_default() < fallback_limit
+                        && newest.as_ref().map_or(true, |(_, t)| modified > *t)
+                    {
+                        newest = Some((path, modified));
                     }
                 }
             }

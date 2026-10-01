@@ -1,16 +1,9 @@
-//! Synthetic source art: coloured squares with a marked bottom-centre pixel.
-//!
-//! The tests build their fixture here instead of committing binary art, and the
-//! same generator gives anyone a source tree to try `atlas-pack` on without
-//! waiting for the real sheets.
-
 use std::io;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU32, Ordering};
 
 use image::{Rgba, RgbaImage};
 
-/// A directory under the system temp dir that deletes itself when dropped.
 pub struct TempDir {
     path: PathBuf,
 }
@@ -43,8 +36,6 @@ impl Drop for TempDir {
     }
 }
 
-/// A square of `colour` with an opaque marker pixel at the bottom centre, so a
-/// test can tell frames apart after packing.
 pub fn square(w: u32, h: u32, colour: [u8; 3]) -> RgbaImage {
     let mut img = RgbaImage::from_pixel(w, h, Rgba([colour[0], colour[1], colour[2], 255]));
     img.put_pixel(w / 2, h - 1, Rgba([255, 255, 255, 255]));
@@ -59,9 +50,6 @@ fn save(img: &RgbaImage, path: &Path) -> io::Result<()> {
         .map_err(|e| io::Error::other(e.to_string()))
 }
 
-/// Writes `<root>/<sheet>/<anim>/<DIR>/<n>.png` for the five unique directions.
-/// Every frame of one animation has the same size, so the default pivot is
-/// stable and `atlas-check` passes.
 pub fn write_character(
     root: &Path,
     sheet: &str,
@@ -91,8 +79,6 @@ pub fn write_character(
     Ok(())
 }
 
-/// Writes a `casa-v1`-shaped tile source: one floor, one wall with height, one
-/// object, plus the `tiles.json` that describes them.
 pub fn write_tiles(root: &Path) -> io::Result<()> {
     save(
         &square(32, 16, [120, 90, 60]),
@@ -119,7 +105,6 @@ pub fn write_tiles(root: &Path) -> io::Result<()> {
     )
 }
 
-/// A manifest declaring fps and an explicit pivot for one animation.
 pub fn write_manifest(root: &Path, body: &str) -> io::Result<()> {
     std::fs::write(root.join("manifest.json"), body)
 }

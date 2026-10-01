@@ -1,11 +1,3 @@
-//! The Claude-native converter: writes every kind in Claude Code's own format.
-//! Used for Claude itself, for tools whose format for a kind *is* Claude's (Codex
-//! `hooks.json`, Droid, Qwen …) in their own paths, and for tools that read
-//! Claude's files (`reads_claude`) in Claude's paths.
-//!
-//! Also [`SkillDirConverter`]: a skill folder copied as-is into the tool's own
-//! skills directory.
-
 use std::path::{Path, PathBuf};
 
 use serde_json::{json, Map, Value};
@@ -20,13 +12,10 @@ use crate::core::agentkit::parse::{self, placeholders};
 use crate::core::agentkit::targets::TargetAdapter;
 use crate::core::agentkit::{AgentkitError, Result, Scope};
 
-/// Kinds the Claude converter can write.
 pub fn claude_supports(kind: ComponentKind) -> bool {
     !matches!(kind, ComponentKind::Stack | ComponentKind::Mcp)
 }
 
-/// `via = None`: write into the target's own paths. `via = Some(claude)`: write
-/// into Claude's paths on behalf of a tool that reads them.
 pub struct ClaudeConverter<'a> {
     via: Option<&'a TargetAdapter>,
 }
@@ -54,7 +43,6 @@ fn missing(target: &TargetAdapter, what: &str, scope: Scope) -> AgentkitError {
     )
 }
 
-/// Frontmatter entries of a Claude agent file, in Claude's usual order.
 pub fn agent_frontmatter(a: &AgentSpec, name: &str) -> Vec<(String, Value)> {
     let mut v: Vec<(String, Value)> = vec![
         ("name".into(), json!(name)),
@@ -121,17 +109,14 @@ fn command_frontmatter(cmd: &CommandSpec) -> Vec<(String, Value)> {
     v
 }
 
-/// Raw entry text when the component is Claude-native and unchanged.
 fn raw_entry(c: &Component) -> Option<String> {
     (c.origin_tool == "claude")
         .then(|| c.entry_text().map(str::to_string))
         .flatten()
 }
 
-/// Every file of a folder-shaped component under `root`.
 fn folder_files(target: &str, c: &Component, root: &Path, label: &str) -> Vec<PlannedFile> {
     let prefix = c.entry.rsplit_once('/').map(|(d, _)| {
-        // the entry's folder is the component root (skill: `x/SKILL.md` → `x/`)
         let d = d.trim_end_matches(".claude-plugin");
         if d.is_empty() {
             String::new()
@@ -162,7 +147,6 @@ fn folder_files(target: &str, c: &Component, root: &Path, label: &str) -> Vec<Pl
     out
 }
 
-/// Claude hook group for one canonical entry, translated for a target.
 pub(crate) fn hook_group(e: &HookEntry, target: &TargetAdapter, command: Option<String>) -> Value {
     let mut h = Map::new();
     h.insert("type".into(), json!(e.handler.kind));
@@ -202,7 +186,6 @@ pub(crate) fn hook_group(e: &HookEntry, target: &TargetAdapter, command: Option<
 }
 
 impl ClaudeConverter<'_> {
-    /// The adapter whose paths we write into.
     fn home_of<'t>(&'t self, target: &'t TargetAdapter) -> &'t TargetAdapter {
         self.via.unwrap_or(target)
     }
@@ -226,7 +209,6 @@ impl ClaudeConverter<'_> {
                 return Err(missing(paths_of, dir_key, scope));
             };
             let bytes = if let Some(inline) = sf.source.strip_prefix("inline:") {
-                // setting `files` map: content lives in the setting JSON
                 let _ = inline;
                 continue;
             } else {
@@ -281,7 +263,6 @@ impl Converter for ClaudeConverter<'_> {
         ctx: &ConvertCtx,
     ) -> Result<Vec<PlannedFile>> {
         let at = self.home_of(target);
-        // files written on another tool's behalf are recorded under that tool
         let tid = target.id.as_str();
         let name = ctx.name_for(c);
         let mut out: Vec<PlannedFile> = Vec::new();
@@ -296,7 +277,6 @@ impl Converter for ClaudeConverter<'_> {
                     {
                         raw
                     }
-                    // a Copilot chatmode: its tool ids become Claude tool names
                     _ if c.origin_tool == "copilot" => {
                         let (_, lost) = super::agent_common::claude_tools(&a.tools, &c.origin_tool);
                         losses.extend(lost);
@@ -747,7 +727,6 @@ pub(crate) fn tag_installed(c: &mut Component, target: &TargetAdapter, path: &Pa
     });
 }
 
-/// A skill folder copied into the tool's own skills directory.
 pub struct SkillDirConverter;
 
 impl Converter for SkillDirConverter {

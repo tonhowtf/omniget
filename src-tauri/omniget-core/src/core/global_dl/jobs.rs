@@ -1,7 +1,3 @@
-//! Downloads a resolved tree: folders become `NN - title` directories, items
-//! become files, DRM items are refused, files that already exist are skipped
-//! (so a job can be run again to fetch only what is missing).
-
 use std::collections::{BTreeMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -16,7 +12,6 @@ use tokio_util::sync::CancellationToken;
 use super::{emit, Node, Source};
 use crate::core::filename::sanitize_path_component;
 
-/// The app plugs the Downloads queue in here, for `ytdlp` and `dash` items.
 pub type Handoff = Box<dyn Fn(String) + Send + Sync>;
 
 fn handoff() -> &'static OnceLock<Handoff> {
@@ -33,7 +28,6 @@ pub struct ItemState {
     pub id: String,
     pub title: String,
     pub path: String,
-    /// queued | active | done | skipped | drm | handed_off | failed
     pub status: String,
     pub bytes: u64,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -45,7 +39,6 @@ pub struct JobState {
     pub id: u64,
     pub title: String,
     pub out_dir: String,
-    /// running | done | cancelled
     pub status: String,
     pub total: usize,
     pub done: usize,
@@ -62,7 +55,6 @@ struct Job {
     state: Mutex<JobState>,
     cancel: CancellationToken,
     last_emit: Mutex<Instant>,
-    /// The connector that made the tree, for lazy items and expired links.
     origin: Option<Origin>,
 }
 
@@ -191,7 +183,6 @@ fn clip(name: &str) -> String {
     }
 }
 
-/// Flattens the selected part of the tree into files with their paths.
 fn plan(node: &Node, dir: &Path, selected: &Option<HashSet<String>>, out: &mut Vec<Planned>) {
     let picked = |n: &Node| {
         selected.as_ref().is_none_or(|s| {
@@ -219,8 +210,6 @@ fn plan(node: &Node, dir: &Path, selected: &Option<HashSet<String>>, out: &mut V
                 None => {
                     let title = clip(&child.title);
                     let ext = ext_for(child, &src);
-                    // A title that already ends in the extension
-                    // (`dummy.pdf`) does not get it twice.
                     if title
                         .to_ascii_lowercase()
                         .ends_with(&format!(".{}", ext.to_ascii_lowercase()))
@@ -239,8 +228,6 @@ fn plan(node: &Node, dir: &Path, selected: &Option<HashSet<String>>, out: &mut V
     }
 }
 
-/// Starts downloading `tree` into `out_dir/<tree title>`. `selected` holds
-/// node ids; `None` means everything.
 pub fn start(
     tree: Node,
     selected: Option<Vec<String>>,
@@ -300,7 +287,6 @@ pub fn start(
 }
 
 async fn run(job: Arc<Job>, planned: Vec<Planned>, max_height: Option<u32>) {
-    // A tab of the site keeps its bot-check cookies fresh for the whole job.
     if let Some(o) = &job.origin {
         super::browser::warm_up(&o.page, false).await;
     }
@@ -335,10 +321,6 @@ async fn run(job: Arc<Job>, planned: Vec<Planned>, max_height: Option<u32>) {
     job.emit(true);
 }
 
-/// Downloads go out with the browser's session for that host: its exact
-/// User-Agent and its cookies (`cf_clearance` among them). Cloudflare answers
-/// 403 to a Chrome UA over another TLS stack, and 200 once the clearance the
-/// browser earned comes along. Headers the connector set win.
 async fn with_browser_session(src: &mut Source) {
     let Some(b) = super::browser::current() else {
         return;
@@ -384,8 +366,6 @@ fn header_map(h: &BTreeMap<String, String>) -> reqwest::header::HeaderMap {
     m
 }
 
-/// A signed link that stopped working: worth asking the connector for a
-/// fresh one.
 fn looks_expired(e: &str) -> bool {
     ["401", "403", "410", "Forbidden", "Gone", "expired"]
         .iter()
@@ -513,8 +493,6 @@ async fn fetch(
                 }
             });
             let out = p.path.display().to_string();
-            // The HLS downloader defaults to a Chrome User-Agent of its own;
-            // send the browser's (set by `with_browser_session`) or ours.
             let ua = src
                 .headers
                 .iter()
@@ -556,7 +534,6 @@ async fn fetch(
                     }
                 }
             });
-            // `convert: srt` downloads the WebVTT next to the target first.
             let srt = src.convert.as_deref() == Some("srt");
             let target = if srt {
                 p.path.with_extension("vtt.part")
@@ -585,8 +562,6 @@ async fn fetch(
     }
 }
 
-/// WebVTT → SubRip: drops the header, NOTE/STYLE blocks and cue settings,
-/// numbers the cues and uses a comma before the milliseconds.
 pub fn vtt_to_srt(vtt: &str) -> String {
     let text = vtt.replace("\r\n", "\n");
     let mut out = String::new();

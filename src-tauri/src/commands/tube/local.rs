@@ -1,7 +1,3 @@
-//! Account-free OmniTube: followed channels (RSS feed with a browse
-//! fallback), watch history and resume points, watch later, and
-//! import/export of subscriptions from other clients.
-
 use std::sync::atomic::{AtomicI64, Ordering};
 
 use futures::StreamExt;
@@ -12,21 +8,14 @@ use omniget_core::core::tube::{
 
 use super::db::{self, SubRow};
 
-/// Channels fetched in parallel during one feed refresh.
 const FEED_BATCH: usize = 8;
-/// At most this many channels hit the network per refresh; the rest come
-/// from the cache and catch up on the next one (Grayjay's per-round budget).
 const FEED_BUDGET: usize = 150;
-/// Without an explicit refresh, the feed is re-fetched after this long.
 const FEED_STALE_MS: i64 = 15 * 60_000;
 const FEED_LIMIT: u32 = 300;
-/// Pause after the service refuses us (429 / "confirm you're not a bot").
 const REFUSAL_PAUSE_MS: i64 = 30 * 60_000;
 
 static LAST_FEED_REFRESH: AtomicI64 = AtomicI64::new(0);
 static PAUSED_UNTIL: AtomicI64 = AtomicI64::new(0);
-
-// ---------- refusal gate (shared with the auto-downloader) ----------
 
 pub fn paused_until() -> Option<i64> {
     let until = PAUSED_UNTIL.load(Ordering::Relaxed);
@@ -38,7 +27,6 @@ pub fn is_refusal(err: &str) -> bool {
     e.contains("429") || e.contains("not a bot") || e.contains("too many requests")
 }
 
-/// Returns true when the error closed the gate.
 pub fn note_error(err: &str) -> bool {
     if is_refusal(err) {
         PAUSED_UNTIL.store(db::now_ms() + REFUSAL_PAUSE_MS, Ordering::Relaxed);
@@ -49,13 +37,10 @@ pub fn note_error(err: &str) -> bool {
     }
 }
 
-// ---------- channel checks ----------
-
 pub fn rss_url(channel_id: &str) -> String {
     format!("https://www.youtube.com/feeds/videos.xml?channel_id={channel_id}")
 }
 
-/// A video longer than three minutes cannot be a Short.
 pub fn short_from_duration(duration_s: Option<u32>) -> Option<bool> {
     match duration_s {
         Some(d) if d > 180 => Some(false),
@@ -63,12 +48,9 @@ pub fn short_from_duration(duration_s: Option<u32>) -> Option<bool> {
     }
 }
 
-/// `/shorts/<id>` redirects to `/watch` for regular videos. `None` when the
-/// check could not run.
 pub async fn classify_short(video_id: &str) -> Option<bool> {
     let url = format!("https://www.youtube.com/shorts/{video_id}");
     let resp = super::http::client().head(&url).send().await.ok()?;
-    // A consent or sign-in interstitial says nothing about the video.
     if !resp.status().is_success() || resp.url().host_str() != Some("www.youtube.com") {
         return None;
     }
@@ -77,7 +59,6 @@ pub async fn classify_short(video_id: &str) -> Option<bool> {
 
 pub struct Checked {
     pub name: Option<String>,
-    /// Videos seen for the first time.
     pub new: Vec<VideoItem>,
 }
 
@@ -103,16 +84,12 @@ async fn fetch_channel(
     if is_refusal(&rss_err) {
         return Err(rss_err);
     }
-    // The feed 404s for some channels (and for a while after creation); the
-    // Videos tab never lists Shorts, so everything there is a regular video.
     match super::browse::channel_videos(channel_id).await {
         Ok(items) => Ok((None, items.into_iter().map(|v| (v, Some(false))).collect())),
         Err(e) => Err(format!("rss: {rss_err}; browse: {e}")),
     }
 }
 
-/// Fetches one channel, stores what it found and schedules the next check
-/// (adaptive on success, exponential backoff on failure).
 pub async fn check_channel(sub: &SubRow) -> Result<Checked, String> {
     let now = db::now_ms();
     match fetch_channel(&sub.channel_id).await {
@@ -154,9 +131,6 @@ pub async fn check_channel(sub: &SubRow) -> Result<Checked, String> {
     }
 }
 
-// ---------- read helpers used by browse/filters ----------
-
-/// 0-100 from the local history, for `hide_watched` and the red bar on cards.
 pub fn watched_pct(video_id: &str) -> Option<u8> {
     let e = db::with(|c| db::history_get(c, video_id)).ok()??;
     pct(e.position_s, e.duration_s)
@@ -230,8 +204,6 @@ fn channel_item(s: &SubRow) -> ChannelItem {
     }
 }
 
-// ---------- pages ----------
-
 fn feed_item(row: db::FeedRow, subs: &[SubRow]) -> Item {
     let sub = subs.iter().find(|s| s.channel_id == row.channel_id);
     let mut badges = Vec::new();
@@ -271,8 +243,6 @@ fn feed_item(row: db::FeedRow, subs: &[SubRow]) -> Item {
     })
 }
 
-/// The subscriptions feed without an account: every followed channel's RSS
-/// in batches, newest first. Channels in backoff keep their cached rows.
 pub async fn local_feed(refresh: bool) -> Result<Page, String> {
     let now = db::now_ms();
     let stale = now - LAST_FEED_REFRESH.load(Ordering::Relaxed) > FEED_STALE_MS;
@@ -310,8 +280,6 @@ pub async fn local_feed(refresh: bool) -> Result<Page, String> {
     })
 }
 
-/// "You" without an account. Shelf titles are i18n keys; the frontend
-/// translates any title that starts with `tube.`.
 pub async fn local_library_page() -> Result<Page, String> {
     let (history, later, subs) = db::with(|c| {
         Ok((
@@ -360,8 +328,6 @@ pub async fn local_library_page() -> Result<Page, String> {
     })
 }
 
-/// Local watch history as a list page (used by `tube_history` without an
-/// account).
 pub fn local_history_page(limit: u32) -> Result<Page, String> {
     let history = db::with(|c| db::history_list(c, limit))?;
     Ok(Page {
@@ -377,8 +343,6 @@ pub fn local_history_page(limit: u32) -> Result<Page, String> {
         ..Default::default()
     })
 }
-
-// ---------- commands: subscriptions ----------
 
 #[tauri::command]
 pub async fn tube_subs_list() -> Result<Vec<LocalSub>, String> {
@@ -414,7 +378,6 @@ pub async fn tube_subs_update(
             )?;
         }
         if let Some(a) = auto_download {
-            // Check soon after turning it on instead of waiting a full interval.
             c.execute(
                 "UPDATE subs SET auto_download = ?2, next_check_ms = CASE WHEN ?2 THEN 0 ELSE next_check_ms END
                  WHERE channel_id = ?1",
@@ -424,8 +387,6 @@ pub async fn tube_subs_update(
         Ok(())
     })
 }
-
-// ---------- commands: history and resume ----------
 
 #[tauri::command]
 pub async fn tube_local_history(limit: Option<u32>) -> Result<Vec<HistoryEntry>, String> {
@@ -456,7 +417,6 @@ pub async fn tube_progress(mut entry: HistoryEntry, send_account: bool) -> Resul
     }
     db::with(|c| db::history_upsert(c, &entry))?;
 
-    // report_watchtime checks `send_history` itself and only logs errors.
     if send_account && super::account::is_logged_in() {
         let id = entry.video_id.clone();
         let pos = entry.position_s as f64;
@@ -467,8 +427,6 @@ pub async fn tube_progress(mut entry: HistoryEntry, send_account: bool) -> Resul
     Ok(())
 }
 
-/// Resume point: only for videos of 5 min or more that were not finished
-/// (< 90 %) and got past the first 15 s. Backs off 5 s for context.
 pub fn resume_point(position_s: u32, duration_s: Option<u32>) -> Option<f64> {
     let d = duration_s?;
     if d < 300 || position_s <= 15 {
@@ -485,8 +443,6 @@ pub async fn tube_resume_for(video_id: String) -> Result<Option<f64>, String> {
     let e = db::with(|c| db::history_get(c, &video_id))?;
     Ok(e.and_then(|e| resume_point(e.position_s, e.duration_s)))
 }
-
-// ---------- commands: import / export ----------
 
 fn is_sqlite(bytes: &[u8]) -> bool {
     bytes.starts_with(b"SQLite format 3\0")
@@ -514,8 +470,6 @@ fn newpipe_video_id(url: &str) -> Option<String> {
     (seg.len() == 11).then_some(seg)
 }
 
-/// NewPipe / PipePipe `newpipe.db` (Room schema): subscriptions, history with
-/// progress, and local playlists. Only service 0 (YouTube).
 fn read_newpipe_db(bytes: &[u8]) -> Result<omniget_core::core::tube::imports::Imported, String> {
     use omniget_core::core::tube::{ImportedSub, ImportedWatch};
     let tmp = std::env::temp_dir().join(format!("omnitube-import-{}.db", db::now_ms()));
@@ -703,7 +657,6 @@ pub async fn tube_import(path: String) -> Result<ImportReport, String> {
             .await
             .map_err(|e| e.to_string())?
         {
-            // The database is a superset of the subscriptions.json next to it.
             Ok(imported) => {
                 merge_imported(&mut report, imported)?;
                 return Ok(report);
@@ -718,7 +671,6 @@ pub async fn tube_import(path: String) -> Result<ImportReport, String> {
     Ok(report)
 }
 
-/// `format`: "opml" | "newpipe".
 #[tauri::command]
 pub async fn tube_export_subs(path: String, format: String) -> Result<(), String> {
     let subs: Vec<LocalSub> = db::with(db::subs_all)?

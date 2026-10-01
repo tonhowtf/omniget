@@ -1,12 +1,3 @@
-//! Maestro Mode on the server: every `maestro.*` method checks that the
-//! calling node is flagged Maestro (`data.isManager`), then recruits,
-//! connects, swaps, dismisses, schedules routines, creates workspaces and
-//! floors, and notifies the person. Recruits sit in an even row under the
-//! Maestro (`layout::place_recruits`), tied to it by an `ask` cord.
-//!
-//! Recruiting on another floor or workspace leaves a connector chip on each
-//! side (the cords module routes through `ConnectorData`).
-
 use std::collections::HashMap;
 
 use omniget_core::core::canvas::envs;
@@ -31,7 +22,6 @@ fn store() -> std::sync::Arc<CanvasStore> {
     super::doc::host().store().clone()
 }
 
-/// The caller's floor and node, when that node is a Maestro.
 pub fn require_maestro(ctx: &NodeCtx) -> Result<(FloorDoc, CanvasNode), String> {
     let s = store();
     let doc = s.read(&ctx.workspace_id, &ctx.floor_id, |d| d.clone())?;
@@ -45,7 +35,6 @@ pub fn require_maestro(ctx: &NodeCtx) -> Result<(FloorDoc, CanvasNode), String> 
     Ok((doc, me))
 }
 
-/// Turns Maestro Mode on or off for a terminal node (UI and presets).
 pub fn set_maestro(ws: &str, floor: &str, node_id: &str, on: bool) -> Result<(), String> {
     let s = store();
     let is_term = s
@@ -95,8 +84,6 @@ pub async fn rpc(ctx: &NodeCtx, method: &str, a: Value) -> RpcResult {
     Some(r)
 }
 
-/// Built-in agents and the user's presets (`agent.presets.<name>`), what
-/// `recruit --preset` accepts (Maestri `preset list`).
 fn preset_list() -> Result<Value, String> {
     let mut text = String::from("Built-in agents:\n");
     for a in omniget_core::core::canvas::model::AgentKind::KNOWN {
@@ -127,9 +114,6 @@ fn preset_list() -> Result<Value, String> {
     }))
 }
 
-/// A user preset named by `--preset` (or `--agent`) as a node patch: the
-/// same copy `prefs::apply_preset` makes for a new node, minus the Maestro
-/// flag (a recruit is never a Maestro).
 fn user_preset_patch(key: &str) -> Option<(String, Value)> {
     let app = super::chat::app()?;
     let (name, p) = super::prefs::preset(app, key)?;
@@ -160,7 +144,6 @@ fn user_preset_patch(key: &str) -> Option<(String, Value)> {
     Some((name, patch))
 }
 
-/// Merges `patch` (a node patch) into `node` in place.
 fn merge_patch(node: &mut CanvasNode, patch: &Value) {
     if let (Some(dst), Some(src)) = (node.data.as_object_mut(), patch["data"].as_object()) {
         for (k, v) in src {
@@ -186,7 +169,6 @@ fn status(ctx: &NodeCtx) -> Result<Value, String> {
     Ok(json!({ "maestro": core_maestro::is_maestro(me), "name": core_maestro::name_of(me) }))
 }
 
-/// A workspace by id or exact name.
 fn resolve_workspace(s: &CanvasStore, key: &str) -> Result<String, String> {
     let all = s.workspaces();
     all.iter()
@@ -199,7 +181,6 @@ fn resolve_workspace(s: &CanvasStore, key: &str) -> Result<String, String> {
         .ok_or_else(|| format!("CANVAS_NOT_FOUND: no workspace named '{key}'"))
 }
 
-/// A role id by id or name, as seen from `ws`.
 fn resolve_role(s: &CanvasStore, ws: &str, key: &str) -> Result<String, String> {
     let roles = partituras::local_roles(s, ws);
     roles
@@ -253,8 +234,6 @@ async fn recruit(ctx: &NodeCtx, a: Value) -> Result<Value, String> {
         .as_deref()
         .map(|r| resolve_role(&s, &ws, r))
         .transpose()?;
-    // A user preset (`agent.presets.<name>`) wins over a built-in agent of
-    // the same name; `--preset claude` is an alias of `--agent claude`.
     let user_preset = a
         .preset
         .as_deref()
@@ -275,7 +254,6 @@ async fn recruit(ctx: &NodeCtx, a: Value) -> Result<Value, String> {
         a.agent.clone().or(a.preset.clone())
     };
 
-    // In place: another agent (and/or role) on the same node, cords kept.
     if let Some(old) = &a.replace {
         if a.floor.is_some() || a.workspace.is_some() {
             return Err(
@@ -321,7 +299,6 @@ async fn recruit(ctx: &NodeCtx, a: Value) -> Result<Value, String> {
             &origin,
             None,
         )?;
-        // Started here, not by the UI: the node may be off screen.
         super::launch::spawn_ensure(&ws, &floor, &target.id);
         return Ok(
             json!({ "nodeId": target.id, "replaced": old, "workspaceId": ws, "floorId": floor }),
@@ -340,7 +317,6 @@ async fn recruit(ctx: &NodeCtx, a: Value) -> Result<Value, String> {
         cwd: floors::remap_cwd(&s, &ws, &floor, dir.as_deref()),
         preset_id: None,
     };
-    // The preset's own fields, then `--command` over its command.
     let dress = |node: &mut CanvasNode| {
         if let Some((_, p)) = &user_preset {
             let keep_cwd = node.data.get("cwd").cloned();
@@ -373,7 +349,6 @@ async fn recruit(ctx: &NodeCtx, a: Value) -> Result<Value, String> {
         return Ok(json!({ "nodeId": id, "name": name, "workspaceId": ws, "floorId": floor }));
     }
 
-    // Elsewhere: the recruit on its floor, a connector chip on each side.
     let there = s.read(&ws, &floor, |d| d.clone())?;
     let name = core_maestro::unique_name(
         &core_maestro::names_on(&there),
@@ -414,7 +389,6 @@ async fn recruit(ctx: &NodeCtx, a: Value) -> Result<Value, String> {
             }),
         }
     };
-    // Recruit's side: the recruit and a chip pointing back to the Maestro.
     let back_at = layout::free_spot_in(
         &there,
         160.0,
@@ -451,7 +425,6 @@ async fn recruit(ctx: &NodeCtx, a: Value) -> Result<Value, String> {
         &origin,
         None,
     )?;
-    // Maestro's side: a chip under it, tied to it.
     let spot = layout::place_recruits(&doc, &me.rect(), 1, (160.0, 48.0))
         .into_iter()
         .next()
@@ -583,7 +556,6 @@ fn team_member(ctx: &NodeCtx, name: &str) -> Result<(FloorDoc, CanvasNode, Canva
     Ok((doc, me, target))
 }
 
-/// Swapping restarts only the process: name, position and cords stay.
 fn swap_role(ctx: &NodeCtx, a: Value) -> Result<Value, String> {
     let a: SwapArgs = args(a)?;
     let (_doc, _me, target) = team_member(ctx, &a.name)?;
@@ -627,8 +599,6 @@ fn swap_agent(ctx: &NodeCtx, a: Value) -> Result<Value, String> {
     Ok(json!({ "nodeId": target.id, "agent": agent }))
 }
 
-/// Stops the process and removes the node. Notes and portals tied only to
-/// it stay (orphaned), as in the Maestri.
 fn dismiss(ctx: &NodeCtx, a: Value) -> Result<Value, String> {
     let a: SwapArgs = args(a)?;
     let (_doc, me, target) = team_member(ctx, &a.name)?;
@@ -660,9 +630,6 @@ struct WorkspaceArgs {
     folder: Option<String>,
 }
 
-/// Creates a workspace silently (nothing changes on the person's screen).
-/// It inherits the caller's environment; `from` clones another workspace's
-/// ground layout with its paths moved to the new folder.
 async fn workspace_create(ctx: &NodeCtx, a: Value) -> Result<Value, String> {
     require_maestro(ctx)?;
     let a: WorkspaceArgs = args(a)?;

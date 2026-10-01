@@ -1,37 +1,3 @@
-//! Platform-neutral secret storage, shared by every feature that has to keep a
-//! token or a private key on this machine.
-//!
-//! Extracted from `commands/omnidisc/store.rs`, which now re-exports from here
-//! without changing behaviour. A [`Namespace`] is the unit of separation: it
-//! carries the keyring service name, the folder the encrypted file store lives
-//! in, and the environment variable that forces that folder somewhere else for
-//! tests. The namespaces are [`OMNIDISC`], [`PROFILE`], [`AI_KEYS`] and [`MCP`].
-//!
-//! Where the bytes end up depends on [`use_keyring`]:
-//!
-//! | Platform | Default | Fallback |
-//! | --- | --- | --- |
-//! | macOS | encrypted file, until the binary ships signed with a stable identity | keyring with `OMNIGET_KEYRING=1` |
-//! | Windows | Credential Manager in release builds | encrypted file |
-//! | Linux | Secret Service over zbus (pure Rust; Flatpak needs `--talk-name=org.freedesktop.secrets`) | encrypted file on `PlatformFailure`/`NoStorageAccess` |
-//!
-//! WHY macOS defaults to the file: the release is not signed by the bundler, so
-//! every new version is a new binary identity and the keychain asks for the
-//! login password again — the same problem `tauri dev` always had, just slower
-//! to notice. `codesign_is_stable()` measures that instead of guessing from
-//! `debug_assertions`: an ad-hoc signature (`Signature=adhoc`, `TeamIdentifier=
-//! not set`) is not stable, a Developer ID one is.
-//!
-//! A release build that does not write to the keyring still *reads* it once per
-//! account, as a last resort, and copies what it finds into the file store —
-//! otherwise an update would lose every secret the previous, keyring-writing
-//! version left behind. See [`keyring_is_last_resort`].
-//!
-//! The file store is AES-256-CBC + HMAC-SHA256 with a random key written next
-//! to it at 0600, so secrets never sit in plain text inside a backup or a synced
-//! folder. It is a floor, not a keyring: anyone running as the same OS user can
-//! read the key.
-
 use aes::cipher::{block_padding::Pkcs7, BlockDecryptMut, BlockEncryptMut, KeyIvInit};
 use hmac::{Hmac, Mac};
 use sha2::{Digest, Sha256};
@@ -48,16 +14,10 @@ type Enc = cbc::Encryptor<aes::Aes256>;
 type Dec = cbc::Decryptor<aes::Aes256>;
 type HmacSha256 = Hmac<Sha256>;
 
-/// Forces every namespace at once into `<dir>/<namespace>`; a namespace's own
-/// variable still wins. Tests use it so one temporary directory covers the
-/// profile seed and the OmniDisc tokens together.
 pub const SECRETS_DIR_ENV: &str = "OMNIGET_SECRETS_DIR";
-/// Overrides the keyring decision in both directions.
 pub const KEYRING_ENV: &str = "OMNIGET_KEYRING";
-/// Kept for one version: the name this override had while it was OmniDisc-only.
 pub const KEYRING_ENV_LEGACY: &str = "OMNIGET_OMNIDISC_KEYRING";
 
-/// One store: a keyring service, a folder, and the variable that moves it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Namespace {
     pub service: &'static str,
@@ -65,49 +25,36 @@ pub struct Namespace {
     pub dir_env: &'static str,
 }
 
-/// OmniDisc session tokens, device keys and MLS state keys.
 pub const OMNIDISC: Namespace = Namespace {
     service: "wtf.tonho.omniget.omnidisc",
     dir_name: "omnidisc",
     dir_env: "OMNIGET_OMNIDISC_SESSION_DIR",
 };
 
-/// The local profile's ed25519 seed.
 pub const PROFILE: Namespace = Namespace {
     service: "wtf.tonho.omniget.profile",
     dir_name: "profile",
     dir_env: "OMNIGET_PROFILE_SECRET_DIR",
 };
 
-/// Provider API keys: the `ai-keys.json` vault and the app's own AI config.
-/// `dir_name` matches `omniget_core::core::secrets::AI_KEYS`, which is the name
-/// the core asks for over the [`AppSecretStore`] seam.
 pub const AI_KEYS: Namespace = Namespace {
     service: "wtf.tonho.omniget.ai-keys",
     dir_name: "ai_keys",
     dir_env: "OMNIGET_AI_KEYS_SECRET_DIR",
 };
 
-/// `/read` logins: OPDS catalogs, the Suwayomi bridge, KOReader sync and the
-/// SMTP account for send-to-Kindle.
 pub const READ: Namespace = Namespace {
     service: "wtf.tonho.omniget.read",
     dir_name: "read",
     dir_env: "OMNIGET_READ_SECRET_DIR",
 };
 
-/// Credentials of the external MCP servers: the header and environment values
-/// `mcp-servers.json` only points at with `secret:<id>`. `dir_name` matches
-/// `omniget_core::core::mcp::types::SECRET_NS`, the name the MCP registry asks
-/// for over the [`AppSecretStore`] seam. Its own service and folder, so a
-/// server token never shares a store with a provider key or the profile seed.
 pub const MCP: Namespace = Namespace {
     service: "wtf.tonho.omniget.mcp",
     dir_name: "mcp",
     dir_env: "OMNIGET_MCP_SECRET_DIR",
 };
 
-/// The namespaces the core is allowed to name over the `SecretStore` seam.
 pub fn namespace_by_name(name: &str) -> Option<Namespace> {
     match name {
         n if n == OMNIDISC.dir_name => Some(OMNIDISC),
@@ -118,11 +65,6 @@ pub fn namespace_by_name(name: &str) -> Option<Namespace> {
     }
 }
 
-/// The implementation `omniget-core` runs on inside the app: keychain where the
-/// policy allows it, encrypted file otherwise. Installed once at boot with
-/// `omniget_core::core::secrets::install(Arc::new(AppSecretStore))`; without
-/// that call the core keeps its own file store, which is a different file, so
-/// the install is not optional in the app.
 pub struct AppSecretStore;
 
 impl AppSecretStore {
@@ -146,13 +88,6 @@ impl omniget_core::core::secrets::SecretStore for AppSecretStore {
     }
 }
 
-// ---------------------------------------------------------------------------
-// Keyring policy
-// ---------------------------------------------------------------------------
-
-/// The platforms the policy distinguishes. Spelled out instead of read from
-/// `cfg!` at the call site so the decision below is one pure function that can
-/// be tested for every platform from any platform.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Platform {
     Macos,
@@ -172,13 +107,8 @@ impl Platform {
     }
 }
 
-/// Whether the `keyring` crate is compiled in at all on this target. It is a
-/// per-platform dependency in `Cargo.toml`; on Linux it is absent, so the
-/// policy has to answer "no" there no matter what the environment says.
 pub const KEYRING_COMPILED: bool = cfg!(any(target_os = "macos", windows, target_os = "linux"));
 
-/// The one place that decides. Inputs are explicit so the table in the module
-/// docs is a test, not a comment.
 pub fn keyring_policy(
     platform: Platform,
     env_override: Option<bool>,
@@ -193,21 +123,13 @@ pub fn keyring_policy(
         return forced;
     }
     match platform {
-        // Signed with a stable identity or nothing: an ad-hoc signature changes
-        // with every build and voids the "Always Allow" grant.
         Platform::Macos => codesign_stable,
-        // The Credential Manager never prompts, but a debug build is still a
-        // throwaway identity, so keep release-only as it has always been.
         Platform::Windows => !debug_build,
-        // Secret Service over zbus (plan §9.4); PlatformFailure/NoStorageAccess
-        // fall back to the encrypted file store at call time.
         Platform::Linux => true,
         Platform::Other => false,
     }
 }
 
-/// `1`/`true`/`yes`/`on` and `0`/`false`/`no`/`off`, case-insensitive; anything
-/// else is not an answer and falls through to the platform default.
 pub fn parse_bool_env(raw: &str) -> Option<bool> {
     match raw.trim().to_ascii_lowercase().as_str() {
         "1" | "true" | "yes" | "on" => Some(true),
@@ -227,9 +149,6 @@ fn keyring_env_override() -> Option<bool> {
     None
 }
 
-/// True when this binary carries a code signature that survives an update, so
-/// a keychain grant given once keeps working. Ad-hoc signatures do not: they
-/// change with every build.
 pub fn codesign_output_is_stable(output: &str) -> bool {
     let mut team_is_set = false;
     let mut adhoc = false;
@@ -253,9 +172,6 @@ pub fn codesign_output_is_stable(output: &str) -> bool {
     !adhoc && team_is_set && developer_id
 }
 
-/// Ask `codesign` about the running executable, once per process. WHY cached:
-/// this spawns a process, and `load_secret` is on the path of every gateway
-/// reconnect.
 #[cfg(target_os = "macos")]
 pub fn codesign_is_stable() -> bool {
     static CACHED: OnceLock<bool> = OnceLock::new();
@@ -268,8 +184,6 @@ pub fn codesign_is_stable() -> bool {
             .arg(&exe)
             .output();
         match out {
-            // codesign writes its report to stderr; stdout is joined in case a
-            // future version moves it.
             Ok(out) => {
                 let mut text = String::from_utf8_lossy(&out.stderr).into_owned();
                 text.push('\n');
@@ -300,7 +214,6 @@ fn codesign_is_stable_from(text: &str) -> bool {
     stable
 }
 
-/// Whether to put secrets in the OS keyring at all on this machine, right now.
 pub fn use_keyring() -> bool {
     keyring_policy(
         Platform::current(),
@@ -311,22 +224,11 @@ pub fn use_keyring() -> bool {
     )
 }
 
-// ---------------------------------------------------------------------------
-// Cache and paths
-// ---------------------------------------------------------------------------
-
-/// Read-through cache so one launch asks the OS once per secret instead of once
-/// per call. Every gateway reconnect and every authenticated request would
-/// otherwise reach for the token again.
 fn cache() -> &'static Mutex<HashMap<String, Option<String>>> {
     static CACHE: OnceLock<Mutex<HashMap<String, Option<String>>>> = OnceLock::new();
     CACHE.get_or_init(|| Mutex::new(HashMap::new()))
 }
 
-/// The key carries the namespace and the store the value came from, not just
-/// the account. The integration tests give each side its own forced directory
-/// and switch between them in one process, so an account-only key would hand
-/// one side the other's device key.
 fn cache_key(ns: Namespace, account: &str) -> String {
     match forced_dir(ns) {
         Some(dir) => format!("{}|{}|{}", ns.service, dir.display(), account),
@@ -347,8 +249,6 @@ fn cache_get(ns: Namespace, account: &str) -> Option<Option<String>> {
         .and_then(|c| c.get(&cache_key(ns, account)).cloned())
 }
 
-/// Drop everything the cache holds for a namespace. Tests that move the forced
-/// directory around in one process call it; production never needs to.
 pub fn clear_cache() {
     if let Ok(mut c) = cache().lock() {
         c.clear();
@@ -363,17 +263,10 @@ fn env_dir(key: &str) -> Option<PathBuf> {
         .map(PathBuf::from)
 }
 
-/// The directory a forced environment points this namespace at, if any. The
-/// namespace's own variable is used literally (the OmniDisc integration tests
-/// expect exactly that directory); the shared one gets the namespace folder
-/// appended so two namespaces under one temporary root stay apart.
 pub fn forced_dir(ns: Namespace) -> Option<PathBuf> {
     env_dir(ns.dir_env).or_else(|| env_dir(SECRETS_DIR_ENV).map(|d| d.join(ns.dir_name)))
 }
 
-/// Directory the file store writes into. Also where a namespace's other blobs
-/// live (MLS state, device ids), so one forced variable moves all of a
-/// namespace's data at once instead of half of it.
 pub fn base_dir(ns: Namespace) -> Result<PathBuf, String> {
     if let Some(dir) = forced_dir(ns) {
         return Ok(dir);
@@ -383,16 +276,9 @@ pub fn base_dir(ns: Namespace) -> Result<PathBuf, String> {
     Ok(base.join(ns.dir_name))
 }
 
-/// Secrets that belong to the same account but are different kinds of material
-/// share the store under a suffixed account, so one instance's material stays
-/// together and is dropped together on logout.
 pub fn secret_account(url: &str, kind: &str) -> String {
     format!("{}#{}", url, kind)
 }
-
-// ---------------------------------------------------------------------------
-// Public API
-// ---------------------------------------------------------------------------
 
 pub fn save_secret(ns: Namespace, account: &str, value: &str) -> Result<(), String> {
     cache_put(ns, account, Some(value.to_string()));
@@ -429,17 +315,12 @@ pub fn load_secret(ns: Namespace, account: &str) -> Result<Option<String>, Strin
     let store = FileStore::for_namespace(ns)?;
     let found = match store.get(account)? {
         Some(found) => Some(found),
-        // Nothing in the file. Before concluding the secret does not exist, ask
-        // the keyring an older build of this app may have written it to.
         None => adopt_from_keyring(ns, account, &store)?,
     };
     cache_put(ns, account, found.clone());
     Ok(found)
 }
 
-/// The one-time upgrade read described on [`keyring_is_last_resort`]. A secret
-/// found there is copied into the file store, so this costs one keyring call
-/// per account per machine and every later read is a file read.
 fn adopt_from_keyring(
     ns: Namespace,
     account: &str,
@@ -464,8 +345,6 @@ fn adopt_from_keyring(
             ns.dir_name,
             account
         ),
-        // Worth returning the value anyway: failing to cache it is not a reason
-        // to tell the caller the secret is gone.
         Err(e) => tracing::warn!(
             "[secrets] could not copy {} out of the keyring: {}",
             account,
@@ -483,9 +362,6 @@ pub fn delete_secret(ns: Namespace, account: &str) -> Result<(), String> {
     match keyring_delete(ns.service, account) {
         Some(Err(e)) => tracing::warn!("[secrets] keyring delete failed: {}", e),
         Some(Ok(())) => {}
-        // Not writing to the keyring does not mean nothing of ours is in it:
-        // a build from before the policy change may have put it there, and
-        // "forget this instance" has to forget it everywhere.
         None => {
             if keyring_is_last_resort() {
                 if let Err(e) = keyring_delete_raw(ns.service, account) {
@@ -497,10 +373,6 @@ pub fn delete_secret(ns: Namespace, account: &str) -> Result<(), String> {
     FileStore::for_namespace(ns)?.remove(account)
 }
 
-/// Every account name the encrypted file store holds for a namespace. The
-/// keyring cannot be enumerated, so this only sees what landed in the file —
-/// which is what the profile migration needs, plus an explicit list of
-/// candidate accounts for the keyring case.
 pub fn file_store_accounts(ns: Namespace) -> Vec<String> {
     let store = match forced_dir(ns) {
         Some(dir) => FileStore::new(dir),
@@ -517,18 +389,11 @@ pub fn file_store_accounts(ns: Namespace) -> Vec<String> {
     names
 }
 
-// ---------------------------------------------------------------------------
-// Keyring backends
-// ---------------------------------------------------------------------------
-
 #[cfg(any(target_os = "macos", windows, target_os = "linux"))]
 fn keyring_entry(service: &str, account: &str) -> Result<keyring::Entry, String> {
     keyring::Entry::new(service, account).map_err(|e| e.to_string())
 }
 
-/// Read the OS keyring whether or not [`use_keyring`] says to write to it. The
-/// gated wrapper below is what normal reads go through; this one exists for the
-/// last-resort read in [`load_secret`].
 #[cfg(any(target_os = "macos", windows, target_os = "linux"))]
 fn keyring_get_raw(service: &str, account: &str) -> Result<Option<String>, String> {
     #[cfg(test)]
@@ -610,22 +475,10 @@ fn keyring_delete_raw(_service: &str, _account: &str) -> Result<(), String> {
     Ok(())
 }
 
-/// Whether a build that does not *write* to the keyring should still *read* it
-/// once before giving up.
-///
-/// WHY this exists: `use_keyring()` used to be `!debug_assertions`, so every
-/// published macOS and Windows build put its secrets in the OS keyring. The
-/// signature-based policy turns macOS off, and without this an update would
-/// stop seeing the session token, the MLS state key and the `#device-key` that
-/// the profile migration exists to preserve — the user would silently get a new
-/// identity, orphaned from their MLS groups. So: keyring compiled in, keyring
-/// not in use, and a release build (a `tauri dev` rebuild must not start asking
-/// for the login password again).
 pub fn keyring_is_last_resort() -> bool {
     keyring_last_resort_policy(KEYRING_COMPILED, use_keyring(), is_release_build())
 }
 
-/// The rule, as a pure function.
 pub fn keyring_last_resort_policy(
     keyring_compiled: bool,
     keyring_in_use: bool,
@@ -642,10 +495,6 @@ fn is_release_build() -> bool {
     !cfg!(debug_assertions)
 }
 
-/// A fake OS keyring, so a test can set up "the secret is only in the keychain"
-/// without touching the developer's real login keychain — which would prompt
-/// for a password and block forever. While a fake is installed, no call reaches
-/// the real keyring at all.
 #[cfg(test)]
 pub mod test_keyring {
     use std::collections::HashMap;
@@ -654,8 +503,6 @@ pub mod test_keyring {
     #[derive(Default)]
     pub struct Fake {
         entries: HashMap<String, String>,
-        /// Stands in for `!cfg!(debug_assertions)`: tests are debug builds, and
-        /// the last-resort read is release-only.
         pretend_release: bool,
     }
 
@@ -688,9 +535,6 @@ pub mod test_keyring {
         f(&mut guard)
     }
 
-    /// Install a fake. Callers hold `test_env::EnvGuard`, which is the same
-    /// global lock every environment-touching test takes, so two tests never
-    /// see each other's fake.
     pub fn install(fake: Fake) {
         with_slot(|slot| *slot = Some(fake));
         super::clear_cache();
@@ -705,7 +549,6 @@ pub mod test_keyring {
         with_slot(|slot| slot.as_ref().is_some_and(|f| f.pretend_release))
     }
 
-    /// `None` means "no fake installed, go to the real keyring".
     pub fn intercept_read(service: &str, account: &str) -> Option<Option<String>> {
         with_slot(|slot| {
             slot.as_ref()
@@ -737,10 +580,6 @@ pub mod test_keyring {
         intercept_read(service, account).flatten().is_some()
     }
 }
-
-// ---------------------------------------------------------------------------
-// Encrypted file store
-// ---------------------------------------------------------------------------
 
 pub struct FileStore {
     dir: PathBuf,
@@ -824,9 +663,6 @@ impl FileStore {
     }
 }
 
-/// Write a file only its owner can read. On unix the mode is part of the
-/// `open` call: creating the file first and chmod'ing after leaves a window in
-/// which the store key, the device key or the MLS state is world-readable.
 pub fn write_private(path: &Path, bytes: &[u8]) -> Result<(), String> {
     let io = |e: std::io::Error| format!("secrets: could not write {}: {}", path.display(), e);
     #[cfg(unix)]
@@ -841,8 +677,6 @@ pub fn write_private(path: &Path, bytes: &[u8]) -> Result<(), String> {
         let mut file = match opts.clone().create_new(true).open(path) {
             Ok(f) => f,
             Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {
-                // Re-tighten before reopening: an older build may have left it
-                // readable, and truncating does not change the mode.
                 std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600))
                     .map_err(io)?;
                 opts.truncate(true).open(path).map_err(io)?
@@ -911,9 +745,6 @@ pub(crate) fn decrypt(key: &[u8; 32], blob: &[u8]) -> Result<Vec<u8>, String> {
         .map_err(|_| "secrets: the secret store could not be decrypted".to_string())
 }
 
-/// Environment juggling for tests. `std::env::set_var` is process-global and
-/// cargo runs tests on threads, so every test that moves a secret directory
-/// takes this lock and gets its variables restored on drop.
 #[cfg(test)]
 pub mod test_env {
     use std::sync::{Mutex, MutexGuard, OnceLock};
@@ -969,7 +800,6 @@ mod tests {
 
     #[test]
     fn keyring_policy_covers_every_platform() {
-        // Linux: nothing can turn it on without the dependency compiled in...
         assert!(!keyring_policy(
             Platform::Linux,
             Some(true),
@@ -977,7 +807,6 @@ mod tests {
             false,
             false
         ));
-        // ...and with it, Secret Service is the default and the override still wins.
         assert!(keyring_policy(Platform::Linux, None, false, true, true));
         assert!(!keyring_policy(
             Platform::Linux,
@@ -986,10 +815,8 @@ mod tests {
             false,
             true
         ));
-        // macOS: follows the signature, not the build profile.
         assert!(!keyring_policy(Platform::Macos, None, false, false, true));
         assert!(keyring_policy(Platform::Macos, None, true, true, true));
-        // ...and the override wins in both directions.
         assert!(keyring_policy(
             Platform::Macos,
             Some(true),
@@ -1004,31 +831,19 @@ mod tests {
             false,
             true
         ));
-        // Windows: release only, as before.
         assert!(keyring_policy(Platform::Windows, None, false, false, true));
         assert!(!keyring_policy(Platform::Windows, None, false, true, true));
         assert!(!keyring_policy(Platform::Other, None, true, false, true));
     }
 
-    /// The read-only step that keeps an update from losing secrets an older
-    /// build wrote to the OS keyring.
     #[test]
     fn the_last_resort_read_is_release_only_and_never_when_the_keyring_is_in_use() {
-        // The case that matters: release macOS, unsigned, so the policy says
-        // "do not write to the keyring" — but a previous version did.
         assert!(keyring_last_resort_policy(true, false, true));
-        // A dev build must not start prompting for the login password again.
         assert!(!keyring_last_resort_policy(true, false, false));
-        // Already reading the keyring the normal way: nothing to salvage.
         assert!(!keyring_last_resort_policy(true, true, true));
-        // No keyring compiled in: nothing to ask.
         assert!(!keyring_last_resort_policy(false, false, true));
     }
 
-    /// The regression the Phase 1 verifier caught: with `use_keyring()` false,
-    /// a session token, an MLS state key or a `#device-key` already sitting in
-    /// the login keychain has to still be found — once — and then live in the
-    /// file store.
     #[test]
     fn a_secret_left_in_the_keyring_is_found_once_and_then_read_from_the_file() {
         let root = temp_dir("last-resort");
@@ -1050,17 +865,13 @@ mod tests {
         assert!(!use_keyring(), "the policy has to be off for this test");
         assert!(keyring_is_last_resort());
 
-        // Nothing on disk yet, and the value still comes back.
         assert!(file_store_accounts(OMNIDISC).is_empty());
         assert_eq!(
             load_secret(OMNIDISC, account).unwrap().as_deref(),
             Some("od1.left-in-the-keychain")
         );
-        // ...and it was copied, so this is a one-time keyring call.
         assert_eq!(file_store_accounts(OMNIDISC), vec![account.to_string()]);
 
-        // Take the entry out of the keyring entirely: the second read no longer
-        // needs it.
         clear_cache();
         test_keyring::install(test_keyring::Fake::release());
         assert_eq!(
@@ -1068,7 +879,6 @@ mod tests {
             Some("od1.left-in-the-keychain")
         );
 
-        // Forgetting has to forget both copies.
         test_keyring::install(test_keyring::Fake::release().with(
             OMNIDISC.service,
             account,
@@ -1084,8 +894,6 @@ mod tests {
         let _ = std::fs::remove_dir_all(&root);
     }
 
-    /// A `tauri dev` rebuild must not reach for the keychain, which is exactly
-    /// the prompt loop the old `!debug_assertions` rule existed to avoid.
     #[test]
     fn a_debug_build_does_not_reach_for_the_keyring_at_all() {
         let root = temp_dir("debug-build");
@@ -1096,7 +904,6 @@ mod tests {
         guard.set(KEYRING_ENV, Some("0"));
         guard.set(KEYRING_ENV_LEGACY, None);
 
-        // `Fake::default()` is the debug case: pretend_release stays false.
         test_keyring::install(test_keyring::Fake::default().with(
             OMNIDISC.service,
             "https://a.example",
@@ -1142,7 +949,6 @@ mod tests {
         );
         assert!(codesign_output_is_stable(developer_id));
 
-        // A team id with no Apple authority behind it is not enough.
         assert!(!codesign_output_is_stable(
             "TeamIdentifier=AB12CD34EF\nAuthority=Self-signed\n"
         ));
@@ -1198,9 +1004,6 @@ mod tests {
         let _ = std::fs::remove_dir_all(&root);
     }
 
-    /// The seam the core uses for provider keys: the namespace string has to
-    /// land in the AI_KEYS folder, and an unknown one has to be refused instead
-    /// of silently sharing a store with somebody else.
     #[test]
     fn the_core_seam_resolves_namespaces_by_name() {
         use omniget_core::core::secrets::SecretStore;
@@ -1240,9 +1043,6 @@ mod tests {
         let _ = std::fs::remove_dir_all(&root);
     }
 
-    /// A synthetic MCP token goes in, comes back and goes away through the
-    /// same seam the registry uses, inside a temporary directory and apart
-    /// from the provider keys. The forced directory keeps the keyring out.
     #[test]
     fn an_mcp_token_lives_in_its_own_folder_and_can_be_forgotten() {
         use omniget_core::core::mcp::types::SECRET_NS;
@@ -1267,7 +1067,6 @@ mod tests {
             Some("Bearer synthetic-token")
         );
         assert_eq!(file_store_accounts(MCP), vec![account.to_string()]);
-        // Not visible under another namespace, not written into its folder.
         assert_eq!(
             store
                 .get(omniget_core::core::secrets::AI_KEYS, account)
@@ -1293,8 +1092,6 @@ mod tests {
         guard.set(SECRETS_DIR_ENV, Some(root.to_str().expect("utf-8 path")));
         guard.set(OMNIDISC.dir_env, Some(own.to_str().expect("utf-8 path")));
 
-        // Literal, not joined: the OmniDisc e2e tests point at exactly the
-        // directory they created.
         assert_eq!(base_dir(OMNIDISC).unwrap(), own);
         drop(guard);
         let _ = std::fs::remove_dir_all(&root);
@@ -1302,7 +1099,6 @@ mod tests {
     }
 }
 
-/// Pure resolver audit: no filesystem, keyring, credential or network access.
 #[cfg(test)]
 mod settings_rebrand_audit {
     use super::*;
@@ -1317,8 +1113,6 @@ mod settings_rebrand_audit {
         assert_ne!(AI_KEYS.dir_name, OMNIDISC.dir_name);
     }
 
-    /// The MCP registry names this namespace over the seam; the desktop has to
-    /// resolve it to a store of its own instead of refusing it.
     #[test]
     fn the_mcp_registry_namespace_is_supported_by_the_desktop_resolver() {
         let name = omniget_core::core::mcp::types::SECRET_NS;

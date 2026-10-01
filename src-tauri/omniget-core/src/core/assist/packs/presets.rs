@@ -1,11 +1,3 @@
-//! Three small presets. Each maps to what `/llm` already has — bots (roster
-//! agents + profiles), optional group rooms with bounded fan-out, and mission
-//! criteria templates — and works with a single bot when that is enough.
-//!
-//! The instructions are short texts written for OmniGet. Where they adapt an
-//! ECC asset the attribution says so (ECC is MIT, affaan-m/ecc); the full
-//! asset can be imported selectively through [`super::plan`] instead.
-
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 
@@ -18,13 +10,11 @@ pub const ECC_ATTRIBUTION: &str =
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct PresetBot {
-    /// Suffix of the roster id (`<preset>-<key>`).
     pub key: String,
     pub name: String,
     pub role: String,
     pub instructions: String,
     pub capabilities: Vec<Capability>,
-    /// Skill to bind when installed (the reading skill ships with the app).
     pub skill: Option<String>,
     pub attribution: Option<String>,
 }
@@ -42,11 +32,8 @@ pub struct Preset {
     pub title: String,
     pub description: String,
     pub bots: Vec<PresetBot>,
-    /// `None` = one bot does it all.
     pub group: Option<PresetGroup>,
-    /// Criteria a new mission of this kind starts with (the user edits them).
     pub criteria: Vec<Criterion>,
-    /// What the preset needs from the workspace: `project` or `none`.
     pub workspace: String,
 }
 

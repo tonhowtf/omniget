@@ -1,10 +1,3 @@
-//! [`TermEngine`] on `alacritty_terminal` 0.26 (the core of Zed's terminal).
-//!
-//! The `Term` answers the program's queries through `Event::PtyWrite`; they
-//! come out of [`TermEngine::take_events`] and the session writes them to the
-//! PTY, so a program asking for the cursor position (Codex/crossterm) gets an
-//! answer with or without any view attached.
-
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
@@ -57,7 +50,6 @@ impl Dimensions for Dims {
     }
 }
 
-/// Links seen in cells, by the id sent on the wire. Bounded.
 const LINKS_MAX: usize = 4096;
 
 pub struct AlacrittyEngine {
@@ -71,9 +63,6 @@ pub struct AlacrittyEngine {
     last_match: Option<Match>,
 }
 
-/// Palette used to answer colour queries (OSC 4/10/11/12) when the program
-/// did not set one. The renderer's theme is the front's business; this only
-/// has to be plausible (dark background, light text).
 fn default_rgb(index: usize) -> Rgb {
     const ANSI: [(u8, u8, u8); 16] = [
         (0x1e, 0x1e, 0x1e),
@@ -162,7 +151,6 @@ impl AlacrittyEngine {
                     | NamedColor::BrightForeground
                     | NamedColor::DimForeground => color::DEFAULT,
                     _ if idx < 16 => color::indexed(idx as u8),
-                    // Dim ANSI colours (259..267) map back to the base ones.
                     _ if (259..267).contains(&idx) => color::indexed((idx - 259) as u8),
                     _ => color::DEFAULT,
                 }
@@ -258,7 +246,6 @@ impl AlacrittyEngine {
         )
     }
 
-    /// Grid point → viewport (col,row), clamped to the viewport.
     fn to_viewport(&self, p: Point) -> (u16, u16) {
         let offset = self.term.grid().display_offset() as i32;
         let rows = self.term.screen_lines() as i32;
@@ -343,7 +330,6 @@ impl TermEngine for AlacrittyEngine {
                 }
                 Event::Bell => out.push(EngineEvent::Bell),
                 Event::ClipboardStore(_, s) => out.push(EngineEvent::ClipboardStore(s)),
-                // Clipboard reads (OSC 52 `?`) are never answered.
                 _ => {}
             }
         }

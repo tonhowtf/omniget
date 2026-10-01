@@ -1,37 +1,3 @@
-//! `llm_*` commands: CLI accounts (Claude Code / Codex) and the usage report.
-//! Owned by f4-accounts-ui.
-//!
-//! This file is a thin seam between the Accounts tab and two core modules that
-//! do the real work:
-//!
-//! - `core::llm::cli_runtime::accounts` (f4-cli-runtime) — the `AccountStore`
-//!   over `<app_data>/llm/accounts.json`, `detect()`, `default_profile_dir`,
-//!   `account_env`/`SCRUB_ENV`, and the profile hygiene (`share_profile`,
-//!   `sanitize_claude_json`). Creating an account here goes through it, so the
-//!   file this command writes is byte-for-byte the file the runtime reads.
-//! - `core::llm::cli_usage` (f4-cli-usage) — the incremental scan of the CLIs'
-//!   own JSONL history, priced with `pricing.rs`, plus the 5 h / 7 d windows
-//!   with their provenance (`Real` from an official channel, `Estimated` from
-//!   the JSONL).
-//!
-//! What this layer is still not allowed to do: it stores **pointers only** (an
-//! id, a label, which CLI, a config directory). It never opens
-//! `.credentials.json`, never reads the Keychain item, never refreshes a token
-//! and never calls `/api/oauth/usage`. Signing in happens inside the CLI, in a
-//! terminal the user sees (`estudos/74` §A.3, plan §9.2). Automatic rotation
-//! ships **off** (plan §10 D-2).
-//!
-//! Two files under `<app_data>/llm/`:
-//! - `accounts.json` — owned by `cli_runtime::accounts`; this layer only calls
-//!   its store.
-//! - `accounts-ui.json` — what only the UI owns: the fallback chain order and
-//!   the rotation settings.
-//!
-//! Cost: `llm_accounts_list` reads two small JSON files and never scans. The
-//! sweep (≈2 s cold over 500 MB, measured by f4-cli-usage) only runs inside
-//! `llm_cli_usage_report`, on a click or when the tab opens, and it runs on a
-//! blocking thread so it never sits on a Tauri command worker.
-
 use std::path::{Path, PathBuf};
 
 use omniget_core::core::llm::cli_runtime::accounts as store;
@@ -43,10 +9,6 @@ use omniget_core::core::llm::cli_usage::windows::{WindowKind, WindowSource};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-// ---------------------------------------------------------------------------
-// Stable error codes the UI maps (briefing §7).
-// ---------------------------------------------------------------------------
-
 pub const ERR_ACCOUNTS_IO: &str = "ERR_ACCOUNTS_IO";
 pub const ERR_ACCOUNTS_MISSING: &str = "ERR_ACCOUNTS_MISSING";
 pub const ERR_ACCOUNTS_CLI: &str = "ERR_ACCOUNTS_CLI";
@@ -54,22 +16,13 @@ pub const ERR_ACCOUNTS_TERMINAL: &str = "ERR_ACCOUNTS_TERMINAL";
 pub const ERR_ACCOUNTS_STORE: &str = "ERR_ACCOUNTS_STORE";
 pub const ERR_CLI_USAGE_UNAVAILABLE: &str = "ERR_CLI_USAGE_UNAVAILABLE";
 
-/// Rotation default, plan §10 D-2: 90% of the worst known window.
 pub const ROTATION_THRESHOLD: f32 = 0.90;
-/// Cooldown between automatic switches, in seconds (plan §9.2).
 pub const ROTATION_COOLDOWN_S: u32 = 300;
-/// How many days of history the dashboard asks for by default.
 pub const REPORT_DAYS: u32 = 30;
 
-// ---------------------------------------------------------------------------
-// Wire types (this layer owns the contract with `llm-accounts-store.svelte.ts`)
-// ---------------------------------------------------------------------------
-
-/// Rotation settings. `enabled` is false out of the box.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Rotation {
     pub enabled: bool,
-    /// 0..1 of the worst window that triggers a switch.
     pub threshold: f32,
     pub cooldown_s: u32,
 }
@@ -84,7 +37,6 @@ impl Default for Rotation {
     }
 }
 
-/// UI-owned preferences: the fallback chain and the rotation toggle.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct Prefs {
     #[serde(default)]
@@ -93,19 +45,13 @@ pub struct Prefs {
     pub rotation: Rotation,
 }
 
-/// One usage window of one account, as `QuotaMeter` needs it.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct WindowView {
     pub account_id: String,
-    /// `five_hour` or `seven_day`.
     pub window: String,
-    /// 0..1 of the window already spent, or `None` when no ceiling is known
-    /// for the plan — the UI then shows the token count and no bar, instead of
-    /// a percentage nobody can back.
     pub used: Option<f32>,
     pub used_tokens: u64,
     pub resets_at_ms: Option<i64>,
-    /// `reported` (official channel) or `estimated` (JSONL). Shown in the UI.
     pub source: String,
 }
 
@@ -128,7 +74,6 @@ impl WindowView {
     }
 }
 
-/// An account plus everything the card draws.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct AccountView {
     pub id: String,
@@ -136,33 +81,22 @@ pub struct AccountView {
     pub label: String,
     pub config_dir: PathBuf,
     pub disabled: bool,
-    /// `read-only` (the default for every account) or `write`. The card prints
-    /// it in words and asks before moving to `write`.
     pub sandbox: String,
-    /// The flag the CLI actually receives for that mode, shown next to the
-    /// label so the user can check it against the CLI's own documentation
-    /// instead of trusting ours.
     pub sandbox_flag: String,
     pub windows: Vec<WindowView>,
     pub sessions: u32,
-    /// Head of the chain: the one the router prefers right now.
     pub active: bool,
     pub last_error: Option<String>,
 }
 
-/// What `llm_accounts_list` answers: one round-trip for the whole tab.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct AccountsSnapshot {
     pub accounts: Vec<AccountView>,
-    /// Account ids in router order.
     pub chain: Vec<String>,
     pub rotation: Rotation,
-    /// False while no quota source answered: the UI labels the meters instead
-    /// of drawing a zero that looks like a measurement.
     pub quota_available: bool,
 }
 
-/// Cost (or tokens) of one key — a day or a model.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct UsageRow {
     pub key: String,
@@ -190,23 +124,19 @@ pub struct SessionRow {
     pub cost_usd: f64,
 }
 
-/// The dashboard, in the shape the tab draws.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct UsageReportView {
     pub by_day: Vec<UsageRow>,
     pub by_model: Vec<UsageRow>,
-    /// 7 rows (Mon..Sun) × 24 columns (local hour): tool calls.
     pub by_tool_hour: Vec<Vec<u32>>,
     pub top_tools: Vec<ToolRow>,
     pub sessions: Vec<SessionRow>,
-    /// Windows of every account, so the cards get the `Estimated` ones too.
     pub windows: Vec<WindowView>,
     pub total_cost_usd: f64,
     pub scanned_files: u32,
     pub scan_ms: u64,
 }
 
-/// What [`login_plan`] produces: a script to write and a command to run.
 #[derive(Debug, Clone, PartialEq)]
 pub struct LoginPlan {
     pub script_path: PathBuf,
@@ -215,15 +145,8 @@ pub struct LoginPlan {
     pub args: Vec<String>,
 }
 
-// ---------------------------------------------------------------------------
-// Pure helpers (unit-tested)
-// ---------------------------------------------------------------------------
-
 pub use omniget_core::core::llm::cli_runtime::accounts::{move_to_head, normalize_chain};
 
-/// `Claude Max · pessoal` + `claude` → `claude-claude-max-pessoal`, made unique
-/// against the ids already in use. The result always satisfies
-/// `cli_runtime::accounts::valid_id` and is also a safe folder name.
 pub fn account_id(cli: CliKind, label: &str, taken: &[String]) -> String {
     let slug: String = label
         .chars()
@@ -267,13 +190,6 @@ pub fn account_id(cli: CliKind, label: &str, taken: &[String]) -> String {
     }
 }
 
-/// The literal flag the CLI gets for this mode, so the UI can print it.
-///
-/// Codex takes `--sandbox <mode>` (`read-only` is its own default) and Claude
-/// takes `--permission-mode <mode>`. Neither "no rules at all" mode
-/// (`danger-full-access`, `bypassPermissions`) comes from the account alone:
-/// a `full` account only allows it for a turn whose run mode is
-/// `full_access` (2.7), and the flag says so.
 pub fn sandbox_flag(cli: CliKind, sandbox: SandboxMode) -> String {
     if sandbox == SandboxMode::Full {
         return match cli {
@@ -297,22 +213,10 @@ pub fn sandbox_flag(cli: CliKind, sandbox: SandboxMode) -> String {
     }
 }
 
-/// Quote a path for a POSIX shell by single-quoting it.
 fn sh_quote(path: &Path) -> String {
     format!("'{}'", path.to_string_lossy().replace('\'', "'\\''"))
 }
 
-/// Build the launcher for "enter": a script that exports the account's config
-/// directory and runs the CLI, plus the terminal command that opens it.
-///
-/// The environment comes from `cli_runtime::accounts::account_env` and
-/// `SCRUB_ENV`, the same two lists the runtime uses when it spawns a turn, so
-/// an interactive login and an automated turn can never end up on different
-/// accounts. The script never mentions a credential file: the CLI does the
-/// login itself, inside the directory the env var points at.
-///
-/// `have_wt` only matters on Windows (Windows Terminal when present, `cmd`
-/// otherwise).
 pub fn login_plan(account: &CliAccount, script_dir: &Path, have_wt: bool) -> LoginPlan {
     let env = account_env(account);
     let bin = account.cli.bin();
@@ -358,8 +262,6 @@ pub fn login_plan(account: &CliAccount, script_dir: &Path, have_wt: bool) -> Log
         };
     }
 
-    // macOS opens `.command` files in Terminal.app; every other unix goes
-    // through the distro's terminal alias.
     let ext = if cfg!(target_os = "macos") {
         "command"
     } else {
@@ -403,8 +305,6 @@ pub fn login_plan(account: &CliAccount, script_dir: &Path, have_wt: bool) -> Log
     }
 }
 
-/// Fold the core report into the shape the tab draws. Pure, so the mapping is
-/// testable without a disk full of history.
 pub fn report_view(report: &cli_usage::CliUsageReport) -> UsageReportView {
     let row = |b: &omniget_core::core::tools::usage::Bucket| UsageRow {
         key: b.key.clone(),
@@ -458,15 +358,9 @@ pub fn report_view(report: &cli_usage::CliUsageReport) -> UsageReportView {
     }
 }
 
-/// Minutes east of UTC for the machine's own clock, so the day buckets and the
-/// heat map land on the user's calendar and not on UTC's.
 fn tz_offset_minutes() -> i32 {
     chrono::Local::now().offset().local_minus_utc() / 60
 }
-
-// ---------------------------------------------------------------------------
-// Stores
-// ---------------------------------------------------------------------------
 
 fn account_store() -> Result<AccountStore, String> {
     AccountStore::default_store().ok_or_else(|| format!("{}: no app data dir", ERR_ACCOUNTS_IO))
@@ -502,9 +396,6 @@ fn save_prefs(prefs: &Prefs) -> Result<(), String> {
     Ok(())
 }
 
-/// The windows the CLI runtime already cached from an official channel. A file
-/// read, no scan: `llm_accounts_list` must stay instant. The `Estimated` ones
-/// arrive later with the report.
 fn cached_windows() -> Vec<WindowView> {
     let Some(text) = cli_usage::capacity_path().and_then(|p| std::fs::read_to_string(p).ok())
     else {
@@ -518,7 +409,6 @@ fn cached_windows() -> Vec<WindowView> {
         .collect()
 }
 
-/// Assemble what the tab draws out of the store, the prefs and the cache.
 fn snapshot() -> Result<AccountsSnapshot, String> {
     let store = account_store()?;
     let accounts = store.list();
@@ -558,9 +448,6 @@ fn snapshot() -> Result<AccountsSnapshot, String> {
     })
 }
 
-/// Everything the user configured that is not identity, linked into a new
-/// profile (`estudos/74` §A.3 item 2). Never the credential: `share_profile`
-/// refuses the deny list even if it were asked.
 fn share_into(account: &CliAccount) -> Vec<String> {
     let Some(home) = dirs::home_dir() else {
         return Vec::new();
@@ -574,8 +461,6 @@ fn share_into(account: &CliAccount) -> Vec<String> {
     }
     let mut linked =
         store::share_profile(&source, &account.config_dir, SHARE_LINK).unwrap_or_default();
-    // `.claude.json` carries the identity, so it is copied minus the account
-    // fields instead of being linked.
     if account.cli == CliKind::Claude {
         for candidate in [home.join(".claude.json"), source.join(".claude.json")] {
             let Ok(text) = std::fs::read_to_string(&candidate) else {
@@ -593,26 +478,16 @@ fn share_into(account: &CliAccount) -> Vec<String> {
     linked
 }
 
-// ---------------------------------------------------------------------------
-// Commands
-// ---------------------------------------------------------------------------
-
 #[tauri::command]
 pub async fn llm_accounts_list() -> Result<AccountsSnapshot, String> {
     snapshot()
 }
 
-/// Which CLIs exist on this machine. `cli_runtime::accounts::detect` runs
-/// `--version` once per CLI and nothing else.
 #[tauri::command]
 pub async fn llm_accounts_detect() -> Result<Vec<store::CliDetected>, String> {
     Ok(store::detect().await)
 }
 
-/// Create an account: an id, a label and an isolated config directory. The
-/// directory starts empty (the CLI writes its own credential there on
-/// `/login`); with `share` the non-identity parts of the user's existing
-/// profile are symlinked in.
 #[tauri::command]
 pub async fn llm_accounts_create(
     cli: String,
@@ -656,7 +531,6 @@ pub async fn llm_accounts_create(
         config_dir,
         label,
         disabled: false,
-        // A new account never starts with the right to write.
         sandbox: SandboxMode::ReadOnly,
     };
     let account = store_
@@ -671,8 +545,6 @@ pub async fn llm_accounts_create(
     snapshot()
 }
 
-/// Forget an account. The config directory stays on disk unless `purge` is
-/// true, so a mis-click never destroys a login.
 #[tauri::command]
 pub async fn llm_accounts_remove(
     id: String,
@@ -697,9 +569,6 @@ pub async fn llm_accounts_remove(
     snapshot()
 }
 
-/// "Enter": open a terminal already pointed at this account's config
-/// directory, so the CLI's own `/login` runs there. OmniGet reads nothing that
-/// the login writes.
 #[tauri::command]
 pub async fn llm_accounts_login(id: String) -> Result<Value, String> {
     let account = account_store()?
@@ -743,7 +612,6 @@ pub async fn llm_accounts_login(id: String) -> Result<Value, String> {
     }))
 }
 
-/// Take an account out of the chain for a while without deleting it.
 #[tauri::command]
 pub async fn llm_accounts_set_disabled(
     id: String,
@@ -755,13 +623,6 @@ pub async fn llm_accounts_set_disabled(
     snapshot()
 }
 
-/// Change what a turn on this account may touch.
-///
-/// Read-only is the default and the safe end; the UI asks for a confirmation
-/// before sending `write`, and an unrecognised value parses back to read-only
-/// rather than failing (`SandboxMode::parse`), so no typo can ever grant a
-/// write. This only decides a command-line flag — it neither reads nor writes
-/// anything inside the account's config directory.
 #[tauri::command]
 pub async fn llm_accounts_set_sandbox(
     id: String,
@@ -773,7 +634,6 @@ pub async fn llm_accounts_set_sandbox(
     snapshot()
 }
 
-/// One-click switch: this account becomes the head of the fallback chain.
 #[tauri::command]
 pub async fn llm_accounts_activate(id: String) -> Result<AccountsSnapshot, String> {
     let store_ = account_store()?;
@@ -787,7 +647,6 @@ pub async fn llm_accounts_activate(id: String) -> Result<AccountsSnapshot, Strin
     snapshot()
 }
 
-/// Reorder the fallback chain (drag and drop in the UI).
 #[tauri::command]
 pub async fn llm_accounts_set_chain(chain: Vec<String>) -> Result<AccountsSnapshot, String> {
     let store_ = account_store()?;
@@ -797,7 +656,6 @@ pub async fn llm_accounts_set_chain(chain: Vec<String>) -> Result<AccountsSnapsh
     snapshot()
 }
 
-/// Read (no argument) or write the rotation settings. Off by default.
 #[tauri::command]
 pub async fn llm_accounts_rotation(rotation: Option<Rotation>) -> Result<Rotation, String> {
     let mut prefs = load_prefs()?;
@@ -812,13 +670,6 @@ pub async fn llm_accounts_rotation(rotation: Option<Rotation>) -> Result<Rotatio
     Ok(prefs.rotation)
 }
 
-/// Cost per day, per model, tool heat map, sessions and the 5 h / 7 d windows,
-/// read from the CLIs' own JSONL history by `cli_usage`.
-///
-/// The sweep is the expensive part (≈2 s cold over 500 MB, ~130 µs warm, as
-/// f4-cli-usage measured), so the whole thing runs on a blocking thread: a
-/// Tauri command worker must never sit on it. Nothing here runs at boot, and
-/// nothing but the price table touches the network.
 #[tauri::command]
 pub async fn llm_cli_usage_report(days: Option<u32>) -> Result<UsageReportView, String> {
     let accounts: Vec<(String, PathBuf)> = account_store()?
@@ -840,10 +691,6 @@ pub async fn llm_cli_usage_report(days: Option<u32>) -> Result<UsageReportView, 
     Ok(report_view(&report))
 }
 
-// ---------------------------------------------------------------------------
-// Tests
-// ---------------------------------------------------------------------------
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -859,8 +706,6 @@ mod tests {
         }
     }
 
-    /// The card shows a mode and the flag behind it; both must be the safe one
-    /// out of the box, and the dangerous modes must be unreachable.
     #[test]
     fn the_sandbox_flag_is_the_cli_s_own_and_defaults_to_read_only() {
         assert_eq!(acc("x").sandbox, SandboxMode::ReadOnly);
@@ -889,7 +734,6 @@ mod tests {
         }
     }
 
-    /// Whatever the UI sends, only the exact word for "write" grants a write.
     #[test]
     fn the_command_never_grants_a_write_by_accident() {
         for bad in [
@@ -954,8 +798,6 @@ mod tests {
         assert_eq!(account_id(CliKind::Codex, "   ", &[]), "codex");
     }
 
-    /// The store refuses anything outside `[a-z0-9_-]{1,64}`, so the generator
-    /// has to agree with it.
     #[test]
     fn account_id_is_always_valid_for_the_store() {
         let long = "A".repeat(200);
@@ -994,8 +836,6 @@ mod tests {
         }
     }
 
-    /// The launcher must scrub exactly what the runtime scrubs, or an API key
-    /// in OmniGet's environment would decide which account the CLI bills.
     #[test]
     fn login_script_scrubs_the_same_env_the_runtime_does() {
         let plan = login_plan(&acc("x"), Path::new("/l"), false);
@@ -1088,7 +928,6 @@ mod tests {
         let e = WindowView::from_core(&estimated);
         assert_eq!(e.window, "seven_day");
         assert_eq!(e.source, "estimated");
-        // No ceiling for the plan: tokens, and no invented percentage.
         assert_eq!(e.used, None);
         assert_eq!(e.used_tokens, 4_200);
         assert_eq!(e.resets_at_ms, None);
@@ -1130,7 +969,6 @@ mod tests {
         assert_eq!(view.top_tools[0].calls, 99);
         assert_eq!(view.sessions[0].id, "pricey");
         assert_eq!(view.sessions[0].ended_ms, Some(30));
-        // A live session has no end, and the UI must see that as null.
         assert_eq!(view.sessions[1].ended_ms, None);
         assert_eq!(view.by_tool_hour.len(), 7);
         assert_eq!(view.by_tool_hour[0].len(), 24);
@@ -1170,7 +1008,6 @@ mod tests {
         assert_eq!(view.scan_ms, 142);
     }
 
-    /// The tab and the runtime must read and write the very same file.
     #[test]
     fn the_store_is_the_runtimes_accounts_json() {
         let Some(expected) = omniget_core::core::paths::app_data_dir() else {

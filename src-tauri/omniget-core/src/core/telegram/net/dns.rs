@@ -1,20 +1,9 @@
-//! Name resolution that survives DNS poisoning.
-//!
-//! Telegram's data centers are dialed by IP, so DNS only matters for proxy
-//! hosts (subscription servers, MTProto proxies written as domains). Inside
-//! mainland China the plain UDP answer for a blocked name can be forged, and
-//! outside it some ISPs hijack NXDOMAIN. We race the system resolver against
-//! DNS-over-HTTPS servers dialed by fixed IP (so the DoH lookup itself needs
-//! no DNS), Chinese ones first because foreign DoH is often blocked there.
-
 use std::net::IpAddr;
 use std::time::Duration;
 
 use base64::Engine;
 use rand::RngExt;
 
-/// (hostname for TLS/SNI, fixed IP, path). Order matters: tried in parallel,
-/// first valid answer wins.
 pub const DOH_SERVERS: &[(&str, &str, &str)] = &[
     ("dns.alidns.com", "223.5.5.5", "/dns-query"),
     ("dns.alidns.com", "223.6.6.6", "/dns-query"),
@@ -28,8 +17,6 @@ pub const DOH_SERVERS: &[(&str, &str, &str)] = &[
 const SYSTEM_TIMEOUT: Duration = Duration::from_secs(3);
 const DOH_TIMEOUT: Duration = Duration::from_secs(5);
 
-/// Resolves `host`. An IP literal comes back as is. With `prefer_doh` the
-/// system resolver is skipped entirely (useful when it is known to lie).
 pub async fn resolve(host: &str, prefer_doh: bool) -> anyhow::Result<Vec<IpAddr>> {
     let host = host.trim_matches(['[', ']']);
     if let Ok(ip) = host.parse::<IpAddr>() {
@@ -47,7 +34,6 @@ pub async fn resolve(host: &str, prefer_doh: bool) -> anyhow::Result<Vec<IpAddr>
     resolve_doh(host).await
 }
 
-/// Addresses the GFW and hijacking ISPs hand out for blocked names.
 fn is_bogus(ip: &IpAddr) -> bool {
     match ip {
         IpAddr::V4(v4) => v4.is_unspecified() || v4.is_loopback() || v4.octets()[0] == 0,
@@ -66,8 +52,6 @@ pub async fn resolve_doh(host: &str) -> anyhow::Result<Vec<IpAddr>> {
             }));
         }
     }
-    // Take the first non-empty IPv4 answer, but give IPv6 a chance to join
-    // when it comes back in the same breath.
     let mut found: Vec<IpAddr> = Vec::new();
     let mut pending = tasks;
     let deadline = tokio::time::Instant::now() + DOH_TIMEOUT;
@@ -121,7 +105,6 @@ async fn doh_query(
     parse_answer(&body, qtype)
 }
 
-/// Minimal RFC 1035 query: one question, recursion desired.
 pub fn build_query(host: &str, qtype: u16) -> Vec<u8> {
     let id: u16 = rand::rng().random();
     let mut q = Vec::with_capacity(32 + host.len());

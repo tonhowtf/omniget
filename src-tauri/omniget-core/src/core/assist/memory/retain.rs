@@ -1,18 +1,4 @@
-//! Retain: after a turn (or when the model hands over a document), one model
-//! call extracts the facts worth keeping, and each becomes a record with its
 //! date, entities, vector and links. Adapted from Hindsight's concise
-//! extraction prompt (estudos/91-hindsight/prompts.md §1).
-//!
-//! What this does that Hindsight does not:
-//! - a record is `declared` only when its quote is really in the person's own
-//!   words; anything else the model claims the person said becomes an
-//!   unconfirmed guess (the memory module's rule, now enforced on extraction);
-//! - a fact that arrives again reinforces the record it matches (one more
-//!   proof, a guess gains confidence) instead of becoming a sibling;
-//! - a turn that says nothing personal never reaches a model (cheap filter),
-//!   and the same turn is never extracted twice (log keyed by content);
-//! - forgetting wins: a fact the person asked to forget is refused by the
-//!   tombstones on the way in, whatever the extractor says.
 
 use std::sync::Arc;
 
@@ -28,18 +14,9 @@ use super::graph::{self, EntityRef};
 use super::retrieve::{embed_passages, vector_source};
 use super::{remember, sha, Category, NewMemory, Source};
 
-/// A model call: `(system, user) -> text`.
 pub type Llm =
     Arc<dyn Fn(String, String) -> BoxFuture<'static, Result<String, String>> + Send + Sync>;
 
-/// The model memory talks to, first one available:
-/// 1. the app's configured model (`ai::chat`);
-/// 2. a local Ollama with a model pulled (nothing leaves the machine);
-/// 3. the Claude Code CLI on the person's subscription (`claude -p`, Haiku,
-///    no tools, no session saved).
-///
-/// One call at a time: retains after several turns queue instead of opening
-/// several model processes at once.
 pub fn default_llm() -> Llm {
     Arc::new(|system, user| {
         Box::pin(async move {
@@ -72,7 +49,6 @@ async fn ollama(system: &str, user: &str) -> Option<Result<String, String>> {
         .json()
         .await
         .ok()?;
-    // Chat models only; embedding models cannot answer.
     let model = tags["models"]
         .as_array()?
         .iter()
@@ -183,12 +159,8 @@ pub(crate) async fn claude_cli(system: &str, user: &str) -> Option<Result<String
     Some(out)
 }
 
-/// Characters of one extraction chunk (Hindsight uses 3000; a smaller chunk
-/// gets more of its details extracted).
 pub const CHUNK_CHARS: usize = 3500;
-/// Chunks one retain call may send.
 pub const MAX_CHUNKS: usize = 12;
-/// Facts kept from one chunk.
 pub const MAX_FACTS: usize = 30;
 
 pub const SYSTEM: &str = r#"You extract long-term memories from a conversation between a person and their AI assistant. Be SELECTIVE: only facts worth remembering in six months.
@@ -258,35 +230,24 @@ pub struct Extracted {
     pub caused_by: Vec<Value>,
 }
 
-/// What one retain call did.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 pub struct RetainReport {
     pub extracted: usize,
     pub created: Vec<String>,
     pub reinforced: Vec<String>,
-    /// Refused by a tombstone, a scope, or invalid.
     pub skipped: usize,
-    /// True when the log already had this input.
     pub duplicate: bool,
 }
 
-/// The material to retain.
 #[derive(Debug, Clone)]
 pub struct RetainInput {
-    /// What the person said (the only text that can make a fact `declared`).
     pub person: String,
-    /// Everything else: the assistant's reply, or a document.
     pub other: String,
-    /// When it was said.
     pub event_ms: i64,
-    /// `conversation` | `document` | `message`.
     pub source_kind: String,
     pub source_id: Option<String>,
-    /// Free context for the extractor ("chat with the reading bot").
     pub context: Option<String>,
 }
-
-// ── Cheap gate ───────────────────────────────────────────────────────────
 
 const FILLER: &[&str] = &[
     "ok",
@@ -326,8 +287,6 @@ const FILLER: &[&str] = &[
     "proximo",
 ];
 
-/// Whether the person's message could hold something worth remembering.
-/// Short acknowledgements and slash commands never reach the extractor.
 pub fn worth_retaining(person: &str) -> bool {
     let t = graph::fold(person.trim());
     let t = t.trim_matches(|c: char| !c.is_alphanumeric());
@@ -340,9 +299,6 @@ pub fn worth_retaining(person: &str) -> bool {
     t.split_whitespace().count() >= 3 || t.chars().count() >= 18
 }
 
-// ── Settings ─────────────────────────────────────────────────────────────
-
-/// `auto_retain` (on/off, default on), `consolidate` (on/off, default on).
 pub fn setting(db: &AssistDb, key: &str) -> bool {
     let v: Option<String> = db
         .with(|c| {
@@ -369,10 +325,6 @@ pub fn set_setting(db: &AssistDb, key: &str, on: bool) -> Result<(), String> {
     Ok(())
 }
 
-// ── Parsing ──────────────────────────────────────────────────────────────
-
-/// The first JSON object in a model reply (fences and prose around it are
-/// tolerated).
 pub fn json_object(text: &str) -> Option<Value> {
     let start = text.find('{')?;
     let end = text.rfind('}')?;
@@ -447,7 +399,6 @@ fn year_only(s: &str) -> Option<(i64, i64)> {
     Some((f(a)?, f(b)? - 1))
 }
 
-/// `(start, end)` of an extracted fact, in ms.
 pub fn occurred(f: &Extracted) -> (Option<i64>, Option<i64>) {
     let s = f.occurred_start.as_deref().filter(|s| !s.trim().is_empty());
     let e = f.occurred_end.as_deref().filter(|s| !s.trim().is_empty());
@@ -492,7 +443,6 @@ fn entities_of(f: &Extracted) -> Vec<EntityRef> {
         .collect()
 }
 
-/// True when `quote` (or, failing that, the fact) is in the person's words.
 fn said_by_person(quote: Option<&str>, person: &str) -> bool {
     let Some(q) = quote
         .map(super::normalize)
@@ -504,7 +454,6 @@ fn said_by_person(quote: Option<&str>, person: &str) -> bool {
     if hay.contains(&q) {
         return true;
     }
-    // Tolerate small edits: most of the quote's words, in the person's text.
     let words: Vec<&str> = q
         .split_whitespace()
         .filter(|w| w.chars().count() > 2)
@@ -538,8 +487,6 @@ fn scope_for(ctx: &AssistCtx, cat: Category, about: Option<&str>) -> Option<Scop
     order.into_iter().flatten().find(|s| ctx.can_write(s))
 }
 
-// ── The pipeline ─────────────────────────────────────────────────────────
-
 fn chunks(text: &str) -> Vec<String> {
     let mut out = Vec::new();
     let mut cur = String::new();
@@ -563,9 +510,6 @@ fn chunks(text: &str) -> Vec<String> {
     out
 }
 
-/// The two weeks up to the event date with weekday names, so "last
-/// Friday" or "the weekend before" is a lookup instead of arithmetic the
-/// model gets wrong (Hindsight only gives the day name of the event date).
 fn calendar(event_ms: i64) -> String {
     let Some(day) = Local
         .timestamp_millis_opt(event_ms)
@@ -617,8 +561,6 @@ fn user_message(input: &RetainInput, person: &str, chunk: &str, i: usize, n: usi
     s
 }
 
-/// Extracts and stores. Runs off the hot path; every write goes through
-/// [`remember`], so scopes, idempotency and tombstones hold.
 pub async fn retain(
     db: Arc<AssistDb>,
     ctx: AssistCtx,
@@ -646,8 +588,6 @@ pub async fn retain(
             ..Default::default()
         });
     }
-    // A long message from the person (a pasted diary, a transcript) is cut
-    // like any document; a short one rides with the first chunk of the rest.
     let person_pieces = if input.person.len() > CHUNK_CHARS {
         chunks(&input.person)
     } else {
@@ -670,7 +610,6 @@ pub async fn retain(
     let mut failure: Option<String> = None;
     for (i, (person, chunk)) in pieces.iter().enumerate() {
         let msg = user_message(&input, person, chunk, i, n);
-        // One retry: a slow model call should not cost the chunk its facts.
         let first = llm(SYSTEM.to_string(), msg.clone()).await;
         let reply = match first {
             Ok(t) => Ok(t),
@@ -727,7 +666,6 @@ fn log(
     });
 }
 
-/// Writes extracted facts (split out so tests can skip the model).
 pub fn store(
     db: &AssistDb,
     ctx: &AssistCtx,
@@ -744,7 +682,6 @@ pub fn store(
         Some((src, v)) if v.len() == texts.len() => (src, v.into_iter().map(Some).collect()),
         _ => ("", vec![None; texts.len()]),
     };
-    // Index in `facts` → record id, for causal links.
     let mut ids: Vec<Option<String>> = vec![None; facts.len()];
     for (i, f) in facts.iter().enumerate() {
         let cat = category_of(f, &input.person);
@@ -753,13 +690,8 @@ pub fn store(
             continue;
         };
         let vec = vectors.get(i).cloned().flatten();
-        // Same fact again → one more proof, not a sibling.
         if let Some(v) = &vec {
             if let Some(twin) = twin(db, ctx, &scope, cat, source, v)? {
-                // The assistant repeating a recalled memory is not a new
-                // proof: only the person saying it again (or a document)
-                // counts. Otherwise memory would confirm itself (Hindsight
-                // strips its injected block for the same reason).
                 let from_person = input.person.trim().is_empty()
                     || said_by_person(f.quote.as_deref(), &input.person)
                     || said_by_person(Some(&f.text), &input.person);
@@ -840,7 +772,6 @@ pub fn store(
         })?;
         report.created.push(id);
     }
-    // Causal links, now that every fact has an id.
     db.with(|c| {
         for (i, f) in facts.iter().enumerate() {
             let Some(src) = &ids[i] else { continue };
@@ -859,8 +790,6 @@ pub fn store(
     Ok(report)
 }
 
-/// An active record in `scope` saying the same thing as `v`, of a compatible
-/// kind.
 fn twin(
     db: &AssistDb,
     ctx: &AssistCtx,
@@ -895,15 +824,12 @@ fn twin(
     })?;
     let compatible = match (their.as_deref().and_then(Category::parse), cat) {
         (Some(a), b) if a == b => true,
-        // A stated fact covers a later guess of the same thing.
         (Some(Category::Declared), Category::Inference) => true,
         _ => false,
     };
     Ok(compatible.then_some(id))
 }
 
-/// Embeds active records that have no vector yet (written while the local
-/// model was missing, or before this version). Returns how many.
 pub fn backfill_vectors(db: &AssistDb, max: usize) -> Result<usize, String> {
     let Some(src) = vector_source() else {
         return Ok(0);

@@ -1,7 +1,3 @@
-//! Study tools: transcripts (from subtitles or the AI provider) with
-//! full-text search, silence maps, questions to the AI, flashcards with a
-//! small SM-2 and export to Anki through AnkiConnect.
-
 use std::path::{Path, PathBuf};
 
 use rusqlite::{params, OptionalExtension, Row};
@@ -11,8 +7,6 @@ use tauri::AppHandle;
 use omniget_core::core::video::{notes_md, subs};
 
 use super::{blocking, db, labels_for_key, link, notes, probe, server, Card, Cue, TranscriptHit};
-
-// ---------- transcripts ----------
 
 fn to_cues(v: Vec<subs::Cue>) -> Vec<Cue> {
     v.into_iter()
@@ -25,7 +19,6 @@ fn to_cues(v: Vec<subs::Cue>) -> Vec<Cue> {
         .collect()
 }
 
-/// The stored transcript of a key, if any.
 pub fn cached_cues(key: &str) -> Result<Vec<Cue>, String> {
     let raw: Option<String> = db::with(|c| {
         c.query_row(
@@ -71,8 +64,6 @@ fn media_id_for(key: &str, media_id: Option<i64>) -> Option<i64> {
     })
 }
 
-/// Cues from the subtitles the item already has: an external file first,
-/// then an embedded text track, then the link's subtitles from yt-dlp.
 async fn cues_from_subtitles(key: &str, media_id: Option<i64>) -> Option<(String, Vec<Cue>)> {
     if let Some(id) = media_id_for(key, media_id) {
         let (path, hash, ..) = db::media_file(id)?;
@@ -136,8 +127,6 @@ pub async fn video_transcript(key: String, media_id: Option<i64>) -> Result<Vec<
 
 const CHUNK_S: u64 = 600;
 
-/// Whisper-style request asking for segments. `None` when the provider
-/// can't do `verbose_json`, so the caller falls back to plain text.
 async fn transcribe_segments(chunk: &Path) -> Option<(String, Vec<Cue>)> {
     use omniget_core::core::ai::{self, AiProvider};
     let cfg = ai::get();
@@ -188,8 +177,6 @@ async fn transcribe_segments(chunk: &Path) -> Option<(String, Vec<Cue>)> {
     (!cues.is_empty()).then_some((lang, cues))
 }
 
-/// Extracts the audio (mono, 16 kHz MP3, 10-minute chunks), sends each chunk
-/// to the configured AI provider and stores the result as the transcript.
 #[tauri::command]
 pub async fn video_transcribe(
     app: AppHandle,
@@ -278,7 +265,6 @@ async fn transcribe_in(
                 }));
             }
             None => {
-                // provider only returns text: one cue for the whole chunk
                 let text = omniget_core::core::ai::transcribe(chunk).await?;
                 let dur = omniget_core::core::ffmpeg::probe(chunk)
                     .await
@@ -298,7 +284,6 @@ async fn transcribe_in(
     Ok(all)
 }
 
-/// FTS5 query from free text: every word must appear, as a prefix.
 fn fts_query(q: &str) -> String {
     q.split_whitespace()
         .map(|w| w.replace('"', ""))
@@ -371,8 +356,6 @@ pub async fn video_transcript_search(
     .await
 }
 
-// ---------- silences ----------
-
 fn parse_silences(stderr: &str) -> Vec<(f64, f64)> {
     let mut out = Vec::new();
     let mut start: Option<f64> = None;
@@ -397,8 +380,6 @@ fn parse_silences(stderr: &str) -> Vec<(f64, f64)> {
     out
 }
 
-/// Silent stretches `[start_s, end_s]` in seconds of a local video (ffmpeg
-/// `silencedetect`), cached per file and settings.
 #[tauri::command]
 pub async fn video_silences(
     media_id: i64,
@@ -463,11 +444,8 @@ pub async fn video_silences(
     Ok(list)
 }
 
-// ---------- ask the AI ----------
-
 const MAX_TRANSCRIPT_CHARS: usize = 90_000;
 
-/// `[mm:ss] text` lines, merged into longer blocks until they fit.
 fn timed_text(cues: &[Cue]) -> String {
     let mut block_ms = 0i64;
     loop {
@@ -548,8 +526,6 @@ pub async fn video_ask(key: String, question: String, mode: String) -> Result<St
     );
     omniget_core::core::ai::chat(base, &user).await
 }
-
-// ---------- flashcards ----------
 
 const CARD_COLS: &str =
     "id, key, front, back, t_ms, image, due, interval_days, ease, reps, created_at";
@@ -636,14 +612,12 @@ pub async fn video_card_add(
 
 const DAY_MS: f64 = 86_400_000.0;
 
-/// SM-2 with four buttons: 0 again, 1 hard, 2 good, 3 easy.
 fn schedule(card: &Card, grade: i64) -> (f64, f64, i64, i64) {
     let mut ease = card.ease.max(1.3);
     let reps = card.reps;
     let (interval, new_reps) = match grade {
         0 => {
             ease = (ease - 0.2).max(1.3);
-            // again: back in 10 minutes
             (10.0 / 1440.0, 0)
         }
         1 => {
@@ -698,8 +672,6 @@ pub async fn video_card_delete(id: i64) -> Result<(), String> {
     .await
 }
 
-// ---------- Anki ----------
-
 const ANKI: &str = "http://127.0.0.1:8765";
 const ANKI_DECK: &str = "OmniGet";
 
@@ -722,8 +694,6 @@ async fn anki(action: &str, params: serde_json::Value) -> Result<serde_json::Val
     Ok(v["result"].clone())
 }
 
-/// A two-field note type: "Basic" when it exists (English Anki), otherwise
-/// the first model with exactly two fields.
 async fn anki_model() -> Result<(String, String, String), String> {
     let names = anki("modelNames", serde_json::json!({})).await?;
     let names: Vec<String> = serde_json::from_value(names).unwrap_or_default();
@@ -777,7 +747,6 @@ pub async fn video_anki_export(ids: Vec<i64>) -> Result<AnkiResult, String> {
         .zip(titles)
         .map(|(c, title)| {
             let mut back = html_escape(&c.back);
-            // manual cards (key "manual") have no video to point back to
             let title = if c.key == "manual" { String::new() } else { title };
             let when = c
                 .t_ms
@@ -811,8 +780,6 @@ pub async fn video_anki_export(ids: Vec<i64>) -> Result<AnkiResult, String> {
             note
         })
         .collect();
-    // addNotes fails as a whole on one duplicate in recent AnkiConnect
-    // versions, so notes go one by one
     let mut added = 0;
     for (card, note) in cards.iter().zip(notes) {
         if let Ok(v) = anki("addNote", serde_json::json!({ "note": note })).await {

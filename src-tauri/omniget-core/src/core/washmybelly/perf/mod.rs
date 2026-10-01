@@ -1,13 +1,3 @@
-//! FPS and frametime measurement: PresentMon (Windows), MangoHud (Linux),
-//! Metal HUD (macOS), always converted to `omniget-frames/1` and always
-//! summarised by OmniGet's own statistics (CapFrameX formulas, [`stats`]).
-//!
-//! Measuring never changes the game or the system: PresentMon only reads
-//! Windows events, MangoHud gets a config of its own for the session, the
-//! Metal HUD is an environment variable of a game OmniGet starts. The one
-//! setup that changes the system (joining Performance Log Users on Windows)
-//! is a screen action, never a tool.
-
 pub mod format;
 pub mod mangohud;
 pub mod metal;
@@ -25,14 +15,10 @@ pub use session::SessionSummary;
 
 const DEFAULT_SECONDS: u64 = 60;
 
-// ── Capabilities ────────────────────────────────────────────────────────
-
 fn caps() -> Value {
     super::caps::cached(false)
 }
 
-/// What can be measured here, honestly. Pure over the detected facts so the
-/// three systems are tested on any machine.
 pub fn capabilities_for(os: Os, c: &Value, presentmon_installed: bool) -> Value {
     let flag = |p: &str| c.pointer(p).and_then(Value::as_bool).unwrap_or(false);
     let mut v = match os {
@@ -115,9 +101,6 @@ pub async fn tool_capabilities(_a: Value) -> Result<Value, String> {
     .await
 }
 
-// ── Capture ─────────────────────────────────────────────────────────────
-
-/// An exe name, not a path: PresentMon matches it against the image name.
 fn clean_process_name(s: &str) -> Result<String, String> {
     let s = s.trim();
     if s.is_empty()
@@ -310,7 +293,6 @@ pub async fn tool_summary(a: Value) -> Result<Value, String> {
 fn summary_value(ctx: &Ctx, id: &str) -> Result<Value, String> {
     let sum = session::summary_of(ctx, id)?;
     let mut v = serde_json::to_value(&sum).map_err(|e| e.to_string())?;
-    // Agents get the events count-limited; the screen reads the chart.
     for k in ["stutter_events", "freeze_events"] {
         if let Some(arr) = v[k].as_array_mut() {
             arr.truncate(50);
@@ -387,8 +369,6 @@ pub async fn tool_compare(a: Value) -> Result<Value, String> {
     blocking(move || compare_value(&Ctx::app()?, &before, &after)).await
 }
 
-// ── Screen-only actions ─────────────────────────────────────────────────
-
 fn chart(ctx: &Ctx, id: &str, points: usize) -> Result<Value, String> {
     let dir = session::session_dir(ctx, id)?;
     let s = session::load_session(&dir).map_err(|_| "NOT_FOUND: unknown session".to_string())?;
@@ -419,10 +399,6 @@ fn delete_session(ctx: &Ctx, id: &str) -> Result<Value, String> {
     Ok(json!({ "deleted": id }))
 }
 
-/// Windows one-time setup: what joining Performance Log Users takes. The
-/// elevated step (`elevated_perf_log_users`, run by `omniget-elevate`) needs
-/// an `ElevatedOp` variant the orchestrator owns; until it exists the
-/// screen shows the command for an administrator terminal.
 #[cfg(windows)]
 fn setup_access() -> Result<Value, String> {
     let sid = presentmon::current_user_sid()?;
@@ -430,7 +406,6 @@ fn setup_access() -> Result<Value, String> {
     let group = presentmon::account_of(presentmon::PERF_LOG_USERS_SID)
         .map(|g| presentmon::bare_group(&g).to_string())
         .unwrap_or_else(|_| "Performance Log Users".into());
-    // One UAC prompt; the helper resolves the names from the SIDs itself.
     let joined = super::elevate::run(
         &Ctx::app()?,
         &[super::elevate::ElevatedOp::PerfLogUsers {

@@ -1,10 +1,3 @@
-//! Automation verbs of a portal ("CDP-like", 02-motor-do-canvas §7.4), on top
-//! of the injected script. Callers check who may drive the portal (see
-//! `crate::canvas::portal`); these functions only act.
-//!
-//! Every text that comes out of a page is marked untrusted: a snapshot can
-//! carry instructions written for the agent reading it (prompt injection).
-
 use serde_json::{json, Value};
 use tauri::AppHandle;
 
@@ -24,7 +17,6 @@ fn b(v: &Value, k: &str) -> Option<bool> {
     v.get(k).and_then(|x| x.as_bool())
 }
 
-/// A count from JSON or from a CLI flag (`--timeout 1500` arrives as text).
 fn n(v: &Value, k: &str) -> Option<u64> {
     v.get(k).and_then(|x| {
         x.as_u64()
@@ -33,12 +25,8 @@ fn n(v: &Value, k: &str) -> Option<u64> {
     })
 }
 
-/// Canvas node header (28) + the portal toolbar (32), world units; the page
-/// gets the rest of the node's height.
 pub const NODE_HEADER: f64 = 60.0;
 
-/// Opens the portal of `node_id` hidden when it has no browser yet, from the
-/// node's own data (url, storageScope, userAgent, size).
 pub fn ensure_open(app: &AppHandle, node_id: &str) -> Result<(), String> {
     if super::host().has(node_id) {
         return Ok(());
@@ -47,7 +35,6 @@ pub fn ensure_open(app: &AppHandle, node_id: &str) -> Result<(), String> {
     super::open(app, spec).map(|_| ())
 }
 
-/// Everything `open` needs, from the portal node's data.
 pub fn spec_from_node(node_id: &str) -> Option<OpenSpec> {
     let store = crate::canvas::doc::host().store();
     let (ws, floor) = store.locate_node(node_id)?;
@@ -72,8 +59,6 @@ pub fn spec_from_node(node_id: &str) -> Option<OpenSpec> {
         .flatten()
 }
 
-/// `{maxNodes?, maxChars?, includeHtml?}` → `{untrusted, note, url, title,
-/// viewport, tree, text, ...}`. Refs are `@eN` in the tree.
 pub async fn snapshot(app: &AppHandle, node: &str, a: &Value) -> Result<Value, String> {
     let args = json!({
         "maxNodes": n(a, "maxNodes").unwrap_or(1500).clamp(50, 10_000),
@@ -92,7 +77,6 @@ pub async fn snapshot(app: &AppHandle, node: &str, a: &Value) -> Result<Value, S
     Ok(v)
 }
 
-/// `- button "Go" [ref=e3]` → `- button "Go" @e3` (the CLI's `@eN` refs).
 pub fn at_refs(tree: &str) -> String {
     let mut out = String::with_capacity(tree.len());
     for (i, line) in tree.lines().enumerate() {
@@ -111,7 +95,6 @@ pub fn at_refs(tree: &str) -> String {
     out
 }
 
-/// `{selector, double?}`: `@eN`, CSS, `text=Label` or `x,y`.
 pub async fn click(app: &AppHandle, node: &str, a: &Value) -> Result<Value, String> {
     let sel =
         script::normalize_selector(&s(a, "selector").ok_or("PORTAL_ARGS: selector is required")?);
@@ -122,17 +105,14 @@ pub async fn click(app: &AppHandle, node: &str, a: &Value) -> Result<Value, Stri
         json!({ "selector": sel, "double": b(a, "double").unwrap_or(false) }),
     )
     .await?;
-    // A click often navigates; give the page a beat.
     tokio::time::sleep(std::time::Duration::from_millis(250)).await;
     Ok(json!({ "result": v, "page": super::state_json(node) }))
 }
 
-/// `{selector, text, submit?}`: replaces the field's value.
 pub async fn fill(app: &AppHandle, node: &str, a: &Value) -> Result<Value, String> {
     write_text(app, node, a, true).await
 }
 
-/// `{selector, text, submit?}`: appends to the field's value.
 pub async fn type_text(app: &AppHandle, node: &str, a: &Value) -> Result<Value, String> {
     write_text(app, node, a, false).await
 }
@@ -154,7 +134,6 @@ async fn write_text(app: &AppHandle, node: &str, a: &Value, clear: bool) -> Resu
     .await
 }
 
-/// `{key, selector?}`: `Enter`, `ctrl+a`, `cmd+shift+k`...
 pub async fn press(app: &AppHandle, node: &str, a: &Value) -> Result<Value, String> {
     let key = s(a, "key").ok_or("PORTAL_ARGS: key is required")?;
     let sel = s(a, "selector").map(|x| script::normalize_selector(&x));
@@ -167,7 +146,6 @@ pub async fn press(app: &AppHandle, node: &str, a: &Value) -> Result<Value, Stri
     .await
 }
 
-/// `{code}`: arbitrary JS. The caller must have checked the eval permission.
 pub async fn evaluate(app: &AppHandle, node: &str, a: &Value) -> Result<Value, String> {
     let code = a
         .get("code")
@@ -181,8 +159,6 @@ pub async fn evaluate(app: &AppHandle, node: &str, a: &Value) -> Result<Value, S
     Ok(json!({ "value": v, "untrusted": true }))
 }
 
-/// `{selector?, value?, dx?, dy?, direction?, text?, timeout?, maxChars?}`
-/// for hover, scroll, select, check, uncheck, text, html and wait.
 pub async fn element(
     app: &AppHandle,
     node: &str,
@@ -204,9 +180,6 @@ pub async fn element(
     super::eval_fn(app, node, &script::element_fn(), args).await
 }
 
-/// `{selector? | text?, timeout?}`: polls from here (a hidden page's own
-/// timers are throttled) until the element or text shows up, or the page
-/// has loaded when neither is given.
 async fn wait(app: &AppHandle, node: &str, a: &Value) -> Result<Value, String> {
     let limit = n(a, "timeout").unwrap_or(10_000).clamp(100, 60_000);
     let mut probe = json!({ "action": "probe" });
@@ -217,7 +190,6 @@ async fn wait(app: &AppHandle, node: &str, a: &Value) -> Result<Value, String> {
     }
     let t0 = std::time::Instant::now();
     loop {
-        // A page in the middle of loading may not answer; that is "not yet".
         let hit = tokio::time::timeout(
             std::time::Duration::from_secs(3),
             super::eval_fn(app, node, &script::element_fn(), probe.clone()),
@@ -233,7 +205,6 @@ async fn wait(app: &AppHandle, node: &str, a: &Value) -> Result<Value, String> {
     }
 }
 
-/// `{level?, limit?, clear?}`: the page's console ring.
 pub async fn console(app: &AppHandle, node: &str, a: &Value) -> Result<Value, String> {
     super::eval_fn(
         app,

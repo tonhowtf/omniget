@@ -1,11 +1,4 @@
-//! Downloads › Tools › Join videos: put several files in order and save them
-//! as one. When every file has the same codecs, size and sample rate, the
-//! parts are copied end to end with no re-encoding; otherwise they can be
-//! re-encoded to the size of the first file.
-//!
 //! The idea comes from Videomass (jeanslack/Videomass, GPL-3.0), whose
-//! "Concatenate" panel checks the files with ffprobe before a lossless join.
-//! Reimplemented here; no code was copied.
 
 use std::path::{Path, PathBuf};
 
@@ -16,7 +9,6 @@ const MAX_FILES: usize = 100;
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize)]
 pub struct StreamInfo {
-    /// `video:h264,audio:aac` in stream order.
     pub codecs: Vec<String>,
     pub width: Option<u64>,
     pub height: Option<u64>,
@@ -27,11 +19,8 @@ pub struct StreamInfo {
 
 #[derive(Debug, Clone, Serialize)]
 pub struct JoinCheck {
-    /// True when the files can be joined without re-encoding.
     pub lossless: bool,
-    /// Why they cannot, in plain words, naming the first file that differs.
     pub reason: Option<String>,
-    /// True when a re-encoded join is possible (all files have audio, or none).
     pub can_reencode: bool,
     pub total_secs: f64,
 }
@@ -41,7 +30,6 @@ pub struct JoinResult {
     pub output_path: String,
 }
 
-/// The parts of `ffprobe -show_streams -show_format -of json` a join needs.
 pub fn stream_info(probe: &Value) -> StreamInfo {
     let mut info = StreamInfo::default();
     for s in probe["streams"].as_array().into_iter().flatten() {
@@ -49,7 +37,6 @@ pub fn stream_info(probe: &Value) -> StreamInfo {
         if kind != "video" && kind != "audio" {
             continue;
         }
-        // A cover picture inside an audio file is not a video track.
         if kind == "video" && s["disposition"]["attached_pic"].as_i64() == Some(1) {
             continue;
         }
@@ -74,7 +61,6 @@ pub fn stream_info(probe: &Value) -> StreamInfo {
     info
 }
 
-/// Compare every file with the first, like a lossless join needs.
 pub fn check(names: &[String], infos: &[StreamInfo]) -> JoinCheck {
     let total_secs = infos.iter().filter_map(|i| i.duration_secs).sum();
     let all_audio = infos.iter().all(|i| i.has_audio);
@@ -107,7 +93,6 @@ pub fn check(names: &[String], infos: &[StreamInfo]) -> JoinCheck {
     }
 }
 
-/// The concat demuxer's list: `file '<path>'`, with `'` escaped.
 pub fn concat_list(inputs: &[PathBuf]) -> String {
     inputs
         .iter()
@@ -115,7 +100,6 @@ pub fn concat_list(inputs: &[PathBuf]) -> String {
         .collect()
 }
 
-/// `filter_complex` that scales every part to `w`×`h` (letterboxed) and joins them.
 pub fn reencode_filter(n: usize, w: u64, h: u64, audio: bool) -> String {
     let mut f = String::new();
     for i in 0..n {
@@ -140,7 +124,6 @@ pub fn reencode_filter(n: usize, w: u64, h: u64, audio: bool) -> String {
     f
 }
 
-/// `<first stem> joined.<ext>` next to the first file, never over an existing one.
 pub fn output_path(first: &Path, ext: &str) -> PathBuf {
     let stem = first
         .file_stem()
@@ -267,7 +250,6 @@ pub async fn join_videos(paths: Vec<String>, reencode: bool) -> Result<JoinResul
             .find(|i| i.width.is_some())
             .cloned()
             .unwrap_or_default();
-        // Even numbers: H.264 with yuv420p refuses odd sizes.
         let w = first.width.unwrap_or(1280) / 2 * 2;
         let h = first.height.unwrap_or(720) / 2 * 2;
         let audio = infos.iter().all(|i| i.has_audio);

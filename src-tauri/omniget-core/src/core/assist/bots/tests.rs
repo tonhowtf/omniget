@@ -1,9 +1,3 @@
-//! Bot identity, skills and capability tests. The turn tests drive the real
-//! `Coordinator` and `ToolBroker` with a scripted runtime that behaves like a
-//! model which calls tools: it reads the tool name from the system message,
-//! reads the file list from the tool result, and answers with what the last
-//! tool result contained. No real model is involved.
-
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
@@ -23,8 +17,6 @@ use crate::core::omni::bus::Bus;
 use crate::core::skills::install;
 use crate::core::skills::scan::ScanStatus;
 
-// ── Fixture ────────────────────────────────────────────────────────────────
-
 struct Fx {
     dir: PathBuf,
     root: PathBuf,
@@ -39,7 +31,6 @@ impl Drop for Fx {
     }
 }
 
-/// Runs whatever internal tool it is asked; stands in for the app's table.
 struct Echo;
 
 #[async_trait]
@@ -78,7 +69,6 @@ fn fx() -> Fx {
     }
 }
 
-/// Writes a skill folder under `<fx>/src/<name>` and returns its path.
 fn write_skill(
     fx: &Fx,
     name: &str,
@@ -102,8 +92,6 @@ fn write_skill(
     src
 }
 
-/// Installs through the same code path as the app (copy, sidecar, record,
-/// re-register the broker source).
 fn install(fx: &Fx, src: &Path) -> skills::ProjectionSummary {
     let outcome =
         install::install_from_dir_in_with(&fx.root, src, &|_| ScanStatus::NotScanned).unwrap();
@@ -150,22 +138,6 @@ fn skill_tool(a: &AgentDef) -> Option<String> {
     granted(a).into_iter().find(|t| t.starts_with("skill__"))
 }
 
-// ── A scripted "model" that calls tools ────────────────────────────────────
-
-// ── Reproduction (Etapa 0) ─────────────────────────────────────────────────
-
-// ── A01 ────────────────────────────────────────────────────────────────────
-
-// ── A02 ────────────────────────────────────────────────────────────────────
-
-// ── A03 ────────────────────────────────────────────────────────────────────
-
-// ── A20 ────────────────────────────────────────────────────────────────────
-
-// ── B07 ────────────────────────────────────────────────────────────────────
-
-// ── Capabilities: ticked ≠ available ───────────────────────────────────────
-
 #[test]
 fn legacy_roster_skills_become_bindings_once() {
     let fx = fx();
@@ -176,7 +148,6 @@ fn legacy_roster_skills_become_bindings_once() {
     let b = skills::bindings(&fx.db, "old-bot").unwrap();
     assert_eq!(b.len(), 2);
     assert!(b.iter().any(|b| b.skill == "gone" && b.hash.is_empty()));
-    // The table is the truth from now on.
     skills::unbind(&fx.db, "old-bot", "curator").unwrap();
     let (eff, _) = run_augment(&fx, &a, "c");
     assert!(skill_tool(&eff).is_none());

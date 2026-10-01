@@ -1,16 +1,3 @@
-//! `llm_*` commands: Agent Skills. Owned by f3-skills-ui.
-//!
-//! Thin wrappers over `omniget_core::core::skills` (f3-skills-core): the
-//! commands do no work of their own beyond turning a `SkillError` into the
-//! `"CODE: message"` string the UI maps to an i18n key (`skillErrorKey` in
-//! `src/lib/stores/llm-skills-store.svelte.ts`) and adding the `html_url` of a
-//! catalog entry, which is a method on the Rust side and not serialised.
-//!
-//! Budget: every command is one call fired by a mount or by a click. Nothing
-//! here holds state, spawns a thread or touches the network — except
-//! `llm_skills_install_git` and `llm_skills_install_catalog`, which shell out
-//! to `git` for one shallow clone and only ever run from a confirmed click.
-
 use std::path::PathBuf;
 
 use omniget_core::core::skills::{self, catalog, install, scan, InstallOutcome, SkillError};
@@ -20,14 +7,6 @@ fn fail(err: SkillError) -> String {
     err.to_string()
 }
 
-/// One install, as the store reads it: `{ manifest, scan, needs_confirm? }`.
-///
-/// `needs_confirm` is the whole point of the shape. When the scan came back
-/// over SkillSpector's threshold the skill is **not** installed: it sits in
-/// quarantine and `needs_confirm` carries the token the UI hands back to
-/// `llm_skills_confirm_install` or `llm_skills_discard_install` after showing
-/// the score. The manifest is there either way so the dialog can name the
-/// skill it is asking about.
 fn ok(outcome: InstallOutcome) -> Result<Value, String> {
     if !outcome.is_pending() {
         changed(Some(&outcome.manifest.name));
@@ -35,10 +14,6 @@ fn ok(outcome: InstallOutcome) -> Result<Value, String> {
     serde_json::to_value(outcome).map_err(|e| e.to_string())
 }
 
-/// After an install, update, removal or repair: record the new hash (bindings
-/// follow it) and re-register the skill tools, so the next turn sees exactly
-/// what is on disk and no tool outlives its skill. A failure is logged: the
-/// files themselves are already in place, and the Skills page shows drift.
 fn changed(name: Option<&str>) {
     let projection = omniget_core::core::assist::bots::skills::projection();
     if let Err(e) = omniget_core::core::assist::bots::skills::skills_changed(&projection, name) {
@@ -46,8 +21,6 @@ fn changed(name: Option<&str>) {
     }
 }
 
-/// Installed skills, read from disk, sorted by name. Never fails: a folder
-/// that does not parse is left out of the list instead of failing the call.
 #[tauri::command]
 pub async fn llm_skills_list() -> Result<Value, String> {
     serde_json::to_value(skills::list()).map_err(|e| e.to_string())
@@ -63,10 +36,6 @@ pub async fn llm_skills_install_zip(path: String) -> Result<Value, String> {
     ok(skills::install_from_zip(&PathBuf::from(path)).map_err(fail)?)
 }
 
-/// Shallow-clones `url` (at `rev`, when given) and installs the skill at
-/// `subdir`, or the repository root when `subdir` is `None`. The install
-/// dialog asks for confirmation before calling it: a clone runs code the user
-/// has not read.
 #[tauri::command]
 pub async fn llm_skills_install_git(
     url: String,
@@ -76,9 +45,6 @@ pub async fn llm_skills_install_git(
     ok(skills::install_from_git(&url, rev.as_deref(), subdir.as_deref()).map_err(fail)?)
 }
 
-/// `owner/repo`, `owner/repo/path/to/skill` or `owner/repo@skill-name`: the
-/// spelling `npx skills add` takes (`vercel-labs/skills`). Same clone, same
-/// scanner and the same quarantine as any git install.
 pub fn parse_repo_spec(spec: &str) -> Result<(String, Vec<Option<String>>), String> {
     let spec = spec
         .trim()
@@ -101,7 +67,6 @@ pub fn parse_repo_spec(spec: &str) -> Result<(String, Vec<Option<String>>), Stri
         );
     }
     let url = format!("https://github.com/{}/{}.git", parts[0], parts[1]);
-    // `tree/<branch>/` shows up when the user pastes a browser URL.
     let rest: Vec<&str> = match parts.get(2) {
         Some(&"tree") | Some(&"blob") => parts.iter().skip(4).copied().collect(),
         _ => parts.iter().skip(2).copied().collect(),
@@ -136,17 +101,11 @@ pub async fn llm_skills_install_repo(spec: String) -> Result<Value, String> {
     .map_err(|e| e.to_string())?
 }
 
-/// Installs one entry of the OpenRouterTeam showcase, pinned at
-/// [`catalog::COMMIT`]. Separate from `llm_skills_install_git` so the UI never
-/// has to carry the repository URL or the pinned commit.
 #[tauri::command]
 pub async fn llm_skills_install_catalog(name: String) -> Result<Value, String> {
     ok(catalog::install(&name).map_err(fail)?)
 }
 
-/// Installs a skill the user confirmed after reading its scan. The parked copy
-/// is moved into place as it is: nothing is re-cloned, so what lands is exactly
-/// what was scanned and shown.
 #[tauri::command]
 pub async fn llm_skills_confirm_install(token: String) -> Result<Value, String> {
     let manifest = skills::confirm_install(&token).map_err(fail)?;
@@ -154,15 +113,12 @@ pub async fn llm_skills_confirm_install(token: String) -> Result<Value, String> 
     serde_json::to_value(manifest).map_err(|e| e.to_string())
 }
 
-/// Throws a parked install away.
 #[tauri::command]
 pub async fn llm_skills_discard_install(token: String) -> Result<Value, String> {
     skills::discard_install(&token).map_err(fail)?;
     Ok(Value::Null)
 }
 
-/// Installs still waiting for a decision, so closing the app mid-dialog does
-/// not leave folders nobody can name again.
 #[tauri::command]
 pub async fn llm_skills_pending() -> Result<Value, String> {
     let root = install::skills_dir().map_err(fail)?;
@@ -173,9 +129,6 @@ pub async fn llm_skills_pending() -> Result<Value, String> {
     Ok(Value::Array(entries))
 }
 
-/// Whether a scan will run at all on this machine, plus the threshold we ported
-/// from SkillSpector. The page says "not scanned" instead of implying safety
-/// when this is false.
 #[tauri::command]
 pub async fn llm_skills_scanner() -> Result<Value, String> {
     Ok(json!({
@@ -192,9 +145,6 @@ pub async fn llm_skills_remove(name: String) -> Result<Value, String> {
     Ok(Value::Null)
 }
 
-/// Every installed skill with its version state: the hash on disk, the hash
-/// OmniGet recorded, `drift` when they differ (edited outside OmniGet), the
-/// declared dependencies, and which bots are bound to it.
 #[tauri::command]
 pub async fn llm_skills_status() -> Result<Value, String> {
     use omniget_core::core::assist::{bots::skills as bot_skills, db};
@@ -234,14 +184,12 @@ pub async fn llm_skills_status() -> Result<Value, String> {
     Ok(Value::Array(out))
 }
 
-/// Re-registers the skill tools from what is on disk (the "reload" repair).
 #[tauri::command]
 pub async fn llm_skills_reproject() -> Result<Value, String> {
     let projection = omniget_core::core::assist::bots::skills::projection();
     serde_json::to_value(projection.reproject()?).map_err(|e| e.to_string())
 }
 
-/// Repair for drift, option 1: accept the files on disk as the new version.
 #[tauri::command]
 pub async fn llm_skills_accept(name: String) -> Result<Value, String> {
     let projection = omniget_core::core::assist::bots::skills::projection();
@@ -249,9 +197,6 @@ pub async fn llm_skills_accept(name: String) -> Result<Value, String> {
     serde_json::to_value(summary).map_err(|e| e.to_string())
 }
 
-/// Repair for drift or a removed skill, option 2: install again from the
-/// origin recorded at install time (git at the same revision, the same folder
-/// or zip). Same scanner and quarantine as a first install.
 #[tauri::command]
 pub async fn llm_skills_reinstall(name: String) -> Result<Value, String> {
     use omniget_core::core::assist::{bots::skills as bot_skills, db};
@@ -284,8 +229,6 @@ pub async fn llm_skills_reinstall(name: String) -> Result<Value, String> {
     ok(outcome)
 }
 
-/// The pinned `OpenRouterTeam/skills` showcase. Static data: no network, no
-/// disk. `html_url` is added here because it is a method on `CatalogEntry`.
 #[tauri::command]
 pub async fn llm_skills_catalog() -> Result<Value, String> {
     let entries: Vec<Value> = catalog::entries()
@@ -301,8 +244,6 @@ pub async fn llm_skills_catalog() -> Result<Value, String> {
                 "html_url": e.html_url(),
                 "repo_url": catalog::REPO_HTML_URL,
                 "commit": catalog::COMMIT,
-                // `null` today: the repository declares no licence (plan D-5).
-                // The showcase card warns before installing when this is null.
                 "license": catalog::LICENSE,
             })
         })

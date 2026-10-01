@@ -1,6 +1,3 @@
-//! One small reader per assistant. Each file documents where the tool keeps
-//! its own credential on each OS and which official endpoint answers.
-
 pub mod claude;
 pub mod codex;
 pub mod copilot;
@@ -17,13 +14,8 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
 
-/// The ring OmniGet's own roster agents share. It has no reader here: the
-/// engine fills it from the telemetry the app already keeps.
 pub const OMNIGET_ID: &str = "omniget";
 
-/// Every reader, in the order a fresh install lists them, with one Claude and
-/// one Codex ring per login saved in `/llm` → Accounts. Reads `accounts.json`
-/// and each Claude profile's `.claude.json` (for the e-mail): no credential.
 pub fn all() -> Vec<Arc<dyn UsageProvider>> {
     let accounts = AccountStore::default_store()
         .map(|s| (*s.list()).clone())
@@ -33,8 +25,6 @@ pub fn all() -> Vec<Arc<dyn UsageProvider>> {
     out
 }
 
-/// How long [`cached`] trusts the last [`all`]. The engine refreshes it every
-/// other tick while it runs, so this only matters when it does not.
 const CACHE_TTL: Duration = Duration::from_secs(15);
 
 type Cache = std::sync::Mutex<Option<(std::time::Instant, Vec<Arc<dyn UsageProvider>>)>>;
@@ -50,10 +40,6 @@ fn remember(readers: &[Arc<dyn UsageProvider>]) {
     }
 }
 
-/// [`all`] without touching the disk when a fresh list is at hand. For the
-/// hot paths: the usage icon's menu and panel, the strip's placement and its
-/// settings. Menus and window moves run on the main thread; reading
-/// `accounts.json` and every profile there is what made the app stutter.
 pub fn cached() -> Vec<Arc<dyn UsageProvider>> {
     if let Ok(g) = cache().lock() {
         if let Some((at, list)) = g.as_ref() {
@@ -65,7 +51,6 @@ pub fn cached() -> Vec<Arc<dyn UsageProvider>> {
     all()
 }
 
-/// [`all`] for a given account list.
 pub fn all_with(accounts: &[CliAccount]) -> Vec<Arc<dyn UsageProvider>> {
     let mut out: Vec<Arc<dyn UsageProvider>> = Vec::new();
     for p in profiles(
@@ -97,14 +82,9 @@ pub fn all_with(accounts: &[CliAccount]) -> Vec<Arc<dyn UsageProvider>> {
     out
 }
 
-/// One login of a CLI that can hold several.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Profile {
-    /// `claude` / `codex` for the default profile, `<cli>:<account-id>` else.
     pub id: String,
-    /// `None` = the CLI's own default (`$CLAUDE_CONFIG_DIR` / `~/.claude`,
-    /// `$CODEX_HOME` / `~/.codex`); otherwise the account's config dir exactly
-    /// as `accounts.json` stores it.
     pub dir: Option<PathBuf>,
     pub tag: AccountTag,
 }
@@ -118,11 +98,6 @@ fn same_dir(a: &Path, b: &Path) -> bool {
     norm(a) == norm(b)
 }
 
-/// The rings of one CLI: the default profile first (it keeps the plain id, so
-/// existing prefs still apply), then one per enabled account with a config dir
-/// of its own. Two entries with the same login (same e-mail, or the same
-/// directory and so the same credential) collapse into the first one, so the
-/// provider is never asked twice for one account.
 pub fn profiles(
     cli: CliKind,
     accounts: &[CliAccount],
@@ -137,7 +112,6 @@ pub fn profiles(
                 .map(|d| same_dir(&a.config_dir, d))
                 .unwrap_or(false)
     };
-    // The account that stands for the default profile, enabled ones first.
     let default_label = mine
         .iter()
         .filter(|a| is_default(a))
@@ -181,8 +155,6 @@ pub fn profiles(
     kept
 }
 
-/// A client for the runtimes on this machine: loopback only, no proxy, and a
-/// short deadline because nobody is that far away.
 pub fn loopback() -> reqwest::Client {
     reqwest::Client::builder()
         .timeout(Duration::from_secs(3))
@@ -191,7 +163,6 @@ pub fn loopback() -> reqwest::Client {
         .unwrap_or_default()
 }
 
-/// What a local runtime reads as while nothing listens on its port.
 pub fn not_running() -> super::Reading {
     super::Reading {
         note: Some("not running".into()),
@@ -199,7 +170,6 @@ pub fn not_running() -> super::Reading {
     }
 }
 
-/// Offline check for a local runtime: its folder in the home, or its CLI.
 pub fn installed(home_dir: &str, cli: &str) -> bool {
     super::home()
         .map(|h| h.join(home_dir).is_dir())
@@ -207,9 +177,6 @@ pub fn installed(home_dir: &str, cli: &str) -> bool {
         || which::which(cli).is_ok()
 }
 
-/// `$XDG_DATA_HOME` or `~/.local/share`, on every OS: the Node tools that use
-/// `xdg-basedir` (OpenCode and friends) resolve it the same way on Windows and
-/// macOS, without the platform's native data folder.
 pub fn xdg_data_home() -> Option<PathBuf> {
     if let Some(v) = std::env::var_os("XDG_DATA_HOME") {
         if !v.is_empty() {
@@ -219,8 +186,6 @@ pub fn xdg_data_home() -> Option<PathBuf> {
     super::home().map(|h| h.join(".local").join("share"))
 }
 
-/// A string that may sit directly at a key or inside an object under one of
-/// several field names, as the CLIs' `auth.json` files do.
 pub fn string_or_field(v: &serde_json::Value, fields: &[&str]) -> Option<String> {
     if let Some(s) = v.as_str() {
         let s = s.trim();
@@ -235,7 +200,6 @@ pub fn string_or_field(v: &serde_json::Value, fields: &[&str]) -> Option<String>
     })
 }
 
-/// Runs a helper CLI with no stdin, a deadline, and both streams captured.
 pub async fn run_cli(
     program: &std::path::Path,
     args: &[&str],
@@ -254,7 +218,6 @@ pub async fn run_cli(
     }
     #[cfg(windows)]
     {
-        // CREATE_NO_WINDOW: no console flashes on screen every poll.
         cmd.creation_flags(0x0800_0000);
     }
     let child = cmd.spawn().ok()?;
@@ -269,9 +232,6 @@ pub async fn run_cli(
     ))
 }
 
-/// Opens another tool's SQLite state strictly read-only. `mode=ro` first, so a
-/// token the tool just rotated into the WAL is seen; `immutable=1` when the
-/// tool has exited and left no `-shm` behind.
 pub fn open_sqlite_ro(path: &std::path::Path) -> Option<rusqlite::Connection> {
     use rusqlite::{Connection, OpenFlags};
     let flags = OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_URI;
@@ -306,8 +266,6 @@ pub fn open_sqlite_ro(path: &std::path::Path) -> Option<rusqlite::Connection> {
     None
 }
 
-/// `SELECT value FROM ItemTable WHERE key = ?`: the VS Code family's global
-/// state table (Cursor).
 pub fn vscdb_value(conn: &rusqlite::Connection, key: &str) -> Option<String> {
     conn.query_row("SELECT value FROM ItemTable WHERE key = ?1", [key], |r| {
         r.get::<_, rusqlite::types::Value>(0)

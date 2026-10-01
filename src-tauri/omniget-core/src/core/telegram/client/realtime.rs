@@ -1,9 +1,3 @@
-//! Real-time auto-save: reads the client's update channel and, when a new
-//! message lands in a chat with an enabled rule, runs that rule right away
-//! (a few seconds later, so an album arrives whole). The interval loop in
-//! `watch.rs` stays as the fallback for anything missed (big channels do
-//! not always push updates).
-
 use std::collections::HashSet;
 use std::sync::atomic::{AtomicBool, AtomicI64, AtomicU64, Ordering};
 use std::sync::{Mutex, OnceLock};
@@ -21,17 +15,12 @@ use super::watch;
 static CONNECTED: AtomicBool = AtomicBool::new(false);
 static LAST_EVENT_AT: AtomicI64 = AtomicI64::new(0);
 static TRIGGERED: AtomicU64 = AtomicU64::new(0);
-/// Every update batch Telegram pushed, rule or not (diagnostics).
 static RECEIVED: AtomicU64 = AtomicU64::new(0);
 static LAST_RECEIVED_AT: AtomicI64 = AtomicI64::new(0);
 
-/// Waits this long after a new message before running the rule, so the
-/// rest of an album (sent as separate messages) is there too.
 const DEBOUNCE: Duration = Duration::from_secs(4);
-/// `updates.getState` again this often, so Telegram keeps pushing.
 const KEEPALIVE: Duration = Duration::from_secs(10 * 60);
 
-/// The `realtime` setting (on by default).
 pub fn enabled() -> bool {
     super::setting("realtime").as_bool().unwrap_or(true)
 }
@@ -42,7 +31,6 @@ pub fn set_enabled(on: bool) -> serde_json::Value {
     state()
 }
 
-/// `{enabled, connected, last_event_at, triggered}`.
 pub fn state() -> serde_json::Value {
     let last = LAST_EVENT_AT.load(Ordering::Relaxed);
     let t = LAST_RECEIVED_AT.load(Ordering::Relaxed);
@@ -78,9 +66,6 @@ fn peer_id(peer: &tl::enums::Peer) -> i64 {
     }
 }
 
-/// `(chat id, message id)` of every new message in `update`; a
-/// `ChannelTooLong` counts as "something new in this channel" (id 0 means
-/// "unknown, check it").
 fn new_messages(update: &tl::enums::Update, out: &mut Vec<(i64, i32)>) {
     let msg = match update {
         tl::enums::Update::NewMessage(u) => &u.message,
@@ -124,7 +109,6 @@ fn pending() -> &'static Mutex<HashSet<String>> {
     P.get_or_init(|| Mutex::new(HashSet::new()))
 }
 
-/// Runs `rule_id` after the debounce, once per burst of messages.
 fn schedule(handle: TelegramSessionHandle, active: super::ActiveDownloads, rule_id: String) {
     {
         let mut p = pending().lock().unwrap_or_else(|e| e.into_inner());
@@ -146,8 +130,6 @@ fn schedule(handle: TelegramSessionHandle, active: super::ActiveDownloads, rule_
     });
 }
 
-/// Takes the update channel once the account is signed in (while a login
-/// is running the QR flow still reads it).
 async fn take_channel(
     handle: &TelegramSessionHandle,
 ) -> Option<(
@@ -169,9 +151,6 @@ async fn keepalive(client: &grammers_client::Client) {
     }
 }
 
-/// Starts the loop once. It waits for a signed-in client, drains its
-/// update channel for as long as it lives, and picks up the next one after
-/// a new login.
 pub fn spawn(handle: TelegramSessionHandle, active: super::ActiveDownloads) {
     static STARTED: AtomicBool = AtomicBool::new(false);
     if STARTED.swap(true, Ordering::SeqCst) {
@@ -207,10 +186,8 @@ pub fn spawn(handle: TelegramSessionHandle, active: super::ActiveDownloads) {
                             }
                         }
                     }
-                    // The client went away (logout, account switch).
                     Ok(None) => break,
                     Err(_) => {
-                        // A new login put a fresh channel in the state.
                         if handle.lock().await.updates_rx.is_some() {
                             break;
                         }

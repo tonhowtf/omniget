@@ -1,21 +1,3 @@
-//! `POST /v1/observe/<tool>`: OmniGet's observation hook (plan §5.3, F5).
-//!
-//! `omniget-hook-shim --observe` posts every hook event of a coding tool that
-//! runs outside the app (Claude Code in a terminal, Cursor, Gemini …) here,
-//! already in Claude's hook JSON, with the bearer of that tool's installation
-//! (`<app_data>/agentkit/observe/tokens.json`, not the extension token).
-//!
-//! Each event becomes bus traffic for agent `ext:<tool>` (`ExternalAgentActive`,
-//! `TurnStarted`, `ToolCalled`, `TurnEnded`). A `PermissionRequest` (or a
-//! `PreToolUse` sent with `hold`) is asked through the tool broker, the same
-//! `ToolAsk` → pet/UI → `llm_tool_answer` path as the app's own agents, and the
-//! HTTP answer is held until the owner decides. Nobody answering within the
-//! wait (or nobody listening) answers `ask`: the tool shows its own prompt.
-//!
-//! Also two Tauri commands for the Central: `agentkit_observe_component`
-//! (creates the token and returns the hook component to plan/apply like any
-//! catalog component) and `agentkit_observe_revoke`.
-
 use std::time::Duration;
 
 use axum::extract::Path;
@@ -30,7 +12,6 @@ use omniget_core::core::agentkit::convert::{hook_observe, hook_shim};
 use omniget_core::core::llm::broker::Answer;
 use omniget_core::core::omni::bus::BusEvent;
 
-/// Body cap: tool responses can be long, the event itself is small.
 const BODY_LIMIT: usize = 4 * 1024 * 1024;
 
 pub fn router<S>(app: AppHandle) -> Router<S>
@@ -64,7 +45,6 @@ fn str_at<'a>(v: &'a Value, k: &str) -> &'a str {
     v.get(k).and_then(|x| x.as_str()).unwrap_or("")
 }
 
-/// What the owner sees in the ask: the command, the path, else the input head.
 fn preview(tool_name: &str, input: &Value) -> String {
     for k in ["command", "file_path", "url", "pattern", "prompt"] {
         if let Some(s) = input.get(k).and_then(|x| x.as_str()) {
@@ -151,7 +131,6 @@ async fn observe(
     if !asks {
         return Json(json!({ "ok": true })).into_response();
     }
-    // nobody to show the question to: the tool asks as usual
     if bus.receiver_count() == 0 || wait_ms == 0 {
         return Json(json!({ "decision": "ask" })).into_response();
     }
@@ -177,7 +156,6 @@ async fn observe(
         Ok(Answer::Deny) => json!({ "decision": "deny", "reason": "Denied in OmniGet" }),
         Ok(Answer::Once) | Ok(Answer::Always) => json!({ "decision": "allow" }),
         Err(_) => {
-            // drop the question everywhere and let the tool ask
             broker.answer_with(&call_id, Answer::Deny);
             let _ = app.emit(
                 "omni://tool-resolved",
@@ -188,5 +166,3 @@ async fn observe(
     };
     Json(decision).into_response()
 }
-
-// ---------------------------------------------------------------- commands

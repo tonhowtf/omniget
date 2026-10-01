@@ -1,7 +1,3 @@
-//! Copy of a project for a sandbox run, and the diff back: the agent works on a
-//! copy, the user reviews what changed, and only the files they pick are
-//! written back (refused when the original changed in the meantime).
-
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
@@ -10,8 +6,6 @@ use sha2::{Digest, Sha256};
 
 use crate::core::agentkit::plan::unified_diff;
 
-/// Never copied into the sandbox (dependencies and build output are rebuilt
-/// inside; macOS binaries would not run in a Linux container anyway).
 pub const SKIP: &[&str] = &[
     "node_modules",
     "target",
@@ -31,7 +25,6 @@ pub const MAX_FILES: usize = 20_000;
 pub const MAX_BYTES: u64 = 512 * 1024 * 1024;
 const DIFF_MAX: usize = 256 * 1024;
 
-/// `relative path (with /) → sha256` of the base the agent started from.
 pub type Manifest = BTreeMap<String, String>;
 
 fn sha(bytes: &[u8]) -> String {
@@ -75,7 +68,6 @@ fn files(root: &Path) -> Result<Vec<PathBuf>, String> {
     Ok(out)
 }
 
-/// Hashes of every file of `root` (same skip list).
 pub fn snapshot(root: &Path) -> Result<Manifest, String> {
     let mut m = Manifest::new();
     for p in files(root)? {
@@ -86,7 +78,6 @@ pub fn snapshot(root: &Path) -> Result<Manifest, String> {
     Ok(m)
 }
 
-/// Copies `src` into `dst` (created) and returns the base manifest.
 pub fn copy_tree(src: &Path, dst: &Path) -> Result<Manifest, String> {
     std::fs::create_dir_all(dst).map_err(|e| format!("{}: {e}", super::ERR_SANDBOX))?;
     let mut m = Manifest::new();
@@ -117,12 +108,10 @@ pub fn copy_tree(src: &Path, dst: &Path) -> Result<Manifest, String> {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Change {
     pub path: String,
-    /// `added | modified | deleted`
     pub status: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub diff: Option<String>,
     pub binary: bool,
-    /// The original file changed since the copy: applying would lose that edit.
     pub conflict: bool,
 }
 
@@ -133,7 +122,6 @@ fn text(b: &[u8]) -> Option<&str> {
     std::str::from_utf8(b).ok()
 }
 
-/// What the agent changed in `work` compared with the `base` it started from.
 pub fn changes(original: &Path, work: &Path, base: &Manifest) -> Result<Vec<Change>, String> {
     let now = snapshot(work)?;
     let mut out = Vec::new();
@@ -191,8 +179,6 @@ pub fn changes(original: &Path, work: &Path, base: &Manifest) -> Result<Vec<Chan
     Ok(out)
 }
 
-/// Writes the chosen changes back into `original`. Conflicting paths are
-/// skipped and returned in the second list.
 pub fn apply(
     original: &Path,
     work: &Path,

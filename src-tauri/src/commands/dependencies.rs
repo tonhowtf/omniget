@@ -9,12 +9,8 @@ pub struct DependencyStatus {
     pub name: String,
     pub installed: bool,
     pub version: Option<String>,
-    /// Where the binary was found: "managed" (downloaded by OmniGet),
-    /// "system" (found on the user's PATH), "flatpak", or "missing".
     pub source: String,
-    /// Resolved absolute path to the binary, if found.
     pub path: Option<String>,
-    /// `true` when version was read and is below supported floor.
     pub outdated: bool,
 }
 
@@ -25,7 +21,6 @@ pub async fn check_dependencies() -> Result<Vec<DependencyStatus>, String> {
         dependencies::find_tool_with_source("ffmpeg"),
     );
 
-    // Extract versions from the already-found paths — no second find required.
     let (ytdlp_version, ffmpeg_version) = tokio::join!(
         async {
             match ytdlp_result.as_ref() {
@@ -90,9 +85,6 @@ pub async fn install_dependency(name: String, force: Option<bool>) -> Result<Str
     match name.as_str() {
         "yt-dlp" => {
             if force {
-                // B37: guardar o binario atual antes de sobrescrever. Uma versao
-                // nova do yt-dlp que quebra um site e o modo de falha mais comum
-                // deste app, e sem copia nao ha como voltar sem internet.
                 archive_before_update("yt-dlp").await;
                 crate::core::ytdlp::update_ytdlp()
                     .await
@@ -128,12 +120,6 @@ pub async fn install_dependency(name: String, force: Option<bool>) -> Result<Str
     .ok_or_else(|| "Installed but version check failed".into())
 }
 
-/// Caminho do binario gerenciado de uma dependencia, quando ha um.
-/// Locates the managed binary without touching it. Previously this called
-/// `ensure_ytdlp`, which downloads a missing binary and spawns a freshness
-/// check plus a JS-runtime check (yt-dlp and deno processes) on every call.
-/// Listing archived versions is a read, and the Dependencies tab does it on
-/// render, so that turned a UI refresh into a process storm (#281).
 async fn managed_binary_path(name: &str) -> Option<PathBuf> {
     match name {
         "yt-dlp" => omniget_core::core::ytdlp::managed_ytdlp_path(),
@@ -148,10 +134,6 @@ fn agora_ms() -> u128 {
         .unwrap_or(0)
 }
 
-/// Arquiva a versao instalada e poda as antigas.
-///
-/// Falha em silencio de proposito: nao poder guardar copia e motivo para nao
-/// ter rollback, nao para impedir o update que o usuario pediu.
 async fn archive_before_update(name: &str) {
     let Some(bin) = managed_binary_path(name).await else {
         return;
@@ -178,7 +160,6 @@ pub struct ArchivedVersion {
     pub path: String,
 }
 
-/// Versoes anteriores guardadas de uma dependencia, da mais nova para a mais velha.
 #[tauri::command]
 pub async fn dependency_archived_versions(name: String) -> Result<Vec<ArchivedVersion>, String> {
     let Some(bin) = managed_binary_path(&name).await else {
@@ -187,7 +168,6 @@ pub async fn dependency_archived_versions(name: String) -> Result<Vec<ArchivedVe
     let mut lista: Vec<ArchivedVersion> = crate::core::binary_versions::list_archived(&bin)
         .into_iter()
         .map(|(stamp, path)| ArchivedVersion {
-            // String porque u128 nao sobrevive ao JSON do JavaScript.
             stamp_ms: stamp.to_string(),
             path: path.to_string_lossy().to_string(),
         })
@@ -196,7 +176,6 @@ pub async fn dependency_archived_versions(name: String) -> Result<Vec<ArchivedVe
     Ok(lista)
 }
 
-/// Volta uma dependencia para uma versao guardada.
 #[tauri::command]
 pub async fn rollback_dependency(name: String, stamp_ms: String) -> Result<String, String> {
     let alvo: u128 = stamp_ms
@@ -238,9 +217,6 @@ pub fn dependency_install_dir(name: String) -> Result<String, String> {
 pub async fn set_dependency_path(name: String, source_path: String) -> Result<String, String> {
     let src = PathBuf::from(&source_path);
 
-    // Issue #222: referenciar no lugar, nao copiar. Uma copia dentro do
-    // diretorio do app envelhece sozinha — o usuario atualiza o binario dele e
-    // o OmniGet segue usando a versao velha sem avisar.
     omniget_core::core::binary_overrides::set(&name, &src)?;
 
     if name == "yt-dlp" {
@@ -261,10 +237,6 @@ pub async fn set_dependency_path(name: String, source_path: String) -> Result<St
     )
 }
 
-/// Volta a usar o binario gerenciado pelo OmniGet.
-///
-/// Existe porque escolher um caminho tem que ser reversivel com o mesmo esforco
-/// de escolher — sem isso, o usuario que apontou o arquivo errado fica preso.
 #[tauri::command]
 pub async fn clear_dependency_path(name: String) -> Result<(), String> {
     omniget_core::core::binary_overrides::clear(&name)?;
@@ -278,7 +250,6 @@ pub async fn clear_dependency_path(name: String) -> Result<(), String> {
     Ok(())
 }
 
-/// Caminho customizado em uso, se houver.
 #[tauri::command]
 pub fn dependency_custom_path(name: String) -> Option<String> {
     omniget_core::core::binary_overrides::get(&name).map(|p| p.to_string_lossy().to_string())

@@ -1,12 +1,3 @@
-//! Bridge routes of the Catalog/agentkit, for `omniget agentkit …` (omniget-cli).
-//! A scoped token with `jobs:operate` (2.1/2.5). One route, `POST /v1/agentkit/{action}`
-//! with a JSON body (the bridge's axum has no query extractor); every action
-//! runs on a blocking thread because catalog downloads use `block_on`.
-//!
-//! Actions: `search`, `show`, `compat`, `targets`, `plan`, `apply`, `uninstall`,
-//! `installed`, `doctor`, `import_installed`, `export`, `profiles`,
-//! `profile_plan`, `loop_plan`.
-
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 
@@ -28,9 +19,6 @@ fn fail(status: StatusCode, message: impl Into<String>) -> Response {
     (status, Json(json!({ "error": message.into() }))).into_response()
 }
 
-/// Behind the scoped-token guard of the agent routes (`jobs:operate`; the
-/// extension key only through the grace period of 2.1): installing from the
-/// Catalog writes into every coding tool's config.
 pub fn router<S>(guard: crate::bridge_tokens::Guard) -> Router<S>
 where
     S: Clone + Send + Sync + 'static,
@@ -95,7 +83,6 @@ fn scope_of(b: &Value) -> Result<Option<Scope>, String> {
     Ok(s(b, "scope").as_deref().map(Scope::parse).transpose()?)
 }
 
-/// Installed tools the UI would tick by default.
 fn default_targets(env: &ak::Env, project_dir: Option<&std::path::Path>) -> Vec<String> {
     ak::detect::detect_all(env, project_dir)
         .into_iter()
@@ -150,7 +137,6 @@ pub(crate) fn run(action: &str, b: &Value) -> Result<Value, String> {
         "targets" => to_value(ak::detect::detect_all(&env, proj.as_deref())),
         "plan" => {
             let ids = list(b, "ids");
-            // canonical components (e.g. from `import_installed`) go in as they are
             let mut components: Vec<Component> = match b.get("components") {
                 Some(Value::Array(a)) => a
                     .iter()

@@ -1,11 +1,3 @@
-//! MTProto transport obfuscation ("obfuscated2"), MTProto proxy secrets
-//! (plain, `dd` padded, `ee` fake TLS) and the intermediate framing that
-//! rides inside them.
-//!
-//! References: TDLib `td/mtproto/TcpTransport.cpp`, `TlsInit.cpp`;
-//! mtcute `network/mtproxy/_fake-tls.ts`; the live prototype in
-//! `estudos/98-telegram/03-anexos/tg_probe.py`.
-
 use aes::cipher::{KeyIvInit, StreamCipher};
 use anyhow::{bail, Context};
 use hmac::{Hmac, Mac};
@@ -18,14 +10,11 @@ type Ctr = ctr::Ctr128BE<aes::Aes256>;
 pub const TAG_INTERMEDIATE: u32 = 0xeeee_eeee;
 pub const TAG_PADDED: u32 = 0xdddd_dddd;
 
-/// Both directions of an obfuscated2 session.
 pub struct Obfs {
     pub enc: Ctr,
     pub dec: Ctr,
 }
 
-/// Builds the 64-byte init packet. Returns (bytes to send, ciphers).
-/// `secret` is the 16-byte proxy key, `None` for a direct DC connection.
 pub fn init(tag: u32, dc: i16, secret: Option<&[u8; 16]>) -> ([u8; 64], Obfs) {
     let mut rng = rand::rng();
     let mut h = [0u8; 64];
@@ -80,7 +69,6 @@ pub fn init(tag: u32, dc: i16, secret: Option<&[u8; 16]>) -> ([u8; 64], Obfs) {
     (wire, Obfs { enc, dec })
 }
 
-/// What a proxy secret asks for.
 #[derive(Clone, Debug)]
 pub struct ProxySecret {
     pub key: [u8; 16],
@@ -120,10 +108,6 @@ impl ProxySecret {
     }
 }
 
-// ---------------------------------------------------------------- fake TLS
-
-/// Largest TLS record payload the proxies accept from clients. Writes are
-/// split into records of at most this size (gotd's bug was forgetting to).
 pub const TLS_MAX_RECORD: usize = 2878;
 
 fn grease_values() -> [u8; 7] {
@@ -176,7 +160,6 @@ impl Hello {
         self.buf[at..at + 2].copy_from_slice(&len.to_be_bytes());
     }
     fn x25519_key(&mut self) {
-        // A real X25519 public key: DPI boxes check the point is on the curve.
         let rng = ring::rand::SystemRandom::new();
         let key = ring::agreement::EphemeralPrivateKey::generate(&ring::agreement::X25519, &rng)
             .and_then(|k| k.compute_public_key())
@@ -199,10 +182,6 @@ impl Hello {
 
 type Part = fn(&mut Hello, &[u8]);
 
-/// Chrome-shaped ClientHello with the proxy's domain as SNI, the HMAC of
-/// the secret in the random field and the timestamp folded into it. Same
-/// layout as TDLib's current `TlsInit` (post-quantum key share, GREASE ECH,
-/// shuffled extensions, padding to 513).
 pub fn client_hello(domain: &str, key: &[u8; 16]) -> Vec<u8> {
     let grease = grease_values();
     let mut h = Hello::new(grease);
@@ -331,8 +310,6 @@ pub fn client_hello(domain: &str, key: &[u8; 16]) -> Vec<u8> {
     data
 }
 
-/// Does the fake TLS handshake on `s`. On success the proxy expects TLS
-/// application-data records.
 pub async fn tls_handshake<S: AsyncRead + AsyncWrite + Unpin>(
     s: &mut S,
     domain: &str,
@@ -375,7 +352,6 @@ pub async fn tls_handshake<S: AsyncRead + AsyncWrite + Unpin>(
     Ok(())
 }
 
-/// Wraps bytes into TLS application-data records.
 pub fn tls_records(data: &[u8], out: &mut Vec<u8>) {
     for chunk in data.chunks(TLS_MAX_RECORD) {
         out.extend_from_slice(&[0x17, 0x03, 0x03]);
@@ -392,8 +368,6 @@ mod tests {
     fn init_decrypts_to_tag_and_dc() {
         let secret = [9u8; 16];
         let (wire, _) = init(TAG_PADDED, -4, Some(&secret));
-        // A server rebuilds the encryptor from the plain part and decrypts
-        // the tail: it must read back our tag and DC.
         let mut d = Sha256::new();
         d.update(&wire[8..40]);
         d.update(secret);

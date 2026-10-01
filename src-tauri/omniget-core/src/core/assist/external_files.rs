@@ -1,10 +1,3 @@
-//! Capability-rooted external file tools. No shell or ambient workspace lookup.
-//! New files: create-only (`fs_write` create_only, `fs_apply_patch` Add File).
-//! Existing files: `fs_edit` and `fs_apply_patch` Update File, both bound to the
-//! SHA-256 the caller read (`expected_sha256`) and committed through
-//! `Root::replace` (private staging, pre-check, atomic exchange, post-exchange
-//! verification with rollback). That is optimistic concurrency with documented
-//! residual windows, not a kernel CAS; see secure_files.rs.
 use crate::core::secure_files::{Identity, Root, ScanFilter};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -17,7 +10,6 @@ const MAX_REPLY: usize = 64 * 1024;
 const SEARCH_BYTES: u64 = 16 * 1024 * 1024;
 const MAX_EDITS: usize = 64;
 const MAX_HUNKS: usize = 64;
-/// `fs_write` without create_only: existing files go through fs_edit.
 pub const CREATE_ONLY_REQUIRED: &str = "FS_WRITE_CREATE_ONLY_USE_FS_EDIT";
 pub const EXPECTED_SHA256_REQUIRED: &str = "EXPECTED_SHA256_REQUIRED";
 fn denied(_: std::io::Error) -> String {
@@ -26,7 +18,6 @@ fn denied(_: std::io::Error) -> String {
 fn invalid() -> String {
     "INVALID_FILE_ARGUMENTS".into()
 }
-/// Exact sensitive names, compared on the folded form (see [`fold`]).
 const PROTECTED_NAMES: &[&str] = &[
     ".git",
     ".hg",
@@ -45,20 +36,10 @@ const PROTECTED_NAMES: &[&str] = &[
     "id_rsa",
     "id_ed25519",
 ];
-/// Folders a discovery walk lists but never descends (heavy, generated).
 const HEAVY_DIRS: &[&str] = &["node_modules", "target"];
-/// Default-ignorable and format code points some filesystems drop when they
-/// compare names (HFS+ ignores several of them).
 fn ignorable(c: char) -> bool {
     matches!(c as u32, 0x00AD | 0x034F | 0x061C | 0x115F | 0x1160 | 0x17B4 | 0x17B5 | 0x180B..=0x180F | 0x200B..=0x200F | 0x202A..=0x202E | 0x2060..=0x206F | 0x3164 | 0xFE00..=0xFE0F | 0xFEFF | 0xFFA0 | 0xFFF0..=0xFFF8 | 0xE0000..=0xE0FFF)
 }
-/// Folded comparison form of one name component (audit F-EF1). APFS/HFS+ are
-/// case-insensitive with full Unicode folding and normalization-insensitive,
-/// so `.\u{17f}\u{17f}h` (long s) or `\u{212a}` (Kelvin) open the same object as
-/// `.ssh`/`k`. The fold is deliberately wider than any filesystem: NFKD
-/// (compatibility: full-width, ligatures, long s), drop combining marks and
-/// ignorable code points, full case fold (upper then lower: ß→ss, ſ→s,
-/// K→k, ı→i), then NFKC. It only ever refuses more names.
 pub fn fold(name: &str) -> String {
     use unicode_normalization::char::is_combining_mark;
     use unicode_normalization::UnicodeNormalization;
@@ -85,18 +66,12 @@ fn protected_name(name: &std::ffi::OsStr) -> bool {
         || name.starts_with(".env.")
         || name.starts_with(".omniget-")
 }
-/// Defense in depth for known sensitive names, not a promise to discover every
-/// secret. The local grant must select a workspace safe for the recipient.
 fn protected(path: &Path) -> bool {
     path.components().any(|part| match part {
         std::path::Component::Normal(name) => protected_name(name),
         _ => false,
     })
 }
-/// Object-level check (audit F-EF1): whatever the spelling, if any existing
-/// component of `path` IS the same object (device+inode, no symlink follow)
-/// as a protected name in the same folder, the path is protected. This covers
-/// folding rules a string comparison might miss on a given filesystem.
 fn aliases_protected(root: &Root, path: &Path) -> bool {
     let mut prefix = PathBuf::new();
     for part in path.components() {
@@ -148,7 +123,6 @@ fn tree_error(e: std::io::Error) -> String {
         denied(e)
     }
 }
-/// Up to 50 skipped entries with their reason, plus the total.
 fn skipped_json(skipped: &[(PathBuf, &'static str)]) -> Value {
     let list: Vec<Value> = skipped
         .iter()
@@ -257,9 +231,6 @@ pub struct EditOp {
     #[serde(default)]
     pub replace_all: bool,
 }
-/// Exactly one of: `content` (whole replacement), `edits` (ordered exact
-/// replacements, all-or-nothing) or the single `old_string`/`new_string` form
-/// shared with the local fs_edit schema.
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct EditArgs {
@@ -297,8 +268,6 @@ pub struct PreparedPatch {
     pub content: String,
 }
 
-/// Paths/identities must originate in local grants; never deserialize this
-/// capability from tool arguments. Staging must be denied to every worker.
 pub struct ExternalFiles {
     workspace: PathBuf,
     identity: Identity,
@@ -328,8 +297,6 @@ impl ExternalFiles {
         })
     }
     fn roots(&self) -> Result<(Root, Root), String> {
-        // Reopen by pinned identity for every operation. Replacing the grant
-        // pathname never silently redirects an existing executor capability.
         Ok((
             Root::open(&self.workspace, Some(&self.identity)).map_err(denied)?,
             Root::open(&self.staging, Some(&self.staging_identity)).map_err(denied)?,
@@ -496,7 +463,6 @@ impl ExternalFiles {
                     }) {
                         continue;
                     }
-                    // One unreadable/binary/changing file never fails the search.
                     let (body, digest, size) = match read_text(&root, &path) {
                         Ok(v) => v,
                         Err(e) => {
@@ -639,8 +605,6 @@ fn read_text(root: &Root, path: &Path) -> Result<(String, String, u64), String> 
     }
     Ok((body, snap.digest, snap.bytes))
 }
-/// Supported glob subset: *, **, ?, with **/ matching zero or more directories.
-/// Braces/character classes are refused rather than given surprising semantics.
 fn glob(pattern: &str) -> Result<regex::Regex, String> {
     if pattern.is_empty()
         || pattern.len() > 512
@@ -679,9 +643,6 @@ fn text(bytes: &[u8]) -> Result<&str, String> {
     }
     Ok(body)
 }
-/// Pure ordered exact edits, all-or-nothing. Each old_string must be non-empty
-/// and match exactly once in the text produced by the previous edits unless
-/// replace_all is set. Revision binding is done by the caller (Root::replace).
 pub fn transform_edits(source: &str, edits: &[EditOp]) -> Result<String, String> {
     if edits.is_empty() || edits.len() > MAX_EDITS {
         return Err("EDIT_COUNT_LIMIT".into());
@@ -738,7 +699,6 @@ fn envelope(patch: &str) -> Result<(&str, Vec<&str>), String> {
     }
     Ok((lines[1], lines[2..lines.len() - 1].to_vec()))
 }
-/// Target path and kind of a single-file patch, validated before any I/O.
 pub fn patch_target(patch: &str) -> Result<(String, PatchKind), String> {
     let (header, _) = envelope(patch)?;
     let (path, kind) = if let Some(p) = header.strip_prefix("*** Add File: ") {
@@ -751,11 +711,6 @@ pub fn patch_target(patch: &str) -> Result<(String, PatchKind), String> {
     relative(path, false)?;
     Ok((path.into(), kind))
 }
-/// Pure V4A subset for ONE file: an Add, or an Update with 1..=64 exact hunks.
-/// A hunk header is `@@` or `@@ <anchor>`; the anchor must match exactly one
-/// whole line after the previous hunk and the hunk is searched after it. Each
-/// hunk's context must match exactly once in the remaining text (forward only).
-/// No fuzzy matching, move, delete, multi-file partial commit or EOF coercion.
 pub fn transform_patch(patch: &str, source: Option<&str>) -> Result<PreparedPatch, String> {
     let (path, kind) = patch_target(patch)?;
     let (_, body) = envelope(patch)?;
@@ -856,8 +811,6 @@ pub fn transform_patch(patch: &str, source: Option<&str>) -> Result<PreparedPatc
         content,
     })
 }
-/// Descriptions/schemas the external (MCP-granted) projection must expose for
-/// the write tools, replacing the local-harness specs of the same name.
 pub fn external_spec(name: &str) -> Option<(&'static str, Value)> {
     let sha = json!({"type":"string","pattern":"^[0-9a-fA-F]{64}$","description":"SHA-256 `digest` returned by fs_read (or a previous write) for the exact current content"});
     match name {

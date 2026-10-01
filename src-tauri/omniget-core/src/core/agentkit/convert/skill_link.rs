@@ -1,19 +1,3 @@
-//! Skills installed once in the canonical store `.agents/skills/<name>/`
-//! (project) or `~/.agents/skills/<name>/` (global), plus a copy in the skills
-//! folder of every tool that does not read `.agents` (estudo 06 §0C.7: Claude,
-//! Kiro, Continue, Letta, Rovo, Roo, Droid …), the `npx skills` model.
-//!
-//! The tool's folder is a symlink to the store ([`FileAction::Link`]); the
-//! writer copies the store instead where links cannot be made (Windows without
-//! developer mode). Store files and the link are recorded in the lockfile, and a
-//! store shared by several tools is only removed with its last installer (the
-//! writer's `created_elsewhere`).
-//!
-//! [`FileAction::Link`]: super::FileAction::Link
-//!
-//! This converter answers to the id `skill_dir`, so `Registry::resolve` (which
-//! looks skills up by that id) picks it ahead of the F0 folder copier.
-
 use std::path::{Path, PathBuf};
 
 use super::agent_common::*;
@@ -24,7 +8,6 @@ use crate::core::agentkit::{Result, Scope};
 
 pub struct SkillLinkConverter;
 
-/// Canonical store for a scope.
 pub fn canonical_dir(scope: Scope, ctx: &ConvertCtx) -> Option<PathBuf> {
     match scope {
         Scope::Project | Scope::Local => ctx.project.map(|p| p.join(".agents").join("skills")),
@@ -33,8 +16,6 @@ pub fn canonical_dir(scope: Scope, ctx: &ConvertCtx) -> Option<PathBuf> {
     }
 }
 
-/// Does the tool read the canonical store for this scope? Data-driven: the
-/// store must be the tool's skills path or one of its alternatives.
 pub fn reads_canonical(target: &TargetAdapter, scope: Scope, ctx: &ConvertCtx) -> bool {
     let Some(canon) = canonical_dir(scope, ctx) else {
         return false;
@@ -55,7 +36,6 @@ pub fn reads_canonical(target: &TargetAdapter, scope: Scope, ctx: &ConvertCtx) -
         .any(|p| p == canon)
 }
 
-/// Every file of the skill folder placed under `root`.
 fn skill_files(target: &str, c: &Component, root: &Path, label: &str) -> Vec<PlannedFile> {
     let prefix = c
         .entry
@@ -110,7 +90,6 @@ impl Converter for SkillLinkConverter {
         let own = kind_path(target, "skills", scope, ctx);
         let canon = canonical_dir(scope, ctx);
         let Some(canon) = canon else {
-            // managed scope: the tool's own folder only
             let base = own.ok_or_else(|| no_path(target, "skills", scope))?;
             return Ok(skill_files(&target.id, c, &base.join(&dir_name), "skill"));
         };
@@ -128,7 +107,6 @@ impl Converter for SkillLinkConverter {
                     "{} does not read .agents/skills: its skills folder gets a link to the store (a copy where links are not allowed)",
                     target.name
                 ));
-                // the store keeps the name; the tool's link is what it loads
                 for f in out.iter_mut() {
                     f.primary = false;
                 }

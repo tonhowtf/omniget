@@ -1,27 +1,3 @@
-//! Review of what a job changed (roadmap 3.5, S20): discard one hunk,
-//! notes that go back to the agent, and the walkthrough of the diff. The
-//! integration of a job's branch is git only and lives in
-//! [`crate::core::vcs::integrate`].
-//!
-//! - **Hunk discard** (84#P2): the caller sends the hunk's id *and* its
-//!   patch; both must match a hunk of the diff as it is *now*, byte for
-//!   byte, and `git apply -R --check` must pass, before `git apply -R`
-//!   touches a file. All of it runs under the review lock of the folder, so
-//!   two discards (or a discard and an integration) never interleave. A hunk
-//!   that moved is refused with [`ERR_HUNK_STALE`] ("refresh"), and a hunk
-//!   cut by the diff's byte limit with [`ERR_HUNK_PARTIAL`].
-//! - **Notes** (78#P5): `File: …` / `Lines: a-b` | `Line: n` | `Scope: file`
-//!   / `User comment: "…"`, notes separated by a blank line, the format of
-//!   stablyai/orca's `formatDiffComment` (MIT), ported. They become the
-//!   prompt of a follow-up turn in the job's conversation, which the CLI
-//!   runtime resumes (`--resume`): the turn costs the notes, not the task.
-//! - **Walkthrough** (84#P5): on demand only; a diff too large for one
-//!   request is refused ([`ERR_WALKTHROUGH_TOO_LARGE`]), never cut. The
-//!   prompt and the shape of the answer are adapted from openchamber's
-//!   `walkthrough/prompt.js` and `schema.js` (MIT); every anchor the model
-//!   returns is resolved against the hunks sent, and what does not resolve
-//!   is dropped.
-
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, LazyLock, Mutex};
@@ -33,23 +9,18 @@ use super::snapshot::{self, JobDiff};
 use crate::core::vcs::diff::{parse_hunks, split_patch, Hunk};
 use crate::core::vcs::repo::GitCtx;
 
-/// The hunk is not in the diff as it is now (the code moved): refresh.
 pub const ERR_HUNK_STALE: &str = "ERR_HUNK_STALE";
-/// The hunk was cut by the diff's byte limit: shown, never acted on.
 pub const ERR_HUNK_PARTIAL: &str = "ERR_HUNK_PARTIAL";
-/// A job is writing in the folder right now.
 pub const ERR_REVIEW_BUSY: &str = "ERR_REVIEW_BUSY";
 pub const ERR_WALKTHROUGH_TOO_LARGE: &str = "ERR_WALKTHROUGH_TOO_LARGE";
 pub const ERR_WALKTHROUGH_EMPTY: &str = "ERR_WALKTHROUGH_EMPTY";
 
-/// Where a job's changes live and what they are measured from.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Target {
-    /// A job in its own worktree (2.3): from `merge-base(base_oid, HEAD)`
-    /// to the worktree as it is ([`snapshot::worktree_diff`]).
-    Worktree { root: PathBuf, base_oid: String },
-    /// A job in the folder itself: from the shadow tree taken before its
-    /// first turn to the folder as it is ([`snapshot::live_diff`]).
+    Worktree {
+        root: PathBuf,
+        base_oid: String,
+    },
     Shared {
         workspace: PathBuf,
         base_tree: String,
@@ -74,8 +45,6 @@ impl Target {
         }
     }
 
-    /// The git that applies a patch here, paths relative to the folder's
-    /// top: the worktree itself, or the folder's shadow git.
     fn ctx(&self) -> Result<GitCtx, String> {
         match self {
             Target::Worktree { root, .. } => Ok(GitCtx::Repo {
@@ -90,9 +59,6 @@ type FolderLock = Arc<tokio::sync::Mutex<()>>;
 static LOCKS: LazyLock<Mutex<HashMap<FolderKey, FolderLock>>> =
     LazyLock::new(|| Mutex::new(HashMap::new()));
 
-/// The review lock of `folder` (canonical: a symlink or another letter case
-/// is the same folder). Held across the check and the write of a discard
-/// or an integration.
 pub async fn lock(folder: &Path) -> tokio::sync::OwnedMutexGuard<()> {
     let key = FolderKey::of(folder);
     let m = LOCKS
@@ -104,8 +70,6 @@ pub async fn lock(folder: &Path) -> tokio::sync::OwnedMutexGuard<()> {
     m.lock_owned().await
 }
 
-/// The hunk `id` of `live` (the diff as it is now), if `sent` is its patch
-/// byte for byte and it is whole.
 pub fn find_hunk(live: &str, id: &str, sent: &str) -> Result<Hunk, String> {
     let hunk = parse_hunks(live)
         .into_iter()
@@ -129,14 +93,11 @@ pub fn find_hunk(live: &str, id: &str, sent: &str) -> Result<Hunk, String> {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Discarded {
     pub hunk: Hunk,
-    /// The diff after the discard (its `patch` is not serialized; the
-    /// caller stores it).
     pub diff: JobDiff,
     #[serde(skip)]
     pub patch: String,
 }
 
-/// Puts one hunk back as it was before the job (see the module doc).
 pub async fn discard_hunk(target: &Target, id: &str, sent: &str) -> Result<Discarded, String> {
     let _held = lock(target.folder()).await;
     let live = target.live_diff().await?;
@@ -176,9 +137,6 @@ pub async fn discard_hunk(target: &Target, id: &str, sent: &str) -> Result<Disca
     Ok(Discarded { hunk, diff, patch })
 }
 
-/// `diff` cut down to `paths` (files, totals and patch): a shared job's diff
-/// taken against the folder as it is holds other people's later changes too;
-/// what the job shows stays its own files.
 pub fn restrict_to_paths(mut diff: JobDiff, paths: &[String]) -> JobDiff {
     let keep = |p: &str| paths.iter().any(|k| k == p);
     diff.files.retain(|f| keep(&f.path));
@@ -195,10 +153,6 @@ pub fn restrict_to_paths(mut diff: JobDiff, paths: &[String]) -> JobDiff {
     diff
 }
 
-// ── notes ────────────────────────────────────────────────────────────
-
-/// A review note on a job's diff. `start_line`/`end_line` are lines of the
-/// new version; both `None` = a note on the whole file.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
 pub struct Note {
     pub id: String,
@@ -210,19 +164,14 @@ pub struct Note {
     pub end_line: Option<u32>,
     pub body: String,
     pub created_ms: u64,
-    /// When it went to the agent, and in which follow-up job. Sent notes
-    /// stay, marked (orca drops them, against its own doc).
     #[serde(default)]
     pub sent_ms: Option<u64>,
     #[serde(default)]
     pub sent_job: Option<String>,
-    /// The job's head when the note was written: a later head means the note
-    /// may be about an earlier version of the lines.
     #[serde(default)]
     pub head_oid: Option<String>,
 }
 
-/// One note, orca's contract: deterministic and quote-safe.
 pub fn format_note(n: &Note) -> String {
     let body = n
         .body
@@ -246,9 +195,6 @@ pub fn format_notes(notes: &[Note]) -> String {
         .join("\n\n")
 }
 
-/// The prompt of the follow-up turn: one line of instruction and the
-/// notes. With `--resume` the task and the earlier turns are already in the
-/// session; only this travels.
 pub fn follow_up_prompt(notes: &[Note]) -> String {
     format!(
         "Review notes on the changes you made. Address each note in the files it names, then stop.\n\n{}",
@@ -256,17 +202,10 @@ pub fn follow_up_prompt(notes: &[Note]) -> String {
     )
 }
 
-// ── walkthrough ──────────────────────────────────────────────────────
-
-/// Most bytes of hunks one walkthrough request carries (~24k tokens). Past
-/// it the walkthrough is refused, never cut: a tour of part of a change
-/// would read as the whole.
 pub const WALKTHROUGH_MAX_BYTES: usize = 96 * 1024;
-/// Bumping it invalidates every cached walkthrough (a changed prompt).
 pub const WALKTHROUGH_PROMPT_VERSION: u32 = 1;
 const MAX_STOPS: usize = 16;
 
-/// Lockfiles and generated files: left out of the tour by name.
 pub fn is_generated(path: &str) -> bool {
     let name = path.rsplit('/').next().unwrap_or(path).to_ascii_lowercase();
     matches!(
@@ -294,17 +233,14 @@ pub fn is_generated(path: &str) -> bool {
 pub struct WalkthroughInput {
     pub system: String,
     pub prompt: String,
-    /// `h1` … in the prompt → hunk id.
     pub aliases: Vec<(String, String)>,
     pub skipped: Vec<String>,
-    /// Cache key: the hunks sent and the prompt version.
     pub key: String,
     pub bytes: usize,
 }
 
 const WALKTHROUGH_SYSTEM: &str = "You are writing a guided review of a code change for the engineer who is about to read it.\n\nYour job is to impose a reading order the diff itself does not have. A diff is ordered by file path, which is almost never the order in which the change makes sense. Group related hunks, across files, into stops, and order the stops so that each one is understandable given the ones before it.\n\nWhat a good stop says: what this code now does differently, in terms of behavior, not syntax; why the hunks belong together; what a reviewer should check or be suspicious about, when there is something.\n\nWhat a bad stop says: \"Renamed X to Y\", \"Added a parameter\", \"Updated the imports\". Restating the diff in prose is worthless. Do not speculate about intent you cannot support from the code.\n\nRules:\n- Anchor every stop to hunk aliases exactly as given (h1, h2, ...). Never invent an alias.\n- Anchor each hunk at most once. You do not have to cover every hunk; what you omit is still shown to the reader.\n- Order stops so the reader builds understanding: entry points and data shape before the code that consumes them.\n- importance: \"critical\" for changes that carry real risk, \"context\" for supporting changes, \"normal\" otherwise.\n- Plain sentences, no markdown.\n- Do not use any tool. Answer from the diff below.\n\nReturn ONLY a JSON object, no prose around it and no code fences, in exactly this shape:\n{\"title\": string, \"focus\": string, \"stops\": [{\"title\": string, \"hunks\": [string], \"importance\": \"critical\"|\"normal\"|\"context\", \"prose\": string}]}";
 
-/// The request of a walkthrough of `patch`, or why there is none.
 pub fn walkthrough_input(patch: &str, clipped: bool) -> Result<WalkthroughInput, String> {
     use sha2::{Digest, Sha256};
     if clipped {
@@ -334,7 +270,6 @@ pub fn walkthrough_input(patch: &str, clipped: bool) -> Result<WalkthroughInput,
     hasher.update(format!("v{WALKTHROUGH_PROMPT_VERSION}\n"));
     for (i, h) in keep.iter().enumerate() {
         let alias = format!("h{}", i + 1);
-        // The hunk without its file header: `@@` onwards.
         let text = &h.patch[h.patch.find("@@ -").unwrap_or(0)..];
         body.push_str(&format!("### {alias} {}\n{text}", h.path));
         if !text.ends_with('\n') {
@@ -376,7 +311,6 @@ pub fn walkthrough_input(patch: &str, clipped: bool) -> Result<WalkthroughInput,
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
 pub struct Stop {
     pub title: String,
-    /// Hunk ids (resolved from the aliases).
     pub hunks: Vec<String>,
     pub importance: String,
     pub prose: String,
@@ -388,11 +322,8 @@ pub struct Walkthrough {
     pub title: String,
     pub focus: String,
     pub stops: Vec<Stop>,
-    /// Hunks no stop covers (shown in a folded tail).
     pub uncovered: Vec<String>,
-    /// Files left out by name (lockfiles, generated).
     pub skipped: Vec<String>,
-    /// The model did not answer JSON: its text, shown as is.
     #[serde(default)]
     pub raw: Option<String>,
     pub model: String,
@@ -405,7 +336,6 @@ pub struct Walkthrough {
     pub cached: bool,
 }
 
-/// The first `{` … last `}` of `text`, parsed.
 fn json_in(text: &str) -> Option<serde_json::Value> {
     let (a, b) = (text.find('{')?, text.rfind('}')?);
     (a < b)
@@ -413,9 +343,6 @@ fn json_in(text: &str) -> Option<serde_json::Value> {
         .flatten()
 }
 
-/// What the model answered, anchors resolved against `input`: an alias
-/// that is not one of the hunks sent is dropped, a stop left with no hunk
-/// too, a hunk anchored twice stays in its first stop.
 pub fn parse_walkthrough(text: &str, input: &WalkthroughInput) -> Walkthrough {
     let alias: HashMap<&str, &str> = input
         .aliases
@@ -469,7 +396,6 @@ pub fn parse_walkthrough(text: &str, input: &WalkthroughInput) -> Walkthrough {
     out
 }
 
-/// `<llm dir>/walkthrough/<key>.json`.
 pub fn cache_path(key: &str) -> Option<PathBuf> {
     if key.is_empty() || !key.chars().all(|c| c.is_ascii_hexdigit()) {
         return None;
@@ -482,7 +408,6 @@ pub fn cache_get(key: &str) -> Option<Walkthrough> {
     serde_json::from_slice(&bytes).ok()
 }
 
-/// Written through a temp file and a rename: a reader never sees half.
 pub fn cache_put(w: &Walkthrough) {
     let Some(path) = cache_path(&w.key) else {
         return;

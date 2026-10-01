@@ -1,7 +1,3 @@
-//! Detecção: caminho resolvido + real, versão (com timeout), app de GUI e
-//! prova de dono. O resultado da última varredura fica em memória; nada roda
-//! sozinho, só quando a tela pede (`detect_all(force)`).
-
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
@@ -20,12 +16,10 @@ pub const VERSION_TIMEOUT: Duration = Duration::from_secs(5);
 pub struct Detection {
     pub id: String,
     pub installed: bool,
-    /// Qual dos binários da tabela foi achado.
     pub binary: Option<String>,
     pub resolved_path: Option<PathBuf>,
     pub real_path: Option<PathBuf>,
     pub version: Option<String>,
-    /// Texto cru do `--version` quando não deu para extrair a versão.
     pub version_raw: Option<String>,
     pub app_path: Option<PathBuf>,
     pub app_version: Option<String>,
@@ -46,7 +40,6 @@ fn last() -> &'static Mutex<Option<Arc<Vec<Detection>>>> {
     L.get_or_init(|| Mutex::new(None))
 }
 
-/// Última varredura (sem rodar nada).
 pub fn cached() -> Option<Arc<Vec<Detection>>> {
     last().lock().ok().and_then(|g| g.clone())
 }
@@ -76,7 +69,6 @@ fn replace_one(det: Detection) {
     }
 }
 
-/// Varre todas as ferramentas (com cache, a não ser com `force`).
 pub async fn detect_all(force: bool) -> Arc<Vec<Detection>> {
     if !force {
         if let Some(c) = cached() {
@@ -104,7 +96,6 @@ pub async fn detect_all(force: bool) -> Arc<Vec<Detection>> {
     store(found)
 }
 
-/// Detecta uma ferramenta de novo (fresh) e atualiza o cache.
 pub async fn detect_one(tool: &CliTool) -> Detection {
     let probes = Probes::default();
     let extra = extra_dirs(&probes).await;
@@ -113,7 +104,6 @@ pub async fn detect_one(tool: &CliTool) -> Detection {
     det
 }
 
-/// `<npm prefix -g>/bin`: no macOS a GUI não herda o PATH do nvm.
 async fn extra_dirs(probes: &Probes) -> Vec<PathBuf> {
     let mut v = Vec::new();
     if let Some(p) = probes.npm_prefix().await {
@@ -123,7 +113,6 @@ async fn extra_dirs(probes: &Probes) -> Vec<PathBuf> {
             p.join("bin")
         });
     }
-    // Binários que o OmniGet baixou do registro ACP (dono = omniget).
     for launch in super::acp_registry::installed().values() {
         if launch.dir.is_some() {
             if let Some(parent) = Path::new(&launch.command).parent() {
@@ -194,7 +183,6 @@ async fn detect_with(tool: &CliTool, probes: &Probes, extra: &[PathBuf]) -> Dete
 }
 
 async fn read_version(tool: &CliTool, bin: &Path) -> (Option<String>, Option<String>) {
-    // Nunca deixa o CLI se atualizar sozinho durante a sondagem.
     let mut env = BTreeMap::new();
     env.insert("NO_COLOR".into(), "1".into());
     env.insert("CI".into(), "1".into());
@@ -212,7 +200,6 @@ async fn read_version(tool: &CliTool, bin: &Path) -> (Option<String>, Option<Str
     }
 }
 
-/// Apps de GUI no macOS (`/Applications` e `~/Applications`).
 async fn find_app(tool: &CliTool) -> (Option<PathBuf>, Option<String>) {
     if !cfg!(target_os = "macos") {
         return (None, None);
@@ -243,7 +230,6 @@ async fn app_version(app: &Path) -> Option<String> {
         let text = String::from_utf8_lossy(&bytes);
         return plist_string(&text, "CFBundleShortVersionString");
     }
-    // plist binário: o `plutil` do sistema converte.
     let out = run_capture(
         Path::new("/usr/bin/plutil"),
         &[
@@ -261,7 +247,6 @@ async fn app_version(app: &Path) -> Option<String> {
         .filter(|s| !s.is_empty())
 }
 
-/// Valor `<string>` depois de `<key>name</key>` num plist XML.
 pub fn plist_string(xml: &str, key: &str) -> Option<String> {
     let k = format!("<key>{key}</key>");
     let rest = &xml[xml.find(&k)? + k.len()..];

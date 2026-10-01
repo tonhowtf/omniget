@@ -1,22 +1,3 @@
-//! Whole-workspace archive (one `.omniget` file) and rotating backups.
-//!
-//! Unlike partituras ("blueprints, not backups", `export.rs`), both keep the
-//! workspace as it is: every floor document, note texts, workspace roles, chat
-//! transcripts and attachments, floor hooks, the workspace environment and its
-//! routines. What stays out: isolated floor working trees (`floor-trees/`), the
-//! trash, `.bak` files, and by default anything that looks like a secret.
-//!
-//! Export writes a JSON file (`format: "omniget.workspace"`) with a file map
-//! relative to the workspace folder. Import first previews it, then (with
-//! confirmation) writes a NEW workspace with every node, cord, drawing, group,
-//! tie, terminal and routine id remapped, so the same file imports twice
-//! without clashing.
-//!
-//! Backups copy `<canvas>/<ws>/` into `<app_data>/canvas-backups/<ws>/<id>/`
-//! with a manifest and a content hash; a backup identical to the latest one is
-//! not written again. They live outside the workspace folder so a deleted
-//! workspace can come back.
-
 use super::model::{new_id, now_rfc3339, FloorDoc, Workspace, GROUND_FLOOR_ID};
 use super::roles::{self, Role};
 use super::routines::{self, Routine};
@@ -33,22 +14,15 @@ pub const ARCHIVE_FORMAT: &str = "omniget.workspace";
 pub const ARCHIVE_VERSION: u32 = 1;
 pub const ARCHIVE_EXTENSION: &str = "omniget";
 
-/// Placeholder for the exporting machine's workspace folder inside strings.
 const WS_DIR_TOKEN: &str = "${OMNIGET_WS_DIR}";
-/// Folders of a workspace that never travel (working trees, trash).
 const SKIP_DIRS: &[&str] = &["floor-trees", "trash"];
-/// One file larger than this is left out of an archive (reported).
 const MAX_FILE: u64 = 8 * 1024 * 1024;
-/// Whole archive budget.
 const MAX_TOTAL: u64 = 256 * 1024 * 1024;
-/// Archives larger than this are refused on import.
 const MAX_ARCHIVE: u64 = 600 * 1024 * 1024;
 
 const KEEP_RECENT: usize = 24;
 const KEEP_DAILY: usize = 7;
 const KEEP_OTHER: usize = 20;
-
-// ---------------------------------------------------------------- archive types
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
@@ -73,11 +47,9 @@ pub struct Archive {
     pub version: u32,
     pub exported_at: String,
     pub workspace: Workspace,
-    /// Path relative to the workspace folder (always `/`).
     pub files: BTreeMap<String, ArchiveFile>,
     #[serde(default)]
     pub routines: Vec<Routine>,
-    /// Global-library roles the terminals use (imported into the workspace).
     #[serde(default)]
     pub global_roles: Vec<Role>,
     #[serde(default)]
@@ -145,7 +117,6 @@ pub struct ImportPreview {
     pub roles: Vec<String>,
     pub routines: usize,
     pub omitted: Vec<Omitted>,
-    /// Things that will be adjusted on import.
     pub conflicts: Vec<String>,
 }
 
@@ -154,8 +125,6 @@ pub struct ImportPreview {
 pub struct ImportOptions {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
-    /// Working directory of the new workspace (default: the original one when
-    /// it exists on this machine).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub dir: Option<String>,
 }
@@ -170,8 +139,6 @@ pub struct ImportResult {
     pub routines: usize,
     pub notes: Vec<String>,
 }
-
-// ---------------------------------------------------------------- helpers
 
 fn io(e: impl std::fmt::Display) -> String {
     format!("CANVAS_IO: {e}")
@@ -190,7 +157,6 @@ fn rel_of(base: &Path, p: &Path) -> Option<String> {
     }
 }
 
-/// Every file of a workspace folder that travels (sorted, relative paths).
 fn walk(ws_dir: &Path) -> Vec<(String, PathBuf)> {
     let mut out = Vec::new();
     let mut stack = vec![ws_dir.to_path_buf()];
@@ -231,7 +197,6 @@ fn safe_rel(rel: &str) -> bool {
             .all(|c| !c.is_empty() && c != "." && c != ".." && !c.contains(':'))
 }
 
-/// Env var names that look like credentials.
 pub fn is_secret_name(name: &str) -> bool {
     let n = name.to_ascii_uppercase();
     n.starts_with("OMNIGET_")
@@ -254,8 +219,6 @@ pub fn is_secret_name(name: &str) -> bool {
         || n == "KEY"
 }
 
-/// Drops secret-looking `env` entries of terminal nodes in a floor document
-/// (as JSON). Returns the removed `node title: VAR` labels.
 pub fn strip_floor_secrets(doc: &mut Value) -> Vec<String> {
     let mut removed = Vec::new();
     let Some(nodes) = doc.get_mut("nodes").and_then(Value::as_array_mut) else {
@@ -284,8 +247,6 @@ pub fn strip_floor_secrets(doc: &mut Value) -> Vec<String> {
     removed
 }
 
-/// Replaces ids inside JSON string values: an exact match always, a substring
-/// only for long ids (UUIDs), so short ids like `home` never touch prose.
 pub fn remap_value(v: &mut Value, map: &HashMap<String, String>) {
     match v {
         Value::String(s) => {
@@ -312,7 +273,6 @@ pub fn remap_value(v: &mut Value, map: &HashMap<String, String>) {
     }
 }
 
-/// Remaps each path component equal to an id, or `<id>.<ext>` file names.
 pub fn remap_rel(rel: &str, map: &HashMap<String, String>) -> String {
     rel.split('/')
         .map(|c| {
@@ -339,8 +299,6 @@ fn replace_in_strings(v: &mut Value, from: &str, to: &str) {
     }
 }
 
-/// Applies a string transform to a text file: JSON / JSONL values only, any
-/// other text untouched (notes are prose).
 fn transform_text(rel: &str, text: &str, f: &dyn Fn(&mut Value)) -> String {
     if rel.ends_with(".json") {
         if let Ok(mut v) = serde_json::from_str::<Value>(text) {
@@ -377,8 +335,6 @@ fn floor_docs_of(files: &BTreeMap<String, ArchiveFile>) -> Vec<(String, FloorDoc
         })
         .collect()
 }
-
-// ---------------------------------------------------------------- export
 
 pub fn build_archive(
     store: &CanvasStore,
@@ -442,7 +398,6 @@ pub fn build_archive(
         };
         files.insert(rel, entry);
     }
-    // Global roles the terminals use travel along.
     let mut global_roles = Vec::new();
     let mut seen = HashSet::new();
     for (_, doc) in floor_docs_of(&files) {
@@ -516,8 +471,6 @@ pub fn export_to(
         omitted: a.omitted,
     })
 }
-
-// ---------------------------------------------------------------- import
 
 pub fn read_archive(path: &Path) -> Result<Archive, String> {
     let size = fs::metadata(path).map_err(io)?.len();
@@ -658,7 +611,6 @@ pub fn preview(store: &CanvasStore, a: &Archive) -> ImportPreview {
     }
 }
 
-/// Old id → new id for everything that must not clash with the original.
 pub fn id_map(a: &Archive, new_ws: &str) -> HashMap<String, String> {
     let mut map = HashMap::new();
     map.insert(a.workspace.id.clone(), new_ws.to_string());
@@ -685,7 +637,6 @@ pub fn id_map(a: &Archive, new_ws: &str) -> HashMap<String, String> {
     for r in &a.routines {
         map.insert(r.id.clone(), new_id());
     }
-    // Never remap the reserved ids.
     map.remove(GROUND_FLOOR_ID);
     map
 }
@@ -737,7 +688,6 @@ pub fn import(
             let bytes = if let Some(t) = &f.text {
                 let mut text = transform_text(rel, t, &fix);
                 if rel == "floors.json" {
-                    // Isolated floors' working trees did not travel.
                     if let Ok(mut v) = serde_json::from_str::<Value>(&text) {
                         if let Some(o) = v.as_object_mut() {
                             o.insert("floors".into(), json!({}));
@@ -763,7 +713,6 @@ pub fn import(
             };
             fs::write(&path, bytes).map_err(io)?;
         }
-        // Global roles become workspace roles (unless already present).
         for role in &a.global_roles {
             let dir = ws_dir.join("roles").join(&role.id);
             if dir.join("role.json").exists() {
@@ -820,8 +769,6 @@ pub fn import(
     })
 }
 
-// ---------------------------------------------------------------- backups
-
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct BackupSummary {
@@ -843,7 +790,6 @@ pub struct BackupInfo {
     pub hash: String,
     pub size_bytes: u64,
     pub summary: BackupSummary,
-    /// True when the call found nothing new and returned the latest backup.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub unchanged: bool,
 }
@@ -860,8 +806,6 @@ fn ws_backups_dir(store: &CanvasStore, ws: &str) -> Result<PathBuf, String> {
     Ok(backups_root(store).join(ws))
 }
 
-/// Content hash of a workspace folder. Floor camera and epoch are left out,
-/// so looking around the canvas does not count as a change.
 fn content_hash(files: &[(String, PathBuf)]) -> String {
     let mut h = Sha256::new();
     for (rel, p) in files {
@@ -934,8 +878,6 @@ fn copy_files(files: &[(String, PathBuf)], dest: &Path) -> Result<u64, String> {
     Ok(total)
 }
 
-/// Snapshots the workspace folder. When nothing changed since the latest
-/// backup, returns that one with `unchanged: true` and writes nothing.
 pub fn create_backup(store: &CanvasStore, ws: &str, reason: &str) -> Result<BackupInfo, String> {
     let _ = store.flush_workspace(ws);
     let meta = store.workspace(ws)?;
@@ -996,9 +938,6 @@ pub fn create_backup(store: &CanvasStore, ws: &str, reason: &str) -> Result<Back
     Ok(info)
 }
 
-/// Which backups to delete: keep the newest `KEEP_RECENT` scheduled ones, the
-/// newest of each of the `KEEP_DAILY` days before them, and the newest
-/// `KEEP_OTHER` taken before a destructive operation. Input newest first.
 pub fn prune_plan(list: &[BackupInfo]) -> Vec<String> {
     let mut drop = Vec::new();
     let (mut recent, mut other) = (0, 0);
@@ -1036,7 +975,6 @@ fn prune(store: &CanvasStore, ws: &str) {
     }
 }
 
-/// Backs up every workspace (the hourly job). Returns how many were written.
 pub fn backup_all(store: &CanvasStore, reason: &str) -> usize {
     store
         .workspaces()
@@ -1046,14 +984,11 @@ pub fn backup_all(store: &CanvasStore, reason: &str) -> usize {
         .count()
 }
 
-/// Best-effort backup before a destructive operation (never blocks it).
 pub fn before(store: &CanvasStore, ws: &str, what: &str) {
     if let Err(e) = create_backup(store, ws, &format!("before-{what}")) {
         tracing::warn!("[canvas] backup before {what} of {ws} failed: {e}");
     }
 }
-
-// ---------------------------------------------------------------- diff
 
 #[derive(Debug, Clone, Default)]
 struct Content {
@@ -1108,9 +1043,7 @@ fn content_of(dir: &Path) -> Content {
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct RestoreDiff {
-    /// Nodes the restore brings back (in the backup, not now).
     pub nodes_back: Vec<String>,
-    /// Nodes made since the backup that the restore removes.
     pub nodes_removed: Vec<String>,
     pub nodes_changed: usize,
     pub cords_back: usize,
@@ -1133,7 +1066,6 @@ fn plural(n: usize, one: &str, many: &str) -> String {
     format!("{n} {}", if n == 1 { one } else { many })
 }
 
-/// What restoring `backup` over `current` changes, in words.
 fn diff_content(current: &Content, backup: &Content) -> RestoreDiff {
     let mut d = RestoreDiff::default();
     let index = |c: &Content| {
@@ -1268,8 +1200,6 @@ fn backup_dir(store: &CanvasStore, ws: &str, backup_id: &str) -> Result<PathBuf,
     Ok(dir)
 }
 
-/// Replaces the workspace folder with the backup (a safety backup first when
-/// the workspace exists) and reloads it. Terminals are the caller's job.
 pub fn restore_backup(store: &CanvasStore, ws: &str, backup_id: &str) -> Result<Workspace, String> {
     let bdir = backup_dir(store, ws, backup_id)?;
     let exists = store.workspace(ws).is_ok();

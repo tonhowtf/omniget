@@ -1,6 +1,3 @@
-//! Private one-shot worker launched only by the queue's confined broker.
-//! stdin is one bounded JSON document terminated by EOF; stdout is JSONL.
-//! This binary has no scheduler, database, MCP listener, or client credentials.
 use omniget_core::{
     core::{http_client, registry::PlatformRegistry, ytdlp},
     models::{
@@ -68,8 +65,6 @@ struct Request {
     ffprobe_path: Option<PathBuf>,
     node_path: Option<PathBuf>,
     deno_path: Option<PathBuf>,
-    /// Host directory shared by this job's inspect and download workers:
-    /// yt-dlp's info JSON goes there so the download does not re-extract.
     #[serde(default)]
     info_json_dir: Option<PathBuf>,
 }
@@ -230,8 +225,6 @@ fn emit(value: Value) -> Result<(), &'static str> {
 }
 fn registry() -> PlatformRegistry {
     let mut r = PlatformRegistry::new();
-    // Same native implementations/order as the desktop/core CLI; no P2P,
-    // magnet, course, account or plugin executor in this HTTP(S)-only worker.
     r.register(Arc::new(InstagramDownloader::new()));
     r.register(Arc::new(ThreadsDownloader::new()));
     r.register(Arc::new(PinterestDownloader::new()));
@@ -249,8 +242,6 @@ fn registry() -> PlatformRegistry {
     r
 }
 fn setup(r: &Request, port: u16) -> Result<(), &'static str> {
-    // Caller creates a private empty directory per execution. Never point core
-    // at the user's profile: the default CookieProvider falls back to disk.
     let meta = std::fs::symlink_metadata(&r.runtime_dir).map_err(|_| "INVALID_RUNTIME")?;
     if !meta.is_dir() || meta.file_type().is_symlink() {
         return Err("INVALID_RUNTIME");
@@ -269,7 +260,6 @@ fn setup(r: &Request, port: u16) -> Result<(), &'static str> {
     {
         return Err("RUNTIME_NOT_EMPTY");
     }
-    // This occurs before creating the Tokio runtime or spawning engine threads.
     for key in [
         "ALL_PROXY",
         "all_proxy",
@@ -285,8 +275,6 @@ fn setup(r: &Request, port: u16) -> Result<(), &'static str> {
     std::env::set_var("OMNIGET_DATA_DIR", &r.runtime_dir);
     std::env::set_var("OMNIGET_SECRETS_DIR", r.runtime_dir.join("secrets"));
     std::env::set_var("XDG_CONFIG_HOME", &r.runtime_dir);
-    // ytdlp::get_video_info saves the dump there and ytdlp::download_video
-    // loads it with --load-info-json (5 min validity, falls back to the URL).
     match r.info_json_dir.as_ref().filter(|d| d.is_dir()) {
         Some(dir) => std::env::set_var("OMNIGET_INFO_JSON_DIR", dir),
         None => std::env::remove_var("OMNIGET_INFO_JSON_DIR"),
@@ -338,9 +326,6 @@ fn setup(r: &Request, port: u16) -> Result<(), &'static str> {
     let user_agent = r.user_agent.clone();
     ytdlp::set_user_agent_fn(move || user_agent.clone());
     ytdlp::set_ext_cookie_path_fn(|| PathBuf::from("/dev/null"));
-    // Operator-only: every yt-dlp argv this worker runs, already redacted by
-    // core (cookies, auth/CSRF headers, proxy credentials, tokens). The host
-    // redacts again and logs it as "worker diagnostic"; never MCP/journal/UI.
     ytdlp::set_command_sink(Some(Arc::new(|line: &str| {
         let _ = emit(command_event(line));
     })));
@@ -350,16 +335,9 @@ fn setup(r: &Request, port: u16) -> Result<(), &'static str> {
 fn command_event(line: &str) -> Value {
     json!({"type":"diagnostic","detail":line.chars().take(2000).collect::<String>()})
 }
-/// Operator diagnostic of a failed engine run: the fixed code first, then the
-/// raw chain (`{:#}`: friendly message and the redacted yt-dlp ERROR line), so
-/// no ENGINE_FAILED reaches the log without its cause.
 fn diagnostic_event(code: &str, raw: &str) -> Value {
     json!({"type":"diagnostic","detail":format!("{code}: {raw}").chars().take(2000).collect::<String>()})
 }
-/// An external download delivers the source media as asked, nothing more.
-/// Unset, yt-dlp's globals default to embedding metadata and a thumbnail;
-/// `--convert-thumbnails jpg` then failed Reddit downloads after the media
-/// was complete ("Preprocessing: Conversion failed!", benchmark 26/09).
 fn confine_postprocessing() {
     ytdlp::set_embed_metadata_fn(|| false);
     ytdlp::set_embed_thumbnail_fn(|| false);
@@ -405,15 +383,8 @@ async fn run(r: Request) -> Result<(), &'static str> {
             .find_platform(&r.url)
             .ok_or("UNSUPPORTED_PLATFORM")?
     };
-    // An explicit policy (ceiling, audio, format) cannot be honoured by a
-    // native single-URL path that has no format choice; such variants are
-    // routed to the engine path of the same adapter with the page URL.
     let explicit_policy = matches!(r.operation, Operation::Download)
         && (matches!(r.download_mode, Mode::Audio) || r.quality.is_some() || r.format_id.is_some());
-    // Inspect and download run in separate one-shot workers. Media whose
-    // download depends on in-process session state captured during
-    // extraction (TikTok CDN cookies) must be re-extracted here, otherwise
-    // the CDN answers 403 to a stateless process. One metadata request, no retry.
     let mut info = match r.media_info {
         Some(i) if explicit_policy || !needs_in_process_extraction(&i) => i,
         _ => match platform.get_media_info(&r.url).await {
@@ -433,8 +404,6 @@ async fn run(r: Request) -> Result<(), &'static str> {
     let video = matches!(r.download_mode, Mode::Video);
     if let Some(ceiling) = r.quality.filter(|_| video) {
         if exceeds_ceiling(&info, ceiling) {
-            // Every known variant is above the requested ceiling: refuse before
-            // transferring bytes the desktop validator would reject anyway.
             let _ = emit(
                 json!({"type":"result","version":1,"success":false,"code":"FORMAT_UNAVAILABLE","category":"format_unavailable","message":"No available format fits the requested maxHeight.","raw_error_omitted":true}),
             );
@@ -482,7 +451,6 @@ async fn run(r: Request) -> Result<(), &'static str> {
         tokio::sync::mpsc::channel::<omniget_core::models::progress::ProgressUpdate>(32);
     let progress = tokio::spawn(async move {
         while let Some(p) = rx.recv().await {
-            // Never emit arbitrary engine phase strings, URLs, commands or stderr.
             let phase = match p.phase.as_deref() {
                 Some("downloading") => "downloading",
                 Some("merging") => "merging",
@@ -490,7 +458,6 @@ async fn run(r: Request) -> Result<(), &'static str> {
                 _ => "running",
             };
             emit(
-                // `percent: null` = unknown total; the host shows bytes, not a number.
                 json!({"type":"progress","percent":p.percent_value(),"downloaded_bytes":p.downloaded_bytes,"total_bytes":p.total_bytes,"speed_bps":p.speed_bps,"eta_seconds":p.eta_seconds,"phase":phase}),
             )?;
         }
@@ -505,9 +472,6 @@ async fn run(r: Request) -> Result<(), &'static str> {
         Err(e) => engine_error(e),
     }
 }
-/// TikTok's native CDN variant is a single unsized URL downloaded as-is
-/// (ignores quality and audio mode). With an explicit policy use the adapter's
-/// yt-dlp branch on the page URL, where format selection exists.
 fn route_direct_to_engine(info: &mut MediaInfo, page_url: &str) -> bool {
     match info.available_qualities.as_mut_slice() {
         [q] if q.format == "tiktok_direct" => {
@@ -525,7 +489,6 @@ fn needs_in_process_extraction(info: &MediaInfo) -> bool {
         .iter()
         .any(|q| q.format == "tiktok_direct")
 }
-/// True only when every variant has a known height and all exceed the ceiling.
 fn exceeds_ceiling(info: &MediaInfo, ceiling: u32) -> bool {
     !info.available_qualities.is_empty()
         && info
@@ -533,14 +496,6 @@ fn exceeds_ceiling(info: &MediaInfo, ceiling: u32) -> bool {
             .iter()
             .all(|q| q.height > 0 && q.height > ceiling)
 }
-/// Chooses the native media before any byte moves (benchmark 26/09, round 1:
-/// Bluesky's original blob, Pinterest's portrait `720p` MP4 and a Twitch clip's
-/// first variant were 1080-1920 px tall and refused after the transfer).
-/// Native variants of known height within the ceiling win, best first. With
-/// none, variants known to exceed are dropped; if the adapter offered a yt-dlp
-/// alternative on the page URL it replaces the unsized native ones, so the
-/// strict `ceiling_selector` applies. Unsized native variants without that
-/// alternative stay (Bluesky HLS picks its variant by the ceiling itself).
 fn fit_ceiling(info: &mut MediaInfo, ceiling: u32) {
     if info.media_type != MediaType::Video {
         return;
@@ -561,11 +516,6 @@ fn fit_ceiling(info: &mut MediaInfo, ceiling: u32) {
         q.retain(|v| v.format == "ytdlp");
     }
 }
-/// yt-dlp-backed variants without sizes: the platform adapter does not apply
-/// the quality option, so the worker passes a strict ceiling selector with no
-/// unconstrained fallback. Strict `<=` (not `<=?`): a format of unknown height
-/// cannot prove the ceiling (TikTok's height-less "download" format is 960 px
-/// tall), so yt-dlp refuses with "Requested format is not available".
 fn unsized_ytdlp(info: &MediaInfo) -> bool {
     !info.available_qualities.is_empty()
         && info
@@ -573,13 +523,6 @@ fn unsized_ytdlp(info: &MediaInfo) -> bool {
             .iter()
             .all(|q| q.format == "ytdlp" && q.height == 0)
 }
-/// Known heights within the ceiling first, then formats that do not state a
-/// height (clips, Spaces, many TikTok/Instagram variants), then audio alone
-/// for audio-only sources. yt-dlp's strict `<=` drops height-less formats, so
-/// those sources always failed with "Requested format is not available"
-/// (benchmark 26/09, 10 of 51 cases). The ceiling is still enforced: the host
-/// probes the finished file (`artifact_validation::check_height`) and refuses
-/// a video stream above it.
 fn ceiling_selector(ceiling: u32, ffmpeg: bool) -> String {
     if ffmpeg {
         format!("bv*[height<={ceiling}]+ba/b[height<={ceiling}]/bv*[height<=?{ceiling}]+ba/b[height<=?{ceiling}]/ba")
@@ -594,19 +537,12 @@ fn engine_error(error: anyhow::Error) -> Result<(), &'static str> {
     let retry_after_seconds = rate_limit.and_then(|e| e.retry_after_seconds);
     let raw = format!("{error:#}");
     let (code, category, message) = classify(&raw, rate_limit.is_some());
-    // Operator-only evidence: the host redacts it and writes it to the local
-    // app log, never to MCP results, the journal or the UI. Without it an
-    // ENGINE_FAILED could not be diagnosed at all (benchmark 26/09).
     let _ = emit(diagnostic_event(code, &raw));
-    // Classifier returns fixed categories/hints, never the input error text.
     let _ = emit(
         json!({"type":"result","version":1,"success":false,"code":code,"category":category,"message":message,"retry_after_seconds":retry_after_seconds,"raw_error_omitted":true}),
     );
     Err("ENGINE_FAILED_REPORTED")
 }
-/// Fixed (code, category, message) for a raw engine error. Specific platform
-/// statements win over the generic classifier, whose bare "429"/"not found"
-/// substrings match IDs and URLs (bench D4: a TikTok IP block labelled 429).
 fn classify(raw: &str, rate_limit_error: bool) -> (&'static str, &'static str, &'static str) {
     let lower = raw.to_ascii_lowercase();
     if raw.contains("WORKER_DEPENDENCY_UNAVAILABLE") {
@@ -654,8 +590,6 @@ fn classify(raw: &str, rate_limit_error: bool) -> (&'static str, &'static str, &
             "Too many requests. Try again in a few minutes.",
         );
     }
-    // Map the generic category to fixed code/category/message; the
-    // classifier's own hint for "unknown" is the raw input and never leaves.
     match omniget_core::core::errors::classify_download_error(raw).0 {
         "auth_required" => (
             "AUTH_REQUIRED",
@@ -728,8 +662,6 @@ fn classify(raw: &str, rate_limit_error: bool) -> (&'static str, &'static str, &
             "server_error",
             "The server had a temporary error (HTTP 5xx).",
         ),
-        // Includes the generic "rate_limited": without explicit rate-limit
-        // evidence a bare "429"/"blocking" match is not proof of a 429.
         _ => (
             "ENGINE_FAILED",
             "unknown",

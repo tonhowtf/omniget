@@ -1,13 +1,3 @@
-//! OmniGet's own observation hook (plan §5.3, F5): an opt-in hook component,
-//! generated per tool, whose command is `omniget-hook-shim --observe`. The shim
-//! posts every event to `POST /v1/observe/<tool>` on the local bridge with a
-//! bearer of its own per tool, and on a permission request waits for the owner
-//! to answer in the pet/UI (nobody answering = the tool asks as usual).
-//!
-//! It is an ordinary hook component, so it goes through the same plan/apply/
-//! uninstall as the catalog, and through the same dialect converters (the shim
-//! of the tool's dialect wraps the observe command).
-
 use std::collections::BTreeMap;
 use std::path::Path;
 
@@ -16,8 +6,6 @@ use serde_json::Value;
 use super::hook_shim::{read_token, tokens_path};
 use crate::core::agentkit::{AgentkitError, Env, Result};
 
-/// Forgets the token of `tool` (the observe hook, if still installed, stops
-/// being accepted by the bridge).
 pub fn revoke_token(env: &Env, tool: &str) -> Result<bool> {
     let path = tokens_path(&env.app_data);
     let mut all: BTreeMap<String, Value> = match std::fs::read(&path) {
@@ -31,7 +19,6 @@ pub fn revoke_token(env: &Env, tool: &str) -> Result<bool> {
     Ok(had)
 }
 
-/// Constant-time check of a bearer against the stored token of `tool`.
 pub fn check_token(data_dir: &Path, tool: &str, provided: &str) -> bool {
     let Some(expected) = read_token(data_dir, tool) else {
         return false;

@@ -1,11 +1,3 @@
-//! Working / waiting / done per ring.
-//!
-//! Two sources, both already in the app: the bus, for OmniGet's own agents
-//! (they all share the `omniget` ring), and the mtime of the session logs of
-//! a coding CLI running in a terminal (`cli_usage::activity::poll`, which
-//! never opens a log). A log cannot say "waiting", so an outside CLI is only
-//! ever working or done.
-
 use omniget_core::core::llm::cli_usage::activity::Active;
 use omniget_core::core::omni::bus::BusEvent;
 use serde::Serialize;
@@ -13,9 +5,7 @@ use std::collections::{HashMap, HashSet};
 
 use super::providers::OMNIGET_ID;
 
-/// How long "done" stays lit before the dot goes away.
 pub const DONE_MS: i64 = 60_000;
-/// How far back `cli_usage::activity::poll` looks for a fresh log.
 pub const EXTERNAL_WINDOW_SECS: u64 = 20;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Default)]
@@ -28,7 +18,6 @@ pub enum Activity {
     Done,
 }
 
-/// The ring a CLI seen by `cli_usage::activity` belongs to.
 pub fn ring_of_cli(cli: &str) -> Option<&'static str> {
     match cli {
         "Claude Code" => Some("claude"),
@@ -39,7 +28,6 @@ pub fn ring_of_cli(cli: &str) -> Option<&'static str> {
 
 #[derive(Debug, Default)]
 pub struct Tracker {
-    /// OmniGet agents with a turn alive, and those stopped at a permission.
     running: HashSet<String>,
     asking: HashSet<String>,
     external: HashSet<&'static str>,
@@ -70,8 +58,6 @@ impl Tracker {
         }
     }
 
-    /// The CLIs whose log moved in the last poll. One that was there and is
-    /// not any more has finished.
     pub fn note_external(&mut self, active: &[Active], now_ms: i64) {
         let seen: HashSet<&'static str> =
             active.iter().filter_map(|a| ring_of_cli(a.cli)).collect();

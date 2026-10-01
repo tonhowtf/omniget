@@ -1,4 +1,3 @@
-//! Portable production bundle made only from authorized immutable snapshots.
 use crate::mcp::{
     artifacts,
     policy::{self, Principal},

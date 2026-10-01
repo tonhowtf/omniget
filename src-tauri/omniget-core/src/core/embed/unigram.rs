@@ -1,21 +1,3 @@
-//! SentencePiece Unigram tokenizer, read from a HuggingFace `tokenizer.json`
-//! (the XLM-RoBERTa one that `multilingual-e5-small` and the mMiniLM
-//! reranker share). Written here, like the WordPiece one, instead of pulling
-//! the `tokenizers` crate: the pipeline is short and the fixtures in
-//! `tests/embed_fixtures/xlmr_ids.json` (recorded with `tokenizers` 0.23)
-//! pin it id for id.
-//!
-//! Pipeline, as `tokenizers` runs it for XLM-R:
-//! 1. `Precompiled` normalizer: SentencePiece's `nmt_nfkc` rules, stored as a
-//!    darts-clone double-array trie plus a blob of replacement strings; each
-//!    grapheme (or, failing that, each char) is looked up and replaced;
-//! 2. runs of two or more spaces become one;
-//! 3. `Metaspace`: spaces become `▁`, a `▁` is prepended, and the text is
-//!    split before every `▁`;
-//! 4. Viterbi over the vocabulary's log-probabilities per piece; a char no
-//!    piece covers becomes `<unk>` (consecutive unknowns fuse into one);
-//! 5. `<s> A </s>` or `<s> A </s></s> B </s>`.
-
 use std::collections::HashMap;
 
 use base64::Engine;
@@ -27,7 +9,6 @@ use super::tokenizer::Encoding;
 pub const BOS: u32 = 0;
 pub const PAD: u32 = 1;
 pub const EOS: u32 = 2;
-/// Penalty `tokenizers` gives an unknown piece below the lowest score.
 const UNK_PENALTY: f64 = 10.0;
 
 #[derive(Debug)]
@@ -38,8 +19,6 @@ impl std::fmt::Display for UnigramError {
         f.write_str(&self.0)
     }
 }
-
-// ── Precompiled charsmap (darts-clone double array) ──────────────────────
 
 struct Charsmap {
     units: Vec<u32>,
@@ -91,8 +70,6 @@ impl Charsmap {
         out
     }
 
-    /// The replacement for `chunk`, if the rules have one. Like
-    /// `spm_precompiled`, the first (shortest) prefix match wins.
     fn transform(&self, chunk: &str) -> Option<&str> {
         let first = *self.prefixes(chunk.as_bytes()).first()? as usize;
         let end = self.normalized[first..]
@@ -124,8 +101,6 @@ impl Charsmap {
     }
 }
 
-// ── Vocabulary trie (byte-keyed) ─────────────────────────────────────────
-
 #[derive(Default)]
 struct Node {
     next: HashMap<u8, usize>,
@@ -141,8 +116,6 @@ pub struct Unigram {
 }
 
 impl Unigram {
-    /// Reads `tokenizer.json`. Only the Unigram model, the `Precompiled`
-    /// normalizer and `Metaspace` are supported, which is what XLM-R uses.
     pub fn from_json(text: &str) -> Result<Self, UnigramError> {
         let v: Value =
             serde_json::from_str(text).map_err(|e| UnigramError(format!("tokenizer.json: {e}")))?;
@@ -164,7 +137,6 @@ impl Unigram {
             if score < min {
                 min = score;
             }
-            // Special pieces (<s>, </s>…) are never produced from text.
             if piece.is_empty() || (piece.starts_with('<') && piece.ends_with('>')) {
                 continue;
             }
@@ -202,7 +174,6 @@ impl Unigram {
             Some(c) => c.normalize(text),
             None => text.to_string(),
         };
-        // " {2,}" → " "
         let mut out = String::with_capacity(n.len());
         let mut last_space = false;
         for ch in n.chars() {
@@ -219,11 +190,9 @@ impl Unigram {
         out
     }
 
-    /// Viterbi over one `▁`-prefixed word.
     fn word(&self, w: &str, out: &mut Vec<u32>) {
         let bytes = w.as_bytes();
         let n = bytes.len();
-        // best[i] = (score, start, id) of the best path ending at byte i.
         let mut best: Vec<Option<(f64, usize, u32)>> = vec![None; n + 1];
         best[0] = Some((0.0, 0, 0));
         let starts: Vec<usize> = w.char_indices().map(|(i, _)| i).collect();
@@ -265,7 +234,6 @@ impl Unigram {
             e = s;
         }
         ids.reverse();
-        // Fuse runs of <unk>.
         for id in ids {
             if id == self.unk_id && out.last() == Some(&self.unk_id) {
                 continue;
@@ -274,7 +242,6 @@ impl Unigram {
         }
     }
 
-    /// Piece ids of `text`, without special tokens.
     pub fn pieces(&self, text: &str) -> Vec<u32> {
         let norm = self.normalize(text);
         if norm.is_empty() {
@@ -307,7 +274,6 @@ impl Unigram {
         }
     }
 
-    /// `<s> text </s>`, truncated to `max_len` tokens.
     pub fn encode(&self, text: &str, max_len: usize) -> Encoding {
         let mut p = self.pieces(text);
         p.truncate(max_len.saturating_sub(2));
@@ -318,7 +284,6 @@ impl Unigram {
         Self::finish(ids)
     }
 
-    /// `<s> a </s></s> b </s>`, truncating the longer side first.
     pub fn encode_pair(&self, a: &str, b: &str, max_len: usize) -> Encoding {
         let mut pa = self.pieces(a);
         let mut pb = self.pieces(b);
@@ -341,7 +306,6 @@ impl Unigram {
     }
 }
 
-/// Pads a batch to its longest row with `<pad>` and a zero mask.
 pub fn pad(mut batch: Vec<Encoding>) -> Vec<Encoding> {
     let width = batch.iter().map(|e| e.ids.len()).max().unwrap_or(0);
     for e in &mut batch {

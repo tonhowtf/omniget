@@ -1,11 +1,3 @@
-//! Add-ons of the open Stremio protocol (JSON over HTTP), installed by the
-//! user from a manifest URL. None ship with the app.
-//!
-//! The source policy lives in the core (`stremio::classify_from`): only
-//! http(s) URLs and YouTube ids play, `externalUrl` opens in the browser,
-//! and torrent, usenet, archives and `p2p` add-ons are refused. Refused
-//! streams are not even listed.
-
 use std::collections::HashMap;
 use std::sync::{Mutex, OnceLock};
 use std::time::Duration;
@@ -23,8 +15,6 @@ use super::{server, PlayMode, PlaybackInfo, SourceRef, SubtitleTrack};
 const CALL_LIMIT: Duration = Duration::from_secs(12);
 const MAX_BODY: usize = 4 * 1024 * 1024;
 const MAX_SUB_BYTES: usize = 2 * 1024 * 1024;
-
-// ---------- DTOs ----------
 
 #[derive(Serialize, Clone, Debug)]
 pub struct AddonExtra {
@@ -90,13 +80,10 @@ pub struct AddonStream {
     pub index: i64,
     pub name: String,
     pub title: String,
-    /// "url" | "youtube" | "external"
     pub kind: String,
     pub url: String,
     pub playable: bool,
 }
-
-// ---------- installed add-ons ----------
 
 struct Addon {
     row: SourceRow,
@@ -186,8 +173,6 @@ async fn fetch<T: serde::de::DeserializeOwned>(url: &str) -> Result<T, String> {
         .map_err(|_| "The add-on answered in an unknown format".to_string())
 }
 
-// ---------- commands: install ----------
-
 #[tauri::command]
 pub async fn video_addon_install(manifest_url: String) -> Result<AddonInfo, String> {
     let url = stremio::normalize_manifest_url(&manifest_url);
@@ -236,8 +221,6 @@ pub async fn video_addon_remove(id: i64) -> Result<(), String> {
     sources::get_kind(id, "addon")?;
     sources::video_source_remove(id).await
 }
-
-// ---------- commands: browse ----------
 
 fn meta_of(addon: i64, m: stremio::MetaPreview) -> AddonMeta {
     AddonMeta {
@@ -333,7 +316,6 @@ pub async fn video_addon_meta(r#type: String, id: String) -> Result<AddonMeta, S
             (aid, r)
         }
     });
-    // Parallel, but the first add-on in the user's order wins.
     let mut last_err = None;
     for (aid, r) in futures::future::join_all(calls).await {
         match r {
@@ -355,11 +337,6 @@ pub async fn video_addon_meta(r#type: String, id: String) -> Result<AddonMeta, S
     Err(last_err.unwrap_or_else(|| "No add-on has details for this".into()))
 }
 
-// ---------- streams ----------
-
-/// The raw streams of the last lookups, so playing one can read its headers
-/// and subtitles without asking the add-on again.
-/// (add-on, type, id) -> streams.
 type StreamCache = Mutex<HashMap<(i64, String, String), Vec<stremio::Stream>>>;
 
 fn stream_cache() -> &'static StreamCache {
@@ -432,8 +409,6 @@ pub async fn video_addon_streams(r#type: String, id: String) -> Result<Vec<Addon
     Ok(out)
 }
 
-/// Converts a stream's subtitle to WebVTT inline (`data:`), since the player
-/// server only converts files it knows.
 async fn subtitle_track(n: usize, s: &stremio::Subtitle) -> Option<SubtitleTrack> {
     let resp = sources::http()
         .get(&s.url)
@@ -501,7 +476,6 @@ async fn play_stream(
     };
     let a = load(stream.addon)?;
     let raw = raw_stream(&a, typ, id, stream.index).await?;
-    // Re-apply the policy on the stored stream, not on what the page sent.
     let kind = stremio::classify_from(&a.manifest, &raw);
     let mut info = match kind {
         stremio::StreamKind::External(_) => return Err("This one opens in the browser".into()),
@@ -581,9 +555,6 @@ pub async fn video_addon_play(
     play_stream(&app, &stream, &r#type, &id, &title).await
 }
 
-/// Plays an add-on item again from a `SourceRef` (Continue, cast): asks the
-/// same add-on for streams and takes the remembered one, or the first that
-/// plays.
 pub async fn replay(
     app: &AppHandle,
     addon: i64,

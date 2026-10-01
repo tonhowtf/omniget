@@ -1,18 +1,4 @@
 //! Privacy items compiled from privacy.sexy (AGPL-3.0, embedded intact in
-//! `data/washmybelly/privacy-sexy/`), with the state of each item read from
-//! the system, a snapshot before every change and a real undo; the macOS
-//! privacy permissions (TCC) live in [`tcc`].
-//!
-//! - [`compiler`]: the privacy.sexy template and function-call compiler.
-//! - [`catalog`]: items of the three systems as typed facts (registry
-//!   values, services, tasks, `defaults`, systemd units, Firefox prefs...),
-//!   minus the left-out list (Defender, CPU mitigations...).
-//! - [`state`]: what each fact reads as right now.
-//! - [`exec`]: one item at a time through typed steps; free-form code is
-//!   never run (`code_only`: the screen offers "copy").
-//!
-//! AGPL obligation: the catalog answer and `wmb_capabilities` carry the
-//! link to the source, since the MCP can serve this output over a network.
 
 pub mod catalog;
 pub mod compiler;
@@ -32,7 +18,6 @@ use super::startup::{RealSys, Sys};
 use super::store::Ctx;
 use super::{current_os, Os, Risk};
 
-/// Plan kind of privacy items (shared with the TCC list).
 pub const PLAN_KIND: &str = "privacy";
 pub const LICENSE: &str = "AGPL-3.0";
 
@@ -45,7 +30,6 @@ fn source_of(a: &Value) -> Source {
     }
 }
 
-/// First paragraph of the docs, for lists (the screen asks `details` for the rest).
 fn short_docs(d: &str, max: usize) -> String {
     let first = d
         .split("\n\n")
@@ -91,8 +75,6 @@ fn in_preset(it: &Item, preset: &str) -> bool {
     )
 }
 
-/// Read every item, register the plan candidates, offer agents a plan with
-/// the preset, and leave the pending count for the health score.
 pub fn catalog_and_offer(
     ctx: &Ctx,
     sys: &dyn Sys,
@@ -172,7 +154,6 @@ pub fn catalog_and_offer(
             Some(c) => c.1 += 1,
             None => categories.push((it.top().to_string(), 1)),
         }
-        // A setting whose state cannot be read stays disabled (never guess).
         let unreadable_setting = !it.cleanup && matches!(st, ItemState::Unknown(_));
         let can_apply = here && executable && !unreadable_setting && *st != ItemState::Applied;
         let can_default = here && !unreadable_setting && it.default_parts().is_some();
@@ -211,7 +192,6 @@ pub fn catalog_and_offer(
             "category": it.category(),
             "path": it.path,
             "top": it.top(),
-            // Agents get a shorter summary: a whole catalog must fit a context.
             "docs": short_docs(&it.docs, if include_code { 400 } else { 160 }),
             "recommend": it.recommend,
             "risk": risk,
@@ -301,9 +281,6 @@ pub async fn tool_catalog(a: Value) -> Result<Value, String> {
     .await
 }
 
-// ── Executing ─────────────────────────────────────────────────────────
-
-/// The item behind a plan argument, only for this system.
 fn item_of(args: &Value, os: Os) -> Result<&'static Item, String> {
     let id = args
         .get("id")
@@ -314,9 +291,6 @@ fn item_of(args: &Value, os: Os) -> Result<&'static Item, String> {
         .ok_or_else(|| format!("privacy: unknown item {id}"))
 }
 
-/// Snapshot, then run the person's steps; returns the helper's operations.
-/// `preview` builds the operations without running or saving anything
-/// (the "copy command" view of the plan).
 #[allow(clippy::too_many_arguments)]
 pub fn execute_item(
     ctx: &Ctx,
@@ -381,10 +355,8 @@ pub fn execute_item(
     ))
 }
 
-/// Runs a batch through the administrator helper (tests pass a fake).
 pub type Elevate<'a> = &'a dyn Fn(&[ElevatedOp]) -> Result<Vec<OpResult>, String>;
 
-/// Restore a snapshot: the person's steps here, the rest through the helper.
 pub fn restore(
     ctx: &Ctx,
     sys: &dyn Sys,
@@ -408,8 +380,6 @@ pub fn restore(
         if n + ops.len() == 1 { "" } else { "s" }
     ))
 }
-
-// ── Plan hooks (called by `plan::execute` for `Op::Module { module: "privacy" }`) ──
 
 pub fn plan_execute(
     ctx: &Ctx,
@@ -443,8 +413,6 @@ pub fn plan_elevated(
 ) -> Result<(Vec<ElevatedOp>, Option<Undo>), String> {
     let act = Action::parse(action)?;
     let it = item_of(args, current_os())?;
-    // `plan::copy_commands` asks with a throwaway state folder and this id:
-    // nothing may run then.
     let preview = receipt_id == "preview";
     let (o, ops) = execute_item(
         ctx,
@@ -472,12 +440,9 @@ pub fn plan_undo(ctx: &Ctx, action: &str, args: &Value) -> Result<String, String
     })
 }
 
-/// Actions only the screen may run (`washmybelly_ui` with `privacy.<action>`):
-/// never exposed as MCP tools.
 pub async fn ui_action(action: &str, a: Value) -> Result<Value, String> {
     match action {
         "tcc_list" => tcc::tcc_list(a).await,
-        // Full docs, the compiled code and revert code, and what we would run.
         "details" => super::tools::blocking(move || details(&a)).await,
         other => Err(format!("privacy: unknown screen action {other}")),
     }

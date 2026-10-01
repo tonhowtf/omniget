@@ -1,13 +1,3 @@
-//! Loopback SOCKS5 server the MTProto client connects to.
-//!
-//! grammers only knows plain TCP or a SOCKS5 proxy, and always speaks the
-//! unobfuscated `Full` transport. Pointing it at this bridge gives it every
-//! route we support without forking it: the bridge reads the DC from the
-//! CONNECT address, opens a packet connection through the best working route
-//! (obfuscated2, MTProto proxy with fake TLS, Shadowsocks, Trojan, a local
-//! Clash…) and converts `Full` frames to and from packets. When a route
-//! fails, the next CONNECT simply goes out through the next one.
-
 use std::net::{IpAddr, SocketAddr};
 use std::sync::Arc;
 
@@ -20,11 +10,8 @@ use super::route::Route;
 use super::{dc, packets, NetOpts};
 
 pub trait RouteProvider: Send + Sync + 'static {
-    /// Routes to try for a new connection, best first.
     fn routes(&self) -> Vec<Route>;
     fn opts(&self) -> NetOpts;
-    /// Outcome of a dial, so the provider can demote failing routes and
-    /// switch automatically.
     fn report(&self, route_id: &str, ok: bool, error: Option<String>);
 }
 
@@ -36,7 +23,6 @@ pub struct Bridge {
 }
 
 impl Bridge {
-    /// The proxy URL handed to grammers.
     pub fn url(&self) -> String {
         format!(
             "socks5://{}:{}@127.0.0.1:{}",
@@ -178,8 +164,6 @@ async fn socks_handshake(
     Ok(SocketAddr::new(ip, u16::from_be_bytes(port)))
 }
 
-/// `Full` transport: `len(4) seq(4) payload crc32(4)`, len counting all
-/// twelve header/trailer bytes.
 async fn pump_full(sock: TcpStream, conn: packets::PacketConn) -> anyhow::Result<()> {
     let packets::PacketConn { tx, mut rx } = conn;
     let (mut r, mut w) = sock.into_split();

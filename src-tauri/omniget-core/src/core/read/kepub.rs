@@ -1,13 +1,6 @@
-//! EPUB to Kobo EPUB (kepub), the job kepubify does: every sentence gets a
-//! `koboSpan` so the Kobo reader can paginate, count reading stats and keep
-//! highlights, and the body is wrapped in the `book-columns`/`book-inner`
-//! divs its renderer expects. Everything but the content documents is copied
-//! byte for byte.
-
 use std::io::{Read, Write};
 use std::path::Path;
 
-/// Tags that start a new paragraph number in the span ids.
 const BLOCKS: &[&str] = &[
     "p",
     "div",
@@ -31,7 +24,6 @@ const BLOCKS: &[&str] = &[
     "aside",
 ];
 
-/// Text inside these is left alone.
 const SKIP: &[&str] = &["script", "style", "svg", "math", "head", "title"];
 
 const STYLE: &str = "<style type=\"text/css\" class=\"kobostylehacks\">div#book-inner { margin-top: 0; margin-bottom: 0; }</style>";
@@ -41,8 +33,6 @@ fn is_content(name: &str) -> bool {
     n.ends_with(".xhtml") || n.ends_with(".html") || n.ends_with(".htm")
 }
 
-/// Splits after sentence punctuation that is followed by whitespace; the
-/// whitespace stays with the sentence it ends.
 fn sentences(text: &str) -> Vec<&str> {
     let mut out = Vec::new();
     let mut start = 0;
@@ -87,8 +77,6 @@ fn tag_name(tag: &str) -> (bool, String) {
     (closing, name.to_ascii_lowercase())
 }
 
-/// Adds the Kobo spans and wrappers to one XHTML document. Documents that
-/// already have them, or have no body, come back unchanged.
 pub fn kepubify_html(doc: &str) -> String {
     if doc.contains("koboSpan") {
         return doc.to_string();
@@ -166,7 +154,6 @@ pub fn kepubify_html(doc: &str) -> String {
     )
 }
 
-/// Writes `out` as the kepub of the EPUB at `input`.
 pub fn convert(input: &Path, out: &Path) -> Result<(), String> {
     let file = std::fs::File::open(input).map_err(|e| e.to_string())?;
     let mut zin = zip::ZipArchive::new(file).map_err(|e| e.to_string())?;

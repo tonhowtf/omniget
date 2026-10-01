@@ -1,8 +1,3 @@
-//! Test driver, off unless the process starts with `OMNIGET_TEST_DRIVER=1`.
-//! `POST /v1/debug/eval` (header `x-window`, default `main`) runs the body as an async JS function in
-//! that window and answers with what it returned. Benchmarks use it to click
-//! through the real UI without taking the user's mouse.
-
 use std::collections::HashMap;
 use std::sync::{Mutex, OnceLock};
 use std::time::Duration;
@@ -86,7 +81,6 @@ where
     )
 }
 
-/// Development-only capture probe. No caller-controlled output path.
 #[tauri::command]
 pub async fn debug_native_snapshot(window: tauri::WebviewWindow) -> Result<String, String> {
     if !enabled() {

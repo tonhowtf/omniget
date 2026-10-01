@@ -1,17 +1,3 @@
-//! Host side of the threads engine (plan §3.1–3.3): the engine as a lazily
-//! opened singleton, the reactors that turn "requested" events into driver
-//! calls, the runtime ingestion (50 ms delta coalescing → persisted events),
-//! the `threads://event` fan-out, the boot reconcile, the C-5 migration and
-//! the `native` driver over the `LlmManager`.
-//!
-//! Nothing runs at rest: the first `threads_*` command opens the engine; the
-//! tasks it spawns only wake on events.
-//!
-//! Round 2 glue (T2/T7/T8): [`ThreadGit`] (worktree per thread, checkpoint per
-//! turn, diff, revert, git actions) runs next to the reactor and is awaited
-//! before every `start_turn`; turns without a price get one from the price
-//! table; `account.rate-limits.updated` feeds [`LimitsBook`].
-
 pub mod cheap;
 pub mod limits;
 pub mod native;
@@ -34,14 +20,11 @@ use tauri::{AppHandle, Emitter, Manager};
 use tokio::sync::mpsc;
 
 pub const EVENT_THREADS: &str = "threads://event";
-/// Request ids of the owner asks the embedded MCP raises in a thread
-/// (`catalog_install`); their answers go to the broker, not to the driver.
 pub const MCP_ASK_PREFIX: &str = "omniget-mcp-ask-";
 pub const ERR_THREADS_HOST: &str = "ERR_THREADS_HOST";
 
 static HOST: OnceLock<Arc<ThreadsHost>> = OnceLock::new();
 
-/// One instance as the UI lists it.
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct InstanceView {
@@ -55,42 +38,21 @@ pub struct InstanceView {
 
 pub struct ThreadsHost {
     pub engine: Arc<ThreadsEngine>,
-    /// Worktree, checkpoints, diff, revert and git actions of the threads.
     pub git: Arc<ThreadGit>,
-    /// Live rate limits per instance (`account.rate-limits.updated`).
     pub limits: LimitsBook,
     app: AppHandle,
     sink: RuntimeSink,
     drivers: Mutex<HashMap<String, Arc<dyn Driver>>>,
-    /// Threads whose driver session was started in this process, with the
-    /// cwd it was started in (a re-created worktree restarts the session).
     sessions: Mutex<HashMap<String, Option<PathBuf>>>,
 }
 
-/// The CLI drivers of round 2 (each `register()` is idempotent and only
-/// stores a factory: no process starts until a thread opens a session).
-/// Called once, from [`get`].
 pub fn register_all_drivers(_app: &AppHandle) {
-    // `native` is registered in `get` (it needs the LlmManager).
-    //
-    // c1-claude (`claude -p --input-format stream-json`, one process per
-    // thread; handoff c1-claude.json). Idempotent.
     omniget_core::core::llm::drivers::claude::register();
-    // c2-codex (`codex app-server` JSON-RPC; handoff c2-codex.json).
-    // Instances come from accounts.json. Idempotent.
     omniget_core::core::llm::drivers::codex::register();
-    // c3-acp (handoff c3-acp.json): generic ACP v0.11 (gemini, qwen,
-    // cursor, grok, kimi, droid, copilot, goose, junie, auggie, vibe, kiro,
-    // cline, kilo) and `opencode serve` (HTTP + SSE). Their machine
-    // instances are listed in `ThreadsHost::instances`.
     omniget_core::core::llm::drivers::acp::register();
     omniget_core::core::llm::drivers::opencode::register();
 }
 
-/// The embedded OmniGet MCP for every CLI driver session (plan §3.2): ACP
-/// and OpenCode read it through `acp::mcp_servers_for`, Claude writes it to
-/// its `--mcp-config`, Codex to `-c mcp_servers.omniget.*`. Each call mints
-/// a session token for that thread; stopping the session revokes it.
 fn install_mcp_provider(app: &AppHandle) {
     let app = app.clone();
     omniget_core::core::llm::drivers::acp::set_mcp_provider(Some(Arc::new(
@@ -100,7 +62,6 @@ fn install_mcp_provider(app: &AppHandle) {
     )));
 }
 
-/// The owner ask of an MCP tool as an approval card in the thread.
 #[allow(clippy::too_many_arguments)]
 pub fn mcp_ask_opened(
     app: &AppHandle,
@@ -158,7 +119,6 @@ pub fn mcp_ask_opened(
     );
 }
 
-/// Closes the card, whoever answered (thread, pet, chat) or on timeout.
 pub fn mcp_ask_resolved(_app: &AppHandle, thread_id: &str, request_id: &str, allowed: bool) {
     let Some(host) = HOST.get() else { return };
     let _ = host.sink.send(
@@ -181,9 +141,6 @@ pub fn mcp_ask_resolved(_app: &AppHandle, thread_id: &str, request_id: &str, all
     );
 }
 
-/// The one host. The first caller opens `<app_data>/llm/threads.db`,
-/// registers the `native` driver, starts the tasks, reconciles turns a crash
-/// left running and imports the old conversations.
 pub fn get(app: &AppHandle) -> Result<Arc<ThreadsHost>, String> {
     if let Some(h) = HOST.get() {
         return Ok(h.clone());
@@ -233,13 +190,11 @@ pub fn get(app: &AppHandle) -> Result<Arc<ThreadsHost>, String> {
         sessions: Mutex::new(HashMap::new()),
     });
     if HOST.set(host.clone()).is_err() {
-        // Lost a race with another first caller: use theirs.
         return HOST
             .get()
             .cloned()
             .ok_or_else(|| format!("{ERR_THREADS_HOST}: init race"));
     }
-    // Subscribed before anything can dispatch.
     spawn_fanout(app.clone(), engine.subscribe());
     spawn_reactor(host.clone(), engine.subscribe());
     tauri::async_runtime::spawn(host.git.clone().run(engine.subscribe()));
@@ -248,9 +203,6 @@ pub fn get(app: &AppHandle) -> Result<Arc<ThreadsHost>, String> {
     Ok(host)
 }
 
-/// App exit: stops every driver session this process started (the CLI
-/// supervisors kill their process trees on stop) and revokes their MCP
-/// tokens. Does nothing when no thread command ever opened the host.
 pub async fn shutdown() {
     let Some(host) = HOST.get().cloned() else {
         return;
@@ -271,8 +223,6 @@ pub async fn shutdown() {
     }
 }
 
-// ── Fan-out ─────────────────────────────────────────────────────────────
-
 #[derive(Serialize, Clone)]
 struct Envelope<'a> {
     sequence: i64,
@@ -292,7 +242,6 @@ fn spawn_fanout(app: AppHandle, mut rx: tokio::sync::broadcast::Receiver<StoredE
                         },
                     );
                 }
-                // The front notices the gap in `sequence` and replays.
                 Err(tokio::sync::broadcast::error::RecvError::Lagged(n)) => {
                     tracing::debug!("[threads] fan-out lagged by {n}");
                 }
@@ -301,8 +250,6 @@ fn spawn_fanout(app: AppHandle, mut rx: tokio::sync::broadcast::Receiver<StoredE
         }
     });
 }
-
-// ── Ingestion ───────────────────────────────────────────────────────────
 
 fn spawn_ingestion(host: Arc<ThreadsHost>, mut rx: mpsc::UnboundedReceiver<RuntimeEvent>) {
     tauri::async_runtime::spawn(async move {
@@ -321,7 +268,6 @@ fn spawn_ingestion(host: Arc<ThreadsHost>, mut rx: mpsc::UnboundedReceiver<Runti
             };
             let out = match next {
                 None => {
-                    // Every sender is gone: flush and stop.
                     let rest = coalescer.take();
                     for ev in rest {
                         host.persist(ev).await;
@@ -339,7 +285,6 @@ fn spawn_ingestion(host: Arc<ThreadsHost>, mut rx: mpsc::UnboundedReceiver<Runti
 }
 
 impl ThreadsHost {
-    /// One runtime event → one idempotent command (`provider:<eventId>`).
     async fn persist(&self, ev: RuntimeEvent) {
         self.mirror_to_bus(&ev);
         self.limits.note(&ev);
@@ -352,9 +297,6 @@ impl ThreadsHost {
         }
     }
 
-    /// CLI drivers do not go through the broker, so the mascot, the
-    /// observatory and the world hear about their work from here. The native
-    /// driver already emits on the bus itself.
     fn mirror_to_bus(&self, ev: &RuntimeEvent) {
         if ev.driver == native::NATIVE {
             return;
@@ -403,11 +345,7 @@ impl ThreadsHost {
     }
 }
 
-// ── Drivers and instances ───────────────────────────────────────────────
-
 impl ThreadsHost {
-    /// Native + every CLI account of `accounts.json` as an instance of its
-    /// driver. A driver nobody registered yet is listed as unavailable.
     pub fn instances(&self) -> Vec<InstanceView> {
         let mut out = Vec::new();
         let native = DriverInstance {
@@ -435,8 +373,6 @@ impl ThreadsHost {
                 out.push(view(inst));
             }
         }
-        // One instance per ACP agent this machine can start (`acp-<agent>`),
-        // and `opencode` when its binary exists.
         for inst in omniget_core::core::llm::drivers::acp::instances() {
             out.push(view(inst));
         }
@@ -445,8 +381,6 @@ impl ThreadsHost {
                 out.push(view(inst));
             }
         }
-        // Default instances of registered drivers without an account (an
-        // `acp` without a command fails in its factory with a clear reason).
         for kind in registered_drivers() {
             if !out.iter().any(|v| v.instance.driver == kind) {
                 let label = driver_registration(&kind)
@@ -491,7 +425,6 @@ impl ThreadsHost {
         Ok(built)
     }
 
-    /// The driver of a thread as the projection has it now.
     fn thread_driver(
         &self,
         thread_id: &str,
@@ -521,7 +454,6 @@ impl ThreadsHost {
             .cloned();
         match known {
             Some(started_in) if started_in == cwd => return Ok(()),
-            // The folder moved (worktree re-created): a new session there.
             Some(_) => {
                 let _ = driver.stop(&row.thread_id).await;
                 self.forget_session(&row.thread_id);
@@ -565,8 +497,6 @@ impl ThreadsHost {
             .remove(thread_id);
     }
 
-    /// A driver call failed: say so in the thread and close what would
-    /// otherwise hang (the turn, the request).
     fn fail(&self, thread_id: &str, turn_id: Option<&str>, err: &DriverError, close_turn: bool) {
         let class = if err.code == ERR_DRIVER_UNAVAILABLE {
             ErrorClass::ValidationError
@@ -625,16 +555,12 @@ fn view(instance: DriverInstance) -> InstanceView {
     }
 }
 
-// ── Reactors ────────────────────────────────────────────────────────────
-
 fn spawn_reactor(host: Arc<ThreadsHost>, mut rx: tokio::sync::broadcast::Receiver<StoredEvent>) {
     tauri::async_runtime::spawn(async move {
         loop {
             match rx.recv().await {
                 Ok(ev) => {
                     let host = host.clone();
-                    // Each reaction on its own task: a slow `start_turn`
-                    // never holds an approval answer back.
                     tauri::async_runtime::spawn(async move { host.react(ev.event).await });
                 }
                 Err(tokio::sync::broadcast::error::RecvError::Lagged(n)) => {
@@ -668,9 +594,6 @@ impl ThreadsHost {
                     Ok(d) => d,
                     Err(e) => return self.fail(&thread_id, Some(&turn_id), &e, true),
                 };
-                // Worktree ready and checkpoint N-1 taken before the driver
-                // touches a file. A worktree that cannot be made fails the
-                // turn: it must not run in the user's own checkout instead.
                 let cwd = match self.git.before_turn(&thread_id, ordinal).await {
                     Ok(c) => c,
                     Err(e) => {
@@ -730,8 +653,6 @@ impl ThreadsHost {
                     Err(e) => Err(e),
                 };
                 if let Err(e) = result {
-                    // The harness that asked is gone (restart, crash): close
-                    // the request instead of leaving it answered-but-open.
                     let _ = self.sink.send(
                         RuntimeEvent::new(
                             "host",
@@ -780,8 +701,6 @@ impl ThreadsHost {
                 turn_count,
             } => {
                 if let Ok((d, row)) = self.thread_driver(&thread_id) {
-                    // Right after a restart the driver has no session for
-                    // the thread yet; open it (with its resume cursor) first.
                     let cwd = self.git.cwd_of_row(&row);
                     let _ = self.ensure_session(&d, &row, cwd).await;
                     if let Err(e) = d.rollback(&thread_id, turn_count).await {
@@ -797,7 +716,6 @@ impl ThreadsHost {
                 ..
             } => match self.driver_for(&instance_id, &driver) {
                 Ok(d) => {
-                    // The source's session must exist in the driver to fork.
                     if let Ok(Some(src)) =
                         self.engine.read(|c| store::thread_row(c, &from.thread_id))
                     {
@@ -823,8 +741,6 @@ impl ThreadsHost {
                 }
             }
             E::InstanceSet { thread_id, .. } => {
-                // The old harness session belongs to the old instance; the
-                // next turn opens a session on the new one.
                 let old: Vec<Arc<dyn Driver>> = self
                     .drivers
                     .lock()
@@ -852,7 +768,6 @@ impl ThreadsHost {
                 self.forget_session(&thread_id);
                 crate::mcp::revoke_thread(&thread_id);
             }
-            // A driver that reports tokens but no money: price the turn.
             E::TurnUsage {
                 thread_id,
                 turn_id,
@@ -892,11 +807,8 @@ impl ThreadsHost {
     }
 }
 
-// ── Boot: reconcile + C-5 ───────────────────────────────────────────────
-
 fn spawn_boot(host: Arc<ThreadsHost>, llm: Arc<crate::llm_manager::LlmManager>) {
     tauri::async_runtime::spawn(async move {
-        // Turns a crash left pending/running: nothing drives them any more.
         let dangling = host.engine.read(store::dangling_turns).unwrap_or_default();
         for (thread_id, turn_id) in dangling {
             let mut ev = RuntimeEvent::new(
@@ -918,7 +830,6 @@ fn spawn_boot(host: Arc<ThreadsHost>, llm: Arc<crate::llm_manager::LlmManager>) 
                 tracing::debug!("[threads] reconcile {turn_id}: {e}");
             }
         }
-        // C-5: the old chat conversations, once (idempotent per thread).
         let dir = llm.coordinator().dir().map(|d| d.to_path_buf());
         if let Some(dir) = dir {
             let engine = host.engine.clone();

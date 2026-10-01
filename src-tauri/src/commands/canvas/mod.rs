@@ -1,5 +1,3 @@
-//! Comandos Tauri do canvas.
-
 pub mod chat;
 pub mod clipboard;
 pub mod companion;

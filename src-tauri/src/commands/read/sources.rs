@@ -1,16 +1,3 @@
-//! Where books and series come from. One dispatch for every source kind:
-//!
-//! * built-in legal catalogs (Project Gutenberg, Standard Ebooks, Open
-//!   Library, MangaDex, MANGA Plus);
-//! * OPDS catalogs the user adds (Calibre-Web, Komga, Kavita, a friend's
-//!   OmniGet...), with Basic auth;
-//! * declarative sources from repositories the user adds;
-//! * the Suwayomi bridge, which exposes every Mihon extension the user
-//!   installed there.
-//!
-//! OmniGet ships no source for unlicensed content; the last two only run
-//! what the user brings.
-
 use rusqlite::params;
 use serde::{Deserialize, Serialize};
 
@@ -31,11 +18,8 @@ pub fn http() -> &'static reqwest::Client {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SourceInfo {
-    /// `gutenberg`, `standardebooks`, `openlibrary`, `mangadex`,
-    /// `mangaplus`, `opds:<id>`, `decl:<id>` or `suwa:<source id>`.
     pub id: String,
     pub name: String,
-    /// `book` or `manga`.
     pub kind: String,
     pub lang: String,
     pub icon: String,
@@ -150,7 +134,6 @@ fn catalog(id: i64) -> Result<Catalog, String> {
         .ok_or_else(|| "catalog not found".into())
 }
 
-/// Declarative sources installed from repositories, parsed.
 fn declarative_sources() -> Vec<(i64, DeclarativeSource)> {
     catalogs()
         .unwrap_or_default()
@@ -242,9 +225,7 @@ pub async fn read_sources() -> Result<Vec<SourceInfo>, String> {
 pub struct BrowseReq {
     pub source: String,
     pub query: String,
-    /// `popular`, `latest` or `search` (the default when a query is set).
     pub mode: String,
-    /// Opaque "next" cursor from a previous page (a URL for most sources).
     pub cursor: Option<String>,
     pub page: u32,
     pub lang: String,
@@ -372,7 +353,6 @@ pub async fn read_browse(req: BrowseReq) -> Result<Page, String> {
     }
 }
 
-/// Searches every enabled source of `kind` at once, a page each.
 #[tauri::command]
 pub async fn read_global_search(
     query: String,
@@ -412,8 +392,6 @@ pub async fn read_global_search(
         .flatten()
         .collect())
 }
-
-// ---------- OPDS ----------
 
 async fn opds_fetch(cat: &Catalog, url: &str) -> Result<OpdsFeed, String> {
     let mut req = http().get(url).header(
@@ -527,7 +505,6 @@ pub fn mime_to_format(m: &str) -> String {
     .to_string()
 }
 
-/// Opens a navigation link inside an OPDS catalog (folders, facets).
 #[tauri::command]
 pub async fn read_opds_open(source: String, url: String) -> Result<Page, String> {
     let id: i64 = source
@@ -539,8 +516,6 @@ pub async fn read_opds_open(source: String, url: String) -> Result<Page, String>
     Ok(opds_to_page(&feed, &source))
 }
 
-/// Download URL for a catalog file, with the catalog's credentials inlined
-/// for the download engine (Basic auth in the URL).
 #[tauri::command]
 pub async fn read_opds_download_url(source: String, url: String) -> Result<String, String> {
     let Some(id) = source
@@ -561,7 +536,6 @@ pub async fn read_opds_download_url(source: String, url: String) -> Result<Strin
 
 #[tauri::command]
 pub async fn read_catalogs() -> Result<Vec<Catalog>, String> {
-    // Passwords stay in Rust.
     Ok(blocking(catalogs)
         .await?
         .into_iter()
@@ -576,8 +550,6 @@ pub async fn read_catalogs() -> Result<Vec<Catalog>, String> {
         .collect())
 }
 
-/// Adds an OPDS catalog or connects the Suwayomi bridge. The catalog is
-/// fetched once first so a typo fails here, not later.
 #[tauri::command]
 pub async fn read_catalog_add(
     kind: String,
@@ -651,10 +623,6 @@ pub async fn read_catalog_toggle(id: i64, enabled: bool) -> Result<(), String> {
     .await
 }
 
-// ---------- declarative source repositories ----------
-
-/// Fetches a repository index (or a single source file) and installs every
-/// source in it, verifying each file's sha256.
 #[tauri::command]
 pub async fn read_repo_install(url: String) -> Result<Vec<String>, String> {
     let installed = declarative::fetch_repo(http(), url.trim()).await?;
@@ -664,7 +632,6 @@ pub async fn read_repo_install(url: String) -> Result<Vec<String>, String> {
         db::with_mut(|c| {
             let tx = c.transaction()?;
             for s in &installed {
-                // Replace an older version of the same source.
                 let like = format!("%\"id\":\"{}\"%", s.id.replace('"', ""));
                 tx.execute(
                     "DELETE FROM catalogs WHERE kind = 'declarative' AND config LIKE ?1",
@@ -683,8 +650,6 @@ pub async fn read_repo_install(url: String) -> Result<Vec<String>, String> {
     Ok(names)
 }
 
-/// Checks a declarative source end to end (search, details, chapters,
-/// pages) and reports which step broke; the health light in the UI.
 #[tauri::command]
 pub async fn read_source_test(source: String) -> Result<declarative::HealthReport, String> {
     let id: i64 = source
@@ -697,8 +662,6 @@ pub async fn read_source_test(source: String) -> Result<declarative::HealthRepor
         .ok_or("source not installed")?;
     Ok(declarative::health(http(), &s).await)
 }
-
-// ---------- series details, chapters, pages ----------
 
 #[derive(Debug, Serialize, Clone)]
 pub struct SeriesDetails {
@@ -790,8 +753,6 @@ pub fn proxied(info: &super::server::ServerInfo, p: &RemotePage) -> String {
     )
 }
 
-// ---------- metadata lookup ----------
-
 #[tauri::command]
 pub async fn read_meta_lookup(
     title: String,
@@ -811,8 +772,6 @@ pub async fn read_meta_lookup(
     Ok(out)
 }
 
-// ---------- Suwayomi extensions ----------
-
 #[tauri::command]
 pub async fn read_suwayomi_extensions() -> Result<Vec<serde_json::Value>, String> {
     suwayomi_conn()
@@ -821,7 +780,6 @@ pub async fn read_suwayomi_extensions() -> Result<Vec<serde_json::Value>, String
         .await
 }
 
-/// `action`: install, update or uninstall.
 #[tauri::command]
 pub async fn read_suwayomi_extension(pkg: String, action: String) -> Result<(), String> {
     suwayomi_conn()
@@ -830,7 +788,6 @@ pub async fn read_suwayomi_extension(pkg: String, action: String) -> Result<(), 
         .await
 }
 
-/// Adds a Mihon extension repository (index URL) to the Suwayomi server.
 #[tauri::command]
 pub async fn read_suwayomi_add_repo(url: String) -> Result<(), String> {
     suwayomi_conn()

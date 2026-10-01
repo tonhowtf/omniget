@@ -1,9 +1,3 @@
-//! A packet connection to one Telegram DC over any route. Callers send and
-//! receive whole MTProto payloads; underneath, every connection is
-//! obfuscated2 (direct connections too, since plain MTProto is trivial for
-//! DPI to spot), padded when the proxy asks for it, and wrapped in fake-TLS
-//! records for `ee` secrets.
-
 use std::time::Duration;
 
 use aes::cipher::StreamCipher;
@@ -164,9 +158,6 @@ fn spawn(
     }
 }
 
-/// Drops the random tail a padded-intermediate peer appends. MTProto
-/// payloads carry their own length: errors are 4 bytes, plaintext messages
-/// state it at offset 16, encrypted ones are 24 + a multiple of 16.
 pub fn unpad(p: &[u8]) -> &[u8] {
     if p.len() >= 20 && p[..8] == [0u8; 8] {
         let l = u32::from_le_bytes([p[16], p[17], p[18], p[19]]) as usize;

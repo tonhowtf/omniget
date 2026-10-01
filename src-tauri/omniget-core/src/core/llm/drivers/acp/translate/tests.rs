@@ -1,7 +1,3 @@
-//! Translator tests against real traffic recorded on 2026-09-22 (OpenCode
-//! 1.18.32 `opencode acp`, Gemini CLI 0.60.0 `gemini --acp`), paths
-//! anonymized.
-
 use super::*;
 use crate::core::llm::drivers::{RequestType, RuntimeEventKind, StreamKind};
 use serde_json::Value;
@@ -27,8 +23,6 @@ fn inbound(fixture: &str) -> Vec<Value> {
         .collect()
 }
 
-/// Run a recorded prompt through the translator; returns the emits and the
-/// prompt response.
 fn replay(fixture: &str) -> (Vec<Emit>, Value) {
     let prompt = lines(fixture)
         .into_iter()
@@ -76,7 +70,6 @@ fn text_turn_streams_reasoning_tool_and_answer() {
         text_of(&emits, StreamKind::AssistantText),
         "\n\nhello from fixture"
     );
-    // The read tool: started + completed, typed, with its path and output.
     let started = emits
         .iter()
         .find(|e| matches!(&e.kind, RuntimeEventKind::ItemStarted(p) if p.tool_name.as_deref() == Some("read")))
@@ -101,7 +94,6 @@ fn text_turn_streams_reasoning_tool_and_answer() {
         .as_str()
         .unwrap()
         .contains("hello from fixture"));
-    // Every started text item is completed with its full text.
     let completed_texts: Vec<String> = emits
         .iter()
         .filter_map(|e| match &e.kind {
@@ -124,14 +116,12 @@ fn text_turn_streams_reasoning_tool_and_answer() {
         .filter(|e| e.type_name() == "item.completed")
         .count();
     assert_eq!(starts, ends, "every item closes");
-    // Ids are unique per item and stable across its deltas.
     let reasoning_ids: std::collections::BTreeSet<_> = emits
         .iter()
         .filter(|e| matches!(&e.kind, RuntimeEventKind::ContentDelta(p) if p.stream_kind == StreamKind::ReasoningText))
         .map(|e| e.item_id.clone().unwrap())
         .collect();
     assert_eq!(reasoning_ids.len(), 2, "two thought segments");
-    // usage_update and the prompt response usage.
     let usage = emits
         .iter()
         .find_map(|e| match &e.kind {
@@ -152,7 +142,6 @@ fn text_turn_streams_reasoning_tool_and_answer() {
         turn_end(response["stopReason"].as_str(), false).0,
         TurnEndState::Completed
     );
-    // available_commands_update → session.configured.
     assert!(emits.iter().any(|e| matches!(&e.kind, RuntimeEventKind::SessionConfigured(v) if v.value["availableCommands"].is_array())));
 }
 
@@ -188,9 +177,7 @@ fn tools_turn_types_edit_and_command_with_diff_and_output() {
     assert_eq!(cmd.detail.as_deref(), Some("ls -la"));
     let out = text_of(&emits, StreamKind::CommandOutput);
     assert!(out.contains("README.txt"), "{out}");
-    // Streamed output is never duplicated: it equals the final snapshot.
     assert_eq!(out.matches("total 8").count(), 1);
-    // item.updated carries only what changed (no repeated identical data).
     let updates = emits
         .iter()
         .filter(|e| e.type_name() == "item.updated")
@@ -230,7 +217,6 @@ fn permission_requests_get_the_right_type_diff_and_options() {
     for a in &asks {
         assert_ne!(a.request_type, RequestType::Unknown);
     }
-    // Outcomes pick the agent's own option ids by kind.
     let opts: Vec<Value> = inbound(PERMISSION)
         .into_iter()
         .find(|m| m["method"] == "session/request_permission")
@@ -244,7 +230,6 @@ fn permission_requests_get_the_right_type_diff_and_options() {
     assert_eq!(pick(ApprovalDecision::AcceptAlways)["optionId"], "always");
     assert_eq!(pick(ApprovalDecision::Decline)["optionId"], "reject");
     assert_eq!(pick(ApprovalDecision::Cancel)["outcome"], "cancelled");
-    // The recorded client answers were exactly that.
     let answered: Vec<Value> = lines(PERMISSION)
         .into_iter()
         .filter(|l| l["dir"] == "out" && l["msg"]["result"]["outcome"].is_object())

@@ -1,20 +1,3 @@
-//! Zed Agent: `threads/threads.db` (estudo 06, Zed §j; Parte 6 §8.2).
-//!
-//! Caminho (`paths::data_dir()/threads`): macOS
-//! `~/Library/Application Support/Zed`, Linux `$XDG_DATA_HOME/zed`
-//! (`~/.local/share/zed`), Windows `%LOCALAPPDATA%\Zed`.
-//! Tabela `threads(id, summary, updated_at, data_type 'json'|'zstd', data,
-//! parent_id?, folder_paths?, folder_paths_order?, created_at?)`. `data` é o
-//! `DbThread` em JSON (comprimido com zstd quando `data_type = 'zstd'`):
-//! `title`, `messages[]` (`{"User":{id, content:[{"Text":…}|{"Mention":…}]}}`,
-//! `{"Agent":{content:[{"Text"}|{"Thinking"}|{"ToolUse":{id,name,input}}],
-//! tool_results:{<id>:{is_error, content, output}}}}`, `"Resume"`; o formato
-//! antigo 0.1/0.2 usa `{role, segments[], tool_uses[], tool_results[]}`),
-//! `request_token_usage` (id da mensagem do usuário → uso),
-//! `cumulative_token_usage`, `model{provider, model}`, `imported`.
-//! Threads importadas de agentes externos (ACP) ficam sem uso para não contar
-//! em dobro com o log do próprio agente. Zed não está instalado aqui: só fixture.
-
 use std::path::PathBuf;
 
 use serde_json::Value;
@@ -94,7 +77,6 @@ fn user_content_text(c: &Value) -> String {
     out.join("\n")
 }
 
-/// `DbThread` (JSON já descomprimido) em turnos.
 pub fn thread_turns(doc: &Value, ts: &str) -> Vec<Turn> {
     let model = doc
         .pointer("/model/model")
@@ -168,7 +150,6 @@ pub fn thread_turns(doc: &Value, ts: &str) -> Vec<Turn> {
                     }
                 }
             }
-            // Uso do pedido disparado pela última mensagem do usuário.
             if !imported {
                 if let (Some(uid), Some(Value::Object(map))) = (&last_user_id, req_usage) {
                     if let Some(us) = map.get(uid) {
@@ -179,7 +160,6 @@ pub fn thread_turns(doc: &Value, ts: &str) -> Vec<Turn> {
             }
             turns.push(t);
         } else if m.get("role").is_some() {
-            // Formato antigo (0.1/0.2).
             let role = role_of(m.get("role").and_then(Value::as_str).unwrap_or(""));
             let mut texts = Vec::new();
             for seg in m
@@ -228,7 +208,6 @@ pub fn thread_turns(doc: &Value, ts: &str) -> Vec<Turn> {
             attach_results(&mut turns, results);
         }
     }
-    // Sem uso por pedido: o acumulado vai para o último turno do assistente.
     let per_req: u64 = turns.iter().map(|t| t.usage.total()).sum();
     if per_req == 0 && !imported {
         if let Some(c) = doc.get("cumulative_token_usage") {
@@ -321,8 +300,6 @@ fn rows(db: &std::path::Path, only: Option<&str>) -> Vec<Row> {
     res.unwrap_or_default()
 }
 
-/// Pasta do projeto: `folder_paths` separado por quebra de linha, e
-/// `folder_paths_order` (posições separadas por vírgula) diz qual vem primeiro.
 fn primary_folder(paths: &str, order: Option<&str>) -> Option<String> {
     let list: Vec<&str> = paths
         .lines()

@@ -1,6 +1,3 @@
-//! Integrity (sha256 against expected values) and provenance (where it came
-//! from: recognized host, HTTPS, pinned commit, license, semver).
-
 use sha2::{Digest, Sha256};
 use std::collections::BTreeMap;
 
@@ -83,7 +80,6 @@ const HOSTS: &[&str] = &[
     "raw.githubusercontent.com",
 ];
 
-/// Merge caller provenance with what the frontmatter declares.
 pub fn check_provenance(
     prov: Option<&Provenance>,
     fm_author: Option<&str>,

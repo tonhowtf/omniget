@@ -1,7 +1,3 @@
-//! Empty folders (a folder holding only empty folders is empty too; Finder
-//! and Explorer droppings do not count) and broken symlinks, found in the
-//! same walk. Only the outermost empty folder is offered.
-
 use std::path::{Path, PathBuf};
 
 use serde_json::{json, Value};
@@ -29,8 +25,6 @@ struct Walk<'a> {
 }
 
 impl Walk<'_> {
-    /// Whether `dir` is empty. Empty children of a non-empty folder are
-    /// pushed to `found`; children of an empty one are covered by it.
     fn visit(&mut self, dir: &Path) -> bool {
         self.visited += 1;
         if self.visited.is_multiple_of(1000) {
@@ -83,7 +77,6 @@ impl Walk<'_> {
         {
             return true;
         }
-        // Not removable as a whole: its empty children stand on their own.
         self.found.extend(empty_children);
         false
     }

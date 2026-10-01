@@ -1,33 +1,16 @@
-//! Packaged stdio adapter: forwards to the running desktop's own queue.
-//! Credentials come from the client environment, never command-line arguments.
-//!
-//! Each stdin line is one JSON-RPC message or batch, POSTed as-is to the
-//! desktop's `/mcp`: the answer (object or array) is written back unchanged,
-//! so a batch behaves exactly as over HTTP. When the desktop does not answer,
-//! the adapter itself replies once per request (an array for a batch) and
-//! never to notifications or to the client's own responses.
-//!
-//! Without a token, or while the desktop is closed, the adapter still speaks
-//! MCP: `initialize`, `ping` and `tools/list` are answered from the catalog
-//! snapshot the desktop's tests keep in sync (`mcp-catalog.json`), and every
-//! tool call fails with `TOKEN_MISSING` or `APP_NOT_RUNNING` and how to fix it.
 use anyhow::{bail, Context, Result};
 use serde_json::{json, Value};
 use std::sync::LazyLock;
 use tokio::io::{AsyncBufRead, AsyncBufReadExt, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 const MAX_MESSAGE: u64 = 65536;
-/// Same bound as the desktop's HTTP batch limit (`mcp::BATCH_MAX`).
 const BATCH_MAX: usize = 32;
 const ADAPTER_VERSION: &str = env!("CARGO_PKG_VERSION");
 const DEFAULT_ENDPOINT: &str = "http://127.0.0.1:47720/mcp";
-/// Revisions, instructions and full tool catalog of the desktop, written and
-/// checked by its `adapter_catalog_matches_the_desktop` test.
 static CATALOG: LazyLock<Value> = LazyLock::new(|| {
     serde_json::from_str(include_str!("../../mcp-catalog.json")).expect("valid mcp-catalog.json")
 });
 #[tokio::main]
 async fn main() -> Result<()> {
-    // An empty value counts as unset: MCPB hosts pass blank optional fields.
     let env = |name: &str| std::env::var(name).ok().filter(|v| !v.trim().is_empty());
     let endpoint = env("OMNIGET_MCP_URL").unwrap_or_else(|| DEFAULT_ENDPOINT.into());
     let url = reqwest::Url::parse(&endpoint).context("INVALID_LOCAL_ENDPOINT")?;
@@ -82,8 +65,6 @@ where
                 continue;
             }
         };
-        // An isolated development instance (OMNIGET_DEV_ENDPOINT) is resolved
-        // again on every call; it never falls back to the personal app.
         let target = match std::env::var("OMNIGET_DEV_ENDPOINT") {
             Ok(file) => match development_endpoint(&client, &file).await {
                 Ok((dev_url, dev_token)) => Some((dev_url, Some(dev_token))),
@@ -98,7 +79,6 @@ where
             continue;
         };
         let value = match request_token.as_deref() {
-            // Without a token the desktop could only answer 401: stay local.
             None => local_reply(&msg, Failure::TokenMissing, &version),
             Some(token) => {
                 let reply = client
@@ -152,8 +132,6 @@ where
     }
     Ok(())
 }
-/// Re-read an explicit isolated session descriptor on every call. Never fall back
-/// to the personal app, and never retry mutations with an unknown outcome.
 async fn development_endpoint(
     client: &reqwest::Client,
     file: &str,
@@ -199,7 +177,6 @@ async fn development_endpoint(
     }
     Ok((url, token))
 }
-/// Why the desktop produced no JSON-RPC answer.
 #[derive(Clone, Copy)]
 enum Failure {
     TokenMissing,
@@ -224,11 +201,9 @@ impl Failure {
             }
         }
     }
-    /// Machine-readable part of the message, before the first `:`.
     fn code(self) -> &'static str {
         self.message().split(':').next().unwrap_or_default()
     }
-    /// Nothing reached the desktop: the adapter answers the handshake itself.
     fn offline(self) -> bool {
         matches!(self, Failure::TokenMissing | Failure::NotRunning)
     }
@@ -239,14 +214,11 @@ fn rpc_error(id: Value, code: i64, message: &str) -> Value {
 fn rpc_ok(id: Value, result: Value) -> Value {
     json!({"jsonrpc":"2.0","id":id,"result":result})
 }
-/// Request id of a message that expects an answer: a JSON-RPC request with a
-/// string or integer id. Notifications and client responses have none.
 fn request_id(msg: &Value) -> Option<Value> {
     let id = msg.get("id")?;
     (msg["method"].is_string() && (id.is_string() || id.is_i64() || id.is_u64()))
         .then(|| id.clone())
 }
-/// A notification or a response the client sent: never answered.
 fn silent(msg: &Value) -> bool {
     let Some(obj) = msg.as_object() else {
         return false;
@@ -261,8 +233,6 @@ fn silent(msg: &Value) -> bool {
         obj.get("method").is_some_and(Value::is_string) && !obj.contains_key("id");
     is_response || is_notification
 }
-/// The adapter's own answer when the desktop did not produce one, shaped like
-/// the HTTP answer would be: `None` when nothing is owed, an array for a batch.
 fn local_reply(msg: &Value, failure: Failure, version: &str) -> Option<Value> {
     let Some(items) = msg.as_array() else {
         return local_single(msg, failure, version, false);
@@ -306,16 +276,12 @@ fn local_single(msg: &Value, failure: Failure, version: &str, in_batch: bool) ->
     }
     Some(rpc_error(id, -32000, failure.message()))
 }
-/// What the desktop would answer, minus anything that needs it: the
-/// handshake and the catalog work, a tool call says what is missing.
 fn offline_single(id: Value, msg: &Value, failure: Failure, version: &str) -> Value {
     let params = &msg["params"];
     match msg["method"].as_str().unwrap_or_default() {
         "initialize" => {
             let supported = CATALOG["protocolVersions"].as_array();
             let requested = params["protocolVersion"].as_str();
-            // Same rule as the desktop: the client's revision when supported,
-            // otherwise the newest one.
             let negotiated = supported
                 .and_then(|all| all.iter().find(|v| v.as_str() == requested))
                 .or_else(|| supported.and_then(|all| all.first()))
@@ -353,7 +319,6 @@ fn offline_single(id: Value, msg: &Value, failure: Failure, version: &str) -> Va
             if matches!(failure, Failure::NotRunning) && name == "omniget_health" {
                 return offline_health(id, version);
             }
-            // The desktop's error envelope, so output schemas still validate.
             let error = json!({"error":{"code":failure.code(),"message":failure.message()}});
             rpc_ok(
                 id,
@@ -383,8 +348,6 @@ fn is_health_call(msg: &Value) -> bool {
 fn adapter_info(version: &str, reachable: bool) -> Value {
     json!({"name":"omniget-mcp","version":ADAPTER_VERSION,"protocolVersion":version,"reachable":reachable})
 }
-/// `omniget_health` through the adapter also says the desktop was reached,
-/// and which adapter and protocol revision carried the call.
 fn annotate_health(msg: &Value, value: &mut Value, version: &str) {
     if !is_health_call(msg) || value["result"]["isError"] == true {
         return;

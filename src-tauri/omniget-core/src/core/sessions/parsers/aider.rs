@@ -1,24 +1,3 @@
-//! Aider (estudo 06, Aider §j).
-//!
-//! Sem banco nem id de sessão: cada projeto tem `.aider.chat.history.md`
-//! (Markdown só de acréscimo). Cada sessão começa em
-//! `# aider chat started at YYYY-MM-DD HH:MM:SS`; prompt do usuário em linhas
-//! `#### …`; saída de ferramenta/avisos em citação `> …` (inclui
-//! `> Model: … with … edit format` e o relatório de uso
-//! `> Tokens: 12k sent, 1.2k cache write, 8.0k cache hit, 350 received. Cost:
-//! $0.02 message, $0.15 session.`); o resto é texto do assistente.
-//! Opcional: `--analytics-log x.jsonl` (`AIDER_ANALYTICS_LOG` ou
-//! `analytics-log:` no `~/.aider.conf.yml`), eventos
-//! `{event:"message_send", properties{main_model, prompt_tokens,
-//! completion_tokens, cost, total_cost}, time}`; `launched` abre sessão.
-//!
-//! Descoberta: `AIDER_CHAT_HISTORY_FILE`, `chat-history-file:` do
-//! `~/.aider.conf.yml`, e `.aider.chat.history.md` em pastas de projeto
-//! conhecidas (pastas abertas no VS Code/Cursor, projetos do Claude Code) e
-//! nas raízes de código comuns (`~/code`, `~/projects`, `~/Documents/…`), até
-//! três níveis. Id da sessão = `<hash do arquivo>@<início>`.
-//! Aider não está instalado aqui: só fixture.
-
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 
@@ -57,7 +36,6 @@ fn expand_home(p: &str) -> String {
     }
 }
 
-/// Pastas de projeto que outras ferramentas já conhecem.
 fn known_project_dirs() -> Vec<PathBuf> {
     let mut v = Vec::new();
     for (_, user) in vscode_user_dirs() {
@@ -69,7 +47,6 @@ fn known_project_dirs() -> Vec<PathBuf> {
             }
         }
     }
-    // ~/.claude/projects/<cwd com / trocado por ->: reconstrução pelo disco.
     if let Some(p) = home_join(&[".claude", "projects"]) {
         if let Ok(rd) = std::fs::read_dir(p) {
             for e in rd.flatten() {
@@ -107,7 +84,6 @@ fn code_roots() -> Vec<PathBuf> {
     .collect()
 }
 
-/// Todos os históricos encontrados, sem repetição.
 pub fn history_files() -> Vec<PathBuf> {
     let mut out: Vec<PathBuf> = Vec::new();
     let mut seen = HashSet::new();
@@ -156,7 +132,6 @@ fn file_hash(p: &Path) -> String {
     hex::encode(&h.finalize()[..6])
 }
 
-/// `12k` → 12000, `1.2k` → 1200, `1.5M` → 1500000, `350` → 350.
 fn parse_tokens(s: &str) -> u64 {
     let s = s.trim().replace(',', "");
     let (num, mult) = if let Some(n) = s.strip_suffix(['k', 'K']) {
@@ -172,7 +147,6 @@ fn parse_tokens(s: &str) -> u64 {
         .unwrap_or(0)
 }
 
-/// `Tokens: 12k sent, 1.2k cache write, 8.0k cache hit, 350 received. Cost: $0.02 message, $0.15 session.`
 fn parse_usage_line(line: &str) -> Option<(crate::core::sessions::model::TokenUsage, Option<f64>)> {
     let rest = line.trim().strip_prefix("Tokens:")?;
     let (tok, cost) = match rest.split_once("Cost:") {
@@ -192,7 +166,6 @@ fn parse_usage_line(line: &str) -> Option<(crate::core::sessions::model::TokenUs
             _ => {}
         }
     }
-    // O "sent" do aider inclui o cache; separa para não contar duas vezes.
     us.input = us.input.saturating_sub(us.cache_read + us.cache_write);
     let cost = cost.and_then(|c| {
         let c = c.trim();
@@ -206,7 +179,6 @@ fn parse_usage_line(line: &str) -> Option<(crate::core::sessions::model::TokenUs
     Some((us, cost))
 }
 
-/// Sessões de um `.aider.chat.history.md`.
 pub fn parse_history(txt: &str, path: &Path) -> Vec<Session> {
     let hash = file_hash(path);
     let project = path.parent().map(|p| p.to_string_lossy().into_owned());
@@ -215,7 +187,6 @@ pub fn parse_history(txt: &str, path: &Path) -> Vec<Session> {
     let mut in_user = false;
     for line in txt.lines() {
         if let Some(rest) = line.strip_prefix("# aider chat started at ") {
-            // Horário local da máquina onde o aider rodou.
             let started_ms =
                 chrono::NaiveDateTime::parse_from_str(rest.trim(), "%Y-%m-%d %H:%M:%S")
                     .ok()
@@ -282,7 +253,6 @@ pub fn parse_history(txt: &str, path: &Path) -> Vec<Session> {
                 }
                 continue;
             }
-            // Aplicação de edição vira uma chamada Edit.
             if let Some(f) = q.strip_prefix("Applied edit to ") {
                 let need = !matches!(sess.turns.last(), Some(t) if t.role == Role::Assistant);
                 if need {
@@ -320,7 +290,6 @@ pub fn parse_history(txt: &str, path: &Path) -> Vec<Session> {
                 t.model = s.meta.models.first().cloned();
             }
         }
-        // Só a última sessão do arquivo está "viva".
         s.meta.mtime_ms = if i + 1 == n {
             mtime
         } else {
@@ -334,7 +303,6 @@ pub fn parse_history(txt: &str, path: &Path) -> Vec<Session> {
     sessions
 }
 
-/// Sessões do log de analytics (JSONL), cortadas nos eventos `launched`.
 pub fn parse_analytics(lines: &[Value], path: &Path) -> Vec<Session> {
     let hash = file_hash(path);
     let mut sessions: Vec<Session> = Vec::new();

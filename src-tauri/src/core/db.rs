@@ -36,10 +36,6 @@ fn handle() -> Option<&'static Mutex<Connection>> {
     CONN.get_or_init(|| open().map(Mutex::new)).as_ref()
 }
 
-/// Runs `f` with the shared connection under a short-lived lock. Returns
-/// `None` (and logs) if the database is unavailable or the closure errors, so
-/// callers degrade gracefully exactly like the previous JSON stores did on IO
-/// failure rather than panicking.
 pub fn with_conn<T>(f: impl FnOnce(&Connection) -> rusqlite::Result<T>) -> Option<T> {
     let mutex = handle()?;
     let guard = match mutex.lock() {

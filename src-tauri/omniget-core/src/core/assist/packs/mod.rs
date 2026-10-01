@@ -1,25 +1,3 @@
-//! Selective import of knowledge packs (skills, agents, rules, contexts,
-//! commands) from a local folder such as an ECC clone.
-//!
-//! Nothing is imported by default: the person lists what the pack offers
-//! (metadata only, never the bodies into a prompt), picks items, and gets a
-//! plan first: kind, destination, origin (repo + commit), content hash,
-//! license and attribution, dependencies, the capabilities each item asks
-//! for, and conflicts with what is installed. Applying the plan:
-//! - installs skills through `skills::install` (staging, zip-slip and
-//!   symlink rules, the security scan) and records their hash; scripts
-//!   inside a skill are copied as text — running them is a separate grant
-//!   that stays off (`bots_skill_bindings.allow_scripts = 0`);
-//! - stores agents, rules, contexts and commands as versioned text in the
-//!   assistant database (the same store as the rest of `/llm`);
-//! - never runs a hook and never installs a dependency: hooks, installers and
-//!   scripts outside a skill come back `unsupported` with the reason;
-//! - never overwrites a local customisation silently (conflict until the
-//!   person chooses), and defers a skill update while a running mission uses
-//!   that skill;
-//! - keeps the previous version of everything it replaces, so an update is a
-//!   diff and a rollback restores it.
-
 pub mod presets;
 
 use std::collections::BTreeMap;
@@ -36,9 +14,7 @@ use crate::core::skills;
 pub const ERR_PACK: &str = "ERR_PACK";
 pub const ERR_PACK_INPUT: &str = "ERR_PACK_INPUT";
 pub const ERR_PACK_CONFLICT: &str = "ERR_PACK_CONFLICT";
-/// Largest text item (agent, rule, context, command).
 pub const TEXT_MAX: u64 = 256 * 1024;
-/// Most items one plan may hold.
 pub const PLAN_MAX: usize = 64;
 
 pub const MIGRATIONS: &[Migration] = &[Migration {
@@ -87,7 +63,6 @@ pub enum ItemKind {
     Rule,
     Context,
     Command,
-    /// Listed so the person sees it; never installed.
     Hook,
     Script,
 }
@@ -118,12 +93,10 @@ impl ItemKind {
     }
 }
 
-/// One entry of a pack's catalog (metadata only).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct CatalogItem {
     pub kind: ItemKind,
     pub name: String,
-    /// `kind:name`, what a selection lists.
     pub key: String,
     pub rel_path: String,
     pub description: String,
@@ -133,7 +106,6 @@ pub struct CatalogItem {
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct SourceMeta {
-    /// Repository URL or folder label.
     pub origin: String,
     pub sha: Option<String>,
     pub license: Option<String>,
@@ -146,21 +118,16 @@ pub struct PlanItem {
     pub kind: ItemKind,
     pub name: String,
     pub rel_path: String,
-    /// Where it lands: `skills/<name>` or `assist.db:packs_items`.
     pub dest: String,
     pub hash: String,
     pub bytes: u64,
     pub license: Option<String>,
     pub attribution: Option<String>,
     pub deps: Vec<String>,
-    /// Tools/abilities the item asks for (`tools: Read, Bash` → `Read`, `Bash`).
     pub capabilities: Vec<String>,
-    /// `new|update|unchanged|conflict_local_changes|conflict_name|unsupported|refused`
     pub action: String,
     pub reason: Option<String>,
-    /// Line diff for an update of a text item (or SKILL.md).
     pub diff: Option<String>,
-    /// Scripts found inside a skill: copied as text, never run by default.
     pub scripts: Vec<String>,
 }
 
@@ -211,7 +178,6 @@ fn valid_name(s: &str) -> bool {
             .all(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | '.' | '/'))
 }
 
-/// A path inside `root` that is not a symlink escaping it.
 fn inside(root: &Path, p: &Path) -> Result<(), String> {
     let md = std::fs::symlink_metadata(p).map_err(err)?;
     if md.file_type().is_symlink() {
@@ -228,9 +194,6 @@ fn inside(root: &Path, p: &Path) -> Result<(), String> {
     Ok(())
 }
 
-/// Audit F-P1: the real (canonical) path of `p` must lie inside the real pack
-/// root. Catches a symlinked category folder (`agents -> ../private-notes`)
-/// or any symlinked ancestor, which `inside` (the item alone) does not.
 fn contained(root: &Path, p: &Path) -> Result<(), String> {
     let real_root = std::fs::canonicalize(root).map_err(err)?;
     let real = std::fs::canonicalize(p).map_err(|_| {
@@ -248,7 +211,6 @@ fn contained(root: &Path, p: &Path) -> Result<(), String> {
     Ok(())
 }
 
-/// Reads at most `TEXT_MAX` bytes of UTF-8 text (catalog descriptions).
 fn read_bounded(p: &Path) -> String {
     use std::io::Read;
     let mut out = Vec::new();
@@ -258,8 +220,6 @@ fn read_bounded(p: &Path) -> String {
     String::from_utf8_lossy(&out).into_owned()
 }
 
-/// Installed name of a skill folder: frontmatter `name` or the folder name,
-/// validated as a skill name (audit F-P2) before any path is built from it.
 fn skill_name(src: &Path, folder: &str) -> Result<(String, String), String> {
     let text = read_bounded(&src.join("SKILL.md"));
     let raw = frontmatter(&text)
@@ -301,7 +261,6 @@ fn first_line_description(text: &str) -> String {
         .unwrap_or_default()
 }
 
-/// License of the pack root (`LICENSE*` first line).
 pub fn detect_license(dir: &Path) -> Option<String> {
     for name in ["LICENSE", "LICENSE.md", "LICENSE.txt", "LICENCE"] {
         if let Ok(t) = std::fs::read_to_string(dir.join(name)) {
@@ -315,9 +274,6 @@ pub fn detect_license(dir: &Path) -> Option<String> {
     None
 }
 
-/// The pack's catalog, metadata only (ECC layout: `skills/<n>/SKILL.md`,
-/// `agents/*.md`, `rules/**.md`, `contexts/*.md`, `commands/*.md`, plus
-/// `hooks/` and `scripts/` listed as unsupported).
 pub fn catalog(dir: &Path) -> Result<Vec<CatalogItem>, String> {
     if !dir.is_dir() {
         return Err(format!(
@@ -382,7 +338,6 @@ pub fn catalog(dir: &Path) -> Result<Vec<CatalogItem>, String> {
             }
         }
     }
-    // rules/<lang>/<file>.md
     let rules = dir.join("rules");
     if let Ok(rd) = std::fs::read_dir(&rules).map_err(drop).and_then(|rd| {
         if listed(&rules) {
@@ -544,9 +499,6 @@ pub fn item_by_id(db: &AssistDb, id: &str) -> Result<PackItem, String> {
     .ok_or_else(|| format!("{ERR_PACK}: no item {id}"))
 }
 
-/// Builds the plan for the selected keys (`kind:name`). An empty selection
-/// is refused: there is no "import everything" by default; `all_of` must
-/// name the kinds explicitly.
 pub fn plan(
     db: &AssistDb,
     dir: &Path,
@@ -649,7 +601,6 @@ pub fn plan(
         }
         match c.kind {
             ItemKind::Skill => {
-                // Every file inside must stay inside the pack.
                 let mut bad = None;
                 let mut stack = vec![src.clone()];
                 while let Some(d) = stack.pop() {
@@ -791,23 +742,10 @@ pub struct ApplyReport {
     pub installed: Vec<String>,
     pub updated: Vec<String>,
     pub skipped: Vec<(String, String)>,
-    /// Skills parked by the security scan: confirm or discard in Skills.
     pub pending_scan: Vec<(String, String)>,
-    /// Items that failed while applying. Each item is all-or-nothing: a
-    /// failed item left the installed state as it was before (or says where
-    /// its previous copy is when restoring it failed too).
     pub failed: Vec<(String, String)>,
 }
 
-/// Applies a plan. `overwrite` names conflicting keys the person chose to
-/// replace (their current copy is kept for rollback). Items the plan marked
-/// unsupported, refused, unchanged or deferred are skipped with the reason.
-///
-/// The plan comes back from the UI, so nothing in it is trusted: every item
-/// path must still resolve inside the pack, a skill's name is re-read and
-/// re-validated, and a skill is re-hashed and must equal the planned hash
-/// (audit F-P3). Items apply one by one, each atomically; an error on one is
-/// reported in `failed` and the others still apply.
 pub fn apply(
     db: &AssistDb,
     plan: &ImportPlan,
@@ -899,14 +837,11 @@ fn apply_item(
             }
             let installed_dir = skills_root.join(&name);
             let exists = installed_dir.join("SKILL.md").is_file();
-            // A copy that appeared after a `new` plan is a conflict, never a
-            // silent overwrite.
             if exists && pi.action == "new" && !overwrite.contains(&pi.key) {
                 return Ok(Applied::Skipped(
                     "a skill with this name appeared after the plan; plan again".into(),
                 ));
             }
-            // Keep the current copy for rollback, inside the skills root only.
             let backup = if exists {
                 let b = skills_root
                     .join(".packs-backup")
@@ -923,7 +858,6 @@ fn apply_item(
                 None
             };
             let undo = |why: String| -> String {
-                // Restore exactly what was installed before this item.
                 let restored = match &backup {
                     Some(b) => {
                         (!installed_dir.exists() || std::fs::remove_dir_all(&installed_dir).is_ok())
@@ -982,7 +916,6 @@ fn apply_item(
                     "the file changed after the plan; plan again".into(),
                 ));
             }
-            // One transaction: the text item is stored whole or not at all.
             upsert(db, pi, &plan.meta, Some(&pi.hash), Some(&text), None)?;
         }
     }
@@ -1047,8 +980,6 @@ fn copy_dir(from: &Path, to: &Path) -> Result<(), String> {
     Ok(())
 }
 
-/// Restores the previous version of an item (text from history; a skill
-/// from its backup copy). The replaced version goes to history too.
 pub fn rollback(db: &AssistDb, item_id: &str, skills_root: &Path) -> Result<PackItem, String> {
     let it = item_by_id(db, item_id)?;
     let prev: Option<(i64, String, Option<String>, Option<String>)> = db.with(|c| {
@@ -1099,8 +1030,6 @@ pub fn rollback(db: &AssistDb, item_id: &str, skills_root: &Path) -> Result<Pack
     item_by_id(db, item_id)
 }
 
-/// Stored text of an imported rule/context/command/agent (loaded on
-/// demand, never dumped into a prompt wholesale).
 pub fn text_of(db: &AssistDb, kind: ItemKind, name: &str) -> Result<Option<String>, String> {
     Ok(item(db, kind, name)?.and_then(|i| i.content))
 }
@@ -1115,7 +1044,6 @@ pub fn history(db: &AssistDb, item_id: &str) -> Result<Vec<Value>, String> {
     })
 }
 
-/// Commit of a git checkout, read from `.git` files (no `git` process).
 pub fn detect_sha(dir: &Path) -> Option<String> {
     let git = dir.join(".git");
     let head = std::fs::read_to_string(git.join("HEAD")).ok()?;
@@ -1134,7 +1062,6 @@ pub fn detect_sha(dir: &Path) -> Option<String> {
         .map(str::to_string)
 }
 
-/// `origin` URL of a git checkout, from `.git/config`.
 pub fn detect_origin(dir: &Path) -> Option<String> {
     let cfg = std::fs::read_to_string(dir.join(".git").join("config")).ok()?;
     let mut in_origin = false;

@@ -1,15 +1,3 @@
-//! Telegram's own "simple config": a signed list of fallback endpoints that
-//! Telegram publishes in DNS TXT records for when its data centers are
-//! blocked. Official clients only read it through Google/Cloudflare, which
-//! are blocked in mainland China; the same record also comes back from
-//! AliDNS and DNSPod, so we ask those first. Today it lists fake-TLS
-//! MTProto proxies run by Telegram itself, which become a route.
-//!
-//! Format (TDLib `ConfigManager.cpp:83-141`, tdesktop
-//! `special_config_request.cpp`): base64 of 256 bytes → raw RSA with the
-//! public key below → AES-256-CBC (key = bytes 0..32, iv = bytes 16..32)
-//! over bytes 32..256 → 208 bytes of TL + 16 bytes of SHA-256 prefix.
-
 use std::net::Ipv4Addr;
 
 use aes::cipher::{BlockDecryptMut, KeyIvInit};
@@ -35,8 +23,6 @@ pub struct RescueEndpoint {
     pub secret: Option<String>,
 }
 
-/// Fetches the record through the Chinese DoH servers (and the rest as a
-/// fallback) and returns the endpoints it lists.
 pub async fn fetch() -> anyhow::Result<Vec<RescueEndpoint>> {
     let mut last = anyhow!("no DNS server answered");
     for (name, ip, path) in super::dns::DOH_SERVERS {
@@ -141,7 +127,6 @@ fn parse_txt(msg: &[u8]) -> anyhow::Result<Vec<String>> {
     Ok(out)
 }
 
-/// The record is split in two TXT strings; the longer one comes first.
 pub fn decode_parts(mut parts: Vec<String>) -> anyhow::Result<Vec<RescueEndpoint>> {
     parts.sort_by_key(|p| std::cmp::Reverse(p.len()));
     let joined: String = parts.concat();

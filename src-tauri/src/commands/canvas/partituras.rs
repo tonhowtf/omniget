@@ -1,6 +1,3 @@
-//! Tauri commands of the partitura library (`<app_data>/canvas/partituras/`).
-//! Logic lives in `omniget_core::core::canvas::partituras`.
-
 use omniget_core::core::canvas::export::ImportResult;
 use omniget_core::core::canvas::model::Point;
 use omniget_core::core::canvas::partituras::{
@@ -24,8 +21,6 @@ async fn blocking<T: Send + 'static>(
         .map_err(|e| format!("CANVAS_TASK: {e}"))?
 }
 
-/// `scope`: `all` | `global` | a workspace id. `query` searches name,
-/// summary, role names and workspace name.
 #[tauri::command]
 pub async fn canvas_partitura_list(
     app: AppHandle,
@@ -42,8 +37,6 @@ pub async fn canvas_partitura_get(app: AppHandle, id: String) -> Result<LibraryP
     blocking(move || partituras::get(&s, &id)).await
 }
 
-/// Creates a partitura from a selection, or replaces the layout of
-/// `request.updateExisting` keeping its identity.
 #[tauri::command]
 pub async fn canvas_partitura_save(
     app: AppHandle,
@@ -55,7 +48,6 @@ pub async fn canvas_partitura_save(
     blocking(move || partituras::save(&s, &workspace_id, &floor_id, request)).await
 }
 
-/// "Edit…": name, summary, icon, color, scope, budget, permissions, setup.
 #[tauri::command]
 pub async fn canvas_partitura_edit(
     app: AppHandle,
@@ -72,8 +64,6 @@ pub async fn canvas_partitura_delete(app: AppHandle, id: String) -> Result<(), S
     blocking(move || partituras::delete(&s, &id)).await
 }
 
-/// Import review: commands that will run, role conflicts, hooks, warnings.
-/// Give `id` (library) or `partitura` (a file being reviewed).
 #[tauri::command]
 pub async fn canvas_partitura_preview(
     app: AppHandle,
@@ -89,8 +79,6 @@ pub async fn canvas_partitura_preview(
     .await
 }
 
-/// Stamps a partitura at `at` after the review (edited commands, role
-/// choices). Everything arrives selected-ready in one batch.
 #[tauri::command]
 pub async fn canvas_partitura_import(
     app: AppHandle,
@@ -116,7 +104,6 @@ pub async fn canvas_partitura_import(
     .await
 }
 
-/// Reads a `.json` partitura or bundle from disk (for the review sheet).
 #[tauri::command]
 pub async fn canvas_partitura_read_file(
     app: AppHandle,
@@ -126,7 +113,6 @@ pub async fn canvas_partitura_read_file(
     blocking(move || partituras::read_file(std::path::Path::new(&path))).await
 }
 
-/// Library transfer: adds partituras, skipping ids already there.
 #[tauri::command]
 pub async fn canvas_partitura_add_to_library(
     app: AppHandle,
@@ -136,7 +122,6 @@ pub async fn canvas_partitura_add_to_library(
     blocking(move || partituras::add_to_library(&s, items)).await
 }
 
-/// "Save to…" (one id) or "Export All…" (several ids → bundle).
 #[tauri::command]
 pub async fn canvas_partitura_export_file(
     app: AppHandle,

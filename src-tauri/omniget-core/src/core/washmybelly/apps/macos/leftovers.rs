@@ -1,42 +1,17 @@
-//! What an app left in `~/Library` and `/Library`, by evidence.
-//!
-//! Order of confidence (our own rules, written from the idea list of the
-//! study; nothing copied from other uninstallers):
-//!
-//! 1. bundle id lineage (`<id>` or `<id>.<more>`) in the folders macOS names
-//!    after it, app groups from the signature, Group Containers of the form
-//!    `<TEAM>.<id>`/`group.<id>`, launchd jobs whose label, associated
-//!    bundle id or program point at the app — `high`;
-//! 2. sandbox containers with a UUID name whose metadata says the owner is
-//!    this bundle id — `high`;
-//! 3. a Group Container of the same Team ID and nothing else — `medium`,
-//!    or `low` when another installed app has the same Team ID;
-//! 4. a folder whose name equals the app's name (letters and digits only,
-//!    four or more) — `low`, never ticked.
-//!
-//! Guards: nothing under `com.apple.*`; nothing at all when another
-//! installed app has the same bundle id (the sibling guard); an entry that
-//! belongs by lineage to a longer bundle id of another installed app stays.
-//! Pure over the file system: tests point it at a fake home.
-
 use std::path::{Path, PathBuf};
 
 use super::parse::{self, is_apple, lineage, normalize};
 use super::plist;
 
-/// The app we look for.
 #[derive(Debug, Clone, Default)]
 pub struct Subject {
     pub bundle_id: Option<String>,
     pub team_id: Option<String>,
-    /// Display name, bundle file stem, executable (raw; normalized here).
     pub names: Vec<String>,
     pub app_path: Option<PathBuf>,
-    /// `com.apple.security.application-groups` of its signature.
     pub app_groups: Vec<String>,
 }
 
-/// Another installed app (for the guards).
 #[derive(Debug, Clone, Default)]
 pub struct Other {
     pub name: String,
@@ -45,42 +20,31 @@ pub struct Other {
     pub team_id: Option<String>,
 }
 
-/// Where to look.
 #[derive(Debug, Clone)]
 pub struct Roots {
-    /// `~` (a temporary folder in tests).
     pub home: PathBuf,
-    /// `/Library`, or `None` to skip the admin-only places.
     pub system: Option<PathBuf>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Launchd {
-    /// `~/Library/LaunchAgents`: `gui/<uid>` domain, no admin.
     UserAgent,
-    /// `/Library/LaunchAgents`: `gui/<uid>` domain, file owned by root.
     SystemAgent,
-    /// `/Library/LaunchDaemons`: `system` domain.
     Daemon,
 }
 
 #[derive(Debug, Clone)]
 pub struct Found {
     pub path: PathBuf,
-    /// `high`, `medium`, `low`.
     pub confidence: &'static str,
     pub evidence: String,
-    /// `file`, `folder`, `launchd`.
     pub kind: &'static str,
-    /// `data`, `cache`, `preferences`, `launch`, `other`.
     pub group: &'static str,
     pub admin: bool,
-    /// The Library folder it was found in (the plan's `root`).
     pub root: PathBuf,
     pub launchd: Option<(Launchd, String)>,
 }
 
-/// Why a search came back short, for the notes.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Note {
     Apple,
@@ -89,8 +53,6 @@ pub enum Note {
     UnreadableContainers(usize),
 }
 
-/// `(subfolder of Library, group)`. Entries are matched by bundle id
-/// lineage (and by name, with low confidence, where `by_name` is true).
 const USER_DIRS: &[(&str, &str, bool)] = &[
     ("Application Support", "data", true),
     ("Application Scripts", "data", false),
@@ -133,8 +95,6 @@ fn kind_of(p: &Path) -> &'static str {
     }
 }
 
-/// True when `name` belongs to a longer bundle id of another installed app
-/// (`com.foo.app.pro` is not a leftover of `com.foo.app`).
 fn belongs_to_other(name: &str, id: &str, others: &[Other]) -> Option<String> {
     let id_l = id.to_ascii_lowercase();
     others.iter().find_map(|o| {
@@ -183,7 +143,6 @@ pub fn find(roots: &Roots, subj: &Subject, others: &[Other]) -> (Vec<Found>, Vec
         }
     };
 
-    // 1 + 4: bundle id lineage and name, user Library.
     for &(sub, group, by_name) in USER_DIRS {
         let root = lib.join(sub);
         for (name, path) in entries(&root) {
@@ -207,7 +166,6 @@ pub fn find(roots: &Roots, subj: &Subject, others: &[Other]) -> (Vec<Found>, Vec
                     );
                     continue;
                 }
-                // 2: sandbox containers with a UUID name.
                 if sub == "Containers" && parse::is_uuid(&name) {
                     let meta = path.join(".com.apple.containermanagerd.metadata.plist");
                     match plist::read(&meta) {
@@ -266,7 +224,6 @@ pub fn find(roots: &Roots, subj: &Subject, others: &[Other]) -> (Vec<Found>, Vec
         }
     }
 
-    // Group Containers: app groups, `<TEAM>.<id>`, `group.<id>`, Team ID.
     let gc = lib.join("Group Containers");
     for (name, path) in entries(&gc) {
         if is_apple(&name) || name.to_ascii_lowercase().starts_with("group.com.apple.") {
@@ -326,7 +283,6 @@ pub fn find(roots: &Roots, subj: &Subject, others: &[Other]) -> (Vec<Found>, Vec
         );
     }
 
-    // launchd jobs.
     let mut launch_dirs = vec![(lib.join("LaunchAgents"), Launchd::UserAgent, false)];
     if let Some(sys) = &roots.system {
         launch_dirs.push((sys.join("LaunchAgents"), Launchd::SystemAgent, true));
@@ -384,7 +340,6 @@ pub fn find(roots: &Roots, subj: &Subject, others: &[Other]) -> (Vec<Found>, Vec
         }
     }
 
-    // System Library, by bundle id only (admin).
     if let (Some(sys), Some(b)) = (&roots.system, &id) {
         for &(sub, group) in SYSTEM_DIRS {
             let root = sys.join(sub);
@@ -411,7 +366,6 @@ pub fn find(roots: &Roots, subj: &Subject, others: &[Other]) -> (Vec<Found>, Vec
     if unreadable > 0 {
         notes.push(Note::UnreadableContainers(unreadable));
     }
-    // A path inside another found path goes with its parent.
     let all: Vec<PathBuf> = out.iter().map(|f| f.path.clone()).collect();
     out.retain(|f| !all.iter().any(|p| p != &f.path && f.path.starts_with(p)));
     (out, notes)

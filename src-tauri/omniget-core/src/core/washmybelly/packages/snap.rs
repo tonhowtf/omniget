@@ -1,16 +1,3 @@
-//! snap, through the snapd REST API on `/run/snapd.socket` (HTTP/1.1 over a
-//! unix socket, no extra crate; the client lives in `clean::rules_linux`).
-//!
-//! - list: `GET /v2/snaps` (`result[]` with `name`, `version`, `revision`,
-//!   `type` = app|base|os|snapd|gadget|kernel, `installed-size`,
-//!   `publisher.display-name`, `title`, `summary`). Only `type: app` is an app;
-//! - removal preview: snaps carry their own dependencies, so a removal takes
-//!   only the snap itself (its old revisions go with it);
-//! - updates: `GET /v2/find?select=refresh` (the new `version`,
-//!   `download-size`), current version from `/v2/snaps`;
-//! - remove and refresh need root: `snap remove -- <names>`,
-//!   `snap refresh -- <names>` in the helper.
-
 use serde_json::Value;
 
 use super::{package_app, App, PackageBackend, RemovePreview, Update};
@@ -35,8 +22,6 @@ fn results(body: &str) -> Vec<Value> {
         .unwrap_or_default()
 }
 
-/// `GET /v2/snaps` or `/v2/find` bodies. Names that are not valid snap
-/// names are dropped.
 pub fn parse_snaps(body: &str) -> Vec<SnapInfo> {
     results(body)
         .into_iter()
@@ -67,7 +52,6 @@ pub fn parse_snaps(body: &str) -> Vec<SnapInfo> {
         .collect()
 }
 
-/// Updates from `/v2/find?select=refresh`, current versions from `installed`.
 pub fn parse_refresh(body: &str, installed: &[SnapInfo]) -> Vec<Update> {
     parse_snaps(body)
         .into_iter()
@@ -158,7 +142,6 @@ impl PackageBackend for Snap {
     }
 
     fn orphans(&self) -> Result<Vec<App>, String> {
-        // Old revisions are the clean module's (`linux_snap_revisions`).
         Ok(Vec::new())
     }
 

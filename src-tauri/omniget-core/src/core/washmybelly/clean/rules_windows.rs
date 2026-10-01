@@ -1,30 +1,9 @@
-//! Windows cleanup rules: ours, written for washmybelly, plus the Kudu rules
-//! (MIT, `clean::kudu`) deduplicated against them. The engine calls
-//! [`rules`] and treats them like any other source.
-//!
-//! Semantics the engine applies to every rule here:
-//! - `DeleteContents`: each direct child of each matched folder goes (the
-//!   folder stays; Windows and apps expect it), skipping children touched in
-//!   the last `min_age_days` (newest mtime anywhere below, BitBroom/Kudu).
-//! - `Delete`: each matched path goes.
-//! - Items a process holds open are reported with its name by
-//!   `clean::locks::lockers` (Restart Manager) instead of failing.
-//!
-//! Left out on purpose: `DISM /ResetBase` (makes installed updates
-//! impossible to uninstall), `cleanmgr`, Prefetch (placebo), Windows.old,
-//! the MSI patch cache, anything under System32/WinSxS/Defender.
-//!
-//! Path facts and safety designs from Kudu (MIT), BitBroom (MIT), winutil
-//! (MIT) and Sophia Script (MIT); see `data/washmybelly/windows/SOURCE.md`.
-
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 
 use super::rule::{Action, Requirement, Rule};
 use crate::core::washmybelly::{Destination, Os, Risk};
 
-/// Variables a Windows target may start with. Anything else is refused by
-/// the tests (a rule never names a drive or a folder outside these roots).
 pub const ALLOWED_ROOTS: &[&str] = &[
     "%TEMP%",
     "%LOCALAPPDATA%",
@@ -40,10 +19,6 @@ pub const ALLOWED_ROOTS: &[&str] = &[
     "%GRADLE_USER_HOME%",
 ];
 
-/// Trees no Windows rule enters (normalized form of `kudu::normalize_target`).
-/// Mirrors the Windows part of `protect.rs` plus the places the studies
-/// flagged: Defender, Windows.old, the component store, the MSI cache,
-/// Amcache, Prefetch, credentials.
 pub const PROTECTED: &[&str] = &[
     "%windir%/system32",
     "%windir%/syswow64",
@@ -68,7 +43,6 @@ pub const PROTECTED: &[&str] = &[
     "%appdata%/microsoft/protect",
 ];
 
-/// The protected tree a target falls in, if any.
 pub fn protected_hit(target: &str) -> Option<&'static str> {
     let t = super::kudu::normalize_target(target);
     PROTECTED
@@ -77,31 +51,19 @@ pub fn protected_hit(target: &str) -> Option<&'static str> {
         .find(|p| t == *p || t.starts_with(&format!("{p}/")))
 }
 
-/// Rules whose items must start unchecked on screen (history and cookies:
-/// the person loses logins and "recently visited").
 pub fn unselected_by_default(rule: &Rule) -> bool {
     rule.category == "privacy"
 }
 
-// ── Administrator maintenance around a rule ──
-
-/// When a maintenance step runs relative to the rule's own removals.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Stage {
-    /// Before the files go (stop the service that holds them).
     Before,
-    /// Instead of removing files: the system tool does it.
     Instead,
 }
 
-/// The administrator maintenance a rule needs, as an id the elevated helper
-/// maps back to a fixed argv with [`maintenance_argv`].
 pub fn maintenance_for(rule_id: &str) -> Option<(&'static str, Stage)> {
     match rule_id {
-        // Windows Update keeps files in Download open while wuauserv/BITS run.
-        // Both are demand-start services: Windows starts them again when needed.
         "windows.update.download_cache" => Some(("win_wu_stop", Stage::Before)),
-        // Delivery Optimization owns its cache; its cmdlet keeps pinned files.
         "windows.delivery_optimization.cache" => {
             Some(("win_delivery_optimization", Stage::Instead))
         }
@@ -109,9 +71,6 @@ pub fn maintenance_for(rule_id: &str) -> Option<(&'static str, Stage)> {
     }
 }
 
-/// Fixed argv lists for a maintenance id, with programs resolved under
-/// `system_root` (`C:\Windows`), never through PATH. No path or user input
-/// reaches these strings.
 pub fn maintenance_argv(id: &str, system_root: &str) -> Option<Vec<Vec<String>>> {
     let sys32 = format!("{}\\System32", system_root.trim_end_matches(['\\', '/']));
     let net = format!("{sys32}\\net.exe");
@@ -135,8 +94,6 @@ pub fn maintenance_argv(id: &str, system_root: &str) -> Option<Vec<Vec<String>>>
         _ => None,
     }
 }
-
-// ── Our rules ──
 
 struct B(Rule);
 
@@ -208,7 +165,6 @@ impl B {
     }
 }
 
-/// Chromium user-data folder → per-profile and shared cache globs.
 fn chromium_cache(base: &str, profile_is_base: bool) -> Vec<String> {
     let mut v = Vec::new();
     for d in [
@@ -262,8 +218,6 @@ const COOKIE_FILES: &[&str] = &[
     "Cookies-journal",
 ];
 
-/// The browsers we cover by hand: (key, label, user-data bases, extra cache
-/// bases, profile folder is the base itself, process).
 type Chromium = (
     &'static str,
     &'static str,
@@ -315,10 +269,8 @@ const CHROMIUMS: &[Chromium] = &[
     ),
 ];
 
-/// Our hand-written Windows rules (no Kudu, no Steam scan).
 pub fn ours() -> Vec<Rule> {
     let mut v = vec![
-        // ── System ──
         B::new("windows.temp.user", "system", "Temporary files", "Files programs left in your temporary folder. Anything used in the last two days stays.")
             .targets(&["%TEMP%", "%LOCALAPPDATA%\\Temp"])
             .age(2)
@@ -365,7 +317,6 @@ pub fn ours() -> Vec<Rule> {
             .delete()
             .age(0)
             .build(),
-        // ── Shader caches ──
         B::new("windows.shader.directx", "shader_cache", "DirectX shader cache", "Compiled shaders; games rebuild them, so the first launch after is slower.")
             .targets(&["%LOCALAPPDATA%\\D3DSCache"])
             .build(),
@@ -393,7 +344,6 @@ pub fn ours() -> Vec<Rule> {
         B::new("windows.shader.intel", "shader_cache", "Intel shader cache", "Compiled shaders; games rebuild them, so the first launch after is slower.")
             .targets(&["%LOCALAPPDATA%\\Intel\\ShaderCache", "%USERPROFILE%\\AppData\\LocalLow\\Intel\\ShaderCache"])
             .build(),
-        // ── Firefox ──
         B::new("windows.browser.firefox.cache", "browser", "Firefox cache", "Saved copies of web pages; Firefox downloads them again.")
             .targets(&[
                 "%LOCALAPPDATA%\\Mozilla\\Firefox\\Profiles\\*\\cache2",
@@ -404,8 +354,6 @@ pub fn ours() -> Vec<Rule> {
             ])
             .running(&["firefox.exe"])
             .build(),
-        // History lives in places.sqlite together with bookmarks, so Firefox
-        // history is left to the SQL cleaner (BleachBit); cookies are their own file.
         B::new("windows.browser.firefox.cookies", "privacy", "Firefox cookies", "Signs you out of websites.")
             .targets(&[
                 "%APPDATA%\\Mozilla\\Firefox\\Profiles\\*\\cookies.sqlite",
@@ -416,7 +364,6 @@ pub fn ours() -> Vec<Rule> {
             .age(0)
             .running(&["firefox.exe"])
             .build(),
-        // ── Games (launcher caches and logs only, never game files) ──
         B::new("windows.steam.appcache", "games", "Steam cache", "Steam's app info and store page caches; Steam downloads them again. Stats waiting to sync stay.")
             .targets(&[
                 "%ProgramFiles(x86)%\\Steam\\appcache",
@@ -459,7 +406,6 @@ pub fn ours() -> Vec<Rule> {
             .targets(&["%LOCALAPPDATA%\\Riot Games\\Riot Client\\Logs"])
             .running(&["RiotClientServices.exe"])
             .build(),
-        // ── Developer caches ──
         B::new("windows.dev.npm", "dev", "npm cache", "Downloaded packages; npm fetches them again.")
             .targets(&["%LOCALAPPDATA%\\npm-cache\\_cacache", "%LOCALAPPDATA%\\npm-cache\\_logs"])
             .build(),
@@ -537,8 +483,6 @@ pub fn ours() -> Vec<Rule> {
     v
 }
 
-/// Every Windows rule: ours, Steam shader caches of uninstalled games (found
-/// on disk at call time, Windows only), and Kudu minus what ours already reach.
 pub fn rules() -> Vec<Rule> {
     let mut v = ours();
     #[cfg(windows)]
@@ -557,15 +501,10 @@ pub fn rules() -> Vec<Rule> {
     v
 }
 
-// ── Steam: shader caches of games no longer installed ──
-
-/// Library folders listed in `steamapps/libraryfolders.vdf` (the `"path"`
-/// values, unescaped).
 pub fn steam_library_paths(vdf: &str) -> Vec<String> {
     let mut out = Vec::new();
     for line in vdf.lines() {
         let parts: Vec<&str> = line.split('"').collect();
-        // `"path"		"D:\\SteamLibrary"` → ["", "path", "\t\t", "D:\\\\SteamLibrary", ""]
         if parts.len() >= 5 && parts[1].eq_ignore_ascii_case("path") && parts[2].trim().is_empty() {
             let p = parts[3].replace("\\\\", "\\");
             if !p.is_empty() && !out.contains(&p) {
@@ -580,9 +519,6 @@ fn app_id(name: &str) -> Option<&str> {
     (!name.is_empty() && name.bytes().all(|b| b.is_ascii_digit())).then_some(name)
 }
 
-/// `shadercache/<appid>` folders, across every library, whose game has no
-/// `appmanifest_<appid>.acf` in any library. Empty when no manifest is found
-/// at all (then we cannot tell what is installed, so we offer nothing).
 pub fn steam_orphan_shadercache(steamapps_dirs: &[PathBuf]) -> Vec<PathBuf> {
     let mut installed: HashSet<String> = HashSet::new();
     for dir in steamapps_dirs {
@@ -627,8 +563,6 @@ pub fn steam_orphan_shadercache(steamapps_dirs: &[PathBuf]) -> Vec<PathBuf> {
     out
 }
 
-/// Steam roots → every `steamapps` folder (the root's own plus the libraries
-/// in its `libraryfolders.vdf`).
 pub fn steam_steamapps_dirs(roots: &[PathBuf]) -> Vec<PathBuf> {
     let mut dirs: Vec<PathBuf> = Vec::new();
     for root in roots {
@@ -651,8 +585,6 @@ pub fn steam_steamapps_dirs(roots: &[PathBuf]) -> Vec<PathBuf> {
     dirs
 }
 
-/// The rule for shader caches of uninstalled Steam games, or `None` when
-/// there is nothing to offer.
 pub fn steam_orphan_rule(roots: &[PathBuf]) -> Option<Rule> {
     let orphans = steam_orphan_shadercache(&steam_steamapps_dirs(roots));
     if orphans.is_empty() {
@@ -706,8 +638,6 @@ mod tests {
         Some(v.to_string())
     }
 
-    /// Resolved folders a Windows rule may never produce as a target, and
-    /// trees it may never enter (the Windows half of `protect.rs`).
     const RESOLVED_ROOTS: &[&str] = &[
         "c:",
         "c:/windows",
@@ -773,9 +703,6 @@ mod tests {
                         r.id
                     );
                 }
-                // The literal part before any wildcard must be below the roots
-                // (DeleteContents keeps the folder itself, so a root is fine
-                // there; Delete never removes a root).
                 if r.action == Action::Delete {
                     assert!(
                         !RESOLVED_ROOTS.contains(&res.as_str()),
@@ -940,7 +867,6 @@ mod tests {
         for r in &all {
             assert!(ids.insert(r.id.clone()), "duplicate {}", r.id);
         }
-        // Kudu's own Temp, Explorer and D3DSCache rules are reached by ours.
         assert!(!all.iter().any(|r| r.id == "kudu.system.user_temp_files"));
         assert!(!all
             .iter()
@@ -948,7 +874,6 @@ mod tests {
         assert!(!all
             .iter()
             .any(|r| r.id == "kudu.system.directx_shader_cache"));
-        // ...and the ones ours do not reach survive.
         assert!(all.iter().any(|r| r.id == "kudu.apps.discord"));
         assert!(all.iter().any(|r| r.id == "kudu.browser.vivaldi.cache"));
         assert!(all.len() > ours().len() + 100);
@@ -1024,7 +949,6 @@ mod tests {
             std::fs::create_dir_all(d).unwrap();
         }
         std::fs::write(apps.join("appmanifest_440.acf"), "\"AppState\" {}").unwrap();
-        // 730 is installed in the other library: its cache stays.
         std::fs::write(apps2.join("appmanifest_730.acf"), "\"AppState\" {}").unwrap();
         let vdf = format!(
             "\"libraryfolders\"\n{{\n\t\"0\"\n\t{{\n\t\t\"path\"\t\t\"{}\"\n\t}}\n\t\"1\"\n\t{{\n\t\t\"path\"\t\t\"{}\"\n\t}}\n}}\n",
@@ -1055,8 +979,6 @@ mod tests {
         assert!(steam_orphan_rule(&[dir.path().join("Steam")]).is_none());
     }
 
-    /// BitBroom's canary: a link inside a cache folder pointing at something
-    /// precious. Emptying the cache removes the link, never the target.
     #[cfg(unix)]
     #[test]
     fn junction_canary_survives_emptying_a_cache() {
@@ -1070,7 +992,6 @@ mod tests {
         std::os::unix::fs::symlink(&precious, cache.join("link")).unwrap();
         std::os::unix::fs::symlink(&precious, cache.join("sub/link2")).unwrap();
 
-        // The glob does not walk through the link either.
         let found = fsops::glob(&format!("{}/*/canary.txt", cache.display()));
         assert!(found.is_empty(), "{found:?}");
 

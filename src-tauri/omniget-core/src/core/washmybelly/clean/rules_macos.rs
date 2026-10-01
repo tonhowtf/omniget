@@ -1,16 +1,4 @@
-//! macOS cleanup rules, ported by hand from two upstream cleaners:
-//!
-//! - `source: "Mole"`: `lib/clean/{user,dev,app_caches,brew,system}.sh` of
 //!   tw93/Mole (GPL-3.0, commit in `data/washmybelly/mole/SOURCE.md`). The
-//!   name never reaches the UI.
-//! - `source: "PureMac"`: the CLI catalog and `ScanEngine.swift` of
-//!   momenbasel/PureMac (MIT, `data/washmybelly/puremac/`).
-//!
-//! Differences on purpose: one item per app (never `~/Library/Caches` in one
-//! go), browsing data separate and unticked, the Trash is screen-only,
-//! Archives and simulator runtimes unticked, `simctl delete unavailable`
-//! (never `erase all`), Homebrew through `brew cleanup`, Time Machine
-//! snapshots only thinned by the admin helper.
 
 use serde_json::{json, Value};
 
@@ -24,7 +12,6 @@ const M: &[Os] = &[Os::Macos];
 const MOLE: (&str, &str) = ("Mole", "GPL-3.0");
 const PUREMAC: (&str, &str) = ("PureMac", "MIT");
 
-/// Chromium-family profile caches under an `Application Support` base.
 fn chromium_caches(base: &str) -> Vec<String> {
     let mut v = Vec::new();
     for d in [
@@ -63,7 +50,6 @@ pub fn rules() -> Vec<Rule> {
     let vivaldi = format!("{as_}/Vivaldi");
 
     let mut v = vec![
-        // ── System ──
         b("macos.user_logs", M, "logs", "App logs")
             .t(&["~/Library/Logs"])
             .from(MOLE.0, MOLE.1)
@@ -95,8 +81,6 @@ pub fn rules() -> Vec<Rule> {
             ])
             .from(MOLE.0, MOLE.1)
             .done(),
-        // Other apps' containers: without Full Disk Access macOS asks
-        // "allow access to data from other apps?" for each one.
         b("macos.apple_container_caches", M, "system", "macOS app caches")
             .t(&[
                 "~/Library/Containers/com.apple.wallpaper.agent/Data/Library/Caches",
@@ -150,7 +134,6 @@ pub fn rules() -> Vec<Rule> {
             .from(PUREMAC.0, PUREMAC.1)
             .desc("Snapshots Time Machine keeps on this disk until a backup disk is back. macOS also removes them when space runs low.")
             .done(),
-        // ── Developer ──
         b("macos.xcode_derived_data", M, "dev", "Xcode build data")
             .t(&["~/Library/Developer/Xcode/DerivedData", "~/Library/Developer/Xcode/Products"])
             .running(&["Xcode", "xcodebuild"])
@@ -229,7 +212,6 @@ pub fn rules() -> Vec<Rule> {
             .t(&["~/.ollama/logs", "~/.lmstudio/server-logs"])
             .from(PUREMAC.0, PUREMAC.1)
             .done(),
-        // ── Browsers: caches ──
         b("macos.safari_cache", M, "browser", "Safari: Cache")
             .t(&["~/Library/Caches/com.apple.Safari", "~/Library/Containers/com.apple.Safari/Data/Library/Caches"])
             .running(&["Safari"])
@@ -293,7 +275,6 @@ pub fn rules() -> Vec<Rule> {
             .done(),
     ];
 
-    // ── Browsers: history and cookies, separate and unticked ──
     for (id, name, base, proc_) in [
         ("chrome", "Google Chrome", chrome.as_str(), "Google Chrome"),
         ("brave", "Brave", brave.as_str(), "Brave Browser"),
@@ -368,16 +349,11 @@ pub fn rules() -> Vec<Rule> {
     v
 }
 
-// ── Probes: rules whose size only a system tool knows ───────────────
-
-/// `xcrun` with the Command Line Tools present (the bare shim opens an
-/// installer dialog, so never call it without them).
 fn xcrun_ready(env: &Env) -> bool {
     env.output("xcode-select", &["-p"])
         .is_some_and(|s| !s.trim().is_empty())
 }
 
-/// Unavailable simulators: `simctl list devices unavailable -j`.
 pub fn probe_simctl_unavailable(rule: &Rule, env: &Env) -> Vec<Found> {
     if !xcrun_ready(env) {
         return Vec::new();
@@ -411,7 +387,6 @@ pub fn probe_simctl_unavailable(rule: &Rule, env: &Env) -> Vec<Found> {
     }]
 }
 
-/// Data folders of the unavailable devices in `simctl list -j` output.
 pub fn parse_simctl_unavailable(json_text: &str) -> Vec<String> {
     let Ok(v) = serde_json::from_str::<Value>(json_text) else {
         return Vec::new();
@@ -428,7 +403,6 @@ pub fn parse_simctl_unavailable(json_text: &str) -> Vec<String> {
                     continue;
                 }
                 if let Some(p) = d["dataPath"].as_str() {
-                    // dataPath is <device>/data; the device folder is its parent.
                     let dev = p.strip_suffix("/data").unwrap_or(p);
                     out.push(dev.to_string());
                 }
@@ -438,7 +412,6 @@ pub fn parse_simctl_unavailable(json_text: &str) -> Vec<String> {
     out
 }
 
-/// Deletable simulator runtimes, minus the newest of each platform.
 pub fn probe_simulator_runtimes(rule: &Rule, env: &Env) -> Vec<Found> {
     if !xcrun_ready(env) {
         return Vec::new();
@@ -524,8 +497,6 @@ fn version_key(v: &str) -> Vec<u32> {
     v.split('.').map(|p| p.parse().unwrap_or(0)).collect()
 }
 
-/// Local snapshots: `tmutil listlocalsnapshotdates /`. The size is not
-/// known without admin; the item says how many there are.
 pub fn probe_tm_snapshots(_rule: &Rule, env: &Env) -> Vec<Found> {
     let Some(out) = env.output("tmutil", &["listlocalsnapshotdates", "/"]) else {
         return Vec::new();
@@ -548,7 +519,6 @@ pub fn probe_tm_snapshots(_rule: &Rule, env: &Env) -> Vec<Found> {
     }]
 }
 
-/// `2026-09-27-101112` lines after the header.
 pub fn parse_tm_dates(text: &str) -> Vec<String> {
     text.lines()
         .map(str::trim)

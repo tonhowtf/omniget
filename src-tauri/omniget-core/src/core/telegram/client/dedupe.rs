@@ -1,7 +1,3 @@
-//! Registry of every file saved from Telegram (`data_dir/downloaded.sqlite`),
-//! so the same file (same Telegram file id, or same size and name) is not
-//! downloaded again into another folder.
-
 use std::path::{Path, PathBuf};
 use std::sync::{Mutex, OnceLock};
 
@@ -10,8 +6,6 @@ use serde_json::json;
 
 use crate::core::telegram::host;
 
-/// Prefix of the error `download_media` returns for a duplicate; the
-/// existing path follows it.
 pub const DUPLICATE_PREFIX: &str = "DUPLICATE_OF:";
 
 pub fn duplicate_of(err: &str) -> Option<&str> {
@@ -50,7 +44,6 @@ fn with<T>(f: impl FnOnce(&Connection) -> rusqlite::Result<T>) -> Option<T> {
     g.as_ref().and_then(|c| f(c).ok())
 }
 
-/// The `dedupe` setting (on by default).
 pub fn enabled() -> bool {
     super::setting("dedupe").as_bool().unwrap_or(true)
 }
@@ -65,8 +58,6 @@ fn on_disk(path: &Path, size: u64) -> bool {
         .unwrap_or(false)
 }
 
-/// Where this file was already saved, if it still is there. Entries whose
-/// file is gone are dropped.
 pub fn find(uid: Option<&str>, size: u64, name: &str) -> Option<PathBuf> {
     if let Some(uid) = uid {
         let hit: Option<(String, i64)> = with(|c| {
@@ -86,8 +77,6 @@ pub fn find(uid: Option<&str>, size: u64, name: &str) -> Option<PathBuf> {
             with(|c| c.execute("DELETE FROM files WHERE file_uid = ?1", [uid]));
         }
     }
-    // Same size and name: only for files big enough that a clash is not a
-    // coincidence.
     if size < 256 * 1024 || name.is_empty() {
         return None;
     }
@@ -110,7 +99,6 @@ pub fn find(uid: Option<&str>, size: u64, name: &str) -> Option<PathBuf> {
     None
 }
 
-/// Registers a saved file.
 pub fn record(uid: Option<&str>, size: u64, name: &str, path: &Path, chat_id: i64, msg_id: i32) {
     let key = uid
         .map(str::to_string)
@@ -145,7 +133,6 @@ fn bump(key: &str, by: i64) {
     });
 }
 
-/// Counts one download that was avoided.
 pub fn note_avoided(size: u64) {
     bump("avoided", 1);
     bump("avoided_bytes", size as i64);
@@ -162,7 +149,6 @@ fn stat(key: &str) -> i64 {
     .unwrap_or(0)
 }
 
-/// `{enabled, files, bytes, avoided, avoided_bytes}`.
 pub fn stats() -> serde_json::Value {
     let (files, bytes): (i64, i64) = with(|c| {
         c.query_row(
@@ -181,7 +167,6 @@ pub fn stats() -> serde_json::Value {
     })
 }
 
-/// Forgets every registered file and the counters.
 pub fn clear() {
     with(|c| c.execute_batch("DELETE FROM files; DELETE FROM stats;"));
 }

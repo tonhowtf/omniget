@@ -1,43 +1,29 @@
-//! TOML: a reader for the subset real configs use (tables, arrays of tables,
-//! dotted keys, every string form, numbers, booleans, dates kept as strings,
-//! arrays, inline tables) and a line-preserving editor for Codex, Grok, Vibe and
-//! Kimi configs. It also loads the embedded target manifests.
-
 use serde_json::{Map, Value};
 
 use super::{edit_err, ordered_entries, parse_err, value_at, Editor, Result, Seg, SetOutcome};
 
-/// Parses a TOML document into a JSON value.
 pub fn parse(text: &str) -> Result<Value> {
     Ok(scan(text)?.value)
 }
 
-/// Where each header and key lives, for the editor.
 #[derive(Debug, Clone)]
 struct Section {
-    /// Value path of the table (`[a.b]` → a.b; `[[x]]` → x[i]); root = empty.
     path: Vec<Seg>,
-    /// Byte offset of the header line start (root: 0).
     start: usize,
-    /// Byte offset after the header line (root: 0).
     body_start: usize,
-    /// Offset where the section ends (next header line start or EOF).
     end: usize,
     is_root: bool,
     #[allow(dead_code)]
     array_item: bool,
-    /// Key-value entries in this section.
     keys: Vec<KeyEntry>,
 }
 
 #[derive(Debug, Clone)]
 struct KeyEntry {
-    /// Full value path.
     path: Vec<Seg>,
     line_start: usize,
     value_start: usize,
     value_end: usize,
-    /// End of the line including the newline.
     line_end: usize,
 }
 
@@ -126,7 +112,6 @@ fn scan(text: &str) -> Result<Scan> {
             });
             continue;
         }
-        // key = value
         let key = p.key_path()?;
         p.skip_inline_ws();
         p.expect(b'=')?;
@@ -183,8 +168,6 @@ fn get_mut<'a>(v: &'a mut Value, path: &[Seg]) -> Option<&'a mut Value> {
     Some(cur)
 }
 
-/// Walks key parts from `v`, creating tables; stepping into the last element of
-/// arrays of tables. When `want_array` the final node is created as an array.
 fn ensure_path<'a>(
     v: &'a mut Value,
     keys: &[String],
@@ -216,7 +199,6 @@ fn ensure_path<'a>(
     Ok(cur)
 }
 
-/// Value path of a header key, going through the last element of arrays of tables.
 fn resolve(root: &Value, keys: &[String]) -> Vec<Seg> {
     let mut out = vec![];
     let mut cur = root;
@@ -416,7 +398,6 @@ impl<'a> P<'a> {
                     {
                         break;
                     }
-                    // a date-time may contain one space between date and time
                     if c == b' ' || c == b'\t' {
                         let rest = &self.text[self.pos + 1..];
                         let looks_time = rest.len() >= 2
@@ -522,7 +503,6 @@ impl<'a> P<'a> {
                 return Err(self.err("unterminated multi-line string"));
             }
             if self.s[self.pos..].starts_with(b"\"\"\"") {
-                // up to two extra quotes belong to the content
                 let mut q = 3;
                 while self.s.get(self.pos + q) == Some(&b'"') && q < 5 {
                     q += 1;
@@ -535,7 +515,6 @@ impl<'a> P<'a> {
             }
             let c = self.s[self.pos];
             if c == b'\\' {
-                // line-ending backslash trims following whitespace
                 let mut j = self.pos + 1;
                 while j < self.s.len() && (self.s[j] == b' ' || self.s[j] == b'\t') {
                     j += 1;
@@ -611,7 +590,6 @@ fn scalar(tok: &str) -> Option<Value> {
             return serde_json::Number::from_f64(f).map(Value::Number);
         }
     }
-    // dates, times, date-times: keep as text
     if tok.len() >= 8
         && tok.as_bytes()[0].is_ascii_digit()
         && (tok.contains('-') || tok.contains(':'))
@@ -620,8 +598,6 @@ fn scalar(tok: &str) -> Option<Value> {
     }
     None
 }
-
-// ---------------------------------------------------------------- writing
 
 fn is_bare_key(k: &str) -> bool {
     !k.is_empty()
@@ -657,7 +633,6 @@ fn basic(s: &str) -> String {
     out
 }
 
-/// A value on one line (strings, numbers, arrays, inline tables).
 pub fn inline(v: &Value) -> String {
     match v {
         Value::Null => "\"\"".into(),
@@ -665,7 +640,6 @@ pub fn inline(v: &Value) -> String {
         Value::Number(n) => n.to_string(),
         Value::String(s) => {
             if s.contains('\n') {
-                // multi-line basic string keeps prompts readable
                 let esc = s.replace('\\', "\\\\").replace("\"\"\"", "\\\"\\\"\\\"");
                 format!("\"\"\"\n{esc}\"\"\"")
             } else {
@@ -705,7 +679,6 @@ fn header_text(path: &[Seg], aot: bool) -> String {
     }
 }
 
-/// Renders a table body: scalars/arrays/objects as `k = inline` lines.
 fn body_text(map: &Map<String, Value>) -> String {
     let mut out = String::new();
     for (k, v) in ordered_entries(map) {
@@ -717,7 +690,6 @@ fn body_text(map: &Map<String, Value>) -> String {
     out
 }
 
-/// A TOML document open for editing.
 #[derive(Debug, Clone)]
 pub struct TomlDoc {
     text: String,
@@ -753,7 +725,6 @@ impl TomlDoc {
             .find(|k| k.path == path)
     }
 
-    /// Byte range of a table and all its sub-tables (they must be contiguous).
     fn table_block(&self, path: &[Seg]) -> Option<(usize, usize)> {
         let idx = self
             .sections
@@ -771,7 +742,6 @@ impl TomlDoc {
         Some((start, end))
     }
 
-    /// Appends text at the end of the file separated by one blank line.
     fn append_block(&mut self, block: &str) -> Result<()> {
         let mut t = self.text.clone();
         if t.is_empty() {
@@ -785,7 +755,6 @@ impl TomlDoc {
         Ok(())
     }
 
-    /// Removes a block, and the blank line `append_block` put before it.
     fn remove_block(&mut self, start: usize, end: usize) -> Result<()> {
         let mut s = start;
         let t = &self.text;
@@ -801,14 +770,12 @@ impl TomlDoc {
         self.replace(s, end, "")
     }
 
-    /// Writes `[path]` (or `[[path]]`) with an object value at the end of the file.
     fn append_table(&mut self, path: &[Seg], obj: &Map<String, Value>, aot: bool) -> Result<()> {
         let mut block = format!("{}\n", header_text(path, aot));
         block.push_str(&body_text(obj));
         self.append_block(&block)
     }
 
-    /// Inserts `key = value` as the last key line of the section at `table`.
     fn insert_key(&mut self, table: &[Seg], key: &str, v: &Value) -> Result<()> {
         let line = format!("{} = {}\n", key_text(key), inline(v));
         match self.section_of(table).cloned() {
@@ -849,7 +816,6 @@ impl Editor for TomlDoc {
         if path.is_empty() {
             return Err(edit_err("cannot replace a whole TOML document"));
         }
-        // full path exists?
         if let Some(prev) = value_at(&self.value, path).cloned() {
             if let Some(k) = self.key_entry(path).cloned() {
                 self.replace(k.value_start, k.value_end, &inline(value))?;
@@ -883,7 +849,6 @@ impl Editor for TomlDoc {
                 super::path_display(path)
             )));
         }
-        // deepest existing prefix
         let mut depth = 0;
         while depth < path.len() && value_at(&self.value, &path[..=depth]).is_some() {
             depth += 1;
@@ -935,7 +900,6 @@ impl Editor for TomlDoc {
             self.remove_block(s, e)?;
             return Ok(Some(prev));
         }
-        // array of tables: remove every element block
         if let Value::Array(items) = &prev {
             for i in (0..items.len()).rev() {
                 let mut p = path.to_vec();
@@ -946,7 +910,6 @@ impl Editor for TomlDoc {
             }
             return Ok(Some(prev));
         }
-        // implicit table (only sub-tables): remove every sub-table
         let subs: Vec<Vec<Seg>> = self
             .sections
             .iter()
@@ -971,7 +934,6 @@ impl Editor for TomlDoc {
         let existing = value_at(&self.value, path).cloned();
         match (&existing, value) {
             (None, Value::Object(obj)) => {
-                // new array of tables
                 let mut depth = 0;
                 while depth < path.len() && value_at(&self.value, &path[..=depth]).is_some() {
                     depth += 1;
@@ -1042,7 +1004,6 @@ impl Editor for TomlDoc {
     }
 }
 
-/// Re-renders an array keeping the multi-line layout when the original had one.
 fn render_array_like(original: &str, items: &[Value]) -> String {
     if original.contains('\n') {
         let indent = original

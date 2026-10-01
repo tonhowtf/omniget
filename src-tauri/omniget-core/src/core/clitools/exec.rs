@@ -1,6 +1,3 @@
-//! Utilitários de processo e versão: busca no PATH, execução curta com
-//! timeout e comparação de versões. Tudo passa por `core::process`.
-
 use std::cmp::Ordering;
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
@@ -9,7 +6,6 @@ use std::time::Duration;
 
 use super::table::expand_home;
 
-/// Saída de um comando curto.
 #[derive(Debug, Clone)]
 pub struct Captured {
     pub code: Option<i32>,
@@ -32,7 +28,6 @@ impl Captured {
     }
 }
 
-/// Roda `program args` com timeout; `None` se não deu para iniciar ou estourou.
 pub async fn run_capture(
     program: &Path,
     args: &[String],
@@ -58,8 +53,6 @@ pub async fn run_capture(
     })
 }
 
-/// No Windows um `.cmd`/`.bat`/`.ps1` não executa sozinho: passa pelo `cmd /C`
-/// ou pelo PowerShell. Nos outros sistemas é o próprio programa.
 pub fn command_for(program: &Path) -> tokio::process::Command {
     let ext = program
         .extension()
@@ -80,9 +73,6 @@ pub fn command_for(program: &Path) -> tokio::process::Command {
     }
 }
 
-/// Diretórios onde procurar binários: `OMNIGET_CLITOOLS_EXTRA_PATH` (testes),
-/// o PATH do processo e as pastas que os instaladores oficiais usam (apps de
-/// GUI no macOS herdam um PATH mínimo).
 pub fn search_dirs(extra: &[PathBuf]) -> Vec<PathBuf> {
     let mut dirs: Vec<PathBuf> = Vec::new();
     if let Some(p) = std::env::var_os("OMNIGET_CLITOOLS_EXTRA_PATH") {
@@ -150,7 +140,6 @@ fn candidates(name: &str) -> Vec<String> {
     }
 }
 
-/// Primeiro `name` executável em `dirs`.
 pub fn which_in(name: &str, dirs: &[PathBuf]) -> Option<PathBuf> {
     for d in dirs {
         for c in candidates(name) {
@@ -185,7 +174,6 @@ fn is_executable(p: &Path) -> bool {
     }
 }
 
-/// Caminho real (sem symlink). No Windows tira o prefixo `\\?\`.
 pub fn real_path(p: &Path) -> PathBuf {
     match std::fs::canonicalize(p) {
         Ok(r) => strip_verbatim(r),
@@ -206,7 +194,6 @@ fn strip_verbatim(p: PathBuf) -> PathBuf {
     p
 }
 
-/// Caminho com `/` para casar padrões (`/lib/node_modules/<pkg>/`).
 pub fn slashy(p: &Path) -> String {
     let s = p.to_string_lossy().replace('\\', "/");
     if cfg!(windows) {
@@ -216,7 +203,6 @@ pub fn slashy(p: &Path) -> String {
     }
 }
 
-/// Primeira versão (`1.2.3`, `v1.2`, `2026.09.18-abc`) de um texto.
 pub fn parse_version(text: &str) -> Option<String> {
     use std::sync::OnceLock;
     static RE: OnceLock<regex::Regex> = OnceLock::new();
@@ -226,7 +212,6 @@ pub fn parse_version(text: &str) -> Option<String> {
     re.captures(text).map(|c| c[1].to_string())
 }
 
-/// Compara versões pelos números (o sufixo `-pre` fica abaixo da final).
 pub fn compare_versions(a: &str, b: &str) -> Ordering {
     fn split(v: &str) -> (Vec<u64>, bool) {
         let v = v.trim().trim_start_matches('v');
@@ -256,7 +241,6 @@ pub fn compare_versions(a: &str, b: &str) -> Ordering {
     }
 }
 
-/// Aspas para mostrar um comando copiável no shell do sistema.
 pub fn shell_quote(arg: &str) -> String {
     let safe = !arg.is_empty()
         && arg

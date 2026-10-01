@@ -1,21 +1,3 @@
-//! The tools a bot can call on its memory, its reading journeys, the web and
-//! its group, behind one registry.
-//!
-//! Two doors, one implementation:
-//! - native runtime: the broker source `assist` ([`AssistExecutor`]); the
-//!   scope comes from `code_tools::current_turn()` (agent id = bot id,
-//!   conversation id), resolved by [`super::ctx::resolve`];
-//! - CLI/ACP runtimes: the scoped MCP projection ([`super::projection`]); the
-//!   scope comes from the per-session token.
-//!
-//! Tool names are bare `snake_case` (provider tool-name rules) and unique
-//! across toolsets. Grants are ordinary `ToolSource::Internal { name }`
-//! grants on the agent, so "a box ticked" and "a tool offered" stay the same
-//! check in the broker (`specs_for`).
-//!
-//! Everything a tool returns is data; web and skill content never widens a
-//! scope or a grant (spec A20).
-
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -26,22 +8,17 @@ use crate::core::llm::broker::ToolExecutor;
 use crate::core::llm::error::LlmError;
 use crate::core::llm::types::ToolSpec;
 
-/// Broker source name of the assistant tools.
 pub const ASSIST_SOURCE: &str = "assist";
 pub const ERR_ASSIST_TOOL: &str = "ERR_ASSIST_TOOL";
 pub const ERR_ASSIST_SCOPE: &str = "ERR_ASSIST_SCOPE";
 
 #[async_trait]
 pub trait AssistToolset: Send + Sync {
-    /// Short owner name, for diagnostics.
     fn name(&self) -> &'static str;
     fn specs(&self) -> Vec<ToolSpec>;
-    /// Runs one of this toolset's tools. `Err` carries a stable `ERR_*` code
-    /// at the start of the string.
     async fn call(&self, ctx: &AssistCtx, tool: &str, input: Value) -> Result<Value, String>;
 }
 
-/// Every toolset, in a fixed order.
 pub fn toolsets() -> Vec<Arc<dyn AssistToolset>> {
     vec![
         super::memory::toolset(),
@@ -58,12 +35,10 @@ pub fn all_specs() -> Vec<ToolSpec> {
     toolsets().iter().flat_map(|t| t.specs()).collect()
 }
 
-/// Names of every assistant tool.
 pub fn names() -> Vec<String> {
     all_specs().into_iter().map(|s| s.name).collect()
 }
 
-/// Runs `tool` with an explicit context (the MCP projection, tests).
 pub async fn call_with_ctx(ctx: &AssistCtx, tool: &str, input: Value) -> Result<Value, String> {
     for set in toolsets() {
         if set.specs().iter().any(|s| s.name == tool) {
@@ -75,8 +50,6 @@ pub async fn call_with_ctx(ctx: &AssistCtx, tool: &str, input: Value) -> Result<
     Err(format!("{ERR_ASSIST_TOOL}: unknown tool `{tool}`"))
 }
 
-/// The broker's door. Registered by the app with
-/// `broker.register_source(ASSIST_SOURCE, all_specs(), Arc::new(AssistExecutor))`.
 pub struct AssistExecutor;
 
 #[async_trait]
@@ -106,7 +79,6 @@ impl ToolExecutor for AssistExecutor {
     }
 }
 
-/// A toolset with no tools (a module that offers none yet).
 pub struct EmptyToolset(pub &'static str);
 
 #[async_trait]
@@ -122,7 +94,6 @@ impl AssistToolset for EmptyToolset {
     }
 }
 
-/// Small helpers for toolset implementations.
 pub fn spec(name: &str, description: &str, input_schema: Value) -> ToolSpec {
     ToolSpec {
         name: name.to_string(),

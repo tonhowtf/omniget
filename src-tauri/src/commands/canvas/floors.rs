@@ -1,7 +1,3 @@
-//! Tauri commands of floors and environments. Logic lives in
-//! `omniget_core::core::canvas::{floors, envs}`; the host
-//! (`crate::canvas::floors`) emits `canvas://floor-progress` and `canvas://floors`.
-
 use std::collections::HashMap;
 
 use omniget_core::core::canvas::envs::{self, EnvRecord, EnvTest, Wrapped};
@@ -38,21 +34,18 @@ pub async fn canvas_floor_create(
     host::create(&workspace_id, input).await
 }
 
-/// Floors still being made (progress) or failed (error until dismissed).
 #[tauri::command]
 pub fn canvas_floor_pending(app: AppHandle, workspace_id: String) -> Vec<host::PendingFloor> {
     store(&app);
     host::pending_floors(&workspace_id)
 }
 
-/// Per floor: terminals needing the person, working, alive (floors overview).
 #[tauri::command]
 pub fn canvas_floor_activity(app: AppHandle, workspace_id: String) -> Vec<host::FloorActivity> {
     store(&app);
     host::activity(&workspace_id)
 }
 
-/// Dismisses a pending or failed floor (by name, floor id or token).
 #[tauri::command]
 pub fn canvas_floor_pending_dismiss(app: AppHandle, workspace_id: String, key: String) -> bool {
     store(&app);
@@ -92,7 +85,6 @@ pub async fn canvas_floor_discard(
     host::discard(&workspace_id, &floor_id, options).await
 }
 
-/// Runs the hooks of `kind` (`setup` | `run` | `teardown`), or one hook by id.
 #[tauri::command]
 pub async fn canvas_floor_run_hook(
     app: AppHandle,
@@ -128,7 +120,6 @@ pub async fn canvas_floor_hooks_set(
     floors::set_hooks(&s, &workspace_id, hooks)
 }
 
-/// Rename or recolor a floor (`color: null` clears it).
 #[tauri::command]
 pub async fn canvas_floor_update(
     app: AppHandle,
@@ -141,7 +132,6 @@ pub async fn canvas_floor_update(
     floors::update_meta(&s, &workspace_id, &floor_id, name, color)
 }
 
-/// "Fetch from Source Repo": a ground branch into a cloned floor.
 #[tauri::command]
 pub async fn canvas_floor_fetch(
     app: AppHandle,
@@ -153,8 +143,6 @@ pub async fn canvas_floor_fetch(
     floors::fetch_from_ground(&s, &workspace_id, &floor_id, &branch).await
 }
 
-/// What `term_open` should get for a terminal on this floor: cwd moved into
-/// the floor, floor env merged, command wrapped for a remote environment.
 #[tauri::command]
 pub async fn canvas_floor_spawn_context(
     app: AppHandle,
@@ -198,13 +186,11 @@ pub async fn canvas_env_test(app: AppHandle, env: EnvRecord) -> Result<EnvTest, 
     Ok(envs::test_bridge(&envs::resolve(&s, env), port).await)
 }
 
-/// Hosts of `~/.ssh/config` for the SSH picker (alias, HostName, User, Port).
 #[tauri::command]
 pub async fn canvas_env_ssh_hosts() -> Result<Vec<serde_json::Value>, String> {
     Ok(envs::ssh_config_hosts())
 }
 
-/// The environment a terminal node runs in.
 fn node_env(s: &CanvasStore, node_id: &str) -> Result<EnvRecord, String> {
     let (ws, _floor) = s
         .locate_node(node_id)
@@ -212,9 +198,6 @@ fn node_env(s: &CanvasStore, node_id: &str) -> Result<EnvRecord, String> {
     Ok(envs::load_for(s, &ws, Some(node_id)))
 }
 
-/// Files on the machine where a terminal runs, for the composer's `#`
-/// picker. `{remote: false}` for a local terminal (the front lists the
-/// local folder itself).
 #[tauri::command]
 pub async fn canvas_env_files(
     app: AppHandle,
@@ -236,9 +219,6 @@ pub async fn canvas_env_files(
     }))
 }
 
-/// Local files (a drop, a pasted screenshot) for a terminal: on a remote
-/// one they are copied to `/tmp/omniget-drops/` there and the remote paths
-/// come back; a local terminal gets its paths unchanged.
 #[tauri::command]
 pub async fn canvas_env_drop(
     app: AppHandle,
@@ -254,14 +234,12 @@ pub async fn canvas_env_drop(
     Ok(out)
 }
 
-/// Environment switches (which kinds are offered) and custom runtimes.
 #[tauri::command]
 pub async fn canvas_env_providers_get(app: AppHandle) -> Result<envs::EnvProviders, String> {
     let s = store(&app);
     Ok(envs::providers(&s))
 }
 
-/// Merges `{docker: false, runtimes: {podman: {...} | null}}` into them.
 #[tauri::command]
 pub async fn canvas_env_providers_set(
     app: AppHandle,
@@ -271,16 +249,12 @@ pub async fn canvas_env_providers_set(
     envs::set_providers(&s, &patch)
 }
 
-/// Persistent terminal sessions (tmux `omniget-*`) on this machine and in
-/// the remote environments in use (SSH, Docker, Sandbox, runtimes).
 #[tauri::command]
 pub async fn canvas_env_sessions(app: AppHandle) -> Result<Vec<serde_json::Value>, String> {
     let s = store(&app);
     Ok(envs::sessions(&s).await)
 }
 
-/// Ends one persistent session where it runs (`env` = its target label from
-/// the list); the node stays.
 #[tauri::command]
 pub async fn canvas_env_session_kill(
     app: AppHandle,
@@ -291,8 +265,6 @@ pub async fn canvas_env_session_kill(
     envs::session_kill(&s, &session, env.as_deref()).await
 }
 
-/// Settings → Canvas → Skills: where the canvas skill lives for each agent.
-/// `install` writes it now into every folder that is set.
 #[tauri::command]
 pub async fn canvas_skills_info(
     app: AppHandle,

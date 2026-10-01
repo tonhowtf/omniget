@@ -61,30 +61,14 @@ static USER_AGENT_FN: OnceLock<UserAgentFn> = OnceLock::new();
 static SPONSORBLOCK_MODE_FN: OnceLock<SponsorBlockModeFn> = OnceLock::new();
 static SPONSORBLOCK_CATEGORIES_FN: OnceLock<SponsorBlockCategoriesFn> = OnceLock::new();
 
-/// Protocolos que podem ser delegados ao aria2c. Manifesto fragmentado
-/// (`m3u8*`, `dash_frag_urls`) fica de fora por causa da CVE-2026-50574 — o
-/// yt-dlp removeu esse suporte na 2026.06.09 e recomenda `-N` no lugar.
 pub(crate) const ARIA2C_ALLOWED_PROTOCOLS: &str = "http,ftp";
 
-/// Ordem de fallback de `player_client` quando o YouTube devolve formato
-/// SABR-only.
-///
-/// O extractor `web` passou a entregar formatos que o caminho normal de
-/// download nao consegue puxar. Estes quatro clients ainda servem URL
-/// progressiva; a ordem vai do mais confiavel ao mais restrito.
-/// `tv_downgraded` vem primeiro porque é o fallback que o próprio yt-dlp usa
-/// quando `visionos`/`web` falham (README 2026-08); `android` fica depois de
-/// `ios` porque desde 2026-07 o YouTube exige PO token nele de forma
-/// intermitente (comentário em `youtube/_base.py`).
 pub(crate) const SABR_CLIENT_CASCADE: [&str; 4] = ["tv_downgraded", "ios", "android", "web_safari"];
 
-/// Um `format_id` com `/` já é um seletor completo com as próprias
-/// alternativas (o worker MCP manda assim); um id simples (`137`) não.
 pub(crate) fn is_full_format_selector(format_id: &str) -> bool {
     format_id.contains('/')
 }
 
-/// Seletor `-f` do download. Um seletor completo passa intacto.
 pub(crate) fn download_format_selector(
     format_id: Option<&str>,
     quality_height: Option<u32>,
@@ -93,9 +77,6 @@ pub(crate) fn download_format_selector(
 ) -> String {
     if let Some(fid) = format_id {
         if is_full_format_selector(fid) {
-            // Seletor completo (o worker MCP manda o seu, com teto em toda
-            // alternativa): anexar o fallback daqui punha um `/b` sem teto no
-            // fim (benchmark 26/09, youtube-2).
             fid.to_string()
         } else if let Some(h) = quality_height.filter(|h| *h > 0) {
             let fallback = match mode {
@@ -144,11 +125,6 @@ pub(crate) fn download_format_selector(
     }
 }
 
-/// `formats=dashy` rebaixa os formatos `https` do YouTube a
-/// `http_dash_segments`, que o yt-dlp ordena abaixo de `m3u8`: na mesma
-/// resolução o HLS (MPEG-TS) passava a ganhar do DASH, e a fusão falhava
-/// (benchmark 26/09, youtube-2 pegou 232 em vez de 136). Resolução e fps
-/// continuam na frente; o protocolo só desempata.
 pub(crate) fn dashy_format_sort_args() -> Vec<String> {
     vec![
         "-S".to_string(),
@@ -156,11 +132,6 @@ pub(crate) fn dashy_format_sort_args() -> Vec<String> {
     ]
 }
 
-/// `Some(arg)` quando o stderr indica formato SABR-only e ainda resta client na
-/// cascata; `None` quando nao e SABR ou a cascata se esgotou.
-///
-/// Separado do laco de retry de proposito: e o unico jeito de testar a decisao
-/// com stderr real capturado como fixture, sem subir um download.
 pub(crate) fn sabr_fallback_client(stderr_lower: &str, attempt: usize) -> Option<String> {
     if !stderr_lower.contains("sabr") {
         return None;
@@ -170,14 +141,8 @@ pub(crate) fn sabr_fallback_client(stderr_lower: &str, attempt: usize) -> Option
         .map(|client| format!("youtube:player_client={client}"))
 }
 
-/// Piso de versão do yt-dlp. 2026.06.09 é a release que corrigiu
-/// CVE-2026-50019 (vazamento de cookie no downloader curl), CVE-2026-50023
-/// (escrita de `.desktop`/`.url`/`.webloc`) e CVE-2026-50574 (execução
-/// arbitrária via manifesto com aria2c).
 pub const MIN_YTDLP_VERSION: (u32, u32, u32) = (2026, 6, 9);
 
-/// yt-dlp versiona como `YYYY.MM.DD` com sufixo opcional (`.N`, `-nightly…`).
-/// Devolve `None` para qualquer coisa que não case com esse formato.
 pub fn parse_ytdlp_version(raw: &str) -> Option<(u32, u32, u32)> {
     let head = raw.split_whitespace().next()?;
     let core = head.split(['-', '+']).next()?;
@@ -191,18 +156,10 @@ pub fn parse_ytdlp_version(raw: &str) -> Option<(u32, u32, u32)> {
     Some((year, month, day))
 }
 
-/// `None` quando a versão não pôde ser lida — nesse caso o chamador não deve
-/// afirmar que está desatualizada.
 pub fn ytdlp_version_is_supported(raw: &str) -> Option<bool> {
     parse_ytdlp_version(raw).map(|v| v >= MIN_YTDLP_VERSION)
 }
 
-/// Argumentos que delegam o download ao aria2c **apenas** para os protocolos
-/// de `ARIA2C_ALLOWED_PROTOCOLS`. Manifesto fragmentado continua no downloader
-/// nativo (CVE-2026-50574).
-///
-/// O proxy é validado antes de entrar na string de `--downloader-args`: um
-/// espaço ali viraria argumento extra do aria2c.
 pub(crate) fn aria2c_downloader_args(
     aria2c_path: &str,
     connections: u32,
@@ -230,27 +187,14 @@ pub(crate) fn aria2c_downloader_args(
     ]
 }
 
-/// Argumentos do extractor `youtube` reunidos numa única flag.
-///
-/// O yt-dlp **substitui** o dicionário de um extractor a cada
-/// `--extractor-args youtube:…` repetido (`options.py`,
-/// `_dict_from_options_callback` com `append=False`). Antes, o
-/// `youtube:lang=` de "traduzir metadados" apagava o `player_client`, e a
-/// rotação de client dos retries apagava o `lang`. Agora tudo do YouTube sai
-/// de um só lugar; os retries mudam só o campo que importa.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub(crate) struct YoutubeExtractorArgs {
     pub player_client: Option<String>,
-    /// `formats=dashy`: transforma formato `https` em DASH fragmentado para o
-    /// `-N` valer. Sem isso o `-N` no YouTube não faz nada, porque os formatos
-    /// comuns (137/299/140…) descem por uma conexão em pedaços de 10 MB
-    /// (estudo 55, benchmark 66).
     pub formats_dashy: bool,
     pub lang: Option<String>,
 }
 
 impl YoutubeExtractorArgs {
-    /// Aceita `youtube:player_client=ios` ou só `ios`.
     pub(crate) fn set_client_from_flag(&mut self, flag_value: &str) {
         let client = flag_value.rsplit('=').next().unwrap_or(flag_value).trim();
         if !client.is_empty() {
@@ -279,24 +223,17 @@ impl YoutubeExtractorArgs {
     }
 }
 
-/// Registro do último comando rodado para um download: é o que a tela mostra
-/// em "Comando" e o que a caixa "editar e tentar de novo" pré-preenche.
 #[derive(Debug, Clone, Serialize)]
 pub struct CommandRecord {
     pub program: String,
-    /// argv já redigido (cookie, senha, proxy com credencial, po_token).
     pub args: Vec<String>,
-    /// `programa args…` citado para shell, pronto para copiar ou editar.
     pub display: String,
     pub attempt: u32,
     pub max_attempts: u32,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub player_client: Option<String>,
-    /// `-N` efetivo desta tentativa (0 quando o comando veio do usuário).
     pub connections: u32,
-    /// `native`, `aria2c` ou `custom`.
     pub engine: String,
-    /// `true` quando o argv veio da caixa de edição do usuário.
     pub overridden: bool,
 }
 
@@ -316,24 +253,16 @@ pub fn clear_command(download_id: u64) {
     }
 }
 
-/// Operator-only receiver for every yt-dlp command a process without a
-/// download id runs (the MCP worker). Before this, a worker failure left no
-/// trace of the argv that produced it (benchmark 26/09, open problem 4).
 pub type CommandSink = Arc<dyn Fn(&str) + Send + Sync + 'static>;
 
 static COMMAND_SINK: Mutex<Option<CommandSink>> = Mutex::new(None);
 
-/// Installs (or clears) the operator command sink. The worker installs one
-/// that emits a `diagnostic` event; the desktop keeps the per-download log.
 pub fn set_command_sink(sink: Option<CommandSink>) {
     if let Ok(mut s) = COMMAND_SINK.lock() {
         *s = sink;
     }
 }
 
-/// Redacted one-line form of an argv for the operator log: no cookies, auth
-/// or CSRF headers, passwords, usernames, proxy credentials or PO tokens.
-/// In worker mode the fixed worker flags are appended as they are run.
 pub(crate) fn operator_command_line(program: &Path, args: &[String], stage: &str) -> String {
     let program_name = program
         .file_name()
@@ -351,9 +280,6 @@ pub(crate) fn operator_command_line(program: &Path, args: &[String], stage: &str
     format!("[{stage}] $ {}", super::shell_words::join(&parts))
 }
 
-/// Flags whose value the operator-log redactor (flight_recorder) treats as the
-/// start of a secret and cuts to the end of the line. Moving them last keeps the
-/// rest of the command (extractor-args, URL) readable in the diagnostic.
 const LOG_TRAILING_FLAGS: &[&str] = &[
     "--proxy",
     "--all-proxy",
@@ -382,7 +308,6 @@ fn operator_order(argv: &[String]) -> Vec<String> {
     head
 }
 
-/// Sends the command to the operator sink when no per-download log owns it.
 fn note_operator_command(program: &Path, args: &[String], stage: &str) {
     if log_hook::current_download_id().is_some() {
         return;
@@ -435,13 +360,8 @@ fn record_command(
     }
 }
 
-/// `-N` de partida por host. Oito é onde o benchmark (estudo 66) encostou no
-/// teto do link; o tuner sobe a partir daí só com ganho medido.
 const DEFAULT_START_N: u32 = 8;
 
-/// Teto do YouTube sem 429 na sessão. Dezesseis é o que os mantenedores
-/// recomendam com `formats=dashy` (#7987); acima disso o ganho medido é zero
-/// e a chance de 429 sobe.
 const MAX_N_YOUTUBE: u32 = 16;
 
 static LAST_N_BY_HOST: OnceLock<Mutex<HashMap<String, u32>>> = OnceLock::new();
@@ -450,8 +370,6 @@ fn last_n_map() -> &'static Mutex<HashMap<String, u32>> {
     LAST_N_BY_HOST.get_or_init(|| Mutex::new(HashMap::new()))
 }
 
-/// Chave de host para o tuner: `googlevideo.com`, `youtu.be` e `youtube.com`
-/// são o mesmo limite de taxa, então viram uma chave só.
 pub(crate) fn tuner_host_key(url: &str) -> String {
     let host = url::Url::parse(url)
         .ok()
@@ -465,8 +383,6 @@ pub(crate) fn tuner_host_key(url: &str) -> String {
     host
 }
 
-/// `-N` desta tentativa: parte de `min(8, teto)` e deixa o tuner subir ou
-/// descer pelo histórico do host. O número da Config é **teto**, não valor.
 async fn tuned_concurrency(host: &str, ceiling: u32) -> u32 {
     let ceiling = ceiling.max(1);
     let current = last_n_map()
@@ -487,8 +403,6 @@ fn remember_concurrency(host: &str, n: u32) {
     }
 }
 
-/// Registra a vazão observada. Só amostras que significam alguma coisa: menos
-/// de 3 s ou de 5 MB é ruído de conexão, não capacidade.
 async fn record_throughput(host: &str, n: u32, bytes: u64, secs: f64) {
     if secs < 3.0 || bytes < 5 * 1024 * 1024 {
         return;
@@ -515,16 +429,8 @@ async fn record_host_rate_limit(host: &str) {
         .record_rate_limit(host);
 }
 
-/// Template de progresso. Além do progresso, pede `info.*` do formato em
-/// download (o yt-dlp avalia o template sobre `{'info': format_dict,
-/// 'progress': …}`, `downloader/common.py`), o que dá resolução, codec,
-/// container e tamanho de cada stream sem um segundo processo.
 pub(crate) const PROGRESS_TEMPLATE: &str = "download:%(progress._percent_str)s|eta:%(progress.eta)s|spd:%(progress.speed)s|dl:%(progress.downloaded_bytes)s|tot:%(progress.total_bytes)s|est:%(progress.total_bytes_estimate)s|fi:%(progress.fragment_index)s|fc:%(progress.fragment_count)s|el:%(progress.elapsed)s|fid:%(info.format_id)s|h:%(info.height)s|w:%(info.width)s|fps:%(info.fps)s|vc:%(info.vcodec)s|ac:%(info.acodec)s|ext:%(info.ext)s|fsz:%(info.filesize,info.filesize_approx)s|note:%(info.format_note)s";
 
-/// Normaliza o argv escrito pelo usuário: tira o nome do programa, garante a
-/// instrumentação que a tela precisa (`--newline`, `--progress`, template,
-/// `--print after_move:…`, `--no-quiet`), um `-o` quando falta e a URL no
-/// fim. Nada mais é alterado: o usuário pediu para rodar *aquele* comando.
 pub(crate) fn prepare_override_args(
     argv: Vec<String>,
     url: &str,
@@ -699,6 +605,7 @@ fn signal_download_process(download_id: u64, signal: &str) -> bool {
         .unwrap_or(false)
 }
 
+// WHY: Windows has no SIGSTOP: pause and resume use NtSuspendProcess/NtResumeProcess (#307).
 // Issue #307: pausing on Windows always reported "failed to pause" because
 // this arm was a stub returning false. Windows has no SIGSTOP; the equivalent
 // is NtSuspendProcess/NtResumeProcess from ntdll (what Process Explorer uses).
@@ -843,8 +750,6 @@ pub fn set_insecure_tls_fn(f: impl Fn() -> bool + Send + Sync + 'static) {
     let _ = INSECURE_TLS_FN.set(Box::new(f));
 }
 
-/// Verificar certificado é o default. `Vec` vazio quando ligado, para o
-/// chamador poder simplesmente estender a lista de argumentos.
 pub fn insecure_tls_args() -> Vec<String> {
     if INSECURE_TLS_FN.get().map(|f| f()).unwrap_or(false) {
         vec!["--no-check-certificates".to_string()]
@@ -1064,10 +969,6 @@ pub fn reset_js_runtime_cache() {
     }
 }
 
-/// Alvos de `--impersonate` deste binario de yt-dlp, consultados uma vez so.
-///
-/// A lista nao muda durante a execucao e a consulta custa um processo; sem o
-/// cache, todo retry por fingerprint pagaria de novo.
 static IMPERSONATE_TARGETS: OnceLock<Option<Vec<super::impersonation::ImpersonateTarget>>> =
     OnceLock::new();
 
@@ -1091,8 +992,6 @@ async fn impersonate_targets() -> Option<Vec<super::impersonation::ImpersonateTa
 
     let stdout = String::from_utf8_lossy(&output.stdout);
     let targets = super::impersonation::parse_targets(&stdout);
-    // Lista vazia e ausencia sao a mesma coisa para quem chama: nao ha o que
-    // tentar. Guardar `None` evita repetir a consulta num build sem curl_cffi.
     let value = if targets.is_empty() {
         None
     } else {
@@ -1102,17 +1001,6 @@ async fn impersonate_targets() -> Option<Vec<super::impersonation::ImpersonateTa
     value
 }
 
-/// URL do provedor de PO token, se o usuario tiver um rodando.
-///
-/// Fica em variavel de ambiente de proposito: o provedor e um servico externo
-/// (Docker ou Node), a maioria dos usuarios nunca vai ter um, e um campo em
-/// settings.json custaria migracao para todo mundo por causa de poucos.
-/// Sonda o provedor antes de apontar o yt-dlp para ele.
-///
-/// O `extractor_args` so devolve argumentos para um provedor `Ready`, e essa
-/// regra existe por um motivo concreto: um endereco configurado mas morto faz o
-/// yt-dlp esperar o timeout em *todo* download, o que e pior do que nao ter
-/// provedor. Timeout curto porque isto roda no caminho de um retry.
 async fn probe_pot_provider(base_url: &str) -> super::pot_provider::ProviderHealth {
     let client = match super::http_client::apply_global_proxy(reqwest::Client::builder())
         .timeout(std::time::Duration::from_secs(3))
@@ -1144,13 +1032,10 @@ fn pot_provider_base_url() -> Option<String> {
     super::pot_provider::normalize_base_url(&raw)
 }
 
-/// Resultado do `--update-to` do boot.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum UpdateCheck {
     Updated,
     UpToDate,
-    /// Havia download rodando: trocar o binário agora quebraria o bootstrap
-    /// do PyInstaller (B2). Chamar de novo mais tarde.
     Busy,
     AlreadyChecked,
 }
@@ -1339,15 +1224,6 @@ impl YtRateLimiter {
 
 static YT_RATE_LIMITER: OnceLock<YtRateLimiter> = OnceLock::new();
 
-/// Processos yt-dlp lançando ao mesmo tempo (B1).
-///
-/// O binário é PyInstaller onefile: cada lançamento extrai 72 MB para o temp
-/// antes de rodar uma linha de Python. Com 6 a 16 processos simultâneos (info
-/// de cada URL colada, sonda de legenda, download, `--version` do boot) o
-/// bootstrap foi de 1 s para 13 a 94 s e o YouTube caía em "Timeout fetching
-/// video info (90 s)". Três permits: processos curtos (info, playlist,
-/// versão) seguram o permit até sair; um download segura só o bootstrap,
-/// liberando na primeira linha de saída ou depois de `BOOT_SLOT_MAX_HOLD`.
 pub const YTDLP_SLOTS: usize = 3;
 const BOOT_SLOT_MAX_HOLD: std::time::Duration = std::time::Duration::from_secs(20);
 
@@ -1359,13 +1235,10 @@ fn ytdlp_slots() -> Arc<tokio::sync::Semaphore> {
         .clone()
 }
 
-/// Permits livres agora (para testes e diagnóstico).
 pub fn ytdlp_slots_available() -> usize {
     ytdlp_slots().available_permits()
 }
 
-/// Espera uma vaga para lançar um yt-dlp. A espera vai para o log do download
-/// (`[omniget] waiting for a yt-dlp slot`) para a demora ter explicação.
 pub async fn acquire_ytdlp_slot(what: &str) -> tokio::sync::OwnedSemaphorePermit {
     let sem = ytdlp_slots();
     if let Ok(permit) = sem.clone().try_acquire_owned() {
@@ -1398,8 +1271,6 @@ pub async fn acquire_ytdlp_slot(what: &str) -> tokio::sync::OwnedSemaphorePermit
     permit
 }
 
-/// Permit de bootstrap de um download, liberável de mais de um lugar (leitor
-/// de stdout, leitor de stderr, timer, fim do processo).
 type BootSlot = Arc<std::sync::Mutex<Option<tokio::sync::OwnedSemaphorePermit>>>;
 
 async fn hold_boot_slot(what: &str) -> BootSlot {
@@ -1419,12 +1290,6 @@ fn release_boot_slot(slot: &BootSlot) {
     }
 }
 
-/// Apaga as pastas `_MEI*` que o PyInstaller deixou no temp.
-///
-/// Cada yt-dlp onefile extrai 72 MB para `$TMPDIR/_MEIxxxxxx` e só apaga na
-/// saída normal; processo morto (cancelamento, timeout, troca de binário)
-/// deixa a pasta. Foram 31 pastas, 2,2 GB. Só pastas com mais de um dia,
-/// para nunca tirar o chão de um processo vivo. Devolve quantas apagou.
 pub fn cleanup_stale_pyinstaller_dirs() -> usize {
     let temp = std::env::temp_dir();
     let Ok(entries) = std::fs::read_dir(&temp) else {
@@ -1469,7 +1334,6 @@ pub fn cleanup_stale_pyinstaller_dirs() -> usize {
     removed
 }
 
-/// Há yt-dlp rodando para algum download?
 pub fn has_active_ytdlp_processes() -> bool {
     active_process_pids()
         .lock()

@@ -1,7 +1,4 @@
-//! `youtubei/v1/player` response: playability, formats with clean URLs,
-//! captions, storyboard, and the pickers shared by the player and the
 //! download menu. Flow-Desktop `extractors/player.rs` (GPL-3.0) is the
-//! reference for which formats are usable without a signature solver.
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -23,7 +20,6 @@ pub struct RawCaption {
     pub lang: String,
     pub name: String,
     pub auto: bool,
-    /// Upstream timedtext URL (never sent to the webview).
     pub base_url: String,
 }
 
@@ -122,8 +118,6 @@ fn query_has(url: &str, key: &str) -> bool {
     q.split('&').any(|pair| pair.split('=').next() == Some(key))
 }
 
-/// Playable as-is: an https URL with no `n` (needs the nsig transform) and
-/// no `s` (ciphered signature). Flow `validate_stream_url`.
 pub fn url_is_clean(url: &str) -> bool {
     url.starts_with("https://") && !query_has(url, "n") && !query_has(url, "s")
 }
@@ -295,11 +289,8 @@ pub fn parse_player(json: &Value) -> PlayerParsed {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct PickPrefs {
     pub max_height: Option<u32>,
-    /// "auto" | "avc1" | "vp9" | "av01"
     pub codec: String,
-    /// WKWebView / WebKitGTK: prefer avc1 + mp4a.
     pub webkit: bool,
-    /// "high" | "medium" | "low"
     pub audio_quality: String,
     pub lang: Option<String>,
 }
@@ -333,7 +324,6 @@ fn codec_family(f: &Format) -> &'static str {
     }
 }
 
-/// Preference order of video codec families, best first.
 fn codec_order(p: &PickPrefs) -> Vec<&'static str> {
     if p.webkit {
         return vec!["avc1", "vp9", "av01", "other"];
@@ -345,8 +335,6 @@ fn codec_order(p: &PickPrefs) -> Vec<&'static str> {
     }
 }
 
-/// Video-only candidates after the codec restriction: WebKit, or an
-/// explicit codec, keeps only that family when it exists at all.
 fn video_candidates<'a>(formats: &'a [Format], p: &PickPrefs) -> Vec<&'a Format> {
     let mut v: Vec<&Format> = formats
         .iter()
@@ -368,7 +356,6 @@ fn video_candidates<'a>(formats: &'a [Format], p: &PickPrefs) -> Vec<&'a Format>
     v
 }
 
-/// Same-height tie break: preferred codec, SDR over HDR, higher fps, bitrate.
 fn video_rank(f: &Format, order: &[&str]) -> (usize, bool, u32, u64) {
     let pos = order
         .iter()
@@ -386,7 +373,6 @@ pub fn pick_video<'a>(formats: &'a [Format], p: &PickPrefs) -> Option<&'a Format
         .copied()
         .filter(|f| f.height.unwrap_or(0) <= cap)
         .collect();
-    // Nothing under the cap: take the smallest available instead of nothing.
     let pool = if under.is_empty() {
         let min = cands.iter().filter_map(|f| f.height).min();
         cands
@@ -425,8 +411,6 @@ pub fn pick_audio<'a>(formats: &'a [Format], p: &PickPrefs) -> Option<&'a Format
     if all.is_empty() {
         return None;
     }
-    // Track: the asked language (never an automatic dub), else the
-    // original, else anything that is not auto-dubbed.
     let tier = |f: &Format| -> u8 {
         let wanted = p
             .lang
@@ -455,7 +439,6 @@ pub fn pick_audio<'a>(formats: &'a [Format], p: &PickPrefs) -> Option<&'a Format
     }
 }
 
-/// One entry per height (best of each), tallest first, for the quality menu.
 pub fn video_ladder(formats: &[Format], p: &PickPrefs) -> Vec<Format> {
     let order = codec_order(p);
     let mut out: Vec<&Format> = Vec::new();
@@ -474,8 +457,6 @@ pub fn video_ladder(formats: &[Format], p: &PickPrefs) -> Vec<Format> {
     out.into_iter().cloned().collect()
 }
 
-/// `playerStoryboardSpecRenderer.spec`: `base|w#h#count#cols#rows#interval#name#sigh|...`.
-/// Picks the largest level. The returned template keeps `$M` for the sheet.
 pub fn parse_storyboard(spec: &str, duration_s: u32) -> Option<(String, Storyboard)> {
     let mut parts = spec.split('|');
     let base = parts.next()?;
@@ -515,7 +496,6 @@ pub fn parse_storyboard(spec: &str, duration_s: u32) -> Option<(String, Storyboa
     Some((url, sb))
 }
 
-/// WebVTT URL for a caption track, optionally auto-translated.
 pub fn caption_vtt_url(base_url: &str, tlang: Option<&str>) -> String {
     let base = if base_url.starts_with('/') {
         format!("https://www.youtube.com{base_url}")
@@ -615,7 +595,6 @@ mod tests {
         assert_eq!(p.title.as_deref(), Some("T"));
         assert_eq!(p.channel_id.as_deref(), Some("UCx"));
         assert_eq!(p.thumbs.len(), 1);
-        // 12 clean formats; ciphered (s=) and n= are dropped.
         assert_eq!(p.formats.len(), 12);
         assert!(p.formats.iter().all(|f| f.itag != 999 && f.itag != 998));
         let muxed = p.formats.iter().find(|f| f.itag == 18).unwrap();
@@ -730,7 +709,6 @@ mod tests {
     fn pick_video_rules() {
         let f = formats();
         let auto = PickPrefs::default();
-        // Tallest wins (2160 HDR is the only 2160).
         assert_eq!(pick_video(&f, &auto).unwrap().itag, 337);
         let capped = PickPrefs {
             max_height: Some(1080),
@@ -782,7 +760,6 @@ mod tests {
             ..PickPrefs::default()
         };
         assert_eq!(pick_audio(&f, &low).unwrap().itag, 250);
-        // Asking for Portuguese never picks the automatic dub.
         let pt = PickPrefs {
             lang: Some("pt".into()),
             ..PickPrefs::default()
@@ -793,7 +770,6 @@ mod tests {
             ..PickPrefs::default()
         };
         assert_eq!(pick_audio(&f, &es).unwrap().itag, 601);
-        // Only a dub available: still returns something.
         let dub_only: Vec<Format> = f.iter().filter(|x| x.itag == 600).cloned().collect();
         assert_eq!(pick_audio(&dub_only, &auto).unwrap().itag, 600);
         assert!(pick_audio(&[], &auto).is_none());

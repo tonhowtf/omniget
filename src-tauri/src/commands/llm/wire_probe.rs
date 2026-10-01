@@ -1,24 +1,3 @@
-//! `llm_*` commands: wire_probe. Owned by f2-wire-probe.
-//!
-//! Two commands, both driven by a click:
-//! - `llm_wire_probe_run` — estimates the round (`estimate_only: true`) or runs
-//!   it and keeps the evidence;
-//! - `llm_wire_probe_last` — the last round, so reopening the Observatory does
-//!   not cost a request.
-//!
-//! The last round lives in this module (a `Mutex` behind a `OnceLock`), not in
-//! `AppState`, because `LlmManager` belongs to f2-llm-commands. It is memory
-//! only: nothing is written to disk and nothing survives a restart.
-//!
-//! Providers come from `LlmManager::provider_for` (f2-llm-commands), which
-//! builds the client from the key vault on first use and caches it. An id with
-//! no usable key answers `None`, and that becomes `ERR_LLM_MODEL` — the probe
-//! never invents a client. `ProviderId("fake")` always resolves, so the panel
-//! can be exercised without spending a cent.
-//!
-//! No `attach_app` here on purpose: the probe sends one plain message and grants
-//! no tools, so it never touches the MCP executor that needs the `AppHandle`.
-
 use std::sync::{Arc, Mutex, OnceLock};
 
 use omniget_core::core::llm::error::ERR_LLM_MODEL;
@@ -43,7 +22,6 @@ fn now_ms() -> u64 {
         .unwrap_or(0)
 }
 
-/// Picks the cases by name; `None` means the standard round.
 fn cases_for(names: Option<Vec<String>>) -> Vec<ProbeCase> {
     let all: Vec<ProbeCase> = wire_probe::default_cases()
         .into_iter()
@@ -58,11 +36,6 @@ fn cases_for(names: Option<Vec<String>>) -> Vec<ProbeCase> {
     }
 }
 
-/// The client for a provider id, or `ERR_LLM_MODEL` with the reason. The
-/// manager owns the building; `probe_provider_for` is the same client with a
-/// `WireCapture` attached, which is what turns a body on the wire into a real
-/// verdict instead of `Unsupported`. This only turns `None` into an error the
-/// UI can map.
 fn resolve_provider(llm: &LlmManager, provider: &str) -> Result<Arc<dyn Provider>, String> {
     llm.probe_provider_for(&ProviderId::new(provider))
         .ok_or_else(|| {
@@ -72,8 +45,6 @@ fn resolve_provider(llm: &LlmManager, provider: &str) -> Result<Arc<dyn Provider
         })
 }
 
-/// The whole command, minus the Tauri wrapper, so a test can drive it with a
-/// plain `LlmManager` and no `AppHandle`.
 async fn run_round(
     llm: &LlmManager,
     provider: String,
@@ -106,9 +77,6 @@ async fn run_round(
     Ok(value)
 }
 
-/// `estimate_only: true` costs nothing and answers what the round would cost.
-/// Otherwise it runs at most 4 cases (8 requests, 200 output tokens each) and
-/// stores the evidence.
 #[tauri::command]
 pub async fn llm_wire_probe_run(
     state: State<'_, AppState>,
@@ -120,7 +88,6 @@ pub async fn llm_wire_probe_run(
     run_round(&state.llm, provider, model, cases, estimate_only).await
 }
 
-/// `null` when no round has run in this session.
 #[tauri::command]
 pub async fn llm_wire_probe_last() -> Result<Value, String> {
     let round = last_round()

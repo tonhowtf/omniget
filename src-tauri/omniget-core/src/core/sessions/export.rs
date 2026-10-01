@@ -1,7 +1,3 @@
-//! Exportação de sessão: JSON neutro (reimportável), Markdown legível e
-//! "contexto" (Markdown feito para colar como primeira mensagem em qualquer
-//! outra ferramenta, com orçamento de tamanho).
-
 use serde::{Deserialize, Serialize};
 
 use super::model::{Role, Session};
@@ -10,7 +6,6 @@ use super::util;
 pub const FORMAT_ID: &str = "omniget.session";
 pub const FORMAT_VERSION: u32 = 1;
 
-/// Envelope do JSON neutro.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct NeutralExport {
     pub format: String,
@@ -93,7 +88,6 @@ fn role_label(r: Role) -> &'static str {
 }
 
 fn fence(body: &str) -> String {
-    // Cerca maior que qualquer sequência de crases dentro do corpo.
     let mut n = 3;
     let mut run = 0;
     for c in body.chars() {
@@ -182,8 +176,6 @@ pub fn to_markdown(s: &Session) -> ExportOut {
     }
 }
 
-/// Markdown de contexto para continuar o trabalho em outra ferramenta.
-/// Mantém as mensagens mais recentes que cabem em `budget_chars`.
 pub fn to_context(s: &Session, target: Option<&str>, budget_chars: usize) -> ExportOut {
     let mut preamble = String::new();
     preamble.push_str("# Context from a previous session\n\n");
@@ -193,7 +185,6 @@ pub fn to_context(s: &Session, target: Option<&str>, budget_chars: usize) -> Exp
         target.map(|t| format!(" and is being continued in `{t}`")).unwrap_or_default()
     ));
     header(s, &mut preamble);
-    // Monta de trás para frente até o orçamento.
     let mut blocks: Vec<String> = Vec::new();
     let mut used = preamble.len();
     for (i, t) in s.turns.iter().enumerate().rev() {

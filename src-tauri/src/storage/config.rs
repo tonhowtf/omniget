@@ -5,15 +5,10 @@ use tauri::AppHandle;
 use crate::models::settings::AppSettings;
 use crate::storage::settings_repository::{self, RepoError, ENVELOPE_KEY, SETTINGS_FILE};
 
-/// The confirmed settings of the profile, from the one repository that owns
-/// `settings.json`. While the file cannot be read this returns defaults for
-/// the readers, but every writer stays blocked.
 pub fn load_settings(_app: &AppHandle) -> AppSettings {
     settings_repository::global().settings()
 }
 
-/// Read-only access for code without an `AppHandle` (and other processes):
-/// reads the file directly and never writes it.
 pub fn load_settings_standalone() -> AppSettings {
     match crate::core::paths::app_data_dir() {
         Some(dir) => read_settings_file(&dir.join(SETTINGS_FILE)),
@@ -21,7 +16,6 @@ pub fn load_settings_standalone() -> AppSettings {
     }
 }
 
-/// Parses a settings file the way the repository does, without writing.
 pub fn read_settings_file(path: &Path) -> AppSettings {
     let Ok(content) = std::fs::read(path) else {
         return AppSettings::default();
@@ -39,9 +33,6 @@ pub fn read_settings_file(path: &Path) -> AppSettings {
     }
 }
 
-/// Changes the settings through the repository (internal writers: bridge
-/// bootstrap, onboarding, prune, watchdog, jobs). The effects of the fields
-/// that changed are scheduled and the UI is told about the new revision.
 pub fn update_settings<F>(app: &AppHandle, f: F) -> Result<AppSettings, RepoError>
 where
     F: FnOnce(&mut AppSettings),
@@ -55,21 +46,10 @@ where
     Ok(commit.after)
 }
 
-/// Settings as stored, read by this version. A file written by another
-/// version (a field it dropped, or one of a different type) used to fail as a
-/// whole and cost the user every setting, the extension token included. Now
-/// the stored values are laid over the defaults, so only the fields that do
-/// not fit fall back.
 fn parse_settings(val: &serde_json::Value) -> AppSettings {
     recover_settings(val).0
 }
 
-/// [`parse_settings`] plus the paths that fell back to their default.
-///
-/// Every stored value is tried against the real types on its own: a value
-/// of the right JSON kind but outside its Rust type (`proxy.port: 70000`)
-/// falls back alone instead of taking the whole document down with it.
-/// Keys this version does not know are kept (serde ignores them).
 pub(crate) fn recover_settings(val: &serde_json::Value) -> (AppSettings, Vec<String>) {
     if let Ok(settings) = serde_json::from_value::<AppSettings>(val.clone()) {
         return (settings, Vec::new());
@@ -92,8 +72,6 @@ pub(crate) fn recover_settings(val: &serde_json::Value) -> (AppSettings, Vec<Str
     (serde_json::from_value(merged).unwrap_or_default(), fallen)
 }
 
-/// Stored values to try, as dotted paths: objects present on both sides are
-/// walked into, anything else is one value.
 fn collect_leaves(
     base: &serde_json::Value,
     saved: &serde_json::Value,
@@ -137,8 +115,6 @@ mod tests {
         serde_json::to_value(s).unwrap()
     }
 
-    // Bench 2026-09-26: v0.10.1 read a file written by a newer build (one field
-    // dropped) and came up with factory settings and a new extension token.
     #[test]
     fn a_missing_field_keeps_every_other_setting() {
         let mut val = stored();
@@ -175,8 +151,6 @@ mod tests {
     }
 }
 
-/// Planning audit: the real parser and AppSettings codec, with synthetic values.
-/// These tests do not open an app or read a settings file.
 #[cfg(test)]
 mod settings_rebrand_audit {
     use super::*;
@@ -185,14 +159,11 @@ mod settings_rebrand_audit {
     fn leaf_count(value: &Value) -> usize {
         match value {
             Value::Object(fields) => fields.values().map(leaf_count).sum(),
-            // A list is one preference, regardless of its number of items.
             _ => 1,
         }
     }
 
     fn synthetic_values(value: &mut Value, path: &str) {
-        // The canvas section is made of closed enums and sizes that
-        // `CanvasSettings::normalize` owns; its own tests cover the codec.
         if path == "canvas" {
             return;
         }
@@ -211,7 +182,6 @@ mod settings_rebrand_audit {
             Value::String(text) => *text = "audit-fixture-only".into(),
             Value::Number(number) => {
                 *value = if number.is_f64() {
-                    // Exactly representable by f32 and f64.
                     json!(1.5)
                 } else {
                     json!(number.as_u64().expect("unsigned settings default") + 1)
@@ -242,7 +212,6 @@ mod settings_rebrand_audit {
     #[test]
     fn actual_rust_defaults_match_the_leaf_harness_fixture() {
         let mut actual = serde_json::to_value(AppSettings::default()).unwrap();
-        // The sole machine-dependent default is not compared to a personal path.
         actual["download"]["default_output_dir"] =
             json!("/tmp/omniget-settings-rebrand-fixture/downloads");
         let expected: Value = serde_json::from_str(include_str!(
@@ -251,8 +220,6 @@ mod settings_rebrand_audit {
         .unwrap();
         assert_eq!(leaf_count(&actual), 238);
         assert_eq!(leaf_count(&expected), 238);
-        // Read the fixture through its actual Rust types: f32 defaults such as
-        // 1.55 otherwise differ from JSON's f64 representation by rounding.
         let typed_fixture: AppSettings = serde_json::from_value(expected).unwrap();
         assert_eq!(actual, serde_json::to_value(typed_fixture).unwrap());
     }
@@ -283,9 +250,6 @@ mod settings_rebrand_audit {
         );
     }
 
-    /// Intended future contract. The current overlay accepts any JSON Number,
-    /// including one outside u16, and then falls back to the entire default.
-    /// Run explicitly with --ignored; remove ignore when the parser is fixed.
     #[test]
     fn an_out_of_range_proxy_port_preserves_every_other_preference() {
         let mut expected = serde_json::to_value(AppSettings::default()).unwrap();
@@ -294,7 +258,6 @@ mod settings_rebrand_audit {
         let mut saved = expected.clone();
         saved["proxy"]["port"] = json!(70_000);
         let actual = serde_json::to_value(parse_settings(&saved)).unwrap();
-        // Keep failure output synthetic, concise, and specific to data loss.
         assert_eq!(actual["appearance"], expected["appearance"]);
         assert_eq!(
             actual["download"]["video_quality"],

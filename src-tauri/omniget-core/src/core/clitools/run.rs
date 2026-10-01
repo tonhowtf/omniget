@@ -1,7 +1,3 @@
-//! Execução de um plano: lock por ferramenta e por prefixo, saída capturada
-//! (até 10 mil caracteres) e progresso linha a linha por callback (o host
-//! transforma em `clitools://progress`).
-
 use std::collections::HashMap;
 use std::process::Stdio;
 use std::sync::{Arc, Mutex};
@@ -29,12 +25,10 @@ pub enum RunState {
     Unchanged,
 }
 
-/// Evento de progresso (`clitools://progress`).
 #[derive(Debug, Clone, Serialize)]
 pub struct Progress {
     pub run_id: String,
     pub tool_id: String,
-    /// `start`, `line`, `end`.
     pub kind: String,
     pub stream: Option<String>,
     pub line: Option<String>,
@@ -57,7 +51,6 @@ pub struct RunResult {
     pub warnings: Vec<String>,
 }
 
-/// Buffer que guarda os últimos `MAX_OUTPUT` caracteres.
 #[derive(Default)]
 pub struct TailBuffer {
     text: String,
@@ -106,12 +99,10 @@ fn last_runs() -> &'static Mutex<HashMap<String, RunResult>> {
     R.get_or_init(|| Mutex::new(HashMap::new()))
 }
 
-/// Último resultado por ferramenta (para a tela reabrir o log).
 pub fn last_run(tool_id: &str) -> Option<RunResult> {
     last_runs().lock().ok()?.get(tool_id).cloned()
 }
 
-/// Roda um comando capturando a saída; usado pelos planos e pelo ACP.
 pub async fn run_command(
     run_id: &str,
     tool_id: &str,
@@ -186,7 +177,6 @@ pub async fn run_command(
     Ok((code, text, truncated))
 }
 
-/// Tira sequências de cor (`ESC[…m`) e `\r` de barras de progresso.
 pub fn strip_ansi(s: &str) -> String {
     let mut out = String::with_capacity(s.len());
     let mut it = s.chars().peekable();
@@ -211,7 +201,6 @@ pub fn strip_ansi(s: &str) -> String {
     out
 }
 
-/// Roda um plano registrado.
 pub async fn run_plan(plan_id: &str, on: ProgressFn) -> Result<RunResult, String> {
     let plan: Plan = plan::lookup(plan_id)
         .ok_or_else(|| format!("{ERR_NOT_FOUND}: plano {plan_id} expirou ou não existe"))?;
@@ -233,7 +222,6 @@ pub async fn run_plan(plan_id: &str, on: ProgressFn) -> Result<RunResult, String
     let key_lock = lock_for(&plan.command.lock_key);
     let _key_guard = key_lock.lock().await;
 
-    // Atualização: re-prova o dono com detecção fresca na hora do clique.
     let before = detect::detect_one(tool).await;
     if plan.action == Action::Update {
         let fresh = before.owner.update.as_ref();

@@ -1,16 +1,9 @@
-//! Time words in a query ("ontem", "last month", "em março de 2025", "há 3
-//! semanas") become a local-time window, so recall can prefer what happened
-//! then. Hindsight does this with an LLM or a date parser per language; here a
-//! small rule set covers Portuguese, English and Spanish with no model call.
-
 use chrono::{Datelike, Duration, Local, NaiveDate, TimeZone};
 
-/// A half-open window `[start, end)` in epoch milliseconds.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Window {
     pub start: i64,
     pub end: i64,
-    /// "recently": a soft preference, not a filter.
     pub soft: bool,
 }
 
@@ -116,8 +109,6 @@ fn number(word: &str) -> Option<i64> {
     })
 }
 
-/// The window a query talks about, relative to `now` (epoch ms, local zone).
-/// `None` when it names no time.
 pub fn parse(query: &str, now: i64) -> Option<Window> {
     let today = Local
         .timestamp_millis_opt(now)
@@ -131,7 +122,6 @@ pub fn parse(query: &str, now: i64) -> Option<Window> {
     let has = |s: &str| w.contains(&s);
     let pair = |a: &str, b: &str| w.windows(2).any(|p| p[0] == a && p[1] == b);
 
-    // Explicit dates first: 2025-03-10, 10/03/2025.
     for t in &w {
         if let Ok(d) = NaiveDate::parse_from_str(t, "%Y-%m-%d") {
             return Some(days(d, d + Duration::days(1)));
@@ -154,7 +144,6 @@ pub fn parse(query: &str, now: i64) -> Option<Window> {
         return Some(days(today, today + Duration::days(1)));
     }
 
-    // "há 3 semanas", "3 weeks ago", "hace 2 meses": a window around then.
     for (i, t) in w.iter().enumerate() {
         let ago_before = i > 0 && matches!(w[i - 1], "ha" | "hace" | "faz");
         if let (Some(n), Some(u)) = (number(t), w.get(i + 1).and_then(|u| unit_days(u))) {
@@ -171,7 +160,6 @@ pub fn parse(query: &str, now: i64) -> Option<Window> {
                     center + Duration::days(slack + 1),
                 ));
             }
-            // "últimos 10 dias", "last 2 weeks", "past 3 months".
             let last = i > 0
                 && matches!(
                     w[i - 1],
@@ -211,8 +199,6 @@ pub fn parse(query: &str, now: i64) -> Option<Window> {
         return year_window(today.year());
     }
 
-    // "em março", "in March 2025", "março de 2024". "may" alone is too
-    // common in English to mean the month; it needs a year or "in".
     for (i, t) in w.iter().enumerate() {
         let Some(m) = month_of(t) else { continue };
         let year = w
@@ -221,13 +207,10 @@ pub fn parse(query: &str, now: i64) -> Option<Window> {
             .take(2)
             .find_map(|y| y.parse::<i32>().ok().filter(|y| (1900..=2200).contains(y)));
         let lead = i > 0 && matches!(w[i - 1], "em" | "in" | "en" | "de" | "no" | "during");
-        // "may" and "marco" (landmark) are ordinary words too: alone they
-        // need a lead word or a year to mean the month.
         if year.is_none() && !lead && (*t == "may" || *t == "marco") {
             continue;
         }
         let y = year.unwrap_or_else(|| {
-            // The most recent such month that is not in the future.
             if m > today.month() {
                 today.year() - 1
             } else {
@@ -260,8 +243,6 @@ pub fn parse(query: &str, now: i64) -> Option<Window> {
     None
 }
 
-/// How close `[s, e]` is to the window: 1 inside, falling to 0 over one
-/// window-length (at least a week) outside it.
 pub fn proximity(win: &Window, s: i64, e: i64) -> f32 {
     if e >= win.start && s < win.end {
         return 1.0;

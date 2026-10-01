@@ -1,12 +1,3 @@
-//! `profile.json`: the part of the profile that is not a secret — nickname,
-//! skin and creation time. The seed never comes near this file.
-//!
-//! It sits in the same folder as the profile's encrypted secret store
-//! (`<app_data>/profile/`), so one directory holds the whole identity and one
-//! environment override moves all of it in tests. Writes are tmp + rename, the
-//! same shape `core/ai.rs` uses: a half-written `profile.json` would cost the
-//! user their nickname on the next launch.
-
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use unicode_normalization::UnicodeNormalization;
@@ -19,8 +10,6 @@ pub const ERR_STORE: &str = "ERR_PROFILE_STORE";
 
 pub const DEFAULT_NICKNAME: &str = "Omni";
 pub const DEFAULT_SKIN_ID: &str = "omni-default";
-/// The roster's default tint. Kept here, not in the UI, so a profile created
-/// before the picker exists is already a valid roster entry.
 pub const DEFAULT_TINT: [u8; 3] = [110, 139, 255];
 
 pub const NICKNAME_MAX_CHARS: usize = 32;
@@ -41,8 +30,6 @@ impl Default for Skin {
     }
 }
 
-/// What lands on disk. `created_at_ms` is the profile's birthday, not the
-/// file's mtime, so it survives a copy of the data directory.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ProfileFile {
     pub nickname: String,
@@ -76,9 +63,6 @@ pub fn path() -> Result<PathBuf, String> {
     Ok(dir()?.join(FILE_NAME))
 }
 
-/// Trim, NFC-normalise, then check. WHY NFC: "é" typed as e + combining accent
-/// and "é" as one code point look identical and must not be two different
-/// nicknames; NFC also makes the 32-character limit mean what the user sees.
 pub fn normalize_nickname(raw: &str) -> Result<String, String> {
     let normalized: String = raw.trim().nfc().collect();
     if normalized.is_empty() {
@@ -98,8 +82,6 @@ pub fn normalize_nickname(raw: &str) -> Result<String, String> {
     Ok(normalized)
 }
 
-/// Skin ids name files in the atlas, so they stay inside a character set that
-/// cannot walk out of a directory or surprise a case-insensitive filesystem.
 pub fn normalize_skin_id(raw: &str) -> Result<String, String> {
     let trimmed = raw.trim().to_ascii_lowercase();
     if trimmed.is_empty() {
@@ -121,9 +103,6 @@ pub fn normalize_skin_id(raw: &str) -> Result<String, String> {
     Ok(trimmed)
 }
 
-/// Read `profile.json`. A missing file is not an error — it is a machine that
-/// has not made a profile yet. A corrupt one is: overwriting it silently would
-/// throw away a nickname the user picked, so the caller decides.
 pub fn load() -> Result<Option<ProfileFile>, String> {
     let path = path()?;
     let bytes = match std::fs::read(&path) {
@@ -193,8 +172,6 @@ mod tests {
     fn nicknames_are_trimmed_normalized_and_bounded() {
         assert_eq!(normalize_nickname("  Tonho  ").unwrap(), "Tonho");
 
-        // e + U+0301 becomes the single code point é, so the two spellings are
-        // one nickname.
         let decomposed = "Andre\u{0301}";
         let composed = "Andr\u{00e9}";
         assert_eq!(normalize_nickname(decomposed).unwrap(), composed);
@@ -215,7 +192,6 @@ mod tests {
             .unwrap_err()
             .starts_with(ERR_NICKNAME));
 
-        // Emoji are characters, not bytes: 32 of them fit.
         let emoji: String = "\u{1f600}".repeat(NICKNAME_MAX_CHARS);
         assert_eq!(normalize_nickname(&emoji).unwrap(), emoji);
     }
@@ -245,13 +221,11 @@ mod tests {
         save(&file).unwrap();
         assert_eq!(load().unwrap().as_ref(), Some(&file));
 
-        // Overwrite works and the temporary file does not survive it.
         file.nickname = "Outro".into();
         save(&file).unwrap();
         assert_eq!(load().unwrap().as_ref(), Some(&file));
         assert!(!dir.join("profile.json.tmp").exists());
 
-        // The seed is not in there.
         let raw = std::fs::read_to_string(dir.join(FILE_NAME)).unwrap();
         assert!(!raw.contains("seed"), "{raw}");
 
@@ -272,7 +246,6 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
-    /// A file written before the skin field existed still loads.
     #[test]
     fn an_old_profile_without_a_skin_gets_the_default_one() {
         let dir = temp_dir("legacy");

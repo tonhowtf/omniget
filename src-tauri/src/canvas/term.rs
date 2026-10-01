@@ -1,18 +1,9 @@
-//! Terminal host of the canvas: the process-wide `TermManager` (shared with
-//! the Central) bound to this app's events, and the `Channel` sink that
-//! carries `OGT1` frames to a webview.
-//!
-//! One frame subscription per webview, keyed by its label; the core runs one
-//! ticker thread per subscription (wakes on damage, at most ~60 frames/s,
-//! credit of two frames in flight).
-
 use std::sync::Arc;
 
 use omniget_core::core::term::session::{FrameSink, TermManager};
 use tauri::ipc::{Channel, InvokeResponseBody};
 use tauri::AppHandle;
 
-/// Sends each frame as a raw `ArrayBuffer` (no JSON, no base64).
 pub struct ChannelSink(pub Channel<InvokeResponseBody>);
 
 impl FrameSink for ChannelSink {
@@ -21,24 +12,16 @@ impl FrameSink for ChannelSink {
     }
 }
 
-/// The manager, with the app's event sink bound (`term://state`,
-/// `term://exit`, and the Central's `pty://*`).
 pub fn host(app: &AppHandle) -> Arc<TermManager> {
     crate::pty::manager().bind(app);
-    // Sleep prevention and memory limit follow the terminals (idempotent).
     super::power::start(app);
     crate::pty::term()
 }
 
-// ------------------------------------------------------------ user themes
-
-/// Folder of the user's terminal themes (Ghostty format), read live: a file
-/// dropped there shows up in the theme list without a restart.
 pub fn themes_dir() -> Option<std::path::PathBuf> {
     dirs::home_dir().map(|h| h.join(".omniget").join("terminal").join("themes"))
 }
 
-/// One user theme, in the shape of `src/lib/canvas/term/themes.ts` `TermScheme`.
 #[derive(Debug, Clone, serde::Serialize, PartialEq)]
 pub struct UserTheme {
     pub id: String,
@@ -62,9 +45,6 @@ fn hex(v: &str) -> Option<String> {
         .then(|| format!("#{}", h.to_ascii_lowercase()))
 }
 
-/// Parses a Ghostty theme (`palette = 0=#rrggbb`, `background = …`,
-/// `foreground`, `cursor-color`, `selection-background`). A theme without a
-/// cursor colour uses its foreground. `None` without background/foreground.
 pub fn parse_ghostty(id: &str, text: &str) -> Option<UserTheme> {
     let mut ansi: Vec<String> = DEFAULT_ANSI.iter().map(|s| s.to_string()).collect();
     let (mut bg, mut fg, mut cursor, mut sel) = (None, None, None, None);
@@ -104,7 +84,6 @@ pub fn parse_ghostty(id: &str, text: &str) -> Option<UserTheme> {
     })
 }
 
-/// Every valid theme in [`themes_dir`], sorted by id.
 pub fn user_themes() -> Vec<UserTheme> {
     let Some(dir) = themes_dir() else {
         return Vec::new();
@@ -132,7 +111,6 @@ pub fn user_themes() -> Vec<UserTheme> {
     out
 }
 
-/// Built-in scheme ids (mirror of `TERM_SCHEMES` in the front).
 pub const BUILTIN_THEMES: [&str; 13] = [
     "system",
     "dark",
@@ -149,7 +127,6 @@ pub const BUILTIN_THEMES: [&str; 13] = [
     "everforest",
 ];
 
-/// Theme ids for the settings list: built-in first, then the user's folder.
 pub fn theme_ids() -> Vec<String> {
     BUILTIN_THEMES
         .iter()

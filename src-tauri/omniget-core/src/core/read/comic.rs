@@ -1,7 +1,3 @@
-//! Comic archives: page listing in natural order, ComicInfo.xml (the
-//! Anansi schema used by Komga, Kavita, Mihon, Suwayomi and KCC) and
-//! building a CBZ from downloaded pages.
-
 use std::io::{Read, Seek, Write};
 use std::path::Path;
 
@@ -38,7 +34,6 @@ pub struct ComicInfo {
     pub language_iso: String,
     pub format: String,
     pub black_and_white: String,
-    /// `YesAndRightToLeft` marks right-to-left manga.
     pub manga: String,
     pub characters: String,
     pub teams: String,
@@ -160,8 +155,6 @@ fn opt(v: Option<i64>) -> String {
     v.map(|x| x.to_string()).unwrap_or_default()
 }
 
-/// Image entries of a zip archive in reading order. Skips macOS resource
-/// forks and hidden files.
 pub fn zip_pages<R: Read + Seek>(zip: &mut zip::ZipArchive<R>) -> Vec<String> {
     let mut names: Vec<String> = (0..zip.len())
         .filter_map(|i| {
@@ -192,7 +185,6 @@ pub fn zip_comic_info<R: Read + Seek>(zip: &mut zip::ZipArchive<R>) -> Option<Co
     Some(ComicInfo::parse(&s))
 }
 
-/// Image files of a folder in reading order (a "folder chapter").
 pub fn folder_pages(dir: &Path) -> Vec<String> {
     let mut v: Vec<String> = std::fs::read_dir(dir)
         .map(|rd| {
@@ -207,8 +199,6 @@ pub fn folder_pages(dir: &Path) -> Vec<String> {
     v
 }
 
-/// Writes a CBZ: pages stored (images are already compressed), named
-/// `001.jpg`... so any reader orders them, plus ComicInfo.xml.
 pub fn write_cbz(
     out: &Path,
     pages: &[(String, Vec<u8>)],
@@ -245,8 +235,6 @@ pub fn write_cbz(
     std::fs::rename(&tmp, out).map_err(|e| e.to_string())
 }
 
-/// Parses a chapter number out of a file or folder name
-/// (`Vol.02 Ch.013.5 - Title` -> 13.5, volume 2).
 pub fn parse_chapter_number(name: &str) -> (Option<f64>, Option<f64>) {
     static VOL: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
     static CH: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();

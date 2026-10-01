@@ -1,8 +1,3 @@
-//! Lockfiles: `.omniget/agentkit.lock.json` in a project and
-//! `<app_data>/agentkit/global.lock.json`. Each install records every file we
-//! wrote and, for merged files, the exact undo of each piece plus its hash, so
-//! uninstall removes only our bytes and drift can tell when the user edited them.
-
 use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
@@ -16,50 +11,43 @@ pub const LOCK_VERSION: u32 = 1;
 pub const PROJECT_LOCK: &str = "agentkit.lock.json";
 pub const PROJECT_LOCK_DIR: &str = ".omniget";
 
-/// How to take one merged piece back out.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "op", rename_all = "snake_case")]
 pub enum UndoOp {
-    /// We created `path` (and its ancestors deeper than `prune_to`).
     Remove {
         path: Vec<Seg>,
         prune_to: usize,
         sha256: String,
     },
-    /// We replaced the value at `path`; `prev` goes back.
     Restore {
         path: Vec<Seg>,
         prev: Value,
         sha256: String,
     },
-    /// We appended `value` to the array at `path` (created when deeper than `prune_to`).
     RemoveItem {
         path: Vec<Seg>,
         value: Value,
         prune_to: usize,
     },
-    /// Marker block in a Markdown file.
-    TextBlock { id: String, sha256: String },
+    TextBlock {
+        id: String,
+        sha256: String,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum WrittenAction {
-    /// Whole file is ours.
     Created {
         sha256: String,
         #[serde(default)]
         executable: bool,
     },
-    /// Pieces merged into a file.
     Merged {
         format: DocFormat,
         created_file: bool,
         undo: Vec<UndoOp>,
     },
-    /// A folder link (skill copy for a tool that does not read `.agents/skills`):
-    /// a symlink to `to`, or, where links are not allowed (Windows without
-    /// developer mode), a copy of `to` whose files are listed with their hashes.
     Linked {
         to: String,
         #[serde(default)]
@@ -69,7 +57,6 @@ pub enum WrittenAction {
     },
 }
 
-/// A file of a copied link (relative to the link folder, `/`-separated).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct LinkedFile {
     pub rel: String,
@@ -77,7 +64,6 @@ pub struct LinkedFile {
 }
 
 impl UndoOp {
-    /// Two undo ops take out the same piece (same path / entry / block).
     pub fn same_piece(&self, other: &UndoOp) -> bool {
         use UndoOp::*;
         match (self, other) {
@@ -106,7 +92,6 @@ pub struct WrittenFile {
     pub action: WrittenAction,
 }
 
-/// Component identity kept in the lock (no file contents).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ComponentMeta {
     pub id: String,
@@ -150,13 +135,11 @@ pub struct InstallRecord {
     pub scope: Scope,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub project_dir: Option<String>,
-    /// Name it was installed under (differs after a collision rename).
     pub installed_name: String,
     pub compat: Compat,
     pub tx: String,
     pub installed_at: String,
     pub files: Vec<WrittenFile>,
-    /// Folders we created, to remove when empty.
     #[serde(default)]
     pub created_dirs: Vec<String>,
 }
@@ -166,12 +149,10 @@ pub struct Lockfile {
     pub version: u32,
     #[serde(default)]
     pub installs: Vec<InstallRecord>,
-    /// Global lock only: projects that have a project lock.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub projects: Vec<String>,
 }
 
-/// Where the lock for a scope lives.
 pub fn lock_path(env: &Env, scope: Scope, project: Option<&Path>) -> Result<PathBuf> {
     if scope.is_project_bound() {
         let p = project.ok_or_else(|| {
@@ -215,7 +196,6 @@ impl Lockfile {
         self.installs.is_empty() && self.projects.is_empty()
     }
 
-    /// The install of a component on a target/scope/project, if any.
     pub fn find(
         &self,
         component_id: &str,
@@ -235,7 +215,6 @@ impl Lockfile {
         self.installs.iter().find(|r| r.install_id == install_id)
     }
 
-    /// Other installs that also list `path` as a created file.
     pub fn created_elsewhere(&self, path: &str, except: &str) -> bool {
         self.installs.iter().any(|r| {
             r.install_id != except
@@ -249,7 +228,6 @@ impl Lockfile {
         })
     }
 
-    /// Merged pieces other installs hold in `path`.
     pub fn merged_elsewhere<'a>(
         &'a self,
         path: &'a str,
@@ -267,8 +245,6 @@ impl Lockfile {
     }
 }
 
-/// Every lock we know of: global, the given project, and the projects the
-/// global lock indexes.
 pub fn all_locks(env: &Env, project: Option<&Path>) -> Vec<(PathBuf, Lockfile)> {
     let mut out = Vec::new();
     let g = global_lock_path(env);

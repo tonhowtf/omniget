@@ -1,12 +1,3 @@
-//! OmniGet's own sandbox recipe (`SandboxRecipe`, plan §6 lines 27–28): any
-//! coding CLI runs inside a minimal container we generate, on a **copy** of
-//! the project, with its normal permissions (never
-//! `--dangerously-skip-permissions` unless the user picks the bypass level,
-//! and the UI names the flag). The API key comes from the `ai_keys` vault into
-//! the child's environment, never argv. The result comes back as a diff to
-//! review; nothing touches the project until the user applies it.
-//! E2B is the optional remote provider, over its HTTP API (no SDK).
-
 pub mod docker;
 pub mod e2b;
 pub mod tree;
@@ -20,21 +11,15 @@ use super::runner::{RunOutput, ToolRun};
 
 pub const ERR_SANDBOX: &str = "ERR_AGENTKIT_SANDBOX";
 
-/// Options of a sandboxed run (part of a job's spec).
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct SandboxOpts {
-    /// `docker | e2b`
     pub provider: String,
-    /// Mount the project itself instead of a copy (changes are live, no review).
     #[serde(default)]
     pub bind_original: bool,
-    /// Vault entry (`ai_keys`) whose key goes into the tool's env variable.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub key_id: Option<String>,
-    /// Vault entry holding the E2B API key.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub e2b_key_id: Option<String>,
-    /// Let the container reach the network (the CLI needs its API).
     #[serde(default = "yes")]
     pub network: bool,
 }
@@ -43,7 +28,6 @@ fn yes() -> bool {
     true
 }
 
-/// Where runs live: `<app_data>/sandbox`.
 pub fn root() -> Result<PathBuf, String> {
     crate::core::paths::app_data_dir()
         .map(|d| d.join("sandbox"))
@@ -61,7 +45,6 @@ pub fn run_dir(id: &str) -> Result<PathBuf, String> {
     Ok(root()?.join("runs").join(safe))
 }
 
-/// Record of one run, next to its copy (`run.json`).
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct RunRecord {
     pub id: String,
@@ -71,7 +54,6 @@ pub struct RunRecord {
     pub work: PathBuf,
     pub bind_original: bool,
     pub image: Option<String>,
-    /// Environment variable names given to the tool (never the values).
     pub env_names: Vec<String>,
     pub argv_preview: Vec<String>,
     pub applied: Vec<String>,
@@ -108,7 +90,6 @@ pub fn load_record(id: &str) -> Result<(RunRecord, tree::Manifest), String> {
     Ok((r, base))
 }
 
-/// The diff of a finished run.
 pub fn diff(id: &str) -> Result<Vec<tree::Change>, String> {
     let (r, base) = load_record(id)?;
     if r.bind_original {
@@ -117,7 +98,6 @@ pub fn diff(id: &str) -> Result<Vec<tree::Change>, String> {
     tree::changes(&r.project, &r.work, &base)
 }
 
-/// Writes the chosen paths back (all when empty). Returns (applied, skipped).
 pub fn apply(id: &str, paths: &[String]) -> Result<(Vec<String>, Vec<String>), String> {
     let (mut r, base) = load_record(id)?;
     if r.bind_original {
@@ -131,7 +111,6 @@ pub fn apply(id: &str, paths: &[String]) -> Result<(Vec<String>, Vec<String>), S
     Ok((done, skipped))
 }
 
-/// Removes the copy of a run.
 pub fn discard(id: &str) -> Result<(), String> {
     let dir = run_dir(id)?;
     if dir.exists() {
@@ -140,7 +119,6 @@ pub fn discard(id: &str) -> Result<(), String> {
     Ok(())
 }
 
-/// `(ENV_NAME, value)` of a vault key for `tool`: the variable its CLI reads.
 pub fn key_env(tool: &str, key_id: Option<&str>) -> Result<Vec<(String, String)>, String> {
     let Some(id) = key_id.filter(|k| !k.is_empty()) else {
         return Ok(vec![]);
@@ -163,7 +141,6 @@ pub fn key_env(tool: &str, key_id: Option<&str>) -> Result<Vec<(String, String)>
         _ => "OPENAI_API_KEY".to_string(),
     };
     out.push((var, entry.key.clone()));
-    // A key of an OpenAI-compatible endpoint also needs its base URL.
     if !entry.base_url.is_empty()
         && entry.kind != "anthropic"
         && entry.kind != "openai"
@@ -181,7 +158,6 @@ pub fn key_env(tool: &str, key_id: Option<&str>) -> Result<Vec<(String, String)>
     Ok(out)
 }
 
-/// Status of the providers, for the UI.
 pub async fn status() -> serde_json::Value {
     let d = docker::probe().await;
     let keys: Vec<serde_json::Value> = crate::core::tools::ai_keys::list()
@@ -200,8 +176,6 @@ pub async fn status() -> serde_json::Value {
     })
 }
 
-/// Runs `run` in the sandbox `opts.provider`, logging tool lines. `id` names
-/// the run folder (the job id).
 pub async fn run(
     id: &str,
     run: &ToolRun,

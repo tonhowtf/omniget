@@ -1,7 +1,3 @@
-//! Commands for procedural learning (`assist::learning`): what a bot learned
-//! from feedback, its candidates and their evaluations, promotion and
-//! rollback, export and forget. Shown in the bot panel, apart from memory.
-
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -48,7 +44,6 @@ pub async fn assist_learning_settings_save(settings: Settings) -> Result<Setting
     learning::set_settings(&*db::global()?, &settings)
 }
 
-/// Feedback typed by the person (explicit source).
 #[tauri::command]
 pub async fn assist_learning_observe(mut observation: NewObservation) -> Result<Value, String> {
     observation.source = Some(learning::Source::ExplicitFeedback);
@@ -88,12 +83,6 @@ pub async fn assist_learning_delete_case(case_id: String) -> Result<(), String> 
     eval::delete_case(&*db::global()?, &case_id)
 }
 
-/// Live outputs: one model call per case and variant, reserved on the bot's
-/// own day budget like any other turn (evaluation is not free). Each call
-/// runs on a fresh conversation pinned to the variant's exact overlays, so
-/// the learning augment injects those and nothing else: the baseline runs
-/// with the active version only, the candidate with its version in place of
-/// the active one (never both).
 struct LiveRunner {
     llm: Arc<LlmManager>,
     bot: String,
@@ -130,7 +119,6 @@ impl eval::OutputRunner for LiveRunner {
             )
             .map_err(|e| format!("{}: {}", e.code, e.message))?;
         let conv = format!("learn-eval-{}", uuid::Uuid::new_v4().simple());
-        // Unpinned on every exit (the guard drops with this call).
         let _pin = learning::pin_exact(&conv, overlays.to_vec());
         let (request, _cancel, mut stream) =
             match self.llm.turn_stream(&conv, &self.bot, &prompt).await {
@@ -175,19 +163,11 @@ impl eval::OutputRunner for LiveRunner {
 #[derive(Debug, Deserialize)]
 pub struct EvaluateInput {
     pub candidate_id: String,
-    /// `offline` (fixtures only, never a call) or `live`.
     pub mode: String,
 }
 
-/// Event sent when a background (live) evaluation ends:
-/// `{ run_id, candidate_id, bot_id, state: "done"|"failed", error? }`.
 pub const EVENT_LEARNING_EVAL: &str = "assist://learning-eval";
 
-/// A live evaluation in the background. It can take many minutes (one model
-/// call per case and variant), longer than the webview keeps an IPC request
-/// open: Tauri's IPC then re-sends the same command, which used to run the
-/// whole evaluation twice. So the command returns a run id at once, the
-/// work happens here, and the UI follows it by event or polling.
 #[derive(Debug, Clone, Serialize)]
 pub struct EvalJob {
     pub run_id: String,
@@ -195,7 +175,6 @@ pub struct EvalJob {
     pub candidate_version: i64,
     pub bot_id: String,
     pub mode: String,
-    /// `running|done|failed`
     pub state: String,
     pub error: Option<String>,
     pub started_ms: i64,
@@ -203,10 +182,6 @@ pub struct EvalJob {
 
 static EVAL_JOBS: std::sync::Mutex<Vec<EvalJob>> = std::sync::Mutex::new(Vec::new());
 
-/// Registers a live evaluation of `candidate_id@version`, or returns the one
-/// already running for it (a duplicate request, a double click, an IPC
-/// re-send): the same run id, never a second evaluation. The bool says
-/// whether this call created it.
 pub fn claim_eval_job(
     candidate_id: &str,
     version: i64,
@@ -220,7 +195,6 @@ pub fn claim_eval_job(
     }) {
         return (j.clone(), false);
     }
-    // Keep finished jobs for a while so a late status poll still answers.
     jobs.retain(|j| j.state == "running" || now - j.started_ms < 6 * 3_600_000);
     let job = EvalJob {
         run_id: omniget_core::core::assist::new_id(),
@@ -263,11 +237,6 @@ fn running_eval_jobs(bot_id: &str) -> Vec<EvalJob> {
         .collect()
 }
 
-/// Offline: replays fixtures right away and returns
-/// `{ run_id, state: "done", run }`. Live: returns `{ run_id, state:
-/// "running", already_running }` immediately and evaluates in the
-/// background; [`assist_learning_eval_status`] and
-/// [`EVENT_LEARNING_EVAL`] tell when it ends.
 #[tauri::command]
 pub async fn assist_learning_evaluate(
     app: AppHandle,
@@ -305,7 +274,6 @@ pub async fn assist_learning_evaluate(
             let error = out.err();
             if let Some(e) = &error {
                 tracing::warn!("[learning] live evaluation {}: {e}", job2.run_id);
-                // The candidate must not stay `evaluating` after a failure.
                 if let Ok(cur) = learning::candidate(&db, &job2.candidate_id) {
                     if cur.state == learning::CandidateState::Evaluating
                         && cur.reason.as_deref()
@@ -332,8 +300,6 @@ pub async fn assist_learning_evaluate(
     )
 }
 
-/// State of a background evaluation: `{ state: running|done|failed, run?,
-/// error? }`. A run already stored answers `done` even after a restart.
 #[tauri::command]
 pub async fn assist_learning_eval_status(run_id: String) -> Result<Value, String> {
     let db = db::global()?;

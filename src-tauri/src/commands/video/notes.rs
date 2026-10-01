@@ -1,6 +1,3 @@
-//! Timestamped notes, with an optional captured frame, and their Markdown
-//! export (front matter + `omniget://watch` links).
-
 use std::path::{Path, PathBuf};
 
 use rusqlite::{params, OptionalExtension, Row};
@@ -46,8 +43,6 @@ fn note_by_id(id: i64) -> Result<Note, String> {
     .ok_or_else(|| "note not found".into())
 }
 
-/// What ffmpeg can read for a key: the local file, or the proxied stream of
-/// a link played in this session.
 pub fn media_source(key: &str, media_id: Option<i64>) -> Option<String> {
     if let Some(id) = media_id {
         if let Some((path, ..)) = db::media_file(id) {
@@ -62,7 +57,6 @@ pub fn media_source(key: &str, media_id: Option<i64>) -> Option<String> {
     link::stream_for_key(key)
 }
 
-/// Local path of a `/img/<file>` note image.
 pub fn img_path(image: &str) -> Option<PathBuf> {
     let name = image.strip_prefix("/img/")?;
     server::safe_file_name(name)
@@ -139,7 +133,6 @@ pub async fn video_note_delete(id: i64) -> Result<(), String> {
     blocking(move || {
         let note = note_by_id(id)?;
         db::with(|c| c.execute("DELETE FROM notes WHERE id = ?1", [id]))?;
-        // the frame may also back a flashcard
         if let Some(img) = note.image {
             let used: i64 = db::with(|c| {
                 c.query_row("SELECT COUNT(*) FROM cards WHERE image = ?1", [&img], |r| {
@@ -156,8 +149,6 @@ pub async fn video_note_delete(id: i64) -> Result<(), String> {
     })
     .await
 }
-
-// ---------- export ----------
 
 fn export_root() -> Result<PathBuf, String> {
     let base = dirs::download_dir()
@@ -205,7 +196,6 @@ fn unique(path: PathBuf) -> PathBuf {
         .unwrap_or(path)
 }
 
-/// Builds the Markdown of one video's notes, copying frames to `assets/`.
 fn doc_for(key: &str, notes: &[Note], out_dir: &Path) -> Result<(String, String), String> {
     let (title, subtitle, _) = labels_for_key(key);
     let mut doc = notes_md::NoteDoc {
@@ -276,7 +266,6 @@ fn export_key(key: &str) -> Result<String, String> {
     Ok(path.to_string_lossy().to_string())
 }
 
-/// One file per lesson with notes, in a folder named after the course.
 fn export_course(course_id: i64) -> Result<String, String> {
     let title: String = db::with(|c| {
         c.query_row(
@@ -313,8 +302,6 @@ fn export_course(course_id: i64) -> Result<String, String> {
     Ok(dir.to_string_lossy().to_string())
 }
 
-/// Writes Markdown to `Downloads/OmniGet Notes/` and returns the file (or,
-/// for a course, the folder) path.
 #[tauri::command]
 pub async fn video_notes_export(
     key: Option<String>,

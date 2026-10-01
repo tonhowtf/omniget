@@ -1,7 +1,3 @@
-//! Tauri commands of canvas routines. The model and the book are in
-//! `omniget_core::core::canvas::routines`; the ticker and the runner in
-//! `crate::canvas::routines` (event `canvas://routine`).
-
 use omniget_core::core::canvas::routines::{self, Routine, RoutineInput};
 use serde_json::json;
 use tauri::{AppHandle, Emitter};
@@ -56,8 +52,6 @@ pub async fn canvas_routine_run_now(app: AppHandle, id: String) -> Result<Routin
     host::run_now(&id).await
 }
 
-/// History tab: runs of one routine, or of every routine of a workspace
-/// (finished `once` routines included), newest first.
 #[tauri::command]
 pub async fn canvas_routine_history(
     app: AppHandle,
@@ -75,7 +69,6 @@ pub async fn canvas_routine_history(
     ))
 }
 
-/// Clears the history (one routine or a workspace); routines stay.
 #[tauri::command]
 pub async fn canvas_routine_history_clear(
     app: AppHandle,

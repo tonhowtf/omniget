@@ -1,7 +1,3 @@
-//! Commands for selective pack import (`assist::packs`): list a pack's
-//! catalog (metadata only), plan, apply with explicit choices, roll back,
-//! and turn an imported agent into a bot with no tools granted.
-
 use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
@@ -74,7 +70,6 @@ pub async fn assist_packs_apply(
 pub async fn assist_packs_items() -> Result<Vec<packs::PackItem>, String> {
     let mut items = packs::items(&*db::global()?)?;
     for i in &mut items {
-        // The list never carries bodies; open one on demand.
         i.content = None;
     }
     Ok(items)
@@ -97,8 +92,6 @@ pub async fn assist_packs_rollback(item_id: String) -> Result<Value, String> {
     to_value(it)
 }
 
-/// An imported agent becomes a bot: its text is the bot's instructions; the
-/// tools it asked for are listed, not granted.
 #[tauri::command]
 pub async fn assist_packs_agent_to_bot(
     state: State<'_, AppState>,

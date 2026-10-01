@@ -1,17 +1,3 @@
-//! Canvas watchers that act on the machine (Maestri: sleep prevention and
-//! the per-terminal memory limit).
-//!
-//! Sleep prevention follows real agent activity, not live processes: with
-//! `while_working` an assertion is held while any terminal's fused state is
-//! working, thinking, compacting or waiting on a peer. The assertion is a
-//! child process that holds it for as long as it lives (`caffeinate` on
-//! macOS, `systemd-inhibit` on Linux, a PowerShell `SetThreadExecutionState`
-//! loop on Windows), so releasing it is killing the child, and a crash of the
-//! app releases it too.
-//!
-//! Memory limit: every tick, each terminal's descendant processes (never the
-//! terminal's own process, the shell) above the limit are killed.
-
 use std::process::{Child, Command, Stdio};
 use std::sync::{Mutex, OnceLock};
 use std::time::Duration;
@@ -37,8 +23,6 @@ fn wake() -> &'static Notify {
     N.get_or_init(Notify::new)
 }
 
-/// Starts the watcher once (idempotent). Called at boot and by the canvas
-/// terminal host, so it runs whenever terminals exist.
 pub fn start(app: &AppHandle) {
     static ON: OnceLock<()> = OnceLock::new();
     ON.get_or_init(|| {
@@ -57,7 +41,6 @@ pub fn start(app: &AppHandle) {
     });
 }
 
-/// Re-evaluates now (after a settings change).
 pub fn refresh(app: &AppHandle) {
     start(app);
     wake().notify_one();
@@ -73,7 +56,6 @@ fn working(s: AgentState) -> bool {
     )
 }
 
-/// Whether the assertion should be held for this mode and activity.
 pub fn wants_hold(mode: &str, any_working: bool) -> bool {
     match mode {
         "always" => true,
@@ -97,7 +79,6 @@ fn tick(app: &AppHandle, canvas: &CanvasSettings) {
     }
 }
 
-/// Whether the assertion is held right now (for status tools).
 pub fn holding() -> bool {
     let mut h = hold().lock().unwrap_or_else(|e| e.into_inner());
     if let Some(c) = h.child.as_mut() {
@@ -111,7 +92,6 @@ pub fn holding() -> bool {
 fn set_hold(on: bool) {
     let mut h = hold().lock().unwrap_or_else(|e| e.into_inner());
     if let Some(c) = h.child.as_mut() {
-        // The helper died (killed by someone): take it again on the next hold.
         if matches!(c.try_wait(), Ok(Some(_))) {
             h.child = None;
         }
@@ -131,7 +111,6 @@ fn set_hold(on: bool) {
 fn spawn_assertion() -> Option<Child> {
     let pid = std::process::id().to_string();
     let mut cmd = if cfg!(target_os = "macos") {
-        // -i: no idle sleep; -w: also ends if the app dies.
         let mut c = Command::new("/usr/bin/caffeinate");
         c.args(["-i", "-w", &pid]);
         c
@@ -163,7 +142,7 @@ fn spawn_assertion() -> Option<Child> {
     #[cfg(windows)]
     {
         use std::os::windows::process::CommandExt;
-        cmd.creation_flags(0x0800_0000); // CREATE_NO_WINDOW
+        cmd.creation_flags(0x0800_0000);
     }
     match cmd.spawn() {
         Ok(c) => Some(c),
@@ -174,7 +153,6 @@ fn spawn_assertion() -> Option<Child> {
     }
 }
 
-/// `(pid, ppid, rss_kb)` of every process (Unix `ps`).
 #[cfg(unix)]
 fn processes() -> Vec<(u32, u32, u64)> {
     let Ok(out) = Command::new("ps")
@@ -204,10 +182,8 @@ pub fn parse_ps(text: &str) -> Vec<(u32, u32, u64)> {
         .collect()
 }
 
-/// Descendants of `roots` (not the roots) whose RSS is above `limit_kb`.
 pub fn over_limit(procs: &[(u32, u32, u64)], roots: &[u32], limit_kb: u64) -> Vec<u32> {
     let mut inside: std::collections::HashSet<u32> = roots.iter().copied().collect();
-    // Grow the tree until stable (ps order is not parent-first).
     loop {
         let before = inside.len();
         for &(pid, ppid, _) in procs {

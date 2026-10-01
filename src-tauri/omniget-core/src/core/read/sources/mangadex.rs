@@ -1,10 +1,3 @@
-//! MangaDex API v5 (https://api.mangadex.org/docs): search, series details,
-//! the chapter feed and the at-home image servers.
-//!
-//! Rules from the API docs: a descriptive User-Agent, at most ~5 requests
-//! per second, and at-home URLs are short-lived (fetch them right before
-//! reading or downloading a chapter).
-
 use serde::Deserialize;
 
 use super::{get_json, Hit, Page, RemoteChapter, RemotePage};
@@ -92,8 +85,6 @@ pub struct AtHomeChapter {
     pub data_saver: Vec<String>,
 }
 
-/// Picks a localized string: the wanted language, then English, then the
-/// romanized original, then anything.
 pub fn pick(map: &std::collections::HashMap<String, String>, lang: &str) -> String {
     [lang, "en", "ja-ro", "ko-ro", "zh-ro"]
         .iter()
@@ -103,7 +94,6 @@ pub fn pick(map: &std::collections::HashMap<String, String>, lang: &str) -> Stri
         .unwrap_or_default()
 }
 
-/// `ratings`: subset of safe, suggestive, erotica, pornographic.
 pub fn search_url(
     query: &str,
     langs: &[String],
@@ -242,14 +232,12 @@ pub async fn details(client: &reqwest::Client, id: &str, lang: &str) -> Result<H
     let u = format!("{API}/manga/{id}?includes[]=cover_art&includes[]=author&includes[]=artist");
     let r: One = get_json(client, &u).await?;
     let mut h = to_hit(r.data, lang);
-    // Full-size cover for the details page.
     if let Some(c) = &h.cover {
         h.cover = Some(c.trim_end_matches(".512.jpg").to_string());
     }
     Ok(h)
 }
 
-/// Every chapter in `langs` (all languages when empty), oldest first.
 pub async fn chapters(
     client: &reqwest::Client,
     id: &str,
@@ -312,7 +300,6 @@ pub async fn chapters(
     Ok(out)
 }
 
-/// Image URLs of a chapter. `data_saver` picks the compressed set.
 pub async fn pages(
     client: &reqwest::Client,
     chapter_id: &str,

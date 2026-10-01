@@ -1,32 +1,17 @@
-//! The health score (0-100) and what lowers it. Pure: the caller gathers
-//! the readings, this only weighs them, so every threshold is tested.
-//!
-//! A reading that is missing costs nothing: the score never guesses. Other
-//! modules add their findings through `score_inputs` in the washmybelly
-//! store (see [`ScoreInputs`]).
-
 use serde::{Deserialize, Serialize};
 
-/// Findings other modules leave for the score, in the store under
-/// `score_inputs` (read, change your field, write back). Missing means the
-/// module has not looked yet, and costs nothing.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 pub struct ScoreInputs {
-    /// Bytes the last junk scan found (module `clean`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub junk_bytes: Option<u64>,
-    /// Login and startup items that are on (module `startup`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub login_items: Option<u32>,
-    /// Privacy settings the person has not decided on (module `privacy`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub privacy_pending: Option<u32>,
-    /// When each field was written (unix seconds), by field name.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub updated: Option<std::collections::BTreeMap<String, i64>>,
 }
 
-/// Everything the score weighs.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct Readings {
     pub disk_total: Option<u64>,
@@ -34,33 +19,23 @@ pub struct Readings {
     pub cpu_temp_c: Option<f64>,
     pub battery_health_percent: Option<f64>,
     pub battery_cycles: Option<i64>,
-    /// 0-100, higher is worse (macOS memory pressure, Linux PSI, else used %).
     pub memory_pressure: Option<f64>,
     pub swap_used: Option<u64>,
     pub inputs: ScoreInputs,
 }
 
-/// One thing the score looked at.
 #[derive(Debug, Clone, Serialize, PartialEq)]
 pub struct Factor {
-    /// `disk_space`, `temperature`, `battery`, `memory`, `junk`,
-    /// `login_items`, `privacy`.
     pub id: &'static str,
-    /// Points taken from 100.
     pub penalty: u32,
-    /// `ok`, `warn` or `bad`.
     pub severity: &'static str,
-    /// The reading behind it, in the unit of the factor.
     pub value: f64,
-    /// One sentence for the person (English; the screen translates by id).
     pub detail: String,
 }
 
-/// A gain the person can take now ("12.4 GB of junk", "battery at 87%").
 #[derive(Debug, Clone, Serialize, PartialEq)]
 pub struct Gain {
     pub id: &'static str,
-    /// The module that acts on it.
     pub module: &'static str,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub bytes: Option<u64>,
@@ -87,8 +62,6 @@ fn gb(b: f64) -> String {
     format!("{:.1} GB", b / GB)
 }
 
-/// Score and the factors behind it (every factor that could be read, the
-/// ones that cost nothing included, worst first).
 pub fn score(r: &Readings) -> (u32, Vec<Factor>) {
     let mut f: Vec<Factor> = Vec::new();
 
@@ -174,8 +147,6 @@ pub fn score(r: &Readings) -> (u32, Vec<Factor>) {
         } else {
             0
         };
-        // Swap alone is normal (macOS keeps GBs there); it only adds when
-        // memory is already under pressure.
         if p > 0 && r.swap_used.unwrap_or(0) as f64 > 4.0 * GB {
             p += 3;
         }
@@ -244,7 +215,6 @@ pub fn score(r: &Readings) -> (u32, Vec<Factor>) {
     (100u32.saturating_sub(lost), f)
 }
 
-/// `excellent` ≥ 85, `good` ≥ 65, `fair` ≥ 45, else `poor`.
 pub fn grade(score: u32) -> &'static str {
     match score {
         85.. => "excellent",
@@ -254,7 +224,6 @@ pub fn grade(score: u32) -> &'static str {
     }
 }
 
-/// What the person can win now, for the cards of the overview.
 pub fn gains(r: &Readings) -> Vec<Gain> {
     let mut g = Vec::new();
     if let Some(j) = r.inputs.junk_bytes.filter(|j| *j >= 100_000_000) {

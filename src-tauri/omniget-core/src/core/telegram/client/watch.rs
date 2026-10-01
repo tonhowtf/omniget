@@ -1,8 +1,3 @@
-//! Auto-save ("watchers"): rules that download new media from a chat as it
-//! arrives. A background loop checks every enabled rule on an interval and
-//! queues what is new after `lastMessageId`, through the same resumable
-//! batch path as manual downloads.
-
 use std::collections::HashSet;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -55,14 +50,10 @@ pub struct WatchRule {
     pub saved_count: u64,
     #[serde(default)]
     pub last_error: Option<String>,
-    /// Skip files already saved anywhere; `None` follows the global
-    /// `dedupe` setting.
     #[serde(default)]
     pub dedupe: Option<bool>,
-    /// Add what this rule saves to the /video (Watch) library.
     #[serde(default)]
     pub add_to_watch: bool,
-    /// Downloads avoided because the file was already saved.
     #[serde(default)]
     pub duplicate_count: u64,
 }
@@ -128,7 +119,6 @@ fn store() -> &'static Mutex<Store> {
         let raw = std::fs::read(store_path()).ok();
         let loaded = raw.and_then(|b| {
             serde_json::from_slice::<Store>(&b).ok().or_else(|| {
-                // Tolerate a bare array of rules.
                 serde_json::from_slice::<Vec<WatchRule>>(&b)
                     .ok()
                     .map(|rules| Store {
@@ -154,7 +144,6 @@ fn persist(s: &Store) {
     }
 }
 
-/// Runs `f` on the stored rules and saves them.
 fn with_store<T>(f: impl FnOnce(&mut Store) -> T) -> T {
     let mut g = store().lock().unwrap_or_else(|p| p.into_inner());
     let out = f(&mut g);
@@ -167,8 +156,6 @@ fn read_store<T>(f: impl FnOnce(&Store) -> T) -> T {
     f(&g)
 }
 
-/// Enabled rules watching `chat_id` whose last seen message is older than
-/// `message_id` (the real-time loop uses it).
 pub fn rules_for_new_message(chat_id: i64, message_id: i32) -> Vec<String> {
     read_store(|s| {
         s.rules
@@ -225,10 +212,6 @@ fn normalize(rule: &mut WatchRule) {
     }
 }
 
-/// Creates a rule from `rule` (camelCase or snake_case). Its
-/// `lastMessageId` starts at the chat's newest message, so only what
-/// arrives afterwards is saved; `backfill = n` also queues the n newest
-/// matching files now.
 pub async fn add(
     handle: &TelegramSessionHandle,
     active: &super::ActiveDownloads,
@@ -282,7 +265,6 @@ pub async fn add(
     Ok(rule)
 }
 
-/// Merges `patch` into a rule. `id` and `createdAt` never change.
 pub fn update(id: &str, patch: &serde_json::Value) -> Result<WatchRule, String> {
     let current = get(id).ok_or("Rule not found")?;
     let mut merged = serde_json::to_value(&current).map_err(|e| e.to_string())?;
@@ -307,8 +289,6 @@ pub fn remove(id: &str) -> bool {
     })
 }
 
-/// Queues `items` (newest first, as scanned) oldest first. Returns how
-/// many were not already on disk. `savedCount` grows when the batch ends.
 async fn queue(
     handle: &TelegramSessionHandle,
     active: &super::ActiveDownloads,
@@ -361,8 +341,6 @@ async fn queue(
                     r.duplicate_count += outcome.duplicates as u64;
                 });
             }
-            // The app host also reads this one: with `add_to_watch` it adds
-            // the files to the /video library.
             events::emit(
                 "telegram-watch-saved",
                 json!({
@@ -385,11 +363,8 @@ fn running() -> &'static Mutex<HashSet<String>> {
     RUNNING.get_or_init(|| Mutex::new(HashSet::new()))
 }
 
-/// At most this many new messages are read per rule per run, so a chat
-/// that got very busy never floods the account.
 const MAX_SCAN_PER_RUN: usize = 2_000;
 
-/// Checks one rule now: `{id, found, queued}`.
 pub async fn run_rule(
     handle: &TelegramSessionHandle,
     active: &super::ActiveDownloads,
@@ -398,8 +373,6 @@ pub async fn run_rule(
     run_rule_with(handle, active, id, "manual").await
 }
 
-/// [`run_rule`] telling the UI what started it (`manual`, `interval`,
-/// `realtime`).
 pub async fn run_rule_with(
     handle: &TelegramSessionHandle,
     active: &super::ActiveDownloads,
@@ -452,13 +425,11 @@ async fn run_rule_inner(
     rule: WatchRule,
 ) -> Result<(usize, usize, i32), String> {
     if rule.last_message_id <= 0 {
-        // Created while offline: start from now.
         let latest = history::latest_message_id(handle, rule.chat_id, &rule.chat_type)
             .await
             .map_err(|e| e.to_string())?;
         return Ok((0, 0, latest));
     }
-    // The chat's index reads only what is new; the index answers the rest.
     let scan_id = super::index::new_scan_id();
     let cancel = super::index::register_scan(&scan_id);
     let after = rule.last_message_id;
@@ -495,7 +466,6 @@ async fn run_rule_inner(
     Ok((found, queued, max_id))
 }
 
-/// Runs every enabled rule (or one), one after another.
 pub async fn run_all(
     handle: &TelegramSessionHandle,
     active: &super::ActiveDownloads,
@@ -523,15 +493,12 @@ pub async fn run_all_with(
     out
 }
 
-/// Every 30 s, checks whether `interval_min` has passed since the last
-/// pass; if so and the account is signed in, runs every enabled rule.
 pub fn spawn_background_loop(handle: TelegramSessionHandle, active: super::ActiveDownloads) {
     static STARTED: AtomicBool = AtomicBool::new(false);
     if STARTED.swap(true, Ordering::SeqCst) {
         return;
     }
     tokio::spawn(async move {
-        // Give the app a minute to settle before the first pass.
         let mut last_pass = std::time::Instant::now()
             .checked_sub(Duration::from_secs(interval_min() as u64 * 60))
             .unwrap_or_else(std::time::Instant::now)

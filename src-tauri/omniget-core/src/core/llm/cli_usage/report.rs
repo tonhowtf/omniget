@@ -1,18 +1,3 @@
-//! The dashboard the Accounts tab draws: cost per day and per model, tool
-//! heat map, sessions, and the 5 h / 7 d windows.
-//!
-//! The app's own ledger (`core/tools/usage.rs`) and the CLIs' histories are
-//! two different books of the same spend, so the report merges them in
-//! `by_source` (`cli:claude`, `cli:codex`, `app`) while keeping `by_day` and
-//! `by_model` as the union.
-//!
-//! Costs are priced here, on read, with the LiteLLM table (`pricing.rs`) and
-//! the very same `usage::cost_of` the app ledger uses, so a cached token
-//! costs the same in both books.
-//!
-//! Budget: nothing in this module runs at boot. [`report`] is called from the
-//! `llm_cli_usage_report` command, i.e. on a click or when the tab opens.
-
 use std::collections::{BTreeMap, HashMap, HashSet};
 
 use serde::Serialize;
@@ -23,7 +8,6 @@ use super::windows::{PlanLimits, UsageWindow};
 use crate::core::tools::pricing::ModelPrice;
 use crate::core::tools::usage::{Bucket, UsageEntry};
 
-/// Weekday (0 = Monday) × hour of day.
 pub type ToolHeat = [[u32; 24]; 7];
 
 #[derive(Debug, Clone, Default, Serialize)]
@@ -52,7 +36,6 @@ pub struct Totals {
     pub cache_read_tokens: u64,
     pub cache_write_tokens: u64,
     pub cost_usd: f64,
-    /// Responses whose model is not in the price table.
     pub unknown_price: u64,
 }
 
@@ -61,7 +44,6 @@ pub struct CliUsageReport {
     pub generated_at: i64,
     pub by_day: Vec<Bucket>,
     pub by_model: Vec<Bucket>,
-    /// `cli:claude`, `cli:codex` and `app`: where the spend was booked.
     pub by_source: Vec<Bucket>,
     pub by_tool_hour: ToolHeat,
     pub by_tool: Vec<(String, u32)>,
@@ -75,21 +57,12 @@ pub struct CliUsageReport {
 
 #[derive(Debug, Clone)]
 pub struct ReportOptions {
-    /// How far back the buckets go.
     pub days: u32,
-    /// Local offset in minutes, so the heat map matches the user's clock.
     pub tz_offset_minutes: i32,
-    /// Fold the app's own ledger into `by_day`/`by_model`/`by_source`.
     pub include_app_ledger: bool,
-    /// Count subagent turns (`isSidechain`) as their own messages.
     pub include_sidechains: bool,
     pub limits: BTreeMap<String, PlanLimits>,
-    /// Estimate the 5 h and weekly windows from the history. They look back a
-    /// week, so the report then reads a week of logs even for `days: 1`; a
-    /// caller that only wants spend (the usage icon) turns this off and reads
-    /// just the last `days`.
     pub estimate_windows: bool,
-    /// Epoch ms; injected so the tests do not depend on the clock.
     pub now_ms: i64,
 }
 
@@ -107,7 +80,6 @@ impl Default for ReportOptions {
     }
 }
 
-/// Price one CLI response with the same formula as the app ledger.
 fn cost_of(entry: &CliUsageEntry, prices: &HashMap<String, ModelPrice>) -> Option<f64> {
     if let Some(c) = entry.cost_usd {
         return Some(c);
@@ -146,7 +118,6 @@ fn day_key(ts_ms: i64, tz_offset_minutes: i32) -> String {
         .unwrap_or_default()
 }
 
-/// `(weekday 0=Mon, hour)` in the user's own clock.
 fn heat_slot(ts_ms: i64, tz_offset_minutes: i32) -> Option<(usize, usize)> {
     let shifted = ts_ms + tz_offset_minutes as i64 * 60_000;
     let t = chrono::DateTime::from_timestamp_millis(shifted)?;
@@ -157,7 +128,6 @@ fn heat_slot(ts_ms: i64, tz_offset_minutes: i32) -> Option<(usize, usize)> {
     ))
 }
 
-/// Pure build step: everything the UI shows, from entries already scanned.
 pub fn build(
     entries: &[CliUsageEntry],
     windows: Vec<UsageWindow>,
@@ -181,8 +151,6 @@ pub fn build(
         if e.ts_ms < since {
             continue;
         }
-        // Tool calls are counted even on a line that carries no tokens (Codex
-        // writes them apart), but a duplicated response is counted once.
         if let Some(key) = e.dedupe_key.as_deref() {
             if !seen.insert(key) {
                 duplicates += 1;
@@ -308,7 +276,6 @@ pub fn build(
     }
 }
 
-/// Models worth asking the price table about.
 fn models_of(entries: &[CliUsageEntry], app_ledger: &[UsageEntry]) -> Vec<String> {
     let mut set: HashSet<String> = HashSet::new();
     for e in entries {
@@ -324,25 +291,12 @@ fn models_of(entries: &[CliUsageEntry], app_ledger: &[UsageEntry]) -> Vec<String
     set.into_iter().collect()
 }
 
-/// Scan, price and build. Called from the `llm_cli_usage_report` command, on
-/// a click or when the Accounts tab opens — never at boot.
-///
-/// `accounts` maps an account label to its isolated config dir (the pointer,
-/// never its contents).
 pub async fn report(
     accounts: &[(String, std::path::PathBuf)],
     opts: &ReportOptions,
 ) -> CliUsageReport {
     let roots = super::scan::default_roots(accounts);
     let state_path = super::state_path();
-    // The entries of past scans are not kept in memory, so a report reads the
-    // whole history from byte 0. Resuming from the saved offsets (as this did
-    // until 2026-09-26) dropped every file that had not grown since the last
-    // scan: a week of use showed as the last two sessions. The offsets are
-    // still saved for the incremental readers that share the state file.
-    // Only the logs written inside the report's reach are read. The estimated
-    // 5 h and weekly windows look back a week, so the reach is never shorter
-    // than that, plus a day of slack for a session that spans midnight.
     let reach_days = if opts.estimate_windows {
         opts.days.max(8) as u64
     } else {
@@ -351,8 +305,6 @@ pub async fn report(
     let modified_since = std::time::SystemTime::UNIX_EPOCH
         + std::time::Duration::from_millis(opts.now_ms.max(0) as u64)
         - std::time::Duration::from_secs(reach_days * 86_400);
-    // Parsing is plain file IO and JSON: off the async runtime, so the app's
-    // commands never queue behind it.
     let scanned = tokio::task::spawn_blocking(move || {
         let mut state = ScanState::default();
         let outcome = super::scan::scan_roots_since(&roots, &mut state, Some(modified_since));
@@ -402,7 +354,7 @@ mod tests {
     use super::*;
     use crate::core::llm::cli_usage::parse::CliKind;
 
-    const NOON: i64 = 1_772_625_600_000; // 2026-03-04T12:00:00Z, a Wednesday
+    const NOON: i64 = 1_772_625_600_000;
 
     fn price() -> HashMap<String, ModelPrice> {
         let mut m = HashMap::new();
@@ -460,7 +412,6 @@ mod tests {
         let r = build(&e, vec![], &price(), &[], ScanStats::default(), &opts());
         assert_eq!(r.by_day.len(), 1);
         assert_eq!(r.by_day[0].key, "2026-03-04");
-        // One million tokens, all served from cache, at 0.30 USD/M.
         assert!(
             (r.totals.cost_usd - 0.3).abs() < 1e-9,
             "{}",
@@ -500,10 +451,9 @@ mod tests {
     fn the_tool_heat_map_lands_on_the_local_hour() {
         let e = vec![entry(NOON, "claude-opus-5", &["Bash", "Read"])];
         let r = build(&e, vec![], &price(), &[], ScanStats::default(), &opts());
-        // 2026-03-04 is a Wednesday: index 2, hour 12 in UTC.
         assert_eq!(r.by_tool_hour[2][12], 2);
         let shifted = ReportOptions {
-            tz_offset_minutes: -180, // America/Recife
+            tz_offset_minutes: -180,
             ..opts()
         };
         let r = build(&e, vec![], &price(), &[], ScanStats::default(), &shifted);
@@ -551,9 +501,7 @@ mod tests {
         );
         let keys: Vec<&str> = r.by_source.iter().map(|b| b.key.as_str()).collect();
         assert_eq!(keys, vec!["app", "cli:claude"]);
-        // The day bucket carries both books.
         assert_eq!(r.by_day[0].calls, 2);
-        // `totals` stays the CLI book, so the two are never double counted.
         assert_eq!(r.totals.messages, 1);
     }
 

@@ -1,18 +1,11 @@
-//! Reading help from the AI provider set up in Settings: translate or
-//! explain a passage, define a word in context, summarize a chapter, recap
-//! the story so far without spoilers, or answer a question about the book
-//! using only the text up to where you are.
-
 use omniget_core::core::ai;
 
-/// Roughly 30k tokens of context, enough for a long chapter.
 const MAX_CONTEXT: usize = 120_000;
 
 fn clip(s: &str, max: usize) -> String {
     if s.len() <= max {
         return s.to_string();
     }
-    // Keep the end: it is closest to where the reader is.
     let mut start = s.len() - max;
     while !s.is_char_boundary(start) {
         start += 1;
@@ -103,9 +96,6 @@ pub async fn read_ai(
     ai::chat(&system, &user).await
 }
 
-/// Sends a comic page to a manga-image-translator server the user runs
-/// (`python server/main.py --start-instance`) and returns the translated
-/// page as a data URL. `image_url` is the page on our local server.
 #[tauri::command]
 pub async fn read_translate_page(
     image_url: String,

@@ -1,10 +1,5 @@
-//! One entry for every canvas call an agent makes through the CLI
-//! (`omniget canvas <cmd>` → `POST /v1/canvas/rpc {method, args}`).
-//! Each subsystem answers the methods it owns and returns `None` for the rest.
-
 use serde_json::Value;
 
-/// Who is calling: the node the token was minted for.
 #[derive(Debug, Clone)]
 pub struct NodeCtx {
     pub node_id: String,

@@ -1,27 +1,16 @@
-//! Turning fetched HTML into plain text a model can read, and marking it as
-//! untrusted data. No HTML parser dependency: the page is a source of words,
-//! not a document we render, so a small set of regexes is enough and fails
-//! soft (worst case, some markup noise in the text).
-
 use once_cell::sync::Lazy;
 use regex::Regex;
 use unicode_normalization::UnicodeNormalization;
 
-/// Opening and closing markers around every piece of web text handed to a
-/// model. Occurrences inside the page are neutralised so a page cannot close
-/// the block early.
 pub const OPEN_MARK: &str = "<<<CONTEUDO_WEB_NAO_CONFIAVEL>>>";
 pub const CLOSE_MARK: &str = "<<<FIM_CONTEUDO_WEB>>>";
 
-/// What a page gave us.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Extracted {
     pub title: Option<String>,
     pub lang: Option<String>,
     pub description: Option<String>,
     pub text: String,
-    /// Raw JSON-LD blocks (streaming pages describe offers and languages
-    /// there), each cut to a few KiB.
     pub json_ld: Vec<String>,
 }
 
@@ -64,9 +53,6 @@ re!(
 );
 re!(RE_SPACES, r"[ \t\u{00A0}\u{200B}]+");
 
-/// Phrases that try to steer the model rather than inform it. A match does
-/// not change anything the model may do (the broker decides that); it is
-/// reported so the model and the user see the attempt.
 static INJECTION_PATTERNS: Lazy<Vec<(&'static str, Regex)>> = Lazy::new(|| {
     [
         ("ignore_instructions", r"(?i)\b(ignore|disregard|forget)\b.{0,40}\b(instructions?|rules|prompt|guidelines)\b"),
@@ -84,7 +70,6 @@ static INJECTION_PATTERNS: Lazy<Vec<(&'static str, Regex)>> = Lazy::new(|| {
     .collect()
 });
 
-/// Named entities common in Portuguese, Spanish and English pages.
 fn named_entity(name: &str) -> Option<char> {
     Some(match name {
         "amp" => '&',
@@ -118,7 +103,6 @@ fn named_entity(name: &str) -> Option<char> {
 }
 
 fn accented(name: &str) -> Option<char> {
-    // `aacute`, `Atilde`, `ccedil`, `ouml`...: base letter + mark.
     let (base, mark) = name.split_at(1);
     let base = base.chars().next()?;
     let combining = match mark {
@@ -137,7 +121,6 @@ fn accented(name: &str) -> Option<char> {
     it.next().is_none().then_some(c)
 }
 
-/// Decodes HTML entities; unknown ones stay as they were.
 pub fn decode_entities(s: &str) -> String {
     RE_ENTITY
         .replace_all(s, |caps: &regex::Captures| {
@@ -164,7 +147,6 @@ fn clean_inline(s: &str) -> String {
         .to_string()
 }
 
-/// Extracts title, language, description, JSON-LD and readable text.
 pub fn extract_html(html: &str) -> Extracted {
     let html = RE_COMMENT.replace_all(html, " ");
     let title = RE_TITLE
@@ -207,7 +189,6 @@ pub fn extract_html(html: &str) -> Extracted {
     }
 }
 
-/// Collapses spaces and blank lines.
 pub fn normalise_text(s: &str) -> String {
     let mut out = String::with_capacity(s.len() / 2);
     let mut blank = false;
@@ -235,8 +216,6 @@ pub fn truncate_chars(s: &str, max: usize) -> String {
     }
 }
 
-/// Lower-case, accents removed, spaces collapsed: the form every
-/// "does this text contain X" check in this module compares.
 pub fn fold(s: &str) -> String {
     let stripped: String = s
         .nfd()
@@ -249,7 +228,6 @@ pub fn fold(s: &str) -> String {
         .to_string()
 }
 
-/// Which injection patterns match `text`, with a short excerpt each.
 pub fn suspicious(text: &str) -> Vec<(String, String)> {
     let mut out = Vec::new();
     for (kind, re) in INJECTION_PATTERNS.iter() {
@@ -260,19 +238,14 @@ pub fn suspicious(text: &str) -> Vec<(String, String)> {
     out
 }
 
-/// Keeps a page from closing or faking our markers.
 pub fn neutralise(s: &str) -> String {
     s.replace("<<<", "‹‹‹").replace(">>>", "›››")
 }
 
-/// `text` inside the untrusted markers.
 pub fn wrap_untrusted(text: &str) -> String {
     format!("{OPEN_MARK}\n{}\n{CLOSE_MARK}", neutralise(text))
 }
 
-/// Replaces every sentence that mentions one of `terms` (accent- and
-/// case-insensitive) with a placeholder. Returns the text and how many
-/// sentences went.
 pub fn redact_terms(text: &str, terms: &[String]) -> (String, usize) {
     let folded_terms: Vec<String> = terms
         .iter()

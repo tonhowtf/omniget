@@ -1,8 +1,3 @@
-//! `workspace_export`, `workspace_import`, `workspace_backup_list`,
-//! `workspace_backup_restore`: the same code as the sidebar's Export…,
-//! Import… and Backups… (`crate::commands::canvas::workspace_io`).
-//! Import and restore preview first; `confirm: true` acts.
-
 use serde_json::{json, Value};
 use tauri::AppHandle;
 

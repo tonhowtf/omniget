@@ -1,23 +1,3 @@
-//! Launch of a canvas terminal node, on the Rust side, so any node can be
-//! (re)started without the UI: a routine, a cord `ask`, a chat message or a
-//! Maestro recruit aimed at a node that is off screen after an app restart.
-//! The front (`src/lib/canvas/spawn.ts`) goes through the same function
-//! (`canvas_term_ensure`), so there is one recipe and one lock:
-//!
-//!   1. the agent program (preset, or the node's own `data.command`);
-//!   2. the role, when the node has one (`roles::launch_plan`: args, cwd, env);
-//!   3. the cords environment (`cords::terminal_env_for`: node token, bridge
-//!      URL, `omniget` on PATH) and the agent's extra args, right after the
-//!      program;
-//!   4. the floor/environment context (`floors::spawn_context`), last, since
-//!      a remote wrapper must wrap the complete argv;
-//!   5. `TermManager::open`, then the role's first prompt (Ollama).
-//!
-//! One PTY per node: a terminal that already exists in this app run (alive
-//! or exited) is attached, never relaunched (minting a new token would
-//! revoke the running process's one). Launches of one terminal are
-//! serialized, so the UI mount and a routine cannot start two processes.
-
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, OnceLock};
 use std::time::Duration;
@@ -28,18 +8,13 @@ use omniget_core::core::term::agent::AgentKind as TermAgent;
 use omniget_core::core::term::session::{TermInfo, TermOpen};
 use tauri::AppHandle;
 
-/// Ollama model used when a node does not name one (same as the front).
 pub const DEFAULT_OLLAMA_MODEL: &str = "llama3.2";
 
-/// World-unit geometry of a terminal node body (`term/metrics.ts`), used to
-/// size a PTY launched without the UI. The UI resizes it when it mounts.
 const TERM_HEADER_H: f64 = 30.0;
 const TERM_PAD: f64 = 6.0;
 const CELL_W: f64 = 7.8;
 const CELL_H: f64 = 13.0 * 1.25;
 
-/// How a launch should go. The UI passes its measured grid and its copy of
-/// the node (used when the node is not stored yet).
 #[derive(Default)]
 pub struct LaunchOpts {
     pub node: Option<CanvasNode>,
@@ -48,7 +23,6 @@ pub struct LaunchOpts {
     pub restore: bool,
 }
 
-/// Result of `ensure`: the terminal and whether this call started it.
 pub struct Launched {
     pub info: TermInfo,
     pub fresh: bool,
@@ -85,7 +59,6 @@ pub fn terminal_of(n: &CanvasNode) -> Option<String> {
         .map(str::to_string)
 }
 
-/// The node's agent preset (`shell` when unknown).
 pub fn agent_of(n: &CanvasNode) -> String {
     match n.data_str("agent") {
         Some(a @ ("shell" | "claude" | "codex" | "gemini" | "opencode" | "ollama" | "native")) => {
@@ -103,8 +76,6 @@ fn preset(agent: &str) -> Vec<String> {
     }
 }
 
-/// The agent's program for a node: its own command, else the preset
-/// (Ollama with the node's model).
 pub fn agent_command(n: &CanvasNode) -> Vec<String> {
     match n.data.get("command") {
         Some(serde_json::Value::Array(a)) if !a.is_empty() => {
@@ -133,7 +104,6 @@ pub fn agent_command(n: &CanvasNode) -> Vec<String> {
     preset(&agent)
 }
 
-/// Columns and rows that fit a node of w×h world units (never below 2×1).
 pub fn grid_for(w: f64, h: f64) -> (u16, u16) {
     let bw = (w - TERM_PAD * 2.0).max(0.0);
     let bh = (h - TERM_HEADER_H - TERM_PAD).max(0.0);
@@ -164,9 +134,6 @@ fn base_env(n: &CanvasNode, ws: &str, tid: &str) -> HashMap<String, String> {
     env
 }
 
-/// Shell integration recipe for a plain shell node (zsh, bash, fish); None
-/// for other shells, which open as the default login shell. The rc files
-/// live in `<app_data>/shell/` (one copy for every terminal).
 fn shell_integration(
     tid: &str,
     env: &HashMap<String, String>,
@@ -196,9 +163,6 @@ fn stored_node(ws: &str, floor: &str, node_id: &str) -> Result<CanvasNode, Strin
         .ok_or_else(|| format!("CANVAS_NOT_FOUND: node {node_id}"))
 }
 
-/// Starts the terminal of `node_id` unless this app run already has it.
-/// Returns its terminal id. Callers still check `alive`: a process that
-/// exited in this run stays exited (the user restarts it on the canvas).
 pub async fn ensure_running(ws: &str, floor: &str, node_id: &str) -> Result<String, String> {
     let l = ensure(
         ws,
@@ -216,8 +180,6 @@ pub async fn ensure_running(ws: &str, floor: &str, node_id: &str) -> Result<Stri
     Ok(l.info.id)
 }
 
-/// Starts `node` in the background when it has no terminal in this run
-/// (a recruit, a node patched to a new terminal id).
 pub fn spawn_ensure(ws: &str, floor: &str, node_id: &str) {
     let (ws, floor, node_id) = (ws.to_string(), floor.to_string(), node_id.to_string());
     tauri::async_runtime::spawn(async move {
@@ -237,11 +199,6 @@ pub fn spawn_ensure(ws: &str, floor: &str, node_id: &str) {
     });
 }
 
-/// Starts every terminal of workspace `ws` that has no process in this app
-/// run, one after another with a short gap (M-D15: after a relaunch the
-/// Maestri brings every agent back, not only the ones on screen). Terminals
-/// already running, or that exited in this run, are left alone; native
-/// agents have no process. Runs in the background.
 pub fn wake_workspace(ws: &str) {
     let ws = ws.to_string();
     tauri::async_runtime::spawn(async move {
@@ -272,7 +229,6 @@ pub fn wake_workspace(ws: &str) {
     });
 }
 
-/// Opens (or attaches to) the terminal of a node, the whole recipe above.
 pub async fn ensure(
     ws: &str,
     floor: &str,
@@ -281,8 +237,6 @@ pub async fn ensure(
 ) -> Result<Launched, String> {
     let app = app()?;
     let m = super::term::host(app);
-    // The stored node wins (a role or agent swap patched it in Rust); the
-    // UI's copy covers a node whose `add_node` has not reached the store.
     let node = match (stored_node(ws, floor, node_id), opts.node) {
         (Ok(n), _) => n,
         (Err(_), Some(n)) if n.id == node_id => n,
@@ -300,15 +254,12 @@ pub async fn ensure(
     let guard = lock_for(&tid);
     let _held = guard.lock().await;
     if let Some(info) = m.info(&tid) {
-        // Existing session of this run: attach, never relaunch.
         return Ok(Launched { info, fresh: false });
     }
 
     let agent = agent_of(&node);
     let (gc, gr) = grid_for(node.w, node.h);
     let mut command = agent_command(&node);
-    // A custom program under the "shell" preset (a stub, a home-made agent
-    // CLI) is not a shell: its turns end when it goes quiet.
     let generic = agent == "shell"
         && command.first().is_some_and(|p| {
             !matches!(
@@ -325,8 +276,6 @@ pub async fn ensure(
                     | "cmd"
             )
         });
-    // 1b. Resume: a node reopened (app relaunch, reload after unload) picks
-    // up the agent's own last session instead of starting a blank one.
     if opts.restore && command.len() == 1 {
         if let Some(sid) = omniget_core::core::term::session::history::agent_session(&tid) {
             match agent.as_str() {
@@ -347,7 +296,6 @@ pub async fn ensure(
     let mut env = base_env(&node, ws, &tid);
     let mut env_remove = None;
 
-    // 2. Role.
     let mut first_prompt = None;
     if let Some(role_id) = node.data_str("roleId").filter(|r| !r.is_empty()) {
         if !ws.is_empty() {
@@ -384,7 +332,6 @@ pub async fn ensure(
     }
 
     if !ws.is_empty() {
-        // 3. Cords environment + agent args.
         let (h, ws2, fl2, n2) = (app.clone(), ws.to_string(), floor.to_string(), node.clone());
         let ne = tauri::async_runtime::spawn_blocking(move || {
             super::cords::host().terminal_env_for(&h, &ws2, &fl2, &n2)
@@ -407,7 +354,6 @@ pub async fn ensure(
             Err(e) => tracing::warn!("[canvas.launch] {node_id} has no cords: {e}"),
         }
 
-        // 4. Floor / environment context (wraps the final argv).
         let w = super::floors::spawn_context(ws, floor, cwd.as_deref(), &command, &env);
         command = w.command;
         if w.cwd.is_some() {
@@ -416,9 +362,6 @@ pub async fn ensure(
         env = w.env.into_iter().collect();
     }
 
-    // 4b. A local shell gets the shell integration (OSC 133/7 and, after the
-    // user's rc files, `<app_data>/bin` back in front of PATH, so a
-    // Homebrew `omniget` cannot shadow the app's CLI).
     if command.is_empty() && cfg!(unix) {
         if let Some(sh) = shell_integration(&tid, &env) {
             command = sh.command;
@@ -426,7 +369,6 @@ pub async fn ensure(
         }
     }
 
-    // 5. Open.
     let req = TermOpen {
         id: Some(tid.clone()),
         cwd,
@@ -466,9 +408,6 @@ pub async fn ensure(
     Ok(Launched { info, fresh: true })
 }
 
-/// Waits (up to 20 s) for a terminal that was just started to settle: some
-/// output, then a quiet screen for a second, or an agent state that says it
-/// takes input. Input typed earlier can be eaten by a starting program.
 pub async fn wait_ready(tid: &str) {
     use omniget_core::core::term::agent::AgentState;
     let m = crate::pty::term();

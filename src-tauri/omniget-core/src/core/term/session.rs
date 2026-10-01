@@ -1,22 +1,3 @@
-//! [`TermManager`]: every terminal of the app (the Central's and the
-//! canvas's), heir of the Central's `PtyManager`, with no Tauri dependency.
-//!
-//! Per session there are two threads:
-//! - the **reader** blocks on the PTY and feeds each read to the OSC sniffer,
-//!   the emulator (whose answers to terminal queries go straight back to the
-//!   PTY, view or no view) and the agent state; then appends to the bounded
-//!   history and, while a Central view is attached, to the pending output;
-//! - the **pump** coalesces pending output into ~16 ms blocks for the Central
-//!   (`TermEvents::data`, flow control of 8 chunks / 64 KiB unacknowledged),
-//!   writes the history to disk in batches, refreshes the foreground program,
-//!   runs the agent heuristics and flushes an expired synchronized update.
-//!   With nothing to do it sleeps on a condvar.
-//!
-//! The canvas does not read bytes: it subscribes to frames
-//! ([`TermManager::subscribe_frames`]). One ticker thread per subscriber
-//! wakes on damage and sends `OGT1` frames through a [`FrameSink`] under a
-//! credit of two frames in flight.
-
 pub mod foreground;
 pub mod history;
 pub mod pty;
@@ -42,44 +23,25 @@ use foreground::{Foreground, NameCache};
 use history::History;
 use pty::{PtyBackend, PtyProcess, PtyWaiter};
 
-/// Coalescing window for Central output events.
 const COALESCE: Duration = Duration::from_millis(16);
-/// Central flow-control window: unacknowledged chunks and bytes.
 const WINDOW_CHUNKS: usize = 8;
 const WINDOW_BYTES: usize = 64 * 1024;
-/// Pending output past this blocks the reader (backpressure on the program).
 const PENDING_MAX: usize = 1024 * 1024;
-/// A full window with no ack for this long detaches the Central view.
 const STALL: Duration = Duration::from_secs(5);
-/// History reaches the disk at most this often.
 const DISK_EVERY: Duration = Duration::from_millis(500);
-/// Foreground label refresh after output, at most this often.
 #[cfg(unix)]
 const FG_EVERY: Duration = Duration::from_millis(400);
 #[cfg(not(unix))]
 const FG_EVERY: Duration = Duration::from_secs(3);
-/// Agent heuristics cadence while there is something to decide.
 const AGENT_EVERY: Duration = Duration::from_millis(500);
-/// Upper bound for sessions alive at once.
 const MAX_SESSIONS: usize = 64;
-/// Scrollback lines kept by the emulator.
 const SCROLLBACK: usize = 10_000;
-/// `user_typing` window.
 const TYPING_WINDOW: Duration = Duration::from_millis(1500);
-/// Frame pacing of a subscriber (~60 fps at most).
 const FRAME_MIN: Duration = Duration::from_millis(16);
-/// Idle wait of a ticker (nothing dirty).
 const TICK_IDLE: Duration = Duration::from_millis(250);
 
-/// Played into the emulator (never into the saved transcript) after a
-/// replayed transcript: colours, alternate screen, input modes and cursor
-/// back to their defaults. Kept out of the transcript because the replay
-/// sanitizer reads an unmatched alternate-screen exit as "drop the past".
 const REPLAY_RESET: &[u8] = b"\x1b[0m\x1b[?1049l\x1b[?2004l\x1b[?1l\x1b[?1000l\x1b[?1002l\x1b[?1003l\x1b[?1004l\x1b[?1005l\x1b[?1006l\x1b[?1015l\x1b>\x1b[?25h";
 
-/// Screen generations are unique across sessions, so a subscriber sees a new
-/// process under a reused id (restart, role swap, reload) as a new screen and
-/// sends it whole instead of diffing against the old one.
 static NEXT_SCREEN_GEN: AtomicU32 = AtomicU32::new(1);
 
 fn next_screen_gen() -> u32 {
@@ -94,49 +56,28 @@ fn lock<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
     m.lock().unwrap_or_else(|e| e.into_inner())
 }
 
-// ------------------------------------------------------------------ types
-
 #[derive(Debug, Clone, Default, Deserialize)]
 #[serde(default)]
 pub struct TermOpen {
-    /// Chosen by the caller (stable across remounts); generated when absent.
     pub id: Option<String>,
     pub cwd: Option<String>,
-    /// argv. Empty or absent opens the user's default shell (login shell on
-    /// unix, `%ComSpec%` on Windows). On unix a command runs through the login
-    /// shell so it sees the user's PATH.
     pub command: Option<Vec<String>>,
     pub env: Option<HashMap<String, String>>,
     pub cols: Option<u16>,
     pub rows: Option<u16>,
     pub title: Option<String>,
-    /// Typed into the terminal after start, not submitted.
     #[serde(alias = "initialInput")]
     pub initial_input: Option<String>,
-    /// History cap in bytes (default 2 MiB, minimum 64 KiB).
     #[serde(alias = "historyCap")]
     pub history_cap: Option<usize>,
-    /// What runs in it, for the state heuristics (default: from argv[0]).
     pub agent: Option<AgentKind>,
-    /// When the program is a path that no longer exists (a shell that was
-    /// uninstalled, a moved binary), open an available shell instead and say
-    /// so on screen. Default on (Settings → Canvas → Terminal).
     #[serde(alias = "shellFallback")]
     pub shell_fallback: Option<bool>,
-    /// Replay the sanitized transcript of a previous run of this id into the
-    /// new screen (the canvas reopening a node after a restart).
     pub restore: Option<bool>,
-    /// Inherited variables to drop from the child's environment (the canvas
-    /// strips the agent session variables of whoever launched the app).
     #[serde(alias = "envRemove")]
     pub env_remove: Option<Vec<String>>,
 }
 
-/// Variables of an agent session the app itself may be running inside
-/// (started from a Claude Code or Codex terminal). A child agent that
-/// inherits them believes it is nested (`CLAUDE_CODE_CHILD_SESSION` turns
-/// transcript saving off, `CODEX_SANDBOX` changes Codex's sandbox), so the
-/// canvas removes them. `CODEX_HOME` is user configuration and stays.
 pub fn inherited_agent_session_vars() -> Vec<String> {
     inherited_agent_session_vars_from(std::env::vars_os().filter_map(|(k, _)| k.into_string().ok()))
 }
@@ -170,21 +111,16 @@ pub struct TermInfo {
     pub foreground: Foreground,
     pub agent: AgentSignal,
     pub agent_kind: AgentKind,
-    /// Last title the program set (OSC 0/2).
     pub osc_title: Option<String>,
-    /// Last cwd the shell reported (OSC 7).
     pub osc_cwd: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
 pub struct Attached {
     pub info: Option<TermInfo>,
-    /// base64 of the sanitized history.
     pub history: String,
     pub generation: u64,
-    /// Absolute offset the history ends at: live bytes before it are duplicates.
     pub offset: u64,
-    /// false when the session is gone and only its transcript remains.
     pub alive: bool,
 }
 
@@ -196,30 +132,20 @@ pub struct SearchHit {
     pub end_row: u16,
 }
 
-/// Where frames go (the app: a Tauri `Channel`; tests: a `Vec`).
 pub trait FrameSink: Send + Sync {
-    /// Returns false when the receiver is gone (the subscription is dropped).
     fn send(&self, frame: Vec<u8>) -> bool;
 }
 
-/// Notifications out of the manager. All default to no-ops.
 pub trait TermEvents: Send + Sync {
-    /// Central byte stream (`pty://data`).
     fn data(&self, _id: &str, _generation: u64, _seq: u64, _start: u64, _data: &[u8]) {}
     fn exit(&self, _id: &str, _code: Option<i32>, _signal: Option<&str>) {}
-    /// Foreground program changed (`pty://activity`).
     fn activity(&self, _id: &str, _fg: &Foreground) {}
-    /// A Central view stopped acknowledging and was detached (`pty://stall`).
     fn stall(&self, _id: &str) {}
-    /// Agent state changed (`term://state`).
     fn state(&self, _id: &str, _signal: &AgentSignal) {}
-    /// OSC 52 copy request from the program.
     fn clipboard(&self, _id: &str, _text: &str) {}
 }
 
 pub type ByteObserver = Arc<dyn Fn(&[u8]) + Send + Sync>;
-
-// ---------------------------------------------------------------- session
 
 struct Out {
     generation: u64,
@@ -260,7 +186,6 @@ impl Out {
     }
 }
 
-/// Emulator side of a session.
 struct TermState {
     engine: Box<dyn TermEngine>,
     sniffer: Sniffer,
@@ -271,7 +196,6 @@ struct TermState {
     osc_cwd: Option<String>,
     changed_ms: i64,
     alive: bool,
-    /// ⌘⇧B: new output does not move the view.
     scroll_lock: bool,
 }
 
@@ -297,8 +221,6 @@ struct Session {
     cv: Condvar,
     names: Mutex<NameCache>,
     term: Mutex<TermState>,
-    /// Central views attached (mirror of `Out::viewers`): while one is, its
-    /// xterm.js answers terminal queries and the engine must not answer too.
     central_viewers: AtomicU32,
     observers: Mutex<Vec<(u64, ByteObserver)>>,
     last_user_input: Mutex<Option<Instant>>,
@@ -353,8 +275,6 @@ impl Session {
         }
     }
 
-    /// Runs the state heuristics soon even if the program prints nothing
-    /// (an answer that leaves a silent program behind).
     fn wake_heuristics(&self) {
         let mut o = self.out();
         if !o.eof && !o.closed {
@@ -383,10 +303,8 @@ impl Session {
     }
 }
 
-/// State shared with the session threads and tickers.
 struct Shared {
     events: RwLock<Option<Arc<dyn TermEvents>>>,
-    /// Damage counter + condvar the tickers sleep on.
     bus: Mutex<u64>,
     bus_cv: Condvar,
 }
@@ -411,7 +329,6 @@ impl Shared {
         self.damage();
     }
 
-    /// Waits until the damage counter moves past `seen` or `timeout` ends.
     fn wait(&self, seen: u64, timeout: Duration) -> u64 {
         let g = lock(&self.bus);
         if *g != seen {
@@ -431,8 +348,6 @@ struct FrameSub {
     stop: AtomicBool,
 }
 
-// ---------------------------------------------------------------- manager
-
 pub struct TermManager {
     backend: Arc<dyn PtyBackend>,
     sessions: Mutex<HashMap<String, Arc<Session>>>,
@@ -444,12 +359,10 @@ pub struct TermManager {
 
 static GLOBAL: OnceLock<Arc<TermManager>> = OnceLock::new();
 
-/// The process-wide manager, once the app installed it.
 pub fn global() -> Option<Arc<TermManager>> {
     GLOBAL.get().cloned()
 }
 
-/// Installs the process-wide manager (first call wins) and returns it.
 pub fn install_global(m: Arc<TermManager>) -> Arc<TermManager> {
     GLOBAL.get_or_init(|| m).clone()
 }
@@ -510,7 +423,6 @@ impl TermManager {
             .unwrap_or_else(|e| e.into_inner()) = Some(events);
     }
 
-    /// Default history cap for sessions opened from now on.
     pub fn set_history_cap(&self, bytes: usize) {
         *lock(&self.default_cap) = Some(bytes.max(history::MIN_CAP));
     }
@@ -538,7 +450,6 @@ impl TermManager {
         {
             let map = lock(&self.sessions);
             if let Some(existing) = map.get(&id) {
-                // Opening an id that is alive is an attach in disguise.
                 return Ok(existing.info());
             }
             if map.len() >= MAX_SESSIONS {
@@ -634,14 +545,9 @@ impl TermManager {
         if req.restore.unwrap_or(false) {
             if let Some(raw) = history::read_tail(&id, cap) {
                 let mut replay = sanitize::sanitize_for_replay(&raw);
-                // The replayed past belongs to a process that is gone: the
-                // new one starts with no input mode of its own (a leftover
-                // bracketed paste would wrap our pastes in markers the new
-                // program never asked for) and on the main screen.
                 replay.extend_from_slice(b"\x1b[0m\r\n");
                 engine.advance(&replay);
                 engine.advance(REPLAY_RESET);
-                // Answers to replayed queries must never reach the new program.
                 let _ = engine.take_events();
                 hist.push(&replay);
             }
@@ -737,7 +643,6 @@ impl TermManager {
         }
 
         if let Some(text) = req.initial_input.filter(|t| !t.is_empty()) {
-            // Give the shell a moment to print its prompt first.
             let s = session.clone();
             std::thread::spawn(move || {
                 std::thread::sleep(Duration::from_millis(300));
@@ -748,11 +653,8 @@ impl TermManager {
         Ok(session.info())
     }
 
-    /// Raw bytes to the program (not counted as the user typing).
     pub fn write(&self, id: &str, bytes: &[u8]) -> Result<(), String> {
         let s = self.get(id)?;
-        // An Enter written for someone (a remote answer, a raw cord) still
-        // answers a question on screen and starts a turn.
         if bytes.contains(&b'\r') {
             let changed = {
                 let mut t = s.term();
@@ -768,8 +670,6 @@ impl TermManager {
         s.write_raw(bytes)
     }
 
-    /// Keystrokes from the user: marks `user_typing`, snaps a scrolled-back
-    /// view to the bottom, and lets a submit answer a sticky agent state.
     pub fn input(&self, id: &str, bytes: &[u8]) -> Result<(), String> {
         let s = self.get(id)?;
         *lock(&s.last_user_input) = Some(Instant::now());
@@ -804,7 +704,6 @@ impl TermManager {
         s.write_raw(&bytes)
     }
 
-    /// Enter, sent by another agent or a cord (not the user).
     pub fn submit(&self, id: &str) -> Result<(), String> {
         let s = self.get(id)?;
         let changed = {
@@ -819,8 +718,6 @@ impl TermManager {
         s.write_raw(b"\r")
     }
 
-    /// Delivers a prompt the way the Maestri does: bracketed paste, a short
-    /// pause (TUIs debounce paste), then Enter. Returns right away.
     pub fn send_prompt(&self, id: &str, text: &str) -> Result<(), String> {
         let s = self.get(id)?;
         let bytes = input::encode_paste(text, self.modes(&s).bracketed_paste);
@@ -851,9 +748,6 @@ impl TermManager {
         self.input(id, text.as_bytes())
     }
 
-    /// Returns true when the program consumed the event (mouse reporting on,
-    /// or the wheel became arrows/scrollback); false = the front does local
-    /// selection.
     pub fn mouse(&self, id: &str, m: &MouseInput) -> Result<bool, String> {
         let s = self.get(id)?;
         let modes = self.modes(&s);
@@ -932,7 +826,6 @@ impl TermManager {
     ) -> Result<Option<SearchHit>, String> {
         let s = self.get(id)?;
         let mut t = s.term();
-        // The find bar searches for the text as typed, not a regex.
         let hit = t.engine.search(&literal_regex(query), backwards);
         t.touch();
         drop(t);
@@ -945,7 +838,6 @@ impl TermManager {
         }))
     }
 
-    /// Focus changed on the node: focus report (1004) and `success` → `idle`.
     pub fn focus(&self, id: &str, focused: bool) -> Result<(), String> {
         let s = self.get(id)?;
         let (bytes, changed) = {
@@ -968,7 +860,6 @@ impl TermManager {
         self.get(id).ok()?.term().engine.link_uri(link_id)
     }
 
-    /// "The last one wins": every call applies, whoever sent it.
     pub fn resize(&self, id: &str, cols: u16, rows: u16) -> Result<(), String> {
         if cols == 0 || rows == 0 {
             return Err(err("PTY_BAD_SIZE", "cols and rows must be positive"));
@@ -991,13 +882,10 @@ impl TermManager {
         Ok(())
     }
 
-    /// Kills the program (its whole process group / job) and forgets the
-    /// session. The transcript stays on disk unless `delete_history`.
     pub fn close(&self, id: &str, delete_history: bool) -> Result<(), String> {
         let removed = lock(&self.sessions).remove(id);
         if let Some(s) = removed {
             lock(&s.process).kill();
-            // Dropping the writer sends EOF for programs that ignore the kill.
             lock(&s.writer).take();
             let mut o = s.out();
             o.closed = true;
@@ -1011,7 +899,6 @@ impl TermManager {
         if delete_history {
             history::forget_agent_session(id);
             if let Some(p) = history::path_for(id) {
-                // The pump may still flush once; give it the chance, then remove.
                 let _ = std::fs::remove_file(&p);
                 std::thread::spawn(move || {
                     std::thread::sleep(DISK_EVERY * 2);
@@ -1040,9 +927,6 @@ impl TermManager {
         Ok(screen::snapshot(&*t.engine, last_lines, t.changed_ms))
     }
 
-    /// Screen text of a terminal with no live session in this run (unloaded,
-    /// or not started since the app launched): its transcript on disk played
-    /// into a scratch emulator of `cols`×`rows`.
     pub fn transcript_text(
         &self,
         id: &str,
@@ -1066,10 +950,6 @@ impl TermManager {
         Some(screen::snapshot(&*engine, last_lines, changed))
     }
 
-    /// Whether the program in terminal `id` is busy right now: a busy agent
-    /// state, or (for a shell) a program other than the shell in the
-    /// foreground, even a silent one (`sleep 60`). `None` when there is no
-    /// live session. Routines use it for "skip if busy".
     pub fn is_busy(&self, id: &str) -> Option<bool> {
         let s = self.get(id).ok()?;
         let fg_busy = {
@@ -1079,8 +959,6 @@ impl TermManager {
             }
             o.foreground.running && !AgentKind::from_label(&o.foreground.label).is_agent()
         };
-        // Fresh look at the foreground group: the cached one can be up to a
-        // few hundred ms old.
         let fg_busy = fg_busy || {
             let fg = s.compute_foreground();
             fg.running && !AgentKind::from_label(&fg.label).is_agent()
@@ -1099,7 +977,6 @@ impl TermManager {
         )
     }
 
-    /// What runs in terminal `id`, as the state tracker sees it.
     pub fn agent_kind(&self, id: &str) -> Option<AgentKind> {
         self.get(id).ok().map(|s| s.term().agent.kind())
     }
@@ -1108,7 +985,6 @@ impl TermManager {
         self.get(id).ok().map(|s| s.term().agent.signal().clone())
     }
 
-    /// Explicit state from the app (a cord waiting on a peer, the bridge).
     pub fn set_agent_state(
         &self,
         id: &str,
@@ -1129,11 +1005,8 @@ impl TermManager {
         Ok(())
     }
 
-    /// A hook event (Claude-shaped JSON) for the terminal `id`, routed by
-    /// `OMNIGET_TERMINAL_ID`.
     pub fn hook(&self, id: &str, event: &str, payload: &serde_json::Value) -> Result<(), String> {
         let s = self.get(id)?;
-        // Remember the agent's own session, so a relaunch can resume it.
         if let Some(sid) = history::session_id_of(payload) {
             history::save_agent_session(id, &sid);
         }
@@ -1149,8 +1022,6 @@ impl TermManager {
         Ok(())
     }
 
-    /// The user typed in this terminal in the last 1.5 s (an agent should not
-    /// paste into it now).
     pub fn user_typing(&self, id: &str) -> bool {
         self.get(id)
             .ok()
@@ -1158,9 +1029,6 @@ impl TermManager {
             .is_some_and(|t| t.elapsed() < TYPING_WINDOW)
     }
 
-    // -------------------------------------------------- frame subscribers
-
-    /// Starts (or replaces) the frame subscription `key` (the webview label).
     pub fn subscribe_frames(
         &self,
         key: &str,
@@ -1209,11 +1077,6 @@ impl TermManager {
         }
     }
 
-    // ---------------------------------------------- Central byte viewers
-
-    /// Two-step attach: returns the sanitized history and the cursor the live
-    /// stream continues from, and registers a view so `data` flows. For an id
-    /// with no live session, returns its transcript from disk.
     pub fn attach(&self, id: &str) -> Result<Attached, String> {
         let s = match self.get(id) {
             Ok(s) => s,
@@ -1250,7 +1113,6 @@ impl TermManager {
         })
     }
 
-    /// The view went away (unmount). Output keeps going to history only.
     pub fn detach(&self, id: &str) -> Result<(), String> {
         let s = self.get(id)?;
         let mut o = s.out();
@@ -1264,7 +1126,6 @@ impl TermManager {
         Ok(())
     }
 
-    /// Acknowledges every chunk up to `seq` (the view wrote it).
     pub fn ack(&self, id: &str, seq: u64) -> Result<(), String> {
         let s = self.get(id)?;
         let mut o = s.out();
@@ -1281,7 +1142,6 @@ impl TermManager {
         Ok(())
     }
 
-    /// Clears the history and starts a new generation (views re-attach).
     pub fn clear(&self, id: &str) -> Result<u64, String> {
         let s = self.get(id)?;
         let mut o = s.out();
@@ -1302,9 +1162,6 @@ impl TermManager {
         Ok(g)
     }
 
-    /// ⌘K: wipes the screen and the scrollback of the view (and the saved
-    /// transcript). The program is not told; its next output starts at the
-    /// top.
     pub fn clear_screen(&self, id: &str) -> Result<(), String> {
         self.clear(id)?;
         let s = self.get(id)?;
@@ -1313,8 +1170,6 @@ impl TermManager {
             t.engine.search_clear();
             t.engine.selection_clear();
             t.engine.scroll_display(ScrollBy::Bottom);
-            // 2J first: alacritty moves the cleared screen into the
-            // scrollback, which 3J then drops.
             t.engine.advance(b"\x1b[H\x1b[2J\x1b[3J");
             let _ = t.engine.take_events();
             t.touch();
@@ -1323,7 +1178,6 @@ impl TermManager {
         Ok(())
     }
 
-    /// ⌘⇧B: turns the scroll lock on or off; returns the new state.
     pub fn set_scroll_lock(&self, id: &str, on: Option<bool>) -> Result<bool, String> {
         let s = self.get(id)?;
         let mut t = s.term();
@@ -1338,8 +1192,6 @@ impl TermManager {
         Ok(now)
     }
 
-    /// How many times `query` (plain text; case-insensitive unless it has
-    /// capitals) occurs in the scrollback and the screen.
     pub fn search_count(&self, id: &str, query: &str) -> Result<usize, String> {
         if query.is_empty() {
             return Ok(0);
@@ -1354,7 +1206,6 @@ impl TermManager {
         Ok(count_matches(&lines, query))
     }
 
-    /// Ends the find: highlight gone, view back at the bottom.
     pub fn search_clear(&self, id: &str) -> Result<(), String> {
         let s = self.get(id)?;
         let mut t = s.term();
@@ -1366,7 +1217,6 @@ impl TermManager {
         Ok(())
     }
 
-    /// Kills every session (app exit).
     pub fn shutdown_all(&self) {
         let ids: Vec<String> = lock(&self.sessions).keys().cloned().collect();
         for id in ids {
@@ -1379,7 +1229,6 @@ impl TermManager {
     }
 }
 
-/// A regex that matches `text` literally.
 fn literal_regex(text: &str) -> String {
     let mut out = String::with_capacity(text.len() * 2);
     for c in text.chars() {
@@ -1391,7 +1240,6 @@ fn literal_regex(text: &str) -> String {
     out
 }
 
-/// Occurrences of `query` in `lines` (smart case, like the find itself).
 fn count_matches(lines: &[String], query: &str) -> usize {
     let smart = !query.chars().any(char::is_uppercase);
     let q = if smart {
@@ -1413,10 +1261,6 @@ fn b64(data: &[u8]) -> String {
     base64::engine::general_purpose::STANDARD.encode(data)
 }
 
-// ---------------------------------------------------------------- threads
-
-/// Handles what the engine asked for after an advance or a sync flush.
-/// Returns the query answers to write (outside the term lock).
 fn drain_engine(s: &Session, t: &mut TermState, sh: &Shared) -> Vec<Vec<u8>> {
     let mut answers = Vec::new();
     for ev in t.engine.take_events() {
@@ -1427,7 +1271,6 @@ fn drain_engine(s: &Session, t: &mut TermState, sh: &Shared) -> Vec<Vec<u8>> {
                     e.clipboard(&s.id, &text);
                 }
             }
-            // Titles and bells come from the sniffer (one source of truth).
             EngineEvent::Title(_) | EngineEvent::Bell => {}
         }
     }
@@ -1450,7 +1293,6 @@ fn read_loop(
         };
         let data = &buf[..n];
 
-        // Emulator, sniffer, agent state.
         let (answers, changed, sync_due) = {
             let mut t = s.term();
             let now = Instant::now();
@@ -1459,9 +1301,6 @@ fn read_loop(
                 (t.scroll_lock && t.engine.display_offset() == 0).then(|| t.engine.history_len());
             t.engine.advance(data);
             if let Some(h0) = pinned {
-                // Scroll lock at the bottom: keep the lines the user was
-                // reading on screen (alacritty already does this when the
-                // view is scrolled up).
                 let grew = t.engine.history_len().saturating_sub(h0);
                 if grew > 0 {
                     t.engine.scroll_display(ScrollBy::Lines(grew as i32));
@@ -1482,7 +1321,6 @@ fn read_loop(
             let sync_due = t.engine.sync_deadline();
             (answers, changed.then(|| t.agent.signal().clone()), sync_due)
         };
-        // A Central view (xterm.js) answers queries itself while attached.
         if s.central_viewers.load(Ordering::Relaxed) == 0 {
             for a in &answers {
                 let _ = s.write_raw(a);
@@ -1501,7 +1339,6 @@ fn read_loop(
         }
 
         let mut o = s.out();
-        // Backpressure: a Central view is attached but behind; hold the program.
         while o.viewers > 0 && o.pending.len() >= PENDING_MAX && !o.closed {
             o =
                 s.cv.wait_timeout(o, Duration::from_millis(250))
@@ -1566,7 +1403,6 @@ fn pump_loop(s: Arc<Session>, sh: Arc<Shared>) {
     loop {
         let now = Instant::now();
 
-        // A Central view that stopped acknowledging is dropped; it re-attaches.
         if o.viewers > 0 && o.window_full() && now.duration_since(o.last_ack) >= STALL {
             o.viewers = 0;
             s.central_viewers.store(0, Ordering::Relaxed);
@@ -1580,7 +1416,6 @@ fn pump_loop(s: Arc<Session>, sh: Arc<Shared>) {
             continue;
         }
 
-        // Central output.
         if o.viewers > 0 && !o.pending.is_empty() && !o.window_full() {
             let ripe = o
                 .pending_since
@@ -1617,7 +1452,6 @@ fn pump_loop(s: Arc<Session>, sh: Arc<Shared>) {
             }
         }
 
-        // Synchronized update (DEC 2026) that never ended: flush it.
         if o.sync_due.is_some_and(|t| now >= t) {
             o.sync_due = None;
             drop(o);
@@ -1645,7 +1479,6 @@ fn pump_loop(s: Arc<Session>, sh: Arc<Shared>) {
             continue;
         }
 
-        // History to disk.
         if o.disk_due.is_some_and(|t| now >= t || o.closed) {
             o.disk_due = None;
             let job = o.history.take_job();
@@ -1657,7 +1490,6 @@ fn pump_loop(s: Arc<Session>, sh: Arc<Shared>) {
             continue;
         }
 
-        // Foreground label.
         if o.fg_due.is_some_and(|t| now >= t) && !o.eof && !o.closed {
             o.fg_due = None;
             o.fg_last_run = Some(now);
@@ -1676,7 +1508,6 @@ fn pump_loop(s: Arc<Session>, sh: Arc<Shared>) {
             continue;
         }
 
-        // Agent heuristics.
         if o.agent_due.is_some_and(|t| now >= t) && !o.eof && !o.closed {
             o.agent_due = None;
             let fg = o.foreground.clone();
@@ -1704,14 +1535,11 @@ fn pump_loop(s: Arc<Session>, sh: Arc<Shared>) {
             continue;
         }
 
-        // Done: closed and flushed, or the program ended and nobody is reading.
         let drained = o.closed || o.pending.is_empty() || o.viewers == 0;
         if (o.closed || o.eof) && drained && o.disk_due.is_none() && !o.history.dirty() {
             if o.closed {
                 break;
             }
-            // Program ended but the session is kept for its history: sleep
-            // until something (attach, clear, close) wakes us.
             o = s.cv.wait(o).unwrap_or_else(|e| e.into_inner());
             continue;
         }
@@ -1719,7 +1547,6 @@ fn pump_loop(s: Arc<Session>, sh: Arc<Shared>) {
             o.disk_due = Some(now + DISK_EVERY);
         }
 
-        // Sleep until the next deadline, or until woken.
         let mut next: Option<Instant> = None;
         let mut consider = |t: Option<Instant>| {
             if let Some(t) = t {
@@ -1753,8 +1580,6 @@ fn pump_loop(s: Arc<Session>, sh: Arc<Shared>) {
     }
 }
 
-/// One per frame subscriber: waits for damage (or credit), builds a frame
-/// with only what changed in its visible terminals, and sends it.
 fn ticker(me: Weak<TermManager>, sh: Arc<Shared>, sub: Arc<FrameSub>, key: String) {
     let mut seen = 0u64;
     let mut last_sent: Option<Instant> = None;
@@ -1763,7 +1588,6 @@ fn ticker(me: Weak<TermManager>, sh: Arc<Shared>, sub: Arc<FrameSub>, key: Strin
             break;
         }
         let Some(mgr) = me.upgrade() else { break };
-        // Pace: at most one frame per FRAME_MIN.
         if let Some(t) = last_sent {
             let since = t.elapsed();
             if since < FRAME_MIN {
@@ -1793,13 +1617,11 @@ fn ticker(me: Weak<TermManager>, sh: Arc<Shared>, sub: Arc<FrameSub>, key: Strin
                 break;
             }
             last_sent = Some(Instant::now());
-            // More may be pending right away (damage during the build).
             continue;
         }
         let timeout = if retry {
             wire::MINI_EVERY / 2
         } else if !credit {
-            // Waiting for credit: frame_done wakes us; the stall check needs a tick.
             Duration::from_millis(500)
         } else {
             TICK_IDLE

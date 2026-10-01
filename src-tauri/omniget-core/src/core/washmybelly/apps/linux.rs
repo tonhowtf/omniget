@@ -1,20 +1,3 @@
-//! Apps on Linux (F3): system packages that ship a `.desktop` file (apps,
-//! not libraries), packages nothing needs anymore, snaps, flatpaks,
-//! AppImages and `.desktop` files whose program is gone. Leftovers in
-//! `~/.config`, `~/.local/share`, `~/.cache` and `~/.var/app` with a
-//! confidence grade.
-//!
-//! Removing a system package (apt, dnf, pacman, zypper, snap, flatpak in the
-//! system installation) is an administrator item: `linux.remove`, which the
-//! helper runs as `packages::elevated_remove`. Its detail says what else the
-//! manager takes along (the preview), and the item is refused at execution if
-//! that set grew since the person saw it. Flatpaks of the user installation
-//! go without administrator (`linux.flatpak_remove`); AppImages and their
-//! `.desktop` go to the Trash.
-//!
-//! Inside OmniGet's own Flatpak nothing is listed: the host's managers are
-//! out of reach (`caps` already says why).
-
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 
@@ -29,8 +12,6 @@ use super::super::store::Ctx;
 use super::super::{fsops, Destination, Risk};
 use super::{App, Leftover};
 
-// ── .desktop files ───────────────────────────────────────────────────
-
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct DesktopEntry {
     pub name: String,
@@ -43,13 +24,11 @@ pub struct DesktopEntry {
 }
 
 impl DesktopEntry {
-    /// Shown in a menu.
     pub fn visible(&self) -> bool {
         self.kind == "Application" && !self.no_display && !self.hidden && !self.name.is_empty()
     }
 }
 
-/// The `[Desktop Entry]` group of a `.desktop` file (untranslated keys).
 pub fn parse_desktop(text: &str) -> DesktopEntry {
     let mut e = DesktopEntry::default();
     let mut in_main = false;
@@ -80,7 +59,6 @@ pub fn parse_desktop(text: &str) -> DesktopEntry {
     e
 }
 
-/// The program an `Exec=` line starts (quotes removed, `env VAR=x` skipped).
 pub fn exec_program(exec: &str) -> Option<String> {
     let mut rest = exec.trim();
     loop {
@@ -105,8 +83,6 @@ pub fn exec_program(exec: &str) -> Option<String> {
     }
 }
 
-/// When a `.desktop` file points at an absolute program that is gone,
-/// the missing path.
 pub fn orphan_target(e: &DesktopEntry, exists: &dyn Fn(&Path) -> bool) -> Option<String> {
     if e.kind != "Application" {
         return None;
@@ -137,9 +113,6 @@ fn desktop_files(dir: &Path) -> Vec<(PathBuf, DesktopEntry)> {
     v
 }
 
-// ── AppImages ────────────────────────────────────────────────────────
-
-/// ELF with the AppImage magic `AI\x01`/`AI\x02` at offset 8.
 pub fn is_appimage_header(head: &[u8]) -> bool {
     head.len() >= 11
         && &head[..4] == b"\x7fELF"
@@ -161,7 +134,6 @@ fn looks_like_appimage(p: &Path) -> bool {
         && is_appimage_header(&head)
 }
 
-/// `Obsidian-1.6.7-x86_64` → `Obsidian`.
 pub fn appimage_name(stem: &str) -> String {
     let arch = [
         "x86_64", "x86-64", "amd64", "aarch64", "arm64", "armhf", "i386", "i686", "linux",
@@ -260,16 +232,12 @@ fn orphan_desktops(user_desktop: &[(PathBuf, DesktopEntry)]) -> Vec<App> {
         .collect()
 }
 
-// ── Inventory ────────────────────────────────────────────────────────
-
 const SYSTEM_MANAGERS: &[&str] = &["apt", "dnf", "pacman", "zypper"];
 
 fn home() -> PathBuf {
     dirs::home_dir().unwrap_or_else(|| PathBuf::from("/nonexistent-home"))
 }
 
-/// Attach the `.desktop` files a package owns and keep only the packages
-/// that own a visible one (apps). Pure, for tests.
 pub fn apps_from_packages(
     pkgs: Vec<App>,
     owners: &HashMap<PathBuf, String>,
@@ -371,9 +339,6 @@ pub fn list() -> Result<Vec<App>, String> {
     Ok(out)
 }
 
-// ── Leftovers ────────────────────────────────────────────────────────
-
-/// Folder names many apps share: never offered as anyone's leftover.
 const SHARED: &[&str] = &[
     "autostart",
     "gtk-2.0",
@@ -425,7 +390,6 @@ const SHARED: &[&str] = &[
     "themes",
 ];
 
-/// One leftover candidate before measuring.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Candidate {
     pub path: PathBuf,
@@ -434,7 +398,6 @@ pub struct Candidate {
     pub evidence: String,
 }
 
-/// What the app can be recognised by, with how sure each clue is.
 pub fn clues(app: &App) -> Vec<(String, &'static str, String)> {
     let mut v: Vec<(String, &'static str, String)> = Vec::new();
     let native = app.native_id.clone().unwrap_or_default();
@@ -446,7 +409,6 @@ pub fn clues(app: &App) -> Vec<(String, &'static str, String)> {
                 .collect()
         })
         .unwrap_or_default();
-    // Desktop ids: reverse-DNS ones are unique.
     for f in app.extra["desktop_files"]
         .as_array()
         .into_iter()
@@ -507,7 +469,6 @@ pub fn clues(app: &App) -> Vec<(String, &'static str, String)> {
     v
 }
 
-/// Folders in the usual places whose name matches a clue. Pure over `home`.
 pub fn find_candidates(home: &Path, app: &App) -> Vec<Candidate> {
     let bases = [".config", ".local/share", ".cache"];
     let clues = clues(app);
@@ -551,7 +512,6 @@ pub fn find_candidates(home: &Path, app: &App) -> Vec<Candidate> {
             }
         }
     }
-    // Flatpak's per-app data folder.
     let var = home.join(".var/app");
     for (clue, _, why) in clues.iter().filter(|(c, _, _)| c.matches('.').count() >= 2) {
         let p = var.join(clue);
@@ -564,10 +524,6 @@ pub fn find_candidates(home: &Path, app: &App) -> Vec<Candidate> {
     v
 }
 
-// ── Uninstall items ──────────────────────────────────────────────────
-
-/// Packages whose removal would take the desktop, the boot or the package
-/// manager with it: such a removal is `extreme` (screen only).
 const CRITICAL: &[&str] = &[
     "base",
     "filesystem",
@@ -630,7 +586,6 @@ pub fn is_critical(name: &str) -> bool {
         .any(|p| name.starts_with(p))
 }
 
-/// Risk of a package removal from its preview.
 pub fn removal_risk(p: &RemovePreview) -> Risk {
     let all = p.removes.iter().chain(p.also_removes.iter());
     if p.also_removes.len() > 25
@@ -669,7 +624,6 @@ pub fn preview_detail(p: &RemovePreview) -> String {
     s
 }
 
-/// The item that removes a system package (admin) or a user flatpak.
 pub fn package_item(
     app: &App,
     manager: &str,
@@ -755,8 +709,6 @@ fn process_names() -> HashSet<String> {
     out
 }
 
-/// Whether the app is open now (by its programs' names; flatpaks by
-/// `flatpak ps`).
 fn running(app: &App) -> bool {
     if app.source == "flatpak" {
         let id = app.native_id.clone().unwrap_or_default();
@@ -778,7 +730,6 @@ fn running(app: &App) -> bool {
         return false;
     }
     let procs = process_names();
-    // Linux truncates process names to 15 bytes.
     names
         .iter()
         .any(|n| procs.contains(n) || (n.len() > 15 && procs.contains(&n[..15])))
@@ -792,8 +743,6 @@ struct Built {
     preview: Option<RemovePreview>,
 }
 
-/// Asks a package manager what removing a package would take:
-/// (manager, installation, names).
 type PreviewFn<'a> = dyn Fn(&str, &str, &[String]) -> Result<RemovePreview, String> + 'a;
 
 fn build(app: &App, home: &Path, preview: &PreviewFn<'_>) -> Built {
@@ -960,8 +909,6 @@ pub fn uninstall_items(ctx: &Ctx, app: &App) -> Result<(Vec<PlanItem>, Value), S
     Ok((b.ticked, extra))
 }
 
-// ── Plan hooks (`apps.linux.<action>`) ───────────────────────────────
-
 fn names_of(args: &Value) -> Vec<String> {
     args.get("names")
         .and_then(Value::as_array)
@@ -973,7 +920,6 @@ fn names_of(args: &Value) -> Vec<String> {
         .unwrap_or_default()
 }
 
-/// Without administrator: flatpaks of the user installation.
 pub fn plan_execute(
     ctx: &Ctx,
     receipt_id: &str,
@@ -998,7 +944,6 @@ pub fn plan_execute(
     }
 }
 
-/// Refuse when the manager would now take more than the person saw.
 fn check_same(now: &RemovePreview, args: &Value) -> Result<(), String> {
     let approved: HashSet<&str> = args
         .get("also")
@@ -1025,8 +970,6 @@ fn check_same(now: &RemovePreview, args: &Value) -> Result<(), String> {
     }
 }
 
-/// The administrator half: `linux.remove` becomes `PackageRemove`, after the
-/// preview is taken again and compared with what the person approved.
 pub fn plan_elevated(
     ctx: &Ctx,
     receipt_id: &str,

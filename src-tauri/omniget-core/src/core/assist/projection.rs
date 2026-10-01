@@ -1,20 +1,3 @@
-//! Scoped MCP projection of the assistant tools for CLI/ACP runtimes
-//! (spec 02 "Capacidade efetiva"). Owner: worker W4.
-//!
-//! A runtime that runs its own tool loop (Claude Code, an ACP agent) cannot
-//! reach the broker, so the coordinator issues it a **per-session token**
-//! before the turn: the token's hash is stored here with the bot, the
-//! conversation, the scopes `ctx::resolve` gave that pair, the tools the
-//! bot's effective grants allow in that turn and an expiry. The local bridge
-//! serves `POST /mcp/assist` (bearer = the token) with `initialize`,
-//! `tools/list` and `tools/call`, answering through
-//! `assist::tools::call_with_ctx`. No valid token → 401 and nothing else.
-//!
-//! The scope set is fixed at issue time in the backend; nothing the model
-//! sends can widen it (spec A20). The token itself is only ever in memory,
-//! in the child's MCP config file (0600, deleted after the turn) or in the
-//! ACP `session/new` request — never in logs, events or the database.
-
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, RwLock};
@@ -31,15 +14,10 @@ use crate::core::llm::broker::{Answer, AskEnd, ToolBroker};
 use crate::core::llm::types::ToolSpec;
 
 pub const ERR_PROJECTION: &str = "ERR_PROJECTION";
-/// MCP server name the runtimes see (`mcp__omniget__<tool>` in Claude Code).
 pub const SERVER_NAME: &str = "omniget";
-/// Tool Claude Code calls to ask a permission (`--permission-prompt-tool`).
 pub const PERMISSION_TOOL: &str = "omniget_permission";
-/// Protocol version answered to `initialize` when the client sends none.
 pub const PROTOCOL: &str = "2025-06-18";
-/// Prefix of the bots' projected skill tools (`bots::skills::SKILL_SOURCE`).
 pub const SKILL_PREFIX: &str = "skill__";
-/// Default life of a token: one long turn.
 pub const DEFAULT_TTL_MS: i64 = 6 * 60 * 60 * 1000;
 
 pub const MIGRATIONS: &[Migration] = &[Migration {
@@ -68,7 +46,6 @@ pub fn toolset() -> Arc<dyn AssistToolset> {
     Arc::new(EmptyToolset("projection"))
 }
 
-/// What one valid token allows.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Grant {
     pub id: String,
@@ -77,7 +54,6 @@ pub struct Grant {
     pub run_id: Option<String>,
     pub readable: Vec<Scope>,
     pub writable: Vec<Scope>,
-    /// Tool name → grant mode of the bot's effective agent (never `Deny`).
     pub tools: Vec<(String, GrantMode)>,
     pub permission_prompt: bool,
     pub expires_ms: i64,
@@ -107,8 +83,6 @@ impl Grant {
     }
 }
 
-/// A freshly issued token. `token` is the secret: hand it to the runtime,
-/// never log it.
 #[derive(Clone)]
 pub struct Issued {
     pub id: String,
@@ -166,8 +140,6 @@ fn tools_json(tools: &[(String, GrantMode)]) -> String {
     Value::Object(map).to_string()
 }
 
-// ── In-memory side: the broker that asks, and where the bridge listens ────
-
 struct Live {
     broker: Arc<ToolBroker>,
 }
@@ -175,18 +147,14 @@ struct Live {
 static LIVE: RwLock<Option<HashMap<String, Live>>> = RwLock::new(None);
 static ENDPOINT: RwLock<Option<String>> = RwLock::new(None);
 
-/// The bridge sets this when it binds (`http://127.0.0.1:<port>/mcp/assist`).
 pub fn set_endpoint(url: Option<String>) {
     *ENDPOINT.write().unwrap_or_else(|e| e.into_inner()) = url;
 }
 
-/// Where runtimes reach the projection; `None` when the bridge is off.
 pub fn endpoint() -> Option<String> {
     ENDPOINT.read().unwrap_or_else(|e| e.into_inner()).clone()
 }
 
-/// Ties an issued token to the broker that asks the user for `Ask` grants
-/// and permission prompts.
 pub fn attach_broker(grant_id: &str, broker: Arc<ToolBroker>) {
     let mut g = LIVE.write().unwrap_or_else(|e| e.into_inner());
     g.get_or_insert_with(HashMap::new)
@@ -200,8 +168,6 @@ fn broker_of(grant_id: &str) -> Option<Arc<ToolBroker>> {
         .and_then(|m| m.get(grant_id).map(|l| l.broker.clone()))
 }
 
-/// The projection of the running turn, handed from the coordinator to the
-/// CLI runtime (which has no broker of its own).
 #[derive(Clone)]
 pub struct TurnProjection {
     pub grant_id: String,
@@ -234,9 +200,6 @@ pub fn current_turn() -> Option<TurnProjection> {
     TURN_PROJECTION.try_with(Clone::clone).ok()
 }
 
-/// Tool name → mode for every assistant tool the agent's grants allow, plus
-/// the bot's projected skills (`skill__<name>_<hash8>`, registered in the
-/// broker by `bots::skills`).
 pub fn granted_tools(
     broker: &ToolBroker,
     grants: &[crate::core::llm::agent::ToolGrant],
@@ -257,9 +220,6 @@ pub fn granted_tools(
         .collect()
 }
 
-/// [`granted_tools`] for an external mission run on a CLI: also the file
-/// tools of the external grant (served by the projection through
-/// `authority::execute_files`, never by the CLI's own built-ins).
 pub fn granted_tools_external(
     broker: &ToolBroker,
     grants: &[crate::core::llm::agent::ToolGrant],
@@ -289,11 +249,6 @@ fn external_fs_spec(grant: &Grant, name: &str) -> Option<ToolSpec> {
     broker_of(&grant.id).and_then(|b| b.specs().into_iter().find(|s| s.name == name))
 }
 
-// ── Tokens ────────────────────────────────────────────────────────────────
-
-/// Issues a token for `bot` in `conversation`. Scopes come from
-/// `ctx::resolve` (never from the caller); `tools` are the effective grants
-/// of this turn (`Deny` entries are dropped).
 pub fn issue(
     db: &AssistDb,
     bot: &str,
@@ -309,7 +264,6 @@ pub fn issue(
     let now = super::now_ms();
     let expires = now + ttl_ms.max(1);
     db.with(|c| {
-        // Expired tokens are useless: drop them while we are here.
         c.execute(
             "DELETE FROM projection_tokens WHERE expires_ms < ?1 OR revoked = 1",
             params![now - 60_000],
@@ -339,8 +293,6 @@ pub fn issue(
     })
 }
 
-/// A live ACP session keeps its token across turns; each turn refreshes the
-/// tools (the effective grants of that turn) and the run.
 pub fn refresh(
     db: &AssistDb,
     id: &str,
@@ -370,7 +322,6 @@ pub fn revoke(db: &AssistDb, id: &str) {
     }
 }
 
-/// The grant behind a bearer token, or `None` (unknown, revoked, expired).
 pub fn validate(db: &AssistDb, token: &str, now_ms: i64) -> Option<Grant> {
     if token.trim().is_empty() {
         return None;
@@ -427,9 +378,6 @@ pub fn validate(db: &AssistDb, token: &str, now_ms: i64) -> Option<Grant> {
     })
 }
 
-// ── Runtime-side config ───────────────────────────────────────────────────
-
-/// `--mcp-config` body for Claude Code.
 pub fn claude_mcp_config(url: &str, token: &str) -> Value {
     json!({
         "mcpServers": {
@@ -442,7 +390,6 @@ pub fn claude_mcp_config(url: &str, token: &str) -> Value {
     })
 }
 
-/// ACP `session/new` `mcpServers` entry (HTTP transport).
 pub fn acp_mcp_server(url: &str, token: &str) -> Value {
     json!({
         "type": "http",
@@ -452,8 +399,6 @@ pub fn acp_mcp_server(url: &str, token: &str) -> Value {
     })
 }
 
-/// Writes the Claude Code MCP config to a private file (0600) under `dir`.
-/// The caller deletes it when the turn ends.
 pub fn write_mcp_config(dir: &Path, url: &str, token: &str) -> Result<PathBuf, String> {
     std::fs::create_dir_all(dir).map_err(err)?;
     let path = dir.join(format!("mcp-{}.json", super::new_id()));
@@ -475,9 +420,6 @@ pub fn write_mcp_config(dir: &Path, url: &str, token: &str) -> Result<PathBuf, S
     Ok(path)
 }
 
-// ── JSON-RPC ──────────────────────────────────────────────────────────────
-
-/// Why the bridge answers 401.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Unauthorized;
 
@@ -507,7 +449,6 @@ fn permission_spec() -> Value {
 
 fn listed(grant: &Grant) -> Vec<Value> {
     let mut specs = super::tools::all_specs();
-    // Skill tools live in the broker's `skill__` source.
     if grant.tools.iter().any(|(n, _)| n.starts_with(SKILL_PREFIX)) {
         if let Some(broker) = broker_of(&grant.id) {
             specs.extend(
@@ -540,8 +481,6 @@ fn text_result(text: String, is_error: bool) -> Value {
     json!({ "content": [{ "type": "text", "text": text }], "isError": is_error })
 }
 
-/// One JSON-RPC message (or a batch) for the projection. `Err(Unauthorized)`
-/// → HTTP 401; `Ok(None)` → 202 (notification).
 pub async fn handle(
     db: &AssistDb,
     bearer: Option<&str>,
@@ -565,10 +504,7 @@ pub async fn handle(
 async fn handle_one(grant: &Grant, msg: &Value) -> Option<Value> {
     let id = msg.get("id").cloned().filter(|v| !v.is_null());
     let method = msg.get("method").and_then(Value::as_str).unwrap_or("");
-    let Some(id) = id else {
-        // Notifications (`notifications/initialized`, cancels): nothing to say.
-        return None;
-    };
+    let id = id?;
     let params = msg.get("params").cloned().unwrap_or(Value::Null);
     Some(match method {
         "initialize" => rpc_ok(
@@ -590,9 +526,6 @@ async fn handle_one(grant: &Grant, msg: &Value) -> Option<Value> {
     })
 }
 
-/// Mission hooks see projected calls too (a hosted CLI's tools never pass
-/// through the broker): policy veto before, and the round's call log after,
-/// so the progress guard judges what the executor actually did.
 async fn call(grant: &Grant, name: &str, args: Value) -> Value {
     if name == PERMISSION_TOOL && grant.permission_prompt {
         return permission_prompt(grant, args).await;
@@ -647,8 +580,6 @@ async fn call_tool(grant: &Grant, name: &str, args: Value) -> Value {
             return text_result(format!("`{name}` was refused"), true);
         }
     }
-    // External file tools: the same checked transaction as a native run
-    // (grant, workspace identity, protected names, revision-bound edits).
     if name.starts_with("fs_") && super::authority::external(&grant.conversation_id) {
         let (conv, bot, tool) = (
             grant.conversation_id.clone(),
@@ -678,9 +609,6 @@ async fn call_tool(grant: &Grant, name: &str, args: Value) -> Value {
     }
 }
 
-/// Claude Code's permission prompt, routed to the broker's ask (persisted as
-/// a `PermissionRequest` of the run). Answers the documented shape:
-/// `{"behavior":"allow","updatedInput":…}` or `{"behavior":"deny","message":…}`.
 async fn permission_prompt(grant: &Grant, args: Value) -> Value {
     let tool = args
         .get("tool_name")
@@ -702,9 +630,6 @@ async fn permission_prompt(grant: &Grant, args: Value) -> Value {
             .map(str::to_string)
             .unwrap_or_else(|| input.to_string().chars().take(600).collect()),
     };
-    // The same gate as the native broker and the `PreToolUse` hook (3.4):
-    // `Bash` is judged as `shell_exec`, `Write` as `fs_write`, so an
-    // "Always" or a "Deny" given anywhere counts here.
     let workspace = crate::core::llm::code_tools::workspace_of(&grant.conversation_id);
     let (native, native_input) =
         crate::core::llm::perm::from_claude(&tool, &input, workspace.as_deref());
@@ -736,8 +661,6 @@ async fn permission_prompt(grant: &Grant, args: Value) -> Value {
             None => AskEnd::Answered(Answer::Deny),
         },
     };
-    // Nobody answered: the agent must not read that as the user's "no"
-    // (it would stop trying, or apologise for a refusal that never was).
     if let AskEnd::Expired { waited } = end {
         let e = crate::core::llm::broker::timeout_error(&tool, waited);
         let body = json!({ "behavior": "deny", "message": format!("{}: {}", e.code, e.message) });

@@ -1,6 +1,3 @@
-//! Stable error codes for the LLM stack. Owned by f2-llm-providers (DRAFT by the
-//! orchestrator from docs/agents/f2-llm-providers.md §5; keep the codes).
-
 use std::borrow::Cow;
 
 use serde::{Deserialize, Serialize};
@@ -16,7 +13,6 @@ pub const ERR_LLM_STUB: &str = "ERR_LLM_STUB";
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct LlmError {
-    /// Stable `ERR_LLM_*` code; `Cow` so serde can derive both ways.
     pub code: Cow<'static, str>,
     pub message: String,
     pub retryable: bool,

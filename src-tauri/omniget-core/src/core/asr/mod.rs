@@ -1,14 +1,3 @@
-//! Local speech recognition: Whisper in ONNX on the app's managed ONNX
-//! Runtime, nothing sent anywhere. Written from scratch (log-mel, byte-level
-//! BPE decoding, greedy search with Whisper's timestamp rules) so it needs no
-//! Python and no extra native library beyond the runtime the app already
-//! downloads on demand.
-//!
-//! - `status()` / `install(model)` manage the runtime and the model files;
-//! - `transcribe_file(path, lang, model, progress)` returns timed segments.
-//!
-//! Used by /telegram and reusable by /video.
-
 pub mod audio;
 pub mod mel;
 pub mod models;
@@ -36,7 +25,6 @@ pub struct Segment {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Transcript {
-    /// ISO code Whisper detected (or was told), e.g. `pt`.
     pub lang: String,
     pub text: String,
     pub segments: Vec<Segment>,
@@ -46,10 +34,8 @@ pub struct Transcript {
 #[derive(Debug, Clone, Serialize)]
 pub struct Status {
     pub runtime_installed: bool,
-    /// `false` when there is no official ONNX Runtime build for this system.
     pub runtime_downloadable: bool,
     pub default_model: String,
-    /// The default model and the runtime are both on disk.
     pub ready: bool,
     pub models: Vec<models::ModelStatus>,
 }
@@ -65,7 +51,6 @@ pub fn status() -> Status {
     }
 }
 
-/// Runtime and model on disk: a transcription would not touch the network.
 pub fn is_ready(model: Option<&str>) -> bool {
     crate::core::onnxrt::is_installed()
         && models::pick(model)
@@ -73,14 +58,12 @@ pub fn is_ready(model: Option<&str>) -> bool {
             .unwrap_or(false)
 }
 
-/// Downloads the runtime and the model (default when `None`) if missing.
 pub async fn install(model: Option<&str>, progress: &ProgressFn) -> anyhow::Result<Status> {
     let spec = models::pick(model)?;
     models::install(spec, progress).await?;
     Ok(status())
 }
 
-/// Idle time after which the loaded model is dropped.
 const IDLE_TTL: Duration = Duration::from_secs(300);
 
 struct Slot {
@@ -104,7 +87,6 @@ fn lock() -> std::sync::MutexGuard<'static, Option<Slot>> {
     }
 }
 
-/// Drops the loaded model now. Returns whether one was loaded.
 pub fn release() -> bool {
     lock().take().is_some()
 }
@@ -122,8 +104,6 @@ fn schedule_release() {
     });
 }
 
-/// Transcribes a local file. Downloads the runtime and the model first when
-/// they are missing. `progress` goes from 0.0 to 1.0.
 pub async fn transcribe_file(
     path: &Path,
     lang: Option<&str>,
@@ -138,9 +118,6 @@ pub async fn transcribe_file(
     transcribe_input(path.as_os_str(), duration_ms, lang, model, progress).await
 }
 
-/// Transcribes anything ffmpeg opens (a file or an http URL). With
-/// `duration_ms` the progress is a real fraction; without it, it only
-/// reports 1.0 at the end.
 pub async fn transcribe_input(
     input: &OsStr,
     duration_ms: Option<u64>,
@@ -187,8 +164,6 @@ pub async fn transcribe_input(
             }
         };
         pcm.finish(got_audio)?;
-        // Whisper fills music and silence with stock phrases it saw in
-        // subtitles; a segment made only of one of them is not speech.
         let segments: Vec<_> = segments
             .into_iter()
             .filter(|s| !is_stock_hallucination(&s.text))
@@ -220,7 +195,6 @@ pub async fn transcribe_input(
     result
 }
 
-/// Phrases Whisper is known to produce on music or silence.
 fn is_stock_hallucination(text: &str) -> bool {
     let t: String = text
         .trim()

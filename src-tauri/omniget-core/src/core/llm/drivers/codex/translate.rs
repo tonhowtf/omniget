@@ -1,16 +1,3 @@
-//! Codex app-server → [`RuntimeEvent`] translation. Pure: no I/O, no clock
-//! except the event timestamps, so every rule is tested against fixtures.
-//!
-//! Mapping source: T3 `CodexAdapter.ts` (estudo 76, 01-server.md §4-§6), the
-//! JSON Schema of codex-cli 0.156.0 (`protocol.rs`) and the live wire of that
-//! version (`fixtures/app-server-*.jsonl`).
-//!
-//! Ids: `item_id` is Codex's own item id (stable across started/delta/
-//! completed); `turn_id` is the engine's turn id, bound to Codex's turn id when
-//! `turn/start` answers or `turn/started` arrives; `request_id` is a fresh
-//! UUID per server request (Codex's JSON-RPC ids restart at 0 with every
-//! process, so they cannot key a durable approval).
-
 use std::collections::{BTreeMap, HashMap};
 
 use serde_json::{json, Map, Value};
@@ -30,12 +17,9 @@ use super::protocol as p;
 use super::rpc::CODE_METHOD_NOT_FOUND;
 
 pub const DRIVER: &str = "codex";
-/// Longest tool output kept in an activity (`data.output`). The full text
-/// already streamed as `content.delta`.
 const OUTPUT_CLIP: usize = 16 * 1024;
 const DIFF_CLIP: usize = 256 * 1024;
 
-/// What kind of server request a pending approval answers.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PendingKind {
     Command,
@@ -66,12 +50,9 @@ pub struct PendingRequest {
     pub rpc_id: Value,
     pub kind: PendingKind,
     pub turn_id: Option<String>,
-    /// The request params, needed to build some answers (permissions echo the
-    /// requested profile; elicitation fills the form).
     pub params: Value,
 }
 
-/// A server request the driver answers by itself, right away.
 #[derive(Debug, Clone, PartialEq)]
 pub enum AutoReply {
     Result(Value),
@@ -81,11 +62,9 @@ pub enum AutoReply {
 #[derive(Debug, Default)]
 pub struct ServerRequestOutcome {
     pub events: Vec<RuntimeEvent>,
-    /// `Some` when nothing waits for the user.
     pub reply: Option<AutoReply>,
 }
 
-/// One JSON-RPC answer to send: `(rpc id, result)`.
 pub type Answer = (Value, Value);
 
 #[derive(Debug, Clone, Default)]
@@ -106,28 +85,23 @@ struct RateView {
     reset_credits: Option<Value>,
 }
 
-/// Per-thread translation state.
 #[derive(Debug)]
 pub struct Translator {
     instance_id: String,
     thread_id: String,
     provider_thread: Option<String>,
     model: Option<String>,
-    /// Engine turn waiting for Codex's turn id.
     pending_engine_turn: Option<String>,
-    /// Codex turn id → engine turn id.
     turn_map: HashMap<String, String>,
     active_provider_turn: Option<String>,
     active_engine_turn: Option<String>,
     turn_error_sent: bool,
     items: HashMap<String, ItemCache>,
     pending: HashMap<String, PendingRequest>,
-    /// Codex rpc id (as string) → our request id, for `serverRequest/resolved`.
     by_rpc: HashMap<String, String>,
     usage_base: Option<p::TokenUsageBreakdown>,
     usage_last: Option<p::ThreadTokenUsage>,
     rates: RateView,
-    /// Live turns of sub-agent threads (child thread → turn), for Stop.
     child_turns: BTreeMap<String, String>,
 }
 
@@ -156,8 +130,6 @@ fn str_of(v: &Value, key: &str) -> Option<String> {
     v.get(key).and_then(Value::as_str).map(str::to_string)
 }
 
-/// `--- a/x` / `+++ b/x` headers around Codex's per-file diff, unless it
-/// already has them.
 pub fn file_diff(path: &str, kind: &str, move_path: Option<&str>, body: &str) -> String {
     if body.starts_with("--- ") || body.starts_with("diff ") {
         return body.to_string();
@@ -174,7 +146,6 @@ pub fn file_diff(path: &str, kind: &str, move_path: Option<&str>, body: &str) ->
     if body.contains("@@") || body.is_empty() {
         out.push_str(body);
     } else {
-        // A whole file (add/delete): make it a hunk.
         let lines: Vec<&str> = body.lines().collect();
         let sign = if kind == "delete" { '-' } else { '+' };
         let n = lines.len();
@@ -250,7 +221,6 @@ fn window_label(minutes: Option<i64>) -> String {
     }
 }
 
-/// "5d 5h", "3h 20m", "12m".
 pub fn format_wait(secs: i64) -> String {
     let secs = secs.max(0);
     let d = secs / 86_400;
@@ -265,8 +235,6 @@ pub fn format_wait(secs: i64) -> String {
     }
 }
 
-/// Error class and stable code for a Codex turn error. `info` is the raw
-/// `codexErrorInfo` (string or single-key object), `message` the text.
 pub fn classify_error(info: Option<&Value>, message: &str) -> (ErrorClass, &'static str) {
     let status = info
         .and_then(Value::as_object)
@@ -313,8 +281,6 @@ fn usage_of(b: &p::TokenUsageBreakdown, window: Option<i64>, model: Option<&str>
     let n = |x: i64| x.max(0) as u64;
     let cached = n(b.cached_input_tokens);
     TokenUsage {
-        // Codex counts cached tokens inside inputTokens (OpenAI semantics);
-        // OmniGet's TokenUsage keeps them apart.
         input_tokens: n(b.input_tokens).saturating_sub(cached),
         cached_input_tokens: cached,
         cache_write_tokens: n(b.cache_write_input_tokens.unwrap_or(0)),
@@ -483,7 +449,6 @@ impl Translator {
         ev
     }
 
-    /// A turn the engine just asked for; its Codex id comes later.
     pub fn begin_turn(&mut self, engine_turn: &str) {
         self.pending_engine_turn = Some(engine_turn.to_string());
         self.active_engine_turn = Some(engine_turn.to_string());
@@ -492,7 +457,6 @@ impl Translator {
         self.usage_last = None;
     }
 
-    /// `turn/start` answered with Codex's turn id.
     pub fn bind_provider_turn(&mut self, provider_turn: &str) {
         if self.turn_map.contains_key(provider_turn) {
             return;
@@ -505,8 +469,6 @@ impl Translator {
         }
     }
 
-    /// The engine turn for a Codex turn id, binding a pending one on first
-    /// sight (a notification can beat the `turn/start` answer).
     fn engine_turn(&mut self, provider_turn: Option<&str>) -> Option<String> {
         match provider_turn {
             Some(pt) => {
@@ -529,8 +491,6 @@ impl Translator {
             _ => false,
         }
     }
-
-    // ── notifications ───────────────────────────────────────────────────
 
     pub fn on_notification(&mut self, method: &str, params: &Value) -> Vec<RuntimeEvent> {
         let thread = params
@@ -714,7 +674,6 @@ impl Translator {
                 if for_active && self.active_engine_turn.is_some() {
                     self.usage_last = Some(n.token_usage.clone());
                 } else {
-                    // A late update of an earlier turn only moves the baseline.
                     self.usage_base = Some(n.token_usage.total.clone());
                 }
                 let mut usage = usage_of(
@@ -729,8 +688,6 @@ impl Translator {
                 ));
             }
             "thread/started" => {
-                // The root's own `thread/started` is already announced by the
-                // driver when it opened the thread; a sub-agent's is a task.
                 if let Some(thread) = params.get("thread") {
                     let id = str_of(thread, "id");
                     if id.is_some() && self.provider_thread.is_some() && id != self.provider_thread
@@ -959,7 +916,6 @@ impl Translator {
         )
     }
 
-    /// "Codex usage limit reached. The weekly limit resets in 5d 5h."
     pub fn usage_limit_message(&self) -> Option<String> {
         let now = chrono::Utc::now().timestamp();
         let window = [self.rates.secondary.as_ref(), self.rates.primary.as_ref()]
@@ -1039,7 +995,6 @@ impl Translator {
     ) -> Vec<RuntimeEvent> {
         let item_id = str_of(raw_item, "id").unwrap_or_default();
         let Some(item) = decode::<p::ThreadItem>(raw_item) else {
-            // Undecodable: still show it, untyped.
             let mut payload = ItemPayload::new(ItemType::Unknown);
             payload.title = str_of(raw_item, "type");
             payload.status = Some(if completed {
@@ -1071,8 +1026,6 @@ impl Translator {
             } => {
                 if completed && delivery.is_some() {
                     if let Some(qs) = questions.filter(|q| !q.is_empty()) {
-                        // An async question does not end the turn; the user
-                        // answers it with a normal message.
                         let questions = qs
                             .iter()
                             .enumerate()
@@ -1388,8 +1341,6 @@ impl Translator {
             }),
         );
         out.push(Self::refs(ev, pt, None));
-        // Parked requests of this turn are settled by Codex itself; the engine
-        // marks what is still open as stale.
         self.pending.retain(|_, p| p.turn_id.as_deref() != turn);
         self.by_rpc.retain(|_, req| self.pending.contains_key(req));
         if pt.is_none() || self.active_provider_turn.as_deref() == pt {
@@ -1400,9 +1351,6 @@ impl Translator {
         out
     }
 
-    /// Usage of the turn that just ended: the last cumulative total seen in
-    /// the turn minus the total at its start (a counter that went backwards is
-    /// a reset: the last total is the turn's).
     fn take_turn_usage(&mut self, duration: Option<i64>) -> Option<TokenUsage> {
         let last = self.usage_last.take()?;
         let delta = match &self.usage_base {
@@ -1416,8 +1364,6 @@ impl Translator {
         Some(u)
     }
 
-    /// After a rollback the thread's cumulative counter restarts from what
-    /// is left; the next update sets a fresh baseline.
     pub fn reset_usage_baseline(&mut self) {
         self.usage_base = None;
         self.usage_last = None;
@@ -1555,16 +1501,11 @@ impl Translator {
             | "thread/unarchived"
             | "thread/compacted"
             | "thread/started" => Vec::new(),
-            // Anything else (serverRequest/resolved, new methods) goes the
-            // parent's way: never swallow what we do not know.
             _ => return None,
         };
         Some(out)
     }
 
-    // ── rate limits ─────────────────────────────────────────────────────
-
-    /// `account/rateLimits/read` answer.
     pub fn on_rate_limits_read(&mut self, resp: &Value) -> Option<RuntimeEvent> {
         let r = decode::<p::GetAccountRateLimitsResponse>(resp)?;
         let snap = r
@@ -1579,9 +1520,6 @@ impl Translator {
         self.merge_rate_limits(&snap, credits)
     }
 
-    /// Merges a (possibly sparse) snapshot over the last view and emits the
-    /// normalized windows. Model-specific buckets (`limitId` not `codex`)
-    /// are ignored.
     pub fn merge_rate_limits(
         &mut self,
         snap: &p::RateLimitSnapshot,
@@ -1663,8 +1601,6 @@ impl Translator {
             }),
         ))
     }
-
-    // ── server requests ─────────────────────────────────────────────────
 
     pub fn on_server_request(
         &mut self,
@@ -1792,7 +1728,6 @@ impl Translator {
                 options.push(opt("decline", "Decline", ApprovalDecision::Decline));
                 options.push(opt("cancel", "Cancel", ApprovalDecision::Cancel));
                 if mode == "url" {
-                    // Never open a URL on the server's behalf.
                     options.retain(|o| o.decision != Some(ApprovalDecision::Accept));
                 }
                 let detail = RequestDetail {
@@ -1894,7 +1829,6 @@ impl Translator {
                 )
             }
             "account/chatgptAuthTokens/refresh" => {
-                // OmniGet never holds or refreshes a credential.
                 return ServerRequestOutcome {
                     events: vec![self.ev(
                         t,
@@ -1992,14 +1926,12 @@ impl Translator {
         Ok(pending)
     }
 
-    /// The JSON-RPC answer to an approval, plus `request.resolved`.
     pub fn answer_request(
         &mut self,
         request_id: &str,
         decision: ApprovalDecision,
     ) -> Result<(Answer, Vec<RuntimeEvent>), DriverError> {
         if self.pending.get(request_id).map(|p| p.kind) == Some(PendingKind::UserInput) {
-            // A question answered with a bare decision: no answers.
             return self.answer_user_input(request_id, &json!({}));
         }
         let pending = self.take_pending(request_id)?;
@@ -2024,7 +1956,6 @@ impl Translator {
     ) -> Result<(Answer, Vec<RuntimeEvent>), DriverError> {
         let pending = self.take_pending(request_id)?;
         if pending.kind != PendingKind::UserInput {
-            // Someone answered an approval as a question: treat it as decline.
             let result = approval_result(pending.kind, ApprovalDecision::Decline, &pending.params);
             return Ok(((pending.rpc_id, result), Vec::new()));
         }
@@ -2040,9 +1971,6 @@ impl Translator {
         Ok(((pending.rpc_id, result), vec![ev]))
     }
 
-    /// Stop settles every parked request first (a parked prompt would
-    /// deadlock `turn/interrupt`): approvals get `cancel`, questions an
-    /// empty answer.
     pub fn cancel_all_pending(&mut self) -> (Vec<Answer>, Vec<RuntimeEvent>) {
         let ids: Vec<String> = self.pending.keys().cloned().collect();
         let mut answers = Vec::new();
@@ -2074,7 +2002,6 @@ impl Translator {
         (answers, events)
     }
 
-    /// The process died mid-turn: close the turn so the thread does not hang.
     pub fn abort_active(&mut self, message: &str) -> Vec<RuntimeEvent> {
         let mut out = Vec::new();
         self.pending.clear();
@@ -2112,7 +2039,6 @@ impl Translator {
         out
     }
 
-    /// `interrupt` with no live Codex turn: the engine still gets its close.
     pub fn aborted(&mut self, turn: &str, reason: &str) -> RuntimeEvent {
         if self.active_engine_turn.as_deref() == Some(turn) {
             self.active_engine_turn = None;
@@ -2128,7 +2054,6 @@ impl Translator {
         )
     }
 
-    /// `turn/start` failed before Codex took the turn.
     pub fn turn_rejected(&mut self) {
         self.pending_engine_turn = None;
         self.active_engine_turn = None;
@@ -2184,11 +2109,6 @@ fn elicitation_app_name(params: &Value) -> Option<String> {
     str_of(params, "serverName")
 }
 
-/// The answer body for an approval, per request kind (schema of 0.156):
-/// v2 command/file → `{decision: accept|acceptForSession|decline|cancel}`
-/// (`acceptAlways` downgraded to the session); permissions → the requested
-/// profile granted for the turn or session, or an empty grant; elicitation →
-/// `{action, content?}`; legacy v1 → `ReviewDecision`.
 pub fn approval_result(kind: PendingKind, decision: ApprovalDecision, params: &Value) -> Value {
     use ApprovalDecision::*;
     match kind {
@@ -2230,8 +2150,6 @@ pub fn approval_result(kind: PendingKind, decision: ApprovalDecision, params: &V
     }
 }
 
-/// Fills an MCP elicitation form for an accept, or declines when a required
-/// field has no sensible default. URL-mode elicitations are never accepted.
 pub fn elicitation_result(decision: ApprovalDecision, params: &Value) -> Value {
     use ApprovalDecision::*;
     match decision {
@@ -2340,8 +2258,6 @@ pub fn elicitation_result(decision: ApprovalDecision, params: &Value) -> Value {
     out
 }
 
-/// `{answers: {qid: {answers: [..]}}}` from what the UI sends: per question a
-/// string, a list of strings, or `{answers: [..]}`.
 pub fn user_input_result(answers: &Value) -> Value {
     let mut out = Map::new();
     if let Some(obj) = answers.as_object() {

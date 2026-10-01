@@ -43,9 +43,6 @@ pub async fn channel_check_now(app: tauri::AppHandle, id: String) -> Result<usiz
     crate::core::channel_poller::check_now(&app, &id).await
 }
 
-// The tray menu is built natively in Rust, so $t is unavailable there. The
-// frontend resolves the labels with $t and pushes them here; the backend just
-// rebuilds the submenu with whatever localized strings it receives.
 #[tauri::command]
 pub fn sync_channels_tray(
     app: tauri::AppHandle,
@@ -55,10 +52,6 @@ pub fn sync_channels_tray(
     crate::tray::rebuild_menu(&app, header, channels).map_err(|e| e.to_string())
 }
 
-// Same push-based pattern for the static tray items and tooltip formats: the
-// frontend owns the translations, the backend only stores the strings and
-// applies them to the live menu right away. The app handle is needed so the
-// tooltip can be re-rendered in the new language on the spot.
 #[tauri::command]
 pub fn sync_tray_strings(
     app: tauri::AppHandle,

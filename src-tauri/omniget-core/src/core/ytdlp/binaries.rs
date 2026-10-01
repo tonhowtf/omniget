@@ -1,6 +1,3 @@
-//! Finding, installing and updating yt-dlp and what it runs with: Python for
-//! the zipapp, ffmpeg, the JS runtime, cookie files and the default user agent.
-
 use super::*;
 
 pub async fn find_ytdlp() -> Option<PathBuf> {
@@ -23,16 +20,12 @@ pub async fn find_ytdlp() -> Option<PathBuf> {
         }
     }
 
-    // Managed builds first — they bundle yt-dlp-ejs (required for the
-    // YouTube nsig challenge) and curl_cffi. System-installed yt-dlp (dnf,
-    // apt, brew) often lacks both. Order and reasons: impersonation::pick_ytdlp.
     let onedir = managed_ytdlp_onedir_exe();
     if onedir.is_none() {
         spawn_onedir_install_if_missing();
     }
     let zipapp = zipapp_with_python().await;
     if zipapp.is_none() && !cfg!(target_os = "macos") {
-        // macOS usa o onedir; o pyz no Python do brew vem sem curl_cffi.
         spawn_zipapp_download_if_missing().await;
     }
     let onefile = managed_ytdlp_path().filter(|p| p.exists());
@@ -47,8 +40,6 @@ pub async fn find_ytdlp() -> Option<PathBuf> {
         return Some(picked);
     }
 
-    // Fall back to system PATH. Resolve to an absolute path so the cache
-    // check (`path.exists()`) works — a bare "yt-dlp" would always fail.
     let bin_name_owned = bin_name.to_string();
     let found = tokio::task::spawn_blocking(move || {
         crate::core::process::std_command(&bin_name_owned)
@@ -73,8 +64,6 @@ pub async fn find_ytdlp() -> Option<PathBuf> {
     None
 }
 
-/// Resolve a bare binary name to its absolute path via `where` (Windows)
-/// or `which` (Unix). Returns the original name as fallback.
 pub(super) fn resolve_absolute_path(bin_name: &str) -> PathBuf {
     let finder = if cfg!(target_os = "windows") {
         "where"
@@ -128,14 +117,7 @@ pub async fn find_ytdlp_cached() -> Option<PathBuf> {
     result
 }
 
-/// Where the managed yt-dlp lives. Pure path resolution — it does not check
-/// for the file, download it, or start anything. Callers that only need to
-/// locate the binary must use this rather than [`ensure_ytdlp`], which spawns
-/// a freshness check and a JS-runtime check on every call (#281).
 pub fn managed_ytdlp_path() -> Option<PathBuf> {
-    // Issue #222: se o usuario apontou um binario proprio, ele ganha do
-    // gerenciado. Referenciado no lugar, entao um `apt upgrade` no yt-dlp dele
-    // vale imediatamente aqui, sem copia para envelhecer.
     if let Some(custom) = crate::core::binary_overrides::get("yt-dlp") {
         return Some(custom);
     }
@@ -148,8 +130,6 @@ pub fn managed_ytdlp_path() -> Option<PathBuf> {
     Some(data.join("bin").join(bin_name))
 }
 
-/// Onde fica o zipapp gerido (`yt-dlp.pyz`). `None` quando o usuário apontou
-/// um binário próprio: nesse caso o binário dele manda.
 pub fn managed_ytdlp_zipapp_path() -> Option<PathBuf> {
     if crate::core::binary_overrides::get("yt-dlp").is_some() {
         return None;
@@ -158,8 +138,6 @@ pub fn managed_ytdlp_zipapp_path() -> Option<PathBuf> {
     Some(data.join("bin").join("yt-dlp.pyz"))
 }
 
-/// Diretorio do yt-dlp onedir gerido (`bin/yt-dlp_onedir/`). `None` fora do
-/// macOS ou quando o usuario apontou um binario proprio.
 pub fn managed_ytdlp_onedir_dir() -> Option<PathBuf> {
     crate::core::dependencies::ytdlp_onedir::asset_name()?;
     if crate::core::binary_overrides::get("yt-dlp").is_some() {
@@ -172,9 +150,6 @@ pub fn managed_ytdlp_onedir_dir() -> Option<PathBuf> {
     )
 }
 
-/// Executavel do onedir gerido, so quando a extracao esta completa. Os
-/// chamadores que passam o yt-dlp a um processo confinado (worker MCP) precisam
-/// liberar leitura do diretorio inteiro: `_internal/` e carregado sob demanda.
 pub fn managed_ytdlp_onedir_exe() -> Option<PathBuf> {
     let dir = managed_ytdlp_onedir_dir()?;
     crate::core::dependencies::ytdlp_onedir::is_complete(&dir)
@@ -188,7 +163,6 @@ pub fn is_ytdlp_zipapp(path: &Path) -> bool {
         .unwrap_or(false)
 }
 
-/// Versão mínima de Python que o yt-dlp aceita.
 pub(super) const MIN_PYTHON: (u32, u32) = (3, 10);
 
 pub(super) static PYTHON_CACHE: OnceLock<Option<PathBuf>> = OnceLock::new();
@@ -255,13 +229,6 @@ pub(super) fn probe_python(candidate: &Path) -> Option<PathBuf> {
     )
 }
 
-/// Um Python ≥ 3.10 da máquina, se houver, para rodar o zipapp do yt-dlp.
-///
-/// O onefile do PyInstaller extrai 72 MB e 157 binários por lançamento, e o
-/// Gatekeeper reavalia cada um: 12 s por `--version` sozinho, 30 a 90 s com a
-/// fila cheia (B1). O zipapp no Python do sistema leva 0,4 s. Só vale com
-/// 3.10+, que é o mínimo do yt-dlp; o `/usr/bin/python3` 3.9 do macOS não
-/// serve. Consultado uma vez por processo.
 pub async fn find_python() -> Option<PathBuf> {
     if let Some(cached) = PYTHON_CACHE.get() {
         return cached.clone();
@@ -272,7 +239,6 @@ pub async fn find_python() -> Option<PathBuf> {
         .flatten()
 }
 
-/// Versão síncrona (bloqueia só na primeira chamada, ~30 ms por candidato).
 pub(super) fn python_cached() -> Option<PathBuf> {
     PYTHON_CACHE
         .get_or_init(|| {
@@ -288,14 +254,6 @@ pub(super) fn python_cached() -> Option<PathBuf> {
         .clone()
 }
 
-/// Comando para lançar este yt-dlp: o zipapp vai via Python, o binário direto.
-// Appended after all regular arguments so engine defaults cannot override the
-// external intent's single-attempt policy. Existing UI invocations are unchanged.
-// Transport retries stay inside the one attempt: they resume the same file
-// (a dropped connection read "6270964 bytes read, 2639932 more expected" and
-// failed a Bilibili job, benchmark 26/09), bounded with exponential sleep.
-// Extractor retries stay at 0: metadata requests are what trip rate limits,
-// and a repeated attempt is the intent's decision, not the engine's.
 pub(super) fn worker_retry_args(worker: bool) -> Vec<&'static str> {
     if !worker {
         return Vec::new();
@@ -319,7 +277,6 @@ pub(super) fn worker_retry_args(worker: bool) -> Vec<&'static str> {
     ]
 }
 
-/// Removes `--http-chunk-size <value>` from an argument list.
 pub(super) fn strip_chunk_size(args: &mut Vec<String>) {
     if let Some(at) = args.iter().position(|a| a == "--http-chunk-size") {
         let end = (at + 2).min(args.len());
@@ -351,9 +308,6 @@ pub fn ytdlp_std_command(ytdlp: &Path) -> std::process::Command {
 
 pub(super) static ZIPAPP_DOWNLOAD_STARTED: AtomicBool = AtomicBool::new(false);
 
-/// Baixa o zipapp em segundo plano (uma vez por sessão) quando há Python mas
-/// o `.pyz` ainda não existe. Quem chamou continua com o onefile agora; o
-/// próximo lançamento já pega o zipapp.
 pub(super) async fn spawn_zipapp_download_if_missing() {
     if crate::core::dependencies::is_flatpak() {
         return;
@@ -387,7 +341,6 @@ pub(super) async fn spawn_zipapp_download_if_missing() {
         .ok();
 }
 
-/// Zipapp gerido que existe e tem Python para rodar.
 pub(super) async fn zipapp_with_python() -> Option<PathBuf> {
     let zip = managed_ytdlp_zipapp_path()?;
     if !zip.exists() {
@@ -396,16 +349,11 @@ pub(super) async fn zipapp_with_python() -> Option<PathBuf> {
     find_python().await.map(|_| zip)
 }
 
-/// Zipapp gerido pronto para uso: existe, há Python e o Python tem curl_cffi.
-/// Sem impersonate o pyz não substitui o binário (Bilibili 412, Vimeo 401).
 pub(super) async fn usable_zipapp() -> Option<PathBuf> {
     let zip = zipapp_with_python().await?;
     zipapp_impersonates(&zip).await.then_some(zip)
 }
 
-/// O zipapp tem alvos de `--impersonate` no Python que vai rodá-lo? Consulta
-/// `--list-impersonate-targets` uma vez por processo (0,6 s); depende do
-/// Python, não da versão do pyz.
 pub(super) static ZIPAPP_IMPERSONATES: OnceLock<bool> = OnceLock::new();
 
 pub(super) async fn zipapp_impersonates(zip: &Path) -> bool {
@@ -435,8 +383,6 @@ pub(super) async fn zipapp_impersonates(zip: &Path) -> bool {
 
 pub(super) static ONEDIR_INSTALL_STARTED: AtomicBool = AtomicBool::new(false);
 
-/// Instala o onedir em segundo plano (uma vez por sessão). Quem chamou segue
-/// com o binário atual; o próximo `find_ytdlp` já pega o onedir.
 pub(super) fn spawn_onedir_install_if_missing() {
     if crate::core::dependencies::is_flatpak() || crate::core::dependencies::worker_mode() {
         return;
@@ -470,8 +416,6 @@ pub(super) fn spawn_onedir_install_if_missing() {
         .ok();
 }
 
-/// Primeira execução do onedir: o macOS varre `_internal/` (~20-33 s). Feita
-/// no diretório em preparo, antes da troca, para nenhum download pagar isso.
 pub(super) fn warm_ytdlp_onedir(exe: &Path) -> anyhow::Result<()> {
     let out = crate::core::process::std_command(exe)
         .arg("--version")
@@ -493,9 +437,6 @@ pub async fn ensure_ytdlp() -> anyhow::Result<PathBuf> {
     }
     let _timer_start = std::time::Instant::now();
 
-    // macOS: onedir primeiro (0,4 s por processo contra 13-25 s do onefile).
-    // Sem nenhum binário gerido, instala agora; havendo um, instala em segundo
-    // plano e o atual segue valendo até lá.
     if !crate::core::dependencies::is_flatpak() {
         if let Some(dir) = managed_ytdlp_onedir_dir() {
             if !crate::core::dependencies::ytdlp_onedir::is_complete(&dir) {
@@ -524,9 +465,6 @@ pub async fn ensure_ytdlp() -> anyhow::Result<PathBuf> {
         }
     }
 
-    // Zipapp: sem bootstrap de 72 MB por processo. Se não há Python ou o
-    // download falha, o onefile abaixo continua valendo. No macOS o onedir
-    // ocupa esse papel (o Python do brew vem sem curl_cffi).
     if !crate::core::dependencies::is_flatpak() && !cfg!(target_os = "macos") {
         if let Some(zip) = managed_ytdlp_zipapp_path() {
             if find_python().await.is_some() && !zip.exists() {
@@ -546,8 +484,6 @@ pub async fn ensure_ytdlp() -> anyhow::Result<PathBuf> {
         }
     }
 
-    // Always ensure the managed binary exists — it bundles yt-dlp-ejs and
-    // works reliably with --js-runtimes and --ffmpeg-location.
     if !crate::core::dependencies::is_flatpak()
         && managed_ytdlp_onedir_exe().is_none()
         && usable_zipapp().await.is_none()
@@ -694,7 +630,6 @@ pub(super) async fn download_ytdlp_binary() -> anyhow::Result<PathBuf> {
     download_ytdlp_asset(ytdlp_asset_name(), target).await
 }
 
-/// O asset `yt-dlp` da release é o zipapp universal (Python ≥ 3.10).
 pub(super) const YTDLP_ZIPAPP_ASSET: &str = "yt-dlp";
 
 pub(super) async fn download_ytdlp_zipapp() -> anyhow::Result<PathBuf> {
@@ -703,8 +638,6 @@ pub(super) async fn download_ytdlp_zipapp() -> anyhow::Result<PathBuf> {
     download_ytdlp_asset(YTDLP_ZIPAPP_ASSET, target).await
 }
 
-/// Baixa o onedir oficial (`yt-dlp_macos.zip`), confere o SHA2-256SUMS da
-/// release como os outros assets, extrai, aquece e troca.
 pub(super) async fn download_ytdlp_onedir() -> anyhow::Result<PathBuf> {
     let asset = crate::core::dependencies::ytdlp_onedir::asset_name()
         .ok_or_else(|| anyhow!("yt-dlp onedir is not published for this platform"))?;
@@ -721,7 +654,6 @@ pub(super) async fn download_ytdlp_onedir() -> anyhow::Result<PathBuf> {
     .map_err(|e| anyhow!("spawn_blocking failed: {}", e))?
 }
 
-/// Bytes de um asset da release do canal, conferidos contra o SHA2-256SUMS.
 pub(super) async fn fetch_verified_ytdlp_asset(
     asset: &str,
     timeout_secs: u64,
@@ -777,12 +709,6 @@ pub(super) async fn download_ytdlp_asset(asset: &str, target: PathBuf) -> anyhow
 
     let bytes = response.bytes().await?;
 
-    // Verify against the release's published checksums. Fail closed on a
-    // mismatch; fail open only when the sums file itself can't be fetched, so
-    // a transient GitHub hiccup doesn't block downloads entirely.
-    // Fail-closed. O yt-dlp publica `SHA2-256SUMS` em toda release; não
-    // conseguir buscá-lo é indistinguível de alguém suprimindo a verificação,
-    // então o binário é descartado em vez de instalado sem conferência.
     let expected = integrity::expected_from_sums_url(&client, &sums_url, asset)
         .await
         .map_err(|e| anyhow!("yt-dlp: verificacao de integridade impossivel — {}", e))?;
@@ -824,9 +750,6 @@ pub(super) async fn download_ytdlp_asset(asset: &str, target: PathBuf) -> anyhow
     Ok(target)
 }
 
-/// Versão publicada como `releases/latest` do canal, lida do redirect
-/// (`…/releases/tag/2026.08.19`). `None` quando a rede falha: sem informação
-/// a regra é não mexer no binário.
 pub(super) async fn latest_channel_version(channel: YtdlpChannel) -> Option<(u32, u32, u32)> {
     let repo = match channel {
         YtdlpChannel::Stable => "yt-dlp/yt-dlp",
@@ -861,11 +784,6 @@ pub(super) async fn local_ytdlp_version(path: &Path) -> Option<(u32, u32, u32)> 
     parse_ytdlp_version(&String::from_utf8_lossy(&out.stdout))
 }
 
-/// Decide se vale baixar o binário do canal. Só quando a release publicada é
-/// **mais nova** que a local: a regra antiga (mtime > 2 dias) rebaixava um
-/// nightly 2026.08.30 para o stable 2026.08.19 e ainda trocava o arquivo com
-/// downloads em andamento — o PyInstaller lê o próprio executável durante o
-/// bootstrap, e um swap nesse instante vira `Traceback … pyiboot01_bootstrap`.
 pub(crate) fn newer_release_available(
     local: Option<(u32, u32, u32)>,
     remote: Option<(u32, u32, u32)>,
@@ -893,8 +811,6 @@ pub(super) async fn check_ytdlp_freshness(path: &Path) {
     if age <= std::time::Duration::from_secs(2 * 24 * 60 * 60) {
         return;
     }
-    // Nunca trocar o binário com yt-dlp rodando: o próximo lançamento faz a
-    // checagem de novo.
     if active_process_pids()
         .lock()
         .map(|m| !m.is_empty())
@@ -947,7 +863,6 @@ pub(super) async fn check_ytdlp_freshness(path: &Path) {
                         channel,
                         remote
                     );
-                    // Reinicia a janela de 2 dias sem baixar 37 MB à toa.
                     if let Ok(f) = std::fs::File::open(&path_owned) {
                         let _ = f.set_modified(std::time::SystemTime::now());
                     }
@@ -1016,11 +931,6 @@ pub(super) fn per_domain_cookie_file(url: &str) -> Option<std::path::PathBuf> {
     Some(copy)
 }
 
-/// Returns a disposable copy of the extension cookie file for yt-dlp.
-///
-/// yt-dlp rewrites `--cookies` files after every run, which corrupts the
-/// original cookies written by the Chrome extension. We copy the source
-/// file to a sibling temp file so yt-dlp mutates the copy, not the original.
 pub(super) fn extension_cookie_file() -> Option<std::path::PathBuf> {
     let source = ext_cookie_path();
     if !source.exists() {
@@ -1036,9 +946,6 @@ pub(super) fn extension_cookie_file() -> Option<std::path::PathBuf> {
     Some(copy)
 }
 
-/// Detect a JavaScript runtime for yt-dlp's nsig challenge solver.
-/// yt-dlp standalone binaries cannot discover runtimes from PATH on their
-/// own, so we locate the binary and pass it via `--js-runtimes runtime:path`.
 pub(super) fn detect_js_runtime() -> Option<String> {
     let runtimes: &[(&str, &str)] = if cfg!(target_os = "windows") {
         &[
@@ -1050,7 +957,6 @@ pub(super) fn detect_js_runtime() -> Option<String> {
         &[("node", "node"), ("deno", "deno"), ("bun", "bun")]
     };
 
-    // Try system PATH via `where` (Windows) or `which` (Unix).
     for &(runtime, bin) in runtimes {
         let finder = if cfg!(target_os = "windows") {
             "where"
@@ -1074,7 +980,6 @@ pub(super) fn detect_js_runtime() -> Option<String> {
         }
     }
 
-    // Check managed bin dir (Deno auto-downloaded alongside yt-dlp).
     if let Some(bin_dir) = crate::core::paths::app_data_dir().map(|d| d.join("bin")) {
         for &(runtime, bin) in runtimes {
             let managed = bin_dir.join(bin);
@@ -1084,7 +989,6 @@ pub(super) fn detect_js_runtime() -> Option<String> {
         }
     }
 
-    // Fallback: well-known install locations on Windows.
     #[cfg(target_os = "windows")]
     {
         let candidates = [
@@ -1132,8 +1036,6 @@ pub(super) fn is_youtube_url(url: &str) -> bool {
     lower.contains("youtube.com") || lower.contains("youtu.be")
 }
 
-/// Extracts the most meaningful error line from yt-dlp stderr output.
-/// Prefers lines starting with "ERROR:", falls back to "WARNING:", then raw trimmed output.
 pub(super) fn extract_error_message(stderr: &str) -> String {
     let error_line = stderr
         .lines()
@@ -1156,9 +1058,6 @@ pub(super) fn extract_error_message(stderr: &str) -> String {
     stderr.trim().to_string()
 }
 
-/// `--user-agent` padrão do app, só para build sem impersonate. Com curl_cffi
-/// o yt-dlp casa UA e TLS sozinho; o nosso Chrome/131 de Windows junto do TLS
-/// do Chrome 146/macOS é uma incoerência que Instagram/TikTok/Reddit veem.
 pub(super) fn default_user_agent_args(can_impersonate: bool) -> Vec<String> {
     if can_impersonate {
         Vec::new()
@@ -1167,15 +1066,10 @@ pub(super) fn default_user_agent_args(can_impersonate: bool) -> Vec<String> {
     }
 }
 
-/// Com `--impersonate` no comando, o UA padrão sai (o da extensão/config fica).
 pub(super) fn strip_default_user_agent(args: &mut Vec<String>) {
     crate::core::impersonation::strip_default_user_agent(args, CHROME_UA);
 }
 
-/// Este yt-dlp imita navegador (tem curl_cffi)? Sem processo novo: usa a
-/// lista já consultada, a sondagem do zipapp, ou reconhece o build
-/// standalone oficial (PyInstaller, traz curl_cffi). yt-dlp de pacote (brew,
-/// pip) é script Python (`#!`) e fica com o UA padrão.
 pub(super) fn ytdlp_can_impersonate(ytdlp: &Path) -> bool {
     if let Some(cached) = IMPERSONATE_TARGETS.get() {
         return cached.is_some();

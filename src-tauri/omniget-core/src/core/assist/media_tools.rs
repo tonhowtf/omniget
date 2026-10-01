@@ -1,5 +1,3 @@
-//! Agent-facing provider tools. Authority derives from the executing conversation,
-//! never from model-supplied principal, mission, executable, or credential fields.
 use super::{
     authority,
     ctx::{AssistCtx, Scope},
@@ -15,10 +13,7 @@ use serde_json::{json, Value};
 use std::{path::Path, sync::Arc};
 
 pub const MIGRATIONS: &[Migration] = &[Migration { module: "media_tools", version: 1, sql: "CREATE TABLE media_tools_config(singleton INTEGER PRIMARY KEY CHECK(singleton=1), cli_path TEXT NOT NULL);" },Migration{module:"media_tools",version:2,sql:"CREATE TABLE media_collections(id TEXT PRIMARY KEY,principal TEXT NOT NULL,mission TEXT NOT NULL REFERENCES missions_missions(id),intent TEXT NOT NULL REFERENCES media_provider_intents(id),artifact_index INTEGER NOT NULL,path TEXT NOT NULL,digest TEXT NOT NULL,bytes INTEGER NOT NULL,mime TEXT NOT NULL,state TEXT NOT NULL,UNIQUE(principal,mission,intent,artifact_index,path));"},Migration{module:"media_tools",version:3,sql:"ALTER TABLE media_tools_config ADD COLUMN interpreter TEXT;"}];
-/// Host configuration only. This function is not exposed by any model tool.
 pub fn configure_local_cli(db: &AssistDb, path: &Path) -> Result<(), String> {
-    // The folder the person picked the CLI from (before resolving symlinks):
-    // package managers put the script's interpreter launcher there.
     let picked_dir = path.parent().map(Path::to_path_buf);
     let path = path
         .canonicalize()
@@ -30,10 +25,6 @@ pub fn configure_local_cli(db: &AssistDb, path: &Path) -> Result<(), String> {
     db.with(|c|c.execute("INSERT INTO media_tools_config(singleton,cli_path,interpreter) VALUES(1,?1,?2) ON CONFLICT(singleton) DO UPDATE SET cli_path=excluded.cli_path, interpreter=excluded.interpreter",rusqlite::params![path, interpreter])).map_err(|_|"MEDIA_CONFIGURATION_UNAVAILABLE")?;
     Ok(())
 }
-/// A `#!/usr/bin/env <name>` script needs `<name>` resolved at trusted
-/// configuration time; the adapter never searches an ambient PATH later.
-/// Looks next to the picked path, next to the resolved script, then in the
-/// standard system/package locations. An absolute shebang needs nothing.
 pub fn resolve_interpreter(
     script: &Path,
     picked_dir: Option<&Path>,
@@ -205,9 +196,6 @@ fn binding(
     let mission:Option<String>=db.with(|c|c.query_row("SELECT m.id FROM external_executions e JOIN missions_missions m ON m.id=e.mission WHERE e.conversation=?1 AND e.bot=?2 AND m.conversation_id=e.conversation AND m.principal=?3",params![conversation,bot,grant.principal],|r|r.get(0)).optional()).map_err(|_|"MEDIA_STORAGE_ERROR")?;
     Ok((grant.principal, mission.ok_or("MEDIA_AUTHORITY_DENIED")?))
 }
-/// Caller may inject a trusted configured adapter for tests; model input cannot.
-/// Dropping this future drops the provider subprocess future. A submitted intent
-/// remains durably unknown/reserved if cancellation prevents recording its ID.
 pub async fn dispatch(
     db: &AssistDb,
     cli: &Cli,
@@ -273,8 +261,6 @@ pub async fn dispatch(
         }
         _ => return Err("MEDIA_UNKNOWN_TOOL".into()),
     };
-    // Revocation/cancellation while waiting cannot disclose a newly returned
-    // result. Any paid intent already admitted remains available for recovery.
     binding(db, ctx, tool, active)?;
     if serde_json::to_vec(&out)
         .map_err(|_| "MEDIA_RESPONSE_ERROR")?
@@ -440,8 +426,6 @@ async fn collect(
         .as_ref()
         .map(|p| p.0.clone())
         .unwrap_or_else(super::new_id);
-    // Persist expected bytes before publication: a crash after create can be
-    // recovered by a matching immutable snapshot without overwriting anything.
     db.tx(|tx|{collect_authority(tx,ctx,mission)?;bump_collection_revision(tx,mission)?;let changed=tx.execute("INSERT INTO media_collections(id,principal,mission,intent,artifact_index,path,digest,bytes,mime,state) VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,'pending') ON CONFLICT(principal,mission,intent,artifact_index,path) DO NOTHING",params![artifact_id,principal,mission,a.intent_id,a.index as i64,a.path,digest,bytes,data.mime]).map_err(|_|"MEDIA_COLLECTION_CONFLICT")?;if changed==0&&previous.is_none(){return Err("MEDIA_COLLECTION_IN_PROGRESS".into());}Ok(())})?;
     let parent = workspace.parent().ok_or("STAGING_UNAVAILABLE")?;
     let staging = tempfile::Builder::new()

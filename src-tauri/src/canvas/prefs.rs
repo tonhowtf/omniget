@@ -1,21 +1,14 @@
-//! The canvas settings section (`AppSettings.canvas`): read, write by dotted
-//! path (MCP, CLI) or whole (settings screen), and tell the window. Every
-//! write is normalised (grid snap, clamps) and refreshes the watchers that
-//! act on it (sleep prevention, memory limit).
-
 use omniget_core::core::canvas::model::{CanvasNode, NodeKind};
 use omniget_core::models::settings::{canvas_token, AgentPreset, CanvasSettings};
 use serde_json::{json, Value};
 use tauri::{AppHandle, Emitter};
 
-/// Emitted with the whole (normalised) section after every write.
 pub const EVENT: &str = "canvas://settings";
 
 pub fn get(app: &AppHandle) -> CanvasSettings {
     crate::storage::config::load_settings(app).canvas
 }
 
-/// Replaces the whole section.
 pub fn replace(app: &AppHandle, mut canvas: CanvasSettings) -> Result<CanvasSettings, String> {
     canvas.normalize();
     let next = canvas.clone();
@@ -26,7 +19,6 @@ pub fn replace(app: &AppHandle, mut canvas: CanvasSettings) -> Result<CanvasSett
     Ok(canvas)
 }
 
-/// Enum fields: path inside the section → allowed values.
 fn allowed(path: &[String]) -> Option<&'static [&'static str]> {
     let p: Vec<&str> = path.iter().map(String::as_str).collect();
     Some(match p.as_slice() {
@@ -42,7 +34,6 @@ fn allowed(path: &[String]) -> Option<&'static [&'static str]> {
     })
 }
 
-/// Agent preset objects from agents and scripts may use camelCase.
 fn preset_value(v: Value) -> Value {
     match v {
         Value::Object(m) => Value::Object(
@@ -58,7 +49,6 @@ fn preset_value(v: Value) -> Value {
     }
 }
 
-/// `{w,h}` or `[w,h]` sizes become `"WxH"`.
 fn size_value(v: Value) -> Value {
     match &v {
         Value::Object(m) => match (
@@ -76,8 +66,6 @@ fn size_value(v: Value) -> Value {
     }
 }
 
-/// Sets one value at `path` (inside the section). `null` removes an agent
-/// preset. Unknown paths fail; invalid choices fail with the allowed list.
 pub fn set_path(app: &AppHandle, path: &[String], value: Value) -> Result<Value, String> {
     if path.is_empty() {
         let c: CanvasSettings =
@@ -112,8 +100,6 @@ pub fn set_path(app: &AppHandle, path: &[String], value: Value) -> Result<Value,
         value = size_value(value);
     }
     let mut doc = serde_json::to_value(get(app)).map_err(|e| e.to_string())?;
-    // Shortcuts: a combination recorded for one action leaves the action that
-    // had it unbound (Maestri). `shortcuts` alone replaces the whole map.
     let in_shortcuts = path[0] == "shortcuts" && path.len() == 2;
     if in_shortcuts {
         let combo = shortcut_combo(value.as_str().unwrap_or(""));
@@ -179,8 +165,6 @@ pub fn set_path(app: &AppHandle, path: &[String], value: Value) -> Result<Value,
     Ok(now.clone())
 }
 
-/// `Cmd+Shift+Y` → `mod+shift+y` (the canvas keyboard's form: `mod` is ⌘ on
-/// macOS and Ctrl elsewhere, modifiers in a fixed order). Empty = unbound.
 pub fn shortcut_combo(raw: &str) -> String {
     let parts: Vec<String> = raw
         .split('+')
@@ -214,8 +198,6 @@ pub fn shortcut_combo(raw: &str) -> String {
     out.join("+")
 }
 
-/// The user's default size for a node kind (`terminal`/`agent`, `note`,
-/// `text`, `portal`), when set.
 pub fn default_size(app: &AppHandle, kind: &str) -> Option<(f64, f64)> {
     let c = get(app);
     let s = match kind {
@@ -228,9 +210,6 @@ pub fn default_size(app: &AppHandle, kind: &str) -> Option<(f64, f64)> {
     omniget_core::models::settings::parse_canvas_size(s)
 }
 
-// ── Agent presets ──────────────────────────────────────────────────────
-
-/// A user preset by name (exact, then case-insensitive).
 pub fn preset(app: &AppHandle, name: &str) -> Option<(String, AgentPreset)> {
     let c = get(app);
     if let Some(p) = c.agent_presets.get(name) {
@@ -242,8 +221,6 @@ pub fn preset(app: &AppHandle, name: &str) -> Option<(String, AgentPreset)> {
         .map(|(k, p)| (k.clone(), p.clone()))
 }
 
-/// The built-in agent a preset's program is (for state detection and the
-/// chat adapter), `shell` when it is some other program.
 pub fn preset_agent(p: &AgentPreset) -> &'static str {
     let prog = p.command.split_whitespace().next().unwrap_or("");
     let base = std::path::Path::new(prog)
@@ -262,8 +239,6 @@ pub fn preset_agent(p: &AgentPreset) -> &'static str {
     }
 }
 
-/// Copies a preset into a new terminal node: later edits of the preset only
-/// affect nodes made after them (Maestri).
 pub fn apply_preset(n: &mut CanvasNode, name: &str, p: &AgentPreset) {
     let mut command: Vec<String> = p.command.split_whitespace().map(str::to_string).collect();
     command.extend(p.args.iter().cloned());
@@ -300,14 +275,11 @@ pub fn canvas_agent_presets(app: AppHandle) -> Vec<Value> {
         .collect()
 }
 
-// ── Tauri commands ─────────────────────────────────────────────────────
-
 #[tauri::command]
 pub fn canvas_settings_get(app: AppHandle) -> CanvasSettings {
     get(&app)
 }
 
-/// The settings screen writes the whole section (so removing a preset works).
 #[tauri::command]
 pub fn canvas_settings_replace(
     app: AppHandle,

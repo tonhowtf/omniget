@@ -59,6 +59,7 @@ fn copy_recursive(src: &Path, dst: &Path) -> std::io::Result<()> {
 pub async fn browser_extension_status(
     app: AppHandle,
 ) -> Result<Vec<BrowserExtensionStatus>, String> {
+    // WHY: the Windows portable build has no resources/, so installable depends on the bundled manifest really existing (#310).
     // `installable` used to be a hardcoded `true`. The Windows portable build
     // is the bare `omniget.exe` with no `resources/` folder beside it, so the
     // export copied nothing and still reported a path — the user opened an

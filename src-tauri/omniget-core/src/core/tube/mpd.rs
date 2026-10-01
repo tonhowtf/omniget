@@ -1,6 +1,3 @@
-//! Synthetic on-demand DASH manifest built from the `initRange`/`indexRange`
-//! of adaptive formats, so dash.js can play separate video and audio
-//! through the local proxy. Flow-Desktop `build_synthetic_dash_manifest`
 //! (GPL-3.0).
 
 use super::model::Format;
@@ -20,7 +17,6 @@ fn xml_escape(s: &str) -> String {
     out
 }
 
-/// `PT3M32S` style duration (seconds precision is enough for SegmentBase).
 fn iso_duration(s: u32) -> String {
     let (h, m, sec) = (s / 3600, (s % 3600) / 60, s % 60);
     let mut out = String::from("PT");
@@ -65,10 +61,6 @@ fn representation(out: &mut String, f: &Format, attrs: &str, url_for: &dyn Fn(u3
     out.push_str("      </Representation>\n");
 }
 
-/// Static MPD: one AdaptationSet per video container (every format passed
-/// becomes a Representation) and one per audio (container, language).
-/// Formats without init/index ranges are skipped. `url_for(itag)` returns
-/// the proxy URL.
 pub fn synthetic_mpd(
     duration_s: u32,
     video: &[Format],
@@ -228,7 +220,6 @@ mod tests {
             .descendants()
             .filter(|n| n.has_tag_name("Representation"))
             .collect();
-        // Three video + one audio (251 had no index range).
         assert_eq!(reps.len(), 4);
         let r137 = reps
             .iter()

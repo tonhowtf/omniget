@@ -1,8 +1,3 @@
-//! One git worktree per thread under `<app_data>/worktrees/<repo>-<id>`, on
-//! a temporary branch `omniget/<hex>` that can be renamed after the first
-//! message. Setup runs in stages (fetch, checkout, submodules, setup script)
-//! and reports each one; a cancel removes what was made.
-
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
@@ -25,8 +20,6 @@ fn canon(p: &Path) -> PathBuf {
     std::fs::canonicalize(p).unwrap_or_else(|_| p.to_path_buf())
 }
 
-/// `path` is (inside) a linked worktree OmniGet made: under the worktrees
-/// root, and its top has a `.git` *file*.
 pub fn is_omniget_worktree(path: &Path) -> bool {
     let Ok(root) = worktrees_root() else {
         return false;
@@ -42,7 +35,6 @@ pub fn is_omniget_worktree(path: &Path) -> bool {
     root.join(first.as_os_str()).join(".git").is_file()
 }
 
-/// Safe folder/branch fragment: `[a-z0-9-]`, at most `max` chars.
 pub fn slug(s: &str, max: usize) -> String {
     let mut out = String::new();
     let mut dash = false;
@@ -61,8 +53,6 @@ pub fn slug(s: &str, max: usize) -> String {
     out.trim_matches('-').to_string()
 }
 
-/// A branch name git accepts, from free text: lowercase, `[a-z0-9/_-]`,
-/// no `..`, no leading/trailing `/` or `.`, at most 64 chars.
 pub fn sanitize_branch_name(s: &str) -> String {
     let mut out = String::new();
     for c in s.trim().chars().flat_map(|c| c.to_lowercase()) {
@@ -102,7 +92,6 @@ pub fn is_temp_branch(name: &str) -> bool {
         .unwrap_or(false)
 }
 
-/// `<worktrees>/<repo>-<thread slug>`.
 pub fn worktree_path_for(repo_root: &Path, thread: &str) -> VcsResult<PathBuf> {
     let name = repo_root
         .file_name()
@@ -122,29 +111,22 @@ pub fn worktree_path_for(repo_root: &Path, thread: &str) -> VcsResult<PathBuf> {
     Ok(worktrees_root()?.join(format!("{repo}-{id}")))
 }
 
-// ---- project config (.omniget/project.json, t3.json) ----
-
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 pub struct ProjectScript {
     pub name: String,
     pub command: String,
     pub run_on_worktree_create: bool,
-    /// Runs without blocking the agent (reported, not awaited by callers that care).
     pub run_async: bool,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 pub struct ProjectConfig {
-    /// Which file it came from (`.omniget/project.json` or `t3.json`).
     pub source: Option<String>,
-    /// recursive | top-level | none
     pub worktree_submodules: Option<String>,
-    /// local | worktree
     pub default_thread_env_mode: Option<String>,
     pub scripts: Vec<ProjectScript>,
 }
 
-/// Parses either file (same shape). Never fails: bad JSON is an empty config.
 pub fn parse_project_config(text: &str) -> ProjectConfig {
     let Ok(v) = serde_json::from_str::<serde_json::Value>(text) else {
         return ProjectConfig::default();
@@ -207,13 +189,9 @@ pub fn read_project_config(dir: &Path) -> ProjectConfig {
     ProjectConfig::default()
 }
 
-// ---- setup with progress ----
-
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct SetupStage {
-    /// fetch | checkout | submodules | setup-script
     pub id: String,
-    /// pending | running | done | skipped | warning | failed
     pub state: String,
     pub detail: Option<String>,
     pub percent: Option<u8>,
@@ -223,7 +201,6 @@ pub struct SetupStage {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct SetupSnapshot {
     pub thread: String,
-    /// running | done | failed | cancelled
     pub phase: String,
     pub path: Option<PathBuf>,
     pub branch: Option<String>,
@@ -273,22 +250,16 @@ impl SetupSnapshot {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
 pub struct WorktreeRequest {
-    /// Any path inside the project's repository.
     pub repo: PathBuf,
     pub thread: String,
-    /// Base branch or commit; default the repository's current branch.
     #[serde(default)]
     pub base: Option<String>,
-    /// Branch to create; default `omniget/<hex>`.
     #[serde(default)]
     pub branch: Option<String>,
-    /// Fetch `origin/<base>` first and start from it.
     #[serde(default)]
     pub start_from_origin: bool,
-    /// recursive | top-level | none (default: project config, then recursive)
     #[serde(default)]
     pub submodules: Option<String>,
-    /// Run `runOnWorktreeCreate` scripts from the project config.
     #[serde(default)]
     pub run_setup: bool,
 }
@@ -304,7 +275,6 @@ pub struct WorktreeInfo {
     pub reused: bool,
 }
 
-/// Parses `Updating files:  78% (2104/2700)` style progress.
 pub fn parse_percent(line: &str) -> Option<u8> {
     let idx = line.find('%')?;
     let digits: String = line[..idx]
@@ -344,7 +314,6 @@ pub(super) async fn branch_exists(ctx: &GitCtx, name: &str) -> VcsResult<bool> {
 }
 
 pub(super) fn main_ctx(common_dir: &Path) -> GitCtx {
-    // Non-bare repo: the common dir is `<main>/.git`.
     let root = if common_dir.file_name().map(|n| n == ".git").unwrap_or(false) {
         common_dir
             .parent()
@@ -356,9 +325,6 @@ pub(super) fn main_ctx(common_dir: &Path) -> GitCtx {
     GitCtx::Repo { work_tree: root }
 }
 
-/// Creates (or reuses) the thread's worktree, reporting every stage through
-/// `on_progress`. `cancel` is checked between stages; a cancel removes the
-/// half-made worktree and its branch.
 pub async fn create(
     req: &WorktreeRequest,
     cancel: Arc<AtomicBool>,
@@ -399,7 +365,6 @@ async fn create_inner(
     let path = worktree_path_for(&paths.root, &req.thread)?;
     emit(snap);
 
-    // An existing worktree for this thread is reused as is.
     if path.join(".git").is_file() {
         let wctx = GitCtx::Repo {
             work_tree: path.clone(),
@@ -457,7 +422,6 @@ async fn create_inner(
     }
     snap.base = Some(base.clone());
 
-    // fetch
     let mut start = base.clone();
     if req.start_from_origin && base != "HEAD" {
         match repo::primary_remote(&ctx).await? {
@@ -524,7 +488,6 @@ async fn create_inner(
         .map_err(|_| VcsError::NotFound(format!("base {start} is not a commit")))?
         .trimmed();
 
-    // checkout
     let mut branch = match &req.branch {
         Some(b) if !b.trim().is_empty() => sanitize_branch_name(b),
         _ => temp_branch_name(),
@@ -548,8 +511,6 @@ async fn create_inner(
         let r = ctx
             .git()
             .env("GIT_PROGRESS_DELAY", "0")
-            // `--no-track`: no "behind by N" before the first push (orca
-            // `worktree-add.ts`); long paths for deep trees on Windows.
             .args([
                 "-c",
                 "core.longpaths=true",
@@ -633,7 +594,6 @@ async fn create_inner(
         return Err(VcsError::Cancelled);
     }
 
-    // submodules
     let config = read_project_config(&path);
     if path.join(".gitmodules").is_file() {
         let mode = req
@@ -679,7 +639,6 @@ async fn create_inner(
         return Err(VcsError::Cancelled);
     }
 
-    // setup script
     let scripts: Vec<&ProjectScript> = config
         .scripts
         .iter()
@@ -760,8 +719,6 @@ async fn create_inner(
     })
 }
 
-/// A command line run through the user's shell, stdout folded into stderr so
-/// the streaming reader sees every line.
 fn shell(command: &str) -> Invocation {
     let inv = if cfg!(windows) {
         Invocation::new("cmd")
@@ -776,7 +733,6 @@ fn shell(command: &str) -> Invocation {
             .arg("-c")
             .arg(format!("exec 1>&2\n{command}"))
     };
-    // The user's own locale for their script, not the C locale git calls use.
     let mut inv = inv.env_remove("GIT_EDITOR").env_remove("PAGER");
     for k in ["LC_ALL", "LANG"] {
         inv = match std::env::var_os(k) {
@@ -807,10 +763,6 @@ fn strip_ansi(s: &str) -> String {
     out
 }
 
-/// `git config <key> <value>`, retried while another git holds
-/// `config.lock`: worktrees created side by side (an Arena's columns) write
-/// the shared `.git/config` at the same moment, and a lost write here is a
-/// branch that no longer says which thread owns it. Best effort.
 async fn config_set(ctx: &GitCtx, key: &str, value: &str) {
     for attempt in 0..8u64 {
         match ctx.git().args(["config", key, value]).run().await {
@@ -826,8 +778,6 @@ async fn config_set(ctx: &GitCtx, key: &str, value: &str) {
     }
 }
 
-/// Renames the worktree's branch (`git branch -m`), keeping it unique.
-/// Returns the final name.
 pub async fn rename_branch(worktree: &Path, new_name: &str) -> VcsResult<String> {
     let ctx = GitCtx::Repo {
         work_tree: repo::discover(worktree).await?.root,
@@ -839,10 +789,6 @@ pub async fn rename_branch(worktree: &Path, new_name: &str) -> VcsResult<String>
     if stem == old {
         return Ok(old);
     }
-    // Arena entries get the same first message, so their threads rename at
-    // the same moment to the same name. Checking and renaming take turns in
-    // this process: two concurrent `git branch -m` onto one free name left a
-    // worktree on a branch with no history, and its next commit was a root.
     static RENAMING: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
     let _turn = RENAMING.lock().await;
     let mut n = 1;
@@ -863,7 +809,6 @@ pub async fn rename_branch(worktree: &Path, new_name: &str) -> VcsResult<String>
             .await
         {
             Ok(_) => return Ok(name),
-            // Taken by another process between the check and the rename.
             Err(_) if n <= 20 && branch_exists(&ctx, &name).await.unwrap_or(false) => continue,
             Err(e) => return Err(e),
         }
@@ -878,9 +823,6 @@ pub struct RemoveResult {
     pub checkpoints_deleted: u32,
 }
 
-/// Removes an OmniGet worktree (never a main checkout or anything outside the
-/// worktrees root). `delete_branch` drops its branch too: `-D` for a temporary
-/// `omniget/<hex>` branch, the safe `-d` for a renamed one.
 pub async fn remove(
     path: &Path,
     force: bool,
@@ -926,7 +868,6 @@ pub async fn remove(
                     last = None;
                     break;
                 }
-                // A dirty tree without `force` is a user decision, not a race.
                 if !force {
                     return Err(e);
                 }
@@ -985,7 +926,6 @@ pub struct WorktreeEntry {
     pub main: bool,
 }
 
-/// Worktrees of the repository that contains `repo_path`.
 pub async fn list(repo_path: &Path) -> VcsResult<Vec<WorktreeEntry>> {
     let paths = repo::discover(repo_path).await?;
     let ctx = GitCtx::Repo {
@@ -1041,9 +981,6 @@ pub async fn list(repo_path: &Path) -> VcsResult<Vec<WorktreeEntry>> {
     Ok(list)
 }
 
-/// `git worktree prune` for the repository, plus removal of folders under the
-/// worktrees root that belong to this repository but git no longer knows
-/// (a crash between `mkdir` and `worktree add`). Returns the folders removed.
 pub async fn cleanup(repo_path: &Path) -> VcsResult<Vec<PathBuf>> {
     let paths = repo::discover(repo_path).await?;
     let ctx = GitCtx::Repo {
@@ -1075,8 +1012,6 @@ pub async fn cleanup(repo_path: &Path) -> VcsResult<Vec<PathBuf>> {
             if !name.starts_with(&prefix) || known.contains(&canon(&p)) {
                 continue;
             }
-            // Only folders git left behind: no `.git` file at all, and empty
-            // (a leftover `mkdir`). Anything with content stays for the user.
             let empty = std::fs::read_dir(&p)
                 .map(|mut r| r.next().is_none())
                 .unwrap_or(false);

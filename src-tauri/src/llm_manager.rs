@@ -1,26 +1,3 @@
-//! `LlmManager`: the app-side owner of the LLM stack, kept in `AppState.llm`.
-//! Owned by f2-llm-commands.
-//!
-//! `new()` stays a zero-argument constructor because `AppState` is built before
-//! the Tauri app exists; everything that touches the disk is built on the first
-//! command, behind a `OnceLock`.
-//!
-//! What it wires together (all of it from f2-llm-coordinator and
-//! f2-llm-providers):
-//!
-//! ```text
-//! Coordinator ── runtime  → CompositeRuntime → NativeRuntime → Provider per ProviderId
-//!             │                            └→ CliRuntime → conta de assinatura (F4)
-//!             ├─ broker   → ToolBroker(specs de mcp::tools(), McpToolExecutor)
-//!             ├─ budget   → BudgetStore em <app_data>/llm/budget.json
-//!             ├─ router   → Router(CompositeCapacity: AppCapacity para Native,
-//!             │                     CliCapacitySource para Cli)
-//!             └─ bus      → Bus → llm://tool-ask, llm://rerouted, telemetria
-//! ```
-//!
-//! The conversation on disk belongs to the Coordinator
-//! (`<app_data>/llm/conversations/<id>.jsonl`); this file only reads it.
-
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
@@ -59,25 +36,15 @@ use omniget_core::core::tools::ai_keys;
 
 pub const ERR_NO_AGENT: &str = "ERR_LLM_NO_AGENT";
 pub const ERR_NO_TURN: &str = "ERR_LLM_NO_TURN";
-/// No question waits under this id (answered, expired, cancelled): the same
-/// code the approvals API returns (2.2).
 pub const ERR_NO_ASK: &str = "ERR_NO_ASK";
 pub const ERR_STORE: &str = "ERR_LLM_STORE";
 pub const ERR_NO_PROVIDER: &str = "ERR_LLM_NO_PROVIDER";
 
-/// The `ProviderId` reserved for `FakeProvider`: tests and the wire probe.
 pub const FAKE_PROVIDER: &str = "fake";
 
-/// How many telemetry points are kept per agent before the oldest is dropped.
 const MAX_HISTORY: usize = 240;
-/// How many timeline events are kept per agent.
 const MAX_EVENTS: usize = 40;
 
-// ── Tool executor (the app half of the broker) ─────────────────────────
-
-/// The broker's executor over the 37 tools the embedded MCP server already
-/// exposes. The `AppHandle` arrives on the first command, so the broker can be
-/// built before the Tauri app exists.
 pub struct McpToolExecutor {
     app: Mutex<Option<tauri::AppHandle>>,
 }
@@ -155,8 +122,6 @@ impl ToolExecutor for McpToolExecutor {
                 },
             )),
         };
-        // Native streams report calls but not their results. Help needs the real,
-        // sanitized result to render actionable download cards without guessing.
         if let (Some(ctx), Some(call_id)) = (help_turn, tool_call_id) {
             use tauri::Emitter;
             let event = help_tool_result_event(call_id, &result);
@@ -181,20 +146,10 @@ fn help_tool_result_event(id: String, result: &Result<String, LlmError>) -> Turn
     }
 }
 
-/// Every internal tool as a `ToolSpec`, straight from the shared table
-/// (`core::llm::tool_table`) the embedded MCP server also serves. Pure.
 pub fn internal_specs() -> Vec<ToolSpec> {
     omniget_core::core::llm::tool_table::specs()
 }
 
-/// Source 2 of the broker: one external MCP server, driven through the
-/// **same** `McpRegistry` singleton the `/llm/mcp` tab uses
-/// (`commands::llm::mcp::registry()`). Two registries would mean two child
-/// processes per server, so this never builds one of its own.
-///
-/// The broker hands over the namespaced name (`mcp:<server>:<tool>`), which is
-/// exactly what a grant carries; splitting it here keeps that knowledge in one
-/// place.
 pub struct McpSourceExecutor;
 
 #[async_trait]
@@ -221,8 +176,6 @@ impl ToolExecutor for McpSourceExecutor {
     }
 }
 
-/// `mcp:<server>:<tool>` → (server, tool). The tool part may contain colons;
-/// the server part may not (the core's id rule forbids them).
 pub fn split_mcp_name(name: &str) -> Option<(String, String)> {
     let rest = name.strip_prefix("mcp:")?;
     let (server, tool) = rest.split_once(':')?;
@@ -232,10 +185,6 @@ pub fn split_mcp_name(name: &str) -> Option<(String, String)> {
     Some((server.to_string(), tool.to_string()))
 }
 
-// ── Capacity (what the Router reads) ──────────────────────────────────
-
-/// A snapshot of what each candidate can do, refreshed off the hot path.
-/// `capacity()` is a map lookup, so picking a model never blocks on I/O.
 #[derive(Default)]
 pub struct AppCapacity {
     map: Mutex<HashMap<String, Capacity>>,
@@ -263,32 +212,17 @@ impl AppCapacity {
 
 impl CapacitySource for AppCapacity {
     fn capacity(&self, candidate: &Candidate) -> Capacity {
-        // Unknown candidate: available, because the router only rejects on
-        // evidence and the snapshot may simply not have run yet.
         self.get(&router::candidate_key(candidate))
             .unwrap_or_default()
     }
 }
 
-/// Capacity of the whole roster: `Native` candidates come from the vault
-/// snapshot, `Cli` candidates from the CLI usage windows (f4-cli-runtime).
-///
-/// It is also where the rotation switch lives. With rotation **off** (the
-/// default, plan §10 D-2) a CLI account reports an *unknown* window, so the
-/// router keeps the chain in the order the user wrote and never swaps on a
-/// threshold. What still moves the chain is evidence of refusal: a `Rejected`
-/// window (`quota_remaining == 0`), a disabled/missing account, or an
-/// `ERR_CLI_RATE` on the turn — those go through untouched.
 pub struct CompositeCapacity {
     native: Arc<AppCapacity>,
     cli: CliCapacitySource,
-    /// `accounts-ui.json` is read at most once every `PREFS_TTL`, so a pick
-    /// never turns into a file read per candidate.
     rotation: Mutex<Option<(std::time::Instant, bool)>>,
 }
 
-/// How long the rotation toggle is cached before `accounts-ui.json` is read
-/// again. Short enough that flipping the switch takes effect on the next turn.
 pub const PREFS_TTL: std::time::Duration = std::time::Duration::from_secs(2);
 
 impl CompositeCapacity {
@@ -300,7 +234,6 @@ impl CompositeCapacity {
         }
     }
 
-    /// Is automatic rotation between subscriptions on? Off by default.
     pub fn rotation_enabled(&self) -> bool {
         let mut slot = self.rotation.lock().unwrap_or_else(|e| e.into_inner());
         if let Some((at, value)) = *slot {
@@ -316,17 +249,12 @@ impl CompositeCapacity {
     }
 }
 
-/// With rotation off, an account that is merely *busy* must not push the
-/// router to the next link; an account that was refused still must. Pure, so
-/// both halves of the rule are testable without files.
 pub fn apply_rotation_switch(capacity: Capacity, rotation_enabled: bool) -> Capacity {
     if rotation_enabled {
         return capacity;
     }
     match capacity.quota_remaining {
-        // Refused: keep the zero, the router skips this candidate.
         Some(q) if q <= 0.0 => capacity,
-        // Anything else: hide the window so no threshold can rotate.
         _ => Capacity {
             quota_remaining: None,
             ..capacity
@@ -345,8 +273,6 @@ impl CapacitySource for CompositeCapacity {
     }
 }
 
-/// Is there a usable key (or a keyless local server) for this provider?
-/// Pure over the vault: no network.
 pub fn provider_available(provider: &str) -> bool {
     if provider == FAKE_PROVIDER || matches!(provider, "ollama" | "lmstudio" | "llama-server") {
         return true;
@@ -355,8 +281,6 @@ pub fn provider_available(provider: &str) -> bool {
         .into_iter()
         .any(|k| (k.id == provider || k.kind == provider) && k.has_key)
 }
-
-// ── Telemetry (the contract f2-observatory-ui asked for) ──────────────
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -379,7 +303,6 @@ pub struct TelemetryPoint {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AgentEvent {
     pub t_ms: u64,
-    /// turn_started | turn_finished | rerouted | error | budget
     pub kind: String,
     pub code: Option<String>,
     pub detail: Option<String>,
@@ -403,11 +326,9 @@ pub struct AgentTelemetry {
     pub tps_last: Option<f32>,
     pub cost_usd: f64,
     pub context_used_tokens: u64,
-    /// 0 means unknown: the Observatory hides the Context Guardian.
     pub context_window: u64,
     pub context_estimated: bool,
     pub last_error_code: Option<String>,
-    /// Set while a turn is alive; the Observatory enables Cancel with it.
     pub request_id: Option<String>,
     pub history: Vec<TelemetryPoint>,
     pub events: Vec<AgentEvent>,
@@ -475,8 +396,6 @@ impl AgentTelemetry {
     }
 }
 
-/// One quota line per saved key. No reported window exists for a BYOK account,
-/// so `used` stays 0 with `source: "estimated"` and the UI labels it.
 pub fn quotas_of_keys(chain: &[String]) -> Vec<QuotaStatus> {
     ai_keys::list()
         .into_iter()
@@ -501,7 +420,6 @@ pub fn quotas_of_keys(chain: &[String]) -> Vec<QuotaStatus> {
         .collect()
 }
 
-/// Median of the samples, which is what `first_token_ms_p50` means here.
 pub fn p50(samples: &[u32]) -> Option<u32> {
     if samples.is_empty() {
         return None;
@@ -515,11 +433,9 @@ pub fn p50(samples: &[u32]) -> Option<u32> {
 pub struct QuotaStatus {
     pub id: String,
     pub label: String,
-    /// cli | byok
     pub kind: String,
     pub used: f32,
     pub resets_at_ms: Option<u64>,
-    /// reported | estimated
     pub source: String,
     pub exhausts_at_ms: Option<u64>,
     pub active: bool,
@@ -538,7 +454,6 @@ pub struct TelemetrySnapshot {
     pub agents: Vec<AgentTelemetry>,
     pub quotas: Vec<QuotaStatus>,
     pub cost_by_day: Vec<CostBucket>,
-    /// Candidate keys in the order the router would try them.
     pub fallback_chain: Vec<String>,
 }
 
@@ -587,8 +502,6 @@ pub fn now_ms() -> u64 {
         .unwrap_or(0)
 }
 
-// ── Conversations (read side; the Coordinator owns the writes) ────────
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ConversationInfo {
     pub id: String,
@@ -598,9 +511,6 @@ pub struct ConversationInfo {
     pub updated_ms: u64,
 }
 
-/// Reads the JSONL the Coordinator writes. The only write left here is
-/// `seed` — the bridge, which is stateless, replays its history into a
-/// throwaway conversation so the real Coordinator sees a real history.
 pub struct ConversationStore {
     dir: PathBuf,
 }
@@ -661,8 +571,6 @@ impl ConversationStore {
         out
     }
 
-    /// Last `agent` field written into the file, so the chat list can show who
-    /// answered without loading every record.
     fn last_agent(&self, path: &std::path::Path) -> Option<String> {
         let text = std::fs::read_to_string(path).ok()?;
         text.lines()
@@ -672,7 +580,6 @@ impl ConversationStore {
     }
 }
 
-/// First line of the first user message, capped at 60 chars.
 pub fn title_of(messages: &[Message]) -> String {
     let text = messages
         .iter()
@@ -690,7 +597,6 @@ pub fn title_of(messages: &[Message]) -> String {
     s
 }
 
-/// Flattens the text parts of a message.
 pub fn message_text(message: &Message) -> String {
     use omniget_core::core::llm::types::ContentPart;
     message
@@ -704,7 +610,6 @@ pub fn message_text(message: &Message) -> String {
         .join("")
 }
 
-/// Conversation ids come from the frontend and become file names.
 pub fn sanitize_id(id: &str) -> String {
     let cleaned: String = id
         .chars()
@@ -724,10 +629,6 @@ pub fn sanitize_id(id: &str) -> String {
     }
 }
 
-// ── Manager ───────────────────────────────────────────────────────────
-
-/// Roster adapter for `assist::external_config` (C02). Weak, so it never
-/// keeps a manager alive; a dropped manager reads as "no roster" (fail closed).
 struct RosterReader(std::sync::Weak<Inner>);
 
 impl omniget_core::core::assist::external_config::BotRoster for RosterReader {
@@ -760,7 +661,6 @@ struct Inner {
     capacity: Arc<AppCapacity>,
     accounts: Arc<AccountStore>,
     cli_capacity: Arc<CliCapacity>,
-    /// The CLI half of the runtime, kept to push the watchdog settings.
     cli: Arc<CliRuntime>,
     router: Arc<Router>,
     coordinator: Arc<Coordinator>,
@@ -781,9 +681,6 @@ struct TurnHandle {
 
 static PRUNE_RECEIPTS: Mutex<Vec<serde_json::Value>> = Mutex::new(Vec::new());
 
-/// The roster editor's skill checklist (`AgentDef::skills`) is a mirror of
-/// the bot's bindings in `assist.db`; saving the agent brings the bindings in
-/// line. A failure is logged, not fatal: the agent itself was saved.
 fn sync_skill_bindings(bot: &str, skills: &[String]) {
     use omniget_core::core::assist::bots::{skills as bot_skills, BotEnv};
     if let Err(e) = bot_skills::sync_bindings(&BotEnv::global(), bot, skills) {
@@ -810,8 +707,6 @@ impl LlmManager {
         }
     }
 
-    /// Points the manager at a directory of its own. Only has an effect before
-    /// the first use; the tests rely on it.
     pub fn set_root(&self, root: PathBuf) {
         if let Ok(mut g) = self.root_override.lock() {
             *g = Some(root);
@@ -838,9 +733,6 @@ impl LlmManager {
 
         let bus = Arc::new(Bus::new());
         let executor = Arc::new(McpToolExecutor::new());
-        // Source 1 of 3: the internal table. MCP servers (`register_mcp_tools`)
-        // register themselves later, when the user enables them; the skills
-        // (`register_skill_tools`) right after the assistant database opens.
         let broker = Arc::new(ToolBroker::new(
             internal_specs(),
             executor.clone(),
@@ -848,16 +740,8 @@ impl LlmManager {
         ));
         let budget = Arc::new(BudgetStore::at(root.join("budget.json")));
         let capacity = Arc::new(AppCapacity::default());
-        // CLI subscriptions (f4-cli-runtime): the account book and the usage
-        // windows are shared by the runtime and by the router's capacity.
-        // `root` is `<app_data>/llm` in production, which is exactly where
-        // `commands/llm/accounts.rs` keeps `accounts.json`, so this is the same
-        // file the Accounts tab writes — and a directory of its own under test,
-        // instead of the owner's real account book.
         let accounts = Arc::new(AccountStore::at(root.join("accounts.json")));
         let cli_capacity = Arc::new(CliCapacity::new());
-        // `quota_pct` budgets (3.3) read the same capacity the router does:
-        // what each CLI reported on its own stream, never an endpoint.
         omniget_core::core::llm::budget::policy::set_quota_source(
             omniget_core::core::llm::budget::policy::quota_from_capacity(cli_capacity.clone()),
         );
@@ -866,8 +750,6 @@ impl LlmManager {
             CliCapacitySource::new(cli_capacity.clone(), accounts.clone()),
         ))));
         let native = Arc::new(NativeRuntime::new());
-        // The FakeProvider is always registered: tests and the wire probe
-        // address it as ProviderId("fake").
         native.register(
             FAKE_PROVIDER,
             Arc::new(FakeProvider::text(
@@ -875,13 +757,7 @@ impl LlmManager {
                 8,
             )),
         );
-        // Without `with_cli` every `RuntimeKind::Cli` agent answers ERR_LLM_MODEL.
-        // A turn waiting on a permission prompt is not a stuck turn: the
-        // watchdog asks the broker before it counts the silence (1.2). Weak,
-        // so the runtime never keeps the broker alive by itself.
         let pause_broker = Arc::downgrade(&broker);
-        // Codex over its app-server asks per call (3.6): the questions become
-        // the broker's durable asks, answerable from any channel.
         let cli = Arc::new(
             CliRuntime::new(accounts.clone(), cli_capacity.clone())
                 .with_pause_probe(Arc::new(move |request: &str| {
@@ -905,16 +781,12 @@ impl LlmManager {
                 .with_dir(Some(root.join("conversations"))),
         );
 
-        // Assistant subsystem: `assist.db` (bots, memory, reading, runs),
-        // its tools as a broker source, and the per-turn hooks.
         {
             use omniget_core::core::assist;
             match assist::db::AssistDb::open(&root.join(assist::db::DB_FILE)) {
                 Ok(db) => {
                     let db = Arc::new(db);
                     assist::db::set_global(db.clone());
-                    // Conversation context (projectless/project) and the
-                    // room-aware memory resolver live in `assist::groups`.
                     assist::groups::install(db);
                 }
                 Err(e) => tracing::error!("[assist] {e}"),
@@ -929,8 +801,6 @@ impl LlmManager {
             }
         }
 
-        // Bot layer: the broker it checks "registered" against, and the skill
-        // tools of whatever is installed (needs `assist.db`, opened above).
         omniget_core::core::assist::bots::set_broker(broker.clone());
         if let Err(e) = omniget_core::core::assist::bots::skills::projection().reproject() {
             tracing::warn!("[skills] projection: {e}");
@@ -961,7 +831,6 @@ impl LlmManager {
         });
         let _ = self.inner.set(inner.clone());
         let chosen = self.inner.get().cloned().unwrap_or(inner);
-        // C02: external derived bots read/write the same real roster.
         omniget_core::core::assist::external_config::install_roster(Arc::new(RosterReader(
             Arc::downgrade(&chosen),
         )));
@@ -988,17 +857,10 @@ impl LlmManager {
         self.inner().coordinator.clone()
     }
 
-    /// Hands the `AppHandle` to the tool executor. Idempotent; called by the
-    /// first command and by the bridge.
     pub fn attach_app(&self, app: &tauri::AppHandle) {
         self.inner().executor.set_app(app.clone());
     }
 
-    // Providers -------------------------------------------------------
-
-    /// The provider behind a `ProviderId`, built from the vault on first use
-    /// and cached in the `NativeRuntime`. `ProviderId("fake")` always resolves,
-    /// which is what the wire probe and the tests use.
     pub fn provider_for(&self, id: &ProviderId) -> Option<Arc<dyn Provider>> {
         let inner = self.inner();
         if let Some(found) = inner.native.get(id.as_str()) {
@@ -1009,21 +871,14 @@ impl LlmManager {
         Some(built)
     }
 
-    /// The same client, but built with a `WireCapture` attached, for the wire
-    /// probe. Deliberately NOT cached in the `NativeRuntime`: the chat must not
-    /// pay for keeping the last body and the last raw response (256 KB) in
-    /// memory on every turn.
     pub fn probe_provider_for(&self, id: &ProviderId) -> Option<Arc<dyn Provider>> {
         build_provider_with(id, true)
     }
-
-    // Roster ----------------------------------------------------------
 
     pub fn roster(&self) -> Vec<AgentDef> {
         (*self.inner().roster.list()).clone()
     }
 
-    /// `provider/model` the agent would run on now, for job records.
     pub fn model_label(&self, agent_id: &str) -> String {
         match self.agent(agent_id) {
             Some(a) => {
@@ -1072,8 +927,6 @@ impl LlmManager {
 
     pub fn roster_delete(&self, id: &str) -> Result<Vec<AgentDef>, String> {
         self.inner().roster.delete(id).map_err(|e| e.to_string())?;
-        // The bot's profile and skill bindings go with it; its traced reads
-        // stay as the record of past runs.
         if let Ok(db) = omniget_core::core::assist::db::global() {
             if let Err(e) = omniget_core::core::assist::bots::profile::delete(&db, id) {
                 tracing::warn!("[bots] deleting {id}: {e}");
@@ -1091,8 +944,6 @@ impl LlmManager {
         Ok((*list).clone())
     }
 
-    // Conversations ---------------------------------------------------
-
     pub fn conversations(&self) -> Vec<ConversationInfo> {
         self.inner()
             .conversations
@@ -1106,8 +957,6 @@ impl LlmManager {
         self.inner().conversations.messages(id)
     }
 
-    /// Model override for a conversation, kept out of the JSONL on purpose:
-    /// a note inside the history would be sent to the model on every turn.
     pub fn switch_model(&self, conversation_id: &str, model: ModelRef) -> Result<(), String> {
         let inner = self.inner();
         {
@@ -1130,10 +979,6 @@ impl LlmManager {
         map.get(&sanitize_id(conversation_id)).cloned()
     }
 
-    // Turns -----------------------------------------------------------
-
-    /// Refreshes the capacity snapshot of one agent's chain. Vault-only (no
-    /// network); the price lookup is spawned so it lands in the next turn.
     pub fn refresh_capacity(&self, agent: &AgentDef) {
         let inner = self.inner();
         let candidates = chain_of(agent);
@@ -1152,13 +997,11 @@ impl LlmManager {
                 Capacity {
                     available: provider_available(&provider),
                     budget_remaining_usd,
-                    // Kept from the previous snapshot; filled by the price task.
                     cost_per_1k: previous.cost_per_1k,
                     last_error: previous.last_error.clone(),
                     ..Capacity::default()
                 },
             );
-            // Price out of the hot path: it may hit the network the first time.
             let model = candidate.model.clone();
             let capacity = inner.capacity.clone();
             let key_for_task = key.clone();
@@ -1176,8 +1019,6 @@ impl LlmManager {
         inner.telemetry.set_chain(chain_keys);
     }
 
-    /// Runs a turn through the Coordinator: tool loop, budget, reroute and
-    /// conversation persistence all happen inside the returned stream.
     pub async fn turn_stream(
         &self,
         conversation_id: &str,
@@ -1191,7 +1032,6 @@ impl LlmManager {
             .await
     }
 
-    /// The job owns this token before the first provider handshake begins.
     pub async fn turn_stream_with_cancel(
         &self,
         conversation_id: &str,
@@ -1219,12 +1059,9 @@ impl LlmManager {
             return Err("ERR_HELP_SESSION".into());
         }
         let mut agent = self.agent(source_agent_id).ok_or("ERR_HELP_CONNECTION")?;
-        // Keep the real runtime/account/model, but never register another roster agent.
         agent.id = format!("help-{}", agent.id);
         agent.name = "Help".into();
         agent.role = omniget_core::core::llm::agent::AgentRole::Worker;
-        // Localized like the other seeded prompts: the frontend pushes the text
-        // for the active locale through sync_llm_prompts (see roster_store).
         agent.system_prompt = omniget_core::core::llm::roster_store::prompt_defaults().help;
         agent.skills.clear();
         agent.tools.retain(
@@ -1264,12 +1101,6 @@ impl LlmManager {
             .await
     }
 
-    /// A side call (3.7, `TaskKind::Side`, 84#P3): a short, tool-less turn
-    /// of the agent's own provider/account on its smallest model, for the
-    /// Loop auditor. `conversation_id` must start with `side-` (the CLI
-    /// runtime launches it lean from that). `system` replaces the agent's
-    /// prompt; the agent's skills, tools and memory stay out. Returns the
-    /// model it runs on and why.
     pub async fn side_turn_stream(
         &self,
         conversation_id: &str,
@@ -1301,9 +1132,6 @@ impl LlmManager {
         Ok((request, cancel, stream, side))
     }
 
-    /// Turns `agent` into its side agent in place: same runtime, account and
-    /// provider (never another provider's subscription), the side model of
-    /// [`router::resolve_side`], no tools, no skills, `system` as its prompt.
     pub fn side_agent(
         &self,
         agent: &mut AgentDef,
@@ -1363,8 +1191,6 @@ impl LlmManager {
         if external {
             omniget_core::core::assist::authority::check_agent(conversation_id, &agent)?;
         } else {
-            // A derived bot (or an external room participant) never runs as
-            // LOCAL_USER: direct chat, room, local mission, bridge, help (H1).
             let bot = agent.id.strip_prefix("help-").unwrap_or(&agent.id);
             omniget_core::core::assist::external_config::local_turn_allowed(conversation_id, bot)?;
             if let Some(model) = self.model_override(conversation_id) {
@@ -1383,18 +1209,11 @@ impl LlmManager {
             cancel.clone(),
         );
 
-        // ONE id end to end. The Coordinator mints the request id and puts it
-        // in `TurnEvent::Started` and in every `BusEvent::ToolAsk` of the turn,
-        // so the app adopts that one instead of minting a second. Waiting for
-        // `Started` costs nothing: the Coordinator emits it before the model
-        // call, right after the budget gate. A turn cut before that (budget,
-        // no candidate) never emits it, and only then a local id is used.
         let first = stream.next().await;
         let request_id = match &first {
             Some(TurnEvent::Started { request_id }) => request_id.clone(),
             _ => format!("r{}", inner.next_request.fetch_add(1, Ordering::SeqCst)),
         };
-        // The event is put back, so the caller sees the stream whole.
         let stream: BoxStream<'static, TurnEvent> =
             futures::stream::iter(first).chain(stream).boxed();
 
@@ -1420,9 +1239,6 @@ impl LlmManager {
         Ok((request_id, cancel, stream))
     }
 
-    /// The bridge is stateless: it ships the whole history every time. The
-    /// history is replayed into a throwaway conversation so the real
-    /// Coordinator sees a real conversation; the file is removed at the end.
     pub async fn turn_stateless(
         &self,
         agent_id: &str,
@@ -1457,14 +1273,10 @@ impl LlmManager {
         Ok((request_id, conversation_id, cancel, stream))
     }
 
-    /// Removes a throwaway bridge conversation.
     pub fn drop_conversation(&self, conversation_id: &str) {
         let _ = self.inner().conversations.delete(conversation_id);
     }
 
-    /// Deletes `bridge-*.jsonl` left behind by a process that died mid-turn.
-    /// Cheap (one `read_dir` over a folder the user never fills) and called
-    /// once, by the first command that wires the app up. Returns how many went.
     pub fn sweep_bridge_conversations(&self) -> usize {
         let inner = self.inner();
         let Ok(entries) = std::fs::read_dir(inner.conversations.dir()) else {
@@ -1485,13 +1297,9 @@ impl LlmManager {
             .count()
     }
 
-    /// The model an agent will actually ask for, after the router's first pick.
     pub fn model_of(&self, agent: &AgentDef) -> ModelRef {
         match &agent.model {
             ModelPolicy::Fixed { model } => model.clone(),
-            // The agent declares what its turns are for (a coding agent prefers
-            // a Codex account), so the model shown in the UI is the one the
-            // coordinator's own `pick_for` would land on.
             ModelPolicy::Route { chain } => self
                 .inner()
                 .router
@@ -1509,11 +1317,7 @@ impl LlmManager {
         }
     }
 
-    /// Builds every provider the agent's chain can reach. At least one must
-    /// resolve, otherwise the turn would fail inside the stream with a code the
-    /// UI cannot act on.
     fn ensure_providers(&self, agent: &AgentDef) -> Result<(), String> {
-        // A CLI agent (own protocol or ACP) brings its own model and login.
         if !matches!(
             agent.runtime,
             omniget_core::core::llm::agent::RuntimeKind::Native
@@ -1538,7 +1342,6 @@ impl LlmManager {
         }
     }
 
-    /// Bookkeeping at the end of a turn.
     pub fn finish_turn(&self, request_id: &str, agent_id: &str) {
         let inner = self.inner();
         if let Ok(mut turns) = inner.turns.lock() {
@@ -1556,7 +1359,6 @@ impl LlmManager {
         });
     }
 
-    /// Folds one turn event into the telemetry.
     pub fn note_event(&self, agent_id: &str, event: &TurnEvent) {
         let inner = self.inner();
         inner.telemetry.with(agent_id, agent_id, |t| match event {
@@ -1593,9 +1395,6 @@ impl LlmManager {
             .and_then(|mut turns| turns.remove(request_id))
             .ok_or_else(|| format!("{ERR_NO_TURN}: {request_id}"))?;
         handle.cancel.cancel();
-        // Pending permission requests of this turn resolve as cancelled, not
-        // denied, and a late answer can no longer apply to them (no ghost
-        // approval is left in the list: the table is the list).
         inner.broker.cancel_request(request_id);
         inner
             .telemetry
@@ -1614,12 +1413,6 @@ impl LlmManager {
             .unwrap_or_default()
     }
 
-    /// Answers a `GrantMode::Ask` question. The broker keys on the tool call
-    /// id; the request id is carried for the UI only.
-    /// Asks raised and not answered yet (timed-out ones fall out as soon as
-    /// the broker holds none).
-    /// The newest prune receipts of this process (at most 12), for the
-    /// settings card: measured numbers per model request.
     pub fn prune_receipts(&self) -> Vec<serde_json::Value> {
         PRUNE_RECEIPTS
             .lock()
@@ -1627,16 +1420,10 @@ impl LlmManager {
             .clone()
     }
 
-    /// Asks waiting for a person now, for the window (the pet, the jobs
-    /// page, missions): the pending rows of `runs_permissions` this boot
-    /// holds (2.2: the one table of asks), each still waited on by the
-    /// broker. `id` is the approval id the window answers with; it never
-    /// goes to the agent (`explain` drops it).
     pub fn pending_ask_list(&self) -> Vec<serde_json::Value> {
         use omniget_core::core::assist::runs::{self, PermissionState};
         let broker = self.inner().broker.clone();
         let Some(reg) = runs::active() else {
-            // No run record (no assistant database): what the broker holds.
             return broker
                 .pending_calls()
                 .into_iter()
@@ -1669,35 +1456,26 @@ impl LlmManager {
             .collect()
     }
 
-    /// Whether a question of this turn waits for a person right now. The turn
-    /// watchdog freezes on it and the jobs show `waiting_approval` from it.
     pub fn has_pending_ask(&self, request_id: &str) -> bool {
         self.inner().broker.has_pending(request_id)
     }
 
-    /// Whether this exact question is still unanswered: a notification is
-    /// checked against it right before it is shown.
     pub fn has_pending_call(&self, tool_call_id: &str) -> bool {
         self.inner().broker.has_pending_call(tool_call_id)
     }
 
-    /// The watchdog windows of the next CLI turns (`LlmSettings`).
     pub fn set_watchdog(&self, config: omniget_core::core::llm::cli_runtime::WatchdogConfig) {
         self.inner().cli.set_watchdog(config);
     }
 
-    /// How long a question of this turn waits in total (explain shows the
-    /// time left).
     pub fn ask_timeout_for(&self, request_id: &str) -> std::time::Duration {
         self.inner().broker.ask_timeout_for(request_id)
     }
 
-    /// The chat's ask timeout (`ask_timeout_chat_s`), the broker's default.
     pub fn set_ask_timeout(&self, timeout: std::time::Duration) {
         self.inner().broker.set_ask_timeout(timeout);
     }
 
-    /// Per-request ask timeouts (the jobs register theirs).
     pub fn set_ask_timeout_resolver(
         &self,
         resolver: Option<omniget_core::core::llm::broker::AskTimeoutResolver>,
@@ -1718,8 +1496,6 @@ impl LlmManager {
             (true, true) => Decision::AcceptAlways,
             (true, false) => Decision::Accept,
         };
-        // The same door as every other channel: the durable row records the
-        // answer, once (2.2).
         self.inner()
             .broker
             .answer_call_by(
@@ -1729,8 +1505,6 @@ impl LlmManager {
             )
             .map_err(|_| format!("{ERR_NO_ASK}: {tool_call_id}"))
     }
-
-    // Telemetry -------------------------------------------------------
 
     pub fn telemetry(&self) -> TelemetrySnapshot {
         let inner = self.inner();
@@ -1743,12 +1517,9 @@ impl LlmManager {
         }
     }
 
-    /// One quota per saved account. Without a reported window the share is an
-    /// estimate over the agent's daily budget, and `source` says so.
     fn quotas(&self) -> Vec<QuotaStatus> {
         let inner = self.inner();
         let chain = inner.telemetry.chain();
-        // CLI subscriptions first: they are the ones with a real window.
         let mut out: Vec<QuotaStatus> = inner
             .accounts
             .list()
@@ -1781,8 +1552,6 @@ impl LlmManager {
         out
     }
 
-    /// The account book and the usage windows, for the Accounts tab and for
-    /// whoever records a fresh window (`CliCapacity::record`).
     pub fn accounts(&self) -> Arc<AccountStore> {
         self.inner().accounts.clone()
     }
@@ -1791,8 +1560,6 @@ impl LlmManager {
         self.inner().cli_capacity.clone()
     }
 
-    /// Today's spend from the budget store. Older days are not kept there, so
-    /// the Observatory falls back to `tool_usage_report` for the history.
     fn cost_by_day(&self) -> Vec<CostBucket> {
         let state = self.inner().budget.snapshot();
         let (usd, calls) = state
@@ -1821,14 +1588,10 @@ impl LlmManager {
             .store(false, Ordering::SeqCst);
     }
 
-    /// Claims the bus forwarder, so only one task re-emits bus events as Tauri
-    /// events for the whole process.
     pub fn claim_bus_forwarder(&self) -> bool {
         self.inner().bus_forwarding.swap(true, Ordering::SeqCst)
     }
 
-    /// Folds a bus event into the telemetry (the Tauri re-emission lives in
-    /// `commands/llm/mod.rs`).
     pub fn note_bus(&self, event: &BusEvent) {
         let inner = self.inner();
         match event {
@@ -1854,14 +1617,11 @@ impl LlmManager {
         }
     }
 
-    // Bridge flag -----------------------------------------------------
-
     pub fn bridge_openai_enabled(&self) -> bool {
         self.inner().bridge_openai.load(Ordering::SeqCst)
     }
 }
 
-/// Usage folded into one agent's counters, including first-token latency.
 fn fold_usage(t: &mut AgentTelemetry, usage: &Usage) {
     t.input_tokens += usage.input_tokens as u64;
     t.output_tokens += usage.output_tokens as u64;
@@ -1884,7 +1644,6 @@ fn fold_usage(t: &mut AgentTelemetry, usage: &Usage) {
     t.push_point();
 }
 
-/// An agent's candidate chain, with `Fixed` seen as a chain of one.
 pub fn chain_of(agent: &AgentDef) -> Vec<Candidate> {
     match &agent.model {
         ModelPolicy::Fixed { model } => vec![Candidate {
@@ -1899,22 +1658,15 @@ pub fn chain_of(agent: &AgentDef) -> Vec<Candidate> {
     }
 }
 
-/// Builds the provider for a `ProviderId` out of the vault. No network: the key
-/// comes from the secret store and the base URL from the `ai_keys` table.
 pub fn build_provider(id: &ProviderId) -> Option<Arc<dyn Provider>> {
     build_provider_with(id, false)
 }
 
-/// `capture` attaches a `WireCapture`, which is what makes `wire_capture()`
-/// answer `Some` and the probe able to read the body that went out. Only the
-/// probe asks for it.
 pub fn build_provider_with(id: &ProviderId, capture: bool) -> Option<Arc<dyn Provider>> {
     let provider = id.as_str();
     if provider == FAKE_PROVIDER {
-        // The FakeProvider always captures; there is no client to configure.
         return Some(Arc::new(FakeProvider::text("fake provider", 4)));
     }
-    // An explicit vault id pins the exact account; legacy kind ids still work.
     let views = ai_keys::list();
     let entry = views
         .iter()

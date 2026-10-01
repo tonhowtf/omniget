@@ -1,4 +1,3 @@
-//! Native pixels in a bounded, principal-owned managed directory.
 use crate::mcp::{
     artifacts,
     policy::{self, Principal},
@@ -149,7 +148,6 @@ pub async fn capture(app: &AppHandle, p: &Principal, args: Value) -> Result<Valu
     let id = uuid::Uuid::new_v4().to_string();
     let path = root.join(format!("{id}.png"));
     if crop.is_null() {
-        // Preserve the native PNG, including any colour metadata, byte for byte.
         std::fs::write(&path, &bytes).map_err(|e| format!("CAPTURE_FAILED: {e}"))?;
     } else {
         img.save_with_format(&path, image::ImageFormat::Png)

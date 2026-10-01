@@ -1,15 +1,3 @@
-//! Coding tools of the native harness: read, list, glob, grep, edit, write,
-//! apply_patch, shell and a plan. Design approved in the 2026-09-18 brainstorm
-//! (plan §10): every tool is bound to ONE workspace root, paths never leave it,
-//! `.git` is write-protected, outputs are capped, and on macOS the shell runs
-//! under a seatbelt profile that allows writes only inside the workspace and
-//! denies the network.
-//!
-//! Lineage, read from source: the read/list/glob/grep/edit shapes and caps
-//! follow opencode (`packages/opencode/src/tool/*`), the patch envelope is the
-//! Codex / aider "V4A" one with aider's context fuzz ladder (exact, rstrip,
-//! strip), and `todo_write` is Codex's `update_plan`.
-
 use std::path::{Component, Path, PathBuf};
 use std::sync::RwLock;
 
@@ -38,7 +26,6 @@ pub const ERR_EDIT_NO_MATCH: &str = "ERR_CODE_EDIT_NO_MATCH";
 pub const ERR_EDIT_AMBIGUOUS: &str = "ERR_CODE_EDIT_AMBIGUOUS";
 pub const ERR_PATCH: &str = "ERR_CODE_PATCH";
 
-/// Names of the tools in this module, for default grants and `TaskKind::Code`.
 pub const READ_TOOLS: &[&str] = &["fs_read", "fs_list", "fs_glob", "fs_grep", "todo_write"];
 pub const WRITE_TOOLS: &[&str] = &["fs_edit", "fs_write", "fs_apply_patch", "shell_exec"];
 
@@ -48,9 +35,6 @@ static BY_CONVERSATION: RwLock<Option<std::collections::HashMap<String, PathBuf>
     RwLock::new(None);
 static STORE_FILE: RwLock<Option<PathBuf>> = RwLock::new(None);
 
-/// What a tool call knows about the turn it runs in. The coordinator opens the
-/// scope around every brokered call; outside a turn (the embedded MCP server,
-/// the CLI) the tools fall back to the process-wide workspace.
 pub struct TurnCtx {
     pub conversation: String,
     pub agent: String,
@@ -85,7 +69,6 @@ tokio::task_local! {
     static TOOL_CALL_ID: String;
 }
 
-/// Add the broker's real call id without changing the enclosing turn context.
 pub async fn scope_tool_call<F: std::future::Future>(id: &str, fut: F) -> F::Output {
     TOOL_CALL_ID.scope(id.to_owned(), fut).await
 }
@@ -94,8 +77,6 @@ pub fn current_tool_call() -> Option<String> {
     TOOL_CALL_ID.try_with(Clone::clone).ok()
 }
 
-/// The broker calls this after the user answered an `external_directory` ask:
-/// the next path check of this call may leave the workspace, once.
 pub fn allow_external_once() {
     if let Some(ctx) = current_turn() {
         ctx.external_ok
@@ -112,23 +93,14 @@ fn take_external() -> bool {
         .unwrap_or(false)
 }
 
-/// The canonical store of "which folder belongs to which conversation".
-/// `assist::groups` installs one backed by `assist.db` at boot; without it
-/// (tests, tools that never booted the assistant) the legacy in-memory map
-/// loaded from `workspaces.json` answers.
 pub trait WorkspaceBindings: Send + Sync {
-    /// The folder authorised for `conversation`, `None` when it is personal.
     fn get(&self, conversation: &str) -> Option<PathBuf>;
-    /// Binds (`Some`, already canonical) or detaches (`None`) one conversation.
     fn set(&self, conversation: &str, path: Option<&Path>) -> Result<(), String>;
-    /// Called with the legacy map when `workspaces.json` is loaded, so old
-    /// per-conversation folders survive the move (idempotent, never deletes).
     fn import_legacy(&self, _map: &std::collections::HashMap<String, PathBuf>) {}
 }
 
 static BINDINGS: RwLock<Option<std::sync::Arc<dyn WorkspaceBindings>>> = RwLock::new(None);
 
-/// Installs the canonical binding store and hands it the legacy map.
 pub fn set_bindings(bindings: Option<std::sync::Arc<dyn WorkspaceBindings>>) {
     if let Some(b) = &bindings {
         b.import_legacy(&legacy_bindings());
@@ -140,7 +112,6 @@ fn bindings() -> Option<std::sync::Arc<dyn WorkspaceBindings>> {
     BINDINGS.read().unwrap_or_else(|e| e.into_inner()).clone()
 }
 
-/// The per-conversation folders read from `workspaces.json` (legacy store).
 pub fn legacy_bindings() -> std::collections::HashMap<String, PathBuf> {
     BY_CONVERSATION
         .read()
@@ -149,9 +120,6 @@ pub fn legacy_bindings() -> std::collections::HashMap<String, PathBuf> {
         .unwrap_or_default()
 }
 
-/// Where the legacy conversation → workspace map is persisted (the app sets
-/// it once). With a [`WorkspaceBindings`] installed the file is only read,
-/// to import what older versions wrote; it is never deleted.
 pub fn set_store_file(path: PathBuf) {
     let loaded: std::collections::HashMap<String, PathBuf> = std::fs::read(&path)
         .ok()
@@ -174,9 +142,6 @@ fn canonical_dir(p: PathBuf) -> Result<PathBuf, String> {
     Ok(real)
 }
 
-/// Bind one conversation to a folder (it becomes a Project conversation).
-/// `None` detaches it (personal again). Never touches another conversation
-/// nor the process-wide folder.
 pub fn set_conversation_workspace(
     conversation: &str,
     path: Option<PathBuf>,
@@ -204,10 +169,6 @@ pub fn set_conversation_workspace(
     Ok(resolved)
 }
 
-/// The folder authorised for one conversation, or `None` for a personal
-/// (projectless) one. There is deliberately NO fallback to the process-wide
-/// folder: a personal chat must never inherit the last project somebody
-/// opened elsewhere (A04), and two conversations keep their own folders (A05).
 pub fn workspace_of(conversation: &str) -> Option<PathBuf> {
     let found = match bindings() {
         Some(b) => b.get(conversation),
@@ -220,7 +181,6 @@ pub fn workspace_of(conversation: &str) -> Option<PathBuf> {
     found.filter(|p| p.is_dir())
 }
 
-/// True when `raw` is a path the tool would resolve outside the workspace.
 pub fn is_external(raw: &str) -> bool {
     let Some(root) = workspace() else {
         return false;
@@ -229,7 +189,6 @@ pub fn is_external(raw: &str) -> bool {
     p.is_absolute() && !p.starts_with(&root)
 }
 
-/// The folder every coding tool is confined to. `None` disables them all.
 pub fn set_workspace(path: Option<PathBuf>) -> Result<Option<PathBuf>, String> {
     let resolved = match path {
         Some(p) => {
@@ -251,24 +210,12 @@ fn global_workspace() -> Option<PathBuf> {
     WORKSPACE.read().unwrap_or_else(|e| e.into_inner()).clone()
 }
 
-/// Inside a turn: the folder of that turn's conversation, or `None` for a
-/// personal conversation. Outside a turn (the embedded MCP server, the `omniget`
-/// CLI, background checks): the process-wide folder, which only those callers
-/// use and which choosing a folder in a conversation never changes.
 pub fn workspace() -> Option<PathBuf> {
     match current_turn() {
         Some(ctx) => workspace_of(&ctx.conversation),
         None => global_workspace(),
     }
 }
-
-// ── one writer per workspace (B06) ──────────────────────────────────────
-//
-// Two conversations (or two members of a room) bound to the same folder must
-// not interleave writes. Every write tool takes the folder's lock for the
-// whole call: `fs_edit` / `fs_write` / `fs_apply_patch` hold it for the
-// milliseconds of the write, `shell_exec` for the whole command. The key is
-// the canonical folder, so two spellings of one path share one lock.
 
 struct WsLock {
     busy: std::sync::Mutex<bool>,
@@ -297,7 +244,6 @@ fn lock_for(root: &Path) -> std::sync::Arc<WsLock> {
         .clone()
 }
 
-/// Held while one write tool runs in a folder; dropping it lets the next in.
 pub struct WriteGuard(std::sync::Arc<WsLock>);
 
 impl Drop for WriteGuard {
@@ -317,7 +263,6 @@ fn try_take(lock: &std::sync::Arc<WsLock>) -> Option<WriteGuard> {
     Some(WriteGuard(lock.clone()))
 }
 
-/// Waits for the folder's write lock without blocking the runtime.
 pub async fn write_lock(root: &Path) -> WriteGuard {
     let lock = lock_for(root);
     loop {
@@ -331,10 +276,6 @@ pub async fn write_lock(root: &Path) -> WriteGuard {
     }
 }
 
-/// The same lock for the synchronous write tools. On a multi-thread runtime
-/// the wait moves off the worker (`block_in_place`); on a current-thread
-/// runtime a wait could deadlock the holder, so a busy folder answers
-/// `ERR_CODE_WORKSPACE_BUSY` instead of blocking.
 pub fn write_lock_blocking(root: &Path) -> Result<WriteGuard, String> {
     let lock = lock_for(root);
     if let Some(g) = try_take(&lock) {
@@ -377,13 +318,10 @@ fn root() -> Result<PathBuf, String> {
     workspace().ok_or_else(|| format!("{ERR_NO_WORKSPACE}: pick a workspace folder first"))
 }
 
-/// Lexical join that can never leave `root`, then a symlink check on whatever
-/// already exists along the way.
 fn join_inside(root: &Path, raw: &str) -> Result<PathBuf, String> {
     let rel = Path::new(raw.trim());
     let rel = rel.strip_prefix(root).unwrap_or(rel);
     if rel.is_absolute() {
-        // The user said yes to an `external_directory` ask for this call.
         if take_external() && !rel.components().any(|c| matches!(c, Component::ParentDir)) {
             return Ok(rel.to_path_buf());
         }
@@ -447,8 +385,6 @@ fn arg_str(a: &Value, k: &str) -> String {
 fn arg_u(a: &Value, k: &str) -> Option<usize> {
     a.get(k).and_then(Value::as_u64).map(|v| v as usize)
 }
-
-// ── read / list / glob / grep ────────────────────────────────────────────
 
 pub fn fs_read(a: &Value) -> Result<Value, String> {
     let root = root()?;
@@ -615,11 +551,6 @@ pub fn fs_grep(a: &Value) -> Result<Value, String> {
     Ok(json!({ "pattern": pattern, "matches": matches, "truncated": matches.len() >= GREP_MAX }))
 }
 
-// ── edit / write ─────────────────────────────────────────────────────────
-
-/// Candidate byte ranges of `old` inside `text`, from the strictest replacer to
-/// the most forgiving (opencode's cascade, the subset that needs no fuzzy
-/// distance): exact, per-line trimmed, whitespace-normalised, indent-flexible.
 fn find_candidates(text: &str, old: &str) -> Vec<(usize, usize)> {
     let exact: Vec<(usize, usize)> = text
         .match_indices(old)
@@ -679,10 +610,6 @@ fn levenshtein(a: &str, b: &str) -> usize {
     prev[b.len()]
 }
 
-/// opencode's BlockAnchor replacer: first and last line anchor the block, the
-/// middle is scored by Levenshtein similarity. A span whose size is out of
-/// proportion with `old` is never a candidate (the model would wipe code it
-/// never saw).
 fn block_anchor(line_spans: &[(usize, usize, &str)], old_lines: &[&str]) -> Vec<(usize, usize)> {
     if old_lines.len() < 3 {
         return Vec::new();
@@ -830,8 +757,6 @@ pub fn fs_write(a: &Value) -> Result<Value, String> {
     Ok(json!({ "path": rel_str(&root, &path), "bytes": content.len(), "created": !existed }))
 }
 
-// ── apply_patch (V4A envelope) ───────────────────────────────────────────
-
 fn find_block(lines: &[String], block: &[String], from: usize) -> Option<(usize, u32)> {
     if block.is_empty() {
         return Some((from.min(lines.len()), 0));
@@ -938,8 +863,6 @@ pub fn fs_apply_patch(a: &Value) -> Result<Value, String> {
                     }
                     i += 1;
                 }
-                // `kept` pairs a context line of the new block with its index
-                // in the old one: a fuzzy match must keep the file's own line.
                 let (mut old_block, mut new_block) = (Vec::new(), Vec::<String>::new());
                 let mut kept: Vec<(usize, usize)> = Vec::new();
                 while i < lines.len()
@@ -1003,7 +926,6 @@ pub fn fs_apply_patch(a: &Value) -> Result<Value, String> {
     if staged.is_empty() {
         return Err(format!("{ERR_PATCH}: the patch changes nothing"));
     }
-    // Everything parsed and matched: only now touch the disk.
     for (path, body, move_to) in staged {
         match (body, move_to) {
             (None, _) => std::fs::remove_file(&path).map_err(|e| e.to_string())?,
@@ -1017,10 +939,6 @@ pub fn fs_apply_patch(a: &Value) -> Result<Value, String> {
     Ok(json!({ "applied": summary }))
 }
 
-// ── shell ────────────────────────────────────────────────────────────────
-
-/// Seatbelt profile: deny by default, read anywhere, write only inside the
-/// workspace and the temp dirs, no network.
 #[cfg(target_os = "macos")]
 fn seatbelt_profile(workspace: &Path) -> String {
     let ws = workspace.to_string_lossy().replace('"', "\\\"");
@@ -1050,8 +968,6 @@ pub async fn shell_exec(a: Value) -> Result<Value, String> {
         return Err("command is empty".into());
     }
     let workdir = arg_str(&a, "workdir");
-    // Small models invent container paths (`/workspace`, `/app`). A workdir
-    // that does not exist anywhere is that; one that exists outside is refused.
     let invented = Path::new(workdir.trim()).is_absolute()
         && !Path::new(workdir.trim()).starts_with(&root)
         && !Path::new(workdir.trim()).exists();
@@ -1096,7 +1012,6 @@ pub async fn shell_exec(a: Value) -> Result<Value, String> {
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped())
         .kill_on_drop(true);
-    // One writer per folder: a command may write anywhere inside it.
     let _write = write_lock(&root).await;
     let started = std::time::Instant::now();
     let child = cmd.spawn().map_err(|e| format!("spawn: {e}"))?;
@@ -1109,7 +1024,6 @@ pub async fn shell_exec(a: Value) -> Result<Value, String> {
         Ok(r) => r.map_err(|e| e.to_string())?,
         Err(_) => return Err(format!("ERR_CODE_SHELL_TIMEOUT: killed after {timeout} ms")),
     };
-    // Keep the tail: the end of a build log is where the error is.
     let tail = |b: &[u8]| {
         let s = String::from_utf8_lossy(b).to_string();
         if s.len() > OUT_MAX {
@@ -1131,8 +1045,6 @@ pub async fn shell_exec(a: Value) -> Result<Value, String> {
     }))
 }
 
-// ── plan ─────────────────────────────────────────────────────────────────
-
 pub fn todo_write(a: &Value) -> Result<Value, String> {
     let plan = a.get("plan").cloned().unwrap_or(Value::Null);
     if !plan.is_array() {
@@ -1142,8 +1054,6 @@ pub fn todo_write(a: &Value) -> Result<Value, String> {
     Ok(json!({ "plan": plan }))
 }
 
-/// What the permission prompt shows for a call: the command, the path, or the
-/// head of the patch. Never the whole payload.
 pub fn preview(tool: &str, input: &Value) -> String {
     let s = match tool {
         "shell_exec" => arg_str(input, "command"),

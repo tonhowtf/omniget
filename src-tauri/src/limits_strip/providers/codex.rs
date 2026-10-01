@@ -1,20 +1,3 @@
-//! Codex.
-//!
-//! Credential (read only): `$CODEX_HOME/auth.json`, default `~/.codex/auth.json`
-//! on every OS (`%USERPROFILE%\.codex` on Windows). An account saved in the
-//! app reads `<its CODEX_HOME>/auth.json` and its own `sessions/`. Keys `tokens.access_token`
-//! and `tokens.account_id`. A keychain-only or API-key-only login carries no
-//! ChatGPT plan limits and reads as absent here.
-//!
-//! Live: `GET https://chatgpt.com/backend-api/wham/usage` with `Authorization:
-//! Bearer` and `ChatGPT-Account-Id`. Reply: `rate_limit.{primary_window,
-//! secondary_window}` with `used_percent`, `limit_window_seconds`, `reset_at`
-//! (epoch seconds) or `reset_after_seconds`, plus `plan_type`.
-//!
-//! Fallback, no network: the limits Codex itself wrote on its last turn into
-//! `sessions/YYYY/MM/DD/rollout-*.jsonl` (`payload.type == "token_count"`,
-//! `rate_limits.{primary,secondary}` with `window_minutes`, `resets_at`).
-
 use crate::limits_strip::{
     epoch_ms, http, json_or_error, net_err, now_ms, num, LimitWindow, ReadError, Reading, Secret,
     UsageProvider,
@@ -25,7 +8,6 @@ use std::path::{Path, PathBuf};
 const ENDPOINT: &str = "https://chatgpt.com/backend-api/wham/usage";
 const TAIL_BYTES: u64 = 256 * 1024;
 
-/// One Codex login. The default profile has `home: None`.
 pub struct Codex {
     id: String,
     home: Option<PathBuf>,
@@ -55,8 +37,6 @@ pub fn codex_home() -> Option<PathBuf> {
     crate::limits_strip::home().map(|h| h.join(".codex"))
 }
 
-/// Codex names its windows only by length, and "5h limit" says more than
-/// "primary". The primary window is not always five hours.
 pub fn label_for_minutes(minutes: Option<f64>, fallback: &str) -> String {
     let Some(m) = minutes.filter(|m| *m > 0.0) else {
         return fallback.to_string();
@@ -138,7 +118,6 @@ pub fn parse_usage(v: &serde_json::Value, now: i64) -> Vec<LimitWindow> {
     out
 }
 
-/// The last `token_count` line of a rollout log: `(windows, plan, line ts ms)`.
 pub fn parse_rollout_tail(text: &str, now: i64) -> Option<(Vec<LimitWindow>, Option<String>, i64)> {
     for line in text.lines().rev() {
         let Ok(v) = serde_json::from_str::<serde_json::Value>(line) else {
@@ -169,7 +148,6 @@ pub fn parse_rollout_tail(text: &str, now: i64) -> Option<(Vec<LimitWindow>, Opt
 }
 
 fn newest_rollout(root: &Path) -> Option<PathBuf> {
-    // sessions/YYYY/MM/DD: walk each level newest-first by name.
     fn newest_dirs(dir: &Path) -> Vec<PathBuf> {
         let mut v: Vec<PathBuf> = std::fs::read_dir(dir)
             .into_iter()

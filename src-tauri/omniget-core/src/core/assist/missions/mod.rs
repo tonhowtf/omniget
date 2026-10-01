@@ -1,26 +1,3 @@
-//! Missions: a durable objective with versioned criteria, dependent tasks,
-//! receipts tied to the artifact they checked, a journal of external effects
-//! and structured checkpoints. Built on top of what already exists: a task is
-//! dispatched as a job (`jobs.db`), each attempt is a run (`runs_*`), a group
-//! room can own the mission, and the day budget pools of `llm::budget` hold a
-//! pool per mission.
-//!
-//! The rules this module enforces, whoever calls it:
-//! - a run that ended (Stop, Length, "DONE", a convincing summary) is not an
-//!   objective met. The only way into `succeeded` is [`complete`], which
-//!   needs every required criterion of the current version to have a `pass`
-//!   receipt for the artifact as it is now ([`verify::verdict`]);
-//! - a receipt whose artifact changed afterwards is invalidated, never
-//!   reused (A03);
-//! - a task is claimed by one owner at a time, with a lease; an expired lease
-//!   is recoverable, unless the task left an effect whose outcome is unknown,
-//!   in which case the task blocks and says why (A04, A06);
-//! - dependents of a failed or cancelled task are never dispatched (A07);
-//! - cancelling stops new dispatches and reports the live attempts to cancel;
-//!   pausing is not failing;
-//! - every state change is written in one transaction with its event, and
-//!   repeating a transition to the state a mission is already in is a no-op.
-
 pub mod checkpoint;
 pub mod diag;
 pub mod hooks;
@@ -51,13 +28,9 @@ pub const ERR_MISSION_CRITERIA: &str = "ERR_MISSION_CRITERIA";
 pub const ERR_MISSION_STAGNANT: &str = "ERR_MISSION_STAGNANT";
 pub const ERR_MISSION_UNSUPPORTED: &str = "ERR_MISSION_UNSUPPORTED";
 
-/// Payloads (events, evidence) are clipped to this many bytes.
 pub const PAYLOAD_MAX: usize = 4 * 1024;
-/// Events kept per mission; later ones only bump `events_dropped`.
 pub const EVENTS_PER_MISSION_MAX: i64 = 5_000;
-/// Tasks a mission may hold (a plan is small by design).
 pub const MAX_TASKS: usize = 24;
-/// Criteria a mission may hold.
 pub const MAX_CRITERIA: usize = 16;
 
 pub const MIGRATIONS: &[Migration] = &[Migration {
@@ -184,8 +157,6 @@ CREATE TABLE missions_events (
 ",
 }];
 
-// ── States ────────────────────────────────────────────────────────────────
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum MissionState {
@@ -234,12 +205,10 @@ impl MissionState {
         Self::ALL.into_iter().find(|m| m.as_str() == s)
     }
 
-    /// Nothing moves these on (a new mission is the way to try again).
     pub fn is_final(self) -> bool {
         matches!(self, MissionState::Succeeded | MissionState::Cancelled)
     }
 
-    /// States in which the driver may dispatch work.
     pub fn is_active(self) -> bool {
         matches!(
             self,
@@ -247,9 +216,6 @@ impl MissionState {
         )
     }
 
-    /// The state machine. Same state is a no-op, not an error. `succeeded`
-    /// is only reachable from `verifying`, and [`complete`] is the only
-    /// caller that asks for it.
     pub fn can_go(self, to: MissionState) -> bool {
         use MissionState::*;
         if self == to {
@@ -266,7 +232,6 @@ impl MissionState {
                 to,
                 Running | Succeeded | Blocked | Partial | Failed | Paused | Cancelled
             ),
-            // A person (or a resolved block) puts these back in the queue.
             Blocked | Paused | Partial | Failed => matches!(to, Queued | Cancelled),
             Succeeded | Cancelled => false,
         }
@@ -276,16 +241,13 @@ impl MissionState {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum TaskState {
-    /// Waiting for its dependencies or a claim.
     Pending,
     Claimed,
     Running,
     Done,
     Failed,
     Cancelled,
-    /// Never dispatched because a dependency failed or was cancelled.
     Skipped,
-    /// Needs a person: an effect of unknown outcome, a missing capability.
     Blocked,
 }
 
@@ -312,8 +274,6 @@ impl TaskState {
             "skipped" => TaskState::Skipped,
             "blocked" => TaskState::Blocked,
             "pending" => TaskState::Pending,
-            // A state this build does not know is never dispatchable: it
-            // needs a person, like a blocked task (and never allows success).
             _ => TaskState::Blocked,
         }
     }
@@ -326,7 +286,6 @@ impl TaskState {
             TaskState::Done | TaskState::Failed | TaskState::Cancelled | TaskState::Skipped
         )
     }
-    /// A dependency in this state stops its dependents for good.
     pub fn poisons(self) -> bool {
         matches!(
             self,
@@ -335,20 +294,13 @@ impl TaskState {
     }
 }
 
-// ── Criteria ──────────────────────────────────────────────────────────────
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum CriterionKind {
-    /// A command/test run in the mission workspace; pass = exit 0.
     Command,
-    /// A file (or files) with checks on its content or shape.
     Artifact,
-    /// A fact recorded by an assistant tool (a reading round, …).
     ToolResult,
-    /// A subjective judgement with a visible rubric. Never shown as proof.
     Rubric,
-    /// A person accepts or rejects.
     Human,
 }
 
@@ -372,7 +324,6 @@ impl CriterionKind {
             _ => return None,
         })
     }
-    /// Whether a machine can decide it without judgement.
     pub fn is_objective(self) -> bool {
         matches!(
             self,
@@ -389,28 +340,21 @@ pub enum Severity {
     Advisory,
 }
 
-/// Who decides a criterion once its verifier ran.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum Acceptance {
-    /// The verifier's receipt decides.
     #[default]
     Auto,
-    /// A person decides (rubric shown; a review can inform, not decide).
     Human,
-    /// One recorded review with confidence is enough (opt-in per criterion).
     SingleReview,
 }
 
-/// Where a criterion came from. Only `user` and `preset` criteria may run a
-/// command: text from a page, a skill or an import is data, never authority.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum Origin {
     #[default]
     User,
     Preset,
-    /// Proposed by a model: shown, not executable until a person approves it.
     Proposed,
     Import,
 }
@@ -439,7 +383,6 @@ pub struct Criterion {
 }
 
 impl Criterion {
-    /// Paths (relative to the workspace) whose content the verdict depends on.
     pub fn artifact_paths(&self) -> Vec<String> {
         let mut out: Vec<String> = Vec::new();
         if let Some(p) = self.spec.get("path").and_then(Value::as_str) {
@@ -454,8 +397,6 @@ impl Criterion {
     }
 }
 
-// ── Records ───────────────────────────────────────────────────────────────
-
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct MissionBudget {
@@ -469,32 +410,20 @@ pub struct MissionBudget {
 #[serde(default)]
 pub struct MissionSpent {
     pub usd_known: f64,
-    /// Calls whose cost the provider did not report: never shown as free.
     pub unknown_cost_calls: u32,
     pub tokens: u64,
     pub turns: u32,
-    /// Spend by purpose (`work`, `review`, `summary`, `learning`).
     pub by_purpose: std::collections::BTreeMap<String, u64>,
-    /// Milliseconds of work in finished activations: the clock
-    /// `max_minutes` counts. Running and automated verification are work;
-    /// paused/blocked/queued time and time in `verifying` waiting only for a
-    /// person's decision are not.
     pub active_ms: u64,
-    /// Start of the current activation; `None` while the clock is stopped
-    /// (including a `verifying` mission that waits for a person).
     pub active_since_ms: Option<i64>,
 }
 
-/// Folds the current activation into `active_ms` and stops the clock.
 pub(crate) fn stop_clock(spent: &mut MissionSpent, now: i64) {
     if let Some(since) = spent.active_since_ms.take() {
         spent.active_ms += (now - since).max(0) as u64;
     }
 }
 
-/// Restarts the work clock of a `verifying` mission whose clock stopped while
-/// it waited for a person, because automated verification runs again (a
-/// re-check after an acceptance, a boot). No-op in any other state.
 pub fn start_clock(db: &AssistDb, mission_id: &str) -> Result<Mission, String> {
     db.tx(|tx| {
         let mut m = get_tx(tx, mission_id)?;
@@ -510,8 +439,6 @@ pub fn start_clock(db: &AssistDb, mission_id: &str) -> Result<Mission, String> {
     })
 }
 
-/// Work time of the mission up to `now` (F7): running, plus verifying while
-/// automated checks run. Time waiting for a person's decision is not work.
 pub fn active_ms(m: &Mission, now: i64) -> u64 {
     m.spent.active_ms
         + m.spent
@@ -527,7 +454,6 @@ pub struct Mission {
     pub bot_id: Option<String>,
     pub room_id: Option<String>,
     pub conversation_id: String,
-    /// `user_ui`, `chat:<conversation>`, `trigger:<id>`, `mcp`.
     pub auth_origin: String,
     pub objective: String,
     pub state: MissionState,
@@ -536,11 +462,8 @@ pub struct Mission {
     pub spent: MissionSpent,
     pub workspace: Option<String>,
     pub context_kind: String,
-    /// Account/cwd/runtime pinned when the mission first ran.
     pub pins: Option<Value>,
-    /// The user allowed a replay on a different account/folder/runtime.
     pub allow_replay: bool,
-    /// Why the mission is blocked/partial/failed ([`diag::Diagnosis`]).
     pub block: Option<Value>,
     pub result: Option<Value>,
     pub revision: i64,
@@ -584,10 +507,8 @@ pub struct MissionReceipt {
     pub artifact_digest: String,
     pub verifier: String,
     pub verifier_version: String,
-    /// `pass|fail|unknown`
     pub status: String,
     pub exit_code: Option<i64>,
-    /// Rubric reviews only: `low|medium|high`.
     pub confidence: Option<String>,
     pub evidence: String,
     pub created_ms: i64,
@@ -603,8 +524,6 @@ pub enum EffectState {
     Confirmed,
     Failed,
     Unknown,
-    /// Outcome still unknown, and a person chose to go on anyway: settled
-    /// by that recorded decision (never shown as confirmed).
     UnknownAccepted,
 }
 
@@ -629,7 +548,6 @@ impl EffectState {
             _ => EffectState::Unknown,
         }
     }
-    /// Settled: nothing is waiting to learn what happened.
     pub fn is_settled(self) -> bool {
         matches!(
             self,
@@ -668,7 +586,6 @@ pub struct MissionEvent {
     pub ts_ms: i64,
 }
 
-/// Everything the UI shows for one mission.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct MissionDetail {
     pub mission: Mission,
@@ -681,12 +598,9 @@ pub struct MissionDetail {
     pub events: Vec<MissionEvent>,
 }
 
-// ── Input ─────────────────────────────────────────────────────────────────
-
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(default)]
 pub struct NewTask {
-    /// Caller-chosen key, so `deps` can name tasks of the same draft.
     pub key: String,
     pub title: String,
     pub input: String,
@@ -707,11 +621,8 @@ pub struct NewMission {
     pub tasks: Vec<NewTask>,
     pub budget: MissionBudget,
     pub workspace: Option<String>,
-    /// Start in `queued` instead of `draft`.
     pub start: bool,
 }
-
-// ── Helpers ───────────────────────────────────────────────────────────────
 
 pub(crate) fn clip(s: &str, max: usize) -> String {
     if s.len() <= max {
@@ -880,8 +791,6 @@ fn enum_str<T: Serialize>(v: &T) -> String {
         .unwrap_or_default()
 }
 
-// ── Validation ────────────────────────────────────────────────────────────
-
 fn valid_key(s: &str) -> bool {
     !s.is_empty()
         && s.len() <= 64
@@ -889,7 +798,6 @@ fn valid_key(s: &str) -> bool {
             .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
 }
 
-/// Checks a criteria set before it is stored. Returns the normalised list.
 pub fn validate_criteria(criteria: &[Criterion]) -> Result<Vec<Criterion>, String> {
     if criteria.len() > MAX_CRITERIA {
         return Err(input_err(format!("at most {MAX_CRITERIA} criteria")));
@@ -960,8 +868,6 @@ pub fn validate_criteria(criteria: &[Criterion]) -> Result<Vec<Criterion>, Strin
                         c.id
                     )));
                 }
-                // A rubric is judgement: it never decides alone unless the
-                // criterion says one review is enough.
                 if c.acceptance == Acceptance::Auto {
                     c.acceptance = Acceptance::Human;
                 }
@@ -997,7 +903,6 @@ fn plan_tasks(tasks: &[NewTask]) -> Result<Vec<(String, NewTask, Vec<String>)>, 
         ids.insert(key.clone(), new_id());
         keyed.push((key, t.clone()));
     }
-    // Dependencies name earlier keys only: no cycles by construction.
     let mut out = Vec::new();
     let mut earlier: std::collections::HashSet<String> = std::collections::HashSet::new();
     for (key, t) in keyed {
@@ -1016,10 +921,6 @@ fn plan_tasks(tasks: &[NewTask]) -> Result<Vec<(String, NewTask, Vec<String>)>, 
     Ok(out)
 }
 
-// ── Events ────────────────────────────────────────────────────────────────
-
-/// One event to append. `event_id` makes it idempotent: the same id twice
-/// is stored once.
 #[derive(Debug, Clone, Default)]
 pub struct NewEvent {
     pub event_id: Option<String>,
@@ -1041,8 +942,6 @@ impl NewEvent {
     }
 }
 
-/// Appends inside a transaction. Returns `None` when the event id was
-/// already stored or the mission reached its event cap.
 pub fn append_event_tx(
     tx: &Transaction,
     mission_id: &str,
@@ -1069,9 +968,6 @@ pub fn append_event_tx(
             |r| Ok((r.get(0)?, r.get::<_, Option<i64>>(1)?.unwrap_or(0))),
         )
         .map_err(e)?;
-    // Lifecycle events are never dropped: a client following the cursor must
-    // always see the state changes and the end (F10). Chatty kinds
-    // (after_tool, …) are what the cap drops.
     if n >= EVENTS_PER_MISSION_MAX && !is_lifecycle_event(&ev.kind) {
         tx.execute(
             "UPDATE missions_missions SET events_dropped = events_dropped + 1 WHERE id = ?1",
@@ -1107,7 +1003,6 @@ pub fn append_event_tx(
     Ok(Some(id))
 }
 
-/// Kinds the event cap never drops.
 pub fn is_lifecycle_event(kind: &str) -> bool {
     matches!(
         kind,
@@ -1122,9 +1017,6 @@ pub fn is_lifecycle_event(kind: &str) -> bool {
     )
 }
 
-/// Secrets and home paths out of every string of a payload before it is
-/// stored (C11). Keys are kept: event keys such as `key` (an effect key) or
-/// `policy` are identifiers, not secrets.
 pub(crate) fn redact_strings(v: Value) -> Value {
     match v {
         Value::String(s) => Value::String(diag::redact(&s)),
@@ -1159,7 +1051,6 @@ pub fn events(
     })
 }
 
-/// The newest `limit` events, oldest first.
 pub fn recent_events(
     db: &AssistDb,
     mission_id: &str,
@@ -1176,17 +1067,10 @@ pub fn recent_events(
     Ok(out)
 }
 
-// ── Missions ──────────────────────────────────────────────────────────────
-
-/// Creates a mission with its criteria (version 1) and tasks, in one
-/// transaction. A mission needs at least one required criterion: without
-/// one there is nothing that could ever make it `succeeded`.
 pub fn create(db: &AssistDb, new: NewMission) -> Result<MissionDetail, String> {
     create_inner(db, new, None)
 }
 
-/// One regular file with explicit checks; directory manifests and executable
-/// predicates cannot widen an external grant through the verifier.
 pub fn external_criterion_allowed(c: &Criterion) -> Result<(), String> {
     if c.kind != CriterionKind::Artifact || c.acceptance != Acceptance::Auto {
         return Err("EXTERNAL_CRITERION_NOT_GRANTED".into());
@@ -1207,10 +1091,6 @@ struct ExternalBinding {
     key: String,
     fingerprint: String,
 }
-/// External creation uses the existing mission transaction: identity, grant
-/// binding, criteria, tasks and idempotency receipt are committed together.
-/// The caller authenticates the principal; a locally issued live ceiling is
-/// still mandatory here, independently of any projection/schema.
 pub fn create_external(
     db: &AssistDb,
     mut new: NewMission,
@@ -1224,7 +1104,6 @@ pub fn create_external(
     }
     let grant = super::authority::get(db, grant_id, principal)?;
     let bot = new.bot_id.as_deref().ok_or("EXECUTOR_REQUIRED")?;
-    // A derived bot (C02) runs under the same grant and ledger as its source.
     let granted =
         grant.bots.iter().any(|b| b == bot) || super::authority::for_bot(db, &grant, bot).is_ok();
     if !granted
@@ -1360,8 +1239,6 @@ fn create_inner(
                 state.as_str(),
                 serde_json::to_string(&new.budget).unwrap_or_else(|_| "{}".into()),
                 new.workspace.clone().filter(|w| !w.trim().is_empty()).map(|w| {
-                    // Canonical: descriptor-pinned checks refuse symlinked
-                    // ancestors (`/var` → `/private/var` on macOS).
                     std::fs::canonicalize(&w).map(|p| p.to_string_lossy().to_string()).unwrap_or(w)
                 }),
                 context_kind,
@@ -1478,7 +1355,6 @@ pub fn list(db: &AssistDb, f: &ListFilter) -> Result<Vec<Mission>, String> {
     })
 }
 
-/// Criteria of one version (the current one when `version` is `None`).
 pub fn criteria(
     db: &AssistDb,
     mission_id: &str,
@@ -1497,8 +1373,6 @@ pub fn criteria(
     })
 }
 
-/// Replaces the criteria with a new version. Receipts of the old version stay
-/// in the history but no longer count; the mission goes back to work.
 pub fn revise_criteria(
     db: &AssistDb,
     mission_id: &str,
@@ -1532,8 +1406,6 @@ pub fn revise_criteria(
     })
 }
 
-/// Moves a mission to `to`. `expected_revision` guards against a stale
-/// writer (the UI passes what it showed). Same state = no-op.
 pub fn transition(
     db: &AssistDb,
     mission_id: &str,
@@ -1593,11 +1465,6 @@ fn transition_tx(
         None if keep_block => m.block.as_ref().map(|b| b.to_string()),
         None => None,
     };
-    // The active clock: only running time and automated verification count
-    // (F7). Entering running/verifying starts it (unless it already runs);
-    // leaving them stops it. Waiting for a person inside `verifying` stops it
-    // too ([`complete`] calls [`stop_clock`]), and whatever resumes the
-    // mission from there (another round, a re-check) restarts it here.
     let working = |s: MissionState| matches!(s, MissionState::Running | MissionState::Verifying);
     let mut spent = m.spent.clone();
     if !working(to) {
@@ -1630,8 +1497,6 @@ fn transition_tx(
     get_tx(tx, mission_id)
 }
 
-/// Moves the mission to `blocked`/`partial`/`failed` with a structured
-/// diagnosis the UI can show and act on.
 pub fn block(
     db: &AssistDb,
     mission_id: &str,
@@ -1654,8 +1519,6 @@ pub fn block(
     })
 }
 
-/// Pins the account/cwd/runtime the first time the mission runs and refuses
-/// a later resume on different pins unless the user allowed a replay (A11).
 pub fn check_pins(db: &AssistDb, mission_id: &str, current: &Value) -> Result<Mission, String> {
     db.tx(|tx| {
         let m = get_tx(tx, mission_id)?;
@@ -1704,7 +1567,6 @@ fn pin_label(v: &Value) -> String {
     )
 }
 
-/// Same runtime, account and folder (missing keys compare as "none").
 pub fn pins_compatible(a: &Value, b: &Value) -> bool {
     ["runtime", "account", "cwd"]
         .iter()
@@ -1723,7 +1585,6 @@ pub fn allow_replay(db: &AssistDb, mission_id: &str) -> Result<Mission, String> 
     })
 }
 
-/// Books what one call really used, by purpose. Unknown cost stays unknown.
 pub fn book_spend(
     db: &AssistDb,
     mission_id: &str,
@@ -1750,8 +1611,6 @@ pub fn book_spend(
     })
 }
 
-/// A person changes the mission's limits (e.g. more minutes after the time
-/// limit blocked it). Local decision, recorded; never lowers what was spent.
 pub fn revise_budget(
     db: &AssistDb,
     mission_id: &str,
@@ -1772,9 +1631,6 @@ pub fn revise_budget(
     })
 }
 
-/// After a person raised the limits: tasks that were stopped only by a
-/// budget/time limit (never by an unknown effect) go back to pending with
-/// fresh attempts, so resuming actually continues. Returns how many.
 pub fn reopen_budget_blocked(db: &AssistDb, mission_id: &str) -> Result<usize, String> {
     db.tx(|tx| {
         let n = tx
@@ -1793,8 +1649,6 @@ pub fn reopen_budget_blocked(db: &AssistDb, mission_id: &str) -> Result<usize, S
     })
 }
 
-/// Budget pool id of a mission in `llm::budget` (work, review, summary and
-/// learning calls all reserve here).
 pub fn budget_pool(mission_id: &str) -> String {
     format!("mission:{mission_id}")
 }
@@ -1818,7 +1672,6 @@ pub fn set_result(db: &AssistDb, mission_id: &str, result: &Value) -> Result<(),
     Ok(())
 }
 
-/// Deletes a mission and everything under it (cascade).
 pub fn delete(db: &AssistDb, mission_id: &str) -> Result<(), String> {
     let m = get(db, mission_id)?;
     if m.state.is_active() {
@@ -1841,8 +1694,6 @@ pub fn detail(db: &AssistDb, id: &str) -> Result<MissionDetail, String> {
     let tasks = tasks(db, id)?;
     let receipts = receipts(db, id)?;
     let effects = effects(db, id)?;
-    // The artifacts as they are now: a quick view that trusts stored
-    // receipts would show a stale pass (or hide a real one).
     let ws = mission.workspace.clone().map(std::path::PathBuf::from);
     let since = mission.created_ms;
     let dflt = |c: &Criterion| verify::digest_for(Some(db), ws.as_deref(), c, since);
@@ -1860,8 +1711,6 @@ pub fn detail(db: &AssistDb, id: &str) -> Result<MissionDetail, String> {
         events,
     })
 }
-
-// ── Tasks ─────────────────────────────────────────────────────────────────
 
 pub fn tasks(db: &AssistDb, mission_id: &str) -> Result<Vec<MissionTask>, String> {
     db.with(|c| {
@@ -1896,13 +1745,10 @@ fn task_tx(tx: &Transaction, task_id: &str) -> Result<MissionTask, String> {
     .ok_or_else(|| format!("{ERR_MISSION_NOT_FOUND}: no task {task_id}"))
 }
 
-/// Marks every pending task whose dependency failed/was cancelled/skipped as
-/// `skipped`, so it is never dispatched (A07). Returns the ids changed.
 pub fn skip_poisoned(db: &AssistDb, mission_id: &str) -> Result<Vec<String>, String> {
     db.tx(|tx| skip_poisoned_tx(tx, mission_id))
 }
 
-// Task/effect mutations participate in completion's optimistic revision check.
 fn bump_work_revision_tx(tx: &Transaction, mission_id: &str) -> Result<(), String> {
     tx.execute(
         "UPDATE missions_missions SET revision=revision+1, updated_ms=?2 WHERE id=?1",
@@ -1958,7 +1804,6 @@ fn skip_poisoned_tx(tx: &Transaction, mission_id: &str) -> Result<Vec<String>, S
     Ok(changed)
 }
 
-/// Pending tasks whose dependencies are all done (dispatch order).
 pub fn ready_tasks(db: &AssistDb, mission_id: &str) -> Result<Vec<MissionTask>, String> {
     let all = tasks(db, mission_id)?;
     let done: std::collections::HashSet<&str> = all
@@ -1975,10 +1820,6 @@ pub fn ready_tasks(db: &AssistDb, mission_id: &str) -> Result<Vec<MissionTask>, 
         .collect())
 }
 
-/// Claims a task for `owner` with a lease. One owner at a time: the update
-/// only matches a pending task whose dependencies are done, or a live task
-/// whose lease ran out. A task whose previous attempt left an effect of
-/// unknown outcome is not reclaimed: it blocks (A04, A06).
 pub fn claim(
     db: &AssistDb,
     task_id: &str,
@@ -2003,7 +1844,6 @@ pub fn claim(
                 t.owner.as_deref().unwrap_or("-")
             ));
         }
-        // Dependencies must be done.
         for d in &t.deps {
             let s: Option<String> = tx
                 .query_row("SELECT state FROM missions_tasks WHERE id = ?1", params![d], |r| r.get(0))
@@ -2067,7 +1907,6 @@ pub fn claim(
     })
 }
 
-/// Extends the lease of a task still owned by `owner`.
 pub fn heartbeat(
     db: &AssistDb,
     task_id: &str,
@@ -2084,7 +1923,6 @@ pub fn heartbeat(
     Ok(n == 1)
 }
 
-/// The owner reports that the attempt is running (with the job it started).
 pub fn task_started(
     db: &AssistDb,
     task_id: &str,
@@ -2096,9 +1934,6 @@ pub fn task_started(
         if t.owner.as_deref() != Some(owner) || !t.state.is_live() {
             return Err(format!("{ERR_MISSION_CLAIMED}: task {task_id} is not owned by {owner}"));
         }
-        // Checked in the same transaction that records the job: a pause or
-        // cancel either lands before (this refuses, nothing is dispatched)
-        // or after (it sees the job in `live_jobs` and stops it). F2.
         let m = get_tx(tx, &t.mission_id)?;
         if !matches!(m.state, MissionState::Running | MissionState::Verifying) {
             return Err(format!(
@@ -2121,34 +1956,16 @@ pub fn task_started(
     })
 }
 
-/// How one attempt ended.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum TaskEnd {
-    /// The run finished. This says nothing about the criteria.
-    Done {
-        result: String,
-    },
-    /// Failed; `retryable` puts it back to pending while attempts remain.
-    Failed {
-        error: String,
-        retryable: bool,
-    },
+    Done { result: String },
+    Failed { error: String, retryable: bool },
     Cancelled,
-    Blocked {
-        reason: String,
-    },
-    /// Stopped by a pause (or before it was dispatched): back to pending
-    /// without spending the attempt, dependents untouched. F1.
-    Interrupted {
-        reason: String,
-    },
+    Blocked { reason: String },
+    Interrupted { reason: String },
 }
 
-/// Gives a claimed task back without spending its attempt (it never ran:
-/// the mission was paused/cancelled before dispatch, or the budget asked it
-/// to wait for a reservation in flight). A late call from a non-owner is a
-/// no-op error.
 pub fn release_claim(
     db: &AssistDb,
     task_id: &str,
@@ -2174,15 +1991,12 @@ pub fn finish_task(
     db.tx(|tx| {
         let t = task_tx(tx, task_id)?;
         if t.owner.as_deref() != Some(owner) {
-            // A late report from an owner who lost the lease changes nothing.
             return Err(format!("{ERR_MISSION_CLAIMED}: task {task_id} is not owned by {owner}"));
         }
         if !t.state.is_live() {
             return Ok(t);
         }
         let now = now_ms();
-        // A job stopped because its mission was paused is an interruption,
-        // not a cancellation: pausing is not failing (F1).
         let paused = get_tx(tx, &t.mission_id)?.state == MissionState::Paused;
         let end = match end {
             TaskEnd::Cancelled if paused => TaskEnd::Interrupted { reason: "paused".into() },
@@ -2217,10 +2031,6 @@ pub fn finish_task(
     })
 }
 
-/// A person puts a blocked task back in the queue (after reviewing what the
-/// unknown effect did). `confirmed` settles the open effects: `Some(true)`
-/// = it happened, `Some(false)` = it did not, `None` = leave them unknown
-/// and continue anyway (explicit choice, recorded).
 pub fn unblock_task(
     db: &AssistDb,
     task_id: &str,
@@ -2233,9 +2043,6 @@ pub fn unblock_task(
             return Err(format!("{ERR_MISSION_STATE}: task {task_id} is {}", t.state.as_str()));
         }
         let now = now_ms();
-        // `None` ("continue anyway") is a decision too: the open effects are
-        // settled as `unknown_accepted`, recorded, so completion and resume
-        // can go on (F4). The outcome stays unknown in the journal.
         let settle_as = match confirmed {
             Some(true) => "confirmed",
             Some(false) => "failed",
@@ -2270,17 +2077,13 @@ pub fn unblock_task(
     })
 }
 
-/// Result of [`cancel`]: the jobs still running that the caller must stop.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct CancelOutcome {
     pub mission: Option<Mission>,
     pub cancelled_tasks: Vec<String>,
-    /// Jobs of tasks that were live: stop them (the driver does).
     pub live_jobs: Vec<String>,
 }
 
-/// Cancels the mission: no new dispatch, pending and live tasks cancelled,
-/// finished tasks kept as they are (A07).
 pub fn cancel(db: &AssistDb, mission_id: &str, reason: &str) -> Result<CancelOutcome, String> {
     db.tx(|tx| {
         let m = get_tx(tx, mission_id)?;
@@ -2306,8 +2109,6 @@ pub fn cancel(db: &AssistDb, mission_id: &str, reason: &str) -> Result<CancelOut
                 }
             }
             if t.state == TaskState::Claimed {
-                // Claimed, never started: its job was prepared at most, and
-                // `task_started` now refuses it. Its effect did not happen.
                 settle_undispatched_tx(tx, &t.id, "not dispatched: mission cancelled", now)?;
             }
             tx.execute(
@@ -2328,8 +2129,6 @@ pub fn cancel(db: &AssistDb, mission_id: &str, reason: &str) -> Result<CancelOut
     })
 }
 
-/// Settles the open effects of a task that was claimed but never started:
-/// `task_started` is the only way to dispatch, so they did not happen.
 fn settle_undispatched_tx(
     tx: &Transaction,
     task_id: &str,
@@ -2358,8 +2157,6 @@ fn settle_undispatched_tx(
     Ok(())
 }
 
-/// Pauses: live attempts are reported to stop, pending tasks wait. Resuming
-/// puts the mission back in the queue.
 pub fn pause(db: &AssistDb, mission_id: &str) -> Result<CancelOutcome, String> {
     db.tx(|tx| {
         let m = get_tx(tx, mission_id)?;
@@ -2377,14 +2174,10 @@ pub fn pause(db: &AssistDb, mission_id: &str) -> Result<CancelOutcome, String> {
         let now = now_ms();
         for t in &live {
             if t.state == TaskState::Running {
-                // Running: the driver stops the job; the task comes back as
-                // pending when it reports (finish_task, F1).
                 if let Some(j) = t.job_ids.last() {
                     out.live_jobs.push(j.clone());
                 }
             } else {
-                // Claimed, not started: nothing was dispatched. Back to
-                // pending now, attempt refunded, effect settled (F1/F2).
                 settle_undispatched_tx(tx, &t.id, "not dispatched: mission paused", now)?;
                 tx.execute(
                     "UPDATE missions_tasks SET state = 'pending', owner = NULL, lease_until_ms = NULL, error = 'paused before dispatch', \
@@ -2401,8 +2194,6 @@ pub fn pause(db: &AssistDb, mission_id: &str) -> Result<CancelOutcome, String> {
     })
 }
 
-/// Blocked/paused/partial/failed → queued. Failed tasks with attempts left
-/// go back to pending; skipped dependents are reconsidered.
 pub fn resume(db: &AssistDb, mission_id: &str, note: &str) -> Result<Mission, String> {
     db.tx(|tx| {
         let m = get_tx(tx, mission_id)?;
@@ -2413,9 +2204,6 @@ pub fn resume(db: &AssistDb, mission_id: &str, note: &str) -> Result<Mission, St
             return Err(format!("{ERR_MISSION_STATE}: cannot resume a {} mission", m.state.as_str()));
         }
         let now = now_ms();
-        // A person resuming is a decision to try again: the newest failed
-        // task gets a fresh set of attempts (older failed rounds stay as
-        // history).
         tx.execute(
             "UPDATE missions_tasks SET state = 'pending', error = NULL, attempts = 0, updated_ms = ?2 \
              WHERE id = (SELECT id FROM missions_tasks WHERE mission_id = ?1 ORDER BY position DESC LIMIT 1) AND state = 'failed'",
@@ -2435,7 +2223,6 @@ pub fn resume(db: &AssistDb, mission_id: &str, note: &str) -> Result<Mission, St
             )
             .map_err(e)?;
         }
-        // A task left live by a paused driver starts over only if nothing unknown.
         tx.execute(
             "UPDATE missions_tasks SET state = 'pending', owner = NULL, lease_until_ms = NULL, updated_ms = ?2 \
              WHERE mission_id = ?1 AND state IN ('claimed','running') \
@@ -2448,22 +2235,14 @@ pub fn resume(db: &AssistDb, mission_id: &str, note: &str) -> Result<Mission, St
     })
 }
 
-// ── Effects journal ───────────────────────────────────────────────────────
-
 #[derive(Debug, Clone, PartialEq)]
 pub enum EffectAdmission {
-    /// First time: go ahead, then settle it.
     New(Effect),
-    /// Already confirmed: do not act again; here is what happened.
     Done(Effect),
-    /// A previous attempt may have acted; nobody knows. Do not act.
     Unknown(Effect),
-    /// It failed before: acting again is a new attempt (allowed).
     Retry(Effect),
 }
 
-/// Records the intent to cause an external effect under a stable key
-/// (idempotency key). Same key with a different fingerprint is refused.
 pub fn effect_begin(
     db: &AssistDb,
     mission_id: &str,
@@ -2507,7 +2286,6 @@ pub fn effect_begin(
                     bump_work_revision_tx(tx, &x.mission_id)?;
                     EffectAdmission::Retry(x)
                 }
-                // Running under this very process: still ours, same answer.
                 EffectState::Running | EffectState::Pending if x.instance_id == instance => {
                     EffectAdmission::Unknown(x)
                 }
@@ -2600,23 +2378,14 @@ pub fn effects(db: &AssistDb, mission_id: &str) -> Result<Vec<Effect>, String> {
     })
 }
 
-/// What [`reconcile`] did after a restart.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct Reconciled {
-    /// Effects the probe settled (confirmed or failed).
     pub settled: Vec<String>,
-    /// Effects left unknown; their tasks are blocked.
     pub unknown: Vec<String>,
     pub blocked_tasks: Vec<String>,
-    /// Missions that were active and are now blocked or re-queued.
     pub missions: Vec<String>,
 }
 
-/// After a restart: every effect another process left running is probed
-/// (`probe` asks the outside world; `None` = cannot tell). Confirmed/failed
-/// settle; the rest become unknown and their tasks block, with the reason.
-/// Active missions whose tasks were live go back to the queue (their
-/// unaffected tasks restart) or block when something is unknown.
 pub fn reconcile(
     db: &AssistDb,
     instance: &str,
@@ -2648,7 +2417,6 @@ pub fn reconcile(
             }
         }
     }
-    // Live tasks of a dead process.
     let live: Vec<MissionTask> = db.with(|c| {
         let mut st = c.prepare(&format!(
             "SELECT {TASK_COLS} FROM missions_tasks WHERE state IN ('claimed','running')"
@@ -2673,8 +2441,6 @@ pub fn reconcile(
             .filter(|x| x.state == EffectState::Unknown)
             .map(|x| x.key.clone())
             .collect();
-        // The newest attempt finished and the probe confirmed it: the task
-        // is done (its result is read back from the job), not re-run.
         let confirmed = mine
             .iter()
             .max_by_key(|x| x.created_ms)
@@ -2715,7 +2481,6 @@ pub fn reconcile(
             out.missions.push(t.mission_id.clone());
         }
     }
-    // Missions that were running: blocked if a task is blocked, else queued.
     let active: Vec<Mission> = db.with(|c| {
         let mut st = c.prepare(&format!(
             "SELECT {MISSION_COLS} FROM missions_missions WHERE state IN ('running','verifying')"
@@ -2730,7 +2495,6 @@ pub fn reconcile(
             block(db, &m.id, MissionState::Blocked, &d)?;
         } else {
             db.tx(|tx| {
-                // running → blocked → queued keeps the state machine honest.
                 transition_tx(
                     tx,
                     &m.id,
@@ -2756,8 +2520,6 @@ pub fn reconcile(
     Ok(out)
 }
 
-// ── Receipts ──────────────────────────────────────────────────────────────
-
 #[derive(Debug, Clone, Default)]
 pub struct NewReceipt {
     pub mission_id: String,
@@ -2775,8 +2537,6 @@ pub struct NewReceipt {
     pub evidence: String,
 }
 
-/// Stores one verification receipt. Evidence is redacted and clipped here,
-/// whoever produced it.
 pub fn record_receipt(db: &AssistDb, r: NewReceipt) -> Result<MissionReceipt, String> {
     if !matches!(r.status.as_str(), "pass" | "fail" | "unknown" | "partial") {
         return Err(input_err(
@@ -2786,10 +2546,6 @@ pub fn record_receipt(db: &AssistDb, r: NewReceipt) -> Result<MissionReceipt, St
     let id = new_id();
     let now = now_ms();
     let evidence = clip(&diag::redact(&r.evidence), 8 * 1024);
-    // A judgement with no declared artifact (a person accepting, a rubric
-    // review) is bound to the revision of what the mission delivered when it
-    // was recorded, never to the constant "none": the next round makes it
-    // stale (F3).
     let mut r = r;
     if let Some(c) = criteria(db, &r.mission_id, Some(r.criterion_version))?
         .iter()
@@ -2854,10 +2610,6 @@ pub fn receipts(db: &AssistDb, mission_id: &str) -> Result<Vec<MissionReceipt>, 
     })
 }
 
-/// Invalidates every live receipt whose artifact changed since it was
-/// recorded (`current` gives the digest now; `None` = cannot tell, which
-/// also invalidates: an unverifiable artifact is not a pass). Returns the
-/// receipts invalidated (A03).
 pub fn invalidate_stale(
     db: &AssistDb,
     mission_id: &str,
@@ -2910,17 +2662,10 @@ fn short(d: &str) -> &str {
     &d[..d.len().min(10)]
 }
 
-/// A criterion decided by judgement (a person, a rubric review) that names
-/// no artifact: what it judged is "what the mission delivered".
 pub fn judged_without_artifact(c: &Criterion) -> bool {
     matches!(c.kind, CriterionKind::Human | CriterionKind::Rubric) && c.artifact_paths().is_empty()
 }
 
-/// Revision of what the mission delivered: the digests of every other
-/// criterion's artifact now, plus each finished task (its attempts, jobs and
-/// result). Another round, a changed artifact or a recovered result gives a
-/// different revision. `None` when an artifact cannot be read (never a
-/// match).
 pub fn revision_digest(
     db: &AssistDb,
     mission_id: &str,
@@ -2953,8 +2698,6 @@ pub fn revision_digest(
     Some(format!("rev:{}", hex::encode(Sha256::digest(&bytes))))
 }
 
-/// `current`, with judged-without-artifact criteria bound to
-/// [`revision_digest`] instead of whatever the caller computed for them.
 pub fn with_revision<'a>(
     db: &'a AssistDb,
     mission_id: &'a str,
@@ -2969,12 +2712,6 @@ pub fn with_revision<'a>(
     }
 }
 
-/// Tries to finish the mission. Moves `running → verifying`, then:
-/// every required criterion passes for the current artifacts → `succeeded`;
-/// something waits for a person → stays `verifying` with the work clock
-/// stopped (waiting is not work, F7); otherwise → back to
-/// `running` (the caller decides whether another round or a block follows).
-/// The model's own words are not an input here.
 pub fn complete(
     db: &AssistDb,
     mission_id: &str,
@@ -2995,9 +2732,6 @@ pub fn complete(
             return Err(format!("{ERR_MISSION_REVISION}: mission changed during verification; verify the current revision"));
         }
         if verdict.passed {
-            // Terminal failed/cancelled/skipped tasks do not override passing
-            // required criteria. Pending/live/blocked or unrecognized states
-            // can still change artifacts and must never permit success.
             let unfinished: bool = tx.query_row(
                 "SELECT EXISTS(SELECT 1 FROM missions_tasks WHERE mission_id=?1 AND state NOT IN ('done','failed','cancelled','skipped'))",
                 params![mission_id], |r| r.get(0)).map_err(e)?;
@@ -3020,8 +2754,6 @@ pub fn complete(
             append_event_tx(tx, mission_id, NewEvent::new("mission_finished", json!({ "state": "succeeded" })))?;
             Ok(m)
         } else if !verdict.awaiting_human.is_empty() && verdict.failing.is_empty() && verdict.missing.is_empty() {
-            // Only a person's decision is left: the automated part is done,
-            // so the work clock stops until something resumes the mission.
             let mut m = get_tx(tx, mission_id)?;
             if m.spent.active_since_ms.is_some() {
                 stop_clock(&mut m.spent, now_ms());
@@ -3033,8 +2765,6 @@ pub fn complete(
             }
             Ok(m)
         } else if !verdict.partial.is_empty() && verdict.failing.is_empty() && verdict.missing.is_empty() && verdict.awaiting_human.is_empty() {
-            // Delivered less than asked, with the reason recorded: an honest
-            // partial result, not a success and not something to retry blindly.
             let m = transition_tx(tx, mission_id, MissionState::Partial, &verdict.summary(), None, None)?;
             append_event_tx(tx, mission_id, NewEvent::new("mission_finished", json!({ "state": "partial" })))?;
             Ok(m)
@@ -3045,8 +2775,6 @@ pub fn complete(
     Ok((m, verdict))
 }
 
-/// Appends a task (a new round after failing checks, a follow-up the person
-/// adds). Its dependencies name existing task ids.
 pub fn add_task(db: &AssistDb, mission_id: &str, t: NewTask) -> Result<MissionTask, String> {
     if t.input.trim().is_empty() {
         return Err(input_err("the task is empty"));
@@ -3081,15 +2809,11 @@ pub fn add_task(db: &AssistDb, mission_id: &str, t: NewTask) -> Result<MissionTa
     })
 }
 
-/// What a mission needs from the runtime that runs it.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct Needs {
-    /// The work calls OmniGet tools (project files, reading, web).
     pub tools: bool,
 }
 
-/// Whether the runtime can do what the mission needs. A runtime that cannot
-/// reach OmniGet's tools is not asked to pretend (A27).
 pub fn capability_gap(
     caps: &crate::core::llm::caps::RuntimeCaps,
     needs: &Needs,
@@ -3128,7 +2852,6 @@ pub fn capability_gap(
     None
 }
 
-/// What a mission needs, from its criteria and workspace.
 pub fn needs_of(m: &Mission, criteria: &[Criterion]) -> Needs {
     Needs {
         tools: m.workspace.is_some()
@@ -3136,8 +2859,6 @@ pub fn needs_of(m: &Mission, criteria: &[Criterion]) -> Needs {
     }
 }
 
-/// Rounds the progress guard observed since the last reset, rebuilt from the
-/// events (the counter survives a restart). F9.
 pub fn round_observations(
     db: &AssistDb,
     mission_id: &str,
@@ -3178,7 +2899,6 @@ pub fn reset_rounds(db: &AssistDb, mission_id: &str) -> Result<(), String> {
     Ok(())
 }
 
-/// [`clip`] for callers outside the crate (the app's driver).
 pub fn clip_pub(s: &str, max: usize) -> String {
     clip(s, max)
 }

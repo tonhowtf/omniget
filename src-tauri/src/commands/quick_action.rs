@@ -1,13 +1,3 @@
-//! Downloads › Tools › "Download with OmniGet" in the macOS Services menu.
-//!
-//! Idea from MacYTDL, which installs a Service so a link selected in any app
-//! can be sent to it. This writes a small Automator Quick Action into
-//! `~/Library/Services`: it takes the selected text, pulls out every web or
-//! magnet link and opens each one as `omniget://<link>`, which the app
-//! already handles (`external_url::normalize_external_url`). Nothing runs in
-//! the background and nothing needs an administrator password; removing the
-//! bundle removes the menu item.
-
 use serde::Serialize;
 #[cfg(target_os = "macos")]
 use std::path::PathBuf;
@@ -15,7 +5,6 @@ use std::path::PathBuf;
 #[cfg(target_os = "macos")]
 const BUNDLE_NAME: &str = "Download with OmniGet.workflow";
 
-/// Shell run by the Quick Action with the selected text as arguments.
 #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
 const SCRIPT: &str = r#"for arg in "$@"; do printf '%s\n' "$arg"; done \
   | grep -Eo '(https?://|magnet:\?)[^[:space:]<>"]+' \
@@ -224,8 +213,6 @@ fn bundle_path() -> Result<PathBuf, String> {
 
 #[cfg(target_os = "macos")]
 fn refresh_services() {
-    // Asks the pasteboard server to rescan ~/Library/Services right away;
-    // without it the item can take until the next login to show up.
     let _ = std::process::Command::new("/System/Library/CoreServices/pbs")
         .arg("-update")
         .status();

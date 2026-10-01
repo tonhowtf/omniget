@@ -1,65 +1,3 @@
-//! OmniWorld room server.
-//!
-//! A host "opens their house" and friends visit with a code. The host app is
-//! the authority of the simulation; this server only authenticates, relays and
-//! enforces limits. No accounts, no database, everything lives in memory.
-//!
-//! # Wire format
-//!
-//! One endpoint: `GET /v1/room`, upgraded to WebSocket. Text frames are JSON
-//! control messages, binary frames are `[opcode: u8][payload]`.
-//!
-//! ## Hello (first frame, text, within 10 s)
-//!
-//! - host: `{"op":"open","pubkey":hex32,"name":"..","house":"casa-v1","ts":ms,"sig":hex64}`
-//!   with `sig` = ed25519 over `omniworld:open:<ts>`.
-//! - visitor: `{"op":"join","code":"XXXX-XXXX","pubkey":hex32,"name":"..","ts":ms,"sig":hex64}`
-//!   with `sig` = ed25519 over `omniworld:join:<code>:<ts>`, where `<code>` is
-//!   the code as sent, ASCII-uppercased (dash kept if it was sent).
-//! - `ts` must be within +-120 s of server time. Signatures use `verify_strict`.
-//! - Names: control chars stripped, trimmed, max 32 chars, default `guest`.
-//!
-//! ## Replies (text)
-//!
-//! - host: `{"op":"opened","code":"ABCD-EFGH","ttl_s":n,"max_visitors":n}`
-//! - visitor: `{"op":"joined","visitor_id":N,"ent":1000+N,"host_name":"..","house":"..",
-//!   "visitors":[{"visitor_id":..,"name":".."}]}` (visitors already in the room)
-//! - failure: `{"op":"error","code":"ERR_ROOM_*","message":".."}` then close. Codes:
-//!   `BAD_HELLO`, `BAD_SIGNATURE`, `CLOCK`, `NOT_FOUND`, `FULL`, `SERVER_FULL`.
-//! - to the host and every other visitor:
-//!   `{"op":"visitor_joined","visitor_id":N,"name":"..","pubkey":".."}` and
-//!   `{"op":"visitor_left","visitor_id":N}`
-//! - when the room ends: `{"op":"closed","reason":"host_left"|"ttl"}` then close
-//!   (sent to visitors; on `ttl` the host receives it too).
-//!
-//! ## Room codes
-//!
-//! 40 bits as 8 chars of Crockford base32 (`0123456789ABCDEFGHJKMNPQRSTVWXYZ`),
-//! shown as `XXXX-XXXX`. Parsing uppercases, maps `O`->`0`, `I`/`L`->`1`, and
-//! accepts the code with or without the dash.
-//!
-//! ## Binary opcodes
-//!
-//! - `40` WorldDiff: host -> every visitor, frame unchanged. From a visitor: ignored.
-//! - `41` WorldInput: visitor sends `[41][json]`, host receives
-//!   `[41][visitor_id: u32 BE][json]`. From the host: ignored. 20/s per visitor.
-//! - `42` Interest: same routing, framing and limit bucket rules as 41 (own 20/s bucket).
-//! - `43` Chat: anyone sends `[43][utf8 text]` (trimmed, control chars dropped,
-//!   max 500 chars, empty dropped); everyone in the room, sender included, gets
-//!   `[43][json {"from":visitor_id|0,"name":"..","text":"..","ts":ms}]`. 5/s per client.
-//! - Other opcodes are ignored. A frame over 512 KiB closes that client.
-//!
-//! ## Lifecycle
-//!
-//! Visitor ids start at 1 per room and are never reused. The host leaving (or
-//! the TTL expiring) removes the room at once. Every client has a bounded
-//! outgoing queue: a visitor whose queue is full is dropped, a host whose queue
-//! is full loses that frame. Ping every 30 s, 90 s of silence drops the client.
-//!
-//! Env: `OMNIWORLD_BIND` (0.0.0.0:7878), `OMNIWORLD_MAX_VISITORS` (8),
-//! `OMNIWORLD_MAX_ROOMS` (200), `OMNIWORLD_TTL_S` (21600).
-//! Other routes: `GET /healthz` -> `ok`, `GET /v1/stats` -> `{"rooms","visitors","uptime_s"}`.
-
 use std::collections::HashMap;
 use std::str::FromStr;
 use std::sync::atomic::{AtomicU32, Ordering};
@@ -164,7 +102,6 @@ enum Role {
     Visitor(u32),
 }
 
-/// Fixed one-second window counter.
 struct RateLimit {
     per_s: u32,
     window: Instant,
@@ -235,7 +172,6 @@ fn new_code() -> String {
     s
 }
 
-/// Canonical `XXXX-XXXX` form of whatever the visitor typed, or None.
 fn parse_code(raw: &str) -> Option<String> {
     let mut s = String::with_capacity(9);
     for c in raw.trim().chars() {
@@ -286,11 +222,9 @@ fn verify(pubkey_hex: &str, sig_hex: &str, ts: u64, signed: &str) -> Result<Stri
 
 impl Room {
     fn send_host(&self, msg: Message) {
-        // Host queue full: the frame is dropped, never the host.
         let _ = self.host_tx.try_send(msg);
     }
 
-    /// Non-blocking fan-out. Returns the visitors whose queue refused the frame.
     fn broadcast(&self, msg: &Message, except: Option<u32>) -> Vec<u32> {
         let inner = self.inner.read().unwrap();
         inner
@@ -308,7 +242,6 @@ impl Room {
         }
     }
 
-    /// Removes visitors (idempotent), wakes their reader and tells everyone else.
     fn remove_visitors(&self, mut ids: Vec<u32>) {
         while let Some(id) = ids.pop() {
             let (removed, left) = {
@@ -324,7 +257,6 @@ impl Room {
         }
     }
 
-    /// Registers a visitor; `joined` is queued before anything else can reach it.
     fn join(
         &self,
         max: usize,
@@ -451,7 +383,6 @@ impl AppState {
         };
         let msg = text(json!({"op": "closed", "reason": reason}));
         for v in &visitors {
-            // Queue full: no room for a goodbye, cut the visitor loose.
             if v.tx.try_send(msg.clone()).is_err() || v.tx.try_send(Message::Close(None)).is_err() {
                 v.kick.notify_one();
             }
@@ -468,7 +399,6 @@ async fn reject(sink: &mut SplitSink<WebSocket, Message>, r: Reject) {
     let _ = sink.send(Message::Close(None)).await;
 }
 
-/// First text frame, skipping pings. None when the socket ended instead.
 async fn first_text(stream: &mut SplitStream<WebSocket>) -> Option<Result<String, Reject>> {
     loop {
         match stream.next().await? {
@@ -487,7 +417,6 @@ async fn first_text(stream: &mut SplitStream<WebSocket>) -> Option<Result<String
     }
 }
 
-/// Drains one client's queue into its socket; a `Close` in the queue ends it.
 async fn writer(mut sink: SplitSink<WebSocket, Message>, mut rx: mpsc::Receiver<Message>) {
     let mut ping = tokio::time::interval_at(Instant::now() + PING_EVERY, PING_EVERY);
     loop {
@@ -647,7 +576,6 @@ async fn handle_socket(socket: WebSocket, state: AppState) {
     drop(room);
 
     if !writer_done {
-        // A kicked client is a slow one: do not wait for its backlog.
         if !kicked {
             let _ = tx.try_send(Message::Close(None));
         }

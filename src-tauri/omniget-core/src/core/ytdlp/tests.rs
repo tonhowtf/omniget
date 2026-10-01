@@ -66,8 +66,6 @@ use super::{
 
 #[test]
 fn youtube_args_saem_numa_flag_so() {
-    // `--extractor-args youtube:` repetido substitui o anterior no yt-dlp;
-    // três flags separadas seriam duas flags perdidas.
     let mut a = YoutubeExtractorArgs {
         player_client: Some("default".into()),
         formats_dashy: true,
@@ -103,7 +101,6 @@ fn template_de_progresso_traz_o_formato_e_o_fragmento() {
     assert_eq!(parse_fragment_progress(line), Some((12, 25)));
     assert_eq!(super::parse_progress_line(line), Some(42.0));
     assert_eq!(super::parse_speed_line(line), Some(4_500_000.0));
-    // O template real precisa conter cada chave que o parser procura.
     for key in [
         "fi:", "fc:", "fid:", "h:", "vc:", "ac:", "ext:", "fsz:", "note:",
     ] {
@@ -113,8 +110,6 @@ fn template_de_progresso_traz_o_formato_e_o_fragmento() {
 
 #[test]
 fn linha_real_do_yt_dlp_vem_sem_o_prefixo_download() {
-    // Saída real do yt-dlp 2026.08.30: o `download:` do template é
-    // consumido como tipo e a linha começa pelo percentual.
     let line = "  0.5%|eta:NA|spd:5144.701683851067|dl:1024|tot:NA|est:223779.0|fi:0|fc:1|el:0|fid:395|h:240|w:320|fps:15|vc:av01.0.00M.08.0.110.05.01.06.0|ac:none|ext:mp4|fsz:223779|note:240p";
     assert_eq!(super::parse_progress_line(line), Some(0.5));
     assert_eq!(super::parse_speed_line(line), Some(5144.701683851067));
@@ -194,7 +189,6 @@ fn comando_editado_recebe_so_a_instrumentacao_que_falta() {
         1,
         "URL fica uma vez, no lugar do usuário"
     );
-    // Com -P próprio, não recebe -o.
     let argv2: Vec<String> = ["-P", "/x", "--output=%(id)s.%(ext)s"]
         .iter()
         .map(|s| s.to_string())
@@ -211,14 +205,12 @@ fn comando_editado_recebe_so_a_instrumentacao_que_falta() {
 #[test]
 fn so_baixa_yt_dlp_quando_a_release_e_mais_nova() {
     use super::newer_release_available as newer;
-    // nightly local mais novo que o stable publicado: nunca rebaixar
     assert!(!newer(Some((2026, 8, 30)), Some((2026, 8, 19))));
     assert!(
         !newer(Some((2026, 8, 19)), Some((2026, 8, 19))),
         "mesma versão não re-baixa"
     );
     assert!(newer(Some((2026, 8, 19)), Some((2026, 9, 2))));
-    // sem informação, não mexe
     assert!(!newer(None, Some((2026, 9, 2))));
     assert!(!newer(Some((2026, 8, 19)), None));
     assert_eq!(
@@ -244,9 +236,6 @@ fn host_do_tuner_junta_as_variantes_do_youtube() {
 
 use super::*;
 
-/// Benchmark 26/09, youtube-2: o worker manda um seletor com teto em toda
-/// alternativa; o download anexava "/bv*...+ba[ext=m4a]/.../b" (um `b` sem
-/// teto no fim) e fundia h264 (HLS/TS) + opus em mkv -> "Conversion failed!".
 #[test]
 fn operator_command_keeps_args_after_the_proxy() {
     let argv: Vec<String> = [
@@ -288,7 +277,6 @@ fn full_selector_passes_intact_and_dashy_prefers_dash() {
         download_format_selector(Some(worker), Some(720), "auto", false),
         worker
     );
-    // Id simples mantém o fallback do app.
     assert_eq!(
         download_format_selector(Some("137"), Some(720), "auto", true),
         "137/bv*[height<=720]+ba[ext=m4a]/bv*[height<=720]+ba/b[height<=720]/b"
@@ -298,7 +286,6 @@ fn full_selector_passes_intact_and_dashy_prefers_dash() {
         "bv*[height<=720]+ba[ext=m4a]/bv*[height<=720]+ba/b[height<=720]/b"
     );
     assert_eq!(download_format_selector(None, None, "audio", true), "ba/b");
-    // Resolução continua na frente; o protocolo DASH só desempata do HLS.
     let sort = dashy_format_sort_args();
     assert_eq!(sort[0], "-S");
     let fields: Vec<&str> = sort[1].split(',').collect();
@@ -320,8 +307,6 @@ fn playlist_dump_uses_top_level_url() {
 
 #[test]
 fn playlist_dump_falls_back_to_webpage_url() {
-    // Bilibili cheese season entries are full info dicts with webpage_url
-    // but no top-level "url" (issue #157).
     let dump = r#"{"id":"12345","title":"Lesson 1","webpage_url":"https://www.bilibili.com/cheese/play/ep12345","extractor_key":"BiliBiliCheese"}"#;
     let (_, entries) = parse_playlist_dump(dump, "https://www.bilibili.com/cheese/play/ss999");
     assert_eq!(entries.len(), 1);
@@ -399,7 +384,6 @@ e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  yt-dlp.exe\n\
 
 #[test]
 fn sha256_hex_known_vector() {
-    // SHA-256 of the empty input.
     assert_eq!(
         integrity::sha256_hex(b""),
         "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
@@ -709,8 +693,6 @@ fn translate_error_timeout() {
 
 #[test]
 fn bilibili_412_is_a_platform_block_not_a_restriction() {
-    // Benchmark 26/09 (av114868162141203 -> bangumi ep1933368): the
-    // download's extraction got 412 and the app said "private or age-restricted".
     let stderr = "ERROR: [BiliBiliBangumi] 1933368: Unable to download webpage: HTTP Error 412: Precondition Failed (caused by <HTTPError 412: Precondition Failed>)";
     let msg = translate_ytdlp_error(stderr).to_string();
     assert!(msg.contains("412"), "{msg}");
@@ -748,8 +730,6 @@ fn webpage_failures_keep_their_status() {
 
 #[test]
 fn twitter_500_is_a_retryable_server_error() {
-    // Bench 26/09 twitter-2 (amplify): yt-dlp says HTTP 500; the page
-    // wording lost the status and "page" matched "age" -> SOURCE_RESTRICTED.
     let stderr = "ERROR: [twitter:amplify] 665052190608723968: Unable to download webpage: HTTP Error 500: Domain Not Found (caused by <HTTPError 500: Domain Not Found>)";
     let err = translate_ytdlp_error(stderr);
     for text in [err.to_string(), format!("{err:#}")] {
@@ -826,7 +806,6 @@ fn worker_commands_reach_the_operator_sink_redacted() {
         .iter()
         .map(|s| s.to_string())
         .collect();
-    // No download id in scope: this is the worker path.
     super::note_operator_command(std::path::Path::new("/bin/yt-dlp.pyz"), &args, "native");
     super::set_command_sink(None);
     let lines = seen.lock().unwrap().clone();
@@ -914,8 +893,6 @@ fn parse_formats_video_only() {
     assert!(!formats[0].has_audio);
 }
 
-// --- Regressao de seguranca: CVE-2026-50574 (aria2c + manifesto) ---
-
 #[test]
 fn aria2c_nunca_recebe_manifesto_fragmentado() {
     let args = aria2c_downloader_args("/opt/bin/aria2c", 8, None);
@@ -928,7 +905,6 @@ fn aria2c_nunca_recebe_manifesto_fragmentado() {
         );
     }
     assert_eq!(downloader, "http,ftp:/opt/bin/aria2c");
-    // A chave de --downloader-args e o NOME do downloader, nao o protocolo.
     assert!(args[3].starts_with("aria2c:"), "{}", args[3]);
 }
 
@@ -955,8 +931,6 @@ fn aria2c_nunca_zera_conexoes() {
     );
 }
 
-// --- Piso de versao do yt-dlp ---
-
 #[test]
 fn parse_ytdlp_version_le_os_formatos_reais() {
     assert_eq!(parse_ytdlp_version("2026.06.09"), Some((2026, 6, 9)));
@@ -978,13 +952,9 @@ fn piso_de_versao_cobre_as_cves_de_2026_06_09() {
     assert_eq!(ytdlp_version_is_supported("2026.06.09"), Some(true));
     assert_eq!(ytdlp_version_is_supported("2026.07.04"), Some(true));
     assert_eq!(ytdlp_version_is_supported("2026.06.08"), Some(false));
-    // Versao ilegivel nao pode ser reportada como desatualizada.
     assert_eq!(ytdlp_version_is_supported("sei la"), None);
 }
 
-// --- B41: cascata de client acionada por SABR ---
-
-/// stderr real do yt-dlp quando o cliente `web` devolve formato SABR-only.
 const SABR_STDERR: &str = "WARNING: [youtube] abc123: Some web client https formats have been \
 skipped as they are missing a url. YouTube is forcing SABR streaming for this client. \
 See  https://github.com/yt-dlp/yt-dlp/issues/12482  for more details\n\
@@ -1020,8 +990,6 @@ fn cascata_esgotada_devolve_none_em_vez_de_repetir() {
 
 #[test]
 fn erro_que_nao_e_sabr_nao_troca_de_client() {
-    // Regressao: trocar de client em qualquer falha mascararia a causa real
-    // e gastaria as tentativas de retry a toa.
     for stderr in [
         "error: [youtube] abc: video unavailable",
         "error: http error 429: too many requests",
@@ -1039,7 +1007,6 @@ fn erro_que_nao_e_sabr_nao_troca_de_client() {
 
 #[test]
 fn a_cascata_nao_contem_o_client_que_causa_o_problema() {
-    // `web` e `default` sao justamente os que devolvem SABR-only.
     assert!(!SABR_CLIENT_CASCADE.contains(&"web"));
     assert!(!SABR_CLIENT_CASCADE.contains(&"default"));
     assert_eq!(SABR_CLIENT_CASCADE.len(), 4);
@@ -1047,7 +1014,6 @@ fn a_cascata_nao_contem_o_client_que_causa_o_problema() {
 
 #[test]
 fn sem_variavel_nao_ha_provedor_de_pot_token() {
-    // Um teste so, sequencial: set_var e global ao processo.
     let restore = std::env::var("OMNIGET_POT_PROVIDER_URL").ok();
 
     std::env::remove_var("OMNIGET_POT_PROVIDER_URL");
@@ -1075,9 +1041,6 @@ fn sem_variavel_nao_ha_provedor_de_pot_token() {
 
 #[tokio::test]
 async fn provedor_morto_nao_gera_argumento() {
-    // A porta 1 nao tem nada escutando. E exatamente o caso que o modulo
-    // avisa ser pior que nao ter provedor: apontar o yt-dlp para um
-    // endereco morto custa o timeout em todo download seguinte.
     let health = probe_pot_provider("http://127.0.0.1:1").await;
     assert!(
         !health.is_usable(),

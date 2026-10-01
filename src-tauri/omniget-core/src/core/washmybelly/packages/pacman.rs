@@ -1,20 +1,3 @@
-//! pacman (Arch, Manjaro, EndeavourOS, CachyOS...).
-//!
-//! - list: `pacman -Qi` with `LC_ALL=C` (labels are translated otherwise,
-//!   Nexis GH#426): blocks of `Key : value` separated by a blank line;
-//! - owners of `.desktop` files: `pacman -Qqo -- <files>`;
-//! - removal preview: `pacman -Rs --print --print-format '%n %v %s' -- <names>`
-//!   (`-n` cannot go with `--print`; it only changes whether config files
-//!   are kept). Works without root. A removal that breaks dependencies
-//!   prints `:: removing X breaks dependency ...` and fails;
-//! - orphans: `pacman -Qdtq`;
-//! - updates: `checkupdates` (pacman-contrib, a private copy of the sync
-//!   databases; exit 2 = none) or `pacman -Qu` (exit 1 = none), both
-//!   `name old -> new`;
-//! - remove: `pacman -Rns --noconfirm -- <names>`;
-//! - upgrade: Arch does not support partial upgrades, so it is always the
-//!   whole system: `pacman -Syu --noconfirm`.
-
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
@@ -32,7 +15,6 @@ pub struct PacPkg {
     pub explicit: bool,
 }
 
-/// `pacman -Qi` blocks.
 pub fn parse_qi(text: &str) -> Vec<PacPkg> {
     let mut out = Vec::new();
     let mut cur = PacPkg::default();
@@ -64,7 +46,6 @@ pub fn parse_qi(text: &str) -> Vec<PacPkg> {
     out
 }
 
-/// `--print-format '%n %v %s'` lines: (name, bytes).
 pub fn parse_print(text: &str) -> Vec<(String, Option<u64>)> {
     text.lines()
         .filter_map(|l| {
@@ -75,7 +56,6 @@ pub fn parse_print(text: &str) -> Vec<(String, Option<u64>)> {
         .collect()
 }
 
-/// `name old -> new` lines of `checkupdates` / `pacman -Qu`.
 pub fn parse_qu(text: &str) -> Vec<Update> {
     text.lines()
         .filter_map(|l| {
@@ -191,7 +171,6 @@ impl PackageBackend for Pacman {
                 _ => Err(format!("checkupdates: {}", tail(&r.stderr, 3))),
             };
         }
-        // Without pacman-contrib: against the last synced databases.
         let r = query("pacman", &["-Qu"])?;
         Ok(parse_qu(&r.stdout))
     }
@@ -201,8 +180,6 @@ impl PackageBackend for Pacman {
     }
 
     fn desktop_owners(&self, files: &[PathBuf]) -> HashMap<PathBuf, String> {
-        // `-Qqo` prints one name per owned file, in order, and an error on
-        // stderr for the others: ask one file at a time only when needed.
         let mut out = HashMap::new();
         if files.is_empty() {
             return out;

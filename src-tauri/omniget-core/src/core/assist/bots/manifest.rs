@@ -1,9 +1,3 @@
-//! The effective capability manifest of one bot: for every capability and
-//! skill, whether it was asked for, whether it is really available this turn,
-//! and if not, why and how to fix it. Built from the effective agent (after
-//! every per-turn hook), the tools the broker really has and what the runtime
-//! can reach — never from the checkboxes alone.
-
 use std::collections::HashSet;
 
 use serde::{Deserialize, Serialize};
@@ -19,7 +13,6 @@ use crate::core::llm::caps::RuntimeCaps;
 #[serde(rename_all = "snake_case")]
 pub enum CapState {
     Available,
-    /// Some of its tools are offered, some are not.
     Partial,
     Missing,
     NotRequested,
@@ -30,12 +23,9 @@ pub struct CapabilityStatus {
     pub id: Capability,
     pub requested: bool,
     pub state: CapState,
-    /// `tools` (OmniGet tools offered) or `builtin` (the runtime's own).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub via: Option<String>,
-    /// Tools of this capability offered to the model this turn.
     pub tools: Vec<String>,
-    /// Tools of this capability the bot would need but does not get.
     pub missing_tools: Vec<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub reason: Option<String>,
@@ -58,10 +48,7 @@ pub struct CapabilityReport {
     pub profile: BotProfile,
     pub capabilities: Vec<CapabilityStatus>,
     pub skills: Vec<BindingStatus>,
-    /// Every tool name the model is really offered this turn.
     pub offered_tools: Vec<String>,
-    /// Grants that point at a tool nobody provides right now (an MCP server
-    /// that is down, a legacy name).
     pub unavailable_grants: Vec<UnavailableGrant>,
 }
 
@@ -73,8 +60,6 @@ fn runtime_kind(agent: &AgentDef) -> &'static str {
     }
 }
 
-/// `effective` is the agent after every per-turn hook
-/// (`Coordinator::effective_agent`); `stored` is what the roster holds.
 pub fn report(
     env: &BotEnv,
     projection: &SkillProjection,
@@ -173,8 +158,6 @@ pub fn report(
         }
         capabilities.push(st);
     }
-    // Reading confirms availability only from pages fetched with `web_fetch`
-    // (reading::evidence); without working web it cannot do its job fully.
     let web_ok = capabilities
         .iter()
         .any(|c| c.id == Capability::Web && c.state == CapState::Available);

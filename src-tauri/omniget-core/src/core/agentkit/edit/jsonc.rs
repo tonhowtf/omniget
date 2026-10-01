@@ -1,7 +1,3 @@
-//! JSON with comments and trailing commas (VS Code, Cursor, OpenCode, Kilo, Zed).
-//! A concrete-syntax parse keeps the byte span of every node; edits are text
-//! splices, so nothing outside the touched member moves.
-
 use serde_json::Value;
 
 use super::{edit_err, nest, ordered_entries, parse_err, Editor, Result, Seg, SetOutcome};
@@ -27,14 +23,12 @@ struct Member {
     value: Node,
 }
 
-/// A JSONC document open for editing.
 #[derive(Debug, Clone)]
 pub struct JsoncDoc {
     text: String,
     root: Option<Node>,
 }
 
-/// Parses JSON/JSONC text into a value (comments and trailing commas allowed).
 pub fn parse_value(text: &str) -> Result<Value> {
     let doc = JsoncDoc::parse(text)?;
     Ok(doc.value())
@@ -71,8 +65,6 @@ impl JsoncDoc {
         Ok(())
     }
 
-    /// Applies text edits given in document order; edits at the same offset end
-    /// up in the order they were listed.
     fn splice(&mut self, edits: Vec<(usize, usize, String)>) -> Result<()> {
         let mut edits: Vec<(usize, (usize, usize, String))> =
             edits.into_iter().enumerate().collect();
@@ -112,8 +104,6 @@ impl JsoncDoc {
         }
     }
 
-    // ---- layout helpers ----
-
     fn line_start(&self, pos: usize) -> usize {
         self.text[..pos].rfind('\n').map(|i| i + 1).unwrap_or(0)
     }
@@ -142,7 +132,6 @@ impl JsoncDoc {
         "  ".into()
     }
 
-    /// Position after whitespace and comments starting at `pos`.
     fn skip_trivia(&self, pos: usize) -> usize {
         let s = self.text.as_bytes();
         let mut p = pos;
@@ -173,9 +162,6 @@ impl JsoncDoc {
         (p < limit && self.text.as_bytes()[p] == b',').then_some(p)
     }
 
-    // ---- generic container edits (object members and array items) ----
-
-    /// Entries as (start, value_end) byte ranges.
     fn entries(node: &Node) -> Vec<(usize, usize)> {
         match &node.kind {
             Kind::Object(ms) => ms.iter().map(|m| (m.key_start, m.value.end)).collect(),
@@ -184,8 +170,6 @@ impl JsoncDoc {
         }
     }
 
-    /// Inserts `entry` (already rendered for multi-line layout, and `inline_entry`
-    /// for single-line containers) as the last entry of `node`.
     fn insert_entry(&mut self, node: &Node, render: &dyn Fn(&str, bool) -> String) -> Result<()> {
         let entries = Self::entries(node);
         let close = node.end - 1;
@@ -476,7 +460,6 @@ impl Editor for JsoncDoc {
     }
 }
 
-/// Pretty JSON whose continuation lines start with `indent`.
 pub fn pretty(value: &Value, indent: &str, unit: &str) -> String {
     let mut out = String::new();
     write_pretty(value, indent, unit, &mut out);
@@ -528,7 +511,6 @@ fn write_pretty(value: &Value, indent: &str, unit: &str, out: &mut String) {
     }
 }
 
-/// One-line JSON with a space after `:` and `,`.
 pub fn compact(value: &Value) -> String {
     match value {
         Value::Object(m) => {

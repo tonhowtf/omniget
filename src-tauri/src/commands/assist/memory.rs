@@ -1,7 +1,3 @@
-//! Commands for `assist::memory`: the "what it knows about you" panel of a
-//! bot and the `/llm/memory` page. Every command acts as the person at the
-//! screen (`AssistCtx::user()`), who owns every scope of their own.
-
 use omniget_core::core::assist::ctx::{AssistCtx, Scope};
 use omniget_core::core::assist::memory::{
     self, Category, Correction, MemoryRecord, NewMemory, ScopeSummary, Source,
@@ -17,8 +13,6 @@ fn parse_category(s: &str) -> Result<Category, String> {
     Category::parse(s).ok_or_else(|| format!("{}: unknown kind", memory::ERR_MEMORY_INVALID))
 }
 
-/// One record as the UI shows it: the record plus its readable source line
-/// and its scope as a key.
 #[derive(Debug, Clone, Serialize)]
 pub struct MemoryView {
     #[serde(flatten)]
@@ -42,7 +36,6 @@ pub struct ScopeView {
     pub scope_key: String,
 }
 
-/// Records of one scope (`"user"`, `"bot:<id>"`, `"room:<id>"`), or all.
 #[tauri::command]
 pub fn assist_memory_list(
     scope: Option<String>,
@@ -60,7 +53,6 @@ pub fn assist_memory_list(
     Ok(rows.into_iter().map(view).collect())
 }
 
-/// Scopes with records, with counts.
 #[tauri::command]
 pub fn assist_memory_scopes() -> Result<Vec<ScopeView>, String> {
     let db = db::global()?;
@@ -73,7 +65,6 @@ pub fn assist_memory_scopes() -> Result<Vec<ScopeView>, String> {
         .collect())
 }
 
-/// Every version of a record's chain, oldest first.
 #[tauri::command]
 pub fn assist_memory_history(id: String) -> Result<Vec<MemoryView>, String> {
     let db = db::global()?;
@@ -94,9 +85,6 @@ pub struct CreateMemory {
     pub valid_until: Option<i64>,
 }
 
-/// The person writes a memory themselves (always a stated fact unless they
-/// pick another kind). Brings back something forgotten only because they
-/// typed it again.
 #[tauri::command]
 pub fn assist_memory_create(input: CreateMemory) -> Result<MemoryView, String> {
     let db = db::global()?;
@@ -122,13 +110,11 @@ pub struct EditMemory {
     pub kind: Option<String>,
 }
 
-/// Edit = a new version stated by the person; the old one stays in history.
 #[tauri::command]
 pub fn assist_memory_correct(input: EditMemory) -> Result<MemoryView, String> {
     let db = db::global()?;
     let now = now_ms();
     let category = input.kind.as_deref().map(parse_category).transpose()?;
-    // Learned procedure that leaned on the old text loses that support.
     let _ = omniget_core::core::assist::learning::on_memory_changed(
         &db,
         &input.id,
@@ -148,7 +134,6 @@ pub fn assist_memory_correct(input: EditMemory) -> Result<MemoryView, String> {
     )?))
 }
 
-/// Confirms a guess: it becomes a stated preference.
 #[tauri::command]
 pub fn assist_memory_confirm(id: String) -> Result<MemoryView, String> {
     let db = db::global()?;
@@ -160,7 +145,6 @@ pub fn assist_memory_confirm(id: String) -> Result<MemoryView, String> {
     )?))
 }
 
-/// Discards a guess (or withdraws any record) without erasing its history.
 #[tauri::command]
 pub fn assist_memory_retract(id: String) -> Result<MemoryView, String> {
     let db = db::global()?;
@@ -172,7 +156,6 @@ pub fn assist_memory_retract(id: String) -> Result<MemoryView, String> {
     )?))
 }
 
-/// Forgets a record and every version of it. Returns how many rows went.
 #[tauri::command]
 pub fn assist_memory_forget(id: String) -> Result<usize, String> {
     let db = db::global()?;
@@ -186,13 +169,10 @@ pub fn assist_memory_forget(id: String) -> Result<usize, String> {
 
 #[derive(Debug, Clone, Serialize)]
 pub struct ExportOut {
-    /// Where the file was written, when a path was given.
     pub path: Option<String>,
-    /// The export itself, when no path was given.
     pub content: Option<String>,
 }
 
-/// `format`: `"json"` (importable) or `"markdown"` (readable).
 #[tauri::command]
 pub fn assist_memory_export(format: String, path: Option<String>) -> Result<ExportOut, String> {
     let db = db::global()?;
@@ -219,7 +199,6 @@ pub fn assist_memory_export(format: String, path: Option<String>) -> Result<Expo
     }
 }
 
-/// Imports a JSON export from `path` or from `content`.
 #[tauri::command]
 pub fn assist_memory_import(
     path: Option<String>,
@@ -250,7 +229,6 @@ pub struct BackupsOut {
     pub newest_ms: Option<i64>,
 }
 
-/// The app's automatic database copies that may still hold forgotten text.
 #[tauri::command]
 pub fn assist_memory_backups() -> Result<BackupsOut, String> {
     let db = db::global()?;
@@ -265,21 +243,17 @@ pub fn assist_memory_backups() -> Result<BackupsOut, String> {
     })
 }
 
-/// Deletes those copies. Returns how many files were removed.
 #[tauri::command]
 pub fn assist_memory_delete_backups() -> Result<usize, String> {
     let db = db::global()?;
     memory::delete_backups(&db)
 }
 
-/// Rebuilds the search index from the records (respecting forgotten items).
 #[tauri::command]
 pub fn assist_memory_reindex() -> Result<usize, String> {
     let db = db::global()?;
     memory::reindex(&db)
 }
-
-// ── Hindsight-style layer: stats, entities, explained search, settings ──
 
 #[tauri::command]
 pub fn assist_memory_stats() -> Result<memory::Stats, String> {
@@ -293,7 +267,6 @@ pub fn assist_memory_entities(limit: Option<usize>) -> Result<Vec<memory::Entity
     memory::entities(&db, &AssistCtx::user(), limit.unwrap_or(60))
 }
 
-/// One hit of the explained search, shaped like the list rows.
 #[derive(Debug, Clone, Serialize)]
 pub struct HitView {
     #[serde(flatten)]
@@ -310,7 +283,6 @@ pub struct SearchView {
     pub semantic: bool,
 }
 
-/// Hybrid recall over every scope, with why each memory came back.
 #[tauri::command]
 pub async fn assist_memory_search(
     query: String,
@@ -362,16 +334,12 @@ pub fn assist_memory_set_settings(input: MemorySettingsInput) -> Result<memory::
     memory::stats(&db, now_ms())
 }
 
-/// Downloads the local embedding model once, embeds every memory and
-/// rebuilds the notes. Returns how many memories got a vector.
 #[tauri::command]
 pub async fn assist_memory_prepare_semantic() -> Result<usize, String> {
     let db = db::global()?;
     memory::prepare_semantic(db).await
 }
 
-/// Reads a text the person pastes and saves the facts in it (their own
-/// memory, stated on the memory screen).
 #[tauri::command]
 pub async fn assist_memory_retain_text(
     text: String,

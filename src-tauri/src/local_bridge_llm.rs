@@ -1,14 +1,3 @@
-//! OpenAI-compatible `/v1/chat/completions` + `/v1/models` on the local
-//! bridge: with it on, the app is a provider of the machine and any client
-//! that speaks OpenAI (the Jan model of the plan) can talk to an OmniGet agent
-//! at `omniget/<agent_id>`. Owned by f2-llm-commands.
-//!
-//! Same bearer as the extension, and **off by default** (`llm_bridge_openai_enabled`):
-//! with it on, whoever holds the token spends the user's tokens.
-//!
-//! The router carries its own state so it can be merged into the bridge with a
-//! single line, and tested without a Tauri app.
-
 use std::convert::Infallible;
 use std::sync::Arc;
 
@@ -26,7 +15,6 @@ use serde_json::{json, Value};
 
 use crate::llm_manager::LlmManager;
 
-/// Model ids are namespaced so a client can tell them from a real provider's.
 pub const MODEL_PREFIX: &str = "omniget/";
 
 #[derive(Clone)]
@@ -40,13 +28,9 @@ impl LlmBridgeState {
         Self { token, manager }
     }
 
-    /// Built from the bridge's own state; used by the one merge line in
-    /// `local_bridge.rs`.
     pub fn from_bridge(state: &crate::local_bridge::BridgeState) -> Self {
         use tauri::Manager;
         let app_state = state.app.state::<crate::AppState>();
-        // The bridge can be the first caller, so it is also a place where the
-        // tool executor gets its AppHandle and the bus forwarder starts.
         crate::commands::llm::ensure_wired(&state.app);
         Self {
             token: state.token.clone(),
@@ -55,8 +39,6 @@ impl LlmBridgeState {
     }
 }
 
-/// The two OpenAI routes. Generic over the outer router's state because the
-/// handlers close over `LlmBridgeState` instead of extracting it.
 pub fn router<S>(state: LlmBridgeState) -> Router<S>
 where
     S: Clone + Send + Sync + 'static,
@@ -79,8 +61,6 @@ where
         )
 }
 
-// ── Wire types ────────────────────────────────────────────────────────
-
 #[derive(Debug, Clone, Deserialize)]
 pub struct ChatRequest {
     pub model: String,
@@ -93,7 +73,6 @@ pub struct ChatRequest {
 #[derive(Debug, Clone, Deserialize)]
 pub struct ChatMessage {
     pub role: String,
-    /// OpenAI allows a string or an array of parts; both land as text here.
     #[serde(default)]
     pub content: Value,
 }
@@ -125,8 +104,6 @@ fn error(status: StatusCode, code: &str, message: impl Into<String>) -> Response
         .into_response()
 }
 
-/// Bearer check, constant time. A copy of the bridge's own (private) one so
-/// this module stays independent of it.
 pub fn check_bearer(headers: &HeaderMap, expected: &str) -> bool {
     let Some(raw) = headers.get("authorization").and_then(|v| v.to_str().ok()) else {
         return false;
@@ -140,13 +117,11 @@ pub fn check_bearer(headers: &HeaderMap, expected: &str) -> bool {
     constant_time_eq::constant_time_eq(provided.trim().as_bytes(), expected.as_bytes())
 }
 
-/// `omniget/<agent_id>` → `agent_id`. Pure.
 pub fn agent_of_model(model: &str) -> Option<&str> {
     let id = model.strip_prefix(MODEL_PREFIX)?;
     (!id.is_empty()).then_some(id)
 }
 
-/// Flattens OpenAI's `content` (string, or array of `{type:"text",text}`).
 pub fn content_text(content: &Value) -> String {
     match content {
         Value::String(s) => s.clone(),
@@ -159,8 +134,6 @@ pub fn content_text(content: &Value) -> String {
     }
 }
 
-/// Maps the OpenAI request into our own messages. The `system` role is kept:
-/// the agent's own prompt is prepended by the manager.
 pub fn to_messages(request: &ChatRequest) -> Vec<Message> {
     request
         .messages
@@ -198,8 +171,6 @@ fn chunk_json(id: &str, model: &str, delta: Value, finish: Option<&str>) -> Valu
         "choices": [ { "index": 0, "delta": delta, "finish_reason": finish } ],
     })
 }
-
-// ── Handlers ──────────────────────────────────────────────────────────
 
 async fn models(state: LlmBridgeState, headers: HeaderMap) -> Response {
     if !check_bearer(&headers, &state.token) {
@@ -349,8 +320,6 @@ async fn chat_completions(
         .into_response()
 }
 
-/// The unfold state: an explicit state machine instead of a macro crate, so
-/// the chunk order is readable and no new dependency is pulled in.
 struct SseState {
     manager: Arc<LlmManager>,
     agent_id: String,
@@ -364,7 +333,6 @@ struct SseState {
 }
 
 impl SseState {
-    /// End of turn: telemetry closed and the throwaway conversation removed.
     fn close(&mut self) {
         self.done = true;
         self.manager.finish_turn(&self.request_id, &self.agent_id);
@@ -372,7 +340,6 @@ impl SseState {
     }
 }
 
-/// Turn events → OpenAI chunks, ending with `data: [DONE]`.
 #[allow(clippy::too_many_arguments)]
 fn sse_stream(
     manager: Arc<LlmManager>,
@@ -426,7 +393,6 @@ fn sse_stream(
                 _ => continue,
             }
         }
-        // Final chunk, then the sentinel every OpenAI client waits for.
         let stop = chunk_json(&s.completion_id, &s.model, json!({}), Some("stop"));
         s.close();
         Some((Ok(Event::default().data(stop.to_string())), s))

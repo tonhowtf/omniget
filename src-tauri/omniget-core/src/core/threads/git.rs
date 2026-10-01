@@ -1,28 +1,3 @@
-//! Threads × git (plan §3.4, T2/T7): the worktree of a thread, a checkpoint
-//! per turn, the turn diff, "edit from here", and the git actions of the
-//! split button, all recorded as thread events.
-//!
-//! [`ThreadGit`] is a reactor over the engine's events plus a few calls the
-//! host makes directly:
-//! - `thread.created` with a worktree → `vcs::worktree::create` in stages;
-//!   each stage change becomes `thread.worktree-updated{state: preparing}`,
-//!   then `ready` (cwd of the thread) or `failed`.
-//! - [`ThreadGit::before_turn`] (the host awaits it before `start_turn`):
-//!   worktree ready (created or re-created after an archive), checkpoint
-//!   `N-1` present (turn 0 = baseline).
-//! - `thread.turn-completed` → checkpoint `N` + numstat of the turn →
-//!   `thread.checkpoint-captured`.
-//! - `thread.turn-start-requested` of turn 1 → the temporary branch
-//!   `omniget/<hex>` is renamed after the prompt (cheap model when the host
-//!   gives one, else a heuristic).
-//! - `thread.revert-requested` → files back to checkpoint `N` (optional) and
-//!   then `thread.revert` (the conversation cut; the driver rolls back).
-//! - `thread.archived` → the worktree folder goes (its content stays in the
-//!   checkpoint refs); `thread.deleted` → worktree, temp branch and refs go.
-//!
-//! One async lock per thread serializes all of it, so a checkpoint is never
-//! taken while the worktree is still being made. Nothing polls.
-
 use std::collections::HashMap;
 use std::future::Future;
 use std::path::{Path, PathBuf};
@@ -50,10 +25,7 @@ use crate::core::vcs::worktree::{self, SetupSnapshot, WorktreeRequest};
 pub const ERR_THREADS_GIT: &str = "ERR_THREADS_GIT";
 
 pub type TextFuture = Pin<Box<dyn Future<Output = Option<String>> + Send>>;
-/// `(system, prompt)` → the answer of a cheap model, or `None` (no model,
-/// error, timeout). The host plugs the `LlmManager` in here.
 pub type TextGen = Arc<dyn Fn(String, String) -> TextFuture + Send + Sync>;
-/// Every raw setup snapshot (percent included), for a live progress bar.
 pub type SetupSink = Arc<dyn Fn(&SetupSnapshot) + Send + Sync>;
 
 #[derive(Clone, Default)]
@@ -62,15 +34,12 @@ pub struct GitHooks {
     pub on_setup: Option<SetupSink>,
 }
 
-/// What "edit from here" gives back to the composer.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RevertOutcome {
     pub thread_id: String,
     pub turn_count: u32,
-    /// Files put back (empty when only the conversation was cut).
     pub restored_files: Vec<String>,
-    /// The prompt of the first dropped turn, for the composer.
     pub prompt: Option<String>,
     pub attachments: Value,
 }
@@ -80,7 +49,6 @@ pub struct RevertOutcome {
 pub struct CommitMessage {
     pub subject: String,
     pub body: String,
-    /// `model|heuristic`.
     pub source: String,
     pub files: usize,
 }
@@ -99,7 +67,6 @@ pub struct ThreadGit {
     engine: Arc<ThreadsEngine>,
     hooks: GitHooks,
     locks: Mutex<HashMap<String, Arc<tokio::sync::Mutex<()>>>>,
-    /// Setups running now, by thread (the UI's cancel button).
     cancels: Mutex<HashMap<String, Arc<AtomicBool>>>,
 }
 
@@ -122,8 +89,6 @@ impl ThreadGit {
         })
     }
 
-    /// The reactor loop. Spawn it once with a receiver taken before anything
-    /// can dispatch.
     pub async fn run(self: Arc<Self>, mut rx: broadcast::Receiver<StoredEvent>) {
         loop {
             match rx.recv().await {
@@ -209,8 +174,6 @@ impl ThreadGit {
             .map(PathBuf::from)
     }
 
-    /// Where the thread works: its ready worktree, a worktree path given at
-    /// creation, or the project folder.
     pub fn cwd_of_row(&self, row: &ThreadRow) -> Option<PathBuf> {
         let wt = row
             .worktree_path
@@ -234,8 +197,6 @@ impl ThreadGit {
             .ok_or_else(|| format!("ERR_THREADS_INVALID: thread {thread_id} has no folder"))
     }
 
-    /// Asks the running worktree setup of a thread to stop (it removes what
-    /// it made). `false` when none is running.
     pub fn cancel_setup(&self, thread_id: &str) -> bool {
         match self
             .cancels
@@ -251,7 +212,6 @@ impl ThreadGit {
         }
     }
 
-    /// Records a host-observed fact on its thread (`thread.host.record`).
     pub async fn record(&self, event: DomainEvent) -> Result<(), String> {
         let env = CommandEnvelope {
             command_id: Some(format!("server:{}", uuid::Uuid::new_v4().simple())),
@@ -277,9 +237,6 @@ impl ThreadGit {
             .await;
     }
 
-    // ── Worktree ────────────────────────────────────────────────────────
-
-    /// With the thread lock held. `Ok(None)`: the thread has no worktree.
     async fn ensure_worktree(&self, row: &ThreadRow) -> Result<Option<PathBuf>, String> {
         let state = match row.worktree_state.as_deref() {
             None => return Ok(None),
@@ -298,8 +255,6 @@ impl ThreadGit {
         let root = self
             .project_root(row)
             .ok_or_else(|| "ERR_THREADS_INVALID: the project has no folder".to_string())?;
-        // After an archive: start from the thread's branch if it survived,
-        // then put back the last checkpoint (uncommitted work included).
         let recreate = state == "removed" || (state == "ready" && row.worktree_path.is_some());
         let mut base = row.base_branch.clone();
         if recreate {
@@ -431,10 +386,6 @@ impl ThreadGit {
         }
     }
 
-    /// Before turn `ordinal` goes to the driver: the worktree is ready and
-    /// checkpoint `ordinal - 1` exists. Returns the cwd of the turn. An error
-    /// means the worktree could not be made (the turn must not run in the
-    /// user's own checkout instead).
     pub async fn before_turn(
         &self,
         thread_id: &str,
@@ -464,8 +415,6 @@ impl ThreadGit {
         Ok(cwd)
     }
 
-    /// Checkpoint of a finished turn (idempotent: a checkpoint already taken
-    /// for that turn is kept).
     pub async fn after_turn(&self, thread_id: &str, turn_id: &str) -> Result<(), String> {
         let _g = self.lock(thread_id).await;
         let row = self.row(thread_id)?;
@@ -507,8 +456,6 @@ impl ThreadGit {
             match checkpoint::diff_turn(dir, thread_id, n, &opts).await {
                 Ok(d) => {
                     let mut files = files_of(&d);
-                    // A stat-only diff cannot tell added/deleted apart from
-                    // modified; `--name-status` can, cheaply.
                     let st = name_status(dir, thread_id, n).await;
                     for f in files.iter_mut() {
                         if let Some(s) = st.get(&f.path) {
@@ -542,8 +489,6 @@ impl ThreadGit {
         })
         .await
     }
-
-    // ── Branch name ─────────────────────────────────────────────────────
 
     async fn rename_after_first(&self, thread_id: &str, text: &str) {
         match self.row(thread_id) {
@@ -585,7 +530,6 @@ impl ThreadGit {
         }
     }
 
-    /// `omniget/<words>` from the cheap model, else from the prompt itself.
     pub async fn branch_name(&self, text: &str) -> Option<String> {
         if let Some(gen) = &self.hooks.text {
             let prompt: String = text.chars().take(2000).collect();
@@ -602,8 +546,6 @@ impl ThreadGit {
         }
         heuristic_branch_name(text)
     }
-
-    // ── Revert ("edit from here") ───────────────────────────────────────
 
     async fn revert(&self, thread_id: &str, n: u32, restore_files: bool, event_id: &str) {
         let _g = self.lock(thread_id).await;
@@ -646,7 +588,6 @@ impl ThreadGit {
                 Err(e) => return fail(e.to_string()).await,
             }
         } else if let Some(dir) = dir {
-            // The files stay; the next turn's diff starts from checkpoint N.
             let _ = checkpoint::delete_after(&dir, thread_id, n).await;
         }
         let env = CommandEnvelope {
@@ -661,8 +602,6 @@ impl ThreadGit {
         }
     }
 
-    /// Dispatch `thread.revert-to-turn` and wait until the conversation is
-    /// cut (or the revert failed). The first dropped prompt comes back.
     pub async fn revert_to_turn(
         &self,
         thread_id: &str,
@@ -740,8 +679,6 @@ impl ThreadGit {
         })
     }
 
-    // ── Cleanup ─────────────────────────────────────────────────────────
-
     async fn cleanup(&self, thread_id: &str, deleting: bool) {
         let _g = self.lock(thread_id).await;
         let Ok(row) = self.row(thread_id) else { return };
@@ -753,7 +690,6 @@ impl ThreadGit {
         match wt {
             Some(path) if row.worktree_state.is_some() => {
                 if !deleting {
-                    // Work not in a checkpoint yet survives the folder.
                     let dirty = repo::status(&path).await.map(|s| s.dirty).unwrap_or(false);
                     if dirty {
                         let n = row.turn_count;
@@ -797,10 +733,6 @@ impl ThreadGit {
         }
     }
 
-    // ── Diff, status and the split button ───────────────────────────────
-
-    /// Diff of turn `turn` (checkpoint N-1 → N), or of the whole thread
-    /// (baseline → live tree) when `turn` is `None`.
     pub async fn diff(
         &self,
         thread_id: &str,
@@ -815,9 +747,6 @@ impl ThreadGit {
         .map_err(gerr)
     }
 
-    /// Files of the thread's folder whose path contains every word of
-    /// `query` (case-insensitive), basename hits first. Tracked and
-    /// untracked-but-not-ignored files; a folder without git is walked.
     pub async fn files(
         &self,
         thread_id: &str,
@@ -854,8 +783,6 @@ impl ThreadGit {
         repo::status(&self.cwd(thread_id)?).await.map_err(gerr)
     }
 
-    /// A commit message for what the thread changed: the cheap model over
-    /// the diff, else `vcs`'s own suggestion.
     pub async fn commit_message(&self, thread_id: &str) -> Result<CommitMessage, String> {
         let dir = self.cwd(thread_id)?;
         let changes = actions::working_changes(&dir).await.map_err(gerr)?;
@@ -936,7 +863,6 @@ impl ThreadGit {
         Ok(r)
     }
 
-    /// Opens the PR/MR (draft by default) and records the badge.
     pub async fn open_pr(
         &self,
         thread_id: &str,
@@ -970,8 +896,6 @@ impl ThreadGit {
         Ok(r)
     }
 
-    /// Reads the PR of the thread's branch again and updates the badge when
-    /// it changed. Called by the UI when the thread is visible.
     pub async fn refresh_pr(&self, thread_id: &str) -> Result<Option<PrInfo>, String> {
         let row = self.row(thread_id)?;
         let dir = self.cwd(thread_id)?;
@@ -1019,7 +943,6 @@ async fn branch_exists(root: &Path, name: &str) -> bool {
         .unwrap_or(false)
 }
 
-/// HEAD → live tree as one patch (clipped), for the commit-message model.
 async fn working_patch(dir: &Path) -> Option<String> {
     let ctx = checkpoint::context_for(dir).await.ok()?;
     let tree = checkpoint::live_tree(&ctx).await.ok()?;
@@ -1032,7 +955,6 @@ async fn working_patch(dir: &Path) -> Option<String> {
         .ok()
         .filter(|o| o.ok())
         .map(|o| o.trimmed())
-        // The empty tree: a repository without a commit yet.
         .unwrap_or_else(|| "4b825dc642cb6eb9a060e54bf8d69288fbee4904".to_string());
     let d = diff::diff_trees(
         &ctx,
@@ -1049,7 +971,6 @@ async fn working_patch(dir: &Path) -> Option<String> {
     Some(patch_for_prompt(&d, 12_000))
 }
 
-/// `path → added|deleted|modified|renamed` between checkpoints N-1 and N.
 async fn name_status(dir: &Path, thread_id: &str, n: u32) -> HashMap<String, String> {
     let Ok(ctx) = checkpoint::context_for(dir).await else {
         return HashMap::new();
@@ -1076,7 +997,6 @@ async fn name_status(dir: &Path, thread_id: &str, n: u32) -> HashMap<String, Str
     }
 }
 
-/// `git diff --name-status -z` → `path → status` (the new path of a rename).
 pub fn parse_name_status_z(raw: &[u8]) -> HashMap<String, String> {
     let mut out = HashMap::new();
     let mut it = raw
@@ -1124,8 +1044,6 @@ fn walk_files(root: &Path, cap: usize) -> Vec<String> {
     out
 }
 
-/// Paths containing every word of `query`; basename hits, then shorter
-/// paths first. An empty query lists the first `limit` paths.
 pub fn rank_files(all: Vec<String>, query: &str, limit: usize) -> Vec<String> {
     let words: Vec<String> = query.split_whitespace().map(|w| w.to_lowercase()).collect();
     let mut hits: Vec<(u8, usize, String)> = all
@@ -1183,8 +1101,6 @@ fn pr_body(row: &ThreadRow) -> String {
         row.title, row.turn_count
     )
 }
-
-// ── Pure helpers ────────────────────────────────────────────────────────
 
 const BRANCH_PREFIX: &str = "omniget/";
 const STOPWORDS: &[&str] = &[
@@ -1244,13 +1160,11 @@ fn join_branch(words: &[String]) -> Option<String> {
     (!name.is_empty()).then(|| format!("{BRANCH_PREFIX}{name}"))
 }
 
-/// `omniget/<up to 5 meaningful words of the first line>`.
 pub fn heuristic_branch_name(text: &str) -> Option<String> {
     let first = text.lines().map(str::trim).find(|l| !l.is_empty())?;
     join_branch(&slug_words(first, 5))
 }
 
-/// The model's answer as a branch name (first line, words only).
 pub fn clean_branch_suggestion(answer: &str) -> Option<String> {
     let line = answer
         .lines()
@@ -1269,7 +1183,6 @@ pub fn clean_branch_suggestion(answer: &str) -> Option<String> {
     join_branch(&words)
 }
 
-/// `(subject ≤ 72 chars, body)` from the model's answer.
 pub fn clean_commit_message(answer: &str) -> Option<(String, String)> {
     let text: Vec<&str> = answer
         .lines()
@@ -1296,7 +1209,6 @@ pub fn clean_commit_message(answer: &str) -> Option<(String, String)> {
     Some((s, body))
 }
 
-/// The patch of a diff, file by file, clipped to `max` bytes.
 pub fn patch_for_prompt(d: &DiffResult, max: usize) -> String {
     let mut out = String::new();
     for f in &d.files {

@@ -1,15 +1,3 @@
-//! Connection manager: owns the routes, tests them, picks the best one and
-//! switches on failure. The MTProto client never sees any of this; it talks
-//! to the bridge, which asks the manager for routes.
-//!
-//! Automatic mode (the default) is what makes it work with zero setup:
-//! on start it gathers every candidate (direct, the system proxy, every
-//! local proxy app it can find, saved and subscription routes, Telegram's
-//! own rescue proxies), probes them all in parallel with a real MTProto
-//! round trip and keeps the fastest working one, remembering it for next
-//! time. When the active route fails twice in a row it re-scans in the
-//! background, like Telegram Desktop's auto-switch.
-
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
@@ -44,28 +32,22 @@ pub struct SubscriptionEntry {
     pub unsupported: Vec<(String, usize)>,
 }
 
-/// What we persist in `<data>/telegram/network.json`.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct NetConfig {
     #[serde(default)]
     pub mode: Mode,
     #[serde(default)]
     pub fixed_route: Option<String>,
-    /// Routes the person added (links, manual, subscriptions).
     #[serde(default)]
     pub routes: Vec<Route>,
     #[serde(default)]
     pub subscriptions: Vec<SubscriptionEntry>,
     #[serde(default)]
     pub opts: NetOpts,
-    /// Try Telegram's own rescue proxies (from the DNS "simple config").
     #[serde(default = "yes")]
     pub use_rescue: bool,
-    /// Last route that worked, tried first on the next start.
     #[serde(default)]
     pub last_good: Option<String>,
-    /// Run the mihomo sidecar for VLESS/Hysteria2/TUIC/… nodes. `None`
-    /// means never asked: the screen offers it once such nodes exist.
     #[serde(default)]
     pub use_mihomo: Option<bool>,
 }
@@ -133,7 +115,6 @@ pub struct Manager {
 
 static MANAGER: OnceLock<Arc<Manager>> = OnceLock::new();
 
-/// The process-wide manager, loaded from disk on first use.
 pub fn get() -> Arc<Manager> {
     MANAGER
         .get_or_init(|| {
@@ -181,8 +162,6 @@ impl RouteProvider for Provider {
 }
 
 impl Manager {
-    /// The loopback SOCKS5 URL for the MTProto client. Starts the bridge on
-    /// first call.
     pub async fn bridge_url(self: &Arc<Self>) -> anyhow::Result<String> {
         let me = self.clone();
         let b = self
@@ -202,7 +181,6 @@ impl Manager {
         }
     }
 
-    /// Every route we know, deduplicated, saved ones first.
     fn all_routes(&self) -> Vec<(Route, bool)> {
         let cfg = self.cfg.lock().unwrap();
         let mut out: Vec<(Route, bool)> = vec![(Route::direct(), false)];
@@ -217,8 +195,6 @@ impl Manager {
                 out.push((r.clone(), false));
             }
         }
-        // Listeners of the mihomo sidecar: one SOCKS5 route per node, only
-        // while it runs. They count as saved (the node is).
         for r in mihomo::routes() {
             out.push((r, true));
         }
@@ -234,7 +210,6 @@ impl Manager {
             .find(|r| r.id == id)
     }
 
-    /// Order in which the bridge tries routes for a new connection.
     pub fn ordered_routes(&self) -> Vec<Route> {
         let (mode, fixed) = {
             let cfg = self.cfg.lock().unwrap();
@@ -243,8 +218,6 @@ impl Manager {
         let mut pinned = None;
         if mode == Mode::Fixed {
             if let Some(r) = fixed.and_then(|id| self.find(&id)) {
-                // A per-DC endpoint cannot carry the other DCs: those fall
-                // through to the automatic order behind it.
                 if r.dc_only.is_none() {
                     return vec![r];
                 }
@@ -254,8 +227,6 @@ impl Manager {
         let health = self.health.lock().unwrap().clone();
         let active = self.active.lock().unwrap().clone();
         let mut routes: Vec<Route> = self.all_routes().into_iter().map(|(r, _)| r).collect();
-        // Public/rescue proxies are shared and slow under load: they are the
-        // fallback, used only while nothing of the person's own works.
         let score = |r: &Route| -> (u8, u8, u64) {
             let h = health.get(&r.id);
             let public = matches!(r.source, RouteSource::PublicList { .. }) as u8;
@@ -271,8 +242,6 @@ impl Manager {
             }
         };
         routes.sort_by_key(|r| score(r));
-        // Known-bad routes only cost time; keep them out while anything
-        // better exists, but never hand back an empty list.
         let good = routes
             .iter()
             .filter(|r| health.get(&r.id).and_then(|h| h.ok) != Some(false))
@@ -327,8 +296,6 @@ impl Manager {
         }
     }
 
-    /// Finds candidates and probes them all. Safe to call concurrently:
-    /// a second caller waits for the running scan.
     pub async fn scan(self: &Arc<Self>) -> Status {
         if self.scanning.swap(true, Ordering::SeqCst) {
             self.scan_done.notified().await;
@@ -375,7 +342,6 @@ impl Manager {
         self.status()
     }
 
-    /// Probes routes in parallel, eight at a time, and records the result.
     pub async fn probe_many(self: &Arc<Self>, routes: Vec<Route>) {
         use futures::StreamExt;
         let opts = self.cfg.lock().unwrap().opts.clone();
@@ -481,18 +447,9 @@ impl Manager {
         }
     }
 
-    /// Adds routes parsed from pasted text. Returns how many were new and
-    /// the protocols we could not use.
-    ///
-    /// Links only mihomo can dial are stored as mihomo nodes; while the
-    /// sidecar is off their schemes are still reported as unsupported so
-    /// the screen can offer to turn it on (see `Status::mihomo`). When it
-    /// is on, it is (re)loaded in the background and the new nodes probed.
     pub fn add_from_text(self: &Arc<Self>, text: &str) -> (Vec<Route>, Vec<String>) {
         let parsed = super::links::parse_many(text, RouteSource::Link);
         let nodes = mihomo::extract_nodes(text, RouteSource::Link);
-        // An `ss://` with a plugin also parses natively (the plugin is
-        // dropped) and would never work: mihomo owns it.
         let taken: std::collections::HashSet<(String, u16)> = nodes
             .iter()
             .filter(|n| n.kind == "ss")
@@ -568,7 +525,6 @@ impl Manager {
         self.save();
     }
 
-    /// Removes saved routes that failed their last test.
     pub fn remove_failed(&self) -> usize {
         let health = self.health.lock().unwrap().clone();
         let mut removed_nodes = 0;
@@ -587,7 +543,6 @@ impl Manager {
         drop(cfg);
         self.save();
         if removed_nodes > 0 {
-            // The listeners of the removed nodes go on the next reload.
             tokio::spawn(async {
                 if let Err(e) = mihomo::start().await {
                     tracing::debug!("[tg-net] mihomo reload: {e:#}");
@@ -597,13 +552,10 @@ impl Manager {
         removed + removed_nodes
     }
 
-    /// Saves a detected/rescue route so it survives restarts.
     pub fn keep(&self, id: &str) -> anyhow::Result<()> {
         let r = self
             .find(id)
             .ok_or_else(|| anyhow::anyhow!("unknown route"))?;
-        // A mihomo listener is already kept as its node; its port is not
-        // a stable thing to save.
         if mihomo::is_mihomo_route(id) {
             return Ok(());
         }
@@ -712,8 +664,6 @@ impl Manager {
         out
     }
 
-    /// Proxies that can reach GitHub for the mihomo download: every
-    /// detected or saved SOCKS5/HTTP route, working ones first.
     fn download_proxies(&self) -> Vec<String> {
         let health = self.health.lock().unwrap().clone();
         let mut routes: Vec<Route> = self
@@ -731,10 +681,6 @@ impl Manager {
         routes.iter().map(mihomo::proxy_url).collect()
     }
 
-    /// Brings the sidecar in line with the setting: stopped when off or
-    /// without nodes, started (or reloaded when `reload`) when on. A plain
-    /// scan (`reload == false`) never waits for the 20 MB download: that
-    /// runs in the background.
     async fn mihomo_ensure(self: &Arc<Self>, reload: bool) {
         let on = self.cfg.lock().unwrap().use_mihomo == Some(true);
         if !on || mihomo::nodes().is_empty() {
@@ -756,8 +702,6 @@ impl Manager {
         self.mihomo_bring_up(reload).await;
     }
 
-    /// Installs when missing, starts or reloads, and probes the node
-    /// routes when `probe`.
     async fn mihomo_bring_up(self: &Arc<Self>, probe: bool) {
         if !mihomo::installed() {
             if let Err(e) = mihomo::install(&self.download_proxies()).await {
@@ -775,8 +719,6 @@ impl Manager {
         }
     }
 
-    /// Turns the mihomo sidecar on (downloading it if needed, then starting
-    /// it and probing every node) or off.
     pub async fn set_use_mihomo(
         self: &Arc<Self>,
         on: bool,
@@ -801,14 +743,12 @@ impl Manager {
         mihomo::status(self.cfg.lock().unwrap().use_mihomo)
     }
 
-    /// Restarts (reloads) the sidecar and probes every node.
     pub async fn mihomo_restart(self: &Arc<Self>) -> anyhow::Result<mihomo::MihomoStatus> {
         let routes = mihomo::start().await?;
         self.probe_many(routes).await;
         Ok(self.mihomo_status())
     }
 
-    /// Removes one node by its key and reloads.
     pub async fn mihomo_remove_node(self: &Arc<Self>, key: &str) {
         if let Some(r) = mihomo::routes()
             .into_iter()
@@ -820,7 +760,6 @@ impl Manager {
         self.mihomo_ensure(true).await;
     }
 
-    /// True once some route has been proven to work.
     pub fn has_working_route(&self) -> bool {
         self.health
             .lock()

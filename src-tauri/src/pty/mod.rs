@@ -1,24 +1,3 @@
-//! Embedded terminals: the app side of `omniget_core::core::term`.
-//!
-//! The sessions, the emulator and the agent state live in the core's
-//! [`TermManager`]; this module provides its PTY backend (`portable-pty`,
-//! see [`portable`]), turns its notifications into Tauri events, and keeps
-//! the Central's `pty_*` contract byte for byte.
-//!
-//! Sessions live in the app process, so closing the panel or the window
-//! never kills them: a remounted view calls [`PtyManager::attach`] and gets
-//! the replay-safe history plus a cursor, then keeps reading live output
-//! from the `pty://data` event.
-//!
-//! Events (all payloads carry `id`):
-//! - `pty://data` `{id, generation, seq, start, data}`: `data` is base64 of the
-//!   raw bytes, `start` their absolute offset in the generation. A view drops
-//!   bytes before its cursor and re-attaches on a gap. Ack with `pty_ack(seq)`.
-//! - `pty://exit` `{id, code, signal}` (also sent as `term://exit`).
-//! - `pty://activity` `{id, running, label, pid}` when the foreground changes.
-//! - `pty://stall` `{id}`: the view stopped acking and was detached; attach again.
-//! - `term://state` `{id, state, source, since_ms, message, progress}`: agent state.
-
 pub mod portable;
 
 use std::sync::{Arc, OnceLock};
@@ -32,9 +11,7 @@ use tauri::{AppHandle, Emitter};
 
 pub use omniget_core::core::term::session::{history, sanitize};
 
-/// Same shape as before the move (`agent` and `restore` are optional extras).
 pub type OpenRequest = term_session::TermOpen;
-/// `SessionInfo` gained `agent`, `agent_kind`, `osc_title`, `osc_cwd`.
 pub type SessionInfo = term_session::TermInfo;
 pub type Attached = term_session::Attached;
 
@@ -108,8 +85,6 @@ impl TermEvents for TauriEvents {
     }
 }
 
-/// The process-wide terminal manager (installed as `core::term` global on
-/// first use, so core code reaches it through `session::global()` too).
 pub fn term() -> Arc<TermManager> {
     static TERM: OnceLock<Arc<TermManager>> = OnceLock::new();
     TERM.get_or_init(|| {
@@ -118,7 +93,6 @@ pub fn term() -> Arc<TermManager> {
     .clone()
 }
 
-/// Thin adapter that keeps the Central's `PtyManager` API.
 #[derive(Default)]
 pub struct PtyManager {
     app: OnceLock<AppHandle>,
@@ -126,8 +100,6 @@ pub struct PtyManager {
 
 static MANAGER: OnceLock<PtyManager> = OnceLock::new();
 
-/// The process-wide manager. Needs no setup: the first command hands it the
-/// `AppHandle` it emits with.
 pub fn manager() -> &'static PtyManager {
     MANAGER.get_or_init(PtyManager::default)
 }
@@ -139,7 +111,6 @@ impl PtyManager {
         }
     }
 
-    /// Default history cap for sessions opened from now on.
     pub fn set_history_cap(&self, bytes: usize) {
         term().set_history_cap(bytes);
     }
@@ -148,7 +119,6 @@ impl PtyManager {
         term().open(req)
     }
 
-    /// Bytes from the Central's xterm.js: keystrokes and its query answers.
     pub fn write(&self, id: &str, data: &str) -> Result<(), String> {
         term().input(id, data.as_bytes())
     }
@@ -181,7 +151,6 @@ impl PtyManager {
         term().clear(id)
     }
 
-    /// Kills every session (app exit).
     pub fn shutdown_all(&self) {
         term().shutdown_all();
     }

@@ -1,8 +1,3 @@
-//! Approval requests from external MCP clients. A client never approves
-//! anything: `wmb_execute` from outside creates a request, the OmniGet window
-//! shows it, and the person allows or denies. The client polls
-//! `wmb_plan_show` (or `wmb_receipts` for a restore) until it sees the result.
-
 use rusqlite::{params, OptionalExtension};
 use serde::Serialize;
 use serde_json::{json, Value};
@@ -10,13 +5,11 @@ use serde_json::{json, Value};
 use super::plan::{self, PlanStatus};
 use super::store::{now, Ctx};
 
-/// A request waits this long for the person before it expires.
 pub const APPROVAL_TTL_SECS: i64 = 600;
 
 #[derive(Debug, Clone, Serialize)]
 pub struct Approval {
     pub id: String,
-    /// `execute:<plan_id>` or `restore:<receipt_id>`.
     pub target: String,
     pub client: String,
     pub created: i64,
@@ -47,8 +40,6 @@ fn get(ctx: &Ctx, id: &str) -> Result<Approval, String> {
         .ok_or_else(|| format!("APPROVAL_NOT_FOUND: {id}"))
 }
 
-/// Ask the person to execute `plan_id` for `client`. A second ask for the
-/// same plan returns the pending request instead of stacking prompts.
 pub fn request_execute(ctx: &Ctx, plan_id: &str, client: &str) -> Result<Approval, String> {
     let plan = plan::load(ctx, plan_id)?;
     match plan.status {
@@ -61,7 +52,6 @@ pub fn request_execute(ctx: &Ctx, plan_id: &str, client: &str) -> Result<Approva
     })
 }
 
-/// Ask the person to undo `receipt_id` for `client`.
 pub fn request_restore(ctx: &Ctx, receipt_id: &str, client: &str) -> Result<Approval, String> {
     super::receipt::load(ctx, receipt_id)?;
     request(ctx, &format!("restore:{receipt_id}"), client)
@@ -89,8 +79,6 @@ fn request(ctx: &Ctx, target: &str, client: &str) -> Result<Approval, String> {
     get(ctx, &id)
 }
 
-/// Pending requests, newest first, each with what the person needs to judge
-/// it (the plan preview or the receipt summary).
 pub fn pending(ctx: &Ctx) -> Result<Vec<Value>, String> {
     let db = ctx.open()?;
     db.execute(
@@ -123,8 +111,6 @@ pub fn pending(ctx: &Ctx) -> Result<Vec<Value>, String> {
         .collect())
 }
 
-/// The person's answer. Allow runs the plan (or the restore) right here and
-/// records the receipt; deny marks the plan denied.
 pub fn answer(ctx: &Ctx, id: &str, allow: bool) -> Result<Value, String> {
     let a = get(ctx, id)?;
     if a.status != "pending" {

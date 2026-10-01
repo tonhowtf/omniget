@@ -1,17 +1,9 @@
-//! Replace a duplicate with an APFS clone of the kept file: both names stay,
-//! the blocks are shared until one of them changes. Clone-swap idea from
-//! MacSai `FileConsolidator.swift` (<https://github.com/iliyami/MacSai>,
 //! BSD-3-Clause, Copyright (c) 2026, Mac Sai Contributors): clone next to the copy, check the
-//! clone byte by byte, carry the copy's permissions and times over, then an
-//! atomic `rename` on top. Any failure leaves the copy untouched.
 
 use std::path::Path;
 
 use super::super::super::fsops::Fingerprint;
 
-/// Swap `replace` for a clone of `keep`. Revalidates `replace` against the
-/// scan's fingerprint and the guard, and refuses unless both files hold the
-/// same bytes. Returns the allocated bytes the copy held.
 #[cfg(target_os = "macos")]
 pub fn apfs_clone_replace(keep: &Path, replace: &Path, fp: &Fingerprint) -> Result<u64, String> {
     use std::os::unix::ffi::OsStrExt;
@@ -72,8 +64,6 @@ pub fn apfs_clone_replace(keep: &Path, replace: &Path, fp: &Fingerprint) -> Resu
             "CHANGED: the files no longer hold the same bytes".into(),
         ));
     }
-    // The copy keeps its own times and permissions (times first: the mode
-    // may be read-only).
     if let Ok(f) = std::fs::File::open(&tmp) {
         let mut times = std::fs::FileTimes::new();
         if let Ok(t) = rm.modified() {
@@ -85,7 +75,6 @@ pub fn apfs_clone_replace(keep: &Path, replace: &Path, fp: &Fingerprint) -> Resu
         let _ = f.set_times(times);
     }
     let _ = std::fs::set_permissions(&tmp, rm.permissions());
-    // Last look right before the swap.
     fsops::unchanged(replace, fp).map_err(&cleanup)?;
     std::fs::rename(&tmp, replace).map_err(|e| cleanup(format!("rename failed: {e}")))?;
     Ok(reclaimed)

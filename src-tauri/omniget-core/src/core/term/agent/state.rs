@@ -1,16 +1,3 @@
-//! Agent state of one terminal.
-//!
-//! Sources, strongest first: process exit, hooks (the agent tells us), OSC
-//! sequences and the window title (the agent hints on the PTY), heuristics
-//! (foreground process, output quiescence, screen patterns).
-//!
-//! A proposal from a source at least as strong as the one that set the
-//! current state always applies. A weaker one applies only when the stronger
-//! source has been silent for its hold window (10 s for hooks, 4 s for
-//! OSC/title), and never replaces `blocked`, `waiting_peer`, `failed` or
-//! `success` (those need the same or a stronger source, the user answering in
-//! the terminal, or focus for `success`).
-
 use std::time::{Duration, Instant};
 
 use serde::{Deserialize, Serialize};
@@ -25,11 +12,8 @@ pub enum AgentState {
     Idle,
     Thinking,
     Working,
-    /// Waiting for another agent (an `ask` through a cord).
     WaitingPeer,
-    /// Waiting for the human: permission, question, elicitation.
     Blocked,
-    /// Turn finished and not seen yet (focus turns it into `idle`).
     Success,
     Failed,
     Compacting,
@@ -39,7 +23,6 @@ pub enum AgentState {
 }
 
 impl AgentState {
-    /// Wire code (`AGENT` section).
     pub fn code(self) -> u8 {
         match self {
             Self::Idle => 0,
@@ -121,10 +104,8 @@ impl SignalSource {
 pub struct AgentSignal {
     pub state: AgentState,
     pub source: SignalSource,
-    /// Epoch ms of the last state change.
     pub since_ms: i64,
     pub message: Option<String>,
-    /// OSC 9;4 progress: 0-100, 254 indeterminate; `None` without a bar.
     pub progress: Option<u8>,
 }
 
@@ -155,7 +136,6 @@ pub enum AgentKind {
 }
 
 impl AgentKind {
-    /// From a program label ("claude", "codex", "zsh").
     pub fn from_label(label: &str) -> Self {
         let l = label.to_ascii_lowercase();
         match l.as_str() {
@@ -193,21 +173,15 @@ pub fn now_ms() -> i64 {
         .unwrap_or(0)
 }
 
-/// Output this close to a keystroke is treated as echo, not activity.
 const ECHO_WINDOW: Duration = Duration::from_millis(200);
-/// Output sustained this long counts as "working" for the heuristics.
 const BURST_MIN: Duration = Duration::from_millis(300);
-/// Silence after which a heuristic "working" becomes "idle".
 const QUIET_IDLE: Duration = Duration::from_millis(2500);
-/// A gap in output this long ends a burst.
 const BURST_GAP: Duration = Duration::from_millis(700);
-/// Same tool call this many times in a row = looping.
 const LOOP_REPEATS: u32 = 4;
 
 pub struct AgentTracker {
     kind: AgentKind,
     signal: AgentSignal,
-    /// When each source last spoke (index = `SignalSource::code`).
     spoke: [Option<Instant>; 6],
     seq: u64,
     last_output: Option<Instant>,
@@ -215,9 +189,7 @@ pub struct AgentTracker {
     last_input: Option<Instant>,
     loop_sig: Option<(u64, u32)>,
     changed_at: Instant,
-    /// Last line of the screen question that made the state `blocked`.
     blocked_line: Option<String>,
-    /// That question, once the user answered it, and when.
     answered: Option<(String, Instant)>,
 }
 
@@ -252,13 +224,10 @@ impl AgentTracker {
         &self.signal
     }
 
-    /// Bumped on every visible change (state, message or progress).
     pub fn seq(&self) -> u64 {
         self.seq
     }
 
-    /// Whether a proposal from `source` could apply right now (lets the
-    /// session skip reading the screen for heuristics that would be ignored).
     pub fn would_accept(&self, source: SignalSource, now: Instant) -> bool {
         let cur = self.signal.source;
         if cur == SignalSource::Exit {
@@ -276,8 +245,6 @@ impl AgentTracker {
         }
     }
 
-    /// Applies a proposal under the precedence rules. Returns whether the
-    /// visible signal changed.
     pub fn propose(
         &mut self,
         state: AgentState,
@@ -309,7 +276,6 @@ impl AgentTracker {
         if state_changed {
             s.since_ms = now_ms();
             self.changed_at = now;
-            // A new state starts without the previous state's message.
             s.message = None;
         }
         s.state = state;
@@ -330,7 +296,6 @@ impl AgentTracker {
         true
     }
 
-    /// The user focused the node: an unseen `success` becomes `idle`.
     pub fn acknowledge(&mut self, now: Instant) -> bool {
         if self.signal.state == AgentState::Success {
             let src = self.signal.source;
@@ -339,8 +304,6 @@ impl AgentTracker {
         false
     }
 
-    /// Keystrokes from the user. A submit (Enter) answers a prompt: a sticky
-    /// `blocked`/`success`/`failed` gives way to `thinking` right away.
     pub fn on_user_input(&mut self, submit: bool, now: Instant) -> bool {
         self.last_input = Some(now);
         if !submit || self.signal.source == SignalSource::Exit {
@@ -358,9 +321,6 @@ impl AgentTracker {
                 self.spoke[SignalSource::Heuristic.index()] = Some(now);
                 self.force(AgentState::Thinking, SignalSource::Heuristic, None, now)
             }
-            // A generic program (a custom agent CLI) that never said anything
-            // about its state: a submitted line starts its turn.
-            // A shell program's "[Y/n]" answered: it goes on with its work.
             AgentState::Blocked => {
                 self.spoke[SignalSource::Heuristic.index()] = Some(now);
                 self.force(AgentState::Working, SignalSource::Heuristic, None, now)
@@ -373,8 +333,6 @@ impl AgentTracker {
         }
     }
 
-    /// Whether the periodic heuristics still have something to decide (a
-    /// busy state to end, or recent output).
     pub fn wants_tick(&self, now: Instant) -> bool {
         self.signal.source != SignalSource::Exit
             && (self.signal.state.busy()
@@ -383,7 +341,6 @@ impl AgentTracker {
                     .is_some_and(|t| now.duration_since(t) < QUIET_IDLE * 2))
     }
 
-    /// Output from the program (bytes read), for the quiescence heuristic.
     pub fn on_output(&mut self, now: Instant) {
         if self
             .last_input
@@ -517,9 +474,6 @@ impl AgentTracker {
         }
     }
 
-    /// A hook event in Claude's vocabulary (the shim normalises Codex,
-    /// Gemini and Cline to it), plus Codex `notify` and OpenCode plugin
-    /// event names, and OmniGet's own `omniget.*` events.
     pub fn on_hook(&mut self, event: &str, payload: &Value, now: Instant) -> bool {
         let text = |k: &str| {
             payload
@@ -594,7 +548,6 @@ impl AgentTracker {
             "omniget.peer_done" => (AgentState::Thinking, None),
             _ => return false,
         };
-        // The streak spans a turn (Pre/Post pairs); a new turn resets it.
         if !matches!(
             state,
             AgentState::Working | AgentState::Looping | AgentState::Thinking
@@ -627,7 +580,6 @@ impl AgentTracker {
         count >= LOOP_REPEATS
     }
 
-    /// The program ended.
     pub fn on_exit(&mut self, code: Option<i32>, signal: Option<&str>, now: Instant) -> bool {
         let (state, msg) = match (code, signal) {
             (Some(0), None) => (
@@ -647,9 +599,6 @@ impl AgentTracker {
         self.force(state, SignalSource::Exit, msg, now)
     }
 
-    /// Heuristics, called periodically by the session. `screen` is the tail
-    /// of the visible screen (last lines), read only when
-    /// `would_accept(Heuristic)` holds.
     pub fn tick(&mut self, now: Instant, fg: &Foreground, screen: Option<&str>) -> bool {
         if fg.running {
             let k = AgentKind::from_label(&fg.label);
@@ -657,9 +606,6 @@ impl AgentTracker {
                 self.kind = k;
             }
         }
-        // A program other than the shell (and not an agent CLI) in the
-        // foreground is busy even when it prints nothing (`sleep 60`, a
-        // build waiting on the network).
         let fg_busy = fg.running
             && self.kind == AgentKind::Shell
             && !AgentKind::from_label(&fg.label).is_agent();
@@ -674,8 +620,6 @@ impl AgentTracker {
         }
         if let Some(screen) = screen {
             if let Some(state) = screen_state(self.kind, screen) {
-                // A "[Y/n]" still on screen after the user answered it is not a
-                // new question: blocked needs output after the last keystroke.
                 let last = last_line(screen);
                 let answered = state == AgentState::Blocked
                     && self.signal.state != AgentState::Blocked
@@ -704,9 +648,6 @@ impl AgentTracker {
             .map(|t| now.duration_since(t) >= QUIET_IDLE)
             .unwrap_or(true);
         if quiet && self.signal.state.busy() && !fg_busy {
-            // A generic program that went quiet after a turn has finished it
-            // (the attention dot, like the Maestri's "stopped producing
-            // output"); a shell just went back to its prompt.
             let end = if self.kind == AgentKind::Unknown {
                 AgentState::Success
             } else {
@@ -730,8 +671,6 @@ impl AgentTracker {
     }
 }
 
-/// Screen patterns of the agent CLIs (fallback only; they change between
-/// versions).
 fn screen_state(kind: AgentKind, screen: &str) -> Option<AgentState> {
     let lower = screen.to_lowercase();
     let last = lower
@@ -740,13 +679,9 @@ fn screen_state(kind: AgentKind, screen: &str) -> Option<AgentState> {
         .find(|l| !l.trim().is_empty())
         .unwrap_or("");
     let blocked_generic = asks_yes_no(last);
-    // Trust dialogs and permission/choice menus of Claude, Codex and Gemini
-    // (a cursor on "1." with a second option) mean the human has to answer,
-    // whatever the agent kind detected so far.
     if choice_prompt(&lower) {
         return Some(AgentState::Blocked);
     }
-    // The account ran out: the agent sits at its prompt but cannot answer.
     if lower.contains("hit your usage limit") || lower.contains("usage limit reached") {
         return Some(AgentState::Failed);
     }
@@ -798,9 +733,6 @@ fn last_line(screen: &str) -> String {
         .to_string()
 }
 
-/// The line ends in a yes/no question still waiting for its answer
-/// ("Continue? [Y/n]", "Overwrite (y/n)?"). Once the user typed an answer
-/// after it ("[Y/n] y"), it no longer does.
 fn asks_yes_no(line: &str) -> bool {
     let l = line
         .trim_end()
@@ -813,12 +745,7 @@ fn asks_yes_no(line: &str) -> bool {
     .any(|p| l.ends_with(p))
 }
 
-/// A selection menu waiting for the user: a cursor glyph on an option "1."
-/// and a second option "2.", plus a question, trust or confirm hint. Plain
-/// numbered lists in the agent's answers have no cursor and are ignored.
 fn choice_prompt(lower: &str) -> bool {
-    // Unnumbered menus ("❯ No, exit / Yes, I trust this folder"): a cursor
-    // line plus the confirm footer those dialogs print.
     const FOOTERS: [&str; 7] = [
         "enter to confirm",
         "enter to continue",
@@ -851,7 +778,6 @@ fn choice_prompt(lower: &str) -> bool {
         }
     }
     if !(cursor_on_first && second) {
-        // Cursor on another option ("❯ 2. No") after the user moved it.
         let moved = lower.lines().any(|line| {
             let l = line.trim_matches(|c: char| c.is_whitespace() || c == '│' || c == '|');
             let rest = l.trim_start_matches(['❯', '›', '●', '▶']).trim_start();

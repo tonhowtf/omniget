@@ -1,9 +1,3 @@
-//! Mascot `state` (Phase 5). Owned by f5-omni-intent.
-//!
-//! What the Omni is doing right now, persisted to `<app_data>/omni/state.json`
-//! so the pet window and the rail avatar agree across restarts. No LLM is ever
-//! involved here: the state only ever moves through `apply(&Intent)`.
-
 use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -11,19 +5,14 @@ use serde::{Deserialize, Serialize};
 
 use super::intent::{Animation, Intent, Mood};
 
-/// Energy when nothing said otherwise. Phase 4 (quota) will drive it down;
-/// today it is a plain field with a setter.
 pub const DEFAULT_ENERGY: u8 = 100;
 
-/// Below this the mascot is too tired to work: see `rules`.
 pub const EXHAUSTED_ENERGY: u8 = 0;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct OmniState {
     pub current: Intent,
-    /// Unix epoch milliseconds at which `current` started.
     pub since_ms: u64,
-    /// 0..=100. Fed by the quota in Phase 4; default `DEFAULT_ENERGY`.
     pub energy: u8,
 }
 
@@ -42,9 +31,6 @@ impl OmniState {
         Self::default()
     }
 
-    /// Moves the mascot to `intent`. Returns `true` when something actually
-    /// changed; an identical intent keeps `since_ms` so "how long has it been
-    /// idle" stays honest.
     pub fn apply(&mut self, intent: &Intent) -> bool {
         if &self.current == intent {
             return false;
@@ -66,18 +52,14 @@ impl OmniState {
         self.current.mood
     }
 
-    /// Milliseconds spent in the current intent (saturating: a clock that went
-    /// backwards reads as 0, never as a huge number).
     pub fn elapsed_ms(&self) -> u64 {
         now_ms().saturating_sub(self.since_ms)
     }
 
-    /// `<app_data>/omni/state.json`. `None` when no data dir is available.
     pub fn path() -> Option<PathBuf> {
         crate::core::paths::app_data_dir().map(|d| d.join("omni").join("state.json"))
     }
 
-    /// Never fails: an unreadable or corrupt file is a fresh default state.
     pub fn load() -> Self {
         Self::load_from(Self::path())
     }
@@ -98,8 +80,6 @@ impl OmniState {
         }
     }
 
-    /// Writes atomically (temp file + rename) so a crash mid-write cannot leave
-    /// half a JSON behind.
     pub fn save(&self) -> Result<(), String> {
         let path = Self::path().ok_or_else(|| "ERR_OMNI_NO_DATA_DIR".to_string())?;
         self.save_to(&path)

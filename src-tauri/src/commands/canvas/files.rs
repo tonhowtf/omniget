@@ -1,11 +1,3 @@
-//! File tree, editor and git-lite commands of the canvas (Maestri "File Tree",
-//! study 95 §K). Every call names a workspace and a `root`; the root must be
-//! the workspace working directory, the path of one of its floors, or the
-//! `rootPath` of a file tree node on its floors. Paths inside are relative,
-//! resolved by canonicalizing and rejected when they escape the root.
-//! Errors start with a code: `CANVAS_FILES_DENIED`, `CANVAS_FILES_NOT_FOUND`,
-//! `CANVAS_FILES_INVALID`, `CANVAS_FILES_IO`, `CANVAS_FILE_CONFLICT: <rev>`.
-
 use std::path::{Component, Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -22,14 +14,11 @@ use tauri::AppHandle;
 
 use crate::canvas::doc::host;
 
-/// Largest text file the editor opens.
 const MAX_TEXT_BYTES: u64 = 4 * 1024 * 1024;
-/// Largest image sent back as a data URL.
 const MAX_IMAGE_BYTES: u64 = 10 * 1024 * 1024;
 const MAX_LIST_ENTRIES: usize = 5000;
 const MAX_SEARCH_HITS: usize = 200;
 const MAX_SEARCH_FILE_BYTES: u64 = 1024 * 1024;
-/// Folders never walked by search (they drown every result).
 const SKIP_DIRS: &[&str] = &[
     ".git",
     "node_modules",
@@ -44,7 +33,6 @@ const SKIP_DIRS: &[&str] = &[
 #[serde(rename_all = "camelCase")]
 pub struct FileEntry {
     pub name: String,
-    /// Relative to the root, `/`-separated.
     pub path: String,
     pub is_dir: bool,
     pub is_symlink: bool,
@@ -102,8 +90,6 @@ fn io(e: std::io::Error) -> String {
     }
 }
 
-/// Roots a workspace may browse: its working directory, floor paths and the
-/// `rootPath` of every file tree node on its floors.
 fn allowed_roots(s: &CanvasStore, ws: &str) -> Result<Vec<PathBuf>, String> {
     let meta = s.workspace(ws)?;
     let mut out: Vec<String> = Vec::new();
@@ -132,7 +118,6 @@ fn allowed_roots(s: &CanvasStore, ws: &str) -> Result<Vec<PathBuf>, String> {
         .collect())
 }
 
-/// Canonical root, checked against the workspace's allowed roots.
 fn resolve_root(s: &CanvasStore, ws: &str, root: &str) -> Result<PathBuf, String> {
     let root = root.trim();
     if root.is_empty() || !Path::new(root).is_absolute() {
@@ -149,7 +134,6 @@ fn resolve_root(s: &CanvasStore, ws: &str, root: &str) -> Result<PathBuf, String
     Ok(canon)
 }
 
-/// Lexically clean relative path: no absolute parts, no `..`.
 fn clean_rel(rel: &str) -> Result<PathBuf, String> {
     let mut out = PathBuf::new();
     for c in Path::new(rel.trim().trim_start_matches(['/', '\\'])).components() {
@@ -162,7 +146,6 @@ fn clean_rel(rel: &str) -> Result<PathBuf, String> {
     Ok(out)
 }
 
-/// Existing path inside `root` (symlinks followed, then re-checked).
 fn resolve_existing(root: &Path, rel: &str) -> Result<PathBuf, String> {
     let joined = root.join(clean_rel(rel)?);
     let canon = std::fs::canonicalize(&joined).map_err(io)?;
@@ -172,7 +155,6 @@ fn resolve_existing(root: &Path, rel: &str) -> Result<PathBuf, String> {
     Ok(canon)
 }
 
-/// Path that may not exist yet: its parent must exist inside `root`.
 fn resolve_new(root: &Path, rel: &str) -> Result<PathBuf, String> {
     let rel = clean_rel(rel)?;
     let name = rel
@@ -217,11 +199,8 @@ fn image_mime(p: &Path) -> Option<&'static str> {
     })
 }
 
-/// Largest video, audio or PDF sent back as a data URL (the viewer plays it
-/// from a blob; bigger files say "too large").
 const MAX_MEDIA_BYTES: u64 = 64 * 1024 * 1024;
 
-/// Video, audio and PDF types the editor's media viewer plays (Maestri §K5).
 fn media_mime(p: &Path) -> Option<&'static str> {
     let ext = p.extension()?.to_string_lossy().to_ascii_lowercase();
     Some(match ext.as_str() {
@@ -349,7 +328,6 @@ pub async fn canvas_files_list(
             }
             let Ok(ft) = entry.file_type() else { continue };
             let is_symlink = ft.is_symlink();
-            // Follow symlinks for the kind, but never list targets outside the root.
             let meta = std::fs::metadata(entry.path()).ok();
             if is_symlink {
                 match std::fs::canonicalize(entry.path()) {
@@ -397,10 +375,6 @@ pub async fn canvas_files_read(
     .await
 }
 
-/// Image preview of a file node (M-B30): the `data:` URL of the image at the
-/// node's `path`, or `None` when it is not an image, is missing or too big.
-/// Only the path stored on that node is read (the person or an agent put it
-/// on the canvas), so this is not a way to read arbitrary files.
 #[tauri::command]
 pub async fn canvas_file_node_preview(
     app: AppHandle,
@@ -462,7 +436,6 @@ pub async fn canvas_files_write(
                 return Err(format!("CANVAS_FILE_CONFLICT: {current}"));
             }
         }
-        // Temp file + rename so an agent reading mid-save never sees half a file.
         let tmp = abs.with_file_name(format!(
             ".{}.omniget-tmp",
             abs.file_name()
@@ -546,7 +519,6 @@ pub async fn canvas_files_rename(
     .await
 }
 
-/// Moves a file or folder to `<workspace>/trash/files/` (never a hard delete).
 #[tauri::command]
 pub async fn canvas_files_delete(
     app: AppHandle,
@@ -570,7 +542,6 @@ pub async fn canvas_files_delete(
             .unwrap_or_default();
         let dst = bin.join(format!("{stamp}-{name}"));
         if std::fs::rename(&src, &dst).is_err() {
-            // Another volume: copy a file then remove it; folders refuse.
             if src.is_dir() {
                 return Err("CANVAS_FILES_IO: folder is on another volume than the trash".into());
             }
@@ -582,8 +553,6 @@ pub async fn canvas_files_delete(
     .await
 }
 
-/// Name search (fuzzy-ish: every query word in the path), or content search
-/// when `content` is true (Maestri: a leading `>` in the tree search box).
 #[tauri::command]
 pub async fn canvas_files_search(
     app: AppHandle,
@@ -599,7 +568,6 @@ pub async fn canvas_files_search(
         let root = resolve_root(&s, &workspace_id, &root)?;
         let mut q = query.trim().to_lowercase();
         let mut content = content.unwrap_or(false);
-        // The tree's search box syntax: a leading `>` searches inside files.
         if let Some(rest) = q.strip_prefix('>') {
             q = rest.trim().to_string();
             content = true;
@@ -675,10 +643,6 @@ pub async fn canvas_files_search(
     .await
 }
 
-/// Name search: every word must match. A word with `*` or `?` is a glob
-/// (case-insensitive) against the file name, or against the relative path when
-/// it has a `/`; other words are substrings of the path. A glob with a dot
-/// (`*.md`) never matches a folder.
 fn name_matches(words: &[&str], rel: &str, is_dir: bool) -> bool {
     let lower = rel.to_lowercase();
     let name = lower.rsplit('/').next().unwrap_or(&lower);
@@ -699,7 +663,6 @@ fn name_matches(words: &[&str], rel: &str, is_dir: bool) -> bool {
     })
 }
 
-/// `*` (any run, also `/` when matching a path) and `?` (one byte).
 fn glob_match(p: &[u8], t: &[u8]) -> bool {
     let (mut pi, mut ti) = (0usize, 0usize);
     let (mut star, mut mark) = (None::<usize>, 0usize);
@@ -736,8 +699,6 @@ pub async fn canvas_files_git_status(
     Ok(repo::status(&root).await?)
 }
 
-/// Work tree (staged, unstaged and untracked) against HEAD, without touching
-/// the index; `path` narrows it to one file or folder (relative to the root).
 #[tauri::command]
 pub async fn canvas_files_git_diff(
     app: AppHandle,
@@ -780,7 +741,6 @@ pub async fn canvas_files_git_diff(
         },
     )
     .await?;
-    // Git paths are relative to the repo; the tree's root may be a subfolder.
     let prefix = rel_of(
         &std::fs::canonicalize(&paths.root).unwrap_or(paths.root.clone()),
         &root,
@@ -806,23 +766,18 @@ pub async fn canvas_files_git_diff(
     Ok(res)
 }
 
-/// Arguments of [`canvas_files_git_op`]. Paths are relative to the tree root.
 #[derive(Debug, Default, Clone, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct GitOpArgs {
     pub message: Option<String>,
     pub paths: Option<Vec<String>>,
     pub branch: Option<String>,
-    /// Start point of `newBranch`.
     pub start: Option<String>,
     pub force: Option<bool>,
-    /// Stash index for stashApply/stashPop/stashDrop (default 0).
     pub index: Option<u32>,
-    /// stashPush: also stash untracked files (default true).
     pub untracked: Option<bool>,
 }
 
-/// One side of a conflicted file (Maestri: Current and Incoming, labeled).
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ConflictView {
@@ -841,11 +796,8 @@ pub struct ConflictView {
 #[serde(rename_all = "camelCase")]
 pub struct GitOpResult {
     pub action: String,
-    /// False when git refused (merge/pull conflicts): the error is in `output`.
     pub ok: bool,
-    /// Git's own words (stdout + stderr), trimmed; copyable.
     pub output: String,
-    /// Conflicted paths, relative to the tree root.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub conflicts: Vec<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -860,7 +812,6 @@ pub struct GitOpResult {
     pub status: Option<RepoStatus>,
 }
 
-/// Every action [`canvas_files_git_op`] understands.
 pub const GIT_ACTIONS: &[&str] = &[
     "status",
     "branches",
@@ -886,14 +837,12 @@ pub const GIT_ACTIONS: &[&str] = &[
     "removeLock",
 ];
 
-/// A lock older than this is a leftover of a crashed git (Maestri removes it).
 const STALE_LOCK_SECS: u64 = 60;
 
 fn git_err(e: omniget_core::core::vcs::VcsError) -> String {
     format!("CANVAS_GIT: {e}")
 }
 
-/// Branch or ref name typed by a person or an agent: no options, no spaces.
 fn ref_arg(v: Option<&str>, what: &str) -> Result<String, String> {
     let r = v.map(str::trim).unwrap_or("");
     if r.is_empty() {
@@ -905,7 +854,6 @@ fn ref_arg(v: Option<&str>, what: &str) -> Result<String, String> {
     Ok(r.to_string())
 }
 
-/// Tree-relative paths, cleaned (no escapes, no leading `-`).
 fn rel_paths(paths: &Option<Vec<String>>) -> Result<Vec<String>, String> {
     let mut out = Vec::new();
     for p in paths.iter().flatten() {
@@ -942,8 +890,6 @@ fn joined(o: &omniget_core::core::vcs::runner::Output) -> String {
     t
 }
 
-/// Removes `<git dir>/index.lock` when it is older than [`STALE_LOCK_SECS`]
-/// (or always with `force`). Returns whether it removed one.
 async fn remove_stale_lock(ctx: &GitCtx, force: bool) -> Result<bool, String> {
     let dir = ctx.git_dir().await.map_err(git_err)?;
     let lock = dir.join("index.lock");
@@ -963,7 +909,6 @@ async fn remove_stale_lock(ctx: &GitCtx, force: bool) -> Result<bool, String> {
     Ok(true)
 }
 
-/// Conflicted paths (relative to `root`, which may be a repo subfolder).
 async fn conflicts_of(ctx: &GitCtx) -> Vec<String> {
     match ctx
         .git()
@@ -996,8 +941,6 @@ async fn stage_blob(ctx: &GitCtx, stage: u8, path: &str) -> Option<String> {
     o.ok().then(|| o.text())
 }
 
-/// Name of what is being merged: the branch in MERGE_MSG ("Merge branch
-/// 'feat'" / "Merge remote-tracking branch 'origin/x'"), else `name-rev`.
 async fn merge_source_name(ctx: &GitCtx) -> Option<String> {
     let msg_path = ctx
         .git()
@@ -1030,7 +973,6 @@ async fn merge_source_name(ctx: &GitCtx) -> Option<String> {
         .filter(|s| !s.is_empty() && s != "undefined")
 }
 
-/// "Merge branch 'feat' into main" -> "feat".
 fn parse_merge_msg(line: &str) -> Option<String> {
     let rest = line.strip_prefix("Merge ")?;
     let start = rest.find('\'')? + 1;
@@ -1039,7 +981,6 @@ fn parse_merge_msg(line: &str) -> Option<String> {
     (!name.is_empty()).then(|| name.to_string())
 }
 
-/// Runs one git operation on a tree. Network actions time out after 5 min.
 async fn git_op(
     ctx: &GitCtx,
     repo_prefix: &str,
@@ -1065,7 +1006,6 @@ async fn git_op(
     if is_write && action != "removeLock" {
         let _ = remove_stale_lock(ctx, false).await;
     }
-    // Runs git, keeps its words; a non-zero exit is an error with them.
     macro_rules! run {
         ($inv:expr) => {{
             let o = $inv.unchecked().run().await.map_err(git_err)?;
@@ -1148,7 +1088,6 @@ async fn git_op(
         }
         "checkout" => {
             let b = ref_arg(a.branch.as_deref(), "branch")?;
-            // A remote branch ("origin/x") gets a local tracking branch.
             let remote = ctx
                 .git()
                 .args(["rev-parse", "--verify", "--quiet"])
@@ -1288,8 +1227,6 @@ async fn git_op(
         }
         "discard" => {
             need_paths(&paths, action)?;
-            // Untracked files go to the workspace trash (never a hard delete);
-            // tracked ones return to HEAD (index and work tree).
             let mut notes = Vec::new();
             for p in &paths {
                 let tracked = ctx
@@ -1361,8 +1298,6 @@ async fn git_op(
                 .filter(|o| o.ok())
                 .map(|o| o.trimmed())
                 .filter(|s| !s.is_empty() && s != "MERGE_HEAD");
-            // `rev-parse --abbrev-ref MERGE_HEAD` only names a ref; the branch
-            // merged comes from MERGE_MSG ("Merge branch 'feat'") or name-rev.
             let incoming = match incoming {
                 Some(v) => Some(v),
                 None => merge_source_name(ctx).await,
@@ -1428,11 +1363,6 @@ async fn git_op(
     Ok(r)
 }
 
-/// Git on a file tree (Maestri §K6): commit (only `paths` when given), pull,
-/// fetch --all, push, sync, checkout (remote branches get a tracking branch),
-/// new/delete branch, merge --no-edit / mergeAbort, stash push/apply/pop/drop/
-/// list, stage/unstage/discard per path, conflict (Current/Incoming of one
-/// path) and removeLock. Conflicts come back as `ok: false` + `conflicts`.
 #[tauri::command]
 pub async fn canvas_files_git_op(
     app: AppHandle,
@@ -1459,8 +1389,6 @@ pub async fn canvas_files_git_op(
     git_op(&ctx, &prefix, &action, &args.unwrap_or_default(), &trash).await
 }
 
-/// Folder or not, for paths dropped from the OS onto the canvas (the user
-/// chose them; nothing else about them is read).
 #[tauri::command]
 pub async fn canvas_files_kind(paths: Vec<String>) -> Result<Vec<bool>, String> {
     blocking(move || {
@@ -1473,8 +1401,6 @@ pub async fn canvas_files_kind(paths: Vec<String>) -> Result<Vec<bool>, String> 
     .await
 }
 
-/// `~/x` and paths relative to `base` (a note's folder or the workspace
-/// folder) made absolute; `None` for anything that cannot be a local path.
 fn expand_local(p: &str, base: Option<&str>) -> Option<PathBuf> {
     let p = p.trim();
     if p.is_empty() || p.contains("://") || p.len() > 4096 {
@@ -1496,14 +1422,10 @@ fn expand_local(p: &str, base: Option<&str>) -> Option<PathBuf> {
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PathHit {
-    /// Absolute form (`~` and relative paths expanded).
     pub abs: String,
     pub is_dir: bool,
 }
 
-/// Which of the path-looking strings in a rendered note or chat message are
-/// real (rich Markdown turns only those into links); `None` when missing.
-/// Only existence is read, never contents.
 #[tauri::command]
 pub async fn canvas_paths_probe(
     paths: Vec<String>,
@@ -1526,9 +1448,6 @@ pub async fn canvas_paths_probe(
     .await
 }
 
-/// An image referenced by a note or chat message (`![](/tmp/a.png)`) as a
-/// data URL, for paths the asset protocol does not cover. Image extensions
-/// only, up to the editor's image limit.
 #[tauri::command]
 pub async fn canvas_image_data(
     path: String,
@@ -1554,12 +1473,6 @@ pub async fn canvas_image_data(
     .await
 }
 
-// --------------------------------------------------------- go to definition
-
-/// Where `symbol` is defined under the root (editor F12 / ⌘-click): lines
-/// that declare it (`fn x`, `function x`, `class X`, `const x =`, `def x`,
-/// `x: function`, `export { x }`...). A text search, not a language server:
-/// the current file's hits come first, then the others by path.
 #[tauri::command]
 pub async fn canvas_files_definition(
     app: AppHandle,
@@ -1659,22 +1572,13 @@ fn find_definitions(
     Ok(hits)
 }
 
-// ------------------------------------------------------------ remote trees
-
-/// Arguments of [`canvas_files_remote`] (Maestri §K9: a file tree on the
-/// side of an SSH host, a container or a sandbox).
 #[derive(Debug, Clone, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RemoteArgs {
-    /// The tree's `data.environment`: `"workspace"`/null (the workspace's
-    /// environment), `"docker:name"`, `"ssh:host"` or a record.
     #[serde(default)]
     pub environment: Option<serde_json::Value>,
-    /// Absolute folder on that side; empty = the environment's folder (or
-    /// its home).
     #[serde(default)]
     pub root: String,
-    /// list | read | write | search | create | rename | delete | resolve
     pub action: String,
     #[serde(default)]
     pub path: Option<String>,
@@ -1696,7 +1600,6 @@ pub struct RemoteArgs {
     pub limit: Option<usize>,
 }
 
-/// The remote environment of a tree, or an error when it runs here.
 pub fn remote_env(
     s: &CanvasStore,
     ws: &str,
@@ -1717,12 +1620,10 @@ pub fn remote_env(
     Ok(rec)
 }
 
-/// Whether a tree node's `data.environment` points somewhere remote.
 pub fn node_is_remote(s: &CanvasStore, ws: &str, env: Option<&serde_json::Value>) -> bool {
     env.is_some_and(|v| !v.is_null()) && remote_env(s, ws, env).is_ok()
 }
 
-/// `root/rel` on the remote side, `rel` cleaned (no `..`, no absolute).
 fn remote_join(root: &str, rel: &str) -> Result<String, String> {
     let clean = clean_rel(rel)?;
     let tail = clean
@@ -1744,7 +1645,6 @@ fn remote_join(root: &str, rel: &str) -> Result<String, String> {
 
 const REMOTE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(20);
 
-/// `cd` into the root (or the environment folder, or home) and print it.
 fn remote_cd(rec: &envs::EnvRecord, root: &str) -> String {
     let q = envs::sh_quote;
     if root.trim().is_empty() {
@@ -1768,7 +1668,6 @@ async fn remote_run(
     envs::run_script(rec, &script, stdin, REMOTE_TIMEOUT).await
 }
 
-/// The absolute root on the remote side (resolves an empty root).
 async fn remote_root(rec: &envs::EnvRecord, root: &str) -> Result<String, String> {
     let out = remote_run(rec, format!("{} pwd", remote_cd(rec, root)), None).await?;
     Ok(String::from_utf8_lossy(&out).trim().to_string())
@@ -1855,8 +1754,6 @@ async fn remote_read(rec: &envs::EnvRecord, root: &str, rel: &str) -> Result<Fil
     Ok(remote_text(&root, &rel, &abs, body, size))
 }
 
-/// File tree on a remote environment: list, read, write, search, create,
-/// rename, delete (`rm -rf`: the UI asks "Delete Permanently" first).
 #[tauri::command]
 pub async fn canvas_files_remote(
     app: AppHandle,
@@ -1867,7 +1764,6 @@ pub async fn canvas_files_remote(
     remote_op(&s, &workspace_id, args).await
 }
 
-/// [`canvas_files_remote`] without the app handle (MCP).
 pub async fn remote_op(
     s: &CanvasStore,
     ws: &str,
@@ -2004,8 +1900,6 @@ pub async fn remote_op(
 
             let mut hits: Vec<SearchHit> = Vec::new();
             if content {
-                // Portable (busybox has no --exclude-dir / -I): find prunes,
-                // grep reads each file.
                 let names = SKIP_DIRS
                     .iter()
                     .map(|d| format!("-name {}", q(d)))

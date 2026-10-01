@@ -19,19 +19,13 @@ const MAX_RETRIES: u32 = 3;
 const CHUNK_SIZE: u64 = 10 * 1024 * 1024;
 const CHUNK_THRESHOLD: u64 = 10 * 1024 * 1024;
 const MAX_PARALLEL: usize = 12;
-/// Worker mode splits a file into Range segments only above this size (aria2's
-/// default `min-split-size`), and with at most `WORKER_MAX_SEGMENTS` of them.
 const WORKER_CHUNK_THRESHOLD: u64 = 20 * 1024 * 1024;
 const WORKER_MAX_SEGMENTS: usize = 4;
 
-/// How a single stream survives a dropped or stalled connection: reopen it
-/// with `Range: bytes=<written>-` up to `resumes` times inside the same attempt.
 #[derive(Debug, Clone, Copy)]
 struct StreamPolicy {
-    /// No byte for this long ends the read (and waiting for response headers).
     idle: Duration,
     resumes: u32,
-    /// First wait before a resume; doubles each time, capped at 8 s.
     backoff: Duration,
 }
 
@@ -48,8 +42,6 @@ fn idle_timeout_error(idle: Duration) -> anyhow::Error {
     )
 }
 
-/// Worker client: no total timeout (a legitimate 20-minute download must not
-/// be killed); stalls are caught by the per-read idle timeout instead.
 fn build_worker_client() -> anyhow::Result<reqwest::Client> {
     Ok(crate::core::http_client::apply_global_proxy(
         reqwest::Client::builder()
@@ -59,10 +51,8 @@ fn build_worker_client() -> anyhow::Result<reqwest::Client> {
     )
     .build()?)
 }
-/// Bytes read back from the finished file to tell media from an error page.
 const SNIFF_BYTES: usize = 512;
 
-/// Typed, credential-free context carried across the worker result boundary.
 #[derive(Debug)]
 pub struct RateLimitError {
     pub retry_after_seconds: Option<u64>,
@@ -105,9 +95,6 @@ pub async fn download_direct_with_headers(
     headers: Option<reqwest::header::HeaderMap>,
     cancel: Option<&CancellationToken>,
 ) -> anyhow::Result<u64> {
-    // External intent owns retries. One worker invocation performs one
-    // attempt, without the desktop 403 ladder; inside it the stream may resume
-    // by Range and large files go through the segmented HttpFetcher.
     if crate::core::dependencies::worker_mode() {
         let worker_client = build_worker_client()?;
         return download_attempt(
@@ -123,11 +110,6 @@ pub async fn download_direct_with_headers(
         .await;
     }
     let mut last_err = None;
-    // Two independent budgets, both monotonic, so the loop always terminates:
-    // `attempt` counts the ordinary retries and `forbidden_retries` counts the
-    // 403 ladder. The ladder gets its own counter so a couple of transient
-    // network failures cannot eat the escalation steps before they run, and it
-    // is a local — the count is per download request, never process-wide.
     let mut attempt: u32 = 0;
     let mut forbidden_retries: u32 = 0;
     let mut requests_made: u32 = 0;
@@ -161,11 +143,6 @@ pub async fn download_direct_with_headers(
         {
             Ok(bytes) => return Ok(bytes),
             Err(e) => {
-                // A 403 on the first try is often just a CDN that wants the
-                // request to look more like a browser one. Climb the ladder
-                // before letting `is_fatal_error` end the download: at most
-                // two extra requests, and only ever two, because the step
-                // function runs dry after that.
                 if is_forbidden_error(&e) {
                     if let Some(step) = forbidden_retry_step(forbidden_retries) {
                         tracing::warn!("[direct] HTTP 403; retrying with {}", step.describe());
@@ -175,7 +152,6 @@ pub async fn download_direct_with_headers(
                         ));
                         forbidden_retries += 1;
                         last_err = Some(e);
-                        // Deliberately does not consume an ordinary retry.
                         continue;
                     }
                 }
@@ -199,11 +175,6 @@ pub async fn download_direct_with_headers(
     Err(last_err.unwrap_or_else(|| anyhow!("Download failed after {} attempts", MAX_RETRIES)))
 }
 
-/// Drop a `.part` together with the HttpFetcher resume sidecar next to it.
-/// A sidecar left alone is wrong twice: the next segmented attempt would trust
-/// its byte counts against a fresh `.part`, and crash reconciliation sees no
-/// partial file and counts `<name>.part.resume.json` as the finished artifact
-/// (gates G04: kill -9 -> reconcile settled "completed" instead of Error).
 fn discard_part(part_path: &Path) -> std::io::Result<()> {
     let sidecar = sidecar_path_for(part_path);
     let mut tmp = sidecar.as_os_str().to_owned();
@@ -237,19 +208,13 @@ fn is_fatal_error(err: &anyhow::Error) -> bool {
     false
 }
 
-/// A 403 is the one fatal code worth one more look: plenty of CDNs answer it
-/// to a request that does not smell like a browser and then serve the file
-/// happily to the very same URL with a couple of extra headers.
 fn is_forbidden_error(err: &anyhow::Error) -> bool {
     err.to_string().contains("HTTP 403")
 }
 
-/// The rungs of the 403 ladder, in order.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum ForbiddenRetryStep {
-    /// Ask for the whole body as a range. A browser media element always does.
     RangeOnly,
-    /// Same, plus the `sec-fetch-*` hints a media request carries.
     RangeAndFetchHints,
 }
 
@@ -262,10 +227,6 @@ impl ForbiddenRetryStep {
     }
 }
 
-/// Which rung to try next, given how many the caller already burned.
-///
-/// `None` ends the ladder — that is what stops the retry loop from spinning,
-/// since the caller only ever climbs while this returns `Some`.
 fn forbidden_retry_step(retries_done: u32) -> Option<ForbiddenRetryStep> {
     match retries_done {
         0 => Some(ForbiddenRetryStep::RangeOnly),
@@ -274,7 +235,6 @@ fn forbidden_retry_step(retries_done: u32) -> Option<ForbiddenRetryStep> {
     }
 }
 
-/// Caller headers plus whatever the given rung adds.
 fn headers_for_forbidden_retry(
     base: Option<&reqwest::header::HeaderMap>,
     step: ForbiddenRetryStep,
@@ -290,8 +250,6 @@ fn headers_for_forbidden_retry(
     headers
 }
 
-/// `Err` só quando o host não responde de jeito nenhum; resposta estranha
-/// (sem tamanho, sem Range) vira `Ok` com o que deu para saber.
 async fn probe_url(
     client: &reqwest::Client,
     url: &str,
@@ -304,13 +262,8 @@ async fn probe_url(
             accept_ranges: p.accept_ranges,
         }),
         Err(e) if e.to_string().starts_with("unreachable") => Err(e),
-        // 429/503 at the probe is the attempt's answer: streaming right after
-        // would be a second request inside one attempt (it used to swallow a
-        // transient 503 and hide it from the retry policy, gates G03).
         Err(e) if e.downcast_ref::<ServerBusy>().is_some() => {
             let busy = e.downcast::<ServerBusy>().expect("checked above");
-            // Um 429 já na sondagem também é o host pedindo menos conexões: a
-            // próxima tentativa, e o próximo processo, abrem menos segmentos.
             if busy.status == 429 {
                 if let Some(h) = host_of(url) {
                     concurrency_tuner().lock().await.record_rate_limit(&h);
@@ -355,9 +308,6 @@ async fn download_attempt(
         std::fs::create_dir_all(parent)?;
     }
 
-    // In worker mode the probe goes through the no-redirect client: a URL that
-    // redirects simply probes as unknown and takes the single stream, which
-    // follows (and vets) each hop itself.
     let probe = probe_url(client, url, headers.as_ref(), worker).await?;
 
     let threshold = if worker {
@@ -394,9 +344,6 @@ async fn download_attempt(
                     .into());
                 }
                 if fetch_err.to_string().contains("HTTP 429") {
-                    // Não cair para o stream único: o host ainda está
-                    // contando as conexões que acabaram de fechar. Espera e
-                    // deixa a tentativa seguinte rodar com menos segmentos.
                     let _ = discard_part(&part_path);
                     tokio::time::sleep(Duration::from_secs(5)).await;
                     return Err(fetch_err);
@@ -476,9 +423,6 @@ async fn run_http_fetcher(
     max_segments: Option<usize>,
     retry_backoff: Duration,
 ) -> anyhow::Result<u64> {
-    // B35: o numero de Config vira **teto**, nao valor fixo. Um CDN que estrangula
-    // com 8 conexoes entrega mais com 4, e so medindo da para saber qual e o caso
-    // deste host. Sem historico, o comportamento e identico ao anterior.
     let teto = get_global_max_concurrent_segments()
         .unwrap_or(MAX_PARALLEL)
         .clamp(1, 32)
@@ -497,11 +441,7 @@ async fn run_http_fetcher(
         min_size_for_chunked: 0,
         concurrent_segments: concurrent,
         segment_size_hint: CHUNK_SIZE,
-        // Only the worker caps segments. Its attempts restart from zero (the
-        // host discards partials), so a resume sidecar there is only a stray
-        // file in the job folder for crash reconciliation to misread.
         use_sidecar_resume: max_segments.is_none(),
-        // A failed segment waits as long as a broken stream before its retry.
         retry_backoff,
         ..Default::default()
     };
@@ -517,10 +457,6 @@ async fn run_http_fetcher(
     let result = match fetcher.download(progress_tx.clone()).await {
         Ok(r) => r,
         Err(e) => {
-            // 429 com N conexões é o host dizendo "menos": registra para o
-            // tuner cortar pela metade na próxima tentativa (o Hetzner speed
-            // server devolveu 429 três vezes seguidas com 8 segmentos e o
-            // retry cego repetia os mesmos 8).
             if e.to_string().contains("HTTP 429") {
                 if let Some(h) = &host {
                     concurrency_tuner().lock().await.record_rate_limit(h);
@@ -535,8 +471,6 @@ async fn run_http_fetcher(
         }
     };
 
-    // So conta como amostra o que durou o suficiente para a medida significar
-    // alguma coisa: um arquivo de 200 KB mede latencia, nao vazao.
     if let Some(h) = host {
         let secs = inicio.elapsed().as_secs_f64();
         if secs >= 1.0 && result.bytes_written > 0 {
@@ -551,18 +485,11 @@ async fn run_http_fetcher(
     Ok(result.bytes_written)
 }
 
-/// Historico de vazao por host, para o B35.
-///
-/// `tokio::sync::Mutex` e nao `std::sync::Mutex`: isto e travado dentro de
-/// codigo async.
 fn concurrency_tuner() -> &'static tokio::sync::Mutex<super::adaptive_concurrency::ConcurrencyTuner>
 {
     super::adaptive_concurrency::global()
 }
 
-/// The key of a server in the concurrency tuner: the host, plus the port
-/// when it is not the scheme's default (another port is another server; the
-/// tests' local servers share 127.0.0.1 and must not share a 429).
 fn host_of(url: &str) -> Option<String> {
     let u = url::Url::parse(url).ok()?;
     let host = u.host_str()?.to_ascii_lowercase();
@@ -572,17 +499,6 @@ fn host_of(url: &str) -> Option<String> {
     })
 }
 
-/// Last gate before the `.part` becomes the real file.
-///
-/// Only an HTML page is rejected. Sniffing the *positive* case would mean
-/// failing every container we cannot recognise — subtitles, images, archives,
-/// PDFs all go through this same path — so the rule is the conservative one:
-/// no known media signature **and** it opens like a document. A CDN error page
-/// served as `200 OK` is exactly that; a `.srt` is not.
-///
-/// The content-type check in `download_single_stream` only sees the header,
-/// which a misconfigured CDN may set to `application/octet-stream` while the
-/// body is still an error page. This reads the bytes that actually landed.
 fn reject_html_masquerading_as_media(part_path: &Path) -> anyhow::Result<()> {
     let head = read_head(part_path, SNIFF_BYTES)?;
     if sniff_media_format(&head).is_none() && looks_like_html(&head) {
@@ -593,7 +509,6 @@ fn reject_html_masquerading_as_media(part_path: &Path) -> anyhow::Result<()> {
     Ok(())
 }
 
-/// First `max` bytes of a file, or fewer if the file is shorter.
 fn read_head(path: &Path, max: usize) -> anyhow::Result<Vec<u8>> {
     use std::io::Read;
     let mut file = std::fs::File::open(path)?;
@@ -622,9 +537,6 @@ async fn download_single_stream(
     worker: bool,
     policy: &StreamPolicy,
 ) -> anyhow::Result<()> {
-    // lux downloader.go:196-219: a dropped or stalled connection is reopened
-    // with `Range: bytes=<written>-` inside the same attempt, keeping every
-    // byte already on disk, as long as the server showed it honours ranges.
     let mut state = StreamState {
         written: existing_bytes,
         total: total_size,
@@ -677,14 +589,10 @@ async fn download_single_stream(
     }
 }
 
-/// What one request of a single stream left behind, read by the resume loop.
 struct StreamState {
-    /// Bytes of the resource now in the `.part` (resume offset for the next try).
     written: u64,
     total: Option<u64>,
-    /// The server answered 206 or advertised `Accept-Ranges: bytes`.
     resumable: bool,
-    /// The failure happened mid-body (reset, early close, idle stall).
     transient: bool,
 }
 
@@ -703,13 +611,8 @@ async fn stream_once(
 ) -> anyhow::Result<()> {
     let mut h = headers.unwrap_or_default();
     if existing_bytes > 0 {
-        // The 403 ladder may have added `Range: bytes=0-`; a resume needs
-        // its own range, and `RequestBuilder::header` appends, so leaving
-        // both in would send two Range headers on the same request.
         h.remove(reqwest::header::RANGE);
     }
-    // Media bytes must arrive as stored: a compressed body breaks the size
-    // check and every Range offset (yt-dlp http.py, lux request.go).
     h.insert(
         reqwest::header::ACCEPT_ENCODING,
         reqwest::header::HeaderValue::from_static("identity"),
@@ -772,7 +675,6 @@ async fn stream_once(
                     next_request.headers_mut().remove(header);
                 }
             }
-            // execute re-applies broker authentication; the broker checks every hop.
             next_request
                 .headers_mut()
                 .remove(reqwest::header::PROXY_AUTHORIZATION);
@@ -828,9 +730,6 @@ async fn stream_once(
             .and_then(|v| v.to_str().ok())
             .is_some_and(|v| v.contains("bytes"));
 
-    // The probe can miss the size (HEAD refused, worker broker path); the GET
-    // itself usually carries it. Without this the UI had no total and showed
-    // an invented percentage.
     let total_size = total_size
         .filter(|t| *t > 0)
         .or_else(|| response_total_bytes(response.headers(), response.content_length(), offset));
@@ -897,8 +796,6 @@ async fn stream_once(
             Ok(None) => {
                 file.flush()?;
                 state.written = downloaded;
-                // A clean close short of the announced size is the same
-                // broken connection, just without a transport error.
                 if total_size.is_some_and(|t| downloaded < t) {
                     state.transient = true;
                     return Err(anyhow!(
@@ -921,9 +818,6 @@ async fn stream_once(
     Ok(())
 }
 
-/// Total size of the resource from a GET response: `Content-Range` total on
-/// a 206, else `Content-Length` (plus the resume offset, since a ranged body
-/// only counts the remainder).
 fn response_total_bytes(
     headers: &reqwest::header::HeaderMap,
     content_length: Option<u64>,
@@ -942,9 +836,6 @@ fn response_total_bytes(
         .map(|len| len.saturating_add(offset))
 }
 
-/// Percent only when the total is known. An unknown total yields `None`,
-/// never an asymptotic guess (the old `d/(d+500k)` curve showed 82-95% with
-/// 6% of the file on disk).
 fn progress_percent(downloaded: u64, total: Option<u64>) -> Option<f64> {
     total
         .filter(|t| *t > 0)
@@ -1004,7 +895,6 @@ mod tests {
             response_total_bytes(&empty, Some(102_521_139), 0),
             Some(102_521_139)
         );
-        // Resume: body length is only the remainder.
         assert_eq!(response_total_bytes(&empty, Some(100), 900), Some(1000));
         assert_eq!(response_total_bytes(&empty, None, 0), None);
         let mut ranged = HeaderMap::new();
@@ -1114,15 +1004,12 @@ mod tests {
 
     #[test]
     fn host_e_a_chave_do_historico_de_vazao() {
-        // O historico e por host: medir "cdn.exemplo.com" e aplicar em outro
-        // dominio seria pior que nao medir.
         assert_eq!(
             host_of("https://CDN.Exemplo.com/a/b.mp4"),
             Some("cdn.exemplo.com".to_string()),
             "host tem que normalizar para caixa baixa, senao vira duas entradas"
         );
         assert_eq!(host_of("nao e url"), None);
-        // Porta padrao nao entra; outra porta e outro servidor.
         assert_eq!(
             host_of("https://cdn.exemplo.com:443/x"),
             Some("cdn.exemplo.com".to_string())
@@ -1151,13 +1038,9 @@ mod tests {
 
     #[test]
     fn forbidden_ladder_terminates_and_then_403_is_fatal() {
-        // The decision logic of the retry loop, without any network: keep
-        // climbing while the ladder offers a rung, then fall through to the
-        // fatal check. Bounded by construction — `forbidden_retry_step` runs
-        // dry, so the loop cannot spin.
         let err = anyhow!("HTTP 403 downloading https://cdn.example/a.mp4");
         let mut forbidden_retries = 0u32;
-        let mut requests = 1u32; // the first request already happened
+        let mut requests = 1u32;
 
         loop {
             if !is_forbidden_error(&err) {
@@ -1268,8 +1151,6 @@ mod tests {
 
     #[test]
     fn unsniffable_containers_are_never_rejected() {
-        // The whole reason the gate only rejects HTML: subtitles, images and
-        // archives share this code path and have no media signature at all.
         for (name, body) in [
             (
                 "legenda.srt.part",
@@ -1308,10 +1189,8 @@ mod tests {
 
     #[tokio::test]
     async fn sem_historico_o_teto_e_respeitado() {
-        // Primeira vez num host: nada medido, entao o numero de Config vale.
         let tuner = super::super::adaptive_concurrency::ConcurrencyTuner::default();
         assert_eq!(tuner.suggest("novo.host", 8, 8), 8);
-        // E o teto e teto mesmo, nao sugestao.
         assert_eq!(tuner.suggest("novo.host", 32, 4), 4);
     }
     use crate::core::http_fetcher::test_server;
@@ -1343,7 +1222,6 @@ mod tests {
         tx
     }
 
-    /// First full GET breaks halfway (closed or stalled); ranged GETs are served.
     async fn flaky_server(body: Vec<u8>, stall: bool) -> (String, test_server::Log) {
         test_server::spawn(move |_, req| {
             if req.method == "GET" && req.range().is_none() {
@@ -1389,7 +1267,6 @@ mod tests {
 
     #[tokio::test]
     async fn without_resume_budget_the_drop_fails_the_attempt() {
-        // Control for the test above: the pre-fix behaviour (no resume).
         let body = payload(300_000);
         let (base, _log) = flaky_server(body, false).await;
         let out = scratch("noresume.bin");
@@ -1444,10 +1321,6 @@ mod tests {
         let (base, log) =
             test_server::spawn(move |_, req| test_server::serve_bytes(&srv_body, req)).await;
         let url = format!("{base}/big.bin");
-        // The tuner is per process and keyed by host:port. Under `cargo test`
-        // an earlier test's server on a reused port may have left a 429
-        // there, which halves the segments of this one (the flake: a single
-        // Range past byte 0). What is pinned here is the split itself.
         concurrency_tuner()
             .lock()
             .await
@@ -1467,10 +1340,6 @@ mod tests {
                     .expect("every GET is a Range segment, never one stream")
             })
             .collect();
-        // Each segment asks for an explicit slice, and more than one slice
-        // was asked for: however many segments the connection budget allows
-        // right now (at least 2 even with 12 downloads in this process),
-        // the file never went down as a single piece.
         assert!(gets.iter().all(|(_, end)| end.is_some()), "{gets:?}");
         let starts: std::collections::HashSet<u64> = gets.iter().map(|(s, _)| *s).collect();
         assert!(
@@ -1479,7 +1348,6 @@ mod tests {
         );
     }
 
-    /// `fail` first requests (any method) get `status`, then the file is served.
     async fn busy_server(body: Vec<u8>, status: u16, fail: usize) -> (String, test_server::Log) {
         test_server::spawn(move |idx, req| {
             if idx < fail {
@@ -1493,10 +1361,6 @@ mod tests {
 
     #[tokio::test]
     async fn transient_503_at_the_probe_ends_the_worker_attempt() {
-        // gates G03: flaky.mp4?fail=1 answers the first request with 503. The
-        // HEAD probe used to swallow it (then GET bytes=0-0, then the real GET
-        // got 200) and the job completed instead of ending in a retryable
-        // Error. One attempt = one server verdict.
         let body = payload(50_000);
         let (base, log) = busy_server(body, 503, 1).await;
         let out = scratch("flaky.mp4");
@@ -1543,8 +1407,6 @@ mod tests {
 
     #[tokio::test]
     async fn head_refused_still_falls_back_to_a_ranged_probe() {
-        // Control: a HEAD the server does not support (405) is not a busy
-        // verdict; the probe goes on and the file downloads.
         let body = payload(50_000);
         let srv = body.clone();
         let (base, _log) = test_server::spawn(move |_, req| {
@@ -1588,10 +1450,6 @@ mod tests {
 
     #[tokio::test]
     async fn failed_segmented_worker_attempt_leaves_no_stray_file() {
-        // gates G04: segments broke when the host died, the fallback removed
-        // only `.part`, and reconcile took `<name>.part.resume.json` (the one
-        // file left) for a complete artifact. The job folder must hold no
-        // file that looks finished after a failed attempt.
         let body = payload(21 * 1024 * 1024);
         let (base, _log) = test_server::spawn(move |_, req| {
             if req.method == "HEAD" {

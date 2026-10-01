@@ -1,67 +1,34 @@
-//! How the command line finds and starts the desktop app (3.2, S17 phase 1).
-//!
-//! `omniget agent …` talks to the app through its local bridge. When the app
-//! is not running, the CLI starts it hidden (`--background`: tray only, no
-//! window) and waits for the bridge, instead of dying with "open OmniGet
-//! once". The CLI ships apart from the app (a tarball, Homebrew, winget), so
-//! it cannot assume a path: the app itself writes where it lives
-//! ([`BREADCRUMB`] in its data folder) every time it starts, and the CLI
-//! reads it back. Installed paths are only a fallback for an app that never
-//! ran on this profile.
-//!
-//! Flatpak: the app writes `flatpak run <id>` as its launcher, but its data
-//! folder lives inside the sandbox (`~/.var/app/<id>/data`), which the host
-//! CLI does not read unless `OMNIGET_DATA_DIR` points there; and starting at
-//! login needs the Background portal. Neither is verified; the settings
-//! screen says so.
-
 use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
-/// `<app data>/app-launch.json`: written by the app at every start.
 pub const BREADCRUMB: &str = "app-launch.json";
 
-/// The flag that starts the app with no window (tray only).
 pub const BACKGROUND_FLAG: &str = "--background";
 
-/// The flag the login item carries (`tauri-plugin-autostart`): a start at
-/// login is hidden when the person asked for the tray or for agents in the
-/// background, and shows the window otherwise.
 pub const AUTOSTART_FLAG: &str = "--autostart";
 
-/// The code of the CLI's error when the app is not running and could not be
-/// started in time.
 pub const ERR_APP_NOT_RUNNING: &str = "ERR_APP_NOT_RUNNING";
 
-/// How long the CLI waits for the bridge of an app it started.
 pub const BRIDGE_WAIT_S: u64 = 15;
 
-/// Where the app lives and how to start it again, as the app wrote it.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AppLaunch {
-    /// The executable (or `flatpak`).
     pub program: String,
-    /// Arguments before ours (`["run", "wtf.tonho.omniget"]` for Flatpak).
     #[serde(default)]
     pub args: Vec<String>,
-    /// The process that wrote it (the running app, while it runs).
     #[serde(default)]
     pub pid: u32,
     #[serde(default)]
     pub version: String,
     #[serde(default)]
     pub flatpak: bool,
-    /// Whether that start was hidden (`--background` or a hidden login).
     #[serde(default)]
     pub background: bool,
     #[serde(default)]
     pub written_ms: u64,
 }
 
-/// Whether a start with these arguments shows no window: `--background`
-/// always; a start at login (`--autostart`) when the person chose the tray
-/// or agents in the background. `start_minimized` hides any start, as before.
 pub fn starts_hidden<S: AsRef<str>>(
     args: &[S],
     start_minimized: bool,
@@ -71,9 +38,6 @@ pub fn starts_hidden<S: AsRef<str>>(
     has(BACKGROUND_FLAG) || start_minimized || (has(AUTOSTART_FLAG) && run_in_background)
 }
 
-/// How this process would be started again: an AppImage by its image (the
-/// mounted path changes every run), a Flatpak through `flatpak run`, anything
-/// else by its own executable.
 pub fn current(background: bool) -> Option<AppLaunch> {
     let (program, args, flatpak) = if let Ok(id) = std::env::var("FLATPAK_ID") {
         ("flatpak".to_string(), vec!["run".to_string(), id], true)
@@ -97,7 +61,6 @@ pub fn current(background: bool) -> Option<AppLaunch> {
     })
 }
 
-/// Writes the breadcrumb into `dir` (the app's data folder), atomically.
 pub fn record_in(dir: &Path, launch: &AppLaunch) -> std::io::Result<()> {
     std::fs::create_dir_all(dir)?;
     let path = dir.join(BREADCRUMB);
@@ -107,15 +70,10 @@ pub fn record_in(dir: &Path, launch: &AppLaunch) -> std::io::Result<()> {
     std::fs::rename(&tmp, &path)
 }
 
-/// The breadcrumb in `dir`, if any.
 pub fn read_in(dir: &Path) -> Option<AppLaunch> {
     serde_json::from_str(&std::fs::read_to_string(dir.join(BREADCRUMB)).ok()?).ok()
 }
 
-/// Every way to start the app the CLI may try, best first: `OMNIGET_APP`
-/// (an executable or a macOS `.app`), the breadcrumb, an `omniget` next to
-/// the CLI, then the places the installers put it. Only paths that exist
-/// (a Flatpak launcher is taken as written).
 pub fn candidates(data_dir: Option<&Path>) -> Vec<AppLaunch> {
     let mut out: Vec<AppLaunch> = Vec::new();
     let exe = |p: PathBuf| AppLaunch {
@@ -144,7 +102,6 @@ pub fn candidates(data_dir: Option<&Path>) -> Vec<AppLaunch> {
         } else {
             "omniget"
         });
-        // The CLI may itself be installed as `omniget`: never start ourselves.
         let is_me = me
             .as_deref()
             .zip(sibling.canonicalize().ok())
@@ -163,12 +120,7 @@ pub fn candidates(data_dir: Option<&Path>) -> Vec<AppLaunch> {
     out
 }
 
-/// Starts the app with `--background`, detached from the caller: its own
-/// session on Unix (`setsid`, so closing the terminal does not take it
-/// down), `DETACHED_PROCESS` on Windows, no inherited stdio. The pattern is
 /// herdr's autospawn (`src/platform/mod.rs`, Apache-2.0), rewritten.
-/// Returns the pid. The environment is inherited, `OMNIGET_DATA_DIR`
-/// included, so the app opens the same profile the CLI reads.
 pub fn spawn_detached(launch: &AppLaunch) -> std::io::Result<u32> {
     let mut cmd = std::process::Command::new(&launch.program);
     cmd.args(&launch.args)
@@ -199,7 +151,6 @@ pub fn spawn_detached(launch: &AppLaunch) -> std::io::Result<u32> {
     Ok(child.id())
 }
 
-/// A macOS bundle resolves to its executable; anything else must be a file.
 fn executable_of(p: &Path) -> Option<PathBuf> {
     if p.extension().is_some_and(|e| e == "app") {
         let bin = p.join("Contents").join("MacOS").join("omniget");
@@ -208,8 +159,6 @@ fn executable_of(p: &Path) -> Option<PathBuf> {
     p.is_file().then(|| p.to_path_buf())
 }
 
-/// The desktop app is far bigger than the CLI (the webview, the UI): a file
-/// named `omniget` under 40 MB next to the CLI is a CLI build, not the app.
 fn looks_like_the_app(p: &Path) -> bool {
     std::fs::metadata(p).is_ok_and(|m| m.len() > 40 * 1024 * 1024)
 }

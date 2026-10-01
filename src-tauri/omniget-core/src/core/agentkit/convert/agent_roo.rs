@@ -1,7 +1,3 @@
-//! Roo Code custom modes (legacy, frozen since 2026-05): one entry per agent in
-//! `.roomodes` (project) or `custom_modes.yaml` (global):
-//! `customModes: [{slug, name, roleDefinition, whenToUse, description, groups}]`.
-
 use serde_json::{json, Map, Value};
 
 use super::agent_common::*;
@@ -42,7 +38,6 @@ fn title(n: &str) -> String {
         .join(" ")
 }
 
-/// `.roomodes` may be YAML or JSON; an existing JSON file stays JSON.
 fn doc_format(path: &std::path::Path) -> DocFormat {
     match std::fs::read_to_string(path) {
         Ok(t) if t.trim_start().starts_with('{') => DocFormat::Json,
@@ -51,7 +46,6 @@ fn doc_format(path: &std::path::Path) -> DocFormat {
 }
 
 impl RooModesConverter {
-    /// The mode record and losses.
     pub fn mode(
         c: &Component,
         a: &AgentSpec,
@@ -112,7 +106,6 @@ impl RooModesConverter {
         (Value::Object(m), losses)
     }
 
-    /// A mode record → canonical spec.
     pub fn read(m: &Value) -> Option<AgentSpec> {
         let o = m.as_object()?;
         let slug = str_of(o, &["slug"])?;
@@ -128,7 +121,6 @@ impl RooModesConverter {
             .into_iter()
             .flatten()
         {
-            // a group is a name or `[name, {fileRegex}]`
             let name = g
                 .as_str()
                 .or_else(|| {

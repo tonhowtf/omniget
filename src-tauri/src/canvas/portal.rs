@@ -1,28 +1,3 @@
-//! Canvas RPC of the portals (`omniget canvas portal <verb>`). An agent drives
-//! only the portals corded to its node, directly or through a chain of
-//! portal↔portal cords (Maestri's "chained portals"). Nothing else: no
-//! portal by id from an unconnected node, no JS from outside the canvas.
-//!
-//! `evaluate` runs arbitrary JS in the page. Allowed on an `isolated` portal
-//! (its own cookie jar) for any corded agent; on a `workspace`/`global`
-//! portal (shared logins) only when the caller's cord carries the `eval` (or
-//! `raw`) permission. Study 94: a logged-in portal plus an agent is the risk.
-//!
-//! Methods (args → result):
-//! - `portal.list {}` → `{portals: [{nodeId, name, url, title, open, scope, kind}]}`
-//! - `portal.open {portal?, url?, name?, width?, height?}` → state. No corded
-//!   portal named: creates one right of the caller, corded to it.
-//! - `portal.snapshot {portal?, maxNodes?, maxChars?, includeHtml?}` → tree with `@eN`
-//! - `portal.click {portal?, selector, double?}`; selector `@eN`, CSS, `text=`, `x,y`
-//! - `portal.fill {portal?, selector, text, submit?}` / `portal.type` (appends)
-//! - `portal.press {portal?, key, selector?}`
-//! - `portal.evaluate {portal?, code}`
-//! - `portal.navigate {portal?, url}` / `portal.back {portal?, action?: back|forward|reload}`
-//! - `portal.resize {portal?, width, height}` (page viewport, resizes the node)
-//! - `portal.ua {portal?, preset? | value? | reset?}`
-//! - `portal.screenshot {portal?}` → `{path, width, height, bytes}`
-//! - `portal.console {portal?, level?, limit?, clear?}`
-
 use std::collections::{HashSet, VecDeque};
 
 use omniget_core::core::canvas::model::{CanvasNode, FloorDoc, NodeKind};
@@ -34,7 +9,6 @@ use tauri::AppHandle;
 use super::rpc::{NodeCtx, RpcResult};
 use crate::portal::{self, automation, Scope};
 
-/// A portal the caller may drive, with the perms of the cord that reaches it.
 #[derive(Debug, Clone)]
 struct Reach {
     node_id: String,
@@ -58,8 +32,6 @@ fn portal_name(n: &CanvasNode) -> String {
         .unwrap_or_else(|| "Portal".into())
 }
 
-/// Portals reachable from `from`: cords to portal nodes, then portal↔portal
-/// cords from those. The perms are the ones of the first cord (the caller's).
 fn reachable(doc: &FloorDoc, from: &str) -> Vec<Reach> {
     let is_portal = |id: &str| doc.node(id).is_some_and(|n| n.kind == NodeKind::Portal);
     let mut out = Vec::new();
@@ -93,8 +65,6 @@ fn reachable(doc: &FloorDoc, from: &str) -> Vec<Reach> {
     out
 }
 
-/// Picks the target: `portal` = node id or name (case-insensitive); absent =
-/// the only corded portal.
 fn pick<'a>(list: &'a [Reach], want: Option<&str>) -> Result<&'a Reach, String> {
     let names = || {
         list.iter()
@@ -147,7 +117,6 @@ fn reach_of(ctx: &NodeCtx) -> Result<Vec<Reach>, String> {
         })
 }
 
-/// Canvas RPC methods owned by this module (see `super::rpc`).
 pub async fn rpc(ctx: &NodeCtx, method: &str, args: Value) -> RpcResult {
     let verb = method.strip_prefix("portal.")?;
     Some(run(ctx, verb, args).await)
@@ -205,7 +174,6 @@ async fn run(ctx: &NodeCtx, verb: &str, a: Value) -> Result<Value, String> {
     drive(&app, &ctx.workspace_id, &ctx.floor_id, node, &by, verb, a).await
 }
 
-/// Verbs `drive` answers.
 pub const KNOWN_VERBS: &[&str] = &[
     "snapshot",
     "click",
@@ -234,13 +202,8 @@ pub const KNOWN_VERBS: &[&str] = &[
     "inspect",
 ];
 
-/// Verbs only the owner's MCP client may use (accepting a certificate, the
-/// clipboard, the inspector); an agent's RPC is refused.
 pub const OWNER_VERBS: &[&str] = &["trust", "copy_screenshot", "inspect"];
 
-/// One automation verb on a web portal node, on behalf of `by` (an agent
-/// origin, or `mcp` for the owner's MCP client). The caller has already
-/// checked that `by` may drive this portal (and evaluate in it).
 pub async fn drive(
     app: &AppHandle,
     ws: &str,
@@ -301,14 +264,10 @@ pub async fn drive(
         }),
         _ => unreachable!(),
     };
-    // Second ping after the action: the canvas refreshes the dormant snapshot.
     portal::driving(app, node, by, &format!("{verb}:done"));
     out
 }
 
-/// `portal.open`: a corded portal (by `portal`, or the only one) is loaded
-/// (and navigated to `url`); with none corded and a `url`, a new portal node
-/// is created right of the caller and corded to it.
 async fn open(app: &AppHandle, ctx: &NodeCtx, list: &[Reach], a: &Value) -> Result<Value, String> {
     let url = arg(a, "url");
     let existing = match arg(a, "portal") {
@@ -389,7 +348,6 @@ fn create(ctx: &NodeCtx, url: &str, a: &Value) -> Result<String, String> {
     Ok(id)
 }
 
-/// Page viewport = `width × height` CSS px; the node grows to match.
 fn resize(
     app: &AppHandle,
     ws: &str,
@@ -415,8 +373,6 @@ fn resize(
     Ok(json!({ "width": w, "height": h, "page": portal::state_json(node) }))
 }
 
-/// `{preset}` (ios, android, firefox-android, edge-android, chrome, firefox,
-/// edge, safari, desktop), `{value}` (a raw UA) or `{reset: true}`.
 async fn user_agent(
     app: &AppHandle,
     ws: &str,

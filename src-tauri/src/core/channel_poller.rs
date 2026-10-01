@@ -82,8 +82,6 @@ async fn poll_channel(ch: &ChannelFollow) -> Option<Vec<NewVideo>> {
         }
         Err(e) => {
             tracing::warn!("[channels] poll failed for {}: {}", ch.id, e);
-            // Bump last_checked so a persistently failing channel is not
-            // hammered every tick; seen set is untouched.
             channels::record_poll(&ch.id, &[]);
             None
         }
@@ -92,7 +90,6 @@ async fn poll_channel(ch: &ChannelFollow) -> Option<Vec<NewVideo>> {
 
 pub fn start(app: AppHandle) {
     tauri::async_runtime::spawn(async move {
-        // Small delay so startup work (history hydrate, recovery) settles first.
         tokio::time::sleep(std::time::Duration::from_secs(20)).await;
         loop {
             let now = now_ms();
@@ -105,7 +102,6 @@ pub fn start(app: AppHandle) {
                 if let Some(videos) = poll_channel(&ch).await {
                     handle_new_videos(&app, &ch, videos).await;
                 }
-                // Gentle spacing between channels to avoid bursty yt-dlp load.
                 tokio::time::sleep(std::time::Duration::from_secs(2)).await;
             }
 
@@ -138,8 +134,6 @@ async fn handle_new_videos(app: &AppHandle, ch: &ChannelFollow, videos: Vec<NewV
         .show();
 }
 
-// Forces an immediate poll of one channel, ignoring its interval. Returns the
-// number of new videos found. Used by the tray submenu and the settings UI.
 pub async fn check_now(app: &AppHandle, id: &str) -> Result<usize, String> {
     let ch = channels::get(id).ok_or_else(|| "Channel not found".to_string())?;
     match poll_channel(&ch).await {

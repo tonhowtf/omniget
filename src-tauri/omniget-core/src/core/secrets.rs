@@ -1,19 +1,3 @@
-//! `SecretStore` seam: the core asks for secrets through this trait; the app
-//! installs the keychain-backed implementation at boot (`src-tauri/src/secrets.rs`)
-//! and everything else — the CLI, `cargo test -p omniget-core`, a headless run —
-//! falls back to [`FileSecretStore`], an encrypted file under the app data
-//! directory.
-//!
-//! A namespace is a plain string here instead of the app's `Namespace` struct,
-//! because `omniget-core` must not depend on the app crate. The app maps the
-//! string back onto its own table; [`AI_KEYS`] is the only one the core uses
-//! today.
-//!
-//! The file default is AES-256-CBC + HMAC-SHA256 with a random key written next
-//! to it at 0600 — the same floor the app's file store gives, so a secret never
-//! sits in plain text in a backup or a synced folder. It is not a keyring:
-//! anyone running as the same OS user can read the key.
-
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, OnceLock};
@@ -22,11 +6,8 @@ use aes::cipher::{block_padding::Pkcs7, BlockDecryptMut, BlockEncryptMut, KeyIvI
 use hmac::{Hmac, Mac};
 use sha2::{Digest, Sha256};
 
-/// Provider API keys: the `ai-keys.json` vault and the app's own AI config.
 pub const AI_KEYS: &str = "ai_keys";
 
-/// Forces every namespace into `<dir>/<namespace>`; same variable the app's
-/// store honours, so one temporary directory covers both sides in a test.
 pub const SECRETS_DIR_ENV: &str = "OMNIGET_SECRETS_DIR";
 
 const STORE_FILE: &str = "secrets.bin";
@@ -46,7 +27,6 @@ pub trait SecretStore: Send + Sync {
 
 static STORE: OnceLock<Arc<dyn SecretStore>> = OnceLock::new();
 
-/// Installs the process-wide store. The first call wins; later calls are ignored.
 pub fn install(store: Arc<dyn SecretStore>) {
     let _ = STORE.set(store);
 }
@@ -55,8 +35,6 @@ pub fn installed() -> Option<Arc<dyn SecretStore>> {
     STORE.get().cloned()
 }
 
-/// Read a secret. WHY it never fails loudly on a missing store: a secret that
-/// cannot be read is the same to every caller as a secret that is not there.
 pub fn get(namespace: &str, account: &str) -> Result<Option<String>, String> {
     match installed() {
         Some(store) => store.get(namespace, account),
@@ -78,8 +56,6 @@ pub fn delete(namespace: &str, account: &str) -> Result<(), String> {
     }
 }
 
-/// `set` with an empty value means "forget it": an entry whose key was cleared
-/// must not leave the old secret behind.
 pub fn put_or_delete(namespace: &str, account: &str, value: &str) -> Result<(), String> {
     if value.is_empty() {
         delete(namespace, account)
@@ -88,9 +64,6 @@ pub fn put_or_delete(namespace: &str, account: &str, value: &str) -> Result<(), 
     }
 }
 
-/// Secrets the desktop app and the CLI both need (the Microsoft 365 sign-in
-/// that `omniget teams` and the Meetings screen share). The app's keychain is
-/// invisible to the CLI, so these always live in the encrypted file store.
 pub const SHARED: &str = "shared";
 
 pub fn shared_get(account: &str) -> Result<Option<String>, String> {
@@ -105,10 +78,6 @@ pub fn shared_delete(account: &str) -> Result<(), String> {
     FileSecretStore::default_store().delete(SHARED, account)
 }
 
-// ---------------------------------------------------------------------------
-// File implementation (the default outside the app)
-// ---------------------------------------------------------------------------
-
 pub struct FileSecretStore {
     root: PathBuf,
 }
@@ -118,9 +87,6 @@ impl FileSecretStore {
         Self { root: root.into() }
     }
 
-    /// The store used when nothing was installed. Not cached: `OMNIGET_SECRETS_DIR`
-    /// moves between tests in one process, and resolving a path is cheap next to
-    /// the file read that follows it.
     fn default_store() -> Self {
         Self::new(default_root())
     }
@@ -211,9 +177,6 @@ fn read_key(dir: &Path, create: bool) -> Result<Option<[u8; 32]>, String> {
     }
 }
 
-/// Write a file only its owner can read. On unix the mode is part of the `open`
-/// call: creating the file and chmod'ing after leaves a window in which the key
-/// material — or the `.bak` the migration writes — is world-readable.
 pub fn write_private(path: &Path, bytes: &[u8]) -> Result<(), String> {
     let io = |e: std::io::Error| format!("secrets: could not write {}: {}", path.display(), e);
     #[cfg(unix)]
@@ -335,7 +298,6 @@ mod tests {
             Some("other-secret")
         );
 
-        // Nothing readable on disk.
         let blob = std::fs::read(root.join(AI_KEYS).join(STORE_FILE)).unwrap();
         assert!(!String::from_utf8_lossy(&blob).contains("sk-secret"));
 
@@ -367,7 +329,6 @@ mod tests {
         write_private(&path, b"secret").unwrap();
         let mode = std::fs::metadata(&path).unwrap().permissions().mode();
         assert_eq!(mode & 0o777, 0o600, "mode was {:o}", mode);
-        // Rewriting an existing, loose file re-tightens it.
         std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o644)).unwrap();
         write_private(&path, b"secret2").unwrap();
         let mode = std::fs::metadata(&path).unwrap().permissions().mode();

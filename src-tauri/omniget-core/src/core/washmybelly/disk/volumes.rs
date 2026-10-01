@@ -1,14 +1,9 @@
-//! Mounted volumes the person would recognise, with total, free and, on
-//! macOS, the purgeable space the system frees on its own when it needs it.
-
 use std::path::Path;
 
 use serde_json::{json, Value};
 
 use super::super::{current_os, Os};
 
-/// Filesystems that are never a place for files: kernel views, overlays,
-/// automounters, snap images.
 const PSEUDO_FS: &[&str] = &[
     "devfs",
     "autofs",
@@ -46,7 +41,6 @@ const PSEUDO_FS: &[&str] = &[
     "zfs_snapshot",
 ];
 
-/// Whether a mount stays out of the list. Pure, so every OS tests it.
 pub fn hidden(os: Os, mount: &str, fs: &str) -> bool {
     let fs = fs.to_ascii_lowercase();
     if PSEUDO_FS.contains(&fs.as_str()) {
@@ -77,8 +71,6 @@ pub fn hidden(os: Os, mount: &str, fs: &str) -> bool {
     }
 }
 
-/// Container size and free space from `diskutil info -plist` (already
-/// parsed), plus whether the volume is a read-only system snapshot.
 pub fn mac_info(info: &Value) -> Value {
     json!({
         "volume_name": info["VolumeName"].as_str().filter(|s| !s.is_empty()),
@@ -91,7 +83,6 @@ pub fn mac_info(info: &Value) -> Value {
     })
 }
 
-/// Space a regular process may write right now (statvfs `f_bavail`).
 #[cfg(unix)]
 fn statvfs_free(mount: &Path) -> Option<u64> {
     use std::os::unix::ffi::OsStrExt;
@@ -131,7 +122,6 @@ pub fn list() -> Vec<Value> {
         .any(|d| d.mount_point() == Path::new("/System/Volumes/Data"));
 
     let mut list: Vec<_> = disks.list().iter().collect();
-    // Shortest mount first, so a btrfs subvolume dedupes onto `/`.
     list.sort_by_key(|d| d.mount_point().as_os_str().len());
     for d in list {
         let mount = d.mount_point().to_string_lossy().into_owned();
@@ -139,8 +129,6 @@ pub fn list() -> Vec<Value> {
         if hidden(os, &mount, &fs) || d.total_space() == 0 {
             continue;
         }
-        // On macOS `/` is the sealed system snapshot; the Data volume next
-        // to it holds everything the person owns.
         if os == Os::Macos && mount == "/" && has_data {
             continue;
         }
@@ -152,8 +140,6 @@ pub fn list() -> Vec<Value> {
         seen.push(key);
 
         let total = d.total_space();
-        // sysinfo gives the "important usage" figure on macOS, which counts
-        // purgeable space as available.
         let available = d.available_space();
         #[cfg(unix)]
         let free = statvfs_free(d.mount_point())
@@ -211,7 +197,6 @@ pub fn list() -> Vec<Value> {
             "info": extra,
         }));
     }
-    // The volume that holds home comes first, removable ones last.
     out.sort_by_key(|v| (v["holds_home"] != true, v["removable"] == true));
     out
 }

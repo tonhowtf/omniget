@@ -1,10 +1,3 @@
-//! End-to-end route test: send `req_pq_multi` to a DC and wait for the
-//! matching `resPQ`. A TCP connect proves nothing behind the GFW (the
-//! handshake often succeeds and the stream is killed later); an answer
-//! from Telegram with our nonce echoed back proves the whole path works.
-//! The same round trip is the "ping" shown next to each route, as in
-//! Telegram Desktop and TDLib's `pingProxy`.
-
 use std::time::{Duration, Instant};
 
 use rand::RngExt;
@@ -18,12 +11,9 @@ const RES_PQ: u32 = 0x0516_2463;
 
 #[derive(Debug, Clone, Serialize)]
 pub struct ProbeOk {
-    /// Dial + obfuscation/TLS handshake + first round trip.
     pub connect_ms: u64,
-    /// The `req_pq` round trip alone.
     pub rtt_ms: u64,
     pub dc: i16,
-    /// Server clock minus ours, in seconds.
     pub clock_offset_secs: i64,
 }
 

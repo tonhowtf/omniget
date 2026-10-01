@@ -135,8 +135,6 @@ pub fn current_home_dc_id() -> Option<i32> {
     }
 }
 
-/// Appended to every network failure: the Connection tab is where the
-/// person picks another way out.
 pub const NET_HINT: &str = " Open the Connection tab to pick another route.";
 
 fn is_connection_error(e: &InvocationError) -> bool {
@@ -157,13 +155,9 @@ pub fn describe_invocation_error(context: &str, e: &InvocationError) -> anyhow::
     }
 }
 
-/// Unix seconds of the last pre-connect scan, so a dead network does not
-/// trigger a scan on every single connect.
 static LAST_PRECONNECT_SCAN: AtomicI64 = AtomicI64::new(0);
 const PRECONNECT_SCAN_TIMEOUT: Duration = Duration::from_secs(25);
 
-/// Before the first connect, scan so a route is already chosen. Called
-/// outside the per-call timeouts so the scan does not eat into them.
 pub async fn ensure_route() {
     let mgr = crate::core::telegram::net::manager::get();
     if mgr.has_working_route() {
@@ -190,9 +184,6 @@ pub async fn ensure_route() {
     }
 }
 
-/// Every MTProto connection goes through the local bridge of the connection
-/// layer, which picks the route (direct, MTProxy, Shadowsocks, …) and swaps
-/// it on failure.
 async fn bridge_proxy_url() -> anyhow::Result<String> {
     ensure_route().await;
     crate::core::telegram::net::manager::get()
@@ -258,7 +249,6 @@ pub async fn check_session(handle: &TelegramSessionHandle) -> anyhow::Result<Str
             }
         }
 
-        // Keep the update channel: the real-time auto-save reads it.
         let (client, updates_rx) = create_client_with_updates().await?;
         if client.is_authorized().await? {
             let me = client.get_me().await?;
@@ -420,8 +410,6 @@ async fn handle_migrate(
 }
 
 pub async fn qr_login_start(handle: &TelegramSessionHandle) -> anyhow::Result<QrLoginResult> {
-    // Mirror check_session: bound the network-bound work so the invoke always
-    // resolves even when Telegram is unreachable (e.g. behind a proxy).
     ensure_route().await;
     let start = qr_login_start_inner(handle);
     tokio::time::timeout(QR_NETWORK_TIMEOUT, start)
@@ -512,8 +500,6 @@ pub async fn qr_login_poll(handle: &TelegramSessionHandle) -> anyhow::Result<QrP
 
     tracing::info!("[tg-qr] updateLoginToken received, calling ExportLoginToken to finalize");
 
-    // Mirror check_session: bound the network-bound finalization so the
-    // invoke always resolves even when Telegram is unreachable.
     let finalize = qr_login_poll_finalize(handle, &client);
     tokio::time::timeout(QR_NETWORK_TIMEOUT, finalize)
         .await
@@ -530,7 +516,6 @@ async fn qr_login_poll_finalize(
             tracing::info!("[tg-qr] login success, phone={}", phone);
             let mut guard = handle.lock().await;
             guard.phone = phone.clone();
-            // The update channel stays: the real-time auto-save reads it.
             Ok(QrPollStatus::Success { phone })
         }
         Ok(tl::enums::auth::LoginToken::Token(_)) => {

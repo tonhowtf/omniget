@@ -1,9 +1,3 @@
-//! What the icon and the panel show, computed from the engine's snapshot.
-//! Pure functions with tests; nothing here reads a file or the network.
-//!
-//! The forecast ("at this pace, limit at 16:40") lives in
-//! `limits_strip::pace`, shared with the strip and its alerts.
-
 use crate::limits_strip::engine::{Ring, Snapshot};
 pub use crate::limits_strip::pace::runs_out_at;
 use crate::limits_strip::LimitWindow;
@@ -11,7 +5,6 @@ use serde::Serialize;
 
 use super::prefs::{Shows, TrayPrefs};
 
-/// `ok` below the warning threshold, then `warn`, then `critical`.
 pub fn level(used_pct: f64, warn: u8, critical: u8) -> &'static str {
     if used_pct >= critical as f64 {
         "critical"
@@ -26,11 +19,9 @@ pub fn level(used_pct: f64, warn: u8, critical: u8) -> &'static str {
 pub struct Win {
     pub id: String,
     pub label: String,
-    /// 0..1+
     pub used: f64,
     pub resets_at: Option<i64>,
     pub runs_out_at: Option<i64>,
-    /// Share of the window's time gone (where "on pace" sits), when known.
     pub expected: Option<f64>,
     pub level: &'static str,
 }
@@ -38,7 +29,6 @@ pub struct Win {
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct Account {
     pub id: String,
-    /// `claude` / `codex`: which CLI the ring belongs to.
     pub cli: String,
     pub name: String,
     pub email: Option<String>,
@@ -55,7 +45,6 @@ pub struct Account {
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct View {
     pub accounts: Vec<Account>,
-    /// What the icon shows right now: percent used and its level.
     pub headline: Option<(f64, &'static str)>,
     pub shows: &'static str,
     pub warn: u8,
@@ -130,7 +119,6 @@ pub fn account(ring: &Ring, prefs: &TrayPrefs, now: i64) -> Account {
     }
 }
 
-/// The number on the icon: the fullest matching window across the accounts.
 pub fn headline(accounts: &[Account], prefs: &TrayPrefs) -> Option<(f64, &'static str)> {
     let pick = |a: &Account| -> Vec<f64> {
         match prefs.shows {
@@ -160,7 +148,6 @@ pub fn build(snap: &Snapshot, prefs: &TrayPrefs, now: i64) -> View {
         .filter_map(|id| snap.rings.iter().find(|r| &r.id == id))
         .map(|r| account(r, prefs, now))
         .collect();
-    // Rings the engine has not listed yet keep the user's order at the end.
     accounts.dedup_by(|a, b| a.id == b.id);
     View {
         headline: headline(&accounts, prefs),

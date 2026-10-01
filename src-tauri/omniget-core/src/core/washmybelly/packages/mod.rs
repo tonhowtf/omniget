@@ -1,18 +1,3 @@
-//! Package managers: installed packages, removal previews, orphans and
-//! pending updates, one [`PackageBackend`] per manager (F3/F4).
-//!
-//! - Linux: apt, dnf, pacman, zypper, snap (snapd REST API on its socket),
-//!   flatpak. Removing needs administrator rights except for flatpak in the
-//!   user installation; the helper runs [`elevated_remove`] as root.
-//! - Windows: winget (updates, one process per package, winutil's exit code
-//!   table for the outcome).
-//! - macOS: Homebrew (updates).
-//!
-//! Every command is argv with `LC_ALL=C` (the parsers read English labels)
-//! and `--` before package names; names are checked against a strict pattern
-//! per manager before they reach any command. Every parser is a pure function
-//! with a fixture in `tests/washmybelly_fixtures/packages/`.
-
 pub mod apt;
 pub mod brew;
 pub mod dnf;
@@ -37,21 +22,12 @@ use super::receipt::Undo;
 use super::store::Ctx;
 use super::Risk;
 
-// ── Shapes ───────────────────────────────────────────────────────────
-
-/// What a removal would take with it, computed without changing anything.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 pub struct RemovePreview {
-    /// The packages asked for.
     pub removes: Vec<String>,
-    /// Everything else the manager removes with them (dependents, unused
-    /// dependencies, locale extensions).
     pub also_removes: Vec<String>,
-    /// Bytes the removal frees, when the manager says.
     #[serde(default)]
     pub frees_bytes: Option<u64>,
-    /// False when the manager could only give a partial answer (zypper
-    /// without root falls back to `rpm -e --test`).
     #[serde(default = "yes")]
     pub exact: bool,
 }
@@ -60,69 +36,42 @@ fn yes() -> bool {
     true
 }
 
-/// One pending update.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 pub struct Update {
-    /// Stable item id: `packages:<manager>[:<scope>]:<name>`.
     pub id: String,
-    /// Package name as the manager knows it (winget id, flatpak ref...).
     pub name: String,
     pub manager: String,
     pub current: String,
     pub available: String,
-    /// Download size when the manager says.
     #[serde(default)]
     pub size: Option<u64>,
     pub admin: bool,
-    /// `user` or `system` (flatpak), `formula` or `cask` (Homebrew).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub scope: Option<String>,
-    /// Shown instead of offering the update (a pinned formula, an id winget
-    /// cut short). Such updates never enter a plan.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub note: Option<String>,
 }
 
-/// One package manager. Implementations only read, except through the argv
-/// they hand back: removal and upgrade run elsewhere (the elevated helper or
-/// a plan hook), after the names were validated again.
 pub trait PackageBackend: Send + Sync {
-    /// `apt`, `dnf`, `pacman`, `zypper`, `snap`, `flatpak`, `winget`, `brew`.
     fn id(&self) -> &'static str;
-    /// The manager is installed and usable on this machine.
     fn available(&self) -> bool;
-    /// Installed packages (every one, apps and libraries).
     fn list(&self) -> Result<Vec<App>, String>;
-    /// What removing `names` would take along. Changes nothing.
     fn remove_preview(&self, names: &[String]) -> Result<RemovePreview, String>;
-    /// The argv (program name first, bare) that removes `names`
-    /// non-interactively. With no names it is the command prefix shown in
-    /// "copy the command".
     fn remove_argv(&self, names: &[String]) -> Vec<String>;
-    /// Packages nothing needs anymore.
     fn orphans(&self) -> Result<Vec<App>, String>;
-    /// Pending updates.
     fn updates(&self) -> Result<Vec<Update>, String>;
-    /// The argv that upgrades `names` non-interactively.
     fn upgrade_argv(&self, names: &[String]) -> Vec<String>;
-    /// Package owning each of `files` (only the ones owned), for telling
-    /// apps (a package with a `.desktop` file) from libraries.
     fn desktop_owners(&self, _files: &[PathBuf]) -> HashMap<PathBuf, String> {
         HashMap::new()
     }
 }
 
-/// Managers the root helper may drive. Closed list.
 pub const LINUX_MANAGERS: &[&str] = &["apt", "dnf", "pacman", "zypper", "snap", "flatpak"];
 
-/// Folders the helper resolves programs in (never `PATH`).
 const SYSTEM_DIRS: &[&str] = &["/usr/bin", "/bin", "/usr/sbin", "/sbin"];
 
-/// Most names one removal or upgrade may carry.
 pub const MAX_NAMES: usize = 200;
 
-/// The backend for `manager`, whatever the OS (the parsers and argv are
-/// pure; only `available`/`list`/... touch the system).
 pub fn backend(manager: &str) -> Option<Box<dyn PackageBackend>> {
     Some(match manager {
         "apt" => Box::new(apt::Apt),
@@ -137,7 +86,6 @@ pub fn backend(manager: &str) -> Option<Box<dyn PackageBackend>> {
     })
 }
 
-/// Backends of this OS that are installed, the distro's own manager first.
 pub fn available() -> Vec<Box<dyn PackageBackend>> {
     let ids: Vec<&str> = if cfg!(target_os = "linux") {
         linux_order()
@@ -152,9 +100,6 @@ pub fn available() -> Vec<Box<dyn PackageBackend>> {
         .collect()
 }
 
-/// apt/dnf/pacman/zypper ordered by `/etc/os-release` (`ID`, `ID_LIKE`),
-/// then snap and flatpak. The binary still has to be there: a Debian with
-/// `rpm` installed does not make dnf the system manager.
 fn linux_order() -> Vec<&'static str> {
     let rel = std::fs::read_to_string("/etc/os-release")
         .or_else(|_| std::fs::read_to_string("/usr/lib/os-release"))
@@ -164,7 +109,6 @@ fn linux_order() -> Vec<&'static str> {
     order
 }
 
-/// Pure: system managers by distro family, most likely first.
 pub fn distro_order(rel: &HashMap<String, String>) -> Vec<&'static str> {
     let mut family: Vec<String> = rel.get("ID").cloned().into_iter().collect();
     family.extend(
@@ -200,16 +144,10 @@ pub fn distro_order(rel: &HashMap<String, String>) -> Vec<&'static str> {
     out
 }
 
-// ── Names ────────────────────────────────────────────────────────────
-
 fn re(pattern: &'static str, cell: &'static OnceLock<Regex>) -> &'static Regex {
     cell.get_or_init(|| Regex::new(pattern).expect("static pattern"))
 }
 
-/// Whether `name` is a well-formed package name for `manager`. Nothing that
-/// starts with `-`, has a space, a quote, `;`, `$`, `/..` or a control
-/// character ever passes, so a name cannot turn into an option or a shell
-/// word even in "copy the command".
 pub fn valid_name(manager: &str, name: &str) -> bool {
     static APT: OnceLock<Regex> = OnceLock::new();
     static RPM: OnceLock<Regex> = OnceLock::new();
@@ -222,23 +160,15 @@ pub fn valid_name(manager: &str, name: &str) -> bool {
         return false;
     }
     let r = match manager {
-        // Debian policy: lowercase, digits, + - . ; optional :arch.
         "apt" => re(r"^[a-z0-9][a-z0-9+.\-]{1,127}(:[a-z0-9\-]{2,20})?$", &APT),
-        // rpm names: letters, digits, . _ + -.
         "dnf" | "zypper" => re(r"^[A-Za-z0-9_][A-Za-z0-9._+\-]{0,127}$", &RPM),
-        // Arch: lowercase, digits, @ . _ + -, not starting with - or .
         "pacman" => re(r"^[a-z0-9@_+][a-z0-9@._+\-]{0,127}$", &PACMAN),
-        // snapd: lowercase, digits, hyphens, at most 40, no hyphen at the ends.
         "snap" => re(r"^[a-z0-9](?:[a-z0-9\-]{0,38}[a-z0-9])?$", &SNAP),
-        // Reverse-DNS id with at least three parts, or `id//branch`, or a
-        // full ref `app|runtime/id/arch/branch`.
         "flatpak" => re(
             r"^(?:(?:app|runtime)/)?[A-Za-z_][A-Za-z0-9_\-]*(?:\.[A-Za-z_][A-Za-z0-9_\-]*){2,}(?:/[A-Za-z0-9_\-]*/[A-Za-z0-9_.\-]+|//[A-Za-z0-9_.\-]+)?$",
             &FLATPAK,
         ),
-        // winget ids (`Mozilla.Firefox`, `7zip.7zip`, Store ids `9NBLGGH4NNS1`).
         "winget" => re(r"^[A-Za-z0-9][A-Za-z0-9._+\-]{0,127}$", &WINGET),
-        // Homebrew formula/cask tokens, optionally `user/tap/name`.
         "brew" => re(
             r"^(?:[a-z0-9][a-z0-9_\-]*/[a-z0-9][a-z0-9_\-]*/)?[a-z0-9@][a-z0-9@._+\-]{0,127}$",
             &BREW,
@@ -248,8 +178,6 @@ pub fn valid_name(manager: &str, name: &str) -> bool {
     r.is_match(name) && !name.contains("..")
 }
 
-/// Check a whole request: the manager is known, 1..=[`MAX_NAMES`] names,
-/// each well formed, no duplicates.
 pub fn validate(manager: &str, names: &[String], allowed: &[&str]) -> Result<(), String> {
     if !allowed.contains(&manager) {
         return Err(format!("BAD_MANAGER: {manager} is not allowed here"));
@@ -283,9 +211,6 @@ fn names_arg(args: &Value) -> Vec<String> {
         .unwrap_or_default()
 }
 
-// ── Running commands ─────────────────────────────────────────────────
-
-/// A program on `PATH` or in the usual system folders.
 pub fn find_program(name: &str) -> Option<PathBuf> {
     let mut dirs: Vec<PathBuf> = std::env::var_os("PATH")
         .map(|p| std::env::split_paths(&p).collect())
@@ -311,16 +236,12 @@ pub fn find_program(name: &str) -> Option<PathBuf> {
     None
 }
 
-/// What a read-only query printed.
 pub struct Ran {
     pub code: Option<i32>,
     pub stdout: String,
     pub stderr: String,
 }
 
-/// Run a read-only query with `LC_ALL=C`, stdin closed. Never fails on a
-/// non-zero exit (several managers answer "nothing" that way); only when
-/// the program cannot start.
 pub fn query(program: &str, args: &[&str]) -> Result<Ran, String> {
     query_env(program, args, &[])
 }
@@ -342,7 +263,6 @@ pub fn query_env(program: &str, args: &[&str], env: &[(&str, &str)]) -> Result<R
     })
 }
 
-/// The last lines of a command's output, for receipts and errors.
 pub fn tail(text: &str, lines: usize) -> String {
     let v: Vec<&str> = text
         .split(['\n', '\r'])
@@ -358,9 +278,6 @@ pub fn tail(text: &str, lines: usize) -> String {
     s[i..].to_string()
 }
 
-/// Sizes as package managers print them: `345.21 KiB`, `2.9 MiB`, `1.2 GB`
-/// (GLib, SI), `30 M` (dnf4, binary), `40.0   B`, with a no-break space or
-/// not. `None` when it is not a size.
 pub fn parse_size(s: &str) -> Option<u64> {
     let s = s.replace('\u{a0}', " ");
     let s = s.trim().trim_start_matches("< ").trim();
@@ -384,8 +301,6 @@ pub fn parse_size(s: &str) -> Option<u64> {
     Some((n * mult).round() as u64)
 }
 
-/// Run a manager as root inside `omniget-elevate`: the program is looked up
-/// only in the system folders, the environment is emptied, stdin closed.
 fn run_as_root(argv: &[String], extra_env: &[(&str, &str)]) -> Result<String, String> {
     let (prog, args) = argv.split_first().ok_or("empty command")?;
     let path = SYSTEM_DIRS
@@ -426,9 +341,6 @@ fn root_env(manager: &str) -> Vec<(&'static str, &'static str)> {
     }
 }
 
-/// `omniget-elevate`: remove packages as root. Revalidates the manager
-/// against [`LINUX_MANAGERS`] and every name against its pattern; flatpak
-/// here is always the system installation.
 pub fn elevated_remove(manager: &str, names: &[String]) -> Result<String, String> {
     validate(manager, names, LINUX_MANAGERS)?;
     if !cfg!(target_os = "linux") {
@@ -438,8 +350,6 @@ pub fn elevated_remove(manager: &str, names: &[String]) -> Result<String, String
     run_as_root(&b.remove_argv(names), &root_env(manager))
 }
 
-/// `omniget-elevate`: upgrade packages as root (needs the
-/// `ElevatedOp::PackageUpgrade` variant; see the handoff).
 pub fn elevated_upgrade(manager: &str, names: &[String]) -> Result<String, String> {
     validate(manager, names, LINUX_MANAGERS)?;
     if !cfg!(target_os = "linux") {
@@ -449,8 +359,6 @@ pub fn elevated_upgrade(manager: &str, names: &[String]) -> Result<String, Strin
     run_as_root(&b.upgrade_argv(names), &root_env(manager))
 }
 
-/// The command a person would type to remove packages with `manager`
-/// (display only, for "copy the command"; the names are appended quoted).
 pub fn remove_command(manager: &str) -> String {
     match backend(manager) {
         Some(b) if LINUX_MANAGERS.contains(&manager) => b.remove_argv(&[]).join(" "),
@@ -458,7 +366,6 @@ pub fn remove_command(manager: &str) -> String {
     }
 }
 
-/// Same for upgrades.
 pub fn upgrade_command(manager: &str) -> String {
     match backend(manager) {
         Some(b) if LINUX_MANAGERS.contains(&manager) => b.upgrade_argv(&[]).join(" "),
@@ -466,13 +373,8 @@ pub fn upgrade_command(manager: &str) -> String {
     }
 }
 
-// ── Updates ──────────────────────────────────────────────────────────
-
-/// Managers whose upgrades run without administrator rights (in the app's
-/// own process, one process per package).
 const USER_UPGRADE: &[&str] = &["winget", "brew", "flatpak"];
 
-/// Whether an upgrade by `manager` in `scope` needs the helper.
 pub fn upgrade_needs_admin(manager: &str, scope: Option<&str>) -> bool {
     match manager {
         "winget" | "brew" => false,
@@ -481,8 +383,6 @@ pub fn upgrade_needs_admin(manager: &str, scope: Option<&str>) -> bool {
     }
 }
 
-/// Plan items for `updates`. pacman does not support partial upgrades, so
-/// its updates become one "whole system" item.
 pub fn update_items(updates: &[Update]) -> Vec<PlanItem> {
     let mut items = Vec::new();
     let pacman: Vec<&Update> = updates
@@ -557,8 +457,6 @@ fn source_of(a: &Value) -> Source {
     }
 }
 
-/// Updates from every available manager, with the errors of the ones that
-/// failed (a broken repo must not hide the others).
 pub fn all_updates() -> (Vec<Update>, Vec<String>, Vec<Value>) {
     let mut updates = Vec::new();
     let mut managers = Vec::new();
@@ -597,17 +495,12 @@ pub async fn tool_updates(a: Value) -> Result<Value, String> {
     .await
 }
 
-// ── Plan hooks (called by `plan::execute` for `Op::Module { module: "packages" }`) ──
-
-/// Actions this module runs itself.
 pub const ACTIONS: &[&str] = &["upgrade"];
 
 fn scope_arg(args: &Value) -> Option<&str> {
     args.get("scope").and_then(Value::as_str)
 }
 
-/// Upgrade without administrator rights: winget and Homebrew, flatpak in the
-/// user installation. One process per package.
 pub fn plan_execute(
     _ctx: &Ctx,
     _receipt_id: &str,
@@ -651,8 +544,6 @@ pub fn plan_execute(
     }
 }
 
-/// The administrator half of an upgrade (apt, dnf, pacman, zypper, snap,
-/// flatpak system).
 pub fn plan_elevated(
     _ctx: &Ctx,
     _receipt_id: &str,
@@ -670,8 +561,6 @@ pub fn plan_elevated(
     Ok((vec![upgrade_op(manager, names)?], None))
 }
 
-/// The helper operation for an administrator upgrade, executed by
-/// [`elevated_upgrade`] and shown by [`upgrade_command`].
 fn upgrade_op(manager: &str, names: Vec<String>) -> Result<ElevatedOp, String> {
     Ok(ElevatedOp::PackageUpgrade {
         manager: manager.to_string(),
@@ -685,12 +574,6 @@ pub fn plan_undo(_ctx: &Ctx, action: &str, _args: &Value) -> Result<String, Stri
     ))
 }
 
-/// Actions only the screen may run (`washmybelly_ui` with `packages.<action>`):
-/// never exposed as MCP tools.
-///
-/// - `managers`: the managers found here.
-/// - `remove_preview` `{manager, names}`: what else a removal takes along.
-/// - `orphans` `{manager?}`: packages nothing needs.
 pub async fn ui_action(action: &str, a: Value) -> Result<Value, String> {
     let action = action.to_string();
     super::tools::blocking(move || match action.as_str() {
@@ -724,9 +607,6 @@ pub async fn ui_action(action: &str, a: Value) -> Result<Value, String> {
     .await
 }
 
-// ── Shared helpers for backends ──────────────────────────────────────
-
-/// A package as an [`App`] of source `manager`.
 pub fn package_app(
     manager: &str,
     name: &str,

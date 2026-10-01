@@ -1,11 +1,3 @@
-//! Tokenização e citação no estilo POSIX para o comando do yt-dlp.
-//!
-//! Existe porque a tela mostra o comando exato de cada tentativa e deixa o
-//! usuário editá-lo e rodar de novo. O caminho de ida (argv → texto) precisa
-//! ser reversível pelo caminho de volta (texto → argv); manter os dois aqui,
-//! com testes de ida-e-volta, é o que garante isso. Não usamos `sh -c`: o
-//! texto vira argv e vai direto ao processo, sem shell no meio.
-
 use std::fmt;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -25,10 +17,6 @@ impl fmt::Display for ParseError {
 
 impl std::error::Error for ParseError {}
 
-/// Divide `input` em argumentos: aspas simples literais, aspas duplas com
-/// `\"` e `\\`, barra invertida fora de aspas escapa o próximo caractere,
-/// espaço em branco separa. Quebra de linha conta como espaço, para o usuário
-/// poder formatar o comando em várias linhas na caixa de edição.
 pub fn split(input: &str) -> Result<Vec<String>, ParseError> {
     let mut out = Vec::new();
     let mut cur = String::new();
@@ -66,7 +54,7 @@ pub fn split(input: &str) -> Result<Vec<String>, ParseError> {
                 }
             }
             '\\' => match chars.next() {
-                Some('\n') => {} // continuação de linha: não abre token
+                Some('\n') => {}
                 Some(ch) => {
                     in_token = true;
                     cur.push(ch);
@@ -121,8 +109,6 @@ fn needs_quoting(arg: &str) -> bool {
         })
 }
 
-/// Cita um argumento para exibição/edição. Prefere aspas simples (sem escapes
-/// internos); só cai para aspas duplas quando o texto contém aspas simples.
 pub fn quote(arg: &str) -> String {
     if !needs_quoting(arg) {
         return arg.to_string();
@@ -153,9 +139,6 @@ where
         .join(" ")
 }
 
-/// Flags cujo valor é segredo. O valor é trocado por `<redacted>` antes de ir
-/// para o log e para a tela; a lista é curta de propósito (mostrar demais é
-/// menos perigoso do que esconder o que o usuário precisa editar).
 const SECRET_VALUE_FLAGS: &[&str] = &[
     "--password",
     "--video-password",
@@ -165,8 +148,6 @@ const SECRET_VALUE_FLAGS: &[&str] = &[
     "--all-proxy",
 ];
 
-/// Devolve uma cópia do argv com segredos redigidos: cabeçalho `Cookie:`,
-/// senhas, proxy com credenciais e `po_token=` dentro de `--extractor-args`.
 pub fn redact(args: &[String]) -> Vec<String> {
     let mut out = Vec::with_capacity(args.len());
     let mut redact_next = false;
@@ -222,8 +203,6 @@ pub fn redact(args: &[String]) -> Vec<String> {
     out
 }
 
-/// Flags whose value identifies an account; kept in the UI's editable
-/// command, but never written to the operator log.
 const IDENTITY_VALUE_FLAGS: &[&str] = &[
     "--username",
     "-u",
@@ -233,9 +212,6 @@ const IDENTITY_VALUE_FLAGS: &[&str] = &[
     "--cookies",
 ];
 
-/// Stricter [`redact`] for logs: any header whose name speaks of a cookie,
-/// auth, session, token, CSRF, key or secret loses its value, and so do
-/// account identities. Not for the editable command (it must round-trip).
 pub fn redact_for_log(args: &[String]) -> Vec<String> {
     let base = redact(args);
     let mut out = Vec::with_capacity(base.len());
@@ -310,7 +286,6 @@ fn redact_header_value(v: &str) -> String {
 }
 
 fn redact_proxy_or_secret(v: &str) -> String {
-    // proxy só é segredo quando carrega usuário:senha
     if let Ok(mut url) = url::Url::parse(v) {
         if url.username().is_empty() && url.password().is_none() {
             return v.to_string();
@@ -328,8 +303,6 @@ fn redact_extractor_args(v: &str) -> String {
     }
     v.split(';')
         .map(|part| {
-            // The first key follows the extractor name: "youtube:po_token=…"
-            // did not start with "po_token" and kept its token.
             let (ie, kv) = match part.split_once(':') {
                 Some((ie, kv)) if !ie.contains('=') => (Some(ie), kv),
                 _ => (None, part),

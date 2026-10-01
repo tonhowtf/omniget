@@ -1,9 +1,3 @@
-//! One way to run `git`, `gh` and `glab`: the system binary through
-//! `core::process`, never interactive, with a timeout and a bounded output.
-//! Stderr stays out of the error text beyond a short tail (it can carry a
-//! remote URL with a token in it), and every failure has a code the front can
-//! switch on.
-
 use std::ffi::{OsStr, OsString};
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
@@ -27,11 +21,8 @@ pub const ERR_IO: &str = "ERR_VCS_IO";
 pub const DEFAULT_TIMEOUT: Duration = Duration::from_secs(30);
 pub const DEFAULT_MAX_OUTPUT: usize = 16 * 1024 * 1024;
 
-/// Typed failure of a VCS operation. `Display` gives the `"CODE: message"`
-/// form the Tauri commands return.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum VcsError {
-    /// The program is not on the PATH.
     Missing {
         program: String,
     },
@@ -49,7 +40,6 @@ pub enum VcsError {
         op: String,
         limit: usize,
     },
-    /// Non-zero exit. `stderr` is the last few lines, trimmed.
     Exit {
         program: String,
         op: String,
@@ -60,7 +50,6 @@ pub enum VcsError {
         path: String,
     },
     Invalid(String),
-    /// Refused because it could touch something that is not ours.
     Unsafe(String),
     NotFound(String),
     Unavailable(String),
@@ -147,7 +136,6 @@ impl From<std::io::Error> for VcsError {
 
 pub type VcsResult<T> = Result<T, VcsError>;
 
-/// Raw result of a finished process.
 #[derive(Debug, Clone)]
 pub struct Output {
     pub stdout: Vec<u8>,
@@ -170,8 +158,6 @@ impl Output {
     }
 }
 
-/// One invocation. Built with the helpers, run with [`Invocation::run`] or
-/// [`Invocation::run_streaming`].
 #[derive(Debug, Clone)]
 pub struct Invocation {
     pub program: String,
@@ -181,11 +167,9 @@ pub struct Invocation {
     pub stdin: Option<Vec<u8>>,
     pub timeout: Option<Duration>,
     pub max_output: usize,
-    /// When false a non-zero exit is returned as `Ok(Output)`.
     pub check: bool,
 }
 
-/// Env that keeps every git/ssh/credential helper from asking anything.
 pub fn quiet_env() -> Vec<(OsString, Option<OsString>)> {
     [
         ("GIT_TERMINAL_PROMPT", Some("0")),
@@ -223,8 +207,6 @@ impl Invocation {
         }
     }
 
-    /// `git` with the config every call wants: no pager, raw paths, no
-    /// fsmonitor daemon spawned on the user's behalf.
     pub fn git() -> Self {
         Self::new("git").args([
             "-c",
@@ -290,7 +272,6 @@ impl Invocation {
     }
 
     fn op_label(&self) -> String {
-        // First argument that is not a `-c key=value` pair.
         let mut it = self.args.iter();
         while let Some(a) = it.next() {
             let s = a.to_string_lossy();
@@ -349,13 +330,10 @@ impl Invocation {
         })
     }
 
-    /// Runs to completion and collects stdout/stderr.
     pub async fn run(&self) -> VcsResult<Output> {
         self.run_streaming(|_| {}).await
     }
 
-    /// Like [`run`](Self::run), but every stderr line (split on `\n` and `\r`,
-    /// so progress meters arrive as they redraw) goes to `on_line` as it comes.
     pub async fn run_streaming(&self, mut on_line: impl FnMut(&str) + Send) -> VcsResult<Output> {
         let mut child = self.spawn()?;
         let op = self.op_label();
@@ -375,7 +353,6 @@ impl Invocation {
         let work = async {
             let mut out = Vec::new();
             let mut err = Vec::new();
-            // Heap buffers: keeps this future small (they nest deep in debug).
             let mut ob = vec![0u8; 16384];
             let mut eb = vec![0u8; 4096];
             let mut line = Vec::new();
@@ -453,8 +430,6 @@ impl Invocation {
     }
 }
 
-/// Last `lines` non-empty lines of `text`, capped at `max` chars, with any
-/// `scheme://user:secret@` credential blanked.
 pub fn tail(text: &str, lines: usize, max: usize) -> String {
     let kept: Vec<&str> = text
         .lines()
@@ -469,7 +444,6 @@ pub fn tail(text: &str, lines: usize, max: usize) -> String {
     s
 }
 
-/// Blanks the userinfo part of URLs (`https://user:token@host` → `https://***@host`).
 pub fn redact(text: &str) -> String {
     let mut out = String::with_capacity(text.len());
     let mut rest = text;
@@ -492,7 +466,6 @@ pub fn redact(text: &str) -> String {
     out
 }
 
-/// Program resolvable on the (enhanced) PATH, checked without spawning.
 pub fn which(program: &str) -> Option<PathBuf> {
     let names: Vec<String> = if cfg!(windows) {
         vec![

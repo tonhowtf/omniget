@@ -1,18 +1,7 @@
-//! AI coach: the app's configured model reads the player's own data (match
-//! detail, recent games, the live champ select) plus OP.GG's public MCP and
-//! answers as a coach. Data is gathered here, in Rust, and handed to the model
-//! in one compact prompt; there is no tool-calling loop, so cost and latency
-//! stay predictable.
-
 use super::{ensure_enabled, get_client, lcu_get_raw, LcuClient};
 use once_cell::sync::Lazy;
 use serde_json::{json, Value};
 use tokio::sync::Mutex;
-
-// ---------------------------------------------------------------------------
-// OP.GG MCP (https://mcp-api.op.gg/mcp, MIT). Plain JSON-RPC over HTTP with a
-// session header; the tool result is JSON inside the first text content.
-// ---------------------------------------------------------------------------
 
 const OPGG_MCP: &str = "https://mcp-api.op.gg/mcp";
 static OPGG_SESSION: Lazy<Mutex<Option<String>>> = Lazy::new(|| Mutex::new(None));
@@ -50,7 +39,6 @@ async fn opgg_init(http: &reqwest::Client) -> Result<String, String> {
     Ok(session)
 }
 
-/// Pulls the tool result out of a JSON-RPC envelope.
 pub fn opgg_result(envelope: &Value) -> Result<Value, String> {
     if let Some(err) = envelope.get("error") {
         let message = err
@@ -106,7 +94,6 @@ pub async fn opgg_call(tool: &str, args: Value) -> Result<Value, String> {
         if (status == reqwest::StatusCode::NOT_FOUND || status == reqwest::StatusCode::BAD_REQUEST)
             && attempt == 0
         {
-            // The session expired; start a fresh one and try once more.
             *OPGG_SESSION.lock().await = None;
             continue;
         }
@@ -122,7 +109,6 @@ pub async fn opgg_call(tool: &str, args: Value) -> Result<Value, String> {
     Err("op.gg mcp session could not be established".to_string())
 }
 
-/// OP.GG wants champion names in UPPER_SNAKE_CASE ("KAI_SA" for Kai'Sa).
 pub fn opgg_champion_name(name: &str) -> String {
     let mut out = String::new();
     let mut last_sep = true;
@@ -188,7 +174,6 @@ async fn opgg_matchup(mine: &str, theirs: &str, position: &str) -> Option<Value>
     .await
     .ok()
     .map(|v| {
-        // The guide is large; keep only what a coach would quote.
         let data = v.get("data").cloned().unwrap_or(v);
         json!({
             "summary": data.get("summary").and_then(|s| s.get("average_stats")).cloned(),
@@ -198,10 +183,6 @@ async fn opgg_matchup(mine: &str, theirs: &str, position: &str) -> Option<Value>
         })
     })
 }
-
-// ---------------------------------------------------------------------------
-// Prompts
-// ---------------------------------------------------------------------------
 
 pub fn style_instruction(style: &str) -> &'static str {
     match style {
@@ -224,7 +205,6 @@ fn system_prompt(style: &str, language: &str) -> String {
     )
 }
 
-/// A participant trimmed to what a coach reads, from the match detail shape.
 pub fn compact_participant(p: &Value, minutes: f64) -> Value {
     let f = |k: &str| p.get(k).and_then(Value::as_f64).unwrap_or(0.0);
     let per_min = |v: f64| {
@@ -305,7 +285,6 @@ fn prompt_json(value: &Value, cap: usize) -> String {
     text
 }
 
-/// Post-game review of one match.
 #[tauri::command]
 pub async fn league_coach_review(
     game_id: i64,
@@ -368,8 +347,6 @@ pub async fn league_coach_review(
     omniget_core::core::ai::chat(&system, &user).await
 }
 
-/// One row per recent game, plus aggregates, so the model sees trends and
-/// not just a wall of numbers.
 pub fn trend_rows(games: &[Value], puuid: &str, champions: &Value) -> Value {
     let mut rows: Vec<Value> = Vec::new();
     let mut wins = 0usize;
@@ -486,7 +463,6 @@ pub fn trend_rows(games: &[Value], puuid: &str, champions: &Value) -> Value {
     })
 }
 
-/// Trends over the last N games of the current player.
 #[tauri::command]
 pub async fn league_coach_trends(
     count: Option<u32>,
@@ -533,7 +509,6 @@ pub async fn league_coach_trends(
     omniget_core::core::ai::chat(&system, &user).await
 }
 
-/// What the client is doing right now, in words the model can use.
 async fn live_context(client: &LcuClient, champions: &Value) -> Value {
     let phase = lcu_get_raw(client, "/lol-gameflow/v1/gameflow-phase")
         .await
@@ -589,9 +564,6 @@ async fn live_context(client: &LcuClient, champions: &Value) -> Value {
                 if let Some(brief) = opgg_champion_brief(&champ_key, position).await {
                     context["opgg"] = brief;
                 }
-                // The lane opponent is only known once both sides show a champion
-                // in the same position; enemies do not expose positions, so the
-                // first enemy champion is offered when the position is a lane.
                 if position != "all" {
                     if let Some(enemy) = enemies
                         .iter()
@@ -632,7 +604,6 @@ async fn live_context(client: &LcuClient, champions: &Value) -> Value {
     context
 }
 
-/// Free question, answered against whatever the client is doing right now.
 #[tauri::command]
 pub async fn league_coach_ask(
     question: String,
@@ -650,7 +621,6 @@ pub async fn league_coach_ask(
     let client = get_client().await?;
     let champions = champion_summary(&client).await;
     let mut context = live_context(&client, &champions).await;
-    // Outside a game the last few results give the model something to anchor on.
     if context
         .get("phase")
         .and_then(Value::as_str)
@@ -689,7 +659,6 @@ pub async fn league_coach_ask(
     omniget_core::core::ai::chat(&system, &user).await
 }
 
-/// Cheap check the tab uses to decide what to show.
 #[tauri::command]
 pub fn league_coach_ready() -> bool {
     omniget_core::core::ai::get().is_configured()

@@ -1,16 +1,3 @@
-//! Augment Code / Auggie CLI (estudo 06, Augment §j; Parte 6 §8.2).
-//!
-//! `~/.augment/sessions/<sessionId>.json` (confirmado no bundle 0.36.0):
-//! `{sessionId, created, modified, agentState{modelId}, chatHistory[]}`; cada
-//! item tem `completed`, `finishedAt`, `sequenceId` e `exchange{request_message,
-//! response_text, model_id, request_id, request_nodes[], response_nodes[]}`.
-//! Nos `response_nodes`, `token_usage{input_tokens, output_tokens,
-//! cache_read_input_tokens, cache_creation_input_tokens}` (vale o último não
-//! zero do turno) e `tool_use{tool_use_id, tool_name, input_json}`; nos
-//! `request_nodes`, `tool_result_node{tool_use_id, content, is_error}`.
-//! Augment cobra em créditos e não grava custo: `cost_usd` fica `None` e o
-//! preço sai da tabela. Auggie não está instalado aqui: só fixture.
-
 use std::path::{Path, PathBuf};
 
 use serde_json::Value;
@@ -134,7 +121,6 @@ pub fn parse(doc: &Value, fallback_id: &str, source: &Path) -> Session {
         if t.text.is_empty() {
             t.text = texts.join("");
         }
-        // Turno não concluído não tem uso confiável.
         if item
             .get("completed")
             .and_then(Value::as_bool)

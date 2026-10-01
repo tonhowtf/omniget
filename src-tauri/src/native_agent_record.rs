@@ -1,4 +1,3 @@
-//! Bounded asynchronous native snapshot recording. No microphone or desktop capture.
 use crate::mcp::{
     artifacts,
     policy::{self, Principal},

@@ -1,5 +1,3 @@
-//! OmniTube (`/youtube`): Tauri commands. See estudos/102-youtube/CONTRATO.md.
-
 pub mod account;
 pub mod autodl;
 pub mod browse;

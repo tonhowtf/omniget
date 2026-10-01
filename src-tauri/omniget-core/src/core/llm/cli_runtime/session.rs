@@ -1,12 +1,3 @@
-//! One CLI turn = one child process. Spawn with an isolated environment, read
-//! stdout line by line, turn each line into `TurnEvent`, kill on cancel.
-//! Owned by f4-cli-runtime.
-//!
-//! Budget (plan §3 Fase 4): nothing here runs between turns. The process is
-//! created inside [`spawn_turn`] and is dead — by exit or by signal — before
-//! the stream ends. Switching accounts costs one `BTreeMap` of environment
-//! variables, so it is free.
-
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 use std::process::Stdio;
@@ -24,44 +15,22 @@ use super::super::types::{FinishReason, TurnEvent};
 use super::parse::{classify_error_text, CliSignal, RateSnapshot};
 use super::{ERR_CLI_EXIT, ERR_CLI_NO_START, ERR_CLI_SPAWN, ERR_CLI_STALLED};
 
-/// How long we wait for the child to die after a cancel before giving up on
-/// the wait (the kill itself is a signal and is immediate). The gate wants the
-/// stream closed in under 200 ms.
 const KILL_GRACE_MS: u64 = 150;
-/// Only the tail of stderr is kept: a CLI can print megabytes of progress.
 const STDERR_TAIL_BYTES: usize = 8 * 1024;
 
-/// Everything needed to run one turn, with no reference to an account: the
-/// caller (claude.rs / codex.rs) has already resolved the binary and the env.
 #[derive(Debug, Clone, Default)]
 pub struct SpawnSpec {
     pub program: PathBuf,
     pub args: Vec<String>,
-    /// Variables to set, typically just `CLAUDE_CONFIG_DIR`/`CODEX_HOME`.
     pub env: BTreeMap<String, String>,
-    /// Variables to remove before launching (API keys and OAuth tokens).
     pub scrub: Vec<String>,
     pub cwd: Option<PathBuf>,
-    /// Written to the child's stdin and then closed. `None` closes it right
-    /// away, which is what tells the CLI there is no interactive input.
     pub stdin: Option<String>,
-    /// The watchdog (`ERR_CLI_STALLED`): no stdout line for this long kills
-    /// the process tree. `None` = the turn may stay silent forever, which is
-    /// how a stuck `claude -p` used to hold a job slot until the app closed.
     pub idle_timeout: Option<Duration>,
-    /// The same window while a tool the CLI started has not answered
-    /// (`ToolCallStart` without `ToolResult`): tests and builds are silent by
-    /// nature. `None` falls back to `idle_timeout`.
     pub tool_idle_timeout: Option<Duration>,
-    /// No line at all this long after the spawn = `ERR_CLI_NO_START`. `None`
-    /// falls back to `idle_timeout`.
     pub start_timeout: Option<Duration>,
 }
 
-/// The three windows of the turn watchdog, as the settings give them. Kept
-/// apart from the argv on purpose: [`WatchdogConfig::apply`] only touches the
-/// timing fields of a [`SpawnSpec`], so a turn launches with exactly the same
-/// command line with or without the watchdog.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct WatchdogConfig {
     pub idle: Option<Duration>,
@@ -70,8 +39,6 @@ pub struct WatchdogConfig {
 }
 
 impl Default for WatchdogConfig {
-    /// The shipped defaults (`LlmSettings`): the protection holds even before
-    /// the app pushes the user's values.
     fn default() -> Self {
         Self {
             idle: Some(Duration::from_secs(600)),
@@ -82,7 +49,6 @@ impl Default for WatchdogConfig {
 }
 
 impl WatchdogConfig {
-    /// No watchdog at all (tests, and the old behaviour for comparison).
     pub const OFF: Self = Self {
         idle: None,
         tool_idle: None,
@@ -96,18 +62,13 @@ impl WatchdogConfig {
     }
 }
 
-/// Which window ran out.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Stall {
-    /// Not a single line since the spawn.
     NoStart,
-    /// Silent with no tool in flight.
     Idle,
-    /// Silent while a tool of the CLI had not answered.
     ToolIdle,
 }
 
-/// The window that applies right now, and what running out of it means.
 fn watch_window(
     spec: &SpawnSpec,
     saw_line: bool,
@@ -128,9 +89,6 @@ fn watch_window(
     spec.idle_timeout.map(|d| (d, Stall::Idle))
 }
 
-/// How often a paused clock looks again: often enough that the whole window
-/// is still there after the question is answered (at most this much of it is
-/// lost), rarely enough to cost nothing while a person takes an hour.
 fn pause_poll(window: Duration) -> Duration {
     (window / 4).clamp(Duration::from_millis(10), Duration::from_secs(1))
 }
@@ -157,74 +115,36 @@ fn stall_error(kind: Stall, window: Duration) -> LlmError {
     }
 }
 
-/// Turns one line of stdout into signals. Implemented by `claude.rs` and
-/// `codex.rs`; a trait so `session.rs` never learns a message format.
 pub trait LineParser: Send + Sync {
     fn parse_line(&self, line: &str) -> Vec<CliSignal>;
 
-    /// A CLI that is talked to while the turn runs (`codex app-server`,
-    /// JSON-RPC over stdio, 3.6) hands its outbox here, once. `None` (every
-    /// one-shot CLI) keeps the old contract: stdin is written and closed.
     fn duplex(&self) -> Option<Duplex> {
         None
     }
 }
 
-/// The write half of a conversational turn. Everything else (process tree,
-/// watchdog, cancel, secret scrubbing) stays the one path every CLI turn
-/// takes, so a JSON-RPC CLI gets none of it by a parallel route.
 pub struct Duplex {
-    /// Lines to write to the child's stdin, without their newline: the
-    /// parser's follow-up requests and the answers to the CLI's questions
-    /// (an approval answered an hour later lands here).
     pub outbox: tokio::sync::mpsc::UnboundedReceiver<String>,
-    /// On cancel: the line that asks the CLI to stop the turn itself
-    /// (`turn/interrupt`), so its history records an interrupted turn
-    /// instead of a torn one. `None`, or a turn not yet started, goes
-    /// straight to the kill.
     pub interrupt: Option<Arc<dyn Fn() -> Option<String> + Send + Sync>>,
 }
 
-/// How long a cancelled duplex turn may take to acknowledge its interrupt
-/// before its tree is killed anyway. Cancel stays under 2 s (`81#P7`).
 pub const INTERRUPT_GRACE: Duration = Duration::from_millis(800);
 
-/// Where a quota reading goes. The runtime stores it per account so the router
-/// can read `Capacity` without spawning anything.
 pub type RateSink = Arc<dyn Fn(RateSnapshot) + Send + Sync>;
 
-/// Longest stdout line kept (one JSON event). A longer line is dropped, with
-/// a warning, instead of growing the buffer without bound.
 pub const MAX_LINE_BYTES: usize = 8 * 1024 * 1024;
 
-/// Called with the child's pid and our launch id.
 pub type SpawnedHook = Arc<dyn Fn(Option<u32>, &str) + Send + Sync>;
 
-/// Everything besides the event stream a turn can report, all optional.
 #[derive(Default, Clone)]
 pub struct TurnHooks {
     pub rate: Option<RateSink>,
-    /// The provider's session id (`CliSignal::Session`), once per id.
     pub session: Option<Arc<dyn Fn(String) + Send + Sync>>,
-    /// Right after the spawn: pid and our launch id (also in the child's
-    /// environment as `OMNIGET_LAUNCH_ID`).
     pub spawned: Option<SpawnedHook>,
-    /// Runs once when the turn task ends, whatever the path (temp files,
-    /// tokens).
     pub cleanup: Option<Arc<dyn Fn() + Send + Sync>>,
-    /// True while a person is being asked something on behalf of this turn
-    /// (`LlmManager::has_pending_ask`). Waiting for a human is not a stall:
-    /// the idle clock does not run meanwhile, and starts over from zero once
-    /// the answer lands.
     pub paused: Option<Arc<dyn Fn() -> bool + Send + Sync>>,
 }
 
-/// Reads stdout one line at a time, at most `max` bytes per line.
-///
-/// Cancel-safe, because the watchdog's timer races it in a `select!`: the
-/// only await is `fill_buf` (which keeps what it read inside the
-/// `BufReader`), and the partial line lives here, not in the future, so a
-/// timer that fires mid-line loses nothing.
 #[derive(Default)]
 struct LineReader {
     buf: Vec<u8>,
@@ -232,8 +152,6 @@ struct LineReader {
 }
 
 impl LineReader {
-    /// `Ok(None)` at EOF; an oversized line comes back as
-    /// `Some((String::new(), true))` after it is skipped.
     async fn next_line<R: tokio::io::AsyncBufRead + Unpin>(
         &mut self,
         reader: &mut R,
@@ -276,13 +194,6 @@ impl LineReader {
     }
 }
 
-/// Stops the child and every process of its tree, the same way on every
-/// OS: [`ProcessTreeGuard::interrupt`](crate::core::process::ProcessTreeGuard::interrupt)
-/// (Unix: `SIGTERM` to the group and to every descendant that left it), a
-/// short grace for the child to exit, then `terminate` (Unix: freeze and
-/// `SIGKILL` the whole tree, escapees included; Windows: close the
-/// kill-on-close Job Object, which ends every descendant still in it).
-/// Processes outside the tree are never touched.
 async fn kill_tree(
     child: &mut tokio::process::Child,
     tree: &mut crate::core::process::ProcessTreeGuard,
@@ -297,16 +208,11 @@ async fn kill_tree(
     let _ = tokio::time::timeout(grace, child.wait()).await;
 }
 
-/// Secret values (not names) that must never reach a child's environment,
-/// whatever variable carries them: the bridge's extension bearer is
-/// registered here when the bridge starts (2.1). A name-based `scrub` misses
-/// a key the user exported under another name; this does not.
 fn secret_values() -> &'static std::sync::Mutex<Vec<String>> {
     static VALUES: std::sync::OnceLock<std::sync::Mutex<Vec<String>>> = std::sync::OnceLock::new();
     VALUES.get_or_init(Default::default)
 }
 
-/// See [`secret_values`]. Short values are ignored (they would match noise).
 pub fn register_secret_value(value: &str) {
     let value = value.trim();
     if value.len() < 16 {
@@ -322,16 +228,6 @@ fn holds_secret(value: &str, secrets: &[String]) -> bool {
     secrets.iter().any(|s| value.contains(s.as_str()))
 }
 
-/// [`spawn_turn`] with every hook. The child runs in a process tree of its
-/// own (Unix process group plus a walk of its descendants, Windows Job
-/// Object), so a cancel or a stall stops its descendants too, even those
-/// that left the group, and nothing else.
-///
-/// The watchdog lives in the read loop: a third `select!` arm sleeps until
-/// the current window (`start_timeout` before the first line, then
-/// `idle_timeout`, or `tool_idle_timeout` while a tool is in flight) runs out
-/// since the last stdout line. Every line resets it, whatever the parser
-/// makes of it. `hooks.paused` freezes it while a person is being asked.
 pub fn spawn_turn_with(
     spec: SpawnSpec,
     parser: Arc<dyn LineParser>,
@@ -368,10 +264,7 @@ pub fn spawn_turn_with(
     }
     #[cfg(unix)]
     cmd.process_group(0);
-    // Windows: created suspended, so not one instruction runs before the
-    // process sits inside its kill-on-close Job Object (resumed right below).
     crate::core::process::suspend_on_spawn(&mut cmd);
-    // The prompt travels on stdin, so the argv is safe to log.
     tracing::info!(
         "[cli] spawn {} {} (cwd {:?}, env {:?})",
         spec.program.display(),
@@ -404,7 +297,6 @@ pub fn spawn_turn_with(
     let mut tree = match crate::core::process::ProcessTreeGuard::new(&child) {
         Ok(tree) => tree,
         Err(e) => {
-            // Still suspended and in no job: nothing of it ran, end it here.
             let _ = child.start_kill();
             if let Some(cleanup) = &hooks.cleanup {
                 cleanup();
@@ -446,8 +338,6 @@ pub fn spawn_turn_with(
         }
         let _cleanup = Cleanup(hooks.cleanup.clone());
 
-        // A duplex turn keeps stdin open for the parser's follow-ups and
-        // closes it once the turn finished (the server then exits on EOF).
         let mut duplex = parser.duplex();
         let mut pipe_open: Option<tokio::process::ChildStdin> = None;
         if let Some(mut pipe) = stdin.take() {
@@ -458,14 +348,11 @@ pub fn spawn_turn_with(
                 let _ = pipe.flush().await;
                 pipe_open = Some(pipe);
             } else {
-                // Dropping closes it: the CLI must not wait for more input.
                 drop(pipe);
             }
         }
         let mut outbox_open = duplex.is_some();
 
-        // stderr is drained in parallel so a full pipe can never deadlock the
-        // child, and its tail explains a non-zero exit.
         let stderr_task = stderr.map(|mut pipe| {
             tokio::spawn(async move {
                 let mut tail: Vec<u8> = Vec::new();
@@ -495,9 +382,6 @@ pub fn spawn_turn_with(
         let mut cancelled = false;
         let mut sessions_seen: Vec<String> = Vec::new();
 
-        // The watchdog's state: when the last line arrived, whether any did,
-        // which tools of the CLI are still out, and whether the clock was
-        // frozen for a question at the last look.
         let mut last_activity = tokio::time::Instant::now();
         let mut saw_line = false;
         let mut in_flight: std::collections::HashSet<String> = std::collections::HashSet::new();
@@ -530,8 +414,6 @@ pub fn spawn_turn_with(
                             let mut bytes = line.into_bytes();
                             bytes.push(b'\n');
                             if pipe.write_all(&bytes).await.is_err() || pipe.flush().await.is_err() {
-                                // The child closed its stdin: it is on its way out,
-                                // and the exit status explains the turn.
                                 pipe_open = None;
                             }
                         }
@@ -540,8 +422,6 @@ pub fn spawn_turn_with(
                     }
                     continue;
                 }
-                // A read error ends the stream like EOF: the exit status below
-                // is what explains the turn.
                 line = lines.next_line(&mut reader, MAX_LINE_BYTES) => {
                     let line = line.unwrap_or_default();
                     if line.is_some() {
@@ -553,8 +433,6 @@ pub fn spawn_turn_with(
                 _ = tokio::time::sleep_until(wake.unwrap_or_else(tokio::time::Instant::now)), if wake.is_some() => {
                     let paused = hooks.paused.as_ref().map(|p| p()).unwrap_or(false);
                     if paused || was_paused {
-                        // Frozen while a person decides; on the first look
-                        // after the answer the whole window starts over.
                         was_paused = paused;
                         last_activity = tokio::time::Instant::now();
                         continue;
@@ -590,7 +468,6 @@ pub fn spawn_turn_with(
                             _ => {}
                         }
                         if tx.send(event).await.is_err() {
-                            // The consumer dropped the stream: same as cancel.
                             cancelled = true;
                             break;
                         }
@@ -615,8 +492,6 @@ pub fn spawn_turn_with(
             if cancelled {
                 break;
             }
-            // The turn is over: closing stdin lets a server CLI exit on its
-            // own, and the normal exit path below reports it.
             if saw_finish && pipe_open.is_some() {
                 pipe_open = None;
                 outbox_open = false;
@@ -625,8 +500,6 @@ pub fn spawn_turn_with(
 
         if let Some(error) = stalled {
             tracing::warn!("[cli] watchdog: {}: {}", error.code, error.message);
-            // The tree dies before anyone hears about it: a job that reads
-            // the error can hand its slot over at once.
             kill_tree(&mut child, &mut tree).await;
             let _ = tx.send(TurnEvent::Error { error }).await;
             let _ = tx
@@ -638,8 +511,6 @@ pub fn spawn_turn_with(
         }
 
         if cancelled {
-            // A duplex CLI is asked to stop the turn first, so what it keeps
-            // (Codex's thread history) records an interrupt, not a torn turn.
             let interrupt = duplex
                 .as_ref()
                 .and_then(|d| d.interrupt.as_ref())
@@ -676,8 +547,6 @@ pub fn spawn_turn_with(
         }
 
         let status = child.wait().await;
-        // A normal end leaves whatever the agent started in the background
-        // alone, on every OS: only a cancel or a stall kills the tree.
         tree.release();
         let stderr_text = match stderr_task {
             Some(task) => task.await.unwrap_or_default(),
@@ -727,9 +596,6 @@ pub fn spawn_turn_with(
     Ok(rx.boxed())
 }
 
-/// The error for a process that died with a non-zero status. The stderr tail
-/// still gets classified: a CLI that prints "usage limit reached" and exits 1
-/// must reroute, not fail the turn.
 pub fn exit_error(code: Option<i32>, stderr: &str) -> LlmError {
     let all: Vec<&str> = stderr.lines().collect();
     let tail = all[all.len().saturating_sub(4)..].join(" / ");

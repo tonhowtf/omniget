@@ -1,38 +1,3 @@
-//! Scoped control tokens of the local bridge (2.1, S08).
-//!
-//! Until 0.10 every agent route (`/v1/agent/*`, `/v1/jobs*`, `/v1/hooks/*`,
-//! `/v1/agents*`, `/v1/loops`, `/v1/state`, `/v1/playbooks`) took the same
-//! bearer as the browser extension, so a leaked extension key could start
-//! agents with a shell (PROB S1) and create CLI agents (S2). These routes now
-//! want a token of their own, with one of three scopes:
-//!
-//! * `jobs:read`: list jobs, their state, explain and diff;
-//! * `jobs:operate`: start, cancel, create loops and agents, fire webhooks;
-//! * `approvals:respond`: answer a pending ask (the routes arrive in 2.2).
-//!
-//! Tokens live in `jobs.db` (`bridge_tokens`), only as a SHA-256 of their
-//! secret. The id travels in the token itself (`ogt_<id>_<secret>`), so a
-//! lookup reads one row by id and compares the digest in constant time.
-//! Three kinds:
-//!
-//! * `user`: minted from the UI (LLM → Jobs → Access tokens), for scripts
-//!   and webhooks; optional expiry.
-//! * `cli`: one per machine, minted by the app into `<llm_dir>/cli-token`
-//!   (0600), which `omniget agent` reads; it never goes near the browser.
-//! * `job`: minted when a job's turn starts and handed to the child as
-//!   `OMNIGET_JOB_TOKEN`; bound to that job (another job's routes and the
-//!   global routes answer 403) and revoked when the job ends (then 401).
-//!
-//! The principal is the MCP one (`mcp::policy::Principal`): same identity
-//! model for the bridge and the MCP endpoint, so the audit log (2.8) and the
-//! approvals (2.2) name callers the same way.
-//!
-//! Compatibility (`81#P8`, `82#P3`): the extension bearer keeps working on the
-//! agent routes for one version while `bridge.legacy_agent_routes` is on
-//! (the default in this version), with a `Deprecation` header, a log line and
-//! a notice in the UI. It never creates agents (`/v1/agents/cli`), and it
-//! never gets `approvals:respond`.
-
 use std::collections::BTreeMap;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
@@ -52,19 +17,9 @@ use crate::mcp::policy::Principal;
 pub const SCOPE_JOBS_READ: &str = "jobs:read";
 pub const SCOPE_JOBS_OPERATE: &str = "jobs:operate";
 pub const SCOPE_APPROVALS_RESPOND: &str = "approvals:respond";
-/// Reading the audit log (2.8): who did what with every token, so neither a
-/// job's token nor the extension key ever has it.
 pub const SCOPE_AUDIT_READ: &str = "audit:read";
-/// Setting and raising budget ceilings (3.3): raising one lets agents spend
-/// more, so neither a job's token nor the extension key ever has it.
 pub const SCOPE_BUDGET_WRITE: &str = "budget:write";
-/// Trusting a repository's `.omniget/workflow.md` (3.10): its hooks and
-/// checks then run on this machine, so neither a job's token (an agent
-/// trusting its own repository's commands) nor the extension key ever has it.
 pub const SCOPE_WORKFLOW_TRUST: &str = "workflow:trust";
-/// The one scope of a canvas node's token (`oct_…`): the `/v1/canvas/*`
-/// routes, for that node only. Never in [`SCOPES`]: no user or CLI token can
-/// hold it, and a canvas token holds nothing else.
 pub const SCOPE_CANVAS_NODE: &str = "canvas:node";
 pub const SCOPES: &[&str] = &[
     SCOPE_JOBS_READ,
@@ -75,28 +30,17 @@ pub const SCOPES: &[&str] = &[
     SCOPE_WORKFLOW_TRUST,
 ];
 
-/// What the child of a job finds its token in.
 pub const JOB_TOKEN_ENV: &str = "OMNIGET_JOB_TOKEN";
-/// Principal id of the extension bearer while the grace period lasts.
 pub const EXTENSION_PRINCIPAL: &str = "extension";
-/// Scopes the extension bearer keeps during the grace period: what it could
-/// do on these routes before, minus answering asks.
 const LEGACY_SCOPES: &[&str] = &[SCOPE_JOBS_READ, SCOPE_JOBS_OPERATE];
 
 const USER_PREFIX: &str = "ogt_";
 const JOB_PREFIX: &str = "ojt_";
 const CANVAS_PREFIX: &str = "oct_";
-/// A canvas token outlives its process by this much at most (the revoke on
-/// exit, on delete and at boot is what normally kills it).
 const CANVAS_TOKEN_TTL_MS: u64 = 7 * 24 * 60 * 60 * 1000;
-/// A job token outlives the job's own deadline by this much at most (the
-/// revoke at the end is what normally kills it).
 const JOB_TOKEN_SLACK_MS: u64 = 5 * 60 * 1000;
-/// A job without a deadline still gets an expiry.
 const JOB_TOKEN_DEFAULT_TTL_MS: u64 = 24 * 60 * 60 * 1000;
-/// `last_used_ms` is written at most this often per token.
 const TOUCH_EVERY_MS: u64 = 60 * 1000;
-/// Revoked job tokens are kept this long (a 401 needs the row), then purged.
 const JOB_TOKEN_KEEP_MS: u64 = 7 * 24 * 60 * 60 * 1000;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -105,9 +49,6 @@ pub enum Kind {
     User,
     Cli,
     Job,
-    /// A canvas node (C2): minted when its terminal spawns, bound to the node
-    /// id (kept in `job_id`), revoked when the process exits, when the node is
-    /// deleted and at boot.
     Canvas,
 }
 
@@ -130,7 +71,6 @@ impl Kind {
     }
 }
 
-/// A token as the UI and the guard see it: never the secret, never the hash.
 #[derive(Debug, Clone, Serialize, PartialEq)]
 pub struct TokenView {
     pub id: String,
@@ -142,17 +82,14 @@ pub struct TokenView {
     pub created_ms: u64,
     pub revoked_ms: Option<u64>,
     pub last_used_ms: Option<u64>,
-    /// What the UI prints in place of the token (`ogt_<id>_…`).
     pub hint: String,
 }
 
-/// A fresh token: the only moment the secret exists outside its owner.
 pub struct Minted {
     pub token: String,
     pub view: TokenView,
 }
 
-/// The tables of this module, created with the rest of `jobs.db`.
 pub fn ensure_schema(db: &Connection) -> Result<(), String> {
     db.execute_batch(
         "CREATE TABLE IF NOT EXISTS bridge_tokens (
@@ -181,7 +118,6 @@ fn hint_of(kind: Kind, id: &str) -> String {
     format!("{}{id}_…", prefix_of(kind))
 }
 
-/// `ogt_<id>_<secret>` → `(id, secret)`. Anything else is not ours.
 fn parse(token: &str) -> Option<(&str, &str)> {
     let rest = token
         .strip_prefix(USER_PREFIX)
@@ -192,7 +128,6 @@ fn parse(token: &str) -> Option<(&str, &str)> {
     (id.len() == 12 && secret.len() == 64 && hexish(id) && hexish(secret)).then_some((id, secret))
 }
 
-/// Mints a token. Scopes outside [`SCOPES`] are refused; an empty list too.
 pub fn mint(
     db: &Connection,
     kind: Kind,
@@ -206,7 +141,6 @@ pub fn mint(
     if name.chars().count() > 80 {
         return Err("ERR_TOKEN_NAME: at most 80 characters".into());
     }
-    // A canvas token has exactly the canvas scope, and only it has it.
     let canvas_ok = kind == Kind::Canvas && scopes.len() == 1 && scopes[0] == SCOPE_CANVAS_NODE;
     if kind == Kind::Canvas && !canvas_ok {
         return Err(format!(
@@ -280,18 +214,13 @@ fn row_view(r: &rusqlite::Row<'_>) -> rusqlite::Result<TokenView> {
     })
 }
 
-/// What a presented token is.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Lookup {
     Valid(TokenView),
-    /// Ours, but revoked or expired: 401, like a job token after its job.
     Ended,
-    /// Not a token of this table.
     Unknown,
 }
 
-/// Reads the row by the id the token carries and compares the digest of its
-/// secret in constant time. Refreshes `last_used_ms` now and then.
 pub fn lookup(db: &Connection, token: &str, now: u64) -> Lookup {
     let Some((id, secret)) = parse(token) else {
         return Lookup::Unknown;
@@ -311,7 +240,6 @@ pub fn lookup(db: &Connection, token: &str, now: u64) -> Lookup {
     if !constant_time_eq::constant_time_eq(hash.as_bytes(), digest(secret).as_bytes()) {
         return Lookup::Unknown;
     }
-    // The prefix is part of the token: a job token cannot pass for a user one.
     if !token.starts_with(prefix_of(view.kind)) {
         return Lookup::Unknown;
     }
@@ -331,7 +259,6 @@ pub fn lookup(db: &Connection, token: &str, now: u64) -> Lookup {
     Lookup::Valid(view)
 }
 
-/// Revokes one token. `false` when there was nothing live to revoke.
 pub fn revoke(db: &Connection, id: &str, now: u64) -> Result<bool, String> {
     db.execute(
         "UPDATE bridge_tokens SET revoked_ms=?2 WHERE id=?1 AND revoked_ms IS NULL",
@@ -341,8 +268,6 @@ pub fn revoke(db: &Connection, id: &str, now: u64) -> Result<bool, String> {
     .map_err(|e| e.to_string())
 }
 
-/// Revokes every live token of a job (its end) and purges job tokens revoked
-/// long ago, so the table does not grow with every job.
 pub fn revoke_job(db: &Connection, job_id: &str, now: u64) -> Result<usize, String> {
     let n = db
         .execute(
@@ -357,10 +282,6 @@ pub fn revoke_job(db: &Connection, job_id: &str, now: u64) -> Result<usize, Stri
     Ok(n)
 }
 
-/// At boot no job runs yet: every job token left live by a crash is revoked
-/// (a resumed job mints a new one).
-/// Canvas node tokens too: no terminal survives a restart, a reopened node
-/// mints a new one.
 pub fn revoke_orphan_job_tokens(db: &Connection, now: u64) -> Result<usize, String> {
     db.execute(
         "UPDATE bridge_tokens SET revoked_ms=?1 WHERE kind IN ('job','canvas') AND revoked_ms IS NULL",
@@ -369,8 +290,6 @@ pub fn revoke_orphan_job_tokens(db: &Connection, now: u64) -> Result<usize, Stri
     .map_err(|e| e.to_string())
 }
 
-/// Mints the token of a canvas node for one run of its process, revoking
-/// the node's earlier ones first (one live token per node).
 pub fn mint_canvas(db: &Connection, node_id: &str, name: &str, now: u64) -> Result<Minted, String> {
     revoke_canvas_node(db, node_id, now)?;
     let label: String = format!("canvas {name}").chars().take(80).collect();
@@ -385,8 +304,6 @@ pub fn mint_canvas(db: &Connection, node_id: &str, name: &str, now: u64) -> Resu
     )
 }
 
-/// Revokes the live tokens of a canvas node (its process exited, or the node
-/// was deleted) and purges canvas tokens revoked long ago.
 pub fn revoke_canvas_node(db: &Connection, node_id: &str, now: u64) -> Result<usize, String> {
     let n = db
         .execute(
@@ -401,8 +318,6 @@ pub fn revoke_canvas_node(db: &Connection, node_id: &str, now: u64) -> Result<us
     Ok(n)
 }
 
-/// Live user and CLI tokens, newest first (job and canvas tokens come and go
-/// with their processes and are not listed).
 pub fn list(db: &Connection, now: u64) -> Vec<TokenView> {
     let Ok(mut stmt) = db.prepare(&format!(
         "SELECT {COLS} FROM bridge_tokens WHERE kind NOT IN ('job','canvas') AND revoked_ms IS NULL
@@ -415,34 +330,23 @@ pub fn list(db: &Connection, now: u64) -> Vec<TokenView> {
         .unwrap_or_default()
 }
 
-/// The expiry of a job's token: its deadline plus a little, or a day.
 pub fn job_token_expiry(deadline_ms: Option<u64>, now: u64) -> u64 {
     deadline_ms
         .map(|d| d.max(now) + JOB_TOKEN_SLACK_MS)
         .unwrap_or(now + JOB_TOKEN_DEFAULT_TTL_MS)
 }
 
-/// Scopes of a job's own token: it reads its own job, nothing more. It never
-/// answers an ask (an agent approving itself, `85#P2`) and never starts or
-/// cancels jobs.
 pub fn job_scopes() -> Vec<String> {
     vec![SCOPE_JOBS_READ.to_string()]
 }
 
-// ── the CLI token file ────────────────────────────────────────────────
-
 pub const CLI_TOKEN_FILE: &str = "cli-token";
 const CLI_TOKEN_NAME: &str = "omniget CLI (this computer)";
 
-/// Keeps `<dir>/cli-token` holding a live `cli` token with every scope: the
-/// file is reused while its token is valid, else a new one is minted (and
-/// the other `cli` tokens revoked) and written with owner-only permissions.
 pub fn ensure_cli_token(db: &Connection, dir: &std::path::Path, now: u64) -> Result<(), String> {
     let path = dir.join(CLI_TOKEN_FILE);
     if let Ok(text) = std::fs::read_to_string(&path) {
         if let Lookup::Valid(v) = lookup(db, text.trim(), now) {
-            // A token minted before a scope existed (`audit:read`, 2.8) is
-            // replaced, so the CLI keeps every scope.
             if v.kind == Kind::Cli && SCOPES.iter().all(|s| v.scopes.iter().any(|x| x == s)) {
                 return Ok(());
             }
@@ -457,7 +361,6 @@ pub fn ensure_cli_token(db: &Connection, dir: &std::path::Path, now: u64) -> Res
     write_private(&path, minted.token.as_bytes()).map_err(|e| e.to_string())
 }
 
-/// Written to a temp file created owner-only (0600 on Unix), then renamed.
 fn write_private(path: &std::path::Path, bytes: &[u8]) -> std::io::Result<()> {
     use std::io::Write as _;
     if let Some(parent) = path.parent() {
@@ -479,10 +382,6 @@ fn write_private(path: &std::path::Path, bytes: &[u8]) -> std::io::Result<()> {
     std::fs::rename(&tmp, path)
 }
 
-// ── routes → scope ────────────────────────────────────────────────────
-
-/// What a route asks of the caller: a scope, and the job it is about (for a
-/// job-bound token), and whether the extension bearer may still use it.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Need {
     pub scope: &'static str,
@@ -490,9 +389,6 @@ pub struct Need {
     pub legacy_ok: bool,
 }
 
-/// The scope of every agent route of the bridge (`local_bridge_jobs`).
-/// `None` = not mapped, which the guard refuses: a route added without a
-/// line here fails closed.
 pub fn route_need(method: &Method, path: &str) -> Option<Need> {
     let need = |scope, job: Option<&str>| {
         Some(Need {
@@ -519,9 +415,6 @@ pub fn route_need(method: &Method, path: &str) -> Option<Need> {
         ["v1", "jobs", id, "explain" | "diff" | "proof" | "report"] if get => {
             need(SCOPE_JOBS_READ, Some(id))
         }
-        // The review of a job (3.5): reading it is a read of that job; any
-        // change (a hunk put back, notes, integrate, discard, walkthrough,
-        // which spends a model turn) is operating it.
         ["v1", "jobs", id, "hunks" | "notes" | "integrate"] if get => {
             need(SCOPE_JOBS_READ, Some(id))
         }
@@ -535,75 +428,50 @@ pub fn route_need(method: &Method, path: &str) -> Option<Need> {
         }
         ["v1", "jobs", id, "notes", _] if delete => need(SCOPE_JOBS_OPERATE, Some(id)),
         ["v1", "jobs", id, "cancel"] if post => need(SCOPE_JOBS_OPERATE, Some(id)),
-        // Item 2.5: waiting is a read of that job.
         ["v1", "jobs", id, "wait"] if get => need(SCOPE_JOBS_READ, Some(id)),
-        // The command surface: any valid user token passes the route, and
-        // each command checks its own scope (`job.start` and
-        // `job.interrupt` need `jobs:operate`, `approval.respond`
-        // `approvals:respond`). A job's own token is refused here (it is
-        // bound to its job): a job never starts a job. The extension key is
-        // not accepted on a route that did not exist before it.
         ["v1", "commands"] if post => Some(Need {
             scope: SCOPE_JOBS_READ,
             job: None,
             legacy_ok: false,
         }),
-        // The Catalog installs things (S1 residue of 2.1): an operator's
-        // scope; the extension key keeps working through the grace period,
-        // like the other agent routes, because `omniget agentkit` sent it.
         ["v1", "agentkit", _] if post => need(SCOPE_JOBS_OPERATE, None),
         ["v1", "agent", "run" | "run-tool" | "loop" | "loop-catalog"] if post => {
             need(SCOPE_JOBS_OPERATE, None)
         }
         ["v1", "hooks", _] if post => need(SCOPE_JOBS_OPERATE, None),
-        // Item 2.2: reading the asks is a read of the jobs; answering one is
-        // shell power, so it has its own scope, which neither a job's own
-        // token nor the extension key ever has.
         ["v1", "approvals"] if get => need(SCOPE_JOBS_READ, None),
         ["v1", "approvals", _] if post => Some(Need {
             scope: SCOPE_APPROVALS_RESPOND,
             job: None,
             legacy_ok: false,
         }),
-        // The audit log (2.8): its own scope, never the extension's.
         ["v1", "audit"] if get => Some(Need {
             scope: SCOPE_AUDIT_READ,
             job: None,
             legacy_ok: false,
         }),
-        // Budgets (3.3): reading them is a read of the jobs; setting or
-        // raising one has its own scope, never the extension's.
         ["v1", "budget"] if get => need(SCOPE_JOBS_READ, None),
         ["v1", "budget", "policies"] | ["v1", "budget", "incidents", _] if post => Some(Need {
             scope: SCOPE_BUDGET_WRITE,
             job: None,
             legacy_ok: false,
         }),
-        // A repository's workflow (3.10): reading it is a read; trusting it
-        // lets its commands run, so it has its own scope.
         ["v1", "workflow"] if get => need(SCOPE_JOBS_READ, None),
         ["v1", "workflow", "trust"] if post => Some(Need {
             scope: SCOPE_WORKFLOW_TRUST,
             job: None,
             legacy_ok: false,
         }),
-        // The companies of agents (`omniget company`): a read at the route;
-        // the handler asks `jobs:operate` for a method that writes. New
-        // with the bearer check of 2.1 in place, so never the extension's.
         ["v1", "company", "rpc"] if post => Some(Need {
             scope: SCOPE_JOBS_READ,
             job: None,
             legacy_ok: false,
         }),
-        // Creating an agent (with any account) was never something the
-        // extension did: its bearer is refused here right away (S2).
         ["v1", "agents", "cli"] if post => Some(Need {
             scope: SCOPE_JOBS_OPERATE,
             job: None,
             legacy_ok: false,
         }),
-        // The cords of the canvas (C2): only a node's own token, which the
-        // handler reads the node from; never the extension's.
         ["v1", "canvas", "me" | "peers" | "screen"] if get => Some(Need {
             scope: SCOPE_CANVAS_NODE,
             job: None,
@@ -623,10 +491,6 @@ pub fn route_need(method: &Method, path: &str) -> Option<Need> {
     }
 }
 
-// ── the check ─────────────────────────────────────────────────────────
-
-/// Why a request was refused. 401 = no valid credential (none, unknown,
-/// revoked, expired); 403 = a valid one that may not do this.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Denied {
     Unauthorized(&'static str),
@@ -643,11 +507,8 @@ impl Denied {
     }
 }
 
-/// Everything the check needs besides the request.
 pub struct AuthCtx<'a> {
-    /// The extension bearer (`settings.bridge.token`).
     pub extension: &'a str,
-    /// `bridge.legacy_agent_routes`: the grace period of the extension bearer.
     pub legacy_allowed: bool,
     pub lookup: &'a dyn Fn(&str) -> Lookup,
 }
@@ -659,10 +520,6 @@ fn bearer_of(headers: &HeaderMap) -> Option<&str> {
         .map(str::trim)
 }
 
-/// The principal behind the request if it may do what `need` says.
-///
-/// Order: a token of this table first (so a scoped token is never mistaken
-/// for anything else), then the extension bearer under the grace rules.
 pub fn check_scoped(
     headers: &HeaderMap,
     need: &Need,
@@ -679,8 +536,6 @@ pub fn check_scoped(
                     need.scope
                 )));
             }
-            // A canvas token is bound to its node, which the canvas routes
-            // take from the principal (no node id in their paths).
             if v.kind == Kind::Canvas {
                 let node = v.job_id.clone().unwrap_or_default();
                 return Ok(Principal {
@@ -725,9 +580,6 @@ pub fn check_scoped(
     Err(Denied::Unauthorized("bad or missing bearer token"))
 }
 
-// ── the grace period: flag and last use, for the log and the UI ─────────
-
-/// The last time the extension bearer was used on an agent route.
 #[derive(Debug, Clone, Serialize, Default, PartialEq)]
 pub struct LegacyUse {
     pub at_ms: u64,
@@ -738,7 +590,6 @@ pub struct LegacyUse {
 pub struct LegacyLog {
     last: Mutex<Option<LegacyUse>>,
     count: AtomicU64,
-    /// When the log line was last written (one per minute is enough).
     logged_ms: AtomicU64,
 }
 
@@ -770,8 +621,6 @@ impl LegacyLog {
     }
 }
 
-/// The app's grace flag, set from the settings when the bridge starts and
-/// when the user flips it.
 pub fn legacy_flag() -> Arc<AtomicBool> {
     static FLAG: OnceLock<Arc<AtomicBool>> = OnceLock::new();
     FLAG.get_or_init(|| Arc::new(AtomicBool::new(true))).clone()
@@ -782,12 +631,8 @@ pub fn legacy_log() -> Arc<LegacyLog> {
     LOG.get_or_init(|| Arc::new(LegacyLog::default())).clone()
 }
 
-// ── the middleware ────────────────────────────────────────────────────
-
 pub type LookupFn = Arc<dyn Fn(&str) -> Lookup + Send + Sync>;
 
-/// State of [`guard`]: the extension bearer, the grace flag and log, and how
-/// to read a token (the app reads `jobs.db`; tests hand their own database).
 #[derive(Clone)]
 pub struct Guard {
     pub extension: Arc<String>,
@@ -799,14 +644,11 @@ pub struct Guard {
 
 const DEPRECATION_WARNING: &str = "299 omniget \"the browser extension key stops working on agent routes in the next version; use a scoped token (OmniGet: LLM, Jobs, Access tokens)\"";
 
-/// `route_layer` of the agent routes: maps the path to its scope, checks the
-/// bearer, and hands the handler the [`Principal`] as a request extension.
 pub async fn guard(State(g): State<Guard>, mut req: Request, next: Next) -> Response {
     let path = req.uri().path().to_string();
     let Some(need) = route_need(req.method(), &path) else {
         return Denied::Forbidden(format!("no scope is defined for {path}")).into_response();
     };
-    // The check borrows the lookup (not `Send`): done before any await.
     let checked = {
         let ctx = AuthCtx {
             extension: g.extension.as_str(),
@@ -823,7 +665,6 @@ pub async fn guard(State(g): State<Guard>, mut req: Request, next: Next) -> Resp
     if legacy {
         g.legacy_log.record(&path, (g.now)());
     }
-    // Token use on an agent route (2.8), with the token's id as the actor.
     crate::llm_audit::on_route(&principal, req.method(), &path, (g.now)());
     req.extensions_mut().insert(principal);
     let mut resp = next.run(req).await;
@@ -836,18 +677,12 @@ pub async fn guard(State(g): State<Guard>, mut req: Request, next: Next) -> Resp
     resp
 }
 
-// ── a job's token for its lifetime ─────────────────────────────────────
-
-/// Holds a job's token while its turn runs: the child gets it through the
-/// conversation's env, and dropping the lease (however `run_job` returns)
-/// revokes it and takes it out of the env.
 pub struct JobTokenLease {
     conversation: String,
     revoke: Option<Box<dyn FnOnce() + Send>>,
 }
 
 impl JobTokenLease {
-    /// `mint` makes the token, `revoke` ends it; both talk to `jobs.db`.
     pub fn start(
         conversation: &str,
         mint: impl FnOnce() -> Result<Minted, String>,
@@ -864,10 +699,6 @@ impl JobTokenLease {
         })
     }
 
-    /// [`Self::start`] plus the job's identity in the child's env (2.6:
-    /// `OMNIGET_ENV`, `OMNIGET_JOB_ID`, `OMNIGET_AGENT_ID`,
-    /// `OMNIGET_BRIDGE_URL`), which the child gets even when the token
-    /// could not be minted (the error comes back beside the lease).
     pub fn start_with(
         conversation: &str,
         identity: BTreeMap<String, String>,
@@ -893,10 +724,6 @@ impl JobTokenLease {
     }
 }
 
-/// The job's identity a child sees (2.6). `OMNIGET_JOB_ID` is what the
-/// `omniget-agents` skill and `omniget agent run` read to refuse delegating
-/// from inside a job (depth 1); the bridge address lets the job token call
-/// back (2.1 left the child with a token and no port).
 pub fn job_identity_env(
     job_id: &str,
     agent_id: &str,
@@ -955,12 +782,10 @@ mod tests {
             .unwrap();
         assert!(!stored.contains(&m.token) && !m.token.contains(&stored));
         assert!(matches!(lookup(&db, &m.token, 2), Lookup::Valid(v) if v.id == m.view.id));
-        // One changed character of the secret: not ours.
         let mut bad = m.token.clone();
         let last = bad.pop().unwrap();
         bad.push(if last == '0' { '1' } else { '0' });
         assert_eq!(lookup(&db, &bad, 2), Lookup::Unknown);
-        // A job prefix on a user token: not ours either.
         assert_eq!(
             lookup(&db, &m.token.replacen("ogt_", "ojt_", 1), 2),
             Lookup::Unknown
@@ -1004,13 +829,9 @@ mod tests {
             check_scoped(&headers(&b.token), &need, &ctx),
             Err(Denied::Unauthorized("this token was revoked or expired"))
         ));
-        // The list shows neither.
         assert!(list(&db, 200).is_empty());
     }
 
-    /// 3.3: reading the budgets is a read of the jobs; setting or raising one
-    /// needs `budget:write`, which neither a job's token nor the extension
-    /// key ever has.
     #[test]
     fn budgets_are_written_only_with_their_own_scope() {
         let read = route_need(&Method::GET, "/v1/budget").unwrap();
@@ -1028,9 +849,6 @@ mod tests {
         );
     }
 
-    /// 3.10: reading a workflow and a job's report are reads; trusting a
-    /// workflow needs `workflow:trust`, which neither a job's token nor the
-    /// extension key ever has.
     #[test]
     fn a_workflow_is_trusted_only_with_its_own_scope() {
         assert_eq!(
@@ -1056,7 +874,6 @@ mod tests {
     #[test]
     fn every_agent_route_has_a_scope() {
         let src = include_str!("local_bridge_jobs.rs");
-        // Only the served routes, not the ones the file's own tests build.
         let served = src.split("#[cfg(test)]").next().unwrap();
         let mut paths = Vec::new();
         let mut rest = served;
@@ -1074,10 +891,8 @@ mod tests {
                 || route_need(&Method::DELETE, &concrete).is_some();
             assert!(ok, "{p} has no scope in bridge_tokens::route_need");
         }
-        // And no handler checks the extension bearer on its own any more.
         assert!(!src.contains("check_bearer("));
         assert!(src.contains("route_layer("));
-        // The companies of agents: one route, behind the same guard.
         let company = include_str!("local_bridge_company.rs");
         let company = company.split("#[cfg(test)]").next().unwrap();
         assert!(!company.contains("check_bearer("));
@@ -1087,10 +902,6 @@ mod tests {
         assert!(!need.legacy_ok, "the extension key never reached companies");
     }
 
-    /// A merge once moved `router()`'s `.route_layer(..)` to the end of
-    /// another function, leaving the agent routes unguarded. In each file
-    /// that serves agent routes, the guard is the last call of the builder:
-    /// after every `.route(`/`.merge(` of that same function.
     #[test]
     fn the_guard_layer_comes_after_every_route() {
         for (name, src) in [
@@ -1113,7 +924,6 @@ mod tests {
                 .find("pub fn router<")
                 .unwrap_or_else(|| panic!("{name}: no router()"));
             let body = &served[start..];
-            // The function ends at the first line that is just `}`.
             let end = body.find("\n}\n").unwrap_or(body.len());
             let body = &body[..end];
             let layer = body
@@ -1129,7 +939,6 @@ mod tests {
                 layer > last_route && layer > last_merge,
                 "{name}: a route of router() comes after its route_layer"
             );
-            // And no other function of the file carries the guard.
             assert_eq!(
                 served.matches(".route_layer(").count(),
                 1,
@@ -1159,8 +968,6 @@ mod tests {
         assert!(!audit.legacy_ok);
         assert!(!job_scopes().contains(&SCOPE_AUDIT_READ.to_string()));
         assert!(route_need(&Method::POST, "/v1/approvals").is_none());
-        // 2.5: the command surface is closed to the extension key and to a
-        // job's own token (bound to its job); waiting reads one job.
         let cmd = p("/v1/commands");
         assert!(!cmd.legacy_ok && cmd.job.is_none());
         let w = g("/v1/jobs/j1/wait");
@@ -1171,8 +978,6 @@ mod tests {
         assert!(route_need(&Method::GET, "/v1/nope").is_none());
     }
 
-    /// 2.6: the child of a job knows it is one (and where the bridge is),
-    /// token or not; the lease takes it all away at the end.
     #[test]
     fn a_job_child_gets_its_identity_even_without_a_token() {
         use omniget_core::core::llm::cli_runtime::conversation_env;
@@ -1229,14 +1034,12 @@ mod tests {
                 .mode();
             assert_eq!(mode & 0o777, 0o600);
         }
-        // Revoked from the UI: the next start writes a new one.
         let id = list(&db, 3)[0].id.clone();
         revoke(&db, &id, 4).unwrap();
         ensure_cli_token(&db, &dir, 5).unwrap();
         let second = std::fs::read_to_string(dir.join(CLI_TOKEN_FILE)).unwrap();
         assert_ne!(first, second);
         assert!(matches!(lookup(&db, &second, 6), Lookup::Valid(_)));
-        // A CLI token from before `audit:read` (2.8) is replaced by one with it.
         let old = mint(
             &db,
             Kind::Cli,
@@ -1278,7 +1081,6 @@ mod tests {
     #[test]
     fn a_canvas_token_reaches_only_the_canvas_routes_of_its_node() {
         let db = db();
-        // Nobody else can hold the canvas scope.
         assert!(mint(
             &db,
             Kind::User,
@@ -1292,7 +1094,6 @@ mod tests {
         let first = mint_canvas(&db, "n1", "Planner", 1).unwrap();
         let t = mint_canvas(&db, "n1", "Planner", 2).unwrap();
         assert!(t.token.starts_with("oct_"));
-        // One live token per node: the respawn revoked the first.
         assert_eq!(lookup(&db, &first.token, 3), Lookup::Ended);
         let ctx = AuthCtx {
             extension: "ext",
@@ -1304,7 +1105,6 @@ mod tests {
         assert!(!need.legacy_ok);
         let p = check_scoped(&headers(&t.token), &need, &ctx).unwrap();
         assert_eq!(p.id, "canvas:n1");
-        // Not a jobs route, and not the extension key on a canvas route.
         let jobs = route_need(&Method::GET, "/v1/jobs").unwrap();
         assert!(matches!(
             check_scoped(&headers(&t.token), &jobs, &ctx),
@@ -1325,11 +1125,6 @@ mod tests {
     }
 }
 
-/// BN5 (`scripts/llm/delegation_e2e.py`), scenario `auth`: the real guard
-/// over HTTP on 127.0.0.1, in front of stand-in handlers laid out like the
-/// agent routes (the real handlers need the Tauri app). Every case is one
-/// request with `reqwest`; the results go to `OMNIGET_BENCH_OUT` as JSON
-/// lines. Item 2.5 adds its scenarios next to this one.
 #[cfg(test)]
 pub(crate) mod bn5 {
     use super::*;
@@ -1354,7 +1149,6 @@ pub(crate) mod bn5 {
         Json(json!({ "principal": p.id }))
     }
 
-    /// The agent routes with the production layer on top.
     pub(crate) fn router(g: Guard) -> Router {
         Router::new()
             .route("/v1/jobs", get(echo))
@@ -1434,7 +1228,6 @@ pub(crate) mod bn5 {
             resp
         };
 
-        // 1. The extension key during the grace period: works, says so.
         let r = call(
             "extension_grace_run",
             "POST",
@@ -1452,7 +1245,6 @@ pub(crate) mod bn5 {
             200,
         )
         .await;
-        // ... but never creates an agent (S2).
         call(
             "extension_grace_agents_cli",
             "POST",
@@ -1462,7 +1254,6 @@ pub(crate) mod bn5 {
         )
         .await;
         let seen = log.last().map(|l| l.route);
-        // 2. After the grace flag: 403 everywhere.
         flag.store(false, Ordering::Relaxed);
         call(
             "extension_after_grace_run",
@@ -1498,7 +1289,6 @@ pub(crate) mod bn5 {
         )
         .await;
 
-        // 3. Scoped user tokens.
         let (reader, operator) = {
             let db = db.lock().unwrap();
             (
@@ -1558,7 +1348,6 @@ pub(crate) mod bn5 {
         )
         .await;
 
-        // 4. A job's token, through the same lease `run_job` holds.
         let lease = {
             let (db_m, db_r) = (db.clone(), db.clone());
             JobTokenLease::start(
@@ -1652,7 +1441,6 @@ pub(crate) mod bn5 {
         )
         .await;
 
-        // 5. Expiry.
         let short = mint(
             &db.lock().unwrap(),
             Kind::User,

@@ -1,25 +1,3 @@
-//! Streamable HTTP transport (spec 2025-06-18, "Transports → Streamable HTTP").
-//! Owned by f3-mcp-core.
-//!
-//! What the spec pins, and what this file therefore does:
-//! - every message is a new `POST` to the one MCP endpoint, with an `Accept`
-//!   header listing **both** `application/json` and `text/event-stream`;
-//! - a notification or a response gets `202 Accepted` with no body; a request
-//!   gets either one JSON object or an SSE stream, and the client MUST support
-//!   both — so the SSE branch reuses `core/llm/sse.rs` (the 1 MiB-per-event
-//!   parser from F2) instead of buffering the body;
-//! - the server MAY hand out `Mcp-Session-Id` on the `InitializeResult`; once
-//!   it does, every later request carries it, and a `404` means the session is
-//!   gone and a fresh `initialize` is needed;
-//! - after initialization the client MUST send `MCP-Protocol-Version` on every
-//!   request, using the version negotiated at `initialize`;
-//! - `GET` opens the server-to-client stream, and `405` is the legal answer of
-//!   a server that does not offer one — not an error;
-//! - `DELETE` ends the session, and `405` to that is legal too.
-//!
-//! Budget: nothing here polls. The `GET` stream is opened only when a caller
-//! asks for it and its task dies with the [`ServerStream`] handle.
-
 use std::collections::BTreeMap;
 use std::sync::atomic::{AtomicI64, Ordering};
 use std::sync::Mutex as StdMutex;
@@ -37,7 +15,6 @@ use super::types::{
 };
 use crate::core::llm::sse::SseParser;
 
-/// Both content types, because the server picks.
 pub const ACCEPT: &str = "application/json, text/event-stream";
 const SESSION_HEADER: &str = "Mcp-Session-Id";
 const PROTOCOL_HEADER: &str = "MCP-Protocol-Version";
@@ -53,7 +30,6 @@ pub struct HttpTransport {
 
 impl std::fmt::Debug for HttpTransport {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        // Header values never reach a log: they may be resolved secrets.
         f.debug_struct("HttpTransport")
             .field("url", &self.url)
             .field("session", &self.session_id().is_some())
@@ -61,8 +37,6 @@ impl std::fmt::Debug for HttpTransport {
     }
 }
 
-/// An open `GET` stream. Dropping it closes the connection: no background task
-/// survives the handle.
 pub struct ServerStream {
     pub rx: mpsc::Receiver<Value>,
     task: JoinHandle<()>,
@@ -96,8 +70,6 @@ fn is_event_stream(content_type: &str) -> bool {
         .unwrap_or(false)
 }
 
-/// Picks our answer out of a JSON body, which may be one object or a batch
-/// array (2024-11-05 servers still send batches).
 fn match_response(body: &str, key: &str) -> Option<Result<Value, McpError>> {
     let value: Value = serde_json::from_str(body).ok()?;
     let items: Vec<&Value> = match &value {
@@ -120,9 +92,6 @@ fn match_response(body: &str, key: &str) -> Option<Result<Value, McpError>> {
 }
 
 impl HttpTransport {
-    /// Resolves `secret:<id>` headers through the secret store and builds the
-    /// client. A loopback endpoint skips the global proxy: the user's corporate
-    /// proxy has no business in a request to 127.0.0.1.
     pub fn connect(
         url: &str,
         headers: &BTreeMap<String, String>,
@@ -156,8 +125,6 @@ impl HttpTransport {
         self.session.lock().ok().and_then(|g| g.clone())
     }
 
-    /// Called by the client once `initialize` came back, so every later request
-    /// carries the version that was actually negotiated.
     pub fn set_protocol(&self, version: &str) {
         if let Ok(mut g) = self.protocol.lock() {
             *g = Some(version.to_string());
@@ -229,8 +196,6 @@ impl HttpTransport {
             .await
             .map_err(|e| McpError::http(format!("{}: {}", self.url, e)).retryable())?;
 
-        // The session id only ever arrives on the InitializeResult, but reading
-        // it on every answer is free and covers servers that rotate it.
         if let Some(sid) = resp
             .headers()
             .get(SESSION_HEADER)
@@ -244,8 +209,6 @@ impl HttpTransport {
 
         let status = resp.status();
         if status.as_u16() == 404 && self.session_id().is_some() {
-            // Spec: "When a client receives HTTP 404 in response to a request
-            // containing an Mcp-Session-Id, it MUST start a new session".
             if let Ok(mut g) = self.session.lock() {
                 *g = None;
             }
@@ -282,7 +245,6 @@ impl HttpTransport {
             });
         }
 
-        // SSE: the response may come after any number of server notifications.
         let mut stream = resp.bytes_stream();
         let mut parser = SseParser::new();
         let mut events = Vec::new();
@@ -308,8 +270,6 @@ impl HttpTransport {
         Err(McpError::proto("the SSE stream ended before the response").retryable())
     }
 
-    /// Opens the server-to-client stream. `Ok(None)` when the server answers
-    /// `405`, which the spec allows and which is not an error.
     pub async fn open_server_stream(&self) -> Result<Option<ServerStream>, McpError> {
         let resp = self
             .build(reqwest::Method::GET)
@@ -345,8 +305,6 @@ impl HttpTransport {
         Ok(Some(ServerStream { rx, task }))
     }
 
-    /// Ends the session (`DELETE`). A `405` means the server does not allow it,
-    /// which is fine; either way we forget the id.
     pub async fn close(&self) {
         let had_session = self.session_id().is_some();
         if had_session {
@@ -358,7 +316,6 @@ impl HttpTransport {
     }
 }
 
-/// One decoded SSE payload → our answer, if it is ours.
 fn pick(value: &Value, key: &str) -> Option<Result<Value, McpError>> {
     match classify(value) {
         Incoming::Result { id, result } if id == key => Some(Ok(result)),

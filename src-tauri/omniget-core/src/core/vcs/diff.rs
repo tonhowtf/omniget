@@ -1,14 +1,9 @@
-//! Diffs between two tree-ishes: `--numstat -z` for the counts and one patch
-//! split per file, with byte limits and a `truncated` flag.
-
 use serde::{Deserialize, Serialize};
 
 use super::repo::GitCtx;
 use super::runner::VcsResult;
 
-/// Whole-diff patch budget.
 pub const DEFAULT_MAX_BYTES: usize = 2 * 1024 * 1024;
-/// A single file's patch past this is dropped (the counts stay).
 pub const DEFAULT_MAX_FILE_BYTES: usize = 512 * 1024;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -26,13 +21,10 @@ pub struct FileDiff {
     pub path: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub old_path: Option<String>,
-    /// added | deleted | modified | renamed | binary
     pub status: String,
     pub additions: u32,
     pub deletions: u32,
     pub binary: bool,
-    /// Unified patch for this file (`diff --git` header included). Empty when
-    /// binary or when it did not fit the limits (`truncated`).
     pub patch: String,
     pub truncated: bool,
 }
@@ -44,7 +36,6 @@ pub struct DiffResult {
     pub files: Vec<FileDiff>,
     pub additions: u32,
     pub deletions: u32,
-    /// Some file patch was left out because of the limits.
     pub truncated: bool,
 }
 
@@ -55,7 +46,6 @@ pub struct DiffOptions {
     pub max_bytes: usize,
     pub max_file_bytes: usize,
     pub context: u32,
-    /// Only numstat, no patches.
     pub stat_only: bool,
 }
 
@@ -71,7 +61,6 @@ impl Default for DiffOptions {
     }
 }
 
-/// Parses `git diff --numstat -z`. Renames come as `a\td\t\0old\0new\0`.
 pub fn parse_numstat_z(raw: &[u8]) -> Vec<NumstatEntry> {
     let parts: Vec<&[u8]> = raw.split(|b| *b == 0).collect();
     let mut out = Vec::new();
@@ -120,7 +109,6 @@ pub fn parse_numstat_z(raw: &[u8]) -> Vec<NumstatEntry> {
     out
 }
 
-/// Splits a multi-file patch at each `diff --git ` line.
 pub fn split_patch(patch: &str) -> Vec<&str> {
     let mut starts = Vec::new();
     let mut pos = 0;
@@ -138,7 +126,6 @@ pub fn split_patch(patch: &str) -> Vec<&str> {
     out
 }
 
-/// Status of one file from its patch header.
 pub fn status_from_patch(chunk: &str, binary: bool, renamed: bool) -> &'static str {
     let header: Vec<&str> = chunk
         .lines()
@@ -158,19 +145,11 @@ pub fn status_from_patch(chunk: &str, binary: bool, renamed: bool) -> &'static s
     }
 }
 
-/// One hunk of a unified patch, named by its content (roadmap 3.5, 84#P2):
-/// `id = <path>:<sha1(@@ line + body)[..8]>`, computed only here, so the
-/// UI, the bridge and the CLI all name a hunk the same way and a hunk whose
-/// bytes moved gets another id. Id and hunk layout adapted from
-/// openchamber's `walkthrough/hunks.js` (MIT).
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Hunk {
     pub id: String,
     pub path: String,
-    /// Position among the hunks of its file (0-based): the DiffViewer's
-    /// hunk index for the same file patch.
     pub index: usize,
-    /// The `@@ -a,b +c,d @@` line, section heading included.
     pub header: String,
     pub old_start: u32,
     pub old_lines: u32,
@@ -178,17 +157,10 @@ pub struct Hunk {
     pub new_lines: u32,
     pub additions: u32,
     pub deletions: u32,
-    /// A patch of this hunk alone: the file's header lines and the hunk,
-    /// byte for byte as in the diff. What a discard sends back, and what
-    /// `git apply -R` takes.
     pub patch: String,
-    /// The body holds exactly the lines the header counts. A patch cut at
-    /// its byte limit can end in the middle of a hunk: such a hunk is shown,
-    /// never acted on.
     pub complete: bool,
 }
 
-/// `@@ -a[,b] +c[,d] @@…` → (a, b, c, d); a missing count is 1.
 fn hunk_range(line: &str) -> Option<(u32, u32, u32, u32)> {
     let rest = line.strip_prefix("@@ -")?;
     let end = rest.find(" @@")?;
@@ -204,8 +176,6 @@ fn hunk_range(line: &str) -> Option<(u32, u32, u32, u32)> {
     Some((a, b, c, d))
 }
 
-/// Every hunk of a multi-file unified patch, in patch order. Binary files
-/// and mode-only changes have none.
 pub fn parse_hunks(patch: &str) -> Vec<Hunk> {
     use sha1::{Digest, Sha1};
     let mut out: Vec<Hunk> = Vec::new();
@@ -213,7 +183,6 @@ pub fn parse_hunks(patch: &str) -> Vec<Hunk> {
         let Some(path) = chunk_path(chunk) else {
             continue;
         };
-        // Byte offsets of each `@@ -` line of this file.
         let mut starts = Vec::new();
         let mut pos = 0;
         for line in chunk.split_inclusive('\n') {
@@ -239,15 +208,12 @@ pub fn parse_hunks(patch: &str) -> Vec<Hunk> {
                     Some(b'+') => add += 1,
                     Some(b'-') => del += 1,
                     Some(b' ') => ctx += 1,
-                    // `\ No newline at end of file` counts nothing.
                     _ => {}
                 }
             }
             let complete = ctx + del == old_lines && ctx + add == new_lines && text.ends_with('\n');
             let digest = Sha1::digest(text.as_bytes());
             let mut id = format!("{path}:{}", &hex::encode(digest)[..8]);
-            // Two identical hunks of one file would need the same lines at the
-            // same place: cannot happen, but an id must stay unique.
             let mut n = 2;
             while out.iter().any(|h| h.id == id) {
                 id = format!("{path}:{}~{n}", &hex::encode(digest)[..8]);
@@ -272,7 +238,6 @@ pub fn parse_hunks(patch: &str) -> Vec<Hunk> {
     out
 }
 
-/// Path named by a patch chunk's `+++ b/` (or `--- a/` for a deletion).
 pub(crate) fn chunk_path(chunk: &str) -> Option<String> {
     let mut minus = None;
     for l in chunk.lines().take(12) {
@@ -297,7 +262,6 @@ pub(crate) fn chunk_path(chunk: &str) -> Option<String> {
     })
 }
 
-/// Joins numstat entries with patch chunks, applying the limits.
 pub fn assemble(
     from: &str,
     to: &str,
@@ -336,13 +300,11 @@ pub fn assemble(
             String::new()
         } else {
             match chunk {
-                Some(c) if s.binary => {
-                    // Keep the header so the viewer can say "binary".
-                    c.lines()
-                        .take_while(|l| !l.starts_with("GIT binary patch"))
-                        .collect::<Vec<_>>()
-                        .join("\n")
-                }
+                Some(c) if s.binary => c
+                    .lines()
+                    .take_while(|l| !l.starts_with("GIT binary patch"))
+                    .collect::<Vec<_>>()
+                    .join("\n"),
                 Some(c) if c.len() > opts.max_file_bytes || used + c.len() > opts.max_bytes => {
                     truncated = true;
                     String::new()
@@ -374,9 +336,6 @@ pub fn assemble(
     res
 }
 
-/// `git diff --name-status -z`: path → `added|deleted|modified|renamed`
-/// (copies count as added, type changes as modified). Renames are keyed by
-/// the new path.
 pub fn parse_name_status_z(raw: &[u8]) -> std::collections::HashMap<String, &'static str> {
     let parts: Vec<String> = raw
         .split(|b| *b == 0)
@@ -401,7 +360,6 @@ pub fn parse_name_status_z(raw: &[u8]) -> std::collections::HashMap<String, &'st
             _ => "modified",
         };
         if matches!(letter, 'R' | 'C') {
-            // `R100\0old\0new`
             if let Some(new) = parts.get(i + 1) {
                 out.insert(new.clone(), status);
             }
@@ -418,8 +376,6 @@ pub fn parse_name_status_z(raw: &[u8]) -> std::collections::HashMap<String, &'st
     out
 }
 
-/// Corrects the status of stat-only files with `--name-status`: added and
-/// deleted win over binary/modified, like `status_from_patch` does.
 pub fn apply_name_status(
     res: &mut DiffResult,
     names: &std::collections::HashMap<String, &'static str>,
@@ -449,7 +405,6 @@ fn diff_base(ctx: &GitCtx, opts: &DiffOptions) -> super::runner::Invocation {
     inv
 }
 
-/// Diff between two commits/trees (`from` → `to`).
 pub async fn diff_trees(
     ctx: &GitCtx,
     from: &str,
@@ -473,8 +428,6 @@ pub async fn diff_trees(
                 ..*opts
             },
         );
-        // Without patches the status only knows binary/renamed; ask git for
-        // the real letters so added/deleted files are not shown as modified.
         if !res.files.is_empty() {
             let names = diff_base(ctx, opts)
                 .args(["--name-status", "-z", from, to, "--"])

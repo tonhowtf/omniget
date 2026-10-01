@@ -1,25 +1,9 @@
-//! The envelope a message arrives in (estudo 98/03 §B.7):
-//!
-//! ```text
-//! <omniget-message from="Planner" kind="ask" id="ask_7f3a" hop="2" skill="omniget-canvas">
-//! question text
-//! </omniget-message>
-//! Answer normally: your final reply goes back to Planner. ...
-//! ```
-//!
-//! The tag names the skill to load (Maestri's `<maestri-canvas-agent>` trick).
-//! Text over 4 KiB or 40 lines is written to `inbox/<node>/<id>.md` and the
-//! envelope carries only the path: no `[Pasted text #1 +N lines]` collapse,
-//! no paste limits of the TUIs.
-
 use std::path::{Path, PathBuf};
 
 pub const SKILL: &str = "omniget-canvas";
 pub const SPILL_BYTES: usize = 4 * 1024;
 pub const SPILL_LINES: usize = 40;
 
-/// Message kinds (the FIPA-lite acts of Munder Difflin reduced to what the
-/// cords do): an `ask` wants an answer, the others do not.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Kind {
@@ -49,13 +33,10 @@ pub struct Envelope<'a> {
     pub id: &'a str,
     pub hop: u32,
     pub text: &'a str,
-    /// For `reply`: the ask this answers.
     pub in_reply_to: Option<&'a str>,
-    /// For `handoff`: extra line (verify result).
     pub note: Option<&'a str>,
 }
 
-/// Escapes a value for an XML-ish attribute.
 pub fn attr(v: &str) -> String {
     let mut out = String::with_capacity(v.len());
     for c in v.chars() {
@@ -72,12 +53,10 @@ pub fn attr(v: &str) -> String {
     out
 }
 
-/// Whether a text is too big to paste.
 pub fn needs_spill(text: &str) -> bool {
     text.len() > SPILL_BYTES || text.lines().count() > SPILL_LINES
 }
 
-/// Writes a long text to `<inbox>/<id>.md` and returns the path.
 pub fn spill(inbox: &Path, id: &str, text: &str) -> std::io::Result<PathBuf> {
     std::fs::create_dir_all(inbox)?;
     let safe: String = id
@@ -89,7 +68,6 @@ pub fn spill(inbox: &Path, id: &str, text: &str) -> std::io::Result<PathBuf> {
     Ok(path)
 }
 
-/// The instruction line under the envelope.
 fn footer(e: &Envelope<'_>) -> String {
     let from = e.from;
     match e.kind {
@@ -112,8 +90,6 @@ fn footer(e: &Envelope<'_>) -> String {
     }
 }
 
-/// Renders the envelope. `body` is the text, or a pointer to the spilled
-/// file when [`needs_spill`] said so (the caller spills first).
 pub fn render(e: &Envelope<'_>, spilled: Option<&Path>) -> String {
     let mut head = format!(
         "<omniget-message from=\"{}\" kind=\"{}\" id=\"{}\" hop=\"{}\" verified=\"true\" skill=\"{SKILL}\"",
@@ -142,8 +118,6 @@ pub fn render(e: &Envelope<'_>, spilled: Option<&Path>) -> String {
     }
 }
 
-/// Builds the envelope for `inbox` (the target's `inbox/<node>` folder),
-/// spilling when needed. Returns the text to paste and the spill path.
 pub fn build(e: &Envelope<'_>, inbox: &Path) -> (String, Option<PathBuf>) {
     if needs_spill(e.text) {
         if let Ok(p) = spill(inbox, e.id, e.text) {

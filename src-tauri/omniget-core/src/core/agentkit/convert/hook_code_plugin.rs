@@ -1,9 +1,3 @@
-//! Tools whose hooks are code: OpenCode and Kilo (JS plugin, `tool.execute.
-//! before/after`, `event`, `chat.message`, `permission.ask`), Amp (TS plugin,
-//! `amp.on('tool.call')`) and Pi (TS extension, `pi.on("tool_call")`). As
-//! rulesync does, we generate one plugin file per component that shells out to
-//! the hook command — through the shim, so the script receives Claude's JSON.
-
 use serde_json::{json, Value};
 
 use super::hook_common::{
@@ -14,7 +8,6 @@ use crate::core::agentkit::model::{Component, HookSpec};
 use crate::core::agentkit::targets::TargetAdapter;
 use crate::core::agentkit::{Env, Result, Scope};
 
-/// One hook as the generated plugin sees it.
 #[derive(Debug, Clone)]
 pub struct PluginHook {
     pub event: String,
@@ -93,7 +86,6 @@ fn has(hooks: &[PluginHook], native: &str) -> bool {
     hooks.iter().any(|h| h.native == native)
 }
 
-/// OpenCode / Kilo plugin body (the object of hook functions).
 fn opencode_hooks(hooks: &[PluginHook]) -> String {
     let mut parts: Vec<String> = Vec::new();
     if has(hooks, "tool.execute.before") {
@@ -273,7 +265,6 @@ fn pi_file(c_id: &str, name: &str, env: &Env, hooks: &[PluginHook]) -> String {
     s
 }
 
-/// The generated file (name, text) for one tool.
 pub fn render(
     tool: &str,
     c_id: &str,
@@ -297,8 +288,6 @@ pub fn render(
     }
 }
 
-/// Plugin hooks from prepared entries: the matcher always goes to the shim
-/// (the plugin sees native tool names, the shim compares Claude's).
 pub fn plugin_hooks(prep: &[super::hook_common::Prepared]) -> Vec<PluginHook> {
     let mut out = Vec::new();
     for p in prep {

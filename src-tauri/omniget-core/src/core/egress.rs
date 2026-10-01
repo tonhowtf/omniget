@@ -1,7 +1,3 @@
-//! Per-execution egress broker. This is a network primitive, not a scheduler.
-//! The caller must confine the *whole* engine process (including descendants),
-//! and close inherited network descriptors before launching it. CONNECT does
-//! not inspect TLS/HTTP status; retry policy must live in the engine/domain.
 use base64::Engine;
 use std::{
     collections::BTreeSet,
@@ -25,14 +21,11 @@ use tokio_util::sync::CancellationToken;
 
 #[derive(Clone, Debug)]
 pub struct Policy {
-    /// Exact socket exceptions granted by the trusted domain, never URL callers.
     pub local_allowances: BTreeSet<SocketAddr>,
     pub public_ports: BTreeSet<u16>,
-    /// Host interface addresses are added automatically at startup.
     pub blocked_addresses: BTreeSet<IpAddr>,
     pub max_connections: u64,
     pub max_concurrent: usize,
-    /// Aggregate upstream plus downstream bytes (including HTTP headers).
     pub max_bytes: u64,
     pub lifetime: Duration,
     pub connect_timeout: Duration,
@@ -44,9 +37,6 @@ impl Default for Policy {
             local_allowances: BTreeSet::new(),
             public_ports: [80, 443].into(),
             blocked_addresses: BTreeSet::new(),
-            // HLS without keep-alive opens one CONNECT per fragment (a 3 h
-            // VOD is >1000). Bytes and lifetime are the real budgets; this is
-            // only a runaway guard (each connection is also byte-charged).
             max_connections: 8192,
             max_concurrent: 8,
             max_bytes: 512 * 1024 * 1024,
@@ -63,8 +53,6 @@ impl Policy {
                 && is_public(address.ip())
                 && !self.blocked_addresses.contains(&address.ip()))
     }
-    /// Reject the entire answer if it contains a forbidden address. The returned
-    /// addresses must be connected directly: never resolve the hostname again.
     pub fn validate_addresses(&self, addresses: Vec<SocketAddr>) -> io::Result<Vec<SocketAddr>> {
         if addresses.is_empty() || addresses.iter().any(|a| !self.permits(*a)) {
             return Err(denied());
@@ -78,7 +66,6 @@ fn denied() -> io::Error {
 fn is_policy_denial(e: &io::Error) -> bool {
     e.kind() == io::ErrorKind::PermissionDenied && e.to_string() == "EGRESS_DENIED"
 }
-/// Proxy answer for a connection that was not established.
 fn refusal_response(e: &io::Error) -> &'static [u8] {
     if is_policy_denial(e) {
         b"HTTP/1.1 403 Blocked by OmniGet egress policy\r\nX-OmniGet-Egress: EGRESS_BLOCKED\r\nConnection: close\r\nContent-Length: 0\r\n\r\n"
@@ -86,8 +73,6 @@ fn refusal_response(e: &io::Error) -> &'static [u8] {
         b"HTTP/1.1 502 Bad Gateway\r\nConnection: close\r\nContent-Length: 0\r\n\r\n"
     }
 }
-/// Why the broker cut the execution short. The worker reports these as their
-/// own codes: a size/time budget is OmniGet's policy, not a platform failure.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum LimitReason {
     Bytes = 1,
@@ -111,7 +96,6 @@ impl LimitReason {
         }
     }
 }
-/// First limit wins: later cuts are consequences of the first one.
 fn record_limit(slot: &AtomicU8, reason: LimitReason) {
     let _ = slot.compare_exchange(0, reason as u8, Ordering::SeqCst, Ordering::SeqCst);
 }
@@ -119,8 +103,6 @@ fn invalid() -> io::Error {
     io::Error::new(io::ErrorKind::InvalidInput, "EGRESS_INVALID_REQUEST")
 }
 
-/// Conservative Internet-unicast policy. Transition mechanisms and special
-/// purpose ranges are intentionally unavailable, even if sometimes routable.
 pub fn is_public(ip: IpAddr) -> bool {
     match ip {
         IpAddr::V4(a) => {
@@ -138,7 +120,6 @@ pub fn is_public(ip: IpAddr) -> bool {
         }
         IpAddr::V6(a) => {
             let s = a.segments();
-            // Includes no mapped IPv4, NAT64, ULA, link-local, multicast, or 6to4.
             (s[0] & 0xe000) == 0x2000
                 && s[0] != 0x2002
                 && !(s[0] == 0x2001 && (s[1] < 0x0200 || s[1] == 0x0db8))
@@ -150,8 +131,6 @@ pub fn is_public(ip: IpAddr) -> bool {
 #[cfg(unix)]
 fn host_addresses() -> io::Result<BTreeSet<IpAddr>> {
     let mut head = std::ptr::null_mut();
-    // getifaddrs owns a linked list until freeifaddrs; each sockaddr is valid
-    // for its family and copied before that allocation is released.
     unsafe {
         if libc::getifaddrs(&mut head) != 0 {
             return Err(io::Error::last_os_error());
@@ -277,12 +256,9 @@ impl Broker {
     pub fn is_revoked(&self) -> bool {
         self.cancellation.is_cancelled()
     }
-    /// Connections refused by this broker's own policy (not upstream failures).
-    /// A worker failure after a denial is OmniGet's block, not the platform's.
     pub fn policy_denials(&self) -> u64 {
         self.denials.load(Ordering::SeqCst)
     }
-    /// The budget that revoked this broker, if a budget did (not a cancel).
     pub fn limit_reason(&self) -> Option<LimitReason> {
         LimitReason::from_u8(self.limit.load(Ordering::SeqCst))
     }
@@ -298,19 +274,13 @@ impl Broker {
             let _ = task.await;
         }
     }
-    /// Network-only macOS profile. Filesystem/IPC restrictions are separately
-    /// required before this may confine arbitrary remote code or shell tools.
     pub fn network_profile(&self) -> String {
         format!("(version 1)(allow default)(deny network*)(allow network-outbound (remote tcp4 \"localhost:{}\"))",self.address.port())
     }
-    /// Launch fixed trusted engine helper, never a client-selected executable.
-    /// Caller supplies only schema-validated engine args and must retain Broker.
     #[cfg(target_os = "macos")]
     pub fn confined_command(&self, helper: &Path) -> io::Result<tokio::process::Command> {
         self.command_with_profile(helper, self.network_profile())
     }
-    /// File confinement for fixed engines. Personal paths outside the explicit
-    /// roots are denied; no home-directory wildcard or shared temporary root.
     #[cfg(target_os = "macos")]
     pub fn confined_command_with_files(
         &self,
@@ -380,9 +350,6 @@ impl Broker {
         c.stdin(std::process::Stdio::piped())
             .stdout(std::process::Stdio::piped())
             .stderr(std::process::Stdio::piped());
-        // Do not inherit already-connected sockets: Seatbelt checks acquisition.
-        // CLOEXEC preserves Rust spawn's error pipe until successful exec while
-        // closing every other non-standard descriptor at that same boundary.
         let descriptor_limit = unsafe { libc::getdtablesize() };
         if descriptor_limit < 3 {
             return Err(io::Error::last_os_error());
@@ -441,12 +408,6 @@ fn append_file_rule(profile: &mut String, operation: &str, path: &Path) -> io::R
         if !path.is_absolute() {
             return Err(invalid());
         }
-        // Exact loader aliases need metadata access; file contents remain pinned
-        // to the canonical grant. Never grant an ancestor as a readable subtree.
-        // Canonical ancestors too: PyInstaller onefile engines (official
-        // yt-dlp_macos) realpath() their own executable, so /tmp -> /private/tmp
-        // needs lstat of /private and /private/tmp (exit 255 otherwise).
-        // Literal metadata only: no readdir, no content, no sibling access.
         for ancestor in path.ancestors().chain(resolved.ancestors()) {
             let raw = ancestor.to_str().ok_or_else(invalid)?;
             if raw.chars().any(char::is_control) {
@@ -480,7 +441,6 @@ fn parse(bytes: &[u8]) -> io::Result<Request> {
     {
         return Err(invalid());
     }
-    // Reject bare CR/LF before reconstructing upstream headers.
     let without_crlf = text.replace("\r\n", "");
     if without_crlf.contains(['\r', '\n']) {
         return Err(invalid());
@@ -639,8 +599,6 @@ async fn serve(
     let mut upstream = match connection {
         Ok(s) => s,
         Err(e) => {
-            // A policy refusal is OmniGet's decision and says so; an upstream
-            // that could not be reached is a gateway failure, not a 403.
             let _ = client.write_all(refusal_response(&e)).await;
             if is_policy_denial(&e) {
                 denials.fetch_add(1, Ordering::SeqCst);
@@ -667,8 +625,6 @@ async fn serve(
             &limit,
         )?;
         upstream.write_all(&request.forward).await?;
-        // Do not forward any more client bytes: prevents pipelining/smuggling
-        // turning a single checked HTTP request into an uncontrolled stream.
         copy_limited(
             &mut upstream,
             &mut client,
@@ -684,12 +640,7 @@ async fn serve(
 fn connect_timeout() -> io::Error {
     io::Error::new(io::ErrorKind::TimedOut, "EGRESS_CONNECT_TIMEOUT")
 }
-/// Resolution rounds inside one connect budget. CDNs often answer one address
-/// per query; an edge that drops SYNs must not eat the whole budget when the
-/// next query would name a live one.
 const CONNECT_ROUNDS: u32 = 3;
-/// Every answer is validated (fail closed) before any address in it is used,
-/// and each address gets a bounded slice of the budget.
 async fn connect_upstream<R, RF, C, CF>(
     policy: &Policy,
     mut resolve: R,

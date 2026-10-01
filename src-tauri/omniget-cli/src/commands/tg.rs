@@ -1,17 +1,3 @@
-//! `omniget tg`: the /telegram superpower from the terminal. Reads, local
-//! downloads, auto-save rules and exports only: nothing here sends, forwards
-//! or deletes anything on the account.
-//!
-//! Two backends, same command names as the app's `telegram_call`:
-//! - the running app, through the local bridge (`POST /v1/telegram/<command>`),
-//!   so the app's own session does the work and its downloads show up there;
-//! - this process (`--local`, or when the app is not running): the engine in
-//!   `omniget_core::core::telegram` with the same data folder and session,
-//!   progress drawn here, and the process waits for its downloads.
-//!
-//! Two processes on one session at once is avoided on purpose: when the app
-//! answers, the CLI never opens the session itself unless told to.
-
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -112,7 +98,6 @@ pub enum TgCommand {
     },
 }
 
-// clap parses this once per run; boxing the big variant buys nothing.
 #[allow(clippy::large_enum_variant)]
 #[derive(clap::Subcommand)]
 pub enum WatchCommand {
@@ -204,8 +189,6 @@ pub struct FilterArgs {
     limit: Option<u64>,
 }
 
-// ---- backend ----------------------------------------------------------------
-
 const NO_ROUTE: &str = "the running OmniGet app does not expose Telegram to the CLI yet \
 (no /v1/telegram route). Close the app, or pass --local to use the session from this process \
 while the app runs (not recommended)";
@@ -257,7 +240,6 @@ fn app_settings() -> Value {
         .unwrap_or(Value::Null)
 }
 
-/// Something listens on the bridge port of `settings.json`: the app runs.
 async fn app_alive(settings: &Value) -> bool {
     let port = std::env::var("OMNIGET_BRIDGE_URL")
         .ok()
@@ -289,8 +271,6 @@ async fn backend(local: bool, json_out: bool) -> anyhow::Result<Backend> {
     host::install(Arc::new(CliHost::new(settings, tracker.clone())));
     Ok(Backend::Local(tracker))
 }
-
-// ---- local host ------------------------------------------------------------
 
 struct CliHost {
     prefs: Mutex<Value>,
@@ -347,7 +327,6 @@ impl host::TelegramHost for CliHost {
         self.prefs.lock().map(|p| p.clone()).unwrap_or(Value::Null)
     }
 
-    /// The app owns `settings.json`: a change made here lasts this process.
     fn save_settings(&self, settings: Value) {
         if let Ok(mut p) = self.prefs.lock() {
             *p = settings;
@@ -363,10 +342,6 @@ impl host::TelegramHost for CliHost {
     }
 }
 
-// ---- progress of local work --------------------------------------------------
-
-/// Follows the engine's events: one bar per download (single file or batch),
-/// export and chat scan, and which of them are still open.
 struct Tracker {
     tx: mpsc::UnboundedSender<(String, Value)>,
     rx: Mutex<Option<mpsc::UnboundedReceiver<(String, Value)>>>,
@@ -415,7 +390,6 @@ impl Tracker {
         }
     }
 
-    /// Starts the task that reads the events (once).
     fn start(self: &Arc<Self>) {
         let Some(mut rx) = self.rx.lock().ok().and_then(|mut r| r.take()) else {
             return;
@@ -431,8 +405,6 @@ impl Tracker {
         });
     }
 
-    /// A download or export the command said it started: wait for it even
-    /// when its first event is still on the way.
     fn expect(&self, key: String) {
         if let Ok(mut s) = self.state.lock() {
             if !s.finished.contains(&key) {
@@ -622,7 +594,6 @@ impl Tracker {
         }
     }
 
-    /// Scan bars are only useful while the command reads; clear them.
     fn clear_scans(&self) {
         if let Ok(mut s) = self.state.lock() {
             let keys: Vec<String> = s
@@ -639,9 +610,6 @@ impl Tracker {
         }
     }
 
-    /// Waits until every download and export this process started is over.
-    /// Work that starts on its own task (auto-save runs) gets `grace` to show
-    /// its first event. Returns how many failed.
     async fn wait(&self, grace: Duration) -> u32 {
         self.clear_scans();
         let t0 = Instant::now();
@@ -659,8 +627,6 @@ impl Tracker {
     }
 }
 
-// ---- helpers -----------------------------------------------------------------
-
 fn bytes(n: u64) -> String {
     let units = ["B", "KB", "MB", "GB", "TB"];
     let mut v = n as f64;
@@ -676,7 +642,6 @@ fn bytes(n: u64) -> String {
     }
 }
 
-/// `10MB`, `1.5 GB`, `700k`, `123` (bytes). Decimal units, like the app.
 fn parse_size(raw: &str) -> anyhow::Result<u64> {
     let t = raw.trim().to_ascii_lowercase().replace(' ', "");
     let split = t
@@ -695,7 +660,6 @@ fn parse_size(raw: &str) -> anyhow::Result<u64> {
     Ok((n * mul) as u64)
 }
 
-/// `YYYY-MM-DD` (local day; `end` = its last second) or unix seconds.
 fn parse_date(raw: &str, end: bool) -> anyhow::Result<i64> {
     use chrono::{Local, NaiveDate, TimeZone};
     if let Ok(n) = raw.trim().parse::<i64>() {
@@ -784,8 +748,6 @@ fn abs(dir: Option<String>) -> Option<String> {
     })
 }
 
-// ---- chat resolution --------------------------------------------------------
-
 struct Chat {
     id: i64,
     chat_type: String,
@@ -806,9 +768,6 @@ fn chat_of(v: &Value) -> Option<Chat> {
     })
 }
 
-/// A chat from its id, a t.me link, or its title (exact, then a unique
-/// part of it). Listing the chats also teaches the engine their access
-/// hashes, which the media calls need.
 async fn resolve_chat(b: &Backend, spec: &str, opts: &ChatOpts) -> anyhow::Result<Chat> {
     let spec = spec.trim();
     let lower = spec.to_ascii_lowercase();
@@ -820,7 +779,6 @@ async fn resolve_chat(b: &Backend, spec: &str, opts: &ChatOpts) -> anyhow::Resul
         .iter()
         .any(|p| link.starts_with(p));
 
-    // t.me/<user>/<msg>: the engine resolves the message and names its chat.
     if is_link && !link.contains("/c/") {
         let r = b
             .call("telegram_resolve_links", json!({ "text": spec }))
@@ -854,7 +812,6 @@ async fn resolve_chat(b: &Backend, spec: &str, opts: &ChatOpts) -> anyhow::Resul
         .unwrap_or_default();
 
     if let Some(id) = wanted_id {
-        // Bot API style ids (-100123…, -123…) name the same chat.
         let bare = {
             let s = id.to_string();
             match s.strip_prefix("-100") {
@@ -909,8 +866,6 @@ async fn resolve_chat(b: &Backend, spec: &str, opts: &ChatOpts) -> anyhow::Resul
         }
     }
 }
-
-// ---- printing -------------------------------------------------------------------
 
 fn print_json(v: &Value) {
     println!("{}", serde_json::to_string_pretty(v).unwrap_or_default());
@@ -972,15 +927,11 @@ fn print_rules(rules: &Value) {
     }
 }
 
-// ---- entry --------------------------------------------------------------------
-
 pub async fn execute(cmd: TgCommand, local: bool, json_out: bool) -> anyhow::Result<()> {
     let b = backend(local, json_out).await?;
     if let Backend::Local(t) = &b {
         t.start();
     }
-    // Downloads started by this call (their batch/export ids) and a grace
-    // for work that starts on its own task.
     let mut started: Vec<String> = Vec::new();
     let mut grace = Duration::ZERO;
     let mut queued_msg = false;

@@ -1,20 +1,3 @@
-//! The system around the agent: durable jobs, Loops and triggers.
-//!
-//! Every unit is an object with an id in SQLite (`<llm dir>/jobs.db`), never a
-//! script: a **job** is one agent turn that outlives the window, a **Loop** is
-//! a sequence of jobs on one conversation that stops on a criterion (rounds,
-//! minutes, or a check command that exits 0), a **trigger** starts a job from a
-//! cron line or from `POST /v1/hooks/<id>` on the local bridge. Shapes read
-//! from `compozy/compozy` (durable sessions), `compozy/codex-loop` and
-//! `compozy/cc-loop` (loop until the check passes). The cron parser is ours.
-//!
-//! State changes go out as `llm://job` and `llm://loop`. On boot nothing
-//! whose outcome is unknown is re-sent: a job or Loop that was running
-//! becomes `interrupted` and waits for a person (resume, mark done,
-//! discard); only a job that never left the queue starts by itself. There is
-//! one scheduler (the cron ticker here), and a routine says plainly that it
-//! needs the app open.
-
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
@@ -39,15 +22,10 @@ pub use loop_audit::LoopAudit;
 
 pub const EVENT_JOB: &str = "llm://job";
 pub const EVENT_LOOP: &str = "llm://loop";
-/// A routine's schedule or counters changed (fired, missed, saved): the
-/// payload is [`trigger_view`].
 pub const EVENT_TRIGGER: &str = "llm://trigger";
-/// The queue changed (a job was admitted, finished or the cap moved): the
-/// payload is [`state_view`], so the jobs page shows positions without asking.
 pub const EVENT_QUEUE: &str = "llm://queue";
 pub const EVENT_PLAYBOOK: &str = "llm://playbook";
 pub const ERR_JOBS: &str = "ERR_LLM_JOBS";
-/// A job's worktree could not be made, found or recreated (2.3).
 pub const ERR_WORKTREE: &str = "ERR_JOB_WORKTREE";
 
 const LOG_MAX: usize = 64 * 1024;
@@ -57,15 +35,11 @@ const CRON_TICK_S: u64 = 30;
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct Job {
     pub id: String,
-    /// `run` (CLI, UI, bridge), `chat` (a turn of the conversation tab),
-    /// `loop` (one round of a Loop), `trigger`.
     pub kind: String,
     pub agent_id: String,
     pub conversation_id: String,
     pub prompt: String,
     pub workspace: Option<String>,
-    /// `queued|waiting_workspace|running|waiting_approval|done|failed|cancelled|interrupted`.
-    /// `waiting_workspace`: another job holds an overlapping folder (1.5).
     pub state: String,
     pub loop_id: Option<String>,
     pub trigger_id: Option<String>,
@@ -76,39 +50,20 @@ pub struct Job {
     pub result: Option<String>,
     pub error: Option<String>,
     pub log: String,
-    /// Summed over the model calls of the job: `{model, input_tokens,
-    /// output_tokens, cache_read_tokens, cost_usd, calls}`. `cost_usd` is
-    /// `null` when the provider has no price (local models, CLI accounts).
     #[serde(default)]
     pub usage: Option<serde_json::Value>,
-    /// Grows by one on every state change of this job (never on a log line),
-    /// so a listener can drop an event older than what it already has.
     #[serde(default)]
     pub state_seq: i64,
-    /// When the user last opened this job (epoch ms); a finished job with a
-    /// later `finished_ms` is "not seen yet".
     #[serde(default)]
     pub seen_ms: Option<i64>,
-    /// Why a failed job failed, in one word the UI can translate:
-    /// `stalled`, `no_start`, `deadline`, `limit`, `ask_expired`.
     #[serde(default)]
     pub failure_reason: Option<String>,
-    /// Per-job wall-clock ceiling in minutes; `None` = the setting
-    /// `job_default_deadline_min`.
     #[serde(default)]
     pub deadline_min: Option<u32>,
-    /// The deadline actually applied, set when the job starts.
     #[serde(default)]
     pub deadline_ms: Option<u64>,
-    /// Why a `queued`/`waiting_workspace` job has not started: `slot`,
-    /// `agent_cap` or `workspace:<job id>` (the job holding the folder).
-    /// Cleared when it starts.
     #[serde(default)]
     pub wait_reason: Option<String>,
-    /// What the job changed in its folder, recorded when it ended (1.7):
-    /// the files (status, `+/-`, binary), totals, and whether the patch at
-    /// `<llm dir>/jobs/<id>.patch` or the list was cut. `None` with
-    /// `diff_unavailable` also `None` = not computed yet.
     #[serde(default)]
     pub diff_files: Option<Vec<omniget_core::core::llm::snapshot::FileChange>>,
     #[serde(default)]
@@ -117,101 +72,52 @@ pub struct Job {
     pub deletions: Option<u64>,
     #[serde(default)]
     pub diff_clipped: bool,
-    /// Why the job has no diff, `code: detail`, code one of `no_workspace`,
-    /// `no_snapshot`, `error`. Never an empty list standing for "unknown".
     #[serde(default)]
     pub diff_unavailable: Option<String>,
-    /// Run spec of a job whose `agent_id` is `tool:<id>` (a coding CLI run
-    /// headless, maybe in a sandbox): [`RunSpec`] as JSON.
     #[serde(default)]
     pub spec: Option<serde_json::Value>,
-    /// The playbook run this job is a step of.
     #[serde(default)]
     pub playbook_id: Option<String>,
-    /// Where the job writes (2.3, D3): the folder itself, a git worktree of
-    /// its own, or `auto` (a worktree only when another job is already
-    /// writing in the same canonical folder of a git repository).
     #[serde(default)]
     pub isolation: Isolation,
-    /// The ref a worktree starts from (`--base`); `None` = the user's
-    /// checkout as it is on disk, uncommitted work included.
     #[serde(default)]
     pub base_ref: Option<String>,
-    /// The job's worktree (`<app data>/worktrees/<repo>-job-<id>`), set when
-    /// it runs in one; the folder its turns see.
     #[serde(default)]
     pub worktree_path: Option<String>,
-    /// `omniget/job-<id>`: holds the job's work once the worktree is gone.
     #[serde(default)]
     pub branch: Option<String>,
-    /// The commit the worktree started from.
     #[serde(default)]
     pub base_oid: Option<String>,
-    /// The worktree's `HEAD` when the diff was recorded: the commit that
-    /// holds the job's work on its branch (2.4, worktree mode).
     #[serde(default)]
     pub head_oid: Option<String>,
-    /// What the job did, stamped by the host when it ended (2.4, 83#P4):
-    /// `host:workspace@base→head`, the files, the checks with their exit
-    /// code, tokens, cost and time. Never written by the agent; 0 tokens.
     #[serde(default)]
     pub proof: Option<Value>,
-    /// A short name for lists, given by whoever started the job (2.5).
     #[serde(default)]
     pub title: Option<String>,
-    /// Who started the job through the command surface (2.5): `token:<id>`
-    /// for a bridge token, `mcp:<client>` for an MCP client. An MCP client
-    /// reads, waits on, cancels and answers the asks of the jobs it owns.
     #[serde(default)]
     pub owner: Option<String>,
-    /// How much the job's turns may do without asking (2.7, D2): a job from
-    /// outside the window asks before every edit and command unless the
-    /// caller chose otherwise; older rows keep what they did (`auto_edits`).
     #[serde(default)]
     pub run_mode: RunMode,
-    /// The agent's own last word (2.6): `{status: succeeded|failed, summary}`
-    /// from its `OUTCOME:` line. `None` when it wrote none (a `run` job then
-    /// ends `done_unreported`).
     #[serde(default)]
     pub outcome: Option<Value>,
-    /// The rest of the `job.start` command: `command_id`, `purpose`,
-    /// `model`, `effort`, `budget_usd`, `resume_of`.
     #[serde(default)]
     pub origin: Option<Value>,
-    /// The CLI's own session id, copied onto the row at the first event of
-    /// the turn that names it (3.1, S16), not at the end: a job the app
-    /// loses mid-turn still knows which session `--resume` continues.
     #[serde(default)]
     pub session_id: Option<String>,
-    /// The agent process of the turn running now, with the start token the
-    /// OS gives it ([`omniget_core::core::process::start_token`]): on boot a
-    /// process that is still alive is stopped before anything runs again,
-    /// and a pid the OS reused (another start token) is never touched.
-    /// Cleared when the turn ends.
     #[serde(default)]
     pub pid: Option<u32>,
     #[serde(default)]
     pub pid_start: Option<u64>,
-    /// How many times the host started this job again by itself after an
-    /// infrastructure failure (3.1); at most [`AUTO_RESUME_MAX`].
     #[serde(default)]
     pub attempt: u32,
-    /// This job's own answer to "resume by itself after a restart";
-    /// `None` = the setting `llm.auto_resume` (a Loop round takes its Loop's).
     #[serde(default)]
     pub auto_resume: Option<bool>,
-    /// A tool that can change something (anything but reading and
-    /// searching) started in one of the job's turns: a job that ran in the
-    /// shared folder is then never re-run by itself.
     #[serde(default)]
     pub side_effects: bool,
 }
 
 pub use omniget_core::core::llm::run_mode::RunMode;
 
-/// How a job is placed in its folder (2.3). `Auto` is the default of a job
-/// a person starts in the background (`run`, `trigger`); missions, Loop
-/// rounds, chat turns and catalog tool runs stay `Shared` unless asked.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, Default, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum Isolation {
@@ -230,8 +136,6 @@ impl Isolation {
         }
     }
 
-    /// `shared | worktree | auto`; anything else is an error the caller
-    /// shows (a typo must not silently mean "shared").
     pub fn parse(s: &str) -> Result<Isolation, String> {
         match s.trim().to_ascii_lowercase().as_str() {
             "shared" => Ok(Isolation::Shared),
@@ -243,7 +147,6 @@ impl Isolation {
         }
     }
 
-    /// The default for a new job of `kind` run by `agent_id`.
     pub fn default_for(kind: &str, agent_id: &str) -> Isolation {
         if agent_id.starts_with(TOOL_PREFIX) {
             return Isolation::Shared;
@@ -255,21 +158,13 @@ impl Isolation {
     }
 }
 
-/// Where a job's worktree comes from and why, decided before the gate.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Placement {
-    /// The git repository of the job's folder (with a commit), when there is one.
     pub repo: Option<std::path::PathBuf>,
-    /// A worktree whatever the gate says (`isolation = worktree`, or a job
-    /// that already has one).
     pub force: bool,
-    /// Ask the gate for a worktree only if the folder is busy (`auto`).
     pub if_busy: bool,
 }
 
-/// The placement of `job` given the repository of its folder (`repo`,
-/// `None` = no git repository with a commit). `Err` = the job cannot run as
-/// asked (a worktree without a repository).
 pub fn placement(job: &Job, repo: Option<std::path::PathBuf>) -> Result<Placement, String> {
     if job.worktree_path.is_some() {
         return Ok(Placement {
@@ -300,8 +195,6 @@ pub fn placement(job: &Job, repo: Option<std::path::PathBuf>) -> Result<Placemen
     }
 }
 
-/// The folder a job's turns see: its worktree when it has one, else the
-/// folder it was given.
 pub fn effective_workspace(job: &Job) -> Option<String> {
     job.worktree_path
         .clone()
@@ -309,30 +202,22 @@ pub fn effective_workspace(job: &Job) -> Option<String> {
         .filter(|w| !w.trim().is_empty())
 }
 
-/// How a `tool:<id>` job runs: the agent as the system prompt, model and
-/// permission level of the CLI, and the optional sandbox.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct RunSpec {
     #[serde(default)]
     pub system_prompt: Option<String>,
-    /// Name of the agent used as the role (for the UI).
     #[serde(default)]
     pub agent_name: Option<String>,
     #[serde(default)]
     pub model: Option<String>,
-    /// `default | plan | accept_edits | bypass`
     #[serde(default)]
     pub permission: Option<String>,
     #[serde(default)]
     pub sandbox: Option<omniget_core::core::agentkit_run::sandbox::SandboxOpts>,
 }
 
-/// Prefix of the agent id of a job run by a coding CLI instead of the roster.
 pub const TOOL_PREFIX: &str = "tool:";
 
-/// Appends one prune receipt to a job's usage: per model request, what the
-/// history was estimated at before and after the omissions, and what the
-/// provider billed as input. Numbers as measured, nothing derived.
 pub fn fold_receipt(total: &mut Option<serde_json::Value>, model: &str, event: &TurnEvent) {
     let TurnEvent::PruneReceipt {
         request,
@@ -366,8 +251,6 @@ pub fn fold_receipt(total: &mut Option<serde_json::Value>, model: &str, event: &
     }
 }
 
-/// Tokens a cap counts for a job's folded usage: input weighted by price
-/// (cache read 0.1x, cache write 1.25x) plus output.
 pub fn billable_of(u: &serde_json::Value) -> u64 {
     let n = |k: &str| u[k].as_u64().unwrap_or(0);
     omniget_core::core::llm::types::billable_input(
@@ -377,7 +260,6 @@ pub fn billable_of(u: &serde_json::Value) -> u64 {
     ) + n("output_tokens")
 }
 
-/// Folds one `TurnEvent::Usage` into the running total of a job.
 fn fold_usage(
     total: &mut Option<serde_json::Value>,
     model: &str,
@@ -415,11 +297,8 @@ pub struct LoopDef {
     pub max_minutes: Option<u32>,
     #[serde(default)]
     pub check_command: Option<String>,
-    /// Ceiling of each round (one job), in minutes; `None` = the setting.
     #[serde(default)]
     pub deadline_min: Option<u32>,
-    /// `running|done|failed|cancelled|interrupted|blocked|budget_limited`
-    /// (`blocked` and `budget_limited` come from the auditor's rules, 3.7).
     #[serde(default)]
     pub state: String,
     #[serde(default)]
@@ -434,96 +313,60 @@ pub struct LoopDef {
     pub last_check: Option<String>,
     #[serde(default)]
     pub stop_reason: Option<String>,
-    /// Rounds spaced by an interval (`10m`, `daily`) or a cron line
-    /// (`*/15 * * * *`); `None` = back to back.
     #[serde(default)]
     pub schedule: Option<String>,
-    /// Stop when the rounds together cost this much (USD).
     #[serde(default)]
     pub max_cost_usd: Option<f64>,
     #[serde(default)]
     pub spent_usd: f64,
-    /// [`RunSpec`] of each round when `agent_id` is `tool:<id>`.
     #[serde(default)]
     pub spec: Option<serde_json::Value>,
-    /// Catalog id of the loop it came from.
     #[serde(default)]
     pub source: Option<String>,
-    /// When the next scheduled round starts.
     #[serde(default)]
     pub next_round_ms: Option<u64>,
-    /// Time spent inside rounds (the minute budget of a scheduled loop).
     #[serde(default)]
     pub active_ms: u64,
-    /// "Resume by itself after a restart" for this Loop (3.1); `None` = the
-    /// setting `llm.auto_resume`.
     #[serde(default)]
     pub auto_resume: Option<bool>,
-    /// The host restarted this Loop by itself: the next round starts with
-    /// the "check before repeating" note. Cleared once that round starts.
     #[serde(default)]
     pub restarted: bool,
-    /// Restarts by the host since the last round that finished; at most
-    /// [`AUTO_RESUME_MAX`] in a row.
     #[serde(default)]
     pub auto_restarts: u32,
-    /// The run mode of every round (2.7). `None` = a Loop saved before the
-    /// field: its rounds keep `auto_edits`. The bridge fills
-    /// `approval_required` when the caller sends none.
     #[serde(default)]
     pub run_mode: Option<RunMode>,
-    /// Weighted tokens of all rounds (3.3, PROB C5): what the loop cost when
-    /// its dollars are unknown.
     #[serde(default)]
     pub spent_tokens: u64,
-    /// The part of `spent_usd` that is the price table's estimate (a CLI
-    /// that reported no price), not what the provider billed.
     #[serde(default)]
     pub spent_usd_estimated: f64,
-    /// Rounds whose cost nobody knows (no report, no price).
     #[serde(default)]
     pub unpriced_rounds: u32,
-    /// Stop when the rounds and their audits spent this many billable tokens
-    /// (`billable_of`: input weighted by cache, plus output) → state
-    /// `budget_limited` (3.7, 84#P1).
     #[serde(default)]
     pub token_budget: Option<u64>,
     #[serde(default)]
     pub tokens_used: u64,
-    /// The auditor's model; `None` = the side model of the agent's own
-    /// provider/account (`router::resolve_side`).
     #[serde(default)]
     pub audit_model: Option<String>,
-    /// `blocked` verdicts in a row (3 end the Loop).
     #[serde(default)]
     pub blocked_streak: u32,
-    /// Audits in a row without a verdict (2 end the Loop).
     #[serde(default)]
     pub audit_fail_streak: u32,
-    /// Rounds in a row the agent said done and the auditor `continue` (3
-    /// end the Loop as `blocked`: a person settles it).
     #[serde(default)]
     pub disagree_streak: u32,
-    /// The auditor's last note: the Loop's progress line.
     #[serde(default)]
     pub note: Option<String>,
-    /// One entry per audited round, newest last.
     #[serde(default)]
     pub audits: Vec<LoopAudit>,
-    /// What the audits cost together (also inside `spent_usd`).
     #[serde(default)]
     pub audit_usd: f64,
-    /// Rounds that went out as the short continuation guide (83#P7).
     #[serde(default)]
     pub rounds_guided: u32,
 }
 
-/// One step of a running playbook.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct PlaybookStepRun {
     pub name: String,
     pub agent_id: String,
-    /// The step's own task (the chained context is added at run time).
     pub prompt: String,
     #[serde(default)]
     pub spec: Option<serde_json::Value>,
@@ -531,15 +374,12 @@ pub struct PlaybookStepRun {
     pub runner_label: Option<String>,
     #[serde(default)]
     pub job_id: Option<String>,
-    /// `pending|running|done|failed|cancelled|skipped`
     #[serde(default)]
     pub state: String,
     #[serde(default)]
     pub output: Option<String>,
 }
 
-/// A workflow run as a chain of jobs: the output of each step becomes the
-/// context of the next.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct PlaybookRun {
     #[serde(default)]
@@ -552,7 +392,6 @@ pub struct PlaybookRun {
     #[serde(default)]
     pub workspace: Option<String>,
     pub steps: Vec<PlaybookStepRun>,
-    /// `running|done|failed|cancelled`
     #[serde(default)]
     pub state: String,
     #[serde(default)]
@@ -571,12 +410,10 @@ pub struct Trigger {
     pub id: String,
     #[serde(default)]
     pub name: String,
-    /// `cron|webhook`
     pub kind: String,
     #[serde(default)]
     pub cron: Option<String>,
     pub agent_id: String,
-    /// `{{body}}` is replaced by the webhook body.
     pub prompt: String,
     #[serde(default)]
     pub workspace: Option<String>,
@@ -588,49 +425,30 @@ pub struct Trigger {
     pub fire_count: u32,
     #[serde(default)]
     pub created_ms: u64,
-    /// Silenced: runs, but never notifies.
     #[serde(default)]
     pub muted: bool,
-    /// Digest of the last result that was notified: the same result again
-    /// does not notify again.
     #[serde(default)]
     pub last_digest: Option<String>,
     #[serde(default)]
     pub last_notified_ms: Option<u64>,
-    /// When set, firing starts a mission with these criteria (the prompt is
-    /// its objective) instead of a plain job: the one scheduler starts
-    /// missions too, there is no second queue.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub mission: Option<Value>,
-    /// Ceiling of the job each firing starts, in minutes; `None` = the
-    /// setting `job_default_deadline_min`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub deadline_min: Option<u32>,
-    /// Next scheduled time of a cron routine (epoch ms); `None` for webhooks,
-    /// disabled routines and lines that never fire. The `triggers` column of
-    /// the same name is the truth: only a compare-and-set moves it (1.4).
     #[serde(default)]
     pub next_run_ms: Option<i64>,
-    /// What happens to the times missed while the app was closed or asleep.
     #[serde(default)]
     pub catch_up: CatchUp,
-    /// What happens when a time comes while the last run is still going.
     #[serde(default)]
     pub concurrency: TriggerConcurrency,
-    /// Zone of the cron line: `local` (this machine), `UTC` or `+HH:MM`.
     #[serde(default = "local_zone")]
     pub tz: String,
-    /// Scheduled times that did not run (missed and not caught up, or
-    /// skipped because the last run was still going), all time.
     #[serde(default)]
     pub missed: u32,
     #[serde(default)]
     pub last_missed_ms: Option<u64>,
-    /// Catch-up runs still to start: `skip_if_active` runs them one at a
-    /// time, never two of one routine together.
     #[serde(default)]
     pub backlog: u32,
-    /// Job (or mission) of the last firing.
     #[serde(default)]
     pub last_run_id: Option<String>,
 }
@@ -643,68 +461,43 @@ fn local_zone() -> String {
     "local".into()
 }
 
-/// The times a cron routine missed while nothing could run it (80#P2).
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, Default, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum CatchUp {
-    /// Counted and logged as missed; nothing runs.
     Skip,
-    /// One run for all of them (a daily 9:00 routine opened at 10:00 runs
-    /// once).
     #[default]
     Once,
-    /// One run per missed time, at most [`CATCH_UP_CAP`].
     AllCapped,
 }
 
-/// A scheduled time while the routine's last run is still going.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, Default, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum TriggerConcurrency {
-    /// Not started (counted as missed); catch-up runs wait their turn.
     #[default]
     SkipIfActive,
-    /// Started anyway; the gate orders it.
     Queue,
 }
 
-/// Most catch-up runs one routine starts after a long gap (80#P2).
 pub const CATCH_UP_CAP: u32 = 25;
 
 pub struct Jobs {
     db: Mutex<Connection>,
     app: AppHandle,
     llm: Arc<LlmManager>,
-    /// Slots, per-agent caps and one writer per folder (1.5, 1.6).
     gate: Arc<omniget_core::core::llm::job_gate::Gate>,
     cancels: Mutex<HashMap<String, CancellationToken>>,
     cron_running: AtomicBool,
-    /// One cron pass at a time (the boot pass and the ticker): a pass claims
-    /// and starts its runs before the next one reads who is busy.
     cron_pass: Mutex<()>,
     guards: Mutex<HashMap<String, JobGuard>>,
-    /// Per running job: its turn, when it last heard from it, its deadline
-    /// (what `explain` and the job ask timeout read).
     live: Mutex<HashMap<String, Live>>,
-    /// Per running turn (request id): the job it belongs to and the channel
-    /// its runner reads questions from. The runner is the only writer of its
-    /// row, so the bus hands it the event instead of writing the row itself.
     watchers: Mutex<HashMap<String, (String, tokio::sync::mpsc::UnboundedSender<AskSignal>)>>,
-    /// "Needs you" / "finished" notifications.
     pub attention: Arc<crate::llm_attention::Attention>,
-    /// Wakes a Loop sleeping until its next scheduled round when it is cancelled.
     loop_waits: Mutex<HashMap<String, CancellationToken>>,
-    /// When the cron ticker last ran the worktree GC (epoch ms).
     last_worktree_gc: std::sync::atomic::AtomicU64,
-    /// Bumped on every saved row, so `wait` (2.5) sleeps until something
-    /// changed instead of polling.
     changes: tokio::sync::watch::Sender<u64>,
-    /// Per finished Loop round (job id): its tool calls and their real
-    /// output, rendered for the Loop's auditor (3.7), taken by `run_loop`.
     round_evidence: Mutex<HashMap<String, String>>,
 }
 
-/// A question of a job's turn, as the bus forwarder hands it to the runner.
 #[derive(Debug, Clone)]
 pub enum AskSignal {
     Opened {
@@ -719,8 +512,6 @@ pub enum AskSignal {
     },
 }
 
-/// The OS side of [`crate::llm_attention::Attention`]: the notification
-/// plugin, and the focus of the main window plus the route the front reports.
 struct TauriSink {
     app: AppHandle,
 }
@@ -748,26 +539,17 @@ impl crate::llm_attention::NotifySink for TauriSink {
     }
 }
 
-/// Per-request usage check of a job: `(tokens so far, known usd so far)`;
-/// `Err(reason)` stops the job.
 pub type UsageCheck = Arc<dyn Fn(u64, Option<f64>) -> Result<(), String> + Send + Sync>;
 
-/// Limits a mission puts on one of its jobs while it runs (F7): a caller
-/// check after every model request, and a wall-clock deadline. A job that
-/// hits either ends `failed` with the reason (never `done`).
 #[derive(Clone, Default)]
 pub struct JobGuard {
-    /// Epoch milliseconds after which the job is stopped.
     pub deadline_ms: Option<u64>,
     pub check: Option<UsageCheck>,
-    /// Text of the error when the deadline is reached.
     pub deadline_reason: String,
 }
 
 static JOBS: OnceLock<Arc<Jobs>> = OnceLock::new();
 
-/// Drops a job's cancel token however `run_job` returns (the early returns
-/// of a cancel at the gate included).
 struct Unregister<'a> {
     jobs: &'a Jobs,
     id: &'a str,
@@ -801,8 +583,6 @@ fn clip(s: &str, max: usize) -> String {
     format!("[…]\n{}", &s[cut..])
 }
 
-/// The tables of `jobs.db` and every migration, safe on every open: a
-/// column that already exists is skipped.
 pub fn ensure_schema(db: &Connection, now_ms: i64) -> Result<(), String> {
     db.execute_batch(
         "PRAGMA journal_mode=WAL;
@@ -818,46 +598,33 @@ pub fn ensure_schema(db: &Connection, now_ms: i64) -> Result<(), String> {
          CREATE TABLE IF NOT EXISTS playbooks (id TEXT PRIMARY KEY, body TEXT NOT NULL);",
     )
     .map_err(|e| format!("{ERR_JOBS}: {e}"))?;
-    // Databases created before 0.10.0 final have no usage column.
     let _ = db.execute("ALTER TABLE jobs ADD COLUMN usage TEXT", []);
-    // Watchdog, deadline and state events (1.2, 1.3): older rows read as
-    // seq 0, never seen, no reason, the default deadline.
     for column in [
         "state_seq INTEGER NOT NULL DEFAULT 0",
         "seen_ms INTEGER",
         "failure_reason TEXT",
         "deadline_min INTEGER",
         "deadline_ms INTEGER",
-        // Why a queued job waits (1.6).
         "wait_reason TEXT",
-        // What the job changed (1.7): older rows have no diff yet, and one
-        // is computed the first time someone asks.
         "diff_files TEXT",
         "additions INTEGER",
         "deletions INTEGER",
         "diff_clipped INTEGER NOT NULL DEFAULT 0",
         "diff_unavailable TEXT",
-        // Catalog runs (0.11): the tool run spec and the playbook of a step.
         "spec TEXT",
         "playbook_id TEXT",
-        // Worktree per job (2.3): older rows are `shared`, no worktree.
         "isolation TEXT",
         "base_ref TEXT",
         "worktree_path TEXT",
         "branch TEXT",
         "base_oid TEXT",
-        // Diff by base..tip and the host's proof (2.4).
         "head_oid TEXT",
         "proof TEXT",
-        // One run mode per job (2.7): older rows read as `auto_edits`.
-        // Command surface and outcome (2.5, 2.6).
         "title TEXT",
         "owner TEXT",
         "run_mode TEXT",
         "outcome TEXT",
         "origin TEXT",
-        // Resume after a restart (3.1): the CLI session, the process of the
-        // turn in flight, attempts, the per-job switch, whether it wrote.
         "session_id TEXT",
         "pid INTEGER",
         "pid_start INTEGER",
@@ -875,22 +642,15 @@ pub fn ensure_schema(db: &Connection, now_ms: i64) -> Result<(), String> {
         "CREATE INDEX IF NOT EXISTS jobs_trigger ON jobs(trigger_id)",
         [],
     );
-    // The durable schedule (1.4): routines saved before it start from now.
     let _ = db.execute("ALTER TABLE triggers ADD COLUMN next_run_ms INTEGER", []);
     migrate_triggers(db, now_ms);
-    // Scoped control tokens of the bridge (2.1).
     crate::bridge_tokens::ensure_schema(db).map_err(|e| format!("{ERR_JOBS}: {e}"))?;
-    // Receipts of `POST /v1/commands` and the MCP job tools (2.5).
     crate::job_commands::ensure_schema(db).map_err(|e| format!("{ERR_JOBS}: {e}"))?;
-    // Review notes (3.5).
     review::ensure_notes_schema(db)?;
-    // Per-file baselines of the CLI's own writes (3.4).
     changes::ensure_schema(db)?;
     Ok(())
 }
 
-/// The one instance. The first caller opens the database and resumes what the
-/// last run left behind.
 pub fn get(app: &AppHandle) -> Result<Arc<Jobs>, String> {
     if let Some(j) = JOBS.get() {
         return Ok(j.clone());
@@ -916,7 +676,6 @@ pub fn get(app: &AppHandle) -> Result<Arc<Jobs>, String> {
         watchers: Mutex::new(HashMap::new()),
         attention: crate::llm_attention::Attention::new(Arc::new(TauriSink { app: app.clone() })),
         loop_waits: Mutex::new(HashMap::new()),
-        // The boot pass counts as a GC run.
         last_worktree_gc: std::sync::atomic::AtomicU64::new(now_ms()),
         changes: tokio::sync::watch::channel(0).0,
         round_evidence: Mutex::new(HashMap::new()),
@@ -926,14 +685,11 @@ pub fn get(app: &AppHandle) -> Result<Arc<Jobs>, String> {
         jobs.attention.set_delay(limits.notify_delay);
         jobs.attention
             .set_strings(crate::llm_attention::pushed_strings());
-        // A job's question waits as long as the job may still run (1.3).
         let weak = Arc::downgrade(&jobs);
         jobs.llm
             .set_ask_timeout_resolver(Some(Arc::new(move |request: &str| {
                 weak.upgrade()?.ask_timeout_for(request)
             })));
-        // The "before" of every file a CLI turn writes lands under its job
-        // (3.4).
         let weak = Arc::downgrade(&jobs);
         omniget_core::core::llm::file_changes::set_sink(Some(Arc::new(
             move |request: &str, touch| {
@@ -942,7 +698,6 @@ pub fn get(app: &AppHandle) -> Result<Arc<Jobs>, String> {
                 }
             },
         )));
-        // Waiting rows follow the gate: state, reason and `llm://queue`.
         let weak = Arc::downgrade(&jobs);
         let mut changed = jobs.gate.subscribe();
         tauri::async_runtime::spawn(async move {
@@ -953,8 +708,6 @@ pub fn get(app: &AppHandle) -> Result<Arc<Jobs>, String> {
             }
         });
         {
-            // No job runs yet: a token a crash left live dies here, and the
-            // CLI finds a valid token of its own (2.1).
             let db = jobs.db();
             let now = now_ms();
             if let Err(e) = crate::bridge_tokens::revoke_orphan_job_tokens(&db, now) {
@@ -971,26 +724,17 @@ pub fn get(app: &AppHandle) -> Result<Arc<Jobs>, String> {
     Ok(JOBS.get().cloned().unwrap_or(jobs))
 }
 
-/// The instance, if something already opened it. Never opens it (the boot
-/// order matters: runs are reconciled before jobs resume).
 pub fn try_get() -> Option<Arc<Jobs>> {
     JOBS.get().cloned()
 }
 
-/// Called by the bus forwarder for every bus event: questions of a job's
-/// turn change its state the moment they happen (A7), and the ones nobody
-/// answers become notifications (A4).
 pub fn on_bus(event: &omniget_core::core::omni::bus::BusEvent) {
     if let Some(jobs) = try_get() {
         jobs.handle_bus(event);
     }
 }
 
-/// Called from the app setup so a Loop left running comes back without anyone
-/// opening `/llm`.
 pub fn boot(app: &AppHandle) {
-    // The durable run record first: reconcile what the last session left in
-    // flight before anything new can start.
     crate::commands::assist::runs::install(app);
     let app = app.clone();
     tauri::async_runtime::spawn(async move {
@@ -998,7 +742,6 @@ pub fn boot(app: &AppHandle) {
         if let Err(e) = get(&app) {
             tracing::warn!("[jobs] boot: {e}");
         } else {
-            // Missions after jobs: their reconciliation reads job outcomes.
             crate::missions::boot(&app);
         }
     });
@@ -1084,9 +827,6 @@ impl Jobs {
         self.db.lock().unwrap_or_else(|e| e.into_inner())
     }
 
-    // ── bridge tokens (2.1) ──────────────────────────────────────────
-
-    /// What a bearer presented to an agent route is (the bridge's guard).
     pub fn token_lookup(&self, token: &str) -> crate::bridge_tokens::Lookup {
         crate::bridge_tokens::lookup(&self.db(), token, now_ms())
     }
@@ -1116,9 +856,6 @@ impl Jobs {
         crate::bridge_tokens::revoke(&self.db(), id, now_ms())
     }
 
-    /// The job's own token for the length of its turn (see
-    /// [`crate::bridge_tokens::JobTokenLease`]). A failure to mint only
-    /// costs the child its token, never the job.
     fn job_token_lease(
         self: &Arc<Self>,
         job: &Job,
@@ -1155,15 +892,9 @@ impl Jobs {
         Some(lease)
     }
 
-    // ── jobs ─────────────────────────────────────────────────────────
-
     fn save_job_checked(&self, job: &Job) -> Result<(), String> {
         let state_seq = {
             let db = self.db();
-            // The stored row decides the sequence, not the caller's copy: a
-            // runner, the bus handler and a cancel may each hold one, and the
-            // number must still only grow, by one per real state change.
-            // `seen_ms` is owned by the user's side (`mark_seen`): kept.
             let stored: Option<(String, i64, Option<i64>)> = db
                 .query_row(
                     "SELECT state, state_seq, seen_ms FROM jobs WHERE id=?1",
@@ -1245,14 +976,10 @@ impl Jobs {
             .map_err(|_| "JOB_STORAGE_UNAVAILABLE".to_owned())?;
             (seq, seen)
         };
-        // The list view does not need the log on every event. The event is
-        // the whole row, so it carries `{id, state, state_seq}` too.
         let mut light = job.clone();
         light.state_seq = state_seq.0;
         light.seen_ms = state_seq.1;
         light.log = clip(&light.log, 4096);
-        // Up to 1000 file entries: the totals travel, the list is read on
-        // demand (`llm_job_diff`, `GET /v1/jobs/{id}/diff`).
         light.diff_files = None;
         light.proof = None;
         let _ = self.app.emit(EVENT_JOB, &light);
@@ -1289,8 +1016,6 @@ impl Jobs {
         rows.map(|r| {
             r.filter_map(Result::ok)
                 .map(|mut j| {
-                    // Rows of a list carry the diff totals, not the file
-                    // list (see `save_job_checked`).
                     j.log = String::new();
                     j.diff_files = None;
                     j.proof = None;
@@ -1322,9 +1047,6 @@ impl Jobs {
             return Err(format!("{ERR_JOBS}: empty prompt"));
         }
         let id = short_id("j");
-        // A job that continues an existing conversation (a chat turn the app
-        // closed on) keeps that conversation's mode, the chat default when
-        // it never chose one; a fresh job takes the default of its kind.
         let run_mode = match &conversation_id {
             Some(conv) => omniget_core::core::llm::run_mode::chosen(&sanitize_id(conv))
                 .unwrap_or(RunMode::AutoEdits),
@@ -1345,7 +1067,6 @@ impl Jobs {
         })
     }
 
-    /// Queue one turn and return at once.
     pub fn submit(
         self: &Arc<Self>,
         kind: &str,
@@ -1366,8 +1087,6 @@ impl Jobs {
         )
     }
 
-    /// [`Self::submit`] with the job's own deadline in minutes (`None` = the
-    /// `job_default_deadline_min` setting).
     #[allow(clippy::too_many_arguments)]
     pub fn submit_with_deadline(
         self: &Arc<Self>,
@@ -1391,8 +1110,6 @@ impl Jobs {
         Ok(job)
     }
 
-    /// Creates a job without running it, so a mission can record the job id
-    /// (its effect key) before anything is dispatched.
     pub fn prepare(
         &self,
         kind: &str,
@@ -1406,7 +1123,6 @@ impl Jobs {
         Ok(job)
     }
 
-    /// [`Self::run_prepared`] under a mission's [`JobGuard`].
     pub async fn run_prepared_guarded(self: &Arc<Self>, id: &str, guard: JobGuard) -> Option<Job> {
         self.guards
             .lock()
@@ -1420,7 +1136,6 @@ impl Jobs {
         out
     }
 
-    /// Like [`Jobs::submit`] with a run spec (tool runners, sandbox).
     pub fn submit_spec(
         self: &Arc<Self>,
         kind: &str,
@@ -1440,11 +1155,6 @@ impl Jobs {
         Ok(job)
     }
 
-    /// Starts the job of a `job.start` command (2.5), owned by `owner`. The
-    /// command's fields land on the row; `resume_of` continues that job's
-    /// conversation (and folder, unless another is named); `model` becomes
-    /// the conversation's model on the agent's own provider; `budget_usd`
-    /// guards the turn ([`with_budget`]). `effort` is recorded only.
     pub fn submit_command(
         self: &Arc<Self>,
         s: &crate::job_commands::StartSpec,
@@ -1453,9 +1163,6 @@ impl Jobs {
         self.start_spec(s, Some(owner), RunMode::ApprovalRequired)
     }
 
-    /// The job of a start spec from the window (3.10: the same path as a
-    /// command, so the folder's workflow applies), with no owner and the
-    /// window's default mode when none was chosen.
     pub fn submit_window(
         self: &Arc<Self>,
         s: &crate::job_commands::StartSpec,
@@ -1508,8 +1215,6 @@ impl Jobs {
         }
         job.title = s.title.clone();
         job.owner = owner.map(str::to_string);
-        // The mode asked for (2.7); none = the resumed job's, else a job from
-        // outside asks first (D2).
         job.run_mode = match s.run_mode.as_deref() {
             Some(m) => RunMode::parse(m)?,
             None => earlier.as_ref().map(|e| e.run_mode).unwrap_or(default_mode),
@@ -1522,8 +1227,6 @@ impl Jobs {
             "effort": s.effort,
             "budget_usd": s.budget_usd,
             "resume_of": s.resume_of,
-            // What `.omniget/workflow.md` filled in and held back (3.10);
-            // its hooks and checks append their runs here.
             "workflow": s.applied_workflow,
         }));
         if let Some(model) = s.model.as_deref() {
@@ -1547,11 +1250,6 @@ impl Jobs {
             )?;
         }
         self.save_job_checked(&job)?;
-        // The US$ budget of the start (the caller's, or the folder's
-        // workflow `budget:`, 3.10) is also a hard policy on `job:<id>`
-        // (3.3): one budget mechanism, priced even when the CLI reports no
-        // cost, with an incident when crossed. The guard below still stops
-        // the turn in flight.
         if let Some(usd) = s.budget_usd.filter(|b| *b > 0.0) {
             budget_policy(
                 omniget_core::core::llm::budget::policy::Scope::Job(job.id.clone()),
@@ -1567,7 +1265,6 @@ impl Jobs {
         Ok(job)
     }
 
-    /// Something saved a job row since `seen` (see [`Self::changes`]).
     pub fn subscribe(&self) -> tokio::sync::watch::Receiver<u64> {
         self.changes.subscribe()
     }
@@ -1576,8 +1273,6 @@ impl Jobs {
         self.cancel_by(id, omniget_core::core::llm::audit::Actor::system("system"))
     }
 
-    /// [`Self::cancel`] on someone's behalf: the audit line (2.8) says who
-    /// asked and through what, when the job was still alive.
     pub fn cancel_by(
         &self,
         id: &str,
@@ -1592,9 +1287,6 @@ impl Jobs {
         ) {
             crate::llm_audit::job_cancelled(actor, &job);
         }
-        // Persist before consulting the token. The runner either sees this
-        // cancelled row on its re-read or has already registered its token
-        // (a job waiting at the gate has one: the cancel wakes the wait).
         if matches!(job.state.as_str(), "queued" | "waiting_workspace") {
             job.state = "cancelled".into();
             job.finished_ms = Some(now_ms());
@@ -1608,7 +1300,6 @@ impl Jobs {
         {
             token.cancel();
         }
-        // Also through the manager, which drops the turn's pending questions.
         if let Some(request) = job.request_id.as_deref() {
             let _ = self.llm.cancel(request);
         }
@@ -1617,8 +1308,6 @@ impl Jobs {
 
     pub fn delete(&self, id: &str) -> Result<(), String> {
         let _ = self.cancel(id);
-        // The worktree goes too, its work saved on the branch first (2.3),
-        // unless a follow-up job (3.5) still works in it.
         let shared_worktree = |j: &Job| -> bool {
             self.db()
                 .query_row(
@@ -1656,21 +1345,12 @@ impl Jobs {
         Ok(())
     }
 
-    // ── diff (1.7) ───────────────────────────────────────────────────
-
-    /// The folder the job's turns wrote in: the conversation's bound folder
-    /// (canonical, which is what the snapshots are keyed by), else the
-    /// job's own.
     fn diff_folder(&self, job: &Job) -> Option<std::path::PathBuf> {
         code_tools::workspace_of(&sanitize_id(&job.conversation_id)).or_else(|| {
             effective_workspace(job).map(|w| std::fs::canonicalize(&w).unwrap_or_else(|_| w.into()))
         })
     }
 
-    /// Fills the job's diff fields; returns the patch when there is one,
-    /// and the two ends compared (for the proof). A job in a worktree is
-    /// diffed `merge-base(base_oid, HEAD)..worktree` (2.4); any other from
-    /// its shadow snapshots (1.7).
     async fn compute_diff(
         &self,
         job: &mut Job,
@@ -1693,7 +1373,6 @@ impl Jobs {
                     }
                     None => Err(format!("{NO_WORKSPACE}: the job ran without a folder")),
                 };
-                // No snapshot to diff: the baselines the stream gave (3.4).
                 match out {
                     Err(e) => {
                         let rows = self.changes(&job.id);
@@ -1714,7 +1393,6 @@ impl Jobs {
         (apply_diff(job, out), ends)
     }
 
-    /// [`Self::compute_diff`] and the patch file next to `jobs.db`.
     async fn record_diff(&self, job: &mut Job, requests: &[String]) -> Option<(String, String)> {
         let (patch, ends) = self.compute_diff(job, requests).await;
         let Some(path) = patch_path(&job.id) else {
@@ -1751,10 +1429,6 @@ impl Jobs {
         );
     }
 
-    /// The job's diff as stored, its patch, and whether it is final. A
-    /// finished job recorded before 1.7 (or a chat turn) gets its diff
-    /// computed and stored now; a running one is diffed against the folder
-    /// as it is (`complete = false`), nothing stored.
     pub async fn diff(&self, id: &str) -> Result<(Job, Option<String>, bool), String> {
         let mut job = self
             .job(id)
@@ -1775,15 +1449,12 @@ impl Jobs {
         let patch = job.diff_files.as_ref().and_then(|files| {
             match patch_path(&job.id).and_then(|p| std::fs::read_to_string(p).ok()) {
                 Some(text) => Some(text),
-                // No file: nothing changed, or the file is gone.
                 None => files.is_empty().then(String::new),
             }
         });
         Ok((job, patch, true))
     }
 
-    /// A turn of the conversation tab, mirrored as a job so `/llm/jobs` shows
-    /// everything the agents did.
     pub fn chat_started(
         &self,
         agent_id: &str,
@@ -1841,26 +1512,18 @@ impl Jobs {
         self.save_job(&job);
     }
 
-    /// Runs one job to the end. `resume_note` replaces the prompt when the job
-    /// was already running when the app died.
     async fn run_job(self: &Arc<Self>, id: &str, resume_note: Option<String>) -> Option<Job> {
         let queued = self.job(id)?;
         if queued.state == "cancelled" {
             return Some(queued);
         }
-        // A resumed job keeps the turn it had before: its diff spans both.
         let earlier_request = queued.request_id.clone();
-        // Registered before the wait, so a cancel while queued wakes it (the
-        // gate drops it from the queue) instead of waiting for a slot first.
         let cancel = CancellationToken::new();
         self.cancels
             .lock()
             .unwrap_or_else(|e| e.into_inner())
             .insert(id.to_string(), cancel.clone());
         let _unregister = Unregister { jobs: self, id };
-        // Where the job writes (2.3): its folder, or a worktree of its own
-        // (asked, or `auto` with the folder busy). Only a folder in a git
-        // repository with a commit can have one.
         let repo = match queued
             .workspace
             .as_deref()
@@ -1875,10 +1538,6 @@ impl Jobs {
             Ok(p) => p,
             Err(e) => return self.fail_before_start(id, e),
         };
-        // One gate for a slot, the agent's share and the folder (1.5, 1.6):
-        // the same for native, CLI and ACP agents, since it holds the job,
-        // not a tool. Chat turns never come here. A job going to a worktree
-        // takes no folder lock: nobody else writes there.
         let ticket = omniget_core::core::llm::job_gate::Ticket {
             job_id: id.to_string(),
             agent_id: queued.agent_id.clone(),
@@ -1898,7 +1557,6 @@ impl Jobs {
             _ = cancel.cancelled() => return self.job(id),
             placed = self.gate.acquire_placed(ticket, place.if_busy) => placed,
         };
-        // The slot is this job's; the spawn waits its turn (500 ms apart).
         if !lease.delay.is_zero() {
             tokio::select! {
                 biased;
@@ -1907,7 +1565,6 @@ impl Jobs {
             }
         }
         let _lease = lease;
-        // The computer stays awake while an agent job runs (washmybelly).
         let _power_hold = omniget_core::core::washmybelly::power::auto_hold_begin("agent job");
         let mut job = self.job(id)?;
         if job.state == "cancelled" {
@@ -1931,8 +1588,6 @@ impl Jobs {
                 return Some(job);
             }
         }
-        // Cancellation may have landed between the gate and here. Re-read
-        // its durable state before dispatching anything.
         if self
             .job(id)
             .is_none_or(|current| current.state == "cancelled")
@@ -1944,8 +1599,6 @@ impl Jobs {
                 .remove(&job.id);
             return self.job(id);
         }
-        // A scope paused by a budget incident starts nothing (3.3): the job
-        // fails before its turn, and says which incident holds it.
         if let Some(block) = self.budget_block(&job) {
             job.state = "failed".into();
             job.failure_reason = Some("budget".into());
@@ -1956,12 +1609,8 @@ impl Jobs {
         }
         job.state = "running".into();
         job.started_ms = Some(now_ms());
-        // The process of an earlier attempt is not this one (3.1).
         job.pid = None;
         job.pid_start = None;
-        // A mission brings its own guard; every other background job gets the
-        // default deadline (D4: a stuck run, Loop round or trigger can no
-        // longer hold a slot until the app closes).
         let guard = self
             .guards
             .lock()
@@ -1980,7 +1629,6 @@ impl Jobs {
                     },
                 )
             });
-        // A budget from `job.start` (2.5) rides on whatever guard the job has.
         let guard = with_budget(
             guard,
             job.origin.as_ref().and_then(|o| o["budget_usd"].as_f64()),
@@ -1998,20 +1646,13 @@ impl Jobs {
         if job.agent_id.starts_with(TOOL_PREFIX) {
             return Some(self.run_tool_job(job, input).await);
         }
-        // The agent ends with its own verdict (2.6); the host still decides
-        // the state from what it saw.
         let input = if asks_outcome(&job.kind) {
             format!("{input}{OUTCOME_SUFFIX}")
         } else {
             input
         };
-        // Held to the end of the job: however this returns, the token is
-        // revoked and leaves the conversation's env (2.1).
         let _job_token = self.job_token_lease(&job, &conv);
-        // The turns of this job run in its run mode (2.7), whatever the
-        // conversation had chosen; the binding goes with the job.
         let _run_mode = omniget_core::core::llm::run_mode::Binding::new(&conv, job.run_mode);
-        // Its turns count against `job:<id>` (and its Loop's) budgets (3.3).
         let _budget_scope =
             omniget_core::core::llm::budget::policy::Binding::new(&conv, work_scopes(&job));
         let (request_id, cancel, mut stream) = match self
@@ -2042,8 +1683,6 @@ impl Jobs {
             .lock()
             .unwrap_or_else(|e| e.into_inner())
             .insert(job.id.clone(), cancel.clone());
-        // Questions of this turn reach this loop through the bus forwarder
-        // (`on_bus`), the moment they are raised and resolved.
         let (ask_tx, mut asks) = tokio::sync::mpsc::unbounded_channel::<AskSignal>();
         self.watchers
             .lock()
@@ -2058,7 +1697,6 @@ impl Jobs {
                 deadline_ms: job.deadline_ms,
             },
         );
-        // A question raised before the watcher existed is still seen.
         if self.llm.has_pending_ask(&request_id) {
             job.state = "waiting_approval".into();
         }
@@ -2070,15 +1708,10 @@ impl Jobs {
         let mut text = String::new();
         let mut saw_finished = false;
         let mut error: Option<String> = None;
-        // Set when a guard stopped the job (cap or deadline), with its kind.
         let mut limit_hit: Option<String> = None;
         let mut limit_kind: Option<&'static str> = None;
-        // Input tokens of the model requests so far (prune receipts), for the
-        // guard's check between requests; the exact total arrives as `Usage`.
         let mut est_input: u64 = 0;
         let check = guard.as_ref().and_then(|g| g.check.clone());
-        // The guard's view of the job so far: the reported usage when there is
-        // one, else the request inputs plus the text streamed (chars / 4).
         let spent_so_far =
             |usage: &Option<serde_json::Value>, est_input: u64, text: &str| -> (u64, Option<f64>) {
                 let u = usage.clone().unwrap_or_default();
@@ -2090,7 +1723,6 @@ impl Jobs {
             };
         let mut tick = tokio::time::interval(std::time::Duration::from_secs(1));
         let mut first_event = true;
-        // A Loop round keeps what its tools did, for the auditor (3.7).
         let mut evidence = job
             .loop_id
             .is_some()
@@ -2100,8 +1732,6 @@ impl Jobs {
                 event = stream.next() => {
                     let Some(event) = event else { break };
                     self.touch(&job.id);
-                    // The session and the process go on the row at the
-                    // first event, not at the end (3.1).
                     if first_event {
                         first_event = false;
                         if self.capture_process(&mut job, &request_id, &conv) && self.save_job_checked(&job).is_err() {
@@ -2123,8 +1753,6 @@ impl Jobs {
                             job.log.push_str(&format!("→ {name}\n"));
                             job.log = clip(&job.log, LOG_MAX);
                             if self.save_job_checked(&job).is_err() { storage_failed = true; cancel.cancel(); }
-                            // A tool call ends a model request: check the cap
-                            // before the next one is sent (F7).
                             if let (Some(check), None) = (&check, &limit_hit) {
                                 let (tokens, usd) = spent_so_far(&job.usage, est_input, &text);
                                 if let Err(why) = check(tokens, usd) {
@@ -2137,7 +1765,6 @@ impl Jobs {
                         }
                         receipt @ TurnEvent::PruneReceipt { .. } => {
                             if let TurnEvent::PruneReceipt { input_tokens, billable_input_tokens, est_tokens_after, .. } = &receipt {
-                                // Weighted input when the receipt has it (cache 0.1x/1.25x).
                                 est_input += billable_input_tokens.or(*input_tokens).unwrap_or(*est_tokens_after) as u64;
                             }
                             let model = self.llm.model_label(&job.agent_id);
@@ -2155,8 +1782,6 @@ impl Jobs {
                         TurnEvent::Usage { usage } => {
                             let model = self.llm.model_label(&job.agent_id);
                             fold_usage(&mut job.usage, &model, &usage);
-                            // Per model request: the mission's cap holds
-                            // during the job, not only before it (F7).
                             if let (Some(check), None) = (&check, &limit_hit) {
                                 let u = job.usage.clone().unwrap_or_default();
                                 let tokens = billable_of(&u);
@@ -2176,13 +1801,10 @@ impl Jobs {
                     }
                 }
                 Some(signal) = asks.recv() => {
-                    // A7: `waiting_approval` is born with the question itself.
                     self.apply_ask(&mut job, &request_id, signal);
                     if self.save_job_checked(&job).is_err() { storage_failed = true; cancel.cancel(); }
                 }
                 _ = tick.tick() => {
-                    // A session named after the first event (the CLI's init
-                    // line comes a moment after the spawn) still lands.
                     if self.capture_process(&mut job, &request_id, &conv) && self.save_job_checked(&job).is_err() {
                         storage_failed = true;
                         cancel.cancel();
@@ -2196,8 +1818,6 @@ impl Jobs {
                             cancel.cancel();
                         }
                     }
-                    // Only a safety net for a bus event lost to lag: the
-                    // state itself follows the ask events above.
                     let waiting = self.llm.has_pending_ask(&request_id);
                     let want = if waiting { "waiting_approval" } else { "running" };
                     if job.state != want {
@@ -2232,7 +1852,6 @@ impl Jobs {
             cancel.cancel();
             return None;
         }
-        // The turn's process is over (3.1).
         job.pid = None;
         job.pid_start = None;
         job.state = if limit_hit.is_some() {
@@ -2250,21 +1869,13 @@ impl Jobs {
         if asks_outcome(&job.kind) {
             job.outcome = parse_outcome(&text);
         }
-        // What the job changed, from the snapshots its turns took: host-side
-        // post-processing, not a token more (1.7). The Coordinator records
-        // the tree after the turn before the stream says `Finished`.
         let requests: Vec<String> = earlier_request
             .into_iter()
             .chain(std::iter::once(request_id.clone()))
             .collect();
-        // In a worktree the job's work becomes a commit on its branch, so
-        // `head_oid` names the result (2.4); the diff still counts anything
-        // left uncommitted, through a private index.
         self.commit_worktree(&mut job).await;
         let ends = self.record_diff(&mut job, &requests).await;
-        // A job that wrote waits for a person: `review`, not `done` (2.4).
         job.state = settle_state(&job.state, job.diff_files.as_deref()).into();
-        // A run that ended without its `OUTCOME:` line says so (2.6).
         job.state = settle_outcome(&job.kind, &job.state, job.outcome.is_some()).into();
         job.failure_reason = (job.state == "failed")
             .then(|| {
@@ -2273,7 +1884,6 @@ impl Jobs {
                     .map(String::from)
             })
             .flatten();
-        // Cancelled by a budget crossing (`cancel_scope`): the mark stays.
         if job.state == "cancelled"
             && self
                 .job(&job.id)
@@ -2287,11 +1897,7 @@ impl Jobs {
             ends.as_ref(),
             &omniget_core::core::vcs::job_worktree::host_label(),
         ));
-        // The repository's checks from its workflow (3.10), when trusted:
-        // each exit code lands in the proof.
         crate::job_workflow::run_checks(crate::job_workflow::store().as_deref(), &mut job).await;
-        // A worktree the job did not change has nothing to review: it goes
-        // now, with its branch (2.3).
         if job.worktree_path.is_some()
             && job.diff_unavailable.is_none()
             && job.diff_files.as_ref().is_some_and(|f| f.is_empty())
@@ -2305,14 +1911,9 @@ impl Jobs {
             }
         }
         self.save_job_checked(&job).ok()?;
-        // How it ended (2.8); a cancel already has its line, with who asked.
-        // A run the watchdog stopped ends here too, even when it goes
-        // again by itself below (that start gets its own line, 3.1).
         if job.state != "cancelled" {
             crate::llm_audit::job_ended(&job);
         }
-        // Stopped by the watchdog: the host's problem, not the agent's. When
-        // asked, and when it is safe (3.1), the job goes again by itself.
         if let Some(reason) = job
             .failure_reason
             .as_deref()
@@ -2324,7 +1925,6 @@ impl Jobs {
             }
         }
         if let Some(tid) = job.trigger_id.clone() {
-            // Routines keep their own rule (only a changed result, muted).
             self.notify_routine(&tid, &job);
         } else if job.kind == "run"
             && matches!(
@@ -2344,10 +1944,6 @@ impl Jobs {
         Some(job)
     }
 
-    /// Commits what the job left in its worktree onto its branch (2.4), as
-    /// OmniGet through a private index: no hook of the repository runs and
-    /// nothing is signed. A failure leaves the work uncommitted in the
-    /// worktree (the diff still counts it) and says so in the log.
     async fn commit_worktree(&self, job: &mut Job) {
         use omniget_core::core::vcs::job_worktree;
         if job.worktree_path.is_none() {
@@ -2356,7 +1952,6 @@ impl Jobs {
         let Some((_, root)) = worktree_root(job).await else {
             return;
         };
-        // The task as asked, not the workflow's template around it (3.10).
         let task = job
             .origin
             .as_ref()
@@ -2383,8 +1978,6 @@ impl Jobs {
         }
     }
 
-    /// Adds a check that ran after the job (a Loop's `check_command`) to its
-    /// proof, with the exit code.
     fn attach_check(&self, job_id: &str, command: &str, ok: bool, out: &str) {
         let Some(mut job) = self.job(job_id) else {
             return;
@@ -2393,7 +1986,6 @@ impl Jobs {
         self.save_job(&job);
     }
 
-    /// Ends a job that cannot start as asked (before the gate).
     fn fail_before_start(&self, id: &str, error: String) -> Option<Job> {
         let mut job = self.job(id)?;
         job.state = "failed".into();
@@ -2404,9 +1996,6 @@ impl Jobs {
         Some(job)
     }
 
-    /// Puts the job in its worktree when it goes to one (2.3): made now
-    /// (with the user's uncommitted work carried in, or from `base_ref`), or
-    /// recreated from the job's branch when a resumed job finds it gone.
     async fn enter_worktree(
         &self,
         job: &mut Job,
@@ -2425,7 +2014,6 @@ impl Jobs {
             if recreated {
                 job.log
                     .push_str(&format!("⎇ worktree recreated from {branch}\n"));
-                // A fresh checkout again: the workflow's hook runs again (3.10).
                 crate::job_workflow::after_create(
                     crate::job_workflow::store().as_deref(),
                     job,
@@ -2451,8 +2039,6 @@ impl Jobs {
                 .push_str("⎇ another job is writing in this folder: this one runs in a worktree\n");
         }
         job.log.push_str(&worktree_note(&wt));
-        // A job given a subfolder of the repository works in the same
-        // subfolder of its worktree.
         let sub = job
             .workspace
             .as_deref()
@@ -2464,9 +2050,6 @@ impl Jobs {
         job.branch = Some(wt.branch);
         job.base_oid = Some(wt.base_oid);
         self.save_job_checked(job)?;
-        // The repository's `after_create` hook, only when its workflow is
-        // trusted (3.10; the hooks 2.3 deferred). A failure fails the job;
-        // the worktree stays until it is removed like any other.
         let hooked = crate::job_workflow::after_create(
             crate::job_workflow::store().as_deref(),
             job,
@@ -2478,9 +2061,6 @@ impl Jobs {
         hooked
     }
 
-    /// Removes the job's worktree (2.3), never losing work: what is not
-    /// committed is saved on its branch first, and a branch holding work is
-    /// kept and named in the job's log. Refused while the job runs.
     pub async fn remove_worktree(
         &self,
         id: &str,
@@ -2505,10 +2085,6 @@ impl Jobs {
         Ok(out)
     }
 
-    /// Removes the worktrees nobody needs any more (2.3): an orphan (its job
-    /// row is gone) and one of a job that ended more than
-    /// [`WORKTREE_TTL_MS`] ago. Work is saved on the branch first, as in
-    /// every removal. On boot the trash left by a crash is emptied too.
     async fn gc_worktrees(self: Arc<Self>, boot: bool) {
         use omniget_core::core::vcs::job_worktree;
         if boot {
@@ -2517,7 +2093,6 @@ impl Jobs {
         let now = now_ms();
         let live = self.live_folders("");
         for (id, path) in job_worktree::list_job_worktrees() {
-            // A follow-up job (3.5) may be working in a finished job's worktree.
             if omniget_core::core::llm::snapshot::shared_with(&path, &live).is_some() {
                 continue;
             }
@@ -2528,7 +2103,6 @@ impl Jobs {
             let result = match job {
                 Some(j) if j.worktree_path.is_some() => self.remove_worktree(&j.id).await,
                 _ => {
-                    // Only a folder on the job's own branch is taken for it.
                     let branch = job_worktree::branch_of(&id);
                     if job_worktree::branch_at(&path).await.as_deref() != Some(branch.as_str()) {
                         continue;
@@ -2552,13 +2126,10 @@ impl Jobs {
         }
     }
 
-    /// The repository of a job's worktree and the worktree's root folder
-    /// (`worktree_path` may be a subfolder of it).
     async fn worktree_root(&self, job: &Job) -> Option<(std::path::PathBuf, std::path::PathBuf)> {
         worktree_root(job).await
     }
 
-    /// Marks that the turn of a running job was just heard from.
     fn touch(&self, job_id: &str) {
         if let Some(l) = self
             .live
@@ -2570,7 +2141,6 @@ impl Jobs {
         }
     }
 
-    /// Who a notification about this job names, and where it lives.
     fn target_of(&self, job: &Job) -> crate::llm_attention::AttentionTarget {
         crate::llm_attention::AttentionTarget {
             job_id: job.id.clone(),
@@ -2584,10 +2154,6 @@ impl Jobs {
         }
     }
 
-    /// One question event applied to a job's row (in memory; the caller
-    /// saves): the state follows the question at once, an unanswered one is
-    /// scheduled as a notification, and an expired one is written down with
-    /// its reason and said out loud — never a silent "no" (A3).
     fn apply_ask(&self, job: &mut Job, request_id: &str, signal: AskSignal) {
         match signal {
             AskSignal::Opened {
@@ -2630,9 +2196,6 @@ impl Jobs {
         }
     }
 
-    /// Routes a bus event to the job it belongs to: the runner of a
-    /// background job (through its channel, so it stays the only writer of
-    /// its row), or the row of a chat turn directly.
     fn handle_bus(&self, event: &omniget_core::core::omni::bus::BusEvent) {
         use omniget_core::core::omni::bus::BusEvent;
         if let BusEvent::BudgetCrossed {
@@ -2689,7 +2252,6 @@ impl Jobs {
             let _ = tx.send(signal);
             return;
         }
-        // A chat turn has no runner here: its mirror row is updated in place.
         let row = self
             .db()
             .query_row(
@@ -2707,9 +2269,6 @@ impl Jobs {
             self.save_job(&job);
             return;
         }
-        // A turn with no job at all (Help, the stateless bridge): there is
-        // no row to write the reason to, but an expiry is still said out
-        // loud — the agent got ERR_TOOL_TIMEOUT, and so does the user.
         if let (
             BusEvent::ToolAskResolved { agent, .. },
             AskSignal::Resolved {
@@ -2738,8 +2297,6 @@ impl Jobs {
         }
     }
 
-    /// How long a question of this turn waits, when the turn is a running
-    /// background job; `None` = not one (the chat's timeout applies).
     fn ask_timeout_for(&self, request_id: &str) -> Option<std::time::Duration> {
         let deadline = self
             .live
@@ -2752,7 +2309,6 @@ impl Jobs {
         job_ask_timeout(now_ms(), deadline, ask_job)
     }
 
-    /// The job whose turn is `request_id` (the run id of its asks, 2.2).
     pub fn job_of_request(&self, request_id: &str) -> Option<String> {
         self.db()
             .query_row(
@@ -2765,7 +2321,6 @@ impl Jobs {
             .flatten()
     }
 
-    /// `GET /v1/jobs/{id}/explain` and `omniget agent explain`.
     pub fn explain(&self, id: &str) -> Option<Value> {
         let job = self.job(id)?;
         let live = self
@@ -2787,7 +2342,6 @@ impl Jobs {
             .and_then(|r| omniget_core::core::assist::runs::active()?.run(r))
             .and_then(|r| r.pid);
         let mut v = explain_view(&job, live.as_ref(), now_ms(), &asks, pid);
-        // Still at the gate: where it stands and why (1.6).
         let view = self.gate.snapshot();
         if let Some(q) = view.queued.iter().find(|q| q.job_id == id) {
             let mut queue = json!({
@@ -2804,11 +2358,6 @@ impl Jobs {
         Some(v)
     }
 
-    // ── the gate: folder, queue, limits (1.5, 1.6) ─────────────────────
-
-    /// The folder a job may write in: its own, or the one its conversation
-    /// is already bound to. `None` = a personal job (the agent's private
-    /// sandbox, no project tools), which takes no folder lock.
     fn folder_of(&self, job: &Job) -> Option<omniget_core::core::llm::folder_key::FolderKey> {
         effective_workspace(job)
             .map(std::path::PathBuf::from)
@@ -2816,9 +2365,6 @@ impl Jobs {
             .map(|p| omniget_core::core::llm::folder_key::FolderKey::of(&p))
     }
 
-    /// Writes the state and reason of every job still at the gate, only when
-    /// they changed, and sends `llm://queue`. Only a row still `queued` or
-    /// `waiting_workspace` is touched, so a cancel is never overwritten.
     fn report_queue(&self, reported: &mut HashMap<String, (&'static str, String)>) {
         let view = self.gate.snapshot();
         let mut still = std::collections::HashSet::new();
@@ -2852,11 +2398,8 @@ impl Jobs {
             .emit(EVENT_QUEUE, state_view(&view, &|id| self.job(id)));
     }
 
-    /// `GET /v1/state`, `llm_jobs_state`, `omniget agent status`.
     pub fn state_view(&self) -> Value {
         let mut v = state_view(&self.gate.snapshot(), &|id| self.job(id));
-        // Whether the app is running with no window (3.2): the CLI and the
-        // daemon benchmark read it; `pid` stays on the local bridge.
         let visible = self
             .app
             .get_webview_window("main")
@@ -2870,22 +2413,15 @@ impl Jobs {
         v
     }
 
-    /// New caps from the settings, applied to running jobs at once (no
-    /// permit lost or made up, see `job_gate`).
     pub fn apply_limits(&self, s: &omniget_core::models::settings::LlmSettings) {
         let l = gate_limits(s);
         self.gate.set_limits(l.max_parallel, l.max_per_agent);
     }
 
-    /// The parallel cap now: how many tasks a mission sends to the gate at
-    /// once (the gate still orders them behind manual jobs).
     pub fn max_parallel(&self) -> usize {
         self.gate.limits().max_parallel
     }
 
-    /// Folders of the turns running right now in other conversations: jobs
-    /// and chat turns (mirrored as `chat` jobs). The undo guard refuses to
-    /// restore files that overlap any of them.
     pub fn live_folders(&self, except_conversation: &str) -> Vec<std::path::PathBuf> {
         let except = sanitize_id(except_conversation);
         let rows: Vec<(String, Option<String>)> = {
@@ -2909,7 +2445,6 @@ impl Jobs {
             .collect()
     }
 
-    /// The user opened this job: its "not seen" badge goes away.
     pub fn mark_seen(&self, id: &str) -> Result<Job, String> {
         self.db()
             .execute(
@@ -2921,8 +2456,6 @@ impl Jobs {
             .ok_or_else(|| format!("{ERR_JOBS}: no job {id}"))
     }
 
-    /// A routine's result reaches the user only when it changed and the
-    /// routine is not silenced.
     fn notify_routine(&self, trigger_id: &str, job: &Job) {
         let Some(t) = self.trigger(trigger_id) else {
             return;
@@ -2954,8 +2487,6 @@ impl Jobs {
             })
             .show();
     }
-
-    // ── loops ────────────────────────────────────────────────────────
 
     fn save_loop(&self, l: &LoopDef) {
         if let Ok(body) = serde_json::to_string(l) {
@@ -3008,7 +2539,6 @@ impl Jobs {
             && def.max_minutes.is_none()
             && def.check_command.as_deref().unwrap_or("").trim().is_empty()
         {
-            // A Loop with no way out is a bug waiting for a bill.
             def.max_rounds = Some(10);
         }
         def.id = short_id("l");
@@ -3044,10 +2574,6 @@ impl Jobs {
         def.spent_usd_estimated = 0.0;
         def.unpriced_rounds = 0;
         self.save_loop(&def);
-        // A cost ceiling (3.3) and a token budget (3.7) are hard budget
-        // policies on the loop: one mechanism, so crossing either pauses the
-        // loop with an incident ("raise and resume"), and the audits count
-        // too (they are bound to the loop's scope).
         {
             use omniget_core::core::llm::budget::policy::{Metric, Scope};
             if let Some(max) = def.max_cost_usd.filter(|m| *m > 0.0) {
@@ -3105,7 +2631,6 @@ impl Jobs {
 
     pub fn loop_delete(&self, id: &str) -> Result<(), String> {
         let _ = self.loop_cancel(id);
-        // Its budget policies go with it (3.3): nothing else can cross them.
         forget_budget_policies(&omniget_core::core::llm::budget::policy::Scope::Loop(
             id.to_string(),
         ));
@@ -3153,21 +2678,17 @@ impl Jobs {
             return;
         };
         let _power_hold = omniget_core::core::washmybelly::power::auto_hold_begin("agent loop");
-        // A scheduled loop counts the minutes spent in rounds, not the wall clock.
         let deadline = if l.schedule.is_some() {
             None
         } else {
             l.max_minutes.map(|m| l.created_ms + u64::from(m) * 60_000)
         };
         if let Some(ws) = l.workspace.clone().filter(|w| !w.is_empty()) {
-            // The check may run before the first round sets the workspace.
             let _ = code_tools::set_conversation_workspace(
                 &sanitize_id(&l.conversation_id),
                 Some(ws.into()),
             );
         }
-        // No check command and an agent to ask: an independent auditor
-        // decides when the work is done (84#P1), never the agent's own "DONE".
         let audited = !l.agent_id.starts_with(TOOL_PREFIX)
             && l.check_command
                 .as_deref()
@@ -3179,7 +2700,6 @@ impl Jobs {
             disagree: l.disagree_streak,
         };
         let mut last_audit = loop_audit::last_audit(&l);
-        // Already green? Then there is nothing to do.
         if l.rounds_done == 0 {
             if let Some((true, out)) = self.run_check(&l).await {
                 l.last_check = Some(out);
@@ -3191,22 +2711,17 @@ impl Jobs {
             }
         }
         loop {
-            // The row is the source of truth: a cancel lands there.
             match self.loop_get(&id) {
                 Some(cur) if cur.state == "running" => {}
                 _ => return,
             }
             if max_rounds.map(|m| l.rounds_done >= m).unwrap_or(false) {
                 l.stop_reason = Some("max_rounds".into());
-                // The auditor never said `complete`: not done, needs a person.
                 if audited {
                     l.state = "blocked".into();
                 }
                 break;
             }
-            // With the budget engine the token budget is a policy of the loop
-            // (paused with an incident, above in `loop_create`); this count is
-            // the fallback when no engine runs (3.7's `budget_limited`).
             if l.token_budget.is_some_and(|b| l.tokens_used >= b)
                 && omniget_core::core::llm::budget::policy::active().is_none()
             {
@@ -3226,8 +2741,6 @@ impl Jobs {
                 l.stop_reason = Some("max_minutes".into());
                 break;
             }
-            // A budget incident on any scope of the loop pauses it (3.3):
-            // no round starts until someone raises the ceiling.
             if let Some(block) = self.loop_budget_block(&l) {
                 l.state = "paused".into();
                 l.stop_reason = Some(format!(
@@ -3259,8 +2772,6 @@ impl Jobs {
                 }
             }
             let round = l.rounds_done + 1;
-            // Round 2+ on a runtime that resumes its session: the task is in
-            // the conversation already, only the guide goes (83#P7).
             let resumed = round > 1 && self.loop_resumable(&l);
             let (prompt, guided) = omniget_core::core::llm::goal_audit::round_prompt(
                 &omniget_core::core::llm::goal_audit::Round {
@@ -3277,8 +2788,6 @@ impl Jobs {
             if guided {
                 l.rounds_guided += 1;
             }
-            // Restarted by the host (3.1): the round in flight was stopped
-            // and its result is unknown.
             let prompt = if l.restarted {
                 format!("This Loop was interrupted (the app restarted or the agent went silent) and the round in flight was stopped. Check what is already done before changing anything, and do not repeat an action that already happened.\n\n{prompt}")
             } else {
@@ -3324,8 +2833,6 @@ impl Jobs {
             let Some(done) = done else { break };
             let round_cost = done.usage.as_ref().and_then(|u| u["cost_usd"].as_f64());
             self.note_loop_cost(&mut l, &done);
-            // The round was stopped by a budget (refused, or cancelled when
-            // a scope of it crossed): pause at the top of the next pass.
             if matches!(done.state.as_str(), "cancelled" | "failed")
                 && self.loop_budget_block(&l).is_some()
             {
@@ -3341,9 +2848,6 @@ impl Jobs {
                     break;
                 }
                 "failed" => {
-                    // A round the watchdog stopped is the host's problem:
-                    // when the Loop asked for it and nothing was written in
-                    // the shared folder, the round goes again (3.1).
                     if let Some(reason) = done
                         .failure_reason
                         .as_deref()
@@ -3374,9 +2878,6 @@ impl Jobs {
                         }
                     }
                     if audited {
-                        // 84#P1: a failed turn blocks an audited Loop (a
-                        // person looks); only the host's own failure above
-                        // goes again, with `--resume` (3.1).
                         l.state = "blocked".into();
                         l.stop_reason = Some(format!(
                             "{}: {}",
@@ -3385,7 +2886,6 @@ impl Jobs {
                         ));
                         break;
                     }
-                    // Budget cut, no provider, no candidate: another round would fail the same way.
                     l.state = "failed".into();
                     l.stop_reason = done.error.clone();
                     break;
@@ -3416,14 +2916,10 @@ impl Jobs {
                     if let Some(c) = entry.cost_usd {
                         l.audit_usd += c;
                     }
-                    // The audit ran bound to the loop's scope (3.3): the
-                    // ledger already has it; without one, add it here.
                     if !self.loop_cost_from_ledger(&mut l) {
                         l.spent_usd += entry.cost_usd.unwrap_or(0.0);
                         l.spent_tokens += entry.tokens;
                     }
-                    // Refused by a paused budget scope: no verdict to count,
-                    // the top of the next pass pauses the loop.
                     if audit.is_none() && self.loop_budget_block(&l).is_some() {
                         crate::llm_audit::loop_audited(&l.id, &entry);
                         loop_audit::push_audit(&mut l, entry);
@@ -3474,7 +2970,6 @@ impl Jobs {
             l.state = "done".into();
         }
         l.next_round_ms = None;
-        // A cancel may have landed while the last round ran.
         if let Some(cur) = self.loop_get(&id) {
             if cur.state == "cancelled" || cur.state == "paused" {
                 l.state = "cancelled".into();
@@ -3483,8 +2978,6 @@ impl Jobs {
         }
         l.finished_ms = Some(now_ms());
         self.save_loop(&l);
-        // A Loop is one piece of background work: it says so once, when it
-        // ends, not after every round.
         if matches!(
             l.state.as_str(),
             "done" | "failed" | "blocked" | "budget_limited"
@@ -3504,9 +2997,6 @@ impl Jobs {
         }
     }
 
-    // ── budgets (3.3) ────────────────────────────────────────────────
-
-    /// The account a roster agent's turns are charged to.
     fn account_of(&self, agent_id: &str) -> Option<String> {
         match self.llm.agent(agent_id)?.runtime {
             omniget_core::core::llm::agent::RuntimeKind::Cli { account, .. } => Some(account),
@@ -3514,8 +3004,6 @@ impl Jobs {
         }
     }
 
-    /// The budget incident that holds a job back, if one of its scopes
-    /// (global, agent, account, job, loop) is paused.
     fn budget_block(&self, job: &Job) -> Option<omniget_core::core::llm::budget::policy::Block> {
         use omniget_core::core::llm::budget::policy::{self, Scope};
         let engine = policy::active()?;
@@ -3532,7 +3020,6 @@ impl Jobs {
         engine.blocked(&scopes, account.as_deref())
     }
 
-    /// The same for a Loop's next round.
     fn loop_budget_block(
         &self,
         l: &LoopDef,
@@ -3547,10 +3034,6 @@ impl Jobs {
         self.budget_block(&probe)
     }
 
-    /// What a round cost, added to its Loop: dollars (reported, or the
-    /// price table's estimate when a dollar ceiling applies), weighted
-    /// tokens, and the rounds nobody could price (PROB C5; `jobs.rs:63-65`
-    /// no longer reads a missing price as "no cost").
     fn note_loop_cost(&self, l: &mut LoopDef, done: &Job) {
         if self.loop_cost_from_ledger(l) {
             return;
@@ -3564,9 +3047,6 @@ impl Jobs {
         l.spent_tokens += billable_of(&u);
     }
 
-    /// The loop's cost as the budget ledger has it (every turn bound to
-    /// `loop:<id>`: rounds and their audits). `false` = no engine or no
-    /// turn there yet; the caller adds what it knows instead.
     fn loop_cost_from_ledger(&self, l: &mut LoopDef) -> bool {
         use omniget_core::core::llm::budget::policy::{self, Scope};
         let Some(engine) = policy::active() else {
@@ -3583,9 +3063,6 @@ impl Jobs {
         true
     }
 
-    /// A hard budget crossing (`BudgetCrossed`): the scope's other running
-    /// and queued jobs are cancelled (a Loop's runner pauses the Loop itself, on
-    /// its next pass). Jobs of other scopes are left alone.
     fn cancel_scope(&self, scope: &str, incident: Option<&str>, crossing_turn: &str) {
         use omniget_core::core::llm::budget::policy::{self, Scope};
         let Ok(scope) = Scope::parse(scope) else {
@@ -3596,13 +3073,10 @@ impl Jobs {
             .list(500)
             .into_iter()
             .filter(|j| is_active(&j.state))
-            // The turn that crossed is ending by itself: its work stands.
             .filter(|j| j.request_id.as_deref() != Some(crossing_turn))
             .filter(|j| in_budget_scope(j, &scope, self.account_of(&j.agent_id).as_deref(), &bound))
             .collect();
         for j in victims {
-            // Marked first, so nothing starts it again by itself (3.1): the
-            // end of its run keeps the mark on the cancelled row.
             if let Some(mut row) = self.job(&j.id).filter(|r| is_active(&r.state)) {
                 row.failure_reason = Some("budget".into());
                 self.save_job(&row);
@@ -3620,8 +3094,6 @@ impl Jobs {
         }
     }
 
-    /// After "raise and resume": every Loop paused by that incident runs
-    /// again, unless another incident still holds it.
     pub fn budget_resumed(self: &Arc<Self>, incident: &str) -> Vec<String> {
         let tag = format!("budget:{incident}");
         let mut resumed = Vec::new();
@@ -3636,7 +3108,6 @@ impl Jobs {
         resumed
     }
 
-    /// Sleeps until `at_ms`; `false` when the loop was cancelled meanwhile.
     async fn wait_until(&self, loop_id: &str, at_ms: u64) -> bool {
         let token = CancellationToken::new();
         self.loop_waits
@@ -3655,10 +3126,6 @@ impl Jobs {
         woke
     }
 
-    // ── tool runs (coding CLIs headless, maybe in a sandbox) ─────────
-
-    /// Runs a `tool:<id>` job: the CLI from the tool manifest's `[runner]`,
-    /// the agent as the system prompt, locally or in the sandbox of the spec.
     async fn run_tool_job(self: &Arc<Self>, job: Job, input: String) -> Job {
         use omniget_core::core::agentkit_run::{runner, sandbox};
         let tool = job
@@ -3691,7 +3158,6 @@ impl Jobs {
         let log = Arc::new(Mutex::new(String::new()));
         let this = self.clone();
         let (log2, job_id) = (log.clone(), job.id.clone());
-        // Log lines land in the row at most once per 750 ms.
         let last_flush = Arc::new(Mutex::new(0u64));
         let mut on_log = move |line: &str| {
             let text = {
@@ -3758,8 +3224,6 @@ impl Jobs {
                         "calls": u.calls,
                     }));
                 }
-                // A CLI that failed (auth, crash) may still print its error as
-                // the result: a non-zero exit with an error is a failure.
                 let errored = out.error.is_some()
                     && (out.text.trim().is_empty()
                         || out.exit_code.map(|c| c != 0).unwrap_or(true)
@@ -3789,8 +3253,6 @@ impl Jobs {
         self.save_job(&job);
         job
     }
-
-    // ── playbooks (workflows as chained jobs) ────────────────────────
 
     fn save_playbook(&self, p: &PlaybookRun) {
         if let Ok(body) = serde_json::to_string(p) {
@@ -3830,7 +3292,6 @@ impl Jobs {
         out
     }
 
-    /// Starts a playbook whose steps are already resolved to runners.
     pub fn playbook_start(self: &Arc<Self>, mut p: PlaybookRun) -> Result<PlaybookRun, String> {
         if p.steps.is_empty() {
             return Err(format!("{ERR_JOBS}: a playbook needs at least one step"));
@@ -3978,8 +3439,6 @@ impl Jobs {
         self.save_playbook(&p);
     }
 
-    // ── boot ─────────────────────────────────────────────────────────
-
     fn resume(self: Arc<Self>) {
         let open: Vec<Job> = self
             .list(500)
@@ -3991,34 +3450,27 @@ impl Jobs {
                 )
             })
             .collect();
-        // Rounds of a Loop that were in flight: decided with their Loop.
         let mut rounds: HashMap<String, (Job, Option<omniget_core::core::process::StaleProcess>)> =
             HashMap::new();
         for stale in open {
             let Some(mut job) = self.job(&stale.id) else {
                 continue;
             };
-            // A job still at the gate (queued or waiting for its folder) was
-            // never sent: the queue is rebuilt by starting it again.
             let never_sent = matches!(job.state.as_str(), "queued" | "waiting_workspace")
                 && job.request_id.is_none()
                 && job.started_ms.is_none();
-            // Mission jobs are driven (and reconciled) by the mission driver.
             if never_sent
                 && job.loop_id.is_none()
                 && job.playbook_id.is_none()
                 && job.kind != "chat"
                 && job.kind != "mission"
             {
-                // Provably never dispatched: safe to start now.
                 let this = self.clone();
                 tauri::async_runtime::spawn(async move {
                     this.run_job(&job.id, None).await;
                 });
                 continue;
             }
-            // Dispatched (or part of a Loop): the result is unknown. Its old
-            // process, if it outlived the app, is stopped first (3.1).
             let process = self.reap(&mut job);
             job.state = "interrupted".into();
             job.error =
@@ -4030,8 +3482,6 @@ impl Jobs {
                 rounds.insert(lid, (job, process));
                 continue;
             }
-            // Never re-sent by itself unless it asked to be and it is safe
-            // (3.1); otherwise a person resumes, marks done or discards.
             if !self.auto_resume(&mut job, FailureReason::AppRestart, process) {
                 self.save_job(&job);
             }
@@ -4043,8 +3493,6 @@ impl Jobs {
             l.state = "interrupted".into();
             l.stop_reason = Some("app_closed".into());
             let wanted = l.auto_resume.unwrap_or(setting);
-            // Between two rounds nothing was in flight; a round that was
-            // follows the rule of a job (worktree or no write, process gone).
             let mut lost_round = None;
             let verdict = match rounds.remove(&l.id) {
                 Some((mut round, process)) => {
@@ -4057,7 +3505,6 @@ impl Jobs {
                         l.auto_restarts,
                     );
                     if v == ResumeVerdict::Resume {
-                        // The Loop runs this round again; this row is done.
                         round.state = "failed".into();
                         round.error = Some(
                             "the app closed during this round; the Loop ran it again by itself"
@@ -4099,7 +3546,6 @@ impl Jobs {
                 self.save_loop(&l);
             }
         }
-        // A playbook resumes at the step that was running (it starts again).
         for mut p in self
             .playbooks()
             .into_iter()
@@ -4115,12 +3561,6 @@ impl Jobs {
         }
     }
 
-    // ── resume after a restart (3.1) ─────────────────────────────────
-
-    /// Copies what the run registry knows about the turn in flight onto the
-    /// job: the CLI's session id and the pid of its process, with the OS
-    /// start token that tells it from a later process with the same pid.
-    /// `true` when something changed.
     fn capture_process(&self, job: &mut Job, request_id: &str, conversation: &str) -> bool {
         let Some(reg) = omniget_core::core::assist::runs::active() else {
             return false;
@@ -4147,9 +3587,6 @@ impl Jobs {
         changed
     }
 
-    /// The process a job's turn had when the app died: stopped (with its
-    /// tree) if it still runs, so a new run never runs beside it. Written to
-    /// the job's log; `None` when nothing was recorded.
     fn reap(&self, job: &mut Job) -> Option<omniget_core::core::process::StaleProcess> {
         use omniget_core::core::process::{stop_stale, StaleProcess};
         let (pid, start) = (job.pid?, job.pid_start?);
@@ -4170,8 +3607,6 @@ impl Jobs {
         Some(out)
     }
 
-    /// Whether this job wants to come back by itself: its own switch, else
-    /// the setting.
     fn wants_auto_resume(&self, job: &Job) -> bool {
         job.auto_resume.unwrap_or_else(|| {
             crate::storage::config::load_settings(&self.app)
@@ -4180,10 +3615,6 @@ impl Jobs {
         })
     }
 
-    /// Starts a lost job again by itself when [`auto_resume_verdict`] says
-    /// so, with the note and `--resume` of its conversation; otherwise
-    /// leaves it as it is. The verdict goes to the log either way. `true`
-    /// when it was started again.
     fn auto_resume(
         self: &Arc<Self>,
         job: &mut Job,
@@ -4192,8 +3623,6 @@ impl Jobs {
     ) -> bool {
         let wanted = self.wants_auto_resume(job);
         let mut verdict = auto_resume_verdict(job, wanted, reason, process, job.attempt);
-        // A scope of it is paused by a budget incident (3.3): it would only
-        // fail again before its turn, so it waits for "raise and resume".
         if verdict == ResumeVerdict::Resume && self.budget_block(job).is_some() {
             verdict = ResumeVerdict::BudgetPaused;
         }
@@ -4228,9 +3657,6 @@ impl Jobs {
         let this = self.clone();
         let jid = job.id.clone();
         tauri::async_runtime::spawn(async move {
-            // After a stall the run that failed is still unwinding (its
-            // cancel token and gate slot go when it returns): start once it
-            // is gone, so its cleanup never takes the new run's token.
             for _ in 0..200 {
                 let busy = this
                     .cancels
@@ -4247,10 +3673,6 @@ impl Jobs {
         true
     }
 
-    // ── explicit recovery ────────────────────────────────────────────
-
-    /// Runs an interrupted job again, telling the agent to check what was
-    /// already done first. Only a person calls this.
     pub fn job_resume(self: &Arc<Self>, id: &str) -> Result<Job, String> {
         let mut job = self
             .job(id)
@@ -4278,8 +3700,6 @@ impl Jobs {
         let mut job = self
             .job(id)
             .ok_or_else(|| format!("{ERR_JOBS}: no job {id}"))?;
-        // A job in review is done once a person looked at what it changed
-        // (2.4); its worktree and branch stay until removed or collected.
         if job.state == "review" {
             job.state = "done".into();
             job.log.push_str("✓ reviewed by you\n");
@@ -4330,8 +3750,6 @@ impl Jobs {
         let mut l = self
             .loop_get(id)
             .ok_or_else(|| format!("{ERR_JOBS}: no loop {id}"))?;
-        // A blocked Loop resumes too: the next round is audited again, with
-        // the streaks from zero (84#P1: "blocked is resumable").
         if !matches!(l.state.as_str(), "interrupted" | "paused" | "blocked") {
             return Err(format!(
                 "{ERR_JOBS}: loop {id} is {}, not interrupted, paused or blocked",
@@ -4378,8 +3796,6 @@ impl Jobs {
         Ok(l)
     }
 
-    // ── triggers ─────────────────────────────────────────────────────
-
     pub fn triggers(&self) -> Vec<Trigger> {
         read_triggers(&self.db())
     }
@@ -4388,9 +3804,6 @@ impl Jobs {
         read_trigger(&self.db(), id)
     }
 
-    /// Read, change and write one routine's body under one lock, so two
-    /// writers (a firing and a notification, say) never lose each other's
-    /// counters. The schedule column is not touched.
     fn update_trigger(&self, id: &str, change: impl FnOnce(&mut Trigger)) -> Option<Trigger> {
         let t = {
             let db = self.db();
@@ -4435,10 +3848,6 @@ impl Jobs {
             if t.id.is_empty() {
                 t.id = short_id("t");
             }
-            // A save that keeps the line, the zone and the switch keeps the
-            // schedule (and what waits to catch up); anything else starts
-            // over from now: turning a routine back on does not recover the
-            // time it was off.
             let same = old.as_ref().is_some_and(|o| {
                 o.kind == t.kind && o.cron == t.cron && o.tz == t.tz && o.enabled == t.enabled
             });
@@ -4471,7 +3880,6 @@ impl Jobs {
         Ok(t)
     }
 
-    /// Silence (or unsilence) a routine without touching its schedule.
     pub fn trigger_mute(&self, id: &str, muted: bool) -> Result<Trigger, String> {
         self.update_trigger(id, |t| t.muted = muted)
             .ok_or_else(|| format!("{ERR_JOBS}: no trigger {id}"))
@@ -4539,9 +3947,6 @@ impl Jobs {
         });
     }
 
-    /// The ticker only exists while some cron trigger is enabled. Its first
-    /// pass runs at once with no grace: whatever came due while the app was
-    /// closed is a missed time and follows the routine's policy (1.4).
     fn ensure_cron(self: Arc<Self>) {
         let has = |this: &Jobs| {
             this.triggers()
@@ -4564,13 +3969,9 @@ impl Jobs {
         });
     }
 
-    /// One pass over the cron routines: each due one is claimed with a
-    /// compare-and-set on its schedule before anything starts, so no time
-    /// fires twice (this pass, the next one, or after a restart).
     fn cron_tick(self: &Arc<Self>, grace_ms: i64) {
         let _pass = self.cron_pass.lock().unwrap_or_else(|e| e.into_inner());
         let now = now_ms() as i64;
-        // Worktree GC rides the same ticker, at most once an hour (2.3).
         let last = self.last_worktree_gc.load(Ordering::SeqCst);
         if (now as u64).saturating_sub(last) >= WORKTREE_GC_EVERY_MS
             && self
@@ -4613,8 +4014,6 @@ impl Jobs {
         }
     }
 }
-
-// ── cron: five fields, our own parser ─────────────────────────────────
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Cron {
@@ -4693,7 +4092,6 @@ impl Cron {
         let has = |bits: u64, v: u32| bits & (1 << v) != 0;
         let dom = has(self.dom, t.day());
         let dow = has(self.dow, t.weekday().num_days_from_sunday());
-        // Vixie rule: when both day fields are restricted, either one fires.
         let day = match (self.dom_any, self.dow_any) {
             (false, false) => dom || dow,
             _ => dom && dow,
@@ -4706,9 +4104,6 @@ impl Cron {
 }
 
 impl Cron {
-    /// The next minute this line fires, strictly after `from`, in `from`'s
-    /// time zone. `None` when it never fires within a year (e.g.
-    /// `0 0 31 2 *`).
     pub fn next_after_at<Tz: chrono::TimeZone>(
         &self,
         from: &chrono::DateTime<Tz>,
@@ -4724,8 +4119,6 @@ impl Cron {
         None
     }
 
-    /// [`Self::next_after_at`] on epoch milliseconds, with the wall clock of
-    /// the routine's zone (`tz`, see [`zone_of`]).
     pub fn next_after(&self, ts_ms: i64, tz: &str) -> Option<i64> {
         use chrono::TimeZone;
         match zone_of(tz) {
@@ -4741,20 +4134,12 @@ impl Cron {
     }
 }
 
-// ── cron: durable schedule (1.4) ──────────────────────────────────────
-
-/// The zone a routine's cron line is read in.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Zone {
-    /// This machine's zone, looked up at every computation (daylight saving
-    /// follows the OS).
     Local,
     Fixed(chrono::FixedOffset),
 }
 
-/// `local` (or empty), `UTC`, `+HH:MM`, `-HHMM`, `+HH`. `None` for anything
-/// else: IANA names (`America/Sao_Paulo`) would need the tz database
-/// (`chrono-tz`), which the app does not carry.
 pub fn parse_zone(tz: &str) -> Option<Zone> {
     let tz = tz.trim();
     if tz.is_empty() || tz.eq_ignore_ascii_case("local") {
@@ -4784,49 +4169,30 @@ pub fn parse_zone(tz: &str) -> Option<Zone> {
     chrono::FixedOffset::east_opt(sign * (hours * 3600 + minutes * 60)).map(Zone::Fixed)
 }
 
-/// [`parse_zone`], with an unknown zone read as this machine's (logged when
-/// the routine is saved).
 pub fn zone_of(tz: &str) -> Zone {
     parse_zone(tz).unwrap_or(Zone::Local)
 }
 
-/// A scheduled time that is at most this late when the ticker sees it still
-/// runs as itself (a tick that came late is not a "missed" run). On boot the
-/// grace is 0: the app was closed, every time that passed is missed.
 pub const CRON_GRACE_MS: i64 = 3 * CRON_TICK_S as i64 * 1000;
-/// Counting missed times stops here (a year closed with `*/1`).
 const MISSED_COUNT_MAX: u32 = 10_000;
 
-/// What one pass of the cron ticker does with one routine.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct TickPlan {
-    /// Jobs to start now.
     pub fire_now: u32,
-    /// Catch-up runs left for the next passes (the new `Trigger.backlog`).
     pub backlog: u32,
-    /// Scheduled times that passed with nothing to run them.
     pub missed_slots: u32,
-    /// How many of those will still run (now or from the backlog).
     pub caught_up: u32,
-    /// Runs of this pass not started because the last run is still going.
     pub skipped_active: u32,
-    /// To add to `Trigger.missed`.
     pub not_run: u32,
     pub next_run_ms: Option<i64>,
 }
 
-/// The pure half of the cron: given the routine as stored, the time, how
-/// late a time may be seen and still run as itself (`grace_ms`), and whether
-/// its last run is still going, what to start and what to count. Every
-/// branch is decided here, so the clock can be injected in tests.
 pub fn plan_tick(t: &Trigger, cron: &Cron, now_ms: i64, grace_ms: i64, active: bool) -> TickPlan {
     let mut plan = TickPlan {
         backlog: t.backlog.min(CATCH_UP_CAP),
         next_run_ms: t.next_run_ms,
         ..Default::default()
     };
-    // A routine the ticker never saw (just migrated, just enabled) starts
-    // from now: nothing before it counts as missed.
     let Some(first) = t.next_run_ms else {
         plan.next_run_ms = cron.next_after(now_ms, &t.tz);
         return plan;
@@ -4858,8 +4224,6 @@ pub fn plan_tick(t: &Trigger, cron: &Cron, now_ms: i64, grace_ms: i64, active: b
             plan.fire_now = pending;
             plan.backlog = 0;
         }
-        // The runs of this pass are skipped while the last one goes on; the
-        // catch-up already waiting keeps waiting (and goes one at a time).
         TriggerConcurrency::SkipIfActive if active => {
             plan.skipped_active = runs;
             plan.not_run += runs;
@@ -4872,12 +4236,6 @@ pub fn plan_tick(t: &Trigger, cron: &Cron, now_ms: i64, grace_ms: i64, active: b
     }
     plan
 }
-
-// Trigger rows: the JSON body, plus the schedule in a column of its own.
-// The schedule is the one field two writers race on (the ticker, the boot
-// pass, a webhook firing, a save), so it is never rewritten from a copy of
-// the body: only `cas_schedule` (the ticker) and `set_schedule` (a save that
-// changed the line) move it.
 
 fn trigger_of(body: &str, next_run_ms: Option<i64>) -> Option<Trigger> {
     let mut t: Trigger = serde_json::from_str(body).ok()?;
@@ -4915,8 +4273,6 @@ pub fn read_trigger(db: &Connection, id: &str) -> Option<Trigger> {
     .and_then(|(body, next)| trigger_of(&body, next))
 }
 
-/// Writes the body. A new row takes its schedule from `t`; an existing row
-/// keeps the schedule it has.
 pub fn write_trigger_body(db: &Connection, t: &Trigger) -> Result<(), String> {
     let body = serde_json::to_string(t).map_err(|e| e.to_string())?;
     db.execute(
@@ -4928,7 +4284,6 @@ pub fn write_trigger_body(db: &Connection, t: &Trigger) -> Result<(), String> {
     .map_err(|e| format!("{ERR_JOBS}: {e}"))
 }
 
-/// Writes body and schedule, whatever the schedule was (a save).
 fn set_schedule(db: &Connection, t: &Trigger) -> Result<(), String> {
     let body = serde_json::to_string(t).map_err(|e| e.to_string())?;
     db.execute(
@@ -4940,9 +4295,6 @@ fn set_schedule(db: &Connection, t: &Trigger) -> Result<(), String> {
     .map_err(|e| format!("{ERR_JOBS}: {e}"))
 }
 
-/// Compare-and-set: writes `t` (body and schedule) only if the stored
-/// schedule is still `seen`. `true` = this caller owns the times it planned;
-/// `false` = someone else already moved it, fire nothing.
 pub fn cas_schedule(db: &Connection, t: &Trigger, seen: Option<i64>) -> bool {
     let Ok(body) = serde_json::to_string(t) else {
         return false;
@@ -4955,9 +4307,6 @@ pub fn cas_schedule(db: &Connection, t: &Trigger, seen: Option<i64>) -> bool {
     .unwrap_or(false)
 }
 
-/// Routines saved before the durable schedule get one computed from now
-/// (the times before this version are not "missed"). Idempotent: rows that
-/// have a schedule are left alone.
 fn migrate_triggers(db: &Connection, now_ms: i64) {
     let rows: Vec<(String, String)> = db
         .prepare("SELECT id, body FROM triggers WHERE next_run_ms IS NULL")
@@ -4982,7 +4331,6 @@ fn migrate_triggers(db: &Connection, now_ms: i64) {
     }
 }
 
-/// A job of this routine has not finished yet.
 pub fn trigger_busy(db: &Connection, id: &str) -> bool {
     db.query_row(
         "SELECT EXISTS(SELECT 1 FROM jobs WHERE trigger_id=?1 AND state IN ('queued','waiting_workspace','running','waiting_approval'))",
@@ -4992,11 +4340,6 @@ pub fn trigger_busy(db: &Connection, id: &str) -> bool {
     .unwrap_or(false)
 }
 
-/// One routine, one pass of the ticker: plans with [`plan_tick`] and, if
-/// anything changes, takes it with [`cas_schedule`]. `Some` only for the
-/// caller that won: it starts `plan.fire_now` runs; a loser (or a routine
-/// with nothing due) gets `None`. `mission_active` covers a routine whose
-/// last firing was a mission still running (the jobs table does not know).
 pub fn claim_due(
     db: &Connection,
     id: &str,
@@ -5028,8 +4371,6 @@ pub fn claim_due(
     cas_schedule(db, &next, t.next_run_ms).then_some((next, plan))
 }
 
-/// `Some(new digest)` when a routine result should notify: not silenced and
-/// different from the last one notified.
 pub fn routine_digest(t: &Trigger, body: &str) -> Option<String> {
     if t.muted {
         return None;
@@ -5042,13 +4383,9 @@ pub fn routine_digest(t: &Trigger, body: &str) -> Option<String> {
     Some(digest)
 }
 
-/// A trigger as the UI shows it: next run in the user's zone, and the plain
-/// fact that a routine only runs while OmniGet is open.
 pub fn trigger_view(t: &Trigger) -> Value {
     use chrono::TimeZone;
     let now = chrono::Local::now();
-    // The stored schedule; a routine the ticker has not seen yet shows the
-    // time it will get.
     let next = if t.enabled && t.kind == "cron" {
         t.next_run_ms.or_else(|| {
             Cron::parse(t.cron.as_deref().unwrap_or(""))
@@ -5068,8 +4405,6 @@ pub fn trigger_view(t: &Trigger) -> Value {
     v
 }
 
-/// When the next round of a scheduled Loop starts: a 5-field cron line (the
-/// next matching minute, local time) or an interval (`10m`, `2h`, `daily`).
 pub fn next_round_at(schedule: &str, from_ms: u64) -> Option<u64> {
     let s = schedule.trim();
     if s.is_empty() {
@@ -5093,30 +4428,21 @@ pub fn next_round_at(schedule: &str, from_ms: u64) -> Option<u64> {
         .map(|secs| from_ms + secs * 1000)
 }
 
-/// `{ base_url }` of the local bridge, for the webhook URL in the UI.
 pub fn bridge_info(app: &AppHandle) -> Value {
     let settings = crate::storage::config::load_settings(app);
-    // No bearer here: the page shows `$OMNIGET_TOKEN` and the token list
-    // (U6, 2.1), never a secret in plain text.
     json!({
         "base_url": format!("http://127.0.0.1:{}", settings.bridge.port),
     })
 }
 
-// ── watchdog, deadline and asks: the pure half (1.2, 1.3) ─────────────
-
-/// What a running job's explain reads besides its row.
 #[derive(Debug, Clone, Default)]
 pub struct Live {
     pub request_id: String,
     pub started_ms: u64,
-    /// Last event of the turn's stream (any kind).
     pub last_event_ms: u64,
     pub deadline_ms: Option<u64>,
 }
 
-/// The `state_seq` a save writes: the stored one, plus one when the state
-/// changes. A new row starts at 1.
 pub fn next_state_seq(stored: Option<(&str, i64)>, new_state: &str) -> i64 {
     match stored {
         None => 1,
@@ -5125,7 +4451,6 @@ pub fn next_state_seq(stored: Option<(&str, i64)>, new_state: &str) -> i64 {
     }
 }
 
-/// The one-word reason of a failed job, read off the error it ended with.
 pub fn failure_reason_of(error: &str) -> Option<&'static str> {
     use omniget_core::core::llm::broker::ERR_TOOL_TIMEOUT;
     use omniget_core::core::llm::cli_runtime::{ERR_CLI_NO_START, ERR_CLI_STALLED};
@@ -5142,16 +4467,10 @@ pub fn failure_reason_of(error: &str) -> Option<&'static str> {
     }
 }
 
-/// Why a job stopped, typed (3.1, S16). The row keeps the word
-/// ([`FailureReason::as_str`]) so older rows and the UI's labels stay as
-/// they are; what matters here is which of them are the host's fault.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FailureReason {
-    /// The app closed (or was killed) while the job ran.
     AppRestart,
-    /// The watchdog heard nothing for too long.
     Stalled,
-    /// The CLI never started talking.
     NoStart,
     Deadline,
     Limit,
@@ -5182,10 +4501,6 @@ impl FailureReason {
         })
     }
 
-    /// The run died around the agent, not because of what it did: the app
-    /// went away, or the process went silent. A deadline, a budget or an
-    /// unanswered question are verdicts on the job; running it again would
-    /// meet them again.
     pub fn is_infrastructure(self) -> bool {
         matches!(
             self,
@@ -5194,17 +4509,10 @@ impl FailureReason {
     }
 }
 
-/// Runs the host starts by itself for one job (or one Loop between two
-/// finished rounds) before it leaves the rest to a person: a crash that
-/// repeats is not retried forever.
 pub const AUTO_RESUME_MAX: u32 = 2;
 
-/// Whether a tool call can change something. Only reading and searching is
-/// known to be harmless; anything else, an unknown MCP tool included, counts
-/// as a write, so a doubt never re-runs a job in the shared folder.
 pub fn tool_may_write(name: &str) -> bool {
     const READS: &[&str] = &[
-        // Claude Code / Codex
         "read",
         "glob",
         "grep",
@@ -5216,7 +4524,6 @@ pub fn tool_may_write(name: &str) -> bool {
         "notebookread",
         "bashoutput",
         "exitplanmode",
-        // OmniGet's own tools
         "kb_search",
         "web_search",
         "web_fetch",
@@ -5225,26 +4532,15 @@ pub fn tool_may_write(name: &str) -> bool {
     !(READS.contains(&n.as_str()) || code_tools::READ_TOOLS.contains(&n.as_str()))
 }
 
-/// Why the host does or does not start a lost job again by itself (3.1).
-/// Written to the job's log either way, so "why did it (not) come back" has
-/// an answer.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ResumeVerdict {
     Resume,
-    /// Neither the job, its Loop nor the setting asked for it.
     Off,
-    /// A deadline, a budget, an unanswered question: not the host's fault.
     NotInfrastructure,
-    /// Chat turns, missions, playbook steps and catalog tool runs have their
-    /// own owners.
     NotThisKind,
     Attempts,
-    /// It started a tool that writes, in the folder the person works in.
     WroteInSharedFolder,
-    /// Its old process could not be stopped: never two at once.
     ProcessAlive,
-    /// A budget stopped it or holds one of its scopes (3.3): only "raise and
-    /// resume" (a person) starts it again.
     BudgetPaused,
 }
 
@@ -5263,11 +4559,6 @@ impl ResumeVerdict {
     }
 }
 
-/// The rule of 3.1: again with `--resume` only after an infrastructure
-/// failure, only when asked (`wanted`: the job's own switch, else its
-/// Loop's, else the setting), only for a job that ran in its own worktree
-/// or never started a tool that writes, never while its old process lives,
-/// and at most [`AUTO_RESUME_MAX`] times.
 pub fn auto_resume_verdict(
     job: &Job,
     wanted: bool,
@@ -5282,8 +4573,6 @@ pub fn auto_resume_verdict(
     if !reason.is_infrastructure() {
         return ResumeVerdict::NotInfrastructure;
     }
-    // Cancelled or refused by a budget (3.3): never the host's failure,
-    // whatever reason the watchdog or the boot put on it afterwards.
     if job.failure_reason.as_deref() == Some("budget") {
         return ResumeVerdict::BudgetPaused;
     }
@@ -5309,7 +4598,6 @@ pub fn auto_resume_verdict(
     ResumeVerdict::Resume
 }
 
-/// What a job run again by the host is told before its task.
 pub fn resume_note(reason: FailureReason, prompt: &str) -> String {
     let why = match reason {
         FailureReason::AppRestart => "The app closed in the middle of this task",
@@ -5320,16 +4608,11 @@ pub fn resume_note(reason: FailureReason, prompt: &str) -> String {
     )
 }
 
-/// D4: the deadline of a background job that has no guard of its own. A chat
-/// turn has a person in front of it; a mission brings its own guard.
 pub fn default_deadline_ms(kind: &str, started_ms: u64, deadline_min: u32) -> Option<u64> {
     matches!(kind, "run" | "loop" | "trigger")
         .then(|| started_ms + u64::from(deadline_min) * 60_000)
 }
 
-/// How long a question of a background job waits: the explicit setting, or
-/// what is left of the job's deadline (79#P4). `None` = not a job with a
-/// deadline (the chat's timeout applies).
 pub fn job_ask_timeout(
     now_ms: u64,
     deadline_ms: Option<u64>,
@@ -5339,10 +4622,6 @@ pub fn job_ask_timeout(
         .or_else(|| deadline_ms.map(|d| std::time::Duration::from_millis(d.saturating_sub(now_ms))))
 }
 
-/// `GET /v1/jobs/{id}/explain`: why the job is in its state right now
-/// (79#P8). `asks` are the pending questions of its turn (each with
-/// `asked_ms` and, when known, `expires_ms`); `pid` only ever leaves through
-/// the local bridge, never through MCP.
 pub fn explain_view(
     job: &Job,
     live: Option<&Live>,
@@ -5382,10 +4661,7 @@ pub fn explain_view(
         "asks": asks,
         "deadline_ms": deadline,
         "deadline_left_s": deadline.filter(|_| running).map(|d| secs(now_ms, d)),
-        // Holds one of the parallel job slots right now.
         "slot": running,
-        // Resume after a restart (3.1): the session `--resume` continues,
-        // the host's own attempts, this job's switch, whether it wrote.
         "session_id": job.session_id,
         "attempt": job.attempt,
         "auto_resume": job.auto_resume,
@@ -5397,12 +4673,8 @@ pub fn explain_view(
     v
 }
 
-// ── one gate, one writer per folder, the queue explained (1.5, 1.6) ──
-
 use omniget_core::core::llm::job_gate::{GateView, Limits, WaitReason};
 
-/// The gate's limits from the settings, clamped like the settings card
-/// (a 0 would admit nobody, a 99 would start 99 `claude` at once).
 pub fn gate_limits(s: &omniget_core::models::settings::LlmSettings) -> Limits {
     let (lo, hi) = omniget_core::core::llm::job_gate::MAX_PARALLEL_RANGE;
     Limits {
@@ -5412,14 +4684,12 @@ pub fn gate_limits(s: &omniget_core::models::settings::LlmSettings) -> Limits {
     }
 }
 
-/// What the jobs page sends; `max_per_agent: 0` = no per-agent cap.
 #[derive(Debug, Default, Clone, Deserialize)]
 pub struct JobLimitsInput {
     pub max_parallel: Option<u32>,
     pub max_per_agent: Option<u32>,
 }
 
-/// Applies the input over the stored settings, clamped like [`gate_limits`].
 pub fn merge_limits(
     mut s: omniget_core::models::settings::LlmSettings,
     input: &JobLimitsInput,
@@ -5434,9 +4704,6 @@ pub fn merge_limits(
     s
 }
 
-/// The row a waiting job shows: `waiting_workspace` when another job holds
-/// its folder, `queued` otherwise; `wait_reason` is a code the UI
-/// translates (`slot`, `agent_cap`, `workspace:<job id>`).
 pub fn wait_state(reason: &WaitReason) -> (&'static str, String) {
     match reason {
         WaitReason::Workspace { holder, .. } => {
@@ -5446,8 +4713,6 @@ pub fn wait_state(reason: &WaitReason) -> (&'static str, String) {
     }
 }
 
-/// One English line for a waiting job (the CLI prints it; the UI translates
-/// the code instead).
 fn wait_detail(reason: &WaitReason, view: &GateView, agent: &str) -> String {
     match reason {
         WaitReason::Slot => format!("all {} job slots are busy", view.limits.max_parallel),
@@ -5456,9 +4721,6 @@ fn wait_detail(reason: &WaitReason, view: &GateView, agent: &str) -> String {
     }
 }
 
-/// `GET /v1/state`, `llm_jobs_state` and `llm://queue`: what runs, what
-/// waits and why, and the limits (symphony's state snapshot, 83#P5).
-/// `blocked` = holds a slot but waits for a person.
 pub fn state_view(view: &GateView, job: &dyn Fn(&str) -> Option<Job>) -> Value {
     let mut running = Vec::new();
     let mut blocked = Vec::new();
@@ -5520,16 +4782,10 @@ pub fn state_view(view: &GateView, job: &dyn Fn(&str) -> Option<Job>) -> Value {
     })
 }
 
-// ── job diff: the pure half (1.7) ─────────────────────────────────────
-
-/// `diff_unavailable` code of a job that ran without a folder.
-/// A job that ended well: `done`, or `review` (it wrote files a person has
-/// not looked at yet, 2.4).
 pub fn is_success(state: &str) -> bool {
     matches!(state, "done" | "review" | "done_unreported")
 }
 
-/// A job that ended, one way or another: nothing will move it by itself.
 pub fn is_terminal(state: &str) -> bool {
     matches!(
         state,
@@ -5537,25 +4793,12 @@ pub fn is_terminal(state: &str) -> bool {
     )
 }
 
-/// What a background job's prompt ends with (2.6, 78#P7): the agent's own
-/// verdict in one line the host can read. Kept short, it is paid on every
-/// job; `scripts/llm/missions_eval.py` sends the same text (B0 measures it).
-/// `succeeded` is tied to the change being done: with a bare "succeeded or
-/// failed", an agent whose test command was denied reported `failed` for
-/// work that passed, so doubt goes into the sentences instead.
 pub const OUTCOME_SUFFIX: &str = "\n\nEnd your reply with one line: `OUTCOME: succeeded` if the requested change is done, `OUTCOME: failed` if not, then ` — ` and up to 3 sentences on what you did and anything left unverified.";
 
-/// Jobs whose prompt asks for the `OUTCOME:` line: a run (from the CLI,
-/// the window, the bridge or MCP) and a mission task. Routines keep their
-/// text as it is (its digest decides whether to notify); Loop rounds and
-/// chat turns have their own end.
 pub fn asks_outcome(kind: &str) -> bool {
     matches!(kind, "run" | "mission")
 }
 
-/// The agent's `OUTCOME:` line, the last one of the text: `{status,
-/// summary}`, status `succeeded|failed`. Markdown around it (`**`, `` ` ``)
-/// and the dash between the two halves (`—`, `–`, `-`, `:`) are tolerated.
 pub fn parse_outcome(text: &str) -> Option<Value> {
     text.lines().rev().find_map(|line| {
         let l = line
@@ -5582,10 +4825,6 @@ pub fn parse_outcome(text: &str) -> Option<Value> {
     })
 }
 
-/// A `run` that ended `done` without its `OUTCOME:` line becomes
-/// `done_unreported` (2.6): the process ended well, the agent did not say
-/// how. `review` stays `review` (a person looks anyway), and missions keep
-/// `done` (their criteria decide).
 pub fn settle_outcome<'a>(kind: &str, state: &'a str, reported: bool) -> &'a str {
     if kind == "run" && state == "done" && !reported {
         "done_unreported"
@@ -5594,8 +4833,6 @@ pub fn settle_outcome<'a>(kind: &str, state: &'a str, reported: bool) -> &'a str
     }
 }
 
-/// The budget scopes a job's turns count against besides global, agent and
-/// account (3.3): the job itself and its Loop.
 pub fn work_scopes(job: &Job) -> Vec<omniget_core::core::llm::budget::policy::Scope> {
     use omniget_core::core::llm::budget::policy::Scope;
     let mut out = Vec::new();
@@ -5608,8 +4845,6 @@ pub fn work_scopes(job: &Job) -> Vec<omniget_core::core::llm::budget::policy::Sc
     out
 }
 
-/// Whether a job's work is inside a budget scope (what a hard crossing of
-/// that scope cancels). `bound` = the conversations a mission bound.
 pub fn in_budget_scope(
     job: &Job,
     scope: &omniget_core::core::llm::budget::policy::Scope,
@@ -5627,9 +4862,6 @@ pub fn in_budget_scope(
     }
 }
 
-/// A hard budget policy (warn at 80 %) for the whole run of a job or Loop,
-/// the one budget mechanism (3.3) behind `budget_usd`, `max_cost_usd` and
-/// `token_budget`. No engine (tests, a failed boot) = nothing to do.
 fn budget_policy(
     scope: omniget_core::core::llm::budget::policy::Scope,
     metric: omniget_core::core::llm::budget::policy::Metric,
@@ -5660,7 +4892,6 @@ fn budget_policy(
     }
 }
 
-/// The policies of a job or Loop that is gone: nothing can cross them.
 fn forget_budget_policies(scope: &omniget_core::core::llm::budget::policy::Scope) {
     let Some(engine) = omniget_core::core::llm::budget::policy::active() else {
         return;
@@ -5670,9 +4901,6 @@ fn forget_budget_policies(scope: &omniget_core::core::llm::budget::policy::Scope
     }
 }
 
-/// Adds a `job.start` budget (US$) to the job's guard: the job stops
-/// `failed` (reason `limit`) once its known cost passes it. A provider with
-/// no price never trips it (the cost stays unknown).
 pub fn with_budget(guard: Option<JobGuard>, budget_usd: Option<f64>) -> Option<JobGuard> {
     let Some(budget) = budget_usd.filter(|b| *b > 0.0) else {
         return guard;
@@ -5693,8 +4921,6 @@ pub fn with_budget(guard: Option<JobGuard>, budget_usd: Option<f64>) -> Option<J
     Some(g)
 }
 
-/// The state a job ends in once its diff is known: a `done` job that
-/// changed files goes to `review` (2.4, 83#P4); nothing else moves.
 pub fn settle_state<'a>(
     state: &'a str,
     files: Option<&[omniget_core::core::llm::snapshot::FileChange]>,
@@ -5706,20 +4932,12 @@ pub fn settle_state<'a>(
     }
 }
 
-/// Most files a proof lists (the totals count them all).
 pub const PROOF_MAX_FILES: usize = 200;
 
-/// The proof of a finished job (2.4, symphony P4), built by the host from
-/// what it recorded, never from the agent's words: 0 tokens. `ends` = the
-/// two ends of the diff (merge base and worktree tree, or the shadow trees
-/// in shared mode); `host` = the machine's name.
 pub fn build_proof(job: &Job, ends: Option<&(String, String)>, host: &str) -> Value {
     let short = |s: &str| s.chars().take(7).collect::<String>();
     let worktree = job.branch.is_some() && job.base_oid.is_some();
     let workspace = effective_workspace(job).unwrap_or_default();
-    // Worktree mode stamps commits (merge base → HEAD of the branch);
-    // shared mode the snapshot trees, marked so nobody takes them for
-    // commits.
     let (base, head) = if worktree {
         (
             ends.map(|e| e.0.clone()).or_else(|| job.base_oid.clone()),
@@ -5774,8 +4992,6 @@ pub fn build_proof(job: &Job, ends: Option<&(String, String)>, host: &str) -> Va
     })
 }
 
-/// Appends a check to a proof's `checks`, its exit code read from the
-/// `exit N` first line `run_check` writes.
 pub fn push_check(proof: &mut Value, command: &str, ok: bool, out: &str) {
     let code = out
         .strip_prefix("exit ")
@@ -5789,8 +5005,6 @@ pub fn push_check(proof: &mut Value, command: &str, ok: bool, out: &str) {
     }
 }
 
-/// What `GET /v1/jobs/{id}/proof` answers: the proof, or why there is none
-/// (409 while the job runs, 404 for a job that ended before 2.4).
 pub fn proof_view(job: &Job) -> Result<Value, (u16, String)> {
     if is_active(&job.state) {
         return Err((
@@ -5807,7 +5021,6 @@ pub fn proof_view(job: &Job) -> Result<Value, (u16, String)> {
     }
 }
 
-/// A job still at the gate or running: its folder or worktree is in use.
 pub fn is_active(state: &str) -> bool {
     matches!(
         state,
@@ -5815,15 +5028,9 @@ pub fn is_active(state: &str) -> bool {
     )
 }
 
-/// How long a finished job keeps its worktree before the GC removes it
-/// (its work stays on the branch).
 pub const WORKTREE_TTL_MS: u64 = 7 * 24 * 3600 * 1000;
-/// Least time between two GC passes of the cron ticker.
 pub const WORKTREE_GC_EVERY_MS: u64 = 3600 * 1000;
 
-/// Why the GC removes the worktree of a job (`None` = keep it): `orphan`
-/// when the job row is gone, `ttl` when it ended long enough ago. An active
-/// job's worktree is never touched.
 pub fn worktree_gc_verdict(job: Option<&Job>, now: u64) -> Option<&'static str> {
     match job {
         None => Some("orphan"),
@@ -5835,8 +5042,6 @@ pub fn worktree_gc_verdict(job: Option<&Job>, now: u64) -> Option<&'static str> 
     }
 }
 
-/// The repository of a job's worktree and the worktree's root folder
-/// (`worktree_path` may be a subfolder of it).
 async fn worktree_root(job: &Job) -> Option<(std::path::PathBuf, std::path::PathBuf)> {
     use omniget_core::core::vcs::job_worktree;
     let path = job.worktree_path.as_ref()?;
@@ -5852,14 +5057,12 @@ async fn worktree_root(job: &Job) -> Option<(std::path::PathBuf, std::path::Path
     Some((repo, root))
 }
 
-/// [`Jobs::remove_worktree`] without the row: for a job being deleted.
 async fn remove_job_worktree(
     job: &Job,
 ) -> Result<omniget_core::core::vcs::job_worktree::RemoveOutcome, String> {
     remove_job_worktree_with(crate::job_workflow::store().as_deref(), job).await
 }
 
-/// [`remove_job_worktree`] with the workflow store given (tests bring their own).
 pub(crate) async fn remove_job_worktree_with(
     store: Option<&omniget_core::core::llm::workflow::Store>,
     job: &Job,
@@ -5872,8 +5075,6 @@ pub(crate) async fn remove_job_worktree_with(
         .branch
         .clone()
         .unwrap_or_else(|| job_worktree::branch_of(&job.id));
-    // The workflow's `before_remove` hook (3.10), when trusted: a failure
-    // blocks the removal.
     let hook = crate::job_workflow::before_remove(store, job, &repo, &root).await?;
     let mut out = job_worktree::remove(&repo, &root, &branch, job.base_oid.as_deref())
         .await
@@ -5882,7 +5083,6 @@ pub(crate) async fn remove_job_worktree_with(
     Ok(out)
 }
 
-/// The job log line of a removal: what was saved, what the branch became.
 pub fn removal_note(out: &omniget_core::core::vcs::job_worktree::RemoveOutcome) -> String {
     let mut line = out.hook_note.clone().unwrap_or_default();
     line.push_str("⎇ worktree removed");
@@ -5904,7 +5104,6 @@ pub fn removal_note(out: &omniget_core::core::vcs::job_worktree::RemoveOutcome) 
     line
 }
 
-/// The job log line of a new worktree: where, from what, what came along.
 pub fn worktree_note(wt: &omniget_core::core::vcs::job_worktree::JobWorktree) -> String {
     let short = |s: &str| s.chars().take(7).collect::<String>();
     let mut line = format!(
@@ -5932,7 +5131,6 @@ pub fn worktree_note(wt: &omniget_core::core::vcs::job_worktree::JobWorktree) ->
 
 const NO_WORKSPACE: &str = "no_workspace";
 
-/// `<llm dir>/jobs/<id>.patch`.
 pub fn patch_path(job_id: &str) -> Option<std::path::PathBuf> {
     let name = sanitize_id(job_id);
     if name.is_empty() || name.contains("..") {
@@ -5942,8 +5140,6 @@ pub fn patch_path(job_id: &str) -> Option<std::path::PathBuf> {
         .map(|d| d.join("jobs").join(format!("{name}.patch")))
 }
 
-/// Copies a [`omniget_core::core::llm::snapshot::job_diff`] outcome into the
-/// job's columns; returns the patch text when the diff is known.
 pub fn apply_diff(
     job: &mut Job,
     out: Result<omniget_core::core::llm::snapshot::JobDiff, String>,
@@ -5976,17 +5172,12 @@ pub fn apply_diff(
     }
 }
 
-/// What `GET /v1/jobs/{id}/diff` answers.
 #[derive(Debug, PartialEq)]
 pub enum DiffBody {
     Json(Value),
-    /// `format=patch`: the unified diff, `text/x-diff`.
     Patch(String),
 }
 
-/// `format=files` (default): the file list, totals and why it is
-/// unavailable; `format=patch`: the patch itself, 409 when unavailable.
-/// `complete` is false for a job still running (diffed against now).
 pub fn diff_view(
     job: &Job,
     patch: Option<&str>,
@@ -6089,7 +5280,6 @@ mod cron_tests {
 
     const MIN: i64 = 60_000;
 
-    /// 2026-09-26 10:00:00 UTC, a Saturday.
     fn t0() -> i64 {
         chrono::Utc
             .with_ymd_and_hms(2026, 9, 26, 10, 0, 0)
@@ -6097,8 +5287,6 @@ mod cron_tests {
             .timestamp_millis()
     }
 
-    /// A routine saved by 0.9.x: a body without any of the new fields and no
-    /// schedule column.
     fn old_body() -> String {
         json!({"id": "t1", "name": "r", "kind": "cron", "cron": "*/1 * * * *", "agent_id": "a",
                "prompt": "p", "enabled": true, "last_fired_ms": null, "fire_count": 4, "created_ms": 1})
@@ -6129,9 +5317,7 @@ mod cron_tests {
             (CatchUp::Once, TriggerConcurrency::SkipIfActive, 4)
         );
         assert!(parse_zone(&t.tz).is_some());
-        // Nothing before the migration counts as missed.
         assert!(claim_due(&db, "t1", t0() + 40_000, 0, false).is_none());
-        // Running it again changes nothing.
         ensure_schema(&db, t0() + 50 * MIN).unwrap();
         assert_eq!(
             read_trigger(&db, "t1").unwrap().next_run_ms,

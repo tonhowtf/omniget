@@ -1,36 +1,17 @@
-//! Windows: Intel's PresentMon (MIT, github.com/GameTechDev/PresentMon),
-//! downloaded on demand like yt-dlp, with the version and SHA-256 fixed
-//! here. It reads the frame events Windows already emits (ETW) and never
-//! injects into the game, so it is safe with anti-cheats such as Vanguard.
-//!
-//! Its CSV changes with the version and the flags (v1, v2 and v3 metric
-//! names), so it is always read by column name, as CapFrameX does
-//! (`PresentMonCaptureService.cs`).
-//!
-//! Access: PresentMon needs an administrator or a member of the Performance
-//! Log Users group (SID `S-1-5-32-559`, `PresentMon/Privilege.cpp`). OmniGet
-//! never runs as administrator; the screen offers a one-time setup that
-//! joins the group (by SID, since the name changes with the language).
-
 use std::collections::HashMap;
 
 use super::format::Frame;
 
-/// Stable release 2.6.0 (2026-09-21). Hash checked against the GitHub
-/// release `digest` and a local download on 2026-09-27.
 pub const VERSION: &str = "2.6.0";
 pub const ASSET: &str = "PresentMon-2.6.0-x64.exe";
 pub const URL: &str =
     "https://github.com/GameTechDev/PresentMon/releases/download/v2.6.0/PresentMon-2.6.0-x64.exe";
 pub const SHA256: &str = "b2a706bc6ad475749e3b7e3409263aa1e6906d45bdcf993f6dbc0f660188f1af";
 pub const LICENSE_FILE: &str = "PresentMon-LICENSE.txt";
-/// `LICENSE.txt` of the PresentMon repository, shipped next to the binary.
 pub const LICENSE: &str = "PresentMon is distributed by Intel Corporation under the MIT License\nhttps://github.com/GameTechDev/PresentMon/blob/v2.6.0/LICENSE.txt\n\nCopyright (C) 2017-2024 Intel Corporation\n\nPermission is hereby granted, free of charge, to any person obtaining a copy\nof this software and associated documentation files (the \"Software\"),\nto deal in the Software without restriction, including without limitation\nthe rights to use, copy, modify, merge, publish, distribute, sublicense,\nand/or sell copies of the Software, and to permit persons to whom the\nSoftware is furnished to do so, subject to the following conditions:\n\nThe above copyright notice and this permission notice shall be included\nin all copies or substantial portions of the Software.\n\nTHE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS\nOR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,\nFITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL\nTHE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER\nLIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING\nFROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER\nDEALINGS IN THE SOFTWARE.\n";
 
 pub const PERF_LOG_USERS_SID: &str = "S-1-5-32-559";
 
-/// Column names across PresentMon 1.x, 2.x (`--v2_metrics`) and 3.x
-/// (default since 2.4), first match wins. Compared case-insensitively.
 const T_SECONDS: &[&str] = &["TimeInSeconds", "CPUStartTimeInSeconds"];
 const T_MS: &[&str] = &["TimeInMs", "CPUStartTimeInMs"];
 const FRAMETIME: &[&str] = &["MsBetweenPresents", "FrameTime", "MsBetweenAppStart"];
@@ -45,7 +26,6 @@ const LATENCY: &[&str] = &[
     "AllInputToPhotonLatency",
 ];
 
-/// Column positions read from the header line.
 #[derive(Debug, Clone)]
 pub struct Columns {
     n: usize,
@@ -65,13 +45,11 @@ pub struct Columns {
     latency: Option<usize>,
 }
 
-/// One CSV row with the fields that identify where it came from.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Row {
     pub pid: Option<u32>,
     pub swap_chain: Option<String>,
     pub application: Option<String>,
-    /// Absolute time of the row in ms, when the CSV has one.
     pub time_ms: Option<f64>,
     pub frame: Frame,
 }
@@ -112,8 +90,6 @@ impl Columns {
         self.display.is_some()
     }
 
-    /// Parse one data row. An application name with a comma splits into
-    /// extra fields at the front; they are folded back into the first.
     pub fn row(&self, line: &str) -> Option<Row> {
         let line = line.trim_end_matches(['\r', '\n']);
         if line.is_empty() {
@@ -138,7 +114,6 @@ impl Columns {
         let display = num(self.display);
         let dropped = match self.dropped.and_then(|i| c.get(i)) {
             Some(s) => s.trim() == "1",
-            // v2/v3: a frame that never reached the screen has "NA".
             None => self.display.is_some() && display.is_none(),
         };
         let time_ms = num(self.t_ms).or_else(|| num(self.t_seconds).map(|s| s * 1000.0));
@@ -181,9 +156,6 @@ pub struct Parsed {
     pub has_display: bool,
 }
 
-/// Whole CSV → frames of one swap chain. With several processes or swap
-/// chains (a launcher next to the game), the one with the most frames of
-/// `pid` (or overall) wins. `t_ms` starts at 0.
 pub fn parse_csv(text: &str, pid: Option<u32>) -> Parsed {
     let mut lines = text.lines().skip_while(|l| l.trim().is_empty());
     let Some(cols) = lines.next().and_then(Columns::from_header) else {
@@ -237,9 +209,6 @@ pub fn parse_csv(text: &str, pid: Option<u32>) -> Parsed {
     }
 }
 
-/// Command line for one capture. `session` names the ETW session (so a
-/// crash leaves a session we stop next time); no console, stop by itself
-/// after `max_seconds` or when the game exits.
 pub fn args(
     session: &str,
     output: &str,
@@ -275,8 +244,6 @@ pub fn args(
     a
 }
 
-/// The SID in `whoami /user /fo csv` (the second quoted field of the data
-/// line; headers are translated, the SID is not).
 pub fn user_sid_from_whoami(text: &str) -> Option<String> {
     text.lines()
         .filter_map(|l| l.rsplit(',').next())
@@ -284,7 +251,6 @@ pub fn user_sid_from_whoami(text: &str) -> Option<String> {
         .find(|s| valid_sid(s))
 }
 
-/// `S-1-` followed by numbers separated by dashes, nothing else.
 pub fn valid_sid(s: &str) -> bool {
     s.len() <= 184
         && s.strip_prefix("S-1-").is_some_and(|rest| {
@@ -295,8 +261,6 @@ pub fn valid_sid(s: &str) -> bool {
         })
 }
 
-/// Account name without the `DOMAIN\` part (`net localgroup` wants the bare
-/// group name; the user keeps its domain).
 pub fn bare_group(account: &str) -> &str {
     account.rsplit('\\').next().unwrap_or(account).trim()
 }
@@ -315,7 +279,6 @@ mod win {
         crate::core::dependencies::managed_bin_dir().ok_or_else(|| "no app data dir".to_string())
     }
 
-    /// The pinned binary, when it is there and its hash matches.
     pub fn installed() -> Option<PathBuf> {
         let custom = crate::core::washmybelly::settings().perf_tool_path;
         if !custom.trim().is_empty() {
@@ -327,7 +290,6 @@ mod win {
         (crate::core::dependencies::integrity::sha256_hex(&bytes) == SHA256).then_some(p)
     }
 
-    /// Download PresentMon once to `<app_data>/bin`, fail-closed on the hash.
     pub async fn ensure() -> Result<PathBuf, String> {
         if let Some(p) = installed() {
             return Ok(p);
@@ -372,8 +334,6 @@ mod win {
             .map_err(|e| format!("PresentMon: {e}"))
     }
 
-    /// Ask the running PresentMon to end its session cleanly (it flushes
-    /// the CSV); the caller kills the child if it does not exit.
     pub fn stop(exe: &Path, session: &str) {
         let _ = crate::core::process::std_command(exe)
             .args(["--terminate_existing_session", "--session_name", session])
@@ -397,15 +357,11 @@ mod win {
         Ok(String::from_utf8_lossy(&o.stdout).into_owned())
     }
 
-    /// SID of the signed-in user (read unelevated, before the prompt: an
-    /// over-the-shoulder administrator would be another account).
     pub fn current_user_sid() -> Result<String, String> {
         user_sid_from_whoami(&output("whoami", &["/user", "/fo", "csv"])?)
             .ok_or_else(|| "could not read the user SID".into())
     }
 
-    /// `DOMAIN\name` of a SID. Fixed script; the SID travels in an
-    /// environment variable, never in the script text.
     pub fn account_of(sid: &str) -> Result<String, String> {
         if !valid_sid(sid) {
             return Err("invalid SID".into());
@@ -428,10 +384,6 @@ mod win {
     }
 }
 
-/// Run by `omniget-elevate` (as administrator) for the one-time setup:
-/// add (or, to undo, remove) the user to Performance Log Users. The group
-/// name is resolved from its SID, since it is translated. Needs a sign-out
-/// to take effect.
 #[cfg(windows)]
 pub fn elevated_perf_log_users(user_sid: &str, join: bool) -> Result<String, String> {
     if !valid_sid(user_sid)
@@ -455,7 +407,6 @@ pub fn elevated_perf_log_users(user_sid: &str, join: bool) -> Result<String, Str
         String::from_utf8_lossy(&o.stdout),
         String::from_utf8_lossy(&o.stderr)
     );
-    // 1378: already a member; 1377: not a member (undo of an undo).
     if o.status.success() || text.contains("1378") || text.contains("1377") {
         Ok(format!(
             "{} {} {}; sign out to apply",

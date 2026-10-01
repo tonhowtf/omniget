@@ -1,17 +1,3 @@
-//! Thread "Browser": a pilotable webview per thread, anchored over the
-//! Browser tab of the right panel, plus the tools agents use to read and
-//! drive it, dev-server discovery and the SnapShot window capture.
-//!
-//! Tauri 2 multiwebview (`Window::add_child`) sits behind the `unstable`
-//! feature, which this app does not enable. So each preview is its own
-//! undecorated `WebviewWindow` with the main window as parent (a child window
-//! on macOS, an owned window on Windows, transient on Linux), placed in screen
-//! coordinates over the tab rectangle the front reports, and moved with the
-//! main window. Labels are `preview-<thread>`.
-//!
-//! Nothing runs at rest: no timers; the main-window hook only repositions
-//! visible previews when the main window moves or resizes.
-
 pub mod capture;
 pub mod ports;
 pub mod script;
@@ -28,16 +14,12 @@ use tauri::{
     AppHandle, Emitter, Manager, PhysicalPosition, PhysicalSize, WebviewUrl, WebviewWindow,
 };
 
-/// Front event: `PreviewState` whenever a preview's URL, title, loading or
-/// visibility changes.
 pub const EVENT_STATE: &str = "preview://state";
 pub const LABEL_PREFIX: &str = "preview-";
 const MAIN: &str = "main";
 const EVAL_TIMEOUT: Duration = Duration::from_secs(12);
 const LOAD_TIMEOUT: Duration = Duration::from_secs(20);
 
-/// A rectangle in the main webview, CSS pixels, plus the page's
-/// `devicePixelRatio` (falls back to the window scale factor).
 #[derive(Debug, Clone, Copy, Deserialize, Serialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct Rect {
@@ -88,7 +70,6 @@ pub fn manager() -> &'static PreviewManager {
     M.get_or_init(PreviewManager::default)
 }
 
-/// `preview-<thread id with only [A-Za-z0-9_-]>`.
 pub fn label_for(thread_id: &str) -> String {
     let clean: String = thread_id
         .chars()
@@ -115,7 +96,6 @@ fn window_title(label: &str) -> String {
     format!("OmniGet Preview {label}")
 }
 
-/// Only web pages; `javascript:`/`file:` and app schemes are refused.
 pub fn normalize_url(raw: &str) -> Result<url::Url, String> {
     let raw = raw.trim();
     if raw.is_empty() {
@@ -180,7 +160,6 @@ impl PreviewManager {
         self.state_of(&label_for(thread_id))
     }
 
-    /// The preview a tool targets: the thread's, or the last one used.
     pub fn resolve_label(&self, thread_id: Option<&str>) -> Option<String> {
         if let Some(t) = thread_id.filter(|t| !t.is_empty()) {
             let l = label_for(t);
@@ -222,7 +201,6 @@ fn window(app: &AppHandle, label: &str) -> Result<WebviewWindow, String> {
     app.get_webview_window(label).ok_or_else(|| "PREVIEW_NOT_OPEN: no preview for this thread; open the Browser tab or call preview_navigate with a url".to_string())
 }
 
-/// Moves the preview window over `rect` of the main webview.
 fn place(app: &AppHandle, ww: &WebviewWindow, rect: &Rect) -> Result<(), String> {
     let main = main_window(app)?;
     let scale = rect
@@ -243,8 +221,6 @@ fn place(app: &AppHandle, ww: &WebviewWindow, rect: &Rect) -> Result<(), String>
     Ok(())
 }
 
-/// Repositions visible previews when the main window moves; closes them all
-/// when it goes away. Installed once, on the first preview.
 fn hook_main(app: &AppHandle) {
     let m = manager();
     if m.hooked.swap(true, Ordering::SeqCst) {
@@ -373,8 +349,6 @@ fn build(
     Ok(ww)
 }
 
-/// Opens (or reuses) the thread's preview. `rect` given = show it there;
-/// `rect` absent = keep it hidden (agents can still drive it).
 pub fn open(
     app: &AppHandle,
     thread_id: &str,
@@ -423,8 +397,6 @@ fn show_at(app: &AppHandle, ww: &WebviewWindow, label: &str, rect: Rect) -> Resu
     let was_visible = ww.is_visible().unwrap_or(false);
     if !was_visible {
         ww.show().map_err(|e| format!("PREVIEW_SHOW: {e}"))?;
-        // Showing a window makes it key on macOS; give the keyboard back to
-        // the composer.
         if let Ok(main) = main_window(app) {
             let _ = main.set_focus();
         }
@@ -454,7 +426,6 @@ pub fn hide(app: &AppHandle, thread_id: &str) -> Result<(), String> {
     Ok(())
 }
 
-/// Hides every preview (route change, panel closed).
 pub fn hide_all(app: &AppHandle) {
     let labels: Vec<String> = manager()
         .sessions
@@ -481,7 +452,6 @@ pub fn close(app: &AppHandle, thread_id: &str) -> Result<(), String> {
     Ok(())
 }
 
-/// Waits for the next finished page load of `label` (after a navigate).
 async fn wait_load(label: &str) -> bool {
     let (tx, rx) = tokio::sync::oneshot::channel();
     if let Ok(mut l) = manager().loads.lock() {
@@ -493,7 +463,6 @@ async fn wait_load(label: &str) -> bool {
         .unwrap_or(false)
 }
 
-/// Navigates and waits for the load to finish (up to 20 s).
 pub async fn navigate(app: &AppHandle, label: &str, raw: &str) -> Result<PreviewState, String> {
     let u = normalize_url(raw)?;
     let ww = window(app, label)?;
@@ -510,7 +479,6 @@ pub async fn navigate(app: &AppHandle, label: &str, raw: &str) -> Result<Preview
         .ok_or_else(|| "PREVIEW_NOT_OPEN: preview closed".into())
 }
 
-/// back / forward / reload through the page history.
 pub async fn history(app: &AppHandle, label: &str, action: &str) -> Result<PreviewState, String> {
     let ww = window(app, label)?;
     if action == "reload" {
@@ -531,8 +499,6 @@ pub async fn history(app: &AppHandle, label: &str, action: &str) -> Result<Previ
         .ok_or_else(|| "PREVIEW_NOT_OPEN: preview closed".into())
 }
 
-/// Runs `func` (a JS function expression) with `args` in the page and returns
-/// its value. Errors thrown in the page come back as `PREVIEW_JS: ...`.
 pub async fn eval_fn(
     app: &AppHandle,
     label: &str,
@@ -581,8 +547,6 @@ pub async fn eval_fn(
     }
 }
 
-/// Entry for `preview_report` (called by the injected script). `label` is the
-/// real label of the calling webview, never a value from the page.
 pub fn report(app: &AppHandle, label: &str, kind: &str, id: Option<String>, data: Value) {
     if !label.starts_with(LABEL_PREFIX) {
         return;
@@ -616,8 +580,6 @@ pub fn report(app: &AppHandle, label: &str, kind: &str, id: Option<String>, data
     }
 }
 
-/// PNG of the preview. macOS: `screencapture -l` on the preview window (shown
-/// for a moment when hidden). Windows/Linux: the screen rectangle under it.
 pub async fn screenshot(app: &AppHandle, label: &str) -> Result<capture::Captured, String> {
     let ww = window(app, label)?;
     let was_visible = ww.is_visible().unwrap_or(false);
@@ -656,7 +618,6 @@ async fn shoot(ww: &WebviewWindow, _label: &str) -> Result<capture::Captured, St
     capture::capture_rect(pos.x, pos.y, size.width, size.height, "preview").await
 }
 
-/// JSON for tools: state + a hint when nothing is open.
 pub fn state_json(label: &str) -> Value {
     manager()
         .state_of(label)

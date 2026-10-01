@@ -1,13 +1,3 @@
-//! Dev-server discovery for the thread's Browser tab: which processes whose
-//! working directory is inside the thread folder are listening on a local TCP
-//! port, confirmed by an HTTP probe that answers HTML.
-//!
-//! macOS/Linux: `lsof -nP -iTCP -sTCP:LISTEN -F pcn` for the listeners and
-//! `lsof -a -d cwd -Fn -p <pids>` (Linux: `/proc/<pid>/cwd` first) for the
-//! folder; `ss -ltnpH` when lsof is missing on Linux. Windows: `netstat -ano`
-//! plus the process command line (no cwd there), matched by path prefix.
-//! Runs only when the tab asks: nothing polls.
-
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::time::Duration;
@@ -16,17 +6,14 @@ use serde::Serialize;
 
 use omniget_core::core::process;
 
-/// One listening socket as the OS reports it.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Listener {
     pub pid: u32,
     pub command: String,
-    /// The bound host as printed (`127.0.0.1`, `*`, `::1`, `0.0.0.0`).
     pub host: String,
     pub port: u16,
 }
 
-/// What the tab shows for one port.
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DevServer {
@@ -34,23 +21,15 @@ pub struct DevServer {
     pub pid: u32,
     pub command: String,
     pub cwd: Option<String>,
-    /// The URL the Browser tab opens.
     pub url: String,
-    /// The process folder is inside the thread folder (or its command line
-    /// names it, on Windows).
     pub in_workspace: bool,
-    /// The probe answered HTML.
     pub html: bool,
     pub status: Option<u16>,
     pub title: Option<String>,
 }
 
-// ── Parsers (pure) ────────────────────────────────────────────────────────
-
-/// Splits `127.0.0.1:5173`, `*:8000`, `[::1]:3000`, `::1.3000` style names.
 pub fn split_host_port(name: &str) -> Option<(String, u16)> {
     let name = name.trim();
-    // lsof may append " (LISTEN)" when -F is not used; be tolerant.
     let name = name.split_whitespace().next()?;
     let name = name.split("->").next()?;
     let (host, port) = if let Some(rest) = name.strip_prefix('[') {
@@ -64,7 +43,6 @@ pub fn split_host_port(name: &str) -> Option<(String, u16)> {
     Some((host, port))
 }
 
-/// `lsof -F pcn` output: `p<pid>`, `c<command>`, `f<fd>`, `n<name>` lines.
 pub fn parse_lsof_listen(out: &str) -> Vec<Listener> {
     let mut res = Vec::new();
     let mut pid = 0u32;
@@ -98,7 +76,6 @@ pub fn parse_lsof_listen(out: &str) -> Vec<Listener> {
     dedupe(res)
 }
 
-/// `lsof -a -d cwd -Fn -p ...` output: `p<pid>`, `fcwd`, `n<path>`.
 pub fn parse_lsof_cwd(out: &str) -> HashMap<u32, String> {
     let mut map = HashMap::new();
     let mut pid = 0u32;
@@ -114,7 +91,6 @@ pub fn parse_lsof_cwd(out: &str) -> HashMap<u32, String> {
     map
 }
 
-/// `ss -ltnpH`: `LISTEN 0 511 127.0.0.1:5173 0.0.0.0:* users:(("node",pid=12,fd=20))`.
 pub fn parse_ss(out: &str) -> Vec<Listener> {
     let mut res = Vec::new();
     for line in out.lines() {
@@ -122,7 +98,6 @@ pub fn parse_ss(out: &str) -> Vec<Listener> {
         if cols.len() < 5 {
             continue;
         }
-        // With -H the first column is the state; tolerate the netid column.
         let local = if cols[0] == "tcp" {
             cols.get(4)
         } else {
@@ -169,7 +144,6 @@ pub fn parse_ss(out: &str) -> Vec<Listener> {
     dedupe(res)
 }
 
-/// `netstat -ano`: `  TCP    127.0.0.1:5173   0.0.0.0:0   LISTENING   1234`.
 pub fn parse_netstat(out: &str) -> Vec<Listener> {
     let mut res = Vec::new();
     for line in out.lines() {
@@ -201,7 +175,6 @@ fn dedupe(v: Vec<Listener>) -> Vec<Listener> {
         .collect()
 }
 
-/// A listener reachable from this machine's loopback.
 pub fn is_local_bind(host: &str) -> bool {
     matches!(
         host,
@@ -209,7 +182,6 @@ pub fn is_local_bind(host: &str) -> bool {
     ) || host.starts_with("127.")
 }
 
-/// The URL the probe and the tab use for a bound host.
 pub fn url_for(host: &str, port: u16) -> String {
     if host == "::1" {
         format!("http://[::1]:{port}/")
@@ -220,7 +192,6 @@ pub fn url_for(host: &str, port: u16) -> String {
     }
 }
 
-/// `path` is `root` or below it (component-wise, case-insensitive on Windows).
 pub fn is_inside(path: &Path, root: &Path) -> bool {
     if cfg!(windows) {
         let p = path.to_string_lossy().replace('/', "\\").to_lowercase();
@@ -231,7 +202,6 @@ pub fn is_inside(path: &Path, root: &Path) -> bool {
     path.starts_with(root)
 }
 
-/// `<title>` of an HTML body, whitespace collapsed.
 pub fn html_title(body: &str) -> Option<String> {
     let lower = body.to_ascii_lowercase();
     let start = lower.find("<title")?;
@@ -257,8 +227,6 @@ pub fn looks_like_html(content_type: &str, body: &str) -> bool {
     head.starts_with("<!doctype html") || head.starts_with("<html")
 }
 
-// ── OS calls ──────────────────────────────────────────────────────────────
-
 async fn run(program: &str, args: &[&str]) -> Option<String> {
     let mut cmd = process::command(program);
     cmd.args(args)
@@ -271,7 +239,6 @@ async fn run(program: &str, args: &[&str]) -> Option<String> {
         .await
         .ok()?
         .ok()?;
-    // lsof exits 1 when a filter matches nothing but still prints the rest.
     Some(String::from_utf8_lossy(&out.stdout).into_owned())
 }
 
@@ -323,7 +290,6 @@ async fn cwds(pids: &[u32]) -> HashMap<u32, String> {
     map
 }
 
-/// Windows: name and command line per pid (there is no cwd to read).
 async fn windows_processes(pids: &[u32]) -> HashMap<u32, (String, String)> {
     let mut map = HashMap::new();
     if pids.is_empty() {
@@ -368,7 +334,6 @@ async fn windows_processes(pids: &[u32]) -> HashMap<u32, (String, String)> {
     map
 }
 
-/// GETs the URL briefly; `(status, html, title)`.
 pub async fn probe(url: &str) -> (Option<u16>, bool, Option<String>) {
     let client = match reqwest::Client::builder()
         .timeout(Duration::from_millis(1500))
@@ -412,9 +377,6 @@ pub async fn probe(url: &str) -> (Option<u16>, bool, Option<String>) {
     )
 }
 
-/// Listening local ports whose process runs inside `root`. With `all`, the
-/// other local listeners come too (flagged `in_workspace: false`), so the tab
-/// can offer a server started elsewhere. Our own process is left out.
 pub async fn discover(root: Option<&Path>, all: bool) -> Result<Vec<DevServer>, String> {
     let own = std::process::id();
     let listeners: Vec<Listener> = listeners()
@@ -438,7 +400,6 @@ pub async fn discover(root: Option<&Path>, all: bool) -> Result<Vec<DevServer>, 
         HashMap::new()
     };
 
-    // One entry per port (IPv4 and IPv6 binds of the same server collapse).
     let mut by_port: BTreeMap<u16, DevServer> = BTreeMap::new();
     for l in listeners {
         let cwd = cwd_map.get(&l.pid).cloned();
@@ -483,7 +444,6 @@ pub async fn discover(root: Option<&Path>, all: bool) -> Result<Vec<DevServer>, 
         }
     }
 
-    // Probe at most 48 ports, concurrently.
     let mut list: Vec<DevServer> = by_port.into_values().collect();
     list.sort_by_key(|d| (!d.in_workspace, d.port));
     list.truncate(48);
@@ -497,7 +457,6 @@ pub async fn discover(root: Option<&Path>, all: bool) -> Result<Vec<DevServer>, 
         d.html = html;
         d.title = title;
     }
-    // Workspace HTML servers first, then other HTML, then the rest.
     list.sort_by_key(|d| (!d.in_workspace, !d.html, d.port));
     Ok(list)
 }

@@ -1,13 +1,3 @@
-//! What a confirmed settings change does to the running app, kept apart
-//! from the persistence: saving and applying are two results.
-//!
-//! Each [`EffectId`] is a domain with a serial queue: at most one run in
-//! flight, a target revision, and the private snapshot of that revision. A
-//! newer commit replaces a target that has not started; a run that finishes
-//! for an old revision never marks the newer one applied, the worker goes on
-//! to the latest target first. No run happens under the repository lock, and
-//! no effect talks to a provider, creates a grant or starts a download.
-
 use std::collections::HashMap;
 use std::sync::{Arc, Condvar, Mutex, MutexGuard, OnceLock};
 use std::time::{Duration, Instant};
@@ -74,7 +64,6 @@ impl EffectId {
         Self::ALL.into_iter().find(|id| id.as_str() == s)
     }
 
-    /// The settings paths whose change calls for this effect.
     fn paths(self) -> &'static [&'static str] {
         match self {
             Self::NetworkProxy => &["proxy"],
@@ -108,14 +97,11 @@ impl EffectId {
                 "llm.approval_notify_delay_s",
             ],
             Self::LlmJobs => &["llm.jobs_max_parallel", "llm.jobs_max_per_agent"],
-            // The port is managed by the bridge itself (and protected in a
-            // patch); only switching the bridge on or off is a user effect.
             Self::BridgeLifecycle => &["bridge.enabled"],
         }
     }
 }
 
-/// The effects whose fields differ between two settings.
 pub fn effects_for_change(before: &AppSettings, after: &AppSettings) -> Vec<EffectId> {
     let (Ok(a), Ok(b)) = (serde_json::to_value(before), serde_json::to_value(after)) else {
         return Vec::new();
@@ -138,13 +124,9 @@ pub enum FailCode {
 pub enum ApplyOutcome {
     Applied,
     Failed(FailCode),
-    /// Takes effect on the next start; never simulated.
     RestartRequired,
 }
 
-/// The local operations behind each effect. `previous` is the snapshot the
-/// domain last applied (or the one before its first change), for effects
-/// that need the old value (RPC app id).
 pub trait EffectApplier: Send + Sync + 'static {
     fn apply(&self, id: EffectId, previous: &AppSettings, settings: &AppSettings) -> ApplyOutcome;
 }
@@ -162,7 +144,6 @@ pub enum EffectState {
 #[serde(rename_all = "camelCase")]
 pub struct PendingEffect {
     pub id: EffectId,
-    /// Decimal u64, like every revision on the IPC.
     pub target_revision: String,
     pub state: EffectState,
     pub code: Option<&'static str>,
@@ -179,15 +160,12 @@ pub enum RetryOutcome {
 
 #[derive(Default)]
 struct Domain {
-    /// Latest wanted revision and its snapshot.
     target: Option<(u64, Arc<AppSettings>)>,
-    /// Run the target even if it was applied (explicit retry).
     force: bool,
     running: Option<u64>,
     applied: Option<u64>,
     failure: Option<(u64, FailCode)>,
     restart: Option<u64>,
-    /// What the domain last applied, or the state before its first change.
     baseline: Option<Arc<AppSettings>>,
     worker: bool,
 }
@@ -213,8 +191,6 @@ impl EffectsRegistry {
         self.domains.lock().unwrap_or_else(|p| p.into_inner())
     }
 
-    /// Records the baseline of domains that have none yet (boot state), so
-    /// the first change knows what it replaces.
     pub fn set_baseline(&self, settings: &AppSettings) {
         let snapshot = Arc::new(settings.clone());
         let mut domains = self.guard();
@@ -226,8 +202,6 @@ impl EffectsRegistry {
         }
     }
 
-    /// Queues `ids` for `revision`. Newer targets replace older ones that
-    /// have not started.
     pub fn schedule(
         self: &Arc<Self>,
         ids: &[EffectId],
@@ -344,7 +318,6 @@ impl EffectsRegistry {
         })
     }
 
-    /// Every effect not applied at its latest target, in a stable order.
     pub fn pending(&self) -> Vec<PendingEffect> {
         let domains = self.guard();
         EffectId::ALL
@@ -353,7 +326,6 @@ impl EffectsRegistry {
             .collect()
     }
 
-    /// Waits until none of `ids` is queued or running, up to `timeout`.
     pub fn wait_idle(&self, ids: &[EffectId], timeout: Duration) {
         let deadline = Instant::now() + timeout;
         let mut domains = self.guard();
@@ -379,10 +351,6 @@ impl EffectsRegistry {
         }
     }
 
-    /// `settings_retry_effect_v3`: reapplies the latest intention of `id`
-    /// with the latest confirmed settings, never an old one.
-    /// `current_revision`/`current` = the repository's confirmed state;
-    /// `target_revision` must already be checked `<= current_revision`.
     pub fn retry(
         self: &Arc<Self>,
         id: EffectId,
@@ -400,8 +368,6 @@ impl EffectsRegistry {
         };
         let latest = latest.unwrap_or(current_revision);
         if target_revision < latest {
-            // Old target: nothing old is applied. A still pending latest
-            // intention is queued again with the current snapshot.
             if pending
                 .as_ref()
                 .is_some_and(|p| p.state == EffectState::Failed)
@@ -413,7 +379,6 @@ impl EffectsRegistry {
         let has_target = self.guard().get(&id).is_some_and(|d| d.target.is_some());
         match pending.map(|p| p.state) {
             Some(EffectState::RestartRequired) => return RetryOutcome::Pending,
-            // Applied at this target: nothing to repeat.
             None if has_target => return RetryOutcome::Applied,
             _ => {}
         }
@@ -447,18 +412,12 @@ impl EffectsRegistry {
     }
 }
 
-// ---------------------------------------------------------------------------
-// The desktop registry
-// ---------------------------------------------------------------------------
-
 static REGISTRY: OnceLock<Arc<EffectsRegistry>> = OnceLock::new();
 
 pub fn registry() -> Option<Arc<EffectsRegistry>> {
     REGISTRY.get().cloned()
 }
 
-/// Wires the effects to the running app. Called once from `setup`, after
-/// the boot code applied the loaded settings.
 pub fn install(app: tauri::AppHandle) {
     let boot = crate::storage::settings_repository::global().settings();
     let notify_app = app.clone();
@@ -473,7 +432,6 @@ pub fn install(app: tauri::AppHandle) {
     let _ = REGISTRY.set(registry);
 }
 
-/// `settings-v3-changed`: the revision only, never settings or secrets.
 pub fn emit_changed(app: &tauri::AppHandle) {
     use tauri::Emitter;
     let revision = crate::storage::settings_repository::global().revision();
@@ -483,8 +441,6 @@ pub fn emit_changed(app: &tauri::AppHandle) {
     );
 }
 
-/// After a confirmed commit (lock released): schedule the effects of the
-/// fields that changed and tell the UI about the new revision.
 pub fn after_commit(app: &tauri::AppHandle, commit: &Commit) {
     if !commit.changed {
         return;
@@ -497,8 +453,6 @@ pub fn after_commit(app: &tauri::AppHandle, commit: &Commit) {
     emit_changed(app);
 }
 
-/// Lets a dedicated command (prune, watchdog, jobs) answer after its own
-/// effect ran, as it did when it installed the change itself.
 pub fn settle(ids: &[EffectId]) {
     if let Some(registry) = registry() {
         registry.wait_idle(ids, Duration::from_secs(5));
@@ -558,16 +512,12 @@ impl EffectApplier for DesktopApplier {
                 ApplyOutcome::Applied
             }
             EffectId::LlmJobs => {
-                // Without the jobs runtime the gate reads the settings when
-                // it starts; there is nothing running to update.
                 if let Some(jobs) = crate::jobs::try_get() {
                     jobs.apply_limits(&s.llm);
                 }
                 ApplyOutcome::Applied
             }
             EffectId::BridgeLifecycle => {
-                // The server is started once at boot; switching it on or
-                // off takes effect on the next start.
                 if s.bridge.enabled == self.bridge_enabled_at_boot {
                     ApplyOutcome::Applied
                 } else {
@@ -584,8 +534,6 @@ mod tests {
     use std::sync::atomic::{AtomicUsize, Ordering};
     use std::sync::mpsc;
 
-    /// Records every run; blocks runs of revision 1 until released; fails
-    /// while `fail` is set.
     struct Recorder {
         runs: Mutex<Vec<(EffectId, u64, String)>>,
         gate: Mutex<Option<mpsc::Receiver<()>>>,
@@ -630,7 +578,6 @@ mod tests {
         }
     }
 
-    /// Settings tagged with their revision (in `max_retries`) and a quality.
     fn at(rev: u64, quality: &str) -> AppSettings {
         let mut s = AppSettings::default();
         s.advanced.max_retries = rev as u32;
@@ -665,8 +612,6 @@ mod tests {
         assert_eq!(EffectId::parse("network"), None);
     }
 
-    // API-06: a slow run for revision 1 never marks revision 2 applied; the
-    // worker reconciles to 2 right after, and the old target is not rerun.
     #[test]
     fn a_slow_old_run_does_not_mark_the_new_revision_applied() {
         let rec = Recorder::new();
@@ -678,7 +623,6 @@ mod tests {
         let id = EffectId::NetworkProxy;
         reg.schedule(&[id], 1, &AppSettings::default(), &at(1, "480p"));
         started.recv().unwrap();
-        // Commit 2 arrives while 1 is still applying.
         reg.schedule(&[id], 2, &at(1, "480p"), &at(2, "1080p"));
         let p = reg.pending();
         assert_eq!(p.len(), 1);
@@ -710,7 +654,6 @@ mod tests {
         assert_eq!(revs, vec![1, 3]);
     }
 
-    // API-06: independent domains do not wait for each other.
     #[test]
     fn a_slow_domain_does_not_block_another() {
         let rec = Recorder::new();
@@ -750,13 +693,10 @@ mod tests {
         assert_eq!(p[0].state, EffectState::Failed);
         assert_eq!(p[0].code, Some("apply_failed"));
         assert!(p[0].retryable);
-        // Not retried on its own.
         std::thread::sleep(Duration::from_millis(50));
         assert_eq!(rec.calls.load(Ordering::SeqCst), 1);
 
         rec.fail.store(false, Ordering::SeqCst);
-        // An old target is superseded: revision 3's value is never applied,
-        // the latest intention (6, current snapshot) is queued instead.
         let current = at(6, "latest");
         assert_eq!(
             reg.retry(id, 3, 6, &current, Duration::from_secs(5)),
@@ -768,7 +708,6 @@ mod tests {
         assert!(runs.iter().all(|r| r.1 != 3));
         assert!(reg.pending().is_empty());
 
-        // Retry at the applied target: nothing repeated.
         let before = rec.calls.load(Ordering::SeqCst);
         assert_eq!(
             reg.retry(id, 6, 6, &current, Duration::from_secs(5)),

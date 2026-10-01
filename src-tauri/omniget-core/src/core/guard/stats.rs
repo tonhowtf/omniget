@@ -1,10 +1,3 @@
-//! "Config health" numbers: token weight of commands/rules/agents/AGENTS.md,
-//! hooks per event (and whether their program exists), MCP servers by
-//! category and complexity. Port of `--command-stats`, `--hook-stats` and
-//! `--mcp-stats`, fixed: hooks are read in the real `{matcher, hooks:[…]}`
-//! shape, every file the caller passes is read (not only `./.claude`), and
-//! the token estimate counts words, code and Markdown separately.
-
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
@@ -36,13 +29,10 @@ pub struct HookStat {
     pub event: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub matcher: Option<String>,
-    /// `command` | `agent` | `prompt` | …
     pub handler: String,
     pub command: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub program: Option<String>,
-    /// Whether the program resolves on PATH (or as a file). `None` for
-    /// `agent`/`prompt` handlers.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub program_found: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -52,7 +42,6 @@ pub struct HookStat {
     pub enabled: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub timeout: Option<u64>,
-    /// `$CLAUDE_*` variables the hook reads that are never set.
     pub fake_env: Vec<String>,
     pub tokens: usize,
 }
@@ -69,7 +58,6 @@ pub struct McpStat {
     pub name: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
-    /// `stdio` | `http` | `sse`.
     pub transport: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub command: Option<String>,
@@ -77,7 +65,6 @@ pub struct McpStat {
     pub env: usize,
     pub enabled: bool,
     pub category: String,
-    /// 1–5, rules of the original `mcp-stats`.
     pub complexity: u8,
     pub config_bytes: usize,
 }
@@ -112,16 +99,10 @@ pub struct ConfigStats {
     pub errors: Vec<StatError>,
 }
 
-// ------------------------------------------------------------------ tokens
-
 fn is_cjk(c: char) -> bool {
     matches!(c as u32, 0x3000..=0x9FFF | 0xAC00..=0xD7AF | 0xF900..=0xFAFF | 0xFF00..=0xFFEF | 0x20000..=0x2FFFF)
 }
 
-/// Tokens of one whitespace-free chunk, BPE-style: short ASCII words are one
-/// token, long ones split every ~4 chars; digits every 3; accented or other
-/// non-ASCII letters cost more; CJK is about one per char; punctuation is one
-/// per char except long runs of the same char (`----`, `====`).
 fn chunk_tokens(chunk: &str, code: bool) -> f64 {
     let chars: Vec<char> = chunk.chars().collect();
     let mut t = 0.0;
@@ -129,7 +110,6 @@ fn chunk_tokens(chunk: &str, code: bool) -> f64 {
     while i < chars.len() {
         let c = chars[i];
         if c.is_ascii_alphabetic() || c == '_' {
-            // Split identifiers at case changes/underscores for code.
             let mut j = i + 1;
             while j < chars.len() && (chars[j].is_ascii_alphabetic() || (chars[j] == '_' && !code))
             {
@@ -156,7 +136,6 @@ fn chunk_tokens(chunk: &str, code: bool) -> f64 {
             t += 1.0;
             i += 1;
         } else if c.is_alphabetic() {
-            // Non-ASCII letter run (accents etc.), mixed with ASCII letters.
             let mut j = i + 1;
             while j < chars.len() && chars[j].is_alphabetic() && !is_cjk(chars[j]) {
                 j += 1;
@@ -180,7 +159,6 @@ fn chunk_tokens(chunk: &str, code: bool) -> f64 {
     t
 }
 
-/// Estimated tokens of a Markdown/text document.
 pub fn estimate_tokens(text: &str) -> usize {
     let mut total = 0.0;
     let mut in_fence = false;
@@ -202,12 +180,10 @@ pub fn estimate_tokens(text: &str) -> usize {
                 total += chunk_tokens(w, false);
             }
         }
-        total += 1.0; // newline
+        total += 1.0;
     }
     total.round() as usize
 }
-
-// ------------------------------------------------------------------ docs
 
 fn modified(p: &Path) -> Option<String> {
     let m = std::fs::metadata(p).ok()?.modified().ok()?;
@@ -296,8 +272,6 @@ pub fn doc_stat(p: &Path, kind: &str) -> Result<DocStat, String> {
     })
 }
 
-// ------------------------------------------------------------------ hooks
-
 const BUILTINS: &[&str] = &[
     "echo", "cd", "pwd", "exit", "export", "unset", "alias", "type", "which", "command", "builtin",
     "source", ".", "test", "[", "[[", "if", "then", "else", "fi", "case", "esac", "for", "while",
@@ -380,8 +354,6 @@ fn hook_rows(file: &str, v: &serde_json::Value, project: Option<&Path>, out: &mu
                     && h.get("disabled").and_then(|e| e.as_bool()) != Some(true);
                 let (program, program_found, script, script_found) = if handler == "command" {
                     let script_ = shell::parse(&command);
-                    // The first real program: skip `if [[ … ]]`, `echo`,
-                    // assignments; fall back to the first builtin.
                     let mut all_cmds: Vec<shell::Cmd> = script_
                         .pipelines
                         .iter()
@@ -484,8 +456,6 @@ fn hook_rows(file: &str, v: &serde_json::Value, project: Option<&Path>, out: &mu
     }
 }
 
-// ------------------------------------------------------------------ mcp
-
 fn words(s: &str) -> Vec<String> {
     s.to_lowercase()
         .split(|c: char| !c.is_ascii_alphanumeric())
@@ -494,8 +464,6 @@ fn words(s: &str) -> Vec<String> {
         .collect()
 }
 
-/// Category by keyword, in the original's order; words are matched whole
-/// (the original's substring test put every "email" server under AI & ML).
 pub fn mcp_category(name: &str, command: &str, description: &str) -> &'static str {
     let n = words(&format!("{name} {command}"));
     let d = words(description);
@@ -610,7 +578,6 @@ pub fn mcp_category(name: &str, command: &str, description: &str) -> &'static st
     }
 }
 
-/// 1 + args + env + settings + (env > 3) + (env > 6), capped at 5.
 pub fn mcp_complexity(s: &serde_json::Value) -> u8 {
     let len = |k: &str| {
         s.get(k)
@@ -709,12 +676,6 @@ fn mcp_rows(file: &str, v: &serde_json::Value, out: &mut Vec<McpStat>) {
     }
 }
 
-// ------------------------------------------------------------------ entry
-
-/// Build the stats. Keys of `paths_by_kind`: `command(s)`, `rule(s)`,
-/// `agent(s)`, `skill(s)`, `memory` (AGENTS.md/CLAUDE.md…), `hook(s)` /
-/// `setting(s)` (JSON with a `hooks` object), `mcp(s)`. A path may be a file
-/// or a folder (folders are walked for `.md`/`.mdc`/`.toml`, or `SKILL.md`).
 pub fn config_stats(
     paths_by_kind: &BTreeMap<String, Vec<String>>,
     project_dir: Option<&Path>,

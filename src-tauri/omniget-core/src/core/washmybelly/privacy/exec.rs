@@ -1,14 +1,3 @@
-//! Running one privacy item, never the whole script: each fact becomes a
-//! typed step (a `reg`/`defaults`/`tccutil` argv run as the person, a file
-//! write, or an [`ElevatedOp`] for the administrator helper). Before any
-//! step runs, the real previous state (value and type) is read into a
-//! [`Snapshot`]; undo puts that back. privacy.sexy's revert code is a
-//! separate action, "back to the default" ([`Action::RevertDefault`]).
-//!
-//! Building steps ([`steps`], [`restore_steps`]) is apart from running
-//! them ([`run_user_steps`]), so tests check the exact argv with a fake
-//! [`Sys`] and never touch the registry or `defaults`.
-
 use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
@@ -41,11 +30,9 @@ impl Action {
     }
 }
 
-/// The state one step is about to change, as it really was.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "t", rename_all = "snake_case")]
 pub enum Prior {
-    /// `value` is `(kind, data)`, `None` when the value did not exist.
     Reg {
         key: String,
         name: String,
@@ -59,7 +46,6 @@ pub enum Prior {
         path: String,
         enabled: bool,
     },
-    /// `value` is `(type from read-type, printed value)`.
     Defaults {
         domain: String,
         key: String,
@@ -82,18 +68,11 @@ pub struct Snapshot {
     pub priors: Vec<Prior>,
 }
 
-/// One unit of work.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Step {
-    /// A command run as the person (argv).
     Run(Vec<String>),
-    /// Replace a file of the person's (Firefox `user.js`).
-    Write {
-        path: PathBuf,
-        content: String,
-    },
+    Write { path: PathBuf, content: String },
     Remove(PathBuf),
-    /// Work for the administrator helper.
     Elevated(ElevatedOp),
 }
 
@@ -101,7 +80,6 @@ fn s(x: &str) -> String {
     x.to_string()
 }
 
-/// `reg add` (`/ve` for the default value).
 pub fn reg_add_argv(key: &str, name: &str, kind: &str, data: &str) -> Vec<String> {
     let mut v = vec![s("reg"), s("add"), s(key)];
     if name.is_empty() || name.eq_ignore_ascii_case("(default)") {
@@ -148,7 +126,6 @@ fn reg_delete_step(key: &str, name: &str) -> Step {
     }
 }
 
-/// `defaults write domain key [-type] value`.
 pub fn defaults_write_argv(
     env: &Env,
     domain: &str,
@@ -168,7 +145,6 @@ pub fn defaults_delete_argv(env: &Env, domain: &str, key: &str) -> Vec<String> {
     vec![s("defaults"), s("delete"), env.expand(domain), s(key)]
 }
 
-/// privacy.sexy's `defaultStartupMode` as a `service_startup` mode.
 pub fn default_mode(m: &str) -> Option<&'static str> {
     match m.trim().to_ascii_lowercase().as_str() {
         "automatic" => Some("automatic"),
@@ -239,8 +215,6 @@ fn without_line(content: &str, prefix: &str) -> String {
     }
 }
 
-/// Steps of an item for an action, with the state they will change.
-/// Things already in the wanted state are left alone.
 pub fn steps(r: &Reader, it: &Item, action: Action) -> Result<(Vec<Step>, Vec<Prior>), String> {
     if !it.executable() {
         return Err(format!(
@@ -254,7 +228,6 @@ pub fn steps(r: &Reader, it: &Item, action: Action) -> Result<(Vec<Step>, Vec<Pr
             .default_parts()
             .ok_or_else(|| format!("{} has no default to go back to", it.name))?,
     };
-    // macOS revert scripts are plain `defaults` lines: they apply as written.
     let reverting = action == Action::RevertDefault && it.revert_parts.is_none();
     let mut out = Vec::new();
     let mut priors = Vec::new();
@@ -493,7 +466,6 @@ pub fn steps(r: &Reader, it: &Item, action: Action) -> Result<(Vec<Step>, Vec<Pr
     Ok((out, priors))
 }
 
-/// Steps that bring back the state a snapshot saved, last change first.
 pub fn restore_steps(env: &Env, snap: &Snapshot) -> Vec<Step> {
     snap.priors
         .iter()
@@ -539,7 +511,6 @@ pub fn restore_steps(env: &Env, snap: &Snapshot) -> Vec<Step> {
                     "integer" => ("int", v.clone()),
                     "float" => ("float", v.clone()),
                     "string" => ("string", v.clone()),
-                    // Arrays, dictionaries, dates and data cannot travel as argv.
                     _ => {
                         return Step::Run(vec![
                             s("false"),
@@ -568,7 +539,6 @@ pub fn restore_steps(env: &Env, snap: &Snapshot) -> Vec<Step> {
         .collect()
 }
 
-/// Run the person's steps in order; stop at the first failure.
 pub fn run_user_steps(sys: &dyn Sys, steps: &[Step]) -> Result<usize, String> {
     let mut n = 0;
     for st in steps {
@@ -578,7 +548,6 @@ pub fn run_user_steps(sys: &dyn Sys, steps: &[Step]) -> Result<usize, String> {
                     return Err(argv.get(1).cloned().unwrap_or_default());
                 }
                 let o = sys.run(argv)?;
-                // `tccutil` exits 70 for a service this macOS does not have.
                 let tcc_unsupported = argv[0] == "tccutil" && o.code == Some(70);
                 if !o.ok && !tcc_unsupported {
                     let msg = if o.stderr.trim().is_empty() {
@@ -614,7 +583,6 @@ pub fn elevated_ops(steps: &[Step]) -> Vec<ElevatedOp> {
         .collect()
 }
 
-/// A step as a line the person can read (the "copy command" view).
 pub fn describe(st: &Step) -> String {
     match st {
         Step::Run(argv) => argv

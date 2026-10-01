@@ -1,20 +1,3 @@
-//! Cursor: três armazenamentos que se sobrepõem (estudo 06, Cursor §j).
-//!
-//! 1. IDE: `<config>/Cursor/User/globalStorage/state.vscdb`, tabela
-//!    `cursorDiskKV`, chaves `composerData:<id>` (cabeçalho da conversa) e
-//!    `bubbleId:<id>:<bubble>` (cada mensagem; `type` 1 = usuário, 2 =
-//!    assistente; `toolFormerData` = chamada de tool; `tokenCount`).
-//! 2. CLI (`cursor-agent`/`agent`): `~/.cursor/chats/<hash>/<uuid>/store.db`,
-//!    tabelas `meta(key, value)` (JSON, às vezes em hex) e `blobs(id, data)`
-//!    (árvore endereçada por conteúdo; as mensagens são linhas JSON com `role`).
-//! 3. Transcrições de agente: `~/.cursor/projects/<slug>/agent-transcripts/
-//!    <id>.jsonl` ou `<id>/<id>.jsonl` (+ `subagents/*.jsonl`), linhas
-//!    `{role, message:{content:[text|tool_use]}}` e `{type:"turn_ended"}`.
-//!
-//! O id das transcrições é o mesmo `composerId` da IDE: a IDE vence (tem
-//! resultado de tool e horário por mensagem); a transcrição cobre o resto.
-//! Verificado em arquivos reais nesta máquina (IDE 2 GB e 91 transcrições).
-
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 
@@ -33,7 +16,6 @@ fn cursor_home() -> Option<PathBuf> {
     home_join(&[".cursor"])
 }
 
-/// `state.vscdb` globais do Cursor (desktop e servidor remoto).
 fn ide_dbs() -> Vec<(String, PathBuf)> {
     vscode_user_dirs()
         .into_iter()
@@ -50,7 +32,6 @@ fn chat_dbs() -> Vec<PathBuf> {
     find_files(&root, 3, |p| file_name(p) == "store.db")
 }
 
-/// Transcrições: (arquivo, id, pai).
 fn transcripts() -> Vec<(PathBuf, String, Option<String>)> {
     let Some(root) = cursor_home().map(|h| h.join("projects")) else {
         return Vec::new();
@@ -76,8 +57,6 @@ fn transcripts() -> Vec<(PathBuf, String, Option<String>)> {
     out
 }
 
-/// Slug do Cursor (`Users-tonho-Documents-tonho-wtf`) de volta para caminho,
-/// testando no disco onde cada `-` era `/`, `-`, `.`, `_` ou espaço.
 pub fn resolve_slug(slug: &str) -> Option<String> {
     let segs: Vec<&str> = slug.split('-').filter(|s| !s.is_empty()).collect();
     if segs.is_empty() {
@@ -116,8 +95,6 @@ pub fn resolve_slug(slug: &str) -> Option<String> {
     dfs(&root, rest, &mut budget).map(|p| p.to_string_lossy().into_owned())
 }
 
-/// `<timestamp>Tuesday, Sep 1, 2026, 10:39 AM (UTC-3)</timestamp>` que o
-/// Cursor injeta no prompt da transcrição.
 fn transcript_ts(text: &str) -> Option<String> {
     let a = text.find("<timestamp>")? + "<timestamp>".len();
     let b = text[a..].find("</timestamp>")? + a;
@@ -139,8 +116,6 @@ fn transcript_ts(text: &str) -> Option<String> {
     let utc = naive - chrono::Duration::minutes(offset_min as i64);
     Some(ms_to_rfc3339(utc.and_utc().timestamp_millis()))
 }
-
-// ---------------------------------------------------------------- IDE
 
 fn composer_meta(v: &Value, db: &Path, account: &str) -> Option<SessionMeta> {
     let id = s(v, &["composerId"])?;
@@ -180,7 +155,6 @@ fn composer_meta(v: &Value, db: &Path, account: &str) -> Option<SessionMeta> {
                 .and_then(Value::as_str)
                 .map(str::to_string)
         });
-    // Branch mais recente entre os repositórios acompanhados.
     if let Some(repos) = v.get("trackedGitRepos").and_then(Value::as_array) {
         let mut best: Option<(i64, String)> = None;
         for r in repos {
@@ -246,8 +220,6 @@ fn bubble_status(s: &str) -> ToolStatus {
     }
 }
 
-/// Converte bolhas (na ordem) em turnos, juntando bolhas seguidas do
-/// assistente num turno só.
 pub fn bubbles_to_turns(bubbles: &[Value], fallback_model: Option<&str>) -> Vec<Turn> {
     let mut turns: Vec<Turn> = Vec::new();
     for b in bubbles {
@@ -382,9 +354,6 @@ fn load_ide(id: &str) -> Option<Session> {
     None
 }
 
-// ---------------------------------------------------------------- CLI
-
-/// Valor do `meta` do store.db: JSON direto ou JSON codificado em hex.
 fn decode_meta_value(raw: &[u8]) -> Option<Value> {
     if let Ok(v) = serde_json::from_slice::<Value>(raw) {
         if v.is_object() {
@@ -449,7 +418,6 @@ fn chat_meta(db: &Path) -> Option<SessionMeta> {
     Some(m)
 }
 
-/// Mensagens JSON de um store.db (ignora os blobs binários da árvore).
 fn chat_messages(db: &Path) -> Vec<Value> {
     let Some(conn) = open_ro(db) else {
         return Vec::new();
@@ -478,7 +446,6 @@ fn chat_messages(db: &Path) -> Vec<Value> {
     out
 }
 
-/// Mensagens estilo AI SDK/OpenAI/Anthropic (`role` + `content`) em turnos.
 pub fn role_messages_to_turns(msgs: &[Value]) -> Vec<Turn> {
     let mut turns: Vec<Turn> = Vec::new();
     let mut results = Vec::new();
@@ -494,7 +461,6 @@ pub fn role_messages_to_turns(msgs: &[Value]) -> Vec<Turn> {
             .unwrap_or(Value::Null);
         let (text, calls, res) = anthropic_blocks(&content);
         results.extend(res);
-        // OpenAI: tool_calls[] + role "tool" com tool_call_id.
         let mut calls = calls;
         if let Some(tc) = m.get("tool_calls").and_then(Value::as_array) {
             for c in tc {
@@ -566,8 +532,6 @@ fn load_chat(db: &Path) -> Option<Session> {
     Some(Session { meta, turns })
 }
 
-// ---------------------------------------------------------------- transcrições
-
 pub fn parse_transcript(path: &Path, id: &str, parent: Option<String>) -> Session {
     let mut rows = Vec::new();
     let mut errors = 0u32;
@@ -583,7 +547,6 @@ pub fn parse_transcript(path: &Path, id: &str, parent: Option<String>) -> Sessio
         }
     });
     let mut turns = role_messages_to_turns(&rows);
-    // A transcrição não guarda resultado: chamada conhecida = concluída.
     for t in turns.iter_mut() {
         for c in t.tool_calls.iter_mut() {
             if c.status == ToolStatus::Pending {
@@ -595,7 +558,6 @@ pub fn parse_transcript(path: &Path, id: &str, parent: Option<String>) -> Sessio
     let mut meta = new_meta(TOOL, id, path);
     meta.parent_session = parent;
     meta.account = Some("agent-transcripts".into());
-    // projects/<slug>/agent-transcripts/...
     let slug = path
         .ancestors()
         .find(|a| file_name(a) == "agent-transcripts")
@@ -664,7 +626,6 @@ impl SessionSource for CursorSource {
     }
 
     fn resume_command(&self, meta: &SessionMeta) -> Option<String> {
-        // Só as conversas do CLI retomam pelo CLI; as da IDE abrem na IDE.
         if meta.account.as_deref() == Some("cli") {
             Some(format!(
                 "cursor-agent --resume {}",

@@ -1,12 +1,3 @@
-//! The broker's view of missions: which conversation belongs to a running
-//! mission, the `before_tool` policies that may refuse a call, and the log
-//! of tool calls of the current round (the progress guard reads it).
-//!
-//! The broker stays the only place tools run. It asks [`before_tool`] after
-//! its own grant checks — a mission policy can only take a permission away,
-//! never add one — and reports every result to [`after_tool`]. With no
-//! mission attached to the conversation both are a map lookup.
-
 use std::collections::HashMap;
 use std::sync::RwLock;
 
@@ -24,7 +15,6 @@ struct Attached {
 
 static ATTACHED: RwLock<Option<HashMap<String, Attached>>> = RwLock::new(None);
 
-/// The driver attaches a mission to the conversation its task runs in.
 pub fn attach(conversation: &str, mission_id: &str, policies: &[Policy]) {
     let deny: Vec<Policy> = policies
         .iter()
@@ -59,7 +49,6 @@ pub fn mission_of(conversation: &str) -> Option<String> {
         .and_then(|m| m.get(conversation).map(|a| a.mission_id.clone()))
 }
 
-/// `Some(reason)` when a mission policy refuses `tool` in `conversation`.
 pub fn before_tool(conversation: &str, tool: &str, _input: &Value) -> Option<String> {
     let r = ATTACHED.read().unwrap_or_else(|e| e.into_inner());
     let a = r.as_ref()?.get(conversation)?;
@@ -78,7 +67,6 @@ pub fn before_tool(conversation: &str, tool: &str, _input: &Value) -> Option<Str
     })
 }
 
-/// Every brokered call of an attached conversation lands here.
 pub fn after_tool(conversation: &str, tool: &str, input: &Value, ok: bool, ms: u32) {
     let mission = {
         let mut w = ATTACHED.write().unwrap_or_else(|e| e.into_inner());
@@ -107,7 +95,6 @@ pub fn after_tool(conversation: &str, tool: &str, input: &Value, ok: bool, ms: u
     }
 }
 
-/// Takes (and clears) the calls recorded since the last round.
 pub fn take_calls(conversation: &str) -> (Vec<String>, Vec<String>) {
     let mut w = ATTACHED.write().unwrap_or_else(|e| e.into_inner());
     match w.as_mut().and_then(|m| m.get_mut(conversation)) {

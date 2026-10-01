@@ -1,26 +1,3 @@
-//! Claude Code.
-//!
-//! Credential (read only, never refreshed, never rewritten):
-//!   - Linux and Windows: `<config>/.credentials.json`, where `<config>` is
-//!     `$CLAUDE_CONFIG_DIR` or `~/.claude` (`%USERPROFILE%\.claude`).
-//!   - macOS: the same file when it exists, otherwise the login keychain item
-//!     `Claude Code-credentials` (account = the OS user). It is asked through
-//!     `/usr/bin/security`, the tool Claude Code itself files the item with, so
-//!     no keychain prompt is raised for OmniGet.
-//!   - Shape: `{"claudeAiOauth":{"accessToken","expiresAt"(epoch ms),"subscriptionType"}}`.
-//!   - Other profiles (one per account in `/llm` → Accounts, each with its own
-//!     `CLAUDE_CONFIG_DIR`): `<dir>/.credentials.json`, otherwise the keychain
-//!     item `Claude Code-credentials-<8 hex>`, the first 8 hex digits of
-//!     sha256 of the directory string exactly as it is handed to the CLI.
-//!
-//! Identity (not a credential): `oauthAccount.emailAddress` in
-//! `~/.claude.json` for the default profile, `<dir>/.claude.json` otherwise.
-//!
-//! Endpoint: `GET https://api.anthropic.com/api/oauth/usage` with
-//! `Authorization: Bearer` and `anthropic-beta: oauth-2025-04-20`, the same one
-//! Claude Code's own `/usage` asks. An expired token is never sent: the
-//! endpoint answers it with a long 429, not a 401.
-
 use super::Profile;
 use crate::limits_strip::AccountTag;
 use crate::limits_strip::{
@@ -32,7 +9,6 @@ use std::path::{Path, PathBuf};
 const ENDPOINT: &str = "https://api.anthropic.com/api/oauth/usage";
 const KEYCHAIN_SERVICE: &str = "Claude Code-credentials";
 
-/// One Claude Code login. The default profile has `dir: None`.
 pub struct Claude {
     id: String,
     dir: Option<PathBuf>,
@@ -48,22 +24,17 @@ impl Claude {
         }
     }
 
-    /// The directory this login lives in.
     fn dir(&self) -> Option<PathBuf> {
         self.dir.clone().or_else(config_dir)
     }
 }
 
-/// `$CLAUDE_CONFIG_DIR` when the OmniGet process itself carries one.
 fn env_config_dir() -> Option<String> {
     std::env::var("CLAUDE_CONFIG_DIR")
         .ok()
         .filter(|v| !v.is_empty())
 }
 
-/// The keychain service Claude Code files a login under: plain for the
-/// default `~/.claude`, suffixed with the first 8 hex digits of sha256 of the
-/// config dir string for any other `CLAUDE_CONFIG_DIR`.
 pub fn keychain_service(config_dir: Option<&str>) -> String {
     use sha2::{Digest, Sha256};
     match config_dir {
@@ -75,20 +46,16 @@ pub fn keychain_service(config_dir: Option<&str>) -> String {
     }
 }
 
-/// The keychain services to try for one profile, in order.
 pub fn keychain_services(dir: Option<&Path>) -> Vec<String> {
     match dir {
         Some(d) => vec![keychain_service(Some(&d.to_string_lossy()))],
         None => match env_config_dir() {
-            // Moved by the environment: the CLI files it suffixed; older
-            // builds filed it plain.
             Some(d) => vec![keychain_service(Some(&d)), keychain_service(None)],
             None => vec![keychain_service(None)],
         },
     }
 }
 
-/// Where the CLI keeps its account profile (`oauthAccount`), no token inside.
 pub fn profile_json(dir: Option<&Path>) -> Option<PathBuf> {
     match dir {
         Some(d) => Some(d.join(".claude.json")),
@@ -107,14 +74,6 @@ pub fn parse_email(v: &serde_json::Value) -> Option<String> {
         .map(str::to_string)
 }
 
-/// The e-mail a profile is signed in with, from `.claude.json`.
-///
-/// Claude Code rewrites that file all the time, so a read can land mid-write
-/// and see half a JSON. Forgetting the e-mail then would un-merge two twin
-/// logins (see `profiles`), flip the ring list every few seconds and make the
-/// strip re-place itself and the usage icon rebuild its native menu. So the
-/// last good answer is kept per file, and the file is only parsed again when
-/// its size or mtime moved.
 pub fn email_of(dir: Option<&Path>) -> Option<String> {
     use std::collections::HashMap;
     use std::sync::Mutex;
@@ -144,7 +103,6 @@ pub fn email_of(dir: Option<&Path>) -> Option<String> {
             cache.insert(path, (stamp, email.clone()));
             email
         }
-        // Half-written: keep what we knew, and try again on the next change.
         None => cache.get(&path).and_then(|(_, e)| e.clone()),
     }
 }
@@ -167,7 +125,6 @@ pub struct Credential {
 
 pub fn parse_credential(v: &serde_json::Value) -> Option<Credential> {
     let oauth = v.get("claudeAiOauth").unwrap_or(v);
-    // An emptied credential is how the owner signs out.
     let token = Secret::new(oauth.get("accessToken")?.as_str()?)?;
     Some(Credential {
         token,
@@ -204,7 +161,6 @@ async fn keychain_credential(_service: &str) -> Option<Credential> {
     None
 }
 
-/// Where a profile's credential is looked for, in order.
 #[derive(Debug, PartialEq, Eq)]
 pub enum Source {
     File(PathBuf),
@@ -272,8 +228,6 @@ fn span_of(id: &str) -> i64 {
     }
 }
 
-/// `limits[]` is the forward-compatible shape; `five_hour` / `seven_day` are
-/// merged in because a window that just rolled over vanishes from `limits`.
 pub fn parse_usage(v: &serde_json::Value) -> Vec<LimitWindow> {
     let mut out: Vec<LimitWindow> = Vec::new();
     if let Some(arr) = v.get("limits").and_then(|x| x.as_array()) {

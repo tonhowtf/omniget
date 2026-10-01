@@ -1,12 +1,3 @@
-//! Cords across floors and workspaces (Maestri connectors). A cord between
-//! terminals on different floors or workspaces is two halves: on each side a
-//! `connector` chip next to the local terminal (its data points at the remote
-//! terminal) and a local cord terminal ↔ chip. The cords module already
-//! resolves a chip to its remote node (`list` shows "B @ W2", `ask` reaches
-//! it). Both chips carry the same `pairId`; removing either chip, or the cord
-//! that ties a chip, removes the whole pair (a sweep after each patch). Only
-//! terminals cross; there is no undo for a pair (Maestri).
-
 use std::sync::{Arc, OnceLock};
 
 use omniget_core::core::canvas::layout;
@@ -19,14 +10,12 @@ use serde_json::{json, Value};
 
 const CHIP_W: f64 = 160.0;
 const CHIP_H: f64 = 48.0;
-/// Origin of the pair's ops (and of the sweep).
 pub const ORIGIN: &str = "link";
 
 fn store() -> Arc<CanvasStore> {
     super::doc::host().store().clone()
 }
 
-/// A node and where it lives.
 #[derive(Debug, Clone)]
 pub struct End {
     pub ws: String,
@@ -38,7 +27,6 @@ fn is_terminal(n: &CanvasNode) -> bool {
     matches!(n.kind, NodeKind::Terminal | NodeKind::Agent)
 }
 
-/// `crossFloor` or `crossWorkspace` for two ends, `None` on the same floor.
 pub fn route(a: &End, b: &End) -> Option<&'static str> {
     if a.ws != b.ws {
         Some("crossWorkspace")
@@ -67,8 +55,6 @@ fn ws_name(s: &CanvasStore, ws: &str) -> String {
         .unwrap_or_else(|_| ws.into())
 }
 
-/// Chip title as Maestri writes it: "Name @ Workspace" across workspaces,
-/// "Name @ Floor" across floors.
 fn chip_title(s: &CanvasStore, local: &End, remote: &End) -> String {
     let name = super::cords::node_name(&remote.node);
     if local.ws != remote.ws {
@@ -122,7 +108,6 @@ fn cord(from: &str, to: &str, perms: &[String], label: &str) -> Connection {
     }
 }
 
-/// Chips of `doc` already pointing at `remote_id` from a node tied to `local_id`.
 fn existing_chip(doc: &FloorDoc, local_id: &str, remote_id: &str) -> Option<String> {
     doc.nodes
         .iter()
@@ -135,7 +120,6 @@ fn existing_chip(doc: &FloorDoc, local_id: &str, remote_id: &str) -> Option<Stri
         .map(|n| n.id.clone())
 }
 
-/// Places one half: a chip next to `local` pointing at `remote`, plus the cord.
 fn half(
     s: &CanvasStore,
     local: &End,
@@ -171,8 +155,6 @@ fn half(
     Ok((cid, kid))
 }
 
-/// Ties two terminals on different floors or workspaces. Refuses notes,
-/// portals and anything that is not a terminal (they stay on one floor).
 pub fn link(a: &End, b: &End, perms: &[String], origin: &str) -> Result<Value, String> {
     ensure_watch();
     let Some(kind) = route(a, b) else {
@@ -223,7 +205,6 @@ pub fn link(a: &End, b: &End, perms: &[String], origin: &str) -> Result<Value, S
     }))
 }
 
-/// Every chip carrying `pair` in the whole store: `(ws, floor, node id)`.
 fn chips_of_pair(s: &CanvasStore, pair: &str) -> Vec<(String, String, String)> {
     let mut out = Vec::new();
     for w in s.workspaces() {
@@ -246,7 +227,6 @@ fn chips_of_pair(s: &CanvasStore, pair: &str) -> Vec<(String, String, String)> {
     out
 }
 
-/// Removes both halves of `pair`.
 pub fn unlink_pair(pair: &str, origin: &str) -> Result<Vec<String>, String> {
     let s = store();
     let mut removed = Vec::new();
@@ -266,7 +246,6 @@ pub fn unlink_pair(pair: &str, origin: &str) -> Result<Vec<String>, String> {
     Ok(removed)
 }
 
-/// The pair of a chip, or of the cord tying a chip.
 pub fn pair_of(ws: &str, floor: &str, id: &str) -> Option<String> {
     store()
         .read(ws, floor, |d| {
@@ -286,10 +265,8 @@ pub fn pair_of(ws: &str, floor: &str, id: &str) -> Option<String> {
         .flatten()
 }
 
-/// Pairs anywhere in the store that lost a half, or whose chip lost its cord.
 fn broken_pairs(s: &CanvasStore) -> Vec<String> {
     use std::collections::HashMap;
-    // pair -> (chips seen, all tied)
     let mut seen: HashMap<String, (usize, bool)> = HashMap::new();
     for w in s.workspaces() {
         let ws = w.workspace.id.clone();
@@ -320,7 +297,6 @@ fn broken_pairs(s: &CanvasStore) -> Vec<String> {
         .collect()
 }
 
-/// Watches patches: a removed chip or chip cord takes its twin with it.
 pub fn ensure_watch() {
     static ON: OnceLock<()> = OnceLock::new();
     ON.get_or_init(|| {
@@ -337,7 +313,6 @@ pub fn ensure_watch() {
             if !removes {
                 return;
             }
-            // Off the store's call stack: the sweep applies ops itself.
             std::thread::spawn(move || {
                 let s = store();
                 for pair in broken_pairs(&s) {

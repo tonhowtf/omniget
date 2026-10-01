@@ -1,26 +1,5 @@
-//! Line parser for the CLI history files.
-//!
-//! Two shapes are understood, both learned from real files on disk (the
-//! anonymised fixtures in `tests/cli_usage_fixtures/` carry the shape):
-//!
-//! * **Claude Code** — `<config>/projects/**/*.jsonl`, one JSON object per
-//!   line. The lines that matter are `type: "assistant"`, whose
-//!   `message.usage` carries `input_tokens`, `cache_creation_input_tokens`,
-//!   `cache_read_input_tokens` and `output_tokens`.
-//! * **Codex** — `~/.codex/sessions/YYYY/MM/DD/rollout-*.jsonl`. Usage comes
-//!   in `type: "token_usage_record"` (per response, already a delta) and the
-//!   model comes from the last `turn_context` line.
-//!
-//! The parser is deliberately tolerant: an unknown `type`, a missing field or
-//! a line that is not JSON at all is skipped, never fatal. A CLI newer than
-//! the one we tested must degrade, not break (plan §3, Fase 4, "Plano B").
-//!
-//! Nothing here ever opens a credential file: the scanner only hands over
-//! `*.jsonl` content, and this module has no I/O at all.
-
 use serde::{Deserialize, Serialize};
 
-/// Which CLI wrote the line.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum CliKind {
@@ -38,68 +17,40 @@ impl CliKind {
     }
 }
 
-/// One billable assistant response read out of a history file.
-///
-/// Token convention matches [`crate::core::tools::usage::UsageEntry`]:
-/// `input_tokens` is the **total** input, cache included, so that
-/// `usage::cost_of` can price it without a second convention.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct CliUsageEntry {
     pub cli: CliKind,
-    /// Account label: the isolated config dir the file belongs to, or
-    /// `"default"` for the user's own `~/.claude`.
     pub account: String,
     pub session_id: String,
-    /// Project folder name, as the CLI encodes it in the directory name.
     pub project: String,
-    /// Unix epoch in milliseconds, UTC.
     pub ts_ms: i64,
     pub model: String,
-    /// Total input tokens, cache read and cache write included.
     pub input_tokens: u64,
     pub output_tokens: u64,
     pub cache_read_tokens: u64,
     pub cache_write_tokens: u64,
-    /// Thinking / reasoning tokens, already counted inside `output_tokens`.
     pub reasoning_tokens: u64,
-    /// Cost the CLI itself reported, when it does. `None` means "price it".
     pub cost_usd: Option<f64>,
-    /// `message.id:requestId`; the same response shows up again when a
-    /// session is resumed or copied into a subagent file.
     pub dedupe_key: Option<String>,
-    /// Subagent turn (`isSidechain`).
     pub sidechain: bool,
-    /// Tool names called in this response, in order.
     pub tools: Vec<String>,
 }
 
-/// A rate-limit window as the CLI itself reported it locally. This is one of
-/// the two official channels (`estudos/74` §A.2): the Codex rollout writes it
-/// into its own JSONL, and the Claude status line / `rate_limit_event` writes
-/// it into the capacity cache. Never an HTTP endpoint of ours.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct RateLimitSample {
-    /// 300 for the 5 h window, 10080 for the 7 d one.
     pub window_minutes: u32,
-    /// Normalised to 0..=100.
     pub used_percent: f32,
-    /// Unix epoch seconds when the window resets, when the CLI says so.
     pub resets_at: Option<i64>,
-    /// When the line was written, epoch ms.
     pub observed_at_ms: i64,
 }
 
-/// What one line turned into.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Parsed {
     Usage(Box<CliUsageEntry>),
     Limits(Vec<RateLimitSample>),
-    /// Housekeeping line, unknown record type, or malformed JSON.
     Ignored,
 }
 
-/// Per-file parser: some fields (Codex's model, the session id) only appear
-/// on earlier lines, so the parser carries them forward.
 #[derive(Debug, Clone)]
 pub struct FileParser {
     cli: CliKind,
@@ -146,8 +97,6 @@ impl FileParser {
     fn feed_claude(&mut self, v: &serde_json::Value) -> Parsed {
         match v.get("type").and_then(|t| t.as_str()) {
             Some("assistant") => {
-                // An API error line carries a synthetic message with zeroed
-                // usage; counting it would invent a request.
                 if v.get("isApiErrorMessage").and_then(|b| b.as_bool()) == Some(true) {
                     return Parsed::Ignored;
                 }
@@ -218,8 +167,6 @@ impl FileParser {
                     tools,
                 }))
             }
-            // Emitted by `claude -p --output-format stream-json` and mirrored
-            // into the history by newer CLIs. `utilization` is 0..=1 there.
             Some("rate_limit_event") => {
                 let obs = ts_ms(v.get("timestamp")).unwrap_or(0);
                 let windows = v
@@ -300,7 +247,6 @@ impl FileParser {
                     project: self.project.clone(),
                     ts_ms: ts_ms(v.get("timestamp")).unwrap_or(0),
                     model: self.model.clone(),
-                    // OpenAI already counts cached tokens inside `input_tokens`.
                     input_tokens: input,
                     output_tokens: output,
                     cache_read_tokens: num(u, "cached_input_tokens"),
@@ -355,10 +301,6 @@ impl FileParser {
     }
 }
 
-/// Cheap byte-level pre-filter: a line that cannot carry usage or a rate limit
-/// is rejected before UTF-8 validation and before `serde_json`. On a real
-/// history this throws away most of the bytes (attachments, snapshots, tool
-/// results) and is what keeps the scan inside its budget.
 pub fn may_carry_usage(cli: CliKind, line: &[u8]) -> bool {
     match cli {
         CliKind::Claude => contains(line, b"\"usage\"") || contains(line, b"\"rate_limit"),
@@ -371,13 +313,10 @@ pub fn may_carry_usage(cli: CliKind, line: &[u8]) -> bool {
     }
 }
 
-/// True when the line may name a Codex tool call.
 pub fn may_be_tool_call(line: &[u8]) -> bool {
     contains(line, b"_tool_call\"") || contains(line, b"function_call\"")
 }
 
-/// Substring search over bytes. `position` on the byte iterator vectorises,
-/// which is what makes the pre-filter cheap enough to run on every line.
 fn contains(hay: &[u8], needle: &[u8]) -> bool {
     if needle.is_empty() || needle.len() > hay.len() {
         return false;
@@ -400,8 +339,6 @@ fn contains(hay: &[u8], needle: &[u8]) -> bool {
     false
 }
 
-/// Tool calls in a Codex rollout live on their own line, not inside the usage
-/// record, so the heat map reads them separately.
 pub fn codex_tool_name(line: &str) -> Option<String> {
     if !may_be_tool_call(line.as_bytes()) {
         return None;
@@ -423,8 +360,6 @@ fn num(v: &serde_json::Value, key: &str) -> u64 {
     v.get(key).and_then(|x| x.as_u64()).unwrap_or(0)
 }
 
-/// `used_percent` (0..=100), `used_percentage` (0..=100) or `utilization`
-/// (0..=1), whichever the writer used. Everything comes out as 0..=100.
 fn window_percent(w: &serde_json::Value) -> Option<f32> {
     for key in ["used_percent", "used_percentage", "usedPercent"] {
         if let Some(x) = w.get(key).and_then(|x| x.as_f64()) {
@@ -439,10 +374,8 @@ fn window_percent(w: &serde_json::Value) -> Option<f32> {
     None
 }
 
-/// Epoch seconds from a number or from an RFC 3339 string.
 fn epoch_secs(v: &serde_json::Value) -> Option<i64> {
     if let Some(n) = v.as_i64() {
-        // Some writers use milliseconds; anything past year 33658 is ms.
         return Some(if n > 1_000_000_000_000 { n / 1000 } else { n });
     }
     if let Some(f) = v.as_f64() {
@@ -454,7 +387,6 @@ fn epoch_secs(v: &serde_json::Value) -> Option<i64> {
         .map(|t| t.timestamp())
 }
 
-/// Milliseconds since the epoch from an RFC 3339 timestamp field.
 pub fn ts_ms(v: Option<&serde_json::Value>) -> Option<i64> {
     let v = v?;
     if let Some(n) = v.as_i64() {
@@ -482,7 +414,6 @@ mod tests {
             panic!("expected usage");
         };
         assert_eq!(e.model, "claude-opus-5");
-        // Input is the total, cache included: 12 + 20000 + 30000.
         assert_eq!(e.input_tokens, 50_012);
         assert_eq!(e.cache_read_tokens, 30_000);
         assert_eq!(e.cache_write_tokens, 20_000);
@@ -552,7 +483,6 @@ mod tests {
         };
         assert_eq!(e.model, "gpt-6-astra");
         assert_eq!(e.cli, CliKind::Codex);
-        // OpenAI already counts the cached tokens inside `input_tokens`.
         assert_eq!(e.input_tokens, 25_207);
         assert_eq!(e.cache_read_tokens, 18_560);
         assert_eq!(e.reasoning_tokens, 64);

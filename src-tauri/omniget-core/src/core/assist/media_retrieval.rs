@@ -1,4 +1,3 @@
-//! Retrieves an owned provider locator. Never expose this as a model URL-fetch tool.
 use crate::core::egress::{Broker, Policy};
 use reqwest::{header, Url};
 use sha2::{Digest, Sha256};
@@ -110,7 +109,6 @@ fn validate_media(bytes: Vec<u8>, declared: &str) -> Result<Collected, String> {
 }
 async fn receive(client: &reqwest::Client, mut url: Url) -> Result<Collected, String> {
     for hop in 0..=5 {
-        // A new execute re-applies proxy authentication at every hop.
         let mut response = client
             .get(url.clone())
             .send()
@@ -180,7 +178,6 @@ pub(crate) async fn collect_bytes(raw: &str) -> Result<Collected, String> {
     let broker = Broker::start(policy, CancellationToken::new())
         .await
         .map_err(|_| fail("MEDIA_BROKER_UNAVAILABLE"))?;
-    // Broker Drop revokes on caller cancellation, including while reading a body.
     let result = tokio::time::timeout_at(deadline, async {
         let proxy =
             reqwest::Proxy::all(broker.proxy_url()).map_err(|_| fail("MEDIA_PROXY_INVALID"))?;

@@ -1,11 +1,3 @@
-//! AniList (GraphQL) and AniSkip.
-//!
-//! The token is pasted by the user (or comes from the implicit OAuth page)
-//! and lives in the secret store. Episode progress goes through
-//! `sync_outbox`: written locally first, sent when AniList answers, retried
-//! with backoff on network and 5xx errors, dropped on other 4xx. Progress
-//! never goes backwards.
-
 use std::time::Duration;
 
 use rusqlite::params;
@@ -25,8 +17,6 @@ const MEDIA_FIELDS: &str = "id idMal title { userPreferred romaji english native
     coverImage { extraLarge large } bannerImage episodes status seasonYear format genres \
     description(asHtml: false) nextAiringEpisode { episode airingAt } \
     mediaListEntry { id status progress score }";
-
-// ---------- DTOs ----------
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct AniAiring {
@@ -141,12 +131,8 @@ fn map_media(v: &Value, entry_override: Option<&Value>) -> AniMedia {
     }
 }
 
-// ---------- transport ----------
-
 enum GqlError {
-    /// Worth retrying later (network, 429, 5xx).
     Transient(String),
-    /// Will fail the same way again.
     Permanent(String),
 }
 
@@ -169,7 +155,6 @@ async fn gql_raw(query: &str, variables: Value, auth: bool) -> Result<Value, Gql
             .ok_or_else(|| GqlError::Permanent("Connect AniList first".into()))?;
         req = req.bearer_auth(token);
     } else if let Some(token) = sources::secret_get(TOKEN_ACCOUNT) {
-        // Signed in: list status comes back with every media.
         req = req.bearer_auth(token);
     }
     let resp = req
@@ -215,8 +200,6 @@ async fn gql(query: &str, variables: Value, auth: bool) -> Result<Value, String>
         .map_err(GqlError::text)
 }
 
-// ---------- viewer ----------
-
 async fn fetch_viewer() -> Result<AniViewer, String> {
     let d = gql(
         "query { Viewer { id name avatar { medium large } } }",
@@ -245,7 +228,6 @@ fn cached_viewer() -> Option<AniViewer> {
 
 #[tauri::command]
 pub async fn video_anilist_set_token(token: String) -> Result<(), String> {
-    // Accept the whole redirect URL too: `...#access_token=XYZ&token_type=...`.
     let raw = token.trim();
     let token = raw
         .split_once("access_token=")
@@ -282,12 +264,9 @@ pub async fn video_anilist_viewer() -> Result<Option<AniViewer>, String> {
             Ok(Some(v))
         }
         Err(e) if e == "AniList token not accepted" => Err(e),
-        // Offline: the last known account still counts as signed in.
         Err(_) => Ok(cached_viewer()),
     }
 }
-
-// ---------- media ----------
 
 fn cache_media(v: &Value) {
     if let Some(id) = v["id"].as_i64() {
@@ -372,8 +351,6 @@ pub async fn video_anilist_list(status: Option<String>) -> Result<Vec<AniMedia>,
     Ok(out)
 }
 
-// ---------- progress through the outbox ----------
-
 #[derive(Serialize, Deserialize)]
 struct ProgressJob {
     media_id: i64,
@@ -381,7 +358,6 @@ struct ProgressJob {
     episodes: Option<i64>,
 }
 
-/// Shows progress that is still waiting in the outbox.
 fn with_pending(mut m: AniMedia) -> AniMedia {
     let pending: Option<String> = sources::with(|c| {
         use rusqlite::OptionalExtension;
@@ -421,9 +397,7 @@ fn backoff_ms(attempts: i64) -> i64 {
     (mins * 60_000).min(6 * 3600 * 1000)
 }
 
-/// Sends one progress job. `Ok(())` also covers "nothing to do".
 async fn send_progress(job: &ProgressJob) -> Result<(), GqlError> {
-    // Read the current entry first so progress never goes backwards.
     let d = gql_raw(
         "query ($id: Int) { Media(id: $id) { episodes mediaListEntry { status progress } } }",
         json!({ "id": job.media_id }),
@@ -453,7 +427,6 @@ async fn send_progress(job: &ProgressJob) -> Result<(), GqlError> {
     Ok(())
 }
 
-/// Sends what is due in the outbox. Returns how many jobs are left.
 async fn flush_outbox() -> Result<usize, String> {
     if sources::secret_get(TOKEN_ACCOUNT).is_none() {
         return Ok(0);
@@ -489,7 +462,6 @@ async fn flush_outbox() -> Result<usize, String> {
                         params![id, sources::now_ms() + backoff_ms(attempts + 1), e],
                     )
                 });
-                // The service is unreachable; the rest would fail the same way.
                 break;
             }
         }
@@ -521,8 +493,6 @@ pub async fn video_anilist_progress(media_id: i64, episode: i64) -> Result<AniMe
     };
     let payload = serde_json::to_string(&job).map_err(|e| e.to_string())?;
     let now = sources::now_ms();
-    // One pending job per title: a newer episode replaces an older one, an
-    // older one never replaces a newer one.
     sources::with(|c| {
         c.execute(
             "INSERT INTO sync_outbox(kind, dedupe, payload, attempts, next_at, created_at)
@@ -546,8 +516,6 @@ pub async fn video_anilist_progress(media_id: i64, episode: i64) -> Result<AniMe
     Ok(with_pending(map_media(&v, None)))
 }
 
-// ---------- AniSkip ----------
-
 #[tauri::command]
 pub async fn video_aniskip(
     mal_id: i64,
@@ -558,7 +526,6 @@ pub async fn video_aniskip(
         return Ok(Vec::new());
     }
     let secs = (duration_ms.max(0) as f64 / 1000.0).round() as i64;
-    // Releases differ by a few seconds; bucket so one lookup serves them all.
     let key = format!("aniskip:{mal_id}:{episode}:{}", secs / 10);
     let cached = sources::cache_get(&key, SKIP_TTL_MS)
         .and_then(|s| serde_json::from_str::<Value>(&s).ok())

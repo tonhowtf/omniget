@@ -209,10 +209,6 @@ async fn wait_for_login(
                 let current = window.url().map(|u| u.to_string()).unwrap_or_default();
                 let past_login = !current.is_empty() && !is_login_page(&current, login_host, login_path);
                 let mut cookies = extract_cookies_native_or_empty(window, domains).await;
-                // Sites that finish login with an OIDC code exchange keep the
-                // session in web storage, not in a cookie (Hotmart's consumer
-                // app stores `oidc.user:…` in localStorage). Once the page has
-                // left the login flow, look there too.
                 if past_login && !has_any_cookie(&cookies, &targets) && wants_storage(&targets) {
                     let js = extract_cookies_js(window, &default_domain).await;
                     merge_storage(&mut cookies, js);
@@ -269,10 +265,6 @@ fn parse_cookie_targets(spec: &str) -> Vec<String> {
         .collect()
 }
 
-/// A target is a cookie (or web-storage key) name, compared case-insensitively.
-/// A trailing `*` matches a prefix, so `oidc.user:*` finds the
-/// `oidc.user:https://sso.hotmart.com/oidc:<client-id>` entry without the
-/// plugin having to hard-code the client id.
 fn target_matches(target: &str, name: &str) -> bool {
     match target.strip_suffix('*') {
         Some(prefix) => !prefix.is_empty() && name.starts_with(prefix),
@@ -287,16 +279,12 @@ fn has_any_cookie(cookies: &[AuthCookie], targets: &[String]) -> bool {
     })
 }
 
-/// Storage keys carry a dot, colon or wildcard; plain cookie names do not.
-/// Used to skip the JS round-trip when every target is an ordinary cookie.
 fn wants_storage(targets: &[String]) -> bool {
     targets
         .iter()
         .any(|t| t.ends_with('*') || t.contains(':') || t.contains('.'))
 }
 
-/// Native cookies stay authoritative; the JS pass only contributes the
-/// web-storage entries (and, when nothing native came back, document.cookie).
 fn merge_storage(into: &mut Vec<AuthCookie>, js: JsExtraction) {
     if into.is_empty() {
         into.extend(js.cookies);
@@ -358,17 +346,6 @@ fn host_matches(nav_host: &str, pattern_host: &str) -> bool {
         && (nav_host == pattern_host || nav_host.ends_with(&format!(".{pattern_host}")))
 }
 
-/// An explicit pattern from the plugin config is `host` or `host/path-prefix`.
-/// The host must match exactly or as a subdomain, never as a substring: ad
-/// trackers like DoubleClick embed the SSO redirect target in their own path
-/// (e.g. /activityi;src=…;~oref=https://consumer.hotmart.com/…).
-///
-/// A path prefix also accepts the site root, because that is where most sites
-/// drop the user after login (Udemy lands on `/`, not the `/home` the older
-/// plugin config asked for — #187). On the login host itself, the login page
-/// and anything that still looks like the login flow (`/join/…`, `/auth/…`)
-/// never counts, so a host-only pattern for the same site cannot fire on the
-/// very first navigation.
 fn is_success_navigation(
     url_str: &str,
     pattern: Option<&str>,
@@ -701,14 +678,7 @@ async fn extract_cookies_for_uri(
         .map_err(|_| "Cookie channel closed".to_string())
 }
 
-/// Reads the cookies out of WKWebView's own cookie store.
-///
-/// `document.cookie` cannot see HttpOnly cookies by definition, so the JS
-/// fallback silently returns an authenticated session minus exactly the
-/// cookies that prove it is authenticated. Hotmart's `hmVlcIntegration` is
-/// one of those, which is why a visibly logged-in webview still reported
-/// `not_authenticated` on macOS (#287) while Windows — which has had native
-/// extraction all along — worked.
+// WHY: document.cookie cannot see HttpOnly cookies, so they are read from WKWebView's own store (#287).
 #[cfg(target_os = "macos")]
 async fn extract_cookies_native(
     window: &tauri::WebviewWindow,
@@ -723,8 +693,6 @@ async fn extract_cookies_native(
         use objc2_foundation::{NSArray, NSHTTPCookie};
         use objc2_web_kit::WKWebView;
 
-        // with_webview hands us the WKWebView on the main thread, which is the
-        // only thread WebKit permits here.
         let webview: &WKWebView = unsafe { &*(platform_webview.inner() as *mut WKWebView) };
         let store = unsafe { webview.configuration().websiteDataStore().httpCookieStore() };
 
@@ -779,13 +747,7 @@ async fn extract_cookies_native(
     }
 }
 
-/// Reads the cookies out of WebKitGTK's own cookie store.
-///
-/// Same reason as the macOS path: Udemy's `access_token` and `dj_session_id`
-/// are HttpOnly, so `document.cookie` on Linux handed the plugin a session
-/// that could never validate (#288). `webkit_cookie_manager_get_cookies` is
-/// per-URI and returns what a request to that URI would carry, which is
-/// exactly the domain-scoped set the plugin needs.
+// WHY: document.cookie on WebKitGTK gave a session that never validated; read WebKitGTK's cookie manager instead (#288).
 #[cfg(target_os = "linux")]
 async fn extract_cookies_native(
     window: &tauri::WebviewWindow,
@@ -884,8 +846,6 @@ async fn extract_cookies_for_uri(
         .map_err(|_| "Cookie channel closed".to_string())?
 }
 
-/// Strips scheme and leading dot so a configured `.hotmart.com` and a cookie's
-/// `hotmart.com` compare equal.
 #[cfg_attr(
     not(any(windows, target_os = "macos", target_os = "linux")),
     allow(dead_code)
@@ -903,10 +863,6 @@ fn normalize_cookie_domains(domains: &[String]) -> Vec<String> {
         .collect()
 }
 
-/// Whether a cookie's domain belongs to one of the requested domains.
-///
-/// An empty list means "everything this window has" — the auth webview is
-/// opened for one login, so there is nothing else in its store to leak.
 #[cfg_attr(not(any(target_os = "macos", target_os = "linux")), allow(dead_code))]
 fn cookie_domain_matches(cookie_domain: &str, wanted: &[String]) -> bool {
     if wanted.is_empty() {

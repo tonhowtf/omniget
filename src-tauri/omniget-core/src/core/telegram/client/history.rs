@@ -1,6 +1,3 @@
-//! Walks a chat's history with filters (`tdl dl` parity): used by the whole
-//! chat download, its preview and the auto-save watchers.
-
 use std::collections::HashMap;
 
 use grammers_client::grammers_tl_types as tl;
@@ -11,7 +8,6 @@ use super::api::{self, TelegramMediaItem};
 use super::auth::TelegramSessionHandle;
 use super::template;
 
-/// Media types a filter understands (`webpage` previews are never files).
 pub const MEDIA_TYPES: &[&str] = &[
     "video",
     "photo",
@@ -22,8 +18,6 @@ pub const MEDIA_TYPES: &[&str] = &[
     "voice",
 ];
 
-/// Which messages to take. Every field is optional; sizes in bytes, dates
-/// in unix seconds, both ends inclusive.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct MediaFilter {
@@ -50,7 +44,6 @@ fn norm_exts(list: &Option<Vec<String>>) -> Vec<String> {
 }
 
 impl MediaFilter {
-    /// Accepts camelCase or snake_case keys.
     pub fn from_json(v: Option<&serde_json::Value>) -> Result<Self, String> {
         match v {
             None | Some(serde_json::Value::Null) => Ok(Self::default()),
@@ -126,8 +119,6 @@ impl MediaFilter {
     }
 }
 
-/// Top-level `snake_case` keys become `camelCase` (`chat_id` → `chatId`),
-/// so every struct can deserialize whatever the caller sent.
 pub fn camelize(v: &serde_json::Value) -> serde_json::Value {
     let Some(obj) = v.as_object() else {
         return v.clone();
@@ -146,7 +137,6 @@ pub fn camelize(v: &serde_json::Value) -> serde_json::Value {
                 key.push(c);
             }
         }
-        // camelCase wins when both spellings are present.
         if out.contains_key(&key) && k.contains('_') {
             continue;
         }
@@ -155,8 +145,6 @@ pub fn camelize(v: &serde_json::Value) -> serde_json::Value {
     serde_json::Value::Object(out)
 }
 
-/// The client, the peer and whether it is a channel, resolving a missing
-/// channel access hash on the way (and caching it).
 pub async fn peer_for(
     handle: &TelegramSessionHandle,
     chat_id: i64,
@@ -180,7 +168,6 @@ pub async fn peer_for(
     Ok((client, peer, access_hash))
 }
 
-/// One message as a media item, or `None` when it carries no file.
 pub fn to_item(msg: &tl::types::Message, fix_extensions: bool) -> Option<TelegramMediaItem> {
     let media = msg.media.as_ref()?;
     if api::extract_webpage_info_raw(media).is_some() {
@@ -208,7 +195,6 @@ fn messages_of(result: tl::enums::messages::Messages) -> Vec<tl::enums::Message>
     }
 }
 
-/// Id of the newest message in the chat (0 when empty).
 pub async fn latest_message_id(
     handle: &TelegramSessionHandle,
     chat_id: i64,
@@ -239,8 +225,6 @@ pub async fn latest_message_id(
         .unwrap_or(0))
 }
 
-/// Media data (date, caption, album, …) for a set of message ids, in
-/// requests of 100. Ids without media are left out.
 pub async fn fetch_items(
     handle: &TelegramSessionHandle,
     chat_id: i64,

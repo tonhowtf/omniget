@@ -20,37 +20,22 @@ const SHORTCODE_ALPHABET: &[u8] =
 pub struct InstagramDownloader {
     client: reqwest::Client,
     redirect_client: reqwest::Client,
-    /// Extension cookies for instagram.com were loaded into `client`. The
-    /// mobile API answers `login_required` (HTTP 403) to anonymous calls even
-    /// for public posts (measured 26/09), so it is only tried with a session.
     has_session: bool,
 }
 
-/// What the /embed/captioned/ page said about a post.
 enum EmbedOutcome {
-    /// contextJSON or additionalData with the post.
     Data(serde_json::Value),
-    /// The embed rendered its "broken media" card (`contextJSON: null`):
-    /// Instagram refuses to embed the post without a login.
     Broken,
-    /// Neither marker: an unknown shell; says nothing about the post.
     Missing,
 }
 
-/// What the logged-out /p/{id}/ page says about the post.
 #[derive(Debug, PartialEq)]
 enum PostPage {
-    /// Login form or the SSR error page with no og:* tags: Instagram hides
-    /// the post from anonymous visitors (private, age-gated or removed).
     Hidden,
-    /// A single-video post whose og:video is on the page.
     Video(String),
-    /// A post page with nothing we can take directly.
     Visible,
 }
 
-/// Metadata requests only; a stalled page must not hold the cascade for the
-/// client's 120 s download timeout.
 const META_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(15);
 
 enum InstagramMedia {
@@ -118,9 +103,6 @@ impl InstagramDownloader {
         }
     }
 
-    /// Numeric media id (pk) of a shortcode: base-64 digits in Instagram's
-    /// alphabet (gallery-dl instagram.py:1323 id_from_shortcode, yt-dlp
-    /// instagram.py:37 _id_to_pk). Private shortcodes carry a 28-char suffix.
     fn media_id_from_shortcode(shortcode: &str) -> Option<u64> {
         let code = if shortcode.len() > 28 {
             &shortcode[..shortcode.len() - 28]
@@ -227,9 +209,6 @@ impl InstagramDownloader {
             || (lower.contains("\"require_login\"") && lower.contains("true"))
     }
 
-    /// The post page is the login form. A logged-out public post page also
-    /// links to /accounts/login and mentions "loginPage" (26/09, 939 KB), so
-    /// the text markers only count when the GQL tokens are absent.
     fn is_login_wall(final_path: &str, html: &str) -> bool {
         if final_path.starts_with("/accounts/login") {
             return true;
@@ -238,9 +217,6 @@ impl InstagramDownloader {
         !has_tokens && Self::is_login_redirect(html)
     }
 
-    /// The logged-out /p/{id}/ page: (final path, html). It carries the GQL
-    /// tokens and, for a visible video, og:video; for a post hidden from
-    /// anonymous visitors it is Instagram's error page.
     async fn fetch_post_page(&self, post_id: &str) -> anyhow::Result<(String, String)> {
         let url = format!("https://www.instagram.com/p/{}/", post_id);
 
@@ -265,14 +241,10 @@ impl InstagramDownloader {
         Ok((final_path, html))
     }
 
-    /// What the logged-out post page says about the post.
     fn post_page_verdict(final_path: &str, html: &str, reel_hint: bool) -> PostPage {
         if Self::is_login_wall(final_path, html) {
             return PostPage::Hidden;
         }
-        // Route config of the SSR page (26/09): a visible post renders
-        // "postPage"; /p/BkfuX9UB-eK (login-locked) renders "httpErrorPage"
-        // with page_type MEDIA and no og:* tags at all.
         if html.contains("\"pageID\":\"httpErrorPage\"") && !html.contains("property=\"og:") {
             return PostPage::Hidden;
         }
@@ -286,9 +258,6 @@ impl InstagramDownloader {
             )
             .map(|v| v.replace("&amp;", "&"))
         };
-        // og:video only names the first video: trust it for single-video
-        // posts (reel/tv URL, or the page's canonical is a reel), never for a
-        // /p/ post that may be a carousel.
         let canonical_reel = Self::regex_extract(r#"<link rel="canonical" href="([^"]+)""#, html)
             .map(|c| c.contains("/reel/") || c.contains("/tv/"))
             .unwrap_or(false);
@@ -558,8 +527,6 @@ impl InstagramDownloader {
         }
     }
 
-    /// cobalt instagram.js:125-136: i.instagram.com/api/v1/media/{id}/info/
-    /// with the Android app headers (instagram.js:14-24).
     async fn request_mobile_api(&self, media_id: u64) -> anyhow::Result<serde_json::Value> {
         let response = self
             .client
@@ -603,7 +570,6 @@ impl InstagramDownloader {
             .map(str::to_string)
     }
 
-    /// cobalt instagram.js extractNewPost: items[0] of the mobile API.
     fn extract_media_from_mobile(json: &serde_json::Value) -> anyhow::Result<InstagramMedia> {
         let item = json
             .pointer("/items/0")
@@ -650,9 +616,6 @@ impl InstagramDownloader {
         )
     }
 
-    /// Strong evidence only: the embed rendered its broken-media card AND the
-    /// post page itself is the login form or the error page. A broken embed
-    /// alone is not enough (owners can disable embedding).
     fn hidden_without_login(embed_broken: bool, page: &PostPage, has_session: bool) -> bool {
         embed_broken && !has_session && *page == PostPage::Hidden
     }
@@ -918,12 +881,7 @@ impl PlatformDownloader for InstagramDownloader {
 
         let filename_base = format!("instagram_{}", post_id);
 
-        // cobalt getPost order (instagram.js:416-451): mobile API, embed, GQL,
-        // each only while the previous one found nothing; yt-dlp last. Every
-        // native failure is kept for the operator log.
         let is_reel = Self::is_reel_url(url);
-        // A Reel whose metadata only has display_url got the cover image,
-        // not the video: keep looking.
         let usable = |m: &InstagramMedia| {
             !(is_reel
                 && matches!(
@@ -977,10 +935,6 @@ impl PlatformDownloader for InstagramDownloader {
             match self.fetch_post_page(&post_id).await {
                 Ok((path, html)) => {
                     let verdict = Self::post_page_verdict(&path, &html, reel_hint);
-                    // Embed card "broken" + the post page is Instagram's error
-                    // page: hidden from anonymous visitors. yt-dlp reaches the
-                    // same "empty media response ... login" verdict ~12 s
-                    // later (bench 26/09, /tv/BkfuX9UB-eK).
                     if Self::hidden_without_login(embed_broken, &verdict, self.has_session) {
                         tracing::warn!(
                             "[instagram] {} hidden from anonymous visitors: {}; post page is the error page",
@@ -1012,8 +966,6 @@ impl PlatformDownloader for InstagramDownloader {
             }
         }
 
-        // Anonymous GQL answers 401 even for public posts (26/09); the
-        // logged-out page of a single-video post still names its mp4.
         if media.is_none() {
             if let Some(v) = page_video {
                 attempts.push("post page: og:video".into());
@@ -1032,9 +984,6 @@ impl PlatformDownloader for InstagramDownloader {
                     post_id,
                     attempts.join("; ")
                 );
-                // Both web paths answered and both said "nothing without a
-                // login": the same verdict yt-dlp reaches ("empty media
-                // response") after ~12 s more (bench 26/09, /tv/BkfuX9UB-eK).
                 if embed_broken && gql_empty && !self.has_session {
                     return Err(Self::login_locked_error(&post_id));
                 }
@@ -1368,10 +1317,6 @@ mod tests {
         assert!(!InstagramDownloader::is_html_block_error(&err));
     }
 
-    // Bench 26/09: a logged-out public post page (/p/aye83DjauH/, 939 KB)
-    // links to /accounts/login and has "loginPage" in its bootstrap, but also
-    // carries the GQL tokens. The old check called it a login wall, so the
-    // GQL path was never tried.
     #[test]
     fn public_post_page_with_login_links_is_not_a_login_wall() {
         let html = r#"<a href="/accounts/login/?next=%2Fp%2Faye83DjauH%2F">Log in</a>
@@ -1386,7 +1331,6 @@ mod tests {
             "/accounts/login/",
             "<html></html>"
         ));
-        // No GQL tokens and a login page marker: the page is the login form.
         assert!(InstagramDownloader::is_login_wall(
             "/p/X/",
             r#"<div>"loginPage"</div><a href="/accounts/login/">"#
@@ -1395,7 +1339,6 @@ mod tests {
 
     #[test]
     fn media_id_from_shortcode_matches_gallery_dl_and_yt_dlp() {
-        // util.bdecode with the Instagram alphabet (gallery-dl instagram.py:1323).
         assert_eq!(
             InstagramDownloader::media_id_from_shortcode("aye83DjauH"),
             Some(482584233761418119)
@@ -1404,7 +1347,6 @@ mod tests {
             InstagramDownloader::media_id_from_shortcode("BkfuX9UB-eK"),
             Some(1810369531748018058)
         );
-        // Private-post shortcodes carry a 28-char suffix that is not part of the id.
         let long = format!("aye83DjauH{}", "A".repeat(28));
         assert_eq!(
             InstagramDownloader::media_id_from_shortcode(&long),
@@ -1413,9 +1355,7 @@ mod tests {
         assert_eq!(InstagramDownloader::media_id_from_shortcode("bad!"), None);
     }
 
-    // Captured 26/09 from /p/aye83DjauH/embed/captioned/ (trimmed).
     const EMBED_OK: &str = r#"<script>requireLazy([],function(){s.handle({"define":[],"require":[["PolarisEmbedSimple","init",[],[{"isRichEmbed":true,"isSidecar":false,"isGuideEmbed":false,"isProfileEmbed":false,"contextJSON":"{\"context\":{\"type\":\"GraphVideo\",\"shortcode\":\"aye83DjauH\"},\"gql_data\":{\"shortcode_media\":{\"__typename\":\"GraphVideo\",\"is_video\":true,\"display_url\":\"https://cdn/x.jpg\",\"video_url\":\"https://cdn/x.mp4\"}}}"}]],["Other","init",[],[{}]]]})})</script>"#;
-    // Captured 26/09 from /p/BkfuX9UB-eK/embed/captioned/ (login-locked post).
     const EMBED_BROKEN: &str = r#"<div class="_aa4c"><div class="EmbedBrokenMedia"><div class="ebmLogo"></div></div></div><script>s.handle({"require":[["PolarisEmbedSimple","init",[],[{"isRichEmbed":false,"isSidecar":false,"isGuideEmbed":false,"isProfileEmbed":false,"contextJSON":null}]],["X","init",[],[{}]]]})</script>"#;
 
     #[test]
@@ -1460,8 +1400,6 @@ mod tests {
         assert!(InstagramDownloader::parse_gql_response(&err).is_err());
     }
 
-    // Shape of i.instagram.com/api/v1/media/{id}/info/ items[0]
-    // (cobalt instagram.js:400-413, extractNewPost).
     #[test]
     fn mobile_api_item_picks_largest_video_and_carousel() {
         let video = serde_json::json!({"items":[{"video_versions":[
@@ -1491,7 +1429,6 @@ mod tests {
         assert!(InstagramDownloader::extract_media_from_mobile(&login).is_err());
     }
 
-    // Excerpts of the logged-out /p/ pages fetched 26/09 (642 KB / 940 KB).
     const PAGE_LOCKED: &str = r#"["LSD",[],{"token":"X"},323]"PolarisSiteData"{"props":{"page_logging":{"name":"httpErrorPage","params":{}},"failure_reason":null,"restricted_age":null,"page_type":"MEDIA","show_lox_redesigned_404_page":true},"entryPoint":{"__dr":"PolarisErrorRoot.entrypoint"}},"polarisRouteConfig":{"pageID":"httpErrorPage"},"url":"\/p\/BkfuX9UB-eK\/"<title>Instagram</title>"#;
     const PAGE_PUBLIC_REEL: &str = r#"<title>Instagram</title><link rel="canonical" href="https://www.instagram.com/reel/aye83DjauH/" /><meta property="og:type" content="video" /><meta property="og:video:secure_url" content="https://instagram.frec52-1.fna.fbcdn.net/o1/v/t16/f2/m84/AQO9.mp4?_nc_cat=111&amp;_nc_sid=5e9851&amp;_nc_ht=instagram.frec52-1.fna.fbcdn.net" />["LSD",[],{"token":"X"},323]"polarisRouteConfig":{"pageID":"postPage"}"#;
 
@@ -1526,15 +1463,12 @@ mod tests {
         );
     }
 
-    /// The old cascade only stopped early on "GQL null", which never happens
-    /// anonymously (401), so /tv/BkfuX9UB-eK still paid ~12 s of yt-dlp.
     #[test]
     fn broken_embed_plus_error_page_stops_before_ytdlp() {
         let hidden = InstagramDownloader::post_page_verdict("/p/BkfuX9UB-eK/", PAGE_LOCKED, true);
         assert!(InstagramDownloader::hidden_without_login(
             true, &hidden, false
         ));
-        // Weak evidence alone keeps the yt-dlp fallback.
         assert!(!InstagramDownloader::hidden_without_login(
             false, &hidden, false
         ));

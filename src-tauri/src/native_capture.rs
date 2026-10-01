@@ -1,5 +1,3 @@
-//! Native WebView pixels, never a DOM reconstruction. macOS 10.13+ API;
-//! the application minimum remains 10.15. Does not capture window chrome.
 #[cfg(target_os = "macos")]
 pub async fn snapshot(window: &tauri::WebviewWindow) -> Result<Vec<u8>, String> {
     use objc2::AnyThread;

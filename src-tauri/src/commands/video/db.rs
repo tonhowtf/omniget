@@ -1,10 +1,3 @@
-//! `video.db`: the video library, courses, watch state, notes, cards and
-//! transcripts. The source modules (Jellyfin, IPTV, addons, AniList) add their
-//! own tables through `with` with `CREATE TABLE IF NOT EXISTS`.
-//!
-//! Kept apart from `omniget.db` for the same reason as `music.db`: a scan
-//! writes thousands of rows and must not hold the download queue's lock.
-
 use std::path::PathBuf;
 use std::sync::{Mutex, OnceLock};
 
@@ -16,15 +9,12 @@ pub fn video_dir() -> Option<PathBuf> {
     omniget_core::core::paths::app_data_dir().map(|d| d.join("video"))
 }
 
-/// `video/cache/<sub>`, created on demand. Thumbnails, extracted subtitles and
-/// silence maps live here, never next to the user's files.
 pub fn cache_dir(sub: &str) -> Option<PathBuf> {
     let d = video_dir()?.join("cache").join(sub);
     std::fs::create_dir_all(&d).ok()?;
     Some(d)
 }
 
-/// `video/img`: frames captured for notes.
 pub fn img_dir() -> Option<PathBuf> {
     let d = video_dir()?.join("img");
     std::fs::create_dir_all(&d).ok()?;
@@ -199,8 +189,6 @@ fn schema(c: &Connection) -> rusqlite::Result<()> {
     )
 }
 
-// ---------- roots ----------
-
 pub fn roots() -> Result<Vec<Root>, String> {
     with(|c| {
         let mut st = c.prepare("SELECT path, kind, added_at FROM roots ORDER BY added_at")?;
@@ -218,19 +206,14 @@ pub fn roots() -> Result<Vec<Root>, String> {
     })
 }
 
-// ---------- media ----------
-
 pub const MEDIA_COLS: &str = "m.id, m.path, m.root, m.folder, m.kind, m.title, m.show, m.season, \
      m.episode, m.episode_end, m.year, m.lesson_no, m.module, m.course_id, m.duration_ms, m.width, \
      m.height, m.vcodec, m.acodec, m.container, m.size, m.has_subs, m.added_at, m.offline, m.hash, \
      p.position_ms, p.duration_ms, p.watched, p.play_count, p.last_played, p.seen, m.number, \
      m.module_index, m.ord, m.rel";
 
-/// `FROM media m LEFT JOIN progress p` with the key derived from the hash.
 pub const MEDIA_FROM: &str = "FROM media m LEFT JOIN progress p ON p.key = 'local:' || m.hash";
 
-/// A media row plus the course placement columns that `MediaItem` does not
-/// carry.
 #[derive(Clone, Debug)]
 pub struct MediaRow {
     pub item: MediaItem,
@@ -315,7 +298,6 @@ pub fn media_from_row(r: &Row) -> rusqlite::Result<MediaRow> {
     })
 }
 
-/// Rows matching a `WHERE` clause (may be empty), unsorted.
 pub fn media_where(clause: &str, args: &[&dyn rusqlite::ToSql]) -> Result<Vec<MediaRow>, String> {
     let sql = format!("SELECT {MEDIA_COLS} {MEDIA_FROM} {clause}");
     with(|c| {
@@ -340,7 +322,6 @@ pub fn media_by_hash(hash: &str) -> Result<Option<MediaRow>, String> {
     )
 }
 
-/// Path, hash and video codec for the server routes.
 pub fn media_file(id: i64) -> Option<(String, String, String, i64)> {
     with(|c| {
         c.query_row(
@@ -354,9 +335,6 @@ pub fn media_file(id: i64) -> Option<(String, String, String, i64)> {
     .flatten()
 }
 
-// ---------- progress ----------
-
-/// Progress, the raw seen bitmap and the hidden flag.
 pub type ProgressRow = (Progress, Option<Vec<u8>>, bool);
 
 pub fn progress_get(key: &str) -> Result<Option<ProgressRow>, String> {
@@ -386,8 +364,6 @@ pub fn progress_get(key: &str) -> Result<Option<ProgressRow>, String> {
         .optional()
     })
 }
-
-// ---------- items_meta ----------
 
 pub struct ItemMeta {
     pub title: String,
@@ -435,8 +411,6 @@ pub fn set_item_meta(
     })?;
     Ok(())
 }
-
-// ---------- prefs ----------
 
 pub fn pref_json(scope: &str) -> Result<Option<serde_json::Value>, String> {
     let raw: Option<String> = with(|c| {

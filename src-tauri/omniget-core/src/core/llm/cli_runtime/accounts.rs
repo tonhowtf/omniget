@@ -1,16 +1,3 @@
-//! CLI accounts: pointers to an isolated config directory, never to a
-//! credential. Owned by f4-cli-runtime.
-//!
-//! One account is one directory. The CLI itself logs into it (the app opens a
-//! terminal running `claude` with that `CLAUDE_CONFIG_DIR`); the app only ever
-//! creates the directory, links the parts that are *not* identity, and passes
-//! the environment variable down to the child process.
-//!
-//! Plan §9.2 and `estudos/74` §A.3: never read `~/.claude/.credentials.json`,
-//! never read the macOS keychain item `Claude Code-credentials`, never refresh
-//! a token, never call `/api/oauth/usage`. [`DENY_SHARE`] is the list of names
-//! that are never linked or copied out of an existing profile.
-
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, RwLock};
@@ -20,7 +7,6 @@ use serde_json::Value;
 
 use super::{ERR_CLI_ACCOUNT, ERR_CLI_IO, ERR_CLI_NOT_FOUND};
 
-/// Which CLI an account drives.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum CliKind {
@@ -31,7 +17,6 @@ pub enum CliKind {
 impl CliKind {
     pub const ALL: [CliKind; 2] = [CliKind::Claude, CliKind::Codex];
 
-    /// Binary name, without the platform extension (`find_tool` adds `.exe`).
     pub fn bin(self) -> &'static str {
         match self {
             CliKind::Claude => "claude",
@@ -39,8 +24,6 @@ impl CliKind {
         }
     }
 
-    /// The environment variable that moves the whole config dir of this CLI.
-    /// Both are documented and supported upstream (`estudos/74` §A.2).
     pub fn config_env(self) -> &'static str {
         match self {
             CliKind::Claude => "CLAUDE_CONFIG_DIR",
@@ -70,35 +53,12 @@ impl std::fmt::Display for CliKind {
     }
 }
 
-/// How much the CLI is allowed to touch during a turn OmniGet drives.
-///
-/// Since 2.7 this is the account's **ceiling**, not the mode of a turn: the
-/// job, Loop or conversation picks a [`crate::core::llm::run_mode::RunMode`]
-/// and the account caps it (`read-only` caps everything, `write` stops at
-/// `auto`, only `full` lets `full_access` through). Without a turn context
-/// (no run mode at all) it still maps as it always did:
-///
-/// - Codex: `--sandbox read-only` / `--sandbox workspace-write`
-///   (`codex-rs/utils/cli/src/sandbox_mode_cli_arg.rs`; `read-only` is also the
-///   CLI's own `#[default]` in `codex-rs/protocol/src/config_types.rs`).
-///   `danger-full-access` exists upstream and is deliberately not offered here.
-/// - Claude Code: `--permission-mode plan` / `--permission-mode acceptEdits`
-///   (`claude --help`, 2.1.276), on top of the `--permission-prompts none` the
-///   runtime always passes.
-///
-/// [`SandboxMode::ReadOnly`] is the `Default` and the value a new account gets:
-/// a turn never writes unless the user changed this on purpose.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum SandboxMode {
     #[default]
     ReadOnly,
-    /// Codex `workspace-write`, Claude `acceptEdits`: the agent may edit files
-    /// in its working directory.
     Write,
-    /// Also lets a turn whose run mode is `full_access` run with nothing
-    /// asking (`bypassPermissions`, `danger-full-access`). Two explicit
-    /// choices are needed for that: this one and the run mode.
     Full,
 }
 
@@ -111,8 +71,6 @@ impl SandboxMode {
         }
     }
 
-    /// Parses what the UI sends back. Anything unknown falls back to the safe
-    /// mode instead of failing the call: a typo must never grant a write.
     pub fn parse(s: &str) -> SandboxMode {
         match s.trim().to_ascii_lowercase().as_str() {
             "write" | "workspace-write" | "workspace_write" | "accept-edits" | "acceptedits" => {
@@ -123,8 +81,6 @@ impl SandboxMode {
         }
     }
 
-    /// True when a turn in this mode can modify files. Used by the UI to decide
-    /// whether switching needs a confirmation.
     pub fn writes(self) -> bool {
         self != SandboxMode::ReadOnly
     }
@@ -136,34 +92,25 @@ impl std::fmt::Display for SandboxMode {
     }
 }
 
-/// A CLI found on this machine.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CliDetected {
     pub cli: CliKind,
     pub path: PathBuf,
-    /// `None` when the binary is there but `--version` did not parse.
     pub version: Option<String>,
 }
 
-/// One account: a label and a directory. Nothing else is stored, ever.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CliAccount {
     pub id: String,
     pub cli: CliKind,
     pub config_dir: PathBuf,
     pub label: String,
-    /// Set by the user in the Accounts tab; a disabled account is skipped by
-    /// the router and never spawned.
     #[serde(default)]
     pub disabled: bool,
-    /// What a turn on this account may touch. Missing in an older
-    /// `accounts.json` means [`SandboxMode::ReadOnly`], so an upgrade never
-    /// silently hands an existing account the right to write.
     #[serde(default)]
     pub sandbox: SandboxMode,
 }
 
-/// Stable error with a code the UI maps, same shape as `RosterError`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AccountError {
     pub code: &'static str,
@@ -189,7 +136,6 @@ impl std::error::Error for AccountError {}
 
 pub type Result<T> = std::result::Result<T, AccountError>;
 
-/// An account id is a slug, like an agent id: `[a-z0-9_-]{1,64}`.
 pub fn valid_id(id: &str) -> bool {
     !id.is_empty()
         && id.len() <= 64
@@ -198,11 +144,6 @@ pub fn valid_id(id: &str) -> bool {
             .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-' || c == '_')
 }
 
-/// Names that are never linked, copied or read out of an existing profile.
-///
-/// The first three are the identity itself (`estudos/74` §A.1: claude-swap
-/// reads exactly these and that is the part we refuse to copy). The rest are
-/// per-process state that must not be shared between two live sessions.
 pub const DENY_SHARE: &[&str] = &[
     ".credentials.json",
     "credentials.json",
@@ -211,8 +152,6 @@ pub const DENY_SHARE: &[&str] = &[
     "ide",
 ];
 
-/// Names that ARE shared, by symlink, from an existing profile: everything the
-/// user configured that is not identity (`estudos/74` §A.3 item 2).
 pub const SHARE_LINK: &[&str] = &[
     "settings.json",
     "keybindings.json",
@@ -223,8 +162,6 @@ pub const SHARE_LINK: &[&str] = &[
     "plugins",
 ];
 
-/// True when this entry must never leave the source profile: the deny list, or
-/// any daemon/lock/socket file.
 pub fn is_denied(name: &str) -> bool {
     if DENY_SHARE.contains(&name) {
         return true;
@@ -235,11 +172,6 @@ pub fn is_denied(name: &str) -> bool {
         || name.ends_with(".pid")
 }
 
-/// `.claude.json` minus the identity. Pure, so the test can prove that no
-/// account field survives the copy.
-///
-/// `oauthAccount` is what pins the org (`estudos/74` §A.1: injecting only the
-/// token gives a silent 403), so a fresh profile must not inherit it.
 pub fn sanitize_claude_json(input: &str) -> std::result::Result<String, serde_json::Error> {
     const DROP: &[&str] = &[
         "oauthAccount",
@@ -257,13 +189,8 @@ pub fn sanitize_claude_json(input: &str) -> std::result::Result<String, serde_js
     serde_json::to_string_pretty(&value)
 }
 
-/// Environment for one account: the config var plus the scrubbing the upstream
-/// switcher does (`estudos/74` §A.1). Returned as a map so the caller can test
-/// it without spawning anything; keys with an empty value mean "remove".
 pub fn account_env(account: &CliAccount) -> BTreeMap<String, String> {
     let mut env = BTreeMap::new();
-    // An empty `config_dir` is the CLI's own default profile: the login the
-    // user already has in their terminal. Nothing is redirected.
     if !account.config_dir.as_os_str().is_empty() {
         env.insert(
             account.cli.config_env().to_string(),
@@ -271,19 +198,11 @@ pub fn account_env(account: &CliAccount) -> BTreeMap<String, String> {
         );
     }
     if account.cli == CliKind::Claude && account.sandbox == SandboxMode::ReadOnly {
-        // Stops the CLI from leaking our env into the tools it spawns. Measured
-        // on Claude Code 2.1.277: with this set the CLI drops `--permission-mode`
-        // back to `default`, so with `--permission-prompts none` every write is
-        // denied. That is what a read-only account wants and exactly what a
-        // write account must not get. The secrets are already removed from the
-        // CLI's own environment by `SCRUB_ENV`.
         env.insert("CLAUDE_CODE_SUBPROCESS_ENV_SCRUB".into(), "1".into());
     }
     env
 }
 
-/// Variables removed before launching, so an API key in the OmniGet process
-/// never decides which account the CLI bills.
 pub const SCRUB_ENV: &[&str] = &[
     "ANTHROPIC_API_KEY",
     "ANTHROPIC_AUTH_TOKEN",
@@ -293,33 +212,21 @@ pub const SCRUB_ENV: &[&str] = &[
     "CLAUDE_CODE_USE_VERTEX",
     "OPENAI_API_KEY",
     "OPENAI_BASE_URL",
-    // OmniGet's own bridge credentials (2.1): a job's child gets only its
-    // job token, set explicitly, never a key the app was started with.
     "OMNIGET_TOKEN",
     "OMNIGET_BRIDGE_TOKEN",
     "OMNIGET_MCP_TOKEN",
     "OMNIGET_JOB_TOKEN",
-    // A job's identity (2.6): only a job's own child has it, set explicitly;
-    // a chat turn never inherits one and takes itself for a job.
     "OMNIGET_ENV",
     "OMNIGET_JOB_ID",
     "OMNIGET_AGENT_ID",
     "OMNIGET_BRIDGE_URL",
 ];
 
-/// Creates the directory for a new account. The directory is left **empty** on
-/// purpose: the CLI writes its own credential there when the user runs
-/// `/login`, and the app never looks inside.
 pub fn create_profile_dir(dir: &Path) -> Result<()> {
     std::fs::create_dir_all(dir)
         .map_err(|e| AccountError::new(ERR_CLI_IO, format!("cannot create {}: {e}", dir.display())))
 }
 
-/// Links the non-identity parts of `source` into `dest`. Opt-in: the caller
-/// only does this when the user asked to share settings and skills.
-///
-/// Returns the names actually linked. Anything in [`is_denied`] is skipped
-/// even when the caller names it.
 pub fn share_profile(source: &Path, dest: &Path, names: &[&str]) -> Result<Vec<String>> {
     create_profile_dir(dest)?;
     let mut linked = Vec::new();
@@ -356,9 +263,6 @@ fn symlink(from: &Path, to: &Path) -> std::io::Result<()> {
     }
 }
 
-/// Parses `claude --version` / `codex --version` output. Both print the number
-/// first (`2.1.276 (Claude Code)`, `codex-cli 0.58.0`), so take the first token
-/// that looks like a version.
 pub fn parse_version(stdout: &str) -> Option<String> {
     stdout
         .split_whitespace()
@@ -373,7 +277,6 @@ pub fn parse_version(stdout: &str) -> Option<String> {
         .map(|t| t.trim_start_matches('v').to_string())
 }
 
-/// Which CLIs are installed. Runs `--version` once per CLI; nothing else.
 pub async fn detect() -> Vec<CliDetected> {
     let mut found = Vec::new();
     for cli in CliKind::ALL {
@@ -400,24 +303,18 @@ async fn version_of(path: &Path) -> Option<String> {
     parse_version(&text)
 }
 
-/// `<app_data>/llm/accounts.json`.
 pub fn default_path() -> Option<PathBuf> {
     super::super::roster_store::llm_dir().map(|d| d.join("accounts.json"))
 }
 
-/// Where a new account's config dir goes: `<app_data>/llm/profiles/<id>`.
 pub fn default_profile_dir(id: &str) -> Option<PathBuf> {
     super::super::roster_store::llm_dir().map(|d| d.join("profiles").join(id))
 }
 
-/// `<app_data>/llm/accounts-ui.json`: the order the app tries accounts in
-/// (`chain`) and the rotation settings. Shared by the app and `omniget claude`.
 pub fn prefs_path() -> Option<PathBuf> {
     super::super::roster_store::llm_dir().map(|d| d.join("accounts-ui.json"))
 }
 
-/// The saved chain, minus accounts that no longer exist and duplicates, plus
-/// accounts it does not know yet at the end (in store order).
 pub fn normalize_chain(chain: &[String], accounts: &[CliAccount]) -> Vec<String> {
     let mut out: Vec<String> = Vec::with_capacity(accounts.len());
     for id in chain {
@@ -433,8 +330,6 @@ pub fn normalize_chain(chain: &[String], accounts: &[CliAccount]) -> Vec<String>
     out
 }
 
-/// One-click switch: the account becomes the head of the chain, the rest keeps
-/// its relative order. An unknown id leaves the chain untouched.
 pub fn move_to_head(chain: &[String], id: &str) -> Vec<String> {
     if !chain.iter().any(|c| c == id) {
         return chain.to_vec();
@@ -456,9 +351,6 @@ fn chain_of(prefs: &Value) -> Vec<String> {
         .unwrap_or_default()
 }
 
-/// The main account of one CLI: the first enabled account of that kind in the
-/// saved chain (what the app's "Use now" sets). `None` while no chain was
-/// saved, so a fresh install keeps asking.
 pub fn primary_in(prefs: &Value, accounts: &[CliAccount], cli: CliKind) -> Option<CliAccount> {
     chain_of(prefs).iter().find_map(|id| {
         accounts
@@ -468,7 +360,6 @@ pub fn primary_in(prefs: &Value, accounts: &[CliAccount], cli: CliKind) -> Optio
     })
 }
 
-/// `prefs` with `id` at the head of its chain; every other key is kept.
 pub fn promote_in(prefs: &Value, accounts: &[CliAccount], id: &str) -> Value {
     let chain = move_to_head(&normalize_chain(&chain_of(prefs), accounts), id);
     let mut out = match prefs {
@@ -486,14 +377,11 @@ fn read_prefs(path: &Path) -> Value {
         .unwrap_or(Value::Null)
 }
 
-/// [`primary_in`] read from `accounts-ui.json`.
 pub fn primary(store: &AccountStore, cli: CliKind) -> Option<CliAccount> {
     let prefs = read_prefs(&prefs_path()?);
     primary_in(&prefs, &store.list(), cli)
 }
 
-/// Makes `id` the main account, here and in the app: it moves to the head of
-/// the chain in `accounts-ui.json`, written atomically.
 pub fn set_primary(store: &AccountStore, id: &str) -> Result<()> {
     if store.get(id).is_none() {
         return Err(AccountError::new(
@@ -516,7 +404,6 @@ pub fn set_primary(store: &AccountStore, id: &str) -> Result<()> {
     std::fs::rename(&tmp, &path).map_err(|e| AccountError::new(ERR_CLI_IO, e.to_string()))
 }
 
-/// Cached, atomically written account list. Same shape as `RosterStore`.
 pub struct AccountStore {
     path: PathBuf,
     cache: RwLock<Option<Arc<Vec<CliAccount>>>>,
@@ -553,8 +440,6 @@ impl AccountStore {
         self.list().iter().find(|a| a.id == id).cloned()
     }
 
-    /// Creates the account and its (empty) config dir. Fails on a duplicate id
-    /// so two accounts can never share one directory by accident.
     pub fn create(&self, account: CliAccount) -> Result<CliAccount> {
         if !valid_id(&account.id) {
             return Err(AccountError::new(
@@ -569,8 +454,6 @@ impl AccountStore {
                 format!("account {} already exists", account.id),
             ));
         }
-        // An empty dir is "that CLI's default profile" (its terminal login):
-        // one per CLI, so Claude's and Codex's terminal accounts coexist.
         let default_profile = account.config_dir.as_os_str().is_empty();
         if let Some(other) = all.iter().find(|a| {
             a.config_dir == account.config_dir && (!default_profile || a.cli == account.cli)
@@ -604,8 +487,6 @@ impl AccountStore {
         self.update(account)
     }
 
-    /// Changes what a turn on this account may touch. The UI confirms before
-    /// calling this with [`SandboxMode::Write`].
     pub fn set_sandbox(&self, id: &str, sandbox: SandboxMode) -> Result<CliAccount> {
         let mut account = self
             .get(id)
@@ -614,8 +495,6 @@ impl AccountStore {
         self.update(account)
     }
 
-    /// Forgets the account. The config directory is **not** deleted: it holds
-    /// the user's login and only the user decides to throw it away.
     pub fn remove(&self, id: &str) -> Result<()> {
         let mut all = (*self.list()).clone();
         let before = all.len();
@@ -699,7 +578,6 @@ mod tests {
             primary_in(&prefs, &accounts, CliKind::Codex).unwrap().id,
             "codex"
         );
-        // No saved chain yet: no primary, so `omniget claude` keeps asking.
         assert!(primary_in(&Value::Null, &accounts, CliKind::Claude).is_none());
     }
 
@@ -736,8 +614,6 @@ mod tests {
         );
     }
 
-    /// An `accounts.json` written before this field existed must not turn into
-    /// a write-enabled account on upgrade.
     #[test]
     fn an_account_without_the_field_reads_back_read_only() {
         let text = r#"[{"id":"max-1","cli":"claude","config_dir":"/tmp/max-1","label":"Max"}]"#;
@@ -802,7 +678,6 @@ mod tests {
         store
             .create(terminal("codex-terminal", CliKind::Codex))
             .unwrap();
-        // Two accounts on the same CLI's default profile are still one too many.
         assert!(store.create(terminal("claude-2", CliKind::Claude)).is_err());
         let _ = std::fs::remove_dir_all(&root);
     }
@@ -866,7 +741,6 @@ mod tests {
     fn account_env_carries_only_pointers() {
         let a = account("max-1", Path::new("/tmp/p"));
         let env = account_env(&a);
-        // Built the way the account is, so the separator is the platform's.
         let expected = Path::new("/tmp/p").join("max-1").display().to_string();
         assert_eq!(
             env.get("CLAUDE_CONFIG_DIR").map(String::as_str),
@@ -877,7 +751,6 @@ mod tests {
                 .map(String::as_str),
             Some("1")
         );
-        // Nothing that looks like a secret ever goes in.
         assert!(!env
             .values()
             .any(|v| v.contains("sk-") || v.to_lowercase().contains("token")));

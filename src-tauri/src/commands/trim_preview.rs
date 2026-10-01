@@ -1,31 +1,16 @@
-//! Downloads › Tools › Trim with preview: open a video, see a strip of frames,
-//! drag the start and the end, look at the exact frame under each handle, and
-//! save only that part.
-//!
-//! The idea comes from Media Downloader for macOS (pixel-point), which opens a
-//! trim panel with a frame strip after every download and cuts on the exact
-//! frame by re-encoding. That project has no license, so nothing was copied:
-//! this is written from scratch on the ffmpeg the app already uses. The fast
-//! cut (no re-encode, starts on a keyframe) is the one the video tools of each
-//! download already offer; this panel adds the preview and the exact cut.
-
 use std::path::{Path, PathBuf};
 
 use base64::Engine as _;
 use serde::Serialize;
 
-/// Frames in the strip. Enough to find a scene, few enough to load fast.
 const STRIP_FRAMES: usize = 12;
-/// Height of a strip frame; the big preview frame is taller.
 const STRIP_HEIGHT: u32 = 90;
 const PREVIEW_HEIGHT: u32 = 360;
-/// Shortest clip the exact cut accepts, in seconds.
 const MIN_CLIP_SECS: f64 = 0.25;
 
 #[derive(Debug, Clone, Serialize)]
 pub struct TrimStrip {
     pub duration_secs: f64,
-    /// `data:image/jpeg;base64,...`, evenly spaced over the video.
     pub frames: Vec<String>,
 }
 
@@ -42,7 +27,6 @@ fn ensure_input(input: &str) -> Result<PathBuf, String> {
     Ok(p)
 }
 
-/// `Duration: 00:01:02.50,` in ffmpeg's banner, in seconds.
 pub fn parse_duration(stderr: &str) -> Option<f64> {
     let rest = stderr.split("Duration: ").nth(1)?;
     let stamp = rest.split(',').next()?.trim();
@@ -53,7 +37,6 @@ pub fn parse_duration(stderr: &str) -> Option<f64> {
     (secs > 0.0).then_some(secs)
 }
 
-/// Seconds as `HH:MM:SS.mmm` for ffmpeg and for file names.
 pub fn stamp(secs: f64) -> String {
     let ms = (secs.max(0.0) * 1000.0).round() as u64;
     format!(
@@ -65,8 +48,6 @@ pub fn stamp(secs: f64) -> String {
     )
 }
 
-/// `<stem> trim 00-01-02.500-00-01-10.000.<ext>` next to the source, never over
-/// an existing file.
 pub fn output_path(input: &Path, start: f64, end: f64, ext: &str) -> PathBuf {
     let stem = input
         .file_stem()
@@ -83,11 +64,6 @@ pub fn output_path(input: &Path, start: f64, end: f64, ext: &str) -> PathBuf {
     candidate
 }
 
-/// The ffmpeg arguments for a cut, after `-y`.
-///
-/// Exact: `-ss` after `-i` decodes from the start and cuts on the frame asked
-/// for, then re-encodes to H.264/AAC. Fast: `-ss` before `-i` jumps to the
-/// keyframe at or before the start and copies the streams, with no quality loss.
 pub fn cut_args(input: &Path, start: f64, end: f64, exact: bool, output: &Path) -> Vec<String> {
     let input = input.to_string_lossy().to_string();
     let mut a: Vec<String> = Vec::new();
@@ -192,7 +168,6 @@ pub async fn trim_strip(input: String) -> Result<TrimStrip, String> {
     let step = duration_secs / STRIP_FRAMES as f64;
     let mut frames = Vec::with_capacity(STRIP_FRAMES);
     for i in 0..STRIP_FRAMES {
-        // The middle of each slice: the very first frame is often black.
         frames.push(frame(&ffmpeg, &input, step * (i as f64 + 0.5), STRIP_HEIGHT).await?);
     }
     Ok(TrimStrip {

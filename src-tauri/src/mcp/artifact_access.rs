@@ -1,8 +1,3 @@
-//! `artifact_access`: the existing artifact access (per-recipient grants,
-//! If-Match digest, 15-minute expiry, root revocation) exposed as its own
-//! tool. It never widens access: it resolves only artifacts the caller could
-//! already reach through `download_artifacts`, and transfer mode requires the
-//! `transfer` scope plus a locally granted root, exactly like that tool.
 use super::{
     policy::{self, Principal},
     ToolDef,
@@ -17,7 +12,6 @@ pub fn tools() -> Vec<ToolDef> {
     }]
 }
 
-/// Output schema for the protocol fixer's `outputSchema` table.
 pub fn output_schema(name: &str) -> Option<Value> {
     (name == "artifact_access").then(|| {
         json!({"type":"object","properties":{
@@ -44,9 +38,7 @@ pub fn output_schema(name: &str) -> Option<Value> {
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum Ref {
-    /// `<downloadId>:<index>` from `download_artifacts`.
     Job(u64, usize),
-    /// A transfer grant id (UUID) issued to this client.
     Grant(String),
 }
 
@@ -68,8 +60,6 @@ fn wants_transfer(a: &Value) -> bool {
     a["mode"].as_str() == Some("transfer")
 }
 
-/// Scope rule: `artifacts` always; `transfer` for transfer mode or a grant id
-/// (grants exist only for transfer recipients).
 pub fn admit(p: &Principal, r: &Ref, transfer: bool) -> Result<(), String> {
     policy::active(p)?;
     if !policy::allowed(p, "artifact_access") {
@@ -101,7 +91,6 @@ fn grant_view(p: &Principal, id: &str, transfer: bool) -> Result<Value, String> 
     }))
 }
 
-/// Called by `downloads::call` after schema validation.
 pub async fn call(app: &tauri::AppHandle, p: &Principal, a: &Value) -> Result<Value, String> {
     let raw = a["artifactId"]
         .as_str()
@@ -112,8 +101,6 @@ pub async fn call(app: &tauri::AppHandle, p: &Principal, a: &Value) -> Result<Va
     match r {
         Ref::Grant(id) => grant_view(p, &id, transfer),
         Ref::Job(id, _) => {
-            // Same listing, validation and grant rules as download_artifacts;
-            // metadata mode strips any access it produced.
             let listed = Box::pin(super::downloads::call(
                 app,
                 p,

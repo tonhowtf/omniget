@@ -1,12 +1,6 @@
-//! Decider and projector tests, plus the acceptance test: a simulated turn
-//! (delta, tool, pending approval) survives closing and reopening the
-//! database with the same snapshot.
-
 use serde_json::json;
 
 use super::engine::ThreadsEngine;
-
-// ── Engine + SQLite ─────────────────────────────────────────────────────
 
 fn temp_db(name: &str) -> std::path::PathBuf {
     let dir = std::env::temp_dir().join(format!(

@@ -1,16 +1,9 @@
-//! Driving a page like a person, for agents: an accessibility-style snapshot
-//! with refs, then real (trusted) mouse and keyboard input through CDP on the
-//! element a ref names. Same ref grammar as the app's Browser preview
-//! (`e12`, a CSS selector, or `text=Label`).
-
 use std::time::Duration;
 
 use serde_json::{json, Value};
 
 use super::browser::{self, Browser};
 
-/// Shared by every page function: `find(sel)` resolves a ref, `text=` or a
-/// CSS selector.
 const HELPERS: &str = r#"
   var G = window.__gdPage || (window.__gdPage = { refs: new Map() });
   function clean(s, n) { s = (s || '').replace(/\s+/g, ' ').trim(); return s.length > n ? s.slice(0, n) + '…' : s; }
@@ -120,7 +113,6 @@ const SNAPSHOT: &str = r#"
     viewport: { width: innerWidth, height: innerHeight, scrollY: Math.round(scrollY), scrollHeight: document.documentElement.scrollHeight } };
 "#;
 
-/// Scrolls the element into view and returns its center in CSS pixels.
 const LOCATE: &str = r#"
   var el = find(A.selector);
   el.scrollIntoView({ block: 'center', inline: 'center' });
@@ -145,8 +137,6 @@ async fn run(b: &Browser, tab: &str, body: &str, args: Value) -> Result<Value, S
         .await
 }
 
-/// The tab an agent means: the one given, else the one shown in OmniGet,
-/// else the most recent page.
 pub fn pick_tab(b: &Browser, tab: Option<String>) -> Result<String, String> {
     if let Some(t) = tab.filter(|t| !t.is_empty()) {
         return Ok(t);
@@ -177,7 +167,6 @@ pub async fn snapshot(
     .await
 }
 
-/// Clicks with the real mouse at the element's center.
 pub async fn click(b: &Browser, tab: &str, selector: &str, double: bool) -> Result<Value, String> {
     let at = run(b, tab, LOCATE, json!({ "selector": selector })).await?;
     let (x, y) = (
@@ -200,7 +189,6 @@ pub async fn click_at(b: &Browser, tab: &str, x: f64, y: f64, count: u32) -> Res
     Ok(())
 }
 
-/// Focuses the field with a click and types as keyboard input.
 pub async fn type_text(
     b: &Browser,
     tab: &str,
@@ -226,8 +214,6 @@ pub async fn type_text(
     Ok(json!({ "typed": text.chars().count(), "into": at["what"] }))
 }
 
-/// `Enter`, `Tab`, `Escape`, `ArrowDown`, `a`, with `+` modifiers:
-/// `Control+a`, `Meta+Shift+z`.
 pub async fn press_combo(b: &Browser, tab: &str, combo: &str) -> Result<(), String> {
     let mut mods = 0u32;
     let mut key = combo.to_string();
@@ -268,8 +254,6 @@ pub async fn scroll(b: &Browser, tab: &str, dy: f64, dx: f64) -> Result<Value, S
     run(b, tab, "return { scrollY: Math.round(scrollY), scrollHeight: document.documentElement.scrollHeight };", json!({})).await
 }
 
-/// Waits until `text` shows on the page or `selector` matches, up to
-/// `timeout_ms`.
 pub async fn wait_for(
     b: &Browser,
     tab: &str,
@@ -298,12 +282,6 @@ pub async fn wait_for(
     }
 }
 
-/// Starts what the page has not played yet. Every `<video>` and `<audio>`,
-/// in the page and in its same-origin iframes (the frames cat-catch's
-/// content script walks, js/content-script.js), is muted and `play()`ed.
-/// When nothing was playing, the first visible play button of a known player
-/// (or any control labelled "Play") is located for a real click, or clicked
-/// from script when something covers it.
 const KICK: &str = r#"
   var docs = [document];
   document.querySelectorAll('iframe').forEach(function (f) {
@@ -372,11 +350,6 @@ const KICK: &str = r#"
   return { media: media, playing: playing, click: null };
 "#;
 
-/// Gets a page's player going so the sniffer sees its media: muted `play()`
-/// on every media element, then, when nothing plays, one trusted click on
-/// the play button (a click from script does not count as a gesture where
-/// autoplay needs one), then `play()` again for the element the click
-/// created.
 pub async fn start_playback(b: &Browser, tab: &str) -> Result<Value, String> {
     let r = run(b, tab, KICK, json!({ "click": true })).await?;
     if let Some(c) = r.get("click").filter(|c| c.is_object()) {
@@ -393,7 +366,6 @@ pub async fn start_playback(b: &Browser, tab: &str) -> Result<Value, String> {
     Ok(r)
 }
 
-/// Waits for the tab to stop loading (or `timeout`).
 pub async fn wait_loaded(b: &Browser, tab: &str, timeout: Duration) {
     let deadline = std::time::Instant::now() + timeout;
     tokio::time::sleep(Duration::from_millis(300)).await;

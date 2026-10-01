@@ -1,14 +1,3 @@
-//! The `native` driver: the existing `Coordinator` (API models, local models,
-//! the code harness, and the roster's CLI/ACP agents) behind the `Driver`
-//! trait. It translates `TurnEvent` + `BusEvent` into `RuntimeEvent`s.
-//!
-//! Durable approvals: the thread id is the coordinator's conversation id and
-//! is marked with `drivers::set_durable_conversation`, so the broker's `Ask`
-//! waits for the answer without its 120 s timeout. The ask becomes a
-//! persisted `request.opened` (request id = the broker's tool call id);
-//! `respond_request` answers the broker. Jobs and the old chat never mark
-//! their conversations and keep the timeout.
-
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
@@ -61,7 +50,6 @@ pub fn capabilities() -> DriverCapabilities {
 struct ThreadSlot {
     agent_id: Option<String>,
     access: AccessMode,
-    /// Tools accepted "for this session".
     session_allow: HashSet<String>,
     turn: Option<ActiveTurn>,
 }
@@ -70,7 +58,6 @@ struct ThreadSlot {
 struct ActiveTurn {
     turn_id: String,
     request_id: String,
-    /// tool_call_id → tool name, asks still waiting.
     open_asks: HashMap<String, String>,
 }
 
@@ -121,8 +108,6 @@ impl NativeDriver {
         self.llm.roster().first().map(|a| a.id.clone())
     }
 
-    /// Index of the message that opens turn `turn_count + 1`, i.e. how many
-    /// records to keep so the first `turn_count` turns remain.
     fn keep_for(&self, conv: &str, turn_count: u32) -> Option<(PathBuf, usize)> {
         let dir = self.llm.coordinator().dir()?.to_path_buf();
         let messages = coordinator::load_conversation(&dir, conv).ok()?;
@@ -139,7 +124,6 @@ impl NativeDriver {
     }
 }
 
-/// `provider/model` (or `provider:model`) → `ModelRef`.
 fn parse_model(s: &str) -> Option<ModelRef> {
     let s = s.trim();
     let (p, m) = s.split_once('/').or_else(|| s.split_once(':'))?;
@@ -166,7 +150,6 @@ fn error_class(code: &str) -> ErrorClass {
     }
 }
 
-/// What the approval card shows, from the tool name and its input.
 fn request_detail(tool: &str, input: &Value, preview: &str) -> RequestDetail {
     let mut d = RequestDetail {
         tool_name: Some(tool.to_string()),
@@ -210,9 +193,7 @@ struct TurnCtx {
     agent_id: String,
     llm: Arc<LlmManager>,
     threads: Arc<Mutex<HashMap<String, ThreadSlot>>>,
-    /// tool id → (name, input json being assembled)
     calls: HashMap<String, (String, String)>,
-    /// Tool calls whose result is in the JSONL once the round ends.
     awaiting: Vec<String>,
     segment: u32,
     text_open: bool,
@@ -255,8 +236,6 @@ impl TurnCtx {
             .unwrap_or(Value::Null)
     }
 
-    /// The coordinator persisted the results of the last tool round before it
-    /// asked the model again; read them back from the JSONL.
     fn resolve_results(&mut self, finishing: bool) {
         if self.awaiting.is_empty() {
             return;
@@ -387,7 +366,6 @@ impl TurnCtx {
                 content,
                 is_error,
             } => {
-                // A CLI/ACP agent ran its own tool: the result is in the stream.
                 self.awaiting.retain(|a| a != &id);
                 let name = self.calls.get(&id).map(|c| c.0.clone()).unwrap_or_default();
                 let input = self.input_of(&id);
@@ -452,7 +430,6 @@ impl TurnCtx {
         false
     }
 
-    /// Asks and reroutes from the bus that belong to this turn.
     fn on_bus(&mut self, event: BusEvent) {
         match event {
             BusEvent::ToolAsk {
@@ -530,8 +507,6 @@ impl TurnCtx {
             BusEvent::ToolCalled {
                 agent, tool, ok, ..
             } if agent == self.agent_id => {
-                // The call ran (or was refused): if its ask was answered
-                // somewhere else (the pet, the old chat), close it here.
                 let closed: Option<String> = {
                     let mut slots = self.threads.lock().unwrap_or_else(|e| e.into_inner());
                     slots
@@ -649,7 +624,6 @@ impl Driver for NativeDriver {
         if let Some(m) = input.model.as_deref().and_then(parse_model) {
             let _ = self.llm.switch_model(&conv, m);
         }
-        // Subscribed before the turn exists, so no ask can slip by.
         let mut bus = self.llm.bus().subscribe();
         let (request_id, _cancel, mut stream) = self
             .llm
@@ -667,8 +641,6 @@ impl Driver for NativeDriver {
             });
         }
         crate::commands::llm::spawn_telemetry_ticker(self.app.clone());
-        // The conversation's override (the thread's model) wins over the
-        // agent's default, same as the coordinator picks it.
         let model = self
             .llm
             .model_override(&conv)
@@ -749,8 +721,6 @@ impl Driver for NativeDriver {
                 Ok(())
             }
             None => {
-                // Nothing runs here (the app restarted mid-turn): close the
-                // turn so the thread is not stuck "running".
                 if let Some(turn_id) = turn_id {
                     self.emit(
                         thread_id,

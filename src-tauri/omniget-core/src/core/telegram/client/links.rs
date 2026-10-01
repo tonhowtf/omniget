@@ -1,9 +1,3 @@
-//! `t.me` links → media items → downloads, like `tdl dl -u`.
-//!
-//! Understands `t.me/<user>/<id>`, `t.me/c/<id>/<msg>`, topic links
-//! (`t.me/c/<id>/<topic>/<msg>`), `?single` (only that message, not its
-//! album) and ranges (`t.me/<user>/10-20`).
-
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU32, Ordering};
@@ -18,7 +12,6 @@ use super::api;
 use super::auth::TelegramSessionHandle;
 use super::events::{self, DownloadReporter};
 
-/// Most messages one range link may expand to.
 const MAX_RANGE: i32 = 5000;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -69,7 +62,6 @@ fn parse_ids(seg: &str) -> Option<Vec<i32>> {
     (id > 0).then(|| vec![id])
 }
 
-/// Every message link in `text`, in order, duplicates dropped.
 pub fn parse_links(text: &str) -> Vec<ParsedLink> {
     let re = regex::Regex::new(
         r"(?i)(?:https?://)?(?:www\.)?(?:t\.me|telegram\.me|telegram\.dog)/([A-Za-z0-9_/\-]+)(\?[^\s<>]*)?",
@@ -100,7 +92,6 @@ pub fn parse_links(text: &str) -> Vec<ParsedLink> {
             .map(|s| s.eq_ignore_ascii_case("c"))
             .unwrap_or(false)
         {
-            // c/<id>/<msg> or c/<id>/<topic>/<msg>
             if segs.len() < 3 {
                 continue;
             }
@@ -169,7 +160,6 @@ pub struct LinkError {
 pub struct Resolved {
     pub items: Vec<LinkItem>,
     pub errors: Vec<LinkError>,
-    /// Messages found without downloadable media.
     pub skipped: u32,
 }
 
@@ -350,7 +340,6 @@ pub(super) struct PeerInfoRef {
     pub is_channel: bool,
 }
 
-/// Resolves every link in `text` to downloadable media items.
 pub async fn resolve_links(
     handle: &TelegramSessionHandle,
     text: &str,
@@ -400,7 +389,6 @@ pub async fn resolve_links(
                 continue;
             }
         };
-        // A single-message link pulls in its whole album unless `?single`.
         if !link.single && link.ids.len() == 1 {
             if let Some(gid) = msgs.first().and_then(|m| m.grouped_id) {
                 let base = link.ids[0];
@@ -462,8 +450,6 @@ fn safe_name(s: &str) -> String {
     }
 }
 
-/// `<output>/<chat title>/<message id>_<file name>`, like tdl's default
-/// template, so two albums never overwrite each other.
 pub fn item_path(output_dir: &Path, item: &LinkItem) -> PathBuf {
     output_dir.join(safe_name(&item.chat_title)).join(format!(
         "{}_{}",
@@ -472,9 +458,6 @@ pub fn item_path(output_dir: &Path, item: &LinkItem) -> PathBuf {
     ))
 }
 
-/// Downloads resolved items in the background as one batch. Returns the
-/// batch id right away; progress comes as `telegram-download-*` and
-/// `telegram-batch-file-status`.
 pub async fn download_items(
     handle: TelegramSessionHandle,
     active: super::ActiveDownloads,
@@ -526,7 +509,6 @@ pub async fn download_items(
                         .await
                         .progress(n as f64 / total_files as f64 * 100.0);
                 };
-                // Already there with the right size: count it, don't redo it.
                 if let Ok(meta) = std::fs::metadata(&path) {
                     if meta.len() > 0 && (item.file_size == 0 || meta.len() == item.file_size) {
                         ok.fetch_add(1, Ordering::Relaxed);

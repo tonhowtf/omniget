@@ -1,12 +1,3 @@
-//! Roles host: assigning a role to a node (restarting its process, as the
-//! Maestri does), and the agent-facing RPC `role.*`. Storage and the launch
-//! recipe live in `omniget_core::core::canvas::roles`.
-//!
-//! Restart: Rust closes the PTY and emits `canvas://role {workspaceId,
-//! floorId, nodeId, terminalId, roleId?}`; the terminal node reopens itself
-//! with the new launch plan (`canvas_roles_launch`). Name, position and cords
-//! stay; the agent's conversation does not.
-
 use std::sync::Arc;
 
 use omniget_core::core::canvas::model::CanvasNode;
@@ -29,7 +20,6 @@ pub struct RoleEvent {
     pub terminal_id: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub role_id: Option<String>,
-    /// Whether a running process was stopped (the node should reopen).
     pub restart: bool,
 }
 
@@ -37,7 +27,6 @@ fn store() -> Arc<CanvasStore> {
     super::doc::host().store().clone()
 }
 
-/// Stops the node's process (if running) and tells the UI to reopen it.
 pub fn restart_node(ws: &str, floor: &str, node: &CanvasNode, role_id: Option<String>) {
     let tid = node.data_str("terminalId").unwrap_or_default().to_string();
     let term = crate::pty::term();
@@ -58,9 +47,6 @@ pub fn restart_node(ws: &str, floor: &str, node: &CanvasNode, role_id: Option<St
     );
 }
 
-/// Sets (or clears) `data.roleId` of a terminal node. A library role is
-/// copied into the workspace first. Restarts the process when the role
-/// actually changed.
 pub fn assign(
     ws: &str,
     node_id: &str,
@@ -91,7 +77,6 @@ pub fn assign(
     Ok(role)
 }
 
-/// Every node of the workspace using `role_id`, with its floor.
 pub fn nodes_using(s: &CanvasStore, ws: &str, role_id: &str) -> Vec<(String, CanvasNode)> {
     let Ok(meta) = s.workspace(ws) else {
         return Vec::new();
@@ -111,8 +96,6 @@ pub fn nodes_using(s: &CanvasStore, ws: &str, role_id: &str) -> Vec<(String, Can
     out
 }
 
-/// After a workspace role's prompt changed: restart every node holding it
-/// (Maestri: "a changed prompt restarts every running terminal holding the role").
 pub fn restart_holders(ws: &str, role_id: &str) {
     let s = store();
     for (floor, node) in nodes_using(&s, ws, role_id) {
@@ -120,7 +103,6 @@ pub fn restart_holders(ws: &str, role_id: &str) {
     }
 }
 
-/// Clears `roleId` on every node using the role (before a forced delete).
 pub fn unassign_all(ws: &str, role_id: &str, origin: &str) -> Result<usize, String> {
     let s = store();
     let holders = nodes_using(&s, ws, role_id);
@@ -129,9 +111,6 @@ pub fn unassign_all(ws: &str, role_id: &str, origin: &str) -> Result<usize, Stri
     }
     Ok(holders.len())
 }
-
-// ---------------------------------------------------------------------------
-// RPC
 
 async fn blocking<T: Send + 'static>(
     f: impl FnOnce() -> Result<T, String> + Send + 'static,
@@ -170,7 +149,6 @@ fn need_maestro(s: &CanvasStore, ctx: &NodeCtx) -> Result<(), String> {
     }
 }
 
-/// A terminal node of the caller's workspace by exact title (unique) or id.
 fn node_by_name(s: &CanvasStore, ws: &str, name: &str) -> Result<CanvasNode, String> {
     let meta = s.workspace(ws)?;
     let mut hits = Vec::new();
@@ -219,16 +197,6 @@ fn ws_of(scope: Scope, ws: &str) -> Option<&str> {
     }
 }
 
-/// Methods (args → result; every result has a printable `text`):
-/// - `role.list {}` → `{roles: RoleInfo[], text}` (grouped "Current workspace" / "Global")
-/// - `role.get {name}` → `{role, scope, text}` (full prompt)
-/// - `role.assign {target, role? , none?}` (Maestro) → `{node, role?, text}`
-/// - `role.create {name, prompt, scope?, summary?, icon?, color?, agent?}` (Maestro)
-/// - `role.write {name, prompt}` (Maestro) → replaces the prompt
-/// - `role.edit {name, old?, new?, scope?}` (Maestro) → substring edit and/or scope move
-/// - `role.delete {name, force?}` (Maestro)
-/// - `role.discover {dir?}` → `{roles, text}`: `role.json` files in the project
-/// - `role.import {names?|name?|argv?, dir?}` (Maestro) → imports discovered roles
 pub async fn rpc(ctx: &NodeCtx, method: &str, args: Value) -> RpcResult {
     if !method.starts_with("role.") {
         return None;

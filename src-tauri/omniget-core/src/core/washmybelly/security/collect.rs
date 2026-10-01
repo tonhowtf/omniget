@@ -1,7 +1,3 @@
-//! Gathers the persistent items and checks each file they point to. Every
-//! command goes through [`Sys`] as argv, so the tests run the whole pass
-//! against temporary folders and canned tool output.
-
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::path::{Path, PathBuf};
 
@@ -16,7 +12,6 @@ fn argv(parts: &[&str]) -> Vec<String> {
     parts.iter().map(|s| s.to_string()).collect()
 }
 
-/// Folders the inventory reads; tests point them at a temporary tree.
 #[derive(Debug, Clone)]
 pub struct Roots {
     pub uid: i64,
@@ -26,9 +21,7 @@ pub struct Roots {
     pub helpers: PathBuf,
     pub extensions: PathBuf,
     pub applications: PathBuf,
-    /// XProtect's YARA rules shipped with macOS (read, never copied).
     pub xprotect_rules: PathBuf,
-    /// A `yara` binary, when one is installed.
     pub yara: Option<PathBuf>,
 }
 
@@ -59,12 +52,9 @@ fn find_yara() -> Option<PathBuf> {
         .find(|p| p.is_file())
 }
 
-/// The whole inventory.
 #[derive(Debug, Default)]
 pub struct Inventory {
     pub items: Vec<Item>,
-    /// Parts that could not be read, with why: `btm_unavailable`,
-    /// `profiles_need_admin`, `yara_unavailable`...
     pub notes: Vec<String>,
     pub yara: Value,
 }
@@ -97,15 +87,12 @@ impl Inventory {
     }
 }
 
-/// One registration before its file is checked.
 #[derive(Debug, Clone, Default)]
 struct Entry {
     item: Item,
-    /// The file whose signature decides the verdict.
     target: Option<String>,
 }
 
-/// What the checks found for one file.
 #[derive(Debug, Clone, Default)]
 struct Check {
     exists: bool,
@@ -126,7 +113,6 @@ pub fn collect(sys: &dyn Sys, roots: &Roots) -> Inventory {
         "reading launchd, background tasks and extensions",
     );
 
-    // `sfltool dumpbtm` takes seconds; it runs while the folders are read.
     let (btm_text, mut entries) = std::thread::scope(|s| {
         let h = s.spawn(|| sys.run(&argv(&["sfltool", "dumpbtm"])));
         let mut e = launchd_entries(sys, roots);
@@ -154,7 +140,6 @@ pub fn collect(sys: &dyn Sys, roots: &Roots) -> Inventory {
     entries.extend(profile_entries(sys, &mut inv.notes));
     entries.extend(cron_entries(sys));
 
-    // Check every distinct file once, a few at a time.
     let targets: Vec<String> = {
         let mut seen = HashSet::new();
         entries
@@ -275,7 +260,6 @@ fn apple_id(id: &str) -> bool {
     id.starts_with("com.apple.") || id.contains(".com.apple.")
 }
 
-/// Facts about where a program lives, without judging it.
 fn path_notes(path: &str) -> Vec<String> {
     let mut n = Vec::new();
     if [
@@ -361,7 +345,6 @@ fn launchd_entries(sys: &dyn Sys, roots: &Roots) -> Vec<Entry> {
             if let Some(t) = &target {
                 item.notes.extend(path_notes(t));
                 if !t.starts_with('/') {
-                    // A bare name (`node`) resolved through launchd's PATH.
                     item.class = Some(Class::Unknown);
                     item.summary = format!("Runs \"{t}\" found through the PATH; not checked");
                     out.push(Entry { item, target: None });
@@ -413,9 +396,6 @@ fn helper_entries(roots: &Roots) -> Vec<Entry> {
         .collect()
 }
 
-/// Background items registered through ServiceManagement that no plist in
-/// the launchd folders stands for: login items, app agents, apps that open
-/// at login. The ones matching a plist only add their on/off state.
 fn merge_btm(entries: &mut Vec<Entry>, btm: &[BtmItem], uid: i64) {
     let by_url: HashMap<String, &BtmItem> = btm
         .iter()
@@ -445,7 +425,6 @@ fn merge_btm(entries: &mut Vec<Entry>, btm: &[BtmItem], uid: i64) {
         {
             continue;
         }
-        // URLs of embedded items are relative to the parent app.
         let parent_path = b
             .parent
             .as_deref()
@@ -468,13 +447,11 @@ fn merge_btm(entries: &mut Vec<Entry>, btm: &[BtmItem], uid: i64) {
             continue;
         }
         let exe = b.executable.as_deref().and_then(resolve);
-        // Apps and login items are bundles; agents and daemons name a program.
         let target = match b.kind.as_str() {
             "app" | "login item" => url.clone().or(exe.clone()),
             _ => exe.clone().or(url.clone()),
         };
         if b.kind == "app" && !b.enabled {
-            // An app that could open at login but is switched off: not persistent.
             continue;
         }
         let path = url.clone().or(exe.clone());
@@ -510,9 +487,7 @@ fn merge_btm(entries: &mut Vec<Entry>, btm: &[BtmItem], uid: i64) {
     }
 }
 
-/// Where the app that ships a system extension keeps its copy.
 fn find_sysext(roots: &Roots, bundle_id: &str) -> Option<String> {
-    // Network and endpoint extensions are `.systemextension`, drivers `.dext`.
     let rd = std::fs::read_dir(&roots.applications).ok()?;
     for app in rd.flatten() {
         for ext in ["systemextension", "dext"] {
@@ -676,8 +651,6 @@ fn kext_entries(sys: &dyn Sys, roots: &Roots, notes: &mut Vec<String>) -> Vec<En
 }
 
 fn profile_entries(sys: &dyn Sys, notes: &mut Vec<String>) -> Vec<Entry> {
-    // Without admin this shows the person's own profiles; device-wide ones
-    // need `profiles list -all` as root, which we do not ask for here.
     let text = match sys.run(&argv(&["profiles", "show", "-type", "configuration"])) {
         Ok(o) if o.ok => o.stdout,
         Ok(o) => {
@@ -766,7 +739,7 @@ fn cron_entries(sys: &dyn Sys) -> Vec<Entry> {
         return Vec::new();
     };
     if !o.ok {
-        return Vec::new(); // "no crontab for <user>"
+        return Vec::new();
     }
     parse::parse_crontab(&o.stdout)
         .into_iter()
@@ -823,7 +796,6 @@ fn head4(p: &str) -> Vec<u8> {
     }
 }
 
-/// Signature, notarization, quarantine (and XProtect's rules) for one file.
 fn check(sys: &dyn Sys, target: &str, yara: Option<(&Path, &Path)>) -> Check {
     let mut c = Check {
         exists: std::fs::symlink_metadata(target).is_ok(),
@@ -859,8 +831,6 @@ fn check(sys: &dyn Sys, target: &str, yara: Option<(&Path, &Path)>) -> Check {
                     .map(|o| parse::parse_spctl(&format!("{}{}", o.stderr, o.stdout)));
             }
         } else if !cs.signed && !bundle && !parse::is_macho(&head4(target)) {
-            // A script or document: Gatekeeper's "open" check is the one
-            // that applies (detached or xattr signatures).
             c.assess = sys
                 .run(&argv(&[
                     "spctl",
@@ -878,7 +848,6 @@ fn check(sys: &dyn Sys, target: &str, yara: Option<(&Path, &Path)>) -> Check {
         }
     }
     c.cs = cs;
-    // The quarantine sits on what was downloaded: the app, not its inner program.
     let q_on = parse::enclosing_app(target).unwrap_or(target);
     c.quarantine = sys
         .run(&argv(&["xattr", "-p", "com.apple.quarantine", "--", q_on]))
@@ -899,7 +868,6 @@ fn check(sys: &dyn Sys, target: &str, yara: Option<(&Path, &Path)>) -> Check {
     c
 }
 
-/// The verdict from what the checks found. Pure; tested on its own.
 pub fn classify(
     exists: bool,
     cs: Option<&CodeSign>,
@@ -913,7 +881,6 @@ pub fn classify(
         return (Class::Unknown, None);
     };
     if !cs.signed {
-        // Gatekeeper may still accept a script through a detached signature.
         return match assess {
             Some(a) if a.accepted => match a.notarized() {
                 Some(true) => (Class::Notarized, Some(true)),
@@ -980,7 +947,6 @@ fn apply(item: &mut Item, target: &str, c: &Check) {
     item.summary = summary(item);
 }
 
-/// One neutral English sentence per verdict.
 pub fn summary(it: &Item) -> String {
     let who = match (&it.signer, &it.team_id) {
         (Some(s), Some(t)) => format!("{s} ({t})"),

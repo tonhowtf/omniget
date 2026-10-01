@@ -1,11 +1,3 @@
-//! Downloads › Tools › Search sites: look a name up on several sites at once
-//! and download a result, without opening each site first.
-//!
-//! The idea comes from MediaHarbor, which searches its services side by side
-//! and turns a result into a download. Reimplemented here with yt-dlp's own
-//! search prefixes and the Internet Archive's public search API, so every
-//! source works without an account or a key; no code was copied.
-
 use std::time::Duration;
 
 use serde::Serialize;
@@ -31,7 +23,6 @@ pub struct SiteResults {
     pub error: Option<String>,
 }
 
-/// The sites the tool knows, in the order the panel shows them.
 pub const SITES: &[&str] = &[
     "youtube",
     "youtube_music",
@@ -41,14 +32,12 @@ pub const SITES: &[&str] = &[
     "archive",
 ];
 
-/// What yt-dlp is asked for, for a site searched through yt-dlp.
 fn ytdlp_query(site: &str, query: &str, n: u32) -> Option<String> {
     Some(match site {
         "youtube" => format!("ytsearch{}:{}", n, query),
         "soundcloud" => format!("scsearch{}:{}", n, query),
         "bilibili" => format!("bilisearch{}:{}", n, query),
         "niconico" => format!("nicosearch{}:{}", n, query),
-        // yt-dlp reads YouTube Music's search page; `#songs` keeps songs only.
         "youtube_music" => format!(
             "https://music.youtube.com/search?q={}#songs",
             urlencoding::encode(query)
@@ -65,8 +54,6 @@ fn str_of(v: &Value, key: &str) -> Option<String> {
         .map(str::to_string)
 }
 
-/// A page URL for a flat search entry. yt-dlp gives `url` for most sites; when
-/// it only gives an id, the page is built for that site, never for another.
 fn entry_url(site: &str, entry: &Value) -> Option<String> {
     if let Some(u) = str_of(entry, "webpage_url").or_else(|| str_of(entry, "url")) {
         if u.starts_with("http://") || u.starts_with("https://") {
@@ -92,7 +79,6 @@ fn thumbnail_of(entry: &Value) -> Option<String> {
         .or_else(|| str_of(entry, "thumbnail"))
 }
 
-/// Parses yt-dlp's `--flat-playlist --dump-json` output: one JSON object per line.
 fn parse_ytdlp_lines(site: &str, stdout: &str, max: usize) -> Vec<SiteHit> {
     let mut hits: Vec<SiteHit> = Vec::new();
     for line in stdout.lines().filter(|l| !l.trim().is_empty()) {
@@ -121,7 +107,6 @@ fn parse_ytdlp_lines(site: &str, stdout: &str, max: usize) -> Vec<SiteHit> {
     hits
 }
 
-/// Parses the Internet Archive's `advancedsearch.php` JSON.
 fn parse_archive(body: &Value) -> Vec<SiteHit> {
     body.pointer("/response/docs")
         .and_then(|d| d.as_array())
@@ -199,7 +184,6 @@ async fn search_archive(query: &str, n: u32) -> Result<Vec<SiteHit>, String> {
     let client = omniget_core::core::http_client::apply_global_proxy(builder)
         .build()
         .map_err(|e| e.to_string())?;
-    // Films and sound only: the same kinds of item the downloader can save.
     let q = format!("({}) AND mediatype:(movies OR audio)", query);
     let rows = n.to_string();
     let body: Value = client
@@ -244,7 +228,6 @@ pub async fn search_sites(
         return Err("Pick at least one site".to_string());
     }
 
-    // Every site at once: the slowest one sets the wait, not their sum.
     let searches = wanted.iter().map(|site| {
         let query = query.clone();
         async move {

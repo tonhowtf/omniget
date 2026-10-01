@@ -1,32 +1,3 @@
-//! Kiro (AWS): kiro-cli e IDE (estudo 06, Kiro §j e Kiro CLI §j; Parte 6 §8.2).
-//!
-//! Três lugares:
-//! 1. kiro-cli 3.x (ACP/V3): `~/.kiro/sessions/cli/<id>.json` (estado:
-//!    `session_id`, `cwd`, `session_state.rts_model_state.model_info.model_id`,
-//!    `session_state.conversation_metadata.user_turn_metadatas[]` com
-//!    `input_token_count`, `output_token_count`, `cache_read_input_token_count`,
-//!    `cache_write_input_token_count`, `end_timestamp`, `message_ids[]`,
-//!    `metering_usage[{value, unit:"credit"}]`) + `<id>.jsonl`
-//!    (`{version, kind:"Prompt"|"AssistantMessage"|"ToolResults", data:{message_id,
-//!    content[{kind:"text", data}|{kind:"toolUse", data}|{kind:"toolResult", data}],
-//!    meta:{timestamp}}}`).
-//! 2. IDE: `~/.kiro/sessions/<workspace>/sess_<uuid>/session.json` (`id`,
-//!    `title`, `workspacePaths[]`, `createdAt`, `lastModifiedAt`, `modelId`) +
-//!    `messages.jsonl` (`{payload:{type:"user"|"assistant"|"tool_call"|
-//!    "tool_result"|"turn_end"|…}, timestamp}` ou `{role, content}`).
-//! 3. kiro-cli 2.x / Amazon Q: SQLite `data.sqlite3` em `<dados>/kiro-cli`
-//!    (macOS `~/Library/Application Support`, Linux `~/.local/share`), tabela
-//!    `conversations_v2(key = cwd, conversation_id, value JSON)` (ou
-//!    `conversations(key, value)` antiga): `model_info`, `history[]` com
-//!    `user.content.{Prompt{prompt} | ToolUseResults{tool_use_results[]}}`,
-//!    `assistant.{Response{content} | ToolUse{content, tool_uses[{id, name, args}]}}`
-//!    e `request_metadata` (tokens quando existem, horários em ms).
-//!
-//! Kiro cobra em créditos, não em dólar nem por token: os créditos
-//! (`metering_usage`) não são dinheiro gravado, então `Turn.cost_usd` fica
-//! `None` e o custo, se houver tokens, sai da tabela de preços. Os tokens
-//! costumam vir zerados no agente Auto. Kiro não está instalado aqui: só fixture.
-
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
@@ -167,7 +138,6 @@ fn turn_usage(m: &Value) -> TokenUsage {
     }
 }
 
-/// kiro-cli 3.x: estado `.json` + log `.jsonl`.
 pub fn parse_cli(state: &Value, lines: &[Value], fallback_id: &str, source: &Path) -> Session {
     let id = s(state, &["session_id", "id"]).unwrap_or_else(|| fallback_id.to_string());
     let mut meta = new_meta(TOOL, id, source);
@@ -215,7 +185,6 @@ pub fn parse_cli(state: &Value, lines: &[Value], fallback_id: &str, source: &Pat
         .unwrap_or_default();
     for m in &metas {
         let us = turn_usage(m);
-        // Turno do assistente cujo message_id está na lista; senão, o último.
         let target = m
             .get("message_ids")
             .and_then(Value::as_array)
@@ -250,7 +219,6 @@ pub fn parse_cli(state: &Value, lines: &[Value], fallback_id: &str, source: &Pat
     Session { meta, turns }
 }
 
-/// IDE: `session.json` + `messages.jsonl`.
 pub fn parse_ide(sess: &Value, lines: &[Value], fallback_id: &str, source: &Path) -> Session {
     let id = s(sess, &["id"]).unwrap_or_else(|| fallback_id.to_string());
     let mut meta = new_meta(TOOL, id, source);
@@ -337,7 +305,6 @@ pub fn parse_ide(sess: &Value, lines: &[Value], fallback_id: &str, source: &Path
     Session { meta, turns }
 }
 
-/// kiro-cli 2.x / Amazon Q: valor JSON de uma conversa do SQLite.
 pub fn parse_db_conversation(v: &Value, id: &str, cwd: Option<String>, source: &Path) -> Session {
     let mut meta = new_meta(TOOL, id, source);
     meta.account = Some("cli-db".into());

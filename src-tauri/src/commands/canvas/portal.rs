@@ -1,15 +1,9 @@
-//! Tauri commands of the canvas portals. The logic lives in `crate::portal`;
-//! the canvas front decides live vs snapshot and calls these on settle, never
-//! per frame.
-
 use base64::Engine as _;
 use serde_json::Value;
 use tauri::{AppHandle, Webview};
 
 use crate::portal::{self, automation, Bounds, OpenSpec, PortalState, Scope};
 
-/// Loads the portal's browser (hidden) or reuses it. `url` differing from the
-/// current page navigates. `viewport` = node body in CSS px.
 #[tauri::command]
 #[allow(clippy::too_many_arguments)]
 pub fn canvas_portal_open(
@@ -45,8 +39,6 @@ pub fn canvas_portal_open(
     )
 }
 
-/// "Proceed" on a portal's certificate warning: accepts the refused host for
-/// this portal only and reloads.
 #[tauri::command]
 pub async fn canvas_portal_trust_cert(
     app: AppHandle,
@@ -56,14 +48,12 @@ pub async fn canvas_portal_trust_cert(
     portal::trust_cert(&app, &node_id).await
 }
 
-/// Opens the Web Inspector of a portal page.
 #[tauri::command]
 pub fn canvas_portal_inspect(app: AppHandle, node_id: String) -> Result<(), String> {
     portal::bind(&app);
     portal::open_inspector(&app, &node_id)
 }
 
-/// Copy Screenshot: the page's native pixels on the clipboard as an image.
 #[tauri::command]
 pub async fn canvas_portal_copy_screenshot(
     app: AppHandle,
@@ -84,14 +74,12 @@ pub async fn canvas_portal_copy_screenshot(
     Ok(serde_json::json!({ "copied": true, "width": w, "height": h }))
 }
 
-/// Frees the portal's browser process (unload). The node stays.
 #[tauri::command]
 pub fn canvas_portal_close(app: AppHandle, node_id: String) -> Result<(), String> {
     portal::bind(&app);
     portal::close(&app, &node_id)
 }
 
-/// Live placement: CSS px of the main webview + devicePixelRatio + canvas zoom.
 #[tauri::command]
 pub fn canvas_portal_set_bounds(
     app: AppHandle,
@@ -102,8 +90,6 @@ pub fn canvas_portal_set_bounds(
     portal::set_bounds(&app, &node_id, Some(bounds))
 }
 
-/// `visible: false` hides (snapshot mode); `true` with `bounds` shows. Without
-/// `node_id`, hides every portal (route change, canvas unmounted).
 #[tauri::command]
 pub fn canvas_portal_set_visible(
     app: AppHandle,
@@ -122,8 +108,6 @@ pub fn canvas_portal_set_visible(
     }
 }
 
-/// URL bar and toolbar: `url`, or `action` back | forward | reload. Opens the
-/// portal hidden first when needed.
 #[tauri::command]
 pub async fn canvas_portal_navigate(
     app: AppHandle,
@@ -142,8 +126,6 @@ pub async fn canvas_portal_navigate(
     }
 }
 
-/// Native snapshot of the page as a `data:image/png;base64,...` URL, for the
-/// dormant texture. Taken on hide and after each agent action.
 #[tauri::command]
 pub async fn canvas_portal_snapshot_image(
     app: AppHandle,
@@ -157,8 +139,6 @@ pub async fn canvas_portal_snapshot_image(
     ))
 }
 
-/// Device presets and the UA menu: rebuilds the browser with another UA.
-/// `user_agent` = preset name or raw string; empty = engine default.
 #[tauri::command]
 pub async fn canvas_portal_set_user_agent(
     app: AppHandle,
@@ -173,15 +153,12 @@ pub async fn canvas_portal_set_user_agent(
     portal::set_user_agent(&app, &node_id, ua).await
 }
 
-/// Current state of every loaded portal.
 #[tauri::command]
 pub fn canvas_portal_states(app: AppHandle) -> Vec<PortalState> {
     portal::bind(&app);
     portal::host().states()
 }
 
-/// Answers from the script injected in a portal page. Only `portal-*`
-/// webviews are heard; the label comes from Tauri, not from the page.
 #[tauri::command]
 pub fn canvas_portal_report(
     app: AppHandle,
@@ -199,8 +176,6 @@ pub fn canvas_portal_report(
     );
 }
 
-/// Design mode: arms the pick overlay in the portal page. The pick (or the
-/// cancel) arrives as `canvas://design-select`.
 #[tauri::command]
 pub async fn canvas_portal_design_arm(
     app: AppHandle,
@@ -211,7 +186,6 @@ pub async fn canvas_portal_design_arm(
     crate::canvas::design::arm(&node_id, hint).await
 }
 
-/// Leaves design mode without a pick.
 #[tauri::command]
 pub async fn canvas_portal_design_disarm(
     app: AppHandle,
@@ -221,7 +195,6 @@ pub async fn canvas_portal_design_disarm(
     crate::canvas::design::disarm(&node_id).await
 }
 
-/// Agents corded to the portal (who may receive a design selection).
 #[tauri::command]
 pub fn canvas_portal_design_targets(
     app: AppHandle,
@@ -231,8 +204,6 @@ pub fn canvas_portal_design_targets(
     crate::canvas::design::targets(&node_id)
 }
 
-/// "Ask about this selection": delivers the pick, comment, crop and
-/// attachments to a corded agent.
 #[tauri::command]
 pub async fn canvas_portal_design_send(
     app: AppHandle,

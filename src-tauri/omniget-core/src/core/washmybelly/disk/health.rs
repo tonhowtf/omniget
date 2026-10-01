@@ -1,14 +1,5 @@
-//! Physical disk health, only from what the OS hands out without root:
-//! macOS `diskutil info -plist` (SMART status and the NVMe log on Apple
-//! SSDs), Linux UDisks2 on the system bus (no `setcap` on `smartctl`),
-//! Windows `Get-PhysicalDisk` and `Get-StorageReliabilityCounter`.
-//!
-//! Nothing is guessed: a value the OS did not give stays `null`, and when a
-//! whole source is missing the answer says why.
-
 use serde_json::{json, Map, Value};
 
-/// `good`, `warning`, `failing` or `unknown`.
 fn status(failing: bool, warning: bool, known: bool) -> &'static str {
     if failing {
         "failing"
@@ -21,14 +12,10 @@ fn status(failing: bool, warning: bool, known: bool) -> &'static str {
     }
 }
 
-/// Kelvin from NVMe / UDisks to Celsius, rounded.
 fn kelvin_to_c(k: f64) -> Option<i64> {
     (k > 200.0 && k < 500.0).then(|| (k - 273.15).round() as i64)
 }
 
-// ── macOS ────────────────────────────────────────────────────────────
-
-/// The whole physical disks in `diskutil list -plist physical`.
 pub fn mac_whole_disks(list: &Value) -> Vec<String> {
     list["WholeDisks"]
         .as_array()
@@ -40,7 +27,6 @@ pub fn mac_whole_disks(list: &Value) -> Vec<String> {
         .unwrap_or_default()
 }
 
-/// One disk from `diskutil info -plist diskN`.
 pub fn mac_disk(info: &Value) -> Value {
     let smart = info["SMARTStatus"].as_str().unwrap_or("").to_string();
     let log = &info["SMARTDeviceSpecificKeysMayVaryNotGuaranteed"];
@@ -82,7 +68,6 @@ pub fn mac_disk(info: &Value) -> Value {
         "power_on_hours": n("POWER_ON_HOURS_0"),
         "power_cycles": n("POWER_CYCLES_0"),
         "unsafe_shutdowns": n("UNSAFE_SHUTDOWNS_0"),
-        // NVMe data units are 1000 blocks of 512 bytes.
         "bytes_written": n("DATA_UNITS_WRITTEN_0").map(|u| u.saturating_mul(512_000)),
         "bytes_read": n("DATA_UNITS_READ_0").map(|u| u.saturating_mul(512_000)),
         "source": "diskutil",
@@ -109,7 +94,6 @@ fn read() -> Value {
     };
     let disks: Vec<Value> = mac_whole_disks(&list)
         .iter()
-        // Disk ids come from diskutil itself (`disk0`), never from a caller.
         .filter(|d| {
             d.len() > 4 && d.starts_with("disk") && d[4..].chars().all(|c| c.is_ascii_digit())
         })
@@ -123,14 +107,10 @@ fn read() -> Value {
     o
 }
 
-// ── Linux (UDisks2) ──────────────────────────────────────────────────
-
 const DRIVE: &str = "org.freedesktop.UDisks2.Drive";
 const ATA: &str = "org.freedesktop.UDisks2.Drive.Ata";
 const NVME: &str = "org.freedesktop.UDisks2.NVMe.Controller";
 
-/// Disks from UDisks2 `GetManagedObjects`, as JSON
-/// `{ object_path: { interface: { property: value } } }`.
 pub fn udisks_disks(objects: &Value) -> Vec<Value> {
     let Some(map) = objects.as_object() else {
         return Vec::new();
@@ -221,8 +201,6 @@ pub fn udisks_disks(objects: &Value) -> Vec<Value> {
                         .collect()
                 })
                 .unwrap_or_default();
-            // `spare` and `temperature` warn; the others mean the drive is
-            // degraded or read-only.
             let failing = crit
                 .iter()
                 .any(|c| !matches!(c.as_str(), "spare" | "temperature"));
@@ -334,9 +312,6 @@ fn read() -> Value {
     }
 }
 
-// ── Windows ──────────────────────────────────────────────────────────
-
-/// Fixed script: no path or caller value is ever put into it.
 #[cfg_attr(not(windows), allow(dead_code))]
 pub const WINDOWS_SCRIPT: &str = "$ErrorActionPreference='SilentlyContinue'; \
 Get-PhysicalDisk | ForEach-Object { $r = $_ | Get-StorageReliabilityCounter; \
@@ -346,7 +321,6 @@ Size=$_.Size; Temperature=$r.Temperature; TemperatureMax=$r.TemperatureMax; Wear
 ReadErrorsTotal=$r.ReadErrorsTotal; WriteErrorsTotal=$r.WriteErrorsTotal; StartStopCycleCount=$r.StartStopCycleCount } } \
 | ConvertTo-Json -Depth 3";
 
-/// Disks from the script's JSON (one object or an array).
 pub fn windows_disks(text: &str) -> Result<Vec<Value>, String> {
     let t = text.trim().trim_start_matches('\u{feff}');
     if t.is_empty() {

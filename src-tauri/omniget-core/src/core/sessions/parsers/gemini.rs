@@ -1,15 +1,3 @@
-//! Gemini CLI: `~/.gemini/tmp/<slug>/chats/session-*.jsonl` (antigo:
-//! `.json` com `messages[]`); subagentes em `chats/<sessão-mãe>/<id>.jsonl`.
-//! Sandbox do macOS: `~/.cache/.gemini/tmp`. `GEMINI_DATA_DIR` sobrepõe.
-//!
-//! Registro: metadados `{sessionId, projectHash, startTime, lastUpdated,
-//! summary?, kind}`, atualizações `{"$set": {...}}`, `{"$rewindTo": id}`
-//! (descarta a mensagem `id` e o que veio depois) e mensagens
-//! `{id, timestamp, type: user|gemini|info|error|warning, content,
-//! toolCalls[], thoughts[], model, tokens{input, output, cached, thoughts,
-//! tool, total}}`. Uma mensagem com id repetido substitui a anterior.
-//! `tokens.input` inclui o cache: sai separado aqui.
-
 use std::path::{Path, PathBuf};
 
 use serde_json::Value;
@@ -48,7 +36,6 @@ impl GeminiSource {
         Self { roots }
     }
 
-    /// (arquivo, sessão-mãe, diretório do slug)
     fn files(&self) -> Vec<(PathBuf, Option<String>, PathBuf)> {
         let mut out = Vec::new();
         for root in &self.roots {
@@ -279,7 +266,6 @@ fn to_session(path: &Path, parent: Option<String>, slug_dir: &Path, doc: Doc) ->
                     }
                 };
                 let result = c.get("result").map(|r| {
-                    // `result` é uma lista de `Part` com `functionResponse`.
                     let inner = r
                         .as_array()
                         .and_then(|a| a.first())
@@ -405,7 +391,6 @@ impl SessionSource for GeminiSource {
                 }
             }
         }
-        // Nome do arquivo não bate (formato antigo): procura pelo conteúdo.
         self.files()
             .into_iter()
             .map(|(p, parent, slug)| to_session(&p, parent, &slug, read_doc(&p)))

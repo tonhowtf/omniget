@@ -1,8 +1,3 @@
-//! Whisper's log-mel front end, written out: 16 kHz mono in, 80 mel bands
-//! out, 10 ms hop, the same numbers `whisper/audio.py` produces (periodic
-//! Hann window of 400, centered STFT with reflect padding, power spectrum,
-//! Slaney mel filters from librosa, log10, 8 dB dynamic range, `(x + 4) / 4`).
-
 use std::sync::{Arc, OnceLock};
 
 use rustfft::num_complex::Complex32;
@@ -12,15 +7,12 @@ pub const SAMPLE_RATE: usize = 16_000;
 pub const N_FFT: usize = 400;
 pub const HOP: usize = 160;
 pub const N_MELS: usize = 80;
-/// 30 s of audio, the fixed window the encoder takes.
 pub const WINDOW_SAMPLES: usize = SAMPLE_RATE * 30;
-/// Mel frames in one window (the STFT gives one more, dropped like Whisper).
 pub const WINDOW_FRAMES: usize = WINDOW_SAMPLES / HOP;
 
 const N_BINS: usize = N_FFT / 2 + 1;
 
 fn hz_to_mel(f: f64) -> f64 {
-    // Slaney: linear below 1 kHz, logarithmic above.
     let f_sp = 200.0 / 3.0;
     let min_log_hz = 1000.0;
     let min_log_mel = min_log_hz / f_sp;
@@ -44,8 +36,6 @@ fn mel_to_hz(m: f64) -> f64 {
     }
 }
 
-/// `librosa.filters.mel(sr=16000, n_fft=400, n_mels=80)`, row-major
-/// `[N_MELS][N_BINS]`.
 pub fn mel_filters() -> &'static [f32] {
     static F: OnceLock<Vec<f32>> = OnceLock::new();
     F.get_or_init(|| {
@@ -76,7 +66,6 @@ pub fn mel_filters() -> &'static [f32] {
 fn hann() -> &'static [f32] {
     static W: OnceLock<Vec<f32>> = OnceLock::new();
     W.get_or_init(|| {
-        // Periodic, like `torch.hann_window(400)`.
         (0..N_FFT)
             .map(|n| {
                 (0.5 - 0.5 * (2.0 * std::f64::consts::PI * n as f64 / N_FFT as f64).cos()) as f32
@@ -91,8 +80,6 @@ fn fft() -> Arc<dyn Fft<f32>> {
         .clone()
 }
 
-/// Reflect padding like `numpy.pad(mode="reflect")`: the edge sample is not
-/// repeated.
 fn reflect(x: &[f32], i: isize) -> f32 {
     let n = x.len() as isize;
     if n == 1 {
@@ -110,8 +97,6 @@ fn reflect(x: &[f32], i: isize) -> f32 {
     x[i as usize]
 }
 
-/// Log-mel of exactly one 30 s window, `[N_MELS][WINDOW_FRAMES]` row-major,
-/// ready for the encoder's `input_features`. Shorter input is zero-padded.
 pub fn log_mel_window(samples: &[f32]) -> Vec<f32> {
     let mut audio = vec![0f32; WINDOW_SAMPLES];
     let n = samples.len().min(WINDOW_SAMPLES);

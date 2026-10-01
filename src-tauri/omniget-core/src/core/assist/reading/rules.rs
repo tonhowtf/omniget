@@ -1,30 +1,3 @@
-//! The deterministic rules of spec 05, enforced in the backend whatever the
-//! prompt says:
-//!
-//! - access status: **Confirmed** (availability in the region + PT subtitles
-//!   on that option), **Probable** (availability confirmed, subtitles only
-//!   inferred/unknown, with what is missing spelled out), **Not confirmed**
-//!   (anything else). PT audio is not PT subtitles. An option whose platform
-//!   says there are no PT subtitles is out, never "probable". Evidence older
-//!   than the freshness window, or a page that dates itself older, is not
-//!   current. When a platform page and an aggregator disagree, the platform
-//!   wins. The newest fresh record of an option wins, so "left the
-//!   subscription" replaces an older "available".
-//! - evidence a bot records as `confirmed`/`absent` must be grounded on a
-//!   `web_fetch` the backend really made (fetch id, same site, fresh,
-//!   literal quote found in the page text, film year on the page). A
-//!   confirmed availability whose quote only shows that the page exists
-//!   ("Globo Filmes", the title and year) and no access signal (rent, buy,
-//!   subscription, a price… see [`ACCESS_SIGNALS`]) counts as **Probable**,
-//!   with that reason, never Confirmed;
-//! - rounds: 1–3 films; the first round has three (one per role) unless a
-//!   shortfall is explained; no three heavy films unless asked; no film the
-//!   user watched/abandoned; no repeat unless marked as a resumption; nothing
-//!   whose connection depends on the ending before the book is finished; no
-//!   spoiler term in any justification; "not confirmed" never in the main
-//!   selection (it goes to "worth looking for"), "probable" out too when the
-//!   user asked for confirmed only; progress must be known.
-
 use rusqlite::params;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -65,7 +38,6 @@ pub struct OptionAssessment {
     pub availability: Availability,
     pub subtitle: Option<Subtitle>,
     pub status: FinalStatus,
-    /// What is missing for "confirmed", or why the option is out.
     pub notes: Vec<String>,
 }
 
@@ -75,7 +47,6 @@ pub struct Assessment {
     pub status: FinalStatus,
     pub best: Option<OptionAssessment>,
     pub options: Vec<OptionAssessment>,
-    /// Why options were set aside (region, stale, gone, incompatible...).
     pub reasons: Vec<String>,
     pub assessed_ms: i64,
 }
@@ -91,7 +62,6 @@ fn is_pt(lang: &str) -> bool {
     l == "pt" || l.starts_with("pt-") || l.starts_with("pt_") || l.starts_with("portugu")
 }
 
-/// Age that counts: the page's own date when it is older than our check.
 fn effective_ms(checked: i64, page_date: Option<i64>) -> i64 {
     page_date.map(|d| d.min(checked)).unwrap_or(checked)
 }
@@ -105,15 +75,12 @@ fn source_rank(kind: &str) -> u8 {
     }
 }
 
-/// Picks the record that speaks for one option: among fresh rows, the most
-/// authoritative source, newest first.
 fn pick<'a, T>(rows: &[&'a T], rank: impl Fn(&T) -> u8, when: impl Fn(&T) -> i64) -> Option<&'a T> {
     rows.iter()
         .copied()
         .max_by(|a, b| rank(a).cmp(&rank(b)).then(when(a).cmp(&when(b))))
 }
 
-/// The access status of `movie_id` for these preferences at `now`.
 pub fn assess(
     db: &AssistDb,
     movie_id: &str,
@@ -130,7 +97,6 @@ pub fn assess(
     if avail.is_empty() {
         reasons.push("nenhuma evidência de onde assistir foi registrada".to_string());
     }
-    // Group by (region, platform, access kind).
     type Group<'a> = ((String, String, String), Vec<&'a Availability>);
     let mut groups: Vec<Group> = Vec::new();
     for a in &avail {
@@ -206,7 +172,6 @@ pub fn assess(
             reasons.push(format!("{label}: assinatura que o usuário não tem"));
             continue;
         }
-        // Subtitles for this option: same platform (and this record or none).
         let cand: Vec<&Subtitle> = subs
             .iter()
             .filter(|s| s.platform_key == chosen.platform_key && is_pt(&s.language))
@@ -251,7 +216,6 @@ pub fn assess(
                 FinalStatus::Probable
             }
         };
-        // The page exists, but the quote never showed a way to watch it.
         let status = match gap {
             Some(why) => {
                 notes.insert(0, why);
@@ -285,12 +249,6 @@ pub fn assess(
     })
 }
 
-// ── Evidence ─────────────────────────────────────────────────────────────
-
-/// Words that say a film can be watched on a page (rent, buy, subscription,
-/// stream, available…), folded (lowercase, no accents), per language. A quote
-/// needs one of them (or a price) to prove availability, not just that the
-/// page exists.
 pub const ACCESS_SIGNALS: &[(&str, &[&str])] = &[
     (
         "pt",
@@ -399,8 +357,6 @@ pub const ACCESS_SIGNALS: &[(&str, &[&str])] = &[
     ),
 ];
 
-/// Whether `quote` shows that the film can be watched there: an access word
-/// of [`ACCESS_SIGNALS`] or a price (`R$ 14,90`, `$3.99`, `4,99 €`).
 pub fn shows_access(quote: &str) -> bool {
     static PRICE: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
     let price = PRICE.get_or_init(|| {
@@ -420,8 +376,6 @@ pub fn shows_access(quote: &str) -> bool {
         .any(|(_, list)| list.iter().any(|s| words.contains(s)))
 }
 
-/// Why a confirmed availability only counts as probable, if it does: a bot's
-/// quote that proves the page exists but not that the film can be watched.
 fn access_gap(a: &Availability) -> Option<String> {
     if a.status != "confirmed" || a.source_kind == "user" || a.bot_id.is_none() {
         return None;
@@ -453,8 +407,6 @@ fn host_of(u: &str) -> Option<String> {
     })
 }
 
-/// Checks that a bot's claim rests on a page this app really fetched.
-/// Returns the URL to store (the evidence URL, or the page's final URL).
 fn ground(
     db: &AssistDb,
     fetch_id: Option<&str>,
@@ -536,7 +488,6 @@ pub struct AvailabilityInput {
     pub quote: Option<String>,
     #[serde(default)]
     pub fetch_id: Option<String>,
-    /// Date the page itself claims ("catálogo atualizado em ..."), ms.
     #[serde(default)]
     pub page_date_ms: Option<i64>,
     #[serde(default)]
@@ -618,8 +569,6 @@ pub fn record_availability(
     if let Some(u) = &url {
         web::check_url(u).map_err(|e| format!("{ERR_READING_EVIDENCE}: {e}"))?;
     }
-    // A bot's confirmed quote with no access signal is kept, but says it
-    // only counts as probable (the model reads this in the tool result).
     let mut note = input
         .note
         .map(|q| q.trim().to_string())
@@ -660,7 +609,6 @@ pub struct SubtitleInput {
     pub availability_id: String,
     #[serde(default = "pt_default")]
     pub language: String,
-    /// `subtitle` or `audio` (audio never counts as subtitles).
     #[serde(default = "subtitle_default")]
     pub kind: String,
     pub status: String,
@@ -778,8 +726,6 @@ pub fn record_subtitle(
     Ok(s)
 }
 
-// ── Rounds ───────────────────────────────────────────────────────────────
-
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct ItemInput {
     pub movie_id: String,
@@ -793,13 +739,10 @@ pub struct ItemInput {
     pub heavy: bool,
     #[serde(default)]
     pub depends_on_ending: bool,
-    /// True when this film was recommended before and comes back on purpose.
     #[serde(default)]
     pub resumes: bool,
     #[serde(default)]
     pub questions: Vec<String>,
-    /// Viewing events (with a reaction) this choice leans on; shown in
-    /// "Por que esta indicação?".
     #[serde(default)]
     pub evidence_event_ids: Vec<String>,
 }
@@ -820,10 +763,8 @@ pub struct RoundInput {
     pub requested_count: Option<i64>,
     #[serde(default)]
     pub shortfall_reason: Option<String>,
-    /// The user explicitly asked for heavy films this time.
     #[serde(default)]
     pub allow_heavy: bool,
-    /// The user asked for confirmed only in this round.
     #[serde(default)]
     pub only_confirmed: Option<bool>,
     #[serde(default)]
@@ -855,8 +796,6 @@ fn contains_term(text: &str, terms: &[String]) -> Option<String> {
         .cloned()
 }
 
-/// Hash of the installed skill's `SKILL.md`, computed here, never taken from
-/// the model.
 pub fn skill_hash(name: &str) -> Option<String> {
     let root = crate::core::skills::install::skills_dir().ok()?;
     let dir = crate::core::skills::install::skill_path(&root, name).ok()?;
@@ -872,8 +811,6 @@ pub struct RecordedRound {
     pub look_for: Value,
 }
 
-/// Validates a round against every rule and records it (with one
-/// `recommended` event per film) or returns every problem at once.
 pub fn record_round(
     db: &AssistDb,
     ctx: &AssistCtx,
@@ -1005,7 +942,6 @@ pub fn record_round(
         {
             problems.push(format!("{label}: a justificativa usa um termo que o usuário marcou como spoiler; reescreva sem ele"));
         }
-        // History of this film in the journey.
         let mine: Vec<&ViewingEvent> = events
             .iter()
             .filter(|e| e.movie_id == it.movie_id)
@@ -1191,7 +1127,6 @@ pub fn record_round(
     })
 }
 
-/// Current wall clock, for callers that are not tests.
 pub fn now() -> i64 {
     now_ms()
 }

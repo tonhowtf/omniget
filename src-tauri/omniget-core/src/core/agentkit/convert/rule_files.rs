@@ -1,16 +1,3 @@
-//! Rules for every non-Claude dialect (estudo 06 §0C.1, plan §4.3).
-//!
-//! Root rules (always on) go as a marked block into `AGENTS.md`, the single
-//! source most tools read; tools that do not read it get a bridge: Gemini
-//! (`GEMINI.md` importing `@./AGENTS.md`, per rule so every block owns its
-//! bridge) and Aider (`CONVENTIONS.md` plus a `read:` entry). Scoped rules
-//! (`globs`) go to each tool's native scoped file (`.cursor/rules/*.mdc`,
-//! `.github/instructions/*.instructions.md` `applyTo`, `.kiro/steering`
-//! `inclusion`, `.devin/rules` `trigger`, `.augment/rules`, `.clinerules`
-//! `paths`, `.continue/rules`, `.qoder/rules`, `.trae/rules`, `.qwen/rules`);
-//! OpenCode/Kilo get a file listed in `instructions[]`; tools with no scoping
-//! get a "When editing <globs>" section in AGENTS.md.
-
 use std::path::PathBuf;
 
 use serde_json::{json, Value};
@@ -23,7 +10,6 @@ use crate::core::agentkit::parse;
 use crate::core::agentkit::targets::TargetAdapter;
 use crate::core::agentkit::{Result, Scope};
 
-/// Rule format ids served here (`claude` stays with the Claude converter).
 pub const FORMATS: &[&str] = &[
     "agents_md",
     "gemini_md",
@@ -44,8 +30,6 @@ pub const FORMATS: &[&str] = &[
 
 pub struct RuleConverter;
 
-/// The AGENTS.md this target reads for a scope: `paths.rules` when it is an
-/// AGENTS.md, else an AGENTS.md among its alternatives, else the project root one.
 pub(crate) fn agents_md(target: &TargetAdapter, scope: Scope, ctx: &ConvertCtx) -> Option<PathBuf> {
     let spec = target.paths.get("rules");
     let is_agents = |t: &str| t.ends_with("AGENTS.md");
@@ -68,7 +52,6 @@ fn globs_text(g: &[String]) -> String {
     g.join(", ")
 }
 
-/// Markdown section for tools that cannot scope a rule to files.
 pub fn when_editing(r: &RuleSpec) -> String {
     format!(
         "## When editing {}\n\n{}",
@@ -78,8 +61,6 @@ pub fn when_editing(r: &RuleSpec) -> String {
 }
 
 impl RuleConverter {
-    /// Native scoped rule: (file name, text, losses, notes), or `None` when the
-    /// format has no scoped file.
     pub fn scoped_file(
         fmt: &str,
         name: &str,
@@ -177,7 +158,6 @@ impl RuleConverter {
         Some((file, parse::render_frontmatter(&fm, &body), losses, notes))
     }
 
-    /// Always-on rule file in a rules folder: (file name, text).
     pub fn always_file(fmt: &str, name: &str, body: &str, description: &str) -> (String, String) {
         let mut fm: Vec<(String, Value)> = Vec::new();
         let desc = description.trim();
@@ -253,7 +233,6 @@ impl Converter for RuleConverter {
         let scoped = r.scope == RuleScope::Scoped && !r.globs.is_empty();
         let mut out: Vec<PlannedFile> = Vec::new();
 
-        // ---- scoped: the tool's own scoped file when it has one
         if scoped {
             let sfmt = target
                 .formats
@@ -268,7 +247,6 @@ impl Converter for RuleConverter {
                     pf.notes = notes;
                     return Ok(vec![pf]);
                 }
-                // OpenCode/Kilo: a file listed in `instructions` (always loaded)
                 if let (Some(settings), true) = (
                     kind_path(target, "settings", scope, ctx),
                     matches!(target.format(ComponentKind::Setting), Some("opencode")),
@@ -302,7 +280,6 @@ impl Converter for RuleConverter {
                     ));
                     return Ok(out);
                 }
-                // a plain rules folder without frontmatter (Roo)
                 if !matches!(
                     sfmt,
                     "agents_md" | "gemini_md" | "aider_conventions" | "goosehints"
@@ -325,7 +302,6 @@ impl Converter for RuleConverter {
             }
         }
 
-        // ---- root rules (and scoped rules folded into a section)
         let content = if scoped {
             when_editing(r)
         } else {
@@ -339,7 +315,6 @@ impl Converter for RuleConverter {
         });
         match fmt {
             "trae_rules" if !scoped => {
-                // AGENTS.md needs a toggle in Trae; an always-apply rule does not
                 let dir = dir_for(target, "scoped_rules", scope, ctx)?;
                 let mut fm: Vec<(String, Value)> = vec![("alwaysApply".into(), json!(true))];
                 if !r.description.trim().is_empty() {
@@ -407,7 +382,6 @@ impl Converter for RuleConverter {
             "junie_rules" => {
                 let file = match (scope, ctx.project) {
                     (Scope::Project | Scope::Local, Some(p)) => {
-                        // `.junie/AGENTS.md` is used exclusively when present
                         let own = p.join(".junie").join("AGENTS.md");
                         if own.is_file() {
                             own
@@ -420,14 +394,11 @@ impl Converter for RuleConverter {
                 out.push(Self::block(target, c, file, block_id, content, "rule"));
             }
             _ => {
-                // AGENTS.md readers; Copilot/Qwen/Cursor/Kiro … read it natively
                 match agents_md(target, scope, ctx)
                     .or_else(|| kind_path(target, "rules", scope, ctx))
                 {
                     Some(file) => out.push(Self::block(target, c, file, block_id, content, "rule")),
                     None => {
-                        // no rules file for this scope (Roo global …): an always-on
-                        // file in the rules folder
                         let dir = kind_path(target, "scoped_rules", scope, ctx)
                             .ok_or_else(|| no_path(target, "rules file", scope))?;
                         let sfmt = target
@@ -471,7 +442,6 @@ impl Converter for RuleConverter {
             let Ok(text) = std::fs::read_to_string(&p) else {
                 continue;
             };
-            // Qoder writes `glob:`; the parser reads globs/paths/applyTo/fileMatchPattern
             let (fm, body) = parse::frontmatter(&text);
             let text = match fm.get("glob") {
                 Some(g) if !fm.contains_key("globs") => {

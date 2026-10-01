@@ -1,15 +1,3 @@
-//! Wait-for graph of the cords (estudo 98/03 §B.11).
-//!
-//! An edge `A -> B` exists while A's CLI is blocked in `omniget canvas ask B`.
-//! That is what deadlocks: A is busy inside the command and cannot take a
-//! message. Two ways out:
-//!
-//! - **ask back:** B messages A while A waits on B. B's message *is* the
-//!   answer to A's ask ([`WaitGraph::ask_back`]); nothing is pasted into A.
-//! - **ring break:** admitting X -> Y where Y already (transitively) waits on
-//!   X closes a cycle. The ask Y has open on the ring is released
-//!   ([`WaitGraph::cycle_release`]) so Y becomes free to read X's message.
-
 use std::collections::{HashMap, HashSet};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -21,7 +9,6 @@ pub struct Edge {
 
 #[derive(Debug, Default, Clone)]
 pub struct WaitGraph {
-    /// ask id -> edge. Several asks of one node (a batch) are several edges.
     edges: HashMap<String, Edge>,
 }
 
@@ -49,7 +36,6 @@ impl WaitGraph {
         self.edges.values().any(|e| e.from == node)
     }
 
-    /// Asks `node` is blocked on, oldest id first (ids sort by creation).
     pub fn waiting_on(&self, node: &str) -> Vec<Edge> {
         let mut v: Vec<Edge> = self
             .edges
@@ -61,8 +47,6 @@ impl WaitGraph {
         v
     }
 
-    /// `from` messages `to` while `to` waits on `from`: the ask of `to` that
-    /// this message answers.
     pub fn ask_back(&self, from: &str, to: &str) -> Option<String> {
         let mut v: Vec<&Edge> = self
             .edges
@@ -73,8 +57,6 @@ impl WaitGraph {
         v.first().map(|e| e.ask_id.clone())
     }
 
-    /// Path of nodes from `start` to `goal` following wait edges, if any
-    /// (`[start, ..., goal]`).
     pub fn path(&self, start: &str, goal: &str) -> Option<Vec<String>> {
         let mut stack: Vec<(String, Vec<String>)> =
             vec![(start.to_string(), vec![start.to_string()])];
@@ -97,17 +79,12 @@ impl WaitGraph {
         None
     }
 
-    /// Admitting a message `from -> to` (where `to` waits, directly or not,
-    /// on `from`) closes a ring. Returns the ask to release: the one `to`
-    /// has open on the ring (its first step towards `from`). `None` when
-    /// there is no ring, or when it is a direct ask back (see [`ask_back`]).
     pub fn cycle_release(&self, from: &str, to: &str) -> Option<Edge> {
         let path = self.path(to, from)?;
         if path.len() < 2 {
             return None;
         }
         if path.len() == 2 {
-            // `to` waits on `from` directly: that is an ask back.
             return None;
         }
         let next = &path[1];

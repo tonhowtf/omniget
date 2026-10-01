@@ -1,28 +1,17 @@
-//! Pure parsers for the macOS tools behind the persistence inventory. Every
-//! one takes the text a tool printed and never runs anything, so the tests
-//! feed them fixtures captured from real machines.
-
 use serde::Serialize;
 
-/// `codesign -dv --verbose=4 -- <path>` (codesign writes it to stderr).
 #[derive(Debug, Clone, Default, PartialEq, Serialize)]
 pub struct CodeSign {
     pub signed: bool,
-    /// Signed without an identity (`Signature=adhoc`, linker-signed builds).
     pub adhoc: bool,
     pub identifier: Option<String>,
-    /// Certificate chain, leaf first.
     pub authorities: Vec<String>,
     pub team_id: Option<String>,
-    /// Hardened runtime (`flags=...(runtime)`), required for notarization.
     pub runtime: bool,
-    /// Secure timestamp from Apple's server (`Timestamp=`), or the local
-    /// `Signed Time=` when there is none.
     pub timestamp: Option<String>,
 }
 
 impl CodeSign {
-    /// Signed by Apple itself (`Software Signing`, `Apple Mac OS Application Signing`...).
     pub fn apple(&self) -> bool {
         self.authorities
             .first()
@@ -30,14 +19,12 @@ impl CodeSign {
             && self.team_id.is_none()
     }
 
-    /// Mac App Store distribution certificate.
     pub fn app_store(&self) -> bool {
         self.authorities
             .first()
             .is_some_and(|a| a == "Apple Mac OS Application Signing")
     }
 
-    /// `Developer ID Application: Orbital Labs, LLC (U.S.) (HUAQ24HBR6)` → `Orbital Labs, LLC (U.S.)`.
     pub fn signer(&self) -> Option<String> {
         let first = self.authorities.first()?;
         if self.apple() {
@@ -56,7 +43,6 @@ impl CodeSign {
         Some(name.to_string())
     }
 
-    /// Developer ID: the certificate outside the App Store that notarization needs.
     pub fn developer_id(&self) -> bool {
         self.authorities
             .first()
@@ -113,15 +99,11 @@ pub fn parse_codesign(text: &str) -> CodeSign {
     s
 }
 
-/// `codesign -v -R=notarized --check-notarization -- <path>`: exit code plus stderr.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Verify {
-    /// The signature is intact and Apple notarized this code.
     Notarized,
-    /// The signature is intact; the notarization requirement is not met.
     NotNotarized,
-    /// The signature does not check out (modified file, revoked, missing seal).
     Invalid(String),
 }
 
@@ -131,7 +113,6 @@ pub fn parse_verify(code: Option<i32>, stderr: &str) -> Verify {
         Some(0) => Verify::Notarized,
         _ if msg.contains("failed to satisfy specified code requirement") => Verify::NotNotarized,
         _ => {
-            // `path: reason` → reason.
             let reason = msg
                 .lines()
                 .find(|l| !l.trim().is_empty())
@@ -140,7 +121,6 @@ pub fn parse_verify(code: Option<i32>, stderr: &str) -> Verify {
                     None => l.trim().to_string(),
                 })
                 .unwrap_or_else(|| "the signature could not be checked".into());
-            // A bundle whose inner file is unsigned or modified.
             let reason = match msg
                 .lines()
                 .find_map(|l| l.trim().strip_prefix("In subcomponent: "))
@@ -153,21 +133,15 @@ pub fn parse_verify(code: Option<i32>, stderr: &str) -> Verify {
     }
 }
 
-/// `spctl --assess -vv` (both `--type execute` and `-t open`).
 #[derive(Debug, Clone, Default, PartialEq, Serialize)]
 pub struct Assess {
     pub accepted: bool,
-    /// `Notarized Developer ID`, `Developer ID`, `Apple System`,
-    /// `Mac App Store`, `Unnotarized Developer ID`, `no usable signature`...
     pub source: Option<String>,
-    /// First authority, as spctl prints it.
     pub origin: Option<String>,
-    /// Text in parentheses after `rejected`.
     pub reason: Option<String>,
 }
 
 impl Assess {
-    /// Some(true) notarized, Some(false) known not notarized, None unknown.
     pub fn notarized(&self) -> Option<bool> {
         match self.source.as_deref()? {
             "Notarized Developer ID" => Some(true),
@@ -176,7 +150,6 @@ impl Assess {
         }
     }
 
-    /// spctl refused to judge a bare program ("does not seem to be an app").
     pub fn not_an_app(&self) -> bool {
         self.reason
             .as_deref()
@@ -212,10 +185,8 @@ pub fn parse_spctl(text: &str) -> Assess {
     a
 }
 
-/// One row of `systemextensionsctl list`.
 #[derive(Debug, Clone, Default, PartialEq, Serialize)]
 pub struct SysExt {
-    /// `network_extension`, `endpoint_security`, `driver_extension`...
     pub category: String,
     pub enabled: bool,
     pub active: bool,
@@ -223,7 +194,6 @@ pub struct SysExt {
     pub bundle_id: String,
     pub version: Option<String>,
     pub name: String,
-    /// `activated enabled`, `activated waiting for user`, `terminated waiting to uninstall on reboot`...
     pub state: String,
 }
 
@@ -272,13 +242,10 @@ pub fn parse_systemextensions(text: &str) -> Vec<SysExt> {
     out
 }
 
-/// `kmutil showloaded --list-only`: bundle id and version of every loaded
-/// kernel extension, Apple's included (the caller filters).
 pub fn parse_kmutil(text: &str) -> Vec<(String, String)> {
     let mut out = Vec::new();
     for line in text.lines() {
         let words: Vec<&str> = line.split_whitespace().collect();
-        // Index Refs Address Size Wired Name (Version) UUID <Linked>
         if words.len() < 7 || words[0].parse::<u32>().is_err() {
             continue;
         }
@@ -296,17 +263,14 @@ pub fn parse_kmutil(text: &str) -> Vec<(String, String)> {
     out
 }
 
-/// One configuration profile of `profiles show -type configuration`.
 #[derive(Debug, Clone, Default, PartialEq, Serialize)]
 pub struct Profile {
-    /// `_computerlevel` or a user name.
     pub scope: String,
     pub name: String,
     pub identifier: String,
     pub organization: Option<String>,
     pub description: Option<String>,
     pub installed: Option<String>,
-    /// `verified`, `unsigned`, `unverified`...
     pub verification: Option<String>,
     pub removal_disallowed: bool,
     pub payloads: Vec<String>,
@@ -316,7 +280,6 @@ pub fn parse_profiles(text: &str) -> Vec<Profile> {
     let mut out: Vec<Profile> = Vec::new();
     let mut key: Option<(String, String)> = None;
     for line in text.lines() {
-        // `<scope>[<n>] attribute: <name>: <value>` or `<scope>[<n>] \tpayload[i] payloadType\t= x`.
         let Some(open) = line.find('[') else { continue };
         let Some(close) = line[open..].find(']').map(|c| open + c) else {
             continue;
@@ -361,7 +324,6 @@ pub fn parse_profiles(text: &str) -> Vec<Profile> {
     out
 }
 
-/// `2026-03-02 14:23:11 +0000` → unix seconds (UTC offset honoured).
 pub fn parse_profile_date(s: &str) -> Option<i64> {
     let mut parts = s.split_whitespace();
     let date = parts.next()?;
@@ -383,7 +345,6 @@ pub fn parse_profile_date(s: &str) -> Option<i64> {
     Some(secs)
 }
 
-/// Days since 1970-01-01 (Howard Hinnant's civil algorithm).
 fn days_from_civil(y: i64, m: i64, d: i64) -> i64 {
     let y = if m <= 2 { y - 1 } else { y };
     let era = if y >= 0 { y } else { y - 399 } / 400;
@@ -394,15 +355,11 @@ fn days_from_civil(y: i64, m: i64, d: i64) -> i64 {
     era * 146_097 + doe - 719_468
 }
 
-/// `com.apple.quarantine` value: `0083;6523a1b2;Safari;UUID`.
 #[derive(Debug, Clone, Default, PartialEq, Serialize)]
 pub struct Quarantine {
     pub flags: String,
-    /// When the file arrived (unix seconds).
     pub at: Option<i64>,
-    /// The app that downloaded it.
     pub agent: Option<String>,
-    /// Gatekeeper already let the person open it (flag 0x40).
     pub approved: bool,
 }
 
@@ -428,7 +385,6 @@ pub fn parse_quarantine(value: &str) -> Option<Quarantine> {
     })
 }
 
-/// One active line of `crontab -l`.
 #[derive(Debug, Clone, Default, PartialEq, Serialize)]
 pub struct CronLine {
     pub schedule: String,
@@ -443,7 +399,6 @@ pub fn parse_crontab(text: &str) -> Vec<CronLine> {
             continue;
         }
         let first = t.split_whitespace().next().unwrap_or("");
-        // `NAME=value` sets the environment of the table.
         if !first.starts_with('@') && first.contains('=') {
             continue;
         }
@@ -460,7 +415,6 @@ pub fn parse_crontab(text: &str) -> Vec<CronLine> {
     out
 }
 
-/// A Mach-O (thin, fat, 32 or 64-bit) by its first four bytes.
 pub fn is_macho(head: &[u8]) -> bool {
     matches!(
         head.get(..4),
@@ -473,7 +427,6 @@ pub fn is_macho(head: &[u8]) -> bool {
     )
 }
 
-/// The `.app` bundle that contains `path`, if any (`/A/Foo.app/Contents/MacOS/foo` → `/A/Foo.app`).
 pub fn enclosing_app(path: &str) -> Option<&str> {
     let i = path
         .find(".app/")
@@ -482,7 +435,6 @@ pub fn enclosing_app(path: &str) -> Option<&str> {
     Some(&path[..i])
 }
 
-/// Programs that run a script named in their arguments.
 const INTERPRETERS: &[&str] = &[
     "sh",
     "bash",
@@ -512,8 +464,6 @@ pub fn is_interpreter(program: &str) -> bool {
     INTERPRETERS.contains(&name) || INTERPRETERS.contains(&base)
 }
 
-/// For `node /x/y.mjs --flag` or `/bin/sh -c "..."`: the script file the
-/// interpreter runs, or `inline` when the code sits in the arguments.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Script {
     None,
@@ -539,7 +489,6 @@ pub fn script_of(arguments: &[String]) -> Script {
     Script::None
 }
 
-/// `yara` prints `RuleName /path` per match.
 pub fn parse_yara(text: &str) -> Vec<String> {
     let mut rules: Vec<String> = text
         .lines()

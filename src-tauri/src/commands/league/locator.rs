@@ -14,8 +14,6 @@ pub enum Source {
 }
 
 pub fn extract_arg(cmdline: &str, key: &str) -> Option<String> {
-    // The needle keeps both leading dashes on purpose: a loose "app-port="
-    // would also match the unrelated "--riotclient-app-port=".
     let needle = format!("--{}=", key);
     let start = cmdline.find(&needle)? + needle.len();
     let rest = &cmdline[start..];
@@ -55,7 +53,6 @@ pub fn credentials_from_listing(listing: &str) -> Option<LcuCredentials> {
 }
 
 pub fn parse_lockfile(contents: &str) -> Option<LcuCredentials> {
-    // Format: name:pid:port:token:protocol
     let line = contents.lines().find(|l| !l.trim().is_empty())?;
     let fields: Vec<&str> = line.trim().split(':').collect();
     if fields.len() < 5 {
@@ -74,8 +71,6 @@ pub fn parse_lockfile(contents: &str) -> Option<LcuCredentials> {
 }
 
 fn executable_path(line: &str) -> Option<&str> {
-    // Cutting at the first " --" survives install paths that contain spaces,
-    // which whitespace splitting would mangle on both platforms.
     let head = line.split(" --").next()?.trim();
     let head = head.trim_matches(|c| c == '"' || c == '\'');
     if head.is_empty() {
@@ -85,8 +80,6 @@ fn executable_path(line: &str) -> Option<&str> {
     }
 }
 
-/// Walks up a path textually, accepting either separator: a Windows listing
-/// still has to parse correctly when the tests run on a unix host.
 fn ancestors_of(path: &str) -> Vec<&str> {
     let mut ancestors = Vec::new();
     let mut current = path;
@@ -114,9 +107,6 @@ pub fn install_dirs_from_listing(listing: &str) -> Vec<PathBuf> {
             push_unique(&mut dirs, PathBuf::from(dir));
         }
         if let Some(exe) = executable_path(line) {
-            // On macOS the binary sits several bundles deep
-            // (…/Contents/LoL/LeagueClientUx.app/Contents/MacOS/LeagueClientUx),
-            // so the install root is the ancestor named "LoL".
             let ancestors = ancestors_of(exe);
             for ancestor in &ancestors {
                 if last_segment(ancestor) == "LoL" {
@@ -168,8 +158,6 @@ pub fn default_lockfile_paths() -> Vec<PathBuf> {
         }
         paths
     }
-    // The client has no native Linux build, so there is no standard path to
-    // guess; discovery there relies on the command line alone.
     #[cfg(not(any(target_os = "macos", windows)))]
     {
         Vec::new()
@@ -179,8 +167,6 @@ pub fn default_lockfile_paths() -> Vec<PathBuf> {
 async fn read_process_command_lines() -> Result<String, String> {
     #[cfg(windows)]
     {
-        // tasklist costs ~50ms; the CIM query costs seconds and stutters the
-        // whole app, so it only runs once the cheap probe sees the process.
         let probe = crate::core::process::command("tasklist")
             .args(["/FI", "IMAGENAME eq LeagueClientUx.exe", "/NH"])
             .output()
@@ -233,7 +219,5 @@ pub async fn discover() -> Option<(LcuCredentials, Source)> {
     if let Some(credentials) = credentials_from_listing(&listing) {
         return Some((credentials, Source::CommandLine));
     }
-    // Reading another process' command line can fail (missing privileges on
-    // Windows, sandboxed listings), while the lockfile stays readable.
     credentials_from_lockfiles(&listing).await
 }

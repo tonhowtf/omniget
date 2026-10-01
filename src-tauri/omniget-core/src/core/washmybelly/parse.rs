@@ -1,9 +1,5 @@
-//! Text parsers shared by several modules. Pure functions, compiled on every
-//! OS so each CI tests the parsers of the other systems.
-
 use std::collections::HashMap;
 
-/// `/etc/os-release` as a map (`ID`, `ID_LIKE`, `VERSION_ID`, `PRETTY_NAME`).
 pub fn os_release(text: &str) -> HashMap<String, String> {
     text.lines()
         .filter_map(|l| {
@@ -23,7 +19,6 @@ pub fn os_release(text: &str) -> HashMap<String, String> {
         .collect()
 }
 
-/// One value of `reg query` output.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RegValue {
     pub key: String,
@@ -32,8 +27,6 @@ pub struct RegValue {
     pub data: String,
 }
 
-/// `reg query <key> [/v name] [/s]` output: key lines start at column 0,
-/// value lines are `    Name    REG_TYPE    Data`.
 pub fn reg_query(text: &str) -> Vec<RegValue> {
     let mut out = Vec::new();
     let mut key = String::new();
@@ -46,7 +39,6 @@ pub fn reg_query(text: &str) -> Vec<RegValue> {
             continue;
         }
         let t = line.trim_start();
-        // Split on the first run of 4 spaces around the REG_ type.
         let Some(pos) = t.find("    REG_") else {
             continue;
         };
@@ -70,7 +62,6 @@ pub fn reg_query(text: &str) -> Vec<RegValue> {
     out
 }
 
-/// Whether `whoami /groups /fo csv` lists a SID.
 pub fn whoami_has_sid(csv: &str, sid: &str) -> bool {
     csv.lines()
         .any(|l| l.split(',').any(|c| c.trim_matches('"') == sid))

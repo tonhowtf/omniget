@@ -1,10 +1,3 @@
-//! Library scan: walks the video folders, hashes and probes new or changed
-//! files (by mtime + size), names them from the path and builds course trees.
-//!
-//! Nothing is ever written into the user's folders. A folder that can't be
-//! read makes its videos "offline"; rows are only dropped when the folder
-//! reads fine and the file is really gone.
-
 use std::collections::{HashMap, HashSet};
 use std::io::{Read, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
@@ -43,8 +36,6 @@ const SKIP_DIRS: &[&str] = &[
     "node_modules",
 ];
 
-/// Content identity: sha256 of the size, the first and the last 64 KiB, as
-/// 16 hex chars. Survives renames and moves, unlike the path.
 pub fn content_hash(path: &Path) -> std::io::Result<String> {
     const CHUNK: u64 = 64 * 1024;
     let mut f = std::fs::File::open(path)?;
@@ -88,11 +79,9 @@ fn hidden(name: &str) -> bool {
 struct Walk {
     videos: Vec<(PathBuf, i64, i64)>,
     others: Vec<PathBuf>,
-    /// folders that could not be listed; rows under them are kept
     unreadable: Vec<PathBuf>,
 }
 
-/// `nested` are other roots inside this one: their files belong to them.
 fn walk(root: &Path, want_others: bool, nested: &[PathBuf]) -> Walk {
     let mut w = Walk {
         videos: Vec::new(),
@@ -138,7 +127,6 @@ fn rel_of(root: &Path, p: &Path) -> String {
         .replace('\\', "/")
 }
 
-/// Hashes, probes and writes one file's row. Returns its id.
 pub async fn index_one(
     root: &str,
     kind: RootKind,
@@ -246,8 +234,6 @@ pub async fn index_one(
     })
 }
 
-/// Indexes one file outside the scan (a fresh download, a dropped file).
-/// It must sit under a known root.
 pub async fn index_path(path: &Path) -> Result<i64, String> {
     let roots = db::roots()?;
     let root = roots
@@ -266,9 +252,6 @@ pub async fn index_path(path: &Path) -> Result<i64, String> {
     .await
 }
 
-/// Indexes a file opened by hand. Inside a known root it is a normal
-/// library entry; elsewhere its own folder is recorded as its root (no scan
-/// walks it, so the row stays) and it is a plain `video`.
 pub async fn index_loose(path: &Path) -> Result<i64, String> {
     if !path.is_file() {
         return Err("File not found".into());
@@ -314,8 +297,6 @@ fn emit(app: &AppHandle, done: usize, total: usize, current: &str, finished: boo
     );
 }
 
-/// Scans every root, or only `only` when given. Waits for a scan already
-/// running instead of racing it.
 pub async fn scan(app: AppHandle, only: Option<String>) -> Result<(), String> {
     let _guard = scan_lock().lock().await;
     SCANNING.store(true, Ordering::SeqCst);
@@ -337,7 +318,6 @@ async fn scan_inner(app: &AppHandle, only: Option<String>) -> Result<(), String>
     let mut course_roots: Vec<(String, Vec<PathBuf>)> = Vec::new();
     for root in &roots {
         if !root.online {
-            // unplugged drive or unreachable share: keep everything, flag it
             db::with(|c| c.execute("UPDATE media SET offline = 1 WHERE root = ?1", [&root.path]))?;
             continue;
         }
@@ -374,7 +354,6 @@ async fn scan_inner(app: &AppHandle, only: Option<String>) -> Result<(), String>
                 _ => plan.push((root.path.clone(), root.kind, p.clone(), *mtime, *size)),
             }
         }
-        // files that disappeared: gone for good only if their folder reads
         let mut drop_ids = Vec::new();
         let mut offline_ids = Vec::new();
         for (path, (id, ..)) in &existing {
@@ -457,8 +436,6 @@ async fn scan_inner(app: &AppHandle, only: Option<String>) -> Result<(), String>
     Ok(())
 }
 
-// ---------- courses ----------
-
 pub fn attachment_kind(path: &str) -> String {
     serde_json::to_value(course::attachment_kind(path))
         .ok()
@@ -466,7 +443,6 @@ pub fn attachment_kind(path: &str) -> String {
         .unwrap_or_else(|| "other".into())
 }
 
-/// Folder name of a course root, cleaned into a title.
 pub fn course_title(root: &str) -> String {
     let name = Path::new(root)
         .file_name()
@@ -492,8 +468,6 @@ pub fn ensure_course(root: &str) -> Result<i64, String> {
     })
 }
 
-/// Runs the core course builder over every file of a course root and stores
-/// module, number and order on each lesson, plus the attachments.
 fn apply_course(root: &str, files: &[PathBuf]) -> Result<(), String> {
     let course_id = ensure_course(root)?;
     let rp = Path::new(root);

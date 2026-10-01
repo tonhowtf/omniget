@@ -1,9 +1,3 @@
-//! Skin and ward roulette: a random owned skin (and chroma) the moment a
-//! champion is locked, plus manual rerolls from the champ select card.
-//!
-//! The carousel endpoint is used instead of the inventory because it already
-//! knows what can be selected *right now* (ownership, loaners, disabled skins).
-
 use super::{ensure_enabled, get_client, lcu_get_raw, lcu_send, LcuClient};
 use once_cell::sync::Lazy;
 use rand::RngExt;
@@ -12,7 +6,6 @@ use serde_json::{json, Value};
 use std::collections::{HashMap, VecDeque};
 use tokio::sync::Mutex;
 
-/// How many recent rolls per champion are kept out of the next roll.
 pub const HISTORY_WINDOW: usize = 5;
 
 #[derive(Clone, Debug, Serialize)]
@@ -30,7 +23,6 @@ pub struct SkinOption {
     pub chromas: Vec<Chroma>,
 }
 
-/// Skins the client would let the player select for the locked champion.
 pub fn selectable_skins(carousel: &Value) -> Vec<SkinOption> {
     let usable = |s: &Value| {
         s.get("unlocked").and_then(Value::as_bool).unwrap_or(false)
@@ -91,15 +83,10 @@ pub fn selectable_skins(carousel: &Value) -> Vec<SkinOption> {
 pub struct Roll {
     pub skin_id: i64,
     pub skin_name: String,
-    /// The id actually sent to the client: the chroma when one was rolled,
-    /// otherwise the skin itself.
     pub selected_id: i64,
     pub chroma_name: Option<String>,
 }
 
-/// Picks a skin, then maybe a chroma of it. The base skin only competes when
-/// asked for (or when it is all there is), and skins rolled recently for this
-/// champion are skipped unless that would leave nothing to roll.
 pub fn roll<R: rand::Rng>(
     skins: &[SkinOption],
     recent: &[i64],
@@ -122,7 +109,6 @@ pub fn roll<R: rand::Rng>(
         .collect();
     let pool = if fresh.is_empty() { pool } else { fresh };
     let skin = pool[rng.random_range(0..pool.len())];
-    // Slot 0 is "no chroma"; each chroma takes one more slot.
     let slot = rng.random_range(0..=skin.chromas.len());
     let chroma = if slot == 0 {
         None
@@ -137,9 +123,7 @@ pub fn roll<R: rand::Rng>(
     })
 }
 
-/// Recent rolls per champion, so the same skin does not come back every game.
 static HISTORY: Lazy<Mutex<HashMap<i64, VecDeque<i64>>>> = Lazy::new(|| Mutex::new(HashMap::new()));
-/// Champion the automatic roll already handled in this champ select.
 static ROLLED_FOR: Lazy<Mutex<Option<i64>>> = Lazy::new(|| Mutex::new(None));
 static WARD_ROLLED: Lazy<Mutex<bool>> = Lazy::new(|| Mutex::new(false));
 
@@ -195,7 +179,6 @@ async fn roll_and_apply(
     Ok(rolled)
 }
 
-/// Owned ward skins, as item ids.
 pub fn owned_ward_ids(inventory: &Value) -> Vec<i64> {
     inventory
         .as_array()
@@ -209,7 +192,6 @@ pub fn owned_ward_ids(inventory: &Value) -> Vec<i64> {
         .unwrap_or_default()
 }
 
-/// The account loadout slot that holds the ward, as (loadout id, item id).
 pub fn ward_slot(loadouts: &Value) -> Option<(String, i64)> {
     let arr = loadouts.as_array()?;
     for loadout in arr {
@@ -244,7 +226,6 @@ async fn roll_ward_and_apply(client: &LcuClient) -> Result<i64, String> {
         roll_ward(&owned, current, &mut rng)
     }
     .ok_or_else(|| "no ward skin to roll".to_string())?;
-    // A partial body only touches the ward slot; the client merges the rest.
     lcu_send(
         client,
         reqwest::Method::PATCH,
@@ -265,7 +246,6 @@ async fn roll_ward_and_apply(client: &LcuClient) -> Result<i64, String> {
     Ok(picked)
 }
 
-/// Called on every champ select update: rolls once per locked champion.
 pub(crate) async fn on_champ_select(
     client: &LcuClient,
     settings: &omniget_core::models::settings::LeagueSettings,
@@ -300,7 +280,6 @@ pub(crate) async fn on_champ_select(
     }
 }
 
-/// Manual reroll from the champ select card.
 #[tauri::command]
 pub async fn league_roll_skin(include_base: Option<bool>) -> Result<Roll, String> {
     ensure_enabled()?;

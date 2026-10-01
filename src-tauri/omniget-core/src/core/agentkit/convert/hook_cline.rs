@@ -1,11 +1,3 @@
-//! Cline: one executable per event (`.clinerules/hooks/PreToolUse`, or
-//! `PreToolUse.ps1` on Windows). Several components can hook the same event, so
-//! the file is a small dispatcher (the same bytes for everyone) that hands the
-//! payload to the shim, and the hooks themselves live in a registry of
-//! Claude-shaped groups keyed by Cline event (`.omniget/cline-hooks.json` in the
-//! project, `<app_data>/agentkit/cline-hooks.json` globally), merged per
-//! component so install/uninstall stay exact.
-
 use std::path::{Path, PathBuf};
 
 use serde_json::{json, Map, Value};
@@ -21,7 +13,6 @@ use crate::core::agentkit::{Os, Result, Scope};
 
 pub const REGISTRY_FILE: &str = "cline-hooks.json";
 
-/// Where the registry lives for a scope.
 pub fn registry_path(scope: Scope, ctx: &ConvertCtx) -> Option<PathBuf> {
     match scope {
         Scope::Project | Scope::Local => Some(ctx.project?.join(".omniget").join(REGISTRY_FILE)),
@@ -29,8 +20,6 @@ pub fn registry_path(scope: Scope, ctx: &ConvertCtx) -> Option<PathBuf> {
     }
 }
 
-/// `"$(dirname "$0")/../../.omniget/cline-hooks.json"` style reference from the
-/// hooks dir to the project registry, so the project can move.
 fn relative_up(hooks_dir: &Path, project: &Path) -> Option<String> {
     let rel = hooks_dir.strip_prefix(project).ok()?;
     let depth = rel.components().count();
@@ -111,7 +100,6 @@ pub fn cline(
             }
             let mut g = Map::new();
             if let Some(m) = &p.matcher {
-                // canonical matcher: the shim compares Claude tool names
                 g.insert("matcher".into(), json!(m));
             }
             g.insert("hooks".into(), json!([Value::Object(hk)]));

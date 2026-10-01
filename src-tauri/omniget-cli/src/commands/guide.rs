@@ -1,9 +1,3 @@
-//! `omniget guide [topic]`: short reference texts for people and for agents
-//! that drive the CLI (the Claude Code skill `omniget-agents` points here, so
-//! the skill stays small and the reference ships with the binary it
-//! describes).
-
-/// `(topic, one line, text)`.
 const TOPICS: &[(&str, &str, &str)] = &[
     (
         "agents",

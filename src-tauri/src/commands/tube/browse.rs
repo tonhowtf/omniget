@@ -1,8 +1,3 @@
-//! YouTube (video face) browsing commands: home, search, watch page,
-//! comments, channels, playlists, the account feeds and account actions.
-//! Every list goes through the distraction filters with the local watch
-//! history, in the context of the page it came from.
-
 use omniget_core::core::tube::filters::{self, FilterCtx, FilterPrefs};
 use omniget_core::core::tube::innertube;
 use omniget_core::core::tube::parse::{music as pmusic, web};
@@ -49,7 +44,6 @@ fn is_channel_id(id: &str) -> bool {
     id.len() == 24 && id.starts_with("UC")
 }
 
-/// First `browseEndpoint.browseId` under `v`.
 fn find_browse_id(v: &Value) -> Option<String> {
     match v {
         Value::Object(map) => {
@@ -67,7 +61,6 @@ fn find_browse_id(v: &Value) -> Option<String> {
     }
 }
 
-/// `UC...`, `@handle`, `c/name`, `user/name` or a full URL -> channel id.
 async fn resolve_channel(id: &str) -> Result<String, String> {
     let id = id.trim();
     if is_channel_id(id) {
@@ -105,8 +98,6 @@ pub async fn tube_home(chip_token: Option<String>) -> Result<Page, String> {
         Some(token) => web::continuation(&continue_with("browse", &token).await?),
         None => web::home(&browse("FEwhat_to_watch", None).await?),
     };
-    // Without an account (or history on the account) YouTube answers the home
-    // with just a "try searching" nudge. Build one from what we know locally.
     if !is_chip && page.shelves.is_empty() {
         let local = local_home().await;
         if !local.is_empty() {
@@ -118,8 +109,6 @@ pub async fn tube_home(chip_token: Option<String>) -> Result<Page, String> {
     Ok(page)
 }
 
-/// Home for people without an account: continue watching, the latest from
-/// local subscriptions, and videos related to what was watched recently.
 async fn local_home() -> Vec<Shelf> {
     let mut shelves = Vec::new();
     let history: Vec<Item> = local::local_history_page(40)
@@ -168,7 +157,6 @@ async fn local_home() -> Vec<Shelf> {
         }
     }
 
-    // Related videos of the last few distinct videos, interleaved.
     let seeds: Vec<String> = history
         .iter()
         .filter_map(|i| match i {
@@ -235,7 +223,6 @@ pub async fn tube_suggest(query: String, music: bool) -> Result<Vec<String>, Str
         return Ok(Vec::new());
     }
     if music {
-        // anonymous on purpose: typeahead must not land in the account's search history
         let json = http::anonymous(
             "WEB_REMIX",
             "music/get_search_suggestions",
@@ -254,7 +241,6 @@ pub async fn tube_suggest(query: String, music: bool) -> Result<Vec<String>, Str
     Ok(web::suggestions(&http::get_text(&url).await?))
 }
 
-/// Endpoint, parser and filter context of a continuation token.
 #[tauri::command]
 pub async fn tube_continuation(kind: String, token: String) -> Result<Page, String> {
     let music = kind.starts_with("music_");
@@ -283,7 +269,6 @@ pub async fn tube_continuation(kind: String, token: String) -> Result<Page, Stri
         "channel" => Some(FilterCtx::Channel),
         "playlist" => Some(FilterCtx::Playlist),
         "related" => Some(FilterCtx::Related),
-        // the history is what the user watched: filtering it would hide it
         "history" | "music_library" => None,
         k if k.starts_with("music_") => Some(FilterCtx::Music),
         _ => Some(FilterCtx::Home),
@@ -339,7 +324,6 @@ pub async fn tube_comments(token: String) -> Result<CommentsPage, String> {
     Ok(web::comments(&continue_with("next", &token).await?))
 }
 
-/// Chip order on the Videos tab: Latest, Popular, Oldest.
 fn sort_index(sort: &str) -> Option<usize> {
     match sort {
         "popular" => Some(1),
@@ -376,8 +360,6 @@ pub async fn tube_channel(
     Ok(page)
 }
 
-/// A channel's uploads (Videos tab, newest first). Used by the local
-/// subscriptions feed when the RSS feed fails.
 pub async fn channel_videos(channel_id: &str) -> Result<Vec<VideoItem>, String> {
     let json = browse(channel_id, innertube::channel_tab_params("videos")).await?;
     let page = web::channel(&json);
@@ -427,7 +409,6 @@ pub async fn tube_library() -> Result<Page, String> {
     if !account::is_logged_in() {
         return local::local_library_page().await;
     }
-    // "You" replaced the old Library page; keep the old id as a fallback
     let page = web::feed(&browse("FEyou", None).await?);
     if !page.shelves.is_empty() {
         return Ok(page);
@@ -453,8 +434,6 @@ pub async fn tube_shorts() -> Result<Page, String> {
     Ok(page)
 }
 
-// ---------- account actions ----------
-
 #[derive(Debug, Default, Clone, Deserialize)]
 pub struct ActionTarget {
     #[serde(default)]
@@ -467,7 +446,6 @@ pub struct ActionTarget {
     pub set_video_id: Option<String>,
     #[serde(default)]
     pub feedback_token: Option<String>,
-    /// Card metadata, so local lists (watch later) can show the item.
     #[serde(default)]
     pub title: Option<String>,
     #[serde(default)]
@@ -498,9 +476,6 @@ fn edit_playlist(playlist_id: &str, action: Value) -> Value {
     json!({ "playlistId": playlist_id, "actions": [action] })
 }
 
-/// like, subscribe, watch later, playlist edits and feedback on the account.
-/// Without an account, subscriptions and watch later go to the local lists;
-/// the rest is a no-op (the card hides itself on the front).
 #[tauri::command]
 pub async fn tube_action(action: String, target: ActionTarget) -> Result<(), String> {
     let logged = account::is_logged_in();

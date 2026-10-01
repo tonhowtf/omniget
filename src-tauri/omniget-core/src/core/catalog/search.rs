@@ -1,5 +1,3 @@
-//! Busca, filtros, facetas e ordenação (funções puras sobre a lista de itens).
-
 use std::cmp::Ordering;
 use std::collections::BTreeMap;
 
@@ -7,28 +5,22 @@ use serde::{Deserialize, Serialize};
 
 use super::model::{CatalogItem, SearchHit};
 
-/// Filtros: dentro de um campo é OU, entre campos é E.
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
 #[serde(default)]
 pub struct Filters {
     pub kinds: Vec<String>,
     pub categories: Vec<String>,
-    /// `source.id` (`cct`, `owner/repo`, `mcp-registry`, `user-…`).
     pub sources: Vec<String>,
-    /// SPDX; `unknown` casa item sem licença.
     pub licenses: Vec<String>,
     pub origin_tools: Vec<String>,
     pub tags: Vec<String>,
-    /// Só plugins deste marketplace (`owner/repo`).
     pub marketplace: Option<String>,
-    /// Esconde itens com colisão de nome.
     pub hide_collisions: bool,
 }
 
 #[derive(Debug, Clone, Copy, Default, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum Sort {
-    /// Relevância quando há texto; nome quando não há.
     #[default]
     Relevance,
     Name,
@@ -89,7 +81,6 @@ fn tokens(q: &str) -> Vec<String> {
         .collect()
 }
 
-/// Pontuação de um item para os tokens (0 = não casa). Todos os tokens precisam casar.
 pub fn score(item: &CatalogItem, toks: &[String]) -> u32 {
     if toks.is_empty() {
         return 1;
@@ -190,7 +181,6 @@ fn cmp_name(a: &CatalogItem, b: &CatalogItem) -> Ordering {
         .then_with(|| a.id.cmp(&b.id))
 }
 
-/// Busca paginada.
 pub fn search(
     items: &[CatalogItem],
     query: &str,
@@ -260,7 +250,6 @@ fn to_facet(m: BTreeMap<String, usize>) -> Vec<FacetValue> {
     v
 }
 
-/// Facetas com contagem. Cada faceta ignora o próprio filtro (seleção múltipla).
 pub fn facets(items: &[CatalogItem], query: &str, filters: &Filters) -> Facets {
     let toks = tokens(query);
     let matching: Vec<&CatalogItem> = items.iter().filter(|i| score(i, &toks) > 0).collect();

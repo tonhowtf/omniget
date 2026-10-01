@@ -1,33 +1,17 @@
-//! Limits of the cords (estudo 98/03 §B.11), checked in the backend, never
-//! left to the prompt. Same shape as the rooms' `RoomLimits` (a struct with
-//! `validate()` under an app ceiling) but its own ledger: a canvas node is not
-//! a room bot.
-//!
-//! Everything here is pure: the caller passes `now_ms`, so tests run on a
-//! fake clock.
-
 use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 
-/// Hard ceiling of `max_hops`, whatever the settings say.
 pub const HOPS_CEILING: u32 = 10;
-/// Idempotency keys (`request_id`) are remembered this long.
 pub const REQUEST_TTL_MS: u64 = 60 * 60 * 1000;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct CanvasLimits {
-    /// A message sent in reaction to a message sent in reaction to... stops here.
     pub max_hops: u32,
-    /// Messages of one chain (everything a user message set off).
     pub max_messages_per_chain: u32,
-    /// Asks a node may have open at once (each item of a batch counts).
     pub max_pending_asks_per_node: u32,
-    /// Longest an ask stays open.
     pub max_ask_ms: u64,
-    /// The same pair exchanging more than this in one chain, with no user in
-    /// between, pauses the chain (ping-pong guard).
     pub max_pair_exchanges: u32,
 }
 
@@ -67,8 +51,6 @@ impl CanvasLimits {
     }
 }
 
-/// Why a message was not admitted. `code()` is what the CLI and the wait
-/// route report (`limit_hops`, ...).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Refusal {
     SelfSend,
@@ -118,7 +100,6 @@ impl Refusal {
 #[derive(Debug, Clone, Default)]
 struct ChainStats {
     messages: u32,
-    /// Unordered pair -> messages between them in this chain.
     pairs: HashMap<(String, String), u32>,
     paused: bool,
     last_ms: u64,
@@ -132,30 +113,23 @@ fn pair(a: &str, b: &str) -> (String, String) {
     }
 }
 
-/// Counts per chain, and the idempotency keys of admitted requests.
 #[derive(Debug, Default)]
 pub struct Ledger {
     chains: HashMap<String, ChainStats>,
-    /// `(from, request_id)` -> ids handed out the first time, and when.
     requests: HashMap<(String, String), (Vec<String>, u64)>,
 }
 
-/// One message asking to be admitted.
 #[derive(Debug, Clone)]
 pub struct Admission<'a> {
     pub from: &'a str,
     pub to: &'a str,
     pub chain: &'a str,
-    /// Hop the new message would carry.
     pub hop: u32,
-    /// Asks `from` already has open (when this one is an ask).
     pub open_asks: u32,
-    /// How many asks this admission adds (batch size; 0 for a plain message).
     pub new_asks: u32,
 }
 
 impl Ledger {
-    /// The ids a repeated request got the first time.
     pub fn replay(&self, from: &str, request_id: &str) -> Option<Vec<String>> {
         if request_id.is_empty() {
             return None;
@@ -165,7 +139,6 @@ impl Ledger {
             .map(|(ids, _)| ids.clone())
     }
 
-    /// Checks one message against the limits without recording it.
     pub fn check(&self, l: &CanvasLimits, a: &Admission<'_>) -> Result<(), Refusal> {
         if a.from == a.to {
             return Err(Refusal::SelfSend);
@@ -190,7 +163,6 @@ impl Ledger {
         Ok(())
     }
 
-    /// Checks and records one message. A ping-pong refusal also pauses the chain.
     pub fn admit(
         &mut self,
         l: &CanvasLimits,
@@ -212,8 +184,6 @@ impl Ledger {
         Ok(())
     }
 
-    /// Remembers what a request produced, so a CLI that resends it gets the
-    /// same ids instead of a second message.
     pub fn remember(&mut self, from: &str, request_id: &str, ids: Vec<String>, now_ms: u64) {
         if request_id.is_empty() {
             return;
@@ -226,12 +196,10 @@ impl Ledger {
         self.chains.get(chain).is_some_and(|c| c.paused)
     }
 
-    /// The user stepped in: the chain may run again, counts start over.
     pub fn resume(&mut self, chain: &str) {
         self.chains.remove(chain);
     }
 
-    /// Drops idempotency keys and idle chains older than the TTL.
     pub fn gc(&mut self, now_ms: u64) {
         self.requests
             .retain(|_, (_, t)| now_ms.saturating_sub(*t) < REQUEST_TTL_MS);
@@ -240,7 +208,6 @@ impl Ledger {
     }
 }
 
-/// A new chain id (a user message, or a message with no inbound chain).
 pub fn new_chain_id() -> String {
     format!("ch_{}", &uuid::Uuid::new_v4().simple().to_string()[..12])
 }

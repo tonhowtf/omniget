@@ -1,14 +1,3 @@
-//! Cookie Manager — multi-platform per-domain cookie storage.
-//!
-//! Replaces the legacy single-file `chrome-extension-cookies.txt` (see
-//! `extension_storage`), which is only read now, to migrate old installs.
-//!
-//! Module layout:
-//! * `platform` — domain → `PlatformKind` mapping (drives UI logo + copy)
-//! * `parsers`  — Netscape and JSON cookie import
-//! * `storage`  — on-disk layout, `_meta.json` registry, transactional writes
-//! * `commands` — Tauri commands consumed by Settings → Cookies UI
-
 pub mod commands;
 pub mod parsers;
 pub mod platform;

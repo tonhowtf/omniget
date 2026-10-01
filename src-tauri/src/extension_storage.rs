@@ -1,19 +1,3 @@
-//! Disk-backed storage for cookies and per-URL metadata supplied by the browser
-//! extension.
-//!
-//! The extension communicates with the desktop app over the local HTTP bridge
-//! (see `local_bridge.rs`); this module is the only place that knows how to
-//! turn the extension's payloads into the on-disk artefacts that yt-dlp and
-//! `external_url::queue_url_with_defaults` expect:
-//!
-//! * a Netscape-format cookie file consumed by yt-dlp's `--cookies` flag,
-//! * a small JSON map keyed by URL with metadata (referer, headers, title, …)
-//!   that survives the very short window between the extension request and the
-//!   moment the queue worker picks the URL up.
-//!
-//! There is intentionally no networking code here: the bridge module owns the
-//! HTTP listener and calls into the helpers below.
-
 use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
@@ -62,10 +46,6 @@ pub struct ExtensionPayload {
     pub page_url: Option<String>,
     #[serde(default, rename = "userAgent")]
     pub user_agent: Option<String>,
-    /// Raw text of an HLS playlist the extension's deep search recovered from
-    /// the page. Set when the manifest never travels the network as a
-    /// fetchable document (the player gets it through a `blob:` URL), so the
-    /// native downloader has no address it could fetch itself.
     #[serde(default, rename = "manifestText")]
     pub manifest_text: Option<String>,
 }
@@ -229,13 +209,6 @@ pub fn read_extension_metadata(url: &str) -> Option<ExtensionMetadata> {
     Some(result)
 }
 
-/// Best-effort removal of the native-messaging artefacts left behind by the
-/// pre-0.5.3 builds: the Chrome / Firefox host manifests and the copied
-/// `omniget-native-host` binary that lived under `chrome-native-host/`.
-///
-/// We can't unregister the manifest atomically across all browsers — the
-/// best we can do is delete the files and let Chrome / Firefox skip them
-/// silently the next time they look for a host.
 pub fn cleanup_legacy_native_messaging() {
     let host_name = "wtf.tonho.omniget";
 
@@ -287,8 +260,6 @@ pub fn cleanup_legacy_native_messaging() {
 
     #[cfg(target_os = "windows")]
     {
-        // Remove the registry keys created by the legacy `ensure_registered`
-        // path. Failure (key absent, no permissions) is fine — we ignore it.
         use std::os::windows::process::CommandExt;
         const CREATE_NO_WINDOW: u32 = 0x08000000;
 

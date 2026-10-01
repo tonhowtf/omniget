@@ -1,9 +1,3 @@
-//! The YouTube account comes from the OmniGet cookie vault (`youtube.com`,
-//! primary slot): whoever already imported cookies through the extension or
-//! Settings is signed in without doing anything. `tube_login` fills the same
-//! slot from a login window, and a background loop keeps the session alive by
-//! folding the cookies Google rotates back into the file.
-
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
@@ -23,12 +17,8 @@ const SLOT: &str = "_default";
 const ACCOUNT_TTL: Duration = Duration::from_secs(10 * 60);
 const REFRESH_EVERY: Duration = Duration::from_secs(20 * 60);
 
-/// Kaset's flow (`accounts.google.com` -> `youtube.com/signin` -> home).
 const LOGIN_URL: &str = "https://accounts.google.com/ServiceLogin?service=youtube&uilel=3&passive=true&continue=https%3A%2F%2Fwww.youtube.com%2Fsignin%3Faction_handle_signin%3Dtrue%26app%3Ddesktop%26hl%3Den%26next%3Dhttps%253A%252F%252Fwww.youtube.com%252F&hl=en";
 
-/// The embedded webview has WebAuthn but no passkey entitlement: Google
-/// offers a passkey and dead-ends. Hiding the API makes it fall back to the
-/// password flow (Kaset, `LoginPasskeySuppression.swift`, MIT).
 const HIDE_PASSKEYS: &str = r#"(function () {
   "use strict";
   try {
@@ -56,7 +46,6 @@ const HIDE_PASSKEYS: &str = r#"(function () {
 #[derive(Debug, Clone, Serialize)]
 pub struct TubeStatus {
     pub account: Account,
-    /// Proxy server base (`http://127.0.0.1:PORT`).
     pub server: String,
     pub ytdlp: bool,
     pub ffmpeg: bool,
@@ -65,8 +54,6 @@ pub struct TubeStatus {
 static SAVE_LOCK: Mutex<()> = Mutex::new(());
 static ACCOUNT: Mutex<Option<(Account, Instant, String)>> = Mutex::new(None);
 
-/// The account jar, or `None` when there is no signed-in youtube.com
-/// cookie file or the user turned `use_account` off.
 pub fn jar() -> Option<CookieJar> {
     if !http::settings().use_account {
         return None;
@@ -81,7 +68,6 @@ pub fn is_logged_in() -> bool {
     jar().is_some()
 }
 
-/// Identifies the signed-in account without exposing it (cache key).
 fn identity(jar: &CookieJar) -> String {
     use sha2::{Digest, Sha256};
     let id = jar
@@ -92,9 +78,6 @@ fn identity(jar: &CookieJar) -> String {
     digest.iter().take(8).map(|b| format!("{b:02x}")).collect()
 }
 
-/// Writes rotated cookies back into the vault file: existing entries get the
-/// new value and expiry, new ones are added. Nothing is removed (a sign-out
-/// goes through `tube_logout`).
 pub fn save_jar(jar: &CookieJar) {
     let Ok(_g) = SAVE_LOCK.lock() else {
         return;
@@ -111,7 +94,6 @@ pub fn save_jar(jar: &CookieJar) {
     let same_domain = |a: &str, b: &str| a.trim_start_matches('.') == b.trim_start_matches('.');
     let mut changed = false;
     for e in &jar.entries {
-        // the vault bucket only holds youtube.com cookies
         if crate::cookies::root_domain_of(&e.domain) != DOMAIN {
             continue;
         }
@@ -165,7 +147,6 @@ fn cached_account(key: &str) -> Option<Account> {
     (k == key && at.elapsed() < ACCOUNT_TTL).then(|| acc.clone())
 }
 
-/// Premium flag of the last account menu read, when known.
 pub fn cached_premium() -> Option<bool> {
     ACCOUNT.lock().ok()?.as_ref()?.0.premium
 }
@@ -191,7 +172,6 @@ async fn fetch_account() -> Result<Account, String> {
     })
     .await?;
     let mut acc = parse::web::account_menu(&json);
-    // the menu of a dead session has no name: treat it as signed out
     if acc.name.is_none() && acc.channel_id.is_none() {
         acc.logged_in = false;
         return Ok(acc);
@@ -276,8 +256,6 @@ pub async fn tube_login(app: AppHandle) -> Result<Account, String> {
     if !probe.is_logged_in() {
         return Err("sign-in did not finish".to_string());
     }
-    // the primary slot is what yt-dlp and OmniTube read; keep the previous
-    // one recoverable in the vault trash
     if crate::cookies::account_path_for_consumer(DOMAIN, None).is_some() {
         let _ = crate::cookies::storage::move_to_trash(DOMAIN, SLOT);
     }
@@ -295,7 +273,6 @@ pub async fn tube_login(app: AppHandle) -> Result<Account, String> {
     fetch_account().await
 }
 
-/// Netscape text for a cookie list, only to probe it with `CookieJar`.
 fn netscape(cookies: &[ExtensionCookie]) -> String {
     let mut s = String::from("# Netscape HTTP Cookie File\n");
     for c in cookies {
@@ -324,8 +301,6 @@ pub async fn tube_logout() -> Result<(), String> {
     Ok(())
 }
 
-/// One keep-alive: loads youtube.com with the account and keeps whatever
-/// cookies Google rotated (YTubic `run_refresh_loop`, limusic `session.rs`).
 async fn refresh_session() -> Result<(), String> {
     let Some(jar) = jar() else {
         return Ok(());
@@ -345,8 +320,6 @@ async fn refresh_session() -> Result<(), String> {
     Ok(())
 }
 
-/// Every 20 min while signed in, refresh the session cookies. Called once
-/// from the app setup.
 pub fn spawn_session_refresh(_app: AppHandle) {
     tauri::async_runtime::spawn(async move {
         tokio::time::sleep(Duration::from_secs(60)).await;

@@ -1,7 +1,3 @@
-//! Git actions for the split button: commit (with a suggested message built
-//! from the diff, no model here), push with upstream, and pull requests via
-//! `gh` (GitHub) or `glab` (GitLab). Other hosts answer "unavailable".
-
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
@@ -11,12 +7,9 @@ use super::diff::{self, DiffOptions};
 use super::repo::{self, GitCtx};
 use super::runner::{which, Invocation, VcsError, VcsResult};
 
-// ---- commit message suggestion ----
-
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct ChangeSummary {
     pub path: String,
-    /// added | deleted | modified | renamed | binary
     pub status: String,
     pub additions: u32,
     pub deletions: u32,
@@ -94,9 +87,6 @@ fn file_name(p: &str) -> &str {
     p.rsplit('/').next().unwrap_or(p)
 }
 
-/// A commit message from the list of changed files: a type prefix when the
-/// change is all docs/tests/config, a verb from the statuses, the target
-/// (file, common folder or count) and a body listing the files.
 pub fn suggest_commit_message(changes: &[ChangeSummary]) -> CommitSuggestion {
     if changes.is_empty() {
         return CommitSuggestion {
@@ -147,7 +137,6 @@ pub fn suggest_commit_message(changes: &[ChangeSummary]) -> CommitSuggestion {
             format!("{dir} ({} files)", changes.len())
         }
     };
-    // A conventional prefix takes a lowercase verb; a bare subject starts upper.
     let mut subject = if prefix.is_empty() {
         format!("{verb} {target}")
     } else {
@@ -197,7 +186,6 @@ async fn head_or_empty(ctx: &GitCtx) -> VcsResult<String> {
     if out.ok() {
         return Ok(out.trimmed());
     }
-    // Unborn branch: diff against the empty tree.
     Ok(ctx
         .git()
         .args(["hash-object", "-t", "tree", "--stdin"])
@@ -207,8 +195,6 @@ async fn head_or_empty(ctx: &GitCtx) -> VcsResult<String> {
         .trimmed())
 }
 
-/// Every change in the work tree against HEAD (staged, unstaged and
-/// untracked), without touching the index.
 pub async fn working_changes(path: &Path) -> VcsResult<Vec<ChangeSummary>> {
     let ctx = ctx_of(path).await?;
     let head = head_or_empty(&ctx).await?;
@@ -239,20 +225,14 @@ pub async fn suggest(path: &Path) -> VcsResult<CommitSuggestion> {
     Ok(suggest_commit_message(&working_changes(path).await?))
 }
 
-// ---- commit ----
-
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct CommitResult {
-    /// created | skipped_no_changes
     pub status: String,
     pub sha: Option<String>,
     pub subject: String,
     pub branch: Option<String>,
 }
 
-/// Stages everything (or just `files`) and commits. The message's first line
-/// is the subject; the rest after a blank line is the body. Empty message →
-/// the suggestion.
 pub async fn commit(
     path: &Path,
     message: Option<&str>,
@@ -334,11 +314,8 @@ pub async fn commit(
     })
 }
 
-// ---- push ----
-
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct PushResult {
-    /// pushed | skipped_up_to_date
     pub status: String,
     pub remote: String,
     pub branch: String,
@@ -364,9 +341,6 @@ async fn push_remote(ctx: &GitCtx, branch: &str) -> VcsResult<String> {
         .ok_or_else(|| VcsError::Unavailable("the repository has no remote to push to".into()))
 }
 
-/// Pushes the current branch. With no upstream, or an upstream of another
-/// name (OmniGet worktrees start that way), it publishes the branch under its
-/// own name with `-u` instead of pushing onto someone else's branch.
 pub async fn push(path: &Path) -> VcsResult<PushResult> {
     let ctx = ctx_of(path).await?;
     let branch = {
@@ -455,20 +429,15 @@ pub async fn push(path: &Path) -> VcsResult<PushResult> {
     })
 }
 
-// ---- hosts and pull requests ----
-
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct HostInfo {
-    /// github | gitlab | bitbucket | azure | forgejo | unknown | none
     pub kind: String,
     pub host: Option<String>,
     pub cli: Option<String>,
     pub cli_path: Option<PathBuf>,
     pub authenticated: bool,
     pub available: bool,
-    /// no-remote | provider-unsupported | cli-missing | cli-unauthenticated
     pub reason: Option<String>,
-    /// "PR" or "MR".
     pub term: String,
 }
 
@@ -480,9 +449,6 @@ fn url_host(url: &str) -> Option<String> {
     (!host.is_empty()).then(|| host.to_string())
 }
 
-/// Which code host the primary remote points at, and whether its CLI is
-/// installed and logged in. Only presence and `auth status` are checked; no
-/// token is read.
 pub async fn host(path: &Path) -> VcsResult<HostInfo> {
     let ctx = ctx_of(path).await?;
     let Some(remote) = repo::primary_remote(&ctx).await? else {
@@ -545,7 +511,6 @@ pub struct PrInfo {
     pub number: u64,
     pub title: String,
     pub url: String,
-    /// open | closed | merged
     pub state: String,
     pub draft: bool,
     pub base: String,
@@ -560,7 +525,6 @@ pub struct PrRequest {
     pub title: String,
     #[serde(default)]
     pub body: String,
-    /// Base branch; default the recorded `gh-merge-base`, then the host default.
     #[serde(default)]
     pub base: Option<String>,
     #[serde(default)]
@@ -569,12 +533,10 @@ pub struct PrRequest {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct PrCreateResult {
-    /// created | opened_existing
     pub status: String,
     pub pr: PrInfo,
 }
 
-/// Maps `gh pr view --json` output.
 pub fn parse_gh_pr(v: &serde_json::Value) -> Option<PrInfo> {
     let state = v.get("state")?.as_str()?.to_ascii_lowercase();
     Some(PrInfo {
@@ -610,7 +572,6 @@ pub fn parse_gh_pr(v: &serde_json::Value) -> Option<PrInfo> {
     })
 }
 
-/// Maps `glab mr view --output json` output.
 pub fn parse_glab_mr(v: &serde_json::Value) -> Option<PrInfo> {
     let state = match v.get("state")?.as_str()? {
         "opened" => "open",
@@ -680,8 +641,6 @@ async fn require_host(path: &Path) -> VcsResult<(GitCtx, HostInfo)> {
     Ok((ctx, h))
 }
 
-/// State of the PR/MR for `reference` (number, URL or branch; default the
-/// current branch). `None` when there is none.
 pub async fn pr_view(path: &Path, reference: Option<&str>) -> VcsResult<Option<PrInfo>> {
     let (ctx, h) = require_host(path).await?;
     if let Some(r) = reference {
@@ -766,8 +725,6 @@ pub async fn pr_view(path: &Path, reference: Option<&str>) -> VcsResult<Option<P
     }
 }
 
-/// Opens a PR/MR for the current branch (which must be pushed). An open one
-/// for the same branch is returned instead of a duplicate.
 pub async fn pr_create(path: &Path, req: &PrRequest) -> VcsResult<PrCreateResult> {
     let (ctx, h) = require_host(path).await?;
     let title = req.title.trim();

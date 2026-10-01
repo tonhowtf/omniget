@@ -1,11 +1,3 @@
-//! `omniget usage [--days N] [--watch S]`: the usage monitor in the terminal.
-//!
-//! Same data as /llm → Accounts in the app (`core::llm::cli_usage::report`):
-//! the Claude Code / Codex JSONL history of every account plus the windows the
-//! CLIs themselves reported (`Real`), or summed from the history when they did
-//! not (`Estimated`). No server is asked and no credential is read; the only
-//! extra call is `claude auth status` to show who each account is.
-
 use std::collections::BTreeMap;
 use std::io::Write;
 use std::path::PathBuf;
@@ -15,8 +7,6 @@ use omniget_core::core::llm::cli_runtime::accounts::{AccountStore, CliAccount, C
 use omniget_core::core::llm::cli_usage::report::{report, CliUsageReport, ReportOptions};
 use omniget_core::core::llm::cli_usage::windows::{UsageWindow, WindowKind, WindowSource};
 
-/// The scan names the terminal's own profile `default`; an app account with
-/// an empty config dir is that profile.
 fn report_key(a: &CliAccount) -> String {
     if a.config_dir.as_os_str().is_empty() {
         "default".to_string()
@@ -30,7 +20,6 @@ pub fn bar(fraction: f32, width: usize) -> String {
     format!("{}{}", "█".repeat(filled), "░".repeat(width - filled))
 }
 
-/// "em 1h20", "em 3 dias", "agora".
 pub fn until(now_ms: i64, at_ms: i64) -> String {
     let mins = (at_ms - now_ms) / 60_000;
     if mins <= 0 {
@@ -194,7 +183,6 @@ fn render(accounts: &[CliAccount], r: &CliUsageReport, days: u32) -> String {
             ));
         }
     }
-    // History of a profile with no app account (e.g. ~/.codex).
     for (key, s) in &spend {
         if !shown.contains(key) {
             out.push_str(&format!(
@@ -223,7 +211,6 @@ pub async fn execute(days: u32, watch: Option<u64>, json: bool) -> anyhow::Resul
         } else {
             let text = render(&accounts, &r, days);
             if watch.is_some() {
-                // Clear the screen and go home, so the monitor redraws in place.
                 print!("\x1b[2J\x1b[H");
             }
             print!("{text}");

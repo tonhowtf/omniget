@@ -1,14 +1,7 @@
-//! Frontmatter YAML (subconjunto) → `serde_json::Value`, sem biblioteca de
-//! terceiro. Port de `scripts/agentkit-catalog/yaml.mjs`: mapas e listas por
-//! indentação, escalares simples/aspas, blocos `|`/`>`, fluxo `[..]`/`{..}` e
-//! escalares simples continuados em várias linhas. Nunca falha: o pior caso é
-//! um mapa `chave: valor` linha a linha.
-
 use regex::Regex;
 use serde_json::{Map, Value};
 use std::sync::OnceLock;
 
-/// Separa `---\n…\n---` do corpo. `None` quando não há frontmatter.
 pub fn split(text: &str) -> Option<(&str, &str)> {
     let t = text.strip_prefix('\u{feff}').unwrap_or(text);
     let first_nl = t.find('\n')?;
@@ -29,7 +22,6 @@ pub fn split(text: &str) -> Option<(&str, &str)> {
     None
 }
 
-/// Frontmatter parseado + corpo. Sem frontmatter: `({}, texto)`.
 pub fn parse_document(text: &str) -> (Value, &str, bool) {
     match split(text) {
         Some((y, body)) => (parse_yaml(y), body, true),
@@ -178,7 +170,6 @@ fn scalar_from(text: &str) -> Value {
     plain_scalar(&c)
 }
 
-/// `[a, "b", {c: d}]` / `{a: 1}`.
 pub fn parse_flow(src: &str) -> Value {
     let chars: Vec<char> = src.chars().collect();
     let mut i = 0usize;
@@ -578,7 +569,6 @@ impl Parser {
     }
 }
 
-/// YAML → valor. Documento escalar vira `{"_value": …}`; vazio vira `{}`.
 pub fn parse_yaml(text: &str) -> Value {
     let lines: Vec<String> = text
         .replace('\t', "  ")

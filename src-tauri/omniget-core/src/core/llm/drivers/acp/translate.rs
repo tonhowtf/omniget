@@ -1,28 +1,3 @@
-//! ACP → [`RuntimeEvent`] translation. Pure: no I/O, no clock, no ids from
-//! outside except a counter, so the whole mapping is tested against real
-//! recorded traffic (`fixtures/*.ndjson`).
-//!
-//! Mapping (ACP v1 schema, `session/update` discriminated by `sessionUpdate`):
-//! - `agent_message_chunk` → `item.started{assistant_message}` once per
-//!   segment + `content.delta{assistant_text}`; the segment closes with
-//!   `item.completed{detail: full text}` when a tool call, a thought or the
-//!   end of the turn interrupts it.
-//! - `agent_thought_chunk` → same with `reasoning` / `reasoning_text`.
-//! - `user_message_chunk` → `item.completed{user_message}` (echoes of the
-//!   prompt we sent are dropped; replays outside a turn too).
-//! - `tool_call` / `tool_call_update` → `item.started|updated|completed` with
-//!   the item type from `kind` (`execute→command_execution`,
-//!   `edit|delete|move→file_change`, `fetch→web_search`, MCP names →
-//!   `mcp_tool_call`, the rest `dynamic_tool_call`), `data = {kind, input,
-//!   output, locations, diffs[{path, oldText, newText, unifiedDiff}],
-//!   terminals}`; command output text growth → `content.delta{command_output}`.
-//! - `plan` → `turn.plan.updated`; `usage_update` → `thread.token-usage.updated`;
-//!   `session_info_update` → `thread.metadata.updated`;
-//!   `available_commands_update` / `current_mode_update` /
-//!   `config_option_update` → `session.configured`; anything else → `raw`.
-//! - `session/request_permission` → [`permission_ask`] (`request.opened` with
-//!   the canonical request type, never `acp:other`).
-
 use std::collections::HashMap;
 
 use serde_json::{json, Value};
@@ -35,15 +10,12 @@ use crate::core::llm::drivers::{
     UserInputQuestion, ValuePayload,
 };
 
-/// Text kept per tool field (input/output) inside `item.*` data.
 pub const CLIP: usize = 8_000;
 
-/// One event to emit, before the driver stamps thread/turn/ids on it.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Emit {
     pub kind: RuntimeEventKind,
     pub item_id: Option<String>,
-    /// The agent's own id (message id, tool call id), for `providerRefs`.
     pub provider_item_id: Option<String>,
 }
 
@@ -90,7 +62,6 @@ struct ToolState {
     meta: Value,
     started: bool,
     done: bool,
-    /// Command output already streamed as `content.delta`.
     streamed: String,
     last_data: String,
     last_title: String,
@@ -103,7 +74,6 @@ enum Which {
     Thought,
 }
 
-/// Per-session translation state.
 #[derive(Debug, Default)]
 pub struct Translator {
     active: bool,
@@ -117,9 +87,7 @@ pub struct Translator {
     current_mode: Option<String>,
     config_options: Option<Value>,
     available_commands: Option<Value>,
-    /// terminalId → toolCallId, learned from `{type: "terminal"}` contents.
     terminal_owner: HashMap<String, String>,
-    /// Output of terminals whose tool call is not known yet.
     terminal_pending: HashMap<String, String>,
 }
 
@@ -157,7 +125,6 @@ impl Translator {
         format!("{prefix}{}", self.counter)
     }
 
-    /// A prompt was sent: chunks from now on belong to the turn.
     pub fn begin_turn(&mut self, prompt_text: &str) {
         self.active = true;
         self.prompt = prompt_text.to_string();
@@ -167,13 +134,9 @@ impl Translator {
         self.tools.retain(|_, t| !t.done);
     }
 
-    /// The prompt returned: close open text segments. Tool calls still
-    /// running stay known (background commands report later).
     pub fn end_turn(&mut self) -> Vec<Emit> {
         let mut out = self.close_segments();
         self.active = false;
-        // Tools that never reported a final status would stay "in progress"
-        // forever in the UI; the turn is over, so they are over too.
         let open: Vec<String> = self
             .tools
             .iter()
@@ -195,7 +158,6 @@ impl Translator {
         out
     }
 
-    /// Cost of the turn in USD, from the cumulative `usage_update.cost`.
     pub fn turn_cost(&self) -> Option<f64> {
         match (self.session_cost, self.cost_at_start) {
             (Some(now), Some(start)) => Some((now - start).max(0.0)),
@@ -350,7 +312,6 @@ impl Translator {
         }
         let st = self.tools.get_mut(&id).expect("inserted above");
         merge(st, update, is_new);
-        // Terminals embedded in this call: map them and flush early output.
         let mut flush = Vec::new();
         for c in &st.content {
             if c.get("type").and_then(Value::as_str) == Some("terminal") {
@@ -404,8 +365,6 @@ impl Translator {
                 ));
             }
         }
-        // Live command output (agents that run commands themselves send the
-        // growing text as `content`).
         if st.kind == "execute" {
             let text = tool_text(&st.content);
             if text.len() > st.streamed.len() && text.starts_with(&st.streamed) {
@@ -447,7 +406,6 @@ impl Translator {
         out
     }
 
-    /// Output our own terminal (`terminal/create`) produced.
     pub fn on_terminal_output(&mut self, terminal_id: &str, chunk: &str) -> Vec<Emit> {
         if chunk.is_empty() {
             return Vec::new();
@@ -483,13 +441,11 @@ impl Translator {
         }
     }
 
-    /// Forget a released terminal.
     pub fn forget_terminal(&mut self, terminal_id: &str) {
         self.terminal_owner.remove(terminal_id);
         self.terminal_pending.remove(terminal_id);
     }
 
-    /// One `session/update` notification's `update` object.
     pub fn on_update(&mut self, update: &Value) -> Vec<Emit> {
         if update
             .get("_meta")
@@ -631,7 +587,6 @@ fn plan_status(s: Option<&str>) -> String {
     .to_string()
 }
 
-/// Text of one ACP `ContentBlock`.
 pub fn content_text(block: &Value) -> String {
     match block.get("type").and_then(Value::as_str) {
         Some("text") => block
@@ -681,14 +636,12 @@ fn merge(st: &mut ToolState, u: &Value, is_new: bool) {
         ("rawOutput", &mut st.raw_output),
     ] {
         if let Some(v) = u.get(key).filter(|v| !v.is_null()) {
-            // Agents send `{}` as a placeholder before the real input.
             let empty = v.as_object().map(|o| o.is_empty()).unwrap_or(false);
             if !empty || slot.is_null() {
                 *slot = v.clone();
             }
         }
     }
-    // `content` and `locations` replace the previous collection (spec).
     if let Some(a) = u.get("content").and_then(Value::as_array) {
         st.content = a.clone();
     }
@@ -713,7 +666,6 @@ fn clip_str(s: &str) -> String {
     format!("{}\n[… {} more characters]", &s[..cut], s.len() - cut)
 }
 
-/// Clip every long string inside a JSON value.
 pub fn clip(v: &Value) -> Value {
     match v {
         Value::String(s) => Value::String(clip_str(s)),
@@ -736,7 +688,6 @@ fn is_mcp_name(name: &str) -> bool {
     name.starts_with("mcp__") || name.starts_with("mcp_") || name.contains("__")
 }
 
-/// Item type of an ACP tool kind.
 pub fn item_type(kind: &str, name: &str) -> ItemType {
     match kind {
         "execute" => ItemType::CommandExecution,
@@ -875,22 +826,16 @@ fn data_key(p: &ItemPayload) -> String {
     p.data.as_ref().map(|d| d.to_string()).unwrap_or_default()
 }
 
-// ── Permissions ─────────────────────────────────────────────────────────
-
-/// A `session/request_permission`, normalized.
 #[derive(Debug, Clone, PartialEq)]
 pub struct PermissionAsk {
     pub tool_call_id: String,
-    /// ACP tool kind (`edit`, `execute`, …; `other` when absent).
     pub kind: String,
     pub request_type: RequestType,
     pub detail: RequestDetail,
     pub options: Vec<ApprovalOption>,
-    /// Same operation ⇒ same key; "accept for session" remembers it.
     pub memory_key: String,
 }
 
-/// Infer the kind when the agent did not send one.
 fn infer_kind(call: &Value) -> String {
     if let Some(k) = call.get("kind").and_then(Value::as_str) {
         return k.to_string();
@@ -915,7 +860,6 @@ fn infer_kind(call: &Value) -> String {
     "other".into()
 }
 
-/// The canonical request type of an ACP tool kind.
 pub fn request_type(kind: &str) -> RequestType {
     match kind {
         "edit" | "delete" | "move" => RequestType::FileChangeApproval,
@@ -935,7 +879,6 @@ fn option_decision(kind: &str) -> Option<ApprovalDecision> {
     }
 }
 
-/// Normalize the params of `session/request_permission`.
 pub fn permission_ask(params: &Value) -> PermissionAsk {
     let call = params.get("toolCall").cloned().unwrap_or(Value::Null);
     let kind = infer_kind(&call);
@@ -988,7 +931,6 @@ pub fn permission_ask(params: &Value) -> PermissionAsk {
                 }
             }
             if patch.is_empty() {
-                // OpenCode sends its own unified diff in `rawInput.diff`.
                 if let Some(d) = input.get("diff").and_then(Value::as_str) {
                     patch = d.to_string();
                 }
@@ -1050,11 +992,6 @@ pub fn permission_ask(params: &Value) -> PermissionAsk {
     }
 }
 
-/// The `RequestPermissionOutcome` for a decision, picking the agent's own
-/// option by kind (`allow_once` / `allow_always` / `reject_once` /
-/// `reject_always`). "Accept for session" answers `allow_once` (the driver
-/// remembers the operation), never widening to the agent's persistent
-/// "always".
 pub fn permission_outcome(options: &[Value], decision: ApprovalDecision) -> Value {
     let want: &[&str] = match decision {
         ApprovalDecision::Accept | ApprovalDecision::AcceptForSession => {
@@ -1075,9 +1012,6 @@ pub fn permission_outcome(options: &[Value], decision: ApprovalDecision) -> Valu
     }
 }
 
-// ── Turn end and usage ──────────────────────────────────────────────────
-
-/// `PromptResponse.stopReason` → how the turn ended.
 pub fn turn_end(stop_reason: Option<&str>, interrupted: bool) -> (TurnEndState, Option<String>) {
     match stop_reason {
         Some("cancelled") => (TurnEndState::Interrupted, None),
@@ -1094,10 +1028,6 @@ pub fn turn_end(stop_reason: Option<&str>, interrupted: bool) -> (TurnEndState, 
     }
 }
 
-/// `PromptResponse.usage` (stabilized in 2026: `inputTokens`, `outputTokens`,
-/// `totalTokens`, `cachedReadTokens`, `cachedWriteTokens`, `thoughtTokens`).
-/// `inputTokens` already excludes cache reads (OpenCode: 305 + 24 + 7936 =
-/// 8265 total).
 pub fn prompt_usage(result: &Value) -> Option<TokenUsage> {
     let u = result.get("usage").filter(|u| u.is_object())?;
     let n = |k: &str| u.get(k).and_then(Value::as_u64).unwrap_or(0);
@@ -1113,9 +1043,6 @@ pub fn prompt_usage(result: &Value) -> Option<TokenUsage> {
     })
 }
 
-// ── Elicitation (form mode) ─────────────────────────────────────────────
-
-/// Questions of an `elicitation/create` (form or url mode).
 pub fn elicitation_questions(params: &Value) -> Vec<UserInputQuestion> {
     let message = params
         .get("message")
@@ -1267,8 +1194,6 @@ fn enum_options(p: &Value) -> (Vec<UserInputOption>, bool) {
     (out, multi)
 }
 
-/// Build the `CreateElicitationResponse` from the answers of the UI
-/// (`{questionId: answer | [answers]}`). `null`/empty answers cancel.
 pub fn elicitation_response(params: &Value, answers: &Value) -> Value {
     let empty = match answers {
         Value::Null => true,

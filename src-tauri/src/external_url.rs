@@ -55,15 +55,6 @@ pub fn is_external_url(value: &str) -> bool {
         .unwrap_or(false)
 }
 
-/// Returns true when the request originated from the `omniget://` protocol
-/// handler — either via the deep-link event or because the raw URL still
-/// carries the scheme prefix when handed to the second-instance callback.
-///
-/// This is used to decide whether to bring the app window to the front:
-/// the native-messaging path uses metadata written by the host process to
-/// honour the extension's "Open app" toggle, but the scheme path bypasses
-/// the native host entirely, so we treat scheme arrival as the user's
-/// explicit intent.
 pub fn arrived_via_scheme(raw_url: &str, source: &str) -> bool {
     raw_url.trim_start().starts_with("omniget:") || source == "deep-link"
 }
@@ -105,8 +96,6 @@ pub async fn queue_url_with_quality(
     queue_url_with_executor(app, url, from_hotkey, download_mode, quality, None).await
 }
 
-/// Internal injection point for the queue-owned confined worker. This uses
-/// the same queue state and events as UI/extension downloads.
 pub async fn queue_url_with_executor(
     app: &AppHandle,
     url: String,
@@ -276,8 +265,6 @@ pub async fn queue_url_with_executor(
             return None;
         }
         Some(crate::models::media::MediaInfo {
-            // A title derived from the URL is the redacted URL (N-3); the
-            // real title replaces it once metadata arrives.
             title: ext_title
                 .clone()
                 .unwrap_or_else(|| crate::core::flight_recorder::redact_url(&url)),
@@ -458,11 +445,6 @@ where
     I: IntoIterator<Item = S>,
     S: AsRef<str>,
 {
-    // Return the raw argument (preserving any `omniget://` prefix). The caller
-    // forwards this string to `handle_external_url`, which normalises it after
-    // recording whether the request arrived through the scheme — preserving
-    // the prefix is what lets that detection work on Linux's single-instance
-    // path, where the OS hands us the omniget:// URL as a plain CLI argument.
     args.into_iter()
         .map(|arg| arg.as_ref().trim().to_string())
         .find(|arg| is_external_url(arg))
@@ -552,8 +534,6 @@ mod tests {
 
     #[test]
     fn find_external_url_arg_preserves_omniget_prefix() {
-        // The single-instance / cold-start callbacks rely on this so the
-        // downstream `arrived_via_scheme` check can still detect the scheme.
         let args = vec!["--flag", "omniget://www.youtube.com/watch?v=abc"];
         assert_eq!(
             find_external_url_arg(args.iter().copied()),

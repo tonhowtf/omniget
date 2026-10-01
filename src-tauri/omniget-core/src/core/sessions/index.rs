@@ -1,17 +1,3 @@
-//! Índice incremental das sessões em `<app_data>/llm/sessions.db` (SQLite).
-//!
-//! * Uma linha por sessão (`sessions`) com a impressão digital da fonte
-//!   (mtime + tamanho do arquivo, ou mtime + contagem + tokens para fontes
-//!   em banco) e, no Claude, o offset em bytes já lido: arquivo que só
-//!   cresceu é lido a partir do offset, o resto é relido inteiro.
-//! * Linhas derivadas para as visões agregadas: `usage` (uma por resposta
-//!   com uso), `calls` (tool calls, slash commands) e `msgs` (mensagens de
-//!   usuário/assistente). As chaves primárias fazem o dedupe: no Claude a
-//!   chave de uso é `message.id:requestId` **global**, então a mesma resposta
-//!   copiada para outro arquivo (retomada/fork) conta uma vez só.
-//! * Nada roda em repouso: o índice só é atualizado quando uma visão pede
-//!   (`ensure_fresh`), com um intervalo mínimo entre varreduras.
-
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
@@ -35,13 +21,11 @@ pub fn db_path() -> Option<PathBuf> {
 pub struct SessionIndex {
     conn: Connection,
     last_refresh: Option<Instant>,
-    /// Raízes do Claude para a varredura (`None` = as padrão da máquina).
     claude_roots: Option<Vec<claude::Root>>,
 }
 
 static INDEX: Mutex<Option<SessionIndex>> = Mutex::new(None);
 
-/// Roda `f` com o índice global (abre na primeira vez).
 pub fn with_index<R>(f: impl FnOnce(&mut SessionIndex) -> R) -> Result<R, String> {
     let mut g = INDEX.lock().map_err(|_| format!("{ERR_INDEX}: lock"))?;
     if g.is_none() {
@@ -51,9 +35,6 @@ pub fn with_index<R>(f: impl FnOnce(&mut SessionIndex) -> R) -> Result<R, String
     Ok(f(g.as_mut().unwrap()))
 }
 
-/// Diretórios de projeto que o índice já viu (usado pelo Crush para achar
-/// `.crush/crush.db`). Abre uma conexão própria, só leitura: pode ser chamado
-/// de dentro de uma varredura sem travar o índice global.
 pub fn known_projects() -> Vec<PathBuf> {
     let Some(p) = db_path().filter(|p| p.is_file()) else {
         return Vec::new();
@@ -84,27 +65,18 @@ pub fn known_projects() -> Vec<PathBuf> {
 pub struct ListFilter {
     pub tool: Option<String>,
     pub account: Option<String>,
-    /// Substring do caminho do projeto.
     pub project: Option<String>,
-    /// `YYYY-MM-DD` local, inclusivo (sessões que tocam o intervalo).
     pub from: Option<String>,
     pub to: Option<String>,
-    /// Substring do título.
     pub query: Option<String>,
-    /// Inclui subagentes na lista (padrão: só sessões principais).
     #[serde(default)]
     pub include_subagents: bool,
-    /// Só os filhos desta sessão.
     pub parent: Option<String>,
-    /// `recent` (padrão) | `tokens` | `cost` | `oldest`.
     pub sort: Option<String>,
     pub limit: Option<u32>,
     pub offset: Option<u32>,
-    /// Uma sessão só (por id).
     #[serde(default)]
     pub id: Option<String>,
-    /// Só respostas deste modelo (visões de uso; na lista, sessões que
-    /// usaram o modelo).
     #[serde(default)]
     pub model: Option<String>,
 }
@@ -124,8 +96,6 @@ pub struct RefreshStats {
     pub removed: u32,
     pub elapsed_ms: u64,
 }
-
-// --- linhas derivadas --------------------------------------------------------
 
 struct UsageRow {
     key: String,
@@ -166,8 +136,6 @@ fn status_str(s: ToolStatus) -> &'static str {
     }
 }
 
-/// `/comando` num texto: `<command-name>/x</command-name>` (Claude/Qwen) ou
-/// mensagem que começa com `/palavra`.
 pub fn slash_commands(text: &str) -> Vec<String> {
     let mut out = Vec::new();
     let mut rest = text;
@@ -297,7 +265,6 @@ fn rows_of(s: &Session) -> Rows {
     rows
 }
 
-/// Metas mínimos do Claude (arquivo, conta, id, mãe, mtime).
 fn claude_file_metas(roots: Option<Vec<claude::Root>>) -> Vec<SessionMeta> {
     let src = match roots {
         Some(r) => claude::ClaudeSource::with_roots(r),
@@ -324,8 +291,6 @@ fn claude_file_metas(roots: Option<Vec<claude::Root>>) -> Vec<SessionMeta> {
         })
         .collect()
 }
-
-// --- trabalho de uma varredura ----------------------------------------------
 
 struct Stored {
     fp: String,
@@ -380,7 +345,6 @@ fn run_work(w: Work, sources: &[Box<dyn SessionSource>]) -> Option<Done> {
             }
             let src = sources.iter().find(|s| s.tool() == meta.tool)?;
             let mut s = src.load(&meta.id)?;
-            // O `list` pode saber coisas que o `load` não reconstrói.
             if s.meta.title.is_none() {
                 s.meta.title = meta.title.clone();
             }
@@ -418,7 +382,6 @@ fn run_work(w: Work, sources: &[Box<dyn SessionSource>]) -> Option<Done> {
             };
             if s.meta.parent_session.is_none() {
                 if let Some(t) = title {
-                    // Só títulos explícitos substituem o que já existe.
                     s.meta.title = Some(t);
                 }
             }
@@ -438,14 +401,12 @@ fn run_work(w: Work, sources: &[Box<dyn SessionSource>]) -> Option<Done> {
     }
 }
 
-/// Uma varredura planejada: o trabalho de parse e o que sumiu.
 struct Plan {
     stats: RefreshStats,
     work: Vec<Work>,
     gone: Vec<(String, String)>,
 }
 
-/// 1. O que as fontes veem agora (lista barata, em paralelo, sem o banco).
 fn list_sources(
     sources: &[Box<dyn SessionSource>],
     claude_roots: &Option<Vec<claude::Root>>,
@@ -457,9 +418,6 @@ fn list_sources(
             .iter()
             .map(|src| {
                 s.spawn(move || {
-                    // Claude: só a lista de arquivos (o parse completo de
-                    // quem mudou traz os metadados); poupa ler cabeçalho e
-                    // rodapé de milhares de arquivos.
                     if src.tool() == claude::TOOL {
                         return (
                             src.tool().to_string(),
@@ -480,7 +438,6 @@ fn list_sources(
     (metas, listed_tools)
 }
 
-/// 2-3. Compara com o índice: o que é novo, o que cresceu, o que sumiu.
 fn plan_refresh(
     metas: Vec<SessionMeta>,
     listed_tools: HashSet<String>,
@@ -501,7 +458,7 @@ fn plan_refresh(
     for m in metas {
         let key = (m.tool.clone(), m.id.clone());
         if !present.insert(key.clone()) {
-            continue; // mesmo id em duas raízes: vale a primeira
+            continue;
         }
         let shared = per_source.get(&m.source).copied().unwrap_or(1) > 1;
         let is_file = m.source.is_file();
@@ -547,7 +504,6 @@ fn plan_refresh(
     Plan { stats, work, gone }
 }
 
-/// 4. Parse em paralelo (maiores primeiro, para equilibrar), sem o banco.
 fn parse_work(mut work: Vec<Work>, sources: &[Box<dyn SessionSource>]) -> Vec<Done> {
     work.sort_by_key(|w| {
         std::cmp::Reverse(match w {
@@ -576,16 +532,8 @@ fn parse_work(mut work: Vec<Work>, sources: &[Box<dyn SessionSource>]) -> Vec<Do
     results.into_inner().unwrap_or_default()
 }
 
-// --- varredura compartilhada -------------------------------------------------
-
-/// Portão das varreduras do índice global: uma por vez. Quem chega durante
-/// uma varredura espera por ela e usa o resultado (não varre de novo); as
-/// leituras (`with_reader`) seguem em paralelo sobre o banco (WAL).
 static REFRESH_GATE: Mutex<Option<Instant>> = Mutex::new(None);
 
-/// Varre o índice global se a última varredura tem mais de `max_age`
-/// (`None` = varre sempre). O banco só fica travado para ler as impressões
-/// digitais e para gravar; listar e parsear correm sem trava.
 pub fn ensure_fresh_global(
     max_age: Option<Duration>,
     sources: &[Box<dyn SessionSource>],
@@ -611,7 +559,6 @@ pub fn ensure_fresh_global(
     Ok(Some(stats))
 }
 
-/// A próxima visão varre de novo.
 pub fn mark_stale_global() {
     if let Ok(mut g) = REFRESH_GATE.lock() {
         *g = None;
@@ -619,7 +566,6 @@ pub fn mark_stale_global() {
     let _ = with_index(|idx| idx.mark_stale());
 }
 
-/// Apaga o índice e varre do zero (com o portão fechado).
 pub fn reset_and_refresh(sources: &[Box<dyn SessionSource>]) -> Result<RefreshStats, String> {
     {
         let _gate = REFRESH_GATE.lock().unwrap_or_else(|e| e.into_inner());
@@ -629,12 +575,9 @@ pub fn reset_and_refresh(sources: &[Box<dyn SessionSource>]) -> Result<RefreshSt
     Ok(ensure_fresh_global(None, sources)?.unwrap_or_default())
 }
 
-/// Conexões só de leitura sobre o mesmo arquivo (WAL): as visões leem em
-/// paralelo entre si e com a gravação de uma varredura.
 static READERS: Mutex<Vec<(PathBuf, SessionIndex)>> = Mutex::new(Vec::new());
 const MAX_READERS: usize = 8;
 
-/// Roda `f` com uma conexão de leitura do índice global.
 pub fn with_reader<R>(f: impl FnOnce(&SessionIndex) -> R) -> Result<R, String> {
     let p = db_path().ok_or_else(|| format!("{ERR_INDEX}: sem diretório de dados"))?;
     let taken = {
@@ -645,7 +588,6 @@ pub fn with_reader<R>(f: impl FnOnce(&SessionIndex) -> R) -> Result<R, String> {
     let idx = match taken {
         Some((_, idx)) => idx,
         None => {
-            // O esquema nasce na conexão de escrita.
             with_index(|_| ())?;
             SessionIndex::open_reader(&p)?
         }
@@ -676,7 +618,6 @@ impl SessionIndex {
         Ok(idx)
     }
 
-    /// Conexão só de leitura (o esquema já existe).
     pub fn open_reader(path: &Path) -> Result<Self, String> {
         use rusqlite::OpenFlags;
         let conn = Connection::open_with_flags(
@@ -765,7 +706,6 @@ impl SessionIndex {
         &self.conn
     }
 
-    /// Atualiza se a última varredura tem mais de `max_age`.
     pub fn ensure_fresh(
         &mut self,
         max_age: Duration,
@@ -779,13 +719,10 @@ impl SessionIndex {
         Some(self.refresh(sources))
     }
 
-    /// Marca o índice como velho (a próxima visão varre de novo).
     pub fn mark_stale(&mut self) {
         self.last_refresh = None;
     }
 
-    /// Custo que a ferramenta gravou para a sessão inteira (Claude
-    /// `cost-state`, total do Crush/Goose), se houver.
     pub fn recorded_cost(&self, tool: &str, id: &str) -> Option<f64> {
         self.conn
             .query_row(
@@ -808,7 +745,6 @@ impl SessionIndex {
         stats
     }
 
-    /// O que já está no índice (impressão digital, offset, estado).
     fn stored(&self) -> HashMap<(String, String), Stored> {
         let mut stored: HashMap<(String, String), Stored> = HashMap::new();
         if let Ok(mut st) = self
@@ -835,7 +771,6 @@ impl SessionIndex {
         stored
     }
 
-    /// Grava o resultado de uma varredura numa transação e poda o que sumiu.
     fn commit(&mut self, plan: Plan, done: Vec<Done>, started: Instant) -> RefreshStats {
         let mut stats = plan.stats;
         if let Ok(tx) = self.conn.transaction() {
@@ -847,7 +782,6 @@ impl SessionIndex {
                 }
                 let _ = write_done(&tx, d);
             }
-            // Some o que sumiu da fonte (só de ferramentas que listaram).
             for (tool, id) in plan.gone {
                 stats.removed += 1;
                 let _ = delete_session(&tx, &tool, &id);
@@ -858,7 +792,6 @@ impl SessionIndex {
         stats
     }
 
-    /// Esquece tudo (a próxima varredura relê do zero).
     pub fn reset(&mut self) -> Result<(), String> {
         self.conn
             .execute_batch(
@@ -869,7 +802,6 @@ impl SessionIndex {
         Ok(())
     }
 
-    /// Modelos distintos no recorte (para montar o `PriceBook`).
     pub fn models(&self, f: &ListFilter) -> Vec<String> {
         let (w, p) = usage_where(f, "u");
         let sql = format!(
@@ -950,9 +882,6 @@ impl SessionIndex {
             });
             if let Ok(it) = rows {
                 for (m, recorded, kids) in it.flatten() {
-                    // O `cost-state` do Claude é do processo inteiro: inclui
-                    // os subagentes, que têm linhas (e custo) próprios. Numa
-                    // sessão com filhos ele não é o custo desta sessão.
                     let recorded = if kids > 0 && m.tool == claude::TOOL {
                         None
                     } else {
@@ -988,7 +917,6 @@ impl SessionIndex {
         ListPage { total, sessions }
     }
 
-    /// Custo por sessão: custo gravado nas linhas + tabela de preço no resto.
     pub fn session_costs(
         &self,
         keys: &[(String, String)],
@@ -1045,7 +973,6 @@ impl SessionIndex {
         self.list(&f, book).sessions.into_iter().next()
     }
 
-    /// Textos pesquisáveis guardados (fontes sem arquivo de texto).
     pub fn search_texts(&self, keys: &[(String, String)]) -> super::search::SearchTexts {
         let mut out = super::search::SearchTexts::new();
         let Ok(mut st) = self
@@ -1070,7 +997,6 @@ impl SessionIndex {
         out
     }
 
-    /// Grava textos pesquisáveis novos (uma transação).
     pub fn put_search_texts(&mut self, rows: &[super::search::NewText]) {
         let Ok(tx) = self.conn.transaction() else {
             return;
@@ -1085,7 +1011,6 @@ impl SessionIndex {
         let _ = tx.commit();
     }
 
-    /// Modelos com uso nas sessões dadas.
     pub fn models_of(&self, keys: &[(String, String)]) -> Vec<String> {
         let mut out: Vec<String> = Vec::new();
         let Ok(mut st) = self
@@ -1106,7 +1031,6 @@ impl SessionIndex {
         out
     }
 
-    /// Filhos (subagentes) de uma sessão.
     pub fn children(&self, tool: &str, id: &str) -> Vec<(String, Option<String>, String)> {
         let mut out = Vec::new();
         if let Ok(mut st) = self
@@ -1122,7 +1046,6 @@ impl SessionIndex {
         out
     }
 
-    /// Contagem de sessões por ferramenta e última atividade.
     pub fn counts(&self) -> HashMap<String, (u32, Option<i64>)> {
         let mut out = HashMap::new();
         if let Ok(mut st) = self
@@ -1264,7 +1187,6 @@ fn write_done(tx: &rusqlite::Transaction, d: Done) -> rusqlite::Result<()> {
         )?;
     } else {
         let recorded = recorded.or_else(|| {
-            // Custo de sessão sem linhas com custo (fonte grava só o total).
             let row_cost: f64 = d.rows.usage.iter().filter_map(|u| u.cost).sum();
             (d.meta.cost_usd > 0.0 && row_cost == 0.0 && d.meta.tool != claude::TOOL)
                 .then_some(d.meta.cost_usd)
@@ -1327,7 +1249,6 @@ fn delete_session(tx: &Connection, tool: &str, id: &str) -> rusqlite::Result<()>
     Ok(())
 }
 
-/// `WHERE` sobre `sessions s`.
 fn session_where(f: &ListFilter) -> (String, Vec<String>) {
     let mut w = vec!["1=1".to_string()];
     let mut p: Vec<String> = Vec::new();
@@ -1373,8 +1294,6 @@ fn session_where(f: &ListFilter) -> (String, Vec<String>) {
     (w.join(" AND "), p)
 }
 
-/// `WHERE` sobre uma tabela derivada (`usage`/`calls`/`msgs` com alias) já
-/// juntada com `sessions s`.
 pub(crate) fn usage_where(f: &ListFilter, alias: &str) -> (String, Vec<String>) {
     let mut w = vec!["1=1".to_string()];
     let mut p: Vec<String> = Vec::new();
@@ -1398,7 +1317,6 @@ pub(crate) fn usage_where(f: &ListFilter, alias: &str) -> (String, Vec<String>) 
         w.push(format!("{alias}.day <= ?"));
         p.push(to.clone());
     }
-    // `msgs`/`calls` não têm modelo: o filtro vira "sessão que usou o modelo".
     if let Some(m) = f.model.as_ref().filter(|s| !s.is_empty()) {
         if alias == "u" {
             w.push("u.model = ?".into());
@@ -1410,7 +1328,6 @@ pub(crate) fn usage_where(f: &ListFilter, alias: &str) -> (String, Vec<String>) 
     (w.join(" AND "), p)
 }
 
-/// Início do dia local em ms.
 pub fn day_start_ms(day: &str) -> Option<i64> {
     use chrono::TimeZone;
     let d = chrono::NaiveDate::parse_from_str(day, "%Y-%m-%d").ok()?;

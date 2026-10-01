@@ -1,7 +1,3 @@
-//! Screen-only actions (`washmybelly_ui`): killing a process, renicing,
-//! one-time setup, revealing a file. Routed as `<module>.<action>` to the
-//! module's `ui_action`. None of these is an MCP tool.
-
 use serde_json::Value;
 
 pub async fn call(action: &str, a: Value) -> Result<Value, String> {

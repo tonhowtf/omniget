@@ -81,10 +81,6 @@ fn row_to_channel(row: &rusqlite::Row) -> rusqlite::Result<ChannelFollow> {
     let interval: i64 = row.get(8)?;
     let id: String = row.get(0)?;
 
-    // `seen_ids` ilegível não pode virar lista vazia em silêncio: o poller
-    // trataria todo vídeo já arquivado como novo e re-baixaria o canal
-    // inteiro. Sem saber o que já foi visto, o download automático fica
-    // desligado nesta leitura até o usuário reabilitar.
     let (seen_ids, auto_download) = match serde_json::from_str::<Vec<String>>(&seen_json) {
         Ok(seen) => (seen, auto != 0),
         Err(e) => {

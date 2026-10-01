@@ -1,25 +1,3 @@
-//! Kimi Code (Moonshot) e o kimi-cli legado (estudo 06, Kimi §j; Parte 6 §8.1).
-//!
-//! Kimi Code: `${KIMI_CODE_HOME:-~/.kimi-code}/sessions/<wd_slug_hash>/<sessão>/
-//! agents/<agente>/wire.jsonl` (`main` = sessão; `agent-N` = subagente, vira
-//! sessão filha `<sessão>:<agente>`), `state.json` (título, `lastPrompt`),
-//! `workspaces.json` (`workspaces.<slug>.root`) e `session_index.jsonl`
-//! (`sessionId`, `workDir`). Linhas planas `{type, time(ms), …}`:
-//! `config.update{cwd}`, `turn.prompt{input[]}`, `llm.request{model}`,
-//! `usage.record{model, usage{inputOther, output, inputCacheRead,
-//! inputCacheCreation}, usageScope}` (só `usageScope == "turn"` conta; o
-//! `step.end` repete o mesmo uso), e `context.append_loop_event{event}` com o
-//! que o agente fez (texto, tool call, resultado; lido de forma tolerante).
-//!
-//! Legado kimi-cli: `${KIMI_DATA_DIR:-~/.kimi}/sessions/<hash>/<sessão>/wire.jsonl`,
-//! linhas `{timestamp(s), message:{type, payload}}`: `TurnBegin{user_input}`,
-//! `ContentPart{type:"text", text}`, `ToolCall{id, function{name, arguments}}`,
-//! `ToolResult{tool_call_id, return_value}`, `StatusUpdate{token_usage{input_other,
-//! output, input_cache_read, input_cache_creation}, message_id}` (o mesmo
-//! `message_id` pode repetir: fica o maior). O modelo do legado mora no
-//! `config.json`, que também guarda chave de API: não é lido.
-//! Kimi não está instalado aqui: só fixture.
-
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
@@ -42,12 +20,10 @@ fn legacy_home() -> Option<PathBuf> {
     env_dir("KIMI_DATA_DIR").or_else(|| home_join(&[".kimi"]))
 }
 
-/// (arquivo, id, pai, é legado).
 fn wires() -> Vec<(PathBuf, String, Option<String>, bool)> {
     let mut out = Vec::new();
     if let Some(h) = code_home() {
         for f in find_files(&h.join("sessions"), 5, |p| file_name(p) == "wire.jsonl") {
-            // sessions/<ws>/<sessão>/agents/<agente>/wire.jsonl
             let agent_dir = f.parent();
             let agents = agent_dir.and_then(Path::parent);
             if agents.map(file_name).as_deref() != Some("agents") {
@@ -105,7 +81,6 @@ fn input_text(v: &Value) -> String {
     }
 }
 
-/// Evento do loop do agente (formato aberto: nomes variam por versão).
 fn loop_event(ev: &Value, ts: &str, turns: &mut Vec<Turn>, model: &Option<String>) {
     let ty = ev
         .get("type")
@@ -185,7 +160,6 @@ fn loop_event(ev: &Value, ts: &str, turns: &mut Vec<Turn>, model: &Option<String
     }
 }
 
-/// Parser do `wire.jsonl` do Kimi Code.
 pub fn parse_code(lines: &[Value], id: &str, source: &Path) -> Session {
     let mut meta = new_meta(TOOL, id, source);
     let mut turns: Vec<Turn> = Vec::new();
@@ -271,13 +245,11 @@ pub fn parse_code(lines: &[Value], id: &str, source: &Path) -> Session {
     Session { meta, turns }
 }
 
-/// Parser do `wire.jsonl` do kimi-cli legado.
 pub fn parse_legacy(lines: &[Value], id: &str, source: &Path) -> Session {
     let mut meta = new_meta(TOOL, id, source);
     meta.account = Some("kimi-cli".into());
     let mut turns: Vec<Turn> = Vec::new();
     let model: Option<String> = None;
-    // message_id → (turno, uso) para ficar com o maior.
     let mut status: HashMap<String, (usize, TokenUsage)> = HashMap::new();
     let mut results = Vec::new();
     for l in lines {
@@ -356,7 +328,6 @@ pub fn parse_legacy(lines: &[Value], id: &str, source: &Path) -> Session {
 }
 
 fn session_extras(wire: &Path, sess_id: &str) -> (Option<String>, Option<String>) {
-    // <home>/sessions/<ws>/<sessão>/agents/<agente>/wire.jsonl
     let sess_dir = wire.parent().and_then(Path::parent).and_then(Path::parent);
     let ws_slug = sess_dir
         .and_then(Path::parent)

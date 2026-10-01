@@ -1,10 +1,3 @@
-//! `omniget agent run|loop|jobs|explain|status|diff|report|approvals|approve|integrate|discard|budget|workflow|agents`: talks to the running desktop app
-//! through the local bridge (`127.0.0.1:<port>` from `settings.json`) with a
-//! scoped token (2.1): `OMNIGET_TOKEN` if set, else the CLI token the app
-//! keeps in `<app_data>/llm/cli-token`. The browser extension's key in
-//! `settings.json` is the last resort, for one version, with a warning.
-//! The app owns the jobs, so a run started here survives this process.
-
 use std::time::Duration;
 
 use anyhow::{anyhow, bail, Context};
@@ -14,13 +7,9 @@ pub(crate) struct Bridge {
     base: String,
     token: String,
     http: reqwest::Client,
-    /// `OMNIGET_JOB_ID` when this runs inside a job's turn (2.6): sent as
-    /// `X-Omniget-Job`, so the app refuses a job started from a job.
     job: Option<String>,
 }
 
-/// The job this process runs inside, if any (the app sets it on a job's
-/// child, 2.6).
 pub(crate) fn job_context() -> Option<String> {
     std::env::var("OMNIGET_JOB_ID")
         .ok()
@@ -37,8 +26,6 @@ impl Bridge {
         let json: Value = serde_json::from_str(&raw)?;
         let bridge = &json["app_settings"]["bridge"];
         let job = job_context();
-        // Inside a job the app hands the address (2.6) and the job's own
-        // token, which reaches that job only: never the CLI token file.
         let base = match std::env::var("OMNIGET_BRIDGE_URL")
             .ok()
             .filter(|u| u.starts_with("http://127.0.0.1:"))
@@ -63,7 +50,6 @@ impl Bridge {
         Ok(Self {
             base,
             token,
-            // Above the longest wait the bridge accepts (120 s).
             http: reqwest::Client::builder()
                 .timeout(Duration::from_secs(150))
                 .build()?,
@@ -71,9 +57,6 @@ impl Bridge {
         })
     }
 
-    /// The bridge takes an authenticated request (3.2): `GET /v1/state`
-    /// answers 2xx within 2 s. A refused connection, a timeout or a reply
-    /// from something else on a stale port are all "not ready".
     pub(crate) async fn ready(&self) -> bool {
         self.authed(self.http.get(format!("{}/v1/state", self.base)))
             .timeout(Duration::from_secs(2))
@@ -90,8 +73,6 @@ impl Bridge {
         }
     }
 
-    /// `GET /v1/jobs/{id}/wait`: `Ok(Some(job))` once it matches, `Ok(None)`
-    /// on the bridge's timeout (408), an error for anything else.
     async fn wait(
         &self,
         id: &str,
@@ -145,8 +126,6 @@ impl Bridge {
             .await
     }
 
-    /// A text body (`format=patch`); an error status still reads the JSON
-    /// `error` the bridge sends.
     async fn get_text(&self, path: &str) -> anyhow::Result<String> {
         let res = self
             .authed(self.http.get(format!("{}{path}", self.base)))
@@ -171,9 +150,6 @@ impl Bridge {
     }
 }
 
-/// Which bearer the CLI sends: `OMNIGET_TOKEN`, then the app's CLI token
-/// file, then (deprecated) the extension key, which the agent routes stop
-/// accepting in the next version.
 pub(crate) fn resolve_token(
     env: Option<String>,
     file: Option<String>,
@@ -207,7 +183,6 @@ fn workspace(arg: Option<String>, no_workspace: bool) -> Option<String> {
     })
 }
 
-/// `--auto-resume` / `--no-auto-resume`; neither = the app's setting (3.1).
 fn auto_resume_flag(on: bool, off: bool) -> Option<bool> {
     match (on, off) {
         (true, _) => Some(true),
@@ -216,11 +191,8 @@ fn auto_resume_flag(on: bool, off: bool) -> Option<bool> {
     }
 }
 
-/// The run modes of `--mode` (2.7), safest first. Without the flag the app
-/// uses `approval_required` for anything started from here (D2).
 const RUN_MODES: [&str; 4] = ["approval_required", "auto_edits", "auto", "full_access"];
 
-/// Adds `run_mode` to a run or Loop body when `--mode` was given.
 fn with_run_mode(mut body: Value, mode: Option<String>) -> Value {
     if let Some(m) = mode.filter(|m| !m.trim().is_empty()) {
         body["run_mode"] = json!(m);
@@ -228,10 +200,6 @@ fn with_run_mode(mut body: Value, mode: Option<String>) -> Value {
     body
 }
 
-/// The body of `POST /v1/agent/run`. `--isolate` asks for a worktree,
-/// `--shared` for the folder itself; neither leaves the app's `auto` (or
-/// the workflow's `isolation`). No `--agent` sends none: the folder's
-/// workflow (or the app) picks it.
 fn run_body(
     agent: Option<&str>,
     prompt: &str,
@@ -278,7 +246,6 @@ fn print_job_line(j: &Value) {
     );
 }
 
-/// Every state a job ends in (the bridge's `until=terminal`).
 const TERMINAL: &[&str] = &[
     "done",
     "review",
@@ -288,12 +255,6 @@ const TERMINAL: &[&str] = &[
     "interrupted",
 ];
 
-/// Follows a job to its end on the bridge's long poll (2.5): each call
-/// sleeps until the job's state moves past the one shown, so the CLI never
-/// polls on a timer. With `start_seq` (the start receipt's `state_seq`, its
-/// `queued`), an end only counts when it is newer than that start (84#P8:
-/// `--wait` concludes after observing queued/running → an end, never on a
-/// state it saw before). A quiet job gets its log refreshed every 5 s.
 async fn follow(
     bridge: &Bridge,
     id: &str,
@@ -345,7 +306,6 @@ async fn follow(
     }
 }
 
-/// An end state that is newer than the start the caller saw.
 fn is_end(state: &str, seq: i64, start_seq: Option<i64>) -> bool {
     TERMINAL.contains(&state) && start_seq.is_none_or(|s| seq > s)
 }
@@ -373,7 +333,6 @@ fn finish(id: &str, job: &Value, state: &str, json_out: bool) -> anyhow::Result<
                 u["output_tokens"].as_u64().unwrap_or(0),
             );
         }
-        // `review`: it ended well and changed files a person should look at.
         if state == "review" {
             if let Some(stamp) = job["proof"]["stamp"].as_str() {
                 eprintln!("proof: {stamp}");
@@ -386,7 +345,6 @@ fn finish(id: &str, job: &Value, state: &str, json_out: bool) -> anyhow::Result<
             );
         }
     }
-    // The agent's own verdict counts too (2.6): `OUTCOME: failed` exits 1.
     let said_failed = job["outcome"]["status"].as_str() == Some("failed");
     if !matches!(state, "done" | "review" | "done_unreported") || said_failed {
         std::process::exit(1);
@@ -394,8 +352,6 @@ fn finish(id: &str, job: &Value, state: &str, json_out: bool) -> anyhow::Result<
     Ok(())
 }
 
-/// `omniget agent explain` in plain lines: what the watchdog and the deadline
-/// see right now, so "why is it still running?" has an answer without the app.
 fn explain_text(v: &Value) -> String {
     let mut out = String::new();
     let secs = |k: &str| v[k].as_u64().map(|s| format!("{s} s"));
@@ -455,9 +411,6 @@ fn explain_text(v: &Value) -> String {
     out
 }
 
-/// `omniget agent diff` in plain lines: one line per file (status, `+/-` or
-/// `binary`, path) and the totals; `Err` with the reason when the job has
-/// no diff (never an empty list standing for "unknown").
 fn diff_text(v: &Value) -> Result<String, String> {
     if !v["available"].as_bool().unwrap_or(false) {
         return Err(format!(
@@ -503,9 +456,6 @@ fn diff_text(v: &Value) -> Result<String, String> {
     Ok(out)
 }
 
-/// `omniget agent status` in plain lines: what runs, what waits for a
-/// person, and every queued job with its place and the reason it waits, so
-/// "is it stuck?" has an answer (W7).
 fn status_text(v: &Value) -> String {
     let l = &v["limits"];
     let mut out = format!(
@@ -554,8 +504,6 @@ fn status_text(v: &Value) -> String {
     out
 }
 
-/// The decision `omniget agent approve` sends: accept by default, one flag
-/// for anything else (clap refuses two of them together).
 fn approve_decision(session: bool, always: bool, deny: bool, cancel: bool) -> &'static str {
     match (session, always, deny, cancel) {
         (true, ..) => "accept_session",
@@ -566,8 +514,6 @@ fn approve_decision(session: bool, always: bool, deny: bool, cancel: bool) -> &'
     }
 }
 
-/// `omniget agent approvals` in plain lines: one per question, with the id
-/// to pass to `approve`.
 fn approvals_text(v: &Value) -> String {
     let rows: Vec<&Value> = v.as_array().into_iter().flatten().collect();
     if rows.is_empty() {
@@ -598,8 +544,6 @@ fn approvals_text(v: &Value) -> String {
     out
 }
 
-/// What `omniget agent integrate` prints for a merged job (a conflict
-/// comes back as an error: 409 with the files).
 fn integrate_text(o: &Value) -> String {
     let target = o["target_branch"].as_str().unwrap_or("?");
     match o["status"].as_str().unwrap_or("") {
@@ -940,7 +884,6 @@ pub enum WorkflowCommand {
     },
 }
 
-/// Percent-encodes a query value (RFC 3986 unreserved kept).
 fn query_value(v: &str) -> String {
     v.bytes()
         .map(|b| match b {
@@ -952,7 +895,6 @@ fn query_value(v: &str) -> String {
         .collect()
 }
 
-/// `omniget agent workflow show`: the status in a few lines.
 fn workflow_text(v: &Value) -> String {
     let mut out = String::new();
     let state = v["state"].as_str().unwrap_or("?");
@@ -1006,7 +948,6 @@ fn workflow_text(v: &Value) -> String {
     out
 }
 
-/// `omniget agent report <id>`: the verdict first, then the facts.
 fn report_text(v: &Value) -> String {
     let mut out = format!(
         "{} {} ({})\n",
@@ -1105,8 +1046,6 @@ pub enum BudgetCommand {
     },
 }
 
-/// `omniget agent budget list`: one line per ceiling, then the incidents
-/// that still hold a scope.
 fn budget_text(v: &Value) -> String {
     let mut out = String::new();
     let policies = v["policies"].as_array().cloned().unwrap_or_default();
@@ -1155,7 +1094,6 @@ fn budget_text(v: &Value) -> String {
     out
 }
 
-/// A command id no other run of this CLI will send: time, pid and a counter.
 fn fresh_command_id() -> String {
     static N: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
     let nanos = std::time::SystemTime::now()
@@ -1169,8 +1107,6 @@ fn fresh_command_id() -> String {
     )
 }
 
-/// `omniget agent workflow check [FILE]`: parses the file with the app's
-/// own parser (the same crate), no app needed.
 fn workflow_check(file: Option<&str>, json_out: bool) -> anyhow::Result<()> {
     use omniget_core::core::llm::workflow;
     let path = match file {
@@ -1212,8 +1148,6 @@ fn workflow_check(file: Option<&str>, json_out: bool) -> anyhow::Result<()> {
     }
 }
 
-/// Why a command that starts work refuses to run inside a job (2.6: the
-/// delegation depth is 1; the app refuses too).
 const INSIDE_A_JOB: &str = "OMNIGET_JOB_ID is set: this runs inside an OmniGet job, and a job never starts another job (delegation depth 1). Do the task yourself, in this turn.";
 
 pub async fn execute(cmd: AgentCommand, json_out: bool) -> anyhow::Result<()> {
@@ -1222,8 +1156,6 @@ pub async fn execute(cmd: AgentCommand, json_out: bool) -> anyhow::Result<()> {
     {
         bail!(INSIDE_A_JOB);
     }
-    // Trusting a workflow runs the repository's commands later: a person's
-    // act, never a job's (its token lacks `workflow:trust` too).
     if matches!(
         cmd,
         AgentCommand::Workflow {
@@ -1233,14 +1165,12 @@ pub async fn execute(cmd: AgentCommand, json_out: bool) -> anyhow::Result<()> {
     {
         bail!("OMNIGET_JOB_ID is set: a job never trusts a repository's workflow; the person does, in OmniGet or with this command outside a job.");
     }
-    // Validating the file needs no app.
     if let AgentCommand::Workflow {
         cmd: WorkflowCommand::Check { file },
     } = &cmd
     {
         return workflow_check(file.as_deref(), json_out);
     }
-    // Starts the app hidden when it is not running (3.2).
     let bridge = super::launch::connect().await?;
     match cmd {
         AgentCommand::Run {
@@ -1330,8 +1260,6 @@ pub async fn execute(cmd: AgentCommand, json_out: bool) -> anyhow::Result<()> {
                 [p] => p.clone(),
                 _ => bail!("two arguments (`<agent> <prompt>`) need --tool; without it, give only the prompt and pick the roster agent with --agent"),
             };
-            // `job.start` on the command surface (2.5): the receipt names
-            // the job and the state it started in.
             let mut body = with_run_mode(
                 run_body(
                     agent.as_deref(),

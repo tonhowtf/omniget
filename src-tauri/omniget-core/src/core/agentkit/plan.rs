@@ -1,8 +1,3 @@
-//! The install plan (plan §4.4 step 1–2): every file each component would touch
-//! on each target, with a unified diff, conflicts resolved by the chosen policy,
-//! losses of fidelity and the commands hooks/MCP servers will run. Nothing is
-//! written here; [`super::writer::apply`] replays the plan.
-
 use std::collections::{BTreeMap, HashMap};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, RwLock};
@@ -18,15 +13,11 @@ use super::targets::{self, TargetAdapter};
 use super::writer;
 use super::{now_iso, sha256_hex, AgentkitError, Env, Result, Scope};
 
-/// What to do when a file or entry of the same name already exists and is not ours.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ConflictPolicy {
-    /// Leave theirs, skip ours.
     Skip,
-    /// Replace theirs (a backup is kept in the transaction).
     Overwrite,
-    /// Install ours under `<category>-<name>` (default, plan §4.4.5).
     #[default]
     Rename,
 }
@@ -35,17 +26,13 @@ pub enum ConflictPolicy {
 #[serde(rename_all = "snake_case")]
 pub enum UnitStatus {
     New,
-    /// Installed before with other content: the old install is removed first.
     Update,
-    /// Same component and content already installed: nothing to do.
     Installed,
     Unsupported,
-    /// Skipped by the conflict policy.
     Conflict,
     Error,
 }
 
-/// One component on one target.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PlanUnit {
     pub unit_id: String,
@@ -54,7 +41,6 @@ pub struct PlanUnit {
     pub target_name: String,
     pub status: UnitStatus,
     pub compat: Compat,
-    /// Name it installs under (after a collision rename).
     pub install_name: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub replaces: Option<String>,
@@ -69,11 +55,9 @@ pub struct PlanUnit {
     pub error: Option<String>,
 }
 
-/// One path as the UI shows it.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FilePlan {
     pub path: PathBuf,
-    /// `create | replace | merge | unchanged`.
     pub action: String,
     pub before_sha: Option<String>,
     pub after_sha: Option<String>,
@@ -86,11 +70,8 @@ pub struct FilePlan {
     pub commands: Vec<String>,
     #[serde(default)]
     pub executable: bool,
-    /// The file on disk is an older copy of ours (update): replacing it is not a collision.
     #[serde(default)]
     pub owned_by_update: bool,
-    /// A folder link to this path (skill folder of a tool that does not read
-    /// `.agents/skills`); `before_sha`/`after_sha` hash [`writer::link_state`].
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub link_to: Option<PathBuf>,
 }
@@ -110,13 +91,11 @@ pub struct InstallPlan {
 }
 
 impl InstallPlan {
-    /// Anything to write at all?
     pub fn has_changes(&self) -> bool {
         self.files.iter().any(|f| f.action != "unchanged")
     }
 }
 
-/// Inputs of [`plan`].
 #[derive(Debug, Clone, Default)]
 pub struct PlanRequest {
     pub components: Vec<Component>,
@@ -124,11 +103,8 @@ pub struct PlanRequest {
     pub scope: Option<Scope>,
     pub project_dir: Option<PathBuf>,
     pub policy: ConflictPolicy,
-    /// Only for tools that cannot reference an env var (written in plain text, with a warning).
     pub secret_values: BTreeMap<String, String>,
 }
-
-// ------------------------------------------------------------------ catalog resolver
 
 type Resolver = Arc<dyn Fn(&str) -> Result<Component> + Send + Sync>;
 
@@ -137,15 +113,12 @@ fn resolver_cell() -> &'static RwLock<Option<Resolver>> {
     CELL.get_or_init(|| RwLock::new(None))
 }
 
-/// Registers how catalog ids (`cct:agents/dev/x`) become components. The
-/// catalog module (or the app setup) calls this once.
 pub fn set_catalog_resolver(f: impl Fn(&str) -> Result<Component> + Send + Sync + 'static) {
     if let Ok(mut w) = resolver_cell().write() {
         *w = Some(Arc::new(f));
     }
 }
 
-/// Resolves a catalog id, or `path:<kind>:<absolute path>` straight from disk.
 pub fn resolve_id(id: &str) -> Result<Component> {
     if let Some(rest) = id.strip_prefix("path:") {
         let (kind, p) = rest
@@ -165,7 +138,6 @@ pub fn resolve_id(id: &str) -> Result<Component> {
     }
 }
 
-/// `agent:dev/test-runner` referenced from `cct:loops/eng/x` → `cct:agents/dev/test-runner`.
 fn reference_id(reference: &str, from: &Component) -> Option<String> {
     let (kind, path) = reference.split_once(':')?;
     let kind = ComponentKind::parse(kind)?;
@@ -178,7 +150,6 @@ fn reference_id(reference: &str, from: &Component) -> Option<String> {
     Some(format!("{source}:{plural}/{path}"))
 }
 
-/// Stacks, loops and templates bring their referenced components along.
 fn expand(components: Vec<Component>, warnings: &mut Vec<String>) -> Vec<Component> {
     let mut out: Vec<Component> = Vec::new();
     let mut queue: Vec<Component> = components;
@@ -223,8 +194,6 @@ fn expand(components: Vec<Component>, warnings: &mut Vec<String>) -> Vec<Compone
     out
 }
 
-// ------------------------------------------------------------------ planning
-
 fn read_opt(path: &Path) -> Option<Vec<u8>> {
     std::fs::read(path).ok()
 }
@@ -246,7 +215,6 @@ fn name_candidates(c: &Component, base: &str) -> Vec<String> {
     v
 }
 
-/// Does `pf` land on something that exists and is not ours?
 fn collides(pf: &PlannedFile, owned: &[PathBuf]) -> bool {
     if pf.action == FileAction::Link {
         let Some(to) = &pf.link_to else {
@@ -262,7 +230,6 @@ fn collides(pf: &PlannedFile, owned: &[PathBuf]) -> bool {
     }
     if let Some(root) = &pf.unit_root {
         if root.exists() && !owned.iter().any(|o| o.starts_with(root)) {
-            // same bytes already there → not a collision (idempotent)
             return match (read_opt(&pf.path), &pf.content) {
                 (Some(a), Some(b)) => &a != b,
                 (None, _) => true,
@@ -277,7 +244,6 @@ fn collides(pf: &PlannedFile, owned: &[PathBuf]) -> bool {
     read_opt(&pf.path).as_ref() != pf.content.as_ref()
 }
 
-/// Makes a plan and stores it in memory; returns it.
 pub fn plan(env: &Env, req: PlanRequest) -> Result<InstallPlan> {
     let scope = req.scope.unwrap_or(if req.project_dir.is_some() {
         Scope::Project
@@ -453,7 +419,6 @@ pub fn plan(env: &Env, req: PlanRequest) -> Result<InstallPlan> {
         }
     }
 
-    // ---- simulate every path, resolving entry conflicts by policy
     let mut order: Vec<PathBuf> = Vec::new();
     for u in &units {
         if !matches!(u.status, UnitStatus::New | UnitStatus::Update) {
@@ -574,7 +539,6 @@ pub fn plan(env: &Env, req: PlanRequest) -> Result<InstallPlan> {
                 .as_deref()
                 .map(|b| String::from_utf8_lossy(b).to_string())
                 .unwrap_or_default();
-            // pieces of an install being updated come out first
             for r in &replaced {
                 for f in &r.files {
                     if Path::new(&f.path) == path {
@@ -680,8 +644,6 @@ pub fn plan(env: &Env, req: PlanRequest) -> Result<InstallPlan> {
     Ok(plan)
 }
 
-/// Applies the conflict policy to one op against the current simulated text.
-/// `None` = drop the op.
 fn resolve_op(
     format: DocFormat,
     text: &str,
@@ -827,8 +789,6 @@ fn resolve_op(
     }
 }
 
-// ------------------------------------------------------------------ plan store
-
 fn plans() -> &'static Mutex<HashMap<String, InstallPlan>> {
     static CELL: std::sync::OnceLock<Mutex<HashMap<String, InstallPlan>>> =
         std::sync::OnceLock::new();
@@ -850,19 +810,14 @@ fn store(plan: InstallPlan) {
     }
 }
 
-/// A stored plan by id.
 pub fn get(id: &str) -> Option<InstallPlan> {
     plans().lock().ok().and_then(|m| m.get(id).cloned())
 }
 
-/// Removes a stored plan (after apply).
 pub fn take(id: &str) -> Option<InstallPlan> {
     plans().lock().ok().and_then(|mut m| m.remove(id))
 }
 
-// ------------------------------------------------------------------ unified diff
-
-/// Unified diff with 3 lines of context (own LCS; big files get a summary).
 pub fn unified_diff(a: &str, b: &str, path: &str, new_file: bool) -> String {
     if a == b {
         return String::new();
@@ -885,7 +840,6 @@ pub fn unified_diff(a: &str, b: &str, path: &str, new_file: bool) -> String {
             bl.len()
         );
     }
-    // LCS table (suffix lengths)
     let (n, m) = (al.len(), bl.len());
     let mut t = vec![0u32; (n + 1) * (m + 1)];
     for i in (0..n).rev() {
@@ -897,7 +851,6 @@ pub fn unified_diff(a: &str, b: &str, path: &str, new_file: bool) -> String {
             };
         }
     }
-    // edit script: (tag, a_idx, b_idx)
     let mut ops: Vec<(char, usize, usize)> = Vec::new();
     let (mut i, mut j) = (0, 0);
     while i < n || j < m {

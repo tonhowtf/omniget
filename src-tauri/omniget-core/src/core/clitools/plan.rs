@@ -1,10 +1,3 @@
-//! Planos de instalar/atualizar: o comando exato, visível antes de rodar.
-//!
-//! Instalação nova oferece um plano por método disponível (instalador oficial,
-//! npm, brew, winget/scoop, uv/pipx), com um recomendado. Atualização só roda
-//! o comando do dono **provado**; sem prova o plano sai com `runnable=false`
-//! e o comando fica para copiar.
-
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Mutex;
@@ -41,16 +34,12 @@ pub struct Plan {
     pub id: String,
     pub tool_id: String,
     pub action: Action,
-    /// `installer`, `npm`, `brew`, `winget`, `scoop`, `uv`, `pipx`, `native`,
-    /// `bun`, `pnpm`, `pip`, `cargo`.
     pub method: String,
     pub command: CommandSpec,
     pub runnable: bool,
-    /// Por que não roda (gerenciador ausente, dono não provado…).
     pub reason: Option<String>,
     pub recommended: bool,
     pub warnings: Vec<String>,
-    /// Dono esperado na hora de rodar (update re-prova com detecção fresca).
     pub owner: Option<OwnerMethod>,
     pub prefix: Option<PathBuf>,
 }
@@ -89,12 +78,10 @@ fn installer_line(tool: &CliTool) -> Option<String> {
     }
 }
 
-/// Instalador oficial como comando de shell.
 pub fn installer_spec(tool: &CliTool) -> Option<CommandSpec> {
     installer_line(tool).map(|l| CommandSpec::shell(l, format!("installer:{}", tool.id)))
 }
 
-/// Linha para copiar quando não há o que rodar (instalação).
 pub fn manual_install_line(tool: &CliTool) -> Option<String> {
     installer_line(tool)
         .or_else(|| {
@@ -114,7 +101,6 @@ pub fn manual_install_line(tool: &CliTool) -> Option<String> {
         .or_else(|| tool.pip.as_ref().map(|p| format!("uv tool install {p}")))
 }
 
-/// Linha para copiar na atualização quando o dono não foi provado.
 pub fn manual_update_line(tool: &CliTool) -> Option<String> {
     tool.npm
         .as_ref()
@@ -149,14 +135,12 @@ fn blocked(mut p: Plan, reason: impl Into<String>) -> Plan {
     p
 }
 
-/// Prefixo npm pedido (testes e instalação isolada): `OMNIGET_CLITOOLS_NPM_PREFIX`.
 pub fn npm_prefix_override() -> Option<PathBuf> {
     std::env::var_os("OMNIGET_CLITOOLS_NPM_PREFIX")
         .map(PathBuf::from)
         .filter(|p| !p.as_os_str().is_empty())
 }
 
-/// Planos de instalação nova, um por método disponível neste sistema.
 pub async fn install_plans(tool: &CliTool, probes: &Probes) -> Vec<Plan> {
     let mut out: Vec<Plan> = Vec::new();
 
@@ -302,8 +286,6 @@ pub async fn install_plans(tool: &CliTool, probes: &Probes) -> Vec<Plan> {
         }
     }
 
-    // Recomendado: o instalador do fornecedor quando ele tem auto-updater
-    // (a instalação fica "nativa"); senão o primeiro gerenciador que roda.
     let prefers_vendor = tool.self_update.is_some() || tool.npm.is_none();
     let pick = out
         .iter()
@@ -322,7 +304,6 @@ pub async fn install_plans(tool: &CliTool, probes: &Probes) -> Vec<Plan> {
     out
 }
 
-/// Plano de atualização a partir da detecção (dono provado ou nada).
 pub fn update_plan(tool: &CliTool, det: &Detection) -> Plan {
     let own = &det.owner;
     let method = match own.method {

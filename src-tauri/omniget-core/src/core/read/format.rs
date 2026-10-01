@@ -1,6 +1,3 @@
-//! Which kind of book a file is, from its extension and, when that is
-//! ambiguous or missing, its first bytes.
-
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 
@@ -22,7 +19,6 @@ pub enum BookFormat {
     Md,
     Html,
     Djvu,
-    /// A folder of images treated as one comic chapter.
     Folder,
 }
 
@@ -59,13 +55,11 @@ impl BookFormat {
         Self::from_ext(p.extension()?.to_str()?)
     }
 
-    /// Sniffs a format from the first bytes (a download with no extension).
     pub fn sniff(head: &[u8]) -> Option<Self> {
         if head.starts_with(b"%PDF") {
             return Some(Self::Pdf);
         }
         if head.starts_with(b"PK\x03\x04") {
-            // EPUB puts an uncompressed `mimetype` first.
             if head.len() > 58 && &head[30..38] == b"mimetype" {
                 let tail = &head[38..head.len().min(80)];
                 if tail.windows(20).any(|w| w == b"application/epub+zip") {
@@ -134,7 +128,6 @@ impl BookFormat {
         }
     }
 
-    /// Comics are read page by page as images, everything else reflows.
     pub fn is_comic(self) -> bool {
         matches!(
             self,
@@ -173,7 +166,6 @@ pub fn image_mime(name: &str) -> &'static str {
     }
 }
 
-/// Natural order: `page2` before `page10`, case-insensitive.
 pub fn natural_cmp(a: &str, b: &str) -> std::cmp::Ordering {
     use std::cmp::Ordering;
     let (mut ai, mut bi) = (a.chars().peekable(), b.chars().peekable());

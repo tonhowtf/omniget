@@ -1,8 +1,4 @@
-//! Goose recipes (YAML) for commands and, when a manifest asks for it, agents
 //! (estudo 06 Goose (b)/(c), §0C.2/§0C.3): `{version, title, description,
-//! instructions | prompt, parameters, extensions, settings}`. A command's body is
-//! the recipe `prompt` with `{{ args }}` declared as a parameter; an agent's body
-//! is the recipe `instructions`.
 
 use serde_json::{json, Map, Value};
 
@@ -16,7 +12,6 @@ use crate::core::agentkit::{Result, Scope};
 
 pub struct GooseRecipeConverter;
 
-/// Recipe folder: `paths.recipes`, else `paths.commands`.
 fn recipes_dir(
     target: &TargetAdapter,
     scope: Scope,
@@ -25,7 +20,6 @@ fn recipes_dir(
     kind_path(target, "recipes", scope, ctx).or_else(|| kind_path(target, "commands", scope, ctx))
 }
 
-/// Claude MCP record → Goose recipe extension.
 fn extension(name: &str, v: &Value) -> Option<Value> {
     let m = v.as_object()?;
     let mut o = Map::new();
@@ -53,7 +47,6 @@ fn extension(name: &str, v: &Value) -> Option<Value> {
 }
 
 impl GooseRecipeConverter {
-    /// Recipe for a command.
     pub fn command_recipe(
         c: &Component,
         cmd: &CommandSpec,
@@ -96,7 +89,6 @@ impl GooseRecipeConverter {
         (yaml_doc(&e), losses)
     }
 
-    /// Recipe for an agent (body → `instructions`).
     pub fn agent_recipe(
         c: &Component,
         a: &AgentSpec,
@@ -145,7 +137,6 @@ impl GooseRecipeConverter {
         (yaml_doc(&e), losses)
     }
 
-    /// Recipe → canonical command (prompt) or agent (instructions only).
     pub fn read(
         text: &str,
         target: &TargetAdapter,
@@ -226,7 +217,6 @@ impl Converter for GooseRecipeConverter {
         pf.losses = losses;
         let mut out = vec![pf];
         if c.kind == ComponentKind::Command {
-            // a slash command lives in the user config and points at the recipe
             match kind_path(target, "settings", Scope::Global, ctx) {
                 Some(cfg) if scope != Scope::Project && scope != Scope::Local => {
                     let mut m = PlannedFile::merge(

@@ -1,7 +1,3 @@
-//! Hook dialects stored as TOML arrays of tables: Kimi Code (`[[hooks]]
-//! event/matcher/command/timeout` in `~/.kimi-code/config.toml`) and Mistral
-//! Vibe (`.vibe/hooks.toml` `[[hooks]] name/type/match/command/timeout`).
-
 use serde_json::{json, Map, Value};
 
 use super::hook_common::{
@@ -33,7 +29,6 @@ fn finish(
             .map(|v| PatchOp::Append {
                 path: keys(["hooks"]),
                 value: v,
-                // the same command may serve several events: compare whole entries
                 dedupe: Dedupe::Equal,
             })
             .collect();
@@ -97,7 +92,6 @@ pub fn kimi(
     ))
 }
 
-/// Vibe `match`: fnmatch glob, or `re:` + regex (case-insensitive).
 fn vibe_match(m: &str) -> String {
     if m.contains('|') || m.contains('^') || m.contains('$') || m.contains(".*") {
         format!("re:{}", super::hook_json::anchored(m))

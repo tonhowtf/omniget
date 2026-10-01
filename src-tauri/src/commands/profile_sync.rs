@@ -1,20 +1,9 @@
-//! Downloads › Tools › Profile sync: save a profile or gallery link once,
-//! download all of it the first time, and afterwards only what is new.
-//!
-//! The idea comes from SCrawler (AAndyProgram/SCrawler), which keeps a data
-//! file per user with every post it already saved and stops reading a profile
-//! at the first known post. Reimplemented on top of gallery-dl: one
-//! `--download-archive` per profile, and `--abort` after a run of known files
-//! once the profile has been synced. No code was copied.
-
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
 
 use serde::{Deserialize, Serialize};
 use tokio::io::{AsyncBufReadExt, BufReader};
 
-/// On later syncs, stop reading the profile after this many files in a row
-/// that are already in its archive (the newest posts come first).
 const ABORT_AFTER_KNOWN: u32 = 20;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -23,10 +12,8 @@ pub struct SyncedProfile {
     pub added_at: i64,
     #[serde(default)]
     pub last_sync_at: Option<i64>,
-    /// Files saved by the last sync.
     #[serde(default)]
     pub last_new: usize,
-    /// Files saved by every sync together.
     #[serde(default)]
     pub total: usize,
     #[serde(default)]
@@ -61,7 +48,6 @@ fn save(dir: &Path, list: &[SyncedProfile]) -> Result<(), String> {
     std::fs::write(dir.join("profiles.json"), json).map_err(|e| e.to_string())
 }
 
-/// The same profile written in different ways is one entry.
 pub fn normalize_url(url: &str) -> String {
     let u = url.trim();
     let u = u.split('#').next().unwrap_or(u);
@@ -69,9 +55,7 @@ pub fn normalize_url(url: &str) -> String {
     u.trim_end_matches('/').replacen("://www.", "://", 1)
 }
 
-/// Archive file of a profile: a stable name from its URL.
 pub fn archive_name(url: &str) -> String {
-    // FNV-1a, enough to give each profile its own file name.
     let mut h: u64 = 0xcbf29ce484222325;
     for b in normalize_url(url).bytes() {
         h ^= b as u64;
@@ -133,7 +117,6 @@ pub fn profile_sync_add(url: String) -> Result<Vec<SyncedProfile>, String> {
     Ok(list)
 }
 
-/// Removes the profile from the list and forgets what it saved; the files stay.
 #[tauri::command]
 pub fn profile_sync_remove(url: String) -> Result<Vec<SyncedProfile>, String> {
     let dir = store_dir()?;
@@ -192,7 +175,6 @@ pub async fn profile_sync_run(url: String, output_dir: String) -> Result<SyncRes
         if line.is_empty() || line.starts_with('[') {
             continue;
         }
-        // gallery-dl prints each saved path, and `# <path>` for a file it skipped.
         if line.starts_with('#') {
             skipped += 1;
         } else {
@@ -206,8 +188,6 @@ pub async fn profile_sync_run(url: String, output_dir: String) -> Result<SyncRes
     }
     let status = child.wait().await.map_err(|e| e.to_string())?;
     let stderr_text = err_task.await.unwrap_or_default();
-    // Exit code 1 with nothing saved and nothing known is a real failure; after
-    // `--abort` gallery-dl also exits early, which is the point.
     if !status.success() && saved == 0 && skipped == 0 {
         let detail = stderr_text
             .lines()

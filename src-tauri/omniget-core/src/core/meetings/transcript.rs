@@ -1,8 +1,3 @@
-//! Transcript segments and the formats they arrive in: the Teams transcript
-//! JSON (`entries[]` with `speakerDisplayName`), WebVTT with `<v Speaker>`
-//! voice tags (Teams, Vexa exports), plain SRT, and the two-track merge that
-//! turns a mic recording and a system-audio recording into "You" / "Others".
-
 use serde::{Deserialize, Serialize};
 
 use crate::core::subtitle_merge::parse_cues;
@@ -19,9 +14,6 @@ pub struct Segment {
     pub text: String,
 }
 
-/// Teams answers `temporaryDownloadUrl?format=json` with
-/// `{"entries":[{"startOffset":"00:00:01.2340000","endOffset":...,
-/// "speakerDisplayName":"Ana","text":"..."}]}`.
 pub fn parse_teams_json(text: &str) -> Option<Vec<Segment>> {
     let json: serde_json::Value = serde_json::from_str(text).ok()?;
     let entries = json.get("entries")?.as_array()?;
@@ -54,7 +46,6 @@ pub fn parse_teams_json(text: &str) -> Option<Vec<Segment>> {
     Some(out)
 }
 
-/// `HH:MM:SS.fffffff` (Teams writes seven fractional digits).
 fn parse_offset(s: &str) -> Option<u64> {
     let mut parts = s.trim().split(':');
     let h: f64 = parts.next()?.parse().ok()?;
@@ -66,7 +57,6 @@ fn parse_offset(s: &str) -> Option<u64> {
     Some(((h * 3600.0 + m * 60.0 + sec) * 1000.0).round() as u64)
 }
 
-/// VTT or SRT. A `<v Name>` voice tag becomes the speaker; other tags go.
 pub fn parse_subtitles(text: &str) -> Vec<Segment> {
     parse_cues(text)
         .into_iter()
@@ -89,7 +79,6 @@ pub fn parse_subtitles(text: &str) -> Vec<Segment> {
         .collect()
 }
 
-/// Any transcript file OmniGet accepts: Teams JSON first, then VTT/SRT.
 pub fn parse_any(text: &str) -> Vec<Segment> {
     let trimmed = text.trim_start_matches('\u{feff}').trim_start();
     if trimmed.starts_with('{') {
@@ -105,7 +94,6 @@ fn split_voice(text: &str) -> (Option<String>, String) {
     if let Some(rest) = t.strip_prefix("<v") {
         if let Some(close) = rest.find('>') {
             let name = rest[..close].trim();
-            // `<v.loud Ana>`: classes come before the space.
             let name = match name.split_once(' ') {
                 Some((cls, n)) if cls.starts_with('.') => n.trim(),
                 _ => name,
@@ -132,8 +120,6 @@ fn strip_tags(s: &str) -> String {
     out
 }
 
-/// Joins consecutive segments from the same speaker when the gap is short,
-/// so a Teams transcript (one entry per phrase) reads as turns.
 pub fn merge_turns(segments: &[Segment], max_gap_ms: u64) -> Vec<Segment> {
     let mut out: Vec<Segment> = Vec::new();
     for s in segments {
@@ -153,9 +139,6 @@ pub fn merge_turns(segments: &[Segment], max_gap_ms: u64) -> Vec<Segment> {
     out
 }
 
-/// Merges the mic track ("You") and the system track ("Others") by time.
-/// Without headphones the mic also hears the call, so a mic segment that
-/// overlaps a system segment saying mostly the same words is an echo and goes.
 pub fn merge_tracks(mic: Vec<Segment>, system: Vec<Segment>) -> Vec<Segment> {
     let mic: Vec<Segment> = mic
         .into_iter()
@@ -207,8 +190,6 @@ pub fn fmt_clock(ms: u64) -> String {
     }
 }
 
-/// `[mm:ss] Speaker: text` lines, the shape both the summary prompt and the
-/// markdown export use.
 pub fn to_plain(segments: &[Segment]) -> String {
     let mut out = String::new();
     for s in segments {

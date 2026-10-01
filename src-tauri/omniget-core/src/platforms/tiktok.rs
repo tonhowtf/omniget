@@ -671,11 +671,6 @@ impl PlatformDownloader for TikTokDownloader {
     }
 }
 
-/// Error of a failed native extraction followed by a failed yt-dlp fallback.
-/// When yt-dlp ran, its statement about the post ("Your IP address is blocked
-/// from accessing this post", private, removed) is the evidence; the native
-/// parser's failure is usually a generic "blocking requests". Only a missing
-/// engine keeps the native error.
 fn fallback_error(native: anyhow::Error, engine: anyhow::Error) -> anyhow::Error {
     if engine.to_string().starts_with("yt-dlp not found") {
         native

@@ -1,7 +1,3 @@
-//! Per-tool adapters as data (plan §4.2). One TOML file per tool lives in
-//! `targets/data/<id>.toml` and is embedded at build time; a file with the same
-//! name in `<app_data>/agentkit/targets/` overrides keys of the embedded one.
-
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
@@ -12,7 +8,6 @@ use serde_json::Value;
 use super::model::ComponentKind;
 use super::{AgentkitError, Env, Os, Result, Scope};
 
-/// The embedded manifests, in tier order of the plan.
 pub const EMBEDDED: &[(&str, &str)] = &[
     ("claude", include_str!("data/claude.toml")),
     ("codex", include_str!("data/codex.toml")),
@@ -95,7 +90,6 @@ pub struct Scopes {
     pub config_dir_env: Option<String>,
 }
 
-/// Where one kind lives, per scope and OS.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct PathSpec {
     #[serde(default)]
@@ -129,7 +123,6 @@ pub struct PathSpec {
 }
 
 impl PathSpec {
-    /// Template for a scope on an OS.
     pub fn template(&self, scope: Scope, os: Os) -> Option<&str> {
         fn pick<'a>(
             os: Os,
@@ -169,7 +162,6 @@ impl PathSpec {
         }
     }
 
-    /// Alternative locations the tool also reads (for import/inventory).
     pub fn alternatives(&self, scope: Scope) -> &[String] {
         match scope {
             Scope::Project | Scope::Local => &self.project_alt,
@@ -178,12 +170,10 @@ impl PathSpec {
     }
 }
 
-/// One MCP config surface of a tool (Copilot has VS Code and CLI surfaces).
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct McpTarget {
     #[serde(default)]
     pub surface: String,
-    /// `json | jsonc | toml | yaml | yaml_file_per_server`.
     pub format: String,
     #[serde(default)]
     pub project: Option<String>,
@@ -195,10 +185,8 @@ pub struct McpTarget {
     pub global_linux: Option<String>,
     #[serde(default)]
     pub global_windows: Option<String>,
-    /// Path of the servers container inside the file.
     #[serde(default)]
     pub key: Vec<String>,
-    /// `map` (keyed by name) or `array` (objects with `name_field`).
     #[serde(default = "default_container")]
     pub container: String,
     #[serde(default)]
@@ -209,10 +197,8 @@ pub struct McpTarget {
     pub remote_shape: String,
     #[serde(default)]
     pub transports: Vec<String>,
-    /// `env_ref | vscode_inputs | bearer_env_var | plain`.
     #[serde(default)]
     pub secret_mode: Option<String>,
-    /// How the tool expands an env var inside strings; `VAR` is the name.
     #[serde(default)]
     pub env_ref: Option<String>,
     #[serde(default)]
@@ -332,7 +318,6 @@ pub struct TrustConfig {
     pub how: Option<String>,
 }
 
-/// Everything the installer knows about one tool.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TargetAdapter {
     pub id: String,
@@ -341,7 +326,6 @@ pub struct TargetAdapter {
     pub tier: u8,
     #[serde(default)]
     pub status: TargetStatus,
-    /// Off by default in the UI (not verified on the owner's machine).
     #[serde(default)]
     pub beta: bool,
     #[serde(default)]
@@ -393,7 +377,6 @@ fn tier_two() -> u8 {
 }
 
 impl TargetAdapter {
-    /// Parses one manifest.
     pub fn from_toml(text: &str) -> Result<TargetAdapter> {
         let v = super::edit::toml::parse(text)?;
         Self::from_value(v)
@@ -403,7 +386,6 @@ impl TargetAdapter {
         serde_json::from_value(v).map_err(|e| AgentkitError::new("AGENTKIT_TARGET", e.to_string()))
     }
 
-    /// Format id for a kind (`[formats]`), if the tool supports that kind.
     pub fn format(&self, kind: ComponentKind) -> Option<&str> {
         self.formats
             .get(kind.format_key())
@@ -411,7 +393,6 @@ impl TargetAdapter {
             .filter(|s| !s.is_empty())
     }
 
-    /// Does the tool read the Claude file for this kind natively?
     pub fn reads_claude(&self, kind: ComponentKind) -> bool {
         let key = match kind {
             ComponentKind::Rule => "rules",
@@ -436,13 +417,10 @@ impl TargetAdapter {
         }
     }
 
-    /// Template for a path kind (`agents`, `hooks` …) and scope.
     pub fn path_template(&self, key: &str, scope: Scope, os: Os) -> Option<&str> {
         self.paths.get(key)?.template(scope, os)
     }
 
-    /// Absolute path for a path kind and scope; `None` when the tool has no such
-    /// location or a project path is asked for without a project.
     pub fn path(
         &self,
         key: &str,
@@ -454,12 +432,10 @@ impl TargetAdapter {
         env.expand(t, project)
     }
 
-    /// MCP surfaces written by default.
     pub fn default_mcp(&self) -> impl Iterator<Item = &McpTarget> {
         self.mcp.iter().filter(|m| m.default)
     }
 
-    /// Target event names for a canonical Claude event (fan-out allowed).
     pub fn map_event(&self, event: &str) -> Vec<String> {
         match self.hook_event_map.get(event) {
             Some(v) if !v.trim().is_empty() => v
@@ -473,8 +449,6 @@ impl TargetAdapter {
         }
     }
 
-    /// Translates a Claude matcher (`Edit|Write`, `Bash`) with `tool_name_map`.
-    /// Unknown names pass through; names mapped to "" are dropped.
     pub fn map_matcher(&self, matcher: &str) -> String {
         if self.tool_name_map.is_empty() || matcher.is_empty() || matcher == "*" {
             return matcher.to_string();
@@ -500,8 +474,6 @@ impl TargetAdapter {
     }
 }
 
-/// Loads every embedded manifest (cached). A broken manifest is a build bug, so
-/// it is skipped with a log line instead of taking the whole installer down.
 pub fn all_targets() -> &'static [TargetAdapter] {
     static CELL: OnceLock<Vec<TargetAdapter>> = OnceLock::new();
     CELL.get_or_init(|| {
@@ -518,13 +490,10 @@ pub fn all_targets() -> &'static [TargetAdapter] {
     })
 }
 
-/// One embedded target by id.
 pub fn target(id: &str) -> Option<&'static TargetAdapter> {
     all_targets().iter().find(|t| t.id == id)
 }
 
-/// Embedded targets with the user's overrides from `<app_data>/agentkit/targets/*.toml`
-/// deep-merged on top. A user file with a new id adds a target.
 pub fn load_targets(env: &Env) -> Vec<TargetAdapter> {
     let mut out: Vec<TargetAdapter> = all_targets().to_vec();
     let dir = env.agentkit_dir().join("targets");
@@ -587,7 +556,6 @@ fn deep_merge(base: &mut Value, over: Value) {
     }
 }
 
-/// Looks a target up in a list (embedded or overridden).
 pub fn find<'a>(targets: &'a [TargetAdapter], id: &str) -> Result<&'a TargetAdapter> {
     targets
         .iter()

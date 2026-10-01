@@ -1,33 +1,16 @@
-//! Downloads › Tools › From a cURL command: paste what the browser's
-//! "Copy as cURL" gives and OmniGet downloads that file with the same
-//! cookie, referer, user agent and headers, so a link that only works inside
-//! the logged-in tab still downloads.
-//!
-//! The idea comes from Motrix, whose "new task" box accepts a curl command
-//! and keeps its headers (`src/shared/utils/curl.js` at v1.8.19). The parser
-//! below is our own; no code was copied.
-//!
-//! The headers travel the same way the browser extension's do: they are
-//! stored as the URL's extension metadata and the URL is queued, so the
-//! direct downloader and yt-dlp both receive them.
-
 use std::collections::BTreeMap;
 
 use base64::Engine;
 use serde::Serialize;
 
-/// A GET request read from a curl command line.
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct CurlRequest {
     pub url: String,
-    /// Header name (lowercase) to value, without the ones the downloader sets itself.
     pub headers: BTreeMap<String, String>,
     pub referer: Option<String>,
     pub user_agent: Option<String>,
 }
 
-/// What the panel shows before downloading: never the header values, which
-/// can hold a session cookie.
 #[derive(Debug, Clone, Serialize, PartialEq)]
 pub struct CurlPreview {
     pub url: String,
@@ -44,9 +27,6 @@ pub struct CurlQueued {
     pub already_queued: bool,
 }
 
-/// Headers the downloader manages itself or that would break a download
-/// (a copied `Range` resumes from the wrong byte, a copied `Accept-Encoding`
-/// asks for a compressed body the segment writer does not unpack).
 const DROPPED_HEADERS: &[&str] = &[
     "host",
     "content-length",
@@ -59,7 +39,6 @@ const DROPPED_HEADERS: &[&str] = &[
     "upgrade-insecure-requests",
 ];
 
-/// curl options that take a value we do not use.
 const IGNORED_WITH_VALUE: &[&str] = &[
     "-o",
     "--output",
@@ -113,10 +92,6 @@ const SENDS_BODY: &[&str] = &[
     "--upload-file",
 ];
 
-/// Splits a command line the way a POSIX shell would: single and double
-/// quotes, backslash escapes, `$'...'` strings and `\` line continuations.
-/// Also takes the Windows `cmd` form Chrome offers (`^"...^"` and `^` at the
-/// end of a line).
 pub fn split_command_line(input: &str) -> Result<Vec<String>, String> {
     let cmd_style = input.contains("^\"") || input.trim_end().ends_with('^');
     let text: String = if cmd_style {
@@ -235,7 +210,6 @@ pub fn split_command_line(input: &str) -> Result<Vec<String>, String> {
     Ok(words)
 }
 
-/// Reads a curl command. Errors are stable codes the panel translates.
 pub fn parse_curl_command(input: &str) -> Result<CurlRequest, String> {
     let words = split_command_line(input.trim())?;
     let mut it = words.into_iter().peekable();
@@ -255,7 +229,6 @@ pub fn parse_curl_command(input: &str) -> Result<CurlRequest, String> {
     let mut other_positional: Option<String> = None;
 
     while let Some(word) = it.next() {
-        // `--header=value` and `-Hvalue` forms.
         let (flag, inline): (String, Option<String>) = if let Some(rest) = word.strip_prefix("--") {
             match rest.split_once('=') {
                 Some((k, v)) => (format!("--{k}"), Some(v.to_string())),
@@ -300,7 +273,6 @@ pub fn parse_curl_command(input: &str) -> Result<CurlRequest, String> {
             }
             "-b" | "--cookie" => {
                 let v = value(&mut it)?;
-                // Without `=` curl reads a cookie file, which we cannot see.
                 if v.contains('=') {
                     let merged = match req.headers.get("cookie") {
                         Some(prev) => format!("{prev}; {v}"),

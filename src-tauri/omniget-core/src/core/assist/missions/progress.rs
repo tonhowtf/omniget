@@ -1,16 +1,3 @@
-//! Progress guard: tells legitimate polling from a loop that goes nowhere.
-//!
-//! Each round of a task leaves an observation: the state it produced (the
-//! artifact digests and the criteria statuses), the tool calls it made and,
-//! when the task is waiting on something outside (a download, a build, a
-//! page that updates), the external status it saw. Hashing the tool calls
-//! alone is not enough — polling repeats the same call on purpose — so the
-//! guard looks at whether anything changed:
-//! - polling is tolerated with exponential backoff while the external status
-//!   moves, and up to `max_polls` rounds while it does not;
-//! - `max_same` consecutive rounds with the same state and the same calls is
-//!   a loop without progress: stop and say so (A09).
-
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -38,11 +25,8 @@ impl Default for ProgressPolicy {
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct RoundObservation {
     pub round: u32,
-    /// Digest of what the round left behind (artifacts + criteria statuses).
     pub state: String,
-    /// Tool calls of the round, in order (`name` or `name:argsdigest`).
     pub calls: Vec<String>,
-    /// Set when the round waits on something outside.
     pub polling: bool,
     pub external_status: Option<String>,
 }
@@ -65,7 +49,6 @@ pub fn decide(history: &[RoundObservation], p: &ProgressPolicy) -> Decision {
         };
     }
     if last.polling {
-        // Consecutive polling rounds whose external status did not move.
         let mut still = 0u32;
         let mut polls = 0u32;
         for w in history.iter().rev() {
@@ -117,8 +100,6 @@ pub fn decide(history: &[RoundObservation], p: &ProgressPolicy) -> Decision {
     Decision::Continue { delay_ms: 0 }
 }
 
-/// Stable digest of a round's state from the verdict and the artifact
-/// digests (used as [`RoundObservation::state`]).
 pub fn state_digest(parts: &[String]) -> String {
     use sha2::{Digest, Sha256};
     let mut h = Sha256::new();

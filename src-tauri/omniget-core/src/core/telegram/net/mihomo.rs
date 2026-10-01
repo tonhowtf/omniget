@@ -1,19 +1,4 @@
-//! Optional `mihomo` sidecar for the protocols we do not speak natively
-//! (VLESS/Reality, VMess, Hysteria/Hysteria2, TUIC, AnyTLS, SSR, Shadowsocks
-//! with a plugin, Trojan over WebSocket/gRPC, and anything else a Clash
-//! subscription lists).
-//!
-//! Nodes come from pasted links or subscriptions and are kept in
-//! `<data>/telegram/mihomo/nodes.json` whether or not the sidecar is on, so
-//! the screen can offer "N servers need the mihomo engine". When the person
 //! turns it on, the official binary (GPL-3.0, MetaCubeX releases, pinned
-//! version and sha256) is downloaded to the managed bin dir, a minimal
-//! config is written with one loopback SOCKS5 listener per node (random
-//! port, per-install password, `proxy:` pinned to that node), and each
-//! listener becomes an ordinary SOCKS5 route the bridge and the probe
-//! already know how to use. The process is a child of the app: killed on
-//! `shutdown()`, by the Job Object on Windows, by `PDEATHSIG` on Linux, and
-//! a leftover from a crashed session is stopped on the next start.
 
 use std::collections::{BTreeMap, HashMap};
 use std::path::{Path, PathBuf};
@@ -28,15 +13,10 @@ use serde_json::{json, Map, Value};
 
 use super::route::{Route, RouteKind, RouteSource};
 
-/// Pinned release. Bump together with the hashes below (they are the
-/// `digest` fields of the GitHub release assets).
 pub const VERSION: &str = "v1.19.31";
 
 const USER: &str = "omniget";
 
-/// `(asset, sha256)` for this platform. amd64 uses the `compatible` build
-/// (no AVX2 requirement): old office PCs are common among the people who
-/// need this.
 fn asset() -> Option<(&'static str, &'static str)> {
     let a = if cfg!(all(target_os = "macos", target_arch = "aarch64")) {
         (
@@ -74,31 +54,19 @@ fn asset() -> Option<(&'static str, &'static str)> {
     Some(a)
 }
 
-/// GitHub is poisoned or throttled in mainland China; these prefix the
-/// release URL. They come and go, which is fine: the pinned hash makes any
-/// of them as trustworthy as GitHub itself.
 const MIRRORS: [&str; 3] = [
     "https://ghfast.top/",
     "https://gh-proxy.com/",
     "https://ghproxy.net/",
 ];
 
-// ---------------------------------------------------------------------------
-// Nodes
-// ---------------------------------------------------------------------------
-
-/// One server handed to mihomo.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct Node {
-    /// Stable id: hash of the proxy definition without its name.
     pub key: String,
     pub name: String,
-    /// mihomo proxy `type` (`vless`, `hysteria2`, …).
     pub kind: String,
-    /// The proxy map as mihomo reads it, without `name`.
     pub proxy: Value,
     pub source: RouteSource,
-    /// Loopback listener port; kept across restarts so route ids hold.
     #[serde(default)]
     pub port: u16,
 }
@@ -107,7 +75,6 @@ impl Node {
     fn new(name: String, proxy: Map<String, Value>, source: RouteSource) -> Option<Self> {
         let mut proxy = proxy;
         proxy.remove("name");
-        // Chains to other proxies of the subscription cannot resolve here.
         proxy.remove("dialer-proxy");
         let kind = proxy.get("type")?.as_str()?.to_ascii_lowercase();
         proxy.get("server")?.as_str().filter(|s| !s.is_empty())?;
@@ -132,8 +99,6 @@ impl Node {
         })
     }
 
-    /// Name used inside the generated config: ASCII, unique, never clashes
-    /// with the built-ins (`DIRECT`, `REJECT`, …).
     fn internal_name(&self) -> String {
         format!("n-{}", self.key)
     }
@@ -141,22 +106,17 @@ impl Node {
 
 fn node_key(proxy: &Value) -> String {
     use sha2::{Digest, Sha256};
-    // serde_json maps are ordered (BTreeMap without preserve_order), so the
-    // text is canonical.
     let text = serde_json::to_string(proxy).unwrap_or_default();
     let digest = Sha256::digest(text.as_bytes());
     hex::encode(&digest[..8])
 }
 
-/// What we persist.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 struct Store {
     #[serde(default)]
     nodes: Vec<Node>,
-    /// Password of every listener. Stable so route ids survive restarts.
     #[serde(default)]
     listener_pass: String,
-    /// Recorded while running, to stop a leftover after a crash.
     #[serde(default)]
     pid: Option<(u32, u64)>,
 }
@@ -206,12 +166,10 @@ fn store() -> &'static Mutex<Store> {
     STORE.get_or_init(|| Mutex::new(load_store()))
 }
 
-/// Every node we know, running or not.
 pub fn nodes() -> Vec<Node> {
     store().lock().unwrap().nodes.clone()
 }
 
-/// Adds nodes (deduplicated by key). Returns how many were new.
 pub fn add_nodes(new: Vec<Node>) -> usize {
     let mut s = store().lock().unwrap();
     let mut added = 0;
@@ -225,7 +183,6 @@ pub fn add_nodes(new: Vec<Node>) -> usize {
     added
 }
 
-/// Replaces every node from `source` (a subscription refresh).
 pub fn replace_source(source: &RouteSource, new: Vec<Node>) {
     let mut s = store().lock().unwrap();
     let ports: HashMap<String, u16> = s.nodes.iter().map(|n| (n.key.clone(), n.port)).collect();
@@ -246,7 +203,6 @@ pub fn remove_source(source: &RouteSource) {
     save_store(&s);
 }
 
-/// Removes the node behind a route id. `true` when it was one of ours.
 pub fn remove_by_route_id(route_id: &str) -> bool {
     let Some(key) = route_key(route_id) else {
         return false;
@@ -257,14 +213,12 @@ pub fn remove_by_route_id(route_id: &str) -> bool {
     true
 }
 
-/// Removes one node by key.
 pub fn remove_node(key: &str) {
     let mut s = store().lock().unwrap();
     s.nodes.retain(|n| n.key != key);
     save_store(&s);
 }
 
-/// Node key for a route id handed out by `routes()`.
 pub fn route_key(route_id: &str) -> Option<String> {
     let s = store().lock().unwrap();
     s.nodes
@@ -283,14 +237,10 @@ fn node_route(n: &Node, pass: &str) -> Route {
     r.password = Some(pass.to_string());
     r.name = format!("{} ({})", n.name, n.kind);
     r.finish();
-    // The local listener's password is new on every run; the id must not
-    // be, or a route pinned in fixed mode is lost at the next start.
     r.id = format!("mh{}", &n.key[..n.key.len().min(14)]);
     r
 }
 
-/// Routes for the nodes mihomo is serving right now. Empty when it is not
-/// running, so the bridge never dials a dead listener.
 pub fn routes() -> Vec<Route> {
     if !is_running() {
         return Vec::new();
@@ -303,13 +253,6 @@ pub fn routes() -> Vec<Route> {
         .collect()
 }
 
-// ---------------------------------------------------------------------------
-// Parsing: pasted links and subscriptions
-// ---------------------------------------------------------------------------
-
-/// Nodes in pasted text that only mihomo can dial. Links the native layer
-/// handles (`ss://` without plugin, `trojan://` over TCP, MTProto, SOCKS,
-/// HTTP) are left to `links.rs`.
 pub fn extract_nodes(text: &str, source: RouteSource) -> Vec<Node> {
     let mut out: Vec<Node> = Vec::new();
     for tok in tokens(text) {
@@ -348,12 +291,10 @@ fn tokens(text: &str) -> Vec<String> {
     .collect()
 }
 
-/// Scheme-generic pieces of `scheme://userinfo@host:port/?query#name`.
 struct Parts {
     user: String,
     host: String,
     port: u16,
-    /// `a-b` when the port field is a hop range (Hysteria2).
     port_range: Option<String>,
     q: HashMap<String, String>,
     name: String,
@@ -468,7 +409,6 @@ pub fn parse_link(raw: &str, source: RouteSource) -> Option<Node> {
     Node::new(name, map, source)
 }
 
-/// `network` plus its `*-opts`, shared by VLESS, VMess and Trojan links.
 fn transport(
     m: &mut Map<String, Value>,
     net: &str,
@@ -531,7 +471,6 @@ fn transport(
     }
 }
 
-/// `vless://uuid@host:port?security=reality&pbk=..&sid=..&sni=..&fp=..&flow=..&type=ws&path=..&host=..#name`
 fn vless(s: &str) -> Option<(String, Map<String, Value>)> {
     let p = split_link(s)?;
     if p.user.is_empty() {
@@ -558,7 +497,6 @@ fn vless(s: &str) -> Option<(String, Map<String, Value>)> {
     Some((p.name, m))
 }
 
-/// `security`/`sni`/`fp`/`pbk`/`sid`/`alpn`/`allowInsecure` for VLESS-shaped links.
 fn tls_opts(m: &mut Map<String, Value>, q: &HashMap<String, String>) {
     let security = q
         .get("security")
@@ -594,7 +532,6 @@ fn tls_opts(m: &mut Map<String, Value>, q: &HashMap<String, String>) {
     }
 }
 
-/// `vmess://BASE64(JSON)` (v2rayN) or the URL form `vmess://uuid@host:port?...`.
 fn vmess(s: &str) -> Option<(String, Map<String, Value>)> {
     let body = &s[s.find("://")? + 3..];
     let body = body.split('#').next().unwrap_or(body);
@@ -663,7 +600,6 @@ fn vmess(s: &str) -> Option<(String, Map<String, Value>)> {
         }
         return Some((get("ps").unwrap_or_default(), m));
     }
-    // URL form, same query keys as VLESS.
     let p = split_link(s)?;
     if p.user.is_empty() {
         return None;
@@ -691,7 +627,6 @@ fn vmess(s: &str) -> Option<(String, Map<String, Value>)> {
     Some((p.name, m))
 }
 
-/// `hysteria2://auth@host:port/?sni=..&insecure=1&obfs=salamander&obfs-password=..&mport=..#name`
 fn hysteria2(s: &str) -> Option<(String, Map<String, Value>)> {
     let p = split_link(s)?;
     let mut m = base("hysteria2", &p.host, p.port);
@@ -720,7 +655,6 @@ fn hysteria2(s: &str) -> Option<(String, Map<String, Value>)> {
     Some((p.name, m))
 }
 
-/// Hysteria v1: `hysteria://host:port?protocol=udp&auth=..&peer=..&insecure=1&upmbps=..&downmbps=..&alpn=..&obfs=..#name`
 fn hysteria(s: &str) -> Option<(String, Map<String, Value>)> {
     let p = split_link(s)?;
     let mut m = base("hysteria", &p.host, p.port);
@@ -762,8 +696,6 @@ fn hysteria(s: &str) -> Option<(String, Map<String, Value>)> {
     Some((p.name, m))
 }
 
-/// `tuic://uuid:password@host:port?congestion_control=bbr&alpn=h3&sni=..#name` (v5),
-/// or `tuic://token@host:port` (v4).
 fn tuic(s: &str) -> Option<(String, Map<String, Value>)> {
     let p = split_link(s)?;
     let mut m = base("tuic", &p.host, p.port);
@@ -805,7 +737,6 @@ fn tuic(s: &str) -> Option<(String, Map<String, Value>)> {
     Some((p.name, m))
 }
 
-/// `anytls://password@host:port?sni=..&insecure=1&fp=..#name`
 fn anytls(s: &str) -> Option<(String, Map<String, Value>)> {
     let p = split_link(s)?;
     let mut m = base("anytls", &p.host, p.port);
@@ -826,7 +757,6 @@ fn anytls(s: &str) -> Option<(String, Map<String, Value>)> {
     Some((p.name, m))
 }
 
-/// `ssr://BASE64(host:port:protocol:method:obfs:BASE64(pass)/?obfsparam=..&protoparam=..&remarks=..)`
 fn ssr(s: &str) -> Option<(String, Map<String, Value>)> {
     let text = String::from_utf8(b64_any(&s[6..])?).ok()?;
     let (main, query) = match text.split_once("/?") {
@@ -860,8 +790,6 @@ fn ssr(s: &str) -> Option<(String, Map<String, Value>)> {
     Some((q.get("remarks").map(|r| dec(r)).unwrap_or_default(), m))
 }
 
-/// `ss://` that the native client cannot take: a SIP003 plugin, or a
-/// cipher outside the AEAD/2022 set.
 fn ss_plugin(s: &str) -> Option<(String, Map<String, Value>)> {
     let body = &s[5..];
     let (body, name) = match body.split_once('#') {
@@ -911,8 +839,6 @@ fn ss_plugin(s: &str) -> Option<(String, Map<String, Value>)> {
     Some((name, m))
 }
 
-/// `obfs-local;obfs=http;obfs-host=x` / `v2ray-plugin;tls;mode=websocket;host=..;path=..`
-/// / `shadow-tls;host=..;password=..;version=3` → mihomo `plugin` + `plugin-opts`.
 fn sip003_plugin(spec: &str) -> Option<(&'static str, Value)> {
     let mut it = spec.split(';');
     let name = it.next()?.trim();
@@ -963,7 +889,6 @@ fn sip003_plugin(spec: &str) -> Option<(&'static str, Value)> {
     }
 }
 
-/// `trojan://` over WebSocket or gRPC (plain TCP is native).
 fn trojan_transport(s: &str) -> Option<(String, Map<String, Value>)> {
     let p = split_link(s)?;
     let net =
@@ -999,8 +924,6 @@ fn trojan_transport(s: &str) -> Option<(String, Map<String, Value>)> {
     Some((p.name, m))
 }
 
-/// Nodes of a subscription body that only mihomo can dial: Clash YAML
-/// entries passed through as they are, or links from a base64/plain list.
 pub fn nodes_from_subscription(body: &str, source: RouteSource) -> Vec<Node> {
     let text = body.trim();
     if text.starts_with('{') {
@@ -1020,8 +943,6 @@ pub fn nodes_from_subscription(body: &str, source: RouteSource) -> Vec<Node> {
     extract_nodes(&decoded, source)
 }
 
-/// Clash YAML entries the native layer does not take (mirror of the rules
-/// in `subscription::from_clash_yaml`).
 fn from_clash_yaml(text: &str, source: RouteSource) -> Vec<Node> {
     let Ok(doc) = serde_yaml::from_str::<serde_yaml::Value>(text) else {
         return Vec::new();
@@ -1100,9 +1021,6 @@ fn from_sip008(text: &str, source: RouteSource) -> Vec<Node> {
         .collect()
 }
 
-/// Downloads a subscription again, this time for the nodes the native
-/// importer skipped. The `clash.meta` UA makes panels include VLESS, TUIC
-/// and Hysteria2.
 pub async fn fetch_subscription_nodes(url: &str, via: Option<&Route>) -> anyhow::Result<Vec<Node>> {
     let body = match http_text(url, None).await {
         Ok(b) => b,
@@ -1134,7 +1052,6 @@ async fn http_text(url: &str, proxy: Option<String>) -> anyhow::Result<String> {
     Ok(resp.text().await?)
 }
 
-/// `socks5h://`/`http://` URL for reqwest from a SOCKS5/HTTP route.
 pub fn proxy_url(r: &Route) -> String {
     let scheme = if r.kind == RouteKind::Socks5 {
         "socks5h"
@@ -1153,13 +1070,6 @@ pub fn proxy_url(r: &Route) -> String {
     }
 }
 
-// ---------------------------------------------------------------------------
-// Config
-// ---------------------------------------------------------------------------
-
-/// The whole mihomo config: no inbound except one authenticated loopback
-/// SOCKS5 listener per node, no GeoIP (so nothing is downloaded at start),
-/// controller on loopback with a random secret.
 pub fn build_config(
     nodes: &[Node],
     listener_pass: &str,
@@ -1205,7 +1115,6 @@ pub fn build_config(
     Ok(serde_yaml::to_string(&cfg)?)
 }
 
-/// A port nothing listens on right now. `keep` is reused when still free.
 fn free_port(keep: u16, taken: &[u16]) -> u16 {
     if keep != 0
         && !taken.contains(&keep)
@@ -1225,7 +1134,6 @@ fn free_port(keep: u16, taken: &[u16]) -> u16 {
     0
 }
 
-/// Gives every node a listener port, keeping the old one when possible.
 fn assign_ports() {
     let mut s = store().lock().unwrap();
     let mut taken: Vec<u16> = Vec::new();
@@ -1235,10 +1143,6 @@ fn assign_ports() {
     }
     save_store(&s);
 }
-
-// ---------------------------------------------------------------------------
-// Binary
-// ---------------------------------------------------------------------------
 
 fn bin_path() -> Option<PathBuf> {
     Some(
@@ -1251,7 +1155,6 @@ fn version_marker() -> Option<PathBuf> {
     Some(crate::core::dependencies::managed_bin_dir()?.join("mihomo.version"))
 }
 
-/// The pinned binary is on disk.
 pub fn installed() -> bool {
     let (Some(bin), Some(marker)) = (bin_path(), version_marker()) else {
         return false;
@@ -1262,8 +1165,6 @@ pub fn installed() -> bool {
             .unwrap_or(false)
 }
 
-/// Where the download may come from, in order: GitHub directly, GitHub
-/// through each proxy in `via`, then the mirrors directly.
 fn download_plan(asset: &str, via: &[String]) -> Vec<(String, Option<String>)> {
     let gh = format!("https://github.com/MetaCubeX/mihomo/releases/download/{VERSION}/{asset}");
     let mut plan = vec![(gh.clone(), None)];
@@ -1276,9 +1177,6 @@ fn download_plan(asset: &str, via: &[String]) -> Vec<(String, Option<String>)> {
     plan
 }
 
-/// Downloads, verifies (pinned sha256, fail-closed) and installs the
-/// binary unless the pinned version is already there. `via` are proxy
-/// URLs (`socks5h://…`, `http://…`) to try GitHub through.
 pub async fn install(via: &[String]) -> anyhow::Result<PathBuf> {
     let bin = bin_path().ok_or_else(|| anyhow!("no data directory"))?;
     if installed() {
@@ -1389,10 +1287,6 @@ fn unzip_exe(bytes: &[u8]) -> anyhow::Result<Vec<u8>> {
     bail!("the mihomo archive has no executable")
 }
 
-// ---------------------------------------------------------------------------
-// Process
-// ---------------------------------------------------------------------------
-
 struct Running {
     child: tokio::process::Child,
     guard: Option<crate::core::process::ProcessTreeGuard>,
@@ -1422,7 +1316,6 @@ fn set_state(f: impl FnOnce(&mut State)) {
     f(&mut state().lock().unwrap());
 }
 
-/// Serializes start/stop/reload.
 fn op_lock() -> &'static tokio::sync::Mutex<()> {
     static L: OnceLock<tokio::sync::Mutex<()>> = OnceLock::new();
     L.get_or_init(|| tokio::sync::Mutex::new(()))
@@ -1442,7 +1335,6 @@ pub fn is_running() -> bool {
     }
 }
 
-/// Stops a mihomo left behind by a session that crashed.
 fn stop_leftover() {
     let pid = store().lock().unwrap().pid.take();
     if let Some((pid, start)) = pid {
@@ -1452,8 +1344,6 @@ fn stop_leftover() {
     }
 }
 
-/// Starts mihomo with every stored node, or reloads it when already
-/// running. Requires `install()` first. Returns the routes it serves.
 pub async fn start() -> anyhow::Result<Vec<Route>> {
     let _op = op_lock().lock().await;
     if nodes().is_empty() {
@@ -1495,7 +1385,6 @@ pub async fn start() -> anyhow::Result<Vec<Route>> {
     cmd.process_group(0);
     #[cfg(target_os = "linux")]
     unsafe {
-        // Dies with the app even when the app is killed.
         cmd.pre_exec(|| {
             libc::prctl(libc::PR_SET_PDEATHSIG, libc::SIGTERM);
             Ok(())
@@ -1525,7 +1414,6 @@ pub async fn start() -> anyhow::Result<Vec<Route>> {
         config,
     });
 
-    // Ready when the controller answers.
     let deadline = std::time::Instant::now() + Duration::from_secs(15);
     loop {
         if !is_running() {
@@ -1564,7 +1452,6 @@ fn write_config(path: &Path, controller: u16, secret: &str) -> anyhow::Result<()
     Ok(())
 }
 
-/// Rewrites the config and asks the running mihomo to load it.
 async fn reload() -> anyhow::Result<()> {
     let (controller, secret, config) = {
         let r = running().lock().unwrap();
@@ -1633,15 +1520,9 @@ pub async fn stop() {
     stop_now();
 }
 
-/// Kills the sidecar. Synchronous so the app can call it from its exit
-/// handler.
 pub fn shutdown() {
     stop_now();
 }
-
-// ---------------------------------------------------------------------------
-// Status
-// ---------------------------------------------------------------------------
 
 #[derive(Debug, Clone, Serialize)]
 pub struct NodeView {
@@ -1651,14 +1532,11 @@ pub struct NodeView {
     pub server: String,
     pub port: u16,
     pub source: RouteSource,
-    /// Route id while running.
     pub route_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
 pub struct MihomoStatus {
-    /// `None` = never asked (the screen should offer it when `nodes` is
-    /// not empty).
     pub enabled: Option<bool>,
     pub supported_platform: bool,
     pub installed: bool,
@@ -1668,7 +1546,6 @@ pub struct MihomoStatus {
     pub version: Option<String>,
     pub error: Option<String>,
     pub nodes: Vec<NodeView>,
-    /// Node count per protocol.
     pub kinds: BTreeMap<String, usize>,
 }
 
@@ -1791,7 +1668,6 @@ mod tests {
 
     #[test]
     fn ss_plugin_only_when_needed() {
-        // Plain AEAD stays native.
         assert!(parse_link(
             "ss://YWVzLTI1Ni1nY206cGFzcw@1.2.3.4:8388#A",
             RouteSource::Link
@@ -1801,7 +1677,6 @@ mod tests {
         assert_eq!(n.proxy["plugin"], "obfs");
         assert_eq!(n.proxy["plugin-opts"]["mode"], "http");
         assert_eq!(n.proxy["plugin-opts"]["host"], "bing.com");
-        // Trojan over TCP stays native, over ws goes to mihomo.
         assert!(parse_link("trojan://pw@t.example.com:443#T", RouteSource::Link).is_none());
         let n = node("trojan://pw@t.example.com:443?type=ws&path=%2Ftj&sni=t.example.com#TW");
         assert_eq!(n.proxy["network"], "ws");

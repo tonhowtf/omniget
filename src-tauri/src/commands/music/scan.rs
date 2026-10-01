@@ -1,6 +1,3 @@
-//! Library scan: walks the music folders, reads tags of new or changed files
-//! (by mtime + size), caches cover art and drops rows whose file is gone.
-
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -32,8 +29,6 @@ pub fn covers_dir() -> Option<PathBuf> {
 const FOLDER_COVERS: &[&str] = &["cover", "folder", "front", "album", "albumart"];
 const THUMB_PX: u32 = 360;
 
-/// Stores the picture once per content hash, plus a small JPEG thumbnail
-/// for grids. Returns the hash used by `/c/<hash>`.
 pub fn store_cover(c: &Cover) -> Option<String> {
     let dir = covers_dir()?;
     std::fs::create_dir_all(&dir).ok()?;
@@ -58,7 +53,6 @@ pub fn store_cover(c: &Cover) -> Option<String> {
     Some(hash)
 }
 
-/// `/c/<hash>` resolution: thumbnail when asked and present, else original.
 pub fn cover_file(hash: &str, thumb: bool) -> Option<PathBuf> {
     if !hash.chars().all(|c| c.is_ascii_hexdigit()) || hash.len() > 64 {
         return None;
@@ -118,7 +112,6 @@ fn stamp(meta: &std::fs::Metadata) -> db::FileStamp {
     }
 }
 
-/// Reads one file and writes its row. Used by the scan and after edits.
 pub fn index_file(path: &Path) -> Result<i64, String> {
     let meta = std::fs::metadata(path).map_err(|e| e.to_string())?;
     let st = stamp(&meta);
@@ -183,7 +176,6 @@ async fn scan_inner(app: &AppHandle, full: bool) -> Result<ScanSummary, String> 
     for root in roots {
         let root_path = PathBuf::from(&root);
         if !root_path.exists() {
-            // an unplugged drive: keep its tracks until it comes back
             continue;
         }
         let known = db::stamps_under(&root)?;

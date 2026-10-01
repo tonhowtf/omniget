@@ -1,14 +1,3 @@
-//! Consolidation: a short note per entity and scope ("what I know about
-//! Ana"), rebuilt in the background when a fact about the entity arrives or is
-//! forgotten. It plays the part of Hindsight's observations and mental models,
-//! with its rules (prefer update, current state first, dated history, no
-//! arithmetic, never mix entities), but one note per entity instead of a
-//! free-floating pool, so a note is easy to show, to purge and to scope.
-//!
-//! A note quotes its sources by id; [`super::graph::purge`] drops any note
-//! that quoted a forgotten record, and the next run rebuilds it from what is
-//! left.
-
 use std::sync::Arc;
 
 use rusqlite::params;
@@ -16,11 +5,8 @@ use rusqlite::params;
 use super::super::db::AssistDb;
 use super::retain::Llm;
 
-/// An entity needs this many active facts in a scope before it gets a note.
 pub const MIN_FACTS: i64 = 2;
-/// Facts one note is built from, newest first.
 pub const MAX_FACTS: usize = 40;
-/// Notes rebuilt per run.
 pub const PER_RUN: usize = 8;
 
 pub const SYSTEM: &str = r#"You maintain short memory notes about one entity (a person, place, work, project, pet…) in someone's personal memory. You get the saved facts about it and the current note, if any. Write the new note.
@@ -54,7 +40,6 @@ fn date(ms: i64) -> String {
         .unwrap_or_default()
 }
 
-/// Rebuilds up to [`PER_RUN`] dirty notes. Returns how many were written.
 pub async fn run(db: Arc<AssistDb>, llm: Llm) -> Result<usize, String> {
     let dirty: Vec<(String, String)> = db.with(|c| {
         let mut s = c.prepare("SELECT entity_id, scope FROM memory_dirty_entities LIMIT ?1")?;
@@ -158,14 +143,10 @@ pub async fn run(db: Arc<AssistDb>, llm: Llm) -> Result<usize, String> {
             clear(&db)?;
             continue;
         };
-        // The note quotes every fact it was built from, so forgetting any of
-        // them removes the note.
         let ids: Vec<String> = facts.iter().map(|f| f.id.clone()).collect();
         let ids = serde_json::to_string(&ids).unwrap_or_else(|_| "[]".into());
         db.tx(|tx| {
             let e = |x: rusqlite::Error| format!("{}: {x}", super::super::db::ERR_ASSIST_DB);
-            // A fact forgotten while the model was thinking: skip, the
-            // entity is dirty again.
             let still: i64 = tx
                 .query_row(
                     "SELECT COUNT(*) FROM memory_records r JOIN memory_entity_refs x ON x.record_id = r.id

@@ -1,11 +1,3 @@
-//! C-5: the old chat conversations (`<app_data>/llm/conversations/*.jsonl`)
-//! become native threads, once, idempotently. The thread id is the
-//! conversation id, so the native driver keeps reading the same JSONL as the
-//! model context and a migrated conversation continues where it stopped.
-//! Idempotency is layered: a thread that exists is skipped before its file is
-//! read, and every import command carries a deterministic command id
-//! (`migrate:c5:…`) whose receipt dedupes a retry after a crash.
-
 use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
@@ -17,7 +9,6 @@ use super::model::{Command, CommandEnvelope, ImportMessage};
 use crate::core::llm::coordinator::ConversationRecord;
 use crate::core::llm::types::{ContentPart, Role};
 
-/// Project that receives conversations with no folder.
 pub const IMPORTED_PROJECT_ID: &str = "prj_imported";
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
@@ -35,8 +26,6 @@ fn project_id_for(root: &str) -> String {
     format!("prj_{}", &hex::encode(h.finalize())[..16])
 }
 
-/// Read one JSONL into import messages. Tool calls ride on the assistant
-/// message that asked for them, with their results attached.
 pub fn read_conversation(path: &Path) -> (Vec<ImportMessage>, Option<String>) {
     let Ok(text) = std::fs::read_to_string(path) else {
         return (Vec::new(), None);
@@ -114,8 +103,6 @@ pub fn read_conversation(path: &Path) -> (Vec<ImportMessage>, Option<String>) {
     (out, agent)
 }
 
-/// Import every conversation in `dir` that is not a thread yet. `workspace_of`
-/// maps a conversation id to its folder (the project it lands in).
 pub fn migrate_conversations(
     engine: &ThreadsEngine,
     dir: &Path,
@@ -135,7 +122,6 @@ pub fn migrate_conversations(
         let Some(id) = path.file_stem().map(|s| s.to_string_lossy().to_string()) else {
             continue;
         };
-        // Throwaway conversations: the help sessions and the stateless bridge.
         if id.starts_with("help-") || id.starts_with("bridge-") {
             continue;
         }

@@ -1,7 +1,3 @@
-//! Teams chats (and, with admin-approved permissions, channels) exported as
-//! Markdown or JSON that an LLM can read: one line per message with time and
-//! author, replies, files and reactions kept, system events summarized.
-
 use std::path::{Path, PathBuf};
 
 use anyhow::anyhow;
@@ -13,7 +9,6 @@ use super::html::to_text;
 #[derive(Debug, Clone, Serialize)]
 pub struct ChatInfo {
     pub id: String,
-    /// "oneOnOne", "group" or "meeting".
     pub kind: String,
     pub name: String,
     pub members: Vec<String>,
@@ -33,7 +28,6 @@ pub struct Message {
     pub files: Vec<String>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub reactions: Vec<String>,
-    /// System events (member added, meeting started...) are kept but marked.
     pub system: bool,
     pub edited: bool,
 }
@@ -72,7 +66,6 @@ fn chat_info(v: &Value, me: &str) -> ChatInfo {
     }
 }
 
-/// The person's chats, most recently active first.
 pub async fn list_chats(limit: usize, query: Option<&str>) -> anyhow::Result<Vec<ChatInfo>> {
     let me = me_id();
     let raw = super::get_paged(
@@ -147,7 +140,6 @@ fn message(v: &Value) -> Option<Message> {
             }
         })
         .collect();
-    // Replies quote the parent as a messageReference attachment: keep the id.
     let reply_to = v["attachments"]
         .as_array()
         .into_iter()
@@ -195,7 +187,6 @@ fn older_than(v: &Value, since: Option<&chrono::DateTime<chrono::Utc>>) -> bool 
         .is_some_and(|t| t.with_timezone(&chrono::Utc) < *since)
 }
 
-/// Messages of one chat in time order, newest `max` (0 = all) since `since`.
 pub async fn chat_messages(
     chat_id: &str,
     since: Option<chrono::DateTime<chrono::Utc>>,
@@ -219,7 +210,6 @@ pub struct ChannelInfo {
     pub channel: String,
 }
 
-/// Teams the person joined and their channels.
 pub async fn list_channels() -> anyhow::Result<Vec<ChannelInfo>> {
     let teams = super::get_paged("/me/joinedTeams", 0, |_| false).await?;
     let mut out = Vec::new();
@@ -239,7 +229,6 @@ pub async fn list_channels() -> anyhow::Result<Vec<ChannelInfo>> {
     Ok(out)
 }
 
-/// Channel posts with their replies (needs ChannelMessage.Read.All).
 pub async fn channel_messages(
     team_id: &str,
     channel_id: &str,
@@ -295,8 +284,6 @@ fn yaml(s: &str) -> String {
     )
 }
 
-/// The export an LLM reads: front matter, then `**[time] Author:** text`,
-/// replies indented under the message they answer.
 pub fn to_markdown(title: &str, kind: &str, members: &[String], messages: &[Message]) -> String {
     let mut md = String::from("---\n");
     md.push_str(&format!("title: {}\n", yaml(title)));
@@ -388,7 +375,6 @@ pub struct Exported {
     pub messages: usize,
 }
 
-/// Writes one chat as `<dir>/<slug>.md` (or `.json`).
 pub async fn export_chat(
     chat_id: &str,
     since: Option<chrono::DateTime<chrono::Utc>>,
@@ -398,8 +384,6 @@ pub async fn export_chat(
     let info = chat(chat_id).await?;
     let msgs = chat_messages(chat_id, since, 0).await?;
     std::fs::create_dir_all(dir)?;
-    // Chat ids look like `19:<unique>@thread.v2`: the unique part tells two
-    // chats with the same people apart.
     let tag: String = slug(chat_id.trim_start_matches("19:"))
         .chars()
         .take(8)

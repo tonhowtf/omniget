@@ -1,18 +1,3 @@
-//! Resume cursor of a Claude thread and the small file that keeps it.
-//!
-//! The cursor is what goes out in `session.started.resume` (the engine stores
-//! it in `provider_sessions` and hands it back in `SessionStart`). It carries
-//! the CLI session id plus one mark per engine turn: the `uuid` we stamped on
-//! the prompt and the uuid of the last transcript message of that turn. The
-//! last one is the `--resume-session-at` boundary that rollback and fork use
-//! (verified on 2.1.280: `--resume <sid> --resume-session-at <uuid>
-//! --fork-session` answers from the truncated history under a new id).
-//!
-//! The driver also keeps its own copy per thread in `claude-threads.json`
-//! (under `<app_data>/llm`): `rollback`/`fork` arrive with only a thread id,
-//! possibly after a restart, before any `start_session`. The file is written
-//! only when a cursor changes; nothing reads it in the background.
-
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 use std::sync::Mutex;
@@ -23,12 +8,8 @@ use serde_json::Value;
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TurnMark {
-    /// Engine turn id (informational: fork copies marks under new turn ids,
-    /// so boundaries are always looked up by position).
     pub turn_id: String,
-    /// The `uuid` of our stream-json user message (= transcript uuid).
     pub prompt_uuid: String,
-    /// Last transcript message (assistant or tool result) of the turn.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub last_uuid: Option<String>,
 }
@@ -36,23 +17,17 @@ pub struct TurnMark {
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ClaudeCursor {
-    /// CLI session id; empty = start fresh.
     #[serde(default)]
     pub session_id: String,
     #[serde(default)]
     pub turns: Vec<TurnMark>,
-    /// Set by rollback/fork: the next launch resumes at this message…
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub resume_at: Option<String>,
-    /// …under a new session id (`--fork-session`).
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub fork: bool,
 }
 
 impl ClaudeCursor {
-    /// Accepts our own object, a bare session id string, or T3's legacy
-    /// `{resume: <id>}` / `{sessionId}` shapes. Rejects non-UUID ids: a
-    /// synthetic id would make `--resume` fail at every launch.
     pub fn from_value(value: &Value) -> Option<ClaudeCursor> {
         let mut cursor = match value {
             Value::String(s) => ClaudeCursor {
@@ -81,9 +56,6 @@ impl ClaudeCursor {
         serde_json::to_value(self).unwrap_or(Value::Null)
     }
 
-    /// Keep the first `turn_count` turns. `Ok(true)` when something changed,
-    /// `Err` when the boundary is unknown (older cursor, interrupted turn with
-    /// no transcript message).
     pub fn truncate(&mut self, turn_count: usize) -> Result<bool, String> {
         if turn_count == 0 {
             let changed = !self.session_id.is_empty() || !self.turns.is_empty();
@@ -105,7 +77,6 @@ impl ClaudeCursor {
     }
 }
 
-/// Per-thread cursors on disk (`{threadId: cursor}`), plus an in-memory copy.
 pub struct CursorStore {
     path: Option<PathBuf>,
     map: Mutex<Option<BTreeMap<String, ClaudeCursor>>>,
@@ -119,7 +90,6 @@ impl CursorStore {
         }
     }
 
-    /// `<app_data>/llm/claude-threads.json`.
     pub fn default_path() -> Option<PathBuf> {
         crate::core::llm::roster_store::llm_dir().map(|d| d.join("claude-threads.json"))
     }
@@ -219,7 +189,6 @@ mod tests {
                 .session_id,
             SID
         );
-        // A synthetic id is never resumed.
         assert!(ClaudeCursor::from_value(&json!("claude-thread-1"))
             .unwrap()
             .session_id

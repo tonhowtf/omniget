@@ -1,15 +1,3 @@
-//! Finds the proxy the person already has, without asking them anything.
-//!
-//! In mainland China almost everyone who uses Telegram runs a proxy client
-//! (Clash Verge, mihomo party, v2rayN, NekoBox, Hiddify, Shadowrocket…) that
-//! listens on a local port. Apps that ignore it look "broken" there, so we
-//! collect every hint we can get and let the prober decide which one works:
-//!
-//! 1. the system proxy (macOS `scutil`, Windows registry, GNOME/KDE, env);
-//! 2. the ports written in Clash/mihomo/verge configs on disk;
-//! 3. a quick scan of the well-known local ports of the popular clients,
-//!    telling SOCKS5 from HTTP by talking to them.
-
 use std::collections::HashSet;
 use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
@@ -21,8 +9,6 @@ use tokio::net::TcpStream;
 
 use super::route::{Route, RouteKind, RouteSource};
 
-/// Default local ports of the proxy clients people run. The mixed ports
-/// answer both SOCKS5 and HTTP; we still sniff which one.
 pub const KNOWN_LOCAL_PORTS: &[(u16, &str)] = &[
     (7897, "Clash Verge Rev"),
     (7890, "Clash / mihomo / ClashX / FlClash / Stash"),
@@ -58,12 +44,9 @@ pub const KNOWN_LOCAL_PORTS: &[(u16, &str)] = &[
 #[derive(Debug, Clone, Serialize)]
 pub struct Detected {
     pub route: Route,
-    /// Human explanation: "System proxy", "Clash Verge Rev config", …
     pub hint: String,
 }
 
-/// Runs every detector and returns the unique candidates, system proxy
-/// and configured ports first, blind scan hits last.
 pub async fn detect_all() -> Vec<Detected> {
     let mut out: Vec<Detected> = Vec::new();
     let mut seen: HashSet<(RouteKind, String, u16)> = HashSet::new();
@@ -90,8 +73,6 @@ pub async fn detect_all() -> Vec<Detected> {
     let config_ports = tokio::task::spawn_blocking(clash_config_ports)
         .await
         .unwrap_or_default();
-    // Configured ports are sniffed too: `mixed-port` answers both and a stale
-    // config may point to a port nobody listens on any more.
     let mut to_sniff: Vec<(u16, String)> = config_ports;
     for (port, app) in KNOWN_LOCAL_PORTS {
         to_sniff.push((*port, app.to_string()));
@@ -188,7 +169,6 @@ fn system_proxies() -> Vec<Detected> {
     parse_scutil(&String::from_utf8_lossy(&out.stdout))
 }
 
-/// `scutil --proxy` prints a dictionary like `  SOCKSEnable : 1`.
 #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
 fn parse_scutil(text: &str) -> Vec<Detected> {
     let get = |k: &str| -> Option<String> {
@@ -242,7 +222,6 @@ fn system_proxies() -> Vec<Detected> {
     parse_windows_proxy_server(&query("ProxyServer").unwrap_or_default())
 }
 
-/// `127.0.0.1:7890` or `http=127.0.0.1:7890;https=…;socks=127.0.0.1:7891`.
 #[cfg_attr(not(target_os = "windows"), allow(dead_code))]
 fn parse_windows_proxy_server(value: &str) -> Vec<Detected> {
     let mut out = Vec::new();
@@ -292,7 +271,6 @@ fn system_proxies() -> Vec<Detected> {
             out.extend(system_route(kind, &host, port));
         }
     }
-    // KDE: ~/.config/kioslaverc, ProxyType=1 means manual.
     if let Some(cfg) = dirs::config_dir() {
         if let Ok(text) = std::fs::read_to_string(cfg.join("kioslaverc")) {
             if text.lines().any(|l| l.trim() == "ProxyType=1") {
@@ -320,9 +298,6 @@ fn system_proxies() -> Vec<Detected> {
     out
 }
 
-/// Folders where Clash-family clients keep their YAML. We walk them
-/// shallowly and read the listening ports, so a person who changed the
-/// default port is still found.
 fn clash_dirs() -> Vec<PathBuf> {
     let mut roots: Vec<PathBuf> = Vec::new();
     if let Some(home) = dirs::home_dir() {
@@ -413,8 +388,6 @@ fn yaml_files(dir: &Path, depth: usize) -> Vec<PathBuf> {
     out
 }
 
-/// Reads only the top-level listener keys; full YAML parsing of a 2 MB
-/// subscription would be wasted work.
 fn ports_in_yaml(text: &str) -> Vec<(u16, &'static str)> {
     let keys: [(&str, &str); 6] = [
         ("mixed-port", "mixed"),
@@ -444,8 +417,6 @@ fn ports_in_yaml(text: &str) -> Vec<(u16, &'static str)> {
     out
 }
 
-/// Connects to 127.0.0.1:`port` and asks what it speaks. Returns SOCKS5
-/// and/or HTTP when the listener answers like one.
 pub async fn sniff_local(port: u16) -> Vec<RouteKind> {
     let addr: SocketAddr = ([127, 0, 0, 1], port).into();
     let mut kinds = Vec::new();
@@ -476,8 +447,6 @@ async fn sniff_socks5(addr: SocketAddr) -> bool {
 async fn sniff_http(addr: SocketAddr) -> bool {
     let fut = async {
         let mut s = TcpStream::connect(addr).await.ok()?;
-        // A CONNECT to a Telegram DC: a proxy answers "HTTP/1.x 200" or at
-        // worst an HTTP error; anything else is not an HTTP proxy.
         s.write_all(b"CONNECT 149.154.167.51:443 HTTP/1.1\r\nHost: 149.154.167.51:443\r\n\r\n")
             .await
             .ok()?;

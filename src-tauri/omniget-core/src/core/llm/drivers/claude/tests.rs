@@ -1,7 +1,3 @@
-//! The translator against real stdout of Claude Code 2.1.280 (recorded
-//! 22/09/2026 with `--model haiku` in a temporary directory, paths and the
-//! account e-mail scrubbed). Each fixture is one long-lived process.
-
 use std::path::Path;
 
 use serde_json::{json, Value};
@@ -51,7 +47,6 @@ impl Replay {
         }
     }
 
-    /// Feeds lines; `on_request` answers approvals/questions as they open.
     fn run(
         &mut self,
         name: &str,
@@ -59,7 +54,6 @@ impl Replay {
     ) {
         let text = fixture(name);
         for line in text.lines() {
-            // Files do not exist in the test: a Write is a new file.
             for out in self.tr.on_line(line, &|_| None) {
                 match out {
                     Output::Event(ev) => {
@@ -127,12 +121,9 @@ fn approval_allow_for_session_then_edit_in_accept_edits() {
             .unwrap(),
         )
     });
-    // Turn 1 starts at once (nothing else running); turn 2 when the CLI says.
     assert!(matches!(r.events[0].kind, K::TurnStarted(_)));
     assert_eq!(r.events[0].turn_id.as_deref(), Some("t1"));
 
-    // Exactly one approval: the Write. The session permission it granted
-    // (setMode acceptEdits) let the Edit of turn 2 through without asking.
     assert_eq!(opened.len(), 1);
     let K::RequestOpened(p) = &opened[0].kind else {
         unreachable!()
@@ -162,7 +153,6 @@ fn approval_allow_for_session_then_edit_in_accept_edits() {
         Some("toolu_01X11NSByopRmUSof7AXVzgU")
     );
 
-    // The answer is the one the live run sent (and the CLI accepted).
     assert_eq!(
         r.sends[0],
         protocol::control_success(
@@ -179,7 +169,6 @@ fn approval_allow_for_session_then_edit_in_accept_edits() {
         |e| matches!(&e.kind, K::SessionConfigured(v) if v.value["permissionMode"] == "acceptEdits")
     ));
 
-    // Tool items: started → updated (input) → completed with the output.
     let write: Vec<&RuntimeEvent> = r
         .events
         .iter()
@@ -214,7 +203,6 @@ fn approval_allow_for_session_then_edit_in_accept_edits() {
         1
     );
 
-    // Text, usage, cost per turn (cumulative total → delta).
     assert_eq!(
         r.text(Some("t1")),
         "Done\u{2014}created a.txt with the text \"oi\"."
@@ -234,7 +222,6 @@ fn approval_allow_for_session_then_edit_in_accept_edits() {
     let c2 = r.completed("t2");
     assert!((c2[0].total_cost_usd.unwrap() - (0.0346718 - 0.0267513)).abs() < 1e-9);
 
-    // Resume cursor: session id and the boundary of each turn.
     let cursor = r.tr.cursor.clone();
     assert_eq!(cursor.session_id, "a00fe044-a480-48c4-ac8b-b3d6bdd759ed");
     assert_eq!(cursor.turns.len(), 2);
@@ -257,7 +244,6 @@ fn approval_allow_for_session_then_edit_in_accept_edits() {
         .unwrap();
     assert_eq!(ClaudeCursor::from_value(&last_started), Some(cursor));
 
-    // The opt-in get_usage answer (0..100) of the live run.
     let usage = r
         .events
         .iter()
@@ -273,7 +259,6 @@ fn approval_allow_for_session_then_edit_in_accept_edits() {
         })
         .unwrap();
     assert!((usage[0].used_percent.unwrap() - 28.0).abs() < 1e-6);
-    // Quota from rate_limit_event, 0..1 → percent.
     let windows = r
         .events
         .iter()
@@ -296,7 +281,6 @@ fn approval_allow_for_session_then_edit_in_accept_edits() {
     );
     assert_eq!(windows[1].id, "seven_day");
 
-    // initialize → configured; the account e-mail never leaves the driver.
     assert!(r.events.iter().any(|e| matches!(&e.kind, K::SessionConfigured(v) if v.value["subscriptionType"] == "Claude Max")));
     let all = serde_json::to_string(&r.events).unwrap();
     assert!(!all.contains("example.com"));
@@ -332,13 +316,11 @@ fn ask_user_question_answer_and_a_declined_write() {
         vec!["Red", "Blue"]
     );
     assert!(!q.multi_select);
-    // Same answer the live run sent; the CLI echoed it in the tool result.
     assert_eq!(
         r.sends[0]["response"]["response"]["updatedInput"]["answers"],
         json!({"Which color do you prefer?": "Red"})
     );
     assert!(r.events.iter().any(|e| matches!(&e.kind, K::UserInputResolved(p) if p.answers["Which color do you prefer?"] == "Red")));
-    // No approval card for the question itself.
     let approvals: Vec<&RuntimeEvent> = r
         .events
         .iter()
@@ -349,7 +331,6 @@ fn ask_user_question_answer_and_a_declined_write() {
         r.sends[1]["response"]["response"],
         json!({"behavior": "deny", "message": protocol::DECLINE_MESSAGE})
     );
-    // The declined Write fails; the turn itself completes.
     assert!(r.events.iter().any(|e| e.item_id.as_deref()
         == Some("toolu_0153q3sPFzoAn5KUs9kBSSvT")
         && matches!(&e.kind, K::ItemCompleted(p) if p.status == Some(ItemStatus::Failed))));
@@ -396,9 +377,7 @@ fn an_interrupt_ends_the_turn_and_the_process_takes_the_next_prompt() {
     let c2 = r.completed("t2");
     assert_eq!(c2[0].state, TurnEndState::Completed);
     assert_eq!(r.text(Some("t2")), "ok");
-    // The interrupted result reports 0 total: the next turn's cost is its own.
     assert!((c2[0].total_cost_usd.unwrap() - 0.0055289).abs() < 1e-9);
-    // No error row for a user interrupt.
     assert!(!r
         .events
         .iter()
@@ -425,7 +404,6 @@ fn resume_at_a_boundary_with_fork_reports_the_new_session() {
     assert!(!c.fork);
     assert_eq!(c.turns.len(), 2);
     assert!(c.turns[1].last_uuid.is_some());
-    // The truncated history answered about turn 1 only.
     assert!(
         r.text(Some("t2")).contains("a.txt"),
         "{}",
@@ -459,7 +437,6 @@ fn a_background_subagent_becomes_task_events_and_a_loose_reply() {
             "task.completed"
         ]
     );
-    // Every task event stays on the turn that launched it.
     assert!(r
         .events
         .iter()
@@ -479,7 +456,6 @@ fn a_background_subagent_becomes_task_events_and_a_loose_reply() {
         Some("toolu_01SjxTnshYKbjXAc1MeSAaFd")
     );
 
-    // The sub-agent's Read is an item tagged with the agent, not main text.
     let read = r
         .events
         .iter()
@@ -495,7 +471,6 @@ fn a_background_subagent_becomes_task_events_and_a_loose_reply() {
     );
     assert!(!r.text(Some("t1")).contains("complete content"));
 
-    // Bash: a command item with its output.
     let bash = r
         .events
         .iter()
@@ -503,15 +478,12 @@ fn a_background_subagent_becomes_task_events_and_a_loose_reply() {
         .collect::<Vec<_>>();
     assert!(bash.iter().any(|e| matches!(&e.kind, K::ContentDelta(p) if p.stream_kind == StreamKind::CommandOutput && p.delta == "hi")));
     assert!(bash.iter().any(|e| matches!(&e.kind, K::ItemCompleted(p) if p.item_type == ItemType::CommandExecution && p.status == Some(ItemStatus::Completed))));
-    // The Agent tool (background) is not failed when the turn ends.
     assert!(!r.events.iter().any(|e| e.item_id.as_deref()
         == Some("toolu_01SjxTnshYKbjXAc1MeSAaFd")
         && matches!(&e.kind, K::ItemCompleted(p) if p.status == Some(ItemStatus::Failed))));
 
-    // One turn, closed once; the late reply is loose (no turn id).
     assert_eq!(r.completed("t1").len(), 1);
     assert!(r.text(None).contains("hello"), "{}", r.text(None));
-    // Its boundary still moves the cursor forward.
     assert!(r.tr.cursor.turns[0].last_uuid.is_some());
 }
 
@@ -540,12 +512,9 @@ fn an_edit_approval_carries_the_diff_against_the_file_on_disk() {
         "{diff}"
     );
     assert!(diff.contains(" fn main() {\n"), "{diff}");
-    // cancel = deny + interrupt.
     let (line, _) = tr.answer_approval("r2", ApprovalDecision::Cancel).unwrap();
     assert_eq!(line["response"]["response"]["interrupt"], true);
 }
-
-// ── the driver end to end over a fake CLI ───────────────────────────────
 
 #[cfg(unix)]
 mod driver_e2e {
@@ -567,8 +536,6 @@ mod driver_e2e {
         d
     }
 
-    /// A fake `claude` that logs its argv and stdin, answers the first user
-    /// message with a recorded turn, then waits for EOF.
     fn fake_cli(dir: &Path, fixture_name: &str) -> std::path::PathBuf {
         let fixture = Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("src/core/llm/drivers/claude/fixtures")
@@ -624,8 +591,6 @@ mod driver_e2e {
             })
             .await
             .unwrap();
-        // The recorded process interrupted turn 1 and ran a second prompt;
-        // our single turn is closed by the first result.
         let mut events = Vec::new();
         let done = tokio::time::timeout(Duration::from_secs(10), async {
             while let Some(ev) = rx.recv().await {
@@ -674,7 +639,6 @@ mod driver_e2e {
             lines[1]["message"]["content"][0]["text"],
             "Write a 400-word story about a cat. No tools."
         );
-        // The session id reached the cursor file.
         assert_eq!(
             store.get("thr_e2e").unwrap().session_id,
             "e67cfc11-6cec-4138-9770-dada33dd2794"

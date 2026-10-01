@@ -1,24 +1,3 @@
-//! Loops that know when to stop (roadmap 3.7, S22).
-//!
-//! - **Auditor** (84#P1): a Loop without a `check_command` no longer ends
-//!   because the agent wrote "DONE". After each round a side model of the
-//!   agent's own provider (see [`super::router::TaskKind::Side`]) gets the
-//!   objective, the round's [`Evidence`] (its real tool calls and outputs)
-//!   and the last reply, and answers
-//!   `{"verdict":"continue|complete|blocked","note":"…"}`. `complete` ends the
-//!   Loop; `blocked` ends it only the [`blocked_stop`]-th time in a row; after
-//!   [`audit_fail_stop`] audits in a row that gave no verdict the Loop stops
-//!   as `blocked` ("audit unavailable"), never going on blind. The agent's
-//!   own claim is recorded ([`claims_done`]) and nothing else.
-//! - **Continuation guide** (83#P7): from round 2 on, when the runtime
-//!   resumes the provider's session (Claude `--resume`, Codex
-//!   `thread/resume`), the task is already in the conversation, so the round
-//!   sends a short guide plus the last verdict or check output instead of the
-//!   whole prompt again. Without resume the full prompt goes, as before.
-//!
-//! The texts and the numbers live in `goal_audit.json`, which
-//! `scripts/llm/loops_eval.py` (BN9) reads too, so the benchmark sends what
-//! the app sends. Prompts and stop rules adapted from OpenChamber's
 //! `session-goal/runtime.js` (MIT, Copyright (c) 2025 Bohdan Triapitsyn).
 
 use std::sync::LazyLock;
@@ -26,7 +5,6 @@ use std::sync::LazyLock;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-/// `goal_audit.json`, parsed once.
 #[derive(Debug, Deserialize)]
 pub struct Texts {
     pub max_rounds: u32,
@@ -54,37 +32,26 @@ pub static TEXTS: LazyLock<Texts> = LazyLock::new(|| {
     serde_json::from_str(include_str!("goal_audit.json")).expect("goal_audit.json is valid")
 });
 
-/// Hard ceiling of rounds of an audited Loop (the audit and the budget are
-/// the intended stops; this only prevents a runaway).
 pub fn max_rounds() -> u32 {
     TEXTS.max_rounds
 }
 
-/// `blocked` verdicts in a row that end the Loop: one snag must not.
 pub fn blocked_stop() -> u32 {
     TEXTS.blocked_stop
 }
 
-/// Audits in a row without a verdict that end the Loop.
 pub fn audit_fail_stop() -> u32 {
     TEXTS.audit_fail_stop
 }
 
-/// Rounds in a row in which the agent says it is done and the auditor says
-/// `continue`: a person settles it instead of the two arguing until the
-/// round ceiling (BN9 real: an auditor that only reads the last reply kept 10
-/// of 33 finished loops going to the ceiling).
 pub fn disagree_stop() -> u32 {
     TEXTS.disagree_stop
 }
 
-/// The system prompt of the auditor.
 pub fn audit_system() -> &'static str {
     &TEXTS.audit_system
 }
 
-/// Fills `{{name}}` placeholders in one pass: a value that itself contains
-/// `{{…}}` (a goal that quotes a template) is never expanded again.
 pub fn fill(template: &str, vars: &[(&str, &str)]) -> String {
     let mut out = String::with_capacity(template.len());
     let mut rest = template;
@@ -123,7 +90,6 @@ fn clip_chars(s: &str, max: usize) -> String {
     format!("{head}…")
 }
 
-/// The tail of a long reply is where the `Done/Verified/Missing` lines are.
 fn tail_chars(s: &str, max: usize) -> String {
     let s = s.trim();
     let n = s.chars().count();
@@ -167,8 +133,6 @@ pub struct Audit {
     pub note: String,
 }
 
-/// Keys that say what a tool call did, in this order; the others follow
-/// sorted, `description` (the model's own caption) left out.
 const EVIDENCE_KEYS: [&str; 7] = [
     "command",
     "file_path",
@@ -179,11 +143,8 @@ const EVIDENCE_KEYS: [&str; 7] = [
     "new_string",
 ];
 
-/// Input kept per call while it streams: a large `Write` is clipped to
-/// [`Texts::evidence_input_chars`] anyway.
 const EVIDENCE_INPUT_KEEP: usize = 64 * 1024;
 
-/// Calls kept per round (the digest keeps only its tail anyway).
 const EVIDENCE_CALLS_KEEP: usize = 200;
 
 #[derive(Debug, Clone, Default)]
@@ -194,13 +155,6 @@ struct EvidenceCall {
     output: Option<(String, bool)>,
 }
 
-/// What the agent's tools really did in one round, gathered from the turn's
-/// own events (`ToolCallStart` / `ToolCallDelta` / `ToolResult`), for the
-/// auditor. BN9 real (3.7) with the reply alone: the auditor asked for more
-/// proof in 29 rounds whose work already passed, because a reply that says
-/// "`cat en.txt` shows the translation" is a claim, while the call and its
-/// output are a fact. Native tools emit no `ToolResult` (the Coordinator
-/// runs them): their calls show without an output.
 #[derive(Debug, Clone, Default)]
 pub struct Evidence {
     calls: Vec<EvidenceCall>,
@@ -248,8 +202,6 @@ impl Evidence {
         self.calls.is_empty()
     }
 
-    /// `name: key=value …` of one call's input (the streamed JSON; a partial
-    /// or broken one goes as text).
     fn input_line(input: &str) -> String {
         let text = match serde_json::from_str::<Value>(input) {
             Ok(Value::Object(map)) => {
@@ -275,9 +227,6 @@ impl Evidence {
         clip_chars(&text, TEXTS.evidence_input_chars)
     }
 
-    /// One entry per call, oldest first; only the tail that fits in
-    /// [`Texts::evidence_max_chars`] goes (the latest checks matter most).
-    /// Empty when the round called no tool.
     pub fn render(&self) -> String {
         if self.calls.is_empty() {
             return String::new();
@@ -312,8 +261,6 @@ fn evidence_value(v: &Value) -> String {
     }
 }
 
-/// Compact JSON with sorted keys (what `json.dumps(sort_keys=True)` gives
-/// the benchmark), whatever map order serde_json was built with.
 fn canonical_json(v: &Value) -> String {
     match v {
         Value::Object(map) => {
@@ -343,10 +290,6 @@ fn canonical_json(v: &Value) -> String {
     }
 }
 
-/// The auditor's user message: the objective (as data), the round's
-/// evidence ([`Evidence::render`], empty = left out), the last reply and the
-/// previous verdict, so a round that finished what was missing is read
-/// against what was missing.
 pub fn audit_input(goal: &str, reply: &str, evidence: &str, previous: Option<&Audit>) -> String {
     let sample: String = goal
         .split_whitespace()
@@ -383,8 +326,6 @@ pub fn audit_input(goal: &str, reply: &str, evidence: &str, previous: Option<&Au
     )
 }
 
-/// Reads the auditor's answer, tolerating fences and prose around the
-/// object. `None` = no usable verdict (counts as a failed audit).
 pub fn parse(text: &str) -> Option<Audit> {
     let t = text.trim();
     if let (Some(a), Some(b)) = (t.find('{'), t.rfind('}')) {
@@ -401,7 +342,6 @@ pub fn parse(text: &str) -> Option<Audit> {
             }
         }
     }
-    // A broken object: take the verdict word that follows "verdict".
     let lower = t.to_ascii_lowercase();
     let at = lower.find("\"verdict\"")?;
     let rest = &lower[at + 9..];
@@ -416,11 +356,6 @@ pub fn parse(text: &str) -> Option<Audit> {
     })
 }
 
-/// Holds the verdict to the fields the auditor filled before it: a small
-/// model without thinking said `blocked` for "no proof shown" (4 of 11
-/// missions, Haiku, 2.1.284) although its own `needs_user` was false, and a
-/// `complete` with requirements still listed as unproven is not complete.
-/// Both become `continue`. Absent fields leave the verdict as it is.
 fn consistent(verdict: Verdict, v: &Value) -> Verdict {
     match verdict {
         Verdict::Blocked if v["needs_user"].as_bool() == Some(false) => Verdict::Continue,
@@ -431,9 +366,6 @@ fn consistent(verdict: Verdict, v: &Value) -> Verdict {
     }
 }
 
-/// Whether the agent itself says it finished: a line `DONE`, or a
-/// `Missing:` line that says nothing is left. Recorded next to the verdict
-/// (the "DONE-own" of BN9); it never ends an audited Loop.
 pub fn claims_done(reply: &str) -> bool {
     reply.lines().any(|line| {
         let l = line
@@ -456,22 +388,17 @@ pub fn claims_done(reply: &str) -> bool {
     })
 }
 
-/// Counters an audited Loop keeps between rounds.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct Streaks {
     pub blocked: u32,
     pub failed: u32,
-    /// The agent said done and the auditor said `continue`.
     pub disagree: u32,
 }
 
-/// What the Loop does after an audit.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Step {
     Continue,
-    /// Ends as `done` (`audit_complete`).
     Complete,
-    /// Ends as `blocked` with this stop reason.
     Blocked(&'static str),
 }
 
@@ -482,8 +409,6 @@ pub const STOP_DISAGREE: &str = "audit_disagrees";
 pub const STOP_TOKEN_BUDGET: &str = "token_budget";
 pub const STOP_ROUND_FAILED: &str = "round_failed";
 
-/// The stop rules of 84#P1 for one audit (`None` = the audit gave no
-/// verdict), plus [`disagree_stop`]. `claimed` = the agent said it was done.
 pub fn step(streaks: &mut Streaks, audit: Option<&Audit>, claimed: bool) -> Step {
     let Some(audit) = audit else {
         streaks.failed += 1;
@@ -519,8 +444,6 @@ pub fn step(streaks: &mut Streaks, audit: Option<&Audit>, claimed: bool) -> Step
     }
 }
 
-/// The round ceiling a Loop runs under: an audited one never passes
-/// [`max_rounds`], whatever it asked for.
 pub fn effective_max(max_rounds: Option<u32>, audited: bool) -> Option<u32> {
     if audited {
         Some(
@@ -533,7 +456,6 @@ pub fn effective_max(max_rounds: Option<u32>, audited: bool) -> Option<u32> {
     }
 }
 
-/// Everything the text of one round depends on.
 #[derive(Debug, Clone, Copy)]
 pub struct Round<'a> {
     pub round: u32,
@@ -542,13 +464,10 @@ pub struct Round<'a> {
     pub check_command: Option<&'a str>,
     pub last_check: Option<&'a str>,
     pub last_audit: Option<&'a Audit>,
-    /// Judged by the auditor (no check command, an agent that can be asked).
     pub audited: bool,
-    /// The provider holds the conversation: round ≥ 2 sends only the guide.
     pub resumed: bool,
 }
 
-/// The text of a round and whether it is the short guide.
 pub fn round_prompt(r: &Round<'_>) -> (String, bool) {
     let check = r.check_command.filter(|c| !c.trim().is_empty());
     if r.round <= 1 {
@@ -581,7 +500,6 @@ pub fn round_prompt(r: &Round<'_>) -> (String, bool) {
         _ => None,
     };
     let full = match failing {
-        // The text every check Loop sent before 3.7.
         Some(out) => format!(
             "Round {round}. The check still fails:\n```\n{out}\n```\nKeep working on the task: {}",
             r.prompt
@@ -614,8 +532,6 @@ pub fn round_prompt(r: &Round<'_>) -> (String, bool) {
             parts.push(TEXTS.footer_short.clone());
         }
         let guide = parts.join("\n\n");
-        // A task shorter than the guide costs less sent again (B1: 312
-        // against 342 characters): the guide only goes when it is shorter.
         if guide.len() < full.len() {
             return (guide, true);
         }

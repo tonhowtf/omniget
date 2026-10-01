@@ -1,4 +1,3 @@
-//! Authenticated native app observation. Typed window messages; no public eval.
 use crate::mcp::policy::{self, Principal};
 use serde::Deserialize;
 use serde_json::{json, Value};
@@ -29,8 +28,6 @@ fn local_window(window: &WebviewWindow) -> Result<(), String> {
     ) {
         return Err("WINDOW_NOT_FOUND".into());
     }
-    // wry unwraps WKWebView.URL, which is nil while the page is (re)loading
-    // or after its content process died: that panics the main thread.
     let url = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| window.url()))
         .map_err(|_| "FRONTEND_NOT_READY")?
         .map_err(|_| "WINDOW_NOT_FOUND")?;
@@ -296,8 +293,6 @@ async fn call_inner(
                 window
                     .show()
                     .map_err(|_| "FRONTEND_NOT_READY: show window")?;
-                // On macOS, making a window key does not activate a background
-                // application; WebKit may otherwise keep its frame loop suspended.
                 #[cfg(target_os = "macos")]
                 app.run_on_main_thread(|| {
                     if let Some(mtm) = objc2::MainThreadMarker::new() {
@@ -359,7 +354,6 @@ pub fn output_schema(name: &str) -> Option<Value> {
     name.starts_with("omniget_app_").then(||json!({"type":"object","properties":{"schemaVersion":{"type":"integer"},"sessionId":{"type":"string"},"observedAt":{"type":"string"}},"required":["schemaVersion","sessionId","observedAt"]}))
 }
 
-// Launch attestation is debug-only; semver and UI epoch are independent identities.
 fn dev_identity() -> Value {
     if !cfg!(debug_assertions) || std::env::var_os("OMNIGET_DEV_SESSION").is_none() {
         return Value::Null;

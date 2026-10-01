@@ -1,16 +1,3 @@
-//! MiniLM-L6-v2 in ONNX: pinned catalog, on-demand download, batched
-//! inference on the `ort` runtime that is already linked (`load-dynamic`).
-//!
-//! Same shape as `core/tools/onnx.rs` and `core/whisper.rs`: every file is an
-//! asset with a URL pinned to an immutable Hugging Face revision, a sha256 and
-//! a byte count, checked on the freshly downloaded file before it becomes
-//! official. Nothing is downloaded without an explicit call.
-//!
-//! The session is created on first use and dropped after `IDLE_TTL` without
-//! work — there is no background thread, the check happens when someone calls
-//! `embed_batch` or `release_if_idle`. With the world asleep, nothing here
-//! runs and nothing here is resident.
-
 use std::path::{Path, PathBuf};
 use std::sync::{Mutex, OnceLock};
 use std::time::{Duration, Instant};
@@ -21,24 +8,16 @@ use super::{
 };
 use crate::core::tools::ProgressFn;
 
-/// Output width of `all-MiniLM-L6-v2`.
 pub const DIM: usize = 384;
 
-/// One vector. Fixed size so a mismatch is a compile error, not a runtime one.
 pub type Dim = [f32; DIM];
 
-/// How many texts go into one `run()`. Bigger batches stop paying off once the
-/// matmul saturates the cores and cost RSS, which is the tighter budget here.
 pub const BATCH: usize = 64;
 
-/// The session is dropped after this long without a batch.
 pub const IDLE_TTL: Duration = Duration::from_secs(600);
 
-/// Directory override for tests and for anyone who already has the files.
-/// Must contain `MODEL.file` and `VOCAB.file` with the pinned sha256.
 pub const DIR_ENV: &str = "OMNIGET_EMBED_MODEL_DIR";
 
-/// A managed file of the model.
 #[derive(Debug, Clone, Copy)]
 pub struct Asset {
     pub file: &'static str,
@@ -47,9 +26,6 @@ pub struct Asset {
     pub bytes: u64,
 }
 
-/// Int8-quantized graph: 23 MB instead of the 90 MB of the fp32 export, which
-/// is what plan §2.1 line 17 budgets. The regression fixtures were recorded
-/// with this exact file, so swapping it means re-recording them.
 pub const MODEL: Asset = Asset {
     file: "minilm-l6-v2.onnx",
     url: "https://huggingface.co/Xenova/all-MiniLM-L6-v2/resolve/751bff37182d3f1213fa05d7196b954e230abad9/onnx/model_quantized.onnx",
@@ -57,8 +33,6 @@ pub const MODEL: Asset = Asset {
     bytes: 22_972_370,
 };
 
-/// The BERT-uncased vocabulary of the same revision. Downloaded instead of
-/// compiled in, so the 226 KB do not ride in every binary.
 pub const VOCAB: Asset = Asset {
     file: "minilm-l6-v2.vocab.txt",
     url: "https://huggingface.co/Xenova/all-MiniLM-L6-v2/resolve/751bff37182d3f1213fa05d7196b954e230abad9/vocab.txt",
@@ -75,8 +49,6 @@ pub fn dim() -> usize {
     DIM
 }
 
-/// Pure part of the directory choice, so it is testable without touching the
-/// process environment (which is shared by every test thread).
 fn resolve_dir(env_value: Option<&str>, fallback: Option<PathBuf>) -> Option<PathBuf> {
     match env_value.map(str::trim).filter(|s| !s.is_empty()) {
         Some(s) => Some(PathBuf::from(s)),
@@ -84,8 +56,6 @@ fn resolve_dir(env_value: Option<&str>, fallback: Option<PathBuf>) -> Option<Pat
     }
 }
 
-/// Where the two files live. `OMNIGET_EMBED_MODEL_DIR` wins so a test (or a
-/// user with the files already on disk) never downloads.
 pub fn model_dir() -> Option<PathBuf> {
     let env = std::env::var(DIR_ENV).ok();
     resolve_dir(env.as_deref(), crate::core::tools::onnx::models_dir())
@@ -106,13 +76,10 @@ pub(crate) fn has_asset(a: &Asset) -> bool {
         .unwrap_or(false)
 }
 
-/// Both files on disk with the right size. Cheap: no hashing, no session.
 pub fn is_downloaded() -> bool {
     ASSETS.iter().all(has_asset)
 }
 
-/// Downloaded **and** the `ort` runtime resolvable, i.e. a batch would run
-/// without touching the network.
 pub fn is_ready() -> bool {
     is_downloaded() && crate::core::onnxrt::is_installed()
 }
@@ -186,15 +153,11 @@ pub(crate) async fn fetch_asset(a: &Asset, progress: &ProgressFn) -> Result<Path
     Ok(dest)
 }
 
-/// Guarantees model + vocabulary on disk and returns the path of the `.onnx`.
-/// Only touches the network when a file is missing or the wrong size.
 pub async fn ensure_model(progress: &ProgressFn) -> Result<PathBuf, EmbedError> {
     fetch_asset(&VOCAB, progress).await?;
     fetch_asset(&MODEL, progress).await
 }
 
-/// Deletes the downloaded files. Drops the live session first, otherwise
-/// Windows refuses to unlink a mapped file.
 pub fn remove_model() -> Result<(), EmbedError> {
     release_now();
     for a in ASSETS {
@@ -209,13 +172,9 @@ pub fn remove_model() -> Result<(), EmbedError> {
     Ok(())
 }
 
-// ── Session, created on demand and released when idle ──────────────────
-
 struct Loaded {
     session: ort::session::Session,
     tokenizer: Tokenizer,
-    /// Input names the graph actually declares (`token_type_ids` is optional
-    /// in some exports), in the order the graph lists them.
     input_names: Vec<String>,
     last_used: Instant,
 }
@@ -225,8 +184,6 @@ fn cell() -> &'static Mutex<Option<Loaded>> {
     CELL.get_or_init(|| Mutex::new(None))
 }
 
-/// Poisoned mutex means a previous batch panicked inside `ort`; we take the
-/// guard anyway and rebuild the session from scratch.
 fn lock() -> std::sync::MutexGuard<'static, Option<Loaded>> {
     match cell().lock() {
         Ok(g) => g,
@@ -238,8 +195,6 @@ fn lock() -> std::sync::MutexGuard<'static, Option<Loaded>> {
     }
 }
 
-/// Drops the session when it has been idle for `IDLE_TTL`. Returns true when
-/// something was actually released. Cheap enough to call from a timer tick.
 pub fn release_if_idle() -> bool {
     let mut guard = lock();
     let stale = guard
@@ -252,13 +207,10 @@ pub fn release_if_idle() -> bool {
     stale
 }
 
-/// Drops the session right now (settings changed, model removed, quitting).
 pub fn release_now() -> bool {
     lock().take().is_some()
 }
 
-/// How long the live session has been idle, or `None` when there is none.
-/// Lets a caller assert "nothing resident" without reaching into the mutex.
 pub fn session_age() -> Option<Duration> {
     lock().as_ref().map(|l| l.last_used.elapsed())
 }
@@ -290,8 +242,6 @@ fn load_from(dir: &Path) -> Result<Loaded, EmbedError> {
     let tokenizer = Tokenizer::from_vocab_text(&vocab_text)
         .map_err(|e| EmbedError::new(ERR_EMBED_VOCAB, e.to_string()))?;
 
-    // `session_from_file` calls `onnxrt::init()`, whose error already tells
-    // the user how to install the runtime; we only re-tag the code.
     let session = crate::core::tools::onnx::session_from_file(&model)
         .map_err(|e| EmbedError::new(ERR_EMBED_RUNTIME, e.to_string()))?;
     let input_names: Vec<String> = session
@@ -307,9 +257,6 @@ fn load_from(dir: &Path) -> Result<Loaded, EmbedError> {
     })
 }
 
-/// Mean pooling over the non-padded positions, then L2 normalization — the
-/// recipe `sentence-transformers/all-MiniLM-L6-v2` is trained with. Pure, so
-/// it is tested without the model.
 pub fn pool_and_normalize(hidden: &[f32], mask: &[u32], tokens: usize, dim: usize) -> Dim {
     let mut acc = [0.0f64; DIM];
     let mut kept = 0.0f64;
@@ -363,8 +310,6 @@ fn run_chunk(l: &mut Loaded, texts: &[&str]) -> Result<Vec<Dim>, EmbedError> {
         ort::value::Tensor::from_array((shape.clone(), data))
             .map_err(|e| EmbedError::new(ERR_EMBED_INFER, format!("building the tensor: {e}")))
     };
-    // Named inputs, in the order the graph declares them, so an export without
-    // `token_type_ids` still runs.
     let mut inputs: Vec<(
         std::borrow::Cow<'static, str>,
         ort::session::SessionInputValue<'_>,
@@ -409,16 +354,11 @@ fn run_chunk(l: &mut Loaded, texts: &[&str]) -> Result<Vec<Dim>, EmbedError> {
     Ok(out)
 }
 
-/// 384-d normalized vectors for every text, in chunks of `BATCH`.
-///
-/// **Blocking**: loads the session on first call and runs the graph on this
-/// thread. Call it inside `tokio::task::spawn_blocking`.
 pub fn embed_batch(texts: &[&str]) -> Result<Vec<Dim>, EmbedError> {
     if texts.is_empty() {
         return Ok(vec![]);
     }
     let mut guard = lock();
-    // An idle session is stale by definition: drop before reusing.
     if guard
         .as_ref()
         .map(|l| l.last_used.elapsed() >= IDLE_TTL)

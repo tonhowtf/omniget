@@ -1,12 +1,8 @@
-//! Playlist files: M3U / extended M3U (`#EXTINF`, also the IPTV-style
-//! `tvg-logo` / `group-title` attributes used by radio lists) and PLS.
-
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct PlaylistEntry {
-    /// Absolute path or URL, as resolved against the playlist's folder.
     pub location: String,
     pub title: Option<String>,
     pub duration_s: Option<f64>,
@@ -34,7 +30,6 @@ fn resolve(loc: &str, base: Option<&Path>) -> String {
     let decoded = urlencoding::decode(loc)
         .map(|c| c.into_owned())
         .unwrap_or_else(|_| loc.to_string());
-    // Windows playlists moved to another OS keep backslashes.
     let normalized = if cfg!(windows) {
         decoded
     } else {
@@ -82,7 +77,6 @@ pub fn parse_m3u(text: &str, base: Option<&Path>) -> Vec<PlaylistEntry> {
             continue;
         }
         if let Some(info) = line.strip_prefix("#EXTINF:") {
-            // #EXTINF:<dur> key="v" ...,<title>; attribute values may hold commas.
             let (head, t) = match first_unquoted_comma(info) {
                 Some(i) => (&info[..i], &info[i + 1..]),
                 None => (info, ""),
@@ -145,7 +139,6 @@ pub fn parse_pls(text: &str, base: Option<&Path>) -> Vec<PlaylistEntry> {
         .collect()
 }
 
-/// Picks the parser from the extension, then from the content.
 pub fn parse_any(text: &str, name_hint: &str, base: Option<&Path>) -> Vec<PlaylistEntry> {
     let lower = name_hint.to_ascii_lowercase();
     if lower.ends_with(".pls")
@@ -160,8 +153,6 @@ pub fn parse_any(text: &str, name_hint: &str, base: Option<&Path>) -> Vec<Playli
     }
 }
 
-/// Extended M3U with paths relative to `base` when they live under it, so the
-/// file keeps working if the whole music folder moves.
 pub fn write_m3u(entries: &[PlaylistEntry], base: Option<&Path>) -> String {
     let mut out = String::from("#EXTM3U\n");
     for e in entries {
@@ -183,10 +174,6 @@ pub fn write_m3u(entries: &[PlaylistEntry], base: Option<&Path>) -> String {
     out
 }
 
-/// Rewrites every URI in an HLS playlist (segment lines and `URI="..."`
-/// attributes) to an absolute URL against `base`, the playlist's final URL
-/// after redirects. A proxy has to do this: the player only knows the proxy
-/// address, so relative paths would otherwise resolve against the wrong host.
 pub fn absolutize_hls(text: &str, base: &url::Url) -> String {
     let abs = |u: &str| -> String {
         base.join(u.trim())
@@ -201,7 +188,6 @@ pub fn absolutize_hls(text: &str, base: &url::Url) -> String {
             continue;
         }
         if t.starts_with('#') {
-            // #EXT-X-KEY:METHOD=AES-128,URI="key.bin" and friends
             let mut rest = line;
             let mut rewritten = String::new();
             while let Some(i) = rest.find("URI=\"") {

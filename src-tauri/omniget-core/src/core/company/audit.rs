@@ -1,12 +1,3 @@
-//! Append-only, hash-chained activity log (study 92, area C §5.7).
-//!
-//! `hash = sha256(prev_hash || canonical(row))`, chained per company. The
-//! row is written in the same transaction as the change it describes, so a
-//! change without its line (or a line without its change) cannot exist.
-//! Deleting an agent or an issue never deletes history (Paperclip cascades
-//! agent deletes into `activity_log`), and business rules never read this
-//! table as state. [`verify`] recomputes the chain.
-
 use rusqlite::{params, OptionalExtension, Transaction};
 use serde::Serialize;
 use serde_json::Value;
@@ -66,7 +57,6 @@ fn line_hash(
     hex::encode(h.finalize())
 }
 
-/// Redacts what looks like a credential before it reaches the log.
 pub fn redact(v: &Value) -> Value {
     match v {
         Value::Object(m) => Value::Object(
@@ -106,7 +96,6 @@ fn looks_secret(s: &str) -> bool {
         || (t.len() > 40 && t.matches('.').count() == 2 && !t.contains(' '))
 }
 
-/// Writes one line inside the caller's transaction.
 pub(crate) fn record(
     tx: &Transaction,
     company: &str,
@@ -220,8 +209,6 @@ impl CompanyStore {
         })
     }
 
-    /// Recomputes the chain. `Ok(n)` = n lines, all intact; `Err` names the
-    /// first broken `seq`.
     pub fn audit_verify(&self, company: &str) -> Result<u64, String> {
         type Line = (
             i64,
@@ -287,7 +274,6 @@ impl CompanyStore {
         Ok(rows.len() as u64)
     }
 
-    /// CSV export of the whole log of one company, oldest first.
     pub fn audit_csv(&self, company: &str) -> Result<String, String> {
         let mut rows = self.audit_list(
             company,

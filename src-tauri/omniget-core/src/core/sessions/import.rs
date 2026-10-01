@@ -1,19 +1,3 @@
-//! Importação do JSON neutro (`export::to_json`) para retomar a conversa.
-//!
-//! * Claude Code: grava `<config>/projects/<cwd codificado>/<novo-id>.jsonl`
-//!   com a codificação real do diretório (a mesma do CLI), cadeia
-//!   `parentUuid`, `sessionId`, `cwd` e `version`, para `claude --resume`
-//!   achar a sessão rodando dentro do projeto.
-//! * Codex: grava um rollout válido em
-//!   `$CODEX_HOME/sessions/AAAA/MM/DD/rollout-…-<uuid>.jsonl` (`session_meta`,
-//!   `turn_context`, `response_item`s e `event_msg`s) e registra o título no
-//!   `session_index.jsonl`.
-//! * Qualquer outra ferramenta: vira Markdown de contexto para colar.
-//!
-//! Sempre um id novo: importar nunca sobrescreve uma sessão existente. Os
-//! tokens das mensagens importadas ficam zerados (o consumo já foi contado na
-//! sessão de origem).
-
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
@@ -34,11 +18,9 @@ pub struct ImportOutcome {
     pub session_id: Option<String>,
     pub written: Option<PathBuf>,
     pub resume_command: Option<String>,
-    /// Para ferramentas sem importação nativa: o Markdown de contexto.
     pub context: Option<ExportOut>,
 }
 
-/// Lê um arquivo exportado (envelope neutro ou `Session` crua).
 pub fn read_export(path: &Path) -> Result<Session, String> {
     let bytes = std::fs::read(path).map_err(|e| format!("{ERR_IMPORT}: {e}"))?;
     if let Ok(env) = serde_json::from_slice::<NeutralExport>(&bytes) {
@@ -59,7 +41,6 @@ pub fn import(path: &Path, target: Option<&str>) -> Result<ImportOutcome, String
     import_session(&s, target, None)
 }
 
-/// `base`: diretório de configuração alternativo (testes, contas isoladas).
 pub fn import_session(
     s: &Session,
     target: Option<&str>,
@@ -126,8 +107,6 @@ fn ts_or_now(ts: &str) -> String {
         .unwrap_or_else(|| util::ms_to_rfc3339(util::now_ms()))
 }
 
-/// Tool call de outra ferramenta vira texto (o histórico do Claude/Codex só
-/// aceita tools que ele conhece).
 fn describe_call(c: &super::model::ToolCall) -> String {
     let mut s = format!(
         "[tool {}] {}",
@@ -403,7 +382,6 @@ pub fn write_codex(s: &Session, base: Option<&Path>) -> Result<(String, PathBuf)
         return Err(format!("{ERR_IMPORT}: sessão sem mensagens"));
     }
     write_lines(&file, &lines)?;
-    // Título na lista de threads.
     let title = s
         .meta
         .title

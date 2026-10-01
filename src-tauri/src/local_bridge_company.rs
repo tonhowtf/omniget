@@ -1,13 +1,3 @@
-//! `POST /v1/company/rpc` on the local bridge: the CLI's door to the
-//! companies of agents. Body `{method, args}`; the answer is the method's
-//! JSON. Owner decisions are refused here (they are taken in the window),
-//! whatever the token.
-//!
-//! Behind the scoped-token guard of the agent routes (2.1): any user token
-//! with `jobs:read` reads, a method that changes something needs
-//! `jobs:operate` too. A job's own token is refused (it reaches only its
-//! job), and the extension key never worked here.
-
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use axum::routing::post;

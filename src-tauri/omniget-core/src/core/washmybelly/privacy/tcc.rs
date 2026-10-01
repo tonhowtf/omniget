@@ -1,15 +1,3 @@
-//! macOS privacy permissions (TCC): which app may use the camera, the
-//! microphone, the screen, the whole disk... (F4).
-//!
-//! Read only from the person's `TCC.db` (and the system one when readable),
-//! opened with `SQLITE_OPEN_READ_ONLY`. Both need Full Disk Access; without
-//! it the list answers `{ available: false, reason: "full_disk_access" }`
-//! and the screen sends the person to System Settings.
-//!
-//! Resetting is `tccutil reset <Service> <bundle-id>`, argv only, with the
-//! service checked against [`SERVICES`] and the bundle id against a strict
-//! pattern. It has no undo: the app simply asks again next time.
-
 use std::path::{Path, PathBuf};
 
 use rusqlite::{Connection, OpenFlags};
@@ -19,9 +7,6 @@ use serde_json::{json, Value};
 use crate::core::washmybelly::plan::{self, Op, Outcome, PlanItem};
 use crate::core::washmybelly::Risk;
 
-/// `(TCC service without the kTCCService prefix, screen key)`. The first
-/// half is also the name `tccutil` takes. Closed list: nothing else is
-/// ever passed to `tccutil`.
 pub const SERVICES: &[(&str, &str)] = &[
     ("Camera", "camera"),
     ("Microphone", "microphone"),
@@ -60,7 +45,6 @@ fn service_key(service: &str) -> Option<&'static str> {
         .map(|(_, k)| *k)
 }
 
-/// Bundle ids only (`com.example.App`): no path, no space, no quote.
 pub fn valid_bundle(bundle: &str) -> bool {
     !bundle.is_empty()
         && bundle.len() <= 255
@@ -71,20 +55,14 @@ pub fn valid_bundle(bundle: &str) -> bool {
             .all(|b| b.is_ascii_alphanumeric() || b == b'.' || b == b'-' || b == b'_')
 }
 
-/// One row of `access`.
 #[derive(Debug, Clone, Serialize, PartialEq)]
 pub struct Grant {
-    /// Service without the `kTCCService` prefix (`Camera`).
     pub service: String,
-    /// Bundle id or, for `client_type = 1`, an absolute path.
     pub client: String,
     pub client_type: i64,
-    /// `allowed`, `denied`, `limited` or `unknown`.
     pub auth: &'static str,
     pub last_modified: Option<i64>,
-    /// For Automation: the app being controlled.
     pub target: Option<String>,
-    /// `user` or `system` database.
     pub db: &'static str,
 }
 
@@ -107,7 +85,6 @@ fn auth_label(v: i64) -> &'static str {
     }
 }
 
-/// Why the list could not be read.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Unavailable {
     FullDiskAccess,
@@ -125,7 +102,6 @@ impl Unavailable {
     }
 }
 
-/// `file:` URI for SQLite, with the characters it cares about escaped.
 fn uri_of(path: &Path) -> String {
     let mut out = String::from("file:");
     for b in path.to_string_lossy().bytes() {
@@ -138,7 +114,6 @@ fn uri_of(path: &Path) -> String {
 }
 
 fn open_read_only(path: &Path) -> Result<Connection, Unavailable> {
-    // A plain open tells "no Full Disk Access" (EPERM) from "not there".
     match std::fs::File::open(path) {
         Ok(_) => {}
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Err(Unavailable::NotFound),
@@ -157,7 +132,6 @@ fn open_read_only(path: &Path) -> Result<Connection, Unavailable> {
             return Ok(c);
         }
     }
-    // A WAL database we cannot write the `-shm` of: read it as immutable.
     let uri = format!("{}?mode=ro&immutable=1", uri_of(path));
     match Connection::open_with_flags(uri, ro | OpenFlags::SQLITE_OPEN_URI) {
         Ok(c) if probe(&c) => Ok(c),
@@ -165,9 +139,6 @@ fn open_read_only(path: &Path) -> Result<Connection, Unavailable> {
     }
 }
 
-/// Parse the `access` table of one TCC database. Columns change between
-/// macOS versions, so the query is built from what the table has
-/// (`allowed` before Big Sur, `auth_value` after).
 pub fn read_db(path: &Path, db: &'static str) -> Result<Vec<Grant>, Unavailable> {
     let conn = open_read_only(path)?;
     let cols: Vec<String> = conn
@@ -229,7 +200,6 @@ fn user_db() -> Option<PathBuf> {
 
 const SYSTEM_DB: &str = "/Library/Application Support/com.apple.TCC/TCC.db";
 
-/// Group grants by service in [`SERVICES`] order; unknown services last.
 pub fn group(grants: &[Grant]) -> Vec<Value> {
     let mut order: Vec<String> = SERVICES.iter().map(|(s, _)| s.to_string()).collect();
     for g in grants {
@@ -264,8 +234,6 @@ pub fn group(grants: &[Grant]) -> Vec<Value> {
         .collect()
 }
 
-/// Plan candidates (kind `privacy`) for every row that can be reset. One
-/// item per (service, app); automation targets of the same app share it.
 pub fn plan_items(grants: &[Grant]) -> Vec<PlanItem> {
     let mut seen = std::collections::HashSet::new();
     grants
@@ -315,13 +283,10 @@ fn list_now() -> Value {
     })
 }
 
-/// Screen action `privacy.tcc_list` (routed by `privacy::ui_action`).
 pub async fn tcc_list(_a: Value) -> Result<Value, String> {
     crate::core::washmybelly::tools::blocking(|| Ok(list_now())).await
 }
 
-/// `tccutil reset <Service> <bundle>`. Validates both against the closed
-/// list and the bundle pattern before anything runs.
 pub fn tcc_reset(service: &str, bundle: &str) -> Result<String, String> {
     let key = service_key(service).ok_or_else(|| format!("unknown privacy service {service}"))?;
     if !valid_bundle(bundle) {
@@ -349,7 +314,6 @@ pub fn tcc_reset(service: &str, bundle: &str) -> Result<String, String> {
     }
 }
 
-/// What `privacy::plan_execute` calls for action `tcc_reset`.
 pub fn plan_tcc_reset(args: &Value) -> Result<Outcome, String> {
     let service = args
         .get("service")

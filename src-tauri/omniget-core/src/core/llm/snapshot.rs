@@ -1,11 +1,3 @@
-//! Undo by shadow git: one bare-ish git dir per workspace under the app data
-//! dir, never inside the user's repo. Before the first writing tool of a turn
-//! the whole work tree is staged into the shadow index and `write-tree` gives a
-//! tree id; undo stages the present and `read-tree --reset -u` back to that
-//! tree. The user's own `.git` is only borrowed through `alternates`, so no
-//! object is copied twice and nothing of theirs is touched. Shape read from
-//! opencode (`snapshot/index.ts`) and cline checkpoints.
-
 use std::path::{Path, PathBuf};
 use std::sync::RwLock;
 
@@ -18,8 +10,6 @@ pub const ERR_SNAPSHOT: &str = "ERR_CODE_SNAPSHOT";
 pub const ERR_NOTHING_TO_UNDO: &str = "ERR_CODE_NOTHING_TO_UNDO";
 pub const ERR_UNDO_SHARED: &str = "ERR_UNDO_SHARED";
 pub const ERR_UNDO_CONFLICT: &str = "ERR_UNDO_CONFLICT";
-/// A job's diff cannot be told: some turn of it took no snapshot. Never
-/// answered with an empty diff (78#P2).
 pub const ERR_DIFF_UNAVAILABLE: &str = "ERR_DIFF_UNAVAILABLE";
 
 static ROOT: RwLock<Option<PathBuf>> = RwLock::new(None);
@@ -33,83 +23,52 @@ pub struct Entry {
     pub request: String,
     pub tree: String,
     pub at_ms: u64,
-    /// Messages the conversation held when this turn began, so undo can take
-    /// the turn's bubbles back too. `None` in entries written before 0.10.0.
     #[serde(default)]
     pub messages_before: Option<usize>,
-    /// Tree right after the turn ended, so the turn's own diff can be shown
-    /// later even when newer turns changed the folder again.
     #[serde(default)]
     pub after: Option<String>,
 }
 
-/// One file a turn changed.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct FileChange {
     pub path: String,
-    /// `A` added, `M` modified, `D` deleted, `R` renamed.
     pub status: String,
     pub additions: Option<u64>,
     pub deletions: Option<u64>,
-    /// No line counts: git sees binary content.
     #[serde(default)]
     pub binary: bool,
 }
 
-/// The real diff of one turn, from the shadow snapshots.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct TurnDiff {
     pub files: Vec<FileChange>,
-    /// Unified diff, clipped to [`DIFF_MAX_BYTES`].
     pub patch: String,
     pub clipped: bool,
-    /// False while the turn has not ended (the diff is against the folder
-    /// as it is now).
     pub complete: bool,
 }
 
 pub const DIFF_MAX_BYTES: usize = 256 * 1024;
-/// Most files a job diff lists; the totals still count every file.
 pub const DIFF_MAX_FILES: usize = 1000;
 
-/// What a whole job changed in its folder (1.7, shared mode): the tree
-/// before its first turn against the tree after its last one, from the
-/// shadow snapshots, so nothing of the user's repo is read or touched.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
 pub struct JobDiff {
     pub files: Vec<FileChange>,
     pub additions: u64,
     pub deletions: u64,
-    /// Where the caller stored [`Self::patch`] (`<llm dir>/jobs/<id>.patch`).
     pub patch_path: Option<PathBuf>,
-    /// The patch was cut at [`DIFF_MAX_BYTES`] or the list at
-    /// [`DIFF_MAX_FILES`].
     pub clipped: bool,
-    /// Commit of the job's tip; worktree mode only (2.4): the worktree's
-    /// `HEAD` when the diff was taken.
     pub head_oid: Option<String>,
-    /// The two ends compared: tree ids of the shadow snapshots (shared
-    /// mode), or the merge base and the tree of the worktree as it is
-    /// (worktree mode). What the host's proof stamps as `base→head`.
     #[serde(default)]
     pub base: Option<String>,
     #[serde(default)]
     pub tip: Option<String>,
-    /// False when the last turn never recorded its end: the diff is against
-    /// the folder as it is now.
     pub complete: bool,
-    /// Unified diff, text only (binary files are one `Binary files` line).
     #[serde(skip)]
     pub patch: String,
 }
 
-/// Turn marks of this process: request id → messages the conversation held
-/// when the turn began. The Coordinator sets one per turn; `before_write`
-/// copies it into the entry it pushes.
 static MARKS: RwLock<Option<std::collections::HashMap<String, usize>>> = RwLock::new(None);
 
-/// Why the last snapshot of a workspace failed (no `git`, a read-only disk).
-/// The chip shows it: an undo that cannot happen must not look available.
 static FAILURES: RwLock<Option<std::collections::HashMap<PathBuf, String>>> = RwLock::new(None);
 
 pub fn mark_turn(request: &str, messages_before: usize) {
@@ -142,7 +101,6 @@ fn note_failure(workspace: &Path, error: Option<&str>) {
     }
 }
 
-/// `git` resolvable on the PATH. Checked without spawning anything.
 pub fn git_available() -> bool {
     let exe = if cfg!(windows) { "git.exe" } else { "git" };
     std::env::var_os("PATH")
@@ -150,7 +108,6 @@ pub fn git_available() -> bool {
         .unwrap_or(false)
 }
 
-/// What stands between this workspace and an undo, if anything.
 pub fn problem(workspace: &Path) -> Option<String> {
     if !git_available() {
         return Some(format!(
@@ -164,7 +121,6 @@ pub fn problem(workspace: &Path) -> Option<String> {
         .and_then(|m| m.get(workspace).cloned())
 }
 
-/// What `undo` put back.
 #[derive(Debug, Clone, Serialize)]
 pub struct Undone {
     pub files: Vec<String>,
@@ -193,9 +149,6 @@ async fn git(dir: &Path, workspace: &Path, args: &[&str]) -> Result<String, Stri
     Ok(String::from_utf8_lossy(&out).trim().to_string())
 }
 
-/// `git` with bytes in and out: `stdin` is written and closed, `index`
-/// points `GIT_INDEX_FILE` at a private index (the undo builds its target
-/// tree there without touching the shadow index).
 async fn git_io(
     dir: &Path,
     workspace: &Path,
@@ -300,7 +253,6 @@ fn store(dir: &Path, conversation: &str, stack: &[Entry]) {
     }
 }
 
-/// Called before a writing tool runs. A failure is remembered for the UI.
 pub async fn before_write(
     workspace: &Path,
     conversation: &str,
@@ -311,8 +263,6 @@ pub async fn before_write(
     out
 }
 
-/// The snapshot itself. One snapshot per turn: a second write of
-/// the same `request` is a no-op.
 async fn before_write_inner(
     workspace: &Path,
     conversation: &str,
@@ -342,8 +292,6 @@ async fn before_write_inner(
     Ok(())
 }
 
-/// Records the tree after a turn that took a snapshot. A turn that wrote
-/// nothing has no entry and costs nothing here.
 pub async fn after_turn(workspace: &Path, conversation: &str, request: &str) -> Result<(), String> {
     let dir = git_dir(workspace)?;
     if !dir.join("HEAD").exists() {
@@ -359,8 +307,6 @@ pub async fn after_turn(workspace: &Path, conversation: &str, request: &str) -> 
     Ok(())
 }
 
-/// The files and patch one turn changed: its snapshot tree against the tree
-/// taken when it ended (or the folder now, while it runs).
 pub async fn turn_diff(
     workspace: &Path,
     conversation: &str,
@@ -438,13 +384,6 @@ pub async fn turn_diff(
     }))
 }
 
-/// The whole diff of a job whose turns are `requests` (its request ids, in
-/// any order) in `conversation`: the `tree` of its earliest snapshot against
-/// the `after` of its latest one. `Err(ERR_DIFF_UNAVAILABLE…)` when the
-/// folder has no snapshots or any of the turns took none — never an empty
-/// diff standing for "unknown". A job with snapshots that changed nothing is
-/// `Ok` with no files. Renames are a delete plus an add (the patch applies
-/// with `git apply` and reads like `diff -ruN`).
 pub async fn job_diff(
     workspace: &Path,
     conversation: &str,
@@ -498,16 +437,11 @@ pub async fn job_diff(
     Ok(diff)
 }
 
-/// The folder as a tree, staged in a copy of the shadow index (its stat
-/// cache keeps it fast) that is removed afterwards. For a turn still
-/// running: the shared index belongs to `before_write`/`after_turn`, and a
-/// reader holding its lock could make the turn's own `after_turn` fail.
 async fn stage_tree_private(dir: &Path, workspace: &Path) -> Result<String, String> {
     let index = dir.join(format!(
         "omniget-jobdiff-{}.index",
         uuid::Uuid::new_v4().simple()
     ));
-    // Git replaces the index by rename, so a copy is always a whole file.
     if let Err(e) = std::fs::copy(dir.join("index"), &index) {
         tracing::debug!("[snapshot] no index to copy ({e}): staging from scratch");
     }
@@ -521,11 +455,6 @@ async fn stage_tree_private(dir: &Path, workspace: &Path) -> Result<String, Stri
     out
 }
 
-/// Files, totals and the text patch between two trees of the shadow git,
-/// from one `git diff` (each spawn costs tens of ms; BN4 asks < 200 ms at 50
-/// files). The user's git config must not change the result (a
-/// `diff.noprefix`, a histogram algorithm, colour), so every such option is
-/// pinned.
 async fn diff_trees(dir: &Path, workspace: &Path, from: &str, to: &str) -> Result<JobDiff, String> {
     let out = git_io(
         dir,
@@ -550,9 +479,6 @@ async fn diff_trees(dir: &Path, workspace: &Path, from: &str, to: &str) -> Resul
         None,
     )
     .await?;
-    // `--raw --numstat -z` records, an empty record, then the patch. No
-    // record is empty (paths cannot hold NUL), so the first NUL NUL is the
-    // boundary.
     let (records, patch) = match out.windows(2).position(|w| w == [0, 0]) {
         Some(i) => (&out[..i], &out[i + 2..]),
         None => (&out[..], &out[out.len()..]),
@@ -563,7 +489,6 @@ async fn diff_trees(dir: &Path, workspace: &Path, from: &str, to: &str) -> Resul
     let mut fields = records.split(|b| *b == 0);
     while let Some(field) = fields.next() {
         if field.first() == Some(&b':') {
-            // `:<mode> <mode> <oid> <oid> <status>`, then the path.
             let status = field.rsplit(|b| *b == b' ').next().unwrap_or(b"M");
             let Some(path) = fields.next() else { break };
             files.push(FileChange {
@@ -574,7 +499,6 @@ async fn diff_trees(dir: &Path, workspace: &Path, from: &str, to: &str) -> Resul
                 binary: false,
             });
         } else if !field.is_empty() {
-            // `added TAB deleted TAB path`; `-` `-` for binary.
             let rec = String::from_utf8_lossy(field);
             let mut cols = rec.splitn(3, '\t');
             if let (Some(a), Some(d), Some(path)) = (cols.next(), cols.next(), cols.next()) {
@@ -596,7 +520,6 @@ async fn diff_trees(dir: &Path, workspace: &Path, from: &str, to: &str) -> Resul
     files.truncate(DIFF_MAX_FILES);
     let mut patch = String::from_utf8_lossy(patch).to_string();
     if patch.len() > DIFF_MAX_BYTES {
-        // Cut at the end of the last whole line that fits.
         let end = patch[..DIFF_MAX_BYTES]
             .rfind('\n')
             .map(|i| i + 1)
@@ -618,12 +541,6 @@ async fn diff_trees(dir: &Path, workspace: &Path, from: &str, to: &str) -> Resul
     })
 }
 
-/// What a job did in its worktree (2.4, worktree mode): from
-/// `merge-base(base_oid, HEAD)` (the job's branch may have been rebased or
-/// have merged its base since) to the worktree as it is now, uncommitted
-/// files included through a private index (`GIT_INDEX_FILE`, never the
-/// worktree's own). `head_oid` is the worktree's `HEAD`. Same files, totals,
-/// patch and limits as [`job_diff`]; nothing of the user's checkout is read.
 pub async fn worktree_diff(worktree: &Path, base_oid: &str) -> Result<JobDiff, String> {
     use crate::core::vcs::checkpoint;
     use crate::core::vcs::repo::GitCtx;
@@ -640,9 +557,6 @@ pub async fn worktree_diff(worktree: &Path, base_oid: &str) -> Result<JobDiff, S
     let ctx = GitCtx::Repo {
         work_tree: worktree.to_path_buf(),
     };
-    // One spawn for the git dir and HEAD; then the merge base and the
-    // staging of the worktree side by side (each spawn is tens of ms, and
-    // this runs at the end of every worktree job).
     let both = ctx
         .git()
         .args(["rev-parse", "--absolute-git-dir", "HEAD^{commit}"])
@@ -680,9 +594,6 @@ pub async fn worktree_diff(worktree: &Path, base_oid: &str) -> Result<JobDiff, S
     Ok(diff)
 }
 
-/// The shadow git of `workspace` as a [`crate::core::vcs::repo::GitCtx`]
-/// (3.5: a hunk of a shared job is put back through it, so the paths of the
-/// patch are relative to the folder whatever repository it sits in).
 pub fn shadow_ctx(workspace: &Path) -> Result<crate::core::vcs::repo::GitCtx, String> {
     let dir = git_dir(workspace)?;
     if !dir.join("HEAD").exists() {
@@ -697,10 +608,6 @@ pub fn shadow_ctx(workspace: &Path) -> Result<crate::core::vcs::repo::GitCtx, St
     })
 }
 
-/// From the tree `base` of the shadow git to `workspace` as it is now (3.5):
-/// what a shared job's hunks are checked against before one is discarded.
-/// Same files, patch and limits as [`job_diff`]; the shadow index is copied,
-/// never used.
 pub async fn live_diff(workspace: &Path, base: &str) -> Result<JobDiff, String> {
     let ctx = shadow_ctx(workspace)?;
     let crate::core::vcs::repo::GitCtx::Shadow { git_dir: dir, .. } = ctx else {
@@ -719,11 +626,6 @@ pub fn depth(workspace: &Path, conversation: &str) -> usize {
         .unwrap_or(0)
 }
 
-/// The live folder, if any, that shares files with `workspace`: the same
-/// folder, one inside it, or one it is inside (t3code's
-/// `isRestoreWorkspaceIsolated`, MIT, ported as an idea). Compared through
-/// [`FolderKey`], so a symlink, `\\?\` or another letter case is the same
-/// folder.
 pub fn shared_with(workspace: &Path, live: &[PathBuf]) -> Option<PathBuf> {
     let key = FolderKey::of(workspace);
     live.iter()
@@ -731,20 +633,6 @@ pub fn shared_with(workspace: &Path, live: &[PathBuf]) -> Option<PathBuf> {
         .cloned()
 }
 
-/// Puts back what the last writing turn of this conversation changed.
-///
-/// Refused, with nothing touched:
-/// - `ERR_UNDO_SHARED` while another conversation or job works in a folder
-///   that overlaps this one (`live`: their folders; the caller leaves this
-///   conversation out). Its files are in the same tree, and restoring now
-///   would erase work in progress (W5).
-/// - `ERR_UNDO_CONFLICT` when a file this turn changed was changed again
-///   after it (by another agent or by hand).
-///
-/// When the turn's end is known (`after`), only the paths the turn itself
-/// changed go back: work that other jobs did later in the same folder keeps
-/// every byte, even when they have finished. An entry without `after` (the
-/// turn never ended) falls back to putting the whole tree back.
 pub async fn undo(
     workspace: &Path,
     conversation: &str,
@@ -802,8 +690,6 @@ pub async fn undo(
     })
 }
 
-/// "Revert the conversation only": drops the last entry (its bubbles go,
-/// the caller truncates them) and leaves every file as it is.
 pub async fn forget_last(workspace: &Path, conversation: &str) -> Result<Undone, String> {
     let dir = git_dir(workspace)?;
     let mut stack = if dir.join("HEAD").exists() {
@@ -821,7 +707,6 @@ pub async fn forget_last(workspace: &Path, conversation: &str) -> Result<Undone,
     })
 }
 
-/// Paths that differ between two trees (renames as delete + add).
 async fn changed_paths(
     dir: &Path,
     workspace: &Path,
@@ -843,9 +728,6 @@ async fn changed_paths(
         .collect())
 }
 
-/// The tree `now` with `paths` as they were in `from` (absent there =
-/// removed), built in a private index so the shadow index stays at `now` and
-/// `read-tree --reset -u` then touches only those paths on disk.
 async fn graft(
     dir: &Path,
     workspace: &Path,
@@ -880,7 +762,6 @@ async fn graft(
             }
         }
         for path in paths.iter().filter(|p| !present.contains(*p)) {
-            // Mode 0 removes the path from the index.
             info.extend_from_slice(
                 format!("0 0000000000000000000000000000000000000000\t{path}\0").as_bytes(),
             );

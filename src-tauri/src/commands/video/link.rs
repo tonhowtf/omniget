@@ -1,9 +1,3 @@
-//! Links played through yt-dlp (YouTube and the sites it knows).
-//!
-//! `yt-dlp -J` gives the formats; we pick one the webview plays on its own
-//! (progressive MP4 with H.264 + AAC, or a muxed HLS stream) and route it
-//! through the local proxy with the headers yt-dlp says the CDN wants.
-
 use std::collections::HashMap;
 use std::sync::{Mutex, OnceLock};
 use std::time::{Duration, Instant};
@@ -28,8 +22,6 @@ fn cache() -> &'static Mutex<HashMap<String, Cached>> {
     C.get_or_init(|| Mutex::new(HashMap::new()))
 }
 
-/// Last playable URL per progress key (`url:...`), for frame capture,
-/// transcription and silence detection of links.
 struct Played {
     url: String,
     subs: Vec<(String, String)>,
@@ -40,12 +32,10 @@ fn played() -> &'static Mutex<HashMap<String, Played>> {
     P.get_or_init(|| Mutex::new(HashMap::new()))
 }
 
-/// The proxied stream URL last resolved for a key (ffmpeg can read it).
 pub fn stream_for_key(key: &str) -> Option<String> {
     played().lock().ok()?.get(key).map(|v| v.url.clone())
 }
 
-/// Subtitle `(lang, proxied url)` pairs last resolved for a key.
 pub fn subs_for_key(key: &str) -> Vec<(String, String)> {
     played()
         .lock()
@@ -100,7 +90,6 @@ enum Kind {
     Hls,
 }
 
-/// Candidates the webview can play without help, best first.
 fn candidates(formats: &[Value]) -> Vec<(Kind, &Value)> {
     let mut out: Vec<(Kind, i64, i64, &Value)> = Vec::new();
     for f in formats {
@@ -120,10 +109,8 @@ fn candidates(formats: &[Value]) -> Vec<(Kind, &Value)> {
             || v.starts_with("h264")
             || (cfg!(target_os = "macos") && (v.starts_with("hvc") || v.starts_with("hev")));
         let aok = a.starts_with("mp4a") || a == "aac" || a == "mp3";
-        // extractors that don't report codecs: trust mp4 + both streams
         let unknown = (v.is_empty() || a.is_empty()) && ext == "mp4";
         if proto.starts_with("m3u8") {
-            // muxed variants only: the player needs audio in the same stream
             let muxed = v != "none" && a != "none";
             let codecs_ok = (v.is_empty() || vok) && (a.is_empty() || aok);
             if muxed && codecs_ok {
@@ -136,7 +123,6 @@ fn candidates(formats: &[Value]) -> Vec<(Kind, &Value)> {
             out.push((Kind::Progressive, height.min(1080), tbr, f));
         }
     }
-    // prefer height (capped at 1080), then progressive over HLS, then bitrate
     out.sort_by(|a, b| {
         b.1.cmp(&a.1)
             .then_with(|| (a.0 == Kind::Hls).cmp(&(b.0 == Kind::Hls)))
@@ -175,7 +161,6 @@ fn subtitles(
             if lang == "live_chat" {
                 continue;
             }
-            // auto captions come translated to 100+ languages: keep the original
             if auto {
                 let orig = lang.ends_with("-orig")
                     || (!lang_of_video.is_empty() && *lang == lang_of_video);
@@ -256,7 +241,6 @@ fn host_of(url: &str) -> String {
         .unwrap_or_default()
 }
 
-/// Resolves a page URL into playback, skipping the kinds in `avoid`.
 async fn resolve_inner(
     app: &AppHandle,
     url: &str,
@@ -280,9 +264,6 @@ async fn resolve_inner(
     let (kind, fmt, stream_url) = match picked {
         Some((k, f)) => (k, f, s(f, "url").to_string()),
         None => {
-            // YouTube and others list HLS variants without audio, but each
-            // points to a master playlist whose audio groups the player
-            // picks up on its own (native HLS or hls.js)
             let master = formats.iter().find(|f| {
                 s(f, "protocol").starts_with("m3u8")
                     && !s(f, "manifest_url").is_empty()
@@ -291,7 +272,6 @@ async fn resolve_inner(
             if let (Some(f), true) = (master, !avoid.contains(&Kind::Hls)) {
                 (Kind::Hls, f, s(f, "manifest_url").to_string())
             } else {
-                // single-format extractors put the media URL at the top level
                 let top = s(&json, "url");
                 if top.is_empty() || !avoid.is_empty() {
                     return Err("No format of this link plays here. Use Download and watch.".into());
@@ -315,7 +295,6 @@ async fn resolve_inner(
             w.to_string()
         }
     };
-    // progress follows the page the user opened, so the key stays stable
     let key = format!("url:{url}");
     let title = {
         let t = s(&json, "title");
@@ -371,7 +350,6 @@ async fn resolve_inner(
         );
     }
     let mut subs = subs;
-    // subtitle_id "off" = turned off on purpose
     let off = prefs.subtitle_id.as_deref() == Some("off");
     let pick = prefs
         .subtitle_id
@@ -443,7 +421,6 @@ async fn resolve_inner(
     })
 }
 
-/// Resolves a page URL (YouTube and the sites yt-dlp knows) into playback.
 pub async fn resolve(app: &AppHandle, url: &str) -> Result<PlaybackInfo, String> {
     let url = url.trim();
     if !(url.starts_with("http://") || url.starts_with("https://")) {
@@ -452,8 +429,6 @@ pub async fn resolve(app: &AppHandle, url: &str) -> Result<PlaybackInfo, String>
     resolve_inner(app, url, &[], None).await
 }
 
-/// After the chosen format failed in the player: drop the cached formats
-/// (the signed URLs may have expired) and try the other kind of stream.
 pub async fn resolve_fallback(
     app: &AppHandle,
     url: &str,

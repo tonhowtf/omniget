@@ -1,24 +1,3 @@
-//! Bridge routes of the job system (the agent routes). Their bearer is a
-//! scoped token (`bridge_tokens`, 2.1), checked by one `route_layer` that
-//! maps each path to `jobs:read` or `jobs:operate`; the extension bearer
-//! still passes for one version with a `Deprecation` header. Routes:
-//! `POST /v1/hooks/<id>` (webhook trigger; the body becomes `{{body}}`), and
-//! the small API `omniget-cli agent run|loop|jobs|explain|status|diff` talks to,
-//! and `GET /v1/jobs/{id}/proof` (the host's proof of a finished job, 2.4).
-//! `POST /v1/agent/run-tool` runs an agent of the catalog (or an `.md` file
-//! the CLI read) as the system prompt of a coding CLI (`omniget agent run
-//! <agent> --tool <x>`); `POST /v1/agent/loop-catalog` starts a catalog loop
-//! on the Loops engine (`omniget agent loop --catalog <id>`); `GET
-//! /v1/playbooks` lists the playbook runs; `GET /v1/approvals` and `POST
-//! /v1/approvals/{id}` read and answer the durable asks (2.2). `POST
-//! /v1/commands` and `GET /v1/jobs/{id}/wait` are the asynchronous,
-//! idempotent command surface (2.5, `job_commands`). The review of a job (3.5):
-//! `GET /v1/jobs/{id}/hunks`, `POST /v1/jobs/{id}/hunks/discard`,
-//! `GET|POST /v1/jobs/{id}/notes`, `DELETE /v1/jobs/{id}/notes/{note}`,
-//! `POST /v1/jobs/{id}/notes/send`, `GET|POST /v1/jobs/{id}/integrate`,
-//! `POST /v1/jobs/{id}/discard` and `POST /v1/jobs/{id}/walkthrough`
-//! (`omniget agent integrate|discard`).
-
 use axum::extract::{Path, RawQuery};
 use axum::http::{header, HeaderMap, StatusCode};
 use axum::response::{IntoResponse, Response};
@@ -30,8 +9,6 @@ use tauri::AppHandle;
 
 use crate::jobs::{self, LoopDef};
 
-/// Who called (the guard put it there), for the audit line of a route that
-/// writes its own (2.8).
 type Caller = Option<axum::Extension<crate::mcp::policy::Principal>>;
 
 fn caller(p: &Caller) -> omniget_core::core::llm::audit::Actor {
@@ -52,7 +29,6 @@ impl JobsBridgeState {
         }
     }
 
-    /// The guard of every route below: tokens are read from `jobs.db`.
     pub(crate) fn guard(&self) -> crate::bridge_tokens::Guard {
         let app = self.app.clone();
         crate::bridge_tokens::Guard {
@@ -72,7 +48,6 @@ fn fail(status: StatusCode, message: impl Into<String>) -> Response {
     (status, Json(json!({ "error": message.into() }))).into_response()
 }
 
-/// `format=` of a query string (`files` when absent).
 fn format_of(query: Option<&str>) -> String {
     query
         .unwrap_or("")
@@ -95,18 +70,12 @@ struct RunBody {
     prompt: String,
     #[serde(default)]
     workspace: Option<String>,
-    /// This job's ceiling in minutes (1–1440); absent = the setting.
     #[serde(default)]
     deadline_min: Option<u32>,
-    /// `shared | worktree | auto` (2.3); absent = `auto`.
     #[serde(default)]
     isolation: Option<String>,
-    /// The ref a worktree starts from; absent = the checkout as it is on
-    /// disk, uncommitted work included.
     #[serde(default)]
     base: Option<String>,
-    /// `approval_required | auto_edits | auto | full_access` (2.7); absent
-    /// = `approval_required`: a job started from outside asks first (D2).
     #[serde(default)]
     run_mode: Option<String>,
 }
@@ -117,7 +86,6 @@ where
 {
     macro_rules! guarded {
         ($state:ident, $headers:ident, $body:expr) => {{
-            // The bearer was checked by the route layer (`bridge_tokens::guard`).
             let _ = &$headers;
             let jobs = match jobs::get(&$state.app) {
                 Ok(j) => j,
@@ -184,9 +152,6 @@ where
                 },
             ),
         )
-        // Kept for one version as a shortcut of `job.start` on `/v1/commands`
-        // (2.5): same checks, a fresh command id, the whole job back as
-        // before, and a `Deprecation` header pointing at the new route.
         .route(
             "/v1/agent/run",
             post(
@@ -234,9 +199,6 @@ where
                 },
             ),
         )
-        // The command surface (2.5): `job.start`, `job.interrupt`,
-        // `approval.respond`, idempotent by `command_id`. The route asks
-        // for any valid token; the command itself checks its scope.
         .route(
             "/v1/commands",
             post(
@@ -255,8 +217,6 @@ where
                 },
             ),
         )
-        // Long poll on the job's state (2.5): wakes on the change, matches
-        // only a state newer than `after_seq`, 408 on timeout.
         .route(
             "/v1/jobs/{id}/wait",
             get(
@@ -284,7 +244,6 @@ where
             "/v1/agent/loop",
             post(
                 move |headers: HeaderMap, who: Caller, Json(mut def): Json<LoopDef>| async move {
-                    // A Loop started from outside asks first unless told (D2).
                     def.run_mode.get_or_insert(jobs::RunMode::ApprovalRequired);
                     guarded!(s3, headers, |j: std::sync::Arc<jobs::Jobs>| ok(j
                         .loop_create(def)
@@ -377,8 +336,6 @@ where
                 },
             ),
         )
-        // Why the job is in its state (79#P8). Local bridge only: it carries
-        // the pid, which never leaves through MCP.
         .route(
             "/v1/jobs/{id}/explain",
             get(
@@ -394,8 +351,6 @@ where
                 },
             ),
         )
-        // What runs, what waits (position and reason) and the limits (1.6,
-        // symphony's state snapshot). `omniget agent status` reads it.
         .route(
             "/v1/state",
             get(move |headers: HeaderMap| async move {
@@ -405,9 +360,6 @@ where
                 .into_response())
             }),
         )
-        // What the job changed (1.7, 78#P2): `format=files` (default) is the
-        // list and totals as JSON, `format=patch` the unified diff. A job
-        // with no snapshot says so (409 for the patch), never an empty diff.
         .route(
             "/v1/jobs/{id}/diff",
             get(
@@ -442,8 +394,6 @@ where
                 },
             ),
         )
-        // The host's proof of what the job did (2.4, 83#P4): stamp, files,
-        // checks with exit codes, tokens, cost and time. 409 while it runs.
         .route(
             "/v1/jobs/{id}/proof",
             get(
@@ -475,9 +425,6 @@ where
                 },
             ),
         )
-        // Item 2.2: the one table of asks, answerable from outside the window
-        // (`omniget agent approvals|approve`). Listing needs `jobs:read`,
-        // answering `approvals:respond` (the guard maps both).
         .route(
             "/v1/approvals",
             get(move |RawQuery(query): RawQuery| async move {
@@ -505,7 +452,6 @@ where
                 },
             ),
         )
-        // The audit log (2.8): `omniget audit --since 1d`. Scope `audit:read`.
         .route(
             "/v1/audit",
             get(move |RawQuery(query): RawQuery| async move {
@@ -521,7 +467,6 @@ where
                 .into_response())
             }),
         )
-        // Merged before the layer so the review routes get their scope too.
         .merge(review_routes(review))
         .merge(budget_routes())
         .merge(workflow_routes(flow))
@@ -540,11 +485,6 @@ struct TrustBody {
     revoke: bool,
 }
 
-/// `.omniget/workflow.md` (3.10): `GET /v1/workflow?workspace=<dir>` (a
-/// read), `POST /v1/workflow/trust` (`workflow:trust`, which neither a job's
-/// token nor the extension key ever has: trusting runs the repository's
-/// commands) and `GET /v1/jobs/{id}/report` (the delegating agent's
-/// one-call report, a read of that job). `omniget agent workflow|report`.
 fn workflow_routes<S>(state: JobsBridgeState) -> Router<S>
 where
     S: Clone + Send + Sync + 'static,
@@ -588,7 +528,6 @@ where
         )
 }
 
-/// HTTP status of a review error, by its code.
 fn review_status(e: &str) -> StatusCode {
     use omniget_core::core::llm::review as r;
     if e.starts_with(r::ERR_HUNK_STALE)
@@ -608,9 +547,6 @@ fn review_status(e: &str) -> StatusCode {
     }
 }
 
-/// Budgets (3.3): `omniget agent budget list|set|raise`. Reading needs
-/// `jobs:read`; setting and raising need `budget:write` (the guard of
-/// `router`, merged before its `route_layer`).
 fn budget_routes<S>() -> Router<S>
 where
     S: Clone + Send + Sync + 'static,
@@ -675,13 +611,10 @@ struct WalkthroughBody {
     refresh: bool,
 }
 
-/// The review routes of a job (3.5). The scoped token is checked by the
-/// `route_layer` of `router` (reads `jobs:read`, writes `jobs:operate`).
 fn review_routes<S>(state: JobsBridgeState) -> Router<S>
 where
     S: Clone + Send + Sync + 'static,
 {
-    // The bearer was checked by the route layer (`bridge_tokens::guard`).
     macro_rules! with_jobs {
         ($state:ident, $headers:ident) => {{
             let _ = &$headers;
@@ -787,7 +720,6 @@ where
                             if ok {
                                 Json(body).into_response()
                             } else {
-                                // A conflict or a hook that failed: undone, 409 with the outcome.
                                 let mut body = body;
                                 body["error"] = json!(format!(
                                     "integration {}: {}",

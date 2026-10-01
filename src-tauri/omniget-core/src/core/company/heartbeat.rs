@@ -1,22 +1,3 @@
-//! Heartbeats: why an agent wakes, and what a wake becomes.
-//!
-//! - Every reason to wake an agent is a durable `wakeups` row, written in the
-//!   same transaction as the change that caused it (assignment, mention,
-//!   review, dependency done, approval, routine, timer, retry…).
-//! - A second reason for the same agent and issue while one is queued is
-//!   **coalesced** into it (a `coalesced` row points at the survivor), so a
-//!   burst of comments becomes one run and no reason is lost — every row ends
-//!   `dispatched`, `coalesced`, `skipped` or `cancelled`, with the why.
-//! - [`CompanyStore::claim`] turns due wakes into runs under one transaction:
-//!   company active, agent invokable, per-agent and per-company slots free,
-//!   no hard budget stop, the issue not leased by another live run.
-//! - [`CompanyStore::run_finish`] closes a run, settles the agent, releases
-//!   the lease and decides what happens next **from evidence** (did the run
-//!   change status, comment, write a document or a work product?), not from
-//!   an English regex over the output (Paperclip, area B §3): continue with a
-//!   bounded number of attempts, retry infrastructure failures with
-//!   exponential backoff and jitter, or hand the issue to the owner.
-
 use rusqlite::{params, OptionalExtension, Row, Transaction};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -25,11 +6,7 @@ use super::issues::{get_issue, issue_row, Issue, ISSUE_COLS};
 use super::org::{get_company, get_staff, invokable, staff_row, Staff, STAFF_COLS};
 use super::{audit, changed, invalid, new_id, not_found, now_ms, sql, Actor, Change, CompanyStore};
 
-/// Continuations of one issue without evidence of progress before the owner
-/// is asked (Paperclip gives 5 disposition attempts; 3 is enough when every
-/// run is resumed with its session).
 pub const MAX_CONTINUATIONS: i64 = 3;
-/// Retries of an infrastructure failure (spawn, stall, rate limit).
 pub const MAX_RETRIES: i64 = 4;
 pub const RETRY_BASE_MS: i64 = 15_000;
 
@@ -67,7 +44,6 @@ impl WakeSource {
             WakeSource::Continuation => "continuation",
         }
     }
-    /// Lower is sooner. People talking to an agent go first.
     fn weight(self) -> i64 {
         match self {
             WakeSource::Manual | WakeSource::Comment | WakeSource::Approval => 0,
@@ -174,32 +150,25 @@ pub(crate) fn run_row(r: &Row) -> rusqlite::Result<Run> {
     })
 }
 
-/// What the scheduler hands to the executor.
 #[derive(Debug, Clone, Serialize)]
 pub struct Claim {
     pub run: Run,
     pub staff: Staff,
     pub issue: Option<Issue>,
     pub wakes: Vec<Wake>,
-    /// `true` when this agent never ran before in this company (the prompt
-    /// then carries the full brief; later runs send only what changed).
     pub first_run: bool,
     pub last_run_ms: Option<i64>,
 }
 
-/// How a run ended, reported by the executor.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct RunOutcome {
-    /// `succeeded | failed | cancelled | timed_out`
     pub state: String,
-    /// `stalled | no_start | deadline | limit | spawn | rate_limit | budget | agent_error | …`
     pub failure_class: Option<String>,
     pub error: Option<String>,
     pub summary: Option<String>,
     pub job_id: Option<String>,
 }
 
-/// Is this failure the infrastructure's fault (retry) or the work's (ask)?
 pub fn retryable(class: Option<&str>) -> bool {
     matches!(
         class,
@@ -207,20 +176,15 @@ pub fn retryable(class: Option<&str>) -> bool {
     )
 }
 
-/// Exponential backoff with ±10% jitter from the run id (deterministic, so
-/// tests and benches are reproducible).
 pub fn backoff_ms(attempt: i64, seed: &str) -> i64 {
     let base = RETRY_BASE_MS.saturating_mul(1 << (attempt.clamp(1, 10) - 1));
     let h = seed
         .bytes()
         .fold(7u64, |a, b| a.wrapping_mul(31).wrapping_add(b as u64));
-    let jitter = (h % 21) as i64 - 10; // -10..=10 %
+    let jitter = (h % 21) as i64 - 10;
     base + base * jitter / 100
 }
 
-/// Queues a reason to wake `staff`. A queued wake for the same agent and
-/// issue absorbs it (the new row is kept as `coalesced`, pointing at the
-/// survivor) — the burst becomes one run and nothing is lost.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn enqueue_wake(
     tx: &Transaction,
@@ -271,7 +235,6 @@ pub(crate) fn enqueue_wake_at(
             params![id, company, staff, issue, source.as_str(), reason, ctx, prio, sid, not_before_ms, now],
         )
         .map_err(sql)?;
-        // The survivor takes the most urgent priority and the earliest start.
         tx.execute(
             "UPDATE wakeups SET priority = MIN(priority, ?2), not_before_ms = MIN(not_before_ms, ?3), updated_ms = ?4 WHERE id = ?1",
             params![sid, prio.min(sprio), not_before_ms, now],
@@ -308,7 +271,6 @@ fn running_count(tx: &Transaction, col: &str, id: &str) -> Result<i64, String> {
 }
 
 impl CompanyStore {
-    /// Wakes an agent by hand (the "Run now" button, `company_wake`).
     pub fn wake(
         &self,
         company: &str,
@@ -366,8 +328,6 @@ impl CompanyStore {
         })
     }
 
-    /// Turns due wakes into runs. `global_free` is how many new runs the
-    /// app can start right now (its own job gate still applies after).
     pub fn claim(&self, now: i64, global_free: usize) -> Result<Vec<Claim>, String> {
         if global_free == 0 {
             return Ok(Vec::new());
@@ -394,8 +354,6 @@ impl CompanyStore {
                 if busy_staff.contains(&w.staff_id) {
                     continue;
                 }
-                // Still queued? (an earlier claim in this pass may have
-                // absorbed it.)
                 let still: bool = tx
                     .query_row("SELECT state = 'queued' FROM wakeups WHERE id = ?1", params![w.id], |r| r.get(0))
                     .map_err(sql)?;
@@ -413,7 +371,6 @@ impl CompanyStore {
                     if why.starts_with("company_") || staff.status == "terminated" {
                         skip(tx, &w.id, &why)?;
                     }
-                    // paused / pending: stays queued until resumed.
                     busy_staff.insert(staff.id.clone());
                     continue;
                 }
@@ -445,7 +402,6 @@ impl CompanyStore {
                         skip(tx, &w.id, "reassigned")?;
                         continue;
                     }
-                    // Another live run holds it: wait for it (deferred).
                     if let (Some(l), Some(until)) = (&i.lease_run_id, i.lease_until_ms) {
                         if until > now {
                             let live: bool = tx
@@ -464,7 +420,6 @@ impl CompanyStore {
                         && company.strategy_state != "approved"
                         && i.parent_id.is_some()
                     {
-                        // Code-enforced "strategy first": delegated work waits.
                         continue;
                     }
                 }
@@ -474,12 +429,10 @@ impl CompanyStore {
                     &staff.id,
                     issue.as_ref().and_then(|i| i.project_id.as_deref()),
                 )? {
-                    // Budget stop: the wake waits for "raise and resume".
                     let _ = block;
                     busy_staff.insert(staff.id.clone());
                     continue;
                 }
-                // Everything queued for the same agent and issue rides along.
                 let mut st = tx
                     .prepare(&format!(
                         "SELECT {WAKE_COLS} FROM wakeups WHERE staff_id = ?1 AND issue_id IS ?2
@@ -534,7 +487,6 @@ impl CompanyStore {
                 )
                 .map_err(sql)?;
                 super::gov::count_run(tx, &company.id, &staff.id, issue.as_ref().and_then(|i| i.project_id.as_deref()), now)?;
-                // Checkout on the run's behalf, so the agent starts owning it.
                 let issue = match issue {
                     Some(i) if matches!(i.status.as_str(), "todo" | "backlog" | "in_progress")
                         && i.assignee_staff_id.as_deref().is_none_or(|a| a == staff.id) =>
@@ -587,7 +539,6 @@ impl CompanyStore {
         })
     }
 
-    /// Keeps the checkout lease of a live run from expiring.
     pub fn run_renew_lease(&self, run_id: &str) -> Result<(), String> {
         self.write(|tx, _| {
             tx.execute(
@@ -632,7 +583,6 @@ impl CompanyStore {
         })
     }
 
-    /// The live run of an agent (the MCP tools act on its behalf).
     pub fn live_run_of(&self, staff: &str) -> Result<Option<Run>, String> {
         self.read(|c| {
             c.query_row(
@@ -644,8 +594,6 @@ impl CompanyStore {
         })
     }
 
-    /// Runs still `running` in the database (the app checks each against
-    /// its job and calls [`run_finish`] with `interrupted` when gone).
     pub fn live_runs(&self) -> Result<Vec<Run>, String> {
         self.read(|c| {
             let mut st = c.prepare(&format!(
@@ -656,7 +604,6 @@ impl CompanyStore {
         })
     }
 
-    /// Closes a run and decides what follows.
     pub fn run_finish(&self, run_id: &str, out: RunOutcome) -> Result<Run, String> {
         if !matches!(
             out.state.as_str(),
@@ -669,7 +616,6 @@ impl CompanyStore {
         self.write(|tx, ch| finish_tx(tx, ch, run_id, out))
     }
 
-    /// Overview numbers for the dashboard and the benches.
     pub fn heartbeat_stats(&self, company: &str) -> Result<Value, String> {
         self.read(|c| {
             let wakes: Vec<(String, i64)> = {
@@ -689,9 +635,6 @@ impl CompanyStore {
         })
     }
 
-    /// Agents whose timer heartbeat is due: queue a `timer` wake each and
-    /// move `heartbeat_next_ms` forward (compare-and-set on the old value,
-    /// so two tickers never fire the same slot twice).
     pub fn tick_timers(&self, now: i64) -> Result<u32, String> {
         self.write(|tx, ch| {
             let mut st = tx
@@ -725,7 +668,6 @@ impl CompanyStore {
                 if c.status != "active" {
                     continue;
                 }
-                // A timer never piles up: one queued timer wake per agent.
                 let already: bool = tx
                     .query_row(
                         "SELECT EXISTS (SELECT 1 FROM wakeups WHERE staff_id = ?1 AND state = 'queued' AND source = 'timer')",
@@ -743,8 +685,6 @@ impl CompanyStore {
         })
     }
 
-    /// Frees leases whose runs are gone and wakes the owners of work left
-    /// `in_progress` with nothing alive behind it (the "stranded" sweep).
     pub fn reconcile(&self, now: i64) -> Result<u32, String> {
         self.write(|tx, ch| {
             let freed = tx
@@ -796,7 +736,6 @@ impl CompanyStore {
 }
 
 fn continuation_count(tx: &Transaction, issue: &str) -> Result<i64, String> {
-    // Consecutive runs on this issue that ended without evidence.
     let mut st = tx
         .prepare("SELECT liveness FROM runs WHERE issue_id = ?1 AND state <> 'running' ORDER BY created_ms DESC LIMIT 20")
         .map_err(sql)?;
@@ -813,7 +752,6 @@ fn continuation_count(tx: &Transaction, issue: &str) -> Result<i64, String> {
     Ok(n)
 }
 
-/// Evidence that a run moved its issue: rows it wrote, not words it said.
 fn progress_evidence(tx: &Transaction, run: &Run) -> Result<i64, String> {
     tx.query_row(
         "SELECT COUNT(*) FROM audit WHERE company_id = ?1 AND run_id = ?2
@@ -841,7 +779,7 @@ fn finish_tx(
         .map_err(sql)?
         .ok_or_else(|| not_found("run", run_id))?;
     if !matches!(run.state.as_str(), "queued" | "running") {
-        return Ok(run); // already closed: idempotent
+        return Ok(run);
     }
     let now = now_ms();
     let evidence = progress_evidence(tx, &run)?;
@@ -890,8 +828,6 @@ fn finish_tx(
                         )?;
                         changed(ch, &run.company_id, "issue", &i.id);
                     } else {
-                        // Recorded as `no_progress` so the next verdict
-                        // counts it; the continuation is scheduled anyway.
                         liveness = "no_progress".into();
                         enqueue_wake_at(
                             tx,
@@ -906,7 +842,6 @@ fn finish_tx(
                         )?;
                     }
                 } else if i.status == "in_progress" {
-                    // Progress, still open: continue soon on the same session.
                     liveness = "continuing".into();
                     enqueue_wake_at(
                         tx,
@@ -1007,8 +942,6 @@ fn finish_tx(
     .map_err(sql)
 }
 
-/// One agent's record over a window: the "performance review" Paperclip only
-/// promises in its README, computed from runs, issues and the ledger.
 #[derive(Debug, Clone, Serialize)]
 pub struct Scorecard {
     pub staff_id: String,
@@ -1017,14 +950,12 @@ pub struct Scorecard {
     pub runs: i64,
     pub succeeded: i64,
     pub failed: i64,
-    /// Runs that moved their issue (status, comment, document, deliverable).
     pub with_progress: i64,
     pub issues_done: i64,
     pub reviews_sent_back: i64,
     pub cost_usd: f64,
     pub tokens: i64,
     pub avg_run_s: f64,
-    /// Cost per finished issue (0 when none).
     pub cost_per_done_usd: f64,
 }
 

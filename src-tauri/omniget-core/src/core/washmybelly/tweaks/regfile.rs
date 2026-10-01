@@ -1,14 +1,5 @@
-//! `.reg` files (Windows Registry Editor 5.00 / REGEDIT4) as typed ops.
-//!
-//! Win11Debloat ships its apply and undo files as they are: some in UTF-16 LE
-//! with a BOM, others in UTF-8. [`decode`] takes both; [`parse`] turns the
-//! text into [`TweakOp`]s. `HKEY_CLASSES_ROOT` becomes
-//! `HKLM\SOFTWARE\Classes`, where an administrator's write lands anyway.
-
 use super::catalog::{Hive, TweakOp};
 
-/// Bytes of a `.reg` file as text: UTF-16 LE/BE with BOM, UTF-8 with or
-/// without BOM.
 pub fn decode(bytes: &[u8]) -> Result<String, String> {
     if let Some(rest) = bytes.strip_prefix(&[0xFF, 0xFE]) {
         return utf16(rest, u16::from_le_bytes);
@@ -28,7 +19,6 @@ fn utf16(bytes: &[u8], f: fn([u8; 2]) -> u16) -> Result<String, String> {
     String::from_utf16(&units).map_err(|e| format!(".reg: bad UTF-16: {e}"))
 }
 
-/// `HKEY_*\rest` → our hive and the key under it.
 pub fn split_key(full: &str) -> Result<(Hive, String), String> {
     let (root, rest) = full
         .split_once('\\')
@@ -43,7 +33,6 @@ pub fn split_key(full: &str) -> Result<(Hive, String), String> {
     }
 }
 
-/// Logical lines: comments dropped, `\` continuations joined.
 fn lines(text: &str) -> Vec<String> {
     let mut out = Vec::new();
     let mut cur = String::new();
@@ -53,8 +42,6 @@ fn lines(text: &str) -> Vec<String> {
             continue;
         }
         if let Some(head) = l.strip_suffix('\\') {
-            // A key line may end in `\` only as part of a name; values use
-            // it for continuation (hex lists).
             if !l.starts_with('[') {
                 cur.push_str(head);
                 continue;
@@ -69,7 +56,6 @@ fn lines(text: &str) -> Vec<String> {
     out
 }
 
-/// A quoted `.reg` string at the start of `s`: returns the text and the rest.
 fn quoted(s: &str) -> Result<(String, &str), String> {
     let body = s.strip_prefix('"').ok_or(".reg: expected a quote")?;
     let mut out = String::new();
@@ -100,7 +86,6 @@ fn utf16le_text(bytes: &[u8]) -> Result<String, String> {
     Ok(s.trim_end_matches('\0').to_string())
 }
 
-/// A value's right-hand side as (kind, data in our text form).
 fn value(rhs: &str) -> Result<Option<(String, String)>, String> {
     let rhs = rhs.trim();
     if rhs == "-" {
@@ -160,7 +145,6 @@ fn value(rhs: &str) -> Result<Option<(String, String)>, String> {
     Err(format!(".reg: unsupported value {rhs}"))
 }
 
-/// Typed ops, in file order. `[-KEY]` deletes a key, `"name"=-` a value.
 pub fn parse(text: &str) -> Result<Vec<TweakOp>, String> {
     let mut ops = Vec::new();
     let mut current: Option<(Hive, String)> = None;

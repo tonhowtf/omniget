@@ -1,8 +1,3 @@
-//! The `wmb_*` MCP tools: names, schemas and where each body lives. The
-//! table in `core::llm::tool_table` appends [`entries`]; the app's Tauri
-//! command `washmybelly_call` goes through [`call`] too, so the screen and
-//! an agent run exactly the same code.
-
 use serde_json::{json, Value};
 
 use super::Os;
@@ -12,7 +7,6 @@ const EVERY_OS: &[Os] = &[];
 const WINDOWS: &[Os] = &[Os::Windows];
 const MACOS: &[Os] = &[Os::Macos];
 
-/// Plan kinds `wmb_plan` accepts: one per scan that returns plannable items.
 pub const PLAN_KINDS: &[&str] = &[
     "cleanup",
     "dev_artifacts",
@@ -66,7 +60,6 @@ fn defs() -> Vec<Def> {
         always_ask: false,
     };
     vec![
-        // ── Discovery and monitor ─────────────────────────────────────
         d("wmb_capabilities", "What this computer is and what washmybelly can do on it: OS, version, arch, admin, package managers, power manager, Full Disk Access, the available modules with the reason for each missing one, and the source link of the embedded data. Call it first.",
             obj(json!({ "refresh": { "type": "boolean" } }), &[]), body!("wmb_capabilities"), Cheap, EVERY_OS, Read),
         d("wmb_system_status", "Health score 0-100 with what lowers it, plus a snapshot of CPU, memory, disk, temperature and battery.",
@@ -77,7 +70,6 @@ fn defs() -> Vec<Def> {
             obj(json!({ "sort": { "type": "string", "enum": ["cpu", "memory", "disk"] }, "limit": { "type": "integer", "minimum": 1, "maximum": 200 }, "query": { "type": "string" } }), &[]), body!("wmb_processes"), Local, EVERY_OS, Read),
         d("wmb_battery_health", "Battery cycles, current capacity against design capacity, temperature and charge state. Empty when there is no battery.",
             obj(json!({}), &[]), body!("wmb_battery_health"), Cheap, EVERY_OS, Read),
-        // ── Disk and files ────────────────────────────────────────────
         d("wmb_disk_volumes", "Mounted volumes with total, free and (macOS) purgeable space.",
             obj(json!({}), &[]), body!("wmb_disk_volumes"), Cheap, EVERY_OS, Read),
         d("wmb_disk_usage", "Disk usage tree of a folder in allocated bytes, hardlinks counted once, cut by depth and minimum fraction; small children fold into an \"other\" node. A folder inside a root scanned in the last 10 minutes answers from memory (cached: true); refresh forces a new scan.",
@@ -90,7 +82,6 @@ fn defs() -> Vec<Def> {
             obj(json!({ "roots": roots.clone(), "min_kb": { "type": "integer", "minimum": 0 } }), &["roots"]), body!("wmb_find_duplicates"), Local, EVERY_OS, Read),
         d("wmb_find_empty_folders", "Empty folders under the given roots, with a plan_id.",
             obj(json!({ "roots": roots.clone() }), &["roots"]), body!("wmb_find_empty_folders"), Local, EVERY_OS, Read),
-        // ── Scans (read only; each returns items and a plan_id) ───────
         d("wmb_junk_scan", "Find junk on this system: caches, logs, trash, browser and developer caches. Only rules that found something are returned. Changes nothing. plan_id holds only the items ticked by default; unticked ones (history and cookies, admin, open apps) can still be chosen with wmb_plan.",
             obj(json!({ "categories": { "type": "array", "items": { "type": "string" } }, "max_risk": risk_filter.clone() }), &[]), body!("wmb_junk_scan"), Local, EVERY_OS, Read),
         d("wmb_dev_artifacts_scan", "Build artifacts of projects (target/, node_modules, .gradle, __pycache__, ...) under the given roots, with age and size, and a plan_id.",
@@ -109,7 +100,6 @@ fn defs() -> Vec<Def> {
             obj(json!({}), &[]), body!("wmb_updates_list"), Local, EVERY_OS, Read),
         d("wmb_persistence_list", "Everything that persists on this Mac: launch agents and daemons, background tasks, privileged helpers, profiles, system and network extensions, with signature, notarization and Team ID.",
             obj(json!({}), &[]), body!("wmb_persistence_list"), Local, MACOS, Read),
-        // ── Plans and execution ───────────────────────────────────────
         d("wmb_plan", "Build a plan from item ids returned by a scan. Returns a preview with bytes, risks and whether admin is needed. Changes nothing; the plan expires in 10 minutes.",
             obj(json!({ "kind": { "type": "string", "enum": PLAN_KINDS }, "item_ids": { "type": "array", "items": { "type": "string" }, "minItems": 1, "maxItems": 5000 } }), &["kind", "item_ids"]), body!("wmb_plan"), Cheap, EVERY_OS, Read),
         d("wmb_plan_show", "One plan: items, bytes, risks, status (ready, pending_approval, executed, denied, expired) and the receipt id once it ran.",
@@ -120,14 +110,12 @@ fn defs() -> Vec<Def> {
             obj(json!({ "limit": { "type": "integer", "minimum": 1, "maximum": 100 }, "receipt_id": { "type": "string" } }), &[]), body!("wmb_receipts"), Cheap, EVERY_OS, Read),
         Def { always_ask: true, ..d("wmb_restore", "Undo a receipt: bring files back from quarantine or Trash and restore saved settings snapshots. Asks the person first.",
             obj(json!({ "receipt_id": { "type": "string" }, "idempotencyKey": { "type": "string", "minLength": 1, "maxLength": 100 } }), &["receipt_id"]), body!("wmb_restore"), Local, EVERY_OS, Reversible) },
-        // ── Power and games ───────────────────────────────────────────
         d("wmb_power_status", "Current power profile and who manages it, conflicts between managers, and what keeps the machine awake.",
             obj(json!({}), &[]), body!("wmb_power_status"), Cheap, EVERY_OS, Read),
         d("wmb_power_hold", "Hold the performance profile (or keep the machine awake) for at most max_minutes; released on its own. action release ends it early.",
             obj(json!({ "action": { "type": "string", "enum": ["hold", "release"] }, "max_minutes": { "type": "integer", "minimum": 1, "maximum": 240 }, "reason": { "type": "string" } }), &["action"]), body!("wmb_power_hold"), Cheap, EVERY_OS, Reversible),
         d("wmb_game_mode", "Game mode status, or turn it on for a running game's pid; it turns off by itself when the process exits.",
             obj(json!({ "action": { "type": "string", "enum": ["status", "enable", "disable"] }, "pid": { "type": "integer", "minimum": 1 } }), &["action"]), body!("wmb_game_mode"), Cheap, EVERY_OS, Reversible),
-        // ── Performance measurement ───────────────────────────────────
         d("wmb_perf_capabilities", "Whether FPS and frametime can be measured here and how (PresentMon, MangoHud, Metal HUD), and what setup is missing.",
             obj(json!({}), &[]), body!("wmb_perf_capabilities"), Cheap, EVERY_OS, Read),
         d("wmb_perf_capture_start", "Start measuring a running game (pid or process_name). Windows: PresentMon, reads Windows events and never injects. Linux: call without pid to get the MangoHud launch command; the game must be started with it. macOS: sensors only for a running game (frames need the game opened from the OmniGet screen).",
@@ -143,7 +131,6 @@ fn defs() -> Vec<Def> {
     ]
 }
 
-/// The `wmb_*` rows of the tool table.
 pub fn entries() -> Vec<ToolEntry> {
     defs()
         .into_iter()
@@ -162,20 +149,14 @@ pub fn entries() -> Vec<ToolEntry> {
         .collect()
 }
 
-/// Every `wmb_*` name, on every system (for tests and the capability list).
 pub fn all_names() -> Vec<&'static str> {
     defs().into_iter().map(|d| d.name).collect()
 }
 
-/// Run one `wmb_*` tool as an agent of the /llm broker. A `_source` the
-/// caller slipped into the arguments is dropped: only [`call_as`] sets it.
 pub async fn call(name: &str, a: Value) -> Result<Value, String> {
     call_as(super::plan::Source::Agent, name, a).await
 }
 
-/// Run one `wmb_*` tool for a known caller. The screen, the /llm broker, the
-/// external MCP and the CLI all end here; the source decides whether a plan
-/// may carry screen-only (`extreme`) items.
 pub async fn call_as(
     source: super::plan::Source,
     name: &str,
@@ -231,12 +212,10 @@ pub async fn call_as(
     }
 }
 
-/// Error of a tool whose module is not built yet.
 pub fn not_ready(name: &str) -> String {
     format!("NOT_AVAILABLE: {name} is not available in this build yet")
 }
 
-/// Run blocking work off the async runtime.
 pub async fn blocking<T, F>(f: F) -> Result<T, String>
 where
     T: Send + 'static,

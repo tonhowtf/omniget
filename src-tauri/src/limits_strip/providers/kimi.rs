@@ -1,13 +1,3 @@
-//! Kimi Code CLI.
-//!
-//! Credential (read only): `$KIMI_CODE_HOME/credentials/kimi-code.json`,
-//! default `~/.kimi-code/credentials/kimi-code.json` on every OS. Keys
-//! `access_token` and `expires_at` (epoch seconds). The token lives fifteen
-//! minutes and the CLI renews it; an expired one is never sent.
-//!
-//! Endpoint: `GET https://api.kimi.com/coding/v1/usages`, the one the CLI's
-//! `/usage` asks. Counts arrive as decimal strings.
-
 use crate::limits_strip::{
     http, iso_ms, json_or_error, net_err, now_ms, num, LimitWindow, ReadError, Reading, Secret,
     UsageProvider, DAY_MS, HOUR_MS,
@@ -29,7 +19,6 @@ pub fn credential_path() -> Option<PathBuf> {
 #[derive(Debug, PartialEq)]
 pub struct Credential {
     token: Secret,
-    /// Epoch ms; 0 when the file does not say.
     pub expires_at: i64,
 }
 

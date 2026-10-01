@@ -1,20 +1,8 @@
-//! Downloads › Tools › aria2 server: send links to an aria2 that runs on
-//! another machine (a NAS, a seedbox, a Raspberry Pi) and watch its
-//! downloads, without opening a web page.
-//!
-//! The idea comes from AriaNg, a web front end that drives aria2 over
-//! JSON-RPC with a `token:<secret>` first parameter
-//! (`src/scripts/services/aria2RpcService.js` at 1.3.14). Reimplemented as a
-//! small client with a fixed list of methods; no code was copied.
-
 use std::time::Duration;
 
 use serde::Serialize;
 use serde_json::{json, Value};
 
-/// The only aria2 methods the panel may call: reading state, adding links,
-/// and pause/resume/remove of a single task. Nothing that changes the
-/// server's options or shuts it down.
 const ALLOWED: &[&str] = &[
     "aria2.getVersion",
     "aria2.getGlobalStat",
@@ -63,7 +51,6 @@ pub struct AddResult {
     pub failed: Vec<String>,
 }
 
-/// Accepts `host:port`, `http(s)://host:port` with or without `/jsonrpc`.
 pub fn normalize_endpoint(input: &str) -> Result<String, String> {
     let s = input.trim().trim_end_matches('/');
     if s.is_empty() {
@@ -85,13 +72,11 @@ pub fn normalize_endpoint(input: &str) -> Result<String, String> {
         url.set_path("/jsonrpc");
     }
     if !had_scheme && url.port().is_none() {
-        // A bare host gets aria2's default RPC port, like AriaNg's default profile.
         let _ = url.set_port(Some(6800));
     }
     Ok(url.to_string())
 }
 
-/// Links to send, one per line: http(s), ftp, sftp and magnet.
 pub fn parse_links(text: &str) -> Vec<String> {
     text.lines()
         .map(str::trim)
@@ -257,7 +242,6 @@ pub async fn aria2_remote_add(
     for link in links {
         match call(&endpoint, &secret, "aria2.addUri", vec![json!([link])]).await {
             Ok(_) => added += 1,
-            // Wrong secret or server gone: every other link would fail the same way.
             Err(e) if e == "ARIA2_UNAUTHORIZED" || e == "ARIA2_UNREACHABLE" => return Err(e),
             Err(_) => failed.push(crate::core::flight_recorder::redact_url(&link)),
         }
@@ -265,7 +249,6 @@ pub async fn aria2_remote_add(
     Ok(AddResult { added, failed })
 }
 
-/// `action`: "pause", "resume" or "remove" for one task.
 #[tauri::command]
 pub async fn aria2_remote_task(
     address: String,

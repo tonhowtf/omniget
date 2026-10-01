@@ -239,8 +239,6 @@ impl RedditDownloader {
     }
 
     fn parse_media(data: &serde_json::Value) -> Option<RedditMedia> {
-        // A crosspost carries no media of its own; the original post is the
-        // last entry of crosspost_parent_list (gallery-dl reddit.py:67-72).
         if let Some(parent) = data
             .get("crosspost_parent_list")
             .and_then(|l| l.as_array())
@@ -297,8 +295,6 @@ impl RedditDownloader {
             }
         }
 
-        // Link posts to external GIF/video hosts: Reddit keeps its own MP4
-        // in preview.reddit_video_preview (gallery-dl reddit.py:250-259).
         data.pointer("/preview/reddit_video_preview")
             .and_then(Self::reddit_video)
     }
@@ -800,9 +796,6 @@ mod tests {
         }
     }
 
-    // Crosspost: the outer post links to the original thread and has no media
-    // of its own; the video lives in crosspost_parent_list[-1]
-    // (gallery-dl reddit.py:67-72). Trimmed .json shape.
     #[test]
     fn crosspost_uses_the_parent_video() {
         let data = serde_json::json!({
@@ -826,8 +819,6 @@ mod tests {
         );
     }
 
-    // Link post to an external GIF host: no secure_media, but Reddit keeps an
-    // MP4 in preview.reddit_video_preview (gallery-dl reddit.py:250-259).
     #[test]
     fn preview_video_is_the_fallback_without_secure_media() {
         let data = serde_json::json!({

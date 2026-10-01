@@ -1,17 +1,3 @@
-//! Microsoft 365 through Microsoft Graph, signed in as the person (delegated
-//! permissions, device-code flow): Teams chats and channels to export, the
-//! calendar's online meetings, and the official meeting transcripts.
-//!
-//! The desktop app, the CLI (`omniget teams`, what Claude Code calls) and the
-//! MCP tools share one sign-in: the config sits in `<app_data>/msgraph.json`
-//! and the refresh token in the shared encrypted store (`secrets::shared_*`),
-//! because the app's keychain is not visible to the CLI.
-//!
-//! OmniGet ships no Entra app of its own: the person registers one (public
-//! client, device code allowed) and pastes its client id. Tenants that allow
-//! user consent need nothing else; channel messages and transcripts need an
-//! admin to approve their permissions, so they are opt-in.
-
 pub mod calendar;
 pub mod chats;
 pub mod html;
@@ -30,7 +16,6 @@ const CONFIG_FILE: &str = "msgraph.json";
 const REFRESH_ACCOUNT: &str = "msgraph:refresh";
 const GRAPH: &str = "https://graph.microsoft.com/v1.0";
 
-/// Scopes any user can consent to.
 pub const BASE_SCOPES: &[&str] = &[
     "offline_access",
     "User.Read",
@@ -40,7 +25,6 @@ pub const BASE_SCOPES: &[&str] = &[
     "Team.ReadBasic.All",
     "Channel.ReadBasic.All",
 ];
-/// Scopes that need an admin's approval in most tenants.
 pub const ADMIN_SCOPES: &[&str] = &[
     "ChannelMessage.Read.All",
     "OnlineMeetingTranscript.Read.All",
@@ -49,13 +33,9 @@ pub const ADMIN_SCOPES: &[&str] = &[
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct GraphConfig {
-    /// Application (client) id of the person's Entra app registration.
     pub client_id: String,
-    /// "organizations", "common" or a tenant id / domain.
     pub tenant: String,
-    /// Also ask for channel messages and meeting transcripts.
     pub admin_scopes: bool,
-    /// Filled after sign-in.
     pub account: Option<Account>,
 }
 
@@ -110,8 +90,6 @@ pub fn save_config(c: &GraphConfig) -> anyhow::Result<()> {
     Ok(())
 }
 
-/// Changes the app registration. A different client, tenant or scope set
-/// needs a new sign-in, so the old session is dropped.
 pub fn configure(client_id: &str, tenant: &str, admin_scopes: bool) -> anyhow::Result<GraphConfig> {
     let client_id = client_id.trim();
     if !client_id.is_empty() && uuid::Uuid::parse_str(client_id).is_err() {
@@ -169,8 +147,6 @@ pub fn sign_out() -> anyhow::Result<()> {
     Ok(())
 }
 
-// ------------------------------------------------------------------ tokens
-
 struct Cached {
     token: String,
     until: Instant,
@@ -209,7 +185,6 @@ pub struct DeviceCode {
     pub device_code: String,
 }
 
-/// Step 1: the code the person types at `verification_uri`.
 pub async fn start_sign_in() -> anyhow::Result<DeviceCode> {
     let c = load_config();
     if c.client_id.is_empty() {
@@ -233,8 +208,6 @@ pub async fn start_sign_in() -> anyhow::Result<DeviceCode> {
     Ok(serde_json::from_value(v)?)
 }
 
-/// Step 2: waits until the person finished (or the code expired) and keeps
-/// the session. Returns the signed-in account.
 pub async fn finish_sign_in(code: &DeviceCode) -> anyhow::Result<Account> {
     let c = load_config();
     let client = http()?;
@@ -332,7 +305,6 @@ async fn access_token(force_refresh: bool) -> anyhow::Result<String> {
     Ok(v["access_token"].as_str().unwrap_or_default().to_string())
 }
 
-/// Microsoft's AADSTS errors in words a person can act on.
 fn explain_aad(code: &str, desc: &str) -> String {
     let first = desc.lines().next().unwrap_or("").trim();
     let hint = if desc.contains("AADSTS65001") || desc.contains("consent") {
@@ -349,8 +321,6 @@ fn explain_aad(code: &str, desc: &str) -> String {
     format!("Microsoft sign-in: {code}: {first}{hint}")
 }
 
-// ------------------------------------------------------------------ requests
-
 fn absolute(path_or_url: &str) -> String {
     if path_or_url.starts_with("https://") {
         path_or_url.to_string()
@@ -359,8 +329,6 @@ fn absolute(path_or_url: &str) -> String {
     }
 }
 
-/// GET with the session: refreshes once on 401, waits on 429/503 as Graph
-/// asks (`Retry-After`), up to three times.
 pub async fn get_raw(path_or_url: &str, accept: Option<&str>) -> anyhow::Result<reqwest::Response> {
     let url = absolute(path_or_url);
     let client = http()?;
@@ -412,8 +380,6 @@ pub async fn get(path_or_url: &str) -> anyhow::Result<Value> {
     Ok(get_raw(path_or_url, None).await?.json().await?)
 }
 
-/// Follows `@odata.nextLink` until `max` items (0 = no limit) or `stop`
-/// says the rest is not wanted.
 pub async fn get_paged(
     path: &str,
     max: usize,
@@ -437,7 +403,6 @@ pub async fn get_paged(
     Ok(out)
 }
 
-/// `7d`, `12h`, `30m`, `2w` or an RFC 3339 date → the instant that far back.
 pub fn parse_since(s: &str) -> anyhow::Result<chrono::DateTime<chrono::Utc>> {
     let s = s.trim();
     if let Ok(d) = chrono::DateTime::parse_from_rfc3339(s) {

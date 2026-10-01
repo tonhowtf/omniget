@@ -1,15 +1,3 @@
-//! Chat face of a terminal node (Maestri Chat, estudo 95 I / 02 §7).
-//!
-//! The transcript belongs to the app, not to the agent: it survives
-//! compaction, restarts and swapping the CLI. One JSON line per entry in
-//! `<canvas>/<ws>/chat/<nodeId>.jsonl`, seven fixed threads (`0..=6`) with
-//! stable colours. Attachments are copied into
-//! `<canvas>/<ws>/chat/attachments/<nodeId>/` so they outlive the source file.
-//!
-//! Direction user → agent: [`envelope`] builds the fixed header the agent
-//! sees in its PTY. Direction agent → user: `omniget canvas say` becomes
-//! [`say`]; `omniget canvas recall` becomes [`recall`].
-
 use std::fs::{self, OpenOptions};
 use std::io::{BufRead, BufReader, Write};
 use std::path::{Path, PathBuf};
@@ -19,8 +7,6 @@ use serde::{Deserialize, Serialize};
 use super::model::is_safe_id;
 use super::store::CanvasStore;
 
-/// The seven threads, in slot order (Maestri: blue, purple, pink, red,
-/// orange, yellow, green).
 pub const THREADS: [(&str, &str); 7] = [
     ("blue", "#3B82F6"),
     ("purple", "#8B5CF6"),
@@ -31,17 +17,12 @@ pub const THREADS: [(&str, &str); 7] = [
     ("green", "#22C55E"),
 ];
 
-/// Live window the UI gets first, and the page size going back.
 pub const WINDOW: usize = 80;
 pub const PAGE: usize = 60;
-/// Default `recall` depth (turns).
 pub const RECALL_TURNS: usize = 10;
-/// Largest attachment (Maestri: 25 MB).
 pub const MAX_ATTACHMENT: u64 = 25 * 1024 * 1024;
-/// A user message above this goes to a file and the envelope carries the path.
 pub const INLINE_MAX_BYTES: usize = 4 * 1024;
 pub const INLINE_MAX_LINES: usize = 40;
-/// Largest message text kept in one entry.
 pub const MAX_TEXT: usize = 512 * 1024;
 
 pub fn thread_key(i: u8) -> &'static str {
@@ -52,7 +33,6 @@ pub fn thread_color(i: u8) -> &'static str {
     THREADS.get(i as usize).map(|t| t.1).unwrap_or("#3B82F6")
 }
 
-/// `"green"`, `"6"` → 6.
 pub fn parse_thread(s: &str) -> Option<u8> {
     let s = s.trim().to_ascii_lowercase();
     if let Ok(n) = s.parse::<u8>() {
@@ -75,7 +55,6 @@ pub enum EntryKind {
     Progress,
     Final,
     Divider,
-    /// The user interrupted the turn (Esc); the agent's reply never came.
     Interrupted,
 }
 
@@ -84,7 +63,6 @@ pub enum EntryKind {
 pub struct Attachment {
     pub id: String,
     pub filename: String,
-    /// Absolute path of the kept copy.
     pub path: String,
     #[serde(default)]
     pub is_image: bool,
@@ -101,9 +79,7 @@ pub struct ChatEntry {
     pub thread: u8,
     pub role: Author,
     pub kind: EntryKind,
-    /// RFC 3339.
     pub ts: String,
-    /// Text without the delivery envelope (markdown).
     #[serde(default)]
     pub text: String,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -127,34 +103,24 @@ pub struct ThreadInfo {
     pub last_ts: Option<String>,
 }
 
-/// Per-node chat state, next to the transcript (`<nodeId>.state.json`).
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ChatState {
-    /// Thread of the last message delivered to the agent: the thread of the
-    /// open turn, where its `say` lands whatever the user selects meanwhile.
     #[serde(default)]
     pub thread: u8,
-    /// Thread the user has selected (the UI and `canvas_chat_thread`); the
-    /// next message goes there. `None` = `thread`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub selected: Option<u8>,
-    /// A user message is waiting for the agent's reply.
     #[serde(default)]
     pub turn_open: bool,
-    /// When the open turn started (RFC 3339).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub turn_started: Option<String>,
-    /// The last turn ended by an interrupt (Esc) or without a reply.
     #[serde(default)]
     pub turn_interrupted: bool,
-    /// Agent replies not read yet, per thread.
     #[serde(default)]
     pub unread: [u32; 7],
 }
 
 impl ChatState {
-    /// The thread the user sees and writes to.
     pub fn active(&self) -> u8 {
         self.selected
             .filter(|t| (*t as usize) < THREADS.len())
@@ -176,17 +142,11 @@ pub struct HistoryPage {
     pub threads: Vec<ThreadInfo>,
     pub active_thread: u8,
     pub turn_open: bool,
-    /// Thread of the open (or last) turn.
     pub turn_thread: u8,
     pub turn_interrupted: bool,
-    /// Unread agent replies per thread, and their sum (before this read
-    /// marked `thread` as read, when it did).
     pub unread: [u32; 7],
     pub unread_count: u32,
 }
-
-// ---------------------------------------------------------------------------
-// Paths
 
 pub fn chat_dir(store: &CanvasStore, ws: &str) -> PathBuf {
     store.workspace_dir(ws).join("chat")
@@ -214,7 +174,6 @@ pub fn attachments_dir(store: &CanvasStore, ws: &str, node: &str) -> Result<Path
     Ok(chat_dir(store, ws).join("attachments").join(node))
 }
 
-/// Where the composer keeps pasted screenshots (`<ws>/inbox/attachments`).
 pub fn inbox_attachments_dir(store: &CanvasStore, ws: &str) -> Result<PathBuf, String> {
     if !is_safe_id(ws) {
         return Err("CANVAS_INVALID: id".into());
@@ -230,10 +189,6 @@ fn new_id() -> String {
     uuid::Uuid::new_v4().to_string()
 }
 
-// ---------------------------------------------------------------------------
-// Transcript
-
-/// Every entry of the node, oldest first. Broken lines are skipped.
 pub fn read_all(store: &CanvasStore, ws: &str, node: &str) -> Result<Vec<ChatEntry>, String> {
     let path = transcript_path(store, ws, node)?;
     let Ok(f) = fs::File::open(&path) else {
@@ -298,8 +253,6 @@ pub fn threads_of(entries: &[ChatEntry]) -> Vec<ThreadInfo> {
         .collect()
 }
 
-/// One page of a thread: the newest `limit` entries (default [`WINDOW`]),
-/// or the `limit` (default [`PAGE`]) before the entry `before`.
 pub fn history(
     store: &CanvasStore,
     ws: &str,
@@ -311,8 +264,6 @@ pub fn history(
     history_opts(store, ws, node, thread, before, limit, false)
 }
 
-/// [`history`]; `peek` leaves the unread counts alone, otherwise reading a
-/// thread marks it read.
 pub fn history_opts(
     store: &CanvasStore,
     ws: &str,
@@ -354,9 +305,6 @@ pub fn history_opts(
     })
 }
 
-/// Selects the thread the next message goes to. Refused while a turn is
-/// open on another thread (Maestri locks the threads during a turn); the
-/// caller says whether the turn still counts (`turn_locked`).
 pub fn select_thread(
     store: &CanvasStore,
     ws: &str,
@@ -382,7 +330,6 @@ pub fn select_thread(
     Ok(st)
 }
 
-/// Marks one thread (or every thread) as read.
 pub fn mark_read(
     store: &CanvasStore,
     ws: &str,
@@ -399,9 +346,6 @@ pub fn mark_read(
     Ok(st)
 }
 
-/// Closes the open turn without a reply: `interrupted` (Esc) records an
-/// entry on the turn's thread; a turn that just ended silently records one
-/// too, so the transcript says why nothing came. `None` = no open turn.
 pub fn end_turn(
     store: &CanvasStore,
     ws: &str,
@@ -432,7 +376,6 @@ pub fn end_turn(
     Ok(Some(e))
 }
 
-/// Appends a divider ("Clear"): `recall` stops there unless `--all`.
 pub fn clear(store: &CanvasStore, ws: &str, node: &str, thread: u8) -> Result<ChatEntry, String> {
     let e = ChatEntry {
         id: new_id(),
@@ -450,7 +393,6 @@ pub fn clear(store: &CanvasStore, ws: &str, node: &str, thread: u8) -> Result<Ch
     Ok(e)
 }
 
-/// Rewrites the transcript with `keep` (atomically: temp file + rename).
 fn rewrite(store: &CanvasStore, ws: &str, node: &str, keep: &[ChatEntry]) -> Result<(), String> {
     let path = transcript_path(store, ws, node)?;
     if keep.is_empty() {
@@ -469,8 +411,6 @@ fn rewrite(store: &CanvasStore, ws: &str, node: &str, keep: &[ChatEntry]) -> Res
     fs::rename(&tmp, &path).map_err(|e| format!("CANVAS_IO: {e}"))
 }
 
-/// Deletes the kept copies of `gone` that no entry of `keep` still uses.
-/// Only files inside the node's attachment folder are touched.
 fn drop_attachments(
     store: &CanvasStore,
     ws: &str,
@@ -498,18 +438,14 @@ fn drop_attachments(
     n
 }
 
-/// Result of [`delete_entry`] / [`wipe`].
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Removed {
     pub removed: Vec<String>,
     pub attachments_removed: usize,
-    /// Entries left in the transcript (all threads).
     pub remaining: usize,
 }
 
-/// Removes one entry (Maestri: Delete Message) and its attachment files when
-/// no other entry references them. `thread` narrows the lookup when given.
 pub fn delete_entry(
     store: &CanvasStore,
     ws: &str,
@@ -536,10 +472,6 @@ pub fn delete_entry(
     })
 }
 
-/// Clear Chat History: drops the transcript of one thread, or of every
-/// thread (plus the attachment folder and the turn state) when `thread` is
-/// None. Only the app's record: the provider's own memory is not touched.
-/// The caller refuses while a turn runs.
 pub fn wipe(
     store: &CanvasStore,
     ws: &str,
@@ -574,9 +506,6 @@ pub fn wipe(
         remaining: keep.len(),
     })
 }
-
-// ---------------------------------------------------------------------------
-// Attachments
 
 fn content_type_of(path: &Path) -> (Option<&'static str>, bool) {
     let ext = path
@@ -624,8 +553,6 @@ fn clean_file_name(name: &str) -> String {
     }
 }
 
-/// Copies `src` into the node's attachment folder. Local regular files only,
-/// at most [`MAX_ATTACHMENT`] bytes.
 pub fn keep_attachment(
     store: &CanvasStore,
     ws: &str,
@@ -660,7 +587,6 @@ pub fn keep_attachment(
     })
 }
 
-/// Saves bytes the composer pasted (screenshots) into `<ws>/inbox/attachments`.
 pub fn save_inbox_attachment(
     store: &CanvasStore,
     ws: &str,
@@ -679,7 +605,6 @@ pub fn save_inbox_attachment(
     Ok(path)
 }
 
-/// Finds an attachment by id in the node's transcript.
 pub fn attachment(
     store: &CanvasStore,
     ws: &str,
@@ -693,18 +618,11 @@ pub fn attachment(
         .ok_or_else(|| format!("CANVAS_NOT_FOUND: attachment {id}"))
 }
 
-// ---------------------------------------------------------------------------
-// User → agent
-
-/// A user message ready for the transcript and for delivery.
 pub struct Outgoing {
     pub entry: ChatEntry,
-    /// Exact text pasted into the agent's terminal.
     pub envelope: String,
 }
 
-/// The fixed header of OmniGet Chat (Maestri's, with our CLI). When the
-/// thread changed since the last delivery, the agent is told to `recall`.
 pub fn envelope(thread: u8, previous: Option<u8>, body: &str, attachments: &[String]) -> String {
     let mut s = String::from("---\nBelow is a message from the user through OmniGet Chat.\n");
     s.push_str("It was typed by the user in the chat panel of your canvas node and pasted here by OmniGet. Reply only via `omniget canvas say \"...\"` (see the omniget-canvas skill).\n");
@@ -732,11 +650,6 @@ fn too_long(text: &str) -> bool {
     text.len() > INLINE_MAX_BYTES || text.lines().count() > INLINE_MAX_LINES
 }
 
-/// Records a user message on `thread` and builds the envelope. A long
-/// message goes to `<ws>/inbox/<node>/chat-<id>.md` and the envelope points
-/// at it (avoids the TUIs' paste collapse). `files` are paths the user
-/// attached (kept as copies; the envelope lists the originals so image-aware
-/// CLIs can read them).
 pub fn user_message(
     store: &CanvasStore,
     ws: &str,
@@ -801,31 +714,21 @@ pub fn user_message(
     Ok(Outgoing { entry, envelope })
 }
 
-// ---------------------------------------------------------------------------
-// Agent → user
-
 #[derive(Debug, Clone, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SayArgs {
     #[serde(default)]
     pub text: Option<String>,
-    /// Intermediate update; the turn goes on.
     #[serde(default)]
     pub progress: bool,
-    /// `--file`: this file goes with the message as an attachment (like
-    /// `--attach`), whatever its type.
     #[serde(default)]
     pub file: Option<String>,
-    /// `--text-from`: the message text is this UTF-8 file's content.
     #[serde(default, alias = "text-from")]
     pub text_from: Option<String>,
-    /// `--attach` (repeatable).
     #[serde(default)]
     pub attach: Vec<String>,
-    /// Override the thread (default: the thread of the last delivery).
     #[serde(default)]
     pub thread: Option<String>,
-    /// Working directory of the CLI, to resolve relative paths.
     #[serde(default)]
     pub cwd: Option<String>,
 }
@@ -846,8 +749,6 @@ fn resolve(path: &str, cwd: Option<&str>) -> PathBuf {
     }
 }
 
-/// `omniget canvas say`: one bubble from the agent. Without `progress` the
-/// bubble closes the turn.
 pub fn say(
     store: &CanvasStore,
     ws: &str,
@@ -930,9 +831,6 @@ pub fn say(
     Ok(entry)
 }
 
-// ---------------------------------------------------------------------------
-// Recall
-
 #[derive(Debug, Clone, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RecallArgs {
@@ -940,10 +838,8 @@ pub struct RecallArgs {
     pub thread: Option<String>,
     #[serde(default)]
     pub turns: Option<usize>,
-    /// `day` | `week` | `month`.
     #[serde(default)]
     pub last: Option<String>,
-    /// RFC 3339 or `YYYY-MM-DD`.
     #[serde(default)]
     pub from: Option<String>,
     #[serde(default)]
@@ -971,8 +867,6 @@ fn ts_of(e: &ChatEntry) -> Option<chrono::DateTime<chrono::Utc>> {
         .map(|d| d.with_timezone(&chrono::Utc))
 }
 
-/// Splits entries into turns: each user message opens one; agent entries
-/// before the first user message form their own turn.
 pub fn turns(entries: &[ChatEntry]) -> Vec<Vec<ChatEntry>> {
     let mut out: Vec<Vec<ChatEntry>> = Vec::new();
     for e in entries {
@@ -989,8 +883,6 @@ pub fn turns(entries: &[ChatEntry]) -> Vec<Vec<ChatEntry>> {
     out
 }
 
-/// The selected turns of one thread (default: the active thread's last 10,
-/// stopping at the last divider unless `all`).
 pub fn recall(
     store: &CanvasStore,
     ws: &str,
@@ -1047,7 +939,6 @@ pub fn recall(
     Ok((thread, all_turns))
 }
 
-/// Plain-text rendering of recalled turns for the agent.
 pub fn render_recall(thread: u8, turns: &[Vec<ChatEntry>]) -> String {
     if turns.is_empty() {
         return format!("No messages in thread {}.", thread_key(thread));
@@ -1087,7 +978,6 @@ pub fn render_recall(thread: u8, turns: &[Vec<ChatEntry>]) -> String {
     s
 }
 
-/// `recall list`: one line per thread with messages.
 pub fn render_thread_list(entries: &[ChatEntry], active: u8) -> String {
     let mut s = String::new();
     for t in threads_of(entries) {
@@ -1110,10 +1000,6 @@ pub fn render_thread_list(entries: &[ChatEntry], active: u8) -> String {
     s
 }
 
-// ---------------------------------------------------------------------------
-// Search (palette: "search inside every chat")
-
-/// One chat entry matching a palette search.
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SearchHit {
@@ -1124,12 +1010,9 @@ pub struct SearchHit {
     pub entry_id: String,
     pub role: Author,
     pub ts: String,
-    /// ~120 characters around the first match.
     pub snippet: String,
 }
 
-/// Case- and accent-insensitive form of one char (1:1, so positions in the
-/// folded text are positions in the original).
 fn fold_char(c: char) -> char {
     use unicode_normalization::char::is_combining_mark;
     use unicode_normalization::UnicodeNormalization;
@@ -1151,7 +1034,6 @@ fn find_chars(hay: &[char], needle: &[char]) -> Option<usize> {
     (0..=hay.len() - needle.len()).find(|&i| hay[i..i + needle.len()] == *needle)
 }
 
-/// ~`width` chars of `text` around char `at`, on one line.
 fn snippet_at(text: &str, at: usize, len: usize, width: usize) -> String {
     let chars: Vec<char> = text.chars().collect();
     let pad = width.saturating_sub(len) / 2;
@@ -1171,8 +1053,6 @@ fn snippet_at(text: &str, at: usize, len: usize, width: usize) -> String {
     out
 }
 
-/// Every thread of every terminal of the workspaces `workspaces`: entries
-/// holding all the words of `query` (no case, no accents), newest first.
 pub fn search(
     store: &CanvasStore,
     workspaces: &[String],

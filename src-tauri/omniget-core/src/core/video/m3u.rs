@@ -1,22 +1,14 @@
-//! Extended M3U playlist parser for IPTV: `#EXTINF` attributes (quoted or
-//! not), `#EXTGRP`, `#EXTVLCOPT`, `#KODIPROP`, `#EXTHTTP` and `url|Header=...`
-//! suffixes, in any order around the `#EXTINF` line.
-
 use serde::{Deserialize, Serialize};
 
-/// A parsed playlist.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct Playlist {
     pub entries: Vec<M3uEntry>,
-    /// Guide URLs from `url-tvg` / `x-tvg-url` on the `#EXTM3U` line.
     pub epg_urls: Vec<String>,
 }
 
-/// One channel or item.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct M3uEntry {
     pub name: String,
-    /// Stream URL without the `|Header=...` suffix.
     pub url: String,
     pub group: Option<String>,
     pub tvg_id: Option<String>,
@@ -24,12 +16,10 @@ pub struct M3uEntry {
     pub tvg_logo: Option<String>,
     pub user_agent: Option<String>,
     pub referrer: Option<String>,
-    /// Other HTTP headers to send (Origin, Cookie, ...).
     pub headers: Vec<(String, String)>,
     pub catchup: Option<String>,
     pub catchup_source: Option<String>,
     pub catchup_days: Option<u32>,
-    /// `#EXTINF` duration in seconds; `None` for `-1` (live).
     pub duration: Option<f64>,
 }
 
@@ -43,8 +33,6 @@ struct Pending {
     opts: Vec<(String, String)>,
 }
 
-/// Parses `key=value` attributes; values may use double, single or no quotes.
-/// Returns the attributes and the text after the first unquoted comma.
 fn parse_attrs(s: &str) -> (Vec<(String, String)>, Option<String>) {
     let chars: Vec<char> = s.chars().collect();
     let mut i = 0;
@@ -80,7 +68,6 @@ fn parse_attrs(s: &str) -> (Vec<(String, String)>, Option<String>) {
                     value = chars[vs..i].iter().collect();
                     i += 1;
                 } else {
-                    // Unclosed quote: the value ends at the next comma.
                     let mut j = vs;
                     while j < n && chars[j] != ',' {
                         j += 1;
@@ -121,7 +108,6 @@ fn decode(v: &str) -> String {
         .unwrap_or_else(|_| v.to_string())
 }
 
-/// Parses `K=V&K2=V2` header lists (pipe suffix, KODIPROP headers).
 fn header_pairs(s: &str) -> Vec<(String, String)> {
     s.split('&')
         .filter_map(|kv| {
@@ -132,7 +118,6 @@ fn header_pairs(s: &str) -> Vec<(String, String)> {
         .collect()
 }
 
-/// Applies one header, routing User-Agent and Referer to their fields.
 fn apply_header(e: &mut M3uEntry, key: &str, value: String) {
     if value.is_empty() {
         return;
@@ -231,7 +216,6 @@ fn finish(p: Pending, line: &str) -> Option<M3uEntry> {
     Some(e)
 }
 
-/// Parses an M3U/M3U8 playlist. Never fails; unknown lines are skipped.
 pub fn parse(text: &str) -> Playlist {
     let mut out = Playlist::default();
     let mut p = Pending::default();
@@ -260,7 +244,6 @@ pub fn parse(text: &str) -> Playlist {
                 }
             } else if upper.starts_with("EXTINF:") {
                 if p.has_info {
-                    // Previous #EXTINF had no URL: drop it but keep options.
                     p = Pending {
                         opts: std::mem::take(&mut p.opts),
                         group: p.group.take(),
@@ -346,7 +329,6 @@ mod tests {
             b.headers,
             vec![("Origin".to_string(), "http://o".to_string())]
         );
-        // Options do not leak into the next entry.
         let c = &pl.entries[2];
         assert_eq!(c.user_agent, None);
         assert_eq!(c.group, None);

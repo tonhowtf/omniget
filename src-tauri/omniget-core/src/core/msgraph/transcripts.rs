@@ -1,8 +1,3 @@
-//! Official Teams meeting transcripts through Graph (needs
-//! OnlineMeetingTranscript.Read.All, which an admin approves): find the
-//! online meeting by its join link, list its transcripts, download one as
-//! WebVTT with the speakers' names, and store it as an OmniGet meeting.
-
 use anyhow::anyhow;
 use serde::Serialize;
 
@@ -16,8 +11,6 @@ pub struct TranscriptInfo {
     pub created: String,
 }
 
-/// The online meeting behind a join link (the person must be organizer or
-/// invited). Graph wants the link exactly as the invite has it.
 pub async fn online_meeting_id(join_url: &str) -> anyhow::Result<String> {
     let filter = format!("JoinWebUrl eq '{}'", join_url.replace('\'', "''"));
     let v = super::get(&format!(
@@ -64,8 +57,6 @@ pub async fn vtt(info: &TranscriptInfo) -> anyhow::Result<String> {
         .await?)
 }
 
-/// Downloads the newest transcript of the meeting at `join_url` and turns
-/// it into an OmniGet meeting (summary included when an AI is configured).
 pub async fn import(
     join_url: &str,
     title: Option<&str>,

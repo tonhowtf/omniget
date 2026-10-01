@@ -1,7 +1,3 @@
-//! SQLite side: schema, append, SQL projectors, receipts, cursors and the
-//! read queries (snapshot, replay, turn pages). Every function takes a
-//! `&Connection`; the engine decides which connection writes.
-
 use std::collections::HashMap;
 use std::path::Path;
 
@@ -18,12 +14,9 @@ use crate::core::llm::drivers::{AccessMode, InteractionMode, SessionState};
 
 pub const ERR_THREADS_DB: &str = "ERR_THREADS_DB";
 
-/// Replay budget of `events_after` (T3: 1000 events or 8 MiB).
 pub const REPLAY_MAX_EVENTS: i64 = 1000;
 pub const REPLAY_MAX_BYTES: i64 = 8 * 1024 * 1024;
 
-/// Every SQL projector, in the order they run inside one transaction. The
-/// row-deleting ones run before `turns` (they find their rows through it).
 pub const PROJECTORS: &[&str] = &[
     "projects",
     "messages",
@@ -238,7 +231,6 @@ CREATE TABLE IF NOT EXISTS provider_sessions (
 );
 ";
 
-/// Open (and migrate) the database. WAL, `busy_timeout` 5 s.
 pub fn open(path: &Path) -> Result<Connection, String> {
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent).map_err(db_err)?;
@@ -261,8 +253,6 @@ pub fn open(path: &Path) -> Result<Connection, String> {
     Ok(conn)
 }
 
-/// Columns added after the first schema (T2/T7/T8): a database made by an
-/// older build gets them here, empty.
 const ADDED_COLUMNS: &[(&str, &str, &str)] = &[
     ("threads", "base_branch", "TEXT"),
     ("threads", "worktree_state", "TEXT"),
@@ -293,7 +283,6 @@ fn ensure_columns(conn: &Connection) -> Result<(), String> {
     Ok(())
 }
 
-/// A read-only connection for queries that run next to the writer.
 pub fn open_reader(path: &Path) -> Result<Connection, String> {
     let conn = Connection::open(path).map_err(db_err)?;
     conn.execute_batch("PRAGMA busy_timeout = 5000; PRAGMA query_only = 1;")
@@ -317,9 +306,6 @@ pub fn meta_set(conn: &Connection, key: &str, value: &str) -> Result<(), String>
     .map_err(db_err)
 }
 
-// ── Append ──────────────────────────────────────────────────────────────
-
-/// An event the decider planned, before it has a sequence.
 #[derive(Debug, Clone)]
 pub struct Planned {
     pub event: DomainEvent,
@@ -409,8 +395,6 @@ pub fn head(conn: &Connection) -> Result<i64, String> {
     .map_err(db_err)
 }
 
-/// Events with `sequence > after`, ascending, at most `limit`. Rows written
-/// by a newer build (unknown type) are skipped, never fatal.
 pub fn read_events(conn: &Connection, after: i64, limit: i64) -> Result<Vec<StoredEvent>, String> {
     let mut stmt = conn
         .prepare("SELECT * FROM events WHERE sequence > ?1 ORDER BY sequence ASC LIMIT ?2")
@@ -421,8 +405,6 @@ pub fn read_events(conn: &Connection, after: i64, limit: i64) -> Result<Vec<Stor
     Ok(rows.filter_map(Result::ok).collect())
 }
 
-// ── Receipts and cursors ────────────────────────────────────────────────
-
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Receipt {
@@ -431,7 +413,6 @@ pub struct Receipt {
     pub aggregate_id: String,
     pub accepted_at: String,
     pub result_sequence: i64,
-    /// `accepted|rejected`.
     pub status: String,
     pub error: Option<String>,
 }
@@ -501,9 +482,6 @@ pub fn set_cursors(conn: &Connection, names: &[&str], sequence: i64) -> Result<(
     Ok(())
 }
 
-/// Boot catch-up: every projector behind the head replays from its own
-/// cursor, one transaction per event (resumable, and a new projector
-/// backfills itself).
 pub fn bootstrap_projectors(conn: &mut Connection) -> Result<usize, String> {
     let cursors = cursors(conn)?;
     let min = PROJECTORS
@@ -541,8 +519,6 @@ pub fn bootstrap_projectors(conn: &mut Connection) -> Result<usize, String> {
     Ok(replayed)
 }
 
-// ── SQL projectors ──────────────────────────────────────────────────────
-
 fn j<T: Serialize>(v: &T) -> String {
     serde_json::to_string(v).unwrap_or_else(|_| "null".into())
 }
@@ -554,13 +530,11 @@ fn enum_str<T: Serialize>(v: &T) -> String {
         .unwrap_or_default()
 }
 
-/// Apply one event to one projector.
 pub fn project(conn: &Connection, projector: &str, stored: &StoredEvent) -> Result<(), String> {
     use DomainEvent as E;
     let seq = stored.sequence;
     let at = &stored.occurred_at;
     let r: rusqlite::Result<usize> = match (projector, &stored.event) {
-        // projects
         (
             "projects",
             E::ProjectCreated {
@@ -598,7 +572,6 @@ pub fn project(conn: &Connection, projector: &str, stored: &StoredEvent) -> Resu
             params![project_id, deleted_at],
         ),
 
-        // messages
         (
             "messages",
             E::MessageSent {
@@ -647,7 +620,6 @@ pub fn project(conn: &Connection, projector: &str, stored: &StoredEvent) -> Resu
             params![thread_id, turn_count],
         ),
 
-        // activities
         (
             "activities",
             E::ActivityAppended {
@@ -686,7 +658,6 @@ pub fn project(conn: &Connection, projector: &str, stored: &StoredEvent) -> Resu
             params![thread_id, turn_count],
         ),
 
-        // approvals
         (
             "approvals",
             E::ApprovalRequested {
@@ -755,7 +726,6 @@ pub fn project(conn: &Connection, projector: &str, stored: &StoredEvent) -> Resu
             params![thread_id, turn_count],
         ),
 
-        // user inputs
         (
             "user_inputs",
             E::UserInputRequested {
@@ -822,7 +792,6 @@ pub fn project(conn: &Connection, projector: &str, stored: &StoredEvent) -> Resu
             params![thread_id, turn_count],
         ),
 
-        // plans
         (
             "plans",
             E::PlanUpdated {
@@ -862,7 +831,6 @@ pub fn project(conn: &Connection, projector: &str, stored: &StoredEvent) -> Resu
             params![thread_id, turn_count],
         ),
 
-        // turn usage
         (
             "turn_usage",
             E::TurnUsage {
@@ -895,9 +863,6 @@ pub fn project(conn: &Connection, projector: &str, stored: &StoredEvent) -> Resu
                 at
             ],
         ),
-        // Every finished turn gets a row, whatever the driver reported:
-        // model from the turn, wall time from started → completed. A later
-        // `turn-usage` of the same turn fills the tokens.
         (
             "turn_usage",
             E::TurnCompleted {
@@ -935,7 +900,6 @@ pub fn project(conn: &Connection, projector: &str, stored: &StoredEvent) -> Resu
             params![thread_id, turn_count],
         ),
 
-        // provider sessions
         (
             "provider_sessions",
             E::ThreadCreated {
@@ -989,7 +953,6 @@ pub fn project(conn: &Connection, projector: &str, stored: &StoredEvent) -> Resu
             ],
         ),
 
-        // checkpoints
         (
             "checkpoints",
             E::CheckpointCaptured {
@@ -1035,7 +998,6 @@ pub fn project(conn: &Connection, projector: &str, stored: &StoredEvent) -> Resu
             conn.execute("DELETE FROM checkpoints WHERE thread_id = ?1", [thread_id])
         }
 
-        // turns
         (
             "turns",
             E::TurnStartRequested {
@@ -1114,10 +1076,8 @@ pub fn project(conn: &Connection, projector: &str, stored: &StoredEvent) -> Resu
             params![thread_id, turn_count],
         ),
 
-        // threads (the shell row)
         ("threads", ev) => project_thread_row(conn, ev, at),
 
-        // counters on the shell row
         ("thread_counters", ev) => project_counters(conn, ev),
 
         _ => Ok(0),
@@ -1443,8 +1403,6 @@ fn project_counters(conn: &Connection, ev: &DomainEvent) -> rusqlite::Result<usi
     }
 }
 
-// ── Read model bootstrap ────────────────────────────────────────────────
-
 pub fn load_read_model(conn: &Connection) -> Result<ReadModel, String> {
     let mut model = ReadModel {
         sequence: head(conn)?,
@@ -1551,8 +1509,6 @@ pub fn load_read_model(conn: &Connection) -> Result<ReadModel, String> {
     Ok(model)
 }
 
-// ── Read side ───────────────────────────────────────────────────────────
-
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ProjectRow {
@@ -1593,18 +1549,11 @@ pub struct ThreadRow {
     pub created_at: String,
     pub updated_at: String,
     pub base_branch: Option<String>,
-    /// `pending|preparing|ready|failed|removed`; absent = no worktree.
     pub worktree_state: Option<String>,
-    /// Last setup snapshot (stages with state/percent/tail).
     pub worktree_setup: Option<Value>,
-    /// The PR/MR badge (`vcs::actions::PrInfo`).
     pub pr: Option<Value>,
-    /// PTY session ids opened for this thread.
     pub terminals: Vec<String>,
-    /// `{tool, sessionId, source, resumeCommand}` of a mirrored session.
     pub external: Option<Value>,
-    /// Sidebar status, in priority order:
-    /// `approval|input|running|error|idle`.
     pub status: String,
 }
 
@@ -1661,7 +1610,6 @@ pub struct ApprovalRow {
     pub request_type: String,
     pub detail: Option<Value>,
     pub options: Value,
-    /// `pending|answered|resolved`.
     pub status: String,
     pub decision: Option<String>,
     pub resolution: Option<String>,
@@ -1723,7 +1671,6 @@ pub struct ProviderSessionRow {
     pub last_error: Option<String>,
 }
 
-/// The shell: everything the sidebar and the inbox need, no bodies.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Snapshot {
@@ -1744,7 +1691,6 @@ pub struct TurnDetail {
     pub user_inputs: Vec<UserInputRow>,
     pub plans: Vec<PlanRow>,
     pub usage: Option<UsageRow>,
-    /// Checkpoint taken at the end of this turn, with its file stats.
     #[serde(default)]
     pub checkpoint: Option<CheckpointRow>,
 }
@@ -1783,7 +1729,6 @@ fn row_checkpoint(r: &Row) -> rusqlite::Result<CheckpointRow> {
     })
 }
 
-/// Every checkpoint of a thread, baseline (0) first.
 pub fn checkpoints(conn: &Connection, thread_id: &str) -> Result<Vec<CheckpointRow>, String> {
     collect(
         conn,
@@ -1811,7 +1756,6 @@ pub fn checkpoint(
     .map_err(db_err)
 }
 
-/// A turn of a thread by id.
 pub fn turn_row(conn: &Connection, turn_id: &str) -> Result<Option<TurnRow>, String> {
     conn.query_row(
         &format!("SELECT {TURN_COLS} FROM turns WHERE turn_id = ?1"),
@@ -1822,7 +1766,6 @@ pub fn turn_row(conn: &Connection, turn_id: &str) -> Result<Option<TurnRow>, Str
     .map_err(db_err)
 }
 
-/// A turn of a thread by ordinal.
 pub fn turn_at(
     conn: &Connection,
     thread_id: &str,
@@ -1837,7 +1780,6 @@ pub fn turn_at(
     .map_err(db_err)
 }
 
-/// The user message that opened a turn: `(text, attachments)`.
 pub fn turn_prompt(conn: &Connection, turn: &TurnRow) -> Result<Option<(String, Value)>, String> {
     let Some(mid) = &turn.message_id else {
         return Ok(None);
@@ -1856,7 +1798,6 @@ pub fn turn_prompt(conn: &Connection, turn: &TurnRow) -> Result<Option<(String, 
     .map_err(db_err)
 }
 
-/// Usage rows of a thread, oldest turn first (cost per turn in the timeline).
 pub fn thread_usage(conn: &Connection, thread_id: &str) -> Result<Vec<UsageRow>, String> {
     collect(
         conn,
@@ -1888,19 +1829,12 @@ fn row_usage(r: &Row) -> rusqlite::Result<UsageRow> {
 #[serde(rename_all = "camelCase")]
 pub struct TurnsPage {
     pub thread_id: String,
-    /// Oldest first.
     pub turns: Vec<TurnDetail>,
-    /// Messages/activities not tied to a turn (system notes); only on the
-    /// last page (`hasMore == false`).
     pub loose_messages: Vec<MessageRow>,
     pub loose_activities: Vec<ActivityRow>,
     pub has_more: bool,
-    /// Pass as `beforeTurn` to get the previous page.
     pub before_turn: Option<u32>,
-    /// Global head when the page was read; apply live events up to here
-    /// before merging it.
     pub sequence: i64,
-    /// Last event of this thread.
     pub thread_sequence: i64,
     pub session: Option<ProviderSessionRow>,
 }
@@ -1910,8 +1844,6 @@ pub struct TurnsPage {
 pub struct EventsPage {
     pub events: Vec<StoredEvent>,
     pub head: i64,
-    /// The gap is over budget (or the cursor is ahead of the head): take a
-    /// fresh snapshot instead.
     pub reset: bool,
     pub has_more: bool,
 }
@@ -2196,8 +2128,6 @@ pub fn provider_session(
     .map_err(db_err)
 }
 
-/// Replay `sequence > after`, bounded by 1000 events / 8 MiB of payload
-/// (summed in SQL, nothing decoded). Over budget → `reset`.
 pub fn events_after(conn: &Connection, after: i64, limit: i64) -> Result<EventsPage, String> {
     let head = head(conn)?;
     if after > head {
@@ -2244,8 +2174,6 @@ pub fn events_after(conn: &Connection, after: i64, limit: i64) -> Result<EventsP
     })
 }
 
-/// Page of whole turns, newest `limit` before `before_turn` (ordinal,
-/// exclusive), returned oldest first. The UI asks 10 first, then 20.
 pub fn turns_page(
     conn: &Connection,
     thread_id: &str,
@@ -2369,7 +2297,6 @@ pub fn turns_page(
     })
 }
 
-/// The first `keep` turns of a thread, with bodies, for `thread.fork`.
 pub fn fork_source(conn: &Connection, thread_id: &str, keep: u32) -> Result<ForkSource, String> {
     let turns = collect(
         conn,
@@ -2421,7 +2348,6 @@ pub fn fork_source(conn: &Connection, thread_id: &str, keep: u32) -> Result<Fork
     Ok(out)
 }
 
-/// Turns still `pending|running` (a crash left them), for the boot reconcile.
 pub fn dangling_turns(conn: &Connection) -> Result<Vec<(String, String)>, String> {
     collect(
         conn,

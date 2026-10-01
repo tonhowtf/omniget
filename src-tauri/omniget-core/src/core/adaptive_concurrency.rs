@@ -1,45 +1,19 @@
-//! Ajusta `-N` por host medindo o throughput real, em vez de confiar num
-//! numero fixo em Config.
-//!
-//! O numero em Config e um chute que o usuario tem que dar sem informacao: alto
-//! demais toma 429, baixo demais desperdiça banda, e o valor certo depende do
-//! host e do momento. O limitador por host e o contador de 429 ja existem — o
-//! que faltava era fechar o laco.
-//!
-//! Ficou possivel agora porque o B23 fez o freio de 429 funcionar de verdade:
-//! antes, `-N` e `--concurrent-fragments` disputavam e o valor efetivo nao era
-//! o que o codigo pensava, entao nao havia sinal confiavel para realimentar.
-//!
-//! A decisao e pura: dadas amostras de throughput e o historico de 429, qual
-//! deve ser o proximo `-N`. Medir e I/O.
-//!
-//! Origem: controle de congestionamento de CDN — subir devagar, cair rapido.
-
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU32, Ordering};
 
-/// Limites do ajuste. Um host nunca sai desta faixa, por mais que as medicoes
-/// sugiram: o teto protege o servidor e o piso garante que o download anda.
 pub const MIN_N: u32 = 1;
 pub const MAX_N: u32 = 16;
 
-/// Orçamento de conexões da máquina inteira, somando todos os downloads
-/// ativos. O stress de 2/4/8 downloads de 1 GiB no loopback (estudo 66)
-/// saturou acima de 32 conexões: 4 downloads × 8 segmentos rendeu 3,9 GB/s e
-/// 8 × 8 caiu para 1,9 GB/s. Vinte e quatro deixa 3 downloads com o `-N 8`
-/// cheio e reparte o resto quando a fila enche.
 pub const GLOBAL_CONNECTION_BUDGET: u32 = 24;
 
 static ACTIVE_DOWNLOADS: AtomicU32 = AtomicU32::new(0);
 
-/// Quantos downloads estão puxando bytes agora (yt-dlp ou fetcher direto).
 pub fn active_downloads() -> u32 {
     ACTIVE_DOWNLOADS.load(Ordering::Relaxed)
 }
 
-/// Marca um download como ativo enquanto o guard vive.
 pub struct ActiveDownloadGuard(());
 
 impl ActiveDownloadGuard {
@@ -61,24 +35,15 @@ impl Drop for ActiveDownloadGuard {
     }
 }
 
-/// Teto por download dado o orçamento global e quantos downloads o dividem.
-///
-/// `active` inclui o download que está perguntando. Nunca abaixo de `MIN_N`:
-/// um download sempre anda, mesmo que a fila esteja lotada.
 pub fn per_download_ceiling(budget: u32, active: u32) -> u32 {
     (budget / active.max(1)).clamp(MIN_N, MAX_N)
 }
 
-/// Ganho minimo para justificar subir mais.
-///
-/// Dez por cento: abaixo disso a diferenca se confunde com variacao normal de
-/// rede, e subir `-N` atras de ruido so aumenta a chance de 429.
 pub const MEANINGFUL_GAIN: f64 = 1.10;
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize)]
 pub struct Sample {
     pub concurrency: u32,
-    /// Bytes por segundo observados com essa concorrencia.
     pub throughput_bps: f64,
 }
 
@@ -102,10 +67,6 @@ impl HostStats {
         self.rate_limit_hits = self.rate_limit_hits.saturating_add(1);
     }
 
-    /// Melhor throughput observado para uma dada concorrencia.
-    ///
-    /// Melhor e nao media: uma amostra ruim costuma ser interferencia local
-    /// (outro download, wifi), nao a capacidade real daquele nivel.
     fn best_at(&self, concurrency: u32) -> Option<f64> {
         self.samples
             .iter()
@@ -117,32 +78,24 @@ impl HostStats {
     }
 }
 
-/// Proximo `-N` para o host.
-///
-/// Sobe devagar e cai rapido, que e a assimetria certa: subir errado custa um
-/// 429 e um retry; descer errado custa um pouco de velocidade.
 pub fn next_concurrency(stats: &HostStats, current: u32) -> u32 {
     let current = current.clamp(MIN_N, MAX_N);
 
-    // 429 domina qualquer medicao de velocidade. Nao adianta o throughput
-    // parecer bom se o host esta recusando.
     if stats.rate_limit_hits > 0 {
         let penalizado = current / 2u32.pow(stats.rate_limit_hits.min(3));
         return penalizado.clamp(MIN_N, MAX_N);
     }
 
     let Some(atual) = stats.best_at(current) else {
-        return current; // sem medicao ainda: nao mexe
+        return current;
     };
 
     match stats.best_at(current.saturating_sub(1)) {
-        // Se um nivel abaixo era melhor, subir foi erro — desce.
         Some(anterior) if anterior > atual * MEANINGFUL_GAIN => (current - 1).clamp(MIN_N, MAX_N),
         _ => {
-            // Só sobe se o degrau anterior mostrou ganho real.
             let vale_subir = match stats.best_at(current.saturating_sub(1)) {
                 Some(anterior) => atual > anterior * MEANINGFUL_GAIN,
-                None => true, // primeiro degrau medido: tenta subir uma vez
+                None => true,
             };
             if vale_subir {
                 (current + 1).clamp(MIN_N, MAX_N)
@@ -153,25 +106,14 @@ pub fn next_concurrency(stats: &HostStats, current: u32) -> u32 {
     }
 }
 
-/// Por quanto tempo um 429 continua valendo para os próximos processos.
-///
-/// Um dia: o download.blender.org recusou a segunda execução seguida do CLI
-/// (benchmarks, sessões 01 a 04), e cada `omniget download` começava de novo
-/// com todas as conexões. Depois de um dia o host ganha outra chance inteira.
 pub const RATE_LIMIT_MEMORY_SECS: u64 = 24 * 60 * 60;
 
-/// O que fica gravado de um host entre processos: só os 429, que são a
-/// resposta do servidor. Amostras de velocidade dependem da rede do momento e
-/// morrem com o processo.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Serialize, Deserialize)]
 pub struct RememberedLimit {
     pub rate_limit_hits: u32,
-    /// Segundos desde a época Unix do último 429.
     pub last_at: u64,
 }
 
-/// Lê a memória de 429, descartando o que passou de `RATE_LIMIT_MEMORY_SECS`.
-/// Arquivo ausente ou ilegível é memória vazia: nunca impede um download.
 pub fn load_remembered(path: &Path, now: u64) -> HashMap<String, RememberedLimit> {
     let Ok(bytes) = std::fs::read(path) else {
         return HashMap::new();
@@ -189,10 +131,6 @@ fn unix_now() -> u64 {
         .unwrap_or(0)
 }
 
-/// Estado por host, para o ajuste sobreviver entre downloads.
-///
-/// Com `store`, os 429 também sobrevivem entre processos: o app e o CLI leem
-/// e gravam o mesmo arquivo (`tools/host-limits.json` na pasta de dados).
 #[derive(Debug, Default)]
 pub struct ConcurrencyTuner {
     hosts: HashMap<String, HostStats>,
@@ -200,7 +138,6 @@ pub struct ConcurrencyTuner {
 }
 
 impl ConcurrencyTuner {
-    /// Tuner que começa com os 429 ainda válidos gravados em `path`.
     pub fn with_store(path: PathBuf) -> Self {
         let mut hosts: HashMap<String, HostStats> = HashMap::new();
         for (host, r) in load_remembered(&path, unix_now()) {
@@ -212,7 +149,6 @@ impl ConcurrencyTuner {
         }
     }
 
-    /// Grava os hosts com 429, somando aos que outro processo gravou.
     fn persist(&self, host: &str) {
         let Some(path) = &self.store else { return };
         let now = unix_now();
@@ -224,8 +160,6 @@ impl ConcurrencyTuner {
         if let Some(dir) = path.parent() {
             let _ = std::fs::create_dir_all(dir);
         }
-        // Escreve ao lado e renomeia: um processo lendo no meio nunca vê
-        // meio arquivo.
         let tmp = path.with_extension(format!("json.{}", std::process::id()));
         if let Ok(bytes) = serde_json::to_vec_pretty(&map) {
             if std::fs::write(&tmp, bytes).is_ok() && std::fs::rename(&tmp, path).is_err() {
@@ -249,15 +183,11 @@ impl ConcurrencyTuner {
         self.persist(host);
     }
 
-    /// `ceiling` e o numero de Config: vira **teto**, nao valor fixo. O teto
-    /// ainda e cortado pelo orcamento global de conexoes repartido entre os
-    /// downloads ativos (`GLOBAL_CONNECTION_BUDGET`).
     pub fn suggest(&self, host: &str, current: u32, ceiling: u32) -> u32 {
         let shared = per_download_ceiling(GLOBAL_CONNECTION_BUDGET, active_downloads());
         self.suggest_with_ceiling(host, current, ceiling.min(shared))
     }
 
-    /// `suggest` sem o orcamento global: a regra por host, pura.
     pub fn suggest_with_ceiling(&self, host: &str, current: u32, ceiling: u32) -> u32 {
         let teto = ceiling.clamp(MIN_N, MAX_N);
         match self.hosts.get(host) {
@@ -269,24 +199,15 @@ impl ConcurrencyTuner {
 
 #[cfg(test)]
 impl ConcurrencyTuner {
-    /// Esquece o que foi medido em `host`. Nos testes a porta de um servidor
-    /// local pode ser reusada por outro teste do mesmo processo, e um 429
-    /// antigo nessa porta cortaria os segmentos de quem veio depois.
     pub fn forget(&mut self, host: &str) {
         self.hosts.remove(host);
     }
 }
 
-/// Um tuner por processo, compartilhado entre o downloader direto e o yt-dlp.
-///
-/// O host é o mesmo nos dois caminhos (um 429 do `googlevideo.com` vale para
-/// qualquer um deles), então dividir as estatísticas é o comportamento certo.
-/// `tokio::sync::Mutex` porque é travado dentro de código async.
 pub fn global() -> &'static tokio::sync::Mutex<ConcurrencyTuner> {
     static TUNER: std::sync::OnceLock<tokio::sync::Mutex<ConcurrencyTuner>> =
         std::sync::OnceLock::new();
     TUNER.get_or_init(|| {
-        // Testes nunca leem nem gravam a pasta de dados de quem roda.
         let store = if cfg!(test) {
             None
         } else {
