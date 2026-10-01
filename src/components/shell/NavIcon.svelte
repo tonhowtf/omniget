@@ -37,7 +37,7 @@
   const ART = new Set([
     "home", "downloads", "llm", "help", "world",
     "superpowers", "settings", "about", "league", "music", "washmybelly", "video",
-    "telegram",
+    "telegram", "tube", "read", "global", "meetings",
   ]);
 
   let tile = $derived(TILES[icon] ?? TILES.fallback);
