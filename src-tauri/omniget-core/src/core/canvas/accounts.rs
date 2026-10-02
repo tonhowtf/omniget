@@ -263,10 +263,117 @@ pub fn match_label<'a, T>(
     }
 }
 
+pub fn claude_keychain_service(dir: &Path) -> String {
+    use sha2::{Digest, Sha256};
+    let hash = hex::encode(Sha256::digest(dir.to_string_lossy().as_bytes()));
+    format!("Claude Code-credentials-{}", &hash[..8])
+}
+
+fn claude_logged_in_with(dir: &Path, keychain: &dyn Fn(&str) -> Option<bool>) -> Option<bool> {
+    if dir.join(".credentials.json").is_file() {
+        return Some(true);
+    }
+    let marker = match std::fs::read_to_string(dir.join(".claude.json")) {
+        Ok(text) => match serde_json::from_str::<Value>(&text) {
+            Ok(v) => {
+                v.get("oauthAccount").is_some_and(Value::is_object)
+                    || v.get("primaryApiKey")
+                        .and_then(Value::as_str)
+                        .is_some_and(|k| !k.is_empty())
+            }
+            Err(_) => return None,
+        },
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => false,
+        Err(_) => return None,
+    };
+    if !marker {
+        return Some(false);
+    }
+    match keychain(&claude_keychain_service(dir)) {
+        Some(false) => None,
+        _ => Some(true),
+    }
+}
+
+fn codex_logged_in(dir: &Path) -> Option<bool> {
+    if dir.join("auth.json").is_file() {
+        return Some(true);
+    }
+    let keyring = std::fs::read_to_string(dir.join("config.toml"))
+        .is_ok_and(|t| t.contains("cli_auth_credentials_store") && !t.contains("\"file\""));
+    if keyring {
+        None
+    } else {
+        Some(false)
+    }
+}
+
+fn keychain_has(service: &str) -> Option<bool> {
+    if !cfg!(target_os = "macos") {
+        return None;
+    }
+    std::process::Command::new("/usr/bin/security")
+        .args(["find-generic-password", "-s", service])
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .status()
+        .ok()
+        .map(|s| s.success())
+}
+
+pub fn logged_in(acc: &CliAccount) -> Option<bool> {
+    if acc.config_dir.as_os_str().is_empty() {
+        return None;
+    }
+    match acc.cli {
+        CliKind::Claude => claude_logged_in_with(&acc.config_dir, &keychain_has),
+        CliKind::Codex => codex_logged_in(&acc.config_dir),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::core::llm::cli_runtime::accounts::SandboxMode;
+
+    #[test]
+    fn login_is_read_from_markers_without_the_secrets() {
+        let root = tempfile::tempdir().unwrap();
+        let dir = root.path().join("claude");
+        std::fs::create_dir_all(&dir).unwrap();
+        let none = |_: &str| None;
+        let absent = |_: &str| Some(false);
+        assert_eq!(claude_logged_in_with(&dir, &none), Some(false));
+        std::fs::write(dir.join(".claude.json"), r#"{"numStartups":1}"#).unwrap();
+        assert_eq!(claude_logged_in_with(&dir, &none), Some(false));
+        std::fs::write(
+            dir.join(".claude.json"),
+            r#"{"oauthAccount":{"emailAddress":"x"}}"#,
+        )
+        .unwrap();
+        assert_eq!(claude_logged_in_with(&dir, &none), Some(true));
+        assert_eq!(claude_logged_in_with(&dir, &absent), None);
+        std::fs::write(dir.join(".credentials.json"), "{}").unwrap();
+        assert_eq!(claude_logged_in_with(&dir, &absent), Some(true));
+        std::fs::write(dir.join(".claude.json"), "{not json").unwrap();
+        std::fs::remove_file(dir.join(".credentials.json")).unwrap();
+        assert_eq!(claude_logged_in_with(&dir, &none), None);
+        assert!(claude_keychain_service(Path::new("/x")).starts_with("Claude Code-credentials-"));
+        assert_eq!(claude_keychain_service(Path::new("/x")).len(), 32);
+
+        let codex = root.path().join("codex");
+        std::fs::create_dir_all(&codex).unwrap();
+        assert_eq!(codex_logged_in(&codex), Some(false));
+        std::fs::write(
+            codex.join("config.toml"),
+            "cli_auth_credentials_store = \"keyring\"\n",
+        )
+        .unwrap();
+        assert_eq!(codex_logged_in(&codex), None);
+        std::fs::write(codex.join("auth.json"), "{}").unwrap();
+        assert_eq!(codex_logged_in(&codex), Some(true));
+    }
 
     fn acc(id: &str, cli: CliKind, dir: &Path) -> CliAccount {
         CliAccount {

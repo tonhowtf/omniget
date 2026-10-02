@@ -138,6 +138,7 @@ struct Tracked {
     fused: Option<Fused>,
     native_busy: bool,
     native_failed: bool,
+    token: Option<(String, String)>,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -674,10 +675,31 @@ impl CanvasHost {
         let name = node_name(node);
         let agent = agent_of(node);
         let terminal = terminal_of(node).unwrap_or_else(|| node_id.to_string());
-        let token = {
+        let held = {
+            let g = self.lock();
+            g.tracked
+                .get(node_id)
+                .filter(|t| !t.exited && t.terminal.as_deref() == Some(terminal.as_str()))
+                .and_then(|t| t.token.clone())
+        }
+        .filter(|_| term().info(&terminal).is_some_and(|i| i.alive));
+        let (token, reused) = {
             let jobs = crate::jobs::get(app)?;
             let db = jobs.db();
-            crate::bridge_tokens::mint_canvas(&db, node_id, &name, now())?.token
+            match held {
+                Some(tok)
+                    if matches!(
+                        crate::bridge_tokens::lookup(&db, &tok.1, now()),
+                        crate::bridge_tokens::Lookup::Valid(_)
+                    ) =>
+                {
+                    (tok, true)
+                }
+                _ => {
+                    let m = crate::bridge_tokens::mint_canvas(&db, node_id, &name, now())?;
+                    ((m.view.id, m.token), false)
+                }
+            }
         };
         let bridge_port = crate::local_bridge::ensure_running_for_canvas(app)?;
         let data = omniget_core::core::paths::app_data_dir().ok_or("no app data dir")?;
@@ -698,7 +720,7 @@ impl CanvasHost {
         env.insert("OMNIGET_CANVAS_NAME".into(), name.clone());
         env.insert("OMNIGET_CANVAS_WORKSPACE".into(), ws.to_string());
         env.insert("OMNIGET_CANVAS_FLOOR".into(), floor.to_string());
-        env.insert("OMNIGET_CANVAS_TOKEN".into(), token);
+        env.insert("OMNIGET_CANVAS_TOKEN".into(), token.1.clone());
         env.insert(
             "OMNIGET_BRIDGE_URL".into(),
             format!("http://127.0.0.1:{bridge_port}"),
@@ -721,9 +743,10 @@ impl CanvasHost {
         let (mcp_args, mcp_env) = super::mcp_attach::for_launch(&agent, node);
         args.extend(mcp_args);
         env.extend(mcp_env);
-        {
+        if !reused {
+            let new_id = token.0.clone();
             let mut g = self.lock();
-            g.tracked.insert(
+            let old = g.tracked.insert(
                 node_id.to_string(),
                 Tracked {
                     ws: ws.to_string(),
@@ -737,9 +760,14 @@ impl CanvasHost {
                     fused: None,
                     native_busy: false,
                     native_failed: false,
+                    token: Some(token),
                 },
             );
             g.stuck.remove(node_id);
+            drop(g);
+            if let Some((old_id, _)) = old.and_then(|t| t.token).filter(|(id, _)| *id != new_id) {
+                self.revoke_token(node_id, &old_id);
+            }
         }
         let env_remove = omniget_core::core::term::session::inherited_agent_session_vars();
         Ok(NodeEnv {
@@ -1079,6 +1107,7 @@ impl CanvasHost {
                     fused: None,
                     native_busy: false,
                     native_failed: false,
+                    token: None,
                 },
             );
         }
@@ -1718,7 +1747,7 @@ impl CanvasHost {
             .map(|(k, v)| (k.clone(), v.clone()))
             .collect();
         let mut ends: Vec<String> = Vec::new();
-        let mut exits: Vec<String> = Vec::new();
+        let mut exits: Vec<(String, u64)> = Vec::new();
         let mut events: Vec<Value> = Vec::new();
         let open: Vec<(String, u32, HashSet<u32>)> = self
             .lock()
@@ -1772,7 +1801,7 @@ impl CanvasHost {
                     }
                 }
                 if !alive && (tr.seen_alive || tr.terminal.is_some() && sig.is_some()) {
-                    exits.push(node.clone());
+                    exits.push((node.clone(), tr.started_ms));
                     continue;
                 }
                 let now_state = sig.as_ref().map(|s| s.state).unwrap_or(AgentState::Unknown);
@@ -1908,8 +1937,8 @@ impl CanvasHost {
             }
             self.emit(EVENT_NODE_STATE, ev);
         }
-        for node in exits {
-            self.on_exit(&node);
+        for (node, started) in exits {
+            self.on_exit(&node, Some(started));
         }
         for node in ends {
             self.turn_end(&node, None, false);
@@ -2360,15 +2389,16 @@ impl CanvasHost {
         true
     }
 
-    fn on_exit(&'static self, node: &str) {
+    fn on_exit(&'static self, node: &str, started: Option<u64>) {
         let mut g = self.lock();
         let Some(t) = g.tracked.get_mut(node) else {
             return;
         };
-        if t.exited {
+        if t.exited || started.is_some_and(|s| s != t.started_ms) {
             return;
         }
         t.exited = true;
+        let token_id = t.token.as_ref().map(|(id, _)| id.clone());
         let (ws, floor) = (t.ws.clone(), t.floor.clone());
         let pending: Vec<String> = g
             .asks
@@ -2392,7 +2422,10 @@ impl CanvasHost {
         g.turns.remove(node);
         g.inbound.remove(node);
         drop(g);
-        self.revoke(node);
+        match token_id {
+            Some(id) => self.revoke_token(node, &id),
+            None => self.revoke(node),
+        }
         self.emit(
             EVENT_NODE_STATE,
             json!({ "id": node, "workspaceId": ws, "floorId": floor, "state": "exited", "source": "exit", "confidence": "exact" }),
@@ -2402,10 +2435,19 @@ impl CanvasHost {
     fn on_deleted(&'static self, node: &str) {
         let tracked = self.lock().tracked.contains_key(node);
         if tracked {
-            self.on_exit(node);
+            self.on_exit(node, None);
             self.lock().tracked.remove(node);
-        } else {
-            self.revoke(node);
+        }
+        self.revoke(node);
+    }
+
+    fn revoke_token(&self, node: &str, id: &str) {
+        let Some(app) = self.app() else { return };
+        if let Ok(jobs) = crate::jobs::get(app) {
+            let db = jobs.db();
+            if let Err(e) = crate::bridge_tokens::revoke(&db, id, now()) {
+                tracing::warn!("[canvas] revoke token of {node}: {e}");
+            }
         }
     }
 
@@ -2491,6 +2533,17 @@ impl CanvasHost {
     }
 
     pub fn inbox(&self, ws: Option<&str>) -> Vec<Value> {
+        let terminals: Vec<(String, String)> = self
+            .lock()
+            .tracked
+            .iter()
+            .filter(|(_, t)| !t.exited && ws.is_none_or(|w| w == t.ws))
+            .filter_map(|(id, t)| t.terminal.clone().map(|tid| (id.clone(), tid)))
+            .collect();
+        let gates: HashMap<String, super::launch::Gate> = terminals
+            .into_iter()
+            .filter_map(|(id, tid)| super::launch::needs_of(&tid).map(|g| (id, g)))
+            .collect();
         let g = self.lock();
         let mut out = Vec::new();
         for (id, t) in &g.tracked {
@@ -2498,7 +2551,10 @@ impl CanvasHost {
                 continue;
             }
             let Some(f) = &t.fused else { continue };
-            let reason = if g.permission.contains_key(id) {
+            let gate = gates.get(id);
+            let reason = if let Some(gate) = gate {
+                gate.needs()
+            } else if g.permission.contains_key(id) {
                 "permission"
             } else if g.stuck.contains(id) {
                 "stuck"
@@ -2520,6 +2576,8 @@ impl CanvasHost {
                 "reason": reason, "state": f.state, "detail": f.detail, "sinceMs": f.since_ms,
                 "queued": queued,
                 "firstPromptPending": first_prompt,
+                "needs": gate.map(|x| x.needs()),
+                "needsHint": gate.map(|x| x.hint()),
             }));
         }
         out.sort_by_key(|v| v["sinceMs"].as_i64().unwrap_or(0));
@@ -2566,6 +2624,7 @@ impl CanvasHost {
         if !settings.bridge.enabled && crate::local_bridge::canvas_port().is_none() {
             issues.push("bridge_off".into());
         }
+        let jobs = crate::jobs::get(app).ok();
         let end = |n: &Option<CanvasNode>| -> Value {
             match n {
                 None => json!({ "exists": false }),
@@ -2573,16 +2632,26 @@ impl CanvasHost {
                     let tid = terminal_of(n);
                     let info = tid.as_ref().and_then(|t| term().info(t));
                     let f = self.fused_of(&n.id, ws, floor, n);
+                    let held = self.lock().tracked.get(&n.id).map(|t| t.token.clone());
+                    let valid = match (&held, &jobs) {
+                        (Some(Some((_, secret))), Some(j)) => Some(matches!(
+                            crate::bridge_tokens::lookup(&j.db(), secret, now()),
+                            crate::bridge_tokens::Lookup::Valid(_)
+                        )),
+                        _ => None,
+                    };
                     json!({
                         "exists": true, "id": n.id, "name": node_name(n), "kind": n.kind.as_str(),
                         "agent": n.data_str("agent"), "alive": info.as_ref().map(|i| i.alive),
                         "state": f.state, "confidence": f.confidence,
-                        "tokenMinted": self.lock().tracked.contains_key(&n.id),
+                        "tokenMinted": held.is_some(),
+                        "tokenValid": valid,
                     })
                 }
             }
         };
         let (fv, tv) = (end(&from), end(&to));
+        let mut fixes: Vec<String> = Vec::new();
         for (label, v) in [("from", &fv), ("to", &tv)] {
             if v["exists"] == false {
                 issues.push(format!("{label}_missing"));
@@ -2590,10 +2659,16 @@ impl CanvasHost {
                 issues.push(format!("{label}_not_running"));
             } else if v["kind"] == "terminal" && v["tokenMinted"] == false {
                 issues.push(format!("{label}_without_cords_env"));
+            } else if v["kind"] == "terminal" && v["tokenValid"] == false {
+                issues.push(format!("{label}_token_revoked"));
+                fixes.push(format!(
+                    "'{}' runs with a canvas token that no longer works; restart it with canvas_terminal_restart so it gets a fresh one",
+                    v["name"].as_str().unwrap_or_default()
+                ));
             }
         }
         Ok(json!({
-            "ok": issues.is_empty(), "issues": issues, "kind": conn.kind.as_str(), "perms": perms_of(&conn),
+            "ok": issues.is_empty(), "issues": issues, "fixes": fixes, "kind": conn.kind.as_str(), "perms": perms_of(&conn),
             "bridge": { "enabled": settings.bridge.enabled, "port": settings.bridge.port },
             "from": fv, "to": tv,
         }))

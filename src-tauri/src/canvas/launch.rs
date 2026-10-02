@@ -389,7 +389,7 @@ pub async fn ensure(
         agent: if generic {
             Some(TermAgent::Unknown)
         } else {
-            serde_json::from_value::<TermAgent>(serde_json::Value::String(agent)).ok()
+            serde_json::from_value::<TermAgent>(serde_json::Value::String(agent.clone())).ok()
         },
         restore: Some(opts.restore),
         shell_fallback: Some(super::prefs::get(app).terminal.shell_fallback),
@@ -411,12 +411,19 @@ pub async fn ensure(
             .map(str::to_string);
         one_shot = first_prompt.is_some();
     }
+    let born = info.created_at;
+    if agent == "claude" && !ws.is_empty() {
+        let (id, ws, node_id) = (tid.clone(), ws.to_string(), node_id.to_string());
+        tauri::async_runtime::spawn(async move {
+            watch_trust(&id, born, &ws, &node_id).await;
+        });
+    }
     if let Some(text) = first_prompt.filter(|t| !t.trim().is_empty()) {
         let id = tid.clone();
         let (ws, floor, node_id) = (ws.to_string(), floor.to_string(), node_id.to_string());
         tauri::async_runtime::spawn(async move {
             let m = crate::pty::term();
-            if !wait_for_prompt_ready(&m, &id).await {
+            if !wait_for_prompt_ready(&m, &id, born).await {
                 tracing::warn!(
                     "[canvas.launch] {node_id}: agent never took input, first prompt kept"
                 );
@@ -424,8 +431,17 @@ pub async fn ensure(
             }
             if m.paste(&id, &text).is_ok() {
                 tokio::time::sleep(Duration::from_millis(150)).await;
+                let sent_ms = now_ms();
                 let _ = m.submit(&id);
-                if one_shot {
+                for _ in 0..2 {
+                    tokio::time::sleep(Duration::from_millis(700)).await;
+                    let screen = m.screen_text(&id, 0).map(|x| x.text).unwrap_or_default();
+                    if !composer_holds(&screen, &text) {
+                        break;
+                    }
+                    let _ = m.submit(&id);
+                }
+                if one_shot && took_turn(&m, &id, born, sent_ms, &text).await {
                     let op = omniget_core::core::canvas::ops::Op::update_node(
                         &node_id,
                         serde_json::json!({ "data": { "initialPrompt": null } }),
@@ -480,6 +496,9 @@ fn asks_before_input(screen: &str) -> bool {
         "do you trust",
         "trust the files",
         "select login method",
+        "login method",
+        "configuration file not found",
+        "claude in chrome",
         "press enter to continue",
         "update available",
     ]
@@ -487,7 +506,224 @@ fn asks_before_input(screen: &str) -> bool {
     .any(|m| s.contains(m))
 }
 
-async fn wait_for_prompt_ready(m: &omniget_core::core::term::TermManager, id: &str) -> bool {
+fn now_ms() -> i64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis() as i64)
+        .unwrap_or(0)
+}
+
+fn same_process(m: &omniget_core::core::term::TermManager, id: &str, born: i64) -> bool {
+    m.info(id).is_some_and(|i| i.alive && i.created_at == born)
+}
+
+async fn took_turn(
+    m: &omniget_core::core::term::TermManager,
+    id: &str,
+    born: i64,
+    sent_ms: i64,
+    text: &str,
+) -> bool {
+    use omniget_core::core::term::agent::{AgentState, SignalSource};
+    let started = std::time::Instant::now();
+    while started.elapsed() < Duration::from_secs(600) {
+        tokio::time::sleep(Duration::from_millis(500)).await;
+        if !same_process(m, id, born) {
+            return false;
+        }
+        if started.elapsed() >= Duration::from_secs(3) && needs_of(id).is_none() {
+            let screen = m.screen_text(id, 0).map(|x| x.text).unwrap_or_default();
+            if !screen.trim().is_empty() && !composer_holds(&screen, text) {
+                return true;
+            }
+        }
+        let Some(sig) = m.agent_state(id) else {
+            continue;
+        };
+        let real = !matches!(sig.source, SignalSource::Heuristic | SignalSource::None);
+        let busy = !matches!(sig.state, AgentState::Idle | AgentState::Unknown);
+        if real && busy && sig.since_ms >= sent_ms - 500 {
+            return true;
+        }
+    }
+    same_process(m, id, born)
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Gate {
+    Trust { moves: i32 },
+    Chrome,
+    Login,
+}
+
+impl Gate {
+    pub fn needs(&self) -> &'static str {
+        match self {
+            Gate::Trust { .. } => "trust",
+            Gate::Chrome => "chrome_prompt",
+            Gate::Login => "login",
+        }
+    }
+
+    pub fn hint(&self) -> String {
+        match self {
+            Gate::Trust { moves: 0 } => {
+                "Enter answers 'Yes, I trust this folder' (the cursor is on it); or canvas_terminal_ensure {trust: true} when the folder is inside the workspace folder".into()
+            }
+            Gate::Trust { moves } => format!(
+                "{} {} time(s), then Enter, answers 'Yes, I trust this folder' (a blind Enter picks 'No, exit' and closes the agent); or canvas_terminal_ensure {{trust: true}} when the folder is inside the workspace folder",
+                if *moves < 0 { "ArrowUp" } else { "ArrowDown" },
+                moves.abs()
+            ),
+            Gate::Chrome => "Escape keeps the browser off".into(),
+            Gate::Login => "the person must sign in in this terminal (or switch the account with canvas_terminal_settings_set {account, restart: true})".into(),
+        }
+    }
+}
+
+fn option_line(line: &str) -> Option<(bool, String)> {
+    let t = line.trim_start();
+    let (cursor, rest) = match t.chars().next() {
+        Some(c @ ('❯' | '›' | '>')) => (true, t[c.len_utf8()..].trim_start()),
+        _ => (false, t),
+    };
+    let digits = rest.chars().take_while(char::is_ascii_digit).count();
+    if digits == 0 || !rest[digits..].starts_with('.') {
+        return None;
+    }
+    Some((cursor, rest[digits + 1..].trim().to_lowercase()))
+}
+
+pub fn gate_of(screen: &str) -> Option<Gate> {
+    let low = screen.to_lowercase();
+    let trust = ["trust this folder", "do you trust", "trust the files"]
+        .iter()
+        .any(|m| low.contains(m));
+    if trust {
+        let opts: Vec<(bool, String)> = screen.lines().filter_map(option_line).collect();
+        let yes = opts.iter().position(|(_, t)| t.starts_with("yes"));
+        let cur = opts.iter().position(|(c, _)| *c);
+        if let (Some(y), Some(c)) = (yes, cur) {
+            return Some(Gate::Trust {
+                moves: y as i32 - c as i32,
+            });
+        }
+    }
+    if low.contains("claude in chrome") {
+        return Some(Gate::Chrome);
+    }
+    if low.contains("select login method") || low.contains("configuration file not found") {
+        return Some(Gate::Login);
+    }
+    None
+}
+
+pub fn needs_of(tid: &str) -> Option<Gate> {
+    let m = crate::pty::term();
+    if !m.info(tid).is_some_and(|i| i.alive) {
+        return None;
+    }
+    m.screen_text(tid, 0).ok().and_then(|s| gate_of(&s.text))
+}
+
+fn inside(dir: &str, root: &str) -> bool {
+    let canon = |p: &str| std::fs::canonicalize(p).unwrap_or_else(|_| std::path::PathBuf::from(p));
+    let (d, r) = (canon(dir), canon(root));
+    !root.trim().is_empty() && d.starts_with(&r)
+}
+
+pub fn trust_allowed(ws: &str, tid: &str) -> Result<(), String> {
+    let root = super::doc::host()
+        .store()
+        .workspace(ws)
+        .ok()
+        .and_then(|w| w.working_directory)
+        .filter(|d| !d.trim().is_empty())
+        .ok_or("CANVAS_TRUST: the workspace has no folder, so only the person can trust this one (workspace_update {dir} sets it)")?;
+    let info = crate::pty::term()
+        .info(tid)
+        .ok_or("CANVAS_NOT_RUNNING: the terminal is not running")?;
+    let cwd = info
+        .cwd
+        .or(info.osc_cwd)
+        .ok_or("CANVAS_TRUST: the terminal's folder is unknown")?;
+    if inside(&cwd, &root) {
+        Ok(())
+    } else {
+        Err(format!(
+            "CANVAS_TRUST: '{cwd}' is outside the workspace folder '{root}'; only the person can trust it"
+        ))
+    }
+}
+
+pub async fn answer_trust(ws: &str, tid: &str) -> Result<bool, String> {
+    let m = crate::pty::term();
+    let Some(Gate::Trust { moves }) = needs_of(tid) else {
+        return Ok(false);
+    };
+    trust_allowed(ws, tid)?;
+    let key = |k: &str| omniget_core::core::term::input::KeyInput {
+        key: k.to_string(),
+        ..Default::default()
+    };
+    let arrow = if moves < 0 { "ArrowUp" } else { "ArrowDown" };
+    for _ in 0..moves.unsigned_abs() {
+        m.key(tid, &key(arrow))?;
+        tokio::time::sleep(Duration::from_millis(120)).await;
+    }
+    tokio::time::sleep(Duration::from_millis(250)).await;
+    if needs_of(tid) != Some(Gate::Trust { moves: 0 }) {
+        return Err("CANVAS_TRUST: the cursor did not land on 'Yes, I trust this folder'; answer it by hand (canvas_terminal_read shows the menu)".into());
+    }
+    m.key(tid, &key("Enter"))?;
+    Ok(true)
+}
+
+fn wants_trust(ws: &str, node_id: &str) -> bool {
+    super::doc::host()
+        .store()
+        .locate_node(node_id)
+        .filter(|(w, _)| w == ws)
+        .and_then(|(w, f)| {
+            super::doc::host()
+                .store()
+                .read(&w, &f, |d| d.node(node_id).cloned())
+                .ok()
+                .flatten()
+        })
+        .is_some_and(|n| n.data.get("trustFolder").and_then(|v| v.as_bool()) == Some(true))
+}
+
+async fn watch_trust(tid: &str, born: i64, ws: &str, node_id: &str) {
+    let m = crate::pty::term();
+    let started = std::time::Instant::now();
+    while started.elapsed() < Duration::from_secs(120) {
+        tokio::time::sleep(Duration::from_millis(400)).await;
+        if !same_process(&m, tid, born) {
+            return;
+        }
+        if !matches!(needs_of(tid), Some(Gate::Trust { .. })) || !wants_trust(ws, node_id) {
+            continue;
+        }
+        match answer_trust(ws, tid).await {
+            Ok(true) => {
+                tracing::info!("[canvas.launch] {node_id}: trusted the workspace folder");
+                return;
+            }
+            Ok(false) => {}
+            Err(e) => {
+                tracing::warn!("[canvas.launch] {node_id}: {e}");
+                return;
+            }
+        }
+    }
+}
+
+async fn wait_for_prompt_ready(
+    m: &omniget_core::core::term::TermManager,
+    id: &str,
+    born: i64,
+) -> bool {
     use omniget_core::core::term::AgentState;
     let started = std::time::Instant::now();
     tokio::time::sleep(Duration::from_millis(1500)).await;
@@ -497,12 +733,12 @@ async fn wait_for_prompt_ready(m: &omniget_core::core::term::TermManager, id: &s
     let mut last_tick = std::time::Instant::now();
     pending_prompts()
         .lock()
-        .map(|mut p| p.insert(id.to_string()))
+        .map(|mut p| *p.entry(id.to_string()).or_insert(0) += 1)
         .ok();
     let _clear = PendingGuard(id.to_string());
     while unsettled < Duration::from_secs(120) && started.elapsed() < Duration::from_secs(6 * 3600)
     {
-        if !m.info(id).is_some_and(|i| i.alive) {
+        if !same_process(m, id, born) {
             return false;
         }
         let blocked = m
@@ -527,8 +763,8 @@ async fn wait_for_prompt_ready(m: &omniget_core::core::term::TermManager, id: &s
     false
 }
 
-fn pending_prompts() -> &'static Mutex<std::collections::HashSet<String>> {
-    static P: OnceLock<Mutex<std::collections::HashSet<String>>> = OnceLock::new();
+fn pending_prompts() -> &'static Mutex<HashMap<String, usize>> {
+    static P: OnceLock<Mutex<HashMap<String, usize>>> = OnceLock::new();
     P.get_or_init(Default::default)
 }
 
@@ -536,11 +772,186 @@ struct PendingGuard(String);
 impl Drop for PendingGuard {
     fn drop(&mut self) {
         if let Ok(mut p) = pending_prompts().lock() {
-            p.remove(&self.0);
+            if let Some(n) = p.get_mut(&self.0) {
+                *n = n.saturating_sub(1);
+                if *n == 0 {
+                    p.remove(&self.0);
+                }
+            }
         }
     }
 }
 
+pub fn composer_holds(screen: &str, sent: &str) -> bool {
+    let Some(line) = screen
+        .lines()
+        .map(|l| l.trim_start_matches(|c: char| c == '│' || c == '|' || c.is_whitespace()))
+        .rfind(|l| l.starts_with('>') || l.starts_with('❯'))
+    else {
+        return false;
+    };
+    let typed = line
+        .trim_start_matches(['>', '❯'])
+        .trim_end_matches(|c: char| c == '│' || c == '|' || c.is_whitespace())
+        .trim();
+    if typed.is_empty() {
+        return false;
+    }
+    if typed.contains("[Pasted text") {
+        return true;
+    }
+    let head: String = sent
+        .lines()
+        .find(|l| !l.trim().is_empty())
+        .unwrap_or("")
+        .trim()
+        .chars()
+        .take(20)
+        .collect();
+    !head.is_empty() && typed.contains(head.as_str())
+}
+
+pub fn agent_busy(tid: &str) -> bool {
+    use omniget_core::core::term::AgentState;
+    crate::pty::term().agent_state(tid).is_some_and(|s| {
+        matches!(
+            s.state,
+            AgentState::Thinking
+                | AgentState::Working
+                | AgentState::Compacting
+                | AgentState::Looping
+                | AgentState::WaitingPeer
+        )
+    })
+}
+
+type RunQueue = std::collections::VecDeque<(String, bool)>;
+
+fn run_queues() -> &'static Mutex<HashMap<String, RunQueue>> {
+    static Q: OnceLock<Mutex<HashMap<String, RunQueue>>> = OnceLock::new();
+    Q.get_or_init(Default::default)
+}
+
+pub fn queue_run(tid: &str, text: String, paste: bool) -> usize {
+    let (len, start) = {
+        let mut q = run_queues().lock().unwrap_or_else(|e| e.into_inner());
+        let start = !q.contains_key(tid);
+        let e = q.entry(tid.to_string()).or_default();
+        e.push_back((text, paste));
+        (e.len(), start)
+    };
+    if start {
+        let id = tid.to_string();
+        tauri::async_runtime::spawn(async move { drain_runs(&id).await });
+    }
+    len
+}
+
+pub fn queued_runs(tid: &str) -> usize {
+    run_queues()
+        .lock()
+        .map(|q| q.get(tid).map(|v| v.len()).unwrap_or(0))
+        .unwrap_or(0)
+}
+
+async fn drain_runs(tid: &str) {
+    let m = crate::pty::term();
+    let born = m.info(tid).map(|i| i.created_at).unwrap_or(0);
+    let mut idle_since: Option<std::time::Instant> = None;
+    loop {
+        tokio::time::sleep(Duration::from_millis(400)).await;
+        if !same_process(&m, tid, born) {
+            run_queues().lock().map(|mut q| q.remove(tid)).ok();
+            tracing::warn!("[canvas.launch] {tid}: exited with queued input, dropped");
+            return;
+        }
+        if agent_busy(tid) || first_prompt_pending(tid) || m.user_typing(tid) {
+            idle_since = None;
+            continue;
+        }
+        let quiet = *idle_since.get_or_insert_with(std::time::Instant::now);
+        if quiet.elapsed() < Duration::from_millis(1200) {
+            continue;
+        }
+        let next = {
+            let mut q = run_queues().lock().unwrap_or_else(|e| e.into_inner());
+            let next = q.get_mut(tid).and_then(|v| v.pop_front());
+            if next.is_none() {
+                q.remove(tid);
+            }
+            next
+        };
+        let Some((text, paste)) = next else { return };
+        let sent = if paste {
+            m.paste(tid, &text)
+        } else {
+            m.text(tid, &text)
+        };
+        if sent.is_ok() {
+            tokio::time::sleep(Duration::from_millis(150)).await;
+            let _ = m.submit(tid);
+            for _ in 0..2 {
+                tokio::time::sleep(Duration::from_millis(700)).await;
+                let screen = m.screen_text(tid, 0).map(|x| x.text).unwrap_or_default();
+                if !composer_holds(&screen, &text) {
+                    break;
+                }
+                let _ = m.submit(tid);
+            }
+        }
+        idle_since = None;
+        tokio::time::sleep(Duration::from_millis(1500)).await;
+    }
+}
+
 pub fn first_prompt_pending(tid: &str) -> bool {
-    pending_prompts().lock().is_ok_and(|p| p.contains(tid))
+    pending_prompts().lock().is_ok_and(|p| p.contains_key(tid))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_trust_menu_says_how_far_the_yes_is() {
+        let no_first = "Do you trust the files in this folder?\n\n   1. Yes, I trust this folder\n ❯ 2. No, exit\n\n Enter to confirm";
+        assert_eq!(gate_of(no_first), Some(Gate::Trust { moves: -1 }));
+        let yes_first = "Quick safety check\n ❯ 1. Yes, I trust this folder\n   2. No, exit";
+        assert_eq!(gate_of(yes_first), Some(Gate::Trust { moves: 0 }));
+        let below = " ❯ 1. No, exit\n   2. Yes, proceed\n do you trust";
+        assert_eq!(gate_of(below), Some(Gate::Trust { moves: 1 }));
+    }
+
+    #[test]
+    fn a_text_left_in_the_composer_is_seen() {
+        let sent = "o app está pronto, pode testar";
+        assert!(composer_holds(
+            "> fix it\n⏺ done\n│ > o app está pronto, pode │",
+            sent
+        ));
+        assert!(composer_holds("❯ [Pasted text #2 +3 lines]", "a\nb\nc\nd"));
+        assert!(!composer_holds(
+            "> o app está pronto, pode testar\n⏺ ok\n│ >   │",
+            sent
+        ));
+        assert!(!composer_holds("no prompt here", sent));
+    }
+
+    #[test]
+    fn chrome_and_login_screens_are_named() {
+        assert_eq!(
+            gate_of("Claude in Chrome extension detected\n ❯ 1. Yes"),
+            Some(Gate::Chrome)
+        );
+        assert_eq!(
+            gate_of("Claude configuration file not found at ~/.claude/.claude.json"),
+            Some(Gate::Login)
+        );
+        assert_eq!(
+            gate_of("Select login method:\n ❯ 1. Claude account"),
+            Some(Gate::Login)
+        );
+        assert_eq!(gate_of("> hello\n  1. a list item"), None);
+        assert!(Gate::Trust { moves: -1 }.hint().starts_with("ArrowUp 1"));
+    }
 }

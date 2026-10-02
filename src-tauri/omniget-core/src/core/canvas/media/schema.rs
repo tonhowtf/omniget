@@ -76,7 +76,7 @@ fn media_name(name: &str) -> bool {
 
 pub fn parse_model_list(raw: &Value, kind: &str) -> Result<Vec<ModelSummary>, String> {
     let rows = raw.as_array().ok_or("PROVIDER_INVALID_RESPONSE")?;
-    Ok(rows
+    let mut list: Vec<ModelSummary> = rows
         .iter()
         .take(500)
         .filter_map(|v| {
@@ -96,7 +96,17 @@ pub fn parse_model_list(raw: &Value, kind: &str) -> Result<Vec<ModelSummary>, St
                 kind: k.to_string(),
             })
         })
-        .collect())
+        .collect();
+    let mut seen: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
+    for m in &list {
+        *seen.entry(m.name.clone()).or_default() += 1;
+    }
+    for m in &mut list {
+        if seen.get(&m.name).is_some_and(|n| *n > 1) {
+            m.name = format!("{} ({})", m.name, m.model);
+        }
+    }
+    Ok(list)
 }
 
 pub fn parse_model(raw: &Value, expect: &str) -> Result<ModelSchema, String> {
@@ -265,9 +275,7 @@ pub fn clean_params(
             ));
         }
         render(spec, v)?;
-        if spec.default != *v {
-            out.insert(k.clone(), v.clone());
-        }
+        out.insert(k.clone(), v.clone());
     }
     for p in &schema.params {
         if p.required
@@ -303,6 +311,9 @@ pub fn args(verb: &str, schema: &ModelSchema, req: &GenRequest) -> Result<Vec<St
             .iter()
             .find(|p| &p.name == k)
             .ok_or("PROVIDER_INVALID_PARAMETER")?;
+        if spec.default == *v {
+            continue;
+        }
         a.push(format!("--{k}={}", render(spec, v)?));
     }
     if !req.references.is_empty() {
@@ -593,12 +604,16 @@ mod tests {
         let raw = json!([
             {"display_name": "FLUX.2", "job_type": "flux_2", "type": "image"},
             {"display_name": "Seedance", "job_type": "seedance_2_5", "type": "video"},
-            {"display_name": "Bad", "job_type": "../x", "type": "image"}
+            {"display_name": "Bad", "job_type": "../x", "type": "image"},
+            {"display_name": "Nano Banana Pro", "job_type": "nano_banana_pro", "type": "image"},
+            {"display_name": "Nano Banana Pro", "job_type": "nano_banana_2_relight", "type": "image"}
         ]);
         let list = parse_model_list(&raw, "image").unwrap();
-        assert_eq!(list.len(), 1);
+        assert_eq!(list.len(), 3);
         assert_eq!(list[0].model, "flux_2");
         assert_eq!(list[0].name, "FLUX.2");
+        assert_eq!(list[1].name, "Nano Banana Pro (nano_banana_pro)");
+        assert_eq!(list[2].name, "Nano Banana Pro (nano_banana_2_relight)");
     }
 
     #[test]
@@ -687,6 +702,15 @@ mod tests {
         )
         .unwrap_err();
         assert!(e.starts_with("PROVIDER_REFERENCES_UNSUPPORTED"));
+    }
+
+    #[test]
+    fn explicit_params_stay_even_at_their_default() {
+        let given = json!({"aspect_ratio": "1:1"});
+        let p = clean_params(&banana(), given.as_object().unwrap()).unwrap();
+        assert_eq!(p.get("aspect_ratio"), Some(&json!("1:1")));
+        let a = args("cost", &banana(), &req(given, &[])).unwrap();
+        assert!(!a.iter().any(|x| x.starts_with("--aspect_ratio")));
     }
 
     #[test]

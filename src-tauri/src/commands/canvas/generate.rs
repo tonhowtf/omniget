@@ -15,6 +15,7 @@ pub async fn canvas_generate_schema(model: String) -> Result<ModelSchema, String
 
 #[tauri::command]
 pub async fn canvas_generate_quote(node_id: String) -> Result<Value, String> {
+    generate::requested_by(&node_id, "user");
     generate::quote(&node_id, Actor::Person).await
 }
 
@@ -24,6 +25,7 @@ pub async fn canvas_generate_submit(
     quote_id: String,
     idempotency_key: Option<String>,
 ) -> Result<Value, String> {
+    generate::requested_by(&node_id, "user");
     generate::submit(&node_id, &quote_id, idempotency_key, Actor::Person).await
 }
 

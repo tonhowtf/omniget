@@ -22,9 +22,37 @@ export interface ActivityEntry {
   summary: string;
   nodeIds: string[];
   undo: boolean;
+  via?: string;
 }
 
 export type ActivityTab = 'activity' | 'mcp';
+
+export const VERB_DEFAULTS: Record<string, string> = {
+  created: 'created',
+  deleted: 'deleted',
+  moved: 'moved',
+  resized: 'resized',
+  renamed: 'renamed',
+  edited: 'edited',
+  wrote: 'wrote in',
+  corded: 'connected',
+  uncorded: 'disconnected',
+  changed: 'changed',
+  drew: 'drew',
+  erased: 'erased',
+  grouped: 'grouped',
+  quoted: 'got a price for',
+  submitted: 'started',
+  generated: 'finished',
+  failed: 'hit a failure in',
+  uncertain: 'lost track of',
+};
+
+export function initials(name: string): string {
+  const parts = name.split(/[\s·_:-]+/).filter(Boolean);
+  const s = parts.length > 1 ? parts[0][0] + parts[1][0] : name.slice(0, 2);
+  return s.toUpperCase();
+}
 
 const PALETTE = ['#7c5cff', '#ff6b6b', '#2fb4ff', '#21c08b', '#ffb020', '#ff5fa2', '#00b8a9', '#f2711c'];
 
@@ -43,6 +71,16 @@ export function actorColor(origin: string): string {
   return PALETTE[h % PALETTE.length];
 }
 
+const PRESENCE_KEY = 'omniget.canvas.aiPresence';
+
+function readPresence(): boolean {
+  try {
+    return localStorage.getItem(PRESENCE_KEY) !== '0';
+  } catch {
+    return true;
+  }
+}
+
 export function reducedMotion(): boolean {
   return typeof window !== 'undefined' && !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
 }
@@ -54,7 +92,20 @@ class AiActivity {
   follow = $state(false);
   followOrigin = $state<string | null>(null);
   aiOnly = $state(false);
+  #presence = $state(readPresence());
   entries = $state.raw<ActivityEntry[]>([]);
+
+  get presence(): boolean {
+    return this.#presence;
+  }
+
+  set presence(v: boolean) {
+    this.#presence = v;
+    try {
+      localStorage.setItem(PRESENCE_KEY, v ? '1' : '0');
+    } catch {
+    }
+  }
   private workspaceId = '';
   private loading = 0;
 
@@ -102,6 +153,18 @@ class AiActivity {
       this.entries = [...this.entries, e].slice(-KEEP);
     }
     return true;
+  }
+
+  recent(now: number, windowMs: number): Array<{ origin: string; name: string; last: ActivityEntry }> {
+    const byActor = new Map<string, ActivityEntry>();
+    for (let i = this.entries.length - 1; i >= 0; i--) {
+      const e = this.entries[i];
+      if (now - e.at > windowMs) continue;
+      if (!isAi(e)) continue;
+      const key = baseOrigin(e.origin);
+      if (!byActor.has(key)) byActor.set(key, e);
+    }
+    return [...byActor].map(([origin, last]) => ({ origin, name: last.actor, last })).sort((a, b) => b.last.at - a.last.at);
   }
 
   actors(): Array<{ origin: string; name: string }> {

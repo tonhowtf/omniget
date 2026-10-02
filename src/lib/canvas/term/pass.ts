@@ -1,11 +1,11 @@
 import { terminalTheme } from '$components/central/terminal/theme';
-import { canvasPrefs } from '../prefs.svelte';
+import { canvasPrefs, faithfulRendering } from '../prefs.svelte';
 import { loadUserSchemes, schemeTheme } from './themes';
 import { TermAtlas } from './atlas';
 import { termHub } from './hub';
 import { updateLods, focusedTerm } from './lod';
 import { bodyRect, cellMetrics, TERM_FONT_SIZE, TERM_HEADER_H, termFontScale } from './metrics';
-import { TERM_FS, TERM_VS } from './shaders';
+import { TERM_FS, TERM_VS, THUMB_FS } from './shaders';
 import type { TermGrid } from './grid';
 import { isTerminalKind, terminalIdOf, type FrameInfo, type GlPass } from './gl-types';
 import { registerPass } from '$lib/canvas/render/gl-layer';
@@ -32,6 +32,10 @@ import {
 const BLINK_MS = 530;
 const UPLOAD_UNIT = 4;
 const SETTLE_MS = 150;
+const THUMB_BELOW_PX = 9;
+const THUMB_FONT_PX = 12;
+const THUMB_RENDERS_PER_FRAME = 6;
+const THUMB_UNIT = 5;
 
 const TA_STRIKE = 8;
 const TA_SEL = 16;
@@ -142,8 +146,18 @@ function buildTheme(id: string = canvasPrefs().terminal.theme): Theme {
   return { fg, bg, cursor, sel: [sel[0], sel[1], sel[2], Math.max(0.25, sel[3])], match: [1, 0.84, 0.04, 0.35], palette };
 }
 
+interface Thumb {
+  tex: WebGLTexture;
+  fbo: WebGLFramebuffer;
+  w: number;
+  h: number;
+  key: string;
+}
+
 interface GridGpu {
   grid: TermGrid;
+  rev: number;
+  thumb: Thumb | null;
   cells: WebGLTexture;
   mini: WebGLTexture | null;
   cols: number;
@@ -193,6 +207,10 @@ class TermPass implements GlPass {
   private settleTimer: ReturnType<typeof setTimeout> | null = null;
   private blinkTimer: ReturnType<typeof setTimeout> | null = null;
   private workPending = false;
+  private thumbProgram: WebGLProgram | null = null;
+  private thumbU: Record<string, WebGLUniformLocation | null> = {};
+  private thumbBudget = 0;
+  private thumbStale = false;
   requestRedraw: () => void = () => {};
 
   constructor() {
@@ -276,6 +294,10 @@ class TermPass implements GlPass {
       return false;
     }
     this.program = prog;
+    this.thumbProgram = this.link(gl, TERM_VS, THUMB_FS);
+    if (this.thumbProgram) {
+      for (const name of ['u_rect', 'u_viewport', 'u_tex']) this.thumbU[name] = gl.getUniformLocation(this.thumbProgram, name);
+    }
     for (const name of [
       'u_rect', 'u_viewport', 'u_cells', 'u_mini', 'u_atlas', 'u_palette', 'u_mode', 'u_cell', 'u_grid',
       'u_atlasCell', 'u_atlasSize', 'u_defFg', 'u_defBg', 'u_cursorColor', 'u_selColor', 'u_matchColor',
@@ -298,6 +320,30 @@ class TermPass implements GlPass {
     this.atlas.bind(gl);
     this.gl = gl;
     return true;
+  }
+
+  private link(gl: WebGL2RenderingContext, vsSrc: string, fsSrc: string): WebGLProgram | null {
+    const vs = gl.createShader(gl.VERTEX_SHADER);
+    const fs = gl.createShader(gl.FRAGMENT_SHADER);
+    if (!vs || !fs) return null;
+    gl.shaderSource(vs, vsSrc);
+    gl.compileShader(vs);
+    gl.shaderSource(fs, fsSrc);
+    gl.compileShader(fs);
+    const prog = gl.createProgram();
+    if (!prog) return null;
+    gl.attachShader(prog, vs);
+    gl.attachShader(prog, fs);
+    gl.bindAttribLocation(prog, 0, 'a_pos');
+    gl.linkProgram(prog);
+    gl.deleteShader(vs);
+    gl.deleteShader(fs);
+    if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) {
+      console.error('[term] thumb shader link failed', gl.getProgramInfoLog(prog));
+      gl.deleteProgram(prog);
+      return null;
+    }
+    return prog;
   }
 
   private uploadPalette(gl: WebGL2RenderingContext, tex: WebGLTexture, theme: Theme): void {
@@ -422,6 +468,7 @@ class TermPass implements GlPass {
       g.texels = new Uint32Array(grid.cols * grid.rows * 4);
       grid.markAll();
     }
+    g.rev++;
     for (let y = 0; y < grid.rows; y++) if (grid.dirty[y]) this.buildRow(g, y);
     if (this.atlas.glyphs.epoch !== glyphEpoch) {
       g.glyphEpoch = this.atlas.glyphs.epoch;
@@ -486,6 +533,8 @@ class TermPass implements GlPass {
       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
       g = {
         grid,
+        rev: 0,
+        thumb: null,
         cells,
         mini: null,
         cols: 0,
@@ -510,6 +559,117 @@ class TermPass implements GlPass {
     if (!gl) return;
     gl.deleteTexture(g.cells);
     if (g.mini) gl.deleteTexture(g.mini);
+    this.freeThumb(gl, g);
+  }
+
+  private freeThumb(gl: WebGL2RenderingContext, g: GridGpu): void {
+    if (!g.thumb) return;
+    gl.deleteFramebuffer(g.thumb.fbo);
+    gl.deleteTexture(g.thumb.tex);
+    g.thumb = null;
+  }
+
+  private ensureThumb(gl: WebGL2RenderingContext, g: GridGpu, w: number, h: number): Thumb | null {
+    if (g.thumb && g.thumb.w === w && g.thumb.h === h) return g.thumb;
+    this.freeThumb(gl, g);
+    const tex = gl.createTexture();
+    const fbo = gl.createFramebuffer();
+    if (!tex || !fbo) return null;
+    gl.activeTexture(gl.TEXTURE0 + UPLOAD_UNIT);
+    gl.bindTexture(gl.TEXTURE_2D, tex);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, w, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.bindTexture(gl.TEXTURE_2D, null);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tex, 0);
+    const ok = gl.checkFramebufferStatus(gl.FRAMEBUFFER) === gl.FRAMEBUFFER_COMPLETE;
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    if (!ok) {
+      gl.deleteFramebuffer(fbo);
+      gl.deleteTexture(tex);
+      return null;
+    }
+    g.thumb = { tex, fbo, w, h, key: '' };
+    return g.thumb;
+  }
+
+  private drawThumb(
+    gl: WebGL2RenderingContext,
+    g: GridGpu,
+    themeKey: string,
+    rect: { x: number; y: number; w: number; h: number },
+    vw: number,
+    vh: number,
+  ): boolean {
+    if (!this.thumbProgram) return false;
+    gl.activeTexture(gl.TEXTURE0 + UPLOAD_UNIT);
+    const picked = this.atlas.pick(THUMB_FONT_PX, true);
+    if (!picked || !picked.bucket.texture) return false;
+    const b = picked.bucket;
+    const ready = picked.exact && b.ready(this.atlas.glyphs.count);
+    const grid = g.grid;
+    const cur = grid.cursor;
+    const curOn = (cur.flags & CF_VISIBLE) !== 0 && cur.shape !== CURSOR_HIDDEN;
+    const key = `${g.rev}|${themeKey}|${b.index}|${cur.x},${cur.y},${cur.shape},${curOn ? 1 : 0}`;
+    const max = Math.min(4096, gl.getParameter(gl.MAX_TEXTURE_SIZE) as number);
+    const tw = Math.max(1, Math.min(max, g.cols * b.cw));
+    const th = Math.max(1, Math.min(max, g.rows * b.ch));
+    let t = g.thumb && g.thumb.w === tw && g.thumb.h === th ? g.thumb : null;
+    if (!t || t.key !== key) {
+      if (this.thumbBudget <= 0) {
+        this.thumbStale = true;
+        if (!t) return false;
+      } else {
+        this.thumbBudget--;
+        t = this.ensureThumb(gl, g, tw, th);
+        if (!t) return false;
+        gl.bindFramebuffer(gl.FRAMEBUFFER, t.fbo);
+        gl.viewport(0, 0, tw, th);
+        gl.disable(gl.SCISSOR_TEST);
+        const bg = this.theme.bg;
+        gl.clearColor(bg[0], bg[1], bg[2], 1);
+        gl.clear(gl.COLOR_BUFFER_BIT);
+        gl.uniform2f(this.u.u_viewport, tw, th);
+        gl.uniform4f(this.u.u_rect, 0, 0, tw, th);
+        gl.uniform1i(this.u.u_mode, 0);
+        gl.uniform2f(this.u.u_cell, b.cw, b.ch);
+        gl.uniform2i(this.u.u_grid, g.cols, g.rows);
+        gl.uniform3f(this.u.u_atlasCell, b.cw, b.ch, b.perRow);
+        gl.uniform2f(this.u.u_atlasSize, b.texW, b.texH);
+        gl.uniform4f(this.u.u_cursor, cur.x, cur.y, cur.shape, curOn ? 1 : 0);
+        gl.uniform1f(this.u.u_focused, 0);
+        gl.activeTexture(gl.TEXTURE0);
+        gl.bindTexture(gl.TEXTURE_2D, g.cells);
+        gl.activeTexture(gl.TEXTURE1);
+        gl.bindTexture(gl.TEXTURE_2D, this.emptyU8);
+        gl.activeTexture(gl.TEXTURE2);
+        gl.bindTexture(gl.TEXTURE_2D, b.texture);
+        gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+        gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+        gl.viewport(0, 0, gl.drawingBufferWidth, gl.drawingBufferHeight);
+        gl.uniform2f(this.u.u_viewport, vw, vh);
+        gl.enable(gl.SCISSOR_TEST);
+        gl.activeTexture(gl.TEXTURE0 + UPLOAD_UNIT);
+        gl.bindTexture(gl.TEXTURE_2D, t.tex);
+        gl.generateMipmap(gl.TEXTURE_2D);
+        gl.bindTexture(gl.TEXTURE_2D, null);
+        t.key = ready ? key : '';
+        if (!ready) this.thumbStale = true;
+      }
+    }
+    gl.useProgram(this.thumbProgram);
+    gl.uniform2f(this.thumbU.u_viewport, vw, vh);
+    gl.uniform4f(this.thumbU.u_rect, rect.x, rect.y, rect.w, rect.h);
+    gl.uniform1i(this.thumbU.u_tex, THUMB_UNIT);
+    gl.activeTexture(gl.TEXTURE0 + THUMB_UNIT);
+    gl.bindTexture(gl.TEXTURE_2D, t.tex);
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+    gl.bindTexture(gl.TEXTURE_2D, null);
+    gl.useProgram(this.program);
+    return true;
   }
 
   private begin(gl: WebGL2RenderingContext, vw: number, vh: number): void {
@@ -646,7 +806,10 @@ class TermPass implements GlPass {
     const m = cellMetrics();
     const fontDevice = TERM_FONT_SIZE * scale;
     const focus = focusedTerm();
+    const faithful = faithfulRendering();
     let blinking = false;
+    this.thumbBudget = THUMB_RENDERS_PER_FRAME;
+    this.thumbStale = false;
 
     this.begin(gl, vw, vh);
 
@@ -683,7 +846,7 @@ class TermPass implements GlPass {
       gl.scissor(sx, Math.max(0, vh - (by + bh)), Math.min(vw, bx + bw) - sx, Math.min(vh, by + bh) - sy);
       gl.uniform4f(this.u.u_rect, bx, by, bw, bh);
 
-      if (lod === 'mini') {
+      if (lod === 'mini' && !(faithful && grid.cols > 0 && grid.rows > 0)) {
         this.syncMini(gl, g);
         if (!g.mini) continue;
         gl.uniform1i(this.u.u_mode, 1);
@@ -709,6 +872,14 @@ class TermPass implements GlPass {
 
       this.syncCells(gl, g, themeIdOf(node));
       if (g.cols === 0) continue;
+      if (faithful && termId !== focus && fontDevice * fs < THUMB_BELOW_PX) {
+        const cw = m.w * scale * fs;
+        const ch = m.h * scale * fs;
+        if (this.drawThumb(gl, g, themeIdOf(node), { x: bx, y: by, w: g.cols * cw, h: g.rows * ch }, vw, vh)) {
+          layouts.set(termId, { x: bx / dpr, y: by / dpr, cellW: cw / dpr, cellH: ch / dpr, cols: g.cols, rows: g.rows, zoom: camera.zoom });
+          continue;
+        }
+      }
       gl.activeTexture(gl.TEXTURE0 + UPLOAD_UNIT);
       const picked = this.atlas.pick(fontDevice * fs, settled);
       if (!picked || !picked.bucket.texture) continue;
@@ -758,7 +929,7 @@ class TermPass implements GlPass {
     gl.activeTexture(gl.TEXTURE0 + UPLOAD_UNIT);
     this.workPending = this.atlas.work();
     gl.activeTexture(gl.TEXTURE0);
-    if (this.workPending) this.requestRedraw();
+    if (this.workPending || this.thumbStale) this.requestRedraw();
     if (blinking && !this.blinkTimer) {
       this.blinkTimer = setTimeout(() => {
         this.blinkTimer = null;
@@ -782,6 +953,7 @@ class TermPass implements GlPass {
     if (gl && !gl.isContextLost()) {
       for (const g of this.gpus.values()) this.freeGpu(gl, g);
       if (this.program) gl.deleteProgram(this.program);
+      if (this.thumbProgram) gl.deleteProgram(this.thumbProgram);
       if (this.vao) gl.deleteVertexArray(this.vao);
       if (this.vbo) gl.deleteBuffer(this.vbo);
       if (this.palette) gl.deleteTexture(this.palette);
@@ -794,6 +966,7 @@ class TermPass implements GlPass {
     this.gpus.clear();
     this.atlas.dropGl();
     this.program = null;
+    this.thumbProgram = null;
     this.vao = null;
     this.vbo = null;
     this.palette = null;

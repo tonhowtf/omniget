@@ -34,6 +34,8 @@ pub enum Hid {
 pub const BUTTON_HOME: u64 = 1;
 pub const BUTTON_LOCK: u64 = 2;
 pub const KEY_SHIFT: u64 = 225;
+pub const KEY_COMMAND: u64 = 227;
+pub const KEY_V: u64 = 25;
 
 pub mod pb {
     pub fn varint(out: &mut Vec<u8>, mut v: u64) {
@@ -252,6 +254,28 @@ pub fn text(s: &str) -> Result<Vec<Hid>, String> {
         }
     }
     Ok(out)
+}
+
+pub fn paste() -> Vec<Hid> {
+    vec![
+        Hid::Key {
+            code: KEY_COMMAND,
+            up: false,
+        },
+        Hid::Key {
+            code: KEY_V,
+            up: false,
+        },
+        Hid::Delay(0.05),
+        Hid::Key {
+            code: KEY_V,
+            up: true,
+        },
+        Hid::Key {
+            code: KEY_COMMAND,
+            up: true,
+        },
+    ]
 }
 
 pub fn named_key(name: &str) -> Option<u64> {

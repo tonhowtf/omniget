@@ -40,51 +40,41 @@
   <button type="button" title={$t("canvas.engine.zoomIn", { default: "Zoom in" })} onclick={() => engine.setZoom(engine.camera.zoom * 1.25)}>
     <Icon d={TOOL_ICONS.plus} />
   </button>
-  <button type="button" title={$t("canvas.engine.zoomFit", { default: "Fit everything" })} onclick={() => engine.fitAll()}>
-    <Icon d={TOOL_ICONS.fit} />
-  </button>
-  <button
-    type="button"
-    class:on={engine.minimapVisible}
-    title={$t("canvas.engine.toggleMinimap", { default: "Minimap" })}
-    onclick={() => (engine.minimapVisible = !engine.minimapVisible)}
-  >
-    <Icon d={TOOL_ICONS.map} />
-  </button>
 </div>
 
 <style>
   .zoom {
     display: inline-flex;
     align-items: center;
-    gap: 2px;
-    padding: 3px;
-    border-radius: 10px;
+    gap: 1px;
+    padding: 2px 4px;
+    border-radius: 999px;
     background: var(--popup-bg, var(--surface));
-    border: 1px solid var(--border);
-    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.2);
+    border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+    box-shadow:
+      0 1px 2px rgba(0, 0, 0, 0.06),
+      0 4px 14px rgba(0, 0, 0, 0.1);
   }
   button {
     all: unset;
-    min-width: 28px;
-    height: 28px;
+    min-width: 26px;
+    height: 26px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    border-radius: 6px;
+    border-radius: 999px;
     color: var(--text);
     cursor: pointer;
     font-size: 12px;
   }
-  button:hover,
-  button.on {
+  button:hover {
     background: var(--fill-1, rgba(127, 127, 127, 0.15));
   }
   button:focus-visible {
     outline: 2px solid var(--focus-ring, var(--accent));
   }
   .pct {
-    min-width: 48px;
+    min-width: 44px;
     font-variant-numeric: tabular-nums;
     cursor: ew-resize;
   }

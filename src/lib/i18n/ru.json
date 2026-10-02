@@ -2966,7 +2966,6 @@
   },
   "world": {
     "title": "Canvas",
-    "subtitle": "Ваши агенты на холсте на этом компьютере: терминалы, заметки и связи между ними.",
     "settings": {
       "title": "Canvas",
       "desc": "Холст в /world, где ваши агенты работают бок о бок.",
@@ -11446,7 +11445,9 @@
       "textBigger": "Bigger text",
       "textWeight": "Weight",
       "textFamily": "Font",
-      "textThemeColor": "Theme color"
+      "textThemeColor": "Theme color",
+      "attach": "Прикрепить файл",
+      "deviceLock": "Заблокировать экран"
     },
     "term": {
       "action": {
@@ -12037,7 +12038,9 @@
       "syncWinner": "Keep this version",
       "syncNothing": "Nothing changes.",
       "syncChange": "{{file}}: loses {{lost}} lines, gains {{added}}",
-      "syncApply": "Sync"
+      "syncApply": "Sync",
+      "filter": "Фильтр",
+      "groupHint": "Поместить текущее пространство в группу"
     },
     "portal": {
       "kind": "Portal",
@@ -12474,6 +12477,10 @@
       "imagesClearThumbs": "Clear thumbnails",
       "thumbsCleared": "Thumbnails cleared ({{mb}} MB)",
       "performanceTitle": "Performance",
+      "rendering": "Отрисовка",
+      "renderingHint": "«Точная» рисует каждый узел как вблизи при любом масштабе; «Лёгкая» показывает сводки при отдалении",
+      "renderingFaithful": "Точная (как вблизи)",
+      "renderingLight": "Лёгкая (сводки при отдалении)",
       "mountedTerminals": "Terminals kept open",
       "mountedTerminalsHint": "Terminals off screen beyond this are closed in the view; they keep running",
       "livePortals": "Live portals",
@@ -12626,7 +12633,12 @@
         "changed": "изменил",
         "drew": "нарисовал",
         "erased": "стёр",
-        "grouped": "сгруппировал"
+        "grouped": "сгруппировал",
+        "quoted": "узнал цену для",
+        "submitted": "запустил",
+        "generated": "завершил",
+        "failed": "получил ошибку в",
+        "uncertain": "потерял статус"
       },
       "kind": {
         "terminal": "терминал",
@@ -12641,12 +12653,23 @@
         "image": "изображение",
         "stack": "картотеку",
         "connector": "соединитель",
-        "node": "узел"
+        "node": "узел",
+        "generation": "генерацию",
+        "device": "устройство"
       },
       "palette": {
         "activity": "Активность",
         "follow": "Следить за ИИ",
         "unfollow": "Перестать Следить за ИИ"
+      },
+      "viaGenerate": "генерация изображения",
+      "presence": "Показывать курсоры ИИ",
+      "strip": {
+        "label": "Кто работает на холсте",
+        "open": "Открыть активность этого пространства",
+        "more": "+{{count}}",
+        "following": "Слежу за {{name}}",
+        "stopFollow": "Перестать следить"
       }
     },
     "mcpServers": {
@@ -12708,6 +12731,7 @@
       "save": "Save",
       "cancel": "Cancel",
       "agentLimit": "Agents alone: up to {{limit}} credits per image, {{perHour}} per hour",
+      "spent": "Spent {{credits}} credits",
       "state": {
         "draft": "Draft",
         "quoted": "Priced",
@@ -12740,7 +12764,7 @@
       }
     },
     "accounts": {
-      "environment": "environment",
+      "environment": "default account",
       "environmentOption": "Environment account",
       "environmentHint": "Runs on the account of the environment the app was started in",
       "accountHint": "Runs on the account {{name}}",
@@ -12778,6 +12802,39 @@
         "unused": "Not used by any portal",
         "empty": "No sessions yet."
       }
+    },
+    "newPortal": {
+      "title": "Новый портал",
+      "browser": "Браузер",
+      "devices": "Устройства",
+      "url": "URL",
+      "name": "Имя",
+      "optional": "Необязательно",
+      "userAgent": "User agent",
+      "uaDefault": "По умолчанию",
+      "uaIos": "iPhone (Safari)",
+      "uaAndroid": "Android (Chrome)",
+      "search": "Искать устройства…",
+      "all": "Все",
+      "finding": "Поиск устройств…",
+      "none": "Устройства не найдены",
+      "booted": "Запущено",
+      "shared": "Порталы на одном устройстве делят один экран.",
+      "cancel": "Отмена",
+      "create": "Создать"
+    },
+    "newFileTree": {
+      "title": "Новое дерево файлов",
+      "dir": "Рабочая папка",
+      "browse": "Обзор…"
+    },
+    "usage": {
+      "title": "Использование агентов",
+      "limit": "Лимит использования исчерпан",
+      "planLimits": "Лимиты тарифа",
+      "emptyTitle": "Смотрите, сколько тарифа израсходовали агенты",
+      "emptyBody": "Выберите аккаунты Claude Code или Codex, и их лимиты появятся здесь.",
+      "choose": "Выбрать аккаунты…"
     },
     "media": {
       "extractAudio": "Extract audio",

@@ -2966,7 +2966,6 @@
   },
   "world": {
     "title": "Canvas",
-    "subtitle": "Οι πράκτορές σας σε έναν καμβά σε αυτόν τον υπολογιστή: τερματικά, σημειώσεις και τα καλώδια ανάμεσά τους.",
     "settings": {
       "title": "Canvas",
       "desc": "Ο καμβάς στο /world, όπου οι πράκτορές σας δουλεύουν δίπλα δίπλα.",
@@ -11446,7 +11445,9 @@
       "textBigger": "Bigger text",
       "textWeight": "Weight",
       "textFamily": "Font",
-      "textThemeColor": "Theme color"
+      "textThemeColor": "Theme color",
+      "attach": "Attach a file",
+      "deviceLock": "Lock screen"
     },
     "term": {
       "action": {
@@ -12037,7 +12038,9 @@
       "syncWinner": "Keep this version",
       "syncNothing": "Nothing changes.",
       "syncChange": "{{file}}: loses {{lost}} lines, gains {{added}}",
-      "syncApply": "Sync"
+      "syncApply": "Sync",
+      "filter": "Filter",
+      "groupHint": "Put the current workspace in a group"
     },
     "portal": {
       "kind": "Portal",
@@ -12474,6 +12477,10 @@
       "imagesClearThumbs": "Clear thumbnails",
       "thumbsCleared": "Thumbnails cleared ({{mb}} MB)",
       "performanceTitle": "Performance",
+      "rendering": "Απόδοση",
+      "renderingHint": "Το Πιστό σχεδιάζει κάθε κόμβο όπως φαίνεται από κοντά, σε κάθε ζουμ· το Ελαφρύ δείχνει περιλήψεις από μακριά",
+      "renderingFaithful": "Πιστό (όπως από κοντά)",
+      "renderingLight": "Ελαφρύ (περιλήψεις από μακριά)",
       "mountedTerminals": "Terminals kept open",
       "mountedTerminalsHint": "Terminals off screen beyond this are closed in the view; they keep running",
       "livePortals": "Live portals",
@@ -12626,7 +12633,12 @@
         "changed": "άλλαξε",
         "drew": "σχεδίασε",
         "erased": "έσβησε",
-        "grouped": "ομαδοποίησε"
+        "grouped": "ομαδοποίησε",
+        "quoted": "ζήτησε τιμή για",
+        "submitted": "ξεκίνησε",
+        "generated": "ολοκλήρωσε",
+        "failed": "απέτυχε σε",
+        "uncertain": "έχασε τα ίχνη του"
       },
       "kind": {
         "terminal": "ένα τερματικό",
@@ -12641,12 +12653,23 @@
         "image": "μια εικόνα",
         "stack": "ένα ντοσιέ",
         "connector": "έναν συνδέτη",
-        "node": "έναν κόμβο"
+        "node": "έναν κόμβο",
+        "generation": "μια δημιουργία",
+        "device": "μια συσκευή"
       },
       "palette": {
         "activity": "Δραστηριότητα",
         "follow": "Ακολούθησε την ΤΝ",
         "unfollow": "Σταμάτα να Ακολουθείς την ΤΝ"
+      },
+      "viaGenerate": "δημιουργία εικόνας",
+      "presence": "Εμφάνιση δεικτών AI",
+      "strip": {
+        "label": "Ποιος δουλεύει στον καμβά",
+        "open": "Άνοιγμα της δραστηριότητας του χώρου",
+        "more": "+{{count}}",
+        "following": "Παρακολούθηση {{name}}",
+        "stopFollow": "Διακοπή παρακολούθησης"
       }
     },
     "mcpServers": {
@@ -12708,6 +12731,7 @@
       "save": "Save",
       "cancel": "Cancel",
       "agentLimit": "Agents alone: up to {{limit}} credits per image, {{perHour}} per hour",
+      "spent": "Spent {{credits}} credits",
       "state": {
         "draft": "Draft",
         "quoted": "Priced",
@@ -12740,7 +12764,7 @@
       }
     },
     "accounts": {
-      "environment": "environment",
+      "environment": "default account",
       "environmentOption": "Environment account",
       "environmentHint": "Runs on the account of the environment the app was started in",
       "accountHint": "Runs on the account {{name}}",
@@ -12778,6 +12802,39 @@
         "unused": "Not used by any portal",
         "empty": "No sessions yet."
       }
+    },
+    "newPortal": {
+      "title": "New Portal",
+      "browser": "Browser",
+      "devices": "Devices",
+      "url": "URL",
+      "name": "Name",
+      "optional": "Optional",
+      "userAgent": "User Agent",
+      "uaDefault": "Default",
+      "uaIos": "iPhone (Safari)",
+      "uaAndroid": "Android (Chrome)",
+      "search": "Search devices…",
+      "all": "All",
+      "finding": "Finding devices…",
+      "none": "No devices found",
+      "booted": "Booted",
+      "shared": "Portals on the same device share one screen.",
+      "cancel": "Cancel",
+      "create": "Create"
+    },
+    "newFileTree": {
+      "title": "New File Tree",
+      "dir": "Working Directory",
+      "browse": "Browse…"
+    },
+    "usage": {
+      "title": "Agent usage",
+      "limit": "Usage limit reached",
+      "planLimits": "Plan limits",
+      "emptyTitle": "See how much of each plan your agents have used",
+      "emptyBody": "Pick your Claude Code or Codex accounts and their limits show up here.",
+      "choose": "Choose accounts…"
     },
     "media": {
       "extractAudio": "Extract audio",

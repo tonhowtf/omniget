@@ -403,11 +403,28 @@
     box-sizing: border-box;
     display: flex;
     flex-direction: column;
-    border-radius: 10px;
+    border-radius: 8px;
     background: var(--popup-bg, var(--surface));
-    border: 1px solid var(--border);
-    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.18);
+    border: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+    box-shadow:
+      0 1px 2px rgba(0, 0, 0, 0.08),
+      0 4px 14px rgba(0, 0, 0, 0.1);
     overflow: hidden;
+  }
+  .node[data-kind="note"] {
+    background: color-mix(in srgb, #f6d860 20%, var(--popup-bg, var(--surface)));
+    border-color: color-mix(in srgb, #f6d860 30%, var(--border));
+  }
+  .node[data-kind="note"] > .header {
+    height: 20px;
+    padding: 0 8px;
+    font-size: 11px;
+    background: color-mix(in srgb, #f6d860 34%, var(--popup-bg, var(--surface)));
+    border-bottom: none;
+  }
+  .node[data-kind="note"] > .header .title {
+    font-weight: 500;
+    color: color-mix(in srgb, var(--text) 70%, transparent);
   }
   .node.bare {
     background: transparent;
@@ -488,23 +505,22 @@
   }
   .header {
     flex: none;
-    height: calc(28px / var(--z, 1));
-    min-height: 16px;
-    max-height: 56px;
+    height: 26px;
     display: flex;
     align-items: center;
-    gap: calc(6px / var(--z, 1));
-    padding: 0 calc(10px / var(--z, 1));
-    font-size: calc(12px / var(--z, 1));
+    gap: 6px;
+    padding: 0 10px;
+    font-size: 12px;
     color: var(--text-muted);
-    border-bottom: 1px solid var(--border);
+    background: color-mix(in srgb, var(--text, #fff) 3%, transparent);
+    border-bottom: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
     cursor: grab;
     user-select: none;
     white-space: nowrap;
   }
   .dot {
-    width: calc(8px / var(--z, 1));
-    height: calc(8px / var(--z, 1));
+    width: 8px;
+    height: 8px;
     border-radius: 50%;
     flex: none;
   }
@@ -515,7 +531,7 @@
     overflow: hidden;
     text-overflow: ellipsis;
     color: var(--text);
-    font-weight: 600;
+    font-weight: 500;
   }
   .lock {
     margin-left: auto;

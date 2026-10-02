@@ -164,3 +164,14 @@ pub fn node_account_json(node: &CanvasNode) -> Value {
         None => json!({ "id": id, "label": null, "error": "missing" }),
     }
 }
+
+pub fn login_warning(node: &CanvasNode) -> Option<String> {
+    let id = core_acc::account_of(&node.data)?;
+    let acc = accounts().into_iter().find(|a| a.id == id)?;
+    (core_acc::logged_in(&acc) == Some(false)).then(|| {
+        format!(
+            "ACCOUNT_NEEDS_LOGIN: the person must sign in to '{}' first",
+            acc.label
+        )
+    })
+}

@@ -14,6 +14,7 @@
     type ActivityEntry,
   } from "$lib/canvas/activity/store.svelte";
   import ActivityPanel from "./ActivityPanel.svelte";
+  import ActivityStrip from "./ActivityStrip.svelte";
 
   const engine = useEngine();
   const PRESENCE_MS = 8_000;
@@ -47,8 +48,10 @@
     const key = baseOrigin(e.origin);
     const color = actorColor(e.origin);
     const now = Date.now();
-    if (ids.length) presence.set(key, { key, name: e.actor, color, nodeId: ids[ids.length - 1], at: now });
-    if (e.verb !== "deleted") for (const id of ids) glows.set(id, { key: id, name: e.actor, color, nodeId: id, at: now });
+    if (aiActivity.presence) {
+      if (ids.length) presence.set(key, { key, name: e.actor, color, nodeId: ids[ids.length - 1], at: now });
+      if (e.verb !== "deleted") for (const id of ids) glows.set(id, { key: id, name: e.actor, color, nodeId: id, at: now });
+    }
     if (aiActivity.follow && ids.length && (!aiActivity.followOrigin || aiActivity.followOrigin === key)) follow(ids);
     place();
     engine.invalidate();
@@ -66,7 +69,7 @@
       lastFly = Date.now();
       pendingFly = null;
       if (still) {
-        engine.camera.set(engine.camera.fitRect(target, 64, 1));
+        engine.camera.set(engine.measureChrome().fitRect(target, 64, 1));
         engine.invalidate();
       } else {
         engine.flyToRect(target, 1);
@@ -109,6 +112,14 @@
       nextRings.every((r, i) => r.key === rings[i].key && r.fading === rings[i].fading && Math.abs(r.x - rings[i].x) < 0.5 && Math.abs(r.y - rings[i].y) < 0.5 && Math.abs(r.w - rings[i].w) < 0.5);
     if (!sameR) rings = nextRings;
   }
+
+  $effect(() => {
+    if (aiActivity.presence) return;
+    presence = new Map();
+    glows = new Map();
+    cursors = [];
+    rings = [];
+  });
 
   $effect(() => {
     const ws = engine.store.workspaceId;
@@ -170,8 +181,10 @@
   </div>
 {/each}
 
+<ActivityStrip />
+
 {#if aiActivity.open}
-  <div class="dock" data-canvas-chrome>
+  <div class="dock" data-canvas-chrome data-canvas-occluder>
     <ActivityPanel />
   </div>
 {/if}

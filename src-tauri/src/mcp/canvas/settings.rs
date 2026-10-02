@@ -137,6 +137,132 @@ fn side_set(key: &str, value: &Value) -> Option<Result<Value, String>> {
     None
 }
 
+const LABELS: &str = include_str!("../../../../src/lib/i18n/en.json");
+
+enum Values {
+    Toggle,
+    Range(u32, u32),
+    Choice(&'static [(&'static str, &'static str)]),
+}
+
+const DESCRIBED: &[(&str, &str, Option<&str>, Values)] = &[
+    (
+        "canvas.images.any_zoom",
+        "imagesAnyZoom",
+        Some("imagesAnyZoomHint"),
+        Values::Toggle,
+    ),
+    (
+        "canvas.images.quality",
+        "imagesQuality",
+        Some("imagesQualityHint"),
+        Values::Choice(&[
+            ("light", "imagesLight"),
+            ("balanced", "imagesBalanced"),
+            ("sharp", "imagesSharp"),
+        ]),
+    ),
+    (
+        "canvas.images.download_web",
+        "imagesDownload",
+        Some("imagesDownloadHint"),
+        Values::Toggle,
+    ),
+    (
+        "canvas.performance.mounted_terminals",
+        "mountedTerminals",
+        Some("mountedTerminalsHint"),
+        Values::Range(1, 64),
+    ),
+    (
+        "canvas.performance.live_portals",
+        "livePortals",
+        Some("livePortalsHint"),
+        Values::Range(0, 16),
+    ),
+    (
+        "canvas.performance.force_canvas2d",
+        "forceCanvas2d",
+        Some("forceCanvas2dHint"),
+        Values::Toggle,
+    ),
+    (
+        "canvas.zoom_modifier",
+        "zoomModifier",
+        None,
+        Values::Choice(&[("alt", "modAlt"), ("ctrl", "modCtrl"), ("cmd", "modCmd")]),
+    ),
+    (
+        "canvas.right_drag_pan",
+        "rightDragPan",
+        None,
+        Values::Toggle,
+    ),
+    (
+        "canvas.focus_on_hover",
+        "focusOnHover",
+        None,
+        Values::Toggle,
+    ),
+    ("canvas.spell_check", "spellCheck", None, Values::Toggle),
+];
+
+fn label(id: &str) -> String {
+    static ALL: std::sync::OnceLock<Value> = std::sync::OnceLock::new();
+    ALL.get_or_init(|| serde_json::from_str(LABELS).unwrap_or(Value::Null))["canvas"]["settings"]
+        [id]
+        .as_str()
+        .unwrap_or(id)
+        .to_string()
+}
+
+pub fn describe(app: &AppHandle, key: Option<&str>) -> Result<Value, String> {
+    let want = key
+        .map(str::trim)
+        .filter(|k| !k.is_empty())
+        .map(|k| match canvas_path(k) {
+            Some(p) if !p.is_empty() => format!("canvas.{}", p.join(".")),
+            Some(_) => "canvas".to_string(),
+            None => k.to_string(),
+        });
+    let all = serde_json::to_value(crate::canvas::prefs::get(app)).map_err(|e| e.to_string())?;
+    let list: Vec<Value> = DESCRIBED
+        .iter()
+        .filter(|(k, ..)| {
+            want.as_deref()
+                .is_none_or(|w| *k == w || k.starts_with(&format!("{w}.")))
+        })
+        .map(|(k, l, h, values)| {
+            let mut cur = &all;
+            for seg in k.trim_start_matches("canvas.").split('.') {
+                cur = cur.get(seg).unwrap_or(&Value::Null);
+            }
+            let values = match values {
+                Values::Toggle => json!({ "type": "boolean" }),
+                Values::Range(min, max) => json!({ "type": "integer", "min": min, "max": max }),
+                Values::Choice(opts) => json!({
+                    "type": "choice",
+                    "options": opts.iter().map(|(v, l)| json!({ "value": v, "label": label(l) })).collect::<Vec<_>>(),
+                }),
+            };
+            json!({
+                "key": k,
+                "label": label(l),
+                "help": h.map(label),
+                "values": values,
+                "value": cur,
+            })
+        })
+        .collect();
+    if list.is_empty() {
+        return Err(format!(
+            "SETTING_UNKNOWN: no described setting under {} (try canvas.images or canvas.performance)",
+            want.unwrap_or_default()
+        ));
+    }
+    Ok(json!({ "settings": list }))
+}
+
 pub fn get(app: &AppHandle, key: Option<&str>) -> Result<Value, String> {
     let Some(k) = key.filter(|k| !k.trim().is_empty()) else {
         return super::super::canvas_ui::settings_get(app, None);

@@ -2,6 +2,7 @@
   import { onDestroy, onMount } from "svelte";
   import { listen, type UnlistenFn } from "@tauri-apps/api/event";
   import { t } from "$lib/i18n";
+  import { agentActions } from "$lib/native-agent/actions";
   import {
     EVENT_FLOOR_PROGRESS,
     EVENT_FLOORS,
@@ -28,6 +29,9 @@
     type HookRun,
   } from "$lib/canvas/floors/api";
   import LandDialog from "./LandDialog.svelte";
+  import { useEngine } from "$lib/canvas/engine.svelte";
+
+  const engine = useEngine();
 
   interface Props {
     workspaceId: string;
@@ -385,37 +389,84 @@
     </div>
   {/if}
 
+  {#if engine.floorsView}
+    <div class="stage-floors" role="listbox" aria-label={$t("canvas.floors.title", { default: "Floors" })}>
+      <button type="button" class="pill-new" onclick={() => toggle("create")}>＋ {$t("canvas.floors.new", { default: "New floor" })}</button>
+      {#each floors as f (f.id)}
+        <button
+          type="button"
+          role="option"
+          aria-selected={f.id === floorId}
+          class="pill-floor"
+          class:on={f.id === floorId}
+          class:missing={f.missing}
+          style:--fc={f.color ?? "var(--accent)"}
+          title={`${modeLabel(f)}${f.branch ? ` · ${f.branch}` : ""}${f.port ? ` · :${f.port}` : ""}${f.path ? `\n${f.path}` : ""}`}
+          onclick={() => {
+            if (f.id !== floorId) onSwitch(f.id);
+            engine.floorsView = false;
+          }}
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l9 5-9 5-9-5z M3 13l9 5 9-5" /></svg>
+          {f.isGround ? $t("canvas.floors.ground", { default: "Ground" }) : f.name}
+          {#if f.ahead}<span class="badge">↑{f.ahead}</span>{/if}
+          {#if f.dirty}<span class="badge warn">●{f.dirty}</span>{/if}
+        </button>
+      {/each}
+      <div class="stage-tools">
+        <button
+          type="button"
+          class="icon"
+          title={$t("canvas.floors.overview.title", { default: "Floors" })}
+          onclick={() => {
+            engine.floorsView = false;
+            engine.panel = { kind: "floors" };
+          }}>☰</button
+        >
+        <button type="button" class="icon" title={$t("canvas.floors.hooks.title", { default: "Hooks" })} onclick={() => toggle("hooks")}>⚡</button>
+        <button type="button" class="icon" title={$t("canvas.floors.settings", { default: "Floor hooks and environment" })} onclick={() => toggle("settings")}>⚙</button>
+        {#if current && !current.isGround}
+          {#if current.mode !== "plain"}
+            <button type="button" class="chip land" onclick={() => (landing = current)}>✈ {$t("canvas.floors.land", { default: "Land" })}</button>
+          {/if}
+          <button type="button" class="icon" title={$t("canvas.floors.delete.title", { default: "Delete floor" })} onclick={() => toggle("delete")}>✕</button>
+        {/if}
+      </div>
+    </div>
+  {/if}
+
   <div class="bar" role="toolbar" tabindex="-1" aria-label={$t("canvas.floors.title", { default: "Floors" })}>
-    {#each floors as f (f.id)}
-      <button
-        type="button"
-        class="chip"
-        class:on={f.id === floorId}
-        class:missing={f.missing}
-        style:--fc={f.color ?? "var(--accent)"}
-        title={`${modeLabel(f)}${f.branch ? ` · ${f.branch}` : ""}${f.port ? ` · :${f.port}` : ""}${f.path ? `\n${f.path}` : ""}`}
-        onclick={() => onSwitch(f.id)}
-      >
-        <span class="dot"></span>
-        {f.isGround ? $t("canvas.floors.ground", { default: "Ground" }) : f.name}
-        {#if f.ahead}<span class="badge" title={$t("canvas.floors.ahead", { default: "Commits to land" })}>↑{f.ahead}</span>{/if}
-        {#if f.dirty}<span class="badge warn" title={$t("canvas.floors.dirty", { default: "Uncommitted files" })}>●{f.dirty}</span>{/if}
-      </button>
-    {/each}
+    <button
+      type="button"
+      class="icon layers"
+      use:agentActions={["click"]}
+      class:on={engine.floorsView}
+      aria-pressed={engine.floorsView}
+      aria-label={$t("canvas.floors.title", { default: "Floors" })}
+      title={$t("canvas.floors.title", { default: "Floors" })}
+      onclick={() => (engine.floorsView = !engine.floorsView)}
+    >
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l9 5-9 5-9-5z M3 13l9 5 9-5" /></svg>
+    </button>
+    {#if floors.length > 1 && !engine.floorsView}
+      {#each floors as f (f.id)}
+        <button
+          type="button"
+          class="chip"
+          class:on={f.id === floorId}
+          class:missing={f.missing}
+          style:--fc={f.color ?? "var(--accent)"}
+          onclick={() => onSwitch(f.id)}
+        >
+          <span class="dot"></span>
+          {f.isGround ? $t("canvas.floors.ground", { default: "Ground" }) : f.name}
+        </button>
+      {/each}
+    {/if}
     {#if progress}
       <span class="pill" title={progress.message ?? ""}>
         <span class="spin"></span>{progress.name} · {$t(`canvas.floors.phase.${progress.phase}`, { default: progress.phase })}
       </span>
-    {/if}
-    <span class="sep"></span>
-    <button type="button" class="icon" title={$t("canvas.floors.new", { default: "New floor" })} onclick={() => toggle("create")}>＋</button>
-    <button type="button" class="icon" title={$t("canvas.floors.hooks.title", { default: "Hooks" })} onclick={() => toggle("hooks")}>⚡</button>
-    <button type="button" class="icon" title={$t("canvas.floors.settings", { default: "Floor hooks and environment" })} onclick={() => toggle("settings")}>⚙</button>
-    {#if current && !current.isGround}
-      {#if current.mode !== "plain"}
-        <button type="button" class="chip land" onclick={() => (landing = current)}>✈ {$t("canvas.floors.land", { default: "Land" })}</button>
-      {/if}
-      <button type="button" class="icon" title={$t("canvas.floors.delete.title", { default: "Delete floor" })} onclick={() => toggle("delete")}>✕</button>
     {/if}
   </div>
 </div>
@@ -453,8 +504,14 @@
   .bar {
     display: flex;
     align-items: center;
-    gap: 4px;
-    padding: 4px;
+    gap: 2px;
+    padding: 2px 4px;
+    border-radius: 999px;
+    font-size: 12px;
+    border-color: color-mix(in srgb, var(--border) 70%, transparent);
+    box-shadow:
+      0 1px 2px rgba(0, 0, 0, 0.06),
+      0 4px 14px rgba(0, 0, 0, 0.1);
     overflow-x: auto;
     max-width: 100%;
   }
@@ -490,20 +547,94 @@
   }
   .icon {
     border: none;
-    min-width: 28px;
-    height: 28px;
+    min-width: 26px;
+    height: 26px;
     padding: 0 6px;
+    border-radius: 999px;
+  }
+  .layers {
+    display: inline-grid;
+    place-items: center;
+  }
+  .stage-floors {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 8px;
+  }
+  .pill-floor,
+  .pill-new {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 32px;
+    padding: 0 14px;
+    border-radius: 999px;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  .pill-floor {
+    background: var(--popup-bg, var(--surface));
+    border-color: color-mix(in srgb, var(--border) 70%, transparent);
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12);
+  }
+  .pill-floor.on {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: var(--on-accent, #fff);
+  }
+  .pill-floor.missing {
+    opacity: 0.55;
+    text-decoration: line-through;
+  }
+  .pill-floor svg {
+    width: 14px;
+    height: 14px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linejoin: round;
+  }
+  .pill-new {
+    border: 1.5px dashed color-mix(in srgb, var(--accent) 70%, transparent);
+    color: var(--accent);
+    background: color-mix(in srgb, var(--popup-bg, var(--surface)) 80%, transparent);
+  }
+  .stage-tools {
+    display: flex;
+    gap: 4px;
+    padding: 2px 4px;
+    border-radius: 999px;
+    background: var(--popup-bg, var(--surface));
+    border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  }
+  .stage-tools .icon {
+    border: none;
+  }
+  .layers.on {
+    background: var(--hover);
+  }
+  .layers svg {
+    width: 15px;
+    height: 15px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.8;
+    stroke-linejoin: round;
   }
   .chip {
     display: inline-flex;
     align-items: center;
     gap: 6px;
+    height: 26px;
+    box-sizing: border-box;
+    padding: 0 9px;
     border-color: transparent;
+    border-radius: 999px;
     white-space: nowrap;
   }
   .chip.on {
-    border-color: var(--fc);
-    background: color-mix(in srgb, var(--fc) 14%, transparent);
+    background: color-mix(in srgb, var(--fc) 12%, transparent);
   }
   .chip.missing {
     opacity: 0.55;
@@ -525,12 +656,6 @@
   }
   .badge.warn {
     color: var(--danger);
-  }
-  .sep {
-    width: 1px;
-    align-self: stretch;
-    background: var(--border);
-    margin: 0 2px;
   }
   .pill {
     display: inline-flex;

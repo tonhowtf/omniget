@@ -300,6 +300,9 @@
       {/if}
     </label>
     <span class="chip state-{gstate}">{stateLabel(gstate)}</span>
+    {#if gstate === "done" && latest && latest.credits != null}
+      <span class="spent">{$t("canvas.generate.spent", { default: "Spent {{credits}} credits", credits: formatCredits(latest.credits) })}</span>
+    {/if}
   </div>
 
   <label class="field">
@@ -582,10 +585,17 @@
     gap: 3px;
     min-width: 0;
   }
-  .pname {
+  .spent {
     font-size: 10.5px;
     color: var(--text-muted);
-    text-transform: capitalize;
+    white-space: nowrap;
+  }
+  .pname {
+    font-size: 10.5px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    color: var(--text-muted);
+    text-transform: uppercase;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;

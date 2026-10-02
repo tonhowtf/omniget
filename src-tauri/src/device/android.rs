@@ -171,18 +171,64 @@ pub fn parse_ui(xml: &str, limit: usize) -> Vec<Value> {
     out
 }
 
+pub fn focused_field(xml: &str) -> Option<(String, bool)> {
+    xml.split("<node ").skip(1).find_map(|chunk| {
+        let tag = chunk.split('>').next().unwrap_or_default();
+        let a = attrs(tag);
+        let get = |k: &str| a.iter().find(|(n, _)| *n == k).map(|(_, v)| v.as_str());
+        (get("focused") == Some("true")).then(|| {
+            (
+                get("text").unwrap_or_default().to_string(),
+                get("password") == Some("true"),
+            )
+        })
+    })
+}
+
+pub fn not_responding(window_dump: &str) -> Option<String> {
+    window_dump
+        .lines()
+        .filter(|l| l.contains("mCurrentFocus"))
+        .find_map(|l| l.split_once("Application Not Responding: "))
+        .map(|(_, app)| app.trim().trim_end_matches('}').trim().to_string())
+}
+
 pub fn shell_quote(s: &str) -> String {
     format!("'{}'", s.replace('\'', "'\\''"))
 }
 
 pub fn input_text(s: &str) -> Result<String, String> {
     if let Some(c) = s.chars().find(|c| !c.is_ascii() || c.is_ascii_control()) {
+        let shown = if c.is_control() {
+            c.escape_default().to_string()
+        } else {
+            c.to_string()
+        };
         return Err(format!(
-            "CAPABILITY_UNAVAILABLE: adb input text types printable ASCII only, '{}' is not",
-            c.escape_default()
+            "CAPABILITY_UNAVAILABLE: Android text input types printable ASCII only and '{shown}' is not; send the text without that character, or tap it on the on-screen keyboard (long-press a letter for its accents; canvas_device_tree lists the keys)"
         ));
     }
     Ok(shell_quote(&s.replace(' ', "%s")))
+}
+
+pub fn launcher_component(out: &str) -> Option<String> {
+    out.lines()
+        .map(str::trim)
+        .rfind(|l| l.contains('/') && !l.contains(char::is_whitespace))
+        .map(str::to_string)
+}
+
+pub fn editor_focused(dumpsys: &str) -> Option<bool> {
+    let mut lines = dumpsys
+        .lines()
+        .skip_while(|l| l.trim() != "mInputEditorInfo:");
+    lines.next()?;
+    let ty = lines
+        .find_map(|l| l.trim().strip_prefix("inputType="))?
+        .split_whitespace()
+        .next()?;
+    let v = u32::from_str_radix(ty.trim_start_matches("0x"), 16).ok()?;
+    Some(v != 0)
 }
 
 pub fn keycode(name: &str) -> String {
@@ -227,6 +273,77 @@ pub struct LogLine {
     pub source: String,
     pub pid: Option<u32>,
     pub message: String,
+}
+
+impl LogLine {
+    fn key(&self) -> (&str, &str, &str) {
+        (self.level, &self.source, &self.message)
+    }
+}
+
+fn level_letter(l: &str) -> char {
+    match l {
+        "verbose" => 'V',
+        "debug" => 'D',
+        "warning" => 'W',
+        "error" => 'E',
+        "fault" => 'F',
+        _ => 'I',
+    }
+}
+
+const MESSAGE_MAX: usize = 300;
+
+pub fn compact(lines: &[&LogLine]) -> Vec<String> {
+    let mut counts: std::collections::HashMap<(&str, &str, &str), usize> =
+        std::collections::HashMap::new();
+    for l in lines {
+        *counts.entry(l.key()).or_default() += 1;
+    }
+    let mut seen = std::collections::HashMap::new();
+    let mut out = Vec::new();
+    for l in lines {
+        let k = l.key();
+        let n = seen.entry(k).or_insert(0usize);
+        *n += 1;
+        let total = counts[&k];
+        if *n < total {
+            continue;
+        }
+        let clock = l.time.rsplit(' ').next().unwrap_or(&l.time);
+        let who = match l.pid {
+            Some(p) => format!("{}[{p}]", l.source),
+            None => l.source.clone(),
+        };
+        let msg = l.message.trim();
+        let mut msg: String = if msg.chars().count() > MESSAGE_MAX {
+            let cut: String = msg.chars().take(MESSAGE_MAX).collect();
+            format!("{cut}…")
+        } else {
+            msg.to_string()
+        };
+        if total > 1 {
+            msg.push_str(&format!(" (x{total})"));
+        }
+        out.push(format!("{clock} {} {who}: {msg}", level_letter(l.level)));
+    }
+    out
+}
+
+pub fn fit_bytes(lines: Vec<String>, max: usize) -> (Vec<String>, bool) {
+    let mut used = 0;
+    let mut keep = 0;
+    for l in lines.iter().rev() {
+        let cost = l.len() + 3;
+        if used + cost > max && keep > 0 {
+            break;
+        }
+        used += cost;
+        keep += 1;
+    }
+    let cut = keep < lines.len();
+    let start = lines.len() - keep;
+    (lines.into_iter().skip(start).collect(), cut)
 }
 
 pub fn level_of(c: &str) -> &'static str {
@@ -340,8 +457,81 @@ mod tests {
     #[test]
     fn text_is_quoted_for_the_device_shell() {
         assert_eq!(input_text("it's ok").unwrap(), "'it'\\''s%sok'");
-        assert!(input_text("ação").is_err());
+        let e = input_text("ação").unwrap_err();
+        assert!(e.contains("'ç' is not"), "{e}");
         assert_eq!(shell_quote("exp://a?b=1&c"), "'exp://a?b=1&c'");
+    }
+
+    #[test]
+    fn launcher_component_is_the_last_line() {
+        let out = "priority=0 preferredOrder=0 match=0x108000 specificIndex=-1 isDefault=true\ncom.android.settings/.Settings\n";
+        assert_eq!(
+            launcher_component(out).as_deref(),
+            Some("com.android.settings/.Settings")
+        );
+        assert_eq!(launcher_component("No activity found\n"), None);
+    }
+
+    #[test]
+    fn focused_editor_reads_the_ime_editor_info() {
+        let none = "Input method service state for x:\n  mInputStarted=true\n  mInputEditorInfo:\n    inputType=0x0 imeOptions=0x0 privateImeOptions=null\n";
+        assert_eq!(editor_focused(none), Some(false));
+        let field = "  mInputEditorInfo:\n    inputType=0x21 imeOptions=0x6\n";
+        assert_eq!(editor_focused(field), Some(true));
+        assert_eq!(editor_focused("nothing here"), None);
+    }
+
+    #[test]
+    fn focused_field_and_anr_are_read() {
+        let xml = r#"<hierarchy><node text="Hoje" focused="false" password="false" bounds="[0,0][1,1]"><node text="ap" resource-id="comando-input" focused="true" password="false" bounds="[0,0][9,9]" /></node></hierarchy>"#;
+        assert_eq!(focused_field(xml), Some(("ap".to_string(), false)));
+        assert_eq!(focused_field("<hierarchy></hierarchy>"), None);
+        let w = "  mCurrentFocus=Window{c3d836c u0 Application Not Responding: com.ambientare.hub}\n  mFocusedApp=ActivityRecord{ed14d8e u0 com.ambientare.hub/.MainActivity t8}\n";
+        assert_eq!(not_responding(w).as_deref(), Some("com.ambientare.hub"));
+        assert_eq!(
+            not_responding("  mCurrentFocus=Window{1 u0 com.x/.Main}\n"),
+            None
+        );
+    }
+
+    #[test]
+    fn logs_compact_and_fold_repeats() {
+        let mk = |t: &str, lvl: &'static str, src: &str, msg: &str| LogLine {
+            time: t.into(),
+            level: lvl,
+            source: src.into(),
+            pid: Some(7),
+            message: msg.into(),
+        };
+        let a = mk(
+            "2026-10-01 13:46:12.947",
+            "error",
+            "searchd",
+            "alloc failed",
+        );
+        let b = mk("2026-10-01 13:46:12.950", "info", "dasd", "ok");
+        let a2 = mk(
+            "2026-10-01 13:46:13.000",
+            "error",
+            "searchd",
+            "alloc failed",
+        );
+        let out = compact(&[&a, &b, &a2]);
+        assert_eq!(
+            out,
+            vec![
+                "13:46:12.950 I dasd[7]: ok".to_string(),
+                "13:46:13.000 E searchd[7]: alloc failed (x2)".to_string()
+            ]
+        );
+        let long = mk("10-01 10:00:00.000", "debug", "x", &"z".repeat(400));
+        assert!(compact(&[&long])[0].ends_with('…'));
+        let (kept, cut) = fit_bytes(vec!["a".repeat(10), "b".repeat(10), "c".repeat(10)], 26);
+        assert_eq!(kept, vec!["b".repeat(10), "c".repeat(10)]);
+        assert!(cut);
+        let (kept, cut) = fit_bytes(vec!["a".into()], 1);
+        assert_eq!(kept.len(), 1);
+        assert!(!cut);
     }
 
     #[test]

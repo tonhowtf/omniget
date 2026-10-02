@@ -7,7 +7,7 @@
   import { agentStates, normaliseState, stateCss } from "$lib/canvas/state/agents.svelte";
   import { terminalIdOf } from "$lib/canvas/term/gl-types";
   import { termLive, type AgentStateName } from "$lib/canvas/term/state.svelte";
-  import { gridSizeFor, TERM_HEADER_H, termFontScale, termPadding, TERM_FONT_SIZE } from "$lib/canvas/term/metrics";
+  import { gridSizeFor, TERM_FOOTER_H, TERM_HEADER_H, termFontScale, termPadding, TERM_FONT_SIZE } from "$lib/canvas/term/metrics";
   import { canvasPrefs } from "$lib/canvas/prefs.svelte";
   import { termGlAvailable } from "$lib/canvas/term/pass";
   import { termHub } from "$lib/canvas/term/hub";
@@ -79,6 +79,11 @@
   const agent = $derived((typeof data.agent === "string" ? data.agent : "shell") as AgentKind);
   const command = $derived(agentCommand(node));
   const cwd = $derived(typeof data.cwd === "string" ? data.cwd : null);
+  const cwdText = $derived(cwd ?? "~");
+
+  function shortPath(p: string): string {
+    return p.replace(/^\/(Users|home)\/[^/]+/, "~") || "~";
+  }
   const role = $derived(roles.byId(typeof data.roleId === "string" ? data.roleId : null));
   const isManager = $derived(!!data.isManager);
   const chatFace = $derived(chats.isChat(node.id));
@@ -421,7 +426,7 @@
   class:selected
   class:focused
   class:card
-  style="--state: {stateColor}; --header-h: {TERM_HEADER_H}px; --pad: {termPadding().x}px;"
+  style="--state: {stateColor}; --header-h: {TERM_HEADER_H}px; --footer-h: {TERM_FOOTER_H}px; --pad: {termPadding().x}px;"
   data-terminal-id={termId}
 >
   <header class="chrome">
@@ -487,6 +492,11 @@
       </div>
     {/if}
   </header>
+
+  <footer class="foot" title={live.cwd || cwdText}>
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h6l2 2h10v11H3z" /></svg>
+    <span class="path">{shortPath(live.cwd || cwdText)}</span>
+  </footer>
 
   {#if chatFace}
     <div class="chat-face">
@@ -605,10 +615,12 @@
   .term-node {
     position: absolute;
     inset: 0;
-    border-radius: 10px;
-    border: 1px solid color-mix(in srgb, var(--text, #fff) 12%, transparent);
+    border-radius: 8px;
+    border: 1px solid color-mix(in srgb, var(--text, #fff) 10%, transparent);
     background: transparent;
-    box-shadow: 0 6px 24px rgb(0 0 0 / 0.25);
+    box-shadow:
+      0 1px 2px rgb(0 0 0 / 0.1),
+      0 4px 14px rgb(0 0 0 / 0.14);
     overflow: hidden;
     color: var(--text, #f5f5f7);
   }
@@ -751,12 +763,44 @@
       transform: translateX(340%);
     }
   }
+  .foot {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: var(--footer-h);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 0 10px;
+    font-size: 11px;
+    color: var(--text-dim, #98989d);
+    background: color-mix(in srgb, var(--pane-bg, #1c1c1e) 94%, var(--text, #fff) 6%);
+    border-top: 1px solid color-mix(in srgb, var(--text, #fff) 8%, transparent);
+    user-select: none;
+    z-index: 1;
+  }
+  .foot svg {
+    width: 12px;
+    height: 12px;
+    flex: none;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.8;
+    stroke-linejoin: round;
+  }
+  .foot .path {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
   .body {
     position: absolute;
     left: var(--pad);
     right: var(--pad);
     top: var(--header-h);
-    bottom: var(--pad);
+    bottom: var(--footer-h);
     cursor: text;
     touch-action: none;
   }

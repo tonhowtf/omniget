@@ -120,7 +120,7 @@
     pointer-events: none;
   }
   .bounds {
-    border: 1px dashed var(--accent);
+    border: 1.5px dashed var(--accent);
     border-radius: 4px;
     pointer-events: none;
   }
@@ -128,9 +128,13 @@
     width: 10px;
     height: 10px;
     border-radius: 3px;
-    background: var(--popup-bg, #fff);
-    border: 1.5px solid var(--accent);
+    background: transparent;
+    border: 1.5px solid transparent;
     pointer-events: auto;
+  }
+  .handle:hover {
+    background: var(--popup-bg, #fff);
+    border-color: var(--accent);
   }
   .h-nw,
   .h-se {
@@ -156,7 +160,8 @@
     border: 2px solid var(--popup-bg, #fff);
     pointer-events: auto;
     cursor: crosshair;
-    opacity: 0.85;
+    opacity: 0;
+    transition: opacity 120ms ease;
   }
   .port:hover {
     opacity: 1;

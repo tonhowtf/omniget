@@ -56,8 +56,14 @@ export class Camera implements CameraState {
     return { x: this.x - w * margin, y: this.y - h * margin, w: w * (1 + margin * 2), h: h * (1 + margin * 2) };
   }
 
+  get focusX(): number {
+    const inset = Math.min(this.insetLeft, this.vw * 0.5);
+    const right = Math.min(this.insetRight, Math.max(0, this.vw * 0.75 - inset));
+    return inset + Math.max(1, this.vw - inset - right) / 2;
+  }
+
   center(): { x: number; y: number } {
-    return { x: this.x + this.vw / (2 * this.zoom), y: this.y + this.vh / (2 * this.zoom) };
+    return { x: this.x + this.focusX / this.zoom, y: this.y + this.vh / (2 * this.zoom) };
   }
 
   panBy(dx: number, dy: number): void {
@@ -82,20 +88,59 @@ export class Camera implements CameraState {
 
   insetLeft = 0;
   insetRight = 0;
+  occluders: Rect[] = [];
+
+  safeRect(): Rect {
+    const inset = Math.min(this.insetLeft, this.vw * 0.5);
+    const right = Math.min(this.insetRight, Math.max(0, this.vw * 0.75 - inset));
+    let r: Rect = { x: inset, y: 0, w: Math.max(1, this.vw - inset - right), h: this.vh };
+    const minW = Math.min(240, r.w * 0.5);
+    const minH = Math.min(160, r.h * 0.5);
+    for (const o of this.occluders) {
+      const x0 = Math.max(r.x, o.x);
+      const y0 = Math.max(r.y, o.y);
+      const x1 = Math.min(r.x + r.w, o.x + o.w);
+      const y1 = Math.min(r.y + r.h, o.y + o.h);
+      if (x1 <= x0 || y1 <= y0) continue;
+      const cuts: Rect[] = [
+        { x: r.x, y: y1, w: r.w, h: r.y + r.h - y1 },
+        { x: r.x, y: r.y, w: r.w, h: y0 - r.y },
+        { x: x1, y: r.y, w: r.x + r.w - x1, h: r.h },
+        { x: r.x, y: r.y, w: x0 - r.x, h: r.h },
+      ].filter((c) => c.w >= minW && c.h >= minH);
+      if (!cuts.length) continue;
+      r = cuts.reduce((a, b) => (b.w * b.h > a.w * a.h ? b : a));
+    }
+    return r;
+  }
+
+  visibleWorld(c: CameraState = this): Rect {
+    const s = this.safeRect();
+    return { x: c.x + s.x / c.zoom, y: c.y + s.y / c.zoom, w: s.w / c.zoom, h: s.h / c.zoom };
+  }
+
+  fromVisible(x: number, y: number, zoom: number): CameraState {
+    const s = this.safeRect();
+    return { x: x - s.x / zoom, y: y - s.y / zoom, zoom };
+  }
+
+  safeCenter(): { x: number; y: number } {
+    const s = this.safeRect();
+    return { x: s.x + s.w / 2, y: s.y + s.h / 2 };
+  }
 
   fitRect(r: Rect, marginPx = 64, maxZoom = 1.5): CameraState {
     const w = Math.max(1, r.w);
     const h = Math.max(1, r.h);
-    const inset = Math.min(this.insetLeft, this.vw * 0.5);
-    const right = Math.min(this.insetRight, Math.max(0, this.vw * 0.75 - inset));
-    const usable = Math.max(1, this.vw - inset - right);
-    const zx = (usable - marginPx * 2) / w;
-    const zy = (this.vh - marginPx * 2) / h;
+    const s = this.safeRect();
+    const m = Math.min(marginPx, s.w / 10, s.h / 10);
+    const zx = (s.w - m * 2) / w;
+    const zy = (s.h - m * 2) / h;
     const zoom = clampZoom(Math.min(zx, zy, maxZoom));
     return {
       zoom,
-      x: r.x + r.w / 2 - (inset + usable / 2) / zoom,
-      y: r.y + r.h / 2 - this.vh / (2 * zoom),
+      x: r.x + r.w / 2 - (s.x + s.w / 2) / zoom,
+      y: r.y + r.h / 2 - (s.y + s.h / 2) / zoom,
     };
   }
 

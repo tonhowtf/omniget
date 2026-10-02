@@ -17,16 +17,15 @@ uniform float uSpacing; // current level spacing, world units
 uniform float uFade;    // 0..1 weight of the minor dots
 uniform vec4 uColor;
 out vec4 outColor;
-float dotAt(vec2 world, float spacing, float radiusPx) {
-  vec2 cell = mod(world + spacing * 0.5, spacing) - spacing * 0.5;
-  float d = length(cell) * uZoom;
-  return clamp(radiusPx + 0.5 - d, 0.0, 1.0);
+float lineAt(vec2 world, float spacing) {
+  vec2 cell = abs(mod(world + spacing * 0.5, spacing) - spacing * 0.5) * uZoom * uDpr;
+  return clamp(1.0 - min(cell.x, cell.y), 0.0, 1.0);
 }
 void main() {
   vec2 css = vec2(gl_FragCoord.x, uHeight * uDpr - gl_FragCoord.y) / uDpr;
   vec2 world = uOffset + css / uZoom;
-  float minor = dotAt(world, uSpacing, 0.9) * uFade;
-  float major = dotAt(world, uSpacing * 5.0, 1.35);
+  float minor = lineAt(world, uSpacing) * uFade * 0.3;
+  float major = lineAt(world, uSpacing * 5.0) * 0.45;
   float a = max(minor, major) * uColor.a;
   if (a < 0.003) discard;
   outColor = vec4(uColor.rgb * a, a);

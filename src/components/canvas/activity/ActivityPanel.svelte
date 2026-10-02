@@ -2,26 +2,10 @@
   import { t } from "$lib/i18n";
   import { useEngine } from "$lib/canvas/engine.svelte";
   import { switchTo } from "$lib/canvas/palette/navigate";
-  import { actorColor, aiActivity, baseOrigin, isAi, type ActivityEntry } from "$lib/canvas/activity/store.svelte";
+  import { actorColor, aiActivity, baseOrigin, initials, isAi, VERB_DEFAULTS, type ActivityEntry } from "$lib/canvas/activity/store.svelte";
   import McpServersPanel from "./McpServersPanel.svelte";
 
   const engine = useEngine();
-
-  const VERBS: Record<string, string> = {
-    created: "created",
-    deleted: "deleted",
-    moved: "moved",
-    resized: "resized",
-    renamed: "renamed",
-    edited: "edited",
-    wrote: "wrote in",
-    corded: "connected",
-    uncorded: "disconnected",
-    changed: "changed",
-    drew: "drew",
-    erased: "erased",
-    grouped: "grouped",
-  };
 
   const shown = $derived.by(() => {
     const list = aiActivity.aiOnly ? aiActivity.entries.filter(isAi) : aiActivity.entries;
@@ -34,14 +18,8 @@
     return e.actor;
   }
 
-  function initials(name: string): string {
-    const parts = name.split(/[\s·_-]+/).filter(Boolean);
-    const s = parts.length > 1 ? parts[0][0] + parts[1][0] : name.slice(0, 2);
-    return s.toUpperCase();
-  }
-
   function verb(e: ActivityEntry): string {
-    return $t(`canvas.activity.verb.${e.verb}`, { default: VERBS[e.verb] ?? e.verb });
+    return $t(`canvas.activity.verb.${e.verb}`, { default: VERB_DEFAULTS[e.verb] ?? e.verb });
   }
 
   function target(e: ActivityEntry): string {
@@ -91,6 +69,10 @@
         <input type="checkbox" bind:checked={aiActivity.follow} />
         <span>{$t("canvas.activity.follow", { default: "Follow AI" })}</span>
       </label>
+      <label class="switch">
+        <input type="checkbox" bind:checked={aiActivity.presence} />
+        <span>{$t("canvas.activity.presence", { default: "Show AI cursors" })}</span>
+      </label>
       {#if aiActivity.follow && actors.length > 1}
         <select bind:value={aiActivity.followOrigin} aria-label={$t("canvas.activity.followWho", { default: "Who to follow" })}>
           <option value={null}>{$t("canvas.activity.anyAi", { default: "Any AI" })}</option>
@@ -123,6 +105,7 @@
                   {clock(e.at)}
                   {#if e.actorKind === "client"} · {$t("canvas.activity.viaMcp", { default: "via MCP" })}{/if}
                   {#if e.actorKind === "agent"} · {$t("canvas.activity.agent", { default: "agent" })}{/if}
+                  {#if e.via === "generate"} · {$t("canvas.activity.viaGenerate", { default: "image generation" })}{/if}
                   {#if aiActivity.follow && aiActivity.followOrigin === baseOrigin(e.origin)} · {$t("canvas.activity.following", { default: "following" })}{/if}
                 </span>
               </span>

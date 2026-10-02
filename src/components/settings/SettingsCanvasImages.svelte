@@ -95,6 +95,18 @@
   <div class="card">
     <div class="setting-row">
       <div class="setting-col">
+        <label class="setting-label" for="cv-perf-render">{tr("canvas.settings.rendering", "Rendering")}</label>
+        <span class="setting-path">{tr("canvas.settings.renderingHint", "Faithful draws every node as it looks up close, at any zoom; Light shows summaries when zoomed out")}</span>
+      </div>
+      <select id="cv-perf-render" class="input-text select" disabled={busy} value={prefs.performance.rendering}
+        onchange={(e) => save((c) => (c.performance.rendering = (e.target as HTMLSelectElement).value as CanvasPrefs["performance"]["rendering"]))}>
+        <option value="faithful">{tr("canvas.settings.renderingFaithful", "Faithful (like up close)")}</option>
+        <option value="light">{tr("canvas.settings.renderingLight", "Light (summaries when zoomed out)")}</option>
+      </select>
+    </div>
+    <div class="divider"></div>
+    <div class="setting-row">
+      <div class="setting-col">
         <label class="setting-label" for="cv-perf-term">{tr("canvas.settings.mountedTerminals", "Terminals kept open")}</label>
         <span class="setting-path">{tr("canvas.settings.mountedTerminalsHint", "Terminals off screen beyond this are closed in the view; they keep running")}</span>
       </div>

@@ -113,6 +113,16 @@ const RUNNER: &str = r#"async (op, a) => {
     else el.dispatchEvent(new MouseEvent(type, base));
     return el;
   };
+  const guard = () => {
+    const want = a.expectWorkspaceId;
+    if (!want) return null;
+    if (!drv) return { error: 'CANVAS_NOT_OPEN: the window is not on the canvas (expectWorkspaceId ' + want + ')' };
+    const w = drv.where();
+    if (w.workspaceId !== want) return { error: 'WINDOW_MOVED: the window shows ' + w.workspaceId + ', not ' + want + ' (workspace_activate it again, or drop expectWorkspaceId)' };
+    return null;
+  };
+  const hitAt = (p) => (drv && drv.nodeAt ? drv.nodeAt(p.x, p.y) : null);
+  const hitView = (h) => (h ? { nodeId: h.nodeId, title: h.title, kind: h.kind } : null);
   switch (op) {
     case 'ping':
       return { ok: true, route: location.pathname, driver: !!drv };
@@ -123,6 +133,8 @@ const RUNNER: &str = r#"async (op, a) => {
       return { ...base, ...c };
     }
     case 'key': {
+      const blocked = guard();
+      if (blocked) return blocked;
       const seq = Array.isArray(a.keys) ? a.keys : String(a.keys || '').split(/\s+/).filter(Boolean);
       const times = Math.max(1, Math.min(50, a.repeat || 1));
       for (let t = 0; t < times; t++) {
@@ -151,9 +163,12 @@ const RUNNER: &str = r#"async (op, a) => {
     case 'pointer': {
       const action = a.action || 'click';
       if (a.file) return { error: 'NOT_IMPLEMENTED: dropping OS files is not simulated; use canvas_node_spawn kind=file' };
+      const blocked = guard();
+      if (blocked) return blocked;
       const at = await point(a.at ?? a.nodeId ?? a.from);
       if (!at) return { error: 'MISSING_ARGUMENT: at {x,y} (client px) or nodeId' };
       const m = mods(a.mods);
+      const hit = hitAt(at);
       if (action === 'hover' || action === 'move') {
         fire('pointerover', at, m); fire('pointerenter', at, m); fire('mouseover', at, m); fire('pointermove', at, m); fire('mousemove', at, m);
       } else if (action === 'click' || action === 'dblclick' || action === 'click-hold') {
@@ -167,7 +182,7 @@ const RUNNER: &str = r#"async (op, a) => {
           await sleep(40);
         }
         if (n === 2) fire('dblclick', at, { ...m, button: 0, detail: 2 });
-        return { target: describe(el) };
+        return { at, hit: hitView(hit), target: describe(el) };
       } else if (action === 'rightclick') {
         fire('pointerdown', at, { ...m, button: 2, buttons: 2 }); fire('mousedown', at, { ...m, button: 2, buttons: 2 });
         fire('pointerup', at, { ...m, button: 2 }); fire('mouseup', at, { ...m, button: 2 });
@@ -184,11 +199,22 @@ const RUNNER: &str = r#"async (op, a) => {
         for (const p of path) { await sleep(16); fire('pointermove', p, { ...m, buttons: 1 }); fire('mousemove', p, { ...m, buttons: 1 }); }
         const end = path[path.length - 1];
         fire('pointerup', end, { ...m, button: 0 }); fire('mouseup', end, { ...m, button: 0 });
+        await sleep(80);
+        let moved = null;
+        if (hit && drv) {
+          const r = await drv.run('nodePos', { nodeId: hit.nodeId });
+          if (r && Number.isFinite(r.x)) {
+            const dx = Math.round((r.x - hit.x) * 100) / 100;
+            const dy = Math.round((r.y - hit.y) * 100) / 100;
+            moved = { nodeId: hit.nodeId, moved: Math.abs(dx) > 0.01 || Math.abs(dy) > 0.01, dx, dy };
+          } else moved = { nodeId: hit.nodeId, moved: false, gone: true };
+        }
+        return { at, to: end, hit: hitView(hit), drag: moved };
       } else if (action === 'scroll') {
         fire('wheel', at, { ...m, deltaX: (a.dx || 0) * 40, deltaY: (a.dy || 0) * 40, deltaMode: 0 });
       } else return { error: 'INVALID_ARGUMENT: action' };
       await sleep(60);
-      return { at };
+      return { at, hit: hitView(hit) };
     }
     default:
       if (!drv) return { error: 'CANVAS_NOT_OPEN: open the World canvas in the main window (omniget_app_navigate or app_key) and retry' };

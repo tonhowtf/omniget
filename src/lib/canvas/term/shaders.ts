@@ -135,3 +135,15 @@ void main() {
   outColor(col);
 }
 `;
+
+export const THUMB_FS = `#version 300 es
+precision highp float;
+uniform sampler2D u_tex;
+in vec2 v_local;
+out vec4 o;
+uniform vec4 u_rect;
+void main() {
+  vec2 uv = v_local / u_rect.zw;
+  o = texture(u_tex, vec2(uv.x, 1.0 - uv.y));
+}
+`;

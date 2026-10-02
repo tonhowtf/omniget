@@ -204,6 +204,7 @@ pub struct CanvasPerformanceSettings {
     pub mounted_terminals: u32,
     pub live_portals: u32,
     pub force_canvas2d: bool,
+    pub rendering: String,
 }
 
 impl Default for CanvasPerformanceSettings {
@@ -212,6 +213,7 @@ impl Default for CanvasPerformanceSettings {
             mounted_terminals: 12,
             live_portals: 4,
             force_canvas2d: false,
+            rendering: "faithful".into(),
         }
     }
 }
@@ -309,7 +311,7 @@ impl Default for CanvasSettings {
             zoom_modifier: "alt".into(),
             right_drag_pan: false,
             focus_on_hover: false,
-            selection_style: "solid".into(),
+            selection_style: "dashed".into(),
             node_material: "opaque".into(),
             cord_style: "bezier".into(),
             rope_routing: "behind_nodes".into(),
@@ -423,6 +425,7 @@ impl CanvasSettings {
     pub const ROUTINGS: &'static [&'static str] = &["behind_nodes", "avoid_nodes", "circuit"];
     pub const SLEEP_MODES: &'static [&'static str] = &["never", "always", "while_working"];
     pub const IMAGE_QUALITIES: &'static [&'static str] = &["light", "balanced", "sharp"];
+    pub const RENDERINGS: &'static [&'static str] = &["faithful", "light"];
 
     pub fn normalize(&mut self) {
         let d = Self::default();
@@ -491,6 +494,11 @@ impl CanvasSettings {
             &mut self.images.quality,
             Self::IMAGE_QUALITIES,
             &d.images.quality,
+        );
+        pick(
+            &mut self.performance.rendering,
+            Self::RENDERINGS,
+            &d.performance.rendering,
         );
         let perf = &mut self.performance;
         perf.mounted_terminals = perf.mounted_terminals.clamp(1, 64);

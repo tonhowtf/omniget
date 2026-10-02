@@ -42,6 +42,8 @@ pub struct AssetRef {
     pub name: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub source_url: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -153,6 +155,7 @@ fn asset_ref(ws_dir: &Path, id: &str, ext: &str, w: u32, h: u32, bytes: u64) -> 
         mime: mime_of_ext(ext).to_string(),
         name: None,
         source_url: None,
+        source: None,
     }
 }
 
@@ -218,6 +221,18 @@ pub fn remember(
     if let Some(u) = source_url {
         entry["sourceUrl"] = json!(u);
     }
+    write_file(
+        &index_file(ws_dir),
+        &serde_json::to_vec_pretty(&idx).map_err(|e| e.to_string())?,
+    )
+}
+
+pub fn remember_generated(ws_dir: &Path, id: &str, name: &str) -> Result<(), String> {
+    let _g = index_lock().lock().unwrap_or_else(|e| e.into_inner());
+    let mut idx = read_index(ws_dir);
+    let entry = idx.entry(id.to_string()).or_insert_with(|| json!({}));
+    entry["name"] = json!(name.trim());
+    entry["source"] = json!("generated");
     write_file(
         &index_file(ws_dir),
         &serde_json::to_vec_pretty(&idx).map_err(|e| e.to_string())?,
@@ -423,6 +438,7 @@ pub fn list(ws_dir: &Path) -> Vec<AssetRef> {
             if let Some(e) = idx.get(&r.id) {
                 r.name = e["name"].as_str().map(str::to_string);
                 r.source_url = e["sourceUrl"].as_str().map(str::to_string);
+                r.source = e["source"].as_str().map(str::to_string);
             }
             r
         })

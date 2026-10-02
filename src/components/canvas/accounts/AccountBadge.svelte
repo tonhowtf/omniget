@@ -19,7 +19,7 @@
   const tr = (key: string, fallback: string, vars?: Record<string, unknown>) =>
     $t(key, { default: fallback, ...(vars ?? {}) }) as string;
 
-  const name = $derived(badge.id ? badge.label : tr("canvas.accounts.environment", "environment"));
+  const name = $derived(badge.id ? badge.label : tr("canvas.accounts.environment", "default account"));
   const hint = $derived.by(() => {
     if (badge.kind === "invalid") {
       if (badge.reason === "disabled") return tr("canvas.accounts.invalidDisabled", "This account is disabled; pick another");

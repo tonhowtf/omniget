@@ -2966,7 +2966,6 @@
   },
   "world": {
     "title": "Canvas",
-    "subtitle": "このコンピューター上のキャンバスにいるエージェント：ターミナル、メモ、そしてそれらをつなぐコード。",
     "settings": {
       "title": "Canvas",
       "desc": "/world のキャンバス。エージェントが並んで作業する場所です。",
@@ -11446,7 +11445,9 @@
       "textBigger": "Bigger text",
       "textWeight": "Weight",
       "textFamily": "Font",
-      "textThemeColor": "Theme color"
+      "textThemeColor": "Theme color",
+      "attach": "ファイルを添付",
+      "deviceLock": "画面をロック"
     },
     "term": {
       "action": {
@@ -12037,7 +12038,9 @@
       "syncWinner": "Keep this version",
       "syncNothing": "Nothing changes.",
       "syncChange": "{{file}}: loses {{lost}} lines, gains {{added}}",
-      "syncApply": "Sync"
+      "syncApply": "Sync",
+      "filter": "フィルター",
+      "groupHint": "現在のワークスペースをグループに入れる"
     },
     "portal": {
       "kind": "Portal",
@@ -12474,6 +12477,10 @@
       "imagesClearThumbs": "Clear thumbnails",
       "thumbsCleared": "Thumbnails cleared ({{mb}} MB)",
       "performanceTitle": "Performance",
+      "rendering": "描画",
+      "renderingHint": "忠実はどのズームでも各ノードを近くで見たとおりに描画し、軽量はズームアウト時に概要を表示します",
+      "renderingFaithful": "忠実（近くで見たとおり）",
+      "renderingLight": "軽量（ズームアウト時は概要）",
       "mountedTerminals": "Terminals kept open",
       "mountedTerminalsHint": "Terminals off screen beyond this are closed in the view; they keep running",
       "livePortals": "Live portals",
@@ -12626,7 +12633,12 @@
         "changed": "変更",
         "drew": "描画",
         "erased": "消去",
-        "grouped": "グループ化"
+        "grouped": "グループ化",
+        "quoted": "の見積もりを取得",
+        "submitted": "を開始",
+        "generated": "を完了",
+        "failed": "で失敗",
+        "uncertain": "の状態が不明"
       },
       "kind": {
         "terminal": "ターミナル",
@@ -12641,12 +12653,23 @@
         "image": "画像",
         "stack": "ファイル帳",
         "connector": "コネクタ",
-        "node": "ノード"
+        "node": "ノード",
+        "generation": "生成",
+        "device": "デバイス"
       },
       "palette": {
         "activity": "アクティビティ",
         "follow": "AIを追う",
         "unfollow": "AIの追跡をやめる"
+      },
+      "viaGenerate": "画像生成",
+      "presence": "AI のカーソルを表示",
+      "strip": {
+        "label": "キャンバスで作業中",
+        "open": "このワークスペースのアクティビティを開く",
+        "more": "+{{count}}",
+        "following": "{{name}} を追跡中",
+        "stopFollow": "追跡をやめる"
       }
     },
     "mcpServers": {
@@ -12708,6 +12731,7 @@
       "save": "Save",
       "cancel": "Cancel",
       "agentLimit": "Agents alone: up to {{limit}} credits per image, {{perHour}} per hour",
+      "spent": "Spent {{credits}} credits",
       "state": {
         "draft": "Draft",
         "quoted": "Priced",
@@ -12740,7 +12764,7 @@
       }
     },
     "accounts": {
-      "environment": "environment",
+      "environment": "default account",
       "environmentOption": "Environment account",
       "environmentHint": "Runs on the account of the environment the app was started in",
       "accountHint": "Runs on the account {{name}}",
@@ -12778,6 +12802,39 @@
         "unused": "Not used by any portal",
         "empty": "No sessions yet."
       }
+    },
+    "newPortal": {
+      "title": "新しいポータル",
+      "browser": "ブラウザ",
+      "devices": "デバイス",
+      "url": "URL",
+      "name": "名前",
+      "optional": "任意",
+      "userAgent": "ユーザーエージェント",
+      "uaDefault": "デフォルト",
+      "uaIos": "iPhone (Safari)",
+      "uaAndroid": "Android (Chrome)",
+      "search": "デバイスを検索…",
+      "all": "すべて",
+      "finding": "デバイスを探しています…",
+      "none": "デバイスが見つかりません",
+      "booted": "起動中",
+      "shared": "同じデバイスのポータルは1つの画面を共有します。",
+      "cancel": "キャンセル",
+      "create": "作成"
+    },
+    "newFileTree": {
+      "title": "新しいファイルツリー",
+      "dir": "作業ディレクトリ",
+      "browse": "参照…"
+    },
+    "usage": {
+      "title": "エージェントの使用量",
+      "limit": "使用上限に達しました",
+      "planLimits": "プランの上限",
+      "emptyTitle": "各エージェントがプランをどれだけ使ったか確認",
+      "emptyBody": "Claude Code や Codex のアカウントを選ぶと、上限がここに表示されます。",
+      "choose": "アカウントを選ぶ…"
     },
     "media": {
       "extractAudio": "Extract audio",

@@ -31,7 +31,7 @@ import {
   type Rect,
 } from './model/types';
 import { onRegistryChange, sizeFor } from './nodes/registry';
-import { canvasPrefs, prefSize, presetAgent, presetData, userPreset } from './prefs.svelte';
+import { canvasPrefs, faithfulRendering, prefSize, presetAgent, presetData, userPreset } from './prefs.svelte';
 import { GlLayer, onPassesChange, type FrameInfo, type NodeView } from './render/gl-layer';
 import { Selection } from './interaction/selection.svelte';
 import { alignGuides, arrange, nearestFreeSpot, snap, type AlignMode, type Guide } from './interaction/snap';
@@ -57,7 +57,9 @@ type CanvasPanel =
   | { kind: 'role-picker'; nodeId: string }
   | { kind: 'companion' }
   | { kind: 'visit' }
-  | { kind: 'floors' };
+  | { kind: 'floors' }
+  | { kind: 'new-portal' }
+  | { kind: 'new-filetree' };
 
 interface MessagePayload {
   id?: string;
@@ -135,14 +137,14 @@ export class CanvasEngine {
   createAgent = $state<AgentKind | null>(null);
   createPreset = $state<string | null>(null);
   syncMode = $state<SyncMode>('connecting');
-  #minimap = $state(readFlag('omniget.canvas.minimap', true));
+  #minimap = $state(readFlag('omniget.canvas.minimap.v2', false));
   get minimapVisible(): boolean {
     return this.#minimap;
   }
   set minimapVisible(v: boolean) {
     this.#minimap = v;
     try {
-      localStorage.setItem('omniget.canvas.minimap', v ? '1' : '0');
+      localStorage.setItem('omniget.canvas.minimap.v2', v ? '1' : '0');
     } catch {
     }
   }
@@ -150,6 +152,7 @@ export class CanvasEngine {
   mounted = $state.raw<Array<{ id: string; hidden: boolean }>>([]);
   cards = $state.raw<string[]>([]);
   moving = $state(false);
+  floorsView = $state(false);
   zoomUi = $state(1);
   showBadges = $state(false);
   spawnMenu = $state<SpawnMenuState | null>(null);
@@ -172,7 +175,8 @@ export class CanvasEngine {
   private lastCameraRev = -1;
   private lastCameraMove = 0;
   private settled = true;
-  private flight: { f: Flight; t0: number } | null = null;
+  private flight: { f: Flight; t0: number; to: CameraState } | null = null;
+  chromeProbe: (() => Rect[]) | null = null;
   private zoomVelocity = 0;
   pinching = false;
   private frameHooks = new Set<(now: number) => void>();
@@ -332,7 +336,7 @@ export class CanvasEngine {
       const s = springStep(this.camera.zoom, this.zoomVelocity, target, dt);
       this.zoomVelocity = s.velocity;
       const nz = Math.abs(s.value - target) < 1e-4 ? target : s.value;
-      this.camera.zoomTo(nz, this.camera.vw / 2, this.camera.vh / 2, true);
+      this.camera.zoomTo(nz, this.camera.focusX, this.camera.vh / 2, true);
       if (nz !== target) animating = true;
       else this.zoomVelocity = 0;
     }
@@ -404,10 +408,11 @@ export class CanvasEngine {
     const cards: string[] = [];
     const focused = this.selection.focused;
     const raised = new Set(this.panels.raisedIds());
+    const faithful = faithfulRendering();
     for (const id of ids) {
       const n = this.store.node(id);
       if (!n || n.stackId || raised.has(id)) continue;
-      let lod: Lod = id === focused ? 'near' : nodeLod(n, z, prevLod[id]);
+      let lod: Lod = faithful || id === focused ? 'near' : nodeLod(n, z, prevLod[id]);
       const prev = prevLod[id];
       if (moving && prev && isCostlySwap(n.kind, prev, lod)) lod = prev;
       else if (moving && !prev && isCostlySwap(n.kind, undefined, lod)) lod = isTerminalKind(n.kind) ? 'far' : 'mid';
@@ -427,21 +432,25 @@ export class CanvasEngine {
     }
     this.screenViews = screen;
 
+    const nearSet = new Set(near);
     for (const id of near) this.mountedLru.set(id, now);
     for (const id of Array.from(this.mountedLru.keys())) {
       const n = this.store.node(id);
       if (!n || raised.has(id)) this.mountedLru.delete(id);
-      else if (!isTerminalKind(n.kind) && !near.includes(id)) this.mountedLru.delete(id);
+      else if (!isTerminalKind(n.kind) && !nearSet.has(id)) this.mountedLru.delete(id);
     }
-    const mountLimit = mountedTerminalsLimit();
-    if (!moving && this.mountedLru.size > mountLimit) {
+    let nearTerminals = 0;
+    for (const id of near) if (isTerminalKind(this.store.node(id)?.kind ?? '')) nearTerminals++;
+    const room = Math.max(0, mountedTerminalsLimit() - nearTerminals);
+    if (!moving && this.mountedLru.size - near.length > room) {
       const keep = allocate(
-        Array.from(this.mountedLru.entries()).map(([id, t]) => ({ id, score: near.includes(id) ? Infinity : t })),
-        mountLimit,
+        Array.from(this.mountedLru.entries())
+          .filter(([id]) => !nearSet.has(id))
+          .map(([id, t]) => ({ id, score: t })),
+        room,
       );
-      for (const id of Array.from(this.mountedLru.keys())) if (!keep.has(id)) this.mountedLru.delete(id);
+      for (const id of Array.from(this.mountedLru.keys())) if (!nearSet.has(id) && !keep.has(id)) this.mountedLru.delete(id);
     }
-    const nearSet = new Set(near);
     const mounted = Array.from(this.mountedLru.keys())
       .map((id) => ({ id, hidden: !nearSet.has(id) }))
       .sort((a, b) => (this.store.node(a.id)?.z ?? 0) - (this.store.node(b.id)?.z ?? 0));
@@ -480,8 +489,13 @@ export class CanvasEngine {
     this.invalidate();
   }
 
-  setZoom(zoom: number, sx = this.camera.vw / 2, sy = this.camera.vh / 2): void {
+  setZoom(zoom: number, sx?: number, sy?: number): void {
     this.flight = null;
+    if (sx === undefined || sy === undefined) {
+      const c = this.measureChrome().safeCenter();
+      sx = c.x;
+      sy = c.y;
+    }
     this.camera.zoomTo(clampZoom(zoom), sx, sy);
     this.invalidate();
   }
@@ -489,12 +503,29 @@ export class CanvasEngine {
   flyToCamera(target: CameraState): void {
     this.inertia.stop();
     const f = flyTo(this.camera.state(), target, this.camera.vw, this.camera.vh);
-    this.flight = { f, t0: performance.now() };
+    this.flight = { f, t0: performance.now(), to: { x: target.x, y: target.y, zoom: target.zoom } };
     this.invalidate();
   }
 
   flyToRect(r: Rect, maxZoom = 1.2): void {
-    this.flyToCamera(this.camera.fitRect(r, 64, maxZoom));
+    this.flyToCamera(this.measureChrome().fitRect(r, 64, maxZoom));
+  }
+
+  measureChrome(): Camera {
+    try {
+      this.camera.occluders = (this.chromeProbe?.() ?? []).filter((o) => o.w > 0 && o.h > 0);
+    } catch {
+      this.camera.occluders = [];
+    }
+    return this.camera;
+  }
+
+  cameraTarget(): CameraState {
+    return this.flight ? { ...this.flight.to } : this.camera.state();
+  }
+
+  visibleWorld(c: CameraState = this.cameraTarget()): Rect {
+    return this.measureChrome().visibleWorld(c);
   }
 
   contentBounds(): Rect | null {
@@ -505,8 +536,10 @@ export class CanvasEngine {
 
   fitAll(animate = true): void {
     const b = this.contentBounds();
+    this.measureChrome();
     if (!b) {
-      const target = { x: -this.camera.vw / 2, y: -this.camera.vh / 2, zoom: 1 };
+      const c = this.camera.safeCenter();
+      const target = { x: -c.x, y: -c.y, zoom: 1 };
       if (animate) this.flyToCamera(target);
       else this.camera.set(target);
       this.invalidate();
@@ -547,7 +580,8 @@ export class CanvasEngine {
   reveal(id: string): void {
     const n = this.store.node(id);
     if (!n) return;
-    const view = this.camera.viewRect(-0.05);
+    const v = this.visibleWorld(this.camera.state());
+    const view = { x: v.x + v.w * 0.05, y: v.y + v.h * 0.05, w: v.w * 0.9, h: v.h * 0.9 };
     const inside = n.x >= view.x && n.y >= view.y && n.x + n.w <= view.x + view.w && n.y + n.h <= view.y + view.h;
     if (!inside) this.flyToRect(n, Math.max(this.camera.zoom, 0.6));
   }

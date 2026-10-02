@@ -44,7 +44,7 @@ pub fn augment(mut defs: Vec<Def>) -> Vec<Def> {
     }
     defs.push(def(
         LIST,
-        "The CLI accounts a terminal node can run on ({id, label, cli, disabled}) and the named portal sessions a portal can use ({id, label}). Pick one with account on canvas_node_spawn / canvas_node_update / canvas_terminal_settings_set, or session on canvas_portal_open. Only the person creates accounts and sessions and logs in; no paths, e-mails, tokens or cookies are shown.",
+        "The CLI accounts a terminal node can run on ({id, label, cli, disabled, loggedIn: true|false|null when unknown}) and the named portal sessions a portal can use ({id, label}). Pick one with account on canvas_node_spawn / canvas_node_update / canvas_terminal_settings_set, or session on canvas_portal_open. Only the person creates accounts and sessions and logs in; no paths, e-mails, tokens or cookies are shown.",
         false,
         json!({}),
         &[],
@@ -61,8 +61,16 @@ pub fn list() -> Value {
         .into_iter()
         .map(|s| json!({ "id": s.id, "label": s.label }))
         .collect();
+    let accounts: Vec<Value> = crate::canvas::accounts::accounts()
+        .iter()
+        .map(|a| {
+            let mut v = serde_json::to_value(AccountRef::from(a)).unwrap_or_default();
+            v["loggedIn"] = json!(core_acc::logged_in(a));
+            v
+        })
+        .collect();
     json!({
-        "accounts": crate::canvas::accounts::refs(),
+        "accounts": accounts,
         "sessions": sessions,
         "namedSessionsSupported": sessions::supported(),
     })
@@ -362,6 +370,21 @@ pub fn echo(name: &str, r: Result<Value, String>) -> Result<Value, String> {
             }
         }
         v["account"] = acc;
+        if matches!(
+            name,
+            "canvas_node_spawn"
+                | "canvas_node_update"
+                | "canvas_terminal_settings_set"
+                | "canvas_terminal_ensure"
+                | "canvas_terminal_restart"
+        ) {
+            if let Some(w) = crate::canvas::accounts::login_warning(&n) {
+                v["warning"] = match v.get("warning").and_then(Value::as_str) {
+                    Some(old) => json!(format!("{old}; {w}")),
+                    None => json!(w),
+                };
+            }
+        }
     } else if n.kind == NodeKind::Portal {
         v["session"] = session_json(&n);
     }

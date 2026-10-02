@@ -31,6 +31,7 @@ fn allowed(path: &[String]) -> Option<&'static [&'static str]> {
         ["power", "prevent_sleep"] => CanvasSettings::SLEEP_MODES,
         ["defaults", "note", "render"] => &["formatted", "raw"],
         ["images", "quality"] => CanvasSettings::IMAGE_QUALITIES,
+        ["performance", "rendering"] => CanvasSettings::RENDERINGS,
         _ => return None,
     })
 }

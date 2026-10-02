@@ -142,7 +142,15 @@
     const x2 = Math.round(d.x + (e.clientX - d.px) / fit / s);
     const y2 = Math.round(d.y + (e.clientY - d.py) / fit / s);
     const durationMs = Math.min(2000, Math.max(80, Math.round(performance.now() - d.at)));
-    act("swipe", { x: d.x, y: d.y, x2: Math.max(0, x2), y2: Math.max(0, y2), durationMs });
+    const maxX = Math.floor(frame.w / s);
+    const maxY = Math.floor(frame.h / s);
+    act("swipe", {
+      x: d.x,
+      y: d.y,
+      x2: Math.min(maxX, Math.max(0, x2)),
+      y2: Math.min(maxY, Math.max(0, y2)),
+      durationMs,
+    });
   }
 
   const offs = [
@@ -191,7 +199,7 @@
 
 <div class="device" bind:this={rootEl}>
   {#if lod !== "far"}
-    <div class="bar" data-canvas-chrome>
+    <div class="bar" class:attached={!!info} data-canvas-chrome>
       <span class="tag">{platform === "ios" ? "iOS" : "Android"}</span>
       {#if info}
         <span class="name" title={info.device.name}>{info.device.name}</span>
@@ -308,6 +316,21 @@
     background: var(--popup-bg, var(--surface));
     font-size: 12px;
   }
+  .bar.attached {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 2;
+    border-bottom: none;
+    background: color-mix(in srgb, var(--popup-bg, var(--surface)) 86%, transparent);
+    opacity: 0;
+    transition: opacity 120ms ease;
+  }
+  .device:hover .bar.attached,
+  .bar.attached:focus-within {
+    opacity: 1;
+  }
   .tag {
     flex: none;
     font-size: 10px;
@@ -373,7 +396,7 @@
     flex: 1;
     min-height: 0;
     overflow: hidden;
-    background: #000;
+    background: transparent;
     user-select: none;
   }
   .screen.touch {

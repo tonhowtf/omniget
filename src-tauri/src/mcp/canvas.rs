@@ -30,8 +30,9 @@ mod lift_dock_menu;
 mod mcp_servers;
 mod omni_cords_remote;
 mod schemas;
-pub mod who;
 mod transcribe;
+mod view;
+pub mod who;
 mod workspace_io;
 use crate::commands::canvas as cmd;
 
@@ -98,6 +99,7 @@ fn out(props: Value, required: &[&str]) -> Value {
 const AGENTS: &[&str] = &[
     "claude", "codex", "gemini", "opencode", "ollama", "shell", "native",
 ];
+const TRUST_DESC: &str = "Claude: answer its folder trust question with 'Yes, I trust this folder', only when the terminal's folder is inside the workspace folder (otherwise canvas_terminal_status reports needs: trust with the keys)";
 const NODE_KINDS: &[&str] = &[
     "terminal",
     "note",
@@ -279,7 +281,7 @@ fn build_defs() -> Vec<Def> {
         def("canvas_node_spawn", "Put a node on the canvas the way the canvas does. kind terminal = a terminal running `agent` (claude, codex, gemini, opencode, ollama, shell, native) with optional role, cwd, command, a first prompt and the Maestro flag, started right away; note (text), text, file (path; a .md/.markdown/.txt becomes an external note showing the formatted text), filetree (path), link/portal (url), shape (shape, text), image (asset from the library, path or url; files and links are copied into the workspace library), stack, connector. Without x/y it goes to the nearest free spot. connectFrom cords it to an existing node.", true, json!({
             "workspaceId": ws(), "floorId": floor(), "kind": e(NODE_KINDS, "Node kind"), "agent": e(AGENTS, "Agent of a terminal (default shell)"),
             "title": s("Title"), "name": s("Same as title"), "preset": s("Same as agent"), "fontSize": n("Font size of a text node (8 to 200)"), "fontWeight": e(TEXT_WEIGHTS, "Weight of a text node"), "fontFamily": e(TEXT_FAMILIES, "Family of a text node"), "roleId": s("Role id or name (see role_list)"), "cwd": s("Working folder of a terminal"), "command": s("Own command line of a terminal (overrides the agent preset)"),
-            "model": s("Ollama model"), "prompt": s("First message for the agent of a terminal, sent when it is ready for input (after a folder trust question or a login)"), "maestro": b("Make the terminal the Maestro"), "start": b("Start a terminal now (default true)"),
+            "model": s("Ollama model"), "prompt": s("First message for the agent of a terminal, sent when it is ready for input (after a folder trust question or a login)"), "maestro": b("Make the terminal the Maestro"), "start": b("Start a terminal now (default true)"), "trust": b(TRUST_DESC),
             "text": s("Text of a note, text or shape"), "url": s("URL of a portal, link or image"), "path": s("Path of a file, file tree or image"), "asset": s("Library asset id of an image (see canvas_asset_list)"), "shape": s("Shape: rectangle, ellipse, diamond..."),
             "storageScope": e(&["isolated", "workspace", "global"], "Cookie jar of a portal (default isolated)"),
             "x": n("Left (world units)"), "y": n("Top (world units)"), "w": n("Width"), "h": n("Height"), "color": s("Color"),
@@ -302,7 +304,7 @@ fn build_defs() -> Vec<Def> {
             "workspaceId": ws(), "floorId": floor(), "drawing": schemas::drawing()
         }), &["drawing"], out(json!({"drawing": ty("object"), "rev": ty("integer")}), &["drawing"])),
         destructive(def("canvas_drawing_delete", "Remove drawings.", true, json!({"workspaceId": ws(), "floorId": floor(), "drawingIds": strs("Drawing ids")}), &["drawingIds"], removed_out.clone())),
-        def("canvas_cord_create", "Connect two nodes with a cord. kind ask (agent to agent, default), message, handoff (the turn's answer flows on condition always|success|failure, after the optional verify command), spawn, note, portal. perms: ask, check, raw, note_ro, portal_drive, eval (empty = defaults of the kind). Ends on different floors or workspaces (\"B @ W2\", \"W2/B\", \"F1/B\" or ids) must both be terminals: each side gets a connector chip and a cord (route crossFloor|crossWorkspace); deleting either half removes both; no undo.", true, json!({
+        def("canvas_cord_create", "Connect two nodes with a cord. kind ask (agent to agent, the default between two terminals; note is the default when an end is not a terminal), message, handoff (the turn's answer flows on condition always|success|failure, after the optional verify command), spawn, note, portal. perms: ask, check, raw, note_ro, portal_drive, eval (empty = defaults of the kind). Ends on different floors or workspaces (\"B @ W2\", \"W2/B\", \"F1/B\" or ids) must both be terminals: each side gets a connector chip and a cord (route crossFloor|crossWorkspace); deleting either half removes both; no undo.", true, json!({
             "from": node(), "to": node(), "kind": e(CORD_KINDS, "Cord kind (default by node kinds)"), "perms": strs("Permissions"),
             "condition": e(CONDITIONS, "Handoff condition"), "verify": s("Shell command run before a handoff flows"), "label": s("Label")
         }), &["from", "to"], out(json!({"connection": ty("object"), "rev": ty("integer"), "pair": ty("object")}), &["connection"])),
@@ -313,17 +315,17 @@ fn build_defs() -> Vec<Def> {
         destructive(def("canvas_cord_delete", "Remove cords.", true, json!({"cordIds": strs("Cord ids")}), &["cordIds"], removed_out.clone())),
         def("canvas_cord_test", "Check that a cord works end to end (both ends running with the cords environment, bridge up).", false, json!({"cordId": s("Cord id")}), &["cordId"], out(json!({"ok": any()}), &[])),
         def("canvas_terminals_list", "Every terminal/agent node of a workspace (all floors, or one) with its canonical state, whether its process runs, its agent and role.", false, json!({"workspaceId": ws(), "floorId": s("Only this floor")}), &[], list_out("terminals")),
-        def("canvas_terminal_ensure", "Start a terminal node's process unless it already runs in this app run (the canvas launch recipe: agent, role, cords env, floor context). Waits until it is ready.", true, json!({"nodeId": node()}), &["nodeId"], terminal_out.clone()),
-        def("canvas_terminal_run", "Type a command line into a terminal node and press Enter, as the person would (bracketed paste with paste=true). Starts the terminal when it is not running.", true, json!({
+        def("canvas_terminal_ensure", "Start a terminal node's process unless it already runs in this app run (the canvas launch recipe: agent, role, cords env, floor context). Waits until it is ready.", true, json!({"nodeId": node(), "trust": b(TRUST_DESC)}), &["nodeId"], terminal_out.clone()),
+        def("canvas_terminal_run", "Type a command line into a terminal node and press Enter, as the person would (bracketed paste with paste=true). Starts the terminal when it is not running. When the agent is working or still starting the text is queued (queued: true, submitted: false) and sent when it is ready; submitted is checked against the agent's input box (warning when the text stayed there).", true, json!({
             "nodeId": node(), "command": s("Text to type"), "paste": b("Bracketed paste instead of typing"), "submit": b("Press Enter after it (default true)")
-        }), &["nodeId", "command"], out(json!({"nodeId": ty("string"), "terminalId": ty("string"), "sent": ty("integer"), "submitted": ty("boolean")}), &["nodeId", "terminalId"])),
+        }), &["nodeId", "command"], out(json!({"nodeId": ty("string"), "terminalId": ty("string"), "sent": ty("integer"), "submitted": ty("boolean"), "queued": ty("boolean")}), &["nodeId", "terminalId"])),
         def("canvas_terminal_input", "Write raw bytes to a terminal node's program (escapes like \\n, \\r, \\x1b, \\t are decoded; nothing else is added).", true, json!({
             "nodeId": node(), "data": s("Bytes, with escapes")
         }), &["nodeId", "data"], out(json!({"nodeId": ty("string"), "terminalId": ty("string"), "bytes": ty("integer")}), &["nodeId", "terminalId"])),
         def("canvas_terminal_key", "Press one key in a terminal node (Enter, Escape, Tab, Backspace, ArrowUp, F5, a...), with modifiers.", true, json!({
             "nodeId": node(), "key": s("DOM key name"), "ctrl": b("Ctrl"), "alt": b("Alt/Option"), "shift": b("Shift"), "meta": b("Cmd/Meta"), "repeat": i("Times to press (default 1)", 1, 50)
         }), &["nodeId", "key"], out(json!({"nodeId": ty("string"), "terminalId": ty("string")}), &["nodeId"])),
-        def("canvas_terminal_read", "Read a terminal node's screen: the last N lines (reaching into scrollback), cursor row, whether a full-screen program shows, and its state.", false, json!({
+        def("canvas_terminal_read", "Read a terminal node's screen: the last N lines (reaching into scrollback), cursor row, whether a full-screen program shows, and its state. A full-screen program (altScreen true, like some agent TUIs) keeps no scrollback, so only its visible screen comes back; canvas_chat_read holds older turns of an agent.", false, json!({
             "nodeId": node(), "lines": i("Lines (default 60, 0 = the visible screen)", 0, 2000)
         }), &["nodeId"], out(json!({"nodeId": ty("string"), "text": ty("string"), "cursorRow": ty("integer"), "changedMs": ty("integer"), "altScreen": ty("boolean"), "alive": ty("boolean"), "state": any()}), &["nodeId", "text"])),
         def("canvas_terminal_status", "Canonical state of a terminal/agent node (idle, thinking, working, waiting_peer, blocked = needs the person, success, failed...) with its source and confidence, plus the raw engine signal and the process status.", false, json!({"nodeId": node()}), &["nodeId"], out(json!({"nodeId": ty("string"), "state": any(), "signal": any(), "alive": ty("boolean"), "exitCode": any(), "terminalId": any()}), &["nodeId"])),
@@ -456,13 +458,14 @@ fn build_defs() -> Vec<Def> {
         def("visit_share", "Share (or stop sharing) one terminal's screen with visitors.", true, json!({"nodeId": node(), "shared": b("Shared")}), &["nodeId", "shared"], obj_out("state")),
         def("app_state", "Live state of the window: route, focused element and, on the canvas, workspace, floor, selection, focus, camera, tool, open panel, chat faces, palette and composer.", false, json!({}), &[], out(json!({"route": ty("string"), "canvas": ty("boolean")}), &["route"])),
         scoped(def("app_screenshot", "PNG of the main window, of one node (nodeId) or a region {x,y,w,h} in window px; saved to a file whose path is returned.", false, json!({"nodeId": node(), "region": schemas::rect("{x, y, w, h} in window px")}), &[], out(json!({"path": ty("string"), "width": ty("integer"), "height": ty("integer")}), &["path"])), "app_capture"),
-        def("app_key", "Send key combos to the window as the person would: keys like \"cmd+shift+n\", \"escape\", \"ctrl+tab ctrl+tab\" (cmd = ⌘ on macOS, Ctrl elsewhere); text types into the focused field.", true, json!({"keys": json!({"type": ["string", "array"], "description": "Combo(s)"}), "text": s("Text to type"), "repeat": i("Repeat the sequence", 1, 50)}), &[], out(json!({"focusElement": any()}), &[])),
-        def("app_pointer", "Pointer on the window: click, dblclick, rightclick, click-hold, hover, drag (to or path), scroll (dx, dy), at {x,y} window px or on a node, with mods (\"cmd+shift\"). OS file drops are not simulated.", true, json!({
+        def("app_key", "Send key combos to the window as the person would: keys like \"cmd+shift+n\", \"escape\", \"ctrl+tab ctrl+tab\" (cmd = ⌘ on macOS, Ctrl elsewhere); text types into the focused field. The window is shared: pass expectWorkspaceId and the call fails with WINDOW_MOVED instead of typing into another workspace.", true, json!({"keys": json!({"type": ["string", "array"], "description": "Combo(s)"}), "text": s("Text to type"), "repeat": i("Repeat the sequence", 1, 50), "expectWorkspaceId": s("Fail with WINDOW_MOVED when the window shows another workspace")}), &[], out(json!({"focusElement": any()}), &[])),
+        def("app_pointer", "Pointer on the window: click, dblclick, rightclick, click-hold, hover, drag (to or path), scroll (dx, dy), at {x,y} window px or on a node, with mods (\"cmd+shift\"). OS file drops are not simulated. The answer says what was under the pointer (hit {nodeId, title, kind} or null) and, for a drag, whether that node moved (drag {nodeId, moved, dx, dy}). The window is shared: pass expectWorkspaceId and the call fails with WINDOW_MOVED instead of acting on another workspace.", true, json!({
+            "expectWorkspaceId": s("Fail with WINDOW_MOVED when the window shows another workspace"),
             "action": e(&["click", "dblclick", "rightclick", "click-hold", "hover", "move", "drag", "scroll"], "Action"), "at": schemas::point("{x, y} window px"), "nodeId": node(), "to": json!({"type": ["object", "string"], "properties": {"x": ty("number"), "y": ty("number")}, "description": "{x, y} or a node id"}),
             "path": json!({"type": "array", "items": {"type": "array", "items": {"type": "number"}, "minItems": 2, "maxItems": 2}, "description": "[[x, y], ...]"}), "mods": s("Modifiers"), "dx": n("Scroll x"), "dy": n("Scroll y"), "ms": i("Hold time", 1, 10000), "file": s("Not supported")
-        }), &["action"], out(json!({"at": any()}), &[])),
+        }), &["action"], out(json!({"at": any(), "hit": any(), "drag": any(), "target": any()}), &[])),
         def("app_menu", "List or run the canvas menus (the right-click Node and Add menus, View, Workspace). Without `path` (or with list=true) returns the menu tree in context; with a path like \"View > Tidy\", \"Add > Terminal > Claude Code\", \"Node > Lift element\" or \"Workspace > Copy Path\" runs that entry. `nodeId` = the node the Node menu is about; `at` = canvas point for Add.", true, json!({"path": s("Menu path, segments separated by '>' (labels or ids, case-insensitive)"), "list": b("List the entries under `path` instead of running it"), "nodeId": node(), "at": schemas::point("Canvas point {x, y} for Add entries (default: centre of the view)")}), &[], out(json!({"menus": any(), "invoked": ty("string"), "id": ty("string"), "label": ty("string"), "result": any(), "path": any(), "selection": any(), "lifted": any(), "docked": any()}), &[])),
-        def("app_settings_get", "OmniGet settings (all, or one dotted key). Credentials are redacted.", false, json!({"key": s("Dotted key")}), &[], out(json!({"settings": any(), "key": any(), "value": any()}), &[])),
+        def("app_settings_get", "OmniGet settings (all, or one dotted key). Credentials are redacted. describe=true answers in the words of the Settings screen: a list of {key, label, help, values, value} for the canvas settings (canvas.images.*, canvas.performance.*, zoom and pointer options); key then filters by prefix.", false, json!({"key": s("Dotted key (with describe: a prefix such as canvas.images)"), "describe": b("Labels, help and allowed values as the Settings screen shows them")}), &[], out(json!({"settings": any(), "key": any(), "value": any()}), &[])),
         def("app_settings_set", "Change one OmniGet setting by dotted key, through the same merge the settings screen uses. Canvas keys may use the Maestri shape (canvas.zoom_step, defaults.note.size, terminal.theme, power.prevent_sleep, agent.presets.<name> = {command, args, env, icon, color, maestro, startInChatMode}; null removes a preset). Unknown keys fail; the bridge, MCP and credentials are protected.", true, json!({"key": s("Dotted key"), "value": any()}), &["key", "value"], out(json!({"key": ty("string"), "value": any(), "applied": ty("boolean")}), &["key"])),
         def("app_restart", "Quit and relaunch the app (the answer comes before the restart).", true, json!({}), &[], out(json!({"restarting": ty("boolean")}), &["restarting"])),
         def("app_notifications_list", "Notifications the canvas raised (system notifications and in-canvas notices), newest first.", false, json!({"limit": i("Items", 1, 200), "clear": b("Clear after reading")}), &[], list_out("notifications")),
@@ -481,7 +484,6 @@ fn build_defs() -> Vec<Def> {
         def("floor_hooks_set", "Replace the workspace's floor hooks (floor_hooks_get shape).", true, json!({"workspaceId": ws(), "hooks": schemas::floor_hooks()}), &["hooks"], obj_out("hooks")),
         def("canvas_select", "Select nodes in the canvas window (empty list clears).", true, json!({"nodeIds": strs("Node ids")}), &["nodeIds"], out(json!({"selection": arr(ty("string"))}), &["selection"])),
         def("canvas_node_duplicate", "Duplicate a node next to it (a terminal gets its own new process; a note copies its text).", true, json!({"nodeId": node(), "x": n("Left"), "y": n("Top")}), &["nodeId"], out(json!({"node": ty("object"), "terminal": any()}), &["node"])),
-        def("canvas_node_focus", "Fly to a node in the canvas window and give it the keyboard (switches workspace/floor when needed).", true, json!({"nodeId": node()}), &["nodeId"], out(json!({"focus": any()}), &[])),
         def("canvas_node_lift", "Lift a node into the central panel at real size (Maestri lift), or put it back with lifted=false. Kept per workspace across switches and relaunch; the window is brought to the node's workspace and floor.", true, json!({"nodeId": node(), "lifted": b("true lifts (default), false puts it back")}), &["nodeId"], out(json!({"workspaceId": ty("string"), "floorId": ty("string"), "nodeId": ty("string"), "lifted": any(), "docked": any(), "window": any()}), &["lifted", "docked"])),
         def("canvas_node_dock", "Dock a node as a full-height column on the left or right edge (the canvas pans underneath), or undock with edge=none. Width snaps to the 20 pt grid.", true, json!({"nodeId": node(), "edge": e(&["left", "right", "none"], "Edge (default right)"), "width": n("Column width in screen px (default 520)")}), &["nodeId"], out(json!({"workspaceId": ty("string"), "floorId": ty("string"), "nodeId": ty("string"), "lifted": any(), "docked": any(), "window": any()}), &["lifted", "docked"])),
         def("canvas_group_update", "Rename or recolor a group; rotateBy turns a drawing group around its centre.", true, json!({"workspaceId": ws(), "floorId": floor(), "groupId": s("Group id"), "name": s("Name"), "color": s("Color"), "rotateBy": n("Degrees to turn a drawing group (clockwise)")}), &["groupId"], obj_out("group")),
@@ -490,8 +492,6 @@ fn build_defs() -> Vec<Def> {
             "workspaceId": ws(), "floorId": floor(), "mine": b("Undo this MCP client's own edits (implied by workspaceId)"), "steps": i("How many of your edits (default 1)", 1, 50)
         }), &[], out(json!({"ok": ty("boolean"), "undone": ty("integer"), "remaining": ty("integer"), "ops": arr(ty("object"))}), &[])),
         def("canvas_redo", "Redo in the canvas window.", true, json!({}), &[], out(json!({"ok": ty("boolean")}), &[])),
-        def("canvas_camera_get", "Camera of the canvas window (live), or the floor's saved camera when the window is not on the canvas.", false, json!({"workspaceId": ws(), "floorId": floor()}), &[], out(json!({"camera": ty("object"), "source": ty("string")}), &["camera"])),
-        def("canvas_camera_set", "Move the camera of the canvas window (x, y = world point at the top-left; zoom 0.1 to 3), or of the saved floor when the window is elsewhere.", true, json!({"x": n("World x"), "y": n("World y"), "zoom": n("Zoom"), "animate": b("Fly there"), "fit": b("Fit everything"), "workspaceId": ws(), "floorId": floor()}), &[], out(json!({"camera": ty("object"), "source": ty("string")}), &["camera"])),
         def("canvas_search", "Search a workspace's nodes by title, text, note content, URL and path (all floors).", false, json!({"query": s("Text"), "workspaceId": ws(), "limit": i("Hits", 1, 200)}), &["query"], list_out("hits")),
         def("canvas_cord_list", "Cords of a floor, or the ones touching a node (with the names of both ends).", false, json!({"nodeId": node(), "workspaceId": ws(), "floorId": floor()}), &[], list_out("cords")),
         def("canvas_tie_create", "Tie cords together at a point (a cable tie).", true, json!({"cordIds": strs("Cord ids"), "x": n("World x"), "y": n("World y")}), &["cordIds", "x", "y"], obj_out("tie")),
@@ -499,7 +499,7 @@ fn build_defs() -> Vec<Def> {
         destructive(def("canvas_tie_delete", "Remove a cable tie (the cords stay).", true, json!({"tieId": s("Tie id"), "workspaceId": ws(), "floorId": floor()}), &["tieId"], removed_out.clone())),
         def("canvas_drawing_update", "Change a drawing (fields merged: color, lineWidth, points, origin, textContent...).", true, json!({"drawingId": s("Drawing id"), "patch": schemas::free("Drawing fields to merge (color, lineWidth, points, origin, textContent...)"), "workspaceId": ws(), "floorId": floor()}), &["drawingId", "patch"], out(json!({"drawing": any(), "rev": ty("integer")}), &["drawing"])),
         def("canvas_terminal_wait", "Wait until a terminal's screen matches a regex and/or its state becomes one of the given (idle, working, attention, waiting, blocked, exited, unloaded; ready = idle, needs_you = blocked, done = attention), up to timeoutMs. An unknown state is refused at once.", false, json!({
-            "nodeId": node(), "pattern": s("Regex over the last lines (use (?m) for ^/$ per line)"), "state": json!({"type": ["string", "array"], "description": "State or states"}), "lines": i("Lines searched (default 200)", 1, 2000), "timeoutMs": i("Limit (default 30000)", 100, 300000)
+            "nodeId": node(), "pattern": s("Regex over the last lines (use (?m) for ^/$ per line)"), "state": json!({"type": ["string", "array"], "description": "State or states"}), "lines": i("Lines searched (default 200)", 1, 2000), "timeoutMs": i("Limit (default 30000)", 100, 300000), "stopOnBlocked": b("Return early when the agent asks the person something (default: true without pattern; with pattern only when the question is certain, not guessed from an old line on screen)")
         }), &["nodeId"], out(json!({"matched": ty("boolean"), "state": ty("string"), "match": any(), "text": ty("string"), "waitedMs": ty("integer")}), &["matched"])),
         def("canvas_terminal_settings_get", "A terminal node's own settings: agent, command, cwd, role, maestro, env, appearance, chat mode, activity monitor, preset.", false, json!({"nodeId": node()}), &["nodeId"], obj_out("settings")),
         def("canvas_terminal_settings_set", "Change a terminal node's own settings (agent, command, cwd, roleId, maestro, env, environment, appearance, prefersChatMode, monitorActivity). A new agent/command/cwd/env applies on the next restart; env cannot set PATH, HOME or OMNIGET_*; a new environment restarts it.", true, json!({
@@ -554,6 +554,7 @@ fn build_defs() -> Vec<Def> {
         test_only(def("host_fs_write", "Test only: write a file on this computer.", true, json!({"path": s("Path (~ allowed)"), "text": s("Content"), "append": b("Append"), "executable": b("chmod +x")}), &["path", "text"], out(json!({"path": ty("string"), "bytes": ty("integer")}), &["path"]))),
     ];
     all.extend(activity::defs());
+    all.extend(view::defs());
     all.extend(mcp_servers::defs());
     all.extend(assets::defs());
     all
@@ -1094,6 +1095,14 @@ fn rotate_drawing_group(d: &FloorDoc, gid: &str, deg: f64) -> Vec<Op> {
         .collect()
 }
 
+fn expect_ws(a: &Value) -> Value {
+    let mut a = a.clone();
+    if let Some(w) = st(&a, "expectWorkspaceId") {
+        a["expectWorkspaceId"] = json!(ws_of(&json!({ "workspaceId": w })));
+    }
+    a
+}
+
 fn ws_floor(s: &CanvasStore, a: &Value) -> Result<(String, String), String> {
     let ws = ws_of(a);
     let w = s.workspace(&ws)?;
@@ -1283,7 +1292,9 @@ fn mask_emails(v: Value) -> Value {
     match v {
         Value::String(t) => Value::String(re.replace_all(&t, "[e-mail hidden]").into_owned()),
         Value::Array(items) => Value::Array(items.into_iter().map(mask_emails).collect()),
-        Value::Object(map) => Value::Object(map.into_iter().map(|(k, x)| (k, mask_emails(x))).collect()),
+        Value::Object(map) => {
+            Value::Object(map.into_iter().map(|(k, x)| (k, mask_emails(x))).collect())
+        }
         other => other,
     }
 }
@@ -1793,6 +1804,7 @@ async fn dispatch(app: &AppHandle, name: &str, a: Value) -> Result<Value, String
         }
         "canvas_council" | "canvas_council_status" => council::call(&app, name, &a).await,
         n if activity::owns(n) => activity::call(&app, n, &a).await,
+        n if view::owns(n) => view::call(&app, n, &a).await,
         n if mcp_servers::owns(n) => mcp_servers::call(&app, n, &a).await,
         n if n.starts_with("canvas_generate_") => generate::call(&app, name, &a).await,
         n if n.starts_with("canvas_artifact_") => artifacts::call(&app, name, &a).await,
@@ -1891,8 +1903,26 @@ async fn dispatch(app: &AppHandle, name: &str, a: Value) -> Result<Value, String
         "canvas_terminals_list" => terminals_list(&s, &a),
         "canvas_terminal_ensure" => {
             let (ws, floor, n, _) = terminal_node(&s, &a, "nodeId")?;
+            let trust = flag(&a, "trust") == Some(true);
+            if trust && crate::canvas::launch::agent_of(&n) == "claude" {
+                let op = Op::update_node(&n.id, json!({ "data": { "trustFolder": true } }));
+                let s2 = s.clone();
+                let (w2, f2) = (ws.clone(), floor.clone());
+                blocking(move || apply(&s2, &w2, &f2, vec![op])).await?;
+            }
             let tid = crate::canvas::launch::ensure_running(&ws, &floor, &n.id).await?;
-            Ok(terminal_json(&n.id, &tid))
+            let mut out = terminal_json(&n.id, &tid);
+            if trust {
+                match crate::canvas::launch::answer_trust(&ws, &tid).await {
+                    Ok(t) => out["trusted"] = json!(t),
+                    Err(e) => out["warning"] = json!(e),
+                }
+            }
+            if let Some(g) = crate::canvas::launch::needs_of(&tid) {
+                out["needs"] = json!(g.needs());
+                out["needsHint"] = json!(g.hint());
+            }
+            Ok(out)
         }
         "canvas_terminal_run" => {
             let (ws, floor, n, _) = terminal_node(&s, &a, "nodeId")?;
@@ -1900,9 +1930,24 @@ async fn dispatch(app: &AppHandle, name: &str, a: Value) -> Result<Value, String
             let text = a["command"].as_str().unwrap_or("").to_string();
             let paste = flag(&a, "paste").unwrap_or(false);
             let submit = flag(&a, "submit").unwrap_or(true);
+            let agent = crate::canvas::launch::agent_of(&n) != "shell";
+            if agent
+                && submit
+                && !text.is_empty()
+                && (crate::canvas::launch::agent_busy(&tid)
+                    || crate::canvas::launch::first_prompt_pending(&tid)
+                    || crate::canvas::launch::queued_runs(&tid) > 0)
+            {
+                let at = crate::canvas::launch::queue_run(&tid, text.clone(), paste);
+                return Ok(json!({
+                    "nodeId": n.id, "terminalId": tid, "sent": 0, "submitted": false,
+                    "queued": true, "queuePosition": at,
+                    "note": "the agent is working or still starting: the text waits and is typed and submitted when it is ready for input",
+                }));
+            }
             let m = crate::canvas::term::host(&app);
             let (t2, txt) = (tid.clone(), text.clone());
-            blocking(move || {
+            let submitted = blocking(move || {
                 if !txt.is_empty() {
                     if paste {
                         m.paste(&t2, &txt)?;
@@ -1915,13 +1960,29 @@ async fn dispatch(app: &AppHandle, name: &str, a: Value) -> Result<Value, String
                         std::thread::sleep(std::time::Duration::from_millis(80));
                     }
                     m.submit(&t2)?;
+                    if agent && !txt.is_empty() {
+                        for _ in 0..2 {
+                            std::thread::sleep(std::time::Duration::from_millis(700));
+                            let screen = m.screen_text(&t2, 0).map(|x| x.text).unwrap_or_default();
+                            if !crate::canvas::launch::composer_holds(&screen, &txt) {
+                                return Ok(true);
+                            }
+                            m.submit(&t2)?;
+                        }
+                        let screen = m.screen_text(&t2, 0).map(|x| x.text).unwrap_or_default();
+                        return Ok(!crate::canvas::launch::composer_holds(&screen, &txt));
+                    }
                 }
-                Ok(())
+                Ok(submit)
             })
             .await?;
-            Ok(
-                json!({ "nodeId": n.id, "terminalId": tid, "sent": text.chars().count(), "submitted": submit }),
-            )
+            let mut out = json!({ "nodeId": n.id, "terminalId": tid, "sent": text.chars().count(), "submitted": submitted });
+            if submit && !submitted {
+                out["warning"] = json!(
+                    "the text is still in the agent's input box; canvas_terminal_read shows it"
+                );
+            }
+            Ok(out)
         }
         "canvas_terminal_input" => {
             let (ws, floor, n, _) = terminal_node(&s, &a, "nodeId")?;
@@ -1967,9 +2028,14 @@ async fn dispatch(app: &AppHandle, name: &str, a: Value) -> Result<Value, String
                 .clamp(1, 50);
             let m = crate::canvas::term::host(&app);
             let t2 = tid.clone();
+            let plain_enter = mods == 0 && key == "Enter";
             blocking(move || {
                 for _ in 0..times {
-                    m.key(&t2, &input)?;
+                    if plain_enter {
+                        m.submit(&t2)?;
+                    } else {
+                        m.key(&t2, &input)?;
+                    }
                 }
                 Ok(())
             })
@@ -2006,22 +2072,7 @@ async fn dispatch(app: &AppHandle, name: &str, a: Value) -> Result<Value, String
         }
         "canvas_terminal_restart" => {
             let (ws, floor, n, tid) = terminal_node(&s, &a, "nodeId")?;
-            let m = crate::canvas::term::host(&app);
-            if m.info(&tid).is_some() {
-                m.close(&tid, false)?;
-            }
-            crate::canvas::chat::emit(
-                crate::canvas::roles::EVENT_ROLE,
-                crate::canvas::roles::RoleEvent {
-                    workspace_id: ws.clone(),
-                    floor_id: floor.clone(),
-                    node_id: n.id.clone(),
-                    terminal_id: tid.clone(),
-                    role_id: n.data_str("roleId").map(str::to_string),
-                    restart: true,
-                },
-            );
-            let tid = crate::canvas::launch::ensure_running(&ws, &floor, &n.id).await?;
+            let tid = restart_terminal(&app, &ws, &floor, &n, &tid).await?;
             Ok(terminal_json(&n.id, &tid))
         }
         "canvas_terminal_unload" | "canvas_terminal_kill" => {
@@ -2566,8 +2617,11 @@ async fn dispatch(app: &AppHandle, name: &str, a: Value) -> Result<Value, String
             }
             super::canvas_ui::screenshot(&app, &a2).await
         }
-        "app_key" => super::canvas_ui::ui(&app, "key", a.clone()).await,
-        "app_pointer" => super::canvas_ui::ui(&app, "pointer", a.clone()).await,
+        "app_key" => super::canvas_ui::ui(&app, "key", expect_ws(&a)).await,
+        "app_pointer" => super::canvas_ui::ui(&app, "pointer", expect_ws(&a)).await,
+        "app_settings_get" if flag(&a, "describe") == Some(true) => {
+            settings::describe(&app, st(&a, "key").as_deref())
+        }
         "app_settings_get" => settings::get(&app, st(&a, "key").as_deref()),
         "app_settings_set" => settings::set(&app, &need(&a, "key")?, a["value"].clone()),
         "app_restart" => {
@@ -2700,15 +2754,6 @@ async fn dispatch(app: &AppHandle, name: &str, a: Value) -> Result<Value, String
             }
             super::canvas_ui::ui(&app, "select", json!({ "nodeIds": ids })).await
         }
-        "canvas_node_focus" => {
-            let (ws, floor, n) = locate_arg(&s, &a, "nodeId")?;
-            super::canvas_ui::ui(
-                &app,
-                "focus",
-                json!({ "nodeId": n.id, "workspaceId": ws, "floorId": floor }),
-            )
-            .await
-        }
         "canvas_node_duplicate" => duplicate(&app, &s, &a).await,
         "canvas_clipboard" => clipboard::call(&app, &a).await,
         t if assets::NAMES.contains(&t) => assets::call(&app, &s, t, &a).await,
@@ -2768,48 +2813,6 @@ async fn dispatch(app: &AppHandle, name: &str, a: Value) -> Result<Value, String
             )
         }
         "canvas_redo" => super::canvas_ui::ui(&app, "redo", json!({})).await,
-        "canvas_camera_get" => match super::canvas_ui::ui(&app, "camera", json!({})).await {
-            Ok(mut v) => {
-                v["source"] = json!("window");
-                Ok(v)
-            }
-            Err(_) => {
-                let (ws, floor) = ws_floor(&s, &a)?;
-                let cam = s.read(&ws, &floor, |d| d.camera)?;
-                Ok(json!({ "camera": to_value(cam)?, "source": "saved" }))
-            }
-        },
-        "canvas_camera_set" => {
-            let op = if flag(&a, "fit") == Some(true) {
-                "fit"
-            } else {
-                "camera"
-            };
-            match super::canvas_ui::ui(&app, op, a.clone()).await {
-                Ok(mut v) => {
-                    v["source"] = json!("window");
-                    Ok(v)
-                }
-                Err(e) if e.starts_with("CANVAS_NOT_OPEN") || e.starts_with("UI_") => {
-                    let (ws, floor) = ws_floor(&s, &a)?;
-                    let mut cam = s.read(&ws, &floor, |d| d.camera)?;
-                    if let Some(x) = num(&a, "x") {
-                        cam.x = x;
-                    }
-                    if let Some(y) = num(&a, "y") {
-                        cam.y = y;
-                    }
-                    if let Some(z) = num(&a, "zoom") {
-                        cam.zoom = z.clamp(0.1, 3.0);
-                    }
-                    let s2 = s.clone();
-                    blocking(move || apply(&s2, &ws, &floor, vec![Op::SetCamera { camera: cam }]))
-                        .await?;
-                    Ok(json!({ "camera": to_value(cam)?, "source": "saved" }))
-                }
-                Err(e) => Err(e),
-            }
-        }
         "canvas_search" => search(&s, &a),
         "canvas_cord_list" => cord_list(&s, &a),
         "canvas_tie_create" => {
@@ -3244,12 +3247,15 @@ fn terminal_json(node_id: &str, tid: &str) -> Value {
 
 fn default_cord_kind(a: &CanvasNode, b: &CanvasNode) -> ConnectionKind {
     let is = |k: NodeKind| a.kind == k || b.kind == k;
+    let agents = crate::canvas::launch::is_terminal(a) && crate::canvas::launch::is_terminal(b);
     if is(NodeKind::Note) || is(NodeKind::Stack) {
         ConnectionKind::Note
     } else if is(NodeKind::Portal) {
         ConnectionKind::Portal
-    } else {
+    } else if agents {
         ConnectionKind::Ask
+    } else {
+        ConnectionKind::Note
     }
 }
 
@@ -3459,6 +3465,9 @@ async fn spawn(app: &AppHandle, s: &Arc<CanvasStore>, a: &Value) -> Result<Value
         }
         if let Some(p) = st(a, "prompt").filter(|p| !p.trim().is_empty()) {
             n.data["initialPrompt"] = json!(p);
+        }
+        if flag(a, "trust") == Some(true) && agent == "claude" {
+            n.data["trustFolder"] = json!(true);
         }
         n
     } else {
@@ -4157,6 +4166,7 @@ async fn portal_drive(
 
 fn terminal_status(app: &AppHandle, ws: &str, floor: &str, n: &CanvasNode, tid: &str) -> Value {
     let info = crate::canvas::term::host(app).info(tid);
+    let needs = crate::canvas::launch::needs_of(tid);
     let fused = crate::canvas::cords::host().node_state(&n.id);
     let canonical = fused
         .as_ref()
@@ -4193,6 +4203,8 @@ fn terminal_status(app: &AppHandle, ws: &str, floor: &str, n: &CanvasNode, tid: 
         "title": info.as_ref().and_then(|i| i.osc_title.clone()),
         "cwd": info.as_ref().and_then(|i| i.osc_cwd.clone().or(i.cwd.clone())),
         "firstPromptPending": crate::canvas::launch::first_prompt_pending(tid),
+        "needs": needs.as_ref().map(|g| g.needs()),
+        "needsHint": needs.as_ref().map(|g| g.hint()),
     })
 }
 
@@ -4274,7 +4286,13 @@ async fn terminal_wait(app: &AppHandle, s: &Arc<CanvasStore>, a: &Value) -> Resu
                 json!({ "matched": true, "state": state, "match": hit, "text": text, "waitedMs": waited }),
             );
         }
-        if state == "blocked" && !states.iter().any(|x| x == "blocked") && waited >= 1500 {
+        let guessed = status["canonical"]["confidence"].as_str() == Some("estimated");
+        let stop_on_blocked = flag(a, "stopOnBlocked").unwrap_or(re.is_none() || !guessed);
+        if stop_on_blocked
+            && state == "blocked"
+            && !states.iter().any(|x| x == "blocked")
+            && waited >= 1500
+        {
             return Ok(json!({
                 "matched": false, "state": state, "match": hit, "text": text, "waitedMs": waited,
                 "blockedOnPerson": true,
@@ -4288,6 +4306,31 @@ async fn terminal_wait(app: &AppHandle, s: &Arc<CanvasStore>, a: &Value) -> Resu
         }
         tokio::time::sleep(std::time::Duration::from_millis(250)).await;
     }
+}
+
+pub(crate) async fn restart_terminal(
+    app: &AppHandle,
+    ws: &str,
+    floor: &str,
+    n: &CanvasNode,
+    tid: &str,
+) -> Result<String, String> {
+    let m = crate::canvas::term::host(app);
+    if m.info(tid).is_some() {
+        m.close(tid, false)?;
+    }
+    crate::canvas::chat::emit(
+        crate::canvas::roles::EVENT_ROLE,
+        crate::canvas::roles::RoleEvent {
+            workspace_id: ws.to_string(),
+            floor_id: floor.to_string(),
+            node_id: n.id.clone(),
+            terminal_id: tid.to_string(),
+            role_id: n.data_str("roleId").map(str::to_string),
+            restart: true,
+        },
+    );
+    crate::canvas::launch::ensure_running(ws, floor, &n.id).await
 }
 
 fn terminal_settings(n: &CanvasNode) -> Value {
@@ -4386,11 +4429,7 @@ async fn terminal_settings_set(
         .ok_or("CANVAS_NOT_FOUND: node vanished")?;
     if flag(a, "restart") == Some(true) {
         let t = crate::canvas::launch::terminal_of(&n2).unwrap_or(tid);
-        let m = crate::canvas::term::host(app);
-        if m.info(&t).is_some() {
-            m.close(&t, false)?;
-        }
-        crate::canvas::launch::ensure_running(&ws, &floor, &n2.id).await?;
+        restart_terminal(app, &ws, &floor, &n2, &t).await?;
     }
     Ok(json!({ "settings": terminal_settings(&n2) }))
 }

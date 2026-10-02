@@ -7,12 +7,12 @@
   let enabled = $derived(getSettings()?.world?.enabled ?? true);
 </script>
 
-<div class="world-page" class:fill={enabled}>
-  <header class="world-head">
-    <h1>{$t("world.title")}</h1>
-    <p class="world-sub">{$t("world.subtitle")}</p>
-  </header>
+<svelte:head>
+  <title>{$t("world.title")}</title>
+</svelte:head>
 
+<div class="world-page" class:fill={enabled}>
+  <h1 class="sr-only">{$t("world.title")}</h1>
   {#if enabled}
     <div class="place-canvas">
       <Canvas workspaceId={lastWorkspaceId()} />
@@ -24,31 +24,29 @@
 
 <style>
   .world-page {
-    padding: 1.5rem;
     display: flex;
     flex-direction: column;
-    gap: 1rem;
+    padding: 1.5rem;
   }
   .world-page.fill {
     flex: 1;
     min-height: 0;
+    padding: 0;
     box-sizing: border-box;
   }
   .place-canvas {
     position: relative;
     flex: 1;
-    min-height: 24rem;
-    border-radius: 12px;
+    min-height: 0;
     overflow: hidden;
   }
-  .world-head h1 {
-    margin: 0;
-    font-size: 1.4rem;
-  }
-  .world-sub {
-    margin: 0.25rem 0 0;
-    opacity: 0.7;
-    font-size: 0.85rem;
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
   }
   .world-off {
     margin: 0;

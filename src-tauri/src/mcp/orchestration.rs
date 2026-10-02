@@ -151,7 +151,7 @@ pub fn tools() -> Vec<ToolDef> {
     let control = json!({"missionId":id_schema,"idempotencyKey":{"type":"string","minLength":1,"maxLength":100}});
     let specs=vec![
         ("agents_list","List only executor IDs selected in this client's current local execution grants; no private agent settings.",json!({}),json!([])),
-        ("workspaces_list","List granted workspace IDs, never host paths.",json!({}),json!([])),
+        ("workspaces_list","Execution grants of this connection: the workspace IDs it may run missions in, never host paths. Not the canvas workspaces: workspace_list lists those.",json!({}),json!([])),
         ("missions_list","Bounded stable ID pagination of missions owned by this principal and bound to external authority.",page_schema,json!([])),
         ("missions_get","Read owned mission/task metadata. Historical state is not a fresh artifact verification.",mission.clone(),json!(["missionId"])),
         ("missions_events","Read owned event metadata by sequence; arbitrary payloads are deliberately omitted.",json!({"missionId":id_schema,"afterSeq":{"type":"integer","minimum":0},"limit":{"type":"integer","minimum":1,"maximum":100,"default":25}}),json!(["missionId"])),

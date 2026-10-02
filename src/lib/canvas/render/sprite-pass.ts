@@ -4,6 +4,7 @@ import type { CanvasEngine } from '../engine.svelte';
 import { isTerminalKind } from '../model/types';
 import { agentStates, STATE_COLORS, type AgentState } from '../state/agents.svelte';
 import { hexToRgba, withAlpha, type Rgba } from './color';
+import { labelPriority, placeLabels } from './labels';
 import type { FrameInfo, GlPass, NodeView } from './gl-layer';
 import { QuadBatch, uploadTexture } from './quads';
 import { SdfBatch } from './sdf-shapes';
@@ -212,7 +213,7 @@ export function createSpritePass(engine: CanvasEngine, colors: () => { ink: Rgba
       sdf.begin();
       sprites.begin();
       texts.begin();
-      const labels: Array<{ h: ReturnType<typeof label>; x: number; y: number }> = [];
+      const wanted: Array<{ t: ReturnType<typeof label>; x: number; y: number; w: number; h: number; priority: number }> = [];
       for (const v of far) {
         const sx = (v.x - cam.x) * z;
         const sy = (v.y - cam.y) * z;
@@ -221,10 +222,18 @@ export function createSpritePass(engine: CanvasEngine, colors: () => { ink: Rgba
         if (isTerminalKind(v.kind)) drawAgent(v, t, sx, sy, sw, sh, ink);
         const title = v.title ?? '';
         if (title) {
-          const h = label(title, '#ffffff');
-          labels.push({ h, x: sx + sw / 2 - h.w / 2, y: isTerminalKind(v.kind) ? sy + sh * 0.78 + 18 : sy + sh / 2 - h.h / 2 });
+          const t = label(title, '#ffffff');
+          wanted.push({
+            t,
+            x: sx + sw / 2 - t.w / 2,
+            y: isTerminalKind(v.kind) ? sy + sh * 0.78 + 18 : sy + sh / 2 - t.h / 2,
+            w: t.w,
+            h: t.h,
+            priority: labelPriority(v.kind, v.w, v.h, isTerminalKind(v.kind), engine.selection.has(v.id)),
+          });
         }
       }
+      const labels = placeLabels(wanted, 3);
       sdf.flush(g, frame.viewport.w, frame.viewport.h);
       if (sheetTex) sprites.flush(g, sheetTex, frame.viewport.w, frame.viewport.h);
       if (labels.length && textAtlas.page) {
@@ -233,7 +242,7 @@ export function createSpritePass(engine: CanvasEngine, colors: () => { ink: Rgba
           textVersion = textAtlas.version;
         }
         for (const l of labels) {
-          const r = textAtlas.rect(l.h.id);
+          const r = textAtlas.rect(l.t.id);
           if (!r) continue;
           const uv = textUV(r, textAtlas.size);
           texts.quad({ page: 0, sx: Math.round(l.x), sy: Math.round(l.y), w: r.w, h: r.h, ...uv });

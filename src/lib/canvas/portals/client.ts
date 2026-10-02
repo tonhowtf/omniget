@@ -53,8 +53,8 @@ export function openPortal(a: OpenArgs): Promise<PortalState> {
   return invoke<PortalState>('canvas_portal_open', { ...a });
 }
 
-export function closePortal(nodeId: string): Promise<void> {
-  snapshots.delete(nodeId);
+export function closePortal(nodeId: string, keepSnapshot = false): Promise<void> {
+  if (!keepSnapshot) snapshots.delete(nodeId);
   return invoke('canvas_portal_close', { nodeId });
 }
 

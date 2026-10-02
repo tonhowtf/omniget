@@ -18,7 +18,7 @@ use sha2::{Digest, Sha256};
 use tauri::{AppHandle, Emitter};
 
 pub const EVENT_PROGRESS: &str = "canvas://generate-progress";
-pub const ORIGIN: &str = "generate";
+pub const VIA: &str = "generate";
 const MAX_REFERENCE: u64 = 25 * 1024 * 1024;
 const POLL_EVERY: Duration = Duration::from_secs(3);
 const POLL_FOR: Duration = Duration::from_secs(20 * 60);
@@ -37,6 +37,7 @@ static APP: OnceLock<AppHandle> = OnceLock::new();
 type Cached<T> = LazyLock<Mutex<HashMap<String, (Instant, T)>>>;
 static SCHEMAS: Cached<ModelSchema> = LazyLock::new(|| Mutex::new(HashMap::new()));
 static MODELS: Cached<Vec<ModelSummary>> = LazyLock::new(|| Mutex::new(HashMap::new()));
+static BY: LazyLock<Mutex<HashMap<String, String>>> = LazyLock::new(|| Mutex::new(HashMap::new()));
 static POLLING: LazyLock<Mutex<std::collections::HashSet<String>>> =
     LazyLock::new(|| Mutex::new(Default::default()));
 
@@ -69,13 +70,60 @@ fn emit(ws: &str, node: &str, body: Value) {
     let _ = app.emit(EVENT_PROGRESS, v);
 }
 
+pub fn requested_by(node_id: &str, origin: &str) {
+    let origin = origin.trim();
+    if node_id.is_empty() || origin.is_empty() || origin.contains('#') {
+        return;
+    }
+    let mut by = BY.lock().unwrap_or_else(|e| e.into_inner());
+    if by.len() > 1024 && !by.contains_key(node_id) {
+        by.clear();
+    }
+    by.insert(node_id.to_string(), origin.chars().take(80).collect());
+}
+
+fn origin_for(node_id: &str, step: &str, detail: Option<&str>) -> String {
+    let by = BY
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .get(node_id)
+        .cloned()
+        .unwrap_or_else(|| "system".into());
+    let mut o = format!("{by}#{VIA}:{step}");
+    if let Some(d) = detail {
+        o.push(':');
+        o.extend(d.chars().filter(|c| *c != '#').take(32));
+    }
+    o
+}
+
+fn step_of(data: &Value) -> (&'static str, Option<String>) {
+    match data["state"].as_str() {
+        Some("quoted") | Some("awaiting_approval") => (
+            "quoted",
+            data["quote"]["credits"]
+                .as_f64()
+                .map(|c| format!("{c} credits")),
+        ),
+        Some("running") if data.get("intentId").is_some() => ("submitted", None),
+        Some("running") => ("progress", None),
+        Some("done") => ("generated", None),
+        Some("failed") => ("failed", None),
+        Some("uncertain") => ("uncertain", None),
+        Some(_) => ("edited", None),
+        None if data["error"].is_string() => ("failed", None),
+        None => ("progress", None),
+    }
+}
+
 fn patch(ws: &str, floor: &str, id: &str, data: Value) -> Result<(), String> {
+    let (step, detail) = step_of(&data);
     store()
         .apply(
             ws,
             floor,
             vec![Op::update_node(id, json!({ "data": data }))],
-            ORIGIN,
+            &origin_for(id, step, detail.as_deref()),
             None,
         )
         .map(|_| ())
@@ -390,6 +438,7 @@ fn intent_json(i: &Intent) -> Value {
         "reserved": credits(i.reserved),
         "actual": i.actual.map(credits),
         "actor": i.actor,
+        "requestedBy": BY.lock().unwrap_or_else(|e| e.into_inner()).get(&i.node).cloned(),
         "version": i.version,
         "error": i.error,
     })
@@ -790,32 +839,61 @@ async fn finish(i: &Intent, job: &JobStatus, ws: &str, floor: &str) -> Result<()
         .and_then(Value::as_array)
         .cloned()
         .unwrap_or_default();
-    let dir = s
-        .workspace_dir(ws)
-        .join("files")
-        .join("assets")
-        .join("generated")
-        .join(&i.node);
-    std::fs::create_dir_all(&dir).map_err(|e| format!("CANVAS_IO: {e}"))?;
-    let ext = media::ext_for(&fetched.mime);
-    let mut n = versions.len() as i64 + 1;
-    let path = loop {
-        let p = dir.join(format!("v{n}.{ext}"));
-        match std::fs::OpenOptions::new()
-            .write(true)
-            .create_new(true)
-            .open(&p)
-        {
-            Ok(mut f) => {
-                use std::io::Write;
-                f.write_all(&fetched.bytes)
-                    .map_err(|e| format!("CANVAS_IO: {e}"))?;
-                break p;
+    let ws_dir = s.workspace_dir(ws);
+    let base = gen.title.clone().unwrap_or_else(|| "Generation".into());
+    let mut n = versions
+        .iter()
+        .filter_map(|v| v.get("version").and_then(Value::as_i64))
+        .max()
+        .unwrap_or(0)
+        .max(versions.len() as i64)
+        + 1;
+    let library = match omniget_core::core::canvas::assets::put_bytes(&ws_dir, &fetched.bytes) {
+        Ok(r) => {
+            if let Err(e) = omniget_core::core::canvas::assets::remember_generated(
+                &ws_dir,
+                &r.id,
+                &format!("{base} v{n}"),
+            ) {
+                tracing::warn!("[canvas.generate] naming the asset of {}: {e}", i.node);
             }
-            Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => n += 1,
-            Err(e) => return Err(format!("CANVAS_IO: {e}")),
+            Some(r)
+        }
+        Err(e) => {
+            tracing::warn!("[canvas.generate] {} kept outside the library: {e}", i.node);
+            None
         }
     };
+    let path = match &library {
+        Some(r) => PathBuf::from(&r.abs),
+        None => {
+            let dir = ws_dir
+                .join("files")
+                .join("assets")
+                .join("generated")
+                .join(&i.node);
+            std::fs::create_dir_all(&dir).map_err(|e| format!("CANVAS_IO: {e}"))?;
+            let ext = media::ext_for(&fetched.mime);
+            loop {
+                let p = dir.join(format!("v{n}.{ext}"));
+                match std::fs::OpenOptions::new()
+                    .write(true)
+                    .create_new(true)
+                    .open(&p)
+                {
+                    Ok(mut f) => {
+                        use std::io::Write;
+                        f.write_all(&fetched.bytes)
+                            .map_err(|e| format!("CANVAS_IO: {e}"))?;
+                        break p;
+                    }
+                    Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => n += 1,
+                    Err(e) => return Err(format!("CANVAS_IO: {e}")),
+                }
+            }
+        }
+    };
+    let asset_id = library.as_ref().map(|r| r.id.clone());
     let t = transport()?;
     let (actual, actual_ref) = actual_cost(&t, i, job).await;
     let settled = ledger.settle(
@@ -838,10 +916,7 @@ async fn finish(i: &Intent, job: &JobStatus, ws: &str, floor: &str) -> Result<()
         .unwrap_or((1.0, 1.0));
     let w = 320.0;
     let h = (w * nh / nw).clamp(120.0, 720.0);
-    let title = format!(
-        "{} v{n}",
-        gen.title.clone().unwrap_or_else(|| "Generation".into())
-    );
+    let title = format!("{base} v{n}");
     let path_s = path.to_string_lossy().to_string();
     let image_id = new_id();
     let at = s.read(ws, floor, |d| {
@@ -872,18 +947,26 @@ async fn finish(i: &Intent, job: &JobStatus, ws: &str, floor: &str) -> Result<()
         group_id: None,
         locked: false,
         stack_id: None,
-        data: json!({
-            "path": path_s,
-            "naturalW": nw,
-            "naturalH": nh,
-            "generatedBy": i.node,
-            "version": n,
-        }),
+        data: {
+            let mut d = match &library {
+                Some(r) => omniget_core::core::canvas::assets::node_data(r, None),
+                None => Map::new(),
+            };
+            if library.is_none() {
+                d.insert("path".into(), json!(path_s));
+            }
+            d.insert("naturalW".into(), json!(nw));
+            d.insert("naturalH".into(), json!(nh));
+            d.insert("generatedBy".into(), json!(i.node));
+            d.insert("version".into(), json!(n));
+            Value::Object(d)
+        },
     };
     let credits_used = credits(settled.actual.unwrap_or(settled.reserved));
     versions.push(json!({
         "version": n,
         "path": path_s,
+        "assetId": asset_id,
         "nodeId": image_id,
         "credits": credits_used,
         "creditsKnown": actual.is_some(),
@@ -923,7 +1006,14 @@ async fn finish(i: &Intent, job: &JobStatus, ws: &str, floor: &str) -> Result<()
             }}),
         ),
     ];
-    s.apply(ws, floor, ops, ORIGIN, None)?;
+    let detail = format!("v{n}, {credits_used} credits");
+    s.apply(
+        ws,
+        floor,
+        ops,
+        &origin_for(&i.node, "generated", Some(&detail)),
+        None,
+    )?;
     emit(
         ws,
         &i.node,
@@ -1002,6 +1092,7 @@ pub fn status(node_id: &str) -> Result<Value, String> {
         "quote": l.node.data.get("quote").cloned().unwrap_or(Value::Null),
         "version": versions.len(),
         "resultNodeId": l.node.data.get("lastResultNodeId").cloned().unwrap_or(Value::Null),
+        "assetId": versions.last().and_then(|v| v.get("assetId")).cloned().unwrap_or(Value::Null),
         "intent": intent.as_ref().map(intent_json),
     }))
 }
@@ -1015,6 +1106,7 @@ pub fn versions(node_id: &str) -> Result<Value, String> {
             json!({
                 "version": v.get("version"),
                 "assetPath": v.get("path"),
+                "assetId": v.get("assetId"),
                 "nodeId": v.get("nodeId"),
                 "credits": v.get("credits"),
                 "prompt": v.get("prompt"),
@@ -1080,6 +1172,7 @@ pub struct CreateSpec {
     pub used_in_node: Option<String>,
     pub refs: Vec<String>,
     pub at: Option<Point>,
+    pub by: Option<String>,
 }
 
 pub async fn create(ws: &str, floor: &str, spec: CreateSpec) -> Result<Value, String> {
@@ -1179,7 +1272,10 @@ pub async fn create(ws: &str, floor: &str, spec: CreateSpec) -> Result<Value, St
     if let Some(u) = &spec.used_in_node {
         ops.push(cord(&id, u, ConnectionKind::Note, "used in"));
     }
-    s.apply(ws, floor, ops, ORIGIN, None)?;
+    if let Some(by) = &spec.by {
+        requested_by(&id, by);
+    }
+    s.apply(ws, floor, ops, &origin_for(&id, "created", None), None)?;
     let n = s.read(ws, floor, |d| d.node(&id).cloned())?;
     Ok(json!({ "nodeId": id, "node": n, "schema": sc }))
 }

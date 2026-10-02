@@ -16,7 +16,6 @@ const SNAPSHOT_THUMBS_MAX: usize = 24;
 
 pub const NAMES: &[&str] = &[
     "canvas_image_save",
-    "canvas_asset_add",
     "canvas_asset_list",
     "canvas_asset_use",
     "canvas_asset_remove",
@@ -42,10 +41,9 @@ pub fn defs() -> Vec<Def> {
         &["asset"],
     );
     vec![
-        def("canvas_image_save", "Save an image into the workspace library (files/assets, deduplicated by content) from base64, a URL or a file path, and by default place it on the canvas as an image node. Returns the asset ({id, path, w, h, bytes}) and the node.", true, save_props.clone(), &[], save_out.clone()),
-        def("canvas_asset_add", "Same as canvas_image_save.", true, save_props, &[], save_out),
-        def("canvas_asset_list", "Images in the workspace library (newest first), with the nodes that use each one.", false, json!({
-            "workspaceId": ws(), "query": s("Filter by name, source URL or id prefix"), "cursor": s("nextCursor of the previous page"), "limit": i("Page size (default 50)", 1, 500)
+        def("canvas_image_save", "Save an image into the workspace library (files/assets, deduplicated by content) from base64, a URL or a file path, and by default place it on the canvas as an image node. Returns the asset ({id, path, w, h, bytes}) and the node.", true, save_props, &[], save_out),
+        def("canvas_asset_list", "Images in the workspace library (newest first), with the nodes that use each one; generated images carry source generated.", false, json!({
+            "workspaceId": ws(), "query": s("Filter by name, source URL or id prefix"), "cursor": s("nextCursor of the previous page"), "limit": i("Page size (default 20)", 1, 500)
         }), &[], out(json!({"assets": arr(ty("object")), "nextCursor": any(), "total": ty("integer")}), &["assets"])),
         def("canvas_asset_use", "Put an image from the workspace library on the canvas as an image node.", true, json!({
             "workspaceId": ws(), "floorId": floor(), "assetId": s("Asset id (or a unique prefix, or files/assets/<id>.<ext>)"),
@@ -129,7 +127,7 @@ pub async fn call(
     let ws_id = ws_of(a);
     let dir = cmd::ws_dir(s, &ws_id)?;
     match name {
-        "canvas_image_save" | "canvas_asset_add" => {
+        "canvas_image_save" => {
             if flag(a, "place") != Some(false) {
                 ws_floor(s, a)?;
             }
@@ -186,7 +184,7 @@ pub async fn call(
                 .min(total);
             let limit = num(a, "limit")
                 .map(|l| l as usize)
-                .unwrap_or(50)
+                .unwrap_or(20)
                 .clamp(1, 500);
             let end = (start + limit).min(total);
             let page: Vec<Value> = hits[start..end]

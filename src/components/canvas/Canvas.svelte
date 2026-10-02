@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { t } from "$lib/i18n";
+  import { agentActions } from "$lib/native-agent/actions";
   import { CanvasEngine, provideEngine } from "$lib/canvas/engine.svelte";
   import { attachGestures } from "$lib/canvas/camera/gestures";
   import { isEditableTarget, isMac, resolveKey, setShortcutOverrides, type Command } from "$lib/canvas/interaction/keyboard";
@@ -15,6 +16,7 @@
   import ScreenLayer from "./layers/ScreenLayer.svelte";
   import Toolbar from "./chrome/Toolbar.svelte";
   import ZoomControls from "./chrome/ZoomControls.svelte";
+  import AgentUsage from "./chrome/AgentUsage.svelte";
   import Minimap from "./chrome/Minimap.svelte";
   import SpawnMenu from "./chrome/SpawnMenu.svelte";
   import ArtifactsPanel from "./artifacts/ArtifactsPanel.svelte";
@@ -39,6 +41,7 @@
   import { canvasUi } from "$lib/canvas/palette/ui.svelte";
   import { switchTo } from "$lib/canvas/palette/navigate";
   import { workspaces } from "$lib/canvas/palette/workspaces.svelte";
+  import { sidebarUi } from "$lib/canvas/sidebar.svelte";
   import { PARTITURA_DRAG_TYPE } from "$lib/canvas/partituras/api";
   import { isTerminalKind } from "$lib/canvas/model/types";
   import PromptComposer from "./composer/PromptComposer.svelte";
@@ -55,6 +58,8 @@
   import CompanionPanel from "./companion/CompanionPanel.svelte";
   import VisitPanel from "./visit/VisitPanel.svelte";
   import VisitStage from "./visit/VisitStage.svelte";
+  import NewPortalDialog from "./chrome/NewPortalDialog.svelte";
+  import NewFileTreeDialog from "./chrome/NewFileTreeDialog.svelte";
 
   let { workspaceId }: { workspaceId?: string } = $props();
 
@@ -94,6 +99,14 @@
     const r = root.getBoundingClientRect();
     engine.resize(r.width, r.height, window.devicePixelRatio || 1);
 
+    engine.chromeProbe = () => {
+      if (!root) return [];
+      const base = root.getBoundingClientRect();
+      return Array.from(root.querySelectorAll<HTMLElement>("[data-canvas-occluder]")).map((el) => {
+        const r = el.getBoundingClientRect();
+        return { x: r.left - base.left, y: r.top - base.top, w: r.width, h: r.height };
+      });
+    };
     const stopPrefs = watchCanvasPrefs();
     const detachGestures = attachGestures(root, {
       zoomModifier: () => canvasPrefs().zoom_modifier,
@@ -157,6 +170,7 @@
 
     return () => {
       stopDriver();
+      engine.chromeProbe = null;
       stopPrefs();
       stopDrop();
       stopChat();
@@ -448,7 +462,8 @@
   function run(cmd: Command) {
     switch (cmd.cmd) {
       case "escape":
-        if (engine.panel) engine.panel = null;
+        if (engine.floorsView) engine.floorsView = false;
+        else if (engine.panel) engine.panel = null;
         else if (engine.spawnMenu) engine.spawnMenu = null;
         else if (engine.panels.lifted) engine.panels.lift(null);
         else if (engine.tools.busy) engine.tools.cancel();
@@ -543,7 +558,7 @@
         engine.minimapVisible = !engine.minimapVisible;
         break;
       case "floors-overview":
-        engine.panel = engine.panel?.kind === "floors" ? null : { kind: "floors" };
+        engine.floorsView = !engine.floorsView;
         break;
       case "omni-window":
         void invoke("canvas_omni_window", { show: null }).catch((err) => showToast("error", String(err)));
@@ -665,7 +680,8 @@
     termPass().refreshTheme();
   });
 
-  const sidebarW = $derived(canvasUi.sidebarOpen ? 232 : 48);
+  const sidebarW = $derived(canvasUi.sidebarOpen ? 232 : sidebarUi.mini ? 60 : 0);
+  engine.camera.insetLeft = canvasUi.sidebarOpen ? 232 : sidebarUi.mini ? 60 : 0;
   $effect(() => {
     engine.panels.sidebarW = sidebarW;
     engine.camera.insetLeft = sidebarW + engine.panels.dockWidth("left");
@@ -751,20 +767,26 @@
   ondrop={onDrop}
   style="--sidebar-w: {sidebarW}px; --dock-l: {engine.panels.dockWidth('left')}px; --dock-r: {engine.panels.dockWidth('right')}px"
 >
-  <GlLayer />
-  <div class="world-clip">
-    <WorldLayer onready={onWorldReady} />
+  <div class="stage" class:tilted={engine.floorsView}>
+    <GlLayer />
+    <div class="world-clip">
+      <WorldLayer onready={onWorldReady} />
+    </div>
+    <ScreenLayer />
   </div>
-  <ScreenLayer />
+  {#if engine.floorsView}
+    <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
+    <div class="stage-catch" data-canvas-chrome onclick={() => (engine.floorsView = false)}></div>
+  {/if}
   <RemotePresence />
   <AiActivityLayer />
 
-  <div class="top">
+  <div class="top" data-canvas-occluder>
     <Toolbar />
   </div>
   <div class="bottom-right">
-    {#if !engine.panels.lifted}<Minimap />{/if}
-    <div class="bottom-row">
+    {#if !engine.panels.lifted}<div class="minimap-slot" data-canvas-occluder><Minimap /></div>{/if}
+    <div class="bottom-row" data-canvas-occluder>
       {#if engine.syncMode === "rust" && engine.store.workspaceId}
         <FloorBar
           workspaceId={engine.store.workspaceId}
@@ -772,6 +794,20 @@
           onSwitch={(id) => void switchTo(engine, engine.store.workspaceId, id)}
         />
       {/if}
+      <AgentUsage />
+      <button
+        type="button"
+        class="map-pill"
+        use:agentActions={["click"]}
+        class:on={engine.minimapVisible}
+        data-canvas-chrome
+        title={$t("canvas.engine.toggleMinimap", { default: "Minimap" })}
+        aria-label={$t("canvas.engine.toggleMinimap", { default: "Minimap" })}
+        aria-pressed={engine.minimapVisible}
+        onclick={() => (engine.minimapVisible = !engine.minimapVisible)}
+      >
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6l6-3 6 3 6-3v15l-6 3-6-3-6 3z M9 3v15 M15 6v15" /></svg>
+      </button>
       <ZoomControls />
     </div>
   </div>
@@ -842,6 +878,10 @@
           onSwitch={(id) => void switchTo(engine, engine.store.workspaceId, id)}
           onClose={() => (engine.panel = null)}
         />
+      {:else if engine.panel.kind === "new-portal"}
+        <NewPortalDialog onclose={() => (engine.panel = null)} />
+      {:else if engine.panel.kind === "new-filetree"}
+        <NewFileTreeDialog onclose={() => (engine.panel = null)} />
       {:else if engine.panel.kind === "roles"}
         <RoleLibrary workspaceId={engine.store.workspaceId} onclose={() => (engine.panel = null)} />
       {:else if engine.panel.kind === "role-picker" && pickerNode}
@@ -893,6 +933,36 @@
   .canvas-root.tool-draw {
     cursor: crosshair;
   }
+  .stage {
+    position: absolute;
+    inset: 0;
+    transform-origin: 50% 70%;
+    transition:
+      transform 320ms cubic-bezier(0.2, 0.8, 0.2, 1),
+      border-radius 320ms ease,
+      box-shadow 320ms ease;
+  }
+  .stage.tilted {
+    transform: perspective(1400px) translateY(8%) rotateX(46deg) scale(0.66);
+    background: var(--bg);
+    border-radius: 18px;
+    overflow: hidden;
+    box-shadow: 0 40px 80px rgba(0, 0, 0, 0.3);
+    pointer-events: none;
+  }
+  .canvas-root:has(.stage.tilted) {
+    background: color-mix(in srgb, var(--bg) 86%, var(--text) 14%);
+  }
+  .stage-catch {
+    position: absolute;
+    inset: 0;
+    z-index: 9;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .stage {
+      transition: none;
+    }
+  }
   .world-clip {
     position: absolute;
     inset: 0;
@@ -932,6 +1002,33 @@
     display: flex;
     align-items: flex-end;
     gap: 8px;
+  }
+  .map-pill {
+    all: unset;
+    display: inline-grid;
+    place-items: center;
+    width: 32px;
+    height: 30px;
+    border-radius: 999px;
+    color: var(--text);
+    background: var(--popup-bg, var(--surface));
+    border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+    box-shadow:
+      0 1px 2px rgba(0, 0, 0, 0.06),
+      0 4px 14px rgba(0, 0, 0, 0.1);
+    cursor: pointer;
+  }
+  .map-pill:hover,
+  .map-pill.on {
+    background: color-mix(in srgb, var(--popup-bg, var(--surface)) 88%, var(--text) 12%);
+  }
+  .map-pill svg {
+    width: 15px;
+    height: 15px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.7;
+    stroke-linejoin: round;
   }
   .popover {
     position: absolute;

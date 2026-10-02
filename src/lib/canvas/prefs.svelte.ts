@@ -50,7 +50,7 @@ export interface CanvasPrefs {
   shortcuts?: Record<string, string>;
   skills?: { roots: Record<string, string> };
   images: { any_zoom: boolean; quality: 'light' | 'balanced' | 'sharp'; download_web: boolean };
-  performance: { mounted_terminals: number; live_portals: number; force_canvas2d: boolean };
+  performance: { mounted_terminals: number; live_portals: number; force_canvas2d: boolean; rendering: 'faithful' | 'light' };
 }
 
 const CANVAS_PREFS_DEFAULTS: CanvasPrefs = {
@@ -59,7 +59,7 @@ const CANVAS_PREFS_DEFAULTS: CanvasPrefs = {
   zoom_modifier: 'alt',
   right_drag_pan: false,
   focus_on_hover: false,
-  selection_style: 'solid',
+  selection_style: 'dashed',
   node_material: 'opaque',
   cord_style: 'bezier',
   rope_routing: 'behind_nodes',
@@ -84,7 +84,7 @@ const CANVAS_PREFS_DEFAULTS: CanvasPrefs = {
   power: { prevent_sleep: 'while_working' },
   agent_presets: {},
   images: { any_zoom: true, quality: 'balanced', download_web: true },
-  performance: { mounted_terminals: 12, live_portals: 4, force_canvas2d: false },
+  performance: { mounted_terminals: 12, live_portals: 4, force_canvas2d: false, rendering: 'faithful' },
 };
 
 const BUILTIN_AGENTS = new Set(['shell', 'claude', 'codex', 'gemini', 'opencode', 'ollama', 'native']);
@@ -120,6 +120,10 @@ export function imageBudgetBytes(): number {
 export function mountedTerminalsLimit(): number {
   const v = canvasPrefs().performance.mounted_terminals;
   return Number.isFinite(v) && v > 0 ? v : 12;
+}
+
+export function faithfulRendering(): boolean {
+  return canvasPrefs().performance.rendering !== 'light';
 }
 
 export function livePortalsLimit(): number {

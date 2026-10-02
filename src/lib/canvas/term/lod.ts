@@ -3,6 +3,7 @@ import { terminalIdOf, isTerminalKind, type FrameInfo, type NodeView } from './g
 import { termHub } from './hub';
 import { termLive, type TermLod } from './state.svelte';
 import type { Visible, WireLod } from './client';
+import { faithfulRendering, mountedTerminalsLimit } from '../prefs.svelte';
 
 const TEXT_ENTER_PX = 7.5;
 const TEXT_LEAVE_PX = 6.5;
@@ -36,18 +37,43 @@ interface TermNodeLod {
   lod: TermLod;
 }
 
+function fullTextSet(frame: FrameInfo, limit: number): Set<string> {
+  const cam = frame.camera;
+  const vw = frame.viewport.w;
+  const vh = frame.viewport.h;
+  const area = new Map<string, number>();
+  for (const node of frame.visibleNodes) {
+    if (!isTerminalKind(node.kind)) continue;
+    const x0 = Math.max(0, (node.x - cam.x) * cam.zoom);
+    const y0 = Math.max(0, (node.y - cam.y) * cam.zoom);
+    const x1 = Math.min(vw, (node.x + node.w - cam.x) * cam.zoom);
+    const y1 = Math.min(vh, (node.y + node.h - cam.y) * cam.zoom);
+    const a = Math.max(0, x1 - x0) * Math.max(0, y1 - y0);
+    const id = terminalIdOf(node);
+    area.set(id, Math.max(area.get(id) ?? 0, a));
+  }
+  const ranked = Array.from(area.entries()).sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : 1));
+  return new Set(ranked.slice(0, Math.max(1, limit)).map(([id]) => id));
+}
+
 export function updateLods(frame: FrameInfo): TermNodeLod[] {
   const zoom = frame.camera.zoom;
   const fontPx = TERM_FONT_SIZE * zoom;
   const out: TermNodeLod[] = [];
   const screenVisible: Visible[] = [];
   const seen = new Set<string>();
+  const faithful = faithfulRendering();
+  const full = faithful ? fullTextSet(frame, mountedTerminalsLimit()) : null;
   for (const node of frame.visibleNodes) {
     if (!isTerminalKind(node.kind)) continue;
     const termId = terminalIdOf(node);
     if (seen.has(termId)) continue;
     seen.add(termId);
-    const lod = nextLod(lods.get(termId) ?? null, fontPx, node.w * zoom, termId === focusedId);
+    const lod = full
+      ? full.has(termId) || termId === focusedId
+        ? 'text'
+        : 'mini'
+      : nextLod(lods.get(termId) ?? null, fontPx, node.w * zoom, termId === focusedId);
     if (lods.get(termId) !== lod) {
       lods.set(termId, lod);
       const live = termLive(termId);

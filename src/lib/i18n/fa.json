@@ -2966,7 +2966,6 @@
   },
   "world": {
     "title": "Canvas",
-    "subtitle": "عامل‌های شما روی یک بوم در همین رایانه: ترمینال‌ها، یادداشت‌ها و سیم‌های بین آن‌ها.",
     "settings": {
       "title": "Canvas",
       "desc": "بوم در /world، جایی که عامل‌های شما کنار هم کار می‌کنند.",
@@ -11446,7 +11445,9 @@
       "textBigger": "Bigger text",
       "textWeight": "Weight",
       "textFamily": "Font",
-      "textThemeColor": "Theme color"
+      "textThemeColor": "Theme color",
+      "attach": "Attach a file",
+      "deviceLock": "Lock screen"
     },
     "term": {
       "action": {
@@ -12037,7 +12038,9 @@
       "syncWinner": "Keep this version",
       "syncNothing": "Nothing changes.",
       "syncChange": "{{file}}: loses {{lost}} lines, gains {{added}}",
-      "syncApply": "Sync"
+      "syncApply": "Sync",
+      "filter": "Filter",
+      "groupHint": "Put the current workspace in a group"
     },
     "portal": {
       "kind": "Portal",
@@ -12474,6 +12477,10 @@
       "imagesClearThumbs": "Clear thumbnails",
       "thumbsCleared": "Thumbnails cleared ({{mb}} MB)",
       "performanceTitle": "Performance",
+      "rendering": "Rendering",
+      "renderingHint": "Faithful draws every node as it looks up close, at any zoom; Light shows summaries when zoomed out",
+      "renderingFaithful": "Faithful (like up close)",
+      "renderingLight": "Light (summaries when zoomed out)",
       "mountedTerminals": "Terminals kept open",
       "mountedTerminalsHint": "Terminals off screen beyond this are closed in the view; they keep running",
       "livePortals": "Live portals",
@@ -12626,7 +12633,12 @@
         "changed": "تغییر داد",
         "drew": "کشید",
         "erased": "پاک کرد",
-        "grouped": "گروه کرد"
+        "grouped": "گروه کرد",
+        "quoted": "قیمت گرفت برای",
+        "submitted": "شروع کرد",
+        "generated": "تمام کرد",
+        "failed": "شکست خورد در",
+        "uncertain": "ردش را گم کرد"
       },
       "kind": {
         "terminal": "یک ترمینال",
@@ -12641,12 +12653,23 @@
         "image": "یک تصویر",
         "stack": "یک پوشه",
         "connector": "یک رابط",
-        "node": "یک گره"
+        "node": "یک گره",
+        "generation": "یک تولید",
+        "device": "یک دستگاه"
       },
       "palette": {
         "activity": "فعالیت",
         "follow": "دنبال کردن هوش مصنوعی",
         "unfollow": "توقف دنبال کردن هوش مصنوعی"
+      },
+      "viaGenerate": "تولید تصویر",
+      "presence": "نمایش نشانگرهای هوش مصنوعی",
+      "strip": {
+        "label": "چه کسی روی بوم کار می‌کند",
+        "open": "باز کردن فعالیت این فضای کاری",
+        "more": "+{{count}}",
+        "following": "دنبال کردن {{name}}",
+        "stopFollow": "توقف دنبال کردن"
       }
     },
     "mcpServers": {
@@ -12708,6 +12731,7 @@
       "save": "Save",
       "cancel": "Cancel",
       "agentLimit": "Agents alone: up to {{limit}} credits per image, {{perHour}} per hour",
+      "spent": "Spent {{credits}} credits",
       "state": {
         "draft": "Draft",
         "quoted": "Priced",
@@ -12740,7 +12764,7 @@
       }
     },
     "accounts": {
-      "environment": "environment",
+      "environment": "default account",
       "environmentOption": "Environment account",
       "environmentHint": "Runs on the account of the environment the app was started in",
       "accountHint": "Runs on the account {{name}}",
@@ -12778,6 +12802,39 @@
         "unused": "Not used by any portal",
         "empty": "No sessions yet."
       }
+    },
+    "newPortal": {
+      "title": "New Portal",
+      "browser": "Browser",
+      "devices": "Devices",
+      "url": "URL",
+      "name": "Name",
+      "optional": "Optional",
+      "userAgent": "User Agent",
+      "uaDefault": "Default",
+      "uaIos": "iPhone (Safari)",
+      "uaAndroid": "Android (Chrome)",
+      "search": "Search devices…",
+      "all": "All",
+      "finding": "Finding devices…",
+      "none": "No devices found",
+      "booted": "Booted",
+      "shared": "Portals on the same device share one screen.",
+      "cancel": "Cancel",
+      "create": "Create"
+    },
+    "newFileTree": {
+      "title": "New File Tree",
+      "dir": "Working Directory",
+      "browse": "Browse…"
+    },
+    "usage": {
+      "title": "Agent usage",
+      "limit": "Usage limit reached",
+      "planLimits": "Plan limits",
+      "emptyTitle": "See how much of each plan your agents have used",
+      "emptyBody": "Pick your Claude Code or Codex accounts and their limits show up here.",
+      "choose": "Choose accounts…"
     },
     "media": {
       "extractAudio": "Extract audio",

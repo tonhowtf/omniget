@@ -76,7 +76,12 @@
     $t(key, { default: fallback, ...(vars ?? {}) });
 
   const list = $derived(workspaces.list);
-  const layout = $derived(layoutWorkspaces(list));
+  let filter = $state("");
+  const shownList = $derived.by(() => {
+    const q = filter.trim().toLowerCase();
+    return q ? list.filter((w) => w.name.toLowerCase().includes(q) || (w.groupName ?? "").toLowerCase().includes(q)) : list;
+  });
+  const layout = $derived(layoutWorkspaces(shownList));
   const flat = $derived(layout.flat);
   const targets = $derived(jumpTargets(flat));
   const currentWs = $derived.by(() => {
@@ -713,7 +718,7 @@
 
 {#snippet row(ws: Ws)}
   {@const active = ws.id === currentWs}
-  {@const open = active || expanded[ws.id]}
+  {@const open = expanded[ws.id]}
   {@const i = flat.findIndex((w) => w.id === ws.id)}
   {@const n = numberOf(targets, ws.id)}
   {#if drag?.moved && drag.over === i && drag.id !== ws.id}<div class="drop-line"></div>{/if}
@@ -764,8 +769,8 @@
         }}>≠</button
       >
     {/if}
-    {#if ws.terminalCount}<span class="count" title={tr("canvas.sidebar.terminals", "Terminals")}>{ws.terminalCount}</span>{/if}
-    {#if n}<kbd>{numberLabel(n)}</kbd>{/if}
+    {#if ws.terminalCount}<span class="count" title={tr("canvas.sidebar.terminals", "Terminals")}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v14H4z M7 9l3 3-3 3 M12 15h5" /></svg>{ws.terminalCount}</span>{/if}
+    {#if n && sidebarUi.jumpArmed}<kbd>{numberLabel(n)}</kbd>{/if}
     <button
       type="button"
       class="chev"
@@ -813,10 +818,19 @@
   <div class="sr-only" aria-live="polite">{sidebarUi.announce}</div>
   {#if canvasUi.sidebarOpen}
     <div class="top">
-      <span class="heading">{tr("canvas.sidebar.title", "Workspaces")}</span>
-      <button type="button" class="icon-btn" title={tr("canvas.sidebar.new", "New workspace (⌘⇧N)")} onclick={() => void startCreate()}>+</button>
-      <button type="button" class="icon-btn" title={tr("canvas.sidebar.hide", "Hide sidebar (⌘S)")} onclick={() => canvasUi.toggleSidebar()}>‹</button>
+      <button type="button" class="icon-btn" title={tr("canvas.sidebar.hide", "Hide sidebar (⌘S)")} aria-label={tr("canvas.sidebar.hide", "Hide sidebar (⌘S)")} onclick={() => canvasUi.toggleSidebar()}>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v14H4z M9 5v14 M6 9h1 M6 12h1" /></svg>
+      </button>
+      <span class="spacer"></span>
+      <button type="button" class="icon-btn" title={tr("canvas.sidebar.new", "New workspace (⌘⇧N)")} aria-label={tr("canvas.sidebar.new", "New workspace (⌘⇧N)")} onclick={() => void startCreate()}>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14 M5 12h14" /></svg>
+      </button>
     </div>
+    <label class="filter">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 4a7 7 0 1 0 0 14a7 7 0 1 0 0-14z M20 20l-4-4" /></svg>
+      <input type="search" bind:value={filter} placeholder={tr("canvas.sidebar.filter", "Filter")} aria-label={tr("canvas.sidebar.filter", "Filter")} spellcheck="false" autocomplete="off" />
+    </label>
+    <div class="heading">{tr("canvas.sidebar.title", "Workspaces")}</div>
 
     {#if form}
       <!-- svelte-ignore a11y_no_static_element_interactions -->
@@ -929,6 +943,20 @@
       {/if}
     </div>
     {#if error && !form}<p class="error">{error}</p>{/if}
+    <div class="foot">
+      <button
+        type="button"
+        class="foot-btn"
+        title={tr("canvas.sidebar.groupHint", "Put the current workspace in a group")}
+        onclick={() => {
+          const ws = flat.find((w) => w.id === currentWs);
+          if (ws) void startEdit(ws);
+        }}
+      >
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7h7l2 2h9v10H3z M3 7V5h6" /></svg>
+        <span>{tr("canvas.sidebar.group", "Group")}</span>
+      </button>
+    </div>
   {:else if sidebarUi.mini}
     <div class="rail">
       <button type="button" class="icon-btn" title={tr("canvas.sidebar.show", "Show sidebar (⌘S)")} onclick={() => canvasUi.toggleSidebar()}>›</button>
@@ -1077,25 +1105,34 @@
 <style>
   .sidebar {
     position: absolute;
-    top: 0;
-    left: 0;
-    bottom: 0;
+    top: 8px;
+    left: 8px;
+    bottom: 8px;
     z-index: 12;
-    width: 232px;
+    width: 216px;
+    box-sizing: border-box;
     display: flex;
     flex-direction: column;
-    background: var(--popup-bg, var(--surface));
-    border-right: 1px solid var(--border);
+    background: color-mix(in srgb, var(--popup-bg, var(--surface)) 97%, transparent);
+    backdrop-filter: blur(48px) saturate(1.6);
+    -webkit-backdrop-filter: blur(48px) saturate(1.6);
+    border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+    border-radius: 12px;
+    box-shadow:
+      0 1px 2px rgba(0, 0, 0, 0.06),
+      0 8px 24px rgba(0, 0, 0, 0.1);
     color: var(--text);
     font-size: 13px;
     user-select: none;
   }
   .sidebar.closed {
-    width: 48px;
+    width: 44px;
   }
   .sidebar.hidden {
     width: 0;
-    border-right: none;
+    border: none;
+    box-shadow: none;
+    background: transparent;
     overflow: visible;
   }
   .reopen {
@@ -1332,15 +1369,74 @@
     display: flex;
     align-items: center;
     gap: 4px;
-    padding: 10px 8px 6px 12px;
+    padding: 8px 8px 4px;
+  }
+  .spacer {
+    flex: 1;
+  }
+  .icon-btn svg,
+  .filter svg,
+  .foot-btn svg {
+    width: 16px;
+    height: 16px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.7;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+  .icon-btn {
+    display: inline-grid;
+    place-items: center;
+  }
+  .filter {
+    margin: 4px 10px 10px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    height: 30px;
+    padding: 0 10px;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--text) 7%, transparent);
+    color: var(--text-muted);
+  }
+  .filter input {
+    flex: 1;
+    min-width: 0;
+    border: none;
+    outline: none;
+    background: transparent;
+    color: var(--text);
+    font: inherit;
+    font-size: 13px;
   }
   .heading {
-    flex: 1;
-    font-size: 11px;
+    padding: 2px 14px 4px;
+    font-size: 12px;
     font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
     color: var(--text-muted);
+  }
+  .foot {
+    border-top: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+    padding: 6px;
+  }
+  .foot-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    padding: 6px 8px;
+    border: none;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--text-muted);
+    font: inherit;
+    font-size: 13px;
+    cursor: pointer;
+  }
+  .foot-btn:hover {
+    background: color-mix(in srgb, var(--text) 6%, transparent);
+    color: var(--text);
   }
   .icon-btn {
     width: 26px;
@@ -1365,7 +1461,7 @@
     display: flex;
     align-items: center;
     gap: 8px;
-    padding: 6px 6px;
+    padding: 5px 6px;
     border-radius: 8px;
     cursor: pointer;
     outline: none;
@@ -1375,16 +1471,16 @@
     background: color-mix(in srgb, var(--text) 6%, transparent);
   }
   .ws.active {
-    background: color-mix(in srgb, var(--accent) 16%, transparent);
+    background: color-mix(in srgb, var(--text) 9%, transparent);
   }
   .ws.dragging {
     opacity: 0.5;
   }
   .badge {
     flex: none;
-    width: 22px;
-    height: 22px;
-    border-radius: 6px;
+    width: 20px;
+    height: 20px;
+    border-radius: 5px;
     display: grid;
     place-items: center;
     font-size: 12px;
@@ -1410,8 +1506,19 @@
     outline: none;
   }
   .count {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
     font-size: 11px;
     color: var(--text-muted);
+    font-variant-numeric: tabular-nums;
+  }
+  .count svg {
+    width: 12px;
+    height: 12px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.8;
   }
   kbd {
     font: 10px var(--font-mono, monospace);
@@ -1425,6 +1532,12 @@
     cursor: pointer;
     padding: 0 2px;
     font-size: 11px;
+    opacity: 0;
+  }
+  .ws:hover .chev,
+  .ws:focus-visible .chev,
+  .chev[aria-expanded="true"] {
+    opacity: 1;
   }
   .floors {
     display: flex;

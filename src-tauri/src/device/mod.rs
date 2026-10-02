@@ -22,8 +22,12 @@ pub const EVENT_STATE: &str = "canvas://device-state";
 const TICK: Duration = Duration::from_millis(333);
 const SETTLE_FIRST: Duration = Duration::from_millis(300);
 const SETTLE_MAX: Duration = Duration::from_secs(2);
+const SETTLE_SLOW_FIRST: Duration = Duration::from_millis(800);
+const SETTLE_SLOW_MAX: Duration = Duration::from_secs(4);
+const SETTLE_GAP: Duration = Duration::from_millis(250);
 const LOG_CAP: usize = 4000;
 const TREE_LIMIT: usize = 300;
+const NO_FIELD: &str = "no text field has focus on the device, so nothing was typed; tap the field first (canvas_device_tree lists it) and send the text again";
 const NO_TOUCH: &str = "CAPABILITY_UNAVAILABLE: iOS touch, keys and the element tree need idb_companion (brew install facebook/fb/idb-companion); without it this node can show the screen, install, launch, open URLs (deep links) and read logs";
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -105,9 +109,72 @@ pub fn get(node_id: &str) -> Option<Arc<Session>> {
 pub fn need(node_id: &str) -> Result<Arc<Session>, String> {
     get(node_id).ok_or_else(|| {
         format!(
-            "DEVICE_NOT_OPEN: node {node_id} has no device attached; call canvas_device_open first"
+            "DEVICE_NOT_OPEN: node {node_id} has no device attached; call canvas_device_open {{nodeId}} first"
         )
     })
+}
+
+pub fn slow_action(action: &str) -> bool {
+    matches!(action, "launch" | "openurl" | "install")
+}
+
+fn url_scheme(url: &str) -> &str {
+    url.split_once(':').map(|(s, _)| s).unwrap_or(url).trim()
+}
+
+pub fn no_handler(url: &str) -> String {
+    let scheme = url_scheme(url);
+    let hint = if matches!(scheme.to_ascii_lowercase().as_str(), "exp" | "exps") {
+        "install the app that handles them (for Expo: Expo Go matching the project's SDK, or build with `npx expo run:ios` / `run:android`)"
+    } else {
+        "install the app that handles them"
+    };
+    format!("DEVICE_NO_HANDLER: no app on this device opens '{scheme}://' links; {hint}")
+}
+
+fn not_installed(id: &str, device: &str) -> String {
+    format!(
+        "APP_NOT_INSTALLED: '{id}' is not installed on {device}; install it first (action install with the .app or .apk path)"
+    )
+}
+
+fn with_wait(e: String, start: Instant) -> String {
+    if e.starts_with("DEVICE_TIMEOUT") {
+        format!("{e} ({} s in all for this call)", start.elapsed().as_secs())
+    } else {
+        e
+    }
+}
+
+fn out_of_bounds(x: f64, y: f64, w: f64, h: f64, unit: &str) -> Result<(), String> {
+    if x > w || y > h {
+        return Err(format!(
+            "OUT_OF_BOUNDS: x must be 0..{w}, y 0..{h} (device {unit})"
+        ));
+    }
+    Ok(())
+}
+
+fn shrink_jpeg(from: &Path, to: &Path, max_side: u32) -> Result<(u32, u32), String> {
+    let img = image::ImageReader::open(from)
+        .map_err(|e| format!("DEVICE_FRAME: {e}"))?
+        .with_guessed_format()
+        .map_err(|e| format!("DEVICE_FRAME: {e}"))?
+        .decode()
+        .map_err(|e| format!("DEVICE_FRAME: {e}"))?;
+    let small = img.resize(max_side, max_side, image::imageops::FilterType::Triangle);
+    let rgb = small.to_rgb8();
+    let mut out = Vec::new();
+    image::codecs::jpeg::JpegEncoder::new_with_quality(&mut out, 80)
+        .encode(
+            &rgb,
+            rgb.width(),
+            rgb.height(),
+            image::ExtendedColorType::Rgb8,
+        )
+        .map_err(|e| format!("DEVICE_FRAME: jpeg: {e}"))?;
+    std::fs::write(to, out).map_err(|e| format!("DEVICE_FRAME: {e}"))?;
+    Ok((rgb.width(), rgb.height()))
 }
 
 pub fn frames_dir(node_id: &str) -> Result<PathBuf, String> {
@@ -373,31 +440,122 @@ impl Session {
     }
 
     pub async fn capture(&self) -> Result<Frame, String> {
+        let start = Instant::now();
         let _g = self.busy.lock().await;
-        self.capture_locked().await.map(|(f, _)| f)
+        self.capture_locked()
+            .await
+            .map(|(f, _)| f)
+            .map_err(|e| with_wait(e, start))
     }
 
-    pub async fn settled(&self) -> Result<Frame, String> {
+    pub fn last_hash(&self) -> Option<u64> {
+        self.last
+            .lock()
+            .ok()
+            .and_then(|l| l.as_ref().map(|f| f.hash))
+    }
+
+    pub async fn settled(
+        &self,
+        slow: bool,
+        before: Option<u64>,
+    ) -> Result<(Frame, Option<bool>), String> {
         let start = Instant::now();
-        tokio::time::sleep(SETTLE_FIRST).await;
+        let (first, max) = if slow {
+            (SETTLE_SLOW_FIRST, SETTLE_SLOW_MAX)
+        } else {
+            (SETTLE_FIRST, SETTLE_MAX)
+        };
+        tokio::time::sleep(first).await;
         let _g = self.busy.lock().await;
-        let (mut f, _) = self.capture_locked().await?;
-        while start.elapsed() < SETTLE_MAX {
-            let (next, changed) = self.capture_locked().await?;
+        let mut at = Instant::now();
+        let (mut f, _) = self
+            .capture_locked()
+            .await
+            .map_err(|e| with_wait(e, start))?;
+        let mut moved = before.is_none_or(|b| f.hash != b);
+        while start.elapsed() < max {
+            tokio::time::sleep(SETTLE_GAP.saturating_sub(at.elapsed())).await;
+            at = Instant::now();
+            let (next, changed) = self
+                .capture_locked()
+                .await
+                .map_err(|e| with_wait(e, start))?;
             f = next;
+            if !moved {
+                moved = before.is_none_or(|b| f.hash != b);
+                continue;
+            }
             if !changed {
                 break;
             }
         }
-        Ok(f)
+        Ok((f, before.map(|_| moved)))
     }
 
-    pub fn copy_out(&self, f: &Frame, name: &str) -> Result<Value, String> {
+    pub async fn not_responding(&self) -> Option<String> {
+        if self.platform != Platform::Android {
+            return None;
+        }
+        let out = self
+            .adb_shell("dumpsys window displays | grep mCurrentFocus", 10)
+            .await
+            .ok()?;
+        android::not_responding(&out)
+    }
+
+    async fn focused_text(&self) -> Option<(String, bool)> {
+        let remote = "/sdcard/omniget-ui.xml";
+        self.adb_shell(&format!("uiautomator dump {remote}"), 15)
+            .await
+            .ok()?;
+        let xml = tools::text(
+            &adb().ok()?,
+            &["-s", &self.device, "exec-out", "cat", remote],
+            10,
+        )
+        .await
+        .ok()?;
+        android::focused_field(&xml)
+    }
+
+    pub async fn copy_out(&self, f: &Frame, name: &str, max_side: u32) -> Result<Value, String> {
         let to = self.dir.join(name);
-        std::fs::copy(&f.path, &to).map_err(|e| format!("DEVICE_FRAME: {e}"))?;
         let mut v = f.json(self.scale);
         v["path"] = json!(to.to_string_lossy());
+        if max_side == 0 || f.w.max(f.h) <= max_side {
+            std::fs::copy(&f.path, &to).map_err(|e| format!("DEVICE_FRAME: {e}"))?;
+            return Ok(v);
+        }
+        let from = f.path.clone();
+        let (w, h) =
+            tauri::async_runtime::spawn_blocking(move || shrink_jpeg(&from, &to, max_side))
+                .await
+                .map_err(|e| format!("DEVICE_FRAME: {e}"))??;
+        v["w"] = json!(w);
+        v["h"] = json!(h);
+        v["full"] = json!({"w": f.w, "h": f.h});
         Ok(v)
+    }
+
+    fn unit(&self) -> &'static str {
+        if self.platform == Platform::Ios {
+            "points"
+        } else {
+            "pixels"
+        }
+    }
+
+    async fn input_size(&self) -> Result<(f64, f64), String> {
+        let last = self.last.lock().ok().and_then(|l| l.clone());
+        let f = match last {
+            Some(f) => f,
+            None => self.capture().await?,
+        };
+        Ok((
+            (f64::from(f.w) / self.scale).round(),
+            (f64::from(f.h) / self.scale).round(),
+        ))
     }
 
     async fn idb_sock(&self) -> Result<PathBuf, String> {
@@ -470,13 +628,47 @@ impl Session {
         }
     }
 
-    pub async fn text(&self, s: &str) -> Result<(), String> {
+    pub async fn text(&self, s: &str) -> Result<Value, String> {
         match self.platform {
-            Platform::Android => self
-                .adb_shell(&format!("input text {}", android::input_text(s)?), 60)
-                .await
-                .map(drop),
-            Platform::Ios => self.hid(&idb::text(s)?).await,
+            Platform::Android => {
+                let arg = android::input_text(s)?;
+                if let Ok(ime) = self.adb_shell("dumpsys input_method", 15).await {
+                    if android::editor_focused(&ime) == Some(false) {
+                        return Ok(json!({"typed": false, "hint": NO_FIELD}));
+                    }
+                }
+                self.adb_shell(&format!("input text {arg}"), 60).await?;
+                tokio::time::sleep(Duration::from_millis(300)).await;
+                Ok(match self.focused_text().await {
+                    Some((field, false)) if field.contains(s) => {
+                        json!({"typed": true, "verified": true})
+                    }
+                    Some((field, false)) => json!({
+                        "typed": false, "verified": true, "typedText": field,
+                        "hint": "the focused field does not hold the text after typing, so characters were lost (the app may be busy or not responding); check the screen, clear the field and send the text again",
+                    }),
+                    _ => json!({"typed": true, "verified": false}),
+                })
+            }
+            Platform::Ios => match idb::text(s) {
+                Ok(keys) => {
+                    self.hid(&keys).await?;
+                    Ok(json!({"typed": true}))
+                }
+                Err(_) => {
+                    self.idb_sock().await?;
+                    let x = xcrun()?;
+                    tools::run_with_input(
+                        &x,
+                        &["simctl", "pbcopy", &self.device],
+                        Some(s.as_bytes()),
+                        20,
+                    )
+                    .await?;
+                    self.hid(&idb::paste()).await?;
+                    Ok(json!({"typed": true, "via": "pasteboard"}))
+                }
+            },
         }
     }
 
@@ -527,24 +719,77 @@ impl Session {
 
     pub async fn launch(&self, id: &str) -> Result<(), String> {
         match self.platform {
-            Platform::Android => self
-                .adb_shell(
-                    &format!(
-                        "monkey -p {} -c android.intent.category.LAUNCHER 1",
-                        android::shell_quote(id)
-                    ),
-                    30,
-                )
-                .await
-                .map(drop),
+            Platform::Android => self.launch_android(id).await,
             Platform::Ios => {
-                self.simctl(&["launch", &self.device, id], 60).await?;
+                if let Err(e) = self.simctl(&["launch", &self.device, id], 60).await {
+                    let installed = self
+                        .simctl(&["get_app_container", &self.device, id, "app"], 20)
+                        .await
+                        .is_ok();
+                    return Err(if installed {
+                        e
+                    } else {
+                        not_installed(id, &self.name)
+                    });
+                }
                 if let Some(exe) = self.ios_executable(id).await {
                     self.start_logs(Some(exe));
                 }
                 Ok(())
             }
         }
+    }
+
+    async fn launch_android(&self, id: &str) -> Result<(), String> {
+        let pkg = android::shell_quote(id);
+        let resolved = self
+            .adb_shell(
+                &format!("cmd package resolve-activity --brief -a android.intent.action.MAIN -c android.intent.category.LAUNCHER {pkg}"),
+                20,
+            )
+            .await
+            .ok()
+            .and_then(|o| android::launcher_component(&o));
+        let mut failure = None;
+        if let Some(component) = resolved {
+            let started = self
+                .adb_shell(
+                    &format!(
+                        "am start -a android.intent.action.MAIN -c android.intent.category.LAUNCHER -n {}",
+                        android::shell_quote(&component)
+                    ),
+                    30,
+                )
+                .await;
+            match started {
+                Ok(out) if !out.contains("Error:") => return Ok(()),
+                Ok(out) => {
+                    failure = Some(format!(
+                        "DEVICE_COMMAND: am start {component} failed: {}",
+                        out.trim()
+                    ))
+                }
+                Err(e) => failure = Some(e),
+            }
+        }
+        let installed = self
+            .adb_shell(&format!("pm path {pkg}"), 20)
+            .await
+            .is_ok_and(|o| o.contains("package:"));
+        if !installed {
+            return Err(not_installed(id, &self.name));
+        }
+        self.adb_shell(
+            &format!("monkey -p {pkg} -c android.intent.category.LAUNCHER 1"),
+            30,
+        )
+        .await
+        .map(drop)
+        .map_err(|_| {
+            failure.unwrap_or_else(|| {
+                format!("DEVICE_COMMAND: '{id}' has no launcher activity to start; open one of its screens with openurl (a deep link) instead")
+            })
+        })
     }
 
     async fn ios_executable(&self, bundle: &str) -> Option<String> {
@@ -572,20 +817,28 @@ impl Session {
 
     pub async fn openurl(&self, url: &str) -> Result<(), String> {
         match self.platform {
-            Platform::Android => self
-                .adb_shell(
-                    &format!(
-                        "am start -a android.intent.action.VIEW -d {}",
-                        android::shell_quote(url)
-                    ),
-                    30,
-                )
-                .await
-                .map(drop),
-            Platform::Ios => self
-                .simctl(&["openurl", &self.device, url], 30)
-                .await
-                .map(drop),
+            Platform::Android => {
+                let r = self
+                    .adb_shell(
+                        &format!(
+                            "am start -a android.intent.action.VIEW -d {}",
+                            android::shell_quote(url)
+                        ),
+                        30,
+                    )
+                    .await;
+                match r {
+                    Ok(out) if out.contains("unable to resolve Intent") => Err(no_handler(url)),
+                    Err(e) if e.contains("unable to resolve Intent") => Err(no_handler(url)),
+                    other => other.map(drop),
+                }
+            }
+            Platform::Ios => match self.simctl(&["openurl", &self.device, url], 30).await {
+                Err(e) if e.contains("LSApplicationWorkspaceErrorDomain") && e.contains("115") => {
+                    Err(no_handler(url))
+                }
+                other => other.map(drop),
+            },
         }
     }
 
@@ -652,14 +905,15 @@ impl Session {
         app: Option<&str>,
         pid: Option<u32>,
         clear: bool,
-    ) -> Vec<Value> {
+        max_bytes: usize,
+    ) -> (Vec<String>, bool) {
         let min = level.map(level_rank).unwrap_or(0);
         let app = app.map(str::to_ascii_lowercase);
         let mut q = match self.logs.lock() {
             Ok(q) => q,
             Err(e) => e.into_inner(),
         };
-        let picked: Vec<Value> = q
+        let mut picked: Vec<&LogLine> = q
             .iter()
             .filter(|l| level_rank(l.level) >= min)
             .filter(|l| match (&app, pid) {
@@ -673,15 +927,13 @@ impl Session {
             })
             .rev()
             .take(limit)
-            .map(|l| json!({"time": l.time, "level": l.level, "source": l.source, "pid": l.pid, "message": l.message}))
-            .collect::<Vec<_>>()
-            .into_iter()
-            .rev()
             .collect();
+        picked.reverse();
+        let out = android::fit_bytes(android::compact(&picked), max_bytes);
         if clear {
             q.clear();
         }
-        picked
+        out
     }
 
     pub async fn pid_of(&self, package: &str) -> Option<u32> {
@@ -1079,39 +1331,66 @@ pub fn shutdown_all() {
     }
 }
 
-pub async fn act(s: &Session, action: &str, a: &Value) -> Result<(), String> {
+fn point(a: &Value, kx: &str, ky: &str, unit: &str) -> Result<(f64, f64), String> {
+    match (
+        a.get(kx).and_then(Value::as_f64),
+        a.get(ky).and_then(Value::as_f64),
+    ) {
+        (Some(x), Some(y)) if x >= 0.0 && y >= 0.0 => Ok((x, y)),
+        (Some(_), Some(_)) => Err(format!(
+            "INVALID_ARGUMENT: {kx} and {ky} must not be negative (device {unit})"
+        )),
+        _ => Err(format!("MISSING_ARGUMENT: {kx} and {ky} (device {unit})")),
+    }
+}
+
+pub async fn act(s: &Session, action: &str, a: &Value) -> Result<Value, String> {
     let num = |k: &str| a.get(k).and_then(Value::as_f64);
     let st = |k: &str| a.get(k).and_then(Value::as_str).map(str::to_string);
     let req = |k: &str| st(k).ok_or_else(|| format!("MISSING_ARGUMENT: {k}"));
-    let xy = || match (num("x"), num("y")) {
-        (Some(x), Some(y)) if x >= 0.0 && y >= 0.0 => Ok((x, y)),
-        _ => Err("MISSING_ARGUMENT: x and y (device points, not negative)".to_string()),
-    };
+    let done = |r: Result<(), String>| r.map(|_| json!({}));
+    let unit = s.unit();
     match action {
         "tap" => {
-            let (x, y) = xy()?;
-            s.tap(x, y).await
+            let (x, y) = point(a, "x", "y", unit)?;
+            let (w, h) = s.input_size().await?;
+            out_of_bounds(x, y, w, h, unit)?;
+            done(s.tap(x, y).await)
         }
         "swipe" => {
-            let (x, y) = xy()?;
-            let (x2, y2) = match (num("x2"), num("y2")) {
-                (Some(a), Some(b)) => (a, b),
-                _ => return Err("MISSING_ARGUMENT: x2 and y2".into()),
-            };
+            let (x, y) = point(a, "x", "y", unit)?;
+            let (x2, y2) = point(a, "x2", "y2", unit)?;
+            let (w, h) = s.input_size().await?;
+            out_of_bounds(x, y, w, h, unit)?;
+            out_of_bounds(x2, y2, w, h, unit)?;
             let ms = num("durationMs").unwrap_or(300.0).max(0.0) as u64;
-            s.swipe(x, y, x2, y2, ms).await
+            done(s.swipe(x, y, x2, y2, ms).await)
         }
         "text" => s.text(&req("text")?).await,
-        "key" => s.key(&req("key")?).await,
-        "home" => s.home().await,
-        "install" => s.install(&req("path")?).await,
-        "launch" => s.launch(&req("bundleId")?).await,
-        "openurl" => s.openurl(&req("url")?).await,
-        "terminate" => s.terminate(&req("bundleId")?).await,
+        "key" => done(s.key(&req("key")?).await),
+        "home" => done(s.home().await),
+        "install" => done(s.install(&req("path")?).await),
+        "launch" => done(s.launch(&req("bundleId")?).await),
+        "openurl" => done(s.openurl(&req("url")?).await),
+        "terminate" => done(s.terminate(&req("bundleId")?).await),
         other => Err(format!(
             "INVALID_ARGUMENT: action '{other}' (tap, swipe, text, key, home, install, launch, openurl, terminate)"
         )),
     }
+}
+
+pub fn mark_closed(node_id: &str) {
+    let store = crate::canvas::doc::host().store().clone();
+    let Some((ws, floor)) = store.locate_node(node_id) else {
+        return;
+    };
+    let mut patch = serde_json::Map::new();
+    patch.insert("data".into(), json!({"deviceOpen": false}));
+    let op = omniget_core::core::canvas::ops::Op::UpdateNode {
+        id: node_id.to_string(),
+        patch,
+    };
+    let _ = store.apply(&ws, &floor, vec![op], "device", None);
 }
 
 pub fn remember(s: &Session) {
@@ -1127,11 +1406,42 @@ pub fn remember(s: &Session) {
     let mut patch = serde_json::Map::new();
     patch.insert(
         "data".into(),
-        json!({"portalKind": s.platform.as_str(), "deviceId": id, "deviceName": s.name}),
+        json!({"portalKind": s.platform.as_str(), "deviceId": id, "deviceName": s.name, "deviceOpen": true}),
     );
     let op = omniget_core::core::canvas::ops::Op::UpdateNode {
         id: s.node_id.clone(),
         patch,
     };
     let _ = store.apply(&ws, &floor, vec![op], "device", None);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn missing_handler_names_the_scheme() {
+        let e = no_handler("exp://127.0.0.1:8081");
+        assert!(e.starts_with("DEVICE_NO_HANDLER: no app on this device opens 'exp://' links"));
+        assert!(e.contains("Expo Go"));
+        let o = no_handler("myapp://route");
+        assert!(o.contains("'myapp://'"));
+        assert!(!o.contains("Expo"));
+    }
+
+    #[test]
+    fn points_are_checked() {
+        let a = json!({"x": 10, "y": -20});
+        assert!(point(&a, "x", "y", "points")
+            .unwrap_err()
+            .starts_with("INVALID_ARGUMENT"));
+        assert!(point(&json!({"x": 1}), "x", "y", "points")
+            .unwrap_err()
+            .starts_with("MISSING_ARGUMENT"));
+        assert_eq!(
+            out_of_bounds(5000.0, 100.0, 402.0, 874.0, "points").unwrap_err(),
+            "OUT_OF_BOUNDS: x must be 0..402, y 0..874 (device points)"
+        );
+        assert!(out_of_bounds(402.0, 874.0, 402.0, 874.0, "points").is_ok());
+    }
 }

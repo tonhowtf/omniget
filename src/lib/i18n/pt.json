@@ -2966,7 +2966,6 @@
   },
   "world": {
     "title": "Canvas",
-    "subtitle": "Seus agentes num canvas neste computador: terminais, notas e os fios entre eles.",
     "settings": {
       "title": "Canvas",
       "desc": "O canvas em /world, onde seus agentes trabalham lado a lado.",
@@ -11446,7 +11445,9 @@
       "textBigger": "Texto maior",
       "textWeight": "Peso",
       "textFamily": "Fonte",
-      "textThemeColor": "Cor do tema"
+      "textThemeColor": "Cor do tema",
+      "attach": "Anexar um arquivo",
+      "deviceLock": "Bloquear tela"
     },
     "term": {
       "action": {
@@ -12037,7 +12038,9 @@
       "syncWinner": "Manter esta versão",
       "syncNothing": "Nada muda.",
       "syncChange": "{{file}}: perde {{lost}} linhas, ganha {{added}}",
-      "syncApply": "Sincronizar"
+      "syncApply": "Sincronizar",
+      "filter": "Filtrar",
+      "groupHint": "Colocar o workspace atual em um grupo"
     },
     "portal": {
       "kind": "Portal",
@@ -12474,6 +12477,10 @@
       "imagesClearThumbs": "Limpar miniaturas",
       "thumbsCleared": "Miniaturas limpas ({{mb}} MB)",
       "performanceTitle": "Desempenho",
+      "rendering": "Renderização",
+      "renderingHint": "Fiel desenha cada nó como ele é de perto, em qualquer zoom; Leve mostra resumos quando o zoom está longe",
+      "renderingFaithful": "Fiel (como de perto)",
+      "renderingLight": "Leve (resumos com zoom longe)",
       "mountedTerminals": "Terminais mantidos abertos",
       "mountedTerminalsHint": "Acima disso, terminais fora da tela saem da vista; eles continuam rodando",
       "livePortals": "Portais ao vivo",
@@ -12626,7 +12633,12 @@
         "changed": "mudou",
         "drew": "desenhou",
         "erased": "apagou",
-        "grouped": "agrupou"
+        "grouped": "agrupou",
+        "quoted": "pediu o preço de",
+        "submitted": "iniciou",
+        "generated": "concluiu",
+        "failed": "teve uma falha em",
+        "uncertain": "perdeu o rastro de"
       },
       "kind": {
         "terminal": "um terminal",
@@ -12641,12 +12653,23 @@
         "image": "uma imagem",
         "stack": "um fichário",
         "connector": "um conector",
-        "node": "um nó"
+        "node": "um nó",
+        "generation": "uma geração",
+        "device": "um dispositivo"
       },
       "palette": {
         "activity": "Atividade",
         "follow": "Seguir a IA",
         "unfollow": "Parar de Seguir a IA"
+      },
+      "viaGenerate": "geração de imagem",
+      "presence": "Mostrar cursores das IAs",
+      "strip": {
+        "label": "Quem está mexendo no quadro",
+        "open": "Abrir a atividade deste workspace",
+        "more": "+{{count}}",
+        "following": "Seguindo {{name}}",
+        "stopFollow": "Parar de seguir"
       }
     },
     "mcpServers": {
@@ -12708,6 +12731,7 @@
       "save": "Salvar",
       "cancel": "Cancelar",
       "agentLimit": "Agentes sozinhos: até {{limit}} créditos por imagem, {{perHour}} por hora",
+      "spent": "Gastou {{credits}} créditos",
       "state": {
         "draft": "Rascunho",
         "quoted": "Cotado",
@@ -12740,7 +12764,7 @@
       }
     },
     "accounts": {
-      "environment": "ambiente",
+      "environment": "conta padrão",
       "environmentOption": "Conta do ambiente",
       "environmentHint": "Usa a conta do ambiente em que o app foi aberto",
       "accountHint": "Usa a conta {{name}}",
@@ -12778,6 +12802,39 @@
         "unused": "Nenhum portal usa",
         "empty": "Nenhuma sessão ainda."
       }
+    },
+    "newPortal": {
+      "title": "Novo portal",
+      "browser": "Navegador",
+      "devices": "Aparelhos",
+      "url": "URL",
+      "name": "Nome",
+      "optional": "Opcional",
+      "userAgent": "User agent",
+      "uaDefault": "Padrão",
+      "uaIos": "iPhone (Safari)",
+      "uaAndroid": "Android (Chrome)",
+      "search": "Buscar aparelhos…",
+      "all": "Todos",
+      "finding": "Procurando aparelhos…",
+      "none": "Nenhum aparelho encontrado",
+      "booted": "Ligado",
+      "shared": "Portais no mesmo aparelho dividem uma tela.",
+      "cancel": "Cancelar",
+      "create": "Criar"
+    },
+    "newFileTree": {
+      "title": "Nova árvore de arquivos",
+      "dir": "Pasta de trabalho",
+      "browse": "Escolher…"
+    },
+    "usage": {
+      "title": "Uso dos agentes",
+      "limit": "Limite de uso atingido",
+      "planLimits": "Limites do plano",
+      "emptyTitle": "Veja quanto do plano cada agente já usou",
+      "emptyBody": "Escolha suas contas do Claude Code ou do Codex e os limites aparecem aqui.",
+      "choose": "Escolher contas…"
     },
     "media": {
       "extractAudio": "Extrair áudio",

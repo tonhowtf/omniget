@@ -17,11 +17,11 @@ pub fn defs() -> Vec<Def> {
         &["quoteId", "credits", "fitsBudget", "needsApproval"],
     );
     let status_out = out(
-        json!({"nodeId": ty("string"), "workspaceId": ty("string"), "state": ty("string"), "progress": any(), "error": any(), "quote": any(), "version": ty("integer"), "resultNodeId": any(), "intent": any()}),
+        json!({"nodeId": ty("string"), "workspaceId": ty("string"), "state": ty("string"), "progress": any(), "error": any(), "quote": any(), "version": ty("integer"), "resultNodeId": any(), "assetId": any(), "intent": any()}),
         &["nodeId", "state"],
     );
     vec![
-        def("canvas_generate_models", "Higgsfield image models usable by a generation node (v1: images only). With model: that model's params (name, type, options, default, required, editable) and whether it takes reference images. Read-only, spends nothing.", false, json!({
+        def("canvas_generate_models", "Higgsfield image models usable by a generation node (v1: images only); names shared by several models carry the id. The CLI lists no prices: canvas_generate_quote prices a request without spending. With model: that model's params (name, type, options, default, required, editable) and whether it takes reference images. Read-only, spends nothing.", false, json!({
             "model": s("Model id (job_type) to describe, e.g. nano_banana_flash")
         }), &[], out(json!({"models": arr(ty("object")), "schema": any()}), &[])),
         def("canvas_generate_create", "Place a Generation node (Higgsfield image) with a prompt, model and params. refs: image nodes (ids or titles) on the same floor corded in as reference images; they must be images stored in the workspace. usedIn: free text shown as \"will be used in: …\"; usedInNodeId adds a dashed cord to that node (a label only, never permission to spend). Spends nothing: follow with canvas_generate_quote then canvas_generate_submit.", true, json!({
@@ -38,10 +38,10 @@ pub fn defs() -> Vec<Def> {
         def("canvas_generate_submit", "Spend credits: generate with a quote from canvas_generate_quote. The reservation must fit the workspace budget and the real account balance; an agent may only go alone below the automatic limit (default 10 credits per generation, 3 per hour), otherwise PROVIDER_APPROVAL_REQUIRED and the node waits for the person. Reuse the same idempotencyKey after an unclear outcome; never invent a new key to retry. Progress: canvas_generate_status.", true, json!({
             "nodeId": node(), "quoteId": s("quoteId from canvas_generate_quote"), "idempotencyKey": s("Your key for this attempt (letters, digits, - and _; default derived from the quote)")
         }), &["nodeId", "quoteId"], out(json!({"intentId": ty("string"), "state": ty("string"), "jobId": any(), "reserved": ty("number"), "actual": any(), "actor": ty("string"), "version": any(), "error": any()}), &["intentId", "state"])),
-        def("canvas_generate_status", "State of a generation node: draft, quoted, awaiting_approval, running (progress.status), done (resultNodeId = the image node of the newest version), uncertain (Higgsfield did not confirm: the person searches again or releases) or failed. waitMs waits up to 60 s while it runs.", false, json!({
+        def("canvas_generate_status", "State of a generation node: draft, quoted, awaiting_approval, running (progress.status), done (resultNodeId = the image node of the newest version, assetId = its image in the workspace library), uncertain (Higgsfield did not confirm: the person searches again or releases) or failed. waitMs waits up to 60 s while it runs.", false, json!({
             "nodeId": node(), "waitMs": i("Wait while running (ms)", 0, 60_000)
         }), &["nodeId"], status_out),
-        def("canvas_generate_versions", "Every version a generation node made: version, assetPath (workspace file), nodeId (its image node), credits, prompt, params, model.", false, json!({
+        def("canvas_generate_versions", "Every version a generation node made: version, assetPath (workspace file), assetId (library image, named \"<title> vN\", source generated), nodeId (its image node), credits, prompt, params, model.", false, json!({
             "nodeId": node()
         }), &["nodeId"], out(json!({"nodeId": ty("string"), "versions": arr(ty("object"))}), &["nodeId", "versions"])),
         destructive(def("canvas_generate_budget", "Read the workspace's Higgsfield budget (ceiling, reserved, spent, left, agent auto limit, real balance). Passing ceiling, autoLimit or autoPerHour changes it: that decides how many of the person's credits can be spent, so only do it when the person asked. The ceiling starts at 0 (nothing can be spent).", true, json!({
@@ -100,6 +100,7 @@ pub async fn call(app: &AppHandle, name: &str, a: &Value) -> Result<Value, Strin
                     used_in_node,
                     refs,
                     at,
+                    by: Some(super::who::origin()),
                 },
             )
             .await?;
@@ -109,10 +110,16 @@ pub async fn call(app: &AppHandle, name: &str, a: &Value) -> Result<Value, Strin
             super::navigate_window(app, &ws, &floor, v["nodeId"].as_str());
             Ok(v)
         }
-        "canvas_generate_quote" => generate::quote(&node_id(app, a)?, Actor::Agent).await,
+        "canvas_generate_quote" => {
+            let id = node_id(app, a)?;
+            generate::requested_by(&id, &super::who::origin());
+            generate::quote(&id, Actor::Agent).await
+        }
         "canvas_generate_submit" => {
+            let id = node_id(app, a)?;
+            generate::requested_by(&id, &super::who::origin());
             generate::submit(
-                &node_id(app, a)?,
+                &id,
                 &need(a, "quoteId")?,
                 st(a, "idempotencyKey"),
                 Actor::Agent,

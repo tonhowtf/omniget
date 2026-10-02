@@ -2966,7 +2966,6 @@
   },
   "world": {
     "title": "Canvas",
-    "subtitle": "I tuoi agenti su una tela in questo computer: terminali, note e i fili tra loro.",
     "settings": {
       "title": "Canvas",
       "desc": "La tela in /world, dove i tuoi agenti lavorano fianco a fianco.",
@@ -11446,7 +11445,9 @@
       "textBigger": "Bigger text",
       "textWeight": "Weight",
       "textFamily": "Font",
-      "textThemeColor": "Theme color"
+      "textThemeColor": "Theme color",
+      "attach": "Allega un file",
+      "deviceLock": "Blocca schermo"
     },
     "term": {
       "action": {
@@ -12037,7 +12038,9 @@
       "syncWinner": "Keep this version",
       "syncNothing": "Nothing changes.",
       "syncChange": "{{file}}: loses {{lost}} lines, gains {{added}}",
-      "syncApply": "Sync"
+      "syncApply": "Sync",
+      "filter": "Filtra",
+      "groupHint": "Metti il workspace attuale in un gruppo"
     },
     "portal": {
       "kind": "Portal",
@@ -12474,6 +12477,10 @@
       "imagesClearThumbs": "Clear thumbnails",
       "thumbsCleared": "Thumbnails cleared ({{mb}} MB)",
       "performanceTitle": "Performance",
+      "rendering": "Rendering",
+      "renderingHint": "Fedele disegna ogni nodo come da vicino, a qualsiasi zoom; Leggero mostra riepiloghi quando lo zoom è lontano",
+      "renderingFaithful": "Fedele (come da vicino)",
+      "renderingLight": "Leggero (riepiloghi da lontano)",
       "mountedTerminals": "Terminals kept open",
       "mountedTerminalsHint": "Terminals off screen beyond this are closed in the view; they keep running",
       "livePortals": "Live portals",
@@ -12626,7 +12633,12 @@
         "changed": "ha cambiato",
         "drew": "ha disegnato",
         "erased": "ha cancellato",
-        "grouped": "ha raggruppato"
+        "grouped": "ha raggruppato",
+        "quoted": "ha chiesto il prezzo di",
+        "submitted": "ha avviato",
+        "generated": "ha completato",
+        "failed": "ha avuto un errore in",
+        "uncertain": "ha perso traccia di"
       },
       "kind": {
         "terminal": "un terminale",
@@ -12641,12 +12653,23 @@
         "image": "un'immagine",
         "stack": "un raccoglitore",
         "connector": "un connettore",
-        "node": "un nodo"
+        "node": "un nodo",
+        "generation": "una generazione",
+        "device": "un dispositivo"
       },
       "palette": {
         "activity": "Attività",
         "follow": "Segui l'IA",
         "unfollow": "Smetti di Seguire l'IA"
+      },
+      "viaGenerate": "generazione di immagini",
+      "presence": "Mostra i cursori delle IA",
+      "strip": {
+        "label": "Chi sta lavorando sulla tela",
+        "open": "Apri l'attività di questo spazio",
+        "more": "+{{count}}",
+        "following": "Segui {{name}}",
+        "stopFollow": "Smetti di seguire"
       }
     },
     "mcpServers": {
@@ -12708,6 +12731,7 @@
       "save": "Save",
       "cancel": "Cancel",
       "agentLimit": "Agents alone: up to {{limit}} credits per image, {{perHour}} per hour",
+      "spent": "Spent {{credits}} credits",
       "state": {
         "draft": "Draft",
         "quoted": "Priced",
@@ -12740,7 +12764,7 @@
       }
     },
     "accounts": {
-      "environment": "environment",
+      "environment": "default account",
       "environmentOption": "Environment account",
       "environmentHint": "Runs on the account of the environment the app was started in",
       "accountHint": "Runs on the account {{name}}",
@@ -12778,6 +12802,39 @@
         "unused": "Not used by any portal",
         "empty": "No sessions yet."
       }
+    },
+    "newPortal": {
+      "title": "Nuovo portale",
+      "browser": "Browser",
+      "devices": "Dispositivi",
+      "url": "URL",
+      "name": "Nome",
+      "optional": "Facoltativo",
+      "userAgent": "User agent",
+      "uaDefault": "Predefinito",
+      "uaIos": "iPhone (Safari)",
+      "uaAndroid": "Android (Chrome)",
+      "search": "Cerca dispositivi…",
+      "all": "Tutti",
+      "finding": "Ricerca dispositivi…",
+      "none": "Nessun dispositivo trovato",
+      "booted": "Avviato",
+      "shared": "I portali sullo stesso dispositivo condividono uno schermo.",
+      "cancel": "Annulla",
+      "create": "Crea"
+    },
+    "newFileTree": {
+      "title": "Nuovo albero di file",
+      "dir": "Cartella di lavoro",
+      "browse": "Sfoglia…"
+    },
+    "usage": {
+      "title": "Uso degli agenti",
+      "limit": "Limite di utilizzo raggiunto",
+      "planLimits": "Limiti del piano",
+      "emptyTitle": "Guarda quanto di ogni piano hanno usato i tuoi agenti",
+      "emptyBody": "Scegli i tuoi account Claude Code o Codex e i limiti compaiono qui.",
+      "choose": "Scegli account…"
     },
     "media": {
       "extractAudio": "Extract audio",

@@ -6,12 +6,26 @@ import { loadDraft, saveDraft, mentionTargets, pathToken } from '../chat/compose
 import { workspaces } from '../palette/workspaces.svelte';
 import { revealNode, switchTo } from '../palette/navigate';
 import { describe, findPath, menus } from '../menu/model';
+import { hitTest } from '../spatial/hit';
+import { aiActivity } from '../activity/store.svelte';
+import { clampZoom } from '../camera/camera';
+import type { CameraState } from '../model/types';
 
 type Args = Record<string, unknown>;
+
+interface NodeHit {
+  nodeId: string;
+  title: string;
+  kind: string;
+  x: number;
+  y: number;
+}
 
 interface CanvasDriver {
   run(op: string, args: Args): Promise<unknown>;
   nodeRect(id: string): { x: number; y: number; w: number; h: number } | null;
+  nodeAt(clientX: number, clientY: number): NodeHit | null;
+  where(): { workspaceId: string; floorId: string };
 }
 
 declare global {
@@ -104,6 +118,49 @@ export function installCanvasDriver(engine: CanvasEngine): () => void {
     return { x: s.x + off.x, y: s.y + off.y, w: s.w, h: s.h };
   };
 
+  const rootEl = () =>
+    document.querySelector<HTMLElement>('.canvas-root') ?? document.querySelector<HTMLElement>('[data-canvas-root]');
+
+  const nodeAt = (cx: number, cy: number): NodeHit | null => {
+    const describeNode = (id: string | undefined): NodeHit | null => {
+      const n = id ? engine.store.node(id) : undefined;
+      return n ? { nodeId: n.id, title: n.title ?? '', kind: n.kind, x: n.x, y: n.y } : null;
+    };
+    const el = document.elementFromPoint(cx, cy);
+    if (el?.closest('[data-canvas-chrome]')) return null;
+    const host = el?.closest<HTMLElement>('[data-node-id]');
+    if (host) return describeNode(host.dataset.nodeId);
+    const root = rootEl();
+    if (!root || !el || !root.contains(el)) return null;
+    const off = root.getBoundingClientRect();
+    const w = engine.camera.screenToWorld(cx - off.left, cy - off.top);
+    const hit = hitTest(engine.store, w.x, w.y, { zoom: engine.camera.zoom });
+    return hit.type === 'node' ? describeNode(hit.id) : null;
+  };
+
+  const round = (v: number) => Math.round(v * 100) / 100;
+  const view = (target: CameraState = engine.cameraTarget()) => {
+    const vis = engine.visibleWorld(target);
+    const scr = engine.camera.safeRect();
+    return {
+      workspaceId: engine.store.workspaceId,
+      floorId: engine.store.floorId,
+      camera: { x: round(vis.x), y: round(vis.y), zoom: round(target.zoom * 1000) / 1000 },
+      visibleRect: { x: round(vis.x), y: round(vis.y), w: round(vis.w), h: round(vis.h) },
+      visibleScreen: { x: round(scr.x), y: round(scr.y), w: round(scr.w), h: round(scr.h) },
+      viewport: { w: engine.camera.vw, h: engine.camera.vh },
+    };
+  };
+
+  const elsewhere = (a: Args) => {
+    const ws = str(a, 'workspaceId');
+    const floor = str(a, 'floorId');
+    if ((ws && ws !== engine.store.workspaceId) || (floor && floor !== engine.store.floorId)) {
+      return { elsewhere: true, workspaceId: engine.store.workspaceId, floorId: engine.store.floorId };
+    }
+    return null;
+  };
+
   const state = () => ({
     workspaceId: engine.store.workspaceId,
     floorId: engine.store.floorId,
@@ -112,7 +169,9 @@ export function installCanvasDriver(engine: CanvasEngine): () => void {
     editing: engine.selection.editing,
     hovered: engine.selection.hovered,
     camera: engine.camera.state(),
+    visibleRect: view().visibleRect,
     viewport: { w: engine.camera.vw, h: engine.camera.vh },
+    activity: { open: aiActivity.open, follow: aiActivity.follow ? (aiActivity.followOrigin ?? 'any') : null, presence: aiActivity.presence },
     tool: engine.tool,
     panel: engine.panel,
     chatFaces: engine.store.nodes.filter((n) => chats.isChat(n.id)).map((n) => n.id),
@@ -144,7 +203,9 @@ export function installCanvasDriver(engine: CanvasEngine): () => void {
           await switchTo(engine, ws, floor);
         }
         const ok = revealNode(engine, id, { focus: a.focus !== false });
-        return ok ? { focus: engine.selection.focused, selection: engine.selection.list() } : { error: `CANVAS_NOT_FOUND: ${id} is not on the open floor` };
+        return ok
+          ? { focus: engine.selection.focused, selection: engine.selection.list(), ...view() }
+          : { error: `CANVAS_NOT_FOUND: ${id} is not on the open floor` };
       }
       case 'activate': {
         const ws = str(a, 'workspaceId');
@@ -153,26 +214,71 @@ export function installCanvasDriver(engine: CanvasEngine): () => void {
         return { workspaceId: engine.store.workspaceId, floorId: engine.store.floorId };
       }
       case 'camera': {
+        const away = elsewhere(a);
+        if (away) return away;
         const x = num(a, 'x');
         const y = num(a, 'y');
         const zoom = num(a, 'zoom');
         if (x !== undefined || y !== undefined || zoom !== undefined) {
-          const target = { ...engine.camera.state() };
-          if (x !== undefined) target.x = x;
-          if (y !== undefined) target.y = y;
-          if (zoom !== undefined) target.zoom = zoom;
+          const now = engine.cameraTarget();
+          const vis = engine.visibleWorld(now);
+          const z = clampZoom(zoom ?? now.zoom);
+          let target: CameraState;
+          if (x === undefined && y === undefined) {
+            const c = engine.camera.safeCenter();
+            const wx = vis.x + vis.w / 2;
+            const wy = vis.y + vis.h / 2;
+            target = { x: wx - c.x / z, y: wy - c.y / z, zoom: z };
+          } else {
+            target = engine.camera.fromVisible(x ?? vis.x, y ?? vis.y, z);
+          }
           if (a.animate) engine.flyToCamera(target);
           else {
             engine.camera.set(target);
             engine.invalidate();
           }
-          if (a.animate) await sleep(600);
         }
-        return { camera: engine.camera.state(), viewport: { w: engine.camera.vw, h: engine.camera.vh } };
+        return view();
       }
-      case 'fit':
+      case 'fit': {
+        const away = elsewhere(a);
+        if (away) return away;
         engine.fitAll(false);
-        return { camera: engine.camera.state() };
+        return view();
+      }
+      case 'nodePos': {
+        const n = engine.store.node(str(a, 'nodeId') ?? '');
+        return n ? { x: n.x, y: n.y } : null;
+      }
+      case 'where':
+        return { workspaceId: engine.store.workspaceId, floorId: engine.store.floorId };
+      case 'view': {
+        if (typeof a.activity === 'boolean') {
+          if (a.activity) aiActivity.show('activity');
+          else aiActivity.open = false;
+        }
+        if (typeof a.presence === 'boolean') aiActivity.presence = a.presence;
+        if ('follow' in a) {
+          const f = a.follow;
+          if (f === null || f === false) {
+            aiActivity.follow = false;
+            aiActivity.followOrigin = null;
+          } else if (typeof f === 'string' || f === true) {
+            aiActivity.follow = true;
+            const want = typeof f === 'string' ? f.trim() : '';
+            const named = aiActivity.actors().find((x) => x.name.toLowerCase() === want.toLowerCase());
+            aiActivity.followOrigin = !want || want === 'any' ? null : (named?.origin ?? want);
+          }
+        }
+        return {
+          workspaceId: engine.store.workspaceId,
+          floorId: engine.store.floorId,
+          activity: aiActivity.open,
+          presence: aiActivity.presence,
+          follow: aiActivity.follow ? (aiActivity.followOrigin ?? 'any') : null,
+          actors: aiActivity.actors().map((x) => ({ origin: x.origin, name: x.name })),
+        };
+      }
       case 'undo':
         engine.undo();
         return { ok: true };
@@ -333,7 +439,12 @@ export function installCanvasDriver(engine: CanvasEngine): () => void {
     }
   };
 
-  const driver: CanvasDriver = { run, nodeRect };
+  const driver: CanvasDriver = {
+    run,
+    nodeRect,
+    nodeAt,
+    where: () => ({ workspaceId: engine.store.workspaceId, floorId: engine.store.floorId }),
+  };
   window.__omnigetCanvasDriver = driver;
 
   let unlisten: UnlistenFn | null = null;

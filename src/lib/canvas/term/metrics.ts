@@ -4,6 +4,7 @@ import { canvasPrefs } from '../prefs.svelte';
 export const TERM_FONT_SIZE = 13;
 const TERM_LINE_HEIGHT = 1.25;
 export const TERM_HEADER_H = 30;
+export const TERM_FOOTER_H = 22;
 const TERM_PAD = 6;
 
 interface CellMetrics {
@@ -68,7 +69,7 @@ export function bodyRect(node: { x: number; y: number; w: number; h: number }): 
     x: node.x + p.x,
     y: node.y + TERM_HEADER_H + p.y,
     w: Math.max(0, node.w - p.x * 2),
-    h: Math.max(0, node.h - TERM_HEADER_H - TERM_PAD - p.y * 2),
+    h: Math.max(0, node.h - TERM_HEADER_H - TERM_FOOTER_H - p.y * 2),
   };
 }
 

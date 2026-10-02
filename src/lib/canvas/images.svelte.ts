@@ -146,7 +146,7 @@ function adopt(engine: CanvasEngine, nodeId: string, r: ImageResolved): void {
     data.fit = null;
     if (r.w > 0 && r.h > 0) Object.assign(patch, fitted(r.w, r.h));
   }
-  engine.updateNode(nodeId, patch);
+  engine.commit([{ op: 'update_node', id: nodeId, patch }], { origin: 'system', history: false });
 }
 
 async function loadBitmap(engine: CanvasEngine, e: Entry): Promise<void> {

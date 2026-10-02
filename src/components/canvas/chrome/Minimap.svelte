@@ -92,10 +92,12 @@
 <style>
   .minimap {
     position: relative;
-    border-radius: 10px;
+    padding: 8px;
+    border-radius: 14px;
     overflow: hidden;
-    border: 1px solid var(--border);
-    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
+    background: var(--mm-bg);
+    border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.18);
     --mm-bg: color-mix(in srgb, var(--popup-bg, #1c1c1e) 92%, transparent);
     --mm-view: var(--accent);
   }

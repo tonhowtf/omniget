@@ -2966,7 +2966,6 @@
   },
   "world": {
     "title": "Canvas",
-    "subtitle": "你的智慧代理在這台電腦上的畫布裡：終端機、筆記以及它們之間的連線。",
     "settings": {
       "title": "Canvas",
       "desc": "/world 上的畫布，你的智慧代理在這裡並肩工作。",
@@ -11446,7 +11445,9 @@
       "textBigger": "Bigger text",
       "textWeight": "Weight",
       "textFamily": "Font",
-      "textThemeColor": "Theme color"
+      "textThemeColor": "Theme color",
+      "attach": "附加檔案",
+      "deviceLock": "鎖定螢幕"
     },
     "term": {
       "action": {
@@ -12037,7 +12038,9 @@
       "syncWinner": "Keep this version",
       "syncNothing": "Nothing changes.",
       "syncChange": "{{file}}: loses {{lost}} lines, gains {{added}}",
-      "syncApply": "Sync"
+      "syncApply": "Sync",
+      "filter": "篩選",
+      "groupHint": "將目前的工作區放入群組"
     },
     "portal": {
       "kind": "Portal",
@@ -12474,6 +12477,10 @@
       "imagesClearThumbs": "Clear thumbnails",
       "thumbsCleared": "Thumbnails cleared ({{mb}} MB)",
       "performanceTitle": "Performance",
+      "rendering": "渲染",
+      "renderingHint": "忠實模式在任何縮放下都按近看時的樣子繪製每個節點；輕量模式在縮小時顯示摘要",
+      "renderingFaithful": "忠實（如近看）",
+      "renderingLight": "輕量（縮小時顯示摘要）",
       "mountedTerminals": "Terminals kept open",
       "mountedTerminalsHint": "Terminals off screen beyond this are closed in the view; they keep running",
       "livePortals": "Live portals",
@@ -12626,7 +12633,12 @@
         "changed": "變更了",
         "drew": "繪製了",
         "erased": "擦除了",
-        "grouped": "群組了"
+        "grouped": "群組了",
+        "quoted": "詢價了",
+        "submitted": "開始了",
+        "generated": "完成了",
+        "failed": "失敗於",
+        "uncertain": "無法確認"
       },
       "kind": {
         "terminal": "一個終端機",
@@ -12641,12 +12653,23 @@
         "image": "一張圖片",
         "stack": "一個資料夾",
         "connector": "一個連接器",
-        "node": "一個節點"
+        "node": "一個節點",
+        "generation": "一次生成",
+        "device": "一台裝置"
       },
       "palette": {
         "activity": "動態",
         "follow": "跟隨 AI",
         "unfollow": "停止跟隨 AI"
+      },
+      "viaGenerate": "圖像生成",
+      "presence": "顯示 AI 游標",
+      "strip": {
+        "label": "誰在畫布上工作",
+        "open": "開啟此工作區的活動",
+        "more": "+{{count}}",
+        "following": "正在跟隨 {{name}}",
+        "stopFollow": "停止跟隨"
       }
     },
     "mcpServers": {
@@ -12708,6 +12731,7 @@
       "save": "Save",
       "cancel": "Cancel",
       "agentLimit": "Agents alone: up to {{limit}} credits per image, {{perHour}} per hour",
+      "spent": "Spent {{credits}} credits",
       "state": {
         "draft": "Draft",
         "quoted": "Priced",
@@ -12740,7 +12764,7 @@
       }
     },
     "accounts": {
-      "environment": "environment",
+      "environment": "default account",
       "environmentOption": "Environment account",
       "environmentHint": "Runs on the account of the environment the app was started in",
       "accountHint": "Runs on the account {{name}}",
@@ -12778,6 +12802,39 @@
         "unused": "Not used by any portal",
         "empty": "No sessions yet."
       }
+    },
+    "newPortal": {
+      "title": "新增入口",
+      "browser": "瀏覽器",
+      "devices": "裝置",
+      "url": "URL",
+      "name": "名稱",
+      "optional": "選填",
+      "userAgent": "使用者代理",
+      "uaDefault": "預設",
+      "uaIos": "iPhone (Safari)",
+      "uaAndroid": "Android (Chrome)",
+      "search": "搜尋裝置…",
+      "all": "全部",
+      "finding": "正在尋找裝置…",
+      "none": "找不到裝置",
+      "booted": "已啟動",
+      "shared": "同一裝置上的入口共用一個畫面。",
+      "cancel": "取消",
+      "create": "建立"
+    },
+    "newFileTree": {
+      "title": "新增檔案樹",
+      "dir": "工作目錄",
+      "browse": "瀏覽…"
+    },
+    "usage": {
+      "title": "代理用量",
+      "limit": "已達用量上限",
+      "planLimits": "方案限制",
+      "emptyTitle": "查看各代理已用掉多少方案",
+      "emptyBody": "選擇你的 Claude Code 或 Codex 帳號，限額會顯示在這裡。",
+      "choose": "選擇帳號…"
     },
     "media": {
       "extractAudio": "Extract audio",

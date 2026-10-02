@@ -496,10 +496,11 @@
     </div>
     {/if}
     <div class="page" class:live bind:this={pageEl}>
-      {#if !live}
-        {#if snapshot}
-          <img class="snap" src={snapshot} alt={pstate?.title || shownUrl} draggable="false" />
-        {:else if url}
+      {#if snapshot}
+        <img class="snap" src={snapshot} alt={pstate?.title || shownUrl} draggable="false" />
+      {/if}
+      {#if !live && !snapshot}
+        {#if url}
           <div class="empty">
             {pstate?.loading
               ? $t("canvas.portal.loading", { default: "Loading…" })

@@ -300,7 +300,7 @@
         area.scrollTop = Math.max(0, (from - 5) * LINE_H);
         trackSelection();
         const n = engine.store.node(node.id);
-        if (n?.data.selectLines) engine.commit([{ op: "update_node", id: n.id, patch: { data: { ...n.data, selectLines: null } } }], { history: false });
+        if (n?.data.selectLines) engine.commit([{ op: "update_node", id: n.id, patch: { data: { ...n.data, selectLines: null } } }], { history: false, origin: "system" });
       });
     });
   });

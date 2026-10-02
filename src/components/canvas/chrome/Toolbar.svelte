@@ -5,91 +5,42 @@
   import { TOOL_ICONS } from "$lib/canvas/icons";
   import Icon from "./Icon.svelte";
   import { aiActivity } from "$lib/canvas/activity/store.svelte";
+  import { ICONS } from "$lib/canvas/nodes/registry";
+  import { defaultAgent } from "$lib/canvas/prefs.svelte";
+  import { openInIde, IDE_LABELS } from "$lib/canvas/sidebar.svelte";
+  import { workspaces } from "$lib/canvas/palette/workspaces.svelte";
+  import { dropPaths } from "$lib/canvas/files/drop";
+  import { showToast } from "$lib/stores/toast-store.svelte";
+  import { invoke } from "@tauri-apps/api/core";
 
   const engine = useEngine();
   const COLORS = ["#e8e6e3", "#1d1d1f", "#e5484d", "#f5a524", "#46a758", "#3e8ef7", "#8e4ec6"];
 
-  const PANEL_ICONS = {
+  const ICON = {
     book: "M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2V5z M6 19h13 M8 7h8",
     clock: "M12 3a9 9 0 1 0 0 18a9 9 0 1 0 0-18z M12 7v5l3 2",
     roles: "M12 4a4 4 0 1 0 0 8a4 4 0 1 0 0-8z M4 21a8 8 0 0 1 16 0",
-    omni: "M4 5h16v11H9l-5 4V5z M8 10h.01 M12 10h.01 M16 10h.01",
+    omni: "M8 4c-2 0-3 1-3 3v2c0 1.5-1 2.5-2 3 1 .5 2 1.5 2 3v2c0 2 1 3 3 3 M16 4c2 0 3 1 3 3v2c0 1.5 1 2.5 2 3-1 .5-2 1.5-2 3v2c0 2-1 3-3 3",
     share: "M12 3v12 M7 8l5-5 5 5 M5 14v6h14v-6",
-    help: "M12 3a9 9 0 1 0 0 18a9 9 0 1 0 0-18z M9.5 9a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .9-1 1.6V14 M12 17.5v.01",
+    visit: "M4 12a8 8 0 0 1 16 0 M8 12a4 4 0 0 1 8 0 M12 12v8",
     more: "M6 12h.01 M12 12h.01 M18 12h.01",
     activity: "M3 12h4l3-8 4 16 3-8h4",
+    attach: "M20 11l-8.5 8.5a5 5 0 0 1-7-7L13 4a3.5 3.5 0 0 1 5 5l-8.5 8.5a2 2 0 0 1-3-3L14 7",
+    folder: "M3 6h6l2 2h10v11H3z",
+    globe: "M12 3a9 9 0 1 0 0 18a9 9 0 1 0 0-18z M3 12h18 M12 3c3 3 3 15 0 18 M12 3c-3 3-3 15 0 18",
+    code: "M8 7l-5 5 5 5 M16 7l5 5-5 5 M14 4l-4 16",
+    draw: "M4 20l4-1 11-11-3-3L5 16z M14 7l3 3 M3 3l18 18",
   };
-  type PanelKind = "partituras" | "routine" | "roles" | "companion" | "visit";
-
-  interface Item {
-    id: string;
-    group: number;
-    prio: number;
-    icon: string;
-    key: string;
-    fallback: string;
-    shortcut?: string;
-    tool?: ToolName;
-    panel?: PanelKind;
-    run?: () => void;
-    on?: () => boolean;
-  }
 
   const mod = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform) ? "⌘" : "Ctrl+";
+  const tr = (key: string, fallback: string, vars?: Record<string, unknown>) =>
+    $t(key, { default: fallback, ...(vars ?? {}) }) as string;
 
-  const tool = (id: ToolName, prio: number, fallback: string, shortcut = ""): Item => ({
-    id,
-    group: 1,
-    prio,
-    icon: TOOL_ICONS[id as keyof typeof TOOL_ICONS],
-    key: `canvas.engine.tool.${id}`,
-    fallback,
-    shortcut,
-    tool: id,
-  });
-  const panel = (id: PanelKind, prio: number, icon: string, key: string, fallback: string, shortcut = ""): Item => ({
-    id: `panel-${id}`,
-    group: 3,
-    prio,
-    icon,
-    key,
-    fallback,
-    shortcut,
-    panel: id,
-  });
-
-  const ITEMS: Item[] = [
-    tool("select", 0, "Select", "V"),
-    tool("hand", 2, "Hand", "H"),
-    tool("pen", 3, "Pen", "D"),
-    tool("highlighter", 11, "Highlighter"),
-    tool("smart", 12, "Smart draw"),
-    tool("eraser", 6, "Eraser", "E"),
-    tool("rect", 5, "Rectangle", "B"),
-    tool("ellipse", 10, "Ellipse", "O"),
-    tool("diamond", 13, "Diamond"),
-    tool("arrow", 7, "Arrow", "A"),
-    tool("line", 14, "Line"),
-    tool("connect", 1, "Connect", "C"),
-    { id: "undo", group: 2, prio: 4, icon: TOOL_ICONS.undo, key: "canvas.engine.undo", fallback: "Undo", shortcut: `${mod}Z`, run: () => engine.undo() },
-    { id: "redo", group: 2, prio: 8, icon: TOOL_ICONS.redo, key: "canvas.engine.redo", fallback: "Redo", shortcut: `${mod}⇧Z`, run: () => engine.redo() },
-    panel("partituras", 9, PANEL_ICONS.book, "canvas.engine.partituras", "Partituras", `${mod}⇧L`),
-    panel("routine", 15, PANEL_ICONS.clock, "canvas.engine.routines", "Routines"),
-    panel("roles", 16, PANEL_ICONS.roles, "canvas.engine.roles", "Roles"),
-    panel("companion", 15, PANEL_ICONS.omni, "canvas.engine.companion", "Omni"),
-    panel("visit", 16, PANEL_ICONS.share, "canvas.engine.share", "Share and visit"),
-    { id: "activity", group: 3, prio: 14, icon: PANEL_ICONS.activity, key: "canvas.activity.title", fallback: "Activity", run: () => aiActivity.toggle("activity"), on: () => aiActivity.open },
-  ];
-
-  const BTN = 32;
-  const SEP = 11;
-  const PAD = 12;
-  const FIXED = BTN + SEP + BTN;
-
-  let avail = $state(0);
   let menuOpen = $state(false);
   let moreBtn = $state<HTMLButtonElement | null>(null);
   let menuPos = $state({ right: 0, top: 0 });
+  let avail = $state(0);
+  const roomy = $derived(avail === 0 || avail > 900);
 
   const helpLines = $derived([
     $t("canvas.engine.help.escape", { default: "Shift+Esc: leave a focused terminal and return to the canvas (Esc goes to the program)" }),
@@ -100,46 +51,72 @@
     $t("canvas.engine.help.attention", { default: `${mod}⇧A: next agent that needs you` }),
   ]);
 
-  const visible = $derived.by(() => {
-    const room = (avail || 10_000) - PAD - FIXED;
-    const ranked = [...ITEMS].sort((a, b) => rank(a) - rank(b));
-    const out = new Set<string>();
-    const groups = new Set<number>();
-    let used = 0;
-    for (const it of ranked) {
-      const cost = BTN + (groups.has(it.group) || it.group === 1 ? 0 : SEP);
-      if (used + cost > room) continue;
-      used += cost;
-      out.add(it.id);
-      groups.add(it.group);
+  const drawing = $derived(DRAW_TOOLS.includes(engine.tool) || SHAPE_TOOLS.includes(engine.tool) || engine.tool === "eraser");
+  const DRAW_SET: Array<[ToolName, string]> = [
+    ["pen", "Pen"],
+    ["highlighter", "Highlighter"],
+    ["smart", "Smart draw"],
+    ["eraser", "Eraser"],
+    ["rect", "Rectangle"],
+    ["ellipse", "Ellipse"],
+    ["diamond", "Diamond"],
+    ["arrow", "Arrow"],
+    ["line", "Line"],
+  ];
+
+  function creating(kind: string): boolean {
+    return engine.tool === "create" && engine.createKind === kind;
+  }
+
+  function arm(kind: string) {
+    if (creating(kind)) return engine.setTool("select");
+    if (kind === "terminal") {
+      const d = defaultAgent();
+      engine.armCreate("terminal", d.agent, d.preset);
+    } else engine.armCreate(kind);
+  }
+
+  function togglePanel(kind: "partituras" | "routine" | "roles" | "companion" | "visit") {
+    engine.panel = engine.panel?.kind === kind ? null : { kind };
+  }
+
+  async function attach() {
+    try {
+      const { open } = await import("@tauri-apps/plugin-dialog");
+      const picked = await open({ multiple: true });
+      const paths = Array.isArray(picked) ? picked : typeof picked === "string" ? [picked] : [];
+      if (paths.length) await dropPaths(engine, paths, engine.camera.center());
+    } catch (e) {
+      showToast("error", String(e));
     }
-    return out;
-  });
-
-  function rank(it: Item): number {
-    if (it.tool && it.tool === engine.tool) return -2;
-    if (it.panel && engine.panel?.kind === it.panel) return -1;
-    return it.prio;
   }
 
-  const shown = $derived(ITEMS.filter((it) => visible.has(it.id)));
-  const hidden = $derived(ITEMS.filter((it) => !visible.has(it.id)));
-
-  function isOn(it: Item): boolean {
-    if (it.on) return it.on();
-    if (it.tool) return engine.tool === it.tool;
-    if (it.panel) return engine.panel?.kind === it.panel;
-    return false;
+  async function ide() {
+    const ws = engine.store.workspaceId;
+    if (!ws) return;
+    try {
+      const r = await openInIde(ws);
+      showToast("success", tr("canvas.sidebar.openedIn", "Opened in {{ide}}", { ide: IDE_LABELS[r.ide] ?? r.ide }));
+    } catch (e) {
+      showToast("error", String(e));
+    }
   }
 
-  function activate(it: Item) {
-    if (it.tool) engine.setTool(it.tool);
-    else if (it.panel) engine.panel = engine.panel?.kind === it.panel ? null : { kind: it.panel };
-    else it.run?.();
-  }
-
-  function label(it: Item): string {
-    return $t(it.key, { default: it.fallback });
+  async function exportWs() {
+    const ws = workspaces.byId(engine.store.workspaceId);
+    if (!ws) return;
+    try {
+      const { save } = await import("@tauri-apps/plugin-dialog");
+      const path = await save({
+        defaultPath: `${ws.name.replace(/[\\/:*?"<>|]/g, "-")}.omniget`,
+        filters: [{ name: "OmniGet workspace", extensions: ["omniget"] }],
+      });
+      if (typeof path !== "string") return;
+      const r = await invoke<{ nodes: number; omitted: unknown[] }>("canvas_workspace_export", { workspaceId: ws.id, path });
+      showToast("success", tr("canvas.workspaceIo.exported", "Exported {{nodes}} items ({{left}} left out)", { nodes: r.nodes, left: r.omitted.length }));
+    } catch (e) {
+      showToast("error", String(e));
+    }
   }
 
   function toggleMenu() {
@@ -168,8 +145,6 @@
     };
   });
 
-  const styled = $derived(DRAW_TOOLS.includes(engine.tool) || SHAPE_TOOLS.includes(engine.tool));
-
   function openSpawn(e: MouseEvent) {
     const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
     const root = (e.currentTarget as HTMLElement).closest(".canvas-root")?.getBoundingClientRect();
@@ -178,95 +153,145 @@
     const c = engine.camera.center();
     engine.spawnMenu = engine.spawnMenu ? null : { sx, sy, wx: c.x, wy: c.y, free: true };
   }
+
+  function run(fn: () => void) {
+    fn();
+    menuOpen = false;
+  }
 </script>
 
 <div class="fit" bind:clientWidth={avail}>
-  <div class="bar" data-canvas-chrome role="toolbar" tabindex="-1" aria-label={$t("canvas.engine.tools", { default: "Canvas tools" })}>
-    <button type="button" class="add" title={$t("canvas.engine.add", { default: "Add" })} onclick={openSpawn}>
-      <Icon d={TOOL_ICONS.plus} />
+  <div class="bar main" data-canvas-chrome role="toolbar" tabindex="-1" aria-label={tr("canvas.engine.tools", "Canvas tools")}>
+    <button type="button" class:on={engine.tool === "select"} title="{tr('canvas.engine.tool.select', 'Select')} (V)" aria-label={tr("canvas.engine.tool.select", "Select")} onclick={() => engine.setTool("select")}>
+      <Icon d={TOOL_ICONS.select} />
     </button>
-    <span class="sep"></span>
-    {#each shown as it, i (it.id)}
-      {#if i > 0 && shown[i - 1].group !== it.group}
-        <span class="sep"></span>
-      {/if}
-      <button
-        type="button"
-        class:on={isOn(it)}
-        aria-pressed={it.tool || it.panel ? isOn(it) : undefined}
-        title={`${label(it)}${it.shortcut ? ` (${it.shortcut})` : ""}`}
-        onclick={() => activate(it)}
-      >
-        <Icon d={it.icon} />
-      </button>
-    {/each}
-    <button
-      type="button"
-      class="more"
-      class:on={menuOpen}
-      bind:this={moreBtn}
-      aria-haspopup="menu"
-      aria-expanded={menuOpen}
-      title={$t("canvas.engine.more", { default: "More tools and shortcuts" })}
-      onclick={toggleMenu}
-    >
-      <Icon d={hidden.length ? PANEL_ICONS.more : PANEL_ICONS.help} />
+    <button type="button" class:on={creating("terminal")} title="{tr('canvas.engine.spawn.terminal', 'Terminal')} (T)" aria-label={tr("canvas.engine.spawn.terminal", "Terminal")} onclick={() => arm("terminal")}>
+      <Icon d={ICONS.terminal} />
+    </button>
+    <button type="button" class:on={creating("note")} title="{tr('canvas.engine.spawn.note', 'Note')} (N)" aria-label={tr("canvas.engine.spawn.note", "Note")} onclick={() => arm("note")}>
+      <Icon d={ICONS.note} />
+    </button>
+    <button type="button" title={tr("canvas.engine.attach", "Attach a file")} aria-label={tr("canvas.engine.attach", "Attach a file")} onclick={() => void attach()}>
+      <Icon d={ICON.attach} />
+    </button>
+    <button type="button" class:on={engine.panel?.kind === "new-filetree"} title="{tr('canvas.menu.add.filetree', 'File Tree')} (F)" aria-label={tr("canvas.menu.add.filetree", "File Tree")} onclick={() => (engine.panel = { kind: "new-filetree" })}>
+      <Icon d={ICON.folder} />
+    </button>
+    <button type="button" class:on={engine.panel?.kind === "new-portal"} title="{tr('canvas.engine.spawn.portal', 'Portal')} (P)" aria-label={tr("canvas.engine.spawn.portal", "Portal")} onclick={() => (engine.panel = { kind: "new-portal" })}>
+      <Icon d={ICON.globe} />
+    </button>
+    <button type="button" class="aa" class:on={creating("text")} title="{tr('canvas.engine.spawn.text', 'Text')} (L)" aria-label={tr("canvas.engine.spawn.text", "Text")} onclick={() => arm("text")}>Aa</button>
+    <button type="button" class:on={drawing} title="{tr('canvas.engine.tool.pen', 'Pen')} (D)" aria-label={tr("canvas.engine.tool.pen", "Pen")} onclick={() => engine.setTool(drawing ? "select" : "pen")}>
+      <Icon d={ICON.draw} />
     </button>
   </div>
-  {#if styled}
+  {#if drawing}
     <div class="bar styles" data-canvas-chrome>
-      {#each COLORS as c (c)}
-        <button
-          type="button"
-          class="swatch"
-          class:on={engine.penColor === c}
-          style:--sw={c}
-          aria-label={c}
-          onclick={() => (engine.penColor = c)}
-        ></button>
-      {/each}
-      <input
-        class="width"
-        type="range"
-        min="1"
-        max="16"
-        step="1"
-        bind:value={engine.strokeWidth}
-        title={$t("canvas.engine.strokeWidth", { default: "Stroke width" })}
-      />
-      {#if SHAPE_TOOLS.includes(engine.tool)}
-        <button type="button" class="chip" class:on={engine.sketch} onclick={() => (engine.sketch = !engine.sketch)}>
-          {$t("canvas.engine.sketch", { default: "Sketch" })}
+      {#each DRAW_SET as [id, fallback] (id)}
+        <button type="button" class:on={engine.tool === id} title={tr(`canvas.engine.tool.${id}`, fallback)} aria-label={tr(`canvas.engine.tool.${id}`, fallback)} onclick={() => engine.setTool(id)}>
+          <Icon d={TOOL_ICONS[id as keyof typeof TOOL_ICONS]} />
         </button>
+      {/each}
+      <span class="sep"></span>
+      {#each COLORS as c (c)}
+        <button type="button" class="swatch" class:on={engine.penColor === c} style:--sw={c} aria-label={c} onclick={() => (engine.penColor = c)}></button>
+      {/each}
+      <input class="width" type="range" min="1" max="16" step="1" bind:value={engine.strokeWidth} title={tr("canvas.engine.strokeWidth", "Stroke width")} />
+      {#if SHAPE_TOOLS.includes(engine.tool)}
+        <button type="button" class="chip" class:on={engine.sketch} onclick={() => (engine.sketch = !engine.sketch)}>{tr("canvas.engine.sketch", "Sketch")}</button>
       {/if}
     </div>
   {/if}
+  <div class="right" data-canvas-chrome>
+    {#if roomy}
+      <div class="bar">
+        <button type="button" class:on={engine.panel?.kind === "companion"} title={tr("canvas.engine.companion", "Omni")} aria-label={tr("canvas.engine.companion", "Omni")} onclick={() => togglePanel("companion")}>
+          <Icon d={ICON.omni} />
+        </button>
+        <button type="button" class:on={engine.panel?.kind === "partituras"} title="{tr('canvas.engine.partituras', 'Partituras')} ({mod}⇧L)" aria-label={tr("canvas.engine.partituras", "Partituras")} onclick={() => togglePanel("partituras")}>
+          <Icon d={ICON.book} />
+        </button>
+        <button type="button" class:on={aiActivity.open} title={tr("canvas.activity.title", "Activity")} aria-label={tr("canvas.activity.title", "Activity")} onclick={() => aiActivity.toggle("activity")}>
+          <Icon d={ICON.activity} />
+        </button>
+      </div>
+      <div class="bar">
+        <button type="button" title={tr("canvas.menu.openInIde", "Open in IDE")} aria-label={tr("canvas.menu.openInIde", "Open in IDE")} onclick={() => void ide()}>
+          <Icon d={ICON.code} />
+        </button>
+      </div>
+      <div class="bar">
+        <button type="button" title={tr("canvas.workspaceIo.export", "Export…")} aria-label={tr("canvas.workspaceIo.export", "Export…")} onclick={() => void exportWs()}>
+          <Icon d={ICON.share} />
+        </button>
+      </div>
+    {/if}
+    <div class="bar">
+      <button
+        type="button"
+        class="more"
+        class:on={menuOpen}
+        bind:this={moreBtn}
+        aria-haspopup="menu"
+        aria-expanded={menuOpen}
+        title={tr("canvas.engine.more", "More tools and shortcuts")}
+        aria-label={tr("canvas.engine.more", "More tools and shortcuts")}
+        onclick={toggleMenu}
+      >
+        <Icon d={ICON.more} />
+      </button>
+    </div>
+  </div>
 </div>
 
 {#if menuOpen}
   <div class="tb-menu" data-canvas-chrome role="menu" style:right="{menuPos.right}px" style:top="{menuPos.top}px">
-    {#each hidden as it, i (it.id)}
-      {#if i > 0 && hidden[i - 1].group !== it.group}
-        <div class="msep"></div>
-      {/if}
-      <button
-        type="button"
-        role="menuitem"
-        class="mi"
-        class:on={isOn(it)}
-        onclick={() => {
-          activate(it);
-          menuOpen = false;
-        }}
-      >
-        <Icon d={it.icon} />
-        <span class="ml">{label(it)}</span>
-        {#if it.shortcut}<kbd>{it.shortcut}</kbd>{/if}
+    <button type="button" role="menuitem" class="mi" onclick={(e) => { openSpawn(e); menuOpen = false; }}>
+      <Icon d={TOOL_ICONS.plus} /><span class="ml">{tr("canvas.engine.add", "Add")}</span>
+    </button>
+    <button type="button" role="menuitem" class="mi" class:on={engine.tool === "hand"} onclick={() => run(() => engine.setTool("hand"))}>
+      <Icon d={TOOL_ICONS.hand} /><span class="ml">{tr("canvas.engine.tool.hand", "Hand")}</span><kbd>H</kbd>
+    </button>
+    <button type="button" role="menuitem" class="mi" class:on={engine.tool === "connect"} onclick={() => run(() => engine.setTool("connect"))}>
+      <Icon d={TOOL_ICONS.connect} /><span class="ml">{tr("canvas.engine.tool.connect", "Connect")}</span><kbd>C</kbd>
+    </button>
+    <div class="msep"></div>
+    <button type="button" role="menuitem" class="mi" onclick={() => run(() => engine.undo())}>
+      <Icon d={TOOL_ICONS.undo} /><span class="ml">{tr("canvas.engine.undo", "Undo")}</span><kbd>{mod}Z</kbd>
+    </button>
+    <button type="button" role="menuitem" class="mi" onclick={() => run(() => engine.redo())}>
+      <Icon d={TOOL_ICONS.redo} /><span class="ml">{tr("canvas.engine.redo", "Redo")}</span><kbd>{mod}⇧Z</kbd>
+    </button>
+    <div class="msep"></div>
+    {#if !roomy}
+      <button type="button" role="menuitem" class="mi" onclick={() => run(() => togglePanel("companion"))}>
+        <Icon d={ICON.omni} /><span class="ml">{tr("canvas.engine.companion", "Omni")}</span>
       </button>
-    {/each}
-    {#if hidden.length}<div class="msep"></div>{/if}
+      <button type="button" role="menuitem" class="mi" onclick={() => run(() => togglePanel("partituras"))}>
+        <Icon d={ICON.book} /><span class="ml">{tr("canvas.engine.partituras", "Partituras")}</span><kbd>{mod}⇧L</kbd>
+      </button>
+      <button type="button" role="menuitem" class="mi" onclick={() => run(() => aiActivity.toggle("activity"))}>
+        <Icon d={ICON.activity} /><span class="ml">{tr("canvas.activity.title", "Activity")}</span>
+      </button>
+      <button type="button" role="menuitem" class="mi" onclick={() => run(() => void ide())}>
+        <Icon d={ICON.code} /><span class="ml">{tr("canvas.menu.openInIde", "Open in IDE")}</span>
+      </button>
+      <button type="button" role="menuitem" class="mi" onclick={() => run(() => void exportWs())}>
+        <Icon d={ICON.share} /><span class="ml">{tr("canvas.workspaceIo.export", "Export…")}</span>
+      </button>
+    {/if}
+    <button type="button" role="menuitem" class="mi" class:on={engine.panel?.kind === "routine"} onclick={() => run(() => togglePanel("routine"))}>
+      <Icon d={ICON.clock} /><span class="ml">{tr("canvas.engine.routines", "Routines")}</span>
+    </button>
+    <button type="button" role="menuitem" class="mi" class:on={engine.panel?.kind === "roles"} onclick={() => run(() => togglePanel("roles"))}>
+      <Icon d={ICON.roles} /><span class="ml">{tr("canvas.engine.roles", "Roles")}</span>
+    </button>
+    <button type="button" role="menuitem" class="mi" class:on={engine.panel?.kind === "visit"} onclick={() => run(() => togglePanel("visit"))}>
+      <Icon d={ICON.visit} /><span class="ml">{tr("canvas.engine.share", "Share and visit")}</span>
+    </button>
+    <div class="msep"></div>
     <div class="help">
-      <div class="help-title">{$t("canvas.engine.shortcuts", { default: "Shortcuts" })}</div>
+      <div class="help-title">{tr("canvas.engine.shortcuts", "Shortcuts")}</div>
       {#each helpLines as line (line)}
         <div class="help-line">{line}</div>
       {/each}
@@ -276,24 +301,40 @@
 
 <style>
   .fit {
+    position: relative;
     width: 100%;
     min-width: 0;
     display: flex;
     flex-direction: column;
     align-items: center;
+    gap: 8px;
+    pointer-events: none;
+  }
+  .right {
+    position: absolute;
+    top: 0;
+    right: 0;
+    display: flex;
     gap: 6px;
     pointer-events: none;
+  }
+  .aa {
+    font-size: 14px;
+    font-weight: 500;
+    padding: 0 4px;
   }
   .bar {
     pointer-events: auto;
     display: inline-flex;
     align-items: center;
-    gap: 2px;
-    padding: 4px;
-    border-radius: 12px;
+    gap: 1px;
+    padding: 3px 5px;
+    border-radius: 999px;
     background: var(--popup-bg, var(--surface));
-    border: 1px solid var(--border);
-    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.22);
+    border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+    box-shadow:
+      0 1px 2px rgba(0, 0, 0, 0.06),
+      0 6px 18px rgba(0, 0, 0, 0.12);
     max-width: 100%;
     overflow: hidden;
     flex-wrap: nowrap;
@@ -305,12 +346,12 @@
   }
   button {
     all: unset;
-    min-width: 30px;
-    height: 30px;
+    min-width: 32px;
+    height: 32px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    border-radius: 8px;
+    border-radius: 999px;
     color: var(--text);
     cursor: pointer;
     flex: none;
@@ -319,14 +360,11 @@
     background: var(--fill-1, rgba(127, 127, 127, 0.15));
   }
   button.on {
-    background: var(--accent);
-    color: var(--on-accent, #fff);
+    background: color-mix(in srgb, var(--accent) 16%, transparent);
+    color: var(--accent);
   }
   button:focus-visible {
     outline: 2px solid var(--focus-ring, var(--accent));
-  }
-  .add {
-    background: var(--fill-1, rgba(127, 127, 127, 0.15));
   }
   .more.on {
     background: var(--fill-1, rgba(127, 127, 127, 0.15));
@@ -356,9 +394,9 @@
   }
   .sep {
     width: 1px;
-    height: 20px;
+    height: 16px;
     background: var(--border);
-    margin: 0 4px;
+    margin: 0 3px;
     flex: none;
   }
   .tb-menu {
@@ -376,6 +414,7 @@
     pointer-events: auto;
   }
   .mi {
+    border-radius: 6px;
     display: flex;
     width: 100%;
     box-sizing: border-box;

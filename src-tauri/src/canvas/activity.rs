@@ -35,6 +35,8 @@ pub struct Entry {
     pub summary: String,
     pub node_ids: Vec<String>,
     pub undo: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub via: Option<String>,
 }
 
 enum Raw {
@@ -139,6 +141,61 @@ fn base_origin(origin: &str) -> (&str, bool) {
     match origin.strip_suffix(UNDO_SUFFIX) {
         Some(b) => (b, true),
         None => (origin, false),
+    }
+}
+
+struct Via<'a> {
+    by: &'a str,
+    via: Option<&'a str>,
+    step: Option<&'a str>,
+    detail: Option<&'a str>,
+}
+
+fn split_via(origin: &str) -> Via<'_> {
+    let Some((by, rest)) = origin.split_once('#') else {
+        return Via {
+            by: origin,
+            via: None,
+            step: None,
+            detail: None,
+        };
+    };
+    let mut parts = rest.splitn(3, ':');
+    let via = parts.next().filter(|v| !v.is_empty());
+    let step = parts.next().filter(|v| !v.is_empty());
+    let detail = parts.next().map(str::trim).filter(|v| !v.is_empty());
+    Via {
+        by: if by.is_empty() { ORIGIN_SYSTEM } else { by },
+        via,
+        step,
+        detail,
+    }
+}
+
+fn step_verb(step: &str) -> Option<&'static str> {
+    match step {
+        "quoted" => Some("quoted"),
+        "submitted" => Some("submitted"),
+        "generated" => Some("generated"),
+        "failed" => Some("failed"),
+        "uncertain" => Some("uncertain"),
+        _ => None,
+    }
+}
+
+fn step_summary(verb: &str, title: &str, detail: Option<&str>) -> String {
+    let what = if title.trim().is_empty() {
+        "a generation".to_string()
+    } else {
+        format!("generation {}", quoted(title))
+    };
+    let extra = detail.map(|d| format!(" ({d})")).unwrap_or_default();
+    match verb {
+        "quoted" => format!("got a price for {what}{extra}"),
+        "submitted" => format!("started {what}{extra}"),
+        "generated" => format!("{what} finished{extra}"),
+        "failed" => format!("{what} failed{extra}"),
+        _ => format!("{what} needs checking{extra}"),
     }
 }
 
@@ -387,51 +444,99 @@ fn record(store: &Weak<CanvasStore>, raw: Raw) -> Option<Entry> {
     let (ws, floor, seq, rev, origin, verb, node_ids, summary_nodes, other, noun, link) = match raw
     {
         Raw::Patch(p) => {
-            for op in &p.ops {
-                if let Op::AddNode { node } = op {
-                    let t = node.title.clone().unwrap_or_default();
-                    remember_title(&mut b, &node.id, &t, node.kind.as_str());
-                }
+            let tag = split_via(base_origin(&p.origin).0);
+            if tag.via.is_some() && tag.step == Some("progress") {
+                return None;
             }
-            let sh = shape(&p.ops);
-            let mut named = Vec::new();
-            if sh.node_ids.len() == 1 {
-                named.push(
-                    title_of(&mut b, store, &p.workspace_id, &p.floor_id, &sh.node_ids[0])
-                        .unwrap_or_default(),
-                );
+            if let Some(v) = tag.step.and_then(step_verb) {
+                let main = p
+                    .ops
+                    .iter()
+                    .rev()
+                    .find_map(|o| match o {
+                        Op::UpdateNode { id, .. } => Some(id.clone()),
+                        _ => None,
+                    })
+                    .or_else(|| shape(&p.ops).node_ids.first().cloned())
+                    .unwrap_or_default();
+                let named = title_of(&mut b, store, &p.workspace_id, &p.floor_id, &main)
+                    .unwrap_or_default();
+                let mut ids: Vec<String> = p
+                    .ops
+                    .iter()
+                    .filter_map(|o| match o {
+                        Op::AddNode { node } => {
+                            let t = node.title.clone().unwrap_or_default();
+                            remember_title(&mut b, &node.id, &t, node.kind.as_str());
+                            Some(node.id.clone())
+                        }
+                        _ => None,
+                    })
+                    .collect();
+                if !main.is_empty() && !ids.contains(&main) {
+                    ids.insert(0, main);
+                }
+                let link = Some(step_summary(v, &named.0, tag.detail));
+                (
+                    p.workspace_id,
+                    p.floor_id,
+                    p.seq,
+                    p.rev,
+                    p.origin,
+                    v,
+                    ids,
+                    vec![named],
+                    1,
+                    "generation",
+                    link,
+                )
             } else {
-                named.resize(sh.node_ids.len(), (String::new(), String::new()));
-            }
-            let mut ids = sh.node_ids;
-            let mut link = None;
-            if sh.verb == "corded" {
-                ids = cord_ends(&p.ops);
-                if ids.len() == 2 {
-                    let mut end = |id: &str| {
-                        title_of(&mut b, store, &p.workspace_id, &p.floor_id, id)
-                            .map(|(t, _)| t)
-                            .filter(|t| !t.trim().is_empty())
-                            .unwrap_or_else(|| id.to_string())
-                    };
-                    let (from, to) = (end(&ids[0]), end(&ids[1]));
-                    link = Some(format!("connected {} to {}", quoted(&from), quoted(&to)));
+                for op in &p.ops {
+                    if let Op::AddNode { node } = op {
+                        let t = node.title.clone().unwrap_or_default();
+                        remember_title(&mut b, &node.id, &t, node.kind.as_str());
+                    }
                 }
+                let sh = shape(&p.ops);
+                let mut named = Vec::new();
+                if sh.node_ids.len() == 1 {
+                    named.push(
+                        title_of(&mut b, store, &p.workspace_id, &p.floor_id, &sh.node_ids[0])
+                            .unwrap_or_default(),
+                    );
+                } else {
+                    named.resize(sh.node_ids.len(), (String::new(), String::new()));
+                }
+                let mut ids = sh.node_ids;
+                let mut link = None;
+                if sh.verb == "corded" {
+                    ids = cord_ends(&p.ops);
+                    if ids.len() == 2 {
+                        let mut end = |id: &str| {
+                            title_of(&mut b, store, &p.workspace_id, &p.floor_id, id)
+                                .map(|(t, _)| t)
+                                .filter(|t| !t.trim().is_empty())
+                                .unwrap_or_else(|| id.to_string())
+                        };
+                        let (from, to) = (end(&ids[0]), end(&ids[1]));
+                        link = Some(format!("connected {} to {}", quoted(&from), quoted(&to)));
+                    }
+                }
+                ids.dedup();
+                (
+                    p.workspace_id,
+                    p.floor_id,
+                    p.seq,
+                    p.rev,
+                    p.origin,
+                    sh.verb,
+                    ids,
+                    named,
+                    sh.other,
+                    sh.noun,
+                    link,
+                )
             }
-            ids.dedup();
-            (
-                p.workspace_id,
-                p.floor_id,
-                p.seq,
-                p.rev,
-                p.origin,
-                sh.verb,
-                ids,
-                named,
-                sh.other,
-                sh.noun,
-                link,
-            )
         }
         Raw::Note(n) => {
             let floor = store
@@ -456,7 +561,15 @@ fn record(store: &Weak<CanvasStore>, raw: Raw) -> Option<Entry> {
             )
         }
     };
-    let (base, undo) = base_origin(&origin);
+    let (raw_base, undo) = base_origin(&origin);
+    let tag = split_via(raw_base);
+    let base = tag.by;
+    let via = tag.via.map(str::to_string);
+    let origin = if undo {
+        format!("{base}{UNDO_SUFFIX}")
+    } else {
+        base.to_string()
+    };
     let (actor, actor_kind) = actor_of(&b, store, &ws, &floor, base);
     let mut summary = link.unwrap_or_else(|| describe(verb, &summary_nodes, other, noun));
     if undo {
@@ -480,6 +593,7 @@ fn record(store: &Weak<CanvasStore>, raw: Raw) -> Option<Entry> {
     let q = b.entries.entry(ws.clone()).or_default();
     if let Some(last) = q.back_mut() {
         if last.origin == origin
+            && last.via == via
             && last.floor_id == floor
             && last.verb == verb
             && last.node_ids == node_ids
@@ -514,6 +628,7 @@ fn record(store: &Weak<CanvasStore>, raw: Raw) -> Option<Entry> {
         summary,
         node_ids,
         undo,
+        via,
     };
     let q = b.entries.entry(ws).or_default();
     q.push_back(entry.clone());
@@ -521,4 +636,22 @@ fn record(store: &Weak<CanvasStore>, raw: Raw) -> Option<Entry> {
         q.pop_front();
     }
     Some(entry)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn origin_tags_split_into_requester_via_and_step() {
+        let t = split_via("mcp:qa-rafa#generate:generated:v2, 1.5 credits");
+        assert_eq!(t.by, "mcp:qa-rafa");
+        assert_eq!(t.via, Some("generate"));
+        assert_eq!(t.step, Some("generated"));
+        assert_eq!(t.detail, Some("v2, 1.5 credits"));
+        let plain = split_via("agent:abc");
+        assert_eq!(plain.by, "agent:abc");
+        assert!(plain.via.is_none() && plain.step.is_none());
+        assert_eq!(split_via("#generate:quoted").by, ORIGIN_SYSTEM);
+    }
 }

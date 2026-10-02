@@ -2966,7 +2966,6 @@
   },
   "world": {
     "title": "Canvas",
-    "subtitle": "你的智能体在这台电脑上的画布里：终端、笔记以及它们之间的连线。",
     "settings": {
       "title": "Canvas",
       "desc": "/world 上的画布，你的智能体在这里并肩工作。",
@@ -11446,7 +11445,9 @@
       "textBigger": "Bigger text",
       "textWeight": "Weight",
       "textFamily": "Font",
-      "textThemeColor": "Theme color"
+      "textThemeColor": "Theme color",
+      "attach": "附加文件",
+      "deviceLock": "锁定屏幕"
     },
     "term": {
       "action": {
@@ -12037,7 +12038,9 @@
       "syncWinner": "Keep this version",
       "syncNothing": "Nothing changes.",
       "syncChange": "{{file}}: loses {{lost}} lines, gains {{added}}",
-      "syncApply": "Sync"
+      "syncApply": "Sync",
+      "filter": "筛选",
+      "groupHint": "将当前工作区放入分组"
     },
     "portal": {
       "kind": "Portal",
@@ -12474,6 +12477,10 @@
       "imagesClearThumbs": "Clear thumbnails",
       "thumbsCleared": "Thumbnails cleared ({{mb}} MB)",
       "performanceTitle": "Performance",
+      "rendering": "渲染",
+      "renderingHint": "忠实模式在任何缩放下都按近看时的样子绘制每个节点；轻量模式在缩小时显示摘要",
+      "renderingFaithful": "忠实（如近看）",
+      "renderingLight": "轻量（缩小时显示摘要）",
       "mountedTerminals": "Terminals kept open",
       "mountedTerminalsHint": "Terminals off screen beyond this are closed in the view; they keep running",
       "livePortals": "Live portals",
@@ -12626,7 +12633,12 @@
         "changed": "更改了",
         "drew": "绘制了",
         "erased": "擦除了",
-        "grouped": "编组了"
+        "grouped": "编组了",
+        "quoted": "询价了",
+        "submitted": "开始了",
+        "generated": "完成了",
+        "failed": "失败于",
+        "uncertain": "无法确认"
       },
       "kind": {
         "terminal": "一个终端",
@@ -12641,12 +12653,23 @@
         "image": "一张图片",
         "stack": "一个文件夹",
         "connector": "一个连接器",
-        "node": "一个节点"
+        "node": "一个节点",
+        "generation": "一次生成",
+        "device": "一台设备"
       },
       "palette": {
         "activity": "动态",
         "follow": "跟随 AI",
         "unfollow": "停止跟随 AI"
+      },
+      "viaGenerate": "图像生成",
+      "presence": "显示 AI 光标",
+      "strip": {
+        "label": "谁在画布上工作",
+        "open": "打开此工作区的活动",
+        "more": "+{{count}}",
+        "following": "正在跟随 {{name}}",
+        "stopFollow": "停止跟随"
       }
     },
     "mcpServers": {
@@ -12708,6 +12731,7 @@
       "save": "Save",
       "cancel": "Cancel",
       "agentLimit": "Agents alone: up to {{limit}} credits per image, {{perHour}} per hour",
+      "spent": "Spent {{credits}} credits",
       "state": {
         "draft": "Draft",
         "quoted": "Priced",
@@ -12740,7 +12764,7 @@
       }
     },
     "accounts": {
-      "environment": "environment",
+      "environment": "default account",
       "environmentOption": "Environment account",
       "environmentHint": "Runs on the account of the environment the app was started in",
       "accountHint": "Runs on the account {{name}}",
@@ -12778,6 +12802,39 @@
         "unused": "Not used by any portal",
         "empty": "No sessions yet."
       }
+    },
+    "newPortal": {
+      "title": "新建门户",
+      "browser": "浏览器",
+      "devices": "设备",
+      "url": "URL",
+      "name": "名称",
+      "optional": "可选",
+      "userAgent": "用户代理",
+      "uaDefault": "默认",
+      "uaIos": "iPhone (Safari)",
+      "uaAndroid": "Android (Chrome)",
+      "search": "搜索设备…",
+      "all": "全部",
+      "finding": "正在查找设备…",
+      "none": "未找到设备",
+      "booted": "已启动",
+      "shared": "同一设备上的门户共享一个屏幕。",
+      "cancel": "取消",
+      "create": "创建"
+    },
+    "newFileTree": {
+      "title": "新建文件树",
+      "dir": "工作目录",
+      "browse": "浏览…"
+    },
+    "usage": {
+      "title": "智能体用量",
+      "limit": "已达到用量上限",
+      "planLimits": "套餐限制",
+      "emptyTitle": "查看各智能体已用掉多少套餐",
+      "emptyBody": "选择你的 Claude Code 或 Codex 账户，限额会显示在这里。",
+      "choose": "选择账户…"
     },
     "media": {
       "extractAudio": "Extract audio",

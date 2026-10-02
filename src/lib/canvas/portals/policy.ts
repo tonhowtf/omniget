@@ -1,6 +1,7 @@
 import { allocate, livePortalsLimit } from '../lod';
+import { faithfulRendering } from '../prefs.svelte';
 import type { CanvasEngine } from '../engine.svelte';
-import { closePortal, hidePortal, refreshSnapshot, setPortalBounds, type PortalBounds } from './client';
+import { closePortal, hidePortal, lastSnapshot, refreshSnapshot, setPortalBounds, type PortalBounds } from './client';
 
 export const SETTLE_MS = 150;
 const LIVE_ZOOM_MIN = 0.5;
@@ -8,6 +9,8 @@ const LIVE_ZOOM_MAX = 2;
 const UNLOAD_AFTER_MS = 5 * 60_000;
 const LIVE_SNAPSHOT_EVERY_MS = 10_000;
 const COVER_POLL_MS = 300;
+const WARM_SETTLE_MS = 2500;
+const WARM_RETRY_MS = 15_000;
 
 export interface Rect {
   x: number;
@@ -100,6 +103,7 @@ export function covered(rect: Rect, host: HTMLElement): boolean {
 
 class PortalPolicy {
   private tracks = new Map<string, Track>();
+  private warmed = new Set<string>();
   private unloads = new Map<string, ReturnType<typeof setTimeout>>();
   private offFrame: (() => void) | null = null;
   private settleTimer: ReturnType<typeof setTimeout> | null = null;
@@ -239,6 +243,8 @@ class PortalPolicy {
         if (r) this.goLive(id, t, r, zoom);
       } else if (t.live) {
         this.goDormant(id, t);
+      } else if (faithfulRendering() && rects.has(id)) {
+        this.warm(id, t);
       }
     }
     const anyLive = Array.from(this.tracks.values()).some((t) => t.live);
@@ -298,6 +304,31 @@ class PortalPolicy {
       });
   }
 
+  private warm(id: string, t: Track): void {
+    if (this.warmed.has(id) || t.opening || lastSnapshot(id)) return;
+    if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
+    this.warmed.add(id);
+    t.opening = true;
+    void t.entry
+      .ensureOpen()
+      .then(async (ok) => {
+        if (!ok) return null;
+        if (!t.live) await hidePortal(id).catch(() => {});
+        await new Promise((r) => setTimeout(r, WARM_SETTLE_MS));
+        if (t.live || !this.tracks.has(id)) return 'skip';
+        const url = await refreshSnapshot(id);
+        this.scheduleUnload(id);
+        return url;
+      })
+      .then((url) => {
+        if (url === null) setTimeout(() => this.warmed.delete(id), WARM_RETRY_MS);
+      })
+      .catch(() => setTimeout(() => this.warmed.delete(id), WARM_RETRY_MS))
+      .finally(() => {
+        t.opening = false;
+      });
+  }
+
   private goDormant(id: string, t: Track): void {
     t.live = false;
     t.sent = '';
@@ -321,7 +352,7 @@ class PortalPolicy {
       setTimeout(() => {
         this.unloads.delete(id);
         if (this.tracks.get(id)?.live) return;
-        void closePortal(id).catch(() => {});
+        void closePortal(id, true).catch(() => {});
       }, UNLOAD_AFTER_MS),
     );
   }

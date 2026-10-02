@@ -72,21 +72,42 @@ pub fn idb_companion() -> Option<PathBuf> {
 }
 
 pub async fn run(bin: &Path, args: &[&str], secs: u64) -> Result<Vec<u8>, String> {
-    let child = omniget_core::core::process::command(bin)
+    run_with_input(bin, args, None, secs).await
+}
+
+pub async fn run_with_input(
+    bin: &Path,
+    args: &[&str],
+    input: Option<&[u8]>,
+    secs: u64,
+) -> Result<Vec<u8>, String> {
+    let mut child = omniget_core::core::process::command(bin)
         .args(args)
-        .stdin(std::process::Stdio::null())
+        .stdin(if input.is_some() {
+            std::process::Stdio::piped()
+        } else {
+            std::process::Stdio::null()
+        })
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped())
         .kill_on_drop(true)
         .spawn()
         .map_err(|e| format!("DEVICE_COMMAND: {}: {e}", bin.display()))?;
+    if let (Some(data), Some(mut stdin)) = (input, child.stdin.take()) {
+        use tokio::io::AsyncWriteExt;
+        stdin
+            .write_all(data)
+            .await
+            .map_err(|e| format!("DEVICE_COMMAND: {}: {e}", name_of(bin)))?;
+        drop(stdin);
+    }
     let out = tokio::time::timeout(Duration::from_secs(secs), child.wait_with_output())
         .await
         .map_err(|_| {
             format!(
                 "DEVICE_TIMEOUT: {} {} took over {secs} s",
                 name_of(bin),
-                args.first().copied().unwrap_or_default()
+                args.iter().take(5).copied().collect::<Vec<_>>().join(" ")
             )
         })?
         .map_err(|e| format!("DEVICE_COMMAND: {e}"))?;

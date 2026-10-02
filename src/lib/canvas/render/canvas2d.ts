@@ -1,4 +1,5 @@
 import type { CanvasEngine } from '../engine.svelte';
+import { labelPriority, placeLabels } from './labels';
 import { buildDrawing } from '../draw/build';
 import { cordPath } from '../cords/route';
 import { isTerminalKind, type Drawing } from '../model/types';
@@ -87,6 +88,7 @@ export function createCanvas2dDrawer(
     ctx.font = '12px system-ui, sans-serif';
     ctx.textAlign = 'center';
     const drawn = new Set<string>();
+    const titles: Array<{ text: string; cx: number; x: number; y: number; w: number; h: number; priority: number }> = [];
     for (const v of frame.visibleNodes) {
       if (v.lod === 'near') continue;
       const snap = getSnapshot(v.id);
@@ -111,10 +113,13 @@ export function createCanvas2dDrawer(
         ctx.fill();
       }
       if (v.title) {
-        ctx.fillStyle = rgbaCss(c.ink);
-        ctx.fillText(v.title, sx + (v.w * z) / 2, sy + v.h * z + 14);
+        const w = ctx.measureText(v.title).width;
+        const cx = sx + (v.w * z) / 2;
+        titles.push({ text: v.title, cx, x: cx - w / 2, y: sy + v.h * z + 3, w, h: 14, priority: labelPriority(v.kind, v.w, v.h, isTerminalKind(v.kind), engine.selection.has(v.id)) });
       }
     }
+    ctx.fillStyle = rgbaCss(c.ink);
+    for (const l of placeLabels(titles, 3)) ctx.fillText(l.text, l.cx, l.y + 11);
     for (const env of engine.traffic.frame(frame.time)) {
       const sx = (env.x - cam.x) * z;
       const sy = (env.y - cam.y) * z;

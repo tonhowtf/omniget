@@ -45,11 +45,14 @@ pub async fn canvas_device_act(
     args: Option<Value>,
 ) -> Result<Value, String> {
     let s = device::need(&node_id)?;
-    device::act(&s, &action, &args.unwrap_or_else(|| json!({}))).await?;
-    Ok(json!({"ok": true}))
+    let mut r = device::act(&s, &action, &args.unwrap_or_else(|| json!({}))).await?;
+    r["ok"] = json!(true);
+    Ok(r)
 }
 
 #[tauri::command]
 pub async fn canvas_device_close(node_id: String) -> Result<Value, String> {
-    device::close(&node_id, true).await
+    let r = device::close(&node_id, true).await;
+    device::mark_closed(&node_id);
+    r
 }
