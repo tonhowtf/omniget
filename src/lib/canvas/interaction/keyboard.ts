@@ -87,7 +87,7 @@ export function resolveKey(e: KeyLike, ctx: KeyContext): Command | null {
     if (/^[1-9]$/.test(k)) return { cmd: 'jump', index: Number(k) };
     if (lower === 'a' && e.shiftKey) return { cmd: 'next-attention' };
     if (lower === 'a') return { cmd: 'select-all' };
-    if (lower === 'm' && e.shiftKey) return { cmd: 'toggle-minimap' };
+    if (lower === 'b' && e.shiftKey && !e.altKey) return { cmd: 'toggle-minimap' };
     if (lower === 'g') return e.shiftKey ? { cmd: 'ungroup' } : { cmd: 'group' };
     if (lower === 'd' && !e.shiftKey) return { cmd: 'duplicate' };
     if (lower === 'c' && !e.shiftKey && !e.altKey) return ctx.hasSelection ? { cmd: 'copy' } : null;
@@ -100,7 +100,7 @@ export function resolveKey(e: KeyLike, ctx: KeyContext): Command | null {
     if (lower === 'w' && !e.shiftKey && !e.altKey) return ctx.hasSelection ? { cmd: 'delete' } : null;
     if (lower === 't' && e.shiftKey && !e.altKey) return { cmd: 'view', id: 'tidy' };
     if (lower === 't' && !e.altKey) return { cmd: 'new-terminal' };
-    if (lower === 'd' && e.shiftKey && !e.altKey) return { cmd: 'new-note' };
+    if (lower === 'n' && e.shiftKey && !e.altKey) return { cmd: 'new-note' };
     if (k === ']' || k === '}' || e.code === 'BracketRight') {
       if (e.shiftKey) return { cmd: 'front' };
       return e.altKey ? { cmd: 'raise' } : null;
@@ -186,13 +186,13 @@ export function resolveKey(e: KeyLike, ctx: KeyContext): Command | null {
 }
 
 export const SHORTCUT_ACTIONS: Record<string, { combo: string; command: Command }> = {
-  new_note: { combo: 'mod+shift+d', command: { cmd: 'new-note' } },
+  new_note: { combo: 'mod+shift+n', command: { cmd: 'new-note' } },
   new_terminal: { combo: 'mod+t', command: { cmd: 'new-terminal' } },
   lift: { combo: '', command: { cmd: 'lift' } },
   next_attention: { combo: 'mod+shift+a', command: { cmd: 'next-attention' } },
   cord_next: { combo: 'mod+alt+arrowright', command: { cmd: 'cord-walk', delta: 1 } },
   cord_previous: { combo: 'mod+alt+arrowleft', command: { cmd: 'cord-walk', delta: -1 } },
-  toggle_minimap: { combo: 'mod+shift+m', command: { cmd: 'toggle-minimap' } },
+  toggle_minimap: { combo: 'mod+shift+b', command: { cmd: 'toggle-minimap' } },
   focus_selection: { combo: 'mod+\\', command: { cmd: 'zoom-toggle' } },
   zoom_to_selection: { combo: 'mod+alt+\\', command: { cmd: 'view', id: 'zoomToSelection' } },
   tidy: { combo: 'mod+shift+t', command: { cmd: 'view', id: 'tidy' } },

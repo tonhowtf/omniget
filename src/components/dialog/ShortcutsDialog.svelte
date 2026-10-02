@@ -1,5 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
+  import { goto } from "$app/navigation";
+  import { page } from "$app/state";
   import { t } from "$lib/i18n";
   import { getSettings } from "$lib/stores/settings-store.svelte";
   import DialogContainer from "./DialogContainer.svelte";
@@ -38,6 +40,8 @@
     },
   ]);
 
+  const NAV_KEYS: Record<string, string> = { "1": "/", "2": "/downloads", ",": "/settings" };
+
   function open() {
     isOpen = true;
   }
@@ -64,6 +68,13 @@
     if (!e.ctrlKey && !e.altKey && !e.metaKey && !e.shiftKey && e.key === "?") {
       e.preventDefault();
       isOpen ? close() : open();
+      return;
+    }
+    const navTarget = NAV_KEYS[e.key];
+    if (navTarget && e.ctrlKey && !e.altKey && !e.metaKey && !e.shiftKey && !page.url.pathname.startsWith("/world")) {
+      e.preventDefault();
+      if (isOpen) close();
+      goto(navTarget);
     }
   }
 

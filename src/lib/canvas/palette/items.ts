@@ -319,7 +319,7 @@ export function actionItems(engine: CanvasEngine, tr: Tr, hooks: ActionHooks): P
     a('zoom-in', tr('canvas.palette.action.zoomIn', 'Zoom In'), () => engine.setZoom(engine.camera.zoom * 1.25), '⌘+'),
     a('zoom-out', tr('canvas.palette.action.zoomOut', 'Zoom Out'), () => engine.setZoom(engine.camera.zoom / 1.25), '⌘-'),
     a('next-attention', tr('canvas.palette.action.nextAttention', 'Next Needs You'), () => engine.nextAttention(), '⌘⇧A', 'attention blocked waiting'),
-    a('minimap', tr('canvas.palette.action.minimap', 'Show or Hide Minimap'), () => (engine.minimapVisible = !engine.minimapVisible), '⌘⇧M'),
+    a('minimap', tr('canvas.palette.action.minimap', 'Show or Hide Minimap'), () => (engine.minimapVisible = !engine.minimapVisible), '⌘⇧B'),
     a('undo', tr('canvas.palette.action.undo', 'Undo'), () => engine.undo(), '⌘Z'),
     a('redo', tr('canvas.palette.action.redo', 'Redo'), () => engine.redo(), '⌘⇧Z'),
     a('tidy', tr('canvas.palette.action.tidy', 'Tidy Up'), () => tidy(engine), '⌘⇧T', 'arrange grid layout'),
