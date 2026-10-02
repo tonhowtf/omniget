@@ -9,7 +9,6 @@ export const DEFAULT_PLATFORM_COOKIE_DOMAINS = Object.freeze({
   bilibili: [".bilibili.com", ".bilivideo.com"],
   soundcloud: [".soundcloud.com", ".sndcdn.com"],
   pinterest: [".pinterest.com"],
-  rocketseat: [".rocketseat.com.br"],
   bluesky: [".bsky.app", ".bsky.social"],
   telegram: [".telegram.org", ".t.me"],
 });

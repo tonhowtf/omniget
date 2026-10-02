@@ -17,9 +17,6 @@ const TRACKED_PLATFORMS = {
   "pinterest.com": "pinterest",
   "bsky.app": "bluesky",
   "bsky.social": "bluesky",
-  "hotmart.com": "hotmart",
-  "udemy.com": "udemy",
-  "rocketseat.com.br": "rocketseat",
 };
 
 const TWO_LABEL_PUBLIC_SUFFIXES = new Set([

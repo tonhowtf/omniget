@@ -22,7 +22,6 @@
   "host_permissions": [
     "http://127.0.0.1/*",
     "http://localhost/*",
-    "*://*.hotmart.com/*",
     "*://*.youtube.com/*",
     "*://*.youtube-nocookie.com/*",
     "*://youtu.be/*",
@@ -71,9 +70,6 @@
     "*://*.telegram.org/*",
     "*://*.vimeo.com/*",
     "*://*.vimeocdn.com/*",
-    "*://*.udemy.com/*",
-    "*://*.udemycdn.com/*",
-    "*://*.rocketseat.com.br/*",
     "*://*.bilibili.com/*",
     "*://*.bilivideo.com/*",
     "*://b23.tv/*",
