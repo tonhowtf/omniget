@@ -73,7 +73,7 @@ The individual steps, if you want to run one by hand:
 - **Tauri commands and events.** A new command is defined, registered in `generate_handler!` in `src-tauri/src/handlers.rs` and called from the frontend in the same PR; a new frontend permission goes in `src-tauri/capabilities/`. The name Rust emits (`app.emit("x")`) must be exactly the name the frontend listens to (`listen("x")`). `pnpm check:ipc` catches drift.
 - **Browser extension.** Edit `browser-extension/chrome/`, then run `pnpm extension:sync` to copy the shared files to `firefox/`.
 - **Removing a feature removes everything only it used:** Rust commands and their registration, `invoke` calls, components, stores, i18n keys, assets in `static/`, capabilities and system permissions (`Info.plist`, `Entitlements.plist`, `.deb` depends), dependencies in `Cargo.toml` and `package.json`, and its README section and images. Grep for the feature's name afterwards.
-- **READMEs.** `README.md` is the source. `README_pt_br.md`, `README_zh_CN.md` and `README.ru.md` keep the same sections in the same order; change all four in the same PR, leaving English text where you cannot translate.
+- **READMEs.** `README.md` is the source. `README.pt-BR.md`, `README.zh-CN.md` and `README.ru.md` keep the same sections in the same order; change all four in the same PR, leaving English text where you cannot translate.
 - **Similar code.** Follow the style of the file around you, including how much it comments and in which language.
 
 ## Commits and pull requests
