@@ -329,7 +329,7 @@
     "phase_end_of_game": "ゲーム終了",
     "nav": "リーグ・オブ・レジェンド",
     "settings_title": "リーグ・オブ・レジェンド",
-    "settings_desc": "オプションのLeagueクライアントメニュー。デフォルトはオフです。",
+    "settings_desc": "オプションのLeagueクライアントメニュー。デフォルトはオンです。",
     "settings_enable": "Leagueメニューを有効化",
     "settings_enable_desc": "クライアントツール付きのLeague of Legendsメニューを追加します。Leagueクライアントの起動が必要です。",
     "settings_auto_accept": "マッチを自動承認",
@@ -1869,7 +1869,11 @@
       "restore": "復元",
       "hints_restored": "All hints restored",
       "run_in_background": "エージェントをバックグラウンドで実行",
-      "run_in_background_flatpak": "Flatpak：ログイン時の起動とコマンドラインからの起動はまだ検証されていません。"
+      "run_in_background_flatpak": "Flatpak：ログイン時の起動とコマンドラインからの起動はまだ検証されていません。",
+      "start_with_system_desc": "コンピューターにログインしたときにOmniGetを開きます。",
+      "start_minimized_desc": "ウィンドウを開かず、トレイに隠れた状態で起動します。",
+      "exit_on_close_desc": "ウィンドウを閉じるとトレイに残さずアプリを終了します。",
+      "run_in_background_desc": "ウィンドウを閉じてもエージェント、タスク、ルーティンを実行し続けます。"
     },
     "appearance": {
       "accessibility_title": "Accessibility",
@@ -2719,10 +2723,10 @@
     "star_description": "プロジェクトを気に入ったら、スターをお願いします！",
     "version": "バージョン",
     "features_title": "これまでに実装した機能",
-    "feature_platforms": "yt-dlpを通じて10以上のプラットフォームと1000以上のサイトからダウンロード: YouTube、Instagram、TikTok、Twitter/X、Reddit、Twitch、Pinterest、Vimeo、Bluesky、Telegram",
+    "feature_platforms": "YouTube、Instagram、TikTok、X、Reddit、Twitch、Pinterest、Vimeo、Bluesky、Bilibili、Telegram、さらにyt-dlp経由で約1,800のサイトからダウンロード",
     "feature_progress": "ETAと速度表示付きのリアルタイムダウンロード進捗",
     "feature_mascot": "ダウンロードに反応するマスコット、Loop",
-    "feature_themes": "11テーマ：Dark、Light、Catppuccin（4種）、One Dark Pro、Dracula、NyxVamp（3種）",
+    "feature_themes": "テーマ：システム、ライトとダーク、OmniGetの外観、アンバーとオレンジのプリセット、Catppuccin、One Dark Pro、Dracula、NyxVamp、E-ink",
     "feature_i18n": "英語、ポルトガル語、中国語、日本語、イタリア語、フランス語に対応",
     "feature_tech": "Tauri + Rustで構築。高速かつ軽量",
     "tagline": "どこからでも、何でもダウンロード。",
@@ -2787,7 +2791,7 @@
     "error": "エラー",
     "loading": "Loading…",
     "unknown_error": "不明なエラー",
-    "cookie_error_message": "自動Cookie検出はFirefoxでのみ動作します。Chrome、Edgeなどはアクセスをブロックします。Firefoxをインストールしてログインするか、cookies.txtファイルを設定 > ダウンロード > Cookieファイルで設定してください。",
+    "cookie_error_message": "ブラウザのCookieを読み取れませんでした。Chrome、EdgeなどのChromium系ブラウザはこれをブロックします（Firefoxは動作します）。ログインするには、OmniGet拡張機能でCookieを保存するか、設定 › ダウンロード › Cookies で cookies.txt をインポートしてください。",
     "retry": "Try again"
   },
   "platforms": {
@@ -5718,7 +5722,7 @@
         "title": "Your AI tools",
         "desc": "OmniGet found these coding CLIs on this machine. Bring their sessions in as threads and start with a small useful setup.",
         "detecting": "Looking for AI tools…",
-        "none": "No coding CLI found. You can install one later in Central › Tools.",
+        "none": "コーディング用CLIが見つかりません。あとで LLM › Tools からインストールできます。",
         "open_tools": "Open Tools",
         "sessions": "{{count}} sessions",
         "imported": "{{count}} imported",

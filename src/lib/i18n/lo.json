@@ -329,7 +329,7 @@
     "phase_end_of_game": "ຈົບເກມ",
     "nav": "League of Legends",
     "settings_title": "League of Legends",
-    "settings_desc": "ເມນູໄຄລເອັນ League ແບບເລືອກໄດ້. ປິດໄວ້ຕາມຄ່າເລີ່ມຕົ້ນ.",
+    "settings_desc": "ເມນູໄຄລເອັນ League ແບບເລືອກໄດ້. ເປີດໄວ້ຕາມຄ່າເລີ່ມຕົ້ນ.",
     "settings_enable": "ເປີດໃຊ້ເມນູ League",
     "settings_enable_desc": "ເພີ່ມເມນູ League of Legends ພ້ອມເຄື່ອງມືໄຄລເອັນ. ຕ້ອງເປີດໄຄລເອັນ League ໄວ້.",
     "settings_auto_accept": "ຮັບແມັດອັດຕະໂນມັດ",
@@ -1869,7 +1869,11 @@
       "restore": "ກູ້ຄືນ",
       "hints_restored": "ກູ້ຄືນຄຳແນະນຳທັງໝົດແລ້ວ",
       "run_in_background": "ແລ່ນເອເຈນຢູ່ເບື້ອງຫຼັງ",
-      "run_in_background_flatpak": "Flatpak: ການເປີດຕອນເຂົ້າສູ່ລະບົບ ແລະ ການຖືກເປີດຈາກແຖວຄຳສັ່ງ ຍັງບໍ່ໄດ້ກວດສອບ."
+      "run_in_background_flatpak": "Flatpak: ການເປີດຕອນເຂົ້າສູ່ລະບົບ ແລະ ການຖືກເປີດຈາກແຖວຄຳສັ່ງ ຍັງບໍ່ໄດ້ກວດສອບ.",
+      "start_with_system_desc": "ເປີດ OmniGet ເມື່ອທ່ານເຂົ້າສູ່ລະບົບຄອມພິວເຕີ.",
+      "start_minimized_desc": "ເລີ່ມແບບເຊື່ອງໃນຖາດລະບົບ, ໂດຍບໍ່ເປີດໜ້າຕ່າງ.",
+      "exit_on_close_desc": "ການປິດໜ້າຕ່າງຈະປິດແອັບ ແທນທີ່ຈະເກັບໄວ້ໃນຖາດລະບົບ.",
+      "run_in_background_desc": "ເອເຈັນ, ວຽກ ແລະ ກິດຈະວັດ ຍັງເຮັດວຽກຕໍ່ເມື່ອປິດໜ້າຕ່າງ."
     },
     "appearance": {
       "accessibility_title": "ການຊ່ວຍເຂົ້າເຖິງ",
@@ -2719,10 +2723,10 @@
     "star_description": "ຖ້າທ່ານມັກໂປຣເຈັກນີ້, ຊ່ວຍໃຫ້ດາວແດ່!",
     "version": "ເວີຊັນ",
     "features_title": "ສິ່ງທີ່ພວກເຮົາສ້າງມາແລ້ວ",
-    "feature_platforms": "ດາວໂຫຼດຈາກ 10+ ແພລດຟອມ ແລະ ອີກ 1000+ ຜ່ານ yt-dlp: YouTube, Instagram, TikTok, Twitter/X, Reddit, Twitch, Pinterest, Vimeo, Bluesky, Telegram",
+    "feature_platforms": "ດາວໂຫຼດຈາກ YouTube, Instagram, TikTok, X, Reddit, Twitch, Pinterest, Vimeo, Bluesky, Bilibili, Telegram ແລະ ອີກປະມານ 1,800 ເວັບໄຊຜ່ານ yt-dlp",
     "feature_progress": "ຄວາມຄືບໜ້າການດາວໂຫຼດແບບສົດໆ ພ້ອມເວລາທີ່ເຫຼືອ ແລະ ຄວາມໄວ",
     "feature_mascot": "Loop, ມາສະຄອດທີ່ຕອບສະໜອງຕໍ່ການດາວໂຫຼດຂອງທ່ານ",
-    "feature_themes": "11 ທີມ: Dark, Light, Catppuccin (4 ແບບ), One Dark Pro, Dracula, NyxVamp (3 ແບບ)",
+    "feature_themes": "ທີມ: ລະບົບ, ແຈ້ງ ແລະ ມືດ, ຮູບແບບ OmniGet, ຄ່າລ່ວງໜ້າສີອຳພັນ ແລະ ສີສົ້ມ, Catppuccin, One Dark Pro, Dracula, NyxVamp ແລະ E-ink",
     "feature_i18n": "ມີໃຫ້ໃຊ້ໃນພາສາອັງກິດ, ປອກຕຸຍການ, ຈີນ, ຍີ່ປຸ່ນ, ອີຕາລີ ແລະ ຝຣັ່ງ",
     "feature_tech": "ສ້າງດ້ວຍ Tauri + Rust. ໄວ ແລະ ເບົາ",
     "tagline": "ດາວໂຫຼດທຸກຢ່າງ, ຈາກທຸກບ່ອນ.",
@@ -2787,7 +2791,7 @@
     "error": "ຂໍ້ຜິດພາດ",
     "loading": "ກຳລັງໂຫຼດ…",
     "unknown_error": "ຂໍ້ຜິດພາດທີ່ບໍ່ຮູ້ຈັກ",
-    "cookie_error_message": "ການກວດຫາຄຸກກີ້ອັດຕະໂນມັດໃຊ້ໄດ້ກັບ Firefox ເທົ່ານັ້ນ. Chrome, Edge ແລະ ບຣາວເຊີອື່ນທີ່ອີງໃສ່ Chromium ຈະບລັອກການເຂົ້າເຖິງຄຸກກີ້. ເພື່ອໃຊ້ຄຸກກີ້: ຕິດຕັ້ງ Firefox ແລະ ເຂົ້າສູ່ລະບົບບັນຊີຂອງທ່ານຢູ່ນັ້ນ, ຫຼື ສົ່ງອອກໄຟລ໌ cookies.txt ຈາກບຣາວເຊີຂອງທ່ານ ແລະ ຕັ້ງຄ່າໃນ ການຕັ້ງຄ່າ > ດາວໂຫຼດ > ໄຟລ໌ຄຸກກີ້.",
+    "cookie_error_message": "OmniGet ອ່ານຄຸກກີ້ຈາກບຣາວເຊີຂອງທ່ານບໍ່ໄດ້. Chrome, Edge ແລະ ບຣາວເຊີ Chromium ອື່ນໆ ບລັອກສິ່ງນີ້; Firefox ໃຊ້ໄດ້. ເພື່ອເຂົ້າສູ່ລະບົບ, ບັນທຶກຄຸກກີ້ດ້ວຍສ່ວນຂະຫຍາຍຂອງ OmniGet ຫຼື ນຳເຂົ້າ cookies.txt ໃນ ການຕັ້ງຄ່າ › ການດາວໂຫຼດ › ຄຸກກີ້.",
     "retry": "Try again"
   },
   "platforms": {
@@ -5718,7 +5722,7 @@
         "title": "Your AI tools",
         "desc": "OmniGet found these coding CLIs on this machine. Bring their sessions in as threads and start with a small useful setup.",
         "detecting": "Looking for AI tools…",
-        "none": "No coding CLI found. You can install one later in Central › Tools.",
+        "none": "ບໍ່ພົບ CLI ສຳລັບຂຽນໂຄດ. ທ່ານສາມາດຕິດຕັ້ງໄດ້ພາຍຫຼັງໃນ LLM › Tools.",
         "open_tools": "Open Tools",
         "sessions": "{{count}} sessions",
         "imported": "{{count}} imported",

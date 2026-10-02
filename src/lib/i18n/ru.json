@@ -329,7 +329,7 @@
     "phase_end_of_game": "Игра окончена",
     "nav": "League of Legends",
     "settings_title": "League of Legends",
-    "settings_desc": "Опциональное меню клиента League. По умолчанию выключено.",
+    "settings_desc": "Опциональное меню клиента League. По умолчанию включено.",
     "settings_enable": "Включить меню League",
     "settings_enable_desc": "Добавляет меню League of Legends с инструментами клиента. Требуется запущенный клиент League.",
     "settings_auto_accept": "Автопринятие матчей",
@@ -1869,7 +1869,11 @@
       "restore": "Восстановить",
       "hints_restored": "Все подсказки восстановлены",
       "run_in_background": "Запускать агентов в фоне",
-      "run_in_background_flatpak": "Flatpak: запуск при входе и запуск из командной строки ещё не проверены."
+      "run_in_background_flatpak": "Flatpak: запуск при входе и запуск из командной строки ещё не проверены.",
+      "start_with_system_desc": "Открывать OmniGet при входе в систему.",
+      "start_minimized_desc": "Запускаться свёрнутым в трей, не открывая окно.",
+      "exit_on_close_desc": "Закрытие окна завершает приложение, а не оставляет его в трее.",
+      "run_in_background_desc": "Агенты, задачи и рутины работают и при закрытом окне."
     },
     "appearance": {
       "accessibility_title": "Специальные возможности",
@@ -2719,10 +2723,10 @@
     "star_description": "если вам нравится проект, поставьте звезду!",
     "version": "версия",
     "features_title": "что мы уже сделали",
-    "feature_platforms": "скачивание с 10+ платформ и более 1000 через yt-dlp: YouTube, Instagram, TikTok, Twitter/X, Reddit, Twitch, Pinterest, Vimeo, Bluesky, Telegram",
+    "feature_platforms": "загрузка с YouTube, Instagram, TikTok, X, Reddit, Twitch, Pinterest, Vimeo, Bluesky, Bilibili, Telegram и ещё примерно 1800 сайтов через yt-dlp",
     "feature_progress": "прогресс скачивания в реальном времени с ETA и скоростью",
     "feature_mascot": "Loop — талисман, реагирующий на ваши загрузки",
-    "feature_themes": "11 тем: Dark, Light, Catppuccin (4 вкуса), One Dark Pro, Dracula, NyxVamp (3 варианта)",
+    "feature_themes": "Темы: системная, светлая и тёмная, оформление OmniGet, янтарные и оранжевые пресеты, Catppuccin, One Dark Pro, Dracula, NyxVamp и E-ink",
     "feature_i18n": "доступно на английском, португальском, китайском, японском, итальянском и французском",
     "feature_tech": "сделано на Tauri + Rust. Быстро и легко",
     "tagline": "Скачивайте что угодно, откуда угодно.",
@@ -2787,7 +2791,7 @@
     "error": "Ошибка",
     "loading": "Загрузка…",
     "unknown_error": "Неизвестная ошибка",
-    "cookie_error_message": "Автоматическое определение cookies работает только с Firefox. Chrome, Edge и другие браузеры на Chromium блокируют доступ к cookies. Чтобы использовать cookies: установите Firefox и войдите в свои аккаунты там, либо экспортируйте файл cookies.txt из вашего браузера и укажите его в Настройках → Загрузки → Файл cookie.",
+    "cookie_error_message": "OmniGet не смог прочитать куки браузера. Chrome, Edge и другие браузеры на Chromium это блокируют; Firefox работает. Чтобы войти в аккаунт, сохраните куки через расширение OmniGet или импортируйте cookies.txt в Настройки › Загрузки › Куки.",
     "retry": "Try again"
   },
   "platforms": {
@@ -5718,7 +5722,7 @@
         "title": "Your AI tools",
         "desc": "OmniGet found these coding CLIs on this machine. Bring their sessions in as threads and start with a small useful setup.",
         "detecting": "Looking for AI tools…",
-        "none": "No coding CLI found. You can install one later in Central › Tools.",
+        "none": "CLI для программирования не найдено. Установить его можно позже в LLM › Tools.",
         "open_tools": "Open Tools",
         "sessions": "{{count}} sessions",
         "imported": "{{count}} imported",

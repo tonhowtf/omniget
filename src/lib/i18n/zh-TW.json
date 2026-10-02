@@ -329,7 +329,7 @@
     "phase_end_of_game": "對戰結束",
     "nav": "英雄聯盟",
     "settings_title": "英雄聯盟",
-    "settings_desc": "可選的 League 客戶端選單。預設關閉。",
+    "settings_desc": "可選的 League 客戶端選單。預設開啟。",
     "settings_enable": "啟用英雄聯盟選單",
     "settings_enable_desc": "新增帶有客戶端工具的英雄聯盟選單。需要 League 客戶端運行中。",
     "settings_auto_accept": "自動接受對戰",
@@ -1869,7 +1869,11 @@
       "restore": "恢复",
       "hints_restored": "All hints restored",
       "run_in_background": "在背景執行代理",
-      "run_in_background_flatpak": "Flatpak：登入時啟動以及從命令列啟動尚未驗證。"
+      "run_in_background_flatpak": "Flatpak：登入時啟動以及從命令列啟動尚未驗證。",
+      "start_with_system_desc": "登入電腦時開啟 OmniGet。",
+      "start_minimized_desc": "啟動時隱藏在系統匣中，不開啟視窗。",
+      "exit_on_close_desc": "關閉視窗即結束應用程式，而不是留在系統匣中。",
+      "run_in_background_desc": "視窗關閉後，代理、任務和例行工作仍持續執行。"
     },
     "appearance": {
       "accessibility_title": "Accessibility",
@@ -2719,10 +2723,10 @@
     "star_description": "如果您喜歡這個專案，歡迎留下星星！",
     "version": "版本",
     "features_title": "目前已完成的功能",
-    "feature_platforms": "支援 10+ 個平台下載，並透過 yt-dlp 支援 1000+ 個平台：YouTube、Instagram、TikTok、Twitter/X、Reddit、Twitch、Pinterest、Vimeo、Bluesky、Telegram",
+    "feature_platforms": "可從 YouTube、Instagram、TikTok、X、Reddit、Twitch、Pinterest、Vimeo、Bluesky、Bilibili、Telegram 以及透過 yt-dlp 支援的約 1800 個網站下載",
     "feature_progress": "即時顯示下載進度、預估時間與速度",
     "feature_mascot": "Loop 吉祥物會隨您的下載狀態做出反應",
-    "feature_themes": "11 個主題：Dark、Light、Catppuccin（4 種風味）、One Dark Pro、Dracula、NyxVamp（3 種變體）",
+    "feature_themes": "主題：跟隨系統、淺色與深色、OmniGet 外觀、琥珀與橘色預設、Catppuccin、One Dark Pro、Dracula、NyxVamp 和 E-ink",
     "feature_i18n": "提供英文、葡萄牙文、中文、日文、義大利文、法文",
     "feature_tech": "使用 Tauri + Rust 建構，快速且輕量",
     "tagline": "隨時隨地，下載一切。",
@@ -2787,7 +2791,7 @@
     "error": "錯誤",
     "loading": "Loading…",
     "unknown_error": "未知錯誤",
-    "cookie_error_message": "自动 Cookie 检测仅适用于 Firefox。Chrome、Edge 等基于 Chromium 的浏览器会阻止 Cookie 访问。解决方法：安装 Firefox 并登录您的账户，或从浏览器导出 cookies.txt 文件并在设置 > 下载 > Cookie 文件中配置。",
+    "cookie_error_message": "OmniGet 無法讀取瀏覽器的 Cookie。Chrome、Edge 等 Chromium 瀏覽器會阻擋讀取；Firefox 可以。如需登入，請用 OmniGet 瀏覽器擴充功能儲存 Cookie，或在 設定 › 下載 › Cookies 中匯入 cookies.txt。",
     "retry": "Try again"
   },
   "platforms": {
@@ -5718,7 +5722,7 @@
         "title": "Your AI tools",
         "desc": "OmniGet found these coding CLIs on this machine. Bring their sessions in as threads and start with a small useful setup.",
         "detecting": "Looking for AI tools…",
-        "none": "No coding CLI found. You can install one later in Central › Tools.",
+        "none": "找不到程式設計 CLI。之後可以在 LLM › Tools 中安裝。",
         "open_tools": "Open Tools",
         "sessions": "{{count}} sessions",
         "imported": "{{count}} imported",

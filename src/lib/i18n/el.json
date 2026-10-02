@@ -329,7 +329,7 @@
     "phase_end_of_game": "Τέλος αγώνα",
     "nav": "League of Legends",
     "settings_title": "League of Legends",
-    "settings_desc": "Προαιρετικό μενού πελάτη League. Απενεργοποιημένο από προεπιλογή.",
+    "settings_desc": "Προαιρετικό μενού πελάτη League. Ενεργό από προεπιλογή.",
     "settings_enable": "Ενεργοποίηση μενού League",
     "settings_enable_desc": "Προσθέτει μενού League of Legends με εργαλεία πελάτη. Απαιτεί τον πελάτη League σε λειτουργία.",
     "settings_auto_accept": "Αυτόματη αποδοχή αγώνων",
@@ -1869,7 +1869,11 @@
       "restore": "Επαναφορά",
       "hints_restored": "All hints restored",
       "run_in_background": "Εκτέλεση πρακτόρων στο παρασκήνιο",
-      "run_in_background_flatpak": "Flatpak: η εκκίνηση κατά τη σύνδεση και το άνοιγμα από τη γραμμή εντολών δεν έχουν επαληθευτεί ακόμη."
+      "run_in_background_flatpak": "Flatpak: η εκκίνηση κατά τη σύνδεση και το άνοιγμα από τη γραμμή εντολών δεν έχουν επαληθευτεί ακόμη.",
+      "start_with_system_desc": "Ανοίγει το OmniGet όταν συνδέεστε στον υπολογιστή.",
+      "start_minimized_desc": "Ξεκινά κρυμμένο στη γραμμή συστήματος, χωρίς να ανοίγει το παράθυρο.",
+      "exit_on_close_desc": "Το κλείσιμο του παραθύρου τερματίζει την εφαρμογή αντί να την κρατά στη γραμμή συστήματος.",
+      "run_in_background_desc": "Οι πράκτορες, οι εργασίες και οι ρουτίνες συνεχίζουν με το παράθυρο κλειστό."
     },
     "appearance": {
       "accessibility_title": "Accessibility",
@@ -2719,10 +2723,10 @@
     "star_description": "αν σας αρέσει το έργο, αφήστε ένα αστέρι!",
     "version": "έκδοση",
     "features_title": "αυτό που έχουμε φτιάξει μέχρι τώρα",
-    "feature_platforms": "λήψεις από 10+ πλατφόρμες και 1000+ ακόμη μέσω yt-dlp: YouTube, Instagram, TikTok, Twitter/X, Reddit, Twitch, Pinterest, Vimeo, Bluesky, Telegram",
+    "feature_platforms": "λήψεις από YouTube, Instagram, TikTok, X, Reddit, Twitch, Pinterest, Vimeo, Bluesky, Bilibili, Telegram και περίπου 1.800 ακόμη ιστότοπους μέσω yt-dlp",
     "feature_progress": "πρόοδος λήψης σε πραγματικό χρόνο με ETA και ταχύτητα",
     "feature_mascot": "Λούπ, η μασκότ που αντιδρά στις λήψεις σας",
-    "feature_themes": "11 θέματα: Dark, Light, Catppuccin (4 γεύσεις), One Dark Pro, Dracula, NyxVamp (3 παραλλαγές)",
+    "feature_themes": "Θέματα: Σύστημα, Φωτεινό και Σκοτεινό, η εμφάνιση OmniGet, προεπιλογές κεχριμπαριού και πορτοκαλί, Catppuccin, One Dark Pro, Dracula, NyxVamp και E-ink",
     "feature_i18n": "διαθέσιμο στα Αγγλικά, Πορτογαλικά, Κινέζικα, Ιαπωνικά, Ιταλικά, Γαλλικά και Ελληνικά",
     "feature_tech": "φτιαγμένο με Tauri και Rust. γρήγορο και ελαφρύ",
     "tagline": "Κατεβάστε οτιδήποτε, από οπουδήποτε.",
@@ -2787,7 +2791,7 @@
     "error": "Error",
     "loading": "Loading…",
     "unknown_error": "Άγνωστο σφάλμα",
-    "cookie_error_message": "Η αυτόματη ανίχνευση cookie λειτουργεί μόνο με Firefox. Τα Chrome, Edge και άλλα προγράμματα Chromium μπλοκάρουν την πρόσβαση. Εγκαταστήστε τον Firefox, ή εξάγετε ένα αρχείο cookies.txt και ρυθμίστε το στις Ρυθμίσεις.",
+    "cookie_error_message": "Το OmniGet δεν μπόρεσε να διαβάσει τα cookies του προγράμματος περιήγησης. Το Chrome, το Edge και άλλοι Chromium το μπλοκάρουν· το Firefox λειτουργεί. Για σύνδεση, αποθηκεύστε τα cookies με την επέκταση του OmniGet ή εισαγάγετε ένα cookies.txt στις Ρυθμίσεις › Λήψεις › Cookies.",
     "retry": "Try again"
   },
   "platforms": {
@@ -5718,7 +5722,7 @@
         "title": "Your AI tools",
         "desc": "OmniGet found these coding CLIs on this machine. Bring their sessions in as threads and start with a small useful setup.",
         "detecting": "Looking for AI tools…",
-        "none": "No coding CLI found. You can install one later in Central › Tools.",
+        "none": "Δεν βρέθηκε CLI προγραμματισμού. Μπορείτε να εγκαταστήσετε ένα αργότερα στο LLM › Tools.",
         "open_tools": "Open Tools",
         "sessions": "{{count}} sessions",
         "imported": "{{count}} imported",

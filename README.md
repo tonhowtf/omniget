@@ -82,7 +82,7 @@ One site for Instagram, another for X, a yt-dlp cheat sheet because the flags ne
 | **Telegram** | Messages, albums, link ranges like `t.me/channel/10-20` and whole chats, signed in with your own account |
 | **Person to person** | Send a file to another OmniGet with a short word code |
 
-Video from 360p up to 4K, or audio only as M4A, MP3, Opus, FLAC or WAV. Subtitles embedded or saved beside the file, bilingual subtitle merge, split by chapters, SponsorBlock segments cut or marked.
+Video from 360p up to 4K, or audio only as M4A, MP3, Opus, FLAC or WAV. Subtitles embedded or saved beside the file, split by chapters, SponsorBlock segments cut or marked.
 
 ### Your first download
 

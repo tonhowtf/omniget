@@ -329,7 +329,7 @@
     "phase_end_of_game": "Game over",
     "nav": "League of Legends",
     "settings_title": "League of Legends",
-    "settings_desc": "Optional League client menu. Off by default.",
+    "settings_desc": "منوی اختیاری کلاینت League. به‌طور پیش‌فرض روشن است.",
     "settings_enable": "Enable League menu",
     "settings_enable_desc": "Adds a League of Legends menu with client tools. Requires the League client running.",
     "settings_auto_accept": "Auto-accept matches",
@@ -1869,7 +1869,11 @@
       "restore": "Restore",
       "hints_restored": "All hints restored",
       "run_in_background": "اجرای عامل‌ها در پس‌زمینه",
-      "run_in_background_flatpak": "Flatpak: اجرا هنگام ورود و باز شدن از خط فرمان هنوز بررسی نشده‌اند."
+      "run_in_background_flatpak": "Flatpak: اجرا هنگام ورود و باز شدن از خط فرمان هنوز بررسی نشده‌اند.",
+      "start_with_system_desc": "هنگام ورود به رایانه، OmniGet باز می‌شود.",
+      "start_minimized_desc": "بدون باز کردن پنجره، پنهان در سینی سیستم شروع می‌شود.",
+      "exit_on_close_desc": "بستن پنجره به‌جای ماندن در سینی سیستم، برنامه را می‌بندد.",
+      "run_in_background_desc": "عامل‌ها، کارها و روال‌ها با پنجرهٔ بسته هم ادامه می‌دهند."
     },
     "appearance": {
       "accessibility_title": "Accessibility",
@@ -2719,10 +2723,10 @@
     "star_description": "if you enjoy the project, leave a star!",
     "version": "version",
     "features_title": "what we've built so far",
-    "feature_platforms": "downloads from 10+ platforms and 1000+ more via yt-dlp: YouTube, Instagram, TikTok, Twitter/X, Reddit, Twitch, Pinterest, Vimeo, Bluesky, Telegram",
+    "feature_platforms": "بارگیری از YouTube، Instagram، TikTok، X، Reddit، Twitch، Pinterest، Vimeo، Bluesky، Bilibili، Telegram و حدود ۱٬۸۰۰ سایت دیگر از طریق yt-dlp",
     "feature_progress": "real-time download progress with ETA and speed",
     "feature_mascot": "Loop, the mascot that reacts to your downloads",
-    "feature_themes": "11 themes: Dark, Light, Catppuccin (4 flavors), One Dark Pro, Dracula, NyxVamp (3 variants)",
+    "feature_themes": "پوسته‌ها: سیستم، روشن و تیره، ظاهر OmniGet، پیش‌تنظیم‌های کهربایی و نارنجی، Catppuccin، One Dark Pro، Dracula، NyxVamp و E-ink",
     "feature_i18n": "available in English, Portuguese, Chinese, Japanese, Italian, and French",
     "feature_tech": "built with Tauri + Rust. fast and lightweight",
     "tagline": "Download anything, from anywhere.",
@@ -2787,7 +2791,7 @@
     "error": "خطا",
     "loading": "در حال بارگذاری…",
     "unknown_error": "خطای ناشناخته",
-    "cookie_error_message": "تشخیص خودکار کوکی فقط با فایرفاکس کار می‌کند. کروم، اج و دیگر مرورگرهای مبتنی بر کرومیوم دسترسی به کوکی را مسدود می‌کنند. برای استفاده از کوکی‌ها: فایرفاکس را نصب کنید و در حساب‌های خود وارد شوید، یا یک فایل cookies.txt از مرورگر خود خروجی بگیرید و آن را در تنظیمات > دانلود > فایل کوکی انتخاب کنید.",
+    "cookie_error_message": "OmniGet نتوانست کوکی‌های مرورگر شما را بخواند. Chrome، Edge و دیگر مرورگرهای Chromium جلوی این کار را می‌گیرند؛ Firefox کار می‌کند. برای ورود، کوکی‌ها را با افزونهٔ OmniGet ذخیره کنید یا یک cookies.txt را در تنظیمات › بارگیری‌ها › Cookies وارد کنید.",
     "retry": "Try again"
   },
   "platforms": {
@@ -5718,7 +5722,7 @@
         "title": "Your AI tools",
         "desc": "OmniGet found these coding CLIs on this machine. Bring their sessions in as threads and start with a small useful setup.",
         "detecting": "Looking for AI tools…",
-        "none": "No coding CLI found. You can install one later in Central › Tools.",
+        "none": "هیچ CLI برنامه‌نویسی پیدا نشد. می‌توانید بعداً از LLM › Tools یکی نصب کنید.",
         "open_tools": "Open Tools",
         "sessions": "{{count}} sessions",
         "imported": "{{count}} imported",

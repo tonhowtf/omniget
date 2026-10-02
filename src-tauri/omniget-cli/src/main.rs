@@ -6,7 +6,7 @@ mod output;
 mod reporter;
 
 #[derive(Parser)]
-#[command(name = "omniget", version, about = "Download media from 1800+ sites", long_about = None)]
+#[command(name = "omniget", version, about = "Download media from about 1,800 sites", long_about = None)]
 struct Cli {
     #[arg(long, global = true, help = "Output in JSON format")]
     json: bool,

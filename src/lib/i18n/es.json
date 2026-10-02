@@ -329,7 +329,7 @@
     "phase_end_of_game": "Fin de la partida",
     "nav": "League of Legends",
     "settings_title": "League of Legends",
-    "settings_desc": "Menú opcional del cliente de League. Desactivado por defecto.",
+    "settings_desc": "Menú opcional del cliente de League. Activado por defecto.",
     "settings_enable": "Activar menú de League",
     "settings_enable_desc": "Añade un menú de League of Legends con herramientas del cliente. Requiere el cliente de League abierto.",
     "settings_auto_accept": "Aceptar partidas automáticamente",
@@ -1869,7 +1869,11 @@
       "restore": "Restablecer",
       "hints_restored": "Sugerencias restablecidas",
       "run_in_background": "Ejecutar agentes en segundo plano",
-      "run_in_background_flatpak": "Flatpak: iniciar al iniciar sesión y ser abierto desde la línea de comandos aún no están verificados."
+      "run_in_background_flatpak": "Flatpak: iniciar al iniciar sesión y ser abierto desde la línea de comandos aún no están verificados.",
+      "start_with_system_desc": "Abre OmniGet al iniciar sesión en tu ordenador.",
+      "start_minimized_desc": "Empieza oculto en la bandeja, sin abrir la ventana.",
+      "exit_on_close_desc": "Cerrar la ventana cierra la app en lugar de dejarla en la bandeja.",
+      "run_in_background_desc": "Los agentes, tareas y rutinas siguen funcionando con la ventana cerrada."
     },
     "appearance": {
       "accessibility_title": "Accessibility",
@@ -2719,10 +2723,10 @@
     "star_description": "¡si te gusta el proyecto, dale una estrella!",
     "version": "versión",
     "features_title": "lo que hemos construido hasta ahora",
-    "feature_platforms": "descargas desde más de 10 plataformas y más de 1000 vía yt-dlp: YouTube, Instagram, TikTok, Twitter/X, Reddit, Twitch, Pinterest, Vimeo, Bluesky, Telegram",
+    "feature_platforms": "descarga de YouTube, Instagram, TikTok, X, Reddit, Twitch, Pinterest, Vimeo, Bluesky, Bilibili, Telegram y de unos 1.800 sitios más a través de yt-dlp",
     "feature_progress": "progreso de descarga en tiempo real con ETA y velocidad",
     "feature_mascot": "Loop, la mascota que reacciona a tus descargas",
-    "feature_themes": "11 temas: Oscuro, Claro, Catppuccin (4 variantes), One Dark Pro, Dracula, NyxVamp (3 variantes)",
+    "feature_themes": "Temas: Sistema, Claro y Oscuro, el aspecto OmniGet, ajustes ámbar y naranja, Catppuccin, One Dark Pro, Dracula, NyxVamp y E-ink",
     "feature_i18n": "disponible en inglés, portugués, chino, japonés, italiano y francés",
     "feature_tech": "construido con Tauri + Rust. rápido y ligero",
     "tagline": "Descarga lo que sea, desde donde sea.",
@@ -2787,7 +2791,7 @@
     "error": "Error",
     "loading": "Loading…",
     "unknown_error": "Error desconocido",
-    "cookie_error_message": "La detección automática de cookies solo funciona con Firefox. Chrome, Edge y otros navegadores basados en Chromium bloquean el acceso a cookies. Para usar cookies: instala Firefox e inicia sesión en tus cuentas allí, o exporta un archivo cookies.txt desde tu navegador y configúralo en Configuración > Descargas > Archivo de cookies.",
+    "cookie_error_message": "OmniGet no pudo leer las cookies de tu navegador. Chrome, Edge y otros navegadores Chromium lo bloquean; Firefox funciona. Para iniciar sesión, captura las cookies con la extensión de OmniGet o importa un cookies.txt en Ajustes › Descargas › Cookies.",
     "retry": "Try again"
   },
   "platforms": {
@@ -5718,7 +5722,7 @@
         "title": "Your AI tools",
         "desc": "OmniGet found these coding CLIs on this machine. Bring their sessions in as threads and start with a small useful setup.",
         "detecting": "Looking for AI tools…",
-        "none": "No coding CLI found. You can install one later in Central › Tools.",
+        "none": "No se encontró ninguna CLI de código. Puedes instalar una más tarde en LLM › Tools.",
         "open_tools": "Open Tools",
         "sessions": "{{count}} sessions",
         "imported": "{{count}} imported",

@@ -84,7 +84,7 @@ Um site para o Instagram, outro para o X, uma cola do yt-dlp porque as flags nun
 | **Telegram** | Mensagens, álbuns, intervalos de links como `t.me/channel/10-20` e chats inteiros, com login na sua própria conta |
 | **De pessoa para pessoa** | Mande um arquivo para outro OmniGet com um código curto de palavras |
 
-Vídeo de 360p até 4K, ou só o áudio em M4A, MP3, Opus, FLAC ou WAV. Legendas embutidas ou salvas ao lado do arquivo, mescla de legendas bilíngues, divisão por capítulos, trechos do SponsorBlock cortados ou marcados.
+Vídeo de 360p até 4K, ou só o áudio em M4A, MP3, Opus, FLAC ou WAV. Legendas embutidas ou salvas ao lado do arquivo, divisão por capítulos, trechos do SponsorBlock cortados ou marcados.
 
 ### Seu primeiro download
 
