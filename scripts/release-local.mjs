@@ -113,7 +113,7 @@ console.log(`  bundles  ${bundleDir}`);
 console.log(`  notes    ${notes ?? "(none)"}`);
 console.log(`  key      ${key.length} bytes, password ${password ? "set" : "empty"}`);
 console.log(`  cli      ${has("--cli") ? "yes" : "no"}`);
-if (!isMac) console.warn("warning: only the macOS targets are wired; other targets are collected best-effort");
+if (!isMac) console.warn("warning: only the macOS targets are tested; Windows and Linux bundles are collected best-effort");
 if (dryRun) {
   console.log("dry run: nothing built");
   process.exit(0);
@@ -147,7 +147,17 @@ if (isMac) {
 } else {
   collect(join(bundleDir, "appimage"), (f) => /\.AppImage(\.sig)?$/.test(f), (f) => f);
   collect(join(bundleDir, "deb"), (f) => f.endsWith(".deb"), (f) => f);
+  collect(join(bundleDir, "rpm"), (f) => f.endsWith(".rpm"), (f) => f);
   collect(join(bundleDir, "nsis"), (f) => /-setup\.exe(\.sig)?$/.test(f), (f) => f);
+  collect(join(bundleDir, "msi"), (f) => f.endsWith(".msi"), (f) => f);
+  if (target.includes("windows")) {
+    const exe = join(cargoTarget, target, "release", "omniget.exe");
+    const portable = `omniget_${version}_x64-portable.exe`;
+    if (existsSync(exe)) {
+      copyFileSync(exe, join(outDir, portable));
+      copied.push(portable);
+    }
+  }
 }
 if (!copied.some((f) => f.endsWith(".sig"))) fail(`no signed updater bundle in ${bundleDir}`);
 
