@@ -104,7 +104,7 @@
             <span class="power-off-badge">{$t("superpowers.disabled")}</span>
             {$t("superpowers.disabled_hint")}
           </p>
-          <a class="btn btn-secondary power-action" href="/settings?tab=advanced">{$t("superpowers.open_settings")}</a>
+          <a class="btn btn-secondary power-action" href={`/settings?tab=integrations&section=${power.id}`}>{$t("superpowers.open_settings")}</a>
         {/if}
       </article>
     {/each}

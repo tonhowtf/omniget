@@ -121,7 +121,7 @@
   <div class="wmb-guard">
     <EmptyState art="sleeping" title={$t("washmybelly.disabled_title") as string} body={$t("washmybelly.disabled_body") as string}>
       {#snippet action()}
-        <a class="btn btn-primary" href="/settings?tab=advanced">{$t("washmybelly.open_settings")}</a>
+        <a class="btn btn-primary" href="/settings?tab=integrations&section=washmybelly">{$t("washmybelly.open_settings")}</a>
       {/snippet}
     </EmptyState>
   </div>

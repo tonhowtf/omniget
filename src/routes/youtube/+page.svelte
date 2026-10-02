@@ -11,7 +11,7 @@
     <img src="/icons/tube/tube-64.webp" srcset="/icons/tube/tube-64.webp 1x, /icons/tube/tube-128.webp 2x" alt="" width="32" height="32" />
     <h2>{$t("tube.app.disabled_title")}</h2>
     <p>{$t("superpowers.disabled_hint")}</p>
-    <a class="btn btn-primary" href="/settings?tab=advanced">{$t("superpowers.open_settings")}</a>
+    <a class="btn btn-primary" href="/settings?tab=integrations&section=tube">{$t("superpowers.open_settings")}</a>
   </div>
 {:else}
   <div class="page">

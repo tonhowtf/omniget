@@ -248,7 +248,7 @@
     <img src="/icons/menu/video-128.webp" alt="" width="56" height="56" />
     <h2>{$t("video.disabled_title")}</h2>
     <p>{$t("superpowers.disabled_hint")}</p>
-    <a class="btn btn-primary" href="/settings?tab=advanced">{$t("superpowers.open_settings")}</a>
+    <a class="btn btn-primary" href="/settings?tab=integrations&section=video">{$t("superpowers.open_settings")}</a>
   </div>
 {:else}
   <div class="watch">
@@ -470,7 +470,7 @@
       <h4>{$t("video.settings.player")}</h4>
       <div class="row">
         <button class="btn btn-sm" onclick={() => (keysOpen = true)}><VIcon name="keyboard" size={12} /> {$t("video.keys.title")}</button>
-        <a class="btn btn-sm" href="/settings?tab=advanced">{$t("video.settings.app_settings")}</a>
+        <a class="btn btn-sm" href="/settings?tab=integrations&section=video">{$t("video.settings.app_settings")}</a>
       </div>
       {#if app.status}
         <p class="status-line">

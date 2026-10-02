@@ -119,7 +119,7 @@
     <ReadIcon name="book-open" size={32} />
     <h2>{$t("read.disabled_title")}</h2>
     <p>{$t("superpowers.disabled_hint")}</p>
-    <a class="btn btn-primary" href="/settings?tab=advanced">{$t("superpowers.open_settings")}</a>
+    <a class="btn btn-primary" href="/settings?tab=integrations&section=read">{$t("superpowers.open_settings")}</a>
   </div>
 {:else}
   <div class="read">

@@ -7752,7 +7752,7 @@
     "league_desc": "英雄联盟对局助手：敌方冷却、金币与侦察。",
     "open": "打开",
     "disabled": "已关闭",
-    "disabled_hint": "已在 设置 › 高级 中关闭。",
+    "disabled_hint": "已在 设置 › 集成 中关闭。",
     "open_settings": "打开设置",
     "music_desc": "Your music library with a full player: synced lyrics, equalizer, volume leveling, radio, downloads and batch tools.",
     "read_desc": "Books, comics and manga: your library with a full reader, free legal catalogs, followed series, conversions and e-reader sync.",

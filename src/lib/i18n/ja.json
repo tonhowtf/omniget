@@ -7752,7 +7752,7 @@
     "league_desc": "League of Legends の試合中サポート：敵のクールダウン、ゴールド、偵察。",
     "open": "開く",
     "disabled": "オフ",
-    "disabled_hint": "設定 › 詳細 でオフになっています。",
+    "disabled_hint": "設定 › 連携 でオフになっています。",
     "open_settings": "設定を開く",
     "music_desc": "Your music library with a full player: synced lyrics, equalizer, volume leveling, radio, downloads and batch tools.",
     "read_desc": "Books, comics and manga: your library with a full reader, free legal catalogs, followed series, conversions and e-reader sync.",

@@ -118,7 +118,7 @@
       <NavIcon icon="telegram" size={64} />
       <div class="empty-state-title">{$t("telegram.disabled_title")}</div>
       <div class="empty-state-hint">{$t("superpowers.disabled_hint")}</div>
-      <a class="btn btn-secondary" href="/settings?tab=advanced">{$t("superpowers.open_settings")}</a>
+      <a class="btn btn-secondary" href="/settings?tab=integrations&section=telegram">{$t("superpowers.open_settings")}</a>
     </div>
   </section>
 {:else}
