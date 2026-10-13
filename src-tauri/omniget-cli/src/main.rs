@@ -96,7 +96,7 @@ enum Commands {
     )]
     Claude {
         #[arg(
-            help = "Account id, label or e-mail (a unique prefix works); without it, the main account (asks when there is none)"
+            help = "Account id, label or e-mail (a unique prefix works); without it, a list of the accounts with the main one preselected (the main one directly when not in a terminal)"
         )]
         account: Option<String>,
 
@@ -111,11 +111,20 @@ enum Commands {
 
         #[arg(
             long,
-            help = "Make ACCOUNT the main one, here and in the app (asks when ACCOUNT is missing); with --add, the new one"
+            help = "Make ACCOUNT the main one, here, in the app and for plain `claude` in the terminal (asks when ACCOUNT is missing); with --add, the new one"
         )]
         default: bool,
 
-        #[arg(long, help = "Ask which account to open even when there is a main one")]
+        #[arg(
+            long,
+            help = "Share settings, CLAUDE.md, skills, commands, agents, plugins and MCP servers of ~/.claude with the other accounts (only ACCOUNT when given)"
+        )]
+        sync: bool,
+
+        #[arg(
+            long,
+            help = "Always ask which account to open, even outside a terminal"
+        )]
         pick: bool,
 
         #[arg(
@@ -300,6 +309,7 @@ async fn main() -> anyhow::Result<()> {
             list,
             add,
             default,
+            sync,
             pick,
             remove,
             safe,
@@ -310,6 +320,7 @@ async fn main() -> anyhow::Result<()> {
                 list,
                 add,
                 default,
+                sync,
                 pick,
                 remove,
                 safe,

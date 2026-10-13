@@ -1,4 +1,4 @@
-use std::io::{BufRead, Write};
+use std::io::{BufRead, IsTerminal, Write};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
@@ -34,6 +34,7 @@ pub struct Flags {
     pub list: bool,
     pub add: bool,
     pub default: bool,
+    pub sync: bool,
     pub pick: bool,
     pub remove: bool,
     pub safe: bool,
@@ -337,7 +338,14 @@ fn make_main(account: &CliAccount) -> anyhow::Result<()> {
         "Conta principal: {}",
         describe(account, who.as_ref().filter(|i| i.logged_in))
     );
-    println!("`omniget claude` abre nela sem perguntar, e o app tenta ela primeiro. Outra conta: omniget claude <conta>, ou --pick para escolher.");
+    let installed = super::claude_sync::write_main(account)?;
+    println!("O `claude` do terminal abre nela, o app tenta ela primeiro e o `omniget claude` a deixa marcada na lista (Enter abre). Direto em outra conta: omniget claude <conta>.");
+    for rc in installed {
+        println!(
+            "Instalei o atalho em {}; nos terminais já abertos rode `exec $SHELL` uma vez.",
+            rc.display()
+        );
+    }
     Ok(())
 }
 
@@ -361,6 +369,9 @@ fn remove(account: &CliAccount) -> anyhow::Result<()> {
 pub fn execute(account: Option<String>, flags: Flags, extra: Vec<String>) -> anyhow::Result<()> {
     if flags.add {
         let added = add(account)?;
+        if let Some(a) = &added {
+            super::claude_sync::sync(Some(a), main_account().as_ref())?;
+        }
         if let (true, Some(a)) = (flags.default, added) {
             make_main(&a)?;
         }
@@ -385,6 +396,13 @@ pub fn execute(account: Option<String>, flags: Flags, extra: Vec<String>) -> any
         }
         return Ok(());
     }
+    if flags.sync {
+        let only = account
+            .as_deref()
+            .map(|q| resolve(&accounts, q))
+            .transpose()?;
+        return super::claude_sync::sync(only.as_ref(), main_account().as_ref());
+    }
     if flags.default || flags.remove {
         if accounts.is_empty() {
             bail!("nenhuma conta Claude cadastrada; crie uma com `omniget claude --add`");
@@ -406,10 +424,12 @@ pub fn execute(account: Option<String>, flags: Flags, extra: Vec<String>) -> any
         (Some(q), _) => Some(resolve(&accounts, q)?),
         (None, 0) => None,
         (None, 1) => Some(accounts[0].clone()),
-        (None, _) => match main_account().filter(|_| !flags.pick) {
-            Some(main) => Some(main),
-            None => Some(pick(&accounts, &identities(&accounts))?),
-        },
+        (None, _) => {
+            match main_account().filter(|_| !flags.pick && !std::io::stdin().is_terminal()) {
+                Some(main) => Some(main),
+                None => Some(pick(&accounts, &identities(&accounts))?),
+            }
+        }
     };
 
     if let Some(a) = &chosen {
@@ -417,6 +437,14 @@ pub fn execute(account: Option<String>, flags: Flags, extra: Vec<String>) -> any
             std::fs::create_dir_all(&a.config_dir)
                 .with_context(|| format!("não consegui criar {}", a.config_dir.display()))?;
         }
+    }
+    if let Ok(me) = std::env::current_exe() {
+        let _ = Command::new(me)
+            .args(["claude", "--sync"])
+            .stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .status();
     }
     let mut cmd = claude_command(chosen.as_ref());
     cmd.args(claude_args(flags.safe, &extra));

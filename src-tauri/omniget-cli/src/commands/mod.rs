@@ -4,6 +4,7 @@ pub mod audit;
 pub mod batch;
 pub mod canvas;
 pub mod claude;
+pub mod claude_sync;
 pub mod common;
 pub mod company;
 pub mod download;
