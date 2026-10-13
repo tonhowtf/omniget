@@ -129,7 +129,7 @@ again to fetch only what is missing.
 
 ## Workflow for writing one
 
-1. `gd_browser_open` with the site, log in by hand if needed.
+1. `gd_browser_open` with the site (`window: true` for a visible window), log in by hand if needed.
 2. Browse to a page with media, then `gd_network_log` (filter by domain or
    `types: ["XHR","Fetch"]`) to find the API calls; `gd_response_body` shows
    one response.

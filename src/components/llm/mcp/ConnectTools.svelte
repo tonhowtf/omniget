@@ -14,6 +14,7 @@
   let busy = $state<string | null>(null);
   let prompt = $state("");
   let loaded = $state(false);
+  let browser = $state(false);
 
   let installed = $derived(tools.filter((x) => x.installed));
   let shown = $derived(showAll ? tools : installed);
@@ -49,6 +50,7 @@
         workspace: null,
         agents: true,
         approvals: false,
+        browser,
       });
       showToast("success", r.message);
       await refresh();
@@ -92,6 +94,14 @@
       <div class="group-row-sub">{$t("connect.tools_intro")}</div>
     </div>
   </div>
+
+  <label class="group-row browser-row">
+    <input type="checkbox" bind:checked={browser} disabled={busy !== null} />
+    <span class="group-row-content">
+      <span class="group-row-title">{$t("connect.scope_browser")}</span>
+      <span class="group-row-sub">{$t("connect.scope_browser_hint")}</span>
+    </span>
+  </label>
 
   {#each shown as tool (tool.id)}
     <div class="group-row">
@@ -152,6 +162,10 @@
 </div>
 
 <style>
+  .browser-row {
+    cursor: pointer;
+  }
+
   .mono {
     font-family: var(--font-mono);
     font-size: var(--text-xs);

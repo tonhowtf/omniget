@@ -15,6 +15,7 @@
     client: string;
     client_name: string;
     workspace: string | null;
+    browser: boolean;
     code: string;
     created_ms: number;
   };
@@ -23,6 +24,7 @@
   let current = $derived(queue[0] ?? null);
   let agents = $state(true);
   let approvals = $state(false);
+  let browser = $state(false);
   let busy = $state(false);
   let error = $state<string | null>(null);
   async function refresh() {
@@ -37,6 +39,7 @@
     void current?.id;
     agents = true;
     approvals = false;
+    browser = current?.browser ?? false;
     error = null;
   });
 
@@ -51,6 +54,7 @@
         allow,
         agents: agents && !!current.workspace,
         approvals: approvals && agents && !!current.workspace,
+        browser,
       });
       if (allow && "message" in r) {
         done = { name, message: r.message };
@@ -106,6 +110,15 @@
           </label>
         </li>
       {/if}
+      <li>
+        <label class="cp-toggle">
+          <input type="checkbox" bind:checked={browser} disabled={busy} />
+          <span>
+            {$t("connect.scope_browser")}
+            <small>{$t("connect.scope_browser_hint")}</small>
+          </span>
+        </label>
+      </li>
     </ul>
 
     <p class="cp-hint">{$t("connect.request_hint", { client: current.client_name })}</p>

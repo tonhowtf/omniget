@@ -61,6 +61,7 @@ pub struct ConnectRequest {
     pub client: String,
     pub client_name: String,
     pub workspace: Option<String>,
+    pub browser: bool,
     pub code: String,
     pub created_ms: i64,
     pub status: Status,
@@ -208,8 +209,9 @@ pub fn instructions_for(port: u16, id: &str, name: &str) -> String {
         r#"# Connect {name} to OmniGet
 
 OmniGet is open on this computer. Connecting gives {name} OmniGet's MCP tools: downloads,
-the person's AI agents as background jobs, missions and companies of agents. The person
-approves it in the OmniGet window. The access token goes from OmniGet straight into {name}'s
+the person's AI agents as background jobs, missions and companies of agents, and, when the
+person ticks it, the Global Downloader (its browser, site connectors and whole-site downloads).
+The person approves it in the OmniGet window. The access token goes from OmniGet straight into {name}'s
 own config file and never through this chat, so do not look for it.
 
 1. Ask for access. Run this from the folder the person is working in (their agents may work there):
@@ -217,6 +219,9 @@ own config file and never through this chat, so do not look for it.
    curl -s -X POST "http://127.0.0.1:{port}/v1/connect?client={id}" --data-urlencode "workspace=$PWD"
 
    On Windows PowerShell: curl.exe -s -X POST "http://127.0.0.1:{port}/v1/connect?client={id}" --data-urlencode "workspace=$($PWD.Path)"
+
+   Add `--data-urlencode "browser=1"` when the person wants you to download from websites, courses
+   or anything behind a login, or to write a connector: OmniGet then offers the Global Downloader too.
 
    The answer is JSON with `code` and `wait_url`.
 2. Tell the person, in their language: "Click Allow in the OmniGet window. It shows the code <code>."
@@ -232,6 +237,7 @@ own config file and never through this chat, so do not look for it.
 struct RequestBody {
     client: Option<String>,
     workspace: Option<String>,
+    browser: Option<String>,
 }
 
 fn request(
@@ -262,6 +268,7 @@ fn request(
         RequestBody {
             client: form.get("client").cloned(),
             workspace: form.get("workspace").cloned(),
+            browser: form.get("browser").cloned(),
         }
     };
     let client = parsed
@@ -286,6 +293,10 @@ fn request(
             let p = std::path::Path::new(w);
             p.is_absolute() && p.is_dir()
         });
+    let browser = parsed
+        .browser
+        .or_else(|| query.get("browser").cloned())
+        .is_some_and(|b| matches!(b.trim(), "1" | "true" | "yes"));
     let req = {
         let Ok(mut list) = store().lock() else {
             return refuse(StatusCode::INTERNAL_SERVER_ERROR, "LOCK", "busy".into());
@@ -310,6 +321,7 @@ fn request(
             client: target.id.clone(),
             client_name: target.name.clone(),
             workspace,
+            browser,
             code: code(),
             created_ms: now_ms(),
             status: Status::Pending,
@@ -551,6 +563,7 @@ pub fn connect(
     workspace: Option<&str>,
     agents: bool,
     approvals: bool,
+    browser: bool,
 ) -> Result<Connected, String> {
     use omniget_core::core::assist::authority;
     let target = connectable(client).ok_or("UNKNOWN_CLIENT")?;
@@ -576,6 +589,9 @@ pub fn connect(
     }
     if approvals && agents {
         scopes.push("approvals_respond".into());
+    }
+    if browser {
+        scopes.push("global_downloader".into());
     }
     let name = connection_name(&target.name);
     let previous: Vec<String> = crate::mcp::policy::list()?
@@ -678,7 +694,7 @@ pub fn skill_text() -> String {
     format!(
         r##"---
 name: {SKILL_NAME}
-description: Connect this AI tool to the OmniGet desktop app on this computer (downloads, the person's AI agents as background jobs, missions) through OmniGet's local MCP server. Use when the person asks to connect, set up or configure OmniGet, or to use OmniGet from here.
+description: Connect this AI tool to the OmniGet desktop app on this computer (downloads, the Global Downloader for courses and sites behind a login, site connectors, the person's AI agents as background jobs, missions) through OmniGet's local MCP server. Use when the person asks to connect, set up or configure OmniGet, to use OmniGet from here, or to download a course or a whole site with OmniGet when its tools are not available yet.
 ---
 
 # Connect to OmniGet
@@ -691,7 +707,9 @@ description: Connect this AI tool to the OmniGet desktop app on this computer (d
    (Windows PowerShell: try `curl.exe -s "http://127.0.0.1:<port>/connect"` on each port.)
    If no port answers that way, OmniGet is not open or is older than this feature: ask the
    person to open or update it (https://getomniget.com/download) and try again.
-2. Follow the steps it returns.
+2. Follow the steps it returns. If the person wants to download from websites, courses or
+   anything behind a login, or to write a connector, ask for the Global Downloader too
+   (`browser=1` in the request).
 "##
     )
 }
@@ -757,6 +775,7 @@ pub async fn connect_answer(
     allow: bool,
     agents: bool,
     approvals: bool,
+    browser: Option<bool>,
 ) -> Result<Value, String> {
     let req = store()
         .lock()
@@ -770,9 +789,17 @@ pub async fn connect_answer(
         return Ok(json!({ "status": "denied" }));
     }
     let a = app.clone();
-    let result =
-        blocking(move || connect(&a, &req.client, req.workspace.as_deref(), agents, approvals))
-            .await;
+    let result = blocking(move || {
+        connect(
+            &a,
+            &req.client,
+            req.workspace.as_deref(),
+            agents,
+            approvals,
+            browser.unwrap_or(false),
+        )
+    })
+    .await;
     match result {
         Ok(done) => {
             set_answer(&id, Status::Approved, done.message.clone());
@@ -840,12 +867,23 @@ pub async fn connect_tool(
     workspace: Option<String>,
     agents: bool,
     approvals: bool,
+    browser: Option<bool>,
 ) -> Result<Connected, String> {
     let workspace = workspace.filter(|w| {
         let p = std::path::Path::new(w);
         p.is_absolute() && p.is_dir()
     });
-    blocking(move || connect(&app, &client, workspace.as_deref(), agents, approvals)).await
+    blocking(move || {
+        connect(
+            &app,
+            &client,
+            workspace.as_deref(),
+            agents,
+            approvals,
+            browser.unwrap_or(false),
+        )
+    })
+    .await
 }
 
 #[tauri::command]

@@ -74,6 +74,7 @@ pub const SCOPES: &[&str] = &[
     "memory_read",
     "memory_write",
     "library",
+    "global_downloader",
 ];
 
 fn stored_scopes(raw: &str) -> Vec<String> {
@@ -261,6 +262,7 @@ pub fn scope(name: &str) -> Option<&'static str> {
         }
         n if n.starts_with("tg_") => "telegram_read",
         "read_library_search" | "read_book_get" | "read_book_text" | "read_updates" => "library",
+        n if n.starts_with("gd_") => "global_downloader",
         n if super::canvas::owns(n) => return super::canvas::scope(n),
         _ => return None,
     })
@@ -474,6 +476,35 @@ mod tests {
             scopes: vec!["orchestration_control".into(), "diagnostics".into()],
         };
         assert!(!allowed(&controller, "job_diff"));
+    }
+
+    #[test]
+    fn global_downloader_needs_its_own_grant() {
+        let gd = crate::mcp::tools()
+            .into_iter()
+            .map(|t| t.name)
+            .filter(|n| n.starts_with("gd_"))
+            .collect::<Vec<_>>();
+        assert!(gd.contains(&"gd_download") && gd.contains(&"gd_connector_run"));
+        let everything_else = Principal {
+            id: "x".into(),
+            name: "X".into(),
+            scopes: SCOPES
+                .iter()
+                .filter(|s| **s != "global_downloader")
+                .map(|s| s.to_string())
+                .collect(),
+        };
+        let granted = Principal {
+            scopes: vec!["global_downloader".into()],
+            ..everything_else.clone()
+        };
+        for n in gd {
+            assert_eq!(scope(n), Some("global_downloader"));
+            assert!(!allowed(&everything_else, n));
+            assert!(allowed(&granted, n));
+        }
+        assert!(!allowed(&granted, "download_enqueue"));
     }
 }
 

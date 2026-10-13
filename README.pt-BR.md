@@ -184,7 +184,19 @@ Prefere clicar? **LLM → Configurar → MCP** lista as ferramentas de IA instal
 | Depois de baixar | Ler os detalhes dos arquivos prontos e ganhar acesso temporário a eles |
 | Seus agentes | Listar agentes e espaços de trabalho, iniciar e acompanhar missões e jobs, ler diffs, ver aprovações pendentes |
 | Memória, biblioteca, Telegram | Consultar e ensinar a memória do OmniGet, buscar nos seus livros, ler e baixar do Telegram |
+| Global Downloader | Abrir o navegador dele, ver a página, prever o que uma página rende, baixar cursos e sites inteiros, criar, testar e instalar conectores |
 | Seu computador | O washmybelly escaneia e planeja; executar ou desfazer um plano sempre pergunta a você na janela do OmniGet |
+
+### Cursos e sites inteiros, com o Global Downloader
+
+Tem coisa que não é um link só: um curso com quarenta aulas, uma área de membros, uma série atrás de login. Marque **Global Downloader** ao clicar em **Permitir** (ou peça para o agente solicitar) e o agente passa a controlar o navegador do próprio OmniGet:
+
+```text
+Baixe esse curso inteiro com o OmniGet: <url da página do curso>
+Esse site ainda não tem conector. Crie um, teste e baixe tudo.
+```
+
+Você faz login uma vez nessa janela, com as suas mãos. O agente abre a página, mostra o que encontrou (módulos, aulas, PDFs, arquivos) e baixa tudo, em ordem e em pastas, pela fila do OmniGet. Quando nenhum conector conhece o site, ele cria um com você: lê as chamadas de API do site nesse navegador, escreve um `connector.js` pequeno, testa sem baixar nada e instala. Mídia com DRM aparece na lista e é pulada.
 
 ### Continua sob seu controle
 
@@ -299,7 +311,7 @@ Já vêm dentro do app, em **Superpoderes** na barra lateral. Cada um pode ser d
 | **Watch** | Seus filmes, séries e cursos com progresso, notas, transcrições e flashcards, TV ao vivo de playlists M3U, Jellyfin e Chromecast |
 | **Ler** | Uma sala de leitura para EPUB, MOBI, PDF, quadrinhos e mangá, com livros gratuitos do Project Gutenberg e do Standard Ebooks, MangaDex e MANGA Plus com aviso de capítulo novo, catálogos OPDS, sincronização com o KOReader e envio para Kindle ou Kobo |
 | **Telegram** | Seus chats, busca de mídia e downloads por mensagem, álbum, intervalo ou chat inteiro, exportações, regras de monitoramento e transcrição local, com opções de proxy para redes que bloqueiam o Telegram |
-| **Global Downloader** | Um navegador controlado pelo OmniGet que captura a mídia que cada aba toca |
+| **Global Downloader** | Um navegador controlado pelo OmniGet que captura a mídia que cada aba toca, e conectores que baixam um curso ou site inteiro em ordem. O Claude Code consegue controlá-lo e criar conectores novos |
 | **League of Legends** | Um ajudante para o seu cliente do League aberto: scouting, ouro ao vivo, runas com um clique. Toda automação fica desligada até você ligar |
 
 ---

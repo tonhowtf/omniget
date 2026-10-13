@@ -1,7 +1,7 @@
 {
   "name": "omniget",
-  "version": "0.9.0",
-  "description": "Fetch media, captions and transcripts from a pasted URL with OmniGet's tooling (yt-dlp, ffmpeg, whisper.cpp or cloud speech APIs), connect Claude Code to the OmniGet desktop app with one click, hand tasks to your OmniGet agents when you ask, and, with the desktop app, recall and keep what OmniGet remembers about you.",
+  "version": "0.10.0",
+  "description": "Fetch media, captions and transcripts from a pasted URL with OmniGet's tooling (yt-dlp, ffmpeg, whisper.cpp or cloud speech APIs), connect Claude Code to the OmniGet desktop app with one click, download whole courses and sites behind a login with the Global Downloader and write connectors for new sites, hand tasks to your OmniGet agents when you ask, and, with the desktop app, recall and keep what OmniGet remembers about you.",
   "author": {
     "name": "Theodore Imonigie"
   },
@@ -15,6 +15,8 @@
     "whisper",
     "youtube",
     "instagram",
-    "memory"
+    "memory",
+    "courses",
+    "connectors"
   ]
 }

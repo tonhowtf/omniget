@@ -72,6 +72,11 @@ The token never goes on the command line, so it stays out of your shell history.
 | After downloading | Read the finished files' details and get temporary access to them |
 | Your agents | List agents and folders, start, pause, resume or cancel a mission, read its events and results, see pending approvals |
 | Your computer (washmybelly) | Read the system status, scan for junk, apps, startup items and privacy settings, build a plan; running or undoing a plan asks you in the OmniGet window |
+| Global Downloader | Open OmniGet's own browser (you log in there by hand), preview what a page yields, download a whole course or site in order and in folders, and write, test and install connectors for sites that have none (`gd_*` tools, token permission `global_downloader`) |
+
+### Whole courses and sites, with the Global Downloader
+
+Tick **Global Downloader** when you allow a client (or have the agent add `browser=1` to its connect request) and it can download what is not one link: a course with forty lessons, a members area, a series behind a login. Ask "Download this whole course with OmniGet: <url>" or "This site has no connector yet. Write one, test it and download everything." You log in once in that browser window; the agent previews the tree (modules, lessons, PDFs, files), downloads it with OmniGet's queue, and when no connector knows the site, reads its API calls, writes a small `connector.js`, dry-runs it and installs it. DRM-protected media is listed and skipped.
 
 ### It stays under your control
 

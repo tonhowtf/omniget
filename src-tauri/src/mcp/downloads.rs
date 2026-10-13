@@ -9,11 +9,12 @@ use tauri::{AppHandle, Manager};
 pub fn catalog(p: &Principal) -> Vec<Value> {
     tools(p).into_iter().map(|tool| {
         let writes = matches!(policy::scope(tool.name), Some("enqueue" | "control" | "company_control" | "orchestration_control" | "orchestration_create" | "app_control" | "app_capture" | "system_change" | "telegram_write" | "approvals_respond" | "agents_run"))
-            || matches!(tool.name, "auth_connection_request" | "diagnostic_bundle_create" | "catalog_install" | "memory_retain");
-        let open_world = matches!(tool.name, "download_enqueue" | "downloads_batch_enqueue" | "download_retry" | "download_resume" | "media_inspect" | "media_collection_list");
+            || matches!(tool.name, "auth_connection_request" | "diagnostic_bundle_create" | "catalog_install" | "memory_retain")
+            || super::global_dl::writes(tool.name);
+        let open_world = matches!(tool.name, "download_enqueue" | "downloads_batch_enqueue" | "download_retry" | "download_resume" | "media_inspect" | "media_collection_list") || super::global_dl::open_world(tool.name);
         let mut value = serde_json::to_value(&tool).expect("static tool schema serializes");
         let destructive = writes && (matches!(tool.name, "download_cancel" | "download_pause" | "missions_cancel" | "missions_pause" | "wmb_execute" | "job_cancel" | "tg_delete_messages") || super::canvas::is_destructive(tool.name));
-        let idempotent = !matches!(tool.name,"omniget_app_capture"|"omniget_app_export") && !(writes && super::canvas::owns(tool.name));
+        let idempotent = !matches!(tool.name,"omniget_app_capture"|"omniget_app_export"|"gd_download") && !(writes && super::canvas::owns(tool.name));
         value["annotations"] = json!({"readOnlyHint":!writes,"destructiveHint":destructive,"idempotentHint":idempotent,"openWorldHint":open_world});
         value
     }).collect()
@@ -239,6 +240,15 @@ pub async fn call(app: &AppHandle, p: &Principal, name: &str, a: Value) -> Resul
             return Err("TOOL_NOT_AUTHORIZED".into());
         }
         return super::telegram::call(p, name, a).await;
+    }
+    if name.starts_with("gd_") {
+        if !policy::allowed(p, name) {
+            return Err("TOOL_NOT_AUTHORIZED".into());
+        }
+        if !a.is_object() {
+            return Err("INVALID_ARGUMENTS".into());
+        }
+        return super::call(app, name, a).await;
     }
     validate(p, name, &a)?;
     if name.starts_with("wmb_") {

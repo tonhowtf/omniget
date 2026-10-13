@@ -36,12 +36,16 @@ pub fn entries() -> Vec<ToolEntry> {
     use CostHint::*;
     vec![
         e("gd_browser_open",
-          "Open the Global Downloader browser (a real Chromium window on OmniGet's own profile) and optionally a URL in a new tab. The person can log in and browse in it; every tab's network traffic is recorded. Returns the tabs.",
-          obj(json!({ "url": { "type": "string" } }), &[]),
+          "Open the Global Downloader browser (Chromium on OmniGet's own profile) and optionally a URL in a new tab; every tab's network traffic is recorded. By default it is embedded: pages only show inside OmniGet's Global Downloader screen. Pass window=true when the person has to see the page or log in (sites like Google refuse embedded logins): it becomes a separate window on their screen and stays so. Returns the tabs and the mode.",
+          obj(json!({ "url": { "type": "string" }, "window": { "type": "boolean", "description": "true: a visible browser window the person can use" } }), &[]),
           |a| Box::pin(async move {
               let url = Some(s(&a, "url")).filter(|u| !u.is_empty());
+              if a["window"].as_bool() == Some(true) && browser::mode() != "window" {
+                  browser::switch_mode("window").await?;
+              }
               let b = browser::start(url, true).await?;
-              to_json(json!({ "tabs": b.tabs() }))
+              let mode = if b.headless { "embedded" } else { "window" };
+              to_json(json!({ "tabs": b.tabs(), "mode": mode }))
           }), Local),
         e("gd_tabs",
           "List, open, close, focus or navigate tabs of the Global Downloader browser. action: list (default) | open (url) | close (tab_id) | focus (tab_id) | navigate (tab_id, url).",

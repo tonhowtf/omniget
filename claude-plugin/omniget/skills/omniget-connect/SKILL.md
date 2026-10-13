@@ -1,7 +1,7 @@
 ---
 name: omniget-connect
-description: This skill should be used when the user asks to "connect to OmniGet", "set up OmniGet", "configure OmniGet for me", "use OmniGet from Claude", or wants Claude Code to run their OmniGet agents, missions or downloads through OmniGet's MCP server, and the omniget MCP tools are not available yet.
-version: 0.1.0
+description: This skill should be used when the user asks to "connect to OmniGet", "set up OmniGet", "configure OmniGet for me", "use OmniGet from Claude", or wants Claude Code to run their OmniGet agents, missions or downloads (including whole courses and sites through the Global Downloader) through OmniGet's MCP server, and the omniget MCP tools are not available yet.
+version: 0.2.0
 ---
 
 # Connecting Claude Code to OmniGet
@@ -18,5 +18,8 @@ into Claude Code's own config. The token never passes through this conversation.
    (Windows PowerShell: try `curl.exe -s "http://127.0.0.1:<port>/connect?client=claude"` on each port.)
    If no port answers that way, OmniGet is not open or is older than this feature: ask the
    person to open or update it (https://getomniget.com/download) and try again.
-2. Follow the steps it returns, then tell the user to start a new Claude Code session
+2. Follow the steps it returns. When the user wants to download courses, members areas or
+   any site behind a login, or to write a connector, add `--data-urlencode "browser=1"` to
+   the request so OmniGet offers the Global Downloader (its `gd_*` tools) in the same Allow.
+3. Then tell the user to start a new Claude Code session
    so the `omniget` tools load.

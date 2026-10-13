@@ -180,7 +180,19 @@ Prefer clicking? **LLM → Configure → MCP** lists the AI tools installed on y
 | After downloading | Read the finished files' details and get temporary access to them |
 | Your agents | List agents and workspaces, start and follow missions and jobs, read diffs, see pending approvals |
 | Memory, library, Telegram | Recall and teach OmniGet's memory, search your books, read and download from Telegram |
+| Global Downloader | Open its browser, see the page, preview what a page yields, download whole courses and sites, write, test and install connectors |
 | Your computer | washmybelly scans and plans; running or undoing a plan always asks you in the OmniGet window |
+
+### Whole courses and sites, with the Global Downloader
+
+Some things are not one link: a course with forty lessons, a members area, a series behind a login. Tick **Global Downloader** when you click **Allow** (or ask the agent to request it) and the agent can drive OmniGet's own browser:
+
+```text
+Download this whole course with OmniGet: <url of the course page>
+This site has no connector yet. Write one, test it and download everything.
+```
+
+You log in once in that window, by hand. The agent opens the page, shows you what it found (modules, lessons, PDFs, files) and downloads it all, in order and in folders, with OmniGet's queue. When no connector knows the site, it writes one with you: it reads the site's API calls in that browser, writes a small `connector.js`, tests it without downloading anything and installs it. DRM-protected media is listed and skipped.
 
 ### It stays under your control
 
@@ -289,7 +301,7 @@ Built into the app, under **Superpowers** in the sidebar. Each one can be switch
 | **Watch** | Your movies, shows and courses with progress, notes, transcripts and flashcards, live TV from M3U playlists, Jellyfin and Chromecast |
 | **Read** | A reading room for EPUB, MOBI, PDF, comics and manga, with free books from Project Gutenberg and Standard Ebooks, MangaDex and MANGA Plus with new-chapter alerts, OPDS catalogs, KOReader sync and send-to-Kindle or Kobo |
 | **Telegram** | Your chats, media search and downloads by message, album, range or whole chat, exports, watch rules and local transcription, with proxy options for networks that block Telegram |
-| **Global Downloader** | A browser controlled by OmniGet that catches the media every tab plays |
+| **Global Downloader** | A browser controlled by OmniGet that catches the media every tab plays, and connectors that download a whole course or site in order. Claude Code can drive it and write new connectors |
 | **League of Legends** | A helper for your running League client: scouting, live gold, runes in one click. Every automation stays off until you turn it on |
 
 ---

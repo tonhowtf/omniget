@@ -9,7 +9,7 @@
   "plugins": [
     {
       "name": "omniget",
-      "description": "Paste a video or post URL: download it, pull the caption, transcribe the audio locally or in the cloud, and research it. Reuses OmniGet's managed yt-dlp, ffmpeg, cookies and models when the app is installed. With the desktop app and a memory token, it also recalls what OmniGet remembers about you before each prompt and learns from each turn.",
+      "description": "Paste a video or post URL: download it, pull the caption, transcribe the audio locally or in the cloud, and research it. With the desktop app, it also downloads whole courses and sites behind a login through the Global Downloader and writes connectors for new sites. Reuses OmniGet's managed yt-dlp, ffmpeg, cookies and models when the app is installed. With the desktop app and a memory token, it also recalls what OmniGet remembers about you before each prompt and learns from each turn.",
       "source": "./claude-plugin/omniget",
       "category": "productivity",
       "keywords": [
@@ -19,7 +19,8 @@
         "transcript",
         "whisper",
         "download",
-        "memory"
+        "memory",
+        "courses"
       ]
     }
   ]
