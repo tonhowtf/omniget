@@ -11,7 +11,7 @@ use tracing_subscriber::Layer;
 
 const RING_LINES: usize = 3_000;
 const SUPPORT_EMAIL: &str = "tonhowtf@gmail.com";
-const ISSUES_URL: &str = "https://github.com/tonhowtf/omniget/issues/new";
+const ISSUES_URL: &str = "https://getomniget.com/contact";
 
 static RING: Mutex<VecDeque<String>> = Mutex::new(VecDeque::new());
 
@@ -262,18 +262,13 @@ pub fn build(app: &AppHandle) -> Result<Value, String> {
         std::env::consts::ARCH,
         path.to_string_lossy()
     );
-    let issue_body = format!(
-        "**What happened**\n\n**What I expected**\n\n**Steps**\n1.\n\n---\nOmniGet {version} on {os} ({}). Drag the report zip (`{}`) here.\n",
-        std::env::consts::ARCH,
-        path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default()
-    );
     Ok(json!({
         "path": path.to_string_lossy(),
         "shownPath": shown,
         "files": files,
         "logLines": log.len(),
         "mailto": format!("mailto:{SUPPORT_EMAIL}?subject={}&body={}", url_encode(&subject), url_encode(&body)),
-        "issueUrl": format!("{ISSUES_URL}?title={}&body={}", url_encode(&subject), url_encode(&issue_body)),
+        "issueUrl": ISSUES_URL,
     }))
 }
 

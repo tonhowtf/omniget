@@ -12604,7 +12604,7 @@
       "reportMake": "Create diagnostics file",
       "reportFiles": "{{count}} files, {{lines}} log lines",
       "reportMail": "Write an e-mail",
-      "reportIssue": "Open a GitHub issue"
+      "reportIssue": "Open the support board"
     },
     "activity": {
       "title": "فعالیت",

@@ -12604,7 +12604,7 @@
       "reportMake": "Criar arquivo de diagnóstico",
       "reportFiles": "{{count}} arquivos, {{lines}} linhas de log",
       "reportMail": "Escrever um e-mail",
-      "reportIssue": "Abrir uma issue no GitHub"
+      "reportIssue": "Abrir o fórum de suporte"
     },
     "activity": {
       "title": "Atividade",

@@ -315,7 +315,7 @@
       </div>
       <div class="pair end">
         <button class="button" onclick={() => openLink(report!.mailto)}>{tr("canvas.envSettings.reportMail", "Write an e-mail")}</button>
-        <button class="button" onclick={() => openLink(report!.issueUrl)}>{tr("canvas.envSettings.reportIssue", "Open a GitHub issue")}</button>
+        <button class="button" onclick={() => openLink(report!.issueUrl)}>{tr("canvas.envSettings.reportIssue", "Open the support board")}</button>
       </div>
     {/if}
   </div>
