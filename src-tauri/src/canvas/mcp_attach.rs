@@ -193,12 +193,12 @@ fn specs(ids: &[String]) -> Vec<McpServerSpec> {
     out
 }
 
-fn run_dir(node_id: &str) -> Option<PathBuf> {
+pub(super) fn run_dir(node_id: &str) -> Option<PathBuf> {
     let safe = key_of(node_id);
     omniget_core::core::paths::app_data_dir().map(|d| d.join("canvas").join("run").join(safe))
 }
 
-fn write_private(path: &std::path::Path, body: &[u8]) -> std::io::Result<()> {
+pub(super) fn write_private(path: &std::path::Path, body: &[u8]) -> std::io::Result<()> {
     let dir = path.parent().unwrap_or(path);
     std::fs::create_dir_all(dir)?;
     #[cfg(unix)]

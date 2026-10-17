@@ -1247,6 +1247,17 @@ pub fn bridge_port(data: &Path) -> Option<u16> {
     b["port"].as_u64().map(|p| p as u16).filter(|p| *p != 0)
 }
 
+pub fn canvas_bridge_port(data: &Path) -> Option<u16> {
+    let v: Value = serde_json::from_slice(&std::fs::read(data.join("settings.json")).ok()?).ok()?;
+    let b = &v["app_settings"]["bridge"];
+    let full = (b["enabled"] != Value::Bool(false))
+        .then(|| b["port"].as_u64())
+        .flatten();
+    full.or_else(|| b["canvas_port"].as_u64())
+        .map(|p| p as u16)
+        .filter(|p| *p != 0)
+}
+
 pub fn tokens_path(data: &Path) -> PathBuf {
     data.join("agentkit").join("observe").join("tokens.json")
 }

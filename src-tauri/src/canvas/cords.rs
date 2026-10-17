@@ -232,6 +232,10 @@ impl crate::llm_attention::NotifySink for CanvasSink {
     }
 }
 
+fn token_file_of(node_id: &str) -> Option<std::path::PathBuf> {
+    super::mcp_attach::run_dir(node_id).map(|d| d.join("token"))
+}
+
 pub fn node_name(n: &CanvasNode) -> String {
     if let Some(t) = n.title.as_deref().map(str::trim).filter(|t| !t.is_empty()) {
         return t.to_string();
@@ -683,6 +687,7 @@ impl CanvasHost {
                 .and_then(|t| t.token.clone())
         }
         .filter(|_| term().info(&terminal).is_some_and(|i| i.alive));
+        let token_file = token_file_of(node_id);
         let (token, reused) = {
             let jobs = crate::jobs::get(app)?;
             let db = jobs.db();
@@ -696,11 +701,31 @@ impl CanvasHost {
                     (tok, true)
                 }
                 _ => {
-                    let m = crate::bridge_tokens::mint_canvas(&db, node_id, &name, now())?;
-                    ((m.view.id, m.token), false)
+                    let saved = token_file
+                        .as_ref()
+                        .and_then(|p| std::fs::read_to_string(p).ok())
+                        .and_then(|t| {
+                            crate::bridge_tokens::live_canvas_token(&db, node_id, &t, now())
+                                .map(|id| (id, t.trim().to_string()))
+                        });
+                    match saved {
+                        Some(tok) => (tok, false),
+                        None => {
+                            let m = crate::bridge_tokens::mint_canvas(&db, node_id, &name, now())?;
+                            ((m.view.id, m.token), false)
+                        }
+                    }
                 }
             }
         };
+        if let Some(p) = &token_file {
+            let stale = std::fs::read_to_string(p).map_or(true, |t| t.trim() != token.1);
+            if stale {
+                if let Err(e) = super::mcp_attach::write_private(p, token.1.as_bytes()) {
+                    tracing::warn!("[canvas] token file of {node_id}: {e}");
+                }
+            }
+        }
         let bridge_port = crate::local_bridge::ensure_running_for_canvas(app)?;
         let data = omniget_core::core::paths::app_data_dir().ok_or("no app data dir")?;
         let bin = data.join("bin");
@@ -721,6 +746,12 @@ impl CanvasHost {
         env.insert("OMNIGET_CANVAS_WORKSPACE".into(), ws.to_string());
         env.insert("OMNIGET_CANVAS_FLOOR".into(), floor.to_string());
         env.insert("OMNIGET_CANVAS_TOKEN".into(), token.1.clone());
+        if let Some(p) = &token_file {
+            env.insert(
+                "OMNIGET_CANVAS_TOKEN_FILE".into(),
+                p.to_string_lossy().into_owned(),
+            );
+        }
         env.insert(
             "OMNIGET_BRIDGE_URL".into(),
             format!("http://127.0.0.1:{bridge_port}"),
@@ -2439,6 +2470,9 @@ impl CanvasHost {
             self.lock().tracked.remove(node);
         }
         self.revoke(node);
+        if let Some(p) = token_file_of(node) {
+            let _ = std::fs::remove_file(p);
+        }
     }
 
     fn revoke_token(&self, node: &str, id: &str) {
@@ -3103,7 +3137,15 @@ fn rpc_blocking(ctx: &NodeCtx, method: &str, a: &Value) -> Result<Value, String>
         "note.create" => {
             let (ws, floor, me) = locate(&ctx.node_id).map_err(|e| e.message)?;
             let text = a["text"].as_str().unwrap_or("");
-            let size = omniget_core::core::canvas::model::default_size(&NodeKind::Note);
+            let prefs = host().app().map(super::prefs::get).unwrap_or_default();
+            let base = omniget_core::core::canvas::model::default_size(&NodeKind::Note);
+            let mut size = base;
+            if let Some((w, h)) =
+                omniget_core::models::settings::parse_canvas_size(&prefs.defaults.note.size)
+            {
+                size.w = w;
+                size.h = h;
+            }
             let near = omniget_core::core::canvas::model::Point {
                 x: me.x - size.w - 40.0,
                 y: me.y,
@@ -3120,9 +3162,12 @@ fn rpc_blocking(ctx: &NodeCtx, method: &str, a: &Value) -> Result<Value, String>
                 })
                 .unwrap_or(near);
             let id = notes::create(&s, &ws, &floor, spot.x, spot.y, text, &origin)?;
-            let stack = a
-                .get("stack")
-                .filter(|v| !v.is_null() && *v != &json!(false));
+            let stacked = json!(true);
+            let stack = match a.get("stack") {
+                Some(v) if *v == json!(false) => None,
+                Some(v) if !v.is_null() => Some(v),
+                _ => (prefs.defaults.agent_placement == "stack").then_some(&stacked),
+            };
             let mut ops = if stack.is_some() {
                 Vec::new()
             } else {
@@ -3143,6 +3188,19 @@ fn rpc_blocking(ctx: &NodeCtx, method: &str, a: &Value) -> Result<Value, String>
                     },
                 }]
             };
+            if size.w != base.w || size.h != base.h {
+                ops.push(Op::update_node(&id, json!({ "w": size.w, "h": size.h })));
+            }
+            let mut look = serde_json::Map::new();
+            if !prefs.defaults.note.font.trim().is_empty() {
+                look.insert("font".into(), json!(prefs.defaults.note.font.trim()));
+            }
+            if prefs.defaults.note.render == "raw" {
+                look.insert("mode".into(), json!("raw"));
+            }
+            if !look.is_empty() {
+                ops.push(Op::update_node(&id, json!({ "data": look })));
+            }
             let mut shown = notes::derive_name(text);
             if let Some(n) = a["name"].as_str().filter(|n| !n.trim().is_empty()) {
                 shown = n.trim().to_string();

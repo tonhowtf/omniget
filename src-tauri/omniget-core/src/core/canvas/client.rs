@@ -17,6 +17,7 @@ pub const EXIT_RELEASED: i32 = 4;
 pub const TOKEN_ENV: &str = "OMNIGET_CANVAS_TOKEN";
 pub const URL_ENV: &str = "OMNIGET_BRIDGE_URL";
 pub const NODE_ENV: &str = "OMNIGET_CANVAS_NODE";
+pub const TOKEN_FILE_ENV: &str = "OMNIGET_CANVAS_TOKEN_FILE";
 
 pub const DEFAULT_ASK_TIMEOUT_S: u64 = 540;
 const WAIT_SLICE_MS: u64 = 100_000;
@@ -35,9 +36,23 @@ pub fn parse_url(url: &str) -> Option<(String, u16)> {
     Some((host.to_string(), port.parse().ok()?))
 }
 
+fn token_from_file() -> Option<String> {
+    let path = std::env::var_os(TOKEN_FILE_ENV)?;
+    let text = std::fs::read_to_string(path).ok()?;
+    Some(text.trim().to_string()).filter(|t| t.starts_with("oct_"))
+}
+
+fn saved_port() -> Option<u16> {
+    crate::core::paths::app_data_dir().and_then(|d| hook_shim::canvas_bridge_port(&d))
+}
+
 impl Conn {
     pub fn from_env() -> Result<Conn, String> {
-        let token = std::env::var(TOKEN_ENV).unwrap_or_default();
+        let token = std::env::var(TOKEN_ENV)
+            .ok()
+            .filter(|t| !t.trim().is_empty())
+            .or_else(token_from_file)
+            .unwrap_or_default();
         if token.trim().is_empty() {
             return Err(format!(
                 "not on an OmniGet canvas: {TOKEN_ENV} is not set (run this inside a terminal of the canvas)"
@@ -46,11 +61,7 @@ impl Conn {
         let (host, port) = std::env::var(URL_ENV)
             .ok()
             .and_then(|u| parse_url(&u))
-            .or_else(|| {
-                crate::core::paths::app_data_dir()
-                    .and_then(|d| hook_shim::bridge_port(&d))
-                    .map(|p| ("127.0.0.1".to_string(), p))
-            })
+            .or_else(|| saved_port().map(|p| ("127.0.0.1".to_string(), p)))
             .ok_or_else(|| {
                 format!("no bridge address: {URL_ENV} is not set and the app's bridge is off")
             })?;
@@ -65,6 +76,26 @@ impl Conn {
         format!("http://{}:{}", self.host, self.port)
     }
 
+    pub fn refreshed(&self) -> Option<Conn> {
+        let port = saved_port();
+        let next = Conn {
+            host: port.map_or_else(|| self.host.clone(), |_| "127.0.0.1".to_string()),
+            port: port.unwrap_or(self.port),
+            token: token_from_file().unwrap_or_else(|| self.token.clone()),
+        };
+        (next.port != self.port || next.token != self.token).then_some(next)
+    }
+
+    fn connect(&self) -> Result<TcpStream, String> {
+        let addr = (self.host.as_str(), self.port)
+            .to_socket_addrs()
+            .map_err(|e| format!("bad bridge address: {e}"))?
+            .next()
+            .ok_or("bad bridge address")?;
+        TcpStream::connect_timeout(&addr, Duration::from_millis(1500))
+            .map_err(|e| format!("the OmniGet app does not answer on {}: {e}", self.url()))
+    }
+
     pub fn request(
         &self,
         method: &str,
@@ -72,13 +103,35 @@ impl Conn {
         body: Option<&Value>,
         read_timeout: Duration,
     ) -> Result<(u16, Value), String> {
-        let addr = (self.host.as_str(), self.port)
-            .to_socket_addrs()
-            .map_err(|e| format!("bad bridge address: {e}"))?
-            .next()
-            .ok_or("bad bridge address")?;
-        let mut s = TcpStream::connect_timeout(&addr, Duration::from_millis(1500))
-            .map_err(|e| format!("the OmniGet app does not answer on {}: {e}", self.url()))?;
+        let s = match self.connect() {
+            Ok(s) => s,
+            Err(e) => {
+                let Some(next) = self.refreshed() else {
+                    return Err(e);
+                };
+                let s = next.connect().map_err(|_| e)?;
+                return next.exchange(s, method, path, body, read_timeout);
+            }
+        };
+        let out = self.exchange(s, method, path, body, read_timeout)?;
+        if out.0 == 401 {
+            if let Some(next) = self.refreshed() {
+                if let Ok(s) = next.connect() {
+                    return next.exchange(s, method, path, body, read_timeout);
+                }
+            }
+        }
+        Ok(out)
+    }
+
+    fn exchange(
+        &self,
+        mut s: TcpStream,
+        method: &str,
+        path: &str,
+        body: Option<&Value>,
+        read_timeout: Duration,
+    ) -> Result<(u16, Value), String> {
         s.set_read_timeout(Some(read_timeout)).ok();
         s.set_write_timeout(Some(Duration::from_secs(10))).ok();
         let payload = body
@@ -536,7 +589,9 @@ fn portal_args(verb: &str, pos: &[String], a: &Args) -> (String, Value) {
         }
         return (verb.to_string(), v);
     }
-    let first_is_target = pos.first().is_some_and(|w| looks_like_target(w));
+    let first_is_target = pos
+        .first()
+        .is_some_and(|w| looks_like_target(w) || (verb == "upload" && is_file_arg(w)));
     if !first_is_target {
         if let Some(p) = rest.next() {
             put(&mut v, "portal", json!(p));
@@ -647,9 +702,48 @@ fn portal_args(verb: &str, pos: &[String], a: &Args) -> (String, Value) {
                 put(&mut v, "ua", json!(u));
             }
         }
+        "upload" => {
+            let mut files: Vec<String> = Vec::new();
+            for w in &words {
+                if files.is_empty() && looks_like_target(w) && !is_file_arg(w) {
+                    put(&mut v, "selector", json!(w));
+                } else {
+                    files.push(absolute(w));
+                }
+            }
+            if let Some(f) = a.flag("file") {
+                files.push(absolute(f));
+            }
+            put(&mut v, "paths", json!(files));
+        }
         _ => {}
     }
     (verb.to_string(), v)
+}
+
+fn is_file_arg(w: &str) -> bool {
+    let w = w.trim();
+    w.starts_with('/')
+        || w.starts_with("./")
+        || w.starts_with("../")
+        || w.starts_with('~')
+        || std::path::Path::new(w).is_file()
+}
+
+fn absolute(w: &str) -> String {
+    let w = w.trim();
+    let p = match (w.strip_prefix("~/"), std::env::var_os("HOME")) {
+        (Some(rest), Some(h)) => PathBuf::from(h).join(rest),
+        _ => PathBuf::from(w),
+    };
+    if p.is_absolute() {
+        return p.to_string_lossy().into_owned();
+    }
+    std::env::current_dir()
+        .map(|d| d.join(&p))
+        .unwrap_or(p)
+        .to_string_lossy()
+        .into_owned()
 }
 
 fn put(v: &mut Value, k: &str, val: Value) {
@@ -743,7 +837,7 @@ fn command_help(cmd: &str, verb: Option<&str>) -> String {
         ("say", _) => "omniget canvas say \"text\" [--progress] [--file f] [--text-from f] [--attach path]...\n  A chat bubble for the user; --progress does not close the turn.\n  --file and --attach attach files to the bubble; --text-from uses a text file's content as the message.",
         ("recall", _) => "omniget canvas recall [thread] [--turns N | --last day|week|month | --from DATE [--to DATE] | --all] [--json]\n  The chat thread so far.",
         ("note", _) => "omniget canvas note create [\"text\"] [--name \"Name\"] [--stack [\"Fichario\"]]\nomniget canvas note read \"Note\" [offset] [limit]\nomniget canvas note write \"Note\" \"text\"\nomniget canvas note edit \"Note\" \"old\" \"new\"\nomniget canvas note stack \"Note\" [\"Fichario\"] | unstack \"Note\" | delete \"Note\"",
-        ("portal", _) => "omniget canvas portal <verb> \"Portal\" [args]\n  verbs: list, create URL [Name] [--size WxH], snapshot, click @eN|x,y, fill @eN text, type text, key K, scroll [@eN] [up|down|top|bottom|PX], hover @eN, select @eN value, check @eN, uncheck @eN, text [@eN], html [@eN], evaluate JS, logs-start, logs, screenshot, navigate URL|back|forward|reload, wait @eN|MS|text, resize W H, ua [UA]\n  The portal name can be left out when only one portal is connected to you",
+        ("portal", _) => "omniget canvas portal <verb> \"Portal\" [args]\n  verbs: list, create URL [Name] [--size WxH], snapshot, click @eN|x,y, fill @eN text, type text, key K, scroll [@eN] [up|down|top|bottom|PX], hover @eN, select @eN value, check @eN, uncheck @eN, text [@eN], html [@eN], evaluate JS, logs-start, logs, screenshot, navigate URL|back|forward|reload, wait @eN|MS|text, resize W H, ua [UA], upload [@eN] FILE...\n  upload puts files into the page: target the file input, the button that opens one, or a drop zone\n  (without @eN, the page's only file input). Never click a file input to upload: that opens a picker you cannot fill.\n  Relative paths are read from your folder; at most 50 MB in all.\n  The portal name can be left out when only one portal is connected to you",
         ("recruit", _) => "omniget canvas recruit \"Name\" [--agent claude|codex|gemini|opencode|ollama|shell|<preset>] [--role Role] [--command CMD] [--dir PATH] [--floor Floor] [--workspace Workspace] [--replace \"Old\"]\n  Maestro only. Creates a connected teammate under you; --role applies a role (id or name) at spawn;\n  --replace swaps an existing teammate keeping its cords and position.\n  Example: omniget canvas recruit \"Rev\" --agent claude --role reviewer",
         ("dismiss", _) => "omniget canvas dismiss \"Name\"\n  Maestro only. Stops a teammate and removes its node.",
         ("connect", _) | ("disconnect", _) => "omniget canvas connect|disconnect \"From\" \"To\"\n  Maestro only, inside your team tree.",
@@ -1472,4 +1566,43 @@ fn next_on_path(name: &str, skip: Option<&std::path::Path>) -> Option<PathBuf> {
         return Some(cand);
     }
     None
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn upload(words: &[&str]) -> Value {
+        let argv: Vec<String> = words.iter().map(|s| s.to_string()).collect();
+        let a = parse(&argv);
+        let (verb, v) = portal_args("upload", &a.pos, &a);
+        assert_eq!(verb, "upload");
+        v
+    }
+
+    #[test]
+    fn upload_takes_a_portal_a_target_and_files() {
+        let v = upload(&["Portal", "@e4", "/tmp/a.pdf", "/tmp/b.png"]);
+        assert_eq!(v["portal"], "Portal");
+        assert_eq!(v["selector"], "@e4");
+        assert_eq!(v["paths"], json!(["/tmp/a.pdf", "/tmp/b.png"]));
+    }
+
+    #[test]
+    fn upload_reads_dot_paths_as_files_from_the_current_folder() {
+        let v = upload(&["./report.pdf"]);
+        assert!(v.get("portal").is_none());
+        assert!(v.get("selector").is_none());
+        let cwd = std::env::current_dir().unwrap();
+        assert_eq!(
+            v["paths"],
+            json!([cwd.join("./report.pdf").to_string_lossy()])
+        );
+        let v = upload(&["@e2", "../up.txt"]);
+        assert_eq!(v["selector"], "@e2");
+        assert_eq!(
+            v["paths"][0],
+            json!(cwd.join("../up.txt").to_string_lossy())
+        );
+    }
 }

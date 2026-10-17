@@ -151,8 +151,12 @@ pub fn ensure_running_for_canvas(app: &AppHandle) -> Result<u16, String> {
     if port != 0 {
         return Ok(port);
     }
-    let addr: SocketAddr = ([127, 0, 0, 1], 0).into();
-    let std_listener = std::net::TcpListener::bind(addr).map_err(|e| format!("CANVAS_IO: {e}"))?;
+    let bind = |p: u16| std::net::TcpListener::bind(SocketAddr::from(([127, 0, 0, 1], p)));
+    let std_listener = match settings.bridge.canvas_port {
+        0 => bind(0),
+        saved => bind(saved).or_else(|_| bind(0)),
+    }
+    .map_err(|e| format!("CANVAS_IO: {e}"))?;
     std_listener
         .set_nonblocking(true)
         .map_err(|e| format!("CANVAS_IO: {e}"))?;
@@ -191,6 +195,11 @@ pub fn ensure_running_for_canvas(app: &AppHandle) -> Result<u16, String> {
         CANVAS_PORT.store(0, Ordering::Relaxed);
     });
     CANVAS_PORT.store(port, Ordering::Relaxed);
+    if settings.bridge.canvas_port != port {
+        if let Err(e) = config::update_settings(app, |s| s.bridge.canvas_port = port) {
+            tracing::warn!("canvas bridge port not saved: {e}");
+        }
+    }
     tracing::info!("canvas-only bridge listening on http://127.0.0.1:{port} (full bridge is off)");
     Ok(port)
 }

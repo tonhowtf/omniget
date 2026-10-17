@@ -250,10 +250,19 @@ pub fn lookup(db: &Connection, token: &str, now: u64) -> Lookup {
         .last_used_ms
         .is_none_or(|t| now.saturating_sub(t) >= TOUCH_EVERY_MS)
     {
-        let _ = db.execute(
-            "UPDATE bridge_tokens SET last_used_ms=?2 WHERE id=?1",
-            params![view.id, now as i64],
-        );
+        if view.kind == Kind::Canvas {
+            let until = now + CANVAS_TOKEN_TTL_MS;
+            let _ = db.execute(
+                "UPDATE bridge_tokens SET last_used_ms=?2, expires_ms=?3 WHERE id=?1",
+                params![view.id, now as i64, until as i64],
+            );
+            view.expires_ms = Some(until);
+        } else {
+            let _ = db.execute(
+                "UPDATE bridge_tokens SET last_used_ms=?2 WHERE id=?1",
+                params![view.id, now as i64],
+            );
+        }
         view.last_used_ms = Some(now);
     }
     Lookup::Valid(view)
@@ -284,7 +293,7 @@ pub fn revoke_job(db: &Connection, job_id: &str, now: u64) -> Result<usize, Stri
 
 pub fn revoke_orphan_job_tokens(db: &Connection, now: u64) -> Result<usize, String> {
     db.execute(
-        "UPDATE bridge_tokens SET revoked_ms=?1 WHERE kind IN ('job','canvas') AND revoked_ms IS NULL",
+        "UPDATE bridge_tokens SET revoked_ms=?1 WHERE kind='job' AND revoked_ms IS NULL",
         params![now as i64],
     )
     .map_err(|e| e.to_string())
@@ -302,6 +311,15 @@ pub fn mint_canvas(db: &Connection, node_id: &str, name: &str, now: u64) -> Resu
         Some(now + CANVAS_TOKEN_TTL_MS),
         now,
     )
+}
+
+pub fn live_canvas_token(db: &Connection, node_id: &str, token: &str, now: u64) -> Option<String> {
+    match lookup(db, token.trim(), now) {
+        Lookup::Valid(v) if v.kind == Kind::Canvas && v.job_id.as_deref() == Some(node_id) => {
+            Some(v.id)
+        }
+        _ => None,
+    }
 }
 
 pub fn revoke_canvas_node(db: &Connection, node_id: &str, now: u64) -> Result<usize, String> {
@@ -1119,9 +1137,44 @@ mod tests {
         assert_eq!(revoke_canvas_node(&db, "n1", 4).unwrap(), 1);
         assert_eq!(lookup(&db, &t.token, 5), Lookup::Ended);
         let again = mint_canvas(&db, "n2", "Coder", 6).unwrap();
-        assert_eq!(revoke_orphan_job_tokens(&db, 7).unwrap(), 1);
-        assert_eq!(lookup(&db, &again.token, 8), Lookup::Ended);
-        assert!(list(&db, 9).is_empty());
+        assert_eq!(revoke_orphan_job_tokens(&db, 7).unwrap(), 0);
+        assert!(matches!(lookup(&db, &again.token, 8), Lookup::Valid(_)));
+        assert_eq!(revoke_canvas_node(&db, "n2", 9).unwrap(), 1);
+        assert_eq!(lookup(&db, &again.token, 10), Lookup::Ended);
+        assert!(list(&db, 11).is_empty());
+    }
+
+    #[test]
+    fn a_canvas_token_survives_a_restart_and_is_reused_for_its_node() {
+        let db = db();
+        let t = mint_canvas(&db, "n1", "Planner", 1).unwrap();
+        let job = mint(&db, Kind::Job, "job j1", &job_scopes(), Some("j1"), None, 1).unwrap();
+        assert_eq!(revoke_orphan_job_tokens(&db, 2).unwrap(), 1);
+        assert_eq!(lookup(&db, &job.token, 3), Lookup::Ended);
+        assert_eq!(
+            live_canvas_token(&db, "n1", &t.token, 3),
+            Some(t.view.id.clone())
+        );
+        assert_eq!(live_canvas_token(&db, "n2", &t.token, 3), None);
+        assert_eq!(live_canvas_token(&db, "j1", &job.token, 3), None);
+        assert_eq!(live_canvas_token(&db, "n1", "oct_garbage", 3), None);
+    }
+
+    #[test]
+    fn a_used_canvas_token_slides_its_expiry() {
+        let db = db();
+        let t = mint_canvas(&db, "n1", "Planner", 0).unwrap();
+        let late = CANVAS_TOKEN_TTL_MS - 1;
+        match lookup(&db, &t.token, late) {
+            Lookup::Valid(v) => assert_eq!(v.expires_ms, Some(late + CANVAS_TOKEN_TTL_MS)),
+            other => panic!("{other:?}"),
+        }
+        assert!(matches!(
+            lookup(&db, &t.token, CANVAS_TOKEN_TTL_MS + 10),
+            Lookup::Valid(_)
+        ));
+        let idle = mint_canvas(&db, "n2", "Coder", 0).unwrap();
+        assert_eq!(lookup(&db, &idle.token, CANVAS_TOKEN_TTL_MS), Lookup::Ended);
     }
 }
 
