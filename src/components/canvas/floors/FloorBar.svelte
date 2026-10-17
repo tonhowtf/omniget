@@ -30,6 +30,8 @@
   } from "$lib/canvas/floors/api";
   import LandDialog from "./LandDialog.svelte";
   import { useEngine } from "$lib/canvas/engine.svelte";
+  import { workspaces } from "$lib/canvas/palette/workspaces.svelte";
+  import { writeClipboard } from "$lib/canvas/menu/model";
 
   const engine = useEngine();
 
@@ -206,6 +208,24 @@
     } finally {
       busy = false;
     }
+  }
+
+  let floorMenu = $state<{ x: number; y: number; path: string; up: boolean; left: boolean } | null>(null);
+
+  function floorPath(f: FloorView): string {
+    return f.path || workspaces.byId(workspaceId)?.workingDirectory || "";
+  }
+
+  function openFloorMenu(e: MouseEvent, f: FloorView) {
+    e.preventDefault();
+    e.stopPropagation();
+    floorMenu = { x: e.clientX, y: e.clientY, path: floorPath(f), up: e.clientY > window.innerHeight / 2, left: e.clientX > window.innerWidth - 240 };
+  }
+
+  function copyFloorPath() {
+    const path = floorMenu?.path;
+    floorMenu = null;
+    if (path) void writeClipboard(path);
   }
 
   function modeLabel(f: FloorView): string {
@@ -406,6 +426,7 @@
             if (f.id !== floorId) onSwitch(f.id);
             engine.floorsView = false;
           }}
+          oncontextmenu={(e) => openFloorMenu(e, f)}
         >
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l9 5-9 5-9-5z M3 13l9 5 9-5" /></svg>
           {f.isGround ? $t("canvas.floors.ground", { default: "Ground" }) : f.name}
@@ -457,6 +478,7 @@
           class:missing={f.missing}
           style:--fc={f.color ?? "var(--accent)"}
           onclick={() => onSwitch(f.id)}
+          oncontextmenu={(e) => openFloorMenu(e, f)}
         >
           <span class="dot"></span>
           {f.isGround ? $t("canvas.floors.ground", { default: "Ground" }) : f.name}
@@ -470,6 +492,23 @@
     {/if}
   </div>
 </div>
+
+<svelte:window
+  onpointerdown={(e) => {
+    if (floorMenu && !(e.target as HTMLElement).closest(".floor-menu")) floorMenu = null;
+  }}
+  onkeydown={(e) => {
+    if (floorMenu && e.key === "Escape") floorMenu = null;
+  }}
+/>
+
+{#if floorMenu}
+  <div class="floor-menu" role="menu" data-canvas-chrome style:left="{floorMenu.x}px" style:top="{floorMenu.y}px" style:transform="translate({floorMenu.left ? "-100%" : "0"}, {floorMenu.up ? "-100%" : "0"})">
+    <button type="button" role="menuitem" disabled={!floorMenu.path} title={floorMenu.path} onclick={copyFloorPath}>
+      {$t("canvas.menu.copyPath", { default: "Copy Path" })}
+    </button>
+  </div>
+{/if}
 
 {#if landing}
   <LandDialog
@@ -486,6 +525,26 @@
 {/if}
 
 <style>
+  .floor-menu {
+    position: fixed;
+    z-index: 1000;
+    min-width: 140px;
+    padding: 4px;
+    display: flex;
+    flex-direction: column;
+    border-radius: 8px;
+    background: var(--popup-bg, var(--surface));
+    border: 1px solid var(--border);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+    font-size: 12px;
+    color: var(--text);
+  }
+  .floor-menu button {
+    border: none;
+    text-align: left;
+    padding: 5px 8px;
+    border-radius: 5px;
+  }
   .floorbar {
     display: flex;
     flex-direction: column;

@@ -43,6 +43,9 @@ const AGENT_SCOPES: &[&str] = &[
     "company_read",
     "company_control",
     "catalog",
+    "app_observe",
+    "app_control",
+    "app_capture",
 ];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]

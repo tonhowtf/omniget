@@ -86,6 +86,7 @@ interface SpawnMenuState {
   wx: number;
   wy: number;
   nodeId?: string;
+  connectionId?: string;
   connectFrom?: string;
   free?: boolean;
 }
@@ -560,6 +561,13 @@ export class CanvasEngine {
       if (n) rects.push(n);
       const d = this.store.drawing(id);
       if (d) rects.push(drawingBounds(d));
+      const c = n || d ? null : this.store.connection(id);
+      const a = c ? this.store.node(c.from) : null;
+      const b = c ? this.store.node(c.to) : null;
+      if (a && b) {
+        const ax = a.x + a.w / 2, ay = a.y + a.h / 2, bx = b.x + b.w / 2, by = b.y + b.h / 2;
+        rects.push({ x: Math.min(ax, bx), y: Math.min(ay, by), w: Math.abs(ax - bx), h: Math.abs(ay - by) });
+      }
     }
     return union(rects);
   }
@@ -710,7 +718,7 @@ export class CanvasEngine {
     if (preset?.icon) node.icon = preset.icon;
     const ops: Op[] = [{ op: 'add_node', node }];
     if (opts.connectFrom && this.store.node(opts.connectFrom) && !cordRefusal(this.store.node(opts.connectFrom), node)) {
-      ops.push({ op: 'add_connection', connection: this.newConnection(opts.connectFrom, node.id) });
+      ops.push({ op: 'add_connection', connection: this.newConnection(opts.connectFrom, node.id, node) });
     }
     this.commit(ops, { selectionAfter: opts.select === false ? undefined : [node.id] });
     if (isTerminalKind(node.kind)) {
@@ -721,9 +729,9 @@ export class CanvasEngine {
     return node;
   }
 
-  newConnection(from: string, to: string): Connection {
+  newConnection(from: string, to: string, toNode?: CanvasNode): Connection {
     const a = this.store.node(from);
-    const b = this.store.node(to);
+    const b = toNode ?? this.store.node(to);
     let kind: Connection['kind'] = 'ask';
     if (a?.kind === 'note' || b?.kind === 'note') kind = 'note';
     else if (a?.kind === 'portal' || b?.kind === 'portal') kind = 'portal';

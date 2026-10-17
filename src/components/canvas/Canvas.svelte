@@ -311,6 +311,9 @@
     if (hit.type === "node" || hit.type === "drawing") {
       if (!engine.selection.has(hit.id)) engine.selection.set([hit.id]);
       engine.spawnMenu = { sx: l.x, sy: l.y, wx: w.x, wy: w.y, nodeId: hit.id };
+    } else if (hit.type === "connection") {
+      engine.selection.set([hit.id]);
+      engine.spawnMenu = { sx: l.x, sy: l.y, wx: w.x, wy: w.y, connectionId: hit.id };
     } else {
       engine.spawnMenu = { sx: l.x, sy: l.y, wx: w.x, wy: w.y };
     }

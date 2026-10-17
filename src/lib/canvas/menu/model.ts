@@ -21,6 +21,7 @@ export interface MenuEntry {
   run?: () => unknown;
   danger?: boolean;
   sepBefore?: boolean;
+  vars?: Record<string, string>;
 }
 
 interface MenuContext {
@@ -120,6 +121,40 @@ export function openLinkInPortal(engine: CanvasEngine, nodeId: string): { nodeId
   return { nodeId: portal.id };
 }
 
+export async function writeClipboard(text: string): Promise<void> {
+  try {
+    const { writeText } = await import('@tauri-apps/plugin-clipboard-manager');
+    await writeText(text);
+  } catch {
+    await navigator.clipboard?.writeText(text).catch(() => {});
+  }
+}
+
+export function connectionMenu(engine: CanvasEngine, connectionId: string): MenuEntry[] {
+  const c = engine.store.connection(connectionId);
+  if (!c) return [];
+  const end = (which: 'from' | 'to', id: string) => {
+    const n = engine.store.node(id);
+    if (!n) return [];
+    const name = n.title || n.kind;
+    return [
+      e(`focus-${which}`, 'canvas.engine.cord.goTo', `Go to ${name}`, () => {
+        engine.selection.set([id]);
+        engine.reveal(id);
+        return { nodeId: id };
+      }, { vars: { name } }),
+    ];
+  };
+  return [
+    ...end('from', c.from),
+    ...end('to', c.to),
+    e('cut', 'canvas.engine.cord.cut', 'Cut connection', () => engine.commit([{ op: 'remove_connection', id: connectionId }], { selectionAfter: [] }), {
+      danger: true,
+      sepBefore: true,
+    }),
+  ];
+}
+
 export function nodeMenu(engine: CanvasEngine, nodeId: string): MenuEntry[] {
   const node = engine.store.node(nodeId);
   if (!node) return [];
@@ -163,7 +198,14 @@ export function nodeMenu(engine: CanvasEngine, nodeId: string): MenuEntry[] {
     );
   }
   if (node.kind === 'link' && typeof node.data.url === 'string' && node.data.url) {
-    out.push(e('openInPortal', 'canvas.menu.openInPortal', 'Open in Portal', () => openLinkInPortal(engine, nodeId)));
+    const url = node.data.url;
+    out.push(
+      e('openInPortal', 'canvas.menu.openInPortal', 'Open in Portal', () => openLinkInPortal(engine, nodeId)),
+      e('copyUrl', 'canvas.menu.copyUrl', 'Copy URL', async () => {
+        await writeClipboard(url);
+        return { copied: url };
+      }),
+    );
   }
   const sizeKey = SIZE_SETTING[node.kind];
   if (sizeKey) {
@@ -249,12 +291,7 @@ function workspaceMenu(engine: CanvasEngine): MenuEntry[] {
     e('copyPath', 'canvas.menu.copyPath', 'Copy Path', async () => {
       const dir = ws?.workingDirectory ?? '';
       if (!dir) return { copied: null };
-      try {
-        const { writeText } = await import('@tauri-apps/plugin-clipboard-manager');
-        await writeText(dir);
-      } catch {
-        await navigator.clipboard?.writeText(dir).catch(() => {});
-      }
+      await writeClipboard(dir);
       return { copied: dir };
     }),
     e('openInIde', 'canvas.menu.openInIde', 'Open in IDE', async () => {

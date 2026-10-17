@@ -168,6 +168,7 @@ pub struct CanvasSettings {
     pub cord_style: String,
     pub rope_routing: String,
     pub spell_check: bool,
+    pub always_copy_files: bool,
     pub default_agent: String,
     pub defaults: CanvasDefaults,
     pub terminal: CanvasTerminalSettings,
@@ -235,13 +236,28 @@ impl Default for CanvasSkillSettings {
     }
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct CanvasDefaults {
     pub note: CanvasNoteDefaults,
     pub terminal: CanvasSizeDefault,
     pub text: CanvasSizeDefault,
     pub portal: CanvasSizeDefault,
+    pub agent_placement: String,
+    pub portal_placement: String,
+}
+
+impl Default for CanvasDefaults {
+    fn default() -> Self {
+        Self {
+            note: CanvasNoteDefaults::default(),
+            terminal: CanvasSizeDefault::default(),
+            text: CanvasSizeDefault::default(),
+            portal: CanvasSizeDefault::default(),
+            agent_placement: "free".into(),
+            portal_placement: "free".into(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -316,6 +332,7 @@ impl Default for CanvasSettings {
             cord_style: "bezier".into(),
             rope_routing: "behind_nodes".into(),
             spell_check: false,
+            always_copy_files: false,
             default_agent: "shell".into(),
             defaults: CanvasDefaults::default(),
             terminal: CanvasTerminalSettings::default(),
@@ -426,6 +443,8 @@ impl CanvasSettings {
     pub const SLEEP_MODES: &'static [&'static str] = &["never", "always", "while_working"];
     pub const IMAGE_QUALITIES: &'static [&'static str] = &["light", "balanced", "sharp"];
     pub const RENDERINGS: &'static [&'static str] = &["faithful", "light"];
+    pub const AGENT_PLACEMENTS: &'static [&'static str] = &["free", "stack"];
+    pub const PORTAL_PLACEMENTS: &'static [&'static str] = &["free", "beside"];
 
     pub fn normalize(&mut self) {
         let d = Self::default();
@@ -466,6 +485,16 @@ impl CanvasSettings {
         snap_size(&mut self.defaults.terminal.size);
         snap_size(&mut self.defaults.text.size);
         snap_size(&mut self.defaults.portal.size);
+        pick(
+            &mut self.defaults.agent_placement,
+            Self::AGENT_PLACEMENTS,
+            &d.defaults.agent_placement,
+        );
+        pick(
+            &mut self.defaults.portal_placement,
+            Self::PORTAL_PLACEMENTS,
+            &d.defaults.portal_placement,
+        );
         let r = canvas_token(&self.defaults.note.render);
         self.defaults.note.render = if r == "raw" { r } else { "formatted".into() };
         let t = &mut self.terminal;
@@ -1258,6 +1287,8 @@ pub struct BridgeSettings {
     pub token: String,
     #[serde(default = "default_bridge_enabled")]
     pub legacy_agent_routes: bool,
+    #[serde(default)]
+    pub canvas_port: u16,
 }
 
 impl Default for BridgeSettings {
@@ -1267,6 +1298,7 @@ impl Default for BridgeSettings {
             port: 0,
             token: String::new(),
             legacy_agent_routes: true,
+            canvas_port: 0,
         }
     }
 }

@@ -28,12 +28,15 @@ export interface CanvasPrefs {
   cord_style: 'bezier' | 'rope' | 'circuit';
   rope_routing: 'behind_nodes' | 'avoid_nodes' | 'circuit';
   spell_check: boolean;
+  always_copy_files: boolean;
   default_agent: string;
   defaults: {
     note: { size: string; font: string; render: 'formatted' | 'raw' };
     terminal: { size: string };
     text: { size: string };
     portal: { size: string };
+    agent_placement: 'free' | 'stack';
+    portal_placement: 'free' | 'beside';
   };
   terminal: {
     font_family: string;
@@ -64,12 +67,15 @@ const CANVAS_PREFS_DEFAULTS: CanvasPrefs = {
   cord_style: 'bezier',
   rope_routing: 'behind_nodes',
   spell_check: false,
+  always_copy_files: false,
   default_agent: 'shell',
   defaults: {
     note: { size: '', font: '', render: 'formatted' },
     terminal: { size: '' },
     text: { size: '' },
     portal: { size: '' },
+    agent_placement: 'free',
+    portal_placement: 'free',
   },
   terminal: {
     font_family: '',
@@ -101,6 +107,8 @@ export function canvasPrefs(): CanvasPrefs {
       terminal: { ...d.defaults.terminal, ...(c.defaults?.terminal ?? {}) },
       text: { ...d.defaults.text, ...(c.defaults?.text ?? {}) },
       portal: { ...d.defaults.portal, ...(c.defaults?.portal ?? {}) },
+      agent_placement: c.defaults?.agent_placement ?? d.defaults.agent_placement,
+      portal_placement: c.defaults?.portal_placement ?? d.defaults.portal_placement,
     },
     terminal: { ...d.terminal, ...(c.terminal ?? {}), padding: { ...d.terminal.padding, ...(c.terminal?.padding ?? {}) } },
     notifications: { ...d.notifications, ...(c.notifications ?? {}) },

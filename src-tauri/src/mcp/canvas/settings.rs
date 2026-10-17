@@ -13,6 +13,7 @@ const CANVAS_ROOTS: &[&str] = &[
     "cord_style",
     "rope_routing",
     "spell_check",
+    "always_copy_files",
     "default_agent",
     "defaults",
     "terminal",
@@ -205,6 +206,12 @@ const DESCRIBED: &[(&str, &str, Option<&str>, Values)] = &[
         Values::Toggle,
     ),
     ("canvas.spell_check", "spellCheck", None, Values::Toggle),
+    (
+        "canvas.always_copy_files",
+        "alwaysCopyFiles",
+        None,
+        Values::Toggle,
+    ),
 ];
 
 fn label(id: &str) -> String {

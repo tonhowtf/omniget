@@ -162,7 +162,8 @@ const RUNNER: &str = r#"async (op, a) => {
     }
     case 'pointer': {
       const action = a.action || 'click';
-      if (a.file) return { error: 'NOT_IMPLEMENTED: dropping OS files is not simulated; use canvas_node_spawn kind=file' };
+      if (a.file && !a.paths) a.paths = [a.file];
+      if ((action === 'drop' || action === 'paste') && a.paths != null && (!Array.isArray(a.paths) || a.paths.some((p) => typeof p !== 'string' || !p.startsWith('/')))) return { error: 'INVALID_ARGUMENT: paths must be absolute file paths' };
       const blocked = guard();
       if (blocked) return blocked;
       const at = await point(a.at ?? a.nodeId ?? a.from);
@@ -179,6 +180,8 @@ const RUNNER: &str = r#"async (op, a) => {
           if (action === 'click-hold') await sleep(a.ms || 700);
           fire('pointerup', at, { ...m, button: 0, detail: i + 1 }); fire('mouseup', at, { ...m, button: 0, detail: i + 1 });
           el = fire('click', at, { ...m, button: 0, detail: i + 1 });
+          const focusable = el && el.closest ? el.closest('input,textarea,select,button,a[href],[contenteditable=""],[contenteditable="true"],[tabindex]') : null;
+          if (focusable && focusable !== document.activeElement && typeof focusable.focus === 'function') focusable.focus({ preventScroll: true });
           await sleep(40);
         }
         if (n === 2) fire('dblclick', at, { ...m, button: 0, detail: 2 });
@@ -210,6 +213,27 @@ const RUNNER: &str = r#"async (op, a) => {
           } else moved = { nodeId: hit.nodeId, moved: false, gone: true };
         }
         return { at, to: end, hit: hitView(hit), drag: moved };
+      } else if (action === 'drop') {
+        if (!a.paths || !a.paths.length) return { error: 'MISSING_ARGUMENT: paths' };
+        const dpr = window.devicePixelRatio || 1;
+        const position = { x: Math.round(at.x * dpr), y: Math.round(at.y * dpr) };
+        const send = (event, payload) => window.__TAURI_INTERNALS__.invoke('plugin:event|emit_to', { target: { kind: 'Webview', label: 'main' }, event, payload });
+        await send('tauri://drag-enter', { paths: a.paths, position });
+        await send('tauri://drag-over', { position });
+        await send('tauri://drag-drop', { paths: a.paths, position });
+        await sleep(300);
+        return { at, hit: hitView(hit), dropped: a.paths.length };
+      } else if (action === 'paste') {
+        const el = document.activeElement && document.activeElement !== document.body ? document.activeElement : document.elementFromPoint(at.x, at.y) || document.body;
+        const dt = new DataTransfer();
+        const paths = a.paths || [];
+        if (paths.length) dt.setData('text/uri-list', paths.map((p) => 'file://' + encodeURI(p)).join('\r\n'));
+        dt.setData('text/plain', typeof a.text === 'string' ? a.text : paths.join('\n'));
+        const ev = new ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true, composed: true });
+        el.dispatchEvent(ev);
+        if (!ev.defaultPrevented && typeof a.text === 'string' && (el.isContentEditable || el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement)) document.execCommand('insertText', false, a.text);
+        await sleep(300);
+        return { at, hit: hitView(hit), target: describe(el), handled: ev.defaultPrevented };
       } else if (action === 'scroll') {
         fire('wheel', at, { ...m, deltaX: (a.dx || 0) * 40, deltaY: (a.dy || 0) * 40, deltaMode: 0 });
       } else return { error: 'INVALID_ARGUMENT: action' };

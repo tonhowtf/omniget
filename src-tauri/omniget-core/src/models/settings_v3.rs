@@ -167,6 +167,7 @@ pub struct BridgePublic {
     pub port: u16,
     pub has_token: bool,
     pub legacy_agent_routes: bool,
+    pub canvas_port: u16,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -271,6 +272,7 @@ impl AppSettings {
                 port: self.bridge.port,
                 has_token: !self.bridge.token.is_empty(),
                 legacy_agent_routes: self.bridge.legacy_agent_routes,
+                canvas_port: self.bridge.canvas_port,
             },
             league: self.league.clone(),
             music: self.music.clone(),
@@ -319,7 +321,7 @@ pub fn set_path(v: &mut Value, path: &str, new: Value) {
     }
 }
 
-const PROTECTED: [&str; 7] = [
+const PROTECTED: [&str; 8] = [
     "schema_version",
     "appearance.migration_version",
     "appearance.legacy_theme",
@@ -327,6 +329,7 @@ const PROTECTED: [&str; 7] = [
     "advanced.twitter_manual_cookie",
     "bridge.token",
     "bridge.port",
+    "bridge.canvas_port",
 ];
 
 const APPEARANCE_GATED: [&str; 3] = ["appearance.theme", "appearance.mode", "appearance.preset"];

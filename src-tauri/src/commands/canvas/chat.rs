@@ -159,6 +159,33 @@ pub async fn canvas_chat_wipe(
 }
 
 #[tauri::command]
+pub async fn canvas_attachment_copy(
+    app: AppHandle,
+    workspace_id: String,
+    path: String,
+) -> Result<String, String> {
+    let s = store(&app);
+    blocking(move || {
+        let src = std::path::PathBuf::from(&path);
+        let meta = std::fs::metadata(&src).map_err(|e| format!("CANVAS_NOT_FOUND: {path}: {e}"))?;
+        if !meta.is_file() {
+            return Err(format!("CANVAS_INVALID: not a file: {path}"));
+        }
+        if meta.len() > chat::MAX_ATTACHMENT {
+            return Err("CANVAS_INVALID: attachment larger than 25 MB".into());
+        }
+        let bytes = std::fs::read(&src).map_err(|e| format!("CANVAS_IO: {e}"))?;
+        let name = src
+            .file_name()
+            .map(|n| n.to_string_lossy().into_owned())
+            .unwrap_or_else(|| "file".into());
+        let out = chat::save_inbox_attachment(&s, &workspace_id, &name, &bytes)?;
+        Ok(out.to_string_lossy().into_owned())
+    })
+    .await
+}
+
+#[tauri::command]
 pub async fn canvas_attachment_save(
     app: AppHandle,
     workspace_id: String,

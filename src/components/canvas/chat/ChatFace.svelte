@@ -6,7 +6,8 @@
   import type { CanvasNode } from "$lib/canvas/model/types";
   import Markdown from "$components/central/threads/Markdown.svelte";
   import { ENGINE_KEY, type CanvasEngine } from "$lib/canvas/engine.svelte";
-  import { richMarkdown } from "$lib/canvas/notes/rich";
+  import { linkAt, richMarkdown } from "$lib/canvas/notes/rich";
+  import { copyText } from "$lib/canvas/notes/rich/clipboard";
   import { openPathOnCanvas, workspaceDir } from "$lib/canvas/notes/rich/open";
   import { chats } from "$lib/canvas/chat/store.svelte";
   import {
@@ -238,13 +239,20 @@
   }
 
   let menuFor = $state<string | null>(null);
+  let menuLink = $state<{ url?: string; path?: string } | null>(null);
   let confirmWipe = $state(false);
 
   function openMenu(ev: MouseEvent, id: string) {
     if (id.startsWith("local-")) return;
     ev.preventDefault();
     ev.stopPropagation();
+    menuLink = linkAt(ev.target);
     menuFor = menuFor === id ? null : id;
+  }
+
+  function copyLink(value: string) {
+    menuFor = null;
+    void copyText(value);
   }
 
   async function copyEntry(e: ChatEntry) {
@@ -430,6 +438,13 @@
         >
           {#if menuFor === e.id}
             <div class="msg-menu" role="menu" data-canvas-chrome>
+              {#if menuLink?.url}
+                {@const url = menuLink.url}
+                <button type="button" role="menuitem" onclick={() => copyLink(url)}>{$t("canvas.rich.copyLink", { default: "Copy link" })}</button>
+              {:else if menuLink?.path}
+                {@const path = menuLink.path}
+                <button type="button" role="menuitem" onclick={() => copyLink(path)}>{$t("canvas.rich.copyPath", { default: "Copy path" })}</button>
+              {/if}
               <button type="button" role="menuitem" onclick={() => copyEntry(e)}>{$t("canvas.chat.copy", { default: "Copy" })}</button>
               <button type="button" role="menuitem" onclick={() => quoteEntry(e)}>{$t("canvas.chat.quote", { default: "Quote" })}</button>
               <button type="button" role="menuitem" class="danger" onclick={() => deleteEntry(e)}>{$t("canvas.chat.deleteMessage", { default: "Delete Message" })}</button>
@@ -441,7 +456,7 @@
           <div class="bubble">
             {#if e.text}
               {#if e.role === "agent"}
-                <div use:richMarkdown={{ baseDir: richBase, onOpenPath: openRichPath }}><Markdown text={e.text} /></div>
+                <div use:richMarkdown={{ baseDir: richBase, onOpenPath: openRichPath, linkMenu: false }}><Markdown text={e.text} /></div>
               {:else}
                 <p class="plain">{e.text}</p>
               {/if}

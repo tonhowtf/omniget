@@ -15201,7 +15201,7 @@
         "openWorldHint": false,
         "readOnlyHint": false
       },
-      "description": "Drive a portal page: click {selector: @eN, CSS, text=..., or \"x,y\", double?}, fill {selector, text, submit?}, type {selector?, text}, press {key, selector?}, evaluate {code}, navigate {url}, back/forward/reload, resize {width, height}, ua {preset|value|reset}, hover {selector}, scroll {selector? | dy? | direction up|down|top|bottom}, select {selector, value}, check/uncheck {selector}, text/html {selector?} (page text or markup, untrusted), wait {selector | text | timeout ms, at most 60000}, trust (Proceed past the certificate warning: this portal accepts the refused host), mute/unmute, copy_screenshot (PNG to the clipboard), inspect (Web Inspector).",
+      "description": "Drive a portal page: click {selector: @eN, CSS, text=..., or \"x,y\", double?}, fill {selector, text, submit?}, type {selector?, text}, press {key, selector?}, evaluate {code}, navigate {url}, back/forward/reload, resize {width, height}, ua {preset|value|reset}, hover {selector}, scroll {selector? | dy? | direction up|down|top|bottom}, select {selector, value}, check/uncheck {selector}, text/html {selector?} (page text or markup, untrusted), wait {selector | text | timeout ms, at most 60000}, trust (Proceed past the certificate warning: this portal accepts the refused host), mute/unmute, copy_screenshot (PNG to the clipboard), inspect (Web Inspector), upload {paths: absolute file paths, selector?: the file input, the button that opens one, or a drop zone; without selector the page's only file input} (never click a file input to upload: that opens a picker nobody can fill; at most 50 MB in all).",
       "inputSchema": {
         "additionalProperties": false,
         "properties": {
@@ -15231,7 +15231,8 @@
               "mute",
               "unmute",
               "copy_screenshot",
-              "inspect"
+              "inspect",
+              "upload"
             ],
             "type": "string"
           },
@@ -15278,6 +15279,13 @@
           "nodeId": {
             "description": "Node id (or the node's exact title when it is unique)",
             "type": "string"
+          },
+          "paths": {
+            "description": "Absolute paths of the files to upload (upload)",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
           },
           "preset": {
             "description": "UA preset: ios, android, chrome, firefox, safari, edge, desktop...",
@@ -19905,7 +19913,7 @@
         "openWorldHint": false,
         "readOnlyHint": false
       },
-      "description": "Pointer on the window: click, dblclick, rightclick, click-hold, hover, drag (to or path), scroll (dx, dy), at {x,y} window px or on a node, with mods (\"cmd+shift\"). OS file drops are not simulated. The answer says what was under the pointer (hit {nodeId, title, kind} or null) and, for a drag, whether that node moved (drag {nodeId, moved, dx, dy}). The window is shared: pass expectWorkspaceId and the call fails with WINDOW_MOVED instead of acting on another workspace.",
+      "description": "Pointer on the window: click, dblclick, rightclick, click-hold, hover, drag (to or path), scroll (dx, dy, in wheel notches of 40 px), drop (paths: files dropped at the point as from Finder), paste (paths or text into the focused field, as from the clipboard), at {x,y} window px or on a node, with mods (\"cmd+shift\"). The answer says what was under the pointer (hit {nodeId, title, kind} or null) and, for a drag, whether that node moved (drag {nodeId, moved, dx, dy}). The window is shared: pass expectWorkspaceId and the call fails with WINDOW_MOVED instead of acting on another workspace.",
       "inputSchema": {
         "additionalProperties": false,
         "properties": {
@@ -19919,7 +19927,9 @@
               "hover",
               "move",
               "drag",
-              "scroll"
+              "scroll",
+              "drop",
+              "paste"
             ],
             "type": "string"
           },
@@ -19983,6 +19993,17 @@
               "type": "array"
             },
             "type": "array"
+          },
+          "paths": {
+            "description": "Absolute file paths: drop drops them at the point as the OS would; paste pastes them as file links into the focused field",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "text": {
+            "description": "Text to paste (paste)",
+            "type": "string"
           },
           "to": {
             "description": "{x, y} or a node id",

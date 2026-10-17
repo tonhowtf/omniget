@@ -22,6 +22,8 @@
   import { richMarkdown } from "$lib/canvas/notes/rich";
   import { dirOf, openPathOnCanvas, workspaceDir } from "$lib/canvas/notes/rich/open";
   import { attachmentSave, blobToBase64 } from "$lib/canvas/chat/client";
+  import { fileMarkdown, filesMarkdown, onNoteInsert } from "$lib/canvas/files/attach";
+  import { invoke } from "@tauri-apps/api/core";
 
   let {
     node,
@@ -323,32 +325,76 @@
     openPathOnCanvas(engine, node, abs, isDir, line);
   }
 
-  async function onPaste(e: ClipboardEvent) {
-    const files = Array.from(e.clipboardData?.files ?? []).filter((f) => f.type.startsWith("image/"));
-    if (!files.length) return;
-    e.preventDefault();
+  function openUrl(url: string) {
+    const portal = engine.spawn("portal", { x: node.x + node.w + 40, y: node.y }, { data: { url } });
+    engine.selection.set([portal.id]);
+  }
+
+  async function insertText(ins: string, from?: number, to?: number) {
+    if (!ins || locked) return;
+    if (!dirty) draft = text;
     const el = area;
-    let at = el?.selectionStart ?? draft.length;
-    const end = el?.selectionEnd ?? at;
+    let at = from ?? (el && focused ? el.selectionStart : draft.length);
+    const end = to ?? (el && focused ? el.selectionEnd : at);
+    const lead = from === undefined && !(el && focused) && at > 0 && !draft.endsWith("\n") ? "\n" : "";
+    draft = draft.slice(0, at) + lead + ins + draft.slice(end);
+    at += lead.length + ins.length;
+    onInput();
+    await tick();
+    if (el && focused) el.setSelectionRange(at, at);
+  }
+
+  function uriPaths(e: ClipboardEvent): string[] {
+    const list = e.clipboardData?.getData("text/uri-list") ?? "";
+    return list
+      .split(/\r?\n/)
+      .map((l) => l.trim())
+      .filter((l) => l.startsWith("file://"))
+      .map((l) => {
+        try {
+          return decodeURIComponent(new URL(l).pathname);
+        } catch {
+          return "";
+        }
+      })
+      .filter(Boolean);
+  }
+
+  async function osPaths(): Promise<string[]> {
+    const r = await invoke<{ os?: { kind?: string; paths?: string[] } }>("canvas_clipboard_read").catch(() => null);
+    return r?.os?.kind === "files" && Array.isArray(r.os.paths) ? r.os.paths : [];
+  }
+
+  async function copyBlobs(files: File[]): Promise<string[]> {
     const parts: string[] = [];
     for (const f of files) {
       try {
-        const ext = (f.type.split("/")[1] || "png").replace("jpeg", "jpg").replace(/\+.*$/, "");
+        const ext = (f.type.split("/")[1] || "bin").replace("jpeg", "jpg").replace(/\+.*$/, "");
         const name = f.name && f.name !== "image.png" ? f.name : `pasted-${Date.now()}.${ext}`;
         const path = await attachmentSave(engine.store.workspaceId, name, await blobToBase64(f));
-        parts.push(`![${name.replace(/[[\]]/g, "")}](<${path}>)`);
+        parts.push(fileMarkdown(path, name));
       } catch (err) {
         error = err instanceof Error ? err.message : String(err);
       }
     }
-    if (!parts.length) return;
-    const ins = parts.join("\n");
-    draft = draft.slice(0, at) + ins + draft.slice(end);
-    at += ins.length;
-    onInput();
-    await tick();
-    el?.setSelectionRange(at, at);
+    return parts;
   }
+
+  async function onPaste(e: ClipboardEvent) {
+    const files = Array.from(e.clipboardData?.files ?? []);
+    const uris = uriPaths(e);
+    if (!files.length && !uris.length) return;
+    e.preventDefault();
+    const el = area;
+    const at = el?.selectionStart ?? draft.length;
+    const end = el?.selectionEnd ?? at;
+    const paths = uris.length ? uris : await osPaths();
+    const parts = paths.length ? await filesMarkdown(engine.store.workspaceId, paths) : await copyBlobs(files);
+    if (!parts.length) return;
+    await insertText(parts.join("\n"), at, end);
+  }
+
+  onMount(() => onNoteInsert(node.id, (ins) => void insertText(ins)));
 
   function onKey(e: KeyboardEvent) {
     if (e.key === "Escape" && !e.shiftKey) {
@@ -504,7 +550,7 @@
     {:else if raw && shown.trim()}
       <pre class="raw-view" style:font-family={typeof node.data.font === "string" && node.data.font ? node.data.font : null}>{shown}</pre>
     {:else if shown.trim()}
-      <div class="md" use:richMarkdown={{ baseDir: richBase, onOpenPath: openPath }}>{@html html}</div>
+      <div class="md" use:richMarkdown={{ baseDir: richBase, onOpenPath: openPath, onOpenUrl: openUrl }}>{@html html}</div>
     {:else}
       <p class="empty">{locked ? tr("canvas.notes.emptyLocked", "Empty and locked") : tr("canvas.notes.empty", "Double-click to write")}</p>
     {/if}

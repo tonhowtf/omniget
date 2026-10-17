@@ -20,6 +20,22 @@
 
   const prefs = $derived(canvasPrefs());
   let busy = $state(false);
+  type DefaultKind = "terminal" | "note" | "text" | "portal";
+  let defaultsKind = $state<DefaultKind>("note");
+  const DEFAULT_KINDS: { k: DefaultKind; label: string }[] = $derived([
+    { k: "terminal", label: tr("canvas.settings.tabTerminals", "Terminals") },
+    { k: "note", label: tr("canvas.settings.tabNotes", "Notes") },
+    { k: "text", label: tr("canvas.settings.tabText", "Text") },
+    { k: "portal", label: tr("canvas.settings.tabPortals", "Portals") },
+  ]);
+  function onKindKey(e: KeyboardEvent) {
+    if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
+    e.preventDefault();
+    const i = DEFAULT_KINDS.findIndex((k) => k.k === defaultsKind);
+    const next = DEFAULT_KINDS[(i + (e.key === "ArrowRight" ? 1 : DEFAULT_KINDS.length - 1)) % DEFAULT_KINDS.length].k;
+    defaultsKind = next;
+    document.getElementById(`cv-tab-${next}`)?.focus();
+  }
 
   onMount(() => watchCanvasPrefs());
 
@@ -229,8 +245,9 @@
       { k: "right_drag_pan", label: tr("canvas.settings.rightDragPan", "Pan by dragging with the right button") },
       { k: "focus_on_hover", label: tr("canvas.settings.focusOnHover", "Focus terminals, notes and portals on hover") },
       { k: "spell_check", label: tr("canvas.settings.spellCheck", "Spell check in notes, text and the composer") },
+      { k: "always_copy_files", label: tr("canvas.settings.alwaysCopyFiles", "Always copy files to workspace") },
     ] as row (row.k)}
-      {@const key = row.k as "right_drag_pan" | "focus_on_hover" | "spell_check"}
+      {@const key = row.k as "right_drag_pan" | "focus_on_hover" | "spell_check" | "always_copy_files"}
       <div class="divider"></div>
       <div class="setting-row">
         <div class="setting-col"><span class="setting-label">{row.label}</span></div>
@@ -285,37 +302,69 @@
         {/each}
       </select>
     </div>
-    {#each [
-      { k: "terminal", label: tr("canvas.settings.sizeTerminal", "Terminal size") },
-      { k: "note", label: tr("canvas.settings.sizeNote", "Note size") },
-      { k: "text", label: tr("canvas.settings.sizeText", "Text size") },
-      { k: "portal", label: tr("canvas.settings.sizePortal", "Portal size") },
-    ] as row (row.k)}
-      {@const key = row.k as "terminal" | "note" | "text" | "portal"}
+    <div class="divider"></div>
+    <div class="setting-row kind-tabs-row">
+      <div class="kind-tabs" role="tablist" aria-label={tr("canvas.settings.defaultsTitle", "New item defaults")}>
+        {#each DEFAULT_KINDS as k (k.k)}
+          <button type="button" role="tab" id="cv-tab-{k.k}" aria-controls="cv-panel" aria-selected={defaultsKind === k.k}
+            tabindex={defaultsKind === k.k ? 0 : -1} onclick={() => (defaultsKind = k.k)} onkeydown={onKindKey}>{k.label}</button>
+        {/each}
+      </div>
+    </div>
+    <div id="cv-panel" role="tabpanel" aria-labelledby="cv-tab-{defaultsKind}">
       <div class="divider"></div>
       <div class="setting-row">
         <div class="setting-col">
-          <label class="setting-label" for="cv-size-{key}">{row.label}</label>
+          <label class="setting-label" for="cv-size-{defaultsKind}">{tr("canvas.settings.size", "Size")}</label>
           <span class="setting-path">{tr("canvas.settings.sizeHint", "Width × height, snapped to the 20 pt grid; empty = automatic")}</span>
         </div>
-        <input id="cv-size-{key}" class="input-text" placeholder="640x400" disabled={busy} value={prefs.defaults[key].size}
-          onchange={(e) => save((c) => (c.defaults[key].size = (e.target as HTMLInputElement).value.trim()))} />
+        {#key defaultsKind}
+          <input id="cv-size-{defaultsKind}" class="input-text" placeholder="640x400" disabled={busy} value={prefs.defaults[defaultsKind].size}
+            onchange={(e) => { const key = defaultsKind; save((c) => (c.defaults[key].size = (e.target as HTMLInputElement).value.trim())); }} />
+        {/key}
       </div>
-    {/each}
-    <div class="divider"></div>
-    <div class="setting-row">
-      <div class="setting-col"><label class="setting-label" for="cv-nf">{tr("canvas.settings.noteFont", "Note font")}</label></div>
-      <input id="cv-nf" class="input-text" placeholder="Georgia" disabled={busy} value={prefs.defaults.note.font}
-        onchange={(e) => save((c) => (c.defaults.note.font = (e.target as HTMLInputElement).value.trim()))} />
-    </div>
-    <div class="divider"></div>
-    <div class="setting-row">
-      <div class="setting-col"><label class="setting-label" for="cv-nr">{tr("canvas.settings.noteRender", "New notes open in")}</label></div>
-      <select id="cv-nr" class="input-text select" disabled={busy} value={prefs.defaults.note.render}
-        onchange={(e) => save((c) => (c.defaults.note.render = (e.target as HTMLSelectElement).value as "formatted" | "raw"))}>
-        <option value="formatted">{tr("canvas.notes.formatted", "Formatted")}</option>
-        <option value="raw">{tr("canvas.notes.raw", "Raw")}</option>
-      </select>
+      {#if defaultsKind === "note"}
+        <div class="divider"></div>
+        <div class="setting-row">
+          <div class="setting-col"><label class="setting-label" for="cv-nf">{tr("canvas.settings.noteFont", "Note font")}</label></div>
+          <input id="cv-nf" class="input-text" placeholder="Georgia" disabled={busy} value={prefs.defaults.note.font}
+            onchange={(e) => save((c) => (c.defaults.note.font = (e.target as HTMLInputElement).value.trim()))} />
+        </div>
+        <div class="divider"></div>
+        <div class="setting-row">
+          <div class="setting-col"><label class="setting-label" for="cv-nr">{tr("canvas.settings.noteRender", "New notes open in")}</label></div>
+          <select id="cv-nr" class="input-text select" disabled={busy} value={prefs.defaults.note.render}
+            onchange={(e) => save((c) => (c.defaults.note.render = (e.target as HTMLSelectElement).value as "formatted" | "raw"))}>
+            <option value="formatted">{tr("canvas.notes.formatted", "Formatted")}</option>
+            <option value="raw">{tr("canvas.notes.raw", "Raw")}</option>
+          </select>
+        </div>
+        <div class="divider"></div>
+        <div class="setting-row">
+          <div class="setting-col">
+            <label class="setting-label" for="cv-ap">{tr("canvas.settings.agentPlacement", "Notes made by agents")}</label>
+            <span class="setting-path">{tr("canvas.settings.agentPlacementHint", "Where a note goes when an agent creates it")}</span>
+          </div>
+          <select id="cv-ap" class="input-text select" disabled={busy} value={prefs.defaults.agent_placement}
+            onchange={(e) => save((c) => (c.defaults.agent_placement = (e.target as HTMLSelectElement).value as "free" | "stack"))}>
+            <option value="free">{tr("canvas.settings.agentPlacementFree", "Free space next to the agent")}</option>
+            <option value="stack">{tr("canvas.settings.agentPlacementStack", "Stacked in one Fichário")}</option>
+          </select>
+        </div>
+      {:else if defaultsKind === "portal"}
+        <div class="divider"></div>
+        <div class="setting-row">
+          <div class="setting-col">
+            <label class="setting-label" for="cv-pp">{tr("canvas.settings.portalPlacement", "Portals made by agents")}</label>
+            <span class="setting-path">{tr("canvas.settings.portalPlacementHint", "Where a portal goes when an agent opens one")}</span>
+          </div>
+          <select id="cv-pp" class="input-text select" disabled={busy} value={prefs.defaults.portal_placement}
+            onchange={(e) => save((c) => (c.defaults.portal_placement = (e.target as HTMLSelectElement).value as "free" | "beside"))}>
+            <option value="free">{tr("canvas.settings.agentPlacementFree", "Free space next to the agent")}</option>
+            <option value="beside">{tr("canvas.settings.portalPlacementBeside", "Always beside the agent, on top of each other")}</option>
+          </select>
+        </div>
+      {/if}
     </div>
   </div>
 </section>
@@ -447,6 +496,20 @@
 <SettingsCanvasPortalSessions />
 
 <style>
+  .kind-tabs { display: inline-flex; flex-wrap: wrap; gap: 4px; }
+  .kind-tabs button {
+    min-block-size: 30px;
+    padding-inline: 12px;
+    border: 1px solid var(--separator);
+    border-radius: 6px;
+    background: var(--surface);
+    color: var(--text);
+    font: inherit;
+    font-size: 13px;
+    cursor: pointer;
+  }
+  .kind-tabs button[aria-selected="true"] { border-color: var(--accent); background: var(--accent-soft); color: var(--accent-text, var(--accent)); }
+  .kind-tabs button:focus-visible { outline: var(--focus-ring); outline-offset: var(--focus-ring-offset, 2px); }
   .pair {
     display: flex;
     gap: 8px;

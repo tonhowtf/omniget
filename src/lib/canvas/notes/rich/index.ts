@@ -11,7 +11,9 @@ import './rich.css';
 interface RichOptions {
   baseDir?: string | null;
   onOpenPath?: (abs: string, isDir: boolean, line?: number) => void;
+  onOpenUrl?: (url: string) => void;
   linkPaths?: boolean;
+  linkMenu?: boolean;
 }
 
 const tr = (key: string, fallback: string) => {
@@ -391,15 +393,71 @@ function onClick(e: MouseEvent, opts: RichOptions) {
   }
 }
 
-function prepLinks(root: HTMLElement) {
+function hrefPath(href: string): string | null {
+  if (!href || href.startsWith('#') || href.startsWith('//')) return null;
+  if (/^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(href) && !/^[a-zA-Z]:[\\/]/.test(href) && !/^file:/i.test(href)) return null;
+  const raw = href.replace(/^file:\/\//i, '');
+  try {
+    return decodeURIComponent(raw);
+  } catch {
+    return raw;
+  }
+}
+
+function prepLinks(root: HTMLElement, base: string | null) {
+  const local: { a: HTMLAnchorElement; path: string }[] = [];
   for (const a of Array.from(root.querySelectorAll<HTMLAnchorElement>('a[href]:not([data-rich])'))) {
     a.dataset.rich = 'link';
     const href = a.getAttribute('href') ?? '';
     if (/^(https?|mailto):/i.test(href)) {
       a.title = `${href}\n${tr('canvas.rich.linkHint', '⌘-click to open in the browser')}`;
       a.setAttribute('data-canvas-chrome', '');
+      continue;
     }
+    const path = hrefPath(href);
+    if (path) local.push({ a, path });
   }
+  if (!local.length) return;
+  void probe(
+    local.map((l) => l.path),
+    base,
+  ).then((hits) => {
+    for (const { a, path } of local) {
+      const hit = hits.get(path);
+      if (hit && a.isConnected) markPath(a, hit);
+    }
+  });
+}
+
+export function linkAt(target: EventTarget | null): { url?: string; path?: string } | null {
+  const el = target instanceof Element ? target : null;
+  const pathEl = el?.closest<HTMLElement>('[data-rich-path]');
+  if (pathEl?.dataset.richPath) return { path: pathEl.dataset.richPath };
+  const a = el?.closest<HTMLAnchorElement>('a[href]');
+  const href = a?.getAttribute('href') ?? '';
+  if (!href) return null;
+  if (/^(https?|mailto):/i.test(href)) return { url: href };
+  const path = hrefPath(href);
+  return path ? { path } : null;
+}
+
+function onContext(e: MouseEvent, host: HTMLElement, opts: RichOptions) {
+  if (e.defaultPrevented || opts.linkMenu === false) return;
+  const link = linkAt(e.target);
+  if (!link) return;
+  e.preventDefault();
+  e.stopPropagation();
+  const items: { label: string; run: () => void }[] = [];
+  if (link.url) {
+    const url = link.url;
+    items.push({ label: tr('canvas.rich.copyLink', 'Copy link'), run: () => void copyText(url) });
+    if (opts.onOpenUrl && /^https?:/i.test(url)) items.push({ label: tr('canvas.menu.openInPortal', 'Open in Portal'), run: () => opts.onOpenUrl?.(url) });
+  }
+  if (link.path) {
+    const path = link.path;
+    items.push({ label: tr('canvas.rich.copyPath', 'Copy path'), run: () => void copyText(path) });
+  }
+  openMenu(host, e, items);
 }
 
 function enhance(root: HTMLElement, opts: RichOptions) {
@@ -412,7 +470,7 @@ function enhance(root: HTMLElement, opts: RichOptions) {
   }
   for (const table of Array.from(root.querySelectorAll<HTMLTableElement>('table:not([data-rich])'))) enhanceTable(table);
   for (const img of Array.from(root.querySelectorAll<HTMLImageElement>('img[data-local-src]:not([data-rich])'))) enhanceImage(img, base);
-  prepLinks(root);
+  prepLinks(root, base);
   if (opts.linkPaths !== false) void linkPaths(root, base);
 }
 
@@ -434,7 +492,9 @@ export function richMarkdown(node: HTMLElement, initial: RichOptions = {}) {
     queueMicrotask(run);
   });
   const click = (e: MouseEvent) => onClick(e, opts);
+  const context = (e: MouseEvent) => onContext(e, node, opts);
   node.addEventListener('click', click);
+  node.addEventListener('contextmenu', context);
   node.classList.add('rich-md');
   run();
   return {
@@ -446,6 +506,7 @@ export function richMarkdown(node: HTMLElement, initial: RichOptions = {}) {
     destroy() {
       observer.disconnect();
       node.removeEventListener('click', click);
+      node.removeEventListener('contextmenu', context);
       if (menuEl && node.contains(menuEl)) closeMenu();
     },
   };

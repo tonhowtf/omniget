@@ -89,6 +89,25 @@
     styleTexts({ [key]: list[(list.indexOf(cur) + 1) % list.length] });
   }
 
+  const cordEnds = $derived.by(() => {
+    const c = sel.connections.length === 1 && sel.ids.length === 1 ? sel.connections[0] : null;
+    if (!c) return [];
+    return [c.from, c.to].flatMap((id) => {
+      const n = engine.store.node(id);
+      if (!n) return [];
+      return [{ id, label: $t("canvas.engine.cord.goTo", { default: "Go to {{name}}", name: n.title || n.kind }) as string }];
+    });
+  });
+
+  function goTo(id: string) {
+    engine.selection.set([id]);
+    engine.reveal(id);
+  }
+
+  function cutCord(id: string) {
+    engine.commit([{ op: "remove_connection", id }], { selectionAfter: [] });
+  }
+
   function setKind(kind: string) {
     const c = sel.connections[0];
     if (!c) return;
@@ -219,6 +238,13 @@
             {$t(`canvas.engine.cord.${k}`, { default: k })}
           </button>
         {/each}
+        <span class="sep"></span>
+        {#each cordEnds as end (end.id)}
+          <button type="button" class="chip end" title={end.label} onclick={() => goTo(end.id)}>{end.label}</button>
+        {/each}
+        <button type="button" class="chip danger" onclick={() => cutCord(sel.connections[0].id)}>
+          {$t("canvas.engine.cord.cut", { default: "Cut connection" })}
+        </button>
         <span class="sep"></span>
       {/if}
 
@@ -385,6 +411,17 @@
   .chip {
     padding: 0 8px;
     text-transform: capitalize;
+  }
+  .chip.end {
+    display: inline-block;
+    line-height: 30px;
+    text-transform: none;
+    max-width: 160px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .chip.danger {
+    text-transform: none;
   }
   .swatch.on {
     box-shadow: 0 0 0 2px var(--accent);

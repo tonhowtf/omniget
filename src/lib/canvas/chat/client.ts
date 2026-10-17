@@ -169,6 +169,9 @@ export function onChatRemoved(cb: (e: ChatRemovedEvent) => void): Promise<Unlist
 export const attachmentSave = (workspaceId: string, name: string, dataBase64: string) =>
   invoke<string>('canvas_attachment_save', { workspaceId, name, dataBase64 });
 
+export const attachmentCopy = (workspaceId: string, path: string) =>
+  invoke<string>('canvas_attachment_copy', { workspaceId, path });
+
 export function onChat(cb: (e: ChatEvent) => void): Promise<UnlistenFn> {
   return listen<ChatEvent>(CHAT_EVENT, (e) => cb(e.payload));
 }

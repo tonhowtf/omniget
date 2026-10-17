@@ -10,6 +10,7 @@ import { drawingHit, hitTest, type ResizeHandle } from '../spatial/hit';
 import { marqueeHits, marqueeRect, type MarqueeState } from './marquee';
 import { magnetSnap, snap } from './snap';
 import { openTerminal } from '../spawn';
+import { cordToFile } from '../files/attach';
 
 export type ToolName =
   | 'select'
@@ -620,7 +621,7 @@ export class PointerTools {
         e.draft.cord = undefined;
         const back = at ? hitTest(e.store, at.x, at.y, { zoom: e.camera.zoom, skipDrawings: true }) : null;
         if (target) {
-          e.connect(g.from, target);
+          if (!cordToFile(e, g.from, target)) e.connect(g.from, target);
           if (e.tool === 'connect') e.setTool('select');
         } else if (e.tool === 'connect' && back && back.type !== 'none' && back.id === g.from) {
           e.selection.set([g.from]);

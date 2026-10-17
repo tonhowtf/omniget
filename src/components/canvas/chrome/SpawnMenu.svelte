@@ -1,7 +1,7 @@
 <script lang="ts">
   import { t } from "$lib/i18n";
   import { useEngine } from "$lib/canvas/engine.svelte";
-  import { addMenu, nodeMenu, type MenuEntry } from "$lib/canvas/menu/model";
+  import { addMenu, connectionMenu, nodeMenu, type MenuEntry } from "$lib/canvas/menu/model";
 
   const engine = useEngine();
   let el = $state<HTMLDivElement | null>(null);
@@ -12,6 +12,7 @@
     const m = menu;
     if (!m) return [];
     if (m.nodeId) return nodeMenu(engine, m.nodeId);
+    if (m.connectionId) return connectionMenu(engine, m.connectionId);
     return addMenu(engine, { wx: m.wx, wy: m.wy, connectFrom: m.connectFrom, free: m.free }).flatMap((x) =>
       x.id === "terminal" && x.children ? x.children : [x],
     );
@@ -65,7 +66,7 @@
 {#snippet item(entry: MenuEntry, depth: number)}
   {#if entry.sepBefore && depth === 0}<div class="sep"></div>{/if}
   {#if entry.children}
-    <div class="group" style:padding-left="{10 + depth * 10}px">{$t(entry.key, { default: entry.label })}</div>
+    <div class="group" style:padding-left="{10 + depth * 10}px">{$t(entry.key, { default: entry.label, ...entry.vars })}</div>
     {#each entry.children as child (child.id)}
       {@render item(child, depth + 1)}
     {/each}
@@ -77,7 +78,7 @@
       style:padding-left="{10 + depth * 10}px"
       onclick={() => act(entry)}
     >
-      {$t(entry.key, { default: entry.label })}
+      {$t(entry.key, { default: entry.label, ...entry.vars })}
     </button>
   {/if}
 {/snippet}
@@ -94,7 +95,7 @@
     bind:clientHeight={menuH}
     onkeydown={onkey}
   >
-    {#if !menu.nodeId}
+    {#if !menu.nodeId && !menu.connectionId}
       <div class="title">
         {menu.connectFrom
           ? $t("canvas.engine.menu.connectNew", { default: "New connected…" })

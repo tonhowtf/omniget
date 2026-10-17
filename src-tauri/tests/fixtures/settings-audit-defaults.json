@@ -25,6 +25,7 @@
     "theme": "system"
   },
   "bridge": {
+    "canvas_port": 0,
     "enabled": true,
     "legacy_agent_routes": true,
     "port": 0,
@@ -32,10 +33,13 @@
   },
   "canvas": {
     "agent_presets": {},
+    "always_copy_files": false,
     "background": "grid",
     "cord_style": "bezier",
     "default_agent": "shell",
     "defaults": {
+      "agent_placement": "free",
+      "portal_placement": "free",
       "note": {
         "font": "",
         "render": "formatted",
