@@ -170,8 +170,60 @@ async fn run(ctx: &NodeCtx, verb: &str, a: Value) -> Result<Value, String> {
             target.scope.as_str()
         ));
     }
+    let a = if verb == "upload" {
+        absolute_paths(ctx, a)?
+    } else {
+        a
+    };
     let by = store::agent_origin(&ctx.node_id);
     drive(&app, &ctx.workspace_id, &ctx.floor_id, node, &by, verb, a).await
+}
+
+fn absolute_paths(ctx: &NodeCtx, mut a: Value) -> Result<Value, String> {
+    let cwd = super::doc::host()
+        .store()
+        .read(&ctx.workspace_id, &ctx.floor_id, |d| {
+            d.node(&ctx.node_id)
+                .and_then(|n| n.data_str("cwd").map(std::path::PathBuf::from))
+        })?;
+    let home = dirs::home_dir();
+    let fix = |p: &str| -> Result<String, String> {
+        let raw = std::path::Path::new(p);
+        if raw.is_absolute() {
+            return Ok(p.to_string());
+        }
+        if let (Some(rest), Some(h)) = (p.strip_prefix("~/"), home.as_ref()) {
+            return Ok(h.join(rest).to_string_lossy().into_owned());
+        }
+        cwd.as_ref()
+            .map(|c| c.join(raw).to_string_lossy().into_owned())
+            .ok_or_else(|| {
+                format!("PORTAL_ARGS: `{p}` is relative and your terminal has no folder; pass an absolute path")
+            })
+    };
+    let key = if a.get("paths").is_some() {
+        "paths"
+    } else if a.get("files").is_some() {
+        "files"
+    } else {
+        "path"
+    };
+    let fixed = match a.get(key) {
+        Some(Value::Array(v)) => Value::Array(
+            v.iter()
+                .map(|x| match x.as_str() {
+                    Some(p) => fix(p.trim()).map(Value::String),
+                    None => Ok(x.clone()),
+                })
+                .collect::<Result<Vec<_>, _>>()?,
+        ),
+        Some(Value::String(p)) if !p.trim().is_empty() => Value::String(fix(p.trim())?),
+        _ => return Ok(a),
+    };
+    if let Some(o) = a.as_object_mut() {
+        o.insert(key.into(), fixed);
+    }
+    Ok(a)
 }
 
 pub const KNOWN_VERBS: &[&str] = &[
@@ -200,6 +252,7 @@ pub const KNOWN_VERBS: &[&str] = &[
     "unmute",
     "copy_screenshot",
     "inspect",
+    "upload",
 ];
 
 pub const OWNER_VERBS: &[&str] = &["trust", "copy_screenshot", "inspect"];
@@ -226,6 +279,7 @@ pub async fn drive(
         "press" => automation::press(app, node, &a).await,
         "evaluate" => automation::evaluate(app, node, &a).await,
         "console" => automation::console(app, node, &a).await,
+        "upload" => automation::upload(app, node, &a).await,
         "hover" | "scroll" | "select" | "check" | "uncheck" | "text" | "html" | "wait" => {
             automation::element(app, node, verb, &a).await
         }
@@ -300,17 +354,23 @@ async fn open(app: &AppHandle, ctx: &NodeCtx, list: &[Reach], a: &Value) -> Resu
 
 fn create(ctx: &NodeCtx, url: &str, a: &Value) -> Result<String, String> {
     let u = portal::normalize_url(url)?;
+    let base = model::default_size(&NodeKind::Portal);
+    let (dw, dh) = portal::app()
+        .and_then(|app| super::prefs::default_size(&app, "portal"))
+        .unwrap_or((base.w, base.h));
     let w = a
         .get("width")
         .and_then(|v| v.as_f64())
-        .unwrap_or(800.0)
+        .unwrap_or(dw)
         .clamp(240.0, 4096.0);
     let h = a
         .get("height")
         .and_then(|v| v.as_f64())
         .map(|h| h + automation::NODE_HEADER)
-        .unwrap_or(600.0)
+        .unwrap_or(dh)
         .clamp(180.0, 4096.0);
+    let beside = portal::app()
+        .is_some_and(|app| super::prefs::get(&app).defaults.portal_placement == "beside");
     let st = super::doc::host().store();
     let (ws, floor) = (ctx.workspace_id.as_str(), ctx.floor_id.as_str());
     let spot = st.read(ws, floor, |d| {
@@ -319,7 +379,10 @@ fn create(ctx: &NodeCtx, url: &str, a: &Value) -> Result<String, String> {
             y: n.y,
         });
         let z = d.nodes.iter().map(|n| n.z).fold(0.0, f64::max) + 1.0;
-        (layout::free_spot_in(d, w, h, near, &[]), z)
+        match near.filter(|_| beside) {
+            Some(p) => (p, z),
+            None => (layout::free_spot_in(d, w, h, near, &[]), z),
+        }
     })?;
     let id = model::new_id();
     let name = arg(a, "name")

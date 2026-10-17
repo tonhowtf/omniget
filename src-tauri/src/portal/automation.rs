@@ -214,3 +214,192 @@ pub async fn console(app: &AppHandle, node: &str, a: &Value) -> Result<Value, St
     )
     .await
 }
+
+pub const UPLOAD_MAX_BYTES: u64 = 50 * 1024 * 1024;
+const UPLOAD_CHUNK: usize = 3 * 512 * 1024;
+
+fn upload_paths(a: &Value) -> Vec<String> {
+    let list = a.get("paths").or_else(|| a.get("files"));
+    let mut out: Vec<String> = match list {
+        Some(Value::Array(v)) => v
+            .iter()
+            .filter_map(|x| x.as_str())
+            .map(str::trim)
+            .filter(|x| !x.is_empty())
+            .map(String::from)
+            .collect(),
+        Some(Value::String(p)) if !p.trim().is_empty() => vec![p.trim().to_string()],
+        _ => Vec::new(),
+    };
+    if out.is_empty() {
+        if let Some(p) = s(a, "path") {
+            out.push(p);
+        }
+    }
+    out
+}
+
+fn mime_of(p: &std::path::Path) -> &'static str {
+    let ext = p
+        .extension()
+        .and_then(|e| e.to_str())
+        .map(|e| e.to_ascii_lowercase())
+        .unwrap_or_default();
+    match ext.as_str() {
+        "pdf" => "application/pdf",
+        "png" => "image/png",
+        "jpg" | "jpeg" => "image/jpeg",
+        "gif" => "image/gif",
+        "webp" => "image/webp",
+        "svg" => "image/svg+xml",
+        "heic" => "image/heic",
+        "txt" | "log" => "text/plain",
+        "md" => "text/markdown",
+        "csv" => "text/csv",
+        "html" | "htm" => "text/html",
+        "json" => "application/json",
+        "xml" => "application/xml",
+        "zip" => "application/zip",
+        "mp4" => "video/mp4",
+        "mov" => "video/quicktime",
+        "webm" => "video/webm",
+        "mp3" => "audio/mpeg",
+        "wav" => "audio/wav",
+        "m4a" => "audio/mp4",
+        "doc" => "application/msword",
+        "docx" => "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "xls" => "application/vnd.ms-excel",
+        "xlsx" => "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "ppt" => "application/vnd.ms-powerpoint",
+        "pptx" => "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        _ => "",
+    }
+}
+
+#[derive(Debug)]
+pub struct UploadFile {
+    pub path: std::path::PathBuf,
+    pub name: String,
+    pub mime: &'static str,
+    pub size: u64,
+    pub modified_ms: u64,
+}
+
+pub fn upload_files(a: &Value) -> Result<Vec<UploadFile>, String> {
+    let paths = upload_paths(a);
+    if paths.is_empty() {
+        return Err("PORTAL_ARGS: paths is required (one or more absolute file paths)".into());
+    }
+    if paths.len() > 50 {
+        return Err("PORTAL_ARGS: at most 50 files per upload".into());
+    }
+    let mut out = Vec::with_capacity(paths.len());
+    let mut total: u64 = 0;
+    for raw in paths {
+        let path = std::path::PathBuf::from(&raw);
+        if !path.is_absolute() {
+            return Err(format!("PORTAL_ARGS: `{raw}` is not an absolute path"));
+        }
+        let meta = std::fs::metadata(&path).map_err(|e| format!("PORTAL_UPLOAD: {raw}: {e}"))?;
+        if !meta.is_file() {
+            return Err(format!("PORTAL_UPLOAD: {raw} is not a file"));
+        }
+        total = total.saturating_add(meta.len());
+        if total > UPLOAD_MAX_BYTES {
+            return Err(format!(
+                "PORTAL_UPLOAD: the files add up to more than {} MB",
+                UPLOAD_MAX_BYTES / (1024 * 1024)
+            ));
+        }
+        let modified_ms = meta
+            .modified()
+            .ok()
+            .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+            .map(|d| d.as_millis() as u64)
+            .unwrap_or(0);
+        out.push(UploadFile {
+            name: path
+                .file_name()
+                .map(|n| n.to_string_lossy().into_owned())
+                .unwrap_or_else(|| "file".into()),
+            mime: mime_of(&path),
+            size: meta.len(),
+            modified_ms,
+            path,
+        });
+    }
+    Ok(out)
+}
+
+pub async fn upload(app: &AppHandle, node: &str, a: &Value) -> Result<Value, String> {
+    use base64::Engine as _;
+    let files = upload_files(a)?;
+    let id = uuid::Uuid::new_v4().simple().to_string();
+    let mut sent = false;
+    let result = async {
+        for (i, f) in files.iter().enumerate() {
+            let bytes = tokio::fs::read(&f.path)
+                .await
+                .map_err(|e| format!("PORTAL_UPLOAD: {}: {e}", f.path.display()))?;
+            for chunk in bytes.chunks(UPLOAD_CHUNK) {
+                let data = base64::engine::general_purpose::STANDARD.encode(chunk);
+                super::eval_fn(
+                    app,
+                    node,
+                    script::UPLOAD_CHUNK_FN,
+                    json!({ "id": id, "i": i, "data": data }),
+                )
+                .await?;
+                sent = true;
+            }
+        }
+        let meta: Vec<Value> = files
+            .iter()
+            .map(|f| json!({ "name": f.name, "type": f.mime, "lastModified": f.modified_ms, "size": f.size }))
+            .collect();
+        let sel = s(a, "selector").map(|x| script::normalize_selector(&x));
+        super::eval_fn(
+            app,
+            node,
+            &script::upload_fn(),
+            json!({ "id": id, "selector": sel, "files": meta }),
+        )
+        .await
+    }
+    .await;
+    if result.is_err() && sent {
+        let _ = super::eval_fn(app, node, script::UPLOAD_DROP_FN, json!({ "id": id })).await;
+    }
+    let v = result?;
+    tokio::time::sleep(std::time::Duration::from_millis(250)).await;
+    Ok(json!({ "result": v, "page": super::state_json(node) }))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn upload_files_refuses_relative_missing_and_folders() {
+        let dir = std::env::temp_dir().join(format!("og-upload-{}", uuid::Uuid::new_v4().simple()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let file = dir.join("report.pdf");
+        std::fs::write(&file, b"%PDF-1.4").unwrap();
+        assert!(upload_files(&json!({})).is_err());
+        assert!(upload_files(&json!({ "paths": ["report.pdf"] }))
+            .unwrap_err()
+            .contains("not an absolute path"));
+        assert!(upload_files(&json!({ "paths": [dir.join("nope.pdf")] })).is_err());
+        assert!(upload_files(&json!({ "paths": [dir] }))
+            .unwrap_err()
+            .contains("is not a file"));
+        let ok = upload_files(&json!({ "paths": [file] })).unwrap();
+        assert_eq!(ok.len(), 1);
+        assert_eq!(ok[0].name, "report.pdf");
+        assert_eq!(ok[0].mime, "application/pdf");
+        assert_eq!(ok[0].size, 8);
+        let one = upload_files(&json!({ "path": file })).unwrap();
+        assert_eq!(one.len(), 1);
+        let _ = std::fs::remove_dir_all(dir);
+    }
+}

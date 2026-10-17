@@ -210,3 +210,112 @@ pub const EVALUATE_FN: &str = r#"function (a) {
     } catch (e) { return String(r); }
   });
 }"#;
+
+pub const UPLOAD_CHUNK_FN: &str = r#"function (a) {
+  var U = window.__omnigetUpload || (window.__omnigetUpload = {});
+  var f = U[a.id] || (U[a.id] = []);
+  (f[a.i] || (f[a.i] = [])).push(a.data);
+  return f[a.i].length;
+}"#;
+
+pub const UPLOAD_DROP_FN: &str = r#"function (a) {
+  if (window.__omnigetUpload) delete window.__omnigetUpload[a.id];
+  return true;
+}"#;
+
+pub fn upload_fn() -> String {
+    format!(
+        r#"function (a) {{
+{helpers}
+  var U = window.__omnigetUpload || {{}};
+  var parts = U[a.id] || [];
+  delete U[a.id];
+  function bytes(b64) {{
+    var s = atob(b64);
+    var u = new Uint8Array(s.length);
+    for (var i = 0; i < s.length; i++) u[i] = s.charCodeAt(i);
+    return u;
+  }}
+  var dt = new DataTransfer();
+  var names = [];
+  (a.files || []).forEach(function (f, i) {{
+    dt.items.add(new File((parts[i] || []).map(bytes), f.name, {{ type: f.type || '', lastModified: f.lastModified || Date.now() }}));
+    names.push(f.name);
+  }});
+  function isFile(el) {{ return !!el && el.tagName === 'INPUT' && String(el.type).toLowerCase() === 'file'; }}
+  function inputFor(el) {{
+    if (isFile(el)) return el;
+    if (el.tagName === 'LABEL') {{
+      if (isFile(el.control)) return el.control;
+    }}
+    var lab = el.closest && el.closest('label');
+    if (lab && isFile(lab.control)) return lab.control;
+    var inner = el.querySelector && el.querySelector('input[type=file]');
+    if (inner) return inner;
+    var ids = ((el.getAttribute && (el.getAttribute('aria-controls') || el.getAttribute('for'))) || '').split(/\s+/);
+    for (var k = 0; k < ids.length; k++) {{
+      var c = ids[k] && document.getElementById(ids[k]);
+      if (isFile(c)) return c;
+    }}
+    for (var p = el.parentElement, d = 0; p && d < 4; p = p.parentElement, d++) {{
+      var near = p.querySelectorAll('input[type=file]');
+      if (near.length === 1) return near[0];
+      if (near.length > 1) break;
+    }}
+    return null;
+  }}
+  function opens(el) {{
+    var proto = HTMLInputElement.prototype;
+    var oc = proto.click, osp = proto.showPicker, caught = null;
+    proto.click = function () {{ if (isFile(this)) {{ caught = this; return; }} return oc.apply(this, arguments); }};
+    if (osp) proto.showPicker = function () {{ if (isFile(this)) {{ caught = this; return; }} return osp.apply(this, arguments); }};
+    try {{ el.click(); }} finally {{
+      proto.click = oc;
+      if (osp) proto.showPicker = osp;
+    }}
+    return caught;
+  }}
+  function give(input) {{
+    if (input.disabled) throw new Error(describe(input) + ' is disabled');
+    if (!input.multiple && dt.files.length > 1) throw new Error(describe(input) + ' takes a single file; upload them one at a time');
+    input.files = dt.files;
+    input.dispatchEvent(new Event('input', {{ bubbles: true, composed: true }}));
+    input.dispatchEvent(new Event('change', {{ bubbles: true, composed: true }}));
+    return {{ uploaded: names, via: 'input', element: describe(input), accept: input.accept || null, files: input.files ? input.files.length : 0 }};
+  }}
+  var el = a.selector ? find(a.selector) : null;
+  if (!el) {{
+    var all = document.querySelectorAll('input[type=file]');
+    if (all.length === 1) return give(all[0]);
+    if (!all.length) throw new Error('no file input on this page; pass the @ref of the upload button or drop zone');
+    throw new Error(all.length + ' file inputs on this page; pass the @ref of the one to use');
+  }}
+  var input = inputFor(el);
+  if (input) return give(input);
+  var t = el.tagName;
+  var role = (el.getAttribute('role') || '').toLowerCase();
+  if (t === 'BUTTON' || t === 'A' || t === 'LABEL' || t === 'SUMMARY' || role === 'button' || role === 'link') {{
+    var caught = opens(el);
+    if (caught) return give(caught);
+  }}
+  el.scrollIntoView({{ block: 'center' }});
+  var r = el.getBoundingClientRect();
+  var o = {{ bubbles: true, cancelable: true, composed: true, clientX: r.left + r.width / 2, clientY: r.top + r.height / 2, view: window }};
+  function drag(n) {{
+    var ev = null;
+    try {{ ev = new DragEvent(n, Object.assign({{ dataTransfer: dt }}, o)); }} catch (e) {{}}
+    if (!ev || ev.dataTransfer !== dt) {{
+      ev = new Event(n, o);
+      Object.defineProperty(ev, 'dataTransfer', {{ value: dt }});
+    }}
+    return ev;
+  }}
+  var taken = false;
+  ['dragenter', 'dragover', 'drop'].forEach(function (n) {{
+    if (!el.dispatchEvent(drag(n)) && n !== 'dragenter') taken = true;
+  }});
+  return {{ uploaded: names, via: 'drop', element: describe(el), accepted: taken, hint: taken ? null : 'the element did not take the drop; snapshot again and target the file input or the button that opens it' }};
+}}"#,
+        helpers = base::HELPERS
+    )
+}
