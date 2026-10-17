@@ -44,7 +44,7 @@
       try {
         launch = await acpInstall(a.id, method, false);
       } catch (e) {
-        if (errorCode(e) !== "CLITOOLS_UNVERIFIED" || !confirm($t("llm.central.tools.acp_unverified_confirm", { name: a.name }) as string)) throw e;
+        if (errorCode(e) !== "CLITOOLS_UNVERIFIED" || !(await confirm($t("llm.central.tools.acp_unverified_confirm", { name: a.name }) as string))) throw e;
         launch = await acpInstall(a.id, method, true);
       }
       showToast("success", $t("llm.central.tools.acp_installed", { name: a.name }) as string);

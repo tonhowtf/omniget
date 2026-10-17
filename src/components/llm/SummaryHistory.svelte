@@ -29,7 +29,7 @@
   });
 
   async function clear() {
-    if (clearing || !confirm($t("settings.ai.history_clear_confirm") as string)) return;
+    if (clearing || !(await confirm($t("settings.ai.history_clear_confirm") as string))) return;
     clearing = true;
     try {
       await clearSummaryHistory(invoke);

@@ -142,8 +142,8 @@
     });
   }
 
-  function discard() {
-    if (!confirm($t("llm.jobs.review.discard_confirm", { branch: job.branch ?? "" }) as string)) return;
+  async function discard() {
+    if (!(await confirm($t("llm.jobs.review.discard_confirm", { branch: job.branch ?? "" }) as string))) return;
     void act(async () => {
       const out = await discardWork(job.id);
       showToast("success", $t("llm.jobs.review.discarded", { branch: out.branch, tip: (out.tip ?? "").slice(0, 7) }));

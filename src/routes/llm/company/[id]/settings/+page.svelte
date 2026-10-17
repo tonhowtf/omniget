@@ -80,7 +80,7 @@
 
   async function setStatus(status: "active" | "paused" | "archived") {
     if (!company) return;
-    if (status === "archived" && !confirm($t("company.settings.archive_confirm", { name: company.name }) as string)) return;
+    if (status === "archived" && !(await confirm($t("company.settings.archive_confirm", { name: company.name }) as string))) return;
     try {
       fill(await rpc<Company>("company.status", { company: company.id, status }));
     } catch (e) {

@@ -76,7 +76,7 @@
   }
 
   async function remove(p: BudgetPolicy) {
-    if (!confirm($t("company.costs.delete_confirm"))) return;
+    if (!(await confirm($t("company.costs.delete_confirm")))) return;
     try {
       await rpc("budget.delete", { company, policy_id: p.id });
     } catch (e) {

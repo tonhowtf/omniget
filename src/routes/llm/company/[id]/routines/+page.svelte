@@ -139,8 +139,8 @@
     void act(r, () => rpc("routine.fire", { company: id, routine_id: r.id }), $t("company.routines.fired", { title: r.title }));
   }
 
-  function remove(r: Routine) {
-    if (!confirm($t("company.routines.delete_confirm", { title: r.title }) as string)) return;
+  async function remove(r: Routine) {
+    if (!(await confirm($t("company.routines.delete_confirm", { title: r.title }) as string))) return;
     void act(r, () => rpc("routine.delete", { company: id, routine_id: r.id }));
   }
 

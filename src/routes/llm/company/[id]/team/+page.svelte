@@ -84,8 +84,8 @@
     }
   }
 
-  function setStatus(s: Staff, action: "pause" | "resume" | "terminate") {
-    if (action === "terminate" && !confirm($t("company.team.terminate_confirm", { name: s.name }) as string)) return;
+  async function setStatus(s: Staff, action: "pause" | "resume" | "terminate") {
+    if (action === "terminate" && !(await confirm($t("company.team.terminate_confirm", { name: s.name }) as string))) return;
     void act(s, () => rpc("staff.status", { company: id, staff: s.id, action }));
   }
 

@@ -124,8 +124,8 @@
     void goalAction(() => rpc("goal.update", { company: id, goal_id: g.id, patch: { status: "achieved" } }));
   }
 
-  function removeGoal(g: Goal) {
-    if (!confirm($t("company.goals.delete_confirm", { title: g.title }) as string)) return;
+  async function removeGoal(g: Goal) {
+    if (!(await confirm($t("company.goals.delete_confirm", { title: g.title }) as string))) return;
     void goalAction(() => rpc("goal.delete", { company: id, goal_id: g.id }));
   }
 
@@ -172,8 +172,8 @@
     }
   }
 
-  function removeProject(p: Project) {
-    if (!confirm($t("company.goals.project_delete_confirm", { name: p.name }) as string)) return;
+  async function removeProject(p: Project) {
+    if (!(await confirm($t("company.goals.project_delete_confirm", { name: p.name }) as string))) return;
     void goalAction(() => rpc("project.delete", { company: id, project_id: p.id }));
   }
 </script>

@@ -60,7 +60,7 @@
       } catch (error) {
         const reason = refusedForSharing(error);
         if (reason === null) throw error;
-        if (!confirm($t("llm.workspace.undo_shared_confirm", { reason }) as string)) return;
+        if (!(await confirm($t("llm.workspace.undo_shared_confirm", { reason }) as string))) return;
         out = (await invoke("llm_turn_undo", { conversationId, conversationOnly: true })) as Undone;
       }
       ws = { ...ws, undo_depth: out.undo_depth };

@@ -111,7 +111,7 @@
 
   async function remove(p: PartituraSummary) {
     const msg = $t("canvas.partituras.confirmDelete", { default: "Delete '{{name}}' from the library? Canvases that use it are not touched.", name: p.name }) as string;
-    if (!confirm(msg)) return;
+    if (!(await confirm(msg))) return;
     try {
       await deletePartitura(p.id);
       refresh();
@@ -143,7 +143,7 @@
         reviewing = { source: { partitura: all[0] }, at: center };
       } else {
         const msg = $t("canvas.partituras.confirmBulk", { default: "Add {{count}} partituras to your library? Commands are reviewed when you add one to a canvas.", count: all.length }) as string;
-        if (!confirm(msg)) return;
+        if (!(await confirm(msg))) return;
         const r = await addToLibrary(all);
         if (r.skipped.length) error = $t("canvas.partituras.skipped", { default: "{{count}} already in the library", count: r.skipped.length }) as string;
       }

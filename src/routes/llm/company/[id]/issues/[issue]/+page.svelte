@@ -157,7 +157,7 @@
 
   async function tree(action: "hold" | "release" | "cancel") {
     if (!issue) return;
-    if (action === "cancel" && !confirm($t("company.issue.tree_cancel_confirm", { identifier: issue.identifier }))) return;
+    if (action === "cancel" && !(await confirm($t("company.issue.tree_cancel_confirm", { identifier: issue.identifier })))) return;
     try {
       const r = await rpc<{ changed: number }>("issue.tree", { company, issue: issue.id, action });
       showToast("success", $t("company.issue.tree_done", { count: r.changed }));

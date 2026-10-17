@@ -77,7 +77,7 @@
   }
 
   async function removeChannel(id: string) {
-    if (busyIds.includes(id) || !confirm($t("settings.channels.remove_confirm")) || !begin(id)) return;
+    if (busyIds.includes(id) || !(await confirm($t("settings.channels.remove_confirm"))) || !begin(id)) return;
     try {
       await invoke("channel_remove", { id });
       await load();
