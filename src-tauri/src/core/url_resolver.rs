@@ -22,11 +22,30 @@ pub async fn resolve_downloader(registry: &PlatformRegistry, url: &str) -> Optio
         }
     }
     let downloader = registry.find_platform(url)?;
-    let platform_name = platform
-        .map(|p| p.to_string())
-        .unwrap_or_else(|| "generic".to_string());
+    let platform_name = platform_label(platform.map(|p| p.to_string()), downloader.name());
     Some(Resolved {
         downloader,
         platform_name,
     })
+}
+
+// Gallery hosts are not in the Platform enum. Labelling them "generic" sent
+// them through the yt-dlp info fetch, which fails before gallery-dl runs.
+fn platform_label(platform: Option<String>, downloader: &str) -> String {
+    platform.unwrap_or_else(|| match downloader {
+        "gallery" => "gallery".to_string(),
+        _ => "generic".to_string(),
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::platform_label;
+
+    #[test]
+    fn gallery_hosts_keep_the_gallery_label() {
+        assert_eq!(platform_label(None, "gallery"), "gallery");
+        assert_eq!(platform_label(None, "generic"), "generic");
+        assert_eq!(platform_label(Some("youtube".into()), "youtube"), "youtube");
+    }
 }

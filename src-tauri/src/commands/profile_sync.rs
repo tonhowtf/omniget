@@ -144,8 +144,10 @@ pub async fn profile_sync_run(url: String, output_dir: String) -> Result<SyncRes
 
     let mut cmd = omniget_core::core::process::command(&bin);
     cmd.args(sync_args(&url, &output_dir, &archive, first));
-    if let Some(cookies) = omniget_core::core::paths::app_data_dir()
-        .map(|d| d.join("chrome-extension-cookies.txt"))
+    if let Some(cookies) = url::Url::parse(&url)
+        .ok()
+        .and_then(|u| u.host_str().map(str::to_string))
+        .and_then(|host| omniget_core::platforms::cookie_provider::cookie_path_for(&host))
         .filter(|f| std::fs::metadata(f).map(|m| m.len() > 0).unwrap_or(false))
     {
         cmd.arg("--cookies").arg(cookies);

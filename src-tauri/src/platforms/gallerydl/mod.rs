@@ -216,13 +216,14 @@ impl PlatformDownloader for GalleryDlDownloader {
                 cmd.arg("--download-archive")
                     .arg(archive_dir.join("gallery-dl.txt"));
             }
-            let cookie_file = data_dir.join("chrome-extension-cookies.txt");
-            if std::fs::metadata(&cookie_file)
-                .map(|m| m.len() > 0)
-                .unwrap_or(false)
-            {
-                cmd.arg("--cookies").arg(&cookie_file);
-            }
+        }
+        if let Some(cookie_file) = url::Url::parse(&url)
+            .ok()
+            .and_then(|u| u.host_str().map(str::to_string))
+            .and_then(|host| omniget_core::platforms::cookie_provider::cookie_path_for(&host))
+            .filter(|f| std::fs::metadata(f).map(|m| m.len() > 0).unwrap_or(false))
+        {
+            cmd.arg("--cookies").arg(&cookie_file);
         }
 
         cmd.arg("--").arg(&url);

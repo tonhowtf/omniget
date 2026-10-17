@@ -112,8 +112,10 @@ pub async fn gallery_grab(
         .await
         .ok_or_else(|| "gallery-dl is not available on this computer".to_string())?;
 
-    let cookies = omniget_core::core::paths::app_data_dir()
-        .map(|d| d.join("chrome-extension-cookies.txt"))
+    let cookies = url::Url::parse(&url)
+        .ok()
+        .and_then(|u| u.host_str().map(str::to_string))
+        .and_then(|host| omniget_core::platforms::cookie_provider::cookie_path_for(&host))
         .filter(|f| std::fs::metadata(f).map(|m| m.len() > 0).unwrap_or(false));
 
     let token = CancellationToken::new();
