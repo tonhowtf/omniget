@@ -15,7 +15,8 @@ and writes SHA256SUMS and latest.json there. Nothing is published.
   --out <dir>         output root (default: dist-release)
   --notes <file>      patch notes for latest.json (default: docs/releases/v<version>.md if it exists)
   --base <url>        download base for latest.json (default: https://getomniget.com/dl)
-  --cli               also build and pack omniget-cli-<version>-<triple>.tar.gz
+  --cli               also build and pack omniget-cli-<version>-<triple>.tar.gz (.zip on Windows)
+  --bundles <list>    bundle formats passed to tauri build (default: all of tauri.conf.json)
   --skip-build        only collect bundles already built for the target
   --allow-dirty       do not stop on uncommitted changes
   --dry-run           check versions, tag and signing key, print the plan, build nothing
@@ -122,7 +123,8 @@ if (dryRun) {
 const env = { ...process.env, TAURI_SIGNING_PRIVATE_KEY: key, TAURI_SIGNING_PRIVATE_KEY_PASSWORD: password };
 if (!has("--skip-build")) {
   run("rustup", ["target", "add", target]);
-  run("pnpm", ["tauri", "build", "--target", target], { env });
+  const bundles = flag("--bundles");
+  run("pnpm", ["tauri", "build", "--target", target, ...(bundles ? ["--bundles", bundles] : [])], { env });
 }
 
 mkdirSync(outDir, { recursive: true });
@@ -167,10 +169,16 @@ if (has("--cli")) {
   const ext = target.includes("windows") ? ".exe" : "";
   const bins = ["omniget-cli", "omniget-mcp", "omniget-gateway", "omniget-worker"].map((b) => `${b}${ext}`);
   for (const b of bins) if (!existsSync(join(binDir, b))) fail(`missing ${b} in ${binDir}`);
-  run(join(binDir, `omniget-cli${ext}`), ["--version"]);
-  const tarball = `omniget-cli-${version}-${target}.tar.gz`;
-  run("tar", ["-czf", join(outDir, tarball), "-C", binDir, ...bins]);
-  copied.push(tarball);
+  if (!ext || process.platform === "win32") run(join(binDir, `omniget-cli${ext}`), ["--version"]);
+  if (target.includes("windows")) {
+    const archive = `omniget-cli-${version}-${target}.zip`;
+    run("zip", ["-j", "-q", join(outDir, archive), ...bins.map((b) => join(binDir, b))]);
+    copied.push(archive);
+  } else {
+    const tarball = `omniget-cli-${version}-${target}.tar.gz`;
+    run("tar", ["-czf", join(outDir, tarball), "-C", binDir, ...bins]);
+    copied.push(tarball);
+  }
 }
 
 const sums = readdirSync(outDir)
