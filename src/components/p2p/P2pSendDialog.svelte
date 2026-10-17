@@ -109,8 +109,15 @@
   }
 
   function handleClose() {
-    dialogEl?.close();
-    onClose();
+    // The dialog's close event notifies the parent; fall back if it isn't open.
+    if (dialogEl?.open) dialogEl.close();
+    else onClose();
+  }
+
+  function handleCancel(e: Event) {
+    // Esc fires "cancel" on a modal dialog; never let it hide an active send.
+    e.preventDefault();
+    if (sendState.kind !== "sending") handleClose();
   }
 
   function getStatusLabel(status: string): string {
@@ -159,7 +166,9 @@
   aria-labelledby="p2p-dialog-title"
   aria-modal="true"
   onclick={handleBackdropClick}
-  onkeydown={(e) => { if (e.key === "Escape" && sendState.kind !== "sending") handleClose(); }}
+  onkeydown={(e) => { if (e.key === "Escape" && sendState.kind === "sending") e.preventDefault(); }}
+  oncancel={handleCancel}
+  onclose={onClose}
 >
   <div class="dialog-content">
     <div class="dialog-header">

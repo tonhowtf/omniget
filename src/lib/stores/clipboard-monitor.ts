@@ -7,11 +7,16 @@ type ClipboardCallback = (url: string) => void;
 
 let lastDetectedUrl = "";
 let intervalId: ReturnType<typeof setInterval> | null = null;
-let callback: ClipboardCallback | null = null;
+const handlers: { cb: ClipboardCallback }[] = [];
 let enabled = false;
 
-export function onClipboardUrl(cb: ClipboardCallback | null) {
-  callback = cb;
+export function onClipboardUrl(cb: ClipboardCallback): () => void {
+  const entry = { cb };
+  handlers.push(entry);
+  return () => {
+    const index = handlers.indexOf(entry);
+    if (index !== -1) handlers.splice(index, 1);
+  };
 }
 
 export function startClipboardMonitor() {
@@ -25,13 +30,15 @@ export function startClipboardMonitor() {
       const text = await readText();
       const trimmed = text.trim().split(/[\s\n]/)[0];
 
+      const handler = handlers[handlers.length - 1];
       if (
+        handler &&
         trimmed &&
         URL_PATTERN.test(trimmed) &&
         trimmed !== lastDetectedUrl
       ) {
         lastDetectedUrl = trimmed;
-        callback?.(trimmed);
+        handler.cb(trimmed);
       }
     } catch {}
   }, POLL_INTERVAL);

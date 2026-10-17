@@ -352,23 +352,24 @@
     ]);
   }
 
+  let clipboardDetection = $derived(!!settings?.download.clipboard_detection);
+
   $effect(() => {
     if (bareWindow) return;
-    if (settings?.download.clipboard_detection) {
-      onClipboardUrl((clipboardUrl) => {
-        queueExternalPrefill({ action: "prefill", url: clipboardUrl, source: "clipboard" });
-        showToast("info", $t("toast.clipboard_url_detected") as string);
-        if (page.url.pathname !== "/") {
-          goto("/");
-        }
-      });
-      startClipboardMonitor();
-    } else {
-      onClipboardUrl(null);
+    if (!clipboardDetection) {
       stopClipboardMonitor();
+      return;
     }
+    const offClipboardUrl = onClipboardUrl((clipboardUrl) => {
+      queueExternalPrefill({ action: "prefill", url: clipboardUrl, source: "clipboard" });
+      showToast("info", $t("toast.clipboard_url_detected") as string);
+      if (page.url.pathname !== "/") {
+        goto("/");
+      }
+    });
+    startClipboardMonitor();
     return () => {
-      onClipboardUrl(null);
+      offClipboardUrl();
       stopClipboardMonitor();
     };
   });

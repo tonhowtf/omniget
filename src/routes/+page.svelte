@@ -156,7 +156,7 @@
   let pendingAutoDownload = $state(false);
 
   onMount(() => {
-    onClipboardUrl((detectedUrl) => {
+    const offClipboardUrl = onClipboardUrl((detectedUrl) => {
       if (omniState.kind === "preparing") return;
       url = detectedUrl;
       const settings = getSettings();
@@ -168,9 +168,7 @@
     if (url.trim()) {
       queueMicrotask(() => handleInput());
     }
-    return () => {
-      onClipboardUrl(null);
-    };
+    return offClipboardUrl;
   });
 
   $effect(() => {
@@ -306,6 +304,8 @@
     torrentEntries = [];
     selectedTorrentFiles = new Set();
     torrentLoading = false;
+    cookieAccounts = [];
+    selectedCookieSlug = null;
     const currentSettings = getSettings();
     const saved = currentSettings?.last_download_options;
     const savedMode = saved?.mode;
@@ -363,6 +363,7 @@
   async function detectPlatform(value: string) {
     try {
       const result = await invoke<PlatformInfo>("detect_platform", { url: value });
+      if (url.trim() !== value) return;
       if (result.supported) {
         omniState = { kind: "detected", info: result };
         invoke("prefetch_media_info", { url: value }).catch(() => {});
@@ -377,7 +378,9 @@
         omniState = { kind: "unsupported" };
       }
     } catch {
-      omniState = { kind: "unsupported" };
+      if (url.trim() === value) {
+        omniState = { kind: "unsupported" };
+      }
     }
   }
 
@@ -390,12 +393,16 @@
         "playlist_entries",
         { url: targetUrl }
       );
+      if (url.trim() !== targetUrl) return;
       playlistEntries = entries;
       selectedPlaylistItems = new Set(entries.map((e) => e.index));
     } catch {
+      if (url.trim() !== targetUrl) return;
       playlistEntries = [];
     } finally {
-      playlistLoading = false;
+      if (url.trim() === targetUrl) {
+        playlistLoading = false;
+      }
     }
   }
 
@@ -428,12 +435,16 @@
         "torrent_contents",
         { url: targetUrl }
       );
+      if (url.trim() !== targetUrl) return;
       torrentEntries = entries;
       selectedTorrentFiles = new Set(entries.map((e) => e.index));
     } catch {
+      if (url.trim() !== targetUrl) return;
       torrentEntries = [];
     } finally {
-      torrentLoading = false;
+      if (url.trim() === targetUrl) {
+        torrentLoading = false;
+      }
     }
   }
 
@@ -458,6 +469,7 @@
         "cookies_accounts_for_url",
         { url: targetUrl }
       );
+      if (url.trim() !== targetUrl) return;
       const accounts = result.accounts.slice().sort((a, b) => {
         const lhs = a.last_used_at_ms ?? a.captured_at_ms;
         const rhs = b.last_used_at_ms ?? b.captured_at_ms;
@@ -471,6 +483,7 @@
           const h = await invoke<{ items: { domain: string; slug: string; status: string }[] }>(
             "cookies_health"
           );
+          if (url.trim() !== targetUrl) return;
           const slug = selectedCookieSlug ?? "_default";
           const item =
             h.items.find((it) => it.domain === result.domain && it.slug === slug) ??
@@ -481,6 +494,7 @@
         } catch {}
       }
     } catch {
+      if (url.trim() !== targetUrl) return;
       cookieAccounts = [];
       selectedCookieSlug = null;
       cookieHint = null;
