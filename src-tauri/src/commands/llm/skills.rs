@@ -28,12 +28,20 @@ pub async fn llm_skills_list() -> Result<Value, String> {
 
 #[tauri::command]
 pub async fn llm_skills_install_dir(path: String) -> Result<Value, String> {
-    ok(skills::install_from_dir(&PathBuf::from(path)).map_err(fail)?)
+    tokio::task::spawn_blocking(move || {
+        ok(skills::install_from_dir(&PathBuf::from(path)).map_err(fail)?)
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
 pub async fn llm_skills_install_zip(path: String) -> Result<Value, String> {
-    ok(skills::install_from_zip(&PathBuf::from(path)).map_err(fail)?)
+    tokio::task::spawn_blocking(move || {
+        ok(skills::install_from_zip(&PathBuf::from(path)).map_err(fail)?)
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
@@ -42,7 +50,11 @@ pub async fn llm_skills_install_git(
     rev: Option<String>,
     subdir: Option<String>,
 ) -> Result<Value, String> {
-    ok(skills::install_from_git(&url, rev.as_deref(), subdir.as_deref()).map_err(fail)?)
+    tokio::task::spawn_blocking(move || {
+        ok(skills::install_from_git(&url, rev.as_deref(), subdir.as_deref()).map_err(fail)?)
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 pub fn parse_repo_spec(spec: &str) -> Result<(String, Vec<Option<String>>), String> {
@@ -103,7 +115,9 @@ pub async fn llm_skills_install_repo(spec: String) -> Result<Value, String> {
 
 #[tauri::command]
 pub async fn llm_skills_install_catalog(name: String) -> Result<Value, String> {
-    ok(catalog::install(&name).map_err(fail)?)
+    tokio::task::spawn_blocking(move || ok(catalog::install(&name).map_err(fail)?))
+        .await
+        .map_err(|e| e.to_string())?
 }
 
 #[tauri::command]

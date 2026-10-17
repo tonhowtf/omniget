@@ -181,12 +181,32 @@ pub async fn call(
         .ok_or("INVALID_ARGUMENT")?
         .remove("requestId");
     let result = call_inner(app, p, name, args).await;
+    if result.as_ref().is_err_and(|error| transient(error)) {
+        policy::release(p, name, &key)?;
+        return result;
+    }
     let receipt = match &result {
         Ok(value) => json!({"result":value}),
         Err(error) => json!({"error":error}),
     };
     policy::finish(p, name, &key, &receipt)?;
     result
+}
+
+// Only errors raised before the request reached the window are safe to retry
+// with the same requestId. A timeout or a reload after dispatch may already
+// have acted, so those keep their receipt.
+fn transient(error: &str) -> bool {
+    if error.starts_with("TIMEOUT") || error.contains("window reloaded or disconnected") {
+        return false;
+    }
+    [
+        "SESSION_BUSY",
+        "FRONTEND_NOT_READY",
+        "STALE_TARGET",
+        "WINDOW_NOT_FOUND",
+    ]
+    .contains(&error.split(':').next().unwrap_or(error))
 }
 
 async fn call_inner(
@@ -381,4 +401,20 @@ fn dev_identity() -> Value {
         "backendBuildId":std::env::var("OMNIGET_BACKEND_BUILD_ID").ok(),
         "workerBuildId":std::env::var("OMNIGET_WORKER_BUILD_ID").ok(),
         "bootId":std::env::var("OMNIGET_BOOT_ID").ok(),"pid":std::process::id()})
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn transient_errors_are_not_kept_as_receipts() {
+        assert!(super::transient("SESSION_BUSY"));
+        assert!(super::transient("FRONTEND_NOT_READY: show window"));
+        assert!(super::transient("WINDOW_NOT_FOUND"));
+        assert!(!super::transient("TIMEOUT: frontend inspection"));
+        assert!(!super::transient(
+            "FRONTEND_NOT_READY: window reloaded or disconnected"
+        ));
+        assert!(!super::transient("PERMISSION_REQUIRED"));
+        assert!(!super::transient("INVALID_ARGUMENT"));
+    }
 }

@@ -276,6 +276,13 @@ async fn chat_completions(
     }
 
     let manager = state.manager.clone();
+    let mut cleanup = TurnCleanup {
+        manager: manager.clone(),
+        agent_id: agent_id.clone(),
+        request_id,
+        conversation_id,
+        ended: false,
+    };
     let mut stream = stream;
     let mut answer = String::new();
     let mut usage = json!({ "prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0 });
@@ -291,16 +298,14 @@ async fn chat_completions(
                 });
             }
             TurnEvent::Error { error: e } => {
-                manager.finish_turn(&request_id, &agent_id);
-                manager.drop_conversation(&conversation_id);
+                cleanup.ended = true;
                 return error(StatusCode::BAD_GATEWAY, &e.code, e.message);
             }
             TurnEvent::Finished { .. } => break,
             _ => {}
         }
     }
-    manager.finish_turn(&request_id, &agent_id);
-    manager.drop_conversation(&conversation_id);
+    cleanup.ended = true;
 
     (
         StatusCode::OK,
@@ -320,6 +325,27 @@ async fn chat_completions(
         .into_response()
 }
 
+/// Ends the turn when the non-streaming handler returns or its future is dropped
+/// (client timeout/disconnect), so the turn never lingers in the manager.
+/// A turn that did not end on its own is cancelled so the agent stops working.
+struct TurnCleanup {
+    manager: Arc<LlmManager>,
+    agent_id: String,
+    request_id: String,
+    conversation_id: String,
+    ended: bool,
+}
+
+impl Drop for TurnCleanup {
+    fn drop(&mut self) {
+        if !self.ended {
+            let _ = self.manager.cancel(&self.request_id);
+        }
+        self.manager.finish_turn(&self.request_id, &self.agent_id);
+        self.manager.drop_conversation(&self.conversation_id);
+    }
+}
+
 struct SseState {
     manager: Arc<LlmManager>,
     agent_id: String,
@@ -337,6 +363,16 @@ impl SseState {
         self.done = true;
         self.manager.finish_turn(&self.request_id, &self.agent_id);
         self.manager.drop_conversation(&self.conversation_id);
+    }
+}
+
+impl Drop for SseState {
+    fn drop(&mut self) {
+        // Client aborted the SSE before the turn finished.
+        if !self.done {
+            let _ = self.manager.cancel(&self.request_id);
+            self.close();
+        }
     }
 }
 
