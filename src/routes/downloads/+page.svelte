@@ -1043,7 +1043,7 @@
         {/if}
 
         {#if item.status === "error" && item.error}
-          <RootCauseHint error={item.error} onRetry={() => retryDownload(item.id)} />
+          <RootCauseHint error={item.error} url={item.url} onRetry={() => retryDownload(item.id)} />
         {/if}
 
         {#if item.status !== "queued" && item.status !== "complete"}

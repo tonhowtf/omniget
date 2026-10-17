@@ -1,9 +1,12 @@
 <script lang="ts">
-  import { onMount } from "svelte";
+  import { onMount, untrack } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
   import { listen } from "@tauri-apps/api/event";
   import { open as openDialog } from "@tauri-apps/plugin-dialog";
+  import { page } from "$app/state";
   import { t } from "$lib/i18n";
+  import { classifyError, type ErrorKind } from "$lib/home/friendly-error";
+  import { translateBackendError } from "$lib/error-translate";
   import NavIcon from "$components/shell/NavIcon.svelte";
 
   type Tab = { id: string; url: string; title: string };
@@ -23,10 +26,17 @@
     bytes: number; items: JobItem[];
   };
   type Connector = { manifest: { id: string; name: string; version: string; domains: string[] }; dir: string; dev: boolean };
+  type LoginProfile = { dir: string; name: string; email: string | null };
+  type LoginSource = { id: string; name: string; profiles: LoginProfile[]; running: boolean };
+  type Imported = { from: string; profile: string } | null;
+  type JobOrigin = { tree: TreeNode; outDir: string; maxHeight: number | null };
+
+  const KINDS = new Set(["folder", "video", "audio", "file", "subtitle", "text", "link", "hls", "dash", "document", "image"]);
+  const STATUSES = new Set(["queued", "running", "active", "done", "cancelled", "failed", "skipped", "drm", "handed_off"]);
 
   let browserOpen = $state(false);
+  let browserMode = $state("embedded");
   let browserState = $state("");
-  let browserExe = $state("");
   let installed = $state<{ name: string; path: string }[]>([]);
   let tabs = $state<Tab[]>([]);
   let sniffed = $state<Sniffed[]>([]);
@@ -34,8 +44,11 @@
   let connectors = $state<Connector[]>([]);
   let outDir = $state("");
   let urlInput = $state("");
+  let urlField = $state<HTMLInputElement | null>(null);
+  let advancedUrl = $state("");
   let busy = $state("");
-  let error = $state("");
+  let errorRaw = $state("");
+  let retryLast = $state<(() => Promise<void>) | null>(null);
 
   let resolved = $state<Resolved | null>(null);
   let resolvedUrl = $state("");
@@ -44,6 +57,15 @@
   let maxHeight = $state<number | null>(null);
   let showLogs = $state(false);
   let sniffTab = $state<string | null>(null);
+  let loginOpen = $state(false);
+  let importOpen = $state(false);
+  let importSources = $state<LoginSource[]>([]);
+  let importSource = $state("");
+  let importProfile = $state("");
+  let imported = $state<Imported>(null);
+  let importResult = $state<Imported>(null);
+  let jobOrigins = $state<Record<number, JobOrigin>>({});
+  let handledParam = "";
 
   type OptionDef = { id: string; label?: string; type?: string; default?: unknown; choices?: string[]; help?: string };
   let optionsFor = $state<string | null>(null);
@@ -51,11 +73,19 @@
   let optionValues = $state<Record<string, any>>({});
 
   let visibleSniffed = $derived(sniffTab ? sniffed.filter((s) => s.tab_id === sniffTab) : sniffed);
+  let windowVisible = $derived(browserOpen && browserMode === "window");
+  let errorKind = $derived<ErrorKind>(errorRaw ? classifyError(errorRaw) : "generic");
+  let errorText = $derived(errorRaw ? translateBackendError(errorRaw, (k) => $t(k) as string) : "");
+  let downloadable = $derived(resolved ? leafIds(resolved.tree) : []);
+  let onlyWholePage = $derived(
+    !!resolved && downloadable.length > 0 && allLeaves(resolved.tree).every((n) => n.source?.format === "ytdlp")
+  );
+  let currentSource = $derived(importSources.find((s) => s.id === importSource));
 
   async function refresh() {
     const st: any = await invoke("gd_status");
     browserOpen = !!st.browser.open;
-    browserExe = st.browser.exe ?? "";
+    browserMode = st.browser.mode ?? "embedded";
     installed = st.browser.installed ?? [];
     tabs = st.browser.tabs ?? [];
     connectors = st.connectors ?? [];
@@ -64,13 +94,15 @@
     sniffed = await invoke("gd_sniffed", { tabId: null });
   }
 
-  async function run<T>(label: string, fn: () => Promise<T>): Promise<T | undefined> {
+  async function run<T>(label: string, fn: () => Promise<T>, retry?: () => Promise<void>): Promise<T | undefined> {
     busy = label;
-    error = "";
+    errorRaw = "";
+    retryLast = null;
     try {
       return await fn();
     } catch (e) {
-      error = String(e);
+      errorRaw = typeof e === "string" ? e : ((e as any)?.message ?? String(e));
+      retryLast = retry ?? null;
     } finally {
       busy = "";
     }
@@ -82,10 +114,30 @@
     return /^[a-z]+:\/\//i.test(v) || v.startsWith("about:") ? v : `https://${v}`;
   }
 
+  function applyResolved(r: Resolved, url: string) {
+    resolved = r;
+    resolvedUrl = url;
+    selected = new Set(leafIds(r.tree));
+    collapsed = new Set();
+    showLogs = false;
+  }
+
+  async function find(reload = false) {
+    const url = normalizeUrl(urlInput);
+    if (!url) {
+      urlField?.focus();
+      return;
+    }
+    resolved = null;
+    const r = await run("find", () => invoke<Resolved>("gd_find", { url, reload }), () => find(reload));
+    if (r) applyResolved(r, url);
+    await refresh();
+  }
+
   async function startBrowser() {
     await run("browser", async () => {
-      await invoke("gd_browser_start", { url: normalizeUrl(urlInput) || null });
-      urlInput = "";
+      await invoke("gd_browser_start", { url: normalizeUrl(advancedUrl) || null });
+      advancedUrl = "";
       await refresh();
     });
   }
@@ -93,17 +145,83 @@
   async function stopBrowser() {
     await run("browser", async () => {
       await invoke("gd_browser_stop");
+      loginOpen = false;
       await refresh();
     });
   }
 
-  async function openUrl() {
+  async function showWindow(url: string | null) {
+    await run("window", async () => {
+      await invoke("gd_browser_show", { url });
+      await refresh();
+    }, () => showWindow(url));
+  }
+
+  async function hideWindow() {
+    await run("window", async () => {
+      await invoke("gd_browser_hide");
+      loginOpen = false;
+      await refresh();
+    });
+  }
+
+  async function loginSite() {
     const url = normalizeUrl(urlInput);
+    if (!url) {
+      urlField?.focus();
+      return;
+    }
+    importOpen = false;
+    await showWindow(url);
+    if (!errorRaw) loginOpen = true;
+  }
+
+  async function loggedIn() {
+    loginOpen = false;
+    await find(true);
+  }
+
+  async function toggleImport() {
+    if (importOpen) {
+      importOpen = false;
+      return;
+    }
+    loginOpen = false;
+    importResult = null;
+    const r = await run("import", () => invoke<{ sources: LoginSource[]; imported: Imported }>("gd_browser_sources"));
+    if (!r) return;
+    importSources = r.sources;
+    imported = r.imported && (r.imported as any).from ? r.imported : null;
+    importSource = importSources[0]?.id ?? "";
+    importProfile = importSources[0]?.profiles[0]?.dir ?? "";
+    importOpen = true;
+  }
+
+  function pickSource(id: string) {
+    importSource = id;
+    importProfile = importSources.find((s) => s.id === id)?.profiles[0]?.dir ?? "";
+  }
+
+  async function runImport() {
+    if (!importSource) return;
+    const r = await run(
+      "import",
+      () => invoke<{ from: string; profile: string }>("gd_browser_import", { source: importSource, profile: importProfile || null }),
+      runImport
+    );
+    if (!r) return;
+    importResult = r;
+    imported = r;
+    await refresh();
+  }
+
+  async function openAdvancedUrl() {
+    const url = normalizeUrl(advancedUrl);
     if (!url) return;
     if (!browserOpen) return startBrowser();
     await run("tab", async () => {
       await invoke("gd_tab", { action: "open", tabId: null, url });
-      urlInput = "";
+      advancedUrl = "";
     });
   }
 
@@ -112,28 +230,19 @@
   }
 
   async function resolveTab(tab: Tab) {
-    await resolveUrl(tab.url, tab.id);
+    urlInput = tab.url;
+    resolved = null;
+    const r = await run("find", () => invoke<Resolved>("gd_resolve", { url: tab.url, tabId: tab.id }), () => resolveTab(tab));
+    if (r) applyResolved(r, tab.url);
   }
 
-  async function resolveUrl(url: string, tabId: string | null = null) {
-    const r = await run("resolve", () => invoke<Resolved>("gd_resolve", { url, tabId }));
-    if (!r) return;
-    resolved = r;
-    resolvedUrl = url;
-    const all = new Set<string>();
-    const walk = (n: TreeNode) => {
-      if (!n.children?.length && n.source && !n.drm) all.add(n.id);
-      n.children?.forEach(walk);
-    };
-    walk(r.tree);
-    selected = all;
-    collapsed = new Set();
-    showLogs = false;
+  function allLeaves(n: TreeNode): TreeNode[] {
+    if (!n.children?.length) return n.source && !n.drm ? [n] : [];
+    return n.children.flatMap(allLeaves);
   }
 
   function leafIds(n: TreeNode): string[] {
-    if (!n.children?.length) return n.source && !n.drm ? [n.id] : [];
-    return n.children.flatMap(leafIds);
+    return allLeaves(n).map((x) => x.id);
   }
 
   function checkState(n: TreeNode): "all" | "some" | "none" {
@@ -162,23 +271,39 @@
     if (typeof dir === "string") outDir = dir;
   }
 
+  async function startJob(tree: TreeNode, ids: string[] | null, dir: string, height: number | null) {
+    await run("download", async () => {
+      const job = await invoke<Job>("gd_download", { tree, selected: ids, outDir: dir, maxHeight: height });
+      jobOrigins = { ...jobOrigins, [job.id]: { tree, outDir: dir, maxHeight: height } };
+      await refresh();
+    }, () => startJob(tree, ids, dir, height));
+  }
+
   async function downloadTree() {
     if (!resolved) return;
-    await run("download", async () => {
-      await invoke("gd_download", {
-        tree: resolved!.tree,
-        selected: [...selected],
-        outDir,
-        maxHeight,
-      });
-      await refresh();
-    });
+    await startJob(resolved.tree, [...selected], outDir, maxHeight);
+  }
+
+  async function retryItems(j: Job, ids: string[]) {
+    const o = jobOrigins[j.id];
+    if (!o || !ids.length) return;
+    await startJob(o.tree, ids, o.outDir, o.maxHeight);
   }
 
   async function downloadSniffed(s: Sniffed) {
     await run("download", async () => {
       await invoke("gd_download_sniffed", { id: s.id, outDir });
       await refresh();
+    });
+  }
+
+  async function openFolder(path: string) {
+    await run("folder", async () => {
+      try {
+        await invoke("open_path_default", { path });
+      } catch {
+        await invoke("reveal_file", { path });
+      }
     });
   }
 
@@ -217,6 +342,22 @@
     });
   }
 
+  function kindLabel(k: string) {
+    return $t(`global_dl.kind.${KINDS.has(k) ? k : "file"}`);
+  }
+
+  function statusLabel(s: string) {
+    return STATUSES.has(s) ? $t(`global_dl.status.${s}`) : s;
+  }
+
+  function nodeTitle(n: TreeNode) {
+    return n.source?.format === "ytdlp" ? n.title.replace(/\s*\(yt-dlp\)$/, "") : n.title;
+  }
+
+  function itemError(raw: string | undefined) {
+    return raw ? translateBackendError(raw, (k) => $t(k) as string) : "";
+  }
+
   function bytes(n: number | null | undefined) {
     if (!n) return "";
     const u = ["B", "KB", "MB", "GB", "TB"];
@@ -246,6 +387,21 @@
       return u;
     }
   }
+
+  function shortPath(p: string) {
+    const parts = p.split(/[\\/]/).filter(Boolean);
+    return parts.length > 2 ? `…/${parts.slice(-2).join("/")}` : p;
+  }
+
+  $effect(() => {
+    const param = page.url.searchParams.get("url");
+    if (!param || param === handledParam) return;
+    handledParam = param;
+    untrack(() => {
+      urlInput = param;
+      find();
+    });
+  });
 
   onMount(() => {
     refresh();
@@ -282,23 +438,29 @@
   <li class="node" class:drm={n.drm}>
     <div class="node-row" style:padding-left="{depth * 18}px">
       {#if folder}
-        <button class="twisty" onclick={() => toggleCollapse(n)} aria-label={$t("global_dl.toggle")}>
+        <button class="twisty" onclick={() => toggleCollapse(n)} aria-label={$t("global_dl.toggle")} aria-expanded={!collapsed.has(n.id)}>
           {collapsed.has(n.id) ? "▸" : "▾"}
         </button>
       {:else}
         <span class="twisty"></span>
       {/if}
-      <input
-        type="checkbox"
-        checked={state === "all"}
-        indeterminate={state === "some"}
-        disabled={n.drm || (!folder && !n.source)}
-        onchange={() => toggle(n)}
-      />
-      <span class="kind kind-{n.kind}">{n.kind}</span>
-      <span class="node-title">{n.title}</span>
-      {#if n.drm}<span class="badge badge-warn">DRM</span>{/if}
-      {#if n.note}<span class="note">{n.note}</span>{/if}
+      <label class="node-label">
+        <input
+          type="checkbox"
+          checked={state === "all"}
+          indeterminate={state === "some"}
+          disabled={n.drm || (!folder && !n.source)}
+          onchange={() => toggle(n)}
+        />
+        <span class="kind kind-{n.kind}">{kindLabel(n.kind)}</span>
+        <span class="node-title">{nodeTitle(n)}</span>
+      </label>
+      {#if n.drm}<span class="badge badge-warn" title={$t("global_dl.drm_tooltip")}>{$t("global_dl.drm")}</span>{/if}
+      {#if n.source?.format === "ytdlp"}
+        <span class="note">{$t("global_dl.note_handoff")}</span>
+      {:else if n.note}
+        <span class="note">{n.note}</span>
+      {/if}
     </div>
     {#if folder && !collapsed.has(n.id)}
       <ul>
@@ -310,6 +472,23 @@
   </li>
 {/snippet}
 
+{#snippet emptyTips()}
+  <ul class="tips">
+    <li>
+      <span>{$t("global_dl.empty_login")}</span>
+      <button class="btn btn-secondary btn-sm" onclick={loginSite} disabled={!!busy}>{$t("global_dl.login_site")}</button>
+    </li>
+    <li>
+      <span>{$t("global_dl.empty_play")}</span>
+      <button class="btn btn-secondary btn-sm" onclick={() => showWindow(resolvedUrl || normalizeUrl(urlInput))} disabled={!!busy}>{$t("global_dl.show_window")}</button>
+    </li>
+    <li>
+      <span>{$t("global_dl.empty_again")}</span>
+      <button class="btn btn-secondary btn-sm" onclick={() => find(true)} disabled={!!busy}>{$t("global_dl.find_again")}</button>
+    </li>
+  </ul>
+{/snippet}
+
 <section class="gd">
   <header class="gd-head">
     <NavIcon icon="global" size={48} />
@@ -318,221 +497,395 @@
       <p>{$t("global_dl.subtitle")}</p>
     </div>
     <div class="gd-head-actions">
-      <span class="pill" class:pill-on={browserOpen}>
-        {browserOpen ? $t("global_dl.browser_open") : browserState === "downloading" ? $t("global_dl.browser_downloading") : $t("global_dl.browser_closed")}
-      </span>
-      {#if browserOpen}
-        <button class="btn btn-secondary" onclick={stopBrowser} disabled={busy === "browser"}>{$t("global_dl.close_browser")}</button>
-      {:else}
-        <button class="btn btn-primary" onclick={startBrowser} disabled={busy === "browser"}>
-          {busy === "browser" ? $t("global_dl.starting") : $t("global_dl.open_browser")}
-        </button>
+      {#if browserState === "downloading" && !browserOpen}
+        <span class="pill" role="status">{$t("global_dl.browser_downloading")}</span>
+      {:else if windowVisible}
+        <span class="pill pill-on">{$t("global_dl.browser_window_on")}</span>
+        <button class="btn btn-secondary btn-sm" onclick={hideWindow} disabled={busy === "window"}>{$t("global_dl.hide_window")}</button>
       {/if}
     </div>
   </header>
 
-  {#if error}
-    <p class="error" role="alert">{error}</p>
-  {/if}
-
-  <form class="urlbar" onsubmit={(e) => { e.preventDefault(); openUrl(); }}>
-    <input type="text" bind:value={urlInput} placeholder={$t("global_dl.url_placeholder")} spellcheck="false" autocomplete="off" />
-    <button class="btn btn-secondary" type="submit" disabled={!urlInput.trim()}>{$t("global_dl.open_tab")}</button>
-    <button class="btn btn-secondary" type="button" disabled={!urlInput.trim() || busy === "resolve"} onclick={() => resolveUrl(normalizeUrl(urlInput))}>
-      {$t("global_dl.resolve")}
-    </button>
+  <form class="hero card" onsubmit={(e) => { e.preventDefault(); find(); }}>
+    <label for="gd-url" class="hero-label">{$t("global_dl.hero_label")}</label>
+    <div class="hero-row">
+      <input
+        id="gd-url"
+        type="text"
+        inputmode="url"
+        bind:this={urlField}
+        bind:value={urlInput}
+        placeholder={$t("global_dl.url_placeholder")}
+        spellcheck="false"
+        autocomplete="off"
+      />
+      <button class="btn btn-primary btn-lg" type="submit" disabled={!urlInput.trim() || busy === "find"}>
+        {#if busy === "find"}<span class="spinner" aria-hidden="true"></span>{/if}
+        {$t("global_dl.find")}
+      </button>
+    </div>
+    <div class="hero-secondary">
+      <button class="btn btn-ghost btn-sm" type="button" onclick={loginSite} disabled={!urlInput.trim() || busy === "window"}>
+        {$t("global_dl.login_site")}
+      </button>
+      <button class="btn btn-ghost btn-sm" type="button" onclick={toggleImport} aria-expanded={importOpen} disabled={busy === "import" && !importOpen}>
+        {$t("global_dl.import_logins")}
+      </button>
+    </div>
+    {#if !browserOpen && installed.length === 0}
+      <p class="hint">{$t("global_dl.no_browser_hint")}</p>
+    {/if}
   </form>
 
-  {#if !browserOpen && installed.length === 0}
-    <p class="hint">{$t("global_dl.no_browser_hint")}</p>
-  {:else if !browserOpen}
-    <p class="hint">{$t("global_dl.browser_will_use", { name: installed[0]?.name ?? "" })}</p>
+  {#if loginOpen}
+    <section class="card callout" aria-live="polite">
+      <h2>{$t("global_dl.login_title")}</h2>
+      <p>{$t("global_dl.login_hint")}</p>
+      <div class="row">
+        <button class="btn btn-primary" onclick={loggedIn} disabled={busy === "find"}>{$t("global_dl.login_done")}</button>
+        <button class="btn btn-ghost" onclick={hideWindow} disabled={busy === "window"}>{$t("global_dl.hide_window")}</button>
+      </div>
+    </section>
   {/if}
 
-  <div class="gd-grid">
-    <div class="col">
-      <section class="card">
-        <header class="card-head">
-          <h2>{$t("global_dl.tabs")}</h2>
-          <span class="count">{tabs.length}</span>
-        </header>
-        {#if tabs.length === 0}
-          <p class="empty">{$t("global_dl.no_tabs")}</p>
-        {:else}
-          <ul class="tabs">
-            {#each tabs as tab (tab.id)}
-              <li class="tab">
-                <div class="tab-copy">
-                  <span class="tab-title">{tab.title || host(tab.url)}</span>
-                  <span class="tab-url">{tab.url}</span>
-                </div>
-                <div class="tab-actions">
-                  <button class="btn btn-primary btn-sm" onclick={() => resolveTab(tab)} disabled={busy === "resolve" || tab.url.startsWith("about:") || tab.url.startsWith("chrome")}>
-                    {busy === "resolve" ? "…" : $t("global_dl.resolve")}
-                  </button>
-                  <button class="btn btn-ghost btn-sm" onclick={() => (sniffTab = sniffTab === tab.id ? null : tab.id)}>
-                    {$t("global_dl.media")} {sniffed.filter((s) => s.tab_id === tab.id).length}
-                  </button>
-                  <button class="btn btn-ghost btn-sm" onclick={() => tabAction("focus", tab)} aria-label={$t("global_dl.focus")}>↗</button>
-                  <button class="btn btn-ghost btn-sm" onclick={() => tabAction("close", tab)} aria-label={$t("global_dl.close_tab")}>✕</button>
-                </div>
-              </li>
-            {/each}
-          </ul>
-        {/if}
-      </section>
-
-      <section class="card">
-        <header class="card-head">
-          <h2>{$t("global_dl.sniffed")}</h2>
-          {#if sniffTab}
-            <button class="btn btn-ghost btn-sm" onclick={() => (sniffTab = null)}>{$t("global_dl.all_tabs")}</button>
+  {#if importOpen}
+    <section class="card callout">
+      <h2>{$t("global_dl.import_title")}</h2>
+      <p>{$t("global_dl.import_hint")}</p>
+      {#if importSources.length === 0}
+        <p class="empty">{$t("global_dl.import_none")}</p>
+      {:else}
+        <div class="row">
+          <label class="field">
+            <span>{$t("global_dl.import_browser")}</span>
+            <select value={importSource} onchange={(e) => pickSource((e.currentTarget as HTMLSelectElement).value)}>
+              {#each importSources as s (s.id)}
+                <option value={s.id}>{s.name}</option>
+              {/each}
+            </select>
+          </label>
+          {#if (currentSource?.profiles.length ?? 0) > 1}
+            <label class="field">
+              <span>{$t("global_dl.import_profile")}</span>
+              <select bind:value={importProfile}>
+                {#each currentSource?.profiles ?? [] as p (p.dir)}
+                  <option value={p.dir}>{p.email ? `${p.name} (${p.email})` : p.name}</option>
+                {/each}
+              </select>
+            </label>
           {/if}
-          <button class="btn btn-ghost btn-sm" onclick={async () => { await invoke("gd_sniffed_clear", { tabId: sniffTab }); sniffed = await invoke("gd_sniffed", { tabId: null }); }}>
-            {$t("global_dl.clear")}
+          <button class="btn btn-primary" onclick={runImport} disabled={busy === "import"}>
+            {#if busy === "import"}<span class="spinner" aria-hidden="true"></span>{/if}
+            {$t("global_dl.import_button")}
           </button>
-        </header>
-        {#if visibleSniffed.length === 0}
-          <p class="empty">{$t("global_dl.no_media")}</p>
-        {:else}
-          <ul class="sniffed">
-            {#each [...visibleSniffed].reverse() as s (s.id)}
-              <li>
-                <span class="kind kind-{s.kind}">{s.kind}</span>
-                <span class="sniff-url" title={s.url}>{shortUrl(s.url)}</span>
-                <span class="size">{bytes(s.size)}</span>
-                <button class="btn btn-secondary btn-sm" onclick={() => downloadSniffed(s)}>{$t("global_dl.download")}</button>
-              </li>
-            {/each}
-          </ul>
+          <button class="btn btn-ghost" onclick={() => (importOpen = false)}>{$t("global_dl.close")}</button>
+        </div>
+        {#if currentSource?.running}
+          <p class="hint">{$t("global_dl.import_running", { name: currentSource.name })}</p>
         {/if}
-      </section>
-
-      <section class="card">
-        <header class="card-head">
-          <h2>{$t("global_dl.connectors")}</h2>
-          <button class="btn btn-ghost btn-sm" onclick={addConnector}>{$t("global_dl.add_connector")}</button>
-        </header>
-        {#if connectors.length === 0}
-          <p class="empty">{$t("global_dl.no_connectors")}</p>
-        {:else}
-          <ul class="connectors">
-            {#each connectors as c (c.manifest.id)}
-              <li>
-                <div class="tab-copy">
-                  <span class="tab-title">{c.manifest.name} <span class="note">{c.manifest.version}{c.dev ? " · dev" : ""}</span></span>
-                  <span class="tab-url">{c.manifest.domains.join(", ")}</span>
-                </div>
-                {#if (c.manifest as any).options?.length}
-                  <button class="btn btn-ghost btn-sm" onclick={() => toggleOptions(c)}>{$t("global_dl.options")}</button>
-                {/if}
-                <button class="btn btn-ghost btn-sm" onclick={() => removeConnector(c)}>{$t("global_dl.remove")}</button>
-              </li>
-              {#if optionsFor === c.manifest.id}
-                <li class="options">
-                  {#each optionDefs as o (o.id)}
-                    <label class="option">
-                      <span>{o.label ?? o.id}</span>
-                      {#if o.type === "boolean"}
-                        <input type="checkbox" bind:checked={optionValues[o.id]} />
-                      {:else if o.type === "select"}
-                        <select bind:value={optionValues[o.id]}>
-                          {#each o.choices ?? [] as ch (ch)}
-                            <option value={ch}>{ch}</option>
-                          {/each}
-                        </select>
-                      {:else}
-                        <input type="text" bind:value={optionValues[o.id]} placeholder={o.help ?? ""} />
-                      {/if}
-                    </label>
-                  {/each}
-                  <button class="btn btn-primary btn-sm" onclick={saveOptions}>{$t("global_dl.save")}</button>
-                </li>
-              {/if}
-            {/each}
-          </ul>
+      {/if}
+      {#if importResult}
+        <p class="ok" role="status">{$t("global_dl.import_done", { from: importResult.from, profile: importResult.profile })}</p>
+        {#if urlInput.trim()}
+          <button class="btn btn-secondary btn-sm" onclick={() => find(true)}>{$t("global_dl.find_again")}</button>
         {/if}
-      </section>
-    </div>
+      {:else if imported}
+        <p class="hint">{$t("global_dl.import_last", { from: imported.from, profile: imported.profile })}</p>
+      {/if}
+    </section>
+  {/if}
 
-    <div class="col">
-      <section class="card card-tree">
-        {#if !resolved}
-          <p class="empty">{$t("global_dl.no_tree")}</p>
-        {:else}
-          <header class="card-head">
-            <div class="tree-head">
-              <h2>{resolved.tree.title}</h2>
-              <span class="note">
-                {resolved.connector ? $t("global_dl.via_connector", { name: resolved.connector }) : $t("global_dl.via_sniffer")}
-                · {$t("global_dl.items_count", { count: resolved.items })}
-                {#if resolved.drm} · {$t("global_dl.drm_count", { count: resolved.drm })}{/if}
-                · {resolved.ms} ms
-              </span>
-            </div>
-            {#if resolved.logs.length}
-              <button class="btn btn-ghost btn-sm" onclick={() => (showLogs = !showLogs)}>{$t("global_dl.logs")}</button>
-            {/if}
-          </header>
-          {#if showLogs}
-            <pre class="logs">{resolved.logs.join("\n")}</pre>
-          {/if}
-          <ul class="tree">
-            {#each resolved.tree.children ?? [] as c (c.id)}
-              {@render treeNode(c, 0)}
-            {/each}
-          </ul>
-          <footer class="tree-foot">
-            <button class="btn btn-ghost btn-sm" onclick={pickOutDir} title={outDir}>{$t("global_dl.folder")}: {outDir.split(/[\\/]/).pop()}</button>
+  {#if errorRaw}
+    <section class="card error" role="alert">
+      <h2>{$t(`omnibox.err.${errorKind}.title`)}</h2>
+      <p>{errorKind === "generic" ? $t("global_dl.error_body") : errorKind === "login" ? $t("global_dl.error_login") : $t(`omnibox.err.${errorKind}.body`)}</p>
+      <div class="row">
+        {#if retryLast}
+          <button class="btn btn-primary btn-sm" onclick={() => retryLast?.()}>{$t("global_dl.retry")}</button>
+        {/if}
+        {#if errorKind === "login"}
+          <button class="btn btn-secondary btn-sm" onclick={loginSite}>{$t("global_dl.login_site")}</button>
+        {/if}
+        <button class="btn btn-ghost btn-sm" onclick={() => (errorRaw = "")}>{$t("global_dl.close")}</button>
+      </div>
+      <details class="details">
+        <summary>{$t("global_dl.error_details")}</summary>
+        <code>{errorText !== errorRaw ? `${errorText}\n${errorRaw}` : errorRaw}</code>
+      </details>
+    </section>
+  {/if}
+
+  {#if busy === "find"}
+    <section class="card loading" role="status" aria-live="polite">
+      <span class="spinner" aria-hidden="true"></span>
+      <span>{$t("global_dl.finding")}</span>
+    </section>
+  {:else if resolved}
+    <section class="card card-tree">
+      <header class="card-head">
+        <div class="tree-head">
+          <h2 title={resolved.tree.title}>{resolved.tree.title}</h2>
+          <span class="note">
+            {resolved.connector ? $t("global_dl.via_connector", { name: resolved.connector }) : $t("global_dl.via_page")}
+            · {$t("global_dl.items_count", { count: downloadable.length })}
+            {#if resolved.drm} · <span title={$t("global_dl.drm_tooltip")}>{$t("global_dl.drm_count", { count: resolved.drm })}</span>{/if}
+          </span>
+        </div>
+        {#if downloadable.length > 1}
+          <button class="btn btn-ghost btn-sm" onclick={() => (selected = new Set(downloadable))}>{$t("global_dl.select_all")}</button>
+          <button class="btn btn-ghost btn-sm" onclick={() => (selected = new Set())}>{$t("global_dl.select_none")}</button>
+        {/if}
+      </header>
+      {#if downloadable.length === 0}
+        <h3 class="sub">{$t("global_dl.empty_title")}</h3>
+        <p class="hint">{$t("global_dl.empty_try")}</p>
+        {@render emptyTips()}
+      {:else}
+        {#if onlyWholePage}
+          <details class="soft">
+            <summary>{$t("global_dl.only_page")}</summary>
+            {@render emptyTips()}
+          </details>
+        {/if}
+        <ul class="tree">
+          {#each resolved.tree.children ?? [] as c (c.id)}
+            {@render treeNode(c, 0)}
+          {/each}
+        </ul>
+        <footer class="tree-foot">
+          <div class="field-inline">
+            <span class="note">{$t("global_dl.folder")}</span>
+            <button class="btn btn-ghost btn-sm path" onclick={pickOutDir} title={outDir} aria-label={`${$t("global_dl.folder_change")}: ${outDir}`}>{shortPath(outDir)}</button>
+          </div>
+          <label class="field-inline">
+            <span class="note">{$t("global_dl.quality")}</span>
             <select bind:value={maxHeight}>
               <option value={null}>{$t("global_dl.best_quality")}</option>
               <option value={1080}>1080p</option>
               <option value={720}>720p</option>
               <option value={480}>480p</option>
             </select>
-            <button class="btn btn-primary" onclick={downloadTree} disabled={selected.size === 0 || busy === "download"}>
-              {$t("global_dl.download_selected", { count: selected.size })}
-            </button>
-          </footer>
+          </label>
+          <button class="btn btn-primary" onclick={downloadTree} disabled={selected.size === 0 || busy === "download"}>
+            {$t("global_dl.download_selected", { count: selected.size })}
+          </button>
+        </footer>
+      {/if}
+      {#if resolved.logs.length || resolved.ms}
+        <button class="btn btn-ghost btn-sm tech" onclick={() => (showLogs = !showLogs)} aria-expanded={showLogs}>{$t("global_dl.logs")}</button>
+        {#if showLogs}
+          <pre class="logs">{[`${resolved.ms} ms`, ...resolved.logs].join("\n")}</pre>
         {/if}
-      </section>
+      {/if}
+    </section>
+  {:else if !jobs.length}
+    <section class="card steps">
+      <h2>{$t("global_dl.steps_title")}</h2>
+      <ol>
+        <li><span class="step-n" aria-hidden="true">1</span><span>{$t("global_dl.step_paste")}</span></li>
+        <li><span class="step-n" aria-hidden="true">2</span><span>{$t("global_dl.step_login")}</span></li>
+        <li><span class="step-n" aria-hidden="true">3</span><span>{$t("global_dl.step_pick")}</span></li>
+      </ol>
+    </section>
+  {/if}
 
-      {#if jobs.length}
+  {#if jobs.length}
+    <section class="card">
+      <header class="card-head">
+        <h2>{$t("global_dl.jobs")}</h2>
+        <button class="btn btn-ghost btn-sm" onclick={async () => { await invoke("gd_jobs_clear"); await refresh(); }}>{$t("global_dl.clear_finished")}</button>
+      </header>
+      <ul class="jobs">
+        {#each [...jobs].reverse() as j (j.id)}
+          {@const finished = j.done + j.skipped + j.drm + j.failed + j.handed_off}
+          {@const failedItems = j.items.filter((i) => i.status === "failed")}
+          <li class="job">
+            <div class="job-row">
+              <span class="tab-title" title={j.title}>{j.title}</span>
+              <span class="note">{$t("global_dl.job_progress", { finished, total: j.total })}{j.bytes ? ` · ${bytes(j.bytes)}` : ""}</span>
+              <span class="pill" class:pill-on={j.status === "done"}>{statusLabel(j.status)}</span>
+              {#if j.status === "running"}
+                <button class="btn btn-ghost btn-sm" onclick={() => invoke("gd_job_cancel", { id: j.id })}>{$t("global_dl.cancel")}</button>
+              {/if}
+            </div>
+            <progress max={j.total} value={finished} aria-label={j.title}></progress>
+            <div class="note">
+              {$t("global_dl.job_summary", { done: j.done, skipped: j.skipped, handed: j.handed_off, drm: j.drm, failed: j.failed })}
+            </div>
+            {#each j.items.filter((i) => i.status === "active") as a (a.id)}
+              <div class="note">↓ {a.title} {bytes(a.bytes)}</div>
+            {/each}
+            {#each failedItems as f (f.id)}
+              <div class="fail">
+                <span><strong>{f.title}</strong>: {itemError(f.error)}</span>
+                {#if jobOrigins[j.id] && j.status !== "running"}
+                  <button class="btn btn-ghost btn-sm" onclick={() => retryItems(j, [f.id])}>{$t("global_dl.retry")}</button>
+                {/if}
+              </div>
+            {/each}
+            {#if j.status !== "running"}
+              <div class="row">
+                {#if j.done + j.skipped > 0}
+                  <button class="btn btn-secondary btn-sm" onclick={() => openFolder(j.out_dir)} title={j.out_dir}>{$t("global_dl.open_folder")}</button>
+                {/if}
+                {#if j.handed_off > 0}
+                  <a class="btn btn-secondary btn-sm" href="/downloads">{$t("global_dl.see_in_downloads")}</a>
+                {/if}
+                {#if failedItems.length > 1 && jobOrigins[j.id]}
+                  <button class="btn btn-ghost btn-sm" onclick={() => retryItems(j, failedItems.map((f) => f.id))}>{$t("global_dl.retry_failed")}</button>
+                {/if}
+              </div>
+              {#if j.handed_off > 0}
+                <p class="note">{$t("global_dl.handed_note", { count: j.handed_off })}</p>
+              {/if}
+            {/if}
+          </li>
+        {/each}
+      </ul>
+    </section>
+  {/if}
+
+  <details class="advanced card">
+    <summary>
+      <span class="adv-title">{$t("global_dl.advanced")}</span>
+      <span class="note">{$t("global_dl.advanced_hint")}</span>
+    </summary>
+
+    <div class="adv-body">
+      <div class="row">
+        <span class="pill" class:pill-on={browserOpen}>
+          {browserOpen ? $t("global_dl.browser_open") : $t("global_dl.browser_closed")}
+        </span>
+        {#if browserOpen}
+          <button class="btn btn-secondary btn-sm" onclick={stopBrowser} disabled={busy === "browser"}>{$t("global_dl.close_browser")}</button>
+        {:else}
+          <button class="btn btn-secondary btn-sm" onclick={startBrowser} disabled={busy === "browser"}>
+            {busy === "browser" ? $t("global_dl.starting") : $t("global_dl.open_browser")}
+          </button>
+        {/if}
+        {#if windowVisible}
+          <button class="btn btn-ghost btn-sm" onclick={hideWindow} disabled={busy === "window"}>{$t("global_dl.hide_window")}</button>
+        {:else}
+          <button class="btn btn-ghost btn-sm" onclick={() => showWindow(null)} disabled={busy === "window"}>{$t("global_dl.show_window")}</button>
+        {/if}
+      </div>
+      {#if !browserOpen && installed.length > 0}
+        <p class="hint">{$t("global_dl.browser_will_use", { name: installed[0]?.name ?? "" })}</p>
+      {/if}
+
+      <form class="urlbar" onsubmit={(e) => { e.preventDefault(); openAdvancedUrl(); }}>
+        <label class="sr-only" for="gd-adv-url">{$t("global_dl.open_tab")}</label>
+        <input id="gd-adv-url" type="text" bind:value={advancedUrl} placeholder={$t("global_dl.adv_url_placeholder")} spellcheck="false" autocomplete="off" />
+        <button class="btn btn-secondary" type="submit" disabled={!advancedUrl.trim()}>{$t("global_dl.open_tab")}</button>
+      </form>
+
+      <div class="gd-grid">
         <section class="card">
           <header class="card-head">
-            <h2>{$t("global_dl.jobs")}</h2>
-            <button class="btn btn-ghost btn-sm" onclick={async () => { await invoke("gd_jobs_clear"); await refresh(); }}>{$t("global_dl.clear_finished")}</button>
+            <h2>{$t("global_dl.tabs")}</h2>
+            <span class="count">{tabs.length}</span>
           </header>
-          <ul class="jobs">
-            {#each [...jobs].reverse() as j (j.id)}
-              {@const finished = j.done + j.skipped + j.drm + j.failed + j.handed_off}
-              <li class="job">
-                <div class="job-row">
-                  <span class="tab-title">{j.title}</span>
-                  <span class="note">{finished}/{j.total} · {bytes(j.bytes)}</span>
-                  {#if j.status === "running"}
-                    <button class="btn btn-ghost btn-sm" onclick={() => invoke("gd_job_cancel", { id: j.id })}>{$t("global_dl.cancel")}</button>
-                  {:else}
-                    <span class="pill">{j.status}</span>
-                  {/if}
-                </div>
-                <progress max={j.total} value={finished}></progress>
-                <div class="note">
-                  {$t("global_dl.job_summary", { done: j.done, skipped: j.skipped, drm: j.drm, failed: j.failed })}
-                </div>
-                {#each j.items.filter((i) => i.status === "failed") as f (f.id)}
-                  <div class="fail">{f.title}: {f.error}</div>
-                {/each}
-                {#each j.items.filter((i) => i.status === "active") as a (a.id)}
-                  <div class="note">↓ {a.title} {bytes(a.bytes)}</div>
-                {/each}
-              </li>
-            {/each}
-          </ul>
+          {#if tabs.length === 0}
+            <p class="empty">{$t("global_dl.no_tabs")}</p>
+          {:else}
+            <ul class="tabs">
+              {#each tabs as tab (tab.id)}
+                <li class="tab">
+                  <div class="tab-copy">
+                    <span class="tab-title">{tab.title || host(tab.url)}</span>
+                    <span class="tab-url" title={tab.url}>{tab.url}</span>
+                  </div>
+                  <div class="tab-actions">
+                    <button class="btn btn-secondary btn-sm" onclick={() => resolveTab(tab)} disabled={busy === "find" || tab.url.startsWith("about:") || tab.url.startsWith("chrome")}>
+                      {$t("global_dl.find")}
+                    </button>
+                    <button class="btn btn-ghost btn-sm" onclick={() => (sniffTab = sniffTab === tab.id ? null : tab.id)} aria-pressed={sniffTab === tab.id}>
+                      {$t("global_dl.media")} {sniffed.filter((s) => s.tab_id === tab.id).length}
+                    </button>
+                    <button class="btn btn-ghost btn-sm" onclick={() => tabAction("focus", tab)} aria-label={$t("global_dl.focus")} title={$t("global_dl.focus")}>↗</button>
+                    <button class="btn btn-ghost btn-sm" onclick={() => tabAction("close", tab)} aria-label={$t("global_dl.close_tab")} title={$t("global_dl.close_tab")}>✕</button>
+                  </div>
+                </li>
+              {/each}
+            </ul>
+          {/if}
         </section>
-      {/if}
+
+        <section class="card">
+          <header class="card-head">
+            <h2>{$t("global_dl.sniffed")}</h2>
+            {#if sniffTab}
+              <button class="btn btn-ghost btn-sm" onclick={() => (sniffTab = null)}>{$t("global_dl.all_tabs")}</button>
+            {/if}
+            <button class="btn btn-ghost btn-sm" onclick={async () => { await invoke("gd_sniffed_clear", { tabId: sniffTab }); sniffed = await invoke("gd_sniffed", { tabId: null }); }}>
+              {$t("global_dl.clear")}
+            </button>
+          </header>
+          {#if visibleSniffed.length === 0}
+            <p class="empty">{$t("global_dl.no_media")}</p>
+          {:else}
+            <ul class="sniffed">
+              {#each [...visibleSniffed].reverse() as s (s.id)}
+                <li>
+                  <span class="kind kind-{s.kind}">{kindLabel(s.kind)}</span>
+                  <span class="sniff-url" title={s.url}>{shortUrl(s.url)}</span>
+                  <span class="size">{bytes(s.size)}</span>
+                  <button class="btn btn-secondary btn-sm" onclick={() => downloadSniffed(s)}>{$t("global_dl.download")}</button>
+                </li>
+              {/each}
+            </ul>
+          {/if}
+        </section>
+
+        <section class="card">
+          <header class="card-head">
+            <h2>{$t("global_dl.connectors")}</h2>
+            <button class="btn btn-ghost btn-sm" onclick={addConnector}>{$t("global_dl.add_connector")}</button>
+          </header>
+          <p class="note">{$t("global_dl.connectors_hint")}</p>
+          {#if connectors.length === 0}
+            <p class="empty">{$t("global_dl.no_connectors")}</p>
+          {:else}
+            <ul class="connectors">
+              {#each connectors as c (c.manifest.id)}
+                <li>
+                  <div class="tab-copy">
+                    <span class="tab-title">{c.manifest.name} <span class="note">{c.manifest.version}{c.dev ? ` · ${$t("global_dl.dev")}` : ""}</span></span>
+                    <span class="tab-url">{c.manifest.domains.join(", ")}</span>
+                  </div>
+                  {#if (c.manifest as any).options?.length}
+                    <button class="btn btn-ghost btn-sm" onclick={() => toggleOptions(c)} aria-expanded={optionsFor === c.manifest.id}>{$t("global_dl.options")}</button>
+                  {/if}
+                  <button class="btn btn-ghost btn-sm" onclick={() => removeConnector(c)}>{$t("global_dl.remove")}</button>
+                </li>
+                {#if optionsFor === c.manifest.id}
+                  <li class="options">
+                    {#each optionDefs as o (o.id)}
+                      <label class="option">
+                        <span>{o.label ?? o.id}</span>
+                        {#if o.type === "boolean"}
+                          <input type="checkbox" bind:checked={optionValues[o.id]} />
+                        {:else if o.type === "select"}
+                          <select bind:value={optionValues[o.id]}>
+                            {#each o.choices ?? [] as ch (ch)}
+                              <option value={ch}>{ch}</option>
+                            {/each}
+                          </select>
+                        {:else}
+                          <input type="text" bind:value={optionValues[o.id]} placeholder={o.help ?? ""} />
+                        {/if}
+                      </label>
+                    {/each}
+                    <button class="btn btn-primary btn-sm" onclick={saveOptions}>{$t("global_dl.save")}</button>
+                  </li>
+                {/if}
+              {/each}
+            </ul>
+          {/if}
+        </section>
+      </div>
     </div>
-  </div>
+  </details>
 </section>
 
 <style>
@@ -541,7 +894,7 @@
     flex-direction: column;
     gap: var(--space-4);
     padding: var(--space-5);
-    max-width: 1400px;
+    max-width: 1100px;
   }
   .gd-head {
     display: flex;
@@ -574,23 +927,177 @@
     border-radius: var(--radius-full);
     background: var(--fill-2);
     color: var(--text-dim);
+    white-space: nowrap;
   }
   .pill-on {
     background: color-mix(in srgb, #34c759 22%, transparent);
     color: var(--text);
   }
-  .error {
-    margin: 0;
-    padding: var(--space-3);
-    border-radius: 10px;
-    background: color-mix(in srgb, #ff3b30 14%, transparent);
+  .hero {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    padding: var(--space-4) var(--space-5);
+  }
+  .hero-label {
+    font-size: var(--text-md);
+    font-weight: 600;
+  }
+  .hero-row {
+    display: flex;
+    gap: var(--space-2);
+  }
+  .hero-row input {
+    flex: 1;
+    min-width: 0;
+    height: var(--control-h-lg);
+    padding: 0 14px;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--hairline);
+    background: var(--surface);
+    color: var(--text);
+    font-size: var(--text-md);
+  }
+  .hero-row input:focus-visible,
+  .urlbar input:focus-visible {
+    outline: var(--focus-ring);
+    outline-offset: var(--focus-ring-offset);
+  }
+  .hero-secondary {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+  }
+  .callout h2,
+  .error h2,
+  .steps h2 {
+    font-size: var(--text-base);
+    margin: 0 0 var(--space-1);
+  }
+  .callout p,
+  .error p {
+    margin: 0 0 var(--space-3);
     font-size: var(--text-sm);
+    color: var(--text-dim);
+  }
+  .row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2);
+  }
+  .field {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: var(--text-xs);
+    color: var(--text-dim);
+  }
+  .field-inline {
+    display: flex;
+    align-items: center;
+    gap: var(--space-1);
+    min-width: 0;
+  }
+  select {
+    background: var(--surface);
+    color: var(--text);
+    border: 1px solid var(--hairline);
+    border-radius: 8px;
+    padding: 4px 8px;
+    font-size: var(--text-sm);
+  }
+  .ok {
+    margin: var(--space-3) 0 var(--space-2);
+    font-size: var(--text-sm);
+    color: var(--text);
+  }
+  .error {
+    background: color-mix(in srgb, #ff3b30 10%, var(--surface));
+  }
+  .error p {
+    color: var(--text);
+  }
+  .details {
+    margin-top: var(--space-2);
+    font-size: var(--text-xs);
+    color: var(--text-dim);
+  }
+  .details code {
+    display: block;
+    margin-top: var(--space-1);
     white-space: pre-wrap;
+    word-break: break-word;
+  }
+  .loading {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    font-size: var(--text-sm);
+    padding: var(--space-4);
+  }
+  .steps ol {
+    list-style: none;
+    margin: var(--space-2) 0 0;
+    padding: 0;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--space-3);
+  }
+  @media (max-width: 760px) {
+    .steps ol {
+      grid-template-columns: 1fr;
+    }
+  }
+  .steps li {
+    display: flex;
+    gap: var(--space-2);
+    align-items: flex-start;
+    font-size: var(--text-sm);
+  }
+  .step-n {
+    flex-shrink: 0;
+    width: 24px;
+    height: 24px;
+    border-radius: var(--radius-full);
+    background: var(--accent-soft);
+    color: var(--accent-hi);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 600;
+    font-size: var(--text-xs);
   }
   .hint {
     margin: 0;
     color: var(--text-dim);
     font-size: var(--text-sm);
+  }
+  .sub {
+    font-size: var(--text-sm);
+    margin: var(--space-2) 0 var(--space-1);
+  }
+  .tips {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    margin: var(--space-2) 0;
+  }
+  .tips li {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    font-size: var(--text-sm);
+  }
+  .soft {
+    font-size: var(--text-sm);
+    color: var(--text-dim);
+    margin-bottom: var(--space-2);
+  }
+  .soft summary,
+  .advanced summary {
+    cursor: pointer;
   }
   .urlbar {
     display: flex;
@@ -606,22 +1113,46 @@
     color: var(--text);
     font-size: var(--text-sm);
   }
-  .gd-grid {
-    display: grid;
-    grid-template-columns: minmax(300px, 5fr) minmax(360px, 7fr);
-    gap: var(--space-4);
-    align-items: start;
+  .advanced summary {
+    display: flex;
+    align-items: baseline;
+    gap: var(--space-2);
+    list-style: none;
   }
-  @media (max-width: 900px) {
-    .gd-grid {
-      grid-template-columns: 1fr;
-    }
+  .advanced summary::before {
+    content: "▸";
+    color: var(--text-dim);
   }
-  .col {
+  .advanced[open] summary::before {
+    content: "▾";
+  }
+  .advanced summary:focus-visible {
+    outline: var(--focus-ring);
+    outline-offset: var(--focus-ring-offset);
+  }
+  .adv-title {
+    font-weight: 600;
+    font-size: var(--text-base);
+  }
+  .adv-body {
     display: flex;
     flex-direction: column;
-    gap: var(--space-4);
-    min-width: 0;
+    gap: var(--space-3);
+    margin-top: var(--space-3);
+  }
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+  .gd-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: var(--space-3);
+    align-items: start;
   }
   .card {
     background: var(--surface);
@@ -727,6 +1258,7 @@
     flex-shrink: 0;
   }
   .kind-hls,
+  .kind-dash,
   .kind-video {
     background: color-mix(in srgb, #0a84ff 18%, transparent);
   }
@@ -760,6 +1292,14 @@
     padding: 3px 0;
     font-size: var(--text-sm);
   }
+  .node-label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex: 1;
+    min-width: 0;
+    cursor: pointer;
+  }
   .node.drm > .node-row {
     opacity: 0.55;
   }
@@ -784,11 +1324,13 @@
     padding: 1px 6px;
     border-radius: 6px;
     background: color-mix(in srgb, #ff453a 22%, transparent);
+    cursor: help;
   }
   .tree-foot {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
-    gap: var(--space-2);
+    gap: var(--space-3);
     padding-top: var(--space-3);
     border-top: 1px solid var(--hairline);
     margin-top: var(--space-2);
@@ -796,13 +1338,14 @@
   .tree-foot .btn-primary {
     margin-left: auto;
   }
-  .tree-foot select {
-    background: var(--surface);
-    color: var(--text);
-    border: 1px solid var(--hairline);
-    border-radius: 8px;
-    padding: 4px 8px;
-    font-size: var(--text-xs);
+  .path {
+    max-width: 260px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .tech {
+    align-self: flex-start;
+    margin-top: var(--space-2);
   }
   .logs {
     max-height: 160px;
@@ -864,6 +1407,10 @@
     align-self: flex-end;
   }
   .fail {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2);
     font-size: var(--text-xs);
     color: #ff453a;
   }

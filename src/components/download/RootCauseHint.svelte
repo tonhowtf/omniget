@@ -17,7 +17,7 @@
 
   type Diagnosis = { cause_key: string; remedy: Remedy; detail: string | null };
 
-  let { error, onRetry }: { error: string; onRetry?: () => void } = $props();
+  let { error, onRetry, url }: { error: string; onRetry?: () => void; url?: string } = $props();
 
   let diagnosis = $state<Diagnosis | null>(null);
   let updating = $state(false);
@@ -38,6 +38,8 @@
   });
 
   let translated = $derived(translateBackendError(error, $t));
+  const BROWSER_HELPS = /unsupported url|login|log in|sign in|cookies|members|private|403|401|forbidden|unable to extract|no video formats/i;
+  let browserUrl = $derived(url && /^https?:\/\//i.test(url) && (BROWSER_HELPS.test(error) || diagnosis?.remedy === "import_cookies") ? url : null);
   let showRaw = $derived(translated !== error);
 
   async function updateYtdlp() {
@@ -90,6 +92,14 @@
         <code>{error}</code>
       </details>
     {/if}
+  {/if}
+{#if browserUrl}
+    <div class="root-cause-row">
+      <span class="root-cause-text">{$t("downloads.try_builtin_browser_hint")}</span>
+      <button class="btn btn-secondary btn-sm" onclick={() => goto(`/global?url=${encodeURIComponent(browserUrl ?? "")}`)}>
+        {$t("omnibox.try_builtin_browser")}
+      </button>
+    </div>
   {/if}
 </div>
 

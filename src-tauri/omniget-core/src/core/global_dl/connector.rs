@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
@@ -395,8 +396,12 @@ pub async fn resolve(
                 wake_media(t).await;
             }
             let title = page_title(url, tab_id.as_deref()).await;
+            let links = match tab_id.as_deref() {
+                Some(t) => page_files(t).await,
+                None => Vec::new(),
+            };
             (
-                generic_tree(url, tab_id.as_deref(), &title),
+                generic_tree(url, tab_id.as_deref(), &title, links),
                 Vec::new(),
                 None,
             )
@@ -602,7 +607,112 @@ async fn wake_media(tab: &str) {
     }
 }
 
-fn generic_tree(url: &str, tab_id: Option<&str>, page_title: &str) -> Node {
+const PAGE_FILES_JS: &str = r#"(() => {
+  const exts = /\.(jpe?g|png|gif|webp|avif|heic|bmp|tiff?|mp4|m4v|webm|mov|mkv|avi|mp3|m4a|aac|wav|flac|ogg|opus|pdf|epub|mobi|cbz|cbr|zip|rar|7z|docx?|xlsx?|pptx?|csv|txt|srt|vtt)$/i;
+  const seen = new Set();
+  const out = [];
+  const add = (raw, title) => {
+    if (!raw || out.length >= 300) return;
+    let u;
+    try { u = new URL(raw, location.href); } catch { return; }
+    if (u.protocol !== 'http:' && u.protocol !== 'https:') return;
+    u.hash = '';
+    const key = u.href;
+    if (seen.has(key)) return;
+    seen.add(key);
+    out.push({ url: key, title: (title || '').trim().slice(0, 140) });
+  };
+  for (const img of document.images) {
+    if ((img.naturalWidth || img.width) >= 200 && (img.naturalHeight || img.height) >= 200) add(img.currentSrc || img.src, img.alt);
+  }
+  for (const a of document.querySelectorAll('a[href]')) {
+    let path = '';
+    try { path = new URL(a.href, location.href).pathname; } catch { continue; }
+    if (exts.test(path) || a.hasAttribute('download')) add(a.href, a.getAttribute('download') || a.textContent);
+  }
+  for (const m of document.querySelectorAll('video[src],audio[src],video source[src],audio source[src]')) add(m.getAttribute('src'), '');
+  return out;
+})()"#;
+
+#[derive(Debug, Clone, PartialEq)]
+struct PageFile {
+    url: String,
+    title: String,
+}
+
+async fn page_files(tab: &str) -> Vec<PageFile> {
+    let Some(b) = browser::current() else {
+        return Vec::new();
+    };
+    match b.eval(tab, PAGE_FILES_JS, Duration::from_secs(4)).await {
+        Ok(Value::Array(items)) => items
+            .into_iter()
+            .filter_map(|v| {
+                Some(PageFile {
+                    url: v.get("url")?.as_str()?.to_string(),
+                    title: v
+                        .get("title")
+                        .and_then(Value::as_str)
+                        .unwrap_or("")
+                        .to_string(),
+                })
+            })
+            .collect(),
+        Ok(_) => Vec::new(),
+        Err(e) => {
+            tracing::info!("[global-dl] could not list the files of {tab}: {e}");
+            Vec::new()
+        }
+    }
+}
+
+fn kind_for_ext(ext: &str) -> &'static str {
+    match ext {
+        "jpg" | "jpeg" | "png" | "gif" | "webp" | "avif" | "heic" | "bmp" | "tif" | "tiff" => {
+            "image"
+        }
+        "mp4" | "m4v" | "webm" | "mov" | "mkv" | "avi" => "video",
+        "mp3" | "m4a" | "aac" | "wav" | "flac" | "ogg" | "opus" => "audio",
+        "srt" | "vtt" => "subtitle",
+        "pdf" | "epub" | "mobi" | "doc" | "docx" | "xls" | "xlsx" | "ppt" | "pptx" | "csv"
+        | "txt" => "document",
+        _ => "file",
+    }
+}
+
+fn page_file_nodes(files: Vec<PageFile>, known: &[String], page_url: &str) -> Vec<Node> {
+    files
+        .into_iter()
+        .filter(|f| !known.iter().any(|k| k == &f.url) && f.url != page_url)
+        .map(|f| {
+            let (stem, ext) = url_file(&f.url);
+            let ext = ext.to_ascii_lowercase();
+            let title = if !f.title.trim().is_empty() && !looks_like_address(&f.title) {
+                f.title.trim().to_string()
+            } else if !stem.is_empty() {
+                stem
+            } else {
+                f.url.clone()
+            };
+            let mut headers = BTreeMap::new();
+            headers.insert("Referer".to_string(), page_url.to_string());
+            Node {
+                title,
+                kind: kind_for_ext(&ext).into(),
+                source: Some(Source {
+                    format: "direct".into(),
+                    url: Some(f.url),
+                    headers,
+                    ext: (!ext.is_empty()).then_some(ext),
+                    ..Default::default()
+                }),
+                ..Default::default()
+            }
+        })
+        .collect()
+}
+
+fn generic_tree(url: &str, tab_id: Option<&str>, page_title: &str, links: Vec<PageFile>) -> Node {
     let page_title = if looks_like_address(page_title) {
         let (stem, _) = url_file(url);
         if stem.is_empty() {
@@ -682,6 +792,11 @@ fn generic_tree(url: &str, tab_id: Option<&str>, page_title: &str) -> Node {
             });
         }
     }
+    let known: Vec<String> = media
+        .iter()
+        .filter_map(|n| n.source.as_ref().and_then(|s| s.url.clone()))
+        .collect();
+    media.extend(page_file_nodes(links, &known, url));
     let mut media = merge_renditions(media);
     media.sort_by_key(|n| kind_rank(&n.kind));
     disambiguate(&mut media);
@@ -1128,4 +1243,53 @@ fn run_blocking(
     let text = result?;
     let logs = logs.lock().map(|l| l.clone()).unwrap_or_default();
     Ok((text, logs))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn file(url: &str, title: &str) -> PageFile {
+        PageFile {
+            url: url.into(),
+            title: title.into(),
+        }
+    }
+
+    #[test]
+    fn page_files_become_direct_nodes_with_kind_and_referer() {
+        let page = "https://site.test/gallery";
+        let nodes = page_file_nodes(
+            vec![
+                file("https://site.test/media/photo.JPG", "A sunset"),
+                file(
+                    "https://site.test/docs/manual.pdf",
+                    "https://site.test/docs/manual.pdf",
+                ),
+                file("https://cdn.test/v.mp4", ""),
+                file("https://cdn.test/sniffed.mp4", ""),
+                file(page, "self"),
+            ],
+            &["https://cdn.test/sniffed.mp4".to_string()],
+            page,
+        );
+        let got: Vec<(&str, &str, Option<&str>)> = nodes
+            .iter()
+            .map(|n| {
+                let s = n.source.as_ref().unwrap();
+                (n.title.as_str(), n.kind.as_str(), s.ext.as_deref())
+            })
+            .collect();
+        assert_eq!(
+            got,
+            vec![
+                ("A sunset", "image", Some("jpg")),
+                ("manual", "document", Some("pdf")),
+                ("v", "video", Some("mp4")),
+            ]
+        );
+        let s = nodes[0].source.as_ref().unwrap();
+        assert_eq!(s.format, "direct");
+        assert_eq!(s.headers.get("Referer").map(String::as_str), Some(page));
+    }
 }

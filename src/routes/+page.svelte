@@ -1094,6 +1094,11 @@
     else if (kind === "removed") { handleDismiss(); urlInput?.focus(); }
   }
 
+  function openInGlobalDownloader() {
+    const value = url.trim();
+    goto(value ? `/global?url=${encodeURIComponent(value)}` : "/global");
+  }
+
   async function copyErrorDetails(message: string) {
     try {
       await navigator.clipboard.writeText(message);
@@ -1210,7 +1215,10 @@
       {:else if omniState.kind === "unsupported"}
         <div class="state-block" role="status">
           <p class="state-title">{$t("omnibox.unsupported")}</p>
-          <button type="button" class="secondary-btn" onclick={openSupportedSites}>{$t("omnibox.see_all")}</button>
+          <div class="error-actions">
+            <button type="button" class="download-primary-btn download-primary-btn--auto" onclick={openInGlobalDownloader}>{$t("omnibox.try_builtin_browser")}</button>
+            <button type="button" class="secondary-btn" onclick={openSupportedSites}>{$t("omnibox.see_all")}</button>
+          </div>
         </div>
       {:else if omniState.kind === "error"}
         {@const kind = errorKind}
@@ -1222,6 +1230,9 @@
             {#if action}
               <button type="button" class="download-primary-btn download-primary-btn--auto" onclick={() => errorAction(kind)}>{action}</button>
               <button type="button" class="secondary-btn" onclick={handleRetry}>{$t("omnibox.retry")}</button>
+              {#if kind === "unsupported" || kind === "login"}
+                <button type="button" class="secondary-btn" onclick={openInGlobalDownloader}>{$t("omnibox.try_builtin_browser")}</button>
+              {/if}
             {:else}
               <button type="button" class="download-primary-btn download-primary-btn--auto" onclick={handleRetry}>{$t("omnibox.retry")}</button>
             {/if}

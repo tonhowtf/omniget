@@ -46,6 +46,7 @@ export type CommandRecord = {
 export type GenericDownloadItem = BaseItem & {
   kind: "generic";
   platform: string;
+  url?: string;
   speed: number;
   downloadedBytes: number;
   totalBytes: number | null;
@@ -420,6 +421,7 @@ export function syncQueueState(items: QueueItemInfo[]) {
       id: qi.id,
       name: qi.title,
       platform: qi.platform,
+      url: qi.url,
       percent: knownPercent(qi.percent),
       speed: effectiveSpeed,
       downloadedBytes: qi.downloaded_bytes,

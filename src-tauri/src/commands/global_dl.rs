@@ -1,6 +1,9 @@
 use std::path::PathBuf;
+use std::time::Duration;
 
-use omniget_core::core::global_dl::{browser, connector, jobs, sniffer, tools, Node};
+use omniget_core::core::global_dl::{
+    browser, connector, jobs, page, profiles, sniffer, tools, Node,
+};
 use serde_json::{json, Value};
 use tauri::{AppHandle, Emitter};
 
@@ -88,7 +91,67 @@ pub async fn gd_resolve(url: String, tab_id: Option<String>) -> Result<Value, St
 }
 
 #[tauri::command]
-pub fn gd_download(
+pub async fn gd_find(url: String, reload: Option<bool>) -> Result<Value, String> {
+    let b = browser::start(None, true).await?;
+    let tab = match b.tabs().into_iter().rev().find(|t| t.url == url) {
+        Some(t) => {
+            if reload == Some(true) {
+                b.history(&t.id, "reload").await?;
+                page::wait_loaded(&b, &t.id, Duration::from_secs(20)).await;
+            }
+            t.id
+        }
+        None => {
+            let id = b.open_tab(&url).await?;
+            page::wait_loaded(&b, &id, Duration::from_secs(20)).await;
+            id
+        }
+    };
+    let r = connector::resolve(&url, None, Some(tab), None).await?;
+    serde_json::to_value(r).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn gd_browser_show(url: Option<String>) -> Result<Value, String> {
+    if browser::mode() != "window" || browser::current().is_some_and(|b| b.headless) {
+        browser::switch_mode("window").await?;
+    }
+    let b = browser::start(None, true).await?;
+    let url = url.filter(|u| !u.trim().is_empty());
+    let existing = b
+        .tabs()
+        .into_iter()
+        .rev()
+        .find(|t| url.as_deref().is_none_or(|u| t.url == u));
+    let tab = match (existing, url) {
+        (Some(t), _) => t.id,
+        (None, Some(u)) => b.open_tab(&u).await?,
+        (None, None) => b.open_tab("about:blank").await?,
+    };
+    b.show_window(&tab).await?;
+    Ok(json!({ "tabs": b.tabs(), "mode": "window" }))
+}
+
+#[tauri::command]
+pub async fn gd_browser_hide() -> Result<(), String> {
+    if browser::mode() == "window" {
+        browser::switch_mode("embedded").await?;
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub fn gd_browser_sources() -> Value {
+    json!({ "sources": profiles::sources(), "imported": profiles::imported() })
+}
+
+#[tauri::command]
+pub async fn gd_browser_import(source: String, profile: Option<String>) -> Result<Value, String> {
+    profiles::import(&source, profile.as_deref().unwrap_or_default()).await
+}
+
+#[tauri::command]
+pub async fn gd_download(
     tree: Node,
     selected: Option<Vec<String>>,
     out_dir: Option<String>,
@@ -103,9 +166,9 @@ pub fn gd_download(
 }
 
 #[tauri::command]
-pub fn gd_download_sniffed(id: u64, out_dir: Option<String>) -> Result<Value, String> {
+pub async fn gd_download_sniffed(id: u64, out_dir: Option<String>) -> Result<Value, String> {
     let tree = tools::tree_for_sniffed(id)?;
-    gd_download(tree, None, out_dir, None)
+    gd_download(tree, None, out_dir, None).await
 }
 
 #[tauri::command]
