@@ -411,6 +411,44 @@ pub async fn canvas_file_node_preview(
     .await
 }
 
+/// Atomically replaces `abs` (tmp file + rename). Keeps the permissions of an
+/// existing file and, when `abs` is a symlink, writes through to its target
+/// (which must stay inside `root`) instead of replacing the link.
+fn write_replace(root: &Path, abs: &Path, bytes: &[u8]) -> Result<(), String> {
+    let target = match std::fs::symlink_metadata(abs) {
+        Ok(m) if m.file_type().is_symlink() => {
+            let canon = std::fs::canonicalize(abs).map_err(io)?;
+            if !canon.starts_with(root) {
+                return Err("CANVAS_FILES_DENIED: path escapes the root".into());
+            }
+            if canon.is_dir() {
+                return Err("CANVAS_FILES_INVALID: path is a folder".into());
+            }
+            canon
+        }
+        _ => abs.to_path_buf(),
+    };
+    let perms = std::fs::metadata(&target).ok().map(|m| m.permissions());
+    let tmp = target.with_file_name(format!(
+        ".{}.omniget-tmp",
+        target
+            .file_name()
+            .map(|n| n.to_string_lossy().into_owned())
+            .unwrap_or_default()
+    ));
+    std::fs::write(&tmp, bytes).map_err(io)?;
+    let done = match perms {
+        Some(p) => std::fs::set_permissions(&tmp, p),
+        None => Ok(()),
+    }
+    .and_then(|()| std::fs::rename(&tmp, &target));
+    if let Err(e) = done {
+        let _ = std::fs::remove_file(&tmp);
+        return Err(io(e));
+    }
+    Ok(())
+}
+
 #[tauri::command]
 pub async fn canvas_files_write(
     app: AppHandle,
@@ -440,17 +478,7 @@ pub async fn canvas_files_write(
                 return Err(format!("CANVAS_FILE_CONFLICT: {current}"));
             }
         }
-        let tmp = abs.with_file_name(format!(
-            ".{}.omniget-tmp",
-            abs.file_name()
-                .map(|n| n.to_string_lossy().into_owned())
-                .unwrap_or_default()
-        ));
-        std::fs::write(&tmp, text.as_bytes()).map_err(io)?;
-        if let Err(e) = std::fs::rename(&tmp, &abs) {
-            let _ = std::fs::remove_file(&tmp);
-            return Err(io(e));
-        }
+        write_replace(&root, &abs, text.as_bytes())?;
         read_file(&root, &abs)
     })
     .await
@@ -1984,5 +2012,68 @@ pub async fn remote_op(
         other => Err(format!(
             "CANVAS_FILES_INVALID: unknown remote action '{other}'"
         )),
+    }
+}
+
+#[cfg(test)]
+mod write_tests {
+    use super::*;
+
+    fn temp_root() -> (tempfile::TempDir, PathBuf) {
+        let dir = tempfile::tempdir().unwrap();
+        let canon = std::fs::canonicalize(dir.path()).unwrap();
+        (dir, canon)
+    }
+
+    #[test]
+    fn write_creates_a_new_file() {
+        let (_d, root) = temp_root();
+        let abs = root.join("new.txt");
+        write_replace(&root, &abs, b"hi").unwrap();
+        assert_eq!(std::fs::read(&abs).unwrap(), b"hi");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn write_keeps_permissions() {
+        use std::os::unix::fs::PermissionsExt;
+        let (_d, root) = temp_root();
+        let abs = root.join("run.sh");
+        std::fs::write(&abs, b"old").unwrap();
+        std::fs::set_permissions(&abs, std::fs::Permissions::from_mode(0o755)).unwrap();
+        write_replace(&root, &abs, b"new").unwrap();
+        assert_eq!(std::fs::read(&abs).unwrap(), b"new");
+        let mode = std::fs::metadata(&abs).unwrap().permissions().mode() & 0o777;
+        assert_eq!(mode, 0o755);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn write_through_symlink_keeps_the_link() {
+        let (_d, root) = temp_root();
+        let target = root.join("real.txt");
+        std::fs::write(&target, b"old").unwrap();
+        let link = root.join("link.txt");
+        std::os::unix::fs::symlink(&target, &link).unwrap();
+        write_replace(&root, &link, b"new").unwrap();
+        assert!(std::fs::symlink_metadata(&link)
+            .unwrap()
+            .file_type()
+            .is_symlink());
+        assert_eq!(std::fs::read(&target).unwrap(), b"new");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn write_refuses_symlink_escaping_the_root() {
+        let (_d, root) = temp_root();
+        let (_o, outside) = temp_root();
+        let target = outside.join("secret.txt");
+        std::fs::write(&target, b"keep").unwrap();
+        let link = root.join("link.txt");
+        std::os::unix::fs::symlink(&target, &link).unwrap();
+        let err = write_replace(&root, &link, b"new").unwrap_err();
+        assert!(err.starts_with("CANVAS_FILES_DENIED"), "{err}");
+        assert_eq!(std::fs::read(&target).unwrap(), b"keep");
     }
 }

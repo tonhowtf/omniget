@@ -1,5 +1,5 @@
 use std::collections::{HashSet, VecDeque};
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
@@ -32,6 +32,7 @@ const SHARED_SCREEN_LINES: usize = 40;
 const REACTION_TTL_MS: i64 = 6_000;
 
 struct Session {
+    id: u64,
     role: &'static str,
     code: String,
     server: String,
@@ -48,6 +49,29 @@ struct Session {
 }
 
 static SESSION: Mutex<Option<Session>> = Mutex::new(None);
+/// Set while an open()/join() handshake is in flight, so a second call
+/// cannot pass the busy check and overwrite the first session.
+static CONNECTING: AtomicBool = AtomicBool::new(false);
+static NEXT_ID: AtomicU64 = AtomicU64::new(1);
+
+/// Reservation of the session slot for the duration of a handshake;
+/// released on drop (error paths included).
+struct Connecting;
+
+impl Drop for Connecting {
+    fn drop(&mut self) {
+        CONNECTING.store(false, Ordering::SeqCst);
+    }
+}
+
+fn reserve() -> Result<Connecting, String> {
+    let g = session();
+    if g.is_some() || CONNECTING.swap(true, Ordering::SeqCst) {
+        return Err(format!("{ERR}_BUSY: close the current visit first"));
+    }
+    drop(g);
+    Ok(Connecting)
+}
 
 fn session() -> std::sync::MutexGuard<'static, Option<Session>> {
     SESSION.lock().unwrap_or_else(|e| e.into_inner())
@@ -315,15 +339,31 @@ fn spawn_pump(app: AppHandle, cancel: CancellationToken, force: Arc<AtomicBool>)
     });
 }
 
-fn end(app: &AppHandle, reason: &str) {
-    if let Some(s) = session().take() {
+/// Ends the current session. With `only`, ends it only if it is still the
+/// session with that id (a stale socket must not end a newer session).
+fn end(app: &AppHandle, reason: &str, only: Option<u64>) {
+    let taken = {
+        let mut g = session();
+        if only.is_none() || g.as_ref().map(|s| s.id) == only {
+            g.take()
+        } else {
+            None
+        }
+    };
+    if let Some(s) = taken {
         s.cancel.cancel();
         let _ = app.emit(EVENT_CLOSED, json!({ "reason": reason, "role": s.role }));
     }
     emit_state(app);
 }
 
-fn run(app: AppHandle, mut ws: Ws, mut out_rx: mpsc::Receiver<Message>, cancel: CancellationToken) {
+fn run(
+    app: AppHandle,
+    id: u64,
+    mut ws: Ws,
+    mut out_rx: mpsc::Receiver<Message>,
+    cancel: CancellationToken,
+) {
     tauri::async_runtime::spawn(async move {
         let reason = loop {
             tokio::select! {
@@ -354,7 +394,7 @@ fn run(app: AppHandle, mut ws: Ws, mut out_rx: mpsc::Receiver<Message>, cancel: 
                 },
             }
         };
-        end(&app, reason);
+        end(&app, reason, Some(id));
     });
 }
 
@@ -462,9 +502,7 @@ pub async fn open(
     floor_id: String,
     server: Option<String>,
 ) -> Result<Value, String> {
-    if session().is_some() {
-        return Err(format!("{ERR}_BUSY: close the current visit first"));
-    }
+    let slot = reserve()?;
     super::doc::host()
         .store()
         .read(&workspace_id, &floor_id, |_| ())?;
@@ -478,7 +516,9 @@ pub async fn open(
     let (out, out_rx) = mpsc::channel::<Message>(64);
     let cancel = CancellationToken::new();
     let force = Arc::new(AtomicBool::new(true));
+    let id = NEXT_ID.fetch_add(1, Ordering::SeqCst);
     *session() = Some(Session {
+        id,
         role: "host",
         code,
         server,
@@ -493,14 +533,15 @@ pub async fn open(
         force: force.clone(),
         last_scene: None,
     });
-    run(app.clone(), ws, out_rx, cancel.clone());
+    drop(slot);
+    run(app.clone(), id, ws, out_rx, cancel.clone());
     spawn_pump(app.clone(), cancel, force);
     emit_state(app);
     Ok(state_json())
 }
 
 pub fn close(app: &AppHandle) -> Value {
-    end(app, "left");
+    end(app, "left", None);
     state_json()
 }
 
@@ -536,9 +577,7 @@ pub fn share(app: &AppHandle, node_id: &str, shared: bool) -> Result<Value, Stri
 }
 
 pub async fn join(app: &AppHandle, code: String, server: Option<String>) -> Result<Value, String> {
-    if session().is_some() {
-        return Err(format!("{ERR}_BUSY: close the current visit first"));
-    }
+    let slot = reserve()?;
     let code = code.trim().to_uppercase();
     let server = normalize_server(server);
     let hello = signed_hello(
@@ -577,7 +616,9 @@ pub async fn join(app: &AppHandle, code: String, server: Option<String>) -> Resu
     .ok_or_else(|| format!("{ERR}_NO_SCENE: the host sent no canvas"))?;
     let (out, out_rx) = mpsc::channel::<Message>(32);
     let cancel = CancellationToken::new();
+    let id = NEXT_ID.fetch_add(1, Ordering::SeqCst);
     *session() = Some(Session {
+        id,
         role: "visitor",
         code,
         server,
@@ -602,13 +643,14 @@ pub async fn join(app: &AppHandle, code: String, server: Option<String>) -> Resu
         force: Arc::new(AtomicBool::new(false)),
         last_scene: Some(first.clone()),
     });
-    run(app.clone(), ws, out_rx, cancel);
+    drop(slot);
+    run(app.clone(), id, ws, out_rx, cancel);
     emit_state(app);
     Ok(json!({ "state": state_json(), "scene": first }))
 }
 
 pub fn leave(app: &AppHandle) -> Value {
-    end(app, "left");
+    end(app, "left", None);
     state_json()
 }
 
@@ -641,4 +683,23 @@ pub fn react(
 
 pub fn interest() -> Result<(), String> {
     send(frame(OP_INTEREST, b"{\"type\":\"interest\"}"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn reserve_blocks_a_second_connect_until_released() {
+        let first = reserve().expect("free slot");
+        let second = reserve();
+        assert!(
+            second.is_err(),
+            "second connect must be refused while the first is in flight"
+        );
+        drop(first);
+        let third = reserve().expect("slot released on drop");
+        drop(third);
+        assert!(!CONNECTING.load(Ordering::SeqCst));
+    }
 }
