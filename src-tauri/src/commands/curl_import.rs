@@ -391,8 +391,13 @@ pub async fn curl_command_download(
         manifest_text: None,
     };
     crate::extension_storage::write_extension_metadata(&payload).map_err(|e| e.to_string())?;
-    let outcome =
-        crate::external_url::queue_url_with_defaults(&app, req.url.clone(), false, None).await?;
+    let result =
+        crate::external_url::queue_url_with_defaults(&app, req.url.clone(), false, None).await;
+    // The staged entry carries Cookie/Authorization; only a fresh queue consumes it.
+    if !matches!(result, Ok(crate::external_url::QueueUrlOutcome::Queued)) {
+        crate::extension_storage::remove_extension_metadata(&req.url);
+    }
+    let outcome = result?;
     Ok(CurlQueued {
         url: crate::core::flight_recorder::redact_url(&req.url),
         already_queued: outcome == crate::external_url::QueueUrlOutcome::AlreadyQueued,

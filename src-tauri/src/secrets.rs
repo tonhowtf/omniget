@@ -581,6 +581,12 @@ pub mod test_keyring {
     }
 }
 
+/// Serializes the load -> modify -> save cycle of every FileStore.
+fn file_store_lock() -> std::sync::MutexGuard<'static, ()> {
+    static LOCK: Mutex<()> = Mutex::new(());
+    LOCK.lock().unwrap_or_else(|e| e.into_inner())
+}
+
 pub struct FileStore {
     dir: PathBuf,
 }
@@ -599,12 +605,14 @@ impl FileStore {
     }
 
     pub fn set(&self, account: &str, value: &str) -> Result<(), String> {
+        let _guard = file_store_lock();
         let mut map = self.load()?;
         map.insert(account.to_string(), value.to_string());
         self.save(&map)
     }
 
     pub fn remove(&self, account: &str) -> Result<(), String> {
+        let _guard = file_store_lock();
         let mut map = self.load()?;
         if map.remove(account).is_some() {
             self.save(&map)?;
@@ -637,7 +645,7 @@ impl FileStore {
         let plain = serde_json::to_vec(map)
             .map_err(|e| format!("secrets: could not encode the secret store: {}", e))?;
         let blob = encrypt(&key, &plain);
-        write_private(&self.dir.join(SESSIONS_FILE), &blob)
+        write_private_atomic(&self.dir.join(SESSIONS_FILE), &blob)
     }
 
     fn key(&self, create: bool) -> Result<Option<[u8; 32]>, String> {
@@ -690,6 +698,37 @@ pub fn write_private(path: &Path, bytes: &[u8]) -> Result<(), String> {
     {
         std::fs::write(path, bytes).map_err(io)
     }
+}
+
+/// Writes to a unique 0600 temp file in the same dir, fsyncs it and renames it
+/// over `path`, so an interrupted write never leaves a truncated file behind.
+fn write_private_atomic(path: &Path, bytes: &[u8]) -> Result<(), String> {
+    use std::sync::atomic::{AtomicU64, Ordering};
+    static COUNTER: AtomicU64 = AtomicU64::new(0);
+    let io = |e: std::io::Error| format!("secrets: could not write {}: {}", path.display(), e);
+    let name = path
+        .file_name()
+        .map(|n| n.to_string_lossy().into_owned())
+        .unwrap_or_default();
+    let tmp = path.with_file_name(format!(
+        ".{}.{}.{}.tmp",
+        name,
+        std::process::id(),
+        COUNTER.fetch_add(1, Ordering::Relaxed)
+    ));
+    let result = (|| {
+        write_private(&tmp, bytes)?;
+        std::fs::OpenOptions::new()
+            .write(true)
+            .open(&tmp)
+            .and_then(|f| f.sync_all())
+            .map_err(io)?;
+        std::fs::rename(&tmp, path).map_err(io)
+    })();
+    if result.is_err() {
+        let _ = std::fs::remove_file(&tmp);
+    }
+    result
 }
 
 fn derive(key: &[u8; 32], label: &[u8]) -> [u8; 32] {
@@ -795,6 +834,43 @@ pub mod test_env {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn file_store_concurrent_sets_keep_every_entry() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().to_path_buf();
+        let handles: Vec<_> = (0..16)
+            .map(|i| {
+                let path = path.clone();
+                std::thread::spawn(move || {
+                    super::FileStore::new(path)
+                        .set(&format!("acct-{i}"), "v")
+                        .unwrap()
+                })
+            })
+            .collect();
+        for h in handles {
+            h.join().unwrap();
+        }
+        let store = super::FileStore::new(path.clone());
+        for i in 0..16 {
+            assert_eq!(
+                store.get(&format!("acct-{i}")).unwrap().as_deref(),
+                Some("v")
+            );
+        }
+        let leftovers = std::fs::read_dir(&path)
+            .unwrap()
+            .filter(|e| {
+                e.as_ref()
+                    .unwrap()
+                    .file_name()
+                    .to_string_lossy()
+                    .ends_with(".tmp")
+            })
+            .count();
+        assert_eq!(leftovers, 0);
+    }
+
     use super::test_env::EnvGuard;
     use super::*;
 

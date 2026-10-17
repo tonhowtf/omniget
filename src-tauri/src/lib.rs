@@ -179,6 +179,7 @@ impl omniget_core::platforms::bilibili::BilibiliRuntimeProvider for DesktopBilib
         crate::cookies::storage::write_account_file("bilibili.com", &slug, &entries)
             .map_err(|e| e.to_string())?;
 
+        let _registry_guard = crate::cookies::storage::lock_registry();
         let mut registry = crate::cookies::storage::load_registry();
         let now_ms = crate::cookies::storage::current_unix_ms();
         let bucket = registry

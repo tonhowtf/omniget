@@ -1,6 +1,8 @@
 use std::collections::BTreeMap;
 use std::fs;
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Mutex, MutexGuard};
 
 use serde::{Deserialize, Serialize};
 
@@ -90,6 +92,14 @@ fn safe_slug_segment(slug: &str) -> String {
     }
 }
 
+static REGISTRY_LOCK: Mutex<()> = Mutex::new(());
+static TMP_COUNTER: AtomicU64 = AtomicU64::new(0);
+
+/// Serializes every load -> modify -> save cycle on cookies.json.
+pub fn lock_registry() -> MutexGuard<'static, ()> {
+    REGISTRY_LOCK.lock().unwrap_or_else(|e| e.into_inner())
+}
+
 pub fn load_registry() -> CookieRegistry {
     crate::core::state_file::load_or_quarantine(&meta_path(), "registro de cookies")
         .unwrap_or_default()
@@ -101,7 +111,11 @@ pub fn save_registry(registry: &CookieRegistry) -> anyhow::Result<()> {
         fs::create_dir_all(parent)?;
     }
     let serialized = serde_json::to_string_pretty(registry)?;
-    let tmp = path.with_extension("json.tmp");
+    let tmp = path.with_extension(format!(
+        "json.{}.{}.tmp",
+        std::process::id(),
+        TMP_COUNTER.fetch_add(1, Ordering::Relaxed)
+    ));
     fs::write(&tmp, serialized)?;
     fs::rename(&tmp, &path)?;
     Ok(())
@@ -226,6 +240,7 @@ pub fn ingest_batch(
         by_root.entry(root).or_default().push(c.clone());
     }
 
+    let _guard = lock_registry();
     let mut registry = load_registry();
     let mut written: Vec<(String, usize)> = Vec::new();
     let now = current_unix_ms();
@@ -327,6 +342,7 @@ pub fn move_to_trash(domain: &str, slug: &str) -> anyhow::Result<()> {
     let dst = trash.join(dst_name);
     fs::rename(&src, &dst)?;
 
+    let _guard = lock_registry();
     let mut registry = load_registry();
     if let Some(bucket) = registry.buckets.get_mut(domain) {
         bucket.accounts.retain(|a| a.slug != slug);
@@ -384,6 +400,7 @@ pub fn ingest_to_account(
         anyhow::bail!("no cookies in payload match domain {root}");
     }
 
+    let _guard = lock_registry();
     let mut registry = load_registry();
     let bucket = registry.buckets.entry(root.clone()).or_insert_with(|| {
         let platform = PlatformKind::from_domain(&root);
@@ -435,6 +452,7 @@ pub fn ingest_to_account(
 }
 
 pub fn rename_account(domain: &str, slug: &str, new_alias: &str) -> anyhow::Result<()> {
+    let _guard = lock_registry();
     let mut registry = load_registry();
     let bucket = registry
         .buckets
@@ -461,6 +479,7 @@ pub fn account_path_for_consumer(domain: &str, slug: Option<&str>) -> Option<Pat
 }
 
 pub fn touch_last_used(domain: &str, slug: &str) {
+    let _guard = lock_registry();
     let mut registry = load_registry();
     let now = current_unix_ms();
     if let Some(bucket) = registry.buckets.get_mut(domain) {

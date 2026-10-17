@@ -377,7 +377,41 @@ struct PairResponse {
     token: Option<String>,
 }
 
+/// Pairing hands out the bridge token, so only native clients (no Origin) or the
+/// browser extension may call it, and only via a loopback Host (anti DNS rebinding).
+fn pair_request_allowed(headers: &HeaderMap) -> bool {
+    let host = headers
+        .get("host")
+        .and_then(|h| h.to_str().ok())
+        .unwrap_or("");
+    let valid_host = url::Url::parse(&format!("http://{host}"))
+        .ok()
+        .is_some_and(|u| {
+            matches!(u.host_str(), Some("127.0.0.1" | "localhost" | "[::1]"))
+                && u.username().is_empty()
+                && u.path() == "/"
+        });
+    let valid_origin = match headers.get("origin") {
+        None => true,
+        Some(v) => v.to_str().is_ok_and(|o| {
+            o.starts_with("chrome-extension://") || o.starts_with("moz-extension://")
+        }),
+    };
+    valid_host && valid_origin
+}
+
 async fn pair(State(state): State<BridgeState>, headers: HeaderMap) -> Response {
+    if !pair_request_allowed(&headers) {
+        tracing::warn!("[bridge] pairing request rejected (bad Host or non-extension Origin)");
+        return (
+            StatusCode::FORBIDDEN,
+            Json(PairResponse {
+                ok: false,
+                token: None,
+            }),
+        )
+            .into_response();
+    }
     if !pairing_open() {
         return (
             StatusCode::FORBIDDEN,
@@ -917,4 +951,44 @@ async fn assist_mcp_post(headers: HeaderMap, body: axum::body::Bytes) -> Respons
 
 async fn mcp_get() -> Response {
     StatusCode::METHOD_NOT_ALLOWED.into_response()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn headers(host: &str, origin: Option<&str>) -> HeaderMap {
+        let mut h = HeaderMap::new();
+        h.insert("host", host.parse().unwrap());
+        if let Some(o) = origin {
+            h.insert("origin", o.parse().unwrap());
+        }
+        h
+    }
+
+    #[test]
+    fn pair_origin_validation() {
+        assert!(pair_request_allowed(&headers("127.0.0.1:47720", None)));
+        assert!(pair_request_allowed(&headers(
+            "127.0.0.1:47720",
+            Some("chrome-extension://abcdef")
+        )));
+        assert!(pair_request_allowed(&headers(
+            "localhost:47721",
+            Some("moz-extension://1234-5678")
+        )));
+        assert!(!pair_request_allowed(&headers(
+            "127.0.0.1:47720",
+            Some("https://evil.example")
+        )));
+        assert!(!pair_request_allowed(&headers(
+            "127.0.0.1:47720",
+            Some("null")
+        )));
+        assert!(!pair_request_allowed(&headers("evil.example:47720", None)));
+        assert!(!pair_request_allowed(&headers(
+            "evil.example:47720",
+            Some("chrome-extension://abcdef")
+        )));
+    }
 }
