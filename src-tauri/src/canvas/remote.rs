@@ -53,6 +53,7 @@ pub fn routes<S: Clone + Send + Sync + 'static>() -> Router<S> {
         .route("/remote/api/info", get(api_info))
         .route("/remote/api/canvas/info", get(api_info))
         .merge(super::remote_stream::routes())
+        .merge(super::remote_notes::routes())
 }
 
 pub fn host_allowed(host: &str) -> bool {

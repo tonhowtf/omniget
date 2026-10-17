@@ -1,4 +1,4 @@
-const CACHE = "omniget-remote-v1";
+const CACHE = "omniget-remote-v3";
 const SHELL = ["/remote/", "/remote/index.html", "/remote/app.js", "/remote/app.css", "/remote/icon.svg", "/remote/manifest.webmanifest"];
 
 self.addEventListener("install", (e) => {

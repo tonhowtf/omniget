@@ -81,7 +81,8 @@ const PWA_FILES: &[(&str, &str, &str)] = &[
     ),
 ];
 
-const CSP: &str = "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; \
+const CSP: &str =
+    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; \
 connect-src 'self' ws: wss:; manifest-src 'self'; worker-src 'self'; base-uri 'none'; \
 form-action 'none'; frame-ancestors 'none'";
 

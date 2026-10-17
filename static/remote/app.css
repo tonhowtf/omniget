@@ -67,6 +67,7 @@ button, textarea, input, select { font: inherit; color: inherit; }
 .row { display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-bottom: 1px solid var(--sep); cursor: pointer; }
 .row:last-child { border-bottom: 0; }
 .row:active { background: var(--surface-2); }
+.row:focus-visible { outline: 2px solid var(--accent, #7c7cff); outline-offset: -2px; }
 .row-main { flex: 1; min-width: 0; }
 .row-title { font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .row-sub { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -128,3 +129,25 @@ input.text { width: 100%; border: 1px solid var(--sep); border-radius: 10px; pad
 .kv .k { color: var(--muted); }
 .center { text-align: center; }
 .big-icon { width: 72px; height: 72px; margin: 32px auto 16px; display: block; }
+.note-bar { margin: 0 0 10px; }
+label.btn { display: inline-flex; align-items: center; }
+.note-editor { display: block; width: 100%; min-height: 55vh; resize: vertical; border: 1px solid var(--sep); border-radius: var(--radius); padding: 12px 14px; background: var(--surface); font: 15px/1.5 ui-monospace, Menlo, monospace; }
+.note-conflict { border: 1px solid var(--warn); }
+.note-md { overflow-wrap: anywhere; }
+.note-md > :first-child { margin-top: 0; }
+.note-md > :last-child { margin-bottom: 0; }
+.note-md p, .note-md ul, .note-md ol, .note-md blockquote { margin: 0 0 10px; }
+.note-md ul, .note-md ol { padding-left: 22px; }
+.note-md li.nested { margin-left: 18px; }
+.note-md .note-h { margin: 14px 0 8px; line-height: 1.3; }
+.note-md h2.note-h { font-size: 20px; }
+.note-md h3.note-h { font-size: 17px; }
+.note-md h4.note-h, .note-md h5.note-h, .note-md h6.note-h { font-size: 15px; }
+.note-md blockquote { border-left: 3px solid var(--sep); padding-left: 10px; color: var(--muted); }
+.note-md hr { border: 0; border-top: 1px solid var(--sep); margin: 14px 0; }
+.note-md a { color: var(--accent); }
+.note-md code { background: var(--surface-2); border-radius: 5px; padding: 1px 5px; }
+.note-path { color: var(--accent); }
+.note-img { display: block; max-width: 100%; height: auto; border-radius: 8px; margin: 6px 0; background: var(--surface-2); min-height: 40px; }
+.note-img[src] { min-height: 0; background: none; }
+.note-img-missing { display: inline-block; font-size: 12px; color: var(--muted); background: var(--surface-2); border-radius: 6px; padding: 4px 8px; margin: 4px 0; }

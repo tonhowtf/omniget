@@ -22,6 +22,11 @@
         turn: "Turno", scope: "Escopo", name: "Nome", paired: "Pareado em", host: "Máquina", version: "Versão",
         status: { approval: "aprovação", input: "pergunta", running: "rodando", error: "erro", idle: "parada" },
         confirmUnpair: "Desparear este aparelho?", custom: "Outra resposta", sent: "Enviado.",
+        notes: "Notas", noNotes: "Nenhuma nota.", edit: "Editar", save: "Salvar", cancel: "Cancelar", reload: "Recarregar",
+        addPhoto: "Adicionar foto", uploading: "Enviando imagem…", saved: "Salvo.", locked: "Esta nota está travada no computador.",
+        conflict: "A nota mudou no computador depois que você abriu. Escolha o que fazer com o seu texto.",
+        loadLatest: "Carregar a versão do computador", overwrite: "Salvar a minha por cima",
+        discard: "Descartar as mudanças desta nota?", imageMissing: "Imagem indisponível", emptyNote: "Nota vazia.",
       }
     : {
         threads: "Threads", sessions: "Sessions", device: "Device", send: "Send", stop: "Stop",
@@ -37,6 +42,11 @@
         turn: "Turn", scope: "Scope", name: "Name", paired: "Paired", host: "Machine", version: "Version",
         status: { approval: "approval", input: "question", running: "running", error: "error", idle: "idle" },
         confirmUnpair: "Unpair this device?", custom: "Other answer", sent: "Sent.",
+        notes: "Notes", noNotes: "No notes.", edit: "Edit", save: "Save", cancel: "Cancel", reload: "Reload",
+        addPhoto: "Add photo", uploading: "Uploading image…", saved: "Saved.", locked: "This note is locked on the computer.",
+        conflict: "The note changed on the computer after you opened it. Choose what to do with your text.",
+        loadLatest: "Load the computer's version", overwrite: "Save mine over it",
+        discard: "Discard your changes to this note?", imageMissing: "Image unavailable", emptyNote: "Empty note.",
       };
 
   var S = {
@@ -51,6 +61,8 @@
     online: true,
     sessions: null,
     sessionQuery: "",
+    notes: null,
+    noteQuery: "",
     jobAsks: [],
   };
 
@@ -75,6 +87,13 @@
       else if (attrs[k] != null && attrs[k] !== false) el.setAttribute(k, attrs[k]);
     }
     (kids || []).forEach(function (c) { if (c != null) el.appendChild(typeof c === "string" ? document.createTextNode(c) : c); });
+    if (tag === "div" && attrs && attrs.onclick && !el.hasAttribute("role")) {
+      el.setAttribute("role", "button");
+      if (!el.hasAttribute("tabindex")) el.setAttribute("tabindex", "0");
+      el.addEventListener("keydown", function (e) {
+        if (e.target === el && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); attrs.onclick.call(el, e); }
+      });
+    }
     return el;
   }
   function banner(text, error) {
@@ -96,17 +115,24 @@
   function api(path, opts) {
     opts = opts || {};
     var headers = { "Accept": "application/json" };
+    var raw = opts.raw !== undefined;
+    var sends = raw || opts.body !== undefined;
     if (S.token) headers["Authorization"] = "Bearer " + S.token;
-    if (opts.body !== undefined) headers["Content-Type"] = "application/json";
+    if (raw) headers["Content-Type"] = opts.type || "application/octet-stream";
+    else if (opts.body !== undefined) headers["Content-Type"] = "application/json";
     return fetch("/remote/api/" + path, {
-      method: opts.method || (opts.body !== undefined ? "POST" : "GET"),
+      method: opts.method || (sends ? "POST" : "GET"),
       headers: headers,
-      body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
+      body: raw ? opts.raw : opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
       cache: "no-store",
     }).then(function (res) {
       if (res.status === 401) { forget(T.revoked); throw new Error("unauthorized"); }
       return res.json().catch(function () { return {}; }).then(function (j) {
-        if (!res.ok) throw new Error(j.message || j.error || ("HTTP " + res.status));
+        if (!res.ok) {
+          var err = new Error(j.message || j.error || ("HTTP " + res.status));
+          err.code = j.error; err.status = res.status;
+          throw err;
+        }
         S.online = true;
         return j;
       });
@@ -258,30 +284,36 @@
     }
     if (route.name === "sessions" && !S.sessions) loadSessions();
     if (route.name === "session") loadSession(route.tool, route.id, 0);
-    render();
+    if (route.name === "notes") loadNotes();
+    if (route.name === "note") loadNote(route);
+    render(true);
     $("view").scrollTop = 0;
   }
   $("back").addEventListener("click", function () {
     if (S.route.name === "thread") go({ name: "threads" });
     else if (S.route.name === "session") go({ name: "sessions" });
     else if (S.route.name === "diff") go({ name: "thread", id: S.route.id });
+    else if (S.route.name === "note") { if (noteDirty(S.route) && !confirm(T.discard)) return; go({ name: "notes" }); }
   });
   Array.prototype.forEach.call(document.querySelectorAll(".tab"), function (b) {
     b.addEventListener("click", function () { go({ name: b.getAttribute("data-tab") }); });
   });
 
-  function render() {
+  function render(force) {
     var view = $("view");
     var r = S.route;
+    if (!force && S.token && r.name === "note" && r.editing && r.editor && r.editor.isConnected) return;
     var nearBottom = view.scrollHeight - view.scrollTop - view.clientHeight < 80;
     var prevTop = view.scrollTop;
     view.textContent = "";
-    $("tabs").hidden = !S.token || r.name === "thread" || r.name === "session" || r.name === "diff";
-    $("back").hidden = !S.token || !(r.name === "thread" || r.name === "session" || r.name === "diff");
+    var inner = r.name === "thread" || r.name === "session" || r.name === "diff" || r.name === "note";
+    $("tabs").hidden = !S.token || inner;
+    $("back").hidden = !S.token || !inner;
     Array.prototype.forEach.call(document.querySelectorAll(".tab"), function (b) {
       b.classList.toggle("active", b.getAttribute("data-tab") === r.name);
     });
     $("tab-threads").textContent = T.threads; $("tab-sessions").textContent = T.sessions; $("tab-device").textContent = T.device;
+    $("tab-notes").textContent = T.notes;
     $("composer").hidden = true;
     $("drawer").hidden = true;
     if (!S.token) {
@@ -305,6 +337,8 @@
       view.scrollTop = r.fresh || nearBottom ? view.scrollHeight : prevTop;
       if (r.data) r.fresh = false;
     }
+    else if (r.name === "notes") renderNotes(view);
+    else if (r.name === "note") renderNote(view);
     else if (r.name === "device") renderDevice(view);
   }
 
@@ -611,6 +645,330 @@
     if (!input || typeof input !== "object") return String(input || "");
     var k = input.command || input.file_path || input.path || input.pattern || input.url || input.description || input.prompt;
     return k ? String(k).slice(0, 160) : JSON.stringify(input).slice(0, 160);
+  }
+
+  function notePath(r) {
+    return [r.ws, r.floor, r.id].map(encodeURIComponent).join("/");
+  }
+  function noteDirty(r) {
+    return !!(r && r.editing && r.data && r.draft !== r.data.text);
+  }
+  function loadNotes() {
+    api("notes").then(function (j) {
+      S.notes = j.workspaces || [];
+      if (S.route.name === "notes") render();
+    }, function (e) {
+      if (S.route.name === "notes" && !S.notes) { S.notes = { error: e.message }; render(); }
+    });
+  }
+  function renderNotes(view) {
+    $("title").textContent = T.notes; $("subtitle").textContent = "";
+    var inp = h("input", { class: "text search", placeholder: T.search, value: S.noteQuery, type: "search" });
+    inp.addEventListener("input", function () {
+      S.noteQuery = inp.value;
+      var list = view.querySelector(".note-groups");
+      if (list) list.replaceWith(noteGroups());
+    });
+    view.appendChild(inp);
+    if (!S.notes) { view.appendChild(h("div", { class: "empty", text: "…" })); return; }
+    if (S.notes.error) { view.appendChild(h("div", { class: "empty", text: S.notes.error })); return; }
+    view.appendChild(noteGroups());
+  }
+  function noteGroups() {
+    var q = S.noteQuery.trim().toLowerCase();
+    var box = h("div", { class: "note-groups" });
+    (S.notes || []).forEach(function (w) {
+      var notes = (w.notes || []).filter(function (n) {
+        return !q || String(n.title || "").toLowerCase().indexOf(q) >= 0 || String(n.preview || "").toLowerCase().indexOf(q) >= 0;
+      });
+      if (!notes.length) return;
+      box.appendChild(h("div", { class: "group-label", text: w.name || w.id }));
+      var list = h("div", { class: "list" });
+      notes.forEach(function (n) {
+        list.appendChild(h("div", { class: "row", onclick: function () { go({ name: "note", ws: n.ws, floor: n.floor, id: n.id, wsName: w.name, floorName: n.floorName, title: n.title }); } }, [
+          h("div", { class: "row-main" }, [
+            h("div", { class: "row-title", text: n.title || n.id }),
+            h("div", { class: "row-sub", text: [n.floorName, ago(n.updated), n.preview].filter(Boolean).join(" · ") }),
+          ]),
+        ]));
+      });
+      box.appendChild(list);
+    });
+    if (!box.childNodes.length) box.appendChild(h("div", { class: "empty", text: T.noNotes }));
+    return box;
+  }
+
+  function loadNote(r) {
+    return api("notes/" + notePath(r)).then(function (d) {
+      if (S.route !== r) return;
+      r.data = d; r.conflict = null;
+      if (!r.editing) r.draft = d.text;
+      render(true);
+    }, function (e) {
+      if (S.route !== r) return;
+      if (!r.data) r.data = { error: e.message };
+      else banner(e.message, true);
+      render(true);
+    });
+  }
+
+  var imgCache = {}, imgKeys = [];
+  function noteImageUrl(ws, path) {
+    var key = ws + "\n" + path;
+    if (!imgCache[key]) {
+      imgCache[key] = fetch("/remote/api/note-image?ws=" + encodeURIComponent(ws) + "&path=" + encodeURIComponent(path), {
+        headers: { "Authorization": "Bearer " + S.token },
+      }).then(function (res) {
+        if (!res.ok) throw new Error("HTTP " + res.status);
+        return res.blob();
+      }).then(function (b) { return URL.createObjectURL(b); });
+      imgCache[key].catch(function () { delete imgCache[key]; });
+      imgKeys.push(key);
+      while (imgKeys.length > 60) {
+        var old = imgKeys.shift(), p = imgCache[old];
+        delete imgCache[old];
+        if (p) p.then(function (u) { URL.revokeObjectURL(u); }, function () {});
+      }
+    }
+    return imgCache[key];
+  }
+  function loadImg(img) {
+    noteImageUrl(img.getAttribute("data-ws"), img.getAttribute("data-path")).then(function (u) {
+      img.src = u;
+    }, function () { missingImg(img); });
+  }
+  function missingImg(img) {
+    if (!img.parentNode) return;
+    img.replaceWith(h("span", { class: "note-img-missing", text: T.imageMissing + ": " + (img.getAttribute("data-path") || img.alt || "") }));
+  }
+  var lazyIO = "IntersectionObserver" in window ? new IntersectionObserver(function (entries) {
+    entries.forEach(function (e) {
+      if (!e.isIntersecting) return;
+      lazyIO.unobserve(e.target);
+      loadImg(e.target);
+    });
+  }, { rootMargin: "400px 0px" }) : null;
+
+  function noteImg(ws, target, alt) {
+    if (/^data:image\//i.test(target)) return h("img", { class: "note-img", src: target, alt: alt, decoding: "async" });
+    if (/^https?:/i.test(target)) return noteLink(alt || target, target);
+    var img = h("img", { class: "note-img", alt: alt, "data-ws": ws, "data-path": target, decoding: "async", loading: "lazy" });
+    img.addEventListener("error", function () { missingImg(img); });
+    if (lazyIO) lazyIO.observe(img); else loadImg(img);
+    return img;
+  }
+  function noteLink(text, url) {
+    if (/^(https?:|mailto:)/i.test(url)) return h("a", { href: url, target: "_blank", rel: "noopener noreferrer", text: text });
+    return h("span", { class: "note-path", title: url, text: text });
+  }
+
+  var INLINE = /!\[([^\]\n]*)\]\((?:<([^>\n]+)>|([^)\s]+))(?:\s+"[^"\n]*")?\)|\[([^\]\n]+)\]\((?:<([^>\n]+)>|([^)\s]+))(?:\s+"[^"\n]*")?\)|`([^`\n]+)`|\*\*([^*\n]+)\*\*|\*([^*\s][^*\n]*)\*|(https?:\/\/[^\s<>()]+)/g;
+  function inline(text, ws) {
+    var out = [], re = new RegExp(INLINE.source, "g"), last = 0, m;
+    while ((m = re.exec(text))) {
+      if (m.index > last) out.push(text.slice(last, m.index));
+      if (m[0].charAt(0) === "!") out.push(noteImg(ws, (m[2] || m[3]).trim(), m[1]));
+      else if (m[4] != null) out.push(noteLink(m[4], m[5] || m[6]));
+      else if (m[7] != null) out.push(h("code", { text: m[7] }));
+      else if (m[8] != null) out.push(h("strong", { text: m[8] }));
+      else if (m[9] != null) out.push(h("em", { text: m[9] }));
+      else out.push(noteLink(m[10], m[10]));
+      last = re.lastIndex;
+    }
+    if (last < text.length) out.push(text.slice(last));
+    return out;
+  }
+
+  function renderMarkdown(text, ws) {
+    var root = h("div", { class: "note-md" });
+    var lines = String(text || "").replace(/\r\n?/g, "\n").split("\n");
+    var para = [], list = null, quote = null, i = 0;
+    function flush() {
+      if (para.length) {
+        var p = h("p");
+        para.forEach(function (l, k) {
+          if (k) p.appendChild(h("br"));
+          inline(l, ws).forEach(function (c) { p.appendChild(typeof c === "string" ? document.createTextNode(c) : c); });
+        });
+        root.appendChild(p);
+        para = [];
+      }
+      list = null; quote = null;
+    }
+    while (i < lines.length) {
+      var line = lines[i];
+      var fence = line.match(/^\s*(```|~~~)/);
+      if (fence) {
+        flush();
+        var code = [];
+        i++;
+        while (i < lines.length && lines[i].trim().indexOf(fence[1]) !== 0) { code.push(lines[i]); i++; }
+        i++;
+        root.appendChild(h("pre", { class: "box", text: code.join("\n") }));
+        continue;
+      }
+      if (!line.trim()) { flush(); i++; continue; }
+      if (/^\s*\|/.test(line)) {
+        flush();
+        var rows = [];
+        while (i < lines.length && /^\s*\|/.test(lines[i])) { rows.push(lines[i].trim()); i++; }
+        root.appendChild(h("pre", { class: "box", text: rows.join("\n") }));
+        continue;
+      }
+      var hm = line.match(/^(#{1,6})\s+(.*)$/);
+      if (hm) {
+        flush();
+        root.appendChild(h("h" + Math.min(hm[1].length + 1, 6), { class: "note-h" }, inline(hm[2].replace(/\s+#+\s*$/, ""), ws)));
+        i++; continue;
+      }
+      if (/^\s*([-*_])(\s*\1){2,}\s*$/.test(line)) { flush(); root.appendChild(h("hr")); i++; continue; }
+      var bq = line.match(/^\s*>\s?(.*)$/);
+      if (bq) {
+        if (!quote) { flush(); quote = h("blockquote"); root.appendChild(quote); }
+        else quote.appendChild(h("br"));
+        inline(bq[1], ws).forEach(function (c) { quote.appendChild(typeof c === "string" ? document.createTextNode(c) : c); });
+        i++; continue;
+      }
+      var lm = line.match(/^(\s*)([-*+]|\d+[.)])\s+(.*)$/);
+      if (lm) {
+        if (para.length || quote) flush();
+        var ordered = /\d/.test(lm[2]);
+        if (!list || list.ordered !== ordered) { list = { ordered: ordered, el: h(ordered ? "ol" : "ul") }; root.appendChild(list.el); }
+        var task = lm[3].match(/^\[([ xX])\]\s+(.*)$/);
+        var li = h("li", lm[1].length >= 2 ? { class: "nested" } : null, task ? [task[1] === " " ? "☐ " : "☑ "].concat(inline(task[2], ws)) : inline(lm[3], ws));
+        list.el.appendChild(li);
+        i++; continue;
+      }
+      if (list && /^\s{2,}\S/.test(line)) {
+        var lastLi = list.el.lastChild;
+        lastLi.appendChild(document.createTextNode(" "));
+        inline(line.trim(), ws).forEach(function (c) { lastLi.appendChild(typeof c === "string" ? document.createTextNode(c) : c); });
+        i++; continue;
+      }
+      if (list || quote) flush();
+      para.push(line.trim());
+      i++;
+    }
+    flush();
+    return root;
+  }
+
+  function renderNote(view) {
+    var r = S.route, d = r.data;
+    $("title").textContent = (d && d.title) || r.title || r.id;
+    $("subtitle").textContent = [r.wsName, r.floorName].filter(Boolean).join(" · ");
+    if (!d) { view.appendChild(h("div", { class: "empty", text: "…" })); return; }
+    if (d.error) { view.appendChild(h("div", { class: "empty", text: d.error })); return; }
+    if (r.editing) { renderNoteEditor(view, r); return; }
+    var bar = h("div", { class: "btns note-bar" }, [
+      canDrive() && !d.locked ? h("button", { class: "btn primary", text: T.edit, onclick: function () {
+        r.editing = true; r.draft = d.text; r.conflict = null; render(true);
+        if (r.editor) r.editor.focus();
+      } }) : null,
+      h("button", { class: "btn", text: T.reload, onclick: function () { loadNote(r); } }),
+    ]);
+    view.appendChild(bar);
+    if (d.locked) view.appendChild(h("div", { class: "muted small", text: T.locked }));
+    else if (!canDrive()) view.appendChild(h("div", { class: "muted small", text: T.readOnly }));
+    view.appendChild(d.text.trim() ? h("div", { class: "card" }, [renderMarkdown(d.text, r.ws)]) : h("div", { class: "empty", text: T.emptyNote }));
+  }
+
+  function insertAtCursor(r, snippet) {
+    var ta = r.editor;
+    var s = ta.selectionStart != null ? ta.selectionStart : ta.value.length;
+    var e = ta.selectionEnd != null ? ta.selectionEnd : s;
+    var before = ta.value.slice(0, s), after = ta.value.slice(e);
+    var pre = before && before.charAt(before.length - 1) !== "\n" ? "\n" : "";
+    var post = after.charAt(0) === "\n" ? "" : "\n";
+    ta.value = before + pre + snippet + post + after;
+    var pos = (before + pre + snippet + post).length;
+    try { ta.setSelectionRange(pos, pos); } catch (err) { }
+    r.draft = ta.value;
+  }
+  function uploadImages(r, files) {
+    var imgs = Array.prototype.filter.call(files || [], function (f) { return !f.type || f.type.indexOf("image/") === 0; });
+    if (!imgs.length) return Promise.resolve();
+    r.uploads = (r.uploads || 0) + 1;
+    syncNoteButtons(r);
+    banner(T.uploading);
+    var chain = Promise.resolve();
+    imgs.forEach(function (f) {
+      chain = chain.then(function () {
+        var ext = (f.type.split("/")[1] || "png").replace("jpeg", "jpg").replace(/\+.*$/, "");
+        var name = f.name && f.name !== "image.png" ? f.name : "photo-" + Date.now() + "." + ext;
+        return api("notes/" + notePath(r) + "/image?filename=" + encodeURIComponent(name), { raw: f, type: f.type || "application/octet-stream" }).then(function (j) {
+          if (S.route === r && r.editor) insertAtCursor(r, j.markdown);
+        });
+      });
+    });
+    return chain.then(function () { banner(null); }, function (e) { banner(e.message, true); }).then(function () {
+      r.uploads--;
+      syncNoteButtons(r);
+    });
+  }
+  function syncNoteButtons(r) {
+    if (r.saveBtn) r.saveBtn.disabled = !!r.uploads || !!r.saving;
+  }
+  function saveNote(r, base) {
+    r.saving = true; syncNoteButtons(r);
+    var text = r.editor ? r.editor.value : r.draft;
+    r.draft = text;
+    return api("notes/" + notePath(r), { method: "PUT", body: { text: text, revision: base } }).then(function (j) {
+      r.saving = false;
+      if (S.route !== r) return;
+      r.data.text = text; r.data.revision = j.revision; r.data.title = j.title;
+      r.editing = false; r.conflict = null; r.editor = null;
+      banner(T.saved); setTimeout(function () { banner(null); }, 1500);
+      render(true);
+    }, function (e) {
+      r.saving = false; syncNoteButtons(r);
+      if (e.code === "CANVAS_NOTE_CONFLICT") {
+        r.conflict = String(e.message).split(":").slice(1).join(":").trim();
+        render(true);
+      } else banner(e.message, true);
+    });
+  }
+  function renderNoteEditor(view, r) {
+    var ta = r.editor && r.editor.isConnected === false ? r.editor : h("textarea", { class: "note-editor", rows: "12", spellcheck: "true" });
+    if (ta.value !== r.draft) ta.value = r.draft || "";
+    r.editor = ta;
+    ta.oninput = function () { r.draft = ta.value; };
+    ta.onpaste = function (e) {
+      var files = e.clipboardData && e.clipboardData.files;
+      if (!files || !files.length) return;
+      var imgs = Array.prototype.filter.call(files, function (f) { return f.type.indexOf("image/") === 0; });
+      if (!imgs.length) return;
+      e.preventDefault();
+      uploadImages(r, imgs);
+    };
+    var file = h("input", { type: "file", accept: "image/*", multiple: "", hidden: "" });
+    file.addEventListener("change", function () {
+      var picked = Array.prototype.slice.call(file.files || []);
+      file.value = "";
+      uploadImages(r, picked);
+    });
+    r.saveBtn = h("button", { class: "btn primary", text: T.save, onclick: function () { saveNote(r, r.data.revision); } });
+    syncNoteButtons(r);
+    view.appendChild(h("div", { class: "btns note-bar" }, [
+      r.saveBtn,
+      h("label", { class: "btn" }, [T.addPhoto, file]),
+      h("button", { class: "btn ghost", text: T.cancel, onclick: function () {
+        if (noteDirty(r) && !confirm(T.discard)) return;
+        r.editing = false; r.editor = null; r.conflict = null; r.draft = r.data.text; render(true);
+      } }),
+    ]));
+    if (r.conflict != null) {
+      view.appendChild(h("div", { class: "card note-conflict" }, [
+        h("div", { text: T.conflict }),
+        h("div", { class: "btns" }, [
+          h("button", { class: "btn", text: T.loadLatest, onclick: function () {
+            r.editing = false; r.editor = null; r.conflict = null; loadNote(r);
+          } }),
+          h("button", { class: "btn danger", text: T.overwrite, onclick: function () { saveNote(r, r.conflict); } }),
+        ]),
+      ]));
+    }
+    view.appendChild(ta);
   }
 
   function renderDevice(view) {

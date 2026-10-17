@@ -20,6 +20,7 @@ pub mod portal;
 pub mod power;
 pub mod prefs;
 pub mod remote;
+pub mod remote_notes;
 pub mod remote_stream;
 pub mod roles;
 pub mod routines;
