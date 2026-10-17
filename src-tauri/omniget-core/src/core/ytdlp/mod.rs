@@ -597,9 +597,11 @@ fn signal_download_process(download_id: u64, signal: &str) -> bool {
     let Some(pid) = pid else {
         return false;
     };
+    // The yt-dlp process leads its own group: signal ffmpeg/aria2c too.
     std::process::Command::new("kill")
         .arg(signal)
-        .arg(pid.to_string())
+        .arg("--")
+        .arg(format!("-{pid}"))
         .status()
         .map(|s| s.success())
         .unwrap_or(false)

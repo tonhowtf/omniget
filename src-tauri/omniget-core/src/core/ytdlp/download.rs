@@ -483,6 +483,7 @@ pub async fn download_video(
     let mut format_already_simplified = false;
     let mut drop_chunk_size = false;
     let mut last_was_429 = false;
+    let destinations: Arc<Mutex<Vec<PathBuf>>> = Arc::new(Mutex::new(Vec::new()));
 
     for attempt in 0..max_attempts {
         tracing::info!("[yt-dlp] download attempt {}/{}", attempt + 1, max_attempts);
@@ -509,7 +510,7 @@ pub async fn download_video(
                 last_was_429
             );
             tokio::time::sleep(std::time::Duration::from_secs(wait)).await;
-            cleanup_part_files(output_dir).await;
+            cleanup_part_files(output_dir, &destinations).await;
         }
 
         let mut args = base_args.clone();
@@ -577,6 +578,8 @@ pub async fn download_video(
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .kill_on_drop(true);
+        #[cfg(unix)]
+        cmd.process_group(0);
         let mut child = cmd
             .spawn()
             .map_err(|e| anyhow!("Failed to start yt-dlp: {}", e))?;
@@ -602,6 +605,7 @@ pub async fn download_video(
             lines,
             progress.clone(),
             captured_path.clone(),
+            destinations.clone(),
             log_hook::current_download_id(),
             is_audio_only,
             _timer_start,
@@ -632,13 +636,14 @@ pub async fn download_video(
         let status = tokio::select! {
             s = child.wait() => s.map_err(|e| anyhow!("yt-dlp process failed: {}", e))?,
             _ = cancel_token.cancelled() => {
+                kill_process_group(&child);
                 let _ = child.kill().await;
                 if let Some(download_id) = registered_download_id {
                     unregister_download_process(download_id);
                 }
                 let _ = line_reader.await;
                 let _ = stderr_reader.await;
-                cleanup_part_files(output_dir).await;
+                cleanup_part_files(output_dir, &destinations).await;
                 tracing::debug!("[perf] download_video took {:?}", _timer_start.elapsed());
                 anyhow::bail!("Download cancelled");
             }
@@ -1000,6 +1005,7 @@ pub(super) fn spawn_stdout_reader(
     mut lines: tokio::io::Lines<BufReader<tokio::process::ChildStdout>>,
     progress_tx: mpsc::Sender<ProgressUpdate>,
     captured_path_writer: Arc<Mutex<Option<PathBuf>>>,
+    destinations: Arc<Mutex<Vec<PathBuf>>>,
     log_id: Option<u64>,
     is_audio_only: bool,
     _timer_start: std::time::Instant,
@@ -1062,6 +1068,9 @@ pub(super) fn spawn_stdout_reader(
             }
             if let Some(dest) = parse_destination_line(&line) {
                 let dest_path = PathBuf::from(&dest);
+                if let Ok(mut seen) = destinations.lock() {
+                    seen.push(dest_path.clone());
+                }
                 let ext = dest_path
                     .extension()
                     .and_then(|e| e.to_str())
@@ -1198,6 +1207,8 @@ pub(super) async fn run_override_command(
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .kill_on_drop(true);
+    #[cfg(unix)]
+    cmd.process_group(0);
     let mut child = cmd
         .spawn()
         .map_err(|e| anyhow!("Failed to start yt-dlp: {}", e))?;
@@ -1210,10 +1221,12 @@ pub(super) async fn run_override_command(
     let stdout = child.stdout.take().ok_or_else(|| anyhow!("No stdout"))?;
     let stderr_pipe = child.stderr.take().ok_or_else(|| anyhow!("No stderr"))?;
     let captured_path: Arc<Mutex<Option<PathBuf>>> = Arc::new(Mutex::new(None));
+    let destinations: Arc<Mutex<Vec<PathBuf>>> = Arc::new(Mutex::new(Vec::new()));
     let line_reader = spawn_stdout_reader(
         BufReader::new(stdout).lines(),
         progress.clone(),
         captured_path.clone(),
+        destinations.clone(),
         registered_download_id,
         is_audio_only,
         timer_start,
@@ -1241,13 +1254,14 @@ pub(super) async fn run_override_command(
     let status = tokio::select! {
         s = child.wait() => s.map_err(|e| anyhow!("yt-dlp process failed: {}", e))?,
         _ = cancel_token.cancelled() => {
+            kill_process_group(&child);
             let _ = child.kill().await;
             if let Some(download_id) = registered_download_id {
                 unregister_download_process(download_id);
             }
             let _ = line_reader.await;
             let _ = stderr_reader.await;
-            cleanup_part_files(output_dir).await;
+            cleanup_part_files(output_dir, &destinations).await;
             anyhow::bail!("Download cancelled");
         }
     };
@@ -1334,12 +1348,42 @@ pub(super) async fn convert_vtt_sidecars_to_srt(video_path: &Path) {
     }
 }
 
-pub(super) async fn cleanup_part_files(dir: &Path) {
+// The yt-dlp process runs in its own group (process_group(0)), so ffmpeg and
+// aria2c children die with it instead of being orphaned.
+fn kill_process_group(child: &tokio::process::Child) {
+    #[cfg(unix)]
+    if let Some(pid) = child.id().and_then(|p| i32::try_from(p).ok()) {
+        // SAFETY: a group created by process_group(0) at spawn.
+        unsafe {
+            libc::killpg(pid, libc::SIGKILL);
+        }
+    }
+    #[cfg(not(unix))]
+    let _ = child;
+}
+
+// WHY: only this download's temporaries; the folder is shared with other
+// downloads and other programs, so a blanket *.part sweep breaks them.
+pub(super) async fn cleanup_part_files(dir: &Path, destinations: &Mutex<Vec<PathBuf>>) {
+    let prefixes: Vec<String> = destinations
+        .lock()
+        .map(|d| {
+            d.iter()
+                .filter_map(|p| p.file_name())
+                .map(|n| n.to_string_lossy().into_owned())
+                .collect()
+        })
+        .unwrap_or_default();
+    if prefixes.is_empty() {
+        return;
+    }
     if let Ok(entries) = std::fs::read_dir(dir) {
         for entry in entries.flatten() {
             let name = entry.file_name();
             let name = name.to_string_lossy();
-            if name.ends_with(".part") || name.ends_with(".ytdl") {
+            if (name.ends_with(".part") || name.ends_with(".ytdl"))
+                && prefixes.iter().any(|p| name.starts_with(p.as_str()))
+            {
                 let _ = std::fs::remove_file(entry.path());
             }
         }
@@ -1468,4 +1512,43 @@ pub(super) fn move_file_best_effort(from: &Path, to: &Path) -> bool {
         return true;
     }
     false
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn cleanup_only_removes_this_downloads_temporaries() {
+        let dir = std::env::temp_dir().join(format!("omniget-cleanup-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let ours = [
+            "A [x1].f137.mp4.part",
+            "A [x1].f137.mp4.ytdl",
+            "A [x1].f140.m4a.part",
+        ];
+        let theirs = [
+            "B [y2].mp4.part",
+            "B [y2].mp4.ytdl",
+            "firefox.zip.part",
+            "A [x1].mp4",
+        ];
+        for name in ours.iter().chain(theirs.iter()) {
+            std::fs::write(dir.join(name), b"").unwrap();
+        }
+        let destinations = Mutex::new(vec![
+            dir.join("A [x1].f137.mp4"),
+            dir.join("A [x1].f140.m4a"),
+        ]);
+        cleanup_part_files(&dir, &destinations).await;
+        for name in ours {
+            assert!(!dir.join(name).exists(), "{name} should be removed");
+        }
+        for name in theirs {
+            assert!(dir.join(name).exists(), "{name} should be kept");
+        }
+        cleanup_part_files(&dir, &Mutex::new(Vec::new())).await;
+        assert!(dir.join("B [y2].mp4.part").exists());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 }

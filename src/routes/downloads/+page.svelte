@@ -250,7 +250,7 @@
   }
 
   async function removeItemWithFile(id: number) {
-    if (!confirm($t("downloads.delete_file_confirm"))) return;
+    if (!(await confirm($t("downloads.delete_file_confirm")))) return;
     try {
       await invoke("remove_download", { downloadId: id, deleteFile: true });
     } catch (e: any) {
@@ -260,7 +260,7 @@
   }
 
   async function clearFinished() {
-    if (!confirm($t("downloads.clear_confirm"))) return;
+    if (!(await confirm($t("downloads.clear_confirm")))) return;
     try {
       await invoke("clear_finished_downloads");
     } catch (e: any) {
@@ -380,7 +380,7 @@
   }
 
   async function clearHistory() {
-    if (!confirm($t("downloads.history_clear_confirm") as string)) return;
+    if (!(await confirm($t("downloads.history_clear_confirm") as string))) return;
     try {
       await invoke("clear_download_history");
       historyEntries = [];
@@ -874,6 +874,19 @@
                   </svg>
                 </button>
               {/if}
+              <button
+                class="action-icon-btn"
+                onclick={() => removeItemWithFile(item.id)}
+                aria-label={$t('downloads.delete_file')}
+                title={$t('downloads.delete_file')}
+              >
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <polyline points="3 6 5 6 21 6" />
+                  <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                  <line x1="10" y1="11" x2="10" y2="17" />
+                  <line x1="14" y1="11" x2="14" y2="17" />
+                </svg>
+              </button>
               <button
                 class="action-icon-btn"
                 class:confirm-remove={pendingRemove === item.id}

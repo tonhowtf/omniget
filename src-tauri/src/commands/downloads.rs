@@ -781,13 +781,29 @@ pub async fn retry_download(
     }
 }
 
-fn delete_downloaded_path(path: &str) {
+fn is_protected_dir(path: &std::path::Path, protected: &[std::path::PathBuf]) -> bool {
+    let norm = |p: &std::path::Path| std::fs::canonicalize(p).unwrap_or_else(|_| p.to_path_buf());
+    let target = norm(path);
+    protected
+        .iter()
+        .filter(|d| !d.as_os_str().is_empty())
+        .any(|d| norm(d).starts_with(&target))
+}
+
+fn delete_downloaded_path(path: &str, protected: &[std::path::PathBuf]) {
     let p = std::path::Path::new(path);
     if !p.is_absolute() {
         return;
     }
     match p.metadata() {
         Ok(meta) if meta.is_dir() => {
+            if is_protected_dir(p, protected) {
+                tracing::warn!(
+                    "[remove] refusing to delete output directory: {}",
+                    p.display()
+                );
+                return;
+            }
             if let Err(e) = std::fs::remove_dir_all(p) {
                 tracing::warn!("[remove] failed to delete directory: {}", e);
             }
@@ -818,10 +834,11 @@ pub async fn remove_download(
     let (state_to_emit, seeding_torrent_id, file_path) = {
         let mut q = state.download_queue.lock().await;
         let path = if delete_file.unwrap_or(false) {
-            q.items
-                .iter()
-                .find(|i| i.id == download_id)
-                .and_then(|i| i.file_path.clone())
+            q.items.iter().find(|i| i.id == download_id).and_then(|i| {
+                let base = std::path::PathBuf::from(&i.output_dir);
+                let protected = vec![base.join(&i.platform), base];
+                i.file_path.clone().map(|p| (p, protected))
+            })
         } else {
             None
         };
@@ -837,8 +854,10 @@ pub async fn remove_download(
                 .await;
         }
     }
-    if let Some(path) = file_path {
-        delete_downloaded_path(&path);
+    if let Some((path, mut protected)) = file_path {
+        let settings = config::load_settings(&app);
+        protected.push(settings.download.default_output_dir.clone());
+        delete_downloaded_path(&path, &protected);
     }
     if let Some(s) = state_to_emit {
         crate::core::download_log::clear(download_id);
@@ -1331,4 +1350,29 @@ pub async fn get_download_queue(app: tauri::AppHandle) -> Vec<crate::core::queue
     let state = app.state::<crate::AppState>();
     let queue = state.download_queue.lock().await;
     crate::core::queue::redacted_for_display(queue.get_state())
+}
+
+#[cfg(test)]
+mod delete_guard_tests {
+    use super::*;
+
+    #[test]
+    fn delete_refuses_output_dir_and_ancestors() {
+        let root = std::env::temp_dir().join(format!("omniget-del-{}", std::process::id()));
+        let platform = root.join("instagram");
+        std::fs::create_dir_all(&platform).unwrap();
+        std::fs::write(platform.join("a.jpg"), b"x").unwrap();
+        let protected = vec![platform.clone(), root.clone()];
+
+        delete_downloaded_path(root.to_str().unwrap(), &protected);
+        delete_downloaded_path(platform.to_str().unwrap(), &protected);
+        assert!(platform.join("a.jpg").exists());
+
+        let own = root.join("my-torrent");
+        std::fs::create_dir_all(&own).unwrap();
+        delete_downloaded_path(own.to_str().unwrap(), &protected);
+        assert!(!own.exists());
+
+        std::fs::remove_dir_all(&root).unwrap();
+    }
 }
