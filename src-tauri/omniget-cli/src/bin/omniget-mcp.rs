@@ -2,7 +2,8 @@ use anyhow::{bail, Context, Result};
 use serde_json::{json, Value};
 use std::sync::LazyLock;
 use tokio::io::{AsyncBufRead, AsyncBufReadExt, AsyncReadExt, AsyncWrite, AsyncWriteExt};
-const MAX_MESSAGE: u64 = 65536;
+const MAX_MESSAGE: u64 = 32 * 1024 * 1024;
+const MAX_RESPONSE: usize = 32 * 1024 * 1024;
 const BATCH_MAX: usize = 32;
 const ADAPTER_VERSION: &str = env!("CARGO_PKG_VERSION");
 const DEFAULT_ENDPOINT: &str = "http://127.0.0.1:47720/mcp";
@@ -40,21 +41,40 @@ where
     let client = reqwest::Client::builder()
         .redirect(reqwest::redirect::Policy::none())
         .no_proxy()
-        .timeout(std::time::Duration::from_secs(30))
+        .connect_timeout(std::time::Duration::from_secs(10))
+        // Idle limit between bytes, not a total: approvals and canvas waits
+        // legitimately take up to 5 minutes, a hung app must not stall forever.
+        .read_timeout(std::time::Duration::from_secs(330))
         .build()?;
     let mut version = "2025-06-18".to_string();
     loop {
-        let mut line = String::new();
+        let mut line = Vec::new();
         let count = (&mut input)
             .take(MAX_MESSAGE + 1)
-            .read_line(&mut line)
+            .read_until(b'\n', &mut line)
             .await?;
         if count == 0 {
             break;
         }
         if count as u64 > MAX_MESSAGE {
-            bail!("MCP_MESSAGE_TOO_LARGE");
+            if line.last() != Some(&b'\n') {
+                discard_line(&mut input).await?;
+            }
+            write(
+                &mut output,
+                &rpc_error(Value::Null, -32600, "MCP_MESSAGE_TOO_LARGE"),
+            )
+            .await?;
+            continue;
         }
+        let Ok(line) = String::from_utf8(line) else {
+            write(
+                &mut output,
+                &json!({"jsonrpc":"2.0","id":null,"error":{"code":-32700,"message":"Parse error"}}),
+            )
+            .await?;
+            continue;
+        };
         if line.trim().is_empty() {
             continue;
         }
@@ -91,23 +111,18 @@ where
                     .await;
                 match reply {
                     Ok(response) if response.status() == reqwest::StatusCode::ACCEPTED => continue,
-                    Ok(mut response) if response.status().is_success() => {
-                        if response.content_length().is_some_and(|n| n > 1024 * 1024) {
-                            bail!("MCP_RESPONSE_TOO_LARGE");
-                        }
-                        let mut bytes = Vec::new();
-                        while let Some(chunk) =
-                            response.chunk().await.context("MCP_RESPONSE_READ_FAILED")?
-                        {
-                            if bytes.len() + chunk.len() > 1024 * 1024 {
-                                bail!("MCP_RESPONSE_TOO_LARGE");
+                    Ok(response) if response.status().is_success() => {
+                        match read_response(response).await {
+                            Ok(mut value) => {
+                                annotate_health(&msg, &mut value, &version);
+                                Some(value)
                             }
-                            bytes.extend_from_slice(&chunk);
+                            Err(message) => Some(rpc_error(
+                                msg.get("id").cloned().unwrap_or(Value::Null),
+                                -32603,
+                                message,
+                            )),
                         }
-                        let mut value = serde_json::from_slice::<Value>(&bytes)
-                            .context("INVALID_MCP_RESPONSE")?;
-                        annotate_health(&msg, &mut value, &version);
-                        Some(value)
                     }
                     Ok(response) => {
                         local_reply(&msg, Failure::Http(response.status().as_u16()), &version)
@@ -131,6 +146,42 @@ where
         write(&mut output, &value).await?;
     }
     Ok(())
+}
+async fn discard_line<R: AsyncBufRead + Unpin>(input: &mut R) -> Result<()> {
+    loop {
+        let buf = input.fill_buf().await?;
+        if buf.is_empty() {
+            return Ok(());
+        }
+        let (used, done) = match buf.iter().position(|b| *b == b'\n') {
+            Some(i) => (i + 1, true),
+            None => (buf.len(), false),
+        };
+        input.consume(used);
+        if done {
+            return Ok(());
+        }
+    }
+}
+async fn read_response(mut response: reqwest::Response) -> Result<Value, &'static str> {
+    if response
+        .content_length()
+        .is_some_and(|n| n > MAX_RESPONSE as u64)
+    {
+        return Err("MCP_RESPONSE_TOO_LARGE");
+    }
+    let mut bytes = Vec::new();
+    while let Some(chunk) = response
+        .chunk()
+        .await
+        .map_err(|_| "TRANSPORT_OUTCOME_UNKNOWN: MCP_RESPONSE_READ_FAILED")?
+    {
+        if bytes.len() + chunk.len() > MAX_RESPONSE {
+            return Err("MCP_RESPONSE_TOO_LARGE");
+        }
+        bytes.extend_from_slice(&chunk);
+    }
+    serde_json::from_slice(&bytes).map_err(|_| "INVALID_MCP_RESPONSE")
 }
 async fn development_endpoint(
     client: &reqwest::Client,
@@ -349,10 +400,15 @@ fn adapter_info(version: &str, reachable: bool) -> Value {
     json!({"name":"omniget-mcp","version":ADAPTER_VERSION,"protocolVersion":version,"reachable":reachable})
 }
 fn annotate_health(msg: &Value, value: &mut Value, version: &str) {
-    if !is_health_call(msg) || value["result"]["isError"] == true {
+    if !is_health_call(msg) || value.get("error").is_some() || value["result"]["isError"] == true {
         return;
     }
-    let Some(sc) = value["result"]["structuredContent"].as_object_mut() else {
+    // get_mut, not IndexMut: indexing would insert `result` into an error reply.
+    let Some(sc) = value
+        .get_mut("result")
+        .and_then(|r| r.get_mut("structuredContent"))
+        .and_then(Value::as_object_mut)
+    else {
         return;
     };
     sc.insert("reachable".into(), json!(true));
@@ -366,4 +422,32 @@ async fn write<W: AsyncWrite + Unpin>(out: &mut W, v: &Value) -> Result<()> {
     out.write_all(b"\n").await?;
     out.flush().await?;
     Ok(())
+}
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn health_annotation_leaves_error_replies_alone() {
+        let msg = json!({"method":"tools/call","params":{"name":"omniget_health"}});
+        let mut reply = json!({"jsonrpc":"2.0","id":2,"error":{"code":-32602,"message":"x"}});
+        annotate_health(&msg, &mut reply, "1");
+        assert!(reply.get("result").is_none());
+    }
+    #[tokio::test]
+    async fn oversized_line_replies_error_and_loop_continues() {
+        let mut data = vec![b'x'; MAX_MESSAGE as usize + 10];
+        data.extend_from_slice(b"\nnot json\n");
+        let mut out = Vec::new();
+        std::env::remove_var("OMNIGET_DEV_ENDPOINT");
+        let url = reqwest::Url::parse(DEFAULT_ENDPOINT).unwrap();
+        run(&data[..], &mut out, url, None).await.unwrap();
+        let lines: Vec<Value> = String::from_utf8(out)
+            .unwrap()
+            .lines()
+            .map(|l| serde_json::from_str(l).unwrap())
+            .collect();
+        assert_eq!(lines.len(), 2);
+        assert_eq!(lines[0]["error"]["message"], "MCP_MESSAGE_TOO_LARGE");
+        assert_eq!(lines[1]["error"]["code"], -32700);
+    }
 }
