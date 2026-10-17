@@ -80,9 +80,9 @@
   </branding>
   <content_rating type="oars-1.1" />
   <releases>
-    <release version="1.0.0" date="2026-10-01">
+    <release version="1.0.0" date="2026-10-17">
       <description>
-        <p>OmniGet 1.0 adds a set of superpowers next to the downloader: a Global Downloader with a built-in browser that lists and saves the videos, audio, subtitles and documents a page loads, a YouTube client, a reader for books, comics and PDFs, a meeting recorder that transcribes and summarizes, a player for movies, shows and live TV, a music app, Telegram downloads and a system cleanup tool.</p>
+        <p>OmniGet 1.0 adds a set of superpowers next to the downloader: a Global Downloader with a built-in browser that lists and saves the videos, audio, subtitles and documents a page loads, a YouTube client, a reader for books, comics and PDFs, a player for movies, shows and live TV, a music app, Telegram downloads and a system cleanup tool. The World becomes a canvas where agent terminals, browser portals, notes and files sit side by side, with notes you can edit from your phone.</p>
         <p>Agents gain companies with budgets and approvals, jobs in their own git worktree with hunk-by-hunk review, Codex support and a memory that learns from each turn. Settings are redesigned with search, and updates are now served from getomniget.com, so copies on 0.10 need to install 1.0.0 once by hand.</p>
       </description>
     </release>
