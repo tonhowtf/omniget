@@ -47,8 +47,9 @@ function fail(message) {
 
 function run(cmd, cmdArgs, opts = {}) {
   console.log(`$ ${cmd} ${cmdArgs.join(" ")}`);
-  const r = spawnSync(cmd, cmdArgs, { cwd: root, stdio: "inherit", ...opts });
-  if (r.status !== 0) fail(`${cmd} exited with ${r.status}`);
+  const shell = process.platform === "win32" && cmd === "pnpm";
+  const r = spawnSync(cmd, cmdArgs, { cwd: root, stdio: "inherit", shell, ...opts });
+  if (r.status !== 0) fail(`${cmd} exited with ${r.status}${r.error ? ` (${r.error.message})` : ""}`);
 }
 
 function capture(cmd, cmdArgs) {
