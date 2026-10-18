@@ -7,6 +7,7 @@ mod linux;
 mod macos;
 #[cfg(any(target_os = "macos", test))]
 #[cfg(any(target_os = "macos", test))]
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
 mod smc_keys;
 #[cfg(windows)]
 mod windows;

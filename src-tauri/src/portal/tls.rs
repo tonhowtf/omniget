@@ -66,6 +66,7 @@ pub fn forget(label: &str) {
     }
 }
 
+#[cfg(target_os = "macos")]
 fn record_error(label: &str, host: &str) {
     let url = super::host()
         .state_of(label)

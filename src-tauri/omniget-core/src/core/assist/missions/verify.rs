@@ -128,6 +128,7 @@ pub fn workspace_digest(root: &Path) -> Option<String> {
         };
         (fd >= 0).then(|| unsafe { std::fs::File::from_raw_fd(fd) })
     }
+    #[allow(clippy::unnecessary_cast)]
     fn kind_at(dir: &std::fs::File, name: &CStr) -> Option<u32> {
         let mut st: libc::stat = unsafe { std::mem::zeroed() };
         let r = unsafe {
@@ -179,6 +180,7 @@ pub fn workspace_digest(root: &Path) -> Option<String> {
         out.sort();
         Some(out)
     }
+    #[allow(clippy::unnecessary_cast)]
     fn walk(
         dir: &std::fs::File,
         prefix: &str,

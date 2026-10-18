@@ -1,5 +1,7 @@
+#[cfg(target_os = "macos")]
+use std::collections::{BTreeSet, VecDeque};
 use std::{
-    collections::{BTreeMap, BTreeSet, VecDeque},
+    collections::BTreeMap,
     path::{Path, PathBuf},
     time::Duration,
 };
@@ -7,11 +9,13 @@ use tokio::io::AsyncReadExt;
 fn error(code: &str) -> String {
     code.to_owned()
 }
+#[cfg(target_os = "macos")]
 fn system(path: &Path) -> bool {
     path.starts_with("/System")
         || path.starts_with("/usr/lib")
         || path.starts_with("/Library/Apple/System/Library")
 }
+#[cfg(target_os = "macos")]
 fn macho(path: &Path) -> Result<bool, String> {
     use std::io::Read;
     let mut file = std::fs::File::open(path).map_err(|_| error("ENGINE_FILE_UNAVAILABLE"))?;
@@ -38,6 +42,7 @@ fn macho(path: &Path) -> Result<bool, String> {
             | [0xbf, 0xba, 0xfe, 0xca]
     ))
 }
+#[cfg(target_os = "macos")]
 async fn metadata(path: &Path) -> Result<String, String> {
     let mut child = tokio::process::Command::new("/usr/bin/otool")
         .arg("-L")
@@ -82,6 +87,7 @@ async fn metadata(path: &Path) -> Result<String, String> {
     }
     result
 }
+#[cfg(target_os = "macos")]
 fn expand(raw: &str, owner: &Path, executable: &Path) -> Option<PathBuf> {
     if let Some(tail) = raw.strip_prefix("@loader_path/") {
         Some(owner.parent()?.join(tail))
@@ -93,6 +99,7 @@ fn expand(raw: &str, owner: &Path, executable: &Path) -> Option<PathBuf> {
         None
     }
 }
+#[cfg(target_os = "macos")]
 fn rpaths(text: &str, owner: &Path, executable: &Path) -> Vec<PathBuf> {
     let mut active = false;
     let mut result = Vec::new();
@@ -174,7 +181,7 @@ async fn dependency_files_uncached(binaries: &[PathBuf]) -> Result<Vec<PathBuf>,
     #[cfg(not(target_os = "macos"))]
     {
         let _ = binaries;
-        return Err(error("ENGINE_SANDBOX_UNAVAILABLE"));
+        Err(error("ENGINE_SANDBOX_UNAVAILABLE"))
     }
     #[cfg(target_os = "macos")]
     tokio::time::timeout(Duration::from_secs(45), async {

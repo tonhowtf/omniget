@@ -901,6 +901,7 @@ mod replace_os {
         }
         Ok(stamp(&st))
     }
+    #[allow(clippy::unnecessary_cast)]
     fn is_regular(s: &Stamp) -> bool {
         s.mode & (libc::S_IFMT as u32) == libc::S_IFREG as u32
     }

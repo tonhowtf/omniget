@@ -338,7 +338,7 @@ fn read_status() -> (Value, Vec<PlanItem>) {
     (v, items)
 }
 
-#[cfg_attr(not(any(target_os = "macos", test)), allow(dead_code))]
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
 fn mac_items(s: &parse::PmsetSettings) -> Vec<PlanItem> {
     let Some(on) = s.low_power_mode else {
         return Vec::new();
