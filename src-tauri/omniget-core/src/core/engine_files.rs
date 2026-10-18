@@ -1,10 +1,13 @@
-#[cfg(target_os = "macos")]
-use std::collections::{BTreeSet, VecDeque};
 use std::{
     collections::BTreeMap,
     path::{Path, PathBuf},
+};
+#[cfg(target_os = "macos")]
+use std::{
+    collections::{BTreeSet, VecDeque},
     time::Duration,
 };
+#[cfg(target_os = "macos")]
 use tokio::io::AsyncReadExt;
 fn error(code: &str) -> String {
     code.to_owned()
