@@ -9,6 +9,8 @@ pub struct Fingerprint {
     pub dev: u64,
     pub ino: u64,
     pub size: u64,
+    #[serde(default)]
+    pub len: u64,
     pub mtime: i64,
     pub is_dir: bool,
 }
@@ -118,6 +120,7 @@ pub fn fingerprint(path: &Path) -> Result<Fingerprint, String> {
         dev,
         ino,
         size,
+        len: if is_dir { 0 } else { m.len() },
         mtime: mtime_ns(&m),
         is_dir,
     })
@@ -136,7 +139,7 @@ pub fn unchanged(path: &Path, fp: &Fingerprint) -> Result<(), String> {
     if is_dir != fp.is_dir {
         return Err("CHANGED: the path changed type".into());
     }
-    if !is_dir && (mtime_ns(&m) != fp.mtime || allocated(&m) != fp.size) {
+    if !is_dir && (mtime_ns(&m) != fp.mtime || allocated(&m) != fp.size || m.len() != fp.len) {
         return Err("CHANGED: the file was modified after the scan".into());
     }
     Ok(())
