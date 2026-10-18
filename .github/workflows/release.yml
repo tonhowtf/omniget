@@ -1,0 +1,163 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*.*.*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Existing tag to build (vX.Y.Z)'
+        required: true
+
+concurrency:
+  group: release-${{ github.event.inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  CARGO_INCREMENTAL: 0
+  CARGO_TERM_COLOR: always
+  TAG: ${{ github.event.inputs.tag || github.ref_name }}
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: mac-arm64
+            os: macos-latest
+            target: aarch64-apple-darwin
+          - name: mac-x64
+            os: macos-latest
+            target: x86_64-apple-darwin
+          - name: linux-x64
+            os: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+          - name: linux-arm64
+            os: ubuntu-22.04-arm
+            target: aarch64-unknown-linux-gnu
+          - name: windows-x64
+            os: windows-latest
+            target: x86_64-pc-windows-msvc
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ env.TAG }}
+          fetch-depth: 0
+
+      - name: Linux system dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev libasound2-dev libpipewire-0.3-dev clang libclang-dev patchelf xdg-utils rpm
+
+      - name: zip (Windows CLI archive)
+        if: runner.os == 'Windows'
+        run: choco install zip -y --no-progress
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: lts/*
+
+      - uses: pnpm/action-setup@v5
+
+      - name: Rust toolchain (rust-toolchain.toml)
+        shell: bash
+        run: |
+          rustup toolchain install
+          rustup target add ${{ matrix.target }}
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: './src-tauri'
+          key: release-${{ matrix.target }}
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build, sign and collect
+        shell: bash
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          NO_STRIP: ${{ runner.os == 'Linux' && '1' || '' }}
+          NODE_OPTIONS: --max-old-space-size=6144
+        run: node scripts/release-local.mjs --target ${{ matrix.target }} --cli --out dist-release
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: release-${{ matrix.name }}
+          path: |
+            dist-release/${{ env.TAG }}/*
+            !dist-release/${{ env.TAG }}/SHA256SUMS
+            !dist-release/${{ env.TAG }}/latest.json
+          if-no-files-found: error
+          retention-days: 30
+
+  extension:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ env.TAG }}
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: lts/*
+
+      - name: Package Chrome extension
+        run: |
+          VERSION="${TAG#v}"
+          mkdir -p out
+          node browser-extension/chrome/scripts/package.mjs --version "$VERSION" --output "out/omniget-chrome-extension-v${VERSION}.zip"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: release-extension
+          path: out/*
+          if-no-files-found: error
+          retention-days: 30
+
+  assemble:
+    needs: [build, extension]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ env.TAG }}
+
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: release-*
+          path: out
+          merge-multiple: true
+
+      - name: SHA256SUMS and latest.json
+        run: |
+          set -euo pipefail
+          VERSION="${TAG#v}"
+          NOTES="docs/releases/${TAG}.md"
+          ARGS=(out --base https://getomniget.com/dl)
+          [ -f "$NOTES" ] && ARGS+=(--notes "$NOTES")
+          node scripts/make-latest-json.mjs "${ARGS[@]}"
+          (cd out && sha256sum $(ls | grep -v -e '\.sig$' -e '^latest\.json$' -e '^SHA256SUMS$' | sort) > SHA256SUMS)
+          ls -la out
+          jq '.platforms | keys' out/latest.json
+
+      - name: Draft release with every file
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+            gh release upload "$TAG" out/* --repo "$GITHUB_REPOSITORY" --clobber
+          else
+            gh release create "$TAG" out/* --repo "$GITHUB_REPOSITORY" --draft --title "OmniGet $TAG" --notes "Build $TAG. Publish with pnpm fetch:release and pnpm mirror on the site repository."
+          fi

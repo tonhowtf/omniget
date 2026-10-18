@@ -1,0 +1,164 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  CARGO_INCREMENTAL: 0
+  CARGO_TERM_COLOR: always
+
+jobs:
+  rust:
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [ubuntu-22.04, windows-latest, macos-latest]
+    runs-on: ${{ matrix.platform }}
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Linux system dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev libasound2-dev libpipewire-0.3-dev clang libclang-dev
+
+      - name: Rust toolchain (rust-toolchain.toml)
+        shell: bash
+        run: |
+          rustup toolchain install
+          rustup show active-toolchain
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: './src-tauri'
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+
+      - name: Format
+        if: runner.os == 'Linux'
+        working-directory: src-tauri
+        run: cargo fmt --all -- --check
+
+      - name: Clippy
+        working-directory: src-tauri
+        run: cargo clippy --workspace --all-targets
+
+      - name: Clippy baseline (no new warnings)
+        run: node scripts/clippy-baseline.mjs --check
+
+      - name: Test
+        working-directory: src-tauri
+        timeout-minutes: 40
+        run: cargo test --workspace --no-fail-fast
+
+  frontend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: lts/*
+
+      - uses: pnpm/action-setup@v5
+
+      - name: IPC contract (invoke and listen targets)
+        run: pnpm check:ipc
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: svelte-check
+        run: pnpm check
+
+      - name: Unit tests (vitest)
+        run: pnpm test
+
+      - name: Locales in sync with en.json
+        run: pnpm check:i18n
+
+      - name: Browser extension tests
+        run: pnpm test:extension
+
+      - name: Claude Code plugin tests
+        run: pnpm test:plugin
+
+  smoke:
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [ubuntu-22.04, windows-latest, macos-latest]
+    runs-on: ${{ matrix.platform }}
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: lts/*
+
+      - uses: pnpm/action-setup@v5
+
+      - name: Rust toolchain (rust-toolchain.toml)
+        shell: bash
+        run: |
+          rustup toolchain install
+          rustup show active-toolchain
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: './src-tauri'
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+
+      - name: Linux system dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev libasound2-dev libpipewire-0.3-dev clang libclang-dev xvfb
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build frontend
+        run: pnpm build
+
+      - name: Build app
+        working-directory: src-tauri
+        run: cargo build
+
+      - name: Smoke (default and portable)
+        shell: bash
+        run: |
+          BIN=src-tauri/target/debug/omniget
+          [ "$RUNNER_OS" = "Windows" ] && BIN="$BIN.exe"
+          RUN=""
+          [ "$RUNNER_OS" = "Linux" ] && RUN="xvfb-run -a"
+          $RUN node scripts/smoke-test.mjs "$BIN"
+          $RUN node scripts/smoke-test.mjs "$BIN" --portable
+
+  ci-ok:
+    needs: [rust, frontend, smoke]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Every job passed
+        env:
+          RESULTS: ${{ toJSON(needs) }}
+        run: |
+          echo "$RESULTS" | jq -r 'to_entries[] | "\(.key): \(.value.result)"'
+          if echo "$RESULTS" | jq -e 'to_entries | any(.value.result != "success")' > /dev/null; then
+            echo "::error::at least one CI job did not pass"
+            exit 1
+          fi
