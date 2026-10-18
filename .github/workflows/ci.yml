@@ -22,7 +22,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        platform: [ubuntu-22.04, windows-latest, macos-latest]
+        platform: ${{ fromJSON(github.event_name == 'workflow_dispatch' && '["ubuntu-22.04","windows-latest","macos-latest"]' || '["ubuntu-22.04"]') }}
     runs-on: ${{ matrix.platform }}
     timeout-minutes: 90
     steps:
@@ -99,7 +99,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        platform: [ubuntu-22.04, windows-latest, macos-latest]
+        platform: ${{ fromJSON(github.event_name == 'workflow_dispatch' && '["ubuntu-22.04","windows-latest","macos-latest"]' || '["ubuntu-22.04"]') }}
     runs-on: ${{ matrix.platform }}
     timeout-minutes: 90
     steps:
