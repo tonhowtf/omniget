@@ -8,6 +8,14 @@ on:
       tag:
         description: 'Existing tag to build (vX.Y.Z)'
         required: true
+      only:
+        description: 'Comma list of targets (mac-arm64,mac-x64,linux-x64,windows-x64); empty builds all'
+        required: false
+        default: ''
+      assemble:
+        description: 'Draft the release from this run'
+        type: boolean
+        default: true
 
 concurrency:
   group: release-${{ github.event.inputs.tag || github.ref_name }}
@@ -19,26 +27,29 @@ permissions:
 env:
   CARGO_INCREMENTAL: 0
   CARGO_TERM_COLOR: always
+  CARGO_PROFILE_RELEASE_CODEGEN_UNITS: 8
   TAG: ${{ github.event.inputs.tag || github.ref_name }}
 
 jobs:
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.pick.outputs.matrix }}
+    steps:
+      - id: pick
+        env:
+          ONLY: ${{ github.event.inputs.only }}
+        run: |
+          ALL='[{"name":"mac-arm64","os":"macos-latest","target":"aarch64-apple-darwin"},{"name":"mac-x64","os":"macos-latest","target":"x86_64-apple-darwin"},{"name":"linux-x64","os":"ubuntu-22.04","target":"x86_64-unknown-linux-gnu"},{"name":"windows-x64","os":"windows-latest","target":"x86_64-pc-windows-msvc"}]'
+          M=$(jq -c --arg only "$ONLY" '{include: (if $only == "" then . else map(select(.name as $n | ($only | split(",") | map(gsub(" "; "")) | index($n)))) end)}' <<< "$ALL")
+          echo "matrix=$M" >> "$GITHUB_OUTPUT"
+          echo "$M"
+
   build:
+    needs: plan
     strategy:
       fail-fast: false
-      matrix:
-        include:
-          - name: mac-arm64
-            os: macos-latest
-            target: aarch64-apple-darwin
-          - name: mac-x64
-            os: macos-latest
-            target: x86_64-apple-darwin
-          - name: linux-x64
-            os: ubuntu-22.04
-            target: x86_64-unknown-linux-gnu
-          - name: windows-x64
-            os: windows-latest
-            target: x86_64-pc-windows-msvc
+      matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
     runs-on: ${{ matrix.os }}
     timeout-minutes: 120
     steps:
@@ -46,6 +57,26 @@ jobs:
         with:
           ref: ${{ env.TAG }}
           fetch-depth: 0
+
+      - name: Disk and swap (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache/CodeQL
+          sudo swapoff -a
+          sudo rm -f /mnt/swapfile /swapfile
+          sudo fallocate -l 10G /mnt/swapfile
+          sudo chmod 600 /mnt/swapfile
+          sudo mkswap /mnt/swapfile
+          sudo swapon /mnt/swapfile
+          free -h
+
+      - name: Pagefile (Windows)
+        if: runner.os == 'Windows'
+        uses: al-cheb/configure-pagefile-action@v1.4
+        with:
+          minimum-size: 16GB
+          maximum-size: 16GB
+          disk-root: 'D:'
 
       - name: Linux system dependencies
         if: runner.os == 'Linux'
@@ -122,6 +153,7 @@ jobs:
 
   assemble:
     needs: [build, extension]
+    if: github.event_name == 'push' || github.event.inputs.assemble == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: write
