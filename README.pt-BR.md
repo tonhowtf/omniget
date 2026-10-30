@@ -537,5 +537,5 @@ O OmniGet é construído sobre [yt-dlp](https://github.com/yt-dlp/yt-dlp), [FFmp
 O Loop é o mascote do OmniGet. Fan art é bem-vinda; a arte original não pode ser usada comercialmente nem redistribuída modificada. As ilustrações deste README foram feitas com o [Higgsfield](https://higgsfield.ai) a partir da arte original do Loop.
 
 <p align="center">
-  <a href="https://getomniget.com/download"><b>Baixe o OmniGet</b></a> · <a href="https://getomniget.com">getomniget.com</a> · <a href="LICENSE">GPL-3.0</a>
+  <a href="https://getomniget.com/download"><b>Baixe o OmniGet</b></a> · <a href="https://getomniget.com">getomniget.com</a> · <a href="LICENSE">GPL-3.0</a> · Feito por <a href="https://tonho.wtf/projetos/omniget">Antonio Leandro</a>
 </p>

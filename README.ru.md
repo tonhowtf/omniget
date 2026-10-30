@@ -533,5 +533,5 @@ OmniGet построен на [yt-dlp](https://github.com/yt-dlp/yt-dlp), [FFmpe
 Loop — маскот OmniGet. Фан-арт приветствуется; оригинальные изображения нельзя использовать в коммерческих целях или распространять в изменённом виде. Иллюстрации в этом README сделаны в [Higgsfield](https://higgsfield.ai) на основе оригинального арта с Loop.
 
 <p align="center">
-  <a href="https://getomniget.com/download"><b>Скачать OmniGet</b></a> · <a href="https://getomniget.com">getomniget.com</a> · <a href="LICENSE">GPL-3.0</a>
+  <a href="https://getomniget.com/download"><b>Скачать OmniGet</b></a> · <a href="https://getomniget.com">getomniget.com</a> · <a href="LICENSE">GPL-3.0</a> · Автор: <a href="https://tonho.wtf/en/projetos/omniget">Antonio Leandro</a>
 </p>

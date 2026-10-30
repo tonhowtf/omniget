@@ -536,5 +536,5 @@ OmniGet 构建于 [yt-dlp](https://github.com/yt-dlp/yt-dlp)、[FFmpeg](https://
 Loop 是 OmniGet 的吉祥物。欢迎创作同人作品；原始美术作品不得用于商业用途，也不得修改后再分发。本 README 中的插图是用 [Higgsfield](https://higgsfield.ai) 基于 Loop 原始美术作品制作的。
 
 <p align="center">
-  <a href="https://getomniget.com/download"><b>下载 OmniGet</b></a> · <a href="https://getomniget.com">getomniget.com</a> · <a href="LICENSE">GPL-3.0</a>
+  <a href="https://getomniget.com/download"><b>下载 OmniGet</b></a> · <a href="https://getomniget.com">getomniget.com</a> · <a href="LICENSE">GPL-3.0</a> · 作者: <a href="https://tonho.wtf/zh/projetos/omniget">Antonio Leandro</a>
 </p>
