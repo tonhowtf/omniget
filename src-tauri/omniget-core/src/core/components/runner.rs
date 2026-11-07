@@ -291,7 +291,13 @@ mod tests {
         let lines: Vec<&str> = out.output.iter().map(|l| l.line.as_str()).collect();
         assert!(lines.contains(&"one"));
         assert!(lines.contains(&"two"));
-        assert_eq!(lines.last(), Some(&"  - a.tsx"));
+        let stdout: Vec<&str> = out
+            .output
+            .iter()
+            .filter(|l| l.stream == "stdout")
+            .map(|l| l.line.as_str())
+            .collect();
+        assert_eq!(stdout.last(), Some(&"  - a.tsx"));
     }
 
     #[cfg(unix)]
