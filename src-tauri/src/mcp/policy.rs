@@ -69,6 +69,8 @@ pub const SCOPES: &[&str] = &[
     "system_change",
     "telegram_read",
     "telegram_write",
+    "social_read",
+    "social_write",
     "approvals_respond",
     "agents_run",
     "memory_read",
@@ -261,6 +263,13 @@ pub fn scope(name: &str) -> Option<&'static str> {
             "telegram_write"
         }
         n if n.starts_with("tg_") => "telegram_read",
+        n if crate::commands::social::tools::owns(n) => {
+            if crate::commands::social::tools::find(n).is_some_and(|t| t.write) {
+                "social_write"
+            } else {
+                "social_read"
+            }
+        }
         "read_library_search" | "read_book_get" | "read_book_text" | "read_updates" => "library",
         n if n.starts_with("gd_") => "global_downloader",
         n if super::canvas::owns(n) => return super::canvas::scope(n),
@@ -408,13 +417,7 @@ mod tests {
             scopes: vec!["discover".into()],
         };
         assert!(allowed(&p, "download_status"));
-        for n in [
-            "download_enqueue",
-            "agent_delegate",
-            "help_apply",
-            "unknown",
-            "job_diff",
-        ] {
+        for n in ["download_enqueue", "agent_delegate", "unknown", "job_diff"] {
             assert!(!allowed(&p, n));
         }
     }

@@ -13,7 +13,7 @@ const HOOK_MARK: &str = "# omniget: conta principal do Claude Code";
 fn home() -> anyhow::Result<PathBuf> {
     std::env::var_os("HOME")
         .map(PathBuf::from)
-        .ok_or_else(|| anyhow!("HOME não definido"))
+        .ok_or_else(|| anyhow!("HOME is not set"))
 }
 
 pub fn main_script_path() -> Option<PathBuf> {
@@ -51,13 +51,12 @@ fn hook_line(script: &Path) -> String {
 }
 
 pub fn write_main(account: &CliAccount) -> anyhow::Result<Vec<PathBuf>> {
-    let script =
-        main_script_path().ok_or_else(|| anyhow!("pasta de dados do OmniGet não encontrada"))?;
+    let script = main_script_path().ok_or_else(|| anyhow!("OmniGet data folder not found"))?;
     if let Some(parent) = script.parent() {
         std::fs::create_dir_all(parent)?;
     }
     std::fs::write(&script, main_script(account))
-        .with_context(|| format!("não consegui escrever {}", script.display()))?;
+        .with_context(|| format!("could not write {}", script.display()))?;
     let home = home()?;
     let mut installed = Vec::new();
     for (rc, always) in [(".zshrc", true), (".bashrc", false)] {
@@ -93,7 +92,7 @@ pub fn write_main(account: &CliAccount) -> anyhow::Result<Vec<PathBuf>> {
             .create(true)
             .append(true)
             .open(&rc)
-            .with_context(|| format!("não consegui abrir {}", rc.display()))?;
+            .with_context(|| format!("could not open {}", rc.display()))?;
         std::io::Write::write_all(&mut f, hook(&script).as_bytes())?;
         installed.push(rc);
     }
@@ -244,7 +243,7 @@ fn put_keychain(service: &str, secret: &str) -> anyhow::Result<()> {
             .success()
     };
     if !ok {
-        bail!("o Keychain recusou a gravação");
+        bail!("the Keychain refused the write");
     }
     Ok(())
 }
@@ -260,7 +259,7 @@ fn write_creds(config_dir: &Path, secret: &str) -> anyhow::Result<()> {
     if let Some(before) = before {
         let _ = put_keychain(&service, &before);
     }
-    bail!("não consegui gravar o login no Keychain ({service}); o valor anterior foi mantido")
+    bail!("could not save the login to the Keychain ({service}); the previous value was kept")
 }
 
 #[cfg(not(target_os = "macos"))]
@@ -281,7 +280,7 @@ fn read_creds(config_dir: &Path) -> Option<String> {
 
 #[cfg(not(target_os = "macos"))]
 fn write_creds(config_dir: &Path, secret: &str) -> anyhow::Result<()> {
-    let path = creds_file(config_dir).ok_or_else(|| anyhow!("HOME não definido"))?;
+    let path = creds_file(config_dir).ok_or_else(|| anyhow!("HOME is not set"))?;
     std::fs::write(&path, secret)?;
     #[cfg(unix)]
     {
@@ -293,7 +292,7 @@ fn write_creds(config_dir: &Path, secret: &str) -> anyhow::Result<()> {
 
 fn copy_keychain(from: &Path, to: &Path) -> anyhow::Result<()> {
     let secret =
-        read_creds(from).ok_or_else(|| anyhow!("login de {} não encontrado", from.display()))?;
+        read_creds(from).ok_or_else(|| anyhow!("login for {} not found", from.display()))?;
     write_creds(to, &secret)
 }
 
@@ -392,24 +391,24 @@ fn sync_mcp_logins(
         c.insert("mcpOAuth".into(), Value::Object(own));
         write_creds(&a.config_dir, &serde_json::to_string(&c)?)?;
         if !added.is_empty() {
-            println!("{}: logins de MCP copiados ({})", a.label, added.join(", "));
+            println!("{}: MCP logins copied ({})", a.label, added.join(", "));
         }
         if !removed.is_empty() {
-            println!(
-                "{}: logins de MCP removidos ({})",
-                a.label,
-                removed.join(", ")
-            );
+            println!("{}: MCP logins removed ({})", a.label, removed.join(", "));
         }
     }
     Ok(keep)
 }
 
 fn adopt(store: &AccountStore, account: &CliAccount) -> anyhow::Result<CliAccount> {
-    let dest = default_profile_dir(&account.id)
-        .ok_or_else(|| anyhow!("pasta de perfis não encontrada"))?;
+    let dest =
+        default_profile_dir(&account.id).ok_or_else(|| anyhow!("profiles folder not found"))?;
     if dest.exists() {
-        bail!("{} já existe; não movi {}", dest.display(), account.id);
+        bail!(
+            "{} already exists; did not move {}",
+            dest.display(),
+            account.id
+        );
     }
     std::fs::create_dir_all(dest.parent().unwrap())?;
     let status = Command::new("cp")
@@ -418,7 +417,7 @@ fn adopt(store: &AccountStore, account: &CliAccount) -> anyhow::Result<CliAccoun
         .arg(&dest)
         .status()?;
     if !status.success() {
-        bail!("cp falhou ao copiar {}", account.config_dir.display());
+        bail!("cp failed to copy {}", account.config_dir.display());
     }
     if let Err(e) = copy_keychain(&account.config_dir, &dest) {
         let _ = std::fs::remove_dir_all(&dest);
@@ -446,7 +445,7 @@ fn link_shared(source: &Path, dest: &Path) -> anyhow::Result<Vec<String>> {
             {
                 continue;
             }
-            let backup = dest.join(format!("{name}.antes-do-sync-{stamp}"));
+            let backup = dest.join(format!("{name}.before-sync-{stamp}"));
             std::fs::rename(&to, &backup)?;
         }
         #[cfg(unix)]
@@ -457,8 +456,8 @@ fn link_shared(source: &Path, dest: &Path) -> anyhow::Result<Vec<String>> {
 }
 
 pub fn sync(only: Option<&CliAccount>, main: Option<&CliAccount>) -> anyhow::Result<()> {
-    let store = AccountStore::default_store()
-        .ok_or_else(|| anyhow!("pasta de dados do OmniGet não encontrada"))?;
+    let store =
+        AccountStore::default_store().ok_or_else(|| anyhow!("OmniGet data folder not found"))?;
     let home = home()?;
     let source = home.join(".claude");
     let mut accounts: Vec<CliAccount> = store
@@ -473,13 +472,13 @@ pub fn sync(only: Option<&CliAccount>, main: Option<&CliAccount>) -> anyhow::Res
             match adopt(&store, a) {
                 Ok(moved) => {
                     println!(
-                        "{}: login saiu da pasta temporária para {}",
+                        "{}: login moved from the temporary folder to {}",
                         a.label,
                         moved.config_dir.display()
                     );
                     *a = moved;
                 }
-                Err(e) => println!("{}: continua na pasta temporária ({e})", a.label),
+                Err(e) => println!("{}: still in the temporary folder ({e})", a.label),
             }
         }
     }
@@ -493,18 +492,17 @@ pub fn sync(only: Option<&CliAccount>, main: Option<&CliAccount>) -> anyhow::Res
         }
         let linked = link_shared(&source, &a.config_dir)?;
         if linked.is_empty() {
-            println!("{}: arquivos já compartilhados", a.label);
+            println!("{}: files already shared", a.label);
         } else {
             println!(
-                "{}: agora usa os de ~/.claude → {}",
+                "{}: now uses the ones from ~/.claude → {}",
                 a.label,
                 linked.join(", ")
             );
         }
     }
 
-    let base_file =
-        base_path().ok_or_else(|| anyhow!("pasta de dados do OmniGet não encontrada"))?;
+    let base_file = base_path().ok_or_else(|| anyhow!("OmniGet data folder not found"))?;
     let base = read_json(&base_file);
     let known: Vec<String> = base
         .as_ref()
@@ -567,7 +565,7 @@ pub fn sync(only: Option<&CliAccount>, main: Option<&CliAccount>) -> anyhow::Res
             what.push(format!("− {}", removed.join(", ")));
         }
         if what.is_empty() {
-            what.push("configuração atualizada".into());
+            what.push("configuration updated".into());
         }
         println!("{}: MCPs {}", a.label, what.join(" "));
     }
@@ -591,7 +589,7 @@ pub fn sync(only: Option<&CliAccount>, main: Option<&CliAccount>) -> anyhow::Res
     snapshot.insert("mcpOAuth".into(), Value::from(logins));
     write_json(&base_file, &snapshot)?;
     let names: Vec<&str> = merged.keys().map(String::as_str).collect();
-    println!("MCPs em todas as contas: {}", names.join(", "));
+    println!("MCPs on all accounts: {}", names.join(", "));
     Ok(())
 }
 

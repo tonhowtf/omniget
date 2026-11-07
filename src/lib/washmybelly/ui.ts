@@ -194,7 +194,7 @@ export function freesSpace(kind: string): boolean {
   return ["cleanup", "dev_artifacts", "duplicates", "empty_folders", "large_files", "uninstall", "packages"].includes(kind);
 }
 
-export type StepState = "pending" | "active" | "done" | "failed";
+type StepState = "pending" | "active" | "done" | "failed";
 type ExecStep = { id: "prepare" | "run" | "admin" | "done"; state: StepState };
 
 export function execSteps(stage: string | null, needsAdmin: boolean, failed = false): ExecStep[] {
@@ -239,16 +239,6 @@ export function splitByStatus<T extends { status: "done" | "skipped" | "failed" 
 
 export function kindKey(kind: string): string {
   return `washmybelly.receipts.kind.${kind}`;
-}
-
-export function niceMax(v: number): number {
-  if (!Number.isFinite(v) || v <= 0) return 1;
-  const exp = Math.floor(Math.log10(v));
-  const base = 10 ** exp;
-  for (const m of [1, 2, 2.5, 5, 10]) {
-    if (m * base >= v) return m * base;
-  }
-  return 10 * base;
 }
 
 export function linePath(values: readonly number[], width: number, height: number, max: number, capacity = values.length): string {

@@ -548,12 +548,6 @@ impl EffectState {
             _ => EffectState::Unknown,
         }
     }
-    pub fn is_settled(self) -> bool {
-        matches!(
-            self,
-            EffectState::Confirmed | EffectState::Failed | EffectState::UnknownAccepted
-        )
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -1373,39 +1367,6 @@ pub fn criteria(
     })
 }
 
-pub fn revise_criteria(
-    db: &AssistDb,
-    mission_id: &str,
-    new: &[Criterion],
-    reason: &str,
-) -> Result<Mission, String> {
-    let criteria = validate_criteria(new)?;
-    if !criteria.iter().any(|c| c.severity == Severity::Required) {
-        return Err(format!(
-            "{ERR_MISSION_CRITERIA}: at least one criterion must be required"
-        ));
-    }
-    db.tx(|tx| {
-        let m = get_tx(tx, mission_id)?;
-        if m.state.is_final() {
-            return Err(format!("{ERR_MISSION_STATE}: mission is {}", m.state.as_str()));
-        }
-        let v = m.criteria_version + 1;
-        insert_criteria_tx(tx, mission_id, v, &criteria)?;
-        tx.execute(
-            "UPDATE missions_missions SET criteria_version = ?2, revision = revision + 1, updated_ms = ?3 WHERE id = ?1",
-            params![mission_id, v, now_ms()],
-        )
-        .map_err(e)?;
-        append_event_tx(
-            tx,
-            mission_id,
-            NewEvent::new("criteria_revised", json!({ "version": v, "reason": clip(reason, 400) })),
-        )?;
-        get_tx(tx, mission_id)
-    })
-}
-
 pub fn transition(
     db: &AssistDb,
     mission_id: &str,
@@ -1611,44 +1572,6 @@ pub fn book_spend(
     })
 }
 
-pub fn revise_budget(
-    db: &AssistDb,
-    mission_id: &str,
-    budget: &MissionBudget,
-) -> Result<Mission, String> {
-    db.tx(|tx| {
-        let m = get_tx(tx, mission_id)?;
-        if m.state.is_final() {
-            return Err(format!("{ERR_MISSION_STATE}: mission is {}", m.state.as_str()));
-        }
-        tx.execute(
-            "UPDATE missions_missions SET budget = ?2, revision = revision + 1, updated_ms = ?3 WHERE id = ?1",
-            params![mission_id, serde_json::to_string(budget).map_err(e)?, now_ms()],
-        )
-        .map_err(e)?;
-        append_event_tx(tx, mission_id, NewEvent::new("budget_revised", json!({ "from": m.budget, "to": budget })))?;
-        get_tx(tx, mission_id)
-    })
-}
-
-pub fn reopen_budget_blocked(db: &AssistDb, mission_id: &str) -> Result<usize, String> {
-    db.tx(|tx| {
-        let n = tx
-            .execute(
-                "UPDATE missions_tasks SET state = 'pending', error = NULL, attempts = 0, owner = NULL, lease_until_ms = NULL, updated_ms = ?2 \
-                 WHERE mission_id = ?1 AND state IN ('blocked','failed') \
-                 AND (error LIKE '%ERR_MISSION_BUDGET%' OR error LIKE '%EXTERNAL_BUDGET_EXCEEDED%' OR error LIKE '%EXTERNAL_MISSION_BUDGET_EXCEEDED%' OR error LIKE '%ERR_LLM_BUDGET%') \
-                 AND NOT EXISTS (SELECT 1 FROM missions_effects x WHERE x.task_id = missions_tasks.id AND x.state IN ('pending','running','unknown'))",
-                params![mission_id, now_ms()],
-            )
-            .map_err(e)?;
-        if n > 0 {
-            append_event_tx(tx, mission_id, NewEvent::new("budget_tasks_reopened", json!({ "tasks": n })))?;
-        }
-        Ok(n)
-    })
-}
-
 pub fn budget_pool(mission_id: &str) -> String {
     format!("mission:{mission_id}")
 }
@@ -1695,8 +1618,7 @@ pub fn detail(db: &AssistDb, id: &str) -> Result<MissionDetail, String> {
     let receipts = receipts(db, id)?;
     let effects = effects(db, id)?;
     let ws = mission.workspace.clone().map(std::path::PathBuf::from);
-    let since = mission.created_ms;
-    let dflt = |c: &Criterion| verify::digest_for(Some(db), ws.as_deref(), c, since);
+    let dflt = |c: &Criterion| verify::digest_for(ws.as_deref(), c);
     let verdict = verify::verdict(&criteria, &receipts, &with_revision(db, id, &dflt));
     let last_checkpoint = checkpoint::latest(db, id)?;
     let events = recent_events(db, id, 200)?;
@@ -2027,52 +1949,6 @@ pub fn finish_task(
         if matches!(state, "failed" | "cancelled") {
             skip_poisoned_tx(tx, &t.mission_id)?;
         }
-        task_tx(tx, task_id)
-    })
-}
-
-pub fn unblock_task(
-    db: &AssistDb,
-    task_id: &str,
-    confirmed: Option<bool>,
-    note: &str,
-) -> Result<MissionTask, String> {
-    db.tx(|tx| {
-        let t = task_tx(tx, task_id)?;
-        if t.state != TaskState::Blocked {
-            return Err(format!("{ERR_MISSION_STATE}: task {task_id} is {}", t.state.as_str()));
-        }
-        let now = now_ms();
-        let settle_as = match confirmed {
-            Some(true) => "confirmed",
-            Some(false) => "failed",
-            None => "unknown_accepted",
-        };
-        let keys: Vec<String> = effects_of_task_tx(tx, task_id)?
-            .into_iter()
-            .filter(|x| !x.state.is_settled())
-            .map(|x| x.key)
-            .collect();
-        tx.execute(
-            "UPDATE missions_effects SET state = ?2, detail = ?3, updated_ms = ?4 WHERE task_id = ?1 AND state IN ('unknown','running','pending')",
-            params![task_id, settle_as, format!("settled by the user: {}", clip(note, 300)), now],
-        )
-        .map_err(e)?;
-        if confirmed.is_none() && !keys.is_empty() {
-            append_event_tx(tx, &t.mission_id, NewEvent::new("effect_accepted_unknown", json!({ "task": task_id, "effects": keys, "note": clip(note, 300) })))?;
-        }
-        let next = if confirmed == Some(true) { "done" } else { "pending" };
-        tx.execute(
-            "UPDATE missions_tasks SET state = ?2, error = NULL, attempts = CASE WHEN ?2 = 'pending' AND attempts >= max_attempts THEN max_attempts - 1 ELSE attempts END, updated_ms = ?3 WHERE id = ?1",
-            params![task_id, next, now],
-        )
-        .map_err(e)?;
-        bump_work_revision_tx(tx, &t.mission_id)?;
-        append_event_tx(
-            tx,
-            &t.mission_id,
-            NewEvent::new("task_unblocked", json!({ "task": task_id, "confirmed": confirmed, "note": clip(note, 300), "next": next })),
-        )?;
         task_tx(tx, task_id)
     })
 }
@@ -2554,8 +2430,7 @@ pub fn record_receipt(db: &AssistDb, r: NewReceipt) -> Result<MissionReceipt, St
         if judged_without_artifact(c) {
             let m = get(db, &r.mission_id)?;
             let ws = m.workspace.clone().map(std::path::PathBuf::from);
-            let since = m.created_ms;
-            let dflt = |c: &Criterion| verify::digest_for(Some(db), ws.as_deref(), c, since);
+            let dflt = |c: &Criterion| verify::digest_for(ws.as_deref(), c);
             r.artifact_digest = revision_digest(db, &r.mission_id, &dflt)
                 .unwrap_or_else(|| "rev:unavailable".into());
         }

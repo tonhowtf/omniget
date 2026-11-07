@@ -138,7 +138,7 @@
               class="choose"
               onclick={() => {
                 open = false;
-                void goto("/settings?tab=general&section=usage-tray");
+                void goto("/settings?tab=ai&section=limits");
               }}>{tr("canvas.usage.choose", "Choose accounts…")}</button
             >
           </div>

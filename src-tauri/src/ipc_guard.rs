@@ -43,14 +43,14 @@ mod tests {
     #[test]
     fn app_windows_call_everything_remote_pages_almost_nothing() {
         for l in ["main", "pet", "limits-strip", "usage-panel"] {
-            assert!(allowed(l, "threads_dispatch"), "{l}");
+            assert!(allowed(l, "threads_import_external"), "{l}");
         }
         assert!(allowed("preview-thr_1", "preview_report"));
-        assert!(!allowed("preview-thr_1", "threads_dispatch"));
+        assert!(!allowed("preview-thr_1", "threads_import_external"));
         assert!(!allowed("preview-thr_1", "open_auth_webview"));
         assert!(!allowed("auth-123", "open_auth_webview"));
         assert!(!allowed("auth-123", "preview_report"));
-        assert!(!allowed("somewhere-else", "threads_dispatch"));
+        assert!(!allowed("somewhere-else", "threads_import_external"));
     }
 
     #[test]

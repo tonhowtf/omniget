@@ -249,7 +249,7 @@ pub fn bubbles_to_turns(bubbles: &[Value], fallback_model: Option<&str>) -> Vec<
             t.message_id = s(b, &["bubbleId"]);
             turns.push(t);
         }
-        let t = turns.last_mut().expect("turno recém criado");
+        let t = turns.last_mut().expect("turn just created");
         if !text.is_empty() {
             if !t.text.is_empty() {
                 t.text.push('\n');

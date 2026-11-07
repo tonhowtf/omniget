@@ -48,7 +48,7 @@
 
 <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
 <div class="md markdown" data-streaming={streaming ? "" : undefined} onclick={onClick} onkeydown={onKey}>
-  <!-- eslint-disable-next-line svelte/no-at-html-tags -- sanitised in $lib/llm/markdown -->
+  <!-- eslint-disable-next-line svelte/no-at-html-tags -- sanitised in $lib/markdown -->
   {@html html}
 </div>
 

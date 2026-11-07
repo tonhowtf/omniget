@@ -155,6 +155,18 @@ pub fn parse_flood_wait(err: &str) -> Option<u64> {
             }
         }
     }
+    // WHY: grammers strips the number from the name and prints "rpc error 420: FLOOD_WAIT (value: 30)".
+    if err.contains("FLOOD_WAIT")
+        || err.contains("FLOOD_PREMIUM_WAIT")
+        || err.contains("rpc error 420")
+    {
+        let pos = err.find("(value: ")? + "(value: ".len();
+        let digits: String = err[pos..]
+            .chars()
+            .take_while(|c| c.is_ascii_digit())
+            .collect();
+        return digits.parse().ok();
+    }
     None
 }
 
@@ -393,6 +405,24 @@ mod retryable_tests {
     }
 
     #[test]
+    fn flood_wait_is_read_from_the_way_grammers_prints_it() {
+        assert_eq!(
+            super::parse_flood_wait("channels.getMessages: rpc error 420: FLOOD_WAIT (value: 30)"),
+            Some(30)
+        );
+        assert_eq!(
+            super::parse_flood_wait(
+                "rpc error 420: FLOOD_PREMIUM_WAIT caused by upload.getFile (value: 7)"
+            ),
+            Some(7)
+        );
+        assert_eq!(
+            super::parse_flood_wait("rpc error 400: MESSAGE_ID_INVALID"),
+            None
+        );
+    }
+
+    #[test]
     fn flood_wait_is_not_classified_as_retryable() {
         assert!(!is_retryable_error("FLOOD_WAIT_30"));
         assert!(!is_retryable_error("FLOOD_PREMIUM_WAIT_5"));
@@ -438,73 +468,6 @@ pub struct TelegramSelf {
     pub phone: Option<String>,
 }
 
-pub async fn delete_channel(handle: &TelegramSessionHandle, chat_id: i64) -> anyhow::Result<()> {
-    let guard = handle.lock().await;
-    let client = guard
-        .client
-        .as_ref()
-        .ok_or_else(|| anyhow::anyhow!("Not authenticated"))?
-        .clone();
-    let access_hash = guard.peer_hashes.get(&chat_id).copied().unwrap_or(0);
-    drop(guard);
-
-    let req = tl::functions::channels::DeleteChannel {
-        channel: tl::enums::InputChannel::Channel(tl::types::InputChannel {
-            channel_id: chat_id,
-            access_hash,
-        }),
-    };
-    client
-        .invoke(&req)
-        .await
-        .map_err(|e| anyhow::anyhow!("channels.deleteChannel: {}", e))?;
-    Ok(())
-}
-
-pub async fn leave_channel(
-    handle: &TelegramSessionHandle,
-    chat_id: i64,
-    chat_type: &str,
-) -> anyhow::Result<()> {
-    let guard = handle.lock().await;
-    let client = guard
-        .client
-        .as_ref()
-        .ok_or_else(|| anyhow::anyhow!("Not authenticated"))?
-        .clone();
-    let access_hash = guard.peer_hashes.get(&chat_id).copied().unwrap_or(0);
-    drop(guard);
-
-    if chat_type == "channel" {
-        let req = tl::functions::channels::LeaveChannel {
-            channel: tl::enums::InputChannel::Channel(tl::types::InputChannel {
-                channel_id: chat_id,
-                access_hash,
-            }),
-        };
-        client
-            .invoke(&req)
-            .await
-            .map_err(|e| anyhow::anyhow!("channels.leaveChannel: {}", e))?;
-    } else if chat_type == "group" {
-        let req = tl::functions::messages::DeleteChatUser {
-            revoke_history: false,
-            chat_id,
-            user_id: tl::enums::InputUser::UserSelf,
-        };
-        client
-            .invoke(&req)
-            .await
-            .map_err(|e| anyhow::anyhow!("messages.deleteChatUser: {}", e))?;
-    } else {
-        return Err(anyhow::anyhow!(
-            "leave_channel: chat_type '{}' not supported (use channel or group)",
-            chat_type
-        ));
-    }
-    Ok(())
-}
-
 pub async fn delete_history(
     handle: &TelegramSessionHandle,
     chat_id: i64,
@@ -537,345 +500,13 @@ pub async fn delete_history(
     Ok(())
 }
 
-#[derive(Debug, Serialize, Clone)]
-pub struct TelegramParticipant {
-    pub user_id: i64,
-    pub first_name: String,
-    pub last_name: String,
-    pub username: Option<String>,
-    pub is_bot: bool,
-    pub role: String,
-    pub joined_at: Option<i32>,
-}
-
-#[derive(Debug, Serialize)]
-pub struct TelegramParticipantsPage {
-    pub count: i32,
-    pub users: Vec<TelegramParticipant>,
-}
-
-pub async fn list_participants(
-    handle: &TelegramSessionHandle,
-    chat_id: i64,
-    filter: &str,
-    offset: i32,
-    limit: i32,
-    search: Option<String>,
-) -> anyhow::Result<TelegramParticipantsPage> {
-    let guard = handle.lock().await;
-    let client = guard
-        .client
-        .as_ref()
-        .ok_or_else(|| anyhow::anyhow!("Not authenticated"))?
-        .clone();
-    let access_hash = guard.peer_hashes.get(&chat_id).copied().unwrap_or(0);
-    drop(guard);
-
-    let q = search.unwrap_or_default();
-    let participant_filter = match filter {
-        "admins" => tl::enums::ChannelParticipantsFilter::ChannelParticipantsAdmins,
-        "bots" => tl::enums::ChannelParticipantsFilter::ChannelParticipantsBots,
-        "banned" => tl::enums::ChannelParticipantsFilter::ChannelParticipantsKicked(
-            tl::types::ChannelParticipantsKicked { q: q.clone() },
-        ),
-        "restricted" => tl::enums::ChannelParticipantsFilter::ChannelParticipantsBanned(
-            tl::types::ChannelParticipantsBanned { q: q.clone() },
-        ),
-        "search" => tl::enums::ChannelParticipantsFilter::ChannelParticipantsSearch(
-            tl::types::ChannelParticipantsSearch { q: q.clone() },
-        ),
-        _ => tl::enums::ChannelParticipantsFilter::ChannelParticipantsRecent,
-    };
-
-    let req = tl::functions::channels::GetParticipants {
-        channel: tl::enums::InputChannel::Channel(tl::types::InputChannel {
-            channel_id: chat_id,
-            access_hash,
-        }),
-        filter: participant_filter,
-        offset,
-        limit,
-        hash: 0,
-    };
-    let resp = invoke_with_flood_wait(&client, &req)
-        .await
-        .map_err(|e| anyhow::anyhow!("channels.getParticipants: {}", e))?;
-
-    let (count, participants_raw, users_raw) = match resp {
-        tl::enums::channels::ChannelParticipants::Participants(p) => {
-            (p.count, p.participants, p.users)
-        }
-        tl::enums::channels::ChannelParticipants::NotModified => (0, Vec::new(), Vec::new()),
-    };
-
-    let mut user_map: std::collections::HashMap<i64, &tl::types::User> =
-        std::collections::HashMap::new();
-    for u in &users_raw {
-        if let tl::enums::User::User(uu) = u {
-            user_map.insert(uu.id, uu);
-        }
-    }
-
-    let mut users = Vec::with_capacity(participants_raw.len());
-    for p in participants_raw {
-        let (uid, role, joined_at): (i64, &str, Option<i32>) = match p {
-            tl::enums::ChannelParticipant::Creator(c) => (c.user_id, "creator", None),
-            tl::enums::ChannelParticipant::Admin(a) => (a.user_id, "admin", Some(a.date)),
-            tl::enums::ChannelParticipant::Participant(c) => (c.user_id, "member", Some(c.date)),
-            tl::enums::ChannelParticipant::Banned(b) => {
-                let uid_extracted = match b.peer {
-                    tl::enums::Peer::User(p) => p.user_id,
-                    _ => 0,
-                };
-                (uid_extracted, "banned", Some(b.date))
-            }
-            tl::enums::ChannelParticipant::Left(l) => {
-                let uid_extracted = match l.peer {
-                    tl::enums::Peer::User(p) => p.user_id,
-                    _ => 0,
-                };
-                (uid_extracted, "left", None)
-            }
-            tl::enums::ChannelParticipant::ParticipantSelf(s) => (s.user_id, "self", Some(s.date)),
-        };
-        if let Some(u) = user_map.get(&uid) {
-            users.push(TelegramParticipant {
-                user_id: uid,
-                first_name: u.first_name.clone().unwrap_or_default(),
-                last_name: u.last_name.clone().unwrap_or_default(),
-                username: u.username.clone(),
-                is_bot: u.bot,
-                role: role.to_string(),
-                joined_at,
-            });
-        } else {
-            users.push(TelegramParticipant {
-                user_id: uid,
-                first_name: String::new(),
-                last_name: String::new(),
-                username: None,
-                is_bot: false,
-                role: role.to_string(),
-                joined_at,
-            });
-        }
-    }
-
-    Ok(TelegramParticipantsPage { count, users })
-}
-
-pub async fn set_blocked(
-    handle: &TelegramSessionHandle,
-    chat_id: i64,
-    chat_type: &str,
-    blocked: bool,
-) -> anyhow::Result<()> {
-    let guard = handle.lock().await;
-    let client = guard
-        .client
-        .as_ref()
-        .ok_or_else(|| anyhow::anyhow!("Not authenticated"))?
-        .clone();
-    let access_hash = guard.peer_hashes.get(&chat_id).copied().unwrap_or(0);
-    drop(guard);
-
-    let peer = make_input_peer(chat_id, chat_type, access_hash);
-    if blocked {
-        let req = tl::functions::contacts::Block {
-            my_stories_from: false,
-            id: peer,
-        };
-        client
-            .invoke(&req)
-            .await
-            .map_err(|e| anyhow::anyhow!("contacts.block: {}", e))?;
-    } else {
-        let req = tl::functions::contacts::Unblock {
-            my_stories_from: false,
-            id: peer,
-        };
-        client
-            .invoke(&req)
-            .await
-            .map_err(|e| anyhow::anyhow!("contacts.unblock: {}", e))?;
-    }
-    Ok(())
-}
-
-pub async fn report_peer(
-    handle: &TelegramSessionHandle,
-    chat_id: i64,
-    chat_type: &str,
-    message_ids: Vec<i32>,
-    option: Vec<u8>,
-    message: String,
-) -> anyhow::Result<()> {
-    let guard = handle.lock().await;
-    let client = guard
-        .client
-        .as_ref()
-        .ok_or_else(|| anyhow::anyhow!("Not authenticated"))?
-        .clone();
-    let access_hash = guard.peer_hashes.get(&chat_id).copied().unwrap_or(0);
-    drop(guard);
-
-    let peer = make_input_peer(chat_id, chat_type, access_hash);
-    let req = tl::functions::messages::Report {
-        peer,
-        id: message_ids,
-        option,
-        message,
-    };
-    client
-        .invoke(&req)
-        .await
-        .map_err(|e| anyhow::anyhow!("messages.report: {}", e))?;
-    Ok(())
-}
-
-pub async fn rename_channel(
-    handle: &TelegramSessionHandle,
-    chat_id: i64,
-    new_title: String,
-) -> anyhow::Result<()> {
-    let guard = handle.lock().await;
-    let client = guard
-        .client
-        .as_ref()
-        .ok_or_else(|| anyhow::anyhow!("Not authenticated"))?
-        .clone();
-    let access_hash = guard.peer_hashes.get(&chat_id).copied().unwrap_or(0);
-    drop(guard);
-
-    let req = tl::functions::channels::EditTitle {
-        channel: tl::enums::InputChannel::Channel(tl::types::InputChannel {
-            channel_id: chat_id,
-            access_hash,
-        }),
-        title: new_title,
-    };
-    client
-        .invoke(&req)
-        .await
-        .map_err(|e| anyhow::anyhow!("channels.editTitle: {}", e))?;
-    Ok(())
-}
-
-pub async fn create_folder_channel(
-    handle: &TelegramSessionHandle,
-    name: &str,
-) -> anyhow::Result<TelegramChat> {
-    let guard = handle.lock().await;
-    let client = guard
-        .client
-        .as_ref()
-        .ok_or_else(|| anyhow::anyhow!("Not authenticated"))?
-        .clone();
-    drop(guard);
-
-    let title = format!("{} [og]", name.trim());
-    let req = tl::functions::channels::CreateChannel {
-        broadcast: true,
-        megagroup: false,
-        for_import: false,
-        forum: false,
-        title: title.clone(),
-        about: "OmniGet Drive Folder\n[omniget-drive-folder]".to_string(),
-        geo_point: None,
-        address: None,
-        ttl_period: None,
-    };
-
-    let updates = client
-        .invoke(&req)
-        .await
-        .map_err(|e| anyhow::anyhow!("channels.createChannel: {}", e))?;
-
-    let (channel_id, access_hash) = match &updates {
-        tl::enums::Updates::Updates(u) => extract_channel_from_chats(&u.chats),
-        tl::enums::Updates::Combined(u) => extract_channel_from_chats(&u.chats),
-        _ => None,
-    }
-    .ok_or_else(|| anyhow::anyhow!("could not find channel id in response"))?;
-
-    let _ = client
-        .invoke(&tl::functions::messages::SetHistoryTtl {
-            peer: tl::enums::InputPeer::Channel(tl::types::InputPeerChannel {
-                channel_id,
-                access_hash,
-            }),
-            period: 0,
-        })
-        .await;
-
-    {
-        let mut g = handle.lock().await;
-        g.peer_hashes.insert(channel_id, access_hash);
-    }
-
-    Ok(TelegramChat {
-        id: channel_id,
-        title,
-        chat_type: "channel".to_string(),
-        peer_hash: access_hash,
-        last_message: None,
-        last_message_date: None,
-        unread_count: 0,
-        is_muted: false,
-        is_pinned: false,
-        is_verified: false,
-        is_online: false,
-    })
-}
-
-pub fn extract_channel_from_chats_pub(chats: &[tl::enums::Chat]) -> Option<(i64, i64)> {
-    extract_channel_from_chats(chats)
-}
-
-fn extract_channel_from_chats(chats: &[tl::enums::Chat]) -> Option<(i64, i64)> {
+pub fn extract_channel_from_chats(chats: &[tl::enums::Chat]) -> Option<(i64, i64)> {
     for c in chats {
         if let tl::enums::Chat::Channel(ch) = c {
             return Some((ch.id, ch.access_hash.unwrap_or(0)));
         }
     }
     None
-}
-
-pub async fn upload_media(
-    handle: &TelegramSessionHandle,
-    chat_id: i64,
-    chat_type: &str,
-    file_path: &Path,
-    caption: Option<&str>,
-) -> anyhow::Result<i32> {
-    let guard = handle.lock().await;
-    let client = guard
-        .client
-        .as_ref()
-        .ok_or_else(|| anyhow::anyhow!("Not authenticated"))?
-        .clone();
-    let access_hash = guard.peer_hashes.get(&chat_id).copied().unwrap_or(0);
-    drop(guard);
-
-    let input_peer = make_input_peer(chat_id, chat_type, access_hash);
-    let uploaded = client
-        .upload_file(file_path)
-        .await
-        .map_err(|e| anyhow::anyhow!("upload_file: {}", e))?;
-
-    let mut msg = grammers_client::InputMessage::default();
-    if let Some(c) = caption {
-        if !c.is_empty() {
-            msg = msg.text(c.to_string());
-        }
-    }
-    let msg = msg.file(uploaded);
-
-    let sent = client
-        .send_message(input_peer, msg)
-        .await
-        .map_err(|e| anyhow::anyhow!("send_message: {}", e))?;
-    Ok(sent.id())
 }
 
 pub async fn delete_messages(
@@ -987,42 +618,6 @@ pub async fn forward_messages(
     Ok(())
 }
 
-pub async fn edit_caption(
-    handle: &TelegramSessionHandle,
-    chat_id: i64,
-    chat_type: &str,
-    message_id: i32,
-    caption: String,
-) -> anyhow::Result<()> {
-    let guard = handle.lock().await;
-    let client = guard
-        .client
-        .as_ref()
-        .ok_or_else(|| anyhow::anyhow!("Not authenticated"))?
-        .clone();
-    let access_hash = guard.peer_hashes.get(&chat_id).copied().unwrap_or(0);
-    drop(guard);
-
-    let peer = make_input_peer(chat_id, chat_type, access_hash);
-    let req = tl::functions::messages::EditMessage {
-        no_webpage: false,
-        invert_media: false,
-        peer,
-        id: message_id,
-        message: Some(caption),
-        media: None,
-        reply_markup: None,
-        entities: None,
-        schedule_date: None,
-        quick_reply_shortcut_id: None,
-    };
-    client
-        .invoke(&req)
-        .await
-        .map_err(|e| anyhow::anyhow!("messages.editMessage: {}", e))?;
-    Ok(())
-}
-
 #[derive(Debug, Clone, Serialize)]
 pub struct TelegramFullChannelInfo {
     pub chat_id: i64,
@@ -1104,139 +699,6 @@ pub async fn full_channel_info(
         username,
         participants_count,
     })
-}
-
-pub async fn set_mute(
-    handle: &TelegramSessionHandle,
-    chat_id: i64,
-    chat_type: &str,
-    mute_until: i64,
-) -> anyhow::Result<()> {
-    let guard = handle.lock().await;
-    let client = guard
-        .client
-        .as_ref()
-        .ok_or_else(|| anyhow::anyhow!("Not authenticated"))?
-        .clone();
-    let access_hash = guard.peer_hashes.get(&chat_id).copied().unwrap_or(0);
-    drop(guard);
-    let input_peer = make_input_peer(chat_id, chat_type, access_hash);
-    let mute_clamped = mute_until.clamp(0, i32::MAX as i64) as i32;
-    let req = tl::functions::account::UpdateNotifySettings {
-        peer: tl::enums::InputNotifyPeer::Peer(tl::types::InputNotifyPeer { peer: input_peer }),
-        settings: tl::enums::InputPeerNotifySettings::Settings(
-            tl::types::InputPeerNotifySettings {
-                show_previews: None,
-                silent: None,
-                mute_until: Some(mute_clamped),
-                sound: None,
-                stories_muted: None,
-                stories_hide_sender: None,
-                stories_sound: None,
-            },
-        ),
-    };
-    let _ = invoke_with_flood_wait(&client, &req)
-        .await
-        .map_err(|e| anyhow::anyhow!("account.UpdateNotifySettings: {}", e))?;
-    tracing::info!(
-        "[tg-api] set_mute chat={} mute_until={}",
-        chat_id,
-        mute_clamped
-    );
-    Ok(())
-}
-
-pub async fn toggle_pin(
-    handle: &TelegramSessionHandle,
-    chat_id: i64,
-    chat_type: &str,
-    pinned: bool,
-) -> anyhow::Result<()> {
-    let guard = handle.lock().await;
-    let client = guard
-        .client
-        .as_ref()
-        .ok_or_else(|| anyhow::anyhow!("Not authenticated"))?
-        .clone();
-    let access_hash = guard.peer_hashes.get(&chat_id).copied().unwrap_or(0);
-    drop(guard);
-    let input_peer = make_input_peer(chat_id, chat_type, access_hash);
-    let req = tl::functions::messages::ToggleDialogPin {
-        pinned,
-        peer: tl::enums::InputDialogPeer::Peer(tl::types::InputDialogPeer { peer: input_peer }),
-    };
-    let _ = invoke_with_flood_wait(&client, &req)
-        .await
-        .map_err(|e| anyhow::anyhow!("messages.ToggleDialogPin: {}", e))?;
-    tracing::info!("[tg-api] toggle_pin chat={} pinned={}", chat_id, pinned);
-    Ok(())
-}
-
-pub async fn set_archived(
-    handle: &TelegramSessionHandle,
-    chat_id: i64,
-    chat_type: &str,
-    archived: bool,
-) -> anyhow::Result<()> {
-    let guard = handle.lock().await;
-    let client = guard
-        .client
-        .as_ref()
-        .ok_or_else(|| anyhow::anyhow!("Not authenticated"))?
-        .clone();
-    let access_hash = guard.peer_hashes.get(&chat_id).copied().unwrap_or(0);
-    drop(guard);
-    let input_peer = make_input_peer(chat_id, chat_type, access_hash);
-    let folder_id = if archived { 1 } else { 0 };
-    let req = tl::functions::folders::EditPeerFolders {
-        folder_peers: vec![tl::enums::InputFolderPeer::Peer(
-            tl::types::InputFolderPeer {
-                peer: input_peer,
-                folder_id,
-            },
-        )],
-    };
-    let _ = invoke_with_flood_wait(&client, &req)
-        .await
-        .map_err(|e| anyhow::anyhow!("folders.EditPeerFolders: {}", e))?;
-    tracing::info!(
-        "[tg-api] set_archived chat={} archived={}",
-        chat_id,
-        archived
-    );
-    Ok(())
-}
-
-pub async fn reorder_pinned(
-    handle: &TelegramSessionHandle,
-    items: Vec<(i64, String)>,
-) -> anyhow::Result<()> {
-    let guard = handle.lock().await;
-    let client = guard
-        .client
-        .as_ref()
-        .ok_or_else(|| anyhow::anyhow!("Not authenticated"))?
-        .clone();
-    let mut order: Vec<tl::enums::InputDialogPeer> = Vec::with_capacity(items.len());
-    for (chat_id, chat_type) in &items {
-        let access_hash = guard.peer_hashes.get(chat_id).copied().unwrap_or(0);
-        let input_peer = make_input_peer(*chat_id, chat_type, access_hash);
-        order.push(tl::enums::InputDialogPeer::Peer(
-            tl::types::InputDialogPeer { peer: input_peer },
-        ));
-    }
-    drop(guard);
-    let req = tl::functions::messages::ReorderPinnedDialogs {
-        force: true,
-        folder_id: 0,
-        order,
-    };
-    let _ = invoke_with_flood_wait(&client, &req)
-        .await
-        .map_err(|e| anyhow::anyhow!("messages.ReorderPinnedDialogs: {}", e))?;
-    tracing::info!("[tg-api] reorder_pinned with {} items", items.len());
-    Ok(())
 }
 
 pub async fn init_takeout(handle: &TelegramSessionHandle) -> anyhow::Result<i64> {
@@ -1467,7 +929,7 @@ pub async fn search_global_hits(
                     .username
                     .clone()
                     .map(|s| format!("@{}", s))
-                    .unwrap_or_else(|| format!("Usuário {}", uu.id)),
+                    .unwrap_or_else(|| format!("User {}", uu.id)),
             };
             user_map.insert(uu.id, display);
         }
@@ -1502,7 +964,7 @@ pub async fn search_global_hits(
                 let title = user_map
                     .get(&id)
                     .cloned()
-                    .unwrap_or_else(|| format!("Usuário {}", id));
+                    .unwrap_or_else(|| format!("User {}", id));
                 (id, title, "private".to_string())
             }
         };
@@ -2009,19 +1471,6 @@ pub async fn list_chats_page(
     );
 
     Ok(ChatPage { chats, next_offset })
-}
-
-pub async fn restore_peer_hashes(
-    handle: &TelegramSessionHandle,
-    items: Vec<(i64, i64)>,
-) -> anyhow::Result<()> {
-    let mut guard = handle.lock().await;
-    for (id, hash) in items {
-        if hash != 0 {
-            guard.peer_hashes.insert(id, hash);
-        }
-    }
-    Ok(())
 }
 
 fn peer_kind_id(peer: &tl::enums::Peer) -> (String, i64) {
@@ -2614,152 +2063,6 @@ fn merge_dedup_media(
     all_items
 }
 
-#[derive(Debug, Serialize)]
-pub struct ListMediaDiag {
-    pub chat_id: i64,
-    pub chat_type: String,
-    pub access_hash_cached: i64,
-    pub access_hash_resolved: i64,
-    pub auto_resolve_attempted: bool,
-    pub auto_resolve_outcome: String,
-    pub get_history_count: i32,
-    pub get_history_with_media: i32,
-    pub get_history_error: Option<String>,
-    pub search_photo_count: i32,
-    pub search_video_count: i32,
-    pub search_document_count: i32,
-    pub search_audio_count: i32,
-    pub search_errors: Vec<String>,
-    pub final_count: i32,
-    pub elapsed_ms: u128,
-}
-
-pub async fn diag_list_media(
-    handle: &TelegramSessionHandle,
-    chat_id: i64,
-    chat_type: &str,
-) -> anyhow::Result<ListMediaDiag> {
-    let started = std::time::Instant::now();
-    let guard = handle.lock().await;
-    let client = guard
-        .client
-        .as_ref()
-        .ok_or_else(|| anyhow::anyhow!("Not authenticated"))?
-        .clone();
-    let cached = guard.peer_hashes.get(&chat_id).copied().unwrap_or(0);
-    drop(guard);
-
-    let mut access_hash = cached;
-    let mut auto_resolve_attempted = false;
-    let mut auto_resolve_outcome = String::from("not_attempted");
-    if chat_type == "channel" && access_hash == 0 {
-        auto_resolve_attempted = true;
-        match resolve_channel_access_hash(&client, chat_id).await {
-            Ok(Some(h)) => {
-                access_hash = h;
-                let mut g = handle.lock().await;
-                g.peer_hashes.insert(chat_id, h);
-                drop(g);
-                auto_resolve_outcome = format!("resolved={}", h);
-            }
-            Ok(None) => auto_resolve_outcome = "not_found_in_dialogs".to_string(),
-            Err(e) => auto_resolve_outcome = format!("error: {}", e),
-        }
-    }
-
-    let input_peer = make_input_peer(chat_id, chat_type, access_hash);
-
-    let history_req = tl::functions::messages::GetHistory {
-        peer: input_peer.clone(),
-        offset_id: 0,
-        offset_date: 0,
-        add_offset: 0,
-        limit: 100,
-        max_id: 0,
-        min_id: 0,
-        hash: 0,
-    };
-    let mut get_history_count = 0i32;
-    let mut get_history_with_media = 0i32;
-    let mut get_history_error: Option<String> = None;
-    match invoke_with_flood_wait(&client, &history_req).await {
-        Ok(resp) => {
-            let messages = match resp {
-                tl::enums::messages::Messages::Messages(m) => m.messages,
-                tl::enums::messages::Messages::Slice(m) => m.messages,
-                tl::enums::messages::Messages::ChannelMessages(m) => m.messages,
-                tl::enums::messages::Messages::NotModified(_) => vec![],
-            };
-            get_history_count = messages.len() as i32;
-            for m in &messages {
-                if let tl::enums::Message::Message(msg) = m {
-                    if msg.media.is_some() {
-                        get_history_with_media += 1;
-                    }
-                }
-            }
-        }
-        Err(e) => get_history_error = Some(e.to_string()),
-    }
-
-    let mut search_counts = [0i32; 4];
-    let mut search_errors: Vec<String> = Vec::new();
-    let labels = ["photo", "video", "document", "audio"];
-    for (i, label) in labels.iter().enumerate() {
-        let filter = media_filter(Some(label));
-        let req = tl::functions::messages::Search {
-            peer: input_peer.clone(),
-            q: String::new(),
-            from_id: None,
-            saved_peer_id: None,
-            saved_reaction: None,
-            top_msg_id: None,
-            filter,
-            min_date: 0,
-            max_date: 0,
-            offset_id: 0,
-            add_offset: 0,
-            limit: 50,
-            max_id: 0,
-            min_id: 0,
-            hash: 0,
-        };
-        match invoke_with_flood_wait(&client, &req).await {
-            Ok(resp) => {
-                let n = match resp {
-                    tl::enums::messages::Messages::Messages(m) => m.messages.len() as i32,
-                    tl::enums::messages::Messages::Slice(m) => m.messages.len() as i32,
-                    tl::enums::messages::Messages::ChannelMessages(m) => m.messages.len() as i32,
-                    tl::enums::messages::Messages::NotModified(_) => 0,
-                };
-                search_counts[i] = n;
-            }
-            Err(e) => search_errors.push(format!("{}: {}", label, e)),
-        }
-    }
-
-    let final_count = get_history_with_media.max(search_counts.iter().sum());
-
-    Ok(ListMediaDiag {
-        chat_id,
-        chat_type: chat_type.to_string(),
-        access_hash_cached: cached,
-        access_hash_resolved: access_hash,
-        auto_resolve_attempted,
-        auto_resolve_outcome,
-        get_history_count,
-        get_history_with_media,
-        get_history_error,
-        search_photo_count: search_counts[0],
-        search_video_count: search_counts[1],
-        search_document_count: search_counts[2],
-        search_audio_count: search_counts[3],
-        search_errors,
-        final_count,
-        elapsed_ms: started.elapsed().as_millis(),
-    })
-}
-
 pub async fn list_media(
     handle: &TelegramSessionHandle,
     chat_id: i64,
@@ -2976,7 +2279,7 @@ pub async fn list_media(
                     }
                     Err(re) => {
                         anyhow::bail!(
-                            "Falha ao re-resolver access_hash do channel: {}. Erro original: {}",
+                            "Could not re-resolve the channel access_hash: {}. Original error: {}",
                             re,
                             e
                         )
@@ -3014,197 +2317,6 @@ pub async fn list_media(
     tracing::info!(
         "[tg-perf] list_media completed in {:?}, found {} items (cache populated)",
         _t.elapsed(),
-        items.len()
-    );
-    Ok(items)
-}
-
-pub async fn expand_album(
-    handle: &TelegramSessionHandle,
-    chat_id: i64,
-    chat_type: &str,
-    message_id: i32,
-    fix_extensions: bool,
-) -> anyhow::Result<Vec<TelegramMediaItem>> {
-    let _t = std::time::Instant::now();
-    let guard = handle.lock().await;
-    let client = guard
-        .client
-        .as_ref()
-        .ok_or_else(|| anyhow::anyhow!("Not authenticated"))?
-        .clone();
-    let access_hash = guard.peer_hashes.get(&chat_id).copied().unwrap_or(0);
-    drop(guard);
-
-    let input_peer = make_input_peer(chat_id, chat_type, access_hash);
-    let is_channel = matches!(input_peer, tl::enums::InputPeer::Channel(_));
-
-    let raw_msg = if is_channel {
-        let req = tl::functions::channels::GetMessages {
-            channel: tl::enums::InputChannel::Channel(tl::types::InputChannel {
-                channel_id: chat_id,
-                access_hash,
-            }),
-            id: vec![tl::enums::InputMessage::Id(tl::types::InputMessageId {
-                id: message_id,
-            })],
-        };
-        let resp = invoke_with_flood_wait(&client, &req)
-            .await
-            .map_err(|e| anyhow::anyhow!("channels.getMessages: {}", e))?;
-        match resp {
-            tl::enums::messages::Messages::ChannelMessages(m) => m.messages.into_iter().next(),
-            tl::enums::messages::Messages::Messages(m) => m.messages.into_iter().next(),
-            tl::enums::messages::Messages::Slice(m) => m.messages.into_iter().next(),
-            _ => None,
-        }
-    } else {
-        let req = tl::functions::messages::GetMessages {
-            id: vec![tl::enums::InputMessage::Id(tl::types::InputMessageId {
-                id: message_id,
-            })],
-        };
-        let resp = invoke_with_flood_wait(&client, &req)
-            .await
-            .map_err(|e| anyhow::anyhow!("messages.getMessages: {}", e))?;
-        match resp {
-            tl::enums::messages::Messages::Messages(m) => m.messages.into_iter().next(),
-            tl::enums::messages::Messages::Slice(m) => m.messages.into_iter().next(),
-            _ => None,
-        }
-    };
-
-    let target_grouped = match raw_msg.as_ref() {
-        Some(tl::enums::Message::Message(m)) => m.grouped_id,
-        _ => None,
-    };
-
-    if target_grouped.is_none() {
-        let single = if let Some(tl::enums::Message::Message(m)) = raw_msg {
-            let caption_text = if m.message.trim().is_empty() {
-                None
-            } else {
-                Some(m.message.clone())
-            };
-            let grouped = m.grouped_id;
-            if let Some(raw_media) = m.media {
-                if let Some(wp) = extract_webpage_info_raw(&raw_media) {
-                    let display = wp
-                        .title
-                        .clone()
-                        .or_else(|| wp.site_name.clone())
-                        .unwrap_or_else(|| wp.url.clone());
-                    vec![TelegramMediaItem {
-                        message_id: m.id,
-                        file_name: display,
-                        file_size: 0,
-                        media_type: "webpage".to_string(),
-                        date: m.date as i64,
-                        webpage: Some(wp),
-                        caption: caption_text,
-                        grouped_id: grouped,
-                    }]
-                } else if let Some((file_name, file_size, media_type_str)) =
-                    extract_raw_media_info(&raw_media, fix_extensions)
-                {
-                    vec![TelegramMediaItem {
-                        message_id: m.id,
-                        file_name,
-                        file_size,
-                        media_type: media_type_str,
-                        date: m.date as i64,
-                        webpage: None,
-                        caption: caption_text,
-                        grouped_id: grouped,
-                    }]
-                } else {
-                    Vec::new()
-                }
-            } else {
-                Vec::new()
-            }
-        } else {
-            Vec::new()
-        };
-        return Ok(single);
-    }
-
-    let target_grouped = target_grouped.unwrap();
-
-    let history_req = tl::functions::messages::GetHistory {
-        peer: input_peer.clone(),
-        offset_id: message_id + 11,
-        offset_date: 0,
-        add_offset: 0,
-        limit: 22,
-        max_id: 0,
-        min_id: 0,
-        hash: 0,
-    };
-    let history = invoke_with_flood_wait(&client, &history_req)
-        .await
-        .map_err(|e| anyhow::anyhow!("messages.getHistory: {}", e))?;
-    let messages = match history {
-        tl::enums::messages::Messages::Messages(m) => m.messages,
-        tl::enums::messages::Messages::Slice(m) => m.messages,
-        tl::enums::messages::Messages::ChannelMessages(m) => m.messages,
-        tl::enums::messages::Messages::NotModified(_) => vec![],
-    };
-
-    let mut items: Vec<TelegramMediaItem> = Vec::new();
-    for raw in messages {
-        let msg = match raw {
-            tl::enums::Message::Message(m) => m,
-            _ => continue,
-        };
-        if msg.grouped_id != Some(target_grouped) {
-            continue;
-        }
-        let caption_text = if msg.message.trim().is_empty() {
-            None
-        } else {
-            Some(msg.message.clone())
-        };
-        let grouped = msg.grouped_id;
-        if let Some(raw_media) = msg.media {
-            if let Some(wp) = extract_webpage_info_raw(&raw_media) {
-                let display = wp
-                    .title
-                    .clone()
-                    .or_else(|| wp.site_name.clone())
-                    .unwrap_or_else(|| wp.url.clone());
-                items.push(TelegramMediaItem {
-                    message_id: msg.id,
-                    file_name: display,
-                    file_size: 0,
-                    media_type: "webpage".to_string(),
-                    date: msg.date as i64,
-                    webpage: Some(wp),
-                    caption: caption_text,
-                    grouped_id: grouped,
-                });
-            } else if let Some((file_name, file_size, media_type_str)) =
-                extract_raw_media_info(&raw_media, fix_extensions)
-            {
-                items.push(TelegramMediaItem {
-                    message_id: msg.id,
-                    file_name,
-                    file_size,
-                    media_type: media_type_str,
-                    date: msg.date as i64,
-                    webpage: None,
-                    caption: caption_text,
-                    grouped_id: grouped,
-                });
-            }
-        }
-    }
-
-    items.sort_by_key(|i| i.message_id);
-    tracing::info!(
-        "[tg-perf] expand_album completed in {:?}, grouped_id={}, found {} siblings",
-        _t.elapsed(),
-        target_grouped,
         items.len()
     );
     Ok(items)
@@ -3299,28 +2411,6 @@ pub async fn search_media(
         query
     );
     Ok(items)
-}
-
-pub async fn download_media(
-    handle: &TelegramSessionHandle,
-    chat_id: i64,
-    chat_type: &str,
-    message_id: i32,
-    output_path: &Path,
-    progress_tx: mpsc::Sender<f64>,
-    cancel_token: &CancellationToken,
-) -> anyhow::Result<u64> {
-    download_media_ex(
-        handle,
-        chat_id,
-        chat_type,
-        message_id,
-        output_path,
-        progress_tx,
-        cancel_token,
-        false,
-    )
-    .await
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -3436,11 +2526,11 @@ pub async fn download_media_ex(
                         media.size
                     ));
                 }
-                std::fs::rename(&part_path, output_path)?;
+                let saved = super::template::rename_without_overwriting(&part_path, output_path)?;
                 let ts = msg_date as i64;
                 if ts > 0 {
                     let file_time = filetime::FileTime::from_unix_time(ts, 0);
-                    if let Err(e) = filetime::set_file_mtime(output_path, file_time) {
+                    if let Err(e) = filetime::set_file_mtime(&saved, file_time) {
                         tracing::warn!("[tg-api] failed to set file time: {}", e);
                     }
                 }
@@ -3448,7 +2538,7 @@ pub async fn download_media_ex(
                     uid.as_deref(),
                     on_disk,
                     &saved_name,
-                    output_path,
+                    &saved,
                     chat_id,
                     message_id,
                 );
@@ -3516,7 +2606,8 @@ pub async fn download_media_with_retry_ex(
     const MAX_RETRIES: u32 = 5;
     const BASE_DELAY_SECS: u64 = 2;
 
-    for attempt in 0..MAX_RETRIES {
+    let mut attempt: u32 = 0;
+    loop {
         let tx = progress_tx.clone();
         let result = tokio::select! {
             r = download_media_ex(handle, chat_id, chat_type, message_id, output_path, tx, cancel_token, dedupe) => r,
@@ -3543,6 +2634,7 @@ pub async fn download_media_with_retry_ex(
                         secs,
                         attempt + 1
                     );
+                    super::parallel_download::note_flood_wait(secs);
                     tokio::select! {
                         _ = tokio::time::sleep(Duration::from_secs(secs + 1)) => {},
                         _ = cancel_token.cancelled() => return Err(anyhow::anyhow!("Download cancelled")),
@@ -3568,6 +2660,7 @@ pub async fn download_media_with_retry_ex(
                         _ = tokio::time::sleep(Duration::from_secs(delay)) => {},
                         _ = cancel_token.cancelled() => return Err(anyhow::anyhow!("Download cancelled")),
                     }
+                    attempt += 1;
                 } else {
                     tracing::info!(
                         "[tg-perf] download_media_with_retry failed (max retries) in {:?}",
@@ -3578,6 +2671,4 @@ pub async fn download_media_with_retry_ex(
             }
         }
     }
-
-    unreachable!()
 }

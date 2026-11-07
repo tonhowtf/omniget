@@ -42,7 +42,7 @@ pub async fn asset(
     let response = client.get(&url).send().await?;
     if !response.status().is_success() {
         return Err(anyhow!(
-            "nao foi possivel consultar releases de {}: HTTP {}",
+            "could not check the releases of {}: HTTP {}",
             repo,
             response.status()
         ));
@@ -51,7 +51,7 @@ pub async fn asset(
     let tag = json["tag_name"].as_str().unwrap_or("").to_string();
     let assets = json["assets"]
         .as_array()
-        .ok_or_else(|| anyhow!("release de {} sem assets", repo))?;
+        .ok_or_else(|| anyhow!("release of {} has no assets", repo))?;
     for a in assets {
         let name = a["name"].as_str().unwrap_or("");
         if pick(name) {
@@ -67,7 +67,7 @@ pub async fn asset(
         }
     }
     Err(anyhow!(
-        "release {} de {} nao tem um asset para este sistema",
+        "release {} of {} has no asset for this system",
         tag,
         repo
     ))
@@ -88,13 +88,13 @@ pub async fn download(
         Some(expected) => integrity::verify_sha256(&bytes, expected, &asset.name)?,
         None if allow_unverified => {
             tracing::warn!(
-                "[tools] {} veio sem digest; aceito sem verificacao",
+                "[tools] {} came without a digest; accepted without verification",
                 asset.name
             )
         }
         None => {
             return Err(anyhow!(
-                "{} veio sem digest da API do GitHub; download descartado",
+                "{} came without a digest from the GitHub API; download discarded",
                 asset.name
             ))
         }
@@ -106,7 +106,7 @@ pub fn unpack(data: &[u8], name: &str, dest: &Path) -> anyhow::Result<()> {
     std::fs::create_dir_all(dest)?;
     if name.ends_with(".zip") {
         let mut archive = zip::ZipArchive::new(std::io::Cursor::new(data))
-            .map_err(|e| anyhow!("zip invalido: {}", e))?;
+            .map_err(|e| anyhow!("invalid zip: {}", e))?;
         for i in 0..archive.len() {
             let mut file = archive.by_index(i)?;
             let Some(rel) = file.enclosed_name() else {
@@ -130,16 +130,16 @@ pub fn unpack(data: &[u8], name: &str, dest: &Path) -> anyhow::Result<()> {
         archive.set_preserve_permissions(true);
         archive
             .unpack(dest)
-            .map_err(|e| anyhow!("tar.gz invalido: {}", e))
+            .map_err(|e| anyhow!("invalid tar.gz: {}", e))
     } else if name.ends_with(".tar.xz") {
         let decoder = xz2::read::XzDecoder::new(std::io::Cursor::new(data));
         let mut archive = tar::Archive::new(decoder);
         archive.set_preserve_permissions(true);
         archive
             .unpack(dest)
-            .map_err(|e| anyhow!("tar.xz invalido: {}", e))
+            .map_err(|e| anyhow!("invalid tar.xz: {}", e))
     } else {
-        Err(anyhow!("formato de pacote desconhecido: {}", name))
+        Err(anyhow!("unknown package format: {}", name))
     }
 }
 
@@ -180,10 +180,7 @@ pub fn swap_dir(staging: &Path, dir: &Path) -> anyhow::Result<()> {
         if old.exists() {
             let _ = std::fs::rename(&old, dir);
         }
-        return Err(anyhow!(
-            "nao foi possivel mover a instalacao para o lugar: {}",
-            e
-        ));
+        return Err(anyhow!("could not move the installation into place: {}", e));
     }
     let _ = std::fs::remove_dir_all(&old);
     Ok(())

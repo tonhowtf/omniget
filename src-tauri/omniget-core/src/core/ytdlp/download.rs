@@ -17,7 +17,91 @@ pub(super) fn parse_destination_line(line: &str) -> Option<String> {
         }
     }
 
+    if line.starts_with("[info] Writing video thumbnail") {
+        if let Some((_, path)) = line.split_once(" to: ") {
+            let path = path.trim();
+            if !path.is_empty() {
+                return Some(path.to_string());
+            }
+        }
+    }
+
     None
+}
+
+fn thumbnail_output(path: &Path) -> PathBuf {
+    if path.exists() {
+        return path.to_path_buf();
+    }
+    let converted = path.with_extension("jpg");
+    if converted.exists() {
+        converted
+    } else {
+        path.to_path_buf()
+    }
+}
+
+async fn make_output_compatible(path: &Path, mute: bool) -> anyhow::Result<PathBuf> {
+    let probe = crate::core::ffmpeg::probe(path).await?;
+    let codec_of = |kind: &str| {
+        probe
+            .streams
+            .iter()
+            .find(|s| s.codec_type == kind && s.codec_name != "mjpeg" && s.codec_name != "png")
+            .map(|s| s.codec_name.clone())
+    };
+    let extension = path.extension().and_then(|e| e.to_str()).unwrap_or("");
+    let video_codec = codec_of("video");
+    let audio_codec = codec_of("audio");
+    let plan = compatible_video_plan(extension, video_codec.as_deref(), audio_codec.as_deref());
+    if plan == CompatibleVideoPlan::Keep {
+        return Ok(path.to_path_buf());
+    }
+    let stem = path
+        .file_stem()
+        .map(|s| s.to_string_lossy().into_owned())
+        .unwrap_or_else(|| "video".to_string());
+    let temp = path.with_file_name(format!("{stem}.compat.mp4"));
+    let target = path.with_file_name(format!("{stem}.mp4"));
+    let (video_args, audio_args): (&[&str], &[&str]) = match plan {
+        CompatibleVideoPlan::Keep | CompatibleVideoPlan::Remux => {
+            (&["-c:v", "copy"], &["-c:a", "copy"])
+        }
+        CompatibleVideoPlan::ConvertAudio => (&["-c:v", "copy"], &["-c:a", "aac", "-b:a", "192k"]),
+        CompatibleVideoPlan::ConvertAll => (
+            &[
+                "-c:v", "libx264", "-pix_fmt", "yuv420p", "-preset", "medium", "-crf", "18",
+            ],
+            &["-c:a", "aac", "-b:a", "192k"],
+        ),
+    };
+    let status = crate::core::process::command("ffmpeg")
+        .args(["-y", "-v", "error", "-i"])
+        .arg(path)
+        .args(["-map", "0:v:0"])
+        .args(if mute {
+            &[][..]
+        } else {
+            &["-map", "0:a:0?"][..]
+        })
+        .args(video_args)
+        .args(if mute { &["-an"][..] } else { audio_args })
+        .args(["-movflags", "+faststart"])
+        .arg(&temp)
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status()
+        .await
+        .map_err(|e| anyhow!("Failed to run ffmpeg: {}", e))?;
+    if !status.success() {
+        let _ = std::fs::remove_file(&temp);
+        anyhow::bail!("ffmpeg returned {}", status);
+    }
+    if path != target {
+        let _ = std::fs::remove_file(path);
+    }
+    std::fs::rename(&temp, &target)?;
+    Ok(target)
 }
 
 pub(super) fn adjusted_multi_stream_progress(
@@ -95,18 +179,21 @@ pub async fn download_video(
     );
 
     let full_selector = format_id.is_some_and(is_full_format_selector);
-    let format_selector =
-        download_format_selector(format_id, quality_height, mode, ffmpeg_available);
-
-    let dir_len = output_dir.to_string_lossy().len();
-    let max_name = if cfg!(target_os = "windows") {
-        250_usize.saturating_sub(dir_len).min(200)
+    let thumbnails_only = extra_flags.iter().any(|f| f == "--skip-download");
+    let compatible_output = !thumbnails_only
+        && mode != "audio"
+        && compatible_video_enabled()
+        && format_id.is_none_or(|f| matches!(f, "b" | "worst"));
+    let format_selector = if compatible_output && format_id.is_none() {
+        compatible_format_selector(quality_height, mode, ffmpeg_available)
     } else {
-        200
+        download_format_selector(format_id, quality_height, mode, ffmpeg_available)
     };
+
+    let max_name = file_name_budget(output_dir, cfg!(target_os = "windows"));
     let template = filename_template
         .map(|t| t.to_string())
-        .unwrap_or_else(|| format!("%(title).{}s [%(id)s].%(ext)s", max_name));
+        .unwrap_or_else(|| default_output_template(max_name));
     let output_template = output_dir.join(&template).to_string_lossy().to_string();
 
     std::fs::create_dir_all(output_dir)?;
@@ -411,6 +498,11 @@ pub async fn download_video(
         base_args.push(rate);
     }
 
+    if thumbnails_only {
+        base_args.retain(|a| a != "--embed-thumbnail" && a != "--embed-metadata");
+        base_args.push("--ignore-no-formats-error".to_string());
+    }
+
     if live_from_start_enabled() {
         base_args.push("--live-from-start".to_string());
         base_args.push("--no-part".to_string());
@@ -422,7 +514,8 @@ pub async fn download_video(
 
     let include_auto_subs = include_auto_subs_setting();
     let mut selected_subtitle_lang: Option<String> = None;
-    let mut should_download_subs = download_subtitles && rate_limit_429_count() < 2;
+    let mut should_download_subs =
+        download_subtitles && !thumbnails_only && rate_limit_429_count() < 2;
     if should_download_subs {
         match select_available_subtitle_lang(ytdlp, url, extra_flags, include_auto_subs).await {
             Ok(Some(lang)) => {
@@ -483,7 +576,9 @@ pub async fn download_video(
     let mut format_already_simplified = false;
     let mut drop_chunk_size = false;
     let mut last_was_429 = false;
+    let mut shortened_after_open_failure = false;
     let destinations: Arc<Mutex<Vec<PathBuf>>> = Arc::new(Mutex::new(Vec::new()));
+    let last_step: Arc<Mutex<Option<&'static str>>> = Arc::new(Mutex::new(None));
 
     for attempt in 0..max_attempts {
         tracing::info!("[yt-dlp] download attempt {}/{}", attempt + 1, max_attempts);
@@ -511,6 +606,9 @@ pub async fn download_video(
             );
             tokio::time::sleep(std::time::Duration::from_secs(wait)).await;
             cleanup_part_files(output_dir, &destinations).await;
+        }
+        if let Ok(mut step) = last_step.lock() {
+            *step = None;
         }
 
         let mut args = base_args.clone();
@@ -606,6 +704,7 @@ pub async fn download_video(
             progress.clone(),
             captured_path.clone(),
             destinations.clone(),
+            last_step.clone(),
             log_hook::current_download_id(),
             is_audio_only,
             _timer_start,
@@ -664,6 +763,11 @@ pub async fn download_video(
                 let guard = captured_path.lock().unwrap();
                 guard.clone()
             };
+            let file_path = if thumbnails_only {
+                file_path.map(|p| thumbnail_output(&p))
+            } else {
+                file_path
+            };
 
             let file_path = match file_path {
                 Some(p) if p.exists() => {
@@ -714,6 +818,27 @@ pub async fn download_video(
             if use_subtitles && keep_vtt_setting() {
                 convert_vtt_sidecars_to_srt(&file_path).await;
             }
+
+            let file_path = if compatible_output && ffmpeg_available {
+                let _ = progress
+                    .send(ProgressUpdate::phase("postprocessing", 99.0))
+                    .await;
+                match make_output_compatible(&file_path, mode == "mute").await {
+                    Ok(converted) => converted,
+                    Err(e) => {
+                        let line = format!(
+                            "[omniget] could not convert to H.264/AAC MP4, keeping the original file: {e}"
+                        );
+                        tracing::warn!("{}", line);
+                        if let Some(id) = log_hook::current_download_id() {
+                            log_hook::emit_log(id, &line);
+                        }
+                        file_path
+                    }
+                }
+            } else {
+                file_path
+            };
 
             let meta = std::fs::metadata(&file_path)?;
             record_throughput(
@@ -865,14 +990,14 @@ pub async fn download_video(
                             extra_args.push("--impersonate".to_string());
                             extra_args.push(flag.clone());
                             tracing::warn!(
-                                "[yt-dlp] bloqueio por fingerprint detectado, tentando --impersonate {}",
+                                "[yt-dlp] fingerprint block detected, trying --impersonate {}",
                                 flag
                             );
                         }
                     }
                     None => {
                         tracing::warn!(
-                            "[yt-dlp] bloqueio por fingerprint, mas este build nao tem alvos de impersonation"
+                            "[yt-dlp] fingerprint block, but this build has no impersonation targets"
                         );
                     }
                 }
@@ -885,12 +1010,12 @@ pub async fn download_video(
                         let args = crate::core::pot_provider::extractor_args(&health, &base);
                         if args.is_empty() {
                             tracing::warn!(
-                                "[yt-dlp] provedor de PO token em {} nao respondeu; seguindo sem ele",
+                                "[yt-dlp] PO token provider at {} did not respond; continuing without it",
                                 base
                             );
                         } else if !extra_args.iter().any(|a| a.contains("youtubepot")) {
                             tracing::warn!(
-                                "[yt-dlp] PO token exigido, usando provedor configurado em {}",
+                                "[yt-dlp] PO token required, using the provider configured at {}",
                                 base
                             );
                             extra_args.extend(args);
@@ -898,7 +1023,7 @@ pub async fn download_video(
                     }
                     None => {
                         tracing::warn!(
-                            "[yt-dlp] PO token exigido e nenhum provedor configurado — ver OMNIGET_POT_PROVIDER_URL"
+                            "[yt-dlp] PO token required and no provider configured; see OMNIGET_POT_PROVIDER_URL"
                         );
                     }
                 }
@@ -962,7 +1087,23 @@ pub async fn download_video(
                 tracing::warn!("[yt-dlp] login required. Install the browser extension and visit the site while logged in.");
             }
 
-            if stderr_lower.contains("requested format") && stderr_lower.contains("not available")
+            let retry_shorter =
+                is_ffmpeg_input_open_failure(&stderr_lower) && !shortened_after_open_failure;
+            if retry_shorter {
+                shortened_after_open_failure = true;
+                extra_args.extend(["--trim-filenames".to_string(), "80".to_string()]);
+                yt_args.formats_dashy = false;
+                tracing::warn!(
+                    "[yt-dlp] ffmpeg could not open its input, retrying with a shorter name and without DASH fragments"
+                );
+                if let Some(id) = log_hook::current_download_id() {
+                    log_hook::emit_log(
+                        id,
+                        "[omniget] ffmpeg could not open the downloaded streams; retrying with a shorter file name",
+                    );
+                }
+            } else if stderr_lower.contains("requested format")
+                && stderr_lower.contains("not available")
                 || stderr_lower.contains("ffmpeg") && stderr_lower.contains("not found")
                 || stderr_lower.contains("postprocessing")
             {
@@ -997,6 +1138,10 @@ pub async fn download_video(
     }
 
     tracing::debug!("[perf] download_video took {:?}", _timer_start.elapsed());
+    let failed_step = last_step.lock().ok().and_then(|step| *step);
+    if let Some(message) = postprocess_failure_message(&last_error, failed_step) {
+        return Err(anyhow!(message));
+    }
     Err(translate_ytdlp_error(&last_error))
 }
 
@@ -1006,6 +1151,7 @@ pub(super) fn spawn_stdout_reader(
     progress_tx: mpsc::Sender<ProgressUpdate>,
     captured_path_writer: Arc<Mutex<Option<PathBuf>>>,
     destinations: Arc<Mutex<Vec<PathBuf>>>,
+    last_step: Arc<Mutex<Option<&'static str>>>,
     log_id: Option<u64>,
     is_audio_only: bool,
     _timer_start: std::time::Instant,
@@ -1031,6 +1177,11 @@ pub(super) fn spawn_stdout_reader(
             }
             if let Some(id) = log_id {
                 log_hook::emit_log(id, &line);
+            }
+            if let Some(step) = postprocess_step_name(&line) {
+                if let Ok(mut current) = last_step.lock() {
+                    *current = Some(step);
+                }
             }
             if let Some(plan) = parse_planned_formats(&line) {
                 planned_count = plan.len();
@@ -1070,6 +1221,9 @@ pub(super) fn spawn_stdout_reader(
                 let dest_path = PathBuf::from(&dest);
                 if let Ok(mut seen) = destinations.lock() {
                     seen.push(dest_path.clone());
+                }
+                if let Some(id) = log_id {
+                    leftovers::note_task_destination(id, &dest_path);
                 }
                 let ext = dest_path
                     .extension()
@@ -1227,6 +1381,7 @@ pub(super) async fn run_override_command(
         progress.clone(),
         captured_path.clone(),
         destinations.clone(),
+        Arc::new(Mutex::new(None)),
         registered_download_id,
         is_audio_only,
         timer_start,
@@ -1516,6 +1671,53 @@ pub(super) fn move_file_best_effort(from: &Path, to: &Path) -> bool {
 
 #[cfg(test)]
 mod tests {
+    #[tokio::test]
+    #[ignore = "needs ffmpeg with libvpx"]
+    async fn a_file_in_a_codec_editors_reject_is_converted_to_h264_and_aac() {
+        let dir = std::env::temp_dir().join(format!("omniget-compat-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let source = dir.join("clip.webm");
+        let made = std::process::Command::new("ffmpeg")
+            .args([
+                "-y",
+                "-v",
+                "error",
+                "-f",
+                "lavfi",
+                "-i",
+                "testsrc=d=1:s=160x120",
+                "-f",
+                "lavfi",
+                "-i",
+                "sine=d=1",
+                "-c:v",
+                "libvpx-vp9",
+                "-c:a",
+                "libopus",
+            ])
+            .arg(&source)
+            .status()
+            .unwrap();
+        assert!(made.success());
+        let converted = super::make_output_compatible(&source, false).await.unwrap();
+        assert_eq!(converted, dir.join("clip.mp4"));
+        assert!(!source.exists());
+        let probe = crate::core::ffmpeg::probe(&converted).await.unwrap();
+        let codecs: Vec<&str> = probe
+            .streams
+            .iter()
+            .map(|s| s.codec_name.as_str())
+            .collect();
+        assert!(codecs.contains(&"h264"), "{codecs:?}");
+        assert!(codecs.contains(&"aac"), "{codecs:?}");
+        let again = super::make_output_compatible(&converted, false)
+            .await
+            .unwrap();
+        assert_eq!(again, converted);
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+
     use super::*;
 
     #[tokio::test]

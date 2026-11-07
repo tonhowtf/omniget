@@ -22,7 +22,7 @@ pub struct ModelSpec {
 const CATALOG: &[ModelSpec] = &[
     ModelSpec {
         id: "u2netp",
-        name: "U²-Net leve",
+        name: "U²-Net light",
         family: "rembg",
         url: "https://github.com/danielgatis/rembg/releases/download/v0.0.0/u2netp.onnx",
         sha256: "309c8469258dda742793dce0ebea8e6dd393174f89934733ecc8b14c76f4ddd8",
@@ -150,7 +150,7 @@ pub fn status(family_filter: Option<&str>) -> OnnxStatus {
 fn sha256_of(path: &std::path::Path) -> anyhow::Result<String> {
     use sha2::{Digest, Sha256};
     let mut file = std::fs::File::open(path)
-        .with_context(|| format!("abrindo {} para conferir o sha256", path.display()))?;
+        .with_context(|| format!("opening {} to check its sha256", path.display()))?;
     let mut hasher = Sha256::new();
     let mut buf = vec![0u8; 1 << 20];
     loop {
@@ -164,16 +164,16 @@ fn sha256_of(path: &std::path::Path) -> anyhow::Result<String> {
 }
 
 pub async fn ensure_model(id: &str, progress: &ProgressFn) -> anyhow::Result<PathBuf> {
-    let spec = find(id).ok_or_else(|| anyhow!("modelo desconhecido: {id}"))?;
-    let dest = model_path(id).ok_or_else(|| anyhow!("não achei o diretório de dados do app"))?;
+    let spec = find(id).ok_or_else(|| anyhow!("unknown model: {id}"))?;
+    let dest = model_path(id).ok_or_else(|| anyhow!("could not find the app data folder"))?;
     if is_downloaded(id) {
         return Ok(dest);
     }
     let dir = dest
         .parent()
-        .ok_or_else(|| anyhow!("caminho de modelo sem pasta"))?
+        .ok_or_else(|| anyhow!("model path has no folder"))?
         .to_path_buf();
-    std::fs::create_dir_all(&dir).with_context(|| format!("criando {}", dir.display()))?;
+    std::fs::create_dir_all(&dir).with_context(|| format!("creating {}", dir.display()))?;
 
     let tmp = dir.join(format!(".{id}.onnx.download"));
     let client = super::client()?;
@@ -186,39 +186,31 @@ pub async fn ensure_model(id: &str, progress: &ProgressFn) -> anyhow::Result<Pat
     let p = progress.clone();
     let pid2 = pid.clone();
     tokio::task::spawn_blocking(move || -> anyhow::Result<()> {
-        super::report(
-            &p,
-            &pid2,
-            "verify",
-            0,
-            None,
-            Some("conferindo sha256".into()),
-        );
+        super::report(&p, &pid2, "verify", 0, None, Some("checking sha256".into()));
         let got = sha256_of(&tmp2)?;
         if got != expected {
             let _ = std::fs::remove_file(&tmp2);
             return Err(anyhow!(
-                "o modelo baixado não confere: esperava sha256 {expected}, veio {got}"
+                "the downloaded model does not match: expected sha256 {expected}, got {got}"
             ));
         }
         if dest2.exists() {
             let _ = std::fs::remove_file(&dest2);
         }
-        std::fs::rename(&tmp2, &dest2)
-            .with_context(|| format!("movendo para {}", dest2.display()))?;
+        std::fs::rename(&tmp2, &dest2).with_context(|| format!("moving to {}", dest2.display()))?;
         Ok(())
     })
     .await
-    .map_err(|e| anyhow!("tarefa de verificação falhou: {e}"))??;
+    .map_err(|e| anyhow!("verification task failed: {e}"))??;
 
     super::report(progress, &pid, "done", 1, Some(1), None);
     Ok(dest)
 }
 
 pub fn remove_model(id: &str) -> anyhow::Result<()> {
-    let path = model_path(id).ok_or_else(|| anyhow!("não achei o diretório de dados do app"))?;
+    let path = model_path(id).ok_or_else(|| anyhow!("could not find the app data folder"))?;
     if path.is_file() {
-        std::fs::remove_file(&path).with_context(|| format!("apagando {}", path.display()))?;
+        std::fs::remove_file(&path).with_context(|| format!("deleting {}", path.display()))?;
     }
     Ok(())
 }
@@ -230,10 +222,10 @@ fn intra_threads() -> usize {
 }
 
 pub fn session_for(id: &str) -> anyhow::Result<ort::session::Session> {
-    let path = model_path(id).ok_or_else(|| anyhow!("não achei o diretório de dados do app"))?;
+    let path = model_path(id).ok_or_else(|| anyhow!("could not find the app data folder"))?;
     if !path.is_file() {
         return Err(anyhow!(
-            "o modelo {id} ainda não foi baixado (esperado em {})",
+            "model {id} has not been downloaded yet (expected at {})",
             path.display()
         ));
     }
@@ -244,12 +236,12 @@ pub fn session_for(id: &str) -> anyhow::Result<ort::session::Session> {
 pub fn session_from_file(path: &std::path::Path) -> anyhow::Result<ort::session::Session> {
     use ort::session::builder::GraphOptimizationLevel;
     let mut builder = ort::session::Session::builder()
-        .map_err(|e| anyhow!("não criei o builder de sessão ONNX: {e}"))?
+        .map_err(|e| anyhow!("could not create the ONNX session builder: {e}"))?
         .with_optimization_level(GraphOptimizationLevel::Level3)
         .unwrap_or_else(|e| e.recover())
         .with_intra_threads(intra_threads())
         .unwrap_or_else(|e| e.recover());
     builder
         .commit_from_file(path)
-        .map_err(|e| anyhow!("não carreguei o modelo {}: {}", path.display(), e))
+        .map_err(|e| anyhow!("could not load model {}: {}", path.display(), e))
 }

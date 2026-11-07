@@ -73,10 +73,6 @@ impl CodexSource {
         }
     }
 
-    pub fn root_list(&self) -> &[Root] {
-        &self.roots
-    }
-
     pub fn files(&self) -> Vec<(PathBuf, String)> {
         let mut out = Vec::new();
         for r in &self.roots {

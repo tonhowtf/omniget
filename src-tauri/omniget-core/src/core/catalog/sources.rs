@@ -187,7 +187,7 @@ pub fn parse_spec(spec: &str, kind: Option<&str>) -> Result<Spec> {
     })
 }
 
-fn now() -> String {
+pub(crate) fn now() -> String {
     chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true)
 }
 
@@ -420,25 +420,6 @@ pub async fn add(spec: &str, kind: Option<&str>) -> Result<Source> {
     save_file(&file)?;
     super::index::invalidate();
     Ok(src)
-}
-
-pub async fn rescan(id: &str) -> Result<Source> {
-    let mut file = load_file();
-    let mut src = file
-        .sources
-        .iter()
-        .find(|s| s.id == id)
-        .cloned()
-        .ok_or_else(|| CatalogError::new(ERR_NOT_FOUND, format!("source `{id}`")))?;
-    let res = refresh(&mut src).await;
-    if let Err(e) = &res {
-        src.error = Some(e.to_string());
-    }
-    file.sources.retain(|s| s.id != id);
-    file.sources.push(src.clone());
-    save_file(&file)?;
-    super::index::invalidate();
-    res.map(|_| src)
 }
 
 pub fn remove(id: &str) -> Result<()> {

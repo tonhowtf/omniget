@@ -60,7 +60,7 @@
       </button>
       <div class="pb-meta">
         <span class="pb-title">{player.radioMeta.title || player.radio.name}</span>
-        <span class="pb-sub"><span class="live">{$t("music.radio.live")}</span> {player.radioMeta.artist || player.radio.name}</span>
+        <span class="pb-sub"><span class="live">{$t("music.radio.live")}</span> {player.error.startsWith("radio_failed") ? $t("music.radio.failed") : player.radioMeta.artist || player.radio.name}</span>
       </div>
     {:else if cur}
       <button class="pb-cover" onclick={() => go({ kind: "nowplaying" })} aria-label={$t("music.now_playing") as string}>

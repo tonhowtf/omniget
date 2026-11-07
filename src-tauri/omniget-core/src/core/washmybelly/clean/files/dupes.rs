@@ -464,7 +464,7 @@ pub fn find_duplicates(ctx: &Ctx, a: &Value) -> Result<Value, String> {
     out_groups.truncate(2000);
     super::super::super::progress(TASK, "done", scanned as u64, scanned as u64, "");
 
-    let source = super::super::artifacts::source_of(a);
+    let source = super::super::super::plan::source_of(a);
     plan::register("duplicates", &kept_items);
     let plan_id = if trash_items.is_empty() {
         None

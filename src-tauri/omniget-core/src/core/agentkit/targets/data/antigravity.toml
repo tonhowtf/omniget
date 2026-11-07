@@ -5,9 +5,7 @@ tier = 2
 status = "active"
 beta = true
 notes = "Antigravity 2.0 split into an IDE and a CLI (`agy`) that share ~/.gemini/config/. All paths come from rulesync, add-mcp and npx skills, not vendor docs; pre-2.0 paths lived under ~/.gemini/antigravity/."
-reads_agents_dir = true
 # IDE reads AGENTS.md since v1.20.3 (Gemini-lineage discovery order AGENTS.md, CONTEXT.md, GEMINI.md).
-reads_agents_md = "yes"
 
 [detect]
 binaries = ["agy"]

@@ -213,10 +213,6 @@
           <p class="step-desc">{$t("onboarding.agents_desc")}</p>
           <div class="agents-cards">
             <div class="agents-card">
-              <strong>{$t("nav.llm")}</strong>
-              <span>{$t("onboarding.agents_llm")}</span>
-            </div>
-            <div class="agents-card">
               <strong>{$t("nav.world")}</strong>
               <span>{$t("onboarding.agents_world")}</span>
             </div>

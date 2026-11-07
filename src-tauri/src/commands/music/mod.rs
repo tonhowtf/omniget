@@ -4,6 +4,7 @@ pub mod db;
 pub mod online;
 pub mod scan;
 pub mod server;
+pub mod stems;
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};

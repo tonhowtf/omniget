@@ -10,22 +10,15 @@
   --yt-search-max-w: 640px;
   --yt-btn-h-s: 32px;
   --yt-btn-h-m: 36px;
-  --yt-btn-h-l: 48px;
   --yt-radius-thumb-lg: 12px;
   --yt-radius-thumb-md: 8px;
-  --yt-radius-thumb-sm: 4px;
   --yt-radius-menu: 12px;
-  --yt-avatar-card: 36px;
-  --yt-avatar-owner: 40px;
   --yt-grid-gap-x: 16px;
   --yt-grid-gap-y: 32px;
   --yt-grid-gutter: 24px;
-  --yt-card-min-w: 290px;
   --yt-related-w: 402px;
-  --yt-related-thumb-w: 168px;
   --ytm-nav-h: 64px;
   --ytm-player-h: 72px;
-  --ytm-card-w: 180px;
   --ytm-card-gap: 16px;
   --ytm-card-radius: 8px;
   --ytm-row-h: 56px;
@@ -59,7 +52,6 @@
   --yt-ov-pill: rgba(0, 0, 0, .3);
   --yt-ov-pill-hover: rgba(255, 255, 255, .1);
   --yt-ov-pill-press: rgba(255, 255, 255, .2);
-  --yt-ov-popup: rgba(28, 28, 28, .82);
   --yt-ov-badge: rgba(0, 0, 0, .6);
   --yt-ov-track: rgba(255, 255, 255, .2);
   --yt-ov-buffer: rgba(255, 255, 255, .4);
@@ -244,14 +236,11 @@
 .omnitube .yt-btn:disabled { opacity: .5; cursor: default; }
 .omnitube .yt-btn--inverted { background: var(--yt-bg-inverted); color: var(--yt-on-inverted); }
 .omnitube .yt-btn--inverted:hover { background: var(--yt-bg-inverted-hover); }
-.omnitube .yt-btn--accent { background: var(--yt-accent); color: var(--yt-on-accent); }
-.omnitube .yt-btn--accent:hover { filter: brightness(1.08); background: var(--yt-accent); }
 .omnitube .yt-btn--ghost { background: transparent; }
 .omnitube .yt-btn--ghost:hover { background: var(--yt-hover); }
 .omnitube .yt-btn--outline { background: transparent; box-shadow: inset 0 0 0 1px var(--yt-outline); color: var(--yt-link); }
 .omnitube .yt-btn--outline:hover { background: var(--yt-cta-tonal); }
 .omnitube .yt-btn--s { height: var(--yt-btn-h-s); padding: 0 12px; font-size: 12px; }
-.omnitube .yt-btn--l { height: var(--yt-btn-h-l); padding: 0 24px; font-size: 16px; }
 .omnitube .yt-btn--icon { width: 40px; height: 40px; padding: 0; background: transparent; }
 .omnitube .yt-btn--icon:hover { background: var(--yt-hover); }
 

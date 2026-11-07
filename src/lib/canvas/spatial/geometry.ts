@@ -7,10 +7,6 @@ export interface Pt {
   y: number;
 }
 
-export function rect(x: number, y: number, w: number, h: number): Rect {
-  return { x, y, w, h };
-}
-
 export function rectFromPoints(a: Pt, b: Pt): Rect {
   const x = Math.min(a.x, b.x);
   const y = Math.min(a.y, b.y);
@@ -51,14 +47,6 @@ export function union(rects: Iterable<Rect>): Rect | null {
   }
   if (!Number.isFinite(x0)) return null;
   return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
-}
-
-export function center(r: Rect): Pt {
-  return { x: r.x + r.w / 2, y: r.y + r.h / 2 };
-}
-
-export function dist(a: Pt, b: Pt): number {
-  return Math.hypot(a.x - b.x, a.y - b.y);
 }
 
 function distToSegmentSq(px: number, py: number, ax: number, ay: number, bx: number, by: number): number {

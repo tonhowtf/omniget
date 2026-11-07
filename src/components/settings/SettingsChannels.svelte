@@ -141,7 +141,7 @@
   }
 </script>
 
-<SettingGroup id="channels" title={$t('settings.channels.title')} advanced>
+<SettingGroup id="channels" icon="film" title={$t('settings.channels.title')} description={$t('settings.channels.empty_hint')} advanced>
   <div class="add-block" data-setting-key="settings.channels.add">
     <div class="add-row">
       <input
@@ -169,7 +169,7 @@
     <p class="channels-loading" role="status" aria-busy="true">{$t('settings.rebrand.state.loading')}</p>
   {:else if channels.length === 0}
     {#if !loadError}
-      <SettingsEmptyState title={$t('settings.channels.empty_title')} hint={$t('settings.channels.empty_hint')} />
+      <SettingsEmptyState title={$t('settings.channels.empty_title')} />
     {/if}
   {:else}
     <div class="card">

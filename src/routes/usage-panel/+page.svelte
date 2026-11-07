@@ -83,8 +83,8 @@
     const side = paceSide(w.used - w.expected);
     const delta = Math.round(Math.abs(w.used - w.expected) * 100);
     return side === "on"
-      ? $t("llm.limits.strip.pace.on")
-      : $t(`llm.limits.strip.pace.${side}`, { delta });
+      ? $t("agents.limits.strip.pace.on")
+      : $t(`agents.limits.strip.pace.${side}`, { delta });
   }
 
   function tick(at: number) {

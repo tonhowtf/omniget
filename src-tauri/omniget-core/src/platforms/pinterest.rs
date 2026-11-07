@@ -184,10 +184,6 @@ impl PinterestDownloader {
             .map(str::to_string)
     }
 
-    fn check_pin_not_found(html: &str) -> bool {
-        PIN_NOT_FOUND_RE.is_match(html)
-    }
-
     fn extract_video_url(html: &str) -> Option<String> {
         VIDEO_URL_RE
             .captures_iter(html)
@@ -335,7 +331,7 @@ impl PinterestDownloader {
 
         let html = self.fetch_pin_html(&pin_id).await?;
 
-        if Self::check_pin_not_found(&html) {
+        if PIN_NOT_FOUND_RE.is_match(&html) {
             return Err(anyhow!("Pin not found"));
         }
 

@@ -1,3 +1,17 @@
+# Browser preview
+
+`pnpm dev:web` opens the whole UI in the browser at `http://localhost:1420`, with Vite
+HMR and no Rust build. Use it for layout, copy, flows and empty states. A pill at the
+bottom says it is the preview; click it to list the commands that had no data.
+
+There is no backend. Every `invoke` is answered in the page, in this order:
+`src/lib/dev/browser-preview/fixtures.ts` (written by hand; settings persist in
+localStorage), then an empty value inferred from the `invoke<T>` type at the call site,
+then a rejection that the UI handles as a real error. To see a screen with data, add its
+command to `fixtures.ts`. Nothing is downloaded or written to disk, so test real behavior
+with `pnpm dev:app` below. The preview only installs in Vite dev outside Tauri. It never
+reaches a production build or the native window.
+
 # Native development loop
 
 From the repository root, run `pnpm dev:app`. Keep this terminal open. The session

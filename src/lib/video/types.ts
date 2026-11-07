@@ -5,21 +5,8 @@ export type Root = { path: string; kind: RootKind; added_at: number; online: boo
 
 type MediaKind = "movie" | "episode" | "lesson" | "video";
 
-export type Chapter = { start_ms: number; end_ms: number; title: string; kind?: SkipKind | null };
+type Chapter = { start_ms: number; end_ms: number; title: string; kind?: SkipKind | null };
 type SkipKind = "intro" | "outro" | "recap" | "sponsor" | "preview";
-
-export type StreamInfo = {
-  index: number;
-  kind: "video" | "audio" | "subtitle";
-  codec: string;
-  lang: string;
-  title: string;
-  default: boolean;
-  forced: boolean;
-  channels?: number | null;
-  width?: number | null;
-  height?: number | null;
-};
 
 export type Progress = {
   key: string;
@@ -130,7 +117,7 @@ type SubtitleTrack = {
   source: "embedded" | "external" | "online" | "generated" | "remote";
 };
 
-export type AudioTrack = { index: number; label: string; lang: string; codec: string; default: boolean };
+type AudioTrack = { index: number; label: string; lang: string; codec: string; default: boolean };
 
 export type PlaybackInfo = {
   key: string;
@@ -282,7 +269,6 @@ export type AniMedia = {
   list: { status: string; progress: number; score: number | null } | null;
 };
 export type AniViewer = { id: number; name: string; avatar: string | null };
-export type SkipSegment = { kind: SkipKind; start_ms: number; end_ms: number };
 
 export type CastDevice = { id: string; name: string; model: string; host: string; port: number; kind: "chromecast" };
 export type CastStatus = {

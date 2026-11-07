@@ -35,7 +35,6 @@ type TlsConn = tokio_rustls::server::TlsStream<TcpStream>;
 
 pub const DEFAULT_PORT: u16 = 47740;
 pub const DEFAULT_TAILSCALE_HTTPS_PORT: u16 = 8443;
-pub const PAIR_TTL_SECS: i64 = 600;
 pub const TICKET_TTL_SECS: i64 = 60;
 pub const CODE_TTL_SECS: i64 = 300;
 const PAIR_FAIL_PER_IP: usize = 5;
@@ -234,17 +233,6 @@ pub struct RemoteStatus {
     pub last_refused: Option<Value>,
     pub last_error: Option<String>,
     pub tls: Value,
-}
-
-#[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct PairLink {
-    pub url: String,
-    pub base: String,
-    pub scope: Scope,
-    pub label: Option<String>,
-    pub expires_at: String,
-    pub qr_svg: String,
 }
 
 struct PendingPair {
@@ -464,41 +452,6 @@ impl RemoteHub {
         }
     }
 
-    pub fn create_pairing(
-        &self,
-        scope: Scope,
-        base: &str,
-        label: Option<String>,
-    ) -> Result<PairLink, String> {
-        let base = normalize_base(base)?;
-        let secret = random_b64(24);
-        let expires_ms = now_ms() + PAIR_TTL_SECS * 1000;
-        let label = label
-            .map(|l| l.trim().to_string())
-            .filter(|l| !l.is_empty());
-        {
-            let mut p = self.pending.lock().unwrap();
-            let now = now_ms();
-            p.retain(|x| x.expires_ms > now);
-            p.push(PendingPair {
-                secret_hash: hash_secret(&secret),
-                scope,
-                label: label.clone(),
-                expires_ms,
-                code: false,
-            });
-        }
-        let url = format!("{base}/remote/#pair={secret}&scope={}", scope.as_str());
-        Ok(PairLink {
-            qr_svg: render_qr(&url)?,
-            url,
-            base,
-            scope,
-            label,
-            expires_at: iso_of_ms(expires_ms),
-        })
-    }
-
     pub fn create_code_pairing(&self, scope: Scope, label: Option<String>) -> PairCode {
         let n: u32 = rand::random_range(0..1_000_000);
         let code = format!("{n:06}");
@@ -715,6 +668,10 @@ impl RemoteHub {
         Some(rec)
     }
 
+    pub fn stream_allowed(&self, device_id: &str) -> bool {
+        self.running.lock().unwrap().is_some() && self.device(device_id).is_some()
+    }
+
     fn device(&self, id: &str) -> Option<DeviceRecord> {
         self.devices
             .lock()
@@ -788,14 +745,6 @@ impl RemoteHub {
     pub fn access_log(&self, limit: usize) -> Vec<AccessEntry> {
         let l = self.log.lock().unwrap();
         l.iter().rev().take(limit).cloned().collect()
-    }
-
-    pub fn clear_access_log(&self) {
-        self.log.lock().unwrap().clear();
-        if let Some(dir) = &self.dir {
-            let _ = std::fs::remove_file(dir.join("access.jsonl"));
-        }
-        self.notify("access");
     }
 
     pub fn status(&self) -> RemoteStatus {
@@ -981,18 +930,6 @@ impl RemoteHub {
         self.cfg.lock().unwrap().private_only = on;
         self.save_config();
         self.notify("config");
-    }
-
-    pub fn set_tailscale_serve(&self, url: Option<String>, https_port: Option<u16>) {
-        {
-            let mut cfg = self.cfg.lock().unwrap();
-            cfg.tailscale_serve_url = url;
-            if let Some(p) = https_port {
-                cfg.tailscale_https_port = p;
-            }
-        }
-        self.save_config();
-        self.notify("tailscale");
     }
 
     fn connection_delta(&self, device_id: &str, up: bool) {
@@ -1998,276 +1935,10 @@ pub async fn start_for_app(
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct TailscaleInfo {
-    pub installed: bool,
-    pub binary: Option<String>,
-    pub running: bool,
-    pub backend_state: Option<String>,
-    pub dns_name: Option<String>,
-    pub ips: Vec<String>,
-    pub https_port: u16,
-    pub target: Option<String>,
-    pub serve_args: Vec<String>,
-    pub serve_command: Option<String>,
-    pub serve_off_args: Vec<String>,
-    pub serve_off_command: Option<String>,
-    pub serve_url: Option<String>,
-    pub serve_enabled: bool,
-    pub error: Option<String>,
-}
-
-pub fn tailscale_binary() -> Option<PathBuf> {
-    if let Ok(p) = which::which("tailscale") {
-        return Some(p);
-    }
-    let candidates: &[&str] = if cfg!(target_os = "macos") {
-        &["/Applications/Tailscale.app/Contents/MacOS/Tailscale"]
-    } else if cfg!(windows) {
-        &["C:\\Program Files\\Tailscale\\tailscale.exe"]
-    } else {
-        &["/usr/bin/tailscale", "/usr/local/bin/tailscale"]
-    };
-    candidates.iter().map(PathBuf::from).find(|p| p.exists())
-}
-
-fn shell_join(bin: &str, args: &[String]) -> String {
-    let q = |s: &str| {
-        if s.chars()
-            .all(|c| c.is_ascii_alphanumeric() || "-_./:=@".contains(c))
-        {
-            s.to_string()
-        } else {
-            format!("'{}'", s.replace('\'', "'\\''"))
-        }
-    };
-    std::iter::once(q(bin))
-        .chain(args.iter().map(|a| q(a)))
-        .collect::<Vec<_>>()
-        .join(" ")
-}
-
-async fn run_tool(bin: &FsPath, args: &[String]) -> Result<(bool, String, String), String> {
-    let mut cmd = omniget_core::core::process::command(bin);
-    cmd.args(args)
-        .stdin(std::process::Stdio::null())
-        .kill_on_drop(true);
-    let out = tokio::time::timeout(Duration::from_secs(20), cmd.output())
-        .await
-        .map_err(|_| "REMOTE_TAILSCALE_TIMEOUT: tailscale did not answer in 20 s".to_string())?
-        .map_err(|e| format!("REMOTE_TAILSCALE_SPAWN: {e}"))?;
-    Ok((
-        out.status.success(),
-        String::from_utf8_lossy(&out.stdout).into_owned(),
-        String::from_utf8_lossy(&out.stderr).into_owned(),
-    ))
-}
-
-fn serve_target(h: &RemoteHub) -> Option<String> {
-    h.bound_addr().map(|a| base_for(a.ip(), a.port()))
-}
-
-fn serve_args(https_port: u16, target: &str) -> Vec<String> {
-    vec![
-        "serve".into(),
-        "--bg".into(),
-        format!("--https={https_port}"),
-        target.to_string(),
-    ]
-}
-
-fn serve_off_args(https_port: u16) -> Vec<String> {
-    vec![
-        "serve".into(),
-        format!("--https={https_port}"),
-        "off".into(),
-    ]
-}
-
-fn serve_url_for(dns: &str, https_port: u16) -> String {
-    if https_port == 443 {
-        format!("https://{dns}")
-    } else {
-        format!("https://{dns}:{https_port}")
-    }
-}
-
-pub async fn tailscale_status(https_port: Option<u16>) -> TailscaleInfo {
-    let h = hub();
-    let cfg = h.config();
-    let https_port = https_port.unwrap_or(cfg.tailscale_https_port);
-    let target = serve_target(&h);
-    let mut info = TailscaleInfo {
-        installed: false,
-        binary: None,
-        running: false,
-        backend_state: None,
-        dns_name: None,
-        ips: Vec::new(),
-        https_port,
-        target: target.clone(),
-        serve_args: Vec::new(),
-        serve_command: None,
-        serve_off_args: serve_off_args(https_port),
-        serve_off_command: None,
-        serve_url: None,
-        serve_enabled: cfg.tailscale_serve_url.is_some(),
-        error: None,
-    };
-    let Some(bin) = tailscale_binary() else {
-        return info;
-    };
-    let bin_s = bin.to_string_lossy().into_owned();
-    info.installed = true;
-    info.binary = Some(bin_s.clone());
-    info.serve_off_command = Some(shell_join(&bin_s, &info.serve_off_args));
-    if let Some(t) = &target {
-        info.serve_args = serve_args(https_port, t);
-        info.serve_command = Some(shell_join(&bin_s, &info.serve_args));
-    }
-    match run_tool(&bin, &["status".into(), "--json".into()]).await {
-        Ok((_, stdout, stderr)) => match serde_json::from_str::<Value>(&stdout) {
-            Ok(v) => {
-                let state = v
-                    .get("BackendState")
-                    .and_then(Value::as_str)
-                    .map(str::to_string);
-                info.running = state.as_deref() == Some("Running");
-                info.backend_state = state;
-                let me = v.get("Self");
-                info.dns_name = me
-                    .and_then(|s| s.get("DNSName"))
-                    .and_then(Value::as_str)
-                    .map(|s| s.trim_end_matches('.').to_string())
-                    .filter(|s| !s.is_empty());
-                info.ips = me
-                    .and_then(|s| s.get("TailscaleIPs"))
-                    .and_then(Value::as_array)
-                    .map(|a| {
-                        a.iter()
-                            .filter_map(Value::as_str)
-                            .map(str::to_string)
-                            .collect()
-                    })
-                    .unwrap_or_default();
-                info.serve_url = info
-                    .dns_name
-                    .as_deref()
-                    .map(|d| serve_url_for(d, https_port));
-            }
-            Err(_) => {
-                info.error = Some(
-                    format!("{} {}", stderr.trim(), stdout.trim())
-                        .trim()
-                        .chars()
-                        .take(400)
-                        .collect(),
-                )
-            }
-        },
-        Err(e) => info.error = Some(e),
-    }
-    info
-}
-
-#[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
 pub struct CommandRun {
     pub ok: bool,
     pub command: String,
     pub stdout: String,
     pub stderr: String,
     pub serve_url: Option<String>,
-}
-
-pub async fn tailscale_serve(
-    enable: bool,
-    confirm: bool,
-    https_port: Option<u16>,
-) -> Result<CommandRun, String> {
-    let info = tailscale_status(https_port).await;
-    let bin = info
-        .binary
-        .clone()
-        .ok_or_else(|| "REMOTE_TAILSCALE_MISSING: tailscale is not installed".to_string())?;
-    let args = if enable {
-        if info.target.is_none() {
-            return Err("REMOTE_NOT_RUNNING: turn remote access on first".into());
-        }
-        info.serve_args.clone()
-    } else {
-        info.serve_off_args.clone()
-    };
-    let command = shell_join(&bin, &args);
-    if !confirm {
-        return Err(format!("REMOTE_CONFIRM_REQUIRED: {command}"));
-    }
-    let (ok, stdout, stderr) = run_tool(FsPath::new(&bin), &args).await?;
-    let h = hub();
-    let serve_url = if ok && enable {
-        info.serve_url.clone()
-    } else {
-        None
-    };
-    if ok {
-        h.set_tailscale_serve(serve_url.clone(), Some(info.https_port));
-    }
-    Ok(CommandRun {
-        ok,
-        command,
-        stdout: stdout.chars().take(4000).collect(),
-        stderr: stderr.chars().take(4000).collect(),
-        serve_url,
-    })
-}
-
-#[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct SshInfo {
-    pub command: String,
-    pub user: String,
-    pub host: String,
-    pub local_port: u16,
-    pub remote_target: String,
-    pub base: String,
-    pub running: bool,
-}
-
-pub fn ssh_info(local_port: Option<u16>, host: Option<String>) -> SshInfo {
-    let h = hub();
-    let bound = h.bound_addr();
-    let cfg = h.config();
-    let port = bound.map(|a| a.port()).unwrap_or(cfg.port);
-    let target_ip = bound
-        .map(|a| a.ip().to_string())
-        .unwrap_or_else(|| cfg.bind_ip.clone());
-    let target_ip = if target_ip.contains(':') {
-        format!("[{target_ip}]")
-    } else {
-        target_ip
-    };
-    let local_port = local_port.unwrap_or(port);
-    let user = std::env::var("USER")
-        .or_else(|_| std::env::var("USERNAME"))
-        .unwrap_or_else(|_| "user".into());
-    let host = host.filter(|s| !s.trim().is_empty()).unwrap_or_else(|| {
-        candidate_interfaces()
-            .into_iter()
-            .find(|i| i.kind == "lan")
-            .or_else(|| {
-                candidate_interfaces()
-                    .into_iter()
-                    .find(|i| i.kind == "tailscale")
-            })
-            .map(|i| i.ip)
-            .unwrap_or_else(|| "this-machine".into())
-    });
-    SshInfo {
-        command: format!("ssh -N -L {local_port}:{target_ip}:{port} {user}@{host}"),
-        user,
-        host,
-        local_port,
-        remote_target: format!("{target_ip}:{port}"),
-        base: format!("http://127.0.0.1:{local_port}"),
-        running: bound.is_some(),
-    }
 }

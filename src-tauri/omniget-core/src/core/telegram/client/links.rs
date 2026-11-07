@@ -530,6 +530,8 @@ pub async fn download_items(
                 if cancel.is_cancelled() {
                     return;
                 }
+                let claim = super::template::claim_unique_path(&path);
+                let path = claim.path().to_path_buf();
                 let item_id = events::next_id();
                 let mut rep = DownloadReporter::new(
                     item_id,

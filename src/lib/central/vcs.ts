@@ -1,7 +1,4 @@
 import { invoke } from "@tauri-apps/api/core";
-import { listen, type UnlistenFn } from "@tauri-apps/api/event";
-
-const WORKTREE_SETUP_EVENT = "central://vcs/worktree-setup";
 
 type StatusFile = {
   path: string;
@@ -58,64 +55,7 @@ export type LogEntry = {
   refs: string;
 };
 
-type WorktreeRequest = {
-  repo: string;
-  thread: string;
-  base?: string | null;
-  branch?: string | null;
-  start_from_origin?: boolean;
-  submodules?: "recursive" | "top-level" | "none" | null;
-  run_setup?: boolean;
-};
-
-type SetupStageId = "fetch" | "checkout" | "submodules" | "setup-script";
-type SetupStageState = "pending" | "running" | "done" | "skipped" | "warning" | "failed";
-type SetupStage = {
-  id: SetupStageId;
-  state: SetupStageState;
-  detail: string | null;
-  percent: number | null;
-  tail: string[];
-};
-export type SetupSnapshot = {
-  thread: string;
-  phase: "running" | "done" | "failed" | "cancelled";
-  path: string | null;
-  branch: string | null;
-  base: string | null;
-  stages: SetupStage[];
-  error: string | null;
-};
-
-export type WorktreeInfo = {
-  thread: string;
-  path: string;
-  branch: string;
-  base: string;
-  base_commit: string;
-  repo_root: string;
-  reused: boolean;
-};
-
-export type Checkpoint = {
-  thread: string;
-  turn: number;
-  ref: string;
-  commit: string;
-  tree: string;
-  at: number;
-  shadow: boolean;
-};
-
-export type DiffOptions = {
-  ignore_whitespace?: boolean;
-  max_bytes?: number;
-  max_file_bytes?: number;
-  context?: number;
-  stat_only?: boolean;
-};
-
-export type FileStatus = "added" | "deleted" | "modified" | "renamed" | "binary";
+type FileStatus = "added" | "deleted" | "modified" | "renamed" | "binary";
 export type FileDiff = {
   path: string;
   old_path?: string;
@@ -134,8 +74,6 @@ export type DiffResult = {
   deletions: number;
   truncated: boolean;
 };
-
-type RestoreResult = { turn: number; files: string[]; dropped_later: number };
 
 export type ChangeSummary = { path: string; status: FileStatus; additions: number; deletions: number };
 type CommitSuggestion = { subject: string; body: string; files: ChangeSummary[] };
@@ -197,45 +135,7 @@ export function vcsError(e: unknown): { code: string | null; message: string } {
 }
 
 export const vcsStatus = (path: string) => invoke<RepoStatus>("vcs_status", { path });
-export const vcsBranches = (path: string) => invoke<BranchInfo[]>("vcs_branches", { path });
 export const vcsLog = (path: string, n = 50, rev?: string) => invoke<LogEntry[]>("vcs_log", { path, n, rev: rev ?? null });
-
-export const vcsWorktreeCreate = (request: WorktreeRequest) => invoke<WorktreeInfo>("vcs_worktree_create", { request });
-export const vcsWorktreeCancel = (thread: string) => invoke<boolean>("vcs_worktree_cancel", { thread });
-
-export function onWorktreeSetup(cb: (s: SetupSnapshot) => void, thread?: string): Promise<UnlistenFn> {
-  return listen<SetupSnapshot>(WORKTREE_SETUP_EVENT, (ev) => {
-    if (!thread || ev.payload.thread === thread) cb(ev.payload);
-  });
-}
-
-export const vcsCheckpointCapture = (path: string, thread: string, turn: number) =>
-  invoke<Checkpoint>("vcs_checkpoint_capture", { path, thread, turn });
-export const vcsCheckpointList = (path: string, thread: string) =>
-  invoke<Checkpoint[]>("vcs_checkpoint_list", { path, thread });
-export const vcsCheckpointDelete = (path: string, thread: string, afterTurn?: number) =>
-  invoke<number>("vcs_checkpoint_delete", { path, thread, afterTurn: afterTurn ?? null });
-
-export const vcsDiffTurn = (path: string, thread: string, turn: number, options?: DiffOptions) =>
-  invoke<DiffResult>("vcs_diff_turn", { path, thread, turn, options: options ?? null });
-export const vcsDiffFull = (path: string, thread: string, toTurn?: number, options?: DiffOptions) =>
-  invoke<DiffResult>("vcs_diff_full", { path, thread, toTurn: toTurn ?? null, options: options ?? null });
-
-export const vcsRestoreTurn = (
-  path: string,
-  thread: string,
-  turn: number,
-  opts: { confirm?: boolean; dropLater?: boolean } = {},
-) =>
-  invoke<RestoreResult>("vcs_restore_turn", {
-    path,
-    thread,
-    turn,
-    confirm: opts.confirm ?? false,
-    dropLater: opts.dropLater ?? false,
-  });
-
-export const vcsWorkingChanges = (path: string) => invoke<ChangeSummary[]>("vcs_working_changes", { path });
 export const vcsCommitSuggest = (path: string) => invoke<CommitSuggestion>("vcs_commit_suggest", { path });
 export const vcsCommit = (path: string, message?: string | null, files?: string[] | null) =>
   invoke<CommitResult>("vcs_commit", { path, message: message ?? null, files: files ?? null });

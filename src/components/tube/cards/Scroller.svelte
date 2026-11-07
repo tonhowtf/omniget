@@ -6,11 +6,10 @@
   let {
     children,
     gap = 16,
-    step = 0.8,
     arrows = true,
     label = "",
     class: klass = "",
-  }: { children: Snippet; gap?: number; step?: number; arrows?: boolean; label?: string; class?: string } = $props();
+  }: { children: Snippet; gap?: number; arrows?: boolean; label?: string; class?: string } = $props();
 
   let track = $state<HTMLDivElement>();
   let atStart = $state(true);
@@ -38,7 +37,7 @@
 
   function by(dir: 1 | -1) {
     if (!track) return;
-    track.scrollBy({ left: dir * track.clientWidth * step, behavior: "smooth" });
+    track.scrollBy({ left: dir * track.clientWidth * 0.8, behavior: "smooth" });
   }
 </script>
 

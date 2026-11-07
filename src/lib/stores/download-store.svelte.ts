@@ -62,6 +62,7 @@ export type GenericDownloadItem = BaseItem & {
   stream?: StreamInfo | null;
   streamsDone?: StreamInfo[];
   plannedFormats?: string[] | null;
+  peers?: number | null;
   fragmentIndex?: number | null;
   fragmentCount?: number | null;
   startedAtMs?: number | null;
@@ -73,6 +74,7 @@ type GenericProgressExtra = {
   fragmentIndex?: number | null;
   fragmentCount?: number | null;
   plannedFormats?: string[] | null;
+  peers?: number | null;
 };
 
 export type DownloadItem = GenericDownloadItem;
@@ -314,20 +316,6 @@ export function getAggregate(): DownloadAggregate {
   };
 }
 
-export function clearFinished() {
-  let changed = false;
-  for (const [id, item] of downloads) {
-    if (item.status === "complete") {
-      downloads.delete(id);
-      clearSpeedHistory(id);
-      changed = true;
-    }
-  }
-  if (changed) {
-    flushNow();
-  }
-}
-
 export function getFinishedCount(): number {
   let n = 0;
   for (const item of downloads.values()) {
@@ -516,6 +504,7 @@ export function upsertGenericProgress(
     fragmentIndex: extra?.fragmentIndex ?? prev?.fragmentIndex ?? null,
     fragmentCount: extra?.fragmentCount ?? prev?.fragmentCount ?? null,
     plannedFormats: extra?.plannedFormats ?? prev?.plannedFormats ?? null,
+    peers: extra?.peers ?? prev?.peers ?? null,
   });
 
   if (resolvedStatus === "downloading") {

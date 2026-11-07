@@ -27,10 +27,8 @@
   } from "$lib/omni/pet-state";
   import {
     acceptAsk,
-    cancelRequest,
     headAsk,
     resolveAsk,
-    terminalRequestId,
     type PendingAsk,
   } from "$lib/omni/tool-ask-queue";
   import { balloonOf, type CompanionBalloon } from "$lib/omni/companion-balloon";
@@ -39,7 +37,6 @@
   const GROUND_INSET = 28;
   const SKIN = "omni-default";
   const EVENT_TOOL_ASK = "llm://tool-ask";
-  const EVENT_TURN = "llm://turn";
   const EVENT_TOOL_RESOLVED = "omni://tool-resolved";
   const EVENT_COMPANION = "canvas://companion";
   const EVENT_COMPANION_DISMISS = "canvas://companion-dismiss";
@@ -260,7 +257,7 @@
       const main = await WebviewWindow.getByLabel("main");
       await main?.show();
       await main?.setFocus();
-      await emit("omni://navigate", { path: "/llm" });
+      await emit("omni://navigate", { path: "/" });
     } catch (e) {
       console.warn("[pet] open hub", e);
     }
@@ -323,12 +320,6 @@
         for (const ask of waiting ?? []) setAsks(acceptAsk(asks, ask));
       } catch {
       }
-      keep(
-        await listen(EVENT_TURN, (event) => {
-          const done = terminalRequestId(event.payload);
-          if (done) setAsks(cancelRequest(asks, done));
-        }),
-      );
       keep(
         await listen(EVENT_TOOL_RESOLVED, (event) => {
           const p = event.payload as { tool_call_id?: unknown } | null;

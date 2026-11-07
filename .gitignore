@@ -287,3 +287,5 @@ skills-lock.json
 # Copied from chrome/ by `pnpm extension:sync`; only the Firefox manifest is versioned
 /browser-extension/firefox/*
 !/browser-extension/firefox/manifest.json
+
+AGENTS.md

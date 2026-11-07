@@ -7,16 +7,6 @@ export type Mood =
   | "sleepy"
   | "focused";
 
-export const MOODS: readonly Mood[] = [
-  "neutral",
-  "happy",
-  "curious",
-  "proud",
-  "worried",
-  "sleepy",
-  "focused",
-];
-
 export type OmniPose = "idle" | "talk" | "wave" | "sleep" | "work";
 
 interface PoseSlice {

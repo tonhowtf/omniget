@@ -161,7 +161,7 @@ fn migrate_from_json() -> Vec<RecoveryItem> {
 
     let registros = json_para_registros(&content);
     if registros.is_empty() && !content.trim().is_empty() {
-        tracing::warn!("[recovery] recovery.json ilegivel ou vazio, nada migrado");
+        tracing::warn!("[recovery] recovery.json unreadable or empty, nothing migrated");
     }
     for r in &registros {
         append(r);
@@ -173,9 +173,12 @@ fn migrate_from_json() -> Vec<RecoveryItem> {
 
     let destino = json_path.with_extension("json.migrated");
     if let Err(e) = std::fs::rename(&json_path, &destino) {
-        tracing::warn!("[recovery] nao foi possivel renomear o json migrado: {}", e);
+        tracing::warn!("[recovery] could not rename the migrated json: {}", e);
     }
-    tracing::info!("[recovery] {} itens migrados do recovery.json", itens.len());
+    tracing::info!(
+        "[recovery] {} items migrated from recovery.json",
+        itens.len()
+    );
     itens
 }
 
@@ -188,10 +191,7 @@ pub fn init_from_disk() {
         Some(contents) => {
             let (records, descartados) = crate::core::queue_wal::decode_log(&contents);
             if descartados > 0 {
-                tracing::warn!(
-                    "[recovery] {} registro(s) truncado(s) descartado(s)",
-                    descartados
-                );
+                tracing::warn!("[recovery] {} truncated record(s) discarded", descartados);
             }
             let replayed = crate::core::queue_wal::replay(&records);
             let stale = replayed.iter().any(|r| {

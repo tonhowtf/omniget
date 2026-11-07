@@ -847,24 +847,3 @@ pub fn plan_undo(ctx: &Ctx, action: &str, args: &Value) -> Result<String, String
         _ => Err(format!("apps.windows: cannot undo {action}")),
     }
 }
-
-pub async fn ui_action(action: &str, a: Value) -> Result<Value, String> {
-    match action {
-        "details" => {
-            let id = crate::core::llm::tool_table::need_str(&a, "app_id")?;
-            super::super::tools::blocking(move || {
-                let app = list()?
-                    .into_iter()
-                    .find(|x| x.id == id)
-                    .ok_or_else(|| format!("{id} is not installed"))?;
-                #[cfg(windows)]
-                let facts = sys::details(&app);
-                #[cfg(not(windows))]
-                let facts = Value::Null;
-                Ok(json!({ "app": app, "facts": facts, "command": command_preview(&app) }))
-            })
-            .await
-        }
-        _ => Err(format!("apps.windows: unknown screen action {action}")),
-    }
-}

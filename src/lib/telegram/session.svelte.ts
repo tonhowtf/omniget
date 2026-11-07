@@ -397,12 +397,6 @@ export async function attachSessionEvents(): Promise<void> {
         };
       }),
     );
-    unlisteners.push(
-      await listen<{ kind?: string; message?: string }>("telegram-toast", (ev) => {
-        const k = ev.payload.kind === "error" ? "error" : ev.payload.kind === "success" ? "success" : "info";
-        if (ev.payload.message) showToast(k, ev.payload.message);
-      }),
-    );
   } catch {
   }
 }

@@ -348,29 +348,6 @@ impl Ledger {
         Ok(q)
     }
 
-    pub fn get_quote(&self, id: &str) -> Result<Option<Quote>, String> {
-        self.with(|c| {
-            c.query_row(
-                "SELECT id,workspace,node,fingerprint,credits,balance,expires_ms,used FROM canvas_media_quotes WHERE id=?1",
-                [id],
-                |r| {
-                    Ok(Quote {
-                        id: r.get(0)?,
-                        workspace: r.get(1)?,
-                        node: r.get(2)?,
-                        fingerprint: r.get(3)?,
-                        credits: r.get(4)?,
-                        balance: r.get(5)?,
-                        expires_ms: r.get(6)?,
-                        used: r.get::<_, i64>(7)? != 0,
-                    })
-                },
-            )
-            .optional()
-            .map_err(db_error)
-        })
-    }
-
     pub fn reserve(&self, r: Reserve) -> Result<(Intent, bool), String> {
         if !super::schema::identifier(r.key) {
             return Err("PROVIDER_INVALID_IDEMPOTENCY_KEY".into());

@@ -34,7 +34,7 @@ impl Converter for RovoPromptsConverter {
         let yml = dir_for(target, "commands", scope, ctx)?;
         let content_dir = kind_path(target, "prompts", scope, ctx)
             .or_else(|| yml.parent().map(|p| p.join("prompts")))
-            .ok_or_else(|| no_path(target, "prompts", scope))?;
+            .ok_or_else(|| missing(target, "prompts", scope))?;
         let content_path = content_dir.join(format!("{name}.md"));
         let base = yml.parent().map(|p| p.to_path_buf()).unwrap_or_default();
         let content_ref =

@@ -1,7 +1,6 @@
 [data-shell="mac"] {
   --sidebar-width: 224px;
   --titlebar-height: 44px;
-  --toolbar-height: 44px;
   --inspector-width: 320px;
   --pane-inset: 8px;
   --pane-radius: var(--radius-lg);
@@ -318,11 +317,6 @@
   background: var(--accent);
 }
 
-.mac-source-list-footer {
-  margin-top: auto;
-  padding-top: var(--space-3);
-}
-
 [data-shell="mac"][data-sidebar="collapsed"] {
   --sidebar-width: 64px;
 }
@@ -418,67 +412,11 @@
   overscroll-behavior: contain;
 }
 
-.mac-content {
-  flex: 1;
-  overflow-y: auto;
-  padding: var(--space-5);
-  min-width: 0;
-}
-
-.mac-content--home {
-  padding: var(--space-3);
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-}
-
-.mac-content--pane {
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-  overflow: hidden;
-}
-
 .page {
   padding: var(--space-5) var(--space-6) var(--space-7);
   max-width: 960px;
   width: 100%;
   margin: 0 auto;
-}
-
-.page-wide {
-  max-width: none;
-}
-
-.page-head {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: var(--space-4);
-  margin-bottom: var(--space-5);
-}
-
-.page-head .page-title {
-  margin: 0;
-}
-
-.page-lede {
-  font-size: var(--text-base);
-  line-height: var(--leading-base);
-  color: var(--text-dim);
-  max-width: 60ch;
-  margin-top: var(--space-1);
-}
-
-.mac-inspector {
-  width: var(--inspector-width);
-  min-width: var(--inspector-width);
-  background: var(--surface);
-  overflow-y: auto;
-  padding: var(--space-4);
-  flex-shrink: 0;
-  border-left: var(--hairline) solid var(--separator);
 }
 
 .mac-command-backdrop {
@@ -685,23 +623,6 @@
   }
 }
 
-.settings-mac-cat-icon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 22px;
-  height: 22px;
-  border-radius: 6px;
-  background: var(--fill-2);
-  color: var(--text-muted);
-  flex-shrink: 0;
-}
-
-.settings-mac-cat-icon svg {
-  width: 13px;
-  height: 13px;
-}
-
 .settings-mac-cat-label {
   flex: 1;
   min-width: 0;
@@ -710,33 +631,10 @@
   white-space: nowrap;
 }
 
-.settings-mac-cat.search-match {
-  color: var(--text);
-}
-
-.settings-cat-match-count {
-  flex-shrink: 0;
-  min-width: 18px;
-  height: 18px;
-  padding: 0 5px;
-  font-size: var(--text-xs);
-  font-weight: 600;
-  line-height: 18px;
-  text-align: center;
-  border-radius: 999px;
-  background: var(--accent-soft);
-  color: var(--accent-hi);
-}
-
 .settings-mac-cat.active {
   background: var(--accent);
   color: var(--on-accent);
   font-weight: 500;
-}
-
-.settings-mac-cat.active .settings-mac-cat-icon {
-  background: color-mix(in srgb, var(--on-accent) 14%, transparent);
-  color: inherit;
 }
 
 .settings-mac-cat:focus-visible {
@@ -755,19 +653,6 @@
 .settings-mac-nav-group .mac-nav-section-header {
   padding-left: var(--space-2);
   padding-right: var(--space-2);
-}
-
-.settings-mac-content {
-  flex: 1;
-  min-width: 0;
-  padding: var(--space-5) var(--space-6) var(--space-7);
-  overflow-y: auto;
-}
-
-.settings-mac-content > * {
-  max-width: 720px;
-  margin-left: auto;
-  margin-right: auto;
 }
 
 .downloads-mac.downloads-page {
@@ -810,44 +695,5 @@
   min-height: 0;
   flex: 1;
   padding: var(--space-6) 0;
-}
-
-.downloads-table-wrap {
-  border-radius: var(--radius-lg);
-  overflow: hidden;
-  background: var(--surface);
-  box-shadow: inset 0 0 0 var(--hairline) var(--content-border);
-}
-
-.downloads-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: var(--text-sm);
-}
-
-.downloads-table th {
-  text-align: left;
-  padding: var(--space-2) var(--space-3);
-  font-weight: 600;
-  color: var(--text-dim);
-  font-size: var(--text-xs);
-  border-bottom: var(--hairline) solid var(--separator);
-}
-
-.downloads-table td {
-  padding: var(--space-2) var(--space-3);
-  color: var(--text);
-  vertical-align: middle;
-  border-bottom: var(--hairline) solid var(--separator);
-}
-
-.downloads-table tr:last-child td {
-  border-bottom: none;
-}
-
-@media (hover: hover) {
-  .downloads-table tbody tr:hover {
-    background: var(--fill-1);
-  }
 }
 

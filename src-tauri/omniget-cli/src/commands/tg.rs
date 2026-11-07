@@ -336,10 +336,6 @@ impl host::TelegramHost for CliHost {
     fn default_output_dir(&self) -> PathBuf {
         self.default_out.clone()
     }
-
-    fn toast(&self, _kind: &str, message: &str) {
-        self.tracker.note(message);
-    }
 }
 
 struct Tracker {

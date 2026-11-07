@@ -5,6 +5,7 @@
   import { onMount } from "svelte";
   import { t } from "$lib/i18n";
   import { showToast } from "$lib/stores/toast-store.svelte";
+  import { formatBytes, formatSpeed } from "$lib/download-format";
 
   let { onClose }: { onClose: () => void } = $props();
 
@@ -128,19 +129,6 @@
       case "complete": return $t("p2p.transfer_complete");
       default: return status;
     }
-  }
-
-  function formatBytes(bytes: number): string {
-    if (bytes < 1024) return `${bytes} B`;
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-    if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-    return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
-  }
-
-  function formatSpeed(bytesPerSec: number): string {
-    if (bytesPerSec <= 0) return "0 KB/s";
-    if (bytesPerSec < 1024 * 1024) return `${(bytesPerSec / 1024).toFixed(0)} KB/s`;
-    return `${(bytesPerSec / (1024 * 1024)).toFixed(1)} MB/s`;
   }
 
   function formatEta(remaining: number, speed: number): string {

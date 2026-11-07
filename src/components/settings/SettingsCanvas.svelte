@@ -1,78 +1,43 @@
 <script lang="ts">
+  import { onMount } from "svelte";
   import { t } from "$lib/i18n";
-  import { showToast } from "$lib/stores/toast-store.svelte";
-  import {
-    canvasPrefs,
-    replaceCanvasPrefs,
-    watchCanvasPrefs,
-    type AgentPreset,
-    type CanvasPrefs,
-  } from "$lib/canvas/prefs.svelte";
+  import { getSettings, updateSettings } from "$lib/stores/settings-store.svelte";
+  import { canvasPrefs, watchCanvasPrefs, type CanvasPrefs } from "$lib/canvas/prefs.svelte";
   import { TERM_THEME_IDS } from "$lib/canvas/term/themes";
   import { SHORTCUT_ACTIONS, normCombo } from "$lib/canvas/interaction/keyboard";
-  import { onMount } from "svelte";
+  import SettingGroup from "./rebrand/SettingGroup.svelte";
+  import SettingRow from "./rebrand/SettingRow.svelte";
+  import GeneralChoice from "./rebrand/GeneralChoice.svelte";
+  import AdvancedDisclosure from "./ai/AdvancedDisclosure.svelte";
+  import Subgroup from "./ai/Subgroup.svelte";
+  import { canvasSaving, saveCanvas } from "./ai/canvas-save.svelte";
   import SettingsCanvasEnvironments from "./SettingsCanvasEnvironments.svelte";
   import SettingsCanvasImages from "./SettingsCanvasImages.svelte";
   import SettingsCanvasPortalSessions from "./SettingsCanvasPortalSessions.svelte";
 
-  const tr = (key: string, fallback: string, vars?: Record<string, unknown>) =>
-    $t(key, { default: fallback, ...(vars ?? {}) }) as string;
-
   const prefs = $derived(canvasPrefs());
-  let busy = $state(false);
-  type DefaultKind = "terminal" | "note" | "text" | "portal";
-  let defaultsKind = $state<DefaultKind>("note");
-  const DEFAULT_KINDS: { k: DefaultKind; label: string }[] = $derived([
-    { k: "terminal", label: tr("canvas.settings.tabTerminals", "Terminals") },
-    { k: "note", label: tr("canvas.settings.tabNotes", "Notes") },
-    { k: "text", label: tr("canvas.settings.tabText", "Text") },
-    { k: "portal", label: tr("canvas.settings.tabPortals", "Portals") },
-  ]);
-  function onKindKey(e: KeyboardEvent) {
-    if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
-    e.preventDefault();
-    const i = DEFAULT_KINDS.findIndex((k) => k.k === defaultsKind);
-    const next = DEFAULT_KINDS[(i + (e.key === "ArrowRight" ? 1 : DEFAULT_KINDS.length - 1)) % DEFAULT_KINDS.length].k;
-    defaultsKind = next;
-    document.getElementById(`cv-tab-${next}`)?.focus();
-  }
+  const busy = $derived(canvasSaving.busy);
+  const settings = $derived(getSettings());
+  const worldOn = $derived(settings?.world?.enabled ?? true);
+  const isMacOs = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
+  const SHORTCUT_IDS = Object.keys(SHORTCUT_ACTIONS);
+  const SIZE_KINDS = ["terminal", "note", "text", "portal"] as const;
+  const hasSavedSizes = $derived(SIZE_KINDS.some((k) => !!prefs.defaults[k].size?.trim()));
+
+  let recording = $state<string | null>(null);
 
   onMount(() => watchCanvasPrefs());
 
-  async function save(mutate: (c: CanvasPrefs) => void) {
-    if (busy) return;
-    busy = true;
-    try {
-      const next = structuredClone($state.snapshot(prefs)) as CanvasPrefs;
-      mutate(next);
-      await replaceCanvasPrefs(next);
-    } catch (error) {
-      showToast("error", String(error));
-    } finally {
-      busy = false;
-    }
-  }
-
-  const BUILTIN = ["shell", "claude", "codex", "gemini", "opencode", "ollama"];
-
-  const SHORTCUT_IDS = Object.keys(SHORTCUT_ACTIONS);
-  const isMacOs = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
-  let recording = $state<string | null>(null);
-
   function comboLabel(combo: string): string {
-    if (!combo) return tr("canvas.settings.shortcutNone", "None");
+    if (!combo) return $t("canvas.settings.shortcutNone") as string;
     const names: Record<string, string> = isMacOs
       ? { mod: "⌘", alt: "⌥", shift: "⇧", arrowright: "→", arrowleft: "←", arrowup: "↑", arrowdown: "↓" }
       : { mod: "Ctrl+", alt: "Alt+", shift: "Shift+", arrowright: "→", arrowleft: "←", arrowup: "↑", arrowdown: "↓" };
-    return combo
-      .split("+")
-      .map((p) => names[p] ?? p.toUpperCase())
-      .join("");
+    return combo.split("+").map((p) => names[p] ?? p.toUpperCase()).join("");
   }
 
   function currentCombo(id: string): string {
-    const o = prefs.shortcuts?.[id];
-    return normCombo(o ?? SHORTCUT_ACTIONS[id].combo);
+    return normCombo(prefs.shortcuts?.[id] ?? SHORTCUT_ACTIONS[id].combo);
   }
 
   function recordKey(id: string, e: KeyboardEvent) {
@@ -93,7 +58,7 @@
       combo = normCombo(parts.join("+"));
     }
     recording = null;
-    void save((c) => {
+    void saveCanvas((c) => {
       const map: Record<string, string> = { ...(c.shortcuts ?? {}) };
       if (combo) for (const other of SHORTCUT_IDS) if (other !== id && currentCombo(other) === combo) map[other] = "";
       map[id] = combo;
@@ -102,468 +67,252 @@
   }
 
   function resetShortcut(id: string) {
-    void save((c) => {
+    void saveCanvas((c) => {
       const map: Record<string, string> = { ...(c.shortcuts ?? {}) };
       delete map[id];
       c.shortcuts = map;
     });
   }
 
-  type Draft = { name: string; command: string; args: string; env: string; icon: string; color: string; maestro: boolean; chat: boolean; cwd: string };
-  const EMPTY: Draft = { name: "", command: "", args: "", env: "", icon: "", color: "", maestro: false, chat: false, cwd: "" };
-  let draft = $state<Draft>({ ...EMPTY });
-  let editing = $state<string | null>(null);
-
-  function edit(name: string, p: AgentPreset) {
-    editing = name;
-    draft = {
-      name,
-      command: p.command,
-      args: (p.args ?? []).join(" "),
-      env: Object.entries(p.env ?? {})
-        .map(([k, v]) => `${k}=${v}`)
-        .join("\n"),
-      icon: p.icon ?? "",
-      color: p.color ?? "",
-      maestro: !!p.maestro,
-      chat: !!p.start_in_chat_mode,
-      cwd: p.cwd ?? "",
-    };
-  }
-
-  function parseEnv(s: string): Record<string, string> {
-    const out: Record<string, string> = {};
-    for (const line of s.split(/\n/)) {
-      const i = line.indexOf("=");
-      if (i > 0) out[line.slice(0, i).trim()] = line.slice(i + 1).trim();
-    }
-    return out;
-  }
-
-  async function savePreset() {
-    const name = draft.name.trim();
-    if (!name || !draft.command.trim()) {
-      showToast("error", tr("canvas.settings.presetNeeds", "A preset needs a name and a command"));
-      return;
-    }
-    const d = draft;
-    const was = editing;
-    await save((c) => {
-      if (was && was !== name) delete c.agent_presets[was];
-      c.agent_presets[name] = {
-        command: d.command.trim(),
-        args: d.args.trim() ? d.args.trim().split(/\s+/) : [],
-        env: parseEnv(d.env),
-        icon: d.icon.trim() || null,
-        color: d.color.trim() || null,
-        maestro: d.maestro,
-        start_in_chat_mode: d.chat,
-        cwd: d.cwd.trim() || null,
-      };
-    });
-    editing = null;
-    draft = { ...EMPTY };
-  }
-
-  function removePreset(name: string) {
-    void save((c) => {
-      delete c.agent_presets[name];
-      if (c.default_agent === name) c.default_agent = "shell";
+  function resetSizes() {
+    void saveCanvas((c) => {
+      for (const k of SIZE_KINDS) c.defaults[k].size = "";
     });
   }
-
-  const presetNames = $derived(Object.keys(prefs.agent_presets));
 </script>
 
-<section class="settings-section" id="settings-section-canvas">
-  <h5 class="section-title">{tr("canvas.settings.title", "Canvas")}</h5>
-  <div class="card">
-    <div class="setting-row">
-      <div class="setting-col"><label class="setting-label" for="cv-bg">{tr("canvas.settings.background", "Background")}</label></div>
-      <select id="cv-bg" class="input-text select" disabled={busy} value={prefs.background}
-        onchange={(e) => save((c) => (c.background = (e.target as HTMLSelectElement).value as CanvasPrefs["background"]))}>
-        <option value="grid">{tr("canvas.settings.bgGrid", "Grid")}</option>
-        <option value="plain">{tr("canvas.settings.bgPlain", "Plain")}</option>
-        <option value="transparent">{tr("canvas.settings.bgTransparent", "Transparent")}</option>
-      </select>
-    </div>
-    <div class="divider"></div>
-    <div class="setting-row">
-      <div class="setting-col"><label class="setting-label" for="cv-sel">{tr("canvas.settings.selectionStyle", "Selection style")}</label></div>
-      <select id="cv-sel" class="input-text select" disabled={busy} value={prefs.selection_style}
-        onchange={(e) => save((c) => (c.selection_style = (e.target as HTMLSelectElement).value as CanvasPrefs["selection_style"]))}>
-        <option value="solid">{tr("canvas.settings.selSolid", "Solid")}</option>
-        <option value="dashed">{tr("canvas.settings.selDashed", "Dashed")}</option>
-        <option value="corners">{tr("canvas.settings.selCorners", "Corners")}</option>
-        <option value="corner_dots">{tr("canvas.settings.selCornerDots", "Corner dots")}</option>
-        <option value="elevation">{tr("canvas.settings.selElevation", "Elevation")}</option>
-      </select>
-    </div>
-    <div class="divider"></div>
-    <div class="setting-row">
-      <div class="setting-col"><label class="setting-label" for="cv-mat">{tr("canvas.settings.material", "Node material")}</label></div>
-      <select id="cv-mat" class="input-text select" disabled={busy} value={prefs.node_material}
-        onchange={(e) => save((c) => (c.node_material = (e.target as HTMLSelectElement).value as CanvasPrefs["node_material"]))}>
-        <option value="opaque">{tr("canvas.settings.matOpaque", "Opaque")}</option>
-        <option value="glass">{tr("canvas.settings.matGlass", "Glass")}</option>
-      </select>
-    </div>
-    <div class="divider"></div>
-    <div class="setting-row">
-      <div class="setting-col"><label class="setting-label" for="cv-cord">{tr("canvas.settings.cordStyle", "Cord style")}</label></div>
-      <select id="cv-cord" class="input-text select" disabled={busy} value={prefs.cord_style}
-        onchange={(e) => save((c) => (c.cord_style = (e.target as HTMLSelectElement).value as CanvasPrefs["cord_style"]))}>
-        <option value="bezier">{tr("canvas.settings.cordCurve", "Curve")}</option>
-        <option value="rope">{tr("canvas.settings.cordRope", "Rope")}</option>
-        <option value="circuit">{tr("canvas.settings.cordCircuit", "Circuit")}</option>
-      </select>
-    </div>
-    <div class="divider"></div>
-    <div class="setting-row">
-      <div class="setting-col">
-        <label class="setting-label" for="cv-zs">{tr("canvas.settings.zoomStep", "Zoom step")}</label>
-        <span class="setting-path">{tr("canvas.settings.zoomStepHint", "Per wheel notch and per ⌘+ / ⌘−")}</span>
-      </div>
-      <select id="cv-zs" class="input-text select" disabled={busy} value={String(prefs.zoom_step)}
-        onchange={(e) => save((c) => (c.zoom_step = Number((e.target as HTMLSelectElement).value)))}>
-        {#each [0.05, 0.1, 0.15, 0.2, 0.25, 0.5] as v (v)}
-          <option value={String(v)}>{Math.round(v * 100)}%</option>
-        {/each}
-      </select>
-    </div>
-    <div class="divider"></div>
-    <div class="setting-row">
-      <div class="setting-col"><label class="setting-label" for="cv-zm">{tr("canvas.settings.zoomModifier", "Zoom with the wheel while holding")}</label></div>
-      <select id="cv-zm" class="input-text select" disabled={busy} value={prefs.zoom_modifier}
-        onchange={(e) => save((c) => (c.zoom_modifier = (e.target as HTMLSelectElement).value as CanvasPrefs["zoom_modifier"]))}>
-        <option value="alt">{tr("canvas.settings.modAlt", "Option / Alt")}</option>
-        <option value="ctrl">{tr("canvas.settings.modCtrl", "Control")}</option>
-        <option value="cmd">{tr("canvas.settings.modCmd", "Command (conflicts with the workspace swipe)")}</option>
-      </select>
-    </div>
-    {#each [
-      { k: "right_drag_pan", label: tr("canvas.settings.rightDragPan", "Pan by dragging with the right button") },
-      { k: "focus_on_hover", label: tr("canvas.settings.focusOnHover", "Focus terminals, notes and portals on hover") },
-      { k: "spell_check", label: tr("canvas.settings.spellCheck", "Spell check in notes, text and the composer") },
-      { k: "always_copy_files", label: tr("canvas.settings.alwaysCopyFiles", "Always copy files to workspace") },
-    ] as row (row.k)}
-      {@const key = row.k as "right_drag_pan" | "focus_on_hover" | "spell_check" | "always_copy_files"}
-      <div class="divider"></div>
-      <div class="setting-row">
-        <div class="setting-col"><span class="setting-label">{row.label}</span></div>
-        <button class="toggle" class:on={prefs[key]} disabled={busy} role="switch" aria-checked={prefs[key]} aria-label={row.label}
-          onclick={() => save((c) => (c[key] = !c[key]))}><span class="toggle-knob"></span></button>
-      </div>
-    {/each}
-  </div>
-</section>
+{#snippet toggle(id: string, describedBy: string | undefined, on: boolean, onclick: () => void, disabled = false)}
+  <button {id} type="button" class="toggle" class:on role="switch" aria-checked={on} aria-labelledby={`${id}-label`} aria-describedby={describedBy} disabled={busy || disabled} {onclick}><span class="toggle-knob"></span></button>
+{/snippet}
 
-<section class="settings-section" id="settings-section-canvas-shortcuts">
-  <h5 class="section-title">{tr("canvas.settings.shortcutsTitle", "Canvas shortcuts")}</h5>
-  <div class="card">
-    <p class="setting-path intro">{tr("canvas.settings.shortcutsIntro", "Click a field and press the new combination. A combination already in use moves to this action. Backspace clears; Reset returns to the default.")}</p>
-    {#each SHORTCUT_IDS as id, i (id)}
-      {#if i > 0}<div class="divider"></div>{/if}
-      <div class="setting-row">
-        <div class="setting-col"><span class="setting-label">{tr(`canvas.settings.shortcut.${id}`, id)}</span></div>
-        <div class="pair end">
-          <button
-            type="button"
-            class="input-text mono shortcut"
-            class:rec={recording === id}
-            disabled={busy}
-            onclick={() => (recording = id)}
-            onblur={() => recording === id && (recording = null)}
-            onkeydown={(e) => recording === id && recordKey(id, e)}
-          >
-            {recording === id ? tr("canvas.settings.shortcutRecording", "Press keys…") : comboLabel(currentCombo(id))}
-          </button>
-          {#if prefs.shortcuts && id in prefs.shortcuts}
-            <button type="button" class="button" disabled={busy} onclick={() => resetShortcut(id)}>{tr("canvas.settings.shortcutReset", "Reset")}</button>
-          {/if}
-        </div>
-      </div>
-    {/each}
-  </div>
-</section>
+{#snippet node(x: number, y: number)}
+  <rect class="node" x={x} y={y} width="26" height="18" rx="3" />
+  <path class="node-line" d={`M${x + 5} ${y + 7}h14M${x + 5} ${y + 12}h9`} />
+{/snippet}
 
-<section class="settings-section" id="settings-section-canvas-defaults">
-  <h5 class="section-title">{tr("canvas.settings.defaultsTitle", "New item defaults")}</h5>
-  <div class="card">
-    <div class="setting-row">
-      <div class="setting-col"><label class="setting-label" for="cv-da">{tr("canvas.settings.defaultAgent", "New terminal (⌘T) runs")}</label></div>
-      <select id="cv-da" class="input-text select" disabled={busy} value={prefs.default_agent}
-        onchange={(e) => save((c) => (c.default_agent = (e.target as HTMLSelectElement).value))}>
-        {#each BUILTIN as a (a)}
-          <option value={a}>{$t(`canvas.term.agent.${a}`, { default: a })}</option>
-        {/each}
-        {#each presetNames as n (n)}
-          <option value={n}>{n}</option>
-        {/each}
+{#snippet bgGrid()}
+  <path class="grid" d="M14 1v48M27 1v48M40 1v48M53 1v48M66 1v48M1 13h78M1 25h78M1 37h78" />
+  {@render node(27, 16)}
+{/snippet}
+
+{#snippet bgPlain()}
+  {@render node(27, 16)}
+{/snippet}
+
+{#snippet bgTransparent()}
+  <path class="checker" d="M1 1h13v12H1zM27 1h13v12H27zM53 1h13v12H53zM14 13h13v12H14zM40 13h13v12H40zM66 13h13v12H66zM1 25h13v12H1zM27 25h13v12H27zM53 25h13v12H53zM14 37h13v12H14zM40 37h13v12H40zM66 37h13v12H66z" />
+  {@render node(27, 16)}
+{/snippet}
+
+{#snippet matOpaque()}
+  <path class="stripes" d="M6 10h68M6 18h68M6 26h68M6 34h68M6 42h68" />
+  <rect class="node solid" x="20" y="12" width="40" height="26" rx="4" />
+{/snippet}
+
+{#snippet matGlass()}
+  <path class="stripes" d="M6 10h68M6 18h68M6 26h68M6 34h68M6 42h68" />
+  <rect class="node glass" x="20" y="12" width="40" height="26" rx="4" />
+{/snippet}
+
+<SettingGroup id="canvas" icon="canvas" title={$t("canvas.settings.title") as string} description={$t("settings.ai.canvas_desc") as string}>
+  <SettingRow id="world-enabled" label={$t("world.settings.enabled")} help={$t("world.settings.enabled_desc")} settingKey="world.settings.enabled" status="world.enabled">
+    {#snippet control({ id, describedBy })}
+      <button {id} type="button" class="toggle" class:on={worldOn} role="switch" aria-checked={worldOn} aria-labelledby={`${id}-label`} aria-describedby={describedBy} onclick={() => updateSettings({ world: { enabled: !worldOn } })}><span class="toggle-knob"></span></button>
+    {/snippet}
+  </SettingRow>
+
+  <div class="block" data-setting-key="canvas.settings.background">
+    <span class="block-label">{$t("canvas.settings.background")}</span>
+    <GeneralChoice
+      name="canvas-background"
+      label={$t("canvas.settings.background") as string}
+      value={prefs.background}
+      options={[
+        { value: "grid", draw: bgGrid, label: $t("canvas.settings.bgGrid") as string, help: $t("settings.ai.bg_grid_help") as string },
+        { value: "plain", draw: bgPlain, label: $t("canvas.settings.bgPlain") as string, help: $t("settings.ai.bg_plain_help") as string },
+        { value: "transparent", draw: bgTransparent, label: $t("canvas.settings.bgTransparent") as string, help: $t("settings.ai.bg_transparent_help") as string },
+      ]}
+      onchange={(v) => saveCanvas((c) => (c.background = v as CanvasPrefs["background"]))}
+    />
+  </div>
+
+  <div class="block" data-setting-key="canvas.settings.material">
+    <span class="block-label">{$t("canvas.settings.material")}</span>
+    <GeneralChoice
+      name="canvas-material"
+      label={$t("canvas.settings.material") as string}
+      value={prefs.node_material}
+      options={[
+        { value: "opaque", draw: matOpaque, label: $t("canvas.settings.matOpaque") as string, help: $t("settings.ai.mat_opaque_help") as string },
+        { value: "glass", draw: matGlass, label: $t("canvas.settings.matGlass") as string, help: $t("settings.ai.mat_glass_help") as string },
+      ]}
+      onchange={(v) => saveCanvas((c) => (c.node_material = v as CanvasPrefs["node_material"]))}
+    />
+  </div>
+
+  <SettingRow id="canvas-zoom-modifier" label={$t("canvas.settings.zoomModifier")} settingKey="canvas.settings.zoomModifier">
+    {#snippet control({ id, describedBy })}
+      <select {id} class="input-text select" aria-describedby={describedBy} disabled={busy} value={prefs.zoom_modifier}
+        onchange={(e) => saveCanvas((c) => (c.zoom_modifier = e.currentTarget.value as CanvasPrefs["zoom_modifier"]))}>
+        <option value="alt">{$t("canvas.settings.modAlt")}</option>
+        <option value="ctrl">{$t("canvas.settings.modCtrl")}</option>
+        <option value="cmd">{$t("canvas.settings.modCmd")}</option>
       </select>
-    </div>
-    <div class="divider"></div>
-    <div class="setting-row kind-tabs-row">
-      <div class="kind-tabs" role="tablist" aria-label={tr("canvas.settings.defaultsTitle", "New item defaults")}>
-        {#each DEFAULT_KINDS as k (k.k)}
-          <button type="button" role="tab" id="cv-tab-{k.k}" aria-controls="cv-panel" aria-selected={defaultsKind === k.k}
-            tabindex={defaultsKind === k.k ? 0 : -1} onclick={() => (defaultsKind = k.k)} onkeydown={onKindKey}>{k.label}</button>
-        {/each}
-      </div>
-    </div>
-    <div id="cv-panel" role="tabpanel" aria-labelledby="cv-tab-{defaultsKind}">
-      <div class="divider"></div>
-      <div class="setting-row">
-        <div class="setting-col">
-          <label class="setting-label" for="cv-size-{defaultsKind}">{tr("canvas.settings.size", "Size")}</label>
-          <span class="setting-path">{tr("canvas.settings.sizeHint", "Width × height, snapped to the 20 pt grid; empty = automatic")}</span>
-        </div>
-        {#key defaultsKind}
-          <input id="cv-size-{defaultsKind}" class="input-text" placeholder="640x400" disabled={busy} value={prefs.defaults[defaultsKind].size}
-            onchange={(e) => { const key = defaultsKind; save((c) => (c.defaults[key].size = (e.target as HTMLInputElement).value.trim())); }} />
-        {/key}
-      </div>
-      {#if defaultsKind === "note"}
-        <div class="divider"></div>
-        <div class="setting-row">
-          <div class="setting-col"><label class="setting-label" for="cv-nf">{tr("canvas.settings.noteFont", "Note font")}</label></div>
-          <input id="cv-nf" class="input-text" placeholder="Georgia" disabled={busy} value={prefs.defaults.note.font}
-            onchange={(e) => save((c) => (c.defaults.note.font = (e.target as HTMLInputElement).value.trim()))} />
-        </div>
-        <div class="divider"></div>
-        <div class="setting-row">
-          <div class="setting-col"><label class="setting-label" for="cv-nr">{tr("canvas.settings.noteRender", "New notes open in")}</label></div>
-          <select id="cv-nr" class="input-text select" disabled={busy} value={prefs.defaults.note.render}
-            onchange={(e) => save((c) => (c.defaults.note.render = (e.target as HTMLSelectElement).value as "formatted" | "raw"))}>
-            <option value="formatted">{tr("canvas.notes.formatted", "Formatted")}</option>
-            <option value="raw">{tr("canvas.notes.raw", "Raw")}</option>
+    {/snippet}
+  </SettingRow>
+  <SettingRow id="canvas-right-drag-pan" label={$t("canvas.settings.rightDragPan")} settingKey="canvas.settings.rightDragPan">
+    {#snippet control({ id, describedBy })}
+      {@render toggle(id, describedBy, prefs.right_drag_pan, () => saveCanvas((c) => (c.right_drag_pan = !c.right_drag_pan)))}
+    {/snippet}
+  </SettingRow>
+  <SettingRow id="canvas-focus-on-hover" label={$t("canvas.settings.focusOnHover")} settingKey="canvas.settings.focusOnHover">
+    {#snippet control({ id, describedBy })}
+      {@render toggle(id, describedBy, prefs.focus_on_hover, () => saveCanvas((c) => (c.focus_on_hover = !c.focus_on_hover)))}
+    {/snippet}
+  </SettingRow>
+
+  <AdvancedDisclosure id="canvas">
+    <Subgroup id="canvas-look" title={$t("settings.ai.canvas_look") as string}>
+      <SettingRow id="canvas-selection-style" label={$t("canvas.settings.selectionStyle")} settingKey="canvas.settings.selectionStyle">
+        {#snippet control({ id, describedBy })}
+          <select {id} class="input-text select" aria-describedby={describedBy} disabled={busy} value={prefs.selection_style}
+            onchange={(e) => saveCanvas((c) => (c.selection_style = e.currentTarget.value as CanvasPrefs["selection_style"]))}>
+            <option value="solid">{$t("canvas.settings.selSolid")}</option>
+            <option value="dashed">{$t("canvas.settings.selDashed")}</option>
+            <option value="corners">{$t("canvas.settings.selCorners")}</option>
+            <option value="corner_dots">{$t("canvas.settings.selCornerDots")}</option>
+            <option value="elevation">{$t("canvas.settings.selElevation")}</option>
           </select>
-        </div>
-        <div class="divider"></div>
-        <div class="setting-row">
-          <div class="setting-col">
-            <label class="setting-label" for="cv-ap">{tr("canvas.settings.agentPlacement", "Notes made by agents")}</label>
-            <span class="setting-path">{tr("canvas.settings.agentPlacementHint", "Where a note goes when an agent creates it")}</span>
+        {/snippet}
+      </SettingRow>
+      <SettingRow id="canvas-cord-style" label={$t("canvas.settings.cordStyle")} settingKey="canvas.settings.cordStyle">
+        {#snippet control({ id, describedBy })}
+          <select {id} class="input-text select" aria-describedby={describedBy} disabled={busy} value={prefs.cord_style}
+            onchange={(e) => saveCanvas((c) => (c.cord_style = e.currentTarget.value as CanvasPrefs["cord_style"]))}>
+            <option value="bezier">{$t("canvas.settings.cordCurve")}</option>
+            <option value="rope">{$t("canvas.settings.cordRope")}</option>
+            <option value="circuit">{$t("canvas.settings.cordCircuit")}</option>
+          </select>
+        {/snippet}
+      </SettingRow>
+      <SettingRow id="canvas-zoom-step" label={$t("canvas.settings.zoomStep")} help={$t("canvas.settings.zoomStepHint")} settingKey="canvas.settings.zoomStep">
+        {#snippet control({ id, describedBy })}
+          <select {id} class="input-text select" aria-describedby={describedBy} disabled={busy} value={String(prefs.zoom_step)}
+            onchange={(e) => saveCanvas((c) => (c.zoom_step = Number(e.currentTarget.value)))}>
+            {#each [0.05, 0.1, 0.15, 0.2, 0.25, 0.5] as v (v)}
+              <option value={String(v)}>{Math.round(v * 100)}%</option>
+            {/each}
+          </select>
+        {/snippet}
+      </SettingRow>
+      <SettingRow id="canvas-spell-check" label={$t("canvas.settings.spellCheck")} settingKey="canvas.settings.spellCheck">
+        {#snippet control({ id, describedBy })}
+          {@render toggle(id, describedBy, prefs.spell_check, () => saveCanvas((c) => (c.spell_check = !c.spell_check)))}
+        {/snippet}
+      </SettingRow>
+      <SettingRow id="canvas-always-copy" label={$t("canvas.settings.alwaysCopyFiles")} settingKey="canvas.settings.alwaysCopyFiles">
+        {#snippet control({ id, describedBy })}
+          {@render toggle(id, describedBy, prefs.always_copy_files, () => saveCanvas((c) => (c.always_copy_files = !c.always_copy_files)))}
+        {/snippet}
+      </SettingRow>
+      <SettingRow id="canvas-note-font" label={$t("canvas.settings.noteFont")} settingKey="canvas.settings.noteFont">
+        {#snippet control({ id, describedBy })}
+          <input {id} class="input-text" placeholder="Georgia" aria-describedby={describedBy} disabled={busy} value={prefs.defaults.note.font}
+            onchange={(e) => saveCanvas((c) => (c.defaults.note.font = e.currentTarget.value.trim()))} />
+        {/snippet}
+      </SettingRow>
+      <SettingRow id="canvas-note-render" label={$t("canvas.settings.noteRender")} settingKey="canvas.settings.noteRender">
+        {#snippet control({ id, describedBy })}
+          <select {id} class="input-text select" aria-describedby={describedBy} disabled={busy} value={prefs.defaults.note.render}
+            onchange={(e) => saveCanvas((c) => (c.defaults.note.render = e.currentTarget.value as "formatted" | "raw"))}>
+            <option value="formatted">{$t("canvas.notes.formatted")}</option>
+            <option value="raw">{$t("canvas.notes.raw")}</option>
+          </select>
+        {/snippet}
+      </SettingRow>
+      <SettingRow id="canvas-reset-sizes" label={$t("settings.ai.sizes_label")} help={$t("settings.ai.sizes_help")} settingKey="settings.ai.sizes_label"
+        disabledReason={hasSavedSizes ? undefined : ($t("settings.ai.sizes_none") as string)}>
+        {#snippet control({ id, describedBy })}
+          <button {id} type="button" class="btn btn-secondary btn-sm" aria-describedby={describedBy} disabled={busy || !hasSavedSizes} onclick={resetSizes}>{$t("settings.ai.sizes_reset")}</button>
+        {/snippet}
+      </SettingRow>
+    </Subgroup>
+
+    <Subgroup id="canvas-terminal" title={$t("canvas.settings.terminalTitle") as string}>
+      <SettingRow id="canvas-term-theme" label={$t("canvas.settings.termTheme")} settingKey="canvas.settings.termTheme">
+        {#snippet control({ id, describedBy })}
+          <select {id} class="input-text select" aria-describedby={describedBy} disabled={busy} value={prefs.terminal.theme}
+            onchange={(e) => saveCanvas((c) => (c.terminal.theme = e.currentTarget.value))}>
+            {#each TERM_THEME_IDS as theme (theme)}
+              <option value={theme}>{theme === "system" ? $t("canvas.settings.termThemeSystem") : theme}</option>
+            {/each}
+          </select>
+        {/snippet}
+      </SettingRow>
+      <SettingRow id="canvas-term-font" label={$t("canvas.settings.termFont")} settingKey="canvas.settings.termFont">
+        {#snippet control({ id, describedBy })}
+          <input {id} class="input-text" placeholder="JetBrains Mono" aria-describedby={describedBy} disabled={busy} value={prefs.terminal.font_family}
+            onchange={(e) => saveCanvas((c) => (c.terminal.font_family = e.currentTarget.value.trim()))} />
+        {/snippet}
+      </SettingRow>
+      <SettingRow id="canvas-term-padding" label={$t("canvas.settings.termPadding")} settingKey="canvas.settings.termPadding">
+        {#snippet control({ id, describedBy })}
+          <div class="pair">
+            <input {id} class="input-text num" type="number" min="0" max="64" aria-describedby={describedBy} disabled={busy} value={prefs.terminal.padding.x}
+              onchange={(e) => saveCanvas((c) => (c.terminal.padding.x = Number(e.currentTarget.value) || 0))} />
+            <input class="input-text num" type="number" min="0" max="64" aria-label={$t("canvas.settings.termPaddingY") as string} disabled={busy} value={prefs.terminal.padding.y}
+              onchange={(e) => saveCanvas((c) => (c.terminal.padding.y = Number(e.currentTarget.value) || 0))} />
           </div>
-          <select id="cv-ap" class="input-text select" disabled={busy} value={prefs.defaults.agent_placement}
-            onchange={(e) => save((c) => (c.defaults.agent_placement = (e.target as HTMLSelectElement).value as "free" | "stack"))}>
-            <option value="free">{tr("canvas.settings.agentPlacementFree", "Free space next to the agent")}</option>
-            <option value="stack">{tr("canvas.settings.agentPlacementStack", "Stacked in one Fichário")}</option>
-          </select>
-        </div>
-      {:else if defaultsKind === "portal"}
-        <div class="divider"></div>
-        <div class="setting-row">
-          <div class="setting-col">
-            <label class="setting-label" for="cv-pp">{tr("canvas.settings.portalPlacement", "Portals made by agents")}</label>
-            <span class="setting-path">{tr("canvas.settings.portalPlacementHint", "Where a portal goes when an agent opens one")}</span>
-          </div>
-          <select id="cv-pp" class="input-text select" disabled={busy} value={prefs.defaults.portal_placement}
-            onchange={(e) => save((c) => (c.defaults.portal_placement = (e.target as HTMLSelectElement).value as "free" | "beside"))}>
-            <option value="free">{tr("canvas.settings.agentPlacementFree", "Free space next to the agent")}</option>
-            <option value="beside">{tr("canvas.settings.portalPlacementBeside", "Always beside the agent, on top of each other")}</option>
-          </select>
-        </div>
+        {/snippet}
+      </SettingRow>
+      {#if isMacOs || prefs.terminal.option_as_meta}
+        <SettingRow id="canvas-option-meta" label={$t("canvas.settings.optionAsMeta")} settingKey="canvas.settings.optionAsMeta">
+          {#snippet control({ id, describedBy })}
+            {@render toggle(id, describedBy, prefs.terminal.option_as_meta, () => saveCanvas((c) => (c.terminal.option_as_meta = !c.terminal.option_as_meta)))}
+          {/snippet}
+        </SettingRow>
       {/if}
-    </div>
-  </div>
-</section>
+    </Subgroup>
 
-<section class="settings-section" id="settings-section-canvas-terminal">
-  <h5 class="section-title">{tr("canvas.settings.terminalTitle", "Terminals")}</h5>
-  <div class="card">
-    <div class="setting-row">
-      <div class="setting-col"><label class="setting-label" for="cv-tt">{tr("canvas.settings.termTheme", "Theme")}</label></div>
-      <select id="cv-tt" class="input-text select" disabled={busy} value={prefs.terminal.theme}
-        onchange={(e) => save((c) => (c.terminal.theme = (e.target as HTMLSelectElement).value))}>
-        {#each TERM_THEME_IDS as id (id)}
-          <option value={id}>{id === "system" ? tr("canvas.settings.termThemeSystem", "Follow the app") : id}</option>
-        {/each}
-      </select>
-    </div>
-    <div class="divider"></div>
-    <div class="setting-row">
-      <div class="setting-col"><label class="setting-label" for="cv-tf">{tr("canvas.settings.termFont", "Font")}</label></div>
-      <input id="cv-tf" class="input-text" placeholder="JetBrains Mono" disabled={busy} value={prefs.terminal.font_family}
-        onchange={(e) => save((c) => (c.terminal.font_family = (e.target as HTMLInputElement).value.trim()))} />
-    </div>
-    <div class="divider"></div>
-    <div class="setting-row">
-      <div class="setting-col"><label class="setting-label" for="cv-tp">{tr("canvas.settings.termPadding", "Padding (horizontal, vertical)")}</label></div>
-      <div class="pair">
-        <input id="cv-tp" class="input-text num" type="number" min="0" max="64" disabled={busy} value={prefs.terminal.padding.x}
-          onchange={(e) => save((c) => (c.terminal.padding.x = Number((e.target as HTMLInputElement).value) || 0))} />
-        <input class="input-text num" type="number" min="0" max="64" disabled={busy} value={prefs.terminal.padding.y}
-          aria-label={tr("canvas.settings.termPaddingY", "Vertical padding")}
-          onchange={(e) => save((c) => (c.terminal.padding.y = Number((e.target as HTMLInputElement).value) || 0))} />
-      </div>
-    </div>
-    <div class="divider"></div>
-    <div class="setting-row">
-      <div class="setting-col">
-        <label class="setting-label" for="cv-mem">{tr("canvas.settings.memoryLimit", "Memory limit per terminal (MB)")}</label>
-        <span class="setting-path">{tr("canvas.settings.memoryLimitHint", "A program above it is stopped; the shell stays. 0 = off")}</span>
-      </div>
-      <input id="cv-mem" class="input-text num" type="number" min="0" step="100" disabled={busy} value={prefs.terminal.memory_limit_mb}
-        onchange={(e) => save((c) => (c.terminal.memory_limit_mb = Math.max(0, Math.round(Number((e.target as HTMLInputElement).value) || 0))))} />
-    </div>
-    {#each [
-      { k: "option_as_meta", label: tr("canvas.settings.optionAsMeta", "Option key sends Meta (instead of typing characters)") },
-      { k: "shell_fallback", label: tr("canvas.settings.shellFallback", "Start another shell when the saved one is missing") },
-    ] as row (row.k)}
-      {@const key = row.k as "option_as_meta" | "shell_fallback"}
-      <div class="divider"></div>
-      <div class="setting-row">
-        <div class="setting-col"><span class="setting-label">{row.label}</span></div>
-        <button class="toggle" class:on={prefs.terminal[key]} disabled={busy} role="switch" aria-checked={prefs.terminal[key]} aria-label={row.label}
-          onclick={() => save((c) => (c.terminal[key] = !c.terminal[key]))}><span class="toggle-knob"></span></button>
-      </div>
-    {/each}
-    <div class="divider"></div>
-    <div class="setting-row">
-      <div class="setting-col"><span class="setting-label">{tr("canvas.settings.notifyAttention", "Notify when an agent needs attention")}</span></div>
-      <button class="toggle" class:on={prefs.notifications.attention} disabled={busy} role="switch" aria-checked={prefs.notifications.attention}
-        aria-label={tr("canvas.settings.notifyAttention", "Notify when an agent needs attention")}
-        onclick={() => save((c) => (c.notifications.attention = !c.notifications.attention))}><span class="toggle-knob"></span></button>
-    </div>
-    <div class="divider"></div>
-    <div class="setting-row">
-      <div class="setting-col"><span class="setting-label">{tr("canvas.settings.badgesNonMaestro", "Attention badge on terminals that are not the Maestro")}</span></div>
-      <button class="toggle" class:on={prefs.notifications.badges_for_non_maestro} disabled={busy} role="switch" aria-checked={prefs.notifications.badges_for_non_maestro}
-        aria-label={tr("canvas.settings.badgesNonMaestro", "Attention badge on terminals that are not the Maestro")}
-        onclick={() => save((c) => (c.notifications.badges_for_non_maestro = !c.notifications.badges_for_non_maestro))}><span class="toggle-knob"></span></button>
-    </div>
-    <div class="divider"></div>
-    <div class="setting-row">
-      <div class="setting-col"><label class="setting-label" for="cv-sleep">{tr("canvas.settings.preventSleep", "Keep the computer awake")}</label></div>
-      <select id="cv-sleep" class="input-text select" disabled={busy} value={prefs.power.prevent_sleep}
-        onchange={(e) => save((c) => (c.power.prevent_sleep = (e.target as HTMLSelectElement).value as CanvasPrefs["power"]["prevent_sleep"]))}>
-        <option value="while_working">{tr("canvas.settings.sleepWorking", "While agents are working")}</option>
-        <option value="always">{tr("canvas.settings.sleepAlways", "Always")}</option>
-        <option value="never">{tr("canvas.settings.sleepNever", "Never")}</option>
-      </select>
-    </div>
-  </div>
-</section>
+    <Subgroup id="canvas-shortcuts" title={$t("canvas.settings.shortcutsTitle") as string} intro={$t("canvas.settings.shortcutsIntro") as string} settingKey="canvas.settings.shortcutsTitle">
+      {#each SHORTCUT_IDS as sid (sid)}
+        <SettingRow id={`canvas-shortcut-${sid}`} label={$t(`canvas.settings.shortcut.${sid}`, { default: sid })}>
+          {#snippet control({ id, describedBy })}
+            <div class="pair">
+              <button {id} type="button" class="input-text mono shortcut" class:rec={recording === sid} aria-describedby={describedBy} disabled={busy}
+                onclick={() => (recording = sid)}
+                onblur={() => recording === sid && (recording = null)}
+                onkeydown={(e) => recording === sid && recordKey(sid, e)}>
+                {recording === sid ? $t("canvas.settings.shortcutRecording") : comboLabel(currentCombo(sid))}
+              </button>
+              {#if prefs.shortcuts && sid in prefs.shortcuts}
+                <button type="button" class="btn btn-secondary btn-sm" disabled={busy} onclick={() => resetShortcut(sid)}>{$t("canvas.settings.shortcutReset")}</button>
+              {/if}
+            </div>
+          {/snippet}
+        </SettingRow>
+      {/each}
+    </Subgroup>
 
-<section class="settings-section" id="settings-section-canvas-presets">
-  <h5 class="section-title">{tr("canvas.settings.presetsTitle", "Agent presets")}</h5>
-  <div class="card">
-    <p class="setting-path intro">{tr("canvas.settings.presetsHint", "Bring your own agent: any command line, with its arguments and environment. It shows up in Add → Terminal and can be the default for ⌘T. Editing a preset changes only terminals made afterwards.")}</p>
-    {#each presetNames as name (name)}
-      {@const p = prefs.agent_presets[name]}
-      <div class="setting-row">
-        <div class="setting-col">
-          <span class="setting-label">
-            {#if p.color}<span class="swatch" style:background={p.color}></span>{/if}{name}
-          </span>
-          <span class="setting-path mono">{[p.command, ...(p.args ?? [])].join(" ")}</span>
-        </div>
-        <div class="pair">
-          <button class="button" disabled={busy} onclick={() => edit(name, p)}>{tr("canvas.settings.edit", "Edit")}</button>
-          <button class="button danger" disabled={busy} onclick={() => removePreset(name)}>{tr("canvas.settings.remove", "Remove")}</button>
-        </div>
-      </div>
-      <div class="divider"></div>
-    {/each}
-    <div class="editor">
-      <label>{tr("canvas.settings.presetName", "Name")}<input class="input-text" bind:value={draft.name} placeholder="Aider" /></label>
-      <label>{tr("canvas.settings.presetCommand", "Command")}<input class="input-text mono" bind:value={draft.command} placeholder="aider" spellcheck="false" /></label>
-      <label>{tr("canvas.settings.presetArgs", "Arguments")}<input class="input-text mono" bind:value={draft.args} placeholder="--model sonnet" spellcheck="false" /></label>
-      <label>{tr("canvas.settings.presetEnv", "Environment (one KEY=value per line)")}<textarea class="input-text mono" rows="2" bind:value={draft.env} spellcheck="false"></textarea></label>
-      <label>{tr("canvas.settings.presetCwd", "Folder (empty = the workspace's)")}<input class="input-text mono" bind:value={draft.cwd} spellcheck="false" /></label>
-      <div class="pair">
-        <label>{tr("canvas.settings.presetIcon", "Icon")}<input class="input-text" bind:value={draft.icon} placeholder="hammer" /></label>
-        <label>{tr("canvas.settings.presetColor", "Color")}<input class="input-text" bind:value={draft.color} placeholder="#FF8800" /></label>
-      </div>
-      <label class="check"><input type="checkbox" bind:checked={draft.maestro} />{tr("canvas.settings.presetMaestro", "Maestro (can recruit and manage other agents)")}</label>
-      <label class="check"><input type="checkbox" bind:checked={draft.chat} />{tr("canvas.settings.presetChat", "Start in chat mode")}</label>
-      <div class="pair end">
-        {#if editing}
-          <button class="button" disabled={busy} onclick={() => { editing = null; draft = { ...EMPTY }; }}>{tr("canvas.settings.cancel", "Cancel")}</button>
-        {/if}
-        <button class="button primary" disabled={busy} onclick={savePreset}>
-          {editing ? tr("canvas.settings.savePreset", "Save preset") : tr("canvas.settings.addPreset", "Add preset")}
-        </button>
-      </div>
-    </div>
-  </div>
-</section>
-
-<SettingsCanvasImages />
-
-<SettingsCanvasEnvironments />
-<SettingsCanvasPortalSessions />
+    <SettingsCanvasImages />
+    <SettingsCanvasEnvironments />
+    <SettingsCanvasPortalSessions />
+  </AdvancedDisclosure>
+</SettingGroup>
 
 <style>
-  .kind-tabs { display: inline-flex; flex-wrap: wrap; gap: 4px; }
-  .kind-tabs button {
-    min-block-size: 30px;
-    padding-inline: 12px;
-    border: 1px solid var(--separator);
-    border-radius: 6px;
-    background: var(--surface);
-    color: var(--text);
-    font: inherit;
-    font-size: 13px;
-    cursor: pointer;
-  }
-  .kind-tabs button[aria-selected="true"] { border-color: var(--accent); background: var(--accent-soft); color: var(--accent-text, var(--accent)); }
-  .kind-tabs button:focus-visible { outline: var(--focus-ring); outline-offset: var(--focus-ring-offset, 2px); }
-  .pair {
-    display: flex;
-    gap: 8px;
-    align-items: center;
-  }
-  .pair.end {
-    justify-content: flex-end;
-  }
-  .num {
-    width: 88px;
-  }
-  .mono {
-    font-family: var(--font-mono, monospace);
-  }
-  .intro {
-    margin: 4px 0 10px;
-  }
-  .swatch {
-    display: inline-block;
-    width: 10px;
-    height: 10px;
-    border-radius: 50%;
-    margin-right: 6px;
-    vertical-align: middle;
-  }
-  .editor {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    padding-top: 8px;
-  }
-  .editor label {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    font-size: 12px;
-    color: var(--text-muted);
-    flex: 1;
-  }
-  .editor label.check {
-    flex-direction: row;
-    align-items: center;
-    gap: 8px;
-    color: var(--text);
-  }
-  .danger {
-    color: var(--error, #ff453a);
-  }
-  .shortcut {
-    min-width: 120px;
-    text-align: center;
-    cursor: pointer;
-  }
-  .shortcut.rec {
-    outline: 2px solid var(--accent);
-  }
+  .block { padding-block: var(--space-2); border-block-start: 1px solid var(--separator); }
+  .block-label { display: block; font-size: var(--text-base); line-height: 20px; color: var(--text); }
+  .pair { display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: center; justify-content: flex-end; }
+  .num { inline-size: 80px; }
+  .mono { font-family: var(--font-mono); }
+  .shortcut { min-inline-size: 120px; text-align: center; cursor: pointer; }
+  .shortcut.rec { outline: 2px solid var(--accent); }
+  .grid { fill: none; stroke: var(--content-border); }
+  .checker { fill: var(--content-border); opacity: 0.6; }
+  .stripes { fill: none; stroke: var(--accent); stroke-width: 2; stroke-linecap: round; opacity: 0.5; }
+  .node { fill: var(--surface-hi-src, var(--surface-src)); stroke: var(--tertiary); }
+  .node.solid { fill: var(--primary); }
+  .node.glass { fill: var(--surface-hi-src, var(--surface-src)); fill-opacity: 0.45; }
+  .node-line { fill: none; stroke: var(--tertiary); stroke-width: 2; stroke-linecap: round; opacity: 0.6; }
 </style>

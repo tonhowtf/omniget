@@ -14,11 +14,9 @@ use super::engine::ThreadsEngine;
 use super::model::{Activity, CheckpointFile, Command, CommandEnvelope, DomainEvent, StoredEvent};
 use super::store::{self, ThreadRow};
 use crate::core::llm::drivers::now_iso;
-use crate::core::vcs::actions::{
-    self, CommitResult, PrCreateResult, PrInfo, PrRequest, PushResult,
-};
+use crate::core::vcs::actions::{self, PushResult};
 use crate::core::vcs::checkpoint;
-use crate::core::vcs::diff::{self, DiffOptions, DiffResult};
+use crate::core::vcs::diff::{DiffOptions, DiffResult};
 use crate::core::vcs::repo::{self, RepoStatus};
 use crate::core::vcs::worktree::{self, SetupSnapshot, WorktreeRequest};
 
@@ -195,21 +193,6 @@ impl ThreadGit {
         let row = self.row(thread_id)?;
         self.cwd_of_row(&row)
             .ok_or_else(|| format!("ERR_THREADS_INVALID: thread {thread_id} has no folder"))
-    }
-
-    pub fn cancel_setup(&self, thread_id: &str) -> bool {
-        match self
-            .cancels
-            .lock()
-            .unwrap_or_else(|e| e.into_inner())
-            .get(thread_id)
-        {
-            Some(f) => {
-                f.store(true, std::sync::atomic::Ordering::SeqCst);
-                true
-            }
-            None => false,
-        }
     }
 
     pub async fn record(&self, event: DomainEvent) -> Result<(), String> {
@@ -782,71 +765,6 @@ impl ThreadGit {
     pub async fn status(&self, thread_id: &str) -> Result<RepoStatus, String> {
         repo::status(&self.cwd(thread_id)?).await.map_err(gerr)
     }
-
-    pub async fn commit_message(&self, thread_id: &str) -> Result<CommitMessage, String> {
-        let dir = self.cwd(thread_id)?;
-        let changes = actions::working_changes(&dir).await.map_err(gerr)?;
-        let fallback = actions::suggest_commit_message(&changes);
-        let heuristic = CommitMessage {
-            subject: fallback.subject.clone(),
-            body: fallback.body.clone(),
-            source: "heuristic".into(),
-            files: changes.len(),
-        };
-        let Some(gen) = self.hooks.text.clone() else {
-            return Ok(heuristic);
-        };
-        if changes.is_empty() {
-            return Ok(heuristic);
-        }
-        let patch = match working_patch(&dir).await {
-            Some(p) => p,
-            None => return Ok(heuristic),
-        };
-        let answer = tokio::time::timeout(
-            Duration::from_secs(30),
-            gen(COMMIT_SYSTEM.to_string(), patch),
-        )
-        .await
-        .ok()
-        .flatten();
-        Ok(match answer.as_deref().and_then(clean_commit_message) {
-            Some((subject, body)) => CommitMessage {
-                subject,
-                body,
-                source: "model".into(),
-                files: changes.len(),
-            },
-            None => heuristic,
-        })
-    }
-
-    pub async fn commit(
-        &self,
-        thread_id: &str,
-        message: Option<String>,
-    ) -> Result<CommitResult, String> {
-        let dir = self.cwd(thread_id)?;
-        let message = match message.filter(|m| !m.trim().is_empty()) {
-            Some(m) => m,
-            None => self.commit_message(thread_id).await?.text(),
-        };
-        let r = actions::commit(&dir, Some(&message), None)
-            .await
-            .map_err(gerr)?;
-        if r.status == "created" {
-            self.note(
-                thread_id,
-                "git.commit",
-                "info",
-                r.subject.clone(),
-                serde_json::to_value(&r).unwrap_or(Value::Null),
-            )
-            .await;
-        }
-        Ok(r)
-    }
-
     pub async fn push(&self, thread_id: &str) -> Result<PushResult, String> {
         let dir = self.cwd(thread_id)?;
         let r = actions::push(&dir).await.map_err(gerr)?;
@@ -862,70 +780,11 @@ impl ThreadGit {
         }
         Ok(r)
     }
-
-    pub async fn open_pr(
-        &self,
-        thread_id: &str,
-        title: Option<String>,
-        body: Option<String>,
-        base: Option<String>,
-        draft: bool,
-    ) -> Result<PrCreateResult, String> {
-        let row = self.row(thread_id)?;
-        let dir = self.cwd(thread_id)?;
-        let title = match title.filter(|t| !t.trim().is_empty()) {
-            Some(t) => t,
-            None => {
-                let t = row.title.trim();
-                if t.is_empty() || t == super::decider::DEFAULT_THREAD_TITLE {
-                    self.commit_message(thread_id).await?.subject
-                } else {
-                    t.to_string()
-                }
-            }
-        };
-        let body = body.unwrap_or_else(|| pr_body(&row));
-        let req = PrRequest {
-            title,
-            body,
-            base: base.or(row.base_branch.clone()),
-            draft,
-        };
-        let r = actions::pr_create(&dir, &req).await.map_err(gerr)?;
-        self.set_pr(thread_id, &row, Some(&r.pr)).await;
-        Ok(r)
-    }
-
-    pub async fn refresh_pr(&self, thread_id: &str) -> Result<Option<PrInfo>, String> {
-        let row = self.row(thread_id)?;
-        let dir = self.cwd(thread_id)?;
-        let pr = actions::pr_view(&dir, None).await.map_err(gerr)?;
-        self.set_pr(thread_id, &row, pr.as_ref()).await;
-        Ok(pr)
-    }
-
-    async fn set_pr(&self, thread_id: &str, row: &ThreadRow, pr: Option<&PrInfo>) {
-        let v = pr.and_then(|p| serde_json::to_value(p).ok());
-        if v == row.pr {
-            return;
-        }
-        let _ = self
-            .record(DomainEvent::PrUpdated {
-                thread_id: thread_id.to_string(),
-                pr: v,
-                updated_at: now_iso(),
-            })
-            .await;
-    }
 }
 
 const BRANCH_SYSTEM: &str = "You name git branches. Reply with only a short kebab-case branch \
 name of 2 to 5 lowercase English words that says what the task is about. No prefix, no quotes, \
 no explanation.";
-
-const COMMIT_SYSTEM: &str = "Write a git commit message for the diff the user sends. First line: \
-an imperative subject of at most 72 characters. Then, only if useful, a blank line and a short \
-body of plain lines. Reply with the message only: no code fences, no preamble.";
 
 async fn branch_exists(root: &Path, name: &str) -> bool {
     crate::core::vcs::runner::Invocation::git()
@@ -942,35 +801,6 @@ async fn branch_exists(root: &Path, name: &str) -> bool {
         .map(|o| o.ok())
         .unwrap_or(false)
 }
-
-async fn working_patch(dir: &Path) -> Option<String> {
-    let ctx = checkpoint::context_for(dir).await.ok()?;
-    let tree = checkpoint::live_tree(&ctx).await.ok()?;
-    let head = ctx
-        .git()
-        .args(["rev-parse", "--verify", "--quiet", "HEAD^{tree}"])
-        .unchecked()
-        .run()
-        .await
-        .ok()
-        .filter(|o| o.ok())
-        .map(|o| o.trimmed())
-        .unwrap_or_else(|| "4b825dc642cb6eb9a060e54bf8d69288fbee4904".to_string());
-    let d = diff::diff_trees(
-        &ctx,
-        &head,
-        &tree,
-        &DiffOptions {
-            max_bytes: 48 * 1024,
-            max_file_bytes: 12 * 1024,
-            ..Default::default()
-        },
-    )
-    .await
-    .ok()?;
-    Some(patch_for_prompt(&d, 12_000))
-}
-
 async fn name_status(dir: &Path, thread_id: &str, n: u32) -> HashMap<String, String> {
     let Ok(ctx) = checkpoint::context_for(dir).await else {
         return HashMap::new();
@@ -1095,13 +925,6 @@ fn setup_signature(s: &SetupSnapshot) -> String {
     sig
 }
 
-fn pr_body(row: &ThreadRow) -> String {
-    format!(
-        "Opened from the OmniGet thread \"{}\" ({} turn(s)).",
-        row.title, row.turn_count
-    )
-}
-
 const BRANCH_PREFIX: &str = "omniget/";
 const STOPWORDS: &[&str] = &[
     "a", "an", "the", "to", "of", "and", "or", "in", "on", "for", "with", "please", "can", "you",
@@ -1181,58 +1004,4 @@ pub fn clean_branch_suggestion(answer: &str) -> Option<String> {
         return None;
     }
     join_branch(&words)
-}
-
-pub fn clean_commit_message(answer: &str) -> Option<(String, String)> {
-    let text: Vec<&str> = answer
-        .lines()
-        .filter(|l| !l.trim_start().starts_with("```"))
-        .collect();
-    let mut lines = text.iter().map(|l| l.trim_end());
-    let subject = lines.by_ref().map(str::trim).find(|l| !l.is_empty())?;
-    let subject = subject
-        .trim_start_matches("Subject:")
-        .trim()
-        .trim_matches('"')
-        .trim();
-    if subject.is_empty() {
-        return None;
-    }
-    let mut s: String = subject.chars().take(72).collect();
-    if subject.chars().count() > 72 {
-        if let Some(i) = s.rfind(' ') {
-            s.truncate(i);
-        }
-    }
-    let body: Vec<&str> = lines.collect();
-    let body = body.join("\n").trim().to_string();
-    Some((s, body))
-}
-
-pub fn patch_for_prompt(d: &DiffResult, max: usize) -> String {
-    let mut out = String::new();
-    for f in &d.files {
-        let chunk = if f.binary {
-            format!("Binary file {} ({})\n", f.path, f.status)
-        } else if f.patch.is_empty() {
-            format!(
-                "{} {} (+{} -{})\n",
-                f.status, f.path, f.additions, f.deletions
-            )
-        } else {
-            format!("{}\n", f.patch.trim_end())
-        };
-        if out.len() + chunk.len() > max {
-            let room = max.saturating_sub(out.len());
-            let mut end = room.min(chunk.len());
-            while end > 0 && !chunk.is_char_boundary(end) {
-                end -= 1;
-            }
-            out.push_str(&chunk[..end]);
-            out.push_str("\n[diff clipped]\n");
-            break;
-        }
-        out.push_str(&chunk);
-    }
-    out
 }

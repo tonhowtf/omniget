@@ -5,7 +5,7 @@ import { readFileSync, existsSync } from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 
-import { devRevisionPlugin } from './scripts/dev/vite-plugin.mjs';
+import { devRevisionPlugin, previewDefaultsPlugin } from './scripts/dev/vite-plugin.mjs';
 import { setupPdfjs } from './scripts/setup-pdfjs.mjs';
 
 const host = process.env.TAURI_DEV_HOST;
@@ -72,6 +72,7 @@ export default defineConfig(({ command }) => {
   return {
     plugins: [
       devRevisionPlugin(configDir),
+      previewDefaultsPlugin(configDir),
       i18nCheckPlugin({ strict: strictI18n }),
       pdfjsRuntimePlugin(),
       sveltekit(),
@@ -82,6 +83,12 @@ export default defineConfig(({ command }) => {
       __GIT_BRANCH__: JSON.stringify(gitInfo.branch),
       __APP_VERSION__: JSON.stringify(getVersion()),
       __BUILD_DATE__: JSON.stringify(new Date().toISOString().split("T")[0]),
+    },
+
+    // WHY: macOS Big Sur WebKit is the oldest engine we ship on (minimumSystemVersion 10.15); newer vite defaults would raise this.
+    build: {
+      target: ["es2020", "safari14"],
+      cssTarget: ["safari14"],
     },
 
     clearScreen: false,

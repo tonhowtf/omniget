@@ -42,12 +42,6 @@ impl CodeSign {
         };
         Some(name.to_string())
     }
-
-    pub fn developer_id(&self) -> bool {
-        self.authorities
-            .first()
-            .is_some_and(|a| a.starts_with("Developer ID Application: "))
-    }
 }
 
 pub fn parse_codesign(text: &str) -> CodeSign {
@@ -148,12 +142,6 @@ impl Assess {
             "Developer ID" | "Unnotarized Developer ID" => Some(false),
             _ => None,
         }
-    }
-
-    pub fn not_an_app(&self) -> bool {
-        self.reason
-            .as_deref()
-            .is_some_and(|r| r.contains("does not seem to be an app"))
     }
 }
 
@@ -518,7 +506,6 @@ mod tests {
     fn codesign_developer_id_with_runtime_and_timestamp() {
         let s = parse_codesign(&fx("codesign_v4_devid.txt"));
         assert!(s.signed && !s.adhoc && s.runtime && !s.apple());
-        assert!(s.developer_id());
         assert_eq!(s.team_id.as_deref(), Some("HUAQ24HBR6"));
         assert_eq!(s.signer().as_deref(), Some("Orbital Labs, LLC (U.S.)"));
         assert_eq!(
@@ -575,7 +562,7 @@ mod tests {
         assert!(a.accepted && a.notarized().is_none());
         assert_eq!(a.source.as_deref(), Some("Apple System"));
         let bare = parse_spctl(&fx("spctl_not_an_app.txt"));
-        assert!(!bare.accepted && bare.not_an_app());
+        assert!(!bare.accepted);
         let open = parse_spctl(&fx("spctl_open_unsigned.txt"));
         assert!(!open.accepted);
         assert_eq!(open.source.as_deref(), Some("no usable signature"));

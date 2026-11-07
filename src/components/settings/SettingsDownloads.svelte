@@ -10,25 +10,19 @@
   import SettingsChannels from "./SettingsChannels.svelte";
   import SettingsRules from "./SettingsRules.svelte";
 
-  let {}: { searchActive?: boolean; section?: string } = $props();
-
   let settings = $derived(getSettings());
 </script>
 
 {#if settings}
   <div class="settings-downloads">
-    <OutputSection part="files" />
-    <QualitySection part="quality" />
+    <OutputSection />
+    <QualitySection />
     <SubtitlesSection />
-    <ClipboardHotkeysSection part="clipboard" />
-
-    <OutputSection part="output" />
-    <QualitySection part="presets" />
-    <ClipboardHotkeysSection part="hotkeys" />
+    <ClipboardHotkeysSection />
     <SettingsCookies />
+    <PlatformOptionsSection />
     <SettingsChannels />
     <SettingsRules />
-    <PlatformOptionsSection />
   </div>
 {:else}
   <p class="settings-downloads-loading" role="status" aria-busy="true">{$t("settings.rebrand.state.loading")}</p>
@@ -36,5 +30,5 @@
 
 <style>
   .settings-downloads { display: flex; flex-direction: column; min-inline-size: 0; }
-  .settings-downloads-loading { margin: 0; font-size: 13px; color: var(--text-muted); }
+  .settings-downloads-loading { margin: 0; font-size: var(--text-base); color: var(--text-muted); }
 </style>

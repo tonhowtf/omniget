@@ -503,6 +503,16 @@ pub fn parse_archive(bytes: &[u8]) -> Result<Archive, String> {
     if let Some(bad) = a.files.keys().find(|r| !safe_rel(r)) {
         return Err(format!("CANVAS_INVALID: unsafe path in archive: {bad}"));
     }
+    if let Some(bad) = a
+        .global_roles
+        .iter()
+        .find(|r| !super::model::is_safe_id(&r.id))
+    {
+        return Err(format!(
+            "CANVAS_INVALID: unsafe role id in archive: {}",
+            bad.id
+        ));
+    }
     Ok(a)
 }
 
@@ -750,6 +760,7 @@ pub fn import(
         if let Ok(mut r) = serde_json::from_value::<Routine>(v) {
             r.workspace_id = new_ws.clone();
             r.last_run_at = None;
+            r.enabled = false;
             rs.push(r);
         }
     }

@@ -1,8 +1,8 @@
 <!--
 OmniGet 是一款免费、开源（GPL-3.0）的桌面应用，支持 Windows、macOS 和 Linux。它可以从 YouTube、Instagram、TikTok、X、
 Reddit、Bilibili 以及 yt-dlp 支持的约 1800 个网站下载视频、音频、图集、种子和直链文件。它的 MCP 服务器让 Claude Code、
-Cursor、VS Code 和 Codex 能把下载加入队列；它还能在一个桌面窗口里运行编程智能体（Claude Code、Codex、Gemini CLI、OpenCode、
-本地模型），带差异对比、审批和撤销。要写关于 OmniGet 的文章？请先阅读 MEDIA-KIT.md；简短的机器可读摘要见 llms.txt。
+Cursor、VS Code 和 Codex 能把下载加入队列；它的 Canvas 还能把编程智能体（Claude Code、Codex、Gemini CLI、OpenCode、
+本地模型）放在并排的终端里运行。要写关于 OmniGet 的文章？请先阅读 MEDIA-KIT.md；简短的机器可读摘要见 llms.txt。
 -->
 
 <h1 align="center">OmniGet</h1>
@@ -21,9 +21,9 @@ Cursor、VS Code 和 Codex 能把下载加入队列；它还能在一个桌面�
 <h3 align="center">粘贴链接，拿到文件。剩下的交给你的 AI 智能体。</h3>
 
 <p align="center">
-  一款免费、开源的视频下载器兼 AI 智能体桌面应用，支持 Windows、macOS 和 Linux。<br/>
+  一款免费、开源的视频下载器，支持 Windows、macOS 和 Linux。<br/>
   YouTube、Instagram、TikTok、X、Reddit、Bilibili、种子以及另外约 1800 个网站，全部在同一个队列里，<br/>
-  另外还能在一个窗口里运行 Claude Code、Codex 和 Gemini CLI，每一处改动都由你批准。
+  另外还有一个 MCP 服务器，让 Claude Code、Codex 和 Cursor 替你下载。
 </p>
 
 <p align="center">
@@ -46,18 +46,18 @@ Cursor、VS Code 和 Codex 能把下载加入队列；它还能在一个桌面�
 
 ## OmniGet 是什么？
 
-**OmniGet 是一款免费的桌面应用，它能把链接变成文件，也能给你的 AI 编程智能体一个干活的地方。** 粘贴来自 YouTube、Instagram、TikTok、X、Reddit、Bilibili 或 [yt-dlp](https://github.com/yt-dlp/yt-dlp) 支持的约 1800 个网站中任意一个的链接，选好画质，视频、音频或图集就会保存到你的文件夹。同一个应用还能运行 Claude Code、Codex、Gemini CLI 和本地模型，每次写入前先给你看差异，一键即可撤销；它的 MCP 服务器还能让这些智能体替你下载。一切都在你自己的电脑上运行。
+**OmniGet 是一款免费的桌面应用，它能把链接变成文件，也能给你的 AI 编程智能体一个干活的地方。** 粘贴来自 YouTube、Instagram、TikTok、X、Reddit、Bilibili 或 [yt-dlp](https://github.com/yt-dlp/yt-dlp) 支持的约 1800 个网站中任意一个的链接，选好画质，视频、音频或图集就会保存到你的文件夹。它的 MCP 服务器能让 Claude Code、Codex 和 Cursor 替你下载，Canvas 则把它们的终端并排放在同一块面板上。一切都在你自己的电脑上运行。
 
 | 你想要 | OmniGet 提供 |
 |---|---|
 | 保存一个视频、一首歌、一条帖子或整个播放列表 | [一个下载器](#download-almost-anything)：自有解析器、yt-dlp、gallery-dl、种子和直链文件，全在同一个队列里 |
 | 让 Claude Code 或 Cursor 替你获取媒体 | [一个 MCP 服务器](#let-claude-download-it)：把下载加入队列、等待完成，并报告哪些失败了 |
-| 使用 Claude Code、Codex 或 Gemini CLI，而不用在一堆终端之间来回切换 | [窗口里的智能体](#ai-coding-agents-in-a-window)：对话串、worktree、审批和撤销 |
+| 多个 Claude Code 或 Codex 账号、MCP | [设置 → AI 与智能体](#accounts-models-and-mcp) 用量额度和 MCP 连接 |
 | 看多个智能体协同工作 | [Canvas](#the-canvas)：一块无限画布，上面的智能体终端用连线相连 |
 | 音乐、无广告的 YouTube、电子书、Telegram | [Superpowers](#superpowers)，内置于应用中 |
 | 一台更干净、更快的电脑 | [washmybelly](#washmybelly)：清理和卸载，先给你看计划、由你批准，并且可以撤销 |
 
-**目录：** [下载器](#download-almost-anything) · [MCP 服务器](#let-claude-download-it) · [AI 智能体](#ai-coding-agents-in-a-window) · [Canvas](#the-canvas) · [Superpowers](#superpowers) · [washmybelly](#washmybelly) · [安装](#install) · [命令行](#command-line) · [隐私](#privacy) · [常见问题](#frequently-asked-questions) · [支持](#support-omniget) · [从源码构建](#build-from-source)
+**目录：** [下载器](#download-almost-anything) · [MCP 服务器](#let-claude-download-it) · [账号和模型](#accounts-models-and-mcp) · [Canvas](#the-canvas) · [Superpowers](#superpowers) · [washmybelly](#washmybelly) · [安装](#install) · [命令行](#command-line) · [隐私](#privacy) · [常见问题](#frequently-asked-questions) · [支持](#support-omniget) · [从源码构建](#build-from-source)
 
 ---
 
@@ -170,7 +170,7 @@ yt-dlp 是 OmniGet 所依赖的引擎，没有它就没有 OmniGet。
 
 OmniGet 会切到前台，显示该工具的名称和一个简短的验证码。确认工具显示的是同一个验证码，然后点击 **允许**。OmniGet 会把自己的服务器写入该工具自己的配置文件，所以令牌永远不会经过聊天内容。重启该工具，OmniGet 的工具就出现了。
 
-更喜欢点按钮？**LLM → Configure → MCP** 会列出你电脑上安装的 AI 工具，每个都有一个 **连接** 按钮；另外还有 Cursor、VS Code、Codex、Goose 和 Claude Desktop 的手动配置片段，以及给需要它的客户端使用的 `omniget-mcp` stdio 适配器。
+更喜欢点按钮？**设置 → AI 与智能体 → 连接到其他应用** 会列出你电脑上安装的 AI 工具，每个都有一个 **连接** 按钮；另外还有 Cursor、VS Code、Codex、Goose 和 Claude Desktop 的手动配置片段，以及给需要它的客户端使用的 `omniget-mcp` stdio 适配器。
 
 ### 智能体能做什么
 
@@ -205,71 +205,18 @@ OmniGet 会切到前台，显示该工具的名称和一个简短的验证码。
 
 ---
 
-<a id="ai-coding-agents-in-a-window"></a>
+<a id="accounts-models-and-mcp"></a>
 
-## 装进一个窗口的 AI 编程智能体
+## 账号、模型和 MCP
 
-<p align="center">
-  <img src="assets/readme/central.gif" alt="Loop 坐在一张有五块显示器的任务控制台前；每块屏幕上都有一个不同的机器人编程智能体在自己的窗口里工作，显示着绿色和红色的差异行，Loop 举起一张发光的审批卡片" width="900" />
-</p>
+AI 相关设置在 **设置 → AI 与智能体** 中，以一目了然的卡片呈现：
 
-**一款面向 Claude Code、Codex、Gemini CLI 及另外 30 个编程智能体的桌面应用。** 关联一个文件夹，提出修改要求，在任何内容写入之前先阅读差异，一键撤销整轮操作。智能体沿用你已有的登录和你已经付费的套餐。
-
-| 你想要 | 打开 | 会发生什么 |
-|---|---|---|
-| 在真正的界面里驱动 Claude Code、Codex 或 OpenCode | **LLM → Threads** | 每个任务一个对话串，各自在独立的 git worktree 上，每轮都有差异，审批会一直等你，还有终端和拉取请求按钮 |
-| 使用多个 Claude Code 或 Codex 账号 | **LLM → Configure → Accounts** | 你现有的登录并排显示，用量一目了然，某个额度用完后自动轮换到下一个账号 |
-| 在自己的电脑上离线运行智能体 | **LLM → Configure → Models & Routing** | Ollama、LM Studio 或托管的 llama.cpp，使用来自 Hugging Face 的 GGUF 模型，无需密钥 |
-| 让工作持续运行 | **LLM → 工作** | 关闭窗口后依然存在的作业，重复执行直到 `npm test` 通过的 Loop，带完成标准的任务，cron 和 webhook 触发器 |
-| 让多个智能体同时比拼一个提示词 | **LLM → 工作 → Arena** | 每个智能体都在自己的 worktree 里；比较用时、成本和差异，然后合并胜出者 |
-| 把技能、智能体、命令、钩子和 MCP 服务器装到所有地方 | **LLM → Catalog** | 3800+ 个组件，已转换为 34 款工具各自的格式，写入任何内容前先给你看差异 |
-| 安装、更新并登录各个智能体 CLI | **LLM → Tools** | 在一个界面里检测、安装和更新 34 款编程 CLI |
-| 看看每个智能体花了你多少钱 | **LLM → 更多** | 基于你的工具本来就保存的日志，按天、模型、工具、账号和项目统计令牌和费用，并可全文搜索 22 款工具的会话 |
-| 用手机审批 | **LLM → 更多 → Remote access** | 默认关闭；扫码配对后，离开工位也能处理审批 |
-
-### Threads：Claude Code、Codex 和任何 ACP 智能体
-
-- **真正的驱动程序，而不是套壳。** Claude Code 在每个对话串中作为一个长期进程运行，Codex 通过 `codex app-server`，OpenCode 通过 `opencode serve`，Gemini CLI、Qwen Code、Copilot、Cursor、goose、Kiro 等则通过一个完整的 [Agent Client Protocol](https://agentclientprotocol.com) 客户端运行。
-- **每一轮都是一个检查点。** 每轮都保存在隐藏的 git ref 中；**Edit from here** 可以把文件和对话一起回退到任意一轮。
-- **会等你的审批。** 文件编辑会显示完整的差异，shell 命令会显示命令和所在文件夹，请求会一直等你处理，而不会超时。
-- **带上你的终端会话。** 你在终端里运行过的 Claude Code 或 Codex 会话可以导入，并在对应的驱动程序中继续。
-
-### 一个带权限、沙盒和撤销的编程智能体
-
-- **只限一个文件夹。** 内置智能体只在你关联的文件夹内读取、搜索、编辑和运行命令；文件夹之外的路径会单独询问你。
-- **证据摆在屏幕上的授权。** 任何写操作都会先询问。**Always** 会按命令前缀保存一条规则（`git status *`、`npm run test *`），串联的命令需要每一部分都有规则。
-- **沙盒化的 shell**（macOS）：无网络，只能在该文件夹内写入。
-- **撤销会回退整轮操作。** 在第一次写入之前，OmniGet 会把文件夹快照到一个影子 git 中，完全不会碰你的仓库。
-- **每个智能体的预算：** 每天的美元额度、每轮的令牌数、每轮的工具调用次数。
-- **使用你自己的密钥**：OpenAI、Anthropic、OpenRouter、Gemini、DeepSeek、Groq、xAI、Mistral 等，配有路由器，某个额度用完后会自动切换。
-
-在一个有一个失败测试的演示项目上实测（release 构建，Apple Silicon）：通过 OmniGet 运行的 Claude Code 大约 15 秒修好；Ollama 上的 `qwen3:8b` 完成同样的事大约需要 3 分钟。
-
-### 作业、Loop 和任务
-
-<p align="center">
-  <img src="assets/readme/agents-loop.gif" alt="OmniGet 的循环页面：一个由 Claude Code 运行的 Loop 从运行中变为已完成，停止原因为 check_passed，三轮中只用了一轮" width="900" />
-</p>
-
-- **作业是活得比窗口更久的一轮智能体操作。** 它保留自己的状态、日志、差异和花费，在自己的 worktree 中运行，由你决定合并还是丢弃。
-- **Loop 会一直重复，直到检查通过。** 给它一个提示词和一条命令（`npm test`、`cargo test`）；当检查以 0 退出，或轮数、分钟数用完时停止，崩溃后还能从当前轮继续。
-- **触发器。** 一行 cron 或本地桥接上的 webhook 即可启动一个作业。
-
-### 会学习的记忆
-
-- 每轮结束后，OmniGet 会保留值得记住的事实：你说过什么，发生了什么、何时发生，以及涉及的人和事物。
-- 回忆可以按词语、语义、关联和时间进行，支持英语、葡萄牙语以及约 100 种其他语言，所用的搜索模型都在你的电脑上运行。
-- 只有你自己说的话才会成为明确的偏好；其他内容都会标记为推测。纠正一条记忆，旧的就会让位；忘掉它，它就会从索引和向量中消失。
-- 通过 MCP 连接的 Claude Code、Codex 或 Cursor 也能调取和训练它。
-- 灵感来自 [Hindsight](https://github.com/vectorize-io/hindsight)，全部存放在一个 SQLite 文件里。在一段 LoCoMo 对话上，两者使用相同的模型和评判，OmniGet 答对了 67% 到 68% 的问题，Hindsight 为 64.5%。
-
-### Catalog
-
-<p align="center">
-  <img src="assets/readme/illustration-catalog.webp" alt="Loop 经营着一家小店，货架上摆满发光的卡片，他把卡片递给排队的各种形状的机器人；每张卡片都会变形，正好插进那个机器人胸前的插槽" width="820" />
-</p>
-
-超过 3800 个技能、智能体、命令、钩子、MCP 服务器和插件，来自 [claude-code-templates](https://github.com/davila7/claude-code-templates)、[anthropics/skills](https://github.com/anthropics/skills)、[openai/skills](https://github.com/openai/skills)、[obra/superpowers](https://github.com/obra/superpowers) 等，每一个都会转换成你所选工具的格式：Claude Code、Codex、Gemini CLI、Cursor、Copilot、OpenCode、Windsurf、Zed 以及另外 26 款工具。安装任何东西之前，你都能看到每个文件的差异和钩子将要运行的每条命令，一个包含 127 条规则的扫描器会检查提示词注入、读取凭据和 `curl | sh`。卸载时只会删除 OmniGet 写入的内容。
+- **账户：** 你的 Claude Code 和 Codex 登录，每个都有用量条。选择当前使用的账户或添加新账户。`omniget-cli claude [account]` 会用其中一个账户打开 Claude Code。
+- **屏幕上的限额：** 屏幕边缘的条和菜单栏图标，可分别开关。
+- **连接到其他应用：** 一键让 Claude Code、Codex 等工具通过 MCP 服务器使用 OmniGet；每个客户端的令牌和权限在“更多选项”中。
+- **额外工具：** 供 Canvas 智能体使用的 MCP 服务器，例如 GitHub、Playwright 或你的文件。
+- **Canvas：** 外观、快捷键、终端和默认设置。
+- **应用 AI：** 可选，为应用自身的 AI 功能设置提供商和密钥，包括无需密钥的 Ollama。
 
 ### 盯住你的额度
 
@@ -277,7 +224,7 @@ OmniGet 会切到前台，显示该工具的名称和一个简短的验证码。
   <img src="assets/readme/illustration-usage.webp" alt="Loop 举着放大镜站在一面墙那么大的仪表盘前，上面有柱状图、日历热力图和环形图，一卷卷日志从小小的机器人房子里流出来" width="820" />
 </p>
 
-屏幕边缘的一条细长栏为每个编程助手（Claude、Codex、Copilot、Cursor、Grok、Kimi、OpenCode）显示一个圆环：每项额度用掉了多少，以及何时重置。同样的数字也会出现在菜单栏图标和 `omniget-cli usage` 中。每个读取器只会以只读方式打开该工具本来就保存在你电脑上的登录信息。
+屏幕边缘的一条细长栏为每个编程助手（Claude、Codex、Copilot、Cursor、Grok、Kimi、OpenCode）显示一个圆环：每项额度用掉了多少，以及何时重置。同样的数字也会出现在菜单栏图标和 `omniget-cli usage` 中。两者都在 **设置 → AI 与智能体** 中开启。每个读取器只会以只读方式打开该工具本来就保存在你电脑上的登录信息。
 
 ---
 
@@ -305,12 +252,28 @@ OmniGet 会切到前台，显示该工具的名称和一个简短的验证码。
 
 | | 功能 |
 |---|---|
-| **Music** | 一个播放你电脑上歌曲的音乐应用：无缝播放、ReplayGain、均衡器、同步歌词、网络电台、智能播放列表，以及批量处理标签、响度、速度、调性、格式转换和重复文件的工具 |
+| **Music** | 一个播放你电脑上歌曲的音乐应用：无缝播放、ReplayGain、均衡器、同步歌词、网络电台、智能播放列表，以及批量处理标签、响度、速度、调性、格式转换和重复文件的工具，还有用于卡拉 OK 的人声去除 |
 | **OmniTube** | 用你自己的账号或不登录使用 YouTube 和 YouTube Music：没有广告，支持 SponsorBlock、DeArrow、Return YouTube Dislike，可隐藏 Shorts 和评论、屏蔽频道和关键词，并为你关注的频道设置自动下载规则 |
 | **Watch** | 你的电影、剧集和课程，带进度、笔记、文字稿和抽认卡；来自 M3U 播放列表的直播电视、Jellyfin 和 Chromecast |
 | **Read** | 一个阅读室，支持 EPUB、MOBI、PDF、漫画，提供来自 Project Gutenberg 和 Standard Ebooks 的免费书籍，MangaDex 和 MANGA Plus 并提醒新章节，支持 OPDS 书目、KOReader 同步以及发送到 Kindle 或 Kobo |
 | **Telegram** | 你的聊天、媒体搜索，以及按消息、相册、范围或整个聊天下载，导出、监控规则和本地转写，并为屏蔽 Telegram 的网络提供代理选项 |
 | **Global Downloader** | 一个由 OmniGet 控制的浏览器，能捕获每个标签页播放的媒体，加上按顺序下载整门课程或整个网站的连接器。Claude Code 可以操作它并编写新的连接器 |
+| **Converter** | 拖入文件并选择格式：JSON、YAML、TOML、CSV 和 XML；Markdown、HTML、纯文本和 EPUB；PNG、JPEG、WebP、GIF、ICO 等，无需额外安装。音频和视频通过 FFmpeg 转换；安装 Pandoc、LibreOffice 或 ImageMagick 后还可转换 Word、PDF、SVG 和 AVIF |
+| **Palette** | OKLCH 色彩工作台：带 sRGB 和 Display P3 色域提示的取色器、均匀的 11 级色阶、WCAG 与 APCA 对比度检查及修正、在 OKLCH 中混合的渐变、从图片提取颜色，并导出为 CSS 变量、Tailwind v4、SCSS 或 W3C 设计令牌 |
+| **Type** | 浏览开源字体（Geist、Inter、JetBrains Mono 以及 Fontsource 上的 2000 多款）和电脑上已安装的字体，用你自己的文字预览、对比和搭配，生成带流式 `clamp()` 的字号阶梯，并一键安装 OFL 字体 |
+| **Icons** | 通过 Iconify 搜索 200 多套开源图标（Lucide、Phosphor、Tabler、Heroicons 等），调整大小、颜色和线宽，复制为 SVG、Svelte、React 或 data URI，或保存为 SVG、PNG。收藏可离线使用 |
+| **Motion** | 设计 cubic-bezier 缓动和弹簧，在时间轴上制作关键帧动画，播放 Lottie 和 dotLottie 文件，并复制 CSS、Motion、GSAP、Svelte 或 SwiftUI 代码 |
+| **Board** | 基于 Excalidraw 的白板。白板以 `.excalidraw` 文件保存在你选择的文件夹中，支持自动保存、缩略图以及导出 PNG 或 SVG |
+| **Components** | 浏览 shadcn/ui、Magic UI 和其他 shadcn 格式的组件仓库，查看每个组件的文件，用准确的 `shadcn add` 命令加入你的项目，并把设计令牌转换成主题变量 |
+| **Capture** | 录制屏幕、窗口或区域并同时录入麦克风，然后无需重新编码即可剪辑视频：标记片段、对齐关键帧，合并导出或分别导出，也可把某一帧保存为 PNG |
+| **Studio** | 在你的电脑上完成视频：用本地 Whisper 模型自动生成字幕，把带样式的字幕烧录进视频（支持逐词高亮），重新构图为 9:16、1:1 或 4:5，并添加片头标题卡。也可导出 .srt 和 .vtt |
+| **Dictation** | 按住快捷键说话，文字就会输入到你正在使用的应用中。转写在你的电脑上用 Whisper 完成，支持自定义替换词、去除口头禅和历史记录 |
+| **PDF** | 打开 PDF，重新排序、旋转和删除页面，合并多个文件或拆分一个文件，然后保存结果。全部在你的电脑上运行 |
+| **Photos** | 照片文件夹的图库：查找重复照片、快速调整并批量导出 |
+| **Cutout** | 在你的电脑上去除图片背景，再点击主体来精修抠图 |
+| **WhatsApp** | 用二维码关联手机，阅读聊天，并下载或导出其中的照片、视频、音频和文档 |
+| **Discord** | 阅读并回复你的服务器和私信，下载频道的媒体，或把历史导出为 HTML、JSON 或文本 |
+| **X、Instagram 和 TikTok** | 通过你在 OmniGet 浏览器中的自有会话查看动态、主页、帖子和评论：点赞、评论、关注，在 X 上还能发帖。你的智能体通过 MCP 获得同样的工具，每个操作都要等你批准 |
 | **英雄联盟** | 为正在运行的英雄联盟客户端提供的助手：侦察、实时经济、一键配置符文。所有自动化功能在你开启之前都保持关闭 |
 
 ---
@@ -365,6 +328,10 @@ OmniGet 没有购买付费的代码签名证书，所以每个系统都会要求
 
 - **Debian 12+ 或 Ubuntu 24.04+ 上的 Linux AppImage：** 如果因 libfuse 错误而无法启动，请运行 `sudo apt install libfuse2`，或者改用 `.deb`。
 
+### 如果杀毒软件报毒
+
+部分杀毒软件会误报未签名的新版本，因为 OmniGet 会下载文件、清理系统，并且只在你开始清理时才请求管理员权限。请将文件的 SHA-256 与该版本的 `SHA256SUMS` 比对，并向厂商报告误报。不要关闭杀毒软件。
+
 <details>
 <summary>Linux：打开视频播放器时窗口一片空白</summary>
 
@@ -395,13 +362,14 @@ omniget-cli download <url> --audio-only --subs en,pt
 omniget-cli batch links.txt -m 3             # 每行一个 URL，同时下载 3 个
 omniget-cli import-cookies cookies.txt       # Netscape 格式
 omniget-cli tg dl https://t.me/channel/10-20  # Telegram 消息、相册和范围
+omniget-cli convert notes.md --to html      # 也支持 json→yaml、png→webp、mp4→gif；不加 --to 会列出可选格式
 
 # 通过正在运行的桌面应用
 omniget-cli claude [account]                 # 用你的某个账号运行 Claude Code
 omniget-cli usage --watch 60                 # 每个账号的 5 小时和 7 天窗口及花费
 omniget-cli agent run "Fix the failing test" --workspace .
 omniget-cli agent loop "Make the tests pass" --check "npm test" --rounds 5
-omniget-cli agentkit search <term>           # 在终端里使用 Catalog
+omniget-cli agentkit search <term>           # 搜索技能、智能体和 MCP 服务器
 omniget-cli wmb scan junk                    # washmybelly；执行时会在 OmniGet 窗口中询问
 ```
 
@@ -428,9 +396,9 @@ omniget-cli wmb scan junk                    # washmybelly；执行时会在 Omn
   <img src="assets/readme/illustration-privacy.webp" alt="Loop 捧着一台笔记本电脑，屏幕上是 OmniGet 下载图标和一把绿色的锁，背后是一面橙色盾牌" width="640" />
 </p>
 
-一切都在你的电脑上运行。没有账号，中间没有我们的服务器，也没有任何关于你下载内容的遥测。Cookie 和 API 密钥保存在你的本地配置文件中。OmniGet 只会在以下情况下主动联网：访问你要求的网站，访问 getomniget.com 检查更新，以及在你使用时访问你配置的 AI 服务商。
+一切都在你的电脑上运行。没有账号，中间没有我们的服务器，也没有任何关于你下载内容的遥测。Cookie 和 API 密钥保存在你的本地配置文件中。OmniGet 只会在以下情况下主动联网：访问你要求的网站，访问 getomniget.com 检查更新，在你使用时访问你配置的 AI 服务商，以及只有在你于 **社区** 标签页点击 **加入聊天** 之后才连接 getomniget.com 的聊天。
 
-OmniGet 下载的是你自己的会话本来就能打开的内容。它不会绕过 DRM，不会破解付费墙，也不会共享凭据。它用于个人留存、备份以及你有权保存的内容；你有责任遵守版权法和各平台的条款。完整条款见应用内的 **关于 → 条款**。
+OmniGet 下载的是你自己的会话本来就能打开的内容。它不会绕过 DRM，不会破解付费墙，也不会共享凭据。它用于个人留存、备份以及你有权保存的内容；你有责任遵守版权法和各平台的条款。完整条款见应用内的 **社区 → 条款**。
 
 ---
 
@@ -442,7 +410,7 @@ OmniGet 下载的是你自己的会话本来就能打开的内容。它不会绕
 是的。基于 GPL-3.0 免费开源，没有付费版，没有广告，无需账号。
 
 ### OmniGet 是 yt-dlp 图形界面吗？
-部分是。它会安装 yt-dlp、检查它、保持更新，并把它的选项放进一个窗口里。在此之上，它还有自有解析器、gallery-dl、种子、Telegram、支持续传和重试的队列、浏览器扩展、MCP 服务器和 AI 智能体。
+部分是。它会安装 yt-dlp、检查它、保持更新，并把它的选项放进一个窗口里。在此之上，它还有自有解析器、gallery-dl、种子、Telegram、支持续传和重试的队列、浏览器扩展、MCP 服务器和 Canvas。
 
 ### 不用终端，怎么下载一个视频或播放列表？
 把链接粘贴到首页，选择画质，按回车。播放列表、字幕、章节和仅音频都是同一个窗口里的选项。
@@ -451,16 +419,10 @@ OmniGet 下载的是你自己的会话本来就能打开的内容。它不会绕
 能。未完成的文件会被保留并继续下载，遇到限流会退避重试，队列在重启后依然保留。
 
 ### Claude Code 能替我下载视频吗？
-能。在 **LLM → Configure → MCP** 中开启 MCP 服务器，用上面那一行提示词连接 Claude Code，然后用大白话提要求。Claude 会在 OmniGet 中把下载加入队列、等待完成，并告诉你结果如何。
-
-### 不用终端能运行 Claude Code 或 Codex 吗？
-能。你现有的登录会显示在 **LLM → Configure → Accounts** 中，**LLM → Threads** 为每个任务提供一个带差异、审批和撤销的窗口。Gemini CLI、OpenCode、goose 和其他 ACP 智能体也以同样的方式接入。
-
-### AI 智能体能一直干到测试通过为止吗？
-能。Loop 会一轮轮重复，直到你的检查命令（比如 `npm test`）以 0 退出。关闭窗口后它也会继续运行，`omniget-cli agent loop` 可以从终端启动一个 Loop。
+能。在 **设置 → AI 与智能体 → 连接到其他应用** 中开启 MCP 服务器，用上面那一行提示词连接 Claude Code，然后用大白话提要求。Claude 会在 OmniGet 中把下载加入队列、等待完成，并告诉你结果如何。
 
 ### 能配合 Ollama 离线使用吗？
-能。把它指向 Ollama、LM Studio 或托管的 llama.cpp，智能体就会在你的电脑上运行，无需密钥。这样你的代码永远不会离开你的电脑。
+能。在 **设置 → AI 与智能体 → 应用 AI** 中把它指向 Ollama 或 LM Studio，应用的 AI 功能就会在你的电脑上运行，无需密钥。不会有内容发往云端模型。
 
 ### 需要 Python、Node 或终端吗？
 不需要。下载应用，打开它，粘贴链接。
@@ -489,7 +451,7 @@ OmniGet 免费，并将一直免费：没有付费版，没有任何功能被锁
 - **捐助**：在 [getomniget.com/community](https://getomniget.com/community) 通过 GitHub Sponsors、爱发电或 PIX 支持。
 - **报告问题**：在 [getomniget.com/contact](https://getomniget.com/contact) 提交，并附上你的系统、OmniGet 版本和出错的链接。
 - **参与翻译**：在 [Weblate](https://hosted.weblate.org/engage/omniget/) 上翻译。应用目前支持 12 种语言。
-- **和我们聊聊**：在 [Discord](https://discord.gg/jgdxyPy7Vn) 上。
+- **和我们聊聊**：在应用的 **社区** 标签页里。这是一个与 getomniget.com 共用的匿名聊天，无需账号，网站给你的名字每天都会变。消息是公开的，30 天后删除。也可以在 [Discord](https://discord.gg/jgdxyPy7Vn) 上。
 - **告诉别人。** 要写文章或做视频？[MEDIA-KIT.md](MEDIA-KIT.md) 里有相关事实和链接。
 
 ---
@@ -531,7 +493,7 @@ pnpm tauri build --config '{"bundle":{"createUpdaterArtifacts":false}}'
 
 ### 站在开源的肩膀上
 
-OmniGet 构建于 [yt-dlp](https://github.com/yt-dlp/yt-dlp)、[FFmpeg](https://ffmpeg.org/)、[gallery-dl](https://github.com/mikf/gallery-dl)、[aria2](https://aria2.github.io/)、[librqbit](https://github.com/ikatson/rqbit)、[grammers](https://github.com/Lonami/grammers)、[SponsorBlock](https://sponsor.ajay.app/)、[cat-catch](https://github.com/xifangczy/cat-catch)、[whisper.cpp](https://github.com/ggml-org/whisper.cpp)、[Tauri](https://tauri.app) 和 [Svelte](https://svelte.dev) 之上。智能体借鉴了 [opencode](https://github.com/anomalyco/opencode)、[Codex](https://github.com/openai/codex)、[aider](https://github.com/Aider-AI/aider)、[cline](https://github.com/cline/cline)、[compozy](https://github.com/compozy/compozy)、[Agent Client Protocol](https://agentclientprotocol.com) 和 [Hindsight](https://github.com/vectorize-io/hindsight) 的思路；washmybelly 使用了来自 [privacy.sexy](https://github.com/undergroundwires/privacy.sexy)、[BleachBit](https://github.com/bleachbit/bleachbit)、[Win11Debloat](https://github.com/Raphire/Win11Debloat)、[winutil](https://github.com/ChrisTitusTech/winutil)、[Sophia Script](https://github.com/farag2/Sophia-Script-for-Windows) 等项目的数据和思路。包含许可证的完整列表见 [THIRD_PARTY.md](THIRD_PARTY.md)。感谢每一位维护它们的人。
+OmniGet 构建于 [yt-dlp](https://github.com/yt-dlp/yt-dlp)、[FFmpeg](https://ffmpeg.org/)、[gallery-dl](https://github.com/mikf/gallery-dl)、[aria2](https://aria2.github.io/)、[librqbit](https://github.com/ikatson/rqbit)、[grammers](https://github.com/Lonami/grammers)、[SponsorBlock](https://sponsor.ajay.app/)、[cat-catch](https://github.com/xifangczy/cat-catch)、[whisper.cpp](https://github.com/ggml-org/whisper.cpp)、[Tauri](https://tauri.app) 和 [Svelte](https://svelte.dev) 之上。washmybelly 使用了来自 [privacy.sexy](https://github.com/undergroundwires/privacy.sexy)、[BleachBit](https://github.com/bleachbit/bleachbit)、[Win11Debloat](https://github.com/Raphire/Win11Debloat)、[winutil](https://github.com/ChrisTitusTech/winutil)、[Sophia Script](https://github.com/farag2/Sophia-Script-for-Windows) 等项目的数据和思路。包含许可证的完整列表见 [THIRD_PARTY.md](THIRD_PARTY.md)。感谢每一位维护它们的人。
 
 Loop 是 OmniGet 的吉祥物。欢迎创作同人作品；原始美术作品不得用于商业用途，也不得修改后再分发。本 README 中的插图是用 [Higgsfield](https://higgsfield.ai) 基于 Loop 原始美术作品制作的。
 

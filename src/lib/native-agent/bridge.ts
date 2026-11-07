@@ -12,7 +12,7 @@ import { get } from 'svelte/store';
 import { page, navigating } from '$app/stores';
 
 const SELECTOR = 'button,a[href],input,textarea,select,[role],h1,h2,h3,canvas,[data-agent-region],[data-agent-actions]';
-const SENSITIVE_ROUTES = /^\/(settings|llm\/(accounts|mcp|models|roster)|about\/debug)(\/|$)/;
+const SENSITIVE_ROUTES = /^\/(settings|about\/debug)(\/|$)/;
 const MAX_NODES = 10000;
 let epoch = '';
 let revision = 0;

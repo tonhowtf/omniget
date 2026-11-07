@@ -4,16 +4,10 @@ use std::time::{Duration, Instant};
 
 use serde::{Deserialize, Serialize};
 
-use super::analysis::{
-    self, AgentsReport, Child, Heatmap, Retro, SessionAnalysis, TeamGraph, UsageReport,
-};
 use super::cost::PriceBook;
-use super::export::{self, ExportOut};
-use super::import::{self, ImportOutcome};
-use super::index::{self, ListFilter, ListPage, RefreshStats};
-use super::model::{Role, Session, SessionMeta, SessionSource, ToolStatus, Turn};
+use super::index::{self, ListFilter, ListPage};
+use super::model::{Session, SessionMeta, SessionSource, Turn};
 use super::parsers::{self, group_a::claude, group_a::codex};
-use super::search::{self, Hit, SearchQuery, SearchResult};
 use super::util;
 
 pub const ERR_NOT_FOUND: &str = "ERR_SESSION_NOT_FOUND";
@@ -131,18 +125,6 @@ async fn book_for(f: &ListFilter) -> Result<PriceBook, String> {
     Ok(PriceBook::load(models).await)
 }
 
-pub async fn refresh(full: bool) -> Result<RefreshStats, String> {
-    blocking(move || {
-        let src = sources();
-        if full {
-            index::reset_and_refresh(&src)
-        } else {
-            Ok(index::ensure_fresh_global(None, &src)?.unwrap_or_default())
-        }
-    })
-    .await
-}
-
 pub async fn list(filter: ListFilter) -> Result<ListPage, String> {
     let mut all = filter.clone();
     all.from = None;
@@ -206,176 +188,6 @@ pub async fn get(
             resume_command: resume,
             resume_target: target,
         })
-    })
-    .await
-}
-
-pub async fn search(q: SearchQuery) -> Result<SearchResult, String> {
-    blocking(move || {
-        let f = ListFilter {
-            tool: q.tool.clone(),
-            account: q.account.clone(),
-            project: q.project.clone(),
-            from: q.from.clone(),
-            to: q.to.clone(),
-            include_subagents: q.include_subagents,
-            limit: Some(100_000),
-            ..Default::default()
-        };
-        fresh()?;
-        let (candidates, texts) = index::with_reader(|idx| {
-            let c = idx.list(&f, &PriceBook::empty()).sessions;
-            let keys: Vec<(String, String)> = c
-                .iter()
-                .filter(|m| search::needs_text(m))
-                .map(|m| (m.tool.clone(), m.id.clone()))
-                .collect();
-            let t = idx.search_texts(&keys);
-            (c, t)
-        })?;
-        let (res, new_texts) = search::search_global(candidates, &q, &load_meta, &texts);
-        if !new_texts.is_empty() {
-            let _ = index::with_index(|idx| idx.put_search_texts(&new_texts));
-        }
-        Ok(res)
-    })
-    .await
-}
-
-pub async fn search_in(tool: String, id: String, query: String) -> Result<Vec<Hit>, String> {
-    blocking(move || {
-        let (_, s) = load(&tool, &id)?;
-        Ok(search::search_in(&s, query.trim(), true, 10_000))
-    })
-    .await
-}
-
-pub async fn session_analysis(tool: String, id: String) -> Result<SessionAnalysis, String> {
-    let (t, i) = (tool.clone(), id.clone());
-    let (s, recorded, kids) = blocking(move || {
-        let (_, s) = load(&t, &i)?;
-        let (recorded, kids) = index::with_reader(|idx| {
-            let kids: Vec<(String, String)> = if t == claude::TOOL {
-                idx.children(&t, &i)
-                    .into_iter()
-                    .map(|(cid, ..)| (t.clone(), cid))
-                    .collect()
-            } else {
-                Vec::new()
-            };
-            (idx.recorded_cost(&t, &i), kids)
-        })?;
-        Ok((s, recorded, kids))
-    })
-    .await?;
-    let mut models: Vec<String> = s.turns.iter().filter_map(|t| t.model.clone()).collect();
-    if kids.is_empty() {
-        let book = PriceBook::load(models).await;
-        return blocking(move || Ok(analysis::analyze(&s, &book, recorded))).await;
-    }
-    let k2 = kids.clone();
-    models.extend(blocking(move || index::with_reader(|idx| idx.models_of(&k2))).await?);
-    let book = PriceBook::load(models).await;
-    blocking(move || {
-        let mut a = analysis::analyze(&s, &book, None);
-        let kids_cost: f64 =
-            index::with_reader(|idx| idx.session_costs(&kids, &book).values().sum())?;
-        a.cost.tree_recorded_usd = recorded;
-        a.cost.tree_computed_usd = Some(a.cost.computed_usd + kids_cost);
-        Ok(a)
-    })
-    .await
-}
-
-pub async fn usage(range: ListFilter, group_by: String) -> Result<UsageReport, String> {
-    let book = book_for(&range).await?;
-    blocking(move || index::with_reader(|idx| analysis::usage(idx, &range, &group_by, &book))).await
-}
-
-pub async fn heatmap(mut range: ListFilter, tool: Option<String>) -> Result<Heatmap, String> {
-    if tool.is_some() {
-        range.tool = tool;
-    }
-    blocking(move || {
-        fresh()?;
-        index::with_reader(|idx| analysis::heatmap(idx, &range))
-    })
-    .await
-}
-
-pub async fn agents(range: ListFilter) -> Result<AgentsReport, String> {
-    blocking(move || {
-        fresh()?;
-        index::with_reader(|idx| analysis::agents(idx, &range))
-    })
-    .await
-}
-
-pub async fn team(tool: String, id: String) -> Result<TeamGraph, String> {
-    blocking(move || {
-        let (_, lead) = load(&tool, &id)?;
-        let kids = index::with_reader(|idx| idx.children(&tool, &id))?;
-        let mut children = Vec::new();
-        for (cid, _title, source) in kids {
-            let meta = match find_meta(&tool, &cid) {
-                Ok(m) => m,
-                Err(_) => continue,
-            };
-            let Some(session) = load_meta(&meta) else {
-                continue;
-            };
-            let sm = (tool == "claude")
-                .then(|| claude::subagent_meta(Path::new(&source)))
-                .flatten();
-            children.push(Child {
-                session,
-                spawn_call_id: sm.as_ref().and_then(|m| m.tool_use_id.clone()),
-                agent_type: sm.as_ref().and_then(|m| m.agent_type.clone()),
-                description: sm.as_ref().and_then(|m| m.description.clone()),
-            });
-        }
-        Ok(analysis::team(&lead, children))
-    })
-    .await
-}
-
-pub async fn retro(
-    from: Option<String>,
-    to: Option<String>,
-    tool: Option<String>,
-) -> Result<Retro, String> {
-    let range = ListFilter {
-        from,
-        to,
-        tool,
-        ..Default::default()
-    };
-    let book = book_for(&range).await?;
-    blocking(move || index::with_reader(|idx| analysis::retro(idx, &range, &book))).await
-}
-
-pub async fn export(
-    tool: String,
-    id: String,
-    format: String,
-    target: Option<String>,
-) -> Result<ExportOut, String> {
-    blocking(move || {
-        let (_, s) = load(&tool, &id)?;
-        Ok(match format.as_str() {
-            "json" => export::to_json(&s),
-            "context" => export::to_context(&s, target.as_deref(), 120_000),
-            _ => export::to_markdown(&s),
-        })
-    })
-    .await
-}
-
-pub async fn import(path: String, target: Option<String>) -> Result<ImportOutcome, String> {
-    blocking(move || {
-        let out = import::import(&PathBuf::from(&path), target.as_deref())?;
-        index::mark_stale_global();
-        Ok(out)
     })
     .await
 }
@@ -470,14 +282,6 @@ pub fn resume_target(meta: &SessionMeta) -> Option<ResumeTarget> {
     }
 }
 
-pub async fn resume_command(tool: String, id: String) -> Result<Option<String>, String> {
-    blocking(move || {
-        let meta = find_meta(&tool, &id)?;
-        Ok(resume_for(&meta))
-    })
-    .await
-}
-
 #[derive(Debug, Clone, Serialize)]
 pub struct RootInfo {
     pub path: PathBuf,
@@ -534,72 +338,4 @@ pub struct ActiveSession {
     pub state: String,
     pub idle_secs: u64,
     pub pending_tool: bool,
-}
-
-pub async fn active(window_secs: u64) -> Result<Vec<ActiveSession>, String> {
-    blocking(move || {
-        let now = util::now_ms();
-        let since = now - (window_secs.max(1) as i64) * 1000;
-        index::ensure_fresh_global(Some(Duration::from_secs(3)), &sources())?;
-        let metas = index::with_reader(|idx| {
-            idx.list(
-                &ListFilter {
-                    include_subagents: true,
-                    limit: Some(500),
-                    ..Default::default()
-                },
-                &PriceBook::empty(),
-            )
-            .sessions
-        })?;
-        let mut out = Vec::new();
-        for mut m in metas {
-            if m.source.is_file() && per_session_file(&m.source) {
-                m.mtime_ms = m.mtime_ms.max(util::file_mtime_ms(&m.source));
-            }
-            if m.mtime_ms < since {
-                continue;
-            }
-            let (last_role, pending) = if m.tool == "claude" && m.source.is_file() {
-                claude::tail_state(&m.source)
-            } else {
-                match load_meta(&m) {
-                    Some(s) => last_state(&s.turns),
-                    None => (None, false),
-                }
-            };
-            let idle = ((now - m.mtime_ms).max(0) / 1000) as u64;
-            let state = match (last_role, pending) {
-                (_, true) if idle < 600 => "working",
-                (Some(Role::User), _) if idle < 600 => "working",
-                (Some(Role::Assistant), _) => "waiting",
-                _ => "idle",
-            };
-            out.push(ActiveSession {
-                meta: m,
-                state: state.into(),
-                idle_secs: idle,
-                pending_tool: pending,
-            });
-        }
-        out.sort_by_key(|a| a.idle_secs);
-        Ok(out)
-    })
-    .await
-}
-
-fn per_session_file(p: &Path) -> bool {
-    matches!(
-        p.extension().and_then(|e| e.to_str()),
-        Some("jsonl") | Some("json") | Some("zst")
-    )
-}
-
-fn last_state(turns: &[Turn]) -> (Option<Role>, bool) {
-    let last = turns.iter().rev().find(|t| t.role != Role::System);
-    (
-        last.map(|t| t.role),
-        last.map(|t| t.tool_calls.iter().any(|c| c.status == ToolStatus::Pending))
-            .unwrap_or(false),
-    )
 }

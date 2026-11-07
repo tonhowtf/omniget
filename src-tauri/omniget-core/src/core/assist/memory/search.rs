@@ -1,13 +1,13 @@
 use std::collections::HashSet;
 
+use rusqlite::params;
 use rusqlite::types::Value as SqlValue;
-use rusqlite::{params, Connection};
 use serde::{Deserialize, Serialize};
 
 use super::super::ctx::AssistCtx;
 use super::super::db::AssistDb;
-use super::records::{clear_cache, expire_due, query_records, scope_filter, COLS};
-use super::{record_hash, sha, Category, MemoryRecord};
+use super::records::{expire_due, query_records, scope_filter, COLS};
+use super::{sha, Category, MemoryRecord};
 
 pub const PROFILE_BUDGET: usize = 1400;
 pub const AUGMENT_BUDGET: usize = 3000;
@@ -344,46 +344,6 @@ pub fn augment_text(db: &AssistDb, ctx: &AssistCtx, user_input: &str, now: i64) 
         out.push_str(&extra);
     }
     Some(out.trim_end().to_string())
-}
-
-pub(super) fn rebuild_index(conn: &Connection) -> rusqlite::Result<usize> {
-    let tombs: HashSet<String> = {
-        let mut s = conn.prepare("SELECT hash FROM memory_tombstones")?;
-        let rows = s.query_map([], |r| r.get::<_, String>(0))?;
-        rows.collect::<rusqlite::Result<_>>()?
-    };
-    let rows: Vec<(String, String, String, String)> = {
-        let mut s =
-            conn.prepare("SELECT id, chain, origin_hash, content_hash FROM memory_records")?;
-        let rows = s.query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)))?;
-        rows.collect::<rusqlite::Result<_>>()?
-    };
-    let mut doomed: HashSet<String> = HashSet::new();
-    for (id, chain, oh, ch) in &rows {
-        if tombs.contains(oh) || tombs.contains(ch) || tombs.contains(&record_hash(id)) {
-            doomed.insert(chain.clone());
-        }
-    }
-    for chain in &doomed {
-        conn.execute("DELETE FROM memory_records WHERE chain = ?1", [chain])?;
-    }
-    super::graph::sweep_orphans(conn)?;
-    conn.execute("DELETE FROM memory_fts", [])?;
-    let n = conn.execute(
-        "INSERT INTO memory_fts(content, subject, record_id, scope)
-         SELECT content, subject, id, scope FROM memory_records WHERE status = 'active'",
-        [],
-    )?;
-    clear_cache(conn)?;
-    Ok(n)
-}
-
-pub fn reindex(db: &AssistDb) -> Result<usize, String> {
-    let n = db.tx(|tx| {
-        rebuild_index(tx).map_err(|e| format!("{}: {e}", super::super::db::ERR_ASSIST_DB))
-    })?;
-    compact(db);
-    Ok(n)
 }
 
 pub(super) fn compact(db: &AssistDb) {

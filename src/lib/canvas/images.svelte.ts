@@ -4,7 +4,7 @@ import type { CanvasNode } from './model/types';
 import { canvasPrefs, imageBudgetBytes } from './prefs.svelte';
 import { clearSnapshot, setSnapshot } from './render/snapshot-textures';
 
-export interface ImageResolved {
+interface ImageResolved {
   asset?: string | null;
   path?: string | null;
   original: string;
@@ -41,7 +41,7 @@ const AUTO_RETRIES = 2;
 const FIT_MAX = 480;
 const GRID = 20;
 
-export const imageState = $state({ rev: 0 });
+const imageState = $state({ rev: 0 });
 
 const entries = new Map<string, Entry>();
 const nodeKeys = new Map<string, string>();
@@ -98,14 +98,14 @@ function argsFor(node: NodeLike): Record<string, unknown> | string {
   return 'ASSET_UNSUPPORTED';
 }
 
-export function imageEntry(engine: CanvasEngine, node: NodeLike): Entry | undefined {
+function imageEntry(engine: CanvasEngine, node: NodeLike): Entry | undefined {
   void imageState.rev;
   const key = sourceKey(node);
   if (!key) return undefined;
   return entries.get(cacheKey(engine.store.workspaceId, key));
 }
 
-export function imageError(entry: Entry | undefined): string {
+function imageError(entry: Entry | undefined): string {
   return entry?.status === 'error' ? (entry.error ?? '') : '';
 }
 

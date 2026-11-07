@@ -68,7 +68,7 @@ function agentOf(node: CanvasNode): AgentKind {
   return typeof a === 'string' && a in AGENT_COMMANDS ? (a as AgentKind) : 'shell';
 }
 
-export function gridFor(w: number, h: number): { cols: number; rows: number } {
+function gridFor(w: number, h: number): { cols: number; rows: number } {
   return gridSizeFor(w, h);
 }
 

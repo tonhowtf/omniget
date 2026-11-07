@@ -14,18 +14,322 @@ pub struct Migration {
     pub sql: &'static str,
 }
 
+const READING_MIGRATIONS: &[Migration] = &[Migration {
+    module: "reading",
+    version: 1,
+    sql: "CREATE TABLE reading_journeys (
+            id TEXT PRIMARY KEY,
+            principal TEXT NOT NULL,
+            bot_id TEXT NOT NULL,
+            scope TEXT NOT NULL,
+            title TEXT NOT NULL,
+            author TEXT,
+            edition TEXT,
+            language TEXT,
+            external_id TEXT,
+            status TEXT NOT NULL DEFAULT 'active'
+              CHECK (status IN ('active','paused','finished','abandoned')),
+            spoiler_terms_json TEXT NOT NULL DEFAULT '[]',
+            notes TEXT,
+            started_ms INTEGER NOT NULL,
+            finished_ms INTEGER,
+            updated_ms INTEGER NOT NULL
+          );
+          CREATE INDEX reading_journeys_bot ON reading_journeys(bot_id, status);
+          CREATE TABLE reading_progress (
+            id TEXT PRIMARY KEY,
+            journey_id TEXT NOT NULL REFERENCES reading_journeys(id) ON DELETE CASCADE,
+            position_kind TEXT NOT NULL CHECK (position_kind IN ('chapter','page','percent','locator')),
+            value TEXT NOT NULL,
+            value_num REAL,
+            edition TEXT,
+            origin TEXT NOT NULL CHECK (origin IN ('manual','reader','bot')),
+            note TEXT,
+            recorded_ms INTEGER NOT NULL
+          );
+          CREATE INDEX reading_progress_journey ON reading_progress(journey_id, recorded_ms);
+          CREATE TABLE reading_contexts (
+            id TEXT PRIMARY KEY,
+            journey_id TEXT NOT NULL REFERENCES reading_journeys(id) ON DELETE CASCADE,
+            text TEXT NOT NULL,
+            created_ms INTEGER NOT NULL,
+            expires_ms INTEGER NOT NULL
+          );
+          CREATE TABLE reading_access_prefs (
+            principal TEXT NOT NULL,
+            bot_id TEXT NOT NULL,
+            region TEXT NOT NULL DEFAULT 'BR',
+            subscriptions_json TEXT NOT NULL DEFAULT '[]',
+            access_kinds_json TEXT NOT NULL DEFAULT '[\"subscription\",\"free\",\"rent\",\"buy\"]',
+            only_confirmed INTEGER NOT NULL DEFAULT 0,
+            freshness_days INTEGER NOT NULL DEFAULT 7,
+            updated_ms INTEGER NOT NULL,
+            PRIMARY KEY (principal, bot_id)
+          );
+          CREATE TABLE reading_movies (
+            id TEXT PRIMARY KEY,
+            title TEXT NOT NULL,
+            original_title TEXT,
+            year INTEGER NOT NULL,
+            director TEXT,
+            external_ids_json TEXT NOT NULL DEFAULT '{}',
+            ident_key TEXT NOT NULL UNIQUE,
+            created_ms INTEGER NOT NULL
+          );
+          CREATE TABLE reading_availability (
+            id TEXT PRIMARY KEY,
+            movie_id TEXT NOT NULL REFERENCES reading_movies(id) ON DELETE CASCADE,
+            region TEXT NOT NULL,
+            platform TEXT NOT NULL,
+            platform_key TEXT NOT NULL,
+            access_kind TEXT NOT NULL CHECK (access_kind IN ('subscription','rent','buy','free')),
+            url TEXT,
+            status TEXT NOT NULL CHECK (status IN ('confirmed','inferred','absent','unknown')),
+            source_kind TEXT NOT NULL CHECK (source_kind IN ('platform','aggregator','search','user')),
+            quote TEXT,
+            fetch_id TEXT,
+            page_date_ms INTEGER,
+            note TEXT,
+            bot_id TEXT,
+            checked_ms INTEGER NOT NULL
+          );
+          CREATE INDEX reading_availability_movie ON reading_availability(movie_id, platform_key, access_kind, checked_ms);
+          CREATE TABLE reading_subtitles (
+            id TEXT PRIMARY KEY,
+            movie_id TEXT NOT NULL REFERENCES reading_movies(id) ON DELETE CASCADE,
+            availability_id TEXT REFERENCES reading_availability(id) ON DELETE SET NULL,
+            platform_key TEXT NOT NULL,
+            language TEXT NOT NULL,
+            kind TEXT NOT NULL CHECK (kind IN ('subtitle','audio')),
+            status TEXT NOT NULL CHECK (status IN ('confirmed','inferred','absent','unknown')),
+            url TEXT,
+            source_kind TEXT NOT NULL CHECK (source_kind IN ('platform','aggregator','search','user')),
+            quote TEXT,
+            fetch_id TEXT,
+            login_required INTEGER NOT NULL DEFAULT 0,
+            note TEXT,
+            bot_id TEXT,
+            checked_ms INTEGER NOT NULL
+          );
+          CREATE INDEX reading_subtitles_movie ON reading_subtitles(movie_id, platform_key, checked_ms);
+          CREATE TABLE reading_rounds (
+            id TEXT PRIMARY KEY,
+            journey_id TEXT NOT NULL REFERENCES reading_journeys(id) ON DELETE CASCADE,
+            progress_id TEXT REFERENCES reading_progress(id) ON DELETE SET NULL,
+            reason TEXT,
+            context_text TEXT,
+            requested_count INTEGER,
+            shortfall_reason TEXT,
+            only_confirmed INTEGER NOT NULL DEFAULT 0,
+            skill_name TEXT,
+            skill_hash TEXT,
+            look_for_json TEXT NOT NULL DEFAULT '[]',
+            bot_id TEXT,
+            created_ms INTEGER NOT NULL
+          );
+          CREATE INDEX reading_rounds_journey ON reading_rounds(journey_id, created_ms);
+          CREATE TABLE reading_round_items (
+            id TEXT PRIMARY KEY,
+            round_id TEXT NOT NULL REFERENCES reading_rounds(id) ON DELETE CASCADE,
+            movie_id TEXT NOT NULL REFERENCES reading_movies(id),
+            position INTEGER NOT NULL,
+            role TEXT NOT NULL CHECK (role IN ('entry','shift','surprise')),
+            connection TEXT NOT NULL,
+            why TEXT NOT NULL,
+            moods_json TEXT NOT NULL DEFAULT '[]',
+            pace TEXT NOT NULL CHECK (pace IN ('easy','attentive')),
+            heavy INTEGER NOT NULL DEFAULT 0,
+            depends_on_ending INTEGER NOT NULL DEFAULT 0,
+            resumes_item_id TEXT,
+            questions_json TEXT NOT NULL DEFAULT '[]',
+            evidence_event_ids_json TEXT NOT NULL DEFAULT '[]',
+            status TEXT NOT NULL CHECK (status IN ('confirmed','probable')),
+            missing_json TEXT NOT NULL DEFAULT '[]',
+            availability_id TEXT,
+            subtitle_id TEXT
+          );
+          CREATE TABLE reading_viewing_events (
+            id TEXT PRIMARY KEY,
+            journey_id TEXT NOT NULL REFERENCES reading_journeys(id) ON DELETE CASCADE,
+            movie_id TEXT NOT NULL REFERENCES reading_movies(id),
+            round_item_id TEXT,
+            kind TEXT NOT NULL CHECK (kind IN ('recommended','planned','watched','abandoned','declined')),
+            reaction TEXT,
+            reasons_json TEXT NOT NULL DEFAULT '[]',
+            origin TEXT NOT NULL CHECK (origin IN ('user','bot','app')),
+            created_ms INTEGER NOT NULL
+          );
+          CREATE INDEX reading_events_journey ON reading_viewing_events(journey_id, movie_id, created_ms);",
+}];
+
+const LEARNING_MIGRATIONS: &[Migration] = &[Migration {
+    module: "learning",
+    version: 1,
+    sql: "
+CREATE TABLE learn_settings (
+    bot_id TEXT PRIMARY KEY,
+    enabled INTEGER NOT NULL DEFAULT 1,
+    auto_promote_local INTEGER NOT NULL DEFAULT 0,
+    policy TEXT NOT NULL DEFAULT '{}',
+    updated_ms INTEGER NOT NULL
+);
+CREATE TABLE learn_observations (
+    id TEXT PRIMARY KEY,
+    bot_id TEXT NOT NULL,
+    skill TEXT NOT NULL DEFAULT '',
+    skill_hash TEXT,
+    overlay_version TEXT,
+    task_ref TEXT NOT NULL DEFAULT '',
+    scope TEXT NOT NULL,
+    source TEXT NOT NULL,
+    kind TEXT NOT NULL,
+    text TEXT NOT NULL,
+    polarity INTEGER NOT NULL DEFAULT 0,
+    outcome TEXT NOT NULL DEFAULT 'unverified',
+    evidence_ref TEXT,
+    content_hash TEXT NOT NULL,
+    dup_of TEXT,
+    revoked_ms INTEGER,
+    revoked_reason TEXT,
+    created_ms INTEGER NOT NULL
+);
+CREATE INDEX learn_observations_bot ON learn_observations(bot_id, skill, created_ms DESC);
+CREATE INDEX learn_observations_hash ON learn_observations(content_hash);
+CREATE TABLE learn_candidates (
+    id TEXT PRIMARY KEY,
+    bot_id TEXT NOT NULL,
+    skill TEXT NOT NULL,
+    scope TEXT NOT NULL,
+    kind TEXT NOT NULL DEFAULT 'overlay',
+    title TEXT NOT NULL,
+    state TEXT NOT NULL,
+    current_version INTEGER NOT NULL DEFAULT 1,
+    reason TEXT,
+    created_ms INTEGER NOT NULL,
+    updated_ms INTEGER NOT NULL
+);
+CREATE INDEX learn_candidates_bot ON learn_candidates(bot_id, skill, state);
+CREATE TABLE learn_candidate_versions (
+    candidate_id TEXT NOT NULL REFERENCES learn_candidates(id) ON DELETE CASCADE,
+    version INTEGER NOT NULL,
+    overlay TEXT NOT NULL,
+    diff TEXT NOT NULL DEFAULT '',
+    reason TEXT NOT NULL DEFAULT '',
+    observations TEXT NOT NULL DEFAULT '[]',
+    created_ms INTEGER NOT NULL,
+    PRIMARY KEY (candidate_id, version)
+);
+CREATE TABLE learn_eval_cases (
+    id TEXT PRIMARY KEY,
+    bot_id TEXT NOT NULL,
+    skill TEXT NOT NULL,
+    split TEXT NOT NULL CHECK (split IN ('dev','holdout')),
+    name TEXT NOT NULL,
+    input TEXT NOT NULL,
+    checks TEXT NOT NULL DEFAULT '[]',
+    created_ms INTEGER NOT NULL
+);
+CREATE INDEX learn_eval_cases_bot ON learn_eval_cases(bot_id, skill, split);
+CREATE TABLE learn_fixtures (
+    case_id TEXT NOT NULL REFERENCES learn_eval_cases(id) ON DELETE CASCADE,
+    variant TEXT NOT NULL,
+    output TEXT NOT NULL,
+    recorded_ms INTEGER NOT NULL,
+    PRIMARY KEY (case_id, variant)
+);
+CREATE TABLE learn_eval_runs (
+    id TEXT PRIMARY KEY,
+    candidate_id TEXT NOT NULL,
+    candidate_version INTEGER NOT NULL,
+    baseline TEXT NOT NULL,
+    case_set TEXT NOT NULL,
+    mode TEXT NOT NULL,
+    policy TEXT NOT NULL,
+    results TEXT NOT NULL,
+    summary TEXT NOT NULL,
+    decision TEXT NOT NULL,
+    reasons TEXT NOT NULL DEFAULT '[]',
+    meta TEXT NOT NULL DEFAULT '{}',
+    created_ms INTEGER NOT NULL
+);
+CREATE INDEX learn_eval_runs_candidate ON learn_eval_runs(candidate_id, created_ms DESC);
+CREATE TABLE learn_active (
+    bot_id TEXT NOT NULL,
+    skill TEXT NOT NULL,
+    scope TEXT NOT NULL,
+    candidate_id TEXT NOT NULL,
+    version INTEGER NOT NULL,
+    since_ms INTEGER NOT NULL,
+    PRIMARY KEY (bot_id, skill, scope)
+);
+CREATE TABLE learn_promotions (
+    id TEXT PRIMARY KEY,
+    bot_id TEXT NOT NULL,
+    skill TEXT NOT NULL,
+    scope TEXT NOT NULL,
+    action TEXT NOT NULL,
+    candidate_id TEXT,
+    version INTEGER,
+    previous TEXT,
+    eval_run_id TEXT,
+    by_whom TEXT NOT NULL,
+    reason TEXT NOT NULL DEFAULT '',
+    created_ms INTEGER NOT NULL
+);
+CREATE INDEX learn_promotions_bot ON learn_promotions(bot_id, skill, scope, created_ms DESC);
+",
+}];
+
+const PACKS_MIGRATIONS: &[Migration] = &[Migration {
+    module: "packs",
+    version: 1,
+    sql: "
+CREATE TABLE packs_items (
+    id TEXT PRIMARY KEY,
+    kind TEXT NOT NULL,
+    name TEXT NOT NULL,
+    origin TEXT NOT NULL,
+    origin_sha TEXT,
+    source_path TEXT NOT NULL,
+    hash TEXT NOT NULL,
+    installed_hash TEXT,
+    license TEXT,
+    attribution TEXT,
+    capabilities TEXT NOT NULL DEFAULT '[]',
+    deps TEXT NOT NULL DEFAULT '[]',
+    status TEXT NOT NULL,
+    version INTEGER NOT NULL DEFAULT 1,
+    content TEXT,
+    installed_ms INTEGER NOT NULL,
+    updated_ms INTEGER NOT NULL,
+    UNIQUE(kind, name)
+);
+CREATE TABLE packs_history (
+    id TEXT PRIMARY KEY,
+    item_id TEXT NOT NULL,
+    version INTEGER NOT NULL,
+    action TEXT NOT NULL,
+    hash TEXT NOT NULL,
+    content TEXT,
+    backup_path TEXT,
+    created_ms INTEGER NOT NULL
+);
+CREATE INDEX packs_history_item ON packs_history(item_id, version DESC);
+",
+}];
+
 pub fn all_migrations() -> Vec<Migration> {
     let mut out = Vec::new();
     out.extend_from_slice(super::bots::MIGRATIONS);
     out.extend_from_slice(super::runs::MIGRATIONS);
     out.extend_from_slice(super::memory::MIGRATIONS);
-    out.extend_from_slice(super::reading::MIGRATIONS);
+    out.extend_from_slice(READING_MIGRATIONS);
     out.extend_from_slice(super::groups::MIGRATIONS);
     out.extend_from_slice(super::web::MIGRATIONS);
     out.extend_from_slice(super::projection::MIGRATIONS);
     out.extend_from_slice(super::missions::MIGRATIONS);
-    out.extend_from_slice(super::learning::MIGRATIONS);
-    out.extend_from_slice(super::packs::MIGRATIONS);
+    out.extend_from_slice(LEARNING_MIGRATIONS);
+    out.extend_from_slice(PACKS_MIGRATIONS);
     out.extend_from_slice(super::authority::MIGRATIONS);
     out.extend_from_slice(super::external_config::MIGRATIONS);
     out.extend_from_slice(super::media_provider::MIGRATIONS);

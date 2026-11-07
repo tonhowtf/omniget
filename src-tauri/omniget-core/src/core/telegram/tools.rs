@@ -7,6 +7,7 @@ use serde::Serialize;
 use serde_json::{json, Value};
 
 use super::approvals;
+use super::client::now_secs;
 use super::client::{self, api, auth::TelegramSessionHandle, history};
 use crate::core::llm::tool_table::{BoxFut, CostHint, ToolEntry, ToolImpl, ToolRisk};
 
@@ -1301,13 +1302,6 @@ fn cut(s: String, max: usize) -> String {
     let mut out = s[..end].to_string();
     out.push_str("\n… (cut to fit; ask for fewer chats or a shorter period)\n");
     out
-}
-
-fn now_secs() -> i64 {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_secs() as i64)
-        .unwrap_or(0)
 }
 
 async fn digest(a: &Value) -> Result<Value, String> {

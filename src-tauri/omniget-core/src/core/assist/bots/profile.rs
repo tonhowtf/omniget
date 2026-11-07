@@ -35,12 +35,12 @@ impl Capability {
     }
 
     pub fn tool_names(self) -> Vec<&'static str> {
-        use crate::core::assist::{groups, memory, reading, web};
+        use crate::core::assist::{groups, memory, web};
         use crate::core::llm::code_tools::{READ_TOOLS, WRITE_TOOLS};
         match self {
             Capability::Memory => memory::TOOL_NAMES.to_vec(),
             Capability::Web => web::TOOL_NAMES.to_vec(),
-            Capability::Reading => reading::TOOL_NAMES.to_vec(),
+            Capability::Reading => Vec::new(),
             Capability::Delegate => groups::TOOL_NAMES.to_vec(),
             Capability::ProjectCode => READ_TOOLS.iter().chain(WRITE_TOOLS).copied().collect(),
         }

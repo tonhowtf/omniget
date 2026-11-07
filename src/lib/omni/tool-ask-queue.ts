@@ -47,10 +47,6 @@ export function resolveAsk(queue: readonly PendingAsk[], toolCallId: string): Pe
   return queue.filter((q) => q.toolCallId !== toolCallId);
 }
 
-export function cancelRequest(queue: readonly PendingAsk[], requestId: string): PendingAsk[] {
-  return queue.filter((q) => q.requestId !== requestId);
-}
-
 export function headAsk(queue: readonly PendingAsk[]): PendingAsk | null {
   return queue.length > 0 ? queue[0] : null;
 }
@@ -63,21 +59,3 @@ export function acceptAsk(queue: readonly PendingAsk[], raw: unknown): PendingAs
 }
 
 const TERMINAL_TURN_EVENTS = ['finished', 'error'] as const;
-
-export function terminalRequestId(raw: unknown): string | null {
-  if (!raw || typeof raw !== 'object') return null;
-  const o = raw as Record<string, unknown>;
-  const requestId = cleanId(o.request_id ?? o.requestId, 128);
-  if (!requestId) return null;
-  const event = o.event;
-  if (!event) return null;
-  let tag: string | null = null;
-  if (typeof event === 'string') tag = event;
-  else if (typeof event === 'object' && !Array.isArray(event)) {
-    const e = event as Record<string, unknown>;
-    tag = typeof e.type === 'string' ? e.type : (Object.keys(e)[0] ?? null);
-  }
-  if (!tag) return null;
-  const needle = tag.toLowerCase();
-  return (TERMINAL_TURN_EVENTS as readonly string[]).includes(needle) ? requestId : null;
-}

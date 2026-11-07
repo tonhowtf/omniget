@@ -12,15 +12,6 @@ use super::plan::{self, Source};
 use super::store::Ctx;
 use super::tools::blocking;
 
-fn source_of(a: &Value) -> Source {
-    match a.get("_source").and_then(Value::as_str) {
-        Some("ui") => Source::Ui,
-        Some("external") => Source::External,
-        Some("cli") => Source::Cli,
-        _ => Source::Agent,
-    }
-}
-
 fn home() -> Result<PathBuf, String> {
     dirs::home_dir().ok_or_else(|| "no home folder".to_string())
 }
@@ -120,7 +111,7 @@ pub async fn tool_large_files(a: Value) -> Result<Value, String> {
         .and_then(Value::as_u64)
         .unwrap_or(50)
         .clamp(1, 500) as usize;
-    let source = source_of(&a);
+    let source = super::plan::source_of(&a);
     blocking(move || {
         let ctx = Ctx::app()?;
         large_files(&ctx, &roots, min_mb, limit, source)

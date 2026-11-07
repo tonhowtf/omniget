@@ -1,6 +1,6 @@
 use roxmltree::{Document, Node};
 
-use super::model::{ChannelRef, Item, ShortItem, Thumb, VideoItem};
+use super::model::{ChannelRef, Item, Thumb, VideoItem};
 
 fn child<'a, 'i>(n: Node<'a, 'i>, name: &str) -> Option<Node<'a, 'i>> {
     n.children()
@@ -107,24 +107,6 @@ pub fn parse_channel_feed(xml: &str) -> Option<(String, Vec<VideoItem>)> {
     Some((name, videos))
 }
 
-pub fn parse_channel_feed_items(xml: &str) -> Option<(String, Vec<Item>)> {
-    let (name, entries) = parse(xml)?;
-    let items = entries
-        .into_iter()
-        .map(|(item, is_short)| match item {
-            Item::Video(v) if is_short => Item::Short(ShortItem {
-                id: v.id,
-                title: v.title,
-                thumbs: v.thumbs,
-                views_text: None,
-                channel: v.channel,
-            }),
-            other => other,
-        })
-        .collect();
-    Some((name, items))
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -179,13 +161,6 @@ mod tests {
         assert_eq!(v.description_snippet.as_deref(), Some("Descrição"));
         assert_eq!(videos[1].channel.as_ref().unwrap().name, "Canal & Cia");
         assert_eq!(videos[1].published_ms, Some(1_788_348_600_000));
-    }
-
-    #[test]
-    fn shorts_become_short_items() {
-        let (_, items) = parse_channel_feed_items(FEED).unwrap();
-        assert!(matches!(items[0], Item::Video(_)));
-        assert!(matches!(&items[1], Item::Short(s) if s.id == "short000001"));
     }
 
     #[test]

@@ -23,8 +23,8 @@ struct Member {
 fn default_members(method: &str) -> Vec<(&'static str, &'static str)> {
     match method {
         "dialectic" => vec![
-            ("Tese", "You defend the most promising answer to the question with your best arguments and evidence."),
-            ("Antítese", "You attack the thesis: find the weakest premise, the counterexample and the cost nobody counted."),
+            ("Thesis", "You defend the most promising answer to the question with your best arguments and evidence."),
+            ("Antithesis", "You attack the thesis: find the weakest premise, the counterexample and the cost nobody counted."),
         ],
         "arena" => vec![
             ("Arena A", "Answer the question on your own, as well as you can."),
@@ -32,14 +32,14 @@ fn default_members(method: &str) -> Vec<(&'static str, &'static str)> {
             ("Arena C", "Answer the question on your own, as well as you can."),
         ],
         "simulation" => vec![
-            ("Leigo", "A person with no technical background who just wants it to work."),
-            ("Usuário avançado", "Someone who uses it every day and hates friction."),
-            ("Cético", "Someone who doubts every claim and looks for what breaks."),
+            ("Layperson", "A person with no technical background who just wants it to work."),
+            ("Power user", "Someone who uses it every day and hates friction."),
+            ("Skeptic", "Someone who doubts every claim and looks for what breaks."),
         ],
         _ => vec![
-            ("Pragmático", "Ship the smallest thing that works; MVP first."),
-            ("Cauteloso", "Risks, what can break, what is hard to undo."),
-            ("Usuário", "The person who will use the result, and what they actually need."),
+            ("Pragmatist", "Ship the smallest thing that works; MVP first."),
+            ("Cautious", "Risks, what can break, what is hard to undo."),
+            ("User", "The person who will use the result, and what they actually need."),
         ],
     }
 }
@@ -56,10 +56,10 @@ fn chair_script(method: &str, rounds: u64, members: &[Member], q: &str) -> Strin
     );
     let common = format!(
         "You chair a council on the OmniGet canvas. Question: {q}\n\
-         Members (corded to you): {}. Notes corded to you: \"Pergunta\", \"Quadro\" (the shared board) and \"Decisão\".\n\
+         Members (corded to you): {}. Notes corded to you: \"Question\", \"Board\" (the shared board) and \"Decision\".\n\
          Tools: run `omniget canvas list` first; ask all members at once with {batch_hint} (give Bash a timeout of 10 minutes); \
-         read and write notes with `omniget canvas note read|edit|write \"Quadro\" ...`. Write in Portuguese.\n\
-         After every round, append to \"Quadro\" a section `## Rodada N` with what each member said (short, attributed). \
+         read and write notes with `omniget canvas note read|edit|write \"Board\" ...`. Write in the language of the question.\n\
+         After every round, append to \"Board\" a section `## Round N` with what each member said (short, attributed). \
          Never edit project files: this is a decision, not an implementation.\n",
         names.join(", ")
     );
@@ -67,30 +67,30 @@ fn chair_script(method: &str, rounds: u64, members: &[Member], q: &str) -> Strin
         "dialectic" => format!(
             "Method (dialectic). Round 1: ask the thesis member for its position. Round 2: send that position to the antithesis member and ask for the strongest objection. \
              Round 3: send the objection back to the thesis member for a rebuttal. Repeat rounds 2-3 up to {rounds} times while new arguments appear. \
-             Then write \"Decisão\": the premises both accept, the contradictions, which arguments survived, the synthesis (your conclusion) and what still needs the person's call."
+             Then write \"Decision\": the premises both accept, the contradictions, which arguments survived, the synthesis (your conclusion) and what still needs the person's call."
         ),
         "arena" => format!(
             "Method (arena). Round 1: ask every member the question independently (one batch). Round 2: label the answers A, B, C... without names, send all of them to every member \
              and ask each to rank them best to worst with one line per answer (they must not rank their own first just because it is theirs). \
-             Aggregate the ranks (Borda). Up to {rounds} rounds in total. Then write \"Decisão\": the ranking with scores, the winning answer, \
+             Aggregate the ranks (Borda). Up to {rounds} rounds in total. Then write \"Decision\": the ranking with scores, the winning answer, \
              the best ideas grafted from the others, and the open risks."
         ),
         "simulation" => format!(
-            "Method (simulation, MiroFish style). Write the question as the seed post in \"Quadro\". For each of {rounds} rounds, ask every member (one batch) \
-             to read the board with `omniget canvas note read \"Quadro\"` and react in character: agree, disagree, add what they would do. \
-             Append their reactions to \"Quadro\" under `## Rodada N`. Stop early when two rounds bring nothing new. \
-             Then write \"Decisão\" as an analyst: where they agree, where they diverge (quote them), what surprised you, and a recommendation."
+            "Method (simulation, MiroFish style). Write the question as the seed post in \"Board\". For each of {rounds} rounds, ask every member (one batch) \
+             to read the board with `omniget canvas note read \"Board\"` and react in character: agree, disagree, add what they would do. \
+             Append their reactions to \"Board\" under `## Round N`. Stop early when two rounds bring nothing new. \
+             Then write \"Decision\" as an analyst: where they agree, where they diverge (quote them), what surprised you, and a recommendation."
         ),
         _ => format!(
             "Method (brainstorm, from the superpowers brainstorming skill). Round 1: ask every member (one batch) to restate the problem in one line, \
              list the questions that matter, and propose 2-3 approaches with trade-offs. Round 2: share all approaches (labelled, without names) \
-             and ask each member to critique them and pick one, with the reason. Up to {rounds} rounds. Then write \"Decisão\": the recommended approach, \
+             and ask each member to critique them and pick one, with the reason. Up to {rounds} rounds. Then write \"Decision\": the recommended approach, \
              the alternatives with their trade-offs, the risks, and the questions the person must answer before anything is built. \
              The decision is a proposal: the person approves it."
         ),
     };
     format!(
-        "{common}\n{steps}\nWhen \"Decisão\" is written, run `omniget canvas say \"Conselho concluído: veja a nota Decisão\"` and stop."
+        "{common}\n{steps}\nWhen \"Decision\" is written, run `omniget canvas say \"Council finished: see the Decision note\"` and stop."
     )
 }
 
@@ -98,9 +98,9 @@ fn member_prompt(m: &Member, method: &str, chair: &str, q: &str) -> String {
     format!(
         "You are \"{}\", a member of a council on the OmniGet canvas (method: {method}). Your perspective: {}\n\
          The question being decided: {q}\n\
-         The chair \"{chair}\" will send you questions through the canvas; answer each one directly, in Portuguese, in up to about 250 words, \
+         The chair \"{chair}\" will send you questions through the canvas; answer each one directly, in the language of the question, in up to about 250 words, \
          with arguments and concrete examples. You may read files to support a point, but never edit project files. \
-         If you are corded to the note \"Quadro\", you can read it with `omniget canvas note read \"Quadro\"`. Wait for the chair now.",
+         If you are corded to the note \"Board\", you can read it with `omniget canvas note read \"Board\"`. Wait for the chair now.",
         m.name, m.perspective
     )
 }
@@ -118,7 +118,7 @@ fn slug(text: &str) -> String {
         .collect::<Vec<_>>()
         .join("-");
     if s.is_empty() {
-        "conselho".into()
+        "council".into()
     } else {
         s
     }
@@ -173,7 +173,7 @@ async fn start(app: &AppHandle, a: &Value) -> Result<Value, String> {
                 name: m["name"]
                     .as_str()
                     .map(str::to_string)
-                    .unwrap_or_else(|| format!("Membro {}", i + 1)),
+                    .unwrap_or_else(|| format!("Member {}", i + 1)),
                 agent: m["agent"]
                     .as_str()
                     .map(str::to_string)
@@ -211,13 +211,16 @@ async fn start(app: &AppHandle, a: &Value) -> Result<Value, String> {
     };
     write(
         "pergunta.md",
-        format!("# Pergunta\n\n{question}\n\nMétodo: {method}, até {rounds} rodadas.\n"),
+        format!("# Question\n\n{question}\n\nMethod: {method}, up to {rounds} rounds.\n"),
     )?;
     write(
         "quadro.md",
-        "# Quadro\n\n_O presidente anota aqui cada rodada._\n".into(),
+        "# Board\n\n_The chair records each round here._\n".into(),
     )?;
-    write("decisao.md", "# Decisão\n\n_Ainda em discussão._\n".into())?;
+    write(
+        "decisao.md",
+        "# Decision\n\n_Still under discussion._\n".into(),
+    )?;
 
     let (x0, y0) = match (num(a, "x"), num(a, "y")) {
         (Some(x), Some(y)) => (x, y),
@@ -234,7 +237,7 @@ async fn start(app: &AppHandle, a: &Value) -> Result<Value, String> {
         app,
         "canvas_node_spawn",
         json!({
-            "workspaceId": wsv, "kind": "text", "text": format!("Conselho ({method}): {question}"),
+            "workspaceId": wsv, "kind": "text", "text": format!("Council ({method}): {question}"),
             "fontSize": 40, "fontWeight": "bold", "x": x0, "y": y0 - 110.0,
             "data": { "council": { "id": id, "method": method } }
         }),
@@ -243,9 +246,9 @@ async fn start(app: &AppHandle, a: &Value) -> Result<Value, String> {
     let title_id = node_id(&title)?;
     let mut notes = Vec::new();
     for (i, (label, f)) in [
-        ("Pergunta", "pergunta.md"),
-        ("Quadro", "quadro.md"),
-        ("Decisão", "decisao.md"),
+        ("Question", "pergunta.md"),
+        ("Board", "quadro.md"),
+        ("Decision", "decisao.md"),
     ]
     .iter()
     .enumerate()
@@ -261,7 +264,7 @@ async fn start(app: &AppHandle, a: &Value) -> Result<Value, String> {
         .await?;
         notes.push((label.to_string(), node_id(&n)?));
     }
-    let chair_name = st(a, "chairName").unwrap_or_else(|| "Presidente".into());
+    let chair_name = st(a, "chairName").unwrap_or_else(|| "Chair".into());
     let chair_agent = st(a, "chairAgent").unwrap_or_else(|| default_agent.clone());
     let mut member_ids = Vec::new();
     for (i, m) in members.iter().enumerate() {
@@ -279,7 +282,7 @@ async fn start(app: &AppHandle, a: &Value) -> Result<Value, String> {
     })).await?;
     let chair_id = node_id(&chair)?;
     for mid in &member_ids {
-        sub(app, "canvas_cord_create", json!({ "workspaceId": wsv, "from": chair_id, "to": mid, "kind": "ask", "label": "conselho" })).await?;
+        sub(app, "canvas_cord_create", json!({ "workspaceId": wsv, "from": chair_id, "to": mid, "kind": "ask", "label": "council" })).await?;
     }
     for (_, nid) in &notes {
         sub(
@@ -350,7 +353,8 @@ async fn status(app: &AppHandle, a: &Value) -> Result<Value, String> {
     let read = |n: &str| std::fs::read_to_string(folder.join(n)).unwrap_or_default();
     let decision = read("decisao.md");
     let board = read("quadro.md");
-    let decided = !decision.contains("_Ainda em discussão._");
+    let decided = !decision.contains("_Still under discussion._")
+        && !decision.contains("_Ainda em discussão._");
     let mut agents = Vec::new();
     let ids = meta["members"].as_array().cloned().unwrap_or_default();
     for nid in std::iter::once(meta["chair"].clone()).chain(ids) {
@@ -364,7 +368,8 @@ async fn status(app: &AppHandle, a: &Value) -> Result<Value, String> {
             agents.push(json!({ "nodeId": nid, "name": v["name"], "state": v["state"] }));
         }
     }
-    let rounds_logged = board.matches("## Rodada").count();
+    // WHY: councils created before the rename logged their rounds as "## Rodada".
+    let rounds_logged = board.matches("## Round").count() + board.matches("## Rodada").count();
     Ok(json!({
         "councilId": id,
         "decided": decided,

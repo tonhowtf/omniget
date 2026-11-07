@@ -318,15 +318,6 @@ fn collect(sys: &dyn Sys, env: &Env, include_system: bool) -> Collected {
     }
 }
 
-fn source_of(a: &Value) -> Source {
-    match a.get("_source").and_then(Value::as_str) {
-        Some("ui") => Source::Ui,
-        Some("external") => Source::External,
-        Some("cli") => Source::Cli,
-        _ => Source::Agent,
-    }
-}
-
 pub fn list_and_offer(
     ctx: &Ctx,
     sys: &dyn Sys,
@@ -420,7 +411,7 @@ fn save_score(ctx: &Ctx, login_items: u32) {
 }
 
 pub async fn tool_list(a: Value) -> Result<Value, String> {
-    let source = source_of(&a);
+    let source = super::plan::source_of(&a);
     let include_system = a
         .get("include_system")
         .and_then(Value::as_bool)

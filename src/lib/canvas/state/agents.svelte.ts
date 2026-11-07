@@ -12,7 +12,7 @@ export type AgentState =
   | 'looping'
   | 'unknown';
 
-export interface AgentSignal {
+interface AgentSignal {
   state: AgentState;
   source?: string;
   since_ms?: number;

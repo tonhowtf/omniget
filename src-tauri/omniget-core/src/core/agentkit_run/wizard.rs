@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, HashMap};
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::{Mutex, OnceLock};
 
@@ -59,23 +59,6 @@ pub fn templates_for(r: &StackReport) -> Vec<&'static str> {
     }
     t
 }
-
-pub const ALL_TEMPLATES: &[&str] = &[
-    "cct:templates/common",
-    "cct:templates/javascript-typescript",
-    "cct:templates/javascript-typescript/react-app",
-    "cct:templates/javascript-typescript/vue-app",
-    "cct:templates/javascript-typescript/angular-app",
-    "cct:templates/javascript-typescript/node-api",
-    "cct:templates/python",
-    "cct:templates/python/django-app",
-    "cct:templates/python/fastapi-app",
-    "cct:templates/python/flask-app",
-    "cct:templates/ruby",
-    "cct:templates/ruby/rails-app",
-    "cct:templates/rust",
-    "cct:templates/go",
-];
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Piece {
@@ -623,53 +606,4 @@ pub async fn start(project: &Path, extra_templates: &[String]) -> Result<Session
     }
     map.insert(s.id.clone(), s.clone());
     Ok(s)
-}
-
-pub fn selected_components(
-    session_id: &str,
-    selected: &[String],
-    agents_md_text: Option<&str>,
-) -> Result<(PathBuf, Vec<Component>), String> {
-    let s = session(session_id)
-        .ok_or_else(|| format!("{ERR_WIZARD}: session expired, detect again"))?;
-    let mut out = Vec::new();
-    for p in &s.pieces {
-        if !selected.contains(&p.id) {
-            continue;
-        }
-        if !p.available {
-            return Err(format!(
-                "{ERR_WIZARD}: {} can not be installed: {}",
-                p.name,
-                p.reason.clone().unwrap_or_default()
-            ));
-        }
-        if p.id == "wizard:project/rule/agents-md" {
-            if let Some(t) = agents_md_text.filter(|t| !t.trim().is_empty()) {
-                out.push(agents_md_component(t)?);
-                continue;
-            }
-        }
-        if let Some(c) = &p.component {
-            out.push(c.clone());
-        }
-    }
-    if out.is_empty() {
-        return Err(format!("{ERR_WIZARD}: nothing selected"));
-    }
-    Ok((s.project, out))
-}
-
-pub fn review_prompt(r: &StackReport, installed: &BTreeMap<String, Vec<String>>) -> String {
-    let mut s = String::from(
-        "Review the coding-agent setup of this project. Check that AGENTS.md (and CLAUDE.md or the other tool files) match the real project: the languages, frameworks and commands must be the ones in the manifests, and every command it names must exist. Look at the installed commands, agents, hooks, settings and MCP servers and flag anything that does not fit this code base, needs a tool that is missing, or is too permissive. Do not change files; answer with a short list of concrete fixes, most important first.\n\n",
-    );
-    s.push_str(&stack::context_block(r));
-    if !installed.is_empty() {
-        s.push_str("\nInstalled by the wizard:\n");
-        for (tool, items) in installed {
-            s.push_str(&format!("- {tool}: {}\n", items.join(", ")));
-        }
-    }
-    s
 }

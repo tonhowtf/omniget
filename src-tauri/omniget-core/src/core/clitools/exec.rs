@@ -65,7 +65,7 @@ pub fn command_for(program: &Path) -> tokio::process::Command {
         c
     } else if cfg!(windows) && ext == "ps1" {
         let mut c = crate::core::process::command("powershell");
-        c.args(["-NoProfile", "-ExecutionPolicy", "Bypass", "-File"])
+        c.args(["-NoProfile", "-ExecutionPolicy", "RemoteSigned", "-File"])
             .arg(program);
         c
     } else {

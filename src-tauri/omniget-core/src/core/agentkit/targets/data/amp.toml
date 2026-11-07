@@ -6,8 +6,6 @@ status = "active"
 beta = true
 homepage = "https://ampcode.com"
 notes = "Sourcegraph spin-off (Amp Inc.); web + CLI product whose threads live server-side. No built-in permission prompts; custom agents, commands and hooks are TypeScript plugins, not files. ACP only through the community amp-acp adapter."
-reads_agents_dir = true
-reads_agents_md = "yes"
 
 [detect]
 binaries = ["amp"]
@@ -96,7 +94,6 @@ Stop = "agent.end"
 
 [hooks]
 shape = "code_plugin"
-events_count = 6
 
 [tool_name_map]
 Bash = "Bash"
@@ -136,12 +133,10 @@ format = "json"
 cmd = "amp"
 headless = ["-x"]
 json_flag = ["--stream-json"]
-resume_flag = "threads continue"
 
 [acp]
 native = false
 registry_id = "amp-acp"
 
 [trust]
-requires_review = false
 how = "No workspace trust or approval prompts; only amp.mcpPermissions and amp.mcpTrustedServers gate MCP servers."

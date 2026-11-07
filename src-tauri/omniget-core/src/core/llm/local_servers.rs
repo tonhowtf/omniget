@@ -137,7 +137,7 @@ const CATALOG: &[CatalogRow] = &[
         "Qwen/Qwen2.5-1.5B-Instruct-GGUF",
         "qwen2.5-1.5b-instruct-q4_k_m.gguf",
         1120,
-        "cabe em qualquer maquina; respostas curtas",
+        "fits any machine; short answers",
         None,
     ),
     (
@@ -146,7 +146,7 @@ const CATALOG: &[CatalogRow] = &[
         "Qwen/Qwen2.5-7B-Instruct-GGUF",
         "qwen2.5-7b-instruct-q4_k_m.gguf",
         4680,
-        "equilibrio; precisa de ~6 GB livres",
+        "balanced; needs ~6 GB free",
         None,
     ),
     (
@@ -155,7 +155,7 @@ const CATALOG: &[CatalogRow] = &[
         "bartowski/Llama-3.2-3B-Instruct-GGUF",
         "Llama-3.2-3B-Instruct-Q4_K_M.gguf",
         2020,
-        "rapido, bom em ingles",
+        "fast, good at English",
         None,
     ),
 ];

@@ -192,7 +192,7 @@ pub fn support_files(
     Ok((out, rewrites))
 }
 
-pub fn apply_rewrites(cmd: &str, rewrites: &[(String, String)]) -> String {
+pub(crate) fn apply_rewrites(cmd: &str, rewrites: &[(String, String)]) -> String {
     let mut out = cmd.to_string();
     for (from, to) in rewrites {
         out = rewrite_command(&out, from, to);
@@ -348,7 +348,7 @@ pub fn unit_name(c: &Component, ctx: &ConvertCtx) -> String {
     ctx.name_for(c)
 }
 
-pub fn missing(target: &TargetAdapter, what: &str, scope: Scope) -> AgentkitError {
+pub(crate) fn missing(target: &TargetAdapter, what: &str, scope: Scope) -> AgentkitError {
     AgentkitError::new(
         "AGENTKIT_NO_PATH",
         format!(

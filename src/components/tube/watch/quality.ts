@@ -34,7 +34,7 @@ function family(codecs: string): string {
   return c.split(".")[0] || "?";
 }
 
-export function bestAudio(set: StreamSet): Format | null {
+function bestAudio(set: StreamSet): Format | null {
   const audio = set.formats.filter((f) => f.kind === "audio");
   audio.sort((a, b) => {
     const oa = a.audio_default && !a.auto_dubbed ? 1 : 0;

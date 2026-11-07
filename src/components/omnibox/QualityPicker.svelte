@@ -19,9 +19,7 @@
   ];
 
   let visibleOptions = $derived.by(() => {
-    if (!availableHeights) {
-      return RESOLUTION_OPTIONS.filter(o => o.height === Infinity || o.height <= 1080);
-    }
+    if (!availableHeights) return RESOLUTION_OPTIONS;
     return RESOLUTION_OPTIONS.filter(o => {
       if (o.height === Infinity) return true;
       return availableHeights!.some(h => h === o.height);

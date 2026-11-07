@@ -147,10 +147,10 @@ pub async fn install_plans(tool: &CliTool, probes: &Probes) -> Vec<Plan> {
     if let Some(spec) = installer_spec(tool) {
         let mut p = plan(tool, Action::Install, "installer", spec);
         if !cfg!(windows) && exec::which("curl").is_none() {
-            p = blocked(p, "curl não encontrado");
+            p = blocked(p, "curl not found");
         }
         p.warnings
-            .push("Roda o script oficial do fornecedor (baixado na hora).".into());
+            .push("Runs the vendor's official script (downloaded on the spot).".into());
         out.push(p);
     }
 
@@ -165,7 +165,8 @@ pub async fn install_plans(tool: &CliTool, probes: &Probes) -> Vec<Plan> {
                 p.prefix = prefix;
                 if tool.npm_scripts && !allow {
                     p.warnings.push(
-                        "O pacote precisa do postinstall; npm < 12 roda scripts por padrão.".into(),
+                        "The package needs its postinstall; npm < 12 runs scripts by default."
+                            .into(),
                     );
                 }
                 out.push(p);
@@ -181,7 +182,7 @@ pub async fn install_plans(tool: &CliTool, probes: &Probes) -> Vec<Plan> {
                         "npm-global",
                     ),
                 ),
-                "npm não encontrado (instale o Node.js)",
+                "npm not found (install Node.js)",
             )),
         }
     }
@@ -206,7 +207,7 @@ pub async fn install_plans(tool: &CliTool, probes: &Probes) -> Vec<Plan> {
                     "brew",
                     CommandSpec::new("brew", args, "homebrew"),
                 ),
-                "Homebrew não encontrado",
+                "Homebrew not found",
             )),
         }
     }
@@ -230,7 +231,7 @@ pub async fn install_plans(tool: &CliTool, probes: &Probes) -> Vec<Plan> {
             out.push(if exec::which("winget").is_some() {
                 p
             } else {
-                blocked(p, "winget não encontrado")
+                blocked(p, "winget not found")
             });
         }
         if let Some(id) = &tool.scoop {
@@ -243,7 +244,7 @@ pub async fn install_plans(tool: &CliTool, probes: &Probes) -> Vec<Plan> {
             out.push(if exec::which("scoop").is_some() {
                 p
             } else {
-                blocked(p, "scoop não encontrado")
+                blocked(p, "scoop not found")
             });
         }
     }
@@ -281,7 +282,7 @@ pub async fn install_plans(tool: &CliTool, probes: &Probes) -> Vec<Plan> {
                         "uv-tool",
                     ),
                 ),
-                "uv/pipx não encontrados",
+                "uv/pipx not found",
             )),
         }
     }
@@ -329,16 +330,14 @@ pub fn update_plan(tool: &CliTool, det: &Detection) -> Plan {
                 .or_else(|| manual_update_line(tool))
                 .unwrap_or_default();
             let reason = if !det.installed {
-                "não instalado".to_string()
+                "not installed".to_string()
             } else if own.method == OwnerMethod::App {
-                "app de GUI: atualize pelo próprio app".to_string()
+                "GUI app: update it from the app itself".to_string()
             } else if own.method == OwnerMethod::Omniget {
-                "instalado pelo registro ACP: reinstale pela seção Agentes ACP".to_string()
+                "installed from the ACP registry: reinstall it from the ACP Agents section"
+                    .to_string()
             } else {
-                format!(
-                    "dono não provado ({}): só o comando para copiar",
-                    own.evidence
-                )
+                format!("owner not proven ({}): command to copy only", own.evidence)
             };
             let mut spec = CommandSpec::shell(line, format!("manual:{}", tool.id));
             spec.via_shell = false;
@@ -349,8 +348,7 @@ pub fn update_plan(tool: &CliTool, det: &Detection) -> Plan {
     p.prefix = own.prefix.clone();
     p.recommended = p.runnable;
     if tool.auto_updates && p.runnable {
-        p.warnings
-            .push("A ferramenta também se atualiza sozinha.".into());
+        p.warnings.push("The tool also updates itself.".into());
     }
     remember(&p);
     p

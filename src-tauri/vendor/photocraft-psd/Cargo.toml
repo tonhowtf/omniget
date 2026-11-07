@@ -1,0 +1,29 @@
+[package]
+name = "photocraft-psd"
+description = "Faithful, lossless reader and writer for Adobe Photoshop PSD (v1) and PSB (v2) files"
+version = "0.20.1"
+edition = "2024"
+rust-version = "1.95"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/storytold/photocraft"
+publish = false
+autoexamples = false
+autotests = false
+autobenches = false
+
+[lib]
+name = "photocraft_psd"
+path = "src/lib.rs"
+
+[features]
+serde = ["dep:serde"]
+testgen = []
+
+[dependencies]
+thiserror = "2"
+flate2 = "1"
+encoding_rs = "0.8"
+serde = { version = "1", features = ["derive"], optional = true }
+
+[dev-dependencies]
+proptest = "1"

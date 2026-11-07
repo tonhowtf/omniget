@@ -29,13 +29,9 @@ pub struct AppLaunch {
     pub written_ms: u64,
 }
 
-pub fn starts_hidden<S: AsRef<str>>(
-    args: &[S],
-    start_minimized: bool,
-    run_in_background: bool,
-) -> bool {
+pub fn starts_hidden<S: AsRef<str>>(args: &[S], start_minimized: bool) -> bool {
     let has = |flag: &str| args.iter().any(|a| a.as_ref() == flag);
-    has(BACKGROUND_FLAG) || start_minimized || (has(AUTOSTART_FLAG) && run_in_background)
+    has(BACKGROUND_FLAG) || (has(AUTOSTART_FLAG) && start_minimized)
 }
 
 pub fn current(background: bool) -> Option<AppLaunch> {
@@ -191,4 +187,17 @@ fn installed_paths() -> Vec<PathBuf> {
         }
     }
     v
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn only_a_login_launch_may_stay_in_the_tray() {
+        assert!(!starts_hidden(&["omniget"], true));
+        assert!(starts_hidden(&["omniget", AUTOSTART_FLAG], true));
+        assert!(!starts_hidden(&["omniget", AUTOSTART_FLAG], false));
+        assert!(starts_hidden(&["omniget", BACKGROUND_FLAG], false));
+    }
 }

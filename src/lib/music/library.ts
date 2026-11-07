@@ -86,17 +86,6 @@ export function splitArtists(s: string): string[] {
   return parts.length ? parts : [clean];
 }
 
-export function groupBy<T>(items: T[], key: (t: T) => string): Map<string, T[]> {
-  const m = new Map<string, T[]>();
-  for (const it of items) {
-    const k = key(it);
-    const arr = m.get(k);
-    if (arr) arr.push(it);
-    else m.set(k, [it]);
-  }
-  return m;
-}
-
 export function genres(tracks: Track[]): { name: string; tracks: Track[] }[] {
   const m = new Map<string, Track[]>();
   for (const t of tracks) {

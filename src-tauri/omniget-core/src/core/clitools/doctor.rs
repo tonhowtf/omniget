@@ -105,7 +105,7 @@ async fn probe_auth(tool: &CliTool, det: &Detection) -> AuthProbe {
             None => AuthProbe {
                 state: AuthState::Unknown,
                 via: "command".into(),
-                detail: format!("{shown} (sem resposta)"),
+                detail: format!("{shown} (no answer)"),
                 output: None,
             },
         };
@@ -162,7 +162,7 @@ pub async fn doctor(tool: &CliTool) -> DoctorReport {
     let mut issues = Vec::new();
     if det.installed && det.version.is_none() && det.binary.is_some() {
         issues.push(format!(
-            "`{} {}` não devolveu versão ({})",
+            "`{} {}` did not return a version ({})",
             det.binary.clone().unwrap_or_default(),
             tool.version_args.join(" "),
             det.version_raw.clone().unwrap_or_default()
@@ -173,18 +173,18 @@ pub async fn doctor(tool: &CliTool) -> DoctorReport {
         && !det.owner.proven
         && det.owner.method != OwnerMethod::Omniget
     {
-        issues.push(format!("Dono não provado: {}", det.owner.evidence));
+        issues.push(format!("Owner not proven: {}", det.owner.evidence));
     }
     if latest.state == latest::VersionState::BehindLatest {
         issues.push(format!(
-            "Versão {} atrás da {}",
+            "Version {} is behind {}",
             latest.installed.clone().unwrap_or_default(),
             latest.latest.clone().unwrap_or_default()
         ));
     }
     for d in &deprecated {
         if d.exists == Some(true) {
-            issues.push(format!("Formato deprecado presente: {}", d.path));
+            issues.push(format!("Deprecated format present: {}", d.path));
         }
     }
     if tool.status != super::table::ToolStatus::Active {

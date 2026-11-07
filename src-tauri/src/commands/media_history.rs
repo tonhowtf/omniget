@@ -19,7 +19,11 @@ fn load() -> BTreeMap<String, MediaSnapshot> {
         return BTreeMap::new();
     };
     serde_json::from_str(&raw).unwrap_or_else(|e| {
-        tracing::warn!("[media-diff] {} ilegivel, ignorando: {}", path.display(), e);
+        tracing::warn!(
+            "[media-diff] {} unreadable, ignoring: {}",
+            path.display(),
+            e
+        );
         BTreeMap::new()
     })
 }

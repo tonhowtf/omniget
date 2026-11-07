@@ -57,10 +57,6 @@ pub fn job_reviewed(actor: Actor, action: &str, job_id: &str, details: Value) {
     audit::log(actor, action, Entity::job(job_id), details);
 }
 
-pub fn arena_action(action: &str, arena_id: &str, details: Value) {
-    audit::log(Actor::window(), action, Entity::arena(arena_id), details);
-}
-
 pub fn job_ended(job: &crate::jobs::Job) {
     audit::log(
         Actor::system("system"),
@@ -197,41 +193,4 @@ pub fn http_list(query: Option<&str>) -> Response {
         Ok(q) => Json(json!(audit::list(&q))).into_response(),
         Err(e) => (StatusCode::BAD_REQUEST, Json(json!({ "error": e }))).into_response(),
     }
-}
-
-#[tauri::command]
-pub async fn llm_audit_list(
-    since: Option<String>,
-    action: Option<String>,
-    limit: Option<usize>,
-) -> Result<Value, String> {
-    let span = audit::parse_since(since.as_deref().unwrap_or("1d"))
-        .ok_or_else(|| "ERR_AUDIT: since must look like 1d, 12h or 30m".to_string())?;
-    let q = Query {
-        since_ms: Some(crate::llm_manager::now_ms().saturating_sub(span) as i64),
-        action: action.filter(|a| !a.trim().is_empty()),
-        entity_id: None,
-        limit: Some(limit.unwrap_or(500)),
-    };
-    Ok(json!({
-        "rows": audit::list(&q),
-        "retention_days": audit::global().map(|a| a.retention_days()),
-    }))
-}
-
-#[tauri::command]
-pub async fn llm_audit_retention_set(app: tauri::AppHandle, days: u32) -> Result<Value, String> {
-    let days = days.clamp(1, 3650);
-    crate::storage::config::update_settings(&app, |s| s.llm.audit_retention_days = days)
-        .map_err(|e| e.to_string())?;
-    if let Some(a) = audit::global() {
-        a.set_retention_days(days);
-    }
-    audit::log(
-        Actor::window(),
-        "audit.retention",
-        Entity::setting("llm.audit_retention_days"),
-        json!({ "days": days }),
-    );
-    Ok(json!({ "retention_days": days }))
 }

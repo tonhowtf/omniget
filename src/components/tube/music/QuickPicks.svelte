@@ -4,10 +4,10 @@
   import { songFromItem } from "../views/music/shared.svelte";
   import type { Item } from "$lib/tube/types";
 
-  let { items, rows = 4 }: { items: Item[]; rows?: number } = $props();
+  let { items }: { items: Item[] } = $props();
 </script>
 
-<div class="qp" style:--qp-rows={rows} role="list">
+<div class="qp" role="list">
   {#each items as it, i (i)}
     {@const s = songFromItem(it)}
     <div class="qp-cell" role="listitem">
@@ -24,7 +24,7 @@
   .qp {
     display: grid;
     grid-auto-flow: column;
-    grid-template-rows: repeat(var(--qp-rows), var(--ytm-row-h, 56px));
+    grid-template-rows: repeat(4, var(--ytm-row-h, 56px));
     grid-auto-columns: min(var(--ytm-quickpick-col-w, 420px), 86cqi);
     column-gap: 24px;
     row-gap: 8px;

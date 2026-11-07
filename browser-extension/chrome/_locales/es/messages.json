@@ -292,5 +292,14 @@
   },
   "context_menu_download_selection": {
     "message": "Descargar los enlaces de la selección con OmniGet"
+  },
+  "popup_bridge_refused": {
+    "message": "OmniGet rechazó la solicitud. Revisa los ajustes de la extensión en OmniGet."
+  },
+  "popup_link_handler_failed": {
+    "message": "El navegador no pudo abrir el enlace de OmniGet. Abre OmniGet e inténtalo de nuevo."
+  },
+  "popup_sent_via_link": {
+    "message": "Enviado por enlace. Si no se abre nada, inicia OmniGet e inténtalo de nuevo."
   }
 }

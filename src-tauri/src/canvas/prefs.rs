@@ -271,20 +271,6 @@ pub fn apply_preset(n: &mut CanvasNode, name: &str, p: &AgentPreset) {
 }
 
 #[tauri::command]
-pub fn canvas_agent_presets(app: AppHandle) -> Vec<Value> {
-    get(&app)
-        .agent_presets
-        .iter()
-        .map(|(name, p)| json!({ "name": name, "agent": preset_agent(p), "preset": p }))
-        .collect()
-}
-
-#[tauri::command]
-pub fn canvas_settings_get(app: AppHandle) -> CanvasSettings {
-    get(&app)
-}
-
-#[tauri::command]
 pub fn canvas_settings_replace(
     app: AppHandle,
     canvas: CanvasSettings,

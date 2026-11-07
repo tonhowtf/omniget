@@ -88,7 +88,7 @@ fn on_path(program: &str) -> bool {
     };
     std::env::split_paths(&path).any(|d| {
         exts.iter()
-            .any(|e| d.join(format!("{program}{e}")).is_file())
+            .any(|e| super::packages::is_program_file(&d.join(format!("{program}{e}"))))
     })
 }
 

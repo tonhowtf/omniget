@@ -829,28 +829,6 @@ impl Registry {
             .ok()
             .flatten()
     }
-
-    pub fn list_runs(&self, conversation: Option<&str>, limit: u32) -> Vec<RunRecord> {
-        let limit = limit.clamp(1, 500) as i64;
-        self.db
-            .with(|c| {
-                let (sql, conv) = match conversation {
-                    Some(conv) => (
-                        format!("SELECT {RUN_COLS} FROM runs_runs WHERE conversation_id=?1 ORDER BY created_ms DESC LIMIT ?2"),
-                        conv.to_string(),
-                    ),
-                    None => (
-                        format!("SELECT {RUN_COLS} FROM runs_runs WHERE ?1 = ?1 ORDER BY created_ms DESC LIMIT ?2"),
-                        String::new(),
-                    ),
-                };
-                let mut stmt = c.prepare(&sql)?;
-                let rows = stmt.query_map(params![conv, limit], row_run)?;
-                rows.collect()
-            })
-            .unwrap_or_default()
-    }
-
     pub fn transition(
         &self,
         id: &str,
@@ -969,44 +947,6 @@ impl Registry {
             )
             .map(|_| ())
         })
-    }
-
-    pub fn resolve_run(
-        &self,
-        run_id: &str,
-        resolution: RunResolution,
-    ) -> Result<RunRecord, String> {
-        let run = self
-            .run(run_id)
-            .ok_or_else(|| format!("{ERR_RUNS_NOT_FOUND}: run {run_id}"))?;
-        if !matches!(run.state, RunState::Interrupted | RunState::Unknown) {
-            return Err(format!(
-                "{ERR_RUNS_STATE}: run {run_id} is {}, not interrupted",
-                run.state.as_str()
-            ));
-        }
-        let (to, text) = match &resolution {
-            RunResolution::MarkedDone => (Some(RunState::Completed), "marked_done".to_string()),
-            RunResolution::Discarded => (Some(RunState::Cancelled), "discarded".to_string()),
-            RunResolution::ContinuedBy(next) => (None, format!("continued:{next}")),
-        };
-        self.db.with(|c| {
-            c.execute(
-                "UPDATE runs_runs SET resolution=?2, updated_ms=?3 WHERE id=?1",
-                params![run_id, text, super::now_ms()],
-            )
-            .map(|_| ())
-        })?;
-        match to {
-            Some(state) => self.transition(run_id, state, None),
-            None => {
-                let run = self
-                    .run(run_id)
-                    .ok_or_else(|| format!("{ERR_RUNS_NOT_FOUND}: run {run_id}"))?;
-                self.emit(&run);
-                Ok(run)
-            }
-        }
     }
 
     pub fn reconcile(&self) -> Result<Reconciled, String> {
@@ -1275,20 +1215,6 @@ impl Registry {
             })
             .unwrap_or_default()
     }
-
-    pub fn answer_permission(&self, id: &str, answer: &str) -> Result<PermissionRequest, String> {
-        self.answer_permission_at(id, answer, super::now_ms())
-    }
-
-    pub fn answer_permission_at(
-        &self,
-        id: &str,
-        answer: &str,
-        now: i64,
-    ) -> Result<PermissionRequest, String> {
-        self.answer_permission_by_at(id, answer, &Actor::window(), now)
-    }
-
     pub fn answer_permission_by(
         &self,
         id: &str,
@@ -1427,11 +1353,4 @@ impl Registry {
             }
         }
     }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum RunResolution {
-    ContinuedBy(String),
-    MarkedDone,
-    Discarded,
 }

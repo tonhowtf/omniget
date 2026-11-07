@@ -149,12 +149,8 @@ impl PlatformDownloader for P2pDownloader {
         let _ = progress.send(ProgressUpdate::percent(0.0)).await;
 
         let sanitized = sanitize_filename::sanitize(&file_name);
-        let output_path = opts.output_dir.join(&sanitized);
-        if let Some(parent) = output_path.parent() {
-            tokio::fs::create_dir_all(parent).await?;
-        }
-
-        let mut file = File::create(&output_path).await?;
+        tokio::fs::create_dir_all(&opts.output_dir).await?;
+        let (output_path, mut file) = create_unique(&opts.output_dir, &sanitized).await?;
         let mut received: u64 = 0;
         let mut buf = vec![0u8; CHUNK_SIZE];
 
@@ -343,4 +339,35 @@ pub async fn run_sender(session: &P2pSendSession) -> anyhow::Result<()> {
     tracing::info!("[p2p] transfer complete: {} bytes sent", sent);
 
     Ok(())
+}
+
+async fn create_unique(
+    dir: &std::path::Path,
+    name: &str,
+) -> std::io::Result<(std::path::PathBuf, File)> {
+    let base = std::path::Path::new(name);
+    let stem = base.file_stem().and_then(|s| s.to_str()).unwrap_or(name);
+    let ext = base.extension().and_then(|s| s.to_str());
+    for n in 0..1000u32 {
+        let candidate = match (n, ext) {
+            (0, _) => name.to_string(),
+            (_, Some(e)) => format!("{stem} ({n}).{e}"),
+            (_, None) => format!("{stem} ({n})"),
+        };
+        let path = dir.join(candidate);
+        match tokio::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&path)
+            .await
+        {
+            Ok(f) => return Ok((path, f)),
+            Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => continue,
+            Err(e) => return Err(e),
+        }
+    }
+    Err(std::io::Error::new(
+        std::io::ErrorKind::AlreadyExists,
+        "no free file name",
+    ))
 }

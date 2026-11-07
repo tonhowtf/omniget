@@ -148,7 +148,7 @@ pub struct Meta<'a> {
 fn header(t: &Transcript, m: &Meta) -> String {
     let words = t.text.split_whitespace().count();
     format!(
-        "# {}\n\n- Fonte: `{}`\n- Duração: {}\n- Idioma: {}\n- Transcrição: {} ({})\n- Palavras: {words} (cerca de {} tokens)\n",
+        "# {}\n\n- Source: `{}`\n- Duration: {}\n- Language: {}\n- Transcript: {} ({})\n- Words: {words} (about {} tokens)\n",
         m.title,
         m.source.display(),
         m.duration_ms.map(|d| clock(d as i64)).unwrap_or_else(|| "?".into()),
@@ -161,7 +161,7 @@ fn header(t: &Transcript, m: &Meta) -> String {
 
 pub fn transcript_markdown(t: &Transcript, m: &Meta) -> String {
     let mut s = header(t, m);
-    s.push_str("\nCada parágrafo começa com a hora em que foi dito, `[hh:mm:ss]`.\n\n");
+    s.push_str("\nEach paragraph starts with the time it was said, `[hh:mm:ss]`.\n\n");
     for b in blocks(&t.segments, BLOCK_MS) {
         s.push_str(&format!("[{}] {}\n\n", clock(b.start_ms), b.text));
     }
@@ -213,7 +213,7 @@ pub struct Written {
 
 pub fn context_placeholder(m: &Meta) -> String {
     format!(
-        "# Contexto: {}\n\n_O pacote de contexto está sendo preparado. A transcrição completa está em `transcricao.md`._\n",
+        "# Context: {}\n\n_The context pack is being prepared. The full transcript is in `transcricao.md`._\n",
         m.title
     )
 }
@@ -236,7 +236,7 @@ pub fn write_all(dir: &Path, t: &Transcript, m: &Meta) -> Result<Written, String
         std::fs::write(
             &p,
             format!(
-                "# Parte {} de {}: {} a {}\n\n{body}",
+                "# Part {} of {}: {} to {}\n\n{body}",
                 i + 1,
                 all.len(),
                 clock(*from),
@@ -260,18 +260,18 @@ pub fn write_all(dir: &Path, t: &Transcript, m: &Meta) -> Result<Written, String
 
 pub fn summarizer_prompt(dir: &Path, parts: usize, title: &str) -> String {
     format!(
-        "You turn a long recording into a context pack for another LLM (Claude or any model), not into minutes for people. Write in the recording's language.\n\
+        "You turn a long recording into a context pack for another LLM (Claude or any model), not into minutes for people. Write in the recording's language, section titles included.\n\
          Folder: {dir}. The full transcript is transcricao.md; it is split into {parts} parts in partes/parte-NN.md (about {PART_MINUTES} minutes each, every paragraph starts with [hh:mm:ss]).\n\
          Method (map, then reduce):\n\
          1. For each part, read only that part and write partes/notas-NN.md: what was discussed, decisions, action items (owner, due date if said), open questions, numbers and facts, names and terms, and the 2-3 most important literal quotes, every item with its [hh:mm:ss].\n\
          2. Then read only the notes and write contexto.md (replace it) with these sections:\n\
-         - \"Como usar este contexto\": source ({title}), duration, language, and that any [hh:mm:ss] can be looked up in transcricao.md for the exact words.\n\
-         - \"Resumo\": 5-8 lines a model needs before anything else.\n\
-         - \"Linha do tempo\": 6-15 chapters, each with its time range, a title and 2-4 dense bullets.\n\
-         - \"Decisões\", \"Ações\" (who, what, when, [hh:mm:ss]), \"Perguntas em aberto\", \"Riscos\".\n\
-         - \"Fatos e números\", \"Pessoas e termos\" (a short glossary), \"Citações\" (literal, with [hh:mm:ss]).\n\
+         - \"How to use this context\": source ({title}), duration, language, and that any [hh:mm:ss] can be looked up in transcricao.md for the exact words.\n\
+         - \"Summary\": 5-8 lines a model needs before anything else.\n\
+         - \"Timeline\": 6-15 chapters, each with its time range, a title and 2-4 dense bullets.\n\
+         - \"Decisions\", \"Actions\" (who, what, when, [hh:mm:ss]), \"Open questions\", \"Risks\".\n\
+         - \"Facts and numbers\", \"People and terms\" (a short glossary), \"Quotes\" (literal, with [hh:mm:ss]).\n\
          Rules: never invent what is not in the transcript; mark anything uncertain (speaker unclear, garbled audio) as such; keep contexto.md under about 2,500 words so it fits any context window; prefer facts over adjectives.\n\
-         When contexto.md is written, run `omniget canvas say \"Contexto pronto: contexto.md\"` if that command exists, and stop.",
+         When contexto.md is written, run `omniget canvas say \"Context ready: contexto.md\"` if that command exists, and stop.",
         dir = dir.display()
     )
 }

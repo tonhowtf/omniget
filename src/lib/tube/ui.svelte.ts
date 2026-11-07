@@ -42,8 +42,6 @@ function faceOf(r: Route): Face {
 
 export function go(r: Route, opts: { replace?: boolean } = {}) {
   const face = faceOf(r);
-  if (r.name === "settings" || r.name === "import") {
-  }
   ui.face = r.name === "settings" || r.name === "import" ? ui.face : face;
   const stack = ui.stacks[r.name === "settings" || r.name === "import" ? ui.face : face];
   const top = stack[stack.length - 1];

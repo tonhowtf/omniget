@@ -9,7 +9,6 @@ pub struct BundleInfo {
     pub name: Option<String>,
     pub version: Option<String>,
     pub executable: Option<String>,
-    pub icon_file: Option<String>,
 }
 
 pub fn bundle_info(v: &Value) -> BundleInfo {
@@ -25,7 +24,6 @@ pub fn bundle_info(v: &Value) -> BundleInfo {
         name: s("CFBundleDisplayName").or_else(|| s("CFBundleName")),
         version: s("CFBundleShortVersionString").or_else(|| s("CFBundleVersion")),
         executable: s("CFBundleExecutable"),
-        icon_file: s("CFBundleIconFile"),
     }
 }
 

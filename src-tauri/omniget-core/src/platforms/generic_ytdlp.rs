@@ -188,6 +188,33 @@ fn filename_from_url(url: &str) -> String {
         .unwrap_or_else(|| "download".to_string())
 }
 
+pub fn canonical_tencent_url(url: &str) -> Option<String> {
+    let parsed = url::Url::parse(url).ok()?;
+    let host = parsed.host_str()?.to_ascii_lowercase();
+    if host == "v.qq.com" || !(host.ends_with(".v.qq.com") || host == "film.qq.com") {
+        return None;
+    }
+    let query = |name: &str| {
+        parsed
+            .query_pairs()
+            .find(|(k, _)| k == name)
+            .map(|(_, v)| v.into_owned())
+            .filter(|v| v.chars().all(|c| c.is_ascii_alphanumeric()) && !v.is_empty())
+    };
+    if let Some(vid) = query("vid") {
+        return Some(match query("cid") {
+            Some(cid) => format!("https://v.qq.com/x/cover/{cid}/{vid}.html"),
+            None => format!("https://v.qq.com/x/page/{vid}.html"),
+        });
+    }
+    let path = parsed.path();
+    let tail = path
+        .find("/cover/")
+        .or_else(|| path.find("/page/"))
+        .map(|at| &path[at..])?;
+    Some(format!("https://v.qq.com/x{tail}"))
+}
+
 fn build_direct_media_info(url: &str, media_type_hint: &str) -> MediaInfo {
     let title = filename_from_url(url);
     let (format, media_type) = match media_type_hint {
@@ -249,6 +276,8 @@ impl PlatformDownloader for GenericYtdlpDownloader {
             .await
             .map_err(|e| anyhow!("yt-dlp unavailable: {}", e))?;
 
+        let tencent = canonical_tencent_url(url);
+        let url = tencent.as_deref().unwrap_or(url);
         let extra = platform_extra_flags(url);
         let json = ytdlp::get_video_info(&ytdlp_path, url, &extra).await?;
         Self::parse_video_info(&json)
@@ -266,6 +295,16 @@ impl PlatformDownloader for GenericYtdlpDownloader {
             .available_qualities
             .first()
             .ok_or_else(|| anyhow!("No quality available"))?;
+
+        let thumbnails_only = opts
+            .custom_ytdlp_args
+            .as_deref()
+            .is_some_and(|args| args.iter().any(|a| a == "--skip-download"));
+        if thumbnails_only && (first.format.starts_with("direct") || first.format == "hls") {
+            return Err(anyhow!(
+                "This link is a direct file and has no thumbnail to save."
+            ));
+        }
 
         let requested_height = opts
             .quality
@@ -449,7 +488,8 @@ impl PlatformDownloader for GenericYtdlpDownloader {
 
         let quality_height =
             requested_height.or_else(|| Self::extract_quality_height(&selected.label));
-        let video_url = &selected.url;
+        let tencent = canonical_tencent_url(&selected.url);
+        let video_url = tencent.as_ref().unwrap_or(&selected.url);
 
         let referer = opts
             .referer
@@ -677,6 +717,43 @@ mod tests {
             build_hls_referer(None, None, "https://cdn.douyin.com/v/master.m3u8"),
             "https://www.douyin.com/"
         );
+    }
+
+    #[test]
+    fn tencent_links_from_the_phone_app_become_the_page_ytdlp_reads() {
+        assert_eq!(
+            canonical_tencent_url("https://m.v.qq.com/x/page/q326831cny0.html?ptag=share")
+                .as_deref(),
+            Some("https://v.qq.com/x/page/q326831cny0.html")
+        );
+        assert_eq!(
+            canonical_tencent_url(
+                "https://m.v.qq.com/x/m/play?cid=mzc00200abc&vid=v0012&url_from=share"
+            )
+            .as_deref(),
+            Some("https://v.qq.com/x/cover/mzc00200abc/v0012.html")
+        );
+        assert_eq!(
+            canonical_tencent_url("https://m.v.qq.com/cover/m/mzc00200abc/v0012.html").as_deref(),
+            Some("https://v.qq.com/x/cover/m/mzc00200abc/v0012.html")
+        );
+        assert_eq!(
+            canonical_tencent_url("https://film.qq.com/x/cover/abc/v1.html").as_deref(),
+            Some("https://v.qq.com/x/cover/abc/v1.html")
+        );
+    }
+
+    #[test]
+    fn links_that_ytdlp_already_reads_are_left_alone() {
+        assert_eq!(
+            canonical_tencent_url("https://v.qq.com/x/page/q326831cny0.html"),
+            None
+        );
+        assert_eq!(
+            canonical_tencent_url("https://example.com/x/page/a.html"),
+            None
+        );
+        assert_eq!(canonical_tencent_url("https://m.v.qq.com/"), None);
     }
 
     #[test]

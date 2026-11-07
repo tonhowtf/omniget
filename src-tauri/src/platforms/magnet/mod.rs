@@ -239,10 +239,33 @@ impl PlatformDownloader for MagnetDownloader {
                     let stats = managed_torrent.stats();
                     let total = stats.total_bytes;
                     let downloaded = stats.progress_bytes;
+                    let (speed, peers) = stats
+                        .live
+                        .as_ref()
+                        .map(|live| {
+                            (
+                                live.download_speed.mbps * 1024.0 * 1024.0,
+                                Some(live.snapshot.peer_stats.live as u32),
+                            )
+                        })
+                        .unwrap_or((0.0, None));
 
-                    if total > 0 {
+                    if total == 0 {
+                        let mut update = ProgressUpdate::rich(0.0, Some(downloaded), None, Some(speed), None);
+                        update.peers = Some(peers.unwrap_or(0));
+                        update.indeterminate = true;
+                        let _ = progress.send(update).await;
+                    } else {
                         let pct = (downloaded as f64 / total as f64) * 100.0;
-                        let _ = progress.send(ProgressUpdate::percent(pct)).await;
+                        let mut update = ProgressUpdate::rich(
+                            pct,
+                            Some(downloaded),
+                            Some(total),
+                            Some(speed),
+                            None,
+                        );
+                        update.peers = peers;
+                        let _ = progress.send(update).await;
                         tracing::debug!(
                             "[magnet] progress: {:.1}% ({:.1} MB / {:.1} MB)",
                             pct,
@@ -297,11 +320,20 @@ impl PlatformDownloader for MagnetDownloader {
             output_dir.join(&torrent_name)
         };
 
+        let seeding = if opts.torrent_stop_seeding {
+            if let Err(e) = session.delete(TorrentIdOrHash::Id(torrent_id), false).await {
+                tracing::warn!("[magnet] failed to stop seeding id={}: {}", torrent_id, e);
+            }
+            None
+        } else {
+            Some(torrent_id)
+        };
+
         Ok(DownloadResult {
             file_path,
             file_size_bytes: total_size,
             duration_seconds: 0.0,
-            torrent_id: Some(torrent_id),
+            torrent_id: seeding,
         })
     }
 }

@@ -250,21 +250,3 @@ pub fn http_respond(
         Err(r) => r.into_response(),
     }
 }
-
-#[tauri::command]
-pub async fn llm_approvals_list(
-    app: tauri::AppHandle,
-    state: Option<String>,
-    job_id: Option<String>,
-) -> Result<Vec<Value>, String> {
-    list(&from_app(&app)?, &Filter { state, job_id })
-}
-
-#[tauri::command]
-pub async fn llm_approval_respond(
-    app: tauri::AppHandle,
-    id: String,
-    decision: String,
-) -> Result<Value, String> {
-    respond(&from_app(&app)?, &id, &decision, &Actor::window()).map_err(|r| r.text())
-}

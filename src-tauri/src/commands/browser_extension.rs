@@ -103,13 +103,35 @@ pub struct ExtensionExportResult {
     pub browser: String,
 }
 
+fn export_extension_files(src: &Path, dst: &Path, browser: &str) -> Result<(), String> {
+    if !src.join("manifest.json").is_file() {
+        return Err(format!(
+            "This build ships an empty {browser} extension folder at {}. Install the extension from the store or reinstall OmniGet.",
+            src.display()
+        ));
+    }
+    if dst.exists() {
+        let _ = std::fs::remove_dir_all(dst);
+    }
+    std::fs::create_dir_all(dst).map_err(|e| format!("mkdir: {}", e))?;
+    copy_recursive(src, dst).map_err(|e| format!("copy extension: {}", e))?;
+    if !dst.join("manifest.json").is_file() {
+        let _ = std::fs::remove_dir_all(dst);
+        return Err(format!(
+            "Could not copy the {browser} extension files to {}.",
+            dst.display()
+        ));
+    }
+    Ok(())
+}
+
 #[tauri::command]
 pub async fn browser_extension_export(
     app: AppHandle,
     browser: String,
 ) -> Result<ExtensionExportResult, String> {
     if browser != "chrome" && browser != "firefox" {
-        return Err(format!("browser '{}' não suportado pra export", browser));
+        return Err(format!("browser '{}' cannot be exported", browser));
     }
     let resource = format!("browser-extension/{}", browser);
     let src = app
@@ -124,11 +146,7 @@ pub async fn browser_extension_export(
     }
     let dst = extension_export_dir(&app, &browser)
         .ok_or_else(|| "could not derive extension dir".to_string())?;
-    if dst.exists() {
-        let _ = std::fs::remove_dir_all(&dst);
-    }
-    std::fs::create_dir_all(&dst).map_err(|e| format!("mkdir: {}", e))?;
-    copy_recursive(&src, &dst).map_err(|e| format!("copy extension: {}", e))?;
+    export_extension_files(&src, &dst, &browser)?;
 
     let version = read_bundled_manifest_version(&app, &browser);
 
@@ -167,4 +185,33 @@ pub async fn browser_extension_open_folder(path: String) -> Result<(), String> {
             .map_err(|e| format!("xdg-open: {}", e))?;
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn exporting_an_empty_bundled_folder_fails_instead_of_leaving_an_empty_folder() {
+        let dir = tempfile::tempdir().unwrap();
+        let src = dir.path().join("src");
+        std::fs::create_dir_all(&src).unwrap();
+        let dst = dir.path().join("dst");
+        let err = export_extension_files(&src, &dst, "firefox").unwrap_err();
+        assert!(err.contains("empty firefox extension folder"), "{err}");
+        assert!(!dst.exists());
+    }
+
+    #[test]
+    fn exporting_copies_the_whole_extension() {
+        let dir = tempfile::tempdir().unwrap();
+        let src = dir.path().join("src");
+        std::fs::create_dir_all(src.join("popup")).unwrap();
+        std::fs::write(src.join("manifest.json"), "{}").unwrap();
+        std::fs::write(src.join("popup").join("popup.js"), "x").unwrap();
+        let dst = dir.path().join("dst");
+        export_extension_files(&src, &dst, "chrome").unwrap();
+        assert!(dst.join("manifest.json").is_file());
+        assert!(dst.join("popup").join("popup.js").is_file());
+    }
 }

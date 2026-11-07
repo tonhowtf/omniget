@@ -3,7 +3,7 @@ import { faithfulRendering } from '../prefs.svelte';
 import type { CanvasEngine } from '../engine.svelte';
 import { closePortal, hidePortal, lastSnapshot, refreshSnapshot, setPortalBounds, type PortalBounds } from './client';
 
-export const SETTLE_MS = 150;
+const SETTLE_MS = 150;
 const LIVE_ZOOM_MIN = 0.5;
 const LIVE_ZOOM_MAX = 2;
 const UNLOAD_AFTER_MS = 5 * 60_000;
@@ -12,14 +12,14 @@ const COVER_POLL_MS = 300;
 const WARM_SETTLE_MS = 2500;
 const WARM_RETRY_MS = 15_000;
 
-export interface Rect {
+interface Rect {
   x: number;
   y: number;
   w: number;
   h: number;
 }
 
-export interface Candidate {
+interface Candidate {
   id: string;
   rect: Rect;
   stableMs: number;
@@ -27,7 +27,7 @@ export interface Candidate {
   priority: number;
 }
 
-export interface PolicyInput {
+interface PolicyInput {
   cameraStill: boolean;
   zoom: number;
   container: Rect;
@@ -36,7 +36,7 @@ export interface PolicyInput {
   candidates: Candidate[];
 }
 
-export function inside(r: Rect, c: Rect, tol = 0.5): boolean {
+function inside(r: Rect, c: Rect, tol = 0.5): boolean {
   return r.x >= c.x - tol && r.y >= c.y - tol && r.x + r.w <= c.x + c.w + tol && r.y + r.h <= c.y + c.h + tol;
 }
 
@@ -85,7 +85,7 @@ function sameRect(a: Rect | null, b: Rect): boolean {
   return !!a && Math.abs(a.x - b.x) < 0.5 && Math.abs(a.y - b.y) < 0.5 && Math.abs(a.w - b.w) < 0.5 && Math.abs(a.h - b.h) < 0.5;
 }
 
-export function covered(rect: Rect, host: HTMLElement): boolean {
+function covered(rect: Rect, host: HTMLElement): boolean {
   if (typeof document === 'undefined' || !document.elementFromPoint) return false;
   const fx = [0.15, 0.5, 0.85];
   const fy = [0.15, 0.5, 0.85];

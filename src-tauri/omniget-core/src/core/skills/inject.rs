@@ -11,20 +11,6 @@ pub const MAX_BODY_BYTES: usize = 64 * 1024;
 pub const MAX_FILE_BYTES: usize = 256 * 1024;
 pub const TRUNCATION_MARK: &str = "\n\n[cut here: the rest of this file was not loaded]";
 
-pub fn index_prompt(active: &[SkillManifest]) -> String {
-    if active.is_empty() {
-        return String::new();
-    }
-    let size = 400
-        + active
-            .iter()
-            .map(|s| s.name.len() + s.description.len() + 24)
-            .sum::<usize>();
-    let mut out = String::with_capacity(size);
-    index_prompt_into(&mut out, active);
-    out
-}
-
 pub fn index_prompt_named(active: &[(String, &SkillManifest)]) -> String {
     if active.is_empty() {
         return String::new();
@@ -61,20 +47,6 @@ fn push_entry(out: &mut String, tool: &str, description: &str) {
     out.push('\n');
 }
 
-pub fn index_prompt_into(out: &mut String, active: &[SkillManifest]) {
-    if active.is_empty() {
-        return;
-    }
-    push_header(out);
-    for skill in active {
-        out.push_str("- `");
-        push_tool_name(out, &skill.name);
-        out.push_str("`: ");
-        push_one_line(out, &skill.description);
-        out.push('\n');
-    }
-}
-
 fn push_one_line(out: &mut String, text: &str) {
     let text = text.trim();
     if !text
@@ -96,15 +68,6 @@ fn push_one_line(out: &mut String, text: &str) {
             last_was_space = ch == ' ';
             out.push(ch);
         }
-    }
-}
-
-fn push_tool_name(out: &mut String, name: &str) {
-    if SKILL_TOOL_PREFIX.len() + name.len() <= MAX_TOOL_NAME {
-        out.push_str(SKILL_TOOL_PREFIX);
-        out.push_str(name);
-    } else {
-        out.push_str(&tool_name(name));
     }
 }
 
@@ -161,13 +124,6 @@ pub fn tool_spec(tool: &str, skill: &SkillManifest) -> ToolSpec {
         description,
         input_schema: tool_input_schema(),
     }
-}
-
-pub fn tool_specs(active: &[SkillManifest]) -> Vec<ToolSpec> {
-    active
-        .iter()
-        .map(|skill| tool_spec(&tool_name(&skill.name), skill))
-        .collect()
 }
 
 pub fn list_files_in(root: &Path, name: &str) -> Result<Vec<String>, SkillError> {

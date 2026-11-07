@@ -5,6 +5,9 @@ version = "1.0.0"
 edition = "2021"
 description = "OmniGet command line: download from YouTube, Instagram, X and 1,800+ sites, and run AI agent jobs and loops"
 
+[build-dependencies]
+tauri-winres = "0.3"
+
 [[bin]]
 name = "omniget-hook-shim"
 path = "src/bin/omniget-hook-shim.rs"

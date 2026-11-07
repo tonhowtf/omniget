@@ -1,36 +1,23 @@
 <script lang="ts">
   import { t } from "$lib/i18n";
   import { showToast } from "$lib/stores/toast-store.svelte";
-  import { canvasPrefs, replaceCanvasPrefs, type CanvasPrefs } from "$lib/canvas/prefs.svelte";
+  import { canvasPrefs, type CanvasPrefs } from "$lib/canvas/prefs.svelte";
   import { clearThumbnails } from "$lib/canvas/images.svelte";
-
-  const tr = (key: string, fallback: string, vars?: Record<string, unknown>) =>
-    $t(key, { default: fallback, ...(vars ?? {}) }) as string;
+  import SettingRow from "./rebrand/SettingRow.svelte";
+  import GeneralChoice from "./rebrand/GeneralChoice.svelte";
+  import Subgroup from "./ai/Subgroup.svelte";
+  import { canvasSaving, saveCanvas } from "./ai/canvas-save.svelte";
 
   const prefs = $derived(canvasPrefs());
-  let busy = $state(false);
+  const busy = $derived(canvasSaving.busy);
   let clearing = $state(false);
-
-  async function save(mutate: (c: CanvasPrefs) => void) {
-    if (busy) return;
-    busy = true;
-    try {
-      const next = structuredClone($state.snapshot(prefs)) as CanvasPrefs;
-      mutate(next);
-      await replaceCanvasPrefs(next);
-    } catch (error) {
-      showToast("error", String(error));
-    } finally {
-      busy = false;
-    }
-  }
 
   async function clear() {
     if (clearing) return;
     clearing = true;
     try {
       const freed = await clearThumbnails();
-      showToast("success", tr("canvas.settings.thumbsCleared", "Thumbnails cleared ({mb} MB)", { mb: (freed / 1048576).toFixed(1) }));
+      showToast("success", $t("canvas.settings.thumbsCleared", { mb: (freed / 1048576).toFixed(1) }) as string);
     } catch (error) {
       showToast("error", String(error));
     } finally {
@@ -44,99 +31,88 @@
   }
 </script>
 
-<section class="settings-section" id="settings-section-canvas-images">
-  <h5 class="section-title">{tr("canvas.settings.imagesTitle", "Images")}</h5>
-  <div class="card">
-    <div class="setting-row">
-      <div class="setting-col">
-        <span class="setting-label">{tr("canvas.settings.imagesAnyZoom", "Show images at any zoom")}</span>
-        <span class="setting-path">{tr("canvas.settings.imagesAnyZoomHint", "Zoomed out, images stay visible as a lighter copy instead of a colored plate")}</span>
-      </div>
-      <button class="toggle" class:on={prefs.images.any_zoom} disabled={busy} role="switch" aria-checked={prefs.images.any_zoom}
-        aria-label={tr("canvas.settings.imagesAnyZoom", "Show images at any zoom")}
-        onclick={() => save((c) => (c.images.any_zoom = !c.images.any_zoom))}><span class="toggle-knob"></span></button>
-    </div>
-    <div class="divider"></div>
-    <div class="setting-row">
-      <div class="setting-col">
-        <label class="setting-label" for="cv-img-q">{tr("canvas.settings.imagesQuality", "Quality when zoomed out")}</label>
-        <span class="setting-path">{tr("canvas.settings.imagesQualityHint", "Sharper keeps more images in memory")}</span>
-      </div>
-      <select id="cv-img-q" class="input-text select" disabled={busy} value={prefs.images.quality}
-        onchange={(e) => save((c) => (c.images.quality = (e.target as HTMLSelectElement).value as CanvasPrefs["images"]["quality"]))}>
-        <option value="light">{tr("canvas.settings.imagesLight", "Light")}</option>
-        <option value="balanced">{tr("canvas.settings.imagesBalanced", "Balanced")}</option>
-        <option value="sharp">{tr("canvas.settings.imagesSharp", "Sharp")}</option>
-      </select>
-    </div>
-    <div class="divider"></div>
-    <div class="setting-row">
-      <div class="setting-col">
-        <span class="setting-label">{tr("canvas.settings.imagesDownload", "Download images from the web")}</span>
-        <span class="setting-path">{tr("canvas.settings.imagesDownloadHint", "Image links are saved into the workspace, up to 25 MB each")}</span>
-      </div>
-      <button class="toggle" class:on={prefs.images.download_web} disabled={busy} role="switch" aria-checked={prefs.images.download_web}
-        aria-label={tr("canvas.settings.imagesDownload", "Download images from the web")}
-        onclick={() => save((c) => (c.images.download_web = !c.images.download_web))}><span class="toggle-knob"></span></button>
-    </div>
-    <div class="divider"></div>
-    <div class="setting-row">
-      <div class="setting-col">
-        <span class="setting-label">{tr("canvas.settings.imagesThumbs", "Thumbnails")}</span>
-        <span class="setting-path">{tr("canvas.settings.imagesThumbsHint", "They are made again when needed")}</span>
-      </div>
-      <button class="button" disabled={clearing} onclick={clear}>{tr("canvas.settings.imagesClearThumbs", "Clear thumbnails")}</button>
-    </div>
-  </div>
-</section>
+{#snippet toggle(id: string, describedBy: string | undefined, on: boolean, onclick: () => void)}
+  <button {id} type="button" class="toggle" class:on role="switch" aria-checked={on} aria-labelledby={`${id}-label`} aria-describedby={describedBy} disabled={busy} {onclick}><span class="toggle-knob"></span></button>
+{/snippet}
 
-<section class="settings-section" id="settings-section-canvas-performance">
-  <h5 class="section-title">{tr("canvas.settings.performanceTitle", "Performance")}</h5>
-  <div class="card">
-    <div class="setting-row">
-      <div class="setting-col">
-        <label class="setting-label" for="cv-perf-render">{tr("canvas.settings.rendering", "Rendering")}</label>
-        <span class="setting-path">{tr("canvas.settings.renderingHint", "Faithful draws every node as it looks up close, at any zoom; Light shows summaries when zoomed out")}</span>
-      </div>
-      <select id="cv-perf-render" class="input-text select" disabled={busy} value={prefs.performance.rendering}
-        onchange={(e) => save((c) => (c.performance.rendering = (e.target as HTMLSelectElement).value as CanvasPrefs["performance"]["rendering"]))}>
-        <option value="faithful">{tr("canvas.settings.renderingFaithful", "Faithful (like up close)")}</option>
-        <option value="light">{tr("canvas.settings.renderingLight", "Light (summaries when zoomed out)")}</option>
-      </select>
-    </div>
-    <div class="divider"></div>
-    <div class="setting-row">
-      <div class="setting-col">
-        <label class="setting-label" for="cv-perf-term">{tr("canvas.settings.mountedTerminals", "Terminals kept open")}</label>
-        <span class="setting-path">{tr("canvas.settings.mountedTerminalsHint", "Terminals off screen beyond this are closed in the view; they keep running")}</span>
-      </div>
-      <input id="cv-perf-term" class="input-text num" type="number" min="1" max="64" disabled={busy} value={prefs.performance.mounted_terminals}
-        onchange={(e) => save((c) => (c.performance.mounted_terminals = limit((e.target as HTMLInputElement).value, 1, 64, 12)))} />
-    </div>
-    <div class="divider"></div>
-    <div class="setting-row">
-      <div class="setting-col">
-        <label class="setting-label" for="cv-perf-portal">{tr("canvas.settings.livePortals", "Live portals")}</label>
-        <span class="setting-path">{tr("canvas.settings.livePortalsHint", "Portals beyond this show their last picture until you get close")}</span>
-      </div>
-      <input id="cv-perf-portal" class="input-text num" type="number" min="0" max="16" disabled={busy} value={prefs.performance.live_portals}
-        onchange={(e) => save((c) => (c.performance.live_portals = limit((e.target as HTMLInputElement).value, 0, 16, 4)))} />
-    </div>
-    <div class="divider"></div>
-    <div class="setting-row">
-      <div class="setting-col">
-        <span class="setting-label">{tr("canvas.settings.forceCanvas2d", "Draw the canvas without the graphics card")}</span>
-        <span class="setting-path">{tr("canvas.settings.forceCanvas2dHint", "Slower; try it if the canvas flickers or stays blank")}</span>
-      </div>
-      <button class="toggle" class:on={prefs.performance.force_canvas2d} disabled={busy} role="switch" aria-checked={prefs.performance.force_canvas2d}
-        aria-label={tr("canvas.settings.forceCanvas2d", "Draw the canvas without the graphics card")}
-        onclick={() => save((c) => (c.performance.force_canvas2d = !c.performance.force_canvas2d))}><span class="toggle-knob"></span></button>
-    </div>
+{#snippet faithful()}
+  <rect class="node" x="10" y="9" width="27" height="18" rx="3" />
+  <path class="line" d="M15 15h16M15 20h10" />
+  <rect class="node" x="44" y="22" width="27" height="18" rx="3" />
+  <path class="line" d="M49 28h16M49 33h10" />
+{/snippet}
+
+{#snippet light()}
+  <rect class="plate" x="10" y="9" width="27" height="18" rx="3" />
+  <rect class="plate" x="44" y="22" width="27" height="18" rx="3" />
+{/snippet}
+
+<Subgroup id="canvas-performance" title={$t("canvas.settings.performanceTitle") as string}>
+  <div class="block" data-setting-key="canvas.settings.rendering">
+    <span class="block-label">{$t("canvas.settings.rendering")}</span>
+    <GeneralChoice
+      name="canvas-rendering"
+      label={$t("canvas.settings.rendering") as string}
+      value={prefs.performance.rendering}
+      options={[
+        { value: "faithful", draw: faithful, label: $t("settings.ai.render_faithful") as string, help: $t("settings.ai.render_faithful_help") as string },
+        { value: "light", draw: light, label: $t("settings.ai.render_light") as string, help: $t("settings.ai.render_light_help") as string },
+      ]}
+      onchange={(v) => saveCanvas((c) => (c.performance.rendering = v as CanvasPrefs["performance"]["rendering"]))}
+    />
   </div>
-</section>
+  <SettingRow id="canvas-mounted-terminals" label={$t("canvas.settings.mountedTerminals")} help={$t("canvas.settings.mountedTerminalsHint")} settingKey="canvas.settings.mountedTerminals">
+    {#snippet control({ id, describedBy })}
+      <input {id} class="input-text num" type="number" min="1" max="64" aria-describedby={describedBy} disabled={busy} value={prefs.performance.mounted_terminals}
+        onchange={(e) => saveCanvas((c) => (c.performance.mounted_terminals = limit(e.currentTarget.value, 1, 64, 12)))} />
+    {/snippet}
+  </SettingRow>
+  <SettingRow id="canvas-live-portals" label={$t("canvas.settings.livePortals")} help={$t("canvas.settings.livePortalsHint")} settingKey="canvas.settings.livePortals">
+    {#snippet control({ id, describedBy })}
+      <input {id} class="input-text num" type="number" min="0" max="16" aria-describedby={describedBy} disabled={busy} value={prefs.performance.live_portals}
+        onchange={(e) => saveCanvas((c) => (c.performance.live_portals = limit(e.currentTarget.value, 0, 16, 4)))} />
+    {/snippet}
+  </SettingRow>
+  <SettingRow id="canvas-force-2d" label={$t("canvas.settings.forceCanvas2d")} help={$t("canvas.settings.forceCanvas2dHint")} settingKey="canvas.settings.forceCanvas2d">
+    {#snippet control({ id, describedBy })}
+      {@render toggle(id, describedBy, prefs.performance.force_canvas2d, () => saveCanvas((c) => (c.performance.force_canvas2d = !c.performance.force_canvas2d)))}
+    {/snippet}
+  </SettingRow>
+</Subgroup>
+
+<Subgroup id="canvas-images" title={$t("canvas.settings.imagesTitle") as string}>
+  <SettingRow id="canvas-images-any-zoom" label={$t("canvas.settings.imagesAnyZoom")} help={$t("canvas.settings.imagesAnyZoomHint")} settingKey="canvas.settings.imagesAnyZoom">
+    {#snippet control({ id, describedBy })}
+      {@render toggle(id, describedBy, prefs.images.any_zoom, () => saveCanvas((c) => (c.images.any_zoom = !c.images.any_zoom)))}
+    {/snippet}
+  </SettingRow>
+  <SettingRow id="canvas-images-quality" label={$t("canvas.settings.imagesQuality")} help={$t("canvas.settings.imagesQualityHint")} settingKey="canvas.settings.imagesQuality">
+    {#snippet control({ id, describedBy })}
+      <select {id} class="input-text select" aria-describedby={describedBy} disabled={busy} value={prefs.images.quality}
+        onchange={(e) => saveCanvas((c) => (c.images.quality = e.currentTarget.value as CanvasPrefs["images"]["quality"]))}>
+        <option value="light">{$t("canvas.settings.imagesLight")}</option>
+        <option value="balanced">{$t("canvas.settings.imagesBalanced")}</option>
+        <option value="sharp">{$t("canvas.settings.imagesSharp")}</option>
+      </select>
+    {/snippet}
+  </SettingRow>
+  <SettingRow id="canvas-images-download" label={$t("canvas.settings.imagesDownload")} help={$t("canvas.settings.imagesDownloadHint")} settingKey="canvas.settings.imagesDownload">
+    {#snippet control({ id, describedBy })}
+      {@render toggle(id, describedBy, prefs.images.download_web, () => saveCanvas((c) => (c.images.download_web = !c.images.download_web)))}
+    {/snippet}
+  </SettingRow>
+  <SettingRow id="canvas-images-thumbs" label={$t("canvas.settings.imagesThumbs")} help={$t("canvas.settings.imagesThumbsHint")} settingKey="canvas.settings.imagesThumbs">
+    {#snippet control({ id, describedBy })}
+      <button {id} type="button" class="btn btn-secondary btn-sm" aria-describedby={describedBy} disabled={clearing} onclick={clear}>{$t("canvas.settings.imagesClearThumbs")}</button>
+    {/snippet}
+  </SettingRow>
+</Subgroup>
 
 <style>
-  .num {
-    width: 88px;
-  }
+  .block { padding-block: var(--space-2); }
+  .block-label { display: block; font-size: var(--text-base); line-height: 20px; color: var(--text); }
+  .num { inline-size: 88px; }
+  .node { fill: var(--surface-hi-src, var(--surface-src)); stroke: var(--tertiary); }
+  .line { fill: none; stroke: var(--tertiary); stroke-width: 2; stroke-linecap: round; opacity: 0.6; }
+  .plate { fill: var(--accent-soft); stroke: var(--accent); }
 </style>

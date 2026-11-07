@@ -1,3 +1,4 @@
+#[cfg(not(windows))]
 use std::process::{Child, Command, Stdio};
 use std::sync::{Mutex, OnceLock};
 use std::time::Duration;
@@ -9,13 +10,44 @@ use tokio::sync::Notify;
 
 const TICK: Duration = Duration::from_secs(5);
 
+#[cfg(windows)]
+struct Assertion {
+    stop: std::sync::mpsc::Sender<()>,
+}
+
+#[cfg(windows)]
+impl Assertion {
+    fn alive(&mut self) -> bool {
+        true
+    }
+
+    fn release(self) {
+        drop(self.stop);
+    }
+}
+
+#[cfg(not(windows))]
+struct Assertion(Child);
+
+#[cfg(not(windows))]
+impl Assertion {
+    fn alive(&mut self) -> bool {
+        !matches!(self.0.try_wait(), Ok(Some(_)))
+    }
+
+    fn release(mut self) {
+        let _ = self.0.kill();
+        let _ = self.0.wait();
+    }
+}
+
 struct Hold {
-    child: Option<Child>,
+    assertion: Option<Assertion>,
 }
 
 fn hold() -> &'static Mutex<Hold> {
     static H: OnceLock<Mutex<Hold>> = OnceLock::new();
-    H.get_or_init(|| Mutex::new(Hold { child: None }))
+    H.get_or_init(|| Mutex::new(Hold { assertion: None }))
 }
 
 fn wake() -> &'static Notify {
@@ -79,50 +111,65 @@ fn tick(app: &AppHandle, canvas: &CanvasSettings) {
     }
 }
 
+fn drop_dead(h: &mut Hold) {
+    if h.assertion.as_mut().is_some_and(|a| !a.alive()) {
+        h.assertion = None;
+    }
+}
+
 pub fn holding() -> bool {
     let mut h = hold().lock().unwrap_or_else(|e| e.into_inner());
-    if let Some(c) = h.child.as_mut() {
-        if matches!(c.try_wait(), Ok(Some(_))) {
-            h.child = None;
-        }
-    }
-    h.child.is_some()
+    drop_dead(&mut h);
+    h.assertion.is_some()
 }
 
 fn set_hold(on: bool) {
     let mut h = hold().lock().unwrap_or_else(|e| e.into_inner());
-    if let Some(c) = h.child.as_mut() {
-        if matches!(c.try_wait(), Ok(Some(_))) {
-            h.child = None;
-        }
-    }
-    match (on, h.child.is_some()) {
-        (true, false) => h.child = spawn_assertion(),
+    drop_dead(&mut h);
+    match (on, h.assertion.is_some()) {
+        (true, false) => h.assertion = spawn_assertion(),
         (false, true) => {
-            if let Some(mut c) = h.child.take() {
-                let _ = c.kill();
-                let _ = c.wait();
+            if let Some(a) = h.assertion.take() {
+                a.release();
             }
         }
         _ => {}
     }
 }
 
-fn spawn_assertion() -> Option<Child> {
-    let pid = std::process::id().to_string();
+#[cfg(windows)]
+fn spawn_assertion() -> Option<Assertion> {
+    const ES_SYSTEM_REQUIRED: u32 = 0x0000_0001;
+    const ES_CONTINUOUS: u32 = 0x8000_0000;
+    #[link(name = "kernel32")]
+    extern "system" {
+        fn SetThreadExecutionState(flags: u32) -> u32;
+    }
+    let (stop, stopped) = std::sync::mpsc::channel::<()>();
+    let spawned = std::thread::Builder::new()
+        .name("canvas-keep-awake".into())
+        .spawn(move || {
+            // SAFETY: the call takes plain flags and only changes this thread's execution state.
+            unsafe { SetThreadExecutionState(ES_CONTINUOUS | ES_SYSTEM_REQUIRED) };
+            let _ = stopped.recv();
+            // SAFETY: same as above; it clears what this thread asked for.
+            unsafe { SetThreadExecutionState(ES_CONTINUOUS) };
+        });
+    match spawned {
+        Ok(_) => Some(Assertion { stop }),
+        Err(e) => {
+            tracing::warn!("[canvas] sleep prevention unavailable: {e}");
+            None
+        }
+    }
+}
+
+#[cfg(not(windows))]
+fn spawn_assertion() -> Option<Assertion> {
     let mut cmd = if cfg!(target_os = "macos") {
+        let pid = std::process::id().to_string();
         let mut c = Command::new("/usr/bin/caffeinate");
         c.args(["-i", "-w", &pid]);
-        c
-    } else if cfg!(windows) {
-        let mut c = Command::new("powershell");
-        c.args([
-            "-NoProfile",
-            "-NonInteractive",
-            "-Command",
-            "$t=Add-Type -Name P -Namespace OmniGet -PassThru -MemberDefinition '[DllImport(\"kernel32.dll\")] public static extern uint SetThreadExecutionState(uint f);'; \
-             $t::SetThreadExecutionState(0x80000001) | Out-Null; while ($true) { Start-Sleep -Seconds 60 }",
-        ]);
         c
     } else {
         let mut c = Command::new("systemd-inhibit");
@@ -139,13 +186,8 @@ fn spawn_assertion() -> Option<Child> {
     cmd.stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::null());
-    #[cfg(windows)]
-    {
-        use std::os::windows::process::CommandExt;
-        cmd.creation_flags(0x0800_0000);
-    }
     match cmd.spawn() {
-        Ok(c) => Some(c),
+        Ok(c) => Some(Assertion(c)),
         Err(e) => {
             tracing::warn!("[canvas] sleep prevention unavailable: {e}");
             None

@@ -1,5 +1,3 @@
-export type Tier = 0 | 1 | 2 | 3;
-
 export const ERR = {
   NO_WEBGL: 'ERR_WORLD_NO_WEBGL',
   NO_CANVAS2D: 'ERR_WORLD_NO_CANVAS2D',

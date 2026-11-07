@@ -13,7 +13,6 @@ use super::agent::{AgentDef, ModelPolicy};
 use super::broker::ToolBroker;
 use super::budget::BudgetStore;
 use super::error::LlmError;
-use super::prune::ContextPruner;
 use super::router::{self, AlwaysAvailable, Router};
 use super::runtime::AgentRuntime;
 use super::types::{
@@ -237,7 +236,6 @@ pub struct Coordinator {
     router: Arc<Router>,
     dir: Option<PathBuf>,
     params: GenParams,
-    pruner: std::sync::RwLock<Arc<ContextPruner>>,
     runs: std::sync::RwLock<Option<crate::core::assist::runs::Registry>>,
     policies: std::sync::RwLock<Option<Arc<super::budget::policy::Engine>>>,
 }
@@ -266,7 +264,6 @@ impl Coordinator {
             router: Arc::new(Router::new(Arc::new(AlwaysAvailable))),
             dir: default_conversations_dir(),
             params: GenParams::default(),
-            pruner: std::sync::RwLock::new(Arc::new(ContextPruner::disabled())),
             runs: std::sync::RwLock::new(None),
             policies: std::sync::RwLock::new(None),
         }
@@ -330,20 +327,6 @@ impl Coordinator {
     pub fn with_router(mut self, router: Arc<Router>) -> Self {
         self.router = router;
         self
-    }
-
-    pub fn set_prune(&self, pruner: Arc<ContextPruner>) {
-        match self.pruner.write() {
-            Ok(mut slot) => *slot = pruner,
-            Err(poisoned) => *poisoned.into_inner() = pruner,
-        }
-    }
-
-    pub fn pruner(&self) -> Arc<ContextPruner> {
-        match self.pruner.read() {
-            Ok(slot) => slot.clone(),
-            Err(poisoned) => poisoned.into_inner().clone(),
-        }
     }
 
     pub fn with_dir(mut self, dir: Option<PathBuf>) -> Self {
@@ -737,7 +720,6 @@ impl Coordinator {
         let mut reroutes = 0usize;
         let mut tool_calls_used = 0u8;
         let mut total = Usage::default();
-        let mut requests = 0u32;
         let mut last_model: Option<ModelRef> = None;
         let finish: FinishReason = 'turn: loop {
             if cancel.is_cancelled() {
@@ -754,16 +736,7 @@ impl Coordinator {
                     break 'turn FinishReason::Other;
                 }
             };
-            let pruner = self.pruner();
-            let (sent, pruned) = pruner.apply_sticky(&conversation_id, &history);
-            let receipt = pruner.config().enabled.then(|| {
-                (
-                    pruned.omitted as u32,
-                    estimate_tokens(&history),
-                    estimate_tokens(&sent),
-                )
-            });
-            requests += 1;
+            let sent = history.clone();
             let mut external_debit: Option<String> = None;
             let mut req = TurnRequest {
                 model,
@@ -937,7 +910,6 @@ impl Coordinator {
                     } => {
                         cli_results.push((id, content, is_error));
                     }
-                    TurnEvent::PruneReceipt { .. } => {}
                     TurnEvent::Usage { usage } => {
                         request_input = Some(
                             request_input
@@ -977,20 +949,6 @@ impl Coordinator {
                     crate::core::assist::authority::settle_model_actual(&debit, used)
                 };
             }
-            if let Some((omitted, before, after)) = receipt {
-                let _ = tx
-                    .send(TurnEvent::PruneReceipt {
-                        request: requests,
-                        omitted,
-                        est_tokens_before: before,
-                        est_tokens_after: after,
-                        input_tokens: request_input,
-                        billable_input_tokens: request_input
-                            .map(|_| request_billable_input.min(u32::MAX as u64) as u32),
-                    })
-                    .await;
-            }
-
             if cancelled || cancel.is_cancelled() {
                 break 'turn FinishReason::Cancelled;
             }
@@ -1174,14 +1132,6 @@ impl Coordinator {
                 history.push(msg);
                 tool_calls_used += 1;
             }
-
-            if !crate::core::assist::authority::external(&conversation_id) && pruner.is_active() {
-                let (pruner, id, snapshot) =
-                    (pruner.clone(), conversation_id.clone(), history.clone());
-                tokio::spawn(async move {
-                    pruner.judge_turn(&id, &snapshot).await;
-                });
-            }
         };
 
         total.total_ms = started.elapsed().as_millis() as u32;
@@ -1309,14 +1259,6 @@ impl Coordinator {
             for h in hooks {
                 h.after_turn(&agent, &conversation_id, &user_input, &last_text);
             }
-        }
-
-        let pruner = self.pruner();
-        if !crate::core::assist::authority::external(&conversation_id) && pruner.is_active() {
-            let id = conversation_id;
-            tokio::spawn(async move {
-                pruner.judge_turn(&id, &history).await;
-            });
         }
     }
 

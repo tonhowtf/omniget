@@ -8,7 +8,7 @@ use std::time::SystemTime;
 use serde_json::{json, Value};
 
 use super::super::fsops;
-use super::super::plan::{self, Op, PlanItem, Source};
+use super::super::plan::{self, Op, PlanItem};
 use super::super::protect::{self, Guard};
 use super::super::store::Ctx;
 use super::super::tools::blocking;
@@ -500,15 +500,6 @@ pub fn roots_from(a: &Value, defaults: fn() -> Vec<PathBuf>) -> (Vec<PathBuf>, V
     (roots, skipped)
 }
 
-pub fn source_of(a: &Value) -> Source {
-    match a["_source"].as_str() {
-        Some("ui") => Source::Ui,
-        Some("external") => Source::External,
-        Some("cli") => Source::Cli,
-        _ => Source::Agent,
-    }
-}
-
 fn age_days(t: SystemTime) -> u64 {
     t.elapsed().map(|d| d.as_secs() / 86_400).unwrap_or(0)
 }
@@ -604,7 +595,7 @@ pub fn scan_with(ctx: &Ctx, a: &Value) -> Result<Value, String> {
     let plan_id = if items.is_empty() {
         None
     } else {
-        Some(plan::offer(ctx, "dev_artifacts", items, source_of(a))?.id)
+        Some(plan::offer(ctx, "dev_artifacts", items, plan::source_of(a))?.id)
     };
     Ok(json!({
         "items": preview,

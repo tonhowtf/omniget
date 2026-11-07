@@ -75,6 +75,9 @@ fn parse_youtube(parsed: &url::Url, segments: &[&str]) -> (Option<String>, Parse
     if let Some(host) = parsed.host_str() {
         if host.contains("youtu.be") {
             let id = segments.first().map(|s| s.to_string());
+            if parsed.query_pairs().any(|(k, _)| k == "list") {
+                return (id, ParsedContentType::Playlist);
+            }
             return (id, ParsedContentType::Video);
         }
     }
@@ -82,6 +85,11 @@ fn parse_youtube(parsed: &url::Url, segments: &[&str]) -> (Option<String>, Parse
     if segments.first() == Some(&"shorts") {
         let id = segments.get(1).map(|s| s.to_string());
         return (id, ParsedContentType::Short);
+    }
+
+    if segments.first() == Some(&"live") {
+        let id = segments.get(1).map(|s| s.to_string());
+        return (id, ParsedContentType::Video);
     }
 
     if segments.first() == Some(&"playlist") {
@@ -336,4 +344,36 @@ fn parse_xiaohongshu(segments: &[&str]) -> (Option<String>, ParsedContentType) {
         return (Some(segments[2].to_string()), ParsedContentType::Post);
     }
     (None, ParsedContentType::Post)
+}
+
+#[cfg(test)]
+mod link_shape_tests {
+    use super::*;
+
+    fn kind(url: &str) -> ParsedContentType {
+        parse_url(url).unwrap().content_type
+    }
+
+    #[test]
+    fn live_format_link_is_a_video() {
+        let parsed = parse_url("https://www.youtube.com/live/jNQXAC9IVRw").unwrap();
+        assert_eq!(parsed.content_id.as_deref(), Some("jNQXAC9IVRw"));
+        assert!(matches!(parsed.content_type, ParsedContentType::Video));
+    }
+
+    #[test]
+    fn video_inside_a_list_is_offered_as_a_list_on_both_hosts() {
+        assert!(matches!(
+            kind("https://www.youtube.com/watch?v=abc&list=RDabc"),
+            ParsedContentType::Playlist
+        ));
+        assert!(matches!(
+            kind("https://youtu.be/abc?list=PL1"),
+            ParsedContentType::Playlist
+        ));
+        assert!(matches!(
+            kind("https://youtu.be/abc"),
+            ParsedContentType::Video
+        ));
+    }
 }

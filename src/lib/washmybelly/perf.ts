@@ -32,7 +32,7 @@ export type SessionSummary = {
   reason?: string | null;
 };
 
-export type Stats = {
+type Stats = {
   frames: number;
   duration_s: number;
   fps_avg?: number | null;
@@ -160,7 +160,7 @@ export function smoothness(avg: number | null | undefined, low: number | null | 
   return "bad";
 }
 
-export function niceMax(v: number): number {
+function niceMax(v: number): number {
   if (!(v > 0) || !Number.isFinite(v)) return 1;
   const p = 10 ** Math.floor(Math.log10(v));
   for (const m of [1, 2, 2.5, 5, 10]) if (m * p >= v) return m * p;

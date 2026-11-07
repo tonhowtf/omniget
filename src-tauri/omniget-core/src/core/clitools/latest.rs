@@ -1,10 +1,11 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Mutex;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
 
+use super::detect::now;
 use super::exec::{compare_versions, parse_version};
 use super::table::{CliTool, LatestSource};
 
@@ -35,13 +36,6 @@ pub struct Latest {
 struct Entry {
     version: Option<String>,
     at: u64,
-}
-
-fn now() -> u64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|d| d.as_secs())
-        .unwrap_or(0)
 }
 
 fn cache() -> &'static Mutex<HashMap<String, Entry>> {

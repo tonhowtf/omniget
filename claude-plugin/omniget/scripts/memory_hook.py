@@ -3,7 +3,7 @@
 each turn. Talks to the running OmniGet app over its MCP endpoint.
 
 Off unless OMNIGET_MEMORY_TOKEN is set: create a connection in OmniGet →
-LLM → MCP with the "memory_read" scope (and "memory_write" to let it learn),
+AI & agents → Connect to other apps with the "memory_read" scope (and "memory_write" to let it learn),
 then export its token. OMNIGET_MCP_URL overrides the endpoint
 (default http://127.0.0.1:47720/mcp).
 

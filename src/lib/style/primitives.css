@@ -374,29 +374,6 @@ input[type="radio"]:not([class]):disabled {
 .avatar-sm { width: 20px; height: 20px; font-size: var(--text-caption); }
 .avatar-lg { width: 44px; height: 44px; font-size: var(--text-md); }
 
-.symbol-tile {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  flex-shrink: 0;
-  border-radius: 7px;
-  background: var(--accent);
-  color: var(--on-accent);
-}
-
-.symbol-tile-lg {
-  width: 40px;
-  height: 40px;
-  border-radius: 10px;
-}
-
-.symbol-tile-neutral {
-  background: var(--fill-2);
-  color: var(--text-muted);
-}
-
 .surface-card {
   background: var(--surface);
   border-radius: var(--radius-lg);

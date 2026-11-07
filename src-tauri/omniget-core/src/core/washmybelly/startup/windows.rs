@@ -45,7 +45,6 @@ pub struct Task {
     pub author: String,
     pub run: String,
     pub run_as: String,
-    pub comment: String,
     pub at_logon: bool,
     pub at_boot: bool,
 }
@@ -124,11 +123,6 @@ pub fn parse_schtasks(csv: &str) -> Vec<Task> {
                 author: row[7].clone(),
                 run: row[8].clone(),
                 run_as: row[14].clone(),
-                comment: if row[10] == "N/A" {
-                    String::new()
-                } else {
-                    row[10].clone()
-                },
                 at_logon,
                 at_boot,
             }),

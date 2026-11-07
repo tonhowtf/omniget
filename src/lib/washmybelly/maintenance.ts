@@ -14,7 +14,7 @@ export type MaintenanceTask = {
 
 export type MaintenanceList = { os: "macos" | "windows" | "linux"; tasks: MaintenanceTask[] };
 
-export const GROUP_ORDER = ["network", "apps", "search", "disk", "system"];
+const GROUP_ORDER = ["network", "apps", "search", "disk", "system"];
 
 export function sortTasks(tasks: MaintenanceTask[]): MaintenanceTask[] {
   const g = (t: MaintenanceTask) => {

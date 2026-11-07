@@ -211,11 +211,6 @@ pub async fn call_as(
         _ => Err(format!("unknown tool: {name}")),
     }
 }
-
-pub fn not_ready(name: &str) -> String {
-    format!("NOT_AVAILABLE: {name} is not available in this build yet")
-}
-
 pub async fn blocking<T, F>(f: F) -> Result<T, String>
 where
     T: Send + 'static,

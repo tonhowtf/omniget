@@ -320,8 +320,6 @@ pub struct TextData {
     pub text: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub font_size: Option<f64>,
-    #[serde(default, skip_serializing_if = "is_false")]
-    pub is_monospaced: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub color: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]

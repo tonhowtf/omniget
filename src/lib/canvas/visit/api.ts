@@ -161,8 +161,4 @@ export function remoteRevoke(id: string): Promise<boolean> {
   return invoke('remote_device_revoke', { id });
 }
 
-export function errorText(e: unknown): string {
-  const s = e instanceof Error ? e.message : String(e);
-  const i = s.indexOf(':');
-  return i > 0 && /^[A-Z_]+$/.test(s.slice(0, i)) ? s.slice(i + 1).trim() : s;
-}
+export { errorText } from '../companion/api';

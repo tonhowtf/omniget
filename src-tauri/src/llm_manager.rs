@@ -9,9 +9,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use tokio_util::sync::CancellationToken;
 
-use omniget_core::core::llm::agent::{
-    AgentDef, Candidate, CandidateRuntime, GrantMode, ModelPolicy, ToolGrant, ToolSource,
-};
+use omniget_core::core::llm::agent::{AgentDef, Candidate, CandidateRuntime, ModelPolicy};
 use omniget_core::core::llm::broker::{ToolBroker, ToolExecutor};
 use omniget_core::core::llm::budget::BudgetStore;
 use omniget_core::core::llm::cli_runtime::parse as cli_parse;
@@ -19,7 +17,7 @@ use omniget_core::core::llm::cli_runtime::{
     AccountStore, CliCapacity, CliCapacitySource, CliRuntime,
 };
 use omniget_core::core::llm::coordinator::{self, Coordinator};
-use omniget_core::core::llm::error::{LlmError, ERR_LLM_MODEL, ERR_LLM_NET};
+use omniget_core::core::llm::error::{LlmError, ERR_LLM_NET};
 use omniget_core::core::llm::providers::fake::FakeProvider;
 use omniget_core::core::llm::providers::{
     anthropic::AnthropicProvider, openai_compat::OpenAiCompat,
@@ -28,9 +26,7 @@ use omniget_core::core::llm::providers::{Provider, WireCapture};
 use omniget_core::core::llm::roster_store::{self, RosterStore};
 use omniget_core::core::llm::router::{self, Capacity, CapacitySource, Router};
 use omniget_core::core::llm::runtime::{AgentRuntime, CompositeRuntime, NativeRuntime};
-use omniget_core::core::llm::types::{
-    Message, ModelRef, ProviderId, Role, ToolSpec, TurnEvent, Usage,
-};
+use omniget_core::core::llm::types::{ModelRef, ProviderId, ToolSpec, TurnEvent, Usage};
 use omniget_core::core::omni::bus::{Bus, BusEvent};
 use omniget_core::core::tools::ai_keys;
 
@@ -83,106 +79,19 @@ impl ToolExecutor for McpToolExecutor {
                 "the app is not ready to run tools yet",
             ));
         };
-        let help_turn = omniget_core::core::llm::code_tools::current_turn()
-            .filter(|ctx| ctx.conversation.starts_with("help-"));
-        let help_context = help_turn.is_some();
-        let tool_call_id = omniget_core::core::llm::code_tools::current_tool_call();
-        let mut input = input;
-        if name == "download_enqueue" {
-            if let Some(ctx) = omniget_core::core::llm::code_tools::current_turn()
-                .filter(|ctx| ctx.conversation.starts_with("help-"))
-            {
-                let key = crate::commands::llm::help::download_intent(
-                    &ctx.request,
-                    input["url"].as_str().unwrap_or(""),
-                    input["mode"].as_str().unwrap_or("video"),
-                )
-                .map_err(|e| LlmError::new(ERR_LLM_NET, e))?;
-                input["idempotencyKey"] = serde_json::json!(key);
-            }
-        }
         let result = match crate::mcp::call(&app, name, input).await {
-            Ok(value) => {
-                let value = if help_context {
-                    crate::commands::llm::help_redaction::redact_download_output(value)
-                } else {
-                    value
-                };
-                Ok(match value {
-                    Value::String(s) => s,
-                    other => other.to_string(),
-                })
-            }
-            Err(message) => Err(LlmError::new(
-                ERR_LLM_NET,
-                if help_context {
-                    crate::commands::llm::help_redaction::redact_text(&message)
-                } else {
-                    message
-                },
-            )),
+            Ok(value) => Ok(match value {
+                Value::String(s) => s,
+                other => other.to_string(),
+            }),
+            Err(message) => Err(LlmError::new(ERR_LLM_NET, message)),
         };
-        if let (Some(ctx), Some(call_id)) = (help_turn, tool_call_id) {
-            use tauri::Emitter;
-            let event = help_tool_result_event(call_id, &result);
-            let _ = app.emit(
-                "help://turn",
-                serde_json::json!({"request_id":ctx.request,"event":event}),
-            );
-        }
         result
-    }
-}
-
-fn help_tool_result_event(id: String, result: &Result<String, LlmError>) -> TurnEvent {
-    let (content, is_error) = match result {
-        Ok(content) => (content.clone(), false),
-        Err(error) => (format!("{}: {}", error.code, error.message), true),
-    };
-    TurnEvent::ToolResult {
-        id,
-        content,
-        is_error,
     }
 }
 
 pub fn internal_specs() -> Vec<ToolSpec> {
     omniget_core::core::llm::tool_table::specs()
-}
-
-pub struct McpSourceExecutor;
-
-#[async_trait]
-impl ToolExecutor for McpSourceExecutor {
-    async fn execute(&self, name: &str, input: Value) -> Result<String, LlmError> {
-        let Some((server, tool)) = split_mcp_name(name) else {
-            return Err(LlmError::new(
-                ERR_LLM_MODEL,
-                format!("`{name}` is not an MCP tool name (mcp:<server>:<tool>)"),
-            ));
-        };
-        let Some(registry) = crate::commands::llm::mcp::registry() else {
-            return Err(LlmError::new(
-                ERR_LLM_NET,
-                "no app data dir for the MCP server list",
-            ));
-        };
-        let client = registry.client_for(&server).await?;
-        let value = client.call(&tool, input, None).await?;
-        Ok(match value {
-            Value::String(s) => s,
-            other => other.to_string(),
-        })
-    }
-}
-
-pub fn split_mcp_name(name: &str) -> Option<(String, String)> {
-    let rest = name.strip_prefix("mcp:")?;
-    let (server, tool) = rest.split_once(':')?;
-    if server.is_empty() || tool.is_empty() {
-        return None;
-    }
-    Some((server.to_string(), tool.to_string()))
 }
 
 #[derive(Default)]
@@ -199,14 +108,6 @@ impl AppCapacity {
     pub fn get(&self, key: &str) -> Option<Capacity> {
         let map = self.map.lock().unwrap_or_else(|e| e.into_inner());
         map.get(key).cloned()
-    }
-
-    pub fn len(&self) -> usize {
-        self.map.lock().unwrap_or_else(|e| e.into_inner()).len()
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.len() == 0
     }
 }
 
@@ -502,15 +403,6 @@ pub fn now_ms() -> u64 {
         .unwrap_or(0)
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ConversationInfo {
-    pub id: String,
-    pub title: String,
-    pub agent_id: Option<String>,
-    pub messages: u32,
-    pub updated_ms: u64,
-}
-
 pub struct ConversationStore {
     dir: PathBuf,
 }
@@ -524,14 +416,6 @@ impl ConversationStore {
         &self.dir
     }
 
-    pub fn messages(&self, id: &str) -> Vec<Message> {
-        coordinator::load_conversation(&self.dir, id).unwrap_or_default()
-    }
-
-    pub fn seed(&self, id: &str, agent: &str, message: &Message) {
-        coordinator::append_message(&self.dir, id, Some(agent), message);
-    }
-
     pub fn delete(&self, id: &str) -> Result<(), String> {
         let path = coordinator::conversation_path(&self.dir, id)
             .map_err(|e| format!("{}: {}", e.code, e.message))?;
@@ -540,74 +424,6 @@ impl ConversationStore {
         }
         Ok(())
     }
-
-    pub fn list(&self) -> Vec<ConversationInfo> {
-        let Ok(entries) = std::fs::read_dir(&self.dir) else {
-            return Vec::new();
-        };
-        let mut out: Vec<ConversationInfo> = entries
-            .flatten()
-            .filter(|e| e.path().extension().map(|x| x == "jsonl").unwrap_or(false))
-            .filter_map(|e| {
-                let id = e.path().file_stem()?.to_string_lossy().to_string();
-                let updated_ms = e
-                    .metadata()
-                    .ok()
-                    .and_then(|m| m.modified().ok())
-                    .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
-                    .map(|d| d.as_millis() as u64)
-                    .unwrap_or(0);
-                let messages = self.messages(&id);
-                Some(ConversationInfo {
-                    id,
-                    title: title_of(&messages),
-                    agent_id: self.last_agent(&e.path()),
-                    messages: messages.len() as u32,
-                    updated_ms,
-                })
-            })
-            .collect();
-        out.sort_by_key(|c| std::cmp::Reverse(c.updated_ms));
-        out
-    }
-
-    fn last_agent(&self, path: &std::path::Path) -> Option<String> {
-        let text = std::fs::read_to_string(path).ok()?;
-        text.lines()
-            .rev()
-            .filter_map(|l| serde_json::from_str::<coordinator::ConversationRecord>(l).ok())
-            .find_map(|r| r.agent)
-    }
-}
-
-pub fn title_of(messages: &[Message]) -> String {
-    let text = messages
-        .iter()
-        .find(|m| m.role == Role::User)
-        .map(message_text)
-        .unwrap_or_default();
-    let first = text.lines().next().unwrap_or("").trim();
-    if first.is_empty() {
-        return "…".to_string();
-    }
-    let mut s: String = first.chars().take(60).collect();
-    if first.chars().count() > 60 {
-        s.push('…');
-    }
-    s
-}
-
-pub fn message_text(message: &Message) -> String {
-    use omniget_core::core::llm::types::ContentPart;
-    message
-        .parts
-        .iter()
-        .filter_map(|p| match p {
-            ContentPart::Text { text } => Some(text.as_str()),
-            _ => None,
-        })
-        .collect::<Vec<_>>()
-        .join("")
 }
 
 pub fn sanitize_id(id: &str) -> String {
@@ -667,7 +483,6 @@ struct Inner {
     executor: Arc<McpToolExecutor>,
     turns: Mutex<HashMap<String, TurnHandle>>,
     model_overrides: Mutex<HashMap<String, ModelRef>>,
-    bridge_openai: AtomicBool,
     telemetry_ticking: AtomicBool,
     bus_forwarding: AtomicBool,
     next_request: AtomicU64,
@@ -678,8 +493,6 @@ struct TurnHandle {
     cancel: CancellationToken,
     agent_id: String,
 }
-
-static PRUNE_RECEIPTS: Mutex<Vec<serde_json::Value>> = Mutex::new(Vec::new());
 
 fn sync_skill_bindings(bot: &str, skills: &[String]) {
     use omniget_core::core::assist::bots::{skills as bot_skills, BotEnv};
@@ -704,12 +517,6 @@ impl LlmManager {
         Self {
             inner: OnceLock::new(),
             root_override: Mutex::new(None),
-        }
-    }
-
-    pub fn set_root(&self, root: PathBuf) {
-        if let Ok(mut g) = self.root_override.lock() {
-            *g = Some(root);
         }
     }
 
@@ -823,7 +630,6 @@ impl LlmManager {
             executor,
             turns: Mutex::new(HashMap::new()),
             model_overrides: Mutex::new(read_overrides(&root.join("model-overrides.json"))),
-            bridge_openai: AtomicBool::new(read_flag(&root.join("bridge-openai.json"))),
             telemetry_ticking: AtomicBool::new(false),
             bus_forwarding: AtomicBool::new(false),
             next_request: AtomicU64::new(1),
@@ -849,10 +655,6 @@ impl LlmManager {
         self.inner().budget.clone()
     }
 
-    pub fn router(&self) -> Arc<Router> {
-        self.inner().router.clone()
-    }
-
     pub fn coordinator(&self) -> Arc<Coordinator> {
         self.inner().coordinator.clone()
     }
@@ -869,10 +671,6 @@ impl LlmManager {
         let built = build_provider(id)?;
         inner.native.register(id.as_str(), built.clone());
         Some(built)
-    }
-
-    pub fn probe_provider_for(&self, id: &ProviderId) -> Option<Arc<dyn Provider>> {
-        build_provider_with(id, true)
     }
 
     pub fn roster(&self) -> Vec<AgentDef> {
@@ -912,51 +710,6 @@ impl LlmManager {
         sync_skill_bindings(&id, &skills);
         Ok(self.roster())
     }
-
-    pub fn roster_apply_planned(
-        &self,
-        agent: AgentDef,
-        before: Option<AgentDef>,
-        source: AgentDef,
-    ) -> Result<AgentDef, String> {
-        self.inner()
-            .roster
-            .apply_planned(agent, before, source)
-            .map_err(|e| e.to_string())
-    }
-
-    pub fn roster_delete(&self, id: &str) -> Result<Vec<AgentDef>, String> {
-        self.inner().roster.delete(id).map_err(|e| e.to_string())?;
-        if let Ok(db) = omniget_core::core::assist::db::global() {
-            if let Err(e) = omniget_core::core::assist::bots::profile::delete(&db, id) {
-                tracing::warn!("[bots] deleting {id}: {e}");
-            }
-        }
-        Ok(self.roster())
-    }
-
-    pub fn roster_apply_template(&self, template: &str) -> Result<Vec<AgentDef>, String> {
-        let list = self
-            .inner()
-            .roster
-            .apply_template(template)
-            .map_err(|e| e.to_string())?;
-        Ok((*list).clone())
-    }
-
-    pub fn conversations(&self) -> Vec<ConversationInfo> {
-        self.inner()
-            .conversations
-            .list()
-            .into_iter()
-            .filter(|c| !c.id.starts_with("help-"))
-            .collect()
-    }
-
-    pub fn conversation(&self, id: &str) -> Vec<Message> {
-        self.inner().conversations.messages(id)
-    }
-
     pub fn switch_model(&self, conversation_id: &str, model: ModelRef) -> Result<(), String> {
         let inner = self.inner();
         {
@@ -1046,58 +799,6 @@ impl LlmManager {
             .agent(agent_id)
             .ok_or_else(|| format!("{ERR_NO_AGENT}: no agent {agent_id}"))?;
         self.turn_with_agent(conversation_id, agent, input, cancel)
-            .await
-    }
-
-    pub async fn help_turn_stream(
-        &self,
-        conversation_id: &str,
-        source_agent_id: &str,
-        input: &str,
-    ) -> Result<(String, CancellationToken, BoxStream<'static, TurnEvent>), String> {
-        if !conversation_id.starts_with("help-") {
-            return Err("ERR_HELP_SESSION".into());
-        }
-        let mut agent = self.agent(source_agent_id).ok_or("ERR_HELP_CONNECTION")?;
-        agent.id = format!("help-{}", agent.id);
-        agent.name = "Help".into();
-        agent.role = omniget_core::core::llm::agent::AgentRole::Worker;
-        agent.system_prompt = omniget_core::core::llm::roster_store::prompt_defaults().help;
-        agent.skills.clear();
-        agent.tools.retain(
-            |g| !matches!(&g.source, ToolSource::Internal { name } if name.starts_with("help_")),
-        );
-        for name in [
-            "help_docs_search",
-            "help_docs_read",
-            "help_setup_inspect",
-            "help_connection_check",
-            "help_diagnostic_run",
-            "help_agent_plan",
-            "help_agent_apply",
-            "download_enqueue",
-            "download_status",
-            "download_cancel",
-        ] {
-            if !agent
-                .tools
-                .iter()
-                .any(|g| matches!(&g.source, ToolSource::Internal { name: n } if n == name))
-            {
-                agent.tools.push(ToolGrant {
-                    source: ToolSource::Internal { name: name.into() },
-                    mode: if name.ends_with("apply")
-                        || name == "download_enqueue"
-                        || name == "download_cancel"
-                    {
-                        GrantMode::Ask
-                    } else {
-                        GrantMode::Auto
-                    },
-                });
-            }
-        }
-        self.turn_with_agent(conversation_id, agent, input, CancellationToken::new())
             .await
     }
 
@@ -1239,40 +940,6 @@ impl LlmManager {
         Ok((request_id, cancel, stream))
     }
 
-    pub async fn turn_stateless(
-        &self,
-        agent_id: &str,
-        mut messages: Vec<Message>,
-    ) -> Result<
-        (
-            String,
-            String,
-            CancellationToken,
-            BoxStream<'static, TurnEvent>,
-        ),
-        String,
-    > {
-        let inner = self.inner();
-        if inner.roster.get(agent_id).is_none() {
-            return Err(format!("{ERR_NO_AGENT}: no agent {agent_id}"));
-        }
-        let last = messages
-            .iter()
-            .rposition(|m| m.role == Role::User)
-            .map(|i| messages.remove(i))
-            .ok_or_else(|| "ERR_LLM_PARSE: no user message".to_string())?;
-        let conversation_id = format!("bridge-{}", uuid::Uuid::new_v4().simple());
-        for message in &messages {
-            inner
-                .conversations
-                .seed(&conversation_id, agent_id, message);
-        }
-        let input = message_text(&last);
-        let (request_id, cancel, stream) =
-            self.turn_stream(&conversation_id, agent_id, &input).await?;
-        Ok((request_id, conversation_id, cancel, stream))
-    }
-
     pub fn drop_conversation(&self, conversation_id: &str) {
         let _ = self.inner().conversations.delete(conversation_id);
     }
@@ -1368,14 +1035,6 @@ impl LlmManager {
             }
             TurnEvent::ToolCallStart { .. } => t.state = AgentState::WaitingTool,
             TurnEvent::Usage { usage } => fold_usage(t, usage),
-            TurnEvent::PruneReceipt { .. } => {
-                if let Ok(v) = serde_json::to_value(event) {
-                    let mut last = PRUNE_RECEIPTS.lock().unwrap_or_else(|e| e.into_inner());
-                    last.push(serde_json::json!({ "agent": agent_id, "receipt": v }));
-                    let extra = last.len().saturating_sub(12);
-                    last.drain(..extra);
-                }
-            }
             TurnEvent::Error { error } => {
                 t.errors += 1;
                 t.state = AgentState::Error;
@@ -1411,13 +1070,6 @@ impl LlmManager {
             .lock()
             .map(|t| t.len())
             .unwrap_or_default()
-    }
-
-    pub fn prune_receipts(&self) -> Vec<serde_json::Value> {
-        PRUNE_RECEIPTS
-            .lock()
-            .unwrap_or_else(|e| e.into_inner())
-            .clone()
     }
 
     pub fn pending_ask_list(&self) -> Vec<serde_json::Value> {
@@ -1556,10 +1208,6 @@ impl LlmManager {
         self.inner().accounts.clone()
     }
 
-    pub fn cli_capacity(&self) -> Arc<CliCapacity> {
-        self.inner().cli_capacity.clone()
-    }
-
     fn cost_by_day(&self) -> Vec<CostBucket> {
         let state = self.inner().budget.snapshot();
         let (usd, calls) = state
@@ -1615,10 +1263,6 @@ impl LlmManager {
             }),
             _ => {}
         }
-    }
-
-    pub fn bridge_openai_enabled(&self) -> bool {
-        self.inner().bridge_openai.load(Ordering::SeqCst)
     }
 }
 
@@ -1702,14 +1346,6 @@ pub fn build_provider_with(id: &ProviderId, capture: bool) -> Option<Arc<dyn Pro
         };
         Arc::new(p) as Arc<dyn Provider>
     })
-}
-
-fn read_flag(path: &std::path::Path) -> bool {
-    std::fs::read_to_string(path)
-        .ok()
-        .and_then(|t| serde_json::from_str::<Value>(&t).ok())
-        .and_then(|v| v.get("enabled").and_then(|e| e.as_bool()))
-        .unwrap_or(false)
 }
 
 fn read_overrides(path: &std::path::Path) -> HashMap<String, ModelRef> {

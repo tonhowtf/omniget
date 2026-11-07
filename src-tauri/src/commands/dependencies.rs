@@ -14,23 +14,37 @@ pub struct DependencyStatus {
     pub outdated: bool,
 }
 
+// WHY: a binary that hangs on --version (seen on old macOS) must not leave the Dependencies page on Loading forever (OMNI-42).
+const DEPENDENCY_CHECK_LIMIT: std::time::Duration = std::time::Duration::from_secs(25);
+
+async fn within_check_limit<T>(check: impl std::future::Future<Output = Option<T>>) -> Option<T> {
+    tokio::time::timeout(DEPENDENCY_CHECK_LIMIT, check)
+        .await
+        .ok()
+        .flatten()
+}
+
 #[tauri::command]
 pub async fn check_dependencies() -> Result<Vec<DependencyStatus>, String> {
     let (ytdlp_result, ffmpeg_result) = tokio::join!(
-        dependencies::find_tool_with_source("yt-dlp"),
-        dependencies::find_tool_with_source("ffmpeg"),
+        within_check_limit(dependencies::find_tool_with_source("yt-dlp")),
+        within_check_limit(dependencies::find_tool_with_source("ffmpeg")),
     );
 
     let (ytdlp_version, ffmpeg_version) = tokio::join!(
         async {
             match ytdlp_result.as_ref() {
-                Some((path, _)) => dependencies::check_version_at_path(path, "yt-dlp").await,
+                Some((path, _)) => {
+                    within_check_limit(dependencies::check_version_at_path(path, "yt-dlp")).await
+                }
                 None => None,
             }
         },
         async {
             match ffmpeg_result.as_ref() {
-                Some((path, _)) => dependencies::check_version_at_path(path, "ffmpeg").await,
+                Some((path, _)) => {
+                    within_check_limit(dependencies::check_version_at_path(path, "ffmpeg")).await
+                }
                 None => None,
             }
         },
@@ -85,10 +99,18 @@ pub async fn install_dependency(name: String, force: Option<bool>) -> Result<Str
     match name.as_str() {
         "yt-dlp" => {
             if force {
-                archive_before_update("yt-dlp").await;
-                crate::core::ytdlp::update_ytdlp()
-                    .await
-                    .map_err(|e| e.to_string())?;
+                if omniget_core::core::binary_overrides::get("yt-dlp").is_some() {
+                    return Err(
+                        "yt-dlp is set to your own file, which OmniGet does not change. Choose \"Use the managed one again\" first".into(),
+                    );
+                }
+                let archived = archive_before_update("yt-dlp").await;
+                if let Err(e) = crate::core::ytdlp::update_ytdlp().await {
+                    if let Some(copy) = archived {
+                        let _ = std::fs::remove_file(copy);
+                    }
+                    return Err(e.to_string());
+                }
             } else {
                 crate::core::ytdlp::ensure_ytdlp()
                     .await
@@ -134,13 +156,11 @@ fn agora_ms() -> u128 {
         .unwrap_or(0)
 }
 
-async fn archive_before_update(name: &str) {
-    let Some(bin) = managed_binary_path(name).await else {
-        return;
-    };
+async fn archive_before_update(name: &str) -> Option<PathBuf> {
+    let bin = managed_binary_path(name).await?;
     match crate::core::binary_versions::archive_current(&bin, agora_ms()) {
         Ok(Some(dest)) => {
-            tracing::info!("[deps] {} arquivado em {}", name, dest.display());
+            tracing::info!("[deps] {} archived at {}", name, dest.display());
             let arquivadas = crate::core::binary_versions::list_archived(&bin);
             for velha in crate::core::binary_versions::prune_list(
                 &arquivadas,
@@ -148,9 +168,13 @@ async fn archive_before_update(name: &str) {
             ) {
                 let _ = std::fs::remove_file(&velha);
             }
+            Some(dest)
         }
-        Ok(None) => {}
-        Err(e) => tracing::warn!("[deps] nao foi possivel arquivar {}: {}", name, e),
+        Ok(None) => None,
+        Err(e) => {
+            tracing::warn!("[deps] could not archive {}: {}", name, e);
+            None
+        }
     }
 }
 
@@ -180,16 +204,16 @@ pub async fn dependency_archived_versions(name: String) -> Result<Vec<ArchivedVe
 pub async fn rollback_dependency(name: String, stamp_ms: String) -> Result<String, String> {
     let alvo: u128 = stamp_ms
         .parse()
-        .map_err(|_| format!("stamp invalido: {stamp_ms}"))?;
+        .map_err(|_| format!("invalid stamp: {stamp_ms}"))?;
     let bin = managed_binary_path(&name)
         .await
-        .ok_or_else(|| format!("{name} nao tem binario gerenciado"))?;
+        .ok_or_else(|| format!("{name} has no managed binary"))?;
 
     let arquivada = crate::core::binary_versions::list_archived(&bin)
         .into_iter()
         .find(|(s, _)| *s == alvo)
         .map(|(_, p)| p)
-        .ok_or_else(|| "versao guardada nao encontrada".to_string())?;
+        .ok_or_else(|| "stored version not found".to_string())?;
 
     crate::core::binary_versions::rollback_to(&bin, &arquivada).map_err(|e| e.to_string())?;
 
@@ -199,7 +223,7 @@ pub async fn rollback_dependency(name: String, stamp_ms: String) -> Result<Strin
 
     crate::core::dependencies::check_version(&name)
         .await
-        .ok_or_else(|| "voltou, mas a checagem de versao falhou".to_string())
+        .ok_or_else(|| "rolled back, but the version check failed".to_string())
 }
 
 #[tauri::command]
@@ -253,4 +277,9 @@ pub async fn clear_dependency_path(name: String) -> Result<(), String> {
 #[tauri::command]
 pub fn dependency_custom_path(name: String) -> Option<String> {
     omniget_core::core::binary_overrides::get(&name).map(|p| p.to_string_lossy().to_string())
+}
+
+#[tauri::command]
+pub fn dependency_last_custom_path(name: String) -> Option<String> {
+    omniget_core::core::binary_overrides::last(&name).map(|p| p.to_string_lossy().to_string())
 }

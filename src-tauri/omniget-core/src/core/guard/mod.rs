@@ -5,7 +5,6 @@ pub mod reference;
 pub mod rules;
 pub mod semantic;
 pub mod shell;
-pub mod stats;
 pub mod structural;
 pub mod text;
 pub mod tools;
@@ -152,10 +151,6 @@ fn pick_entry(kind: Kind, files: &BTreeMap<String, Vec<u8>>) -> Option<String> {
 
 static INLINE_BANG: Lazy<Regex> = Lazy::new(|| Regex::new(r"!`([^`\n]+)`").unwrap());
 static GEMINI_BANG: Lazy<Regex> = Lazy::new(|| Regex::new(r"!\{([^}\n]+)\}").unwrap());
-
-pub fn scan_component(input: &ComponentInput, opts: &GuardOptions) -> GuardReport {
-    scan_inner(input, opts, None)
-}
 
 fn scan_inner(input: &ComponentInput, opts: &GuardOptions, root: Option<&Path>) -> GuardReport {
     let kind = Kind::parse(&input.kind);
@@ -1208,18 +1203,4 @@ pub fn scan_paths(
         .iter()
         .flat_map(|p| scan_path(p, None, origin_tool, opts))
         .collect()
-}
-
-pub fn scan_installed(
-    target_id: &str,
-    _scope: &str,
-    project_dir: Option<&Path>,
-    paths: &[PathBuf],
-    opts: &GuardOptions,
-) -> Vec<GuardReport> {
-    let mut o = opts.clone();
-    if let Some(p) = project_dir {
-        o.project_dir = Some(p.display().to_string());
-    }
-    scan_paths(paths, Some(target_id), &o)
 }

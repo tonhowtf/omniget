@@ -22,7 +22,7 @@ pub struct AccountsManifest {
     pub profiles: Vec<AccountProfile>,
 }
 
-fn now_unix() -> i64 {
+pub(crate) fn now_unix() -> i64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map(|d| d.as_secs() as i64)
@@ -183,31 +183,6 @@ pub fn rename_profile(
     let cloned = p.clone();
     save_manifest(plugin_data_dir, &m)?;
     Ok(cloned)
-}
-
-pub fn backup_current_session(plugin_data_dir: &Path) -> anyhow::Result<PathBuf> {
-    let _g = FILE_LOCK.lock().ok();
-    let live = live_session_path()?;
-    if !live.exists() {
-        anyhow::bail!("No active session to back up");
-    }
-    let bk_dir = plugin_data_dir.join("backups");
-    std::fs::create_dir_all(&bk_dir)?;
-    let ts = chrono_like_timestamp();
-    let dest = bk_dir.join(format!("session-{}.bak", ts));
-    std::fs::copy(&live, &dest)?;
-    Ok(dest)
-}
-
-fn chrono_like_timestamp() -> String {
-    let secs = now_unix();
-    let days = secs / 86_400;
-    let (y, m, d) = super::bandwidth::unix_days_to_ymd_pub(days);
-    let rem = secs % 86_400;
-    let hh = rem / 3600;
-    let mm = (rem % 3600) / 60;
-    let ss = rem % 60;
-    format!("{:04}{:02}{:02}-{:02}{:02}{:02}", y, m, d, hh, mm, ss)
 }
 
 pub fn list_backups(plugin_data_dir: &Path) -> Vec<(String, i64)> {

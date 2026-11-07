@@ -74,7 +74,7 @@ export type Artist = {
 
 type LrcWord = { time_ms: number; text: string };
 export type LrcLine = { time_ms: number; text: string; words?: LrcWord[] };
-export type Lyrics = {
+type Lyrics = {
   lines: LrcLine[];
   plain: string | null;
   title: string | null;

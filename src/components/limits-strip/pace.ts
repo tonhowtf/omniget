@@ -9,14 +9,14 @@ type Pace = {
 
 type Paced = { used: number | null; resets_at: number | null; span_ms?: number | null };
 
-export function elapsed(resetsAt: number, spanMs: number, now: number): number | null {
+function elapsed(resetsAt: number, spanMs: number, now: number): number | null {
   if (!(spanMs > 0)) return null;
   const untilReset = resetsAt - now;
   if (untilReset <= 0 || untilReset > spanMs) return null;
   return (spanMs - untilReset) / spanMs;
 }
 
-export function runsOutAt(used: number, resetsAt: number, spanMs: number, now: number): number | null {
+function runsOutAt(used: number, resetsAt: number, spanMs: number, now: number): number | null {
   const gone = elapsed(resetsAt, spanMs, now);
   if (gone == null) return null;
   const actual = Math.max(0, Math.min(1, used));

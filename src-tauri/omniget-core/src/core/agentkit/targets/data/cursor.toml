@@ -6,8 +6,6 @@ status = "active"
 beta = false
 homepage = "https://cursor.com"
 notes = "IDE plus the agent CLI (formerly cursor-agent). Loads Claude hooks, agents, skills and plugins while 'Include Third-Party Plugins, Skills, and Other Configs' is on (the default)."
-reads_agents_dir = true
-reads_agents_md = "yes"
 
 [detect]
 binaries = ["agent", "cursor-agent"]   # cursor-agent alias UNVERIFIED
@@ -21,7 +19,6 @@ local = false
 managed = true              # enterprise hooks.json
 project_markers = [".cursor", "AGENTS.md"]
 global_dir = "~/.cursor"
-config_dir_env = "CURSOR_CONFIG_DIR"   # moves cli-config.json
 
 [formats]
 rule = "cursor_mdc"
@@ -126,8 +123,6 @@ PreCompact = "preCompact"
 shape = "cursor"
 timeout_unit = "s"
 version = 1
-env_aliases = ["CLAUDE_PROJECT_DIR"]
-events_count = 21
 
 # Hook matcher names.
 [tool_name_map]
@@ -179,7 +174,6 @@ format = "jsonl"
 cmd = "agent"
 headless = ["-p"]
 json_flag = ["--output-format", "stream-json"]
-resume_flag = "--resume"
 model_flag = "--model"
 permission_flags = { plan = ["--mode", "plan"], bypass = ["--force"] }
 

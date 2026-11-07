@@ -79,7 +79,7 @@ pub struct CourseTree {
     pub attachments: Vec<CourseAttachment>,
 }
 
-pub const LOOSE_MODULE_TITLE: &str = "Geral";
+pub const LOOSE_MODULE_TITLE: &str = "General";
 
 const JUNK: &[&str] = &["thumbs.db", "desktop.ini", "icon\r", ".ds_store"];
 

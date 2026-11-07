@@ -5,7 +5,10 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use futures::stream::{self, StreamExt};
-use m3u8_rs::{parse_master_playlist, parse_media_playlist, MasterPlaylist, VariantStream};
+use m3u8_rs::{
+    parse_master_playlist, parse_media_playlist, AlternativeMedia, AlternativeMediaType,
+    MasterPlaylist, VariantStream,
+};
 use reqwest::Client;
 use tokio::sync::mpsc::{self, UnboundedSender};
 use tokio::sync::Semaphore;
@@ -21,8 +24,13 @@ pub struct HlsDownloadResult {
     pub segments: usize,
 }
 
+// WHY: a playlist can point its segments at any host, so credentials are chosen per request URL
+// instead of being default headers on the client.
+pub type RequestHeaders = Arc<dyn Fn(&str) -> reqwest::header::HeaderMap + Send + Sync>;
+
 pub struct HlsDownloader {
     client: Client,
+    request_headers: Option<RequestHeaders>,
     user_agent_override: Option<String>,
     progress_tx: Option<mpsc::Sender<ProgressUpdate>>,
     prefetched_playlist: Option<(String, String)>,
@@ -56,10 +64,16 @@ impl HlsDownloader {
     pub fn with_client(client: Client) -> Self {
         Self {
             client,
+            request_headers: None,
             user_agent_override: None,
             progress_tx: None,
             prefetched_playlist: None,
         }
+    }
+
+    pub fn with_request_headers(mut self, headers: RequestHeaders) -> Self {
+        self.request_headers = Some(headers);
+        self
     }
 
     pub fn with_user_agent_override(mut self, ua: Option<String>) -> Self {
@@ -149,6 +163,23 @@ impl HlsDownloader {
                     available
                 );
                 let variant_url = resolve_url(m3u8_url, &variant.uri);
+                if let Some(uri) =
+                    select_audio_rendition(&master, variant).and_then(|a| a.uri.as_deref())
+                {
+                    let audio_url = resolve_url(m3u8_url, uri);
+                    return self
+                        .download_separate_tracks(
+                            &variant_url,
+                            &audio_url,
+                            output_path,
+                            referer,
+                            bytes_tx,
+                            cancel_token,
+                            max_concurrent,
+                            max_retries,
+                        )
+                        .await;
+                }
                 return self
                     .download_media_playlist(
                         &variant_url,
@@ -196,8 +227,12 @@ impl HlsDownloader {
 
         let mut last_err = None;
         for attempt in 0..max_retries {
-            let req = apply_referer_headers(self.client.get(url), referer)
-                .header("User-Agent", self.effective_user_agent());
+            let req = apply_request_headers(
+                apply_referer_headers(self.client.get(url), referer),
+                url,
+                self.request_headers.as_ref(),
+            )
+            .header("User-Agent", self.effective_user_agent());
             match req.send().await {
                 Ok(resp) => {
                     if !resp.status().is_success() {
@@ -224,6 +259,61 @@ impl HlsDownloader {
     }
 
     #[allow(clippy::too_many_arguments)]
+    async fn download_separate_tracks(
+        &self,
+        video_url: &str,
+        audio_url: &str,
+        output_path: &str,
+        referer: &str,
+        bytes_tx: Option<UnboundedSender<u64>>,
+        cancel_token: CancellationToken,
+        max_concurrent: u32,
+        max_retries: u32,
+    ) -> anyhow::Result<HlsDownloadResult> {
+        if !crate::core::media_processor::check_ffmpeg() {
+            anyhow::bail!("{FFMPEG_NEEDED_TO_JOIN}");
+        }
+        let video_tmp = format!("{output_path}.video.mp4");
+        let audio_tmp = format!("{output_path}.audio.m4a");
+        let joined = async {
+            let video = self
+                .download_media_playlist(
+                    video_url,
+                    &video_tmp,
+                    referer,
+                    bytes_tx.clone(),
+                    cancel_token.clone(),
+                    max_concurrent,
+                    max_retries,
+                )
+                .await?;
+            let audio = self
+                .download_media_playlist(
+                    audio_url,
+                    &audio_tmp,
+                    referer,
+                    bytes_tx.clone(),
+                    cancel_token.clone(),
+                    max_concurrent,
+                    max_retries,
+                )
+                .await?;
+            let output = PathBuf::from(output_path);
+            join_tracks(&video.path, &audio.path, &output).await?;
+            let file_size = std::fs::metadata(&output)?.len();
+            Ok(HlsDownloadResult {
+                path: output,
+                file_size,
+                segments: video.segments + audio.segments,
+            })
+        }
+        .await;
+        let _ = std::fs::remove_file(&video_tmp);
+        let _ = std::fs::remove_file(&audio_tmp);
+        joined
+    }
+
+    #[allow(clippy::too_many_arguments)]
     async fn download_media_playlist(
         &self,
         m3u8_url: &str,
@@ -243,10 +333,14 @@ impl HlsDownloader {
                 text.to_string()
             }
             None => {
-                let resp = apply_referer_headers(self.client.get(m3u8_url), referer)
-                    .header("User-Agent", self.effective_user_agent())
-                    .send()
-                    .await?;
+                let resp = apply_request_headers(
+                    apply_referer_headers(self.client.get(m3u8_url), referer),
+                    m3u8_url,
+                    self.request_headers.as_ref(),
+                )
+                .header("User-Agent", self.effective_user_agent())
+                .send()
+                .await?;
 
                 if !resp.status().is_success() {
                     anyhow::bail!("HTTP {} fetching playlist", resp.status());
@@ -293,6 +387,7 @@ impl HlsDownloader {
                 init.range,
                 referer,
                 &user_agent,
+                self.request_headers.as_ref(),
                 max_retries.max(1),
                 &cancel_token,
             )
@@ -331,6 +426,7 @@ impl HlsDownloader {
         let segment_jobs: Vec<(usize, SegmentJob)> = jobs.into_iter().enumerate().collect();
 
         let client = &self.client;
+        let request_headers = self.request_headers.as_ref();
         let errors_ref = &errors;
         let completed_ref = &completed;
         let downloaded_ref = &downloaded_bytes;
@@ -355,6 +451,7 @@ impl HlsDownloader {
                         job.range,
                         &referer,
                         user_agent_ref,
+                        request_headers,
                         max_retries,
                         fail_ref,
                     )
@@ -474,8 +571,12 @@ impl HlsDownloader {
     ) -> anyhow::Result<Vec<u8>> {
         let mut last_err = None;
         for attempt in 0..max_retries {
-            let req = apply_referer_headers(self.client.get(url), referer)
-                .header("User-Agent", self.effective_user_agent());
+            let req = apply_request_headers(
+                apply_referer_headers(self.client.get(url), referer),
+                url,
+                self.request_headers.as_ref(),
+            )
+            .header("User-Agent", self.effective_user_agent());
             match req.send().await {
                 Ok(resp) => {
                     if !resp.status().is_success() {
@@ -504,6 +605,17 @@ impl HlsDownloader {
 struct EncryptionInfo {
     key_bytes: Vec<u8>,
     iv: Option<[u8; 16]>,
+}
+
+fn apply_request_headers(
+    req: reqwest::RequestBuilder,
+    url: &str,
+    headers: Option<&RequestHeaders>,
+) -> reqwest::RequestBuilder {
+    match headers {
+        Some(h) => req.headers(h(url)),
+        None => req,
+    }
 }
 
 fn apply_referer_headers(req: reqwest::RequestBuilder, referer: &str) -> reqwest::RequestBuilder {
@@ -557,6 +669,67 @@ fn select_best_variant(master: &MasterPlaylist, max_height: Option<u32>) -> Opti
         })
         .copied()
         .or_else(|| sorted.first().copied())
+}
+
+fn select_audio_rendition<'a>(
+    master: &'a MasterPlaylist,
+    variant: &VariantStream,
+) -> Option<&'a AlternativeMedia> {
+    let group = variant.audio.as_deref()?;
+    let renditions: Vec<&AlternativeMedia> = master
+        .alternatives
+        .iter()
+        .filter(|a| a.media_type == AlternativeMediaType::Audio && a.group_id == group)
+        .collect();
+    // WHY: Gumlet writes DEFAULT=YES inside CHARACTERISTICS, not as its own attribute.
+    let is_default = |a: &&&AlternativeMedia| {
+        a.default
+            || a.characteristics
+                .as_deref()
+                .is_some_and(|c| c.to_ascii_uppercase().contains("DEFAULT=YES"))
+    };
+    renditions
+        .iter()
+        .find(is_default)
+        .or_else(|| renditions.iter().find(|a| a.autoselect))
+        .or_else(|| renditions.first())
+        .copied()
+        .filter(|a| a.uri.is_some())
+}
+
+pub const FFMPEG_NEEDED_TO_JOIN: &str =
+    "This video keeps its sound in a separate track, and FFmpeg is needed to join them. Install FFmpeg and try again.";
+
+pub async fn join_tracks(video: &Path, audio: &Path, output: &Path) -> anyhow::Result<()> {
+    let ext = output
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("mp4")
+        .to_ascii_lowercase();
+    let joining = output.with_extension(format!("joining.{ext}"));
+    let mut cmd = crate::core::process::command("ffmpeg");
+    cmd.args(["-y", "-i"])
+        .arg(video)
+        .arg("-i")
+        .arg(audio)
+        .args(["-map", "0:v:0", "-map", "1:a:0", "-c", "copy"]);
+    if matches!(ext.as_str(), "mp4" | "m4v" | "mov") {
+        cmd.args(["-movflags", "+faststart"]);
+    }
+    let result = cmd
+        .arg(&joining)
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::piped())
+        .output()
+        .await?;
+    if !result.status.success() {
+        let _ = std::fs::remove_file(&joining);
+        let stderr = String::from_utf8_lossy(&result.stderr);
+        let reason = stderr.lines().last().unwrap_or("no details");
+        anyhow::bail!("could not join the video and audio tracks: {reason}");
+    }
+    std::fs::rename(&joining, output)?;
+    Ok(())
 }
 
 fn resolve_url(base: &str, relative: &str) -> String {
@@ -804,12 +977,14 @@ async fn write_segments_ordered(
 
 const SEGMENT_STALL: Duration = Duration::from_secs(10);
 
+#[allow(clippy::too_many_arguments)]
 async fn download_segment_with_retry(
     client: &Client,
     url: &str,
     range: Option<(u64, u64)>,
     referer: &str,
     user_agent: &str,
+    request_headers: Option<&RequestHeaders>,
     max_retries: u32,
     cancel: &CancellationToken,
 ) -> anyhow::Result<Vec<u8>> {
@@ -819,6 +994,7 @@ async fn download_segment_with_retry(
         range,
         referer,
         user_agent,
+        request_headers,
         max_retries,
         cancel,
         SEGMENT_STALL,
@@ -833,6 +1009,7 @@ async fn download_segment_watched(
     range: Option<(u64, u64)>,
     referer: &str,
     user_agent: &str,
+    request_headers: Option<&RequestHeaders>,
     max_retries: u32,
     cancel: &CancellationToken,
     stall: Duration,
@@ -854,6 +1031,7 @@ async fn download_segment_watched(
             range,
             referer,
             user_agent,
+            request_headers,
             stall,
             &mut buf,
             &mut resumable,
@@ -892,6 +1070,7 @@ async fn fetch_segment_once(
     range: Option<(u64, u64)>,
     referer: &str,
     user_agent: &str,
+    request_headers: Option<&RequestHeaders>,
     stall: Duration,
     buf: &mut Vec<u8>,
     resumable: &mut bool,
@@ -904,9 +1083,13 @@ async fn fetch_segment_once(
         None => None,
     };
 
-    let mut req = apply_referer_headers(client.get(url), referer)
-        .header("User-Agent", user_agent)
-        .header(reqwest::header::ACCEPT_ENCODING, "identity");
+    let mut req = apply_request_headers(
+        apply_referer_headers(client.get(url), referer),
+        url,
+        request_headers,
+    )
+    .header("User-Agent", user_agent)
+    .header(reqwest::header::ACCEPT_ENCODING, "identity");
     if let Some(r) = &range_header {
         req = req.header(reqwest::header::RANGE, r.as_str());
     }
@@ -1708,6 +1891,7 @@ seg4.m4s
             Some((100, 50)),
             "",
             "ua",
+            None,
             3,
             &CancellationToken::new(),
             Duration::from_secs(5),
@@ -1740,6 +1924,7 @@ seg4.m4s
             None,
             "",
             "ua",
+            None,
             3,
             &CancellationToken::new(),
             Duration::from_millis(300),
@@ -1751,5 +1936,147 @@ seg4.m4s
         let reqs = log.lock().unwrap().clone();
         assert_eq!(reqs.len(), 2, "{reqs:?}");
         assert_eq!(reqs[1].range(), Some(((body.len() / 2) as u64, None)));
+    }
+
+    const GUMLET_SHAPED_MASTER: &[u8] = br#"#EXTM3U
+#EXT-X-INDEPENDENT-SEGMENTS
+#EXT-X-MEDIA:TYPE=AUDIO,URI="a_0_en_128k.m3u8",GROUP-ID="audio_128k",LANGUAGE="en",NAME="English",AUTOSELECT=YES,CHARACTERISTICS="DEFAULT=YES,AUTOSELECT=YES",CHANNELS="6"
+#EXT-X-MEDIA:TYPE=AUDIO,URI="a_1_tr_128k.m3u8",GROUP-ID="audio_128k",LANGUAGE="tr",NAME="Turkish",AUTOSELECT=YES,CHARACTERISTICS="DEFAULT=NO,AUTOSELECT=YES",CHANNELS="6"
+#EXT-X-MEDIA:TYPE=AUDIO,URI="a_1_tr_96k.m3u8",GROUP-ID="audio_96k",LANGUAGE="tr",NAME="Turkish",AUTOSELECT=YES,CHARACTERISTICS="DEFAULT=NO,AUTOSELECT=YES",CHANNELS="6"
+#EXT-X-MEDIA:TYPE=SUBTITLES,URI="s_0_en.m3u8",GROUP-ID="subs",LANGUAGE="en",NAME="English",AUTOSELECT=YES
+#EXT-X-STREAM-INF:BANDWIDTH=3294249,CODECS="avc1.4d401f,mp4a.40.2",RESOLUTION=1280x720,AUDIO="audio_128k",SUBTITLES="subs"
+v_0_720p.m3u8
+#EXT-X-STREAM-INF:BANDWIDTH=3265349,CODECS="avc1.4d401f,mp4a.40.2",RESOLUTION=1280x720,AUDIO="audio_96k",SUBTITLES="subs"
+v_0_720p.m3u8
+"#;
+
+    #[test]
+    fn gumlet_master_picks_the_default_audio_written_in_characteristics() {
+        let (_, master) = parse_master_playlist(GUMLET_SHAPED_MASTER).unwrap();
+        let best = select_best_variant(&master, None).unwrap();
+        assert_eq!(best.audio.as_deref(), Some("audio_128k"));
+        let audio = select_audio_rendition(&master, best).unwrap();
+        assert_eq!(audio.uri.as_deref(), Some("a_0_en_128k.m3u8"));
+    }
+
+    #[test]
+    fn audio_already_inside_the_video_is_not_fetched_again() {
+        let text = br#"#EXTM3U
+#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="aac",NAME="Main",DEFAULT=YES
+#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="aac",NAME="Dub",URI="dub.m3u8"
+#EXT-X-STREAM-INF:BANDWIDTH=1,RESOLUTION=1280x720,AUDIO="aac"
+v.m3u8
+"#;
+        let (_, master) = parse_master_playlist(text).unwrap();
+        let best = select_best_variant(&master, None).unwrap();
+        assert!(select_audio_rendition(&master, best).is_none());
+    }
+
+    #[tokio::test]
+    async fn separate_video_and_audio_tracks_end_up_joined_in_one_file() {
+        if !crate::core::media_processor::check_ffmpeg() {
+            eprintln!("ffmpeg is missing: skipped");
+            return;
+        }
+        let dir = std::env::temp_dir().join(format!(
+            "omniget-hls-join-{}-{}",
+            std::process::id(),
+            rand::random::<u32>()
+        ));
+        std::fs::create_dir_all(&dir).unwrap();
+        let ffmpeg = |args: &[&str]| {
+            let ok = std::process::Command::new("ffmpeg")
+                .args(["-y", "-loglevel", "error"])
+                .args(args)
+                .current_dir(&dir)
+                .status()
+                .unwrap()
+                .success();
+            assert!(ok, "{args:?}");
+        };
+        ffmpeg(&[
+            "-f",
+            "lavfi",
+            "-i",
+            "testsrc=size=160x120:rate=10",
+            "-t",
+            "2",
+            "-an",
+            "-c:v",
+            "libx264",
+            "-f",
+            "hls",
+            "-hls_time",
+            "1",
+            "-hls_list_size",
+            "0",
+            "-hls_segment_filename",
+            "v%d.ts",
+            "video.m3u8",
+        ]);
+        ffmpeg(&[
+            "-f",
+            "lavfi",
+            "-i",
+            "sine=frequency=440",
+            "-t",
+            "2",
+            "-vn",
+            "-c:a",
+            "aac",
+            "-f",
+            "hls",
+            "-hls_time",
+            "1",
+            "-hls_list_size",
+            "0",
+            "-hls_segment_filename",
+            "a%d.ts",
+            "audio.m3u8",
+        ]);
+        std::fs::write(
+            dir.join("main.m3u8"),
+            "#EXTM3U\n#EXT-X-MEDIA:TYPE=AUDIO,URI=\"audio.m3u8\",GROUP-ID=\"a\",NAME=\"En\",AUTOSELECT=YES,CHARACTERISTICS=\"DEFAULT=YES\"\n#EXT-X-STREAM-INF:BANDWIDTH=9000,RESOLUTION=160x120,AUDIO=\"a\"\nvideo.m3u8\n",
+        )
+        .unwrap();
+        let root = dir.clone();
+        let (base, _) = test_server::spawn(move |_, r| {
+            match std::fs::read(root.join(r.path.trim_start_matches('/'))) {
+                Ok(body) => test_server::Reply::new(200, body),
+                Err(_) => test_server::Reply::new(404, Vec::new()),
+            }
+        })
+        .await;
+        let out = dir.join("joined.mp4");
+        HlsDownloader::with_client(Client::new())
+            .download(
+                &format!("{base}/main.m3u8"),
+                out.to_str().unwrap(),
+                "",
+                None,
+                CancellationToken::new(),
+                4,
+                2,
+            )
+            .await
+            .unwrap();
+        let streams = std::process::Command::new("ffprobe")
+            .args([
+                "-v",
+                "error",
+                "-show_entries",
+                "stream=codec_type",
+                "-of",
+                "csv=p=0",
+            ])
+            .arg(&out)
+            .output()
+            .unwrap();
+        let streams = String::from_utf8_lossy(&streams.stdout).to_string();
+        assert!(streams.contains("video"), "{streams}");
+        assert!(streams.contains("audio"), "{streams}");
+        assert!(!dir.join("joined.mp4.video.mp4").exists());
+        assert!(!dir.join("joined.mp4.audio.m4a").exists());
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }

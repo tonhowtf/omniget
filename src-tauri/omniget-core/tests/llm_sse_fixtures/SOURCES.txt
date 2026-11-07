@@ -6,7 +6,6 @@ REAL (recorded with curl -N against a live server)
   ollama_v1_chat.txt      POST http://localhost:11434/v1/chat/completions
                           ollama 0.x, model qwen3:0.6b, stream + stream_options.include_usage.
                           Carries the "reasoning" delta field Ollama adds for thinking models.
-  ollama_api_chat.ndjson  POST http://localhost:11434/api/chat, "think": false.
                           Newline-delimited JSON, not SSE.
 
 SYNTHETIC (no key was available on this machine; bodies written by hand from the

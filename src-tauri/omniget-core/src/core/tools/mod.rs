@@ -80,7 +80,7 @@ pub async fn download_to(
 
     let resp = client.get(url).send().await?;
     if !resp.status().is_success() {
-        anyhow::bail!("download de {} falhou: HTTP {}", url, resp.status());
+        anyhow::bail!("download of {} failed: HTTP {}", url, resp.status());
     }
     let total = resp.content_length();
     if let Some(parent) = dest.parent() {

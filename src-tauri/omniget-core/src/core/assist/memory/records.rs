@@ -1,5 +1,5 @@
 use rusqlite::types::Value as SqlValue;
-use rusqlite::{params, Connection, OptionalExtension, Row};
+use rusqlite::{params, Connection, Row};
 use serde::{Deserialize, Serialize};
 
 use super::super::ctx::{AssistCtx, Scope};
@@ -488,41 +488,6 @@ pub fn retract(db: &AssistDb, ctx: &AssistCtx, id: &str, now: i64) -> Result<Mem
     get(db, ctx, id)
 }
 
-pub fn confirm(db: &AssistDb, ctx: &AssistCtx, id: &str, now: i64) -> Result<MemoryRecord, String> {
-    if !ctx.is_user_ui() {
-        return Err(format!(
-            "{ERR_ASSIST_SCOPE}: only the person can confirm a guess"
-        ));
-    }
-    let old = get(db, ctx, id)?;
-    if old.category != Category::Inference {
-        return Err(format!(
-            "{ERR_MEMORY_INVALID}: only guesses need confirming"
-        ));
-    }
-    correct(
-        db,
-        ctx,
-        id,
-        Correction {
-            content: old.content.clone(),
-            category: Some(Category::Declared),
-            subject: old.subject.clone(),
-            evidence: old.evidence.clone(),
-            confidence: Some(1.0),
-            valid_until: None,
-        },
-        Source {
-            kind: "user".into(),
-            id: Some(format!("confirm:{}", old.id)),
-            conversation: None,
-            author: "user".into(),
-            at_ms: now,
-        },
-        now,
-    )
-}
-
 pub fn forget(db: &AssistDb, ctx: &AssistCtx, id: &str, now: i64) -> Result<usize, String> {
     let rec = get(db, ctx, id)?;
     writable(ctx, &rec)?;
@@ -571,7 +536,7 @@ pub fn forget(db: &AssistDb, ctx: &AssistCtx, id: &str, now: i64) -> Result<usiz
         let journey_scopes = (!ctx.is_user_ui()).then(|| {
             ctx.writable.iter().map(|s| s.key()).collect::<Vec<String>>()
         });
-        crate::core::assist::reading::store::forget_reactions_mentioned(
+        forget_reactions_mentioned(
             tx,
             &principal,
             journey_scopes.as_deref(),
@@ -673,51 +638,169 @@ pub fn list(
     db.with(|c| query_records(c, &sql, params))
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct ScopeSummary {
-    pub scope: Scope,
-    pub active: i64,
-    pub candidates: i64,
-    pub inactive: i64,
+fn fold_title(text: &str) -> String {
+    use unicode_normalization::UnicodeNormalization;
+    text.nfd()
+        .filter(|c| !unicode_normalization::char::is_combining_mark(*c))
+        .map(|c| {
+            if c.is_alphanumeric() {
+                c.to_lowercase().next().unwrap_or(c)
+            } else {
+                ' '
+            }
+        })
+        .collect::<String>()
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
 }
 
-pub fn scopes(db: &AssistDb, ctx: &AssistCtx, now: i64) -> Result<Vec<ScopeSummary>, String> {
-    expire_due(db, now)?;
-    let (filter, mut p) = scope_filter(ctx, "r.scope");
-    let mut params: Vec<SqlValue> = vec![ctx.principal.clone().into()];
-    params.append(&mut p);
-    let rows: Vec<(String, i64, i64, i64)> = db.with(|c| {
-        let mut s = c.prepare(&format!(
-            "SELECT r.scope,
-                SUM(r.status = 'active'),
-                SUM(r.status = 'active' AND r.category = 'inference'),
-                SUM(r.status <> 'active')
-             FROM memory_records r WHERE r.principal = ? AND {filter}
-             GROUP BY r.scope ORDER BY r.scope"
-        ))?;
-        let rows = s.query_map(rusqlite::params_from_iter(params), |r| {
+pub(super) fn forget_reactions_mentioned(
+    tx: &rusqlite::Transaction,
+    principal: &str,
+    journey_scopes: Option<&[String]>,
+    forgotten_texts: &[String],
+) -> rusqlite::Result<usize> {
+    let texts: Vec<String> = forgotten_texts
+        .iter()
+        .map(|t| format!(" {} ", fold_title(t)))
+        .collect();
+    if texts.iter().all(|t| t.trim().is_empty()) {
+        return Ok(0);
+    }
+    let rows: Vec<(String, String, String, Option<String>)> = {
+        let mut s = tx.prepare(
+            "SELECT e.id, j.scope, m.title, m.original_title
+               FROM reading_viewing_events e
+               JOIN reading_journeys j ON j.id = e.journey_id
+               JOIN reading_movies m ON m.id = e.movie_id
+              WHERE j.principal = ?1 AND e.kind IN ('watched','abandoned')
+                AND (e.reaction IS NOT NULL OR e.reasons_json <> '[]')",
+        )?;
+        let rows = s.query_map([principal], |r| {
             Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?))
         })?;
-        rows.collect()
-    })?;
-    Ok(rows
-        .into_iter()
-        .filter_map(|(k, a, c, i)| {
-            Scope::parse(&k).map(|scope| ScopeSummary {
-                scope,
-                active: a,
-                candidates: c,
-                inactive: i,
-            })
-        })
-        .collect())
+        rows.collect::<rusqlite::Result<_>>()?
+    };
+    let mut cleared = 0;
+    let mut named_titles: Vec<(String, String)> = Vec::new();
+    for (event, scope, title, original) in rows {
+        if let Some(allowed) = journey_scopes {
+            if !allowed.iter().any(|a| a == &scope) {
+                continue;
+            }
+        }
+        let names: Vec<String> = [Some(title), original]
+            .into_iter()
+            .flatten()
+            .map(|n| fold_title(&n))
+            .filter(|n| n.chars().count() >= 3)
+            .collect();
+        let named = names
+            .iter()
+            .any(|n| texts.iter().any(|t| t.contains(&format!(" {n} "))));
+        if named {
+            cleared += tx.execute(
+                "UPDATE reading_viewing_events SET reaction = NULL, reasons_json = '[]' WHERE id = ?1",
+                [&event],
+            )?;
+            for n in names {
+                if !named_titles.iter().any(|(sc, t)| sc == &scope && t == &n) {
+                    named_titles.push((scope.clone(), n));
+                }
+            }
+        }
+    }
+    redact_round_texts(tx, principal, &named_titles)?;
+    Ok(cleared)
 }
 
-pub(super) fn exists_id(conn: &Connection, id: &str) -> rusqlite::Result<Option<String>> {
-    conn.query_row(
-        "SELECT chain FROM memory_records WHERE id = ?1",
-        [id],
-        |r| r.get(0),
-    )
-    .optional()
+const REDACTED: &str = "[reason removed: you asked to forget it]";
+
+fn redact_round_texts(
+    tx: &rusqlite::Transaction,
+    principal: &str,
+    named: &[(String, String)],
+) -> rusqlite::Result<()> {
+    if named.is_empty() {
+        return Ok(());
+    }
+    let redact = |text: &str, titles: &[&str]| -> Option<String> {
+        let mut kept = Vec::new();
+        let mut dropped = false;
+        for sentence in split_sentences(text) {
+            let folded = format!(" {} ", fold_title(&sentence));
+            if titles.iter().any(|t| folded.contains(&format!(" {t} "))) {
+                dropped = true;
+            } else {
+                kept.push(sentence);
+            }
+        }
+        dropped.then(|| {
+            if kept.is_empty() {
+                REDACTED.to_string()
+            } else {
+                format!("{} {REDACTED}", kept.join(" "))
+            }
+        })
+    };
+    let rounds: Vec<(String, String, Option<String>)> = {
+        let mut s = tx.prepare(
+            "SELECT r.id, j.scope, r.reason FROM reading_rounds r
+               JOIN reading_journeys j ON j.id = r.journey_id WHERE j.principal = ?1",
+        )?;
+        let rows = s.query_map([principal], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))?;
+        rows.collect::<rusqlite::Result<_>>()?
+    };
+    for (round, scope, reason) in rounds {
+        let titles: Vec<&str> = named
+            .iter()
+            .filter(|(sc, _)| sc == &scope)
+            .map(|(_, t)| t.as_str())
+            .collect();
+        if titles.is_empty() {
+            continue;
+        }
+        if let Some(new) = reason.as_deref().and_then(|r| redact(r, &titles)) {
+            tx.execute(
+                "UPDATE reading_rounds SET reason = ?1 WHERE id = ?2",
+                params![new, round],
+            )?;
+        }
+        let items: Vec<(String, Option<String>)> = {
+            let mut s =
+                tx.prepare("SELECT id, why FROM reading_round_items WHERE round_id = ?1")?;
+            let rows = s.query_map([&round], |r| Ok((r.get(0)?, r.get(1)?)))?;
+            rows.collect::<rusqlite::Result<_>>()?
+        };
+        for (item, why) in items {
+            if let Some(new) = why.as_deref().and_then(|w| redact(w, &titles)) {
+                tx.execute(
+                    "UPDATE reading_round_items SET why = ?1 WHERE id = ?2",
+                    params![new, item],
+                )?;
+            }
+        }
+    }
+    Ok(())
+}
+
+fn split_sentences(text: &str) -> Vec<String> {
+    let mut out = Vec::new();
+    let mut cur = String::new();
+    for c in text.chars() {
+        cur.push(c);
+        if matches!(c, '.' | '!' | '?' | ';') {
+            let t = cur.trim().to_string();
+            if !t.is_empty() {
+                out.push(t);
+            }
+            cur.clear();
+        }
+    }
+    let t = cur.trim().to_string();
+    if !t.is_empty() {
+        out.push(t);
+    }
+    out
 }

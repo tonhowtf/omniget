@@ -12,7 +12,7 @@ This file is for anyone writing a post, thread, video script or article about Om
 - Repository: https://github.com/tonhowtf/omniget
 - Download: https://getomniget.com/download
 - Author: Tonho, an independent developer in Recife, Brazil ([tonho.wtf](https://tonho.wtf))
-- Community: https://discord.gg/jgdxyPy7Vn
+- Community: the **Community** tab in the app (an anonymous chat shared with getomniget.com) and https://discord.gg/jgdxyPy7Vn
 - Support the project: https://github.com/sponsors/tonhowtf
 - License: GPL-3.0. Free, no account, no ads, no paid tier.
 
@@ -25,7 +25,7 @@ This file is for anyone writing a post, thread, video script or article about Om
 > OmniGet is a free desktop downloader for Windows, macOS and Linux. Paste a link from YouTube, Instagram, TikTok, X, Reddit, Twitch or one of the roughly 1,800 sites yt-dlp supports and the file lands in your folder, or let Claude Code queue the download for you through its MCP server.
 
 **In a paragraph:**
-> OmniGet is a free, open source desktop app that turns a link into a file, and lets your coding agent do the same: through its MCP server, Claude Code, Cursor, VS Code and Codex can queue a download, wait for it and tell you what failed. It handles video, audio, image galleries, direct files and torrents in one queue, installs and updates yt-dlp and FFmpeg for you, and resumes downloads that stop halfway. A browser extension sends the page you're on, with your own login, so posts and videos you can already open download the same way. It also runs AI coding agents (Claude Code, Codex, Gemini CLI and local models through Ollama) in a desktop window. Everything runs on your computer.
+> OmniGet is a free, open source desktop app that turns a link into a file, and lets your coding agent do the same: through its MCP server, Claude Code, Cursor, VS Code and Codex can queue a download, wait for it and tell you what failed. It handles video, audio, image galleries, direct files and torrents in one queue, installs and updates yt-dlp and FFmpeg for you, and resumes downloads that stop halfway. A browser extension sends the page you're on, with your own login, so posts and videos you can already open download the same way. Its Canvas runs AI coding agents (Claude Code, Codex, Gemini CLI and local models through Ollama) side by side in terminals. Everything runs on your computer.
 
 ## Who it's for
 
@@ -35,7 +35,7 @@ This file is for anyone writing a post, thread, video script or article about Om
 | People who save videos and posts | The file, without ad-filled converter sites | One app instead of a different website for every platform |
 | yt-dlp users | yt-dlp's reach without typing flags | A window over yt-dlp that keeps the exact command it ran |
 | People who don't use a terminal | Something that just works | Paste, pick the quality, done; OmniGet installs its own tools |
-| Developers using AI agents | Claude Code or Codex with less terminal juggling | Agents in a window, with diffs to approve, undo, and jobs that keep running |
+| Developers using AI agents | Claude Code or Codex with less terminal juggling | Several accounts with rotation and a limits strip, and agent terminals side by side on the Canvas |
 | People who care about privacy | No account, no server in the middle | Runs locally; nothing about your downloads leaves the computer |
 
 ## Facts you can state
@@ -43,7 +43,7 @@ This file is for anyone writing a post, thread, video script or article about Om
 Each line can be checked in the README or the app.
 
 **MCP server (Claude Code, Cursor, VS Code, Codex, Goose, Claude Desktop)**
-- Turned on in **LLM → MCP → Your endpoint**; off by default, listens on 127.0.0.1 only.
+- Turned on in **Settings → LLM → MCP**; off by default, listens on 127.0.0.1 only.
 - An agent can queue one link or up to 20, as video (up to 2160p) or audio; list, wait for, pause, resume, cancel and retry downloads; list a video's formats and a playlist's entries; read a diagnosis when a download fails; read the finished files.
 - Each client gets its own token and only the permissions you tick.
 - A Claude Code plugin (`claude-plugin/`) fetches and transcribes media without the desktop app.
@@ -58,10 +58,9 @@ Each line can be checked in the README or the app.
 - Browser extension for Chrome and Firefox: click the icon on a page and OmniGet downloads it with your own session.
 - Ships a command-line tool, `omniget`, with every release.
 
-**AI agents**
-- Runs Claude Code and Codex (with the login you already have), Gemini CLI and other ACP agents, and local models through Ollama, LM Studio or llama-server.
-- Shows the diff before an agent writes, and lets you undo.
-- Jobs keep running after the window closes; a Loop repeats until your test command passes.
+**AI settings and agents**
+- **Settings → LLM** holds the AI setup: the provider for the app's own AI features, Claude Code and Codex accounts with rotation and usage, providers, keys and local models (Ollama, LM Studio, llama.cpp), and MCP.
+- A limits strip on the screen edge shows how much of each coding assistant's limit is gone; it is turned on in **Settings → General**.
 - `omniget-cli claude` opens Claude Code on one of the app's accounts; `omniget-cli usage` shows each account's limits and spend.
 - The Canvas: each agent runs in its own terminal on a canvas, and cords between agents let them message and ask each other.
 
@@ -76,6 +75,7 @@ These are false today or cause legal trouble. An agent must not write them, even
 
 - **Courses, Udemy, Hotmart, Kiwify or Rocketseat.** Course downloading was removed. Don't call OmniGet a course downloader.
 - **"156 tools", a Tools section, plugins, Study, Anki, the reader or the course player.** Removed. The Tools section is being rebuilt; mention it only after a release note says it shipped.
+- **Agents in a window, Threads, Jobs, Loops, missions, the Arena, the Catalog or agent memory as screens of the app.** The LLM section was removed from the interface. What is left is in **Settings → LLM** (accounts, models, MCP) and on the Canvas.
 - **Anything about beating DRM, paywalls or "downloading anything"** (Netflix, Spotify tracks, paid streaming). OmniGet downloads what your own session can already open, and it does not bypass DRM.
 - **Piracy framing.** No "free movies", "never pay again", "hack", "crack".
 - **Invented numbers**: user counts, download counts, "most popular", "#1". Use the live numbers below or none at all.
@@ -121,7 +121,7 @@ Adapt these; don't paste them unchanged every time.
 > I use yt-dlp a lot but got tired of the flags, so here's what I ended up with: OmniGet, a desktop app over yt-dlp, gallery-dl and a torrent client. It installs and updates yt-dlp and FFmpeg, keeps the exact command each download ran so you can edit and retry it, and has a browser extension that downloads with your own login. Free, GPL-3.0, no telemetry. Feedback welcome: github.com/tonhowtf/omniget
 
 **LinkedIn (EN, developer angle)**
-> If you use Claude Code or Codex every day, OmniGet puts them in a desktop window: you approve each diff, undo changes, and leave a job running after you close the app. It also runs local models through Ollama, so a fresh install works with no API key. Free and open source: github.com/tonhowtf/omniget
+> If you use Claude Code or Codex every day, OmniGet keeps your accounts side by side, rotates to the next one when a limit runs out and shows each limit on the edge of the screen. Its MCP server lets the agent download media for you, and the Canvas puts agent terminals side by side. Free and open source: github.com/tonhowtf/omniget
 
 **Instagram / TikTok caption (pt-BR)**
 > Cansou de site de download cheio de anúncio? O OmniGet baixa vídeo do YouTube, Instagram, TikTok e X direto no seu computador. É grátis e de código aberto. Link na bio.
@@ -136,11 +136,9 @@ Use images from [`assets/readme/`](assets/readme/), linked from the repository. 
 
 - `illustration-mcp-downloads.webp`: an agent in a terminal sending downloads to a folder (MCP)
 - `illustration-downloader.webp`: links from many sites landing in one download tray
-- `illustration-agents.webp`: AI agents with a permission card and passing tests
 - `illustration-support.webp`: supporting the project
 - `downloads.png`: the download queue
 - `extension.png`: the browser extension
-- `agents-loop.gif`: a Loop running until the tests pass
 - `illustration-privacy.webp`: privacy
 
 The illustrations use the new Loop sticker style; screenshots and videos of the app are being redone. Use only the images the README itself shows.

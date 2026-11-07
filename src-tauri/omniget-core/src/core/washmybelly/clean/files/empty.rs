@@ -143,7 +143,7 @@ pub fn find_empty_folders(ctx: &Ctx, a: &Value) -> Result<Value, String> {
                 ctx,
                 "empty_folders",
                 items,
-                super::super::artifacts::source_of(a),
+                super::super::super::plan::source_of(a),
             )?
             .id,
         )

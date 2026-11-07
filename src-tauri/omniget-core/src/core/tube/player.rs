@@ -439,24 +439,6 @@ pub fn pick_audio<'a>(formats: &'a [Format], p: &PickPrefs) -> Option<&'a Format
     }
 }
 
-pub fn video_ladder(formats: &[Format], p: &PickPrefs) -> Vec<Format> {
-    let order = codec_order(p);
-    let mut out: Vec<&Format> = Vec::new();
-    for f in video_candidates(formats, p) {
-        let h = f.height.unwrap_or(0);
-        match out.iter_mut().find(|o| o.height.unwrap_or(0) == h) {
-            Some(slot) => {
-                if video_rank(f, &order) > video_rank(slot, &order) {
-                    *slot = f;
-                }
-            }
-            None => out.push(f),
-        }
-    }
-    out.sort_by_key(|f| std::cmp::Reverse(f.height.unwrap_or(0)));
-    out.into_iter().cloned().collect()
-}
-
 pub fn parse_storyboard(spec: &str, duration_s: u32) -> Option<(String, Storyboard)> {
     let mut parts = spec.split('|');
     let base = parts.next()?;
@@ -773,23 +755,6 @@ mod tests {
         let dub_only: Vec<Format> = f.iter().filter(|x| x.itag == 600).cloned().collect();
         assert_eq!(pick_audio(&dub_only, &auto).unwrap().itag, 600);
         assert!(pick_audio(&[], &auto).is_none());
-    }
-
-    #[test]
-    fn ladder_one_per_height() {
-        let f = formats();
-        let l = video_ladder(&f, &PickPrefs::default());
-        let heights: Vec<u32> = l.iter().map(|x| x.height.unwrap()).collect();
-        assert_eq!(heights, vec![2160, 1440, 1080, 720]);
-        assert_eq!(l[2].itag, 248);
-        let w = video_ladder(
-            &f,
-            &PickPrefs {
-                webkit: true,
-                ..PickPrefs::default()
-            },
-        );
-        assert_eq!(w.iter().map(|x| x.itag).collect::<Vec<_>>(), vec![137, 136]);
     }
 
     #[test]

@@ -95,7 +95,7 @@ impl Engine {
 
 static LAST_RESTORE_FAIL: AtomicI64 = AtomicI64::new(0);
 
-fn now_secs() -> i64 {
+pub(crate) fn now_secs() -> i64 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_secs() as i64)

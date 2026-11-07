@@ -10,7 +10,7 @@ export type DiffLine = {
   noEol: boolean;
 };
 
-export type Hunk = {
+type Hunk = {
   header: string;
   oldStart: number;
   oldLines: number;
@@ -177,16 +177,6 @@ export function languageOf(path: string): string {
   return map[ext] ?? "text";
 }
 
-function fence(content: string): string {
-  const longest = Math.max(2, ...Array.from(content.matchAll(/`+/g), (m) => m[0].length));
-  return "`".repeat(longest + 1);
-}
-
-export function fenced(content: string, language = ""): string {
-  const f = fence(content);
-  return `${f}${language}\n${content}\n${f}`;
-}
-
 export function buildReviewComment(path: string, lines: DiffLine[], text: string): ReviewComment {
   const allDel = lines.every((l) => l.kind === "del");
   const allAdd = lines.every((l) => l.kind === "add");
@@ -203,11 +193,5 @@ export function buildReviewComment(path: string, lines: DiffLine[], text: string
   const header = `@@ -${oStart},${olds.length} +${nStart},${news.length} @@`;
   const body = lines.map((l) => (l.kind === "add" ? "+" : l.kind === "del" ? "-" : " ") + l.text).join("\n");
   return { path, side, start, end, rangeLabel, diff: `${header}\n${body}`, text, language: languageOf(path) };
-}
-
-export function reviewCommentToPrompt(c: ReviewComment): string {
-  const head = `${c.path} (${c.rangeLabel})`;
-  const code = fenced(c.diff, "diff");
-  return c.text.trim() ? `${head}\n${code}\n${c.text.trim()}` : `${head}\n${code}`;
 }
 

@@ -1,7 +1,7 @@
 <script lang="ts">
   import { healthTone } from "$lib/washmybelly/ui";
 
-  let { score, size = 120, label = "" }: { score: number; size?: number; label?: string } = $props();
+  let { score, size = 120 }: { score: number; size?: number } = $props();
 
   let stroke = $derived(Math.max(6, Math.round(size / 11)));
   let r = $derived(size / 2 - stroke / 2 - 1);
@@ -10,7 +10,7 @@
   let tone = $derived(healthTone(clamped));
 </script>
 
-<div class="wmb-ring tone-{tone}" style:width="{size}px" style:height="{size}px" role="img" aria-label={`${Math.round(clamped)}/100${label ? ` ${label}` : ""}`}>
+<div class="wmb-ring tone-{tone}" style:width="{size}px" style:height="{size}px" role="img" aria-label={`${Math.round(clamped)}/100`}>
   <svg width={size} height={size} viewBox="0 0 {size} {size}" aria-hidden="true">
     <circle class="track" cx={size / 2} cy={size / 2} {r} fill="none" stroke-width={stroke} />
     <circle
@@ -28,7 +28,6 @@
   </svg>
   <span class="center">
     <span class="n" style:font-size="{Math.round(size / 3.6)}px">{Math.round(clamped)}</span>
-    {#if label}<span class="lbl" style:font-size="{Math.max(10, Math.round(size / 11))}px">{label}</span>{/if}
   </span>
 </div>
 
@@ -63,11 +62,6 @@
     letter-spacing: var(--track-tight);
     font-variant-numeric: tabular-nums;
     color: var(--text);
-  }
-  .lbl {
-    margin-top: 3px;
-    font-weight: 600;
-    color: var(--text-dim);
   }
   @media (prefers-reduced-motion: reduce) {
     .value { transition: none; }

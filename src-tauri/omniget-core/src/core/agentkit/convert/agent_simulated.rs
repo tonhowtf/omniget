@@ -67,7 +67,7 @@ impl Converter for SimulatedAgentConverter {
             return Ok(vec![]);
         };
         let name = ctx.name_for(c);
-        let dir = agents_dir(target, scope, ctx).ok_or_else(|| no_path(target, "agents", scope))?;
+        let dir = agents_dir(target, scope, ctx).ok_or_else(|| missing(target, "agents", scope))?;
         let rules = super::rule_files::agents_md(target, scope, ctx)
             .map(Ok)
             .unwrap_or_else(|| dir_for(target, "rules", scope, ctx))?;

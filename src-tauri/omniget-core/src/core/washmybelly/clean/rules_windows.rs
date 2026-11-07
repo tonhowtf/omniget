@@ -51,10 +51,6 @@ pub fn protected_hit(target: &str) -> Option<&'static str> {
         .find(|p| t == *p || t.starts_with(&format!("{p}/")))
 }
 
-pub fn unselected_by_default(rule: &Rule) -> bool {
-    rule.category == "privacy"
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Stage {
     Before,
@@ -833,16 +829,6 @@ mod tests {
                 .iter()
                 .find(|r| r.id == format!("windows.browser.{key}.history"))
                 .unwrap();
-            let c = all
-                .iter()
-                .find(|r| r.id == format!("windows.browser.{key}.cookies"))
-                .unwrap();
-            let k = all
-                .iter()
-                .find(|r| r.id == format!("windows.browser.{key}.cache"))
-                .unwrap();
-            assert!(unselected_by_default(h) && unselected_by_default(c));
-            assert!(!unselected_by_default(k));
             assert_eq!(h.risk, Risk::Destructive);
             assert!(
                 !h.targets.iter().any(|t| t.ends_with("Bookmarks")),

@@ -414,7 +414,7 @@ impl Converter for SkillCommandConverter {
         };
         let name = ctx.name_for(c);
         let base =
-            skill_base(target, scope, ctx).ok_or_else(|| no_path(target, "skills", scope))?;
+            skill_base(target, scope, ctx).ok_or_else(|| missing(target, "skills", scope))?;
         let root = base.join(&name);
         let (text, losses) = Self::render(c, cmd, &name, target);
         let mut pf = PlannedFile::write(

@@ -29,9 +29,3 @@ pub async fn canvas_transcribe_start(
     });
     crate::mcp::canvas::media_tool(&app, "canvas_transcribe", a).await
 }
-
-#[tauri::command]
-pub async fn canvas_transcribe_job(app: AppHandle, job_id: String) -> Result<Value, String> {
-    crate::mcp::canvas::media_tool(&app, "canvas_transcribe_status", json!({ "jobId": job_id }))
-        .await
-}

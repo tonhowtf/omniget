@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 use rusqlite::{params, OptionalExtension, Row};
 use serde::{Deserialize, Serialize};
 
-use super::super::ctx::{ContextKind, Scope};
+use super::super::ctx::ContextKind;
 use super::super::db::AssistDb;
 use super::super::{new_id, now_ms};
 use super::{RoomLimits, ERR_GROUP, ERR_GROUP_NOT_FOUND, ROOM_PREFIX};
@@ -181,16 +181,6 @@ fn validate(draft: &RoomDraft) -> Result<(), String> {
     Ok(())
 }
 
-pub fn create_room(db: &AssistDb, draft: &RoomDraft) -> Result<Room, String> {
-    validate(draft)?;
-    let id = format!(
-        "{ROOM_PREFIX}{}",
-        &uuid::Uuid::new_v4().simple().to_string()[..12]
-    );
-    db.tx(|tx| create_room_tx(tx, &id, draft))?;
-    get_room(db, &id)
-}
-
 pub(crate) fn create_room_tx(
     tx: &rusqlite::Transaction,
     id: &str,
@@ -237,49 +227,6 @@ fn write_members(tx: &rusqlite::Transaction, room: &str, members: &[Member]) -> 
         .map_err(|e| format!("{ERR_GROUP}: {e}"))?;
     }
     Ok(())
-}
-
-pub fn update_room(db: &AssistDb, id: &str, draft: &RoomDraft) -> Result<Room, String> {
-    validate(draft)?;
-    let current = get_room(db, id)?;
-    let limits = draft.limits.clone().unwrap_or(current.limits);
-    db.tx(|tx| {
-        tx.execute(
-            "UPDATE groups_rooms SET title = ?2, coordinator = ?3, default_bot = ?4, mention_policy = ?5,
-                limits = ?6, updated_ms = ?7 WHERE id = ?1",
-            params![
-                id,
-                draft.title.trim(),
-                draft.coordinator,
-                draft.default_bot,
-                serde_json::to_string(&draft.mention_policy).unwrap_or_default(),
-                serde_json::to_string(&limits).unwrap_or_default(),
-                now_ms()
-            ],
-        )
-        .map_err(|e| format!("{ERR_GROUP}: {e}"))?;
-        write_members(tx, id, &draft.members)?;
-        Ok(())
-    })?;
-    get_room(db, id)
-}
-
-pub fn delete_room(db: &AssistDb, id: &str) -> Result<(), String> {
-    db.tx(|tx| {
-        for sql in [
-            "DELETE FROM groups_shares WHERE room = ?1",
-            "DELETE FROM groups_runs WHERE room = ?1",
-            "DELETE FROM groups_tasks WHERE room = ?1",
-            "DELETE FROM groups_messages WHERE room = ?1",
-            "DELETE FROM groups_members WHERE room = ?1",
-            "DELETE FROM groups_rooms WHERE id = ?1",
-            "DELETE FROM groups_conversations WHERE id = ?1",
-        ] {
-            tx.execute(sql, [id])
-                .map_err(|e| format!("{ERR_GROUP}: {e}"))?;
-        }
-        Ok(())
-    })
 }
 
 fn room_from_row(r: &Row) -> rusqlite::Result<Room> {
@@ -331,23 +278,6 @@ pub fn get_room(db: &AssistDb, id: &str) -> Result<Room, String> {
         members: members_of(db, id)?,
         ..room
     })
-}
-
-pub fn list_rooms(db: &AssistDb) -> Result<Vec<Room>, String> {
-    let rooms: Vec<Room> = db.with(|c| {
-        let mut st = c.prepare(&format!(
-            "SELECT {ROOM_COLS} FROM groups_rooms ORDER BY updated_ms DESC"
-        ))?;
-        let rows = st.query_map([], room_from_row)?;
-        rows.collect()
-    })?;
-    rooms
-        .into_iter()
-        .map(|r| {
-            let members = members_of(db, &r.id)?;
-            Ok(Room { members, ..r })
-        })
-        .collect()
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
@@ -509,56 +439,6 @@ pub struct Share {
     pub shared_by: String,
     pub note: String,
     pub created_ms: i64,
-}
-
-pub fn add_share(
-    db: &AssistDb,
-    room: &str,
-    scope: &Scope,
-    record_id: Option<&str>,
-    note: &str,
-) -> Result<Share, String> {
-    if matches!(scope, Scope::Room { .. }) {
-        return Err(format!(
-            "{ERR_GROUP}: a room scope cannot be shared into a room"
-        ));
-    }
-    get_room(db, room)?;
-    let share = Share {
-        id: new_id(),
-        room: room.to_string(),
-        scope: scope.key(),
-        record_id: record_id.map(str::to_string),
-        shared_by: super::super::ctx::LOCAL_USER.to_string(),
-        note: note.to_string(),
-        created_ms: now_ms(),
-    };
-    db.with(|c| {
-        c.execute(
-            "INSERT INTO groups_shares(id, room, scope, record_id, shared_by, note, created_ms)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
-            params![
-                share.id,
-                share.room,
-                share.scope,
-                share.record_id,
-                share.shared_by,
-                share.note,
-                share.created_ms
-            ],
-        )
-    })?;
-    Ok(share)
-}
-
-pub fn revoke_share(db: &AssistDb, id: &str) -> Result<(), String> {
-    db.with(|c| {
-        c.execute(
-            "UPDATE groups_shares SET revoked_ms = ?2 WHERE id = ?1 AND revoked_ms IS NULL",
-            params![id, now_ms()],
-        )
-    })?;
-    Ok(())
 }
 
 pub fn shares(db: &AssistDb, room: &str) -> Result<Vec<Share>, String> {

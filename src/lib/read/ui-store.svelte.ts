@@ -62,7 +62,7 @@ export function openBook(b: Pick<Book, "id">, at?: string) {
   ui.reader = { kind: "book", id: b.id, at };
 }
 
-export async function openChapter(ch: Pick<Chapter, "id" | "series_id">) {
+export function openChapter(ch: Pick<Chapter, "id" | "series_id">) {
   ui.reader = { kind: "chapter", chapterId: ch.id, seriesId: ch.series_id };
 }
 

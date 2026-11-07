@@ -9,19 +9,17 @@ type AgentPrompts = {
   templateWriter: string;
   templateEm: string;
   templateReviewer: string;
-  help: string;
 };
 
 const KEYS: Record<keyof AgentPrompts, string> = {
-  omni: "llm.prompts.omni",
-  builder: "llm.prompts.builder",
-  scout: "llm.prompts.scout",
-  templateChief: "llm.prompts.template_chief",
-  templateResearcher: "llm.prompts.template_researcher",
-  templateWriter: "llm.prompts.template_writer",
-  templateEm: "llm.prompts.template_em",
-  templateReviewer: "llm.prompts.template_reviewer",
-  help: "llm.prompts.help",
+  omni: "agents.prompts.omni",
+  builder: "agents.prompts.builder",
+  scout: "agents.prompts.scout",
+  templateChief: "agents.prompts.template_chief",
+  templateResearcher: "agents.prompts.template_researcher",
+  templateWriter: "agents.prompts.template_writer",
+  templateEm: "agents.prompts.template_em",
+  templateReviewer: "agents.prompts.template_reviewer",
 };
 
 export function agentPrompts(bag: TranslationBag, locale: string): AgentPrompts {
@@ -42,6 +40,5 @@ export function agentPrompts(bag: TranslationBag, locale: string): AgentPrompts 
     templateWriter: pick(KEYS.templateWriter),
     templateEm: pick(KEYS.templateEm),
     templateReviewer: pick(KEYS.templateReviewer),
-    help: pick(KEYS.help),
   };
 }

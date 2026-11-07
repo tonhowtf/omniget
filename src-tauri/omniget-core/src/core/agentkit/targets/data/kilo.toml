@@ -6,8 +6,6 @@ status = "active"
 beta = true
 homepage = "https://kilo.ai"
 notes = "Since April 2026 an OpenCode fork: the kilo CLI core is shared by VS Code, JetBrains and cloud agents. The old Roo-style .kilocode/* files are migrated on startup and treated as read-only."
-reads_agents_dir = true
-reads_agents_md = "yes"
 
 [detect]
 binaries = ["kilo"]
@@ -155,7 +153,6 @@ format = "sqlite"
 cmd = "kilo"
 headless = ["run"]
 json_flag = ["--format", "json"]
-resume_flag = "-s"
 model_flag = "-m"
 permission_flags = { plan = ["--agent", "plan"], bypass = ["--auto"] }
 

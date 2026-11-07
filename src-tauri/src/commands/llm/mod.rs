@@ -1,109 +1,26 @@
 pub mod accounts;
 pub mod chat;
-pub mod help;
-pub mod help_redaction;
 pub mod jobs;
 pub mod keys;
-pub mod local;
 pub mod mcp;
-pub mod models;
-pub mod observatory;
 pub mod prompts;
-pub mod prune;
-pub mod roster;
-pub mod skills;
 pub mod watchdog;
-pub mod wire_probe;
 
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
-use omniget_core::core::llm::types::TurnEvent;
 use omniget_core::core::omni::bus::BusEvent;
-use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager};
 
-pub const EVENT_TURN: &str = "llm://turn";
 pub const EVENT_TELEMETRY: &str = "llm://telemetry";
 pub const EVENT_TOOL_ASK: &str = "llm://tool-ask";
 pub const EVENT_REROUTED: &str = "llm://rerouted";
 pub const EVENT_TOOL_RESOLVED: &str = "omni://tool-resolved";
 
-pub const DELTA_HZ: u32 = 30;
 pub const TELEMETRY_HZ: u32 = 2;
-
-#[derive(Debug, Clone, Serialize)]
-pub struct TurnEnvelope<'a> {
-    pub request_id: &'a str,
-    pub event: &'a TurnEvent,
-}
-
-pub fn emit_turn(app: &AppHandle, request_id: &str, event: &TurnEvent) {
-    if let Err(error) = app.emit(EVENT_TURN, TurnEnvelope { request_id, event }) {
-        tracing::debug!("[llm] failed to emit {EVENT_TURN}: {error}");
-    }
-}
 
 pub fn emit_telemetry(app: &AppHandle, snapshot: &crate::llm_manager::TelemetrySnapshot) {
     if let Err(error) = app.emit(EVENT_TELEMETRY, snapshot) {
         tracing::debug!("[llm] failed to emit {EVENT_TELEMETRY}: {error}");
-    }
-}
-
-#[derive(Debug)]
-pub struct DeltaCoalescer {
-    interval: Duration,
-    pending: String,
-    last_flush: Option<Instant>,
-}
-
-impl DeltaCoalescer {
-    pub fn new(hz: u32) -> Self {
-        let hz = hz.max(1);
-        Self {
-            interval: Duration::from_nanos(1_000_000_000 / hz as u64),
-            pending: String::new(),
-            last_flush: None,
-        }
-    }
-
-    pub fn push(&mut self, event: TurnEvent, now: Instant) -> Vec<TurnEvent> {
-        match event {
-            TurnEvent::TextDelta { text } => {
-                self.pending.push_str(&text);
-                let due = match self.last_flush {
-                    None => true,
-                    Some(last) => now.duration_since(last) >= self.interval,
-                };
-                if due {
-                    self.last_flush = Some(now);
-                    self.take().into_iter().collect()
-                } else {
-                    Vec::new()
-                }
-            }
-            other => {
-                self.last_flush = Some(now);
-                let mut out = Vec::new();
-                if let Some(pending) = self.take() {
-                    out.push(pending);
-                }
-                out.push(other);
-                out
-            }
-        }
-    }
-
-    pub fn flush(&mut self) -> Option<TurnEvent> {
-        self.take()
-    }
-
-    fn take(&mut self) -> Option<TurnEvent> {
-        if self.pending.is_empty() {
-            return None;
-        }
-        Some(TurnEvent::TextDelta {
-            text: std::mem::take(&mut self.pending),
-        })
     }
 }
 
@@ -260,7 +177,6 @@ pub fn ensure_wired(app: &AppHandle) {
         if swept > 0 {
             tracing::info!("[llm] swept {swept} orphan bridge conversation(s)");
         }
-        prune::install(app);
         watchdog::install(app);
         spawn_bus_forwarder_claimed(app.clone(), manager);
     }

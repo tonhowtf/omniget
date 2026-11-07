@@ -21,7 +21,7 @@ export function getGlContext(canvas: HTMLCanvasElement, version: 1 | 2): GL | nu
     canvas.getContext('experimental-webgl', GL_ATTRIBUTES)) as WebGLRenderingContext | null;
 }
 
-export function compileShader(gl: GL, type: number, src: string): WebGLShader {
+function compileShader(gl: GL, type: number, src: string): WebGLShader {
   const sh = gl.createShader(type);
   if (!sh) throw new RenderError(ERR.SHADER, 'createShader failed');
   gl.shaderSource(sh, src);

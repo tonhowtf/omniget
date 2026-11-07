@@ -6,9 +6,7 @@ status = "active"
 beta = true
 homepage = "https://github.com/letta-ai/letta-code"
 notes = "Docs now brand it 'Letta Harness (formerly Letta Code)'; CLI is `letta`. Stateful agents with git-backed MemFS memory (~/.letta/agents/<agent-id>/memory/), so rules are not a repo file; MCP servers are stored per agent in settings.json agents[].mcpServers[]."
-reads_agents_dir = true
 # AGENTS.md is not auto-loaded: the default prompt tells the agent to read AGENTS.md/CLAUDE.md early; it is injected only on EnterWorktree.
-reads_agents_md = "no"
 
 [detect]
 binaries = ["letta"]
@@ -109,7 +107,6 @@ Notification = "Notification"
 shape = "claude"
 # command hook timeout is in ms (default 60000); prompt hooks 30000.
 timeout_unit = "ms"
-events_count = 11
 
 [tool_name_map]
 Bash = "Bash"
@@ -159,7 +156,6 @@ format = "jsonl"
 cmd = "letta"
 headless = ["-p"]
 json_flag = ["--output-format", "stream-json"]
-resume_flag = "--conversation"
 system_prompt_flag = "--system-custom"
 model_flag = "--model"
 permission_flags = { accept_edits = ["--permission-mode", "acceptEdits"], bypass = ["--yolo"] }

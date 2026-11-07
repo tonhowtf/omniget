@@ -6,8 +6,6 @@ status = "maintenance"
 beta = true
 homepage = "https://aider.chat"
 notes = "Close to dormant (aider-chat 0.86.2, last commit 2026-05). No agents, commands, hooks, skills, plugins or MCP; rules are a CONVENTIONS.md (or AGENTS.md) loaded through `read:` in .aider.conf.yml. MCP exists only in forks or via install-mcp's unofficial .aider.mcp.yml."
-reads_agents_dir = false
-reads_agents_md = "opt-in"
 
 [detect]
 binaries = ["aider"]
@@ -52,7 +50,6 @@ format = "md"
 [runner]
 cmd = "aider"
 headless = ["--message"]
-resume_flag = "--restore-chat-history"
 model_flag = "--model"
 permission_flags = { bypass = ["--yes-always"] }
 
@@ -60,5 +57,4 @@ permission_flags = { bypass = ["--yes-always"] }
 native = false
 
 [trust]
-requires_review = false
 how = "No trust model; aider only asks confirmations, which --yes-always answers."

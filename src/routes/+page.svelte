@@ -21,6 +21,7 @@
   import HomeUrlBar from "$components/home/HomeUrlBar.svelte";
   import HomeInspector from "$components/home/HomeInspector.svelte";
   import HomeDropOverlay from "$components/home/HomeDropOverlay.svelte";
+  import ConnectorHint from "$components/home/ConnectorHint.svelte";
   import {
     type OmniState,
     type PlatformInfo,
@@ -38,11 +39,13 @@
   import { getMediaPreview, clearMediaPreview } from "$lib/stores/media-preview-store.svelte";
   import { clearPendingExternalPrefill, getPendingExternalPrefill, type ExternalUrlEvent } from "$lib/stores/external-url-store.svelte";
   import { getOmniboxDraftUrl, setOmniboxDraftUrl } from "$lib/stores/omnibox-draft-store.svelte";
-  import { linksFromPaste } from "$lib/home/paste-links";
+  import { linksFromPaste, singleLinkInShareText } from "$lib/home/paste-links";
+  import { videoOrListLink } from "$lib/home/video-or-list";
+  import VideoOrListChoice from "$components/omnibox/VideoOrListChoice.svelte";
   import { t } from "$lib/i18n";
   import { translateBackendError } from "$lib/error-translate";
   import { platformDisplayName } from "$lib/platform-display-names";
-  import { classifyError, type ErrorKind } from "$lib/home/friendly-error";
+  import { browserMayHelp, classifyError, type ErrorKind } from "$lib/home/friendly-error";
   import { pluralKey, splitLink } from "$lib/home/plural";
   import { applyRuleToDownloadOptions, type RuleThen } from "$lib/download-rule-options";
   import { focusWhenReady, parseHomeTarget } from "$lib/settings-navigation";
@@ -83,6 +86,9 @@
   let playlistEntries = $state<{ index: number; title: string; url: string }[]>([]);
   let selectedPlaylistItems = $state<Set<number>>(new Set());
   let playlistLoading = $state(false);
+  let listChoice = $state<"video" | "list">("video");
+  let thumbnailsOnly = $state(false);
+  let videoOrList = $derived(videoOrListLink(url.trim()));
   let torrentEntries = $state<{ index: number; path: string; size_bytes: number }[]>([]);
   let selectedTorrentFiles = $state<Set<number>>(new Set());
   let torrentLoading = $state(false);
@@ -301,6 +307,7 @@
     playlistEntries = [];
     selectedPlaylistItems = new Set();
     playlistLoading = false;
+    listChoice = "video";
     torrentEntries = [];
     selectedTorrentFiles = new Set();
     torrentLoading = false;
@@ -329,9 +336,10 @@
     }
 
     const urls = linksFromPaste(trimmed);
-    if (urls.length === 1 && /\s/.test(trimmed) && isUrl(trimmed)) {
-      url = urls[0];
-      trimmed = urls[0];
+    const shared = singleLinkInShareText(trimmed);
+    if (shared) {
+      url = shared;
+      trimmed = shared;
     }
 
     if (urls.length > 1) {
@@ -368,7 +376,7 @@
         omniState = { kind: "detected", info: result };
         invoke("prefetch_media_info", { url: value }).catch(() => {});
         loadCookieAccounts(value);
-        if (result.content_type === "playlist") {
+        if (result.content_type === "playlist" && !videoOrListLink(value)) {
           loadPlaylistEntries(value);
         }
         if (isTorrentUrl(value)) {
@@ -403,6 +411,20 @@
       if (url.trim() === targetUrl) {
         playlistLoading = false;
       }
+    }
+  }
+
+  function scrollHomeByPage(e: KeyboardEvent) {
+    if (e.key !== "PageDown" && e.key !== "PageUp") return;
+    const area = e.currentTarget as HTMLElement;
+    area.scrollBy({ top: (e.key === "PageDown" ? 1 : -1) * area.clientHeight * 0.9 });
+    e.preventDefault();
+  }
+
+  function chooseVideoOrList(next: "video" | "list") {
+    listChoice = next;
+    if (next === "list" && playlistEntries.length === 0 && !playlistLoading) {
+      loadPlaylistEntries(url.trim());
     }
   }
 
@@ -602,6 +624,10 @@
     }).catch(() => {});
   }
 
+  function wantsList(info: PlatformInfo): boolean {
+    return info.content_type === "playlist" && (!videoOrList || listChoice === "list");
+  }
+
   async function handleAction() {
     if (omniState.kind !== "detected") return;
     const info = omniState.info;
@@ -615,7 +641,7 @@
     }
 
     const isPlaylist =
-      info.content_type === "playlist" && playlistEntries.length > 0;
+      wantsList(info) && playlistEntries.length > 0;
 
     if (isPlaylist && selectedPlaylistItems.size === 0) {
       showToast("error", $t("omnibox.playlist_none_selected") as string);
@@ -803,15 +829,22 @@
     url = "";
 
     const results = await Promise.allSettled(
-      paraBaixar.map(u => invoke<DownloadStarted>("download_from_url", {
-        url: u,
-        outputDir,
-        downloadMode: downloadMode === "auto" ? null : downloadMode,
-        quality: selectedQuality,
-        formatId: null,
-        referer: null,
-        cookieSlug: null,
-      }))
+      paraBaixar.map(u => thumbnailsOnly
+        ? invoke<DownloadStarted>("download_with_custom_args", {
+            url: u,
+            outputDir,
+            customArgs: ["--skip-download", "--write-thumbnail", "--convert-thumbnails", "jpg"],
+            cookieSlug: null,
+          })
+        : invoke<DownloadStarted>("download_from_url", {
+            url: u,
+            outputDir,
+            downloadMode: downloadMode === "auto" ? null : downloadMode,
+            quality: selectedQuality,
+            formatId: null,
+            referer: null,
+            cookieSlug: null,
+          }))
     );
 
     const queued = results.filter(r => r.status === "fulfilled").length;
@@ -1122,7 +1155,7 @@
   }
 
   function downloadLabel(info: PlatformInfo): string {
-    if (info.content_type === "playlist" && playlistEntries.length > 0) {
+    if (wantsList(info) && playlistEntries.length > 0) {
       const n = selectedPlaylistItems.size;
       return $t(pluralKey("omnibox.download_playlist", n), { count: n }) as string;
     }
@@ -1137,7 +1170,8 @@
   }
 </script>
 
-<div class="home" class:home--advanced={advancedMode}>
+<!-- svelte-ignore a11y_no_noninteractive_tabindex, a11y_no_noninteractive_element_interactions -->
+<div class="home" class:home--advanced={advancedMode} role="region" aria-label={$t("home.inspector_title") as string} tabindex="0" onkeydown={scrollHomeByPage}>
   <div class="home-backdrop" aria-hidden="true"></div>
   <h1 class="sr-only">{$t("home.sr_title")}</h1>
 
@@ -1181,6 +1215,8 @@
         onMore={handleMore}
       />
 
+      <ConnectorHint {url} />
+
       {#if omniState.kind === "detected"}
         <p class="detected-chip">
           {platformDisplayName(omniState.info.platform)}
@@ -1202,7 +1238,7 @@
           {@const terms = splitLink($t("home.first_terms") as string)}
           <div class="first-run">
             <p>{sites.before}<button type="button" class="inline-link" onclick={openSupportedSites}>{sites.link}</button>{sites.after}</p>
-            <p class="first-terms">{terms.before}<a href="/about/terms" class="inline-link">{terms.link}</a>{terms.after}</p>
+            <p class="first-terms">{terms.before}<a href="/community/terms" class="inline-link">{terms.link}</a>{terms.after}</p>
           </div>
         {:else if dlStats.totalDownloads > 0}
           <a href="/downloads" class="stats-line">
@@ -1215,7 +1251,13 @@
       {:else if omniState.kind === "batch"}
         <div class="batch-panel">
           <p class="state-line">{$t(pluralKey("omnibox.batch_detected", omniState.urls.length), { count: omniState.urls.length })}</p>
-          <DownloadModeSelector bind:downloadMode onChange={() => { downloadModeExplicit = true; }} />
+          {#if !thumbnailsOnly}
+            <DownloadModeSelector bind:downloadMode onChange={() => { downloadModeExplicit = true; }} />
+          {/if}
+          <label class="batch-thumbnails">
+            <input type="checkbox" bind:checked={thumbnailsOnly} />
+            <span>{$t("omnibox.batch_thumbnails_only")}</span>
+          </label>
           <button class="download-primary-btn" onclick={handleBatchDownload}>{$t("omnibox.batch_download_all", { count: omniState.urls.length })}</button>
         </div>
       {:else if omniState.kind === "search-results"}
@@ -1244,11 +1286,14 @@
             {#if action}
               <button type="button" class="download-primary-btn download-primary-btn--auto" onclick={() => errorAction(kind)}>{action}</button>
               <button type="button" class="secondary-btn" onclick={handleRetry}>{$t("omnibox.retry")}</button>
-              {#if kind === "unsupported" || kind === "login"}
+              {#if browserMayHelp(kind)}
                 <button type="button" class="secondary-btn" onclick={openInGlobalDownloader}>{$t("omnibox.try_builtin_browser")}</button>
               {/if}
             {:else}
               <button type="button" class="download-primary-btn download-primary-btn--auto" onclick={handleRetry}>{$t("omnibox.retry")}</button>
+              {#if browserMayHelp(kind)}
+                <button type="button" class="secondary-btn" onclick={openInGlobalDownloader}>{$t("omnibox.try_builtin_browser")}</button>
+              {/if}
             {/if}
           </div>
           <details class="error-details">
@@ -1266,7 +1311,10 @@
       <HomeInspector open={omniState.kind === "detected"} title={$t('home.inspector_title')}>
         {#if omniState.kind === "detected"}
         <MediaPreview bind:mediaPreview bind:imageLoading={previewImageLoading} />
-        {#if omniState.info.content_type === "playlist"}
+        {#if omniState.info.content_type === "playlist" && videoOrList}
+          <VideoOrListChoice choice={listChoice} isMix={videoOrList.isMix} onChoose={chooseVideoOrList} />
+        {/if}
+        {#if wantsList(omniState.info)}
           <div class="playlist-picker">
             <div class="playlist-head">
               <span class="playlist-count">
@@ -1334,7 +1382,7 @@
             <button type="button" class="cookie-hint-link" onclick={() => goto("/settings?tab=cookies")}>{$t("omnibox.cookie_hint_action")}</button>
           </p>
         {/if}
-          {@const playlistBlocked = omniState.info.content_type === "playlist" && playlistEntries.length > 0 && selectedPlaylistItems.size === 0}
+          {@const playlistBlocked = wantsList(omniState.info) && (playlistEntries.length > 0 ? selectedPlaylistItems.size === 0 : !!videoOrList)}
           {@const torrentBlocked = torrentEntries.length > 0 && selectedTorrentFiles.size === 0}
           {#if omniState.info.platform === "bilibili"}
             <BilibiliPreviewExtras {url} accountSlug={selectedCookieSlug && selectedCookieSlug !== "_anonymous" ? selectedCookieSlug : null} />
@@ -1792,7 +1840,11 @@
 
   .home {
     position: relative;
-    min-height: 100%;
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    outline: none;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -2041,6 +2093,14 @@
     line-height: 1.5;
     color: var(--text-muted);
     word-break: break-word;
+  }
+
+  .batch-thumbnails {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: 13px;
+    color: var(--text);
   }
 
   .batch-panel {

@@ -6,8 +6,6 @@ status = "active"
 beta = true
 homepage = "https://geminicli.com"
 notes = "AGENTS.md is read only when listed in context.fileName. Hook timeouts are in milliseconds and MCP tool ids use single underscores (mcp_server_tool)."
-reads_agents_dir = true
-reads_agents_md = "opt-in"
 
 [detect]
 binaries = ["gemini"]
@@ -110,8 +108,6 @@ Notification = "Notification"
 [hooks]
 shape = "gemini"
 timeout_unit = "ms"
-env_aliases = ["CLAUDE_PROJECT_DIR"]
-events_count = 11
 
 [tool_name_map]
 Bash = "run_shell_command"
@@ -155,7 +151,6 @@ format = "jsonl"
 cmd = "gemini"
 headless = ["-p"]
 json_flag = ["--output-format", "stream-json"]
-resume_flag = "--resume"
 model_flag = "--model"
 permission_flags = { plan = ["--approval-mode", "plan"], accept_edits = ["--approval-mode", "auto_edit"], bypass = ["--approval-mode", "yolo"] }
 
@@ -166,5 +161,4 @@ args = ["--acp"]
 registry_id = "gemini"
 
 [trust]
-requires_review = true
 how = "Gemini fingerprints project hooks and treats a changed hook as untrusted until it is re-enabled in /hooks."

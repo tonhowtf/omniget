@@ -49,6 +49,7 @@ pub struct ProgressUpdate {
     pub fragment_count: Option<u32>,
     pub planned_formats: Option<Vec<String>>,
     pub indeterminate: bool,
+    pub peers: Option<u32>,
 }
 
 impl ProgressUpdate {

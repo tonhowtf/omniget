@@ -5,6 +5,7 @@
   import type { ReceiptSummary } from "$lib/washmybelly/api";
   import { errorText, formatBytes, formatDay, splitBytes } from "$lib/washmybelly/format";
   import { groupByDay } from "$lib/washmybelly/ui";
+  import { getSettings, saveSettings } from "$components/settings/settings-helpers";
   import { moduleById, type Caps } from "./registry";
   import ModuleHeader from "./ui/ModuleHeader.svelte";
   import EmptyState from "./ui/EmptyState.svelte";
@@ -26,6 +27,20 @@
   let restoreResults = $state<Record<string, { label: string; ok: boolean; detail: string }[]>>({});
 
   let days = $derived(groupByDay(receipts));
+  let keepDays = $derived<number | undefined>(getSettings()?.washmybelly?.quarantine_days);
+  let keepInvalid = $state(false);
+
+  function changeKeepDays(input: HTMLInputElement) {
+    const raw = input.value.trim();
+    const n = Math.round(Number(raw));
+    if (!raw || !Number.isFinite(n) || n < 1 || n > 90) {
+      keepInvalid = true;
+      return;
+    }
+    keepInvalid = false;
+    input.value = String(n);
+    if (n !== keepDays) void saveSettings({ washmybelly: { quarantine_days: n } });
+  }
   let totalFreed = $derived(receipts.reduce((n, r) => n + (r.bytes_freed || 0), 0));
   let undoable = $derived(receipts.filter((r) => r.restorable && !r.restored_at).length);
   let freed = $derived(splitBytes(totalFreed));
@@ -75,6 +90,22 @@
   {/snippet}
 </ModuleHeader>
 
+<div class="wmb-rc-keep">
+  <div class="wmb-rc-keep-text">
+    <label for="wmb-quarantine-days">{$t("washmybelly.settings_quarantine_days")}</label>
+    <p class="small dim" id="wmb-quarantine-days-desc">{$t("washmybelly.settings_quarantine_days_desc")}</p>
+  </div>
+  <span class="wmb-rc-keep-input">
+    <input id="wmb-quarantine-days" class="input input-num" type="number" min="1" max="90" step="1" inputmode="numeric"
+      aria-describedby={keepInvalid ? "wmb-quarantine-days-error wmb-quarantine-days-desc wmb-quarantine-days-unit" : "wmb-quarantine-days-desc wmb-quarantine-days-unit"}
+      aria-invalid={keepInvalid}
+      disabled={keepDays === undefined}
+      value={keepDays ?? ""} onchange={(e) => changeKeepDays(e.currentTarget)} />
+    <span class="small dim" id="wmb-quarantine-days-unit">{$t("washmybelly.receipts.keep_days_unit")}</span>
+  </span>
+  <p class="wmb-rc-keep-error small" id="wmb-quarantine-days-error" role="alert">{#if keepInvalid}{$t("washmybelly.receipts.keep_days_invalid", { min: 1, max: 90 })}{/if}</p>
+</div>
+
 {#if loading && receipts.length === 0}
   <div class="wmb-rc-tiles">
     {#each [0, 1, 2] as i (i)}<span class="skeleton" style:height="70px" style:border-radius="var(--radius-lg)"></span>{/each}
@@ -121,6 +152,14 @@
 />
 
 <style>
+  .wmb-rc-keep { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; padding: 10px 14px; border-radius: var(--radius-lg, 12px); background: var(--surface); box-shadow: inset 0 0 0 var(--hairline, 1px) var(--content-border, var(--separator)); }
+  .wmb-rc-keep-text { min-width: 0; }
+  .wmb-rc-keep-text label { font-size: 13px; color: var(--text); }
+  .wmb-rc-keep-text p { margin: 2px 0 0; }
+  .wmb-rc-keep-input { display: inline-flex; align-items: center; gap: 8px; }
+  .wmb-rc-keep-input input { inline-size: 72px; }
+  .wmb-rc-keep-error { flex-basis: 100%; margin: 0; color: var(--danger); }
+  .wmb-rc-keep-error:empty { display: none; }
   .wmb-rc-tiles {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));

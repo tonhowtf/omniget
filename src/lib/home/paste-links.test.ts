@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { cleanLink, linkKey, linksFromPaste } from "./paste-links";
+import { cleanLink, linkKey, linksFromPaste, singleLinkInShareText } from "./paste-links";
 
 describe("cleanLink", () => {
   it("drops tracking parameters and keeps the ones that matter", () => {
@@ -60,5 +60,24 @@ describe("linksFromPaste", () => {
       "film.torrent",
       "p2p:1234",
     ]);
+  });
+});
+
+describe("singleLinkInShareText", () => {
+  it("finds the link inside text shared from the Douyin app", () => {
+    expect(
+      singleLinkInShareText("7.43 复制打开抖音，看看【作品】 https://v.douyin.com/iAbCdEf/ Tgb:/ 01/23 z@G.vS")
+    ).toBe("https://v.douyin.com/iAbCdEf/");
+  });
+
+  it("finds the link after the prefix of the Tencent Video app", () => {
+    expect(singleLinkInShareText("【腾讯视频】好看的剧https://m.v.qq.com/x/page/q326831cny0.html，点击观看")).toBe(
+      "https://m.v.qq.com/x/page/q326831cny0.html"
+    );
+  });
+
+  it("leaves a plain link and a plain search alone", () => {
+    expect(singleLinkInShareText("https://v.qq.com/x/page/abc.html")).toBeNull();
+    expect(singleLinkInShareText("lofi hip hop")).toBeNull();
   });
 });

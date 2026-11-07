@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
 use super::elevate::ElevatedOp;
-use super::plan::{self, Outcome, PlanItem, Source};
+use super::plan::{self, Outcome, PlanItem};
 use super::receipt::Undo;
 use super::store::Ctx;
 
@@ -45,15 +45,6 @@ pub struct Leftover {
     pub confidence: String,
     pub evidence: String,
     pub kind: String,
-}
-
-fn source_of(a: &Value) -> Source {
-    match a.get("_source").and_then(Value::as_str) {
-        Some("ui") => Source::Ui,
-        Some("external") => Source::External,
-        Some("cli") => Source::Cli,
-        _ => Source::Agent,
-    }
 }
 
 pub fn list() -> Result<Vec<App>, String> {
@@ -99,7 +90,7 @@ pub async fn tool_list(a: Value) -> Result<Value, String> {
 
 pub async fn tool_leftovers(a: Value) -> Result<Value, String> {
     let app_id = crate::core::llm::tool_table::need_str(&a, "app_id")?;
-    let source = source_of(&a);
+    let source = super::plan::source_of(&a);
     super::tools::blocking(move || {
         let ctx = Ctx::app()?;
         let apps = list()?;
@@ -173,13 +164,4 @@ pub fn plan_undo(ctx: &Ctx, action: &str, args: &Value) -> Result<String, String
 
 pub fn elevated_pkg_forget(id: &str) -> Result<String, String> {
     macos::elevated_pkg_forget(id)
-}
-
-pub async fn ui_action(action: &str, a: Value) -> Result<Value, String> {
-    match action.split_once('.') {
-        Some(("mac", x)) => macos::ui_action(x, a).await,
-        Some(("win", x)) => windows::ui_action(x, a).await,
-        Some(("linux", x)) => linux::ui_action(x, a).await,
-        _ => Err(format!("apps: unknown screen action {action}")),
-    }
 }

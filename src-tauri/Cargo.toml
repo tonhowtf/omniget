@@ -1,11 +1,11 @@
 [workspace]
-members = [".", "omniget-core", "omniget-cli", "omniget-atlas", "omniworld-server"]
+members = [".", "omniget-core", "omniget-cli", "omniget-atlas", "omniworld-server", "omniget-whatsapp"]
 resolver = "2"
 
 [package]
 name = "omniget"
 version = "1.0.0"
-description = "Desktop downloader for YouTube, Instagram, TikTok, X, torrents and the sites yt-dlp supports, with an MCP server for coding agents and a window to run AI agents (Claude Code, Codex, Gemini CLI, Ollama), plus a system cleaner and uninstaller (washmybelly)"
+description = "Desktop downloader for YouTube, Instagram, TikTok, X, torrents and the sites yt-dlp supports, with an MCP server for coding agents and a Canvas to run AI agent terminals (Claude Code, Codex, Gemini CLI, Ollama), plus a system cleaner and uninstaller (washmybelly)"
 authors = ["tonhowtf"]
 license = "GPL-3.0"
 repository = "https://github.com/tonhowtf/omniget"
@@ -23,6 +23,9 @@ doctest = false
 name = "omniget"
 path = "src/main.rs"
 test = false
+
+[package.metadata.cargo-machete]
+ignored = ["tauri-build"]
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
@@ -59,7 +62,7 @@ tokio-util = { version = "0.7", features = ["rt", "io"] }
 url = "2"
 urlencoding = "2"
 rand = "0.10.0"
-rusqlite = { version = "0.32", features = ["bundled"] }
+rusqlite = { version = "0.40", features = ["bundled", "fallible_uint"] }
 base64 = "0.22.1"
 tempfile = "=3.25.0"
 sha2 = "0.10"
@@ -68,8 +71,11 @@ data-encoding = "2"
 hex = "0.4"
 hmac = "0.12"
 qrcode = { version = "0.14", default-features = false, features = ["svg"] }
+rsa = "0.9"
+flate2 = "1"
 portable-pty = "0.9"
 omniget-core = { path = "omniget-core" }
+omniget-whatsapp = { path = "omniget-whatsapp" }
 which = "7"
 walkdir = "2"
 bytes = "1"
@@ -86,6 +92,7 @@ fs4 = "1"
 lettre = { version = "0.11", default-features = false, features = ["smtp-transport", "tokio1", "tokio1-native-tls", "builder", "hostname"] }
 
 [target.'cfg(windows)'.dependencies]
+winreg = "0.55"
 keyring = { version = "3", features = ["windows-native"] }
 webview2-com = "0.38"
 windows = { version = "0.61", features = ["Win32_Foundation", "Win32_Media_Audio", "Win32_System_Com", "Win32_System_Com_StructuredStorage", "Win32_System_Variant", "Win32_UI_WindowsAndMessaging"] }
@@ -129,3 +136,7 @@ strip = true
 [patch.crates-io]
 grammers-session = { path = "vendor/grammers-session-patched" }
 grammers-mtsender = { path = "vendor/grammers-mtsender-patched" }
+pdfcraft-organize = { path = "vendor/pdfcraft/organize" }
+pdfcraft-cos = { path = "vendor/pdfcraft/cos" }
+pdfcraft-filters = { path = "vendor/pdfcraft/filters" }
+photocraft-psd = { path = "vendor/photocraft-psd" }

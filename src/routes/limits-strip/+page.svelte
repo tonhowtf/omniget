@@ -71,17 +71,17 @@
     const h = Math.floor((minutes % 1440) / 60);
     const m = minutes % 60;
     const parts: string[] = [];
-    if (d) parts.push(`${d} ${$t("llm.limits.strip.d")}`);
-    if (h) parts.push(`${h} ${$t("llm.limits.strip.h")}`);
-    if (m && !d) parts.push(`${m} ${$t("llm.limits.strip.min")}`);
+    if (d) parts.push(`${d} ${$t("agents.limits.strip.d")}`);
+    if (h) parts.push(`${h} ${$t("agents.limits.strip.h")}`);
+    if (m && !d) parts.push(`${m} ${$t("agents.limits.strip.min")}`);
     return parts.join(" ");
   }
 
   function resets(at: number | null): string | null {
     if (at == null) return null;
     return at <= now
-      ? ($t("llm.limits.strip.resets_now") as string)
-      : ($t("llm.limits.strip.resets_in", { time: span(at - now) }) as string);
+      ? ($t("agents.limits.strip.resets_now") as string)
+      : ($t("agents.limits.strip.resets_in", { time: span(at - now) }) as string);
   }
 
   function paceLine(w: LimitWindow): { text: string; warn: boolean } | null {
@@ -89,12 +89,12 @@
     if (!p) return null;
     const side = paceSide(p.delta);
     const delta = percent(Math.abs(p.delta));
-    if (side === "on") return { text: $t("llm.limits.strip.pace.on") as string, warn: false };
-    if (side === "under") return { text: $t("llm.limits.strip.pace.under", { delta }) as string, warn: false };
+    if (side === "on") return { text: $t("agents.limits.strip.pace.on") as string, warn: false };
+    if (side === "under") return { text: $t("agents.limits.strip.pace.under", { delta }) as string, warn: false };
     const out = p.runsOutAt != null && p.runsOutAt > now;
     return out
-      ? { text: $t("llm.limits.strip.pace.ahead_out", { delta, time: span(p.runsOutAt! - now) }) as string, warn: true }
-      : { text: $t("llm.limits.strip.pace.ahead", { delta }) as string, warn: false };
+      ? { text: $t("agents.limits.strip.pace.ahead_out", { delta, time: span(p.runsOutAt! - now) }) as string, warn: true }
+      : { text: $t("agents.limits.strip.pace.ahead", { delta }) as string, warn: false };
   }
 
   function amount(n: number, unit: string | null): string {
@@ -106,8 +106,8 @@
     if (w.used_abs == null) return null;
     const unit = w.unit ?? "";
     return w.limit_abs != null
-      ? ($t("llm.limits.strip.of", { used: amount(w.used_abs, w.unit), limit: amount(w.limit_abs, w.unit), unit }) as string)
-      : ($t("llm.limits.strip.count", { used: amount(w.used_abs, w.unit), unit }) as string);
+      ? ($t("agents.limits.strip.of", { used: amount(w.used_abs, w.unit), limit: amount(w.limit_abs, w.unit), unit }) as string)
+      : ($t("agents.limits.strip.count", { used: amount(w.used_abs, w.unit), unit }) as string);
   }
 
   function gib(bytes: number | null): string | null {
@@ -117,7 +117,7 @@
   function modelLine(m: LocalModel): string {
     const left =
       m.expires_at && m.expires_at > now
-        ? ($t("llm.limits.strip.unloads_in", { time: span(m.expires_at - now) }) as string)
+        ? ($t("agents.limits.strip.unloads_in", { time: span(m.expires_at - now) }) as string)
         : null;
     return [m.params, m.quant, gib(m.vram_bytes ?? m.size_bytes), left].filter(Boolean).join(" · ");
   }
@@ -138,17 +138,17 @@
   function tooltip(ring: Ring): string {
     const used = worst(ring);
     const name = who(ring) ? `${ring.label} (${who(ring)})` : ring.label;
-    let head = used != null ? `${name} · ${$t("llm.limits.strip.used", { percent: percent(used) })}` : name;
-    if (tone(used) === "red") head = `${head} · ${$t("llm.limits.strip.near_limit")}`;
-    return ring.activity === "idle" ? head : `${head} · ${$t(`llm.limits.strip.state.${ring.activity}`)}`;
+    let head = used != null ? `${name} · ${$t("agents.limits.strip.used", { percent: percent(used) })}` : name;
+    if (tone(used) === "red") head = `${head} · ${$t("agents.limits.strip.near_limit")}`;
+    return ring.activity === "idle" ? head : `${head} · ${$t(`agents.limits.strip.state.${ring.activity}`)}`;
   }
 
   function readAgo(ring: Ring): string | null {
     if (ring.read_at == null) return null;
     const ms = now - ring.read_at;
     return ms < 60000
-      ? ($t("llm.limits.strip.just_now") as string)
-      : ($t("llm.limits.strip.read_ago", { time: span(ms) }) as string);
+      ? ($t("agents.limits.strip.just_now") as string)
+      : ($t("agents.limits.strip.read_ago", { time: span(ms) }) as string);
   }
 
   function botOf(ring: Ring) {
@@ -291,7 +291,7 @@
     class="pill"
     class:vertical
     role="toolbar"
-    aria-label={$t("llm.limits.strip.aria") as string}
+    aria-label={$t("agents.limits.strip.aria") as string}
     style={vertical ? `margin-top:${offset / scale}px` : `margin-left:${offset / scale}px`}
   >
     <!-- svelte-ignore a11y_no_static_element_interactions -->
@@ -338,13 +338,13 @@
       {:else}
         <span class="empty-tip-anchor">
           <button class="empty empty-action" type="button" disabled={openingApp} onclick={openConnections}
-            aria-label={$t(loadFailed ? "llm.limits.strip.open_after_error" : "llm.limits.strip.connect_hint")}
-            title={$t(loadFailed ? "llm.limits.strip.open_after_error" : "llm.limits.strip.connect_hint")}
+            aria-label={$t(loadFailed ? "agents.limits.strip.open_after_error" : "agents.limits.strip.connect_hint")}
+            title={$t(loadFailed ? "agents.limits.strip.open_after_error" : "agents.limits.strip.connect_hint")}
             onfocus={(e) => (emptyTipVisible = e.currentTarget.matches(":focus-visible"))}
             onblur={() => (emptyTipVisible = false)}
             onkeydown={(e) => { if (e.key === "Escape" && emptyTipVisible) { e.preventDefault(); emptyTipVisible = false; } }}>+</button>
           {#if emptyTipVisible}
-            <span class="empty-tip" role="tooltip" aria-hidden="true">{$t(loadFailed ? "llm.limits.strip.open_after_error" : "llm.limits.strip.connect_hint")}</span>
+            <span class="empty-tip" role="tooltip" aria-hidden="true">{$t(loadFailed ? "agents.limits.strip.open_after_error" : "agents.limits.strip.connect_hint")}</span>
           {/if}
         </span>
       {/if}
@@ -360,17 +360,17 @@
         <div class="head-main">
           <div class="head-row">
             <span class="card-title">{ring.label}</span>
-            {#if ring.beta}<span class="tag" title={$t("llm.limits.beta_hint") as string}>{$t("llm.limits.beta")}</span>{/if}
-            {#if ring.local}<span class="tag">{$t("llm.limits.local")}</span>{/if}
+            {#if ring.beta}<span class="tag" title={$t("agents.limits.beta_hint") as string}>{$t("agents.limits.beta")}</span>{/if}
+            {#if ring.local}<span class="tag">{$t("agents.limits.local")}</span>{/if}
           </div>
           {#if who(ring)}<p class="card-who" title={who(ring)}>{who(ring)}</p>{/if}
           <div class="head-row chips">
             {#if ring.activity !== "idle"}
-              <span class="chip chip-{ring.activity}">{$t(`llm.limits.strip.state.${ring.activity}`)}</span>
+              <span class="chip chip-{ring.activity}">{$t(`agents.limits.strip.state.${ring.activity}`)}</span>
             {/if}
             {#if used != null}
               <span class="chip tone-{tone(used)} chip-used">
-                {tone(used) === "red" ? $t("llm.limits.strip.near_limit") : $t("llm.limits.strip.used", { percent: percent(used) })}
+                {tone(used) === "red" ? $t("agents.limits.strip.near_limit") : $t("agents.limits.strip.used", { percent: percent(used) })}
               </span>
             {/if}
           </div>
@@ -378,7 +378,7 @@
       </header>
 
       {#if siblings.length > 1}
-        <nav class="accounts" aria-label={$t("llm.limits.strip.accounts") as string}>
+        <nav class="accounts" aria-label={$t("agents.limits.strip.accounts") as string}>
           {#each siblings as other (other.id)}
             {@const oa = arcs(other)}
             <button
@@ -399,7 +399,7 @@
       <div class="card-body">
         {#if ring.status !== "ok"}
           <p class="status">
-            {$t(`llm.limits.strip.status.${ring.status}`)}
+            {$t(`agents.limits.strip.status.${ring.status}`)}
             {#if ring.message}<span class="status-detail">{ring.message}</span>{/if}
           </p>
         {/if}
@@ -429,7 +429,7 @@
           {/each}
 
           {#if ring.reading.local_models.length}
-            <h3 class="sub">{$t("llm.limits.strip.models")}</h3>
+            <h3 class="sub">{$t("agents.limits.strip.models")}</h3>
             {#each ring.reading.local_models as m (m.name)}
               <div class="model">
                 <span class="model-name">{m.name}</span>
@@ -439,7 +439,7 @@
           {/if}
 
           {#if ring.reading.plan}
-            <p class="meta">{$t("llm.limits.strip.plan")}: {ring.reading.plan}</p>
+            <p class="meta">{$t("agents.limits.strip.plan")}: {ring.reading.plan}</p>
           {/if}
           {#if ring.reading.account}<p class="meta">{ring.reading.account}</p>{/if}
           {#if ring.reading.note}<p class="meta">{ring.reading.note}</p>{/if}
@@ -450,9 +450,9 @@
         <span class="meta">{readAgo(ring) ?? ""}</span>
         <span class="foot-actions">
           {#if ring.id !== "omniget"}
-            <button type="button" class="link" onclick={() => refresh(ring.id)}>{$t("llm.limits.strip.refresh")}</button>
+            <button type="button" class="link" onclick={() => refresh(ring.id)}>{$t("agents.limits.strip.refresh")}</button>
           {/if}
-          <button type="button" class="link" onclick={hide}>{$t("llm.limits.strip.hide")}</button>
+          <button type="button" class="link" onclick={hide}>{$t("agents.limits.strip.hide")}</button>
         </span>
       </footer>
     </section>

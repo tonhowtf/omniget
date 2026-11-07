@@ -292,5 +292,14 @@
   },
   "context_menu_download_selection": {
     "message": "Λήψη των συνδέσμων της επιλογής με το OmniGet"
+  },
+  "popup_bridge_refused": {
+    "message": "Το OmniGet απέρριψε το αίτημα. Ελέγξτε τις ρυθμίσεις της επέκτασης στο OmniGet."
+  },
+  "popup_link_handler_failed": {
+    "message": "Το πρόγραμμα περιήγησης δεν άνοιξε τον σύνδεσμο του OmniGet. Ανοίξτε το OmniGet και δοκιμάστε ξανά."
+  },
+  "popup_sent_via_link": {
+    "message": "Στάλθηκε με σύνδεσμο. Αν δεν ανοίξει τίποτα, ανοίξτε το OmniGet και δοκιμάστε ξανά."
   }
 }

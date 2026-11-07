@@ -58,7 +58,7 @@ export function back() {
   ui.view = prev;
 }
 
-export function openMenu(e: MouseEvent, items: MenuItem[]) {
+function openMenu(e: MouseEvent, items: MenuItem[]) {
   e.preventDefault();
   ui.menu = { x: e.clientX, y: e.clientY, items };
 }
@@ -153,6 +153,7 @@ function trackMenu(ids: number[], extra: MenuItem[] = []): MenuItem[] {
     { label: tr("music.menu.edit_tags"), icon: "edit", hint: one ? "" : String(tracks.length), action: () => (ui.tagEditor = ids) },
     { label: tr("music.menu.analyze"), icon: "activity", action: () => analyze(ids) },
     { label: tr("music.menu.convert"), icon: "convert", action: () => go({ kind: "tools", tab: "convert", ids }) },
+    { label: tr("music.menu.stems"), icon: "split", action: () => go({ kind: "tools", tab: "stems", ids }) },
     ...(one ? [{ label: tr("music.menu.quality"), icon: "wave", action: () => go({ kind: "tools", tab: "quality", ids }) }] : []),
     ...(one ? [{ label: tr("music.menu.reveal"), icon: "folder", action: () => void invoke("reveal_file", { path: first.path }) }] : []),
     ...extra,

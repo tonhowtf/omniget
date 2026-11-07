@@ -6,8 +6,6 @@ status = "deprecated"
 beta = true
 homepage = "https://docs.continue.dev"
 notes = "Repo is read-only after the final 2.0.0 release and hub.continue.dev is offline, so only local YAML and Markdown blocks work. Hooks exist only in the cn CLI, which uses the Claude hooks schema and reads .claude/settings.json."
-reads_agents_dir = false
-reads_agents_md = "yes"
 
 [detect]
 binaries = ["cn"]
@@ -20,7 +18,6 @@ local = true
 managed = false
 project_markers = [".continue"]
 global_dir = "~/.continue"
-config_dir_env = "CONTINUE_GLOBAL_DIR"
 
 [formats]
 rule = "continue_rules"
@@ -102,7 +99,6 @@ Notification = "Notification"
 [hooks]
 shape = "claude"
 timeout_unit = "s"
-events_count = 17
 
 # cn CLI names (hook matchers use these).
 [tool_name_map]
@@ -144,7 +140,6 @@ format = "json"
 cmd = "cn"
 headless = ["-p"]
 json_flag = ["--format", "json"]
-resume_flag = "--resume"
 permission_flags = { plan = ["--readonly"], bypass = ["--auto"] }
 
 [acp]

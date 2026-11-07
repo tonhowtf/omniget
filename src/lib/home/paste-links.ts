@@ -1,6 +1,6 @@
 import { isUrl } from "./omnibox-controller";
 
-const HTTP_LINK = /https?:\/\/[^\s,;|<>"'`]+/gi;
+const HTTP_LINK = /https?:\/\/[^\s,;|<>"'`，。；、！？）】》」』]+/gi;
 const TRAILING = /[.,;:!?]+$/;
 
 const TRACKING_ANYWHERE = /^(utm_[a-z_]+|fbclid|gclid|dclid|gbraid|wbraid|msclkid|mc_eid|yclid|igsh|igshid|_hsenc|_hsmi|mkt_tok)$/i;
@@ -100,4 +100,11 @@ export function linksFromPaste(text: string): string[] {
     }
   }
   return out;
+}
+
+export function singleLinkInShareText(text: string): string | null {
+  const trimmed = text.trim();
+  if (!/\s/.test(trimmed) && isUrl(trimmed)) return null;
+  const links = linksFromPaste(trimmed);
+  return links.length === 1 ? links[0] : null;
 }

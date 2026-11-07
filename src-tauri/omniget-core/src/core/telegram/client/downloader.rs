@@ -279,7 +279,8 @@ impl PlatformDownloader for TelegramDownloader {
 
             match result {
                 Ok(size) => {
-                    std::fs::rename(&tmp_path, &output_path)?;
+                    let output_path =
+                        super::template::rename_without_overwriting(&tmp_path, &output_path)?;
                     let _ = progress.send(100.0).await;
                     tracing::info!(
                         "[tg-dl] download completed in {:?}, {} bytes",

@@ -38,11 +38,11 @@ pub mod llm_budget;
 pub mod llm_manager;
 pub mod local_bridge;
 pub mod local_bridge_agentkit;
+pub mod local_bridge_auth;
 pub mod local_bridge_canvas;
 pub mod local_bridge_company;
 pub mod local_bridge_debug;
 pub mod local_bridge_jobs;
-pub mod local_bridge_llm;
 pub mod local_bridge_observe;
 pub mod local_bridge_remote;
 pub mod local_bridge_telegram;
@@ -249,7 +249,7 @@ pub struct AppState {
 fn launched_hidden(app: &tauri::AppHandle) -> bool {
     let s = storage::config::load_settings(app);
     let args: Vec<String> = std::env::args().collect();
-    omniget_core::core::app_launch::starts_hidden(&args, s.start_minimized, s.run_in_background)
+    omniget_core::core::app_launch::starts_hidden(&args, s.start_minimized)
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -414,13 +414,13 @@ pub fn run() {
                 if let Some(webview_dir) = webview_dir {
                     if let Err(e) = std::fs::create_dir_all(&webview_dir) {
                         tracing::warn!(
-                            "[portable] nao foi possivel criar {}: {} — o WebView2 vai usar o diretorio padrao",
+                            "[portable] could not create {}: {}; WebView2 will use the default folder",
                             webview_dir.display(),
                             e
                         );
                     } else {
                         tracing::info!(
-                            "[portable] WebView2 apontado para {}",
+                            "[portable] WebView2 pointed at {}",
                             webview_dir.display()
                         );
                         builder = builder.data_directory(webview_dir);
@@ -430,8 +430,8 @@ pub fn run() {
                 #[cfg(target_os = "macos")]
                 if core::portable::portable_webview_dir_from_env().is_some() {
                     tracing::warn!(
-                        "[portable] no macOS o WebView guarda dados em ~/Library mesmo em modo \
-                         portatil — o wry nao permite redirecionar. Ver github.com/tonhowtf/omniget/issues/227"
+                        "[portable] on macOS the WebView keeps its data in ~/Library even in portable \
+                         mode; wry does not allow redirecting it. See github.com/tonhowtf/omniget/issues/227"
                     );
                 }
 
@@ -588,6 +588,12 @@ pub fn run() {
                 storage::config::load_settings_standalone()
                     .download
                     .embed_thumbnail
+            });
+            core::ytdlp::set_compatible_video_fn(|| {
+                storage::config::load_settings_standalone()
+                    .download
+                    .video_compatibility
+                    == "compatible"
             });
             core::ytdlp::set_speed_limit_fn(|| {
                 let v = storage::config::load_settings_standalone()
@@ -758,6 +764,7 @@ pub fn run() {
             tray::setup(app.handle())?;
             usage_tray::setup(app.handle());
             hotkey::register_from_settings(app.handle());
+            commands::dictation::init(app.handle());
             storage::settings_effects::install(app.handle().clone());
 
             extension_storage::cleanup_legacy_native_messaging();
@@ -857,6 +864,13 @@ pub fn run() {
                     }
                 });
             }
+
+            crate::commands::autostart::sync_at_startup(
+                app.handle(),
+                crate::commands::settings::autostart_wanted(&storage::config::load_settings(
+                    app.handle(),
+                )),
+            );
 
             let hidden = launched_hidden(app.handle());
             if hidden {

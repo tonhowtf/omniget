@@ -58,10 +58,6 @@ fn patterns() -> &'static [Pattern] {
     })
 }
 
-pub fn pattern_count() -> usize {
-    patterns().len()
-}
-
 pub fn star_match(pattern: &str, text: &str, fold: bool) -> bool {
     let (p, t): (Vec<char>, Vec<char>) = if fold {
         (

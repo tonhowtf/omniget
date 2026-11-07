@@ -34,7 +34,7 @@ export type LoadStatus =
 export type EffectId =
   | "network.proxy" | "downloads.segments" | "downloads.queue"
   | "shortcuts.registration" | "app.autostart" | "integrations.rpc"
-  | "llm.pruning" | "llm.watchdog" | "llm.jobs" | "bridge.lifecycle";
+  | "llm.watchdog" | "llm.jobs" | "bridge.lifecycle";
 type EffectState = "queued" | "applying" | "failed" | "restart_required";
 export type PendingEffect = {
   id: EffectId;
@@ -126,9 +126,10 @@ export type SettingsPublicV3 = {
     always_ask_path: boolean;
     video_quality: string;
     skip_existing: boolean;
-    download_descriptions: boolean;
     embed_metadata: boolean;
     embed_thumbnail: boolean;
+    playlist_number_files: boolean;
+    video_compatibility: "best" | "compatible";
     write_nfo_sidecar: boolean;
     clipboard_detection: boolean;
     auto_download_on_paste: boolean;
@@ -138,7 +139,6 @@ export type SettingsPublicV3 = {
     include_auto_subtitles: boolean;
     caption_locale: string;
     keep_vtt: boolean;
-    continuous_lecture_numbers: boolean;
     translate_metadata: boolean;
     youtube_sponsorblock: boolean;
     sponsorblock_mode: string;
@@ -152,7 +152,6 @@ export type SettingsPublicV3 = {
     music_hotkey_binding: string;
     music_audio_format: string;
     copy_to_clipboard_on_hotkey: boolean;
-    extra_ytdlp_flags?: string[];
     cookie_file: string;
     always_use_managed_cookies: boolean;
     bilibili_danmaku_enabled: boolean;
@@ -189,6 +188,7 @@ export type SettingsPublicV3 = {
     torrent_listen_port: number;
     torrent_auto_trackers: boolean;
     torrent_upnp: boolean;
+    torrent_stop_seeding: boolean;
     prevent_sleep: boolean;
     cookies_from_browser: string;
     has_twitter_manual_cookie: boolean;
@@ -211,9 +211,6 @@ export type SettingsPublicV3 = {
     has_token: boolean;
   };
   llm?: {
-    prune_enabled?: boolean;
-    prune_judge?: string;
-    prune_min_tokens?: number;
     turn_idle_timeout_s?: number;
     turn_tool_idle_timeout_s?: number;
     turn_start_timeout_s?: number;
@@ -286,7 +283,6 @@ export type SettingsPublicV3 = {
   accessibility?: {
     reduce_motion?: boolean;
     reduce_transparency?: boolean;
-    disable_haptics?: boolean;
   };
   typography?: TypographySettings;
 };

@@ -4,7 +4,7 @@ import { getSettings, loadSettings } from '$lib/stores/settings-store.svelte';
 import type { AgentKind } from './model/types';
 
 const CANVAS_SETTINGS_EVENT = 'canvas://settings';
-export const GRID = 20;
+const GRID = 20;
 
 export interface AgentPreset {
   command: string;

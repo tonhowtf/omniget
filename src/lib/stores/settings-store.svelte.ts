@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import { isPlainObject } from "./settings-status-surfaces";
 import {
   WORKSPACE_APPEARANCE_SOURCE,
   compareRevision,
@@ -441,10 +442,6 @@ const queue: Task[] = [];
 let running = false;
 const failedIntents = new Map<string, unknown>();
 
-function isPlainObject(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
 function mergeInto(target: Patch, source: Patch) {
   for (const [key, value] of Object.entries(source)) {
     if (isPlainObject(value) && isPlainObject(target[key])) mergeInto(target[key] as Patch, value);
@@ -647,7 +644,6 @@ const EFFECT_BY_PATH: Array<[RegExp, EffectId]> = [
   [/^download\.(hotkey|music_hotkey)_/, "shortcuts.registration"],
   [/^start_with_system$/, "app.autostart"],
   [/^rpc(\.|$)/, "integrations.rpc"],
-  [/^llm\.prune_/, "llm.pruning"],
   [/^llm\.(turn_|ask_timeout_|approval_notify_delay_s|job_default_deadline_min)/, "llm.watchdog"],
   [/^llm\.jobs_/, "llm.jobs"],
   [/^bridge\.enabled$/, "bridge.lifecycle"],

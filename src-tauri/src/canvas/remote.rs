@@ -658,7 +658,7 @@ async fn api_seen(
     headers: HeaderMap,
     Path(id): Path<String>,
 ) -> Response {
-    let d = match gate(&headers, &peer, false) {
+    let d = match gate(&headers, &peer, true) {
         Ok(d) => d,
         Err(r) => return r,
     };
@@ -1008,6 +1008,25 @@ async fn api_node_create(
     reply(r, &d)
 }
 
+fn starts_a_process(op: &omniget_core::core::canvas::ops::Op) -> bool {
+    use omniget_core::core::canvas::ops::Op;
+    match op {
+        Op::AddNode { node } => node.is_terminal(),
+        Op::UpdateNode { patch, .. } => {
+            patch.contains_key("kind")
+                || patch
+                    .get("data")
+                    .and_then(Value::as_object)
+                    .is_some_and(|data| {
+                        ["command", "cwd", "env", "terminalId"]
+                            .iter()
+                            .any(|k| data.contains_key(*k))
+                    })
+        }
+        _ => false,
+    }
+}
+
 async fn api_mutations(
     ConnectInfo(peer): ConnectInfo<Peer>,
     headers: HeaderMap,
@@ -1026,6 +1045,9 @@ async fn api_mutations(
             serde_json::from_value(body["ops"].clone()).map_err(|e| format!("CANVAS_INVALID: ops: {e}"))?;
         if ops.is_empty() || ops.len() > 200 {
             return Err("CANVAS_INVALID: 1 to 200 ops".into());
+        }
+        if ops.iter().any(starts_a_process) {
+            return Err("CANVAS_INVALID: terminals are started from the app or the Maestro".into());
         }
         let (origin, mid) = mutation_origin(body["mutationId"].as_str());
         let res = s.apply(&ws, &floor, ops, &origin, body["baseRev"].as_u64())?;

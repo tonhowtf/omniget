@@ -128,7 +128,7 @@
     if (res && !res.alive) {
       term?.reset();
       term?.write(decodeBase64(res.history));
-      term?.write(`\r\n\x1b[2m${$t("llm.central.terminal.previous_session")}\x1b[0m\r\n`);
+      term?.write(`\r\n\x1b[2m${$t("agents.central.terminal.previous_session")}\x1b[0m\r\n`);
       res = null;
     }
     if (!res) {
@@ -271,7 +271,7 @@
         exit: (e) => {
           status = "ended";
           term?.write(
-            `\r\n\x1b[2m${$t("llm.central.terminal.exited", { code: e.code ?? e.signal ?? "?" })}\x1b[0m\r\n`,
+            `\r\n\x1b[2m${$t("agents.central.terminal.exited", { code: e.code ?? e.signal ?? "?" })}\x1b[0m\r\n`,
           );
           onExit?.(e.code, e.signal);
         },
@@ -311,7 +311,7 @@
 <div class="term-view" class:focused data-status={status}>
   <div class="xterm-host" bind:this={host}></div>
   {#if status === "connecting"}
-    <div class="overlay">{$t("llm.central.terminal.connecting")}</div>
+    <div class="overlay">{$t("agents.central.terminal.connecting")}</div>
   {:else if status === "error"}
     <div class="overlay error">{errorText}</div>
   {/if}

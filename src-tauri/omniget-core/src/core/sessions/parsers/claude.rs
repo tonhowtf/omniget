@@ -43,10 +43,6 @@ impl ClaudeSource {
         }
     }
 
-    pub fn root_list(&self) -> &[Root] {
-        &self.roots
-    }
-
     pub fn files(&self) -> Vec<(PathBuf, String, String, Option<String>)> {
         let mut out = Vec::new();
         for root in &self.roots {
@@ -721,18 +717,6 @@ impl SessionSource for ClaudeSource {
         );
         Some(util::in_dir(meta.project_path.as_deref(), cmd))
     }
-}
-
-pub fn tail_state(path: &Path) -> (Option<Role>, bool) {
-    let mut p = ClaudeParser::new();
-    for l in util::tail_lines(path, 128 * 1024) {
-        p.feed(l.as_bytes());
-    }
-    let last = p.turns.iter().rev().find(|t| t.role != Role::System);
-    let pending = last
-        .map(|t| t.tool_calls.iter().any(|c| c.status == ToolStatus::Pending))
-        .unwrap_or(false);
-    (last.map(|t| t.role), pending)
 }
 
 #[cfg(test)]

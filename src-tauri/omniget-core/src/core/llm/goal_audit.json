@@ -1,5 +1,5 @@
 {
-  "_about": "Loops that know when to stop (roadmap 3.7, S22). Read by core/llm/goal_audit.rs (include_str!) and by scripts/llm/loops_eval.py, so the benchmark sends the same text as the app. The audit prompts and the stop rules are adapted from OpenChamber, packages/web/server/lib/session-goal/runtime.js:37-58,69-114 (MIT, Copyright (c) 2025 Bohdan Triapitsyn); the continuation guide from openai/symphony agent_runner.ex:142-154 (Apache-2.0). Placeholders are {{name}}, filled in one pass.",
+  "_about": "Loops that know when to stop (roadmap 3.7, S22). Read by core/llm/goal_audit.rs (include_str!). The audit prompts and the stop rules are adapted from OpenChamber, packages/web/server/lib/session-goal/runtime.js:37-58,69-114 (MIT, Copyright (c) 2025 Bohdan Triapitsyn); the continuation guide from openai/symphony agent_runner.ex:142-154 (Apache-2.0). Placeholders are {{name}}, filled in one pass.",
   "max_rounds": 20,
   "blocked_stop": 3,
   "audit_fail_stop": 2,

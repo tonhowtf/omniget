@@ -302,7 +302,7 @@ impl TurnCtx {
 
     fn on_turn_event(&mut self, event: TurnEvent) -> bool {
         match event {
-            TurnEvent::Started { .. } | TurnEvent::PruneReceipt { .. } => {}
+            TurnEvent::Started { .. } => {}
             TurnEvent::TextDelta { text } => {
                 self.resolve_results(false);
                 if !self.text_open {

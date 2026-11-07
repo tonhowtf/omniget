@@ -613,28 +613,6 @@ pub async fn llm_accounts_login(id: String) -> Result<Value, String> {
 }
 
 #[tauri::command]
-pub async fn llm_accounts_set_disabled(
-    id: String,
-    disabled: bool,
-) -> Result<AccountsSnapshot, String> {
-    account_store()?
-        .set_disabled(&id, disabled)
-        .map_err(|e| format!("{}: {}", ERR_ACCOUNTS_STORE, e))?;
-    snapshot()
-}
-
-#[tauri::command]
-pub async fn llm_accounts_set_sandbox(
-    id: String,
-    sandbox: String,
-) -> Result<AccountsSnapshot, String> {
-    account_store()?
-        .set_sandbox(&id, SandboxMode::parse(&sandbox))
-        .map_err(|e| format!("{}: {}", ERR_ACCOUNTS_STORE, e))?;
-    snapshot()
-}
-
-#[tauri::command]
 pub async fn llm_accounts_activate(id: String) -> Result<AccountsSnapshot, String> {
     let store_ = account_store()?;
     let accounts = store_.list();
@@ -645,29 +623,6 @@ pub async fn llm_accounts_activate(id: String) -> Result<AccountsSnapshot, Strin
     prefs.chain = move_to_head(&normalize_chain(&prefs.chain, &accounts), &id);
     save_prefs(&prefs)?;
     snapshot()
-}
-
-#[tauri::command]
-pub async fn llm_accounts_set_chain(chain: Vec<String>) -> Result<AccountsSnapshot, String> {
-    let store_ = account_store()?;
-    let mut prefs = load_prefs()?;
-    prefs.chain = normalize_chain(&chain, &store_.list());
-    save_prefs(&prefs)?;
-    snapshot()
-}
-
-#[tauri::command]
-pub async fn llm_accounts_rotation(rotation: Option<Rotation>) -> Result<Rotation, String> {
-    let mut prefs = load_prefs()?;
-    if let Some(next) = rotation {
-        prefs.rotation = Rotation {
-            enabled: next.enabled,
-            threshold: next.threshold.clamp(0.1, 1.0),
-            cooldown_s: next.cooldown_s.clamp(30, 3600),
-        };
-        save_prefs(&prefs)?;
-    }
-    Ok(prefs.rotation)
 }
 
 #[tauri::command]

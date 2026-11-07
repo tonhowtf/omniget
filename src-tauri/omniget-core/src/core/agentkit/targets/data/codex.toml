@@ -6,8 +6,6 @@ status = "active"
 beta = false
 homepage = "https://github.com/openai/codex"
 notes = "Docs moved to learn.chatgpt.com. Custom prompts are deprecated in favor of skills; project .codex/config.toml loads only in trusted projects."
-reads_agents_dir = true
-reads_agents_md = "yes"
 
 [detect]
 binaries = ["codex"]
@@ -20,7 +18,6 @@ local = false
 managed = true              # requirements.toml (admin-enforced), /etc/codex/skills
 project_markers = [".codex", "AGENTS.md"]
 global_dir = "~/.codex"
-config_dir_env = "CODEX_HOME"
 
 [formats]
 rule = "agents_md"
@@ -110,8 +107,6 @@ PreCompact = "PreCompact"
 [hooks]
 shape = "claude"
 timeout_unit = "s"
-env_aliases = ["CLAUDE_PLUGIN_ROOT", "CLAUDE_PLUGIN_DATA"]   # plugin hooks only
-events_count = 12
 
 # Hook matchers see the Claude aliases: shell/exec_command match as Bash, apply_patch as Edit/Write,
 # spawn_agent as Agent (06 Codex (d)), so those keep the Claude names; the runtime names are in the comments.
@@ -159,7 +154,6 @@ format = "jsonl"
 cmd = "codex"
 headless = ["exec"]
 json_flag = ["--json"]
-resume_flag = "resume"
 permission_flags = { plan = ["--sandbox", "read-only"], accept_edits = ["--sandbox", "workspace-write"], bypass = ["--sandbox", "danger-full-access"] }
 
 [acp]
@@ -169,5 +163,4 @@ args = ["-y", "@agentclientprotocol/codex-acp"]
 registry_id = "codex-acp"
 
 [trust]
-requires_review = true
 how = "Codex hash review: every non-managed hook must be trusted in /hooks (stored per definition hash), and project .codex/config.toml loads only for trusted projects."

@@ -6,8 +6,6 @@ status = "maintenance"
 beta = true
 homepage = "https://windsurf.com"
 notes = "docs.windsurf.com redirects to docs.devin.ai/desktop. New conversations never start on Cascade; Devin Local (see the devin adapter) is the default agent. Cascade prefers .devin/ and falls back to .windsurf/ (hooks: .windsurf/hooks.json is used only when .devin/hooks.json is absent or empty)."
-reads_agents_dir = true
-reads_agents_md = "yes"
 
 [detect]
 home_dirs = ["~/.codeium/windsurf", "~/.windsurf"]
@@ -108,7 +106,6 @@ Stop = "post_cascade_response"
 
 [hooks]
 shape = "cascade"
-events_count = 12     # no matcher and no timeout field; entries are {command, powershell, show_output, working_directory}
 
 [tool_name_map]
 # Known only from leaked prompts.
@@ -144,5 +141,4 @@ format = "jsonl"
 native = false       # Devin Desktop is an ACP client only; Cascade has no headless mode
 
 [trust]
-requires_review = true
 how = "Cascade hooks do not run in Restricted Mode, so the workspace must be trusted before hooks fire."

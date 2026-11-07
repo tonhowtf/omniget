@@ -58,14 +58,6 @@
   border-radius: var(--radius-md);
 }
 
-.btn-xl {
-  height: 44px;
-  padding: 0 var(--space-5);
-  font-size: var(--text-md);
-  font-weight: 600;
-  border-radius: var(--radius-lg);
-}
-
 .btn-block {
   width: 100%;
 }

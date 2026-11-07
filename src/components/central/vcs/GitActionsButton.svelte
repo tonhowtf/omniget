@@ -46,7 +46,7 @@
   } = $props();
 
   const tx = (key: string, fallback: string, vars?: Record<string, unknown>) =>
-    $t(`llm.central.vcs.git.${key}`, { default: fallback, ...(vars ?? {}) }) as string;
+    $t(`agents.central.vcs.git.${key}`, { default: fallback, ...(vars ?? {}) }) as string;
 
   let status = $state<RepoStatus | null>(null);
   let host = $state<HostInfo | null>(null);
@@ -105,10 +105,10 @@
 
   const quick = $derived.by((): { action: Action; hint?: string } => {
     const s = status;
-    if (!s) return { action: "none", hint: $t("llm.central.vcs.git.loading") as string };
-    if (!s.is_repo) return { action: "none", hint: $t("llm.central.vcs.git.not_repo") as string };
-    if (s.detached) return { action: "none", hint: $t("llm.central.vcs.git.detached") as string };
-    if (s.conflicts) return { action: "none", hint: $t("llm.central.vcs.git.conflicts") as string };
+    if (!s) return { action: "none", hint: $t("agents.central.vcs.git.loading") as string };
+    if (!s.is_repo) return { action: "none", hint: $t("agents.central.vcs.git.not_repo") as string };
+    if (s.detached) return { action: "none", hint: $t("agents.central.vcs.git.detached") as string };
+    if (s.conflicts) return { action: "none", hint: $t("agents.central.vcs.git.conflicts") as string };
     if (s.dirty) {
       if (!s.remote) return { action: "commit" };
       if (prOpen || !hostOk) return { action: "commit_push" };
@@ -120,11 +120,11 @@
     }
     if (pr) return { action: "view_pr" };
     if (hostOk && s.upstream && s.branch && s.base_branch && s.branch !== s.base_branch) return { action: "create_pr" };
-    return { action: "none", hint: $t("llm.central.vcs.git.up_to_date") as string };
+    return { action: "none", hint: $t("agents.central.vcs.git.up_to_date") as string };
   });
 
   function label(a: Action): string {
-    return $t(`llm.central.vcs.git.action.${a}`, { term }) as string;
+    return $t(`agents.central.vcs.git.action.${a}`, { term }) as string;
   }
 
   const icon: Record<Action, string> = {
@@ -149,7 +149,7 @@
       await run(action, "", false);
       return;
     }
-    busy = $t("llm.central.vcs.git.preparing") as string;
+    busy = $t("agents.central.vcs.git.preparing") as string;
     try {
       let message = "";
       if (action.startsWith("commit")) {
@@ -199,34 +199,34 @@
       let subject = message.split("\n")[0].trim();
       let body = message.split("\n").slice(1).join("\n").trim();
       if (doCommit) {
-        busy = $t("llm.central.vcs.git.phase.commit") as string;
+        busy = $t("agents.central.vcs.git.phase.commit") as string;
         const c = await vcsCommit(path, message, only);
-        if (c.status === "skipped_no_changes") showToast("info", $t("llm.central.vcs.git.nothing_to_commit") as string);
+        if (c.status === "skipped_no_changes") showToast("info", $t("agents.central.vcs.git.nothing_to_commit") as string);
         else {
           subject = c.subject;
-          showToast("success", $t("llm.central.vcs.git.committed", { sha: (c.sha ?? "").slice(0, 7) }) as string);
+          showToast("success", $t("agents.central.vcs.git.committed", { sha: (c.sha ?? "").slice(0, 7) }) as string);
         }
       }
       if (doPush) {
-        busy = $t("llm.central.vcs.git.phase.push") as string;
+        busy = $t("agents.central.vcs.git.phase.push") as string;
         const p = await vcsPush(path);
         showToast(
           p.status === "pushed" ? "success" : "info",
           (p.status === "pushed"
-            ? $t("llm.central.vcs.git.pushed", { upstream: p.upstream })
-            : $t("llm.central.vcs.git.up_to_date")) as string,
+            ? $t("agents.central.vcs.git.pushed", { upstream: p.upstream })
+            : $t("agents.central.vcs.git.up_to_date")) as string,
         );
       }
       if (doPr) {
-        busy = $t("llm.central.vcs.git.phase.pr", { term }) as string;
+        busy = $t("agents.central.vcs.git.phase.pr", { term }) as string;
         const r = await vcsPrCreate(path, { title: subject || (status?.branch ?? "update"), body, draft });
         pr = r.pr;
         onpr?.(r.pr);
         showToast(
           "success",
           (r.status === "created"
-            ? $t("llm.central.vcs.git.pr_created", { term, number: r.pr.number })
-            : $t("llm.central.vcs.git.pr_exists", { term, number: r.pr.number })) as string,
+            ? $t("agents.central.vcs.git.pr_created", { term, number: r.pr.number })
+            : $t("agents.central.vcs.git.pr_exists", { term, number: r.pr.number })) as string,
         );
       }
     } catch (e) {
@@ -368,7 +368,7 @@
     <button
       class="chev"
       bind:this={chevEl}
-      aria-label={$t("llm.central.vcs.git.options")}
+      aria-label={$t("agents.central.vcs.git.options")}
       aria-expanded={menuOpen}
       disabled={!!busy}
       onclick={(e) => {
@@ -384,7 +384,7 @@
 
   {#if pr}
     <button class="pr-badge pr-{pr.state}" class:draft={pr.draft} title={pr.title} onclick={() => openExternal(pr!.url)}>
-      {term} #{pr.number} · {$t(`llm.central.vcs.git.pr_state.${pr.draft && pr.state === "open" ? "draft" : pr.state}`)}
+      {term} #{pr.number} · {$t(`agents.central.vcs.git.pr_state.${pr.draft && pr.state === "open" ? "draft" : pr.state}`)}
     </button>
   {/if}
 
@@ -395,7 +395,7 @@
           <span class="branch">{status.branch ?? "HEAD"}</span>
           {#if status.ahead}<span class="pill">↑{status.ahead}</span>{/if}
           {#if status.behind}<span class="pill">↓{status.behind}</span>{/if}
-          {#if status.dirty}<span class="pill">{$t("llm.central.vcs.git.dirty", { count: status.files.length })}</span>{/if}
+          {#if status.dirty}<span class="pill">{$t("agents.central.vcs.git.dirty", { count: status.files.length })}</span>{/if}
         </div>
       {/if}
       {#each menuItems as it (it.action)}
@@ -418,10 +418,10 @@
         {/if}
       {/if}
       {#if host && !host.available && host.reason}
-        <div class="menu-note">{$t(`llm.central.vcs.git.unavailable.${host.reason}`, { cli: host.cli ?? "", term })}</div>
+        <div class="menu-note">{$t(`agents.central.vcs.git.unavailable.${host.reason}`, { cli: host.cli ?? "", term })}</div>
       {/if}
       <button role="menuitem" onclick={() => { menuOpen = false; void refresh(); }}>
-        <span class="ic">↻</span>{$t("llm.central.vcs.git.refresh")}
+        <span class="ic">↻</span>{$t("agents.central.vcs.git.refresh")}
       </button>
     </div>
   {/if}
@@ -434,7 +434,7 @@
       <div class="dlg" role="dialog" aria-modal="true" tabindex="-1" onclick={(e) => e.stopPropagation()} onkeydown={onDialogKey}>
         <h3>{label(dialog.action)}</h3>
         <label class="fld">
-          <span>{dialog.action.startsWith("commit") ? $t("llm.central.vcs.git.message") : $t("llm.central.vcs.git.pr_title_body", { term })}</span>
+          <span>{dialog.action.startsWith("commit") ? $t("agents.central.vcs.git.message") : $t("agents.central.vcs.git.pr_title_body", { term })}</span>
           <!-- svelte-ignore a11y_autofocus -->
           <textarea bind:value={dialog.message} rows="8" autofocus></textarea>
         </label>
@@ -465,11 +465,11 @@
           </div>
         {/if}
         {#if dialog.action.endsWith("_pr") || dialog.action === "create_pr"}
-          <label class="chk"><input type="checkbox" bind:checked={dialog.draft} />{$t("llm.central.vcs.git.draft", { term })}</label>
+          <label class="chk"><input type="checkbox" bind:checked={dialog.draft} />{$t("agents.central.vcs.git.draft", { term })}</label>
         {/if}
         <div class="dlg-actions">
-          <span class="hint">{$t("llm.central.vcs.git.run_hint")}</span>
-          <button class="ghost" onclick={() => (dialog = null)}>{$t("llm.central.vcs.cancel")}</button>
+          <span class="hint">{$t("agents.central.vcs.git.run_hint")}</span>
+          <button class="ghost" onclick={() => (dialog = null)}>{$t("agents.central.vcs.cancel")}</button>
           <button
             class="primary"
             disabled={!dialog.message.trim() || (dialog.files.length > 0 && !dialog.files.some((f) => f.checked))}
@@ -516,7 +516,7 @@
             <p class="hint">{tx("no_branches", "No branches")}</p>
           {/each}
         </div>
-        <div class="dlg-actions"><span class="hint"></span><button class="ghost" onclick={() => (branchDlg = null)}>{$t("llm.central.vcs.cancel")}</button></div>
+        <div class="dlg-actions"><span class="hint"></span><button class="ghost" onclick={() => (branchDlg = null)}>{$t("agents.central.vcs.cancel")}</button></div>
       </div>
     </div>
   {/if}
@@ -544,7 +544,7 @@
             <p class="hint">{tx("no_stashes", "No stashes")}</p>
           {/each}
         </div>
-        <div class="dlg-actions"><span class="hint"></span><button class="ghost" onclick={() => (stashDlg = null)}>{$t("llm.central.vcs.cancel")}</button></div>
+        <div class="dlg-actions"><span class="hint"></span><button class="ghost" onclick={() => (stashDlg = null)}>{$t("agents.central.vcs.cancel")}</button></div>
       </div>
     </div>
   {/if}

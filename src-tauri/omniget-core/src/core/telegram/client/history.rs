@@ -186,7 +186,7 @@ pub fn to_item(msg: &tl::types::Message, fix_extensions: bool) -> Option<Telegra
     })
 }
 
-fn messages_of(result: tl::enums::messages::Messages) -> Vec<tl::enums::Message> {
+pub(crate) fn messages_of(result: tl::enums::messages::Messages) -> Vec<tl::enums::Message> {
     match result {
         tl::enums::messages::Messages::Messages(m) => m.messages,
         tl::enums::messages::Messages::Slice(m) => m.messages,

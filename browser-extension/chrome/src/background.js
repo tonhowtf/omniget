@@ -455,6 +455,7 @@ async function handleSendToApp(msg) {
   }
   return {
     ok: false,
+    reason: bridgeResult?.reason || schemeResult?.reason,
     error: bridgeResult?.message || schemeResult?.message || "OmniGet is not reachable",
     bridgeReason: bridgeResult?.reason,
     schemeReason: schemeResult?.reason,

@@ -90,7 +90,7 @@ impl Converter for SkillLinkConverter {
         let own = kind_path(target, "skills", scope, ctx);
         let canon = canonical_dir(scope, ctx);
         let Some(canon) = canon else {
-            let base = own.ok_or_else(|| no_path(target, "skills", scope))?;
+            let base = own.ok_or_else(|| missing(target, "skills", scope))?;
             return Ok(skill_files(&target.id, c, &base.join(&dir_name), "skill"));
         };
         let mut out = skill_files(&target.id, c, &canon.join(&dir_name), "skill");

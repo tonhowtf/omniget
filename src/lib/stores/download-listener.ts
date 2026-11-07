@@ -60,6 +60,7 @@ type QueueItemProgressPayload = {
   fragment_index?: number | null;
   fragment_count?: number | null;
   planned_formats?: string[] | null;
+  peers?: number | null;
 };
 
 const loggedQueueTerminal = new Set<number>();
@@ -161,6 +162,7 @@ export async function initDownloadListener(): Promise<() => void> {
           fragmentIndex: d.fragment_index ?? null,
           fragmentCount: d.fragment_count ?? null,
           plannedFormats: d.planned_formats ?? null,
+          peers: d.peers ?? null,
         },
       );
     },

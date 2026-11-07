@@ -69,8 +69,8 @@ async fn load(force: bool) -> anyhow::Result<serde_json::Value> {
                 }
             }
             match other {
-                Ok(r) => Err(anyhow!("tabela de precos: HTTP {}", r.status())),
-                Err(e) => Err(anyhow!("tabela de precos indisponivel: {}", e)),
+                Ok(r) => Err(anyhow!("price table: HTTP {}", r.status())),
+                Err(e) => Err(anyhow!("price table unavailable: {}", e)),
             }
         }
     }
@@ -123,7 +123,7 @@ pub async fn search(query: &str, mode: &str, limit: usize) -> anyhow::Result<Vec
     let v = load(false).await?;
     let obj = v
         .as_object()
-        .ok_or_else(|| anyhow!("tabela de precos invalida"))?;
+        .ok_or_else(|| anyhow!("invalid price table"))?;
     let tokens: Vec<String> = query
         .to_lowercase()
         .split_whitespace()

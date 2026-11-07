@@ -27,7 +27,7 @@ export type JunkScan = {
   needs_full_disk_access: boolean;
 };
 
-export const CATEGORY_ORDER = [
+const CATEGORY_ORDER = [
   "system",
   "apps",
   "browser",

@@ -24,18 +24,6 @@ pub fn pty_resize(id: String, cols: u16, rows: u16) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub fn pty_close(id: String, delete_history: Option<bool>) -> Result<(), String> {
-    pty::manager().close(&id, delete_history.unwrap_or(false))
-}
-
-#[tauri::command]
-pub fn pty_list(app: AppHandle) -> Vec<SessionInfo> {
-    let m = pty::manager();
-    m.bind(&app);
-    m.list()
-}
-
-#[tauri::command]
 pub async fn pty_attach(app: AppHandle, id: String) -> Result<Attached, String> {
     let m = pty::manager();
     m.bind(&app);
@@ -52,9 +40,4 @@ pub fn pty_detach(id: String) -> Result<(), String> {
 #[tauri::command]
 pub fn pty_ack(id: String, seq: u64) -> Result<(), String> {
     pty::manager().ack(&id, seq)
-}
-
-#[tauri::command]
-pub fn pty_clear(id: String) -> Result<u64, String> {
-    pty::manager().clear(&id)
 }

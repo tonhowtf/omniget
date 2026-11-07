@@ -122,10 +122,13 @@ if (dryRun) {
 }
 
 const env = { ...process.env, TAURI_SIGNING_PRIVATE_KEY: key, TAURI_SIGNING_PRIVATE_KEY_PASSWORD: password };
+for (const name of Object.keys(env)) if (name.startsWith("APPLE_") && !env[name]) delete env[name];
+const windowsSign = target.includes("windows") ? process.env.WINDOWS_SIGN_COMMAND : "";
 if (!has("--skip-build")) {
   run("rustup", ["target", "add", target]);
   const bundles = flag("--bundles");
-  run("pnpm", ["tauri", "build", "--target", target, ...(bundles ? ["--bundles", bundles] : [])], { env });
+  const signConfig = windowsSign ? ["--config", JSON.stringify({ bundle: { windows: { signCommand: windowsSign } } })] : [];
+  run("pnpm", ["tauri", "build", "--target", target, ...signConfig, ...(bundles ? ["--bundles", bundles] : [])], { env });
 }
 
 mkdirSync(outDir, { recursive: true });
@@ -172,6 +175,7 @@ if (has("--cli")) {
   for (const b of bins) if (!existsSync(join(binDir, b))) fail(`missing ${b} in ${binDir}`);
   if (!ext || process.platform === "win32") run(join(binDir, `omniget-cli${ext}`), ["--version"]);
   if (target.includes("windows")) {
+    if (windowsSign) for (const b of bins) { const signed = spawnSync(windowsSign.replaceAll("%1", `"${join(binDir, b)}"`), { shell: true, stdio: "inherit" }); if (signed.status !== 0) fail(`could not sign ${b}`); }
     const archive = `omniget-cli-${version}-${target}.zip`;
     run("zip", ["-j", "-q", join(outDir, archive), ...bins.map((b) => join(binDir, b))]);
     copied.push(archive);

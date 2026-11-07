@@ -1,4 +1,4 @@
-export function fold(s: string): string {
+function fold(s: string): string {
   let out = '';
   for (const ch of s) {
     const base = ch.normalize('NFD').replace(/[̀-ͯ]/g, '');

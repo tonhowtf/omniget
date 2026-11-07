@@ -12,111 +12,6 @@ use super::client::events::{self, DownloadReporter};
 use super::client::{self, api, auth, thumbnail_cache};
 use super::host;
 
-pub const COMMANDS: &[&str] = &[
-    "telegram_check_session",
-    "telegram_qr_start",
-    "telegram_qr_poll",
-    "telegram_send_code",
-    "telegram_verify_code",
-    "telegram_verify_2fa",
-    "telegram_logout",
-    "telegram_takeout_start",
-    "telegram_takeout_finish",
-    "telegram_set_mute",
-    "telegram_toggle_pin",
-    "telegram_set_archived",
-    "telegram_reorder_pinned",
-    "telegram_full_channel_info",
-    "telegram_cancel_op",
-    "telegram_list_chats",
-    "telegram_create_folder",
-    "telegram_delete_channel",
-    "telegram_leave_channel",
-    "telegram_delete_history",
-    "telegram_list_participants",
-    "telegram_set_blocked",
-    "telegram_report_peer",
-    "telegram_rename_channel",
-    "telegram_restore_peer_hashes",
-    "telegram_list_chats_page",
-    "telegram_get_self",
-    "telegram_stream_info",
-    "telegram_delete_messages",
-    "telegram_forward_messages",
-    "telegram_edit_caption",
-    "telegram_search_global",
-    "telegram_search_global_hits",
-    "telegram_upload_media",
-    "telegram_list_media",
-    "telegram_diag_list_media",
-    "telegram_expand_album",
-    "telegram_download_media",
-    "telegram_download_batch",
-    "telegram_cancel_batch",
-    "telegram_get_thumbnail",
-    "telegram_search_media",
-    "telegram_get_chat_photo",
-    "telegram_clear_thumbnail_cache",
-    "telegram_perf_get",
-    "telegram_clone_start",
-    "telegram_clone_status",
-    "telegram_clone_list",
-    "telegram_clone_pause",
-    "telegram_clone_cancel",
-    "telegram_clone_delete",
-    "telegram_sync_state",
-    "telegram_sync_now",
-    "telegram_sync_settings_set",
-    "telegram_accounts_list",
-    "telegram_accounts_save_current",
-    "telegram_accounts_restore",
-    "telegram_accounts_remove",
-    "telegram_accounts_rename",
-    "telegram_accounts_backup_now",
-    "telegram_accounts_list_backups",
-    "telegram_bandwidth_stats",
-    "telegram_bandwidth_set_quota",
-    "telegram_bandwidth_reset",
-    "telegram_perf_set",
-    "telegram_resolve_links",
-    "telegram_download_links",
-    "telegram_export_chat",
-    "telegram_settings_get",
-    "telegram_list_commands",
-    "telegram_stream_url",
-    "telegram_playback_get",
-    "telegram_playback_set",
-    "telegram_playback_recent",
-    "telegram_open_external",
-    "telegram_external_players",
-    "telegram_watch_list",
-    "telegram_watch_add",
-    "telegram_watch_update",
-    "telegram_watch_remove",
-    "telegram_watch_run",
-    "telegram_watch_settings",
-    "telegram_download_chat",
-    "telegram_preview_chat_download",
-    "telegram_upload_paths",
-    "telegram_realtime_get",
-    "telegram_realtime_set",
-    "telegram_scan_chat",
-    "telegram_scan_cancel",
-    "telegram_index_stats",
-    "telegram_index_clear",
-    "telegram_dedupe_stats",
-    "telegram_dedupe_set",
-    "telegram_dedupe_clear",
-    "telegram_transcribe",
-    "telegram_voice_transcribe_native",
-    "telegram_transcript_get",
-    "telegram_asr_status",
-    "telegram_asr_install",
-    "telegram_add_to_watch",
-    "telegram_approval_list",
-    "telegram_approval_answer",
-];
-
 const OFFLINE_COMMANDS: &[&str] = &[
     "telegram_check_session",
     "telegram_qr_start",
@@ -125,31 +20,19 @@ const OFFLINE_COMMANDS: &[&str] = &[
     "telegram_verify_code",
     "telegram_verify_2fa",
     "telegram_logout",
-    "telegram_cancel_op",
     "telegram_cancel_batch",
-    "telegram_clear_thumbnail_cache",
-    "telegram_perf_get",
-    "telegram_perf_set",
-    "telegram_clone_status",
     "telegram_clone_list",
     "telegram_clone_pause",
     "telegram_clone_cancel",
     "telegram_clone_delete",
     "telegram_sync_state",
-    "telegram_sync_settings_set",
     "telegram_accounts_list",
     "telegram_accounts_save_current",
     "telegram_accounts_restore",
     "telegram_accounts_remove",
     "telegram_accounts_rename",
-    "telegram_accounts_backup_now",
-    "telegram_accounts_list_backups",
     "telegram_bandwidth_stats",
-    "telegram_bandwidth_set_quota",
-    "telegram_bandwidth_reset",
     "telegram_settings_get",
-    "telegram_list_commands",
-    "telegram_stream_info",
     "telegram_playback_get",
     "telegram_playback_set",
     "telegram_playback_recent",
@@ -162,14 +45,10 @@ const OFFLINE_COMMANDS: &[&str] = &[
     "telegram_realtime_get",
     "telegram_realtime_set",
     "telegram_scan_cancel",
-    "telegram_index_stats",
-    "telegram_index_clear",
     "telegram_dedupe_stats",
     "telegram_dedupe_set",
     "telegram_dedupe_clear",
     "telegram_transcript_get",
-    "telegram_asr_status",
-    "telegram_asr_install",
     "telegram_add_to_watch",
     "telegram_approval_list",
     "telegram_approval_answer",
@@ -405,7 +284,6 @@ async fn dispatch_inner(
     let eng = client::engine();
     let session = eng.session.clone();
     let active = eng.active.clone();
-    let stream_server_slot = eng.stream_server.clone();
     let fix_ext = client::fix_file_extensions();
     let concurrent = client::concurrent_downloads();
     if !OFFLINE_COMMANDS.contains(&command.as_str()) {
@@ -480,127 +358,6 @@ async fn dispatch_inner(
             Ok(json!(null))
         }
 
-        "telegram_takeout_start" => {
-            let id = api::init_takeout(&session)
-                .await
-                .map_err(|e| e.to_string())?;
-            Ok(json!({ "takeout_id": id }))
-        }
-
-        "telegram_takeout_finish" => {
-            let success: bool = args
-                .get("success")
-                .and_then(|v| v.as_bool())
-                .unwrap_or(false);
-            api::finish_takeout(&session, success)
-                .await
-                .map_err(|e| e.to_string())?;
-            Ok(json!(null))
-        }
-
-        "telegram_set_mute" => {
-            let chat_id: i64 = serde_json::from_value(
-                args.get("chat_id")
-                    .or(args.get("chatId"))
-                    .cloned()
-                    .ok_or("missing 'chatId'")?,
-            )
-            .map_err(|e| e.to_string())?;
-            let chat_type: String = serde_json::from_value(
-                args.get("chat_type")
-                    .or(args.get("chatType"))
-                    .cloned()
-                    .ok_or("missing 'chatType'")?,
-            )
-            .map_err(|e| e.to_string())?;
-            let mute_until: i64 = serde_json::from_value(
-                args.get("mute_until")
-                    .or(args.get("muteUntil"))
-                    .cloned()
-                    .unwrap_or(json!(0)),
-            )
-            .map_err(|e| e.to_string())?;
-            api::set_mute(&session, chat_id, &chat_type, mute_until)
-                .await
-                .map_err(|e| e.to_string())?;
-            Ok(json!(null))
-        }
-
-        "telegram_toggle_pin" => {
-            let chat_id: i64 = serde_json::from_value(
-                args.get("chat_id")
-                    .or(args.get("chatId"))
-                    .cloned()
-                    .ok_or("missing 'chatId'")?,
-            )
-            .map_err(|e| e.to_string())?;
-            let chat_type: String = serde_json::from_value(
-                args.get("chat_type")
-                    .or(args.get("chatType"))
-                    .cloned()
-                    .ok_or("missing 'chatType'")?,
-            )
-            .map_err(|e| e.to_string())?;
-            let pinned: bool = args
-                .get("pinned")
-                .and_then(|v| v.as_bool())
-                .unwrap_or(false);
-            api::toggle_pin(&session, chat_id, &chat_type, pinned)
-                .await
-                .map_err(|e| e.to_string())?;
-            Ok(json!(null))
-        }
-
-        "telegram_set_archived" => {
-            let chat_id: i64 = serde_json::from_value(
-                args.get("chat_id")
-                    .or(args.get("chatId"))
-                    .cloned()
-                    .ok_or("missing 'chatId'")?,
-            )
-            .map_err(|e| e.to_string())?;
-            let chat_type: String = serde_json::from_value(
-                args.get("chat_type")
-                    .or(args.get("chatType"))
-                    .cloned()
-                    .ok_or("missing 'chatType'")?,
-            )
-            .map_err(|e| e.to_string())?;
-            let archived: bool = args
-                .get("archived")
-                .and_then(|v| v.as_bool())
-                .unwrap_or(false);
-            api::set_archived(&session, chat_id, &chat_type, archived)
-                .await
-                .map_err(|e| e.to_string())?;
-            Ok(json!(null))
-        }
-
-        "telegram_reorder_pinned" => {
-            let raw: Vec<serde_json::Value> =
-                serde_json::from_value(args.get("items").cloned().ok_or("missing 'items'")?)
-                    .map_err(|e| e.to_string())?;
-            let items: Vec<(i64, String)> = raw
-                .into_iter()
-                .filter_map(|v| {
-                    let cid = v
-                        .get("chat_id")
-                        .or(v.get("chatId"))
-                        .and_then(|x| x.as_i64())?;
-                    let ct = v
-                        .get("chat_type")
-                        .or(v.get("chatType"))
-                        .and_then(|x| x.as_str())?
-                        .to_string();
-                    Some((cid, ct))
-                })
-                .collect();
-            api::reorder_pinned(&session, items)
-                .await
-                .map_err(|e| e.to_string())?;
-            Ok(json!(null))
-        }
-
         "telegram_full_channel_info" => {
             let chat_id: i64 = serde_json::from_value(
                 args.get("chat_id")
@@ -622,236 +379,9 @@ async fn dispatch_inner(
             serde_json::to_value(r).map_err(|e| e.to_string())
         }
 
-        "telegram_cancel_op" => {
-            let op_id: String = serde_json::from_value(
-                args.get("op_id")
-                    .or(args.get("opId"))
-                    .cloned()
-                    .ok_or("missing 'op_id'")?,
-            )
-            .map_err(|e| e.to_string())?;
-            let g = session.lock().await;
-            let map = g.op_cancellation_tokens.clone();
-            drop(g);
-            let cancelled = auth::cancel_op_token(&map, &op_id);
-            if cancelled {
-                tracing::info!("[tg-cancel] op_id={} cancelled", op_id);
-            } else {
-                tracing::debug!("[tg-cancel] op_id={} not found", op_id);
-            }
-            Ok(json!({ "cancelled": cancelled }))
-        }
-
         "telegram_list_chats" => {
             let r = api::list_chats(&session).await.map_err(|e| e.to_string())?;
             serde_json::to_value(r).map_err(|e| e.to_string())
-        }
-
-        "telegram_create_folder" => {
-            let name: String =
-                serde_json::from_value(args.get("name").cloned().ok_or("missing 'name'")?)
-                    .map_err(|e| e.to_string())?;
-            let r = api::create_folder_channel(&session, &name)
-                .await
-                .map_err(|e| e.to_string())?;
-            serde_json::to_value(r).map_err(|e| e.to_string())
-        }
-
-        "telegram_delete_channel" => {
-            let chat_id: i64 = serde_json::from_value(
-                args.get("chatId")
-                    .or(args.get("chat_id"))
-                    .cloned()
-                    .ok_or("missing 'chatId'")?,
-            )
-            .map_err(|e| e.to_string())?;
-            api::delete_channel(&session, chat_id)
-                .await
-                .map_err(|e| e.to_string())?;
-            Ok(json!({ "ok": true }))
-        }
-
-        "telegram_leave_channel" => {
-            let chat_id: i64 = serde_json::from_value(
-                args.get("chatId")
-                    .or(args.get("chat_id"))
-                    .cloned()
-                    .ok_or("missing 'chatId'")?,
-            )
-            .map_err(|e| e.to_string())?;
-            let chat_type: String = serde_json::from_value(
-                args.get("chatType")
-                    .or(args.get("chat_type"))
-                    .cloned()
-                    .ok_or("missing 'chatType'")?,
-            )
-            .map_err(|e| e.to_string())?;
-            api::leave_channel(&session, chat_id, &chat_type)
-                .await
-                .map_err(|e| e.to_string())?;
-            Ok(json!({ "ok": true }))
-        }
-
-        "telegram_delete_history" => {
-            let chat_id: i64 = serde_json::from_value(
-                args.get("chatId")
-                    .or(args.get("chat_id"))
-                    .cloned()
-                    .ok_or("missing 'chatId'")?,
-            )
-            .map_err(|e| e.to_string())?;
-            let chat_type: String = serde_json::from_value(
-                args.get("chatType")
-                    .or(args.get("chat_type"))
-                    .cloned()
-                    .ok_or("missing 'chatType'")?,
-            )
-            .map_err(|e| e.to_string())?;
-            let just_clear: bool = args
-                .get("justClear")
-                .or(args.get("just_clear"))
-                .and_then(|v| v.as_bool())
-                .unwrap_or(false);
-            let revoke: bool = args
-                .get("revoke")
-                .and_then(|v| v.as_bool())
-                .unwrap_or(false);
-            api::delete_history(&session, chat_id, &chat_type, just_clear, revoke)
-                .await
-                .map_err(|e| e.to_string())?;
-            Ok(json!({ "ok": true }))
-        }
-
-        "telegram_list_participants" => {
-            let chat_id: i64 = serde_json::from_value(
-                args.get("chatId")
-                    .or(args.get("chat_id"))
-                    .cloned()
-                    .ok_or("missing 'chatId'")?,
-            )
-            .map_err(|e| e.to_string())?;
-            let filter: String = args
-                .get("filter")
-                .and_then(|v| v.as_str())
-                .unwrap_or("recent")
-                .to_string();
-            let offset: i32 = args.get("offset").and_then(|v| v.as_i64()).unwrap_or(0) as i32;
-            let limit: i32 = args.get("limit").and_then(|v| v.as_i64()).unwrap_or(50) as i32;
-            let search: Option<String> = args
-                .get("search")
-                .and_then(|v| v.as_str())
-                .map(|s| s.to_string());
-            let r = api::list_participants(&session, chat_id, &filter, offset, limit, search)
-                .await
-                .map_err(|e| e.to_string())?;
-            serde_json::to_value(r).map_err(|e| e.to_string())
-        }
-
-        "telegram_set_blocked" => {
-            let chat_id: i64 = serde_json::from_value(
-                args.get("chatId")
-                    .or(args.get("chat_id"))
-                    .cloned()
-                    .ok_or("missing 'chatId'")?,
-            )
-            .map_err(|e| e.to_string())?;
-            let chat_type: String = serde_json::from_value(
-                args.get("chatType")
-                    .or(args.get("chat_type"))
-                    .cloned()
-                    .ok_or("missing 'chatType'")?,
-            )
-            .map_err(|e| e.to_string())?;
-            let blocked: bool = args
-                .get("blocked")
-                .and_then(|v| v.as_bool())
-                .unwrap_or(true);
-            api::set_blocked(&session, chat_id, &chat_type, blocked)
-                .await
-                .map_err(|e| e.to_string())?;
-            Ok(json!({ "ok": true }))
-        }
-
-        "telegram_report_peer" => {
-            let chat_id: i64 = serde_json::from_value(
-                args.get("chatId")
-                    .or(args.get("chat_id"))
-                    .cloned()
-                    .ok_or("missing 'chatId'")?,
-            )
-            .map_err(|e| e.to_string())?;
-            let chat_type: String = serde_json::from_value(
-                args.get("chatType")
-                    .or(args.get("chat_type"))
-                    .cloned()
-                    .ok_or("missing 'chatType'")?,
-            )
-            .map_err(|e| e.to_string())?;
-            let message_ids: Vec<i32> = args
-                .get("messageIds")
-                .or(args.get("message_ids"))
-                .and_then(|v| v.as_array())
-                .map(|arr| {
-                    arr.iter()
-                        .filter_map(|x| x.as_i64().map(|n| n as i32))
-                        .collect()
-                })
-                .unwrap_or_default();
-            let option: Vec<u8> = args
-                .get("option")
-                .and_then(|v| v.as_array())
-                .map(|arr| {
-                    arr.iter()
-                        .filter_map(|x| x.as_i64().map(|n| n as u8))
-                        .collect()
-                })
-                .unwrap_or_default();
-            let message: String = args
-                .get("message")
-                .and_then(|v| v.as_str())
-                .unwrap_or("")
-                .to_string();
-            api::report_peer(&session, chat_id, &chat_type, message_ids, option, message)
-                .await
-                .map_err(|e| e.to_string())?;
-            Ok(json!({ "ok": true }))
-        }
-
-        "telegram_rename_channel" => {
-            let chat_id: i64 = serde_json::from_value(
-                args.get("chatId")
-                    .or(args.get("chat_id"))
-                    .cloned()
-                    .ok_or("missing 'chatId'")?,
-            )
-            .map_err(|e| e.to_string())?;
-            let title: String =
-                serde_json::from_value(args.get("title").cloned().ok_or("missing 'title'")?)
-                    .map_err(|e| e.to_string())?;
-            api::rename_channel(&session, chat_id, title)
-                .await
-                .map_err(|e| e.to_string())?;
-            Ok(json!({ "ok": true }))
-        }
-
-        "telegram_restore_peer_hashes" => {
-            let raw: Vec<Vec<i64>> =
-                serde_json::from_value(args.get("items").cloned().ok_or("missing 'items'")?)
-                    .map_err(|e| e.to_string())?;
-            let items: Vec<(i64, i64)> = raw
-                .into_iter()
-                .filter_map(|v| {
-                    if v.len() == 2 {
-                        Some((v[0], v[1]))
-                    } else {
-                        None
-                    }
-                })
-                .collect();
-            api::restore_peer_hashes(&session, items)
-                .await
-                .map_err(|e| e.to_string())?;
-            Ok(json!({ "ok": true }))
         }
 
         "telegram_list_chats_page" => {
@@ -888,21 +418,6 @@ async fn dispatch_inner(
         "telegram_get_self" => {
             let r = api::get_self(&session).await.map_err(|e| e.to_string())?;
             serde_json::to_value(r).map_err(|e| e.to_string())
-        }
-
-        "telegram_stream_info" => {
-            let slot = stream_server_slot.lock().await;
-            let info = slot
-                .as_ref()
-                .ok_or_else(|| "stream server not ready".to_string())?
-                .clone();
-            drop(slot);
-            let info_guard = info.lock().await;
-            Ok(json!({
-                "port": info_guard.port,
-                "token": info_guard.token,
-                "base_url": format!("http://127.0.0.1:{}", info_guard.port),
-            }))
         }
 
         "telegram_delete_messages" => {
@@ -995,37 +510,6 @@ async fn dispatch_inner(
             Ok(json!({ "ok": true }))
         }
 
-        "telegram_edit_caption" => {
-            let chat_id: i64 = serde_json::from_value(
-                args.get("chat_id")
-                    .or(args.get("chatId"))
-                    .cloned()
-                    .ok_or("missing 'chatId'")?,
-            )
-            .map_err(|e| e.to_string())?;
-            let chat_type: String = serde_json::from_value(
-                args.get("chat_type")
-                    .or(args.get("chatType"))
-                    .cloned()
-                    .ok_or("missing 'chatType'")?,
-            )
-            .map_err(|e| e.to_string())?;
-            let message_id: i32 = serde_json::from_value(
-                args.get("message_id")
-                    .or(args.get("messageId"))
-                    .cloned()
-                    .ok_or("missing 'messageId'")?,
-            )
-            .map_err(|e| e.to_string())?;
-            let caption: String =
-                serde_json::from_value(args.get("caption").cloned().ok_or("missing 'caption'")?)
-                    .map_err(|e| e.to_string())?;
-            api::edit_caption(&session, chat_id, &chat_type, message_id, caption)
-                .await
-                .map_err(|e| e.to_string())?;
-            Ok(json!({ "ok": true }))
-        }
-
         "telegram_search_global" => {
             let query: String =
                 serde_json::from_value(args.get("query").cloned().ok_or("missing 'query'")?)
@@ -1050,64 +534,6 @@ async fn dispatch_inner(
                 .await
                 .map_err(|e| e.to_string())?;
             serde_json::to_value(r).map_err(|e| e.to_string())
-        }
-
-        "telegram_upload_media" => {
-            let chat_id: i64 = serde_json::from_value(
-                args.get("chat_id")
-                    .or(args.get("chatId"))
-                    .cloned()
-                    .ok_or("missing 'chatId'")?,
-            )
-            .map_err(|e| e.to_string())?;
-            let chat_type: String = serde_json::from_value(
-                args.get("chat_type")
-                    .or(args.get("chatType"))
-                    .cloned()
-                    .ok_or("missing 'chatType'")?,
-            )
-            .map_err(|e| e.to_string())?;
-            let file_path: String = serde_json::from_value(
-                args.get("file_path")
-                    .or(args.get("filePath"))
-                    .cloned()
-                    .ok_or("missing 'filePath'")?,
-            )
-            .map_err(|e| e.to_string())?;
-            let caption: Option<String> = args
-                .get("caption")
-                .and_then(|v| serde_json::from_value(v.clone()).ok());
-
-            let path = std::path::PathBuf::from(&file_path);
-            let file_name = path
-                .file_name()
-                .map(|s| s.to_string_lossy().to_string())
-                .unwrap_or_else(|| "file".into());
-            let upload_id = events::next_id();
-            let title = file_name.clone();
-            events::upload_progress(upload_id, &title, 0.0);
-
-            tokio::spawn(async move {
-                let result = Box::pin(api::upload_media(
-                    &session,
-                    chat_id,
-                    &chat_type,
-                    &path,
-                    caption.as_deref(),
-                ))
-                .await;
-                match result {
-                    Ok(message_id) => {
-                        events::upload_progress(upload_id, &title, 100.0);
-                        events::upload_complete(upload_id, &title, true, None, Some(message_id));
-                    }
-                    Err(e) => {
-                        events::upload_complete(upload_id, &title, false, Some(e.to_string()), None)
-                    }
-                }
-            });
-
-            Ok(json!({ "id": upload_id, "file_name": file_name }))
         }
 
         "telegram_list_media" => {
@@ -1147,55 +573,6 @@ async fn dispatch_inner(
             )
             .await
             .map_err(|e| e.to_string())?;
-            serde_json::to_value(r).map_err(|e| e.to_string())
-        }
-
-        "telegram_diag_list_media" => {
-            let chat_id: i64 = serde_json::from_value(
-                args.get("chat_id")
-                    .or(args.get("chatId"))
-                    .cloned()
-                    .ok_or("missing 'chatId'")?,
-            )
-            .map_err(|e| e.to_string())?;
-            let chat_type: String = serde_json::from_value(
-                args.get("chat_type")
-                    .or(args.get("chatType"))
-                    .cloned()
-                    .ok_or("missing 'chatType'")?,
-            )
-            .map_err(|e| e.to_string())?;
-            let r = api::diag_list_media(&session, chat_id, &chat_type)
-                .await
-                .map_err(|e| e.to_string())?;
-            serde_json::to_value(r).map_err(|e| e.to_string())
-        }
-
-        "telegram_expand_album" => {
-            let chat_id: i64 = serde_json::from_value(
-                args.get("chat_id")
-                    .or(args.get("chatId"))
-                    .cloned()
-                    .ok_or("missing 'chatId'")?,
-            )
-            .map_err(|e| e.to_string())?;
-            let chat_type: String = serde_json::from_value(
-                args.get("chat_type")
-                    .or(args.get("chatType"))
-                    .cloned()
-                    .ok_or("missing 'chatType'")?,
-            )
-            .map_err(|e| e.to_string())?;
-            let message_id: i32 = serde_json::from_value(
-                args.get("message_id")
-                    .or(args.get("messageId"))
-                    .cloned()
-                    .ok_or("missing 'messageId'")?,
-            )
-            .map_err(|e| e.to_string())?;
-            let r = api::expand_album(&session, chat_id, &chat_type, message_id, fix_ext)
-                .await
-                .map_err(|e| e.to_string())?;
             serde_json::to_value(r).map_err(|e| e.to_string())
         }
 
@@ -1296,6 +673,8 @@ async fn dispatch_inner(
 
             let file_name_clone = file_name.clone();
             tokio::spawn(async move {
+                let claim = client::template::claim_unique_path(&output_path);
+                let output_path = claim.path().to_path_buf();
                 let mut rep = DownloadReporter::new(
                     download_id,
                     &file_name_clone,
@@ -1502,6 +881,8 @@ async fn dispatch_inner(
                         let _permit = tokio::select! { p = sem.acquire() => match p { Ok(p) => p, Err(_) => return }, _ = cancel.cancelled() => return };
                         if cancel.is_cancelled() { return; }
 
+                        let claim = client::template::claim_unique_path(&output_path);
+                        let output_path = claim.path().to_path_buf();
                         let mut rep = DownloadReporter::new(events::next_id(), &item.file_name, "item", Some(batch_id), Some(item.file_size).filter(|s| *s > 0), Some(output_path.to_string_lossy().into()));
                         events::batch_file_status(batch_id, item.message_id, "downloading", 0.0, None);
                         let (tx, mut rx) = mpsc::channel::<f64>(32);
@@ -1728,50 +1109,6 @@ async fn dispatch_inner(
             serde_json::to_value(r).map_err(|e| e.to_string())
         }
 
-        "telegram_get_chat_photo" => {
-            let chat_id: i64 = serde_json::from_value(
-                args.get("chat_id")
-                    .or(args.get("chatId"))
-                    .cloned()
-                    .ok_or("missing 'chatId'")?,
-            )
-            .map_err(|e| e.to_string())?;
-            let chat_type: String = serde_json::from_value(
-                args.get("chat_type")
-                    .or(args.get("chatType"))
-                    .cloned()
-                    .ok_or("missing 'chatType'")?,
-            )
-            .map_err(|e| e.to_string())?;
-            let data = thumbnail_cache::get_chat_photo(&session, chat_id, &chat_type)
-                .await
-                .map_err(|e| e.to_string())?;
-            Ok(json!(
-                base64::engine::general_purpose::STANDARD.encode(&data)
-            ))
-        }
-
-        "telegram_clear_thumbnail_cache" => {
-            thumbnail_cache::clear_cache().await;
-            Ok(json!(null))
-        }
-
-        "telegram_perf_get" => {
-            let max_threads = client::parallel_download::get_max_threads_cap();
-            let buckets = json!([
-                { "min_mb": 0, "max_mb": 1, "threads": client::parallel_download::compute_thread_count(0) },
-                { "min_mb": 1, "max_mb": 5, "threads": client::parallel_download::compute_thread_count(1024 * 1024 * 2) },
-                { "min_mb": 5, "max_mb": 20, "threads": client::parallel_download::compute_thread_count(1024 * 1024 * 10) },
-                { "min_mb": 20, "max_mb": 50, "threads": client::parallel_download::compute_thread_count(1024 * 1024 * 30) },
-                { "min_mb": 50, "max_mb": 0, "threads": client::parallel_download::compute_thread_count(1024 * 1024 * 100) },
-            ]);
-            Ok(json!({
-                "max_threads": max_threads,
-                "max_part_size_kb": 1024,
-                "buckets": buckets,
-            }))
-        }
-
         "telegram_clone_start" => {
             let source_id: i64 = serde_json::from_value(
                 args.get("sourceId")
@@ -1856,19 +1193,6 @@ async fn dispatch_inner(
             }))
         }
 
-        "telegram_clone_status" => {
-            let id: String = serde_json::from_value(
-                args.get("sessionId")
-                    .or(args.get("session_id"))
-                    .cloned()
-                    .ok_or("missing 'sessionId'")?,
-            )
-            .map_err(|e| e.to_string())?;
-            let pdd = host::data_dir();
-            let s = client::clone::load_session(&pdd, &id).map_err(|e| e.to_string())?;
-            serde_json::to_value(s).map_err(|e| e.to_string())
-        }
-
         "telegram_clone_list" => {
             let pdd = host::data_dir();
             let list = client::clone::list_sessions(&pdd);
@@ -1919,32 +1243,6 @@ async fn dispatch_inner(
 
         "telegram_sync_state" => {
             Ok(serde_json::to_value(client::sync_state::snapshot()).map_err(|e| e.to_string())?)
-        }
-
-        "telegram_sync_now" => {
-            let updated = client::sync_state::run_once(&session)
-                .await
-                .map_err(|e| e.to_string())?;
-            Ok(json!({ "updated": updated }))
-        }
-
-        "telegram_sync_settings_set" => {
-            if let Some(enabled) = args.get("enabled").and_then(|v| v.as_bool()) {
-                client::sync_state::set_enabled(enabled);
-            }
-            if let Some(n) = args
-                .get("intervalMin")
-                .or(args.get("interval_min"))
-                .and_then(|v| v.as_u64())
-            {
-                client::sync_state::set_interval_min(n as u32);
-            }
-            client::save_setting("sync_enabled", json!(client::sync_state::is_enabled()));
-            client::save_setting(
-                "sync_interval_min",
-                json!(client::sync_state::interval_min()),
-            );
-            serde_json::to_value(client::sync_state::snapshot()).map_err(|e| e.to_string())
         }
 
         "telegram_accounts_list" => {
@@ -2002,25 +1300,6 @@ async fn dispatch_inner(
             serde_json::to_value(p).map_err(|e| e.to_string())
         }
 
-        "telegram_accounts_backup_now" => {
-            let pdd = host::data_dir();
-            let path = client::accounts::backup_current_session(&pdd).map_err(|e| e.to_string())?;
-            Ok(json!({
-                "path": path.to_string_lossy(),
-                "name": path.file_name().and_then(|s| s.to_str()).unwrap_or(""),
-            }))
-        }
-
-        "telegram_accounts_list_backups" => {
-            let pdd = host::data_dir();
-            let list = client::accounts::list_backups(&pdd);
-            let json: Vec<serde_json::Value> = list
-                .into_iter()
-                .map(|(name, mtime)| json!({ "name": name, "modified_at": mtime }))
-                .collect();
-            Ok(serde_json::Value::Array(json))
-        }
-
         "telegram_bandwidth_stats" => {
             let pdd = host::data_dir();
             let s = client::bandwidth::load(&pdd);
@@ -2036,45 +1315,6 @@ async fn dispatch_inner(
                 "date": s.date,
                 "percentage": pct.min(100.0),
             }))
-        }
-
-        "telegram_bandwidth_set_quota" => {
-            let gb: u64 = serde_json::from_value(
-                args.get("gb")
-                    .or(args.get("quotaGb"))
-                    .cloned()
-                    .ok_or("missing 'gb'")?,
-            )
-            .map_err(|e| e.to_string())?;
-            let pdd = host::data_dir();
-            let s = client::bandwidth::set_quota_gb(&pdd, gb).map_err(|e| e.to_string())?;
-            Ok(json!({
-                "quota_bytes": s.quota_bytes,
-                "used_today_bytes": s.used_today_bytes,
-            }))
-        }
-
-        "telegram_bandwidth_reset" => {
-            let pdd = host::data_dir();
-            let s = client::bandwidth::reset_today(&pdd).map_err(|e| e.to_string())?;
-            Ok(json!({
-                "used_today_bytes": s.used_today_bytes,
-                "date": s.date,
-            }))
-        }
-
-        "telegram_perf_set" => {
-            let max_threads: usize = serde_json::from_value(
-                args.get("maxThreads")
-                    .or(args.get("max_threads"))
-                    .cloned()
-                    .ok_or("missing 'maxThreads'")?,
-            )
-            .map_err(|e| e.to_string())?;
-            let clamped = max_threads.clamp(1, 32);
-            client::parallel_download::set_max_threads_cap(clamped);
-            client::save_setting("max_threads", json!(clamped));
-            Ok(json!({ "max_threads": clamped }))
         }
 
         "telegram_resolve_links" => {
@@ -2239,8 +1479,6 @@ async fn dispatch_inner(
             }
             Ok(s)
         }
-
-        "telegram_list_commands" => Ok(json!(COMMANDS)),
 
         "telegram_stream_url" => {
             let (chat_id, chat_type) = chat_of(&args)?;
@@ -2447,54 +1685,9 @@ async fn dispatch_inner(
             Ok(client::realtime::set_enabled(on))
         }
 
-        "telegram_scan_chat" => {
-            let (chat_id, chat_type) = chat_of(&args)?;
-            let scan_id = opt_string(&args, &["scanId", "scan_id"])
-                .unwrap_or_else(client::index::new_scan_id);
-            let max_scan = num_of(&args, &["maxScan", "max_scan"])
-                .unwrap_or(5_000.0)
-                .max(0.0) as usize;
-            let cancel = client::index::register_scan(&scan_id);
-            let opts = client::index::UpdateOpts {
-                scan_id: &scan_id,
-                max_scan,
-                takeout: bool_of(&args, &["takeout"]),
-                filter: None,
-                stop_at_id: 0,
-                emit: true,
-            };
-            let res =
-                client::index::update(&session, chat_id, &chat_type, &opts, &cancel, |_, _| true)
-                    .await;
-            client::index::unregister_scan(&scan_id);
-            let res = res.map_err(|e| e.to_string())?;
-            let stats = client::index::stats(chat_id);
-            Ok(json!({
-                "scan_id": scan_id,
-                "chat_id": chat_id,
-                "scanned": res.scanned,
-                "indexed": stats["indexed"],
-                "newest_id": res.coverage.newest_id,
-                "oldest_id": res.coverage.oldest_id,
-                "complete": res.coverage.complete,
-                "cancelled": res.cancelled,
-            }))
-        }
-
         "telegram_scan_cancel" => {
             let id = opt_string(&args, &["scanId", "scan_id"]).ok_or("missing 'scanId'")?;
             Ok(json!({ "cancelled": client::index::cancel_scan(&id) }))
-        }
-
-        "telegram_index_stats" => {
-            let (chat_id, _) = chat_of(&args)?;
-            Ok(client::index::stats(chat_id))
-        }
-
-        "telegram_index_clear" => {
-            let chat = chat_of(&args).ok().map(|(id, _)| id);
-            client::index::clear(chat);
-            Ok(json!({ "ok": true }))
         }
 
         "telegram_dedupe_stats" => Ok(client::dedupe::stats()),
@@ -2539,19 +1732,6 @@ async fn dispatch_inner(
             let message_id = message_id_of(&args)?;
             serde_json::to_value(client::transcribe::cached(chat_id, message_id))
                 .map_err(|e| e.to_string())
-        }
-
-        "telegram_asr_status" => {
-            serde_json::to_value(crate::core::asr::status()).map_err(|e| e.to_string())
-        }
-
-        "telegram_asr_install" => {
-            let model = opt_string(&args, &["model"]);
-            let progress = client::transcribe::install_progress(model.as_deref());
-            let st = crate::core::asr::install(model.as_deref(), &progress)
-                .await
-                .map_err(|e| e.to_string())?;
-            serde_json::to_value(st).map_err(|e| e.to_string())
         }
 
         "telegram_add_to_watch" => {

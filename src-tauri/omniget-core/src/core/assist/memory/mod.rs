@@ -7,7 +7,6 @@ pub mod retrieve;
 mod search;
 pub mod temporal;
 mod toolset;
-mod transfer;
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -17,24 +16,18 @@ use super::db::Migration;
 
 pub use graph::{Entity, EntityRef};
 pub use records::{
-    confirm, correct, expire_due, forget, get, history, list, remember, retract, scopes,
-    Correction, ScopeSummary, Written,
+    correct, expire_due, forget, get, history, list, remember, retract, Correction, Written,
 };
 pub use reflect::Reflection;
 pub use retain::{RetainInput, RetainReport};
 pub use retrieve::{Hit, Probe, Why};
-pub use search::{augment_text, profile, recall, reindex, source_line, Profile};
+pub use search::{augment_text, profile, recall, source_line, Profile};
 pub use toolset::{augment, call_tool, has_recall_grant, toolset};
-pub use transfer::{
-    backup_files, delete_backups, export_json, export_markdown, import_json, ExportFile,
-    ImportReport, Tombstone, EXPORT_FORMAT, EXPORT_VERSION,
-};
 
 pub const ERR_MEMORY_NOT_FOUND: &str = "ERR_MEMORY_NOT_FOUND";
 pub const ERR_MEMORY_INVALID: &str = "ERR_MEMORY_INVALID";
 pub const ERR_MEMORY_FORGOTTEN: &str = "ERR_MEMORY_FORGOTTEN";
 pub const ERR_MEMORY_INACTIVE: &str = "ERR_MEMORY_INACTIVE";
-pub const ERR_MEMORY_IMPORT: &str = "ERR_MEMORY_IMPORT";
 
 pub const MAX_CONTENT_CHARS: usize = 4000;
 
@@ -482,28 +475,6 @@ pub fn search_explained(
 ) -> Result<Probe, String> {
     let qvec = retrieve::embed_query(query);
     retrieve::hybrid(db, ctx, query, qvec.as_deref(), limit, now)
-}
-
-pub async fn prepare_semantic(db: std::sync::Arc<AssistDb>) -> Result<usize, String> {
-    let progress = crate::core::tools::noop_progress();
-    if !crate::core::onnxrt::is_installed() {
-        crate::core::onnxrt::install_runtime(None, &progress)
-            .await
-            .map_err(|e| e.to_string())?;
-    }
-    use crate::core::embed::xlmr::{ensure, Model};
-    ensure(Model::E5, &progress)
-        .await
-        .map_err(|e| e.to_string())?;
-    ensure(Model::Reranker, &progress)
-        .await
-        .map_err(|e| e.to_string())?;
-    let d = db.clone();
-    let n = tokio::task::spawn_blocking(move || retain::backfill_vectors(&d, 100_000))
-        .await
-        .map_err(|e| e.to_string())??;
-    toolset::spawn_upkeep(db);
-    Ok(n)
 }
 
 pub fn upkeep(db: std::sync::Arc<AssistDb>) {

@@ -391,19 +391,6 @@ impl ToolBroker {
     pub fn answer_with(&self, tool_call_id: &str, answer: Answer) -> bool {
         self.deliver(tool_call_id, answer).is_ok()
     }
-
-    pub fn answer_permission(
-        &self,
-        permission_id: &str,
-        answer: Answer,
-    ) -> Result<(), AnswerRefused> {
-        self.respond(
-            permission_id,
-            Decision::of_answer(answer),
-            &crate::core::assist::runs::Actor::window(),
-        )
-    }
-
     pub fn respond(
         &self,
         permission_id: &str,

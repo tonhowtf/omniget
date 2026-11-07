@@ -20,7 +20,6 @@ pub const ERR_STALE: &str = "CLITOOLS_STALE";
 pub const ERR_FAILED: &str = "CLITOOLS_FAILED";
 pub const ERR_ACP: &str = "CLITOOLS_ACP";
 pub const ERR_UNVERIFIED: &str = "CLITOOLS_UNVERIFIED";
-pub const ERR_LOGIN: &str = "CLITOOLS_LOGIN";
 
 #[derive(Debug, Clone, Serialize)]
 pub struct ToolRow {
@@ -44,7 +43,7 @@ pub fn list() -> Vec<ToolRow> {
 }
 
 pub fn tool(id: &str) -> Result<&'static table::CliTool, String> {
-    table::get(id).ok_or_else(|| format!("{ERR_NOT_FOUND}: ferramenta {id}"))
+    table::get(id).ok_or_else(|| format!("{ERR_NOT_FOUND}: tool {id}"))
 }
 
 pub async fn plans(id: &str, action: plan::Action) -> Result<Vec<plan::Plan>, String> {

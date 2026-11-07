@@ -2,12 +2,13 @@ use std::path::PathBuf;
 use std::time::Duration;
 
 use omniget_core::core::global_dl::{
-    browser, connector, jobs, page, profiles, sniffer, tools, Node,
+    browser, connector, jobs, market, page, profiles, sniffer, tools, Node,
 };
 use serde_json::{json, Value};
 use tauri::{AppHandle, Emitter};
 
 pub fn start_background(app: AppHandle) {
+    connector::set_app_version(&app.package_info().version.to_string());
     let mut rx = omniget_core::core::global_dl::events().subscribe();
     let emitter = app.clone();
     tauri::async_runtime::spawn(async move {
@@ -34,6 +35,7 @@ pub fn gd_status() -> Value {
     json!({
         "browser": browser::status(),
         "connectors": connector::list(),
+        "invalid_connectors": connector::list_invalid(),
         "jobs": jobs::list(),
         "out_dir": tools::default_out_dir(),
     })
@@ -46,7 +48,10 @@ pub async fn gd_browser_start(url: Option<String>) -> Result<Value, String> {
 }
 
 #[tauri::command]
-pub async fn gd_browser_stop() -> Result<(), String> {
+pub async fn gd_browser_stop(force: Option<bool>) -> Result<(), String> {
+    if browser::current().is_some() {
+        browser::ensure_no_running_job(force == Some(true))?;
+    }
     browser::stop().await
 }
 
@@ -112,8 +117,11 @@ pub async fn gd_find(url: String, reload: Option<bool>) -> Result<Value, String>
 }
 
 #[tauri::command]
-pub async fn gd_browser_show(url: Option<String>) -> Result<Value, String> {
+pub async fn gd_browser_show(url: Option<String>, force: Option<bool>) -> Result<Value, String> {
     if browser::mode() != "window" || browser::current().is_some_and(|b| b.headless) {
+        if browser::current().is_some() {
+            browser::ensure_no_running_job(force == Some(true))?;
+        }
         browser::switch_mode("window").await?;
     }
     let b = browser::start(None, true).await?;
@@ -133,8 +141,11 @@ pub async fn gd_browser_show(url: Option<String>) -> Result<Value, String> {
 }
 
 #[tauri::command]
-pub async fn gd_browser_hide() -> Result<(), String> {
+pub async fn gd_browser_hide(force: Option<bool>) -> Result<(), String> {
     if browser::mode() == "window" {
+        if browser::current().is_some() {
+            browser::ensure_no_running_job(force == Some(true))?;
+        }
         browser::switch_mode("embedded").await?;
     }
     Ok(())
@@ -190,6 +201,45 @@ pub fn gd_connector_install_dev(dir: String) -> Result<Value, String> {
 #[tauri::command]
 pub fn gd_connector_remove(id: String) -> Result<(), String> {
     connector::remove(&id)
+}
+
+#[tauri::command]
+pub fn gd_connector_remove_invalid(dir: String) -> Result<(), String> {
+    connector::remove_invalid(&PathBuf::from(dir))
+}
+
+#[tauri::command]
+pub async fn gd_market_list(refresh: Option<bool>) -> Value {
+    json!(market::view(refresh.unwrap_or(false)).await)
+}
+
+#[tauri::command]
+pub async fn gd_market_install(id: String) -> Result<Value, String> {
+    let m = market::install_from_catalog(&id).await?;
+    serde_json::to_value(m).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn gd_market_update(id: String) -> Result<Value, String> {
+    let m = market::update_from_catalog(&id).await?;
+    serde_json::to_value(m).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn gd_connector_inspect_file(path: String) -> Result<Value, String> {
+    let s = market::inspect_file(&PathBuf::from(path))?;
+    serde_json::to_value(s).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn gd_connector_install_file(path: String) -> Result<Value, String> {
+    let m = market::install_file(&PathBuf::from(path))?;
+    serde_json::to_value(m).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn gd_connector_for_url(url: String) -> Value {
+    json!(market::lookup(&url).await)
 }
 
 #[tauri::command]

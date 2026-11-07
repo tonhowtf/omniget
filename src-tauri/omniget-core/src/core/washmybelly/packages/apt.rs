@@ -155,6 +155,9 @@ impl PackageBackend for Apt {
 
     fn updates(&self) -> Result<Vec<Update>, String> {
         let r = query("apt", &["list", "--upgradable"])?;
+        if r.code != Some(0) && r.stdout.trim().is_empty() {
+            return Err(format!("apt list: {}", super::tail(&r.stderr, 3)));
+        }
         Ok(parse_upgradable(&r.stdout))
     }
 

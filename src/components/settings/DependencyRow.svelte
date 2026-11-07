@@ -42,19 +42,13 @@
     });
   });
 
-  async function handleInstall() {
-    await onInstall();
-  }
-
   async function handlePickCustom() {
     menuOpen = false;
-    const filters = [{ name: $t("settings.dependencies.filter_all_files") as string, extensions: ["*"] }];
     try {
       const selected = await openDialog({
         title: $t("settings.dependencies.pick_dialog_title", { name }) as string,
         multiple: false,
         directory: false,
-        filters,
       });
       if (!selected || typeof selected !== "string") return;
       const result = await invoke<string>("set_dependency_path", {
@@ -105,12 +99,33 @@
   let supportsCustomFile = $derived(["yt-dlp", "FFmpeg"].includes(name));
 
   let customPath = $state<string | null>(null);
+  let lastCustomPath = $state<string | null>(null);
+
+  let sourceLabel = $derived(
+    customPath ? ($t("settings.dependencies.custom_in_use") as string) : source === "system" ? "PATH" : source === "managed" ? ($t("settings.dependencies.source_managed") as string) : source === "flatpak" ? "Flatpak" : "",
+  );
 
   async function loadCustomPath() {
     try {
       customPath = await invoke<string | null>("dependency_custom_path", { name });
+      lastCustomPath = customPath ? null : await invoke<string | null>("dependency_last_custom_path", { name });
     } catch {
       customPath = null;
+      lastCustomPath = null;
+    }
+  }
+
+  async function handleUseLastCustom() {
+    menuOpen = false;
+    if (!lastCustomPath) return;
+    try {
+      const result = await invoke<string>("set_dependency_path", { name, sourcePath: lastCustomPath });
+      showToast("success", `${name}: ${result}`);
+      void loadCustomPath();
+      void onAfterCustomFile?.();
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      showToast("error", $t("settings.dependencies.set_file_failed", { msg }) as string);
     }
   }
 
@@ -160,33 +175,20 @@
 <tr class="deps-table-row">
   <td class="deps-cell-name">
     <span class="deps-name" id={`dep-${name}-name`} dir="ltr">{name}</span>
-  </td>
-  <td class="deps-cell-version">
-    {#if installed && version}
-      <span class="deps-version" dir="ltr">v{version}</span>
-    {:else}
-      <span class="deps-version deps-version-missing">—</span>
-    {/if}
+    <span class="deps-meta" dir="ltr">
+      {#if installed && version}v{version}{:else}—{/if}{#if sourceLabel} · <span title={customPath ?? path ?? ""}>{sourceLabel}</span>{/if}
+    </span>
   </td>
   <td class="deps-cell-status">
-    <div class="deps-status-group">
-      {#if installed && outdated}
-        <span class="deps-status deps-status-outdated" title={$t("settings.dependencies.outdated_hint") as string}>
-          {$t("settings.dependencies.status_outdated")}
-        </span>
-      {:else if installed}
-        <span class="deps-status deps-status-ok">{$t("settings.dependencies.status_installed")}</span>
-      {:else}
-        <span class="deps-status deps-status-missing">{$t("settings.dependencies.status_missing")}</span>
-      {/if}
-      {#if source === "system"}
-        <span class="deps-source deps-source-system" title={path ?? ""}>PATH</span>
-      {:else if source === "managed"}
-        <span class="deps-source deps-source-managed">{$t("settings.dependencies.source_managed")}</span>
-      {:else if source === "flatpak"}
-        <span class="deps-source deps-source-flatpak">Flatpak</span>
-      {/if}
-    </div>
+    {#if installed && outdated}
+      <span class="deps-status deps-status-outdated" title={$t("settings.dependencies.outdated_hint") as string}>
+        {$t("settings.dependencies.status_outdated")}
+      </span>
+    {:else if installed}
+      <span class="deps-status deps-status-ok">{$t("settings.dependencies.status_installed")}</span>
+    {:else}
+      <span class="deps-status deps-status-missing">{$t("settings.dependencies.status_missing")}</span>
+    {/if}
   </td>
   <td class="deps-cell-action">
     <div class="deps-actions">
@@ -194,7 +196,7 @@
         <span class="dep-spinner" aria-hidden="true"></span>
         <span class="dep-busy-text" role="status">{$t("settings.rebrand.state.loading")}</span>
       {:else}
-        <button class="button dep-btn" aria-describedby={`dep-${name}-name`} onclick={handleInstall}>
+        <button class="button dep-btn" aria-describedby={`dep-${name}-name`} onclick={onInstall}>
           {#if installed}
             {source === "system" ? $t("settings.dependencies.download_managed") : $t("settings.dependencies.update")}
           {:else}
@@ -233,11 +235,12 @@
               {$t("settings.dependencies.show_folder")}
             </button>
             {#if customPath}
-              <div class="menu-label" title={customPath}>
-                {$t("settings.dependencies.custom_in_use")}
-              </div>
-              <button type="button" class="menu-item" onclick={handleClearCustom} role="menuitem">
+              <button type="button" class="menu-item" onclick={handleClearCustom} title={customPath} role="menuitem">
                 {$t("settings.dependencies.use_managed_again")}
+              </button>
+            {:else if supportsCustomFile && lastCustomPath}
+              <button type="button" class="menu-item" onclick={handleUseLastCustom} title={lastCustomPath} role="menuitem">
+                {$t("settings.dependencies.use_custom_again")}
               </button>
             {/if}
             {#if archived.length > 0}
@@ -283,17 +286,16 @@
     white-space: nowrap;
   }
   .deps-name {
-    font-size: 13px;
+    display: block;
+    font-size: var(--text-base);
     font-weight: 600;
     color: var(--text);
   }
-  .deps-version {
-    font-size: 12px;
+  .deps-meta {
+    display: block;
+    font-size: var(--text-xs);
     font-family: var(--font-mono, ui-monospace, monospace);
-    color: var(--text-dim, var(--gray));
-  }
-  .deps-version-missing {
-    opacity: 0.5;
+    color: var(--text-muted);
   }
   .deps-status {
     display: inline-flex;
@@ -301,12 +303,6 @@
     border-radius: 999px;
     font-size: 11px;
     font-weight: 600;
-  }
-  .deps-status-group {
-    display: flex;
-    flex-direction: column;
-    gap: 3px;
-    align-items: flex-start;
   }
   .deps-status-ok {
     background: color-mix(in srgb, var(--success) 18%, transparent);
@@ -319,26 +315,6 @@
   .deps-status-missing {
     background: color-mix(in srgb, var(--text) 8%, transparent);
     color: var(--text-dim, var(--gray));
-  }
-  .deps-source {
-    display: inline-flex;
-    padding: 1px 6px;
-    border-radius: 999px;
-    font-size: 10px;
-    font-weight: 600;
-    letter-spacing: 0.02em;
-  }
-  .deps-source-system {
-    background: var(--accent-soft);
-    color: var(--accent);
-  }
-  .deps-source-managed {
-    background: color-mix(in srgb, var(--accent) 15%, transparent);
-    color: var(--accent);
-  }
-  .deps-source-flatpak {
-    background: color-mix(in srgb, var(--warning) 15%, transparent);
-    color: var(--warning);
   }
   .deps-actions {
     display: flex;
@@ -451,6 +427,9 @@
     border-top-color: var(--accent);
     border-radius: 50%;
     animation: spin 800ms linear infinite;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .dep-spinner { animation-duration: 2400ms; }
   }
   @keyframes spin {
     to { transform: rotate(360deg); }

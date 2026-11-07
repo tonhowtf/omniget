@@ -138,16 +138,15 @@ fn pick_asset(variant: Option<&str>) -> anyhow::Result<&'static Asset> {
         .map(|s| s.trim())
         .filter(|s| !s.is_empty() && *s != "auto");
     if let Some(id) = wanted {
-        return asset_by_id(id)
-            .ok_or_else(|| anyhow!("variante de ONNX Runtime desconhecida: {id}"));
+        return asset_by_id(id).ok_or_else(|| anyhow!("unknown ONNX Runtime variant: {id}"));
     }
     let auto = auto_variant_id().ok_or_else(|| {
         anyhow!(
-            "a Microsoft não publica ONNX Runtime pronto para este sistema; \
-             instale a partir de um arquivo local (pacote `onnxruntime` do pip, por exemplo)"
+            "Microsoft does not publish a ready ONNX Runtime for this system; \
+             install it from a local file (the pip package `onnxruntime`, for example)"
         )
     })?;
-    asset_by_id(auto).ok_or_else(|| anyhow!("variante {auto} sumiu do catálogo"))
+    asset_by_id(auto).ok_or_else(|| anyhow!("variant {auto} is missing from the catalog"))
 }
 
 pub fn target_dir() -> Option<PathBuf> {
@@ -224,20 +223,20 @@ pub fn status() -> RuntimeStatus {
 fn missing_runtime_error() -> anyhow::Error {
     let where_to = target_dir()
         .map(|d| d.display().to_string())
-        .unwrap_or_else(|| "<pasta de dados do app>".into());
+        .unwrap_or_else(|| "<app data folder>".into());
     if auto_variant_id().is_some() {
         anyhow!(
-            "o ONNX Runtime {} ainda não está instalado. Instale pela tela de Modelos \
-             (o download vai para {}) ou aponte um {} que você já tenha.",
+            "ONNX Runtime {} is not installed yet. Install it from the Models screen \
+             (the download goes to {}) or point to a {} you already have.",
             RUNTIME_VERSION,
             where_to,
             lib_filename()
         )
     } else {
         anyhow!(
-            "não existe build oficial do ONNX Runtime para este sistema. \
-             Aponte um {} que você já tenha (o pacote `onnxruntime` do pip traz um) — \
-             ele é copiado para {}.",
+            "there is no official ONNX Runtime build for this system. \
+             Point to a {} you already have (the pip package `onnxruntime` ships one); \
+             it is copied to {}.",
             lib_filename(),
             where_to
         )
@@ -252,7 +251,7 @@ pub fn init() -> anyhow::Result<PathBuf> {
     }
     let path = resolve_path().ok_or_else(missing_runtime_error)?;
     ort::init_from(&path)
-        .map_err(|e| anyhow!("não consegui carregar {}: {}", path.display(), e))?
+        .map_err(|e| anyhow!("could not load {}: {}", path.display(), e))?
         .with_name("omniget")
         .commit();
     let _ = READY.set(path.clone());
@@ -262,7 +261,7 @@ pub fn init() -> anyhow::Result<PathBuf> {
 fn sha256_of(path: &Path) -> anyhow::Result<String> {
     use sha2::{Digest, Sha256};
     let mut file = std::fs::File::open(path)
-        .with_context(|| format!("abrindo {} para conferir o sha256", path.display()))?;
+        .with_context(|| format!("opening {} to check its sha256", path.display()))?;
     let mut hasher = Sha256::new();
     let mut buf = vec![0u8; 1 << 20];
     loop {
@@ -311,11 +310,11 @@ fn is_lib_entry(path: &Path) -> bool {
 fn write_atomic(dir: &Path, name: &str, bytes: &[u8]) -> anyhow::Result<PathBuf> {
     let dest = dir.join(name);
     let tmp = dir.join(format!(".{name}.tmp"));
-    std::fs::write(&tmp, bytes).with_context(|| format!("gravando {}", tmp.display()))?;
+    std::fs::write(&tmp, bytes).with_context(|| format!("writing {}", tmp.display()))?;
     if dest.exists() {
         let _ = std::fs::remove_file(&dest);
     }
-    std::fs::rename(&tmp, &dest).with_context(|| format!("movendo para {}", dest.display()))?;
+    std::fs::rename(&tmp, &dest).with_context(|| format!("moving to {}", dest.display()))?;
     Ok(dest)
 }
 
@@ -329,7 +328,7 @@ fn extract_libs(archive: &Path, is_zip: bool, dir: &Path) -> anyhow::Result<Stri
 
     if is_zip {
         let file = std::fs::File::open(archive)
-            .with_context(|| format!("abrindo {}", archive.display()))?;
+            .with_context(|| format!("opening {}", archive.display()))?;
         let mut zip = zip::ZipArchive::new(std::io::BufReader::new(file))?;
         for i in 0..zip.len() {
             let mut entry = zip.by_index(i)?;
@@ -352,7 +351,7 @@ fn extract_libs(archive: &Path, is_zip: bool, dir: &Path) -> anyhow::Result<Stri
         }
     } else {
         let file = std::fs::File::open(archive)
-            .with_context(|| format!("abrindo {}", archive.display()))?;
+            .with_context(|| format!("opening {}", archive.display()))?;
         let gz = flate2::read::GzDecoder::new(std::io::BufReader::new(file));
         let mut tar = tar::Archive::new(gz);
         for entry in tar.entries()? {
@@ -374,8 +373,8 @@ fn extract_libs(archive: &Path, is_zip: bool, dir: &Path) -> anyhow::Result<Stri
         }
     }
 
-    let (name, _) = biggest
-        .ok_or_else(|| anyhow!("o pacote não traz nenhuma biblioteca do ONNX Runtime em lib/"))?;
+    let (name, _) =
+        biggest.ok_or_else(|| anyhow!("the package has no ONNX Runtime library in lib/"))?;
     Ok(name)
 }
 
@@ -387,12 +386,12 @@ fn make_canonical(dir: &Path, extracted: &str) -> anyhow::Result<PathBuf> {
     let src = dir.join(extracted);
     let tmp = dir.join(format!(".{}.tmp", lib_filename()));
     std::fs::copy(&src, &tmp)
-        .with_context(|| format!("copiando {} → {}", src.display(), tmp.display()))?;
+        .with_context(|| format!("copying {} → {}", src.display(), tmp.display()))?;
     if canonical.exists() {
         let _ = std::fs::remove_file(&canonical);
     }
     std::fs::rename(&tmp, &canonical)
-        .with_context(|| format!("movendo para {}", canonical.display()))?;
+        .with_context(|| format!("moving to {}", canonical.display()))?;
     Ok(canonical)
 }
 
@@ -401,8 +400,8 @@ pub async fn install_runtime(
     progress: &crate::core::tools::ProgressFn,
 ) -> anyhow::Result<PathBuf> {
     let asset = pick_asset(variant.as_deref())?;
-    let dir = target_dir().ok_or_else(|| anyhow!("não achei o diretório de dados do app"))?;
-    std::fs::create_dir_all(&dir).with_context(|| format!("criando {}", dir.display()))?;
+    let dir = target_dir().ok_or_else(|| anyhow!("could not find the app data folder"))?;
+    std::fs::create_dir_all(&dir).with_context(|| format!("creating {}", dir.display()))?;
 
     let url = format!("{}/v{}/{}", RELEASE_BASE, RUNTIME_VERSION, asset.file);
     let tmp = crate::core::tools::temp_dir().join(asset.file);
@@ -422,13 +421,13 @@ pub async fn install_runtime(
             "verify",
             0,
             None,
-            Some("conferindo sha256".into()),
+            Some("checking sha256".into()),
         );
         let got = sha256_of(&tmp_for_task)?;
         if got != expected {
             let _ = std::fs::remove_file(&tmp_for_task);
             return Err(anyhow!(
-                "o pacote do ONNX Runtime baixado não confere: esperava sha256 {expected}, veio {got}"
+                "the downloaded ONNX Runtime package does not match: expected sha256 {expected}, got {got}"
             ));
         }
         crate::core::tools::report(
@@ -445,7 +444,7 @@ pub async fn install_runtime(
         Ok(canonical)
     })
     .await
-    .map_err(|e| anyhow!("tarefa de extração falhou: {e}"))??;
+    .map_err(|e| anyhow!("extraction task failed: {e}"))??;
 
     if let Some(marker) = version_marker_path() {
         let _ = std::fs::write(&marker, format!("{} ({})", RUNTIME_VERSION, asset.file));

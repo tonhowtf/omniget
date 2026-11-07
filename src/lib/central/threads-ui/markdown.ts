@@ -1,4 +1,4 @@
-import { escapeHtml, renderSafeMarkdownSync } from "$lib/llm/markdown";
+import { escapeHtml, renderSafeMarkdownSync } from "$lib/markdown";
 
 function stableSplit(text: string): number {
   let inFence = false;
@@ -28,7 +28,7 @@ function stableSplit(text: string): number {
 
 const PATHISH = /^(?:\.{0,2}\/)?(?:[\w@.+-]+\/)*[\w@+-][\w.@+-]*\.[A-Za-z0-9]{1,8}(?::\d+(?::\d+)?)?$|^(?:\.{0,2}\/)?(?:[\w@.+-]+\/)+[\w@.+-]+\/?$/;
 
-export function looksLikePath(s: string): boolean {
+function looksLikePath(s: string): boolean {
   if (s.length > 240 || /\s/.test(s)) return false;
   if (/^https?:/.test(s)) return false;
   if (/^\d+(\.\d+)*$/.test(s)) return false;

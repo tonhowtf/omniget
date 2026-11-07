@@ -292,5 +292,14 @@
   },
   "context_menu_download_selection": {
     "message": "選択範囲のリンクを OmniGet でダウンロード"
+  },
+  "popup_bridge_refused": {
+    "message": "OmniGet がリクエストを拒否しました。OmniGet の拡張機能設定を確認してください。"
+  },
+  "popup_link_handler_failed": {
+    "message": "ブラウザーが OmniGet のリンクを開けませんでした。OmniGet を起動してもう一度お試しください。"
+  },
+  "popup_sent_via_link": {
+    "message": "リンクで送信しました。何も開かない場合は OmniGet を起動してもう一度お試しください。"
   }
 }

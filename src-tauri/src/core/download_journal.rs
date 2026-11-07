@@ -147,6 +147,13 @@ fn checkpoint(db: &Connection, dropped: &AtomicU64, truncated: &AtomicU64) -> Re
     Ok(())
 }
 fn health(db: &Connection) -> Result<(u64, u64, u64, bool), String> {
+    health_with(db, &DROPPED, &TRUNCATED)
+}
+fn health_with(
+    db: &Connection,
+    pending_dropped: &AtomicU64,
+    pending_truncated: &AtomicU64,
+) -> Result<(u64, u64, u64, bool), String> {
     let (dropped, truncated, gaps): (u64, u64, u64) = db
         .query_row(
             "SELECT dropped,truncated,prior_session_gaps FROM journal_health WHERE singleton=1",
@@ -154,8 +161,8 @@ fn health(db: &Connection) -> Result<(u64, u64, u64, bool), String> {
             |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
         )
         .map_err(|e| e.to_string())?;
-    let pending_dropped = DROPPED.load(Ordering::Relaxed);
-    let pending_truncated = TRUNCATED.load(Ordering::Relaxed);
+    let pending_dropped = pending_dropped.load(Ordering::Relaxed);
+    let pending_truncated = pending_truncated.load(Ordering::Relaxed);
     Ok((
         dropped.saturating_add(pending_dropped),
         truncated.saturating_add(pending_truncated),
@@ -405,7 +412,8 @@ mod tests {
         }
         let db = open(&path).unwrap();
         start_session(&db).unwrap();
-        let (losses, cuts, gaps, _) = health(&db).unwrap();
+        let (losses, cuts, gaps, _) =
+            health_with(&db, &AtomicU64::new(0), &AtomicU64::new(0)).unwrap();
         assert_eq!((losses, cuts, gaps), (3, 2, 1));
         assert!(read(&db, 7, 0, 10, 32768).unwrap().evidence_incomplete);
         drop(db);
@@ -416,7 +424,8 @@ mod tests {
         let db = open(Path::new(":memory:")).unwrap();
         start_session(&db).unwrap();
         start_session(&db).unwrap();
-        let (losses, cuts, gaps, _) = health(&db).unwrap();
+        let (losses, cuts, gaps, _) =
+            health_with(&db, &AtomicU64::new(0), &AtomicU64::new(0)).unwrap();
         assert_eq!((losses, cuts, gaps), (0, 0, 1));
         assert!(read(&db, 7, 0, 10, 32768).unwrap().evidence_incomplete);
     }

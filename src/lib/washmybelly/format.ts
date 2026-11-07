@@ -38,7 +38,7 @@ export function shortenPath(path: string, max = 56): string {
   return out.length <= max ? out : middle(out, max);
 }
 
-export function middle(s: string, max: number): string {
+function middle(s: string, max: number): string {
   if (s.length <= max) return s;
   if (max <= 1) return "…";
   const keep = max - 1;
@@ -95,12 +95,6 @@ export function formatCount(n: number, locale?: string): string {
   } catch {
     return String(n);
   }
-}
-
-export function formatPercent(v: number | null | undefined, digits = 0): string {
-  if (v == null || !Number.isFinite(v)) return "–";
-  const pct = v <= 1 ? v * 100 : v;
-  return `${pct.toFixed(digits)}%`;
 }
 
 const KNOWN_CODES = [

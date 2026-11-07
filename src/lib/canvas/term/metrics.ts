@@ -16,7 +16,7 @@ interface CellMetrics {
 
 let cached: CellMetrics | null = null;
 
-export function fontFamily(): string {
+function fontFamily(): string {
   if (typeof document === 'undefined') return 'ui-monospace, Menlo, Consolas, monospace';
   const own = canvasPrefs().terminal.font_family.trim();
   return own ? `${/[\s,]/.test(own) && !/["',]/.test(own) ? `"${own}"` : own}, ${terminalFont()}` : terminalFont();

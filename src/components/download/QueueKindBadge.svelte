@@ -1,10 +1,9 @@
 <script lang="ts">
   import type { QueueKind } from "$lib/stores/download-store.svelte";
 
-  let { kind = "generic", size = 14, showLabel = false }: {
+  let { kind = "generic", size = 14 }: {
     kind?: QueueKind | undefined;
     size?: number;
-    showLabel?: boolean;
   } = $props();
 
   const safeKind = $derived<QueueKind>(kind ?? "generic");
@@ -23,7 +22,6 @@
 
 <span
   class="queue-kind-badge"
-  class:show-label={showLabel}
   data-kind={safeKind}
   style:--size="{size}px"
   title={label}
@@ -65,9 +63,6 @@
       <line x1="12" y1="15" x2="12" y2="3" />
     </svg>
   {/if}
-  {#if showLabel}
-    <span class="label">{label}</span>
-  {/if}
 </span>
 
 <style>
@@ -84,21 +79,10 @@
     color: var(--badge-fg);
     padding: 2px;
   }
-  .queue-kind-badge.show-label {
-    width: auto;
-    padding: 2px 6px;
-    font-size: 11px;
-    font-weight: 600;
-    letter-spacing: 0.02em;
-  }
   .queue-kind-badge svg {
     width: 100%;
     height: 100%;
     display: block;
-  }
-  .queue-kind-badge.show-label svg {
-    width: var(--size, 14px);
-    height: var(--size, 14px);
   }
   .queue-kind-badge[data-kind="video"] {
     --badge-bg: var(--queue-kind-video-bg);

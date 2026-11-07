@@ -249,35 +249,3 @@ impl SseParser {
         out
     }
 }
-
-#[derive(Debug, Default)]
-pub struct NdjsonParser {
-    lines: LineSplitter,
-}
-
-impl NdjsonParser {
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    pub fn push(&mut self, bytes: &[u8], out: &mut Vec<Value>) {
-        self.lines.push(bytes, |line| {
-            if line.iter().all(|b| b.is_ascii_whitespace()) {
-                return;
-            }
-            if let Ok(v) = serde_json::from_slice::<Value>(line) {
-                out.push(v);
-            }
-        });
-    }
-
-    pub fn finish(&mut self, out: &mut Vec<Value>) {
-        let mut tail: Vec<u8> = Vec::new();
-        self.lines.finish(|line| tail.extend_from_slice(line));
-        if !tail.is_empty() {
-            if let Ok(v) = serde_json::from_slice::<Value>(&tail) {
-                out.push(v);
-            }
-        }
-    }
-}

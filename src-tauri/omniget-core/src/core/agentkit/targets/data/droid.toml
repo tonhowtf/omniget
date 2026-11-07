@@ -6,8 +6,6 @@ status = "active"
 beta = true
 homepage = "https://docs.factory.ai"
 notes = "Mirrors Claude Code almost 1:1: same 9 hook events and hook JSON shape, custom droids in Markdown, and Claude plugins install unmodified (.claude-plugin auto-translated). Claude agents and commands are imported through the /droids and /commands menus, not read in place."
-reads_agents_dir = true
-reads_agents_md = "yes"
 
 [detect]
 binaries = ["droid"]
@@ -107,7 +105,6 @@ Notification = "Notification"
 [hooks]
 shape = "claude"
 timeout_unit = "s"
-events_count = 9
 
 [tool_name_map]
 Bash = "Execute"
@@ -159,7 +156,6 @@ format = "json"
 cmd = "droid"
 headless = ["exec"]
 json_flag = ["--output-format", "stream-json"]
-resume_flag = "--session-id"
 model_flag = "-m"
 permission_flags = { plan = [], accept_edits = ["--auto", "low"], bypass = ["--skip-permissions-unsafe"] }
 

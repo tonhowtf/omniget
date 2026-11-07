@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::sync::{Mutex, OnceLock};
 use std::time::Duration;
 
+use super::client::now_secs;
 use serde::Serialize;
 use serde_json::{json, Value};
 use tokio::sync::oneshot;
@@ -27,13 +28,6 @@ struct Pending {
 fn table() -> &'static Mutex<HashMap<String, Pending>> {
     static T: OnceLock<Mutex<HashMap<String, Pending>>> = OnceLock::new();
     T.get_or_init(|| Mutex::new(HashMap::new()))
-}
-
-fn now() -> i64 {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_secs() as i64)
-        .unwrap_or(0)
 }
 
 fn emit(event: &str, payload: Value) {
@@ -64,7 +58,7 @@ async fn request_with_ttl(
                 .into(),
         );
     }
-    let created = now();
+    let created = now_secs();
     let req = Request {
         id: format!("tgappr_{}", uuid::Uuid::new_v4().simple()),
         tool: tool.to_string(),
@@ -113,7 +107,7 @@ fn remove(id: &str) -> Option<Pending> {
 }
 
 pub fn pending() -> Vec<Request> {
-    let cutoff = now();
+    let cutoff = now_secs();
     let mut list: Vec<Request> = table()
         .lock()
         .map(|t| {

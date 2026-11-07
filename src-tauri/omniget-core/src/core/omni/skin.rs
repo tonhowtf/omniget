@@ -129,19 +129,7 @@ pub struct AnimView {
     pub frames: Vec<FrameView>,
 }
 
-impl AnimView {
-    pub fn frame_at(&self, elapsed_ms: u64) -> usize {
-        if self.frames.is_empty() || self.fps == 0 {
-            return 0;
-        }
-        let idx = (elapsed_ms * self.fps as u64) / 1000;
-        if self.looping {
-            (idx % self.frames.len() as u64) as usize
-        } else {
-            (idx as usize).min(self.frames.len() - 1)
-        }
-    }
-}
+impl AnimView {}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SkinError {
@@ -250,11 +238,6 @@ impl Skin {
             z_base: f.z_base,
             mirrored,
         })
-    }
-
-    pub fn pose(&self, name: &str) -> Option<FrameView> {
-        let id = self.manifest.poses.get(name)?;
-        self.frame(id)
     }
 
     pub fn anim(&self, animation: Animation, dir: Dir) -> Option<AnimView> {

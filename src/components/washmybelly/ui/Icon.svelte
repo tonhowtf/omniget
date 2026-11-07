@@ -28,7 +28,7 @@
 </script>
 
 <script lang="ts">
-  let { name, size = 16, label }: { name: IconName; size?: number; label?: string } = $props();
+  let { name, size = 16 }: { name: IconName; size?: number } = $props();
 </script>
 
 <svg
@@ -37,9 +37,7 @@
   height={size}
   viewBox="0 0 20 20"
   fill="currentColor"
-  role={label ? "img" : undefined}
-  aria-label={label}
-  aria-hidden={label ? undefined : "true"}
+  aria-hidden="true"
 ><path d={PATHS[name]} fill-rule="evenodd" /></svg>
 
 <style>

@@ -141,7 +141,7 @@ impl TikTokDownloader {
         let status = response.status();
 
         if !status.is_success() && status.as_u16() != 302 {
-            return Err(anyhow!("TikTok retornou HTTP {}", status));
+            return Err(anyhow!("TikTok returned HTTP {}", status));
         }
 
         let mut cookie_parts = Vec::new();
@@ -168,7 +168,7 @@ impl TikTokDownloader {
             .ok_or_else(|| anyhow!("TikTok is blocking requests. Try again in a few minutes."))?;
 
         let data: serde_json::Value = serde_json::from_str(json_str)
-            .map_err(|_| anyhow!("Erro ao processar resposta do TikTok"))?;
+            .map_err(|_| anyhow!("Could not process the TikTok response"))?;
 
         let video_detail = data
             .get("__DEFAULT_SCOPE__")

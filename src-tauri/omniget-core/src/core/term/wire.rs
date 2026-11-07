@@ -9,7 +9,6 @@ use super::engine::{CellView, CursorShape, CursorView, Span, StyleKey, TermEngin
 
 pub const MAGIC: u32 = u32::from_le_bytes(*b"OGT1");
 pub const HEADER_LEN: usize = 10;
-pub const SECTION_HEADER_LEN: usize = 8;
 pub const GLOBAL_SLOT: u16 = 0xFFFF;
 pub const GRAPHEME_BASE: u32 = 0x11_0000;
 

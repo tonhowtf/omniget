@@ -60,12 +60,4 @@ export function onRoleEvent(cb: (e: RoleEvent) => void): Promise<UnlistenFn> {
   return listen<RoleEvent>(ROLE_EVENT, (e) => cb(e.payload));
 }
 
-export function errorText(e: unknown): string {
-  if (e instanceof Error) return e.message;
-  if (typeof e === 'string') return e;
-  try {
-    return JSON.stringify(e);
-  } catch {
-    return String(e);
-  }
-}
+export { errorText } from '../term/client';

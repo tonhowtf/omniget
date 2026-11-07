@@ -7,6 +7,7 @@ mkdir -p "$dest"
 for os in windows macos linux; do
   cp "$src/src/application/collections/$os.yaml" "$dest/$os.yaml"
 done
+python3 "$here/privacy_prune.py" "$dest/windows.yaml"
 cp "$src/LICENSE" "$dest/LICENSE"
 commit="$(git -C "$src" log -1 --format='%H %cs')"
 echo "copied privacy.sexy at $commit; update SOURCE.md with this commit"

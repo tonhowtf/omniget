@@ -1,5 +1,5 @@
 import { queueDataReady } from '../stores/download-listener';
-const FETCHED_DATA_ROUTES: readonly string[] = ['/music', '/about/changelog'];
+const FETCHED_DATA_ROUTES: readonly string[] = ['/music', '/community/changelog'];
 function routeDataReady(pathname: string, surfaceStates: readonly (string | null)[]): boolean {
  const path = pathname.replace(/\/+$/, '') || '/';
  if (path === '/downloads') return queueDataReady();

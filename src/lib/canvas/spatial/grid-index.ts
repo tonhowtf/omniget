@@ -1,6 +1,6 @@
 import type { Rect } from '../model/types';
 
-export const CELL = 512;
+const CELL = 512;
 
 export class GridIndex {
   private cells = new Map<string, Set<string>>();

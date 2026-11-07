@@ -37,7 +37,7 @@ pub struct DedupeReport {
 
 #[tauri::command]
 pub async fn deduplicate_files(paths: Vec<String>) -> Result<DedupeReport, String> {
-    let root = store_root().ok_or_else(|| "sem diretorio de dados".to_string())?;
+    let root = store_root().ok_or_else(|| "no data folder".to_string())?;
 
     tokio::task::spawn_blocking(move || {
         let mut rep = DedupeReport {

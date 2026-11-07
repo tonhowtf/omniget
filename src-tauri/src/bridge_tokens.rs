@@ -452,11 +452,17 @@ pub fn route_need(method: &Method, path: &str) -> Option<Need> {
             job: None,
             legacy_ok: false,
         }),
-        ["v1", "agentkit", _] if post => need(SCOPE_JOBS_OPERATE, None),
-        ["v1", "agent", "run" | "run-tool" | "loop" | "loop-catalog"] if post => {
-            need(SCOPE_JOBS_OPERATE, None)
+        ["v1", "agentkit", _]
+        | ["v1", "agent", "run" | "run-tool" | "loop" | "loop-catalog"]
+        | ["v1", "hooks", _]
+            if post =>
+        {
+            Some(Need {
+                scope: SCOPE_JOBS_OPERATE,
+                job: None,
+                legacy_ok: false,
+            })
         }
-        ["v1", "hooks", _] if post => need(SCOPE_JOBS_OPERATE, None),
         ["v1", "approvals"] if get => need(SCOPE_JOBS_READ, None),
         ["v1", "approvals", _] if post => Some(Need {
             scope: SCOPE_APPROVALS_RESPOND,
@@ -992,6 +998,15 @@ mod tests {
         assert_eq!((w.scope, w.job.as_deref()), (SCOPE_JOBS_READ, Some("j1")));
         assert!(route_need(&Method::GET, "/v1/commands").is_none());
         assert_eq!(p("/v1/agentkit/apply").scope, SCOPE_JOBS_OPERATE);
+        for route in [
+            "/v1/agentkit/apply",
+            "/v1/agent/run",
+            "/v1/agent/run-tool",
+            "/v1/agent/loop",
+            "/v1/hooks/t1",
+        ] {
+            assert!(!p(route).legacy_ok, "{route}");
+        }
         assert!(route_need(&Method::POST, "/v1/jobs").is_none());
         assert!(route_need(&Method::GET, "/v1/nope").is_none());
     }
@@ -1281,10 +1296,18 @@ pub(crate) mod bn5 {
             resp
         };
 
-        let r = call(
-            "extension_grace_run",
+        call(
+            "extension_refused_on_agent_run",
             "POST",
             "/v1/agent/run",
+            Some(&extension),
+            403,
+        )
+        .await;
+        let r = call(
+            "extension_grace_jobs_deprecated",
+            "GET",
+            "/v1/jobs",
             Some(&extension),
             200,
         )

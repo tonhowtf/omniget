@@ -136,6 +136,10 @@ pub(super) fn friendly_ytdlp_error(stderr: &str) -> anyhow::Error {
     }
     if lower.contains("sign in to confirm")
         || lower.contains("login required")
+        || lower.contains("log in to")
+        || lower.contains("logged in")
+        || lower.contains("registered users")
+        || lower.contains("fresh cookies")
         || stderr.contains("请先登录")
         || stderr.contains("需要登录")
         || stderr.contains("登录后可")
@@ -153,6 +157,11 @@ pub(super) fn friendly_ytdlp_error(stderr: &str) -> anyhow::Error {
     }
     if lower.contains("nsig extraction failed") || lower.contains("nsig") {
         return anyhow!("Video extraction failed. Update yt-dlp or try again.");
+    }
+    if lower.contains("[facebook]") && lower.contains("cannot parse data") {
+        return anyhow!(
+            "Facebook did not show this post without a login. Import cookies for this site in Settings → Cookies, then retry."
+        );
     }
     if lower.contains("cannot parse data")
         || lower.contains("please report this issue")
@@ -384,6 +393,64 @@ pub(super) fn postprocess_phase(line: &str) -> Option<&'static str> {
     None
 }
 
+pub(super) fn postprocess_step_name(line: &str) -> Option<&'static str> {
+    let t = line.trim_start();
+    const STEPS: &[(&str, &str)] = &[
+        ("[Merger]", "merge"),
+        ("[ExtractAudio]", "extract_audio"),
+        ("[VideoConvertor]", "convert"),
+        ("[VideoRemuxer]", "remux"),
+        ("[EmbedSubtitle]", "embed_subtitles"),
+        ("[SubtitlesConvertor]", "convert_subtitles"),
+        ("[EmbedThumbnail]", "embed_thumbnail"),
+        ("[ThumbnailsConvertor]", "convert_thumbnail"),
+        ("[Metadata]", "metadata"),
+        ("[SponsorBlock]", "sponsorblock"),
+        ("[ModifyChapters]", "sponsorblock"),
+        ("[SplitChapters]", "split_chapters"),
+        ("[FixupM3u8]", "fixup"),
+        ("[FixupM4a]", "fixup"),
+        ("[FixupStretched]", "fixup"),
+        ("[FixupDuplicateMoov]", "fixup"),
+        ("[FixupDurationMismatch]", "fixup"),
+        ("[MoveFiles]", "move"),
+    ];
+    STEPS
+        .iter()
+        .find(|(prefix, _)| t.starts_with(prefix))
+        .map(|(_, step)| *step)
+}
+
+pub(super) fn is_ffmpeg_input_open_failure(stderr_lower: &str) -> bool {
+    stderr_lower.contains("error opening input files")
+        || stderr_lower.contains("error opening input file")
+        || (stderr_lower.contains("postprocessing") && stderr_lower.contains("result too large"))
+}
+
+pub(super) fn postprocess_failure_message(stderr: &str, last_step: Option<&str>) -> Option<String> {
+    let lower = stderr.to_lowercase();
+    if lower.contains("invalid data found when processing input") {
+        return None;
+    }
+    let is_postprocess = lower.contains("postprocessing:")
+        || lower.contains("conversion failed")
+        || is_ffmpeg_input_open_failure(&lower);
+    if !is_postprocess {
+        return None;
+    }
+    let raw = raw_error_line(stderr).unwrap_or_default();
+    let detail = raw.strip_prefix("Postprocessing: ").unwrap_or(&raw).trim();
+    let step = last_step.unwrap_or("postprocess");
+    let advice = if is_ffmpeg_input_open_failure(&lower) {
+        "open_input"
+    } else {
+        "generic"
+    };
+    Some(format!(
+        "Post-processing failed at the {step} step ({advice}): {detail}"
+    ))
+}
+
 pub(super) fn parse_size_token(token: &str) -> Option<f64> {
     let t = token.trim().trim_end_matches("/s").trim();
     let split = t.find(|c: char| c.is_ascii_alphabetic()).unwrap_or(t.len());
@@ -596,7 +663,7 @@ pub(super) fn extract_id_from_url(url: &str) -> Option<String> {
 
     if host.contains("youtube.com") {
         let segments: Vec<&str> = parsed.path().split('/').filter(|s| !s.is_empty()).collect();
-        if segments.first() == Some(&"shorts") {
+        if matches!(segments.first(), Some(&"shorts") | Some(&"live")) {
             return segments.get(1).map(|s| s.to_string());
         }
         return parsed

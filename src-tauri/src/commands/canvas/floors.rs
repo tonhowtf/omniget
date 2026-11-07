@@ -1,6 +1,4 @@
-use std::collections::HashMap;
-
-use omniget_core::core::canvas::envs::{self, EnvRecord, EnvTest, Wrapped};
+use omniget_core::core::canvas::envs::{self, EnvRecord, EnvTest};
 use omniget_core::core::canvas::floors::{
     self, CreateFloor, CreateResult, DiscardOptions, DiscardOutcome, FloorHooks, FloorView,
     HookKind, HookRun, LandOptions, LandOutcome, LandPreview,
@@ -34,7 +32,6 @@ pub async fn canvas_floor_create(
     host::create(&workspace_id, input).await
 }
 
-#[tauri::command]
 pub fn canvas_floor_pending(app: AppHandle, workspace_id: String) -> Vec<host::PendingFloor> {
     store(&app);
     host::pending_floors(&workspace_id)
@@ -44,12 +41,6 @@ pub fn canvas_floor_pending(app: AppHandle, workspace_id: String) -> Vec<host::P
 pub fn canvas_floor_activity(app: AppHandle, workspace_id: String) -> Vec<host::FloorActivity> {
     store(&app);
     host::activity(&workspace_id)
-}
-
-#[tauri::command]
-pub fn canvas_floor_pending_dismiss(app: AppHandle, workspace_id: String, key: String) -> bool {
-    store(&app);
-    host::dismiss_pending(&workspace_id, &key)
 }
 
 #[tauri::command]
@@ -120,7 +111,6 @@ pub async fn canvas_floor_hooks_set(
     floors::set_hooks(&s, &workspace_id, hooks)
 }
 
-#[tauri::command]
 pub async fn canvas_floor_update(
     app: AppHandle,
     workspace_id: String,
@@ -130,36 +120,6 @@ pub async fn canvas_floor_update(
 ) -> Result<(), String> {
     let s = store(&app);
     floors::update_meta(&s, &workspace_id, &floor_id, name, color)
-}
-
-#[tauri::command]
-pub async fn canvas_floor_fetch(
-    app: AppHandle,
-    workspace_id: String,
-    floor_id: String,
-    branch: String,
-) -> Result<String, String> {
-    let s = store(&app);
-    floors::fetch_from_ground(&s, &workspace_id, &floor_id, &branch).await
-}
-
-#[tauri::command]
-pub async fn canvas_floor_spawn_context(
-    app: AppHandle,
-    workspace_id: String,
-    floor_id: String,
-    cwd: Option<String>,
-    command: Vec<String>,
-    env: HashMap<String, String>,
-) -> Result<Wrapped, String> {
-    store(&app);
-    Ok(host::spawn_context(
-        &workspace_id,
-        &floor_id,
-        cwd.as_deref(),
-        &command,
-        &env,
-    ))
 }
 
 #[tauri::command]

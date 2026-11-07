@@ -41,12 +41,72 @@ fn header_columns(header: &str) -> Vec<usize> {
     cols
 }
 
+fn clean_line(raw: &str) -> String {
+    let raw = raw.trim_end_matches('\r');
+    let last = raw.rsplit('\r').next().unwrap_or(raw);
+    let mut out = String::with_capacity(last.len());
+    let mut chars = last.chars().peekable();
+    while let Some(c) = chars.next() {
+        match c {
+            '\u{1b}' => {
+                if chars.peek() == Some(&'[') {
+                    chars.next();
+                    for n in chars.by_ref() {
+                        if ('@'..='~').contains(&n) {
+                            break;
+                        }
+                    }
+                } else {
+                    chars.next();
+                }
+            }
+            '\u{feff}' | '\u{8}' => {}
+            c => out.push(c),
+        }
+    }
+    out
+}
+
+fn looks_like_version(s: &str) -> bool {
+    s.chars().any(|c| c.is_ascii_digit()) && !s.ends_with('.')
+}
+
+fn row_cells(line: &str, cols: &[usize]) -> Option<(String, String, String, String)> {
+    let at = |k: usize| cols.get(k).copied();
+    let name = cut(line, 0, at(1));
+    let id = cut(line, cols[1], at(2));
+    let current = cut(line, cols[2], at(3));
+    let available = cut(line, cols[3], at(4));
+    if !id.is_empty() && !id.contains(char::is_whitespace) && !available.is_empty() {
+        return Some((name, id, current, available));
+    }
+    let tokens: Vec<&str> = line.split_whitespace().collect();
+    let tail = if cols.len() > 4 { 4 } else { 3 };
+    if tokens.len() <= tail {
+        return None;
+    }
+    let right = &tokens[tokens.len() - tail..];
+    let (id, current, available) = (right[0], right[1], right[2]);
+    if !super::valid_name("winget", id) || !looks_like_version(available) {
+        return None;
+    }
+    Some((
+        tokens[..tokens.len() - tail].join(" "),
+        id.to_string(),
+        current.to_string(),
+        available.to_string(),
+    ))
+}
+
 pub fn parse_upgrade(text: &str) -> Vec<Update> {
-    let lines: Vec<&str> = text
-        .lines()
-        .map(|l| l.rsplit('\r').next().unwrap_or(l))
-        .collect();
+    scan_upgrade(text).0
+}
+
+fn scan_upgrade(text: &str) -> (Vec<Update>, bool) {
+    let cleaned: Vec<String> = text.lines().map(clean_line).collect();
+    let lines: Vec<&str> = cleaned.iter().map(String::as_str).collect();
     let mut out: Vec<Update> = Vec::new();
+    let mut saw_table = false;
     let mut i = 0;
     while i < lines.len() {
         let is_rule = lines[i].trim().len() >= 10 && lines[i].trim().chars().all(|c| c == '-');
@@ -56,21 +116,24 @@ pub fn parse_upgrade(text: &str) -> Vec<Update> {
         }
         let cols = header_columns(lines[i - 1]);
         i += 1;
+        saw_table = true;
         if cols.len() < 4 {
             continue;
         }
-        let bound = |k: usize| cols.get(k).copied();
         while i < lines.len() {
             let l = lines[i];
-            if l.trim().is_empty() || l.chars().map(char_width).sum::<usize>() < cols[3] {
+            if l.trim().is_empty() {
                 break;
             }
-            let name = cut(l, 0, bound(1));
-            let id = cut(l, cols[1], bound(2));
-            let current = cut(l, cols[2], bound(3));
-            let available = cut(l, cols[3], bound(4));
+            let Some((name, id, current, available)) = row_cells(l, &cols) else {
+                if l.chars().map(char_width).sum::<usize>() < cols[3] {
+                    break;
+                }
+                i += 1;
+                continue;
+            };
             i += 1;
-            if id.is_empty() || available.is_empty() || out.iter().any(|u| u.name == id) {
+            if out.iter().any(|u| u.name == id) {
                 continue;
             }
             let truncated = id.ends_with('…') || !super::valid_name("winget", &id);
@@ -89,7 +152,35 @@ pub fn parse_upgrade(text: &str) -> Vec<Update> {
             });
         }
     }
-    out
+    (out, saw_table)
+}
+
+const NO_UPGRADES: &[i32] = &[-1978335189, -1978335212];
+
+pub fn read_upgrade(code: Option<i32>, stdout: &str, stderr: &str) -> Result<Vec<Update>, String> {
+    let (updates, saw_table) = scan_upgrade(stdout);
+    if !updates.is_empty() {
+        return Ok(updates);
+    }
+    let shown = |code: Option<i32>| match code {
+        Some(c) => format!("exit code 0x{:08X}", c as u32),
+        None => "stopped without an exit code".to_string(),
+    };
+    if saw_table {
+        return Err(format!(
+            "winget printed a table OmniGet could not read ({}). Run winget upgrade in a terminal to see the list",
+            shown(code)
+        ));
+    }
+    if code == Some(0) || code.is_some_and(|c| NO_UPGRADES.contains(&c)) {
+        return Ok(Vec::new());
+    }
+    let detail = super::tail(&format!("{stdout}\n{stderr}"), 2);
+    Err(if detail.is_empty() {
+        format!("winget failed ({})", shown(code))
+    } else {
+        format!("winget failed ({}): {detail}", shown(code))
+    })
 }
 
 pub fn outcome(code: i32) -> (&'static str, String) {
@@ -190,7 +281,7 @@ impl PackageBackend for Winget {
                 "--disable-interactivity",
             ],
         )?;
-        Ok(parse_upgrade(&r.stdout))
+        read_upgrade(r.code, &r.stdout, &r.stderr)
     }
 
     fn upgrade_argv(&self, names: &[String]) -> Vec<String> {
@@ -199,5 +290,79 @@ impl PackageBackend for Winget {
             names.first().map(String::as_str).unwrap_or(""),
         ));
         v
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const WIN_26H2: &str = "\r   - \r   \\ \r                                                                 \rName                                       Id                                  Version       Available     Source\r\n--------------------------------------------------------------------------------------------------------------------\r\nPython 3.13.16 (64-bit)                    Python.Python.3.13                  3.13.16       3.13.17       winget\r\nSynology Drive Client                      Synology.DriveClient                3.5.2.16111   4.0.0.17889   winget\r\nTailscale                                  Tailscale.Tailscale                 1.88.3        1.90.1        winget\r\nVisual Studio Community 2022               Microsoft.VisualStudio.2022.Commun\u{2026} 17.14.8       17.14.12      winget\r\n4 upgrades available.\r\n\r\n1 package(s) have version numbers that cannot be determined. Use --include-unknown to see all results.\r\n";
+
+    #[test]
+    fn upgrade_table_from_windows_26h2_lists_the_four_updates() {
+        let u = read_upgrade(Some(0), WIN_26H2, "").unwrap();
+        assert_eq!(u.len(), 4);
+        assert_eq!(u[0].name, "Python.Python.3.13");
+        assert_eq!(u[0].current, "3.13.16");
+        assert_eq!(u[0].available, "3.13.17");
+        assert_eq!(u[1].name, "Synology.DriveClient");
+        assert_eq!(u[2].name, "Tailscale.Tailscale");
+        assert_eq!(u[3].available, "17.14.12");
+        assert!(u[3].note.is_some());
+    }
+
+    #[test]
+    fn long_name_that_fills_its_column_keeps_id_and_versions() {
+        let t = "Name                 Id                   Version Available Source\n------------------------------------------------------------------\nA name wider than the column here  Vendor.App  1.2.3 1.2.4 winget\n";
+        let u = parse_upgrade(t);
+        assert_eq!(u.len(), 1);
+        assert_eq!(u[0].name, "Vendor.App");
+        assert_eq!(u[0].current, "1.2.3");
+        assert_eq!(u[0].available, "1.2.4");
+    }
+
+    #[test]
+    fn doubled_carriage_returns_and_escape_codes_do_not_hide_the_table() {
+        let t = "\u{feff}\u{1b}[2K\u{1b}[1GName   Id          Version Available Source\r\r\n------------------------------------------\r\r\nPython Python.3.13 3.13.16 3.13.17   winget\r\r\n";
+        let u = parse_upgrade(t);
+        assert_eq!(u.len(), 1);
+        assert_eq!(u[0].name, "Python.3.13");
+    }
+
+    #[test]
+    fn footer_lines_are_never_read_as_updates() {
+        let names: Vec<String> = parse_upgrade(WIN_26H2)
+            .into_iter()
+            .map(|u| u.name)
+            .collect();
+        assert!(!names.iter().any(|n| n.contains("package") || n == "all"));
+    }
+
+    #[test]
+    fn winget_failure_is_an_error_and_not_an_empty_list() {
+        let e = read_upgrade(
+            Some(-1978335157),
+            "Failed when searching source: winget\r\n",
+            "",
+        )
+        .unwrap_err();
+        assert!(e.contains("0x8A15"), "{e}");
+        assert!(e.contains("Failed when searching source"), "{e}");
+    }
+
+    #[test]
+    fn table_that_cannot_be_read_is_an_error_and_not_an_empty_list() {
+        let t = "Nome do pacote\n---------------------\nqualquer coisa\n";
+        assert!(read_upgrade(Some(0), t, "").is_err());
+    }
+
+    #[test]
+    fn nothing_to_upgrade_is_an_empty_list() {
+        let none = "No installed package found matching input criteria.\r\n";
+        assert!(read_upgrade(Some(0), none, "").unwrap().is_empty());
+        assert!(read_upgrade(Some(-1978335189), none, "")
+            .unwrap()
+            .is_empty());
     }
 }

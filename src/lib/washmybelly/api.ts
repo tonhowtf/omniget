@@ -79,15 +79,4 @@ export function monitorStop(): Promise<void> {
   return invoke("washmybelly_monitor_stop");
 }
 
-const UNITS = ["B", "KB", "MB", "GB", "TB"];
-
-export function formatBytes(n: number | null | undefined): string {
-  if (!n || n < 0) return "0 B";
-  let v = n;
-  let i = 0;
-  while (v >= 1000 && i < UNITS.length - 1) {
-    v /= 1000;
-    i++;
-  }
-  return `${v >= 100 || i === 0 ? Math.round(v) : v.toFixed(1)} ${UNITS[i]}`;
-}
+export { formatBytes } from "./format";

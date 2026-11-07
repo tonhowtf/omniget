@@ -47,21 +47,6 @@ impl Root {
             Root::Hkcu32 => format!(r"HKCU\Software\WOW6432Node\{UNINSTALL}"),
         }
     }
-
-    pub fn of_key(key: &str) -> Option<Root> {
-        let k = key
-            .to_ascii_lowercase()
-            .replace("hkey_local_machine", "hklm")
-            .replace("hkey_current_user", "hkcu");
-        let wow = k.contains(r"\wow6432node\");
-        if k.starts_with(r"hklm\") {
-            Some(if wow { Root::Hklm32 } else { Root::Hklm })
-        } else if k.starts_with(r"hkcu\") {
-            Some(if wow { Root::Hkcu32 } else { Root::Hkcu })
-        } else {
-            None
-        }
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -93,11 +78,6 @@ impl RegEntry {
     pub fn flag(&self, name: &str) -> bool {
         self.get(name).and_then(dword) == Some(1)
     }
-
-    pub fn key_path(&self) -> String {
-        format!(r"{}\{}", self.root.uninstall_key(), self.key_name)
-    }
-
     pub fn is_update(&self) -> bool {
         if self.get("ParentKeyName").is_some() {
             return true;
@@ -131,46 +111,6 @@ pub fn dword(s: &str) -> Option<u64> {
     } else {
         s.parse().ok()
     }
-}
-
-pub fn entries_from_reg_query(text: &str) -> Vec<RegEntry> {
-    let mut out: Vec<RegEntry> = Vec::new();
-    for v in super::super::super::parse::reg_query(text) {
-        let Some(root) = Root::of_key(&v.key) else {
-            continue;
-        };
-        let lower = v.key.to_ascii_lowercase();
-        let Some(pos) = lower.find(r"\uninstall\") else {
-            continue;
-        };
-        let name = v.key[pos + r"\uninstall\".len()..].to_string();
-        if name.is_empty() || name.contains('\\') {
-            continue;
-        }
-        let data = if v.kind == "REG_MULTI_SZ" {
-            v.data.replace("\\0", "\n")
-        } else {
-            v.data
-        };
-        match out
-            .iter_mut()
-            .find(|e| e.root == root && e.key_name == name)
-        {
-            Some(e) => {
-                e.values.insert(v.name, data);
-            }
-            None => {
-                let mut values = BTreeMap::new();
-                values.insert(v.name, data);
-                out.push(RegEntry {
-                    root,
-                    key_name: name,
-                    values,
-                });
-            }
-        }
-    }
-    out
 }
 
 pub fn install_date(s: &str) -> Option<i64> {
@@ -1316,36 +1256,6 @@ mod tests {
         fn nullsoft(&self, p: &str) -> bool {
             self.1.iter().any(|x| x.eq_ignore_ascii_case(p))
         }
-    }
-
-    #[test]
-    fn reg_query_uninstall_fixture_becomes_entries() {
-        let e = entries_from_reg_query(&fixture("reg_query_uninstall.txt"));
-        let names: Vec<&str> = e.iter().map(|x| x.key_name.as_str()).collect();
-        assert!(
-            names.contains(&"Mozilla Firefox 120.0 (x64 en-US)"),
-            "{names:?}"
-        );
-        let ff = e
-            .iter()
-            .find(|x| x.key_name.starts_with("Mozilla"))
-            .unwrap();
-        assert_eq!(ff.root, Root::Hklm);
-        assert_eq!(ff.get("DisplayName"), Some("Mozilla Firefox (x64 en-US)"));
-        assert_eq!(ff.get("displayversion"), Some("120.0"));
-        let seven = e
-            .iter()
-            .find(|x| x.key_name == "{23170F69-40C1-2702-2301-000001000000}")
-            .unwrap();
-        assert!(seven.flag("WindowsInstaller"));
-        assert_eq!(
-            seven.product_code().as_deref(),
-            Some("{23170F69-40C1-2702-2301-000001000000}")
-        );
-        let kb = e.iter().find(|x| x.key_name == "KB5034441").unwrap();
-        assert!(kb.is_update());
-        let wow = e.iter().find(|x| x.root == Root::Hklm32).unwrap();
-        assert!(wow.key_path().contains(r"\WOW6432Node\"));
     }
 
     #[test]

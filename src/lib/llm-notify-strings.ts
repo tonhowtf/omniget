@@ -10,12 +10,12 @@ type LlmNotifyStrings = {
 };
 
 const KEYS: Record<keyof LlmNotifyStrings, string> = {
-  needsYouTitle: "llm.notify.needs_you_title",
-  needsYouBody: "llm.notify.needs_you_body",
-  expiredTitle: "llm.notify.expired_title",
-  expiredBody: "llm.notify.expired_body",
-  finishedTitle: "llm.notify.finished_title",
-  failedTitle: "llm.notify.failed_title",
+  needsYouTitle: "agents.notify.needs_you_title",
+  needsYouBody: "agents.notify.needs_you_body",
+  expiredTitle: "agents.notify.expired_title",
+  expiredBody: "agents.notify.expired_body",
+  finishedTitle: "agents.notify.finished_title",
+  failedTitle: "agents.notify.failed_title",
 };
 
 export function llmNotifyStrings(bag: TranslationBag, locale: string): LlmNotifyStrings {

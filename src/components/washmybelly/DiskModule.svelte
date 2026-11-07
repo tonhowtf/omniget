@@ -4,6 +4,7 @@
   import { t } from "$lib/i18n";
   import * as api from "$lib/washmybelly/api";
   import { formatBytes } from "$lib/washmybelly/api";
+  import { baseName } from "$lib/washmybelly/clean";
   import { crumbs, type Health, type LargeFiles, type UsageNode, type UsageTree, type Volume } from "$lib/washmybelly/disk";
   import type { Caps } from "./registry";
   import ModuleHeader from "./ui/ModuleHeader.svelte";
@@ -72,11 +73,6 @@
 
   function otherLabel(n: UsageNode) {
     return $t("washmybelly.disk.other", { count: (n.count ?? 0).toLocaleString() }) as string;
-  }
-
-  function baseName(p: string) {
-    const parts = p.split(/[\\/]/).filter(Boolean);
-    return parts[parts.length - 1] ?? p;
   }
 
   let trail = $derived(tree ? crumbs(tree.root, tree.path ?? tree.root, baseName(tree.root)) : []);

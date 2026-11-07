@@ -1,4 +1,5 @@
-import { SETTING_ALIASES, SECTION_LABEL_KEYS, CATEGORY_LABEL_KEYS, settingsHref, type SettingsCategory } from "./settings-navigation";
+import { SETTING_ALIASES, SECTION_LABEL_KEYS, CATEGORY_LABEL_KEYS, SETTINGS_CATEGORIES, settingsHref, type SettingsCategory } from "./settings-navigation";
+import { NAV_PARTS } from "./settings-nav";
 
 export type { SettingsCategory } from "./settings-navigation";
 
@@ -10,16 +11,9 @@ export type SettingSearchEntry = {
   href?: string;
 };
 
-const EXTRA: [SettingsCategory, string, string[]][] = [
-  ["general", "limits-strip", ["llm.limits.title", "llm.limits.enable", "llm.limits.edge", "llm.limits.size", "llm.limits.show_percent", "llm.limits.show_pace", "llm.limits.notify_pace"]],
-  ["general", "usage-tray", ["usage_tray.menu.toggle", "usage_tray.menu.accounts", "usage_tray.menu.icon_shows", "usage_tray.menu.percent_text", "usage_tray.menu.colored", "usage_tray.menu.thresholds"]],
-  ["appearance", "theme", ["settings.appearance.more_themes"]],
-  ["downloads", "templates", ["omnibox.adv.templates_title"]],
-  ["ai", "managers", ["llm.accounts.title", "llm.models.title", "llm.roster.title", "llm.skills.title", "llm.mcp.title"]],
-  ["ai", "execution", ["llm.prune.title", "llm.watchdog.title"]],
-  ["integrations", "pet", ["pet.title"]],
-  ["integrations", "mcp-server", ["llm.mcp.server_title"]],
-];
+const EXTRA: [SettingsCategory, string, string[]][] = SETTINGS_CATEGORIES.flatMap((category) =>
+  Object.entries(NAV_PARTS[category].searchExtra).map(([section, keys]) => [category, section, keys] as [SettingsCategory, string, string[]]),
+);
 
 function sectionKeyFor(category: SettingsCategory, section: string): string {
   return section ? SECTION_LABEL_KEYS[section] ?? CATEGORY_LABEL_KEYS[category] : CATEGORY_LABEL_KEYS[category];
@@ -32,7 +26,7 @@ function buildIndex(): SettingSearchEntry[] {
     if (seen.has(key)) continue;
     seen.add(key);
     if ("href" in alias) {
-      entries.push({ key, category: "ai", section: "", sectionKey: CATEGORY_LABEL_KEYS.ai, href: alias.href });
+      entries.push({ key, category: "integrations", section: "", sectionKey: alias.labelKey ?? "nav.superpowers", href: alias.href });
     } else {
       const section = alias.section ?? "";
       entries.push({ key, category: alias.tab, section, sectionKey: sectionKeyFor(alias.tab, section) });

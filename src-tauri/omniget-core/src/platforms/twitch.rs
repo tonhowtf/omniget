@@ -59,7 +59,7 @@ impl TwitchClipsDownloader {
         let broadcaster = clip
             .broadcaster_login
             .as_deref()
-            .ok_or_else(|| anyhow!("Dados do clip incompletos"))?;
+            .ok_or_else(|| anyhow!("Incomplete clip data"))?;
 
         let token = self.fetch_access_token(&slug).await?;
 
@@ -139,7 +139,7 @@ impl TwitchClipsDownloader {
             .await?;
 
         if !response.status().is_success() {
-            return Err(anyhow!("Twitch GQL retornou HTTP {}", response.status()));
+            return Err(anyhow!("Twitch GQL returned HTTP {}", response.status()));
         }
 
         let json: serde_json::Value = response.json().await?;
@@ -221,7 +221,7 @@ impl TwitchClipsDownloader {
 
         if !response.status().is_success() {
             return Err(anyhow!(
-                "Twitch GQL token retornou HTTP {}",
+                "Twitch GQL token returned HTTP {}",
                 response.status()
             ));
         }
@@ -237,13 +237,13 @@ impl TwitchClipsDownloader {
         let signature = token_obj
             .get("signature")
             .and_then(|v| v.as_str())
-            .ok_or_else(|| anyhow!("Token sem signature"))?
+            .ok_or_else(|| anyhow!("Token has no signature"))?
             .to_string();
 
         let value = token_obj
             .get("value")
             .and_then(|v| v.as_str())
-            .ok_or_else(|| anyhow!("Token sem value"))?
+            .ok_or_else(|| anyhow!("Token has no value"))?
             .to_string();
 
         Ok(AccessToken { signature, value })

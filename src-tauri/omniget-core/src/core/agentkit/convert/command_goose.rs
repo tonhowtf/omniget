@@ -205,7 +205,7 @@ impl Converter for GooseRecipeConverter {
     ) -> Result<Vec<PlannedFile>> {
         let name = ctx.name_for(c);
         let dir =
-            recipes_dir(target, scope, ctx).ok_or_else(|| no_path(target, "recipes", scope))?;
+            recipes_dir(target, scope, ctx).ok_or_else(|| missing(target, "recipes", scope))?;
         let (text, losses) = match &c.body {
             ComponentBody::Command(cmd) => Self::command_recipe(c, cmd, &name, target),
             ComponentBody::Agent(a) => Self::agent_recipe(c, a, &name, target),

@@ -32,12 +32,6 @@ pub async fn canvas_partitura_list(
 }
 
 #[tauri::command]
-pub async fn canvas_partitura_get(app: AppHandle, id: String) -> Result<LibraryPartitura, String> {
-    let s = store(&app);
-    blocking(move || partituras::get(&s, &id)).await
-}
-
-#[tauri::command]
 pub async fn canvas_partitura_save(
     app: AppHandle,
     workspace_id: String,

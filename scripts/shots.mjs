@@ -37,11 +37,12 @@ const DEFAULT_ROUTES = [
   "/",
   "/downloads",
   "/settings",
-  "/about",
-  "/about/changelog",
-  "/about/project",
-  "/about/terms",
-  "/about/privacy",
+  "/community",
+  "/community/about",
+  "/community/changelog",
+  "/community/project",
+  "/community/terms",
+  "/community/privacy",
   "/misc/file-clip",
 ];
 

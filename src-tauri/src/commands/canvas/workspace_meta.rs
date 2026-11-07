@@ -620,10 +620,3 @@ pub fn move_data_dir(target: &str, confirm: bool) -> Result<Value, String> {
         "restartRequired": true, "oldFolderKept": true,
     }))
 }
-
-#[tauri::command]
-pub async fn canvas_data_dir_move(target: String, confirm: Option<bool>) -> Result<Value, String> {
-    tauri::async_runtime::spawn_blocking(move || move_data_dir(&target, confirm.unwrap_or(false)))
-        .await
-        .map_err(|e| e.to_string())?
-}

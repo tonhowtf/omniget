@@ -1,4 +1,4 @@
-export type Severity = "ok" | "warn" | "bad";
+type Severity = "ok" | "warn" | "bad";
 
 type Factor = {
   id: "disk_space" | "temperature" | "battery" | "memory" | "junk" | "login_items" | "privacy";
@@ -17,7 +17,7 @@ export type Gain = {
   detail: string;
 };
 
-export type Battery = {
+type Battery = {
   present: boolean;
   cycles?: number;
   health_percent?: number;

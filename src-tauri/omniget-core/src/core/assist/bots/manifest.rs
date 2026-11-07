@@ -158,19 +158,6 @@ pub fn report(
         }
         capabilities.push(st);
     }
-    let web_ok = capabilities
-        .iter()
-        .any(|c| c.id == Capability::Web && c.state == CapState::Available);
-    if let Some(r) = capabilities
-        .iter_mut()
-        .find(|c| c.id == Capability::Reading && c.requested && c.state == CapState::Available)
-    {
-        if !web_ok {
-            r.state = CapState::Partial;
-            r.reason = Some("reading_needs_web".into());
-            r.fix = Some(Fix::cap("enable_capability", Capability::Web));
-        }
-    }
 
     let skills = skills::evaluate(env, projection, &db, &profile, &avail)?
         .into_iter()

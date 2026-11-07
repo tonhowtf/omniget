@@ -5,6 +5,7 @@
   import { musicDownloads, syncMusicDownloads } from "$lib/music/downloads.svelte";
   import { library, loadLibrary } from "$lib/music/library-store.svelte";
   import { hydrateCurrent, initPlayer, player, syncCurrent } from "$lib/music/player-store.svelte";
+  import { loadStemSets, startKaraokeSync, stopKaraokeSync } from "$lib/music/karaoke.svelte";
   import { shellLayout } from "$lib/stores/shell-layout.svelte";
   import { registerSemantic } from "$lib/native-agent/semantic";
   import MiniPlayer from "./MiniPlayer.svelte";
@@ -27,6 +28,12 @@
       queueIndex: player.index,
     })),
   );
+
+  onMount(() => {
+    void loadStemSets();
+    startKaraokeSync();
+    return stopKaraokeSync;
+  });
 
   onMount(() => {
     initPlayer();

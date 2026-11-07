@@ -52,7 +52,7 @@ fn job_json(id: &str, j: &Job) -> Value {
     let context_ready = j.files["context"]
         .as_str()
         .and_then(|p| std::fs::read_to_string(p).ok())
-        .is_some_and(|t| !t.contains("_O pacote de contexto"));
+        .is_some_and(|t| !t.contains("_The context pack"));
     json!({
         "contextReady": context_ready,
         "jobId": id,
@@ -178,7 +178,7 @@ async fn start(app: &AppHandle, a: &Value) -> Result<Value, String> {
     let title = st(a, "title").unwrap_or_else(|| {
         src.file_stem()
             .map(|n| n.to_string_lossy().into_owned())
-            .unwrap_or_else(|| "Gravação".into())
+            .unwrap_or_else(|| "Recording".into())
     });
     std::fs::create_dir_all(&dir).map_err(|e| format!("TRANSCRIPT_WRITE: {e}"))?;
     let meta = tx::Meta {
@@ -191,7 +191,7 @@ async fn start(app: &AppHandle, a: &Value) -> Result<Value, String> {
     let context_path = dir.join("contexto.md");
     std::fs::write(
         &transcript_path,
-        format!("# {title}\n\n_Transcrevendo..._\n"),
+        format!("# {title}\n\n_Transcribing..._\n"),
     )
     .map_err(|e| format!("TRANSCRIPT_WRITE: {e}"))?;
     std::fs::write(&context_path, tx::context_placeholder(&meta))
@@ -218,7 +218,7 @@ async fn start(app: &AppHandle, a: &Value) -> Result<Value, String> {
         app,
         "canvas_node_spawn",
         json!({
-            "workspaceId": wsv, "kind": "text", "text": format!("Transcrição: {title}"),
+            "workspaceId": wsv, "kind": "text", "text": format!("Transcript: {title}"),
             "fontSize": 36, "fontWeight": "bold", "x": x0, "y": y0 - 100.0,
             "data": { "transcription": { "jobId": id } }
         }),
@@ -228,11 +228,11 @@ async fn start(app: &AppHandle, a: &Value) -> Result<Value, String> {
         "workspaceId": wsv, "kind": "file", "path": src.to_string_lossy(), "x": x0, "y": y0, "w": 420, "h": 120
     })).await?;
     let tnote = sub(app, "canvas_node_spawn", json!({
-        "workspaceId": wsv, "kind": "note", "title": "Transcrição", "path": transcript_path.to_string_lossy(),
+        "workspaceId": wsv, "kind": "note", "title": "Transcript", "path": transcript_path.to_string_lossy(),
         "x": x0 + 480.0, "y": y0, "w": 760, "h": 560
     })).await?;
     let cnote = sub(app, "canvas_node_spawn", json!({
-        "workspaceId": wsv, "kind": "note", "title": "Contexto para LLM", "path": context_path.to_string_lossy(),
+        "workspaceId": wsv, "kind": "note", "title": "LLM context", "path": context_path.to_string_lossy(),
         "x": x0 + 1300.0, "y": y0, "w": 760, "h": 560
     })).await?;
     let nodes = json!({ "source": node_id(&video), "transcript": node_id(&tnote), "context": node_id(&cnote) });

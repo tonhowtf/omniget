@@ -28,7 +28,7 @@ export interface Route {
   source: RouteSource;
 }
 
-export interface Health {
+interface Health {
   ok: boolean | null;
   rtt_ms: number | null;
   connect_ms: number | null;
@@ -59,7 +59,7 @@ interface SubscriptionEntry {
   unsupported: [string, number][];
 }
 
-export type Phase = "idle" | "scanning" | "connected" | "failed";
+type Phase = "idle" | "scanning" | "connected" | "failed";
 export type Mode = "auto" | "fixed";
 
 export interface NetStatus {
@@ -75,7 +75,7 @@ export interface NetStatus {
   bridge_port: number | null;
 }
 
-export type StepState = "ok" | "warn" | "fail" | "skip";
+type StepState = "ok" | "warn" | "fail" | "skip";
 
 interface DoctorStep {
   id: string;
@@ -137,7 +137,7 @@ export interface MihomoStatus {
   kinds: Record<string, number>;
 }
 
-export function call<T = unknown>(command: string, args: Record<string, unknown> = {}): Promise<T> {
+function call<T = unknown>(command: string, args: Record<string, unknown> = {}): Promise<T> {
   return invoke<T>("telegram_call", { command, args });
 }
 
@@ -739,7 +739,7 @@ export function newScanId(): string {
   return `scan-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
-export const PLAYABLE = new Set(["video", "gif", "audio", "voice", "round_video"]);
+const PLAYABLE = new Set(["video", "gif", "audio", "voice", "round_video"]);
 
 export function isPlayable(item: { media_type: string; file_name?: string }): boolean {
   if (PLAYABLE.has(item.media_type)) return true;

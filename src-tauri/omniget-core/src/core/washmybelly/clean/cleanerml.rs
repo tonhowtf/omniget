@@ -151,7 +151,6 @@ const SYSTEM: &[&str] = &[
     "kde",
     "nautilus",
     "windows_explorer",
-    "windows_defender",
     "wine",
     "winetricks",
     "bash",
@@ -936,10 +935,6 @@ pub const EMBEDDED: &[(&str, &str)] = &[
     (
         "winamp",
         include_str!("../../../../data/washmybelly/bleachbit/cleaners/winamp.xml"),
-    ),
-    (
-        "windows_defender",
-        include_str!("../../../../data/washmybelly/bleachbit/cleaners/windows_defender.xml"),
     ),
     (
         "windows_explorer",

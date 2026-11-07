@@ -6,7 +6,7 @@ pub async fn resolve_redirect(client: &reqwest::Client, url: &str) -> anyhow::Re
     let final_url = response.url().to_string();
 
     if final_url == url {
-        return Err(anyhow!("Nenhum redirect encontrado para {}", url));
+        return Err(anyhow!("No redirect found for {}", url));
     }
 
     Ok(final_url)

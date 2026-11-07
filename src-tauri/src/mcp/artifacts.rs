@@ -1,3 +1,4 @@
+use super::auth::now_secs;
 use super::policy::{self, Principal};
 use omniget_core::core::secure_files::{Identity, Root, Snapshot};
 use rusqlite::params;
@@ -15,12 +16,6 @@ pub fn admit() -> Result<tokio::sync::OwnedSemaphorePermit, String> {
         .clone()
         .try_acquire_owned()
         .map_err(|_| "ARTIFACT_BUSY".into())
-}
-fn now() -> i64 {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_secs() as i64
 }
 fn db() -> Result<rusqlite::Connection, String> {
     let c = policy::db()?;
@@ -132,8 +127,11 @@ pub fn register(p: &Principal, path: &Path) -> Result<Artifact, String> {
         return Err("TRANSFER_NOT_GRANTED".into());
     }
     let c = db()?;
-    c.execute("DELETE FROM artifact_grants WHERE expires<=?1", [now()])
-        .map_err(|_| "ARTIFACT_STORE_UNAVAILABLE")?;
+    c.execute(
+        "DELETE FROM artifact_grants WHERE expires<=?1",
+        [now_secs()],
+    )
+    .map_err(|_| "ARTIFACT_STORE_UNAVAILABLE")?;
     let roots = {
         let mut stmt = c
             .prepare("SELECT id,path,identity FROM file_roots WHERE principal=?1 AND revoked=0")
@@ -188,7 +186,7 @@ fn issue(
         .unwrap_or_default()
         .to_string_lossy()
         .into_owned();
-    let now = now();
+    let now = now_secs();
     let old: Option<(String, i64)> = c
         .query_row(
             "SELECT id,expires FROM artifact_grants WHERE principal=?1 AND root=?2 AND relative=?3 AND digest=?4 AND revoked=0 AND expires>?5",
@@ -251,7 +249,7 @@ pub fn authorized(p: &Principal, id: &str) -> Result<(), String> {
     if !p.scopes.iter().any(|s| s == "transfer") {
         return Err("TRANSFER_NOT_GRANTED".into());
     }
-    let yes:bool=db()?.query_row("SELECT EXISTS(SELECT 1 FROM artifact_grants a JOIN file_roots r ON r.id=a.root WHERE a.id=?1 AND a.principal=?2 AND r.principal=?2 AND a.revoked=0 AND r.revoked=0 AND a.expires>?3)",params![id,p.id,now()],|r|r.get(0)).map_err(|_|"ARTIFACT_STORE_UNAVAILABLE")?;
+    let yes:bool=db()?.query_row("SELECT EXISTS(SELECT 1 FROM artifact_grants a JOIN file_roots r ON r.id=a.root WHERE a.id=?1 AND a.principal=?2 AND r.principal=?2 AND a.revoked=0 AND r.revoked=0 AND a.expires>?3)",params![id,p.id,now_secs()],|r|r.get(0)).map_err(|_|"ARTIFACT_STORE_UNAVAILABLE")?;
     if !yes {
         return Err("ARTIFACT_NOT_FOUND_OR_EXPIRED".into());
     }

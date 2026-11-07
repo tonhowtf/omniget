@@ -73,8 +73,6 @@ const config = {
   ],
 };
 
-export const defaultLocale = "en";
-
 const RTL_LOCALES = ["fa", "ar", "he"];
 
 export function isRtlLocale(l: string | null | undefined): boolean {

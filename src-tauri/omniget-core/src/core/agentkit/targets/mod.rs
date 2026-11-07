@@ -86,8 +86,6 @@ pub struct Scopes {
     pub project_markers: Vec<String>,
     #[serde(default)]
     pub global_dir: Option<String>,
-    #[serde(default)]
-    pub config_dir_env: Option<String>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -245,10 +243,6 @@ pub struct HookConfig {
     pub timeout_unit: Option<String>,
     #[serde(default)]
     pub version: Option<Value>,
-    #[serde(default)]
-    pub env_aliases: Vec<String>,
-    #[serde(default)]
-    pub events_count: Option<u32>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -289,8 +283,6 @@ pub struct RunnerConfig {
     #[serde(default)]
     pub json_flag: Vec<String>,
     #[serde(default)]
-    pub resume_flag: Option<String>,
-    #[serde(default)]
     pub system_prompt_flag: Option<String>,
     #[serde(default)]
     pub model_flag: Option<String>,
@@ -313,8 +305,6 @@ pub struct AcpConfig {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct TrustConfig {
     #[serde(default)]
-    pub requires_review: bool,
-    #[serde(default)]
     pub how: Option<String>,
 }
 
@@ -332,10 +322,6 @@ pub struct TargetAdapter {
     pub homepage: Option<String>,
     #[serde(default)]
     pub notes: Option<String>,
-    #[serde(default)]
-    pub reads_agents_dir: bool,
-    #[serde(default)]
-    pub reads_agents_md: Option<String>,
     #[serde(default)]
     pub detect: Detect,
     #[serde(default)]

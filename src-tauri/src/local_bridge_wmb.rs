@@ -6,7 +6,7 @@ use axum::{Json, Router};
 use serde_json::{json, Value};
 use tauri::{AppHandle, Emitter};
 
-use crate::local_bridge_llm::check_bearer;
+use crate::local_bridge_auth::check_bearer;
 use omniget_core::core::washmybelly::{approvals, plan::Source, store::Ctx, tools};
 
 #[derive(Clone)]

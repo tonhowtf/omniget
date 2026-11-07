@@ -455,7 +455,6 @@ export type TubeSettings = {
   hide_home_feed: boolean;
   hide_related: boolean;
   hide_comments: boolean;
-  hide_end_screen: boolean;
   hide_chips: boolean;
   hide_metrics: boolean;
   infinite_scroll: boolean;

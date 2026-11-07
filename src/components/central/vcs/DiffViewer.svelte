@@ -83,12 +83,12 @@
   const perFile: Row[][] = $derived(
     files.map((f, i) => {
       if (collapsed.has(i)) return [];
-      if (f.binary) return [{ t: "note", fileIndex: i, text: $t("llm.central.vcs.diff.binary") as string } as Row];
+      if (f.binary) return [{ t: "note", fileIndex: i, text: $t("agents.central.vcs.diff.binary") as string } as Row];
       if (f.truncated && !f.patch)
-        return [{ t: "note", fileIndex: i, text: $t("llm.central.vcs.diff.too_large") as string } as Row];
+        return [{ t: "note", fileIndex: i, text: $t("agents.central.vcs.diff.too_large") as string } as Row];
       const p = parsed[i];
       if (!p.hunks.length) {
-        const msg = f.status === "renamed" ? "llm.central.vcs.diff.renamed_only" : "llm.central.vcs.diff.no_content";
+        const msg = f.status === "renamed" ? "agents.central.vcs.diff.renamed_only" : "agents.central.vcs.diff.no_content";
         return [{ t: "note", fileIndex: i, text: $t(msg) as string } as Row];
       }
       highlightFile(i);
@@ -319,28 +319,28 @@
   {#if toolbar}
     <div class="dv-bar">
       <span class="dv-sum">
-        {$t("llm.central.vcs.diff.files", { count: files.length })}
+        {$t("agents.central.vcs.diff.files", { count: files.length })}
         <span class="add">+{compactCount(totals.add)}</span>
         <span class="del">−{compactCount(totals.del)}</span>
       </span>
       <span class="dv-spacer"></span>
-      <div class="seg" role="group" aria-label={$t("llm.central.vcs.diff.layout")}>
-        <button class:on={mode === "unified"} onclick={() => (mode = "unified")}>{$t("llm.central.vcs.diff.unified")}</button>
-        <button class:on={mode === "split"} onclick={() => (mode = "split")}>{$t("llm.central.vcs.diff.split")}</button>
+      <div class="seg" role="group" aria-label={$t("agents.central.vcs.diff.layout")}>
+        <button class:on={mode === "unified"} onclick={() => (mode = "unified")}>{$t("agents.central.vcs.diff.unified")}</button>
+        <button class:on={mode === "split"} onclick={() => (mode = "split")}>{$t("agents.central.vcs.diff.split")}</button>
       </div>
       <button class="ghost" onclick={() => setAll(collapsed.size > 0)}>
-        {collapsed.size > 0 ? $t("llm.central.vcs.diff.expand_all") : $t("llm.central.vcs.diff.collapse_all")}
+        {collapsed.size > 0 ? $t("agents.central.vcs.diff.expand_all") : $t("agents.central.vcs.diff.collapse_all")}
       </button>
     </div>
   {/if}
 
   {#if !files.length}
-    <div class="dv-empty">{emptyText ?? $t("llm.central.vcs.diff.empty")}</div>
+    <div class="dv-empty">{emptyText ?? $t("agents.central.vcs.diff.empty")}</div>
   {:else}
     <!-- svelte-ignore a11y_no_noninteractive_tabindex, a11y_no_noninteractive_element_interactions -->
     <div
       role="region"
-      aria-label={$t("llm.central.vcs.diff.title")}
+      aria-label={$t("agents.central.vcs.diff.title")}
       class="dv-scroll"
       class:split={mode === "split"}
       bind:this={scroller}
@@ -373,8 +373,8 @@
                 <span class="path">
                   {#if f.old_path && f.old_path !== f.path}<span class="old">{f.old_path} → </span>{/if}{f.path}
                 </span>
-                {#if f.truncated}<span class="badge">{$t("llm.central.vcs.diff.truncated")}</span>{/if}
-                {#if f.binary}<span class="badge">{$t("llm.central.vcs.diff.binary_badge")}</span>{/if}
+                {#if f.truncated}<span class="badge">{$t("agents.central.vcs.diff.truncated")}</span>{/if}
+                {#if f.binary}<span class="badge">{$t("agents.central.vcs.diff.binary_badge")}</span>{/if}
                 <span class="add">+{f.additions}</span><span class="del">−{f.deletions}</span>
               </button>
             </div>
@@ -393,13 +393,13 @@
           {:else if r.t === "gap"}
             <div class="row gap">
               <button class="gap-btn" disabled={!onrequestcontext} onclick={() => onrequestcontext?.()}>
-                — {$t("llm.central.vcs.diff.hidden_lines", { count: r.hidden })} —
+                — {$t("agents.central.vcs.diff.hidden_lines", { count: r.hidden })} —
               </button>
             </div>
           {:else if r.t === "fold"}
             <div class="row fold">
               <button class="gap-btn" onclick={() => openFold(r.fileIndex, r.key)}>
-                ⋯ {$t("llm.central.vcs.diff.unmodified_lines", { count: r.hidden })}
+                ⋯ {$t("agents.central.vcs.diff.unmodified_lines", { count: r.hidden })}
               </button>
             </div>
           {:else if r.t === "note"}
@@ -414,7 +414,7 @@
                 onmouseenter={() => moveSel(r, "unified")}
               ><span class="ln">{num(l.old)}</span><span class="ln">{num(l.new)}</span></span>
               <span class="mk">{l.kind === "add" ? "+" : l.kind === "del" ? "−" : " "}</span>
-              <span class="code">{@html html(l)}{#if l.noEol}<span class="noeol" title={$t("llm.central.vcs.diff.no_eol")}>⏎̸</span>{/if}</span>
+              <span class="code">{@html html(l)}{#if l.noEol}<span class="noeol" title={$t("agents.central.vcs.diff.no_eol")}>⏎̸</span>{/if}</span>
             </div>
           {:else if r.t === "pair"}
             <div class="row pair">
@@ -440,23 +440,23 @@
               <textarea
                 bind:value={commentText}
                 onkeydown={onCommentKey}
-                placeholder={$t("llm.central.vcs.diff.comment_placeholder")}
+                placeholder={$t("agents.central.vcs.diff.comment_placeholder")}
                 rows="3"
                 autofocus
               ></textarea>
               <div class="pop-actions">
-                <span class="hint">{$t("llm.central.vcs.diff.comment_hint")}</span>
-                <button class="ghost" onclick={clearSelection}>{$t("llm.central.vcs.cancel")}</button>
+                <span class="hint">{$t("agents.central.vcs.diff.comment_hint")}</span>
+                <button class="ghost" onclick={clearSelection}>{$t("agents.central.vcs.cancel")}</button>
                 <button class="primary" disabled={!commentText.trim()} onclick={() => emit(commentText)}>
-                  {$t("llm.central.vcs.diff.comment")}
+                  {$t("agents.central.vcs.diff.comment")}
                 </button>
               </div>
             {:else}
               <div class="pop-actions">
-                <span class="hint">{$t("llm.central.vcs.diff.lines_selected", { count: selectedLines().length })}</span>
-                <button class="ghost" onclick={() => (composing = true)}>{$t("llm.central.vcs.diff.comment")}</button>
-                <button class="primary" onclick={() => emit("")}>{$t("llm.central.vcs.diff.add_to_chat")}</button>
-                <button class="ghost x" aria-label={$t("llm.central.vcs.cancel")} onclick={clearSelection}>×</button>
+                <span class="hint">{$t("agents.central.vcs.diff.lines_selected", { count: selectedLines().length })}</span>
+                <button class="ghost" onclick={() => (composing = true)}>{$t("agents.central.vcs.diff.comment")}</button>
+                <button class="primary" onclick={() => emit("")}>{$t("agents.central.vcs.diff.add_to_chat")}</button>
+                <button class="ghost x" aria-label={$t("agents.central.vcs.cancel")} onclick={clearSelection}>×</button>
               </div>
             {/if}
           </div>

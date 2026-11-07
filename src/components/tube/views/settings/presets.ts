@@ -8,7 +8,6 @@ const CLEAN: Partial<TubeSettings> = {
   hide_members: true,
   hide_mixes: true,
   hide_playables: true,
-  hide_end_screen: true,
   hide_shorts: false,
   hide_home_feed: false,
   hide_related: false,

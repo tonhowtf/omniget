@@ -45,10 +45,6 @@ impl ToolDef {
             title: None,
         }
     }
-
-    pub fn schema_is_object(&self) -> bool {
-        self.input_schema.get("type").and_then(|t| t.as_str()) == Some("object")
-    }
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
@@ -236,11 +232,6 @@ impl McpServerConfig {
     pub fn is_stdio(&self) -> bool {
         matches!(self.transport, Transport::Stdio { .. })
     }
-
-    pub fn secret_id_for(&self, kind: &str, name: &str) -> String {
-        secret_id(&self.id, kind, name)
-    }
-
     pub fn extract_secrets(&mut self) -> Vec<(String, String)> {
         let id = self.id.clone();
         let take = |kind: &str,
@@ -512,7 +503,6 @@ mod tests {
         assert_eq!(tools.len(), 2);
         assert_eq!(tools[0].name, "a");
         assert_eq!(tools[1].name, "b");
-        assert!(tools[1].schema_is_object());
     }
 
     #[test]
@@ -745,10 +735,6 @@ mod tests {
         assert!(text.contains("secret:gh-env-github_token"));
         assert!(text.contains("production"));
         cfg.validate().unwrap();
-        assert_eq!(
-            cfg.secret_id_for("env", "GITHUB_TOKEN"),
-            "gh-env-github_token"
-        );
     }
 
     #[test]

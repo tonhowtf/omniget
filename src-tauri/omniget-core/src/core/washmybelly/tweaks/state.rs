@@ -363,7 +363,6 @@ pub struct Facts {
 pub struct Gpu {
     pub name: String,
     pub vendor: String,
-    pub dac: String,
 }
 
 pub const HW_SCRIPT: &str = "$ErrorActionPreference='SilentlyContinue'; $g=@(Get-CimInstance Win32_VideoController | Select-Object Name,AdapterCompatibility,AdapterDACType); $c=Get-CimInstance Win32_ComputerSystem | Select-Object Manufacturer,Model; [pscustomobject]@{gpus=$g;system=$c} | ConvertTo-Json -Compress -Depth 3";
@@ -381,7 +380,6 @@ pub fn parse_hw(json: &str) -> Option<(Vec<Gpu>, String)> {
         .map(|g| Gpu {
             name: s(g, "Name"),
             vendor: s(g, "AdapterCompatibility"),
-            dac: s(g, "AdapterDACType"),
         })
         .collect();
     let sys = v.get("system").cloned().unwrap_or(Value::Null);

@@ -5,8 +5,6 @@ use std::time::Duration;
 
 use futures::StreamExt;
 use serde_json::Value;
-use tokio::sync::mpsc;
-use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
 
 use super::error::{from_status, McpError};
@@ -34,23 +32,6 @@ impl std::fmt::Debug for HttpTransport {
             .field("url", &self.url)
             .field("session", &self.session_id().is_some())
             .finish()
-    }
-}
-
-pub struct ServerStream {
-    pub rx: mpsc::Receiver<Value>,
-    task: JoinHandle<()>,
-}
-
-impl ServerStream {
-    pub async fn next(&mut self) -> Option<Value> {
-        self.rx.recv().await
-    }
-}
-
-impl Drop for ServerStream {
-    fn drop(&mut self) {
-        self.task.abort();
     }
 }
 
@@ -269,42 +250,6 @@ impl HttpTransport {
         }
         Err(McpError::proto("the SSE stream ended before the response").retryable())
     }
-
-    pub async fn open_server_stream(&self) -> Result<Option<ServerStream>, McpError> {
-        let resp = self
-            .build(reqwest::Method::GET)
-            .header("Accept", "text/event-stream")
-            .send()
-            .await
-            .map_err(|e| McpError::http(format!("{}: {}", self.url, e)).retryable())?;
-        if resp.status().as_u16() == 405 {
-            return Ok(None);
-        }
-        if !resp.status().is_success() {
-            let status = resp.status().as_u16();
-            let body = resp.text().await.unwrap_or_default();
-            return Err(from_status(status, &body));
-        }
-        let (tx, rx) = mpsc::channel(32);
-        let task = tokio::spawn(async move {
-            let mut stream = resp.bytes_stream();
-            let mut parser = SseParser::new();
-            let mut events = Vec::new();
-            while let Some(Ok(chunk)) = stream.next().await {
-                parser.push(&chunk, &mut events);
-                let _ = parser.take_overflow();
-                for ev in events.drain(..) {
-                    if let Some(v) = ev.json() {
-                        if tx.send(v).await.is_err() {
-                            return;
-                        }
-                    }
-                }
-            }
-        });
-        Ok(Some(ServerStream { rx, task }))
-    }
-
     pub async fn close(&self) {
         let had_session = self.session_id().is_some();
         if had_session {

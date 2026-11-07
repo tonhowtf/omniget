@@ -267,7 +267,7 @@ pub const KINDS: &[Kind] = &[
     },
     Kind {
         id: "custom",
-        name: "OpenAI-compatível",
+        name: "OpenAI-compatible",
         base_url: "https://…/v1",
         balance: false,
         env: "OPENAI_API_KEY",
@@ -329,7 +329,7 @@ fn load() -> Vec<KeyEntry> {
 }
 
 fn save(list: &[KeyEntry]) -> anyhow::Result<()> {
-    let p = file().ok_or_else(|| anyhow!("sem pasta de dados"))?;
+    let p = file().ok_or_else(|| anyhow!("no data folder"))?;
     let mut list = list.to_vec();
     for (account, value) in migrate::take_secrets(&mut list) {
         secrets::put_or_delete(AI_KEYS, &account, &value).map_err(|e| anyhow!(e))?;
@@ -365,7 +365,7 @@ fn get(id: &str) -> anyhow::Result<KeyEntry> {
     load()
         .into_iter()
         .find(|e| e.id == id)
-        .ok_or_else(|| anyhow!("chave nao encontrada"))
+        .ok_or_else(|| anyhow!("key not found"))
 }
 
 fn update<F: FnOnce(&mut KeyEntry)>(id: &str, f: F) -> anyhow::Result<KeyView> {
@@ -374,7 +374,7 @@ fn update<F: FnOnce(&mut KeyEntry)>(id: &str, f: F) -> anyhow::Result<KeyView> {
     let e = list
         .iter_mut()
         .find(|e| e.id == id)
-        .ok_or_else(|| anyhow!("chave nao encontrada"))?;
+        .ok_or_else(|| anyhow!("key not found"))?;
     f(e);
     let v = e.view();
     save(&list)?;
@@ -490,7 +490,7 @@ pub async fn models(entry: &KeyEntry) -> anyhow::Result<Vec<String>> {
             }
             serde_json::from_str(&text).map_err(|_| {
                 anyhow!(
-                    "resposta nao e JSON: {}",
+                    "response is not JSON: {}",
                     text.chars().take(120).collect::<String>()
                 )
             })?
@@ -562,7 +562,7 @@ pub async fn balance(id: &str) -> anyhow::Result<KeyView> {
             let total = d["total_credits"].as_f64().unwrap_or(0.0);
             let used = d["total_usage"].as_f64().unwrap_or(0.0);
             format!(
-                "{} ({} usados de {})",
+                "{} ({} used of {})",
                 usd(total - used),
                 usd(used),
                 usd(total)
@@ -604,7 +604,7 @@ pub async fn balance(id: &str) -> anyhow::Result<KeyView> {
         "newapi" => {
             if entry.access_token.is_empty() {
                 return Err(anyhow!(
-                    "informe o token de acesso e o ID de usuario do painel"
+                    "enter the access token and the user ID from the dashboard"
                 ));
             }
             let j: serde_json::Value = c
@@ -619,15 +619,19 @@ pub async fn balance(id: &str) -> anyhow::Result<KeyView> {
             if j["success"].as_bool() == Some(false) {
                 return Err(anyhow!(
                     "{}",
-                    j["message"].as_str().unwrap_or("painel recusou")
+                    j["message"].as_str().unwrap_or("the dashboard refused")
                 ));
             }
             let d = &j["data"];
             let quota = d["quota"].as_f64().unwrap_or(0.0) / 500_000.0;
             let used = d["used_quota"].as_f64().unwrap_or(0.0) / 500_000.0;
-            format!("{} ({} usados)", usd(quota), usd(used))
+            format!("{} ({} used)", usd(quota), usd(used))
         }
-        _ => return Err(anyhow!("este provedor nao expoe saldo pela API")),
+        _ => {
+            return Err(anyhow!(
+                "this provider does not expose its balance through the API"
+            ))
+        }
     };
     update(id, |e| e.balance = Some(text))
 }
@@ -643,7 +647,7 @@ pub fn export(format: &str, ids: &[String]) -> anyhow::Result<String> {
         .filter(|e| ids.is_empty() || ids.contains(&e.id))
         .collect();
     if list.is_empty() {
-        return Err(anyhow!("nenhuma chave selecionada"));
+        return Err(anyhow!("no key selected"));
     }
     let slug = |s: &str| {
         s.chars()
@@ -743,7 +747,7 @@ pub fn export(format: &str, ids: &[String]) -> anyhow::Result<String> {
             }
             serde_json::to_string_pretty(&serde_json::json!({ "$schema": "https://opencode.ai/config.json", "provider": providers }))?
         }
-        _ => return Err(anyhow!("formato desconhecido: {}", format)),
+        _ => return Err(anyhow!("unknown format: {}", format)),
     })
 }
 
@@ -866,7 +870,7 @@ pub async fn pkce_finish(code: &str, state: Option<&str>) -> anyhow::Result<KeyV
         ));
     }
     let json: serde_json::Value = serde_json::from_str(&text)
-        .map_err(|_| anyhow!("ERR_PKCE_EXCHANGE: resposta nao e JSON"))?;
+        .map_err(|_| anyhow!("ERR_PKCE_EXCHANGE: response is not JSON"))?;
     let key = json
         .get("key")
         .and_then(|v| v.as_str())
@@ -874,7 +878,7 @@ pub async fn pkce_finish(code: &str, state: Option<&str>) -> anyhow::Result<KeyV
         .trim()
         .to_string();
     if key.is_empty() {
-        return Err(anyhow!("ERR_PKCE_EXCHANGE: resposta sem chave"));
+        return Err(anyhow!("ERR_PKCE_EXCHANGE: response has no key"));
     }
     let existing = list()
         .into_iter()

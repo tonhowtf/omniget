@@ -14,14 +14,10 @@
     item,
     showAvatar = true,
     feedbackActions = true,
-    list = null,
-    index = null,
   }: {
     item: VideoItem;
     showAvatar?: boolean;
     feedbackActions?: boolean;
-    list?: string | null;
-    index?: number | null;
   } = $props();
 
   let prefs = $derived(tubePrefs());
@@ -97,7 +93,7 @@
     if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey) return;
     e.preventDefault();
     leave();
-    openWatch(item.id, { list, index });
+    openWatch(item.id);
   }
 
   function openMenu(e?: MouseEvent) {
@@ -122,7 +118,7 @@
     openMenu(e);
   }}
 >
-  <a class="cover" href={watchHref(item.id, list)} onclick={open} tabindex="-1" aria-hidden="true"></a>
+  <a class="cover" href={watchHref(item.id)} onclick={open} tabindex="-1" aria-hidden="true"></a>
   <div class="yt-thumb">
     <img
       src={midThumb ? `https://i.ytimg.com/vi/${item.id}/hq2.jpg` : thumb}
@@ -178,7 +174,7 @@
     {/if}
     <div class="meta">
       <h3>
-        <a use:agentActions={["click"]} class="title yt-clamp-2" href={watchHref(item.id, list)} onclick={open} title={title}>{title}</a>
+        <a use:agentActions={["click"]} class="title yt-clamp-2" href={watchHref(item.id)} onclick={open} title={title}>{title}</a>
       </h3>
       {#if item.channel}
         <a class="channel" href={channelHref(item.channel.id)} onclick={(e) => { e.preventDefault(); openChannel(item.channel!.id); }}>

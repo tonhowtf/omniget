@@ -39,8 +39,7 @@
     "updater": {
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDVBMUREMkJDOERBOEJCOEEKUldTS3U2aU52TklkV2s5UW9LcXNyVEt3MnhLSVpwaWRjVnF0aU1yd29WeVdFSVlOMm5jRGxGMVkK",
       "endpoints": [
-        "https://getomniget.com/update/latest.json",
-        "https://github.com/tonhowtf/omniget/releases/latest/download/latest.json"
+        "https://getomniget.com/update/latest.json"
       ]
     },
     "deep-link": {
@@ -54,6 +53,11 @@
   "bundle": {
     "active": true,
     "targets": "all",
+    "publisher": "OmniGet",
+    "copyright": "Copyright (C) OmniGet contributors. GPL-3.0",
+    "category": "Utility",
+    "shortDescription": "Download videos and courses and run coding agents on a canvas",
+    "homepage": "https://getomniget.com",
     "createUpdaterArtifacts": true,
     "resources": {
       "../browser-extension/chrome/": "browser-extension/chrome/",

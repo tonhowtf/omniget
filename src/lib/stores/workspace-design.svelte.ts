@@ -1,4 +1,3 @@
-
 export const PRESETS = [
   {
     "id": "amber-minimal",
@@ -55,6 +54,4 @@ export const PRESETS = [
     ]
   }
 ] as const;
-export type Preset = typeof PRESETS[number]["id"];
-export type Mode = "system" | "light" | "dark";
 

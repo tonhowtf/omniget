@@ -38,7 +38,6 @@ pub mod recovery;
 pub mod root_cause;
 pub mod rpc;
 pub mod rules;
-pub mod silence_map;
 pub mod state_file;
 pub mod trackers;
 pub mod url_parser;

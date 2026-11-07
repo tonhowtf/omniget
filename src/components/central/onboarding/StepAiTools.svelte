@@ -131,14 +131,13 @@
 </script>
 
 <div class="step-ai">
-  <h2>{$t("llm.central.onboarding.title")}</h2>
-  <p class="desc">{$t("llm.central.onboarding.desc")}</p>
+  <h2>{$t("agents.central.onboarding.title")}</h2>
+  <p class="desc">{$t("agents.central.onboarding.desc")}</p>
 
   {#if loading}
-    <div class="row"><span class="spinner"></span> {$t("llm.central.onboarding.detecting")}</div>
+    <div class="row"><span class="spinner"></span> {$t("agents.central.onboarding.detecting")}</div>
   {:else if installed.length === 0}
-    <p class="desc">{$t("llm.central.onboarding.none")}</p>
-    <a class="btn btn-secondary btn-sm" href="/llm/tools">{$t("llm.central.onboarding.open_tools")}</a>
+    <p class="desc">{$t("agents.central.onboarding.none")}</p>
   {:else}
     <ul class="tools">
       {#each installed as r (r.tool.id)}
@@ -148,45 +147,45 @@
           <span class="name">{r.tool.name}</span>
           <span class="ver">{r.detection?.version ?? r.detection?.app_version ?? ""}</span>
           {#if src && src.sessions > 0}
-            <span class="count">{$t("llm.central.onboarding.sessions", { count: src.sessions })}</span>
+            <span class="count">{$t("agents.central.onboarding.sessions", { count: src.sessions })}</span>
             {#if imported[r.tool.id] !== undefined}
-              <span class="ok">{$t("llm.central.onboarding.imported", { count: imported[r.tool.id] })}</span>
+              <span class="ok">{$t("agents.central.onboarding.imported", { count: imported[r.tool.id] })}</span>
             {:else}
               <button class="btn btn-ghost btn-sm" type="button" disabled={importing !== null || importMissing} onclick={() => importSessions(r.tool.id)}>
-                {importing === r.tool.id ? $t("llm.central.onboarding.importing") : $t("llm.central.onboarding.import", { count: Math.min(IMPORT_LIMIT, src.sessions) })}
+                {importing === r.tool.id ? $t("agents.central.onboarding.importing") : $t("agents.central.onboarding.import", { count: Math.min(IMPORT_LIMIT, src.sessions) })}
               </button>
             {/if}
           {/if}
         </li>
       {/each}
     </ul>
-    {#if importMissing}<p class="note">{$t("llm.central.onboarding.import_unavailable")}</p>{/if}
-    {#if withSessions.length === 0}<p class="note">{$t("llm.central.onboarding.no_sessions")}</p>{/if}
+    {#if importMissing}<p class="note">{$t("agents.central.onboarding.import_unavailable")}</p>{/if}
+    {#if withSessions.length === 0}<p class="note">{$t("agents.central.onboarding.no_sessions")}</p>{/if}
 
     <div class="stack">
-      <strong>{$t("llm.central.onboarding.stack_title")}</strong>
-      <p class="note">{$t("llm.central.onboarding.stack_desc")}</p>
+      <strong>{$t("agents.central.onboarding.stack_title")}</strong>
+      <p class="note">{$t("agents.central.onboarding.stack_desc")}</p>
       {#if applied}
-        <p class="ok">{$t("llm.central.onboarding.stack_done", { count: applied.installed.length, files: applied.files_written.length })}</p>
+        <p class="ok">{$t("agents.central.onboarding.stack_done", { count: applied.installed.length, files: applied.files_written.length })}</p>
       {:else if plan}
         <p class="note">
           {#each Object.entries(planCounts) as [status, n] (status)}
-            <span class="pill">{$t(`llm.central.onboarding.unit.${status}`)}: {n}</span>
+            <span class="pill">{$t(`agents.central.onboarding.unit.${status}`)}: {n}</span>
           {/each}
         </p>
         {#if planCommands.length}
-          <p class="note">{$t("llm.central.onboarding.stack_commands")}</p>
+          <p class="note">{$t("agents.central.onboarding.stack_commands")}</p>
           {#each planCommands as c (c)}<code>{c}</code>{/each}
         {/if}
         <div class="row">
           <button class="btn btn-primary btn-sm" type="button" disabled={applying} onclick={applyStack}>
-            {applying ? $t("llm.central.onboarding.applying") : $t("llm.central.onboarding.apply", { count: plan.files.filter((f) => f.action !== "unchanged").length })}
+            {applying ? $t("agents.central.onboarding.applying") : $t("agents.central.onboarding.apply", { count: plan.files.filter((f) => f.action !== "unchanged").length })}
           </button>
           <button class="btn btn-ghost btn-sm" type="button" onclick={() => (plan = null)}>{$t("onboarding.back")}</button>
         </div>
       {:else}
         <button class="btn btn-secondary btn-sm" type="button" disabled={planning || targetIds.length === 0} onclick={planStack}>
-          {planning ? $t("llm.central.onboarding.planning") : $t("llm.central.onboarding.stack_plan", { count: targetIds.length })}
+          {planning ? $t("agents.central.onboarding.planning") : $t("agents.central.onboarding.stack_plan", { count: targetIds.length })}
         </button>
       {/if}
     </div>

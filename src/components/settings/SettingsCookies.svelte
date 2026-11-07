@@ -1,11 +1,12 @@
 <script lang="ts">
-  import { onMount } from "svelte";
+  import { onMount, tick } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
   import { open as openShell } from "@tauri-apps/plugin-shell";
   import { save as saveDialog } from "@tauri-apps/plugin-dialog";
   import { t } from "$lib/i18n";
   import { showToast } from "$lib/stores/toast-store.svelte";
-  import { getSettings, updateSettings } from "$lib/stores/settings-store.svelte";
+  import { settingsHref } from "$lib/settings-navigation";
+  import { getSettings, saveSettings } from "./settings-helpers";
   import CookieBucketCard from "$components/cookies/CookieBucketCard.svelte";
   import CookieImportMenu from "$components/cookies/CookieImportMenu.svelte";
   import CookieContentModal from "$components/cookies/CookieContentModal.svelte";
@@ -14,6 +15,11 @@
   import SettingGroup from "./rebrand/SettingGroup.svelte";
   import SettingRow from "./rebrand/SettingRow.svelte";
   import SettingsEmptyState from "./rebrand/SettingsEmptyState.svelte";
+  import ManagerLink from "./rebrand/ManagerLink.svelte";
+  import MoreOptions from "./downloads/MoreOptions.svelte";
+  import Toggle from "./downloads/Toggle.svelte";
+  import KeyAnchor from "./downloads/KeyAnchor.svelte";
+  import DialogContainer from "$components/dialog/DialogContainer.svelte";
 
   type Account = {
     slug: string;
@@ -65,7 +71,7 @@
 
   function bucketHealth(domain: string): Record<string, HealthItem> {
     const out: Record<string, HealthItem> = {};
-    for (const [k, v] of Object.entries(healthByKey)) {
+    for (const v of Object.values(healthByKey)) {
       if (v.domain === domain) out[v.slug] = v;
     }
     return out;
@@ -111,17 +117,20 @@
   let managedOnly = $derived(settings?.download.always_use_managed_cookies ?? true);
 
   async function toggleManagedOnly() {
-    await updateSettings({
-      download: { always_use_managed_cookies: !managedOnly },
-    });
+    await saveSettings({ download: { always_use_managed_cookies: !managedOnly } });
   }
+
+  async function changeFromBrowser(e: Event) {
+    const value = (e.currentTarget as HTMLInputElement).value.trim();
+    await saveSettings({ advanced: { cookies_from_browser: value } });
+  }
+
+  let selectMode = $state(false);
   let cookiesDir = $state("");
   type LoadState = { kind: "loading" } | { kind: "ready" } | { kind: "error" };
   let loadState = $state<LoadState>({ kind: "loading" });
   let hasLoaded = $state(false);
   let pasteOpen = $state(false);
-  let genericDomain = $state("");
-  let genericFormOpen = $state(false);
 
   let viewOpen = $state(false);
   let viewDomain = $state("");
@@ -205,7 +214,7 @@
         ($t("settings.cookies.import_success", {
           buckets: String(res.buckets_written.length),
           cookies: String(total),
-        }) as string) ?? `Imported ${total} cookies`,
+        }) as string),
       );
       pasteOpen = false;
       await reload();
@@ -225,7 +234,7 @@
         ($t("settings.cookies.import_success", {
           buckets: String(res.buckets_written.length),
           cookies: String(total),
-        }) as string) ?? `Imported ${total} cookies`,
+        }) as string),
       );
       await reload();
     } catch (e) {
@@ -234,7 +243,7 @@
   }
 
   async function handleImportPasteContent(content: string, sourceUrl: string, alias: string) {
-    await importContent(content, sourceUrl, alias, "Paste import");
+    await importContent(content, sourceUrl, alias, $t("settings.downloads.cookies.paste_label") as string);
   }
 
   async function handleView(domain: string, slug: string) {
@@ -324,15 +333,10 @@
     addAccountOpen = true;
   }
 
-  async function handleBilibiliQrSuccess(slug: string, uname: string) {
+  async function handleBilibiliQrSuccess(_slug: string, uname: string) {
     bilibiliQrOpen = false;
-    showToast(
-      "success",
-      ($t("settings.cookies.bilibili.login_qr_success", { uname }) as string) ||
-        `Signed in as ${uname}`,
-    );
+    showToast("success", $t("settings.cookies.bilibili.login_qr_success", { uname }) as string);
     await reload();
-    const _ = slug;
   }
 
   let bilibiliWebviewLoading = $state(false);
@@ -343,11 +347,7 @@
       const res = await invoke<{ slug: string; uname: string; mid: number; is_vip: boolean }>(
         "bilibili_webview_login",
       );
-      showToast(
-        "success",
-        ($t("settings.cookies.bilibili.login_qr_success", { uname: res.uname }) as string) ||
-          `Signed in as ${res.uname}`,
-      );
+      showToast("success", $t("settings.cookies.bilibili.login_qr_success", { uname: res.uname }) as string);
       await reload();
     } catch (e) {
       const key = typeof e === "string" ? e : "errors.bilibili.network_failed";
@@ -402,11 +402,7 @@
     }
     try {
       const res = await invoke<BilibiliImportResult>("bilibili_import_watch_later", { slug });
-      showToast(
-        "success",
-        ($t("settings.cookies.bilibili.import_done", { count: String(res.items.length) }) as string) ??
-          `Queued ${res.items.length} items`,
-      );
+      showToast("success", $t("settings.cookies.bilibili.import_done", { count: String(res.items.length) }) as string);
       await enqueueImportedUrls(res.items);
     } catch (e) {
       showToast("error", safeErrorText(e));
@@ -421,11 +417,7 @@
     }
     try {
       const res = await invoke<BilibiliImportResult>("bilibili_import_history", { slug });
-      showToast(
-        "success",
-        ($t("settings.cookies.bilibili.import_done", { count: String(res.items.length) }) as string) ??
-          `Queued ${res.items.length} items`,
-      );
+      showToast("success", $t("settings.cookies.bilibili.import_done", { count: String(res.items.length) }) as string);
       await enqueueImportedUrls(res.items);
     } catch (e) {
       showToast("error", safeErrorText(e));
@@ -437,7 +429,7 @@
       const res = await invoke<{ slug: string; cookie_count: number }>("cookies_add_account", {
         request: {
           domain: addAccountDomain,
-          alias: alias || "Conta",
+          alias: alias || ($t("settings.downloads.cookies.default_alias") as string),
           content,
           source_url: sourceUrl || null,
         },
@@ -447,7 +439,7 @@
         ($t("settings.cookies.add_account_success", {
           slug: res.slug,
           count: String(res.cookie_count),
-        }) as string) ?? `Account added (${res.slug})`,
+        }) as string),
       );
       addAccountOpen = false;
       await reload();
@@ -479,11 +471,9 @@
       });
       confirmBulkClearOpen = false;
       clearCookieSelection();
+      selectMode = false;
       await reload();
-      showToast(
-        "success",
-        `${$t("settings.cookies.cleared_toast") as string} (${res.cleared})`,
-      );
+      showToast("success", $t("settings.downloads.cookies.cleared_count", { count: res.cleared }) as string);
     } catch (e) {
       showToast("error", safeErrorText(e));
     }
@@ -498,11 +488,11 @@
     }
   }
 
-  function showExtensionHint() {
-    showToast(
-      "info",
-      $t("settings.cookies.hint_use_extension") as string,
-    );
+  async function toggleSelectMode() {
+    selectMode = !selectMode;
+    if (!selectMode) clearCookieSelection();
+    await tick();
+    document.getElementById(selectMode ? "cookies-bulk-first" : "cookies-select")?.focus();
   }
 
   onMount(() => {
@@ -510,64 +500,25 @@
   });
 </script>
 
-<SettingGroup id="cookies" title={$t("settings.cookies.title")} description={$t("settings.cookies.intro")} advanced>
-  <div class="head-actions">
-    <button type="button" class="ghost-btn" onclick={showExtensionHint}>
-      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-        <rect x="4" y="4" width="16" height="16" rx="3"/>
-        <path d="M8 8h8M8 12h6M8 16h4"/>
-      </svg>
-      {$t("settings.cookies.capture_via_extension")}
-    </button>
-    <button type="button" class="ghost-btn subtle" onclick={openCookiesDir} disabled={!cookiesDir}>
-      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-        <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
-      </svg>
-      {$t("settings.cookies.open_folder")}
-    </button>
-    <CookieImportMenu
-      onImportFile={handleImportFile}
-      onImportPaste={() => pasteOpen = true}
-    />
-  </div>
-  {#if cookiesDir}
-    <p class="dir-hint" title={cookiesDir}>
-      <span>{$t("settings.cookies.dir_label")}</span>
-      <code dir="ltr">{cookiesDir}</code>
-    </p>
-  {/if}
-
-  <SettingRow
-    id="cookies-managed-only"
-    label={$t("settings.cookies.managed_only_title")}
-    help={$t("settings.cookies.managed_only_desc")}
-    settingKey="settings.cookies.managed_only_title"
-    status="download.always_use_managed_cookies"
-  >
-    {#snippet control(c)}
-      <button type="button" class="toggle" class:on={managedOnly} id={c.id} aria-describedby={c.describedBy} role="switch" aria-checked={managedOnly} aria-label={$t("settings.cookies.managed_only_title") as string} onclick={toggleManagedOnly}><span class="toggle-knob"></span></button>
-    {/snippet}
-  </SettingRow>
+<SettingGroup id="cookies" icon="cookie" title={$t("settings.downloads.cookies.title")} description={$t("settings.cookies.intro")}>
+  {#snippet actions()}
+    <span data-setting-key="settings.cookies.import_trigger">
+      <CookieImportMenu onImportFile={handleImportFile} onImportPaste={() => pasteOpen = true} />
+    </span>
+  {/snippet}
 
   {#if loadState.kind === "error"}
-    <SettingsEmptyState error title={$t("common.error")} onRetry={() => void reload()} />
+    <SettingsEmptyState error title={$t("settings.downloads.cookies.load_failed")} hint={$t("settings.downloads.cookies.load_failed_hint")} onRetry={() => void reload()} />
   {/if}
 
-  {#if hasLoaded && bucketList.length > 0}
-    <div class="bulk-bar">
-      <div class="bulk-info">
-        <span>{selectedCount} selected</span>
-      </div>
+  {#if selectMode && hasLoaded && bucketList.length > 0}
+    <div class="bulk-bar" role="group" aria-label={$t("settings.downloads.cookies.select") as string}>
+      <span class="bulk-info" role="status">{$t("settings.downloads.cookies.selected", { count: selectedCount })}</span>
       <div class="bulk-actions">
-        <button type="button" class="ghost-btn subtle" onclick={selectAllCookies}>
-          Select all
-        </button>
-        <button type="button" class="ghost-btn subtle" onclick={clearCookieSelection} disabled={selectedCount === 0}>
-          {$t("common.clear")}
-        </button>
-        <button type="button" class="danger-btn" onclick={askBulkClear} disabled={selectedCount === 0}>
-          delete
-        </button>
+        <button type="button" id="cookies-bulk-first" class="btn btn-secondary btn-sm" onclick={selectAllCookies}>{$t("settings.cookies.select_all")}</button>
+        <button type="button" class="btn btn-secondary btn-sm" onclick={clearCookieSelection} disabled={selectedCount === 0}>{$t("common.clear")}</button>
+        <button type="button" class="danger-btn" onclick={askBulkClear} disabled={selectedCount === 0}>{$t("settings.downloads.cookies.delete")}</button>
+        <button type="button" class="btn btn-secondary btn-sm" onclick={toggleSelectMode}>{$t("settings.downloads.cookies.done")}</button>
       </div>
     </div>
   {/if}
@@ -583,16 +534,7 @@
     {/if}
   {:else if bucketList.length === 0}
     {#if loadState.kind === "ready"}
-      <div class="empty-state">
-        <svg viewBox="0 0 24 24" width="42" height="42" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <circle cx="12" cy="12" r="10"/>
-          <circle cx="8" cy="10" r="1"/>
-          <circle cx="16" cy="10" r="1"/>
-          <circle cx="11" cy="14" r="1"/>
-        </svg>
-        <h3>{$t("settings.cookies.empty_title")}</h3>
-        <p>{$t("settings.cookies.empty_body")}</p>
-      </div>
+      <SettingsEmptyState title={$t("settings.cookies.empty_title")} hint={$t("settings.cookies.empty_body")} />
     {/if}
   {:else}
     <div class="buckets" aria-busy={loadState.kind === "loading"}>
@@ -608,21 +550,21 @@
           onAddAccount={openAddAccount}
           onTest={handleTest}
           selected={selectedCookies}
-          onToggleSelection={toggleCookieSelection}
+          onToggleSelection={selectMode ? toggleCookieSelection : undefined}
         />
         {#if bucket.domain === "bilibili.com"}
           {#if bucket.accounts.some((a) => !a.slug.startsWith("_") && a.cookie_count > 0)}
             <div class="bilibili-importers">
-              <button type="button" class="importer-btn" onclick={importBilibiliWatchLater}>
+              <button type="button" class="btn btn-secondary btn-sm" onclick={importBilibiliWatchLater}>
                 {$t("settings.cookies.bilibili.import_watch_later")}
               </button>
-              <button type="button" class="importer-btn" onclick={importBilibiliHistory}>
+              <button type="button" class="btn btn-secondary btn-sm" onclick={importBilibiliHistory}>
                 {$t("settings.cookies.bilibili.import_history")}
               </button>
             </div>
           {:else}
             <div class="bilibili-importers">
-              <button type="button" class="importer-btn" onclick={startBilibiliWebviewLogin} disabled={bilibiliWebviewLoading}>
+              <button type="button" class="btn btn-secondary btn-sm" onclick={startBilibiliWebviewLogin} disabled={bilibiliWebviewLoading} aria-busy={bilibiliWebviewLoading}>
                 {bilibiliWebviewLoading
                   ? $t("settings.cookies.bilibili.login_webview_loading")
                   : $t("settings.cookies.bilibili.login_webview_btn")}
@@ -634,34 +576,50 @@
     </div>
   {/if}
 
-  <div class="add-generic">
-    {#if !genericFormOpen}
-      <button type="button" class="add-toggle" onclick={() => genericFormOpen = true}>
-        + {$t("settings.cookies.add_generic_title")}
-      </button>
-      <p class="add-hint">{$t("settings.cookies.add_generic_hint")}</p>
-    {:else}
-      <div class="add-form">
-        <input
-          type="text"
-          aria-label={$t("settings.cookies.add_generic_placeholder") as string}
-          placeholder={$t("settings.cookies.add_generic_placeholder") as string}
-          bind:value={genericDomain}
-        />
-        <button
-          type="button"
-          class="ghost-btn"
-          onclick={() => { genericFormOpen = false; pasteOpen = true; }}
-          disabled={!genericDomain.trim()}
-        >
-          {$t("settings.cookies.add_generic_paste")}
-        </button>
-        <button type="button" class="ghost-btn subtle" onclick={() => { genericFormOpen = false; genericDomain = ""; }}>
-          {$t("settings.cookies.add_generic_cancel")}
-        </button>
-      </div>
-    {/if}
+  <div data-setting-key="settings.cookies.capture_via_extension">
+    <ManagerLink href={settingsHref("integrations", "extension")} titleKey="settings.cookies.capture_via_extension" hintKey="settings.cookies.hint_use_extension" />
   </div>
+
+  <MoreOptions id="cookies">
+    <SettingRow
+      id="cookies-managed-only"
+      label={$t("settings.downloads.cookies.managed_only")}
+      help={$t("settings.downloads.cookies.managed_only_desc")}
+      settingKey="settings.downloads.cookies.managed_only"
+      status="download.always_use_managed_cookies"
+    >
+      {#snippet control(c)}<Toggle id={c.id} describedBy={c.describedBy} on={managedOnly} onclick={toggleManagedOnly} />{/snippet}
+    </SettingRow>
+    <SettingRow
+      id="cookies-from-browser"
+      label={$t("settings.downloads.cookies.from_browser")}
+      help={$t("settings.downloads.cookies.from_browser_desc")}
+      settingKey="settings.downloads.cookies.from_browser"
+      status="advanced.cookies_from_browser"
+      disabledReason={managedOnly ? ($t("settings.downloads.cookies.from_browser_blocked") as string) : undefined}
+    >
+      {#snippet control(c)}
+        <KeyAnchor keys={["settings.advanced.cookies_from_browser"]} fill>
+          <input id={c.id} aria-describedby={c.describedBy} type="text" class="input-text" dir="ltr" spellcheck="false"
+            placeholder={$t("settings.downloads.cookies.from_browser_placeholder") as string}
+            value={settings?.advanced?.cookies_from_browser ?? ""} onchange={changeFromBrowser} />
+        </KeyAnchor>
+      {/snippet}
+    </SettingRow>
+    <SettingRow id="cookies-select" label={$t("settings.downloads.cookies.select")} help={$t("settings.downloads.cookies.select_desc")} settingKey="settings.downloads.cookies.select"
+      disabledReason={hasLoaded && bucketList.length === 0 ? ($t("settings.cookies.empty_title") as string) : undefined}>
+      {#snippet control(c)}
+        <button id={c.id} type="button" class="btn btn-secondary btn-sm" aria-describedby={c.describedBy} aria-pressed={selectMode} disabled={!hasLoaded || bucketList.length === 0} onclick={toggleSelectMode}>
+          {selectMode ? $t("settings.downloads.cookies.done") : $t("settings.downloads.cookies.select_action")}
+        </button>
+      {/snippet}
+    </SettingRow>
+    <SettingRow id="cookies-folder" label={$t("settings.downloads.cookies.folder")} help={cookiesDir || undefined} settingKey="settings.downloads.cookies.folder">
+      {#snippet control(c)}
+        <button id={c.id} type="button" class="btn btn-secondary btn-sm" aria-describedby={c.describedBy} onclick={openCookiesDir} disabled={!cookiesDir}>{$t("settings.cookies.open_folder")}</button>
+      {/snippet}
+    </SettingRow>
+  </MoreOptions>
 </SettingGroup>
 
 <CookieContentModal
@@ -691,103 +649,69 @@
   onSuccess={handleBilibiliQrSuccess}
 />
 
-{#if confirmClearOpen}
-  <div class="overlay" onclick={(e) => { if (e.target === e.currentTarget) confirmClearOpen = false; }} role="presentation">
-    <div class="confirm" role="dialog" aria-label={$t("settings.cookies.confirm_clear_title") as string}>
-      <h3>{$t("settings.cookies.confirm_clear_title")}</h3>
-      <p>{$t("settings.cookies.confirm_clear_body", { domain: confirmDomain })}</p>
-      <div class="confirm-actions">
-        <button type="button" class="ghost-btn" onclick={() => confirmClearOpen = false}>
-          {$t("settings.cookies.confirm_clear_cancel")}
-        </button>
-        <button type="button" class="danger-btn" onclick={confirmClear}>
-          {$t("settings.cookies.confirm_clear_action")}
-        </button>
-      </div>
+<DialogContainer bind:isOpen={confirmClearOpen} titleId="cookies-confirm-clear-title">
+  <div class="confirm">
+    <h3 id="cookies-confirm-clear-title">{$t("settings.cookies.confirm_clear_title")}</h3>
+    <p>{$t("settings.cookies.confirm_clear_body", { domain: confirmDomain })}</p>
+    <div class="confirm-actions">
+      <button type="button" class="ghost-btn" onclick={() => confirmClearOpen = false}>
+        {$t("settings.cookies.confirm_clear_cancel")}
+      </button>
+      <button type="button" class="danger-btn" onclick={confirmClear}>
+        {$t("settings.cookies.confirm_clear_action")}
+      </button>
     </div>
   </div>
-{/if}
+</DialogContainer>
 
-{#if confirmBulkClearOpen}
-  <div class="overlay" onclick={(e) => { if (e.target === e.currentTarget) confirmBulkClearOpen = false; }} role="presentation">
-    <div class="confirm" role="dialog" aria-label={$t("settings.cookies.confirm_clear_title") as string}>
-      <h3>{$t("settings.cookies.confirm_clear_title")}</h3>
-      <p>
-        Cookies for {selectedCount} account{selectedCount === 1 ? "" : "s"} go to the trash
-        (recoverable for 24h). Continue?
-      </p>
-      <div class="confirm-actions">
-        <button type="button" class="ghost-btn" onclick={() => confirmBulkClearOpen = false}>
-          {$t("settings.cookies.confirm_clear_cancel")}
-        </button>
-        <button type="button" class="danger-btn" onclick={confirmBulkClear}>
-          delete
-        </button>
-      </div>
+<DialogContainer bind:isOpen={confirmBulkClearOpen} titleId="cookies-confirm-bulk-title">
+  <div class="confirm">
+    <h3 id="cookies-confirm-bulk-title">{$t("settings.cookies.confirm_clear_title")}</h3>
+    <p>{$t("settings.downloads.cookies.delete_selected_body", { count: selectedCount })}</p>
+    <div class="confirm-actions">
+      <button type="button" class="ghost-btn" onclick={() => confirmBulkClearOpen = false}>
+        {$t("settings.cookies.confirm_clear_cancel")}
+      </button>
+      <button type="button" class="danger-btn" onclick={confirmBulkClear}>
+        {$t("settings.downloads.cookies.delete")}
+      </button>
     </div>
   </div>
-{/if}
+</DialogContainer>
 
 <style>
-  .head-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-block: 6px 0; }
-  .dir-hint {
-    margin: 6px 0 0;
-    font-size: 11px;
-    color: var(--tertiary);
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    flex-wrap: wrap;
-  }
-  .dir-hint code {
-    font-family: ui-monospace, "Cascadia Code", monospace;
-    background: color-mix(in oklab, var(--button) 50%, transparent);
-    padding: 2px 8px;
-    border-radius: 4px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    max-width: 100%;
-  }
   .bulk-bar {
     display: flex;
+    flex-wrap: wrap;
     justify-content: space-between;
     align-items: center;
-    gap: 12px;
-    padding: 10px 12px;
-    background: color-mix(in oklab, var(--button) 55%, transparent);
-    border: none;
-    border-radius: var(--border-radius);
+    gap: var(--space-2) var(--space-3);
+    margin-block-end: var(--space-2);
+    padding: var(--space-2) var(--space-3);
+    background: var(--primary);
+    border: 1px solid var(--content-border);
+    border-radius: var(--radius-md);
   }
-  .bulk-info {
-    color: var(--secondary);
-    font-size: 12px;
-  }
-  .bulk-actions {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    justify-content: flex-end;
-  }
+  .bulk-info { color: var(--text); font-size: var(--text-sm); }
+  .bulk-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); justify-content: flex-end; }
   .ghost-btn {
     display: inline-flex;
     align-items: center;
-    gap: 6px;
+    gap: var(--space-1);
     padding: 7px 14px;
     background: transparent;
     border: none;
-    border-radius: 999px;
+    border-radius: var(--radius-full);
     color: var(--secondary);
-    font-size: 13px;
+    font-size: var(--text-base);
     cursor: pointer;
-    transition: border-color 120ms, color 120ms;
   }
-  .ghost-btn:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
-  .ghost-btn:disabled { opacity: 0.4; cursor: not-allowed; }
-  .ghost-btn.subtle { color: var(--tertiary); }
-  .loading { display: flex; flex-direction: column; gap: 12px; }
+  .ghost-btn:hover:not(:disabled) { color: var(--accent); }
+  .ghost-btn:focus-visible, .danger-btn:focus-visible { outline: var(--focus-ring); outline-offset: var(--focus-ring-offset, 2px); }
+  .loading { display: flex; flex-direction: column; gap: var(--space-3); }
   .skel {
     height: 92px;
-    border-radius: 14px;
+    border-radius: var(--radius-lg);
     background: linear-gradient(
       90deg,
       color-mix(in oklab, var(--button) 35%, transparent) 0%,
@@ -801,100 +725,27 @@
     0% { background-position: 200% 0; }
     100% { background-position: -200% 0; }
   }
-  .empty-state {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    text-align: center;
-    gap: 8px;
-    padding: 40px 20px;
-    color: var(--tertiary);
-    background: color-mix(in oklab, var(--button) 15%, transparent);
-    border: none;
-    border-radius: 14px;
-  }
-  .empty-state svg { color: var(--tertiary); opacity: 0.6; }
-  .empty-state h3 { margin: 4px 0 0; font-size: 15px; color: var(--secondary); font-weight: 600; }
-  .empty-state p { margin: 0; font-size: 13px; max-width: 380px; line-height: 1.5; }
-  .buckets { display: flex; flex-direction: column; gap: 10px; }
-  .add-generic {
-    padding: 14px 18px;
-    border-radius: 14px;
-    border: none;
-    margin-top: 4px;
-  }
-  .add-toggle {
-    background: transparent;
-    border: 0;
-    color: var(--accent);
-    font: inherit;
-    font-size: 13px;
-    font-weight: 500;
-    cursor: pointer;
-    padding: 0;
-  }
-  .add-toggle:hover { filter: brightness(1.2); }
-  .add-hint { margin: 4px 0 0; font-size: 11px; color: var(--tertiary); }
-  .add-form { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-  .add-form input {
-    flex: 1;
-    min-width: 200px;
-    padding: 7px 12px;
-    background: color-mix(in oklab, var(--button) 50%, transparent);
-    border: none;
-    border-radius: 8px;
-    color: var(--secondary);
-    font: inherit;
-    font-size: 13px;
-    outline: none;
-  }
-  .add-form input:focus { border-color: var(--accent); }
-  .overlay {
-    position: fixed; inset: 0;
-    background: rgba(0, 0, 0, 0.6);
-    display: flex; align-items: center; justify-content: center;
-    z-index: 1000;
-    padding: 24px;
-  }
+  @media (prefers-reduced-motion: reduce) { .skel { animation: none; } }
+  :global([data-reduce-motion="true"]) .skel { animation: none; }
+  .buckets { display: flex; flex-direction: column; gap: 10px; margin-block-end: var(--space-2); }
   .confirm {
-    width: min(420px, 100%);
-    background: var(--surface, var(--bg));
-    border: none;
-    border-radius: 14px;
-    padding: 20px;
-    display: flex; flex-direction: column; gap: 12px;
+    padding: var(--space-5);
+    display: flex; flex-direction: column; gap: var(--space-3);
   }
-  .confirm h3 { margin: 0; font-size: 16px; color: var(--secondary); }
-  .confirm p { margin: 0; font-size: 13px; color: var(--secondary); line-height: 1.5; }
-  .confirm-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 6px; }
+  .confirm h3 { margin: 0; font-size: var(--text-md); color: var(--secondary); }
+  .confirm p { margin: 0; font-size: var(--text-base); color: var(--secondary); line-height: 1.5; }
+  .confirm-actions { display: flex; justify-content: flex-end; gap: var(--space-2); margin-top: 6px; }
   .danger-btn {
-    padding: 7px 16px;
+    padding: 5px 14px;
     background: var(--danger);
     color: var(--on-status);
     border: 0;
-    border-radius: 999px;
+    border-radius: var(--radius-full);
     font: inherit;
-    font-size: 13px;
+    font-size: var(--text-base);
     cursor: pointer;
   }
-  .danger-btn:hover { filter: brightness(1.1); }
-  .bilibili-importers {
-    display: flex;
-    gap: 8px;
-    flex-wrap: wrap;
-    margin: -8px 0 8px 56px;
-    padding-left: 18px;
-  }
-  .importer-btn {
-    padding: 6px 12px;
-    border-radius: 8px;
-    border: none;
-    background: color-mix(in oklab, var(--button) 25%, transparent);
-    color: var(--text);
-    font-size: 12px;
-    cursor: pointer;
-  }
-  .importer-btn:hover {
-    background: color-mix(in oklab, var(--text) 6%, transparent);
-  }
+  .danger-btn:hover:not(:disabled) { filter: brightness(1.1); }
+  .danger-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+  .bilibili-importers { display: flex; gap: var(--space-2); flex-wrap: wrap; margin: calc(-1 * var(--space-1)) 0 var(--space-2); padding-inline-start: var(--space-3); }
 </style>

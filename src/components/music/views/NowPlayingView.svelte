@@ -6,6 +6,7 @@
   import { analyze, go } from "$lib/music/ui-store.svelte";
   import Cover from "../Cover.svelte";
   import EmptyState from "../EmptyState.svelte";
+  import KaraokeBar from "../KaraokeBar.svelte";
   import LyricsPanel from "../LyricsPanel.svelte";
   import MusicIcon from "../MusicIcon.svelte";
   import Visualizer from "../Visualizer.svelte";
@@ -82,6 +83,7 @@
             <button class="btn btn-sm btn-ghost" onclick={() => cur && analyze([cur.id])}><MusicIcon name="activity" size={12} /> {$t("music.menu.analyze")}</button>
           {/if}
         </div>
+        <KaraokeBar />
       {/if}
     </div>
 

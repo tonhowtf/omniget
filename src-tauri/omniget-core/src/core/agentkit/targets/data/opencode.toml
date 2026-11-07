@@ -6,8 +6,6 @@ status = "active"
 beta = true
 homepage = "https://opencode.ai"
 notes = "Repo moved from sst/opencode to anomalyco/opencode. Hooks exist only as JS/TS plugins, and sessions are stored in SQLite."
-reads_agents_dir = true
-reads_agents_md = "yes"
 
 [detect]
 binaries = ["opencode"]
@@ -155,7 +153,6 @@ format = "sqlite"
 cmd = "opencode"
 headless = ["run"]
 json_flag = ["--format", "json"]
-resume_flag = "--session"
 model_flag = "--model"
 permission_flags = { plan = ["--agent", "plan"], bypass = ["--auto"] }
 

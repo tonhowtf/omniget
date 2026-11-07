@@ -1,20 +1,12 @@
 use omniget_core::core::term::input::{KeyInput, MouseInput, ScrollInput, SelectInput};
 use omniget_core::core::term::screen::ScreenSnapshot;
-use omniget_core::core::term::session::{SearchHit, TermInfo, TermOpen};
+use omniget_core::core::term::session::{SearchHit, TermInfo};
 use omniget_core::core::term::wire::{SlotInfo, Visible};
 use std::sync::Arc;
 use tauri::ipc::{Channel, InvokeResponseBody};
 use tauri::{AppHandle, Webview};
 
 use crate::canvas::term::{host, ChannelSink};
-
-#[tauri::command]
-pub async fn term_open(app: AppHandle, req: TermOpen) -> Result<TermInfo, String> {
-    let m = host(&app);
-    tauri::async_runtime::spawn_blocking(move || m.open(req))
-        .await
-        .map_err(|e| format!("PTY_OPEN: {e}"))?
-}
 
 #[tauri::command]
 pub fn term_close(app: AppHandle, id: String, delete_history: Option<bool>) -> Result<(), String> {

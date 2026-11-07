@@ -219,7 +219,7 @@
     stick = true;
     try {
       const e = await chatSend(workspaceId, node.id, chat.thread, body, sent.files, clientId);
-      chat.receive(e, true);
+      chat.receive(e);
     } catch (e) {
       chat.entries = chat.entries.filter((x) => x.id !== optimistic.id);
       text = sent.text;

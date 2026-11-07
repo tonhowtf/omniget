@@ -1,4 +1,3 @@
-use std::collections::BTreeMap;
 use std::sync::OnceLock;
 
 use once_cell::sync::Lazy;
@@ -268,11 +267,6 @@ impl Item {
                 .any(|p| !matches!(p.fact, Fact::CommandExists { .. }))
             && self.parts.iter().all(|p| p.fact.executable(self.os))
     }
-
-    pub fn code_only(&self) -> bool {
-        !self.executable()
-    }
-
     pub fn admin(&self) -> bool {
         self.parts.iter().any(|p| p.fact.admin())
     }
@@ -877,44 +871,4 @@ pub fn config_probes(os: Os, name: &str) -> Option<Fact> {
         on: on.into(),
         off: off.into(),
     })
-}
-
-pub fn coverage(c: &Catalog) -> BTreeMap<&'static str, usize> {
-    let mut m = BTreeMap::new();
-    m.insert("items", c.items.len());
-    m.insert("left_out", c.left_out);
-    m.insert(
-        "executable",
-        c.items.iter().filter(|i| i.executable()).count(),
-    );
-    m.insert(
-        "code_only",
-        c.items.iter().filter(|i| i.code_only()).count(),
-    );
-    m.insert(
-        "state_readable",
-        c.items.iter().filter(|i| super::state::readable(i)).count(),
-    );
-    m.insert("extreme", c.items.iter().filter(|i| i.extreme()).count());
-    m.insert("cleanup", c.items.iter().filter(|i| i.cleanup).count());
-    m
-}
-
-pub fn blockers(c: &Catalog) -> BTreeMap<String, usize> {
-    let mut m = BTreeMap::new();
-    for it in c
-        .items
-        .iter()
-        .filter(|i| !i.cleanup && !super::state::readable(i))
-    {
-        for p in &it.parts {
-            let key = match &p.fact {
-                Fact::Opaque { what } => what.clone(),
-                Fact::TccReset { .. } => "TccReset".into(),
-                _ => continue,
-            };
-            *m.entry(key).or_default() += 1;
-        }
-    }
-    m
 }

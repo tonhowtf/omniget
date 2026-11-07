@@ -8,12 +8,12 @@ use tauri::{AppHandle, Manager};
 
 pub fn catalog(p: &Principal) -> Vec<Value> {
     tools(p).into_iter().map(|tool| {
-        let writes = matches!(policy::scope(tool.name), Some("enqueue" | "control" | "company_control" | "orchestration_control" | "orchestration_create" | "app_control" | "app_capture" | "system_change" | "telegram_write" | "approvals_respond" | "agents_run"))
+        let writes = matches!(policy::scope(tool.name), Some("enqueue" | "control" | "company_control" | "orchestration_control" | "orchestration_create" | "app_control" | "app_capture" | "system_change" | "telegram_write" | "social_write" | "approvals_respond" | "agents_run"))
             || matches!(tool.name, "auth_connection_request" | "diagnostic_bundle_create" | "catalog_install" | "memory_retain")
             || super::global_dl::writes(tool.name);
-        let open_world = matches!(tool.name, "download_enqueue" | "downloads_batch_enqueue" | "download_retry" | "download_resume" | "media_inspect" | "media_collection_list") || super::global_dl::open_world(tool.name);
+        let open_world = matches!(tool.name, "download_enqueue" | "downloads_batch_enqueue" | "download_retry" | "download_resume" | "media_inspect" | "media_collection_list") || super::global_dl::open_world(tool.name) || crate::commands::social::tools::owns(tool.name);
         let mut value = serde_json::to_value(&tool).expect("static tool schema serializes");
-        let destructive = writes && (matches!(tool.name, "download_cancel" | "download_pause" | "missions_cancel" | "missions_pause" | "wmb_execute" | "job_cancel" | "tg_delete_messages") || super::canvas::is_destructive(tool.name));
+        let destructive = writes && (matches!(tool.name, "download_cancel" | "download_pause" | "missions_cancel" | "missions_pause" | "wmb_execute" | "job_cancel" | "tg_delete_messages" | "x_delete_post") || super::canvas::is_destructive(tool.name));
         let idempotent = !matches!(tool.name,"omniget_app_capture"|"omniget_app_export"|"gd_download") && !(writes && super::canvas::owns(tool.name));
         value["annotations"] = json!({"readOnlyHint":!writes,"destructiveHint":destructive,"idempotentHint":idempotent,"openWorldHint":open_world});
         value
@@ -42,6 +42,22 @@ pub fn tools(p: &Principal) -> Vec<ToolDef> {
         ("download_history","History belonging to this client.",json!({"limit":{"type":"integer","minimum":1,"maximum":100}}),json!([])),
     ]{
         if policy::allowed(p,name){list.push(ToolDef{name,description,input_schema:json!({"type":"object","properties":props,"required":required,"additionalProperties":false})});}
+    }
+    if policy::allowed(p, "social_status") {
+        list.push(ToolDef {
+            name: "social_status",
+            description: crate::commands::social::tools::STATUS_DESCRIPTION,
+            input_schema: json!({"type":"object","properties":{},"required":[],"additionalProperties":false}),
+        });
+    }
+    for spec in crate::commands::social::tools::SPECS {
+        if policy::allowed(p, spec.name) {
+            list.push(ToolDef {
+                name: spec.name,
+                description: spec.description,
+                input_schema: crate::commands::social::tools::input_schema(spec),
+            });
+        }
     }
     for (name, description, props, required) in crate::commands::read::mcp::defs() {
         if policy::allowed(p, name) {
@@ -240,6 +256,12 @@ pub async fn call(app: &AppHandle, p: &Principal, name: &str, a: Value) -> Resul
             return Err("TOOL_NOT_AUTHORIZED".into());
         }
         return super::telegram::call(p, name, a).await;
+    }
+    if crate::commands::social::tools::owns(name) {
+        if !policy::allowed(p, name) {
+            return Err("TOOL_NOT_AUTHORIZED".into());
+        }
+        return super::social::call(app, p, name, a).await;
     }
     if name.starts_with("gd_") {
         if !policy::allowed(p, name) {

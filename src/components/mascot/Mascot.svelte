@@ -8,13 +8,9 @@
 
   let {
     emotion = "idle",
-    compact = false,
-    stage = false,
     bubbleText,
   }: {
     emotion?: MascotEmotion;
-    compact?: boolean;
-    stage?: boolean;
     bubbleText?: string;
   } = $props();
 
@@ -58,7 +54,7 @@
   }
 </script>
 
-<div class="mascot" class:compact class:stage>
+<div class="mascot">
   {#if !errored}
     <img
       src={currentSrc}
@@ -105,14 +101,6 @@
     transition: height 0.2s ease;
   }
 
-  .mascot.compact {
-    height: 72px;
-  }
-
-  .mascot.stage {
-    height: 128px;
-  }
-
   .mascot-img {
     height: 100px;
     width: auto;
@@ -125,14 +113,6 @@
       height var(--duration-base) var(--ease-out);
     pointer-events: none;
     user-select: none;
-  }
-
-  .mascot.compact .mascot-img {
-    height: 72px;
-  }
-
-  .mascot.stage .mascot-img {
-    height: 128px;
   }
 
   .mascot-img.visible {

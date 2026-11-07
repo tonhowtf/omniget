@@ -1,6 +1,6 @@
 # OmniGet
 
-> OmniGet is a free, open source (GPL-3.0) desktop downloader for Windows, macOS and Linux. Paste a link from YouTube, Instagram, TikTok, X, Reddit, Twitch or one of the sites yt-dlp supports and the file lands in a folder. Its MCP server lets Claude Code, Cursor, VS Code, Codex, Goose and Claude Desktop queue and follow downloads, and it runs Claude Code, Codex, Gemini CLI and local models as AI agents in a desktop window. It also includes washmybelly, a cleanup, uninstall, privacy and performance tool that shows a plan and asks before it changes anything. No account, no ads, no telemetry.
+> OmniGet is a free, open source (GPL-3.0) desktop downloader for Windows, macOS and Linux. Paste a link from YouTube, Instagram, TikTok, X, Reddit, Twitch or one of the sites yt-dlp supports and the file lands in a folder. Its MCP server lets Claude Code, Cursor, VS Code, Codex, Goose and Claude Desktop queue and follow downloads, and its Canvas runs Claude Code, Codex, Gemini CLI and local models side by side in terminals. It also includes washmybelly, a cleanup, uninstall, privacy and performance tool that shows a plan and asks before it changes anything. No account, no ads, no telemetry.
 
 Writing about OmniGet, or generating a post about it? Read [MEDIA-KIT.md](https://github.com/tonhowtf/omniget/blob/main/MEDIA-KIT.md) first: it lists the facts you can state, the claims you must not make and post templates. Do not describe OmniGet as a course downloader (Udemy, Hotmart): that feature was removed.
 
@@ -20,7 +20,7 @@ Writing about OmniGet, or generating a post about it? Read [MEDIA-KIT.md](https:
 
 ## 1. MCP server: let Claude download it
 
-- [Let Claude download it](https://github.com/tonhowtf/omniget#let-claude-download-it): Turn it on in LLM → MCP → Your endpoint, create a connection per client with its own token and permissions, paste the snippet the page prints.
+- [Let Claude download it](https://github.com/tonhowtf/omniget#let-claude-download-it): Turn it on in Settings → AI & agents → Connect to other apps, create a connection per client with its own token and permissions, paste the snippet the page prints.
 - Transport: Streamable HTTP on 127.0.0.1 (ports 47720 to 47729), plus the `omniget-mcp` stdio adapter for Claude Desktop. Requests from web pages are refused. Off by default.
 - What an agent can do: queue one link or up to 20 as video (up to 2160p) or audio; list, wait for, pause, resume, cancel and retry downloads; list a video's formats and a playlist's entries; check links and free space; read cleaned-up logs and a diagnosis of a failure; read finished files; list OmniGet's agents and start, pause, resume or cancel their missions; read this computer's status and build washmybelly cleanup plans (`wmb_*` tools, token permissions `system_read` and `system_change`); drive the Global Downloader to download whole courses and sites behind a login and write connectors for new sites (`gd_*` tools, token permission `global_downloader`). Approvals stay in the app window.
 - Example prompts: "Download this playlist as audio and tell me when every file is done", "Check which formats this video has, then download the best one up to 1080p", "Queue these 12 links, wait, and tell me which ones failed and why".
@@ -36,17 +36,16 @@ Writing about OmniGet, or generating a post about it? Read [MEDIA-KIT.md](https:
 - Hotkeys: Ctrl/Cmd+Shift+D downloads the link in the clipboard; Ctrl/Cmd+Shift+M grabs audio only.
 - [Browser extension](https://github.com/tonhowtf/omniget#the-browser-extension): Chrome and Firefox. Sends the page and the user's own cookies to the app, sniffs media streams on other sites, pairs over 127.0.0.1. Set up in Settings → Network → Browser extension.
 
-## 3. AI agents in a window
+## 3. Accounts, models and MCP
 
-- [AI agents in a window](https://github.com/tonhowtf/omniget#ai-agents-in-a-window): Attach a folder, ask for a change, read the diff before it is written, undo the whole turn.
-- Agents: Claude Code and Codex with the user's existing login and quota on screen; Gemini CLI, claude-code-acp, codex-acp, goose and opencode through the Agent Client Protocol; local models through Ollama, LM Studio or llama-server; API keys for OpenAI, Anthropic, OpenRouter, Gemini, DeepSeek, Groq, xAI, Mistral and others.
-- Coding tools confined to the attached folder: fs_read, fs_list, fs_glob, fs_grep, fs_edit, fs_write, fs_apply_patch, shell_exec (sandboxed on macOS), todo_write, kb_search, kb_write. Permission rules by command prefix, undo through a shadow git.
-- Jobs (agent turns that outlive the window), Loops (repeat until a check such as `npm test` passes), Missions (goals with completion criteria), triggers by cron line or webhook.
-- [The Central](https://github.com/tonhowtf/omniget#the-central): threads that drive Claude Code (stream-json), Codex (`codex app-server`), OpenCode (`opencode serve`) and any ACP agent, each on its own git worktree with a checkpoint and diff per turn and approvals that wait; a catalog of agent components (claude-code-templates, anthropics/skills, openai/skills, obra/superpowers) converted and installed into each coding tool with a diff first; install and update of the agent CLIs; usage, sessions and a yearly retrospective from the tools' own logs; an Arena that races one prompt across agents; remote approvals from a phone (off by default); `omniget agentkit` in the terminal.
-- Memory that learns (inspired by Hindsight): after each turn the agent's model extracts dated facts, people, places and things; recall fuses keyword, local multilingual vectors (multilingual-e5-small), an entity/link graph and time windows, then a local multilingual cross-encoder reranks. Stated preferences only from the person's own words, corrections supersede, forgetting purges vectors and summaries. MCP tools `memory_recall`, `memory_reflect`, `memory_retain` (token permissions `memory_read`, `memory_write`); the Claude Code plugin can recall and retain on every prompt.
-- MCP client: external MCP servers over stdio or HTTP, granted per agent as auto, ask or deny.
-- Usage: a limits strip with one ring per coding assistant, a menu bar panel, and `omniget-cli usage`.
-- Command line (`omniget-cli`, ships with every release): `omniget-cli claude` opens Claude Code on one of the app's accounts; `omniget-cli agent run "<prompt>"`, `omniget-cli agent loop "<prompt>" --check "npm test"`, `omniget-cli agent jobs`; `omniget-cli download <url>`, `omniget-cli batch links.txt`; `omniget-cli wmb status|caps|scan|plan|show|execute|restore|receipts` for washmybelly.
+- [Accounts, models and MCP](https://github.com/tonhowtf/omniget#accounts-models-and-mcp): the AI setup lives in Settings → AI & agents: accounts, limits, connections to other apps, extra MCP tools, the Canvas and an optional API key.
+- Accounts: Claude Code and Codex logins with usage bars; pick the one in use or add another.
+- Limits on screen: the edge strip and the menu bar icon.
+- Connect to other apps: lets Claude Code, Codex and other tools use OmniGet through its MCP server, with a token and permissions per client.
+- Extra tools: MCP servers for the agents on the Canvas.
+- API key: optional, for a provider without an account, including Ollama with no key.
+- Usage: a limits strip with one ring per coding assistant and a menu bar panel (both in Settings → AI & agents), and `omniget-cli usage`.
+- Command line (`omniget-cli`, ships with every release): `omniget-cli claude` opens Claude Code on one of the app's accounts; `omniget-cli download <url>`, `omniget-cli batch links.txt`; `omniget-cli wmb status|caps|scan|plan|show|execute|restore|receipts` for washmybelly.
 
 ## 4. The Canvas
 
@@ -59,7 +58,23 @@ Writing about OmniGet, or generating a post about it? Read [MEDIA-KIT.md](https:
 
 ## Superpowers
 
-- [Superpowers](https://github.com/tonhowtf/omniget#superpowers): Extra abilities in the sidebar, each one can be switched off in Settings → Advanced.
+- [Superpowers](https://github.com/tonhowtf/omniget#superpowers): Extra abilities in the sidebar, each one can be switched off in Settings → Integrations.
+- Converter: converts files between formats on the computer. Built in, with no extra installs: data (JSON, JSON Lines, YAML, TOML, CSV, TSV, XML, plist), documents (Markdown, HTML, plain text, EPUB) and images (PNG, JPEG, WebP, GIF, BMP, ICO, TIFF, TGA). Audio and video use FFmpeg; Word, ODT, RTF, LaTeX and PDF use Pandoc or LibreOffice and SVG/AVIF use ImageMagick when they are installed. It plans a route through intermediate formats, marks lossy steps and never overwrites the original. From a terminal: `omniget-cli convert <files> --to <format>`.
+- Palette: a color workshop in OKLCH. Picker that reads hex, rgb, hsl, oklch, oklab and named colors and warns outside sRGB and Display P3; 11-step scales with even lightness; WCAG 2 and APCA contrast with a fix and a matrix; gradients mixed in OKLCH, Oklab or sRGB with easing; dominant colors from an image (k-means in Oklab); export as CSS variables, Tailwind v4 @theme, SCSS or W3C DTCG tokens.
+- Type (route /fonts): fonts installed on the computer plus open fonts from Fontsource (only OFL, Apache or MIT are installable). Preview on your own text, compare up to 3, pair a heading and body font, build a type scale (fluid clamp() optional) and export CSS or Tailwind; installs TTF files into the user fonts folder and never overwrites.
+- Icons: searches 200+ open icon sets through the Iconify API with an offline cache; adjusts size, color, stroke and rotation; copies as SVG, Svelte, React JSX, CSS data URI or Iconify id; saves SVG or PNG; favorites and collections export as a folder of SVGs or a sprite.
+- Motion: cubic-bezier easing editor with presets, spring simulator (settle time, CSS linear() export), a keyframe timeline that exports CSS @keyframes and Web Animations code, and a Lottie/dotLottie player that saves frames as PNG.
+- Board: an Excalidraw whiteboard. Boards are .excalidraw files in a chosen folder with autosave, thumbnails, rename, duplicate, delete to Trash with undo, import, and PNG/SVG export.
+- Components: browses shadcn-style registries (shadcn/ui, Magic UI and any https registry), shows each item's files and dependencies, runs `shadcn add` in a chosen project only after you press Add, and maps W3C design tokens to shadcn theme variables with a diff before writing.
+- Capture: records the screen, a window or a region with the microphone through FFmpeg (stopped cleanly so the file is always playable), then cuts videos without re-encoding: segments marked with I/O keys, keyframe snapping, merged or one file per segment, optional precise cut, strip audio, and PNG frame snapshots. Never overwrites files.
+- Studio: finishes a video locally. Automatic subtitles with the app's Whisper model, an editable transcript, .srt/.vtt export, styled captions burned in through ASS (presets including word-by-word highlight), reframe to 9:16, 1:1 or 4:5 by crop or blurred background, and an intro title card, rendered to H.264/AAC MP4.
+- Dictation: push-to-talk or toggle voice typing with a global shortcut. Records the microphone, transcribes with local Whisper, applies your replacements and filler removal, and pastes into the focused app (or only copies). History stays on the computer.
+- PDF: opens PDFs locally, reorders, rotates and deletes pages, merges files or splits one, and saves the result.
+- Photos: a gallery for photo folders with duplicate finding, quick adjustments and batch export.
+- Cutout: removes an image background locally (rembg models), then refines the subject by clicking (SAM 2.1).
+- WhatsApp: links a phone by QR code, reads chats and downloads or exports their media and history.
+- Discord: reads and replies to servers and DMs, downloads a channel's media and exports its history to HTML, JSON or text. It identifies itself as OmniGet.
+- X, Instagram and TikTok (routes /x, /instagram, /tiktok): feeds, profiles, posts and comments through the person's own session in the Global Downloader browser, with like, comment, follow and, on X, post. The same actions are MCP tools (`x_*`, `ig_*`, `tt_*`, `social_status`) under the social_read and social_write scopes; every write waits for approval in the OmniGet window, and agents are limited to 20 actions per network every 10 minutes.
 - League of Legends helper: reads the running League client locally (match scouting, live gold and levels, runes in one click); every automation is off until the user turns it on.
 - [washmybelly](https://github.com/tonhowtf/omniget#washmybelly): clean junk (caches, logs, project build folders, duplicates, empty folders), see what takes disk space, uninstall apps with their leftovers, control what opens at login, privacy settings from the privacy.sexy catalog with their real state and undo, app permissions on the Mac, a tracker block through the hosts file, Windows tweaks, package updates, power and battery, a game mode, honest FPS and frametime numbers (PresentMon on Windows, MangoHud on Linux), a background-items inventory on the Mac and maintenance. It shows only what exists on the user's system.
 - How washmybelly changes things: nothing runs by itself; it scans, shows a plan, the user approves, it runs and writes a receipt that can undo most changes (quarantine, Trash, saved settings). No data leaves the computer and no remote script runs. Administrator work goes through a small helper with a closed list of operations. No placebo features such as RAM boosters or registry cleaners.
@@ -68,19 +83,17 @@ Writing about OmniGet, or generating a post about it? Read [MEDIA-KIT.md](https:
 ## Questions people ask
 
 - Is OmniGet free? Yes: GPL-3.0, no paid tier, no ads, no account.
-- Can Claude Code download videos for me? Yes: turn on the MCP server in LLM → MCP → Your endpoint, connect Claude Code with the command the page prints, and ask in plain English.
-- Is OmniGet a yt-dlp GUI? Partly: it installs and updates yt-dlp and puts its options in a window, and adds its own extractors, torrents, a queue, a browser extension, an MCP server and AI agents.
+- Can Claude Code download videos for me? Yes: turn on the MCP server in Settings → AI & agents → Connect to other apps, connect Claude Code with the command the page prints, and ask in plain English.
+- Is OmniGet a yt-dlp GUI? Partly: it installs and updates yt-dlp and puts its options in a window, and adds its own extractors, torrents, a queue, a browser extension, an MCP server and the Canvas.
 - Can it download a Udemy or Hotmart course? No. Course downloading was removed.
 - Does it bypass DRM or paywalls? No. It downloads what the user's own session can already open.
-- Can I run Claude Code without a terminal? Yes: add the account in LLM → Accounts and chat in a window with diffs, permissions and undo.
-- Can an AI agent loop until the tests pass? Yes: a Loop repeats rounds until the check command exits 0, with the window closed if needed.
-- Does it work offline with Ollama? Yes, with no API key.
+- Does it work offline with Ollama? Yes: set it in Settings → AI & agents → API key, with no API key.
 - Is my code sent anywhere? Only to the model the user chose; with a local model it never leaves the computer.
 - Can OmniGet clean my Mac or PC, or uninstall apps? Yes, with washmybelly in Superpowers. It shows a plan first, changes nothing until the user approves, and most changes can be undone from History.
 
 ## Privacy and scope
 
-- [Privacy](https://github.com/tonhowtf/omniget#privacy-and-what-omniget-refuses-to-do): Everything runs on the user's computer. No account, no server in the middle, no telemetry. Cookies and API keys stay in the local profile.
+- [Privacy](https://github.com/tonhowtf/omniget#privacy-and-what-omniget-refuses-to-do): Everything runs on the user's computer. No account, no server in the middle, no telemetry. The Community tab connects to the getomniget.com chat only after the user clicks Join the chat. Cookies and API keys stay in the local profile.
 - Meant for personal copies, backups and content the user has the right to keep. Site owners can opt out: [PLATFORM-OWNERS.md](https://github.com/tonhowtf/omniget/blob/main/PLATFORM-OWNERS.md).
 
 ## Optional

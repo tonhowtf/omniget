@@ -1,8 +1,7 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use omniget_core::core::canvas::model::AgentKind;
-use omniget_core::core::canvas::roles::{self, Role, RoleInfo, RoleInput, RoleLaunch, Scope};
+use omniget_core::core::canvas::roles::{self, Role, RoleInfo, RoleInput, Scope};
 use omniget_core::core::canvas::store::{CanvasStore, ORIGIN_USER};
 use tauri::AppHandle;
 
@@ -36,7 +35,6 @@ pub async fn canvas_roles_list(
     blocking(move || Ok(roles::list(&s, &workspace_id))).await
 }
 
-#[tauri::command]
 pub async fn canvas_roles_get(
     app: AppHandle,
     workspace_id: String,
@@ -119,27 +117,6 @@ pub async fn canvas_roles_assign(
     let _ = store(&app);
     blocking(move || {
         crate::canvas::roles::assign(&workspace_id, &node_id, role_id.as_deref(), ORIGIN_USER)
-    })
-    .await
-}
-
-#[tauri::command]
-pub async fn canvas_roles_launch(
-    app: AppHandle,
-    workspace_id: String,
-    role_id: String,
-    agent: String,
-    cwd: Option<String>,
-) -> Result<RoleLaunch, String> {
-    let s = store(&app);
-    blocking(move || {
-        roles::launch_plan(
-            &s,
-            &workspace_id,
-            &role_id,
-            &AgentKind::parse(&agent),
-            cwd.as_deref(),
-        )
     })
     .await
 }

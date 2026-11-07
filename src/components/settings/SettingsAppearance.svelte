@@ -1,57 +1,57 @@
 <script lang="ts">
   import { t } from "$lib/i18n";
-  import { PRESETS as WORKSPACE_PRESETS } from "$lib/stores/workspace-design.svelte";
+  import { getAppearancePresentation } from "$lib/stores/settings-store.svelte";
   import SettingGroup from "./rebrand/SettingGroup.svelte";
   import SettingRow from "./rebrand/SettingRow.svelte";
-  import WorkspaceAppearance from "./WorkspaceAppearance.svelte";
+  import SettingStatus from "./rebrand/SettingStatus.svelte";
+  import GeneralChoice from "./rebrand/GeneralChoice.svelte";
+  import ThemeSwatches from "./appearance/ThemeSwatches.svelte";
+  import FontRow from "./appearance/FontRow.svelte";
+  import { densityFor, densityPatch, type Density } from "./appearance/density";
   import { getSettings, saveSettings as updateSettings, MORE_THEMES } from "./settings-helpers";
 
   const OMNIGET_PRESET = "omniget-desktop";
-  const MODES = [
-    { id: "system", labelKey: "settings.rebrand.appearance.system" },
-    { id: "light", labelKey: "settings.rebrand.appearance.light" },
-    { id: "dark", labelKey: "settings.rebrand.appearance.dark" },
-  ] as const;
+  const UI_SYSTEM_FONTS = ["system-ui", "System", "", "sans-serif", "ui-sans-serif"] as const;
+  const MONO_SYSTEM_FONTS = ["ui-monospace", "System", "system-ui", "", "monospace"] as const;
+
+  const isSystemFont = (value: string) => (UI_SYSTEM_FONTS as readonly string[]).includes(value.trim());
 
   let settings = $derived(getSettings());
+  let presentation = $derived(getAppearancePresentation());
   let mode = $derived(settings?.appearance?.mode ?? "system");
   let preset = $derived(settings?.appearance?.preset ?? OMNIGET_PRESET);
-  let knownPreset = $derived(
-    preset === OMNIGET_PRESET || WORKSPACE_PRESETS.some((p) => p.id === preset) || MORE_THEMES.some((p) => p.id === preset),
-  );
-  let isWorkspacePreset = $derived(WORKSPACE_PRESETS.some((p) => p.id === preset));
-  let systemDark = $state(false);
-  $effect(() => {
-    const media = window.matchMedia("(prefers-color-scheme: dark)");
-    const sync = () => { systemDark = media.matches; };
-    sync();
-    media.addEventListener("change", sync);
-    return () => media.removeEventListener("change", sync);
-  });
-  let resolvedMode = $derived<"light" | "dark">(mode === "system" ? (systemDark ? "dark" : "light") : mode);
+  let fixedTheme = $derived(presentation.namedTheme === null ? null : (MORE_THEMES.find((p) => p.id === presentation.namedTheme)?.label ?? presentation.namedTheme));
+  let omnigetArt = $derived(presentation.namedTheme === null && preset === OMNIGET_PRESET ? OMNIGET_PRESET : undefined);
+  let density = $derived(densityFor(settings?.typography));
+  let fontBody = $derived(settings?.typography?.font_body ?? "system-ui");
+  let fontDisplay = $derived(settings?.typography?.font_display ?? fontBody);
+  let uiFont = $derived(isSystemFont(fontBody) && !isSystemFont(fontDisplay) ? fontDisplay : fontBody);
+  let fontMono = $derived(settings?.typography?.font_mono ?? "ui-monospace");
 
-  function setMode(next: string) {
-    if (next !== mode) void updateSettings({ appearance: { mode: next } });
+  function resync(name: string, current: string) {
+    for (const input of document.querySelectorAll<HTMLInputElement>(`input[name="${name}"]`)) input.checked = input.value === current;
   }
 
-  function setPreset(e: Event) {
-    const select = e.target as HTMLSelectElement;
-    const next = select.value;
-    void updateSettings({ appearance: { preset: next } }).then((saved) => {
-      if (!saved) select.value = getSettings()?.appearance?.preset ?? OMNIGET_PRESET;
-    });
+  async function setMode(next: string) {
+    if (next === mode) return;
+    if ((await updateSettings({ appearance: { mode: next } })) === null) resync("settings-appearance-mode", mode);
   }
 
-  function onModeKey(e: KeyboardEvent) {
-    const keys = ["ArrowRight", "ArrowDown", "ArrowLeft", "ArrowUp"];
-    if (!keys.includes(e.key)) return;
-    e.preventDefault();
-    const rtl = (e.currentTarget as HTMLElement).closest("[dir=rtl]") !== null;
-    const forward = e.key === "ArrowDown" || (e.key === "ArrowRight") !== rtl;
-    const index = MODES.findIndex((m) => m.id === mode);
-    const next = MODES[(index + (forward ? 1 : MODES.length - 1)) % MODES.length];
-    setMode(next.id);
-    queueMicrotask(() => document.getElementById(`settings-appearance-mode-${next.id}`)?.focus());
+  async function setPreset(next: string): Promise<boolean> {
+    return (await updateSettings({ appearance: { preset: next } })) !== null;
+  }
+
+  async function setDensity(next: string) {
+    if (next === density) return;
+    if ((await updateSettings(densityPatch(next as Density))) === null) resync("settings-appearance-density", density ?? "");
+  }
+
+  async function saveUiFont(value: string): Promise<boolean> {
+    return (await updateSettings({ typography: { font_display: value, font_body: value } })) !== null;
+  }
+
+  async function saveMonoFont(value: string): Promise<boolean> {
+    return (await updateSettings({ typography: { font_mono: value } })) !== null;
   }
 </script>
 
@@ -59,47 +59,95 @@
   <button {id} type="button" class="toggle" class:on role="switch" aria-checked={on} aria-labelledby={`${id}-label`} aria-describedby={describedBy} {onclick}><span class="toggle-knob"></span></button>
 {/snippet}
 
-{#if settings}
-  <SettingGroup id="theme" title={$t("settings.appearance.theme")}>
-    <div class="setting-mode-row" data-setting-key="settings.appearance.theme">
-      <span class="mode-label" id="settings-appearance-mode-label">{$t("settings.appearance.theme")}</span>
-      <div class="segmented" role="radiogroup" aria-labelledby="settings-appearance-mode-label" tabindex="-1" onkeydown={onModeKey}>
-        {#each MODES as item (item.id)}
-          <button
-            type="button"
-            role="radio"
-            id={`settings-appearance-mode-${item.id}`}
-            data-setting-key={`design.${item.id}`}
-            aria-checked={mode === item.id}
-            tabindex={mode === item.id ? 0 : -1}
-            onclick={() => setMode(item.id)}
-          >{$t(item.labelKey)}</button>
-        {/each}
-      </div>
-    </div>
+{#snippet screen(theme: "light" | "dark", d: string)}
+  <g data-theme={theme} data-preset={omnigetArt}>
+    <path class="scr" {d} />
+  </g>
+{/snippet}
 
-    <SettingRow id="settings-appearance-style" label={$t("design.title")} settingKey="settings.appearance.more_themes" status="appearance.preset">
-      {#snippet control({ id, describedBy })}
-        <select {id} class="select" aria-describedby={describedBy} value={preset} onchange={setPreset}>
-          <option value={OMNIGET_PRESET}>OmniGet</option>
-          {#if !knownPreset}<option value={preset}>{preset}</option>{/if}
-          <optgroup label={$t("settings.appearance.more_themes")}>
-            {#each WORKSPACE_PRESETS as item (item.id)}
-              <option value={item.id}>{item.name}</option>
-            {/each}
-            {#each MORE_THEMES as item (item.id)}
-              <option value={item.id}>{item.label}</option>
-            {/each}
-          </optgroup>
-        </select>
-      {/snippet}
-    </SettingRow>
-    {#if isWorkspacePreset}
-      <WorkspaceAppearance {preset} mode={resolvedMode} />
-    {/if}
+{#snippet screenLines(theme: "light" | "dark", x: number, width: number)}
+  <g data-theme={theme} data-preset={omnigetArt}>
+    <path class="txt" d={`M${x} 18h${width}M${x} 25h${Math.round(width * 0.6)}`} />
+    <rect class="pill" x={x} y="31" width={Math.round(width * 0.5)} height="5" rx="2.5" />
+  </g>
+{/snippet}
+
+{#snippet drawSystem()}
+  {@render screen("light", "M40 8H15a3 3 0 0 0-3 3v28a3 3 0 0 0 3 3h25z")}
+  {@render screen("dark", "M40 8h25a3 3 0 0 1 3 3v28a3 3 0 0 1-3 3H40z")}
+  {@render screenLines("light", 17, 18)}
+  {@render screenLines("dark", 45, 18)}
+  <rect class="frame" x="12" y="8" width="56" height="34" rx="3" />
+{/snippet}
+
+{#snippet drawLight()}
+  {@render screen("light", "M15 8h50a3 3 0 0 1 3 3v28a3 3 0 0 1-3 3H15a3 3 0 0 1-3-3V11a3 3 0 0 1 3-3z")}
+  {@render screenLines("light", 18, 36)}
+  <rect class="frame" x="12" y="8" width="56" height="34" rx="3" />
+{/snippet}
+
+{#snippet drawDark()}
+  {@render screen("dark", "M15 8h50a3 3 0 0 1 3 3v28a3 3 0 0 1-3 3H15a3 3 0 0 1-3-3V11a3 3 0 0 1 3-3z")}
+  {@render screenLines("dark", 18, 36)}
+  <rect class="frame" x="12" y="8" width="56" height="34" rx="3" />
+{/snippet}
+
+{#snippet rows(gap: number, count: number, weight: number)}
+  {#each Array.from({ length: count }, (_, i) => i) as i (i)}
+    <path class="row" style:stroke-width={weight} d={`M14 ${11 + i * gap}h${i % 2 ? 36 : 52}`} />
+  {/each}
+{/snippet}
+
+{#snippet drawCompact()}{@render rows(6, 6, 2)}{/snippet}
+{#snippet drawDefault()}{@render rows(8.5, 4, 2.5)}{/snippet}
+{#snippet drawComfortable()}{@render rows(12, 3, 3)}{/snippet}
+
+{#if settings}
+  <SettingGroup id="theme" icon="appearance" title={$t("settings.appearance.theme")} description={$t("settings.appearance.mode.desc")}>
+    <div data-setting-key="settings.appearance.theme">
+      <GeneralChoice
+        name="settings-appearance-mode"
+        label={$t("settings.appearance.theme") as string}
+        value={mode}
+        options={[
+          { value: "system", draw: drawSystem, label: $t("settings.appearance.mode.system") as string, help: $t("settings.appearance.mode.system_desc") as string },
+          { value: "light", draw: drawLight, label: $t("settings.appearance.mode.light") as string, help: $t("settings.appearance.mode.light_desc") as string },
+          { value: "dark", draw: drawDark, label: $t("settings.appearance.mode.dark") as string, help: $t("settings.appearance.mode.dark_desc") as string },
+        ]}
+        onchange={setMode}
+      />
+      {#if fixedTheme}
+        <p class="note" role="status"><bdi>{$t("settings.appearance.mode.fixed_by_theme", { name: fixedTheme })}</bdi></p>
+      {/if}
+      <SettingStatus path="appearance.mode" />
+    </div>
   </SettingGroup>
 
-  <SettingGroup id="accessibility" title={$t("settings.appearance.accessibility_title")}>
+  <SettingGroup id="colors" icon="palette" title={$t("settings.appearance.colors.title")} description={$t("settings.appearance.colors.desc")}>
+    <div data-setting-key="settings.appearance.colors.title">
+      <ThemeSwatches value={preset} omnigetId={OMNIGET_PRESET} mode={presentation.resolvedMode} onchange={setPreset} />
+      <SettingStatus path="appearance.preset" />
+    </div>
+  </SettingGroup>
+
+  <SettingGroup id="comfort" icon="text" title={$t("settings.appearance.comfort.title")} description={$t("settings.appearance.comfort.desc")}>
+    <div data-setting-key="settings.appearance.density.label">
+      <GeneralChoice
+        name="settings-appearance-density"
+        label={$t("settings.appearance.density.label") as string}
+        value={density ?? ""}
+        options={[
+          { value: "compact", draw: drawCompact, label: $t("settings.appearance.density.compact") as string, help: $t("settings.appearance.density.compact_desc") as string },
+          { value: "default", draw: drawDefault, label: $t("settings.appearance.density.default") as string, help: $t("settings.appearance.density.default_desc") as string },
+          { value: "comfortable", draw: drawComfortable, label: $t("settings.appearance.density.comfortable") as string, help: $t("settings.appearance.density.comfortable_desc") as string },
+        ]}
+        onchange={setDensity}
+      />
+      {#if density === null}
+        <p class="note" role="status"><bdi>{$t("settings.appearance.density.custom")}</bdi></p>
+      {/if}
+      <SettingStatus path="typography.spacing_scale" />
+    </div>
     <SettingRow id="settings-reduce-motion" label={$t("settings.appearance.reduce_motion")} help={$t("settings.appearance.reduce_motion_desc")}
       settingKey="settings.appearance.reduce_motion" status="accessibility.reduce_motion">
       {#snippet control({ id, describedBy })}
@@ -115,32 +163,41 @@
       {/snippet}
     </SettingRow>
   </SettingGroup>
+
+  <SettingGroup id="fonts" icon="more" title={$t("settings.appearance.fonts.title")} description={$t("settings.appearance.fonts.desc")} advanced>
+    <FontRow
+      id="settings-font-ui"
+      label={$t("settings.appearance.fonts.ui") as string}
+      help={$t("settings.appearance.fonts.ui_desc") as string}
+      note={fontDisplay.trim() !== fontBody.trim() ? ($t("settings.appearance.fonts.split_note") as string) : undefined}
+      settingKey="settings.appearance.fonts.ui"
+      status="typography.font_body"
+      value={uiFont}
+      systemValue="system-ui"
+      systemValues={UI_SYSTEM_FONTS}
+      systemLabel={$t("settings.appearance.fonts.system") as string}
+      onsave={saveUiFont}
+    />
+    <FontRow
+      id="settings-font-code"
+      label={$t("settings.appearance.fonts.code") as string}
+      help={$t("settings.appearance.fonts.code_desc") as string}
+      settingKey="settings.appearance.fonts.code"
+      status="typography.font_mono"
+      value={fontMono}
+      systemValue="ui-monospace"
+      systemValues={MONO_SYSTEM_FONTS}
+      systemLabel={$t("settings.appearance.fonts.system_mono") as string}
+      onsave={saveMonoFont}
+    />
+  </SettingGroup>
 {/if}
 
 <style>
-  .setting-mode-row {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    justify-content: space-between;
-    gap: var(--space-2) var(--space-3);
-    min-block-size: 40px;
-    padding-block: var(--space-2);
-  }
-  .mode-label { font-size: 13px; line-height: 20px; color: var(--text); }
-  .segmented { display: inline-flex; flex-wrap: wrap; gap: var(--space-1); }
-  .segmented button {
-    min-block-size: 32px;
-    padding-inline: var(--space-3);
-    border: 1px solid var(--separator);
-    border-radius: 6px;
-    background: var(--surface);
-    color: var(--text);
-    font: inherit;
-    font-size: 13px;
-    cursor: pointer;
-  }
-  .segmented button[aria-checked="true"] { border-color: var(--accent); background: var(--accent-soft); color: var(--accent-text, var(--accent)); }
-  .segmented button:focus-visible { outline: var(--focus-ring); outline-offset: var(--focus-ring-offset, 2px); }
-  .setting-mode-row + :global(.setting-row) { border-block-start: 1px solid var(--separator); }
+  .note { margin: var(--space-2) 0 0; font-size: 12px; line-height: 18px; color: var(--text-muted); }
+  .scr { fill: var(--primary); }
+  .txt { fill: none; stroke: var(--secondary); stroke-width: 2; stroke-linecap: round; opacity: 0.7; }
+  .pill { fill: var(--accent); }
+  .frame { fill: none; stroke: var(--tertiary); }
+  .row { fill: none; stroke: var(--tertiary); stroke-linecap: round; opacity: 0.7; }
 </style>

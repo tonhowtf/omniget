@@ -10,7 +10,7 @@ use serde_json::{json, Value};
 use tauri::{AppHandle, Manager};
 use tokio::sync::oneshot;
 
-use crate::local_bridge_llm::check_bearer;
+use crate::local_bridge_auth::check_bearer;
 
 type PendingReplies = HashMap<String, (String, oneshot::Sender<Value>)>;
 static PENDING: OnceLock<Mutex<PendingReplies>> = OnceLock::new();
@@ -79,14 +79,4 @@ where
             out
         }),
     )
-}
-
-#[tauri::command]
-pub async fn debug_native_snapshot(window: tauri::WebviewWindow) -> Result<String, String> {
-    if !enabled() {
-        return Err("CAPABILITY_UNAVAILABLE".into());
-    }
-    use base64::Engine;
-    let bytes = crate::native_capture::snapshot(&window).await?;
-    Ok(base64::engine::general_purpose::STANDARD.encode(bytes))
 }

@@ -70,7 +70,7 @@ export async function loadLibrary(force = false) {
   startListening();
 }
 
-export function scheduleRefresh(ms = 250) {
+function scheduleRefresh(ms = 250) {
   if (refreshTimer) clearTimeout(refreshTimer);
   refreshTimer = setTimeout(() => {
     refreshTimer = null;

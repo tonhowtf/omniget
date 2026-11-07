@@ -218,39 +218,6 @@ pub struct RunSpec {
 
 pub const TOOL_PREFIX: &str = "tool:";
 
-pub fn fold_receipt(total: &mut Option<serde_json::Value>, model: &str, event: &TurnEvent) {
-    let TurnEvent::PruneReceipt {
-        request,
-        omitted,
-        est_tokens_before,
-        est_tokens_after,
-        input_tokens,
-        ..
-    } = event
-    else {
-        return;
-    };
-    let t = total.get_or_insert_with(|| {
-        serde_json::json!({
-            "model": model, "input_tokens": 0, "output_tokens": 0, "cache_read_tokens": 0, "cache_write_tokens": 0, "cost_usd": null, "calls": 0
-        })
-    });
-    if !t["prune"].is_object() {
-        t["prune"] = serde_json::json!({ "omitted": 0, "requests": [] });
-    }
-    t["prune"]["omitted"] =
-        serde_json::json!((*omitted as u64).max(t["prune"]["omitted"].as_u64().unwrap_or(0)));
-    if let Some(list) = t["prune"]["requests"].as_array_mut() {
-        list.push(serde_json::json!({
-            "request": request,
-            "omitted": omitted,
-            "est_tokens_before": est_tokens_before,
-            "est_tokens_after": est_tokens_after,
-            "input_tokens": input_tokens,
-        }));
-    }
-}
-
 pub fn billable_of(u: &serde_json::Value) -> u64 {
     let n = |k: &str| u[k].as_u64().unwrap_or(0);
     omniget_core::core::llm::types::billable_input(
@@ -831,31 +798,6 @@ impl Jobs {
         crate::bridge_tokens::lookup(&self.db(), token, now_ms())
     }
 
-    pub fn token_mint(
-        &self,
-        name: &str,
-        scopes: &[String],
-        expires_ms: Option<u64>,
-    ) -> Result<crate::bridge_tokens::Minted, String> {
-        crate::bridge_tokens::mint(
-            &self.db(),
-            crate::bridge_tokens::Kind::User,
-            name,
-            scopes,
-            None,
-            expires_ms,
-            now_ms(),
-        )
-    }
-
-    pub fn token_list(&self) -> Vec<crate::bridge_tokens::TokenView> {
-        crate::bridge_tokens::list(&self.db(), now_ms())
-    }
-
-    pub fn token_revoke(&self, id: &str) -> Result<bool, String> {
-        crate::bridge_tokens::revoke(&self.db(), id, now_ms())
-    }
-
     fn job_token_lease(
         self: &Arc<Self>,
         job: &Job,
@@ -1067,26 +1009,6 @@ impl Jobs {
         })
     }
 
-    pub fn submit(
-        self: &Arc<Self>,
-        kind: &str,
-        agent_id: &str,
-        prompt: &str,
-        workspace: Option<String>,
-        conversation_id: Option<String>,
-        trigger_id: Option<String>,
-    ) -> Result<Job, String> {
-        self.submit_with_deadline(
-            kind,
-            agent_id,
-            prompt,
-            workspace,
-            conversation_id,
-            trigger_id,
-            None,
-        )
-    }
-
     #[allow(clippy::too_many_arguments)]
     pub fn submit_with_deadline(
         self: &Arc<Self>,
@@ -1161,13 +1083,6 @@ impl Jobs {
         owner: &str,
     ) -> Result<Job, String> {
         self.start_spec(s, Some(owner), RunMode::ApprovalRequired)
-    }
-
-    pub fn submit_window(
-        self: &Arc<Self>,
-        s: &crate::job_commands::StartSpec,
-    ) -> Result<Job, String> {
-        self.start_spec(s, None, RunMode::AutoEdits)
     }
 
     fn start_spec(
@@ -1306,45 +1221,6 @@ impl Jobs {
         Ok(job)
     }
 
-    pub fn delete(&self, id: &str) -> Result<(), String> {
-        let _ = self.cancel(id);
-        let shared_worktree = |j: &Job| -> bool {
-            self.db()
-                .query_row(
-                    "SELECT COUNT(*) FROM jobs WHERE branch=?1 AND id<>?2",
-                    params![j.branch, j.id],
-                    |r| r.get::<_, i64>(0),
-                )
-                .unwrap_or(0)
-                > 0
-        };
-        if let Some(job) = self
-            .job(id)
-            .filter(|j| j.worktree_path.is_some() && !shared_worktree(j))
-        {
-            tauri::async_runtime::spawn(async move {
-                match remove_job_worktree(&job).await {
-                    Ok(out) => tracing::info!("[jobs] {}: {}", job.id, removal_note(&out).trim()),
-                    Err(e) => tracing::warn!("[jobs] {}: worktree kept: {e}", job.id),
-                }
-            });
-        }
-        forget_budget_policies(&omniget_core::core::llm::budget::policy::Scope::Job(
-            id.to_string(),
-        ));
-        self.db()
-            .execute("DELETE FROM jobs WHERE id=?1", params![id])
-            .map_err(|e| e.to_string())?;
-        let _ = self
-            .db()
-            .execute("DELETE FROM job_notes WHERE job_id=?1", params![id]);
-        changes::forget(&self.db(), id);
-        if let Some(path) = patch_path(id) {
-            let _ = std::fs::remove_file(path);
-        }
-        Ok(())
-    }
-
     fn diff_folder(&self, job: &Job) -> Option<std::path::PathBuf> {
         code_tools::workspace_of(&sanitize_id(&job.conversation_id)).or_else(|| {
             effective_workspace(job).map(|w| std::fs::canonicalize(&w).unwrap_or_else(|_| w.into()))
@@ -1453,63 +1329,6 @@ impl Jobs {
             }
         });
         Ok((job, patch, true))
-    }
-
-    pub fn chat_started(
-        &self,
-        agent_id: &str,
-        conversation_id: &str,
-        prompt: &str,
-        request_id: &str,
-    ) -> String {
-        let id = short_id("j");
-        let job = Job {
-            id: id.clone(),
-            kind: "chat".into(),
-            agent_id: agent_id.into(),
-            conversation_id: conversation_id.into(),
-            prompt: clip(prompt, 4000),
-            workspace: code_tools::workspace_of(&sanitize_id(conversation_id))
-                .map(|p| p.to_string_lossy().to_string()),
-            state: "running".into(),
-            request_id: Some(request_id.into()),
-            created_ms: now_ms(),
-            started_ms: Some(now_ms()),
-            ..Default::default()
-        };
-        self.save_job(&job);
-        id
-    }
-
-    pub fn chat_finished(
-        &self,
-        id: &str,
-        text: &str,
-        error: Option<String>,
-        cancelled: bool,
-        usage: &[omniget_core::core::llm::types::Usage],
-        receipts: &[TurnEvent],
-    ) {
-        let Some(mut job) = self.job(id) else { return };
-        let model = self.llm.model_label(&job.agent_id);
-        for u in usage {
-            fold_usage(&mut job.usage, &model, u);
-        }
-        for r in receipts {
-            fold_receipt(&mut job.usage, &model, r);
-        }
-        job.state = if cancelled {
-            "cancelled"
-        } else if error.is_some() && text.is_empty() {
-            "failed"
-        } else {
-            "done"
-        }
-        .into();
-        job.result = Some(clip(text, RESULT_MAX));
-        job.error = error;
-        job.finished_ms = Some(now_ms());
-        self.save_job(&job);
     }
 
     async fn run_job(self: &Arc<Self>, id: &str, resume_note: Option<String>) -> Option<Job> {
@@ -1710,7 +1529,7 @@ impl Jobs {
         let mut error: Option<String> = None;
         let mut limit_hit: Option<String> = None;
         let mut limit_kind: Option<&'static str> = None;
-        let mut est_input: u64 = 0;
+        let est_input: u64 = 0;
         let check = guard.as_ref().and_then(|g| g.check.clone());
         let spent_so_far =
             |usage: &Option<serde_json::Value>, est_input: u64, text: &str| -> (u64, Option<f64>) {
@@ -1753,22 +1572,6 @@ impl Jobs {
                             job.log.push_str(&format!("→ {name}\n"));
                             job.log = clip(&job.log, LOG_MAX);
                             if self.save_job_checked(&job).is_err() { storage_failed = true; cancel.cancel(); }
-                            if let (Some(check), None) = (&check, &limit_hit) {
-                                let (tokens, usd) = spent_so_far(&job.usage, est_input, &text);
-                                if let Err(why) = check(tokens, usd) {
-                                    job.log.push_str(&format!("! {why}\n"));
-                                    limit_hit = Some(why);
-                                    limit_kind = Some("limit");
-                                    cancel.cancel();
-                                }
-                            }
-                        }
-                        receipt @ TurnEvent::PruneReceipt { .. } => {
-                            if let TurnEvent::PruneReceipt { input_tokens, billable_input_tokens, est_tokens_after, .. } = &receipt {
-                                est_input += billable_input_tokens.or(*input_tokens).unwrap_or(*est_tokens_after) as u64;
-                            }
-                            let model = self.llm.model_label(&job.agent_id);
-                            fold_receipt(&mut job.usage, &model, &receipt);
                             if let (Some(check), None) = (&check, &limit_hit) {
                                 let (tokens, usd) = spent_so_far(&job.usage, est_input, &text);
                                 if let Err(why) = check(tokens, usd) {
@@ -2445,17 +2248,6 @@ impl Jobs {
             .collect()
     }
 
-    pub fn mark_seen(&self, id: &str) -> Result<Job, String> {
-        self.db()
-            .execute(
-                "UPDATE jobs SET seen_ms=?2 WHERE id=?1",
-                params![id, now_ms() as i64],
-            )
-            .map_err(|e| format!("{ERR_JOBS}: {e}"))?;
-        self.job(id)
-            .ok_or_else(|| format!("{ERR_JOBS}: no job {id}"))
-    }
-
     fn notify_routine(&self, trigger_id: &str, job: &Job) {
         let Some(t) = self.trigger(trigger_id) else {
             return;
@@ -2591,53 +2383,6 @@ impl Jobs {
         let id = def.id.clone();
         tauri::async_runtime::spawn(async move { this.run_loop(id).await });
         Ok(def)
-    }
-
-    pub fn loop_cancel(&self, id: &str) -> Result<LoopDef, String> {
-        let mut l = self
-            .loop_get(id)
-            .ok_or_else(|| format!("{ERR_JOBS}: no loop {id}"))?;
-        if l.state == "running" || l.state == "paused" {
-            l.state = "cancelled".into();
-            l.stop_reason = Some("cancelled".into());
-            l.finished_ms = Some(now_ms());
-            self.save_loop(&l);
-        }
-        if let Some(t) = self
-            .loop_waits
-            .lock()
-            .unwrap_or_else(|e| e.into_inner())
-            .remove(id)
-        {
-            t.cancel();
-        }
-        let running: Vec<String> = self
-            .list(200)
-            .into_iter()
-            .filter(|j| {
-                j.loop_id.as_deref() == Some(id)
-                    && matches!(
-                        j.state.as_str(),
-                        "queued" | "waiting_workspace" | "running" | "waiting_approval"
-                    )
-            })
-            .map(|j| j.id)
-            .collect();
-        for j in running {
-            let _ = self.cancel(&j);
-        }
-        Ok(l)
-    }
-
-    pub fn loop_delete(&self, id: &str) -> Result<(), String> {
-        let _ = self.loop_cancel(id);
-        forget_budget_policies(&omniget_core::core::llm::budget::policy::Scope::Loop(
-            id.to_string(),
-        ));
-        self.db()
-            .execute("DELETE FROM loops WHERE id=?1", params![id])
-            .map_err(|e| e.to_string())?;
-        Ok(())
     }
 
     async fn run_check(&self, l: &LoopDef) -> Option<(bool, String)> {
@@ -3292,67 +3037,6 @@ impl Jobs {
         out
     }
 
-    pub fn playbook_start(self: &Arc<Self>, mut p: PlaybookRun) -> Result<PlaybookRun, String> {
-        if p.steps.is_empty() {
-            return Err(format!("{ERR_JOBS}: a playbook needs at least one step"));
-        }
-        for s in &p.steps {
-            if let Some(tool) = s.agent_id.strip_prefix(TOOL_PREFIX) {
-                omniget_core::core::agentkit_run::runner::runner_of(tool)?;
-            } else if self.llm.agent(&s.agent_id).is_none() {
-                return Err(format!(
-                    "{ERR_JOBS}: step `{}`: no agent `{}`",
-                    s.name, s.agent_id
-                ));
-            }
-        }
-        p.id = short_id("p");
-        p.state = "running".into();
-        p.current = 0;
-        p.created_ms = now_ms();
-        p.finished_ms = None;
-        for s in &mut p.steps {
-            s.state = "pending".into();
-            s.job_id = None;
-            s.output = None;
-        }
-        self.save_playbook(&p);
-        let this = self.clone();
-        let id = p.id.clone();
-        tauri::async_runtime::spawn(async move { this.run_playbook(id).await });
-        Ok(p)
-    }
-
-    pub fn playbook_cancel(&self, id: &str) -> Result<PlaybookRun, String> {
-        let mut p = self
-            .playbook_get(id)
-            .ok_or_else(|| format!("{ERR_JOBS}: no playbook {id}"))?;
-        if p.state == "running" {
-            p.state = "cancelled".into();
-            p.finished_ms = Some(now_ms());
-            for s in &mut p.steps {
-                if s.state == "pending" {
-                    s.state = "skipped".into();
-                }
-            }
-            self.save_playbook(&p);
-        }
-        for s in &p.steps {
-            if let Some(j) = &s.job_id {
-                let _ = self.cancel(j);
-            }
-        }
-        Ok(p)
-    }
-
-    pub fn playbook_delete(&self, id: &str) -> Result<(), String> {
-        let _ = self.playbook_cancel(id);
-        self.db()
-            .execute("DELETE FROM playbooks WHERE id=?1", params![id])
-            .map_err(|e| e.to_string())?;
-        Ok(())
-    }
-
     async fn run_playbook(self: Arc<Self>, id: String) {
         use omniget_core::core::agentkit_run::playbook as pb;
         let Some(mut p) = self.playbook_get(&id) else {
@@ -3673,79 +3357,6 @@ impl Jobs {
         true
     }
 
-    pub fn job_resume(self: &Arc<Self>, id: &str) -> Result<Job, String> {
-        let mut job = self
-            .job(id)
-            .ok_or_else(|| format!("{ERR_JOBS}: no job {id}"))?;
-        if job.state != "interrupted" {
-            return Err(format!(
-                "{ERR_JOBS}: job {id} is {}, not interrupted",
-                job.state
-            ));
-        }
-        job.state = "queued".into();
-        job.error = None;
-        job.finished_ms = None;
-        self.save_job(&job);
-        let note = resume_note(FailureReason::AppRestart, &job.prompt);
-        let this = self.clone();
-        let jid = job.id.clone();
-        tauri::async_runtime::spawn(async move {
-            this.run_job(&jid, Some(note)).await;
-        });
-        Ok(job)
-    }
-
-    pub fn job_mark_done(&self, id: &str) -> Result<Job, String> {
-        let mut job = self
-            .job(id)
-            .ok_or_else(|| format!("{ERR_JOBS}: no job {id}"))?;
-        if job.state == "review" {
-            job.state = "done".into();
-            job.log.push_str("✓ reviewed by you\n");
-            self.save_job_checked(&job)?;
-            return Ok(job);
-        }
-        if job.state != "interrupted" {
-            return Err(format!(
-                "{ERR_JOBS}: job {id} is {}, not interrupted",
-                job.state
-            ));
-        }
-        job.state = "done".into();
-        job.error = Some("marked done by you after an interruption".into());
-        job.finished_ms = Some(now_ms());
-        self.save_job(&job);
-        Ok(job)
-    }
-
-    pub fn job_discard(&self, id: &str) -> Result<Job, String> {
-        let mut job = self
-            .job(id)
-            .ok_or_else(|| format!("{ERR_JOBS}: no job {id}"))?;
-        if job.state != "interrupted" {
-            return Err(format!(
-                "{ERR_JOBS}: job {id} is {}, not interrupted",
-                job.state
-            ));
-        }
-        job.state = "cancelled".into();
-        job.error = Some("discarded after an interruption".into());
-        job.finished_ms = Some(now_ms());
-        self.save_job(&job);
-        if job.worktree_path.is_some() {
-            let jid = job.id.clone();
-            tauri::async_runtime::spawn(async move {
-                if let Some(jobs) = try_get() {
-                    if let Err(e) = jobs.remove_worktree(&jid).await {
-                        tracing::warn!("[jobs] {jid}: worktree kept: {e}");
-                    }
-                }
-            });
-        }
-        Ok(job)
-    }
-
     pub fn loop_resume(self: &Arc<Self>, id: &str) -> Result<LoopDef, String> {
         let mut l = self
             .loop_get(id)
@@ -3774,28 +3385,6 @@ impl Jobs {
         Ok(l)
     }
 
-    pub fn loop_settle(&self, id: &str, done: bool) -> Result<LoopDef, String> {
-        let mut l = self
-            .loop_get(id)
-            .ok_or_else(|| format!("{ERR_JOBS}: no loop {id}"))?;
-        if l.state != "interrupted" {
-            return Err(format!(
-                "{ERR_JOBS}: loop {id} is {}, not interrupted",
-                l.state
-            ));
-        }
-        if done {
-            l.state = "done".into();
-            l.stop_reason = Some("marked_done".into());
-        } else {
-            l.state = "cancelled".into();
-            l.stop_reason = Some("discarded".into());
-        }
-        l.finished_ms = Some(now_ms());
-        self.save_loop(&l);
-        Ok(l)
-    }
-
     pub fn triggers(&self) -> Vec<Trigger> {
         read_triggers(&self.db())
     }
@@ -3817,79 +3406,6 @@ impl Jobs {
         };
         let _ = self.app.emit(EVENT_TRIGGER, trigger_view(&t));
         Some(t)
-    }
-
-    pub fn trigger_save(self: &Arc<Self>, mut t: Trigger) -> Result<Trigger, String> {
-        if self.llm.agent(&t.agent_id).is_none() {
-            return Err(format!("{ERR_JOBS}: no agent `{}`", t.agent_id));
-        }
-        let cron = match t.kind.as_str() {
-            "cron" => Some(Cron::parse(t.cron.as_deref().unwrap_or(""))?),
-            "webhook" => {
-                t.cron = None;
-                None
-            }
-            other => return Err(format!("{ERR_JOBS}: unknown trigger kind `{other}`")),
-        };
-        if parse_zone(&t.tz).is_none() {
-            tracing::warn!(
-                "[jobs] trigger zone `{}` is not local, UTC or ±HH:MM; this machine's zone is used",
-                t.tz
-            );
-        }
-        if t.name.trim().is_empty() {
-            t.name = t.prompt.chars().take(48).collect();
-        }
-        {
-            let db = self.db();
-            let old = (!t.id.is_empty())
-                .then(|| read_trigger(&db, &t.id))
-                .flatten();
-            if t.id.is_empty() {
-                t.id = short_id("t");
-            }
-            let same = old.as_ref().is_some_and(|o| {
-                o.kind == t.kind && o.cron == t.cron && o.tz == t.tz && o.enabled == t.enabled
-            });
-            match &old {
-                Some(o) => {
-                    t.created_ms = o.created_ms;
-                    t.fire_count = o.fire_count;
-                    t.last_fired_ms = o.last_fired_ms;
-                    t.last_digest = o.last_digest.clone();
-                    t.last_notified_ms = o.last_notified_ms;
-                    t.missed = o.missed;
-                    t.last_missed_ms = o.last_missed_ms;
-                    t.last_run_id = o.last_run_id.clone();
-                    t.backlog = if same { o.backlog } else { 0 };
-                }
-                None => {
-                    t.created_ms = now_ms();
-                    t.backlog = 0;
-                }
-            }
-            t.next_run_ms = match (&old, &cron) {
-                (Some(o), _) if same => o.next_run_ms,
-                (_, Some(c)) if t.enabled => c.next_after(now_ms() as i64, &t.tz),
-                _ => None,
-            };
-            set_schedule(&db, &t)?;
-        }
-        let _ = self.app.emit(EVENT_TRIGGER, trigger_view(&t));
-        self.clone().ensure_cron();
-        Ok(t)
-    }
-
-    pub fn trigger_mute(&self, id: &str, muted: bool) -> Result<Trigger, String> {
-        self.update_trigger(id, |t| t.muted = muted)
-            .ok_or_else(|| format!("{ERR_JOBS}: no trigger {id}"))
-    }
-
-    pub fn trigger_delete(&self, id: &str) -> Result<(), String> {
-        self.db()
-            .execute("DELETE FROM triggers WHERE id=?1", params![id])
-            .map_err(|e| e.to_string())?;
-        Ok(())
     }
 
     pub fn fire(self: &Arc<Self>, id: &str, body: Option<&str>) -> Result<Job, String> {
@@ -4284,17 +3800,6 @@ pub fn write_trigger_body(db: &Connection, t: &Trigger) -> Result<(), String> {
     .map_err(|e| format!("{ERR_JOBS}: {e}"))
 }
 
-fn set_schedule(db: &Connection, t: &Trigger) -> Result<(), String> {
-    let body = serde_json::to_string(t).map_err(|e| e.to_string())?;
-    db.execute(
-        "INSERT INTO triggers (id, body, next_run_ms) VALUES (?1, ?2, ?3)
-         ON CONFLICT(id) DO UPDATE SET body=excluded.body, next_run_ms=excluded.next_run_ms",
-        params![t.id, body, t.next_run_ms],
-    )
-    .map(|_| ())
-    .map_err(|e| format!("{ERR_JOBS}: {e}"))
-}
-
 pub fn cas_schedule(db: &Connection, t: &Trigger, seen: Option<i64>) -> bool {
     let Ok(body) = serde_json::to_string(t) else {
         return false;
@@ -4426,13 +3931,6 @@ pub fn next_round_at(schedule: &str, from_ms: u64) -> Option<u64> {
     }
     omniget_core::core::agentkit::convert::loop_runbook::interval_secs(s)
         .map(|secs| from_ms + secs * 1000)
-}
-
-pub fn bridge_info(app: &AppHandle) -> Value {
-    let settings = crate::storage::config::load_settings(app);
-    json!({
-        "base_url": format!("http://127.0.0.1:{}", settings.bridge.port),
-    })
 }
 
 #[derive(Debug, Clone, Default)]
@@ -4684,26 +4182,6 @@ pub fn gate_limits(s: &omniget_core::models::settings::LlmSettings) -> Limits {
     }
 }
 
-#[derive(Debug, Default, Clone, Deserialize)]
-pub struct JobLimitsInput {
-    pub max_parallel: Option<u32>,
-    pub max_per_agent: Option<u32>,
-}
-
-pub fn merge_limits(
-    mut s: omniget_core::models::settings::LlmSettings,
-    input: &JobLimitsInput,
-) -> omniget_core::models::settings::LlmSettings {
-    let (lo, hi) = omniget_core::core::llm::job_gate::MAX_PARALLEL_RANGE;
-    if let Some(n) = input.max_parallel {
-        s.jobs_max_parallel = (n as usize).clamp(lo, hi) as u32;
-    }
-    if let Some(n) = input.max_per_agent {
-        s.jobs_max_per_agent = (n > 0).then(|| (n as usize).clamp(lo, hi) as u32);
-    }
-    s
-}
-
 pub fn wait_state(reason: &WaitReason) -> (&'static str, String) {
     match reason {
         WaitReason::Workspace { holder, .. } => {
@@ -4889,15 +4367,6 @@ fn budget_policy(
     );
     if let Err(e) = saved {
         tracing::warn!("[jobs] {key} budget: {e}");
-    }
-}
-
-fn forget_budget_policies(scope: &omniget_core::core::llm::budget::policy::Scope) {
-    let Some(engine) = omniget_core::core::llm::budget::policy::active() else {
-        return;
-    };
-    for p in engine.policies().into_iter().filter(|p| &p.scope == scope) {
-        let _ = engine.delete(&p.id, omniget_core::core::llm::audit::Actor::window());
     }
 }
 

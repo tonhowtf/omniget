@@ -6,8 +6,6 @@ status = "active"
 beta = true
 homepage = "https://goose-docs.ai"
 notes = "Repo moved from block/goose to aaif-goose/goose (Linux Foundation AAIF). MCP servers are called extensions in config.yaml. Hooks load only from Open Plugins under .agents/plugins/<name>/hooks/hooks.json. SSE is not supported."
-reads_agents_dir = true
-reads_agents_md = "yes"
 
 [detect]
 binaries = ["goose"]
@@ -102,7 +100,6 @@ Stop = "Stop"
 [hooks]
 shape = "goose"
 timeout_unit = "s"
-events_count = 12
 
 [tool_name_map]
 Bash = "shell"

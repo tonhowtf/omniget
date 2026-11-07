@@ -1,35 +1,22 @@
 <script lang="ts">
-  import {
-    OMNI_STRIP,
-    moodPose,
-    stripAnimationCss,
-    type Mood,
-    type OmniPose,
-  } from "$lib/omni/skins";
+  import { OMNI_STRIP, moodPose, stripAnimationCss } from "$lib/omni/skins";
   import { tintToCss } from "$lib/stores/profile-store.svelte";
 
   let {
     tint,
     size = 44,
-    mood = "neutral",
-    speaking = false,
     animate = "auto",
-    pose,
     label,
     compact = false,
   }: {
     tint: readonly number[] | null | undefined;
     size?: number;
     compact?: boolean;
-    mood?: Mood | string;
-    speaking?: boolean;
     animate?: "auto" | "always" | "never";
-    pose?: OmniPose;
     label?: string;
   } = $props();
 
-  let activePose = $derived(pose ?? moodPose(mood, speaking));
-  let anim = $derived(stripAnimationCss(OMNI_STRIP, activePose));
+  const anim = stripAnimationCss(OMNI_STRIP, moodPose("neutral"));
   let scale = $derived(compact ? size / 72 : size / 40);
 </script>
 
@@ -46,10 +33,7 @@
   style:--omni-steps={anim.steps}
   style:--omni-duration="{anim.durationMs}ms"
   style:--omni-scale={scale}
-  data-mood={mood}
-  data-pose={activePose}
   data-animate={animate}
-  data-speaking={speaking ? "true" : "false"}
   role={label ? "img" : "presentation"}
   aria-label={label}
   aria-hidden={label ? undefined : "true"}
@@ -103,8 +87,7 @@
     }
   }
 
-  .omni-avatar[data-animate="always"] .omni-sprite,
-  .omni-avatar[data-animate="auto"][data-speaking="true"] .omni-sprite {
+  .omni-avatar[data-animate="always"] .omni-sprite {
     animation: omni-walk var(--omni-duration) steps(var(--omni-steps)) infinite;
   }
 
@@ -117,7 +100,6 @@
   @media (prefers-reduced-motion: reduce) {
     .omni-avatar .omni-sprite,
     .omni-avatar[data-animate="always"] .omni-sprite,
-    .omni-avatar[data-animate="auto"][data-speaking="true"] .omni-sprite,
     .omni-avatar[data-animate="auto"]:hover .omni-sprite {
       animation: none;
       background-position: var(--omni-from) 0;

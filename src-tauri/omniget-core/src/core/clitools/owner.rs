@@ -59,7 +59,7 @@ impl CommandSpec {
                 vec![
                     "-NoProfile".into(),
                     "-ExecutionPolicy".into(),
-                    "Bypass".into(),
+                    "RemoteSigned".into(),
                     "-Command".into(),
                     line.clone(),
                 ],
@@ -387,7 +387,7 @@ pub async fn prove(
                 method: OwnerMethod::Native,
                 proven: update.is_some(),
                 prefix: Some(marker.clone()),
-                evidence: format!("caminho real dentro de {}", marker.display()),
+                evidence: format!("real path inside {}", marker.display()),
                 update,
                 manual,
             }
@@ -396,7 +396,7 @@ pub async fn prove(
             method: OwnerMethod::Omniget,
             proven: true,
             prefix: crate::core::paths::app_data_dir().map(|d| d.join("agents").join("bin")),
-            evidence: "baixado pelo OmniGet a partir do registro ACP".into(),
+            evidence: "downloaded by OmniGet from the ACP registry".into(),
             update: None,
             manual: None,
         },
@@ -422,9 +422,9 @@ pub async fn prove(
                 proven,
                 prefix: Some(root),
                 evidence: if proven {
-                    "caminho real no global do bun".into()
+                    "real path in the bun global folder".into()
                 } else {
-                    "parece bun, mas o bun não está no PATH".into()
+                    "looks like bun, but bun is not on the PATH".into()
                 },
                 manual: update
                     .as_ref()
@@ -455,9 +455,9 @@ pub async fn prove(
                 proven: update.is_some(),
                 prefix: root,
                 evidence: if proven {
-                    "`pnpm root -g` contém o caminho real".into()
+                    "`pnpm root -g` contains the real path".into()
                 } else {
-                    "parece pnpm, mas `pnpm root -g` não bate".into()
+                    "looks like pnpm, but `pnpm root -g` does not match".into()
                 },
                 manual: update
                     .as_ref()
@@ -507,7 +507,7 @@ pub async fn prove(
                     (Some(r), false) => {
                         format!("`npm prefix -g` = {} ≠ {}", r.display(), prefix.display())
                     }
-                    (None, false) => "npm não respondeu `prefix -g`".into(),
+                    (None, false) => "npm did not answer `prefix -g`".into(),
                 },
                 update: spec.filter(|_| proven),
                 manual,
@@ -542,9 +542,11 @@ pub async fn prove(
                 proven,
                 prefix: keg.clone(),
                 evidence: match (&keg, proven) {
-                    (Some(k), true) => format!("keg conferido: {}", k.display()),
-                    (Some(k), false) => format!("keg {} não contém o caminho real", k.display()),
-                    (None, _) => "brew não respondeu o prefixo".into(),
+                    (Some(k), true) => format!("keg checked: {}", k.display()),
+                    (Some(k), false) => {
+                        format!("keg {} does not contain the real path", k.display())
+                    }
+                    (None, _) => "brew did not answer with its prefix".into(),
                 },
                 update,
                 manual: Some(exec::display_command("brew", &args)),
@@ -568,9 +570,9 @@ pub async fn prove(
                 proven: update.is_some(),
                 prefix: venvs,
                 evidence: if proven {
-                    "venv do pipx conferida".into()
+                    "pipx venv checked".into()
                 } else {
-                    "parece pipx, mas a venv não bate".into()
+                    "looks like pipx, but the venv does not match".into()
                 },
                 update,
                 manual: Some(format!("pipx upgrade {pkg}")),
@@ -594,9 +596,9 @@ pub async fn prove(
                 proven: update.is_some(),
                 prefix: dir,
                 evidence: if proven {
-                    "`uv tool dir` contém o caminho real".into()
+                    "`uv tool dir` contains the real path".into()
                 } else {
-                    "parece uv, mas `uv tool dir` não bate".into()
+                    "looks like uv, but `uv tool dir` does not match".into()
                 },
                 update,
                 manual: Some(format!("uv tool upgrade {pkg}")),
@@ -644,9 +646,9 @@ pub async fn prove(
                 proven: update.is_some(),
                 prefix: python.clone(),
                 evidence: if shown {
-                    "`pip show` do python do shebang confirma o pacote".into()
+                    "`pip show` from the shebang python confirms the package".into()
                 } else {
-                    "nenhum gerenciador reconheceu o binário".into()
+                    "no package manager recognized the binary".into()
                 },
                 update,
                 manual: Some(format!("python -m pip install -U {pkg}")),
@@ -671,17 +673,14 @@ pub async fn prove(
                 proven: update.is_some(),
                 prefix: Some(home.join("bin")),
                 evidence: if listed {
-                    ".crates2.json lista o crate".into()
+                    ".crates2.json lists the crate".into()
                 } else {
-                    "o crate não aparece no .crates2.json".into()
+                    "the crate is not in .crates2.json".into()
                 },
                 update,
                 manual: Some(format!("cargo install {krate}")),
             }
         }
-        Candidate::Unknown => Owner::unknown(
-            "nenhum gerenciador conhecido é dono deste caminho",
-            fallback,
-        ),
+        Candidate::Unknown => Owner::unknown("no known package manager owns this path", fallback),
     }
 }

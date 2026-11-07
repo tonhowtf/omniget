@@ -1,17 +1,14 @@
 use std::collections::HashMap;
 use std::process::Stdio;
 use std::sync::{Arc, Mutex};
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use serde::Serialize;
 use tokio::io::{AsyncBufReadExt, BufReader};
 
-use super::detect;
 use super::exec::command_for;
 use super::owner::CommandSpec;
-use super::plan::{self, Action, Plan};
-use super::table;
-use super::{ERR_BUSY, ERR_FAILED, ERR_NOT_FOUND, ERR_NOT_RUNNABLE, ERR_STALE};
+use super::ERR_FAILED;
 
 pub const MAX_OUTPUT: usize = 10_000;
 pub const RUN_TIMEOUT: Duration = Duration::from_secs(20 * 60);
@@ -77,18 +74,6 @@ impl TailBuffer {
     pub fn into_parts(self) -> (String, bool) {
         (self.text, self.truncated)
     }
-}
-
-type Locks = Mutex<HashMap<String, Arc<tokio::sync::Mutex<()>>>>;
-
-fn lock_for(key: &str) -> Arc<tokio::sync::Mutex<()>> {
-    use std::sync::OnceLock;
-    static L: OnceLock<Locks> = OnceLock::new();
-    let map = L.get_or_init(|| Mutex::new(HashMap::new()));
-    let mut g = map.lock().unwrap_or_else(|e| e.into_inner());
-    g.entry(key.to_string())
-        .or_insert_with(|| Arc::new(tokio::sync::Mutex::new(())))
-        .clone()
 }
 
 pub type ProgressFn = Arc<dyn Fn(Progress) + Send + Sync>;
@@ -167,7 +152,7 @@ pub async fn run_command(
         Ok(Err(e)) => return Err(format!("{ERR_FAILED}: {e}")),
         Err(_) => {
             if let Ok(mut b) = buf.lock() {
-                b.push_line("[omniget] tempo esgotado; processo encerrado");
+                b.push_line("[omniget] timed out; process terminated");
             }
             None
         }
@@ -199,121 +184,4 @@ pub fn strip_ansi(s: &str) -> String {
         out.push(c);
     }
     out
-}
-
-pub async fn run_plan(plan_id: &str, on: ProgressFn) -> Result<RunResult, String> {
-    let plan: Plan = plan::lookup(plan_id)
-        .ok_or_else(|| format!("{ERR_NOT_FOUND}: plano {plan_id} expirou ou não existe"))?;
-    if !plan.runnable {
-        return Err(format!(
-            "{ERR_NOT_RUNNABLE}: {}",
-            plan.reason
-                .clone()
-                .unwrap_or_else(|| "plano só para copiar".into())
-        ));
-    }
-    let tool = table::get(&plan.tool_id)
-        .ok_or_else(|| format!("{ERR_NOT_FOUND}: ferramenta {}", plan.tool_id))?;
-
-    let tool_lock = lock_for(&format!("tool:{}", tool.id));
-    let _tool_guard = tool_lock
-        .try_lock()
-        .map_err(|_| format!("{ERR_BUSY}: {} já está instalando/atualizando", tool.id))?;
-    let key_lock = lock_for(&plan.command.lock_key);
-    let _key_guard = key_lock.lock().await;
-
-    let before = detect::detect_one(tool).await;
-    if plan.action == Action::Update {
-        let fresh = before.owner.update.as_ref();
-        let same = fresh
-            .map(|f| f.program == plan.command.program && f.args == plan.command.args)
-            .unwrap_or(false);
-        if !(before.owner.proven && same) {
-            return Err(format!(
-                "{ERR_STALE}: a instalação mudou desde o plano ({}); gere o plano de novo",
-                before.owner.evidence
-            ));
-        }
-    }
-
-    let run_id = uuid::Uuid::new_v4().to_string();
-    let started = Instant::now();
-    on(Progress {
-        run_id: run_id.clone(),
-        tool_id: tool.id.clone(),
-        kind: "start".into(),
-        stream: None,
-        line: None,
-        state: RunState::Running,
-        command: Some(plan.command.display.clone()),
-    });
-
-    let (code, output, truncated) = match run_command(&run_id, &tool.id, &plan.command, &on).await {
-        Ok(v) => v,
-        Err(e) => {
-            on(Progress {
-                run_id: run_id.clone(),
-                tool_id: tool.id.clone(),
-                kind: "end".into(),
-                stream: None,
-                line: Some(e.clone()),
-                state: RunState::Failed,
-                command: None,
-            });
-            return Err(e);
-        }
-    };
-
-    let after = detect::detect_one(tool).await;
-    let mut warnings = plan.warnings.clone();
-    let lower = output.to_ascii_lowercase();
-    if lower.contains("allow-scripts")
-        || lower.contains("scripts were not run")
-        || lower.contains("install scripts") && lower.contains("skipped")
-    {
-        warnings
-            .push("O npm avisou sobre scripts bloqueados; confira se o binário funciona.".into());
-    }
-    let state = if code == Some(0) && after.installed {
-        if plan.action == Action::Update
-            && before.version.is_some()
-            && before.version == after.version
-        {
-            RunState::Unchanged
-        } else {
-            RunState::Succeeded
-        }
-    } else {
-        if code == Some(0) && !after.installed {
-            warnings
-                .push("O comando terminou mas o binário não apareceu no PATH conhecido.".into());
-        }
-        RunState::Failed
-    };
-    let result = RunResult {
-        run_id: run_id.clone(),
-        plan_id: plan.id.clone(),
-        tool_id: tool.id.clone(),
-        state,
-        exit_code: code,
-        output,
-        truncated,
-        version_before: before.version,
-        version_after: after.version,
-        duration_ms: started.elapsed().as_millis() as u64,
-        warnings,
-    };
-    if let Ok(mut m) = last_runs().lock() {
-        m.insert(tool.id.clone(), result.clone());
-    }
-    on(Progress {
-        run_id,
-        tool_id: tool.id.clone(),
-        kind: "end".into(),
-        stream: None,
-        line: None,
-        state,
-        command: None,
-    });
-    Ok(result)
 }

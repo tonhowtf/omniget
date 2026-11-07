@@ -12,7 +12,6 @@ pub struct PromptPayload {
     pub template_writer: String,
     pub template_em: String,
     pub template_reviewer: String,
-    pub help: String,
 }
 
 #[tauri::command]
@@ -26,6 +25,5 @@ pub fn sync_llm_prompts(prompts: PromptPayload) {
         template_writer: prompts.template_writer,
         template_em: prompts.template_em,
         template_reviewer: prompts.template_reviewer,
-        help: prompts.help,
     });
 }

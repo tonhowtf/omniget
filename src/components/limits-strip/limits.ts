@@ -1,7 +1,7 @@
 import type { BotAvatarType } from "bot-avatars";
 import { paceOf } from "./pace";
 
-export type Edge = "top" | "right" | "bottom" | "left";
+type Edge = "top" | "right" | "bottom" | "left";
 export type Activity = "idle" | "working" | "waiting" | "done";
 export type Tone = "calm" | "amber" | "red";
 
@@ -25,7 +25,7 @@ export type LocalModel = {
   params: string | null;
   expires_at: number | null;
 };
-export type Reading = {
+type Reading = {
   windows: LimitWindow[];
   plan: string | null;
   account: string | null;

@@ -122,30 +122,6 @@ pub fn save(body: PolicyBody, actor: Actor) -> Result<Value, String> {
     Ok(json!(p))
 }
 
-#[tauri::command]
-pub async fn llm_budget_state() -> Result<Value, String> {
-    Ok(engine()?.state_view())
-}
-
-#[tauri::command]
-pub async fn llm_budget_policy_save(policy: PolicyBody) -> Result<Value, String> {
-    save(policy, Actor::window())
-}
-
-#[tauri::command]
-pub async fn llm_budget_policy_delete(id: String) -> Result<bool, String> {
-    engine()?.delete(&id, Actor::window())
-}
-
-#[tauri::command]
-pub async fn llm_budget_incident_resolve(
-    id: String,
-    action: String,
-    amount: Option<f64>,
-) -> Result<Value, String> {
-    resolve(&id, &ResolveBody { action, amount }, Actor::window())
-}
-
 fn status_of(e: &str) -> StatusCode {
     if e.contains("no incident") {
         StatusCode::NOT_FOUND

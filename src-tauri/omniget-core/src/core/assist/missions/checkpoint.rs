@@ -240,23 +240,6 @@ pub fn list(db: &AssistDb, mission_id: &str) -> Result<Vec<Checkpoint>, String> 
     })
 }
 
-pub fn add_note(db: &AssistDb, mission_id: &str, text: &str) -> Result<(), String> {
-    let text = text.trim();
-    if text.is_empty() {
-        return Err(format!("{}: the note is empty", super::ERR_MISSION_INPUT));
-    }
-    get(db, mission_id)?;
-    super::append_event(
-        db,
-        mission_id,
-        NewEvent::new(
-            "context_note",
-            json!({ "text": clip(text, 2000), "origin": "user" }),
-        ),
-    )?;
-    Ok(())
-}
-
 pub fn rebuild_context(cp: &Checkpoint, max_chars: usize) -> String {
     let s = &cp.state;
     let mut sections: Vec<(String, Vec<String>)> = Vec::new();

@@ -208,15 +208,6 @@ impl ManifestCatalog {
         }
         out
     }
-
-    pub fn is_extra_supported(&self, extra: &[(String, String)]) -> bool {
-        let decl = self.extras();
-        extra.iter().all(|(k, _)| decl.iter().any(|e| &e.name == k))
-            && decl
-                .iter()
-                .filter(|e| e.is_required)
-                .all(|e| extra.iter().any(|(k, _)| k == &e.name))
-    }
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
@@ -503,13 +494,6 @@ pub struct StreamsResponse {
     pub streams: Vec<Stream>,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
-#[serde(default)]
-pub struct SubtitlesResponse {
-    #[serde(deserialize_with = "de::vec")]
-    pub subtitles: Vec<Subtitle>,
-}
-
 pub fn normalize_manifest_url(u: &str) -> String {
     let t = u.trim();
     if let Some(rest) = t.strip_prefix("stremio://") {
@@ -593,10 +577,6 @@ pub fn meta_url(base: &str, type_: &str, id: &str) -> String {
 
 pub fn stream_url(base: &str, type_: &str, id: &str) -> String {
     resource_url(base, "stream", type_, id, &[])
-}
-
-pub fn subtitles_url(base: &str, type_: &str, id: &str, extra: &[(String, String)]) -> String {
-    resource_url(base, "subtitles", type_, id, extra)
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -799,10 +779,6 @@ mod tests {
         assert!(!m.behavior_hints.p2p);
         assert_eq!(m.resource_names(), vec!["catalog", "stream", "meta"]);
         assert!(m.catalogs[0].extra[0].is_required);
-        assert!(m.catalogs[0].is_extra_supported(&[("search".into(), "x".into())]));
-        assert!(!m.catalogs[0].is_extra_supported(&[("skip".into(), "100".into())]));
-        assert!(m.catalogs[1].is_extra_supported(&[("genre".into(), "Drama".into())]));
-        assert!(!m.catalogs[1].is_extra_supported(&[]));
 
         assert!(supports(&m, "catalog", "movie", "top"));
         assert!(!supports(&m, "catalog", "series", "top"));
@@ -852,12 +828,6 @@ mod tests {
         assert_eq!(s.streams[0].label(), "old label");
         let ph = s.streams[0].behavior_hints.proxy_headers.as_ref().unwrap();
         assert_eq!(ph.request.get("User-Agent").map(String::as_str), Some("UA"));
-
-        let sub: SubtitlesResponse = serde_json::from_str(
-            r#"{"subtitles":[{"id":"1","url":"https://s.srt","lang":"por"}]}"#,
-        )
-        .unwrap();
-        assert_eq!(sub.subtitles[0].lang, "por");
     }
 
     #[test]
@@ -887,15 +857,6 @@ mod tests {
         assert_eq!(
             stream_url("https://a.com/manifest.json?token=x", "movie", "tt1"),
             "https://a.com/stream/movie/tt1.json?token=x"
-        );
-        assert_eq!(
-            subtitles_url(
-                "https://a.com",
-                "movie",
-                "tt1",
-                &[("filename".into(), "a b.mkv".into())]
-            ),
-            "https://a.com/subtitles/movie/tt1/filename=a%20b.mkv.json"
         );
         assert_eq!(
             normalize_manifest_url(" a.com/manifest.json "),

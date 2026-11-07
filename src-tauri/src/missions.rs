@@ -12,7 +12,7 @@ use omniget_core::core::assist::missions::{
     self, checkpoint, diag, hooks, policy, progress, verify, Criterion, CriterionKind,
     EffectAdmission, Mission, MissionState, MissionTask, NewReceipt, NewTask, TaskEnd, TaskState,
 };
-use omniget_core::core::assist::{groups, learning, now_ms};
+use omniget_core::core::assist::{groups, now_ms};
 use omniget_core::core::llm::agent::{AgentDef, RuntimeKind};
 use omniget_core::core::llm::budget::{AgentSpend, BudgetStore, Estimate};
 use omniget_core::core::llm::code_tools;
@@ -334,7 +334,6 @@ impl Driver {
     fn digest_fn(&self, m: &Mission) -> impl Fn(&Criterion) -> Option<String> {
         let db = self.db.clone();
         let ws = m.workspace.clone().map(PathBuf::from);
-        let since = m.created_ms;
         let external = omniget_core::core::assist::authority::external(&m.conversation_id);
         let conversation = m.conversation_id.clone();
         let bot = m.bot_id.clone().unwrap_or_default();
@@ -360,7 +359,7 @@ impl Driver {
                     Some(ceiling.workspace_identity.as_ref()?),
                 );
             }
-            verify::digest_for(Some(&db), ws.as_deref(), c, since)
+            verify::digest_for(ws.as_deref(), c)
         }
     }
 
@@ -477,19 +476,9 @@ impl Driver {
                     .collect()
             })
             .unwrap_or_default();
-        let overlays: Vec<Value> = m
-            .bot_id
-            .as_deref()
-            .and_then(|b| {
-                learning::overlays_for(&self.db, Some(&sanitize_id(&m.conversation_id)), b).ok()
-            })
-            .unwrap_or_default()
-            .into_iter()
-            .map(|o| json!({ "skill": o.skill, "candidate": o.candidate_id, "version": o.version }))
-            .collect();
         let extras = checkpoint::Extras {
             grants,
-            overlays,
+            overlays: Vec::new(),
             ..Default::default()
         };
         if let Err(e) = checkpoint::create(&self.db, &m.id, reason, &self.digest_fn(m), &extras) {
@@ -960,10 +949,6 @@ impl Driver {
         }
         let sconv = sanitize_id(&conv);
         hooks::attach(&sconv, &m.id, &policy::defaults());
-        let personal_context = !omniget_core::core::assist::authority::external(&conv);
-        if personal_context {
-            let _ = learning::pin(&self.db, &sconv, &bot);
-        }
         let hb = {
             let db = self.db.clone();
             let (tid, own) = (t.id.clone(), owner.clone());
@@ -987,9 +972,6 @@ impl Driver {
         let (calls, fails) = hooks::take_calls(&sconv);
         self.note_calls(&m.id, calls, fails);
         hooks::detach(&sconv);
-        if personal_context {
-            learning::unpin(&sconv);
-        }
         let Some(done) =
             done.filter(|j| matches!(j.state.as_str(), "done" | "review" | "failed" | "cancelled"))
         else {
@@ -1136,9 +1118,7 @@ impl Driver {
                         verify::check_artifact(ws.as_deref(), &c)
                     },
                 ),
-                CriterionKind::ToolResult => {
-                    Some(verify::check_tool_result(&self.db, &c, m.created_ms))
-                }
+                CriterionKind::ToolResult => Some(verify::check_tool_result(&c)),
                 CriterionKind::Command => Some(self.run_command(&m, &c, ws.as_deref()).await),
                 CriterionKind::Rubric => match c.spec.get("reviewer").and_then(Value::as_str) {
                     Some(reviewer)
@@ -1160,8 +1140,7 @@ impl Driver {
                     criterion_version: c.version,
                     artifact_ref: artifact_ref_at(&o.artifact_ref, head.as_deref()),
                     artifact_digest: if o.digest.is_empty() {
-                        verify::digest_for(Some(&self.db), ws.as_deref(), &c, m.created_ms)
-                            .unwrap_or_default()
+                        verify::digest_for(ws.as_deref(), &c).unwrap_or_default()
                     } else {
                         o.digest.clone()
                     },
@@ -1255,7 +1234,7 @@ impl Driver {
             };
         }
         let bot = m.bot_id.clone().unwrap_or_else(|| "mission".into());
-        let before = verify::digest_for(Some(&self.db), Some(root), c, m.created_ms);
+        let before = verify::digest_for(Some(root), c);
         if before.is_none() {
             return verify::CheckOutcome {
                 status: "unknown".into(),
@@ -1266,7 +1245,7 @@ impl Driver {
             };
         }
         let out = code_tools::scope(&conv, &bot, "mission-verify", code_tools::shell_exec(json!({ "command": command, "description": "mission check", "timeout_ms": timeout }))).await;
-        let after = verify::digest_for(Some(&self.db), Some(root), c, m.created_ms);
+        let after = verify::digest_for(Some(root), c);
         if after.is_none() || before != after {
             return verify::CheckOutcome { status: "unknown".into(), digest: String::new(), evidence: "artifact revision changed while the verifier ran; run a read-only check against a stable revision".into(), exit_code: None, artifact_ref: command };
         }

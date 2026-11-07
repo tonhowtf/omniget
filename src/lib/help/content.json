@@ -1,39 +1,39 @@
 [
   {
     "id": "start",
-    "title": "Começar sem API",
-    "summary": "Escolha sua assinatura ou um modelo local em Configurar.",
+    "title": "Comece sem API",
+    "summary": "Use seu login do Claude ou do Codex; a chave de API é opcional.",
     "tags": "assinatura início começar grátis",
     "locale": "pt",
     "appVersion": "0.10",
     "sectionId": "guide",
     "prerequisites": "OmniGet instalado. Uma conexão é necessária somente para IA.",
     "steps": [
-      "Abra Configurar e escolha Conexões.",
-      "Selecione uma assinatura existente ou Modelo local.",
-      "Salve a conexão e volte para Conversar."
+      "Abra Configurações e escolha IA e agentes.",
+      "Em Contas, clique em Claude ou Codex para adicionar seu login.",
+      "Abra o Canvas e inicie um agente."
     ],
     "expected": "Confira o resultado real na área indicada.",
     "recovery": "Se falhar, mantenha a configuração e consulte Corrigir conexão ou o erro da fila.",
-    "action": "/llm/accounts"
+    "action": "/settings?tab=ai&section=accounts"
   },
   {
     "id": "start",
     "title": "Start without an API",
-    "summary": "Choose your subscription or a local model in Configure.",
+    "summary": "Use your Claude or Codex login; an API key is optional.",
     "tags": "assinatura início começar grátis",
     "locale": "en",
     "appVersion": "0.10",
     "sectionId": "guide",
     "prerequisites": "OmniGet installed. A connection is required only for AI.",
     "steps": [
-      "Open Configure and choose Connections.",
-      "Select an existing subscription or Local model.",
-      "Save the connection and return to Chat."
+      "Open Settings and choose AI & agents.",
+      "Under Accounts, click Claude or Codex to add your login.",
+      "Open the Canvas and start an agent."
     ],
     "expected": "Check the actual result in the indicated area.",
     "recovery": "If it fails, keep your configuration and see Fix a connection or the queue error.",
-    "action": "/llm/accounts"
+    "action": "/settings?tab=ai&section=accounts"
   },
   {
     "id": "subscription",
@@ -45,13 +45,13 @@
     "sectionId": "guide",
     "prerequisites": "OmniGet instalado. Uma conexão é necessária somente para IA.",
     "steps": [
-      "Abra Conexões e escolha Assinatura.",
-      "Selecione o provedor e conclua o login oficial.",
-      "Verifique a conexão; binário instalado não comprova autenticação."
+      "Abra IA e agentes em Configurações.",
+      "Em Contas, clique no assistente que você assina.",
+      "Entre na janela que abrir."
     ],
     "expected": "Confira o resultado real na área indicada.",
     "recovery": "Se falhar, mantenha a configuração e consulte Corrigir conexão ou o erro da fila.",
-    "action": "/llm/accounts"
+    "action": "/settings?tab=ai&section=accounts"
   },
   {
     "id": "subscription",
@@ -63,13 +63,13 @@
     "sectionId": "guide",
     "prerequisites": "OmniGet installed. A connection is required only for AI.",
     "steps": [
-      "Open Connections and choose Subscription.",
-      "Select the provider and complete its official login.",
-      "Check the connection; an installed binary does not prove authentication."
+      "Open AI & agents in Settings.",
+      "Under Accounts, click the assistant you subscribe to.",
+      "Sign in in the window that opens."
     ],
     "expected": "Check the actual result in the indicated area.",
     "recovery": "If it fails, keep your configuration and see Fix a connection or the queue error.",
-    "action": "/llm/accounts"
+    "action": "/settings?tab=ai&section=accounts"
   },
   {
     "id": "claude",
@@ -81,13 +81,13 @@
     "sectionId": "guide",
     "prerequisites": "OmniGet instalado. Uma conexão é necessária somente para IA.",
     "steps": [
-      "Abra Conexões e escolha Claude.",
-      "Siga o login oficial se usar assinatura.",
-      "Teste a conexão; o teste pode consumir sua cota."
+      "Abra IA e agentes em Configurações.",
+      "Em Contas, clique em Claude.",
+      "Entre; o cartão mostra as barras de uso."
     ],
     "expected": "Confira o resultado real na área indicada.",
     "recovery": "Se falhar, mantenha a configuração e consulte Corrigir conexão ou o erro da fila.",
-    "action": "/llm/accounts"
+    "action": "/settings?tab=ai&section=accounts"
   },
   {
     "id": "claude",
@@ -99,13 +99,13 @@
     "sectionId": "guide",
     "prerequisites": "OmniGet installed. A connection is required only for AI.",
     "steps": [
-      "Open Connections and choose Claude.",
-      "Follow the official login when using a subscription.",
-      "Test the connection; the test may consume your quota."
+      "Open AI & agents in Settings.",
+      "Under Accounts, click Claude.",
+      "Sign in; the card shows your usage bars."
     ],
     "expected": "Check the actual result in the indicated area.",
     "recovery": "If it fails, keep your configuration and see Fix a connection or the queue error.",
-    "action": "/llm/accounts"
+    "action": "/settings?tab=ai&section=accounts"
   },
   {
     "id": "codex",
@@ -117,13 +117,13 @@
     "sectionId": "guide",
     "prerequisites": "OmniGet instalado. Uma conexão é necessária somente para IA.",
     "steps": [
-      "Abra Conexões e escolha Codex.",
-      "Conclua o login oficial solicitado.",
-      "Verifique o teste antes de considerar o agente pronto."
+      "Abra IA e agentes em Configurações.",
+      "Em Contas, clique em Codex.",
+      "Entre; o cartão mostra as barras de uso."
     ],
     "expected": "Confira o resultado real na área indicada.",
     "recovery": "Se falhar, mantenha a configuração e consulte Corrigir conexão ou o erro da fila.",
-    "action": "/llm/accounts"
+    "action": "/settings?tab=ai&section=accounts"
   },
   {
     "id": "codex",
@@ -135,13 +135,13 @@
     "sectionId": "guide",
     "prerequisites": "OmniGet installed. A connection is required only for AI.",
     "steps": [
-      "Open Connections and choose Codex.",
-      "Complete the requested official login.",
-      "Check the test before considering the agent ready."
+      "Open AI & agents in Settings.",
+      "Under Accounts, click Codex.",
+      "Sign in; the card shows your usage bars."
     ],
     "expected": "Check the actual result in the indicated area.",
     "recovery": "If it fails, keep your configuration and see Fix a connection or the queue error.",
-    "action": "/llm/accounts"
+    "action": "/settings?tab=ai&section=accounts"
   },
   {
     "id": "local",
@@ -153,13 +153,13 @@
     "sectionId": "guide",
     "prerequisites": "OmniGet instalado. Uma conexão é necessária somente para IA.",
     "steps": [
-      "Abra Modelos locais.",
-      "Confira o servidor e os modelos disponíveis.",
-      "Escolha o modelo na configuração do agente."
+      "Abra IA e agentes e vá até Chave de API.",
+      "Escolha Ollama.",
+      "Digite o nome do modelo e salve."
     ],
     "expected": "Confira o resultado real na área indicada.",
     "recovery": "Se falhar, mantenha a configuração e consulte Corrigir conexão ou o erro da fila.",
-    "action": "/llm/models"
+    "action": "/settings?tab=ai&section=connections"
   },
   {
     "id": "local",
@@ -171,13 +171,13 @@
     "sectionId": "guide",
     "prerequisites": "OmniGet installed. A connection is required only for AI.",
     "steps": [
-      "Open Local models.",
-      "Check the server and available models.",
-      "Choose the model in agent configuration."
+      "Open AI & agents and go to API key.",
+      "Choose Ollama.",
+      "Enter the model name and save."
     ],
     "expected": "Check the actual result in the indicated area.",
     "recovery": "If it fails, keep your configuration and see Fix a connection or the queue error.",
-    "action": "/llm/models"
+    "action": "/settings?tab=ai&section=connections"
   },
   {
     "id": "api",
@@ -189,13 +189,13 @@
     "sectionId": "guide",
     "prerequisites": "OmniGet instalado. Uma conexão é necessária somente para IA.",
     "steps": [
-      "Abra Conexões e escolha API.",
-      "Selecione o provedor e salve a chave no campo próprio.",
-      "Selecione um modelo; chamadas podem gerar cobrança."
+      "Abra IA e agentes e vá até Chave de API.",
+      "Escolha o provedor e cole a chave no campo próprio.",
+      "Digite um modelo e salve; as chamadas podem ter custo."
     ],
     "expected": "Confira o resultado real na área indicada.",
     "recovery": "Se falhar, mantenha a configuração e consulte Corrigir conexão ou o erro da fila.",
-    "action": "/llm/accounts"
+    "action": "/settings?tab=ai&section=connections"
   },
   {
     "id": "api",
@@ -207,337 +207,49 @@
     "sectionId": "guide",
     "prerequisites": "OmniGet installed. A connection is required only for AI.",
     "steps": [
-      "Open Connections and choose API.",
-      "Select the provider and save the key in its dedicated field.",
-      "Select a model; calls may incur charges."
+      "Open AI & agents and go to API key.",
+      "Choose the provider and paste the key in its field.",
+      "Enter a model and save; calls may incur charges."
     ],
     "expected": "Check the actual result in the indicated area.",
     "recovery": "If it fails, keep your configuration and see Fix a connection or the queue error.",
-    "action": "/llm/accounts"
-  },
-  {
-    "id": "agent",
-    "title": "Criar primeiro agente",
-    "summary": "Um agente combina conexão, modelo e permissões explícitas.",
-    "tags": "agente criar assistente roster",
-    "locale": "pt",
-    "appVersion": "0.10",
-    "sectionId": "guide",
-    "prerequisites": "OmniGet instalado. Uma conexão é necessária somente para IA.",
-    "steps": [
-      "Configure uma conexão.",
-      "Abra Agentes e crie um agente com nome próprio.",
-      "Confira modelo e permissões antes de conversar."
-    ],
-    "expected": "Confira o resultado real na área indicada.",
-    "recovery": "Se falhar, mantenha a configuração e consulte Corrigir conexão ou o erro da fila.",
-    "action": "/llm/roster"
-  },
-  {
-    "id": "agent",
-    "title": "Create your first agent",
-    "summary": "An agent combines a connection, model and explicit permissions.",
-    "tags": "agente criar assistente roster",
-    "locale": "en",
-    "appVersion": "0.10",
-    "sectionId": "guide",
-    "prerequisites": "OmniGet installed. A connection is required only for AI.",
-    "steps": [
-      "Configure a connection.",
-      "Open Agents and create a named agent.",
-      "Check its model and permissions before chatting."
-    ],
-    "expected": "Check the actual result in the indicated area.",
-    "recovery": "If it fails, keep your configuration and see Fix a connection or the queue error.",
-    "action": "/llm/roster"
-  },
-  {
-    "id": "team",
-    "title": "Coordenador e equipe",
-    "summary": "O coordenador distribui trabalho conforme os agentes e permissões configurados.",
-    "tags": "equipe coordenador delegar",
-    "locale": "pt",
-    "appVersion": "0.10",
-    "sectionId": "guide",
-    "prerequisites": "OmniGet instalado. Uma conexão é necessária somente para IA.",
-    "steps": [
-      "Abra Agentes e examine a equipe.",
-      "Escolha o coordenador e ajuste os agentes necessários.",
-      "Revise a permissão de delegar tarefas."
-    ],
-    "expected": "Confira o resultado real na área indicada.",
-    "recovery": "Se falhar, mantenha a configuração e consulte Corrigir conexão ou o erro da fila.",
-    "action": "/llm/roster"
-  },
-  {
-    "id": "team",
-    "title": "Coordinator and team",
-    "summary": "The coordinator delegates work according to configured agents and permissions.",
-    "tags": "equipe coordenador delegar",
-    "locale": "en",
-    "appVersion": "0.10",
-    "sectionId": "guide",
-    "prerequisites": "OmniGet installed. A connection is required only for AI.",
-    "steps": [
-      "Open Agents and inspect the team.",
-      "Choose the coordinator and configure needed agents.",
-      "Review permission to delegate tasks."
-    ],
-    "expected": "Check the actual result in the indicated area.",
-    "recovery": "If it fails, keep your configuration and see Fix a connection or the queue error.",
-    "action": "/llm/roster"
-  },
-  {
-    "id": "folder",
-    "title": "Anexar uma pasta",
-    "summary": "A pasta define o contexto de trabalho das ferramentas de código.",
-    "tags": "pasta workspace arquivos",
-    "locale": "pt",
-    "appVersion": "0.10",
-    "sectionId": "guide",
-    "prerequisites": "OmniGet instalado. Uma conexão é necessária somente para IA.",
-    "steps": [
-      "Abra Conversar.",
-      "Use o seletor de pasta e escolha o diretório.",
-      "Revise permissões antes de autorizar escrita ou execução."
-    ],
-    "expected": "Confira o resultado real na área indicada.",
-    "recovery": "Se falhar, mantenha a configuração e consulte Corrigir conexão ou o erro da fila.",
-    "action": "/llm"
-  },
-  {
-    "id": "folder",
-    "title": "Attach a folder",
-    "summary": "The folder defines the working context of coding tools.",
-    "tags": "pasta workspace arquivos",
-    "locale": "en",
-    "appVersion": "0.10",
-    "sectionId": "guide",
-    "prerequisites": "OmniGet installed. A connection is required only for AI.",
-    "steps": [
-      "Open Chat.",
-      "Use the folder selector and choose a directory.",
-      "Review permissions before allowing writing or execution."
-    ],
-    "expected": "Check the actual result in the indicated area.",
-    "recovery": "If it fails, keep your configuration and see Fix a connection or the queue error.",
-    "action": "/llm"
-  },
-  {
-    "id": "permissions",
-    "title": "Entender permissões",
-    "summary": "Permitir uma vez vale para uma solicitação; permitir sempre muda a política.",
-    "tags": "permissão segurança autorizar ferramentas",
-    "locale": "pt",
-    "appVersion": "0.10",
-    "sectionId": "guide",
-    "prerequisites": "OmniGet instalado. Uma conexão é necessária somente para IA.",
-    "steps": [
-      "Leia a ferramenta e os argumentos apresentados.",
-      "Negue solicitações inesperadas.",
-      "Revise regras do agente para mudar permissões persistentes."
-    ],
-    "expected": "Confira o resultado real na área indicada.",
-    "recovery": "Se falhar, mantenha a configuração e consulte Corrigir conexão ou o erro da fila.",
-    "action": "/llm/roster"
-  },
-  {
-    "id": "permissions",
-    "title": "Understand permissions",
-    "summary": "Allow once applies to one request; always allow changes the policy.",
-    "tags": "permissão segurança autorizar ferramentas",
-    "locale": "en",
-    "appVersion": "0.10",
-    "sectionId": "guide",
-    "prerequisites": "OmniGet installed. A connection is required only for AI.",
-    "steps": [
-      "Read the tool and presented arguments.",
-      "Deny unexpected requests.",
-      "Review agent rules to change persistent permissions."
-    ],
-    "expected": "Check the actual result in the indicated area.",
-    "recovery": "If it fails, keep your configuration and see Fix a connection or the queue error.",
-    "action": "/llm/roster"
-  },
-  {
-    "id": "models",
-    "title": "Modelos e roteamento",
-    "summary": "Um agente pode fixar um modelo ou usar uma sequência de alternativas.",
-    "tags": "modelo rota fallback",
-    "locale": "pt",
-    "appVersion": "0.10",
-    "sectionId": "guide",
-    "prerequisites": "OmniGet instalado. Uma conexão é necessária somente para IA.",
-    "steps": [
-      "Abra Modelos.",
-      "Confira os provedores disponíveis.",
-      "Escolha um modelo ou configure a ordem de roteamento."
-    ],
-    "expected": "Confira o resultado real na área indicada.",
-    "recovery": "Se falhar, mantenha a configuração e consulte Corrigir conexão ou o erro da fila.",
-    "action": "/llm/models"
-  },
-  {
-    "id": "models",
-    "title": "Models and routing",
-    "summary": "An agent can use a fixed model or an ordered set of alternatives.",
-    "tags": "modelo rota fallback",
-    "locale": "en",
-    "appVersion": "0.10",
-    "sectionId": "guide",
-    "prerequisites": "OmniGet installed. A connection is required only for AI.",
-    "steps": [
-      "Open Models.",
-      "Check available providers.",
-      "Choose a model or configure routing order."
-    ],
-    "expected": "Check the actual result in the indicated area.",
-    "recovery": "If it fails, keep your configuration and see Fix a connection or the queue error.",
-    "action": "/llm/models"
+    "action": "/settings?tab=ai&section=connections"
   },
   {
     "id": "mcp",
     "title": "Conectar ferramentas MCP",
-    "summary": "MCP conecta ferramentas externas; o Help embutido não exige ligar o servidor externo.",
+    "summary": "O MCP dá aos agentes do Canvas acesso a ferramentas externas.",
     "tags": "mcp servidor integração ferramentas",
     "locale": "pt",
     "appVersion": "0.10",
     "sectionId": "guide",
     "prerequisites": "OmniGet instalado. Uma conexão é necessária somente para IA.",
     "steps": [
-      "Abra MCP em Configurar.",
-      "Cadastre o servidor e confira as ferramentas descobertas.",
-      "Conceda apenas as permissões necessárias ao agente."
+      "Abra Ferramentas extras em IA e agentes.",
+      "Clique em uma ferramenta da galeria ou em Outra ferramenta.",
+      "Preencha o que ela pede, salve e teste."
     ],
     "expected": "Confira o resultado real na área indicada.",
     "recovery": "Se falhar, mantenha a configuração e consulte Corrigir conexão ou o erro da fila.",
-    "action": "/llm/mcp"
+    "action": "/settings?tab=ai&section=mcp"
   },
   {
     "id": "mcp",
     "title": "Connect MCP tools",
-    "summary": "MCP connects external tools; embedded Help does not require enabling the external server.",
+    "summary": "MCP gives the agents on the Canvas access to external tools.",
     "tags": "mcp servidor integração ferramentas",
     "locale": "en",
     "appVersion": "0.10",
     "sectionId": "guide",
     "prerequisites": "OmniGet installed. A connection is required only for AI.",
     "steps": [
-      "Open MCP in Configure.",
-      "Add the server and inspect discovered tools.",
-      "Grant only the permissions the agent needs."
+      "Open Extra tools in AI & agents.",
+      "Click a tool in the gallery, or Other tool.",
+      "Fill in what it asks for, save and test it."
     ],
     "expected": "Check the actual result in the indicated area.",
     "recovery": "If it fails, keep your configuration and see Fix a connection or the queue error.",
-    "action": "/llm/mcp"
-  },
-  {
-    "id": "skills",
-    "title": "Usar habilidades",
-    "summary": "Habilidades adicionam instruções e recursos aos agentes.",
-    "tags": "skills habilidades instruções",
-    "locale": "pt",
-    "appVersion": "0.10",
-    "sectionId": "guide",
-    "prerequisites": "OmniGet instalado. Uma conexão é necessária somente para IA.",
-    "steps": [
-      "Abra Habilidades.",
-      "Confira a origem e o conteúdo antes de instalar.",
-      "Associe a habilidade ao agente desejado."
-    ],
-    "expected": "Confira o resultado real na área indicada.",
-    "recovery": "Se falhar, mantenha a configuração e consulte Corrigir conexão ou o erro da fila.",
-    "action": "/llm/skills"
-  },
-  {
-    "id": "skills",
-    "title": "Use skills",
-    "summary": "Skills add instructions and resources to agents.",
-    "tags": "skills habilidades instruções",
-    "locale": "en",
-    "appVersion": "0.10",
-    "sectionId": "guide",
-    "prerequisites": "OmniGet installed. A connection is required only for AI.",
-    "steps": [
-      "Open Skills.",
-      "Review the source and content before installing.",
-      "Associate the skill with the intended agent."
-    ],
-    "expected": "Check the actual result in the indicated area.",
-    "recovery": "If it fails, keep your configuration and see Fix a connection or the queue error.",
-    "action": "/llm/skills"
-  },
-  {
-    "id": "tasks",
-    "title": "Acompanhar tarefas",
-    "summary": "Tarefas registram trabalho real e seu resultado.",
-    "tags": "jobs tarefas execução",
-    "locale": "pt",
-    "appVersion": "0.10",
-    "sectionId": "guide",
-    "prerequisites": "OmniGet instalado. Uma conexão é necessária somente para IA.",
-    "steps": [
-      "Abra Atividade e depois Tarefas.",
-      "Selecione uma execução para ver detalhes.",
-      "Confira o estado final e erros antes de repetir."
-    ],
-    "expected": "Confira o resultado real na área indicada.",
-    "recovery": "Se falhar, mantenha a configuração e consulte Corrigir conexão ou o erro da fila.",
-    "action": "/llm/jobs"
-  },
-  {
-    "id": "tasks",
-    "title": "Track tasks",
-    "summary": "Tasks record real work and its outcome.",
-    "tags": "jobs tarefas execução",
-    "locale": "en",
-    "appVersion": "0.10",
-    "sectionId": "guide",
-    "prerequisites": "OmniGet installed. A connection is required only for AI.",
-    "steps": [
-      "Open Activity and then Tasks.",
-      "Select a run to inspect details.",
-      "Check final status and errors before retrying."
-    ],
-    "expected": "Check the actual result in the indicated area.",
-    "recovery": "If it fails, keep your configuration and see Fix a connection or the queue error.",
-    "action": "/llm/jobs"
-  },
-  {
-    "id": "routines",
-    "title": "Criar rotinas",
-    "summary": "Rotinas repetem trabalho conforme a configuração definida.",
-    "tags": "loops rotina agendar",
-    "locale": "pt",
-    "appVersion": "0.10",
-    "sectionId": "guide",
-    "prerequisites": "OmniGet instalado. Uma conexão é necessária somente para IA.",
-    "steps": [
-      "Abra Rotinas.",
-      "Defina o agente e a instrução.",
-      "Confira a frequência e mantenha apenas as rotinas necessárias ativas."
-    ],
-    "expected": "Confira o resultado real na área indicada.",
-    "recovery": "Se falhar, mantenha a configuração e consulte Corrigir conexão ou o erro da fila.",
-    "action": "/llm/loops"
-  },
-  {
-    "id": "routines",
-    "title": "Create routines",
-    "summary": "Routines repeat work according to their configuration.",
-    "tags": "loops rotina agendar",
-    "locale": "en",
-    "appVersion": "0.10",
-    "sectionId": "guide",
-    "prerequisites": "OmniGet installed. A connection is required only for AI.",
-    "steps": [
-      "Open Routines.",
-      "Set the agent and instruction.",
-      "Check frequency and keep only needed routines active."
-    ],
-    "expected": "Check the actual result in the indicated area.",
-    "recovery": "If it fails, keep your configuration and see Fix a connection or the queue error.",
-    "action": "/llm/loops"
+    "action": "/settings?tab=ai&section=mcp"
   },
   {
     "id": "quota",
@@ -549,13 +261,13 @@
     "sectionId": "guide",
     "prerequisites": "OmniGet instalado. Uma conexão é necessária somente para IA.",
     "steps": [
-      "Abra Monitor de uso no Chat.",
-      "Ative a barra e as fontes desejadas.",
+      "Abra Limites na tela em IA e agentes.",
+      "Ligue a barra na borda, o ícone perto do relógio ou os dois.",
       "Confira a última leitura; indisponível não significa zero."
     ],
     "expected": "Confira o resultado real na área indicada.",
     "recovery": "Se falhar, mantenha a configuração e consulte Corrigir conexão ou o erro da fila.",
-    "action": "/llm"
+    "action": "/settings?tab=ai&section=limits"
   },
   {
     "id": "quota",
@@ -567,85 +279,13 @@
     "sectionId": "guide",
     "prerequisites": "OmniGet installed. A connection is required only for AI.",
     "steps": [
-      "Open Usage monitor in Chat.",
-      "Enable the strip and desired sources.",
+      "Open Limits on screen in AI & agents.",
+      "Turn on the edge bar, the icon near the clock, or both.",
       "Check the last reading; unavailable does not mean zero."
     ],
     "expected": "Check the actual result in the indicated area.",
     "recovery": "If it fails, keep your configuration and see Fix a connection or the queue error.",
-    "action": "/llm"
-  },
-  {
-    "id": "usage",
-    "title": "Consumo registrado",
-    "summary": "O histórico de tokens e custos não informa sozinho o saldo da assinatura.",
-    "tags": "consumo custo tokens jsonl",
-    "locale": "pt",
-    "appVersion": "0.10",
-    "sectionId": "guide",
-    "prerequisites": "OmniGet instalado. Uma conexão é necessária somente para IA.",
-    "steps": [
-      "Abra Contas e Consumo.",
-      "Confira o período e a fonte dos registros.",
-      "Compare apenas dados da mesma origem e janela."
-    ],
-    "expected": "Confira o resultado real na área indicada.",
-    "recovery": "Se falhar, mantenha a configuração e consulte Corrigir conexão ou o erro da fila.",
-    "action": "/llm/accounts"
-  },
-  {
-    "id": "usage",
-    "title": "Recorded usage",
-    "summary": "Token and cost history does not by itself report subscription balance.",
-    "tags": "consumo custo tokens jsonl",
-    "locale": "en",
-    "appVersion": "0.10",
-    "sectionId": "guide",
-    "prerequisites": "OmniGet installed. A connection is required only for AI.",
-    "steps": [
-      "Open Accounts and Usage.",
-      "Check the period and record source.",
-      "Compare only data from the same source and window."
-    ],
-    "expected": "Check the actual result in the indicated area.",
-    "recovery": "If it fails, keep your configuration and see Fix a connection or the queue error.",
-    "action": "/llm/accounts"
-  },
-  {
-    "id": "activity",
-    "title": "Atividade dos agentes",
-    "summary": "Atividade mostra execuções e eventos dos agentes.",
-    "tags": "atividade observatório telemetria",
-    "locale": "pt",
-    "appVersion": "0.10",
-    "sectionId": "guide",
-    "prerequisites": "OmniGet instalado. Uma conexão é necessária somente para IA.",
-    "steps": [
-      "Abra Atividade.",
-      "Selecione o agente ou execução.",
-      "Use o diagnóstico pertinente ao sintoma; probes de rede podem consumir uso."
-    ],
-    "expected": "Confira o resultado real na área indicada.",
-    "recovery": "Se falhar, mantenha a configuração e consulte Corrigir conexão ou o erro da fila.",
-    "action": "/llm/observatory"
-  },
-  {
-    "id": "activity",
-    "title": "Agent activity",
-    "summary": "Activity shows agent runs and events.",
-    "tags": "atividade observatório telemetria",
-    "locale": "en",
-    "appVersion": "0.10",
-    "sectionId": "guide",
-    "prerequisites": "OmniGet installed. A connection is required only for AI.",
-    "steps": [
-      "Open Activity.",
-      "Select the agent or run.",
-      "Use diagnostics relevant to the symptom; network probes may consume usage."
-    ],
-    "expected": "Check the actual result in the indicated area.",
-    "recovery": "If it fails, keep your configuration and see Fix a connection or the queue error.",
-    "action": "/llm/observatory"
+    "action": "/settings?tab=ai&section=limits"
   },
   {
     "id": "connection",
@@ -657,13 +297,13 @@
     "sectionId": "guide",
     "prerequisites": "OmniGet instalado. Uma conexão é necessária somente para IA.",
     "steps": [
-      "Abra a conexão afetada.",
-      "Confira o login oficial e a disponibilidade do runtime.",
-      "Execute um teste explícito e leia o erro antes de repetir."
+      "Abra Contas em IA e agentes.",
+      "Clique em Entrar na conta que falha.",
+      "Se continuar falhando, leia a mensagem no cartão."
     ],
     "expected": "Confira o resultado real na área indicada.",
     "recovery": "Se falhar, mantenha a configuração e consulte Corrigir conexão ou o erro da fila.",
-    "action": "/llm/accounts"
+    "action": "/settings?tab=ai&section=accounts"
   },
   {
     "id": "connection",
@@ -675,25 +315,25 @@
     "sectionId": "guide",
     "prerequisites": "OmniGet installed. A connection is required only for AI.",
     "steps": [
-      "Open the affected connection.",
-      "Check official login and runtime availability.",
-      "Run an explicit test and read the error before retrying."
+      "Open Accounts in AI & agents.",
+      "Click Sign in on the account that fails.",
+      "If it still fails, read the message on the card."
     ],
     "expected": "Check the actual result in the indicated area.",
     "recovery": "If it fails, keep your configuration and see Fix a connection or the queue error.",
-    "action": "/llm/accounts"
+    "action": "/settings?tab=ai&section=accounts"
   },
   {
     "id": "download",
     "title": "Baixar mídia e repetir",
-    "summary": "Downloads do assistente usam a mesma fila do OmniGet.",
+    "summary": "Os downloads feitos por agentes usam a mesma fila do OmniGet.",
     "tags": "download vídeo youtube baixar retry fila",
     "locale": "pt",
     "appVersion": "0.10",
     "sectionId": "guide",
     "prerequisites": "OmniGet instalado. Uma conexão é necessária somente para IA.",
     "steps": [
-      "Cole uma URL na área de downloads ou peça ao Help.",
+      "Cole um link na tela inicial.",
       "Confira destino e opções antes de autorizar.",
       "Acompanhe a fila; somente o estado concluído confirma o download."
     ],
@@ -704,14 +344,14 @@
   {
     "id": "download",
     "title": "Download media and retry",
-    "summary": "Assistant downloads use the same OmniGet queue.",
+    "summary": "Downloads made by agents use the same OmniGet queue.",
     "tags": "download vídeo youtube baixar retry fila",
     "locale": "en",
     "appVersion": "0.10",
     "sectionId": "guide",
     "prerequisites": "OmniGet installed. A connection is required only for AI.",
     "steps": [
-      "Paste a URL into downloads or ask Help.",
+      "Paste a URL on the home screen.",
       "Check the destination and options before approving.",
       "Follow the queue; only a completed state confirms the download."
     ],
@@ -721,21 +361,21 @@
   },
   {
     "id": "start",
-    "title": "Начните без API",
-    "summary": "Выберите подписку или локальную модель в разделе «Настроить».",
+    "title": "Начало без API",
+    "summary": "Используйте вход в Claude или Codex; ключ API необязателен.",
     "tags": "подписка старт начало бесплатно",
     "locale": "ru",
     "appVersion": "0.10",
     "sectionId": "guide",
     "prerequisites": "OmniGet установлен. Подключение нужно только для ИИ.",
     "steps": [
-      "Откройте «Настроить» и выберите «Аккаунты».",
-      "Выберите существующую подписку или локальную модель.",
-      "Сохраните подключение и вернитесь в «Чат»."
+      "Откройте Настройки и выберите «ИИ и агенты».",
+      "В разделе «Аккаунты» нажмите Claude или Codex, чтобы добавить вход.",
+      "Откройте Canvas и запустите агента."
     ],
     "expected": "Проверьте фактический результат в указанном разделе.",
     "recovery": "Если не получилось, оставьте настройки как есть и откройте статью «Как починить подключение» или статью об ошибке очереди.",
-    "action": "/llm/accounts"
+    "action": "/settings?tab=ai&section=accounts"
   },
   {
     "id": "subscription",
@@ -747,13 +387,13 @@
     "sectionId": "guide",
     "prerequisites": "OmniGet установлен. Подключение нужно только для ИИ.",
     "steps": [
-      "Откройте «Аккаунты» и выберите «Подписка».",
-      "Выберите провайдера и пройдите его официальный вход.",
-      "Проверьте подключение: установленный CLI ещё не доказывает, что вы вошли."
+      "Откройте «ИИ и агенты» в Настройках.",
+      "В разделе «Аккаунты» нажмите на ассистента, на которого подписаны.",
+      "Войдите в открывшемся окне."
     ],
     "expected": "Проверьте фактический результат в указанном разделе.",
     "recovery": "Если не получилось, оставьте настройки как есть и откройте статью «Как починить подключение» или статью об ошибке очереди.",
-    "action": "/llm/accounts"
+    "action": "/settings?tab=ai&section=accounts"
   },
   {
     "id": "claude",
@@ -765,13 +405,13 @@
     "sectionId": "guide",
     "prerequisites": "OmniGet установлен. Подключение нужно только для ИИ.",
     "steps": [
-      "Откройте «Аккаунты» и выберите Claude.",
-      "Если у вас подписка, пройдите официальный вход.",
-      "Проверьте подключение тестом: он может израсходовать вашу квоту."
+      "Откройте «ИИ и агенты» в Настройках.",
+      "В разделе «Аккаунты» нажмите Claude.",
+      "Войдите; на карточке появятся полосы расхода."
     ],
     "expected": "Проверьте фактический результат в указанном разделе.",
     "recovery": "Если не получилось, оставьте настройки как есть и откройте статью «Как починить подключение» или статью об ошибке очереди.",
-    "action": "/llm/accounts"
+    "action": "/settings?tab=ai&section=accounts"
   },
   {
     "id": "codex",
@@ -783,13 +423,13 @@
     "sectionId": "guide",
     "prerequisites": "OmniGet установлен. Подключение нужно только для ИИ.",
     "steps": [
-      "Откройте «Аккаунты» и выберите Codex.",
-      "Пройдите предложенный официальный вход.",
-      "Посмотрите результат теста, прежде чем считать агента готовым."
+      "Откройте «ИИ и агенты» в Настройках.",
+      "В разделе «Аккаунты» нажмите Codex.",
+      "Войдите; на карточке появятся полосы расхода."
     ],
     "expected": "Проверьте фактический результат в указанном разделе.",
     "recovery": "Если не получилось, оставьте настройки как есть и откройте статью «Как починить подключение» или статью об ошибке очереди.",
-    "action": "/llm/accounts"
+    "action": "/settings?tab=ai&section=accounts"
   },
   {
     "id": "local",
@@ -801,13 +441,13 @@
     "sectionId": "guide",
     "prerequisites": "OmniGet установлен. Подключение нужно только для ИИ.",
     "steps": [
-      "Откройте «Локальные модели».",
-      "Проверьте сервер и доступные модели.",
-      "Выберите модель в настройках агента."
+      "Откройте «ИИ и агенты», раздел «Ключ API».",
+      "Выберите Ollama.",
+      "Введите название модели и сохраните."
     ],
     "expected": "Проверьте фактический результат в указанном разделе.",
     "recovery": "Если не получилось, оставьте настройки как есть и откройте статью «Как починить подключение» или статью об ошибке очереди.",
-    "action": "/llm/models"
+    "action": "/settings?tab=ai&section=connections"
   },
   {
     "id": "api",
@@ -819,175 +459,31 @@
     "sectionId": "guide",
     "prerequisites": "OmniGet установлен. Подключение нужно только для ИИ.",
     "steps": [
-      "Откройте «Аккаунты» и выберите «Ключ API».",
-      "Выберите провайдера и сохраните ключ в отдельном поле.",
-      "Выберите модель: за вызовы может взиматься плата."
+      "Откройте «ИИ и агенты», раздел «Ключ API».",
+      "Выберите провайдера и вставьте ключ в его поле.",
+      "Введите модель и сохраните; вызовы могут быть платными."
     ],
     "expected": "Проверьте фактический результат в указанном разделе.",
     "recovery": "Если не получилось, оставьте настройки как есть и откройте статью «Как починить подключение» или статью об ошибке очереди.",
-    "action": "/llm/accounts"
-  },
-  {
-    "id": "agent",
-    "title": "Создайте первого агента",
-    "summary": "Агент объединяет подключение, модель и явные разрешения.",
-    "tags": "агент создать ассистент команда",
-    "locale": "ru",
-    "appVersion": "0.10",
-    "sectionId": "guide",
-    "prerequisites": "OmniGet установлен. Подключение нужно только для ИИ.",
-    "steps": [
-      "Настройте подключение.",
-      "Откройте «Агенты» и создайте агента с именем.",
-      "Проверьте его модель и разрешения, прежде чем начинать переписку."
-    ],
-    "expected": "Проверьте фактический результат в указанном разделе.",
-    "recovery": "Если не получилось, оставьте настройки как есть и откройте статью «Как починить подключение» или статью об ошибке очереди.",
-    "action": "/llm/roster"
-  },
-  {
-    "id": "team",
-    "title": "Координатор и команда",
-    "summary": "Координатор распределяет работу между настроенными агентами с учётом их разрешений.",
-    "tags": "команда координатор делегирование",
-    "locale": "ru",
-    "appVersion": "0.10",
-    "sectionId": "guide",
-    "prerequisites": "OmniGet установлен. Подключение нужно только для ИИ.",
-    "steps": [
-      "Откройте «Агенты» и изучите состав команды.",
-      "Выберите координатора и настройте нужных агентов.",
-      "Проверьте разрешение делегировать задачи."
-    ],
-    "expected": "Проверьте фактический результат в указанном разделе.",
-    "recovery": "Если не получилось, оставьте настройки как есть и откройте статью «Как починить подключение» или статью об ошибке очереди.",
-    "action": "/llm/roster"
-  },
-  {
-    "id": "folder",
-    "title": "Прикрепить папку",
-    "summary": "Папка задаёт рабочий контекст для инструментов, которые работают с кодом.",
-    "tags": "папка рабочая область файлы",
-    "locale": "ru",
-    "appVersion": "0.10",
-    "sectionId": "guide",
-    "prerequisites": "OmniGet установлен. Подключение нужно только для ИИ.",
-    "steps": [
-      "Откройте «Чат».",
-      "Нажмите «Прикрепить папку» и выберите каталог.",
-      "Прежде чем разрешить запись или запуск команд, проверьте разрешения."
-    ],
-    "expected": "Проверьте фактический результат в указанном разделе.",
-    "recovery": "Если не получилось, оставьте настройки как есть и откройте статью «Как починить подключение» или статью об ошибке очереди.",
-    "action": "/llm"
-  },
-  {
-    "id": "permissions",
-    "title": "Как работают разрешения",
-    "summary": "«Разрешить» действует на один запрос; «Всегда» меняет правило для таких вызовов.",
-    "tags": "разрешения безопасность авторизация инструменты",
-    "locale": "ru",
-    "appVersion": "0.10",
-    "sectionId": "guide",
-    "prerequisites": "OmniGet установлен. Подключение нужно только для ИИ.",
-    "steps": [
-      "Прочитайте, какой инструмент и с какими аргументами вам предлагают запустить.",
-      "Нажимайте «Запретить», если запрос оказался неожиданным.",
-      "Чтобы поменять постоянные разрешения, откройте правила «Всегда» у агента."
-    ],
-    "expected": "Проверьте фактический результат в указанном разделе.",
-    "recovery": "Если не получилось, оставьте настройки как есть и откройте статью «Как починить подключение» или статью об ошибке очереди.",
-    "action": "/llm/roster"
-  },
-  {
-    "id": "models",
-    "title": "Модели и маршрутизация",
-    "summary": "У агента может быть фиксированная модель или упорядоченная цепочка запасных вариантов.",
-    "tags": "модель маршрут резерв провайдер",
-    "locale": "ru",
-    "appVersion": "0.10",
-    "sectionId": "guide",
-    "prerequisites": "OmniGet установлен. Подключение нужно только для ИИ.",
-    "steps": [
-      "Откройте «Модели и маршрутизация».",
-      "Проверьте доступных провайдеров.",
-      "Выберите модель или задайте порядок маршрутизации."
-    ],
-    "expected": "Проверьте фактический результат в указанном разделе.",
-    "recovery": "Если не получилось, оставьте настройки как есть и откройте статью «Как починить подключение» или статью об ошибке очереди.",
-    "action": "/llm/models"
+    "action": "/settings?tab=ai&section=connections"
   },
   {
     "id": "mcp",
-    "title": "Подключить инструменты MCP",
-    "summary": "MCP подключает внешние инструменты. Встроенной справке внешний сервер включать не нужно.",
+    "title": "Подключение инструментов MCP",
+    "summary": "MCP даёт агентам Canvas доступ к внешним инструментам.",
     "tags": "mcp сервер интеграция инструменты",
     "locale": "ru",
     "appVersion": "0.10",
     "sectionId": "guide",
     "prerequisites": "OmniGet установлен. Подключение нужно только для ИИ.",
     "steps": [
-      "Откройте MCP в разделе «Настройка».",
-      "Добавьте сервер и посмотрите, какие инструменты нашлись.",
-      "Выдайте агенту только те разрешения, которые ему нужны."
+      "Откройте «Дополнительные инструменты» в разделе «ИИ и агенты».",
+      "Нажмите на инструмент в галерее или «Другой инструмент».",
+      "Заполните нужные поля, сохраните и проверьте."
     ],
     "expected": "Проверьте фактический результат в указанном разделе.",
     "recovery": "Если не получилось, оставьте настройки как есть и откройте статью «Как починить подключение» или статью об ошибке очереди.",
-    "action": "/llm/mcp"
-  },
-  {
-    "id": "skills",
-    "title": "Как пользоваться навыками",
-    "summary": "Навыки добавляют агентам инструкции и ресурсы.",
-    "tags": "навыки инструкции ресурсы установка",
-    "locale": "ru",
-    "appVersion": "0.10",
-    "sectionId": "guide",
-    "prerequisites": "OmniGet установлен. Подключение нужно только для ИИ.",
-    "steps": [
-      "Откройте «Навыки».",
-      "Перед установкой посмотрите источник и содержимое навыка.",
-      "Назначьте навык нужному агенту."
-    ],
-    "expected": "Проверьте фактический результат в указанном разделе.",
-    "recovery": "Если не получилось, оставьте настройки как есть и откройте статью «Как починить подключение» или статью об ошибке очереди.",
-    "action": "/llm/skills"
-  },
-  {
-    "id": "tasks",
-    "title": "Как следить за задачами",
-    "summary": "Задачи фиксируют реальную работу и её результат.",
-    "tags": "задачи запуски выполнение",
-    "locale": "ru",
-    "appVersion": "0.10",
-    "sectionId": "guide",
-    "prerequisites": "OmniGet установлен. Подключение нужно только для ИИ.",
-    "steps": [
-      "Откройте «Активность», затем «Задачи».",
-      "Выберите запуск и посмотрите подробности.",
-      "Перед повтором проверьте итоговый статус и ошибки."
-    ],
-    "expected": "Проверьте фактический результат в указанном разделе.",
-    "recovery": "Если не получилось, оставьте настройки как есть и откройте статью «Как починить подключение» или статью об ошибке очереди.",
-    "action": "/llm/jobs"
-  },
-  {
-    "id": "routines",
-    "title": "Создание циклов",
-    "summary": "Циклы повторяют работу по заданным настройкам.",
-    "tags": "циклы повтор расписание регулярные задачи",
-    "locale": "ru",
-    "appVersion": "0.10",
-    "sectionId": "guide",
-    "prerequisites": "OmniGet установлен. Подключение нужно только для ИИ.",
-    "steps": [
-      "Откройте раздел «Циклы».",
-      "Укажите агента и запрос.",
-      "Проверьте частоту и оставьте включёнными только нужные циклы."
-    ],
-    "expected": "Проверьте фактический результат в указанном разделе.",
-    "recovery": "Если не получилось, оставьте настройки как есть и откройте статью «Как починить подключение» или статью об ошибке очереди.",
-    "action": "/llm/loops"
+    "action": "/settings?tab=ai&section=mcp"
   },
   {
     "id": "quota",
@@ -999,49 +495,13 @@
     "sectionId": "guide",
     "prerequisites": "OmniGet установлен. Подключение нужно только для ИИ.",
     "steps": [
-      "Откройте «Монитор использования» в разделе «Чат».",
-      "Включите полосу лимитов и нужные источники.",
-      "Проверьте, когда показания читали последний раз: «недоступно» не значит ноль."
+      "Откройте «Лимиты на экране» в разделе «ИИ и агенты».",
+      "Включите полосу у края, значок у часов или оба.",
+      "Проверьте последнее значение; «недоступно» не значит ноль."
     ],
     "expected": "Проверьте фактический результат в указанном разделе.",
     "recovery": "Если не получилось, оставьте настройки как есть и откройте статью «Как починить подключение» или статью об ошибке очереди.",
-    "action": "/llm"
-  },
-  {
-    "id": "usage",
-    "title": "Записанное использование",
-    "summary": "История токенов и расходов сама по себе не показывает остаток по подписке.",
-    "tags": "использование стоимость токены расходы история jsonl",
-    "locale": "ru",
-    "appVersion": "0.10",
-    "sectionId": "guide",
-    "prerequisites": "OmniGet установлен. Подключение нужно только для ИИ.",
-    "steps": [
-      "Откройте «Аккаунты» и вкладку «Использование».",
-      "Проверьте период и источник записей.",
-      "Сравнивайте только данные из одного источника и за один и тот же период."
-    ],
-    "expected": "Проверьте фактический результат в указанном разделе.",
-    "recovery": "Если не получилось, оставьте настройки как есть и откройте статью «Как починить подключение» или статью об ошибке очереди.",
-    "action": "/llm/accounts"
-  },
-  {
-    "id": "activity",
-    "title": "Активность агентов",
-    "summary": "В «Активности» видно запуски агентов и события.",
-    "tags": "активность обсерватория телеметрия запуски события",
-    "locale": "ru",
-    "appVersion": "0.10",
-    "sectionId": "guide",
-    "prerequisites": "OmniGet установлен. Подключение нужно только для ИИ.",
-    "steps": [
-      "Откройте «Активность».",
-      "Выберите агента или запуск.",
-      "Запускайте только ту диагностику, которая относится к вашей проблеме: сетевые зонды могут расходовать квоту."
-    ],
-    "expected": "Проверьте фактический результат в указанном разделе.",
-    "recovery": "Если не получилось, оставьте настройки как есть и откройте статью «Как починить подключение» или статью об ошибке очереди.",
-    "action": "/llm/observatory"
+    "action": "/settings?tab=ai&section=limits"
   },
   {
     "id": "connection",
@@ -1053,25 +513,25 @@
     "sectionId": "guide",
     "prerequisites": "OmniGet установлен. Подключение нужно только для ИИ.",
     "steps": [
-      "Откройте проблемное подключение.",
-      "Проверьте официальный вход и доступность среды выполнения.",
-      "Запустите явную проверку и прочитайте ошибку, прежде чем повторять попытку."
+      "Откройте «Аккаунты» в разделе «ИИ и агенты».",
+      "Нажмите «Войти» у аккаунта с ошибкой.",
+      "Если не помогло, прочитайте сообщение на карточке."
     ],
     "expected": "Проверьте фактический результат в указанном разделе.",
     "recovery": "Если не получилось, оставьте настройки как есть и откройте статью «Как починить подключение» или статью об ошибке очереди.",
-    "action": "/llm/accounts"
+    "action": "/settings?tab=ai&section=accounts"
   },
   {
     "id": "download",
     "title": "Скачивание медиа и повторные попытки",
-    "summary": "Скачивания по просьбе агента попадают в ту же «Очередь загрузок» OmniGet.",
+    "summary": "Загрузки агентов используют ту же очередь OmniGet.",
     "tags": "скачивание загрузка видео youtube повтор очередь медиа",
     "locale": "ru",
     "appVersion": "0.10",
     "sectionId": "guide",
     "prerequisites": "OmniGet установлен. Подключение нужно только для ИИ.",
     "steps": [
-      "Вставьте ссылку в «Загрузках» или задайте вопрос в «Справке».",
+      "Вставьте ссылку на главном экране.",
       "Проверьте папку назначения и параметры, прежде чем подтверждать.",
       "Следите за очередью: скачивание подтверждает только статус «Завершено»."
     ],

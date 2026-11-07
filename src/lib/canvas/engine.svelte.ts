@@ -44,7 +44,7 @@ import { workspaces } from './palette/workspaces.svelte';
 import { Panels } from './panels/panels.svelte';
 
 export const ENGINE_KEY = Symbol('canvas-engine');
-export const SETTLE_MS = 150;
+const SETTLE_MS = 150;
 const SOFT_DELETE_MS = 60_000;
 const MESSAGE_EVENT = 'canvas://message';
 const ASK_EVENT = 'canvas://ask';

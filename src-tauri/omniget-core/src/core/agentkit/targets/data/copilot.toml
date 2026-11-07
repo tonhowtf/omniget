@@ -6,8 +6,6 @@ status = "active"
 beta = false
 homepage = "https://docs.github.com/en/copilot"
 notes = "VS Code agent mode and the copilot CLI share ~/.copilot and .github, and both read most .claude/ files (CLAUDE.md, rules, agents, skills, hooks, plugins). VS Code MCP uses key servers; the CLI uses mcpServers. Prompt files are deprecated for the VS Code Agent Host."
-reads_agents_dir = true
-reads_agents_md = "yes"
 
 [detect]
 binaries = ["copilot"]
@@ -20,7 +18,6 @@ local = true
 managed = true
 project_markers = [".github/copilot-instructions.md", ".github/agents", ".github/hooks", ".github/copilot"]
 global_dir = "~/.copilot"
-config_dir_env = "COPILOT_HOME"
 
 [formats]
 rule = "copilot_instructions"
@@ -140,8 +137,6 @@ Notification = "notification"
 shape = "copilot"
 timeout_unit = "s"
 version = 1
-env_aliases = ["CLAUDE_PROJECT_DIR"]
-events_count = 14
 
 # Copilot CLI runtime names.
 [tool_name_map]
@@ -190,7 +185,6 @@ format = "jsonl"
 cmd = "copilot"
 headless = ["-p"]
 json_flag = ["--output-format", "json"]
-resume_flag = "--resume"
 model_flag = "--model"
 permission_flags = { accept_edits = ["--allow-tool=write"], bypass = ["--allow-all"] }
 

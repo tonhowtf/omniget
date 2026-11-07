@@ -6,8 +6,6 @@ status = "active"
 beta = true
 homepage = "https://github.com/CodebuffAI/freebuff"
 notes = "Repo CodebuffAI/codebuff was renamed to CodebuffAI/freebuff; one monorepo builds both `codebuff` and the ad-supported `freebuff`. `knowledge.md` was dropped as a knowledge file name; custom agents are TypeScript modules, not Markdown."
-reads_agents_dir = true
-reads_agents_md = "yes"
 
 [detect]
 binaries = ["codebuff", "freebuff"]
@@ -20,7 +18,6 @@ local = false
 managed = false
 project_markers = [".agents/mcp.json", ".agents/types"]
 global_dir = "~/.config/manicode"
-config_dir_env = "FREEBUFF_CONFIG_DIR"
 
 [formats]
 rule = "agents_md"
@@ -119,5 +116,4 @@ format = "json"
 native = false
 
 [trust]
-requires_review = true
 how = "Repository .agents/ dirs holding agent code or an mcp.json need a trust prompt, stored in ~/.config/manicode/trusted-agent-dirs.json (CI: --trust-agents or CODEBUFF_TRUST_AGENT_DIRS=1); skills load even when untrusted."

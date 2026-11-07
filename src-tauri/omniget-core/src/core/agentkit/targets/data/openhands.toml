@@ -6,8 +6,6 @@ status = "maintenance"
 beta = true
 homepage = "https://github.com/OpenHands/OpenHands-CLI"
 notes = "README: 'no longer actively maintained', points to Agent Canvas (OpenHands/OpenHands); last release 1.16.0 (2026-05-08). Repo moved from All-Hands-AI to the OpenHands org; on-disk formats are software-agent-sdk formats shared with Agent Canvas and Cloud."
-reads_agents_dir = true
-reads_agents_md = "yes"
 
 [detect]
 binaries = ["openhands"]
@@ -20,7 +18,6 @@ local = false
 managed = false
 project_markers = [".openhands", "AGENTS.md"]
 global_dir = "~/.openhands"
-config_dir_env = "OPENHANDS_PERSISTENCE_DIR"
 
 [formats]
 rule = "agents_md"
@@ -100,7 +97,6 @@ Stop = "Stop"
 # Hook env sets OPENHANDS_PROJECT_DIR (not CLAUDE_PROJECT_DIR). Block = exit 2 with {"decision":"deny","reason":...}.
 shape = "claude"
 timeout_unit = "s"
-events_count = 6
 
 [tool_name_map]
 Bash = "terminal"
@@ -136,7 +132,6 @@ format = "json"
 cmd = "openhands"
 headless = ["--headless", "-t"]
 json_flag = ["--json"]
-resume_flag = "--resume"
 permission_flags = { bypass = ["--always-approve"] }
 
 [acp]

@@ -7,7 +7,6 @@ pub trait TelegramHost: Send + Sync + 'static {
     fn settings(&self) -> serde_json::Value;
     fn save_settings(&self, settings: serde_json::Value);
     fn default_output_dir(&self) -> PathBuf;
-    fn toast(&self, _kind: &str, _message: &str) {}
 }
 
 static HOST: OnceLock<Arc<dyn TelegramHost>> = OnceLock::new();

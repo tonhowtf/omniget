@@ -6,8 +6,6 @@ status = "active"
 beta = true
 homepage = "https://zed.dev/docs/ai/"
 notes = "Editor agent with no hooks, no custom agent files and no headless mode; it is the ACP client. Skills live only in .agents/skills. The global settings path on macOS is disputed (~/.config/zed vs ~/Library/Application Support/Zed)."
-reads_agents_dir = true
-reads_agents_md = "yes"
 
 [detect]
 binaries = ["zed"]
@@ -115,5 +113,4 @@ format = "sqlite"
 native = false
 
 [trust]
-requires_review = true
 how = "Zed loads project .agents/skills only from trusted worktrees."

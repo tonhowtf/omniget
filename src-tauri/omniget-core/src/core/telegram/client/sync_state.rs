@@ -1,9 +1,10 @@
 use std::sync::atomic::{AtomicBool, AtomicI64, AtomicU32, Ordering};
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::Duration;
 
 use serde::Serialize;
 use tokio_util::sync::CancellationToken;
 
+use super::accounts::now_unix;
 use super::auth::TelegramSessionHandle;
 
 const DEFAULT_INTERVAL_MIN: u32 = 30;
@@ -16,13 +17,6 @@ static LAST_SUCCESS_AT: AtomicI64 = AtomicI64::new(0);
 static LAST_DURATION_MS: AtomicU32 = AtomicU32::new(0);
 static LAST_UPDATED_COUNT: AtomicU32 = AtomicU32::new(0);
 static IS_SYNCING: AtomicBool = AtomicBool::new(false);
-
-fn now_unix() -> i64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|d| d.as_secs() as i64)
-        .unwrap_or(0)
-}
 
 pub fn is_enabled() -> bool {
     ENABLED.load(Ordering::Relaxed)

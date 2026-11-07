@@ -29,24 +29,14 @@ pub struct BlockList {
     text: &'static str,
 }
 
-pub const LISTS: &[BlockList] = &[
-    BlockList {
-        id: "adaway",
-        name: "AdAway",
-        license: "CC BY 3.0",
-        source_url: "https://github.com/AdAway/adaway.github.io",
-        default_on: &[],
-        text: include_str!("../../../data/washmybelly/hosts/adaway/hosts.txt"),
-    },
-    BlockList {
-        id: "windowsspyblocker",
-        name: "WindowsSpyBlocker",
-        license: "MIT",
-        source_url: "https://github.com/crazy-max/WindowsSpyBlocker",
-        default_on: &[Os::Windows],
-        text: include_str!("../../../data/washmybelly/hosts/windowsspyblocker/spy.txt"),
-    },
-];
+pub const LISTS: &[BlockList] = &[BlockList {
+    id: "windowsspyblocker",
+    name: "WindowsSpyBlocker",
+    license: "MIT",
+    source_url: "https://github.com/crazy-max/WindowsSpyBlocker",
+    default_on: &[Os::Windows],
+    text: include_str!("../../../data/washmybelly/hosts/windowsspyblocker/spy.txt"),
+}];
 
 fn list_by_id(id: &str) -> Option<&'static BlockList> {
     LISTS.iter().find(|l| l.id == id)
@@ -554,7 +544,6 @@ fn flush_dns() -> &'static str {
 #[derive(Debug, Serialize, Deserialize)]
 struct Snapshot {
     text: String,
-    existed: bool,
 }
 
 fn check_action(action: &str) -> Result<(), String> {
@@ -565,14 +554,13 @@ fn check_action(action: &str) -> Result<(), String> {
     }
 }
 
-fn snapshot(ctx: &Ctx, receipt_id: &str, target: &Path, current: &str) -> Result<Undo, String> {
+fn snapshot(ctx: &Ctx, receipt_id: &str, current: &str) -> Result<Undo, String> {
     let id = ctx.snapshot_put(
         receipt_id,
         "hosts",
         "hosts",
         &Snapshot {
             text: current.to_string(),
-            existed: target.exists(),
         },
     )?;
     Ok(Undo::Module {
@@ -596,7 +584,7 @@ pub fn plan_execute(
     if target.exists() && !is_writable(&target) {
         return Err("NEEDS_ADMIN: the hosts file needs an administrator; preview again".into());
     }
-    let undo = snapshot(ctx, receipt_id, &target, &current)?;
+    let undo = snapshot(ctx, receipt_id, &current)?;
     std::fs::write(&target, &next).map_err(|e| format!("cannot write the hosts file: {e}"))?;
     let n = count_blocked(&next);
     Ok(Outcome {
@@ -617,7 +605,7 @@ pub fn plan_elevated(
     let target = hosts_path();
     let current = read_text(&target)?;
     check_replacement(&current, &next)?;
-    let undo = snapshot(ctx, receipt_id, &target, &current)?;
+    let undo = snapshot(ctx, receipt_id, &current)?;
     Ok((vec![ElevatedOp::WriteHosts { staged }], Some(undo)))
 }
 
@@ -984,8 +972,8 @@ mod tests {
             &doms(&["ads.google.com"])
         ));
         let prefs = Prefs {
-            lists: vec!["adaway".into()],
-            whitelist: doms(&["doubleclick.net"]),
+            lists: vec!["windowsspyblocker".into()],
+            whitelist: doms(&["microsoft.com"]),
             extra: vec![],
         };
         let built = build_apply(USER, &prefs, "t");
@@ -993,15 +981,14 @@ mod tests {
         assert!(!built
             .next
             .lines()
-            .any(|l| l.ends_with(".doubleclick.net") || l.ends_with(" doubleclick.net")));
+            .any(|l| l.ends_with(".microsoft.com") || l.ends_with(" microsoft.com")));
     }
 
     #[test]
     fn embedded_lists_parse_and_skip_localhost() {
-        let ad = list_domains("adaway").unwrap();
-        assert!(ad.len() > 5000, "{}", ad.len());
-        assert!(!ad.iter().any(|d| d == "localhost"));
-        assert!(list_domains("windowsspyblocker").unwrap().len() > 300);
+        let spy = list_domains("windowsspyblocker").unwrap();
+        assert!(spy.len() > 300, "{}", spy.len());
+        assert!(!spy.iter().any(|d| d == "localhost"));
         assert!(parse_list("nope\n192.168.0.1\n::1 ip6-localhost\n").is_empty());
         assert_eq!(
             parse_list("0.0.0.0 a.example.com b.example.com # x").len(),

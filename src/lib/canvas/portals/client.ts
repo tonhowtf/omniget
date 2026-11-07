@@ -1,7 +1,7 @@
 import { invoke } from '@tauri-apps/api/core';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 
-export const EVENT_STATE = 'canvas://portal-state';
+const EVENT_STATE = 'canvas://portal-state';
 const EVENT_DRIVE = 'canvas://portal-drive';
 const EVENT_CLOSED = 'canvas://portal-closed';
 

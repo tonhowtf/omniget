@@ -1,5 +1,4 @@
 pub mod cheap;
-pub mod limits;
 pub mod native;
 
 use std::collections::HashMap;
@@ -12,7 +11,7 @@ use omniget_core::core::llm::drivers::*;
 use omniget_core::core::omni::bus::BusEvent;
 use omniget_core::core::threads::git::{GitHooks, ThreadGit};
 use omniget_core::core::threads::model::{Command, CommandEnvelope, DomainEvent, StoredEvent};
-use omniget_core::core::threads::usage::{self, LimitsBook};
+use omniget_core::core::threads::usage;
 use omniget_core::core::threads::{store, ThreadsEngine};
 use serde::Serialize;
 use serde_json::json;
@@ -39,7 +38,6 @@ pub struct InstanceView {
 pub struct ThreadsHost {
     pub engine: Arc<ThreadsEngine>,
     pub git: Arc<ThreadGit>,
-    pub limits: LimitsBook,
     app: AppHandle,
     sink: RuntimeSink,
     drivers: Mutex<HashMap<String, Arc<dyn Driver>>>,
@@ -183,7 +181,6 @@ pub fn get(app: &AppHandle) -> Result<Arc<ThreadsHost>, String> {
     let host = Arc::new(ThreadsHost {
         engine: engine.clone(),
         git: ThreadGit::new(engine.clone(), hooks),
-        limits: LimitsBook::default(),
         app: app.clone(),
         sink,
         drivers: Mutex::new(HashMap::new()),
@@ -287,7 +284,6 @@ fn spawn_ingestion(host: Arc<ThreadsHost>, mut rx: mpsc::UnboundedReceiver<Runti
 impl ThreadsHost {
     async fn persist(&self, ev: RuntimeEvent) {
         self.mirror_to_bus(&ev);
-        self.limits.note(&ev);
         let env = CommandEnvelope {
             command_id: Some(format!("provider:{}", ev.event_id)),
             command: Command::RuntimeAppend { event: ev },

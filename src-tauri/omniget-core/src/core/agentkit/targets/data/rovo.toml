@@ -6,8 +6,6 @@ status = "active"
 beta = true
 homepage = "https://support.atlassian.com/rovo/docs/"
 notes = "Part of the Atlassian CLI: run as `acli rovodev`; Python engine; all config under ~/.rovodev/. MCP path conflict: MCP doc says ~/.rovodev/mcp.json, settings doc says mcp.mcpConfigPath defaults to ~/.rovodev/mcp_config.json, so read mcp.mcpConfigPath from config.yml."
-reads_agents_dir = true
-reads_agents_md = "yes"
 
 [detect]
 binaries = ["acli"]
@@ -104,7 +102,6 @@ SessionEnd = "on_session_end" # UNVERIFIED
 [hooks]
 # eventHooks: { events: [ { name, commands: [ { command } ] } ] } in config.yml (shape from 3P adapters). No blocking I/O yet.
 shape = "rovo"
-events_count = 8
 
 [tool_name_map]
 Bash = "bash"
@@ -143,7 +140,6 @@ format = "json"
 # No JSON output flag; output follows console.outputFormat. Server mode: `acli rovodev serve <port>` (HTTP REST + SSE).
 cmd = "acli"
 headless = ["rovodev", "run"]
-resume_flag = "--restore"
 permission_flags = { bypass = ["--yolo"] }
 
 [acp]

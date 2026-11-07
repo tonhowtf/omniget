@@ -480,7 +480,7 @@
       </Row>
 
       <h3 class="ts-sub">{$t("tube.settings.group_pages")}</h3>
-      {#each ["hide_home_feed", "hide_related", "hide_comments", "hide_end_screen", "hide_chips", "hide_metrics"] as const as k (k)}
+      {#each ["hide_home_feed", "hide_related", "hide_comments", "hide_chips", "hide_metrics"] as const as k (k)}
         <Row title={$t(`tube.settings.${k}`) as string} desc={$t(`tube.settings.${k}_desc`) as string}>
           <Toggle checked={p[k]} label={$t(`tube.settings.${k}`) as string} onchange={(v) => set({ [k]: v })} />
         </Row>
@@ -575,9 +575,6 @@
           ]}
           onchange={(v) => set({ start_page: v })}
         />
-      </Row>
-      <Row title={$t("tube.settings.enabled") as string} desc={$t("tube.settings.enabled_desc") as string}>
-        <Toggle checked={p.enabled} label={$t("tube.settings.enabled") as string} onchange={(v) => set({ enabled: v })} />
       </Row>
     </Section>
 

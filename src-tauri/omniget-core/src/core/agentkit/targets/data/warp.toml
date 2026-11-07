@@ -6,8 +6,6 @@ status = "active"
 beta = true
 homepage = "https://www.warp.dev"
 notes = "Three surfaces: the Warp app, the warp Agent CLI (2026-08-04, separate config under ~/.warp_cli) and the deprecated Oz CLI. Global rules, agent profiles, prompts and conversations are cloud objects in Warp Drive; commands exist only as skills; no hooks, no native subagents."
-reads_agents_dir = true
-reads_agents_md = "yes"
 
 [detect]
 binaries = ["warp"]
@@ -101,5 +99,4 @@ format = "none"
 native = false    # UNVERIFIED
 
 [trust]
-requires_review = true
 how = "Global Warp MCP servers auto-spawn, but third-party and project servers need approval unless auto-spawn is enabled."

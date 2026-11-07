@@ -293,11 +293,65 @@ pub async fn torrent_contents(url: String) -> Result<Vec<TorrentFileEntry>, Stri
 }
 
 #[cfg(not(target_os = "android"))]
+fn listed_playlists(
+) -> &'static std::sync::Mutex<std::collections::HashMap<String, crate::models::media::MediaInfo>> {
+    static LISTED: std::sync::OnceLock<
+        std::sync::Mutex<std::collections::HashMap<String, crate::models::media::MediaInfo>>,
+    > = std::sync::OnceLock::new();
+    LISTED.get_or_init(Default::default)
+}
+
+#[cfg(not(target_os = "android"))]
+fn only_selected_items(
+    mut info: crate::models::media::MediaInfo,
+    selected: &[u32],
+) -> crate::models::media::MediaInfo {
+    let set: std::collections::HashSet<u32> = selected.iter().copied().collect();
+    let filtered: Vec<_> = info
+        .available_qualities
+        .iter()
+        .enumerate()
+        .filter(|(i, _)| set.contains(&((*i as u32) + 1)))
+        .map(|(_, q)| q.clone())
+        .collect();
+    if !filtered.is_empty() {
+        info.available_qualities = filtered;
+    }
+    info
+}
+
+#[cfg(not(target_os = "android"))]
 #[tauri::command]
 pub async fn playlist_entries(url: String) -> Result<Vec<PlaylistEntryInfo>, String> {
+    omniget_core::core::platform_optout::ensure_allowed(&url)?;
     let ytdlp_path = ytdlp::find_ytdlp_cached()
         .await
         .ok_or_else(|| "yt-dlp unavailable".to_string())?;
+    if Platform::from_url(&url) == Some(Platform::YouTube) {
+        let info =
+            omniget_core::platforms::youtube::YouTubeDownloader::fetch_playlist(&url, &ytdlp_path)
+                .await
+                .map_err(|e| e.to_string())?;
+        let entries = info
+            .available_qualities
+            .iter()
+            .enumerate()
+            .map(|(i, q)| PlaylistEntryInfo {
+                index: (i + 1) as u32,
+                title: q
+                    .label
+                    .split_once(". ")
+                    .map(|(_, title)| title.to_string())
+                    .unwrap_or_else(|| q.label.clone()),
+                url: q.url.clone(),
+            })
+            .collect();
+        if let Ok(mut listed) = listed_playlists().lock() {
+            listed.clear();
+            listed.insert(url, info);
+        }
+        return Ok(entries);
+    }
     let (_title, entries) = ytdlp::get_playlist_info(&ytdlp_path, &url, &[])
         .await
         .map_err(|e| e.to_string())?;
@@ -442,22 +496,31 @@ pub async fn download_from_url_with_args(
 
     let cached_info = {
         let info = queue::try_get_cached_info(&url).await;
-        match (info, &playlist_items) {
-            (Some(mut info), Some(sel))
-                if !sel.is_empty() && info.media_type == MediaType::Playlist =>
-            {
-                let set: std::collections::HashSet<u32> = sel.iter().copied().collect();
-                let filtered: Vec<_> = info
-                    .available_qualities
-                    .iter()
-                    .enumerate()
-                    .filter(|(i, _)| set.contains(&((*i as u32) + 1)))
-                    .map(|(_, q)| q.clone())
-                    .collect();
-                if !filtered.is_empty() {
-                    info.available_qualities = filtered;
-                }
-                Some(info)
+        let selected = playlist_items.as_deref().filter(|sel| !sel.is_empty());
+        match (info, selected) {
+            (info, Some(sel)) if platform_name == "youtube" => {
+                let listed = listed_playlists()
+                    .lock()
+                    .ok()
+                    .and_then(|mut listed| listed.remove(&url));
+                let playlist = match (listed, info) {
+                    (Some(listed), _) => listed,
+                    (None, Some(info)) if info.media_type == MediaType::Playlist => info,
+                    _ => {
+                        let path = ytdlp_path
+                            .as_deref()
+                            .ok_or_else(|| "yt-dlp unavailable".to_string())?;
+                        omniget_core::platforms::youtube::YouTubeDownloader::fetch_playlist(
+                            &url, path,
+                        )
+                        .await
+                        .map_err(|e| e.to_string())?
+                    }
+                };
+                Some(only_selected_items(playlist, sel))
+            }
+            (Some(info), Some(sel)) if info.media_type == MediaType::Playlist => {
+                Some(only_selected_items(info, sel))
             }
             (info, _) => info,
         }
@@ -830,9 +893,18 @@ pub async fn remove_download(
     state: tauri::State<'_, AppState>,
     download_id: u64,
     delete_file: Option<bool>,
+    delete_partials: Option<bool>,
 ) -> Result<String, String> {
     let (state_to_emit, seeding_torrent_id, file_path) = {
         let mut q = state.download_queue.lock().await;
+        if delete_partials.unwrap_or(false) {
+            if let Some(item) = q.items.iter().find(|i| {
+                i.id == download_id && matches!(i.status, queue::QueueStatus::Error { .. })
+            }) {
+                let finished = item.file_path.as_deref().map(std::path::Path::new);
+                ytdlp::leftovers::delete_task_leftovers(download_id, finished);
+            }
+        }
         let path = if delete_file.unwrap_or(false) {
             q.items.iter().find(|i| i.id == download_id).and_then(|i| {
                 let base = std::path::PathBuf::from(&i.output_dir);
@@ -867,6 +939,70 @@ pub async fn remove_download(
     } else {
         Err("Download not found".to_string())
     }
+}
+
+#[tauri::command]
+pub async fn failed_download_leftovers(
+    state: tauri::State<'_, AppState>,
+    download_id: u64,
+) -> Result<Vec<ytdlp::leftovers::LeftoverFile>, String> {
+    let q = state.download_queue.lock().await;
+    let Some(item) = q
+        .items
+        .iter()
+        .find(|i| i.id == download_id && matches!(i.status, queue::QueueStatus::Error { .. }))
+    else {
+        return Ok(Vec::new());
+    };
+    let finished = item.file_path.as_deref().map(std::path::Path::new);
+    Ok(ytdlp::leftovers::task_leftovers(download_id, finished))
+}
+
+#[derive(Clone, Serialize)]
+pub struct ArchiveImportReport {
+    pub read: usize,
+    pub added: usize,
+}
+
+#[derive(Clone, Serialize)]
+pub struct ArchiveExportReport {
+    pub written: usize,
+    pub skipped: usize,
+}
+
+const MAX_ARCHIVE_FILE_BYTES: u64 = 64 * 1024 * 1024;
+
+#[tauri::command]
+pub async fn import_ytdlp_archive(path: String) -> Result<ArchiveImportReport, String> {
+    let bytes = std::fs::metadata(&path)
+        .map_err(|e| format!("Read error: {}", e))?
+        .len();
+    if bytes > MAX_ARCHIVE_FILE_BYTES {
+        return Err("ArchiveTooLarge".to_string());
+    }
+    let text = std::fs::read_to_string(&path).map_err(|e| format!("Read error: {}", e))?;
+    let entries = ytdlp::archive::parse_archive(&text).map_err(|e| e.to_string())?;
+    let added = crate::core::queue_history::import_archive(&entries);
+    Ok(ArchiveImportReport {
+        read: entries.len(),
+        added,
+    })
+}
+
+#[tauri::command]
+pub async fn export_ytdlp_archive(path: String) -> Result<ArchiveExportReport, String> {
+    let (entries, skipped) = crate::core::queue_history::archive_export_entries();
+    std::fs::write(&path, ytdlp::archive::format_archive(&entries))
+        .map_err(|e| format!("Write error: {}", e))?;
+    Ok(ArchiveExportReport {
+        written: entries.len(),
+        skipped,
+    })
+}
+
+#[tauri::command]
+pub fn imported_archive_count() -> usize {
+    crate::core::queue_history::imported_archive_count()
 }
 
 #[tauri::command]
@@ -1345,6 +1481,16 @@ pub async fn open_path_default(path: String) -> Result<(), String> {
 }
 
 #[tauri::command]
+pub async fn get_download_source_url(app: tauri::AppHandle, id: u64) -> Result<String, String> {
+    use tauri::Manager;
+    let state = app.state::<crate::AppState>();
+    let queue = state.download_queue.lock().await;
+    let item = queue.get_state().into_iter().find(|i| i.id == id);
+    let item = item.ok_or_else(|| crate::core::queue::LINK_EXPIRED_MESSAGE.to_string())?;
+    crate::core::queue::openable_source_url(&item.url)
+}
+
+#[tauri::command]
 pub async fn get_download_queue(app: tauri::AppHandle) -> Vec<crate::core::queue::QueueItemInfo> {
     use tauri::Manager;
     let state = app.state::<crate::AppState>();
@@ -1374,5 +1520,51 @@ mod delete_guard_tests {
         assert!(!own.exists());
 
         std::fs::remove_dir_all(&root).unwrap();
+    }
+}
+
+#[cfg(all(test, not(target_os = "android")))]
+mod playlist_selection_tests {
+    use super::*;
+    use crate::models::media::{MediaInfo, VideoQuality};
+
+    fn list(count: u32) -> MediaInfo {
+        MediaInfo {
+            title: "List".into(),
+            author: "List".into(),
+            platform: "youtube".into(),
+            duration_seconds: None,
+            thumbnail_url: None,
+            available_qualities: (1..=count)
+                .map(|n| VideoQuality {
+                    label: format!("{n}. item"),
+                    width: 0,
+                    height: 0,
+                    url: format!("u{n}"),
+                    format: "ytdlp_playlist".into(),
+                })
+                .collect(),
+            media_type: MediaType::Playlist,
+            file_size_bytes: None,
+        }
+    }
+
+    #[test]
+    fn selected_items_stay_in_list_order_whatever_order_they_were_ticked() {
+        let picked = only_selected_items(list(5), &[4, 2]);
+        let urls: Vec<&str> = picked
+            .available_qualities
+            .iter()
+            .map(|q| q.url.as_str())
+            .collect();
+        assert_eq!(urls, vec!["u2", "u4"]);
+    }
+
+    #[test]
+    fn a_selection_that_matches_nothing_keeps_the_whole_list() {
+        assert_eq!(
+            only_selected_items(list(3), &[9]).available_qualities.len(),
+            3
+        );
     }
 }

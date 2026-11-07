@@ -144,6 +144,7 @@ pub struct AdvancedPublic {
     pub torrent_listen_port: u16,
     pub torrent_auto_trackers: bool,
     pub torrent_upnp: bool,
+    pub torrent_stop_seeding: bool,
     pub prevent_sleep: bool,
     pub cookies_from_browser: String,
     pub has_twitter_manual_cookie: bool,
@@ -242,6 +243,7 @@ impl AppSettings {
                 torrent_listen_port: adv.torrent_listen_port,
                 torrent_auto_trackers: adv.torrent_auto_trackers,
                 torrent_upnp: adv.torrent_upnp,
+                torrent_stop_seeding: adv.torrent_stop_seeding,
                 prevent_sleep: adv.prevent_sleep,
                 cookies_from_browser: adv.cookies_from_browser.clone(),
                 has_twitter_manual_cookie: !adv.twitter_manual_cookie.is_empty(),
@@ -681,7 +683,7 @@ pub fn apply_secret_operations(s: &mut AppSettings, ops: &SecretOperations) {
     );
 }
 
-pub const RESET_ALLOWLIST: [(&str, SettingsSection); 122] = [
+pub const RESET_ALLOWLIST: [(&str, SettingsSection); 119] = [
     ("appearance.theme", SettingsSection::Appearance),
     ("appearance.language", SettingsSection::General),
     ("download.default_output_dir", SettingsSection::Downloads),
@@ -689,9 +691,10 @@ pub const RESET_ALLOWLIST: [(&str, SettingsSection); 122] = [
     ("download.always_ask_path", SettingsSection::Downloads),
     ("download.video_quality", SettingsSection::Downloads),
     ("download.skip_existing", SettingsSection::Downloads),
-    ("download.download_descriptions", SettingsSection::Downloads),
     ("download.embed_metadata", SettingsSection::Downloads),
     ("download.embed_thumbnail", SettingsSection::Downloads),
+    ("download.playlist_number_files", SettingsSection::Downloads),
+    ("download.video_compatibility", SettingsSection::Downloads),
     ("download.write_nfo_sidecar", SettingsSection::Downloads),
     ("download.clipboard_detection", SettingsSection::Downloads),
     (
@@ -722,17 +725,12 @@ pub const RESET_ALLOWLIST: [(&str, SettingsSection); 122] = [
     ("download.music_hotkey_enabled", SettingsSection::Downloads),
     ("download.music_hotkey_binding", SettingsSection::Downloads),
     ("download.music_audio_format", SettingsSection::Downloads),
-    ("download.extra_ytdlp_flags", SettingsSection::Downloads),
     (
         "download.copy_to_clipboard_on_hotkey",
         SettingsSection::Downloads,
     ),
     (
         "download.always_use_managed_cookies",
-        SettingsSection::Downloads,
-    ),
-    (
-        "download.continuous_lecture_numbers",
         SettingsSection::Downloads,
     ),
     (
@@ -795,6 +793,7 @@ pub const RESET_ALLOWLIST: [(&str, SettingsSection); 122] = [
     ("advanced.torrent_listen_port", SettingsSection::Advanced),
     ("advanced.torrent_auto_trackers", SettingsSection::Advanced),
     ("advanced.torrent_upnp", SettingsSection::Advanced),
+    ("advanced.torrent_stop_seeding", SettingsSection::Advanced),
     ("advanced.prevent_sleep", SettingsSection::Advanced),
     ("advanced.user_agent", SettingsSection::Advanced),
     ("advanced.insecure_tls", SettingsSection::Advanced),
@@ -804,6 +803,7 @@ pub const RESET_ALLOWLIST: [(&str, SettingsSection); 122] = [
     ("proxy.proxy_type", SettingsSection::Advanced),
     ("proxy.host", SettingsSection::Advanced),
     ("proxy.port", SettingsSection::Advanced),
+    ("advanced.cookies_from_browser", SettingsSection::Downloads),
     ("start_with_system", SettingsSection::General),
     ("start_minimized", SettingsSection::General),
     ("exit_on_close", SettingsSection::General),
@@ -848,10 +848,6 @@ pub const RESET_ALLOWLIST: [(&str, SettingsSection); 122] = [
         "accessibility.reduce_transparency",
         SettingsSection::Appearance,
     ),
-    ("accessibility.disable_haptics", SettingsSection::Appearance),
-    ("llm.prune_enabled", SettingsSection::Ai),
-    ("llm.prune_judge", SettingsSection::Ai),
-    ("llm.prune_min_tokens", SettingsSection::Ai),
     ("llm.turn_idle_timeout_s", SettingsSection::Ai),
     ("llm.turn_tool_idle_timeout_s", SettingsSection::Ai),
     ("llm.turn_start_timeout_s", SettingsSection::Ai),

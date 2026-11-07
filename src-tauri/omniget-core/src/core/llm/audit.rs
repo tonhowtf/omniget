@@ -70,9 +70,6 @@ impl Entity {
     pub fn rule(id: &str) -> Self {
         Self::of("rule", id)
     }
-    pub fn arena(id: &str) -> Self {
-        Self::of("arena", id)
-    }
     pub fn loop_(id: &str) -> Self {
         Self::of("loop", id)
     }
@@ -160,11 +157,6 @@ impl Audit {
 
     fn db(&self) -> std::sync::MutexGuard<'_, Connection> {
         self.db.lock().unwrap_or_else(|e| e.into_inner())
-    }
-
-    pub fn set_retention_days(&self, days: u32) {
-        self.retention_ms.store(days_ms(days), Ordering::Relaxed);
-        self.prune(now_ms());
     }
 
     pub fn retention_days(&self) -> u32 {

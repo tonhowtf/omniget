@@ -489,23 +489,6 @@ impl AccountStore {
         self.save(all)?;
         Ok(account)
     }
-
-    pub fn set_disabled(&self, id: &str, disabled: bool) -> Result<CliAccount> {
-        let mut account = self
-            .get(id)
-            .ok_or_else(|| AccountError::new(ERR_CLI_NOT_FOUND, format!("no account {id}")))?;
-        account.disabled = disabled;
-        self.update(account)
-    }
-
-    pub fn set_sandbox(&self, id: &str, sandbox: SandboxMode) -> Result<CliAccount> {
-        let mut account = self
-            .get(id)
-            .ok_or_else(|| AccountError::new(ERR_CLI_NOT_FOUND, format!("no account {id}")))?;
-        account.sandbox = sandbox;
-        self.update(account)
-    }
-
     pub fn remove(&self, id: &str) -> Result<()> {
         let mut all = (*self.list()).clone();
         let before = all.len();
@@ -647,28 +630,6 @@ mod tests {
         ] {
             assert_eq!(SandboxMode::parse(bad), SandboxMode::ReadOnly, "{bad}");
         }
-    }
-
-    #[test]
-    fn set_sandbox_persists_and_survives_a_reopen() {
-        let root = tmp("sandbox");
-        let path = root.join("accounts.json");
-        let store = AccountStore::at(&path);
-        store.create(account("max-1", &root)).unwrap();
-        assert_eq!(store.get("max-1").unwrap().sandbox, SandboxMode::ReadOnly);
-        store.set_sandbox("max-1", SandboxMode::Write).unwrap();
-        assert_eq!(
-            AccountStore::at(&path).get("max-1").unwrap().sandbox,
-            SandboxMode::Write
-        );
-        assert_eq!(
-            store
-                .set_sandbox("ghost", SandboxMode::Write)
-                .unwrap_err()
-                .code,
-            ERR_CLI_NOT_FOUND
-        );
-        let _ = std::fs::remove_dir_all(&root);
     }
 
     #[test]
@@ -814,8 +775,6 @@ mod tests {
         let reopened = AccountStore::at(&path);
         assert_eq!(reopened.list().len(), 2);
         assert_eq!(reopened.get("max-2").unwrap().label, "MAX-2");
-        store.set_disabled("max-1", true).unwrap();
-        assert!(store.get("max-1").unwrap().disabled);
         store.remove("max-1").unwrap();
         assert_eq!(store.list().len(), 1);
         assert!(root.join("max-1").is_dir(), "login survives the removal");

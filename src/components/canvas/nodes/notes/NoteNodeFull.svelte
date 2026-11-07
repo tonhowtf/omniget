@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onDestroy, onMount, tick, untrack } from "svelte";
   import { t } from "$lib/i18n";
-  import { renderSafeMarkdownSync } from "$lib/llm/markdown";
+  import { renderSafeMarkdownSync } from "$lib/markdown";
   import { useEngine } from "$lib/canvas/engine.svelte";
   import type { CanvasNode } from "$lib/canvas/model/types";
   import {

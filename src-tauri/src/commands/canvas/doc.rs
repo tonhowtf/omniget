@@ -1,10 +1,5 @@
-use std::collections::HashMap;
-
-use omniget_core::core::canvas::export::{self, ExportOptions, ImportResult, Partitura, Selection};
 use omniget_core::core::canvas::layout::{self, ArrangeMode};
-use omniget_core::core::canvas::model::{
-    Point, Snapshot, Workspace, WorkspaceInput, WorkspaceSummary,
-};
+use omniget_core::core::canvas::model::{Snapshot, Workspace, WorkspaceInput, WorkspaceSummary};
 use omniget_core::core::canvas::notes::{self, NoteContent, NoteSummary};
 use omniget_core::core::canvas::ops::Op;
 use omniget_core::core::canvas::store::{ApplyResult, CanvasStore, ORIGIN_USER};
@@ -167,24 +162,6 @@ pub async fn canvas_note_list(
 }
 
 #[tauri::command]
-pub async fn canvas_layout_free_spot(
-    app: AppHandle,
-    workspace_id: String,
-    floor_id: String,
-    w: f64,
-    h: f64,
-    near: Option<Point>,
-) -> Result<Point, String> {
-    let s = store(&app);
-    blocking(move || {
-        s.read(&workspace_id, &floor_id, |d| {
-            layout::free_spot_in(d, w, h, near, &[])
-        })
-    })
-    .await
-}
-
-#[tauri::command]
 pub async fn canvas_layout_arrange(
     app: AppHandle,
     workspace_id: String,
@@ -200,45 +177,6 @@ pub async fn canvas_layout_arrange(
             layout::arrange_ops(d, &layout::arrange(d, &ids, mode))
         })?;
         s.apply(&workspace_id, &floor_id, ops, &origin, None)
-    })
-    .await
-}
-
-#[tauri::command]
-pub async fn canvas_export_selection(
-    app: AppHandle,
-    workspace_id: String,
-    floor_id: String,
-    selection: Selection,
-    options: ExportOptions,
-) -> Result<Partitura, String> {
-    let s = store(&app);
-    blocking(move || export::export_from_store(&s, &workspace_id, &floor_id, &selection, &options))
-        .await
-}
-
-#[tauri::command]
-pub async fn canvas_import_partitura(
-    app: AppHandle,
-    workspace_id: String,
-    floor_id: String,
-    partitura: Partitura,
-    at: Point,
-    origin: Option<String>,
-    role_map: Option<HashMap<String, String>>,
-) -> Result<ImportResult, String> {
-    let s = store(&app);
-    let origin = origin.unwrap_or_else(|| ORIGIN_USER.to_string());
-    blocking(move || {
-        export::import_partitura(
-            &s,
-            &workspace_id,
-            &floor_id,
-            &partitura,
-            at,
-            &origin,
-            &role_map.unwrap_or_default(),
-        )
     })
     .await
 }

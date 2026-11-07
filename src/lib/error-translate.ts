@@ -39,7 +39,15 @@ const BACKEND_ERROR_MAP: Record<string, string> = {
     "errors.drm_protected",
   "The owner of this site asked OmniGet not to support it.":
     "errors.platform_opted_out",
+  "Facebook did not show this post without a login. Import cookies for this site in Settings → Cookies, then retry.":
+    "errors.facebook_login",
+  "This link is a direct file and has no thumbnail to save.":
+    "errors.no_thumbnail_direct_file",
 };
+
+const POSTPROCESS_STEP =
+  /Post-processing failed at the (\w+) step \((open_input|generic)\): ([^)]*(?:\([^)]*\)[^)]*)*)\)?$/;
+const ARCHIVE_INVALID_LINE = /^ArchiveInvalidLine\|(\d+)\|(.*)$/;
 
 export function translateBackendError(
   msg: string,
@@ -57,6 +65,25 @@ export function translateBackendError(
     }
     return t("errors.path_too_long");
   }
+
+  const step = POSTPROCESS_STEP.exec(msg);
+  if (step) {
+    const stepName = t(`errors.postprocess_step_name.${step[1]}`);
+    const advice = t(`errors.postprocess_advice.${step[2]}`);
+    if (tWithValues) {
+      return tWithValues("errors.postprocess_step", { step: stepName, advice, detail: step[3] });
+    }
+    return `${stepName}: ${step[3]}. ${advice}`;
+  }
+
+  const archive = ARCHIVE_INVALID_LINE.exec(msg);
+  if (archive) {
+    if (tWithValues) {
+      return tWithValues("errors.archive_invalid_line", { line: archive[1], content: archive[2] });
+    }
+    return `${t("errors.archive_invalid")} (${archive[1]}: ${archive[2]})`;
+  }
+  if (msg === "ArchiveTooLarge") return t("errors.archive_too_large");
 
   const stripped = msg.replace(/^Failed to get formats:\s*/, "").trim();
 

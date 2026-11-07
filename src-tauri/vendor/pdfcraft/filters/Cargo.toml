@@ -1,0 +1,21 @@
+[package]
+name = "pdfcraft-filters"
+version = "0.18.1"
+edition = "2024"
+rust-version = "1.95"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/storytold/pdfcraft"
+publish = false
+autoexamples = false
+autotests = false
+autobenches = false
+
+[dependencies]
+fax = "0.2.7"
+flate2 = { version = "1.1", default-features = false, features = ["rust_backend"] }
+hayro-ccitt = "0.3"
+hayro-jbig2 = { path = "../hayro-jbig2" }
+thiserror = "2"
+
+[lints.clippy]
+all = "allow"

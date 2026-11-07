@@ -6,8 +6,6 @@ status = "active"
 beta = true
 homepage = "https://github.com/earendil-works/pi"
 notes = "Formerly badlogic/pi-mono; npm @earendil-works/pi-coding-agent (the @mariozechner package is deprecated), binary still `pi`. By design it has no MCP, no subagent tool and no permission prompts; hooks, commands and UI come from TypeScript extensions."
-reads_agents_dir = true
-reads_agents_md = "yes"
 
 [detect]
 binaries = ["pi"]
@@ -20,7 +18,6 @@ local = false
 managed = false
 project_markers = [".pi", "AGENTS.md"]
 global_dir = "~/.pi/agent"
-config_dir_env = "PI_CODING_AGENT_DIR"
 
 [formats]
 rule = "agents_md"
@@ -92,7 +89,6 @@ PreCompact = "session_before_compact"
 
 [hooks]
 shape = "code_plugin"
-events_count = 39
 
 [tool_name_map]
 Bash = "bash"
@@ -130,7 +126,6 @@ format = "jsonl"
 cmd = "pi"
 headless = ["-p"]
 json_flag = ["--mode", "json"]
-resume_flag = "--resume"
 model_flag = "--model"
 
 [acp]
@@ -138,5 +133,4 @@ native = false
 registry_id = "pi-acp"                # community adapter svkozak/pi-acp
 
 [trust]
-requires_review = true
 how = "Project .pi/settings.json and project SYSTEM.md load only after project trust (/trust, defaultProjectTrust ask|always|never); context files load without trust."

@@ -673,29 +673,4 @@ impl Engine {
         let body = self.heartbeat_json(claim);
         Ok(co::exec::run_http(&body, url, timeout).await)
     }
-
-    pub fn stop_run(&self, run_id: &str) -> Result<(), String> {
-        let job = self
-            .live
-            .lock()
-            .unwrap_or_else(|e| e.into_inner())
-            .get(run_id)
-            .cloned()
-            .flatten();
-        match (job, crate::jobs::try_get()) {
-            (Some(j), Some(jobs)) => jobs
-                .cancel_by(&j, omniget_core::core::llm::audit::Actor::window())
-                .map(|_| ()),
-            _ => self
-                .store
-                .run_finish(
-                    run_id,
-                    RunOutcome {
-                        state: "cancelled".into(),
-                        ..Default::default()
-                    },
-                )
-                .map(|_| ()),
-        }
-    }
 }

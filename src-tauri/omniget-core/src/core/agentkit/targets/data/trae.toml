@@ -6,8 +6,6 @@ status = "active"
 beta = true
 homepage = "https://docs.trae.ai"
 notes = "International edition uses ~/.trae, the CN edition ~/.trae-cn. TraeCode CLI 2.0 (trae-cli) runs Codex-format plugins and needs hook trust; bytedance/trae-agent is an unrelated open-source agent that also ships a trae-cli binary."
-reads_agents_dir = true        # .agents/skills after a toggle in Settings > Skills & Commands
-reads_agents_md = "opt-in"     # AGENTS.md, CLAUDE.md, CLAUDE.local.md need a toggle in Settings > Rules
 
 [detect]
 binaries = ["trae-cli"]
@@ -94,8 +92,6 @@ Notification = "Notification"
 shape = "claude"
 timeout_unit = "s"
 version = 1
-env_aliases = ["CLAUDE_PROJECT_DIR", "CLAUDE_ENV_FILE"]
-events_count = 6
 
 [tool_name_map]
 # Hook tool names; subagent tool lists use Bash instead of RunCommand.
@@ -132,5 +128,4 @@ format = "none"
 native = false    # UNVERIFIED
 
 [trust]
-requires_review = true
 how = "Enabling hooks needs a UI confirmation, workspace MCP must be switched on in settings, and TraeCode CLI hooks must be trusted."

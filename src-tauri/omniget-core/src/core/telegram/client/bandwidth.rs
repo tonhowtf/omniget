@@ -35,10 +35,6 @@ fn today_date() -> String {
     format!("{:04}-{:02}-{:02}", y, m, d)
 }
 
-pub fn unix_days_to_ymd_pub(days: i64) -> (i32, u32, u32) {
-    unix_days_to_ymd(days)
-}
-
 fn unix_days_to_ymd(mut days: i64) -> (i32, u32, u32) {
     days += 719_468;
     let era = if days >= 0 { days } else { days - 146_096 } / 146_097;
@@ -100,31 +96,6 @@ pub fn record_bytes(plugin_data_dir: &Path, n: u64) {
     s.used_today_bytes = s.used_today_bytes.saturating_add(n);
     s.total_used_bytes = s.total_used_bytes.saturating_add(n);
     let _ = save_inner(plugin_data_dir, &s);
-}
-
-pub fn set_quota_gb(plugin_data_dir: &Path, gb: u64) -> anyhow::Result<BandwidthState> {
-    let _g = FILE_LOCK.lock().ok();
-    let mut s: BandwidthState = match std::fs::read_to_string(state_path(plugin_data_dir).as_path())
-    {
-        Ok(raw) => serde_json::from_str(&raw).unwrap_or_default(),
-        Err(_) => BandwidthState::default(),
-    };
-    s.quota_bytes = gb.saturating_mul(1024 * 1024 * 1024);
-    save_inner(plugin_data_dir, &s)?;
-    Ok(s)
-}
-
-pub fn reset_today(plugin_data_dir: &Path) -> anyhow::Result<BandwidthState> {
-    let _g = FILE_LOCK.lock().ok();
-    let mut s: BandwidthState = match std::fs::read_to_string(state_path(plugin_data_dir).as_path())
-    {
-        Ok(raw) => serde_json::from_str(&raw).unwrap_or_default(),
-        Err(_) => BandwidthState::default(),
-    };
-    s.used_today_bytes = 0;
-    s.date = today_date();
-    save_inner(plugin_data_dir, &s)?;
-    Ok(s)
 }
 
 pub fn would_exceed(plugin_data_dir: &Path, additional: u64) -> bool {

@@ -207,6 +207,12 @@ impl PackageBackend for Zypper {
 
     fn updates(&self) -> Result<Vec<Update>, String> {
         let r = query("zypper", &["--xmlout", "--non-interactive", "list-updates"])?;
+        if r.code != Some(0) && r.stdout.trim().is_empty() {
+            return Err(format!(
+                "zypper list-updates: {}",
+                super::tail(&r.stderr, 3)
+            ));
+        }
         Ok(parse_solvables(&r.stdout, "update")
             .into_iter()
             .map(|s| Update {

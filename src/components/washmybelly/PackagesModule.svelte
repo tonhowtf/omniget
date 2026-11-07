@@ -4,7 +4,7 @@
   import * as api from "$lib/washmybelly/api";
   import type { Progress } from "$lib/washmybelly/api";
   import { errorText, formatBytes } from "$lib/washmybelly/format";
-  import { defaultUpdates, managerLabel, managers, updateRows, updatesSummary, type UpdatesList } from "$lib/washmybelly/updates";
+  import { defaultUpdates, managerLabel, managers, unreadableManagers, updateRows, updatesSummary, type ManagerError, type UpdatesList } from "$lib/washmybelly/updates";
   import { pruneSelection } from "$lib/washmybelly/ui";
   import { moduleById, type Caps } from "./registry";
   import ModuleHeader from "./ui/ModuleHeader.svelte";
@@ -30,6 +30,7 @@
   let groups = $derived(managers(items));
   let sum = $derived(updatesSummary(items, chosen));
   let adminIds = $derived(new Set(items.filter((u) => u.admin).map((u) => u.id)));
+  let unreadable = $derived(unreadableManagers(list));
 
   let unlisten: (() => void) | null = null;
 
@@ -61,6 +62,11 @@
     const k = `washmybelly.updates.manager.${key}`;
     const s = $t(k) as string;
     return s === k ? managerLabel(key) : s;
+  }
+
+  function unreadableText(e: ManagerError): string {
+    const text = e.error.startsWith("washmybelly.") ? ($t(e.error) as string) : e.error;
+    return e.manager === "*" ? text : `${groupLabel(e.manager)}: ${text}`;
   }
 
   function isAdmin(it: SelectItem): boolean {
@@ -99,10 +105,17 @@
       <button class="btn btn-primary" type="button" onclick={() => void load()}>{$t("washmybelly.retry")}</button>
     {/snippet}
   </EmptyState>
+{:else if items.length === 0 && unreadable.length}
+  <EmptyState art="worried" title={$t("washmybelly.updates.unreadable_title") as string} body={unreadable.map(unreadableText).join("\n")}>
+    {#snippet action()}
+      <button class="btn btn-primary" type="button" onclick={() => void load()}>{$t("washmybelly.retry")}</button>
+    {/snippet}
+  </EmptyState>
 {:else if items.length === 0}
   <EmptyState art="happy" title={$t("washmybelly.updates.empty_title") as string} body={$t("washmybelly.updates.empty_body") as string} />
 {:else}
   {#if error}<p class="wmb-up-error" role="alert">{error}</p>{/if}
+  {#each unreadable as e (e.manager)}<p class="wmb-up-error" role="alert">{$t("washmybelly.updates.unreadable_title")}: {unreadableText(e)}</p>{/each}
   <SelectList items={rows} bind:selected={chosen} showRisk={false} {groupLabel} collapsible={groups.length > 1}>
     {#snippet trailing(it)}
       {#if isAdmin(it)}

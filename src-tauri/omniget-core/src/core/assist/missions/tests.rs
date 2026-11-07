@@ -59,5 +59,3 @@ fn a28_the_missions_migration_applies_over_an_old_file_and_keeps_its_data() {
     .unwrap();
     assert_eq!(d.mission.state, MissionState::Draft);
 }
-
-mod reading_mission {}

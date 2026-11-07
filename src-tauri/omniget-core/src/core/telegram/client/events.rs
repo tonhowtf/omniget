@@ -200,29 +200,3 @@ pub fn batch_file_duplicate(batch_id: u64, message_id: i32, existing: &str) {
         }),
     );
 }
-
-pub fn upload_progress(id: u64, title: &str, percent: f64) {
-    emit(
-        "telegram-upload-progress",
-        json!({ "id": id, "title": title, "percent": percent }),
-    );
-}
-
-pub fn upload_complete(
-    id: u64,
-    title: &str,
-    success: bool,
-    error: Option<String>,
-    message_id: Option<i32>,
-) {
-    emit(
-        "telegram-upload-complete",
-        json!({
-            "id": id,
-            "title": title,
-            "success": success,
-            "error": error,
-            "message_id": message_id,
-        }),
-    );
-}

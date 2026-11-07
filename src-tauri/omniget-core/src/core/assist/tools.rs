@@ -22,7 +22,6 @@ pub trait AssistToolset: Send + Sync {
 pub fn toolsets() -> Vec<Arc<dyn AssistToolset>> {
     vec![
         super::memory::toolset(),
-        super::reading::toolset(),
         super::web::toolset(),
         super::groups::toolset(),
         super::bots::toolset(),

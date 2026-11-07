@@ -166,7 +166,7 @@ pub(crate) fn resolve_token(
         eprintln!(
             "warning: no OMNIGET_TOKEN and no CLI token file; using the browser extension key, \
              which agent routes stop accepting in the next version. Open OmniGet once to create \
-             the CLI token, or set OMNIGET_TOKEN to a token from LLM → Jobs → Access tokens."
+             the CLI token, or set OMNIGET_TOKEN to a token from Settings → AI & agents → Connect to other apps."
         );
     }
     legacy
@@ -288,7 +288,9 @@ async fn follow(
                     }
                 }
                 if state == "waiting_approval" {
-                    eprintln!("  the agent is asking for permission: answer in the app (LLM → Jobs), on the pet,");
+                    eprintln!(
+                        "  the agent is asking for permission: answer in the app, on the pet,"
+                    );
                     eprintln!(
                         "  or here: `omniget agent approvals --job {id}`, then `omniget agent approve <approval id>`"
                     );
@@ -633,10 +635,7 @@ pub enum AgentCommand {
         permission: Option<String>,
         #[arg(long, value_parser = ["docker", "e2b"], help = "Run the CLI in OmniGet's sandbox on a copy of the project")]
         sandbox: Option<String>,
-        #[arg(
-            long,
-            help = "Vault key id (LLM → Keys) for the CLI inside the sandbox"
-        )]
+        #[arg(long, help = "Vault key id for the CLI inside the sandbox")]
         key: Option<String>,
         #[arg(long, help = "Vault key id holding the E2B API key")]
         e2b_key: Option<String>,
@@ -1328,7 +1327,7 @@ pub async fn execute(cmd: AgentCommand, json_out: bool) -> anyhow::Result<()> {
                 println!("{}", serde_json::to_string_pretty(&l)?);
             } else {
                 println!(
-                    "loop {} ({}) started with {}; check: {}. Follow it with `omniget agent loops` or in LLM → Loops.",
+                    "loop {} ({}) started with {}; check: {}. Follow it with `omniget agent loops`.",
                     l["id"].as_str().unwrap_or(""),
                     l["name"].as_str().unwrap_or(""),
                     l["agent_id"].as_str().unwrap_or(""),
@@ -1363,7 +1362,7 @@ pub async fn execute(cmd: AgentCommand, json_out: bool) -> anyhow::Result<()> {
             if json_out {
                 println!("{}", serde_json::to_string_pretty(&l)?);
             } else {
-                println!("loop {} started; it keeps running inside the app. Follow it with `omniget agent loops` or in LLM → Loops.", l["id"].as_str().unwrap_or(""));
+                println!("loop {} started; it keeps running inside the app. Follow it with `omniget agent loops`.", l["id"].as_str().unwrap_or(""));
             }
             Ok(())
         }

@@ -153,24 +153,6 @@ impl Drop for Binding {
     }
 }
 
-pub fn choose(conversation: &str, mode: Option<RunMode>) {
-    let mut guard = CHOSEN.write().unwrap_or_else(|e| e.into_inner());
-    let map = guard.get_or_insert_with(HashMap::new);
-    match mode {
-        Some(m) => {
-            map.insert(conversation.to_string(), m);
-        }
-        None => {
-            map.remove(conversation);
-        }
-    }
-    if let Some(file) = STORE_FILE.read().unwrap_or_else(|e| e.into_inner()).clone() {
-        if let Ok(bytes) = serde_json::to_vec_pretty(&*map) {
-            let _ = std::fs::write(file, bytes);
-        }
-    }
-}
-
 pub fn chosen(conversation: &str) -> Option<RunMode> {
     CHOSEN
         .read()

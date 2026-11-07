@@ -166,7 +166,7 @@ pub fn config_files_in(
     let cli = table::get(tool_id);
     let target = targets::target(tool_id);
     if cli.is_none() && target.is_none() {
-        return Err(format!("{}: ferramenta {tool_id}", super::ERR_NOT_FOUND));
+        return Err(format!("{}: tool {tool_id}", super::ERR_NOT_FOUND));
     }
     let name = cli
         .map(|c| c.name.clone())

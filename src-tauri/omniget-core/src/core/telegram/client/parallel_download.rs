@@ -1,6 +1,6 @@
 use std::collections::VecDeque;
 use std::path::Path;
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::sync::{Arc, OnceLock};
 use std::time::Instant;
 
@@ -15,6 +15,7 @@ pub fn get_max_threads_cap() -> usize {
     MAX_THREADS_CAP.load(Ordering::Relaxed)
 }
 
+use super::history::messages_of;
 use bytes::Bytes;
 use futures::stream::Stream;
 use grammers_client::grammers_tl_types as tl;
@@ -134,15 +135,6 @@ pub fn media_to_location(media: &tl::enums::MessageMedia) -> Option<MediaLocatio
     }
 }
 
-fn extract_messages(result: tl::enums::messages::Messages) -> Vec<tl::enums::Message> {
-    match result {
-        tl::enums::messages::Messages::Messages(m) => m.messages,
-        tl::enums::messages::Messages::Slice(m) => m.messages,
-        tl::enums::messages::Messages::ChannelMessages(m) => m.messages,
-        tl::enums::messages::Messages::NotModified(_) => vec![],
-    }
-}
-
 pub async fn fetch_raw_media(
     client: &Client,
     chat_id: i64,
@@ -166,14 +158,14 @@ pub async fn fetch_raw_media(
             .invoke(&request)
             .await
             .map_err(|e| anyhow::anyhow!("channels.getMessages: {}", e))?;
-        extract_messages(result)
+        messages_of(result)
     } else {
         let request = tl::functions::messages::GetMessages { id: msg_input };
         let result = client
             .invoke(&request)
             .await
             .map_err(|e| anyhow::anyhow!("messages.getMessages: {}", e))?;
-        extract_messages(result)
+        messages_of(result)
     };
 
     let raw_msg = raw_messages
@@ -293,27 +285,17 @@ pub async fn download_file(
     progress_tx: mpsc::Sender<f64>,
     cancel_token: &CancellationToken,
 ) -> anyhow::Result<u64> {
-    let threads = compute_thread_count(media.size);
     tracing::info!(
-        "[tg-dl] starting download: size={}, dc={}, threads={}, path={}",
+        "[tg-dl] starting download: size={}, dc={}, path={}",
         media.size,
         media.dc_id,
-        threads,
         output_path.display()
     );
-    if threads <= 1 || media.size == 0 {
-        return download_file_sequential(client, media, output_path, progress_tx, cancel_token)
-            .await;
+    let done = download_file_resumable(client, media, output_path, progress_tx, cancel_token).await;
+    if done.is_err() {
+        let _ = std::fs::remove_file(chunks_sidecar(output_path));
     }
-    download_file_parallel(
-        client,
-        media,
-        output_path,
-        threads,
-        progress_tx,
-        cancel_token,
-    )
-    .await
+    done
 }
 
 async fn download_file_sequential(
@@ -390,6 +372,19 @@ async fn download_file_sequential(
                 ensure_auth_on_dc(client, dc).await?;
                 continue;
             }
+            Err(grammers_mtsender::InvocationError::Rpc(ref err))
+                if flood_wait_secs(&err.name).is_some() || err.code == 420 =>
+            {
+                let secs = flood_wait_secs(&err.name)
+                    .or(err.value.map(|v| v as u64))
+                    .unwrap_or(5);
+                note_flood_wait(secs);
+                tokio::select! {
+                    _ = tokio::time::sleep(std::time::Duration::from_secs(secs + 1)) => {}
+                    _ = cancel_token.cancelled() => {}
+                }
+                continue;
+            }
             Err(e) => {
                 drop(file);
                 let _ = std::fs::remove_file(output_path);
@@ -407,138 +402,27 @@ async fn download_file_sequential(
     Ok(downloaded)
 }
 
-async fn download_file_parallel(
-    client: &Client,
-    media: &MediaLocation,
-    output_path: &Path,
-    threads: usize,
-    progress_tx: mpsc::Sender<f64>,
-    cancel_token: &CancellationToken,
-) -> anyhow::Result<u64> {
-    use std::io::{Seek, SeekFrom};
-    use std::sync::atomic::{AtomicU64, Ordering};
+static FLOOD_UNTIL_MS: AtomicU64 = AtomicU64::new(0);
 
-    let dc = media.dc_id;
-    ensure_auth_on_dc(client, dc).await?;
+fn now_ms() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis() as u64)
+        .unwrap_or(0)
+}
 
-    let total = media.size;
-    let chunk: i32 = MAX_CHUNK_SIZE;
-    let chunk_u = chunk as u64;
-    let aligned = total.div_ceil(chunk_u) * chunk_u;
-    let per_worker = aligned.div_ceil(threads as u64);
-    let per_worker = ((per_worker / chunk_u).max(1)) * chunk_u;
+pub fn note_flood_wait(secs: u64) {
+    FLOOD_UNTIL_MS.fetch_max(now_ms() + (secs + 1) * 1000, Ordering::Relaxed);
+}
 
-    let prealloc = std::fs::OpenOptions::new()
-        .write(true)
-        .create(true)
-        .truncate(true)
-        .open(output_path)?;
-    prealloc.set_len(total)?;
-    drop(prealloc);
+pub fn flood_wait_left() -> std::time::Duration {
+    let until = FLOOD_UNTIL_MS.load(Ordering::Relaxed);
+    std::time::Duration::from_millis(until.saturating_sub(now_ms()))
+}
 
-    let downloaded = Arc::new(AtomicU64::new(0));
-    let file_mu = Arc::new(Mutex::new(
-        std::fs::OpenOptions::new().write(true).open(output_path)?,
-    ));
-
-    let mut handles: Vec<tokio::task::JoinHandle<anyhow::Result<()>>> = Vec::new();
-    for w in 0..threads {
-        let start = (w as u64) * per_worker;
-        if start >= total {
-            break;
-        }
-        let end = (start + per_worker).min(total);
-        let client = client.clone();
-        let location = media.location.clone();
-        let cancel = cancel_token.clone();
-        let downloaded = downloaded.clone();
-        let progress_tx = progress_tx.clone();
-        let file_mu = file_mu.clone();
-
-        handles.push(tokio::spawn(async move {
-            let mut offset = start as i64;
-            while (offset as u64) < end {
-                if cancel.is_cancelled() {
-                    return Err(anyhow::anyhow!("Download cancelled"));
-                }
-                let request = tl::functions::upload::GetFile {
-                    precise: true,
-                    cdn_supported: false,
-                    location: location.clone(),
-                    offset,
-                    limit: chunk,
-                };
-                match client.invoke_in_dc(dc, &request).await {
-                    Ok(tl::enums::upload::File::File(f)) => {
-                        if f.bytes.is_empty() {
-                            return Ok(());
-                        }
-                        let bytes_len = f.bytes.len() as u64;
-                        {
-                            let mut g = file_mu.lock().await;
-                            g.seek(SeekFrom::Start(offset as u64))?;
-                            g.write_all(&f.bytes)?;
-                        }
-                        let new_total =
-                            downloaded.fetch_add(bytes_len, Ordering::Relaxed) + bytes_len;
-                        if total > 0 {
-                            let percent = (new_total as f64 / total as f64) * 100.0;
-                            let _ = progress_tx.send(percent.min(100.0)).await;
-                        }
-                        offset += chunk as i64;
-                        if (f.bytes.len() as i32) < chunk {
-                            return Ok(());
-                        }
-                    }
-                    Ok(tl::enums::upload::File::CdnRedirect(_)) => {
-                        return Err(anyhow::anyhow!("CDN redirect not supported"));
-                    }
-                    Err(e) => {
-                        return Err(anyhow::anyhow!(
-                            "upload.getFile failed (worker {} offset {}): {}",
-                            w,
-                            offset,
-                            e
-                        ));
-                    }
-                }
-            }
-            Ok(())
-        }));
-    }
-
-    let mut first_err: Option<anyhow::Error> = None;
-    for h in handles {
-        match h.await {
-            Ok(Ok(())) => {}
-            Ok(Err(e)) => {
-                if first_err.is_none() {
-                    first_err = Some(e);
-                }
-                cancel_token.cancel();
-            }
-            Err(je) => {
-                if first_err.is_none() {
-                    first_err = Some(anyhow::anyhow!("worker join error: {}", je));
-                }
-                cancel_token.cancel();
-            }
-        }
-    }
-
-    if let Some(e) = first_err {
-        let _ = std::fs::remove_file(output_path);
-        return Err(e);
-    }
-
-    let final_total = downloaded.load(std::sync::atomic::Ordering::Relaxed);
-    tracing::info!(
-        "[tg-dl] parallel download complete: {} bytes, dc={}, threads={}",
-        final_total,
-        dc,
-        threads
-    );
-    Ok(final_total)
+pub fn expected_chunk_len(index: u32, total: u64, chunk: u64) -> u64 {
+    let start = index as u64 * chunk;
+    total.saturating_sub(start).min(chunk)
 }
 
 fn flood_wait_secs(name: &str) -> Option<u64> {
@@ -581,7 +465,6 @@ pub async fn download_file_resumable(
     cancel_token: &CancellationToken,
 ) -> anyhow::Result<u64> {
     use std::io::{Seek, SeekFrom};
-    use std::sync::atomic::AtomicU64;
 
     let total = media.size;
     if total == 0 {
@@ -591,7 +474,8 @@ pub async fn download_file_resumable(
     let n_chunks = total.div_ceil(chunk_u) as u32;
     let sidecar = chunks_sidecar(part_path);
 
-    let mut done = if part_path.exists() {
+    let part_is_whole = std::fs::metadata(part_path).is_ok_and(|m| m.len() == total);
+    let mut done = if part_is_whole {
         read_done_chunks(&sidecar, total, chunk_u)
     } else {
         std::collections::HashSet::new()
@@ -677,6 +561,13 @@ pub async fn download_file_resumable(
                     if stop.is_cancelled() {
                         return Err(anyhow::anyhow!("Download cancelled"));
                     }
+                    let left = flood_wait_left();
+                    if !left.is_zero() {
+                        tokio::select! {
+                            _ = tokio::time::sleep(left) => {}
+                            _ = stop.cancelled() => return Err(anyhow::anyhow!("Download cancelled")),
+                        }
+                    }
                     let dc = dc_shared.load(Ordering::Relaxed);
                     let request = tl::functions::upload::GetFile {
                         precise: true,
@@ -702,6 +593,20 @@ pub async fn download_file_resumable(
                     };
                     match res {
                         Ok(tl::enums::upload::File::File(f)) => {
+                            let expected = expected_chunk_len(idx, total, chunk_u);
+                            if f.bytes.len() as u64 != expected {
+                                attempts += 1;
+                                if attempts >= 5 {
+                                    return Err(anyhow::anyhow!(
+                                        "Incomplete download: part at offset {} came with {} of {} bytes",
+                                        offset,
+                                        f.bytes.len(),
+                                        expected
+                                    ));
+                                }
+                                tokio::time::sleep(std::time::Duration::from_millis(500 * attempts as u64)).await;
+                                continue;
+                            }
                             {
                                 let mut g = file_mu.lock().await;
                                 g.seek(SeekFrom::Start(offset as u64))?;
@@ -736,6 +641,7 @@ pub async fn download_file_resumable(
                         Err(grammers_mtsender::InvocationError::Rpc(ref err)) if flood_wait_secs(&err.name).is_some() || err.code == 420 => {
                             let secs = flood_wait_secs(&err.name).or(err.value.map(|v| v as u64)).unwrap_or(5);
                             tracing::warn!("[tg-dl] FLOOD_WAIT {}s during download", secs);
+                            note_flood_wait(secs);
                             tokio::select! {
                                 _ = tokio::time::sleep(std::time::Duration::from_secs(secs + 1)) => {}
                                 _ = stop.cancelled() => return Err(anyhow::anyhow!("Download cancelled")),
@@ -935,6 +841,52 @@ pub fn mime_type_from_media(media: &tl::enums::MessageMedia) -> String {
         },
         tl::enums::MessageMedia::Photo(_) => "image/jpeg".to_string(),
         _ => "application/octet-stream".to_string(),
+    }
+}
+
+#[cfg(test)]
+mod chunk_tests {
+    use super::*;
+
+    const CHUNK: u64 = MAX_CHUNK_SIZE as u64;
+
+    #[test]
+    fn every_part_of_a_split_archive_must_arrive_at_full_size() {
+        let total: u64 = 2 * 1024 * 1024 * 1024 + 123;
+        let n = total.div_ceil(CHUNK) as u32;
+        let sum: u64 = (0..n).map(|i| expected_chunk_len(i, total, CHUNK)).sum();
+        assert_eq!(sum, total);
+        assert_eq!(expected_chunk_len(0, total, CHUNK), CHUNK);
+        assert_eq!(expected_chunk_len(n - 1, total, CHUNK), 123);
+    }
+
+    #[test]
+    fn a_file_of_exact_chunks_ends_with_a_full_chunk() {
+        let total = 4 * CHUNK;
+        assert_eq!(total.div_ceil(CHUNK), 4);
+        assert_eq!(expected_chunk_len(3, total, CHUNK), CHUNK);
+    }
+
+    #[test]
+    fn resume_ignores_a_sidecar_from_another_file_size() {
+        let dir = tempfile::tempdir().unwrap();
+        let sidecar = dir.path().join("a.part.chunks");
+        let mut raw = Vec::new();
+        raw.extend_from_slice(&100u64.to_le_bytes());
+        raw.extend_from_slice(&CHUNK.to_le_bytes());
+        raw.extend_from_slice(&7u32.to_le_bytes());
+        std::fs::write(&sidecar, &raw).unwrap();
+        assert!(read_done_chunks(&sidecar, 100, CHUNK).contains(&7));
+        assert!(read_done_chunks(&sidecar, 200, CHUNK).is_empty());
+    }
+
+    #[test]
+    fn flood_wait_holds_every_worker_until_it_is_over() {
+        note_flood_wait(5);
+        let left = flood_wait_left();
+        assert!(left > std::time::Duration::from_secs(4));
+        assert!(left <= std::time::Duration::from_secs(6));
+        FLOOD_UNTIL_MS.store(0, Ordering::Relaxed);
     }
 }
 

@@ -4,6 +4,7 @@
   import { open as openUrl } from "@tauri-apps/plugin-shell";
   import { getCurrentWindow } from "@tauri-apps/api/window";
   import { t } from "$lib/i18n";
+  import { escapeHtml } from "$lib/markdown";
   import { showToast } from "$lib/stores/toast-store.svelte";
   import { bookUrl, ensureStatus, patchBookLocal } from "$lib/read/library-store.svelte";
   import { applyBionic, isDarkTheme, loadFoliate, openBookFile, readerCss, THEMES } from "$lib/read/foliate";
@@ -358,10 +359,6 @@
     }
     dict.loading = false;
     dict.html = dict.html.replace(/<(?!\/?(p|i|b|ol|ul|li|em|strong)\b)[^>]*>/gi, "");
-  }
-
-  function escapeHtml(s: string) {
-    return s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
   }
 
   async function saveWord() {

@@ -83,7 +83,7 @@ End states
 The agent's last line is `OUTCOME: succeeded|failed — <up to 3 sentences>`;
 the app reads it into the job's `outcome`.
 
-HTTP (scripts), with a token from LLM -> Jobs -> Access tokens
+HTTP (scripts), with a token from Settings -> AI & agents -> Connect to other apps
   POST /v1/commands  {"command_id","type":"job.start","agent_id","prompt",
                       "title","workspace","isolation","base","deadline_min",
                       "budget_usd","model","effort","run_mode","resume_of"}

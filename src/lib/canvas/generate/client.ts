@@ -83,7 +83,7 @@ export interface Progress {
   error?: string;
 }
 
-export const EVENT_PROGRESS = 'canvas://generate-progress';
+const EVENT_PROGRESS = 'canvas://generate-progress';
 
 let modelsCache: Promise<ModelSummary[]> | null = null;
 const schemaCache = new Map<string, Promise<ModelSchema>>();

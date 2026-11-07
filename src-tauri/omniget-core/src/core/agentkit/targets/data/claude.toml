@@ -6,8 +6,6 @@ status = "active"
 beta = false
 homepage = "https://code.claude.com"
 notes = "Reference format. Every other adapter converts from this shape."
-reads_agents_dir = false
-reads_agents_md = "fallback"
 
 [detect]
 binaries = ["claude"]
@@ -23,7 +21,6 @@ local = true
 managed = true
 project_markers = [".claude", "CLAUDE.md", ".mcp.json"]
 global_dir = "~/.claude"
-config_dir_env = "CLAUDE_CONFIG_DIR"
 
 [formats]
 rule = "claude"
@@ -146,7 +143,6 @@ Notification = "Notification"
 [hooks]
 shape = "claude"
 timeout_unit = "s"
-env_aliases = ["CLAUDE_PROJECT_DIR"]
 
 [tool_name_map]
 Bash = "Bash"
@@ -197,7 +193,6 @@ format = "jsonl"
 cmd = "claude"
 headless = ["-p"]
 json_flag = ["--output-format", "stream-json", "--verbose"]
-resume_flag = "--resume"
 system_prompt_flag = "--append-system-prompt"
 model_flag = "--model"
 permission_flags = { plan = ["--permission-mode", "plan"], accept_edits = ["--permission-mode", "acceptEdits"], bypass = ["--dangerously-skip-permissions"] }
@@ -209,5 +204,4 @@ args = ["-y", "@agentclientprotocol/claude-agent-acp"]
 registry_id = "claude-acp"
 
 [trust]
-requires_review = true
 how = "Claude asks to trust the workspace before loading project hooks, MCP servers and plugins."

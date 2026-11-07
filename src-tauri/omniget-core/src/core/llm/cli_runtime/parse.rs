@@ -137,16 +137,3 @@ pub fn classify_error_text(text: &str) -> Option<&'static str> {
     }
     None
 }
-
-pub fn split_lines<'a>(buf: &'a str, out: &mut Vec<&'a str>) -> &'a str {
-    let mut rest = buf;
-    while let Some(idx) = rest.find('\n') {
-        let (line, tail) = rest.split_at(idx);
-        let line = line.trim_end_matches('\r');
-        if !line.trim().is_empty() {
-            out.push(line);
-        }
-        rest = &tail[1..];
-    }
-    rest
-}

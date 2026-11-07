@@ -616,42 +616,6 @@ fn kill(pid: u32, started: Option<u64>) -> Result<Value, String> {
     Ok(json!({ "pid": pid, "signal": how, "sent": true }))
 }
 
-#[cfg(unix)]
-fn set_priority(pid: u32, level: &str) -> Result<(), String> {
-    let nice = match level {
-        "low" => 10,
-        "normal" => 0,
-        "high" => -5,
-        _ => return Err(format!("unknown priority {level}")),
-    };
-    let rc = unsafe { libc::setpriority(libc::PRIO_PROCESS as _, pid as libc::id_t, nice) };
-    if rc == 0 {
-        Ok(())
-    } else {
-        let e = std::io::Error::last_os_error();
-        match e.raw_os_error() {
-            Some(libc::EACCES) | Some(libc::EPERM) => {
-                Err("NEEDS_ADMIN: raising a priority (or undoing a lowered one) needs administrator rights".into())
-            }
-            _ => Err(format!("setpriority: {e}")),
-        }
-    }
-}
-
-#[cfg(windows)]
-fn set_priority(pid: u32, level: &str) -> Result<(), String> {
-    windows::set_priority(pid, level)
-}
-
-fn priority(pid: u32, level: &str, started: Option<u64>) -> Result<Value, String> {
-    if !matches!(level, "low" | "normal" | "high") {
-        return Err("level must be low, normal or high".into());
-    }
-    check_target(pid, started)?;
-    set_priority(pid, level)?;
-    Ok(json!({ "pid": pid, "level": level }))
-}
-
 pub async fn ui_action(action: &str, a: Value) -> Result<Value, String> {
     let pid = pid_arg(&a);
     let started = a["started"].as_u64();
@@ -659,11 +623,6 @@ pub async fn ui_action(action: &str, a: Value) -> Result<Value, String> {
         "kill" => {
             let pid = pid?;
             blocking(move || kill(pid, started)).await
-        }
-        "priority" => {
-            let pid = pid?;
-            let level = a["level"].as_str().unwrap_or("").to_string();
-            blocking(move || priority(pid, &level, started)).await
         }
         _ => Err(format!("monitor: unknown screen action {action}")),
     }

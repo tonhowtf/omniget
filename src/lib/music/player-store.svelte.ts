@@ -2,6 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { EQ_FREQS } from "./eq";
 import { shuffled } from "./library";
+import { createRadioWatch, nextRadioRetry } from "./radio-watch";
 import {
   coverUrl,
   ensureStatus,
@@ -104,40 +105,87 @@ let listenedMs = 0;
 let lastSaved = 0;
 let radioSession = "";
 let radioUnlisten: UnlistenFn[] = [];
+let radioRetries = 0;
+let radioConnectedAt = 0;
+let radioTimer: ReturnType<typeof setInterval> | null = null;
 const needsTranscode = new Set<number>();
 
-function makeDeck(): Deck {
+function newAudio(): HTMLAudioElement {
   const el = new Audio();
   el.crossOrigin = "anonymous";
   el.preload = "auto";
-  const d: Deck = { el, source: null, rg: null, fade: null, trackId: null, offset: 0, transcoded: false, hls: null };
-  el.addEventListener("ended", () => onEnded(d));
-  el.addEventListener("timeupdate", () => {
-    if (d === decks[active] && ticker) pump();
+  return el;
+}
+
+function wireDeck(d: Deck) {
+  const el = d.el;
+  const live = () => el === d.el && d === decks[active];
+  el.addEventListener("ended", () => {
+    if (el === d.el) onEnded(d);
   });
-  el.addEventListener("error", () => onError(d));
+  el.addEventListener("timeupdate", () => {
+    if (live() && ticker) pump();
+  });
+  el.addEventListener("error", () => {
+    if (el === d.el) onError(d);
+  });
   el.addEventListener("waiting", () => {
-    if (d === decks[active]) player.buffering = true;
+    if (live()) player.buffering = true;
   });
   el.addEventListener("playing", () => {
-    if (d === decks[active]) player.buffering = false;
+    if (live()) player.buffering = false;
   });
   el.addEventListener("loadedmetadata", () => {
-    if (d === decks[active] && !player.radio && !d.transcoded && Number.isFinite(el.duration) && el.duration > 0) {
+    if (live() && !player.radio && !d.transcoded && Number.isFinite(el.duration) && el.duration > 0) {
       player.duration = el.duration;
     }
   });
+}
+
+function makeDeck(): Deck {
+  const d: Deck = { el: newAudio(), source: null, rg: null, fade: null, trackId: null, offset: 0, transcoded: false, hls: null };
+  wireDeck(d);
   return d;
+}
+
+function routeDeck(d: Deck) {
+  if (!ctx || !preamp) return;
+  d.source = ctx.createMediaElementSource(d.el);
+  if (!d.rg || !d.fade) {
+    d.rg = ctx.createGain();
+    d.fade = ctx.createGain();
+    d.rg.connect(d.fade);
+    d.fade.connect(preamp);
+  }
+  d.source.connect(d.rg);
+}
+
+// WHY: a media element keeps its old stream socket and its WebAudio tap across a src swap, and a station change could go silent on the reused element.
+function replaceElement(d: Deck, routed: boolean) {
+  stopHls(d);
+  d.el.pause();
+  d.el.removeAttribute("src");
+  d.el.load();
+  d.source?.disconnect();
+  d.source = null;
+  d.el = newAudio();
+  wireDeck(d);
+  if (routed) routeDeck(d);
+  applyVolume();
 }
 
 function ensureDecks() {
   if (!decks.length) decks = [makeDeck(), makeDeck()];
 }
 
+function resumeContext() {
+  if (ctx && ctx.state !== "running" && ctx.state !== "closed") void ctx.resume().catch(() => {});
+}
+
 function ensureGraph() {
   ensureDecks();
   if (ctx) {
-    if (ctx.state === "suspended") void ctx.resume();
+    resumeContext();
     return;
   }
   try {
@@ -166,20 +214,18 @@ function ensureGraph() {
   node.connect(analyser);
   analyser.connect(master);
   master.connect(ctx.destination);
-  for (const d of decks) {
-    d.source = ctx.createMediaElementSource(d.el);
-    d.rg = ctx.createGain();
-    d.fade = ctx.createGain();
-    d.source.connect(d.rg);
-    d.rg.connect(d.fade);
-    d.fade.connect(preamp);
-  }
+  for (const d of decks) routeDeck(d);
   applyEq();
   applyVolume();
 }
 
 export function getAnalyser(): AnalyserNode | null {
   return analyser;
+}
+
+export function activeMedia(): { el: HTMLAudioElement; offset: number; trackId: number | null } | null {
+  const d = decks[active];
+  return d && !player.radio ? { el: d.el, offset: d.offset, trackId: d.trackId } : null;
 }
 
 function dbToLin(db: number) {
@@ -222,10 +268,10 @@ export function applyEq() {
   savePrefs();
 }
 
-export function applyVolume() {
+function applyVolume() {
   const v = prefs.muted ? 0 : prefs.volume * prefs.volume;
   if (master) master.gain.value = v;
-  else for (const d of decks) d.el.volume = Math.min(1, v);
+  for (const d of decks) d.el.volume = d.source ? 1 : Math.min(1, v);
   savePrefs();
 }
 
@@ -420,7 +466,11 @@ function nextIndex(): number | null {
 }
 
 function onEnded(d: Deck) {
-  if (d !== decks[active] || player.radio) return;
+  if (d !== decks[active]) return;
+  if (player.radio) {
+    retryOrFailRadio("ended", true);
+    return;
+  }
   if (prefs.repeat === "one") {
     reportPlay(false, true);
     void seek(0).then(() => d.el.play());
@@ -460,9 +510,7 @@ function onEnded(d: Deck) {
 function onError(d: Deck) {
   if (d !== decks[active]) return;
   if (player.radio) {
-    player.error = `radio_failed:media_${d.el.error?.code ?? 0}`;
-    player.playing = false;
-    player.buffering = false;
+    failRadio(`media_${d.el.error?.code ?? 0}`);
     return;
   }
   const t = d.trackId != null ? trackById(d.trackId) : undefined;
@@ -599,10 +647,19 @@ export function clearQueue(keepCurrent = true) {
 export async function toggle() {
   if (player.radio) {
     const d = decks[active];
+    if (player.error.startsWith("radio_failed")) {
+      await playStation(player.radio);
+      return;
+    }
     if (d.el.paused) {
       ensureGraph();
-      await d.el.play().catch(() => {});
-      player.playing = true;
+      try {
+        await d.el.play();
+        player.playing = true;
+        player.error = "";
+      } catch (e) {
+        failRadio((e as Error)?.name ?? "unknown");
+      }
     } else {
       d.el.pause();
       player.playing = false;
@@ -736,65 +793,106 @@ export function setSleepTimer(minutes: number | "track" | null) {
 }
 
 function stopRadio() {
-  for (const d of decks) stopHls(d);
+  radioSession = "";
+  stopRadioWatch();
+  for (const d of decks) {
+    stopHls(d);
+    if (ctx && !d.source) replaceElement(d, true);
+  }
   for (const u of radioUnlisten) u();
   radioUnlisten = [];
   player.radio = null;
   player.radioMeta = { title: "", artist: "", station: "" };
 }
 
-export async function playStation(st: Station) {
-  await ensureStatus();
-  ensureGraph();
-  if (player.current) reportPlay(true, false);
-  for (const d of decks) {
-    d.el.pause();
-    d.trackId = null;
-    if (d.fade) d.fade.gain.value = 1;
-    if (d.rg) d.rg.gain.value = 1;
+function failRadio(reason: string) {
+  stopRadioWatch();
+  decks[active]?.el.pause();
+  player.error = `radio_failed:${reason}`;
+  player.playing = false;
+  player.buffering = false;
+  updateMediaSession();
+}
+
+function retryOrFailRadio(reason: string, routed: boolean) {
+  const st = player.radio;
+  if (!st) return;
+  const retry = nextRadioRetry(radioRetries, performance.now() - radioConnectedAt);
+  if (retry === null) {
+    failRadio(reason);
+    return;
   }
-  stopRadio();
-  stopTicker();
-  player.current = null;
-  player.radio = st;
-  player.radioMeta = { title: "", artist: "", station: st.name };
-  player.error = "";
-  player.position = 0;
-  player.duration = 0;
-  player.buffering = true;
-  radioSession = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-  const session = radioSession;
-  radioUnlisten.push(
-    await listen<{ session: string; title: string; artist: string | null }>("music-radio-meta", (e) => {
-      if (e.payload.session !== session) return;
-      player.radioMeta = { ...player.radioMeta, title: e.payload.title, artist: e.payload.artist };
-      updateMediaSession();
-    }),
-  );
+  radioRetries = retry;
+  void connectStation(st, radioSession, routed);
+}
+
+function stopRadioWatch() {
+  if (radioTimer) clearInterval(radioTimer);
+  radioTimer = null;
+}
+
+function outputLevel(): number {
+  if (!analyser) return 0;
+  const buf = new Float32Array(analyser.fftSize);
+  analyser.getFloatTimeDomainData(buf);
+  let peak = 0;
+  for (const v of buf) peak = Math.max(peak, Math.abs(v));
+  return peak;
+}
+
+function watchRadio(session: string) {
+  stopRadioWatch();
+  const watch = createRadioWatch();
+  radioTimer = setInterval(() => {
+    const d = decks[active];
+    if (session !== radioSession || !player.radio || !d) {
+      stopRadioWatch();
+      return;
+    }
+    resumeContext();
+    const routed = !!d.source;
+    const verdict = watch.step({
+      now: performance.now(),
+      time: d.el.currentTime,
+      paused: d.el.paused,
+      level: routed ? outputLevel() : 0,
+      routed,
+      contextRunning: ctx?.state === "running",
+    });
+    if (verdict === "stalled") retryOrFailRadio("stalled", routed);
+    if (verdict === "silent") void connectStation(player.radio, session, false);
+  }, 1000);
+}
+
+async function connectStation(st: Station, session: string, routed: boolean) {
+  stopRadioWatch();
+  radioConnectedAt = performance.now();
   const d = decks[active];
+  replaceElement(d, routed);
+  player.buffering = true;
   let url = st.url;
   try {
     url = await invoke<string>("music_radio_resolve", { url: st.url });
   } catch {
   }
+  if (session !== radioSession) return;
   const isHls = st.hls || /\.m3u8(\?|$)/i.test(url);
   if (isHls) {
     const { default: Hls } = await import("hls.js");
+    if (session !== radioSession) return;
     if (Hls.isSupported()) {
       const hls = new Hls({
         xhrSetup: (xhr: XMLHttpRequest, u: string) => xhr.open("GET", proxyUrl(u), true),
         lowLatencyMode: false,
       });
       hls.on(Hls.Events.ERROR, (_e, data) => {
-        if (!data.fatal || session !== radioSession) return;
+        if (!data.fatal || session !== radioSession || d.hls !== hls) return;
         if (data.type === Hls.ErrorTypes.MEDIA_ERROR && !recovered) {
           recovered = true;
           hls.recoverMediaError();
           return;
         }
-        player.error = `radio_failed:hls_${data.details}`;
-        player.playing = false;
-        player.buffering = false;
+        failRadio(`hls_${data.details}`);
       });
       let recovered = false;
       hls.loadSource(url);
@@ -807,16 +905,58 @@ export async function playStation(st: Station) {
   } else {
     d.el.src = radioUrl(url, session);
   }
+  const el = d.el;
+  watchRadio(session);
   try {
-    await d.el.play();
+    await el.play();
+    if (session !== radioSession || el !== d.el) return;
     player.playing = true;
   } catch (e) {
-    player.playing = false;
-    player.buffering = false;
-    player.error = `radio_failed:${(e as Error)?.name ?? "unknown"}`;
+    if (session !== radioSession || el !== d.el) return;
+    failRadio((e as Error)?.name ?? "unknown");
   }
-  startTicker();
   updateMediaSession();
+}
+
+export async function playStation(st: Station) {
+  const session = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  radioSession = session;
+  await ensureStatus();
+  if (session !== radioSession) return;
+  ensureGraph();
+  if (player.current) reportPlay(true, false);
+  for (const d of decks) {
+    d.el.pause();
+    d.trackId = null;
+    if (d.fade) {
+      d.fade.gain.cancelScheduledValues(0);
+      d.fade.gain.value = 1;
+    }
+    if (d.rg) d.rg.gain.value = 1;
+  }
+  stopRadio();
+  radioSession = session;
+  stopTicker();
+  fading = false;
+  radioRetries = 0;
+  player.current = null;
+  player.radio = st;
+  player.radioMeta = { title: "", artist: "", station: st.name };
+  player.error = "";
+  player.position = 0;
+  player.duration = 0;
+  const unlisten = await listen<{ session: string; title: string; artist: string | null }>("music-radio-meta", (e) => {
+    if (e.payload.session !== session) return;
+    player.radioMeta = { ...player.radioMeta, title: e.payload.title, artist: e.payload.artist };
+    updateMediaSession();
+  });
+  if (session !== radioSession) {
+    unlisten();
+    return;
+  }
+  radioUnlisten.push(unlisten);
+  startTicker();
+  await connectStation(st, session, true);
   void invoke("music_radio_played", { id: st.id }).catch(() => {});
 }
 

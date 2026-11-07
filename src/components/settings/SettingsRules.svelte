@@ -5,6 +5,7 @@
   import { t } from "$lib/i18n";
   import { showToast } from "$lib/stores/toast-store.svelte";
   import SettingGroup from "./rebrand/SettingGroup.svelte";
+  import { ruleQualityOptions } from "./downloads/download-options";
   import SettingsEmptyState from "./rebrand/SettingsEmptyState.svelte";
 
   type Condition =
@@ -26,6 +27,14 @@
   };
 
   type CondKind = "HostIs" | "UrlContains" | "PlatformIs";
+
+  const RULE_QUALITY_KEYS: Record<string, string> = {
+    best: "omnibox.quality_best",
+    "1080p": "omnibox.quality_1080p",
+    "720p": "omnibox.quality_720p",
+    "480p": "omnibox.quality_480p",
+    "360p": "omnibox.quality_360p",
+  };
 
   let rules = $state<Rule[]>([]);
   let loading = $state(true);
@@ -166,7 +175,7 @@
   onMount(load);
 </script>
 
-<SettingGroup id="rules" title={$t("settings.rules.title")} description={$t("settings.rules.description")} advanced>
+<SettingGroup id="rules" icon="blocks" title={$t("settings.rules.title")} description={$t("settings.rules.description")} advanced>
   <div class="card">
     {#if loading}
       <p class="rules-empty" role="status" aria-busy="true">{$t("settings.rebrand.state.loading")}</p>
@@ -251,14 +260,20 @@
               <button type="button" class="button ghost" onclick={() => pickFolder(i)}>
                 {rule.then.output_dir ?? $t("settings.rules.choose_folder")}
               </button>
-              <input
-                class="rule-quality"
-                aria-label={$t("settings.rules.quality_placeholder")}
-                type="text"
-                bind:value={rule.then.quality}
-                onblur={() => persist()}
-                placeholder={$t("settings.rules.quality_placeholder") as string}
-              />
+              <select
+                class="select rule-quality"
+                aria-label={$t("settings.download.video_quality") as string}
+                value={rule.then.quality ?? ""}
+                onchange={(e) => {
+                  rule.then.quality = e.currentTarget.value || null;
+                  void persist();
+                }}
+              >
+                <option value="">{$t("settings.downloads.rules.quality_any")}</option>
+                {#each ruleQualityOptions(rule.then.quality) as q (q)}
+                  <option value={q}>{RULE_QUALITY_KEYS[q] ? $t(RULE_QUALITY_KEYS[q]) : q}</option>
+                {/each}
+              </select>
               <label class="rule-check">
                 <input
                   type="checkbox"
@@ -409,7 +424,7 @@
   }
 
   .rule-quality {
-    max-width: 12ch;
+    max-width: 22ch;
   }
 
   .rule-check {

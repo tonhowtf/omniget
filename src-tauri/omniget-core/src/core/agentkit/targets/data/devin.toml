@@ -6,8 +6,6 @@ status = "active"
 beta = true
 homepage = "https://cli.devin.ai"
 notes = "Windsurf was rebranded Devin Desktop; its default agent Devin Local is the same harness as Devin CLI (devin). Config dirs moved from ~/.config/cognition to ~/.config/devin (Windows %APPDATA%/devin). .devin/ is read before .windsurf/. The legacy Cascade agent is the separate windsurf adapter."
-reads_agents_dir = true
-reads_agents_md = "yes"
 
 [detect]
 binaries = ["devin"]
@@ -118,7 +116,6 @@ Stop = "Stop"
 [hooks]
 shape = "devin_v1"
 timeout_unit = "s"
-events_count = 8
 # sets DEVIN_PROJECT_DIR (and DEVIN_PLUGIN_ROOT for plugin hooks), not CLAUDE_PROJECT_DIR
 
 [tool_name_map]
@@ -156,7 +153,6 @@ format = "sqlite"
 [runner]
 cmd = "devin"
 headless = ["-p"]              # text output only; no JSON output flag documented
-resume_flag = "--resume"
 model_flag = "--model"
 permission_flags = { accept_edits = ["--permission-mode", "accept-edits"], bypass = ["--permission-mode", "dangerous"] }
 
@@ -167,5 +163,4 @@ args = ["acp"]
 registry_id = "devin"
 
 [trust]
-requires_review = true
 how = "Devin CLI respects workspace trust (CI turns it off with --respect-workspace-trust false), and project config files may only set permissions, read_config_from and hooks."

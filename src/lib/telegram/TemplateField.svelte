@@ -14,11 +14,11 @@
   let example = $derived<TelegramMediaItem>(
     sample ?? {
       message_id: 4821,
-      file_name: "Aula 03 - Introdução.mp4",
+      file_name: $t("telegram.template_sample_file") as string,
       file_size: 187_000_000,
       media_type: "video",
       date: Math.floor(Date.now() / 1000),
-      caption: "Aula 03: introdução ao módulo",
+      caption: $t("telegram.template_sample_caption") as string,
     },
   );
   let preview = $derived(

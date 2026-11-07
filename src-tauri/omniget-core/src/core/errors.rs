@@ -103,6 +103,13 @@ pub fn classify_download_error(error: &str) -> (&str, &str) {
     let lower = without_urls(&error.to_lowercase());
     let status = http_status(&lower);
 
+    if lower.starts_with("post-processing failed at the ") {
+        return (
+            "postprocess_failed",
+            "A step after the download failed. The message names it.",
+        );
+    }
+
     if is_egress_failure(&lower) {
         return (
             "egress_failed",
@@ -181,6 +188,9 @@ pub fn classify_download_error(error: &str) -> (&str, &str) {
         || lower.contains("unauthorised")
         || lower.contains("cookie")
         || lower.contains("login")
+        || lower.contains("log in")
+        || lower.contains("logged in")
+        || lower.contains("registered users")
         || lower.contains("sign in")
         || lower.contains("authentication")
     {

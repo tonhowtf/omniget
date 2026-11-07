@@ -28,6 +28,7 @@ type SponsorBlockFn = Box<dyn Fn() -> bool + Send + Sync>;
 type SplitChaptersFn = Box<dyn Fn() -> bool + Send + Sync>;
 type EmbedMetadataFn = Box<dyn Fn() -> bool + Send + Sync>;
 type EmbedThumbnailFn = Box<dyn Fn() -> bool + Send + Sync>;
+type CompatibleVideoFn = Box<dyn Fn() -> bool + Send + Sync>;
 type SpeedLimitFn = Box<dyn Fn() -> Option<String> + Send + Sync>;
 type LiveFromStartFn = Box<dyn Fn() -> bool + Send + Sync>;
 type InsecureTlsFn = Box<dyn Fn() -> bool + Send + Sync>;
@@ -53,6 +54,7 @@ static SPONSORBLOCK_FN: OnceLock<SponsorBlockFn> = OnceLock::new();
 static SPLIT_CHAPTERS_FN: OnceLock<SplitChaptersFn> = OnceLock::new();
 static EMBED_METADATA_FN: OnceLock<EmbedMetadataFn> = OnceLock::new();
 static EMBED_THUMBNAIL_FN: OnceLock<EmbedThumbnailFn> = OnceLock::new();
+static COMPATIBLE_VIDEO_FN: OnceLock<CompatibleVideoFn> = OnceLock::new();
 static SPEED_LIMIT_FN: OnceLock<SpeedLimitFn> = OnceLock::new();
 static LIVE_FROM_START_FN: OnceLock<LiveFromStartFn> = OnceLock::new();
 static INSECURE_TLS_FN: OnceLock<InsecureTlsFn> = OnceLock::new();
@@ -125,6 +127,111 @@ pub(crate) fn download_format_selector(
     }
 }
 
+pub(crate) fn compatible_format_selector(
+    quality_height: Option<u32>,
+    mode: &str,
+    ffmpeg_available: bool,
+) -> String {
+    let cap = quality_height
+        .filter(|h| *h > 0)
+        .map(|h| format!("[height<={h}]"))
+        .unwrap_or_default();
+    if mode == "mute" {
+        return format!("bv*[vcodec^=avc1]{cap}/bv*{cap}/b{cap}/b");
+    }
+    if ffmpeg_available {
+        format!(
+            "bv*[vcodec^=avc1]{cap}+ba[acodec^=mp4a]/b[vcodec^=avc1][acodec^=mp4a]{cap}/bv*[vcodec^=avc1]{cap}+ba/bv*{cap}+ba/b{cap}/b"
+        )
+    } else {
+        format!("b[vcodec^=avc1][acodec^=mp4a]{cap}/b[vcodec^=avc1]{cap}/b{cap}/b")
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum CompatibleVideoPlan {
+    Keep,
+    Remux,
+    ConvertAudio,
+    ConvertAll,
+}
+
+pub(crate) fn compatible_video_plan(
+    extension: &str,
+    video_codec: Option<&str>,
+    audio_codec: Option<&str>,
+) -> CompatibleVideoPlan {
+    let video_ok = video_codec.is_none_or(|c| c == "h264");
+    let audio_ok = audio_codec.is_none_or(|c| c == "aac");
+    match (video_ok, audio_ok) {
+        (false, _) => CompatibleVideoPlan::ConvertAll,
+        (true, false) => CompatibleVideoPlan::ConvertAudio,
+        (true, true) if extension.eq_ignore_ascii_case("mp4") => CompatibleVideoPlan::Keep,
+        (true, true) => CompatibleVideoPlan::Remux,
+    }
+}
+
+const WINDOWS_MAX_PATH: usize = 259;
+const WINDOWS_TEMP_NAME_RESERVE: usize = 40;
+const WINDOWS_MIN_NAME: usize = 40;
+const MAX_FILE_NAME: usize = 200;
+
+pub(crate) fn file_name_budget(output_dir: &Path, windows: bool) -> usize {
+    if !windows {
+        return MAX_FILE_NAME;
+    }
+    let dir_units = output_dir.to_string_lossy().encode_utf16().count();
+    WINDOWS_MAX_PATH
+        .saturating_sub(dir_units + 1 + WINDOWS_TEMP_NAME_RESERVE)
+        .clamp(WINDOWS_MIN_NAME, MAX_FILE_NAME)
+}
+
+pub(crate) fn default_output_template(max_name: usize) -> String {
+    format!("%(title).{max_name}s [%(id)s].%(ext)s")
+}
+
+pub fn playlist_position(entry: &crate::models::media::VideoQuality, index: usize) -> usize {
+    entry
+        .label
+        .split_once(". ")
+        .and_then(|(number, _)| number.parse::<usize>().ok())
+        .filter(|n| *n > 0)
+        .unwrap_or(index + 1)
+}
+
+pub fn last_playlist_position(entries: &[crate::models::media::VideoQuality]) -> usize {
+    entries
+        .iter()
+        .enumerate()
+        .map(|(i, e)| playlist_position(e, i))
+        .max()
+        .unwrap_or(0)
+}
+
+pub fn numbered_filename_template(
+    template: Option<&str>,
+    position: usize,
+    last_position: usize,
+) -> String {
+    let template = template
+        .map(str::to_string)
+        .unwrap_or_else(|| default_output_template(MAX_FILE_NAME));
+    let width = last_position.to_string().len().max(2);
+    let number = format!("{position:0width$}");
+    let mut depth = 0usize;
+    let mut name_start = 0usize;
+    for (at, c) in template.char_indices() {
+        match c {
+            '(' => depth += 1,
+            ')' => depth = depth.saturating_sub(1),
+            '/' | '\\' if depth == 0 => name_start = at + c.len_utf8(),
+            _ => {}
+        }
+    }
+    let (folders, name) = template.split_at(name_start);
+    format!("{folders}{number} - {name}")
+}
+
 pub(crate) fn dashy_format_sort_args() -> Vec<String> {
     vec![
         "-S".to_string(),
@@ -169,7 +276,7 @@ pub(crate) fn aria2c_downloader_args(
     let proxy_arg = match proxy.map(str::trim).filter(|p| !p.is_empty()) {
         Some(p) if !p.contains(char::is_whitespace) => format!(" --all-proxy={}", p),
         Some(_) => {
-            tracing::warn!("[aria2c] proxy com espaço ignorado no --downloader-args");
+            tracing::warn!("[aria2c] proxy containing a space ignored in --downloader-args");
             String::new()
         }
         None => String::new(),
@@ -413,7 +520,7 @@ async fn record_throughput(host: &str, n: u32, bytes: u64, secs: f64) {
         .await
         .record(host, n, bps);
     tracing::debug!(
-        "[tuner] {} n={} throughput={:.0} B/s ({} bytes em {:.1}s)",
+        "[tuner] {} n={} throughput={:.0} B/s ({} bytes in {:.1}s)",
         host,
         n,
         bps,
@@ -738,6 +845,14 @@ pub fn set_embed_thumbnail_fn(f: impl Fn() -> bool + Send + Sync + 'static) {
 
 fn embed_thumbnail_enabled() -> bool {
     EMBED_THUMBNAIL_FN.get().map(|f| f()).unwrap_or(true)
+}
+
+pub fn set_compatible_video_fn(f: impl Fn() -> bool + Send + Sync + 'static) {
+    let _ = COMPATIBLE_VIDEO_FN.set(Box::new(f));
+}
+
+fn compatible_video_enabled() -> bool {
+    COMPATIBLE_VIDEO_FN.get().map(|f| f()).unwrap_or(false)
 }
 
 pub fn set_speed_limit_fn(f: impl Fn() -> Option<String> + Send + Sync + 'static) {
@@ -1355,10 +1470,12 @@ pub const VIDEO_INFO_PROCESS_TIMEOUT_SECS: u64 = 90;
 pub const YOUTUBE_VIDEO_INFO_TOTAL_TIMEOUT_SECS: u64 = 190;
 pub const DEFAULT_VIDEO_INFO_TOTAL_TIMEOUT_SECS: u64 = 110;
 
+pub mod archive;
 mod binaries;
 mod channel_list;
 mod download;
 mod info;
+pub mod leftovers;
 mod parse;
 mod size;
 

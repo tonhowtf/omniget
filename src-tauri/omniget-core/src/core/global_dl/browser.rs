@@ -604,6 +604,21 @@ fn ua_override_for(version: &Value) -> Value {
     })
 }
 
+pub const BROWSER_BUSY: &str = "BROWSER_BUSY";
+
+fn busy_error(running: usize, force: bool) -> Result<(), String> {
+    if running > 0 && !force {
+        return Err(format!(
+            "{BROWSER_BUSY}: {running} download job(s) running. Restarting or stopping the browser now can make their remaining items fail, so wait for them or cancel them first."
+        ));
+    }
+    Ok(())
+}
+
+pub fn ensure_no_running_job(force: bool) -> Result<(), String> {
+    busy_error(super::jobs::running_count(), force)
+}
+
 pub async fn switch_mode(new_mode: &str) -> Result<Arc<Browser>, String> {
     set_config("mode", json!(new_mode))?;
     let urls: Vec<String> = current()
@@ -1695,5 +1710,17 @@ async fn inspect_playlist(item: sniffer::Sniffed) {
     if media.is_some_and(|p| crate::core::hls_downloader::is_live(&p)) {
         sniffer::mark_live(item.id);
         emit(json!({ "kind": "sniffed_live", "id": item.id }));
+    }
+}
+
+#[cfg(test)]
+mod busy_tests {
+    use super::{busy_error, BROWSER_BUSY};
+
+    #[test]
+    fn stopping_the_browser_asks_first_while_a_job_runs() {
+        assert!(busy_error(1, false).unwrap_err().starts_with(BROWSER_BUSY));
+        assert!(busy_error(1, true).is_ok());
+        assert!(busy_error(0, false).is_ok());
     }
 }

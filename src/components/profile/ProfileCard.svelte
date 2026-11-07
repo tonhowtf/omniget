@@ -11,8 +11,7 @@
 
   let {
     profile,
-    compact = false,
-  }: { profile: Profile; compact?: boolean } = $props();
+  }: { profile: Profile } = $props();
 
   let copied = $state(false);
   let copyTimer: ReturnType<typeof setTimeout> | null = null;
@@ -40,8 +39,8 @@
   }
 </script>
 
-<div class="profile-card" class:compact>
-  <Avatar tint={profile.skin?.tint} size={compact ? 48 : 64} />
+<div class="profile-card">
+  <Avatar tint={profile.skin?.tint} size={64} />
   <div class="profile-meta">
     <span class="profile-nick">{profile.nickname}</span>
     <span class="profile-hint">{$t("profile.fingerprint_label")}</span>
@@ -67,11 +66,6 @@
     padding: var(--space-3) 0;
     min-width: 0;
   }
-
-  .profile-card.compact {
-    padding: 0;
-  }
-
 
   .profile-meta {
     display: flex;

@@ -60,7 +60,6 @@ struct ThumbMeta {
     w: u32,
     h: u32,
     mime: String,
-    src_bytes: u64,
 }
 
 pub fn assets_dir(ws_dir: &Path) -> PathBuf {
@@ -558,7 +557,6 @@ pub fn make_thumb(ws_dir: &Path, hash: &str, bytes: &[u8]) -> Result<ThumbInfo, 
         w,
         h,
         mime: mime.to_string(),
-        src_bytes: bytes.len() as u64,
     };
     write_file(
         &meta_file(ws_dir, hash),

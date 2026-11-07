@@ -246,44 +246,4 @@ pub fn wrap_untrusted(text: &str) -> String {
     format!("{OPEN_MARK}\n{}\n{CLOSE_MARK}", neutralise(text))
 }
 
-pub fn redact_terms(text: &str, terms: &[String]) -> (String, usize) {
-    let folded_terms: Vec<String> = terms
-        .iter()
-        .map(|t| fold(t))
-        .filter(|t| t.chars().count() >= 3)
-        .collect();
-    if folded_terms.is_empty() {
-        return (text.to_string(), 0);
-    }
-    let mut out = String::with_capacity(text.len());
-    let mut removed = 0;
-    let mut sentence = String::new();
-    let flush = |sentence: &mut String, out: &mut String, removed: &mut usize| {
-        if sentence.is_empty() {
-            return;
-        }
-        let f = fold(sentence);
-        if folded_terms.iter().any(|t| f.contains(t.as_str())) {
-            *removed += 1;
-            out.push_str(REDACTED);
-            if sentence.ends_with('\n') {
-                out.push('\n');
-            } else {
-                out.push(' ');
-            }
-        } else {
-            out.push_str(sentence);
-        }
-        sentence.clear();
-    };
-    for c in text.chars() {
-        sentence.push(c);
-        if matches!(c, '.' | '!' | '?' | '\n') {
-            flush(&mut sentence, &mut out, &mut removed);
-        }
-    }
-    flush(&mut sentence, &mut out, &mut removed);
-    (out, removed)
-}
-
 pub const REDACTED: &str = "[trecho omitido: pode revelar a leitura adiante]";

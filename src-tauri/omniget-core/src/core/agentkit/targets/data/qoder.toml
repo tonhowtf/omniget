@@ -6,8 +6,6 @@ status = "active"
 beta = true
 homepage = "https://docs.qoder.com"
 notes = "Qoder CLI (qoder, formerly qodercli) is Claude-Code-shaped: hooks, permissions, statusline, transcripts and plugins follow Claude formats. The IDE shares the same dirs but runs only 12 hook events; the IDE MCP file path is not documented. Unlike Claude, user commands override project commands."
-reads_agents_dir = false   # UNVERIFIED
-reads_agents_md = "yes"
 
 [detect]
 binaries = ["qoder", "qodercli"]
@@ -20,7 +18,6 @@ local = true
 managed = false
 project_markers = [".qoder"]
 global_dir = "~/.qoder"
-config_dir_env = "QODER_CONFIG_DIR"
 
 [formats]
 rule = "qoder"          # AGENTS.md + .qoder/rules with trigger/glob (or paths)/description/alwaysApply frontmatter
@@ -109,7 +106,6 @@ Notification = "Notification"
 [hooks]
 shape = "claude"
 timeout_unit = "s"
-events_count = 27     # CLI; IDE and JetBrains plugin run 12 and only command/http types
 
 [tool_name_map]
 Bash = "Bash"
@@ -162,5 +158,4 @@ args = ["--acp"]
 registry_id = "qoder"
 
 [trust]
-requires_review = true
 how = "Project agents load only in trusted folders, and project MCP servers need approval unless enabled in mcp.* settings."

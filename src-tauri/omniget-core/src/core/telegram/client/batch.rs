@@ -67,18 +67,11 @@ pub fn dedupe_paths(items: &mut [Planned]) {
     let mut seen: HashSet<PathBuf> = HashSet::new();
     for it in items.iter_mut() {
         if !seen.insert(it.path.clone()) {
-            let name = it
-                .path
-                .file_name()
-                .map(|s| s.to_string_lossy().into_owned())
-                .unwrap_or_default();
-            let (stem, ext) = template::split_ext(&name);
-            let renamed = if ext.is_empty() {
-                format!("{} ({})", stem, it.message_id)
-            } else {
-                format!("{} ({}).{}", stem, it.message_id, ext)
-            };
-            it.path.set_file_name(renamed);
+            let base = it.path.clone();
+            it.path = (1u32..)
+                .map(|n| template::numbered_path(&base, n))
+                .find(|candidate| !seen.contains(candidate))
+                .unwrap_or(base);
             seen.insert(it.path.clone());
         }
     }
@@ -153,21 +146,14 @@ pub async fn start(
                         .await
                         .progress(n as f64 / total_files as f64 * 100.0);
                 };
-                if already_there(&item) {
-                    if skip_same {
-                        skipped.fetch_add(1, Ordering::Relaxed);
-                        events::batch_file_status(
-                            batch_id,
-                            item.message_id,
-                            "skipped",
-                            100.0,
-                            None,
-                        );
-                        finish(agg).await;
-                        return;
-                    }
-                    item.path = template::unique_path(&item.path);
+                if skip_same && already_there(&item) {
+                    skipped.fetch_add(1, Ordering::Relaxed);
+                    events::batch_file_status(batch_id, item.message_id, "skipped", 100.0, None);
+                    finish(agg).await;
+                    return;
                 }
+                let claim = template::claim_unique_path(&item.path);
+                item.path = claim.path().to_path_buf();
                 let _permit = tokio::select! {
                     p = sem.acquire_owned() => match p { Ok(p) => p, Err(_) => return },
                     _ = cancel.cancelled() => return,
@@ -302,4 +288,49 @@ pub async fn start(
         outcome
     });
     (batch_id, join)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn planned(id: i32, name: &str) -> Planned {
+        Planned {
+            chat_id: 1,
+            chat_type: "channel".into(),
+            message_id: id,
+            file_name: name.into(),
+            file_size: 10,
+            path: PathBuf::from("/d").join(name),
+        }
+    }
+
+    #[test]
+    fn same_name_in_a_batch_is_numbered_from_one() {
+        let mut items = vec![
+            planned(50, "1 - Aula.mp4"),
+            planned(51, "1 - Aula.mp4"),
+            planned(52, "1 - Aula.mp4"),
+        ];
+        dedupe_paths(&mut items);
+        let names: Vec<String> = items
+            .iter()
+            .map(|i| i.path.file_name().unwrap().to_string_lossy().into_owned())
+            .collect();
+        assert_eq!(
+            names,
+            ["1 - Aula.mp4", "1 - Aula (1).mp4", "1 - Aula (2).mp4"]
+        );
+    }
+
+    #[test]
+    fn numbering_skips_a_name_already_taken_in_the_batch() {
+        let mut items = vec![
+            planned(50, "Aula.mp4"),
+            planned(51, "Aula (1).mp4"),
+            planned(52, "Aula.mp4"),
+        ];
+        dedupe_paths(&mut items);
+        assert_eq!(items[2].path, PathBuf::from("/d/Aula (2).mp4"));
+    }
 }

@@ -575,17 +575,3 @@ pub fn store_reinstall(store_id: &str) -> Result<String, String> {
         Err(m.text)
     }
 }
-
-pub fn details(a: &App) -> Value {
-    let entry = inventory::reg_location(a).and_then(|(r, k)| registry::read_entry(r, &k));
-    let planned = entry
-        .as_ref()
-        .map(|e| run::for_entry(e, &DiskProbe, &run::system_root()));
-    json!({
-        "values": entry.as_ref().map(|e| &e.values),
-        "key": entry.as_ref().map(|e| e.key_path()),
-        "command": planned.as_ref().and_then(|p| p.as_ref().ok()).map(Planned::display),
-        "command_error": planned.and_then(|p| p.err()),
-        "running": a.path.as_deref().map(running_in).unwrap_or_default(),
-    })
-}

@@ -41,6 +41,7 @@ pub fn entries() -> Vec<ToolEntry> {
           |a| Box::pin(async move {
               let url = Some(s(&a, "url")).filter(|u| !u.is_empty());
               if a["window"].as_bool() == Some(true) && browser::mode() != "window" {
+                  browser::ensure_no_running_job(false)?;
                   browser::switch_mode("window").await?;
               }
               let b = browser::start(url, true).await?;

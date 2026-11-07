@@ -1798,18 +1798,6 @@ pub fn turn_prompt(conn: &Connection, turn: &TurnRow) -> Result<Option<(String, 
     .map_err(db_err)
 }
 
-pub fn thread_usage(conn: &Connection, thread_id: &str) -> Result<Vec<UsageRow>, String> {
-    collect(
-        conn,
-        "SELECT u.turn_id, u.thread_id, u.model, u.input_tokens, u.cached_input_tokens, u.cache_write_tokens,
-            u.output_tokens, u.reasoning_output_tokens, u.cost_usd, u.duration_ms
-         FROM turn_usage u LEFT JOIN turns t ON t.turn_id = u.turn_id
-         WHERE u.thread_id = ?1 ORDER BY t.ordinal ASC",
-        [thread_id],
-        row_usage,
-    )
-}
-
 fn row_usage(r: &Row) -> rusqlite::Result<UsageRow> {
     Ok(UsageRow {
         turn_id: r.get(0)?,

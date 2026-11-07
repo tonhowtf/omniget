@@ -6,8 +6,6 @@ status = "active"
 beta = true
 homepage = "https://docs.x.ai/build/overview"
 notes = "Official open-source xAI CLI (xai-org/grok-build, Rust); claims zero-config Claude Code compatibility (plugins, skills, agents, hooks, MCP, CLAUDE.md). The community superagent-ai/grok-cli also uses ~/.grok but with user-settings.json and grok.db; only config.toml marks the official one."
-reads_agents_dir = false      # reads ~/.agents/skills and ~/.agents/commands, not project .agents/
-reads_agents_md = "yes"
 
 [detect]
 binaries = ["grok"]
@@ -20,7 +18,6 @@ local = false
 managed = true
 project_markers = [".grok", "AGENTS.md"]
 global_dir = "~/.grok"
-config_dir_env = "GROK_HOME"
 
 [formats]
 rule = "claude"
@@ -118,7 +115,6 @@ Notification = "Notification"
 [hooks]
 shape = "claude"                      # stdin is camelCase (hookEventName, sessionId, toolName, toolInput)
 timeout_unit = "s"
-events_count = 14
 
 [tool_name_map]
 Bash = "Bash"
@@ -148,7 +144,6 @@ format = "jsonl"
 cmd = "grok"
 headless = ["-p"]
 json_flag = ["--output-format", "streaming-json"]
-resume_flag = "--resume"
 system_prompt_flag = "--rules"
 model_flag = "-m"
 permission_flags = { bypass = ["--always-approve"] }
@@ -160,5 +155,4 @@ args = ["agent", "stdio"]
 registry_id = "grok-build"
 
 [trust]
-requires_review = true
 how = "Project .grok/hooks need /hooks-trust or --trust; trust is stored in ~/.grok/trusted_folders.toml."

@@ -181,7 +181,7 @@ pub fn inbox_attachments_dir(store: &CanvasStore, ws: &str) -> Result<PathBuf, S
     Ok(store.workspace_dir(ws).join("inbox").join("attachments"))
 }
 
-fn now() -> String {
+pub(crate) fn now() -> String {
     chrono::Utc::now().to_rfc3339()
 }
 

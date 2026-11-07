@@ -1051,3 +1051,182 @@ async fn provedor_morto_nao_gera_argumento() {
         "provedor inalcancavel nao pode virar --extractor-args"
     );
 }
+
+#[test]
+fn every_item_of_a_numbered_playlist_keeps_its_list_position_at_the_start() {
+    assert_eq!(
+        crate::core::ytdlp::numbered_filename_template(Some("%(title)s.%(ext)s"), 7, 120),
+        "007 - %(title)s.%(ext)s"
+    );
+    assert_eq!(
+        crate::core::ytdlp::numbered_filename_template(None, 3, 9),
+        "03 - %(title).200s [%(id)s].%(ext)s"
+    );
+}
+
+#[test]
+fn numbering_goes_on_the_file_name_when_the_template_has_folders() {
+    assert_eq!(
+        crate::core::ytdlp::numbered_filename_template(
+            Some("%(uploader)s/%(upload_date>%Y/%m)s/%(title)s.%(ext)s"),
+            2,
+            10,
+        ),
+        "%(uploader)s/%(upload_date>%Y/%m)s/02 - %(title)s.%(ext)s"
+    );
+}
+
+#[test]
+fn a_selected_playlist_item_keeps_its_original_position_number() {
+    let entry = crate::models::media::VideoQuality {
+        label: "12. Twelfth".to_string(),
+        width: 0,
+        height: 0,
+        url: "u".to_string(),
+        format: "ytdlp_playlist".to_string(),
+    };
+    assert_eq!(crate::core::ytdlp::playlist_position(&entry, 0), 12);
+    assert_eq!(
+        crate::core::ytdlp::last_playlist_position(std::slice::from_ref(&entry)),
+        12
+    );
+}
+
+#[test]
+fn compatible_choice_asks_for_h264_with_aac_first_and_respects_the_height() {
+    let selector = super::compatible_format_selector(Some(1080), "auto", true);
+    assert!(selector.starts_with("bv*[vcodec^=avc1][height<=1080]+ba[acodec^=mp4a]/"));
+    assert!(selector.ends_with("/b"));
+    let unlimited = super::compatible_format_selector(None, "auto", true);
+    assert!(unlimited.starts_with("bv*[vcodec^=avc1]+ba[acodec^=mp4a]/"));
+    let no_ffmpeg = super::compatible_format_selector(Some(720), "auto", false);
+    assert!(!no_ffmpeg.contains('+'));
+    let mute = super::compatible_format_selector(Some(720), "mute", true);
+    assert!(mute.starts_with("bv*[vcodec^=avc1][height<=720]/"));
+}
+
+#[test]
+fn compatible_choice_only_converts_what_common_editors_cannot_open() {
+    use super::{compatible_video_plan as plan, CompatibleVideoPlan as P};
+    assert_eq!(plan("mp4", Some("h264"), Some("aac")), P::Keep);
+    assert_eq!(plan("mp4", Some("h264"), None), P::Keep);
+    assert_eq!(plan("mkv", Some("h264"), Some("aac")), P::Remux);
+    assert_eq!(plan("mp4", Some("h264"), Some("opus")), P::ConvertAudio);
+    assert_eq!(plan("mp4", Some("av1"), Some("aac")), P::ConvertAll);
+    assert_eq!(plan("webm", Some("vp9"), Some("opus")), P::ConvertAll);
+}
+
+#[test]
+fn windows_file_names_leave_room_for_temporary_suffixes_in_a_long_folder() {
+    use std::path::Path;
+    let short = Path::new("C:\\Videos");
+    assert_eq!(super::file_name_budget(short, true), 200);
+    let long_dir = format!("C:\\{}", "a".repeat(180));
+    let budget = super::file_name_budget(Path::new(&long_dir), true);
+    assert!(long_dir.len() + 1 + budget + ".f137.mp4.part-Frag12345".len() <= 259);
+    assert!(budget >= 40);
+    let too_long = format!("C:\\{}", "a".repeat(300));
+    assert_eq!(super::file_name_budget(Path::new(&too_long), true), 40);
+    assert_eq!(super::file_name_budget(Path::new(&too_long), false), 200);
+}
+
+#[test]
+fn a_failed_merge_names_the_step_in_the_message() {
+    let stderr = "ERROR: Postprocessing: Error opening input files: Result too large\n";
+    let message = super::postprocess_failure_message(stderr, Some("merge")).unwrap();
+    assert_eq!(
+        message,
+        "Post-processing failed at the merge step (open_input): Error opening input files: Result too large"
+    );
+}
+
+#[test]
+fn a_postprocess_failure_without_a_known_step_still_says_it_is_post_processing() {
+    let message =
+        super::postprocess_failure_message("ERROR: Postprocessing: Conversion failed!\n", None)
+            .unwrap();
+    assert_eq!(
+        message,
+        "Post-processing failed at the postprocess step (generic): Conversion failed!"
+    );
+}
+
+#[test]
+fn other_download_errors_are_not_called_post_processing() {
+    assert_eq!(
+        super::postprocess_failure_message("ERROR: HTTP Error 404: Not Found\n", Some("merge")),
+        None
+    );
+    assert_eq!(
+        super::postprocess_failure_message(
+            "ERROR: Postprocessing: Invalid data found when processing input\n",
+            Some("merge")
+        ),
+        None
+    );
+}
+
+#[test]
+fn the_step_comes_from_the_ytdlp_output_line() {
+    assert_eq!(
+        super::postprocess_step_name("[Merger] Merging formats into \"a.mp4\""),
+        Some("merge")
+    );
+    assert_eq!(
+        super::postprocess_step_name("[EmbedThumbnail] ffmpeg: Adding thumbnail"),
+        Some("embed_thumbnail")
+    );
+    assert_eq!(super::postprocess_step_name("[download] 10%"), None);
+}
+
+#[test]
+fn a_thumbnail_written_by_ytdlp_is_captured_as_the_output() {
+    assert_eq!(
+        super::parse_destination_line("[info] Writing video thumbnail 0 to: /x/Clip [a].webp"),
+        Some("/x/Clip [a].webp".to_string())
+    );
+}
+
+#[test]
+fn login_walled_social_posts_say_so_instead_of_asking_for_an_update() {
+    let login = "This video requires login. Import cookies for this site in Settings → Cookies, then retry.";
+    for stderr in [
+        "ERROR: [Instagram] abc: Requested content is not available, rate-limit reached or login required",
+        "ERROR: [facebook] 1: You must be logged in to view this",
+        "ERROR: [facebook] 1: This video is only available for registered users",
+        "ERROR: [DouyinVideo] 1: Fresh cookies (not necessarily logged in) are needed",
+    ] {
+        assert_eq!(super::friendly_ytdlp_error(stderr).to_string(), login, "{stderr}");
+    }
+    assert!(super::friendly_ytdlp_error(
+        "ERROR: [facebook] 1: Cannot parse data; there is a problem with the extractor"
+    )
+    .to_string()
+    .contains("without a login"));
+}
+
+#[test]
+fn download_error_classifier_treats_log_in_wording_as_login() {
+    for error in [
+        "You need to log in",
+        "You must be logged in",
+        "registered users only",
+    ] {
+        assert_eq!(
+            crate::core::errors::classify_download_error(error).0,
+            "auth_required",
+            "{error}"
+        );
+    }
+}
+
+#[test]
+fn step_failures_are_not_reworded_by_the_classifier() {
+    assert_eq!(
+        crate::core::errors::classify_download_error(
+            "Post-processing failed at the merge step (open_input): Result too large"
+        )
+        .0,
+        "postprocess_failed"
+    );
+}

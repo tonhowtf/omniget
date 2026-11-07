@@ -66,7 +66,7 @@ enum Commands {
         command: commands::company::CompanyCommand,
     },
     #[command(
-        about = "The /llm audit log of the app: who did what to jobs, questions, grants, tokens and agents"
+        about = "The audit log of the app: who did what to jobs, questions, grants, tokens and agents"
     )]
     Audit {
         #[arg(long, default_value = "1d", help = "How far back: 30m, 12h, 1d, 2w")]
@@ -92,7 +92,7 @@ enum Commands {
         command: commands::wmb::WmbCommand,
     },
     #[command(
-        about = "Open Claude Code on one of the app's accounts (/llm → Accounts), skipping permission prompts"
+        about = "Open Claude Code on one of the app's accounts (Settings → AI & agents), skipping permission prompts"
     )]
     Claude {
         #[arg(
@@ -196,6 +196,47 @@ enum Commands {
         #[command(subcommand)]
         command: commands::tg::TgCommand,
     },
+    #[command(
+        about = "Convert files between formats: data (JSON, YAML, TOML, CSV, XML), documents (Markdown, HTML, EPUB, DOCX, PDF), images (including HEIC, JPEG XL, PSD and camera RAW), CAD drawings and audio/video",
+        long_about = "Convert files between formats. Data, Markdown, HTML, EPUB, images (HEIC, JPEG XL, Photoshop, camera RAW, SVG), picture to SVG tracing and DXF/DWG drawings convert with no extra tools; audio and video use ffmpeg; other documents use Pandoc or LibreOffice and AVIF uses ImageMagick when installed.\n\nExamples:\n  omniget convert notes.md --to html\n  omniget convert data.json --to yaml --sort-keys\n  omniget convert *.png --to webp --max-width 1600 -o out/\n  omniget convert IMG_0001.HEIC --to jpg\n  omniget convert art.psd --to layers   (one PNG per layer)\n  omniget convert logo.png --to svg --style bw\n  omniget convert plan.dwg --to pdf\n  omniget convert clip.mp4            (lists what it can become)\n  omniget convert --tools"
+    )]
+    Convert {
+        #[arg(help = "Files to convert")]
+        files: Vec<String>,
+        #[arg(
+            short,
+            long,
+            help = "Target format (id or extension: yaml, md, jpg, mp3...)"
+        )]
+        to: Option<String>,
+        #[arg(short, long, help = "Output folder (default: next to each file)")]
+        output: Option<String>,
+        #[arg(long, help = "List the formats each file can become")]
+        list: bool,
+        #[arg(long, help = "Show which external engines were found")]
+        tools: bool,
+        #[arg(long, help = "Compact data output instead of pretty printing")]
+        compact: bool,
+        #[arg(long, help = "Sort object keys in data output")]
+        sort_keys: bool,
+        #[arg(long, help = "JPEG quality, 1 to 100")]
+        quality: Option<u8>,
+        #[arg(long, help = "Shrink images wider than this (pixels)")]
+        max_width: Option<u32>,
+        #[arg(long, help = "Shrink images taller than this (pixels)")]
+        max_height: Option<u32>,
+        #[arg(
+            long,
+            help = "Replace an existing output file instead of adding (1), (2)"
+        )]
+        overwrite: bool,
+        #[arg(
+            long,
+            value_parser = ["bw", "colors", "lineart"],
+            help = "Style when turning a picture into SVG: bw (black and white), colors (few colors) or lineart"
+        )]
+        style: Option<String>,
+    },
     #[command(about = "Books and manga: metadata, legal catalogs, OPDS, text to EPUB")]
     Read {
         #[command(subcommand)]
@@ -229,6 +270,9 @@ enum HookCommand {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    if let Some(code) = omniget_core::core::convert::cad::worker_entry() {
+        std::process::exit(code);
+    }
     tracing_subscriber::fmt()
         .with_env_filter(
             tracing_subscriber::EnvFilter::try_from_default_env()
@@ -253,6 +297,38 @@ async fn main() -> anyhow::Result<()> {
         } => {
             commands::download::execute(url, quality, output, audio_only, subs, format, cli.proxy)
                 .await?;
+        }
+        Commands::Convert {
+            files,
+            to,
+            output,
+            list,
+            tools,
+            compact,
+            sort_keys,
+            quality,
+            max_width,
+            max_height,
+            overwrite,
+            style,
+        } => {
+            commands::convert::execute(commands::convert::Args {
+                files,
+                to,
+                output,
+                list,
+                tools,
+                options: omniget_core::core::convert::ConvertOptions {
+                    pretty: Some(!compact),
+                    sort_keys: Some(sort_keys),
+                    quality,
+                    max_width,
+                    max_height,
+                    overwrite: Some(overwrite),
+                    vector_preset: style,
+                },
+            })
+            .await?;
         }
         Commands::Info { url } => {
             commands::info::execute(url, cli.proxy).await?;

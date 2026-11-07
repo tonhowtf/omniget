@@ -12,6 +12,7 @@ use tokio_util::sync::CancellationToken;
 use super::api::{self, TelegramMediaItem};
 use super::auth::TelegramSessionHandle;
 use super::events;
+use super::history::messages_of;
 use super::history::{self, MediaFilter};
 use crate::core::telegram::host;
 
@@ -318,15 +319,6 @@ pub struct UpdateOpts<'a> {
     pub filter: Option<&'a MediaFilter>,
     pub stop_at_id: i32,
     pub emit: bool,
-}
-
-fn messages_of(result: tl::enums::messages::Messages) -> Vec<tl::enums::Message> {
-    match result {
-        tl::enums::messages::Messages::Messages(m) => m.messages,
-        tl::enums::messages::Messages::Slice(m) => m.messages,
-        tl::enums::messages::Messages::ChannelMessages(m) => m.messages,
-        tl::enums::messages::Messages::NotModified(_) => vec![],
-    }
 }
 
 async fn page(

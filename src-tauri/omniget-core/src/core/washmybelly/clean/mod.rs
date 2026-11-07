@@ -25,15 +25,6 @@ use super::receipt::Undo;
 use super::store::Ctx;
 use super::{Destination, Os, Risk};
 
-fn source_of(a: &Value) -> Source {
-    match a.get("_source").and_then(Value::as_str) {
-        Some("ui") => Source::Ui,
-        Some("external") => Source::External,
-        Some("cli") => Source::Cli,
-        _ => Source::Agent,
-    }
-}
-
 fn risk_arg(a: &Value) -> Risk {
     a.get("max_risk")
         .and_then(|v| serde_json::from_value(v.clone()).ok())
@@ -144,7 +135,7 @@ fn mark_locked(items: &mut [engine::Item]) {
 pub async fn tool_junk_scan(a: Value) -> Result<Value, String> {
     let categories = crate::core::llm::tool_table::list(&a, "categories");
     let max_risk = risk_arg(&a);
-    let source = source_of(&a);
+    let source = super::plan::source_of(&a);
     super::tools::blocking(move || {
         let ctx = Ctx::app()?;
         let full = categories.is_empty() && max_risk == Risk::Extreme;
@@ -174,7 +165,6 @@ fn record_score(ctx: &Ctx, bytes: u64) {
     let _ = ctx.kv_set("score_inputs", &v);
 }
 
-pub const ACTIONS: &[&str] = &["delete_files", "apfs_clone", "truncate", "sqlite_vacuum"];
 pub const ADMIN_ACTIONS: &[&str] = &[
     "journal_vacuum",
     "tmutil_thin",
@@ -594,27 +584,4 @@ pub fn elevated_native(id: &str) -> Result<(String, u64), String> {
 
 pub fn protection_match(path: &Path) -> Option<String> {
     protection::protection_match(path)
-}
-
-pub async fn ui_action(action: &str, _a: Value) -> Result<Value, String> {
-    match action {
-        "catalog" => {
-            let os = super::current_os();
-            let rules: Vec<Value> = catalog::rules_for(os)
-                .into_iter()
-                .map(|r| {
-                    json!({
-                        "id": r.id, "label": r.label, "label_key": r.label_key, "category": r.category,
-                        "description": r.description, "risk": r.risk, "destination": r.destination,
-                        "admin": r.requires.contains(&rule::Requirement::Admin),
-                        "selected_by_default": catalog::default_selected(r),
-                        "source": r.source, "license": r.license,
-                    })
-                })
-                .collect();
-            Ok(json!({ "rules": rules }))
-        }
-        "stats" => Ok(catalog::stats()),
-        _ => Err(format!("clean: unknown screen action {action}")),
-    }
 }

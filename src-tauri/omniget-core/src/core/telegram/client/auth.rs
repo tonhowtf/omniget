@@ -31,15 +31,6 @@ pub fn unregister_op_token(map: &OpTokenMap, op_id: &str) {
     map.remove(op_id);
 }
 
-pub fn cancel_op_token(map: &OpTokenMap, op_id: &str) -> bool {
-    if let Some((_, token)) = map.remove(op_id) {
-        token.cancel();
-        true
-    } else {
-        false
-    }
-}
-
 #[derive(Debug, Clone)]
 pub struct CachedMediaMeta {
     pub filename: String,

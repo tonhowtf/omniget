@@ -1,5 +1,4 @@
 use std::cmp::Ordering;
-use std::collections::BTreeMap;
 
 use serde::{Deserialize, Serialize};
 
@@ -52,22 +51,6 @@ pub struct SearchResult {
     pub offset: usize,
     pub limit: usize,
     pub items: Vec<SearchHit>,
-}
-
-#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
-pub struct FacetValue {
-    pub value: String,
-    pub count: usize,
-}
-
-#[derive(Debug, Clone, Serialize, Default)]
-pub struct Facets {
-    pub total: usize,
-    pub kind: Vec<FacetValue>,
-    pub category: Vec<FacetValue>,
-    pub source: Vec<FacetValue>,
-    pub license: Vec<FacetValue>,
-    pub origin_tool: Vec<FacetValue>,
 }
 
 fn fold(s: &str) -> String {
@@ -238,39 +221,5 @@ pub fn search(
         offset: page.offset,
         limit,
         items,
-    }
-}
-
-fn to_facet(m: BTreeMap<String, usize>) -> Vec<FacetValue> {
-    let mut v: Vec<FacetValue> = m
-        .into_iter()
-        .map(|(value, count)| FacetValue { value, count })
-        .collect();
-    v.sort_by(|a, b| b.count.cmp(&a.count).then_with(|| a.value.cmp(&b.value)));
-    v
-}
-
-pub fn facets(items: &[CatalogItem], query: &str, filters: &Filters) -> Facets {
-    let toks = tokens(query);
-    let matching: Vec<&CatalogItem> = items.iter().filter(|i| score(i, &toks) > 0).collect();
-    let count = |skip: Skip, key: fn(&CatalogItem) -> String| {
-        let mut m = BTreeMap::new();
-        for i in matching.iter().filter(|i| passes(i, filters, skip)) {
-            *m.entry(key(i)).or_insert(0usize) += 1;
-        }
-        to_facet(m)
-    };
-    Facets {
-        total: matching
-            .iter()
-            .filter(|i| passes(i, filters, Skip::None))
-            .count(),
-        kind: count(Skip::Kind, |i| i.kind.clone()),
-        category: count(Skip::Category, |i| i.category.clone()),
-        source: count(Skip::Source, |i| i.source.id.clone()),
-        license: count(Skip::License, |i| {
-            i.license.clone().unwrap_or_else(|| "unknown".into())
-        }),
-        origin_tool: count(Skip::Origin, |i| i.origin_tool.clone()),
     }
 }

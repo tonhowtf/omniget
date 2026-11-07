@@ -17,9 +17,10 @@
     </p>
     <p>
       Its MCP server lets Claude Code, Cursor, VS Code and Codex queue and follow
-      downloads for you. It also runs AI coding agents on your machine: Claude Code,
-      Codex, Gemini CLI and local Ollama models, with permissions, undo, background
-      jobs and loops that repeat until your tests pass.
+      downloads for you. The Canvas runs AI coding agents on your machine side by
+      side in terminals: Claude Code, Codex, Gemini CLI and local Ollama models.
+      Settings keeps several Claude Code and Codex accounts, local models and MCP
+      connections in one place.
     </p>
     <p>
       The washmybelly superpower cleans caches, logs, build folders and duplicates,
@@ -34,7 +35,7 @@
       <li>Torrents, magnet links, direct files and image galleries</li>
       <li>Browser extension that downloads with your own session</li>
       <li>MCP server for Claude Code, Cursor and VS Code</li>
-      <li>AI agents with per-folder permissions, undo, jobs, loops and triggers</li>
+      <li>Claude Code and Codex accounts with rotation and a usage limits strip</li>
       <li>The Canvas: your agents side by side in terminals, connected by cords</li>
       <li>washmybelly: cleanup, uninstaller, startup items, privacy, power and FPS with undo</li>
     </ul>

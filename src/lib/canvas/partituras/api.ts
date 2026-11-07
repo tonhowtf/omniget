@@ -9,7 +9,7 @@ interface EmbeddedRole {
   color?: string;
 }
 
-export interface Budget {
+interface Budget {
   maxUsd?: number;
   maxTokens?: number;
   maxMinutes?: number;
@@ -52,7 +52,7 @@ export interface LibraryPartitura {
   privacy?: { noStartupCommands?: boolean; blankNotes?: boolean };
 }
 
-export interface Shape {
+interface Shape {
   id: string;
   kind: string;
   x: number;

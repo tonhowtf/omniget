@@ -3,22 +3,7 @@ import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 
 export type AgentKind = 'claude' | 'codex' | 'gemini' | 'opencode' | 'ollama' | 'shell' | 'native';
 
-export interface TermOpen {
-  id?: string;
-  cwd?: string | null;
-  command?: string[];
-  env?: Record<string, string>;
-  cols?: number;
-  rows?: number;
-  title?: string;
-  initial_input?: string;
-  history_cap?: number;
-  agent?: AgentKind;
-  restore?: boolean;
-  env_remove?: string[];
-}
-
-export interface AgentSignal {
+interface AgentSignal {
   state: string;
   source: string;
   since_ms: number;

@@ -135,7 +135,7 @@
     {#if ready === false}
       <div class="action-error" role="alert">
         {$t("league.coach_not_configured")}
-        <a href="/settings">{$t("league.coach_open_settings")}</a>
+        <a href="/settings?tab=ai&section=connections">{$t("league.coach_open_settings")}</a>
       </div>
     {/if}
     <div class="action-row">

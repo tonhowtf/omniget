@@ -4,7 +4,6 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use super::{Acceptance, Criterion, CriterionKind, MissionReceipt, Origin, Severity};
-use crate::core::assist::db::AssistDb;
 
 pub const VERIFIER_VERSION: &str = "2";
 pub const ARTIFACT_MAX_BYTES: u64 = 4 * 1024 * 1024;
@@ -306,14 +305,9 @@ pub fn workspace_digest(root: &Path) -> Option<String> {
     Some(sha256_hex(&serde_json::to_vec(&entries).ok()?))
 }
 
-pub fn digest_for(
-    db: Option<&AssistDb>,
-    workspace: Option<&Path>,
-    c: &Criterion,
-    since_ms: i64,
-) -> Option<String> {
+pub fn digest_for(workspace: Option<&Path>, c: &Criterion) -> Option<String> {
     match c.kind {
-        CriterionKind::ToolResult => tool_result_digest(db?, c, since_ms),
+        CriterionKind::ToolResult => None,
         CriterionKind::Command if c.artifact_paths().is_empty() && workspace.is_some() => {
             workspace_digest(workspace?)
         }
@@ -682,139 +676,11 @@ fn str_list(spec: &Value, key: &str) -> Vec<String> {
         .unwrap_or_default()
 }
 
-pub fn tool_result_digest(db: &AssistDb, c: &Criterion, since_ms: i64) -> Option<String> {
-    match c.spec.get("check").and_then(Value::as_str)? {
-        "reading_round" => {
-            let journey = c.spec.get("journey_id").and_then(Value::as_str)?;
-            let round: Option<String> = db
-                .with(|conn| {
-                    use rusqlite::OptionalExtension;
-                    conn.query_row(
-                        "SELECT id FROM reading_rounds WHERE journey_id = ?1 AND created_ms >= ?2 ORDER BY created_ms DESC LIMIT 1",
-                        rusqlite::params![journey, since_ms],
-                        |r| r.get(0),
-                    )
-                    .optional()
-                })
-                .ok()?;
-            Some(
-                round
-                    .map(|r| format!("round:{r}"))
-                    .unwrap_or_else(|| "round:none".into()),
-            )
-        }
-        _ => None,
-    }
-}
-
-pub fn check_tool_result(db: &AssistDb, c: &Criterion, since_ms: i64) -> CheckOutcome {
+pub fn check_tool_result(c: &Criterion) -> CheckOutcome {
     let check = c.spec.get("check").and_then(Value::as_str).unwrap_or("");
-    match check {
-        "reading_round" => check_reading_round(db, c, since_ms),
-        other => CheckOutcome::unknown(&format!(
-            "tool check `{other}` is not supported; nothing was verified"
-        )),
-    }
-}
-
-fn check_reading_round(db: &AssistDb, c: &Criterion, since_ms: i64) -> CheckOutcome {
-    let Some(journey) = c.spec.get("journey_id").and_then(Value::as_str) else {
-        return CheckOutcome::unknown("reading_round needs journey_id");
-    };
-    let digest = tool_result_digest(db, c, since_ms).unwrap_or_else(|| "round:none".into());
-    let Some(round_id) = digest
-        .strip_prefix("round:")
-        .filter(|r| *r != "none")
-        .map(str::to_string)
-    else {
-        return CheckOutcome {
-            status: "fail".into(),
-            digest,
-            evidence: "no reading round was recorded for this journey since the mission started"
-                .into(),
-            exit_code: None,
-            artifact_ref: format!("journey:{journey}"),
-        };
-    };
-    let rows: Vec<(String, String, String, String)> = db
-        .with(|conn| {
-            let mut st = conn.prepare(
-                "SELECT i.role, i.status, COALESCE(m.title, i.movie_id), COALESCE(i.missing_json, '[]') FROM reading_round_items i \
-                 LEFT JOIN reading_movies m ON m.id = i.movie_id WHERE i.round_id = ?1 ORDER BY i.position",
-            )?;
-            let rows = st.query_map(rusqlite::params![round_id], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)))?;
-            rows.collect()
-        })
-        .unwrap_or_default();
-    let shortfall: Option<String> = db
-        .with(|conn| {
-            conn.query_row(
-                "SELECT shortfall_reason FROM reading_rounds WHERE id = ?1",
-                rusqlite::params![round_id],
-                |r| r.get(0),
-            )
-        })
-        .ok()
-        .flatten();
-    let n = rows.len() as u64;
-    let min = c.spec.get("min_items").and_then(Value::as_u64).unwrap_or(1);
-    let max = c.spec.get("max_items").and_then(Value::as_u64).unwrap_or(3);
-    let mut problems = Vec::new();
-    if n < min && shortfall.as_deref().map(str::trim).unwrap_or("").is_empty() {
-        problems.push(format!(
-            "{n} film(s), at least {min} expected and no shortfall explained"
-        ));
-    }
-    if n > max {
-        problems.push(format!("{n} film(s), at most {max}"));
-    }
-    if c.spec
-        .get("first_round_roles")
-        .and_then(Value::as_bool)
-        .unwrap_or(false)
-        && n == 3
-    {
-        let mut roles: Vec<&str> = rows.iter().map(|r| r.0.as_str()).collect();
-        roles.sort_unstable();
-        if roles != ["entry", "shift", "surprise"] {
-            problems.push("first round of three needs entry, shift and surprise".into());
-        }
-    }
-    let mut lines: Vec<String> = rows
-        .iter()
-        .map(|(role, status, title, missing)| {
-            let miss: Vec<String> = serde_json::from_str(missing).unwrap_or_default();
-            if miss.is_empty() {
-                format!("{title} [{role}] access: {status}")
-            } else {
-                format!(
-                    "{title} [{role}] access: {status} (missing: {})",
-                    miss.join("; ")
-                )
-            }
-        })
-        .collect();
-    if let Some(s) = shortfall.filter(|s| !s.trim().is_empty()) {
-        lines.push(format!("shortfall: {s}"));
-    }
-    let partial = n < min;
-    let status = if !problems.is_empty() {
-        "fail"
-    } else if partial {
-        lines.push("partial: fewer films than asked, with the reason recorded".into());
-        "partial"
-    } else {
-        "pass"
-    };
-    let mut evidence = problems;
-    evidence.extend(lines);
-    CheckOutcome {
-        status: status.into(),
-        digest,
-        evidence: evidence.join("\n"),
-        exit_code: None,
-        artifact_ref: format!("reading_round:{round_id}"),
-    }
+    CheckOutcome::unknown(&format!(
+        "tool check `{check}` is not supported; nothing was verified"
+    ))
 }
 
 pub fn command_outcome(

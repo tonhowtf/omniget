@@ -60,7 +60,7 @@ export type PersistenceList = {
   plan_id: null;
 };
 
-export const KIND_ORDER: string[] = [
+const KIND_ORDER: string[] = [
   "launch_agent",
   "launch_daemon",
   "background_task",

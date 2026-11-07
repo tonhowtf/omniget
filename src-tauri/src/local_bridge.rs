@@ -251,6 +251,7 @@ pub async fn spawn(app: AppHandle) {
         .allow_methods([Method::GET, Method::POST, Method::OPTIONS])
         .allow_headers(Any);
 
+    crate::commands::llm::ensure_wired(&state.app);
     let router = Router::new()
         .route("/v1/health", get(health))
         .route("/v1/pair", get(pair))
@@ -273,9 +274,6 @@ pub async fn spawn(app: AppHandle) {
             "/mcp/assist",
             post(assist_mcp_post).get(mcp_get).delete(mcp_get),
         )
-        .merge(crate::local_bridge_llm::router(
-            crate::local_bridge_llm::LlmBridgeState::from_bridge(&state),
-        ))
         .merge(crate::local_bridge_company::router(
             crate::local_bridge_jobs::JobsBridgeState::from_bridge(&state).guard(),
         ))
@@ -440,7 +438,7 @@ async fn pair(State(state): State<BridgeState>, headers: HeaderMap) -> Response 
         StatusCode::OK,
         Json(PairResponse {
             ok: true,
-            token: Some((*state.token).clone()),
+            token: Some((*live_token(&state.token)).clone()),
         }),
     )
         .into_response()
@@ -455,7 +453,23 @@ fn unauthorized() -> Response {
     (StatusCode::UNAUTHORIZED, body).into_response()
 }
 
+static ROTATED_TOKEN: std::sync::RwLock<Option<Arc<String>>> = std::sync::RwLock::new(None);
+
+pub fn set_rotated_token(token: &str) {
+    *ROTATED_TOKEN.write().unwrap() = Some(Arc::new(token.to_string()));
+}
+
+pub fn live_token(spawned: &Arc<String>) -> Arc<String> {
+    ROTATED_TOKEN
+        .read()
+        .unwrap()
+        .clone()
+        .unwrap_or_else(|| spawned.clone())
+}
+
 fn check_bearer(headers: &HeaderMap, expected: &str) -> bool {
+    let rotated = ROTATED_TOKEN.read().unwrap().clone();
+    let expected = rotated.as_deref().map_or(expected, String::as_str);
     let header = match headers.get("authorization") {
         Some(v) => v,
         None => return false,

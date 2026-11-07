@@ -215,10 +215,6 @@ pub trait RoomDispatcher: Send + Sync {
 
 static DISPATCHER: RwLock<Option<Arc<dyn RoomDispatcher>>> = RwLock::new(None);
 
-pub fn set_dispatcher(d: Arc<dyn RoomDispatcher>) {
-    *DISPATCHER.write().unwrap_or_else(|e| e.into_inner()) = Some(d);
-}
-
 pub fn dispatcher() -> Option<Arc<dyn RoomDispatcher>> {
     DISPATCHER.read().unwrap_or_else(|e| e.into_inner()).clone()
 }
@@ -335,91 +331,6 @@ pub struct SendOutcome {
     pub round: i64,
     pub started: Vec<Started>,
     pub skipped: Vec<Skipped>,
-}
-
-fn user_turn_input(text: &str) -> String {
-    text.to_string()
-}
-
-pub async fn send_user_message(
-    db: &AssistDb,
-    dispatcher: &dyn RoomDispatcher,
-    room_id: &str,
-    text: &str,
-    names: &HashMap<String, String>,
-) -> Result<SendOutcome, String> {
-    let text = text.trim();
-    if text.is_empty() {
-        return Err(format!("{ERR_GROUP}: empty message"));
-    }
-    let room = store::get_room(db, room_id)?;
-    db.with(|c| {
-        Ok(super::super::external_config::deny_local_dispatch(
-            c,
-            Some(room_id),
-            "",
-        ))
-    })??;
-    let (message, round) = db.tx(|tx| {
-        tx.execute(
-            "UPDATE groups_rooms SET round = round + 1 WHERE id = ?1",
-            [room_id],
-        )
-        .map_err(|e| format!("{ERR_GROUP}: {e}"))?;
-        let round: i64 = tx
-            .query_row(
-                "SELECT round FROM groups_rooms WHERE id = ?1",
-                [room_id],
-                |r| r.get(0),
-            )
-            .map_err(|e| format!("{ERR_GROUP}: {e}"))?;
-        let m = store::insert_message_tx(
-            tx,
-            &NewMessage {
-                room: room_id,
-                author: AuthorKind::User,
-                bot_id: None,
-                reply_to: None,
-                run_id: None,
-                task_id: None,
-                round,
-                text,
-                status: "done",
-            },
-        )?;
-        Ok((m, round))
-    })?;
-    let mut started = Vec::new();
-    let mut skipped = Vec::new();
-    for bot in route(&room, text, names) {
-        let admitted = db.tx(|tx| {
-            super::super::external_config::deny_local_dispatch(tx, None, &bot)?;
-            if bot_busy(tx, room_id, &bot)? {
-                return Err(format!(
-                    "{ERR_GROUP_BUSY}: still answering the previous message"
-                ));
-            }
-            check_admission(tx, &room, round, false)
-        });
-        if let Err(reason) = admitted {
-            skipped.push(Skipped { bot, reason });
-            continue;
-        }
-        match dispatcher.start(room_id, &bot, user_turn_input(text)).await {
-            Ok(run_id) => {
-                db.tx(|tx| insert_run(tx, &run_id, room_id, &bot, None, Some(&message.id), round))?;
-                apply_early(db, &run_id);
-                started.push(Started { bot, run_id });
-            }
-            Err(reason) => skipped.push(Skipped { bot, reason }),
-        }
-    }
-    Ok(SendOutcome {
-        message,
-        round,
-        started,
-        skipped,
-    })
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -957,95 +868,6 @@ pub struct CancelOutcome {
     pub cancelled_runs: Vec<String>,
     pub cancelled_tasks: Vec<String>,
     pub kept_tasks: Vec<String>,
-}
-
-pub fn cancel_room(
-    db: &AssistDb,
-    room_id: &str,
-    dispatcher: Option<&dyn RoomDispatcher>,
-) -> Result<CancelOutcome, String> {
-    store::get_room(db, room_id)?;
-    let out = db.tx(|tx| {
-        let now = now_ms();
-        let active_tasks: Vec<String> = {
-            let mut st = tx
-                .prepare("SELECT id FROM groups_tasks WHERE room = ?1 AND state IN ('pending','claimed')")
-                .map_err(|e| format!("{ERR_GROUP}: {e}"))?;
-            let rows = st
-                .query_map([room_id], |r| r.get(0))
-                .map_err(|e| format!("{ERR_GROUP}: {e}"))?;
-            rows.collect::<rusqlite::Result<_>>()
-                .map_err(|e| format!("{ERR_GROUP}: {e}"))?
-        };
-        let kept: Vec<String> = {
-            let mut st = tx
-                .prepare("SELECT id FROM groups_tasks WHERE room = ?1 AND state = 'completed'")
-                .map_err(|e| format!("{ERR_GROUP}: {e}"))?;
-            let rows = st
-                .query_map([room_id], |r| r.get(0))
-                .map_err(|e| format!("{ERR_GROUP}: {e}"))?;
-            rows.collect::<rusqlite::Result<_>>()
-                .map_err(|e| format!("{ERR_GROUP}: {e}"))?
-        };
-        let runs: Vec<(String, String)> = {
-            let mut st = tx
-                .prepare("SELECT run_id, bot FROM groups_runs WHERE room = ?1 AND state = 'running'")
-                .map_err(|e| format!("{ERR_GROUP}: {e}"))?;
-            let rows = st
-                .query_map([room_id], |r| Ok((r.get(0)?, r.get(1)?)))
-                .map_err(|e| format!("{ERR_GROUP}: {e}"))?;
-            rows.collect::<rusqlite::Result<_>>()
-                .map_err(|e| format!("{ERR_GROUP}: {e}"))?
-        };
-        tx.execute(
-            "UPDATE groups_tasks SET state = 'cancelled', finished_ms = ?2 WHERE room = ?1 AND state IN ('pending','claimed')",
-            params![room_id, now],
-        )
-        .map_err(|e| format!("{ERR_GROUP}: {e}"))?;
-        tx.execute(
-            "UPDATE groups_runs SET state = 'cancelled', finished_ms = ?2 WHERE room = ?1 AND state = 'running'",
-            params![room_id, now],
-        )
-        .map_err(|e| format!("{ERR_GROUP}: {e}"))?;
-        if !runs.is_empty() || !active_tasks.is_empty() {
-            let round: i64 = tx
-                .query_row("SELECT round FROM groups_rooms WHERE id = ?1", [room_id], |r| r.get(0))
-                .map_err(|e| format!("{ERR_GROUP}: {e}"))?;
-            let who: Vec<String> = runs.iter().map(|(_, b)| format!("@{b}")).collect();
-            store::insert_message_tx(
-                tx,
-                &NewMessage {
-                    room: room_id,
-                    author: AuthorKind::System,
-                    bot_id: None,
-                    reply_to: None,
-                    run_id: None,
-                    task_id: None,
-                    round,
-                    text: &format!(
-                        "cancelled: {} · finished results kept: {}",
-                        if who.is_empty() { "-".to_string() } else { who.join(", ") },
-                        kept.len()
-                    ),
-                    status: "done",
-                },
-            )?;
-        }
-        Ok(CancelOutcome {
-            cancelled_runs: runs.into_iter().map(|(r, _)| r).collect(),
-            cancelled_tasks: active_tasks,
-            kept_tasks: kept,
-        })
-    })?;
-    for t in &out.cancelled_tasks {
-        wake(t);
-    }
-    if let Some(d) = dispatcher {
-        for r in &out.cancelled_runs {
-            d.cancel(r);
-        }
-    }
-    Ok(out)
 }
 
 pub fn recover(db: &AssistDb) -> Result<usize, String> {

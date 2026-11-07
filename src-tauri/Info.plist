@@ -2,5 +2,9 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>OmniGet uses the microphone only while you dictate or record your screen with sound. Audio is processed on this computer.</string>
+	<key>NSAppleEventsUsageDescription</key>
+	<string>OmniGet pastes dictated text into the app you are using.</string>
 </dict>
 </plist>

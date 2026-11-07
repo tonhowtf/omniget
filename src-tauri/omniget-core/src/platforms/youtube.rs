@@ -11,12 +11,38 @@ use crate::models::media::{
     DownloadOptions, DownloadResult, MediaInfo, MediaType, VideoQuality as MediaVideoQuality,
 };
 
+const MIX_ITEM_LIMIT: u32 = 100;
+
 pub struct YouTubeDownloader;
 
 impl Default for YouTubeDownloader {
     fn default() -> Self {
         Self::new()
     }
+}
+
+// WHY: reporting a partial playlist as complete hides the videos the user never got. The files that
+// did download stay in the folder, and a retry skips them.
+fn playlist_failure(
+    succeeded: usize,
+    total: usize,
+    last_err: Option<anyhow::Error>,
+    dir: &std::path::Path,
+) -> Option<anyhow::Error> {
+    if succeeded == total {
+        return None;
+    }
+    let reason = last_err
+        .map(|e| e.to_string())
+        .unwrap_or_else(|| "Playlist download finished without any files".to_string());
+    if succeeded == 0 {
+        return Some(anyhow!("{reason}"));
+    }
+    Some(anyhow!(
+        "{} of {total} playlist videos failed. The other {succeeded} are in {}. Last error: {reason}",
+        total - succeeded,
+        dir.display(),
+    ))
 }
 
 impl YouTubeDownloader {
@@ -41,7 +67,7 @@ impl YouTubeDownloader {
         if host.contains("youtube.com") || host.contains("youtube-nocookie.com") {
             let segments: Vec<&str> = parsed.path().split('/').filter(|s| !s.is_empty()).collect();
 
-            if segments.first() == Some(&"shorts") {
+            if matches!(segments.first(), Some(&"shorts") | Some(&"live")) {
                 return segments.get(1).map(|s| s.to_string());
             }
 
@@ -76,39 +102,60 @@ impl YouTubeDownloader {
         false
     }
 
+    fn playlist_limit_flags(url: &str) -> Vec<String> {
+        let is_mix = url::Url::parse(url).ok().is_some_and(|parsed| {
+            parsed
+                .query_pairs()
+                .any(|(k, v)| k == "list" && v.starts_with("RD"))
+        });
+        if is_mix {
+            vec!["--playlist-end".to_string(), MIX_ITEM_LIMIT.to_string()]
+        } else {
+            Vec::new()
+        }
+    }
+
+    pub async fn fetch_playlist(
+        url: &str,
+        ytdlp_path: &std::path::Path,
+    ) -> anyhow::Result<MediaInfo> {
+        let (playlist_title, entries) =
+            ytdlp::get_playlist_info(ytdlp_path, url, &Self::playlist_limit_flags(url)).await?;
+
+        if entries.is_empty() {
+            return Err(anyhow!("Playlist empty or unavailable"));
+        }
+
+        let qualities: Vec<MediaVideoQuality> = entries
+            .into_iter()
+            .enumerate()
+            .map(|(i, entry)| MediaVideoQuality {
+                label: format!("{}. {}", i + 1, entry.title),
+                width: 0,
+                height: 0,
+                url: entry.url,
+                format: "ytdlp_playlist".to_string(),
+            })
+            .collect();
+
+        Ok(MediaInfo {
+            title: sanitize_filename::sanitize(&playlist_title),
+            author: playlist_title,
+            platform: "youtube".to_string(),
+            duration_seconds: None,
+            thumbnail_url: None,
+            available_qualities: qualities,
+            media_type: MediaType::Playlist,
+            file_size_bytes: None,
+        })
+    }
+
     pub async fn fetch_with_ytdlp(
         url: &str,
         ytdlp_path: &std::path::Path,
     ) -> anyhow::Result<MediaInfo> {
         if Self::is_playlist_url(url) {
-            let (playlist_title, entries) = ytdlp::get_playlist_info(ytdlp_path, url, &[]).await?;
-
-            if entries.is_empty() {
-                return Err(anyhow!("Playlist empty or unavailable"));
-            }
-
-            let qualities: Vec<MediaVideoQuality> = entries
-                .into_iter()
-                .enumerate()
-                .map(|(i, entry)| MediaVideoQuality {
-                    label: format!("{}. {}", i + 1, entry.title),
-                    width: 0,
-                    height: 0,
-                    url: entry.url,
-                    format: "ytdlp_playlist".to_string(),
-                })
-                .collect();
-
-            return Ok(MediaInfo {
-                title: sanitize_filename::sanitize(&playlist_title),
-                author: playlist_title,
-                platform: "youtube".to_string(),
-                duration_seconds: None,
-                thumbnail_url: None,
-                available_qualities: qualities,
-                media_type: MediaType::Playlist,
-                file_size_bytes: None,
-            });
+            return Self::fetch_playlist(url, ytdlp_path).await;
         }
 
         let _video_id = Self::extract_video_id(url)
@@ -223,12 +270,238 @@ impl YouTubeDownloader {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+
+    #[test]
+    fn a_playlist_with_failures_is_not_reported_as_complete() {
+        let dir = std::path::Path::new("/tmp/list");
+        assert!(playlist_failure(3, 3, None, dir).is_none());
+        let partial = playlist_failure(2, 3, Some(anyhow!("HTTP 403")), dir)
+            .unwrap()
+            .to_string();
+        assert!(
+            partial.starts_with("1 of 3 playlist videos failed"),
+            "{partial}"
+        );
+        assert!(
+            partial.contains("/tmp/list") && partial.contains("HTTP 403"),
+            "{partial}"
+        );
+        let none = playlist_failure(0, 3, Some(anyhow!("HTTP 403")), dir)
+            .unwrap()
+            .to_string();
+        assert_eq!(none, "HTTP 403");
+    }
+
     use super::YouTubeDownloader;
+    use crate::core::ytdlp;
+    use crate::models::media::{
+        DownloadOptions, MediaInfo, MediaType, VideoQuality as MediaVideoQuality,
+    };
+    use crate::platforms::traits::PlatformDownloader;
+    use tokio::sync::mpsc;
 
     #[test]
     fn watch_url_with_playlist_param_is_single_video() {
         assert!(!YouTubeDownloader::is_playlist_url(
             "https://www.youtube.com/watch?v=abc123&list=PLxyz&index=2",
+        ));
+    }
+
+    #[test]
+    fn an_endless_mix_is_capped_and_a_normal_playlist_is_not() {
+        assert_eq!(
+            YouTubeDownloader::playlist_limit_flags(
+                "https://www.youtube.com/watch?v=abc&list=RDabc"
+            ),
+            vec!["--playlist-end".to_string(), "100".to_string()]
+        );
+        assert!(YouTubeDownloader::playlist_limit_flags(
+            "https://www.youtube.com/playlist?list=PL1"
+        )
+        .is_empty());
+    }
+
+    fn network_options(dir: &std::path::Path, mode: Option<&str>) -> DownloadOptions {
+        DownloadOptions {
+            quality: Some("360p".to_string()),
+            output_dir: dir.to_path_buf(),
+            filename_template: Some("%(title).200s [%(id)s].%(ext)s".to_string()),
+            download_subtitles: false,
+            include_auto_subtitles: false,
+            download_mode: mode.map(str::to_string),
+            audio_format: mode.map(|_| "m4a".to_string()),
+            format_id: None,
+            referer: None,
+            extra_headers: None,
+            page_url: None,
+            user_agent: None,
+            cancel_token: tokio_util::sync::CancellationToken::new(),
+            concurrent_fragments: 1,
+            ytdlp_path: None,
+            torrent_listen_port: None,
+            torrent_id_slot: None,
+            custom_ytdlp_args: None,
+            torrent_files: None,
+            torrent_auto_trackers: false,
+            torrent_upnp: false,
+            torrent_stop_seeding: false,
+            playlist_number_files: true,
+        }
+    }
+
+    fn streams(path: &std::path::Path) -> String {
+        let out = std::process::Command::new("ffprobe")
+            .args([
+                "-v",
+                "error",
+                "-show_entries",
+                "stream=codec_name,codec_type:stream_disposition=attached_pic",
+                "-of",
+                "compact",
+            ])
+            .arg(path)
+            .output()
+            .unwrap();
+        String::from_utf8_lossy(&out.stdout).into_owned()
+    }
+
+    fn fresh_dir(name: &str) -> std::path::PathBuf {
+        let dir = std::env::temp_dir().join(format!("omniget-net-{name}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    #[tokio::test]
+    #[ignore = "downloads from YouTube"]
+    async fn a_selected_audio_playlist_downloads_every_item_numbered_with_cover_art() {
+        let dir = fresh_dir("playlist");
+        let entry = |n: u32, id: &str| MediaVideoQuality {
+            label: format!("{n}. item"),
+            width: 0,
+            height: 0,
+            url: format!("https://www.youtube.com/watch?v={id}"),
+            format: "ytdlp_playlist".to_string(),
+        };
+        let info = MediaInfo {
+            title: "List".to_string(),
+            author: "List".to_string(),
+            platform: "youtube".to_string(),
+            duration_seconds: None,
+            thumbnail_url: None,
+            available_qualities: vec![entry(2, "jNQXAC9IVRw"), entry(5, "dQw4w9WgXcQ")],
+            media_type: MediaType::Playlist,
+            file_size_bytes: None,
+        };
+        let (tx, mut rx) = mpsc::channel(64);
+        tokio::spawn(async move { while rx.recv().await.is_some() {} });
+        let result = YouTubeDownloader::new()
+            .download(&info, &network_options(&dir, Some("audio")), tx)
+            .await
+            .unwrap();
+        assert!(result.file_path.is_dir());
+        let mut names: Vec<std::path::PathBuf> = std::fs::read_dir(&result.file_path)
+            .unwrap()
+            .map(|e| e.unwrap().path())
+            .collect();
+        names.sort();
+        assert_eq!(names.len(), 2, "{names:?}");
+        let first = names[0].file_name().unwrap().to_string_lossy().into_owned();
+        let second = names[1].file_name().unwrap().to_string_lossy().into_owned();
+        assert!(first.starts_with("02 - "), "{first}");
+        assert!(second.starts_with("05 - "), "{second}");
+        for path in &names {
+            let probe = streams(path);
+            assert!(probe.contains("codec_type=audio"), "{probe}");
+            assert!(probe.contains("attached_pic=1"), "{probe}");
+        }
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[tokio::test]
+    #[ignore = "downloads from YouTube"]
+    async fn a_thumbnails_only_download_saves_an_image_and_no_video() {
+        let dir = fresh_dir("thumb");
+        let (tx, mut rx) = mpsc::channel(64);
+        tokio::spawn(async move { while rx.recv().await.is_some() {} });
+        let flags: Vec<String> = [
+            "--skip-download",
+            "--write-thumbnail",
+            "--convert-thumbnails",
+            "jpg",
+        ]
+        .iter()
+        .map(|s| s.to_string())
+        .collect();
+        let path = ytdlp::ensure_ytdlp().await.unwrap();
+        let result = ytdlp::download_video(
+            &path,
+            "https://www.youtube.com/watch?v=jNQXAC9IVRw",
+            &dir,
+            None,
+            tx,
+            None,
+            None,
+            None,
+            None,
+            tokio_util::sync::CancellationToken::new(),
+            None,
+            1,
+            false,
+            &flags,
+            None,
+        )
+        .await
+        .unwrap();
+        assert_eq!(result.file_path.extension().unwrap(), "jpg");
+        assert_eq!(std::fs::read_dir(&dir).unwrap().count(), 1);
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[tokio::test]
+    #[ignore = "downloads from YouTube"]
+    async fn the_compatible_choice_saves_h264_and_aac_in_mp4() {
+        ytdlp::set_compatible_video_fn(|| true);
+        let dir = fresh_dir("compatible");
+        let (tx, mut rx) = mpsc::channel(64);
+        tokio::spawn(async move { while rx.recv().await.is_some() {} });
+        let path = ytdlp::ensure_ytdlp().await.unwrap();
+        let result = ytdlp::download_video(
+            &path,
+            "https://www.youtube.com/live/jNQXAC9IVRw",
+            &dir,
+            Some(360),
+            tx,
+            None,
+            None,
+            None,
+            None,
+            tokio_util::sync::CancellationToken::new(),
+            None,
+            1,
+            false,
+            &[],
+            None,
+        )
+        .await
+        .unwrap();
+        assert_eq!(result.file_path.extension().unwrap(), "mp4");
+        let probe = streams(&result.file_path);
+        assert!(probe.contains("codec_name=h264"), "{probe}");
+        assert!(probe.contains("codec_name=aac"), "{probe}");
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn live_format_link_yields_the_video_id() {
+        assert_eq!(
+            YouTubeDownloader::extract_video_id("https://www.youtube.com/live/jNQXAC9IVRw?si=x")
+                .as_deref(),
+            Some("jNQXAC9IVRw")
+        );
+        assert!(!YouTubeDownloader::is_playlist_url(
+            "https://www.youtube.com/live/jNQXAC9IVRw"
         ));
     }
 
@@ -358,6 +631,7 @@ impl YouTubeDownloader {
         tokio::fs::create_dir_all(&playlist_dir).await?;
 
         let total = info.available_qualities.len();
+        let last_position = ytdlp::last_playlist_position(&info.available_qualities);
         let mut total_bytes = 0u64;
         let mut last_path = playlist_dir.clone();
         let mut success_count = 0usize;
@@ -395,6 +669,13 @@ impl YouTubeDownloader {
                 .as_deref()
                 .map(|args| args.to_vec())
                 .unwrap_or_default();
+            let numbered_template = opts.playlist_number_files.then(|| {
+                ytdlp::numbered_filename_template(
+                    opts.filename_template.as_deref(),
+                    ytdlp::playlist_position(entry, i),
+                    last_position,
+                )
+            });
 
             match ytdlp::download_video(
                 ytdlp_path,
@@ -404,7 +685,9 @@ impl YouTubeDownloader {
                 video_tx,
                 opts.download_mode.as_deref(),
                 None,
-                opts.filename_template.as_deref(),
+                numbered_template
+                    .as_deref()
+                    .or(opts.filename_template.as_deref()),
                 opts.referer.as_deref().or(Some("https://www.youtube.com/")),
                 opts.cancel_token.clone(),
                 None,
@@ -429,10 +712,8 @@ impl YouTubeDownloader {
             let _ = forwarder.await;
         }
 
-        if success_count == 0 {
-            return Err(
-                last_err.unwrap_or_else(|| anyhow!("Playlist download finished without any files"))
-            );
+        if let Some(e) = playlist_failure(success_count, total, last_err, &playlist_dir) {
+            return Err(e);
         }
 
         if success_count > 1 {

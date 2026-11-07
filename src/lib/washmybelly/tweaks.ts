@@ -45,7 +45,7 @@ export type TweakList = {
 
 export type Row = { kind: "item"; item: TweakItem } | { kind: "group"; group: TweakGroup; items: TweakItem[] };
 
-export const CATEGORY_ORDER = [
+const CATEGORY_ORDER = [
   "performance",
   "gaming",
   "taskbar_start",

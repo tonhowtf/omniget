@@ -1,23 +1,8 @@
 use serde_json::Value;
 use tauri::AppHandle;
 
-use crate::canvas::cords::{host, NodeEnv};
+use crate::canvas::cords::host;
 
-#[tauri::command]
-pub async fn canvas_terminal_env(
-    app: AppHandle,
-    workspace_id: String,
-    floor_id: String,
-    node_id: String,
-) -> Result<NodeEnv, String> {
-    tauri::async_runtime::spawn_blocking(move || {
-        host().terminal_env(&app, &workspace_id, &floor_id, &node_id)
-    })
-    .await
-    .map_err(|e| format!("CANVAS_TASK: {e}"))?
-}
-
-#[tauri::command]
 pub async fn canvas_cord_test(
     app: AppHandle,
     workspace_id: String,
@@ -32,7 +17,6 @@ pub async fn canvas_cord_test(
     .map_err(|e| format!("CANVAS_TASK: {e}"))?
 }
 
-#[tauri::command]
 pub fn canvas_asks_list(app: AppHandle, workspace_id: Option<String>) -> Vec<Value> {
     host().bind(&app).asks_list(workspace_id.as_deref())
 }

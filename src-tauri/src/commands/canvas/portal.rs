@@ -196,15 +196,6 @@ pub async fn canvas_portal_design_disarm(
 }
 
 #[tauri::command]
-pub fn canvas_portal_design_targets(
-    app: AppHandle,
-    node_id: String,
-) -> Result<Vec<crate::canvas::design::Target>, String> {
-    crate::portal::bind(&app);
-    crate::canvas::design::targets(&node_id)
-}
-
-#[tauri::command]
 pub async fn canvas_portal_design_send(
     app: AppHandle,
     node_id: String,

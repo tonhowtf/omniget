@@ -177,15 +177,6 @@ pub enum TurnEvent {
     Usage {
         usage: Usage,
     },
-    PruneReceipt {
-        request: u32,
-        omitted: u32,
-        est_tokens_before: u32,
-        est_tokens_after: u32,
-        input_tokens: Option<u32>,
-        #[serde(default)]
-        billable_input_tokens: Option<u32>,
-    },
     Finished {
         reason: FinishReason,
     },

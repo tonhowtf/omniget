@@ -6,8 +6,6 @@ status = "active"
 beta = true
 homepage = "https://docs.cline.bot"
 notes = "Monorepo with VS Code extension, CLI, Desktop and SDK converging on ~/.cline. Reads AGENTS.md but not CLAUDE.md. Hooks are one executable per event; the VS Code extension still keeps transcripts in VS Code globalStorage. In the CLI, -p means plan mode, not print."
-reads_agents_dir = true
-reads_agents_md = "yes"
 
 [detect]
 binaries = ["cline"]
@@ -21,7 +19,6 @@ local = false
 managed = false
 project_markers = [".clinerules", ".cline"]
 global_dir = "~/.cline"
-config_dir_env = "CLINE_DIR"
 
 [formats]
 rule = "cline_rules"
@@ -118,7 +115,6 @@ Notification = "Notification"
 # Fixed timeout: 30 s in VS Code, 120 s in CLI/SDK. 9 events in VS Code, 11 in CLI/SDK.
 [hooks]
 shape = "cline_files"
-events_count = 9
 
 # VS Code extension names; the CLI/SDK runtime uses different ones (read_files, run_commands, editor...).
 [tool_name_map]

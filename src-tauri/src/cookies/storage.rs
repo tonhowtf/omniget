@@ -101,8 +101,7 @@ pub fn lock_registry() -> MutexGuard<'static, ()> {
 }
 
 pub fn load_registry() -> CookieRegistry {
-    crate::core::state_file::load_or_quarantine(&meta_path(), "registro de cookies")
-        .unwrap_or_default()
+    crate::core::state_file::load_or_quarantine(&meta_path(), "cookie registry").unwrap_or_default()
 }
 
 pub fn save_registry(registry: &CookieRegistry) -> anyhow::Result<()> {

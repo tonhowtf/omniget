@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use super::model::content_hash;
+use super::sources::now;
 use super::{
     agentkit_dir, sha256_hex, write_atomic, CatalogError, Result, ERR_DB, ERR_HASH, ERR_INVALID,
     ERR_NOT_FOUND,
@@ -44,10 +45,6 @@ pub struct Collection {
 
 fn db_err(e: impl std::fmt::Display) -> CatalogError {
     CatalogError::new(ERR_DB, e.to_string())
-}
-
-fn now() -> String {
-    chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true)
 }
 
 pub struct Store {
@@ -232,27 +229,6 @@ impl Store {
         })
     }
 
-    pub fn set_defaults(
-        &self,
-        id: &str,
-        targets: &[String],
-        scope: Option<&str>,
-    ) -> Result<Collection> {
-        self.with(|c| {
-            c.execute(
-                "UPDATE collections SET targets = ?2, scope = ?3 WHERE id = ?1",
-                params![
-                    id,
-                    serde_json::to_string(targets).unwrap_or("[]".into()),
-                    scope
-                ],
-            )
-            .map_err(db_err)?;
-            Self::touch(c, id)?;
-            Self::one(c, id)
-        })
-    }
-
     pub fn delete(&self, id: &str) -> Result<()> {
         self.with(|c| {
             let n = c
@@ -353,54 +329,6 @@ impl Store {
             Self::renumber(c, id, &order)?;
             Self::one(c, id)
         })
-    }
-
-    pub fn move_item(&self, id: &str, item_id: &str, to: usize) -> Result<Collection> {
-        self.with(|c| {
-            let tx = c.transaction().map_err(db_err)?;
-            Self::touch(&tx, id)?;
-            let mut order: Vec<String> = Self::items_of(&tx, id)?
-                .into_iter()
-                .map(|i| i.item_id)
-                .collect();
-            let from = order.iter().position(|x| x == item_id).ok_or_else(|| {
-                CatalogError::new(ERR_NOT_FOUND, format!("`{item_id}` not in collection"))
-            })?;
-            let it = order.remove(from);
-            let to = to.min(order.len());
-            order.insert(to, it);
-            Self::renumber(&tx, id, &order)?;
-            tx.commit().map_err(db_err)?;
-            Self::one(c, id)
-        })
-    }
-
-    pub fn move_collection(&self, id: &str, to: usize) -> Result<Vec<Collection>> {
-        self.with(|c| {
-            let mut ids: Vec<String> = {
-                let mut st = c
-                    .prepare("SELECT id FROM collections ORDER BY position, created")
-                    .map_err(db_err)?;
-                let rows = st.query_map([], |r| r.get(0)).map_err(db_err)?;
-                rows.collect::<std::result::Result<_, _>>()
-                    .map_err(db_err)?
-            };
-            let from = ids
-                .iter()
-                .position(|x| x == id)
-                .ok_or_else(|| CatalogError::new(ERR_NOT_FOUND, format!("collection `{id}`")))?;
-            let x = ids.remove(from);
-            ids.insert(to.min(ids.len()), x);
-            for (i, cid) in ids.iter().enumerate() {
-                c.execute(
-                    "UPDATE collections SET position = ?2 WHERE id = ?1",
-                    params![cid, i as i64],
-                )
-                .map_err(db_err)?;
-            }
-            Ok(())
-        })?;
-        self.list()
     }
 }
 

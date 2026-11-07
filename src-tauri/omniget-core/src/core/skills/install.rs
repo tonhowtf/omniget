@@ -6,7 +6,7 @@ use super::manifest::{self, SkillManifest, SKILL_FILE};
 use super::scan::ScanStatus;
 use super::{
     SkillError, SkillSource, ERR_SKILL_GIT, ERR_SKILL_NOT_FOUND, ERR_SKILL_PARSE, ERR_SKILL_PATH,
-    ERR_SKILL_PENDING, ERR_SKILL_TOO_BIG, ERR_SKILL_ZIP,
+    ERR_SKILL_TOO_BIG, ERR_SKILL_ZIP,
 };
 
 pub const SIDECAR: &str = ".omniget-skill.json";
@@ -60,14 +60,6 @@ fn ensure_root(root: &Path) -> Result<(), SkillError> {
         .map_err(|e| SkillError::io(&format!("creating {}", root.display()), &e))
 }
 
-pub fn install_from_dir(src: &Path) -> Result<InstallOutcome, SkillError> {
-    install_from_dir_in(&skills_dir()?, src)
-}
-
-pub fn install_from_dir_in(root: &Path, src: &Path) -> Result<InstallOutcome, SkillError> {
-    install_from_dir_in_with(root, src, &default_scan)
-}
-
 pub fn install_from_dir_in_with(
     root: &Path,
     src: &Path,
@@ -107,14 +99,6 @@ pub fn install_from_zip_in_with(
         from: archive.display().to_string(),
     };
     install_copy(root, &dir, source, scan)
-}
-
-pub fn install_from_git(
-    url: &str,
-    rev: Option<&str>,
-    subdir: Option<&str>,
-) -> Result<InstallOutcome, SkillError> {
-    install_from_git_in(&skills_dir()?, url, rev, subdir)
 }
 
 pub fn install_from_git_in(
@@ -332,73 +316,6 @@ fn install_copy(
         scan: verdict,
         needs_confirm: None,
     })
-}
-
-fn pending_path(root: &Path, token: &str) -> Result<PathBuf, SkillError> {
-    let bad = |why: &str| SkillError::new(ERR_SKILL_PENDING, format!("`{token}` {why}"));
-    if !token.starts_with(PENDING_PREFIX) {
-        return Err(bad("does not name a pending install"));
-    }
-    if token.contains('/') || token.contains('\\') || token.contains("..") || token.contains('\0') {
-        return Err(bad("is not a plain folder name"));
-    }
-    let dir = root.join(token);
-    if !dir.is_dir() {
-        return Err(bad("is not waiting to be confirmed"));
-    }
-    Ok(dir)
-}
-
-pub fn confirm_install(token: &str) -> Result<SkillManifest, SkillError> {
-    confirm_install_in(&skills_dir()?, token)
-}
-
-pub fn confirm_install_in(root: &Path, token: &str) -> Result<SkillManifest, SkillError> {
-    let parked = pending_path(root, token)?;
-    let parsed = manifest::parse(&parked)?;
-    let dest = root.join(&parsed.name);
-    if dest.exists() {
-        std::fs::remove_dir_all(&dest)
-            .map_err(|e| SkillError::io(&format!("replacing {}", dest.display()), &e))?;
-    }
-    std::fs::rename(&parked, &dest).map_err(|e| {
-        SkillError::io(
-            &format!("moving the confirmed skill to {}", dest.display()),
-            &e,
-        )
-    })?;
-    manifest::parse(&dest)
-}
-
-pub fn discard_install(token: &str) -> Result<(), SkillError> {
-    discard_install_in(&skills_dir()?, token)
-}
-
-pub fn discard_install_in(root: &Path, token: &str) -> Result<(), SkillError> {
-    let parked = pending_path(root, token)?;
-    std::fs::remove_dir_all(&parked)
-        .map_err(|e| SkillError::io(&format!("discarding {}", parked.display()), &e))
-}
-
-pub fn pending_in(root: &Path) -> Vec<(String, SkillManifest)> {
-    let mut out: Vec<(String, SkillManifest)> = Vec::new();
-    let Ok(entries) = std::fs::read_dir(root) else {
-        return out;
-    };
-    for entry in entries.flatten() {
-        let token = entry.file_name().to_string_lossy().to_string();
-        if !token.starts_with(PENDING_PREFIX) {
-            continue;
-        }
-        if !entry.file_type().map(|t| t.is_dir()).unwrap_or(false) {
-            continue;
-        }
-        if let Ok(parsed) = manifest::parse(&entry.path()) {
-            out.push((token, parsed));
-        }
-    }
-    out.sort_by(|a, b| a.0.cmp(&b.0));
-    out
 }
 
 #[derive(Default)]

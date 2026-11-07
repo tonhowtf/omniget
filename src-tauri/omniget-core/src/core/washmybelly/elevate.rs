@@ -197,12 +197,10 @@ pub fn run(ctx: &Ctx, ops: &[ElevatedOp]) -> Result<Vec<OpResult>, String> {
     std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
     let plan_file = dir.join(format!("{}.json", batch.nonce));
     let out_file = dir.join(format!("{}.out.json", batch.nonce));
-    std::fs::write(
-        &plan_file,
-        serde_json::to_vec(&batch).map_err(|e| e.to_string())?,
-    )
-    .map_err(|e| e.to_string())?;
-    let status = launch_elevated(&helper, &plan_file, &out_file);
+    let plan_bytes = serde_json::to_vec(&batch).map_err(|e| e.to_string())?;
+    let plan_sha = plan_digest(&plan_bytes);
+    std::fs::write(&plan_file, &plan_bytes).map_err(|e| e.to_string())?;
+    let status = launch_elevated(&helper, &plan_file, &out_file, &plan_sha);
     let _ = std::fs::remove_file(&plan_file);
     status?;
     let text = std::fs::read_to_string(&out_file)
@@ -216,17 +214,18 @@ pub fn run(ctx: &Ctx, ops: &[ElevatedOp]) -> Result<Vec<OpResult>, String> {
 }
 
 #[cfg(target_os = "macos")]
-fn launch_elevated(helper: &Path, plan: &Path, out: &Path) -> Result<(), String> {
+fn launch_elevated(helper: &Path, plan: &Path, out: &Path, plan_sha: &str) -> Result<(), String> {
     let status = std::process::Command::new("/usr/bin/osascript")
         .arg("-e")
         .arg("on run argv")
         .arg("-e")
-        .arg("do shell script (quoted form of item 1 of argv) & \" --plan \" & (quoted form of item 2 of argv) & \" --out \" & (quoted form of item 3 of argv) with administrator privileges")
+        .arg("do shell script (quoted form of item 1 of argv) & \" --plan \" & (quoted form of item 2 of argv) & \" --out \" & (quoted form of item 3 of argv) & \" --plan-sha256 \" & (quoted form of item 4 of argv) with administrator privileges")
         .arg("-e")
         .arg("end run")
         .arg(helper)
         .arg(plan)
         .arg(out)
+        .arg(plan_sha)
         .status()
         .map_err(|e| e.to_string())?;
     if status.success() {
@@ -237,13 +236,15 @@ fn launch_elevated(helper: &Path, plan: &Path, out: &Path) -> Result<(), String>
 }
 
 #[cfg(target_os = "linux")]
-fn launch_elevated(helper: &Path, plan: &Path, out: &Path) -> Result<(), String> {
+fn launch_elevated(helper: &Path, plan: &Path, out: &Path, plan_sha: &str) -> Result<(), String> {
     let status = std::process::Command::new("pkexec")
         .arg(helper)
         .arg("--plan")
         .arg(plan)
         .arg("--out")
         .arg(out)
+        .arg("--plan-sha256")
+        .arg(plan_sha)
         .status()
         .map_err(|e| format!("pkexec: {e}"))?;
     match status.code() {
@@ -254,7 +255,7 @@ fn launch_elevated(helper: &Path, plan: &Path, out: &Path) -> Result<(), String>
 }
 
 #[cfg(windows)]
-fn launch_elevated(helper: &Path, plan: &Path, out: &Path) -> Result<(), String> {
+fn launch_elevated(helper: &Path, plan: &Path, out: &Path, plan_sha: &str) -> Result<(), String> {
     use std::os::windows::ffi::OsStrExt;
     use windows_sys::Win32::Foundation::CloseHandle;
     use windows_sys::Win32::System::Threading::{
@@ -266,7 +267,11 @@ fn launch_elevated(helper: &Path, plan: &Path, out: &Path) -> Result<(), String>
     fn wide(s: &std::ffi::OsStr) -> Vec<u16> {
         s.encode_wide().chain(std::iter::once(0)).collect()
     }
-    let params = format!("--plan \"{}\" --out \"{}\"", plan.display(), out.display());
+    let params = format!(
+        "--plan \"{}\" --out \"{}\" --plan-sha256 {plan_sha}",
+        plan.display(),
+        out.display()
+    );
     if params.matches('"').count() != 4 {
         return Err("unexpected quote in a data path".into());
     }
@@ -398,25 +403,38 @@ fn windows_maintenance(id: &str) -> Result<(String, u64), String> {
     Ok((format!("{id} done"), 0))
 }
 
-pub fn helper_main(plan: &Path, out: &Path) -> Result<(), String> {
-    let text = std::fs::read_to_string(plan).map_err(|e| e.to_string())?;
-    let batch: SignedBatch = serde_json::from_str(&text).map_err(|e| format!("BAD_PLAN: {e}"))?;
+fn plan_digest(bytes: &[u8]) -> String {
+    hex::encode(<Sha256 as sha2::Digest>::digest(bytes))
+}
+
+pub fn helper_main(plan: &Path, out: &Path, plan_sha: &str) -> Result<(), String> {
+    let bytes = std::fs::read(plan).map_err(|e| e.to_string())?;
+    if plan_digest(&bytes) != plan_sha.to_ascii_lowercase() {
+        return Err("BAD_PLAN: the plan changed after it was approved".into());
+    }
+    let batch: SignedBatch =
+        serde_json::from_slice(&bytes).map_err(|e| format!("BAD_PLAN: {e}"))?;
     let data = plan
         .parent()
         .and_then(Path::parent)
         .ok_or("BAD_PLAN: unexpected location")?;
     let k = std::fs::read(key_path(data)).map_err(|_| "NO_KEY")?;
     verify(&k, &batch)?;
+    let mut file = std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(out)
+        .map_err(|e| format!("BAD_OUT: {e}"))?;
     let results: Vec<OpResult> = batch.ops.iter().map(execute_local).collect();
-    std::fs::write(
-        out,
-        serde_json::to_vec(&results).map_err(|e| e.to_string())?,
+    std::io::Write::write_all(
+        &mut file,
+        &serde_json::to_vec(&results).map_err(|e| e.to_string())?,
     )
     .map_err(|e| e.to_string())?;
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
-        let _ = std::fs::set_permissions(out, std::fs::Permissions::from_mode(0o644));
+        let _ = file.set_permissions(std::fs::Permissions::from_mode(0o644));
     }
     Ok(())
 }
@@ -482,6 +500,19 @@ pub fn copy_command(ops: &[ElevatedOp]) -> Vec<String> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn the_helper_refuses_a_plan_swapped_after_approval_and_a_planted_result_file() {
+        let dir = std::env::temp_dir().join(format!("omniget-elevate-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let plan = dir.join("plan.json");
+        let out = dir.join("out.json");
+        std::fs::write(&plan, b"{}").unwrap();
+        let wrong = super::helper_main(&plan, &out, "00").unwrap_err();
+        assert!(wrong.contains("changed after it was approved"), "{wrong}");
+        assert!(!out.exists());
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
     use super::*;
 
     #[test]

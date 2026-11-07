@@ -8,12 +8,14 @@
   import LyricsTool from "../tools/LyricsTool.svelte";
   import QualityTool from "../tools/QualityTool.svelte";
   import RenameTool from "../tools/RenameTool.svelte";
+  import StemsTool from "../tools/StemsTool.svelte";
 
   let { tab = "analyze", ids = [] }: { tab?: string; ids?: number[] } = $props();
 
   const TABS = [
     { id: "analyze", icon: "activity" },
     { id: "convert", icon: "convert" },
+    { id: "stems", icon: "split" },
     { id: "rename", icon: "edit" },
     { id: "lyrics", icon: "lyrics" },
     { id: "duplicates", icon: "copy" },
@@ -42,12 +44,13 @@
       </button>
     {/each}
   </nav>
-  {#if !lib.status?.ffmpeg && ["analyze", "convert", "quality"].includes(current)}
+  {#if !lib.status?.ffmpeg && ["analyze", "convert", "stems", "quality"].includes(current)}
     <p class="warn"><MusicIcon name="activity" size={14} /> {$t("music.tools.no_ffmpeg")}</p>
   {/if}
   <div class="body">
     {#if current === "analyze"}<AnalyzeTool {ids} />
     {:else if current === "convert"}<ConvertTool {ids} />
+    {:else if current === "stems"}<StemsTool {ids} />
     {:else if current === "rename"}<RenameTool {ids} />
     {:else if current === "lyrics"}<LyricsTool {ids} />
     {:else if current === "duplicates"}<DuplicatesTool />

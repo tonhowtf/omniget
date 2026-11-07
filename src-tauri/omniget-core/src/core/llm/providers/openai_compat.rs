@@ -680,57 +680,9 @@ impl Provider for OpenAiCompat {
         self.capture.clone()
     }
 }
-
-pub fn parse_ollama_native(v: &Value, out: &mut Vec<TurnEvent>) -> Option<FinishReason> {
-    if let Some(t) = v
-        .get("message")
-        .and_then(|m| m.get("thinking"))
-        .and_then(|x| x.as_str())
-    {
-        if !t.is_empty() {
-            out.push(TurnEvent::ThinkingDelta {
-                text: t.to_string(),
-            });
-        }
-    }
-    if let Some(t) = v
-        .get("message")
-        .and_then(|m| m.get("content"))
-        .and_then(|x| x.as_str())
-    {
-        if !t.is_empty() {
-            out.push(TurnEvent::TextDelta {
-                text: t.to_string(),
-            });
-        }
-    }
-    if v.get("done").and_then(|d| d.as_bool()) == Some(true) {
-        let usage = Usage {
-            input_tokens: u32_at(Some(v), "prompt_eval_count"),
-            output_tokens: u32_at(Some(v), "eval_count"),
-            total_ms: v
-                .get("total_duration")
-                .and_then(|d| d.as_u64())
-                .map(|ns| (ns / 1_000_000) as u32)
-                .unwrap_or(0),
-            cost_usd: Some(0.0),
-            ..Usage::default()
-        };
-        out.push(TurnEvent::Usage { usage });
-        let reason = v
-            .get("done_reason")
-            .and_then(|r| r.as_str())
-            .map(finish_reason_of)
-            .unwrap_or(FinishReason::Stop);
-        return Some(reason);
-    }
-    None
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::core::llm::sse::NdjsonParser;
     use crate::core::llm::types::{GenParams, ModelRef};
     use tokio_util::sync::CancellationToken;
 
@@ -976,26 +928,5 @@ mod tests {
         assert_eq!(u.input_tokens, 1024);
         assert_eq!(u.cache_read_tokens, 896);
         assert_eq!(deepseek.finish_reason(), Some(FinishReason::Stop));
-    }
-
-    #[test]
-    fn ollama_native_ndjson_fixture_decodes() {
-        let bytes = fixture("ollama_api_chat.ndjson");
-        let mut p = NdjsonParser::new();
-        let mut vals = Vec::new();
-        for piece in bytes.chunks(29) {
-            p.push(piece, &mut vals);
-        }
-        p.finish(&mut vals);
-        let mut out = Vec::new();
-        let mut reason = None;
-        for v in &vals {
-            if let Some(r) = parse_ollama_native(v, &mut out) {
-                reason = Some(r);
-            }
-        }
-        assert_eq!(reason, Some(FinishReason::Stop));
-        assert!(!text_of(&out).is_empty());
-        assert!(out.iter().any(|e| matches!(e, TurnEvent::Usage { .. })));
     }
 }

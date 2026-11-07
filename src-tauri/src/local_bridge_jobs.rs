@@ -32,7 +32,7 @@ impl JobsBridgeState {
     pub(crate) fn guard(&self) -> crate::bridge_tokens::Guard {
         let app = self.app.clone();
         crate::bridge_tokens::Guard {
-            extension: self.token.clone(),
+            extension: crate::local_bridge::live_token(&self.token),
             legacy_allowed: crate::bridge_tokens::legacy_flag(),
             legacy_log: crate::bridge_tokens::legacy_log(),
             lookup: std::sync::Arc::new(move |t: &str| match jobs::get(&app) {

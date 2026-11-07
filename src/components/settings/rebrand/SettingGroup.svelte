@@ -1,12 +1,13 @@
 <script lang="ts">
   import type { Snippet } from "svelte";
   import { t } from "$lib/i18n";
-  import SettingsIcon from "./SettingsIcon.svelte";
+  import SettingsIcon, { type SettingsIconName } from "./SettingsIcon.svelte";
 
   let {
     id,
     title,
     description,
+    icon,
     advanced = false,
     open = $bindable(false),
     children,
@@ -15,6 +16,7 @@
     id: string;
     title: string;
     description?: string;
+    icon?: SettingsIconName;
     advanced?: boolean;
     open?: boolean;
     children: Snippet;
@@ -34,8 +36,9 @@
   });
 </script>
 
-<section class="setting-group" id={groupId} aria-labelledby={`${groupId}-title`} data-settings-section={id} tabindex="-1">
+<section class="setting-group" class:card={!!icon} id={groupId} aria-labelledby={`${groupId}-title`} data-settings-section={id} tabindex="-1">
   <header class="setting-group-head">
+    {#if icon}<span class="setting-group-icon"><SettingsIcon name={icon} size={20} /></span>{/if}
     <div class="setting-group-text">
       <h2 id={`${groupId}-title`}>{title}</h2>
       {#if description}<p class="setting-group-desc"><bdi>{description}</bdi></p>{/if}
@@ -73,6 +76,24 @@
   }
   .setting-group:first-of-type { border-block-start: 0; padding-block-start: 0; }
   .setting-group:focus-visible { outline: var(--focus-ring); outline-offset: var(--focus-ring-offset, 2px); }
+  .setting-group.card, .setting-group.card:first-of-type {
+    margin-block-end: var(--space-3);
+    padding: var(--space-4);
+    border: 1px solid var(--content-border);
+    border-radius: var(--radius-lg);
+    background: var(--surface-src);
+  }
+  .card .setting-group-head { align-items: center; justify-content: flex-start; }
+  .card .setting-group-text { flex: 1; }
+  .card h2 { font-size: var(--text-md); line-height: 22px; }
+  .setting-group-icon {
+    flex: none; display: grid; place-items: center;
+    inline-size: 36px; block-size: 36px;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--content-border);
+    background: var(--primary);
+    color: var(--tertiary);
+  }
   .setting-group-head { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-3); }
   .setting-group-text { min-inline-size: 0; }
   h2 { margin: 0; font-size: 13px; line-height: 20px; font-weight: 600; color: var(--text); letter-spacing: 0; }

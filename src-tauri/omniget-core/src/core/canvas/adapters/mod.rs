@@ -2,7 +2,6 @@ pub mod claude;
 pub mod codex;
 pub mod gemini;
 pub mod native;
-pub mod opencode;
 pub mod pty;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

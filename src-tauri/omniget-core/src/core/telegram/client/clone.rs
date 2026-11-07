@@ -1,12 +1,12 @@
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use std::time::{SystemTime, UNIX_EPOCH};
 
 use grammers_client::grammers_tl_types as tl;
 use serde::{Deserialize, Serialize};
 use tokio::sync::Mutex;
 use tokio_util::sync::CancellationToken;
 
+use super::accounts::now_unix;
 use super::auth::TelegramSessionHandle;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -50,13 +50,6 @@ pub struct CloneSession {
     pub updated_at: i64,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error: Option<String>,
-}
-
-fn now_unix() -> i64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|d| d.as_secs() as i64)
-        .unwrap_or(0)
 }
 
 fn sessions_dir(plugin_data_dir: &Path) -> PathBuf {
@@ -471,8 +464,8 @@ pub async fn create_destination_channel(
         .map_err(|e| anyhow::anyhow!("channels.createChannel: {}", e))?;
 
     let (id, hash) = match &updates {
-        tl::enums::Updates::Updates(u) => super::api::extract_channel_from_chats_pub(&u.chats),
-        tl::enums::Updates::Combined(u) => super::api::extract_channel_from_chats_pub(&u.chats),
+        tl::enums::Updates::Updates(u) => super::api::extract_channel_from_chats(&u.chats),
+        tl::enums::Updates::Combined(u) => super::api::extract_channel_from_chats(&u.chats),
         _ => None,
     }
     .ok_or_else(|| anyhow::anyhow!("could not find created channel id"))?;

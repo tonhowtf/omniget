@@ -425,7 +425,7 @@ pub fn replay_mutations(lines: &[Value]) -> Value {
                     state = v;
                     continue;
                 }
-                let (last, parent) = k.split_last().expect("não vazio");
+                let (last, parent) = k.split_last().expect("not empty");
                 if let Some(p) = walk_mut(&mut state, parent, true) {
                     match path_key(last) {
                         Some(PathKey::Key(s)) => {
@@ -658,7 +658,7 @@ pub fn parse_vscode(
             .unwrap_or(false)
             && at.text.is_empty()
         {
-            at.text = "(cancelado)".into();
+            at.text = "(cancelled)".into();
         }
         turns.push(at);
     }

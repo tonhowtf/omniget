@@ -20,8 +20,8 @@ pub fn quarantine(path: &Path, label: &str) -> Option<PathBuf> {
     match std::fs::rename(path, &dest) {
         Ok(()) => {
             tracing::error!(
-                "[state] {} ilegível em {} — preservado como {}. O app seguiu com os valores padrão; \
-                 o arquivo original NÃO foi sobrescrito.",
+                "[state] {} unreadable at {}; preserved as {}. The app continued with the default values; \
+                 the original file was NOT overwritten.",
                 label,
                 path.display(),
                 dest.display()
@@ -30,8 +30,8 @@ pub fn quarantine(path: &Path, label: &str) -> Option<PathBuf> {
         }
         Err(e) => {
             tracing::error!(
-                "[state] {} ilegível em {} e não foi possível preservá-lo ({}). \
-                 O app seguiu com os valores padrão.",
+                "[state] {} unreadable at {} and could not be preserved ({}). \
+                 The app continued with the default values.",
                 label,
                 path.display(),
                 e
@@ -48,18 +48,18 @@ pub fn load_or_quarantine<T: serde::de::DeserializeOwned>(path: &Path, label: &s
     let content = match std::fs::read_to_string(path) {
         Ok(c) => c,
         Err(e) => {
-            tracing::error!("[state] não foi possível ler {}: {}", path.display(), e);
+            tracing::error!("[state] could not read {}: {}", path.display(), e);
             return None;
         }
     };
     if content.trim().is_empty() {
-        tracing::warn!("[state] {} vazio em {}", label, path.display());
+        tracing::warn!("[state] {} empty at {}", label, path.display());
         return None;
     }
     match serde_json::from_str::<T>(&content) {
         Ok(value) => Some(value),
         Err(e) => {
-            tracing::error!("[state] {} não desserializa: {}", label, e);
+            tracing::error!("[state] {} does not deserialize: {}", label, e);
             quarantine(path, label);
             None
         }

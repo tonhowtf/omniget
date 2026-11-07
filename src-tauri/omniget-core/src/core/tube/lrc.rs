@@ -77,51 +77,6 @@ pub fn lrclib_pick(json: &Value, duration_s: u32) -> Option<Lyrics> {
     }
 }
 
-fn find_key<'a>(v: &'a Value, key: &str) -> Option<&'a Value> {
-    match v {
-        Value::Object(map) => map
-            .get(key)
-            .or_else(|| map.values().find_map(|c| find_key(c, key))),
-        Value::Array(items) => items.iter().find_map(|c| find_key(c, key)),
-        _ => None,
-    }
-}
-
-pub fn parse_timed_lyrics(json: &Value) -> Option<Lyrics> {
-    let rows = find_key(json, "timedLyricsData")?.as_array()?;
-    let mut lines: Vec<LyricLine> = rows
-        .iter()
-        .filter_map(|r| {
-            let start = &r["cueRange"]["startTimeMilliseconds"];
-            let ms = start
-                .as_u64()
-                .or_else(|| start.as_str().and_then(|s| s.parse().ok()))?;
-            let text = r["lyricLine"].as_str().unwrap_or("").trim();
-            Some(LyricLine {
-                start_ms: Some(ms.min(u32::MAX as u64) as u32),
-                text: if text == "♪" {
-                    String::new()
-                } else {
-                    text.to_string()
-                },
-            })
-        })
-        .collect();
-    if lines.is_empty() {
-        return None;
-    }
-    lines.sort_by_key(|l| l.start_ms);
-    let footer = find_key(json, "footer")
-        .and_then(|f| f["runs"][0]["text"].as_str().or_else(|| f.as_str()))
-        .map(str::to_string);
-    Some(Lyrics {
-        source: "youtube".into(),
-        synced: true,
-        lines,
-        footer,
-    })
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -175,27 +130,5 @@ mod tests {
         )
         .is_some());
         assert!(lrclib_pick(&json!("nope"), 10).is_none());
-    }
-
-    #[test]
-    fn timed_lyrics_from_mobile_client() {
-        let body = json!({"contents": {"elementRenderer": {"newElement": {"type": {"componentType": {"model": {
-            "timedLyricsModel": {"lyricsData": {
-                "timedLyricsData": [
-                    {"lyricLine": "Second", "cueRange": {"startTimeMilliseconds": "4000", "endTimeMilliseconds": "6000"}},
-                    {"lyricLine": "♪", "cueRange": {"startTimeMilliseconds": "1000"}},
-                    {"lyricLine": "Source: Musixmatch"}
-                ],
-                "sourceMessage": "x"
-            }}
-        }}}}}}});
-        let l = parse_timed_lyrics(&body).unwrap();
-        assert_eq!(l.source, "youtube");
-        assert!(l.synced);
-        assert_eq!(l.lines.len(), 2);
-        assert_eq!(l.lines[0].start_ms, Some(1000));
-        assert_eq!(l.lines[0].text, "");
-        assert_eq!(l.lines[1].text, "Second");
-        assert!(parse_timed_lyrics(&json!({})).is_none());
     }
 }

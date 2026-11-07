@@ -1181,7 +1181,6 @@ fn parse_mod(entry: &str, files: &RawFiles) -> Result<Parsed> {
         .to_string();
     let spec = ModSpec {
         dir_name: sanitize_name(&name),
-        plugin_name: name.clone(),
         version: manifest
             .get("version")
             .and_then(|v| v.as_str())

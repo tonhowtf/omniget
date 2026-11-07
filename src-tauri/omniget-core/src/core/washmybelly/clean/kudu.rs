@@ -108,11 +108,6 @@ fn segments(t: &str) -> Vec<String> {
         .map(str::to_string)
         .collect()
 }
-
-pub fn covers(outer: &str, inner: &str) -> bool {
-    covers_segments(&segments(outer), &segments(inner))
-}
-
 fn covers_segments(o: &[String], i: &[String]) -> bool {
     if o.is_empty() || i.len() < o.len() {
         return false;

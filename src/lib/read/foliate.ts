@@ -148,7 +148,27 @@ function sanitizeMarkup(data: string, type: string): string {
   return "<!DOCTYPE html>\n" + doc.documentElement.outerHTML;
 }
 
+async function sanitizedSectionUrl(url: string): Promise<string> {
+  const blob = await (await fetch(url)).blob();
+  const type = blob.type.split(";")[0].trim().toLowerCase();
+  if (type && !/html|xml|svg/.test(type)) return url;
+  const safeType = /xml|svg/.test(type) ? type : "text/html";
+  return URL.createObjectURL(new Blob([sanitizeMarkup(await blob.text(), safeType)], { type: safeType }));
+}
+
+function guardSections(book: any) {
+  for (const section of book?.sections ?? []) {
+    if (typeof section?.load !== "function") continue;
+    const load = section.load.bind(section);
+    section.load = async () => {
+      const url = await load();
+      return typeof url === "string" ? sanitizedSectionUrl(url) : url;
+    };
+  }
+}
+
 function guardBook(book: any) {
+  guardSections(book);
   const t: EventTarget | undefined = book?.transformTarget;
   if (!t) return;
   t.addEventListener("load", (e: Event) => {

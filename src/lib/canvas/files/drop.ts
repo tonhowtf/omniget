@@ -66,7 +66,7 @@ async function appendToNote(engine: CanvasEngine, nodeId: string, add: string): 
   engine.updateNode(nodeId, { data: { ...n.data, text: join(String(n.data.text ?? '')) } });
 }
 
-export function dropOnNote(engine: CanvasEngine, paths: string[], at: { x: number; y: number }): boolean {
+function dropOnNote(engine: CanvasEngine, paths: string[], at: { x: number; y: number }): boolean {
   const hit = engine.store.nodes
     .filter((n) => n.kind === 'note' && !stackIdOf(n) && at.x >= n.x && at.x <= n.x + n.w && at.y >= n.y && at.y <= n.y + n.h)
     .sort((a, b) => (b.z ?? 0) - (a.z ?? 0))[0];
@@ -80,7 +80,7 @@ export function dropOnNote(engine: CanvasEngine, paths: string[], at: { x: numbe
   return true;
 }
 
-export function dropOnCord(engine: CanvasEngine, paths: string[]): boolean {
+function dropOnCord(engine: CanvasEngine, paths: string[]): boolean {
   const menu = engine.spawnMenu;
   const from = menu?.connectFrom ? engine.store.node(menu.connectFrom) : undefined;
   if (!menu || !from || !paths.length) return false;

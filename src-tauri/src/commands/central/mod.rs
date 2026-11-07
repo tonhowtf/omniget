@@ -1,5 +1,4 @@
 pub mod agentkit;
-pub mod arena;
 pub mod catalog;
 pub mod clitools;
 pub mod guard;

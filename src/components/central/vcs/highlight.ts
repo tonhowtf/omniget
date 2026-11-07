@@ -1,3 +1,5 @@
+import { escapeHtml } from "$lib/markdown";
+
 export type HlState = { block: boolean };
 
 type Lang = {
@@ -111,10 +113,6 @@ const ALIASES: Record<string, string> = {
 function langFor(language: string): Lang | null {
   const key = ALIASES[language] ?? language;
   return LANGS[key] ?? null;
-}
-
-export function escapeHtml(s: string): string {
-  return s.replace(/[&<>"]/g, (c) => (c === "&" ? "&amp;" : c === "<" ? "&lt;" : c === ">" ? "&gt;" : "&quot;"));
 }
 
 const span = (cls: string, s: string) => `<span class="hl-${cls}">${escapeHtml(s)}</span>`;

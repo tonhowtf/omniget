@@ -22,7 +22,7 @@ export type HoldState = {
 };
 
 export type Conflict = { a: string; b: string; keep: string; disable: string[]; action: string };
-export type Scheme = { guid: string; name: string; active: boolean };
+type Scheme = { guid: string; name: string; active: boolean };
 type ChargeLimit = { battery: string; end: number; start?: number };
 type CpuKnobs = {
   driver?: string | null;

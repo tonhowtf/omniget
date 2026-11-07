@@ -77,7 +77,7 @@ function requirementMissing(req: Requirement, caps: Caps): string | null {
   }
 }
 
-export function availability(mod: WmbModule, caps: Caps): Availability {
+function availability(mod: WmbModule, caps: Caps): Availability {
   if (mod.platforms.length > 0 && !mod.platforms.includes(caps.os)) return { show: false };
   const backend = caps.modules?.find((m) => m.id === mod.id);
   if (caps.modules && !backend) return { show: false };

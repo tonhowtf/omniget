@@ -878,25 +878,6 @@ fn scopes_for(row: &MediaRow) -> Vec<String> {
 }
 
 #[tauri::command]
-pub async fn video_prefs_get(
-    scopes: Vec<String>,
-) -> Result<HashMap<String, serde_json::Value>, String> {
-    blocking(move || {
-        let mut out = HashMap::new();
-        for sc in scopes {
-            let v = if sc == "global" {
-                serde_json::to_value(merged_prefs(&[])).unwrap_or_default()
-            } else {
-                db::pref_json(&sc)?.unwrap_or_else(|| serde_json::json!({}))
-            };
-            out.insert(sc, v);
-        }
-        Ok(out)
-    })
-    .await
-}
-
-#[tauri::command]
 pub async fn video_prefs_set(scope: String, prefs: serde_json::Value) -> Result<(), String> {
     blocking(move || {
         let mut cur = db::pref_json(&scope)?.unwrap_or_else(|| serde_json::json!({}));

@@ -117,7 +117,7 @@
   {/if}
 
   {#if loaded && servers.length === 0 && !failure}
-    <p class="hint">{$t("canvas.mcpServers.empty", { default: "No MCP servers yet. Add them in LLM → MCP; they show up here to turn on, test and give to a terminal." })}</p>
+    <p class="hint">{$t("canvas.mcpServers.empty", { default: "No MCP servers yet. Add them in AI & agents → Extra tools; they show up here to turn on, test and give to a terminal." })}</p>
   {/if}
 
   <ul>

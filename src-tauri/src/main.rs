@@ -106,6 +106,9 @@ fn check_fixed_webview_runtime() {
 }
 
 fn main() {
+    if let Some(code) = omniget_core::core::convert::cad::worker_entry() {
+        std::process::exit(code);
+    }
     check_portable_mode();
     #[cfg(debug_assertions)]
     use_dev_profile();

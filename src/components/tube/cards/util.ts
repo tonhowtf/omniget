@@ -4,11 +4,7 @@ import { showToast } from "$lib/stores/toast-store.svelte";
 import type { Item, Nav, StreamSet, TextRun } from "$lib/tube/types";
 import * as api from "$lib/tube/api";
 
-export function errText(e: unknown): string {
-  if (typeof e === "string") return e;
-  if (e && typeof e === "object" && "message" in e) return String((e as { message: unknown }).message);
-  return String(e);
-}
+export { errText } from "$lib/tube/format";
 
 export function watchUrl(id: string, t?: number | null): string {
   return `https://www.youtube.com/watch?v=${id}${t && t > 0 ? `&t=${Math.floor(t)}s` : ""}`;

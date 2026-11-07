@@ -6,3 +6,8 @@ declare const __BUILD_DATE__: string;
 declare namespace App {}
 
 declare module "virtual:omniget-dev-revision";
+
+declare module "virtual:omniget-preview-defaults" {
+  const defaults: Record<string, unknown>;
+  export default defaults;
+}

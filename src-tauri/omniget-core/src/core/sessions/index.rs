@@ -20,7 +20,6 @@ pub fn db_path() -> Option<PathBuf> {
 
 pub struct SessionIndex {
     conn: Connection,
-    last_refresh: Option<Instant>,
     claude_roots: Option<Vec<claude::Root>>,
 }
 
@@ -29,7 +28,7 @@ static INDEX: Mutex<Option<SessionIndex>> = Mutex::new(None);
 pub fn with_index<R>(f: impl FnOnce(&mut SessionIndex) -> R) -> Result<R, String> {
     let mut g = INDEX.lock().map_err(|_| format!("{ERR_INDEX}: lock"))?;
     if g.is_none() {
-        let p = db_path().ok_or_else(|| format!("{ERR_INDEX}: sem diretório de dados"))?;
+        let p = db_path().ok_or_else(|| format!("{ERR_INDEX}: no data folder"))?;
         *g = Some(SessionIndex::open(&p)?);
     }
     Ok(f(g.as_mut().unwrap()))
@@ -550,36 +549,16 @@ pub fn ensure_fresh_global(
     let mut plan = plan_refresh(metas, listed, stored, sources.len());
     let work = std::mem::take(&mut plan.work);
     let done = parse_work(work, sources);
-    let stats = with_index(|idx| {
-        let st = idx.commit(plan, done, started);
-        idx.last_refresh = Some(Instant::now());
-        st
-    })?;
+    let stats = with_index(|idx| idx.commit(plan, done, started))?;
     *gate = Some(Instant::now());
     Ok(Some(stats))
-}
-
-pub fn mark_stale_global() {
-    if let Ok(mut g) = REFRESH_GATE.lock() {
-        *g = None;
-    }
-    let _ = with_index(|idx| idx.mark_stale());
-}
-
-pub fn reset_and_refresh(sources: &[Box<dyn SessionSource>]) -> Result<RefreshStats, String> {
-    {
-        let _gate = REFRESH_GATE.lock().unwrap_or_else(|e| e.into_inner());
-        with_index(|idx| idx.reset())??;
-    }
-    mark_stale_global();
-    Ok(ensure_fresh_global(None, sources)?.unwrap_or_default())
 }
 
 static READERS: Mutex<Vec<(PathBuf, SessionIndex)>> = Mutex::new(Vec::new());
 const MAX_READERS: usize = 8;
 
 pub fn with_reader<R>(f: impl FnOnce(&SessionIndex) -> R) -> Result<R, String> {
-    let p = db_path().ok_or_else(|| format!("{ERR_INDEX}: sem diretório de dados"))?;
+    let p = db_path().ok_or_else(|| format!("{ERR_INDEX}: no data folder"))?;
     let taken = {
         let mut g = READERS.lock().unwrap_or_else(|e| e.into_inner());
         g.retain(|(path, _)| *path == p);
@@ -611,7 +590,6 @@ impl SessionIndex {
             .map_err(|e| format!("{ERR_INDEX}: {e}"))?;
         let mut idx = SessionIndex {
             conn,
-            last_refresh: None,
             claude_roots: None,
         };
         idx.migrate()?;
@@ -628,20 +606,8 @@ impl SessionIndex {
         let _ = conn.busy_timeout(Duration::from_secs(5));
         Ok(SessionIndex {
             conn,
-            last_refresh: None,
             claude_roots: None,
         })
-    }
-
-    pub fn open_in_memory() -> Result<Self, String> {
-        let conn = Connection::open_in_memory().map_err(|e| format!("{ERR_INDEX}: {e}"))?;
-        let mut idx = SessionIndex {
-            conn,
-            last_refresh: None,
-            claude_roots: None,
-        };
-        idx.migrate()?;
-        Ok(idx)
     }
 
     fn migrate(&mut self) -> Result<(), String> {
@@ -702,49 +668,6 @@ impl SessionIndex {
         Ok(())
     }
 
-    pub fn conn(&self) -> &Connection {
-        &self.conn
-    }
-
-    pub fn ensure_fresh(
-        &mut self,
-        max_age: Duration,
-        sources: &[Box<dyn SessionSource>],
-    ) -> Option<RefreshStats> {
-        if let Some(at) = self.last_refresh {
-            if at.elapsed() < max_age {
-                return None;
-            }
-        }
-        Some(self.refresh(sources))
-    }
-
-    pub fn mark_stale(&mut self) {
-        self.last_refresh = None;
-    }
-
-    pub fn recorded_cost(&self, tool: &str, id: &str) -> Option<f64> {
-        self.conn
-            .query_row(
-                "SELECT recorded_cost FROM sessions WHERE tool=?1 AND id=?2",
-                params![tool, id],
-                |r| r.get::<_, Option<f64>>(0),
-            )
-            .ok()
-            .flatten()
-    }
-
-    pub fn refresh(&mut self, sources: &[Box<dyn SessionSource>]) -> RefreshStats {
-        let started = Instant::now();
-        let (metas, listed) = list_sources(sources, &self.claude_roots);
-        let stored = self.stored();
-        let mut plan = plan_refresh(metas, listed, stored, sources.len());
-        let done = parse_work(std::mem::take(&mut plan.work), sources);
-        let stats = self.commit(plan, done, started);
-        self.last_refresh = Some(Instant::now());
-        stats
-    }
-
     fn stored(&self) -> HashMap<(String, String), Stored> {
         let mut stored: HashMap<(String, String), Stored> = HashMap::new();
         if let Ok(mut st) = self
@@ -790,16 +713,6 @@ impl SessionIndex {
         }
         stats.elapsed_ms = started.elapsed().as_millis() as u64;
         stats
-    }
-
-    pub fn reset(&mut self) -> Result<(), String> {
-        self.conn
-            .execute_batch(
-                "DELETE FROM sessions; DELETE FROM usage; DELETE FROM calls; DELETE FROM msgs; DELETE FROM search_text;",
-            )
-            .map_err(|e| format!("{ERR_INDEX}: {e}"))?;
-        self.last_refresh = None;
-        Ok(())
     }
 
     pub fn models(&self, f: &ListFilter) -> Vec<String> {
@@ -972,80 +885,6 @@ impl SessionIndex {
         };
         self.list(&f, book).sessions.into_iter().next()
     }
-
-    pub fn search_texts(&self, keys: &[(String, String)]) -> super::search::SearchTexts {
-        let mut out = super::search::SearchTexts::new();
-        let Ok(mut st) = self
-            .conn
-            .prepare("SELECT fp, body FROM search_text WHERE tool=?1 AND id=?2")
-        else {
-            return out;
-        };
-        for (tool, id) in keys {
-            if let Ok(Some((fp, body))) = st
-                .query_row(params![tool, id], |r| {
-                    Ok((
-                        r.get::<_, String>(0)?,
-                        r.get::<_, Option<Vec<u8>>>(1)?.unwrap_or_default(),
-                    ))
-                })
-                .optional()
-            {
-                out.insert((tool.clone(), id.clone()), (fp, body));
-            }
-        }
-        out
-    }
-
-    pub fn put_search_texts(&mut self, rows: &[super::search::NewText]) {
-        let Ok(tx) = self.conn.transaction() else {
-            return;
-        };
-        if let Ok(mut st) = tx.prepare_cached(
-            "INSERT OR REPLACE INTO search_text(tool, id, fp, body) VALUES(?1, ?2, ?3, ?4)",
-        ) {
-            for ((tool, id), fp, body) in rows {
-                let _ = st.execute(params![tool, id, fp, body]);
-            }
-        }
-        let _ = tx.commit();
-    }
-
-    pub fn models_of(&self, keys: &[(String, String)]) -> Vec<String> {
-        let mut out: Vec<String> = Vec::new();
-        let Ok(mut st) = self
-            .conn
-            .prepare("SELECT DISTINCT model FROM usage WHERE tool=?1 AND session_id=?2")
-        else {
-            return out;
-        };
-        for (tool, id) in keys {
-            if let Ok(rows) = st.query_map(params![tool, id], |r| r.get::<_, Option<String>>(0)) {
-                for m in rows.flatten().flatten() {
-                    if !m.is_empty() && !out.contains(&m) {
-                        out.push(m);
-                    }
-                }
-            }
-        }
-        out
-    }
-
-    pub fn children(&self, tool: &str, id: &str) -> Vec<(String, Option<String>, String)> {
-        let mut out = Vec::new();
-        if let Ok(mut st) = self
-            .conn
-            .prepare("SELECT id, title, source FROM sessions WHERE tool=?1 AND parent_session=?2 ORDER BY started_ms")
-        {
-            if let Ok(rows) = st.query_map(params![tool, id], |r| {
-                Ok((r.get::<_, String>(0)?, r.get::<_, Option<String>>(1)?, r.get::<_, Option<String>>(2)?.unwrap_or_default()))
-            }) {
-                out = rows.flatten().collect();
-            }
-        }
-        out
-    }
-
     pub fn counts(&self) -> HashMap<String, (u32, Option<i64>)> {
         let mut out = HashMap::new();
         if let Ok(mut st) = self

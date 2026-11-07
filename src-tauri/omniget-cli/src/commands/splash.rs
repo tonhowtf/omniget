@@ -176,12 +176,12 @@ pub fn text_lines(
     let mut lines = vec![
         title,
         String::new(),
-        format!("{dim}conta{reset}  {account}"),
+        format!("{dim}account{reset}  {account}"),
     ];
     if let Some(w) = who {
-        lines.push(format!("{dim}login{reset}  {w}"));
+        lines.push(format!("{dim}login{reset}    {w}"));
     }
-    lines.push(format!("{dim}pasta{reset}  {cwd}"));
+    lines.push(format!("{dim}folder{reset}   {cwd}"));
     lines
 }
 

@@ -12,7 +12,6 @@
   let {
     accounts = [] as Account[],
     selectedSlug = $bindable<string | null>(null),
-    onChange = undefined as ((slug: string) => void) | undefined,
   } = $props();
 
   let open = $state(false);
@@ -27,7 +26,6 @@
   function pick(slug: string) {
     selectedSlug = slug;
     open = false;
-    onChange?.(slug);
   }
 </script>
 

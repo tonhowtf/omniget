@@ -3,6 +3,8 @@ use std::path::PathBuf;
 use rusqlite::{params, Connection};
 use serde::{Deserialize, Serialize};
 
+use omniget_core::core::ytdlp::archive::{archive_entry_for_url, ArchiveEntry};
+
 use crate::core::db;
 use crate::core::queue::QueueKind;
 
@@ -54,7 +56,13 @@ fn schema(conn: &Connection) -> rusqlite::Result<()> {
             kind TEXT
         );
         CREATE INDEX IF NOT EXISTS idx_history_completed
-            ON history (completed_at DESC, id DESC);",
+            ON history (completed_at DESC, id DESC);
+        CREATE TABLE IF NOT EXISTS imported_archive (
+            extractor TEXT NOT NULL,
+            media_id TEXT NOT NULL,
+            imported_at INTEGER NOT NULL,
+            PRIMARY KEY (extractor, media_id)
+        );",
     )
 }
 
@@ -208,8 +216,74 @@ pub fn remove(id: u64) {
 pub fn clear_all() {
     db::with_conn(|c| {
         c.execute("DELETE FROM history", [])?;
+        c.execute("DELETE FROM imported_archive", [])?;
         Ok(())
     });
+}
+
+fn db_import_archive(conn: &Connection, entries: &[ArchiveEntry]) -> rusqlite::Result<usize> {
+    let tx = conn.unchecked_transaction()?;
+    let mut added = 0;
+    {
+        let mut stmt = tx.prepare(
+            "INSERT OR IGNORE INTO imported_archive (extractor, media_id, imported_at)
+             VALUES (?1, ?2, ?3)",
+        )?;
+        let now = now_unix_seconds();
+        for entry in entries {
+            added += stmt.execute(params![entry.extractor, entry.id, now])?;
+        }
+    }
+    tx.commit()?;
+    Ok(added)
+}
+
+fn db_imported_archive(conn: &Connection) -> rusqlite::Result<Vec<ArchiveEntry>> {
+    let mut stmt = conn.prepare(
+        "SELECT extractor, media_id FROM imported_archive ORDER BY imported_at, extractor, media_id",
+    )?;
+    let rows = stmt.query_map([], |r| {
+        Ok(ArchiveEntry {
+            extractor: r.get(0)?,
+            id: r.get(1)?,
+        })
+    })?;
+    rows.collect()
+}
+
+fn merged_archive(
+    history: &[HistoryEntry],
+    imported: Vec<ArchiveEntry>,
+) -> (Vec<ArchiveEntry>, usize) {
+    let mut entries = imported;
+    let mut skipped = 0;
+    for item in history.iter().filter(|h| h.success) {
+        match archive_entry_for_url(&item.url) {
+            Some(entry) => entries.push(entry),
+            None => skipped += 1,
+        }
+    }
+    let mut seen = std::collections::HashSet::new();
+    entries.retain(|e| seen.insert(e.clone()));
+    (entries, skipped)
+}
+
+pub fn import_archive(entries: &[ArchiveEntry]) -> usize {
+    db::with_conn(|c| db_import_archive(c, entries)).unwrap_or(0)
+}
+
+pub fn imported_archive_count() -> usize {
+    db::with_conn(|c| {
+        c.query_row("SELECT COUNT(*) FROM imported_archive", [], |r| {
+            r.get::<_, i64>(0)
+        })
+    })
+    .unwrap_or(0) as usize
+}
+
+pub fn archive_export_entries() -> (Vec<ArchiveEntry>, usize) {
+    let imported = db::with_conn(db_imported_archive).unwrap_or_default();
+    merged_archive(&list(), imported)
 }
 
 pub fn now_unix_seconds() -> i64 {
@@ -294,5 +368,65 @@ mod tests {
         let list = db_list(&c).unwrap();
         assert_eq!(list.len(), 2);
         assert_eq!(list[0].id, 8);
+    }
+}
+
+#[cfg(test)]
+mod archive_tests {
+    use super::*;
+
+    fn entry(url: &str, success: bool) -> HistoryEntry {
+        HistoryEntry {
+            id: 1,
+            url: safe_url(url),
+            platform: "youtube".into(),
+            title: "t".into(),
+            file_path: None,
+            file_size_bytes: None,
+            total_bytes: None,
+            success,
+            error: None,
+            completed_at: 0,
+            thumbnail_url: None,
+            kind: None,
+        }
+    }
+
+    #[test]
+    fn export_lists_imported_ids_and_finished_downloads_once_each() {
+        let imported = vec![ArchiveEntry {
+            extractor: "youtube".into(),
+            id: "dQw4w9WgXcQ".into(),
+        }];
+        let history = [
+            entry("https://www.youtube.com/watch?v=dQw4w9WgXcQ", true),
+            entry("https://www.youtube.com/watch?v=jNQXAC9IVRw", true),
+            entry("https://www.youtube.com/watch?v=aqz-KE-bpKQ", false),
+        ];
+        let (entries, skipped) = merged_archive(&history, imported);
+        let ids: Vec<&str> = entries.iter().map(|e| e.id.as_str()).collect();
+        assert_eq!(ids, vec!["dQw4w9WgXcQ", "jNQXAC9IVRw"]);
+        assert_eq!(skipped, 0);
+    }
+
+    #[test]
+    fn export_counts_finished_links_it_cannot_identify() {
+        let (entries, skipped) =
+            merged_archive(&[entry("https://example.com/video", true)], Vec::new());
+        assert!(entries.is_empty());
+        assert_eq!(skipped, 1);
+    }
+
+    #[test]
+    fn importing_the_same_archive_twice_adds_nothing_new() {
+        let conn = Connection::open_in_memory().unwrap();
+        schema(&conn).unwrap();
+        let entries = vec![ArchiveEntry {
+            extractor: "youtube".into(),
+            id: "abc123".into(),
+        }];
+        assert_eq!(db_import_archive(&conn, &entries).unwrap(), 1);
+        assert_eq!(db_import_archive(&conn, &entries).unwrap(), 0);
+        assert_eq!(db_imported_archive(&conn).unwrap(), entries);
     }
 }

@@ -56,7 +56,6 @@ pub struct AlacrittyEngine {
     term: Term<Proxy>,
     parser: Processor<StdSyncHandler>,
     events: Arc<Mutex<Vec<Event>>>,
-    dirty: bool,
     title: Option<String>,
     links: Mutex<HashMap<u32, String>>,
     search: Option<(String, RegexSearch)>,
@@ -123,7 +122,6 @@ impl AlacrittyEngine {
             term: Term::new(config, &dims, Proxy(events.clone())),
             parser: Processor::new(),
             events,
-            dirty: true,
             title: None,
             links: Mutex::new(HashMap::new()),
             search: None,
@@ -284,7 +282,6 @@ impl AlacrittyEngine {
 impl TermEngine for AlacrittyEngine {
     fn advance(&mut self, bytes: &[u8]) {
         self.parser.advance(&mut self.term, bytes);
-        self.dirty = true;
     }
 
     fn resize(&mut self, cols: u16, rows: u16) {
@@ -293,7 +290,6 @@ impl TermEngine for AlacrittyEngine {
             rows: rows.max(1) as usize,
         });
         self.last_match = None;
-        self.dirty = true;
     }
 
     fn size(&self) -> (u16, u16) {
@@ -335,11 +331,6 @@ impl TermEngine for AlacrittyEngine {
         }
         out
     }
-
-    fn take_dirty(&mut self) -> bool {
-        std::mem::take(&mut self.dirty)
-    }
-
     fn row(&self, y: u16, out: &mut Vec<CellView>) {
         out.clear();
         let rows = self.term.screen_lines();
@@ -405,7 +396,6 @@ impl TermEngine for AlacrittyEngine {
             mouse_drag: m.contains(TermMode::MOUSE_DRAG),
             mouse_motion: m.contains(TermMode::MOUSE_MOTION),
             sgr_mouse: m.contains(TermMode::SGR_MOUSE),
-            utf8_mouse: m.contains(TermMode::UTF8_MOUSE),
             app_cursor: m.contains(TermMode::APP_CURSOR),
             app_keypad: m.contains(TermMode::APP_KEYPAD),
             focus_reporting: m.contains(TermMode::FOCUS_IN_OUT),
@@ -436,7 +426,6 @@ impl TermEngine for AlacrittyEngine {
             ScrollBy::Bottom => Scroll::Bottom,
         };
         self.term.scroll_display(s);
-        self.dirty = true;
     }
 
     fn lines_text(&self, from: i32, to: i32) -> Vec<String> {
@@ -457,7 +446,6 @@ impl TermEngine for AlacrittyEngine {
         let p = self.viewport_point(col, row);
         let side = if right { Side::Right } else { Side::Left };
         self.term.selection = Some(Selection::new(ty, p, side));
-        self.dirty = true;
     }
 
     fn selection_update(&mut self, col: u16, row: u16, right: bool) {
@@ -465,14 +453,11 @@ impl TermEngine for AlacrittyEngine {
         let side = if right { Side::Right } else { Side::Left };
         if let Some(sel) = self.term.selection.as_mut() {
             sel.update(p, side);
-            self.dirty = true;
         }
     }
 
     fn selection_clear(&mut self) {
-        if self.term.selection.take().is_some() {
-            self.dirty = true;
-        }
+        if self.term.selection.take().is_some() {}
     }
 
     fn selection_all(&mut self) {
@@ -481,7 +466,6 @@ impl TermEngine for AlacrittyEngine {
         let mut sel = Selection::new(SelectionType::Simple, top, Side::Left);
         sel.update(bottom, Side::Right);
         self.term.selection = Some(sel);
-        self.dirty = true;
     }
 
     fn selection_text(&self) -> Option<String> {
@@ -541,7 +525,6 @@ impl TermEngine for AlacrittyEngine {
         };
         let (_, regex) = self.search.as_mut()?;
         let found = self.term.search_next(regex, origin, dir, Side::Left, None);
-        self.dirty = true;
         let m = found?;
         self.term.scroll_to_point(*m.start());
         self.last_match = Some(m.clone());
@@ -555,9 +538,7 @@ impl TermEngine for AlacrittyEngine {
 
     fn search_clear(&mut self) {
         self.search = None;
-        if self.last_match.take().is_some() {
-            self.dirty = true;
-        }
+        if self.last_match.take().is_some() {}
     }
 
     fn link_uri(&self, link_id: u32) -> Option<String> {
@@ -574,6 +555,5 @@ impl TermEngine for AlacrittyEngine {
 
     fn flush_sync(&mut self) {
         self.parser.stop_sync(&mut self.term);
-        self.dirty = true;
     }
 }

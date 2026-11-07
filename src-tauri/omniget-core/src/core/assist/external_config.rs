@@ -1214,10 +1214,6 @@ fn marks(db: &AssistDb, table: &str, key: &str) -> Result<BTreeMap<String, Exter
     Ok(rows.into_iter().collect())
 }
 
-pub fn room_marks(db: &AssistDb) -> Result<BTreeMap<String, ExternalMark>, String> {
-    marks(db, "external_rooms", "room")
-}
-
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct DerivedLocal {
     pub bot: String,

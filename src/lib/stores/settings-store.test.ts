@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AppSettings } from "./settings-store.svelte";
-import type { ApiError, PendingEffect, ReadySnapshot, SettingsSnapshot } from "./settings-v3-types";
+import type { ApiError, ReadySnapshot } from "./settings-v3-types";
 
 const invoke = vi.hoisted(() => vi.fn());
 const listen = vi.hoisted(() => vi.fn());

@@ -1,26 +1,14 @@
-use std::collections::HashMap;
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex, OnceLock};
 
 use omniget_core::core::vcs::{
     actions::{
-        self, ChangeSummary, CommitResult, CommitSuggestion, HostInfo, PrCreateResult, PrInfo,
-        PrRequest, PushResult,
+        self, CommitResult, CommitSuggestion, HostInfo, PrCreateResult, PrInfo, PrRequest,
+        PushResult,
     },
-    checkpoint::{self, Checkpoint, RestoreResult},
-    diff::{DiffOptions, DiffResult},
-    repo::{self, BranchInfo, LogEntry, RepoStatus},
-    worktree::{self, RemoveResult, WorktreeEntry, WorktreeInfo, WorktreeRequest},
+    repo::{self, LogEntry, RepoStatus},
 };
-use tauri::{AppHandle, Emitter};
 
 pub const WORKTREE_SETUP_EVENT: &str = "central://vcs/worktree-setup";
-
-fn cancels() -> &'static Mutex<HashMap<String, Arc<AtomicBool>>> {
-    static C: OnceLock<Mutex<HashMap<String, Arc<AtomicBool>>>> = OnceLock::new();
-    C.get_or_init(Default::default)
-}
 
 fn path_of(p: &str) -> Result<PathBuf, String> {
     let p = p.trim();
@@ -40,167 +28,12 @@ pub async fn vcs_status(path: String) -> Result<RepoStatus, String> {
 }
 
 #[tauri::command]
-pub async fn vcs_branches(path: String) -> Result<Vec<BranchInfo>, String> {
-    Ok(repo::branches(&path_of(&path)?).await?)
-}
-
-#[tauri::command]
 pub async fn vcs_log(
     path: String,
     n: Option<u32>,
     rev: Option<String>,
 ) -> Result<Vec<LogEntry>, String> {
     Ok(repo::log(&path_of(&path)?, n.unwrap_or(50), rev.as_deref()).await?)
-}
-
-#[tauri::command]
-pub async fn vcs_worktree_create(
-    app: AppHandle,
-    request: WorktreeRequest,
-) -> Result<WorktreeInfo, String> {
-    let flag = Arc::new(AtomicBool::new(false));
-    {
-        let mut map = cancels().lock().unwrap_or_else(|e| e.into_inner());
-        if map.contains_key(&request.thread) {
-            return Err("ERR_VCS_INVALID: this thread's worktree is already being set up".into());
-        }
-        map.insert(request.thread.clone(), flag.clone());
-    }
-    let thread = request.thread.clone();
-    let out = worktree::create(&request, flag, |snap| {
-        let _ = app.emit(WORKTREE_SETUP_EVENT, snap);
-    })
-    .await;
-    cancels()
-        .lock()
-        .unwrap_or_else(|e| e.into_inner())
-        .remove(&thread);
-    Ok(out?)
-}
-
-#[tauri::command]
-pub async fn vcs_worktree_cancel(thread: String) -> Result<bool, String> {
-    let map = cancels().lock().unwrap_or_else(|e| e.into_inner());
-    Ok(match map.get(&thread) {
-        Some(f) => {
-            f.store(true, Ordering::SeqCst);
-            true
-        }
-        None => false,
-    })
-}
-
-#[tauri::command]
-pub async fn vcs_worktree_rename_branch(path: String, name: String) -> Result<String, String> {
-    Ok(worktree::rename_branch(&path_of(&path)?, &name).await?)
-}
-
-#[tauri::command]
-pub async fn vcs_worktree_remove(
-    path: String,
-    force: Option<bool>,
-    delete_branch: Option<bool>,
-    thread: Option<String>,
-) -> Result<RemoveResult, String> {
-    Ok(worktree::remove(
-        &path_of(&path)?,
-        force.unwrap_or(false),
-        delete_branch.unwrap_or(false),
-        thread.as_deref(),
-    )
-    .await?)
-}
-
-#[tauri::command]
-pub async fn vcs_worktree_list(path: String) -> Result<Vec<WorktreeEntry>, String> {
-    Ok(worktree::list(&path_of(&path)?).await?)
-}
-
-#[tauri::command]
-pub async fn vcs_worktree_cleanup(path: String) -> Result<Vec<PathBuf>, String> {
-    Ok(worktree::cleanup(&path_of(&path)?).await?)
-}
-
-#[tauri::command]
-pub async fn vcs_checkpoint_capture(
-    path: String,
-    thread: String,
-    turn: u32,
-) -> Result<Checkpoint, String> {
-    Ok(checkpoint::capture(&path_of(&path)?, &thread, turn).await?)
-}
-
-#[tauri::command]
-pub async fn vcs_checkpoint_list(path: String, thread: String) -> Result<Vec<Checkpoint>, String> {
-    Ok(checkpoint::list(&path_of(&path)?, &thread).await?)
-}
-
-#[tauri::command]
-pub async fn vcs_checkpoint_delete(
-    path: String,
-    thread: String,
-    after_turn: Option<u32>,
-) -> Result<u32, String> {
-    let p = path_of(&path)?;
-    Ok(match after_turn {
-        Some(t) => checkpoint::delete_after(&p, &thread, t).await?,
-        None => checkpoint::delete_all(&p, &thread).await?,
-    })
-}
-
-#[tauri::command]
-pub async fn vcs_diff_turn(
-    path: String,
-    thread: String,
-    turn: u32,
-    options: Option<DiffOptions>,
-) -> Result<DiffResult, String> {
-    Ok(checkpoint::diff_turn(
-        &path_of(&path)?,
-        &thread,
-        turn,
-        &options.unwrap_or_default(),
-    )
-    .await?)
-}
-
-#[tauri::command]
-pub async fn vcs_diff_full(
-    path: String,
-    thread: String,
-    to_turn: Option<u32>,
-    options: Option<DiffOptions>,
-) -> Result<DiffResult, String> {
-    Ok(checkpoint::diff_full(
-        &path_of(&path)?,
-        &thread,
-        to_turn,
-        &options.unwrap_or_default(),
-    )
-    .await?)
-}
-
-#[tauri::command]
-pub async fn vcs_restore_turn(
-    path: String,
-    thread: String,
-    turn: u32,
-    confirm: Option<bool>,
-    drop_later: Option<bool>,
-) -> Result<RestoreResult, String> {
-    Ok(checkpoint::restore(
-        &path_of(&path)?,
-        &thread,
-        turn,
-        confirm.unwrap_or(false),
-        drop_later.unwrap_or(false),
-    )
-    .await?)
-}
-
-#[tauri::command]
-pub async fn vcs_working_changes(path: String) -> Result<Vec<ChangeSummary>, String> {
-    Ok(actions::working_changes(&path_of(&path)?).await?)
 }
 
 #[tauri::command]

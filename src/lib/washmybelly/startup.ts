@@ -43,9 +43,9 @@ export type StartupList = {
 
 type StartupGroup = "login" | "agents" | "services" | "tasks" | "autostart";
 
-export const GROUP_ORDER: readonly StartupGroup[] = ["login", "agents", "services", "tasks", "autostart"];
+const GROUP_ORDER: readonly StartupGroup[] = ["login", "agents", "services", "tasks", "autostart"];
 
-export function groupOf(kind: string): StartupGroup {
+function groupOf(kind: string): StartupGroup {
   switch (kind) {
     case "login_item":
     case "run":
@@ -91,7 +91,7 @@ export function disableIds(items: StartupItem[], selected: Set<string>): string[
   return items.filter((it) => selected.has(it.id) && it.enabled && it.can_disable).map((it) => it.id);
 }
 
-export const REASONS = [
+const REASONS = [
   "system_item",
   "daemon_until_restart",
   "settings_only",

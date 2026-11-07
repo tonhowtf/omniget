@@ -10,7 +10,6 @@
     title,
     body = "",
     confirmLabel,
-    cancelLabel,
     destructive = false,
     tone,
     onConfirm,
@@ -20,7 +19,6 @@
     title: string;
     body?: string;
     confirmLabel: string;
-    cancelLabel?: string;
     destructive?: boolean;
     tone?: "warning" | "danger" | "info";
     onConfirm: () => unknown | Promise<unknown>;
@@ -59,7 +57,7 @@
     {#if error}<p class="err" role="alert">{error}</p>{/if}
   </div>
   {#snippet footer()}
-    <button class="btn btn-secondary" disabled={busy} onclick={() => (open = false)}>{cancelLabel ?? $t("washmybelly.plan.cancel")}</button>
+    <button class="btn btn-secondary" disabled={busy} onclick={() => (open = false)}>{$t("washmybelly.plan.cancel")}</button>
     <button class="btn {destructive ? 'wmb-btn-danger' : 'btn-primary'}" disabled={busy} data-autofocus onclick={confirm}>
       {#if busy}<span class="spinner" aria-hidden="true"></span>{/if}
       {confirmLabel}

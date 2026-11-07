@@ -12,11 +12,8 @@ pub mod scan;
 
 pub use deps::{dependencies, DepKind, Dependency};
 pub use hash::dir_hash;
-pub use inject::{exposed_tool_name, index_prompt, index_prompt_named, open, tool_specs};
-pub use install::{
-    confirm_install, discard_install, install_from_dir, install_from_git, install_from_zip, list,
-    remove, skills_dir, InstallOutcome,
-};
+pub use inject::{exposed_tool_name, index_prompt_named, open};
+pub use install::{install_from_zip, list, remove, skills_dir, InstallOutcome};
 pub use manifest::{parse, SkillManifest};
 pub use scan::{ScanStatus, RISK_THRESHOLD};
 
@@ -31,7 +28,6 @@ pub const ERR_SKILL_TOO_BIG: &str = "ERR_SKILL_TOO_BIG";
 pub const ERR_SKILL_CHANGED: &str = "ERR_SKILL_CHANGED";
 pub const ERR_SKILL_NOT_BOUND: &str = "ERR_SKILL_NOT_BOUND";
 pub const ERR_SKILL_PATH: &str = "ERR_SKILL_PATH";
-pub const ERR_SKILL_PENDING: &str = "ERR_SKILL_PENDING";
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SkillError {

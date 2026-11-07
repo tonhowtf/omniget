@@ -74,13 +74,6 @@ impl TelegramHost for AppHost {
             .download
             .default_output_dir
     }
-
-    fn toast(&self, kind: &str, message: &str) {
-        let _ = self.app.emit(
-            "telegram-toast",
-            serde_json::json!({ "kind": kind, "message": message }),
-        );
-    }
 }
 
 pub fn install(app: &AppHandle) {

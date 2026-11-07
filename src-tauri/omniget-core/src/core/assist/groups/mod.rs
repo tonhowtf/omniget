@@ -187,17 +187,6 @@ pub fn context_of(conversation_id: &str) -> (ContextKind, Option<PathBuf>) {
     }
 }
 
-pub fn set_context(
-    conversation_id: &str,
-    path: Option<PathBuf>,
-) -> Result<(ContextKind, Option<PathBuf>), String> {
-    let set = code_tools::set_conversation_workspace(conversation_id, path)?;
-    Ok(match set {
-        Some(p) => (ContextKind::Project, Some(p)),
-        None => (ContextKind::Projectless, None),
-    })
-}
-
 pub fn resolve(bot: &str, conversation: Option<&str>) -> AssistCtx {
     let Some(room) = conversation.and_then(room_of) else {
         return ctx::direct(bot, conversation);

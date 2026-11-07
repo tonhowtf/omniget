@@ -49,11 +49,6 @@ export async function changeNumber(section: string, key: string, e: Event) {
   }
 }
 
-export async function changeQuality(e: Event) {
-  const value = (e.target as HTMLSelectElement).value;
-  await saveSettings({ download: { video_quality: value } });
-}
-
 export type DependencyStatus = {
   name: string;
   installed: boolean;
@@ -63,27 +58,19 @@ export type DependencyStatus = {
   outdated: boolean;
 };
 
-export async function loadDeps(): Promise<DependencyStatus[]> {
-  try {
-    return await invoke<DependencyStatus[]>("check_dependencies");
-  } catch {
-    return [];
-  }
-}
-
 export const MORE_THEMES = [
-  { id: "catppuccin-latte", label: "Catppuccin Latte", colors: ["#eff1f5", "#4c4f69", "#1e66f5"] },
-  { id: "catppuccin-frappe", label: "Catppuccin Frappé", colors: ["#303446", "#c6d0f5", "#8caaee"] },
-  { id: "catppuccin-macchiato", label: "Catppuccin Macchiato", colors: ["#24273a", "#cad3f5", "#8aadf4"] },
-  { id: "catppuccin-mocha", label: "Catppuccin Mocha", colors: ["#1e1e2e", "#cdd6f4", "#89b4fa"] },
-  { id: "one-dark-pro", label: "One Dark Pro", colors: ["#282c34", "#abb2bf", "#61afef"] },
-  { id: "dracula", label: "Dracula", colors: ["#22212C", "#F8F8F2", "#9580FF"] },
-  { id: "nyxvamp-veil", label: "NyxVamp Veil", colors: ["#1E1E2E", "#D9E0EE", "#F28FAD"] },
-  { id: "nyxvamp-obsidian", label: "NyxVamp Obsidian", colors: ["#000A0F", "#C0C0CE", "#F28FAD"] },
-  { id: "nyxvamp-radiance", label: "NyxVamp Radiance", colors: ["#F7F7FF", "#1E1E2E", "#9655FF"] },
-  { id: "eink-day", label: "E-ink Day", colors: ["#f5f2ea", "#1d1d1b", "#2b2b28"] },
-  { id: "eink-sepia", label: "E-ink Sepia", colors: ["#f0e6d2", "#3f2e20", "#7a4a22"] },
-  { id: "eink-night", label: "E-ink Night", colors: ["#0a0a0a", "#d4d4d0", "#b0b0ab"] },
+  { id: "catppuccin-latte", label: "Catppuccin Latte" },
+  { id: "catppuccin-frappe", label: "Catppuccin Frappé" },
+  { id: "catppuccin-macchiato", label: "Catppuccin Macchiato" },
+  { id: "catppuccin-mocha", label: "Catppuccin Mocha" },
+  { id: "one-dark-pro", label: "One Dark Pro" },
+  { id: "dracula", label: "Dracula" },
+  { id: "nyxvamp-veil", label: "NyxVamp Veil" },
+  { id: "nyxvamp-obsidian", label: "NyxVamp Obsidian" },
+  { id: "nyxvamp-radiance", label: "NyxVamp Radiance" },
+  { id: "eink-day", label: "E-ink Day" },
+  { id: "eink-sepia", label: "E-ink Sepia" },
+  { id: "eink-night", label: "E-ink Night" },
 ];
 
 export { getSettings, updateSettings };

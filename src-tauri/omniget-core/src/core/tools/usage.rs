@@ -81,7 +81,7 @@ pub fn record_entry(mut entry: UsageEntry) {
         Ok(mut f) => {
             let _ = writeln!(f, "{}", line);
         }
-        Err(e) => tracing::warn!("[usage] nao gravou: {}", e),
+        Err(e) => tracing::warn!("[usage] could not record: {}", e),
     }
 }
 

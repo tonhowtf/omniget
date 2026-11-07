@@ -189,23 +189,6 @@ pub fn is_external(raw: &str) -> bool {
     p.is_absolute() && !p.starts_with(&root)
 }
 
-pub fn set_workspace(path: Option<PathBuf>) -> Result<Option<PathBuf>, String> {
-    let resolved = match path {
-        Some(p) => {
-            let real = p
-                .canonicalize()
-                .map_err(|e| format!("{ERR_NO_WORKSPACE}: {e}"))?;
-            if !real.is_dir() {
-                return Err(format!("{ERR_NO_WORKSPACE}: not a directory"));
-            }
-            Some(real)
-        }
-        None => None,
-    };
-    *WORKSPACE.write().unwrap_or_else(|e| e.into_inner()) = resolved.clone();
-    Ok(resolved)
-}
-
 fn global_workspace() -> Option<PathBuf> {
     WORKSPACE.read().unwrap_or_else(|e| e.into_inner()).clone()
 }
@@ -308,10 +291,6 @@ pub fn write_lock_blocking(root: &Path) -> Result<WriteGuard, String> {
         Ok(_) => tokio::task::block_in_place(wait),
         Err(_) => wait(),
     }
-}
-
-pub fn current_plan() -> Option<Value> {
-    PLAN.read().unwrap_or_else(|e| e.into_inner()).clone()
 }
 
 fn root() -> Result<PathBuf, String> {

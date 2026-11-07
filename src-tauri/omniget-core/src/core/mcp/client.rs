@@ -418,7 +418,6 @@ mod tests {
 
         let tools = client.tools().await.expect("tools/list");
         assert_eq!(tools.len(), 7, "{:?}", tools);
-        assert!(tools.iter().all(|t| t.schema_is_object()));
 
         let out = client
             .call("add", json!({ "a": 2, "b": 3 }), None)
@@ -661,32 +660,6 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn http_get_opens_a_server_stream_and_405_is_not_an_error() {
-        need_node!();
-        let server = http(&[]).await;
-        let t =
-            HttpTransport::connect(&server.url(), &Default::default(), &default_lookup()).unwrap();
-        let mut stream = t
-            .open_server_stream()
-            .await
-            .unwrap()
-            .expect("this fixture offers a stream");
-        let first = tokio::time::timeout(Duration::from_secs(5), stream.next())
-            .await
-            .expect("a notification arrives")
-            .expect("some value");
-        assert_eq!(first["method"], "notifications/message");
-        drop(stream);
-        server.stop().await;
-
-        let quiet = http(&["--no-get"]).await;
-        let t2 =
-            HttpTransport::connect(&quiet.url(), &Default::default(), &default_lookup()).unwrap();
-        assert!(t2.open_server_stream().await.unwrap().is_none());
-        quiet.stop().await;
-    }
-
-    #[tokio::test]
     async fn http_keeps_the_session_id_and_drops_it_on_close() {
         need_node!();
         let server = http(&[]).await;
@@ -779,12 +752,6 @@ mod tests {
             assert!(!tools.is_empty(), "{} has no tools", name);
             for t in &tools {
                 assert!(!t.name.is_empty(), "{}: nameless tool", name);
-                assert!(
-                    t.schema_is_object(),
-                    "{}: {} has a non-object schema",
-                    name,
-                    t.name
-                );
             }
         }
     }

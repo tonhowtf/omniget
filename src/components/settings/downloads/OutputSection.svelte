@@ -1,20 +1,17 @@
 <script lang="ts">
   import { invoke } from "@tauri-apps/api/core";
   import { t } from "$lib/i18n";
-  import {
-    getSettings,
-    updateSettings,
-    chooseFolder,
-    toggleBool,
-  } from "../settings-helpers";
+  import { getSettings, saveSettings, chooseFolder, toggleBool } from "../settings-helpers";
   import { createSettingsDraft } from "$lib/stores/settings-drafts.svelte";
   import SettingGroup from "../rebrand/SettingGroup.svelte";
   import SettingRow from "../rebrand/SettingRow.svelte";
+  import SettingStatus from "../rebrand/SettingStatus.svelte";
   import SettingsSaveBar from "../rebrand/SettingsSaveBar.svelte";
-
-  type ControlArgs = { id: string; describedBy: string | undefined };
-
-  let { part = "files" }: { part?: "files" | "output" } = $props();
+  import GeneralChoice from "../rebrand/GeneralChoice.svelte";
+  import ManagerLink from "../rebrand/ManagerLink.svelte";
+  import MoreOptions from "./MoreOptions.svelte";
+  import Toggle from "./Toggle.svelte";
+  import { saveMode } from "./download-options";
 
   let settings = $derived(getSettings());
 
@@ -22,7 +19,6 @@
   let pathInfo = $state<PathLimitInfo | null>(null);
 
   $effect(() => {
-    if (part !== "files") return;
     const dir = settings?.download.default_output_dir;
     if (!dir) {
       pathInfo = null;
@@ -30,15 +26,9 @@
     }
     let cancelled = false;
     invoke<PathLimitInfo>("validate_output_path", { outputDir: dir })
-      .then((info) => {
-        if (!cancelled) pathInfo = info;
-      })
-      .catch(() => {
-        if (!cancelled) pathInfo = null;
-      });
-    return () => {
-      cancelled = true;
-    };
+      .then((info) => { if (!cancelled) pathInfo = info; })
+      .catch(() => { if (!cancelled) pathInfo = null; });
+    return () => { cancelled = true; };
   });
 
   const template = createSettingsDraft({
@@ -48,6 +38,11 @@
   });
   let templateText = $derived(template.value.filename_template ?? "");
   let templateInvalid = $derived(!templateText.trim() || !templateText.includes("%(ext)s"));
+  let moreOpen = $state(false);
+
+  $effect(() => {
+    if (template.dirty || template.error) moreOpen = true;
+  });
 
   function saveTemplate() {
     if (templateInvalid) return;
@@ -83,54 +78,66 @@
 
   function applySpeedLimit() {
     const value = speedNum && speedNum > 0 ? `${speedNum}${speedUnit}` : "";
-    updateSettings({ download: { speed_limit: value } });
-  }
-
-  function changeMusicAudioFormat(e: Event) {
-    const value = (e.target as HTMLSelectElement).value;
-    updateSettings({ download: { music_audio_format: value } });
+    void saveSettings({ download: { speed_limit: value } });
   }
 </script>
 
-{#snippet sw(c: ControlArgs, label: string, on: boolean, onclick: () => void)}
-  <button type="button" class="toggle" class:on id={c.id} aria-label={label} aria-describedby={c.describedBy} role="switch" aria-checked={on} {onclick}><span class="toggle-knob"></span></button>
+{#snippet folderArt()}
+  <path class="art-folder" d="M22 17h12l3 4h21a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H22a2 2 0 0 1-2-2V19a2 2 0 0 1 2-2z" />
+  <path class="art-accent" d="M40 7v15M35 17l5 5 5-5" />
+{/snippet}
+
+{#snippet askArt()}
+  <rect class="art-window" x="14" y="7" width="52" height="36" rx="3" />
+  <path class="art-line" d="M14 14h52" />
+  <path class="art-folder" d="M20 20h6l2 2h8v7H20z" />
+  <path class="art-folder" d="M20 32h6l2 2h8v5H20z" />
+  <rect class="art-button" x="44" y="33" width="16" height="6" rx="2" />
+  <path class="art-accent" d="M48 20a4 4 0 1 1 5 4c-1 .5-1 1-1 2M52 29h.01" />
 {/snippet}
 
 {#if settings}
   {@const d = settings.download}
-  {#if part === "files"}
-    <SettingGroup id="files" title={$t("settings.rebrand.downloads.output")} description={$t("settings.download.section_output_desc")}>
-      <SettingRow id="dl-default-output-dir" label={$t("settings.download.default_output_dir")} settingKey="settings.download.default_output_dir" status="download.default_output_dir">
-        {#snippet control(c)}
-          <div class="dir-control">
-            <output class="dir-path" id={c.id} aria-describedby={pathInfo && !pathInfo.ok ? "dl-output-path-warning" : c.describedBy} dir="ltr" title={d.default_output_dir}>{d.default_output_dir}</output>
-            <button type="button" class="button" onclick={chooseFolder}>{$t("settings.download.choose_folder")}</button>
-          </div>
-        {/snippet}
-      </SettingRow>
-      {#if pathInfo && !pathInfo.ok}
-        <p class="path-warning" id="dl-output-path-warning" role="status">
-          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z" />
-            <line x1="12" y1="9" x2="12" y2="13" />
-            <line x1="12" y1="17" x2="12.01" y2="17" />
-          </svg>
-          {$t("settings.download.path_too_long", { current: pathInfo.current, limit: pathInfo.limit })}
-        </p>
-      {/if}
-      <SettingRow id="dl-always-ask-path" label={$t("settings.download.always_ask_path")} help={$t("settings.download.always_ask_path_desc")} settingKey="settings.download.always_ask_path" status="download.always_ask_path">
-        {#snippet control(c)}{@render sw(c, $t("settings.download.always_ask_path"), d.always_ask_path, () => toggleBool("download", "always_ask_path", d.always_ask_path))}{/snippet}
-      </SettingRow>
-      <SettingRow id="dl-skip-existing" label={$t("settings.download.skip_existing")} help={$t("settings.download.skip_existing_desc")} settingKey="settings.download.skip_existing" status="download.skip_existing">
-        {#snippet control(c)}{@render sw(c, $t("settings.download.skip_existing"), d.skip_existing, () => toggleBool("download", "skip_existing", d.skip_existing))}{/snippet}
-      </SettingRow>
-    </SettingGroup>
-  {:else}
-    <SettingGroup id="output" title={$t("settings.download.section_output")} description={$t("settings.download.section_output_desc")} advanced>
-      <SettingRow id="dl-organize-by-platform" label={$t("settings.download.organize_by_platform")} help={$t("settings.download.organize_by_platform_desc")} settingKey="settings.download.organize_by_platform" status="download.organize_by_platform">
-        {#snippet control(c)}{@render sw(c, $t("settings.download.organize_by_platform"), d.organize_by_platform, () => toggleBool("download", "organize_by_platform", d.organize_by_platform))}{/snippet}
-      </SettingRow>
+  <SettingGroup id="files" icon="folder" title={$t("settings.downloads.files.title")}>
+    <SettingRow id="dl-default-output-dir" label={$t("settings.download.default_output_dir")} settingKey="settings.download.default_output_dir" status="download.default_output_dir">
+      {#snippet control(c)}
+        <div class="dir-control">
+          <output class="dir-path" id={c.id} aria-describedby={pathInfo && !pathInfo.ok ? "dl-output-path-warning" : c.describedBy} dir="ltr" title={d.default_output_dir}>{d.default_output_dir}</output>
+          <button type="button" class="btn btn-secondary btn-sm" onclick={chooseFolder}>{$t("settings.download.choose_folder")}</button>
+        </div>
+      {/snippet}
+    </SettingRow>
+    {#if pathInfo && !pathInfo.ok}
+      <p class="path-warning" id="dl-output-path-warning" role="status">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z" />
+          <line x1="12" y1="9" x2="12" y2="13" />
+          <line x1="12" y1="17" x2="12.01" y2="17" />
+        </svg>
+        {$t("settings.download.path_too_long", { current: pathInfo.current, limit: pathInfo.limit })}
+      </p>
+    {/if}
+    <div class="choice-block" data-setting-key="settings.download.always_ask_path">
+      <GeneralChoice
+        name="dl-save-mode"
+        label={$t("settings.download.always_ask_path") as string}
+        value={saveMode(d.always_ask_path)}
+        options={[
+          { value: "folder", draw: folderArt, label: $t("settings.downloads.files.save_here") as string, help: $t("settings.downloads.files.save_here_desc") as string },
+          { value: "ask", draw: askArt, label: $t("settings.downloads.files.ask") as string, help: $t("settings.downloads.files.ask_desc") as string },
+        ]}
+        onchange={(v) => saveSettings({ download: { always_ask_path: v === "ask" } })}
+      />
+      <SettingStatus path="download.always_ask_path" />
+    </div>
+    <SettingRow id="dl-organize-by-platform" label={$t("settings.download.organize_by_platform")} help={$t("settings.download.organize_by_platform_desc")} settingKey="settings.download.organize_by_platform" status="download.organize_by_platform">
+      {#snippet control(c)}<Toggle id={c.id} describedBy={c.describedBy} on={d.organize_by_platform} onclick={() => toggleBool("download", "organize_by_platform", d.organize_by_platform)} />{/snippet}
+    </SettingRow>
+    <SettingRow id="dl-skip-existing" label={$t("settings.download.skip_existing")} help={$t("settings.download.skip_existing_desc")} settingKey="settings.download.skip_existing" status="download.skip_existing">
+      {#snippet control(c)}<Toggle id={c.id} describedBy={c.describedBy} on={d.skip_existing} onclick={() => toggleBool("download", "skip_existing", d.skip_existing)} />{/snippet}
+    </SettingRow>
 
+    <MoreOptions id="files" bind:open={moreOpen}>
       <form class="template-form" onsubmit={(e) => { e.preventDefault(); saveTemplate(); }}>
         <SettingRow id="dl-filename-template" label={$t("settings.download.filename_template")} help={$t("settings.download.filename_template_desc")} settingKey="settings.download.filename_template">
           {#snippet control(c)}
@@ -155,7 +162,9 @@
         </div>
         <SettingsSaveBar dirty={template.dirty} saving={template.saving} error={template.error} onSave={saveTemplate} onDiscard={() => template.discard()} />
       </form>
-
+      <SettingRow id="dl-playlist-number-files" label={$t("settings.download.playlist_number_files")} help={$t("settings.download.playlist_number_files_desc")} settingKey="settings.download.playlist_number_files" status="download.playlist_number_files">
+        {#snippet control(c)}<Toggle id={c.id} describedBy={c.describedBy} on={d.playlist_number_files} onclick={() => toggleBool("download", "playlist_number_files", d.playlist_number_files)} />{/snippet}
+      </SettingRow>
       <SettingRow id="dl-speed-limit" label={$t("settings.download.speed_limit")} help={$t("settings.download.speed_limit_desc")} settingKey="settings.download.speed_limit" status="download.speed_limit">
         {#snippet control(c)}
           <div class="speed-limit">
@@ -178,28 +187,11 @@
           </div>
         {/snippet}
       </SettingRow>
-      <SettingRow id="dl-music-audio-format" label={$t("settings.download.music_audio_format")} help={$t("settings.download.music_audio_format_desc")} settingKey="settings.download.music_audio_format" status="download.music_audio_format">
-        {#snippet control(c)}
-          <select class="select" id={c.id} aria-describedby={c.describedBy} value={d.music_audio_format} onchange={changeMusicAudioFormat}>
-            <option value="m4a">M4A (AAC)</option>
-            <option value="mp3">MP3</option>
-            <option value="flac">FLAC (lossless)</option>
-            <option value="opus">Opus</option>
-            <option value="wav">WAV</option>
-          </select>
-        {/snippet}
-      </SettingRow>
-      <SettingRow id="dl-embed-metadata" label={$t("settings.download.embed_metadata")} help={$t("settings.download.embed_metadata_desc")} settingKey="settings.download.embed_metadata" status="download.embed_metadata">
-        {#snippet control(c)}{@render sw(c, $t("settings.download.embed_metadata"), d.embed_metadata, () => toggleBool("download", "embed_metadata", d.embed_metadata))}{/snippet}
-      </SettingRow>
-      <SettingRow id="dl-embed-thumbnail" label={$t("settings.download.embed_thumbnail")} help={$t("settings.download.embed_thumbnail_desc")} settingKey="settings.download.embed_thumbnail" status="download.embed_thumbnail">
-        {#snippet control(c)}{@render sw(c, $t("settings.download.embed_thumbnail"), d.embed_thumbnail, () => toggleBool("download", "embed_thumbnail", d.embed_thumbnail))}{/snippet}
-      </SettingRow>
-      <SettingRow id="dl-write-nfo-sidecar" label={$t("settings.download.write_nfo_sidecar")} help={$t("settings.download.write_nfo_sidecar_desc")} settingKey="settings.download.write_nfo_sidecar" status="download.write_nfo_sidecar">
-        {#snippet control(c)}{@render sw(c, $t("settings.download.write_nfo_sidecar"), d.write_nfo_sidecar, () => toggleBool("download", "write_nfo_sidecar", d.write_nfo_sidecar))}{/snippet}
-      </SettingRow>
-    </SettingGroup>
-  {/if}
+      <div data-setting-key="omnibox.adv.templates_title">
+        <ManagerLink href={"/?panel=download-advanced"} titleKey={"omnibox.adv.templates_title"} hintKey={"omnibox.adv.templates_empty"} />
+      </div>
+    </MoreOptions>
+  </SettingGroup>
 {/if}
 
 <style>
@@ -209,16 +201,22 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    font-size: 12px;
+    font-size: var(--text-sm);
     color: var(--text-muted);
     font-family: var(--font-mono, ui-monospace, monospace);
   }
-  .path-warning { display: flex; align-items: center; gap: var(--space-1); margin: 0 0 var(--space-2); font-size: 12px; line-height: 18px; color: var(--warning, var(--text)); }
+  .path-warning { display: flex; align-items: center; gap: var(--space-1); margin: 0 0 var(--space-2); font-size: var(--text-sm); line-height: 18px; color: var(--warning, var(--text)); }
+  .choice-block { padding-block: var(--space-1) var(--space-2); min-inline-size: 0; }
   .template-form { display: flex; flex-direction: column; min-inline-size: 0; }
-  .template-feedback { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; min-inline-size: 0; overflow-wrap: anywhere; }
+  .template-feedback { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-2); min-inline-size: 0; overflow-wrap: anywhere; }
   .template-feedback:empty { display: none; }
-  .template-error { color: var(--error); font-size: 13px; line-height: 1.5; }
+  .template-error { color: var(--error); font-size: var(--text-base); line-height: 1.5; }
   .speed-limit { display: flex; gap: var(--space-2); min-inline-size: 0; inline-size: 100%; max-inline-size: 260px; }
   .speed-limit input { flex: 1 1 0; min-inline-size: 4rem; }
   .speed-limit select { flex: 0 0 5.5rem; }
+  .art-folder { fill: var(--surface-hi-src, var(--surface-src)); stroke: var(--tertiary); stroke-linejoin: round; }
+  .art-window { fill: var(--surface-hi-src, var(--surface-src)); stroke: var(--tertiary); }
+  .art-line { fill: none; stroke: var(--content-border); }
+  .art-button { fill: var(--accent); opacity: 0.8; }
+  .art-accent { fill: none; stroke: var(--accent); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 </style>

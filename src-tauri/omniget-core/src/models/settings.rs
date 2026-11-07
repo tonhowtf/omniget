@@ -56,12 +56,6 @@ pub struct AppSettings {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LlmSettings {
-    #[serde(default)]
-    pub prune_enabled: bool,
-    #[serde(default = "default_prune_judge")]
-    pub prune_judge: String,
-    #[serde(default = "default_prune_min_tokens")]
-    pub prune_min_tokens: u32,
     #[serde(default = "default_turn_idle_timeout_s")]
     pub turn_idle_timeout_s: u32,
     #[serde(default = "default_turn_tool_idle_timeout_s")]
@@ -88,10 +82,6 @@ pub struct LlmSettings {
 
 fn default_audit_retention_days() -> u32 {
     90
-}
-
-fn default_prune_min_tokens() -> u32 {
-    50_000
 }
 
 fn default_turn_idle_timeout_s() -> u32 {
@@ -122,16 +112,9 @@ fn default_jobs_max_parallel() -> u32 {
     4
 }
 
-fn default_prune_judge() -> String {
-    "local".into()
-}
-
 impl Default for LlmSettings {
     fn default() -> Self {
         Self {
-            prune_enabled: false,
-            prune_judge: default_prune_judge(),
-            prune_min_tokens: default_prune_min_tokens(),
             turn_idle_timeout_s: default_turn_idle_timeout_s(),
             turn_tool_idle_timeout_s: default_turn_tool_idle_timeout_s(),
             turn_start_timeout_s: default_turn_start_timeout_s(),
@@ -473,6 +456,10 @@ impl CanvasSettings {
         pick(&mut self.node_material, Self::MATERIALS, &d.node_material);
         pick(&mut self.cord_style, Self::CORD_STYLES, &d.cord_style);
         pick(&mut self.rope_routing, Self::ROUTINGS, &d.rope_routing);
+        if self.rope_routing == "circuit" {
+            self.cord_style = "circuit".into();
+            self.rope_routing = d.rope_routing.clone();
+        }
         pick(
             &mut self.power.prevent_sleep,
             Self::SLEEP_MODES,
@@ -561,8 +548,6 @@ pub struct AccessibilitySettings {
     pub reduce_motion: bool,
     #[serde(default)]
     pub reduce_transparency: bool,
-    #[serde(default)]
-    pub disable_haptics: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -638,7 +623,6 @@ pub struct TubeSettings {
     pub hide_home_feed: bool,
     pub hide_related: bool,
     pub hide_comments: bool,
-    pub hide_end_screen: bool,
     pub hide_chips: bool,
     pub hide_metrics: bool,
     pub infinite_scroll: bool,
@@ -713,7 +697,6 @@ impl Default for TubeSettings {
             hide_home_feed: false,
             hide_related: false,
             hide_comments: false,
-            hide_end_screen: true,
             hide_chips: false,
             hide_metrics: false,
             infinite_scroll: true,
@@ -952,11 +935,14 @@ pub struct DownloadSettings {
     pub always_ask_path: bool,
     pub video_quality: String,
     pub skip_existing: bool,
-    pub download_descriptions: bool,
     #[serde(default = "default_true")]
     pub embed_metadata: bool,
     #[serde(default = "default_true")]
     pub embed_thumbnail: bool,
+    #[serde(default)]
+    pub playlist_number_files: bool,
+    #[serde(default = "default_video_compatibility")]
+    pub video_compatibility: String,
     #[serde(default)]
     pub write_nfo_sidecar: bool,
     #[serde(default)]
@@ -999,16 +985,12 @@ pub struct DownloadSettings {
     pub music_hotkey_binding: String,
     #[serde(default = "default_music_audio_format")]
     pub music_audio_format: String,
-    #[serde(default)]
-    pub extra_ytdlp_flags: Vec<String>,
     #[serde(default = "default_true")]
     pub copy_to_clipboard_on_hotkey: bool,
     #[serde(default)]
     pub cookie_file: String,
     #[serde(default = "default_true")]
     pub always_use_managed_cookies: bool,
-    #[serde(default)]
-    pub continuous_lecture_numbers: bool,
     #[serde(default)]
     pub bilibili_danmaku_enabled: bool,
     #[serde(default = "default_bilibili_danmaku_format")]
@@ -1103,6 +1085,8 @@ pub struct AdvancedSettings {
     pub torrent_auto_trackers: bool,
     #[serde(default = "default_torrent_upnp")]
     pub torrent_upnp: bool,
+    #[serde(default)]
+    pub torrent_stop_seeding: bool,
     #[serde(default = "default_prevent_sleep")]
     pub prevent_sleep: bool,
     #[serde(default)]
@@ -1157,6 +1141,10 @@ fn default_torrent_listen_port() -> u16 {
 
 fn default_true() -> bool {
     true
+}
+
+fn default_video_compatibility() -> String {
+    "best".into()
 }
 
 pub fn default_filename_template() -> String {
@@ -1352,9 +1340,10 @@ impl Default for AppSettings {
                 always_ask_path: false,
                 video_quality: "720p".into(),
                 skip_existing: true,
-                download_descriptions: true,
                 embed_metadata: true,
                 embed_thumbnail: true,
+                playlist_number_files: false,
+                video_compatibility: default_video_compatibility(),
                 write_nfo_sidecar: false,
                 clipboard_detection: false,
                 auto_download_on_paste: false,
@@ -1380,11 +1369,9 @@ impl Default for AppSettings {
                 music_hotkey_enabled: false,
                 music_hotkey_binding: default_music_hotkey_binding(),
                 music_audio_format: default_music_audio_format(),
-                extra_ytdlp_flags: Vec::new(),
                 copy_to_clipboard_on_hotkey: true,
                 cookie_file: String::new(),
                 always_use_managed_cookies: true,
-                continuous_lecture_numbers: false,
                 bilibili_danmaku_enabled: false,
                 bilibili_danmaku_format: "xml".into(),
                 bilibili_container: "mp4".into(),
@@ -1411,6 +1398,7 @@ impl Default for AppSettings {
                 torrent_listen_port: 6881,
                 torrent_auto_trackers: true,
                 torrent_upnp: true,
+                torrent_stop_seeding: false,
                 prevent_sleep: true,
                 cookies_from_browser: String::new(),
                 twitter_manual_cookie: String::new(),
@@ -1675,7 +1663,6 @@ mod backcompat_tests {
             "prune_min_tokens": 40000
         });
         let llm: LlmSettings = serde_json::from_value(old).expect("an old file has to load");
-        assert!(llm.prune_enabled);
         assert_eq!(llm.turn_idle_timeout_s, 600);
         assert_eq!(llm.turn_tool_idle_timeout_s, 1800);
         assert_eq!(llm.turn_start_timeout_s, 90);

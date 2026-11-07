@@ -394,25 +394,6 @@ pub(crate) fn purge(conn: &Connection, ids: &[String]) -> rusqlite::Result<()> {
     Ok(())
 }
 
-pub(crate) fn sweep_orphans(conn: &Connection) -> rusqlite::Result<()> {
-    let ids: Vec<String> = {
-        let mut s = conn.prepare(
-            "SELECT record_id FROM memory_vectors WHERE record_id NOT IN (SELECT id FROM memory_records)
-             UNION SELECT record_id FROM memory_meta WHERE record_id NOT IN (SELECT id FROM memory_records)
-             UNION SELECT record_id FROM memory_entity_refs WHERE record_id NOT IN (SELECT id FROM memory_records)",
-        )?;
-        let rows = s.query_map([], |r| r.get(0))?;
-        rows.collect::<rusqlite::Result<_>>()?
-    };
-    purge(conn, &ids)?;
-    conn.execute(
-        "DELETE FROM memory_links WHERE src NOT IN (SELECT id FROM memory_records)
-            OR dst NOT IN (SELECT id FROM memory_records)",
-        [],
-    )?;
-    Ok(())
-}
-
 pub(crate) fn list_entities(
     conn: &Connection,
     principal: &str,

@@ -1,6 +1,6 @@
-export type TokenKind = 'plain' | 'comment' | 'string' | 'number' | 'keyword' | 'type' | 'fn' | 'punct' | 'tag' | 'attr' | 'var';
+type TokenKind = 'plain' | 'comment' | 'string' | 'number' | 'keyword' | 'type' | 'fn' | 'punct' | 'tag' | 'attr' | 'var';
 
-export interface Token {
+interface Token {
   kind: TokenKind;
   text: string;
 }

@@ -1002,8 +1002,3 @@ pub fn plan_undo(ctx: &Ctx, action: &str, args: &Value) -> Result<String, String
         "apps.linux: {action} cannot be undone (reinstall it from the package manager)"
     ))
 }
-
-pub async fn ui_action(action: &str, a: Value) -> Result<Value, String> {
-    let _ = a;
-    Err(format!("apps.linux: unknown screen action {action}"))
-}

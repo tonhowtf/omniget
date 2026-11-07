@@ -1,5 +1,6 @@
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
+use std::sync::OnceLock;
 use std::time::{Duration, Instant};
 
 use serde::{Deserialize, Serialize};
@@ -32,6 +33,96 @@ pub struct Manifest {
     pub min_omniget: String,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub options: Vec<Value>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub permissions: Vec<String>,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub category: String,
+}
+
+impl Manifest {
+    pub fn login_url(&self) -> Option<String> {
+        self.login
+            .as_ref()
+            .and_then(|l| l["url"].as_str())
+            .map(str::to_string)
+            .filter(|u| !u.trim().is_empty())
+    }
+
+    fn allows(&self, permission: &str) -> bool {
+        self.permissions.iter().any(|p| p == permission)
+    }
+}
+
+pub const PERMISSION_COOKIES: &str = "cookies";
+pub const PERMISSION_PAGE_EVAL: &str = "page_eval";
+const WINDOWS_RESERVED: &[&str] = &[
+    "con", "prn", "aux", "nul", "com1", "com2", "com3", "com4", "com5", "com6", "com7", "com8",
+    "com9", "lpt1", "lpt2", "lpt3", "lpt4", "lpt5", "lpt6", "lpt7", "lpt8", "lpt9",
+];
+
+static APP_VERSION: OnceLock<String> = OnceLock::new();
+
+pub fn set_app_version(version: &str) {
+    let _ = APP_VERSION.set(version.to_string());
+}
+
+pub fn app_version() -> Option<&'static str> {
+    APP_VERSION.get().map(String::as_str)
+}
+
+pub fn parse_version(v: &str) -> Option<(u64, u64, u64)> {
+    let v = v.trim().trim_start_matches('v');
+    let core = v.split(['-', '+']).next()?;
+    let mut parts = core.split('.');
+    let major = parts.next()?.parse().ok()?;
+    let minor = parts.next().map_or(Some(0), |p| p.parse().ok())?;
+    let patch = parts.next().map_or(Some(0), |p| p.parse().ok())?;
+    parts.next().is_none().then_some((major, minor, patch))
+}
+
+pub fn is_newer(candidate: &str, current: &str) -> bool {
+    match (parse_version(candidate), parse_version(current)) {
+        (Some(a), Some(b)) => a > b,
+        _ => candidate.trim() != current.trim(),
+    }
+}
+
+pub fn check_min_omniget(min: &str, current: Option<&str>) -> Result<(), String> {
+    if min.trim().is_empty() {
+        return Ok(());
+    }
+    let wanted =
+        parse_version(min).ok_or_else(|| format!("min_omniget \"{min}\" is not a version"))?;
+    let Some(have) = current.and_then(parse_version) else {
+        return Ok(());
+    };
+    if have < wanted {
+        return Err(format!(
+            "this helper needs OmniGet {min} or newer (this is {})",
+            current.unwrap_or_default()
+        ));
+    }
+    Ok(())
+}
+
+pub fn validate_id(id: &str) -> Result<(), String> {
+    let bytes = id.as_bytes();
+    let edge = |b: Option<&u8>| b.is_some_and(|c| c.is_ascii_lowercase() || c.is_ascii_digit());
+    let ok = (1..=64).contains(&id.len())
+        && edge(bytes.first())
+        && edge(bytes.last())
+        && !id.contains("..")
+        && !WINDOWS_RESERVED.contains(&id)
+        && bytes.iter().all(|c| {
+            c.is_ascii_lowercase() || c.is_ascii_digit() || matches!(c, b'-' | b'_' | b'.')
+        });
+    if ok {
+        Ok(())
+    } else {
+        Err(format!(
+            "id \"{id}\" must be 1-64 lowercase letters, digits, '-', '_' or '.', and start and end with a letter or digit"
+        ))
+    }
 }
 
 fn default_entry() -> String {
@@ -45,7 +136,15 @@ pub struct Connector {
     pub dev: bool,
 }
 
-fn installed_dir() -> PathBuf {
+#[derive(Debug, Clone, Serialize)]
+pub struct InvalidConnector {
+    pub id: String,
+    pub dir: PathBuf,
+    pub dev: bool,
+    pub error: String,
+}
+
+pub fn installed_dir() -> PathBuf {
     let d = data_dir().join("connectors");
     let _ = std::fs::create_dir_all(&d);
     d
@@ -76,6 +175,7 @@ pub fn load(dir: &Path) -> Result<Manifest, String> {
         .map_err(|e| format!("{}: no manifest.json ({e})", dir.display()))?;
     let m: Manifest = serde_json::from_str(&text).map_err(|e| format!("manifest.json: {e}"))?;
     validate_manifest(&m)?;
+    check_min_omniget(&m.min_omniget, app_version())?;
     if !dir.join(&m.entry).is_file() {
         return Err(format!("entry file {} is missing", m.entry));
     }
@@ -83,63 +183,125 @@ pub fn load(dir: &Path) -> Result<Manifest, String> {
 }
 
 pub fn validate_manifest(m: &Manifest) -> Result<(), String> {
-    if m.id.trim().is_empty()
-        || !m
-            .id
-            .chars()
-            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_' || c == '.')
-    {
-        return Err("id must be letters, digits, '-', '_' or '.'".into());
-    }
+    use crate::core::platform_optout::{is_opted_out_host, OPTED_OUT_DOMAINS, OPTED_OUT_ERROR};
+    validate_id(&m.id)?;
     if m.domains.is_empty() {
         return Err("domains must list at least one host".into());
     }
     if m.matches.is_empty() {
         return Err("match must list at least one URL pattern".into());
     }
-    if m.entry.contains("..") || m.entry.starts_with('/') {
+    if crate::core::catalog::fetch::safe_rel(&m.entry).is_err() {
         return Err("entry must be a file inside the connector folder".into());
     }
     for d in &m.domains {
-        if crate::core::platform_optout::is_opted_out_host(d.trim_start_matches("*.")) {
-            return Err(format!(
-                "{d}: {}",
-                crate::core::platform_optout::OPTED_OUT_ERROR
-            ));
+        let bare = d.trim_start_matches("*.").trim_start_matches('.');
+        if bare.is_empty() || !bare.contains('.') || bare.contains(['/', ':', '*', ' ']) {
+            return Err(format!("domain \"{d}\" must be a host like example.com"));
+        }
+        if is_opted_out_host(bare) {
+            return Err(OPTED_OUT_ERROR.into());
         }
     }
     for p in &m.matches {
+        let plain = p.to_ascii_lowercase().replace("\\.", ".");
+        if OPTED_OUT_DOMAINS.iter().any(|d| plain.contains(d)) {
+            return Err(OPTED_OUT_ERROR.into());
+        }
         pattern_regex(p)?;
     }
-    Ok(())
+    if let Some(login) = m.login_url() {
+        let parsed = url::Url::parse(&login).map_err(|e| format!("login.url \"{login}\": {e}"))?;
+        let host = parsed.host_str().unwrap_or_default().to_ascii_lowercase();
+        if parsed.scheme() != "https" || !m.domains.iter().any(|d| host_matches(&host, d)) {
+            return Err(format!(
+                "login.url \"{login}\" must be https and on one of the connector's domains"
+            ));
+        }
+    }
+    for p in &m.permissions {
+        if p != PERMISSION_COOKIES && p != PERMISSION_PAGE_EVAL {
+            return Err(format!("unknown permission \"{p}\""));
+        }
+    }
+    check_min_omniget(&m.min_omniget, None)
 }
 
-pub fn list() -> Vec<Connector> {
+fn invalid_at(dir: PathBuf, dev: bool, error: String) -> InvalidConnector {
+    let from_manifest = std::fs::read_to_string(dir.join("manifest.json"))
+        .ok()
+        .and_then(|t| serde_json::from_str::<Value>(&t).ok())
+        .and_then(|v| v["id"].as_str().map(str::to_string));
+    let id = from_manifest.unwrap_or_else(|| {
+        dir.file_name()
+            .map(|n| n.to_string_lossy().into_owned())
+            .unwrap_or_default()
+    });
+    InvalidConnector {
+        id,
+        dir,
+        dev,
+        error,
+    }
+}
+
+pub fn scan() -> (Vec<Connector>, Vec<InvalidConnector>) {
     let mut out = Vec::new();
+    let mut bad = Vec::new();
     for d in dev_dirs() {
-        if let Ok(m) = load(&d) {
-            out.push(Connector {
+        match load(&d) {
+            Ok(m) => out.push(Connector {
                 manifest: m,
                 dir: d,
                 dev: true,
-            });
+            }),
+            Err(e) => bad.push(invalid_at(d, true, e)),
         }
     }
     if let Ok(rd) = std::fs::read_dir(installed_dir()) {
         for e in rd.flatten() {
             let d = e.path();
-            if let Ok(m) = load(&d) {
-                if !out.iter().any(|c| c.manifest.id == m.id) {
-                    out.push(Connector {
-                        manifest: m,
-                        dir: d,
-                        dev: false,
-                    });
+            if e.file_name().to_string_lossy().starts_with('.') {
+                continue;
+            }
+            let is_real_dir = std::fs::symlink_metadata(&d)
+                .map(|m| m.file_type().is_dir())
+                .unwrap_or(false);
+            if !is_real_dir {
+                bad.push(invalid_at(d, false, "not a connector folder".into()));
+                continue;
+            }
+            let folder = e.file_name().to_string_lossy().into_owned();
+            match load(&d) {
+                Ok(m) if m.id != folder => bad.push(invalid_at(
+                    d,
+                    false,
+                    format!("its id \"{}\" does not match the folder \"{folder}\"", m.id),
+                )),
+                Ok(m) => {
+                    if !out.iter().any(|c: &Connector| c.manifest.id == m.id) {
+                        out.push(Connector {
+                            manifest: m,
+                            dir: d,
+                            dev: false,
+                        });
+                    }
                 }
+                Err(err) => bad.push(invalid_at(d, false, err)),
             }
         }
     }
-    out
+    out.sort_by(|a, b| a.manifest.id.cmp(&b.manifest.id).then(b.dev.cmp(&a.dev)));
+    bad.sort_by(|a, b| a.id.cmp(&b.id));
+    (out, bad)
+}
+
+pub fn list() -> Vec<Connector> {
+    scan().0
+}
+
+pub fn list_invalid() -> Vec<InvalidConnector> {
+    scan().1
 }
 
 pub fn install_dev(dir: &Path) -> Result<Manifest, String> {
@@ -152,15 +314,37 @@ pub fn install_dev(dir: &Path) -> Result<Manifest, String> {
     Ok(m)
 }
 
+fn remove_path(p: &Path) -> Result<(), String> {
+    let Ok(meta) = std::fs::symlink_metadata(p) else {
+        return Ok(());
+    };
+    if meta.file_type().is_dir() {
+        std::fs::remove_dir_all(p).map_err(|e| e.to_string())
+    } else {
+        std::fs::remove_file(p).map_err(|e| e.to_string())
+    }
+}
+
 pub fn remove(id: &str) -> Result<(), String> {
+    validate_id(id)?;
     let mut dirs = dev_dirs();
     dirs.retain(|d| load(d).map(|m| m.id != id).unwrap_or(true));
     save_dev_dirs(&dirs)?;
-    let p = installed_dir().join(id);
-    if p.is_dir() {
-        std::fs::remove_dir_all(p).map_err(|e| e.to_string())?;
-    }
+    remove_path(&installed_dir().join(id))?;
+    let _ = std::fs::remove_file(options_file(id));
     Ok(())
+}
+
+pub fn remove_invalid(dir: &Path) -> Result<(), String> {
+    let mut dirs = dev_dirs();
+    if dirs.iter().any(|d| d == dir) {
+        dirs.retain(|d| d != dir);
+        return save_dev_dirs(&dirs);
+    }
+    if dir.parent() != Some(installed_dir().as_path()) {
+        return Err("this folder is not a connector of this app".into());
+    }
+    remove_path(dir)
 }
 
 fn options_file(id: &str) -> PathBuf {
@@ -221,11 +405,15 @@ fn pattern_regex(p: &str) -> Result<regex::Regex, String> {
         p.to_string()
     } else {
         let mut s = String::from("^");
-        for ch in p.chars() {
-            if ch == '*' {
+        let mut chars = p.chars().peekable();
+        while let Some(ch) = chars.next() {
+            if ch != '*' {
+                s.push_str(&regex::escape(&ch.to_string()));
+            } else if chars.peek() == Some(&'*') {
+                chars.next();
                 s.push_str(".*");
             } else {
-                s.push_str(&regex::escape(&ch.to_string()));
+                s.push_str("[^/]*");
             }
         }
         s.push('$');
@@ -234,13 +422,51 @@ fn pattern_regex(p: &str) -> Result<regex::Regex, String> {
     regex::Regex::new(&src).map_err(|e| format!("match pattern {p}: {e}"))
 }
 
+fn pattern_subject<'a>(pattern: &str, url: &'a str) -> &'a str {
+    if pattern.starts_with('^') || pattern.contains('?') {
+        url
+    } else {
+        url.split(['?', '#']).next().unwrap_or(url)
+    }
+}
+
+pub fn match_strength(matches: &[String], domains: &[String], url: &str) -> Option<usize> {
+    let host = host_of(url)?;
+    if !domains.iter().any(|d| host_matches(&host, d)) {
+        return None;
+    }
+    matches
+        .iter()
+        .filter(|p| {
+            pattern_regex(p)
+                .map(|r| r.is_match(pattern_subject(p, url)))
+                .unwrap_or(false)
+        })
+        .map(|p| p.chars().filter(|c| *c != '*').count())
+        .max()
+}
+
+pub fn pick_best<T>(mut candidates: Vec<(bool, usize, String, T)>) -> Option<T> {
+    candidates.sort_by(|a, b| {
+        b.0.cmp(&a.0)
+            .then(b.1.cmp(&a.1))
+            .then_with(|| a.2.cmp(&b.2))
+    });
+    candidates.into_iter().next().map(|c| c.3)
+}
+
 pub fn find_for(url: &str) -> Option<Connector> {
-    list().into_iter().find(|c| {
-        c.manifest
-            .matches
-            .iter()
-            .any(|p| pattern_regex(p).map(|r| r.is_match(url)).unwrap_or(false))
-    })
+    if crate::core::platform_optout::is_opted_out(url) {
+        return None;
+    }
+    let candidates = list()
+        .into_iter()
+        .filter_map(|c| {
+            let strength = match_strength(&c.manifest.matches, &c.manifest.domains, url)?;
+            Some((c.dev, strength, c.manifest.id.clone(), c))
+        })
+        .collect();
+    pick_best(candidates)
 }
 
 pub fn scaffold(
@@ -263,8 +489,10 @@ pub fn scaffold(
         matches: matches.to_vec(),
         login: None,
         entry: "connector.js".into(),
-        min_omniget: env!("CARGO_PKG_VERSION").into(),
+        min_omniget: app_version().unwrap_or(env!("CARGO_PKG_VERSION")).into(),
         options: Vec::new(),
+        permissions: Vec::new(),
+        category: String::new(),
     };
     validate_manifest(&m)?;
     let write = |f: &str, body: String| -> Result<(), String> {
@@ -334,7 +562,10 @@ var ctx = (function () {
     },
     cookies: function (domain) { return JSON.parse(__host_cookies(String(domain || ""))); },
     sniffed: function () { return JSON.parse(__host_sniffed()); },
-    page: { eval: function (js) { var r = JSON.parse(__host_eval(String(js))); if (r.error) throw new Error(r.error); return r.value; } },
+    page: {
+      eval: function (js) { var r = JSON.parse(__host_eval(String(js))); if (r.error) throw new Error(r.error); return r.value; },
+      evalAt: function (url, js, opts) { var r = JSON.parse(__host_eval_at(String(url), String(js), !!(opts && opts.keep))); if (r.error) throw new Error(r.error); return r.value; },
+    },
     log: function () { __host_log(Array.prototype.map.call(arguments, function (a) { return typeof a === "string" ? a : JSON.stringify(a); }).join(" ")); },
     query: function (o) { return Object.keys(o).map(function (k) { return encodeURIComponent(k) + "=" + encodeURIComponent(o[k]); }).join("&"); },
   };
@@ -735,8 +966,23 @@ fn generic_tree(url: &str, tab_id: Option<&str>, page_title: &str, links: Vec<Pa
         ..Default::default()
     }];
     let mut media: Vec<Node> = Vec::new();
-    if let Some(t) = tab_id {
-        for m in sniffer::sniffed(Some(t)) {
+    let sniffed = tab_id
+        .map(|t| sniffer::sniffed(Some(t)))
+        .unwrap_or_default();
+    let audio_track = separate_audio_track(&sniffed);
+    let streamed: Vec<String> = sniffed
+        .iter()
+        .filter(|m| is_streamed_track(m))
+        .map(|m| m.url.clone())
+        .collect();
+    if tab_id.is_some() {
+        for m in sniffed {
+            if audio_track.as_deref() == Some(m.url.as_str()) {
+                continue;
+            }
+            let audio = audio_track
+                .clone()
+                .filter(|_| m.kind == "video" && is_streamed_track(&m));
             let format = match m.kind.as_str() {
                 "hls" => "hls",
                 "dash" => "dash",
@@ -786,6 +1032,7 @@ fn generic_tree(url: &str, tab_id: Option<&str>, page_title: &str, links: Vec<Pa
                     url: Some(m.url),
                     headers: m.headers,
                     ext,
+                    audio,
                     ..Default::default()
                 }),
                 ..Default::default()
@@ -800,6 +1047,17 @@ fn generic_tree(url: &str, tab_id: Option<&str>, page_title: &str, links: Vec<Pa
     let mut media = merge_renditions(media);
     media.sort_by_key(|n| kind_rank(&n.kind));
     disambiguate(&mut media);
+    let offers_whole_media = audio_track.is_some()
+        || media.iter().any(|n| {
+            matches!(n.kind.as_str(), "video" | "audio")
+                && n.source
+                    .as_ref()
+                    .and_then(|s| s.url.as_ref())
+                    .is_none_or(|u| !streamed.contains(u))
+        });
+    if offers_whole_media {
+        children.clear();
+    }
     children.extend(media);
     Node {
         title: page_title,
@@ -807,6 +1065,33 @@ fn generic_tree(url: &str, tab_id: Option<&str>, page_title: &str, links: Vec<Pa
         children,
         ..Default::default()
     }
+}
+
+fn is_streamed_track(m: &sniffer::Sniffed) -> bool {
+    matches!(m.kind.as_str(), "video" | "audio")
+        && matches!(m.resource_type.as_str(), "XHR" | "Fetch")
+}
+
+fn separate_audio_track(sniffed: &[sniffer::Sniffed]) -> Option<String> {
+    if sniffed
+        .iter()
+        .any(|m| matches!(m.kind.as_str(), "hls" | "dash"))
+    {
+        return None;
+    }
+    let tracks: Vec<&sniffer::Sniffed> = sniffed.iter().filter(|m| is_streamed_track(m)).collect();
+    if tracks
+        .iter()
+        .any(|m| host_of(&m.url).is_some_and(|h| h.ends_with("googlevideo.com")))
+    {
+        return None;
+    }
+    let mut audio = tracks.iter().filter(|m| m.kind == "audio");
+    let only = audio.next().filter(|_| audio.next().is_none())?;
+    tracks
+        .iter()
+        .any(|m| m.kind == "video")
+        .then(|| only.url.clone())
 }
 
 fn query_lang(url: &str) -> Option<String> {
@@ -1037,8 +1322,8 @@ pub async fn resolve_item(
     let c = match connector_dir.map(PathBuf::from).filter(|d| d.is_dir()) {
         Some(d) => Connector {
             manifest: load(&d)?,
+            dev: !d.starts_with(installed_dir()),
             dir: d,
-            dev: true,
         },
         None => find_by_id(connector_id)
             .ok_or_else(|| format!("connector {connector_id} is not installed"))?,
@@ -1083,16 +1368,14 @@ async fn run_script(
         .replace("export function", "function")
         .replace("export default ", "");
     let handle = tokio::runtime::Handle::current();
-    tokio::task::spawn_blocking(move || {
-        run_blocking(handle, c.manifest, source, url, tab_id, call, options)
-    })
-    .await
-    .map_err(|e| e.to_string())?
+    tokio::task::spawn_blocking(move || run_blocking(handle, c, source, url, tab_id, call, options))
+        .await
+        .map_err(|e| e.to_string())?
 }
 
 fn run_blocking(
     handle: tokio::runtime::Handle,
-    manifest: Manifest,
+    connector: Connector,
     source: String,
     url: String,
     tab_id: Option<String>,
@@ -1109,7 +1392,10 @@ fn run_blocking(
     rt.set_interrupt_handler(Some(Box::new(move || Instant::now() > deadline)));
     let ctx = Context::full(&rt).map_err(|e| e.to_string())?;
     let logs: Arc<Mutex<Vec<String>>> = Arc::default();
-    let domains = Arc::new(manifest.domains.clone());
+    let domains = Arc::new(connector.manifest.domains.clone());
+    let can_read_cookies = connector.dev || connector.manifest.allows(PERMISSION_COOKIES);
+    let can_eval = connector.dev || connector.manifest.allows(PERMISSION_PAGE_EVAL);
+    let no_eval = "this connector does not declare the page_eval permission";
 
     let result: Result<String, String> = ctx.with(|ctx| {
         let g = ctx.globals();
@@ -1143,7 +1429,7 @@ fn run_blocking(
             "__host_cookies",
             Function::new(ctx.clone(), move |domain: String| -> String {
                 let host = domain.trim_start_matches('.').to_ascii_lowercase();
-                if !d.iter().any(|x| host_matches(&host, x)) {
+                if !can_read_cookies || !d.iter().any(|x| host_matches(&host, x)) {
                     return "{}".into();
                 }
                 let Some(b) = browser::current() else {
@@ -1178,6 +1464,9 @@ fn run_blocking(
             "__host_eval",
             Function::new(ctx.clone(), move |js: String| -> String {
                 let out = (|| -> Result<Value, String> {
+                    if !can_eval {
+                        return Err(no_eval.into());
+                    }
                     let b = browser::require()?;
                     let t = tab
                         .as_deref()
@@ -1191,6 +1480,47 @@ fn run_blocking(
                     Err(e) => json!({ "error": e }).to_string(),
                 }
             })
+            .map_err(js_err)?,
+        )
+        .map_err(js_err)?;
+
+        let (h, d) = (handle.clone(), domains.clone());
+        g.set(
+            "__host_eval_at",
+            Function::new(
+                ctx.clone(),
+                move |target: String, js: String, keep: bool| -> String {
+                    let out = (|| -> Result<Value, String> {
+                        if !can_eval {
+                            return Err(no_eval.into());
+                        }
+                        domain_allowed(&d, &target)?;
+                        let b = browser::require()?;
+                        h.block_on(async {
+                            let existing = b.tab_for_origin(&target).map(|t| t.id);
+                            let opened = existing.is_none();
+                            let id = match existing {
+                                Some(id) => id,
+                                None => {
+                                    let id = b.open_tab(&target).await?;
+                                    super::page::wait_loaded(&b, &id, Duration::from_secs(20))
+                                        .await;
+                                    id
+                                }
+                            };
+                            let value = b.eval(&id, &js, Duration::from_secs(60)).await;
+                            if opened && !keep {
+                                let _ = b.close_tab(&id).await;
+                            }
+                            value
+                        })
+                    })();
+                    match out {
+                        Ok(v) => json!({ "value": v }).to_string(),
+                        Err(e) => json!({ "error": e }).to_string(),
+                    }
+                },
+            )
             .map_err(js_err)?,
         )
         .map_err(js_err)?;
@@ -1249,11 +1579,304 @@ fn run_blocking(
 mod tests {
     use super::*;
 
+    fn sniff(tab: &str, id: &str, url: &str, mime: &str, rtype: &str) {
+        let p = json!({
+            "requestId": id,
+            "type": rtype,
+            "response": { "url": url, "mimeType": mime, "status": 200, "headers": {} },
+        });
+        sniffer::on_response("s-count", tab, ("https://page.test/", "Page"), &p);
+    }
+
+    fn sources(tree: &Node) -> Vec<&Source> {
+        tree.children
+            .iter()
+            .filter_map(|n| n.source.as_ref())
+            .collect()
+    }
+
+    #[test]
+    fn a_page_with_one_video_lists_one_item() {
+        sniff(
+            "t-one",
+            "1",
+            "https://video.gumlet.test/a/main.m3u8",
+            "application/vnd.apple.mpegurl",
+            "XHR",
+        );
+        let tree = generic_tree("https://page.test/", Some("t-one"), "Page", Vec::new());
+        let got = sources(&tree);
+        assert_eq!(got.len(), 1);
+        assert_eq!(got[0].format, "hls");
+    }
+
+    #[test]
+    fn separate_streamed_tracks_become_one_item_with_both() {
+        sniff(
+            "t-two",
+            "1",
+            "https://cdn.test/v/track.mp4",
+            "video/mp4",
+            "XHR",
+        );
+        sniff(
+            "t-two",
+            "2",
+            "https://cdn.test/a/track.m4a",
+            "audio/mp4",
+            "Fetch",
+        );
+        let tree = generic_tree("https://page.test/", Some("t-two"), "Page", Vec::new());
+        let got = sources(&tree);
+        assert_eq!(got.len(), 1);
+        assert_eq!(got[0].url.as_deref(), Some("https://cdn.test/v/track.mp4"));
+        assert_eq!(
+            got[0].audio.as_deref(),
+            Some("https://cdn.test/a/track.m4a")
+        );
+    }
+
+    #[test]
+    fn a_separate_audio_player_is_not_joined_to_the_video() {
+        sniff(
+            "t-player",
+            "1",
+            "https://cdn.test/talk.mp4",
+            "video/mp4",
+            "Media",
+        );
+        sniff(
+            "t-player",
+            "2",
+            "https://cdn.test/podcast.mp3",
+            "audio/mpeg",
+            "Media",
+        );
+        let tree = generic_tree("https://page.test/", Some("t-player"), "Page", Vec::new());
+        let got = sources(&tree);
+        assert_eq!(got.len(), 2);
+        assert!(got.iter().all(|s| s.audio.is_none()));
+    }
+
+    #[test]
+    fn a_page_without_whole_media_keeps_the_ytdlp_item() {
+        let tree = generic_tree("https://page.test/", Some("t-none"), "Page", Vec::new());
+        assert_eq!(sources(&tree)[0].format, "ytdlp");
+        sniff(
+            "t-yt",
+            "1",
+            "https://r1.googlevideo.com/videoplayback?itag=1",
+            "video/mp4",
+            "XHR",
+        );
+        sniff(
+            "t-yt",
+            "2",
+            "https://r1.googlevideo.com/videoplayback?itag=2",
+            "audio/mp4",
+            "XHR",
+        );
+        let tree = generic_tree("https://page.test/", Some("t-yt"), "Page", Vec::new());
+        assert_eq!(sources(&tree)[0].format, "ytdlp");
+    }
+
     fn file(url: &str, title: &str) -> PageFile {
         PageFile {
             url: url.into(),
             title: title.into(),
         }
+    }
+
+    fn s(items: &[&str]) -> Vec<String> {
+        items.iter().map(|x| x.to_string()).collect()
+    }
+
+    fn manifest(id: &str, domains: &[&str], matches: &[&str]) -> Manifest {
+        serde_json::from_value(
+            json!({ "id": id, "name": id, "domains": domains, "match": matches }),
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn single_star_stays_inside_one_path_segment() {
+        let m = s(&["https://example.com/watch/*"]);
+        let d = s(&["example.com"]);
+        assert!(match_strength(&m, &d, "https://example.com/watch/1").is_some());
+        assert!(match_strength(&m, &d, "https://example.com/watch/1/extra").is_none());
+    }
+
+    #[test]
+    fn double_star_crosses_path_segments() {
+        let m = s(&["https://example.com/course/**"]);
+        let d = s(&["example.com"]);
+        assert!(match_strength(&m, &d, "https://example.com/course/a/b/c").is_some());
+        assert!(match_strength(&m, &d, "https://example.com/other/a").is_none());
+    }
+
+    #[test]
+    fn query_and_fragment_are_ignored_by_glob_patterns() {
+        let m = s(&["https://example.com/watch/*"]);
+        let d = s(&["example.com"]);
+        assert!(match_strength(&m, &d, "https://example.com/watch/1?t=2#x").is_some());
+    }
+
+    #[test]
+    fn host_wildcard_cannot_be_tricked_by_a_foreign_host() {
+        let m = s(&["https://*.udemy.com/course/**"]);
+        let d = s(&["udemy.com"]);
+        assert!(match_strength(&m, &d, "https://www.udemy.com/course/a/learn/lecture/1").is_some());
+        for bad in [
+            "https://evil.test/.udemy.com/course/a",
+            "https://evil.test?.udemy.com/course/a",
+            "https://evil.test#.udemy.com/course/a",
+            "https://udemy.com.evil.test/course/a",
+        ] {
+            assert!(match_strength(&m, &d, bad).is_none(), "{bad}");
+        }
+    }
+
+    #[test]
+    fn regex_pattern_cannot_claim_a_host_outside_its_domains() {
+        let m = s(&["^https://.*"]);
+        assert!(match_strength(&m, &s(&["example.com"]), "https://evil.test/x").is_none());
+        assert!(match_strength(&m, &s(&["example.com"]), "https://a.example.com/x").is_some());
+    }
+
+    #[test]
+    fn every_real_connector_still_matches_its_deep_links() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../connectors");
+        if !root.is_dir() {
+            return;
+        }
+        let cases = [
+            (
+                "udemy",
+                "https://www.udemy.com/course/rust/learn/lecture/123#overview",
+            ),
+            ("udemy", "https://acme.udemy.com/course/rust/"),
+            ("courseflix", "https://courseflix.net/course/rust/lesson/3"),
+            ("bunkr", "https://bunkr.si/a/abcd"),
+            ("branas", "https://app.branas.io/users/1/products/2/modules"),
+            (
+                "entregadigital",
+                "https://x.entregadigital.app.br/produtos/1/aula/2",
+            ),
+            (
+                "fisicacomrenatobrito",
+                "https://app.fisicacomrenatobrito.com.br/perfil/aulas",
+            ),
+            (
+                "tle-eliminators",
+                "https://dashboard.tle-eliminators.com/course/x",
+            ),
+            (
+                "hotmart",
+                "https://escola.club.hotmart.com/lesson/abc/aula-1",
+            ),
+            (
+                "hotmart",
+                "https://hotmart.com/pt-br/club/escola/products/123/content/abc",
+            ),
+            ("hotmart", "https://consumer.hotmart.com/"),
+        ];
+        for (id, url) in cases {
+            let text = std::fs::read_to_string(root.join(id).join("manifest.json")).unwrap();
+            let m: Manifest = serde_json::from_str(&text).unwrap();
+            validate_manifest(&m).unwrap_or_else(|e| panic!("{id}: {e}"));
+            assert!(
+                match_strength(&m.matches, &m.domains, url).is_some(),
+                "{id} no longer matches {url}"
+            );
+        }
+    }
+
+    #[test]
+    fn pick_prefers_dev_then_the_more_specific_pattern_then_the_id() {
+        let c = |dev, n, id: &str| (dev, n, id.to_string(), id.to_string());
+        assert_eq!(
+            pick_best(vec![c(false, 50, "a"), c(true, 1, "z")]).as_deref(),
+            Some("z")
+        );
+        assert_eq!(
+            pick_best(vec![c(false, 10, "a"), c(false, 20, "z")]).as_deref(),
+            Some("z")
+        );
+        assert_eq!(
+            pick_best(vec![c(false, 10, "b"), c(false, 10, "a")]).as_deref(),
+            Some("a")
+        );
+        assert_eq!(
+            pick_best(vec![c(false, 10, "a"), c(false, 10, "b")]).as_deref(),
+            Some("a")
+        );
+    }
+
+    #[test]
+    fn min_omniget_refuses_only_older_apps() {
+        assert!(check_min_omniget("1.2.0", Some("1.1.9")).is_err());
+        assert!(check_min_omniget("1.2.0", Some("1.2.0")).is_ok());
+        assert!(check_min_omniget("1.2", Some("1.10.0")).is_ok());
+        assert!(check_min_omniget("", Some("0.1.0")).is_ok());
+        assert!(check_min_omniget("9.9.9", None).is_ok());
+        assert!(check_min_omniget("soon", Some("1.0.0")).is_err());
+    }
+
+    #[test]
+    fn version_comparison_is_numeric() {
+        assert!(is_newer("0.10.0", "0.9.0"));
+        assert!(!is_newer("0.9.0", "0.10.0"));
+        assert!(!is_newer("1.0.0", "1.0.0"));
+    }
+
+    #[test]
+    fn ids_that_could_leave_the_connectors_folder_are_refused() {
+        for bad in [
+            "", ".", "..", "../x", "a/b", "a\\b", "a..b", ".hidden", "x.", "CON", "con", "A", "a b",
+        ] {
+            assert!(validate_id(bad).is_err(), "{bad}");
+        }
+        for good in ["udemy", "tle-eliminators", "a.b_c-1", "7"] {
+            assert!(validate_id(good).is_ok(), "{good}");
+        }
+    }
+
+    #[test]
+    fn remove_refuses_a_traversal_id() {
+        assert!(remove("../..").is_err());
+        assert!(remove(".").is_err());
+    }
+
+    #[test]
+    fn opted_out_domains_and_patterns_are_refused_with_the_existing_message() {
+        let msg = crate::core::platform_optout::OPTED_OUT_ERROR;
+        let by_domain = manifest("k", &["kiwify.com.br"], &["https://kiwify.com.br/*"]);
+        assert_eq!(validate_manifest(&by_domain).unwrap_err(), msg);
+        let sub = manifest("k", &["*.kiwify.com"], &["https://a.kiwify.com/*"]);
+        assert_eq!(validate_manifest(&sub).unwrap_err(), msg);
+        let by_pattern = manifest("k", &["example.com"], &["^https://pay\\.kiwify\\.app/.*"]);
+        assert_eq!(validate_manifest(&by_pattern).unwrap_err(), msg);
+    }
+
+    #[test]
+    fn login_url_must_be_https_on_a_declared_domain() {
+        let mut m = manifest("a", &["example.com"], &["https://example.com/*"]);
+        m.login = Some(json!({ "url": "https://evil.test/login" }));
+        assert!(validate_manifest(&m).is_err());
+        m.login = Some(json!({ "url": "http://example.com/login" }));
+        assert!(validate_manifest(&m).is_err());
+        m.login = Some(json!({ "url": "https://app.example.com/login" }));
+        assert!(validate_manifest(&m).is_ok());
+    }
+
+    #[test]
+    fn unknown_permissions_and_escaping_entries_are_refused() {
+        let mut m = manifest("a", &["example.com"], &["https://example.com/*"]);
+        m.permissions = vec!["filesystem".into()];
+        assert!(validate_manifest(&m).is_err());
+        m.permissions = vec![PERMISSION_COOKIES.into()];
+        m.entry = "../x.js".into();
+        assert!(validate_manifest(&m).is_err());
     }
 
     #[test]

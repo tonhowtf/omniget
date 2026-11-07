@@ -25,7 +25,7 @@ fn templates_path() -> PathBuf {
 }
 
 fn load() -> YtTemplateStore {
-    crate::core::state_file::load_or_quarantine(&templates_path(), "templates do yt-dlp")
+    crate::core::state_file::load_or_quarantine(&templates_path(), "yt-dlp templates")
         .unwrap_or_default()
 }
 

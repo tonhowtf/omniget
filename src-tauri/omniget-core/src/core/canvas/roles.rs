@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
 
+use super::chat::now;
 use super::model::{is_safe_id, AgentKind};
 use super::store::CanvasStore;
 
@@ -283,10 +284,6 @@ pub fn builtins() -> Vec<Role> {
             updated_at: now.clone(),
         })
         .collect()
-}
-
-fn now() -> String {
-    chrono::Utc::now().to_rfc3339()
 }
 
 pub fn library_dir(store: &CanvasStore) -> PathBuf {
@@ -774,10 +771,6 @@ pub fn import_discovered(
     Ok(out)
 }
 
-pub fn canvas_skill_snippet() -> String {
-    super::adapters::agents_md_snippet()
-}
-
 pub fn instructions(role: &Role, project: Option<&str>, redirect: bool) -> String {
     let mut s = String::new();
     s.push_str(&format!(
@@ -803,7 +796,7 @@ The actual project you should be working on is located at:\n",
         s.push_str("</working_directory>\n");
     }
     s.push_str("<omniget_canvas>\n");
-    s.push_str(&canvas_skill_snippet());
+    s.push_str(&super::adapters::agents_md_snippet());
     s.push_str("\n</omniget_canvas>\n");
     s
 }

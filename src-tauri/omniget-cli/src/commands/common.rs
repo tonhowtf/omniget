@@ -165,5 +165,7 @@ pub fn download_options(
         torrent_files: None,
         torrent_auto_trackers: true,
         torrent_upnp: false,
+        torrent_stop_seeding: false,
+        playlist_number_files: false,
     }
 }

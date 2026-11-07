@@ -84,26 +84,6 @@ pub fn runner_of(
     Ok((t, r))
 }
 
-pub fn available_tools() -> Vec<Value> {
-    targets::all_targets()
-        .iter()
-        .filter_map(|t| {
-            let r = t.runner.as_ref()?;
-            let bin = proc::which(&r.cmd);
-            Some(serde_json::json!({
-                "id": t.id,
-                "name": t.name,
-                "cmd": r.cmd,
-                "installed": bin.is_some(),
-                "path": bin.map(|p| p.to_string_lossy().to_string()),
-                "system_prompt_flag": r.system_prompt_flag,
-                "model_flag": r.model_flag,
-                "permission_flags": r.permission_flags,
-            }))
-        })
-        .collect()
-}
-
 pub fn prompt_with_role(system: Option<&str>, prompt: &str) -> String {
     match system.map(str::trim).filter(|s| !s.is_empty()) {
         Some(s) => format!(

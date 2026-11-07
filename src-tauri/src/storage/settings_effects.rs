@@ -21,8 +21,6 @@ pub enum EffectId {
     AppAutostart,
     #[serde(rename = "integrations.rpc")]
     IntegrationsRpc,
-    #[serde(rename = "llm.pruning")]
-    LlmPruning,
     #[serde(rename = "llm.watchdog")]
     LlmWatchdog,
     #[serde(rename = "llm.jobs")]
@@ -32,14 +30,13 @@ pub enum EffectId {
 }
 
 impl EffectId {
-    pub const ALL: [EffectId; 10] = [
+    pub const ALL: [EffectId; 9] = [
         Self::NetworkProxy,
         Self::DownloadsSegments,
         Self::DownloadsQueue,
         Self::ShortcutsRegistration,
         Self::AppAutostart,
         Self::IntegrationsRpc,
-        Self::LlmPruning,
         Self::LlmWatchdog,
         Self::LlmJobs,
         Self::BridgeLifecycle,
@@ -53,7 +50,6 @@ impl EffectId {
             Self::ShortcutsRegistration => "shortcuts.registration",
             Self::AppAutostart => "app.autostart",
             Self::IntegrationsRpc => "integrations.rpc",
-            Self::LlmPruning => "llm.pruning",
             Self::LlmWatchdog => "llm.watchdog",
             Self::LlmJobs => "llm.jobs",
             Self::BridgeLifecycle => "bridge.lifecycle",
@@ -82,11 +78,6 @@ impl EffectId {
             ],
             Self::AppAutostart => &["start_with_system", "run_in_background"],
             Self::IntegrationsRpc => &["rpc"],
-            Self::LlmPruning => &[
-                "llm.prune_enabled",
-                "llm.prune_judge",
-                "llm.prune_min_tokens",
-            ],
             Self::LlmWatchdog => &[
                 "llm.turn_idle_timeout_s",
                 "llm.turn_tool_idle_timeout_s",
@@ -501,10 +492,6 @@ impl EffectApplier for DesktopApplier {
                     next,
                     prev_app_id,
                 ));
-                ApplyOutcome::Applied
-            }
-            EffectId::LlmPruning => {
-                crate::commands::llm::prune::install_with(&self.app, &s.llm);
                 ApplyOutcome::Applied
             }
             EffectId::LlmWatchdog => {

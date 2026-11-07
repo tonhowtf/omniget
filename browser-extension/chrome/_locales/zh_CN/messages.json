@@ -292,5 +292,14 @@
   },
   "context_menu_download_selection": {
     "message": "用 OmniGet 下载所选文字中的链接"
+  },
+  "popup_bridge_refused": {
+    "message": "OmniGet 拒绝了请求。请在 OmniGet 中检查扩展设置。"
+  },
+  "popup_link_handler_failed": {
+    "message": "浏览器无法打开 OmniGet 链接。请启动 OmniGet 后重试。"
+  },
+  "popup_sent_via_link": {
+    "message": "已通过链接发送。如果没有打开，请启动 OmniGet 后重试。"
   }
 }

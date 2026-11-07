@@ -5,15 +5,12 @@ pub mod db;
 pub mod external_config;
 pub mod external_files;
 pub mod groups;
-pub mod learning;
 pub mod media_provider;
 pub(crate) mod media_retrieval;
 pub mod media_tools;
 pub mod memory;
 pub mod missions;
-pub mod packs;
 pub mod projection;
-pub mod reading;
 pub mod runs;
 pub mod tools;
 pub mod web;
@@ -43,11 +40,5 @@ impl crate::core::llm::coordinator::TurnAugment for NoAugment {
 }
 
 pub fn augments() -> Vec<std::sync::Arc<dyn crate::core::llm::coordinator::TurnAugment>> {
-    vec![
-        bots::augment(),
-        groups::augment(),
-        memory::augment(),
-        reading::augment(),
-        learning::augment(),
-    ]
+    vec![bots::augment(), groups::augment(), memory::augment()]
 }

@@ -17,7 +17,7 @@ use serde_json::{json, Value};
 
 use super::apps::App;
 use super::elevate::ElevatedOp;
-use super::plan::{self, Op, Outcome, PlanItem, Source};
+use super::plan::{self, Op, Outcome, PlanItem};
 use super::receipt::Undo;
 use super::store::Ctx;
 use super::Risk;
@@ -216,6 +216,11 @@ pub fn find_program(name: &str) -> Option<PathBuf> {
         .map(|p| std::env::split_paths(&p).collect())
         .unwrap_or_default();
     dirs.extend(SYSTEM_DIRS.iter().map(PathBuf::from));
+    if cfg!(windows) {
+        if let Some(local) = std::env::var_os("LOCALAPPDATA") {
+            dirs.push(PathBuf::from(local).join("Microsoft").join("WindowsApps"));
+        }
+    }
     let exts: &[&str] = if cfg!(windows) {
         &["exe", "cmd", "bat"]
     } else {
@@ -228,12 +233,17 @@ pub fn find_program(name: &str) -> Option<PathBuf> {
             } else {
                 d.join(format!("{name}.{e}"))
             };
-            if p.is_file() {
+            if is_program_file(&p) {
                 return Some(p);
             }
         }
     }
     None
+}
+
+// WHY: winget.exe is an App Execution Alias on Windows; following that reparse point fails, so is_file can say no.
+pub fn is_program_file(p: &Path) -> bool {
+    p.is_file() || (cfg!(windows) && std::fs::symlink_metadata(p).is_ok_and(|m| !m.is_dir()))
 }
 
 pub struct Ran {
@@ -258,9 +268,24 @@ pub fn query_env(program: &str, args: &[&str], env: &[(&str, &str)]) -> Result<R
     let o = cmd.output().map_err(|e| format!("{program}: {e}"))?;
     Ok(Ran {
         code: o.status.code(),
-        stdout: String::from_utf8_lossy(&o.stdout).into_owned(),
-        stderr: String::from_utf8_lossy(&o.stderr).into_owned(),
+        stdout: decode_output(&o.stdout),
+        stderr: decode_output(&o.stderr),
     })
+}
+
+pub fn decode_output(bytes: &[u8]) -> String {
+    let body = bytes.strip_prefix(&[0xFF, 0xFE]);
+    let nuls = bytes.iter().skip(1).step_by(2).filter(|b| **b == 0).count();
+    let looks_utf16 = bytes.len() >= 4 && nuls * 2 > bytes.len() / 2;
+    if body.is_none() && !looks_utf16 {
+        return String::from_utf8_lossy(bytes).into_owned();
+    }
+    let units: Vec<u16> = body
+        .unwrap_or(bytes)
+        .chunks_exact(2)
+        .map(|c| u16::from_le_bytes([c[0], c[1]]))
+        .collect();
+    String::from_utf16_lossy(&units)
 }
 
 pub fn tail(text: &str, lines: usize) -> String {
@@ -448,15 +473,6 @@ fn preview_names(names: &[String]) -> String {
     s
 }
 
-fn source_of(a: &Value) -> Source {
-    match a.get("_source").and_then(Value::as_str) {
-        Some("ui") => Source::Ui,
-        Some("external") => Source::External,
-        Some("cli") => Source::Cli,
-        _ => Source::Agent,
-    }
-}
-
 pub fn all_updates() -> (Vec<Update>, Vec<String>, Vec<Value>) {
     let mut updates = Vec::new();
     let mut managers = Vec::new();
@@ -466,6 +482,9 @@ pub fn all_updates() -> (Vec<Update>, Vec<String>, Vec<Value>) {
         return (updates, managers, errors);
     }
     let found = available();
+    if found.is_empty() {
+        errors.push(json!({ "manager": "*", "error": "washmybelly.reason.no_package_manager" }));
+    }
     let total = found.len() as u64;
     for (i, b) in found.iter().enumerate() {
         super::progress("updates_list", "scan", i as u64, total, b.id());
@@ -480,7 +499,7 @@ pub fn all_updates() -> (Vec<Update>, Vec<String>, Vec<Value>) {
 }
 
 pub async fn tool_updates(a: Value) -> Result<Value, String> {
-    let source = source_of(&a);
+    let source = super::plan::source_of(&a);
     super::tools::blocking(move || {
         let (updates, managers, errors) = all_updates();
         let items = update_items(&updates);
@@ -494,8 +513,6 @@ pub async fn tool_updates(a: Value) -> Result<Value, String> {
     })
     .await
 }
-
-pub const ACTIONS: &[&str] = &["upgrade"];
 
 fn scope_arg(args: &Value) -> Option<&str> {
     args.get("scope").and_then(Value::as_str)
@@ -574,39 +591,6 @@ pub fn plan_undo(_ctx: &Ctx, action: &str, _args: &Value) -> Result<String, Stri
     ))
 }
 
-pub async fn ui_action(action: &str, a: Value) -> Result<Value, String> {
-    let action = action.to_string();
-    super::tools::blocking(move || match action.as_str() {
-        "managers" => {
-            Ok(json!({ "managers": available().iter().map(|b| b.id()).collect::<Vec<_>>() }))
-        }
-        "remove_preview" => {
-            let manager = a
-                .get("manager")
-                .and_then(Value::as_str)
-                .unwrap_or("")
-                .to_string();
-            let names = names_arg(&a);
-            validate(&manager, &names, LINUX_MANAGERS)?;
-            let b = backend(&manager).ok_or("unknown manager")?;
-            Ok(json!(b.remove_preview(&names)?))
-        }
-        "orphans" => {
-            let only = a.get("manager").and_then(Value::as_str).map(String::from);
-            let mut out = Vec::new();
-            for b in available() {
-                if only.as_deref().is_some_and(|m| m != b.id()) {
-                    continue;
-                }
-                out.extend(b.orphans().unwrap_or_default());
-            }
-            Ok(json!({ "orphans": out }))
-        }
-        other => Err(format!("packages: unknown screen action {other}")),
-    })
-    .await
-}
-
 pub fn package_app(
     manager: &str,
     name: &str,
@@ -627,5 +611,25 @@ pub fn package_app(
         needs_admin: manager != "flatpak",
         extra: json!({ "summary": summary }),
         ..Default::default()
+    }
+}
+
+#[cfg(test)]
+mod output_tests {
+    use super::decode_output;
+
+    #[test]
+    fn utf16_output_is_decoded_instead_of_turning_into_nuls() {
+        let text = "Name  Id\r\n";
+        let mut bytes = vec![0xFF, 0xFE];
+        bytes.extend(text.encode_utf16().flat_map(u16::to_le_bytes));
+        assert_eq!(decode_output(&bytes), text);
+        let bare: Vec<u8> = text.encode_utf16().flat_map(u16::to_le_bytes).collect();
+        assert_eq!(decode_output(&bare), text);
+    }
+
+    #[test]
+    fn utf8_output_stays_as_it_is() {
+        assert_eq!(decode_output("Versão…".as_bytes()), "Versão…");
     }
 }

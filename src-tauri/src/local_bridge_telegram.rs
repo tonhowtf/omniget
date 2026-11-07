@@ -5,7 +5,7 @@ use axum::routing::post;
 use axum::{Json, Router};
 use serde_json::{json, Value};
 
-use crate::local_bridge_llm::check_bearer;
+use crate::local_bridge_auth::check_bearer;
 use omniget_core::core::telegram::{commands, net};
 
 const ALLOWED: &[&str] = &[

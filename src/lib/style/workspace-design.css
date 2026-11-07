@@ -1,204 +1,168 @@
 [data-ds-preset="amber-minimal"][data-ds-mode="light"] {
-  --ds-art-surface: #ffffff;
   --ds-background: #ffffff;
   --ds-foreground: #262626;
   --ds-card: #ffffff;
   --ds-popover: #ffffff;
   --ds-primary: #f59e0b;
-  --ds-secondary: #f3f4f6;
   --ds-muted: #f9fafb;
   --ds-muted-foreground: #6b7280;
   --ds-accent: #fffbeb;
   --ds-accent-foreground: #92400e;
   --ds-border: #e5e7eb;
-  --ds-ring: #f59e0b;
   --ds-primary-foreground: #000000;
   --ds-surface-accent: var(--ds-accent-foreground);
 }
 [data-ds-preset="amber-minimal"][data-ds-mode="dark"] {
-  --ds-art-surface: #ffffff;
   --ds-background: #171717;
   --ds-foreground: #e5e5e5;
   --ds-card: #262626;
   --ds-popover: #262626;
   --ds-primary: #f59e0b;
-  --ds-secondary: #262626;
   --ds-muted: #1f1f1f;
   --ds-muted-foreground: #a3a3a3;
   --ds-accent: #92400e;
   --ds-accent-foreground: #fde68a;
   --ds-border: #404040;
-  --ds-ring: #f59e0b;
   --ds-primary-foreground: #000000;
   --ds-surface-accent: var(--ds-accent-foreground);
 }
 [data-ds-preset="orange-soft"][data-ds-mode="light"] {
-  --ds-art-surface: #ffffff;
   --ds-background: #ffffff;
   --ds-foreground: #111827;
   --ds-card: #ffffff;
   --ds-popover: #ffffff;
   --ds-primary: #bd4500;
-  --ds-secondary: #527575;
   --ds-muted: #f3f4f6;
   --ds-muted-foreground: #111827;
   --ds-accent: #eeeeee;
   --ds-accent-foreground: #111827;
   --ds-border: #e5e7eb;
-  --ds-ring: #bd4500;
   --ds-primary-foreground: #ffffff;
   --ds-surface-accent: var(--ds-accent-foreground);
 }
 [data-ds-preset="orange-soft"][data-ds-mode="dark"] {
-  --ds-art-surface: #ffffff;
   --ds-background: #121113;
   --ds-foreground: #c1c1c1;
   --ds-card: #121212;
   --ds-popover: #121113;
   --ds-primary: #e78a53;
-  --ds-secondary: #5f8787;
   --ds-muted: #222222;
   --ds-muted-foreground: #c1c1c1;
   --ds-accent: #333333;
   --ds-accent-foreground: #c1c1c1;
   --ds-border: #222222;
-  --ds-ring: #e78a53;
   --ds-primary-foreground: #000000;
   --ds-surface-accent: var(--ds-accent-foreground);
 }
 [data-ds-preset="claude-amber"][data-ds-mode="light"] {
-  --ds-art-surface: #faf9f5;
   --ds-background: #faf9f5;
   --ds-foreground: #3d3929;
   --ds-card: #f5f4ef;
   --ds-popover: #ffffff;
   --ds-primary: #c96442;
-  --ds-secondary: #e9e6dc;
   --ds-muted: #ede9de;
   --ds-muted-foreground: #3d3929;
   --ds-accent: #e9e6dc;
   --ds-accent-foreground: #28261b;
   --ds-border: #dad9d4;
-  --ds-ring: #c96442;
   --ds-primary-foreground: #000000;
   --ds-surface-accent: var(--ds-accent-foreground);
 }
 [data-ds-preset="claude-amber"][data-ds-mode="dark"] {
-  --ds-art-surface: #faf9f5;
   --ds-background: #262624;
   --ds-foreground: #f1f1ef;
   --ds-card: #2c2c2b;
   --ds-popover: #30302e;
   --ds-primary: #d97757;
-  --ds-secondary: #faf9f5;
   --ds-muted: #1b1b19;
   --ds-muted-foreground: #b7b5a9;
   --ds-accent: #1a1915;
   --ds-accent-foreground: #f5f4ee;
   --ds-border: #3e3e38;
-  --ds-ring: #d97757;
   --ds-primary-foreground: #000000;
   --ds-surface-accent: var(--ds-accent-foreground);
 }
 [data-ds-preset="amber-hearth"][data-ds-mode="light"] {
-  --ds-art-surface: #ffffff;
   --ds-background: #ffffff;
   --ds-foreground: #111827;
   --ds-card: #ffffff;
   --ds-popover: #ffffff;
   --ds-primary: #d87943;
-  --ds-secondary: #527575;
   --ds-muted: #f3f4f6;
   --ds-muted-foreground: #111827;
   --ds-accent: #eeeeee;
   --ds-accent-foreground: #111827;
   --ds-border: #e5e7eb;
-  --ds-ring: #d87943;
   --ds-primary-foreground: #000000;
   --ds-surface-accent: var(--ds-accent-foreground);
 }
 [data-ds-preset="amber-hearth"][data-ds-mode="dark"] {
-  --ds-art-surface: #ffffff;
   --ds-background: #121113;
   --ds-foreground: #c1c1c1;
   --ds-card: #121212;
   --ds-popover: #121113;
   --ds-primary: #e78a53;
-  --ds-secondary: #5f8787;
   --ds-muted: #222222;
   --ds-muted-foreground: #c1c1c1;
   --ds-accent: #333333;
   --ds-accent-foreground: #c1c1c1;
   --ds-border: #222222;
-  --ds-ring: #e78a53;
   --ds-primary-foreground: #000000;
   --ds-surface-accent: var(--ds-accent-foreground);
 }
 [data-ds-preset="amber-slate"][data-ds-mode="light"] {
-  --ds-art-surface: #e8ebed;
   --ds-background: #e8ebed;
   --ds-foreground: #333333;
   --ds-card: #ffffff;
   --ds-popover: #ffffff;
   --ds-primary: #df6035;
-  --ds-secondary: #2f4b79;
   --ds-muted: #f9fafb;
   --ds-muted-foreground: #333333;
   --ds-accent: #d6e4f0;
   --ds-accent-foreground: #1e3a8a;
   --ds-border: #cccccc;
-  --ds-ring: #e05d38;
   --ds-primary-foreground: #000000;
   --ds-surface-accent: var(--ds-accent-foreground);
 }
 [data-ds-preset="amber-slate"][data-ds-mode="dark"] {
-  --ds-art-surface: #e8ebed;
   --ds-background: #1a1a1a;
   --ds-foreground: #e5e5e5;
   --ds-card: #202020;
   --ds-popover: #202020;
   --ds-primary: #df6035;
-  --ds-secondary: #284167;
   --ds-muted: #2a2a2a;
   --ds-muted-foreground: #e5e5e5;
   --ds-accent: #2a3656;
   --ds-accent-foreground: #bfdbfe;
   --ds-border: #353535;
-  --ds-ring: #e05d38;
   --ds-primary-foreground: #000000;
   --ds-surface-accent: var(--ds-accent-foreground);
 }
 [data-ds-preset="orange-vivid"][data-ds-mode="light"] {
-  --ds-art-surface: #e8ebed;
   --ds-background: #e8ebed;
   --ds-foreground: #333333;
   --ds-card: #ffffff;
   --ds-popover: #ffffff;
   --ds-primary: #e37e31;
-  --ds-secondary: #4176fb;
   --ds-muted: #f9fafb;
   --ds-muted-foreground: #333333;
   --ds-accent: #4176fb;
   --ds-accent-foreground: var(--ds-primary-foreground);
   --ds-border: #cccccc;
-  --ds-ring: #dc5029;
   --ds-primary-foreground: #000000;
   --ds-surface-accent: var(--ds-foreground);
 }
 [data-ds-preset="orange-vivid"][data-ds-mode="dark"] {
-  --ds-art-surface: #e8ebed;
   --ds-background: #1a1a1a;
   --ds-foreground: #e5e5e5;
   --ds-card: #202020;
   --ds-popover: #202020;
   --ds-primary: #df6035;
-  --ds-secondary: #284167;
   --ds-muted: #2a2a2a;
   --ds-muted-foreground: #e5e5e5;
   --ds-accent: #2a3656;
   --ds-accent-foreground: #bfdbfe;
   --ds-border: #353535;
-  --ds-ring: #e05d38;
   --ds-primary-foreground: #000000;
   --ds-surface-accent: var(--ds-accent-foreground);
 }
@@ -220,11 +184,7 @@ html.ds-scope, main.ds-scope, .ds-scope {
 .ds-scope :is(button, a, input, textarea, select):focus-visible { outline: 2px solid var(--ds-surface-accent); outline-offset: 3px; }
 .ds-scope :is(.button, .input) { min-height: 36px; }
 .ds-scope .page { padding: clamp(16px, 2vw, 32px); }
-.ds-scope .page-head { gap: var(--space-4); flex-wrap: wrap; }
-.ds-scope .page-lede { max-width: 76ch; }
 .ds-scope .surface-card { padding: var(--space-4); }
-.ds-scope .conv-head { flex-wrap: wrap; }
-.ds-scope .conv-actions { flex-wrap: wrap; }
 .ds-scope .message { max-width: 80ch; }
 .ds-scope .section-title { line-height: 1.4; }
 @media (prefers-reduced-motion: no-preference) {
@@ -242,11 +202,6 @@ html[data-reduce-motion="true"].ds-scope :is(button, a):is(:hover, :focus-visibl
   border-color: transparent;
 }
 .ds-scope .button.primary:hover:not(:disabled) { filter: brightness(0.96); }
-
-.ds-scope .llm-tabs .llm-tab[aria-current="page"] {
-  background: var(--ds-accent);
-  color: var(--ds-accent-foreground);
-}
 
 .ds-scope a.mcp-link,
 .ds-scope a.link,
@@ -274,6 +229,5 @@ html.ds-scope :is(.mac-search-field, .mac-nav-item) { transition: opacity var(--
 html.ds-scope {
   --sidebar-bg: var(--ds-muted);
   --popup-bg: var(--ds-popover);
-  --material: var(--ds-muted);
   --material-thick: var(--ds-popover);
 }

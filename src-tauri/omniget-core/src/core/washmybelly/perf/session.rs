@@ -95,17 +95,6 @@ pub fn list(ctx: &Ctx) -> Vec<SessionSummary> {
     out.sort_by_key(|s| std::cmp::Reverse(s.started_ms));
     out
 }
-
-pub fn between(ctx: &Ctx, start_ms: u64, end_ms: u64) -> Vec<SessionSummary> {
-    list(ctx)
-        .into_iter()
-        .filter(|s| {
-            let end = s.ended_ms.unwrap_or(u64::MAX);
-            s.started_ms <= end_ms && end >= start_ms
-        })
-        .collect()
-}
-
 pub fn read_frames(dir: &Path) -> Vec<Frame> {
     std::fs::read_to_string(dir.join("frames.csv"))
         .map(|t| format::parse_frames_csv(&t))

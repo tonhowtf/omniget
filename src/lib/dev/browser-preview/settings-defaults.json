@@ -1,0 +1,192 @@
+{
+  "schema_version": 2,
+  "appearance": {
+    "theme": "system",
+    "language": "en",
+    "sidebar_collapsed": false,
+    "mode": "system",
+    "preset": "omniget-desktop",
+    "migration_version": 1
+  },
+  "download": {
+    "default_output_dir": "/tmp/omniget-settings-rebrand-fixture/downloads",
+    "saved_output_dirs": [],
+    "always_ask_path": false,
+    "video_quality": "720p",
+    "skip_existing": true,
+    "embed_metadata": true,
+    "embed_thumbnail": true,
+    "playlist_number_files": false,
+    "video_compatibility": "best",
+    "write_nfo_sidecar": false,
+    "clipboard_detection": false,
+    "auto_download_on_paste": false,
+    "filename_template": "%(title).200s [%(id)s].%(ext)s",
+    "organize_by_platform": false,
+    "download_subtitles": false,
+    "include_auto_subtitles": false,
+    "caption_locale": "en",
+    "keep_vtt": false,
+    "translate_metadata": false,
+    "youtube_sponsorblock": false,
+    "sponsorblock_mode": "remove",
+    "sponsorblock_categories": [
+      "sponsor",
+      "selfpromo",
+      "interaction"
+    ],
+    "split_by_chapters": false,
+    "live_from_start": false,
+    "speed_limit": "",
+    "hotkey_enabled": false,
+    "hotkey_binding": "CmdOrCtrl+Shift+D",
+    "clip_hotkey_enabled": false,
+    "clip_hotkey_binding": "CmdOrCtrl+Shift+B",
+    "music_hotkey_enabled": false,
+    "music_hotkey_binding": "CmdOrCtrl+Shift+M",
+    "music_audio_format": "m4a",
+    "copy_to_clipboard_on_hotkey": true,
+    "cookie_file": "",
+    "always_use_managed_cookies": true,
+    "bilibili_danmaku_enabled": false,
+    "bilibili_danmaku_format": "xml",
+    "bilibili_container": "mp4",
+    "bilibili_nfo_enabled": false,
+    "bilibili_cover_sidecar": false,
+    "bilibili_cover_format": "jpg",
+    "bilibili_naming_video": "{title}",
+    "bilibili_naming_multi_part": "{parent_title}/P{page} - {leaf_title}",
+    "bilibili_naming_bangumi": "{series_title}/Season {season_number}/{episode_number_pad2} - {episode_title}",
+    "bilibili_naming_cheese": "{series_title}/{section_title}/{episode_number_pad2} - {episode_title}",
+    "bilibili_naming_collection": "{collection_title}/{title}",
+    "bilibili_cdn_hosts": "",
+    "bilibili_cdn_prefer_alternatives": false,
+    "bilibili_preferred_qn": 200,
+    "bilibili_preferred_codec": 20,
+    "bilibili_preferred_audio_qn": 30300
+  },
+  "advanced": {
+    "max_concurrent_segments": 20,
+    "max_retries": 3,
+    "max_concurrent_downloads": 2,
+    "concurrent_fragments": 8,
+    "stagger_delay_ms": 150,
+    "torrent_listen_port": 6881,
+    "torrent_auto_trackers": true,
+    "torrent_upnp": true,
+    "torrent_stop_seeding": false,
+    "prevent_sleep": true,
+    "cookies_from_browser": "",
+    "twitter_manual_cookie": "",
+    "user_agent": "",
+    "insecure_tls": false
+  },
+  "telegram": {
+    "concurrent_downloads": 3,
+    "fix_file_extensions": true
+  },
+  "proxy": {
+    "enabled": false,
+    "proxy_type": "http",
+    "host": "",
+    "port": 8080,
+    "username": "",
+    "password": ""
+  },
+  "onboarding_completed": false,
+  "start_with_system": false,
+  "start_minimized": false,
+  "exit_on_close": false,
+  "portable_mode": false,
+  "legal_acknowledged": false,
+  "last_download_options": {
+    "mode": null,
+    "quality": null
+  },
+  "typography": {
+    "font_display": "Bricolage Grotesque Variable",
+    "font_body": "Inter",
+    "font_mono": "IBM Plex Mono",
+    "line_height_base": 1.55,
+    "spacing_scale": 1.0,
+    "preset_name": "omniget-default"
+  },
+  "rpc": {
+    "enabled": true,
+    "app_id": "1502867748353478656",
+    "large_image_key": "omniget_music"
+  },
+  "bridge": {
+    "enabled": true,
+    "port": 0,
+    "token": ""
+  },
+  "league": {
+    "enabled": true,
+    "auto_accept": false,
+    "auto_accept_delay": 0,
+    "notify_ready_check": true,
+    "auto_pick": false,
+    "auto_ban": false,
+    "auto_ban_delay": 0,
+    "auto_lock": false,
+    "auto_lock_at_timeout": false,
+    "auto_runes": false,
+    "auto_honor": false,
+    "auto_play_again": false,
+    "auto_requeue": false,
+    "auto_accept_swaps": false,
+    "auto_reconnect": false,
+    "auto_trade": "",
+    "auto_message": "",
+    "pick_champions": [],
+    "ban_champions": [],
+    "pick_random": false,
+    "skin_roulette": false,
+    "skin_roulette_include_base": false,
+    "ward_roulette": false,
+    "sgp_enabled": true,
+    "coach_style": "objective"
+  },
+  "music": {
+    "enabled": true
+  },
+  "accessibility": {
+    "reduce_motion": false,
+    "reduce_transparency": false
+  },
+  "omnidisc": {
+    "voice": {
+      "ptt_key": "",
+      "noise_suppression": true,
+      "input_device": null,
+      "output_device": null,
+      "vad_threshold_db": -45.0,
+      "ducking_percent": 0,
+      "relay_only": false
+    }
+  },
+  "world": {
+    "enabled": true,
+    "tier_override": null,
+    "backend_override": null,
+    "tier_measured": null,
+    "measured_median_ms": null,
+    "measured_app_version": null,
+    "thinking": false,
+    "think_interval_s": 120,
+    "room_server": "",
+    "city_server": ""
+  },
+  "llm": {
+    "turn_idle_timeout_s": 600,
+    "turn_tool_idle_timeout_s": 1800,
+    "turn_start_timeout_s": 90,
+    "job_default_deadline_min": 60,
+    "ask_timeout_chat_s": 1800,
+    "ask_timeout_job_s": null,
+    "approval_notify_delay_s": 5,
+    "jobs_max_parallel": 4,
+    "jobs_max_per_agent": null
+  }
+}

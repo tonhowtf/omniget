@@ -6,8 +6,6 @@ status = "deprecated"
 beta = true
 homepage = "https://roocodeinc.github.io/Roo-Code/"
 notes = "Shut down 2026-05-15 (last release v3.54.0, repo archived); the extension still runs with your own keys. The fork is Zoo Code. Formats are frozen, so support them for import and migration."
-reads_agents_dir = true
-reads_agents_md = "yes"
 
 [detect]
 binaries = ["roo"]

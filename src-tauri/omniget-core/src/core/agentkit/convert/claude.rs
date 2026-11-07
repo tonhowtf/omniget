@@ -2,9 +2,11 @@ use std::path::{Path, PathBuf};
 
 use serde_json::{json, Map, Value};
 
+use super::hook_common::apply_rewrites;
+use super::hook_common::missing;
 use super::{
-    format_for_path, kind_path, place_support, rewrite_command, ConvertCtx, Converter, Dedupe,
-    PatchOp, PlannedFile, SupportPlan,
+    format_for_path, kind_path, place_support, ConvertCtx, Converter, Dedupe, PatchOp, PlannedFile,
+    SupportPlan,
 };
 use crate::core::agentkit::edit::{keys, DocFormat, Seg};
 use crate::core::agentkit::model::*;
@@ -30,17 +32,6 @@ impl<'a> ClaudeConverter<'a> {
     pub fn via(claude: &'a TargetAdapter) -> Self {
         ClaudeConverter { via: Some(claude) }
     }
-}
-
-fn missing(target: &TargetAdapter, what: &str, scope: Scope) -> AgentkitError {
-    AgentkitError::new(
-        "AGENTKIT_NO_PATH",
-        format!(
-            "{} has no {what} location for scope {}",
-            target.name,
-            scope.as_str()
-        ),
-    )
 }
 
 pub fn agent_frontmatter(a: &AgentSpec, name: &str) -> Vec<(String, Value)> {
@@ -229,14 +220,6 @@ impl ClaudeConverter<'_> {
         }
         Ok((out, rewrites))
     }
-
-    fn apply_rewrites(cmd: &str, rewrites: &[(String, String)]) -> String {
-        let mut out = cmd.to_string();
-        for (from, to) in rewrites {
-            out = rewrite_command(&out, from, to);
-        }
-        out
-    }
 }
 
 impl Converter for ClaudeConverter<'_> {
@@ -379,7 +362,7 @@ impl Converter for ClaudeConverter<'_> {
                         .handler
                         .command
                         .as_deref()
-                        .map(|x| Self::apply_rewrites(x, &rewrites));
+                        .map(|x| apply_rewrites(x, &rewrites));
                     if let Some(x) = &cmd {
                         commands.push(x.clone());
                     }
@@ -464,7 +447,7 @@ impl Converter for ClaudeConverter<'_> {
                                     .handler
                                     .command
                                     .as_deref()
-                                    .map(|x| Self::apply_rewrites(x, &rewrites));
+                                    .map(|x| apply_rewrites(x, &rewrites));
                                 if let Some(x) = &cmd {
                                     commands.push(x.clone());
                                 }
@@ -480,7 +463,7 @@ impl Converter for ClaudeConverter<'_> {
                         ("statusLine", Value::Object(sl)) => {
                             let mut sl = sl.clone();
                             if let Some(Value::String(cmd)) = sl.get("command").cloned() {
-                                let cmd = Self::apply_rewrites(&cmd, &rewrites);
+                                let cmd = apply_rewrites(&cmd, &rewrites);
                                 commands.push(cmd.clone());
                                 sl.insert("command".into(), json!(cmd));
                             }
@@ -521,7 +504,7 @@ impl Converter for ClaudeConverter<'_> {
                     scope,
                     ctx,
                 )?;
-                let cmd = Self::apply_rewrites(&sl.command, &rewrites);
+                let cmd = apply_rewrites(&sl.command, &rewrites);
                 let mut v = Map::new();
                 v.insert("type".into(), json!("command"));
                 v.insert("command".into(), json!(cmd));

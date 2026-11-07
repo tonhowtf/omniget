@@ -1,4 +1,6 @@
+use std::collections::HashSet;
 use std::path::{Path, PathBuf};
+use std::sync::{Mutex, OnceLock};
 
 use chrono::TimeZone;
 
@@ -199,25 +201,142 @@ pub fn needs_metadata(template: &str) -> bool {
     .any(|v| template.contains(v))
 }
 
-pub fn unique_path(path: &Path) -> PathBuf {
-    if !path.exists() {
-        return path.to_path_buf();
-    }
+pub fn numbered_path(path: &Path, n: u32) -> PathBuf {
     let name = path
         .file_name()
         .map(|s| s.to_string_lossy().into_owned())
         .unwrap_or_default();
     let (stem, ext) = split_ext(&name);
-    let parent = path.parent().map(Path::to_path_buf).unwrap_or_default();
-    for n in 1..10_000 {
-        let candidate = if ext.is_empty() {
-            parent.join(format!("{} ({})", stem, n))
-        } else {
-            parent.join(format!("{} ({}).{}", stem, n, ext))
-        };
-        if !candidate.exists() {
-            return candidate;
+    let numbered = if ext.is_empty() {
+        format!("{} ({})", stem, n)
+    } else {
+        format!("{} ({}).{}", stem, n, ext)
+    };
+    path.with_file_name(numbered)
+}
+
+pub fn unique_path(path: &Path) -> PathBuf {
+    if !path.exists() {
+        return path.to_path_buf();
+    }
+    (1..10_000)
+        .map(|n| numbered_path(path, n))
+        .find(|candidate| !candidate.exists())
+        .unwrap_or_else(|| path.to_path_buf())
+}
+
+fn claimed_paths() -> &'static Mutex<HashSet<PathBuf>> {
+    static CLAIMED: OnceLock<Mutex<HashSet<PathBuf>>> = OnceLock::new();
+    CLAIMED.get_or_init(|| Mutex::new(HashSet::new()))
+}
+
+#[derive(Debug)]
+pub struct PathClaim(PathBuf);
+
+impl PathClaim {
+    pub fn path(&self) -> &Path {
+        &self.0
+    }
+}
+
+impl Drop for PathClaim {
+    fn drop(&mut self) {
+        claimed_paths()
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .remove(&self.0);
+    }
+}
+
+pub fn claim_unique_path(path: &Path) -> PathClaim {
+    let mut claimed = claimed_paths().lock().unwrap_or_else(|e| e.into_inner());
+    let free = |candidate: &PathBuf| !candidate.exists() && !claimed.contains(candidate);
+    let chosen = std::iter::once(path.to_path_buf())
+        .chain((1..100_000).map(|n| numbered_path(path, n)))
+        .find(free)
+        .unwrap_or_else(|| numbered_path(path, 100_000));
+    claimed.insert(chosen.clone());
+    PathClaim(chosen)
+}
+
+pub fn rename_without_overwriting(part: &Path, target: &Path) -> std::io::Result<PathBuf> {
+    let mut n = 0;
+    let mut candidate = target.to_path_buf();
+    loop {
+        match std::fs::hard_link(part, &candidate) {
+            Ok(()) => {
+                std::fs::remove_file(part)?;
+                return Ok(candidate);
+            }
+            Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {
+                n += 1;
+                candidate = numbered_path(target, n);
+            }
+            Err(_) if !candidate.exists() => {
+                std::fs::rename(part, &candidate)?;
+                return Ok(candidate);
+            }
+            Err(e) => return Err(e),
         }
     }
-    path.to_path_buf()
+}
+
+#[cfg(test)]
+mod no_overwrite_tests {
+    use super::*;
+
+    #[test]
+    fn second_file_with_the_same_name_gets_a_number() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("Aula.mp4");
+        std::fs::write(&path, b"first").unwrap();
+        let claim = claim_unique_path(&path);
+        assert_eq!(claim.path(), dir.path().join("Aula (1).mp4"));
+    }
+
+    #[test]
+    fn concurrent_downloads_racing_on_one_name_never_share_a_path() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("Aula.mp4");
+        std::fs::write(&path, b"first").unwrap();
+        let barrier = std::sync::Arc::new(std::sync::Barrier::new(16));
+        let handles: Vec<_> = (0..16)
+            .map(|_| {
+                let (path, barrier) = (path.clone(), barrier.clone());
+                std::thread::spawn(move || {
+                    barrier.wait();
+                    claim_unique_path(&path)
+                })
+            })
+            .collect();
+        let claims: Vec<PathClaim> = handles.into_iter().map(|h| h.join().unwrap()).collect();
+        let distinct: HashSet<&Path> = claims.iter().map(PathClaim::path).collect();
+        assert_eq!(distinct.len(), 16);
+        assert!(!distinct.contains(path.as_path()));
+        assert!(distinct.contains(dir.path().join("Aula (16).mp4").as_path()));
+    }
+
+    #[test]
+    fn a_released_name_can_be_used_again() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("Aula.mp4");
+        let first = claim_unique_path(&path);
+        assert_eq!(first.path(), path);
+        drop(first);
+        assert_eq!(claim_unique_path(&path).path(), path);
+    }
+
+    #[test]
+    fn finishing_a_download_never_writes_over_a_file_that_appeared_meanwhile() {
+        let dir = tempfile::tempdir().unwrap();
+        let target = dir.path().join("Aula.mp4");
+        let part = dir.path().join("Aula.mp4.part");
+        std::fs::write(&target, b"someone else").unwrap();
+        std::fs::write(&part, b"mine").unwrap();
+        let saved = rename_without_overwriting(&part, &target).unwrap();
+        assert_eq!(saved, dir.path().join("Aula (1).mp4"));
+        assert_eq!(std::fs::read(&target).unwrap(), b"someone else");
+        assert_eq!(std::fs::read(&saved).unwrap(), b"mine");
+        assert!(!part.exists());
+    }
 }

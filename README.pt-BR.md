@@ -1,9 +1,8 @@
 <!--
 O OmniGet é um app desktop gratuito e de código aberto (GPL-3.0) para Windows, macOS e Linux. Ele baixa vídeo, áudio,
 galerias de imagens, torrents e arquivos diretos do YouTube, Instagram, TikTok, X, Reddit, Bilibili e dos cerca de
-1.800 sites que o yt-dlp suporta. O servidor MCP dele deixa o Claude Code, o Cursor, o VS Code e o Codex colocarem downloads na fila, e ele roda
-agentes de programação (Claude Code, Codex, Gemini CLI, OpenCode, modelos locais) numa janela do desktop com diffs, aprovações
-e desfazer. Vai escrever sobre o OmniGet? Leia o MEDIA-KIT.md primeiro; o resumo curto, legível por máquina, é o llms.txt.
+1.800 sites que o yt-dlp suporta. O servidor MCP dele deixa o Claude Code, o Cursor, o VS Code e o Codex colocarem downloads na fila, e o Canvas dele roda
+agentes de programação (Claude Code, Codex, Gemini CLI, OpenCode, modelos locais) lado a lado em terminais. Vai escrever sobre o OmniGet? Leia o MEDIA-KIT.md primeiro; o resumo curto, legível por máquina, é o llms.txt.
 -->
 
 <h1 align="center">OmniGet</h1>
@@ -22,9 +21,9 @@ e desfazer. Vai escrever sobre o OmniGet? Leia o MEDIA-KIT.md primeiro; o resumo
 <h3 align="center">Cole um link, receba o arquivo. Depois deixe seus agentes de IA fazerem o resto.</h3>
 
 <p align="center">
-  Um baixador de vídeos e app desktop para agentes de IA, gratuito e de código aberto, para Windows, macOS e Linux.<br/>
+  Um baixador de vídeos gratuito e de código aberto para Windows, macOS e Linux.<br/>
   YouTube, Instagram, TikTok, X, Reddit, Bilibili, torrents e cerca de 1.800 outros sites numa fila só,<br/>
-  mais Claude Code, Codex e Gemini CLI numa janela em que você aprova cada mudança.
+  mais um servidor MCP para o Claude Code, o Codex e o Cursor baixarem para você.
 </p>
 
 <p align="center">
@@ -47,18 +46,18 @@ e desfazer. Vai escrever sobre o OmniGet? Leia o MEDIA-KIT.md primeiro; o resumo
 
 ## O que é o OmniGet?
 
-**O OmniGet é um app desktop gratuito que transforma um link em arquivo e dá aos seus agentes de programação com IA um lugar para trabalhar.** Cole um link do YouTube, Instagram, TikTok, X, Reddit, Bilibili ou de qualquer um dos cerca de 1.800 sites que o [yt-dlp](https://github.com/yt-dlp/yt-dlp) suporta, escolha a qualidade, e o vídeo, o áudio ou a galeria cai na sua pasta. O mesmo app roda Claude Code, Codex, Gemini CLI e modelos locais com um diff antes de cada escrita e desfazer com um clique, e o servidor MCP dele deixa esses agentes baixarem para você. Tudo roda no seu computador.
+**O OmniGet é um app desktop gratuito que transforma um link em arquivo e dá aos seus agentes de programação com IA um lugar para trabalhar.** Cole um link do YouTube, Instagram, TikTok, X, Reddit, Bilibili ou de qualquer um dos cerca de 1.800 sites que o [yt-dlp](https://github.com/yt-dlp/yt-dlp) suporta, escolha a qualidade, e o vídeo, o áudio ou a galeria cai na sua pasta. O servidor MCP dele deixa o Claude Code, o Codex e o Cursor baixarem para você, e o Canvas põe os terminais deles lado a lado num quadro só. Tudo roda no seu computador.
 
 | Você quer | O OmniGet te dá |
 |---|---|
 | Salvar um vídeo, uma música, um post ou uma playlist inteira | [Um baixador](#download-almost-anything) com extratores próprios, yt-dlp, gallery-dl, torrents e arquivos diretos numa fila só |
 | Deixar o Claude Code ou o Cursor buscarem mídia para você | [Um servidor MCP](#let-claude-download-it) que coloca downloads na fila, espera e informa o que falhou |
-| Usar Claude Code, Codex ou Gemini CLI sem malabarismo de terminais | [Agentes numa janela](#ai-coding-agents-in-a-window) com threads, worktrees, aprovações e desfazer |
+| Várias contas do Claude Code ou do Codex, MCP | [Configurações → IA e agentes](#accounts-models-and-mcp) com limites de uso e conexões MCP |
 | Ver vários agentes trabalhando juntos | [O Canvas](#the-canvas), um quadro infinito de terminais de agentes ligados por cordas |
 | Música, YouTube sem anúncios, livros, Telegram | [Superpowers](#superpowers), já dentro do app |
 | Um computador mais limpo e mais rápido | [washmybelly](#washmybelly), limpeza e desinstalação com um plano que você aprova e um desfazer |
 
-**Conteúdo:** [Baixador](#download-almost-anything) · [Servidor MCP](#let-claude-download-it) · [Agentes de IA](#ai-coding-agents-in-a-window) · [Canvas](#the-canvas) · [Superpowers](#superpowers) · [washmybelly](#washmybelly) · [Instalar](#install) · [Linha de comando](#command-line) · [Privacidade](#privacy) · [Perguntas frequentes](#frequently-asked-questions) · [Apoie](#support-omniget) · [Compilar do código-fonte](#build-from-source)
+**Conteúdo:** [Baixador](#download-almost-anything) · [Servidor MCP](#let-claude-download-it) · [Contas e modelos](#accounts-models-and-mcp) · [Canvas](#the-canvas) · [Superpowers](#superpowers) · [washmybelly](#washmybelly) · [Instalar](#install) · [Linha de comando](#command-line) · [Privacidade](#privacy) · [Perguntas frequentes](#frequently-asked-questions) · [Apoie](#support-omniget) · [Compilar do código-fonte](#build-from-source)
 
 ---
 
@@ -171,7 +170,7 @@ Conecte ao OmniGet: rode curl -s "http://127.0.0.1:47720/connect" e siga os pass
 
 O OmniGet vem para a frente com o nome da ferramenta e um código curto. Confira se a ferramenta mostra o mesmo código e clique em **Permitir**. O OmniGet grava o servidor dele na própria configuração dessa ferramenta, então o token nunca passa pelo chat. Reinicie a ferramenta e as ferramentas do OmniGet estarão lá.
 
-Prefere clicar? **LLM → Configurar → MCP** lista as ferramentas de IA instaladas no seu computador, cada uma com um botão **Conectar**, mais trechos de configuração manual para Cursor, VS Code, Codex, Goose e Claude Desktop e o adaptador stdio `omniget-mcp` para clientes que precisam de um.
+Prefere clicar? **Configurações → IA e agentes → Conectar a outros apps** lista as ferramentas de IA instaladas no seu computador, cada uma com um botão **Conectar**, mais trechos de configuração manual para Cursor, VS Code, Codex, Goose e Claude Desktop e o adaptador stdio `omniget-mcp` para clientes que precisam de um.
 
 ### O que um agente consegue fazer
 
@@ -206,71 +205,18 @@ Você faz login uma vez nessa janela, com as suas mãos. O agente abre a página
 
 ---
 
-<a id="ai-coding-agents-in-a-window"></a>
+<a id="accounts-models-and-mcp"></a>
 
-## Agentes de programação com IA numa janela
+## Contas, modelos e MCP
 
-<p align="center">
-  <img src="assets/readme/central.gif" alt="Loop está sentado numa mesa de controle de missão com cinco monitores; em cada um, um robô agente de programação diferente trabalha na própria janela com linhas de diff verdes e vermelhas, enquanto Loop levanta um cartão de aprovação brilhante" width="900" />
-</p>
+A configuração de IA fica em **Configurações → IA e agentes**, em cartões fáceis de reconhecer:
 
-**Um app desktop para Claude Code, Codex, Gemini CLI e outros 30 agentes de programação.** Anexe uma pasta, peça uma mudança, leia o diff antes de qualquer coisa ser gravada e desfaça o turno inteiro com um clique. Os agentes usam o login e o plano que você já paga.
-
-| Você quer | Abra | O que acontece |
-|---|---|---|
-| Comandar Claude Code, Codex ou OpenCode numa interface de verdade | **LLM → Threads** | Uma thread por tarefa, na própria worktree do git, com o diff de cada turno, aprovações que esperam por você, um terminal e um botão de pull request |
-| Usar várias contas do Claude Code ou do Codex | **LLM → Configurar → Conexões** | Seus logins atuais lado a lado, o uso na tela, e a troca para a próxima conta quando um limite acaba |
-| Rodar agentes offline na sua própria máquina | **LLM → Configurar → Modelos e limites** | Ollama, LM Studio ou um llama.cpp gerenciado com modelos GGUF do Hugging Face, sem chave |
-| Deixar trabalho rodando | **LLM → Trabalho** | Jobs que sobrevivem ao fechar a janela, Loops que repetem até o `npm test` passar, missões com critérios de conclusão, gatilhos por cron e webhook |
-| Pôr um prompt para competir entre vários agentes | **LLM → Trabalho → Arena** | Cada agente na própria worktree; compare tempo, custo e diffs, depois faça o merge do vencedor |
-| Instalar skills, agentes, comandos, hooks e servidores MCP em todo lugar | **LLM → Catálogo** | 3.800+ componentes convertidos para o formato de cada uma das 34 ferramentas, com um diff antes de qualquer coisa ser gravada |
-| Instalar, atualizar e fazer login nas CLIs dos agentes | **LLM → Ferramentas** | 34 CLIs de programação detectadas, instaladas e atualizadas numa tela só |
-| Ver quanto cada agente te custou | **LLM → Mais** | Tokens e custo por dia, modelo, ferramenta, conta e projeto a partir dos logs que suas ferramentas já guardam, e busca de texto completo nas sessões de 22 ferramentas |
-| Aprovar pelo celular | **LLM → Mais → Acesso remoto** | Desligado por padrão; pareie com um QR code e responda aprovações longe da mesa |
-
-### Threads: Claude Code, Codex e qualquer agente ACP
-
-- **Drivers de verdade, não um invólucro.** O Claude Code roda como um processo longo por thread, o Codex pelo `codex app-server`, o OpenCode pelo `opencode serve`, e Gemini CLI, Qwen Code, Copilot, Cursor, goose, Kiro e outros por um cliente completo do [Agent Client Protocol](https://agentclientprotocol.com).
-- **Cada turno é um checkpoint.** Os turnos ficam salvos em refs ocultas do git; **Editar daqui** volta os arquivos e a conversa para qualquer turno.
-- **Aprovações que esperam.** Uma edição de arquivo mostra o diff completo, um comando de shell mostra o comando e a pasta, e o pedido espera por você em vez de expirar.
-- **Traga suas sessões do terminal.** Uma sessão do Claude Code ou do Codex que você rodou num terminal pode ser importada e retomada no driver certo.
-
-### Um agente de programação com permissões, sandbox e desfazer
-
-- **Uma pasta.** O agente embutido lê, busca, edita e roda comandos só dentro da pasta que você anexou; um caminho fora dela vira uma pergunta à parte.
-- **Permissão com a evidência na tela.** Tudo o que grava pergunta antes. **Sempre** guarda uma regra pelo prefixo do comando (`git status *`, `npm run test *`), e comandos encadeados precisam de uma regra para cada parte.
-- **Um shell em sandbox** no macOS: sem rede, gravando só dentro da pasta.
-- **Desfazer volta o turno inteiro.** Antes da primeira gravação o OmniGet tira um snapshot da pasta num git paralelo que nunca toca no seu repositório.
-- **Orçamentos por agente:** dólares por dia, tokens por turno, chamadas de ferramenta por turno.
-- **Suas próprias chaves** para OpenAI, Anthropic, OpenRouter, Gemini, DeepSeek, Groq, xAI, Mistral e outros, com um roteador que passa para o próximo quando uma cota acaba.
-
-Medido num projeto de demonstração com um teste falhando (build de release, Apple Silicon): o Claude Code pelo OmniGet corrige em cerca de 15 segundos; o `qwen3:8b` no Ollama faz o mesmo em cerca de 3 minutos.
-
-### Jobs, Loops e missões
-
-<p align="center">
-  <img src="assets/readme/agents-loop.gif" alt="Página Loops do OmniGet: um Loop rodado pelo Claude Code passa de Rodando para Concluído com o motivo de parada check_passed depois de uma de três rodadas" width="900" />
-</p>
-
-- **Um job é um turno de agente que sobrevive à janela.** Ele guarda o estado, o log, o diff e quanto custou, na própria worktree, que você integra ou descarta.
-- **Um Loop repete até uma verificação passar.** Dê a ele um prompt e um comando (`npm test`, `cargo test`); ele para quando a verificação sai com 0 ou quando acabam as rodadas ou os minutos, e retoma a rodada depois de um travamento.
-- **Gatilhos.** Uma linha de cron ou um webhook na ponte local inicia um job.
-
-### Memória que aprende
-
-- Depois de cada turno, o OmniGet guarda os fatos que valem a pena: o que você afirmou, o que aconteceu e quando, e as pessoas e coisas envolvidas.
-- A busca funciona por palavras, significado, ligações e tempo, em inglês, português e cerca de 100 outros idiomas, com modelos de busca que rodam no seu computador.
-- Só as suas próprias palavras viram uma preferência declarada; todo o resto fica marcado como palpite. Corrija uma memória e a antiga sai de cena; esqueça e ela some do índice e dos vetores.
-- Claude Code, Codex ou Cursor conectados por MCP também podem consultar e ensinar essa memória.
-- Inspirada no [Hindsight](https://github.com/vectorize-io/hindsight), num único arquivo SQLite. Numa conversa do LoCoMo, com o mesmo modelo e o mesmo juiz para os dois, o OmniGet respondeu 67 a 68% das perguntas e o Hindsight 64,5%.
-
-### O Catálogo
-
-<p align="center">
-  <img src="assets/readme/illustration-catalog.webp" alt="Loop toca uma pequena loja com prateleiras de cartões brilhantes e entrega um cartão a uma fila de robôs de formatos diferentes; cada cartão muda para caber no encaixe do peito daquele robô" width="820" />
-</p>
-
-Mais de 3.800 skills, agentes, comandos, hooks, servidores MCP e plugins do [claude-code-templates](https://github.com/davila7/claude-code-templates), [anthropics/skills](https://github.com/anthropics/skills), [openai/skills](https://github.com/openai/skills), [obra/superpowers](https://github.com/obra/superpowers) e outros, cada um convertido para o formato da ferramenta que você escolher: Claude Code, Codex, Gemini CLI, Cursor, Copilot, OpenCode, Windsurf, Zed e outras 26. Antes de qualquer instalação você vê o diff de cada arquivo e cada comando que um hook vai rodar, e um scanner com 127 regras procura injeção de prompt, leitura de credenciais e `curl | sh`. Desinstalar remove só o que o OmniGet gravou.
+- **Contas:** seus logins do Claude Code e do Codex, cada um com as barras de uso. Escolha qual fica em uso ou adicione outro. `omniget-cli claude [conta]` abre o Claude Code em um deles.
+- **Limites na tela:** a barra na borda da tela e o ícone da barra de menus, ligados ou desligados.
+- **Conectar a outros apps:** um clique para o Claude Code, o Codex e outras ferramentas usarem o OmniGet pelo servidor MCP, com token e permissões por cliente em Mais opções.
+- **Ferramentas extras:** servidores MCP como GitHub, Playwright ou seus arquivos, para os agentes do Canvas.
+- **Canvas:** aparência, atalhos, terminal e padrões.
+- **IA do app:** opcional, um provedor e uma chave para os recursos de IA do próprio app, inclusive o Ollama sem chave.
 
 ### Fique de olho nos seus limites
 
@@ -278,7 +224,7 @@ Mais de 3.800 skills, agentes, comandos, hooks, servidores MCP e plugins do [cla
   <img src="assets/readme/illustration-usage.webp" alt="Loop segura uma lupa diante de um painel do tamanho de uma parede com um gráfico de barras, um mapa de calor de calendário e um gráfico de rosca, enquanto rolos de logs chegam de pequenas casas de robôs" width="820" />
 </p>
 
-Uma faixa fina na borda da tela mostra um anel por assistente de programação (Claude, Codex, Copilot, Cursor, Grok, Kimi, OpenCode): quanto de cada limite já foi usado e quando ele reinicia. Os mesmos números ficam num ícone da barra de menus e no `omniget-cli usage`. Cada leitor só abre o login que aquela ferramenta já guarda na sua máquina, em modo somente leitura.
+Uma faixa fina na borda da tela mostra um anel por assistente de programação (Claude, Codex, Copilot, Cursor, Grok, Kimi, OpenCode): quanto de cada limite já foi usado e quando ele reinicia. Os mesmos números ficam num ícone da barra de menus e no `omniget-cli usage`. Os dois são ligados em **Configurações → IA e agentes**. Cada leitor só abre o login que aquela ferramenta já guarda na sua máquina, em modo somente leitura.
 
 ---
 
@@ -306,12 +252,28 @@ Já vêm dentro do app, em **Superpoderes** na barra lateral. Cada um pode ser d
 
 | | O que faz |
 |---|---|
-| **Música** | Um app de música para as faixas do seu computador: reprodução sem intervalos, ReplayGain, equalizador, letras sincronizadas, rádio pela internet, playlists inteligentes e ferramentas em lote para tags, volume, andamento, tom, conversão e duplicatas |
+| **Música** | Um app de música para as faixas do seu computador: reprodução sem intervalos, ReplayGain, equalizador, letras sincronizadas, rádio pela internet, playlists inteligentes e ferramentas em lote para tags, volume, andamento, tom, conversão e duplicatas, além de um removedor de voz para karaokê |
 | **OmniTube** | YouTube e YouTube Music com a sua conta ou sem conta: sem anúncios, SponsorBlock, DeArrow, Return YouTube Dislike, esconder Shorts e comentários, bloquear canais e palavras, e regras de download automático para os canais que você segue |
 | **Watch** | Seus filmes, séries e cursos com progresso, notas, transcrições e flashcards, TV ao vivo de playlists M3U, Jellyfin e Chromecast |
 | **Ler** | Uma sala de leitura para EPUB, MOBI, PDF, quadrinhos e mangá, com livros gratuitos do Project Gutenberg e do Standard Ebooks, MangaDex e MANGA Plus com aviso de capítulo novo, catálogos OPDS, sincronização com o KOReader e envio para Kindle ou Kobo |
 | **Telegram** | Seus chats, busca de mídia e downloads por mensagem, álbum, intervalo ou chat inteiro, exportações, regras de monitoramento e transcrição local, com opções de proxy para redes que bloqueiam o Telegram |
 | **Global Downloader** | Um navegador controlado pelo OmniGet que captura a mídia que cada aba toca, e conectores que baixam um curso ou site inteiro em ordem. O Claude Code consegue controlá-lo e criar conectores novos |
+| **Converter** | Arraste arquivos e escolha o formato: JSON, YAML, TOML, CSV e XML; Markdown, HTML, texto e EPUB; PNG, JPEG, WebP, GIF, ICO e outros, sem instalar nada. Áudio e vídeo passam pelo FFmpeg, e Word, PDF, SVG e AVIF aparecem quando o Pandoc, o LibreOffice ou o ImageMagick estão instalados |
+| **Palette** | Uma oficina de cores em OKLCH: seletor com aviso de gama sRGB e Display P3, escalas de 11 tons uniformes, contraste WCAG e APCA com correção, degradês misturados em OKLCH, cores tiradas de uma imagem e exportação em variáveis CSS, Tailwind v4, SCSS ou tokens W3C |
+| **Type** | Navegue por fontes abertas (Geist, Inter, JetBrains Mono e mais de 2.000 do Fontsource), veja as que estão no seu computador, teste no seu próprio texto, compare, combine, monte uma escala tipográfica com `clamp()` fluido e instale fontes OFL com um clique |
+| **Icons** | Busque em mais de 200 conjuntos abertos de ícones pelo Iconify (Lucide, Phosphor, Tabler, Heroicons e outros), mude tamanho, cor e traço, e copie como SVG, Svelte, React ou data URI, ou salve em SVG ou PNG. Os favoritos funcionam offline |
+| **Motion** | Desenhe curvas cubic-bezier e molas, anime keyframes numa linha do tempo, toque arquivos Lottie e dotLottie e copie o código para CSS, Motion, GSAP, Svelte ou SwiftUI |
+| **Board** | Um quadro branco feito com o Excalidraw. Os quadros são arquivos `.excalidraw` numa pasta que você escolhe, com salvamento automático, miniaturas e exportação em PNG ou SVG |
+| **Components** | Navegue pelo shadcn/ui, Magic UI e outros registros no padrão shadcn, leia os arquivos de cada componente, adicione ao seu projeto com o comando `shadcn add` exato e transforme design tokens em variáveis de tema |
+| **Capture** | Grave a tela, uma janela ou uma região com o microfone e depois corte o vídeo sem recodificar: marque trechos, encaixe nos quadros-chave e exporte tudo junto ou em arquivos separados, ou salve um quadro em PNG |
+| **Studio** | Finalize um vídeo no seu computador: legendas automáticas com o Whisper local, legendas estilizadas gravadas no vídeo (inclusive com destaque palavra por palavra), reenquadramento para 9:16, 1:1 ou 4:5 e uma cartela de abertura. Também exporta .srt e .vtt |
+| **Dictation** | Segure um atalho, fale, e o texto é digitado no app que você está usando. A transcrição roda no seu computador com o Whisper, com suas próprias substituições, remoção de vícios de linguagem e um histórico |
+| **PDF** | Abra PDFs, reordene, gire e apague páginas, junte vários arquivos ou divida um, e salve o resultado. Tudo roda no seu computador |
+| **Fotos** | Uma galeria para as suas pastas de fotos: ache duplicatas, faça ajustes rápidos e exporte em lote |
+| **Recortar** | Tire o fundo de uma imagem no seu computador e clique no objeto para refinar o recorte |
+| **WhatsApp** | Vincule o celular com um QR code, leia suas conversas e baixe ou exporte as fotos, vídeos, áudios e documentos delas |
+| **Discord** | Leia e responda seus servidores e DMs, baixe a mídia de um canal ou exporte o histórico em HTML, JSON ou texto |
+| **X, Instagram e TikTok** | Feeds, perfis, posts e comentários pela sua própria sessão no navegador do OmniGet: curta, comente, siga e, no X, poste. Seus agentes ganham as mesmas ferramentas pelo MCP, e cada ação espera a sua aprovação |
 | **League of Legends** | Um ajudante para o seu cliente do League aberto: scouting, ouro ao vivo, runas com um clique. Toda automação fica desligada até você ligar |
 
 ---
@@ -366,6 +328,10 @@ O OmniGet é distribuído sem um certificado pago de assinatura de código, ent�
 
 - **AppImage do Linux no Debian 12+ ou Ubuntu 24.04+:** se falhar com um erro de libfuse, rode `sudo apt install libfuse2`, ou use o `.deb`.
 
+### Se um antivírus acusar o OmniGet
+
+Alguns antivírus marcam por engano builds novos e sem assinatura, porque o OmniGet baixa arquivos, limpa o sistema e só pede permissão de administrador quando você inicia uma limpeza. Compare o SHA-256 do arquivo com o `SHA256SUMS` da versão e informe o falso positivo ao fabricante. Não desligue o antivírus.
+
 <details>
 <summary>Linux: uma janela vazia quando um player de vídeo abre</summary>
 
@@ -396,13 +362,14 @@ omniget-cli download <url> --audio-only --subs en,pt
 omniget-cli batch links.txt -m 3             # uma URL por linha, 3 de cada vez
 omniget-cli import-cookies cookies.txt       # formato Netscape
 omniget-cli tg dl https://t.me/channel/10-20  # mensagens, álbuns e intervalos do Telegram
+omniget-cli convert notas.md --to html      # também json→yaml, png→webp, mp4→gif; sem --to lista as opções
 
 # pelo app desktop aberto
 omniget-cli claude [account]                 # Claude Code numa das suas contas
 omniget-cli usage --watch 60                 # janelas de 5 horas e 7 dias e gasto por conta
 omniget-cli agent run "Fix the failing test" --workspace .
 omniget-cli agent loop "Make the tests pass" --check "npm test" --rounds 5
-omniget-cli agentkit search <term>           # o Catálogo pelo terminal
+omniget-cli agentkit search <term>           # busca skills, agentes e servidores MCP
 omniget-cli wmb scan junk                    # washmybelly; executar pergunta na janela do OmniGet
 ```
 
@@ -429,9 +396,9 @@ A pasta [`claude-plugin/`](claude-plugin/omniget) é um plugin para o [Claude Co
   <img src="assets/readme/illustration-privacy.webp" alt="Loop segura um notebook com o ícone de download do OmniGet e um cadeado verde, na frente de um escudo laranja" width="640" />
 </p>
 
-Tudo roda no seu computador. Não tem conta, não tem servidor nosso no meio e não tem telemetria sobre o que você baixa. Cookies e chaves de API ficam no seu perfil local. O OmniGet só se conecta à internet por conta própria para acessar os sites que você pediu, o getomniget.com para atualizações, e o provedor de IA que você configurou, quando você usa.
+Tudo roda no seu computador. Não tem conta, não tem servidor nosso no meio e não tem telemetria sobre o que você baixa. Cookies e chaves de API ficam no seu perfil local. O OmniGet só se conecta à internet por conta própria para acessar os sites que você pediu, o getomniget.com para atualizações, o provedor de IA que você configurou, quando você usa, e o chat do getomniget.com, só depois que você clica em **Entrar no chat** na aba **Comunidade**.
 
-O OmniGet baixa o que a sua própria sessão já consegue abrir. Ele não contorna DRM, não fura paywalls e não compartilha credenciais. Ele serve para cópias pessoais, backups e conteúdo que você tem o direito de guardar; você é responsável por respeitar os direitos autorais e os termos de cada plataforma. O texto completo está no app em **Sobre → Termos**.
+O OmniGet baixa o que a sua própria sessão já consegue abrir. Ele não contorna DRM, não fura paywalls e não compartilha credenciais. Ele serve para cópias pessoais, backups e conteúdo que você tem o direito de guardar; você é responsável por respeitar os direitos autorais e os termos de cada plataforma. O texto completo está no app em **Comunidade → Termos**.
 
 ---
 
@@ -443,7 +410,7 @@ O OmniGet baixa o que a sua própria sessão já consegue abrir. Ele não contor
 Sim. Gratuito e de código aberto sob GPL-3.0, sem plano pago, sem anúncios e sem conta.
 
 ### O OmniGet é uma interface gráfica do yt-dlp?
-Em parte. Ele instala o yt-dlp, verifica, mantém atualizado e põe as opções dele numa janela. Além disso, tem extratores próprios, gallery-dl, torrents, Telegram, uma fila com retomada e novas tentativas, uma extensão de navegador, um servidor MCP e agentes de IA.
+Em parte. Ele instala o yt-dlp, verifica, mantém atualizado e põe as opções dele numa janela. Além disso, tem extratores próprios, gallery-dl, torrents, Telegram, uma fila com retomada e novas tentativas, uma extensão de navegador, um servidor MCP e o Canvas.
 
 ### Como baixo um vídeo ou uma playlist sem terminal?
 Cole o link na tela inicial, escolha a qualidade e aperte Enter. Playlists, legendas, capítulos e só o áudio são opções na mesma janela.
@@ -452,16 +419,10 @@ Cole o link na tela inicial, escolha a qualidade e aperte Enter. Playlists, lege
 Sim. Arquivos parciais são mantidos e continuados, limites de taxa são tentados de novo com espera crescente, e a fila sobrevive a um reinício.
 
 ### O Claude Code pode baixar vídeos para mim?
-Sim. Ligue o servidor MCP em **LLM → Configurar → MCP**, conecte o Claude Code com o prompt de uma linha acima e peça em palavras simples. O Claude coloca o download na fila do OmniGet, espera e te conta o que aconteceu.
-
-### Posso rodar o Claude Code ou o Codex sem terminal?
-Sim. Seus logins atuais aparecem em **LLM → Configurar → Conexões**, e **LLM → Threads** dá a cada tarefa uma janela com diffs, aprovações e desfazer. Gemini CLI, OpenCode, goose e outros agentes ACP entram do mesmo jeito.
-
-### Um agente de IA pode continuar trabalhando até os testes passarem?
-Sim. Um Loop repete rodadas até o seu comando de verificação, como `npm test`, sair com 0. Ele continua com a janela fechada, e o `omniget-cli agent loop` inicia um pelo terminal.
+Sim. Ligue o servidor MCP em **Configurações → IA e agentes → Conectar a outros apps**, conecte o Claude Code com o prompt de uma linha acima e peça em palavras simples. O Claude coloca o download na fila do OmniGet, espera e te conta o que aconteceu.
 
 ### Funciona offline com o Ollama?
-Sim. Aponte para o Ollama, o LM Studio ou o llama.cpp gerenciado e os agentes rodam na sua máquina sem chave. Aí o seu código nunca sai do seu computador.
+Sim. Em **Configurações → IA e agentes → IA do app**, aponte para o Ollama ou o LM Studio e os recursos de IA do app rodam na sua máquina sem chave. Nada vai para um modelo na nuvem.
 
 ### Precisa de Python, Node ou terminal?
 Não. Baixe o app, abra e cole um link.
@@ -490,7 +451,7 @@ O OmniGet é gratuito e continua gratuito: sem plano pago, nada bloqueado. Uma p
 - **Doe** em [getomniget.com/community](https://getomniget.com/community): GitHub Sponsors, Afdian ou PIX.
 - **Conte o que quebrou** em [getomniget.com/contact](https://getomniget.com/contact), com o seu sistema, a versão do OmniGet e o link que falhou.
 - **Traduza** no [Weblate](https://hosted.weblate.org/engage/omniget/). O app fala 12 idiomas.
-- **Fale com a gente** no [Discord](https://discord.gg/jgdxyPy7Vn).
+- **Fale com a gente** na aba **Comunidade** do app: um chat anônimo compartilhado com o getomniget.com, sem conta e com um nome que o site te dá e que muda todo dia. As mensagens são públicas e apagadas depois de 30 dias. Ou no [Discord](https://discord.gg/jgdxyPy7Vn).
 - **Conte para alguém.** Vai escrever um post ou gravar um vídeo? O [MEDIA-KIT.md](MEDIA-KIT.md) tem os fatos e os links.
 
 ---
@@ -532,7 +493,7 @@ Se você é dono de uma plataforma e quer que o OmniGet pare de suportá-la, man
 
 ### Apoiado em código aberto
 
-O OmniGet é construído sobre [yt-dlp](https://github.com/yt-dlp/yt-dlp), [FFmpeg](https://ffmpeg.org/), [gallery-dl](https://github.com/mikf/gallery-dl), [aria2](https://aria2.github.io/), [librqbit](https://github.com/ikatson/rqbit), [grammers](https://github.com/Lonami/grammers), [SponsorBlock](https://sponsor.ajay.app/), [cat-catch](https://github.com/xifangczy/cat-catch), [whisper.cpp](https://github.com/ggml-org/whisper.cpp), [Tauri](https://tauri.app) e [Svelte](https://svelte.dev). Os agentes pegaram ideias emprestadas do [opencode](https://github.com/anomalyco/opencode), [Codex](https://github.com/openai/codex), [aider](https://github.com/Aider-AI/aider), [cline](https://github.com/cline/cline), [compozy](https://github.com/compozy/compozy), do [Agent Client Protocol](https://agentclientprotocol.com) e do [Hindsight](https://github.com/vectorize-io/hindsight); o washmybelly usa dados e ideias do [privacy.sexy](https://github.com/undergroundwires/privacy.sexy), [BleachBit](https://github.com/bleachbit/bleachbit), [Win11Debloat](https://github.com/Raphire/Win11Debloat), [winutil](https://github.com/ChrisTitusTech/winutil), [Sophia Script](https://github.com/farag2/Sophia-Script-for-Windows) e outros. A lista completa, com as licenças, está em [THIRD_PARTY.md](THIRD_PARTY.md). Obrigado a todo mundo que mantém esses projetos.
+O OmniGet é construído sobre [yt-dlp](https://github.com/yt-dlp/yt-dlp), [FFmpeg](https://ffmpeg.org/), [gallery-dl](https://github.com/mikf/gallery-dl), [aria2](https://aria2.github.io/), [librqbit](https://github.com/ikatson/rqbit), [grammers](https://github.com/Lonami/grammers), [SponsorBlock](https://sponsor.ajay.app/), [cat-catch](https://github.com/xifangczy/cat-catch), [whisper.cpp](https://github.com/ggml-org/whisper.cpp), [Tauri](https://tauri.app) e [Svelte](https://svelte.dev). O washmybelly usa dados e ideias do [privacy.sexy](https://github.com/undergroundwires/privacy.sexy), [BleachBit](https://github.com/bleachbit/bleachbit), [Win11Debloat](https://github.com/Raphire/Win11Debloat), [winutil](https://github.com/ChrisTitusTech/winutil), [Sophia Script](https://github.com/farag2/Sophia-Script-for-Windows) e outros. A lista completa, com as licenças, está em [THIRD_PARTY.md](THIRD_PARTY.md). Obrigado a todo mundo que mantém esses projetos.
 
 O Loop é o mascote do OmniGet. Fan art é bem-vinda; a arte original não pode ser usada comercialmente nem redistribuída modificada. As ilustrações deste README foram feitas com o [Higgsfield](https://higgsfield.ai) a partir da arte original do Loop.
 

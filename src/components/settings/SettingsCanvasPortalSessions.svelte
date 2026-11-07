@@ -2,10 +2,9 @@
   import { onMount } from "svelte";
   import { t } from "$lib/i18n";
   import { showToast } from "$lib/stores/toast-store.svelte";
+  import Subgroup from "./ai/Subgroup.svelte";
   import { canvasAccounts, colorFor, type SessionUser } from "$lib/canvas/accounts/store.svelte";
 
-  const tr = (key: string, fallback: string, vars?: Record<string, unknown>) =>
-    $t(key, { default: fallback, ...(vars ?? {}) }) as string;
 
   let busy = $state(false);
   let draft = $state("");
@@ -74,17 +73,10 @@
   }
 </script>
 
-<section class="settings-section" id="settings-section-canvas-portal-sessions">
-  <h5 class="section-title">{tr("canvas.accounts.sessions.title", "Portal sessions")}</h5>
-  <div class="card">
-    <p class="setting-path intro">
-      {tr(
-        "canvas.accounts.sessions.hint",
-        "A session is a named browser profile that portals can share, like \"Teams work\". Log in once inside a portal that uses it; renaming keeps the login. Agents see only the names, never cookies or passwords.",
-      )}
-    </p>
+<Subgroup id="canvas-portal-sessions" title={($t("canvas.accounts.sessions.title") as string)} intro={($t("canvas.accounts.sessions.hint") as string)} settingKey="canvas.accounts.sessions.title">
+  <div class="sessions">
     {#if !canvasAccounts.supported}
-      <p class="setting-path warn">{tr("canvas.accounts.sessions.unsupported", "Named portal sessions need macOS 14 or later.")}</p>
+      <p class="setting-path warn">{($t("canvas.accounts.sessions.unsupported") as string)}</p>
     {/if}
     {#each canvasAccounts.sessions as s (s.id)}
       <div class="setting-row">
@@ -94,7 +86,7 @@
               class="input-text"
               maxlength="60"
               bind:value={editName}
-              aria-label={tr("canvas.accounts.sessions.name", "Session name")}
+              aria-label={($t("canvas.accounts.sessions.name") as string)}
               onkeydown={(e) => {
                 if (e.key === "Enter") rename(s.id);
                 if (e.key === "Escape") editing = null;
@@ -105,35 +97,35 @@
           {/if}
           <span class="setting-path">
             {(users[s.id] ?? []).length
-              ? tr("canvas.accounts.sessions.usedBy", "Used by {{names}}", { names: names(s.id) })
-              : tr("canvas.accounts.sessions.unused", "Not used by any portal")}
+              ? ($t("canvas.accounts.sessions.usedBy", { names: names(s.id) }) as string)
+              : ($t("canvas.accounts.sessions.unused") as string)}
           </span>
         </div>
         <div class="pair">
           {#if confirming === s.id}
-            <span class="setting-path">{tr("canvas.accounts.sessions.deleteAsk", "Delete \"{{name}}\" and its logins?", { name: s.label })}</span>
-            <button class="button" disabled={busy} onclick={() => (confirming = null)}>{tr("canvas.accounts.sessions.cancel", "Cancel")}</button>
-            <button class="button danger" disabled={busy} onclick={() => remove(s.id)}>{tr("canvas.accounts.sessions.delete", "Delete")}</button>
+            <span class="setting-path">{($t("canvas.accounts.sessions.deleteAsk", { name: s.label }) as string)}</span>
+            <button class="btn btn-secondary btn-sm" disabled={busy} onclick={() => (confirming = null)}>{($t("canvas.accounts.sessions.cancel") as string)}</button>
+            <button class="btn btn-secondary btn-sm danger" disabled={busy} onclick={() => remove(s.id)}>{($t("canvas.accounts.sessions.delete") as string)}</button>
           {:else if editing === s.id}
-            <button class="button" disabled={busy} onclick={() => (editing = null)}>{tr("canvas.accounts.sessions.cancel", "Cancel")}</button>
-            <button class="button primary" disabled={busy || !editName.trim()} onclick={() => rename(s.id)}>{tr("canvas.accounts.sessions.save", "Save")}</button>
+            <button class="btn btn-secondary btn-sm" disabled={busy} onclick={() => (editing = null)}>{($t("canvas.accounts.sessions.cancel") as string)}</button>
+            <button class="btn btn-primary btn-sm" disabled={busy || !editName.trim()} onclick={() => rename(s.id)}>{($t("canvas.accounts.sessions.save") as string)}</button>
           {:else}
             <input
               class="color"
               type="color"
               value={s.color || colorFor(s.id)}
               disabled={busy}
-              aria-label={tr("canvas.accounts.sessions.color", "Color")}
+              aria-label={($t("canvas.accounts.sessions.color") as string)}
               onchange={(e) => recolor(s.id, (e.currentTarget as HTMLInputElement).value)}
             />
-            <button class="button" disabled={busy} onclick={() => { editing = s.id; editName = s.label; }}>{tr("canvas.accounts.sessions.rename", "Rename")}</button>
-            <button class="button danger" disabled={busy} onclick={() => (confirming = s.id)}>{tr("canvas.accounts.sessions.delete", "Delete")}</button>
+            <button class="btn btn-secondary btn-sm" disabled={busy} onclick={() => { editing = s.id; editName = s.label; }}>{($t("canvas.accounts.sessions.rename") as string)}</button>
+            <button class="btn btn-secondary btn-sm danger" disabled={busy} onclick={() => (confirming = s.id)}>{($t("canvas.accounts.sessions.delete") as string)}</button>
           {/if}
         </div>
       </div>
       <div class="divider"></div>
     {:else}
-      <p class="setting-path">{tr("canvas.accounts.sessions.empty", "No sessions yet.")}</p>
+      <p class="setting-path">{($t("canvas.accounts.sessions.empty") as string)}</p>
     {/each}
     <div class="pair add">
       <input
@@ -141,16 +133,16 @@
         maxlength="60"
         bind:value={draft}
         disabled={!canvasAccounts.supported}
-        placeholder={tr("canvas.accounts.sessions.namePlaceholder", "Teams work")}
-        aria-label={tr("canvas.accounts.sessions.name", "Session name")}
+        placeholder={($t("canvas.accounts.sessions.namePlaceholder") as string)}
+        aria-label={($t("canvas.accounts.sessions.name") as string)}
         onkeydown={(e) => e.key === "Enter" && create()}
       />
-      <button class="button primary" disabled={busy || !draft.trim() || !canvasAccounts.supported} onclick={create}>
-        {tr("canvas.accounts.sessions.create", "Create")}
+      <button class="btn btn-primary btn-sm" disabled={busy || !draft.trim() || !canvasAccounts.supported} onclick={create}>
+        {($t("canvas.accounts.sessions.create") as string)}
       </button>
     </div>
   </div>
-</section>
+</Subgroup>
 
 <style>
   .pair {
@@ -164,11 +156,8 @@
   .pair.add input {
     flex: 1;
   }
-  .intro {
-    margin: 4px 0 10px;
-  }
   .warn {
-    color: var(--error, #ff453a);
+    color: var(--error);
   }
   .swatch {
     display: inline-block;
@@ -187,6 +176,6 @@
     cursor: pointer;
   }
   .danger {
-    color: var(--error, #ff453a);
+    color: var(--error);
   }
 </style>

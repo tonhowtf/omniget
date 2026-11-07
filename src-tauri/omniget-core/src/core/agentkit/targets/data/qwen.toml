@@ -6,8 +6,6 @@ status = "active"
 beta = true
 homepage = "https://github.com/QwenLM/qwen-code"
 notes = "Gemini CLI fork that now mirrors Claude Code hooks, permissions, statusline, .mcp.json and transcript layout. Installs Claude marketplaces, Gemini extensions and Agent Plugins with conversion."
-reads_agents_dir = true
-reads_agents_md = "yes"
 
 [detect]
 binaries = ["qwen"]
@@ -20,7 +18,6 @@ local = false               # .qwen/QWEN.local.md is a personal rules file, not 
 managed = true              # /etc/qwen-code/settings.json
 project_markers = [".qwen", "QWEN.md"]
 global_dir = "~/.qwen"
-config_dir_env = "QWEN_HOME"
 
 [formats]
 rule = "qwen_md"
@@ -131,8 +128,6 @@ Notification = "Notification"
 [hooks]
 shape = "claude"
 timeout_unit = "s"          # values >= 1000 are read as ms
-env_aliases = ["CLAUDE_PROJECT_DIR", "GEMINI_PROJECT_DIR"]
-events_count = 22
 
 # Permissions also accept the Claude aliases (Bash, Read, Edit, Write, Grep, Glob, WebFetch, Agent, Skill).
 [tool_name_map]
@@ -183,7 +178,6 @@ format = "jsonl"
 cmd = "qwen"
 headless = ["-p"]
 json_flag = ["--output-format", "stream-json"]
-resume_flag = "--resume"
 permission_flags = { bypass = ["--yolo"] }
 
 [acp]
@@ -193,5 +187,4 @@ args = ["--acp"]
 registry_id = "qwen-code"
 
 [trust]
-requires_review = true
 how = "Qwen trusted folders: project hooks and .qwen/rules load only in trusted folders, and the project .mcp.json is behind an approval prompt."

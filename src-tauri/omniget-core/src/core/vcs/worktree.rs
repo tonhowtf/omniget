@@ -116,14 +116,12 @@ pub struct ProjectScript {
     pub name: String,
     pub command: String,
     pub run_on_worktree_create: bool,
-    pub run_async: bool,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 pub struct ProjectConfig {
     pub source: Option<String>,
     pub worktree_submodules: Option<String>,
-    pub default_thread_env_mode: Option<String>,
     pub scripts: Vec<ProjectScript>,
 }
 
@@ -157,7 +155,6 @@ pub fn parse_project_config(text: &str) -> ProjectConfig {
                             .to_string(),
                         command,
                         run_on_worktree_create: b("runOnWorktreeCreate", "run_on_worktree_create"),
-                        run_async: b("async", "async"),
                     })
                 })
                 .collect()
@@ -166,7 +163,6 @@ pub fn parse_project_config(text: &str) -> ProjectConfig {
     ProjectConfig {
         source: None,
         worktree_submodules: s("worktreeSubmodules").or_else(|| s("worktree_submodules")),
-        default_thread_env_mode: s("defaultThreadEnvMode").or_else(|| s("default_thread_env_mode")),
         scripts,
     }
 }

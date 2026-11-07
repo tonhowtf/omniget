@@ -3,6 +3,7 @@ pub mod browser;
 pub mod cdp;
 pub mod connector;
 pub mod jobs;
+pub mod market;
 pub mod page;
 pub mod profiles;
 pub mod sniffer;
@@ -79,6 +80,8 @@ pub struct Source {
     pub convert: Option<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub renditions: Vec<Rendition>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub audio: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
@@ -88,6 +91,14 @@ pub struct Rendition {
 }
 
 impl Source {
+    pub fn urls(&self) -> impl Iterator<Item = &str> {
+        self.url
+            .as_deref()
+            .into_iter()
+            .chain(self.renditions.iter().map(|r| r.url.as_str()))
+            .chain(self.audio.as_deref())
+    }
+
     pub fn url_for(&self, max_height: Option<u32>) -> Option<String> {
         let best = match max_height {
             Some(h) => self

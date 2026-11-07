@@ -156,10 +156,6 @@ impl CliTool {
             LatestSource::None
         }
     }
-
-    pub fn has_cli(&self) -> bool {
-        !self.binaries.is_empty()
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -184,7 +180,7 @@ pub fn all() -> &'static [CliTool] {
         serde_json::from_str::<TableFile>(DATA)
             .map(|t| t.tools)
             .unwrap_or_else(|e| {
-                tracing::error!("[clitools] tabela inválida: {e}");
+                tracing::error!("[clitools] invalid table: {e}");
                 Vec::new()
             })
     })

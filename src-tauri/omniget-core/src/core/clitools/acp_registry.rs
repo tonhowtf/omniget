@@ -1,10 +1,11 @@
 use std::collections::BTreeMap;
 use std::io::Read;
 use std::path::{Path, PathBuf};
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
 
+use super::detect::now;
 use super::exec;
 use super::run::{Progress, ProgressFn, RunState};
 use super::table;
@@ -127,13 +128,6 @@ pub struct RegistryView {
     pub agents: Vec<AgentView>,
 }
 
-fn now() -> u64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|d| d.as_secs())
-        .unwrap_or(0)
-}
-
 pub fn platform_key() -> String {
     let os = match std::env::consts::OS {
         "macos" => "darwin",
@@ -146,7 +140,7 @@ pub fn platform_key() -> String {
 fn agents_root() -> Result<PathBuf, String> {
     crate::core::paths::app_data_dir()
         .map(|d| d.join("agents"))
-        .ok_or_else(|| format!("{ERR_ACP}: sem pasta de dados"))
+        .ok_or_else(|| format!("{ERR_ACP}: no data folder"))
 }
 
 fn cache_path() -> Option<PathBuf> {
@@ -181,7 +175,7 @@ fn save_installed(map: &BTreeMap<String, AcpLaunch>) -> Result<(), String> {
 }
 
 fn parse(body: &str) -> Result<RegistryFile, String> {
-    serde_json::from_str(body).map_err(|e| format!("{ERR_ACP}: registro inválido: {e}"))
+    serde_json::from_str(body).map_err(|e| format!("{ERR_ACP}: invalid registry: {e}"))
 }
 
 async fn load(force: bool) -> Result<(RegistryFile, u64, bool, Option<String>), String> {
@@ -231,7 +225,7 @@ async fn load(force: bool) -> Result<(RegistryFile, u64, bool, Option<String>), 
         }
         Err(e) => match cached {
             Some(c) => Ok((parse(&c.body)?, c.fetched_at, true, Some(e))),
-            None => Err(format!("{ERR_ACP}: registro indisponível: {e}")),
+            None => Err(format!("{ERR_ACP}: registry unavailable: {e}")),
         },
     }
 }
@@ -309,7 +303,7 @@ pub fn cmd_path(dir: &Path, cmd: &str) -> Result<PathBuf, String> {
     for seg in cmd.split(['/', '\\']) {
         match seg {
             "" | "." => {}
-            ".." => return Err(format!("{ERR_ACP}: cmd sai da pasta: {cmd}")),
+            ".." => return Err(format!("{ERR_ACP}: cmd leaves the folder: {cmd}")),
             s => out.push(s),
         }
     }
@@ -347,10 +341,10 @@ pub async fn install(
         .iter()
         .find(|a| a.id == agent_id)
         .cloned()
-        .ok_or_else(|| format!("{ERR_NOT_FOUND}: agente {agent_id} não está no registro"))?;
+        .ok_or_else(|| format!("{ERR_NOT_FOUND}: agent {agent_id} is not in the registry"))?;
     let method = choose(&agent, wanted).ok_or_else(|| {
         format!(
-            "{ERR_ACP}: {agent_id} não tem distribuição para {}",
+            "{ERR_ACP}: {agent_id} has no distribution for {}",
             platform_key()
         )
     })?;
@@ -367,8 +361,8 @@ pub async fn install(
             .unwrap_or_default();
             if exec::which(method).is_none() {
                 warnings.push(format!(
-                    "`{method}` não está no PATH; instale {} antes de abrir o agente.",
-                    if method == "npx" { "o Node.js" } else { "o uv" }
+                    "`{method}` is not on your PATH; install {} before opening the agent.",
+                    if method == "npx" { "Node.js" } else { "uv" }
                 ));
             }
             let mut args = Vec::new();
@@ -382,7 +376,7 @@ pub async fn install(
                 &run_id,
                 agent_id,
                 "start",
-                format!("registrando {method} {}", d.package),
+                format!("registering {method} {}", d.package),
                 RunState::Running,
             );
             AcpLaunch {
@@ -418,7 +412,7 @@ pub async fn install(
         &run_id,
         agent_id,
         "end",
-        format!("pronto: {} {}", launch.command, launch.args.join(" ")),
+        format!("ready: {} {}", launch.command, launch.args.join(" ")),
         RunState::Succeeded,
     );
     Ok(launch)
@@ -437,10 +431,10 @@ async fn install_binary(
         .as_ref()
         .and_then(|b| b.get(&plat))
         .cloned()
-        .ok_or_else(|| format!("{ERR_ACP}: sem binário para {plat}"))?;
+        .ok_or_else(|| format!("{ERR_ACP}: no binary for {plat}"))?;
     if bin.sha256.is_none() && !allow_unverified {
         return Err(format!(
-            "{ERR_UNVERIFIED}: o registro não publica sha256 para {} ({plat}); confirme para instalar sem verificação",
+            "{ERR_UNVERIFIED}: the registry does not publish a sha256 for {} ({plat}); confirm to install without verification",
             agent.id
         ));
     }
@@ -467,7 +461,7 @@ async fn install_binary(
         run_id,
         &agent.id,
         "start",
-        format!("baixando {}", bin.archive),
+        format!("downloading {}", bin.archive),
         RunState::Running,
     );
     let client = crate::core::http_client::apply_global_proxy(reqwest::Client::builder())
@@ -482,7 +476,7 @@ async fn install_binary(
         .map_err(|e| format!("{ERR_ACP}: {e}"))?;
     if !resp.status().is_success() {
         return Err(format!(
-            "{ERR_ACP}: HTTP {} em {}",
+            "{ERR_ACP}: HTTP {} at {}",
             resp.status(),
             bin.archive
         ));
@@ -497,7 +491,7 @@ async fn install_binary(
         run_id,
         &agent.id,
         "line",
-        format!("{} bytes baixados", bytes.len()),
+        format!("{} bytes downloaded", bytes.len()),
         RunState::Running,
     );
 
@@ -513,7 +507,7 @@ async fn install_binary(
                 run_id,
                 &agent.id,
                 "line",
-                "sha256 confere",
+                "sha256 matches",
                 RunState::Running,
             );
             true
@@ -524,7 +518,7 @@ async fn install_binary(
                 run_id,
                 &agent.id,
                 "line",
-                format!("sem sha256 no registro; calculado {actual}"),
+                format!("no sha256 in the registry; computed {actual}"),
                 RunState::Running,
             );
             false
@@ -550,14 +544,14 @@ async fn install_binary(
         run_id,
         &agent.id,
         "line",
-        format!("extraído em {}", dir.display()),
+        format!("extracted to {}", dir.display()),
         RunState::Running,
     );
 
     let exe = cmd_path(&dir, &bin.cmd)?;
     if !exe.exists() {
         return Err(format!(
-            "{ERR_ACP}: {} não apareceu depois da extração",
+            "{ERR_ACP}: {} did not appear after extraction",
             exe.display()
         ));
     }
@@ -568,7 +562,9 @@ async fn install_binary(
     }
     let mut warnings = Vec::new();
     if !verified {
-        warnings.push("Instalado sem verificação de sha256 (o registro não publica).".into());
+        warnings.push(
+            "Installed without sha256 verification (the registry does not publish one).".into(),
+        );
     }
     Ok(AcpLaunch {
         agent_id: agent.id.clone(),
@@ -588,7 +584,7 @@ async fn install_binary(
 
 pub fn extract(bytes: &[u8], name: &str, dir: &Path) -> Result<(), String> {
     let lower = name.to_ascii_lowercase();
-    let err = |e: std::io::Error| format!("{ERR_ACP}: extração: {e}");
+    let err = |e: std::io::Error| format!("{ERR_ACP}: extraction: {e}");
     if lower.ends_with(".zip") {
         let mut zip = zip::ZipArchive::new(std::io::Cursor::new(bytes))
             .map_err(|e| format!("{ERR_ACP}: zip: {e}"))?;
@@ -597,7 +593,7 @@ pub fn extract(bytes: &[u8], name: &str, dir: &Path) -> Result<(), String> {
                 .by_index(i)
                 .map_err(|e| format!("{ERR_ACP}: zip: {e}"))?;
             let Some(rel) = f.enclosed_name() else {
-                return Err(format!("{ERR_ACP}: entrada insegura no zip: {}", f.name()));
+                return Err(format!("{ERR_ACP}: unsafe entry in the zip: {}", f.name()));
             };
             let out = dir.join(rel);
             if f.is_dir() {
@@ -653,7 +649,7 @@ pub fn extract(bytes: &[u8], name: &str, dir: &Path) -> Result<(), String> {
             .map_err(err)?;
         let _ = std::fs::remove_file(&tmp);
         if !status.success() {
-            return Err(format!("{ERR_ACP}: tar -xjf falhou ({status})"));
+            return Err(format!("{ERR_ACP}: tar -xjf failed ({status})"));
         }
         return Ok(());
     }

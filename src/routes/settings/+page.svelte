@@ -20,24 +20,15 @@
   import SettingsShell from "$components/settings/rebrand/SettingsShell.svelte";
   import SettingsNav from "$components/settings/rebrand/SettingsNav.svelte";
   import SettingsSearchResults from "$components/settings/rebrand/SettingsSearchResults.svelte";
-  import SettingGroup from "$components/settings/rebrand/SettingGroup.svelte";
-  import SettingRow from "$components/settings/rebrand/SettingRow.svelte";
   import SettingsEmptyState from "$components/settings/rebrand/SettingsEmptyState.svelte";
   import SettingsIcon from "$components/settings/rebrand/SettingsIcon.svelte";
   import SettingsResetDialog from "$components/settings/rebrand/SettingsResetDialog.svelte";
+  import AppearanceCategory from "$components/settings/categories/AppearanceCategory.svelte";
+  import DownloadsCategory from "$components/settings/categories/DownloadsCategory.svelte";
+  import AiCategory from "$components/settings/categories/AiCategory.svelte";
+  import IntegrationsCategory from "$components/settings/categories/IntegrationsCategory.svelte";
+  import AdvancedCategory from "$components/settings/categories/AdvancedCategory.svelte";
   import SettingsGeneral from "$components/settings/rebrand/SettingsGeneral.svelte";
-  import SettingsAppearance from "$components/settings/SettingsAppearance.svelte";
-  import SettingsTypography from "$components/settings/SettingsTypography.svelte";
-  import SettingsDownloads from "$components/settings/SettingsDownloads.svelte";
-  import SettingsAI from "$components/settings/SettingsAI.svelte";
-  import SettingsBrowserExtension from "$components/settings/SettingsBrowserExtension.svelte";
-  import SettingsWorld from "$components/settings/SettingsWorld.svelte";
-  import RichPresencePanel from "$components/settings/RichPresencePanel.svelte";
-  import SettingsNetwork from "$components/settings/SettingsNetwork.svelte";
-  import SettingsDependencies from "$components/settings/SettingsDependencies.svelte";
-  import SettingsStorage from "$components/settings/SettingsStorage.svelte";
-  import SettingsAdvanced from "$components/settings/SettingsAdvanced.svelte";
-  import SettingsCanvas from "$components/settings/SettingsCanvas.svelte";
 
   let settings = $derived(getSettings());
   let loadState = $derived(getSettingsLoadState());
@@ -153,26 +144,9 @@
     ai: "ai", integrations: "integrations", advanced: "advanced",
   };
 
-  const MANAGERS: { href: string; titleKey: string; hintKey?: string }[] = [
-    { href: "/llm/accounts", titleKey: "llm.accounts.title" },
-    { href: "/llm/models", titleKey: "llm.models.title", hintKey: "llm.surface.models_hint" },
-    { href: "/llm/roster", titleKey: "llm.roster.title", hintKey: "llm.surface.roster_hint" },
-    { href: "/llm/mcp", titleKey: "llm.mcp.title", hintKey: "llm.surface.mcp_hint" },
-    { href: "/llm/skills", titleKey: "llm.skills.title", hintKey: "llm.surface.skills_hint" },
-  ];
 </script>
 
 <svelte:window onkeydown={onKeydown} />
-
-{#snippet managerLink(href: string, titleKey: string, hintKey?: string)}
-  <a class="manager-link" {href}>
-    <span class="manager-text">
-      <span class="manager-title">{$t(titleKey)}</span>
-      {#if hintKey}<span class="manager-hint">{$t(hintKey)}</span>{/if}
-    </span>
-    <SettingsIcon name="chevron" size={18} />
-  </a>
-{/snippet}
 
 {#snippet sectionReset(category: SettingsCategory)}
   <div class="section-reset">
@@ -249,109 +223,17 @@
         <SettingsGeneral />
         {@render sectionReset("general")}
       {:else if activeCategory === "appearance"}
-        <SettingsAppearance />
-        <SettingGroup id="typography" title={$t("settings.typography.section_title")} advanced>
-          <SettingsTypography />
-        </SettingGroup>
+        <AppearanceCategory />
         {@render sectionReset("appearance")}
       {:else if activeCategory === "downloads"}
-        <SettingsDownloads />
-        <SettingGroup id="templates" title={$t("omnibox.adv.templates_title")} description={$t("omnibox.adv.templates_empty")} advanced>
-          <div data-setting-key="omnibox.adv.templates_title">
-            {@render managerLink("/?panel=download-advanced", "omnibox.adv.templates_title")}
-          </div>
-        </SettingGroup>
+        <DownloadsCategory />
         {@render sectionReset("downloads")}
       {:else if activeCategory === "ai"}
-        <SettingsAI />
-        <SettingGroup id="managers" title={$t("llm.accounts.title")}>
-          <ul class="manager-list">
-            {#each MANAGERS as item (item.href)}
-              <li data-setting-key={item.titleKey}>{@render managerLink(item.href, item.titleKey, item.hintKey)}</li>
-            {/each}
-          </ul>
-        </SettingGroup>
-        <SettingGroup id="execution" title={$t("llm.watchdog.title")} description={$t("llm.watchdog.subtitle")} advanced>
-          <ul class="manager-list">
-            <li data-setting-key="llm.prune.title">{@render managerLink("/llm/models", "llm.prune.title")}</li>
-            <li data-setting-key="llm.watchdog.title">{@render managerLink("/llm/models", "llm.watchdog.title")}</li>
-          </ul>
-        </SettingGroup>
-        {@render sectionReset("ai")}
+        <AiCategory />
       {:else if activeCategory === "integrations"}
-        <SettingsBrowserExtension />
-        <SettingGroup id="extension-install" title={$t("settings.browser_ext.update_install")}>
-          <SettingsDependencies part="extension" />
-        </SettingGroup>
-        <SettingGroup id="music" title={$t("music.settings_title")} description={$t("music.settings_desc")}>
-          <SettingsAdvanced part="music" />
-          <div data-setting-key="music.settings_title">{@render managerLink("/music?view=settings", "music.settings_title")}</div>
-        </SettingGroup>
-        <SettingGroup id="video" title={$t("video.settings_title")} description={$t("video.settings_desc")}>
-          <SettingsAdvanced part="video" />
-        </SettingGroup>
-        <SettingGroup id="tube" title={$t("tube.settings_title")} description={$t("tube.settings_desc")}>
-          <SettingsAdvanced part="tube" />
-        </SettingGroup>
-        <SettingGroup id="read" title={$t("read.settings_title")} description={$t("read.settings_desc")}>
-          <SettingsAdvanced part="read" />
-        </SettingGroup>
-        <SettingGroup id="telegram" title={$t("telegram.settings_title")} description={$t("telegram.settings_desc")}>
-          <SettingsAdvanced part="telegram" />
-        </SettingGroup>
-        <SettingGroup id="washmybelly" title={$t("washmybelly.settings_title")} description={$t("washmybelly.settings_desc")}>
-          <SettingsAdvanced part="washmybelly" />
-        </SettingGroup>
-        <SettingsWorld />
-        <SettingGroup id="canvas" title={$t("canvas.settings.title")}>
-          <SettingsCanvas />
-        </SettingGroup>
-        <SettingGroup id="league" title={$t("league.settings_title")} description={$t("league.settings_desc")}>
-          <SettingsAdvanced part="league" />
-        </SettingGroup>
-        <RichPresencePanel />
-        <SettingGroup id="mcp-server" title={$t("llm.mcp.server_title")} advanced>
-          <div data-setting-key="llm.mcp.server_title">{@render managerLink("/llm/mcp?mode=server", "llm.mcp.server_title", "llm.surface.mcp_server_hint")}</div>
-        </SettingGroup>
-        {@render sectionReset("integrations")}
+        <IntegrationsCategory />
       {:else if activeCategory === "advanced"}
-        <SettingGroup id="network" title={$t("settings.cat_network")}>
-          <SettingsNetwork />
-        </SettingGroup>
-        <SettingGroup id="torrent" title={$t("settings.advanced.section_torrent")} description={$t("settings.advanced.section_torrent_desc")} advanced>
-          <SettingsAdvanced part="torrent" />
-        </SettingGroup>
-        <SettingGroup id="performance" title={$t("settings.advanced.section_performance")} description={$t("settings.advanced.section_performance_desc")}>
-          <SettingsAdvanced part="performance" />
-        </SettingGroup>
-        <SettingGroup id="dependencies" title={$t("settings.dependencies.title")}>
-          <SettingsDependencies part="binaries" />
-        </SettingGroup>
-        <SettingGroup id="storage" title={$t("settings.storage.title")} description={$t("settings.storage.description")}>
-          <SettingsStorage />
-        </SettingGroup>
-        <SettingGroup id="expert" title={$t("settings.advanced.section_expert")} description={$t("settings.advanced.section_expert_desc")} advanced>
-          <SettingsAdvanced part="expert" />
-        </SettingGroup>
-        <SettingGroup id="debug" title={$t("settings.advanced.section_debug")} description={$t("settings.advanced.section_debug_desc")} advanced>
-          <SettingsAdvanced part="debug" />
-        </SettingGroup>
-        <SettingGroup id="reset" title={$t("settings.advanced.reset")}>
-          <SettingRow id="settings-reset-section" label={$t("settings.rebrand.reset.section_action")} help={$t("settings.rebrand.reset.section_body")}>
-            {#snippet control({ id, describedBy })}
-              <button {id} type="button" class="btn btn-secondary btn-sm" aria-describedby={describedBy} onclick={() => askReset({ kind: "section", section: "advanced" })}>
-                {$t("settings.rebrand.reset.section_action")}
-              </button>
-            {/snippet}
-          </SettingRow>
-          <SettingRow id="settings-reset-app" label={$t("settings.rebrand.reset.app_action")} help={$t("settings.rebrand.reset.app_body")} settingKey="settings.advanced.reset">
-            {#snippet control({ id, describedBy })}
-              <button {id} type="button" class="btn btn-destructive btn-sm" aria-describedby={describedBy} onclick={() => askReset({ kind: "app" })}>
-                {$t("settings.rebrand.reset.app_action")}
-              </button>
-            {/snippet}
-          </SettingRow>
-        </SettingGroup>
+        <AdvancedCategory {askReset} />
       {/if}
     </section>
   {/if}
@@ -433,23 +315,5 @@
   .settings-skeleton { display: flex; flex-direction: column; gap: var(--space-3); }
   .skeleton-row { display: block; block-size: 40px; border-radius: 6px; background: var(--surface-hi); }
   .visually-hidden { position: absolute; inline-size: 1px; block-size: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
-  .manager-list { list-style: none; margin: 0; padding: 0; }
-  .manager-list li + li { border-block-start: 1px solid var(--separator); }
-  .manager-link {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: var(--space-3);
-    min-block-size: 40px;
-    padding-block: var(--space-2);
-    color: var(--text);
-    text-decoration: none;
-    border-radius: 6px;
-  }
-  .manager-link:hover .manager-title { color: var(--accent-text, var(--accent)); }
-  .manager-link:focus-visible { outline: var(--focus-ring); outline-offset: var(--focus-ring-offset, 2px); }
-  .manager-text { display: flex; flex-direction: column; min-inline-size: 0; }
-  .manager-title { font-size: 13px; line-height: 20px; }
-  .manager-hint { font-size: 12px; line-height: 18px; color: var(--text-muted); overflow-wrap: anywhere; }
   .section-reset { display: flex; justify-content: flex-end; padding-block: var(--space-4); border-block-start: 1px solid var(--separator); }
 </style>

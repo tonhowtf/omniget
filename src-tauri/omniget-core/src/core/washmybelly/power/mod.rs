@@ -14,14 +14,12 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Map, Value};
 
 use super::elevate::ElevatedOp;
-use super::plan::{Op, Outcome, PlanItem, Source};
+use super::plan::{Op, Outcome, PlanItem};
 use super::receipt::Undo;
 use super::store::Ctx;
 use super::Risk;
 
-pub use hold::{
-    auto_hold_begin, hold_for, hold_while_pid, pid_alive, set_auto_hold, HoldState, HoldToken,
-};
+pub use hold::{auto_hold_begin, set_auto_hold, HoldState, HoldToken};
 
 const MODULE: &str = "power";
 pub const PLAN_KIND: &str = "power";
@@ -116,15 +114,6 @@ pub async fn tool_hold(a: Value) -> Result<Value, String> {
     .await
 }
 
-fn source_of(a: &Value) -> Source {
-    match a.get("_source").and_then(Value::as_str) {
-        Some("ui") => Source::Ui,
-        Some("external") => Source::External,
-        Some("cli") => Source::Cli,
-        _ => Source::Agent,
-    }
-}
-
 fn item(
     id: String,
     label: String,
@@ -157,8 +146,7 @@ fn action_view(it: &PlanItem) -> Value {
     json!({ "id": it.id, "label": it.label, "detail": it.detail, "admin": it.admin, "risk": it.risk, "action": action, "args": args })
 }
 
-pub async fn tool_status(a: Value) -> Result<Value, String> {
-    let _source = source_of(&a);
+pub async fn tool_status(_a: Value) -> Result<Value, String> {
     super::tools::blocking(move || {
         let (mut v, items) = read_status();
         super::plan::register(PLAN_KIND, &items);
@@ -793,7 +781,6 @@ pub async fn ui_action(action: &str, a: Value) -> Result<Value, String> {
             })
             .await
         }
-        "hold_state" => Ok(serde_json::to_value(hold::global().state()).unwrap_or(Value::Null)),
         _ => Err(format!("power: unknown screen action {action}")),
     }
 }

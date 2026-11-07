@@ -9,14 +9,12 @@
     selected,
     onKeep,
     onToggle,
-    disabled = false,
   }: {
     group: DupGroup;
     keep: string;
     selected: Set<string>;
     onKeep: (path: string) => void;
     onToggle: (path: string) => void;
-    disabled?: boolean;
   } = $props();
 
   let name = $derived(baseName(keep));
@@ -41,7 +39,6 @@
         <input
           type="checkbox"
           checked={selected.has(trashId(f.path))}
-          {disabled}
           aria-label={$t("washmybelly.clean.dupes.trash_copy", { name: shortenPath(f.path, 60) }) as string}
           onchange={() => onToggle(f.path)}
         />
@@ -53,7 +50,7 @@
         {/if}
       </div>
       {#if !isKeep}
-        <button type="button" class="btn btn-ghost btn-sm" {disabled} onclick={() => onKeep(f.path)}>{$t("washmybelly.clean.dupes.keep_this")}</button>
+        <button type="button" class="btn btn-ghost btn-sm" onclick={() => onKeep(f.path)}>{$t("washmybelly.clean.dupes.keep_this")}</button>
       {/if}
     </div>
   {/each}

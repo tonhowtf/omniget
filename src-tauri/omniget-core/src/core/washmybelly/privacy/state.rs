@@ -99,18 +99,6 @@ impl ItemState {
     }
 }
 
-pub fn readable(it: &Item) -> bool {
-    !it.cleanup
-        && it
-            .parts
-            .iter()
-            .any(|p| !matches!(p.fact, Fact::CommandExists { .. }))
-        && it
-            .parts
-            .iter()
-            .all(|p| !matches!(p.fact, Fact::Opaque { .. } | Fact::TccReset { .. }))
-}
-
 pub fn reg_subkeys(text: &str) -> Vec<String> {
     let mut lines = text
         .lines()

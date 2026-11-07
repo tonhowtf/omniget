@@ -14,7 +14,7 @@
     {
       "guid": "omniget",
       "name": "OmniGet",
-      "description": "A free desktop downloader for Windows, macOS and Linux: paste a link from YouTube, Instagram, TikTok, X, Reddit, Twitch or one of the sites yt-dlp supports and get the file. Its MCP server lets Claude Code, Cursor and VS Code queue downloads, and it runs Claude Code, Codex, Gemini CLI and local models as AI agents in a window. Its washmybelly superpower cleans junk, uninstalls apps with their leftovers and handles privacy, power and FPS measurement, always showing a plan and asking first. No account, no ads, no telemetry on what anyone downloads. Files stay on the machine that fetched them.",
+      "description": "A free desktop downloader for Windows, macOS and Linux: paste a link from YouTube, Instagram, TikTok, X, Reddit, Twitch or one of the sites yt-dlp supports and get the file. Its MCP server lets Claude Code, Cursor and VS Code queue downloads, and its Canvas runs Claude Code, Codex, Gemini CLI and local models side by side in terminals. Its washmybelly superpower cleans junk, uninstalls apps with their leftovers and handles privacy, power and FPS measurement, always showing a plan and asking first. No account, no ads, no telemetry on what anyone downloads. Files stay on the machine that fetched them.",
       "webpageUrl": {
         "url": "https://getomniget.com"
       },
@@ -54,7 +54,7 @@
         "guid": "in-app",
         "status": "active",
         "name": "In-app sponsor",
-        "description": "Your logo on the About screen of the app itself, bundled with the binary so the page never calls home. Unlike a README, this is seen again every time someone opens the app, and no other project in this category sells it.",
+        "description": "Your logo on the Community screen of the app itself, bundled with the binary so the page never calls home. Unlike a README, this is seen again every time someone opens the app, and no other project in this category sells it.",
         "amount": 1500,
         "currency": "USD",
         "frequency": "monthly",

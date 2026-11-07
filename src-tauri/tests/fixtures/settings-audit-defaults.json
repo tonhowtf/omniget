@@ -1,6 +1,5 @@
 {
   "accessibility": {
-    "disable_haptics": false,
     "reduce_motion": false,
     "reduce_transparency": false
   },
@@ -15,6 +14,7 @@
     "stagger_delay_ms": 150,
     "torrent_auto_trackers": true,
     "torrent_listen_port": 6881,
+    "torrent_stop_seeding": false,
     "torrent_upnp": true,
     "twitter_manual_cookie": "",
     "user_agent": ""
@@ -125,15 +125,12 @@
     "bilibili_preferred_qn": 200,
     "caption_locale": "en",
     "clipboard_detection": false,
-    "continuous_lecture_numbers": false,
     "cookie_file": "",
     "copy_to_clipboard_on_hotkey": true,
     "default_output_dir": "/tmp/omniget-settings-rebrand-fixture/downloads",
-    "download_descriptions": true,
     "download_subtitles": false,
     "embed_metadata": true,
     "embed_thumbnail": true,
-    "extra_ytdlp_flags": [],
     "filename_template": "%(title).200s [%(id)s].%(ext)s",
     "hotkey_binding": "CmdOrCtrl+Shift+D",
     "hotkey_enabled": false,
@@ -144,6 +141,7 @@
     "music_hotkey_binding": "CmdOrCtrl+Shift+M",
     "music_hotkey_enabled": false,
     "organize_by_platform": false,
+    "playlist_number_files": false,
     "saved_output_dirs": [],
     "skip_existing": true,
     "speed_limit": "",
@@ -155,6 +153,7 @@
     ],
     "sponsorblock_mode": "remove",
     "translate_metadata": false,
+    "video_compatibility": "best",
     "video_quality": "720p",
     "write_nfo_sidecar": false,
     "youtube_sponsorblock": false
@@ -201,9 +200,6 @@
     "job_default_deadline_min": 60,
     "jobs_max_parallel": 4,
     "jobs_max_per_agent": null,
-    "prune_enabled": false,
-    "prune_judge": "local",
-    "prune_min_tokens": 50000,
     "turn_idle_timeout_s": 600,
     "turn_start_timeout_s": 90,
     "turn_tool_idle_timeout_s": 1800
@@ -254,7 +250,6 @@
     "grid_columns": 0,
     "hide_chips": false,
     "hide_comments": false,
-    "hide_end_screen": true,
     "hide_home_feed": false,
     "hide_live": false,
     "hide_members": true,

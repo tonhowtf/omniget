@@ -7,6 +7,7 @@ pub mod claude;
 pub mod claude_sync;
 pub mod common;
 pub mod company;
+pub mod convert;
 pub mod download;
 pub mod guide;
 pub mod import_cookies;

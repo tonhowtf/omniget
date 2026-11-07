@@ -2,12 +2,14 @@
   import { onMount, untrack } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
   import { listen } from "@tauri-apps/api/event";
-  import { open as openDialog } from "@tauri-apps/plugin-dialog";
+  import { ask, open as openDialog } from "@tauri-apps/plugin-dialog";
   import { page } from "$app/state";
   import { t } from "$lib/i18n";
   import { classifyError, type ErrorKind } from "$lib/home/friendly-error";
   import { translateBackendError } from "$lib/error-translate";
   import NavIcon from "$components/shell/NavIcon.svelte";
+  import ConnectorMarket from "$components/global/ConnectorMarket.svelte";
+  import { authProblem, type MarketEntry, type UrlLookup } from "$lib/global/connector-market";
 
   type Tab = { id: string; url: string; title: string };
   type Sniffed = {
@@ -32,7 +34,7 @@
   type JobOrigin = { tree: TreeNode; outDir: string; maxHeight: number | null };
 
   const KINDS = new Set(["folder", "video", "audio", "file", "subtitle", "text", "link", "hls", "dash", "document", "image"]);
-  const STATUSES = new Set(["queued", "running", "active", "done", "cancelled", "failed", "skipped", "drm", "handed_off"]);
+  const STATUSES = new Set(["queued", "running", "active", "done", "partial", "cancelled", "failed", "skipped", "drm", "handed_off"]);
 
   let browserOpen = $state(false);
   let browserMode = $state("embedded");
@@ -64,13 +66,11 @@
   let importProfile = $state("");
   let imported = $state<Imported>(null);
   let importResult = $state<Imported>(null);
+  let loginNote = $state("");
   let jobOrigins = $state<Record<number, JobOrigin>>({});
   let handledParam = "";
 
-  type OptionDef = { id: string; label?: string; type?: string; default?: unknown; choices?: string[]; help?: string };
-  let optionsFor = $state<string | null>(null);
-  let optionDefs = $state<OptionDef[]>([]);
-  let optionValues = $state<Record<string, any>>({});
+  let marketKey = $state(0);
 
   let visibleSniffed = $derived(sniffTab ? sniffed.filter((s) => s.tab_id === sniffTab) : sniffed);
   let windowVisible = $derived(browserOpen && browserMode === "window");
@@ -132,6 +132,26 @@
     const r = await run("find", () => invoke<Resolved>("gd_find", { url, reload }), () => find(reload));
     if (r) applyResolved(r, url);
     await refresh();
+    if (!r && errorRaw && authProblem(errorRaw) && !loginOpen) {
+      const target = await helperLoginUrl(url);
+      if (target) await openLogin(target);
+    }
+  }
+
+  async function helperLoginUrl(url: string): Promise<string | null> {
+    try {
+      const hit = await invoke<UrlLookup>("gd_connector_for_url", { url });
+      return hit.installed?.login_url ?? null;
+    } catch {
+      return null;
+    }
+  }
+
+  async function openLogin(target: string) {
+    importOpen = false;
+    loginNote = "";
+    await showWindow(target);
+    if (!errorRaw) loginOpen = true;
   }
 
   async function startBrowser() {
@@ -142,9 +162,26 @@
     });
   }
 
+  async function askWhileJobsRun(act: (force: boolean) => Promise<unknown>) {
+    try {
+      await act(false);
+      return true;
+    } catch (e) {
+      if (!String(e).startsWith("BROWSER_BUSY")) throw e;
+    }
+    const yes = await ask($t("global_dl.browser_busy_body") as string, {
+      title: $t("global_dl.browser_busy_title") as string,
+      kind: "warning",
+      okLabel: $t("global_dl.browser_busy_confirm") as string,
+      cancelLabel: $t("global_dl.browser_busy_keep") as string,
+    });
+    if (yes) await act(true);
+    return yes;
+  }
+
   async function stopBrowser() {
     await run("browser", async () => {
-      await invoke("gd_browser_stop");
+      if (!(await askWhileJobsRun((force) => invoke("gd_browser_stop", { force })))) return;
       loginOpen = false;
       await refresh();
     });
@@ -152,14 +189,14 @@
 
   async function showWindow(url: string | null) {
     await run("window", async () => {
-      await invoke("gd_browser_show", { url });
+      await askWhileJobsRun((force) => invoke("gd_browser_show", { url, force }));
       await refresh();
     }, () => showWindow(url));
   }
 
   async function hideWindow() {
     await run("window", async () => {
-      await invoke("gd_browser_hide");
+      if (!(await askWhileJobsRun((force) => invoke("gd_browser_hide", { force })))) return;
       loginOpen = false;
       await refresh();
     });
@@ -171,13 +208,40 @@
       urlField?.focus();
       return;
     }
-    importOpen = false;
-    await showWindow(url);
-    if (!errorRaw) loginOpen = true;
+    await openLogin((await helperLoginUrl(url)) ?? url);
+  }
+
+  async function openFromMarket(entry: MarketEntry) {
+    if (entry.login?.url) {
+      await openLogin(entry.login.url);
+    } else {
+      urlField?.focus();
+    }
+  }
+
+  async function matchingTabUrl(): Promise<string | null> {
+    await refresh();
+    for (const tab of [...tabs].reverse()) {
+      if (!/^https?:/i.test(tab.url)) continue;
+      try {
+        const hit = await invoke<UrlLookup>("gd_connector_for_url", { url: tab.url });
+        if (hit.installed) return tab.url;
+      } catch {}
+    }
+    return null;
   }
 
   async function loggedIn() {
+    if (!urlInput.trim()) {
+      const url = await matchingTabUrl();
+      if (!url) {
+        loginNote = $t("global_dl.market.login_paste") as string;
+        return;
+      }
+      urlInput = url;
+    }
     loginOpen = false;
+    loginNote = "";
     await find(true);
   }
 
@@ -313,33 +377,20 @@
     await run("connector", async () => {
       await invoke("gd_connector_install_dev", { dir });
       await refresh();
+      marketKey++;
     });
   }
 
-  async function toggleOptions(c: Connector) {
-    if (optionsFor === c.manifest.id) {
-      optionsFor = null;
-      return;
-    }
-    const r = await run("connector", () => invoke<{ defs: OptionDef[]; values: Record<string, any> }>("gd_connector_options", { id: c.manifest.id }));
-    if (!r) return;
-    optionDefs = r.defs;
-    optionValues = { ...r.values };
-    optionsFor = c.manifest.id;
-  }
-
-  async function saveOptions() {
-    if (!optionsFor) return;
-    const id = optionsFor;
-    const r = await run("connector", () => invoke<{ values: Record<string, any> }>("gd_connector_options_set", { id, values: optionValues }));
-    if (r) optionsFor = null;
-  }
-
-  async function removeConnector(c: Connector) {
+  async function removeDevConnector(c: Connector) {
     await run("connector", async () => {
       await invoke("gd_connector_remove", { id: c.manifest.id });
       await refresh();
+      marketKey++;
     });
+  }
+
+  function connectorName(id: string) {
+    return connectors.find((c) => c.manifest.id === id)?.manifest.name ?? id;
   }
 
   function kindLabel(k: string) {
@@ -541,6 +592,7 @@
     <section class="card callout" aria-live="polite">
       <h2>{$t("global_dl.login_title")}</h2>
       <p>{$t("global_dl.login_hint")}</p>
+      {#if loginNote}<p role="status">{loginNote}</p>{/if}
       <div class="row">
         <button class="btn btn-primary" onclick={loggedIn} disabled={busy === "find"}>{$t("global_dl.login_done")}</button>
         <button class="btn btn-ghost" onclick={hideWindow} disabled={busy === "window"}>{$t("global_dl.hide_window")}</button>
@@ -626,7 +678,7 @@
         <div class="tree-head">
           <h2 title={resolved.tree.title}>{resolved.tree.title}</h2>
           <span class="note">
-            {resolved.connector ? $t("global_dl.via_connector", { name: resolved.connector }) : $t("global_dl.via_page")}
+            {resolved.connector ? $t("global_dl.via_connector", { name: connectorName(resolved.connector) }) : $t("global_dl.via_page")}
             · {$t("global_dl.items_count", { count: downloadable.length })}
             {#if resolved.drm} · <span title={$t("global_dl.drm_tooltip")}>{$t("global_dl.drm_count", { count: resolved.drm })}</span>{/if}
           </span>
@@ -703,7 +755,7 @@
             <div class="job-row">
               <span class="tab-title" title={j.title}>{j.title}</span>
               <span class="note">{$t("global_dl.job_progress", { finished, total: j.total })}{j.bytes ? ` · ${bytes(j.bytes)}` : ""}</span>
-              <span class="pill" class:pill-on={j.status === "done"}>{statusLabel(j.status)}</span>
+              <span class="pill" class:pill-on={j.status === "done"} class:pill-fail={j.status === "failed" || j.status === "partial"}>{statusLabel(j.status)}</span>
               {#if j.status === "running"}
                 <button class="btn btn-ghost btn-sm" onclick={() => invoke("gd_job_cancel", { id: j.id })}>{$t("global_dl.cancel")}</button>
               {/if}
@@ -744,6 +796,10 @@
       </ul>
     </section>
   {/if}
+
+  {#key marketKey}
+    <ConnectorMarket onOpen={openFromMarket} />
+  {/key}
 
   <details class="advanced card">
     <summary>
@@ -843,42 +899,16 @@
             <button class="btn btn-ghost btn-sm" onclick={addConnector}>{$t("global_dl.add_connector")}</button>
           </header>
           <p class="note">{$t("global_dl.connectors_hint")}</p>
-          {#if connectors.length === 0}
-            <p class="empty">{$t("global_dl.no_connectors")}</p>
-          {:else}
+          {#if connectors.some((c) => c.dev)}
             <ul class="connectors">
-              {#each connectors as c (c.manifest.id)}
+              {#each connectors.filter((c) => c.dev) as c (c.manifest.id)}
                 <li>
                   <div class="tab-copy">
-                    <span class="tab-title">{c.manifest.name} <span class="note">{c.manifest.version}{c.dev ? ` · ${$t("global_dl.dev")}` : ""}</span></span>
-                    <span class="tab-url">{c.manifest.domains.join(", ")}</span>
+                    <span class="tab-title">{c.manifest.name} <span class="note">{c.manifest.version} · {$t("global_dl.dev")}</span></span>
+                    <span class="tab-url" title={c.dir}>{c.dir}</span>
                   </div>
-                  {#if (c.manifest as any).options?.length}
-                    <button class="btn btn-ghost btn-sm" onclick={() => toggleOptions(c)} aria-expanded={optionsFor === c.manifest.id}>{$t("global_dl.options")}</button>
-                  {/if}
-                  <button class="btn btn-ghost btn-sm" onclick={() => removeConnector(c)}>{$t("global_dl.remove")}</button>
+                  <button class="btn btn-ghost btn-sm" onclick={() => removeDevConnector(c)}>{$t("global_dl.remove")}</button>
                 </li>
-                {#if optionsFor === c.manifest.id}
-                  <li class="options">
-                    {#each optionDefs as o (o.id)}
-                      <label class="option">
-                        <span>{o.label ?? o.id}</span>
-                        {#if o.type === "boolean"}
-                          <input type="checkbox" bind:checked={optionValues[o.id]} />
-                        {:else if o.type === "select"}
-                          <select bind:value={optionValues[o.id]}>
-                            {#each o.choices ?? [] as ch (ch)}
-                              <option value={ch}>{ch}</option>
-                            {/each}
-                          </select>
-                        {:else}
-                          <input type="text" bind:value={optionValues[o.id]} placeholder={o.help ?? ""} />
-                        {/if}
-                      </label>
-                    {/each}
-                    <button class="btn btn-primary btn-sm" onclick={saveOptions}>{$t("global_dl.save")}</button>
-                  </li>
-                {/if}
               {/each}
             </ul>
           {/if}
@@ -929,6 +959,10 @@
     color: var(--text-dim);
     white-space: nowrap;
   }
+  .pill-fail {
+    color: var(--danger);
+  }
+
   .pill-on {
     background: color-mix(in srgb, #34c759 22%, transparent);
     color: var(--text);
@@ -1377,34 +1411,6 @@
   progress {
     width: 100%;
     height: 6px;
-  }
-  .connectors li.options {
-    flex-direction: column;
-    align-items: stretch;
-    gap: var(--space-2);
-    padding: var(--space-2) var(--space-3);
-    background: var(--fill-2);
-    border-radius: 10px;
-  }
-  .option {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: var(--space-3);
-    font-size: var(--text-sm);
-  }
-  .option input[type="text"],
-  .option select {
-    min-width: 140px;
-    background: var(--surface);
-    color: var(--text);
-    border: 1px solid var(--hairline);
-    border-radius: 8px;
-    padding: 4px 8px;
-    font-size: var(--text-xs);
-  }
-  .options .btn {
-    align-self: flex-end;
   }
   .fail {
     display: flex;

@@ -1,5 +1,6 @@
 <script lang="ts">
   import { t } from "$lib/i18n";
+  import { renderMarkdown } from "$lib/changelog-markdown";
   import {
     getChangelogVisible,
     getChangelogBody,
@@ -37,64 +38,6 @@
     if (e.target === dialogEl) {
       handleClose();
     }
-  }
-
-  function renderMarkdown(md: string): string {
-    const out: string[] = [];
-    let inFence = false;
-    let fenceLines: string[] = [];
-    for (const line of md.split("\n")) {
-      if (line.trim().startsWith("```")) {
-        if (inFence) {
-          out.push(`<pre><code>${escapeHtml(fenceLines.join("\n"))}</code></pre>`);
-          fenceLines = [];
-        }
-        inFence = !inFence;
-        continue;
-      }
-      if (inFence) {
-        fenceLines.push(line);
-        continue;
-      }
-      if (/^\s*(---|\*\*\*|___)\s*$/.test(line)) {
-        out.push("<hr />");
-      } else if (line.startsWith("### ")) {
-        out.push(`<h4>${escapeHtml(line.slice(4))}</h4>`);
-      } else if (line.startsWith("## ")) {
-        out.push(`<h3>${escapeHtml(line.slice(3))}</h3>`);
-      } else if (line.startsWith("# ")) {
-        out.push(`<h2>${escapeHtml(line.slice(2))}</h2>`);
-      } else if (line.startsWith("- ") || line.startsWith("* ")) {
-        out.push(`<li>${formatInline(line.slice(2))}</li>`);
-      } else if (line.trim() === "") {
-        out.push("<br />");
-      } else {
-        out.push(`<p>${formatInline(line)}</p>`);
-      }
-    }
-    if (inFence && fenceLines.length) {
-      out.push(`<pre><code>${escapeHtml(fenceLines.join("\n"))}</code></pre>`);
-    }
-    return out.join("");
-  }
-
-  function escapeHtml(str: string): string {
-    return str
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;")
-      .replace(/"/g, "&quot;");
-  }
-
-  function formatInline(str: string): string {
-    let result = escapeHtml(str);
-    result = result.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
-    result = result.replace(/`(.+?)`/g, "<code>$1</code>");
-    result = result.replace(
-      /\[(.+?)\]\((.+?)\)/g,
-      '<a href="$2" target="_blank" rel="noopener">$1</a>'
-    );
-    return result;
   }
 </script>
 

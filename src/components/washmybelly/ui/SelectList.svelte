@@ -45,9 +45,7 @@
     groupLabel = (key: string) => key,
     showToolbar = true,
     collapsible = true,
-    virtualizeAt = 200,
     maxHeight = 480,
-    emptyText = "",
     trailing,
   }: {
     items: Item[];
@@ -56,9 +54,7 @@
     groupLabel?: (key: string) => string;
     showToolbar?: boolean;
     collapsible?: boolean;
-    virtualizeAt?: number;
     maxHeight?: number;
-    emptyText?: string;
     trailing?: Snippet<[Item]>;
   } = $props();
 
@@ -68,7 +64,7 @@
 
   let groups = $derived(groupItems(items));
   let rows = $derived(flattenRows(groups, collapsed));
-  let virtual = $derived(rows.length > virtualizeAt);
+  let virtual = $derived(rows.length > 200);
   let heights = $derived(rows.map(heightOf));
   let offsets = $derived(rowOffsets(heights));
   let range = $derived(
@@ -126,9 +122,7 @@
     </div>
   {/if}
 
-  {#if items.length === 0}
-    {#if emptyText}<div class="group wmb-sl-empty">{emptyText}</div>{/if}
-  {:else}
+  {#if items.length > 0}
     <div
       class="group wmb-sl"
       class:virtual
@@ -222,12 +216,6 @@
   .wmb-sl.virtual {
     overflow-y: auto;
     overscroll-behavior: contain;
-  }
-  .wmb-sl-empty {
-    padding: var(--space-5);
-    text-align: center;
-    color: var(--text-dim);
-    font-size: var(--text-sm);
   }
   .wmb-sl-head,
   .wmb-sl-row {

@@ -1,0 +1,18 @@
+[package]
+name = "pdfcraft-content"
+version = "0.18.1"
+edition = "2024"
+rust-version = "1.95"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/storytold/pdfcraft"
+publish = false
+autoexamples = false
+autotests = false
+autobenches = false
+
+[dependencies]
+hayro-syntax = { path = "../hayro-syntax", default-features = false, features = ["std"] }
+pdfcraft-cos = { path = "../cos" }
+
+[lints.clippy]
+all = "allow"

@@ -6,8 +6,6 @@ status = "active"
 beta = true
 homepage = "https://kiro.dev"
 notes = "Kiro IDE and kiro-cli share ~/.kiro and .kiro. kiro-cli replaces the Amazon Q Developer CLI (q still works; legacy .amazonq/ and ~/.aws/amazonq/ are still read). CLI 3.0 is opt-in and moved hooks to .kiro/hooks/*.json; an installer must handle both 2.x and 3.0 layouts. CLI agents are JSON, IDE agents may be Markdown."
-reads_agents_dir = false
-reads_agents_md = "yes"
 
 [detect]
 binaries = ["kiro-cli"]
@@ -20,7 +18,6 @@ local = false
 managed = true              # enterprise managed-settings.json can hold permission rules; path not given in the study
 project_markers = [".kiro", ".amazonq"]
 global_dir = "~/.kiro"
-config_dir_env = "KIRO_HOME"
 
 [formats]
 rule = "kiro_steering"
@@ -109,7 +106,6 @@ Stop = "Stop"
 shape = "kiro"
 timeout_unit = "s"
 version = "v1"
-events_count = 10     # plus IDE-legacy Manual; file and task triggers are IDE-only
 
 [tool_name_map]
 Bash = "shell"
@@ -153,7 +149,6 @@ format = "jsonl"
 cmd = "kiro-cli"
 headless = ["chat", "--no-interactive"]
 json_flag = ["--output-format", "stream-json", "--agent-engine", "v3"]   # stream-json needs --agent-engine v2|v3
-resume_flag = "--resume-id"
 permission_flags = { bypass = ["--trust-all-tools"] }
 
 [acp]
@@ -163,5 +158,4 @@ args = ["acp"]
 # not in the ACP registry (checked 2026-09-22)
 
 [trust]
-requires_review = false
 how = "No workspace-trust prompt is documented; workspace permission rules live outside the repo (~/.kiro/workspace-roots/<hash>/permissions.yaml) so a cloned repo cannot inject them, and MCP ${VAR} expansion needs the var approved in settings."

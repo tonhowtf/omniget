@@ -501,7 +501,6 @@ pub struct WorkflowSpec {
 
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
 pub struct ModSpec {
-    pub plugin_name: String,
     #[serde(default)]
     pub version: Option<String>,
     #[serde(default)]

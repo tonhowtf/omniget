@@ -27,7 +27,7 @@ pub struct Detection {
     pub checked_at: u64,
 }
 
-fn now() -> u64 {
+pub(crate) fn now() -> u64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map(|d| d.as_secs())
@@ -138,15 +138,15 @@ async fn detect_with(tool: &CliTool, probes: &Probes, extra: &[PathBuf]) -> Dete
                 proven: false,
                 prefix: app_path.clone(),
                 evidence: if tool.auto_updates {
-                    "app de GUI; atualiza sozinho".into()
+                    "GUI app; updates itself".into()
                 } else {
-                    "app de GUI".into()
+                    "GUI app".into()
                 },
                 update: None,
                 manual: None,
             }
         } else {
-            Owner::unknown("não instalado", super::plan::manual_install_line(tool))
+            Owner::unknown("not installed", super::plan::manual_install_line(tool))
         };
         return Detection {
             id: tool.id.clone(),

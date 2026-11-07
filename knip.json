@@ -1,0 +1,12 @@
+{
+  "$schema": "https://unpkg.com/knip@latest/schema.json",
+  "entry": [
+    "src/routes/**/+*.{svelte,ts}",
+    "scripts/**/*.{js,mjs}",
+    "browser-extension/chrome/**/*.{js,mjs}",
+    "static/remote/*.js"
+  ],
+  "project": ["src/**/*.{ts,js,svelte}", "scripts/**/*.{js,mjs}", "browser-extension/chrome/**/*.{js,mjs}"],
+  "ignore": ["src/lib/vendor/**"],
+  "ignoreBinaries": ["appstreamcli", "rustc"]
+}

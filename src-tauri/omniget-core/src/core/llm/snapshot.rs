@@ -307,83 +307,6 @@ pub async fn after_turn(workspace: &Path, conversation: &str, request: &str) -> 
     Ok(())
 }
 
-pub async fn turn_diff(
-    workspace: &Path,
-    conversation: &str,
-    request: &str,
-) -> Result<Option<TurnDiff>, String> {
-    let dir = git_dir(workspace)?;
-    if !dir.join("HEAD").exists() {
-        return Ok(None);
-    }
-    let stack = load(&dir, conversation);
-    let Some(entry) = stack.iter().rev().find(|e| e.request == request).cloned() else {
-        return Ok(None);
-    };
-    let (after, complete) = match entry.after.clone() {
-        Some(t) => (t, true),
-        None => (stage_tree(&dir, workspace).await?, false),
-    };
-    let status = git(
-        &dir,
-        workspace,
-        &["diff", "--name-status", "-M", &entry.tree, &after],
-    )
-    .await?;
-    let numstat = git(
-        &dir,
-        workspace,
-        &["diff", "--numstat", "-M", &entry.tree, &after],
-    )
-    .await?;
-    let mut files: Vec<FileChange> = status
-        .lines()
-        .filter(|l| !l.trim().is_empty())
-        .filter_map(|l| {
-            let mut parts = l.split('\t');
-            let st = parts.next()?.chars().next()?.to_string();
-            let path = parts.next_back()?.to_string();
-            Some(FileChange {
-                path,
-                status: st,
-                additions: None,
-                deletions: None,
-                binary: false,
-            })
-        })
-        .collect();
-    for l in numstat.lines() {
-        let cols: Vec<&str> = l.split('\t').collect();
-        if cols.len() < 3 {
-            continue;
-        }
-        let path = cols[cols.len() - 1];
-        if let Some(f) = files
-            .iter_mut()
-            .find(|f| f.path == path || path.ends_with(&f.path))
-        {
-            f.additions = cols[0].parse().ok();
-            f.deletions = cols[1].parse().ok();
-            f.binary = cols[0] == "-" && cols[1] == "-";
-        }
-    }
-    let mut patch = git(&dir, workspace, &["diff", "-M", &entry.tree, &after]).await?;
-    let clipped = patch.len() > DIFF_MAX_BYTES;
-    if clipped {
-        let mut end = DIFF_MAX_BYTES;
-        while !patch.is_char_boundary(end) {
-            end -= 1;
-        }
-        patch.truncate(end);
-    }
-    Ok(Some(TurnDiff {
-        files,
-        patch,
-        clipped,
-        complete,
-    }))
-}
-
 pub async fn job_diff(
     workspace: &Path,
     conversation: &str,
@@ -686,23 +609,6 @@ pub async fn undo(
     store(&dir, conversation, &stack);
     Ok(Undone {
         files: changed,
-        messages_before: entry.messages_before,
-    })
-}
-
-pub async fn forget_last(workspace: &Path, conversation: &str) -> Result<Undone, String> {
-    let dir = git_dir(workspace)?;
-    let mut stack = if dir.join("HEAD").exists() {
-        load(&dir, conversation)
-    } else {
-        Vec::new()
-    };
-    let entry = stack.pop().ok_or_else(|| {
-        format!("{ERR_NOTHING_TO_UNDO}: no turn of this conversation wrote files")
-    })?;
-    store(&dir, conversation, &stack);
-    Ok(Undone {
-        files: Vec::new(),
         messages_before: entry.messages_before,
     })
 }

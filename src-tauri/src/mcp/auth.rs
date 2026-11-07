@@ -269,7 +269,7 @@ pub struct UiRequest {
     pub expires_at: i64,
 }
 
-fn now_secs() -> i64 {
+pub(crate) fn now_secs() -> i64 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap_or_default()

@@ -129,7 +129,7 @@ fn handle_download_clipboard(app: &tauri::AppHandle) {
     let text = match app.clipboard().read_text() {
         Ok(t) => t,
         Err(e) => {
-            tracing::warn!("[hotkey] nao foi possivel ler o clipboard: {}", e);
+            tracing::warn!("[hotkey] could not read the clipboard: {}", e);
             emit_hotkey_result(app, "clipboard_error", None);
             return;
         }
@@ -158,7 +158,7 @@ async fn enqueue_from_clipboard(app: &tauri::AppHandle, url: String) {
         Ok(QueueUrlOutcome::Queued) => emit_hotkey_result(app, "queued", Some(&url)),
         Ok(QueueUrlOutcome::AlreadyQueued) => emit_hotkey_result(app, "already_queued", Some(&url)),
         Err(e) => {
-            tracing::warn!("[hotkey] enfileiramento recusado: {}", e);
+            tracing::warn!("[hotkey] queueing refused: {}", e);
             emit_hotkey_result(app, "unsupported", Some(&url));
         }
     }

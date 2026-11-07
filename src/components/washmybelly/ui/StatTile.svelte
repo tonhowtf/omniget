@@ -1,40 +1,26 @@
 <script lang="ts">
-  import type { Snippet } from "svelte";
-
   let {
     label,
     value,
     sub = "",
     unit = "",
     tone = "default",
-    onClick,
-    trailing,
   }: {
     label: string;
     value: string;
     sub?: string;
     unit?: string;
     tone?: "default" | "good" | "warn" | "bad" | "accent";
-    onClick?: () => void;
-    trailing?: Snippet;
   } = $props();
 </script>
 
-<svelte:element
-  this={onClick ? "button" : "div"}
-  class="wmb-stat tone-{tone}"
-  class:interactive={!!onClick}
-  onclick={onClick}
-  type={onClick ? "button" : undefined}
-  role={onClick ? undefined : "group"}
->
+<div class="wmb-stat tone-{tone}" role="group">
   <span class="wmb-stat-text">
     <span class="l">{label}</span>
     <span class="v">{value}{#if unit}<small>{unit}</small>{/if}</span>
     {#if sub}<span class="s">{sub}</span>{/if}
   </span>
-  {#if trailing}<span class="wmb-stat-trailing">{@render trailing()}</span>{/if}
-</svelte:element>
+</div>
 
 <style>
   .wmb-stat {
@@ -50,19 +36,6 @@
     color: var(--text);
     font: inherit;
     text-align: left;
-  }
-  .wmb-stat.interactive {
-    cursor: pointer;
-    transition: background var(--duration-fast) var(--ease-out);
-  }
-  @media (hover: hover) {
-    .wmb-stat.interactive:hover {
-      background: var(--surface-hi);
-    }
-  }
-  .wmb-stat.interactive:focus-visible {
-    outline: var(--focus-ring);
-    outline-offset: var(--focus-ring-offset);
   }
   .wmb-stat-text {
     flex: 1;
@@ -105,9 +78,4 @@
   .tone-warn .v { color: var(--warning); }
   .tone-bad .v { color: var(--danger); }
   .tone-accent .v { color: var(--accent-hi); }
-  .wmb-stat-trailing {
-    flex-shrink: 0;
-    display: flex;
-    align-items: center;
-  }
 </style>

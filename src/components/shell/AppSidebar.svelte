@@ -29,7 +29,7 @@
 
   const AUTO_COLLAPSE_BELOW = 1180;
   let viewportWidth = $state(typeof window === "undefined" ? AUTO_COLLAPSE_BELOW : window.innerWidth);
-  let denseRoute = $derived(/^\/(settings|llm)(\/|$)/.test(page.url.pathname));
+  let denseRoute = $derived(/^\/settings(\/|$)/.test(page.url.pathname));
   let autoCollapsed = $derived(!collapsed && denseRoute && viewportWidth < AUTO_COLLAPSE_BELOW);
   let drawerOpen = $state(false);
   let drawer = $derived(autoCollapsed && drawerOpen);
@@ -106,7 +106,6 @@
   function isActive(href: string): boolean {
     if (href === "/") return page.url.pathname === "/";
     const path = page.url.pathname;
-    if (href.startsWith("/llm/")) return path === "/llm" || path.startsWith("/llm/");
     return path.startsWith(href) || (NAV_ALIASES[href] ?? []).some((alias) => path.startsWith(alias));
   }
 
@@ -132,7 +131,7 @@
     onblur={hideTip}
   >
     <NavIcon icon={item.icon} size={railCollapsed ? 30 : 26} {active} />
-    <span class="mac-nav-label">{title}{#if item.href === "/help"}<small>{$t("nav.help_subtitle")}</small>{/if}</span>
+    <span class="mac-nav-label">{title}</span>
     {#if item.badge === "downloads" && badgeCount > 0}
       <span class="mac-nav-badge live">{badgeLabel}</span>
     {/if}
@@ -275,10 +274,9 @@
   :global(.mac-source-list) { overflow-y: hidden; }
   @media (max-width: 860px) { .profile-copy { display: none; } .mac-sidebar-profile { padding-inline: 8px; } }
   .help-link { min-height: 44px; }
-  .mac-nav-label small, .profile-copy small { display: block; font-size: 11px; line-height: 1.3; color: var(--text-muted); }
+  .profile-copy small { display: block; font-size: 11px; line-height: 1.3; color: var(--text-muted); }
   .profile-copy { display: flex; flex-direction: column; min-width: 0; }
   .mac-sidebar-profile { min-height: 44px; box-sizing: border-box; }
-  @media (max-width: 900px) { .help-link .mac-nav-label small { display: none; } }
 
   .mac-sidebar-profile {
     display: flex;

@@ -56,11 +56,11 @@ pub mod integrity {
     pub fn verify_sha256(bytes: &[u8], expected: &str, label: &str) -> anyhow::Result<()> {
         let actual = sha256_hex(bytes);
         if actual == expected.to_lowercase() {
-            tracing::info!("[integrity] {} verificado (sha256 confere)", label);
+            tracing::info!("[integrity] {} verified (sha256 matches)", label);
             return Ok(());
         }
         Err(anyhow!(
-            "{}: hash nao confere — esperado {}, obtido {}. Download descartado.",
+            "{}: hash does not match: expected {}, got {}. Download discarded.",
             label,
             expected,
             actual
@@ -76,10 +76,10 @@ pub mod integrity {
             .get(sums_url)
             .send()
             .await
-            .map_err(|e| anyhow!("nao foi possivel buscar {}: {}", sums_url, e))?;
+            .map_err(|e| anyhow!("could not fetch {}: {}", sums_url, e))?;
         if !response.status().is_success() {
             return Err(anyhow!(
-                "nao foi possivel buscar {}: HTTP {}",
+                "could not fetch {}: HTTP {}",
                 sums_url,
                 response.status()
             ));
@@ -87,10 +87,10 @@ pub mod integrity {
         let text = response
             .text()
             .await
-            .map_err(|e| anyhow!("corpo ilegivel de {}: {}", sums_url, e))?;
+            .map_err(|e| anyhow!("unreadable body from {}: {}", sums_url, e))?;
         parse_sha256sums(&text, asset)
             .or_else(|| parse_single_sha256(&text))
-            .ok_or_else(|| anyhow!("{} nao esta listado em {}", asset, sums_url))
+            .ok_or_else(|| anyhow!("{} is not listed in {}", asset, sums_url))
     }
 }
 
@@ -135,13 +135,13 @@ pub mod ytdlp_onedir {
         let _ = std::fs::remove_dir_all(&staged);
         let result = (|| {
             let mut archive = zip::ZipArchive::new(std::io::Cursor::new(bytes))
-                .map_err(|e| anyhow!("yt-dlp onedir: zip invalido: {e}"))?;
+                .map_err(|e| anyhow!("yt-dlp onedir: invalid zip: {e}"))?;
             archive
                 .extract(&staged)
-                .map_err(|e| anyhow!("yt-dlp onedir: falha ao extrair: {e}"))?;
+                .map_err(|e| anyhow!("yt-dlp onedir: could not extract: {e}"))?;
             if !is_complete(&staged) {
                 return Err(anyhow!(
-                    "yt-dlp onedir: layout inesperado (sem {EXE_NAME} ou _internal)"
+                    "yt-dlp onedir: unexpected layout (missing {EXE_NAME} or _internal)"
                 ));
             }
             #[cfg(unix)]
@@ -159,14 +159,14 @@ pub mod ytdlp_onedir {
         let had_previous = target.exists();
         if had_previous {
             std::fs::rename(target, &old)
-                .map_err(|e| anyhow!("yt-dlp onedir: nao foi possivel mover o anterior: {e}"))?;
+                .map_err(|e| anyhow!("yt-dlp onedir: could not move the previous one: {e}"))?;
         }
         if let Err(e) = std::fs::rename(&staged, target) {
             if had_previous {
                 let _ = std::fs::rename(&old, target);
             }
             let _ = std::fs::remove_dir_all(&staged);
-            return Err(anyhow!("yt-dlp onedir: falha ao instalar: {e}"));
+            return Err(anyhow!("yt-dlp onedir: could not install: {e}"));
         }
         let exe = exe_in(target);
         if let Ok(f) = std::fs::File::open(&exe) {
@@ -471,21 +471,95 @@ pub async fn ensure_ffmpeg() -> anyhow::Result<PathBuf> {
 
 async fn download_ffmpeg() -> anyhow::Result<PathBuf> {
     let bin_dir = managed_bin_dir().ok_or_else(|| anyhow!("Could not determine data directory"))?;
-    std::fs::create_dir_all(&bin_dir)?;
+    install_ffmpeg_into(&bin_dir).await
+}
 
+fn staged_ffmpeg(bin_dir: &std::path::Path, name: &str) -> PathBuf {
+    bin_dir.join(format!("{}.new", name))
+}
+
+async fn prepare_staged_binary(path: PathBuf) -> anyhow::Result<()> {
+    tokio::task::spawn_blocking(move || {
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755))
+                .map_err(|e| anyhow!("Could not mark {} as executable: {e}", path.display()))?;
+        }
+        #[cfg(target_os = "macos")]
+        {
+            let _ = crate::core::process::std_command("xattr")
+                .args(["-d", "com.apple.quarantine"])
+                .arg(&path)
+                .output();
+        }
+        let status = crate::core::process::std_command(&path)
+            .arg("-version")
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status()
+            .map_err(|e| anyhow!("{} does not run on this computer: {e}", path.display()))?;
+        if status.success() {
+            Ok(())
+        } else {
+            Err(anyhow!(
+                "{} does not run on this computer ({status})",
+                path.display()
+            ))
+        }
+    })
+    .await
+    .map_err(|e| anyhow!("spawn_blocking failed: {}", e))?
+}
+
+async fn install_ffmpeg_into(bin_dir: &std::path::Path) -> anyhow::Result<PathBuf> {
+    std::fs::create_dir_all(bin_dir)?;
     let ffmpeg_name = bin_name("ffmpeg");
     let ffprobe_name = bin_name("ffprobe");
+    let staged: Vec<PathBuf> = [&ffmpeg_name, &ffprobe_name]
+        .iter()
+        .map(|n| staged_ffmpeg(bin_dir, n))
+        .collect();
+    let result = stage_ffmpeg(bin_dir, &ffmpeg_name, &ffprobe_name).await;
+    if result.is_ok() {
+        for path in &staged {
+            if !path.exists() {
+                continue;
+            }
+            let name = path
+                .file_stem()
+                .map(PathBuf::from)
+                .ok_or_else(|| anyhow!("staged file without a name"))?;
+            replace_managed_binary(path, &bin_dir.join(name))?;
+        }
+    }
+    for path in &staged {
+        let _ = std::fs::remove_file(path);
+    }
+    result?;
     let ffmpeg_target = bin_dir.join(&ffmpeg_name);
+    tracing::info!("FFmpeg installed to {}", ffmpeg_target.display());
+    Ok(ffmpeg_target)
+}
 
-    let downloads = ffmpeg_download_urls();
-
+async fn stage_ffmpeg(
+    bin_dir: &std::path::Path,
+    ffmpeg_name: &str,
+    ffprobe_name: &str,
+) -> anyhow::Result<()> {
     let client = crate::core::http_client::apply_global_proxy(reqwest::Client::builder())
-        .timeout(std::time::Duration::from_secs(300))
+        .connect_timeout(std::time::Duration::from_secs(30))
+        .timeout(std::time::Duration::from_secs(600))
         .build()?;
+    let temp_path = bin_dir.join(".ffmpeg_download.tmp");
 
-    for (url, archive_type) in downloads {
+    for (url, archive_type) in ffmpeg_download_urls() {
         tracing::info!("Downloading FFmpeg component from {}", url);
-        let response = client.get(url).send().await?;
+        let response = client
+            .get(url)
+            .send()
+            .await
+            .map_err(|e| anyhow!("Could not reach {url}: {e}"))?;
         if !response.status().is_success() {
             return Err(anyhow!(
                 "Failed to download FFmpeg from {}: HTTP {}",
@@ -493,117 +567,58 @@ async fn download_ffmpeg() -> anyhow::Result<PathBuf> {
                 response.status()
             ));
         }
-
-        let temp_path = bin_dir.join(".ffmpeg_download.tmp");
-        let bytes = response.bytes().await?;
-        let data = bytes.to_vec();
+        let final_url = response.url().clone();
+        let data = response
+            .bytes()
+            .await
+            .map_err(|e| anyhow!("The download from {url} was cut off: {e}"))?
+            .to_vec();
+        if data.len() < 1_000_000 {
+            return Err(anyhow!(
+                "Downloaded file from {} is too small ({}B) — likely an error page",
+                url,
+                data.len()
+            ));
+        }
+        if cfg!(target_os = "macos") {
+            let asset = final_url
+                .path_segments()
+                .and_then(|mut p| p.next_back())
+                .unwrap_or("")
+                .to_string();
+            let sums_url = format!("{final_url}.sha256");
+            let expected = integrity::expected_from_sums_url(&client, &sums_url, &asset)
+                .await
+                .map_err(|e| anyhow!("FFmpeg: could not check the download: {e}"))?;
+            integrity::verify_sha256(&data, &expected, "FFmpeg")?;
+        }
         let temp_clone = temp_path.clone();
         tokio::task::spawn_blocking(move || std::fs::write(&temp_clone, &data))
             .await
             .map_err(|e| anyhow!("spawn_blocking failed: {}", e))??;
 
-        let file_size = std::fs::metadata(&temp_path)?.len();
-        if file_size < 1_000_000 {
-            let _ = std::fs::remove_file(&temp_path);
-            return Err(anyhow!(
-                "Downloaded file from {} is too small ({}B) — likely an error page",
-                url,
-                file_size
-            ));
-        }
-
-        match archive_type {
+        let extracted = match archive_type {
             ArchiveType::Zip => {
-                extract_zip_ffmpeg(&temp_path, &bin_dir, &ffmpeg_name, &ffprobe_name).await?
+                extract_zip_ffmpeg(&temp_path, bin_dir, ffmpeg_name, ffprobe_name).await
             }
             ArchiveType::TarXz => {
-                extract_tar_xz_ffmpeg(&temp_path, &bin_dir, &ffmpeg_name, &ffprobe_name).await?
+                extract_tar_xz_ffmpeg(&temp_path, bin_dir, ffmpeg_name, ffprobe_name).await
             }
-        }
-
+        };
         let _ = std::fs::remove_file(&temp_path);
+        extracted?;
     }
 
-    for name in [&ffmpeg_name, &ffprobe_name] {
-        let staged = bin_dir.join(format!("{}.new", name));
-        if staged.exists() {
-            replace_managed_binary(&staged, &bin_dir.join(name))?;
-        }
-    }
-
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        let perms = std::fs::Permissions::from_mode(0o755);
-        let _ = std::fs::set_permissions(&ffmpeg_target, perms.clone());
-        let ffprobe_path = bin_dir.join(&ffprobe_name);
-        if ffprobe_path.exists() {
-            let _ = std::fs::set_permissions(&ffprobe_path, perms);
-        }
-    }
-
-    #[cfg(target_os = "macos")]
-    {
-        let ffmpeg_mac = ffmpeg_target.clone();
-        if let Err(e) = tokio::task::spawn_blocking(move || {
-            crate::core::process::std_command("xattr")
-                .args(["-d", "com.apple.quarantine"])
-                .arg(&ffmpeg_mac)
-                .output()
-        })
-        .await
-        .map_err(|e| std::io::Error::other(e.to_string()))
-        .and_then(|r| r)
-        {
-            tracing::warn!("Failed to remove quarantine from ffmpeg: {}", e);
-        }
-        let ffprobe_path = bin_dir.join(&ffprobe_name);
-        if ffprobe_path.exists() {
-            let ffprobe_mac = ffprobe_path.clone();
-            if let Err(e) = tokio::task::spawn_blocking(move || {
-                crate::core::process::std_command("xattr")
-                    .args(["-d", "com.apple.quarantine"])
-                    .arg(&ffprobe_mac)
-                    .output()
-            })
-            .await
-            .map_err(|e| std::io::Error::other(e.to_string()))
-            .and_then(|r| r)
-            {
-                tracing::warn!("Failed to remove quarantine from ffprobe: {}", e);
-            }
-        }
-    }
-
-    if !ffmpeg_target.exists() {
+    let staged_main = staged_ffmpeg(bin_dir, ffmpeg_name);
+    if !staged_main.exists() {
         return Err(anyhow!("FFmpeg binary not found after extraction"));
     }
-
-    let verify = {
-        let target = ffmpeg_target.clone();
-        tokio::task::spawn_blocking(move || {
-            crate::core::process::std_command(&target)
-                .arg("-version")
-                .stdout(Stdio::null())
-                .stderr(Stdio::null())
-                .status()
-        })
-        .await
-        .map_err(|e| anyhow!("spawn_blocking failed: {}", e))?
-    };
-    match verify {
-        Ok(s) if s.success() => {}
-        Ok(s) => {
-            return Err(anyhow!(
-                "FFmpeg installed but failed to execute (exit code {})",
-                s
-            ))
-        }
-        Err(e) => return Err(anyhow!("FFmpeg installed but failed to execute: {}", e)),
+    prepare_staged_binary(staged_main).await?;
+    let staged_probe = staged_ffmpeg(bin_dir, ffprobe_name);
+    if staged_probe.exists() {
+        prepare_staged_binary(staged_probe).await?;
     }
-
-    tracing::info!("FFmpeg installed to {}", ffmpeg_target.display());
-    Ok(ffmpeg_target)
+    Ok(())
 }
 
 enum ArchiveType {
@@ -618,16 +633,30 @@ fn ffmpeg_download_urls() -> Vec<(&'static str, ArchiveType)> {
             ArchiveType::Zip,
         )]
     } else if cfg!(target_os = "macos") {
-        vec![
-            (
-                "https://evermeet.cx/ffmpeg/getrelease/zip",
-                ArchiveType::Zip,
-            ),
-            (
-                "https://evermeet.cx/ffmpeg/getrelease/ffprobe/zip",
-                ArchiveType::Zip,
-            ),
-        ]
+        // WHY: evermeet.cx answers 410 on its API since it removed the endpoint and only ever built for Intel.
+        if cfg!(target_arch = "aarch64") {
+            vec![
+                (
+                    "https://ffmpeg.martin-riedl.de/redirect/latest/macos/arm64/release/ffmpeg.zip",
+                    ArchiveType::Zip,
+                ),
+                (
+                    "https://ffmpeg.martin-riedl.de/redirect/latest/macos/arm64/release/ffprobe.zip",
+                    ArchiveType::Zip,
+                ),
+            ]
+        } else {
+            vec![
+                (
+                    "https://ffmpeg.martin-riedl.de/redirect/latest/macos/amd64/release/ffmpeg.zip",
+                    ArchiveType::Zip,
+                ),
+                (
+                    "https://ffmpeg.martin-riedl.de/redirect/latest/macos/amd64/release/ffprobe.zip",
+                    ArchiveType::Zip,
+                ),
+            ]
+        }
     } else if cfg!(target_arch = "aarch64") {
         vec![(
             "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-linuxarm64-gpl.tar.xz",
@@ -666,8 +695,12 @@ async fn extract_zip_ffmpeg(
                 .map_err(|e| anyhow!("Failed to read zip entry: {}", e))?;
 
             let name = entry.name().to_string();
+            let file_name = name.rsplit(['/', '\\']).next().unwrap_or("");
+            if name.contains("__MACOSX") {
+                continue;
+            }
             for target in &targets {
-                if name.ends_with(target) {
+                if file_name == *target {
                     let dest = bin_dir.join(format!("{}.new", target));
                     let mut out = std::fs::File::create(&dest)?;
                     std::io::copy(&mut entry, &mut out)?;
@@ -887,7 +920,7 @@ async fn download_gallerydl() -> anyhow::Result<PathBuf> {
     #[cfg(target_os = "macos")]
     let url = "https://github.com/gdl-org/builds/releases/latest/download/gallery-dl_macos";
     #[cfg(not(any(target_os = "windows", target_os = "linux", target_os = "macos")))]
-    return Err(anyhow!("gallery-dl nao tem binario para este sistema"));
+    return Err(anyhow!("gallery-dl has no binary for this system"));
 
     let client = crate::core::http_client::apply_global_proxy(reqwest::Client::builder())
         .timeout(std::time::Duration::from_secs(180))
@@ -1011,4 +1044,98 @@ async fn download_aria2c() -> anyhow::Result<PathBuf> {
     }
 
     Ok(aria2c_target)
+}
+
+#[cfg(test)]
+mod install_tests {
+    use super::*;
+
+    #[cfg(unix)]
+    fn script(path: &std::path::Path, body: &str) {
+        std::fs::write(path, format!("#!/bin/sh\n{body}\n")).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn staged_ffmpeg_that_does_not_run_is_refused_before_touching_the_old_one() {
+        let dir = tempfile::tempdir().unwrap();
+        let bad = dir.path().join("ffmpeg.new");
+        script(&bad, "exit 3");
+        let err = prepare_staged_binary(bad).await.unwrap_err().to_string();
+        assert!(err.contains("does not run"), "{err}");
+    }
+
+    #[test]
+    fn replacing_a_binary_leaves_only_the_new_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let target = dir.path().join("tool");
+        let staged = dir.path().join("tool.new");
+        std::fs::write(&target, b"old").unwrap();
+        std::fs::write(&staged, b"new").unwrap();
+        replace_managed_binary(&staged, &target).unwrap();
+        assert_eq!(std::fs::read(&target).unwrap(), b"new");
+        assert!(!staged.exists());
+    }
+
+    #[test]
+    fn failed_replace_keeps_the_working_binary() {
+        let dir = tempfile::tempdir().unwrap();
+        let target = dir.path().join("tool");
+        std::fs::write(&target, b"old").unwrap();
+        assert!(replace_managed_binary(&dir.path().join("missing.new"), &target).is_err());
+        assert_eq!(std::fs::read(&target).unwrap(), b"old");
+    }
+
+    #[tokio::test]
+    async fn zip_resource_forks_do_not_overwrite_the_real_binary() {
+        use std::io::Write;
+        let dir = tempfile::tempdir().unwrap();
+        let zip_path = dir.path().join("a.zip");
+        let mut w = zip::ZipWriter::new(std::fs::File::create(&zip_path).unwrap());
+        let opts = zip::write::SimpleFileOptions::default();
+        w.start_file("ffmpeg", opts).unwrap();
+        w.write_all(b"real").unwrap();
+        w.start_file("__MACOSX/._ffmpeg", opts).unwrap();
+        w.write_all(b"fork").unwrap();
+        w.finish().unwrap();
+        extract_zip_ffmpeg(&zip_path, dir.path(), "ffmpeg", "ffprobe")
+            .await
+            .unwrap();
+        assert_eq!(
+            std::fs::read(dir.path().join("ffmpeg.new")).unwrap(),
+            b"real"
+        );
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn mac_ffmpeg_download_matches_this_chip_and_avoids_the_removed_api() {
+        let urls: Vec<&str> = ffmpeg_download_urls().into_iter().map(|(u, _)| u).collect();
+        assert_eq!(urls.len(), 2);
+        let arch = if cfg!(target_arch = "aarch64") {
+            "arm64"
+        } else {
+            "amd64"
+        };
+        assert!(urls
+            .iter()
+            .all(|u| u.contains(arch) && !u.contains("evermeet")));
+    }
+
+    #[tokio::test]
+    #[ignore = "downloads FFmpeg from the network"]
+    async fn ffmpeg_installs_and_runs_on_this_machine() {
+        let dir = tempfile::tempdir().unwrap();
+        let installed = install_ffmpeg_into(dir.path()).await.unwrap();
+        let out = std::process::Command::new(&installed)
+            .arg("-version")
+            .output()
+            .unwrap();
+        assert!(out.status.success());
+        assert!(dir.path().join(bin_name("ffprobe")).exists());
+        assert!(!dir
+            .path()
+            .join(format!("{}.new", bin_name("ffmpeg")))
+            .exists());
+    }
 }

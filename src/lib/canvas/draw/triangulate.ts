@@ -23,7 +23,7 @@ function pointInTri(
   return !(neg && pos);
 }
 
-export function triangulate(poly: ArrayLike<number>): number[] {
+function triangulate(poly: ArrayLike<number>): number[] {
   const n = Math.floor(poly.length / 2);
   if (n < 3) return [];
   const idx: number[] = [];

@@ -25,6 +25,9 @@
   import DownloadPoster from "$components/download/DownloadPoster.svelte";
   import DownloadPhases from "$components/download/DownloadPhases.svelte";
   import DownloadCommand from "$components/download/DownloadCommand.svelte";
+  import FailedLeftoversDialog, { type LeftoverFile } from "$components/download/FailedLeftoversDialog.svelte";
+  import { open as openFileDialog, save as saveFileDialog } from "@tauri-apps/plugin-dialog";
+  import { translateBackendError } from "$lib/error-translate";
   import ReencodeDialog from "$components/dialog/ReencodeDialog.svelte";
   import VideoOpsOverlay from "$components/download/VideoOpsOverlay.svelte";
   import DownloadTools from "$components/download/tools/DownloadTools.svelte";
@@ -235,10 +238,7 @@
       if (pendingRemoveTimer) clearTimeout(pendingRemoveTimer);
       pendingRemove = null;
       pendingRemoveTimer = null;
-      invoke("remove_download", { downloadId: id }).catch((e: any) => {
-        const msg = typeof e === "string" ? e : e.message ?? $t("common.error");
-        showToast("error", msg);
-      });
+      void removeOfferingLeftovers(id);
     } else {
       if (pendingRemoveTimer) clearTimeout(pendingRemoveTimer);
       pendingRemove = id;
@@ -246,6 +246,78 @@
         pendingRemove = null;
         pendingRemoveTimer = null;
       }, 3000);
+    }
+  }
+
+  let leftoversOpen = $state(false);
+  let leftoverFiles = $state<LeftoverFile[]>([]);
+  let leftoversId = $state<number | null>(null);
+
+  async function removeOfferingLeftovers(id: number) {
+    let files: LeftoverFile[] = [];
+    try {
+      files = await invoke<LeftoverFile[]>("failed_download_leftovers", { downloadId: id });
+    } catch {
+      files = [];
+    }
+    if (files.length > 0) {
+      leftoverFiles = files;
+      leftoversId = id;
+      leftoversOpen = true;
+      return;
+    }
+    await finishRemove(id, false);
+  }
+
+  async function finishRemove(id: number, deletePartials: boolean) {
+    try {
+      await invoke("remove_download", { downloadId: id, deletePartials });
+    } catch (e: any) {
+      const msg = typeof e === "string" ? e : e.message ?? $t("common.error");
+      showToast("error", msg);
+    }
+  }
+
+  let importedArchiveCount = $state(0);
+
+  async function refreshImportedArchiveCount() {
+    try {
+      importedArchiveCount = await invoke<number>("imported_archive_count");
+    } catch {
+      importedArchiveCount = 0;
+    }
+  }
+
+  async function importArchive() {
+    const path = await openFileDialog({
+      title: $t("downloads.archive_import_title") as string,
+      filters: [{ name: "yt-dlp archive", extensions: ["txt"] }],
+      multiple: false,
+    });
+    if (!path || typeof path !== "string") return;
+    try {
+      const report = await invoke<{ read: number; added: number }>("import_ytdlp_archive", { path });
+      showToast("success", $t("downloads.archive_imported", { added: report.added, read: report.read }) as string);
+      await refreshImportedArchiveCount();
+    } catch (e: any) {
+      const msg = typeof e === "string" ? e : e.message ?? "";
+      showToast("error", translateBackendError(msg, $t, $t));
+    }
+  }
+
+  async function exportArchive() {
+    const path = await saveFileDialog({
+      title: $t("downloads.archive_export_title") as string,
+      defaultPath: "archive.txt",
+      filters: [{ name: "yt-dlp archive", extensions: ["txt"] }],
+    });
+    if (!path) return;
+    try {
+      const report = await invoke<{ written: number; skipped: number }>("export_ytdlp_archive", { path });
+      showToast("success", $t("downloads.archive_exported", { written: report.written, skipped: report.skipped }) as string);
+    } catch (e: any) {
+      const msg = typeof e === "string" ? e : e.message ?? "";
+      showToast("error", translateBackendError(msg, $t, $t));
     }
   }
 
@@ -336,7 +408,11 @@
       if (finishedCount > 0) {
         actions.push({ id: "clear-finished", label: $t("downloads.clear_finished") as string, icon: "M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3", onClick: clearFinished });
       }
-    } else if (viewMode === "history" && historyEntries.length > 0) {
+    } else if (viewMode === "history") {
+      actions.push({ id: "import-archive", label: $t("downloads.archive_import") as string, icon: "M12 3v12M7 10l5 5 5-5M4 21h16", onClick: importArchive });
+      actions.push({ id: "export-archive", label: $t("downloads.archive_export") as string, icon: "M12 15V3M7 8l5-5 5 5M4 21h16", onClick: exportArchive });
+    }
+    if (viewMode === "history" && historyEntries.length > 0) {
       actions.push({ id: "clear-history", label: $t("downloads.history_clear") as string, icon: "M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3", onClick: clearHistory });
     }
     return setToolbar({
@@ -369,6 +445,7 @@
 
   async function loadHistory() {
     historyLoading = true;
+    void refreshImportedArchiveCount();
     try {
       historyEntries = await invoke<HistoryEntry[]>("get_download_history");
     } catch (e: any) {
@@ -625,6 +702,9 @@
     </div>
     {:else if viewMode === "history"}
       <div class="history-view">
+        {#if importedArchiveCount > 0}
+          <p class="history-archive-count">{$t("downloads.archive_count", { count: importedArchiveCount })}</p>
+        {/if}
         {#if historyLoading}
           <p class="history-empty">{$t('downloads.history_loading')}</p>
         {:else if historyEntries.length === 0}
@@ -777,6 +857,17 @@
                 </svg>
               </button>
             {:else if item.status === "seeding"}
+              <button
+                class="action-icon-btn"
+                onclick={() => pauseDownload(item.id)}
+                aria-label={$t('downloads.pause_seeding')}
+                title={$t('downloads.pause_seeding')}
+              >
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="6" y="4" width="4" height="16" />
+                  <rect x="14" y="4" width="4" height="16" />
+                </svg>
+              </button>
               {#if item.filePath}
                 <button
                   class="action-icon-btn"
@@ -1027,6 +1118,10 @@
                   <span class="eta-pill">ETA {formatEta(item.etaSeconds)}</span>
                 {/if}
               {/if}
+              {#if item.peers != null}
+                <span class="stats-sep">&middot;</span>
+                <span>{$t('downloads.peers', { count: item.peers })}</span>
+              {/if}
               {#if elapsedLabel(item)}
                 <span class="stats-sep">&middot;</span>
                 <span>{elapsedLabel(item)}</span>
@@ -1056,7 +1151,7 @@
         {/if}
 
         {#if item.status === "error" && item.error}
-          <RootCauseHint error={item.error} url={item.url} onRetry={() => retryDownload(item.id)} />
+          <RootCauseHint error={item.error} url={item.url} downloadId={item.id} onRetry={() => retryDownload(item.id)} />
         {/if}
 
         {#if item.status !== "queued" && item.status !== "complete"}
@@ -1086,7 +1181,21 @@
   </div>
 {/snippet}
 
+<FailedLeftoversDialog
+  bind:open={leftoversOpen}
+  files={leftoverFiles}
+  onRemove={(deletePartials) => {
+    if (leftoversId !== null) void finishRemove(leftoversId, deletePartials);
+  }}
+/>
+
 <style>
+  .history-archive-count {
+    margin: 0 0 var(--space-2);
+    font-size: 12px;
+    color: var(--text-secondary, var(--text));
+  }
+
 
   .downloads-empty {
     display: flex;

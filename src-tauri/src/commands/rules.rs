@@ -18,14 +18,14 @@ pub fn load_rules() -> Vec<Rule> {
     match serde_json::from_str::<Vec<Rule>>(&raw) {
         Ok(v) => v,
         Err(e) => {
-            tracing::warn!("[rules] {} ilegivel, ignorando: {}", path.display(), e);
+            tracing::warn!("[rules] {} unreadable, ignoring: {}", path.display(), e);
             Vec::new()
         }
     }
 }
 
 fn save_to_disk(rules: &[Rule]) -> Result<(), String> {
-    let path = file_path().ok_or_else(|| "sem diretorio de dados".to_string())?;
+    let path = file_path().ok_or_else(|| "no data folder".to_string())?;
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
     }
@@ -44,7 +44,7 @@ pub fn list_rules() -> Vec<Rule> {
 pub fn save_rules(rules: Vec<Rule>) -> Result<(), String> {
     for r in &rules {
         if r.name.trim().is_empty() {
-            return Err("Uma regra precisa de nome para voce reconhecer depois".to_string());
+            return Err("A rule needs a name so you can recognize it later".to_string());
         }
     }
     save_to_disk(&rules)

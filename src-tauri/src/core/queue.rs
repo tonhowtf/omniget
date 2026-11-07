@@ -338,6 +338,14 @@ pub struct DownloadQueue {
     last_issued_id: u64,
 }
 
+fn status_after_resume(item: &QueueItem) -> QueueStatus {
+    if item.platform == "magnet" && item.finished_at_ms.is_some() {
+        QueueStatus::Seeding
+    } else {
+        QueueStatus::Active
+    }
+}
+
 fn can_finish_active_item(status: &QueueStatus) -> bool {
     *status == QueueStatus::Active
 }
@@ -816,6 +824,12 @@ impl DownloadQueue {
 
     pub fn pause(&mut self, id: u64) -> bool {
         if let Some(item) = self.items.iter_mut().find(|i| i.id == id) {
+            if item.status == QueueStatus::Seeding {
+                item.status = QueueStatus::Paused;
+                item.speed_bytes_per_sec = 0.0;
+                item.eta_seconds = None;
+                return true;
+            }
             if item.status == QueueStatus::Active {
                 if item.platform == "mcp_worker" {
                     item.cancel_token.cancel();
@@ -850,7 +864,7 @@ impl DownloadQueue {
                 {
                     return false;
                 }
-                item.status = QueueStatus::Active;
+                item.status = status_after_resume(item);
                 return true;
             }
         }
@@ -860,7 +874,12 @@ impl DownloadQueue {
     pub fn pause_all(&mut self) -> Vec<(u64, Option<usize>)> {
         let mut paused = Vec::new();
         for item in self.items.iter_mut() {
-            if item.status == QueueStatus::Active {
+            if item.status == QueueStatus::Seeding {
+                item.status = QueueStatus::Paused;
+                item.speed_bytes_per_sec = 0.0;
+                item.eta_seconds = None;
+                paused.push((item.id, item.torrent_id));
+            } else if item.status == QueueStatus::Active {
                 if item.platform != "magnet"
                     && !omniget_core::core::ytdlp::pause_download_process(item.id)
                 {
@@ -885,7 +904,7 @@ impl DownloadQueue {
                 {
                     continue;
                 }
-                item.status = QueueStatus::Active;
+                item.status = status_after_resume(item);
                 resumed.push((item.id, tid));
             }
         }
@@ -1098,6 +1117,7 @@ impl DownloadQueue {
             crate::core::recovery::remove(id);
             crate::core::queue_history::remove(id);
             omniget_core::core::ytdlp::clear_command(id);
+            omniget_core::core::ytdlp::leftovers::forget_task_destinations(id);
         }
         result
     }
@@ -1206,6 +1226,15 @@ pub struct QueueItemProgress {
     pub fragment_count: Option<u32>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub planned_formats: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub peers: Option<u32>,
+}
+
+pub fn openable_source_url(url: &str) -> Result<String, String> {
+    if crate::core::flight_recorder::is_redacted_url(url) {
+        return Err(LINK_EXPIRED_MESSAGE.to_string());
+    }
+    Ok(url.to_string())
 }
 
 pub fn redacted_for_display(mut state: Vec<QueueItemInfo>) -> Vec<QueueItemInfo> {
@@ -1829,6 +1858,8 @@ async fn spawn_download_inner(
         torrent_files: torrent_files.clone(),
         torrent_auto_trackers: settings.advanced.torrent_auto_trackers,
         torrent_upnp: settings.advanced.torrent_upnp,
+        torrent_stop_seeding: settings.advanced.torrent_stop_seeding,
+        playlist_number_files: settings.download.playlist_number_files,
     };
 
     if let Some(intent) = external_intent.as_ref() {
@@ -2065,6 +2096,7 @@ async fn spawn_download_inner(
                     fragment_index: current_fragment.map(|f| f.0),
                     fragment_count: current_fragment.map(|f| f.1),
                     planned_formats: update.planned_formats.clone(),
+                    peers: update.peers,
                 },
             );
         }
@@ -2094,7 +2126,7 @@ async fn spawn_download_inner(
             tokio::select! {
                 r = downloader.download(&info, &opts, tx) => r,
                 _ = cancel_token.cancelled() => {
-                    Err(anyhow::anyhow!("Download cancelado"))
+                    Err(anyhow::anyhow!("Download cancelled"))
                 }
             }
         }
@@ -2193,7 +2225,13 @@ async fn spawn_download_inner(
                 }
             }
 
+            let thumbnails_only = opts
+                .custom_ytdlp_args
+                .as_deref()
+                .is_some_and(|args| args.iter().any(|a| a == "--skip-download"));
             if settings.download.embed_metadata
+                && !thumbnails_only
+                && dl.file_path.is_file()
                 && platform_name != "mcp_worker"
                 && platform_name != "magnet"
                 && ffmpeg::is_ffmpeg_available().await
@@ -2222,7 +2260,8 @@ async fn spawn_download_inner(
                 .and_then(|f| f.strip_prefix("bv*[height<="))
                 .and_then(|f| f.split(']').next())
                 .and_then(|h| h.parse::<u64>().ok());
-            let audio_only = opts.download_mode.as_deref() == Some("audio");
+            let audio_only =
+                opts.download_mode.as_deref() == Some("audio") && dl.file_path.is_file();
             if ceiling.is_some() || audio_only || external_intent.is_some() {
                 let probe = if let Some(intent) = external_intent.as_ref() {
                     match intent.destination_identity.as_ref() {
@@ -2334,7 +2373,9 @@ async fn spawn_download_inner(
             let (category, hint) = omniget_core::core::errors::classify_download_error(&raw_err);
             let user_msg = if platform_name == "mcp_worker" {
                 raw_err.clone()
-            } else if category != "unknown" {
+            } else if category != "unknown"
+                && !raw_err.starts_with("Post-processing failed at the ")
+            {
                 format!("{} ({})", hint, raw_err)
             } else {
                 raw_err.clone()
@@ -2714,4 +2755,96 @@ fn is_generic_title(title: &str) -> bool {
         || t == "unknown"
         || t.starts_with("video [video]")
         || t.starts_with("media [media]")
+}
+
+#[cfg(test)]
+mod source_url_tests {
+    use super::*;
+    use crate::core::flight_recorder::{redact, redact_url};
+
+    const PRIVATE: &str =
+        "https://site.test/watch/a1b2c3d4e5f6a7b8c9d0e1f2a3b4?video=998877&token=abc123";
+
+    #[test]
+    fn the_browser_opens_the_exact_link_while_logs_hide_its_private_parts() {
+        assert_eq!(openable_source_url(PRIVATE).unwrap(), PRIVATE);
+        for shown in [redact_url(PRIVATE), redact(PRIVATE)] {
+            assert!(shown.contains("[REDACTED]"), "{shown}");
+            assert!(!shown.contains("998877"), "{shown}");
+            assert!(!shown.contains("abc123"), "{shown}");
+        }
+    }
+
+    #[test]
+    fn a_link_saved_redacted_is_reported_as_expired_not_opened() {
+        let err = openable_source_url(&redact_url(PRIVATE)).unwrap_err();
+        assert!(err.starts_with("LINK_EXPIRED"), "{err}");
+    }
+}
+
+#[cfg(test)]
+mod seeding_tests {
+    use super::*;
+
+    fn queue_with_torrent() -> DownloadQueue {
+        let mut queue = DownloadQueue::new(2);
+        let downloader = Arc::new(crate::platforms::magnet::MagnetDownloader::new(Arc::new(
+            tokio::sync::Mutex::new(None),
+        )));
+        queue.enqueue(
+            1,
+            "magnet:?xt=urn:btih:abc".to_string(),
+            "magnet".to_string(),
+            "t".to_string(),
+            "/tmp".to_string(),
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            downloader,
+            None,
+            false,
+            None,
+            None,
+            None,
+            None,
+            None,
+        );
+        queue.mark_active(1);
+        queue
+    }
+
+    #[test]
+    fn pausing_a_seeding_torrent_stops_it_and_resuming_goes_back_to_seeding() {
+        let mut queue = queue_with_torrent();
+        queue.mark_seeding(1, Some("/tmp/t".to_string()), Some(10), Some(7));
+        assert!(queue.pause(1));
+        assert_eq!(queue.items[0].status, QueueStatus::Paused);
+        assert_eq!(queue.items[0].torrent_id, Some(7));
+        assert!(queue.resume(1));
+        assert_eq!(queue.items[0].status, QueueStatus::Seeding);
+    }
+
+    #[test]
+    fn pause_all_includes_seeding_torrents() {
+        let mut queue = queue_with_torrent();
+        queue.mark_seeding(1, None, None, Some(7));
+        assert_eq!(queue.pause_all(), vec![(1, Some(7))]);
+        assert_eq!(queue.resume_all(), vec![(1, Some(7))]);
+        assert_eq!(queue.items[0].status, QueueStatus::Seeding);
+    }
+
+    #[test]
+    fn a_torrent_paused_while_downloading_resumes_downloading() {
+        let mut queue = queue_with_torrent();
+        assert!(queue.pause(1));
+        assert!(queue.resume(1));
+        assert_eq!(queue.items[0].status, QueueStatus::Active);
+    }
 }

@@ -21,15 +21,6 @@ use super::{current_os, Os, Risk};
 pub const PLAN_KIND: &str = "privacy";
 pub const LICENSE: &str = "AGPL-3.0";
 
-fn source_of(a: &Value) -> Source {
-    match a.get("_source").and_then(Value::as_str) {
-        Some("ui") => Source::Ui,
-        Some("external") => Source::External,
-        Some("cli") => Source::Cli,
-        _ => Source::Agent,
-    }
-}
-
 fn short_docs(d: &str, max: usize) -> String {
     let first = d
         .split("\n\n")
@@ -264,7 +255,7 @@ fn save_score(ctx: &Ctx, pending: u32) {
 }
 
 pub async fn tool_catalog(a: Value) -> Result<Value, String> {
-    let source = source_of(&a);
+    let source = super::plan::source_of(&a);
     let category = crate::core::llm::tool_table::s(&a, "category");
     let preset = crate::core::llm::tool_table::s(&a, "preset");
     if !matches!(preset.as_str(), "" | "standard" | "strict") {
@@ -443,37 +434,6 @@ pub fn plan_undo(ctx: &Ctx, action: &str, args: &Value) -> Result<String, String
 pub async fn ui_action(action: &str, a: Value) -> Result<Value, String> {
     match action {
         "tcc_list" => tcc::tcc_list(a).await,
-        "details" => super::tools::blocking(move || details(&a)).await,
         other => Err(format!("privacy: unknown screen action {other}")),
     }
-}
-
-fn details(a: &Value) -> Result<Value, String> {
-    let id = a.get("id").and_then(Value::as_str).ok_or("id is missing")?;
-    let os = id
-        .split(':')
-        .nth(1)
-        .and_then(Os::parse)
-        .ok_or("not a privacy item id")?;
-    let cat = catalog::catalog(os)?;
-    let it = cat.find(id).ok_or_else(|| format!("unknown item {id}"))?;
-    let compiled = it.compile(&cat.collection)?;
-    let mut steps = Vec::new();
-    if os == current_os() && it.executable() {
-        let env = Env::real();
-        let reader = Reader::new(&RealSys, &env);
-        if let Ok((st, _)) = exec::steps(&reader, it, Action::Apply) {
-            steps = st.iter().map(exec::describe).collect();
-        }
-    }
-    Ok(json!({
-        "id": it.id,
-        "name": it.name,
-        "docs": it.docs,
-        "code": compiled.code,
-        "revert_code": compiled.revert,
-        "steps": steps,
-        "source_url": super::PRIVACY_SEXY_SOURCE_URL,
-        "license": LICENSE,
-    }))
 }

@@ -23,13 +23,13 @@ pub fn bar(fraction: f32, width: usize) -> String {
 pub fn until(now_ms: i64, at_ms: i64) -> String {
     let mins = (at_ms - now_ms) / 60_000;
     if mins <= 0 {
-        "agora".to_string()
+        "now".to_string()
     } else if mins < 60 {
-        format!("em {mins} min")
+        format!("in {mins} min")
     } else if mins < 48 * 60 {
-        format!("em {}h{:02}", mins / 60, mins % 60)
+        format!("in {}h{:02}", mins / 60, mins % 60)
     } else {
-        format!("em {} dias", mins / (24 * 60))
+        format!("in {} days", mins / (24 * 60))
     }
 }
 
@@ -59,14 +59,14 @@ fn tokens(n: u64) -> String {
 fn window_line(w: &UsageWindow, now_ms: i64) -> String {
     let name = match w.window {
         WindowKind::FiveHours => "5 h   ",
-        WindowKind::SevenDays => "7 dias",
+        WindowKind::SevenDays => "7 days",
     };
     let src = match w.source {
-        WindowSource::Real => "informado pelo CLI",
-        WindowSource::Estimated => "estimado do histórico",
+        WindowSource::Real => "reported by the CLI",
+        WindowSource::Estimated => "estimated from history",
     };
     let reset = format!(
-        "reseta {} ({})",
+        "resets {} ({})",
         clock(w.resets_at, now_ms),
         until(now_ms, w.resets_at)
     );
@@ -77,7 +77,7 @@ fn window_line(w: &UsageWindow, now_ms: i64) -> String {
             f * 100.0
         ),
         None => format!(
-            "  {name} {} tokens usados, teto do plano desconhecido  {reset}  [{src}]",
+            "  {name} {} tokens used, plan limit unknown  {reset}  [{src}]",
             tokens(w.used_tokens)
         ),
     }
@@ -140,10 +140,7 @@ fn render(accounts: &[CliAccount], r: &CliUsageReport, days: u32) -> String {
         .collect();
     let who = super::claude::identities(&claude);
     let spend = spend_by_account(r, now);
-    let mut out = format!(
-        "Uso dos agentes · últimos {days} dias · {}\n",
-        clock(now, now)
-    );
+    let mut out = format!("Agent usage · last {days} days · {}\n", clock(now, now));
     let mut shown = std::collections::HashSet::new();
     for a in accounts {
         let key = report_key(a);
@@ -170,7 +167,7 @@ fn render(accounts: &[CliAccount], r: &CliUsageReport, days: u32) -> String {
         let mut ws: Vec<&UsageWindow> = r.windows.iter().filter(|w| w.account == key).collect();
         ws.sort_by_key(|w| w.window.minutes());
         if ws.is_empty() {
-            out.push_str("  sem uso registrado nesse período\n");
+            out.push_str("  no usage recorded in this period\n");
         }
         for w in ws {
             out.push_str(&window_line(w, now));
@@ -178,7 +175,7 @@ fn render(accounts: &[CliAccount], r: &CliUsageReport, days: u32) -> String {
         }
         if let Some(s) = spend.get(&key) {
             out.push_str(&format!(
-                "  gasto equivalente em API: hoje US$ {:.2} · {days} dias US$ {:.2} · {} sessões\n",
+                "  equivalent API spend: today US$ {:.2} · {days} days US$ {:.2} · {} sessions\n",
                 s.today, s.period, s.sessions
             ));
         }
@@ -186,13 +183,13 @@ fn render(accounts: &[CliAccount], r: &CliUsageReport, days: u32) -> String {
     for (key, s) in &spend {
         if !shown.contains(key) {
             out.push_str(&format!(
-                "\n{key} (sem conta no app)\n  gasto equivalente em API: hoje US$ {:.2} · {days} dias US$ {:.2} · {} sessões\n",
+                "\n{key} (no account in the app)\n  equivalent API spend: today US$ {:.2} · {days} days US$ {:.2} · {} sessions\n",
                 s.today, s.period, s.sessions
             ));
         }
     }
     out.push_str(&format!(
-        "\nTotal: US$ {:.2} em {} dias · {} entrada / {} saída / {} cache\n",
+        "\nTotal: US$ {:.2} in {} days · {} input / {} output / {} cache\n",
         r.totals.cost_usd,
         days,
         tokens(r.totals.input_tokens),
@@ -218,7 +215,7 @@ pub async fn execute(days: u32, watch: Option<u64>, json: bool) -> anyhow::Resul
         }
         match watch {
             Some(secs) if !json => {
-                println!("\natualiza a cada {secs} s · Ctrl+C para sair");
+                println!("\nrefreshes every {secs} s · Ctrl+C to quit");
                 tokio::time::sleep(std::time::Duration::from_secs(secs.max(5))).await;
             }
             _ => return Ok(()),

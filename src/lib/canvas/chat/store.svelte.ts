@@ -121,7 +121,7 @@ class NodeChat {
     if (this.loaded && ev.activeThread !== this.thread) void this.load(this.workspaceId, ev.activeThread);
   }
 
-  receive(e: ChatEntry, visible: boolean): void {
+  receive(e: ChatEntry): void {
     const i = this.threads.findIndex((t) => t.index === e.thread);
     if (i >= 0 && e.kind !== 'divider') {
       const t = { ...this.threads[i], count: this.threads[i].count + 1, lastTs: e.ts };
@@ -140,7 +140,6 @@ class NodeChat {
     } else {
       this.entries = [...this.entries, e];
     }
-    void visible;
   }
 
   drop(ev: ChatRemovedEvent): void {
@@ -202,7 +201,7 @@ class ChatStore {
   handle(ev: ChatEvent): void {
     const c = this.of(ev.nodeId);
     if (!c.workspaceId) c.workspaceId = ev.workspaceId;
-    c.receive(ev.message, this.isChat(ev.nodeId));
+    c.receive(ev.message);
   }
 
   handleState(ev: ChatStateEvent): void {

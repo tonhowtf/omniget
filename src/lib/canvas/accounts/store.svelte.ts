@@ -31,7 +31,7 @@ interface Overview {
   running: Record<string, string | null>;
 }
 
-export type BadgeKind = 'environment' | 'normal' | 'restart' | 'invalid';
+type BadgeKind = 'environment' | 'normal' | 'restart' | 'invalid';
 
 export interface AccountBadge {
   kind: BadgeKind;

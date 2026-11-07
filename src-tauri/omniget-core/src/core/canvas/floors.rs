@@ -1480,31 +1480,6 @@ pub async fn discard(
     Ok(out)
 }
 
-pub async fn fetch_from_ground(
-    store: &CanvasStore,
-    ws: &str,
-    floor: &str,
-    branch: &str,
-) -> Result<String, String> {
-    let lc = land_ctx(store, ws, floor).await?;
-    if lc.rec.mode != FloorMode::Clone {
-        return Ok("worktree floors already share the ground's branches".into());
-    }
-    let b = sanitize_branch_name(branch);
-    let spec = if b == lc.branch {
-        format!("refs/heads/{b}:refs/remotes/omniget-ground/{b}")
-    } else {
-        format!("+refs/heads/{b}:refs/heads/{b}")
-    };
-    git_text(
-        &lc.floor_path,
-        &["fetch", "--no-tags", "omniget-ground", &spec],
-    )
-    .await
-    .map_err(|e| format!("CANVAS_GIT: {e}"))?;
-    Ok(b)
-}
-
 pub fn update_meta(
     store: &CanvasStore,
     ws: &str,

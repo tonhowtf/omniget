@@ -117,10 +117,6 @@ pub fn default_config_dir() -> Option<std::path::PathBuf> {
         .or_else(|| dirs::home_dir().map(|h| h.join(".claude")))
 }
 
-pub fn session_exists(session_id: &str) -> bool {
-    session_exists_in(session_id, None)
-}
-
 pub fn session_exists_in(session_id: &str, config_dir: Option<&Path>) -> bool {
     if !valid_session_id(session_id) {
         return false;

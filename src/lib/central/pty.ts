@@ -47,8 +47,6 @@ export type TerminalSelection = { text: string; lines: [number, number]; termina
 export const ptyOpen = (req: PtyOpenRequest) => invoke<PtySessionInfo>("pty_open", { req });
 export const ptyWrite = (id: string, data: string) => invoke<void>("pty_write", { id, data });
 export const ptyResize = (id: string, cols: number, rows: number) => invoke<void>("pty_resize", { id, cols, rows });
-export const ptyClose = (id: string, deleteHistory = false) => invoke<void>("pty_close", { id, deleteHistory });
-export const ptyList = () => invoke<PtySessionInfo[]>("pty_list");
 export const ptyAttach = (id: string) => invoke<PtyAttached>("pty_attach", { id });
 export const ptyDetach = (id: string) => invoke<void>("pty_detach", { id });
 export const ptyAck = (id: string, seq: number) => invoke<void>("pty_ack", { id, seq });
@@ -108,9 +106,4 @@ export async function subscribePty(id: string, handlers: PtyHandlers): Promise<(
     s.delete(handlers);
     if (s.size === 0) subscribers.delete(id);
   };
-}
-
-export function newTerminalId(): string {
-  const r = typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-  return `term-${r}`;
 }

@@ -117,7 +117,7 @@ let wasFullscreen = false;
 
 const tr = (key: string, vars?: Record<string, unknown>) => get(t)(key, vars) as string;
 
-export function osd(text: string) {
+function osd(text: string) {
   player.osd = { text, id: ++osdId };
   if (osdTimer) clearTimeout(osdTimer);
   osdTimer = setTimeout(() => (player.osd = null), 1200);
@@ -292,7 +292,7 @@ function onPause() {
   player.playing = false;
   stopLoops();
   player.position = curPos();
-  void report(false);
+  report(false);
 }
 
 function onWaiting() {
@@ -314,7 +314,7 @@ function onEnded() {
   player.ended = true;
   stopLoops();
   player.position = curDuration();
-  void report(false);
+  report(false);
   if (player.ab.a != null && player.ab.b != null) {
     seek(player.ab.a);
     void el?.play();
@@ -441,7 +441,7 @@ function startLoops() {
   if (!ticker) {
     ticker = setInterval(() => {
       const now = Date.now();
-      if (player.playing && now - lastReport >= REPORT_EVERY_MS) void report(true);
+      if (player.playing && now - lastReport >= REPORT_EVERY_MS) report(true);
     }, 1000);
   }
 }
@@ -453,7 +453,7 @@ function stopLoops() {
   ticker = null;
 }
 
-async function report(playing: boolean, event: "progress" | "stop" = "progress") {
+function report(playing: boolean, event: "progress" | "stop" = "progress") {
   const info = player.info;
   if (!info || info.is_live) return;
   const posMs = Math.round(curPos() * 1000);
@@ -630,7 +630,7 @@ function finishSession() {
   const info = player.info;
   if (!info) return;
   if (el) player.position = curPos();
-  void report(false, "stop");
+  report(false, "stop");
   cancelNext();
 }
 
@@ -678,7 +678,7 @@ export function seek(sec: number, doReport = true) {
   const dur = curDuration();
   if (dur > 0) sec = Math.min(Math.max(0, sec), dur - 0.05);
   else sec = Math.max(0, sec);
-  if (doReport) void report(player.playing);
+  if (doReport) report(player.playing);
   cancelNext();
   player.ended = false;
   lastLine = -1;
@@ -855,7 +855,7 @@ function lineDelay(cues: Cue[]): number {
   return cues === player.cues ? player.subs.delayMs : 0;
 }
 
-export function currentLine(): Cue | null {
+function currentLine(): Cue | null {
   const cues = lineCues();
   const i = cueAt(cues, curPos() * 1000 - lineDelay(cues));
   return i >= 0 ? cues[i] : null;

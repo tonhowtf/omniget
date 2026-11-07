@@ -73,7 +73,6 @@ pub struct Modes {
     pub mouse_drag: bool,
     pub mouse_motion: bool,
     pub sgr_mouse: bool,
-    pub utf8_mouse: bool,
     pub app_cursor: bool,
     pub app_keypad: bool,
     pub focus_reporting: bool,
@@ -148,7 +147,6 @@ pub trait TermEngine: Send {
     fn resize(&mut self, cols: u16, rows: u16);
     fn size(&self) -> (u16, u16);
     fn take_events(&mut self) -> Vec<EngineEvent>;
-    fn take_dirty(&mut self) -> bool;
     fn row(&self, y: u16, out: &mut Vec<CellView>);
     fn cursor(&self) -> CursorView;
     fn modes(&self) -> Modes;

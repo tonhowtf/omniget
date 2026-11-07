@@ -201,14 +201,30 @@ async fn api_stream(ConnectInfo(peer): ConnectInfo<Peer>, req: Request) -> Respo
     });
     let subs = Subs { store_id, app_ids };
     drop(tx);
-    let stream = futures::stream::unfold((rx, subs), |(mut rx, subs)| async move {
-        let msg = match tokio::time::timeout(KEEPALIVE, rx.recv()).await {
-            Ok(Some(m)) => m,
-            Ok(None) => return None,
-            Err(_) => ": keepalive\n\n".to_string(),
-        };
-        Some((Ok::<Bytes, Infallible>(Bytes::from(msg)), (rx, subs)))
-    });
+    let device_id = d.id.clone();
+    let stream = futures::stream::unfold(
+        (rx, subs, device_id),
+        |(mut rx, subs, device_id)| async move {
+            let deadline = tokio::time::Instant::now() + KEEPALIVE;
+            let msg = loop {
+                if !lbr::hub().stream_allowed(&device_id) {
+                    return None;
+                }
+                match tokio::time::timeout(Duration::from_secs(1), rx.recv()).await {
+                    Ok(Some(m)) => break m,
+                    Ok(None) => return None,
+                    Err(_) if tokio::time::Instant::now() >= deadline => {
+                        break ": keepalive\n\n".to_string();
+                    }
+                    Err(_) => {}
+                }
+            };
+            Some((
+                Ok::<Bytes, Infallible>(Bytes::from(msg)),
+                (rx, subs, device_id),
+            ))
+        },
+    );
     let mut r = Response::new(Body::from_stream(stream));
     let h = r.headers_mut();
     h.insert(
@@ -277,6 +293,16 @@ async fn api_feed(ConnectInfo(peer): ConnectInfo<Peer>, req: Request) -> Respons
             lbr::tag_device(Json(json!({ "ok": true })).into_response(), &d)
         }
         Some("resize") => {
+            if d.scope != Scope::Drive {
+                return lbr::tag_device(
+                    lbr::fail_response(
+                        StatusCode::FORBIDDEN,
+                        "insufficient_scope",
+                        "read-only device: input dropped",
+                    ),
+                    &d,
+                );
+            }
             let cols = num(&v, "cols").unwrap_or(0.0).clamp(0.0, 1000.0) as u16;
             let rows = num(&v, "rows").unwrap_or(0.0).clamp(0.0, 1000.0) as u16;
             let r = terminal_id(v["nodeId"].as_str().unwrap_or("")).and_then(|tid| {
@@ -379,12 +405,16 @@ async fn api_terminal_stream(
     };
     let (tx, rx) = mpsc::channel::<String>(64);
     let node = id.clone();
+    let device_id = d.id.clone();
     tokio::spawn(async move {
         let term = crate::pty::term();
         let mut last_geo = (0u16, 0u16);
         let mut last_changed = i64::MIN;
         let mut idle_keepalive = tokio::time::Instant::now();
         loop {
+            if !lbr::hub().stream_allowed(&device_id) {
+                break;
+            }
             let Some(info) = term.info(&tid) else {
                 let _ = tx
                     .send(frame(&json!({ "type": "exit", "nodeId": node })))

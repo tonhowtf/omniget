@@ -6,8 +6,6 @@ status = "active"
 beta = true
 homepage = "https://docs.augmentcode.com"
 notes = "Closed-source CLI (npm @augmentcode/auggie; repo augmentcode/auggie holds examples and changelog) sharing its rules system with the Augment VS Code and JetBrains extensions. Reads CLAUDE.md, .claude/commands, .claude/skills and Claude plugin marketplaces."
-reads_agents_dir = true
-reads_agents_md = "yes"
 
 [detect]
 binaries = ["auggie"]
@@ -105,7 +103,6 @@ Notification = "Notification"         # UNVERIFIED
 [hooks]
 shape = "claude"
 timeout_unit = "ms"
-events_count = 6
 
 [tool_name_map]
 Bash = "terminal"                     # legacy alias launch-process
@@ -144,7 +141,6 @@ format = "json"
 cmd = "auggie"
 headless = ["--print"]
 json_flag = ["--output-format", "json"]
-resume_flag = "--resume"
 model_flag = "--model"
 permission_flags = { plan = ["--ask"] }
 

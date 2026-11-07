@@ -26,6 +26,7 @@
     toggleShuffle,
   } from "$lib/music/player-store.svelte";
   import { back, createPlaylistWith, go, loadPlaylists, ui, type View } from "$lib/music/ui-store.svelte";
+  import { toolFromParams } from "$lib/music/stems";
   import type { Track } from "$lib/music/types";
   import ContextMenu from "$components/music/ContextMenu.svelte";
   import EqPanel from "$components/music/EqPanel.svelte";
@@ -133,6 +134,11 @@
       showToast("error", String(e));
     }
   }
+
+  $effect(() => {
+    const tool = toolFromParams(page.url.searchParams);
+    if (tool) untrack(() => go({ kind: "tools", tab: tool }));
+  });
 
   $effect(() => {
     const target = parseMusicTarget(page.url.searchParams);

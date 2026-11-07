@@ -165,27 +165,6 @@ pub fn bind(
         .ok_or_else(|| format!("{ERR_BOT}: binding not saved"))
 }
 
-pub fn set_grants(
-    db: &AssistDb,
-    bot: &str,
-    skill: &str,
-    allow_read: bool,
-    allow_scripts: bool,
-) -> Result<(), String> {
-    let n = db.with(|c| {
-        c.execute(
-            "UPDATE bots_skill_bindings SET allow_read = ?3, allow_scripts = ?4, updated_at = ?5 WHERE bot_id = ?1 AND skill = ?2",
-            params![bot, skill, allow_read as i64, allow_scripts as i64, crate::core::assist::now_ms()],
-        )
-    })?;
-    if n == 0 {
-        return Err(format!(
-            "{ERR_SKILL_NOT_BOUND}: `{skill}` is not bound to `{bot}`"
-        ));
-    }
-    Ok(())
-}
-
 pub fn unbind(db: &AssistDb, bot: &str, skill: &str) -> Result<(), String> {
     db.with(|c| {
         c.execute(
@@ -938,13 +917,6 @@ pub fn skills_changed(
     projection.reproject()
 }
 
-pub fn accept_current(
-    projection: &Arc<SkillProjection>,
-    name: &str,
-) -> Result<ProjectionSummary, String> {
-    skills_changed(projection, Some(name))
-}
-
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SkillRead {
     pub id: i64,
@@ -980,35 +952,4 @@ fn record_read(db: &AssistDb, r: &SkillRead) -> Result<(), String> {
         )
     })
     .map(|_| ())
-}
-
-pub fn skill_reads(
-    db: &AssistDb,
-    run_id: Option<&str>,
-    bot: Option<&str>,
-    limit: u32,
-) -> Result<Vec<SkillRead>, String> {
-    let limit = limit.clamp(1, 500) as i64;
-    db.with(|c| {
-        let mut st = c.prepare(
-            "SELECT id, run_id, bot_id, conversation_id, skill, hash, file, bytes, ok, error, at FROM bots_skill_reads \
-             WHERE (?1 IS NULL OR run_id = ?1) AND (?2 IS NULL OR bot_id = ?2) ORDER BY id DESC LIMIT ?3",
-        )?;
-        let rows = st.query_map(params![run_id, bot, limit], |r| {
-            Ok(SkillRead {
-                id: r.get(0)?,
-                run_id: r.get(1)?,
-                bot_id: r.get(2)?,
-                conversation_id: r.get(3)?,
-                skill: r.get(4)?,
-                hash: r.get(5)?,
-                file: r.get(6)?,
-                bytes: r.get(7)?,
-                ok: r.get::<_, i64>(8)? != 0,
-                error: r.get(9)?,
-                at: r.get(10)?,
-            })
-        })?;
-        rows.collect()
-    })
 }

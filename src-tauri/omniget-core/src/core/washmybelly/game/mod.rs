@@ -590,20 +590,3 @@ pub async fn tool_game_mode(a: Value) -> Result<Value, String> {
     })
     .await
 }
-
-pub async fn ui_action(action: &str, _a: Value) -> Result<Value, String> {
-    match action {
-        "disable_all" => {
-            super::tools::blocking(|| {
-                let pids: Vec<u32> = active_list().iter().map(|a| a.pid).collect();
-                let undone: Vec<Value> = pids
-                    .into_iter()
-                    .map(|p| json!({ "pid": p, "undone": stop(p).unwrap_or_default() }))
-                    .collect();
-                Ok(json!({ "ok": true, "sessions": undone }))
-            })
-            .await
-        }
-        _ => Err(format!("game: unknown screen action {action}")),
-    }
-}

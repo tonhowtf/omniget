@@ -654,19 +654,6 @@ impl CanvasHost {
         )
     }
 
-    pub fn terminal_env(
-        &'static self,
-        app: &AppHandle,
-        ws: &str,
-        floor: &str,
-        node_id: &str,
-    ) -> Result<NodeEnv, String> {
-        let node = store()
-            .read(ws, floor, |d| d.node(node_id).cloned())?
-            .ok_or_else(|| format!("CANVAS_NOT_FOUND: node {node_id}"))?;
-        self.terminal_env_for(app, ws, floor, &node)
-    }
-
     pub fn terminal_env_for(
         &'static self,
         app: &AppHandle,

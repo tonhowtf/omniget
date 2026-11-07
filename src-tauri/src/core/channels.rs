@@ -85,8 +85,8 @@ fn row_to_channel(row: &rusqlite::Row) -> rusqlite::Result<ChannelFollow> {
         Ok(seen) => (seen, auto != 0),
         Err(e) => {
             tracing::error!(
-                "[channels] historico de vistos do canal {} esta corrompido ({}). \
-                 Download automatico desligado nesta sessao para nao re-baixar tudo.",
+                "[channels] seen history of channel {} is corrupted ({}). \
+                 Automatic download is off for this session so nothing is downloaded again.",
                 id,
                 e
             );

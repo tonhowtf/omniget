@@ -233,7 +233,7 @@ pub fn scoop_uninstall(name: &str, global: bool, system_root: &str) -> Result<Pl
             "-NoProfile",
             "-NonInteractive",
             "-ExecutionPolicy",
-            "Bypass",
+            "RemoteSigned",
             "-Command",
             SCOOP_SCRIPT,
         ]

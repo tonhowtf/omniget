@@ -48,7 +48,7 @@ pub fn archive_current(binary: &Path, stamp_ms: u128) -> std::io::Result<Option<
         return Ok(None);
     }
     let dest = archive_path(binary, stamp_ms);
-    std::fs::rename(binary, &dest)?;
+    std::fs::copy(binary, &dest)?;
 
     for old in prune_list(&list_archived(binary), KEEP_VERSIONS) {
         let _ = std::fs::remove_file(old);
@@ -78,4 +78,19 @@ pub fn rollback_to(binary: &Path, archived: &Path) -> std::io::Result<()> {
     }
 
     std::fs::rename(archived, binary)
+}
+
+#[cfg(test)]
+mod archive_tests {
+    use super::*;
+
+    #[test]
+    fn archiving_before_an_update_keeps_the_working_binary_in_place() {
+        let dir = tempfile::tempdir().unwrap();
+        let bin = dir.path().join("yt-dlp");
+        std::fs::write(&bin, b"works").unwrap();
+        let copy = archive_current(&bin, 1).unwrap().unwrap();
+        assert_eq!(std::fs::read(&bin).unwrap(), b"works");
+        assert_eq!(std::fs::read(&copy).unwrap(), b"works");
+    }
 }

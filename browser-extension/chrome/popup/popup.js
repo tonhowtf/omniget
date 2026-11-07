@@ -8,6 +8,7 @@ import { estimateHlsSize } from "../src/hls-size.js";
 import { formatBytes } from "../src/format-size.js";
 import { isListableMedia } from "../src/media-list.js";
 import { captureCookiesForTab } from "../src/cookie-capture.js";
+import { bridgeFailureMessageKey } from "../src/bridge-client.js";
 
 const APP_URL = "https://getomniget.com/download";
 
@@ -368,10 +369,10 @@ async function handleDownload(btn, url, platform, mediaEntry) {
     btn.classList.add("success");
     btn.querySelector(".btn-icon").innerHTML = SVG.check;
     btn.querySelector(".btn-label").textContent = tr("popup_sent");
-    const summaryText = formatCookieSummary(result.cookieSummary);
+    const summaryText = result.viaScheme ? tr("popup_sent_via_link") : formatCookieSummary(result.cookieSummary);
     const metaEl = btn.querySelector(".btn-meta");
     if (metaEl) metaEl.textContent = summaryText;
-    setTimeout(() => window.close(), summaryText ? 1600 : 1000);
+    setTimeout(() => window.close(), result.viaScheme ? 4000 : summaryText ? 1600 : 1000);
   } else {
     showError(btn.closest(".primary-action"), result.reason);
   }
@@ -404,7 +405,7 @@ async function handleBatchDownload(btn, groups) {
 function showError(container, reason) {
   const message = reason === "manifest_gone"
     ? tr("popup_manifest_gone")
-    : tr("popup_not_running");
+    : tr(bridgeFailureMessageKey(reason));
   container.innerHTML = `
     <div class="error-box">
       <div class="error-header">

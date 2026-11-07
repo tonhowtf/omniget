@@ -10,7 +10,13 @@ export type UpdateItem = {
   admin?: boolean;
 };
 
-export type UpdatesList = { items: UpdateItem[]; plan_id: string | null };
+export type ManagerError = { manager: string; error: string };
+
+export type UpdatesList = { items: UpdateItem[]; plan_id: string | null; managers?: string[]; errors?: ManagerError[] };
+
+export function unreadableManagers(list: UpdatesList | null): ManagerError[] {
+  return list?.errors ?? [];
+}
 
 type UpdateRow = SelectItem & { update: UpdateItem };
 

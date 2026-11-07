@@ -400,7 +400,7 @@ impl Converter for RuleConverter {
                     Some(file) => out.push(Self::block(target, c, file, block_id, content, "rule")),
                     None => {
                         let dir = kind_path(target, "scoped_rules", scope, ctx)
-                            .ok_or_else(|| no_path(target, "rules file", scope))?;
+                            .ok_or_else(|| missing(target, "rules file", scope))?;
                         let sfmt = target
                             .formats
                             .get("scoped_rule")

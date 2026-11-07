@@ -302,42 +302,6 @@ pub fn cues_to_vtt(cues: &[Cue]) -> String {
     out
 }
 
-fn strip_tags(s: &str) -> String {
-    let mut out = String::with_capacity(s.len());
-    let mut in_tag = false;
-    for c in s.chars() {
-        match c {
-            '<' => in_tag = true,
-            '>' => in_tag = false,
-            _ if !in_tag => out.push(c),
-            _ => {}
-        }
-    }
-    out
-}
-
-pub fn extract_transcript(content: &str) -> String {
-    let blocks = if content.trim_start().starts_with("WEBVTT") {
-        parse_vtt(content)
-    } else {
-        parse_srt(content)
-    };
-    let mut lines: Vec<String> = Vec::new();
-    for b in blocks {
-        for raw in b.text.split('\n') {
-            let line = strip_tags(raw).trim().to_string();
-            if line.is_empty() {
-                continue;
-            }
-            if lines.last().map(|l| l == &line).unwrap_or(false) {
-                continue;
-            }
-            lines.push(line);
-        }
-    }
-    lines.join(" ")
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -376,20 +340,6 @@ mod tests {
     fn empty_inputs_are_safe() {
         assert_eq!(merge_bilingual_srt("", ""), "");
         assert_eq!(merge_bilingual_vtt("", ""), "WEBVTT\r\n");
-    }
-
-    #[test]
-    fn transcript_strips_tags_and_dedupes() {
-        let vtt = "WEBVTT\n\n00:00:01.000 --> 00:00:02.000\n<c>Hello</c> world\n\n00:00:02.000 --> 00:00:03.000\nHello world\n\n00:00:03.000 --> 00:00:04.000\nNext line";
-        let t = extract_transcript(vtt);
-        assert_eq!(t, "Hello world Next line");
-    }
-
-    #[test]
-    fn transcript_srt_plain() {
-        let srt =
-            "1\n00:00:01,000 --> 00:00:02,000\nFirst\n\n2\n00:00:03,000 --> 00:00:04,000\nSecond";
-        assert_eq!(extract_transcript(srt), "First Second");
     }
 
     #[test]

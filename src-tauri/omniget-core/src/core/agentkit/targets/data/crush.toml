@@ -6,8 +6,6 @@ status = "active"
 beta = true
 homepage = "https://github.com/charmbracelet/crush"
 notes = "Config moved to the Bash crushrc in 2026; crush.json is still read but deprecated. Only PreToolUse hooks, no user subagents, no plugins, no ACP. Both config formats run as trusted code ($(...) executes)."
-reads_agents_dir = true
-reads_agents_md = "yes"
 
 [detect]
 binaries = ["crush"]
@@ -20,7 +18,6 @@ local = false
 managed = false
 project_markers = [".crush", "CRUSH.md", ".crushrc", "crushrc", "crush.json", ".crush.json"]
 global_dir = "{xdg_config}/crush"
-config_dir_env = "CRUSH_GLOBAL_CONFIG"
 
 [formats]
 rule = "agents_md"
@@ -96,7 +93,6 @@ PreToolUse = "PreToolUse"
 [hooks]
 shape = "crush"
 timeout_unit = "s"
-events_count = 1
 
 [tool_name_map]
 Bash = "bash"
@@ -134,7 +130,6 @@ format = "sqlite"
 [runner]
 cmd = "crush"
 headless = ["run"]
-resume_flag = "--session"
 model_flag = "--model"
 permission_flags = { bypass = ["--yolo"] }
 

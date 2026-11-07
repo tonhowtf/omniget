@@ -6,7 +6,6 @@
     label,
     locked = false,
     width = 520,
-    onClose,
     children,
     footer,
   }: {
@@ -14,7 +13,6 @@
     label: string;
     locked?: boolean;
     width?: number;
-    onClose?: () => void;
     children: Snippet;
     footer?: Snippet;
   } = $props();
@@ -25,7 +23,6 @@
   function close() {
     if (locked) return;
     open = false;
-    onClose?.();
   }
 
   function onKey(e: KeyboardEvent) {

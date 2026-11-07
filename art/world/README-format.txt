@@ -1,5 +1,5 @@
 OmniGet sprite atlas format (v1) - atlas.json + PNG pages, used by the Omni
-of the canvas and the pet. Normative schema: static/world/atlas.schema.json.
+of the canvas and the pet. Normative schema: art/world/atlas.schema.json.
 Tool: src-tauri/omniget-atlas (cargo run -p omniget-atlas --bin atlas-pack).
 
 WHY IT LOOKS LIKE THIS

@@ -19,7 +19,7 @@ use crate::storage::settings_repository::{
 };
 
 pub fn autostart_wanted(s: &AppSettings) -> bool {
-    s.start_with_system || s.run_in_background
+    s.start_with_system
 }
 
 pub fn reconcile_close(s: &mut AppSettings, old_background: bool, old_exit_on_close: bool) {
@@ -495,19 +495,6 @@ pub async fn settings_import_appearance_v3(
 }
 
 #[tauri::command]
-pub fn get_settings(app: tauri::AppHandle) -> Result<SettingsPublicV3, ApiError> {
-    let repo = settings_repository::global();
-    if let Some(commit) = repo.reconcile() {
-        settings_effects::after_commit(&app, &commit);
-    }
-    let snap = repo.snapshot();
-    match snap.gate {
-        Gate::Open => Ok(snap.settings.to_public()),
-        _ => Err(ApiError::unavailable(UnavailableCode::LoadFailed)),
-    }
-}
-
-#[tauri::command]
 pub fn update_settings(
     app: tauri::AppHandle,
     partial: String,
@@ -515,14 +502,6 @@ pub fn update_settings(
     let patch: Value = serde_json::from_str(&partial)
         .map_err(|_| invalid(vec![FieldError::new("patch", FieldErrorCode::InvalidType)]))?;
     let commit = settings_repository::global().mutate(None, |current| patched(current, &patch))?;
-    settings_effects::after_commit(&app, &commit);
-    Ok(commit.after.to_public())
-}
-
-#[tauri::command]
-pub fn reset_settings(app: tauri::AppHandle) -> Result<SettingsPublicV3, ApiError> {
-    let commit = settings_repository::global()
-        .mutate(None, |current| Ok(apply_reset(current, ResetScope::App)))?;
     settings_effects::after_commit(&app, &commit);
     Ok(commit.after.to_public())
 }
@@ -609,7 +588,9 @@ pub fn get_bridge_info(app: tauri::AppHandle) -> Result<BridgeInfo, String> {
 pub fn rotate_bridge_token(app: tauri::AppHandle) -> Result<BridgeInfo, String> {
     let token = crate::local_bridge::generate_token();
     omniget_core::core::llm::cli_runtime::session::register_secret_value(&token);
-    config::update_settings(&app, |s| s.bridge.token = token).map_err(|e| e.to_string())?;
+    let saved = token.clone();
+    config::update_settings(&app, |s| s.bridge.token = saved).map_err(|e| e.to_string())?;
+    crate::local_bridge::set_rotated_token(&token);
     get_bridge_info(app)
 }
 

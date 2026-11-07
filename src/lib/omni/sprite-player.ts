@@ -38,7 +38,7 @@ export interface PlayerState {
   resting: boolean;
 }
 
-export function animId(clip: string, sheet = 'omni'): string {
+function animId(clip: string, sheet = 'omni'): string {
   return `${sheet}/${clip}`;
 }
 

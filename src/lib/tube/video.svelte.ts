@@ -28,7 +28,7 @@ import {
   type DashHandle,
   type HlsHandle,
 } from "./dash";
-import { thumbUrl, videoThumb } from "./format";
+import { errText, thumbUrl, videoThumb } from "./format";
 import { claim, register, setMeta, setPlaybackState } from "./media-session";
 import { tubePrefs } from "./prefs.svelte";
 import { go } from "./ui.svelte";
@@ -363,12 +363,6 @@ export function retry() {
   void loadVideo(id, { t: at > 0 ? at : null, list: vplayer.list, index: vplayer.index, autoplay: true, short: vplayer.short });
 }
 
-function errText(e: unknown): string {
-  if (typeof e === "string") return e;
-  if (e && typeof e === "object" && "message" in e) return String((e as { message: unknown }).message);
-  return String(e);
-}
-
 function ladderPrefs(needRanges: boolean) {
   const p = tubePrefs();
   return { codec: p.prefer_codec, webkit: isWebKit(), needRanges, supports: needRanges ? mseSupports : canPlay };
@@ -440,7 +434,6 @@ async function exhausted(seq: number) {
 async function fail(why: string) {
   const set = vplayer.streams;
   if (!set || !mode) return;
-  console.debug("[omnitube] player mode failed", why);
   vplayer.failures = [...vplayer.failures.slice(-5), why];
   const at = video && video.currentTime > 0 ? video.currentTime : startAt;
   const seq = loadSeq;
@@ -682,7 +675,7 @@ function syncTick() {
   }
 }
 
-export async function play() {
+async function play() {
   const v = video;
   if (!v) return;
   if (vplayer.ended) v.currentTime = 0;
@@ -692,7 +685,7 @@ export async function play() {
   }
 }
 
-export function pause() {
+function pause() {
   video?.pause();
 }
 
@@ -1093,7 +1086,7 @@ export async function togglePip() {
   }
 }
 
-export function bezel(icon: string, text = "") {
+function bezel(icon: string, text = "") {
   vplayer.bezel = { icon, text, n: vplayer.bezel.n + 1 };
 }
 

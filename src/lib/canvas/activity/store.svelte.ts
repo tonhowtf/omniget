@@ -3,7 +3,7 @@ import { invoke } from '@tauri-apps/api/core';
 export const ACTIVITY_EVENT = 'canvas://activity';
 const KEEP = 500;
 
-export type ActorKind = 'person' | 'client' | 'agent' | 'system';
+type ActorKind = 'person' | 'client' | 'agent' | 'system';
 
 export interface ActivityEntry {
   id: number;
@@ -25,7 +25,7 @@ export interface ActivityEntry {
   via?: string;
 }
 
-export type ActivityTab = 'activity' | 'mcp';
+type ActivityTab = 'activity' | 'mcp';
 
 export const VERB_DEFAULTS: Record<string, string> = {
   created: 'created',

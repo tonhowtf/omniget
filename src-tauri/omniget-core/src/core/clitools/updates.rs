@@ -1,10 +1,11 @@
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 use std::sync::Mutex;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
 
+use super::detect::now;
 use super::detect::Detection;
 use super::exec::parse_version;
 use super::latest::{self, VersionState};
@@ -46,13 +47,6 @@ pub struct UpdatesReport {
     pub from_cache: bool,
     pub available: usize,
     pub tools: Vec<ToolUpdate>,
-}
-
-fn now() -> u64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|d| d.as_secs())
-        .unwrap_or(0)
 }
 
 fn disk_path() -> Option<PathBuf> {
@@ -260,11 +254,4 @@ pub async fn check(detections: &[Detection], force: bool) -> UpdatesReport {
     };
     save(&report);
     report
-}
-
-pub fn cached_report() -> Option<UpdatesReport> {
-    last_report().map(|mut r| {
-        r.from_cache = true;
-        r
-    })
 }

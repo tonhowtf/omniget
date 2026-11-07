@@ -9,6 +9,34 @@ use crate::models::media::{
     DownloadOptions, DownloadResult, MediaInfo, MediaType, VideoQuality as MediaVideoQuality,
 };
 
+pub fn episode_link_target(url: &str) -> Option<String> {
+    let parsed = url::Url::parse(url).ok()?;
+    let host = parsed.host_str()?.to_ascii_lowercase();
+    if host != "bilibili.com" && !host.ends_with(".bilibili.com") {
+        return None;
+    }
+    let path = parsed.path();
+    if !path.starts_with("/list/") && !path.starts_with("/medialist/") && !is_space_list_path(path)
+    {
+        return None;
+    }
+    let query_value = |name: &str| {
+        parsed
+            .query_pairs()
+            .find(|(k, _)| k == name)
+            .map(|(_, v)| v.into_owned())
+    };
+    let bvid = query_value("bvid")?;
+    if !bvid.starts_with("BV") || !bvid.chars().all(|c| c.is_ascii_alphanumeric()) {
+        return None;
+    }
+    let page = query_value("p").and_then(|p| p.parse::<u32>().ok());
+    Some(match page {
+        Some(page) => format!("https://www.bilibili.com/video/{}?p={}", bvid, page),
+        None => format!("https://www.bilibili.com/video/{}", bvid),
+    })
+}
+
 pub fn is_playlist_or_series(url: &str) -> bool {
     if let Ok(parsed) = url::Url::parse(url) {
         let path = parsed.path();
@@ -55,6 +83,8 @@ pub async fn get_media_info(url: &str) -> anyhow::Result<MediaInfo> {
         .ok_or_else(|| anyhow!("yt-dlp not found"))?;
 
     let extra = bilibili_extra_flags();
+    let episode_url = episode_link_target(url);
+    let url = episode_url.as_deref().unwrap_or(url);
 
     if is_playlist_or_series(url) {
         let (title, entries) = ytdlp::get_playlist_info(&ytdlp_path, url, &extra).await?;
@@ -241,6 +271,11 @@ async fn download_playlist(
     ytdlp_path: &std::path::Path,
 ) -> anyhow::Result<DownloadResult> {
     let total = info.available_qualities.len().max(1);
+    let last_position = ytdlp::last_playlist_position(&info.available_qualities);
+    let quality_height = opts
+        .quality
+        .as_ref()
+        .and_then(|q| q.trim_end_matches('p').parse::<u32>().ok());
     let mut last_result = DownloadResult {
         file_path: opts.output_dir.clone(),
         file_size_bytes: 0,
@@ -270,16 +305,25 @@ async fn download_playlist(
         });
 
         let extra = vec!["--no-playlist".to_string()];
+        let numbered_template = opts.playlist_number_files.then(|| {
+            ytdlp::numbered_filename_template(
+                opts.filename_template.as_deref(),
+                ytdlp::playlist_position(quality, i),
+                last_position,
+            )
+        });
 
         match ytdlp::download_video(
             ytdlp_path,
             &quality.url,
             &opts.output_dir,
-            None,
+            quality_height,
             entry_tx,
             opts.download_mode.as_deref(),
             None,
-            opts.filename_template.as_deref(),
+            numbered_template
+                .as_deref()
+                .or(opts.filename_template.as_deref()),
             opts.referer.as_deref().or(Some("https://www.bilibili.com")),
             opts.cancel_token.clone(),
             None,
@@ -360,6 +404,39 @@ mod tests {
     }
 
     // WHY: collection pages must take the collection path, not the single-video one (#311).
+    #[test]
+    fn episode_link_inside_a_collection_targets_that_episode() {
+        assert_eq!(
+            episode_link_target(
+                "https://www.bilibili.com/list/1234?sid=55&oid=99&bvid=BV1xx411c7mD"
+            )
+            .as_deref(),
+            Some("https://www.bilibili.com/video/BV1xx411c7mD")
+        );
+        assert_eq!(
+            episode_link_target(
+                "https://space.bilibili.com/1234/lists/55?type=season&bvid=BV1xx411c7mD&p=3"
+            )
+            .as_deref(),
+            Some("https://www.bilibili.com/video/BV1xx411c7mD?p=3")
+        );
+    }
+
+    #[test]
+    fn collection_link_without_an_episode_stays_a_collection() {
+        assert_eq!(
+            episode_link_target("https://www.bilibili.com/list/1234?sid=55"),
+            None
+        );
+        assert_eq!(
+            episode_link_target("https://www.bilibili.com/video/BV1xx411c7mD?p=3"),
+            None
+        );
+        assert!(is_playlist_or_series(
+            "https://www.bilibili.com/list/1234?sid=55"
+        ));
+    }
+
     // Issue #311: the collection page listed its videos in the omnibox but the
     // download went down the single-video path and failed on the listing page.
     #[test]

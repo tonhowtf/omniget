@@ -98,10 +98,6 @@ impl CompositeRuntime {
         self.acp = Some(acp);
         self
     }
-
-    pub fn has_cli(&self) -> bool {
-        self.cli.is_some()
-    }
 }
 
 #[async_trait]

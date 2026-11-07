@@ -5,13 +5,10 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
 use super::sources;
-use super::SkipKind;
 
 const API: &str = "https://graphql.anilist.co";
 const TOKEN_ACCOUNT: &str = "anilist";
 const MEDIA_TTL_MS: i64 = 6 * 3600 * 1000;
-const SKIP_TTL_MS: i64 = 7 * 24 * 3600 * 1000;
-const SKIP_EMPTY_TTL_MS: i64 = 24 * 3600 * 1000;
 
 const MEDIA_FIELDS: &str = "id idMal title { userPreferred romaji english native } \
     coverImage { extraLarge large } bannerImage episodes status seasonYear format genres \
@@ -54,13 +51,6 @@ pub struct AniViewer {
     pub id: i64,
     pub name: String,
     pub avatar: Option<String>,
-}
-
-#[derive(Serialize, Clone, Debug)]
-pub struct SkipSegment {
-    pub kind: SkipKind,
-    pub start_ms: i64,
-    pub end_ms: i64,
 }
 
 fn strip_html(s: &str) -> String {
@@ -514,68 +504,4 @@ pub async fn video_anilist_progress(media_id: i64, episode: i64) -> Result<AniMe
         Err(e) => known.ok_or(e)?,
     };
     Ok(with_pending(map_media(&v, None)))
-}
-
-#[tauri::command]
-pub async fn video_aniskip(
-    mal_id: i64,
-    episode: i64,
-    duration_ms: i64,
-) -> Result<Vec<SkipSegment>, String> {
-    if mal_id <= 0 || episode <= 0 {
-        return Ok(Vec::new());
-    }
-    let secs = (duration_ms.max(0) as f64 / 1000.0).round() as i64;
-    let key = format!("aniskip:{mal_id}:{episode}:{}", secs / 10);
-    let cached = sources::cache_get(&key, SKIP_TTL_MS)
-        .and_then(|s| serde_json::from_str::<Value>(&s).ok())
-        .filter(|v| {
-            v["results"].as_array().is_some_and(|a| !a.is_empty())
-                || sources::cache_get(&key, SKIP_EMPTY_TTL_MS).is_some()
-        });
-    let body = match cached {
-        Some(v) => v,
-        None => {
-            let url = format!(
-                "https://api.aniskip.com/v2/skip-times/{mal_id}/{episode}?types[]=op&types[]=ed&types[]=mixed-op&types[]=mixed-ed&types[]=recap&episodeLength={secs}"
-            );
-            let resp = sources::http()
-                .get(url)
-                .timeout(Duration::from_secs(10))
-                .send()
-                .await
-                .map_err(sources::net_err)?;
-            let v: Value = if resp.status().as_u16() == 404 {
-                json!({ "found": false, "results": [] })
-            } else if resp.status().is_success() {
-                resp.json().await.map_err(sources::net_err)?
-            } else {
-                return Err(sources::status_err(resp.status()));
-            };
-            sources::cache_put(&key, &v.to_string());
-            v
-        }
-    };
-    let mut out: Vec<SkipSegment> = body["results"]
-        .as_array()
-        .into_iter()
-        .flatten()
-        .filter_map(|r| {
-            let kind = match r["skipType"].as_str()? {
-                "op" | "mixed-op" => SkipKind::Intro,
-                "ed" | "mixed-ed" => SkipKind::Outro,
-                "recap" => SkipKind::Recap,
-                _ => return None,
-            };
-            let start = r["interval"]["startTime"].as_f64()?;
-            let end = r["interval"]["endTime"].as_f64()?;
-            (end > start).then_some(SkipSegment {
-                kind,
-                start_ms: (start * 1000.0) as i64,
-                end_ms: (end * 1000.0) as i64,
-            })
-        })
-        .collect();
-    out.sort_by_key(|s| s.start_ms);
-    Ok(out)
 }

@@ -315,16 +315,6 @@ pub fn setting(db: &AssistDb, key: &str) -> bool {
     v.map(|v| v != "off").unwrap_or(true)
 }
 
-pub fn set_setting(db: &AssistDb, key: &str, on: bool) -> Result<(), String> {
-    db.with(|c| {
-        c.execute(
-            "INSERT OR REPLACE INTO memory_settings(key, value) VALUES (?1, ?2)",
-            params![key, if on { "on" } else { "off" }],
-        )
-    })?;
-    Ok(())
-}
-
 pub fn json_object(text: &str) -> Option<Value> {
     let start = text.find('{')?;
     let end = text.rfind('}')?;

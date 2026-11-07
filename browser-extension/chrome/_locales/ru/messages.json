@@ -292,5 +292,14 @@
   },
   "context_menu_download_selection": {
     "message": "Скачать ссылки из выделения через OmniGet"
+  },
+  "popup_bridge_refused": {
+    "message": "OmniGet отклонил запрос. Проверьте настройки расширения в OmniGet."
+  },
+  "popup_link_handler_failed": {
+    "message": "Браузер не смог открыть ссылку OmniGet. Запустите OmniGet и повторите попытку."
+  },
+  "popup_sent_via_link": {
+    "message": "Отправлено по ссылке. Если ничего не открылось, запустите OmniGet и повторите попытку."
   }
 }

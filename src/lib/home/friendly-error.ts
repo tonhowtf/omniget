@@ -11,7 +11,7 @@ export type ErrorKind =
 
 const RULES: [ErrorKind, RegExp][] = [
   ["age", /age[- ]restricted|confirm your age|inappropriate for some users/i],
-  ["login", /private video|sign in|log ?in required|login required|members[- ]only|cookies/i],
+  ["login", /private video|sign in|log ?in required|login required|log in to|logged[- ]in|without a login|redirected to login|registered users|members[- ]only|cookies/i],
   ["geo", /available in your country|geo[- ]?restrict|geo[- ]?block|your region/i],
   ["rate", /\b429\b|too many requests|rate[- ]?limit/i],
   ["unsupported", /unsupported url|no suitable extractor/i],
@@ -25,4 +25,8 @@ export function classifyError(raw: string): ErrorKind {
     if (re.test(raw)) return kind;
   }
   return "generic";
+}
+
+export function browserMayHelp(kind: ErrorKind): boolean {
+  return kind === "unsupported" || kind === "login" || kind === "generic" || kind === "age";
 }

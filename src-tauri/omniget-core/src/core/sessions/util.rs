@@ -48,10 +48,6 @@ pub fn file_size(p: &Path) -> u64 {
     std::fs::metadata(p).map(|m| m.len()).unwrap_or(0)
 }
 
-pub fn now_ms() -> i64 {
-    Utc::now().timestamp_millis()
-}
-
 pub fn ms_to_rfc3339(ms: i64) -> String {
     Utc.timestamp_millis_opt(ms)
         .single()
@@ -390,37 +386,6 @@ pub fn with_env(var: &str, value: Option<&Path>, cmd: String) -> String {
         }
         _ => cmd,
     }
-}
-
-pub fn claude_project_dir_name(cwd: &str) -> String {
-    let s: String = cwd
-        .chars()
-        .map(|c| if c.is_ascii_alphanumeric() { c } else { '-' })
-        .collect();
-    if s.chars().count() <= 200 {
-        return s;
-    }
-    let head: String = s.chars().take(200).collect();
-    format!("{}-{}", head, js_string_hash_base36(cwd))
-}
-
-fn js_string_hash_base36(s: &str) -> String {
-    let mut h: i32 = 0;
-    for u in s.encode_utf16() {
-        h = h.wrapping_shl(5).wrapping_sub(h).wrapping_add(u as i32);
-    }
-    let mut n = (h as i64).unsigned_abs();
-    if n == 0 {
-        return "0".into();
-    }
-    let digits = b"0123456789abcdefghijklmnopqrstuvwxyz";
-    let mut out = Vec::new();
-    while n > 0 {
-        out.push(digits[(n % 36) as usize]);
-        n /= 36;
-    }
-    out.reverse();
-    String::from_utf8(out).unwrap_or_default()
 }
 
 pub fn open_ro(path: &Path) -> Option<rusqlite::Connection> {

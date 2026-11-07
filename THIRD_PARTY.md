@@ -115,3 +115,48 @@ No code or data is copied.
   - What: offered as a one-click MCP server in LLM → MCP (`npx -y @softeria/ms-365-mcp-server --org-mode`). It runs as its own process; nothing of it ships inside OmniGet.
 - **whisper.cpp** by ggml-org. License: **MIT**.
   - What: the local speech-to-text engine of the Claude Code plugin, with GGML models from Hugging Face.
+
+## PDF, Converter, Photos, Cut Out and Karaoke
+
+### Code copied into the repository
+
+Each copy lives in `src-tauri/vendor/<name>/` with its license files and a `README.md` that gives the upstream commit and what was left out. The folders are excluded from the Cargo workspace.
+
+- **pdfcraft** by the ArtCraft Team and the PdfCraft contributors (https://github.com/storytold/pdfcraft). License: **MIT OR Apache-2.0**.
+  - What: the `cos`, `crypt`, `filters`, `content` and `organize` crates at commit `f42fda734243b66f54db87923d7c981d5221419e`, with their `src/` unchanged. They come with pdfcraft's patched copies of **hayro-syntax** 0.7.2 and **hayro-jbig2** 0.3.0 by Laurenz Stampfl (https://github.com/LaurenzV/hayro, **Apache-2.0 OR MIT**).
+  - Where: `src-tauri/vendor/pdfcraft/`. Used by the PDF superpower to read, reorder, merge, split, rotate and save PDFs.
+- **photocraft-psd** by the ArtCraft Team and the PhotoCraft contributors (https://github.com/storytold/photocraft). License: **MIT OR Apache-2.0**.
+  - What: the PSD/PSB reader at commit `c101cbfb7ea556b248d4c7f4884dd5816a0b8a74`, without the modules for other Adobe formats.
+  - Where: `src-tauri/vendor/photocraft-psd/` (with `NOTICE`). Used by the Converter and Photos to open Photoshop files.
+
+### Code ported to our own files
+
+- **VTracer** 0.6.5 by Tsang Hao Fung (https://github.com/visioncortex/vtracer). License: **MIT OR Apache-2.0**.
+  - What: about 200 lines of the image-to-SVG converter, ported into `src-tauri/omniget-core/src/core/convert/vector.rs`, which keeps the license notice at the top. The tracing engine itself is the `visioncortex` crate.
+
+### Libraries from crates.io
+
+| Crate | License | Used for |
+|---|---|---|
+| `heic-rs` =0.1.4 | MIT OR Apache-2.0 | iPhone photos (HEIC/HEIF), behind the `heic` feature |
+| `jxl-oxide` 0.12 | MIT OR Apache-2.0 | JPEG XL |
+| `moxcms` (through `jxl-oxide`) | BSD-3-Clause OR Apache-2.0 | Color conversion of JPEG XL to sRGB |
+| `rawler` 0.8 | LGPL-2.1 | Camera RAW |
+| `acadrust` 0.6.8 | MPL-2.0 | DXF and DWG drawings |
+| `resvg` 0.49 | Apache-2.0 OR MIT | SVG to image |
+| `visioncortex` 0.8 | MIT OR Apache-2.0 | Image to SVG |
+
+HEIC images use the HEVC codec, which is covered by patents. The decoder is free software, but builds can leave it out with `default-features = false` on `omniget-core`.
+
+### AI models downloaded on demand
+
+None of these ship inside the installer. Each is downloaded the first time it is needed, from a pinned revision, and checked against a fixed SHA-256 before it is used.
+
+- **Spleeter 2 stems** by Deezer (https://github.com/deezer/spleeter). License: **MIT**. Separates vocals and instrumental in Music › Tools › Separate vocals. The ONNX conversion is by the sherpa-onnx project (k2-fsa, Apache-2.0), downloaded from `huggingface.co/csukuangfj/sherpa-onnx-spleeter-2stems` at commit `7001ba316a615cacddb3f9ef3ec416661a277e26`.
+- **U²-Net light (u2netp)** and **Silueta** (https://github.com/xuebinqin/U-2-Net). License: **Apache-2.0**. ONNX files published by rembg (https://github.com/danielgatis/rembg). Background removal in Cut Out.
+- **IS-Net general use** (https://github.com/xuebinqin/DIS). License: **Apache-2.0**. ONNX file published by rembg. The "Best quality" model in Cut Out.
+- **SAM 2.1 Hiera tiny** by Meta, ONNX conversion at https://huggingface.co/cstr/sam2.1-hiera-tiny-ONNX (revision `12bdf0f712731bd0b52ccbff807683ce49b726b9`). License: **Apache-2.0**. "Fix with clicks" in Cut Out. Only the address, revision and checksums were taken from storytold's `craft-ai-integrations` (commit `0cbc088b3c1cc16f4c9f1f2b61b95208cd4345b0`); no code from it is used.
+
+### Icons
+
+- **Phosphor Icons** (https://phosphoricons.com). License: **MIT**. `static/icons/file-pdf.svg` and `static/icons/scissors.svg` are the fill weights of `file-pdf` and `scissors`, like the other glyphs in that folder.

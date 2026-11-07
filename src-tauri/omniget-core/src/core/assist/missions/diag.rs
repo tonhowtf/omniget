@@ -1,12 +1,9 @@
 use regex::{Captures, Regex};
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
+use serde_json::Value;
 use std::sync::OnceLock;
 
 pub const REDACTED: &str = "[redacted]";
-pub const LINE_MAX: usize = 2 * 1024;
-pub const BUNDLE_MAX: usize = 512 * 1024;
-
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct SuggestedAction {
     pub id: String,
@@ -477,97 +474,6 @@ pub fn redact_json(v: Value) -> Value {
         }
         other => other,
     }
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct LogPage {
-    pub lines: Vec<String>,
-    pub total: usize,
-    pub offset: usize,
-    pub next: Option<usize>,
-    pub clipped: usize,
-}
-
-pub fn paginate(text: &str, offset: usize, limit: usize) -> LogPage {
-    let whole = redact(text);
-    let all: Vec<&str> = whole.lines().collect();
-    let limit = limit.clamp(1, 500);
-    let mut clipped = 0;
-    let lines: Vec<String> = all
-        .iter()
-        .skip(offset)
-        .take(limit)
-        .map(|l| {
-            let r = l.to_string();
-            if r.len() > LINE_MAX {
-                clipped += 1;
-                super::clip(&r, LINE_MAX)
-            } else {
-                r
-            }
-        })
-        .collect();
-    let end = offset + lines.len();
-    LogPage {
-        total: all.len(),
-        offset,
-        next: (end < all.len()).then_some(end),
-        clipped,
-        lines,
-    }
-}
-
-pub fn bundle(detail: &super::MissionDetail, extra: Value) -> Result<Value, String> {
-    let raw = json!({
-        "format": "omniget.mission.diagnostics/1",
-        "generated_ms": crate::core::assist::now_ms(),
-        "mission": detail.mission,
-        "criteria": detail.criteria,
-        "tasks": detail.tasks,
-        "receipts": detail.receipts,
-        "effects": detail.effects,
-        "verdict": detail.verdict,
-        "events": detail.events,
-        "extra": extra,
-    });
-    let red = redact_json(raw);
-    let mut text = red.to_string();
-    if let Some(leak) = leak_check(&text) {
-        return Err(format!(
-            "ERR_MISSION_REDACTION: the export was not written: {leak} survived redaction"
-        ));
-    }
-    if text.len() > BUNDLE_MAX {
-        let mut v = red.clone();
-        if let Some(ev) = v.get_mut("events").and_then(Value::as_array_mut) {
-            let keep = ev.len().min(50);
-            let cut = ev.len() - keep;
-            ev.drain(..cut);
-            v["events_cut"] = json!(cut);
-        }
-        text = v.to_string();
-        if text.len() > BUNDLE_MAX {
-            return Ok(
-                json!({ "format": "omniget.mission.diagnostics/1", "truncated": true, "head": super::clip(&text, BUNDLE_MAX) }),
-            );
-        }
-        return Ok(v);
-    }
-    Ok(red)
-}
-
-pub fn leak_check(text: &str) -> Option<&'static str> {
-    static CHECK: OnceLock<Regex> = OnceLock::new();
-    let re = CHECK.get_or_init(|| {
-        Regex::new(r"(?i)(bearer\s+[a-z0-9._~+/=-]{12,}|sk-[A-Za-z0-9_-]{20,}|eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.|x-amz-signature=[0-9a-f]{16,})").unwrap()
-    });
-    if re.is_match(text) || token_shapes().is_match(text) {
-        return Some("a token-shaped string");
-    }
-    if text.contains("PRIVATE KEY-----") {
-        return Some("a private key block");
-    }
-    None
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

@@ -57,10 +57,6 @@ pub(super) fn of_job(db: &Connection, job: &str) -> Vec<JobChange> {
     .unwrap_or_default()
 }
 
-pub(super) fn forget(db: &Connection, job: &str) {
-    let _ = db.execute("DELETE FROM job_changes WHERE job_id=?1", params![job]);
-}
-
 pub fn diff_from_baselines(folder: Option<&std::path::Path>, rows: &[JobChange]) -> JobDiff {
     let mut out = JobDiff {
         complete: true,

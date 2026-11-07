@@ -2,21 +2,15 @@ use std::collections::BTreeMap;
 use std::sync::{Arc, OnceLock};
 use std::time::Instant;
 
-use omniget_core::core::llm::agent::{AgentDef, GrantMode, ToolGrant, ToolSource};
 use omniget_core::core::mcp::types::{
     name_is_secret, secret_ref, valid_id, McpServerConfig, Transport, SECRET_NS,
 };
 use omniget_core::core::mcp::{McpError, McpRegistry, ToolDef};
 use omniget_core::core::secrets::SecretStore;
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
-use tauri::State;
-
-use crate::AppState;
 
 pub const ERR_CONFIG: &str = "ERR_MCP_CONFIG";
 pub const ERR_NO_STORE: &str = "ERR_MCP_NO_STORE";
-pub const ERR_UNKNOWN_AGENT: &str = "ERR_MCP_UNKNOWN_AGENT";
 pub const ERR_SECRET: &str = "ERR_MCP_SECRET";
 
 static REGISTRY: OnceLock<Option<Arc<McpRegistry>>> = OnceLock::new();
@@ -68,14 +62,6 @@ pub struct McpTestResultDto {
     pub elapsed_ms: u64,
     pub error: Option<McpErrorDto>,
     pub health: omniget_core::core::assist::missions::diag::McpHealth,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct GrantDto {
-    pub server: String,
-    pub tool: String,
-    #[serde(default)]
-    pub mode: Option<GrantMode>,
 }
 
 pub fn validate(config: &McpServerConfig) -> Result<(), String> {
@@ -165,36 +151,6 @@ pub fn merge_kept(mut next: McpServerConfig, stored: Option<&McpServerConfig>) -
         }
     }
     next
-}
-
-pub fn apply_grant(
-    tools: &[ToolGrant],
-    server: &str,
-    tool: &str,
-    mode: Option<GrantMode>,
-) -> Vec<ToolGrant> {
-    let mut out: Vec<ToolGrant> = tools
-        .iter()
-        .filter(|grant| !is_mcp(grant, server, tool))
-        .cloned()
-        .collect();
-    if let Some(mode) = mode {
-        out.push(ToolGrant {
-            source: ToolSource::Mcp {
-                server: server.to_string(),
-                tool: tool.to_string(),
-            },
-            mode,
-        });
-    }
-    out
-}
-
-fn is_mcp(grant: &ToolGrant, server: &str, tool: &str) -> bool {
-    matches!(
-        &grant.source,
-        ToolSource::Mcp { server: s, tool: t } if s == server && t == tool
-    )
 }
 
 async fn rows(reg: &Arc<McpRegistry>) -> Vec<McpServerRowDto> {
@@ -375,35 +331,4 @@ pub async fn probe(reg: &Arc<McpRegistry>, id: &str) -> Result<McpTestResultDto,
         }),
         Err(error) => Ok(fail(error, started)),
     }
-}
-
-#[tauri::command]
-pub async fn llm_mcp_tools(id: String) -> Result<Vec<ToolDef>, String> {
-    if !valid_id(&id) {
-        return Err(format!("{ERR_CONFIG}: id"));
-    }
-    let reg = need_registry()?;
-    let client = reg.client_for(&id).await.map_err(err)?;
-    let tools = client.tools().await.map_err(err)?;
-    Ok((*tools).clone())
-}
-
-#[tauri::command]
-pub async fn llm_mcp_grant(
-    state: State<'_, AppState>,
-    agent_id: String,
-    grant: GrantDto,
-) -> Result<Value, String> {
-    if grant.server.trim().is_empty() || grant.tool.trim().is_empty() {
-        return Err(format!("{ERR_CONFIG}: grant"));
-    }
-    let mut agent: AgentDef = state
-        .llm
-        .roster()
-        .into_iter()
-        .find(|a| a.id == agent_id)
-        .ok_or_else(|| format!("{ERR_UNKNOWN_AGENT}: {agent_id}"))?;
-    agent.tools = apply_grant(&agent.tools, &grant.server, &grant.tool, grant.mode);
-    let roster = state.llm.roster_update(agent)?;
-    serde_json::to_value(roster).map_err(|e| e.to_string())
 }

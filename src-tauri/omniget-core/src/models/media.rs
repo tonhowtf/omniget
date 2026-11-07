@@ -59,6 +59,8 @@ pub struct DownloadOptions {
     pub torrent_files: Option<Vec<usize>>,
     pub torrent_auto_trackers: bool,
     pub torrent_upnp: bool,
+    pub torrent_stop_seeding: bool,
+    pub playlist_number_files: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

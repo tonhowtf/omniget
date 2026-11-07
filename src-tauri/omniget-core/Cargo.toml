@@ -6,6 +6,10 @@ edition = "2021"
 [lib]
 name = "omniget_core"
 
+[features]
+default = ["heic"]
+heic = ["dep:heic-rs"]
+
 [dependencies]
 tokio = { version = "1", features = ["full"] }
 reqwest = { version = "0.12", default-features = false, features = ["json", "cookies", "stream", "http2", "gzip", "brotli", "deflate", "rustls-tls", "multipart"] }
@@ -33,6 +37,7 @@ base64 = "0.22.1"
 sha2 = "0.10"
 hmac = "0.12"
 murmur3 = "0.5"
+ttf-parser = "0.25"
 md-5 = "0.10"
 hex = "0.4"
 once_cell = "1"
@@ -41,6 +46,7 @@ qrcode = { version = "0.14", default-features = false, features = ["svg"] }
 rquickjs = { version = "0.14", features = ["classes", "properties"] }
 tokio-tungstenite = { version = "0.30.0", default-features = false, features = ["connect"] }
 zip = { version = "2", default-features = false, features = ["deflate"] }
+minisign-verify = "0.2"
 shell-words = "1"
 tar = "0.4"
 flate2 = "1"
@@ -49,7 +55,7 @@ encoding_rs = "0.8"
 xz2 = { version = "0.1", features = ["static"] }
 walkdir = "2"
 ort = { version = "2.0.0-rc.13", default-features = false, features = ["std", "ndarray", "tracing", "load-dynamic", "api-27"] }
-rusqlite = { version = "0.32", features = ["bundled"] }
+rusqlite = { version = "0.40", features = ["bundled", "fallible_uint"] }
 tempfile = "=3.25.0"
 zstd = "0.13"
 sha1 = "0.10"
@@ -88,7 +94,21 @@ scraper = "0.27"
 pulldown-cmark = { version = "0.13", default-features = false, features = ["html"] }
 chardetng = "0.1"
 alacritty_terminal = "0.26.0"
-image = { version = "0.25", default-features = false, features = ["png", "jpeg", "webp", "gif"] }
+image = { version = "0.25", default-features = false, features = ["png", "jpeg", "webp", "gif", "bmp", "ico", "tiff", "tga"] }
+csv = "1"
+toml = { version = "0.8", features = ["preserve_order"] }
+plist = "1"
+heic-rs = { version = "=0.1.4", optional = true }
+jxl-oxide = { version = "0.12.6", features = ["image", "moxcms"] }
+photocraft-psd = "=0.20.1"
+visioncortex = "0.8.10"
+resvg = "0.49"
+rawler = "0.8.0"
+kamadak-exif = "0.6.1"
+acadrust = { version = "0.6.8", default-features = false }
+pdfcraft-organize = "=0.18.1"
+pdfcraft-cos = "=0.18.1"
+pdfcraft-filters = "=0.18.1"
 
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.61", features = [

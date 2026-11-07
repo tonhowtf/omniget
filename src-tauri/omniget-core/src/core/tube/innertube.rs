@@ -326,25 +326,6 @@ impl CookieJar {
         }
         Self { entries }
     }
-
-    pub fn to_netscape(&self) -> String {
-        let mut out = String::from("# Netscape HTTP Cookie File\n");
-        for e in &self.entries {
-            let flag = |b: bool| if b { "TRUE" } else { "FALSE" };
-            out.push_str(&format!(
-                "{}\t{}\t{}\t{}\t{}\t{}\t{}\n",
-                e.domain,
-                flag(e.include_sub),
-                e.path,
-                flag(e.secure),
-                e.expires,
-                e.name,
-                e.value
-            ));
-        }
-        out
-    }
-
     fn entry(&self, name: &str) -> Option<&CookieEntry> {
         let mut best: Option<&CookieEntry> = None;
         for e in self.entries.iter().filter(|e| e.name == name) {
@@ -728,8 +709,6 @@ mod tests {
         assert!(header.contains("SAPISID=abc/def"));
         assert!(header.contains("SID=sid-yt"));
         assert!(!header.contains("sid-google"));
-        let again = CookieJar::from_netscape(&jar.to_netscape());
-        assert_eq!(again.entries.len(), 5);
         assert!(!CookieJar::default().is_logged_in());
     }
 

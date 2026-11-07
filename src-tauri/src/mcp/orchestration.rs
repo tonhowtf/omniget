@@ -583,7 +583,7 @@ fn approvals(app: &AppHandle, db: &AssistDb, mission: &str) -> Result<Value, Str
         "preview": text(&q.preview, 400), "deadlineMs": q.deadline_ms,
     })).collect();
     Ok(
-        json!({"missionId": mission, "pending": pending, "remoteApproval": false, "approveIn": "OmniGet window → LLM → Tasks, or approval_respond with its grant"}),
+        json!({"missionId": mission, "pending": pending, "remoteApproval": false, "approveIn": "the approval card in the OmniGet window, or approval_respond with its grant"}),
     )
 }
 

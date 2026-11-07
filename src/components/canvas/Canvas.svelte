@@ -351,7 +351,7 @@
     if (primary && !e.shiftKey && !e.altKey && (e.key === "," || e.code === "Comma")) {
       e.preventDefault();
       e.stopImmediatePropagation();
-      void goto("/settings");
+      void goto("/settings?tab=ai&section=canvas");
       return;
     }
     if (!mine(e)) {

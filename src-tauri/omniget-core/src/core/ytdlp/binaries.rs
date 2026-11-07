@@ -422,10 +422,10 @@ pub(super) fn warm_ytdlp_onedir(exe: &Path) -> anyhow::Result<()> {
         .stdout(Stdio::piped())
         .stderr(Stdio::null())
         .output()
-        .map_err(|e| anyhow!("yt-dlp onedir nao executa: {e}"))?;
+        .map_err(|e| anyhow!("yt-dlp onedir does not run: {e}"))?;
     if !out.status.success() || parse_ytdlp_version(&String::from_utf8_lossy(&out.stdout)).is_none()
     {
-        return Err(anyhow!("yt-dlp onedir: --version falhou"));
+        return Err(anyhow!("yt-dlp onedir: --version failed"));
     }
     Ok(())
 }
@@ -679,7 +679,7 @@ pub(super) async fn fetch_verified_ytdlp_asset(
     let bytes = response.bytes().await?;
     let expected = integrity::expected_from_sums_url(&client, &sums_url, asset)
         .await
-        .map_err(|e| anyhow!("yt-dlp: verificacao de integridade impossivel — {}", e))?;
+        .map_err(|e| anyhow!("yt-dlp: integrity check not possible: {}", e))?;
     integrity::verify_sha256(&bytes, &expected, &format!("yt-dlp ({:?})", channel))?;
     Ok(bytes.to_vec())
 }
@@ -695,10 +695,15 @@ pub(super) async fn download_ytdlp_asset(asset: &str, target: PathBuf) -> anyhow
     let sums_url = format!("{}/SHA2-256SUMS", base);
 
     let client = crate::core::http_client::apply_global_proxy(reqwest::Client::builder())
-        .timeout(std::time::Duration::from_secs(120))
+        .connect_timeout(std::time::Duration::from_secs(30))
+        .timeout(std::time::Duration::from_secs(600))
         .build()?;
 
-    let response = client.get(&download_url).send().await?;
+    let response = client
+        .get(&download_url)
+        .send()
+        .await
+        .map_err(|e| anyhow!("Failed to reach the yt-dlp download: {e}"))?;
 
     if !response.status().is_success() {
         return Err(anyhow!(
@@ -707,11 +712,14 @@ pub(super) async fn download_ytdlp_asset(asset: &str, target: PathBuf) -> anyhow
         ));
     }
 
-    let bytes = response.bytes().await?;
+    let bytes = response
+        .bytes()
+        .await
+        .map_err(|e| anyhow!("The yt-dlp download was cut off: {e}"))?;
 
     let expected = integrity::expected_from_sums_url(&client, &sums_url, asset)
         .await
-        .map_err(|e| anyhow!("yt-dlp: verificacao de integridade impossivel — {}", e))?;
+        .map_err(|e| anyhow!("yt-dlp: integrity check not possible: {}", e))?;
     integrity::verify_sha256(&bytes, &expected, &format!("yt-dlp ({:?})", channel))?;
 
     let temp = target.with_file_name(format!(
@@ -726,14 +734,14 @@ pub(super) async fn download_ytdlp_asset(asset: &str, target: PathBuf) -> anyhow
         .await
         .map_err(|e| anyhow!("spawn_blocking failed: {}", e))??;
 
-    crate::core::dependencies::replace_managed_binary(&temp, &target)?;
-
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
         let perms = std::fs::Permissions::from_mode(0o755);
-        std::fs::set_permissions(&target, perms)?;
+        std::fs::set_permissions(&temp, perms)?;
     }
+
+    crate::core::dependencies::replace_managed_binary(&temp, &target)?;
 
     #[cfg(target_os = "macos")]
     {

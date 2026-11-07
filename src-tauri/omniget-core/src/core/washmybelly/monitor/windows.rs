@@ -1,15 +1,10 @@
 use std::sync::Mutex;
 
-use windows_sys::Win32::Foundation::CloseHandle;
 use windows_sys::Win32::System::Performance::{
     PdhAddEnglishCounterW, PdhCollectQueryData, PdhGetFormattedCounterArrayW, PdhOpenQueryW,
     PDH_FMT_COUNTERVALUE_ITEM_W, PDH_FMT_DOUBLE, PDH_HCOUNTER, PDH_HQUERY, PDH_MORE_DATA,
 };
 use windows_sys::Win32::System::Power::{GetSystemPowerStatus, SYSTEM_POWER_STATUS};
-use windows_sys::Win32::System::Threading::{
-    OpenProcess, SetPriorityClass, ABOVE_NORMAL_PRIORITY_CLASS, BELOW_NORMAL_PRIORITY_CLASS,
-    NORMAL_PRIORITY_CLASS, PROCESS_SET_INFORMATION,
-};
 
 use super::parse::{self, Battery, Gpu};
 
@@ -186,26 +181,4 @@ pub fn battery() -> Result<Battery, String> {
         }
     }
     Ok(b)
-}
-
-pub fn set_priority(pid: u32, level: &str) -> Result<(), String> {
-    let class = match level {
-        "low" => BELOW_NORMAL_PRIORITY_CLASS,
-        "normal" => NORMAL_PRIORITY_CLASS,
-        "high" => ABOVE_NORMAL_PRIORITY_CLASS,
-        _ => return Err(format!("unknown priority {level}")),
-    };
-    unsafe {
-        let h = OpenProcess(PROCESS_SET_INFORMATION, 0, pid);
-        if h.is_null() {
-            return Err("could not open the process (access denied or gone)".into());
-        }
-        let ok = SetPriorityClass(h, class) != 0;
-        CloseHandle(h);
-        if ok {
-            Ok(())
-        } else {
-            Err("SetPriorityClass failed".into())
-        }
-    }
 }

@@ -12,7 +12,7 @@ const CARD_LEAVE_W = 170;
 
 const WIRE: Record<TermLod, WireLod> = { text: 0, mini: 1, card: 2 };
 
-export function nextLod(prev: TermLod | null, fontPx: number, widthPx: number, focused: boolean): TermLod {
+function nextLod(prev: TermLod | null, fontPx: number, widthPx: number, focused: boolean): TermLod {
   if (focused) return 'text';
   const textIn = prev === 'text' ? fontPx >= TEXT_LEAVE_PX : fontPx >= TEXT_ENTER_PX;
   if (textIn) return 'text';

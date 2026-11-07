@@ -13,21 +13,16 @@
     showAvatar = true,
     feedbackActions = true,
     skeleton = 0,
-    limit = 0,
   }: {
     items: Item[];
     shorts?: boolean;
     showAvatar?: boolean;
     feedbackActions?: boolean;
     skeleton?: number;
-    limit?: number;
   } = $props();
 
   let forced = $derived(!shorts ? tubePrefs().grid_columns : 0);
-  let shown = $derived.by(() => {
-    const v = items.filter(isVisible);
-    return limit > 0 ? v.slice(0, limit) : v;
-  });
+  let shown = $derived(items.filter(isVisible));
 </script>
 
 <div class="wrap">

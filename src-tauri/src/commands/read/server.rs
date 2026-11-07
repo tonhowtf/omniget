@@ -68,7 +68,6 @@ fn router(ctx: Ctx) -> Router {
         .route("/bc/{id}", get(prepared_file))
         .route("/c/{hash}", get(cover))
         .route("/pg/{id}/{n}", get(page))
-        .route("/img", get(remote_image))
         .route("/opds", get(opds_root))
         .route("/opds/search.xml", get(opds_search_desc))
         .route("/opds/{kind}", get(opds_list))
@@ -76,6 +75,9 @@ fn router(ctx: Ctx) -> Router {
         .route("/opds-file/{id}", get(book_file))
         .route("/opds-cover/{hash}", get(cover))
         .route("/opds-page/{id}/{n}", get(page));
+    if !ctx.lan {
+        r = r.route("/img", get(remote_image));
+    }
     if ctx.lan {
         r = r
             .route("/users/create", post(kosync_create))

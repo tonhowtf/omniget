@@ -3,6 +3,7 @@
   import { goto } from "$app/navigation";
   import { open as openExternal } from "@tauri-apps/plugin-shell";
   import { t } from "$lib/i18n";
+  import { showToast } from "$lib/stores/toast-store.svelte";
   import { translateBackendError } from "$lib/error-translate";
 
   type Remedy =
@@ -17,7 +18,7 @@
 
   type Diagnosis = { cause_key: string; remedy: Remedy; detail: string | null };
 
-  let { error, onRetry, url }: { error: string; onRetry?: () => void; url?: string } = $props();
+  let { error, onRetry, url, downloadId }: { error: string; onRetry?: () => void; url?: string; downloadId?: number } = $props();
 
   let diagnosis = $state<Diagnosis | null>(null);
   let updating = $state(false);
@@ -37,10 +38,19 @@
       .catch(() => (diagnosis = null));
   });
 
-  let translated = $derived(translateBackendError(error, $t));
+  let translated = $derived(translateBackendError(error, $t, $t));
   const BROWSER_HELPS = /unsupported url|login|log in|sign in|cookies|members|private|403|401|forbidden|unable to extract|no video formats/i;
   let browserUrl = $derived(url && /^https?:\/\//i.test(url) && (BROWSER_HELPS.test(error) || diagnosis?.remedy === "import_cookies") ? url : null);
   let showRaw = $derived(translated !== error);
+
+  async function openInBuiltinBrowser() {
+    try {
+      const source = downloadId === undefined ? (browserUrl ?? "") : await invoke<string>("get_download_source_url", { id: downloadId });
+      await goto(`/global?url=${encodeURIComponent(source)}`);
+    } catch {
+      showToast("error", $t("downloads.history_link_expired") as string);
+    }
+  }
 
   async function updateYtdlp() {
     updating = true;
@@ -96,7 +106,7 @@
 {#if browserUrl}
     <div class="root-cause-row">
       <span class="root-cause-text">{$t("downloads.try_builtin_browser_hint")}</span>
-      <button class="btn btn-secondary btn-sm" onclick={() => goto(`/global?url=${encodeURIComponent(browserUrl ?? "")}`)}>
+      <button class="btn btn-secondary btn-sm" onclick={openInBuiltinBrowser}>
         {$t("omnibox.try_builtin_browser")}
       </button>
     </div>

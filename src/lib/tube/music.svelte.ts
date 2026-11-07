@@ -1,6 +1,6 @@
 import * as api from "./api";
 import { isWebKit, loudnessGain, mediaUrl, pickAudio } from "./dash";
-import { thumbUrl } from "./format";
+import { errText, thumbUrl } from "./format";
 import { claim, register, setMeta, setPlaybackState } from "./media-session";
 import { tubePrefs } from "./prefs.svelte";
 import type { Lyrics, QueuePage, SongItem, StreamSet } from "./types";
@@ -213,12 +213,6 @@ async function start(i: number, at = 0, autoplay = true): Promise<void> {
   void refreshNext(song, seq);
   void prefetchNext();
   void extendIfLow();
-}
-
-function errText(e: unknown): string {
-  if (typeof e === "string") return e;
-  if (e && typeof e === "object" && "message" in e) return String((e as { message: unknown }).message);
-  return String(e);
 }
 
 let errorStreak = 0;
@@ -480,7 +474,7 @@ export function toggle(): void {
   else audio.pause();
 }
 
-export function pause(): void {
+function pause(): void {
   if (audio && !audio.paused) audio.pause();
 }
 

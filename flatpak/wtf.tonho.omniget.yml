@@ -144,9 +144,14 @@ modules:
         npm_config_cache: /run/build/omniget/flatpak-node/npm-cache
     build-commands:
       - npm install --offline
+      - node browser-extension/sync.mjs
       - npx vite build
       - cargo --offline build --release --manifest-path src-tauri/Cargo.toml
       - install -Dm755 src-tauri/target/release/omniget /app/bin/omniget
+      - mkdir -p /app/lib/omniget/browser-extension
+      - cp -r browser-extension/chrome browser-extension/firefox /app/lib/omniget/browser-extension/
+      - test -f /app/lib/omniget/browser-extension/chrome/manifest.json
+      - test -f /app/lib/omniget/browser-extension/firefox/manifest.json
       - install -Dm644 flatpak/wtf.tonho.omniget.desktop /app/share/applications/wtf.tonho.omniget.desktop
       - install -Dm644 flatpak/wtf.tonho.omniget.metainfo.xml /app/share/metainfo/wtf.tonho.omniget.metainfo.xml
       - install -Dm644 flatpak/wtf.tonho.omniget.png /app/share/icons/hicolor/128x128/apps/wtf.tonho.omniget.png

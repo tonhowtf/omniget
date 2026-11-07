@@ -277,10 +277,6 @@ pub fn generate_code() -> String {
 }
 
 pub fn is_valid_code(s: &str) -> bool {
-    validate_words(s)
-}
-
-fn validate_words(s: &str) -> bool {
     let parts: Vec<&str> = s.split('-').collect();
     if parts.len() != 4 {
         return false;

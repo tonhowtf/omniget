@@ -1,10 +1,7 @@
-use std::collections::BTreeMap;
 use std::sync::OnceLock;
 
-use serde_json::{json, Value};
-
 use super::super::{Destination, Os, Risk};
-use super::cleanerml::{self, Skip, ALL_OS};
+use super::cleanerml::{self, Skip};
 use super::rule::{Action, Requirement, Rule};
 
 pub const SWEEPS: &[&str] = &[
@@ -77,35 +74,6 @@ pub fn default_selected(r: &Rule) -> bool {
     !r.requires.contains(&Requirement::Admin)
 }
 
-pub fn stats() -> Value {
-    let c = catalog();
-    let mut per_os = serde_json::Map::new();
-    for os in ALL_OS {
-        let mut by_source: BTreeMap<&str, usize> = BTreeMap::new();
-        for r in c.rules.iter().filter(|r| r.os.contains(&os)) {
-            *by_source.entry(r.source.as_str()).or_default() += 1;
-        }
-        let total: usize = by_source.values().sum();
-        per_os.insert(
-            os.as_str().into(),
-            json!({ "total": total, "by_source": by_source }),
-        );
-    }
-    let mut skipped: BTreeMap<String, (usize, String)> = BTreeMap::new();
-    for s in &c.skipped {
-        let e = skipped
-            .entry(s.what.clone())
-            .or_insert((0, s.reason.clone()));
-        e.0 += 1;
-    }
-    json!({
-        "rules": per_os,
-        "cleanerml_files": cleanerml::EMBEDDED.len(),
-        "cleanerml_skipped": skipped.into_iter().map(|(k, (n, why))| json!({ "what": k, "count": n, "reason": why })).collect::<Vec<_>>(),
-        "protection_patterns": super::protection::pattern_count(),
-    })
-}
-
 pub struct B(Rule);
 
 /// cannot come back but regenerates), GPL-3.0, label key from the id.
@@ -149,11 +117,6 @@ impl B {
         self.0.requires.push(Requirement::Program {
             name: program.into(),
         });
-        self
-    }
-    pub fn vacuum(mut self) -> Self {
-        self.0.action = Action::SqliteVacuum;
-        self.0.risk = Risk::Reversible;
         self
     }
     pub fn running(mut self, names: &[&str]) -> Self {

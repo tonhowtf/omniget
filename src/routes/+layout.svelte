@@ -32,8 +32,9 @@
   import { getSettings, getSettingsLoadState, loadSettings, updateSettings, setSettingsLocaleApplier, startSettingsSync } from "$lib/stores/settings-store.svelte";
   import { queueExternalPrefill, type ExternalUrlEvent } from "$lib/stores/external-url-store.svelte";
   import Toast from "$components/toast/Toast.svelte";
-  import NativeAgentActivity from "$components/llm/mcp/NativeAgentActivity.svelte";
-  import McpAuthPrompt from "$components/llm/mcp/McpAuthPrompt.svelte";
+  import NativeAgentActivity from "$components/agents/NativeAgentActivity.svelte";
+  import ToolAskPrompt from "$components/shell/ToolAskPrompt.svelte";
+  import McpAuthPrompt from "$components/agents/McpAuthPrompt.svelte";
   import AppSidebar from "$components/shell/AppSidebar.svelte";
   import AppToolbar from "$components/shell/AppToolbar.svelte";
   import CommandPalette from "$components/shell/CommandPalette.svelte";
@@ -43,7 +44,7 @@
   import ReadHost from "$components/read/ReadHost.svelte";
   import { shellLayout } from "$lib/stores/shell-layout.svelte";
   import { setCommandPaletteItems } from "$lib/stores/command-palette-store.svelte";
-  import { accountPaletteItems, activateAccount, getAccounts } from "$lib/stores/llm-accounts-store.svelte";
+  import { accountPaletteItems, activateAccount, getAccounts } from "$lib/stores/agent-accounts-store.svelte";
   import { refreshUpdateInfo } from "$lib/stores/update-store.svelte";
   import { startClipboardMonitor, stopClipboardMonitor, onClipboardUrl } from "$lib/stores/clipboard-monitor";
   import { readText } from "@tauri-apps/plugin-clipboard-manager";
@@ -56,7 +57,7 @@
   import { usageTrayStrings } from "$lib/usage-tray-strings";
   import { agentPrompts } from "$lib/agent-prompts";
   import { llmNotifyStrings } from "$lib/llm-notify-strings";
-  import { focusPayload, getLlmFocus } from "$lib/llm/ui-focus.svelte";
+  import { focusPayload } from "$lib/ui-focus.svelte";
   import { get } from "svelte/store";
   import { CORE_NAV_ITEMS, type NavItem } from "$lib/nav-config";
   import { isBareWindow } from "$lib/bare-window";
@@ -110,7 +111,7 @@
 
   $effect(() => {
     if (isBareWindow(page.url.pathname)) return;
-    invoke("llm_ui_focus", focusPayload(page.url.pathname, getLlmFocus())).catch(() => {});
+    invoke("llm_ui_focus", focusPayload(page.url.pathname)).catch(() => {});
   });
 
   const bareWindow = isBareWindow(page.url.pathname);
@@ -125,7 +126,25 @@
     page.url.pathname.startsWith("/youtube") ||
     page.url.pathname.startsWith("/washmybelly") ||
     page.url.pathname.startsWith("/read") ||
-    page.url.pathname.startsWith("/about"),
+    page.url.pathname.startsWith("/converter") ||
+    page.url.pathname.startsWith("/pdf") ||
+    page.url.pathname.startsWith("/photos") ||
+    page.url.pathname.startsWith("/cutout") ||
+    page.url.pathname.startsWith("/palette") ||
+    page.url.pathname.startsWith("/fonts") ||
+    page.url.pathname.startsWith("/icons") ||
+    page.url.pathname.startsWith("/motion") ||
+    page.url.pathname.startsWith("/board") ||
+    page.url.pathname.startsWith("/components") ||
+    page.url.pathname.startsWith("/capture") ||
+    page.url.pathname.startsWith("/studio") ||
+    page.url.pathname.startsWith("/dictation") ||
+    page.url.pathname.startsWith("/whatsapp") ||
+    page.url.pathname.startsWith("/discord") ||
+    page.url.pathname === "/x" ||
+    page.url.pathname.startsWith("/instagram") ||
+    page.url.pathname.startsWith("/tiktok") ||
+    page.url.pathname.startsWith("/community"),
   );
 
   let isFlushRoute = $derived(
@@ -146,6 +165,7 @@
   let WmbApprovalPrompt = $state<any>(null);
   let ConnectPrompt = $state<any>(null);
   let TelegramApprovalPrompt = $state<any>(null);
+  let SocialApprovalPrompt = $state<any>(null);
   let ShortcutsDialog = $state<any>(null);
   let LegalDialog = $state<any>(null);
   let RecoveryDialog = $state<any>(null);
@@ -198,11 +218,14 @@
     import("$components/washmybelly/ApprovalPrompt.svelte").then((m) => {
       WmbApprovalPrompt = m.default;
     });
-    import("$components/llm/mcp/ConnectPrompt.svelte").then((m) => {
+    import("$components/agents/ConnectPrompt.svelte").then((m) => {
       ConnectPrompt = m.default;
     });
     import("$lib/telegram/ApprovalPrompt.svelte").then((m) => {
       TelegramApprovalPrompt = m.default;
+    });
+    import("$lib/social/ApprovalPrompt.svelte").then((m) => {
+      SocialApprovalPrompt = m.default;
     });
     import("$components/dialog/ConfirmCloseDialog.svelte").then((m) => {
       ConfirmCloseDialog = m.default;
@@ -279,10 +302,10 @@
         getAccounts().accounts,
         {
           group: get(t)("command_palette.group_nav"),
-          switchTo: (label) => `${get(t)("llm.accounts.palette_switch")} ${label}`,
-          openTab: get(t)("llm.accounts.title"),
+          switchTo: (label) => `${get(t)("agents.accounts.palette_switch")} ${label}`,
+          openTab: get(t)("agents.accounts.title"),
         },
-        { activate: (id) => void activateAccount(id), open: () => goto("/llm/accounts") },
+        { activate: (id) => void activateAccount(id), open: () => goto("/settings?tab=ai&section=accounts") },
       ),
       {
         id: "nav-superpowers",
@@ -326,13 +349,146 @@
         keywords: "read ler leitura livros books ebook epub pdf manga mangá comics quadrinhos reader leitor biblioteca opds kindle kobo",
         action: () => goto("/read"),
       },
+      {
+        id: "nav-converter",
+        label: get(t)("converter.title"),
+        group: get(t)("command_palette.group_nav"),
+        keywords: "converter conversor convert converta formato format json yaml csv xml markdown html pdf docx png jpg jpeg webp mp3 mp4 gif",
+        action: () => goto("/converter"),
+      },
+      {
+        id: "nav-pdf",
+        label: get(t)("pdf.title"),
+        group: get(t)("command_palette.group_nav"),
+        keywords: "pdf juntar merge combinar unir separar split dividir extrair extract páginas pages girar rotate reordenar reorder apagar delete página em branco blank comprimir compress reduzir tamanho shrink imagens images fotos jpg png scan escanear para pdf to pdf",
+        action: () => goto("/pdf"),
+      },
+      {
+        id: "nav-photos",
+        label: get(t)("photos.title"),
+        group: get(t)("command_palette.group_nav"),
+        keywords: "fotos photos galeria gallery imagens pictures duplicatas duplicates limpar cleanup editar edit recortar crop exportar export heic raw",
+        action: () => goto("/photos"),
+      },
+      {
+        id: "nav-cutout",
+        label: get(t)("cutout.title"),
+        group: get(t)("command_palette.group_nav"),
+        keywords: "recortar recorte cutout remover fundo remove background sem fundo transparente png figurinha sticker",
+        action: () => goto("/cutout"),
+      },
+      {
+        id: "nav-music-stems",
+        label: get(t)("music.tools.stems"),
+        group: get(t)("command_palette.group_nav"),
+        keywords: "karaoke karaokê separar voz vocal instrumental acapella a capella playback stems faixas remover voz tirar voz cantar letra sincronizada vocal remover voice remover instrumental split stems sing along lyrics",
+        action: () => goto("/music?tool=stems"),
+      },
+      {
+        id: "nav-palette",
+        label: get(t)("palette.title"),
+        group: get(t)("command_palette.group_nav"),
+        keywords: "palette paleta cores cor color colors oklch oklab contraste contrast wcag apca gradiente gradient degrade escala scale tokens tailwind css",
+        action: () => goto("/palette"),
+      },
+      {
+        id: "nav-fonts",
+        label: get(t)("fonts.title"),
+        group: get(t)("command_palette.group_nav"),
+        keywords: "type tipografia typography fonte fontes font fonts inter geist jetbrains mono escala scale instalar install fontsource ofl",
+        action: () => goto("/fonts"),
+      },
+      {
+        id: "nav-icons",
+        label: get(t)("icons.title"),
+        group: get(t)("command_palette.group_nav"),
+        keywords: "icons icones ícones icon svg lucide phosphor tabler heroicons iconify material sprite png",
+        action: () => goto("/icons"),
+      },
+      {
+        id: "nav-motion",
+        label: get(t)("motion.title"),
+        group: get(t)("command_palette.group_nav"),
+        keywords: "motion animação animacao animation easing curva curve bezier spring mola timeline keyframes lottie dotlottie css gsap",
+        action: () => goto("/motion"),
+      },
+      {
+        id: "nav-board",
+        label: get(t)("board.title"),
+        group: get(t)("command_palette.group_nav"),
+        keywords: "board quadro quadro-branco lousa whiteboard desenho drawing diagrama diagram rascunho sketch fluxograma flowchart mapa mental mind map excalidraw wireframe",
+        action: () => goto("/board"),
+      },
+      {
+        id: "nav-components",
+        label: get(t)("components.title"),
+        group: get(t)("command_palette.group_nav"),
+        keywords: "components componentes shadcn registry registro ui blocks blocos magic ui react tailwind design tokens dtcg tokens studio figma penpot",
+        action: () => goto("/components"),
+      },
+      {
+        id: "nav-capture",
+        label: get(t)("capture.title"),
+        group: get(t)("command_palette.group_nav"),
+        keywords: "capture captura gravar tela gravação de tela screen recorder screen recording record gravador cortar vídeo cortador cut video trim lossless cut sem perda keyframe segmentos segments snapshot microfone microphone ffmpeg obs losslesscut",
+        action: () => goto("/capture"),
+      },
+      {
+        id: "nav-studio",
+        label: get(t)("studio.title"),
+        group: get(t)("command_palette.group_nav"),
+        keywords: "studio estúdio legendas subtitles captions legenda automática auto captions whisper srt vtt karaoke vertical 9:16 reels shorts tiktok reframe cartela title card vídeo video",
+        action: () => goto("/studio"),
+      },
+      {
+        id: "nav-dictation",
+        label: get(t)("dictation.title"),
+        group: get(t)("command_palette.group_nav"),
+        keywords: "dictation ditado ditar voz voice typing digitar por voz speech to text fala transcrever whisper atalho push to talk microfone microphone handy superwhisper",
+        action: () => goto("/dictation"),
+      },
+      {
+        id: "nav-whatsapp",
+        label: get(t)("whatsapp.title"),
+        group: get(t)("command_palette.group_nav"),
+        keywords: "whatsapp zap zapzap whats mensagens conversas grupos baixar mídias fotos vídeos áudios documentos figurinhas exportar conversa backup qr code messages chats groups download media photos videos audio voice notes documents stickers export chat backup",
+        action: () => goto("/whatsapp"),
+      },
+      {
+        id: "nav-discord",
+        label: get(t)("discord.title"),
+        group: get(t)("command_palette.group_nav"),
+        keywords: "discord servidores servers canais channels mensagens messages dm conversas chats responder reply exportar export historico histórico history baixar download midia mídia media anexos attachments",
+        action: () => goto("/discord"),
+      },
+      {
+        id: "nav-social-x",
+        label: get(t)("social.x.title"),
+        group: get(t)("command_palette.group_nav"),
+        keywords: "x twitter tweets tweet posts timeline feed perfil profile seguir follow curtir like repost retweet responder reply menções mentions bookmarks salvos busca search agente agents mcp",
+        action: () => goto("/x"),
+      },
+      {
+        id: "nav-social-instagram",
+        label: get(t)("social.instagram.title"),
+        group: get(t)("command_palette.group_nav"),
+        keywords: "instagram insta ig feed reels stories posts perfil profile seguir follow curtir like comentar comment direct dm mensagens messages salvos saved busca search hashtags agente agents mcp",
+        action: () => goto("/instagram"),
+      },
+      {
+        id: "nav-social-tiktok",
+        label: get(t)("social.tiktok.title"),
+        group: get(t)("command_palette.group_nav"),
+        keywords: "tiktok tik tok videos vídeos for you fyp perfil profile seguir follow curtir like comentar comment busca search agente agents mcp",
+        action: () => goto("/tiktok"),
+      },
       { id: "nav-help", label: get(t)("nav.help"), group: get(t)("command_palette.group_nav"), keywords: "help ajuda guias docs assinatura agente monitor", action: () => goto("/help") },
       {
-        id: "nav-about",
-        label: get(t)("nav.about"),
+        id: "nav-community",
+        label: get(t)("nav.community"),
         group: get(t)("command_palette.group_nav"),
-        keywords: "info version changelog project",
-        action: () => goto("/about"),
+        keywords: "community comunidade chat discord info about sobre version changelog project",
+        action: () => goto("/community"),
       },
       {
         id: "action-paste",
@@ -462,6 +618,7 @@
 {#if settings?.tube?.enabled ?? true}<TubeHost />{/if}
 {#if settings?.read?.enabled ?? true}<ReadHost />{/if}
 <McpAuthPrompt />
+<ToolAskPrompt />
 <NativeAgentActivity />
 <CommandPalette />
 
@@ -485,6 +642,9 @@
 {/if}
 {#if TelegramApprovalPrompt && (getSettings()?.telegram?.enabled ?? true)}
   <TelegramApprovalPrompt />
+{/if}
+{#if SocialApprovalPrompt}
+  <SocialApprovalPrompt />
 {/if}
 {#if ConfirmCloseDialog}
   <ConfirmCloseDialog />

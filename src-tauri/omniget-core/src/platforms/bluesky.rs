@@ -182,7 +182,7 @@ impl BlueskyDownloader {
             return match error {
                 "NotFound" | "InternalServerError" => Err(anyhow!("Post not available")),
                 "InvalidRequest" => Err(anyhow!("Unsupported link")),
-                _ => Err(anyhow!("Erro da API: {}", error)),
+                _ => Err(anyhow!("API error: {}", error)),
             };
         }
 

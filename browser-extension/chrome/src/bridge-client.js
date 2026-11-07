@@ -19,6 +19,25 @@ export function trimEndpoint(value) {
   return trimmed;
 }
 
+export function bridgeFailureMessageKey(reason) {
+  switch (reason) {
+    case "missing-token":
+      return "popup_ckerr_missing_token";
+    case "missing-endpoint":
+    case "no-endpoint":
+      return "popup_ckerr_missing_endpoint";
+    case "unauthorized":
+      return "popup_ckerr_unauthorized";
+    case "http-error":
+      return "popup_bridge_refused";
+    case "tabs-create-failed":
+    case "tabs-api-unavailable":
+      return "popup_link_handler_failed";
+    default:
+      return "popup_not_running";
+  }
+}
+
 export async function loadBridgeConfig({ storage = globalThis.chrome?.storage?.local } = {}) {
   if (!storage?.get) {
     return { endpoint: "", token: "" };
@@ -231,7 +250,8 @@ export async function sendViaBridge(
     parsed = null;
   }
 
-  if (response.status === 401 || response.status === 403) {
+  const optedOut = parsed?.code === "PLATFORM_OPTED_OUT";
+  if (response.status === 401 || (response.status === 403 && !optedOut)) {
     await handleUnauthorized(storage);
     return {
       ok: false,

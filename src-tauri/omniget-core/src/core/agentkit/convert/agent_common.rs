@@ -3,23 +3,13 @@ use std::path::{Path, PathBuf};
 
 use serde_json::{json, Map, Value};
 
+pub(crate) use super::hook_common::missing;
 use super::{kind_path, ConvertCtx};
 use crate::core::agentkit::edit::{toml as etoml, yaml as eyaml};
 use crate::core::agentkit::model::*;
 use crate::core::agentkit::parse::{self, placeholders};
 use crate::core::agentkit::targets::TargetAdapter;
-use crate::core::agentkit::{AgentkitError, Result, Scope};
-
-pub(crate) fn no_path(target: &TargetAdapter, what: &str, scope: Scope) -> AgentkitError {
-    AgentkitError::new(
-        "AGENTKIT_NO_PATH",
-        format!(
-            "{} has no {what} location for scope {}",
-            target.name,
-            scope.as_str()
-        ),
-    )
-}
+use crate::core::agentkit::{Result, Scope};
 
 pub(crate) fn dir_for(
     target: &TargetAdapter,
@@ -27,7 +17,7 @@ pub(crate) fn dir_for(
     scope: Scope,
     ctx: &ConvertCtx,
 ) -> Result<PathBuf> {
-    kind_path(target, key, scope, ctx).ok_or_else(|| no_path(target, key, scope))
+    kind_path(target, key, scope, ctx).ok_or_else(|| missing(target, key, scope))
 }
 
 pub(crate) fn push_unique(v: &mut Vec<String>, s: impl Into<String>) {

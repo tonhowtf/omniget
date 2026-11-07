@@ -800,7 +800,7 @@ pub async fn ui_action(action: &str, a: Value) -> Result<Value, String> {
     }
 }
 
-fn source_of(a: &Value) -> Source {
+pub fn source_of(a: &Value) -> Source {
     match a.get("_source").and_then(Value::as_str) {
         Some("ui") => Source::Ui,
         Some("external") => Source::External,

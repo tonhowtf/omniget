@@ -453,26 +453,3 @@ pub fn elevated_reg_delete(key: &str, name: Option<&str>) -> Result<String, Stri
     }
     apply::helper_reg_delete(&RealSys, key, name, key_sets()?)
 }
-
-pub async fn ui_action(action: &str, _a: Value) -> Result<Value, String> {
-    match action {
-        "restore_point" => {
-            if !HELPER_HAS_RESTORE_POINT {
-                return Err("NOT_AVAILABLE: restore points need the helper update".into());
-            }
-            super::tools::blocking(|| {
-                let ctx = Ctx::app()?;
-                let r = super::elevate::run(
-                    &ctx,
-                    &[ElevatedOp::Maintenance {
-                        id: RESTORE_POINT_ID.into(),
-                    }],
-                )?;
-                let _ = ctx.kv_set(KV_RESTORE_DAY, &today());
-                Ok(json!({ "detail": r.first().map(|x| x.detail.clone()).unwrap_or_default() }))
-            })
-            .await
-        }
-        _ => Err(format!("tweaks: unknown screen action {action}")),
-    }
-}

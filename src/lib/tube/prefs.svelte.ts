@@ -48,7 +48,6 @@ const TUBE_DEFAULTS: TubeSettings = {
   hide_home_feed: false,
   hide_related: false,
   hide_comments: false,
-  hide_end_screen: true,
   hide_chips: false,
   hide_metrics: false,
   infinite_scroll: true,

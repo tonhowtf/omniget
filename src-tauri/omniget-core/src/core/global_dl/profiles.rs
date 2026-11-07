@@ -404,6 +404,9 @@ async fn import_chromium(src: &Source, prof: &Profile) -> Result<Value, String> 
         ));
     }
     let was_open = browser::current().is_some();
+    if was_open {
+        browser::ensure_no_running_job(false)?;
+    }
     browser::stop().await?;
     tokio::time::sleep(std::time::Duration::from_millis(800)).await;
 

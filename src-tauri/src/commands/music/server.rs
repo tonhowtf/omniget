@@ -280,6 +280,7 @@ fn radio_client() -> &'static reqwest::Client {
         reqwest::Client::builder()
             .user_agent(concat!("OmniGet/", env!("CARGO_PKG_VERSION")))
             .connect_timeout(std::time::Duration::from_secs(10))
+            .read_timeout(std::time::Duration::from_secs(30))
             .build()
             .unwrap_or_default()
     })

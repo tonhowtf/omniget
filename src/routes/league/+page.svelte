@@ -5,6 +5,7 @@
 <script lang="ts">
   import { onMount, onDestroy } from "svelte";
   import { goto } from "$app/navigation";
+  import { page } from "$app/state";
   import { invoke } from "@tauri-apps/api/core";
   import { listen, type UnlistenFn } from "@tauri-apps/api/event";
   import { t } from "$lib/i18n";
@@ -131,7 +132,8 @@
 
   const TAB_IDS = ["overview", "profile", "analysis", "meta", "search", "live", "goals", "automation", "coach", "history"] as const;
   type Tab = (typeof TAB_IDS)[number];
-  let tab = $state<Tab>("overview");
+  const requestedTab = page.url.searchParams.get("tab");
+  let tab = $state<Tab>((TAB_IDS as readonly string[]).includes(requestedTab ?? "") ? (requestedTab as Tab) : "overview");
 
   let analysis = $state<any>(null);
   let analysisLoading = $state(false);
@@ -458,7 +460,7 @@
     <div class="guard-card">
       <h2>{$t("league.disabled_title")}</h2>
       <p>{$t("league.disabled_body")}</p>
-      <button class="button primary" onclick={() => goto("/settings")}>{$t("league.open_settings")}</button>
+      <button class="button primary" onclick={() => goto("/settings?tab=integrations&section=superpowers&setting=settings.integrations.superpowers.league")}>{$t("league.open_settings")}</button>
     </div>
   {:else}
     <header class="league-header">

@@ -1431,20 +1431,6 @@ pub fn restore(env: &Env, tx_id: &str) -> Result<RestoreReport> {
     }
     Ok(report)
 }
-
-pub fn transactions(env: &Env) -> Vec<TxManifest> {
-    let dir = env.agentkit_dir().join("backups");
-    let mut out: Vec<TxManifest> = std::fs::read_dir(&dir)
-        .into_iter()
-        .flatten()
-        .flatten()
-        .filter_map(|e| std::fs::read(e.path().join("manifest.json")).ok())
-        .filter_map(|b| serde_json::from_slice(&b).ok())
-        .collect();
-    out.sort_by(|a, b| b.tx.cmp(&a.tx));
-    out
-}
-
 pub fn record(env: &Env, install_id: &str, project: Option<&Path>) -> Result<InstallRecord> {
     find_record(env, install_id, project).map(|(_, r)| r)
 }

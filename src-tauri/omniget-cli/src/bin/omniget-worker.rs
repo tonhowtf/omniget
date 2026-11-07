@@ -446,6 +446,8 @@ async fn run(r: Request) -> Result<(), &'static str> {
         torrent_files: None,
         torrent_auto_trackers: false,
         torrent_upnp: false,
+        torrent_stop_seeding: false,
+        playlist_number_files: false,
     };
     let (tx, mut rx) =
         tokio::sync::mpsc::channel::<omniget_core::models::progress::ProgressUpdate>(32);

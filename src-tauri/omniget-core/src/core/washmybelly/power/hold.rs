@@ -48,7 +48,6 @@ struct Manual {
 struct Inner {
     manual: Option<Manual>,
     auto: BTreeMap<u64, String>,
-    tasks: BTreeMap<u64, String>,
     auto_enabled: bool,
     next: u64,
     guard: Option<Box<dyn Send>>,
@@ -129,22 +128,9 @@ impl Holds {
         let _ = self.sync(&mut g);
         Some(id)
     }
-
-    pub fn task_begin(&self, reason: &str) -> Result<u64, String> {
-        let mut g = self.lock();
-        g.next += 1;
-        let id = g.next;
-        g.tasks.insert(id, reason.to_string());
-        if let Err(e) = self.sync(&mut g) {
-            g.tasks.remove(&id);
-            return Err(e);
-        }
-        Ok(id)
-    }
-
     pub fn auto_end(&self, id: u64) {
         let mut g = self.lock();
-        if g.auto.remove(&id).is_some() || g.tasks.remove(&id).is_some() {
+        if g.auto.remove(&id).is_some() {
             let _ = self.sync(&mut g);
         }
     }
@@ -155,7 +141,7 @@ impl Holds {
     }
 
     fn wanted(g: &Inner) -> bool {
-        g.manual.is_some() || !g.auto.is_empty() || !g.tasks.is_empty()
+        g.manual.is_some() || !g.auto.is_empty()
     }
 
     fn sync(&self, g: &mut Inner) -> Result<(), String> {
@@ -172,15 +158,7 @@ impl Holds {
                 m.reason.clone(),
                 Some((m.until - self.clock.now()).max(1) as u64),
             ),
-            None => (
-                g.auto
-                    .values()
-                    .chain(g.tasks.values())
-                    .next()
-                    .cloned()
-                    .unwrap_or_default(),
-                None,
-            ),
+            None => (g.auto.values().next().cloned().unwrap_or_default(), None),
         };
         match self.backend.acquire(&reason, max) {
             Ok(guard) => {
@@ -201,7 +179,7 @@ impl Holds {
             until: g.manual.as_ref().map(|m| m.until),
             started: g.manual.as_ref().map(|m| m.started),
             reason: g.manual.as_ref().map(|m| m.reason.clone()),
-            auto_holders: g.auto.values().chain(g.tasks.values()).cloned().collect(),
+            auto_holders: g.auto.values().cloned().collect(),
             auto_enabled: g.auto_enabled,
             backend: self.backend.name().to_string(),
             error: g.error.clone(),
@@ -262,68 +240,6 @@ pub fn auto_hold_begin(reason: &str) -> HoldToken {
         persist(&h.state());
     }
     HoldToken { id }
-}
-
-pub fn hold_for(reason: &str) -> Result<HoldToken, String> {
-    let h = global();
-    let id = h.task_begin(reason)?;
-    persist(&h.state());
-    Ok(HoldToken { id: Some(id) })
-}
-
-pub const PID_HOLD_MAX_SECS: u64 = 12 * 3600;
-
-pub fn hold_while_pid(pid: u32, reason: &str) -> Result<std::sync::mpsc::Sender<()>, String> {
-    if !pid_alive(pid) {
-        return Err(format!("process {pid} is not running"));
-    }
-    let token = hold_for(reason)?;
-    let (tx, rx) = std::sync::mpsc::channel::<()>();
-    std::thread::Builder::new()
-        .name("wmb-power-pid-hold".into())
-        .spawn(move || {
-            let start = std::time::Instant::now();
-            while let Err(std::sync::mpsc::RecvTimeoutError::Timeout) =
-                rx.recv_timeout(std::time::Duration::from_secs(2))
-            {
-                if !pid_alive(pid) || start.elapsed().as_secs() >= PID_HOLD_MAX_SECS {
-                    break;
-                }
-            }
-            drop(token);
-        })
-        .map_err(|e| e.to_string())?;
-    Ok(tx)
-}
-
-pub fn pid_alive(pid: u32) -> bool {
-    if pid == 0 {
-        return false;
-    }
-    #[cfg(unix)]
-    {
-        let r = unsafe { libc::kill(pid as libc::pid_t, 0) };
-        r == 0 || std::io::Error::last_os_error().raw_os_error() == Some(libc::EPERM)
-    }
-    #[cfg(windows)]
-    {
-        use windows_sys::Win32::Foundation::CloseHandle;
-        use windows_sys::Win32::System::Threading::{
-            GetExitCodeProcess, OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION,
-        };
-        let h = unsafe { OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, pid) };
-        if h.is_null() {
-            return false;
-        }
-        let mut code = 0u32;
-        let ok = unsafe { GetExitCodeProcess(h, &mut code) };
-        unsafe { CloseHandle(h) };
-        ok != 0 && code == 259
-    }
-    #[cfg(not(any(unix, windows)))]
-    {
-        false
-    }
 }
 
 pub fn set_auto_hold(on: bool) {

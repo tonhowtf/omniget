@@ -31,7 +31,7 @@
   </button>
   <button class="meta" onclick={open}>
     <span class="t1">{player.radio ? player.radioMeta.title || player.radio.name : player.current?.title}</span>
-    <span class="t2">{player.radio ? player.radio.name : player.current?.artist}</span>
+    <span class="t2">{player.radio ? (player.error.startsWith("radio_failed") ? $t("music.radio.failed") : player.radio.name) : player.current?.artist}</span>
   </button>
   {#if !player.radio}
     <button class="ib" onclick={() => void prev()} aria-label={$t("music.previous") as string}><MusicIcon name="prev" size={15} /></button>

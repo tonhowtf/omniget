@@ -39,18 +39,6 @@ pub async fn agentkit_targets() -> Result<Value, String> {
 }
 
 #[tauri::command]
-pub async fn agentkit_detect(project_dir: Option<String>) -> Result<Value, String> {
-    blocking(move || {
-        let env = env()?;
-        to_value(ak::detect::detect_all(
-            &env,
-            project(project_dir).as_deref(),
-        ))
-    })
-    .await
-}
-
-#[tauri::command]
 pub async fn agentkit_parse_preview(
     kind: Option<String>,
     path: Option<String>,
@@ -151,98 +139,12 @@ pub async fn agentkit_apply(plan_id: String) -> Result<Value, String> {
     .await
 }
 
-#[tauri::command]
-pub async fn agentkit_uninstall(
-    install_id: String,
-    project_dir: Option<String>,
-    force: Option<bool>,
-) -> Result<Value, String> {
-    blocking(move || {
-        let env = env()?;
-        to_value(ak::writer::uninstall(
-            &env,
-            &install_id,
-            project(project_dir).as_deref(),
-            force.unwrap_or(false),
-        )?)
-    })
-    .await
-}
-
-#[tauri::command]
-pub async fn agentkit_installed(project_dir: Option<String>) -> Result<Value, String> {
-    blocking(move || {
-        let env = env()?;
-        to_value(ak::writer::installed(&env, project(project_dir).as_deref()))
-    })
-    .await
-}
-
-#[tauri::command]
-pub async fn agentkit_drift(project_dir: Option<String>) -> Result<Value, String> {
-    blocking(move || {
-        let env = env()?;
-        to_value(ak::writer::drift(&env, project(project_dir).as_deref())?)
-    })
-    .await
-}
-
-#[tauri::command]
-pub async fn agentkit_restore(tx: String) -> Result<Value, String> {
-    blocking(move || {
-        let env = env()?;
-        to_value(ak::writer::restore(&env, &tx)?)
-    })
-    .await
-}
-
-#[tauri::command]
-pub async fn agentkit_transactions() -> Result<Value, String> {
-    blocking(move || {
-        let env = env()?;
-        to_value(ak::writer::transactions(&env))
-    })
-    .await
-}
-
-#[tauri::command]
-pub async fn agentkit_import_installed(
-    target: String,
-    scope: Option<String>,
-    project_dir: Option<String>,
-) -> Result<Value, String> {
-    blocking(move || {
-        let env = env()?;
-        let project = project(project_dir);
-        let scope = match scope.as_deref() {
-            Some(s) => Scope::parse(s)?,
-            None if project.is_some() => Scope::Project,
-            None => Scope::Global,
-        };
-        to_value(ak::convert::import_installed(
-            &env,
-            &target,
-            scope,
-            project.as_deref(),
-        )?)
-    })
-    .await
-}
-
 pub fn resolve_any(id: &str) -> Result<Component, String> {
     super::catalog::install_catalog_resolver();
     if let Some(p) = id.strip_prefix("omniget:profiles/") {
         return Ok(ak::profiles::component(p, &Value::Null)?);
     }
     Ok(ak::plan::resolve_id(id)?)
-}
-
-#[tauri::command]
-pub async fn agentkit_compat(
-    item_id: String,
-    project_dir: Option<String>,
-) -> Result<Value, String> {
-    blocking(move || compat_report(&item_id, project(project_dir).as_deref())).await
 }
 
 pub fn compat_report(
@@ -300,35 +202,4 @@ pub fn parse_policy(p: Option<&str>) -> ConflictPolicy {
         "overwrite" => ConflictPolicy::Overwrite,
         _ => ConflictPolicy::Rename,
     }
-}
-
-#[tauri::command]
-pub async fn agentkit_plugins_list(project_dir: Option<String>) -> Result<Value, String> {
-    blocking(move || {
-        let env = env()?;
-        to_value(ak::plugins::list(&env, project(project_dir).as_deref()))
-    })
-    .await
-}
-
-#[tauri::command]
-pub async fn agentkit_plugin_set_enabled(
-    tool: String,
-    plugin: String,
-    enabled: bool,
-    scope: Option<String>,
-    project_dir: Option<String>,
-) -> Result<Value, String> {
-    blocking(move || {
-        let env = env()?;
-        to_value(ak::plugins::set_enabled(
-            &env,
-            &tool,
-            &plugin,
-            enabled,
-            scope.as_deref().unwrap_or("user"),
-            project(project_dir).as_deref(),
-        )?)
-    })
-    .await
 }

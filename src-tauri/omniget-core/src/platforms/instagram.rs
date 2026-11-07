@@ -275,7 +275,7 @@ impl InstagramDownloader {
         let html = html.to_string();
         if Self::is_login_wall(final_path, &html) {
             return Err(anyhow!(
-                "Instagram redirecionou para login — post pode ser privado"
+                "Instagram redirected to login; the post may not be public"
             ));
         }
 
@@ -507,7 +507,7 @@ impl InstagramDownloader {
             .await?;
 
         if !response.status().is_success() {
-            return Err(anyhow!("Instagram GQL retornou HTTP {}", response.status()));
+            return Err(anyhow!("Instagram GQL returned HTTP {}", response.status()));
         }
 
         let json: serde_json::Value = response.json().await?;
@@ -1194,6 +1194,8 @@ mod tests {
             torrent_files: None,
             torrent_auto_trackers: false,
             torrent_upnp: false,
+            torrent_stop_seeding: false,
+            playlist_number_files: false,
         }
     }
 

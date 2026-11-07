@@ -2,8 +2,6 @@ use std::collections::HashMap;
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
-use serde::Serialize;
-
 use crate::core::sessions::model::TokenUsage;
 use crate::core::tools::pricing::{self, ModelPrice};
 
@@ -102,57 +100,5 @@ impl PriceBook {
                 + u.cache_write as f64 * write
                 + (u.output + u.reasoning) as f64 * out,
         )
-    }
-}
-
-#[derive(Debug, Clone, Default, Serialize)]
-pub struct CostSummary {
-    pub cost_usd: f64,
-    pub recorded_usd: f64,
-    pub computed_usd: f64,
-    pub unpriced_tokens: u64,
-    pub unpriced_models: Vec<String>,
-    pub source: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub tree_recorded_usd: Option<f64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub tree_computed_usd: Option<f64>,
-}
-
-impl CostSummary {
-    pub fn add_recorded(&mut self, c: f64) {
-        self.recorded_usd += c;
-        self.cost_usd += c;
-    }
-    pub fn add_usage(&mut self, book: &PriceBook, model: &str, u: &TokenUsage) {
-        if u.total() == 0 {
-            return;
-        }
-        match book.cost(model, u) {
-            Some(c) => {
-                self.computed_usd += c;
-                self.cost_usd += c;
-            }
-            None => {
-                self.unpriced_tokens += u.total();
-                let m = if model.is_empty() {
-                    "?".to_string()
-                } else {
-                    model.to_string()
-                };
-                if !self.unpriced_models.contains(&m) {
-                    self.unpriced_models.push(m);
-                }
-            }
-        }
-    }
-    pub fn finish(&mut self) {
-        self.source = match (self.recorded_usd > 0.0, self.computed_usd > 0.0) {
-            (true, true) => "mixed",
-            (true, false) => "recorded",
-            (false, true) => "computed",
-            (false, false) => "unknown",
-        }
-        .into();
     }
 }
