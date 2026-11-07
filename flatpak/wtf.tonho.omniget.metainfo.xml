@@ -81,6 +81,12 @@
   </branding>
   <content_rating type="oars-1.1" />
   <releases>
+    <release version="1.0.1" date="2026-11-07">
+      <description>
+        <p>OmniGet 1.0.1 adds new superpowers: clients for WhatsApp, Discord, X, Instagram and TikTok, where X, Instagram and TikTok run through your own session and your agents can use them over MCP with each action approved by you; a PDF editor, a photo gallery with duplicate finding, background removal, a karaoke vocal remover, and a Converter that now handles HEIC, JPEG XL, PSD layers, RAW and DXF/DWG. Design tools join them: Palette, Type, Icons, Motion, an Excalidraw board, shadcn components, screen capture, Studio for subtitles and reframing, and voice dictation. The Global Downloader gains a connector market.</p>
+        <p>Settings are simpler and the in-app AI chat is gone, while agents keep running on the Canvas, from the command line and over MCP. Fixes: a failed playlist is reported as an error, the playlist quality picker is no longer capped at 1080p, going back to the managed yt-dlp keeps your own file, torrents show peers and speed before the size is known, leftover downloads are remembered after a restart, and the browser extension installs to the right place in the Flatpak.</p>
+      </description>
+    </release>
     <release version="1.0.0" date="2026-10-17">
       <description>
         <p>OmniGet 1.0 adds a set of superpowers next to the downloader: a Global Downloader with a built-in browser that lists and saves the videos, audio, subtitles and documents a page loads, a YouTube client, a reader for books, comics and PDFs, a player for movies, shows and live TV, a music app, Telegram downloads and a system cleanup tool. The World becomes a canvas where agent terminals, browser portals, notes and files sit side by side, with notes you can edit from your phone.</p>
