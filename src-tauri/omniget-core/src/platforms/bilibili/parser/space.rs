@@ -41,7 +41,7 @@ pub async fn parse(client: &ApiClient, mid: u64, page: u32) -> Result<ParsedCont
         .and_then(|p| p.get("count"))
         .and_then(Value::as_u64)
         .unwrap_or(0) as u32;
-    let total_pages = ((count + PAGE_SIZE - 1) / PAGE_SIZE).max(1);
+    let total_pages = count.div_ceil(PAGE_SIZE).max(1);
 
     let vlist = data
         .get("list")

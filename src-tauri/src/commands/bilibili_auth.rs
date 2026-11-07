@@ -16,7 +16,6 @@ fn build_anonymous_client(user_agent: Option<String>) -> Result<ApiClient, Strin
     if let Some(ua) = user_agent.filter(|s| !s.is_empty()) {
         client = client.with_user_agent(ua);
     }
-    let _ = omniget_core::platforms::bilibili::cookie::ensure_fresh();
     client = client.with_anonymous_cookies();
     Ok(client)
 }

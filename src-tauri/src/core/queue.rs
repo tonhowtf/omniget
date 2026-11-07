@@ -792,6 +792,7 @@ impl DownloadQueue {
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn update_progress(
         &mut self,
         id: u64,

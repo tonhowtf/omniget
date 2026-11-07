@@ -36,7 +36,7 @@ pub async fn parse(client: &ApiClient, fid: u64, page: u32) -> Result<ParsedCont
         .and_then(|i| i.get("upper"))
         .and_then(|u| u.get("mid"))
         .and_then(Value::as_u64);
-    let total_pages = ((media_count + PAGE_SIZE - 1) / PAGE_SIZE).max(1);
+    let total_pages = media_count.div_ceil(PAGE_SIZE).max(1);
 
     let medias = data
         .get("medias")

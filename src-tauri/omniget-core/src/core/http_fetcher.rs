@@ -143,11 +143,9 @@ impl Segment {
         } else {
             let bytes_per_sec =
                 (cur_d - baseline_d) as u128 * 1_000_000_000u128 / elapsed_ns as u128;
-            if bytes_per_sec == 0 {
-                u64::MAX / 2
-            } else {
-                (self.remaining() as u128 / bytes_per_sec) as u64
-            }
+            (self.remaining() as u128)
+                .checked_div(bytes_per_sec)
+                .map_or(u64::MAX / 2, |v| v as u64)
         }
     }
 }

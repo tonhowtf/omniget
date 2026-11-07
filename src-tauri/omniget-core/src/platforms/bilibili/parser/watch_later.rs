@@ -27,7 +27,7 @@ pub async fn parse(client: &ApiClient, page: u32) -> Result<ParsedContent> {
     let data = check_api_response(&raw)?;
 
     let count = data.get("count").and_then(Value::as_u64).unwrap_or(0) as u32;
-    let total_pages = ((count + PAGE_SIZE - 1) / PAGE_SIZE).max(1);
+    let total_pages = count.div_ceil(PAGE_SIZE).max(1);
     let list = data
         .get("list")
         .and_then(Value::as_array)

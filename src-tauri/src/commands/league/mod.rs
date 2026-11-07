@@ -169,12 +169,12 @@ const IMMUTABLE_CAP: usize = 400;
 
 static PATCH_CACHE: Lazy<Mutex<std::collections::HashMap<String, (std::time::Instant, Value)>>> =
     Lazy::new(|| Mutex::new(std::collections::HashMap::new()));
-static IMMUTABLE_CACHE: Lazy<
-    Mutex<(
-        std::collections::VecDeque<String>,
-        std::collections::HashMap<String, Value>,
-    )>,
-> = Lazy::new(|| {
+type ImmutableCache = (
+    std::collections::VecDeque<String>,
+    std::collections::HashMap<String, Value>,
+);
+
+static IMMUTABLE_CACHE: Lazy<Mutex<ImmutableCache>> = Lazy::new(|| {
     Mutex::new((
         std::collections::VecDeque::new(),
         std::collections::HashMap::new(),
@@ -847,7 +847,7 @@ fn compute_history_stats(games: &[Value], puuid: &str) -> Value {
         .into_iter()
         .map(|(id, (g, w))| (id, g, w))
         .collect();
-    top.sort_by(|a, b| b.1.cmp(&a.1));
+    top.sort_by_key(|r| std::cmp::Reverse(r.1));
     top.truncate(3);
 
     let winrate = if total > 0 {
@@ -2641,7 +2641,7 @@ async fn send_champ_select_chat(client: &LcuClient, text: &str) -> Result<(), St
         .ok_or_else(|| "no champion select chat open".to_string())?;
 
     lcu_send(
-        &client,
+        client,
         reqwest::Method::POST,
         &format!("/lol-chat/v1/conversations/{}/messages", target),
         Some(json!({ "body": text, "type": "chat" })),
@@ -2898,7 +2898,7 @@ pub async fn league_champion_build(champion_id: i64, sample: Option<u32>) -> Res
 
     let mut spell_rows: Vec<((i64, i64), u32, u32)> =
         spells.into_iter().map(|(k, (g, w))| (k, g, w)).collect();
-    spell_rows.sort_by(|a, b| b.1.cmp(&a.1));
+    spell_rows.sort_by_key(|r| std::cmp::Reverse(r.1));
     let spell_list: Vec<Value> = spell_rows
         .iter()
         .take(2)
@@ -2961,8 +2961,9 @@ fn estimated_ranks(level: i64) -> [i64; 4] {
     ranks
 }
 
-static HASTE_TABLE: Lazy<Mutex<Option<(std::time::Instant, std::collections::HashMap<i64, i64>)>>> =
-    Lazy::new(|| Mutex::new(None));
+type HasteTable = Option<(std::time::Instant, std::collections::HashMap<i64, i64>)>;
+
+static HASTE_TABLE: Lazy<Mutex<HasteTable>> = Lazy::new(|| Mutex::new(None));
 const HASTE_TABLE_TTL: std::time::Duration = std::time::Duration::from_secs(6 * 60 * 60);
 
 async fn load_haste_table(http: &reqwest::Client) -> std::collections::HashMap<i64, i64> {
@@ -2979,7 +2980,7 @@ async fn load_haste_table(http: &reqwest::Client) -> std::collections::HashMap<i
         .send()
         .await
         .ok()
-        .and_then(|r| if r.status().is_success() { Some(r) } else { None });
+        .filter(|r| r.status().is_success());
     let items_data = match items_data {
         Some(r) => r.json::<Value>().await.unwrap_or(Value::Null),
         None => Value::Null,

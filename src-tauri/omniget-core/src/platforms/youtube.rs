@@ -243,7 +243,7 @@ impl YouTubeDownloader {
             }
         }
 
-        qualities.sort_by(|a, b| b.height.cmp(&a.height));
+        qualities.sort_by_key(|q| std::cmp::Reverse(q.height));
 
         if qualities.is_empty() {
             qualities.push(MediaVideoQuality {
@@ -264,6 +264,217 @@ impl YouTubeDownloader {
             available_qualities: qualities,
             media_type: MediaType::Video,
             file_size_bytes: None,
+        })
+    }
+}
+
+#[async_trait]
+impl PlatformDownloader for YouTubeDownloader {
+    fn name(&self) -> &str {
+        "youtube"
+    }
+
+    fn can_handle(&self, url: &str) -> bool {
+        if let Ok(parsed) = url::Url::parse(url) {
+            if let Some(host) = parsed.host_str() {
+                let host = host.to_lowercase();
+                return host == "youtube.com"
+                    || host.ends_with(".youtube.com")
+                    || host == "youtu.be"
+                    || host == "youtube-nocookie.com"
+                    || host.ends_with(".youtube-nocookie.com");
+            }
+        }
+        false
+    }
+
+    async fn get_media_info(&self, url: &str) -> anyhow::Result<MediaInfo> {
+        let ytdlp_path = ytdlp::ensure_ytdlp()
+            .await
+            .map_err(|e| anyhow!("YouTube requires yt-dlp. Failed to get yt-dlp: {}", e))?;
+
+        Self::fetch_with_ytdlp(url, &ytdlp_path).await
+    }
+
+    async fn download(
+        &self,
+        info: &MediaInfo,
+        opts: &DownloadOptions,
+        progress: mpsc::Sender<ProgressUpdate>,
+    ) -> anyhow::Result<DownloadResult> {
+        let _ = progress.send(ProgressUpdate::percent(0.0)).await;
+
+        let ytdlp_path = if let Some(ref p) = opts.ytdlp_path {
+            p.clone()
+        } else {
+            ytdlp::ensure_ytdlp().await?
+        };
+
+        let quality_height = opts
+            .quality
+            .as_deref()
+            .and_then(Self::extract_quality_height);
+
+        if info.media_type == MediaType::Playlist {
+            return self
+                .download_playlist(info, opts, progress, &ytdlp_path, quality_height)
+                .await;
+        }
+
+        let first = info
+            .available_qualities
+            .first()
+            .ok_or_else(|| anyhow!("No quality available"))?;
+
+        let selected = match quality_height {
+            Some(h) => info
+                .available_qualities
+                .iter()
+                .filter(|q| q.height > 0 && q.height <= h)
+                .max_by_key(|q| q.height)
+                .unwrap_or(first),
+            None => first,
+        };
+        let video_url = &selected.url;
+
+        let extra_flags: Vec<String> = opts
+            .custom_ytdlp_args
+            .as_deref()
+            .map(|args| args.to_vec())
+            .unwrap_or_default();
+
+        ytdlp::download_video(
+            &ytdlp_path,
+            video_url,
+            &opts.output_dir,
+            quality_height,
+            progress,
+            opts.download_mode.as_deref(),
+            opts.format_id.as_deref(),
+            opts.filename_template.as_deref(),
+            opts.referer.as_deref().or(Some("https://www.youtube.com/")),
+            opts.cancel_token.clone(),
+            None,
+            opts.concurrent_fragments,
+            opts.download_subtitles,
+            &extra_flags,
+            opts.audio_format.as_deref(),
+        )
+        .await
+    }
+}
+
+impl YouTubeDownloader {
+    async fn download_playlist(
+        &self,
+        info: &MediaInfo,
+        opts: &DownloadOptions,
+        progress: mpsc::Sender<ProgressUpdate>,
+        ytdlp_path: &std::path::Path,
+        quality_height: Option<u32>,
+    ) -> anyhow::Result<DownloadResult> {
+        let playlist_dir = opts
+            .output_dir
+            .join(sanitize_filename::sanitize(&info.title));
+        tokio::fs::create_dir_all(&playlist_dir).await?;
+
+        let total = info.available_qualities.len();
+        let last_position = ytdlp::last_playlist_position(&info.available_qualities);
+        let mut total_bytes = 0u64;
+        let mut last_path = playlist_dir.clone();
+        let mut success_count = 0usize;
+        let mut last_err: Option<anyhow::Error> = None;
+
+        for (i, entry) in info.available_qualities.iter().enumerate() {
+            if opts.cancel_token.is_cancelled() {
+                anyhow::bail!("Download cancelled");
+            }
+
+            let (video_tx, mut video_rx) = mpsc::channel::<ProgressUpdate>(16);
+            let progress_tx = progress.clone();
+            let video_idx = i;
+            let video_total = total;
+            let forwarder = tokio::spawn(async move {
+                let mut max_pct = 0.0_f64;
+                while let Some(pu) = video_rx.recv().await {
+                    max_pct = max_pct.max(pu.percent);
+                    let overall = (video_idx as f64 / video_total as f64) * 100.0
+                        + (max_pct / video_total as f64);
+                    let _ = progress_tx
+                        .send(ProgressUpdate::rich(
+                            overall,
+                            None,
+                            None,
+                            pu.speed_bps,
+                            None,
+                        ))
+                        .await;
+                }
+            });
+
+            let extra_flags: Vec<String> = opts
+                .custom_ytdlp_args
+                .as_deref()
+                .map(|args| args.to_vec())
+                .unwrap_or_default();
+            let numbered_template = opts.playlist_number_files.then(|| {
+                ytdlp::numbered_filename_template(
+                    opts.filename_template.as_deref(),
+                    ytdlp::playlist_position(entry, i),
+                    last_position,
+                )
+            });
+
+            match ytdlp::download_video(
+                ytdlp_path,
+                &entry.url,
+                &playlist_dir,
+                quality_height,
+                video_tx,
+                opts.download_mode.as_deref(),
+                None,
+                numbered_template
+                    .as_deref()
+                    .or(opts.filename_template.as_deref()),
+                opts.referer.as_deref().or(Some("https://www.youtube.com/")),
+                opts.cancel_token.clone(),
+                None,
+                opts.concurrent_fragments,
+                opts.download_subtitles,
+                &extra_flags,
+                opts.audio_format.as_deref(),
+            )
+            .await
+            {
+                Ok(result) => {
+                    success_count += 1;
+                    total_bytes += result.file_size_bytes;
+                    last_path = result.file_path;
+                }
+                Err(e) => {
+                    tracing::warn!("Playlist video {} failed: {}", i + 1, e);
+                    last_err = Some(e);
+                }
+            }
+
+            let _ = forwarder.await;
+        }
+
+        if let Some(e) = playlist_failure(success_count, total, last_err, &playlist_dir) {
+            return Err(e);
+        }
+
+        if success_count > 1 {
+            last_path = playlist_dir.clone();
+        }
+
+        let _ = progress.send(ProgressUpdate::percent(100.0)).await;
+
+        Ok(DownloadResult {
+            file_path: last_path,
+            file_size_bytes: total_bytes,
+            duration_seconds: 0.0,
+            torrent_id: None,
         })
     }
 }
@@ -517,216 +728,5 @@ mod tests {
         assert!(YouTubeDownloader::is_playlist_url(
             "https://www.youtube.com/watch?list=PLxyz",
         ));
-    }
-}
-
-#[async_trait]
-impl PlatformDownloader for YouTubeDownloader {
-    fn name(&self) -> &str {
-        "youtube"
-    }
-
-    fn can_handle(&self, url: &str) -> bool {
-        if let Ok(parsed) = url::Url::parse(url) {
-            if let Some(host) = parsed.host_str() {
-                let host = host.to_lowercase();
-                return host == "youtube.com"
-                    || host.ends_with(".youtube.com")
-                    || host == "youtu.be"
-                    || host == "youtube-nocookie.com"
-                    || host.ends_with(".youtube-nocookie.com");
-            }
-        }
-        false
-    }
-
-    async fn get_media_info(&self, url: &str) -> anyhow::Result<MediaInfo> {
-        let ytdlp_path = ytdlp::ensure_ytdlp()
-            .await
-            .map_err(|e| anyhow!("YouTube requires yt-dlp. Failed to get yt-dlp: {}", e))?;
-
-        Self::fetch_with_ytdlp(url, &ytdlp_path).await
-    }
-
-    async fn download(
-        &self,
-        info: &MediaInfo,
-        opts: &DownloadOptions,
-        progress: mpsc::Sender<ProgressUpdate>,
-    ) -> anyhow::Result<DownloadResult> {
-        let _ = progress.send(ProgressUpdate::percent(0.0)).await;
-
-        let ytdlp_path = if let Some(ref p) = opts.ytdlp_path {
-            p.clone()
-        } else {
-            ytdlp::ensure_ytdlp().await?
-        };
-
-        let quality_height = opts
-            .quality
-            .as_deref()
-            .and_then(Self::extract_quality_height);
-
-        if info.media_type == MediaType::Playlist {
-            return self
-                .download_playlist(info, opts, progress, &ytdlp_path, quality_height)
-                .await;
-        }
-
-        let first = info
-            .available_qualities
-            .first()
-            .ok_or_else(|| anyhow!("No quality available"))?;
-
-        let selected = match quality_height {
-            Some(h) => info
-                .available_qualities
-                .iter()
-                .filter(|q| q.height > 0 && q.height <= h)
-                .max_by_key(|q| q.height)
-                .unwrap_or(first),
-            None => first,
-        };
-        let video_url = &selected.url;
-
-        let extra_flags: Vec<String> = opts
-            .custom_ytdlp_args
-            .as_deref()
-            .map(|args| args.to_vec())
-            .unwrap_or_default();
-
-        ytdlp::download_video(
-            &ytdlp_path,
-            video_url,
-            &opts.output_dir,
-            quality_height,
-            progress,
-            opts.download_mode.as_deref(),
-            opts.format_id.as_deref(),
-            opts.filename_template.as_deref(),
-            opts.referer.as_deref().or(Some("https://www.youtube.com/")),
-            opts.cancel_token.clone(),
-            None,
-            opts.concurrent_fragments,
-            opts.download_subtitles,
-            &extra_flags,
-            opts.audio_format.as_deref(),
-        )
-        .await
-    }
-}
-
-impl YouTubeDownloader {
-    async fn download_playlist(
-        &self,
-        info: &MediaInfo,
-        opts: &DownloadOptions,
-        progress: mpsc::Sender<ProgressUpdate>,
-        ytdlp_path: &std::path::Path,
-        quality_height: Option<u32>,
-    ) -> anyhow::Result<DownloadResult> {
-        let playlist_dir = opts
-            .output_dir
-            .join(sanitize_filename::sanitize(&info.title));
-        tokio::fs::create_dir_all(&playlist_dir).await?;
-
-        let total = info.available_qualities.len();
-        let last_position = ytdlp::last_playlist_position(&info.available_qualities);
-        let mut total_bytes = 0u64;
-        let mut last_path = playlist_dir.clone();
-        let mut success_count = 0usize;
-        let mut last_err: Option<anyhow::Error> = None;
-
-        for (i, entry) in info.available_qualities.iter().enumerate() {
-            if opts.cancel_token.is_cancelled() {
-                anyhow::bail!("Download cancelled");
-            }
-
-            let (video_tx, mut video_rx) = mpsc::channel::<ProgressUpdate>(16);
-            let progress_tx = progress.clone();
-            let video_idx = i;
-            let video_total = total;
-            let forwarder = tokio::spawn(async move {
-                let mut max_pct = 0.0_f64;
-                while let Some(pu) = video_rx.recv().await {
-                    max_pct = max_pct.max(pu.percent);
-                    let overall = (video_idx as f64 / video_total as f64) * 100.0
-                        + (max_pct / video_total as f64);
-                    let _ = progress_tx
-                        .send(ProgressUpdate::rich(
-                            overall,
-                            None,
-                            None,
-                            pu.speed_bps,
-                            None,
-                        ))
-                        .await;
-                }
-            });
-
-            let extra_flags: Vec<String> = opts
-                .custom_ytdlp_args
-                .as_deref()
-                .map(|args| args.to_vec())
-                .unwrap_or_default();
-            let numbered_template = opts.playlist_number_files.then(|| {
-                ytdlp::numbered_filename_template(
-                    opts.filename_template.as_deref(),
-                    ytdlp::playlist_position(entry, i),
-                    last_position,
-                )
-            });
-
-            match ytdlp::download_video(
-                ytdlp_path,
-                &entry.url,
-                &playlist_dir,
-                quality_height,
-                video_tx,
-                opts.download_mode.as_deref(),
-                None,
-                numbered_template
-                    .as_deref()
-                    .or(opts.filename_template.as_deref()),
-                opts.referer.as_deref().or(Some("https://www.youtube.com/")),
-                opts.cancel_token.clone(),
-                None,
-                opts.concurrent_fragments,
-                opts.download_subtitles,
-                &extra_flags,
-                opts.audio_format.as_deref(),
-            )
-            .await
-            {
-                Ok(result) => {
-                    success_count += 1;
-                    total_bytes += result.file_size_bytes;
-                    last_path = result.file_path;
-                }
-                Err(e) => {
-                    tracing::warn!("Playlist video {} failed: {}", i + 1, e);
-                    last_err = Some(e);
-                }
-            }
-
-            let _ = forwarder.await;
-        }
-
-        if let Some(e) = playlist_failure(success_count, total, last_err, &playlist_dir) {
-            return Err(e);
-        }
-
-        if success_count > 1 {
-            last_path = playlist_dir.clone();
-        }
-
-        let _ = progress.send(ProgressUpdate::percent(100.0)).await;
-
-        Ok(DownloadResult {
-            file_path: last_path,
-            file_size_bytes: total_bytes,
-            duration_seconds: 0.0,
-            torrent_id: None,
-        })
     }
 }

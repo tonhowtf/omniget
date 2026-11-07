@@ -61,7 +61,7 @@ fn is_weekly(w: &LimitWindow) -> bool {
             || w.id == "weekly"
             || (w
                 .span_ms
-                .map(|s| s >= 6 * 86_400_000 && s <= 8 * 86_400_000)
+                .map(|s| (6 * 86_400_000..=8 * 86_400_000).contains(&s))
                 .unwrap_or(false)
                 && !w.id.starts_with("weekly_")))
 }

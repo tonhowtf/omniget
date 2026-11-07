@@ -997,10 +997,7 @@ mod tests {
         assert_eq!((CHUNK_SIZE + 1).div_ceil(CHUNK_SIZE), 2);
     }
 
-    #[test]
-    fn threshold_gte_chunk_size() {
-        assert!(CHUNK_THRESHOLD >= CHUNK_SIZE);
-    }
+    const _: () = assert!(CHUNK_THRESHOLD >= CHUNK_SIZE);
 
     #[test]
     fn host_e_a_chave_do_historico_de_vazao() {

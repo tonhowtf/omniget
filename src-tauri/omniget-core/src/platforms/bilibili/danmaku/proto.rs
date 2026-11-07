@@ -197,7 +197,7 @@ mod tests {
     }
 
     fn write_tag_varint(buf: &mut Vec<u8>, field: u32, value: u64) {
-        let key = (field << 3) | 0;
+        let key = field << 3;
         write_varint(buf, key as u64);
         write_varint(buf, value);
     }

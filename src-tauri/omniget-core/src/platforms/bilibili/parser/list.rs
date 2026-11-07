@@ -34,7 +34,7 @@ pub async fn parse_collection(
         .and_then(|p| p.get("total"))
         .and_then(Value::as_u64)
         .unwrap_or(0) as u32;
-    let total_pages = ((total + PAGE_SIZE - 1) / PAGE_SIZE).max(1);
+    let total_pages = total.div_ceil(PAGE_SIZE).max(1);
     let archives = data
         .get("archives")
         .and_then(Value::as_array)
@@ -86,7 +86,7 @@ pub async fn parse_series(
         .and_then(|p| p.get("total"))
         .and_then(Value::as_u64)
         .unwrap_or(0) as u32;
-    let total_pages = ((total + PAGE_SIZE - 1) / PAGE_SIZE).max(1);
+    let total_pages = total.div_ceil(PAGE_SIZE).max(1);
     let archives = data
         .get("archives")
         .and_then(Value::as_array)

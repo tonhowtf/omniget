@@ -36,7 +36,7 @@ pub async fn fetch_elems(
     cid: u64,
     duration_secs: u64,
 ) -> Result<Vec<DanmakuElem>> {
-    let segments = ((duration_secs + SEGMENT_DURATION_SECS - 1) / SEGMENT_DURATION_SECS).max(1);
+    let segments = duration_secs.div_ceil(SEGMENT_DURATION_SECS).max(1);
     let mut all: Vec<DanmakuElem> = Vec::new();
     for i in 1..=segments {
         let params: Vec<(&str, String)> = vec![

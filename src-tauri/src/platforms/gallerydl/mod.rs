@@ -137,7 +137,7 @@ fn title_from_url(url: &str) -> String {
             .to_string();
         let last = parsed
             .path_segments()
-            .and_then(|s| s.filter(|p| !p.is_empty()).last())
+            .and_then(|mut s| s.rfind(|p| !p.is_empty()))
             .unwrap_or("")
             .to_string();
         if last.is_empty() {

@@ -84,7 +84,7 @@ impl VimeoDownloader {
             }
         }
 
-        qualities.sort_by(|a, b| b.height.cmp(&a.height));
+        qualities.sort_by_key(|q| std::cmp::Reverse(q.height));
 
         if qualities.is_empty() {
             qualities.push(MediaVideoQuality {

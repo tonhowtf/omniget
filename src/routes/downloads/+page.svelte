@@ -1393,9 +1393,7 @@
   }
 
   .download-item + .download-item,
-  .queue-drop-zone + .queue-drop-zone .download-item,
-  .queue-drop-zone + .download-item,
-  .download-item + .queue-drop-zone .download-item {
+  .queue-drop-zone + .queue-drop-zone .download-item {
     margin-top: var(--space-2);
   }
 
@@ -1416,14 +1414,6 @@
     justify-content: space-between;
     gap: var(--space-3);
     min-height: 24px;
-  }
-
-  .item-detail + .item-detail::before,
-  .item-detail + .item-stats::before,
-  .item-stats + .item-detail::before {
-    content: "·";
-    color: var(--text-faint);
-    margin-right: 6px;
   }
 
   .download-item > :global(.root-cause),
@@ -1563,13 +1553,6 @@
     color: var(--warning);
   }
 
-  .item-detail {
-    font-size: var(--text-sm);
-    color: var(--text-dim);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
 
   .item-stats {
     display: flex;
@@ -1585,10 +1568,6 @@
     opacity: 0.5;
   }
 
-  .phase-merging-badge {
-    color: var(--accent-hi);
-    font-weight: 500;
-  }
 
   .eta-pill {
     display: inline-flex;

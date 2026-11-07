@@ -32,12 +32,13 @@ pub async fn mux(inputs: MuxInputs<'_>) -> Result<PathBuf> {
         std::fs::create_dir_all(parent).ok();
     }
 
-    let mut args: Vec<String> = Vec::new();
-    args.push("-y".into());
-    args.push("-i".into());
-    args.push(inputs.video.to_string_lossy().into_owned());
-    args.push("-i".into());
-    args.push(inputs.audio.to_string_lossy().into_owned());
+    let mut args: Vec<String> = vec![
+        "-y".into(),
+        "-i".into(),
+        inputs.video.to_string_lossy().into_owned(),
+        "-i".into(),
+        inputs.audio.to_string_lossy().into_owned(),
+    ];
 
     if let Some(cover_path) = inputs.cover {
         args.push("-i".into());

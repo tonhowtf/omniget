@@ -447,10 +447,8 @@ async fn handle_event(client: &LcuClient, value: &Value) {
                 emit("league-lobby", data.clone());
             }
         }
-        "/lol-honor-v2/v1/ballot" => {
-            if event_type != "Delete" && league_settings().auto_honor {
-                honor_from_ballot(client, &data).await;
-            }
+        "/lol-honor-v2/v1/ballot" if event_type != "Delete" && league_settings().auto_honor => {
+            honor_from_ballot(client, &data).await;
         }
         _ => {}
     }

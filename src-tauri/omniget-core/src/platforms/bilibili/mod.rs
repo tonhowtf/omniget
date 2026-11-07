@@ -1,4 +1,3 @@
-use std::path::PathBuf;
 use std::sync::{Arc, OnceLock};
 
 use crate::models::progress::ProgressUpdate;
@@ -249,7 +248,7 @@ async fn api_engine_download(
     let settings = runtime_settings();
     let container = mux::container_from_setting(&settings.download.bilibili_container);
     let danmaku_format = danmaku_format_from_setting(&settings.download.bilibili_danmaku_format);
-    let cover_format = cover::CoverFormat::from_str(&settings.download.bilibili_cover_format);
+    let cover_format = cover::CoverFormat::parse(&settings.download.bilibili_cover_format);
     let template_set = naming::TemplateSet {
         video: settings.download.bilibili_naming_video.clone(),
         multi_part: settings.download.bilibili_naming_multi_part.clone(),
@@ -272,7 +271,7 @@ async fn api_engine_download(
     };
     let cdn_alt_hosts = cdn::parse_hosts(&settings.download.bilibili_cdn_hosts);
     let engine_opts = engine::EngineOptions {
-        output_dir: PathBuf::from(opts.output_dir.clone()),
+        output_dir: opts.output_dir.clone(),
         container,
         video_qn_pref: if settings.download.bilibili_preferred_qn != 0 {
             settings.download.bilibili_preferred_qn

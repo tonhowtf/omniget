@@ -56,7 +56,7 @@ pub fn render_ass(elems: &[DanmakuElem], opts: &AssRenderOptions) -> String {
         let mode = elem.mode;
 
         let line = match mode {
-            1 | 2 | 3 => {
+            1..=3 => {
                 let exit_secs = start_secs + opts.scroll_duration_secs;
                 let lane_idx = scroll.allocate(start_secs, exit_secs);
                 let y = line_height + (lane_idx as i32) * line_height;

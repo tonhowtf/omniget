@@ -1,5 +1,3 @@
-use std::path::PathBuf;
-
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, Manager};
 
@@ -214,7 +212,7 @@ pub async fn queue_url_with_executor(
             .title
             .as_deref()
             .filter(|s| !s.is_empty())
-            .map(|s| sanitize_filename::sanitize(s))
+            .map(sanitize_filename::sanitize)
             .or_else(|| {
                 url::Url::parse(&url).ok().and_then(|u| {
                     let path = u.path();
@@ -223,9 +221,7 @@ pub async fn queue_url_with_executor(
                         return None;
                     }
                     Some(sanitize_filename::sanitize(
-                        &urlencoding::decode(last)
-                            .unwrap_or_else(|_| last.into())
-                            .to_string(),
+                        urlencoding::decode(last).unwrap_or_else(|_| last.into()),
                     ))
                 })
             })
@@ -465,7 +461,7 @@ async fn push_or_emit_event(app: &AppHandle, event: ExternalUrlEvent) {
     }
 }
 
-fn has_valid_output_dir(path: &PathBuf) -> bool {
+fn has_valid_output_dir(path: &std::path::Path) -> bool {
     !path.as_os_str().is_empty() && path.is_dir()
 }
 
@@ -534,7 +530,7 @@ mod tests {
 
     #[test]
     fn find_external_url_arg_preserves_omniget_prefix() {
-        let args = vec!["--flag", "omniget://www.youtube.com/watch?v=abc"];
+        let args = ["--flag", "omniget://www.youtube.com/watch?v=abc"];
         assert_eq!(
             find_external_url_arg(args.iter().copied()),
             Some("omniget://www.youtube.com/watch?v=abc".to_string())
@@ -543,7 +539,7 @@ mod tests {
 
     #[test]
     fn find_external_url_arg_returns_https_url_unchanged() {
-        let args = vec!["https://example.com/video"];
+        let args = ["https://example.com/video"];
         assert_eq!(
             find_external_url_arg(args.iter().copied()),
             Some("https://example.com/video".to_string())
@@ -552,7 +548,7 @@ mod tests {
 
     #[test]
     fn find_external_url_arg_skips_irrelevant_args() {
-        let args = vec!["--start-hidden", "--config=/etc/foo"];
+        let args = ["--start-hidden", "--config=/etc/foo"];
         assert_eq!(find_external_url_arg(args.iter().copied()), None);
     }
 }

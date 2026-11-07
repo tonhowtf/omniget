@@ -20,7 +20,7 @@ impl CoverFormat {
         }
     }
 
-    pub fn from_str(s: &str) -> Self {
+    pub fn parse(s: &str) -> Self {
         match s.to_ascii_lowercase().as_str() {
             "png" => CoverFormat::Png,
             "webp" => CoverFormat::Webp,
@@ -87,8 +87,8 @@ mod tests {
 
     #[test]
     fn cover_format_from_str_falls_back_to_jpg() {
-        assert_eq!(CoverFormat::from_str("avif"), CoverFormat::Avif);
-        assert_eq!(CoverFormat::from_str("PNG"), CoverFormat::Png);
-        assert_eq!(CoverFormat::from_str("invalid"), CoverFormat::Jpg);
+        assert_eq!(CoverFormat::parse("avif"), CoverFormat::Avif);
+        assert_eq!(CoverFormat::parse("PNG"), CoverFormat::Png);
+        assert_eq!(CoverFormat::parse("invalid"), CoverFormat::Jpg);
     }
 }

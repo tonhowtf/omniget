@@ -478,7 +478,7 @@ pub(super) fn parse_default_download_line(line: &str) -> Option<(f64, f64)> {
     }
     let (size_part, rest) = body.split_once(" at ")?;
     let size = parse_size_token(size_part.trim())?;
-    let speed_token = rest.trim().split_whitespace().next()?;
+    let speed_token = rest.split_whitespace().next()?;
     let speed = parse_size_token(speed_token)?;
     Some((size, speed))
 }
@@ -554,7 +554,7 @@ pub(super) async fn find_downloaded_file(output_dir: &Path, url: &str) -> anyhow
                 }
                 if let Ok(modified) = meta.modified() {
                     if now.duration_since(modified).unwrap_or_default() < fallback_limit
-                        && newest.as_ref().map_or(true, |(_, t)| modified > *t)
+                        && newest.as_ref().is_none_or(|(_, t)| modified > *t)
                     {
                         newest = Some((path, modified));
                     }

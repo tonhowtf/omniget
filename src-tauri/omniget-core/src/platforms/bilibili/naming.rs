@@ -233,7 +233,7 @@ pub fn sanitize_path(s: &str) -> String {
     let parts: Vec<&str> = s.split('/').collect();
     let cleaned: Vec<String> = parts
         .into_iter()
-        .map(|p| sanitize_path_segment(p))
+        .map(sanitize_path_segment)
         .filter(|p| !p.is_empty())
         .collect();
     cleaned.join("/")

@@ -217,7 +217,8 @@
   }
 </script>
 
-<article
+<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
+<div
   class="bucket-card"
   class:selectable={!!onToggleSelection && !!primaryAccount}
   class:selected={!!primaryAccount && !!selected[keyFor(primaryAccount.slug)]}
@@ -332,9 +333,10 @@
     {/if}
 
     {#if extraAccounts.length > 0}
-      <ul class="extra-accounts">
+      <div class="extra-accounts">
         {#each extraAccounts as account (account.slug)}
-          <li
+          <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
+          <div
             class="extra-account"
             class:selectable={!!onToggleSelection}
             class:selected={!!selected[keyFor(account.slug)]}
@@ -365,9 +367,9 @@
                 <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
               </button>
             </div>
-          </li>
+          </div>
         {/each}
-      </ul>
+      </div>
     {/if}
 
     {#if onAddAccount && primaryAccount}
@@ -378,7 +380,7 @@
   </div>
 
   <div class="status-dot" data-state={status} title={statusLabel} aria-label={statusLabel}></div>
-</article>
+</div>
 
 <style>
   .bucket-card {

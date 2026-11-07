@@ -1,11 +1,11 @@
 <script lang="ts">
-  import type { Component } from "svelte";
+  import { untrack, type Component } from "svelte";
   import { t } from "$lib/i18n";
   import { DOWNLOAD_TOOLS, findDownloadTool, type DownloadTool } from "$lib/download-tools/registry";
 
   let { initialTool = null }: { initialTool?: string | null } = $props();
 
-  let openId = $state<string | null>(findDownloadTool(initialTool)?.id ?? null);
+  let openId = $state<string | null>(untrack(() => findDownloadTool(initialTool)?.id ?? null));
   let Panel = $state<Component | null>(null);
   let loadError = $state(false);
 

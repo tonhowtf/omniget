@@ -60,9 +60,7 @@ pub fn load_state() -> AnonymousCookieState {
 }
 
 pub fn save_state(state: &AnonymousCookieState) -> std::io::Result<()> {
-    let path = meta_file_path().ok_or_else(|| {
-        std::io::Error::new(std::io::ErrorKind::Other, "app_data_dir unavailable")
-    })?;
+    let path = meta_file_path().ok_or_else(|| std::io::Error::other("app_data_dir unavailable"))?;
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent)?;
     }
@@ -199,9 +197,7 @@ fn seed_cookie_header(state: &AnonymousCookieState) -> String {
 fn write_netscape_for_anonymous(state: &AnonymousCookieState) -> std::io::Result<()> {
     let path =
         crate::platforms::cookie_provider::cookie_path_for_account("bilibili.com", ANONYMOUS_SLUG)
-            .ok_or_else(|| {
-                std::io::Error::new(std::io::ErrorKind::Other, "cookie path unavailable")
-            })?;
+            .ok_or_else(|| std::io::Error::other("cookie path unavailable"))?;
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent)?;
     }

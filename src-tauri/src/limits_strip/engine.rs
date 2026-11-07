@@ -520,7 +520,7 @@ pub fn start(app: &AppHandle) {
                     g.prefs.is_on(OMNIGET_ID),
                 )
             };
-            let external = if tick % EXTERNAL_EVERY == 0 {
+            let external = if tick.is_multiple_of(EXTERNAL_EVERY) {
                 Some(if watch_clis {
                     tokio::task::spawn_blocking(|| {
                         omniget_core::core::llm::cli_usage::activity::poll(Duration::from_secs(
