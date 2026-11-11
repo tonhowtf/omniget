@@ -1,6 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 
-export type Platform = "x" | "instagram" | "tiktok";
+export type Platform = "x" | "instagram" | "tiktok" | "reddit" | "pinterest" | "github";
+export type Extra = Record<string, unknown>;
 
 export type Author = { id: string; handle: string; name: string; avatar?: string; verified: boolean };
 export type Media = { kind: "image" | "video"; url: string; thumb?: string; width?: number; height?: number };
@@ -19,6 +20,7 @@ export type Post = {
   reply_to?: string;
   reposted_by?: Author;
   quoted?: Post;
+  extra?: Extra;
 };
 
 export type Profile = {
@@ -36,13 +38,15 @@ export type Profile = {
   likes?: number;
   followed_by_me?: boolean;
   follows_me?: boolean;
+  extra?: Extra;
 };
 
-export type Comment = { id: string; author: Author; text: string; created_at?: number; likes?: number; replies?: number };
+export type Comment = { id: string; author: Author; text: string; created_at?: number; likes?: number; replies?: number; extra?: Extra };
 
 export type Page<T> = { count: number; items: T[]; next_cursor: string | null };
 export type PostDetail = { post: Post | null; replies?: Page<Post>; comments?: Page<Comment> };
-export type PlatformStatus = { platform: Platform; browser: boolean; logged_in: boolean | null };
+export type PlatformStatus = { platform: Platform; browser: boolean; logged_in: boolean | null; auth?: "token" | "username" | "none" };
+export type GithubAuth = { has_token: boolean; username: string | null };
 
 export type ApprovalRequest = {
   id: string;
@@ -55,7 +59,7 @@ export type ApprovalRequest = {
   expires_at: number;
 };
 
-export const PREFIX: Record<Platform, string> = { x: "x_", instagram: "ig_", tiktok: "tt_" };
+export const PREFIX: Record<Platform, string> = { x: "x_", instagram: "ig_", tiktok: "tt_", reddit: "rd_", pinterest: "pin_", github: "gh_" };
 
 export function tool(p: Platform, name: string): string {
   return `${PREFIX[p]}${name}`;
@@ -65,6 +69,8 @@ export const social = {
   status: () => invoke<{ platforms: PlatformStatus[] }>("social_status"),
   login: (platform: Platform) => invoke("social_login", { platform }),
   call: <T>(name: string, args: Record<string, unknown> = {}) => invoke<T>("social_call", { tool: name, args }),
+  githubState: () => invoke<GithubAuth>("social_github_state"),
+  githubConnect: (auth: { token?: string; username?: string }) => invoke<GithubAuth>("social_github_connect", auth),
   approvalList: () => invoke<ApprovalRequest[]>("social_approval_list"),
   approvalAnswer: (id: string, approve: boolean) => invoke("social_approval_answer", { id, approve }),
 };
@@ -85,7 +91,16 @@ export function errKey(e: unknown): string {
 export function errDetail(e: unknown): string {
   const t = errText(e);
   const i = t.indexOf(":");
-  return i > 0 && /^[A-Z_0-9]+$/.test(t.slice(0, i)) ? t.slice(i + 1).trim() : t;
+  const rest = i > 0 && /^[A-Z_0-9]+$/.test(t.slice(0, i)) ? t.slice(i + 1).trim() : t;
+  if (rest.startsWith("{")) {
+    try {
+      const message = (JSON.parse(rest) as { message?: unknown }).message;
+      if (typeof message === "string" && message) return message;
+    } catch {
+      return rest;
+    }
+  }
+  return rest;
 }
 
 export function compact(n: number | undefined, locale?: string): string {

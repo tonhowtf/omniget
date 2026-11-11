@@ -67,6 +67,19 @@ pub fn tool_mcp_set_enabled(enabled: bool) -> Result<bool, String> {
 }
 
 #[tauri::command]
+pub fn tool_mcp_access_get() -> serde_json::Value {
+    crate::mcp::access::describe()
+}
+
+#[tauri::command]
+pub fn tool_mcp_access_set(
+    access: crate::mcp::access::Access,
+) -> Result<serde_json::Value, String> {
+    crate::mcp::access::set(access)?;
+    Ok(crate::mcp::access::describe())
+}
+
+#[tauri::command]
 pub fn tool_mcp_clients() -> Result<Vec<crate::mcp::policy::Principal>, String> {
     crate::mcp::policy::list()
 }
@@ -77,6 +90,52 @@ pub fn tool_mcp_client_create(
 ) -> Result<crate::mcp::policy::ConnectionGrant, String> {
     crate::mcp::policy::create(name, scopes)
 }
+#[tauri::command]
+pub async fn connect_ai_create(
+    app: tauri::AppHandle,
+    name: String,
+    preset: String,
+    remote: bool,
+    days: Option<u32>,
+) -> Result<crate::mcp::public::Created, String> {
+    let preset = crate::mcp::public::Preset::parse(&preset).ok_or("INVALID_PRESET")?;
+    let url = if remote {
+        let status = crate::mcp::tunnel::start(&app).await?;
+        status.url.ok_or("tunnel_not_ready")?
+    } else {
+        let port = crate::storage::config::load_settings(&app).bridge.port;
+        if port == 0 {
+            return Err("BRIDGE_OFF".into());
+        }
+        format!("http://127.0.0.1:{port}/mcp")
+    };
+    let created = crate::mcp::public::create(&name, preset, remote, days, &url)?;
+    let _ = tauri::Emitter::emit(&app, "connect-changed", ());
+    Ok(created)
+}
+
+#[tauri::command]
+pub fn connect_ai_list() -> Result<Vec<crate::mcp::public::Listed>, String> {
+    crate::mcp::public::list()
+}
+
+#[tauri::command]
+pub fn connect_tunnel_status() -> crate::mcp::tunnel::Status {
+    crate::mcp::tunnel::status()
+}
+
+#[tauri::command]
+pub async fn connect_tunnel_start(
+    app: tauri::AppHandle,
+) -> Result<crate::mcp::tunnel::Status, String> {
+    crate::mcp::tunnel::start(&app).await
+}
+
+#[tauri::command]
+pub fn connect_tunnel_stop(app: tauri::AppHandle) -> crate::mcp::tunnel::Status {
+    crate::mcp::tunnel::stop(&app)
+}
+
 #[tauri::command]
 pub fn tool_mcp_client_revoke(id: String) -> Result<(), String> {
     crate::mcp::policy::revoke(&id)

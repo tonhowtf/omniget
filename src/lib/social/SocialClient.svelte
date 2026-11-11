@@ -8,6 +8,10 @@
   import NavIcon from "$components/shell/NavIcon.svelte";
   import PostCard from "./PostCard.svelte";
   import SocialIcon from "./SocialIcon.svelte";
+  import AudienceTab from "./AudienceTab.svelte";
+  import AnalyticsTab from "./AnalyticsTab.svelte";
+  import MonitorTab from "./MonitorTab.svelte";
+  import ScheduleTab from "./ScheduleTab.svelte";
   import {
     ago,
     compact,
@@ -16,6 +20,7 @@
     social,
     tool,
     type Comment,
+    type GithubAuth,
     type Page,
     type Platform,
     type Post,
@@ -25,19 +30,31 @@
 
   let { platform }: { platform: Platform } = $props();
 
-  type Tab = "feed" | "mentions" | "saved" | "search" | "me";
+  type Tab = "feed" | "mentions" | "saved" | "search" | "grok" | "me" | "audience" | "analytics" | "monitor" | "schedule";
+  const ENGINE_TABS: Tab[] = ["audience", "analytics", "monitor", "schedule"];
+  type GrokMessage = { id: string; role: "user" | "grok"; text: string; sources: string[] };
+  type GrokChat = { id: string; title: string; url: string };
   type View =
     | { kind: "tab" }
     | { kind: "profile"; handle: string }
     | { kind: "post"; post: Post };
 
   const TABS: Record<Platform, Tab[]> = {
-    x: ["feed", "mentions", "saved", "search", "me"],
-    instagram: ["feed", "saved", "search", "me"],
-    tiktok: ["feed", "search", "me"],
+    x: ["feed", "mentions", "saved", "search", "grok", "me", "audience", "analytics", "monitor", "schedule"],
+    instagram: ["feed", "saved", "search", "me", "audience", "analytics", "monitor"],
+    tiktok: ["feed", "search", "me", "audience", "analytics", "monitor"],
+    reddit: ["feed", "saved", "search", "me", "analytics", "monitor"],
+    pinterest: ["feed", "search", "me", "audience", "analytics", "monitor"],
+    github: ["feed", "search", "me", "audience", "analytics", "monitor"],
   };
-  const LABEL: Record<Platform, string> = { x: "X", instagram: "Instagram", tiktok: "TikTok" };
-  const TAB_ICON: Record<Tab, string> = { feed: "home", mentions: "at", saved: "bookmark", search: "search", me: "user" };
+  const FEEDS: Partial<Record<Platform, string[]>> = { reddit: ["home", "popular", "all"], github: ["received", "trending"] };
+  const KINDS: Partial<Record<Platform, { id: string; list: "posts" | "users" }[]>> = {
+    reddit: [{ id: "posts", list: "posts" }, { id: "subreddits", list: "users" }, { id: "users", list: "users" }],
+    pinterest: [{ id: "pins", list: "posts" }, { id: "boards", list: "users" }, { id: "users", list: "users" }],
+    github: [{ id: "repositories", list: "posts" }, { id: "issues", list: "posts" }, { id: "users", list: "users" }],
+  };
+  const LABEL: Record<Platform, string> = { x: "X", instagram: "Instagram", tiktok: "TikTok", reddit: "Reddit", pinterest: "Pinterest", github: "GitHub" };
+  const TAB_ICON: Record<Tab, string> = { feed: "home", mentions: "at", saved: "bookmark", search: "search", grok: "spark", me: "user", audience: "users", analytics: "chart", monitor: "radar", schedule: "clock" };
 
   let loggedIn = $state<boolean | null>(null);
   let checking = $state(true);
@@ -64,19 +81,83 @@
   let hashtags = $state<{ name: string; posts?: number }[]>([]);
 
 
+  let grokMessages = $state<GrokMessage[]>([]);
+  let grokChats = $state<GrokChat[]>([]);
+  let grokConversation = $state<string | null>(null);
+  let grokDraft = $state("");
+  let grokBusy = $state(false);
+
   let draft = $state("");
   let replyDraft = $state("");
   let sending = $state(false);
   let acting = $state<Record<string, boolean>>({});
   let poll: ReturnType<typeof setInterval> | null = null;
 
+  let netFeed = $state("");
+  let netKind = $state("");
+  let ghAuth = $state<GithubAuth | null>(null);
+  let ghToken = $state("");
+  let ghUser = $state("");
+  let ghBusy = $state(false);
+
   let tabs = $derived(TABS[platform]);
   let label = $derived(LABEL[platform]);
+  let newer = $derived(platform === "reddit" || platform === "pinterest" || platform === "github");
+  let feedPick = $derived(netFeed || FEEDS[platform]?.[0] || "");
+  let kindPick = $derived(netKind || KINDS[platform]?.[0].id || "");
+  let whoKey = $derived(platform === "x" ? "handle" : "username");
+  let profileTool = $derived(tool(platform, newer ? "user" : "profile"));
+  let postTool = $derived(platform === "pinterest" ? "pin_pin" : platform === "github" ? "gh_issues" : tool(platform, "post"));
+  let canReply = $derived(platform !== "pinterest" && (platform !== "github" || me?.extra?.auth === "token"));
+
+  function at(handle: string): string {
+    if (handle.includes("/")) return handle;
+    return platform === "reddit" ? `u/${handle}` : `@${handle}`;
+  }
+
+  function kindOf(p: Post): string {
+    return String(p.extra?.kind ?? "");
+  }
+
+  function canFollow(p: Profile): boolean {
+    if (!me || p.handle.toLowerCase() === me.handle.toLowerCase()) return false;
+    if (platform === "reddit") return p.handle.startsWith("r/");
+    if (platform === "pinterest") return !p.handle.includes("/");
+    if (platform === "github") return me.extra?.auth === "token";
+    return true;
+  }
+
+  async function saveGithub(auth: { token?: string; username?: string }) {
+    ghBusy = true;
+    error = null;
+    try {
+      ghAuth = await social.githubConnect(auth);
+      ghToken = "";
+      await refreshStatus();
+      if (loggedIn) await connect();
+      else me = null;
+    } catch (e) {
+      fail(e);
+    } finally {
+      ghBusy = false;
+    }
+  }
+
+  async function openGithubSetup() {
+    error = null;
+    try {
+      ghAuth = await social.githubState();
+      ghUser = ghAuth.username ?? "";
+    } catch (e) {
+      fail(e);
+    }
+    me = null;
+  }
 
   function fail(e: unknown) {
     const key = errKey(e);
     if (key === "not_logged_in") loggedIn = false;
-    error = `${$t(`social.errors.${key}`, { platform: label })}${key === "unknown" || key.startsWith("upstream") || key === "rejected" ? ` (${errDetail(e)})` : ""}`;
+    error = `${$t(`social.errors.${key}`, { platform: label })}${key === "unknown" || key.startsWith("upstream") || key === "rejected" || (platform === "github" && key !== "network") ? ` (${errDetail(e)})` : ""}`;
   }
 
   async function refreshStatus() {
@@ -132,13 +213,14 @@
   function listTool(): [string, Record<string, unknown>] | null {
     switch (tab) {
       case "feed":
-        return [tool(platform, "feed"), platform === "x" ? { mode: feedMode } : {}];
+        if (platform === "github" && feedPick === "trending") return ["gh_trending", {}];
+        return [tool(platform, "feed"), platform === "x" ? { mode: feedMode } : platform === "reddit" ? { feed: feedPick } : {}];
       case "mentions":
         return [tool(platform, "mentions"), {}];
       case "saved":
-        return [platform === "x" ? "x_bookmarks" : "ig_saved", {}];
+        return [platform === "x" ? "x_bookmarks" : tool(platform, "saved"), {}];
       case "me":
-        return me ? [tool(platform, "user_posts"), platform === "x" ? { handle: me.handle } : { username: me.handle }] : null;
+        return me ? [tool(platform, "user_posts"), { [whoKey]: me.handle }] : null;
       default:
         return null;
     }
@@ -146,6 +228,11 @@
 
   async function loadTab(more = false) {
     error = null;
+    if (ENGINE_TABS.includes(tab)) return;
+    if (tab === "grok") {
+      if (!more) await loadGrokChats();
+      return;
+    }
     if (tab === "search") {
       if (!more) {
         posts = [];
@@ -175,6 +262,64 @@
     }
   }
 
+  async function loadGrokChats() {
+    try {
+      grokChats = (await social.call<Page<GrokChat>>("x_grok_chats", {})).items;
+    } catch (e) {
+      fail(e);
+    }
+  }
+
+  async function openGrokChat(id: string) {
+    grokConversation = id || null;
+    grokMessages = [];
+    if (!id) return;
+    grokBusy = true;
+    error = null;
+    try {
+      grokMessages = (await social.call<Page<GrokMessage>>("x_grok_chat", { conversation: id })).items;
+    } catch (e) {
+      fail(e);
+    } finally {
+      grokBusy = false;
+    }
+  }
+
+  async function askGrok(text = grokDraft, post?: string) {
+    const message = text.trim();
+    if (!message || grokBusy) return;
+    grokBusy = true;
+    error = null;
+    grokDraft = "";
+    grokMessages = [...grokMessages, { id: `local-${Date.now()}`, role: "user", text: message, sources: [] }];
+    try {
+      const r = await social.call<{ conversation_id: string; text: string; sources: string[] }>("x_grok", {
+        message,
+        ...(grokConversation ? { conversation: grokConversation } : {}),
+        ...(post ? { post } : {}),
+      });
+      const fresh = !grokConversation;
+      grokConversation = r.conversation_id;
+      grokMessages = [...grokMessages, { id: `grok-${Date.now()}`, role: "grok", text: r.text, sources: r.sources }];
+      if (fresh) void loadGrokChats();
+    } catch (e) {
+      grokDraft = message;
+      grokMessages = grokMessages.slice(0, -1);
+      fail(e);
+    } finally {
+      grokBusy = false;
+    }
+  }
+
+  function askGrokAbout(p: Post) {
+    tab = "grok";
+    stack = [];
+    grokConversation = null;
+    grokMessages = [];
+    void loadGrokChats();
+    void askGrok($t("social.grok.explain_post"), p.url || p.id);
+  }
+
   function dedupe(list: Post[]): Post[] {
     const seen = new Set<string>();
     return list.filter((p) => (seen.has(p.id) ? false : (seen.add(p.id), true)));
@@ -184,7 +329,13 @@
     loading = true;
     error = null;
     try {
-      if (platform === "instagram") {
+      const kind = KINDS[platform]?.find((k) => k.id === kindPick);
+      if (kind) {
+        const r = await social.call<Page<unknown>>(tool(platform, "search"), { query, kind: kind.id, ...(more && cursor ? { cursor } : {}) });
+        if (kind.list === "users") users = more ? [...users, ...(r.items as Profile[])] : (r.items as Profile[]);
+        else posts = more ? dedupe([...posts, ...(r.items as Post[])]) : (r.items as Post[]);
+        cursor = r.next_cursor;
+      } else if (platform === "instagram") {
         const r = await social.call<{ users: Profile[]; hashtags: { name: string; posts?: number }[] }>("ig_search", { query });
         users = r.users;
         hashtags = r.hashtags;
@@ -219,8 +370,8 @@
     loading = true;
     error = null;
     try {
-      const key = platform === "x" ? "handle" : "username";
-      profile = await social.call<Profile>(tool(platform, "profile"), { [key]: handle });
+      const key = whoKey;
+      profile = await social.call<Profile>(profileTool, { [key]: handle });
       const page = await social.call<Page<Post>>(tool(platform, "user_posts"), { [key]: handle });
       posts = page.items;
       cursor = page.next_cursor;
@@ -235,8 +386,7 @@
     if (!profile || !cursor) return;
     loading = true;
     try {
-      const key = platform === "x" ? "handle" : "username";
-      const page = await social.call<Page<Post>>(tool(platform, "user_posts"), { [key]: profile.handle, cursor });
+      const page = await social.call<Page<Post>>(tool(platform, "user_posts"), { [whoKey]: profile.handle, cursor });
       posts = dedupe([...posts, ...page.items]);
       cursor = page.next_cursor;
     } catch (e) {
@@ -247,6 +397,10 @@
   }
 
   async function openPost(p: Post) {
+    if ((platform === "github" && !["issue", "pull"].includes(kindOf(p))) || (platform === "reddit" && kindOf(p) === "comment")) {
+      external(p.url);
+      return;
+    }
     stack = [...stack, { kind: "post", post: p }];
     detail = { post: p };
     replies = [];
@@ -255,7 +409,7 @@
     loading = true;
     error = null;
     try {
-      const d = await social.call<PostDetail>(tool(platform, "post"), { post: p.url || p.id });
+      const d = await social.call<PostDetail>(postTool, { post: p.url || p.id });
       detail = { ...d, post: d.post ?? p };
       const page = d.replies ?? d.comments;
       replies = page?.items ?? [];
@@ -272,10 +426,11 @@
     if (!p || !repliesCursor) return;
     loading = true;
     try {
-      if (platform === "x") {
-        const d = await social.call<PostDetail>("x_post", { post: p.id, cursor: repliesCursor });
-        replies = [...replies, ...(d.replies?.items ?? [])];
-        repliesCursor = d.replies?.next_cursor ?? null;
+      if (platform === "x" || platform === "github") {
+        const d = await social.call<PostDetail>(postTool, { post: p.id, cursor: repliesCursor });
+        const page = d.replies ?? d.comments;
+        replies = [...replies, ...(page?.items ?? [])];
+        repliesCursor = page?.next_cursor ?? null;
       } else {
         const page = await social.call<Page<Comment>>(tool(platform, "comments"), { post: p.url || p.id, cursor: repliesCursor });
         replies = [...replies, ...page.items];
@@ -305,7 +460,9 @@
     const undo = !!p.liked;
     patchPost(p.id, { liked: !undo, stats: { ...p.stats, likes: Math.max(0, (p.stats.likes ?? 0) + (undo ? -1 : 1)) } });
     try {
-      await social.call(tool(platform, "like"), { post: p.url || p.id, undo });
+      if (platform === "reddit") await social.call("rd_vote", { post: p.id.startsWith("t1_") ? p.id : p.url || p.id, direction: undo ? "clear" : "up" });
+      else if (platform === "github") await social.call("gh_star", { repo: p.id, undo });
+      else await social.call(tool(platform, "like"), { post: p.url || p.id, undo });
     } catch (e) {
       patchPost(p.id, { liked: undo, stats: p.stats });
       showToast("error", $t(`social.errors.${errKey(e)}`, { platform: label }));
@@ -334,8 +491,8 @@
     const undo = !!profile.followed_by_me;
     sending = true;
     try {
-      const key = platform === "x" ? "handle" : "username";
-      await social.call(tool(platform, "follow"), { [key]: profile.handle, undo });
+      if (platform === "reddit") await social.call("rd_subscribe", { subreddit: profile.handle, undo });
+      else await social.call(tool(platform, "follow"), { [whoKey]: profile.handle, undo });
       profile = { ...profile, followed_by_me: !undo };
     } catch (e) {
       showToast("error", $t(`social.errors.${errKey(e)}`, { platform: label }));
@@ -407,6 +564,7 @@
 
   onMount(async () => {
     await refreshStatus();
+    if (platform === "github") ghAuth = await social.githubState().catch(() => null);
     if (loggedIn) await connect();
   });
 
@@ -425,13 +583,52 @@
     {#if me}
       <button class="me-chip" onclick={() => openProfile(me?.handle ?? "")} title={$t("social.tabs.me")}>
         {#if me.avatar}<img src={me.avatar} alt="" width="24" height="24" referrerpolicy="no-referrer" />{/if}
-        <span>@{me.handle}</span>
+        <span>{at(me.handle)}</span>
       </button>
+      {#if platform === "github"}
+        <button class="btn btn-ghost btn-sm" onclick={() => void openGithubSetup()}>{$t("social.github.setup_open")}</button>
+      {/if}
     {/if}
   </header>
 
   {#if checking && loggedIn === null}
     <div class="boot"><span class="spinner"></span><span>{$t("social.boot")}</span></div>
+  {:else if platform === "github" && (!loggedIn || !me)}
+    <div class="signin">
+      <NavIcon icon="github" size={56} />
+      <h2>{$t("social.github.setup_title")}</h2>
+      <p>{$t("social.github.setup_hint")}</p>
+      <form class="gh-form" onsubmit={(e) => { e.preventDefault(); void saveGithub({ token: ghToken }); }}>
+        <label for="gh-token">{$t("social.github.token_label")}</label>
+        <div class="gh-row">
+          <input id="gh-token" type="password" autocomplete="off" spellcheck="false" bind:value={ghToken} placeholder={$t("social.github.token_placeholder")} />
+          <button class="btn btn-primary btn-sm" disabled={ghBusy || !ghToken.trim()}>{$t("social.github.token_save")}</button>
+        </div>
+        <span class="gh-note">
+          {$t(ghAuth?.has_token ? "social.github.token_saved" : "social.github.token_note")}
+          <button type="button" class="gh-link" onclick={() => external("https://github.com/settings/personal-access-tokens/new")}>{$t("social.github.token_create")}</button>
+        </span>
+      </form>
+      <form class="gh-form" onsubmit={(e) => { e.preventDefault(); void saveGithub({ username: ghUser }); }}>
+        <label for="gh-user">{$t("social.github.username_label")}</label>
+        <div class="gh-row">
+          <input id="gh-user" bind:value={ghUser} maxlength="39" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="octocat" />
+          <button class="btn btn-secondary btn-sm" disabled={ghBusy || !ghUser.trim()}>{$t("social.github.username_save")}</button>
+        </div>
+        <span class="gh-note">{$t("social.github.username_note")}</span>
+      </form>
+      {#if error}<p class="err" role="alert">{error}</p>{/if}
+      <div class="btn-row">
+        {#if loggedIn}
+          <button class="btn btn-primary" disabled={checking || ghBusy} onclick={() => void connect()}>
+            {#if checking || ghBusy}<span class="spinner"></span>{/if}{$t("social.signin.continue")}
+          </button>
+        {/if}
+        {#if ghAuth?.has_token}
+          <button class="btn btn-ghost" disabled={ghBusy} onclick={() => void saveGithub({ token: "" })}>{$t("social.github.token_remove")}</button>
+        {/if}
+      </div>
+    </div>
   {:else if !loggedIn || !me}
     <div class="signin">
       <NavIcon icon={platform} size={56} />
@@ -480,7 +677,48 @@
           </div>
         {/if}
 
-        {#if view.kind === "tab"}
+        {#if view.kind === "tab" && tab === "audience" && me}
+          <AudienceTab {platform} {me} {openProfile} />
+        {:else if view.kind === "tab" && tab === "analytics" && me}
+          <AnalyticsTab {platform} {me} {openProfile} />
+        {:else if view.kind === "tab" && tab === "monitor" && me}
+          <MonitorTab {platform} {me} {openProfile} />
+        {:else if view.kind === "tab" && tab === "schedule" && me}
+          <ScheduleTab {platform} {me} {openProfile} />
+        {:else if view.kind === "tab" && tab === "grok"}
+          <div class="grok-bar">
+            <select class="grok-pick" value={grokConversation ?? ""} onchange={(e) => void openGrokChat(e.currentTarget.value)} aria-label={$t("social.grok.history")}>
+              <option value="">{$t("social.grok.new_chat")}</option>
+              {#each grokChats as c (c.id)}
+                <option value={c.id}>{c.title || c.id}</option>
+              {/each}
+            </select>
+            {#if grokConversation}
+              <button class="btn btn-ghost btn-sm" onclick={() => external(`https://x.com/i/grok?conversation=${grokConversation}`)} title={$t("social.grok.open_on_x")}><SocialIcon name="external" /></button>
+            {/if}
+          </div>
+          <div class="list grok-list">
+            {#each grokMessages as m (m.id)}
+              <div class="grok-msg" class:mine={m.role === "user"}>
+                <p>{m.text}</p>
+                {#if m.sources.length}
+                  <ol class="grok-sources">
+                    {#each m.sources as url (url)}
+                      <li><button class="grok-link" onclick={() => external(url)}>{url.replace(/^https?:\/\/(www\.)?/, "")}</button></li>
+                    {/each}
+                  </ol>
+                {/if}
+              </div>
+            {:else}
+              {#if !grokBusy}<div class="empty">{$t("social.grok.empty")}</div>{/if}
+            {/each}
+            {#if grokBusy}<div class="boot"><span class="spinner"></span><span>{$t("social.grok.thinking")}</span></div>{/if}
+          </div>
+          <form class="reply" onsubmit={(e) => { e.preventDefault(); void askGrok(); }}>
+            <input bind:value={grokDraft} maxlength="20000" placeholder={$t("social.grok.placeholder")} />
+            <button class="btn btn-primary btn-sm" disabled={grokBusy || !grokDraft.trim()} aria-label={$t("social.grok.send")}><SocialIcon name="send" /></button>
+          </form>
+        {:else if view.kind === "tab"}
           {#if tab === "feed" && platform === "x"}
             <div class="compose">
               <textarea bind:value={draft} rows="2" maxlength="4000" placeholder={$t("social.compose.placeholder")}></textarea>
@@ -496,9 +734,24 @@
             </div>
           {/if}
 
+          {#if tab === "feed" && FEEDS[platform]}
+            <div class="segmented net-feed" role="tablist">
+              {#each FEEDS[platform] ?? [] as f (f)}
+                <button class="segmented-btn" role="tab" aria-selected={feedPick === f} onclick={() => { netFeed = f; void loadTab(); }}>{$t(`social.${platform}.feed_${f}`)}</button>
+              {/each}
+            </div>
+          {/if}
+
           {#if tab === "search"}
             <form class="search" onsubmit={(e) => { e.preventDefault(); void loadTab(); }}>
-              <input type="search" bind:value={query} placeholder={$t(`social.search.placeholder_${platform}`)} />
+              <input type="search" bind:value={query} placeholder={$t(newer ? `social.${platform}.search_placeholder` : `social.search.placeholder_${platform}`)} />
+              {#if KINDS[platform]}
+                <div class="segmented" role="tablist">
+                  {#each KINDS[platform] ?? [] as k (k.id)}
+                    <button type="button" class="segmented-btn" role="tab" aria-selected={kindPick === k.id} onclick={() => (netKind = k.id)}>{$t(`social.${platform}.kind_${k.id}`)}</button>
+                  {/each}
+                </div>
+              {/if}
               {#if platform === "tiktok"}
                 <div class="segmented" role="tablist">
                   <button type="button" class="segmented-btn" role="tab" aria-selected={searchKind === "posts"} onclick={() => (searchKind = "posts")}>{$t("social.search.videos")}</button>
@@ -517,7 +770,7 @@
             {#each users as u (u.id || u.handle)}
               <button class="user-row" onclick={() => openProfile(u.handle)}>
                 {#if u.avatar}<img src={u.avatar} alt="" width="40" height="40" referrerpolicy="no-referrer" loading="lazy" />{:else}<span class="avatar-empty">{u.handle.slice(0, 1).toUpperCase()}</span>{/if}
-                <span class="who"><strong>{u.name || u.handle}</strong><span>@{u.handle}{#if u.followers != null} · {$t("social.profile.followers", { count: compact(u.followers, $locale) })}{/if}</span></span>
+                <span class="who"><strong>{u.name || u.handle}</strong><span>{at(u.handle)}{#if u.followers != null} · {$t("social.profile.followers", { count: compact(u.followers, $locale) })}{/if}</span></span>
               </button>
             {/each}
           {/if}
@@ -542,19 +795,20 @@
               {#if profile.avatar}<img class="pf-avatar" src={profile.avatar} alt="" width="72" height="72" referrerpolicy="no-referrer" />{/if}
               <div class="pf-body">
                 <h2>{profile.name || profile.handle}{#if profile.verified}<span class="verified">✓</span>{/if}</h2>
-                <span class="pf-handle">@{profile.handle}{#if profile.private} · {$t("social.profile.private")}{/if}{#if profile.follows_me} · {$t("social.profile.follows_you")}{/if}</span>
+                <span class="pf-handle">{at(profile.handle)}{#if profile.private} · {$t("social.profile.private")}{/if}{#if profile.follows_me} · {$t("social.profile.follows_you")}{/if}</span>
                 {#if profile.bio}<p>{profile.bio}</p>{/if}
                 <div class="pf-stats">
                   {#if profile.followers != null}<span>{$t("social.profile.followers", { count: compact(profile.followers, $locale) })}</span>{/if}
                   {#if profile.following != null}<span>{$t("social.profile.following", { count: compact(profile.following, $locale) })}</span>{/if}
-                  {#if profile.posts != null}<span>{$t("social.profile.posts", { count: compact(profile.posts, $locale) })}</span>{/if}
+                  {#if profile.posts != null}<span>{$t(platform === "github" ? "social.github.repos" : "social.profile.posts", { count: compact(profile.posts, $locale) })}</span>{/if}
+                  {#if profile.likes != null && platform === "reddit"}<span>{$t("social.reddit.karma", { count: compact(profile.likes, $locale) })}</span>{/if}
                   {#if profile.likes != null && platform === "tiktok"}<span>{$t("social.profile.likes", { count: compact(profile.likes, $locale) })}</span>{/if}
                 </div>
               </div>
               <div class="pf-actions">
-                {#if me && profile.handle.toLowerCase() !== me.handle.toLowerCase()}
+                {#if canFollow(profile)}
                   <button class="btn btn-sm {profile.followed_by_me ? 'btn-secondary' : 'btn-primary'}" disabled={sending} onclick={() => void follow()}>
-                    {$t(profile.followed_by_me ? "social.profile.unfollow" : "social.profile.follow")}
+                    {$t(platform === "reddit" ? (profile.followed_by_me ? "social.reddit.leave" : "social.reddit.join") : profile.followed_by_me ? "social.profile.unfollow" : "social.profile.follow")}
                   </button>
                 {/if}
                 <button class="btn btn-ghost btn-sm" onclick={() => external(profile?.url ?? "")}><SocialIcon name="external" /></button>
@@ -573,20 +827,25 @@
           {/if}
         {:else if view.kind === "post" && detail?.post}
           <PostCard post={detail.post} {platform} busy={!!acting[detail.post.id]} onAuthor={openProfile} onLike={like} onRepost={repost} onDownload={download} onExternal={external} />
-          <form class="reply" onsubmit={(e) => { e.preventDefault(); void sendReply(); }}>
-            <input bind:value={replyDraft} maxlength={platform === "tiktok" ? 150 : platform === "x" ? 4000 : 2200} placeholder={$t(platform === "x" ? "social.compose.reply" : "social.compose.comment")} />
-            <button class="btn btn-primary btn-sm" disabled={sending || !replyDraft.trim()}><SocialIcon name="send" /></button>
-          </form>
+          {#if canReply}
+            <form class="reply" onsubmit={(e) => { e.preventDefault(); void sendReply(); }}>
+              <input bind:value={replyDraft} maxlength={platform === "tiktok" ? 150 : platform === "x" ? 4000 : 2200} placeholder={$t(platform === "x" ? "social.compose.reply" : "social.compose.comment")} />
+              <button class="btn btn-primary btn-sm" disabled={sending || !replyDraft.trim()}><SocialIcon name="send" /></button>
+            </form>
+          {/if}
+          {#if platform === "x"}
+            <button class="btn btn-ghost btn-sm grok-ask" onclick={() => detail?.post && askGrokAbout(detail.post)}><SocialIcon name="spark" /> {$t("social.grok.ask_about_post")}</button>
+          {/if}
           <h3 class="section">{$t(platform === "x" ? "social.post.replies" : "social.post.comments")}</h3>
           <div class="list">
             {#each replies as r (r.id)}
               {#if isPost(r)}
                 <PostCard post={r} {platform} busy={!!acting[r.id]} onOpen={openPost} onAuthor={openProfile} onLike={like} onRepost={repost} onExternal={external} />
               {:else}
-                <div class="comment">
+                <div class="comment" style:margin-left={`${Math.min(Number(r.extra?.depth ?? 0), 6) * 14}px`}>
                   <button class="c-author" onclick={() => openProfile(r.author.handle)}>
                     {#if r.author.avatar}<img src={r.author.avatar} alt="" width="28" height="28" referrerpolicy="no-referrer" loading="lazy" />{/if}
-                    <strong>@{r.author.handle}</strong>
+                    <strong>{at(r.author.handle)}</strong>
                   </button>
                   <p>{r.text}</p>
                   <span class="c-meta">{ago(r.created_at, $locale)}{#if r.likes} · ♥ {compact(r.likes, $locale)}{/if}{#if r.replies} · {$t("social.post.reply_count", { count: r.replies })}{/if}</span>
@@ -712,6 +971,49 @@
     gap: var(--space-2);
     flex-wrap: wrap;
     justify-content: center;
+  }
+
+  .gh-form {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    width: 100%;
+    text-align: left;
+  }
+
+  .gh-form label {
+    font-size: var(--text-sm);
+    font-weight: 600;
+  }
+
+  .gh-row {
+    display: flex;
+    gap: var(--space-2);
+  }
+
+  .gh-row input {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .gh-note {
+    font-size: var(--text-xs);
+    color: var(--text-dim);
+    line-height: 1.5;
+  }
+
+  .gh-link {
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--accent);
+    font: inherit;
+    cursor: pointer;
+    text-decoration: underline;
+  }
+
+  .net-feed {
+    align-self: flex-start;
   }
 
   .wait {
@@ -947,6 +1249,66 @@
     margin-left: 6px;
     color: var(--accent);
     font-size: var(--text-sm);
+  }
+
+  .grok-bar {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+  }
+
+  .grok-pick {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .grok-list {
+    flex: 1;
+  }
+
+  .grok-msg {
+    align-self: flex-start;
+    max-width: 88%;
+    padding: var(--space-3);
+    border-radius: var(--radius-lg, 12px);
+    background: var(--surface);
+    box-shadow: inset 0 0 0 var(--hairline) var(--content-border);
+  }
+
+  .grok-msg.mine {
+    align-self: flex-end;
+    background: var(--fill-1);
+    box-shadow: none;
+  }
+
+  .grok-msg p {
+    margin: 0;
+    font-size: var(--text-sm);
+    line-height: 1.55;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+
+  .grok-sources {
+    margin: var(--space-2) 0 0;
+    padding-inline-start: var(--space-5);
+    font-size: var(--text-xs);
+    color: var(--text-dim);
+  }
+
+  .grok-link {
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--accent);
+    font: inherit;
+    text-align: start;
+    cursor: pointer;
+    overflow-wrap: anywhere;
+  }
+
+  .grok-ask {
+    align-self: flex-start;
   }
 
   .section {

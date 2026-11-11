@@ -24,7 +24,7 @@
 {#if activity}
   <aside aria-live="polite" class="native-agent-activity">
     <span>{$t('mcp_connections.native_active')}: {activity.name} · {activity.windowId}</span>
-    <button type="button" onclick={revoke}>{$t('mcp_connections.native_revoke')}</button>
+    {#if activity.id !== 'local'}<button type="button" onclick={revoke}>{$t('mcp_connections.native_revoke')}</button>{/if}
     {#if error}<span role="alert">{error}</span>{/if}
   </aside>
 {/if}

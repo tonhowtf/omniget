@@ -486,9 +486,26 @@ async fn get_capped(
     Ok(out)
 }
 
+pub fn pointer_target(bytes: &[u8]) -> Option<(String, String)> {
+    let v: serde_json::Value = serde_json::from_slice(bytes).ok()?;
+    let https = |key: &str| {
+        v.get(key)
+            .and_then(|x| x.as_str())
+            .filter(|u| u.starts_with("https://"))
+            .map(str::to_string)
+    };
+    Some((https("catalog")?, https("signature")?))
+}
+
 async fn fetch_remote() -> Result<(Catalog, Vec<String>, Vec<u8>, String), String> {
-    let bytes = get_capped(CATALOG_URL, MAX_CATALOG_BYTES, |_, _| {}).await?;
-    let sig_url = format!("{CATALOG_URL}.sig");
+    let first = get_capped(CATALOG_URL, MAX_CATALOG_BYTES, |_, _| {}).await?;
+    let (bytes, sig_url) = match pointer_target(&first) {
+        Some((catalog_url, sig_url)) => (
+            get_capped(&catalog_url, MAX_CATALOG_BYTES, |_, _| {}).await?,
+            sig_url,
+        ),
+        None => (first, format!("{CATALOG_URL}.sig")),
+    };
     let sig = get_capped(&sig_url, MAX_SIGNATURE_BYTES, |_, _| {}).await?;
     let signature = String::from_utf8(sig)
         .map_err(|e| fail(ERR_SIGNATURE, format!("the signature is not text: {e}")))?;
@@ -907,6 +924,26 @@ mod tests {
     }
 
     #[test]
+    fn a_pointer_names_where_the_catalog_and_its_signature_live() {
+        let p = br#"{"catalog":"https://files.example/a.json","signature":"https://files.example/a.sig"}"#;
+        assert_eq!(
+            pointer_target(p),
+            Some((
+                "https://files.example/a.json".to_string(),
+                "https://files.example/a.sig".to_string()
+            ))
+        );
+    }
+
+    #[test]
+    fn a_catalog_or_a_pointer_without_https_is_not_a_pointer() {
+        assert_eq!(pointer_target(SIGNED_TEXT.as_bytes()), None);
+        let plain = br#"{"catalog":"http://files.example/a.json","signature":"https://files.example/a.sig"}"#;
+        assert_eq!(pointer_target(plain), None);
+        assert_eq!(pointer_target(b"not json"), None);
+    }
+
+    #[test]
     fn catalog_entries_without_https_package_or_real_hash_are_dropped() {
         let mut http = entry_for("a", "1.0.0", &["example.com"], b"x");
         http.package = "http://getomniget.com/a.omniconnector".into();
@@ -1029,7 +1066,7 @@ mod tests {
         assert!(!catalog.connectors.is_empty());
         let tmp = tempfile::tempdir().unwrap();
         for e in &catalog.connectors {
-            let file = e.package.rsplit('/').next().unwrap();
+            let file = format!("{}-{}.{PACKAGE_EXT}", e.id, e.version);
             let pkg = std::fs::read(dir.join("packages").join(file)).unwrap();
             verify_package_hash(&pkg, &e.sha256).unwrap();
             install_package_into(tmp.path(), &pkg, Some(e)).unwrap();

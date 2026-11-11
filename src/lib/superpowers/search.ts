@@ -2,6 +2,8 @@ export interface Searchable {
   title: string;
   description: string;
   keywords: string;
+  category?: string;
+  tags?: string[];
 }
 
 function fold(text: string): string {
@@ -19,7 +21,11 @@ export function searchPowers<T extends Searchable>(items: T[], query: string): T
   if (!phrase) return items;
   const words = phrase.split(/\s+/);
   return items
-    .map((item) => ({ item, title: fold(item.title), text: fold(`${item.title} ${item.keywords} ${item.description}`) }))
+    .map((item) => ({
+      item,
+      title: fold(item.title),
+      text: fold([item.title, item.keywords, item.description, item.category ?? "", ...(item.tags ?? [])].join(" ")),
+    }))
     .filter(({ text }) => words.every((word) => text.includes(word)))
     .map(({ item, title }) => ({ item, score: rank(title, phrase, words) }))
     .sort((a, b) => a.score - b.score)

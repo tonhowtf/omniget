@@ -7,6 +7,7 @@ use serde::Serialize;
 use serde_json::{json, Value};
 
 use super::cdp::{Cdp, Event};
+use super::harness::{self, AttachTarget};
 use super::{data_dir, emit, sniffer};
 
 #[derive(Debug, Clone, Serialize, Default)]
@@ -35,6 +36,7 @@ pub struct Browser {
     pub exe: String,
     pub pid: Option<u32>,
     pub headless: bool,
+    pub attached: bool,
     tabs: Mutex<HashMap<String, Tab>>,
     order: Mutex<Vec<String>>,
     ua_override: Mutex<Option<Value>>,
@@ -372,7 +374,7 @@ pub async fn start(url: Option<String>, allow_download: bool) -> Result<Arc<Brow
             .and_then(|t| serde_json::from_str(&t).ok())
             .unwrap_or_default();
         let headless = rt["headless"].as_bool().unwrap_or(false);
-        if let Ok(b) = attach(&ws, "reconnected".into(), None, headless).await {
+        if let Ok(b) = attach(&ws, "reconnected".into(), None, headless, false).await {
             if let Some(u) = url {
                 b.open_tab(&u).await?;
             }
@@ -426,7 +428,7 @@ pub async fn start(url: Option<String>, allow_download: bool) -> Result<Arc<Brow
     }
     let ws = ws.ok_or("the browser did not open its debugging port")?;
     let _ = std::fs::write(runtime_file(), json!({ "headless": headless }).to_string());
-    let b = attach(&ws, exe.display().to_string(), pid, headless).await?;
+    let b = attach(&ws, exe.display().to_string(), pid, headless, false).await?;
     tokio::spawn(async move {
         let _ = child.wait().await;
     });
@@ -446,13 +448,26 @@ async fn attach(
     exe: String,
     pid: Option<u32>,
     headless: bool,
+    attached: bool,
 ) -> Result<Arc<Browser>, String> {
     let (cdp, events) = Cdp::connect(ws).await?;
+    adopt(cdp, events, exe, pid, headless, attached).await
+}
+
+async fn adopt(
+    cdp: Arc<Cdp>,
+    events: tokio::sync::mpsc::UnboundedReceiver<Event>,
+    exe: String,
+    pid: Option<u32>,
+    headless: bool,
+    attached: bool,
+) -> Result<Arc<Browser>, String> {
     let b = Arc::new(Browser {
         cdp: cdp.clone(),
         exe,
         pid,
         headless,
+        attached,
         tabs: Mutex::default(),
         order: Mutex::default(),
         ua_override: Mutex::default(),
@@ -466,13 +481,15 @@ async fn attach(
             *b.ua_override.lock().unwrap_or_else(|e| e.into_inner()) = Some(ua_override_for(&v));
         }
     }
-    let _ = cdp
-        .call(
-            "Browser.setDownloadBehavior",
-            json!({ "behavior": "allow", "downloadPath": downloads_dir(), "eventsEnabled": true }),
-            None,
-        )
-        .await;
+    if !attached {
+        let _ = cdp
+            .call(
+                "Browser.setDownloadBehavior",
+                json!({ "behavior": "allow", "downloadPath": downloads_dir(), "eventsEnabled": true }),
+                None,
+            )
+            .await;
+    }
     if let Ok(mut s) = slot().lock() {
         *s = Some(b.clone());
     }
@@ -496,9 +513,62 @@ async fn attach(
     Ok(b)
 }
 
+async fn discover(base: &str) -> Result<String, String> {
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(3))
+        .build()
+        .map_err(|e| e.to_string())?;
+    let body = client
+        .get(format!("{base}/json/version"))
+        .send()
+        .await
+        .map_err(|e| e.to_string())?
+        .text()
+        .await
+        .map_err(|e| e.to_string())?;
+    harness::parse_version(&body)
+        .ok_or_else(|| "the answer has no webSocketDebuggerUrl".to_string())
+}
+
+async fn running_chrome_ws(base: &str) -> Option<String> {
+    let port = url::Url::parse(base).ok()?.port()?;
+    let dirs = tokio::task::spawn_blocking(super::profiles::sources)
+        .await
+        .ok()?;
+    dirs.iter()
+        .filter_map(|s| read_active_port(&s.data_dir))
+        .find(|ws| ws.starts_with(&format!("ws://127.0.0.1:{port}/")))
+}
+
+pub async fn attach_external(target: AttachTarget) -> Result<Arc<Browser>, String> {
+    let _guard = start_lock().lock().await;
+    let (ws, label) = match target {
+        AttachTarget::Ws(ws) => (ws.clone(), ws),
+        AttachTarget::Http(base) => match discover(&base).await {
+            Ok(ws) => (ws, base),
+            Err(detail) => match running_chrome_ws(&base).await {
+                Some(ws) => (ws, base),
+                None => return Err(harness::not_debuggable(&base, &detail).to_string()),
+            },
+        },
+    };
+    if current().is_some() {
+        ensure_no_running_job(false)?;
+    }
+    let (cdp, events) = Cdp::connect(&ws)
+        .await
+        .map_err(|e| harness::connect_failed(&label, &e).to_string())?;
+    stop().await?;
+    adopt(cdp, events, format!("attached {label}"), None, false, true).await
+}
+
 pub async fn stop() -> Result<(), String> {
     if let Some(b) = current() {
-        let _ = b.cdp.call("Browser.close", json!({}), None).await;
+        if b.attached {
+            b.cdp.close();
+        } else {
+            let _ = b.cdp.call("Browser.close", json!({}), None).await;
+        }
     }
     if let Ok(mut s) = slot().lock() {
         *s = None;
@@ -655,6 +725,7 @@ pub fn status() -> Value {
             "exe": b.exe,
             "pid": b.pid,
             "mode": if b.headless { "embedded" } else { "window" },
+            "attached": b.attached,
             "tabs": b.tabs(),
             "view": b.view.lock().ok().and_then(|v| v.clone()),
             "network": sniffer::summary(),
@@ -680,12 +751,17 @@ async fn event_loop(b: Arc<Browser>, mut rx: tokio::sync::mpsc::UnboundedReceive
     while let Some(ev) = rx.recv().await {
         b.on_event(ev);
     }
+    let mut replaced = false;
     if let Ok(mut s) = slot().lock() {
         if s.as_ref().is_some_and(|x| Arc::ptr_eq(x, &b)) {
             *s = None;
+        } else {
+            replaced = s.is_some();
         }
     }
-    emit(json!({ "kind": "browser", "state": "closed" }));
+    if !replaced {
+        emit(json!({ "kind": "browser", "state": "closed" }));
+    }
 }
 
 impl Browser {
@@ -931,7 +1007,7 @@ impl Browser {
             .cdp
             .call("Network.enable", json!({ "maxPostDataSize": 65536 }), s)
             .await;
-        if block_ads() {
+        if block_ads() && !self.attached {
             let _ = self
                 .cdp
                 .call(
@@ -978,7 +1054,7 @@ impl Browser {
         if let Some(ua) = ua {
             let _ = self.cdp.call("Network.setUserAgentOverride", ua, s).await;
         }
-        if block_ads() {
+        if block_ads() && !self.attached {
             let _ = self
                 .cdp
                 .call(

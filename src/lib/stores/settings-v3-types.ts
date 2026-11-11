@@ -239,6 +239,9 @@ export type SettingsPublicV3 = {
     auto_hold_power?: boolean;
     perf_tool_path?: string;
   };
+  superpowers?: {
+    pinned?: string[];
+  };
   read?: {
     enabled?: boolean;
   };

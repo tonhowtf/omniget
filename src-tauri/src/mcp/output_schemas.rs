@@ -19,7 +19,9 @@ pub fn for_tool(name: &str) -> Option<Value> {
         .or_else(|| super::catalog_output_schema(name))
         .or_else(|| super::washmybelly::output_schema(name))
         .or_else(|| super::telegram::output_schema(name))
+        .or_else(|| super::whatsapp::output_schema(name))
         .or_else(|| crate::commands::social::tools::output_schema(name))
+        .or_else(|| crate::commands::research::mcp::output_schema(name))
         .or_else(|| super::memory::output_schema(name))
         .or_else(|| super::canvas::output_schema(name))
         .map(with_error_branch)
@@ -192,6 +194,127 @@ fn own(name: &str) -> Option<Value> {
             }),
             &["protocol", "scopes", "transports"],
         ),
+        "dev_pack" => {
+            let plan = json!({
+                "root": ty("string"),
+                "files": arr(obj(json!({"path": ty("string"), "tokens": ty("integer"), "mode": ty("string")}), &["path", "tokens", "mode"])),
+                "total": ty("integer"),
+                "truncated": ty("boolean"),
+                "excluded": arr(obj(json!({"path": ty("string"), "reason": ty("string"), "summary": ty("string")}), &["path", "reason"])),
+                "secrets": arr(obj(json!({"path": ty("string"), "line": nullable("integer"), "rule": ty("string")}), &["path", "rule"])),
+                "reduced": arr(obj(json!({"path": ty("string"), "to": ty("string"), "tokensBefore": ty("integer"), "tokensAfter": ty("integer")}), &["path", "to"])),
+                "degradeOrder": arr(ty("string")),
+                "totals": obj(json!({"files": ty("integer"), "tokens": ty("integer"), "excluded": ty("integer"), "secrets": ty("integer"), "notIncluded": ty("integer"), "overBudget": ty("boolean")}), &["files", "tokens"]),
+            });
+            let mut all = plan.clone();
+            all["path"] = ty("string");
+            all["tokens"] = ty("integer");
+            all["bytes"] = ty("integer");
+            all["sha256"] = ty("string");
+            all["manifest"] = obj(plan, &["files", "totals"]);
+            obj(all, &[])
+        }
+        "dev_scrape" => obj(
+            json!({
+                "url": ty("string"), "finalUrl": ty("string"), "status": ty("integer"), "via": ty("string"),
+                "title": nullable("string"), "format": ty("string"), "content": ty("string"), "tokens": ty("integer"),
+                "note": nullable("string"), "removed": ty("object"),
+                "hash": ty("string"), "unchanged": ty("boolean"),
+                "pages": arr(ty("object")), "failed": ty("integer"),
+                "structured": arr(obj(json!({"kind": ty("string"), "id": nullable("string"), "chars": ty("integer"), "truncated": ty("boolean"), "data": {}, "preview": nullable("string")}), &["kind", "truncated"])),
+                "matches": arr(ty("string")),
+                "relocated": ty("string"),
+                "total": ty("integer"), "truncated": ty("boolean"), "untrusted": ty("boolean"),
+            }),
+            &["total", "truncated", "untrusted"],
+        ),
+        "dev_http" => obj(
+            json!({
+                "status": ty("integer"), "headers": ty("object"),
+                "redirects": arr(obj(json!({"status": ty("integer"), "url": ty("string")}), &["status", "url"])),
+                "finalUrl": ty("string"),
+                "timing": obj(json!({"totalMs": ty("integer"), "firstByteMs": ty("integer")}), &["totalMs", "firstByteMs"]),
+                "body": obj(json!({"preview": ty("string"), "truncated": ty("boolean"), "total": ty("integer"), "json": ty("boolean"), "binary": ty("boolean"), "parseError": ty("string")}), &["preview", "truncated", "total"]),
+                "bodyBytes": ty("integer"), "bodyComplete": ty("boolean"), "bodyPath": nullable("string"),
+                "request": obj(json!({"method": ty("string"), "url": ty("string"), "headers": ty("object")}), &["method", "url", "headers"]),
+                "curl": ty("string"), "untrusted": ty("boolean"),
+            }),
+            &[
+                "status",
+                "headers",
+                "redirects",
+                "timing",
+                "body",
+                "request",
+                "curl",
+                "untrusted",
+            ],
+        ),
+        "dev_ports" => {
+            let target = obj(
+                json!({"pid": ty("integer"), "process": ty("string"), "command": nullable("string"), "ports": arr(ty("integer"))}),
+                &["pid", "ports"],
+            );
+            obj(
+                json!({
+                    "listeners": arr(obj(json!({"port": ty("integer"), "pid": ty("integer"), "process": ty("string"), "command": nullable("string"), "user": nullable("string"), "addresses": arr(ty("string"))}), &["port", "pid", "process"])),
+                    "total": ty("integer"), "truncated": ty("boolean"), "reason": ty("string"),
+                    "dryRun": ty("boolean"), "targets": arr(target), "killed": arr(ty("integer")),
+                    "failed": arr(obj(json!({"pid": ty("integer"), "reason": ty("string")}), &["pid", "reason"])),
+                }),
+                &[],
+            )
+        }
+        "transfer_servers" => {
+            let server = obj(
+                json!({"name": ty("string"), "protocol": ty("string"), "host": ty("string"), "port": ty("integer"), "user": ty("string"), "startPath": ty("string"), "keyPath": nullable("string"), "hasSecret": ty("boolean")}),
+                &["name", "protocol", "host", "port", "hasSecret"],
+            );
+            obj(
+                json!({
+                    "servers": arr(server.clone()), "total": ty("integer"), "reason": ty("string"),
+                    "saved": server, "removed": ty("string"), "forgotten": ty("integer"),
+                }),
+                &[],
+            )
+        }
+        "transfer_list" => obj(
+            json!({
+                "path": ty("string"),
+                "entries": arr(obj(json!({"name": ty("string"), "kind": ty("string"), "size": nullable("integer"), "modified": nullable("string")}), &["name", "kind"])),
+                "total": ty("integer"), "truncated": ty("boolean"), "skipped": ty("integer"),
+                "untrusted": ty("boolean"), "reason": ty("string"),
+            }),
+            &["path", "entries", "total", "truncated", "untrusted"],
+        ),
+        "transfer_get" | "transfer_put" => obj(
+            json!({
+                "transferId": ty("string"), "direction": ty("string"), "status": ty("string"),
+                "bytes": ty("integer"), "total": nullable("integer"), "remote": ty("string"), "local": ty("string"),
+                "next_step": ty("string"), "untrusted": ty("boolean"),
+            }),
+            &["transferId", "status", "bytes", "remote", "local"],
+        ),
+        "transfer_manage" => obj(
+            json!({
+                "op": ty("string"), "path": ty("string"), "to": ty("string"), "done": ty("boolean"), "dryRun": ty("boolean"),
+                "target": obj(json!({"path": ty("string"), "kind": ty("string"), "size": nullable("integer")}), &["path", "kind"]),
+                "would": ty("string"),
+            }),
+            &["op", "path", "done", "dryRun"],
+        ),
+        "dev_util" => obj(
+            json!({
+                "text": nullable("string"), "truncated": ty("boolean"), "total": ty("integer"),
+                "value": {}, "type": ty("string"), "hex": ty("string"), "note": ty("string"),
+                "header": ty("object"), "payload": ty("object"), "expiresAt": nullable("string"), "expired": nullable("boolean"), "verified": ty("boolean"),
+                "hash": ty("string"), "algorithm": ty("string"), "bytes": ty("integer"), "source": ty("string"),
+                "uuid": ty("string"), "unix": ty("integer"), "unixMs": ty("integer"), "iso": ty("string"),
+                "matches": arr(ty("object")), "reason": ty("string"),
+                "added": ty("integer"), "removed": ty("integer"), "identical": ty("boolean"),
+            }),
+            &[],
+        ),
         "read_library_search" => obj(
             json!({"books": arr(obj(json!({"id": ty("integer"), "title": ty("string"), "authors": arr(ty("string")), "format": ty("string"), "status": ty("string"), "progress": ty("number")}), &["id", "title"]))}),
             &["books"],
@@ -211,6 +334,7 @@ fn own(name: &str) -> Option<Value> {
                 "queue": ty("string"),
                 "remote": ty("string"),
                 "reachable": ty("boolean"),
+                "machine": obj(json!({"hostname": ty("string"), "os": ty("string"), "arch": ty("string")}), &[]),
                 "message": ty("string"),
                 "server": obj(json!({"name": ty("string"), "version": ty("string")}), &["version"]),
                 "protocolVersion": ty("string"),

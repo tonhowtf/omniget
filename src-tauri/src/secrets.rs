@@ -55,8 +55,22 @@ pub const MCP: Namespace = Namespace {
     dir_env: "OMNIGET_MCP_SECRET_DIR",
 };
 
+pub const TRANSFER: Namespace = Namespace {
+    service: "wtf.tonho.omniget.transfer",
+    dir_name: "transfer",
+    dir_env: "OMNIGET_TRANSFER_SECRET_DIR",
+};
+
+pub const RESEARCH: Namespace = Namespace {
+    service: "wtf.tonho.omniget.research",
+    dir_name: "research",
+    dir_env: "OMNIGET_RESEARCH_SECRET_DIR",
+};
+
 pub fn namespace_by_name(name: &str) -> Option<Namespace> {
     match name {
+        n if n == RESEARCH.dir_name => Some(RESEARCH),
+        n if n == TRANSFER.dir_name => Some(TRANSFER),
         n if n == OMNIDISC.dir_name => Some(OMNIDISC),
         n if n == PROFILE.dir_name => Some(PROFILE),
         n if n == AI_KEYS.dir_name => Some(AI_KEYS),

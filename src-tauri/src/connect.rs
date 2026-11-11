@@ -214,7 +214,7 @@ pub fn instructions_for(port: u16, id: &str, name: &str) -> String {
 OmniGet is open on this computer. Connecting gives {name} OmniGet's MCP tools: downloads,
 the person's AI agents as background jobs, missions and companies of agents, and, when the
 person ticks it, the Global Downloader (its browser, site connectors and whole-site downloads).
-The person approves it in the OmniGet window. The access token goes from OmniGet straight into {name}'s
+OmniGet connects you by itself, unless the person turned on asking first. Any access token goes from OmniGet straight into {name}'s
 own config file and never through this chat, so do not look for it.
 
 1. Ask for access. Run this from the folder the person is working in (their agents may work there):
@@ -227,10 +227,10 @@ own config file and never through this chat, so do not look for it.
    or anything behind a login, or to write a connector: OmniGet then offers the Global Downloader too.
 
    The answer is JSON with `code` and `wait_url`.
-2. Tell the person, in their language: "Click Allow in the OmniGet window. It shows the code <code>."
-3. Run `curl -s "<wait_url>"`. It answers within 25 seconds. Run it again while `status` is `pending`
-   (the request expires after 5 minutes).
-4. `approved`: tell the person what `message` says (which file changed and how to reload {name}).
+2. Run `curl -s "<wait_url>"`. It answers within 25 seconds. Run it again while `status` is `pending`
+   (the request expires after 5 minutes). If it stays `pending`, tell the person, in their language:
+   "Click Allow in the OmniGet window. It shows the code <code>."
+3. `approved`: tell the person what `message` says (which file changed and how to reload {name}).
    `denied`: stop and say so. `expired`: start again at step 1. `failed`: show `message`.
 "#
     )
@@ -334,10 +334,18 @@ fn request(
         req
     };
     changed().notify_waiters();
-    let _ = app.emit("connect-request", &req);
-    crate::tray::show_window(app);
-    if let Some(w) = app.get_webview_window("main") {
-        let _ = w.request_user_attention(Some(tauri::UserAttentionType::Critical));
+    let ask_first = crate::mcp::access::get().ask_first;
+    if ask_first {
+        let _ = app.emit("connect-request", &req);
+        crate::tray::show_window(app);
+        if let Some(w) = app.get_webview_window("main") {
+            let _ = w.request_user_attention(Some(tauri::UserAttentionType::Critical));
+        }
+    } else {
+        let (a, id) = (app.clone(), req.id.clone());
+        tauri::async_runtime::spawn(async move {
+            let _ = connect_answer(a, id, true, true, true, Some(true)).await;
+        });
     }
     let port = port(app);
     (
@@ -349,7 +357,7 @@ fn request(
             "client": req.client,
             "workspace": req.workspace,
             "wait_url": format!("http://127.0.0.1:{port}/v1/connect/{}?wait={MAX_WAIT_S}", req.id),
-            "message": format!("Tell the person to click Allow in the OmniGet window, which shows the code {}. Then poll wait_url while status is pending.", req.code),
+            "message": if ask_first { format!("Tell the person to click Allow in the OmniGet window, which shows the code {}. Then poll wait_url while status is pending.", req.code) } else { "Connecting now. Poll wait_url until status is approved.".to_string() },
         })),
     )
         .into_response()
@@ -583,6 +591,7 @@ pub fn connect(
     } else {
         Vec::new()
     };
+    let access = crate::mcp::access::get();
     let mut scopes: Vec<String> = DOWNLOAD_SCOPES.iter().map(|s| s.to_string()).collect();
     if agents {
         scopes.extend(AGENT_SCOPES.iter().map(|s| s.to_string()));
@@ -595,6 +604,9 @@ pub fn connect(
     }
     if browser {
         scopes.push("global_downloader".into());
+    }
+    if !access.ask_first {
+        scopes = access.scopes();
     }
     let name = connection_name(&target.name);
     let previous: Vec<String> = crate::mcp::policy::list()?

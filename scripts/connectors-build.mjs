@@ -7,7 +7,7 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { deflateRawSync } from "node:zlib";
 
-const USAGE = `Usage: node scripts/connectors-build.mjs <output-dir> [--only id,id] [--source dir] [--base-url url]
+const USAGE = `Usage: node scripts/connectors-build.mjs <output-dir> [--only id,id] [--source dir] [--base-url url] [--url-map file]
 
 Builds <output-dir>/packages/<id>-<version>.omniconnector, <output-dir>/catalog.json and
 <output-dir>/catalog.json.sig from the connector folders in ../connectors. Nothing is uploaded.
@@ -15,6 +15,7 @@ Builds <output-dir>/packages/<id>-<version>.omniconnector, <output-dir>/catalog.
 --only      connectors to include (default: every folder with a manifest.json)
 --source    folder with the connectors (default: ../connectors)
 --base-url  where the packages will be served (default: https://getomniget.com/connectors/packages)
+--url-map   JSON file {"<package file name>": "https://..."} for hosts that pick the file name
 
 The signing key is TAURI_SIGNING_PRIVATE_KEY or ~/.tauri/omniget-updater.key; its password is
 TAURI_SIGNING_PRIVATE_KEY_PASSWORD or the Keychain item "omniget-updater".`;
@@ -47,6 +48,9 @@ if (args.includes("-h") || args.includes("--help")) {
 const only = flag("--only")?.split(",").map((s) => s.trim()).filter(Boolean);
 const source = resolve(flag("--source") ?? join(root, "..", "connectors"));
 const baseUrl = (flag("--base-url") ?? "https://getomniget.com/connectors/packages").replace(/\/+$/, "");
+const urlMapFile = flag("--url-map");
+const urlMap = urlMapFile ? JSON.parse(readFileSync(resolve(urlMapFile), "utf8")) : {};
+for (const u of Object.values(urlMap)) if (!String(u).startsWith("https://")) fail("--url-map urls must be https");
 const out = args[0] ? resolve(args[0]) : fail(`missing the output folder\n\n${USAGE}`);
 if (!baseUrl.startsWith("https://")) fail("--base-url must be https");
 
@@ -150,7 +154,7 @@ function buildOne(dir) {
     domains: manifest.domains,
     min_omniget: manifest.min_omniget ?? "",
     sha256: createHash("sha256").update(body).digest("hex"),
-    package: `${baseUrl}/${file}`,
+    package: urlMap[file] ?? `${baseUrl}/${file}`,
     category: manifest.category ?? "",
     permissions: manifest.permissions ?? [],
   };

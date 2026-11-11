@@ -179,7 +179,8 @@ Prefer clicking? **Settings → AI & agents → Connect to other apps** lists th
 | After downloading | Read the finished files' details and get temporary access to them |
 | Your agents | List agents and workspaces, start and follow missions and jobs, read diffs, see pending approvals |
 | Memory, library, Telegram | Recall and teach OmniGet's memory, search your books, read and download from Telegram |
-| Global Downloader | Open its browser, see the page, preview what a page yields, download whole courses and sites, write, test and install connectors |
+| Global Downloader | Open its browser or attach to the Chrome you already use, read a page within a token budget, run several steps in one call, preview what a page yields, download whole courses and sites, write, test and install connectors |
+| Developer tools | Pack a folder into one prompt-ready file within a token budget, turn a page into clean Markdown, send an HTTP request, list and stop what is listening on a port, and work on JSON, JWT, Base64, hashes, regex and diffs offline |
 | Your computer | washmybelly scans and plans; running or undoing a plan always asks you in the OmniGet window |
 
 ### Whole courses and sites, with the Global Downloader
@@ -261,9 +262,14 @@ Built into the app, under **Superpowers** in the sidebar. Each one can be switch
 | **PDF** | Open PDFs, reorder, rotate and delete pages, merge several files or split one, and save the result. Everything runs on your computer |
 | **Photos** | A gallery for your photo folders: find duplicates, make quick adjustments and export in batch |
 | **Cutout** | Remove the background of an image on your computer, then click on the subject to refine the cut |
-| **WhatsApp** | Link your phone with a QR code, read your chats and download or export their photos, videos, audio and documents |
+| **WhatsApp** | Link your phone with a QR code, read your chats, send or schedule messages to the second, and download or export their photos, videos, audio and documents. Agents can follow chats live and reply through MCP |
 | **Discord** | Read and reply to your servers and DMs, download a channel's media or export its history to HTML, JSON or text |
-| **X, Instagram and TikTok** | Feeds, profiles, posts and comments through your own session in OmniGet's browser: like, comment, follow and, on X, post. Your agents get the same tools over MCP, and each action waits for your approval |
+| **X, Instagram and TikTok** | Feeds, profiles, posts and comments through your own session in OmniGet's browser: like, comment, follow and, on X, post and ask Grok. Your agents get the same tools over MCP, and each action waits for your approval |
+| **Pack** | Turn a folder or repo into one prompt-ready file. You see the token count of every file, set a budget, and get the list of what was left out and why; files with secrets never go in |
+| **Scrape** | Turn a page into clean Markdown, text or HTML with a token limit, or pick elements with a CSS selector. When a site blocks it, it says why and sends you to the Global Downloader browser |
+| **API** | Send an HTTP request and read the status, timing, redirects, headers and body, then copy it as curl. No account, nothing stored |
+| **DevTools** | Offline utilities for JSON, JWT, Base64, URLs, hashes, UUIDs, timestamps, regex and diffs, plus a list of what is listening on each port with a Stop button |
+| **Transfer** | Browse FTP, FTPS and SFTP servers (a NAS, a web host, a console running an FTP server), upload, download, rename and delete, with saved servers and passwords kept in the system keychain |
 | **League of Legends** | A helper for your running League client: scouting, live gold, runes in one click. Every automation stays off until you turn it on |
 
 ---

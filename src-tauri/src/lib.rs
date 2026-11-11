@@ -46,6 +46,7 @@ pub mod local_bridge_jobs;
 pub mod local_bridge_observe;
 pub mod local_bridge_remote;
 pub mod local_bridge_telegram;
+pub mod local_bridge_tools;
 pub mod local_bridge_wmb;
 pub mod mcp;
 pub mod missions;
@@ -380,6 +381,8 @@ pub fn run() {
             crate::canvas::chat::bind(app.handle());
             crate::portal::bind(app.handle());
             crate::canvas::routines::start(app.handle());
+            crate::commands::whatsapp::boot(app.handle().clone());
+            crate::commands::social::schedule::boot(app.handle().clone());
             crate::canvas::companion::start(app.handle());
             crate::canvas::power::start(app.handle());
             crate::canvas::generate::start(app.handle());
@@ -918,6 +921,7 @@ pub fn run() {
             if let tauri::RunEvent::ExitRequested { .. } = &event {
                 omniget_core::core::washmybelly::game::shutdown();
                 omniget_core::core::telegram::net::mihomo::shutdown();
+                crate::mcp::tunnel::shutdown();
                 tauri::async_runtime::block_on(omniget_core::core::llm::local_servers::stop());
                 crate::pty::manager().shutdown_all();
                 crate::device::shutdown_all();

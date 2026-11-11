@@ -7,6 +7,9 @@ pub enum Platform {
     X,
     Instagram,
     Tiktok,
+    Reddit,
+    Pinterest,
+    Github,
 }
 
 impl Platform {
@@ -15,6 +18,9 @@ impl Platform {
             "x" | "twitter" => Some(Self::X),
             "instagram" | "ig" => Some(Self::Instagram),
             "tiktok" | "tt" => Some(Self::Tiktok),
+            "reddit" | "rd" => Some(Self::Reddit),
+            "pinterest" | "pin" => Some(Self::Pinterest),
+            "github" | "gh" => Some(Self::Github),
             _ => None,
         }
     }
@@ -24,6 +30,9 @@ impl Platform {
             Self::X => "x",
             Self::Instagram => "instagram",
             Self::Tiktok => "tiktok",
+            Self::Reddit => "reddit",
+            Self::Pinterest => "pinterest",
+            Self::Github => "github",
         }
     }
 
@@ -32,6 +41,9 @@ impl Platform {
             Self::X => "X",
             Self::Instagram => "Instagram",
             Self::Tiktok => "TikTok",
+            Self::Reddit => "Reddit",
+            Self::Pinterest => "Pinterest",
+            Self::Github => "GitHub",
         }
     }
 
@@ -40,6 +52,9 @@ impl Platform {
             Self::X => "https://x.com",
             Self::Instagram => "https://www.instagram.com",
             Self::Tiktok => "https://www.tiktok.com",
+            Self::Reddit => "https://www.reddit.com",
+            Self::Pinterest => "https://www.pinterest.com",
+            Self::Github => "https://github.com",
         }
     }
 
@@ -48,6 +63,9 @@ impl Platform {
             Self::X => "https://x.com/i/flow/login",
             Self::Instagram => "https://www.instagram.com/accounts/login/",
             Self::Tiktok => "https://www.tiktok.com/login",
+            Self::Reddit => "https://www.reddit.com/login/",
+            Self::Pinterest => "https://www.pinterest.com/login/",
+            Self::Github => "https://github.com/login",
         }
     }
 
@@ -56,6 +74,9 @@ impl Platform {
             Self::X => "x_",
             Self::Instagram => "ig_",
             Self::Tiktok => "tt_",
+            Self::Reddit => "rd_",
+            Self::Pinterest => "pin_",
+            Self::Github => "gh_",
         }
     }
 }
@@ -171,6 +192,20 @@ pub fn page<T: Serialize>(items: Vec<T>, cursor: Option<String>) -> Value {
         "items": items,
         "next_cursor": cursor.filter(|c| !c.is_empty()),
     })
+}
+
+pub fn with_extra<T: Serialize>(item: &T, extra: Value) -> Value {
+    let mut v = serde_json::to_value(item).unwrap_or(Value::Null);
+    let kept: serde_json::Map<String, Value> = match extra {
+        Value::Object(o) => o.into_iter().filter(|(_, x)| !x.is_null()).collect(),
+        _ => Default::default(),
+    };
+    if let Some(o) = v.as_object_mut() {
+        if !kept.is_empty() {
+            o.insert("extra".into(), Value::Object(kept));
+        }
+    }
+    v
 }
 
 pub fn u(v: &Value) -> Option<u64> {

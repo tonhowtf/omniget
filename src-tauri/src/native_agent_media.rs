@@ -27,7 +27,9 @@ pub(super) fn directory(p: &Principal) -> Result<PathBuf, String> {
     if !p.scopes.iter().any(|s| s == "app_capture") || !p.scopes.iter().any(|s| s == "transfer") {
         return Err("PERMISSION_REQUIRED: app_capture and transfer required".into());
     }
-    uuid::Uuid::parse_str(&p.id).map_err(|_| "PERMISSION_REQUIRED")?;
+    if p.id != crate::mcp::access::LOCAL_ID {
+        uuid::Uuid::parse_str(&p.id).map_err(|_| "PERMISSION_REQUIRED")?;
+    }
     let root = crate::core::paths::app_data_dir()
         .ok_or("CAPTURE_FAILED: data directory")?
         .join("native-agent-artifacts")

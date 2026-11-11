@@ -85,6 +85,15 @@ enum Commands {
         topic: Option<String>,
     },
     #[command(
+        about = "Call a dev_*, gd_*, transfer_* or research_* tool of the running app: `omniget tool` lists them, `omniget tool dev_ports op=list` calls one"
+    )]
+    Tool {
+        #[arg(help = "Tool name (none = the list)")]
+        name: Option<String>,
+        #[arg(help = "Input as key=value pairs or one JSON object")]
+        args: Vec<String>,
+    },
+    #[command(
         about = "washmybelly: scan, plan and clean this computer through the running app (execute asks in the window)"
     )]
     Wmb {
@@ -369,6 +378,9 @@ async fn main() -> anyhow::Result<()> {
         }
         Commands::Company { command } => {
             commands::company::execute(command, cli.json).await?;
+        }
+        Commands::Tool { name, args } => {
+            commands::tool::execute(name, args, cli.json).await?;
         }
         Commands::Wmb { command } => {
             commands::wmb::execute(command, cli.json).await?;

@@ -45,6 +45,19 @@ CREATE TABLE IF NOT EXISTS messages (
   PRIMARY KEY (chat, id)
 );
 CREATE INDEX IF NOT EXISTS messages_chat_ts ON messages(chat, ts);
+CREATE TABLE IF NOT EXISTS scheduled (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  chat TEXT NOT NULL,
+  text TEXT NOT NULL,
+  reply_to TEXT,
+  at INTEGER NOT NULL,
+  created INTEGER NOT NULL,
+  status TEXT NOT NULL DEFAULT 'pending',
+  error TEXT,
+  sent_id TEXT,
+  sent_at INTEGER
+);
+CREATE INDEX IF NOT EXISTS scheduled_due ON scheduled(status, at);
 CREATE TABLE IF NOT EXISTS pending_ops (
   chat TEXT NOT NULL,
   id TEXT NOT NULL,
@@ -87,6 +100,30 @@ pub struct MessageRow {
     pub saved_path: Option<String>,
     pub edited: bool,
     pub deleted: bool,
+    pub seq: i64,
+}
+
+pub struct QuoteRef {
+    pub id: String,
+    pub from_me: bool,
+    pub sender: Option<String>,
+    pub wire_sender: Option<String>,
+    pub text: Option<String>,
+    pub raw: Option<Vec<u8>>,
+}
+
+#[derive(Clone, Debug, Serialize, PartialEq)]
+pub struct Scheduled {
+    pub id: i64,
+    pub chat: String,
+    pub text: String,
+    pub reply_to: Option<String>,
+    pub at: i64,
+    pub created: i64,
+    pub status: String,
+    pub error: Option<String>,
+    pub sent_id: Option<String>,
+    pub sent_at: Option<i64>,
 }
 
 pub struct MediaRow {
@@ -147,6 +184,7 @@ const COLUMNS: &[(&str, &str)] = &[
     ("deleted", "INTEGER NOT NULL DEFAULT 0"),
     ("wire_chat", "TEXT"),
     ("wire_sender", "TEXT"),
+    ("live", "INTEGER NOT NULL DEFAULT 0"),
 ];
 
 fn migrate(conn: &Connection) -> rusqlite::Result<()> {
@@ -163,6 +201,9 @@ fn migrate(conn: &Connection) -> rusqlite::Result<()> {
             conn.execute_batch(&format!("ALTER TABLE messages ADD COLUMN {col} {ty};"))?;
         }
     }
+    conn.execute_batch(
+        "CREATE INDEX IF NOT EXISTS messages_live ON messages(live) WHERE live = 1;",
+    )?;
     Ok(())
 }
 
@@ -243,7 +284,7 @@ impl Store {
     pub fn wipe(&self) -> rusqlite::Result<()> {
         let c = self.lock();
         c.execute_batch(
-            "DELETE FROM messages; DELETE FROM chats; DELETE FROM contacts; DELETE FROM aliases; DELETE FROM pending_ops; VACUUM;",
+            "DELETE FROM messages; DELETE FROM chats; DELETE FROM contacts; DELETE FROM aliases; DELETE FROM pending_ops; DELETE FROM scheduled; VACUUM;",
         )
     }
 
@@ -296,9 +337,7 @@ impl Store {
                 r.get::<_, i64>(9)?,
             ))
         })?;
-        let needle = query
-            .map(|q| q.trim().to_lowercase())
-            .filter(|q| !q.is_empty());
+        let needle = query.map(|q| fold(q.trim())).filter(|q| !q.is_empty());
         let mut out = Vec::new();
         for row in rows {
             let (jid, name, last_ts, unread, archived, kind, text, from_me, media, total) = row?;
@@ -306,7 +345,7 @@ impl Store {
                 .filter(|n| !n.trim().is_empty())
                 .unwrap_or_else(|| names.resolve(&jid, None));
             if let Some(q) = &needle {
-                if !display.to_lowercase().contains(q.as_str()) && !jid.contains(q.as_str()) {
+                if !fold(&display).contains(q.as_str()) && !jid.contains(q.as_str()) {
                     continue;
                 }
             }
@@ -353,44 +392,167 @@ impl Store {
     ) -> rusqlite::Result<Vec<MessageRow>> {
         let c = self.lock();
         let names = names_on(&c)?;
-        let mut stmt = c.prepare(
-            "SELECT id, chat, from_me, sender, push_name, ts, kind, text, mime, size, file_name, duration, thumb, saved_path, edited, deleted
-             FROM messages WHERE chat = ?1 AND ts < ?2 ORDER BY ts DESC, rowid DESC LIMIT ?3",
-        )?;
+        let mut stmt = c.prepare(&format!(
+            "SELECT {MESSAGE_COLUMNS} FROM messages WHERE chat = ?1 AND ts < ?2 ORDER BY ts DESC, rowid DESC LIMIT ?3"
+        ))?;
         let before = before_ts.unwrap_or(i64::MAX);
         let mut out: Vec<MessageRow> = stmt
             .query_map(params![chat, before, limit as i64], |r| {
-                let sender: Option<String> = r.get(3)?;
-                let push: Option<String> = r.get(4)?;
-                let from_me = r.get::<_, i64>(2)? != 0;
-                let sender_name = if from_me {
-                    None
-                } else {
-                    let who = sender.clone().unwrap_or_else(|| chat.to_string());
-                    Some(names.resolve(&who, push.as_deref()))
-                };
-                Ok(MessageRow {
-                    id: r.get(0)?,
-                    chat: r.get(1)?,
-                    from_me,
-                    sender,
-                    sender_name,
-                    ts: r.get(5)?,
-                    kind: kind_of(r.get(6)?),
-                    text: r.get(7)?,
-                    mime: r.get(8)?,
-                    size: r.get::<_, Option<i64>>(9)?.map(|v| v.max(0) as u64),
-                    file_name: r.get(10)?,
-                    duration: r.get::<_, Option<i64>>(11)?.map(|v| v.max(0) as u32),
-                    thumb: data_url(r.get(12)?),
-                    saved_path: r.get(13)?,
-                    edited: r.get::<_, i64>(14)? != 0,
-                    deleted: r.get::<_, i64>(15)? != 0,
-                })
+                message_row(r, &names)
             })?
             .collect::<rusqlite::Result<_>>()?;
         out.reverse();
         Ok(out)
+    }
+
+    pub fn latest_seq(&self) -> rusqlite::Result<i64> {
+        let c = self.lock();
+        c.query_row("SELECT COALESCE(MAX(rowid), 0) FROM messages", [], |r| {
+            r.get(0)
+        })
+    }
+
+    pub fn live_after(
+        &self,
+        chat: Option<&str>,
+        after: i64,
+        include_mine: bool,
+        limit: u32,
+    ) -> rusqlite::Result<Vec<MessageRow>> {
+        let c = self.lock();
+        let names = names_on(&c)?;
+        let mut stmt = c.prepare(&format!(
+            "SELECT {MESSAGE_COLUMNS} FROM messages
+             WHERE live = 1 AND rowid > ?1 AND (?2 IS NULL OR chat = ?2) AND (?3 = 1 OR from_me = 0)
+             ORDER BY rowid ASC LIMIT ?4"
+        ))?;
+        let rows = stmt
+            .query_map(
+                params![after, chat, include_mine as i64, limit as i64],
+                |r| message_row(r, &names),
+            )?
+            .collect::<rusqlite::Result<_>>()?;
+        Ok(rows)
+    }
+
+    pub fn quote_ref(&self, chat: &str, id: &str) -> rusqlite::Result<Option<QuoteRef>> {
+        let c = self.lock();
+        c.query_row(
+            "SELECT from_me, sender, wire_sender, text, raw FROM messages WHERE chat = ?1 AND id = ?2",
+            params![chat, id],
+            |r| {
+                Ok(QuoteRef {
+                    id: id.to_string(),
+                    from_me: r.get::<_, i64>(0)? != 0,
+                    sender: r.get(1)?,
+                    wire_sender: r.get(2)?,
+                    text: r.get(3)?,
+                    raw: r.get(4)?,
+                })
+            },
+        )
+        .optional()
+    }
+
+    pub fn contacts_without_chat(&self, query: &str) -> rusqlite::Result<Vec<(String, String)>> {
+        let needle = fold(query.trim());
+        if needle.is_empty() {
+            return Ok(Vec::new());
+        }
+        let c = self.lock();
+        let mut stmt = c.prepare(
+            "SELECT jid, COALESCE(NULLIF(full_name, ''), push_name) FROM contacts
+             WHERE jid LIKE '%@s.whatsapp.net' AND jid NOT IN (SELECT jid FROM chats)",
+        )?;
+        let rows = stmt.query_map([], |r| {
+            Ok((r.get::<_, String>(0)?, r.get::<_, Option<String>>(1)?))
+        })?;
+        let mut out = Vec::new();
+        for row in rows {
+            let (jid, name) = row?;
+            let Some(name) = name.filter(|n| !n.trim().is_empty()) else {
+                continue;
+            };
+            if fold(&name).contains(&needle) || jid.contains(&needle) {
+                out.push((jid, name));
+            }
+        }
+        out.sort_by(|a, b| a.1.cmp(&b.1));
+        Ok(out)
+    }
+
+    pub fn schedule_add(
+        &self,
+        chat: &str,
+        text: &str,
+        reply_to: Option<&str>,
+        at: i64,
+        now: i64,
+    ) -> rusqlite::Result<Scheduled> {
+        let c = self.lock();
+        c.execute(
+            "INSERT INTO scheduled(chat, text, reply_to, at, created) VALUES(?1, ?2, ?3, ?4, ?5)",
+            params![chat, text, reply_to, at, now],
+        )?;
+        let id = c.last_insert_rowid();
+        scheduled_on(&c, id).map(|s| s.expect("just inserted"))
+    }
+
+    pub fn schedule_get(&self, id: i64) -> rusqlite::Result<Option<Scheduled>> {
+        scheduled_on(&self.lock(), id)
+    }
+
+    pub fn schedule_list(
+        &self,
+        include_done: bool,
+        limit: u32,
+    ) -> rusqlite::Result<Vec<Scheduled>> {
+        let c = self.lock();
+        let mut stmt = c.prepare(&format!(
+            "SELECT {SCHEDULED_COLUMNS} FROM scheduled WHERE (?1 = 1 OR status = 'pending')
+             ORDER BY CASE status WHEN 'pending' THEN 0 ELSE 1 END, CASE status WHEN 'pending' THEN at ELSE -at END LIMIT ?2"
+        ))?;
+        let rows = stmt
+            .query_map(params![include_done as i64, limit as i64], scheduled_row)?
+            .collect::<rusqlite::Result<_>>()?;
+        Ok(rows)
+    }
+
+    pub fn schedule_next(&self) -> rusqlite::Result<Option<Scheduled>> {
+        let c = self.lock();
+        c.query_row(
+            &format!(
+                "SELECT {SCHEDULED_COLUMNS} FROM scheduled WHERE status = 'pending' ORDER BY at ASC, id ASC LIMIT 1"
+            ),
+            [],
+            scheduled_row,
+        )
+        .optional()
+    }
+
+    pub fn schedule_cancel(&self, id: i64) -> rusqlite::Result<bool> {
+        let c = self.lock();
+        let n = c.execute(
+            "UPDATE scheduled SET status = 'cancelled' WHERE id = ?1 AND status = 'pending'",
+            [id],
+        )?;
+        Ok(n > 0)
+    }
+
+    pub fn schedule_finish(
+        &self,
+        id: i64,
+        status: &str,
+        error: Option<&str>,
+        sent_id: Option<&str>,
+        sent_at: Option<i64>,
+    ) -> rusqlite::Result<()> {
+        let c = self.lock();
+        c.execute(
+            "UPDATE scheduled SET status = ?2, error = ?3, sent_id = ?4, sent_at = ?5 WHERE id = ?1 AND status = 'pending'",
+            params![id, status, error, sent_id, sent_at],
+        )?;
+        Ok(())
     }
 
     pub fn oldest(&self, chat: &str) -> rusqlite::Result<Option<(String, bool, i64)>> {
@@ -577,6 +739,83 @@ impl Store {
     }
 }
 
+const MESSAGE_COLUMNS: &str = "id, chat, from_me, sender, push_name, ts, kind, text, mime, size, file_name, duration, thumb, saved_path, edited, deleted, rowid";
+
+fn message_row(r: &rusqlite::Row<'_>, names: &Names) -> rusqlite::Result<MessageRow> {
+    let chat: String = r.get(1)?;
+    let sender: Option<String> = r.get(3)?;
+    let push: Option<String> = r.get(4)?;
+    let from_me = r.get::<_, i64>(2)? != 0;
+    let sender_name = if from_me {
+        None
+    } else {
+        let who = sender.clone().unwrap_or_else(|| chat.clone());
+        Some(names.resolve(&who, push.as_deref()))
+    };
+    Ok(MessageRow {
+        id: r.get(0)?,
+        chat,
+        from_me,
+        sender,
+        sender_name,
+        ts: r.get(5)?,
+        kind: kind_of(r.get(6)?),
+        text: r.get(7)?,
+        mime: r.get(8)?,
+        size: r.get::<_, Option<i64>>(9)?.map(|v| v.max(0) as u64),
+        file_name: r.get(10)?,
+        duration: r.get::<_, Option<i64>>(11)?.map(|v| v.max(0) as u32),
+        thumb: data_url(r.get(12)?),
+        saved_path: r.get(13)?,
+        edited: r.get::<_, i64>(14)? != 0,
+        deleted: r.get::<_, i64>(15)? != 0,
+        seq: r.get(16)?,
+    })
+}
+
+const SCHEDULED_COLUMNS: &str =
+    "id, chat, text, reply_to, at, created, status, error, sent_id, sent_at";
+
+fn scheduled_row(r: &rusqlite::Row<'_>) -> rusqlite::Result<Scheduled> {
+    Ok(Scheduled {
+        id: r.get(0)?,
+        chat: r.get(1)?,
+        text: r.get(2)?,
+        reply_to: r.get(3)?,
+        at: r.get(4)?,
+        created: r.get(5)?,
+        status: r.get(6)?,
+        error: r.get(7)?,
+        sent_id: r.get(8)?,
+        sent_at: r.get(9)?,
+    })
+}
+
+fn scheduled_on(c: &Connection, id: i64) -> rusqlite::Result<Option<Scheduled>> {
+    c.query_row(
+        &format!("SELECT {SCHEDULED_COLUMNS} FROM scheduled WHERE id = ?1"),
+        [id],
+        scheduled_row,
+    )
+    .optional()
+}
+
+pub fn fold(s: &str) -> String {
+    s.chars()
+        .flat_map(char::to_lowercase)
+        .map(|c| match c {
+            'á' | 'à' | 'â' | 'ã' | 'ä' | 'å' => 'a',
+            'é' | 'è' | 'ê' | 'ë' => 'e',
+            'í' | 'ì' | 'î' | 'ï' => 'i',
+            'ó' | 'ò' | 'ô' | 'õ' | 'ö' => 'o',
+            'ú' | 'ù' | 'û' | 'ü' => 'u',
+            'ç' => 'c',
+            'ñ' => 'n',
+            other => other,
+        })
+        .collect()
+}
+
 fn canonical_on(c: &Connection, jid: &str) -> String {
     if !jid.ends_with("@lid") {
         return jid.to_string();
@@ -710,6 +949,14 @@ impl Tx<'_> {
             self.replay_pending(m.chat, m.id)?;
         }
         Ok(n > 0)
+    }
+
+    pub fn mark_live(&self, chat: &str, id: &str) -> rusqlite::Result<()> {
+        self.tx.execute(
+            "UPDATE messages SET live = 1 WHERE chat = ?1 AND id = ?2",
+            params![chat, id],
+        )?;
+        Ok(())
     }
 
     fn replay_pending(&self, chat: &str, id: &str) -> rusqlite::Result<()> {
@@ -976,5 +1223,85 @@ mod tests {
         let rows = s.messages("c", None, 5).unwrap();
         assert_eq!(rows.len(), 1);
         assert!(!rows[0].edited && !rows[0].deleted);
+    }
+
+    #[test]
+    fn live_cursor_skips_history_and_own_messages() {
+        let s = Store::open_memory().unwrap();
+        let start = s.latest_seq().unwrap();
+        let msg = |id: &'static str, from_me: bool, ts: i64| NewMessage {
+            chat: "123@g.us",
+            id,
+            from_me,
+            sender: (!from_me).then_some("5511999@s.whatsapp.net"),
+            push_name: None,
+            ts,
+            summary: Box::leak(Box::new(text(id))),
+            raw: None,
+            wire_chat: None,
+            wire_sender: None,
+        };
+        s.with_tx(|tx| {
+            tx.insert_message(&msg("old", false, 10))?;
+            tx.insert_message(&msg("new", false, 20))?;
+            tx.mark_live("123@g.us", "new")?;
+            tx.insert_message(&msg("mine", true, 21))?;
+            tx.mark_live("123@g.us", "mine")
+        })
+        .unwrap();
+        let theirs = s.live_after(None, start, false, 50).unwrap();
+        assert_eq!(theirs.len(), 1);
+        assert_eq!(theirs[0].id, "new");
+        let all = s.live_after(Some("123@g.us"), start, true, 50).unwrap();
+        assert_eq!(all.len(), 2);
+        let after = s.live_after(None, all[1].seq, true, 50).unwrap();
+        assert!(after.is_empty());
+        assert!(s
+            .live_after(Some("x@g.us"), start, true, 50)
+            .unwrap()
+            .is_empty());
+    }
+
+    #[test]
+    fn scheduled_sends_run_in_order_and_cancel() {
+        let s = Store::open_memory().unwrap();
+        let late = s
+            .schedule_add("1@s.whatsapp.net", "b", None, 200, 1)
+            .unwrap();
+        let early = s
+            .schedule_add("1@s.whatsapp.net", "a", Some("q"), 100, 1)
+            .unwrap();
+        assert_eq!(s.schedule_next().unwrap().unwrap().id, early.id);
+        s.schedule_finish(early.id, "sent", None, Some("X"), Some(100))
+            .unwrap();
+        assert_eq!(s.schedule_next().unwrap().unwrap().id, late.id);
+        assert!(s.schedule_cancel(late.id).unwrap());
+        assert!(!s.schedule_cancel(late.id).unwrap());
+        assert!(s.schedule_next().unwrap().is_none());
+        assert!(s.schedule_list(false, 10).unwrap().is_empty());
+        let all = s.schedule_list(true, 10).unwrap();
+        assert_eq!(all.len(), 2);
+        assert_eq!(
+            s.schedule_get(early.id)
+                .unwrap()
+                .unwrap()
+                .sent_id
+                .as_deref(),
+            Some("X")
+        );
+    }
+
+    #[test]
+    fn search_ignores_accents_and_finds_contacts_without_chat() {
+        let s = Store::open_memory().unwrap();
+        s.with_tx(|tx| {
+            tx.upsert_chat("9@g.us", Some("Gajos de Lúla"), Some(5), None, None)?;
+            tx.contact("553798079444@s.whatsapp.net", Some("ramon"), None)
+        })
+        .unwrap();
+        assert_eq!(s.chats(Some("gajos de lula")).unwrap().len(), 1);
+        let found = s.contacts_without_chat("RAMÓN").unwrap();
+        assert_eq!(found.len(), 1);
+        assert_eq!(fold("Ação Ñ"), "acao n");
     }
 }

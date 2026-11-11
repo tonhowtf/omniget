@@ -293,6 +293,11 @@ pub async fn spawn(app: AppHandle) {
             state.app.clone(),
             crate::local_bridge_jobs::JobsBridgeState::from_bridge(&state).guard(),
         ))
+        .merge(crate::local_bridge_tools::router(
+            state.app.clone(),
+            state.token.clone(),
+            crate::local_bridge_jobs::JobsBridgeState::from_bridge(&state).guard(),
+        ))
         .merge(crate::local_bridge_wmb::router(
             crate::local_bridge_wmb::WmbBridgeState::from_bridge(&state),
         ))
@@ -684,11 +689,7 @@ async fn mcp_post(
     headers: HeaderMap,
     body: axum::body::Bytes,
 ) -> Response {
-    let principal = match bearer_of(&headers).and_then(|t| {
-        crate::mcp::policy::authenticate(&t)
-            .ok()
-            .or_else(|| crate::mcp::session_principal(&t))
-    }) {
+    let principal = match crate::mcp::access::resolve(bearer_of(&headers).as_deref()) {
         Some(p) => p,
         None => return unauthorized(),
     };
@@ -706,10 +707,20 @@ async fn mcp_post(
     if !valid_host || headers.contains_key("origin") {
         return (
             StatusCode::FORBIDDEN,
-            "MCP accepts authenticated native clients only",
+            "MCP does not accept calls from web pages",
         )
             .into_response();
     }
+    mcp_serve(&state.app, principal, uri, headers, body).await
+}
+
+pub(crate) async fn mcp_serve(
+    app: &AppHandle,
+    principal: crate::mcp::policy::Principal,
+    uri: axum::http::Uri,
+    headers: HeaderMap,
+    body: axum::body::Bytes,
+) -> Response {
     if headers
         .get("mcp-protocol-version")
         .is_some_and(|v| !matches!(v.to_str(), Ok("2025-03-26" | "2025-06-18")))
@@ -739,7 +750,7 @@ async fn mcp_post(
     }
 
     if !principal.id.starts_with(crate::mcp::SESSION_PREFIX) && !crate::mcp::enabled() {
-        return (StatusCode::FORBIDDEN, Json(serde_json::json!({ "error": "MCP server is disabled in OmniGet → LLM → MCP → Your endpoint" }))).into_response();
+        return (StatusCode::FORBIDDEN, Json(serde_json::json!({ "error": "MCP server is disabled in OmniGet → Settings → AI & agents" }))).into_response();
     }
     let msg: serde_json::Value = match serde_json::from_slice(&body) {
         Ok(v) => v,
@@ -765,7 +776,7 @@ async fn mcp_post(
     match crate::mcp::REQUEST_PROTOCOL
         .scope(
             protocol,
-            crate::mcp::LEAN.scope(lean, crate::mcp::handle_body(&state.app, &principal, &msg)),
+            crate::mcp::LEAN.scope(lean, crate::mcp::handle_body(app, &principal, &msg)),
         )
         .await
     {
@@ -774,7 +785,7 @@ async fn mcp_post(
     }
 }
 
-fn bearer_of(headers: &HeaderMap) -> Option<String> {
+pub(crate) fn bearer_of(headers: &HeaderMap) -> Option<String> {
     let raw = headers.get("authorization")?.to_str().ok()?;
     raw.strip_prefix("Bearer ")
         .or_else(|| raw.strip_prefix("bearer "))
@@ -789,11 +800,10 @@ async fn mcp_artifact(
     if !crate::mcp::enabled() {
         return StatusCode::FORBIDDEN.into_response();
     }
-    let principal =
-        match bearer_of(&headers).and_then(|t| crate::mcp::policy::authenticate(&t).ok()) {
-            Some(p) => p,
-            None => return unauthorized(),
-        };
+    let principal = match crate::mcp::access::resolve(bearer_of(&headers).as_deref()) {
+        Some(p) => p,
+        None => return unauthorized(),
+    };
     let host = headers
         .get("host")
         .and_then(|h| h.to_str().ok())

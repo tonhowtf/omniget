@@ -4,6 +4,7 @@
   const PATHS: Record<string, string> = {
     refresh: "M20 11a8 8 0 0 0-14.9-3.9M4 5v4h4M4 13a8 8 0 0 0 14.9 3.9M20 19v-4h-4",
     x: "M6 6l12 12M18 6L6 18",
+    clock: "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 7v5l3 2",
     check: "M5 12.5l4.5 4.5L19 7.5",
     folder: "M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z",
     download: "M12 4v11M7 10l5 5 5-5M5 20h14",

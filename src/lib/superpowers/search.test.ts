@@ -33,4 +33,15 @@ describe("searchPowers", () => {
   it("returns nothing when no item matches", () => {
     expect(searchPowers(all, "xyz")).toEqual([]);
   });
+
+  it("matches the category label and the tags", () => {
+    const tagged = [
+      { ...music, category: "Mídia", tags: ["MCP"] },
+      { ...video, category: "Mídia", tags: [] },
+      { ...read, category: "Leitura", tags: ["Navegador"] },
+    ];
+    expect(searchPowers(tagged, "midia")).toEqual([tagged[0], tagged[1]]);
+    expect(searchPowers(tagged, "mcp")).toEqual([tagged[0]]);
+    expect(searchPowers(tagged, "navegador livros")).toEqual([tagged[2]]);
+  });
 });

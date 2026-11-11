@@ -17,6 +17,9 @@ import { pdfDialog, pdfFixtures, pdfSaveDialog } from "./pdf";
 import { photosDialog, photosFixtures } from "./photos";
 import { cutoutDialog, cutoutFixtures } from "./cutout";
 import { stemsFixtures } from "./stems";
+import { devtoolsFixtures } from "./devtools";
+import { transferFixtures } from "./transfer";
+import { researchFixtures } from "./research";
 
 type Args = Record<string, unknown>;
 type Fixture = (args: Args) => unknown;
@@ -251,4 +254,7 @@ export const fixtures: Record<string, Fixture> = {
   ...photosFixtures,
   ...cutoutFixtures,
   ...stemsFixtures,
+  ...devtoolsFixtures,
+  ...transferFixtures,
+  ...researchFixtures,
 };

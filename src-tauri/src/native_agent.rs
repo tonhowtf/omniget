@@ -63,8 +63,8 @@ pub fn native_agent_reply(
     payload: Value,
 ) -> Result<(), String> {
     local_window(&window)?;
-    if payload.to_string().len() > 512 * 1024 {
-        return Err("INVALID_ARGUMENT: reply exceeds 512 KiB".into());
+    if payload.to_string().len() > 8 * 1024 * 1024 {
+        return Err("INVALID_ARGUMENT: reply exceeds 8 MiB".into());
     }
     let mut state = registry().lock().map_err(|_| "FRONTEND_NOT_READY")?;
     if state
@@ -94,6 +94,22 @@ pub(super) async fn bridge(
     operation: &str,
     args: Value,
 ) -> Result<Value, String> {
+    bridge_for(app, window_id, operation, args, 5).await
+}
+
+pub(crate) async fn bridge_for(
+    app: &AppHandle,
+    window_id: &str,
+    operation: &str,
+    mut args: Value,
+    seconds: u64,
+) -> Result<Value, String> {
+    if let Some(object) = args.as_object_mut() {
+        object.insert(
+            "unguarded".into(),
+            json!(!crate::mcp::access::get().ask_first),
+        );
+    }
     let window = app
         .get_webview_window(window_id)
         .ok_or("WINDOW_NOT_FOUND")?;
@@ -102,7 +118,7 @@ pub(super) async fn bridge(
     let (tx, rx) = oneshot::channel();
     let epoch = {
         let mut state = registry().lock().map_err(|_| "FRONTEND_NOT_READY")?;
-        if state.pending.len() >= 8 {
+        if state.pending.len() >= 32 {
             return Err("SESSION_BUSY".into());
         }
         let epoch = state
@@ -122,9 +138,9 @@ pub(super) async fn bridge(
             json!({"id":id,"epoch":epoch,"operation":operation,"arguments":args}),
         )
         .map_err(|_| "FRONTEND_NOT_READY")?;
-    tokio::time::timeout(Duration::from_secs(5), rx)
+    tokio::time::timeout(Duration::from_secs(seconds), rx)
         .await
-        .map_err(|_| "TIMEOUT: frontend inspection".to_string())?
+        .map_err(|_| format!("TIMEOUT: no answer from the window in {seconds} s"))?
         .map_err(|_| "FRONTEND_NOT_READY: window reloaded or disconnected".to_string())
 }
 

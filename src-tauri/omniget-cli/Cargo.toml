@@ -14,6 +14,7 @@ path = "src/bin/omniget-hook-shim.rs"
 
 [dependencies]
 omniget-core = { path = "../omniget-core" }
+sysinfo = "0.39.6"
 tokio = { version = "1", features = ["full"] }
 tokio-util = { version = "0.7", features = ["rt"] }
 clap = { version = "4", features = ["derive"] }

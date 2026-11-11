@@ -1,3 +1,5 @@
+import { SUPERPOWERS } from "$lib/superpowers/catalog";
+
 export interface NavItem {
   href: string;
   labelKey?: string;
@@ -6,6 +8,7 @@ export interface NavItem {
   group: "primary" | "app" | "secondary";
   badge?: "downloads";
   order?: number;
+  pinned?: boolean;
 }
 
 export const CORE_NAV_ITEMS: NavItem[] = [
@@ -19,5 +22,16 @@ export const CORE_NAV_ITEMS: NavItem[] = [
 ];
 
 export const NAV_ALIASES: Record<string, string[]> = {
-  "/superpowers": ["/league", "/music", "/washmybelly", "/video", "/global", "/telegram", "/youtube", "/read", "/converter", "/pdf", "/photos", "/cutout", "/palette", "/fonts", "/icons", "/motion", "/board", "/components", "/capture", "/studio", "/dictation", "/whatsapp", "/discord", "/x", "/instagram", "/tiktok"],
+  "/superpowers": SUPERPOWERS.map((entry) => entry.href),
 };
+
+function onRoute(path: string, href: string): boolean {
+  return path === href || (href !== "/" && path.startsWith(`${href}/`));
+}
+
+export function activeNavHref(items: NavItem[], path: string): string | null {
+  const direct = items.find((item) => onRoute(path, item.href));
+  if (direct) return direct.href;
+  const viaAlias = items.find((item) => (NAV_ALIASES[item.href] ?? []).some((alias) => onRoute(path, alias)));
+  return viaAlias?.href ?? null;
+}

@@ -2,5 +2,12 @@
   "$comment": "Exceptions for scripts/check-ipc.mjs. Every entry needs a reason. Sections: commands (invoked names that are not registered), events (listened names with no emitter), dynamic ({file, expr, kind?} for invoke/listen targets that cannot be resolved statically). Remove an entry as soon as its cause is gone: stale dynamic entries and allowlisted commands that became registered fail the check.",
   "commands": [],
   "events": [],
-  "dynamic": []
+  "dynamic": [
+    {
+      "file": "src/lib/native-agent/bridge.ts",
+      "expr": "String(args.command",
+      "kind": "invoke",
+      "reason": "omniget_invoke forwards any registered command by name; the Rust side checks it against command_catalog.json"
+    }
+  ]
 }

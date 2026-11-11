@@ -151,6 +151,9 @@
   "music": {
     "enabled": true
   },
+  "superpowers": {
+    "pinned": []
+  },
   "accessibility": {
     "reduce_motion": false,
     "reduce_transparency": false

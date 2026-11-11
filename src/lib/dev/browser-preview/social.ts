@@ -1,3 +1,9 @@
+import { audienceFixture } from "./social-audience";
+import { insightsFixture } from "./social-insights";
+import { secondFixture } from "./social-second";
+import { networkCommands, networkFixture, networkLogin, networkStatus } from "./social-networks";
+import { scheduleFixture } from "./social-schedule";
+
 type Args = Record<string, unknown>;
 type Platform = "x" | "instagram" | "tiktok";
 
@@ -86,13 +92,45 @@ const comments = (n: number) =>
     likes: 3 + i,
   }));
 
+const STAR_VIEW: Record<string, string> = { stargazers: "followers", new_stargazers: "new_followers", unstarred: "unfollowers" };
+
+function networkAudience(name: string, a: Args): unknown {
+  const p = ({ pin: "pinterest", gh: "github" } as Record<string, string>)[name.split("_")[0]];
+  const verb = name.slice(name.indexOf("_") + 1);
+  if (!p || !verb.startsWith("audience")) return undefined;
+  if (!a.repo) return audienceFixture(p, verb, a);
+  const view = String(a.view ?? "");
+  const r = audienceFixture(p, verb, { ...a, view: STAR_VIEW[view] ?? view }) as Record<string, unknown> | undefined;
+  if (!r) return r;
+  const out: Record<string, unknown> = { ...r, repo: a.repo };
+  if (view) out.view = view;
+  const counts = r.counts as Record<string, number> | undefined;
+  if (counts) out.counts = { stargazers: counts.followers, new_stargazers: counts.new_followers, unstarred: counts.unfollowers, kept: counts.kept, hidden: counts.hidden };
+  const at = r.synced_at as { followers: number | null } | undefined;
+  if (at) out.synced_at = { stargazers: at.followers };
+  const days = r.days as { followers: number | null }[] | undefined;
+  if (days) out.days = days.map((d) => ({ ...d, stargazers: d.followers }));
+  return out;
+}
+
 function call(args: Args) {
   const name = String(args.tool ?? "");
   const a = (args.args ?? {}) as Args;
+  const second = secondFixture(name, a);
+  if (second !== undefined) return second;
+  const insights = insightsFixture(name, a);
+  if (insights !== undefined) return insights;
+  const stars = networkAudience(name, a);
+  if (stars !== undefined) return stars;
+  const network = networkFixture(name, a);
+  if (network !== undefined) return network;
+  if (name.startsWith("social_schedule") || name === "social_feeds") return scheduleFixture(name, a);
   const p = PLATFORM[name.split("_")[0]];
   if (!p) throw "UNKNOWN_TOOL";
   if (!signedIn[p]) throw `NOT_LOGGED_IN: sign in to ${p} in OmniGet first`;
   const verb = name.slice(name.indexOf("_") + 1);
+  const audience = audienceFixture(p, verb, a);
+  if (audience !== undefined) return audience;
   switch (verb) {
     case "me":
       return profile(p, ME.handle);
@@ -131,18 +169,19 @@ function call(args: Args) {
 
 export const socialFixtures: Record<string, (args: Args) => unknown> = {
   social_status: () => ({
-    platforms: (["x", "instagram", "tiktok"] as Platform[]).map((platform) => ({ platform, browser: true, logged_in: signedIn[platform] })),
+    platforms: [...(["x", "instagram", "tiktok"] as Platform[]).map((platform) => ({ platform, browser: true, logged_in: signedIn[platform] })), ...networkStatus()],
   }),
   social_login: async (args) => {
     const p = String(args.platform) as Platform;
     await sleep(2500);
-    signedIn[p] = true;
+    if (!networkLogin(p)) signedIn[p] = true;
     return { tabs: [], mode: "window" };
   },
   social_call: async (args) => {
     await sleep(250);
     return call(args);
   },
+  ...networkCommands,
   social_approval_list: () => [],
   social_approval_answer: () => null,
 };

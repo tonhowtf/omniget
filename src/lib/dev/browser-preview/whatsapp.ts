@@ -51,7 +51,11 @@ type Msg = {
   saved_path: string | null;
   edited: boolean;
   deleted: boolean;
+  seq: number;
 };
+
+type Sched = { id: number; chat: string; text: string; reply_to: string | null; at: number; created: number; status: string; error: string | null; sent_id: string | null; sent_at: number | null };
+const scheduledRows: Sched[] = [];
 
 const FAMILY = "120363025551234567@g.us";
 const ANA = "5511987654321@s.whatsapp.net";
@@ -87,6 +91,7 @@ function m(chat: string, ago: number, partial: Partial<Msg>): Msg {
     saved_path: null,
     edited: false,
     deleted: false,
+    seq,
     ...partial,
   };
 }
@@ -328,6 +333,29 @@ export const whatsappFixtures: Record<string, (args: Args) => unknown> = {
     await sleep(250);
     void emit("whatsapp-chats-changed", {});
     return row;
+  },
+  whatsapp_find: ({ query }) => {
+    const q = String(query ?? "").toLowerCase();
+    return Object.entries(CHAT_NAMES)
+      .filter(([, name]) => name.toLowerCase().includes(q))
+      .map(([jid, name]) => ({ jid, name, is_group: jid.endsWith("@g.us"), has_chat: true, last_ts: NOW, unread: 0 }));
+  },
+  whatsapp_wait: async ({ timeoutSecs }) => {
+    await sleep(Math.min(Number(timeoutSecs ?? 1), 2) * 1000);
+    return { messages: [], cursor: seq, timed_out: true };
+  },
+  whatsapp_schedule: ({ chat, text, at }) => {
+    const row: Sched = { id: scheduledRows.length + 1, chat: String(chat), text: String(text), reply_to: null, at: Number(at), created: Math.floor(Date.now() / 1000), status: "pending", error: null, sent_id: null, sent_at: null };
+    scheduledRows.push(row);
+    void emit("whatsapp-scheduled-changed", {});
+    return row;
+  },
+  whatsapp_scheduled: ({ includeDone }) => scheduledRows.filter((r) => includeDone || r.status === "pending"),
+  whatsapp_cancel_scheduled: ({ id }) => {
+    const row = scheduledRows.find((r) => r.id === Number(id) && r.status === "pending");
+    if (row) row.status = "cancelled";
+    void emit("whatsapp-scheduled-changed", {});
+    return !!row;
   },
   whatsapp_request_older: () => {
     requireOnline();

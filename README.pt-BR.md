@@ -183,7 +183,8 @@ Prefere clicar? **Configurações → IA e agentes → Conectar a outros apps** 
 | Depois de baixar | Ler os detalhes dos arquivos prontos e ganhar acesso temporário a eles |
 | Seus agentes | Listar agentes e espaços de trabalho, iniciar e acompanhar missões e jobs, ler diffs, ver aprovações pendentes |
 | Memória, biblioteca, Telegram | Consultar e ensinar a memória do OmniGet, buscar nos seus livros, ler e baixar do Telegram |
-| Global Downloader | Abrir o navegador dele, ver a página, prever o que uma página rende, baixar cursos e sites inteiros, criar, testar e instalar conectores |
+| Global Downloader | Abrir o navegador dele ou se ligar ao Chrome que você já usa, ler uma página dentro de um orçamento de tokens, fazer vários passos em uma chamada, prever o que uma página rende, baixar cursos e sites inteiros, criar, testar e instalar conectores |
+| Ferramentas de desenvolvimento | Empacotar uma pasta em um arquivo pronto para o prompt dentro de um orçamento de tokens, transformar uma página em Markdown limpo, enviar uma requisição HTTP, listar e parar o que escuta em uma porta, e trabalhar com JSON, JWT, Base64, hashes, regex e diffs offline |
 | Seu computador | O washmybelly escaneia e planeja; executar ou desfazer um plano sempre pergunta a você na janela do OmniGet |
 
 ### Cursos e sites inteiros, com o Global Downloader
@@ -271,9 +272,14 @@ Já vêm dentro do app, em **Superpoderes** na barra lateral. Cada um pode ser d
 | **PDF** | Abra PDFs, reordene, gire e apague páginas, junte vários arquivos ou divida um, e salve o resultado. Tudo roda no seu computador |
 | **Fotos** | Uma galeria para as suas pastas de fotos: ache duplicatas, faça ajustes rápidos e exporte em lote |
 | **Recortar** | Tire o fundo de uma imagem no seu computador e clique no objeto para refinar o recorte |
-| **WhatsApp** | Vincule o celular com um QR code, leia suas conversas e baixe ou exporte as fotos, vídeos, áudios e documentos delas |
+| **WhatsApp** | Vincule o celular com um QR code, leia suas conversas, envie ou agende mensagens no segundo certo, e baixe ou exporte as fotos, vídeos, áudios e documentos delas. Agentes acompanham conversas ao vivo e respondem pelo MCP |
 | **Discord** | Leia e responda seus servidores e DMs, baixe a mídia de um canal ou exporte o histórico em HTML, JSON ou texto |
-| **X, Instagram e TikTok** | Feeds, perfis, posts e comentários pela sua própria sessão no navegador do OmniGet: curta, comente, siga e, no X, poste. Seus agentes ganham as mesmas ferramentas pelo MCP, e cada ação espera a sua aprovação |
+| **X, Instagram e TikTok** | Feeds, perfis, posts e comentários pela sua própria sessão no navegador do OmniGet: curta, comente, siga e, no X, poste e pergunte ao Grok. Seus agentes ganham as mesmas ferramentas pelo MCP, e cada ação espera a sua aprovação |
+| **Pack** | Transforme uma pasta ou repositório em um arquivo pronto para o prompt. Você vê os tokens de cada arquivo, define um orçamento e recebe a lista do que ficou de fora e por quê; arquivo com segredo nunca entra |
+| **Scrape** | Transforme uma página em Markdown limpo, texto ou HTML com limite de tokens, ou pegue elementos com um seletor CSS. Quando o site bloqueia, ele diz o motivo e leva você ao navegador do Global Downloader |
+| **API** | Envie uma requisição HTTP e leia status, tempo, redirecionamentos, cabeçalhos e corpo, depois copie como curl. Sem conta, nada fica guardado |
+| **DevTools** | Utilitários offline para JSON, JWT, Base64, URLs, hashes, UUIDs, timestamps, regex e diffs, mais a lista do que escuta em cada porta, com botão de Parar |
+| **Transfer** | Navegar em servidores FTP, FTPS e SFTP (um NAS, uma hospedagem, um console rodando um servidor FTP), enviar, baixar, renomear e apagar, com servidores salvos e senhas guardadas no chaveiro do sistema |
 | **League of Legends** | Um ajudante para o seu cliente do League aberto: scouting, ouro ao vivo, runas com um clique. Toda automação fica desligada até você ligar |
 
 ---

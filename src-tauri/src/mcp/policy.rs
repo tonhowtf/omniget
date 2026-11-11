@@ -71,12 +71,21 @@ pub const SCOPES: &[&str] = &[
     "telegram_write",
     "social_read",
     "social_write",
+    "whatsapp_read",
+    "whatsapp_write",
     "approvals_respond",
     "agents_run",
     "memory_read",
     "memory_write",
     "library",
     "global_downloader",
+    "global_downloader_read",
+    "app_invoke",
+    "devtools_read",
+    "devtools_write",
+    "transfer_read",
+    "transfer_write",
+    "research_read",
 ];
 
 fn stored_scopes(raw: &str) -> Vec<String> {
@@ -119,7 +128,7 @@ pub fn create(name: String, scopes: Vec<String>) -> Result<ConnectionGrant, Stri
 pub fn list() -> Result<Vec<Principal>, String> {
     let db = db()?;
     let mut stmt = db
-        .prepare("SELECT id,name,scopes FROM clients WHERE revoked=0 ORDER BY name")
+        .prepare("SELECT id,name,scopes FROM clients WHERE revoked=0 AND id<>'local' ORDER BY name")
         .map_err(|e| e.to_string())?;
     let rows = stmt
         .query_map([], |r| {
@@ -134,6 +143,10 @@ pub fn list() -> Result<Vec<Principal>, String> {
         .map_err(|e| e.to_string())
 }
 pub fn revoke(id: &str) -> Result<(), String> {
+    // The tokenless connection is turned off in the access panel, not revoked.
+    if id == super::access::LOCAL_ID {
+        return Ok(());
+    }
     #[cfg(not(test))]
     {
         let assist = omniget_core::core::assist::db::global();
@@ -212,6 +225,7 @@ pub fn principal(id: &str) -> Result<Principal, String> {
 }
 pub fn scope(name: &str) -> Option<&'static str> {
     Some(match name {
+        "omniget_commands" | "omniget_invoke" => "app_invoke",
         "omniget_app_status" | "omniget_app_inspect" | "omniget_app_catalog" => "app_observe",
         "omniget_app_navigate" | "omniget_app_interact" => "app_control",
         "omniget_app_capture" | "omniget_app_record" | "omniget_app_export" => "app_capture",
@@ -270,16 +284,49 @@ pub fn scope(name: &str) -> Option<&'static str> {
                 "social_read"
             }
         }
+        n if super::whatsapp::owns(n) => {
+            if super::whatsapp::find(n).is_some_and(|t| t.write) {
+                "whatsapp_write"
+            } else {
+                "whatsapp_read"
+            }
+        }
         "read_library_search" | "read_book_get" | "read_book_text" | "read_updates" => "library",
+        n if crate::commands::devtools::mcp::TOOLS.contains(&n) => "devtools_read",
+        n if crate::commands::transfer::mcp::WRITE_TOOLS.contains(&n) => "transfer_write",
+        n if crate::commands::transfer::mcp::TOOLS.contains(&n) => "transfer_read",
+        n if crate::commands::research::mcp::TOOLS.contains(&n) => "research_read",
         n if n.starts_with("gd_") => "global_downloader",
         n if super::canvas::owns(n) => return super::canvas::scope(n),
         _ => return None,
     })
 }
 pub fn allowed(p: &Principal, name: &str) -> bool {
-    scope(name).is_some_and(|s| p.scopes.iter().any(|v| v == s))
+    let has = |scope: &str| p.scopes.iter().any(|v| v == scope);
+    scope(name).is_some_and(has)
+        || (name.starts_with("gd_")
+            && !super::global_dl::writes(name)
+            && has("global_downloader_read"))
+}
+/// The row behind tokenless connections, so grants and receipts can point at it.
+pub fn sync_local(scopes: &[String]) -> Result<(), String> {
+    db()?
+        .execute(
+            "INSERT INTO clients(id,name,digest,scopes,revoked) VALUES(?1,'Local',?2,?3,0)
+             ON CONFLICT(id) DO UPDATE SET scopes=excluded.scopes,revoked=0",
+            params![
+                super::access::LOCAL_ID,
+                digest("omniget-local-connection"),
+                serde_json::to_string(scopes).map_err(|e| e.to_string())?
+            ],
+        )
+        .map_err(|e| e.to_string())?;
+    Ok(())
 }
 pub fn own(p: &Principal, id: u64) -> Result<(), String> {
+    if super::access::sees_everything(p) {
+        return Ok(());
+    }
     let yes: bool = db()?
         .query_row(
             "SELECT EXISTS(SELECT 1 FROM owners WHERE download=?1 AND principal=?2)",
@@ -443,6 +490,65 @@ mod tests {
     }
 
     #[test]
+    fn transfer_tools_split_reading_from_writing() {
+        assert!(SCOPES.contains(&"transfer_read"));
+        assert!(SCOPES.contains(&"transfer_write"));
+        for tool in ["transfer_servers", "transfer_list", "transfer_get"] {
+            assert_eq!(scope(tool), Some("transfer_read"), "{tool}");
+        }
+        for tool in ["transfer_put", "transfer_manage"] {
+            assert_eq!(scope(tool), Some("transfer_write"), "{tool}");
+        }
+        let reader = Principal {
+            id: "x".into(),
+            name: "X".into(),
+            scopes: vec!["transfer_read".into(), "transfer".into()],
+        };
+        assert!(allowed(&reader, "transfer_list"));
+        assert!(!allowed(&reader, "transfer_put"));
+        assert!(!allowed(&reader, "transfer_manage"));
+    }
+
+    #[test]
+    fn research_tools_need_their_own_grant() {
+        assert!(SCOPES.contains(&"research_read"));
+        for tool in crate::commands::research::mcp::TOOLS {
+            assert_eq!(scope(tool), Some("research_read"), "{tool}");
+        }
+        let everything_else = Principal {
+            id: "p".into(),
+            name: "p".into(),
+            scopes: SCOPES
+                .iter()
+                .filter(|s| **s != "research_read")
+                .map(|s| s.to_string())
+                .collect(),
+        };
+        assert!(!allowed(&everything_else, "research_call"));
+        assert!(!allowed(&everything_else, "research_reels"));
+    }
+
+    #[test]
+    fn devtools_need_their_own_read_grant() {
+        assert!(SCOPES.contains(&"devtools_read"));
+        assert!(SCOPES.contains(&"devtools_write"));
+        for tool in crate::commands::devtools::mcp::TOOLS {
+            assert_eq!(scope(tool), Some("devtools_read"), "{tool}");
+        }
+        let everything_else = Principal {
+            id: "x".into(),
+            name: "X".into(),
+            scopes: SCOPES
+                .iter()
+                .filter(|s| **s != "devtools_read")
+                .map(|s| s.to_string())
+                .collect(),
+        };
+        assert!(!allowed(&everything_else, "dev_http"));
+        assert!(!allowed(&everything_else, "dev_ports"));
+    }
+
+    #[test]
     fn agent_run_needs_its_own_grant() {
         assert_eq!(scope("agent_run"), Some("agents_run"));
         assert_eq!(scope("job_cancel"), Some("agents_run"));
@@ -482,6 +588,35 @@ mod tests {
     }
 
     #[test]
+    fn the_browser_read_scope_sees_pages_but_cannot_act_on_them() {
+        let reader = Principal {
+            id: "r".into(),
+            name: "R".into(),
+            scopes: vec!["global_downloader_read".into()],
+        };
+        for tool in [
+            "gd_snapshot",
+            "gd_tabs",
+            "gd_network_log",
+            "gd_market",
+            "gd_connectors",
+        ] {
+            assert!(allowed(&reader, tool), "{tool}");
+        }
+        for tool in [
+            "gd_click",
+            "gd_act",
+            "gd_cdp",
+            "gd_download",
+            "gd_market_install",
+            "gd_page_eval",
+        ] {
+            assert!(!allowed(&reader, tool), "{tool}");
+        }
+        assert!(!allowed(&reader, "download_enqueue"));
+    }
+
+    #[test]
     fn global_downloader_needs_its_own_grant() {
         let gd = crate::mcp::tools()
             .into_iter()
@@ -494,7 +629,7 @@ mod tests {
             name: "X".into(),
             scopes: SCOPES
                 .iter()
-                .filter(|s| **s != "global_downloader")
+                .filter(|s| !s.starts_with("global_downloader"))
                 .map(|s| s.to_string())
                 .collect(),
         };
@@ -516,6 +651,7 @@ mod persistence_tests {
     use super::*;
     #[test]
     fn owner_revocation_and_intent_isolation_survive_reopening() {
+        crate::mcp::access::close_for_test();
         let dir =
             std::env::temp_dir().join(format!("omniget-policy-test-{}", uuid::Uuid::new_v4()));
         TEST_DIR.with(|p| *p.borrow_mut() = Some(dir.clone()));

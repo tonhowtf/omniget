@@ -59,7 +59,9 @@
   import { llmNotifyStrings } from "$lib/llm-notify-strings";
   import { focusPayload } from "$lib/ui-focus.svelte";
   import { get } from "svelte/store";
-  import { CORE_NAV_ITEMS, type NavItem } from "$lib/nav-config";
+  import { CORE_NAV_ITEMS } from "$lib/nav-config";
+  import { SUPERPOWERS } from "$lib/superpowers/catalog";
+  import { pinnedNavItems } from "$lib/superpowers/pins";
   import { isBareWindow } from "$lib/bare-window";
   import type { Snippet } from "svelte";
   import type { Component } from "svelte";
@@ -75,7 +77,17 @@
     )
   );
 
-  let allNav = $derived([...coreNavItems].sort((a, b) => (a.order ?? 50) - (b.order ?? 50)));
+  const SUPERPOWER_TOGGLES = SUPERPOWERS.filter((entry) => entry.settingsKey);
+
+  let pinnedNav = $derived.by(() => {
+    const current = getSettings();
+    const enabled = Object.fromEntries(
+      SUPERPOWER_TOGGLES.map((entry) => [entry.id, current?.[entry.settingsKey!]?.enabled ?? true]),
+    );
+    return pinnedNavItems(SUPERPOWERS, current?.superpowers?.pinned ?? [], enabled);
+  });
+
+  let allNav = $derived([...coreNavItems, ...pinnedNav].sort((a, b) => (a.order ?? 50) - (b.order ?? 50)));
   let primaryNav = $derived(allNav.filter((item) => item.group === "primary"));
   let appNav = $derived(allNav.filter((item) => item.group === "app"));
 
@@ -144,6 +156,15 @@
     page.url.pathname === "/x" ||
     page.url.pathname.startsWith("/instagram") ||
     page.url.pathname.startsWith("/tiktok") ||
+    page.url.pathname.startsWith("/reddit") ||
+    page.url.pathname.startsWith("/pinterest") ||
+    page.url.pathname.startsWith("/github") ||
+    page.url.pathname.startsWith("/devtools") ||
+    page.url.pathname.startsWith("/pack") ||
+    page.url.pathname.startsWith("/scrape") ||
+    /^\/api(\/|$)/.test(page.url.pathname) ||
+    page.url.pathname.startsWith("/transfer") ||
+    page.url.pathname.startsWith("/research") ||
     page.url.pathname.startsWith("/community"),
   );
 
@@ -481,6 +502,69 @@
         group: get(t)("command_palette.group_nav"),
         keywords: "tiktok tik tok videos vídeos for you fyp perfil profile seguir follow curtir like comentar comment busca search agente agents mcp",
         action: () => goto("/tiktok"),
+      },
+      {
+        id: "nav-social-reddit",
+        label: get(t)("social.reddit.title"),
+        group: get(t)("command_palette.group_nav"),
+        keywords: "reddit subreddit subreddits comunidades communities posts upvote votar vote karma comentários comments salvos saved busca search front page popular agente agents mcp",
+        action: () => goto("/reddit"),
+      },
+      {
+        id: "nav-social-pinterest",
+        label: get(t)("social.pinterest.title"),
+        group: get(t)("command_palette.group_nav"),
+        keywords: "pinterest pins pin boards pastas quadros ideias ideas inspiração inspiration moodboard salvar save seguir follow busca search agente agents mcp",
+        action: () => goto("/pinterest"),
+      },
+      {
+        id: "nav-social-github",
+        label: get(t)("social.github.title"),
+        group: get(t)("command_palette.group_nav"),
+        keywords: "github git repos repositórios repositories stars estrelas stargazers forks issues pull requests prs releases trending notificações notifications seguidores followers token agente agents mcp",
+        action: () => goto("/github"),
+      },
+      {
+        id: "nav-devtools",
+        label: get(t)("devtools.title"),
+        group: get(t)("command_palette.group_nav"),
+        keywords: "devtools dev tools ferramentas utilities utilitários json format formatar jwt decode hash md5 sha256 base64 regex diff comparar uuid timestamp port porta ports portas inspector localhost",
+        action: () => goto("/devtools"),
+      },
+      {
+        id: "nav-pack",
+        label: get(t)("pack.title"),
+        group: get(t)("command_palette.group_nav"),
+        keywords: "pack empacotar repo repository repositório folder pasta prompt context contexto llm tokens budget secrets segredos scan repomix gitingest codebase",
+        action: () => goto("/pack"),
+      },
+      {
+        id: "nav-scrape",
+        label: get(t)("scrape.title"),
+        group: get(t)("command_palette.group_nav"),
+        keywords: "scrape scraper raspar extrair extract page página site web markdown html selector seletor css elements elementos article artigo",
+        action: () => goto("/scrape"),
+      },
+      {
+        id: "nav-api",
+        label: get(t)("api.title"),
+        group: get(t)("command_palette.group_nav"),
+        keywords: "api http request requisição rest get post put delete headers status timing tempo redirects redirecionamentos curl postman insomnia endpoint",
+        action: () => goto("/api"),
+      },
+      {
+        id: "nav-transfer",
+        label: get(t)("transfer.title"),
+        group: get(t)("command_palette.group_nav"),
+        keywords: "transfer ftp ftps sftp ssh servidor server nas hospedagem hosting console switch arquivos files upload download enviar baixar remoto remote",
+        action: () => goto("/transfer"),
+      },
+      {
+        id: "nav-research",
+        label: get(t)("research.title"),
+        group: get(t)("command_palette.group_nav"),
+        keywords: "research pesquisa scrapecreators api social tiktok instagram reels youtube reddit linkedin facebook meta ads anúncios ad library creators criadores influencers influenciadores transcript transcrição brief briefing concorrentes competitors",
+        action: () => goto("/research"),
       },
       { id: "nav-help", label: get(t)("nav.help"), group: get(t)("command_palette.group_nav"), keywords: "help ajuda guias docs assinatura agente monitor", action: () => goto("/help") },
       {

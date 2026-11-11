@@ -44,6 +44,7 @@ async-trait = "0.1"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 regex = "1"
+roxmltree = "0.21.1"
 aes = "0.8"
 cbc = "0.1"
 anyhow = "1"
@@ -73,8 +74,10 @@ hmac = "0.12"
 qrcode = { version = "0.14", default-features = false, features = ["svg"] }
 rsa = "0.9"
 flate2 = "1"
+tar = "0.4"
 portable-pty = "0.9"
 omniget-core = { path = "omniget-core" }
+sysinfo = "0.39.6"
 omniget-whatsapp = { path = "omniget-whatsapp" }
 which = "7"
 walkdir = "2"
@@ -90,6 +93,10 @@ native-tls = "0.2.18"
 tokio-rustls = { version = "0.26", default-features = false, features = ["ring", "tls12"] }
 fs4 = "1"
 lettre = { version = "0.11", default-features = false, features = ["smtp-transport", "tokio1", "tokio1-native-tls", "builder", "hostname"] }
+
+[dev-dependencies]
+libunftp = { version = "0.24", default-features = false, features = ["ring"] }
+unftp-sbe-fs = "0.4"
 
 [target.'cfg(windows)'.dependencies]
 winreg = "0.55"

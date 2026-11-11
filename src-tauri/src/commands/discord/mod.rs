@@ -323,6 +323,55 @@ pub fn discord_qr_start(app: AppHandle) -> Result<(), String> {
     Ok(())
 }
 
+const BROWSER_TOKEN: &str = r#"(()=>{
+if(location.pathname.startsWith('/login')||location.pathname.startsWith('/register'))return null;
+try{const f=document.createElement('iframe');f.style.display='none';document.body.appendChild(f);const t=f.contentWindow.localStorage.getItem('token');f.remove();if(t)return t;}catch(e){}
+try{const c=window.webpackChunkdiscord_app;if(c){let tok=null;c.push([[Symbol()],{},r=>{for(const m of Object.values(r.c||{})){const e=m&&m.exports;if(!e)continue;for(const k of Object.keys(e)){const x=e[k];if(x&&typeof x.getToken==='function'){try{tok=x.getToken()}catch(_){}}if(tok)break}if(tok)break}}]);if(tok)return tok;}}catch(e){}
+return null;})()"#;
+
+async fn browser_token() -> Option<String> {
+    use omniget_core::core::global_dl::browser;
+    let b = browser::current()?;
+    let tab = b.tab_for_origin("https://discord.com/")?;
+    let v = b
+        .eval(&tab.id, BROWSER_TOKEN, Duration::from_secs(10))
+        .await
+        .ok()?;
+    let t = auth::clean_token(v.as_str()?);
+    auth::looks_like_token(&t).then_some(t)
+}
+
+#[tauri::command]
+pub async fn discord_browser_login(app: AppHandle) -> Result<(), String> {
+    let cancel = CancellationToken::new();
+    if let Some(old) = lock(&core().qr).replace(cancel.clone()) {
+        old.cancel();
+    }
+    crate::commands::global_dl::gd_browser_show(Some("https://discord.com/login".into()), None)
+        .await?;
+    tauri::async_runtime::spawn(async move {
+        let started = Instant::now();
+        while !cancel.is_cancelled() && started.elapsed() < Duration::from_secs(900) {
+            if let Some(token) = browser_token().await {
+                let payload = match adopt_token(&app, &token).await {
+                    Ok(account) => json!({ "stage": "done", "account": account }),
+                    Err(e) => json!({ "stage": "error", "error": e }),
+                };
+                let _ = app.emit("discord-qr", payload);
+                return;
+            }
+            tokio::select! {
+                _ = cancel.cancelled() => return,
+                _ = tokio::time::sleep(Duration::from_secs(2)) => {}
+            }
+        }
+        if !cancel.is_cancelled() {
+            let _ = app.emit("discord-qr", json!({ "stage": "expired" }));
+        }
+    });
+    Ok(())
+}
+
 #[tauri::command]
 pub fn discord_qr_cancel() {
     if let Some(c) = lock(&core().qr).take() {

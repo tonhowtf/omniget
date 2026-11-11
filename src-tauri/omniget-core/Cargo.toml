@@ -91,6 +91,7 @@ cipher = "0.4"
 filetime = "0.2"
 axum = { version = "0.8", default-features = false, features = ["http1", "json", "tokio", "query"] }
 scraper = "0.27"
+ignore = "0.4"
 pulldown-cmark = { version = "0.13", default-features = false, features = ["html"] }
 chardetng = "0.1"
 alacritty_terminal = "0.26.0"
@@ -109,6 +110,15 @@ acadrust = { version = "0.6.8", default-features = false }
 pdfcraft-organize = "=0.18.1"
 pdfcraft-cos = "=0.18.1"
 pdfcraft-filters = "=0.18.1"
+suppaftp = { version = "12.2", default-features = false, features = ["tokio-rustls-ring"] }
+russh = { version = "0.65", default-features = false, features = ["ring", "rsa"] }
+russh-sftp = "3"
+
+[dev-dependencies]
+libunftp = { version = "0.24", default-features = false, features = ["ring"] }
+unftp-sbe-fs = "0.4"
+unftp-core = "0.1"
+rcgen = { version = "0.14", default-features = false, features = ["ring", "pem"] }
 
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.61", features = [

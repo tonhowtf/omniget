@@ -16,5 +16,6 @@ pub mod launch;
 pub mod read;
 pub mod splash;
 pub mod tg;
+pub mod tool;
 pub mod usage;
 pub mod wmb;

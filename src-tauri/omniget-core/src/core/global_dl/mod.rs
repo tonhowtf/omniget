@@ -2,6 +2,7 @@ pub mod blocklist;
 pub mod browser;
 pub mod cdp;
 pub mod connector;
+pub mod harness;
 pub mod jobs;
 pub mod market;
 pub mod page;

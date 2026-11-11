@@ -78,15 +78,13 @@
     "screenId": "/community/debug",
     "route": "/community/debug",
     "windowId": "main",
-    "sensitive": true,
+    "sensitive": false,
     "kind": "page",
     "navigation": "main-route",
-    "preconditions": [
-      "Sensitive: pixels, inspection and UI actions blocked."
-    ],
+    "preconditions": [],
     "capabilities": {
-      "inspect": false,
-      "capture": false,
+      "inspect": true,
+      "capture": true,
       "actions": "Only actions returned by inspect",
       "conditionalStates": "Inspect currently rendered state; hidden dialogs and tabs are not enumerated"
     }
@@ -262,15 +260,13 @@
     "screenId": "/settings",
     "route": "/settings",
     "windowId": "main",
-    "sensitive": true,
+    "sensitive": false,
     "kind": "page",
     "navigation": "main-route",
-    "preconditions": [
-      "Sensitive: pixels, inspection and UI actions blocked."
-    ],
+    "preconditions": [],
     "capabilities": {
-      "inspect": false,
-      "capture": false,
+      "inspect": true,
+      "capture": true,
       "actions": "Only actions returned by inspect",
       "conditionalStates": "Inspect currently rendered state; hidden dialogs and tabs are not enumerated"
     }
@@ -445,6 +441,51 @@
   {
     "screenId": "/tiktok",
     "route": "/tiktok",
+    "windowId": "main",
+    "sensitive": false,
+    "kind": "page",
+    "navigation": "main-route",
+    "preconditions": [],
+    "capabilities": {
+      "inspect": true,
+      "capture": true,
+      "actions": "Only actions returned by inspect",
+      "conditionalStates": "Inspect currently rendered state; hidden dialogs and tabs are not enumerated"
+    }
+  },
+  {
+    "screenId": "/reddit",
+    "route": "/reddit",
+    "windowId": "main",
+    "sensitive": false,
+    "kind": "page",
+    "navigation": "main-route",
+    "preconditions": [],
+    "capabilities": {
+      "inspect": true,
+      "capture": true,
+      "actions": "Only actions returned by inspect",
+      "conditionalStates": "Inspect currently rendered state; hidden dialogs and tabs are not enumerated"
+    }
+  },
+  {
+    "screenId": "/pinterest",
+    "route": "/pinterest",
+    "windowId": "main",
+    "sensitive": false,
+    "kind": "page",
+    "navigation": "main-route",
+    "preconditions": [],
+    "capabilities": {
+      "inspect": true,
+      "capture": true,
+      "actions": "Only actions returned by inspect",
+      "conditionalStates": "Inspect currently rendered state; hidden dialogs and tabs are not enumerated"
+    }
+  },
+  {
+    "screenId": "/github",
+    "route": "/github",
     "windowId": "main",
     "sensitive": false,
     "kind": "page",
@@ -649,6 +690,100 @@
     "kind": "page",
     "navigation": "open-existing-product-window",
     "preconditions": [],
+    "capabilities": {
+      "inspect": true,
+      "capture": true,
+      "actions": "Only actions returned by inspect",
+      "conditionalStates": "Inspect currently rendered state; hidden dialogs and tabs are not enumerated"
+    }
+  },
+  {
+    "screenId": "/devtools",
+    "route": "/devtools",
+    "windowId": "main",
+    "sensitive": false,
+    "kind": "page",
+    "navigation": "main-route",
+    "preconditions": [],
+    "capabilities": {
+      "inspect": true,
+      "capture": true,
+      "actions": "Only actions returned by inspect",
+      "conditionalStates": "Inspect currently rendered state; hidden dialogs and tabs are not enumerated"
+    }
+  },
+  {
+    "screenId": "/pack",
+    "route": "/pack",
+    "windowId": "main",
+    "sensitive": false,
+    "kind": "page",
+    "navigation": "main-route",
+    "preconditions": [],
+    "capabilities": {
+      "inspect": true,
+      "capture": true,
+      "actions": "Only actions returned by inspect",
+      "conditionalStates": "Inspect currently rendered state; hidden dialogs and tabs are not enumerated"
+    }
+  },
+  {
+    "screenId": "/scrape",
+    "route": "/scrape",
+    "windowId": "main",
+    "sensitive": false,
+    "kind": "page",
+    "navigation": "main-route",
+    "preconditions": [],
+    "capabilities": {
+      "inspect": true,
+      "capture": true,
+      "actions": "Only actions returned by inspect",
+      "conditionalStates": "Inspect currently rendered state; hidden dialogs and tabs are not enumerated"
+    }
+  },
+  {
+    "screenId": "/api",
+    "route": "/api",
+    "windowId": "main",
+    "sensitive": false,
+    "kind": "page",
+    "navigation": "main-route",
+    "preconditions": [],
+    "capabilities": {
+      "inspect": true,
+      "capture": true,
+      "actions": "Only actions returned by inspect",
+      "conditionalStates": "Inspect currently rendered state; hidden dialogs and tabs are not enumerated"
+    }
+  },
+  {
+    "screenId": "/transfer",
+    "route": "/transfer",
+    "windowId": "main",
+    "sensitive": true,
+    "kind": "page",
+    "navigation": "main-route",
+    "preconditions": [
+      "Saved servers and their files belong to the person; the server form has a password field."
+    ],
+    "capabilities": {
+      "inspect": true,
+      "capture": true,
+      "actions": "Only actions returned by inspect",
+      "conditionalStates": "Inspect currently rendered state; hidden dialogs and tabs are not enumerated"
+    }
+  },
+  {
+    "screenId": "/research",
+    "route": "/research",
+    "windowId": "main",
+    "sensitive": true,
+    "kind": "page",
+    "navigation": "main-route",
+    "preconditions": [
+      "The page has a field for the person's ScrapeCreators API key; running a workflow or an endpoint spends their credits."
+    ],
     "capabilities": {
       "inspect": true,
       "capture": true,

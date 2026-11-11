@@ -43,6 +43,8 @@ pub struct AppSettings {
     pub tube: TubeSettings,
     pub washmybelly: WashMyBellySettings,
     #[serde(default)]
+    pub superpowers: SuperpowersSettings,
+    #[serde(default)]
     pub read: ReadSettings,
     #[serde(default)]
     pub accessibility: AccessibilitySettings,
@@ -827,6 +829,12 @@ impl Default for WashMyBellySettings {
     }
 }
 
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct SuperpowersSettings {
+    #[serde(default)]
+    pub pinned: Vec<String>,
+}
+
 fn default_league_enabled() -> bool {
     true
 }
@@ -1423,6 +1431,7 @@ impl Default for AppSettings {
             video: VideoSettings::default(),
             tube: TubeSettings::default(),
             washmybelly: WashMyBellySettings::default(),
+            superpowers: SuperpowersSettings::default(),
             read: ReadSettings::default(),
             accessibility: AccessibilitySettings::default(),
             world: WorldSettings::default(),

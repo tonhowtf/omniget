@@ -2,7 +2,8 @@ use std::path::PathBuf;
 
 use serde_json::{json, Value};
 
-use super::{browser, connector, jobs, page, profiles, sniffer, Node, Source};
+use super::harness::{self, SnapOpts};
+use super::{browser, connector, jobs, market, page, profiles, sniffer, Node, Source};
 use crate::core::llm::tool_table::{
     list, need_str, num, s, to_json, BoxFut, CostHint, ToolEntry, ToolImpl,
 };
@@ -40,7 +41,8 @@ pub fn entries() -> Vec<ToolEntry> {
           obj(json!({ "url": { "type": "string" }, "window": { "type": "boolean", "description": "true: a visible browser window the person can use" } }), &[]),
           |a| Box::pin(async move {
               let url = Some(s(&a, "url")).filter(|u| !u.is_empty());
-              if a["window"].as_bool() == Some(true) && browser::mode() != "window" {
+              let attached = browser::current().is_some_and(|b| b.attached);
+              if a["window"].as_bool() == Some(true) && browser::mode() != "window" && !attached {
                   browser::ensure_no_running_job(false)?;
                   browser::switch_mode("window").await?;
               }
@@ -65,15 +67,71 @@ pub fn entries() -> Vec<ToolEntry> {
               to_json(json!({ "tabs": b.tabs() }))
           }), Cheap),
         e("gd_snapshot",
-          "Read the page in a browser tab (default: the tab shown in OmniGet): an indented role/name tree whose refs (e12) work in gd_click and gd_type, plus the visible text, URL and title.",
-          obj(json!({ "tab_id": { "type": "string" }, "max_nodes": { "type": "integer", "maximum": 10000 }, "max_chars": { "type": "integer", "maximum": 200000 } }), &[]),
+          "Read the page in a browser tab (default: the tab shown in OmniGet) as an indented role/name tree whose refs (e12) work in gd_click, gd_type and gd_act, plus the visible text, URL and title; needs_human reports a captcha, bot check or login wall. Use it to find elements before acting, and keep it small with maxTokens, role, text or scope, or diff=true to get only what changed since the last snapshot of that tab.",
+          obj(json!({ "tab_id": { "type": "string" }, "maxTokens": { "type": "integer", "minimum": 1, "description": "budget for the tree and text (chars/4); the result says truncated, total and returned" }, "role": { "type": "string", "description": "keep only lines with this role (button, link, textbox, heading...)" }, "text": { "type": "string", "description": "keep only lines containing this text" }, "scope": { "type": "string", "description": "a ref (e12) or CSS selector: snapshot only that subtree" }, "diff": { "type": "boolean", "description": "return only added, changed and removed lines since the previous snapshot of this tab" }, "max_nodes": { "type": "integer", "maximum": 10000 }, "max_chars": { "type": "integer", "maximum": 200000 } }), &[]),
           |a| Box::pin(async move {
               let b = browser::require()?;
-              let tab = page::pick_tab(&b, Some(s(&a, "tab_id")))?;
-              let mut v = page::snapshot(&b, &tab, num(&a, "max_nodes"), num(&a, "max_chars")).await?;
+              let tab = page::pick_tab(&b, Some(tab_arg(&a)))?;
+              let text = |k: &str| Some(s(&a, k)).filter(|v| !v.trim().is_empty());
+              let opts = SnapOpts {
+                  max_tokens: num(&a, "maxTokens"),
+                  role: text("role"),
+                  text: text("text"),
+                  diff: a["diff"].as_bool().unwrap_or(false),
+              };
+              let mut v = page::snapshot(&b, &tab, num(&a, "max_nodes"), num(&a, "max_chars"), text("scope").as_deref(), &opts).await?;
               v["tab_id"] = json!(tab);
               Ok(v)
           }), Cheap),
+        e("gd_act",
+          "Run several browser steps in order in one call (click, type, press, scroll, navigate, wait, eval; each step takes the arguments of gd_click, gd_type, gd_press, gd_scroll, gd_navigate, gd_wait and gd_page_eval) and return, per step, the result plus outcome evidence: confirmed, no_effect or unknown, and what changed (url, dom, focus, value, scroll). Use it instead of single-step calls for any flow of two or more steps, such as filling and submitting a form; it stops at the first failed step unless stopOnError=false, and at a captcha or login wall (needs_human).",
+          obj(json!({ "steps": { "type": "array", "minItems": 1, "maxItems": 30, "items": { "type": "object", "properties": { "op": { "type": "string", "enum": ["click", "type", "press", "scroll", "navigate", "wait", "eval"] }, "selector": { "type": "string" }, "text": { "type": "string" }, "key": { "type": "string" }, "url": { "type": "string" }, "expression": { "type": "string" } }, "required": ["op"] } }, "stopOnError": { "type": "boolean", "description": "default true" }, "tab_id": { "type": "string" } }), &["steps"]),
+          |a| Box::pin(act(a)), Local),
+        e("gd_cdp",
+          "Send one raw Chrome DevTools Protocol command (method, params) to a tab, or to the browser for Browser.* and Target.* methods, and return its result; results over about 8000 characters come back as a preview with truncated=true and the path of a file holding the full JSON. Use it only for what no gd_* tool covers (emulation, tracing, coverage, PDF, accessibility tree); methods that close or crash the browser, wipe all cookies or read system info are refused.",
+          obj(json!({ "method": { "type": "string", "description": "Domain.method, e.g. Page.printToPDF" }, "params": { "type": "object" }, "tabId": { "type": "string" } }), &["method"]),
+          |a| Box::pin(async move {
+              let method = need_str(&a, "method")?;
+              if !harness::cdp_method_allowed(&method) {
+                  return Err(json!({
+                      "code": "CDP_METHOD_DENIED",
+                      "message": format!("{method} is not allowed through gd_cdp"),
+                      "retryable": false,
+                      "side_effect": "none",
+                      "next_step": "Use Domain.method names. Browser.close, Browser.crash, Target.disposeBrowserContext, Storage.clearCookies, Network.clearBrowserCookies and SystemInfo.* are refused; close tabs with gd_tabs and remove single cookies with Network.deleteCookies.",
+                  }).to_string());
+              }
+              let b = browser::require()?;
+              let params = a.get("params").filter(|p| p.is_object()).cloned().unwrap_or_else(|| json!({}));
+              let tab = tab_arg(&a);
+              let session = if tab.is_empty() && harness::cdp_browser_level(&method) {
+                  None
+              } else {
+                  Some(b.session_for(&page::pick_tab(&b, Some(tab))?).await?)
+              };
+              let r = b.cdp.call(&method, params, session.as_deref()).await?;
+              let (out, full) = harness::cap_result(r, harness::RESULT_CAP_CHARS);
+              match full {
+                  Some(full) => with_file(out, full),
+                  None => Ok(json!({ "result": out, "truncated": false })),
+              }
+          }), Local),
+        e("gd_browser_attach",
+          "Attach the Global Downloader to a Chrome the person already runs, with their logins, instead of launching one: from then on every gd_* tool works on that browser, and it is never closed by OmniGet (detach=true lets go of it). Use it when a site needs the person's real session; if Chrome is not debuggable the error has code CHROME_NOT_DEBUGGABLE and a next_step telling how to turn remote debugging on.",
+          obj(json!({ "port": { "type": "integer", "minimum": 1, "maximum": 65535, "description": "remote debugging port (default 9222)" }, "endpoint": { "type": "string", "description": "ws://... browser endpoint, or http://host:port to discover it" }, "detach": { "type": "boolean" } }), &[]),
+          |a| Box::pin(async move {
+              if a["detach"].as_bool() == Some(true) {
+                  let was = browser::current().is_some_and(|b| b.attached);
+                  if was {
+                      browser::stop().await?;
+                  }
+                  return Ok(json!({ "attached": false, "detached": was }));
+              }
+              let b = browser::attach_external(harness::attach_target(&a)?).await?;
+              let product = b.cdp.call("Browser.getVersion", json!({}), None).await.map(|v| v["product"].clone()).unwrap_or(Value::Null);
+              let tabs = b.tabs();
+              to_json(json!({ "attached": true, "product": product, "tabs_total": tabs.len(), "tabs": tabs.into_iter().take(30).collect::<Vec<_>>() }))
+          }), Local),
         e("gd_click",
           "Click an element with the real mouse (the page sees a trusted click). selector: a ref from gd_snapshot (e12), text=Label, or a CSS selector. Or x/y in CSS pixels.",
           obj(json!({ "selector": { "type": "string" }, "x": { "type": "number" }, "y": { "type": "number" }, "double": { "type": "boolean" }, "tab_id": { "type": "string" } }), &[]),
@@ -265,6 +323,23 @@ pub fn entries() -> Vec<ToolEntry> {
           "Installed connectors (id, name, domains, match patterns, folder, developer mode).",
           obj(json!({}), &[]),
           |_| Box::pin(async move { to_json(json!({ "connectors": connector::list() })) }), Cheap),
+        e("gd_market",
+          "The connector marketplace: every connector in the signed catalog with its state (available, installed, update). With url, tells which installed or catalog connector covers that page. refresh=true fetches the catalog again.",
+          obj(json!({ "url": { "type": "string" }, "refresh": { "type": "boolean" } }), &[]),
+          |a| Box::pin(async move {
+              let url = s(&a, "url");
+              if !url.is_empty() {
+                  return to_json(json!(market::lookup(&url).await));
+              }
+              to_json(json!(market::view(a.get("refresh").and_then(Value::as_bool).unwrap_or(false)).await))
+          }), Network),
+        e("gd_market_install",
+          "Install a connector from the marketplace by id, or update it when it is already installed. The package is checked against the signed catalog before it is unpacked.",
+          obj(json!({ "id": { "type": "string" } }), &["id"]),
+          |a| Box::pin(async move {
+              let m = market::install_from_catalog(&need_str(&a, "id")?).await?;
+              to_json(json!({ "installed": m }))
+          }), Network),
         e("gd_download",
           "Resolve a URL (connector or sniffer) and download the whole tree, or the node ids in select, into out_dir. DRM items are skipped. Returns the job.",
           obj(json!({ "url": { "type": "string" }, "out_dir": { "type": "string" }, "select": { "type": "array", "items": { "type": "string" } }, "max_height": { "type": "integer" } }), &["url"]),
@@ -279,6 +354,138 @@ pub fn entries() -> Vec<ToolEntry> {
           obj(json!({}), &[]),
           |_| Box::pin(async move { to_json(json!({ "jobs": jobs::list() })) }), Cheap),
     ]
+}
+
+fn tab_arg(a: &Value) -> String {
+    Some(s(a, "tab_id"))
+        .filter(|t| !t.is_empty())
+        .unwrap_or_else(|| s(a, "tabId"))
+}
+
+fn with_file(mut out: Value, full: String) -> Result<Value, String> {
+    let path = std::env::temp_dir().join(format!(
+        "omniget-gd-{}.json",
+        chrono::Utc::now().format("%Y%m%d-%H%M%S%3f")
+    ));
+    std::fs::write(&path, full).map_err(|e| e.to_string())?;
+    out["path"] = json!(path);
+    Ok(out)
+}
+
+async fn call_tool(name: &str, args: Value) -> Result<Value, String> {
+    let entry = entries()
+        .into_iter()
+        .find(|t| t.name == name)
+        .ok_or_else(|| format!("unknown tool {name}"))?;
+    match entry.call {
+        ToolImpl::Core(f) => f(args).await,
+        ToolImpl::Host => Err(format!("{name} cannot run in a batch")),
+    }
+}
+
+const MAX_STEPS: usize = 30;
+const STEP_RESULT_CAP_CHARS: usize = 2000;
+
+async fn act(a: Value) -> Result<Value, String> {
+    let b = browser::require()?;
+    let batch_tab = page::pick_tab(&b, Some(tab_arg(&a)))?;
+    let steps = a["steps"]
+        .as_array()
+        .filter(|s| !s.is_empty())
+        .ok_or("steps is required: a non-empty array of {op, ...}")?;
+    if steps.len() > MAX_STEPS {
+        return Err(format!("at most {MAX_STEPS} steps per call"));
+    }
+    let stop_on_error = a["stopOnError"].as_bool().unwrap_or(true);
+    let mut rows = Vec::new();
+    let mut stopped = None;
+    let mut needs_human = None;
+    let mut last = None;
+    let mut last_tab = batch_tab.clone();
+    for step in steps {
+        let op = s(step, "op");
+        let Some(tool) = harness::tool_for_op(&op) else {
+            rows.push(json!({ "op": op, "ok": false, "outcome": "no_effect", "error": "op must be one of click, type, press, scroll, navigate, wait, eval" }));
+            if stop_on_error {
+                stopped = Some("error");
+                break;
+            }
+            continue;
+        };
+        let tab = Some(tab_arg(step))
+            .filter(|t| !t.is_empty())
+            .unwrap_or_else(|| batch_tab.clone());
+        let mut args = step.clone();
+        args["tab_id"] = json!(tab);
+        let before = page::probe(&b, &tab).await;
+        let result = call_tool(tool, args).await;
+        let mut after = page::probe(&b, &tab).await;
+        let idle = match (&before, &after) {
+            (Some(x), Some(y)) => harness::changes(x, y).is_empty(),
+            _ => false,
+        };
+        if result.is_ok() && op != "wait" && idle {
+            tokio::time::sleep(std::time::Duration::from_millis(250)).await;
+            after = page::probe(&b, &tab).await;
+        }
+        let outcome = harness::derive_outcome(&op, before.as_ref(), after.as_ref(), &result);
+        let changed = match (&before, &after) {
+            (Some(x), Some(y)) => harness::changes(x, y),
+            _ => Vec::new(),
+        };
+        let ok = result.is_ok();
+        let mut row = json!({ "op": op, "ok": ok, "outcome": outcome, "changed": changed });
+        match result {
+            Ok(v) => {
+                let (out, full) = harness::cap_result(v, STEP_RESULT_CAP_CHARS);
+                row["result"] = match full {
+                    Some(full) => with_file(out, full)?,
+                    None => out,
+                };
+            }
+            Err(e) => row["error"] = json!(e),
+        }
+        rows.push(row);
+        let was = before
+            .as_ref()
+            .and_then(|p| harness::detect_blocker(p, false));
+        let now = after.as_ref().and_then(|y| {
+            let moved = before.as_ref().is_some_and(|x| {
+                harness::redirected(&op, &browser::address_to_url(&s(step, "url")), x, y)
+            });
+            harness::detect_blocker(y, moved)
+        });
+        last = after;
+        last_tab = tab;
+        if let Some(n) = now {
+            if was.as_ref().map(|w| &w["kind"]) != Some(&n["kind"]) {
+                needs_human = Some(n);
+                stopped = Some("needs_human");
+                break;
+            }
+        }
+        if !ok && stop_on_error {
+            stopped = Some("error");
+            break;
+        }
+    }
+    let t = b.tab(&last_tab).unwrap_or_default();
+    let (url, title) = match &last {
+        Some(p) => (p.url.clone(), p.title.clone()),
+        None => (t.url, t.title),
+    };
+    let needs_human = needs_human.or_else(|| {
+        last.as_ref()
+            .and_then(|p| harness::detect_blocker(p, false))
+    });
+    let mut out = json!({ "tab_id": last_tab, "steps": rows, "completed": rows.len(), "total": steps.len(), "url": url, "title": title });
+    if let Some(reason) = stopped {
+        out["stopped"] = json!(reason);
+    }
+    if let Some(n) = needs_human {
+        out["needs_human"] = n;
+    }
+    Ok(out)
 }
 
 pub fn default_out_dir() -> PathBuf {
@@ -347,4 +554,195 @@ async fn syntax_check(src: String) -> Result<(), String> {
     })
     .await
     .map_err(|e| e.to_string())?
+}
+
+#[cfg(test)]
+mod smoke_tests {
+    use super::*;
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+    const PAGE: &str = r#"<!doctype html><title>Shop</title><input id="q" aria-label="Query"><button id="go" onclick="var d=document.createElement('p');d.textContent='hello '+document.getElementById('q').value;document.body.appendChild(d)">Go</button><div id="dead">dead</div>"#;
+    const CHALLENGE: &str = "<!doctype html><title>Just a moment...</title><p>wait</p>";
+
+    async fn serve() -> u16 {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let port = listener.local_addr().unwrap().port();
+        tokio::spawn(async move {
+            while let Ok((mut sock, _)) = listener.accept().await {
+                let mut buf = [0u8; 2048];
+                let n = sock.read(&mut buf).await.unwrap_or(0);
+                let body = if String::from_utf8_lossy(&buf[..n]).starts_with("GET /challenge") {
+                    CHALLENGE
+                } else {
+                    PAGE
+                };
+                let _ = sock
+                    .write_all(
+                        format!(
+                            "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                            body.len()
+                        )
+                        .as_bytes(),
+                    )
+                    .await;
+            }
+        });
+        port
+    }
+
+    #[tokio::test]
+    #[ignore = "launches a headless Chromium; run by hand: cargo test -p omniget-core global_dl::tools::smoke -- --ignored"]
+    async fn attach_act_snapshot_and_cdp_against_a_real_browser() {
+        let (_, exe) = browser::installed_browsers()
+            .into_iter()
+            .next()
+            .expect("a Chromium browser is installed");
+        let profile = std::env::temp_dir().join(format!("omniget-gd-smoke-{}", std::process::id()));
+        std::fs::create_dir_all(&profile).unwrap();
+        let mut chrome = tokio::process::Command::new(&exe)
+            .arg("--headless=new")
+            .arg(format!("--user-data-dir={}", profile.display()))
+            .arg("--remote-debugging-port=0")
+            .arg("--no-first-run")
+            .arg("about:blank")
+            .stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .kill_on_drop(true)
+            .spawn()
+            .unwrap();
+        let mut debug_port = None;
+        for _ in 0..100 {
+            if let Ok(t) = std::fs::read_to_string(profile.join("DevToolsActivePort")) {
+                debug_port = t.lines().next().and_then(|l| l.trim().parse::<u16>().ok());
+                if debug_port.is_some() {
+                    break;
+                }
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+        }
+        let debug_port = debug_port.expect("the browser opened its debugging port");
+        let site = serve().await;
+
+        let refused = call_tool("gd_browser_attach", json!({ "port": 1 }))
+            .await
+            .unwrap_err();
+        let refused: Value = serde_json::from_str(&refused).unwrap();
+        assert_eq!(refused["code"], "CHROME_NOT_DEBUGGABLE");
+
+        let attached = call_tool("gd_browser_attach", json!({ "port": debug_port }))
+            .await
+            .unwrap();
+        assert_eq!(attached["attached"], true);
+        assert_eq!(browser::status()["attached"], true);
+
+        let r = call_tool(
+            "gd_act",
+            json!({ "steps": [
+                { "op": "navigate", "url": format!("http://127.0.0.1:{site}/") },
+                { "op": "type", "selector": "#q", "text": "abc" },
+                { "op": "click", "selector": "#go" },
+                { "op": "wait", "text": "hello abc", "timeout_ms": 3000 },
+                { "op": "click", "selector": "#dead" },
+                { "op": "click", "selector": "#dead" },
+                { "op": "eval", "expression": "document.querySelectorAll('p').length" },
+                { "op": "click", "selector": "#missing" },
+                { "op": "press", "key": "Enter" }
+            ] }),
+        )
+        .await
+        .unwrap();
+        let steps = r["steps"].as_array().unwrap();
+        assert_eq!(r["total"], 9);
+        assert_eq!(r["completed"], 8);
+        assert_eq!(r["stopped"], "error");
+        assert_eq!(r["title"], "Shop");
+        for step in &steps[..4] {
+            assert_eq!(step["outcome"], "confirmed");
+        }
+        assert_eq!(steps[5]["outcome"], "no_effect");
+        assert_eq!(steps[6]["result"]["value"], 1);
+        assert_eq!(steps[7]["ok"], false);
+        assert_eq!(steps[7]["outcome"], "no_effect");
+        assert!(r.get("needs_human").is_none());
+
+        let buttons = call_tool("gd_snapshot", json!({ "role": "button" }))
+            .await
+            .unwrap();
+        assert_eq!(buttons["total"], 1);
+        assert!(buttons["tree"]
+            .as_str()
+            .unwrap()
+            .starts_with("- button \"Go\""));
+        let small = call_tool("gd_snapshot", json!({ "maxTokens": 6 }))
+            .await
+            .unwrap();
+        assert_eq!(small["truncated"], true);
+        let scoped = call_tool("gd_snapshot", json!({ "scope": "#dead" }))
+            .await
+            .unwrap();
+        assert_eq!(scoped["nodes"], 1);
+        call_tool("gd_snapshot", json!({})).await.unwrap();
+        call_tool("gd_click", json!({ "selector": "#go" }))
+            .await
+            .unwrap();
+        let diff = call_tool("gd_snapshot", json!({ "diff": true }))
+            .await
+            .unwrap();
+        assert_eq!(diff["diff"]["added"].as_array().unwrap().len(), 2);
+        assert!(diff.get("tree").is_none());
+
+        let two = call_tool(
+            "gd_cdp",
+            json!({ "method": "Runtime.evaluate", "params": { "expression": "1+1" } }),
+        )
+        .await
+        .unwrap();
+        assert_eq!(two["result"]["result"]["value"], 2);
+        let version = call_tool("gd_cdp", json!({ "method": "Browser.getVersion" }))
+            .await
+            .unwrap();
+        assert!(version["result"]["product"].is_string());
+        let big = call_tool(
+            "gd_cdp",
+            json!({ "method": "Runtime.evaluate", "params": { "expression": "'x'.repeat(20000)" } }),
+        )
+        .await
+        .unwrap();
+        assert_eq!(big["truncated"], true);
+        let path = big["path"].as_str().unwrap();
+        assert!(std::fs::metadata(path).unwrap().len() > 20000);
+        let _ = std::fs::remove_file(path);
+        let denied = call_tool("gd_cdp", json!({ "method": "Browser.close" }))
+            .await
+            .unwrap_err();
+        assert!(denied.contains("CDP_METHOD_DENIED"));
+
+        let blocked = call_tool(
+            "gd_act",
+            json!({ "steps": [
+                { "op": "navigate", "url": format!("http://127.0.0.1:{site}/challenge") },
+                { "op": "click", "selector": "text=wait" }
+            ] }),
+        )
+        .await
+        .unwrap();
+        assert_eq!(blocked["completed"], 1);
+        assert_eq!(blocked["stopped"], "needs_human");
+        assert_eq!(blocked["needs_human"]["kind"], "bot_challenge");
+
+        let detached = call_tool("gd_browser_attach", json!({ "detach": true }))
+            .await
+            .unwrap();
+        assert_eq!(detached["detached"], true);
+        tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+        assert!(
+            chrome.try_wait().unwrap().is_none(),
+            "detach must not close the browser"
+        );
+        assert!(browser::current().is_none());
+
+        let _ = chrome.kill().await;
+        let _ = std::fs::remove_dir_all(&profile);
+    }
 }

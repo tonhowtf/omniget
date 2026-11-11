@@ -66,6 +66,20 @@ export interface WaMessage {
   saved_path: string | null;
   edited: boolean;
   deleted: boolean;
+  seq: number;
+}
+
+export interface WaScheduled {
+  id: number;
+  chat: string;
+  text: string;
+  reply_to: string | null;
+  at: number;
+  created: number;
+  status: "pending" | "sent" | "failed" | "missed" | "cancelled";
+  error: string | null;
+  sent_id: string | null;
+  sent_at: number | null;
 }
 
 export interface WaMediaStats {
@@ -160,6 +174,10 @@ const KNOWN_ERRORS = [
   "no_anchor",
   "empty_filter",
   "empty_message",
+  "not_linked",
+  "time_in_past",
+  "chat_not_found",
+  "reply_not_found",
 ] as const;
 
 export type KnownError = (typeof KNOWN_ERRORS)[number];
@@ -202,7 +220,12 @@ export const chats = (query?: string) => invoke<WaChat[]>("whatsapp_chats", { qu
 export const messages = (chat: string, before?: number | null, limit?: number) =>
   invoke<WaMessage[]>("whatsapp_messages", { chat, before: before ?? null, limit: limit ?? null });
 export const markRead = (chat: string) => invoke<number>("whatsapp_mark_read", { chat });
-export const sendText = (chat: string, text: string) => invoke<WaMessage>("whatsapp_send_text", { chat, text });
+export const sendText = (chat: string, text: string, replyTo?: string | null) =>
+  invoke<WaMessage>("whatsapp_send_text", { chat, text, replyTo: replyTo ?? null });
+export const schedule = (chat: string, text: string, at: number) =>
+  invoke<WaScheduled>("whatsapp_schedule", { chat, text, at, replyTo: null });
+export const scheduled = (includeDone = false) => invoke<WaScheduled[]>("whatsapp_scheduled", { includeDone });
+export const cancelScheduled = (id: number) => invoke<boolean>("whatsapp_cancel_scheduled", { id });
 export const requestOlder = (chat: string) => invoke<void>("whatsapp_request_older", { chat });
 export const mediaStats = (chat: string) => invoke<WaMediaStats>("whatsapp_media_stats", { chat });
 export const defaultDir = () => invoke<string>("whatsapp_default_dir");

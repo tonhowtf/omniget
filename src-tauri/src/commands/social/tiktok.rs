@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use serde_json::{json, Value};
 
 use super::args::{opt_str, req_str, undo};
@@ -22,8 +24,87 @@ fn xhr_script(method: &str, path: &str, body: Option<&str>) -> String {
     )
 }
 
+const ENV: &str = "(()=>{let c=null;try{c=JSON.parse(document.getElementById('__UNIVERSAL_DATA_FOR_REHYDRATION__').textContent).__DEFAULT_SCOPE__['webapp.app-context']}catch(_){}\
+    return {path:location.pathname,ua:navigator.userAgent,platform:navigator.platform,lang:navigator.language,\
+    tz:Intl.DateTimeFormat().resolvedOptions().timeZone,wid:c&&c.wid,odin:c&&c.odinId,created:c&&c.webIdCreatedTime,\
+    language:c&&c.language,region:c&&c.region}})()";
+
+pub fn usable(env: &Value) -> bool {
+    opt_s(&env["wid"]).is_some() && !s(&env["path"]).starts_with("/@")
+}
+
+pub fn device_query(env: &Value) -> Option<String> {
+    let wid = opt_s(&env["wid"])?;
+    let ua = s(&env["ua"]);
+    let platform = s(&env["platform"]);
+    let os = if platform.starts_with("Mac") {
+        "mac"
+    } else if platform.starts_with("Win") {
+        "windows"
+    } else {
+        "linux"
+    };
+    let language = opt_s(&env["language"]).unwrap_or_else(|| "en".into());
+    let region = s(&env["region"]);
+    Some(web::query(&[
+        ("WebIdLastTime", s(&env["created"])),
+        ("app_language", language.clone()),
+        ("browser_language", s(&env["lang"])),
+        ("browser_name", "Mozilla".into()),
+        ("browser_online", "true".into()),
+        ("browser_platform", platform.clone()),
+        (
+            "browser_version",
+            ua.strip_prefix("Mozilla/").unwrap_or(&ua).to_string(),
+        ),
+        ("channel", "tiktok_web".into()),
+        ("cookie_enabled", "true".into()),
+        ("data_collection_enabled", "true".into()),
+        ("device_id", wid),
+        ("focus_state", "true".into()),
+        ("from_page", "user".into()),
+        ("history_len", "3".into()),
+        ("is_fullscreen", "false".into()),
+        ("is_page_visible", "true".into()),
+        ("language", language.clone()),
+        ("odinId", s(&env["odin"])),
+        ("os", os.into()),
+        ("priority_region", region.clone()),
+        ("referer", String::new()),
+        ("region", region),
+        ("screen_height", "1080".into()),
+        ("screen_width", "1920".into()),
+        ("tz_name", s(&env["tz"])),
+        ("user_is_login", "true".into()),
+        ("webcast_language", language),
+    ]))
+}
+
+async fn feed_page(b: &omniget_core::core::global_dl::browser::Browser) -> Result<Value, String> {
+    let home = format!("{}/", P.origin());
+    let tab = b
+        .tab_for_origin(&home)
+        .ok_or("BROWSER_UNAVAILABLE: the TikTok tab closed")?;
+    if let Ok(v) = b.eval(&tab.id, ENV, Duration::from_secs(5)).await {
+        if usable(&v) {
+            return Ok(v);
+        }
+    }
+    b.navigate(&tab.id, &home).await?;
+    for _ in 0..40 {
+        tokio::time::sleep(Duration::from_millis(500)).await;
+        if let Ok(v) = b.eval(&tab.id, ENV, Duration::from_secs(5)).await {
+            if usable(&v) {
+                return Ok(v);
+            }
+        }
+    }
+    Err("UPSTREAM_CHANGED: the TikTok home page did not load in the OmniGet browser (open tiktok.com there; it may be showing a check)".into())
+}
+
 async fn call_api(method: &str, path: &str) -> Result<Value, String> {
     let b = web::ready(P).await?;
+    feed_page(&b).await?;
     let sep = if path.contains('?') { '&' } else { '?' };
     let full = format!("{path}{sep}{COMMON}");
     let r = web::eval(
@@ -46,7 +127,7 @@ async fn call_api(method: &str, path: &str) -> Result<Value, String> {
         return Err("RATE_LIMITED: TikTok is limiting this account; wait a few minutes".into());
     }
     if body.trim().is_empty() {
-        return Err(format!("UPSTREAM_CHANGED: TikTok answered {status} with an empty body (the page may need a reload or a captcha)"));
+        return Err(format!("UPSTREAM_CHANGED: TikTok answered {status} with an empty body, which is how it refuses a request it does not trust; open tiktok.com in the OmniGet browser, solve any check it shows and try again"));
     }
     let v: Value = serde_json::from_str(body).map_err(|_| {
         format!("UPSTREAM_CHANGED: TikTok answered {status} with something that is not JSON")
@@ -263,17 +344,105 @@ fn more(v: &Value, cursor_key: &str) -> Option<String> {
     }
 }
 
+async fn page_scope(path: &str) -> Result<Value, String> {
+    let b = web::ready(P).await?;
+    let expr = format!(
+        "(async()=>{{const r=await fetch({},{{credentials:'include'}});const h=await r.text();\
+         const m=h.match(/<script id=\"__UNIVERSAL_DATA_FOR_REHYDRATION__\"[^>]*>([\\s\\S]*?)<\\/script>/);\
+         if(!m)return {{status:r.status}};try{{return {{status:r.status,scope:JSON.parse(m[1]).__DEFAULT_SCOPE__}}}}catch(e){{return {{status:r.status}}}}}})()",
+        Value::String(path.into())
+    );
+    let r = web::eval(&b, P, &expr).await?;
+    if r["scope"].is_object() {
+        return Ok(r["scope"].clone());
+    }
+    let tab = b
+        .tab_for_origin(&format!("{}/", P.origin()))
+        .ok_or("BROWSER_UNAVAILABLE: the TikTok tab closed")?;
+    b.navigate(&tab.id, &format!("{}{path}", P.origin()))
+        .await?;
+    const READ: &str = "(()=>{const e=document.getElementById('__UNIVERSAL_DATA_FOR_REHYDRATION__');\
+        if(!e)return null;try{return JSON.parse(e.textContent).__DEFAULT_SCOPE__}catch(_){return null}})()";
+    for _ in 0..40 {
+        tokio::time::sleep(Duration::from_millis(500)).await;
+        if let Ok(v) = b.eval(&tab.id, READ, Duration::from_secs(5)).await {
+            if v.is_object() {
+                return Ok(v);
+            }
+        }
+    }
+    Err(format!(
+        "UPSTREAM_CHANGED: TikTok answered {} without the page data (open tiktok.com in the OmniGet browser; it may be showing a check)",
+        r["status"]
+    ))
+}
+
 async fn user(username: &str) -> Result<Profile, String> {
+    let scope = page_scope(&format!("/@{}", urlencoding::encode(username))).await?;
+    let detail = &scope["webapp.user-detail"];
+    profile(&detail["userInfo"])
+        .ok_or_else(|| format!("NOT_FOUND: @{username} does not exist on TikTok"))
+}
+
+pub fn follow_list(v: &Value) -> Option<(Vec<Profile>, Option<String>)> {
+    let list = v["userList"].as_array();
+    if list.is_none() && v.get("hasMore").is_none() && v.get("total").is_none() {
+        return None;
+    }
+    let items = list
+        .map(|a| a.iter().filter_map(profile).collect())
+        .unwrap_or_default();
+    let next = more(v, "maxCursor").map(|max| {
+        format!(
+            "{max},{}",
+            opt_s(&v["minCursor"]).unwrap_or_else(|| "0".into())
+        )
+    });
+    Some((items, next))
+}
+
+async fn follow_page(scene: u8, a: &Value) -> Result<Value, String> {
+    let (sec, max, min) = match opt_str(a, "cursor") {
+        Some(c) => {
+            let bad = "INVALID_ARGUMENTS: cursor must be the next_cursor of the previous page";
+            let (sec, rest) = c.split_once('~').ok_or(bad)?;
+            let (max, min) = rest.split_once(',').ok_or(bad)?;
+            let digits =
+                |x: &str| !x.is_empty() && x.bytes().all(|c| c.is_ascii_digit() || c == b'-');
+            if !digits(max) || !digits(min) {
+                return Err(bad.into());
+            }
+            (sec.to_string(), max.to_string(), min.to_string())
+        }
+        None => {
+            let sec = match opt_str(a, "username") {
+                Some(name) => user(&username_of(&name)).await?.secondary_id,
+                None => opt_s(&me().await?["secondary_id"]),
+            };
+            let sec = sec.ok_or("UPSTREAM_CHANGED: TikTok did not return the profile secUid")?;
+            (sec, "0".to_string(), "0".to_string())
+        }
+    };
     let v = call_api(
         "GET",
         &format!(
-            "/api/user/detail/?uniqueId={}",
-            urlencoding::encode(username)
+            "/api/user/list/?count=30&maxCursor={max}&minCursor={min}&scene={scene}&secUid={}",
+            urlencoding::encode(&sec)
         ),
     )
     .await?;
-    profile(&v["userInfo"])
-        .ok_or_else(|| format!("NOT_FOUND: @{username} does not exist on TikTok"))
+    let (items, next) = follow_list(&v)
+        .ok_or("UPSTREAM_CHANGED: TikTok answered the user list in a shape that is not known")?;
+    Ok(page(items, next.map(|c| format!("{sec}~{c}"))))
+}
+
+pub fn posts_path(env: &Value, sec: &str, cursor: &str) -> Result<String, String> {
+    let device = device_query(env)
+        .ok_or("UPSTREAM_CHANGED: the TikTok page did not expose its device data")?;
+    Ok(format!(
+        "/api/post/item_list/?{device}&coverFormat=2&count=20&cursor={cursor}&secUid={}",
+        urlencoding::encode(sec)
+    ))
 }
 
 fn need_video(a: &Value) -> Result<String, String> {
@@ -287,9 +456,15 @@ fn cursor(a: &Value) -> String {
 }
 
 pub async fn me() -> Result<Value, String> {
-    let v = call_api("GET", "/passport/web/account/info/").await?;
-    let name = opt_s(&v["data"]["username"])
-        .ok_or("NOT_LOGGED_IN: TikTok did not return the signed-in account")?;
+    let name = match call_api("GET", "/passport/web/account/info/").await {
+        Ok(v) => opt_s(&v["data"]["username"]),
+        Err(_) => None,
+    };
+    let name = match name {
+        Some(n) => n,
+        None => opt_s(&page_scope("/").await?["webapp.app-context"]["user"]["uniqueId"])
+            .ok_or("NOT_LOGGED_IN: TikTok did not return the signed-in account")?,
+    };
     Ok(json!(user(&name).await?))
 }
 
@@ -307,15 +482,9 @@ pub async fn call(tool: &str, a: &Value) -> Result<Value, String> {
                 .secondary_id
                 .clone()
                 .ok_or("UPSTREAM_CHANGED: TikTok did not return the profile secUid")?;
-            let v = call_api(
-                "GET",
-                &format!(
-                    "/api/post/item_list/?secUid={}&count=20&cursor={}",
-                    urlencoding::encode(&sec),
-                    cursor(a)
-                ),
-            )
-            .await?;
+            let b = web::ready(P).await?;
+            let env = feed_page(&b).await?;
+            let v = call_api("GET", &posts_path(&env, &sec, &cursor(a))?).await?;
             Ok(page(items(&v, "itemList"), more(&v, "cursor")))
         }
         "tt_post" => {
@@ -401,6 +570,8 @@ pub async fn call(tool: &str, a: &Value) -> Result<Value, String> {
             let v = call_api("POST", &format!("/api/comment/publish/?aweme_id={id}&text={}&reply_id={reply}&text_extra=%5B%5D", urlencoding::encode(&text))).await?;
             Ok(json!({ "ok": true, "comment_id": opt_s(&v["comment"]["cid"]) }))
         }
+        "tt_followers" => follow_page(67, a).await,
+        "tt_following" => follow_page(21, a).await,
         "tt_follow" => {
             let p = user(&username_of(&req_str(a, "username")?)).await?;
             call_api(
@@ -456,11 +627,81 @@ mod tests {
     }
 
     #[test]
+    fn reads_a_followers_page() {
+        let v = json!({ "statusCode": 0, "hasMore": true, "maxCursor": 1700000000, "minCursor": 30, "total": 2, "userList": [
+            { "user": { "id": "1", "uniqueId": "ana", "nickname": "Ana", "signature": "oi", "secUid": "MS4", "verified": true, "privateAccount": true, "avatarThumb": "a.jpg" },
+              "stats": { "followerCount": 9, "followingCount": 4, "videoCount": 3 } },
+            { "user": { "id": "2", "nickname": "no handle" } } ] });
+        let (items, next) = follow_list(&v).unwrap();
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0].handle, "ana");
+        assert_eq!(items[0].followers, Some(9));
+        assert_eq!(items[0].posts, Some(3));
+        assert!(items[0].private);
+        assert_eq!(next.as_deref(), Some("1700000000,30"));
+        let (last, end) =
+            follow_list(&json!({ "statusCode": 0, "hasMore": false, "total": 2 })).unwrap();
+        assert!(last.is_empty());
+        assert_eq!(end, None);
+        assert!(follow_list(&json!({ "statusCode": 0 })).is_none());
+    }
+
+    #[test]
     fn profile_keeps_the_sec_uid() {
         let p = profile(&json!({ "user": { "id": "1", "uniqueId": "ana", "secUid": "MS4", "privateAccount": false },
             "stats": { "followerCount": 9, "heartCount": 99, "videoCount": 3 } })).unwrap();
         assert_eq!(p.secondary_id.as_deref(), Some("MS4"));
         assert_eq!(p.likes, Some(99));
+    }
+
+    fn sample_env(path: &str) -> Value {
+        json!({ "path": path, "ua": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36", "platform": "MacIntel", "lang": "en-US", "tz": "America/Recife",
+            "wid": "7500000000000000001", "odin": "7500000000000000002", "created": "1785871370", "language": "en", "region": "BR" })
+    }
+
+    #[test]
+    fn post_lists_carry_the_device_data_of_the_page() {
+        let path = posts_path(&sample_env("/"), "MS4w+abc", "1788534031735").unwrap();
+        assert!(path.starts_with("/api/post/item_list/?WebIdLastTime=1785871370&app_language=en&browser_language=en-US&browser_name=Mozilla"));
+        assert!(path.contains("&browser_version=5.0%20%28Macintosh%3B%20Intel%20Mac%20OS%20X%2010_15_7%29%20AppleWebKit%2F537.36&"));
+        assert!(path.contains("&device_id=7500000000000000001&"));
+        assert!(path
+            .contains("&odinId=7500000000000000002&os=mac&priority_region=BR&referer=&region=BR&"));
+        assert!(path.contains("&tz_name=America%2FRecife&user_is_login=true&webcast_language=en"));
+        assert!(path.ends_with("&coverFormat=2&count=20&cursor=1788534031735&secUid=MS4w%2Babc"));
+        assert!(!path.contains("aid=1988"));
+        assert!(posts_path(&json!({ "path": "/" }), "x", "0")
+            .unwrap_err()
+            .starts_with("UPSTREAM_CHANGED"));
+    }
+
+    #[test]
+    fn api_calls_wait_for_a_page_that_is_not_a_profile() {
+        assert!(usable(&sample_env("/")));
+        assert!(usable(&sample_env("/foryou")));
+        assert!(!usable(&sample_env("/@someone")));
+        assert!(!usable(&json!({ "path": "/" })));
+    }
+
+    #[test]
+    fn reads_a_post_list_page() {
+        let v = json!({ "statusCode": 0, "hasMore": true, "cursor": "1788534031735", "itemList": [
+            { "id": "7600000000000000001", "desc": "a clip", "createTime": 1788468783, "digged": false,
+              "author": { "id": "100", "uniqueId": "sample.account", "nickname": "Sample", "secUid": "MS4w", "verified": true, "avatarThumb": "https://p16.example/a.jpeg" },
+              "stats": { "collectCount": 1188, "commentCount": 1395, "diggCount": 14000, "playCount": 256200, "shareCount": 755 },
+              "statsV2": { "collectCount": "1188", "repostCount": "0" },
+              "video": { "cover": "https://p16.example/c.jpeg", "playAddr": "https://v16.example/v.mp4", "width": 576, "height": 1024, "duration": 30 } } ] });
+        let posts = items(&v, "itemList");
+        assert_eq!(posts.len(), 1);
+        assert_eq!(
+            posts[0].url,
+            "https://www.tiktok.com/@sample.account/video/7600000000000000001"
+        );
+        assert_eq!(posts[0].created_at, Some(1788468783));
+        assert_eq!(posts[0].stats.views, Some(256200));
+        assert_eq!(posts[0].stats.likes, Some(14000));
+        assert_eq!(posts[0].stats.saves, Some(1188));
+        assert_eq!(more(&v, "cursor").as_deref(), Some("1788534031735"));
     }
 
     #[test]

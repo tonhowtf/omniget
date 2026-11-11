@@ -29,6 +29,9 @@ pub fn host(p: Platform) -> &'static str {
         Platform::X => "x.com",
         Platform::Instagram => "instagram.com",
         Platform::Tiktok => "tiktok.com",
+        Platform::Reddit => "reddit.com",
+        Platform::Pinterest => "pinterest.com",
+        Platform::Github => "github.com",
     }
 }
 
@@ -37,6 +40,9 @@ pub fn session_cookie(p: Platform) -> &'static str {
         Platform::X => "auth_token",
         Platform::Instagram => "sessionid",
         Platform::Tiktok => "sessionid",
+        Platform::Reddit => "reddit_session",
+        Platform::Pinterest => "_pinterest_sess",
+        Platform::Github => "user_session",
     }
 }
 
@@ -61,17 +67,51 @@ pub async fn cookie(b: &Browser, p: Platform, name: &str) -> Option<String> {
 }
 
 pub async fn logged_in(b: &Browser, p: Platform) -> bool {
-    cookie(b, p, session_cookie(p)).await.is_some()
+    if cookie(b, p, session_cookie(p)).await.is_some() {
+        return true;
+    }
+    match p {
+        Platform::Reddit => cookie(b, p, "token_v2")
+            .await
+            .is_some_and(|t| super::reddit::token_is_user(&t)),
+        _ => false,
+    }
+}
+
+pub fn site_origin(urls: &[String], p: Platform) -> Option<String> {
+    let site = host(p);
+    urls.iter().find_map(|raw| {
+        let url = url::Url::parse(raw).ok()?;
+        let name = url.host_str()?;
+        (url.scheme() == "https" && (name == site || name.ends_with(&format!(".{site}"))))
+            .then(|| url.origin().ascii_serialization())
+    })
+}
+
+pub fn live_origin(b: &Browser, p: Platform) -> Option<String> {
+    let urls: Vec<String> = b.tabs().into_iter().map(|t| t.url).collect();
+    site_origin(&urls, p)
+}
+
+pub async fn origin(p: Platform) -> String {
+    match running().await.and_then(|b| live_origin(&b, p)) {
+        Some(found) if p == Platform::Pinterest => found,
+        _ => p.origin().to_string(),
+    }
 }
 
 pub async fn ensure_tab(b: &Browser, p: Platform) -> Result<(), String> {
     let probe = format!("{}/", p.origin());
-    if b.tab_for_origin(&probe).is_some() {
+    let open = |b: &Browser| match p {
+        Platform::Pinterest => live_origin(b, p).is_some(),
+        _ => b.tab_for_origin(&probe).is_some(),
+    };
+    if open(b) {
         return Ok(());
     }
     browser::warm_up(&probe, false).await;
     for _ in 0..20 {
-        if b.tab_for_origin(&probe).is_some() {
+        if open(b) {
             return Ok(());
         }
         tokio::time::sleep(Duration::from_millis(250)).await;
@@ -128,11 +168,20 @@ pub async fn fetch(
 }
 
 pub async fn eval(b: &Browser, p: Platform, expression: &str) -> Result<Value, String> {
+    eval_for(b, p, expression, Duration::from_secs(60)).await
+}
+
+pub async fn eval_for(
+    b: &Browser,
+    p: Platform,
+    expression: &str,
+    timeout: Duration,
+) -> Result<Value, String> {
     let probe = format!("{}/", p.origin());
     let tab = b
         .tab_for_origin(&probe)
         .ok_or("BROWSER_UNAVAILABLE: the site tab closed")?;
-    b.eval(&tab.id, expression, Duration::from_secs(60)).await
+    b.eval(&tab.id, expression, timeout).await
 }
 
 pub fn headers(pairs: &[(&str, &str)]) -> Map<String, Value> {
@@ -156,4 +205,25 @@ pub fn query(pairs: &[(&str, String)]) -> String {
         .map(|(k, v)| format!("{}={}", urlencoding::encode(k), urlencoding::encode(v)))
         .collect::<Vec<_>>()
         .join("&")
+}
+
+#[cfg(test)]
+mod origin_tests {
+    use super::*;
+
+    #[test]
+    fn a_regional_pinterest_tab_gives_the_origin_to_call() {
+        let tabs = vec![
+            "about:blank".to_string(),
+            "https://x.com/home".to_string(),
+            "https://br.pinterest.com/pin/1/".to_string(),
+        ];
+        assert_eq!(
+            site_origin(&tabs, Platform::Pinterest).as_deref(),
+            Some("https://br.pinterest.com")
+        );
+        assert_eq!(site_origin(&tabs, Platform::Reddit), None);
+        let fake = vec!["https://notpinterest.com/".to_string()];
+        assert_eq!(site_origin(&fake, Platform::Pinterest), None);
+    }
 }

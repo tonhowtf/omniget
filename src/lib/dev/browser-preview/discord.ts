@@ -327,6 +327,7 @@ export const discordFixtures: Record<string, (args: Args) => unknown> = {
     void qrStart();
     return null;
   },
+  discord_browser_login: () => null,
   discord_qr_cancel: () => {
     qrRun++;
     return null;

@@ -28,6 +28,9 @@
     if (path === "/x") return $t("social.x.title");
     if (path.startsWith("/instagram")) return $t("social.instagram.title");
     if (path.startsWith("/tiktok")) return $t("social.tiktok.title");
+    if (path.startsWith("/reddit")) return $t("social.reddit.title");
+    if (path.startsWith("/pinterest")) return $t("social.pinterest.title");
+    if (path.startsWith("/github")) return $t("social.github.title");
     if (path.startsWith("/whatsapp")) return $t("whatsapp.title");
     if (path.startsWith("/dictation")) return $t("dictation.title");
     if (path.startsWith("/studio")) return $t("studio.title");
@@ -38,6 +41,12 @@
     if (path.startsWith("/icons")) return $t("icons.title");
     if (path.startsWith("/fonts")) return $t("fonts.title");
     if (path.startsWith("/palette")) return $t("palette.title");
+    if (path.startsWith("/devtools")) return $t("devtools.title");
+    if (path.startsWith("/pack")) return $t("pack.title");
+    if (path.startsWith("/scrape")) return $t("scrape.title");
+    if (/^\/api(\/|$)/.test(path)) return $t("api.title");
+    if (path.startsWith("/transfer")) return $t("transfer.title");
+    if (path.startsWith("/research")) return $t("research.title");
     return "";
   });
 </script>

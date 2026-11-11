@@ -11,6 +11,7 @@ export const wa = $state<{
   chatsVersion: number;
   lastMessageChat: string | null;
   messageVersion: number;
+  scheduledVersion: number;
   syncChats: number;
   syncMessages: number;
 }>({
@@ -20,6 +21,7 @@ export const wa = $state<{
   chatsVersion: 0,
   lastMessageChat: null,
   messageVersion: 0,
+  scheduledVersion: 0,
   syncChats: 0,
   syncMessages: 0,
 });
@@ -62,6 +64,9 @@ export async function attach(): Promise<void> {
     listen<{ chat: string }>("whatsapp-message", (e) => {
       wa.lastMessageChat = e.payload.chat;
       wa.messageVersion += 1;
+    }),
+    listen("whatsapp-scheduled-changed", () => {
+      wa.scheduledVersion += 1;
     }),
     listen<{ progress: number | null; chats: number; messages: number }>("whatsapp-sync", (e) => {
       wa.syncChats += e.payload.chats;

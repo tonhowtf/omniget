@@ -72,7 +72,8 @@ The token never goes on the command line, so it stays out of your shell history.
 | After downloading | Read the finished files' details and get temporary access to them |
 | Your agents | List agents and folders, start, pause, resume or cancel a mission, read its events and results, see pending approvals |
 | Your computer (washmybelly) | Read the system status, scan for junk, apps, startup items and privacy settings, build a plan; running or undoing a plan asks you in the OmniGet window |
-| Global Downloader | Open OmniGet's own browser (you log in there by hand), preview what a page yields, download a whole course or site in order and in folders, and write, test and install connectors for sites that have none (`gd_*` tools, token permission `global_downloader`) |
+| Global Downloader | Open OmniGet's own browser (you log in there by hand), preview what a page yields, download a whole course or site in order and in folders, and write, test and install connectors for sites that have none. It can also attach to the Chrome you already use, run several steps in one call and read a page within a token budget (`gd_*` tools, token permission `global_downloader`) |
+| Developer tools | Pack a folder into one prompt-ready file within a token budget, turn a page into clean Markdown, send an HTTP request, list and stop what is listening on a port, and work on JSON, JWT, Base64, hashes, regex and diffs offline (`dev_pack`, `dev_scrape`, `dev_http`, `dev_ports`, `dev_util`; token permissions `devtools_read` and `devtools_write`) |
 
 ### Whole courses and sites, with the Global Downloader
 
@@ -311,7 +312,7 @@ Extra abilities in **Superpowers** in the sidebar. Music, League of Legends and 
 
 ### WhatsApp
 
-**WhatsApp** links your phone with a QR code, like WhatsApp Web, lists your chats and downloads or exports their photos, videos, audio, documents and history.
+**WhatsApp** links your phone with a QR code, like WhatsApp Web, lists your chats, sends messages now or at an exact time (scheduled on your computer, so they go out to the second), and downloads or exports their photos, videos, audio, documents and history. Agents use it over MCP with the wa_* tools: wa_find, wa_send (with reply_to and at), wa_wait to follow chats live instead of polling, wa_scheduled.
 
 ### Discord
 
@@ -319,9 +320,19 @@ Extra abilities in **Superpowers** in the sidebar. Music, League of Legends and 
 
 ### X, Instagram and TikTok
 
-**X** (`/x`), **Instagram** (`/instagram`) and **TikTok** (`/tiktok`) are small clients that run through the person's own session in the Global Downloader browser: they sign in there by hand and OmniGet calls each site's web endpoints from inside that tab, without copying cookies or forging anti-bot signatures. X has the home timeline (For you and Following), mentions, bookmarks, search with operators, profiles, posts with replies, and post, reply, quote, like, repost, bookmark, follow and delete. Instagram has the feed without ads, saved posts, profiles, posts with comments, and like, comment and follow. TikTok has the For You feed, video and account search, profiles, videos with comments, and like, comment and follow. Media can be sent to the download queue.
+**X** (`/x`), **Instagram** (`/instagram`) and **TikTok** (`/tiktok`) are small clients that run through the person's own session in the Global Downloader browser: they sign in there by hand and OmniGet calls each site's web endpoints from inside that tab, without copying cookies or forging anti-bot signatures. X has the home timeline (For you and Following), mentions, bookmarks, search with operators, profiles, posts with replies, and post, reply, quote, like, repost, bookmark, follow and delete, plus a Grok tab that asks X's assistant through the same account and keeps its conversations (`x_grok`, `x_grok_chats`, `x_grok_chat`). Instagram has the feed without ads, saved posts, profiles, posts with comments, and like, comment and follow. TikTok has the For You feed, video and account search, profiles, videos with comments, and like, comment and follow. Media can be sent to the download queue.
 
 Agents get the same actions as MCP tools: `social_status` first, then `x_*`, `ig_*` and `tt_*`, under the `social_read` and `social_write` scopes. Every write from an agent opens an approval window in OmniGet, a refusal is final, and agents are limited to 20 actions per network every 10 minutes with a few seconds between them. These are not official APIs, so a site may ask the person to confirm it is them, limit the account or change something that breaks a tool; the error says which.
+
+### Pack, Scrape, API and DevTools
+
+**Pack** (`/pack`) turns a folder or repo into one prompt-ready file: plan first to see the token count of each file against a budget and the list of what was left out and why (ignored by git, binary, lockfile, possible secret with file and line, never the value), then build. **Scrape** (`/scrape`) turns a page into clean Markdown, text or HTML with a token limit and shows what it removed, or lists the elements that match a CSS selector; a blocked page reports the reason and opens the Global Downloader browser. **API** (`/api`) sends one HTTP request and shows status, timing, redirect chain, headers and a body preview, with copy as curl; no account, and the request list lasts until the app closes. **DevTools** (`/devtools`) has offline utilities (JSON format, minify and query, JWT decode, Base64, URL encoding, hashes, UUID, timestamps, regex test, text diff) and a table of listening ports with a Stop button that asks first.
+
+Agents get the same functions as MCP tools: `dev_pack`, `dev_scrape`, `dev_http`, `dev_ports` and `dev_util`, under the `devtools_read` and `devtools_write` scopes (only stopping a process needs write).
+
+**Transfer** (`/transfer`) is a client for FTP, FTPS and SFTP servers: saved servers, a folder listing, upload, download, new folder, rename and delete. Passwords stay in the system keychain, an SSH host key or FTPS certificate is remembered on first use and a changed one is refused, and plain FTP shows a warning that nothing is encrypted. A console running an FTP homebrew server works as an ordinary FTP server. Agents get `transfer_servers`, `transfer_list`, `transfer_get`, `transfer_put` and `transfer_manage` under the `transfer_read` and `transfer_write` scopes; no tool accepts a password, and a delete needs `confirm`.
+
+The Global Downloader has a connector marketplace: a signed catalog of site connectors that install with one click, or through `gd_market` and `gd_market_install` for agents. From a terminal, `omniget tool <name>` calls any `dev_*`, `gd_*` or `transfer_*` tool of the running app.
 
 ### Read
 

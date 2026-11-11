@@ -10,8 +10,10 @@
 
   let { onSignedIn, onCancel }: { onSignedIn: () => void; onCancel?: () => void } = $props();
 
-  type Method = "qr" | "token";
-  let method = $state<Method>("qr");
+  type Method = "browser" | "qr" | "token";
+  let method = $state<Method>("browser");
+  let browserWaiting = $state(false);
+  let browserError = $state<string | null>(null);
   let token = $state("");
   let busy = $state(false);
   let tokenError = $state<string | null>(null);
@@ -32,8 +34,20 @@
 
   function setMethod(m: Method) {
     method = m;
+    browserWaiting = false;
     if (m === "qr") void startQr();
     else void dc.qrCancel().catch(() => {});
+  }
+
+  async function openBrowser() {
+    browserError = null;
+    dcState.qr = null;
+    try {
+      await dc.browserLogin();
+      browserWaiting = true;
+    } catch (e) {
+      browserError = dc.errKey(e);
+    }
   }
 
   async function submitToken() {
@@ -55,7 +69,7 @@
   });
 
   onMount(() => {
-    void startQr();
+    if (method === "qr") void startQr();
     return () => {
       void dc.qrCancel().catch(() => {});
       dcState.qr = null;
@@ -72,11 +86,30 @@
   <TosNotice />
 
   <div class="segmented segmented-lg methods" role="tablist">
+    <button class="segmented-btn" role="tab" aria-selected={method === "browser"} onclick={() => setMethod("browser")}>{$t("discord.signin.method_browser")}</button>
     <button class="segmented-btn" role="tab" aria-selected={method === "qr"} onclick={() => setMethod("qr")}>{$t("discord.signin.method_qr")}</button>
     <button class="segmented-btn" role="tab" aria-selected={method === "token"} onclick={() => setMethod("token")}>{$t("discord.signin.method_token")}</button>
   </div>
 
-  {#if method === "qr"}
+  {#if method === "browser"}
+    <div class="card surface-card stack" aria-live="polite">
+      <h3>{$t("discord.signin.browser_title")}</h3>
+      <p class="muted">{$t("discord.signin.browser_hint")}</p>
+      <p class="keep"><TgIcon name="shield" /> {$t("discord.signin.token_storage")}</p>
+      {#if qr?.stage === "done"}
+        <p>{$t("discord.signin.signing_in")}</p>
+      {:else if browserWaiting && qr?.stage === "expired"}
+        <p class="field-error">{$t("discord.signin.expired")}</p>
+      {:else if qr?.stage === "error" || browserError}
+        <p class="field-error">{$t(`discord.errors.${qr?.stage === "error" ? dc.errKey(qr.error) : browserError}`)}</p>
+      {:else if browserWaiting}
+        <p class="muted"><span class="spinner"></span> {$t("discord.signin.browser_waiting")}</p>
+      {/if}
+      <div class="btn-row end">
+        <button class="btn btn-primary" onclick={() => void openBrowser()}>{$t(browserWaiting ? "discord.signin.browser_reopen" : "discord.signin.browser_open")}</button>
+      </div>
+    </div>
+  {:else if method === "qr"}
     <div class="card surface-card qr-card">
       <div class="qr-box" class:dim={qr?.stage !== "code"} aria-label={$t("discord.signin.qr_alt")}>
         {#if qr?.stage === "code"}

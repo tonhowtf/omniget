@@ -76,6 +76,7 @@ export const disconnect = () => invoke<DcStatus>("discord_disconnect");
 export const loginToken = (token: string) => invoke<DcAccount>("discord_login_token", { token });
 export const qrStart = () => invoke<void>("discord_qr_start");
 export const qrCancel = () => invoke<void>("discord_qr_cancel");
+export const browserLogin = () => invoke<void>("discord_browser_login");
 export const logout = (accountId: string) => invoke<DcStatus>("discord_logout", { accountId });
 export const switchAccount = (accountId: string) => invoke<DcStatus>("discord_switch_account", { accountId });
 export const snapshot = () => invoke<DcSnapshot | null>("discord_snapshot");

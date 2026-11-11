@@ -5,8 +5,8 @@ use serde_json::Value;
 use tauri::{AppHandle, Emitter};
 
 use omniget_whatsapp::{
-    ChatRow, DownloadJob, ExportFormat, ExportLabels, MediaKind, MediaStats, MessageRow, SavedFile,
-    Status, WhatsApp,
+    ChatMatch, ChatRow, DownloadJob, ExportFormat, ExportLabels, LiveBatch, MediaKind, MediaStats,
+    MessageRow, SavedFile, Scheduled, Status, WhatsApp,
 };
 
 struct AppHost {
@@ -31,6 +31,18 @@ fn wa(app: &AppHandle) -> Result<Arc<WhatsApp>, String> {
     let w =
         WhatsApp::new(dir, Arc::new(AppHost { app: app.clone() })).map_err(|e| format!("{e:#}"))?;
     Ok(INSTANCE.get_or_init(|| w).clone())
+}
+
+pub fn instance(app: &AppHandle) -> Result<Arc<WhatsApp>, String> {
+    wa(app)
+}
+
+pub fn boot(app: AppHandle) {
+    tauri::async_runtime::spawn(async move {
+        if let Ok(w) = wa(&app) {
+            w.auto_start().await;
+        }
+    });
 }
 
 fn err(e: anyhow::Error) -> String {
@@ -98,8 +110,76 @@ pub async fn whatsapp_send_text(
     app: AppHandle,
     chat: String,
     text: String,
+    reply_to: Option<String>,
 ) -> Result<MessageRow, String> {
-    wa(&app)?.send_text(&chat, &text).await.map_err(err)
+    wa(&app)?
+        .send(&chat, &text, reply_to.as_deref())
+        .await
+        .map_err(err)
+}
+
+#[tauri::command]
+pub async fn whatsapp_find(
+    app: AppHandle,
+    query: String,
+    limit: Option<u32>,
+) -> Result<Vec<ChatMatch>, String> {
+    wa(&app)?
+        .find_chats(&query, limit.unwrap_or(15) as usize)
+        .map_err(err)
+}
+
+#[tauri::command]
+pub async fn whatsapp_wait(
+    app: AppHandle,
+    chat: Option<String>,
+    cursor: Option<i64>,
+    include_mine: Option<bool>,
+    timeout_secs: Option<u64>,
+    limit: Option<u32>,
+) -> Result<LiveBatch, String> {
+    let w = wa(&app)?;
+    let chat = match chat.filter(|c| !c.trim().is_empty()) {
+        Some(c) => Some(w.resolve_chat(&c).map_err(err)?),
+        None => None,
+    };
+    w.wait_live(
+        chat.as_deref(),
+        cursor,
+        include_mine.unwrap_or(false),
+        std::time::Duration::from_secs(timeout_secs.unwrap_or(25).min(55)),
+        limit.unwrap_or(50),
+    )
+    .await
+    .map_err(err)
+}
+
+#[tauri::command]
+pub async fn whatsapp_schedule(
+    app: AppHandle,
+    chat: String,
+    text: String,
+    at: i64,
+    reply_to: Option<String>,
+) -> Result<Scheduled, String> {
+    wa(&app)?
+        .schedule(&chat, &text, reply_to.as_deref(), at)
+        .map_err(err)
+}
+
+#[tauri::command]
+pub async fn whatsapp_scheduled(
+    app: AppHandle,
+    include_done: Option<bool>,
+) -> Result<Vec<Scheduled>, String> {
+    wa(&app)?
+        .scheduled(include_done.unwrap_or(false), 200)
+        .map_err(err)
+}
+
+#[tauri::command]
+pub async fn whatsapp_cancel_scheduled(app: AppHandle, id: i64) -> Result<bool, String> {
+    wa(&app)?.cancel_scheduled(id).map_err(err)
 }
 
 #[tauri::command]

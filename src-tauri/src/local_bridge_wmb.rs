@@ -6,13 +6,14 @@ use axum::{Json, Router};
 use serde_json::{json, Value};
 use tauri::{AppHandle, Emitter};
 
-use crate::local_bridge_auth::check_bearer;
+use crate::local_bridge_telegram::authorized;
 use omniget_core::core::washmybelly::{approvals, plan::Source, store::Ctx, tools};
 
 #[derive(Clone)]
 pub struct WmbBridgeState {
     pub token: std::sync::Arc<String>,
     pub app: AppHandle,
+    pub guard: crate::bridge_tokens::Guard,
 }
 
 impl WmbBridgeState {
@@ -20,6 +21,7 @@ impl WmbBridgeState {
         Self {
             token: state.token.clone(),
             app: state.app.clone(),
+            guard: crate::local_bridge_jobs::JobsBridgeState::from_bridge(state).guard(),
         }
     }
 }
@@ -66,7 +68,7 @@ where
         "/v1/wmb/{tool}",
         post(
             move |Path(tool): Path<String>, headers: HeaderMap, body: Option<Json<Value>>| async move {
-                if !check_bearer(&headers, &state.token) {
+                if !authorized(&headers, &state.token, &state.guard) {
                     return fail(StatusCode::UNAUTHORIZED, "bad or missing bearer token");
                 }
                 let input = body.map(|Json(v)| v).unwrap_or_else(|| json!({}));

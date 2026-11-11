@@ -98,7 +98,7 @@ where
             }
             continue;
         };
-        let value = match request_token.as_deref() {
+        let value = match request_token.as_deref().or(Some("")) {
             None => local_reply(&msg, Failure::TokenMissing, &version),
             Some(token) => {
                 let reply = client
@@ -239,13 +239,17 @@ impl Failure {
     fn message(self) -> &'static str {
         match self {
             Failure::TokenMissing => {
-                "TOKEN_MISSING: OMNIGET_MCP_TOKEN is not set. Open OmniGet, go to LLM → MCP → Your endpoint, turn the server on, create a connection and set its token as OMNIGET_MCP_TOKEN in this MCP server's environment."
+                "TOKEN_MISSING: OMNIGET_MCP_TOKEN is not set. Open OmniGet → Settings → AI & agents, then either turn on Connect without a token or create a connection and set its token as OMNIGET_MCP_TOKEN in this MCP server's environment."
             }
             Failure::NotRunning => {
-                "APP_NOT_RUNNING: the OmniGet desktop app is not reachable. Open OmniGet and keep the server on in LLM → MCP → Your endpoint; OMNIGET_MCP_URL must match the address shown there."
+                "APP_NOT_RUNNING: the OmniGet desktop app is not reachable. Open OmniGet on this machine and keep the MCP server on in Settings → AI & agents; OMNIGET_MCP_URL must match the address shown there. This adapter only reaches the OmniGet on the machine it runs on."
             }
-            Failure::Http(401) => "UNAUTHORIZED",
-            Failure::Http(403) => "MCP_DISABLED_OR_ACCESS_DENIED",
+            Failure::Http(401) => {
+                "UNAUTHORIZED: the OmniGet on this machine (see adapter.host in omniget_health) asks for a token. Set OMNIGET_MCP_TOKEN, or turn on Connect without a token in OmniGet → Settings → AI & agents. This adapter only reaches the OmniGet on the machine it runs on: if the person's OmniGet is on another computer, run the adapter there or call http://127.0.0.1:47720/mcp from a shell on that computer."
+            }
+            Failure::Http(403) => {
+                "MCP_DISABLED_OR_ACCESS_DENIED: the OmniGet on this machine has the MCP server off or refused this request. Turn it on in OmniGet → Settings → AI & agents."
+            }
             Failure::Http(_) => "MCP_HTTP_ERROR",
             Failure::OutcomeUnknown => {
                 "TRANSPORT_OUTCOME_UNKNOWN: inspect status before repeating a mutation"
@@ -397,7 +401,7 @@ fn is_health_call(msg: &Value) -> bool {
     msg["method"] == "tools/call" && msg["params"]["name"] == "omniget_health"
 }
 fn adapter_info(version: &str, reachable: bool) -> Value {
-    json!({"name":"omniget-mcp","version":ADAPTER_VERSION,"protocolVersion":version,"reachable":reachable})
+    json!({"name":"omniget-mcp","version":ADAPTER_VERSION,"protocolVersion":version,"reachable":reachable,"host":sysinfo::System::host_name().unwrap_or_default()})
 }
 fn annotate_health(msg: &Value, value: &mut Value, version: &str) {
     if !is_health_call(msg) || value.get("error").is_some() || value["result"]["isError"] == true {

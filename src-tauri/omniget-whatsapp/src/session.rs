@@ -11,12 +11,13 @@ use tokio::sync::Mutex;
 use whatsapp_rust::pair_code::PairCodeOptions;
 use whatsapp_rust::prelude::*;
 use whatsapp_rust::wacore::download::Downloadable;
+use whatsapp_rust::wacore::proto_helpers::{build_quote_context, MessageBuilderExt};
 use whatsapp_rust::wacore::store::DevicePropsOverride;
 
 use crate::export::{self, ExportFormat, ExportLabels, ExportMessage};
 use crate::model::{self, MediaKind, MessageKind};
 use crate::naming::{self, NameInput};
-use crate::store::{self, ChatRow, MediaRow, MediaStats, MessageRow, NewMessage, Store};
+use crate::store::{self, ChatRow, MediaRow, MediaStats, MessageRow, NewMessage, Scheduled, Store};
 
 pub trait Host: Send + Sync + 'static {
     fn emit(&self, event: &str, payload: Value);
@@ -89,7 +90,31 @@ pub struct WhatsApp {
     jobs: StdMutex<HashMap<String, Arc<AtomicBool>>>,
     job_seq: AtomicU64,
     logging_out: AtomicBool,
+    live: tokio::sync::watch::Sender<u64>,
+    sched_wake: tokio::sync::Notify,
+    sched_started: AtomicBool,
+    last_send: Mutex<Option<std::time::Instant>>,
 }
+
+#[derive(Clone, Debug, Serialize)]
+pub struct LiveBatch {
+    pub messages: Vec<MessageRow>,
+    pub cursor: i64,
+    pub timed_out: bool,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub struct ChatMatch {
+    pub jid: String,
+    pub name: String,
+    pub is_group: bool,
+    pub has_chat: bool,
+    pub last_ts: Option<i64>,
+    pub unread: u32,
+}
+
+const SEND_GAP: std::time::Duration = std::time::Duration::from_millis(900);
+const SCHEDULE_LATE_LIMIT_SECS: i64 = 30 * 60;
 
 const SESSION_FILE: &str = "session.db";
 const ACCOUNT_FILE: &str = "account.json";
@@ -104,6 +129,13 @@ fn qr_svg(code: &str) -> Option<String> {
             .dark_color(qrcode::render::svg::Color("#111111"))
             .light_color(qrcode::render::svg::Color("#ffffff"))
             .build(),
+    )
+}
+
+fn is_self_word(folded: &str) -> bool {
+    matches!(
+        folded,
+        "me" | "eu" | "mim" | "myself" | "self" | "voce mesmo" | "eu mesmo"
     )
 }
 
@@ -294,6 +326,10 @@ impl WhatsApp {
             jobs: StdMutex::new(HashMap::new()),
             job_seq: AtomicU64::new(1),
             logging_out: AtomicBool::new(false),
+            live: tokio::sync::watch::channel(0).0,
+            sched_wake: tokio::sync::Notify::new(),
+            sched_started: AtomicBool::new(false),
+            last_send: Mutex::new(None),
         });
         me.finish_pending_wipe();
         Ok(me)
@@ -587,6 +623,7 @@ impl WhatsApp {
                     i.pair_code = None;
                     i.error = None;
                 });
+                self.sched_wake.notify_one();
                 let me = self.clone();
                 tokio::spawn(async move { me.refresh_groups(client).await });
             }
@@ -680,6 +717,7 @@ impl WhatsApp {
                     self.host.emit("whatsapp-message", json!({ "chat": chat }));
                 }
                 if !touched.is_empty() {
+                    self.live.send_modify(|v| *v = v.wrapping_add(1));
                     self.host.emit("whatsapp-chats-changed", json!({}));
                 }
             }
@@ -785,15 +823,67 @@ impl WhatsApp {
         Ok(self.store.media_stats(chat)?)
     }
 
-    pub async fn send_text(&self, chat: &str, text: &str) -> Result<MessageRow> {
+    pub async fn send_text(self: &Arc<Self>, chat: &str, text: &str) -> Result<MessageRow> {
+        self.send(chat, text, None).await
+    }
+
+    pub async fn send(
+        self: &Arc<Self>,
+        chat: &str,
+        text: &str,
+        reply_to: Option<&str>,
+    ) -> Result<MessageRow> {
         let text = text.trim_end();
         if text.trim().is_empty() {
             bail!("empty_message");
         }
         let jid: Jid = chat.parse().map_err(|e| anyhow!("invalid chat id: {e}"))?;
-        let client = self.connected_client().await?;
+        let quote = match reply_to.filter(|r| !r.trim().is_empty()) {
+            Some(id) => Some(
+                self.store
+                    .quote_ref(chat, id.trim())?
+                    .ok_or_else(|| anyhow!("reply_not_found"))?,
+            ),
+            None => None,
+        };
+        let client = self
+            .ensure_connected(std::time::Duration::from_secs(20))
+            .await?;
+        let message = match &quote {
+            Some(q) => {
+                let original = q
+                    .raw
+                    .as_deref()
+                    .and_then(|r| whatsapp_rust::waproto::codec::message_decode(r).ok())
+                    .unwrap_or_else(|| wa::Message::text(q.text.clone().unwrap_or_default()));
+                let participant = if q.from_me {
+                    client
+                        .pn()
+                        .map(|j| j.to_non_ad_string())
+                        .unwrap_or_else(|| chat.to_string())
+                } else {
+                    q.wire_sender
+                        .clone()
+                        .or_else(|| q.sender.clone())
+                        .unwrap_or_else(|| chat.to_string())
+                };
+                let ctx = build_quote_context(q.id.clone(), participant, &original);
+                wa::Message::text_with_context(text.to_string(), ctx)
+            }
+            None => wa::Message::text(text.to_string()),
+        };
+        {
+            let mut last = self.last_send.lock().await;
+            if let Some(prev) = *last {
+                let since = prev.elapsed();
+                if since < SEND_GAP {
+                    tokio::time::sleep(SEND_GAP - since).await;
+                }
+            }
+            *last = Some(std::time::Instant::now());
+        }
         let sent = client
-            .send_text(jid, text.to_string())
+            .send_message(jid, message)
             .await
             .map_err(|e| anyhow!("{e}"))?;
         let ts = chrono::Utc::now().timestamp();
@@ -815,9 +905,13 @@ impl WhatsApp {
                 raw: None,
                 wire_chat: Some(chat),
                 wire_sender: None,
-            })
+            })?;
+            tx.mark_live(chat, &sent.message_id)
         })?;
+        let seq = self.store.latest_seq().unwrap_or(0);
+        self.live.send_modify(|v| *v = v.wrapping_add(1));
         self.host.emit("whatsapp-chats-changed", json!({}));
+        self.host.emit("whatsapp-message", json!({ "chat": chat }));
         Ok(MessageRow {
             id: sent.message_id,
             chat: chat.to_string(),
@@ -835,7 +929,282 @@ impl WhatsApp {
             saved_path: None,
             edited: false,
             deleted: false,
+            seq,
         })
+    }
+
+    pub async fn send_typing(self: &Arc<Self>, chat: &str, typing: bool) -> Result<()> {
+        let jid: Jid = chat.parse().map_err(|e| anyhow!("invalid chat id: {e}"))?;
+        let client = self
+            .ensure_connected(std::time::Duration::from_secs(20))
+            .await?;
+        let res = if typing {
+            client.chatstate().send_composing(&jid).await
+        } else {
+            client.chatstate().send_paused(&jid).await
+        };
+        res.map_err(|e| anyhow!("{e}"))
+    }
+
+    pub async fn ensure_connected(
+        self: &Arc<Self>,
+        wait: std::time::Duration,
+    ) -> Result<Arc<Client>> {
+        if let Ok(c) = self.connected_client().await {
+            return Ok(c);
+        }
+        if self.account().is_none() {
+            bail!("not_linked");
+        }
+        if self.running.lock().await.is_none() {
+            self.connect().await?;
+        }
+        let deadline = std::time::Instant::now() + wait;
+        loop {
+            if let Ok(c) = self.connected_client().await {
+                return Ok(c);
+            }
+            if std::time::Instant::now() >= deadline {
+                bail!("offline");
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(150)).await;
+        }
+    }
+
+    pub async fn auto_start(self: &Arc<Self>) {
+        self.start_scheduler();
+        if self.account().is_some() && self.running.lock().await.is_none() {
+            let _ = self.connect().await;
+        }
+    }
+
+    pub fn cursor(&self) -> i64 {
+        self.store.latest_seq().unwrap_or(0)
+    }
+
+    pub async fn wait_live(
+        &self,
+        chat: Option<&str>,
+        after: Option<i64>,
+        include_mine: bool,
+        timeout: std::time::Duration,
+        limit: u32,
+    ) -> Result<LiveBatch> {
+        let limit = limit.clamp(1, 200);
+        let mut rx = self.live.subscribe();
+        let after = match after {
+            Some(a) => a,
+            None => {
+                return Ok(LiveBatch {
+                    messages: Vec::new(),
+                    cursor: self.store.latest_seq()?,
+                    timed_out: false,
+                })
+            }
+        };
+        let deadline = tokio::time::Instant::now() + timeout;
+        loop {
+            rx.borrow_and_update();
+            let found = self.store.live_after(chat, after, include_mine, limit)?;
+            if !found.is_empty() {
+                let cursor = found.last().map(|m| m.seq).unwrap_or(after);
+                return Ok(LiveBatch {
+                    messages: found,
+                    cursor,
+                    timed_out: false,
+                });
+            }
+            let changed = tokio::time::timeout_at(deadline, rx.changed()).await;
+            if !matches!(changed, Ok(Ok(()))) {
+                return Ok(LiveBatch {
+                    messages: Vec::new(),
+                    cursor: after.max(0),
+                    timed_out: true,
+                });
+            }
+        }
+    }
+
+    pub fn resolve_chat(&self, needle: &str) -> Result<String> {
+        let needle = needle.trim();
+        if needle.is_empty() {
+            bail!("chat_required");
+        }
+        if needle.contains('@') {
+            return Ok(self.store.canonical(needle));
+        }
+        let digits: String = needle.chars().filter(|c| c.is_ascii_digit()).collect();
+        let only_phone = needle
+            .chars()
+            .all(|c| c.is_ascii_digit() || " +-().".contains(c));
+        if only_phone && (8..=15).contains(&digits.len()) {
+            return Ok(format!("{}@s.whatsapp.net", normalize_phone(&digits)?));
+        }
+        let found = self.find_chats(needle, 20)?;
+        let folded = store::fold(needle);
+        let exact: Vec<&ChatMatch> = found
+            .iter()
+            .filter(|c| store::fold(&c.name) == folded)
+            .collect();
+        if exact.is_empty() {
+            if let Some(me) = self.account().filter(|a| !a.jid.is_empty()) {
+                let own = me.push_name.as_deref().map(store::fold);
+                if is_self_word(&folded) || own.as_deref() == Some(folded.as_str()) {
+                    return Ok(me.jid);
+                }
+            }
+        }
+        match (exact.len(), found.len()) {
+            (1, _) => Ok(exact[0].jid.clone()),
+            (0, 1) => Ok(found[0].jid.clone()),
+            (0, 0) => bail!("chat_not_found"),
+            _ => {
+                let names: Vec<String> = found
+                    .iter()
+                    .take(8)
+                    .map(|c| format!("{} <{}>", c.name, c.jid))
+                    .collect();
+                bail!("ambiguous_chat: {}", names.join("; "))
+            }
+        }
+    }
+
+    pub fn find_chats(&self, query: &str, limit: usize) -> Result<Vec<ChatMatch>> {
+        let mut out: Vec<ChatMatch> = self
+            .store
+            .chats(Some(query))?
+            .into_iter()
+            .map(|c| ChatMatch {
+                jid: c.jid,
+                name: c.name,
+                is_group: c.is_group,
+                has_chat: c.message_count > 0,
+                last_ts: c.last_ts,
+                unread: c.unread,
+            })
+            .collect();
+        for (jid, name) in self.store.contacts_without_chat(query)? {
+            out.push(ChatMatch {
+                jid,
+                name,
+                is_group: false,
+                has_chat: false,
+                last_ts: None,
+                unread: 0,
+            });
+        }
+        out.truncate(limit.max(1));
+        Ok(out)
+    }
+
+    pub fn schedule(
+        &self,
+        chat: &str,
+        text: &str,
+        reply_to: Option<&str>,
+        at: i64,
+    ) -> Result<Scheduled> {
+        if text.trim().is_empty() {
+            bail!("empty_message");
+        }
+        let _: Jid = chat.parse().map_err(|e| anyhow!("invalid chat id: {e}"))?;
+        let now = chrono::Utc::now().timestamp();
+        if at < now - 60 {
+            bail!("time_in_past");
+        }
+        let row = self
+            .store
+            .schedule_add(chat, text.trim_end(), reply_to, at.max(now), now)?;
+        self.sched_wake.notify_one();
+        self.host.emit("whatsapp-scheduled-changed", json!({}));
+        Ok(row)
+    }
+
+    pub fn scheduled(&self, include_done: bool, limit: u32) -> Result<Vec<Scheduled>> {
+        Ok(self
+            .store
+            .schedule_list(include_done, limit.clamp(1, 500))?)
+    }
+
+    pub fn cancel_scheduled(&self, id: i64) -> Result<bool> {
+        let ok = self.store.schedule_cancel(id)?;
+        if ok {
+            self.sched_wake.notify_one();
+            self.host.emit("whatsapp-scheduled-changed", json!({}));
+        }
+        Ok(ok)
+    }
+
+    pub fn start_scheduler(self: &Arc<Self>) {
+        if self.sched_started.swap(true, Ordering::SeqCst) {
+            return;
+        }
+        let weak = Arc::downgrade(self);
+        tokio::spawn(async move {
+            loop {
+                let Some(me) = weak.upgrade() else { return };
+                let pause = me.scheduler_tick().await;
+                tokio::select! {
+                    _ = tokio::time::sleep(pause) => {}
+                    _ = me.sched_wake.notified() => {}
+                }
+            }
+        });
+    }
+
+    async fn scheduler_tick(self: &Arc<Self>) -> std::time::Duration {
+        use std::time::Duration;
+        let Ok(Some(job)) = self.store.schedule_next() else {
+            return Duration::from_secs(300);
+        };
+        let now_ms = chrono::Utc::now().timestamp_millis();
+        let due_ms = job.at.saturating_mul(1000);
+        if due_ms - now_ms > 20_000 {
+            return Duration::from_millis(((due_ms - now_ms - 15_000) as u64).min(60_000));
+        }
+        let _ = self.ensure_connected(Duration::from_secs(15)).await;
+        let wait = due_ms - chrono::Utc::now().timestamp_millis();
+        if wait > 0 {
+            tokio::time::sleep(Duration::from_millis(wait as u64)).await;
+        }
+        match self.store.schedule_get(job.id) {
+            Ok(Some(s)) if s.status == "pending" => {}
+            _ => return Duration::ZERO,
+        }
+        let late = chrono::Utc::now().timestamp() - job.at;
+        if late > SCHEDULE_LATE_LIMIT_SECS {
+            let _ =
+                self.store
+                    .schedule_finish(job.id, "missed", Some("app_was_closed"), None, None);
+            self.host.emit("whatsapp-scheduled-changed", json!({}));
+            return Duration::ZERO;
+        }
+        match self
+            .send(&job.chat, &job.text, job.reply_to.as_deref())
+            .await
+        {
+            Ok(row) => {
+                let _ =
+                    self.store
+                        .schedule_finish(job.id, "sent", None, Some(&row.id), Some(row.ts));
+                self.host.emit("whatsapp-scheduled-changed", json!({}));
+                Duration::ZERO
+            }
+            Err(e) => {
+                let msg = format!("{e:#}");
+                let retry = ["offline", "not_running", "not_linked"]
+                    .iter()
+                    .any(|k| msg.starts_with(k));
+                if retry {
+                    return Duration::from_secs(15);
+                }
+                let _ = self
+                    .store
+                    .schedule_finish(job.id, "failed", Some(&msg), None, None);
+                self.host.emit("whatsapp-scheduled-changed", json!({}));
+                Duration::ZERO
+            }
+        }
     }
 
     pub async fn request_older(&self, chat: &str) -> Result<()> {
@@ -1151,6 +1520,13 @@ mod tests {
         );
         assert!(normalize_phone("123").is_err());
         assert!(normalize_phone("1234567890123456").is_err());
+    }
+
+    #[test]
+    fn self_words_are_recognized() {
+        assert!(is_self_word("eu"));
+        assert!(is_self_word("me"));
+        assert!(!is_self_word("ramon"));
     }
 
     #[test]

@@ -32,21 +32,55 @@ fn ops_cache() -> &'static Mutex<Option<Ops>> {
     C.get_or_init(|| Mutex::new(None))
 }
 
-const DISCOVER: &str = r#"(async()=>{
+const RUNTIME: &str = "(()=>{const s=[...document.scripts].find(s=>!s.src&&/a\\.js\"/.test(s.textContent));return s?s.textContent:''})()";
+
+pub fn lazy_chunk(operation: &str) -> Option<&'static str> {
+    match operation {
+        "Favoriters" | "Retweeters" => Some("TweetActivity"),
+        _ => None,
+    }
+}
+
+pub fn chunk_urls(runtime: &str, hint: &str) -> Vec<String> {
+    let names = regex::Regex::new(r#"(\d+):"([A-Za-z0-9_.~/-]+)""#).expect("static regex");
+    let hash = regex::Regex::new(r"^[a-f0-9]{16}$").expect("static regex");
+    let mut hashes = HashMap::new();
+    let mut wanted = Vec::new();
+    for c in names.captures_iter(runtime) {
+        if hash.is_match(&c[2]) {
+            hashes.insert(c[1].to_string(), c[2].to_string());
+        } else if c[2].contains(hint) {
+            wanted.push((c[1].to_string(), c[2].to_string()));
+        }
+    }
+    wanted
+        .into_iter()
+        .filter_map(|(id, name)| {
+            Some(format!(
+                "https://abs.twimg.com/responsive-web/client-web/{name}.{}a.js",
+                hashes.get(&id)?
+            ))
+        })
+        .collect()
+}
+
+const DISCOVER: &str = r#"(async(extra)=>{
 const urls=new Set();
 for(const s of document.querySelectorAll('script[src]'))urls.add(s.src);
 for(const e of performance.getEntriesByType('resource'))urls.add(e.name);
-const js=[...urls].filter(u=>/abs\.twimg\.com\/responsive-web\/client-web[^?]*\.js$/.test(u)).slice(0,60);
+const js=[...urls].filter(u=>/abs\.twimg\.com\/responsive-web\/client-web[^?]*\.js$/.test(u)).slice(0,60).concat(extra);
 const ops={};
 const re=/queryId:"([^"]+)",operationName:"([^"]+)",operationType:"[^"]+",metadata:\{featureSwitches:\[([^\]]*)\],fieldToggles:\[([^\]]*)\]/g;
 const list=x=>x.split(',').map(v=>v.replace(/"/g,'').trim()).filter(Boolean);
 const loose=/queryId:"([^"]+)",operationName:"([^"]+)"/g;
-await Promise.all(js.map(async u=>{try{const t=await (await fetch(u)).text();let m;while((m=loose.exec(t))){if(!ops[m[2]])ops[m[2]]={id:m[1],features:[],toggles:[]};}while((m=re.exec(t))){ops[m[2]]={id:m[1],features:list(m[3]),toggles:list(m[4])};}}catch(e){}}));
+const scan=t=>{let m;while((m=loose.exec(t))){if(!ops[m[2]])ops[m[2]]={id:m[1],features:[],toggles:[]};}while((m=re.exec(t))){ops[m[2]]={id:m[1],features:list(m[3]),toggles:list(m[4])};}};
+for(const k of Object.keys(window).filter(k=>k.startsWith('webpackChunk'))){for(const ch of window[k]||[]){const mods=ch&&ch[1];if(!mods)continue;for(const id in mods){try{const t=String(mods[id]);if(t.includes('queryId'))scan(t);}catch(e){}}}}
+await Promise.all(js.map(async u=>{try{scan(await (await fetch(u)).text());}catch(e){}}));
 const fs=(window.__INITIAL_STATE__&&window.__INITIAL_STATE__.featureSwitch)||{};
 const config={};
 for(const src of [fs.defaultConfig||{},(fs.user&&fs.user.config)||{}])for(const k in src){const v=src[k]&&src[k].value;if(typeof v==='boolean')config[k]=v;}
 return {ops,config};
-})()"#;
+})"#;
 
 const FALLBACK_TWEET_DETAIL: &str = "4Siu98E55GquhG52zHdY5w";
 
@@ -63,7 +97,18 @@ async fn op(name: &str) -> Result<(Op, Map<String, Value>), String> {
         }
     }
     let b = web::ready(P).await?;
-    let found = web::eval(&b, P, DISCOVER).await.unwrap_or(Value::Null);
+    let mut found = web::eval(&b, P, &format!("{DISCOVER}([])"))
+        .await
+        .unwrap_or(Value::Null);
+    if let Some(hint) = lazy_chunk(name).filter(|_| found["ops"][name].is_null()) {
+        let runtime = web::eval(&b, P, RUNTIME).await.unwrap_or(Value::Null);
+        let extra = chunk_urls(runtime.as_str().unwrap_or_default(), hint);
+        if !extra.is_empty() {
+            found = web::eval(&b, P, &format!("{DISCOVER}({})", json!(extra)))
+                .await
+                .unwrap_or(found);
+        }
+    }
     let mut ops = HashMap::new();
     if let Some(map) = found["ops"].as_object() {
         for (k, v) in map {
@@ -138,7 +183,7 @@ fn toggles(o: &Op) -> Value {
     Value::Object(out)
 }
 
-async fn base_headers() -> Result<Map<String, Value>, String> {
+pub(super) async fn base_headers() -> Result<Map<String, Value>, String> {
     let b = web::ready(P).await?;
     let ct0 = web::cookie(&b, P, "ct0")
         .await
@@ -169,7 +214,7 @@ fn check_errors(v: &Value) -> Result<(), String> {
     Ok(())
 }
 
-async fn gql(name: &str, variables: Value, mutation: bool) -> Result<Value, String> {
+pub(super) async fn gql(name: &str, variables: Value, mutation: bool) -> Result<Value, String> {
     let (o, config) = op(name).await?;
     let headers = base_headers().await?;
     let feats = features(&o, &config);
@@ -436,6 +481,121 @@ pub fn timeline(v: &Value) -> (Vec<Post>, Option<String>) {
     (out, cursor)
 }
 
+pub fn user_list(v: &Value) -> (Vec<Profile>, Option<String>) {
+    fn walk(
+        v: &Value,
+        out: &mut Vec<Profile>,
+        seen: &mut HashSet<String>,
+        cursor: &mut Option<String>,
+    ) {
+        match v {
+            Value::Object(o) => {
+                if o.get("cursorType").and_then(Value::as_str) == Some("Bottom") {
+                    if let Some(c) = o.get("value").and_then(Value::as_str) {
+                        *cursor = Some(c.to_string());
+                    }
+                }
+                if o.get("itemType").and_then(Value::as_str) == Some("TimelineUser") {
+                    let r = &o["user_results"]["result"];
+                    if let Some(mut p) = profile(r) {
+                        if b(&r["legacy"]["default_profile_image"]) {
+                            p.avatar = None;
+                        }
+                        if seen.insert(p.id.clone()) {
+                            out.push(p);
+                        }
+                    }
+                    return;
+                }
+                for x in o.values() {
+                    walk(x, out, seen, cursor);
+                }
+            }
+            Value::Array(a) => {
+                for x in a {
+                    walk(x, out, seen, cursor);
+                }
+            }
+            _ => {}
+        }
+    }
+    let mut out = Vec::new();
+    let mut cursor = None;
+    walk(v, &mut out, &mut HashSet::new(), &mut cursor);
+    let cursor = cursor.filter(|c| !out.is_empty() && !c.starts_with("0|"));
+    (out, cursor)
+}
+
+pub fn users_timeline(v: &Value) -> (Vec<Profile>, Option<String>) {
+    fn walk(
+        v: &Value,
+        out: &mut Vec<Profile>,
+        seen: &mut HashSet<String>,
+        cursor: &mut Option<String>,
+    ) {
+        match v {
+            Value::Object(o) => {
+                if o.get("cursorType").and_then(Value::as_str) == Some("Bottom") {
+                    if let Some(c) = o.get("value").and_then(Value::as_str) {
+                        *cursor = Some(c.to_string());
+                    }
+                }
+                if let Some(r) = o.get("user_results") {
+                    if let Some(p) = profile(&r["result"]) {
+                        if seen.insert(p.id.clone()) {
+                            out.push(p);
+                        }
+                    }
+                    return;
+                }
+                for x in o.values() {
+                    walk(x, out, seen, cursor);
+                }
+            }
+            Value::Array(a) => {
+                for x in a {
+                    walk(x, out, seen, cursor);
+                }
+            }
+            _ => {}
+        }
+    }
+    let mut out = Vec::new();
+    let mut cursor = None;
+    walk(v, &mut out, &mut HashSet::new(), &mut cursor);
+    if out.is_empty() {
+        cursor = None;
+    }
+    (out, cursor)
+}
+
+pub fn quotes_query(id: &str) -> String {
+    format!("quoted_tweet_id:{id}")
+}
+
+pub async fn engagement_users(
+    likes: bool,
+    id: &str,
+    cursor: Option<String>,
+) -> Result<(Vec<Profile>, Option<String>), String> {
+    let (name, key) = if likes {
+        ("Favoriters", "favoriters_timeline")
+    } else {
+        ("Retweeters", "retweeters_timeline")
+    };
+    let mut vars = json!({ "tweetId": id, "count": 20, "includePromotedContent": true });
+    if let Some(c) = cursor {
+        vars["cursor"] = json!(c);
+    }
+    let v = gql(name, vars, false).await?;
+    if !v["data"][key].is_object() {
+        return Err(format!(
+            "UPSTREAM_CHANGED: X answered {name} without data.{key}"
+        ));
+    }
+    Ok(users_timeline(&v["data"][key]))
+}
+
 pub fn tweet_id(input: &str) -> Option<String> {
     let t = input.trim();
     if !t.is_empty() && t.bytes().all(|c| c.is_ascii_digit()) {
@@ -462,6 +622,12 @@ pub fn handle_of(input: &str) -> String {
     t.to_string()
 }
 
+fn viewer_id(twid: &str) -> Option<String> {
+    let raw = urlencoding::decode(twid).ok()?.into_owned();
+    let id = raw.trim_matches('"').trim_start_matches("u=").to_string();
+    (!id.is_empty() && id.bytes().all(|c| c.is_ascii_digit())).then_some(id)
+}
+
 fn me_cache() -> &'static Mutex<Option<(String, Instant)>> {
     static C: OnceLock<Mutex<Option<(String, Instant)>>> = OnceLock::new();
     C.get_or_init(|| Mutex::new(None))
@@ -473,17 +639,20 @@ pub async fn me_handle() -> Result<String, String> {
             return Ok(h);
         }
     }
-    let headers = base_headers().await?;
-    let v = web::fetch(
-        P,
-        "GET",
-        &format!("{API}/1.1/account/settings.json"),
-        headers,
-        None,
+    let b = web::ready(P).await?;
+    let twid = web::cookie(&b, P, "twid")
+        .await
+        .ok_or("NOT_LOGGED_IN: the X session has no twid cookie; sign in again")?;
+    let id = viewer_id(&twid).ok_or("NOT_LOGGED_IN: X did not return the signed-in account")?;
+    let v = gql(
+        "UserByRestId",
+        json!({ "userId": id, "withSafetyModeUserFields": true }),
+        false,
     )
-    .await?
-    .json()?;
-    let h = s(&v["screen_name"]);
+    .await?;
+    let h = profile(&v["data"]["user"]["result"])
+        .map(|p| p.handle)
+        .unwrap_or_default();
     if h.is_empty() {
         return Err("NOT_LOGGED_IN: X did not return the signed-in account".into());
     }
@@ -546,6 +715,72 @@ async fn follow(handle: &str, off: bool) -> Result<Value, String> {
     )
     .await?;
     Ok(json!({ "ok": true, "user": target.handle, "following": !off }))
+}
+
+async fn follow_list(name: &str, a: &Value) -> Result<Value, String> {
+    let (id, cursor) = match opt_str(a, "cursor") {
+        Some(c) => {
+            let (id, rest) = c
+                .split_once('~')
+                .ok_or("INVALID_ARGUMENTS: cursor must be the next_cursor of the previous page")?;
+            (id.to_string(), Some(rest.to_string()))
+        }
+        None => {
+            let h = match opt_str(a, "handle") {
+                Some(h) => handle_of(&h),
+                None => me_handle().await?,
+            };
+            (user(&h).await?.id, None)
+        }
+    };
+    let mut vars = json!({ "userId": id, "count": 50, "includePromotedContent": false });
+    if let Some(c) = cursor {
+        vars["cursor"] = json!(c);
+    }
+    let v = gql(name, vars, false).await?;
+    if v["data"]["user"]["result"]["timeline"].is_null() {
+        return Err(format!(
+            "UPSTREAM_CHANGED: X answered {name} without a user list"
+        ));
+    }
+    let (items, next) = user_list(&v);
+    Ok(with_locations(
+        page(items, next.map(|c| format!("{id}~{c}"))),
+        &v,
+    ))
+}
+
+pub fn with_locations(mut page: Value, raw: &Value) -> Value {
+    fn walk(v: &Value, out: &mut std::collections::HashMap<String, String>) {
+        match v {
+            Value::Object(o) => {
+                if let Some(r) = o.get("user_results").map(|u| &u["result"]) {
+                    let place = opt_s(&r["location"]["location"])
+                        .or_else(|| opt_s(&r["legacy"]["location"]))
+                        .map(|p| p.trim().to_string())
+                        .filter(|p| !p.is_empty());
+                    if let (Some(id), Some(place)) = (r["rest_id"].as_str(), place) {
+                        out.insert(id.to_string(), place);
+                    }
+                    return;
+                }
+                o.values().for_each(|x| walk(x, out));
+            }
+            Value::Array(a) => a.iter().for_each(|x| walk(x, out)),
+            _ => {}
+        }
+    }
+    let mut places = std::collections::HashMap::new();
+    walk(raw, &mut places);
+    if let Some(items) = page["items"].as_array_mut() {
+        for item in items {
+            let place = item["id"].as_str().and_then(|id| places.get(id)).cloned();
+            if let Some(place) = place {
+                item["location"] = json!(place);
+            }
+        }
+    }
+    page
 }
 
 fn need_tweet(a: &Value, key: &str) -> Result<String, String> {
@@ -641,7 +876,16 @@ pub async fn call(tool: &str, a: &Value) -> Result<Value, String> {
             if text.chars().count() > 4000 {
                 return Err("INVALID_ARGUMENTS: text is longer than 4000 characters".into());
             }
-            let mut vars = json!({ "tweet_text": text, "dark_request": false, "media": { "media_entities": [], "possibly_sensitive": false }, "semantic_annotation_ids": [] });
+            let media: Vec<Value> = a["media_ids"]
+                .as_array()
+                .map(|ids| {
+                    ids.iter()
+                        .filter_map(|id| id.as_str())
+                        .map(|id| json!({ "media_id": id, "tagged_users": [] }))
+                        .collect()
+                })
+                .unwrap_or_default();
+            let mut vars = json!({ "tweet_text": text, "dark_request": false, "media": { "media_entities": media, "possibly_sensitive": false }, "semantic_annotation_ids": [] });
             if let Some(r) = opt_str(a, "reply_to") {
                 let id =
                     tweet_id(&r).ok_or("INVALID_ARGUMENTS: reply_to must be a post id or link")?;
@@ -708,6 +952,9 @@ pub async fn call(tool: &str, a: &Value) -> Result<Value, String> {
             .await
         }
         "x_follow" => follow(&handle_of(&req_str(a, "handle")?), undo(a)).await,
+        "x_followers" => follow_list("Followers", a).await,
+        "x_following" => follow_list("Following", a).await,
+        "x_grok" | "x_grok_chats" | "x_grok_chat" => super::grok::call(tool, a).await,
         _ => Err(format!("UNKNOWN_TOOL: {tool}")),
     }
 }
@@ -788,6 +1035,112 @@ mod tests {
         assert_eq!(tweet_id("nope"), None);
         assert_eq!(handle_of("@Ana"), "Ana");
         assert_eq!(handle_of("https://x.com/ana?lang=en"), "ana");
+        assert_eq!(
+            viewer_id("u%3D1856424640672944128").as_deref(),
+            Some("1856424640672944128")
+        );
+        assert_eq!(viewer_id("\"u=42\"").as_deref(), Some("42"));
+        assert_eq!(viewer_id("guest"), None);
+    }
+
+    #[test]
+    fn reads_a_followers_page() {
+        let entry = |id: &str, handle: &str| {
+            let mut u_ = user_json(handle);
+            u_["rest_id"] = json!(id);
+            json!({ "entryId": format!("user-{id}"), "content": { "itemContent": { "itemType": "TimelineUser", "user_results": { "result": u_ } } } })
+        };
+        let mut egg = entry("3", "egg");
+        egg["content"]["itemContent"]["user_results"]["result"]["legacy"]
+            ["default_profile_image"] = json!(true);
+        let page = |entries: Vec<Value>| json!({ "data": { "user": { "result": { "timeline": { "timeline": { "instructions": [{ "type": "TimelineAddEntries", "entries": entries }] } } } } } });
+        let (items, cursor) = user_list(&page(vec![
+            entry("1", "ana"),
+            entry("2", "bia"),
+            egg,
+            entry("1", "ana"),
+            json!({ "content": { "itemContent": { "itemType": "TimelineUser", "user_results": { "result": { "__typename": "UserUnavailable" } } } } }),
+            json!({ "content": { "cursorType": "Bottom", "value": "1789|abc" } }),
+            json!({ "content": { "cursorType": "Top", "value": "-1|x" } }),
+        ]));
+        assert_eq!(
+            items.iter().map(|p| p.handle.as_str()).collect::<Vec<_>>(),
+            vec!["ana", "bia", "egg"]
+        );
+        assert_eq!(items[0].followers, Some(10));
+        assert!(items[0].avatar.is_some());
+        assert_eq!(items[2].avatar, None);
+        assert_eq!(cursor.as_deref(), Some("1789|abc"));
+        let (_, end) = user_list(&page(vec![
+            entry("1", "ana"),
+            json!({ "content": { "cursorType": "Bottom", "value": "0|abc" } }),
+        ]));
+        assert_eq!(end, None);
+        let (none, end) = user_list(&page(vec![
+            json!({ "content": { "cursorType": "Bottom", "value": "1790|abc" } }),
+        ]));
+        assert!(none.is_empty());
+        assert_eq!(end, None);
+    }
+
+    #[test]
+    fn finds_the_lazy_chunk_that_defines_the_engagement_operations() {
+        let runtime = r#"t.u=e=>(({1001:"bundle.TweetActivity",1002:"shared~bundle.QuoteTweetActivity~bundle.TweetActivity",1003:"bundle.UserLists",1004:"icons/IconX-js"})[e]||e)+"."+({1001:"aaaaaaaaaaaaaaaa",1002:"bbbbbbbbbbbbbbbb",1003:"cccccccccccccccc",1005:"dddddddddddddddd"})[e]+"a.js""#;
+        assert_eq!(
+            chunk_urls(runtime, "TweetActivity"),
+            vec![
+                "https://abs.twimg.com/responsive-web/client-web/bundle.TweetActivity.aaaaaaaaaaaaaaaaa.js",
+                "https://abs.twimg.com/responsive-web/client-web/shared~bundle.QuoteTweetActivity~bundle.TweetActivity.bbbbbbbbbbbbbbbba.js"
+            ]
+        );
+        assert!(chunk_urls(runtime, "IconX").is_empty());
+        assert!(chunk_urls("", "TweetActivity").is_empty());
+        assert_eq!(lazy_chunk("Retweeters"), Some("TweetActivity"));
+        assert_eq!(lazy_chunk("Favoriters"), Some("TweetActivity"));
+        assert_eq!(lazy_chunk("TweetDetail"), None);
+    }
+
+    #[test]
+    fn reads_the_accounts_of_an_engagement_list() {
+        let mut ana = user_json("ana");
+        ana["relationship_perspectives"] = json!({ "followed_by": true, "following": false });
+        let mut bob = user_json("bob");
+        bob["rest_id"] = json!("43");
+        let v = json!({ "timeline": { "instructions": [{ "type": "TimelineAddEntries", "entries": [
+            { "content": { "itemContent": { "itemType": "TimelineUser", "user_results": { "result": ana.clone() } } } },
+            { "content": { "itemContent": { "itemType": "TimelineUser", "user_results": { "result": bob } } } },
+            { "content": { "itemContent": { "itemType": "TimelineUser", "user_results": { "result": ana } } } },
+            { "content": { "itemContent": { "itemType": "TimelineUser", "user_results": { "result": { "__typename": "UserUnavailable" } } } } },
+            { "content": { "cursorType": "Top", "value": "top" } },
+            { "content": { "cursorType": "Bottom", "value": "next" } } ] }] } });
+        let (users, cursor) = users_timeline(&v);
+        assert_eq!(
+            users.iter().map(|p| p.handle.as_str()).collect::<Vec<_>>(),
+            vec!["ana", "bob"]
+        );
+        assert_eq!(users[0].follows_me, Some(true));
+        assert_eq!(users[1].follows_me, None);
+        assert_eq!(cursor.as_deref(), Some("next"));
+        let end = json!({ "timeline": { "instructions": [{ "entries": [
+            { "content": { "cursorType": "Bottom", "value": "again" } } ] }] } });
+        assert_eq!(users_timeline(&end), (Vec::new(), None));
+        assert_eq!(quotes_query("77"), "quoted_tweet_id:77");
+    }
+
+    #[test]
+    fn follower_pages_carry_the_location_of_each_account_when_x_sends_one() {
+        let raw = json!({ "data": { "list": [
+            { "itemType": "TimelineUser", "user_results": { "result": { "rest_id": "1", "legacy": { "location": " Lisboa " } } } },
+            { "itemType": "TimelineUser", "user_results": { "result": { "rest_id": "2", "location": { "location": "Recife, Brasil" }, "legacy": { "location": "old" } } } },
+            { "itemType": "TimelineUser", "user_results": { "result": { "rest_id": "3", "legacy": { "location": "" } } } }
+        ] } });
+        let page = json!({ "count": 3, "items": [{ "id": "1" }, { "id": "2" }, { "id": "3" }, { "id": "4" }] });
+        let out = with_locations(page, &raw);
+        assert_eq!(out["items"][0]["location"], "Lisboa");
+        assert_eq!(out["items"][1]["location"], "Recife, Brasil");
+        assert!(out["items"][2].get("location").is_none());
+        assert!(out["items"][3].get("location").is_none());
+        assert_eq!(out["count"], 3);
     }
 
     #[test]

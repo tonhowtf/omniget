@@ -218,8 +218,8 @@ mod settings_rebrand_audit {
             "../../tests/fixtures/settings-audit-defaults.json"
         ))
         .unwrap();
-        assert_eq!(leaf_count(&actual), 244);
-        assert_eq!(leaf_count(&expected), 244);
+        assert_eq!(leaf_count(&actual), 245);
+        assert_eq!(leaf_count(&expected), 245);
         let typed_fixture: AppSettings = serde_json::from_value(expected).unwrap();
         assert_eq!(actual, serde_json::to_value(typed_fixture).unwrap());
     }
@@ -228,7 +228,7 @@ mod settings_rebrand_audit {
     fn all_settings_keep_nondefault_values_through_the_real_codec() {
         let mut expected = serde_json::to_value(AppSettings::default()).unwrap();
         synthetic_values(&mut expected, "");
-        assert_eq!(leaf_count(&expected), 244);
+        assert_eq!(leaf_count(&expected), 245);
         let decoded: AppSettings = serde_json::from_value(expected.clone()).unwrap();
         assert_eq!(serde_json::to_value(decoded).unwrap(), expected);
         assert_eq!(

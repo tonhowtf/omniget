@@ -1,7 +1,16 @@
 pub mod approvals;
+pub mod audience;
+pub mod github;
+pub mod grok;
+pub mod insights;
 pub mod instagram;
 pub mod model;
+pub mod monitor;
 pub mod page;
+pub mod pinterest;
+pub mod reddit;
+pub mod schedule;
+pub mod store;
 pub mod tiktok;
 pub mod tools;
 pub mod x;
@@ -38,6 +47,9 @@ pub enum Caller {
 }
 
 pub async fn status(p: Platform) -> Value {
+    if p == Platform::Github {
+        return github::status();
+    }
     let Some(b) = page::running().await else {
         return json!({ "platform": p.id(), "browser": false, "logged_in": Value::Null });
     };
@@ -49,7 +61,14 @@ pub async fn status_all(start: bool) -> Value {
         let _ = page::ensure_browser().await;
     }
     let mut out = Vec::new();
-    for p in [Platform::X, Platform::Instagram, Platform::Tiktok] {
+    for p in [
+        Platform::X,
+        Platform::Instagram,
+        Platform::Tiktok,
+        Platform::Reddit,
+        Platform::Pinterest,
+        Platform::Github,
+    ] {
         out.push(status(p).await);
     }
     json!({ "platforms": out })
@@ -63,20 +82,38 @@ pub async fn call(caller: Caller, tool: &str, a: Value) -> Result<Value, String>
         return Ok(status_all(matches!(caller, Caller::Agent(_))).await);
     }
     let spec = tools::find(tool).ok_or_else(|| format!("UNKNOWN_TOOL: {tool}"))?;
+    let target = match spec.route {
+        tools::Route::Platform => spec.platform,
+        _ if tool.starts_with("social_") => args::opt_str(&a, "platform")
+            .and_then(|p| Platform::parse(&p))
+            .ok_or("INVALID_ARGUMENTS: platform is required")?,
+        _ => spec.platform,
+    };
     if spec.write {
         if let Caller::Agent(client) = &caller {
-            approvals::pace(spec.platform)?;
+            approvals::pace(target)?;
             let (summary, details) = tools::describe(spec, &a);
-            approvals::request(tool, spec.platform, summary, details, client).await?;
+            if crate::mcp::access::get().ask_first {
+                approvals::request(tool, target, summary, details, client).await?;
+            }
         }
     }
-    let r = match spec.platform {
-        Platform::X => x::call(tool, &a).await,
-        Platform::Instagram => instagram::call(tool, &a).await,
-        Platform::Tiktok => tiktok::call(tool, &a).await,
+    let r = match spec.route {
+        tools::Route::Audience => audience::call(&caller, tool, &a).await,
+        tools::Route::Insights => insights::call(&caller, tool, &a).await,
+        tools::Route::Monitor => monitor::call(&caller, tool, &a).await,
+        tools::Route::Schedule => schedule::call(&caller, tool, &a).await,
+        tools::Route::Platform => match spec.platform {
+            Platform::X => x::call(tool, &a).await,
+            Platform::Instagram => instagram::call(tool, &a).await,
+            Platform::Tiktok => tiktok::call(tool, &a).await,
+            Platform::Reddit => reddit::call(tool, &a).await,
+            Platform::Pinterest => pinterest::call(tool, &a).await,
+            Platform::Github => github::call(tool, &a).await,
+        },
     };
     if spec.write && r.is_ok() {
-        approvals::record(spec.platform);
+        approvals::record(target);
     }
     r
 }
@@ -106,6 +143,19 @@ pub async fn social_call(
 ) -> Result<Value, String> {
     approvals::set_app(&app);
     call(Caller::Screen, &tool, args.unwrap_or_else(|| json!({}))).await
+}
+
+#[tauri::command]
+pub fn social_github_state() -> Value {
+    github::auth_state()
+}
+
+#[tauri::command]
+pub async fn social_github_connect(
+    token: Option<String>,
+    username: Option<String>,
+) -> Result<Value, String> {
+    github::connect(token, username).await
 }
 
 #[tauri::command]

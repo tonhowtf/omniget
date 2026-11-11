@@ -41,7 +41,11 @@ fn fail(status: StatusCode, message: impl Into<String>) -> Response {
     (status, Json(json!({ "error": message.into() }))).into_response()
 }
 
-fn authorized(headers: &HeaderMap, token: &str, guard: &crate::bridge_tokens::Guard) -> bool {
+pub(crate) fn authorized(
+    headers: &HeaderMap,
+    token: &str,
+    guard: &crate::bridge_tokens::Guard,
+) -> bool {
     if check_bearer(headers, token) {
         return true;
     }

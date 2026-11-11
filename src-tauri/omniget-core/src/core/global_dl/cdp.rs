@@ -43,6 +43,9 @@ impl Cdp {
 
         tokio::spawn(async move {
             while let Some(text) = out_rx.recv().await {
+                if text.is_empty() {
+                    break;
+                }
                 if sink.send(Message::Text(text.into())).await.is_err() {
                     break;
                 }
@@ -101,6 +104,11 @@ impl Cdp {
             }),
             ev_rx,
         ))
+    }
+
+    pub fn close(&self) {
+        self.closed.store(true, Ordering::SeqCst);
+        let _ = self.out.send(String::new());
     }
 
     pub fn is_closed(&self) -> bool {

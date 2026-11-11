@@ -3,8 +3,9 @@ use serde_json::{Map, Value};
 
 use super::{
     AccessibilitySettings, AppSettings, CanvasSettings, DownloadSettings, LastDownloadOptions,
-    LeagueSettings, LlmSettings, MusicSettings, ReadSettings, RpcSettings, TelegramSettings,
-    TubeSettings, TypographySettings, VideoSettings, WashMyBellySettings, WorldSettings,
+    LeagueSettings, LlmSettings, MusicSettings, ReadSettings, RpcSettings, SuperpowersSettings,
+    TelegramSettings, TubeSettings, TypographySettings, VideoSettings, WashMyBellySettings,
+    WorldSettings,
 };
 
 pub const SETTINGS_SCHEMA_VERSION: u32 = 3;
@@ -195,6 +196,7 @@ pub struct SettingsPublicV3 {
     pub video: VideoSettings,
     pub tube: TubeSettings,
     pub washmybelly: WashMyBellySettings,
+    pub superpowers: SuperpowersSettings,
     pub read: ReadSettings,
     pub accessibility: AccessibilitySettings,
     pub world: WorldSettings,
@@ -281,6 +283,7 @@ impl AppSettings {
             video: self.video.clone(),
             tube: self.tube.clone(),
             washmybelly: self.washmybelly.clone(),
+            superpowers: self.superpowers.clone(),
             read: self.read.clone(),
             accessibility: self.accessibility.clone(),
             world: self.world.clone(),
@@ -1277,6 +1280,18 @@ mod tests {
         assert_eq!(app.appearance.preset.as_deref(), Some(DEFAULT_PRESET));
         assert_eq!(app.appearance.legacy_theme, None);
         assert_eq!(app.typography.font_body, "system-ui");
+    }
+
+    #[test]
+    fn pinned_superpowers_are_saved_in_order_and_published() {
+        let next = apply_patch(
+            &imported(),
+            &serde_json::json!({ "superpowers": { "pinned": ["scrape", "music"] } }),
+        )
+        .unwrap();
+        assert_eq!(next.superpowers.pinned, ["scrape", "music"]);
+        assert_eq!(next.to_public().superpowers.pinned, ["scrape", "music"]);
+        assert!(AppSettings::default().superpowers.pinned.is_empty());
     }
 
     #[test]

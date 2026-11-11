@@ -8,16 +8,28 @@ use tauri::{AppHandle, Manager};
 
 pub fn catalog(p: &Principal) -> Vec<Value> {
     tools(p).into_iter().map(|tool| {
-        let writes = matches!(policy::scope(tool.name), Some("enqueue" | "control" | "company_control" | "orchestration_control" | "orchestration_create" | "app_control" | "app_capture" | "system_change" | "telegram_write" | "social_write" | "approvals_respond" | "agents_run"))
-            || matches!(tool.name, "auth_connection_request" | "diagnostic_bundle_create" | "catalog_install" | "memory_retain")
+        let writes = matches!(policy::scope(tool.name), Some("enqueue" | "control" | "company_control" | "orchestration_control" | "orchestration_create" | "app_control" | "app_capture" | "system_change" | "telegram_write" | "social_write" | "whatsapp_write" | "approvals_respond" | "agents_run"))
+            || matches!(tool.name, "auth_connection_request" | "diagnostic_bundle_create" | "catalog_install" | "memory_retain" | "omniget_invoke" | "dev_pack" | "dev_http")
+            || (tool.name == "dev_ports" && devtools_write(p))
+            || matches!(tool.name, "transfer_get" | "transfer_put" | "transfer_manage")
+            || (tool.name == "transfer_servers" && transfer_write(p))
+            || tool.name == "research_meta_ads"
             || super::global_dl::writes(tool.name);
-        let open_world = matches!(tool.name, "download_enqueue" | "downloads_batch_enqueue" | "download_retry" | "download_resume" | "media_inspect" | "media_collection_list") || super::global_dl::open_world(tool.name) || crate::commands::social::tools::owns(tool.name);
+        let open_world = matches!(tool.name, "download_enqueue" | "downloads_batch_enqueue" | "download_retry" | "download_resume" | "media_inspect" | "media_collection_list" | "dev_http" | "dev_scrape" | "transfer_list" | "transfer_get" | "transfer_put" | "transfer_manage") || super::global_dl::open_world(tool.name) || crate::commands::social::tools::owns(tool.name) || (crate::commands::research::mcp::TOOLS.contains(&tool.name) && tool.name != "research_endpoints");
         let mut value = serde_json::to_value(&tool).expect("static tool schema serializes");
-        let destructive = writes && (matches!(tool.name, "download_cancel" | "download_pause" | "missions_cancel" | "missions_pause" | "wmb_execute" | "job_cancel" | "tg_delete_messages" | "x_delete_post") || super::canvas::is_destructive(tool.name));
-        let idempotent = !matches!(tool.name,"omniget_app_capture"|"omniget_app_export"|"gd_download") && !(writes && super::canvas::owns(tool.name));
+        let destructive = writes && (matches!(tool.name, "download_cancel" | "download_pause" | "missions_cancel" | "missions_pause" | "wmb_execute" | "job_cancel" | "tg_delete_messages" | "x_delete_post" | "dev_ports" | "transfer_manage") || super::canvas::is_destructive(tool.name));
+        let idempotent = !matches!(tool.name,"transfer_get"|"transfer_put"|"transfer_manage"|"dev_pack"|"dev_http"|"omniget_app_capture"|"omniget_app_export"|"gd_download"|"gd_act"|"gd_cdp") && !(writes && super::canvas::owns(tool.name));
         value["annotations"] = json!({"readOnlyHint":!writes,"destructiveHint":destructive,"idempotentHint":idempotent,"openWorldHint":open_world});
         value
     }).collect()
+}
+
+fn devtools_write(p: &Principal) -> bool {
+    p.scopes.iter().any(|s| s == "devtools_write")
+}
+
+fn transfer_write(p: &Principal) -> bool {
+    p.scopes.iter().any(|s| s == "transfer_write")
 }
 
 pub fn tools(p: &Principal) -> Vec<ToolDef> {
@@ -26,6 +38,8 @@ pub fn tools(p: &Principal) -> Vec<ToolDef> {
         .filter(|t| policy::allowed(p, t.name))
         .collect::<Vec<_>>();
     for (name,description,props,required) in [
+        ("omniget_commands","List everything the app can do: without arguments, the areas (music, video, tube, read, discord, whatsapp, pdf, settings...); with area or query, the commands and the arguments omniget_invoke takes.",json!({"area":{"type":"string"},"query":{"type":"string"},"limit":{"type":"integer"},"cursor":{"type":"integer"}}),json!([])),
+        ("omniget_invoke","Call any OmniGet command by name, exactly as the app's own interface does. Find it and its arguments with omniget_commands. The app must be open.",json!({"command":{"type":"string"},"args":{"type":"object"},"timeoutSeconds":{"type":"integer"},"windowId":{"type":"string"}}),json!(["command"])),
         ("omniget_capabilities","Capabilities actually implemented by this server.",json!({}),json!([])),
         ("destinations_list","The output directory already selected locally in OmniGet.",json!({}),json!([])),
         ("download_retry","Retry a transient failure at most twice using the existing engine options. strategyId=reconcile settles a job interrupted by an app crash without downloading: it confirms completion from the job folder or marks the attempt interrupted and retryable.",json!({"download_id":{"type":"integer","minimum":1},"strategyId":{"type":"string","enum":["retry_transient","reconcile"]},"idempotencyKey":{"type":"string","minLength":1,"maxLength":100}}),json!(["download_id","strategyId","idempotencyKey"])),
@@ -50,7 +64,16 @@ pub fn tools(p: &Principal) -> Vec<ToolDef> {
             input_schema: json!({"type":"object","properties":{},"required":[],"additionalProperties":false}),
         });
     }
-    for spec in crate::commands::social::tools::SPECS {
+    for spec in super::whatsapp::SPECS {
+        if policy::allowed(p, spec.name) {
+            list.push(ToolDef {
+                name: spec.name,
+                description: spec.description,
+                input_schema: super::whatsapp::input_schema(spec),
+            });
+        }
+    }
+    for spec in crate::commands::social::tools::all() {
         if policy::allowed(p, spec.name) {
             list.push(ToolDef {
                 name: spec.name,
@@ -61,6 +84,27 @@ pub fn tools(p: &Principal) -> Vec<ToolDef> {
     }
     for (name, description, props, required) in crate::commands::read::mcp::defs() {
         if policy::allowed(p, name) {
+            list.push(ToolDef{name,description,input_schema:json!({"type":"object","properties":props,"required":required,"additionalProperties":false})});
+        }
+    }
+    for (name, description, mut props, required) in crate::commands::devtools::mcp::defs() {
+        if policy::allowed(p, name) {
+            if name == "dev_ports" && !devtools_write(p) {
+                props["op"]["enum"] = json!(["list"]);
+            }
+            list.push(ToolDef{name,description,input_schema:json!({"type":"object","properties":props,"required":required,"additionalProperties":false})});
+        }
+    }
+    for (name, description, props, required) in crate::commands::research::mcp::defs() {
+        if policy::allowed(p, name) {
+            list.push(ToolDef{name,description,input_schema:json!({"type":"object","properties":props,"required":required,"additionalProperties":false})});
+        }
+    }
+    for (name, description, mut props, required) in crate::commands::transfer::mcp::defs() {
+        if policy::allowed(p, name) {
+            if name == "transfer_servers" && !transfer_write(p) {
+                props["op"]["enum"] = json!(crate::commands::transfer::mcp::READ_SERVER_OPS);
+            }
             list.push(ToolDef{name,description,input_schema:json!({"type":"object","properties":props,"required":required,"additionalProperties":false})});
         }
     }
@@ -227,6 +271,16 @@ pub async fn call(app: &AppHandle, p: &Principal, name: &str, a: Value) -> Resul
         validate(p, name, &a)?;
         return crate::native_agent::call(app, p, name, a).await;
     }
+    if name == "omniget_commands" || name == "omniget_invoke" {
+        if !policy::allowed(p, name) {
+            return Err("TOOL_NOT_AUTHORIZED".into());
+        }
+        return if name == "omniget_commands" {
+            super::invoke::commands(&a)
+        } else {
+            super::invoke::invoke(app, &a).await
+        };
+    }
     if name == "company_query" || name == "company_command" {
         if !policy::allowed(p, name) {
             return Err("TOOL_NOT_AUTHORIZED".into());
@@ -256,6 +310,12 @@ pub async fn call(app: &AppHandle, p: &Principal, name: &str, a: Value) -> Resul
             return Err("TOOL_NOT_AUTHORIZED".into());
         }
         return super::telegram::call(p, name, a).await;
+    }
+    if super::whatsapp::owns(name) {
+        if !policy::allowed(p, name) {
+            return Err("TOOL_NOT_AUTHORIZED".into());
+        }
+        return super::whatsapp::call(app, p, name, a).await;
     }
     if crate::commands::social::tools::owns(name) {
         if !policy::allowed(p, name) {
@@ -352,6 +412,7 @@ pub async fn call(app: &AppHandle, p: &Principal, name: &str, a: Value) -> Resul
             json!({"title":info.title,"author":info.author,"duration":info.duration_seconds,"formats":info.available_qualities})
         }
         "downloads_queue" => {
+            let every = super::access::sees_everything(p);
             let ids = policy::owned(p)?;
             let status = a["status"].as_str().unwrap_or("");
             let snapshot = super::queue_snapshot(app).await;
@@ -359,7 +420,7 @@ pub async fn call(app: &AppHandle, p: &Principal, name: &str, a: Value) -> Resul
             let mut items = snapshot
                 .into_iter()
                 .filter(|i| {
-                    ids.contains(&i.id)
+                    (every || ids.contains(&i.id))
                         && (status.is_empty() || super::status_key(&i.status) == status)
                 })
                 .map(|i| serde_json::to_value(i).map_err(|e| e.to_string()))
@@ -488,12 +549,31 @@ pub async fn call(app: &AppHandle, p: &Principal, name: &str, a: Value) -> Resul
         n if crate::commands::read::mcp::TOOLS.contains(&n) => {
             crate::commands::read::mcp::call(n, &a).await?
         }
+        n if crate::commands::devtools::mcp::TOOLS.contains(&n) => {
+            if let Some(url) = crate::commands::devtools::mcp::url_of(n, &a) {
+                check_network(p, url).await?;
+            }
+            crate::commands::devtools::mcp::call(n, &a, devtools_write(p)).await?
+        }
+        n if crate::commands::transfer::mcp::TOOLS.contains(&n) => {
+            if let Some(url) = crate::commands::transfer::mcp::url_of(&a) {
+                check_network(p, &url).await?;
+            }
+            crate::commands::transfer::mcp::call(n, &a, transfer_write(p)).await?
+        }
+        n if crate::commands::research::mcp::TOOLS.contains(&n) => {
+            if let Some(url) = crate::commands::research::mcp::url_of(n, &a) {
+                check_network(p, url).await?;
+            }
+            crate::commands::research::mcp::call(n, &a).await?
+        }
         "artifact_access" => super::artifact_access::call(app, p, &a).await?,
         "download_history" => {
+            let every = super::access::sees_everything(p);
             let ids = policy::owned(p)?;
             let mut items = crate::core::queue_history::list()
                 .into_iter()
-                .filter(|i| ids.contains(&i.id))
+                .filter(|i| every || ids.contains(&i.id))
                 .map(|i| serde_json::to_value(i).map_err(|e| e.to_string()))
                 .collect::<Result<Vec<_>, _>>()?;
             let known: std::collections::HashSet<u64> = items
@@ -653,6 +733,7 @@ pub(crate) fn health(negotiated: &str) -> Value {
     json!({
         "app": "running",
         "reachable": true,
+        "machine": super::whatsapp::machine(),
         "queue": "available",
         "remote": "disabled",
         "server": {"name": "OmniGet", "version": env!("CARGO_PKG_VERSION")},
@@ -1115,4 +1196,193 @@ async fn check_network(p: &Principal, raw: &str) -> Result<(), String> {
         return Err("LOCAL_NETWORK_NOT_GRANTED".into());
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn principal(scopes: &[&str]) -> Principal {
+        Principal {
+            id: "t".into(),
+            name: "T".into(),
+            scopes: scopes.iter().map(|s| s.to_string()).collect(),
+        }
+    }
+
+    fn entry(catalog: &[Value], name: &str) -> Value {
+        catalog
+            .iter()
+            .find(|t| t["name"] == name)
+            .cloned()
+            .unwrap_or_else(|| panic!("{name} is not listed"))
+    }
+
+    #[test]
+    fn devtools_are_listed_with_output_schemas_and_honest_annotations() {
+        let listed = catalog(&principal(&["devtools_read"]));
+        assert_eq!(listed.len(), 5);
+        for name in crate::commands::devtools::mcp::TOOLS {
+            let tool = entry(&listed, name);
+            assert_eq!(tool["inputSchema"]["additionalProperties"], false, "{name}");
+            assert!(
+                super::super::output_schemas::for_tool(name).is_some(),
+                "{name}"
+            );
+            assert_eq!(tool["annotations"]["destructiveHint"], false, "{name}");
+        }
+        let hint = |name: &str, key: &str| entry(&listed, name)["annotations"][key].clone();
+        assert_eq!(hint("dev_util", "readOnlyHint"), true);
+        assert_eq!(hint("dev_util", "openWorldHint"), false);
+        assert_eq!(hint("dev_scrape", "readOnlyHint"), true);
+        assert_eq!(hint("dev_scrape", "openWorldHint"), true);
+        assert_eq!(hint("dev_http", "readOnlyHint"), false);
+        assert_eq!(hint("dev_http", "openWorldHint"), true);
+        assert_eq!(hint("dev_http", "idempotentHint"), false);
+        assert_eq!(hint("dev_pack", "readOnlyHint"), false);
+        assert_eq!(hint("dev_ports", "readOnlyHint"), true);
+    }
+
+    #[test]
+    fn research_tools_are_listed_with_output_schemas_and_honest_annotations() {
+        let listed = catalog(&principal(&["research_read"]));
+        assert_eq!(listed.len(), crate::commands::research::mcp::TOOLS.len());
+        for name in crate::commands::research::mcp::TOOLS {
+            let tool = entry(&listed, name);
+            assert_eq!(tool["inputSchema"]["additionalProperties"], false, "{name}");
+            assert!(
+                super::super::output_schemas::for_tool(name).is_some(),
+                "{name}"
+            );
+            assert_eq!(tool["annotations"]["destructiveHint"], false, "{name}");
+        }
+        let hint = |name: &str, key: &str| entry(&listed, name)["annotations"][key].clone();
+        assert_eq!(hint("research_endpoints", "readOnlyHint"), true);
+        assert_eq!(hint("research_endpoints", "openWorldHint"), false);
+        assert_eq!(hint("research_call", "readOnlyHint"), true);
+        assert_eq!(hint("research_call", "openWorldHint"), true);
+        assert_eq!(hint("research_meta_ads", "readOnlyHint"), false);
+        assert_eq!(hint("research_reels", "openWorldHint"), true);
+        assert!(catalog(&principal(&["devtools_read", "social_read"]))
+            .iter()
+            .all(|tool| !tool["name"].as_str().unwrap().starts_with("research_")));
+    }
+
+    #[test]
+    fn transfer_tools_are_listed_by_scope_with_output_schemas_and_honest_annotations() {
+        let reader = principal(&["transfer_read"]);
+        let listed = catalog(&reader);
+        let names: Vec<&str> = listed.iter().filter_map(|t| t["name"].as_str()).collect();
+        assert_eq!(
+            names,
+            vec!["transfer_servers", "transfer_list", "transfer_get"]
+        );
+        assert_eq!(
+            entry(&listed, "transfer_servers")["inputSchema"]["properties"]["op"]["enum"],
+            json!(["list"])
+        );
+        assert_eq!(
+            validate(
+                &reader,
+                "transfer_servers",
+                &json!({"op": "remove", "name": "nas"})
+            ),
+            Err("INVALID_ARGUMENT: op".to_string())
+        );
+        let hint =
+            |list: &[Value], name: &str, key: &str| entry(list, name)["annotations"][key].clone();
+        assert_eq!(hint(&listed, "transfer_servers", "readOnlyHint"), true);
+        assert_eq!(hint(&listed, "transfer_list", "readOnlyHint"), true);
+        assert_eq!(hint(&listed, "transfer_list", "openWorldHint"), true);
+        assert_eq!(hint(&listed, "transfer_get", "readOnlyHint"), false);
+
+        let writer = principal(&["transfer_read", "transfer_write"]);
+        let listed = catalog(&writer);
+        assert_eq!(listed.len(), 5);
+        for name in crate::commands::transfer::mcp::TOOLS {
+            let tool = entry(&listed, name);
+            assert_eq!(tool["inputSchema"]["additionalProperties"], false, "{name}");
+            assert!(
+                super::super::output_schemas::for_tool(name).is_some(),
+                "{name}"
+            );
+        }
+        assert_eq!(hint(&listed, "transfer_servers", "readOnlyHint"), false);
+        assert_eq!(hint(&listed, "transfer_manage", "destructiveHint"), true);
+        assert_eq!(hint(&listed, "transfer_put", "destructiveHint"), false);
+        assert_eq!(hint(&listed, "transfer_put", "idempotentHint"), false);
+        assert_eq!(
+            validate(
+                &writer,
+                "transfer_list",
+                &json!({"server": "nas", "password": "x"})
+            ),
+            Err("UNKNOWN_ARGUMENT: password".to_string())
+        );
+        assert_eq!(
+            validate(
+                &writer,
+                "transfer_manage",
+                &json!({"server": "nas", "path": "/a"})
+            ),
+            Err("MISSING_ARGUMENT: \"op\"".to_string())
+        );
+        assert_eq!(catalog(&principal(&["transfer_write"])).len(), 2);
+    }
+
+    #[test]
+    fn kill_exists_only_with_the_write_scope_and_is_marked_destructive() {
+        let reader = principal(&["devtools_read"]);
+        let ports = entry(&catalog(&reader), "dev_ports");
+        assert_eq!(
+            ports["inputSchema"]["properties"]["op"]["enum"],
+            json!(["list"])
+        );
+        assert_eq!(
+            validate(&reader, "dev_ports", &json!({"op": "kill", "port": 3000})),
+            Err("INVALID_ARGUMENT: op".to_string())
+        );
+        let writer = principal(&["devtools_read", "devtools_write"]);
+        let ports = entry(&catalog(&writer), "dev_ports");
+        assert_eq!(
+            ports["inputSchema"]["properties"]["op"]["enum"],
+            json!(["list", "kill"])
+        );
+        assert_eq!(ports["annotations"]["destructiveHint"], true);
+        assert_eq!(ports["annotations"]["readOnlyHint"], false);
+        assert_eq!(
+            validate(&writer, "dev_ports", &json!({"op": "kill", "port": 3000})),
+            Ok(())
+        );
+        assert!(catalog(&principal(&["devtools_write"])).is_empty());
+    }
+
+    #[test]
+    fn op_is_required_and_unknown_arguments_are_rejected() {
+        let reader = principal(&["devtools_read"]);
+        assert_eq!(
+            validate(&reader, "dev_util", &json!({"text": "a"})),
+            Err("MISSING_ARGUMENT: \"op\"".to_string())
+        );
+        assert_eq!(
+            validate(&reader, "dev_util", &json!({"op": "uuid", "nope": 1})),
+            Err("UNKNOWN_ARGUMENT: nope".to_string())
+        );
+        assert_eq!(
+            validate(
+                &reader,
+                "dev_util",
+                &json!({"op": "timestamp", "value": 1700000000})
+            ),
+            Ok(())
+        );
+        assert_eq!(
+            validate(
+                &reader,
+                "dev_http",
+                &json!({"method": "GET", "url": "https://example.com", "headers": {"accept": "*/*"}})
+            ),
+            Ok(())
+        );
+    }
 }

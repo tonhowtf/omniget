@@ -29,6 +29,25 @@
   } = $props();
 
   let playable = $derived(platform !== "tiktok");
+  let extra = $derived(post.extra ?? {});
+  let kind = $derived(String(extra.kind ?? ""));
+  let title = $derived(typeof extra.title === "string" ? extra.title : "");
+  let handle = $derived(platform === "reddit" ? `u/${post.author.handle}` : `@${post.author.handle}`);
+  let likeable = $derived(platform !== "pinterest" && (platform !== "github" || kind === "repo"));
+  let likeIcon = $derived(platform === "github" ? "star" : platform === "reddit" ? "up" : "heart");
+  let chips = $derived(
+    [
+      platform === "reddit" && extra.subreddit ? `r/${extra.subreddit}` : "",
+      platform === "reddit" ? extra.flair : "",
+      platform === "reddit" && extra.link ? extra.domain : "",
+      platform === "pinterest" ? (extra.board as { name?: string } | undefined)?.name : "",
+      platform === "pinterest" ? extra.domain : "",
+      platform === "github" && kind !== "repo" ? extra.repo : "",
+      platform === "github" ? extra.language : "",
+      platform === "github" ? extra.state : "",
+      platform === "github" && extra.stars_gained ? `+${extra.stars_gained} ★` : "",
+    ].filter((c): c is string => typeof c === "string" && c !== ""),
+  );
   let grid = $derived(post.media.length > 1 ? "multi" : "single");
 
   function open(e: MouseEvent | KeyboardEvent) {
@@ -51,12 +70,18 @@
       {/if}
       <span class="who">
         <span class="name">{post.author.name || post.author.handle}{#if post.author.verified}<span class="verified" title={$t("social.post.verified")}>✓</span>{/if}</span>
-        <span class="handle">@{post.author.handle}{#if post.created_at} · {ago(post.created_at, $locale)}{/if}</span>
+        <span class="handle">{handle}{#if post.created_at} · {ago(post.created_at, $locale)}{/if}</span>
       </span>
     </button>
   </header>
 
-  {#if post.text}<p class="post-text">{post.text}</p>{/if}
+  {#if title}<h3 class="post-title">{title}</h3>{/if}
+  {#if chips.length}
+    <div class="post-chips">
+      {#each chips as c (c)}<span class="chip">{c}</span>{/each}
+    </div>
+  {/if}
+  {#if post.text && post.text !== title}<p class="post-text">{post.text}</p>{/if}
 
   {#if post.media.length && !nested}
     <div class="post-media {grid}">
@@ -83,9 +108,11 @@
 
   {#if !nested}
     <footer class="post-actions">
-      <button class="act" class:on={post.liked} disabled={busy || !onLike} onclick={() => onLike?.(post)} aria-pressed={!!post.liked} title={$t(post.liked ? "social.post.unlike" : "social.post.like")}>
-        <SocialIcon name="heart" /> <span>{compact(post.stats.likes, $locale)}</span>
-      </button>
+      {#if likeable}
+        <button class="act" class:on={post.liked} disabled={busy || !onLike} onclick={() => onLike?.(post)} aria-pressed={!!post.liked} title={$t(post.liked ? "social.post.unlike" : "social.post.like")}>
+          <SocialIcon name={likeIcon} /> <span>{compact(post.stats.likes, $locale)}</span>
+        </button>
+      {/if}
       <button class="act" onclick={() => onOpen?.(post)} title={$t("social.post.comments")}>
         <SocialIcon name="comment" /> <span>{compact(post.stats.replies, $locale)}</span>
       </button>
@@ -93,6 +120,12 @@
         <button class="act" class:on={post.reposted} disabled={busy || !onRepost} onclick={() => onRepost?.(post)} aria-pressed={!!post.reposted} title={$t(post.reposted ? "social.post.unrepost" : "social.post.repost")}>
           <SocialIcon name="repost" /> <span>{compact(post.stats.reposts, $locale)}</span>
         </button>
+      {/if}
+      {#if platform === "github" && post.stats.reposts != null}
+        <span class="act static"><SocialIcon name="repost" /> <span>{compact(post.stats.reposts, $locale)}</span></span>
+      {/if}
+      {#if platform === "pinterest" && post.stats.saves != null}
+        <span class="act static"><SocialIcon name="bookmark" /> <span>{compact(post.stats.saves, $locale)}</span></span>
       {/if}
       {#if post.stats.views}
         <span class="act static" title={$t("social.post.views")}><SocialIcon name="views" /> <span>{compact(post.stats.views, $locale)}</span></span>
@@ -137,6 +170,28 @@
     gap: 6px;
     font-size: var(--text-xs);
     color: var(--text-dim);
+  }
+
+  .post-title {
+    margin: 0;
+    font-size: var(--text-base);
+    font-weight: 650;
+    line-height: 1.35;
+    overflow-wrap: anywhere;
+  }
+
+  .post-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .chip {
+    padding: 1px 8px;
+    border-radius: 999px;
+    background: var(--fill-1);
+    color: var(--text-dim);
+    font-size: var(--text-xs);
   }
 
   .post-author {

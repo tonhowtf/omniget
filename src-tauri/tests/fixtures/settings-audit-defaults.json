@@ -315,5 +315,8 @@
   },
   "world": {
     "enabled": true
+  },
+  "superpowers": {
+    "pinned": []
   }
 }

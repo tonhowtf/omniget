@@ -1,8 +1,11 @@
+use std::collections::HashMap;
+use std::sync::{Mutex, OnceLock};
 use std::time::Duration;
 
 use serde_json::{json, Value};
 
 use super::browser::{self, Browser};
+use super::harness::{self, Probe, SnapOpts};
 
 const HELPERS: &str = r#"
   var G = window.__gdPage || (window.__gdPage = { refs: new Map() });
@@ -38,9 +41,20 @@ const HELPERS: &str = r#"
     var txt = clean(el.innerText || el.value || el.getAttribute('aria-label') || '', 60);
     return txt ? d + ' "' + txt + '"' : d;
   }
+  function signals() {
+    var frames = [], all = document.querySelectorAll('iframe[src]');
+    for (var i = 0; i < all.length && frames.length < 20; i++) {
+      var r = all[i].getBoundingClientRect();
+      if (r.width > 1 && r.height > 1) frames.push(String(all[i].src).slice(0, 200));
+    }
+    var pw = document.querySelectorAll('input[type=password]'), password = false;
+    for (var j = 0; j < pw.length && !password; j++) password = pw[j].getClientRects().length > 0;
+    return { frames: frames, password: password };
+  }
 "#;
 
 const SNAPSHOT: &str = r#"
+  var root = A.scope ? find(A.scope) : document.body;
   var refs = new Map(); G.refs = refs;
   var max = A.maxNodes || 1500, count = 0, lines = [];
   var LEAF = /^(link|button|heading|textbox|searchbox|checkbox|radio|combobox|slider|img|option|tab|menuitem|switch|spinbutton|progressbar|meter)$/;
@@ -105,12 +119,32 @@ const SNAPSHOT: &str = r#"
       walk(c.shadowRoot || c, next);
     }
   }
-  if (document.body) walk(document.body, 0);
+  if (root) walk(root, 0);
   var maxChars = A.maxChars || 20000;
-  var text = document.body ? (document.body.innerText || '') : '';
+  var text = root ? (root.innerText || '') : '';
+  var sig = signals();
   return { url: location.href, title: document.title, tree: lines.join('\n'), nodes: count, truncated: count >= max,
+    frames: sig.frames, password: sig.password,
     text: text.length > maxChars ? text.slice(0, maxChars) + '…' : text,
     viewport: { width: innerWidth, height: innerHeight, scrollY: Math.round(scrollY), scrollHeight: document.documentElement.scrollHeight } };
+"#;
+
+const PROBE: &str = r#"
+  if (!G.doc) {
+    G.doc = Math.random().toString(36).slice(2); G.muts = 0;
+    try {
+      new MutationObserver(function (l) { G.muts += l.length; })
+        .observe(document, { subtree: true, childList: true, attributes: true, characterData: true });
+    } catch (e) {}
+  }
+  var a = document.activeElement, on = a && a !== document.body;
+  var v = on ? String(a.value != null ? a.value : (a.isContentEditable ? a.innerText : '')) : '', h = v.length;
+  for (var i = 0; i < v.length; i++) h = (h * 31 + v.charCodeAt(i)) | 0;
+  var sig = signals();
+  return { url: location.href, title: document.title, doc: G.doc, muts: G.muts,
+    focus: on ? a.tagName + '#' + a.id + '.' + (a.name || '') : '', val: h, scrollY: Math.round(scrollY),
+    frames: sig.frames, password: sig.password,
+    head: clean(document.body ? (document.body.innerText || '').slice(0, 3000) : '', 1500) };
 "#;
 
 const LOCATE: &str = r#"
@@ -152,19 +186,41 @@ pub fn pick_tab(b: &Browser, tab: Option<String>) -> Result<String, String> {
         .ok_or_else(|| "no tab is open".to_string())
 }
 
+fn last_trees() -> &'static Mutex<HashMap<String, String>> {
+    static T: OnceLock<Mutex<HashMap<String, String>>> = OnceLock::new();
+    T.get_or_init(Mutex::default)
+}
+
 pub async fn snapshot(
     b: &Browser,
     tab: &str,
     max_nodes: Option<u64>,
     max_chars: Option<u64>,
+    scope: Option<&str>,
+    opts: &SnapOpts,
 ) -> Result<Value, String> {
-    run(
+    let raw = run(
         b,
         tab,
         SNAPSHOT,
-        json!({ "maxNodes": max_nodes, "maxChars": max_chars }),
+        json!({ "maxNodes": max_nodes, "maxChars": max_chars, "scope": scope }),
     )
-    .await
+    .await?;
+    let key = format!("{tab}|{}", scope.unwrap_or_default());
+    let tree = raw["tree"].as_str().unwrap_or_default().to_string();
+    let prev = {
+        let mut trees = last_trees().lock().unwrap_or_else(|e| e.into_inner());
+        if trees.len() >= 64 && !trees.contains_key(&key) {
+            trees.clear();
+        }
+        trees.insert(key, tree)
+    };
+    Ok(harness::shape_snapshot(raw, opts, prev.as_deref()))
+}
+
+pub async fn probe(b: &Browser, tab: &str) -> Option<Probe> {
+    let v = run(b, tab, PROBE, json!({})).await.ok()?;
+    serde_json::from_value(v).ok()
 }
 
 pub async fn click(b: &Browser, tab: &str, selector: &str, double: bool) -> Result<Value, String> {

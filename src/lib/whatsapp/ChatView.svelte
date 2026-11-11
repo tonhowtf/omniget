@@ -2,7 +2,7 @@
   import { tick, untrack } from "svelte";
   import { t } from "$lib/i18n";
   import * as api from "./api";
-  import type { WaChat, WaMessage } from "./api";
+  import type { WaChat, WaMessage, WaScheduled } from "./api";
   import { onDownloadProgress, wa } from "./session.svelte";
   import WaIcon from "./WaIcon.svelte";
   import MediaDialog from "./MediaDialog.svelte";
@@ -29,6 +29,9 @@
   let busy = $state<Record<string, "loading" | string>>({});
   let showMedia = $state(false);
   let showExport = $state(false);
+  let scheduleOpen = $state(false);
+  let scheduleAt = $state("");
+  let pending = $state<WaScheduled[]>([]);
   let scroller: HTMLDivElement | undefined = $state();
   let currentJid = "";
 
@@ -139,6 +142,45 @@
     }),
   );
 
+  async function loadPending(jid: string) {
+    try {
+      const rows = await api.scheduled(false);
+      if (jid === currentJid) pending = rows.filter((r) => r.chat === jid);
+    } catch {
+      pending = [];
+    }
+  }
+
+  $effect(() => {
+    void wa.scheduledVersion;
+    const jid = chat.jid;
+    untrack(() => void loadPending(jid));
+  });
+
+  function localInput(d: Date): string {
+    const off = d.getTimezoneOffset() * 60000;
+    return new Date(d.getTime() - off).toISOString().slice(0, 16);
+  }
+
+  function toggleSchedule() {
+    scheduleOpen = !scheduleOpen;
+    if (scheduleOpen && !scheduleAt) scheduleAt = localInput(new Date(Date.now() + 15 * 60000));
+    if (!scheduleOpen) scheduleAt = "";
+  }
+
+  async function cancelPending(id: number) {
+    try {
+      await api.cancelScheduled(id);
+      pending = pending.filter((p) => p.id !== id);
+    } catch (e) {
+      sendError = api.errText(e);
+    }
+  }
+
+  function when(ts: number): string {
+    return new Date(ts * 1000).toLocaleString([], { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+  }
+
   async function send(event?: SubmitEvent) {
     event?.preventDefault();
     const text = draft.trim();
@@ -146,6 +188,15 @@
     sending = true;
     sendError = null;
     try {
+      if (scheduleOpen && scheduleAt) {
+        const at = Math.floor(new Date(scheduleAt).getTime() / 1000);
+        const row = await api.schedule(chat.jid, text, at);
+        draft = "";
+        scheduleOpen = false;
+        scheduleAt = "";
+        pending = [...pending, row].sort((a, b) => a.at - b.at);
+        return;
+      }
       const row = await api.sendText(chat.jid, text);
       draft = "";
       if (!items.some((m) => m.id === row.id)) items = [...items, row];
@@ -298,7 +349,30 @@
     {/if}
   </div>
 
+  {#if pending.length}
+    <ul class="pending" aria-label={$t("whatsapp.chat.scheduled_title")}>
+      {#each pending as p (p.id)}
+        <li>
+          <WaIcon name="clock" size={13} />
+          <span class="pending-when">{when(p.at)}</span>
+          <span class="pending-text">{p.text}</span>
+          <button class="btn btn-ghost btn-icon btn-sm" type="button" aria-label={$t("whatsapp.chat.scheduled_cancel")} title={$t("whatsapp.chat.scheduled_cancel")} onclick={() => cancelPending(p.id)}>
+            <WaIcon name="x" size={13} />
+          </button>
+        </li>
+      {/each}
+    </ul>
+  {/if}
+  {#if scheduleOpen}
+    <div class="schedule-row">
+      <label for="wa-schedule-at">{$t("whatsapp.chat.schedule_at")}</label>
+      <input id="wa-schedule-at" class="input" type="datetime-local" bind:value={scheduleAt} min={localInput(new Date())} />
+    </div>
+  {/if}
   <form class="composer" onsubmit={send}>
+    <button class="btn btn-ghost btn-icon" class:active={scheduleOpen} type="button" aria-pressed={scheduleOpen} aria-label={$t("whatsapp.chat.schedule")} title={$t("whatsapp.chat.schedule")} onclick={toggleSchedule} disabled={sending}>
+      <WaIcon name="clock" size={16} />
+    </button>
     <textarea
       class="input composer-input"
       rows="1"
@@ -306,9 +380,9 @@
       onkeydown={composerKey}
       placeholder={online ? $t("whatsapp.chat.composer") : $t("whatsapp.chat.composer_offline")}
       aria-label={$t("whatsapp.chat.composer")}
-      disabled={!online || sending}
+      disabled={(!online && !scheduleOpen) || sending}
     ></textarea>
-    <button class="btn btn-primary btn-icon" type="submit" aria-label={$t("whatsapp.chat.send")} disabled={!online || sending || !draft.trim()}>
+    <button class="btn btn-primary btn-icon" type="submit" aria-label={scheduleOpen ? $t("whatsapp.chat.schedule") : $t("whatsapp.chat.send")} disabled={(!online && !scheduleOpen) || sending || !draft.trim() || (scheduleOpen && !scheduleAt)}>
       {#if sending}<span class="spinner"></span>{:else}<WaIcon name="send" size={16} />{/if}
     </button>
   </form>
@@ -555,6 +629,52 @@
     field-sizing: content;
     padding-block: 8px;
     font: inherit;
+  }
+
+  .pending {
+    list-style: none;
+    margin: 0;
+    padding: var(--space-2) var(--space-4) 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    border-top: var(--hairline) solid var(--separator);
+  }
+
+  .pending li {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: var(--text-xs);
+    color: var(--text-dim);
+    min-width: 0;
+  }
+
+  .pending-when {
+    flex-shrink: 0;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .pending-text {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--text);
+  }
+
+  .schedule-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-4) 0;
+    font-size: var(--text-sm);
+    color: var(--text-dim);
+  }
+
+  .composer .active {
+    color: var(--accent);
   }
 
   .send-err {

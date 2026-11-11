@@ -4,7 +4,7 @@
   import NavIcon from "$components/shell/NavIcon.svelte";
   import Avatar from "$components/omni/Avatar.svelte";
   import { getProfile, loadProfile } from "$lib/stores/profile-store.svelte";
-  import { NAV_ALIASES, type NavItem } from "$lib/nav-config";
+  import { activeNavHref, type NavItem } from "$lib/nav-config";
   import { isMac } from "$lib/platform";
 
   interface Props {
@@ -103,11 +103,7 @@
   loadProfile();
   let profile = $derived(getProfile());
 
-  function isActive(href: string): boolean {
-    if (href === "/") return page.url.pathname === "/";
-    const path = page.url.pathname;
-    return path.startsWith(href) || (NAV_ALIASES[href] ?? []).some((alias) => path.startsWith(alias));
-  }
+  let activeHref = $derived(activeNavHref([...primaryNav, ...appNav], page.url.pathname));
 
   function itemTitle(item: NavItem): string {
     return item.label || (item.labelKey ? $t(item.labelKey) : "");
@@ -116,11 +112,12 @@
 
 {#snippet navLink(item: NavItem)}
   {@const title = itemTitle(item)}
-  {@const active = isActive(item.href)}
+  {@const active = item.href === activeHref}
   <a
     href={item.href}
     class="mac-nav-item"
     class:help-link={item.href === "/help"}
+    class:pinned-link={item.pinned}
     class:active
     title={railCollapsed ? undefined : title}
     aria-label={item.badge === "downloads" && badgeCount > 0 ? `${title} (${badgeLabel})` : title}
@@ -274,6 +271,10 @@
   :global(.mac-source-list) { overflow-y: hidden; }
   @media (max-width: 860px) { .profile-copy { display: none; } .mac-sidebar-profile { padding-inline: 8px; } }
   .help-link { min-height: 44px; }
+  .pinned-link { margin-inline-start: var(--space-3); }
+  .collapsed .pinned-link,
+  .auto-collapsed .pinned-link { margin-inline-start: 0; }
+  @media (max-width: 860px) { .pinned-link { margin-inline-start: 0; } }
   .profile-copy small { display: block; font-size: 11px; line-height: 1.3; color: var(--text-muted); }
   .profile-copy { display: flex; flex-direction: column; min-width: 0; }
   .mac-sidebar-profile { min-height: 44px; box-sizing: border-box; }

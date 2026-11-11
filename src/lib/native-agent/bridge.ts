@@ -29,10 +29,11 @@ function nameOf(el: Element): string {
   return (el.getAttribute('aria-label') || labels || label || el.getAttribute('placeholder') || el.textContent || '').trim().slice(0, 240);
 }
 
-function inspect(args: { cursor?: number; limit?: number }) {
+function inspect(args: { cursor?: number; limit?: number; unguarded?: unknown }) {
+  const unguarded = args.unguarded === true;
   const route = get(page).url.pathname;
   const blocker = document.querySelector('[data-agent-sensitive], input[type=password], [role=dialog], dialog[open]');
-  const sensitive = SENSITIVE_ROUTES.test(route) || !!blocker;
+  const sensitive = !unguarded && (SENSITIVE_ROUTES.test(route) || !!blocker);
   const sensitiveReason = !sensitive ? null
     : SENSITIVE_ROUTES.test(route) ? `route ${route} holds credentials`
     : blocker?.matches('input[type=password]') ? 'a password field is on screen'
@@ -55,7 +56,7 @@ function inspect(args: { cursor?: number; limit?: number }) {
     targets.set(ref, el);
     const r = el.getBoundingClientRect();
     const input = el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement || el instanceof HTMLSelectElement;
-    const secret = el instanceof HTMLInputElement && (el.type === 'password' || /password|token|secret|api.?key/i.test(`${el.name} ${el.id} ${el.autocomplete}`));
+    const secret = !unguarded && el instanceof HTMLInputElement && (el.type === 'password' || /password|token|secret|api.?key/i.test(`${el.name} ${el.id} ${el.autocomplete}`));
     const tag = el.tagName.toLowerCase();
     const role = el.getAttribute('role') || ({button:'button',a:'link',input:'textbox',textarea:'textbox',select:'combobox',canvas:'canvas',h1:'heading',h2:'heading',h3:'heading'} as Record<string,string>)[tag] || 'region';
     return {
@@ -68,7 +69,7 @@ function inspect(args: { cursor?: number; limit?: number }) {
       bounds: {x: Math.round(r.x), y: Math.round(r.y), width: Math.round(r.width), height: Math.round(r.height)},
       scroll: {top: el.scrollTop, left: el.scrollLeft, height: el.scrollHeight, viewportHeight: el.clientHeight},
       inViewport: r.bottom > 0 && r.right > 0 && r.top < innerHeight && r.left < innerWidth,
-      actions: secret ? [] : allowedActions(el),
+      actions: secret ? [] : allowedActions(el, unguarded),
     };
   });
   const next = JSON.stringify([route, sensitive, nodes]);
@@ -92,25 +93,44 @@ function inspect(args: { cursor?: number; limit?: number }) {
   };
 }
 
+const MAX_REPLY = 7 * 1024 * 1024;
+function base64(bytes: Uint8Array): string {
+  let text = '';
+  for (let i = 0; i < bytes.length; i += 32768) text += String.fromCharCode(...bytes.subarray(i, i + 32768));
+  return btoa(text);
+}
+async function callCommand(command: string, args: Record<string, unknown>) {
+  try {
+    const out = await invoke(command, args);
+    const result = out instanceof ArrayBuffer ? {base64: base64(new Uint8Array(out))}
+      : out instanceof Uint8Array ? {base64: base64(out)} : out ?? null;
+    if (JSON.stringify(result).length > MAX_REPLY) return {invokeError: 'RESULT_TOO_LARGE: narrow the request'};
+    return {result};
+  } catch (error) {
+    return {invokeError: typeof error === 'string' ? error : error instanceof Error ? error.message : JSON.stringify(error)};
+  }
+}
+
 type Request = { id: string; epoch: string; operation: string; arguments: Record<string, unknown> };
 async function dispatch(operation: string, args: Record<string, unknown>) {
   if (operation === 'inspect') return inspect(args);
+  if (operation === 'invoke') return callCommand(String(args.command), (args.args ?? {}) as Record<string, unknown>);
   if (operation === 'navigate') {
     const screen = catalog.find(s => s.screenId === args.screenId);
     if (!screen || screen.windowId !== 'main' || screen.kind === 'development' || screen.navigation !== 'main-route') throw new Error('TARGET_NOT_ACTIONABLE');
     await goto(screen.route);
     await tick();
     await waitForPaint();
-    return inspect({});
+    return inspect({unguarded: args.unguarded});
   }
   if (operation !== 'interact') throw new Error('CAPABILITY_UNAVAILABLE');
-  const before = inspect({});
+  const before = inspect({unguarded: args.unguarded});
   if (before.sensitive) throw new Error('PERMISSION_REQUIRED');
   if (before.stateRevision !== args.stateRevision) throw new Error('STALE_TARGET');
   const target = targets.get(String(args.ref));
   if (!(target instanceof HTMLElement) || !target.isConnected) throw new Error('STALE_TARGET');
   const action = String(args.action);
-  const allowed = allowedActions(target);
+  const allowed = allowedActions(target, args.unguarded === true);
   if (!allowed.includes(action) || target.matches(':disabled,[aria-disabled="true"]')) throw new Error('TARGET_NOT_ACTIONABLE');
   const value = args.value;
   if (action === 'scroll') {
@@ -118,14 +138,18 @@ async function dispatch(operation: string, args: Record<string, unknown>) {
     if (!Number.isFinite(delta) || Math.abs(delta) > 4000) throw new Error('INVALID_ARGUMENT');
     target.scrollBy({top:delta,behavior:'instant'});
   } else if (action === 'fill' && (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement)) {
-    if (typeof value !== 'string' || value.length > 10000 || target.type === 'password') throw new Error('INVALID_ARGUMENT');
+    if (typeof value !== 'string' || value.length > 10000 || (target.type === 'password' && args.unguarded !== true)) throw new Error('INVALID_ARGUMENT');
     target.focus(); target.value = value;
     target.dispatchEvent(new Event('input', {bubbles:true}));
+  } else if (action === 'fill' && target instanceof HTMLSelectElement) {
+    if (typeof value !== 'string') throw new Error('INVALID_ARGUMENT');
+    target.value = value;
+    target.dispatchEvent(new Event('change', {bubbles:true}));
   } else if (action === 'click') target.click();
   else throw new Error('CAPABILITY_UNAVAILABLE');
   await tick();
   await waitForPaint();
-  return inspect({});
+  return inspect({unguarded: args.unguarded});
 }
 
 let activeStop: (() => void) | undefined;

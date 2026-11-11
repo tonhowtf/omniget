@@ -177,6 +177,7 @@ pub fn live(store: &Store, items: &[InboundMessage]) -> rusqlite::Result<Vec<Str
                 wire_sender: wire_sender.as_deref(),
             })?;
             if inserted {
+                tx.mark_live(&chat, item.info.id.as_str())?;
                 if !src.is_from_me {
                     tx.bump_unread(&chat)?;
                 }

@@ -8,6 +8,8 @@
   import SettingGroup from "$components/settings/rebrand/SettingGroup.svelte";
   import AgentLogo from "./AgentLogo.svelte";
   import ServerConnections from "./ServerConnections.svelte";
+  import McpAccess from "./McpAccess.svelte";
+  import ConnectAnyAi from "./ConnectAnyAi.svelte";
   import AdvancedDisclosure from "$components/settings/ai/AdvancedDisclosure.svelte";
   import SettingsEmptyState from "$components/settings/rebrand/SettingsEmptyState.svelte";
 
@@ -102,6 +104,8 @@
   {:else}
   {#if status && !status.enabled}<p class="warn" role="status"><bdi>{$t("settings.ai.connect_off")}</bdi></p>
   {:else if status && !status.bridge_enabled}<p class="warn" role="status">{$t("agents.mcp.bridge_off")}</p>{/if}
+  <ConnectAnyAi enabled={status?.enabled ?? false} />
+  <McpAccess />
   <div class="grid">
     {#each shown as tool (tool.id)}
       <div class="tool" class:connected={tool.connected}>
