@@ -314,10 +314,8 @@ pub fn publish(partial: &Path, input: &Path, out_dir: Option<&Path>) -> Result<P
     Err("Studio could not find a free name for the finished video.".to_string())
 }
 
-pub const FONT_REGULAR: &[u8] =
-    include_bytes!("../../../../../static/vendor/pdfjs/standard_fonts/LiberationSans-Regular.ttf");
-pub const FONT_BOLD: &[u8] =
-    include_bytes!("../../../../../static/vendor/pdfjs/standard_fonts/LiberationSans-Bold.ttf");
+pub const FONT_REGULAR: &[u8] = include_bytes!("../../../assets/fonts/LiberationSans-Regular.ttf");
+pub const FONT_BOLD: &[u8] = include_bytes!("../../../assets/fonts/LiberationSans-Bold.ttf");
 
 #[cfg(test)]
 mod tests {
