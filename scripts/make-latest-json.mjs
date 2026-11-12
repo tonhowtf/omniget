@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 
 const args = process.argv.slice(2);
 const dir = args.find((a) => !a.startsWith("--"));
@@ -15,7 +16,7 @@ const flag = (name) => {
 const base = (flag("--base") ?? "https://getomniget.com/dl").replace(/\/+$/, "");
 const notesFile = flag("--notes");
 
-const root = resolve(new URL("..", import.meta.url).pathname);
+const root = resolve(fileURLToPath(new URL("..", import.meta.url)));
 const version = JSON.parse(readFileSync(join(root, "package.json"), "utf8")).version;
 
 const PLATFORMS = [
