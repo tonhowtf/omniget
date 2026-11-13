@@ -26,7 +26,12 @@
   <a href="https://getomniget.com"><img src="https://img.shields.io/badge/website-getomniget.com-F28500?style=flat-square" alt="getomniget.com" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0-2AA845?style=flat-square" alt="许可证 GPL-3.0" /></a>
   <a href="https://discord.gg/jgdxyPy7Vn"><img src="https://img.shields.io/badge/chat-community-5865F2?style=flat-square" alt="社区聊天" /></a>
+  <a href="https://www.instagram.com/tonhowtf/"><img src="https://img.shields.io/badge/Instagram-@tonhowtf-E4405F?style=flat-square&logo=instagram&logoColor=white" alt="在 Instagram 关注 @tonhowtf" /></a>
   <a href="https://hosted.weblate.org/engage/omniget/"><img src="https://hosted.weblate.org/widget/omniget/frontend-json/svg-badge.svg" alt="翻译状态" /></a>
+</p>
+
+<p align="center">
+  在 <a href="https://www.instagram.com/tonhowtf/">Instagram 关注 @tonhowtf</a>，第一时间看到 OmniGet 的新消息和幕后动态。
 </p>
 
 <p align="center">
@@ -336,6 +341,15 @@ OmniGet 只下载你自己的会话本来就能打开的内容。它不绕过 DR
 ## 参与贡献
 
 [报告问题](https://getomniget.com/contact) · [翻译](https://hosted.weblate.org/engage/omniget/) · [社区](https://getomniget.com/community) · [媒体资料包](MEDIA-KIT.md)
+
+## Code signing policy
+
+Free code signing provided by [SignPath.io](https://about.signpath.io/), certificate by [SignPath Foundation](https://signpath.org/).
+
+- Authors and approvers: [Antonio Leandro](https://github.com/tonhowtf). Every release is approved by hand before it is signed.
+- Reviewers: pull requests from contributors are reviewed by the author before they are merged.
+- Signed binaries are built by GitHub Actions from this repository only.
+- Privacy: see the [privacy policy](https://getomniget.com/privacy). OmniGet sends nothing to other systems unless you ask it to.
 
 ## 致谢
 

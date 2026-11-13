@@ -26,7 +26,12 @@
   <a href="https://getomniget.com"><img src="https://img.shields.io/badge/website-getomniget.com-F28500?style=flat-square" alt="getomniget.com" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0-2AA845?style=flat-square" alt="Licença GPL-3.0" /></a>
   <a href="https://discord.gg/jgdxyPy7Vn"><img src="https://img.shields.io/badge/chat-community-5865F2?style=flat-square" alt="Chat da comunidade" /></a>
+  <a href="https://www.instagram.com/tonhowtf/"><img src="https://img.shields.io/badge/Instagram-@tonhowtf-E4405F?style=flat-square&logo=instagram&logoColor=white" alt="Siga @tonhowtf no Instagram" /></a>
   <a href="https://hosted.weblate.org/engage/omniget/"><img src="https://hosted.weblate.org/widget/omniget/frontend-json/svg-badge.svg" alt="Estado da tradução" /></a>
+</p>
+
+<p align="center">
+  Siga <a href="https://www.instagram.com/tonhowtf/">@tonhowtf no Instagram</a> para novidades e bastidores do OmniGet.
 </p>
 
 <p align="center">
@@ -336,6 +341,15 @@ O OmniGet baixa o que a sua própria sessão já consegue abrir. Ele não quebra
 ## Contribuir
 
 [Relatar um problema](https://getomniget.com/contact) · [Traduzir](https://hosted.weblate.org/engage/omniget/) · [Comunidade](https://getomniget.com/community) · [Kit de mídia](MEDIA-KIT.md)
+
+## Política de assinatura de código
+
+Assinatura de código gratuita fornecida pela [SignPath.io](https://about.signpath.io/), certificado da [SignPath Foundation](https://signpath.org/).
+
+- Autor e aprovador: [Antonio Leandro](https://github.com/tonhowtf). Cada versão é aprovada à mão antes de ser assinada.
+- Revisão: os pull requests de colaboradores são revisados pelo autor antes do merge.
+- Os binários assinados são compilados pelo GitHub Actions, só a partir deste repositório.
+- Privacidade: veja a [política de privacidade](https://getomniget.com/privacy). O OmniGet não envia nada a outros sistemas sem você pedir.
 
 ## Créditos
 

@@ -26,7 +26,12 @@
   <a href="https://getomniget.com"><img src="https://img.shields.io/badge/website-getomniget.com-F28500?style=flat-square" alt="getomniget.com" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0-2AA845?style=flat-square" alt="Лицензия GPL-3.0" /></a>
   <a href="https://discord.gg/jgdxyPy7Vn"><img src="https://img.shields.io/badge/chat-community-5865F2?style=flat-square" alt="Чат сообщества" /></a>
+  <a href="https://www.instagram.com/tonhowtf/"><img src="https://img.shields.io/badge/Instagram-@tonhowtf-E4405F?style=flat-square&logo=instagram&logoColor=white" alt="Подпишитесь на @tonhowtf в Instagram" /></a>
   <a href="https://hosted.weblate.org/engage/omniget/"><img src="https://hosted.weblate.org/widget/omniget/frontend-json/svg-badge.svg" alt="Состояние перевода" /></a>
+</p>
+
+<p align="center">
+  Подпишитесь на <a href="https://www.instagram.com/tonhowtf/">@tonhowtf в Instagram</a>: новости OmniGet и закулисье.
 </p>
 
 <p align="center">
@@ -336,6 +341,15 @@ OmniGet скачивает то, что ваша собственная сесс
 ## Участие
 
 [Сообщить о проблеме](https://getomniget.com/contact) · [Перевести](https://hosted.weblate.org/engage/omniget/) · [Сообщество](https://getomniget.com/community) · [Медиа-кит](MEDIA-KIT.md)
+
+## Code signing policy
+
+Free code signing provided by [SignPath.io](https://about.signpath.io/), certificate by [SignPath Foundation](https://signpath.org/).
+
+- Authors and approvers: [Antonio Leandro](https://github.com/tonhowtf). Every release is approved by hand before it is signed.
+- Reviewers: pull requests from contributors are reviewed by the author before they are merged.
+- Signed binaries are built by GitHub Actions from this repository only.
+- Privacy: see the [privacy policy](https://getomniget.com/privacy). OmniGet sends nothing to other systems unless you ask it to.
 
 ## Благодарности
 
