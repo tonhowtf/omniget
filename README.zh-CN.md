@@ -8,7 +8,7 @@
 </p>
 
 <p align="center">
-  <a href="https://getomniget.com"><img src="assets/readme/loop-mcp-hero.gif" alt="OmniGet 的吉祥物 Loop 拿着一个插头，线缆连到三个终端窗口" width="820" /></a>
+  <a href="https://getomniget.com"><img src="assets/readme/loop-mcp-hero.gif" alt="OmniGet 的吉祥物 Loop 骑着一个橙色插头飞行，线缆连到三个终端窗口" width="820" /></a>
 </p>
 
 <h3 align="center">一个 MCP 服务器，给你的编程智能体一整套桌面工具箱。</h3>
@@ -38,7 +38,7 @@
 ## 一分钟完成连接
 
 <p align="center">
-  <img src="assets/readme/loop-connect.webp" alt="Loop 按下绿色的“允许”按钮，一根带锁的线缆把终端和应用连在一起" width="720" />
+  <img src="assets/readme/loop-connect.webp" alt="Loop 拍下带对勾的绿色按钮，一根带锁的线缆把它和终端连在一起" width="820" />
 </p>
 
 **1.** 打开 OmniGet。
@@ -52,6 +52,10 @@
 **3.** OmniGet 会跳到前台，显示该工具的名称和一个短验证码。核对验证码，点击**允许**。
 
 OmniGet 会把自己的服务器和一个专属令牌写进该工具自己的配置。重启该工具，OmniGet 的工具就出现了。更喜欢点按钮？在**设置 → AI 与智能体 → 连接到其他应用**里，每个工具点一下就能完成同样的事。
+
+<p align="center">
+  <img src="assets/readme/mcp-connect.webp" alt="设置中的“连接其他应用”部分，一个按钮即可创建访问并复制提示词" width="860" />
+</p>
 
 然后直接提要求：
 
@@ -67,7 +71,7 @@ OmniGet 会把自己的服务器和一个专属令牌写进该工具自己的配
 ## 你的智能体能做什么
 
 <p align="center">
-  <img src="assets/readme/loop-tools.webp" alt="Loop 指着一块挂满工具的洞洞板，板子连着一个终端" width="720" />
+  <img src="assets/readme/loop-tools.webp" alt="Loop 打开红色工具箱，扳手、胶片、音符、放大镜、扫帚、相机和麦克风飞向一个终端" width="820" />
 </p>
 
 | | |
@@ -180,7 +184,7 @@ http_headers = { Authorization = "Bearer YOUR_TOKEN" }
 ## 控制权在你手里
 
 <p align="center">
-  <img src="assets/readme/loop-privacy.webp" alt="Loop 抱着一台笔记本电脑，身后是一面带挂锁的盾牌" width="560" />
+  <img src="assets/readme/loop-privacy.webp" alt="Loop 坐在合上的笔记本电脑上，手拿钥匙，身后是一面带挂锁的盾牌" width="820" />
 </p>
 
 - **只在本地。** 服务器监听 `127.0.0.1`，拒绝来自网页的请求。
@@ -194,7 +198,7 @@ http_headers = { Authorization = "Bearer YOUR_TOKEN" }
 ## Canvas
 
 <p align="center">
-  <img src="assets/readme/loop-canvas.webp" alt="Loop 在一块面板上用彩色连线把四个终端窗口连起来" width="720" />
+  <img src="assets/readme/loop-canvas.webp" alt="Loop 手握四根彩色连线，连线通向周围的四个终端窗口" width="820" />
 </p>
 
 一块面板，Claude Code、Codex、Gemini CLI、OpenCode 或本地模型在各自的终端里并排运行。拉一根连线，两个智能体就能对话。开启 **Lead 模式**，由一个智能体招募并协调其他智能体。每个账号的用量限额显示在屏幕边缘。
@@ -204,13 +208,17 @@ http_headers = { Authorization = "Bearer YOUR_TOKEN" }
 ## 下载器
 
 <p align="center">
-  <img src="assets/readme/loop-downloader.webp" alt="Loop 欢呼着看一个链接变成视频、音乐和照片文件，落进文件夹" width="720" />
+  <img src="assets/readme/loop-downloader.webp" alt="一节链条断开，场记板、音符、照片和书飞向 Loop，被它接住" width="820" />
 </p>
 
 粘贴链接，选好画质，按回车。
 
 <p align="center">
-  <img src="assets/readme/downloads.png" alt="“下载”页面，一个进行中的下载显示着阶段、速度和剩余时间" width="860" />
+  <img src="assets/readme/home.webp" alt="带链接输入栏的主页" width="860" />
+</p>
+
+<p align="center">
+  <img src="assets/readme/downloads.webp" alt="“下载”页面，两个进行中的下载显示着阶段、速度和剩余时间" width="860" />
 </p>
 
 | | |
@@ -229,7 +237,7 @@ yt-dlp、FFmpeg、aria2 和 gallery-dl 会自动安装和更新。不用装 Pyth
 ## 工具
 
 <p align="center">
-  <img src="assets/readme/tools-hub.webp" alt="“工具”页面，卡片按媒体、下载和创作分组" width="860" />
+  <img src="assets/readme/tools-hub.webp" alt="“工具”页面，卡片按媒体和下载分组" width="860" />
 </p>
 
 | | |
@@ -243,7 +251,7 @@ yt-dlp、FFmpeg、aria2 和 gallery-dl 会自动安装和更新。不用装 Pyth
 | **系统** | 传输 · 系统清理 |
 
 <p align="center">
-  <img src="assets/readme/washmybelly-clean-up.webp" alt="“系统清理”界面，按类别列出找到的垃圾文件" width="860" />
+  <img src="assets/readme/cleaner.webp" alt="“系统清理”按类别显示找到的垃圾文件" width="860" />
 </p>
 
 “系统清理”先扫描，再给出计划，只有你批准后才执行。文件会进入隔离区或废纸篓，在**历史记录**里可以撤销。
@@ -253,7 +261,7 @@ yt-dlp、FFmpeg、aria2 和 gallery-dl 会自动安装和更新。不用装 Pyth
 ## 快捷工具
 
 <p align="center">
-  <img src="assets/readme/quick-tools.webp" alt="快捷工具面板：保持唤醒、系统监视和按应用调节音量" width="380" />
+  <img src="assets/readme/quick-tools.webp" alt="快捷工具面板：快捷入口和保持唤醒" width="380" />
 </p>
 
 Loop 常驻菜单栏或系统托盘。点一下图标就会打开一个小面板：保持电脑唤醒、剪贴板历史、常用文本片段、实时系统监视、按应用调节音量，以及截屏录屏、听写和清理的快捷入口。支持 Windows、macOS 和 Linux，每个系统只显示它能用的功能。面板关闭后，只有你开启的功能继续运行。

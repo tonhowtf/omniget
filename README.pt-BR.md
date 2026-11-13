@@ -8,7 +8,7 @@
 </p>
 
 <p align="center">
-  <a href="https://getomniget.com"><img src="assets/readme/loop-mcp-hero.gif" alt="Loop, o mascote do OmniGet, segura um plugue cujos cabos chegam a três janelas de terminal" width="820" /></a>
+  <a href="https://getomniget.com"><img src="assets/readme/loop-mcp-hero.gif" alt="Loop, o mascote do OmniGet, voa montado em um plugue laranja enquanto os cabos chegam a três janelas de terminal" width="820" /></a>
 </p>
 
 <h3 align="center">Um servidor MCP que dá ao seu agente de código uma caixa de ferramentas inteira no desktop.</h3>
@@ -38,7 +38,7 @@
 ## Conecte em um minuto
 
 <p align="center">
-  <img src="assets/readme/loop-connect.webp" alt="Loop aperta um botão verde Permitir que liga um terminal ao app por um cabo com cadeado" width="720" />
+  <img src="assets/readme/loop-connect.webp" alt="Loop bate em um botão verde com um visto; um cabo com cadeado liga o botão a um terminal" width="820" />
 </p>
 
 **1.** Abra o OmniGet.
@@ -52,6 +52,10 @@ Conecte ao OmniGet: rode curl -s "http://127.0.0.1:47720/connect" e siga os pass
 **3.** O OmniGet vem para a frente com o nome da ferramenta e um código curto. Confira o código e clique em **Permitir**.
 
 O OmniGet grava o servidor dele e um token privado na configuração da própria ferramenta. Reinicie a ferramenta e as ferramentas do OmniGet aparecem. Prefere botões? **Configurações → IA e agentes → Conectar a outros apps** faz o mesmo com um clique por ferramenta.
+
+<p align="center">
+  <img src="assets/readme/mcp-connect.webp" alt="A seção Conectar a outros apps nas Configurações, com um botão que cria o acesso e copia o prompt" width="860" />
+</p>
 
 Depois é só pedir:
 
@@ -67,7 +71,7 @@ O que está usando a porta 3000? Pare.
 ## O que seu agente pode fazer
 
 <p align="center">
-  <img src="assets/readme/loop-tools.webp" alt="Loop aponta para um painel de ferramentas ligado a um terminal" width="720" />
+  <img src="assets/readme/loop-tools.webp" alt="Loop abre uma caixa de ferramentas vermelha e saem voando chave, filme, nota musical, lupa, vassoura, câmera e microfone em direção a um terminal" width="820" />
 </p>
 
 | | |
@@ -180,7 +184,7 @@ O `omniget-mcp` vem em toda release e faz a ponte entre stdio e o app aberto.
 ## Você continua no controle
 
 <p align="center">
-  <img src="assets/readme/loop-privacy.webp" alt="Loop abraça um notebook na frente de um escudo com cadeado" width="560" />
+  <img src="assets/readme/loop-privacy.webp" alt="Loop sentado em um notebook fechado segurando uma chave, na frente de um escudo com cadeado" width="820" />
 </p>
 
 - **Só local.** O servidor escuta em `127.0.0.1` e recusa requisições vindas de páginas web.
@@ -194,7 +198,7 @@ O `omniget-mcp` vem em toda release e faz a ponte entre stdio e o app aberto.
 ## O Canvas
 
 <p align="center">
-  <img src="assets/readme/loop-canvas.webp" alt="Loop liga quatro janelas de terminal em um quadro com cordas coloridas" width="720" />
+  <img src="assets/readme/loop-canvas.webp" alt="Loop segura quatro cordas coloridas que chegam a quatro janelas de terminal ao redor" width="820" />
 </p>
 
 Um quadro onde Claude Code, Codex, Gemini CLI, OpenCode ou um modelo local rodam lado a lado em terminais. Puxe uma corda e dois agentes conversam. Ligue o **Modo Lead** e um agente recruta e coordena os outros. Os limites de uso de cada conta ficam na borda da tela.
@@ -204,13 +208,17 @@ Um quadro onde Claude Code, Codex, Gemini CLI, OpenCode ou um modelo local rodam
 ## O downloader
 
 <p align="center">
-  <img src="assets/readme/loop-downloader.webp" alt="Loop comemora enquanto um link vira arquivos de vídeo, música e foto que caem em uma pasta" width="720" />
+  <img src="assets/readme/loop-downloader.webp" alt="Um elo de corrente se quebra e uma claquete, uma nota musical, uma foto e livros voam até o Loop, que os pega" width="820" />
 </p>
 
 Cole um link, escolha a qualidade, aperte Enter.
 
 <p align="center">
-  <img src="assets/readme/downloads.png" alt="A tela Downloads com um download em andamento mostrando fase, velocidade e tempo restante" width="860" />
+  <img src="assets/readme/home.webp" alt="A tela inicial com a barra de link" width="860" />
+</p>
+
+<p align="center">
+  <img src="assets/readme/downloads.webp" alt="A tela Downloads com dois downloads em andamento mostrando fase, velocidade e tempo restante" width="860" />
 </p>
 
 | | |
@@ -229,7 +237,7 @@ yt-dlp, FFmpeg, aria2 e gallery-dl se instalam e se atualizam sozinhos. Sem Pyth
 ## Ferramentas
 
 <p align="center">
-  <img src="assets/readme/tools-hub.webp" alt="A tela Ferramentas com cartões agrupados em Mídia, Baixar e Criar" width="860" />
+  <img src="assets/readme/tools-hub.webp" alt="A tela Ferramentas com cartões agrupados em Mídia e Baixar" width="860" />
 </p>
 
 | | |
@@ -243,7 +251,7 @@ yt-dlp, FFmpeg, aria2 e gallery-dl se instalam e se atualizam sozinhos. Sem Pyth
 | **Sistema** | Transfer · Limpador do Sistema |
 
 <p align="center">
-  <img src="assets/readme/washmybelly-clean-up.webp" alt="A tela do Limpador do Sistema listando o lixo encontrado por categoria" width="860" />
+  <img src="assets/readme/cleaner.webp" alt="O Limpador do Sistema mostrando o lixo encontrado, por categoria" width="860" />
 </p>
 
 O Limpador do Sistema procura, mostra um plano e só executa depois que você aprova. Os arquivos vão para uma quarentena ou para a Lixeira, e o **Histórico** desfaz.
@@ -253,7 +261,7 @@ O Limpador do Sistema procura, mostra um plano e só executa depois que você ap
 ## Ferramentas rápidas
 
 <p align="center">
-  <img src="assets/readme/quick-tools.webp" alt="O painel de ferramentas rápidas com manter acordado, monitor do sistema e volume por app" width="380" />
+  <img src="assets/readme/quick-tools.webp" alt="O painel de ferramentas rápidas com atalhos e manter acordado" width="380" />
 </p>
 
 O Loop fica na barra de menus ou na bandeja. Um clique no ícone abre um painel pequeno: manter o computador acordado, histórico da área de transferência, trechos salvos, monitor do sistema ao vivo, volume por app e atalhos para captura, ditado e limpeza. No Windows, no macOS e no Linux; cada sistema mostra só o que funciona nele. Com o painel fechado, só continua rodando o que você ligou.
