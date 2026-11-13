@@ -1,0 +1,92 @@
+name: SignPath test signing
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  test-sign-windows:
+    runs-on: windows-latest
+    timeout-minutes: 240
+    env:
+      TARGET: x86_64-pc-windows-msvc
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+
+      - name: Pagefile
+        uses: al-cheb/configure-pagefile-action@a3b6ebd6b634da88790d9c58d4b37a7f4a7b8708 # v1.4
+        with:
+          minimum-size: 16GB
+          maximum-size: 16GB
+          disk-root: 'D:'
+
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: lts/*
+
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5
+
+      - name: Rust toolchain (rust-toolchain.toml)
+        shell: bash
+        run: |
+          rustup toolchain install
+          rustup target add "$TARGET"
+
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
+        with:
+          workspaces: './src-tauri'
+          key: release-${{ env.TARGET }}
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build the executable (no installer)
+        shell: bash
+        env:
+          NODE_OPTIONS: --max-old-space-size=6144
+        run: pnpm tauri build --target "$TARGET" --no-bundle
+
+      - name: Locate the executable
+        id: exe
+        shell: bash
+        run: |
+          DIR=$(cargo metadata --no-deps --format-version 1 --manifest-path src-tauri/Cargo.toml | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>console.log(JSON.parse(s).target_directory))')
+          EXE="$DIR/$TARGET/release/omniget.exe"
+          test -f "$EXE" || { echo "::error::omniget.exe not found at $EXE"; exit 1; }
+          echo "path=$EXE" >> "$GITHUB_OUTPUT"
+
+      - name: Upload the unsigned executable
+        id: unsigned
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          path: ${{ steps.exe.outputs.path }}
+          archive: false
+          if-no-files-found: error
+
+      - name: Submit the signing request
+        id: sign
+        uses: SignPath/github-action-submit-signing-request@f6d04783b4569d051e0c80105fe66e82819d0092 # v3
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: fe38e5c8-df53-44c7-a5ad-9c6c86d8bbb7
+          project-slug: omniget
+          signing-policy-slug: test-signing
+          github-artifact-id: ${{ steps.unsigned.outputs.artifact-id }}
+          wait-for-completion: true
+          wait-for-completion-timeout-in-seconds: 1800
+          output-artifact-directory: signed
+          skip-decompress: true
+
+      - name: Upload the signed executable
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: test-signed-omniget-exe
+          path: signed/*
+          if-no-files-found: error
+
+      - name: Summary
+        shell: bash
+        run: echo "Signing request ${{ steps.sign.outputs.signing-request-web-url }}" >> "$GITHUB_STEP_SUMMARY"
