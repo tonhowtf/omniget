@@ -1,0 +1,185 @@
+# Changelog
+
+What changed in each OmniGet release, newest first. Downloads and checksums are on [getomniget.com/download](https://getomniget.com/download).
+
+## 1.0.1 (2026-11-11)
+
+OmniGet 1.0.1 adds new superpowers: clients for Phone Chats, Server Chats, Short Posts, Photo Feed and Clip Feed, where Short Posts, Photo Feed and Clip Feed run through your own session and your agents can use them over MCP with each action approved by you; a PDF editor, a photo gallery with duplicate finding, background removal, a karaoke vocal remover, and a Converter that now handles HEIC, JPEG XL, PSD layers, RAW and DXF/DWG. Design tools join them: Palette, Type, Icons, Motion, an Excalidraw board, shadcn components, screen capture, Studio for subtitles and reframing, and voice dictation. The Global Downloader gains a connector market.
+
+Short Posts, Photo Feed and Clip Feed gain Audience, Analytics and Monitor tabs: who does not follow you back, who followed and who left, post analytics with best times, and keyword monitors; Short Posts can schedule posts while the app is open. Forums, Pin Boards and Code Hub join as new clients, Research reaches public social data with your own ScrapeCreators key, and developer tools arrive: Pack, Scrape, API, DevTools and an FTP and SFTP client.
+
+Settings are simpler and the in-app AI chat is gone, while agents keep running on the Canvas, from the command line and over MCP. Fixes: a failed playlist is reported as an error, the playlist quality picker is no longer capped at 1080p, going back to the managed yt-dlp keeps your own file, torrents show peers and speed before the size is known, leftover downloads are remembered after a restart, and the browser extension installs to the right place in the Flatpak.
+
+## 1.0.0 (2026-10-17)
+
+OmniGet 1.0 adds a set of superpowers next to the downloader: a Global Downloader with a built-in browser that lists and saves the videos, audio, subtitles and documents a page loads, a YouTube client, a reader for books, comics and PDFs, a player for movies, shows and live TV, a music app, Telegram downloads and a system cleanup tool. The World becomes a canvas where agent terminals, browser portals, notes and files sit side by side, with notes you can edit from your phone.
+
+Agents gain companies with budgets and approvals, jobs in their own git worktree with hunk-by-hunk review, Codex support and a memory that learns from each turn. Settings are redesigned with search, and updates are now served from getomniget.com, so copies on 0.10 need to install 1.0.0 once by hand.
+
+## 0.10.1 (2026-09-21)
+
+Help is a new section with searchable product guides that work offline, a guided connection setup for a chat subscription, an API key or a local model, and an assistant that answers from the bundled documentation. The assistant can plan an agent, check a connection and enqueue a download after you allow the step; download results are redacted so paths and secrets stay out of the chat. Each Agents surface gains a short guide for what the page does, a usage monitor for quotas and running work, and Settings can switch workspace colour presets and light or dark mode without leaving the app.
+
+The Agents workspace is clearer about first steps: empty states point to Connect my AI, jobs and loops filter by what needs attention, the model picker lists what a provider actually returned, and a roster save that fails shows the error instead of a success toast. Seven help tools join the shared tool table and the built-in MCP server so an external agent can search the same guides.
+
+## 0.10.0 (2026-09-19)
+
+OmniGet gains the system that goes around an AI agent. In the new LLM section you pick an agent, attach a folder and ask for a change: the agent reads, edits, applies patches and runs commands inside that folder only, asks before anything that writes and shows the command or the diff, and one click undoes a whole turn from a shadow git that never touches your repository. "Always" remembers a kind of command, such as git status, instead of a whole line. Jobs outlive the window, Loops repeat rounds until a check command passes or the rounds or minutes run out, and triggers start a job from a cron line or a webhook on the local bridge; the command line drives the same queue with omniget agent run, loop and jobs. Claude Code and Codex accounts plug in with their quota on screen, any CLI that speaks the Agent Client Protocol joins the roster as an agent, agents share a project knowledge base of markdown notes, and skills install from owner/repo after a scan. Models come from a local server or your own keys, with a router that falls back when a quota runs out.
+
+The World is a house where your agents live: it is made on your first visit, the agents of your roster move in, follow a routine, walk to the workbench when a tool runs, and their energy is their quota. Open the house to get a code and a friend can walk in, see your agents and chat; your app stays the authority and the room server only relays, with a hello signed by your local profile instead of an account. The room server is a single binary you can host yourself. A floating Omni pet reacts to what the agents do, including Claude Code or Codex running in a terminal, and answers permission prompts. An optional limits strip on a screen edge shows one ring per coding assistant with how much of each usage limit is gone and when it resets; it is off by default and reads only the login each tool already keeps on your machine. The experimental OmniDisc chat was retired to make room for this. The agent shell is sandboxed on macOS only.
+
+## 0.9.2 (2026-09-11)
+
+Tools grows from 108 to 156, with eight new categories: Audio, CTF, Twitch, Music, Reddit, Bilibili, Games and LinkedIn. Video tools compress to a target size in two passes, make GIFs and WebPs, cut out silences, convert, burn and resync subtitles, take out flicker, grain and banding, stabilize shaky footage and turn a clip into a WhatsApp or Telegram sticker that fits the size limit. Audio tools normalize loudness to EBU R128 and remove background noise. PDF tools repair broken files, add a password, a watermark or page numbers, crop margins, build a bookmark outline, export clean Markdown and find text still sitting underneath a black redaction bar. Image tools read and strip EXIF and GPS, build favicon and app icon packs, compress in batches, find near-duplicates, slice and pack spritesheets and stitch scrolled screenshots. Files gains a secure shred, System an ad and telemetry hosts blocker, and CTF brings hashes, magic bytes and entropy, classical ciphers, XOR brute force, encodings and frequency analysis.
+
+Twitch saves a channel's emotes and badges from BTTV, FFZ and 7TV and exports chat replays. Reddit downloads v.redd.it videos with sound and galleries, archives a thread with every comment and reads your data export. Music mirrors a playlist onto your local library, fetches synced lyrics from LRCLIB and opens your full Spotify history. LinkedIn reads your data export offline: connections, messages, a profile score and what advertisers know about you. Games checks ProtonDB tiers for your Steam library and sorts Switch, Game Bar, ShadowPlay, OBS and Steam captures by game. Bilibili exports danmaku without downloading the video and burns it onto a clip. The browser extension finds playlists a player builds in JavaScript that never cross the network, estimates HLS sizes, pairs a video track with its audio, rejects HTML error pages served as media, sends only the headers a download needs, lets you edit its capture rules and can back up the list of your installed extensions. Fixes: a batch of queued downloads could lose items because they shared an id, Bilibili collection links in the current format were not recognized, the extension installer reported success when it copied nothing, and AppImages now install through Gear Lever.
+
+## 0.9.1 (2026-09-05)
+
+OmniGet gains a Tools section: 108 single-purpose tools in 16 categories, each an isolated command with a tile in the app and an entry on the built-in MCP server, so an AI agent can drive them too. Instagram gets 24 tools over your own session (stories without marking them seen, highlights, who does not follow back, ghost followers, analytics, giveaway picker, publishing), X gets 10 (thread unroll, post to image, profile media, bookmarks, your archive, Grok), Pinterest gets 10 (original-quality pins, board and profile backup with incremental sync, search without AI or ads, duplicates, palettes). Speech tools transcribe offline with whisper.cpp, speak with Edge voices, translate and dub subtitles. PDF tools merge, split, compress, convert, OCR and sanitize on the PDFium the app already manages. System tools clean caches, map the disk, manage startup items and uninstall leftovers, with Windows-only debloat, registry, privacy and hardening. AI tools compare model prices, track spending, manage Ollama models and an API key vault.
+
+The interface was rebuilt with a single amber accent, a glass sidebar, colored tile icons, a new app icon and a three-step onboarding. The download engine starts yt-dlp as a zipapp on a system Python when one exists, adapts connections per site and halves them on rate limits, segments large direct files properly, stops retrying dead sources and keeps the exact command of every download so it can be edited and rerun. The Courses plugin reaches 1.1.0: Hotmart signs in through its new OIDC flow, Rocketseat validates logins properly and lists the whole catalog, Meta-Analysis Academy is a new platform, and sections can be chosen before downloading. The browser extension groups cookies by real site so Brazilian domains no longer share one bucket, adds Rocketseat and a Force H.264 switch. The League of Legends companion is on by default and gains a profile editor, skin and ward roulette, champion and lane raffles, full match history through the client gateway and an AI coach, all marked beta. Two fixes: the interface could show no text when a translation failed to load, and Settings could spin forever after a failed settings load.
+
+## 0.9.0 (2026-08-29)
+
+Chat ships turned on, already connected, with voice, video and screen sharing built in. Screen sharing now reaches viewers: streams are discovered from the media layer rather than from a status message that could go missing, and the person sharing sees a preview of their own screen. Calls and screen sharing work on Linux through the desktop's screen-sharing portal on both X11 and Wayland, using VAAPI or NVENC where the machine has them. The macOS microphone works again — the app now asks for the permission macOS requires, where before the system quietly handed it an empty microphone. Files sent through chat are deleted from the server after thirty minutes and are encrypted at rest until then, so what the server no longer holds cannot leak later; each attachment shows how long it has left. If the disk fills, everyone is warned while there is still room. Animations and the share preview stop while the window is in the background, so a chat behind a game costs as little as possible.
+
+## 0.8.9 (2026-08-28)
+
+Menus in the chat opened where nothing could see them, so the buttons that opened them looked broken. The server rail hides horizontal overflow because it scrolls, and its plus menu was placed outside the rail's width, so clicking it opened a menu the browser then erased. The message list was worse: every row is layout-contained for scrolling performance, which anchors even a fixed-position element to that one row, so the message menu and the reaction picker were cut off for anything in the lower half of the conversation and the image viewer opened as a sliver instead of filling the window. Menus are now measured from the button that opens them and drawn outside the list, flipping above when they would fall off the bottom, and they close when you click away, press Escape, resize or scroll.
+
+## 0.8.8 (2026-08-28)
+
+OmniGet gains a chat of its own. Turn on "Chat (OmniDisc)" in Settings and the app connects to a server you host yourself for text, voice, screen sharing and file transfer with the people you choose, without a third party in the middle. Direct messages and the files sent in them are end-to-end encrypted with MLS, and the key for an encrypted call is derived from that same group rather than handed out by the server, so the operator of an instance cannot listen in. Voice runs entirely in Rust instead of the web view, which keeps a call under five percent of one core; screen sharing on macOS captures with ScreenCaptureKit and encodes with the machine's own VideoToolbox, so 1440p at 120 frames a second is hardware work rather than processor work, and per-application audio lets you share a game's sound without sharing everything else. Windows gets the same set: capture goes through Windows.Graphics.Capture, application and system audio through WASAPI process loopback, and encoding prefers whatever hardware H.264 encoder the machine has — Intel, AMD or NVIDIA — falling back to software when there is none. The feature is off by default and is new, so treat it as such; on Linux the calls, files and text work while screen capture is still to come. Separately, the banner that appears when yt-dlp is missing used to display the names of its own translation strings instead of a sentence, because those strings existed in no language at all. Traditional Chinese shipped as a language but appeared in neither language menu, and Russian was missing from the one shown during setup; both are now offered wherever the others are. Windows builds link the C runtime statically and no longer require the Visual C++ redistributable, and the Debian package now declares the audio library it needs instead of failing at first launch. Two fixes to how the app keeps its secrets. On a development build the keychain prompt used to return on every launch no matter how many times it was answered, because macOS ties the permission to the exact binary and a development build is rebuilt unsigned every time; those builds now use the encrypted file store, and only signed releases touch the keychain. Secrets are also read once per launch instead of once per reconnection.
+
+## 0.8.6 (2026-08-18)
+
+Opening Settings could bring the machine to its knees. Each dependency row ran an effect that read its own loading flag and then wrote it, so every finished round trip scheduled the next one — and the archived-versions lookup behind it called the routine that downloads yt-dlp and starts a freshness check and a JS-runtime check, spawning a yt-dlp and a deno process every pass. Locating a binary no longer starts anything. Cancelled downloads stay cancelled: a removed item could be recreated by a progress event still in flight, finish its bar and sit in the list refusing to be removed. Six command palette entries showed raw translation keys because the keys existed nowhere; they now reuse the sidebar's own names, and the three entries that duplicated navigation exactly were removed in favour of the paste action that was translated in every language and never wired up. Bilibili collection links of the channel/collectiondetail form downloaded the uploader's entire channel instead of the collection. Instagram Reels whose metadata exposes only a cover image are downloaded as video instead of being saved as a JPG and reported as a successful video. On macOS the browser-login window now reads the WebView's own cookie store, so HttpOnly session cookies are captured instead of silently missing — the reason a visibly logged-in Hotmart session still reported itself as unauthenticated. A custom PDFium is reported as installed and is actually loaded by the reader, instead of being recorded, displayed and ignored. The batch download mode selector is back for multiple URLs. And building from source no longer needs the release signing key.
+
+## 0.8.5 (2026-07-31)
+
+The League page now shows loading skeletons instead of pretending to be empty: the match history no longer says "no matches" while it is still fetching, and the profile, match details, win analysis and scouting draw placeholder shapes that respect the reduced-motion preference. Behind it, talking to the League client got cheaper — one shared HTTP client instead of building a new one per request, no extra liveness probe when the push connection already proves the client is alive, and on Windows the expensive process query only runs after a cheap check confirms the client is actually running. The Telegram section speaks all eleven languages again: an earlier change had left a duplicate block in the translation files that silently swallowed sixty-five strings, and the original translations were restored from history rather than replaced with English. Portable mode on macOS now says plainly in settings that the WebView keeps its session data under the user profile and cannot be redirected — being honest about the limitation instead of erasing data to hide it. And the mascot panel's square corners no longer poke past the rounded corners of the home card.
+
+## 0.8.4 (2026-07-31)
+
+Two fixes. Hotmart's browser login could report success while you were still sitting on the login page: the success check matched the target hostname as a substring of the visited host and path, and DoubleClick's ad tracker embeds the login redirect target inside its path as matrix parameters, unencoded — so a tracking request fired the success signal, the app started a 30-second wait for a session cookie that could not exist yet, and the login ended with zero cookies. The pattern now has to match the real hostname, exactly or as a subdomain, with an optional path prefix. And when Windows refuses to load a plugin, the error now carries the operating system's reason — a missing dependency, a blocked or corrupted file — instead of the bare "LoadLibraryExW failed" that gave nothing to act on.
+
+## 0.8.3 (2026-07-30)
+
+Second pass at the freeze that could lock the window while the League page was open. The page mounts all eight panels at once and keeps them mounted so that switching tabs never loses your place, but that also meant every state change made all eight re-evaluate and redraw — and the same thread draws the app navigation, so saturating it froze everything, including the menu. An inactive panel now keeps its instance, state and effects while rendering nothing: auto runes still applies from any tab, spell timers survive, and the drawing cost drops to a single panel. The live tab was also being mounted twice, each copy running its own timers. On the backend, lobby and ready check updates are now coalesced the same way champion select already was — the lobby republishes on every queue estimate tick and the ready check on every countdown tick — client messages are filtered by resource before being parsed instead of after, since the subscription receives events from every plugin the client runs, and settings are cached briefly instead of being read from disk on every event. Looking up the client no longer holds its lock across a network round trip, which had put every League command in a single queue behind one request.
+
+## 0.8.2 (2026-07-30)
+
+Fixes the freeze that could lock the whole window while the League page was open. The client republishes its champion select session several times per second — the phase clock alone changes on every tick — and each of those updates was pushed to the interface, forcing every mounted panel to redraw until the app stopped responding to clicks, including the menu. The session is now only sent when something the interface reads actually changed, with a heartbeat so it never goes stale, and the in-game pollers drop a tick that arrives while the previous one is still running instead of queueing another round of requests. Match history gains what it was missing: runes and summoner spells for every player, all seven item slots, and the full stat line — damage dealt, taken and mitigated, healing, objective damage, gold and CS per minute, vision score, wards placed, killed and control, crowd control time, best killing spree, multikills, first blood and first tower. Clicking any name on the scoreboard opens that player's recent matches.
+
+## 0.8.1 (2026-07-30)
+
+League of Legends support is now built into OmniGet instead of being a plugin. Champ select gains an auto accept with a delay you choose, an auto pick that can declare only or lock at the last second, a ban guard that will not take a champion an ally already called, and an ARAM reroll that keeps the champion you already have. Lobbies are read before the game starts: premades are grouped by the party id the game itself reports, players you have noted before are flagged, five-stacks with hidden profiles are called out, and player ratings wait for a minimum number of games before judging. In game there are objective timers with an estimate of what each is worth, a build reference with ability order and items by phase, a match-found notification for when the window is not focused, and a way to restart the client interface without losing the queue. On the download side: rules send links from a given channel straight to a folder in a chosen quality, evaluated at enqueue and never overriding a choice made in the session; yt-dlp, FFmpeg and PDFium can point at a binary anywhere and it is referenced in place rather than copied, so updating your own copy takes effect immediately; Threads posts, images and carousels download through a native extractor, since yt-dlp has none; the same file in two places stops occupying space twice; a re-edited or re-uploaded video is reported before it overwrites the old one; and the download queue is now an append-only log flushed per record, so a crash can damage at most the last entry instead of the whole queue. Fixes: the keyboard shortcut now shows Ctrl on Windows and Linux instead of the macOS key, which does not exist there; the title bar no longer reserves macOS window-control space on other platforms nor places its own buttons where Windows and Linux draw close; the command-line binary build was repaired and ships again. Portable mode remains uncovered on macOS, where the WebView cannot be redirected, and the app now says so.
+
+## 0.8.0 (2026-07-29)
+
+Six features that shipped as tested-but-unreachable code are now wired to the app: the root cause panel translates a failed download into a cause and one action; yt-dlp retries with browser impersonation when a site blocks by TLS fingerprint, and uses a PO token provider when one is configured and answering; a yt-dlp update now archives the previous binary so it can be rolled back from the dependencies table; segment concurrency is measured per host and the configured number becomes a ceiling instead of a fixed value; a redacted trace of the last download lines is included in the diagnostic report; and batch downloads are checked before queueing, skipping unsupported and repeated links instead of failing them one by one. Portable mode no longer leaves a folder in the user profile on Linux, which was the same bug as the Windows one and had gone unnoticed. The browser extension section of settings was never translated and showed Portuguese in every language; the dependency row menu was clipped by the table and its options could not be reached. Continuous integration now launches the app on Windows and Linux and fails if the window does not open. Accessibility preferences for reduced motion and transparency were added. The omniget-cli binary now ships with releases, and a WebView2 fixed runtime placed beside the executable is detected and used.
+
+## 0.7.7 (2026-07-28)
+
+Security release. Fragmented manifests (HLS/DASH) are no longer handed to aria2c, closing the arbitrary code execution vector of CVE-2026-50574; the external downloader is now scoped to plain http and ftp. TLS certificate verification is enabled by default for every download, metadata fetch and search, with an opt-out for networks that intercept TLS. Every managed binary (yt-dlp, FFmpeg, Deno, gallery-dl, aria2c) is verified against a published SHA-256 and refused on mismatch. The YouTube rate-limit throttle now actually applies, after two conflicting flags were being sent. Corrupted settings, cookie and plugin state files are quarantined instead of being silently replaced and overwritten. Settings now flag a yt-dlp older than 2026.06.09 as outdated. Fixes the global download hotkey failing silently, the macOS window not being draggable, and the macOS hotkey recorder never capturing keys. Batch downloads can now pick audio-only or no-sound mode.
+
+## 0.7.6 (2026-07-28)
+
+League of Legends menu gains trade auto-response, champion select greeting, deep analysis tags, a match scoreboard, summoner spell timers and encounter tracking. Live client updates now arrive over a websocket with response caching, and spectate and dodge actions were added.
+
+## 0.7.5 (2026-07-28)
+
+Fixes reachable League profiles being mislabelled as private, and enables the opt-in League menu by default in settings.
+
+## 0.7.4 (2026-07-28)
+
+League of Legends menu gains item builds derived from local match history, a Meta tab with client-recommended runes and champion tiers, player search, best duos, jungle pathing and chat summary, plus a statistical match model with live economy and configurable role goals.
+
+## 0.7.3 (2026-07-28)
+
+New opt-in League of Legends menu, off by default, with lobby and champion select tools, ARAM bench, live game panel and match scouting. Fixes the schedule date and time fields, scrolling in the downloads list, the scope of clear-finished, native direct media downloads and the portable WebView2 directory. The configured proxy is honoured when the host is empty, proxy settings save reliably, and DRM merge errors are reported properly.
+
+## 0.7.2 (2026-07-10)
+
+Plugins built against an incompatible ABI or toolchain are now rejected with a clear error instead of segfaulting the app. The settings store is anchored to the portable data directory and plugin caches stay in the app data directory in portable mode. The asset protocol now works on paths containing dot components such as ~/.local on Linux. Browser extension pairing gained a feedback loop and a stale-token deadlock was fixed. New Russian locale for the browser extension.
+
+## 0.7.0 (2026-06-14)
+
+Plugins install and update themselves at runtime with no restart, using defaults from the registry and honouring uninstalls. Redesigned marketplace with a My Plugins view and live install state. Settings were restructured into a grouped sidebar with drill-down sections, a search that filters and highlights, and controls removed for fields the backend ignored. New macOS shell with a source-list sidebar and command palette. The home omnibox was rebuilt around a URL bar, inspector and hero.
+
+## 0.6.4 (2026-06-11)
+
+Plain file URLs (zip, rar, exe, pdf and more) now download natively through the segmented HTTP engine with resume, skipping yt-dlp and the quality picker. Quality tags only appear on actual video files. Douyin share links are resolved and canonicalized. Subtitle language is probed from the video before download, the keep-VTT option works and subtitle files always land next to the video. Downloads that produce no file are reported as failures instead of fake successes. The dependency updater really updates yt-dlp and FFmpeg now, with safe in-place replacement on Windows. The configured proxy applies to every connection (marketplace, plugin installs, bilibili, HLS, app updater) and the plugin registry falls back to jsDelivr on restricted networks. Bilibili premium playback, watch-later and history import work with cookies imported through the cookie manager. Cookies can be selected and deleted in bulk. The study reader gains Ctrl+wheel zoom for every format and permanent ebook deletion, and the music player progress bar is always visible with keyboard seeking. New Russian translation.
+
+## 0.6.3 (2026-05-18)
+
+Real download speed and ETA read straight from the downloader instead of estimated from a percentage, so they stay correct even when the file size is unknown, plus a stall watchdog and ETA cleared on pause. Live streams now report real downloaded size and speed. New image gallery downloader (DeviantArt, Pixiv, ArtStation, Flickr, Tumblr, Imgur albums, Kemono, Newgrounds and image boards). Channel Follow uses lighter incremental polling on YouTube. Download history and followed channels moved to a local SQLite database with a one-time import of the old data. Subtitle Workshop now opens and saves ASS, adds one-click auto-fix, two-point sync and AI grammar fix. yt-dlp is verified by SHA256 before it runs and can track the nightly channel.
+
+## 0.6.2 (2026-05-18)
+
+Torrent file selection before download, automatic public trackers and UPnP port mapping, and a tray download-speed readout. New Channel Follow: subscribe to a channel or playlist and auto-download new uploads in the background with notifications. New AI features (bring your own OpenAI, Anthropic or local key, never logged): video summaries, Whisper transcription fallback, and an AI/preset video-tools panel gated by an ffmpeg safety allowlist. New Subtitle Workshop editor with waveform and scene markers. Download scheduling with optional auto-stop, and the system stays awake while downloads run. Localization fixes across the marketplace and settings.
+
+## 0.6.1 (2026-05-12)
+
+YouTube playlist quality settings now respected. Per-video format picker hidden for playlists. Aria2c progress correctly reported in the queue (was stuck at 0% until completion). Quality chip shown on each queue item to confirm what's being downloaded.
+
+## 0.5.2 (2026-05-06)
+
+Bruno
+
+## 0.5.1 (2026-05-05)
+
+Plugin loading: surface ABI-mismatch errors with a "reinstall" prompt instead of an endless "restart" loop (fixes #102), and show the underlying load error on the Marketplace card. i18n: replace hardcoded Portuguese strings in the study command palette with translated keys across all 8 locales.
+
+## 0.5.0 (2026-05-03)
+
+Visual restructure: refreshed theme grid, reorganized settings, mascot celebrations with new "amazed" state, and gamified pets. Accessibility: aria-live regions on toasts. Reliability: torrent session shuts down gracefully on app exit, Pinterest regex validated at init. Tooling: single-command version bump, i18n keys auto-generated, multi-OS CI matrix.
+
+## 0.4.2 (2026-04-14)
+
+Bug fixes and improvements.
+
+## 0.4.1 (2026-04-13)
+
+Fix Instagram downloads failing with "Server returned HTML instead of media" when the primary extractors fell back to yt-dlp. The browser extension now requests wildcard host permissions only when the media sniffer is enabled, ships with an explicit allowlist for 13 supported platforms, and distinguishes the two popup toggles (open app vs. media detection) with separate icons. Native host logging redacts cookie values; cookie-domain mappings are now data-driven.
+
+## 0.4.0 (2026-04-05)
+
+Plugin system release: courses, telegram, and convert plugins now ship independently via Marketplace. Version 0.4.0 enables the new plugin architecture.
+
+## 0.3.7 (2026-03-18)
+
+35+ course platforms (Teachable, Kajabi, Skool, Pluralsight, MasterClass, Rocketseat, Estratégia, and more), Chinese platform support (Bilibili, Douyin, Xiaohongshu), P2P file transfer with iroh relay, TikTok quality fix, torrent file picker, cookie JSON import, and numerous bug fixes.
+
+## 0.3.6 (2026-03-08)
+
+Light theme fixes, Greek language support, ffmpeg merge fix for downloads, performance improvements, and open folder button for completed downloads.
+
+## 0.3.4 (2026-03-01)
+
+Fix hidden PowerShell window on clipboard copy, corrected flatpak build patches, and updated Linux build dependencies.
+
+## 0.3.3 (2026-03-01)
+
+Dual-mode hotkey binding input, flatpak build fixes, and improvements.
+
+## 0.3.2 (2026-02-27)
+
+Bug fixes and improvements.
+
+## 0.3.1 (2026-02-26)
+
+Added Chinese, Japanese, Italian, and French translations. Performance improvements and error message cleanup.
+
+## 0.3.0 (2026-02-24)
+
+Major version bump with new features and improvements.
+
+## 0.2.16 (2026-02-23)
+
+Tray icon badge with active download count, dynamic window title, and mobile readiness improvements.
+
+## 0.2.14 (2026-02-19)
+
+Telegram improvements: thumbnail previews with LRU cache, media search, and memory cleanup on navigation.

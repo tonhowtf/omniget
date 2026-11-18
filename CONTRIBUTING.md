@@ -34,7 +34,7 @@ Use pnpm. `package-lock.json` exists only for the Flatpak build and the version 
 ## Dev loop
 
 - **`pnpm tauri dev`** runs the app with hot reload for the frontend and a rebuild on Rust changes. A debug build uses its own profile, `omniget-dev` in your platform data folder (`~/Library/Application Support` on macOS, `~/.local/share` on Linux, `%APPDATA%` on Windows), so it never reads or writes the settings, keys, history and databases of the OmniGet you have installed, and it can run next to it. It also keeps secrets in the encrypted file store inside that profile instead of the OS keyring, keeps its WebView data (logins, local storage) in `webview/` inside it on Windows and Linux, and takes its bridge port from 47760 to 47769, so it never takes the installed app's port (47720 to 47729) or the extension pairing with it. Two things are still shared: the unpacked extension that **Browser extension** settings export, and the autostart entry if you turn autostart on from a dev build. Set `OMNIGET_DEV_REAL_PROFILE=1` to use your real profile again, or `OMNIGET_DATA_DIR=/some/folder` to pick another one.
-- **`pnpm dev:app`** is the supervised loop for agents and scripts: one Vite process, one Cargo watcher, an isolated profile, and JSON commands to wait for a revision and take a screenshot (`pnpm dev:wait`, `pnpm dev:capture`, `pnpm dev:stop`). See [scripts/dev/README.md](scripts/dev/README.md). Do not run `pnpm tauri dev` against the same session.
+- **`pnpm dev:app`** is the supervised loop for scripts and automation: one Vite process, one Cargo watcher, an isolated profile, and JSON commands to wait for a revision and take a screenshot (`pnpm dev:wait`, `pnpm dev:capture`, `pnpm dev:stop`). See [scripts/dev/README.md](scripts/dev/README.md). Do not run `pnpm tauri dev` against the same session.
 - **`pnpm dev`** runs only the Vite frontend, without the Rust side.
 
 ## Checks
@@ -80,7 +80,7 @@ The individual steps, if you want to run one by hand:
 
 - Messages in English, [Conventional Commits](https://www.conventionalcommits.org/): `feat(scope): ...`, `fix`, `refactor`, `perf`, `docs`, `chore`, `style`, `test`. Add `!` for a breaking change (`refactor!: remove plugins`).
 - One pull request per subject. Say what changes for the person using the app and how you tested it; the PR template asks for both.
-- Only the product goes into git: code, build configs, lockfiles, workflows, assets the app or the READMEs use, and public docs. Local notes, plans, studies and agent files (`docs/`, `estudos/`, `CLAUDE.md`, `.claude/` and similar) are gitignored on purpose. Never `git add -f` them. If you create a new folder for local notes, add it to `.gitignore` in the same change.
+- Only the product goes into git: code, build configs, lockfiles, workflows and assets the app or the READMEs use. Keep personal notes, plans and scratch files out of commits; list them in your own `.git/info/exclude` instead of `.gitignore`.
 
 ## Environment variables
 

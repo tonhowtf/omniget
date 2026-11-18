@@ -160,3 +160,10 @@ None of these ship inside the installer. Each is downloaded the first time it is
 ### Icons
 
 - **Phosphor Icons** (https://phosphoricons.com). License: **MIT**. `static/icons/file-pdf.svg` and `static/icons/scissors.svg` are the fill weights of `file-pdf` and `scissors`, like the other glyphs in that folder.
+
+## Phone Chats
+
+### Designs ported to our own code
+
+- **Copy Button** and **Icon Swap** by ncdai, and **Copy Button** by Özer (interior.dev), both from the 21st.dev registry. License: **MIT**. The copy-link button follows them: idle, done and error states, a 1.5 s reset, the scale, fade and blur icon swap, the drawn check mark, the clipboard fallback that restores the selection and the one-pixel press, rewritten for Svelte without the sound and haptics. `src/lib/phonechat/CopyButton.svelte`.
+- **Dots** by loading-ui, from the 21st.dev catalog. License: **MIT**. The sending indicator in a message bubble follows it: three dots that blink in turn and take the text colour, rewritten for Svelte with a still state for reduced motion. `src/lib/phonechat/Dots.svelte`.

@@ -8,7 +8,7 @@
 </p>
 
 <p align="center">
-  <a href="https://getomniget.com"><img src="assets/readme/loop-mcp-hero.gif" alt="Loop, the OmniGet mascot, holds a plug whose cables reach three terminal windows" width="820" /></a>
+  <a href="https://getomniget.com"><img src="assets/readme/loop-mcp-hero.gif" alt="Loop, the OmniGet mascot, rides an orange plug like a rocket while its cables reach three terminal windows" width="820" /></a>
 </p>
 
 <h3 align="center">An MCP server that gives your coding agent a whole desktop toolbox.</h3>
@@ -26,7 +26,12 @@
   <a href="https://getomniget.com"><img src="https://img.shields.io/badge/website-getomniget.com-F28500?style=flat-square" alt="getomniget.com" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0-2AA845?style=flat-square" alt="License GPL-3.0" /></a>
   <a href="https://discord.gg/jgdxyPy7Vn"><img src="https://img.shields.io/badge/chat-community-5865F2?style=flat-square" alt="Community chat" /></a>
+  <a href="https://www.instagram.com/tonhowtf/"><img src="https://img.shields.io/badge/Instagram-@tonhowtf-E4405F?style=flat-square&logo=instagram&logoColor=white" alt="Follow @tonhowtf on Instagram" /></a>
   <a href="https://hosted.weblate.org/engage/omniget/"><img src="https://hosted.weblate.org/widget/omniget/frontend-json/svg-badge.svg" alt="Translation status" /></a>
+</p>
+
+<p align="center">
+  Follow <a href="https://www.instagram.com/tonhowtf/">@tonhowtf on Instagram</a> for OmniGet news and inside news.
 </p>
 
 <p align="center">
@@ -38,7 +43,7 @@
 ## Connect in one minute
 
 <p align="center">
-  <img src="assets/readme/loop-connect.webp" alt="Loop presses a green Allow button that links a terminal to the app through a locked cable" width="720" />
+  <img src="assets/readme/loop-connect.webp" alt="Loop slams a green button with a check mark; a locked cable links it to a terminal" width="820" />
 </p>
 
 **1.** Open OmniGet.
@@ -52,6 +57,10 @@ Connect to OmniGet: run curl -s "http://127.0.0.1:47720/connect" and follow the 
 **3.** OmniGet comes to the front with the tool's name and a short code. Check the code and click **Allow**.
 
 OmniGet writes its server and a private token into that tool's own config. Restart the tool and the OmniGet tools are there. Prefer buttons? **Settings → AI & agents → Connect to other apps** does the same with one click per tool.
+
+<p align="center">
+  <img src="assets/readme/mcp-connect.webp" alt="The Connect to other apps section in Settings, with one button that creates an access and copies the prompt" width="860" />
+</p>
 
 Then just ask:
 
@@ -67,7 +76,7 @@ What is using port 3000? Stop it.
 ## What your agent can do
 
 <p align="center">
-  <img src="assets/readme/loop-tools.webp" alt="Loop points at a pegboard of tools wired to a terminal" width="720" />
+  <img src="assets/readme/loop-tools.webp" alt="Loop opens a red toolbox and a wrench, film, music note, magnifier, broom, camera and microphone fly out toward a terminal" width="820" />
 </p>
 
 | | |
@@ -75,7 +84,7 @@ What is using port 3000? Stop it.
 | **Downloads** | Queue one link or twenty, list formats, wait, pause, retry, read the diagnosis when one fails |
 | **Whole sites and courses** | Drive the built-in browser, read a page within a token budget, download a course in order, write a connector for a new site |
 | **Files and media** | Convert, read finished files, search your book library |
-| **Developer tools** | Folder to one prompt-ready file, page to clean Markdown, HTTP requests, ports, JSON, JWT, hashes, regex, FTP and SFTP |
+| **Developer tools** | Folder to one prompt-ready file, page to clean Markdown, a site crawled into files, a pool of rotating proxies, HTTP requests, ports, JSON, JWT, hashes, regex, FTP and SFTP |
 | **Chats and feeds** | Read and reply in your linked chats and social feeds, with your own session |
 | **Agents** | List workspaces, start and follow jobs, read diffs, see pending approvals, drive the Canvas |
 | **Memory** | Recall and teach what the app remembers between sessions |
@@ -180,7 +189,7 @@ http_headers = { Authorization = "Bearer YOUR_TOKEN" }
 ## You stay in control
 
 <p align="center">
-  <img src="assets/readme/loop-privacy.webp" alt="Loop hugs a laptop in front of a shield with a padlock" width="560" />
+  <img src="assets/readme/loop-privacy.webp" alt="Loop sits on a closed laptop holding a key, in front of a shield with a padlock" width="820" />
 </p>
 
 - **Local only.** The server listens on `127.0.0.1` and refuses requests from web pages.
@@ -194,7 +203,7 @@ http_headers = { Authorization = "Bearer YOUR_TOKEN" }
 ## The Canvas
 
 <p align="center">
-  <img src="assets/readme/loop-canvas.webp" alt="Loop connects four terminal windows on a board with colored cords" width="720" />
+  <img src="assets/readme/loop-canvas.webp" alt="Loop holds four colored cords that reach four terminal windows around it" width="820" />
 </p>
 
 A board where Claude Code, Codex, Gemini CLI, OpenCode or a local model run side by side in terminals. Draw a cord and two agents can talk. Turn on **Lead Mode** and one agent recruits and coordinates the others. Usage limits for each account sit on the edge of the screen.
@@ -204,13 +213,17 @@ A board where Claude Code, Codex, Gemini CLI, OpenCode or a local model run side
 ## The downloader
 
 <p align="center">
-  <img src="assets/readme/loop-downloader.webp" alt="Loop cheers as a link turns into video, music and photo files that drop into a folder" width="720" />
+  <img src="assets/readme/loop-downloader.webp" alt="A chain link breaks and a clapperboard, a music note, a photo and books fly toward Loop, who catches them" width="820" />
 </p>
 
 Paste a link, pick a quality, press Enter.
 
 <p align="center">
-  <img src="assets/readme/downloads.png" alt="The Downloads page with an active download showing phase, speed and ETA" width="860" />
+  <img src="assets/readme/home.webp" alt="The Home screen with the link bar" width="860" />
+</p>
+
+<p align="center">
+  <img src="assets/readme/downloads.webp" alt="The Downloads page with two downloads in progress showing phase, speed and time left" width="860" />
 </p>
 
 | | |
@@ -229,7 +242,7 @@ yt-dlp, FFmpeg, aria2 and gallery-dl install and update themselves. No Python, n
 ## Tools
 
 <p align="center">
-  <img src="assets/readme/tools-hub.webp" alt="The Tools page with cards grouped by Media, Download and Create" width="860" />
+  <img src="assets/readme/tools-hub.webp" alt="The Tools page with cards grouped by Media and Download" width="860" />
 </p>
 
 | | |
@@ -243,7 +256,7 @@ yt-dlp, FFmpeg, aria2 and gallery-dl install and update themselves. No Python, n
 | **System** | Transfer · System Cleaner |
 
 <p align="center">
-  <img src="assets/readme/washmybelly-clean-up.webp" alt="The System Cleaner screen listing junk found by category" width="860" />
+  <img src="assets/readme/cleaner.webp" alt="The System Cleaner showing the junk found, by category" width="860" />
 </p>
 
 System Cleaner scans, shows a plan, and runs only after you approve. Files go to a quarantine or the Trash, and **History** undoes it.
@@ -253,7 +266,7 @@ System Cleaner scans, shows a plan, and runs only after you approve. Files go to
 ## Quick tools
 
 <p align="center">
-  <img src="assets/readme/quick-tools.webp" alt="The Quick tools panel with keep awake, system monitor and volume per app" width="380" />
+  <img src="assets/readme/quick-tools.webp" alt="The Quick tools panel with shortcuts and keep awake" width="380" />
 </p>
 
 Loop sits in your menu bar or tray. One click on the icon opens a small panel: keep the computer awake, clipboard history, saved snippets, a live system monitor, volume per app, and shortcuts to capture, dictation and the cleaner. On Windows, macOS and Linux; each system shows only what works there. With the panel closed, only what you turned on keeps running.
@@ -328,6 +341,15 @@ OmniGet downloads what your own session can already open. It does not bypass DRM
 ## Contributing
 
 [Report a problem](https://getomniget.com/contact) · [Translate](https://hosted.weblate.org/engage/omniget/) · [Community](https://getomniget.com/community) · [Media kit](MEDIA-KIT.md)
+
+## Code signing policy
+
+Free code signing provided by [SignPath.io](https://about.signpath.io/), certificate by [SignPath Foundation](https://signpath.org/).
+
+- Authors and approvers: [Antonio Leandro](https://github.com/tonhowtf). Every release is approved by hand before it is signed.
+- Reviewers: pull requests from contributors are reviewed by the author before they are merged.
+- Signed binaries are built by GitHub Actions from this repository only.
+- Privacy: see the [privacy policy](https://getomniget.com/privacy). OmniGet sends nothing to other systems unless you ask it to.
 
 ## Credits
 
