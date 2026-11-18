@@ -268,7 +268,10 @@ pub fn extract_package(bytes: &[u8], dest: &Path) -> Result<(), String> {
         let mut file = zip
             .by_index(i)
             .map_err(|e| fail(ERR_PACKAGE, format!("entry {i}: {e}")))?;
-        let name = file.name().to_string();
+        let name = file
+            .name()
+            .map_err(|e| fail(ERR_PACKAGE, format!("entry {i}: {e}")))?
+            .to_string();
         if file.is_symlink() {
             return Err(fail(ERR_PACKAGE, format!("{name} is a link")));
         }

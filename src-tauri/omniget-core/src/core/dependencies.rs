@@ -748,7 +748,10 @@ async fn extract_zip_ffmpeg(
                 .by_index(i)
                 .map_err(|e| anyhow!("Failed to read zip entry: {}", e))?;
 
-            let name = entry.name().to_string();
+            let name = entry
+                .name()
+                .map_err(|e| anyhow!("Failed to read zip entry: {}", e))?
+                .to_string();
             let file_name = name.rsplit(['/', '\\']).next().unwrap_or("");
             if name.contains("__MACOSX") {
                 continue;
@@ -892,7 +895,10 @@ async fn download_deno() -> anyhow::Result<PathBuf> {
                 .by_index(i)
                 .map_err(|e| anyhow!("Failed to read zip entry: {}", e))?;
 
-            let name = file.name().to_string();
+            let name = file
+                .name()
+                .map_err(|e| anyhow!("Failed to read zip entry: {}", e))?
+                .to_string();
             if name.ends_with(&deno_name_clone) || name == "deno" || name == "deno.exe" {
                 let mut out = std::fs::File::create(&staged_clone)?;
                 std::io::copy(&mut file, &mut out)?;
@@ -1039,7 +1045,10 @@ async fn download_aria2c() -> anyhow::Result<PathBuf> {
                 .by_index(i)
                 .map_err(|e| anyhow!("Failed to read zip entry: {}", e))?;
 
-            let name = file.name().to_string();
+            let name = file
+                .name()
+                .map_err(|e| anyhow!("Failed to read zip entry: {}", e))?
+                .to_string();
             if name.ends_with(&aria2c_name_clone) {
                 let dest = bin_dir_clone.join(&aria2c_name_clone);
                 let mut buf = Vec::new();

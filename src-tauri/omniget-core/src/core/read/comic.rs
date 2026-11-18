@@ -159,7 +159,7 @@ pub fn zip_pages<R: Read + Seek>(zip: &mut zip::ZipArchive<R>) -> Vec<String> {
     let mut names: Vec<String> = (0..zip.len())
         .filter_map(|i| {
             let f = zip.by_index(i).ok()?;
-            let n = f.name().to_string();
+            let n = f.name().ok()?.to_string();
             let base = n.rsplit('/').next().unwrap_or(&n);
             (f.is_file()
                 && is_image_name(&n)
@@ -174,7 +174,7 @@ pub fn zip_pages<R: Read + Seek>(zip: &mut zip::ZipArchive<R>) -> Vec<String> {
 
 pub fn zip_comic_info<R: Read + Seek>(zip: &mut zip::ZipArchive<R>) -> Option<ComicInfo> {
     let name = (0..zip.len()).find_map(|i| {
-        let n = zip.by_index(i).ok()?.name().to_string();
+        let n = zip.by_index(i).ok()?.name().ok()?.to_string();
         n.rsplit('/')
             .next()
             .is_some_and(|b| b.eq_ignore_ascii_case("ComicInfo.xml"))

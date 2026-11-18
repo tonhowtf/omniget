@@ -1278,7 +1278,7 @@ fn unzip_exe(bytes: &[u8]) -> anyhow::Result<Vec<u8>> {
     let mut zip = zip::ZipArchive::new(std::io::Cursor::new(bytes))?;
     for i in 0..zip.len() {
         let mut f = zip.by_index(i)?;
-        if f.name().to_ascii_lowercase().ends_with(".exe") {
+        if f.name()?.to_ascii_lowercase().ends_with(".exe") {
             let mut out = Vec::new();
             f.read_to_end(&mut out)?;
             return Ok(out);

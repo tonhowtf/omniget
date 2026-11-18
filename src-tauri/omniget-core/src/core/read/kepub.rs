@@ -163,11 +163,11 @@ pub fn convert(input: &Path, out: &Path) -> Result<(), String> {
         let mut zout = zip::ZipWriter::new(f);
         for i in 0..zin.len() {
             let mut entry = zin.by_index(i).map_err(|e| e.to_string())?;
-            if entry.is_dir() || !is_content(entry.name()) {
+            let name = entry.name().map_err(|e| e.to_string())?.to_string();
+            if entry.is_dir() || !is_content(&name) {
                 zout.raw_copy_file(entry).map_err(|e| e.to_string())?;
                 continue;
             }
-            let name = entry.name().to_string();
             let mut bytes = Vec::new();
             entry.read_to_end(&mut bytes).map_err(|e| e.to_string())?;
             let text = String::from_utf8_lossy(&bytes);
@@ -234,7 +234,7 @@ mod tests {
         let out = dir.join("a.kepub.epub");
         convert(&src, &out).unwrap();
         let mut z = zip::ZipArchive::new(std::fs::File::open(&out).unwrap()).unwrap();
-        assert_eq!(z.by_index(0).unwrap().name(), "mimetype");
+        assert_eq!(z.by_index(0).unwrap().name().unwrap(), "mimetype");
         assert_eq!(
             z.by_index(0).unwrap().compression(),
             zip::CompressionMethod::Stored

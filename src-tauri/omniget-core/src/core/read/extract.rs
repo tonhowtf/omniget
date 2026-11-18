@@ -130,7 +130,7 @@ pub fn extract(path: &Path) -> Result<Extracted, String> {
             let mut z = zip::ZipArchive::new(f).map_err(|e| e.to_string())?;
             let name = (0..z.len())
                 .find_map(|i| {
-                    let n = z.by_index(i).ok()?.name().to_string();
+                    let n = z.by_index(i).ok()?.name().ok()?.to_string();
                     n.ends_with(".fb2").then_some(n)
                 })
                 .ok_or("no .fb2 inside")?;

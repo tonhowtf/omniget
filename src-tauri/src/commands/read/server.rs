@@ -316,7 +316,7 @@ fn comic_zip_pages<R: Read + std::io::Seek>(z: &mut zip::ZipArchive<R>) -> Vec<S
     let mut names: Vec<String> = (0..z.len())
         .filter_map(|i| {
             let f = z.by_index(i).ok()?;
-            let n = f.name().to_string();
+            let n = f.name().ok()?.to_string();
             let base = n.rsplit('/').next().unwrap_or(&n).to_string();
             (f.is_file()
                 && format::is_image_name(&n)
