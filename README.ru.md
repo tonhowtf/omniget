@@ -28,6 +28,7 @@
   <a href="https://discord.gg/jgdxyPy7Vn"><img src="https://img.shields.io/badge/chat-community-5865F2?style=flat-square" alt="Чат сообщества" /></a>
   <a href="https://www.instagram.com/tonhowtf/"><img src="https://img.shields.io/badge/Instagram-@tonhowtf-E4405F?style=flat-square&logo=instagram&logoColor=white" alt="Подпишитесь на @tonhowtf в Instagram" /></a>
   <a href="https://hosted.weblate.org/engage/omniget/"><img src="https://hosted.weblate.org/widget/omniget/frontend-json/svg-badge.svg" alt="Состояние перевода" /></a>
+  <a href="https://scorecard.dev/viewer/?uri=github.com/tonhowtf/omniget"><img src="https://api.scorecard.dev/projects/github.com/tonhowtf/omniget/badge?style=flat-square" alt="OpenSSF Scorecard" /></a>
 </p>
 
 <p align="center">
@@ -35,7 +36,7 @@
 </p>
 
 <p align="center">
-  <a href="#подключение-за-минуту">Подключение</a> · <a href="#что-может-ваш-агент">Инструменты</a> · <a href="#настройка-вручную">Ручная настройка</a> · <a href="#контроль-остаётся-у-вас">Безопасность</a> · <a href="#canvas">Canvas</a> · <a href="#загрузчик">Загрузчик</a> · <a href="#установка">Установка</a>
+  <a href="#подключение-за-минуту">Подключение</a> · <a href="#что-может-ваш-агент">Инструменты</a> · <a href="#настройка-вручную">Ручная настройка</a> · <a href="#контроль-остаётся-у-вас">Безопасность</a> · <a href="#canvas">Canvas</a> · <a href="#загрузчик">Загрузчик</a> · <a href="#установка">Установка</a> · <a href="#частые-вопросы">FAQ</a>
 </p>
 
 ---
@@ -334,11 +335,57 @@ pnpm tauri dev
 
 ---
 
+## Частые вопросы
+
+### Что такое OmniGet?
+
+Бесплатное приложение с открытым исходным кодом для Windows, macOS и Linux. Его главная часть это локальный MCP-сервер, который даёт вашему агенту набор инструментов для загрузок, медиа, файлов, ваших чатов и вашего компьютера. Это также самостоятельный загрузчик: вставьте ссылку и получите файл.
+
+### OmniGet бесплатный?
+
+Да. Лицензия GPL-3.0, учётная запись не нужна, телеметрии о том, что вы скачиваете, нет.
+
+### Какие ИИ-агенты работают с OmniGet?
+
+Claude Code, Codex, Gemini CLI, Cursor и VS Code подключаются к MCP-серверу по HTTP. Claude Desktop и другие клиенты, работающие только через stdio, используют адаптер `omniget-mcp`, который входит в каждый релиз. См. [Подключение за минуту](#подключение-за-минуту).
+
+### Может ли агент действовать на моём компьютере, не спросив меня?
+
+Нет. Сервер слушает только `127.0.0.1`, у каждого подключения свой токен и только те разрешения, которые вы отметили, а новые подключения, очистка и всё, что публикует или отправляет, ждут вашего клика в окне OmniGet. Агент никогда не может одобрить собственный запрос. См. [Контроль остаётся у вас](#контроль-остаётся-у-вас).
+
+### Нужно ли устанавливать yt-dlp, FFmpeg или Python?
+
+Нет. OmniGet сам устанавливает и обновляет yt-dlp, FFmpeg и gallery-dl и проверяет хеш каждого инструмента перед использованием.
+
+### С каких сайтов OmniGet может скачивать?
+
+Для YouTube, Instagram, TikTok, X, Reddit, Bilibili, Twitch и Vimeo есть собственные экстракторы, и работают все сайты, которые поддерживает yt-dlp. Он также скачивает галереи через gallery-dl, magnet-ссылки и файлы `.torrent`, а также прямые ссылки.
+
+### Обходит ли OmniGet DRM или платный доступ?
+
+Нет. Он скачивает то, что ваша собственная сессия уже может открыть. См. [Добросовестное использование](#добросовестное-использование).
+
+### Почему Windows или macOS показывает предупреждение при первом запуске?
+
+Каждая система один раз спрашивает о приложении, которого ещё не видела. В разделе [Установка](#установка) сказано, что нажать, а на [странице загрузки](https://getomniget.com/download) указан SHA-256 каждого файла, чтобы вы могли проверить свой.
+
+### Какой OmniGet оригинальный?
+
+Этот репозиторий, `tonhowtf/omniget`, и [getomniget.com](https://getomniget.com). Форки законны по GPL-3.0, и некоторые используют похожие названия; [getomniget.com/forks](https://getomniget.com/forks) объясняет, где какой.
+
+### Как я могу помочь?
+
+Прочитайте [CONTRIBUTING.md](CONTRIBUTING.md) и [ARCHITECTURE.md](ARCHITECTURE.md), выберите [good first issue](https://github.com/tonhowtf/omniget/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22) или [переведите интерфейс](https://hosted.weblate.org/engage/omniget/) прямо в браузере.
+
+Больше ответов в [FAQ документации](https://getomniget.com/docs/faq).
+
 ## Добросовестное использование
 
 OmniGet скачивает то, что ваша собственная сессия уже может открыть. Он не обходит DRM, не взламывает платный доступ и не передаёт учётные данные. Он предназначен для личных копий и контента, который вы вправе хранить; за соблюдение авторских прав и условий каждой платформы отвечаете вы. Владельцам платформ: см. [PLATFORM-OWNERS.md](PLATFORM-OWNERS.md).
 
 ## Участие
+
+[Руководство для участников](CONTRIBUTING.md) · [Архитектура](ARCHITECTURE.md) · [Управление проектом](GOVERNANCE.md) · [Получить помощь](SUPPORT.md) · [Политика безопасности](SECURITY.md)
 
 [Сообщить о проблеме](https://getomniget.com/contact) · [Перевести](https://hosted.weblate.org/engage/omniget/) · [Сообщество](https://getomniget.com/community) · [Медиа-кит](MEDIA-KIT.md)
 

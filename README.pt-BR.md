@@ -28,6 +28,7 @@
   <a href="https://discord.gg/jgdxyPy7Vn"><img src="https://img.shields.io/badge/chat-community-5865F2?style=flat-square" alt="Chat da comunidade" /></a>
   <a href="https://www.instagram.com/tonhowtf/"><img src="https://img.shields.io/badge/Instagram-@tonhowtf-E4405F?style=flat-square&logo=instagram&logoColor=white" alt="Siga @tonhowtf no Instagram" /></a>
   <a href="https://hosted.weblate.org/engage/omniget/"><img src="https://hosted.weblate.org/widget/omniget/frontend-json/svg-badge.svg" alt="Estado da tradução" /></a>
+  <a href="https://scorecard.dev/viewer/?uri=github.com/tonhowtf/omniget"><img src="https://api.scorecard.dev/projects/github.com/tonhowtf/omniget/badge?style=flat-square" alt="OpenSSF Scorecard" /></a>
 </p>
 
 <p align="center">
@@ -35,7 +36,7 @@
 </p>
 
 <p align="center">
-  <a href="#conecte-em-um-minuto">Conectar</a> · <a href="#o-que-seu-agente-pode-fazer">Ferramentas</a> · <a href="#configure-à-mão">Configuração manual</a> · <a href="#você-continua-no-controle">Segurança</a> · <a href="#o-canvas">Canvas</a> · <a href="#o-downloader">Downloader</a> · <a href="#instalar">Instalar</a>
+  <a href="#conecte-em-um-minuto">Conectar</a> · <a href="#o-que-seu-agente-pode-fazer">Ferramentas</a> · <a href="#configure-à-mão">Configuração manual</a> · <a href="#você-continua-no-controle">Segurança</a> · <a href="#o-canvas">Canvas</a> · <a href="#o-downloader">Downloader</a> · <a href="#instalar">Instalar</a> · <a href="#perguntas-frequentes">FAQ</a>
 </p>
 
 ---
@@ -334,11 +335,57 @@ O `pnpm tauri dev` usa um perfil próprio, então nunca mexe em um OmniGet insta
 
 ---
 
+## Perguntas frequentes
+
+### O que é o OmniGet?
+
+Um app de desktop gratuito e de código aberto para Windows, macOS e Linux. A parte principal é um servidor MCP local, que dá ao seu agente de código uma caixa de ferramentas para downloads, mídia, arquivos, suas conversas e o seu computador. Ele também é um downloader sozinho: cole um link e receba o arquivo.
+
+### O OmniGet é gratuito?
+
+Sim. A licença é GPL-3.0, não precisa de conta e não há telemetria sobre o que você baixa.
+
+### Quais agentes de IA funcionam com o OmniGet?
+
+Claude Code, Codex, Gemini CLI, Cursor e VS Code se conectam ao servidor MCP por HTTP. O Claude Desktop e outros clientes que só falam stdio usam o adaptador `omniget-mcp`, que vem em toda release. Veja [Conecte em um minuto](#conecte-em-um-minuto).
+
+### Um agente pode agir no meu computador sem me perguntar?
+
+Não. O servidor escuta só em `127.0.0.1`, cada conexão tem o próprio token com apenas as permissões que você marcou, e conexões novas, limpezas e tudo que publica ou envia esperam o seu clique na janela do OmniGet. Um agente nunca aprova o próprio pedido. Veja [Você continua no controle](#você-continua-no-controle).
+
+### Preciso instalar yt-dlp, FFmpeg ou Python?
+
+Não. O OmniGet instala e atualiza o yt-dlp, o FFmpeg e o gallery-dl sozinho, e confere o hash de cada ferramenta antes de usar.
+
+### De quais sites o OmniGet baixa?
+
+YouTube, Instagram, TikTok, X, Reddit, Bilibili, Twitch e Vimeo têm extratores próprios, e todo site que o yt-dlp suporta também funciona. Ele ainda baixa galerias pelo gallery-dl, links magnet e arquivos `.torrent`, e links diretos.
+
+### O OmniGet quebra DRM ou fura paywall?
+
+Não. Ele baixa o que a sua própria sessão já consegue abrir. Veja [Uso justo](#uso-justo).
+
+### Por que o Windows ou o macOS mostra um aviso na primeira vez?
+
+Cada sistema pergunta uma vez sobre um app que ainda não conhece. [Instalar](#instalar) diz onde clicar, e a [página de download](https://getomniget.com/download) lista o SHA-256 de cada arquivo para você conferir o seu.
+
+### Qual OmniGet é o original?
+
+Este repositório, `tonhowtf/omniget`, e o [getomniget.com](https://getomniget.com). Forks são legais pela GPL-3.0 e alguns usam nomes parecidos; [getomniget.com/forks](https://getomniget.com/forks) separa um do outro.
+
+### Como posso ajudar?
+
+Leia o [CONTRIBUTING.md](CONTRIBUTING.md) e o [ARCHITECTURE.md](ARCHITECTURE.md), escolha uma [good first issue](https://github.com/tonhowtf/omniget/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22) ou [traduza a interface](https://hosted.weblate.org/engage/omniget/) pelo navegador.
+
+Mais respostas no [FAQ da documentação](https://getomniget.com/docs/faq).
+
 ## Uso justo
 
 O OmniGet baixa o que a sua própria sessão já consegue abrir. Ele não quebra DRM, não fura paywall e não compartilha credenciais. Serve para cópias pessoais e conteúdo que você tem o direito de guardar; os direitos autorais e os termos de cada plataforma são responsabilidade sua. Donos de plataforma: veja o [PLATFORM-OWNERS.md](PLATFORM-OWNERS.md).
 
 ## Contribuir
+
+[Guia de contribuição](CONTRIBUTING.md) · [Arquitetura](ARCHITECTURE.md) · [Governança](GOVERNANCE.md) · [Obter ajuda](SUPPORT.md) · [Política de segurança](SECURITY.md)
 
 [Relatar um problema](https://getomniget.com/contact) · [Traduzir](https://hosted.weblate.org/engage/omniget/) · [Comunidade](https://getomniget.com/community) · [Kit de mídia](MEDIA-KIT.md)
 

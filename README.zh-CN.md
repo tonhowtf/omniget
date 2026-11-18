@@ -28,6 +28,7 @@
   <a href="https://discord.gg/jgdxyPy7Vn"><img src="https://img.shields.io/badge/chat-community-5865F2?style=flat-square" alt="社区聊天" /></a>
   <a href="https://www.instagram.com/tonhowtf/"><img src="https://img.shields.io/badge/Instagram-@tonhowtf-E4405F?style=flat-square&logo=instagram&logoColor=white" alt="在 Instagram 关注 @tonhowtf" /></a>
   <a href="https://hosted.weblate.org/engage/omniget/"><img src="https://hosted.weblate.org/widget/omniget/frontend-json/svg-badge.svg" alt="翻译状态" /></a>
+  <a href="https://scorecard.dev/viewer/?uri=github.com/tonhowtf/omniget"><img src="https://api.scorecard.dev/projects/github.com/tonhowtf/omniget/badge?style=flat-square" alt="OpenSSF Scorecard" /></a>
 </p>
 
 <p align="center">
@@ -35,7 +36,7 @@
 </p>
 
 <p align="center">
-  <a href="#一分钟完成连接">连接</a> · <a href="#你的智能体能做什么">工具</a> · <a href="#手动配置">手动配置</a> · <a href="#控制权在你手里">安全</a> · <a href="#canvas">Canvas</a> · <a href="#下载器">下载器</a> · <a href="#安装">安装</a>
+  <a href="#一分钟完成连接">连接</a> · <a href="#你的智能体能做什么">工具</a> · <a href="#手动配置">手动配置</a> · <a href="#控制权在你手里">安全</a> · <a href="#canvas">Canvas</a> · <a href="#下载器">下载器</a> · <a href="#安装">安装</a> · <a href="#常见问题">FAQ</a>
 </p>
 
 ---
@@ -334,11 +335,57 @@ pnpm tauri dev
 
 ---
 
+## 常见问题
+
+### OmniGet 是什么？
+
+一款免费、开源的桌面应用，支持 Windows、macOS 和 Linux。它的核心是一个本地 MCP 服务器，为你的编程智能体提供下载、媒体、文件、聊天和电脑管理等工具。它本身也是一个下载器：粘贴链接，拿到文件。
+
+### OmniGet 免费吗？
+
+免费。它采用 GPL-3.0 许可，不需要账号，也不收集你下载内容的遥测数据。
+
+### 哪些 AI 智能体可以配合 OmniGet 使用？
+
+Claude Code、Codex、Gemini CLI、Cursor 和 VS Code 通过 HTTP 连接 MCP 服务器。Claude Desktop 等只支持 stdio 的客户端使用随每个版本发布的 `omniget-mcp` 适配器。参见[一分钟完成连接](#一分钟完成连接)。
+
+### 智能体会不经我同意就在我的电脑上操作吗？
+
+不会。服务器只监听 `127.0.0.1`，每个连接都有自己的令牌，且只拥有你勾选的权限；新连接、清理以及任何发布或发送操作都要等你在 OmniGet 窗口中点击确认。智能体永远不能批准自己的请求。参见[控制权在你手里](#控制权在你手里)。
+
+### 我需要自己安装 yt-dlp、FFmpeg 或 Python 吗？
+
+不需要。OmniGet 会自行安装并更新 yt-dlp、FFmpeg 和 gallery-dl，并在使用前校验每个工具的哈希值。
+
+### OmniGet 可以从哪些网站下载？
+
+YouTube、Instagram、TikTok、X、Reddit、Bilibili、Twitch 和 Vimeo 有专用提取器，yt-dlp 支持的所有网站也都可用。它还能通过 gallery-dl 下载图集，支持磁力链接、`.torrent` 文件和直链。
+
+### OmniGet 会绕过 DRM 或付费墙吗？
+
+不会。它只下载你自己的会话本来就能打开的内容。参见[合理使用](#合理使用)。
+
+### 为什么 Windows 或 macOS 首次启动时会弹出警告？
+
+系统对没见过的应用都会询问一次。[安装](#安装)一节说明了该点哪里，[下载页面](https://getomniget.com/download)列出了每个文件的 SHA-256，方便你核对。
+
+### 哪个 OmniGet 是原版？
+
+本仓库 `tonhowtf/omniget` 和 [getomniget.com](https://getomniget.com)。根据 GPL-3.0，分叉是合法的，有些分叉使用了相似的名字；[getomniget.com/forks](https://getomniget.com/forks) 说明了它们的区别。
+
+### 我可以怎样帮忙？
+
+阅读 [CONTRIBUTING.md](CONTRIBUTING.md) 和 [ARCHITECTURE.md](ARCHITECTURE.md)，挑一个 [good first issue](https://github.com/tonhowtf/omniget/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22)，或者在浏览器里[翻译界面](https://hosted.weblate.org/engage/omniget/)。
+
+更多解答见[文档 FAQ](https://getomniget.com/docs/faq)。
+
 ## 合理使用
 
 OmniGet 只下载你自己的会话本来就能打开的内容。它不绕过 DRM，不破解付费墙，也不共享账号凭据。它用于个人备份和你有权保存的内容；版权和各平台的条款由你自己负责。平台方请看 [PLATFORM-OWNERS.md](PLATFORM-OWNERS.md)。
 
 ## 参与贡献
+
+[贡献指南](CONTRIBUTING.md) · [架构](ARCHITECTURE.md) · [治理](GOVERNANCE.md) · [获取帮助](SUPPORT.md) · [安全策略](SECURITY.md)
 
 [报告问题](https://getomniget.com/contact) · [翻译](https://hosted.weblate.org/engage/omniget/) · [社区](https://getomniget.com/community) · [媒体资料包](MEDIA-KIT.md)
 
