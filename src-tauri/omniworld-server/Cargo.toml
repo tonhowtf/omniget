@@ -17,6 +17,6 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 ed25519-dalek = "2"
 hex = "0.4"
-rand = "0.8"
+rand = "0.10"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
