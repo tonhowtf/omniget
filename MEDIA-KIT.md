@@ -51,7 +51,7 @@ Each line can be checked in the README or the app.
 - Developer tools for agents: a folder as one prompt-ready file, a page as clean Markdown, HTTP requests, ports, JSON, JWT, hashes, regex, FTP and SFTP.
 - An agent can read and reply in your linked chats and social feeds, with your own session.
 - An agent can list workspaces, start and follow jobs, read diffs, see pending approvals and drive the Canvas.
-- New connections, cleanups and anything that posts or sends wait for your click in the OmniGet window. An agent can never approve its own request, and cookies, tokens and keys are never returned to it.
+- New connections and cleanups wait for your click in the OmniGet window. Messages and posts on your accounts wait too when **Ask me first** is on; it is off by default. An agent can never approve its own request, and cookies, tokens and keys are never returned to it.
 - A Claude Code plugin (`claude-plugin/`) fetches and transcribes media from a link, with or without the desktop app.
 
 **The Canvas**
@@ -125,7 +125,7 @@ Adapt these; don't paste them unchanged every time.
 > I use yt-dlp a lot but got tired of the flags, so here's what I ended up with: OmniGet, a desktop app over yt-dlp, gallery-dl and a torrent client. It installs and updates yt-dlp and FFmpeg, has a queue that resumes and retries, and a browser extension that downloads with your own login. It also runs a local MCP server, so a coding agent can queue links and tell you which failed. Free, GPL-3.0, no account. Feedback welcome: github.com/tonhowtf/omniget
 
 **LinkedIn (EN, developer angle)**
-> If you use Claude Code, Codex or Cursor every day, OmniGet gives the agent a desktop toolbox through one local MCP server: downloads, a folder packed into one prompt-ready file, pages as clean Markdown, ports, HTTP requests. Each tool connects with its own token, and anything that posts, sends or deletes waits for your click. Its Canvas puts agent terminals side by side. Free and open source: github.com/tonhowtf/omniget
+> If you use Claude Code, Codex or Cursor every day, OmniGet gives the agent a desktop toolbox through one local MCP server: downloads, a folder packed into one prompt-ready file, pages as clean Markdown, ports, HTTP requests. Each tool connects with its own token, and a new connection or a cleanup waits for your click. Its Canvas puts agent terminals side by side. Free and open source: github.com/tonhowtf/omniget
 
 **Instagram / TikTok caption (pt-BR)**
 > Cansou de site de download cheio de anúncio? O OmniGet baixa vídeo do YouTube, Instagram, TikTok e X direto no seu computador. É grátis e de código aberto. Link na bio.
