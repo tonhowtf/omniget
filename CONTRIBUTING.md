@@ -9,6 +9,7 @@ Thanks for helping. This page is the short version of how the project works: how
 - [Checks](#checks)
 - [Tests](#tests)
 - [Project rules](#project-rules)
+- [Who decides](#who-decides)
 - [Commits and pull requests](#commits-and-pull-requests)
 - [Environment variables](#environment-variables)
 
@@ -75,6 +76,13 @@ The individual steps, if you want to run one by hand:
 - **Removing a feature removes everything only it used:** Rust commands and their registration, `invoke` calls, components, stores, i18n keys, assets in `static/`, capabilities and system permissions (`Info.plist`, `Entitlements.plist`, `.deb` depends), dependencies in `Cargo.toml` and `package.json`, and its README section and images. Grep for the feature's name afterwards.
 - **READMEs.** `README.md` is the source. `README.pt-BR.md`, `README.zh-CN.md` and `README.ru.md` keep the same sections in the same order; change all four in the same PR, leaving English text where you cannot translate.
 - **Similar code.** Follow the style of the file around you, including how much it comments and in which language.
+
+## Who decides
+
+- OmniGet is maintained by Antonio Leandro ([tonhowtf](https://github.com/tonhowtf)), who reviews and merges every pull request and decides what goes into a release.
+- Changes come in through pull requests, and CI has to pass before a merge.
+- Ideas and questions go to [Discussions](https://github.com/tonhowtf/omniget/discussions), bugs to [Issues](https://github.com/tonhowtf/omniget/issues), and security problems to the address in [SECURITY.md](SECURITY.md).
+- Everyone taking part follows the [code of conduct](CODE_OF_CONDUCT.md).
 
 ## Commits and pull requests
 
