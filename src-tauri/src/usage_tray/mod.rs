@@ -606,6 +606,7 @@ pub fn launch_line(ring: Option<&str>, add: bool) -> Result<String, String> {
     }
 }
 
+#[cfg_attr(windows, allow(clippy::needless_return))]
 fn open_terminal(ring: Option<&str>, add: bool) -> Result<(), String> {
     let line = launch_line(ring, add)?;
     #[cfg(windows)]

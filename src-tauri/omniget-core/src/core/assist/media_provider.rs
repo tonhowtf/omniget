@@ -244,6 +244,7 @@ impl Cli {
             cmd.as_std_mut().process_group(0);
         }
         let mut child = cmd.spawn().map_err(|_| "PROVIDER_CLI_START_FAILED")?;
+        #[cfg_attr(not(unix), allow(dead_code))]
         struct Group(Option<u32>);
         impl Drop for Group {
             fn drop(&mut self) {

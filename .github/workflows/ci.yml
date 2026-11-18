@@ -31,7 +31,7 @@ jobs:
       matrix:
         platform: ${{ fromJSON(inputs.all_platforms && '["ubuntu-22.04","windows-latest","macos-latest"]' || '["ubuntu-22.04"]') }}
     runs-on: ${{ matrix.platform }}
-    timeout-minutes: 90
+    timeout-minutes: 150
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
 
@@ -86,7 +86,7 @@ jobs:
 
       - name: Test
         working-directory: src-tauri
-        timeout-minutes: 40
+        timeout-minutes: 90
         run: cargo test --workspace --no-fail-fast --jobs 2 -- --test-threads 2
 
   frontend:

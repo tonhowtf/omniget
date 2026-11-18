@@ -353,6 +353,7 @@ impl ProcessTreeGuard {
 const SETTLE_LIMIT: std::time::Duration = std::time::Duration::from_millis(500);
 
 #[cfg(any(unix, test))]
+#[cfg_attr(not(unix), allow(dead_code))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct ProcRow {
     pid: i32,
@@ -363,6 +364,7 @@ struct ProcRow {
 }
 
 #[cfg(any(unix, test))]
+#[cfg_attr(not(unix), allow(dead_code))]
 fn tree_of(table: &[ProcRow], roots: &[(i32, u64)]) -> Vec<ProcRow> {
     use std::collections::{HashMap, HashSet};
     let by_pid: HashMap<i32, &ProcRow> = table.iter().map(|r| (r.pid, r)).collect();

@@ -185,6 +185,7 @@ fn base_path() -> Option<PathBuf> {
     omniget_core::core::paths::app_data_dir().map(|d| d.join("llm").join("claude-sync.json"))
 }
 
+#[cfg_attr(windows, allow(dead_code))]
 fn keychain_service(config_dir: &Path) -> String {
     if config_dir.as_os_str().is_empty() {
         return "Claude Code-credentials".to_string();

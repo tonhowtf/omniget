@@ -870,6 +870,7 @@ impl AgentRuntime for CliRuntime {
 }
 
 #[cfg(test)]
+#[cfg_attr(not(unix), allow(dead_code))]
 mod tests {
     use super::*;
     use crate::core::llm::agent::{AgentRole, Budget, ModelPolicy};

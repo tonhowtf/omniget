@@ -443,6 +443,7 @@ impl RuntimeDir {
             .join("worker-runs");
         std::fs::create_dir_all(&root).map_err(|_| anyhow!("WORKER_RUNTIME_UNAVAILABLE"))?;
         let path = root.join(uuid::Uuid::new_v4().to_string());
+        #[cfg_attr(not(unix), allow(unused_mut))]
         let mut builder = std::fs::DirBuilder::new();
         #[cfg(unix)]
         {
@@ -485,6 +486,7 @@ impl InfoJsonDir {
             }
         }
         let path = root.join(uuid::Uuid::new_v4().to_string());
+        #[cfg_attr(not(unix), allow(unused_mut))]
         let mut builder = std::fs::DirBuilder::new();
         #[cfg(unix)]
         {

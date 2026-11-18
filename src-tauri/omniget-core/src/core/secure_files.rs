@@ -1,3 +1,5 @@
+#![cfg_attr(not(unix), allow(unused_imports, dead_code))]
+
 use sha2::{Digest, Sha256};
 use std::fs::File;
 use std::io::{Read, Seek, SeekFrom, Write};
