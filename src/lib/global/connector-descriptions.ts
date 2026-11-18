@@ -29,9 +29,14 @@ export const RU_CONNECTOR_DESCRIPTIONS: Record<string, string> = {
 /** Catalog description for `id`, translated when the app runs in Russian. */
 export function localizedConnectorDescription(
   id: string,
-  fallback: string | undefined,
+  fallback: string,
   activeLocale: string,
-): string | undefined {
-  if (activeLocale === "ru") return RU_CONNECTOR_DESCRIPTIONS[id] ?? fallback;
+): string {
+  if (
+    activeLocale === "ru" &&
+    Object.prototype.hasOwnProperty.call(RU_CONNECTOR_DESCRIPTIONS, id)
+  ) {
+    return RU_CONNECTOR_DESCRIPTIONS[id];
+  }
   return fallback;
 }

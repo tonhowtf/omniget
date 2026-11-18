@@ -28,7 +28,7 @@
 
   let query = $state("");
   let entries = $derived(view?.entries ?? []);
-  let shown = $derived(filterEntries(entries, query, focusId));
+  let shown = $derived(filterEntries(entries, query, focusId, (entry) => localizedConnectorDescription(entry.id, entry.description, $locale)));
   let offline = $derived(!!view && view.source === "cache" && !!view.error);
   let failedEmpty = $derived(!!view && !entries.length && !!view.error);
   let savedAt = $derived(view?.fetched_at ? new Date(view.fetched_at * 1000).toLocaleString() : "");
