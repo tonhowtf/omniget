@@ -13,7 +13,7 @@ body:
     attributes:
       label: OmniGet version
       description: Shown in Settings > About, or via `omniget --version`.
-      placeholder: "0.4.0"
+      placeholder: "1.0.0"
     validations:
       required: true
 
