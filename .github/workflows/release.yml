@@ -252,6 +252,8 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      id-token: write
+      attestations: write
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
@@ -282,6 +284,13 @@ jobs:
           (cd out && sha256sum $(ls | grep -v -e '\.sig$' -e '^latest\.json$' -e '^SHA256SUMS$' | sort) > SHA256SUMS)
           ls -la out
           jq '.platforms | keys' out/latest.json
+
+      - name: Build provenance for every file in SHA256SUMS
+        if: github.repository == 'tonhowtf/omniget'
+        continue-on-error: true
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-checksums: out/SHA256SUMS
 
       - name: Draft release with every file
         env:

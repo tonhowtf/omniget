@@ -1,0 +1,34 @@
+name: Security
+
+on:
+  pull_request:
+    paths:
+      - 'src-tauri/**/Cargo.toml'
+      - 'src-tauri/Cargo.lock'
+      - 'src-tauri/deny.toml'
+      - '.github/workflows/security.yml'
+  schedule:
+    - cron: '17 6 * * 1'
+  workflow_dispatch:
+
+concurrency:
+  group: security-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  advisories:
+    name: RustSec advisories (cargo-deny)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false
+
+      - uses: EmbarkStudios/cargo-deny-action@70f81531115945ba6eb6b941ec9d39d063438eb9 # v2.1.2
+        with:
+          manifest-path: src-tauri/Cargo.toml
+          command: check advisories
