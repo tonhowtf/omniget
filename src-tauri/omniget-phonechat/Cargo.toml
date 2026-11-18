@@ -21,4 +21,4 @@ chrono = "0.4"
 base64 = "0.22.1"
 
 [dev-dependencies]
-tempfile = "=3.25.0"
+tempfile = "=3.27.0"
