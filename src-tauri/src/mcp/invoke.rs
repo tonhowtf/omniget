@@ -50,6 +50,7 @@ const HAS_TOOL: &[(&str, &str)] = &[
     ("phonechat_rule_enable", "wa_rules"),
     ("phonechat_rules_limits", "wa_rules"),
     ("social_call", "social_status"),
+    ("telegram_call", "tg_status"),
 ];
 
 fn tool_for(name: &str) -> Option<&'static str> {
@@ -268,6 +269,12 @@ mod tests {
                 .iter()
                 .all(|c| c["name"] != *command));
         }
+    }
+
+    #[test]
+    fn telegram_writes_cannot_skip_the_approval_through_invoke() {
+        assert!(denied("telegram_call"));
+        assert_eq!(tool_for("telegram_call"), Some("tg_status"));
     }
 
     #[test]
