@@ -51,7 +51,7 @@ Each line can be checked in the README or the app.
 - Developer tools for agents: a folder as one prompt-ready file, a page as clean Markdown, HTTP requests, ports, JSON, JWT, hashes, regex, FTP and SFTP.
 - An agent can read and reply in your linked chats and social feeds, with your own session.
 - An agent can list workspaces, start and follow jobs, read diffs, see pending approvals and drive the Canvas.
-- New connections and cleanups wait for your click in the OmniGet window. Messages and posts on your accounts wait too when **Ask me first** is on; it is off by default. An agent can never approve its own request, and cookies, tokens and keys are never returned to it.
+- New connections, cleanups and anything written to your Telegram account wait for your click in the OmniGet window. Other messages and posts on your accounts wait too when **Ask me first** is on; it is off by default. An agent can never approve its own request, and cookies, tokens and keys are never returned to it.
 - A Claude Code plugin (`claude-plugin/`) fetches and transcribes media from a link, with or without the desktop app.
 
 **The Canvas**
@@ -76,7 +76,7 @@ Each line can be checked in the README or the app.
 - **System Cleaner** scans, shows a plan and runs only after you approve. Files go to a quarantine or the Trash, and History undoes it.
 
 **The app**
-- Windows 10/11, macOS 10.15+ (Apple Silicon and Intel), Linux (.deb, .rpm, AppImage; x86_64 and ARM64).
+- Windows 10/11, macOS 10.15+ (Apple Silicon and Intel), Linux (.deb, .rpm, AppImage; x86_64).
 - Translated by the community on [Weblate](https://hosted.weblate.org/engage/omniget/).
 - Built with Rust, Tauri and Svelte.
 
