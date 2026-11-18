@@ -99,7 +99,7 @@ pub fn opf_path<R: Read + Seek>(zip: &mut zip::ZipArchive<R>) -> Option<String> 
         .map(str::to_string)
         .or_else(|| {
             (0..zip.len()).find_map(|i| {
-                let n = zip.by_index(i).ok()?.name().to_string();
+                let n = zip.by_index(i).ok()?.name().ok()?.to_string();
                 n.ends_with(".opf").then_some(n)
             })
         })
@@ -142,7 +142,7 @@ pub fn read<R: Read + Seek>(reader: R) -> Result<BookMeta, String> {
     }
     if meta.cover.is_none() {
         meta.cover = (0..zip.len()).find_map(|i| {
-            let n = zip.by_index(i).ok()?.name().to_string();
+            let n = zip.by_index(i).ok()?.name().ok()?.to_string();
             (super::format::is_image_name(&n) && n.to_ascii_lowercase().contains("cover"))
                 .then_some(n)
         });
@@ -409,7 +409,7 @@ pub fn write_metadata(path: &std::path::Path, edit: &MetaEdit) -> Result<(), Str
             .map_err(|e| e.to_string())?;
         for i in 0..zip.len() {
             let entry = zip.by_index_raw(i).map_err(|e| e.to_string())?;
-            let name = entry.name().to_string();
+            let name = entry.name().map_err(|e| e.to_string())?.to_string();
             if name == "mimetype" {
                 continue;
             }

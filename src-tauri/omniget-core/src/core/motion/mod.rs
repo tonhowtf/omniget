@@ -213,7 +213,7 @@ pub fn read_dotlottie_bytes(bytes: &[u8]) -> Result<DotLottie, String> {
         })
         .unwrap_or_default();
     let mut entries: Vec<String> = (0..zip.len())
-        .filter_map(|i| zip.name_for_index(i).map(str::to_string))
+        .filter_map(|i| zip.name_for_index(i)?.ok().map(|n| n.into_owned()))
         .filter(|n| {
             (n.starts_with("animations/") || n.starts_with("a/"))
                 && n.to_ascii_lowercase().ends_with(".json")

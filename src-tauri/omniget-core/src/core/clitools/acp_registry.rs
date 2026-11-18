@@ -600,7 +600,10 @@ pub fn extract(bytes: &[u8], name: &str, dir: &Path) -> Result<(), String> {
                 .by_index(i)
                 .map_err(|e| format!("{ERR_ACP}: zip: {e}"))?;
             let Some(rel) = f.enclosed_name() else {
-                return Err(format!("{ERR_ACP}: unsafe entry in the zip: {}", f.name()));
+                return Err(format!(
+                    "{ERR_ACP}: unsafe entry in the zip: {}",
+                    String::from_utf8_lossy(f.name_raw())
+                ));
             };
             let out = dir.join(rel);
             if f.is_dir() {

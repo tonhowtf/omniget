@@ -491,7 +491,9 @@ fn parse_zip(bytes: &[u8]) -> Result<Imported, String> {
         if entry.is_dir() || entry.size() > MAX_ZIP_ENTRY {
             continue;
         }
-        let name = entry.name().to_string();
+        let Ok(name) = entry.name().map(|n| n.to_string()) else {
+            continue;
+        };
         let lower = name.to_lowercase();
         takeout |= lower.starts_with("takeout/");
         let wanted = [".json", ".csv", ".opml", ".xml", ".html", ".txt", ".db"]
