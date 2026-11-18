@@ -2,7 +2,7 @@
 <artifact-configuration xmlns="http://signpath.io/artifact-configuration/v1">
   <zip-file>
     <pe-file-set>
-      <include path="*.exe" />
+      <include path="*.exe" max-matches="unbounded" />
       <for-each>
         <authenticode-sign />
       </for-each>
