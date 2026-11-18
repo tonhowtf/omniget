@@ -4,6 +4,7 @@ Thanks for helping. This page is the short version of how the project works: how
 
 ## Contents
 
+- [Where to start](#where-to-start)
 - [Setup](#setup)
 - [Dev loop](#dev-loop)
 - [Checks](#checks)
@@ -11,7 +12,15 @@ Thanks for helping. This page is the short version of how the project works: how
 - [Project rules](#project-rules)
 - [Who decides](#who-decides)
 - [Commits and pull requests](#commits-and-pull-requests)
+- [AI-assisted contributions](#ai-assisted-contributions)
 - [Environment variables](#environment-variables)
+
+## Where to start
+
+- **Read [ARCHITECTURE.md](ARCHITECTURE.md)** first. It maps the crates, shows where a Tauri command and an MCP tool live, and follows one download from the pasted link to the file.
+- **Pick something small.** Issues labelled [`good first issue`](https://github.com/tonhowtf/omniget/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22) are scoped for a first pull request, and [`help wanted`](https://github.com/tonhowtf/omniget/issues?q=is%3Aissue+is%3Aopen+label%3A%22help+wanted%22) ones are open to anyone. Comment on the issue before you start, so two people do not do the same work.
+- **Translate.** The interface is translated on [Weblate](https://hosted.weblate.org/engage/omniget/), in the browser, with no setup.
+- **Bigger idea?** Open a [discussion](https://github.com/tonhowtf/omniget/discussions) or an issue before writing code. The public board at [getomniget.com/contact](https://getomniget.com/contact) shows what is already being worked on.
 
 ## Setup
 
@@ -40,7 +49,7 @@ Use pnpm. `package-lock.json` exists only for the Flatpak build and the version 
 
 ## Checks
 
-Run these before you push. There is no CI: these are the gate.
+Run these before you push. CI runs the same checks on every pull request and has to pass before a merge, and a full run takes a long time, so running them first saves you a round trip.
 
 | Command | What it does |
 |---|---|
@@ -79,7 +88,7 @@ The individual steps, if you want to run one by hand:
 
 ## Who decides
 
-- OmniGet is maintained by Antonio Leandro ([tonhowtf](https://github.com/tonhowtf)), who reviews and merges every pull request and decides what goes into a release.
+- OmniGet is maintained by Antonio Leandro ([tonhowtf](https://github.com/tonhowtf)), who reviews and merges every pull request and decides what goes into a release. [GOVERNANCE.md](GOVERNANCE.md) has the details, including what depends on one person.
 - Changes come in through pull requests, and CI has to pass before a merge.
 - Ideas and questions go to [Discussions](https://github.com/tonhowtf/omniget/discussions), bugs to [Issues](https://github.com/tonhowtf/omniget/issues), and security problems to the address in [SECURITY.md](SECURITY.md).
 - Everyone taking part follows the [code of conduct](CODE_OF_CONDUCT.md).
@@ -89,6 +98,16 @@ The individual steps, if you want to run one by hand:
 - Messages in English, [Conventional Commits](https://www.conventionalcommits.org/): `feat(scope): ...`, `fix`, `refactor`, `perf`, `docs`, `chore`, `style`, `test`. Add `!` for a breaking change (`refactor!: remove plugins`).
 - One pull request per subject. Say what changes for the person using the app and how you tested it; the PR template asks for both.
 - Only the product goes into git: code, build configs, lockfiles, workflows and assets the app or the READMEs use. Keep personal notes, plans and scratch files out of commits; list them in your own `.git/info/exclude` instead of `.gitignore`.
+
+## AI-assisted contributions
+
+You may use an AI tool to write code, tests or text for OmniGet. Much of the app itself is built that way. The rules are about responsibility, not about the tool:
+
+- **You are the author.** You have read every line you send, you can explain it, and you answer the review yourself.
+- **You ran it.** `pnpm verify` passes on your machine and you tried the change in the app. A pull request that was never run gets closed.
+- **Say so.** Tick the box in the pull request template if an AI tool wrote a meaningful part, and say what you checked by hand.
+- **Keep it small.** One subject per pull request applies twice here. A large generated diff nobody asked for is not reviewed.
+- **Reports too.** An issue or a security report has to describe something you saw happen. Reports that an AI tool produced from reading the code, without a reproduction, are closed.
 
 ## Environment variables
 

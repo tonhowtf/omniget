@@ -28,6 +28,7 @@
   <a href="https://discord.gg/jgdxyPy7Vn"><img src="https://img.shields.io/badge/chat-community-5865F2?style=flat-square" alt="Community chat" /></a>
   <a href="https://www.instagram.com/tonhowtf/"><img src="https://img.shields.io/badge/Instagram-@tonhowtf-E4405F?style=flat-square&logo=instagram&logoColor=white" alt="Follow @tonhowtf on Instagram" /></a>
   <a href="https://hosted.weblate.org/engage/omniget/"><img src="https://hosted.weblate.org/widget/omniget/frontend-json/svg-badge.svg" alt="Translation status" /></a>
+  <a href="https://scorecard.dev/viewer/?uri=github.com/tonhowtf/omniget"><img src="https://api.scorecard.dev/projects/github.com/tonhowtf/omniget/badge?style=flat-square" alt="OpenSSF Scorecard" /></a>
 </p>
 
 <p align="center">
@@ -35,7 +36,7 @@
 </p>
 
 <p align="center">
-  <a href="#connect-in-one-minute">Connect</a> · <a href="#what-your-agent-can-do">Tools</a> · <a href="#configure-it-by-hand">Manual setup</a> · <a href="#you-stay-in-control">Safety</a> · <a href="#the-canvas">Canvas</a> · <a href="#the-downloader">Downloader</a> · <a href="#install">Install</a>
+  <a href="#connect-in-one-minute">Connect</a> · <a href="#what-your-agent-can-do">Tools</a> · <a href="#configure-it-by-hand">Manual setup</a> · <a href="#you-stay-in-control">Safety</a> · <a href="#the-canvas">Canvas</a> · <a href="#the-downloader">Downloader</a> · <a href="#install">Install</a> · <a href="#faq">FAQ</a>
 </p>
 
 ---
@@ -334,11 +335,57 @@ pnpm tauri dev
 
 ---
 
+## FAQ
+
+### What is OmniGet?
+
+A free, open source desktop app for Windows, macOS and Linux. Its main part is a local MCP server that gives your coding agent a toolbox for downloads, media, files, your chats and your computer. It is also a downloader on its own: paste a link, get the file.
+
+### Is OmniGet free?
+
+Yes. It is licensed under GPL-3.0, needs no account and has no telemetry about what you download.
+
+### Which AI agents work with OmniGet?
+
+Claude Code, Codex, Gemini CLI, Cursor and VS Code connect to the MCP server over HTTP. Claude Desktop and other stdio-only clients use the `omniget-mcp` adapter that ships with every release. See [Connect in one minute](#connect-in-one-minute).
+
+### Can an agent act on my computer without asking me?
+
+Only inside the permissions you ticked for that connection. The server listens on `127.0.0.1` only and each connection has its own token. With **Ask me first** on in the connection settings, posts on your accounts, system cleanups and new connections wait for your click in the OmniGet window; it is off by default, so turn it on if you want that prompt. An agent can never approve its own request. See [You stay in control](#you-stay-in-control).
+
+### Do I need to install yt-dlp, FFmpeg or Python?
+
+No. OmniGet installs and updates yt-dlp, FFmpeg and gallery-dl by itself, and checks the hash of each tool before using it.
+
+### Which sites can OmniGet download from?
+
+YouTube, Instagram, TikTok, X, Reddit, Bilibili, Twitch and Vimeo have their own extractors, and every site yt-dlp supports works too. It also takes galleries through gallery-dl, magnet links and `.torrent` files, and direct links.
+
+### Does OmniGet bypass DRM or paywalls?
+
+No. It downloads what your own session can already open. See [Fair use](#fair-use).
+
+### Why does Windows or macOS show a warning on first launch?
+
+Each system asks once about an app it has not seen before. [Install](#install) says what to click, and the [download page](https://getomniget.com/download) lists the SHA-256 of every file so you can check yours.
+
+### Which OmniGet is the original?
+
+This repository, `tonhowtf/omniget`, and [getomniget.com](https://getomniget.com). Forks are legal under GPL-3.0 and some use similar names; [getomniget.com/forks](https://getomniget.com/forks) tells them apart.
+
+### How can I help?
+
+Read [CONTRIBUTING.md](CONTRIBUTING.md) and [ARCHITECTURE.md](ARCHITECTURE.md), pick a [good first issue](https://github.com/tonhowtf/omniget/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22), or [translate the interface](https://hosted.weblate.org/engage/omniget/) in your browser.
+
+More answers in the [docs FAQ](https://getomniget.com/docs/faq).
+
 ## Fair use
 
 OmniGet downloads what your own session can already open. It does not bypass DRM, break paywalls or share credentials. It is meant for personal copies and content you have the right to keep; you are responsible for copyright and each platform's terms. Platform owners: see [PLATFORM-OWNERS.md](PLATFORM-OWNERS.md).
 
 ## Contributing
+
+[Contributing guide](CONTRIBUTING.md) · [Architecture](ARCHITECTURE.md) · [Governance](GOVERNANCE.md) · [Get help](SUPPORT.md) · [Security policy](SECURITY.md)
 
 [Report a problem](https://getomniget.com/contact) · [Translate](https://hosted.weblate.org/engage/omniget/) · [Community](https://getomniget.com/community) · [Media kit](MEDIA-KIT.md)
 
