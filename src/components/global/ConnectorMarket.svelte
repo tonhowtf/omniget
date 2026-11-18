@@ -3,8 +3,9 @@
   import { invoke } from "@tauri-apps/api/core";
   import { listen } from "@tauri-apps/api/event";
   import { open as openDialog } from "@tauri-apps/plugin-dialog";
-  import { t } from "$lib/i18n";
+  import { locale, t } from "$lib/i18n";
   import { errorKey, filterEntries, type InstallProgress, type MarketEntry, type MarketView, type PackageSummary } from "$lib/global/connector-market";
+  import { localizedConnectorDescription } from "$lib/global/connector-descriptions";
 
   type OptionDef = { id: string; label?: string; type?: string; default?: unknown; choices?: string[]; help?: string };
   type Failure = { message: string; action: "install" | "update" };
@@ -270,7 +271,7 @@
             {/if}
           </div>
           {#if entry.id === focusId && !installed}<p class="wanted">{$t("global_dl.market.wanted")}</p>{/if}
-          {#if entry.description}<p class="desc">{entry.description}</p>{/if}
+          {#if entry.description}<p class="desc">{localizedConnectorDescription(entry.id, entry.description, $locale)}</p>{/if}
           <p class="meta">
             {#if entry.author}<span>{$t("global_dl.market.by", { author: entry.author })}</span>{/if}
             <span title={entry.domains.join(", ")}>{entry.domains.slice(0, 3).join(", ")}{entry.domains.length > 3 ? ` +${entry.domains.length - 3}` : ""}</span>
