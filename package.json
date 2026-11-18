@@ -92,7 +92,7 @@
     "pdfjs-dist": "^6.3.289",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
-    "sveltekit-i18n": "^2.4.2",
+    "sveltekit-i18n": "^3.4.1",
     "thinking-orbs": "^0.3.2"
   },
   "devDependencies": {
