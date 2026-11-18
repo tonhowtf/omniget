@@ -195,7 +195,7 @@ http_headers = { Authorization = "Bearer YOUR_TOKEN" }
 
 - **Local only.** The server listens on `127.0.0.1` and refuses requests from web pages.
 - **A token per tool.** Each connection has its own token and only the permissions you tick. Revoke one without touching the others.
-- **Your click, not the agent's.** New connections and cleanups wait for you in the OmniGet window. Messages and posts on your accounts wait too when **Ask me first** is on; it is off by default. An agent can never approve its own request.
+- **Your click, not the agent's.** New connections, cleanups and anything written to your Telegram account wait for you in the OmniGet window. Other messages and posts on your accounts wait too when **Ask me first** is on; it is off by default. An agent can never approve its own request.
 - **Secrets stay put.** Cookies, tokens and keys are never returned to an agent.
 - **No account, no telemetry** about what you download. OmniGet goes online for the sites you ask for, for updates, and for the model provider you configured.
 
@@ -282,7 +282,9 @@ Loop sits in your menu bar or tray. One click on the icon opens a small panel: k
 |---|---|
 | **Windows 10 and 11** | Installer `.exe`, portable `.exe`, `.msi` |
 | **macOS 10.15+** | `.dmg` for Apple Silicon and Intel |
-| **Linux** | `.deb`, `.rpm`, `.AppImage` for x86_64 and ARM64 |
+| **Linux** | `.deb`, `.rpm`, `.AppImage` for x86_64 |
+
+On macOS you can also install with Homebrew: `brew tap tonhowtf/tap`, then `brew install --cask omniget`.
 
 <details>
 <summary>First launch warnings and antivirus</summary>
@@ -351,7 +353,7 @@ Claude Code, Codex, Gemini CLI, Cursor and VS Code connect to the MCP server ove
 
 ### Can an agent act on my computer without asking me?
 
-Only inside the permissions you ticked for that connection. The server listens on `127.0.0.1` only and each connection has its own token. A new connection and a cleanup always wait for your click in the OmniGet window. Messages and posts on your accounts wait too when **Ask me first** is on in the connection settings; it is off by default, so turn it on if you grant those permissions. An agent can never approve its own request. See [You stay in control](#you-stay-in-control).
+Only inside the permissions you ticked for that connection. The server listens on `127.0.0.1` only and each connection has its own token. A new connection, a cleanup and anything written to your Telegram account always wait for your click in the OmniGet window. Other messages and posts on your accounts wait too when **Ask me first** is on in the connection settings; it is off by default, so turn it on if you grant those permissions. An agent can never approve its own request. See [You stay in control](#you-stay-in-control).
 
 ### Do I need to install yt-dlp, FFmpeg or Python?
 

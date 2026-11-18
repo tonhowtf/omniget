@@ -96,6 +96,7 @@ The individual steps, if you want to run one by hand:
 ## Commits and pull requests
 
 - Messages in English, [Conventional Commits](https://www.conventionalcommits.org/): `feat(scope): ...`, `fix`, `refactor`, `perf`, `docs`, `chore`, `style`, `test`. Add `!` for a breaking change (`refactor!: remove plugins`).
+- Sign off your commits (`git commit -s`). The `Signed-off-by` line says you wrote the change or have the right to send it under GPL-3.0, in the words of the [Developer Certificate of Origin](https://developercertificate.org/). There is no CLA to sign.
 - One pull request per subject. Say what changes for the person using the app and how you tested it; the PR template asks for both.
 - Only the product goes into git: code, build configs, lockfiles, workflows and assets the app or the READMEs use. Keep personal notes, plans and scratch files out of commits; list them in your own `.git/info/exclude` instead of `.gitignore`.
 

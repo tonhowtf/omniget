@@ -92,7 +92,7 @@ Every command passes through `src-tauri/src/ipc_guard.rs`. The app's own windows
 
 **`omniget_invoke`.** A registered Tauri command is reachable through this one tool (`mcp/invoke.rs`), from a catalog that `scripts/mcp-commands.mjs` builds out of `handlers.rs`. The same file holds the denied list: anything that returns a credential or a token, pairs a client, grants MCP access, answers an approval or runs a terminal command cannot be called from outside.
 
-**Approvals.** A caller never approves its own request: the tools that answer an approval are on the denied list and behind their own scope (`src-tauri/src/approvals.rs`). A new connection and a cleanup always wait for a click in the OmniGet window. With **Ask me first** on (`ask_first` in `mcp/access.rs`, off by default), messages and posts on the person's accounts and installs from the catalog wait too. A tool that writes has to honour that setting.
+**Approvals.** A caller never approves its own request: the tools that answer an approval are on the denied list and behind their own scope (`src-tauri/src/approvals.rs`). A new connection, a cleanup and any write to the Telegram account always wait for a click in the OmniGet window. With **Ask me first** on (`ask_first` in `mcp/access.rs`, off by default), messages and posts on the person's accounts and installs from the catalog wait too. A tool that writes has to honour that setting.
 
 **Adding a dedicated tool.**
 

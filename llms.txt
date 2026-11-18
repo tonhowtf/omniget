@@ -12,7 +12,7 @@ Writing about OmniGet, or generating a post about it? Read [MEDIA-KIT.md](https:
 - Download: https://getomniget.com/download (the page lists the SHA-256 of every file; updates arrive inside the app)
 - Author: Antonio Leandro (Tonho), an independent developer in Recife, Brazil (https://tonho.wtf)
 - License: GPL-3.0. Free, no account, no telemetry about what is downloaded.
-- Platforms: Windows 10/11 (installer `.exe`, portable `.exe`, `.msi`), macOS 10.15+ (`.dmg` for Apple Silicon and Intel), Linux x86_64 and ARM64 (`.deb`, `.rpm`, `.AppImage`).
+- Platforms: Windows 10/11 (installer `.exe`, portable `.exe`, `.msi`), macOS 10.15+ (`.dmg` for Apple Silicon and Intel), Linux x86_64 (`.deb`, `.rpm`, `.AppImage`).
 - Built with: Tauri, Rust and Svelte.
 - Engines it installs and updates for the user: yt-dlp, FFmpeg, aria2 and gallery-dl. No Python, no PATH, no terminal.
 - Interface translated on Weblate: https://hosted.weblate.org/engage/omniget/
@@ -31,7 +31,7 @@ Writing about OmniGet, or generating a post about it? Read [MEDIA-KIT.md](https:
   - Memory: recall and teach what the app remembers between sessions (`memory_recall`, `memory_reflect`, `memory_retain`).
   - The computer: scan for junk and plan a cleanup; running it waits for the person's click (token permissions `system_read` and `system_change`).
 - Results come back as structured data, long ones are cut to a limit and saved to a file, and every error says what to do next.
-- [Safety](https://github.com/tonhowtf/omniget#you-stay-in-control): the server listens on 127.0.0.1 only and refuses requests from web pages. Each connection has its own token and only the permissions the person ticked, and can be revoked alone. New connections and cleanups wait for a click in the OmniGet window, and messages and posts on the person's accounts wait too when Ask me first is on (off by default); an agent can never approve its own request. Cookies, tokens and keys are never returned to an agent.
+- [Safety](https://github.com/tonhowtf/omniget#you-stay-in-control): the server listens on 127.0.0.1 only and refuses requests from web pages. Each connection has its own token and only the permissions the person ticked, and can be revoked alone. New connections, cleanups and anything written to the person's Telegram account wait for a click in the OmniGet window, and other messages and posts on the person's accounts wait too when Ask me first is on (off by default); an agent can never approve its own request. Cookies, tokens and keys are never returned to an agent.
 - Errors: `APP_NOT_RUNNING` means the app is closed or the server is off in Settings → AI & agents; `UNAUTHORIZED` or 401 means the token is missing or was revoked; a missing tool means the connection lacks that permission.
 - Example prompts: "Download this playlist as audio and tell me when every file is done", "Here are 12 links. Queue them, wait, and tell me which failed and why", "Turn this folder into one file I can paste into a prompt, under 50k tokens", "What is using port 3000? Stop it."
 - [Claude Code plugin](https://github.com/tonhowtf/omniget/tree/main/claude-plugin/omniget): fetches and transcribes media from a link, with or without the desktop app. `/omniget:fetch`, `/omniget:transcribe`, `/omniget:research`, `/omniget:setup`, `/omniget:doctor`, `/omniget:connect`.
@@ -72,7 +72,7 @@ Loop sits in your menu bar or tray. One click on the icon opens a small panel: k
 - Is OmniGet free? Yes: GPL-3.0, no account.
 - How do I connect Claude Code, Codex, Gemini CLI or Cursor? Open OmniGet, paste the connect line into the agent and click Allow in the OmniGet window. Each tool gets its own token.
 - Can Claude Code download videos for me? Yes, after connecting: ask in plain English and the agent queues the link, waits and reports what failed.
-- Can an agent act without me? Reading and queueing follow the permissions ticked for that connection. New connections and cleanups wait for a click in the OmniGet window, and messages and posts on the person's accounts wait too when Ask me first is on (off by default).
+- Can an agent act without me? Reading and queueing follow the permissions ticked for that connection. New connections, cleanups and anything written to the person's Telegram account wait for a click in the OmniGet window, and other messages and posts on the person's accounts wait too when Ask me first is on (off by default).
 - Is OmniGet a yt-dlp GUI? Partly: it installs and updates yt-dlp and adds its own extractors, torrents, a queue, a browser extension, an MCP server, the Canvas and the Tools page.
 - Does it bypass DRM or paywalls? No. It downloads what the person's own session can already open.
 - Does it need Python or a terminal? No.

@@ -195,7 +195,7 @@ O `omniget-mcp` vem em toda release e faz a ponte entre stdio e o app aberto.
 
 - **Só local.** O servidor escuta em `127.0.0.1` e recusa requisições vindas de páginas web.
 - **Um token por ferramenta.** Cada conexão tem o próprio token e só as permissões que você marcar. Revogue uma sem mexer nas outras.
-- **O clique é seu, não do agente.** Conexões novas e limpezas esperam por você na janela do OmniGet. Mensagens e publicações nas suas contas também esperam quando **Perguntar antes** está ligado; a opção vem desligada. Um agente nunca aprova o próprio pedido.
+- **O clique é seu, não do agente.** Conexões novas, limpezas e tudo que é escrito na sua conta do Telegram esperam por você na janela do OmniGet. As outras mensagens e publicações nas suas contas também esperam quando **Perguntar antes** está ligado; a opção vem desligada. Um agente nunca aprova o próprio pedido.
 - **Segredos ficam onde estão.** Cookies, tokens e chaves nunca são devolvidos a um agente.
 - **Sem conta e sem telemetria** sobre o que você baixa. O OmniGet acessa a internet para os sites que você pede, para atualizações e para o provedor de modelo que você configurou.
 
@@ -282,7 +282,9 @@ O Loop fica na barra de menus ou na bandeja. Um clique no ícone abre um painel 
 |---|---|
 | **Windows 10 e 11** | Instalador `.exe`, `.exe` portátil, `.msi` |
 | **macOS 10.15+** | `.dmg` para Apple Silicon e Intel |
-| **Linux** | `.deb`, `.rpm`, `.AppImage` para x86_64 e ARM64 |
+| **Linux** | `.deb`, `.rpm`, `.AppImage` para x86_64 |
+
+No macOS também dá para instalar pelo Homebrew: `brew tap tonhowtf/tap` e depois `brew install --cask omniget`.
 
 <details>
 <summary>Avisos na primeira abertura e antivírus</summary>
@@ -351,7 +353,7 @@ Claude Code, Codex, Gemini CLI, Cursor e VS Code se conectam ao servidor MCP por
 
 ### Um agente pode agir no meu computador sem me perguntar?
 
-Só dentro das permissões que você marcou para aquela conexão. O servidor escuta só em `127.0.0.1` e cada conexão tem o próprio token. Uma conexão nova e uma limpeza sempre esperam o seu clique na janela do OmniGet. Mensagens e publicações nas suas contas também esperam quando **Perguntar antes** está ligado nas configurações de conexão; a opção vem desligada, então ligue se der essas permissões. Um agente nunca aprova o próprio pedido. Veja [Você continua no controle](#você-continua-no-controle).
+Só dentro das permissões que você marcou para aquela conexão. O servidor escuta só em `127.0.0.1` e cada conexão tem o próprio token. Uma conexão nova, uma limpeza e tudo que é escrito na sua conta do Telegram sempre esperam o seu clique na janela do OmniGet. As outras mensagens e publicações nas suas contas também esperam quando **Perguntar antes** está ligado nas configurações de conexão; a opção vem desligada, então ligue se der essas permissões. Um agente nunca aprova o próprio pedido. Veja [Você continua no controle](#você-continua-no-controle).
 
 ### Preciso instalar yt-dlp, FFmpeg ou Python?
 
