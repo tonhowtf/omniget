@@ -138,7 +138,7 @@ http_headers = { Authorization = "Bearer YOUR_TOKEN" }
 
 - **Local only.** The server listens on `127.0.0.1` and refuses requests from web pages.
 - **A token per tool.** Each connection has its own token and only the permissions you tick. Revoke one without touching the others.
-- **Your click, not the agent's.** New connections, cleanups and anything that posts or sends wait for you in the OmniGet window. An agent can never approve its own request.
+- **Your click, not the agent's.** New connections and cleanups wait for you in the OmniGet window. Messages and posts on your accounts wait too when **Ask me first** is on; it is off by default. An agent can never approve its own request.
 - **Secrets stay put.** Cookies, tokens and keys are never returned to an agent.
 - **No account, no telemetry** about what you download. OmniGet goes online for the sites you ask for, for updates, and for the model provider you configured.
 
