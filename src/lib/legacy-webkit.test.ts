@@ -20,7 +20,7 @@ function oldWebKit() {
     ArrayBuffer,
     Uint8Array,
     Int8Array,
-    crypto: { getRandomValues: (b: Uint8Array) => webcrypto.getRandomValues(b) },
+    crypto: { getRandomValues: (b: Uint8Array<ArrayBuffer>) => webcrypto.getRandomValues(b) },
     HTMLElement: class {},
     Event: class {},
     document: {

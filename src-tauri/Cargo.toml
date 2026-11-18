@@ -65,7 +65,7 @@ urlencoding = "2"
 rand = "0.10.0"
 rusqlite = { version = "0.40", features = ["bundled", "fallible_uint"] }
 base64 = "0.22.1"
-tempfile = "=3.25.0"
+tempfile = "=3.27.0"
 sha2 = "0.10"
 ed25519-dalek = "2"
 data-encoding = "2"
