@@ -746,6 +746,7 @@ mod persistence_tests {
         std::fs::remove_dir_all(dir).unwrap();
     }
 
+    #[cfg_attr(windows, ignore = "secure_files has no Windows implementation yet")]
     #[test]
     fn client_revocation_fails_closed_without_the_assistant_db() {
         use omniget_core::core::assist::{authority, db::AssistDb};

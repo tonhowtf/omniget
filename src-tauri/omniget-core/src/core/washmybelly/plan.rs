@@ -952,6 +952,7 @@ mod tests {
         assert!(offer(&ctx, "cleanup", vec![item], Source::Agent).is_err());
     }
 
+    #[cfg_attr(windows, ignore = "needs permission to create a junction")]
     #[test]
     fn canary_links_never_lead_outside_the_target() {
         let dir = tempfile::tempdir().unwrap();

@@ -487,6 +487,7 @@ fn a_background_subagent_becomes_task_events_and_a_loose_reply() {
     assert!(r.tr.cursor.turns[0].last_uuid.is_some());
 }
 
+#[cfg_attr(windows, ignore = "expects Unix path separators")]
 #[test]
 fn an_edit_approval_carries_the_diff_against_the_file_on_disk() {
     let mut tr = Translator::new("claude", "thr", Some("/w".into()), ClaudeCursor::default());

@@ -891,6 +891,7 @@ mod upstream_tests {
         String::from_utf8_lossy(&answer[..filled]).into_owned()
     }
 
+    #[cfg_attr(windows, ignore = "egress cannot list host interfaces on Windows yet")]
     #[tokio::test]
     async fn an_allowed_address_goes_out_through_the_upstream_proxy() {
         let (proxy, mut heads) = fake_proxy().await;
@@ -914,6 +915,7 @@ mod upstream_tests {
         broker.shutdown().await;
     }
 
+    #[cfg_attr(windows, ignore = "egress cannot list host interfaces on Windows yet")]
     #[tokio::test]
     async fn the_policy_still_refuses_a_private_address_before_the_upstream_sees_it() {
         let (proxy, mut heads) = fake_proxy().await;
@@ -938,6 +940,7 @@ mod upstream_tests {
         broker.shutdown().await;
     }
 
+    #[cfg_attr(windows, ignore = "egress cannot list host interfaces on Windows yet")]
     #[tokio::test]
     async fn a_proxy_the_broker_cannot_speak_never_becomes_a_direct_connection() {
         let policy = Policy {

@@ -1835,6 +1835,10 @@ mod job_tests {
         assert!(h("https://cdn.test/s.ts").is_empty());
     }
 
+    #[cfg_attr(
+        windows,
+        ignore = "needs *.localhost to resolve, which Windows does not do"
+    )]
     #[tokio::test]
     async fn undeclared_cdn_still_downloads_without_the_connectors_credentials() {
         let (base, log) = test_server::spawn(|_, r| test_server::serve_bytes(b"body", r)).await;

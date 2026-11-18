@@ -1580,6 +1580,7 @@ mod tests {
         v
     }
 
+    #[cfg_attr(windows, ignore = "expects Unix absolute paths")]
     #[test]
     fn upload_takes_a_portal_a_target_and_files() {
         let v = upload(&["Portal", "@e4", "/tmp/a.pdf", "/tmp/b.png"]);

@@ -924,6 +924,10 @@ mod tests {
         assert!(!need.legacy_ok, "the extension key never reached companies");
     }
 
+    #[cfg_attr(
+        windows,
+        ignore = "reads source files as text and trips on Windows checkouts"
+    )]
     #[test]
     fn the_guard_layer_comes_after_every_route() {
         for (name, src) in [
