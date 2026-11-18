@@ -297,15 +297,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "arbitrary"
-version = "1.4.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c3d036a3c4ab069c7b410a2ce876bd74808d2d0888a82667669f8e783a898bf1"
-dependencies = [
- "derive_arbitrary",
-]
-
-[[package]]
 name = "arboard"
 version = "3.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2356,17 +2347,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 1.0.109",
-]
-
-[[package]]
-name = "derive_arbitrary"
-version = "1.4.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1e567bd82dcff979e4b03460c307b3cdc9e96fde3d73bed1496d2bc75d9dd62a"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 2.0.117",
 ]
 
 [[package]]
@@ -6971,7 +6951,7 @@ dependencies = [
  "which 7.0.3",
  "windows 0.61.3",
  "winreg 0.55.0",
- "zip 9.7.0",
+ "zip",
 ]
 
 [[package]]
@@ -7122,7 +7102,7 @@ dependencies = [
  "xxhash-rust",
  "xz2",
  "zbus 5.14.0",
- "zip 9.7.0",
+ "zip",
  "zstd",
 ]
 
@@ -10864,7 +10844,7 @@ dependencies = [
  "tokio",
  "url",
  "windows-sys 0.61.2",
- "zip 9.7.0",
+ "zip",
 ]
 
 [[package]]
@@ -13911,18 +13891,6 @@ dependencies = [
 
 [[package]]
 name = "zip"
-version = "4.6.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "caa8cd6af31c3b31c6631b8f483848b91589021b28fffe50adada48d4f4d2ed1"
-dependencies = [
- "arbitrary",
- "crc32fast",
- "indexmap 2.14.2",
- "memchr",
-]
-
-[[package]]
-name = "zip"
 version = "9.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "08687262e7c0f1284b259686f322805a8adaa8ef4d7210e76448950b3f083bf7"
@@ -13939,24 +13907,6 @@ dependencies = [
  "windows-sys 0.61.2",
  "zeroize",
  "zopfli",
-]
-
-[[package]]
-name = "zip"
-version = "9.7.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "08687262e7c0f1284b259686f322805a8adaa8ef4d7210e76448950b3f083bf7"
-dependencies = [
- "constant_time_eq 0.6.1",
- "crc32fast",
- "getrandom 0.4.3",
- "indexmap 2.14.2",
- "libc",
- "memchr",
- "nix 0.31.3",
- "typed-path",
- "windows-sys 0.61.2",
- "zeroize",
 ]
 
 [[package]]
