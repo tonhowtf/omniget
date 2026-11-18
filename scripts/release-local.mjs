@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { basename, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -20,6 +20,13 @@ and writes SHA256SUMS and latest.json there. Nothing is published.
   --skip-build        only collect bundles already built for the target
   --allow-dirty       do not stop on uncommitted changes
   --dry-run           check versions, tag and signing key, print the plan, build nothing
+  --stage <name>      Windows only, for signing done outside this machine (SignPath):
+                        compile  build without bundling and copy every executable to <sign-dir>/binaries
+                        bundle   take the signed files from <sign-dir>/binaries-signed, build the
+                                 installers and copy them to <sign-dir>/installers
+                        collect  take the signed installers from <sign-dir>/installers-signed, redo
+                                 the updater signature and write the release folder
+  --sign-dir <dir>    folder shared by the stages (default: signpath)
 
 The updater key is TAURI_SIGNING_PRIVATE_KEY or ~/.tauri/omniget-updater.key; its password is
 TAURI_SIGNING_PRIVATE_KEY_PASSWORD or the Keychain item "omniget-updater".`;
@@ -44,6 +51,10 @@ function fail(message) {
   console.error(`release-local: ${message}`);
   process.exit(1);
 }
+
+const stage = flag("--stage") ?? "all";
+if (!["all", "compile", "bundle", "collect"].includes(stage)) fail(`unknown stage ${stage}`);
+if (stage !== "all" && !target.includes("windows")) fail("--stage only applies to the Windows targets");
 
 function run(cmd, cmdArgs, opts = {}) {
   console.log(`$ ${cmd} ${cmdArgs.join(" ")}`);
@@ -115,6 +126,7 @@ console.log(`  bundles  ${bundleDir}`);
 console.log(`  notes    ${notes ?? "(none)"}`);
 console.log(`  key      ${key.length} bytes, password ${password ? "set" : "empty"}`);
 console.log(`  cli      ${has("--cli") ? "yes" : "no"}`);
+if (stage !== "all") console.log(`  stage    ${stage}`);
 if (!isMac) console.warn("warning: only the macOS targets are tested; Windows and Linux bundles are collected best-effort");
 if (dryRun) {
   console.log("dry run: nothing built");
@@ -124,7 +136,108 @@ if (dryRun) {
 const env = { ...process.env, TAURI_SIGNING_PRIVATE_KEY: key, TAURI_SIGNING_PRIVATE_KEY_PASSWORD: password };
 for (const name of Object.keys(env)) if (name.startsWith("APPLE_") && !env[name]) delete env[name];
 const windowsSign = target.includes("windows") ? process.env.WINDOWS_SIGN_COMMAND : "";
-if (!has("--skip-build")) {
+const releaseDir = join(cargoTarget, target, "release");
+const binExt = target.includes("windows") ? ".exe" : "";
+const cliBins = ["omniget-cli", "omniget-mcp", "omniget-gateway", "omniget-worker"].map((b) => `${b}${binExt}`);
+const signDir = resolve(root, flag("--sign-dir") ?? "signpath");
+const mainExe = join(releaseDir, "omniget.exe");
+const sidecars = JSON.parse(read("src-tauri/tauri.conf.json")).bundle.externalBin.map((b) => `${basename(b)}-${target}.exe`);
+const installerKinds = (flag("--bundles") ?? "nsis,msi").split(",").filter((k) => k === "nsis" || k === "msi");
+const BUNDLE_TOKEN = Buffer.from("__TAURI_BUNDLE_TYPE_VAR_UNK");
+const BUNDLE_TAG = { nsis: "NSS", msi: "MSI" };
+
+function buildCli() {
+  run("cargo", ["build", "-p", "omniget-cli", "--release", "--target", target], { cwd: join(root, "src-tauri") });
+  for (const b of cliBins) if (!existsSync(join(releaseDir, b))) fail(`missing ${b} in ${releaseDir}`);
+  if (!binExt || process.platform === "win32") run(join(releaseDir, `omniget-cli${binExt}`), ["--version"]);
+}
+
+function withBundleType(exe, kind) {
+  const at = exe.indexOf(BUNDLE_TOKEN);
+  const out = Buffer.from(exe);
+  if (at < 0) console.warn(`warning: no bundle type marker in omniget.exe; the ${kind} copy is left as built`);
+  else out.write(`__TAURI_BUNDLE_TYPE_VAR_${BUNDLE_TAG[kind]}`, at, "latin1");
+  return out;
+}
+
+function signedFile(dir, name, original) {
+  const file = join(dir, name);
+  if (!existsSync(file)) fail(`${name} did not come back signed in ${dir}`);
+  if (original && readFileSync(file).equals(readFileSync(original))) fail(`${name} in ${dir} is identical to the unsigned file`);
+  if (process.platform === "win32") {
+    const status = capture("powershell", ["-NoProfile", "-Command", `(Get-AuthenticodeSignature -LiteralPath '${file.replaceAll("'", "''")}').Status`]);
+    if (!status || status === "NotSigned") fail(`${name} in ${dir} carries no Authenticode signature`);
+  }
+  return file;
+}
+
+function compileForSigning() {
+  run("rustup", ["target", "add", target]);
+  run("pnpm", ["tauri", "build", "--target", target, "--no-bundle"], { env });
+  if (!existsSync(mainExe)) fail(`missing ${mainExe}`);
+  if (has("--cli")) buildCli();
+  const dir = join(signDir, "binaries");
+  rmSync(signDir, { recursive: true, force: true });
+  mkdirSync(dir, { recursive: true });
+  const main = readFileSync(mainExe);
+  writeFileSync(join(dir, "omniget.exe"), main);
+  for (const kind of installerKinds) writeFileSync(join(dir, `omniget-${kind}.exe`), withBundleType(main, kind));
+  for (const s of sidecars) copyFileSync(join(root, "src-tauri", "binaries", s), join(dir, s));
+  if (has("--cli")) for (const b of cliBins) copyFileSync(join(releaseDir, b), join(dir, b));
+  console.log(`\nto sign: ${readdirSync(dir).join(", ")} in ${dir}`);
+}
+
+function bundleSigned() {
+  const unsigned = join(signDir, "binaries");
+  const signed = join(signDir, "binaries-signed");
+  const take = (name) => signedFile(signed, name, join(unsigned, name));
+  for (const s of sidecars) {
+    copyFileSync(take(s), join(root, "src-tauri", "binaries", s));
+    const built = join(releaseDir, s.replace(`-${target}`, ""));
+    if (existsSync(built)) copyFileSync(take(s), built);
+  }
+  if (has("--cli")) for (const b of cliBins) copyFileSync(take(b), join(releaseDir, b));
+  for (const kind of installerKinds) {
+    copyFileSync(take(`omniget-${kind}.exe`), mainExe);
+    run("pnpm", ["tauri", "bundle", "--target", target, "--bundles", kind], { env });
+  }
+  copyFileSync(take("omniget.exe"), mainExe);
+  const dir = join(signDir, "installers");
+  rmSync(dir, { recursive: true, force: true });
+  mkdirSync(dir, { recursive: true });
+  for (const [kind, match] of [["nsis", (f) => f.endsWith("-setup.exe")], ["msi", (f) => f.endsWith(".msi")]]) {
+    if (!installerKinds.includes(kind)) continue;
+    const found = readdirSync(join(bundleDir, kind)).filter(match);
+    if (!found.length) fail(`no ${kind} installer in ${join(bundleDir, kind)}`);
+    for (const f of found) copyFileSync(join(bundleDir, kind, f), join(dir, f));
+  }
+  console.log(`\nto sign: ${readdirSync(dir).join(", ")} in ${dir}`);
+}
+
+function installSignedInstallers() {
+  const unsigned = join(signDir, "installers");
+  const signed = join(signDir, "installers-signed");
+  for (const f of readdirSync(unsigned)) {
+    const dest = join(bundleDir, f.endsWith(".msi") ? "msi" : "nsis", f);
+    copyFileSync(signedFile(signed, f, join(unsigned, f)), dest);
+    if (existsSync(`${dest}.sig`)) {
+      rmSync(`${dest}.sig`);
+      run("pnpm", ["tauri", "signer", "sign", dest], { env });
+      if (!existsSync(`${dest}.sig`)) fail(`no updater signature written for ${f}`);
+    }
+  }
+}
+
+if (stage === "compile") {
+  compileForSigning();
+  process.exit(0);
+}
+if (stage === "bundle") {
+  bundleSigned();
+  process.exit(0);
+}
+if (stage === "collect") installSignedInstallers();
+if (stage === "all" && !has("--skip-build")) {
   run("rustup", ["target", "add", target]);
   const bundles = flag("--bundles");
   const signConfig = windowsSign ? ["--config", JSON.stringify({ bundle: { windows: { signCommand: windowsSign } } })] : [];
@@ -168,14 +281,11 @@ if (isMac) {
 if (!copied.some((f) => f.endsWith(".sig"))) fail(`no signed updater bundle in ${bundleDir}`);
 
 if (has("--cli")) {
-  run("cargo", ["build", "-p", "omniget-cli", "--release", "--target", target], { cwd: join(root, "src-tauri") });
-  const binDir = join(cargoTarget, target, "release");
-  const ext = target.includes("windows") ? ".exe" : "";
-  const bins = ["omniget-cli", "omniget-mcp", "omniget-gateway", "omniget-worker"].map((b) => `${b}${ext}`);
-  for (const b of bins) if (!existsSync(join(binDir, b))) fail(`missing ${b} in ${binDir}`);
-  if (!ext || process.platform === "win32") run(join(binDir, `omniget-cli${ext}`), ["--version"]);
+  if (stage === "all") buildCli();
+  const binDir = releaseDir;
+  const bins = cliBins;
   if (target.includes("windows")) {
-    if (windowsSign) for (const b of bins) { const signed = spawnSync(windowsSign.replaceAll("%1", `"${join(binDir, b)}"`), { shell: true, stdio: "inherit" }); if (signed.status !== 0) fail(`could not sign ${b}`); }
+    if (windowsSign && stage === "all") for (const b of bins) { const signed = spawnSync(windowsSign.replaceAll("%1", `"${join(binDir, b)}"`), { shell: true, stdio: "inherit" }); if (signed.status !== 0) fail(`could not sign ${b}`); }
     const archive = `omniget-cli-${version}-${target}.zip`;
     run("zip", ["-j", "-q", join(outDir, archive), ...bins.map((b) => join(binDir, b))]);
     copied.push(archive);
