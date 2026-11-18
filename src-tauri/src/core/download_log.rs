@@ -76,9 +76,3 @@ pub fn clear(id: u64) {
         g.remove(&id);
     }
 }
-
-pub fn clear_all() {
-    if let Ok(mut g) = store().lock() {
-        g.clear();
-    }
-}

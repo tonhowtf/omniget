@@ -215,16 +215,6 @@ pub fn numbered_path(path: &Path, n: u32) -> PathBuf {
     path.with_file_name(numbered)
 }
 
-pub fn unique_path(path: &Path) -> PathBuf {
-    if !path.exists() {
-        return path.to_path_buf();
-    }
-    (1..10_000)
-        .map(|n| numbered_path(path, n))
-        .find(|candidate| !candidate.exists())
-        .unwrap_or_else(|| path.to_path_buf())
-}
-
 fn claimed_paths() -> &'static Mutex<HashSet<PathBuf>> {
     static CLAIMED: OnceLock<Mutex<HashSet<PathBuf>>> = OnceLock::new();
     CLAIMED.get_or_init(|| Mutex::new(HashSet::new()))

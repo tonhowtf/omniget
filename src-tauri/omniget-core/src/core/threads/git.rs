@@ -6,7 +6,6 @@ use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use tokio::sync::broadcast;
 
@@ -14,10 +13,9 @@ use super::engine::ThreadsEngine;
 use super::model::{Activity, CheckpointFile, Command, CommandEnvelope, DomainEvent, StoredEvent};
 use super::store::{self, ThreadRow};
 use crate::core::llm::drivers::now_iso;
-use crate::core::vcs::actions::{self, PushResult};
 use crate::core::vcs::checkpoint;
 use crate::core::vcs::diff::{DiffOptions, DiffResult};
-use crate::core::vcs::repo::{self, RepoStatus};
+use crate::core::vcs::repo;
 use crate::core::vcs::worktree::{self, SetupSnapshot, WorktreeRequest};
 
 pub const ERR_THREADS_GIT: &str = "ERR_THREADS_GIT";
@@ -30,35 +28,6 @@ pub type SetupSink = Arc<dyn Fn(&SetupSnapshot) + Send + Sync>;
 pub struct GitHooks {
     pub text: Option<TextGen>,
     pub on_setup: Option<SetupSink>,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct RevertOutcome {
-    pub thread_id: String,
-    pub turn_count: u32,
-    pub restored_files: Vec<String>,
-    pub prompt: Option<String>,
-    pub attachments: Value,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct CommitMessage {
-    pub subject: String,
-    pub body: String,
-    pub source: String,
-    pub files: usize,
-}
-
-impl CommitMessage {
-    pub fn text(&self) -> String {
-        if self.body.trim().is_empty() {
-            self.subject.clone()
-        } else {
-            format!("{}\n\n{}", self.subject, self.body.trim())
-        }
-    }
 }
 
 pub struct ThreadGit {
@@ -585,83 +554,6 @@ impl ThreadGit {
         }
     }
 
-    pub async fn revert_to_turn(
-        &self,
-        thread_id: &str,
-        turn: u32,
-        restore_files: bool,
-    ) -> Result<RevertOutcome, String> {
-        let prompt = self
-            .engine
-            .read(|c| match store::turn_at(c, thread_id, turn + 1)? {
-                Some(t) => store::turn_prompt(c, &t),
-                None => Ok(None),
-            })?;
-        let mut rx = self.engine.subscribe();
-        let res = self
-            .engine
-            .dispatch(CommandEnvelope {
-                command_id: None,
-                command: Command::RevertToTurn {
-                    thread_id: thread_id.to_string(),
-                    turn,
-                    restore_files,
-                },
-            })
-            .await?;
-        let request_event = res
-            .events
-            .first()
-            .map(|e| e.event_id.clone())
-            .unwrap_or_default();
-        let mut restored = Vec::new();
-        let wait = async {
-            loop {
-                match rx.recv().await {
-                    Ok(ev) => match ev.event {
-                        DomainEvent::FilesRestored {
-                            thread_id: t,
-                            files,
-                            ..
-                        } if t == thread_id => restored = files,
-                        DomainEvent::Reverted {
-                            thread_id: t,
-                            turn_count,
-                        } if t == thread_id && turn_count == turn => return Ok(()),
-                        DomainEvent::ActivityAppended {
-                            thread_id: t,
-                            activity,
-                        } if t == thread_id
-                            && activity.kind == "revert.failed"
-                            && activity.activity_id.ends_with(&request_event) =>
-                        {
-                            return Err(format!("{ERR_THREADS_GIT}: {}", activity.summary))
-                        }
-                        _ => {}
-                    },
-                    Err(broadcast::error::RecvError::Lagged(_)) => {}
-                    Err(broadcast::error::RecvError::Closed) => {
-                        return Err(format!("{ERR_THREADS_GIT}: engine stopped"))
-                    }
-                }
-            }
-        };
-        tokio::time::timeout(Duration::from_secs(300), wait)
-            .await
-            .map_err(|_| format!("{ERR_THREADS_GIT}: revert timed out"))??;
-        let (prompt, attachments) = match prompt {
-            Some((p, a)) => (Some(p), a),
-            None => (None, Value::Array(vec![])),
-        };
-        Ok(RevertOutcome {
-            thread_id: thread_id.to_string(),
-            turn_count: turn,
-            restored_files: restored,
-            prompt,
-            attachments,
-        })
-    }
-
     async fn cleanup(&self, thread_id: &str, deleting: bool) {
         let _g = self.lock(thread_id).await;
         let Ok(row) = self.row(thread_id) else { return };
@@ -728,57 +620,6 @@ impl ThreadGit {
             None => checkpoint::diff_full(&dir, thread_id, None, opts).await,
         }
         .map_err(gerr)
-    }
-
-    pub async fn files(
-        &self,
-        thread_id: &str,
-        query: &str,
-        limit: usize,
-    ) -> Result<Vec<String>, String> {
-        let dir = self.cwd(thread_id)?;
-        let listed = crate::core::vcs::runner::Invocation::git()
-            .cwd(&dir)
-            .args(["ls-files", "-co", "--exclude-standard", "-z"])
-            .unchecked()
-            .run()
-            .await
-            .ok()
-            .filter(|o| o.ok());
-        let all: Vec<String> = match listed {
-            Some(o) => o
-                .stdout
-                .split(|b| *b == 0)
-                .filter(|s| !s.is_empty())
-                .map(|s| String::from_utf8_lossy(s).into_owned())
-                .collect(),
-            None => {
-                let root = dir.clone();
-                tokio::task::spawn_blocking(move || walk_files(&root, 20_000))
-                    .await
-                    .map_err(gerr)?
-            }
-        };
-        Ok(rank_files(all, query, limit.clamp(1, 500)))
-    }
-
-    pub async fn status(&self, thread_id: &str) -> Result<RepoStatus, String> {
-        repo::status(&self.cwd(thread_id)?).await.map_err(gerr)
-    }
-    pub async fn push(&self, thread_id: &str) -> Result<PushResult, String> {
-        let dir = self.cwd(thread_id)?;
-        let r = actions::push(&dir).await.map_err(gerr)?;
-        if r.status == "pushed" {
-            self.note(
-                thread_id,
-                "git.push",
-                "info",
-                r.upstream.clone(),
-                serde_json::to_value(&r).unwrap_or(Value::Null),
-            )
-            .await;
-        }
-        Ok(r)
     }
 }
 
@@ -849,57 +690,6 @@ pub fn parse_name_status_z(raw: &[u8]) -> HashMap<String, String> {
         }
     }
     out
-}
-
-fn walk_files(root: &Path, cap: usize) -> Vec<String> {
-    let mut out = Vec::new();
-    for e in walkdir::WalkDir::new(root)
-        .max_depth(12)
-        .into_iter()
-        .filter_entry(|e| {
-            let n = e.file_name().to_string_lossy();
-            e.depth() == 0 || !(n.starts_with('.') || n == "node_modules" || n == "target")
-        })
-        .flatten()
-    {
-        if e.file_type().is_file() {
-            if let Ok(rel) = e.path().strip_prefix(root) {
-                out.push(rel.to_string_lossy().replace('\\', "/"));
-                if out.len() >= cap {
-                    break;
-                }
-            }
-        }
-    }
-    out
-}
-
-pub fn rank_files(all: Vec<String>, query: &str, limit: usize) -> Vec<String> {
-    let words: Vec<String> = query.split_whitespace().map(|w| w.to_lowercase()).collect();
-    let mut hits: Vec<(u8, usize, String)> = all
-        .into_iter()
-        .filter_map(|p| {
-            let lower = p.to_lowercase();
-            if !words.iter().all(|w| lower.contains(w.as_str())) {
-                return None;
-            }
-            let base = lower.rsplit('/').next().unwrap_or(&lower).to_string();
-            let rank = if words.is_empty() {
-                1
-            } else if words.iter().all(|w| base.contains(w.as_str())) {
-                if words.len() == 1 && base.starts_with(words[0].as_str()) {
-                    0
-                } else {
-                    1
-                }
-            } else {
-                2
-            };
-            Some((rank, p.len(), p))
-        })
-        .collect();
-    hits.sort();
-    hits.into_iter().take(limit).map(|h| h.2).collect()
 }
 
 fn files_of(d: &DiffResult) -> Vec<CheckpointFile> {

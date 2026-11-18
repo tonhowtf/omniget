@@ -22,17 +22,6 @@ pub enum CompanionKind {
     Manual,
 }
 
-impl CompanionKind {
-    pub fn as_str(self) -> &'static str {
-        match self {
-            CompanionKind::Done => "done",
-            CompanionKind::Blocked => "blocked",
-            CompanionKind::Failed => "failed",
-            CompanionKind::Manual => "manual",
-        }
-    }
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ModelMode {
@@ -215,10 +204,6 @@ impl Tracker {
             }
             _ => None,
         }
-    }
-
-    pub fn forget(&mut self, key: &str) {
-        self.nodes.remove(key);
     }
 }
 
@@ -703,10 +688,11 @@ pub async fn ollama_generate(
         pick_model(&models, pinned).ok_or_else(|| "ollama: no model installed".to_string())?;
     let client = crate::core::tools::client().map_err(|e| e.to_string())?;
     let url = format!("{}/api/chat", base.trim_end_matches('/'));
-    let body = json!({
+    let mut body = json!({
         "model": model,
         "stream": false,
         "format": "json",
+        "think": false,
         "keep_alive": "5m",
         "options": { "temperature": 0.2, "num_predict": 320 },
         "messages": [
@@ -714,13 +700,16 @@ pub async fn ollama_generate(
             { "role": "user", "content": user },
         ],
     });
-    let v: Value = client
-        .post(&url)
-        .json(&body)
-        .timeout(OLLAMA_TIMEOUT)
-        .send()
-        .await
-        .map_err(|e| format!("ollama: {e}"))?
+    let send = |body: &Value| client.post(&url).json(body).timeout(OLLAMA_TIMEOUT).send();
+    let mut response = send(&body).await.map_err(|e| format!("ollama: {e}"))?;
+    if response.status() == reqwest::StatusCode::BAD_REQUEST {
+        // WHY: older servers and models without a thinking mode refuse the `think` field.
+        if let Some(map) = body.as_object_mut() {
+            map.remove("think");
+        }
+        response = send(&body).await.map_err(|e| format!("ollama: {e}"))?;
+    }
+    let v: Value = response
         .error_for_status()
         .map_err(|e| format!("ollama: {e}"))?
         .json()

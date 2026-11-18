@@ -138,9 +138,9 @@
   </div>
 
   <AdvancedDisclosure id="agents-canvas">
-    <SettingRow id="canvas-badges-non-maestro" label={$t("canvas.settings.badgesNonMaestro")} settingKey="canvas.settings.badgesNonMaestro">
+    <SettingRow id="canvas-badges-non-lead" label={$t("canvas.settings.badgesNonLead")} settingKey="canvas.settings.badgesNonLead">
       {#snippet control({ id, describedBy })}
-        {@render toggle(id, describedBy, prefs.notifications.badges_for_non_maestro, () => saveCanvas((c) => (c.notifications.badges_for_non_maestro = !c.notifications.badges_for_non_maestro)))}
+        {@render toggle(id, describedBy, prefs.notifications.badges_for_non_lead, () => saveCanvas((c) => (c.notifications.badges_for_non_lead = !c.notifications.badges_for_non_lead)))}
       {/snippet}
     </SettingRow>
     <SettingRow id="canvas-memory-limit" label={$t("canvas.settings.memoryLimit")} help={$t("canvas.settings.memoryLimitHint")} settingKey="canvas.settings.memoryLimit">

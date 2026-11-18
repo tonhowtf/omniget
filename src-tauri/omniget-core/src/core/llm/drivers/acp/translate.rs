@@ -96,10 +96,6 @@ impl Translator {
         Self::default()
     }
 
-    pub fn is_active(&self) -> bool {
-        self.active
-    }
-
     pub fn current_mode(&self) -> Option<&str> {
         self.current_mode.as_deref()
     }
@@ -114,10 +110,6 @@ impl Translator {
 
     pub fn set_config_options(&mut self, v: Option<Value>) {
         self.config_options = v.filter(|v| !v.is_null());
-    }
-
-    pub fn available_commands(&self) -> Option<&Value> {
-        self.available_commands.as_ref()
     }
 
     fn next_id(&mut self, prefix: &str) -> String {

@@ -24,6 +24,7 @@
   } from "$lib/canvas/sidebar.svelte";
   import { showToast } from "$lib/stores/toast-store.svelte";
   import WorkspaceIoPanel from "./WorkspaceIoPanel.svelte";
+  import NeedsYouList from "./NeedsYouList.svelte";
 
   const engine = useEngine();
   const mac = isMac();
@@ -830,6 +831,7 @@
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 4a7 7 0 1 0 0 14a7 7 0 1 0 0-14z M20 20l-4-4" /></svg>
       <input type="search" bind:value={filter} placeholder={tr("canvas.sidebar.filter", "Filter")} aria-label={tr("canvas.sidebar.filter", "Filter")} spellcheck="false" autocomplete="off" />
     </label>
+    <NeedsYouList />
     <div class="heading">{tr("canvas.sidebar.title", "Workspaces")}</div>
 
     {#if form}
@@ -960,6 +962,7 @@
   {:else if sidebarUi.mini}
     <div class="rail">
       <button type="button" class="icon-btn" title={tr("canvas.sidebar.show", "Show sidebar (⌘S)")} onclick={() => canvasUi.toggleSidebar()}>›</button>
+      <NeedsYouList mini />
       {#each flat as ws (ws.id)}
         <button
           type="button"

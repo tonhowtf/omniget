@@ -96,10 +96,6 @@ fn is_junk(comps: &[&str]) -> bool {
         })
 }
 
-pub fn build(files: &[CourseFile]) -> CourseTree {
-    build_titled("", files)
-}
-
 struct Entry {
     path: String,
     comps: Vec<String>,

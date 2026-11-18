@@ -1,4 +1,4 @@
-import type { Platform } from "./api";
+import { NET, type Platform } from "./api";
 import type { Metric } from "./insights";
 
 export const QUICK_FILTERS = ["likely_inactive", "no_avatar_no_bio", "follows_many_few_followers", "verified", "private"] as const;
@@ -82,7 +82,7 @@ export type NotifyState = { surge: boolean; unfollowers: boolean; monitors: numb
 export type ReportResult = { path: string; markdown_path: string; sections: Record<string, boolean> };
 
 export function hasExtras(p: Platform): boolean {
-  return p === "x" || p === "instagram" || p === "tiktok";
+  return p === NET.shortpost || p === NET.photofeed || p === NET.clipfeed;
 }
 
 export function weighted<T extends { accounts: number }>(items: T[], min = 0.85, max = 1.9): (T & { size: number })[] {
@@ -137,7 +137,7 @@ export function savable(args: Record<string, unknown>): Record<string, unknown> 
 
 export function drawArgs(form: { post: string; source: EngagementKind; winners: number; runnerUps: number; mustFollow: boolean; mustRepost: boolean; exclude: string; seed: string }, extra: Record<string, unknown> = {}): Record<string, unknown> {
   const args: Record<string, unknown> = {
-    platform: "x",
+    platform: NET.shortpost,
     post: form.post,
     source: form.source,
     winners: Math.min(100, Math.max(1, Math.round(form.winners) || 1)),

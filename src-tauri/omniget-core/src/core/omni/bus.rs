@@ -23,6 +23,8 @@ pub enum BusEvent {
         tool: String,
         #[serde(default)]
         preview: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        impact: Option<crate::core::llm::impact::Impact>,
     },
     ToolAskResolved {
         agent: String,

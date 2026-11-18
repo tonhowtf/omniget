@@ -407,16 +407,6 @@ fn message_from_row(r: &Row) -> rusqlite::Result<RoomMessage> {
 const MSG_COLS: &str =
     "id, room, seq, author_kind, bot_id, reply_to, run_id, task_id, round, text, status, created_ms";
 
-pub fn messages(db: &AssistDb, room: &str) -> Result<Vec<RoomMessage>, String> {
-    db.with(|c| {
-        let mut st = c.prepare(&format!(
-            "SELECT {MSG_COLS} FROM groups_messages WHERE room = ?1 ORDER BY seq"
-        ))?;
-        let rows = st.query_map([room], message_from_row)?;
-        rows.collect()
-    })
-}
-
 pub fn recent_visible(db: &AssistDb, room: &str, n: usize) -> Result<Vec<RoomMessage>, String> {
     let mut out: Vec<RoomMessage> = db.with(|c| {
         let mut st = c.prepare(&format!(

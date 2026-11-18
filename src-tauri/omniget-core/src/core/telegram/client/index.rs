@@ -114,43 +114,6 @@ pub fn coverage(chat_id: i64) -> Coverage {
     open(chat_id).map(|c| coverage_of(&c)).unwrap_or_default()
 }
 
-pub fn stats(chat_id: i64) -> serde_json::Value {
-    let (indexed, cov) = if db_path(chat_id).is_file() {
-        match open(chat_id) {
-            Ok(c) => (
-                c.query_row("SELECT COUNT(*) FROM media", [], |r| r.get::<_, i64>(0))
-                    .unwrap_or(0),
-                coverage_of(&c),
-            ),
-            Err(_) => (0, Coverage::default()),
-        }
-    } else {
-        (0, Coverage::default())
-    };
-    json!({
-        "chat_id": chat_id,
-        "indexed": indexed,
-        "newest_id": cov.newest_id,
-        "oldest_id": cov.oldest_id,
-        "complete": cov.complete,
-        "updated_at": cov.updated_at,
-    })
-}
-
-pub fn clear(chat_id: Option<i64>) {
-    match chat_id {
-        Some(id) => {
-            let p = db_path(id);
-            for suffix in ["", "-wal", "-shm"] {
-                let _ = std::fs::remove_file(format!("{}{}", p.display(), suffix));
-            }
-        }
-        None => {
-            let _ = std::fs::remove_dir_all(index_dir());
-        }
-    }
-}
-
 struct Row {
     item: TelegramMediaItem,
     uid: Option<String>,

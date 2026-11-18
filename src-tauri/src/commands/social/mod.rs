@@ -1,19 +1,19 @@
 pub mod approvals;
+pub mod assistant;
 pub mod audience;
-pub mod github;
-pub mod grok;
+pub mod clipfeed;
+pub mod codehub;
+pub mod forums;
 pub mod insights;
-pub mod instagram;
 pub mod model;
 pub mod monitor;
 pub mod page;
-pub mod pinterest;
-pub mod reddit;
+pub mod photofeed;
+pub mod pinboard;
 pub mod schedule;
+pub mod shortpost;
 pub mod store;
-pub mod tiktok;
 pub mod tools;
-pub mod x;
 
 use serde_json::{json, Value};
 use tauri::AppHandle;
@@ -47,8 +47,8 @@ pub enum Caller {
 }
 
 pub async fn status(p: Platform) -> Value {
-    if p == Platform::Github {
-        return github::status();
+    if p == Platform::CodeHub {
+        return codehub::status();
     }
     let Some(b) = page::running().await else {
         return json!({ "platform": p.id(), "browser": false, "logged_in": Value::Null });
@@ -62,12 +62,12 @@ pub async fn status_all(start: bool) -> Value {
     }
     let mut out = Vec::new();
     for p in [
-        Platform::X,
-        Platform::Instagram,
-        Platform::Tiktok,
-        Platform::Reddit,
-        Platform::Pinterest,
-        Platform::Github,
+        Platform::ShortPost,
+        Platform::PhotoFeed,
+        Platform::ClipFeed,
+        Platform::Forums,
+        Platform::PinBoard,
+        Platform::CodeHub,
     ] {
         out.push(status(p).await);
     }
@@ -104,12 +104,12 @@ pub async fn call(caller: Caller, tool: &str, a: Value) -> Result<Value, String>
         tools::Route::Monitor => monitor::call(&caller, tool, &a).await,
         tools::Route::Schedule => schedule::call(&caller, tool, &a).await,
         tools::Route::Platform => match spec.platform {
-            Platform::X => x::call(tool, &a).await,
-            Platform::Instagram => instagram::call(tool, &a).await,
-            Platform::Tiktok => tiktok::call(tool, &a).await,
-            Platform::Reddit => reddit::call(tool, &a).await,
-            Platform::Pinterest => pinterest::call(tool, &a).await,
-            Platform::Github => github::call(tool, &a).await,
+            Platform::ShortPost => shortpost::call(tool, &a).await,
+            Platform::PhotoFeed => photofeed::call(tool, &a).await,
+            Platform::ClipFeed => clipfeed::call(tool, &a).await,
+            Platform::Forums => forums::call(tool, &a).await,
+            Platform::PinBoard => pinboard::call(tool, &a).await,
+            Platform::CodeHub => codehub::call(tool, &a).await,
         },
     };
     if spec.write && r.is_ok() {
@@ -146,16 +146,16 @@ pub async fn social_call(
 }
 
 #[tauri::command]
-pub fn social_github_state() -> Value {
-    github::auth_state()
+pub fn social_codehub_state() -> Value {
+    codehub::auth_state()
 }
 
 #[tauri::command]
-pub async fn social_github_connect(
+pub async fn social_codehub_connect(
     token: Option<String>,
     username: Option<String>,
 ) -> Result<Value, String> {
-    github::connect(token, username).await
+    codehub::connect(token, username).await
 }
 
 #[tauri::command]

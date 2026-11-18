@@ -27,6 +27,7 @@ pub struct HttpRequest {
     pub max_body_chars: Option<usize>,
     pub save_body_to: Option<String>,
     pub parse_as: ParseAs,
+    pub proxy: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Deserialize)]
@@ -85,6 +86,8 @@ pub struct HttpResponse {
     pub body_path: Option<String>,
     pub request: EchoedRequest,
     pub curl: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub proxy: Option<String>,
     pub untrusted: bool,
 }
 
@@ -267,6 +270,75 @@ pub(super) async fn read_capped(
     Ok((bytes, true))
 }
 
+#[derive(Debug, Clone, Default, PartialEq)]
+pub(super) struct Route {
+    pub proxy: Option<String>,
+    pub direct: bool,
+    pub pooled: bool,
+}
+
+impl Route {
+    pub(super) fn label(&self) -> Option<String> {
+        self.proxy.as_deref().map(|proxy| {
+            if self.pooled {
+                crate::core::proxy_pool::id_of(proxy)
+            } else {
+                "settings".to_string()
+            }
+        })
+    }
+
+    pub(super) fn apply(
+        &self,
+        builder: reqwest::ClientBuilder,
+    ) -> Result<reqwest::ClientBuilder, DevError> {
+        match &self.proxy {
+            Some(proxy) => reqwest::Proxy::all(proxy)
+                .map(|route| builder.proxy(route))
+                .map_err(|e| DevError::InvalidInput(format!("the proxy cannot be used: {e}"))),
+            None if self.direct => Ok(builder.no_proxy()),
+            None => Ok(builder),
+        }
+    }
+
+    pub(super) fn report(&self, ok: bool) {
+        if let (true, Some(proxy)) = (self.pooled, &self.proxy) {
+            crate::core::proxy_pool::report(proxy, ok);
+        }
+    }
+}
+
+pub(super) fn route(choice: Option<&str>, target: &url::Url) -> Result<Route, DevError> {
+    use crate::core::{http_client, proxy_pool};
+    match choice.map(str::trim).filter(|c| !c.is_empty()) {
+        Some("direct") => Ok(Route {
+            direct: true,
+            ..Route::default()
+        }),
+        None | Some("auto") => {
+            if http_client::is_local_target(target) {
+                return Ok(Route::default());
+            }
+            let pooled = http_client::pool_in_use();
+            Ok(Route {
+                proxy: http_client::proxy_url(),
+                direct: false,
+                pooled,
+            })
+        }
+        Some(id) => match proxy_pool::pick_id(id) {
+            Some(proxy) => Ok(Route {
+                proxy: Some(proxy),
+                direct: false,
+                pooled: true,
+            }),
+            None => Err(DevError::InvalidInput(format!(
+                "no proxy has the id \"{id}\"; proxy takes auto, direct or an id from dev_proxy op=status"
+            ))),
+        },
+    }
+}
+
 pub async fn send(original: HttpRequest) -> Result<HttpResponse, DevError> {
     let env = |name: &str| std::env::var(name).ok();
     let mut secrets = Vec::new();
@@ -286,7 +358,9 @@ pub async fn send(original: HttpRequest) -> Result<HttpResponse, DevError> {
         .map_or(DEFAULT_TIMEOUT_MS, |ms| ms.min(MAX_TIMEOUT_MS));
     let hops: Arc<Mutex<Vec<Redirect>>> = Arc::default();
     let seen = hops.clone();
-    let client = reqwest::Client::builder()
+    let route = route(request.proxy.as_deref(), &url)?;
+    let client = route
+        .apply(reqwest::Client::builder())?
         .timeout(Duration::from_millis(timeout))
         .user_agent(USER_AGENT)
         .redirect(reqwest::redirect::Policy::custom(move |attempt| {
@@ -311,7 +385,9 @@ pub async fn send(original: HttpRequest) -> Result<HttpResponse, DevError> {
         builder = builder.body(body.clone());
     }
     let started = Instant::now();
-    let mut response = builder.send().await.map_err(network_error)?;
+    let sent = builder.send().await;
+    route.report(sent.is_ok());
+    let mut response = sent.map_err(network_error)?;
     let first_byte_ms = started.elapsed().as_millis() as u64;
     let status = response.status().as_u16();
     let final_url = response.url().to_string();
@@ -373,6 +449,7 @@ pub async fn send(original: HttpRequest) -> Result<HttpResponse, DevError> {
             url: shown_url,
             headers: masked(&original.headers),
         },
+        proxy: route.label(),
         untrusted: true,
     })
 }

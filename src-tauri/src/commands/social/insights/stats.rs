@@ -80,14 +80,14 @@ pub fn engagement(p: &Post) -> u64 {
 
 pub fn post_type(p: &Post, platform: Platform) -> &'static str {
     match platform {
-        Platform::X if p.reposted_by.is_some() => "repost",
-        Platform::X if p.reply_to.is_some() => "reply",
-        Platform::X if p.quoted.is_some() => "quote",
-        Platform::X => "post",
-        Platform::Instagram if p.url.contains("/reel/") => "reel",
-        Platform::Instagram => "feed",
-        Platform::Tiktok if p.url.contains("/photo/") => "photo",
-        Platform::Tiktok => "video",
+        Platform::ShortPost if p.reposted_by.is_some() => "repost",
+        Platform::ShortPost if p.reply_to.is_some() => "reply",
+        Platform::ShortPost if p.quoted.is_some() => "quote",
+        Platform::ShortPost => "post",
+        Platform::PhotoFeed if p.url.contains("/reel/") => "reel",
+        Platform::PhotoFeed => "feed",
+        Platform::ClipFeed if p.url.contains("/photo/") => "photo",
+        Platform::ClipFeed => "video",
         _ => "post",
     }
 }
@@ -154,49 +154,49 @@ pub fn unavailable(platform: Platform) -> Vec<Value> {
         hidden("profile_visits", "Shown only in the network's own analytics page."),
     ];
     match platform {
-        Platform::X => {
-            out.push(hidden("impressions", "X sends the public view count of each post (the views column). The owner-only impression breakdown (detail expands, profile clicks, link clicks) is not sent."));
-            out.push(hidden("quotes", "The X reader in this app adds quote posts to the repost count, so quotes have no column of their own. x_engagement with kind=quotes lists them for one post."));
+        Platform::ShortPost => {
+            out.push(hidden("impressions", "Short Posts sends the public view count of each post (the views column). The owner-only impression breakdown (detail expands, profile clicks, link clicks) is not sent."));
+            out.push(hidden("quotes", "The Short Posts reader in this app adds quote posts to the repost count, so quotes have no column of their own. x_engagement with kind=quotes lists them for one post."));
         }
-        Platform::Instagram => {
-            out.push(hidden("impressions", "Instagram sends plays only for reels; impressions of photo posts are owner-only insights."));
-            out.push(hidden("saves", "Instagram does not send save counts to a web session, not even for your own posts."));
+        Platform::PhotoFeed => {
+            out.push(hidden("impressions", "Photo Feed sends plays only for reels; impressions of photo posts are owner-only insights."));
+            out.push(hidden("saves", "Photo Feed does not send save counts to a web session, not even for your own posts."));
             out.push(hidden(
                 "shares",
-                "Instagram does not send share counts to a web session.",
+                "Photo Feed does not send share counts to a web session.",
             ));
             out.push(hidden("likes_when_hidden", "When the author hides like counts the number is absent and the post is left out of the likes average."));
         }
-        Platform::Tiktok => {
-            out.push(hidden("impressions", "TikTok sends the public play count (the views column). Watch time, completion rate and traffic sources are owner-only."));
+        Platform::ClipFeed => {
+            out.push(hidden("impressions", "Clip Feed sends the public play count (the views column). Watch time, completion rate and traffic sources are owner-only."));
         }
-        Platform::Reddit => {
-            out.push(hidden("views", "Reddit shows view counts only to the author, inside its own post insights; the listings a web session reads do not carry them."));
+        Platform::Forums => {
+            out.push(hidden("views", "Forums shows view counts only to the author, inside its own post insights; the listings a web session reads do not carry them."));
             out.push(hidden(
                 "reposts",
                 "Crosspost counts are not in the user listing.",
             ));
             out.push(hidden(
                 "saves",
-                "Reddit never shows how many people saved a post.",
+                "Forums never shows how many people saved a post.",
             ));
             out.push(hidden("upvote_ratio", "The user listing carries the score (the likes column) and the comment count (the replies column), not the upvote ratio."));
         }
-        Platform::Pinterest => {
-            out.push(hidden("impressions", "Pin impressions and outbound clicks exist only in Pinterest Analytics for business accounts; the pin list carries saves, reactions and comments when Pinterest sends them."));
+        Platform::PinBoard => {
+            out.push(hidden("impressions", "Pin impressions and outbound clicks exist only in Pin Boards Analytics for business accounts; the pin list carries saves, reactions and comments when Pin Boards sends them."));
             out.push(hidden(
                 "reposts",
-                "On Pinterest a repost is a save, counted in the saves column.",
+                "On Pin Boards a repost is a save, counted in the saves column.",
             ));
         }
-        Platform::Github => {
+        Platform::CodeHub => {
             out.push(hidden(
                 "likes",
-                "GitHub activity events carry no reaction counts.",
+                "Code Hub activity events carry no reaction counts.",
             ));
             out.push(hidden(
                 "replies",
-                "GitHub activity events carry no comment counts.",
+                "Code Hub activity events carry no comment counts.",
             ));
             out.push(hidden("engagement", "Nothing to add up per event; use report=repos for stars, forks and open issues per repository."));
             out.push(hidden(
@@ -265,7 +265,7 @@ pub fn outlier_label(lift: f64) -> Option<&'static str> {
 
 fn primary(p: &Post, platform: Platform) -> Option<u64> {
     match platform {
-        Platform::Tiktok => p.stats.views,
+        Platform::ClipFeed => p.stats.views,
         _ => Some(engagement(p)),
     }
 }
@@ -349,7 +349,7 @@ pub fn sort_rows(rows: &mut [Value], key: &str, ascending: bool) {
 
 pub fn outliers(posts: &[Post], platform: Platform) -> Value {
     let n = originals(posts).len();
-    let metric = if platform == Platform::Tiktok {
+    let metric = if platform == Platform::ClipFeed {
         "views"
     } else {
         "engagement"
@@ -743,7 +743,7 @@ mod tests {
         let mut repost = post("r", 5000, "", 1_600_000_000);
         repost.reposted_by = Some(Author::default());
         posts.push(repost);
-        let v = summary(&posts, Platform::X);
+        let v = summary(&posts, Platform::ShortPost);
         assert_eq!(v["sample"], 4);
         assert_eq!(v["analyzed"], 3);
         assert_eq!(v["types"], json!({ "post": 2, "reply": 1, "repost": 1 }));
@@ -768,8 +768,8 @@ mod tests {
     }
 
     #[test]
-    fn instagram_says_saves_are_hidden_instead_of_guessing() {
-        let v = summary(&sample(&[1]), Platform::Instagram);
+    fn photofeed_says_saves_are_hidden_instead_of_guessing() {
+        let v = summary(&sample(&[1]), Platform::PhotoFeed);
         assert_eq!(v["metrics"]["saves"], json!({ "available": false }));
         assert!(v["unavailable"]
             .as_array()
@@ -800,11 +800,11 @@ mod tests {
         assert_eq!(media_type(&p), "video");
         p.url = "https://www.instagram.com/reel/abc/".into();
         assert_eq!(media_type(&p), "reel");
-        assert_eq!(post_type(&p, Platform::Instagram), "reel");
+        assert_eq!(post_type(&p, Platform::PhotoFeed), "reel");
         p.url = "https://www.tiktok.com/@a/photo/1".into();
-        assert_eq!(post_type(&p, Platform::Tiktok), "photo");
+        assert_eq!(post_type(&p, Platform::ClipFeed), "photo");
         p.quoted = Some(Box::new(post("2", 0, "", 0)));
-        assert_eq!(post_type(&p, Platform::X), "quote");
+        assert_eq!(post_type(&p, Platform::ShortPost), "quote");
     }
 
     #[test]
@@ -822,7 +822,7 @@ mod tests {
     #[test]
     fn outliers_are_measured_against_the_median_of_the_sample() {
         let posts = sample(&[9, 9, 9, 9, 14, 19, 49]);
-        let v = outliers(&posts, Platform::X);
+        let v = outliers(&posts, Platform::ShortPost);
         assert_eq!(v["median"], 10.0);
         assert_eq!(v["confidence"], "low");
         let got: Vec<(String, String)> = v["items"]
@@ -839,18 +839,18 @@ mod tests {
                 ("4".to_string(), "mild".to_string())
             ]
         );
-        let zero = outliers(&[post("1", 0, "", 0)], Platform::Tiktok);
+        let zero = outliers(&[post("1", 0, "", 0)], Platform::ClipFeed);
         assert_eq!(zero["total"], 0);
         assert!(zero["reason"].is_string());
     }
 
     #[test]
-    fn tiktok_outliers_use_views() {
+    fn clipfeed_outliers_use_views() {
         let mut posts = sample(&[1, 1, 1]);
         for (p, views) in posts.iter_mut().zip([100, 100, 1000]) {
             p.stats.views = Some(views);
         }
-        let v = outliers(&posts, Platform::Tiktok);
+        let v = outliers(&posts, Platform::ClipFeed);
         assert_eq!(v["metric"], "views");
         assert_eq!(v["items"][0]["lift"], 10.0);
     }
@@ -938,7 +938,10 @@ mod tests {
         repost.reposted_by = Some(Author::default());
         big.push(repost);
         let small = sample(&[10, 30]);
-        let v = compare(&[("big".into(), big), ("small".into(), small)], Platform::X);
+        let v = compare(
+            &[("big".into(), big), ("small".into(), small)],
+            Platform::ShortPost,
+        );
         assert_eq!(v["sample_each"], 2);
         assert_eq!(v["accounts"][0]["handle"], "big");
         assert_eq!(v["accounts"][0]["summary"]["analyzed"], 2);
@@ -957,7 +960,7 @@ mod tests {
         let mut posts = sample(&[5, 50, 20]);
         posts[1].stats.views = Some(10);
         posts[2].stats.views = Some(99);
-        let mut r = rows(&posts, Platform::X);
+        let mut r = rows(&posts, Platform::ShortPost);
         sort_rows(&mut r, "likes", false);
         assert_eq!(
             r.iter().map(|x| s(&x["id"])).collect::<Vec<_>>(),
@@ -975,7 +978,7 @@ mod tests {
     fn csv_escapes_text_and_defuses_formulas() {
         let mut p = post("1", 2, "=SUM(A1) \"hi\",\nthere", 0);
         p.stats.views = Some(7);
-        let out = csv(&rows(&[p], Platform::X));
+        let out = csv(&rows(&[p], Platform::ShortPost));
         let mut lines = out.lines();
         assert_eq!(lines.next(), Some(CSV_COLUMNS.join(",").as_str()));
         assert_eq!(

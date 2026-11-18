@@ -2,7 +2,6 @@ use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 
-pub const HOPS_CEILING: u32 = 10;
 pub const REQUEST_TTL_MS: u64 = 60 * 60 * 1000;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -24,30 +23,6 @@ impl Default for CanvasLimits {
             max_ask_ms: 30 * 60 * 1000,
             max_pair_exchanges: 6,
         }
-    }
-}
-
-impl CanvasLimits {
-    pub fn validate(&self) -> Result<(), String> {
-        if self.max_hops == 0
-            || self.max_messages_per_chain == 0
-            || self.max_pending_asks_per_node == 0
-        {
-            return Err("CANVAS_LIMITS: limits must allow at least one message".into());
-        }
-        if self.max_hops > HOPS_CEILING
-            || self.max_messages_per_chain > 256
-            || self.max_pending_asks_per_node > 16
-        {
-            return Err("CANVAS_LIMITS: limits above the app's ceiling".into());
-        }
-        if self.max_ask_ms < 5_000 || self.max_ask_ms > 4 * 60 * 60 * 1000 {
-            return Err("CANVAS_LIMITS: ask time must be between 5 s and 4 h".into());
-        }
-        if self.max_pair_exchanges < 2 {
-            return Err("CANVAS_LIMITS: the ping-pong guard needs at least 2 exchanges".into());
-        }
-        Ok(())
     }
 }
 

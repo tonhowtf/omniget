@@ -11,15 +11,6 @@ pub enum Surface {
     Embedded,
 }
 
-impl Surface {
-    pub fn parse(s: Option<&str>) -> Surface {
-        match s.map(|s| s.trim().to_ascii_lowercase()) {
-            Some(s) if s == "embedded" || s == "pty" => Surface::Embedded,
-            _ => Surface::System,
-        }
-    }
-}
-
 #[derive(Debug, Clone, Serialize)]
 pub struct Launch {
     pub surface: Surface,

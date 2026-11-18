@@ -4,12 +4,12 @@
   import { listen } from "@tauri-apps/api/event";
   import { open as openDialog } from "@tauri-apps/plugin-dialog";
   import { t } from "$lib/i18n";
-  import { errorKey, type InstallProgress, type MarketEntry, type MarketView, type PackageSummary } from "$lib/global/connector-market";
+  import { errorKey, filterEntries, type InstallProgress, type MarketEntry, type MarketView, type PackageSummary } from "$lib/global/connector-market";
 
   type OptionDef = { id: string; label?: string; type?: string; default?: unknown; choices?: string[]; help?: string };
   type Failure = { message: string; action: "install" | "update" };
 
-  let { onOpen }: { onOpen: (entry: MarketEntry) => void } = $props();
+  let { onOpen, focusId = "" }: { onOpen: (entry: MarketEntry) => void; focusId?: string } = $props();
 
   let view = $state<MarketView | null>(null);
   let loading = $state(true);
@@ -25,7 +25,9 @@
   let fileError = $state("");
   let fileBusy = $state(false);
 
+  let query = $state("");
   let entries = $derived(view?.entries ?? []);
+  let shown = $derived(filterEntries(entries, query, focusId));
   let offline = $derived(!!view && view.source === "cache" && !!view.error);
   let failedEmpty = $derived(!!view && !entries.length && !!view.error);
   let savedAt = $derived(view?.fetched_at ? new Date(view.fetched_at * 1000).toLocaleString() : "");
@@ -50,6 +52,8 @@
     try {
       await invoke(action === "update" ? "gd_market_update" : "gd_market_install", { id });
       await load();
+      const fresh = action === "install" ? entries.find((e) => e.id === id) : null;
+      if (fresh && fresh.state !== "not_installed") onOpen(fresh);
     } catch (e) {
       failures = { ...failures, [id]: { message: typeof e === "string" ? e : String(e), action } };
     } finally {
@@ -136,6 +140,10 @@
 
   function percent(p: InstallProgress) {
     return p.total ? Math.min(100, Math.round((p.received / p.total) * 100)) : null;
+  }
+
+  function reveal(node: HTMLElement, on: boolean) {
+    if (on) node.scrollIntoView({ block: "center" });
   }
 
   onMount(() => {
@@ -230,13 +238,28 @@
       <p>{$t("global_dl.market.empty_body")}</p>
     </div>
   {:else}
+    {#if entries.length > 6}
+      <input
+        class="search"
+        type="search"
+        bind:value={query}
+        placeholder={$t("global_dl.market.search")}
+        aria-label={$t("global_dl.market.search")}
+        spellcheck="false"
+        autocomplete="off"
+      />
+    {/if}
+    {#if shown.length === 0}
+      <p class="banner" role="status">{$t("global_dl.market.no_match", { query: query.trim() })}</p>
+    {/if}
     <ul class="grid">
-      {#each entries as entry (entry.id)}
+      {#each shown as entry (entry.id)}
         {@const running = progress[entry.id]}
         {@const failure = failures[entry.id]}
         {@const installed = entry.state !== "not_installed"}
-        <li class="tile">
+        <li class="tile" class:tile-focus={entry.id === focusId} use:reveal={entry.id === focusId}>
           <div class="tile-top">
+            <span class="avatar" aria-hidden="true">{entry.name.slice(0, 1).toUpperCase()}</span>
             <h3 title={entry.name}>{entry.name}</h3>
             {#if entry.state === "update_available"}
               <span class="pill pill-update">{$t("global_dl.market.update_badge", { version: entry.version })}</span>
@@ -246,6 +269,7 @@
               <span class="pill pill-on">{$t("global_dl.market.installed")}</span>
             {/if}
           </div>
+          {#if entry.id === focusId && !installed}<p class="wanted">{$t("global_dl.market.wanted")}</p>{/if}
           {#if entry.description}<p class="desc">{entry.description}</p>{/if}
           <p class="meta">
             {#if entry.author}<span>{$t("global_dl.market.by", { author: entry.author })}</span>{/if}
@@ -387,6 +411,35 @@
     border: 1px solid var(--hairline);
     border-radius: 14px;
     min-width: 0;
+  }
+  .tile-focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-soft);
+  }
+  .avatar {
+    flex: none;
+    display: grid;
+    place-items: center;
+    width: 28px;
+    height: 28px;
+    border-radius: var(--radius-md);
+    background: var(--fill-2);
+    font-weight: 600;
+    font-size: var(--text-base);
+  }
+  .wanted {
+    margin: 0;
+    font-size: var(--text-sm);
+    color: var(--accent-hi);
+  }
+  .search {
+    max-width: 320px;
+    background: var(--surface);
+    color: var(--text);
+    border: 1px solid var(--hairline);
+    border-radius: var(--radius-md);
+    padding: 6px 10px;
+    font-size: var(--text-sm);
   }
   .tile-ghost {
     height: 148px;

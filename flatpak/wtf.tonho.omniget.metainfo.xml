@@ -2,7 +2,7 @@
 <component type="desktop-application">
   <id>wtf.tonho.omniget</id>
   <name>Omniget</name>
-  <summary>Course and video downloader, yt-dlp GUI and AI agents desktop app</summary>
+  <summary>MCP server and desktop toolbox for coding agents, with a video downloader</summary>
   <metadata_license>CC0-1.0</metadata_license>
   <project_license>GPL-3.0-or-later</project_license>
   <developer id="wtf.tonho">
@@ -10,34 +10,35 @@
   </developer>
   <description>
     <p>
-      OmniGet turns a link into a file. Paste a link from YouTube, Instagram, TikTok,
-      X, Reddit, Twitch, Pinterest, Bilibili or one of the sites yt-dlp supports, pick
-      a quality, and the video, audio, images or torrent land in your folder. It
-      installs and updates yt-dlp and FFmpeg for you.
+      OmniGet runs a local MCP server that gives your coding agent a desktop toolbox.
+      Connect Claude Code, Codex, Gemini CLI or Cursor with one pasted line and one
+      click on Allow, and the agent can queue downloads, drive the built-in browser,
+      convert files, turn a folder into one prompt-ready file, read and reply in your
+      linked chats, and plan a system cleanup. Each tool connects with its own token
+      and only the permissions you tick, and anything that posts, sends or cleans
+      waits for your click in the OmniGet window.
     </p>
     <p>
-      Its MCP server lets Claude Code, Cursor, VS Code and Codex queue and follow
-      downloads for you. The Canvas runs AI coding agents on your machine side by
-      side in terminals: Claude Code, Codex, Gemini CLI and local Ollama models.
-      Settings keeps several Claude Code and Codex accounts, local models and MCP
-      connections in one place.
+      It is also a downloader. Paste a link from YouTube, Instagram, TikTok, X, Reddit,
+      Twitch, Bilibili or one of the sites yt-dlp supports, pick a quality, and the
+      video, audio, images or torrent land in your folder.
     </p>
     <p>
-      The washmybelly superpower cleans caches, logs, build folders and duplicates,
-      uninstalls apps with their leftovers, controls what opens at login, adjusts
-      privacy settings and measures FPS honestly. It shows only what exists on your
-      system, changes nothing until you approve a plan, and most changes can be undone.
+      The Canvas runs Claude Code, Codex, Gemini CLI, OpenCode or a local model side
+      by side in terminals, and Lead Mode lets one agent coordinate the others. The
+      Tools page adds media, design, social, developer and system tools, including a
+      System Cleaner that shows a plan and changes nothing until you approve it.
     </p>
     <p>Features include:</p>
     <ul>
-      <li>YouTube downloader and yt-dlp GUI with queue, resume and subtitles</li>
-      <li>Instagram, TikTok, X, Reddit, Pinterest, Twitch and Bilibili downloads</li>
-      <li>Torrents, magnet links, direct files and image galleries</li>
+      <li>Local MCP server for Claude Code, Codex, Gemini CLI, Cursor and VS Code</li>
+      <li>A token and a set of permissions per connected tool</li>
+      <li>Agent tools for downloads, files, pages, ports, chats and cleanup plans</li>
+      <li>The Canvas: agent terminals side by side, connected by cords, with Lead Mode</li>
+      <li>Downloader for YouTube, Instagram, TikTok, X, Reddit, Twitch and Bilibili</li>
+      <li>Torrents, magnet links, direct files, HLS streams and image galleries</li>
       <li>Browser extension that downloads with your own session</li>
-      <li>MCP server for Claude Code, Cursor and VS Code</li>
-      <li>Claude Code and Codex accounts with rotation and a usage limits strip</li>
-      <li>The Canvas: your agents side by side in terminals, connected by cords</li>
-      <li>washmybelly: cleanup, uninstaller, startup items, privacy, power and FPS with undo</li>
+      <li>System Cleaner: scan, plan, approve, with undo from History</li>
     </ul>
   </description>
   <categories>
@@ -83,8 +84,8 @@
   <releases>
     <release version="1.0.1" date="2026-11-11">
       <description>
-        <p>OmniGet 1.0.1 adds new superpowers: clients for WhatsApp, Discord, X, Instagram and TikTok, where X, Instagram and TikTok run through your own session and your agents can use them over MCP with each action approved by you; a PDF editor, a photo gallery with duplicate finding, background removal, a karaoke vocal remover, and a Converter that now handles HEIC, JPEG XL, PSD layers, RAW and DXF/DWG. Design tools join them: Palette, Type, Icons, Motion, an Excalidraw board, shadcn components, screen capture, Studio for subtitles and reframing, and voice dictation. The Global Downloader gains a connector market.</p>
-        <p>X, Instagram and TikTok gain Audience, Analytics and Monitor tabs: who does not follow you back, who followed and who left, post analytics with best times, and keyword monitors; X can schedule posts while the app is open. Reddit, Pinterest and GitHub join as new clients, Research reaches public social data with your own ScrapeCreators key, and developer tools arrive: Pack, Scrape, API, DevTools and an FTP and SFTP client.</p>
+        <p>OmniGet 1.0.1 adds new superpowers: clients for Phone Chats, Server Chats, Short Posts, Photo Feed and Clip Feed, where Short Posts, Photo Feed and Clip Feed run through your own session and your agents can use them over MCP with each action approved by you; a PDF editor, a photo gallery with duplicate finding, background removal, a karaoke vocal remover, and a Converter that now handles HEIC, JPEG XL, PSD layers, RAW and DXF/DWG. Design tools join them: Palette, Type, Icons, Motion, an Excalidraw board, shadcn components, screen capture, Studio for subtitles and reframing, and voice dictation. The Global Downloader gains a connector market.</p>
+        <p>Short Posts, Photo Feed and Clip Feed gain Audience, Analytics and Monitor tabs: who does not follow you back, who followed and who left, post analytics with best times, and keyword monitors; Short Posts can schedule posts while the app is open. Forums, Pin Boards and Code Hub join as new clients, Research reaches public social data with your own ScrapeCreators key, and developer tools arrive: Pack, Scrape, API, DevTools and an FTP and SFTP client.</p>
         <p>Settings are simpler and the in-app AI chat is gone, while agents keep running on the Canvas, from the command line and over MCP. Fixes: a failed playlist is reported as an error, the playlist quality picker is no longer capped at 1080p, going back to the managed yt-dlp keeps your own file, torrents show peers and speed before the size is known, leftover downloads are remembered after a restart, and the browser extension installs to the right place in the Flatpak.</p>
       </description>
     </release>

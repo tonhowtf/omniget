@@ -2,6 +2,7 @@
   import { onMount } from "svelte";
   import { listen } from "@tauri-apps/api/event";
   import { t } from "$lib/i18n";
+  import ApprovalDialog from "$components/shell/ApprovalDialog.svelte";
   import { tg3, errText, formatBytes, type ApprovalRequest } from "./api";
 
   const TOOLS = ["tg_send_message", "tg_send_files", "tg_forward", "tg_delete_messages"];
@@ -11,7 +12,6 @@
   let busy = $state(false);
   let error = $state<string | null>(null);
   let now = $state(Date.now());
-  let denyBtn: HTMLButtonElement | undefined = $state();
   let current = $derived(queue[0] ?? null);
   let details = $derived(current ? detailRows(current.details) : []);
   let left = $derived.by(() => {
@@ -99,15 +99,6 @@
     return `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, "0")}`;
   }
 
-  let focusedId = "";
-  $effect(() => {
-    const id = current?.id ?? "";
-    if (id && denyBtn && id !== focusedId) {
-      focusedId = id;
-      denyBtn.focus();
-    }
-  });
-
   onMount(() => {
     void refresh();
     const uns: (() => void)[] = [];
@@ -159,8 +150,18 @@
 </script>
 
 {#if current}
-  <div class="tg-ap-backdrop" role="presentation"></div>
-  <div class="tg-ap" role="alertdialog" aria-modal="true" aria-labelledby="tg-ap-title" aria-describedby="tg-ap-sum">
+  {#key current.id}
+  <ApprovalDialog
+    titleId="tg-ap-title"
+    describedBy="tg-ap-sum"
+    {error}
+    {busy}
+    width="lg"
+    denyLabel={$t("telegram.approval.deny") as string}
+    allowLabel={$t("telegram.approval.approve") as string}
+    onDeny={() => answer(false)}
+    onAllow={() => answer(true)}
+  >
     <header class="tg-ap-head">
       <img src="/icons/menu/telegram-64.webp" alt="" width="40" height="40" />
       <div class="tg-ap-titles">
@@ -189,58 +190,11 @@
       {$t("telegram.approval.hint")}
       {#if left !== null}<span class="tg-ap-left">{$t("telegram.approval.expires", { time: clock(left) })}</span>{/if}
     </p>
-    {#if error}<p class="tg-ap-err">{error}</p>{/if}
-
-    <div class="tg-ap-row">
-      <button class="btn btn-secondary" bind:this={denyBtn} disabled={busy} onclick={() => answer(false)}>{$t("telegram.approval.deny")}</button>
-      <button class="btn btn-primary" disabled={busy} onclick={() => answer(true)}>
-        {#if busy}<span class="spinner"></span>{/if}
-        {$t("telegram.approval.approve")}
-      </button>
-    </div>
-  </div>
+  </ApprovalDialog>
+  {/key}
 {/if}
 
 <style>
-  .tg-ap-backdrop {
-    position: fixed;
-    inset: 0;
-    z-index: 1000;
-    background: rgb(0 0 0 / 0.32);
-  }
-
-  .tg-ap {
-    position: fixed;
-    left: 50%;
-    top: 50%;
-    z-index: 1001;
-    transform: translate(-50%, -50%);
-    width: min(500px, calc(100vw - 32px));
-    max-height: calc(100vh - 48px);
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-3);
-    padding: var(--space-5);
-    border-radius: var(--radius-xl, 16px);
-    background: var(--surface-hi, var(--surface));
-    box-shadow: 0 24px 64px rgb(0 0 0 / 0.35), inset 0 0 0 var(--hairline, 1px) var(--content-border, transparent);
-    color: var(--text);
-    animation: tg-ap-in 160ms var(--ease-out, ease-out);
-  }
-
-  @keyframes tg-ap-in {
-    from {
-      opacity: 0;
-      transform: translate(-50%, -48%) scale(0.98);
-    }
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    .tg-ap {
-      animation: none;
-    }
-  }
-
   .tg-ap-head {
     display: flex;
     align-items: center;
@@ -321,17 +275,5 @@
   .tg-ap-left {
     margin-left: 4px;
     font-variant-numeric: tabular-nums;
-  }
-
-  .tg-ap-err {
-    margin: 0;
-    font-size: var(--text-xs);
-    color: var(--danger);
-  }
-
-  .tg-ap-row {
-    display: flex;
-    justify-content: flex-end;
-    gap: var(--space-2);
   }
 </style>

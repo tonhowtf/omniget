@@ -2,11 +2,6 @@ use std::path::Path;
 
 use anyhow::anyhow;
 use serde::{Deserialize, Serialize};
-use tokio::io::{AsyncBufReadExt, BufReader};
-use tokio::sync::mpsc;
-use tokio_util::sync::CancellationToken;
-
-use crate::models::progress::ProgressUpdate;
 
 static FFMPEG_AVAILABLE_CACHE: std::sync::RwLock<Option<bool>> = std::sync::RwLock::new(None);
 
@@ -61,24 +56,6 @@ pub async fn mux_video_audio(video: &Path, audio: &Path, output: &Path) -> anyho
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ConversionOptions {
-    pub input_path: String,
-    pub output_path: String,
-    pub video_codec: Option<String>,
-    pub audio_codec: Option<String>,
-    pub resolution: Option<String>,
-    pub video_bitrate: Option<String>,
-    pub audio_bitrate: Option<String>,
-    pub sample_rate: Option<u32>,
-    pub fps: Option<f64>,
-    pub trim_start: Option<String>,
-    pub trim_end: Option<String>,
-    pub additional_input_args: Option<Vec<String>>,
-    pub additional_output_args: Option<Vec<String>>,
-    pub preset: Option<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MediaProbeInfo {
     pub duration_seconds: f64,
     pub format_name: String,
@@ -101,15 +78,6 @@ pub struct StreamInfo {
     pub sample_rate: Option<u32>,
     pub channels: Option<u32>,
     pub duration_seconds: Option<f64>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ConversionResult {
-    pub success: bool,
-    pub output_path: String,
-    pub file_size_bytes: u64,
-    pub duration_seconds: f64,
-    pub error: Option<String>,
 }
 
 pub async fn probe(path: &Path) -> anyhow::Result<MediaProbeInfo> {
@@ -263,163 +231,6 @@ fn parse_frame_rate(s: &str) -> Option<f64> {
 pub async fn get_duration_us(path: &Path) -> anyhow::Result<u64> {
     let info = probe(path).await?;
     Ok((info.duration_seconds * 1_000_000.0) as u64)
-}
-
-pub async fn convert(
-    opts: &ConversionOptions,
-    cancel_token: CancellationToken,
-    progress_tx: mpsc::Sender<ProgressUpdate>,
-) -> anyhow::Result<ConversionResult> {
-    let input_path = Path::new(&opts.input_path);
-    let output_path = Path::new(&opts.output_path);
-
-    if let Some(parent) = output_path.parent() {
-        std::fs::create_dir_all(parent)?;
-    }
-
-    let total_duration_us = get_duration_us(input_path).await.unwrap_or(0);
-
-    let mut args: Vec<String> = vec!["-y".to_string()];
-
-    if let Some(ref start) = opts.trim_start {
-        args.extend(["-ss".to_string(), start.clone()]);
-    }
-
-    if let Some(ref extra) = opts.additional_input_args {
-        args.extend(extra.clone());
-    }
-
-    args.extend(["-i".to_string(), opts.input_path.clone()]);
-
-    if let Some(ref end) = opts.trim_end {
-        args.extend(["-to".to_string(), end.clone()]);
-    }
-
-    if let Some(ref codec) = opts.video_codec {
-        args.extend(["-c:v".to_string(), codec.clone()]);
-    }
-
-    if let Some(ref codec) = opts.audio_codec {
-        args.extend(["-c:a".to_string(), codec.clone()]);
-    }
-
-    if let Some(ref res) = opts.resolution {
-        args.extend(["-s".to_string(), res.clone()]);
-    }
-
-    if let Some(ref br) = opts.video_bitrate {
-        args.extend(["-b:v".to_string(), br.clone()]);
-    }
-
-    if let Some(ref br) = opts.audio_bitrate {
-        args.extend(["-b:a".to_string(), br.clone()]);
-    }
-
-    if let Some(sr) = opts.sample_rate {
-        args.extend(["-ar".to_string(), sr.to_string()]);
-    }
-
-    if let Some(fps) = opts.fps {
-        args.extend(["-r".to_string(), fps.to_string()]);
-    }
-
-    if let Some(ref preset) = opts.preset {
-        args.extend(["-preset".to_string(), preset.clone()]);
-    }
-
-    if let Some(ref extra) = opts.additional_output_args {
-        args.extend(extra.clone());
-    }
-
-    args.extend([
-        "-progress".to_string(),
-        "pipe:1".to_string(),
-        "-nostats".to_string(),
-        opts.output_path.clone(),
-    ]);
-
-    let mut child = crate::core::process::command("ffmpeg")
-        .args(&args)
-        .stdout(std::process::Stdio::piped())
-        .stderr(std::process::Stdio::piped())
-        .spawn()
-        .map_err(|e| anyhow!("Failed to start ffmpeg: {}", e))?;
-
-    let stdout = child
-        .stdout
-        .take()
-        .ok_or_else(|| anyhow!("No stdout from ffmpeg"))?;
-    let reader = BufReader::new(stdout);
-    let mut lines = reader.lines();
-
-    let cancel = cancel_token.clone();
-    let progress = progress_tx.clone();
-    let line_reader = tokio::spawn(async move {
-        while let Ok(Some(line)) = lines.next_line().await {
-            if cancel.is_cancelled() {
-                break;
-            }
-            if let Some(us) = parse_out_time_us(&line) {
-                if total_duration_us > 0 {
-                    let pct = (us as f64 / total_duration_us as f64 * 100.0).min(100.0);
-                    let _ = progress.send(ProgressUpdate::percent(pct)).await;
-                }
-            }
-        }
-    });
-
-    let result = tokio::select! {
-        status = child.wait() => {
-            let _ = line_reader.await;
-            status.map_err(|e| anyhow!("ffmpeg process failed: {}", e))
-        }
-        _ = cancel_token.cancelled() => {
-            let _ = child.kill().await;
-            let _ = line_reader.await;
-            return Ok(ConversionResult {
-                success: false,
-                output_path: opts.output_path.clone(),
-                file_size_bytes: 0,
-                duration_seconds: 0.0,
-                error: Some("Conversion cancelled".to_string()),
-            });
-        }
-    };
-
-    match result {
-        Ok(status) if status.success() => {
-            let _ = progress_tx.send(ProgressUpdate::percent(100.0)).await;
-            let meta = std::fs::metadata(output_path);
-            let file_size = meta.map(|m| m.len()).unwrap_or(0);
-
-            let duration = probe(output_path)
-                .await
-                .map(|i| i.duration_seconds)
-                .unwrap_or(0.0);
-
-            Ok(ConversionResult {
-                success: true,
-                output_path: opts.output_path.clone(),
-                file_size_bytes: file_size,
-                duration_seconds: duration,
-                error: None,
-            })
-        }
-        Ok(status) => Ok(ConversionResult {
-            success: false,
-            output_path: opts.output_path.clone(),
-            file_size_bytes: 0,
-            duration_seconds: 0.0,
-            error: Some(format!("ffmpeg exited with code {}", status)),
-        }),
-        Err(e) => Ok(ConversionResult {
-            success: false,
-            output_path: opts.output_path.clone(),
-            file_size_bytes: 0,
-            duration_seconds: 0.0,
-            error: Some(e.to_string()),
-        }),
-    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -625,15 +436,4 @@ async fn download_thumbnail(
     }
 
     Ok(thumb_path)
-}
-
-fn parse_out_time_us(line: &str) -> Option<u64> {
-    let line = line.trim();
-    if let Some(val) = line.strip_prefix("out_time_us=") {
-        return val.trim().parse::<u64>().ok();
-    }
-    if let Some(val) = line.strip_prefix("out_time_ms=") {
-        return val.trim().parse::<u64>().ok().map(|ms| ms * 1000);
-    }
-    None
 }

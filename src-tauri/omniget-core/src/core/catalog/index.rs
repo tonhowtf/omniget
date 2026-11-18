@@ -144,12 +144,6 @@ pub fn catalog() -> Result<Arc<Catalog>> {
     Ok(built)
 }
 
-pub fn invalidate() {
-    if let Ok(mut g) = cell().write() {
-        *g = None;
-    }
-}
-
 pub fn item(id: &str) -> Result<CatalogItem> {
     let c = catalog()?;
     if let Some(i) = c.get(id) {

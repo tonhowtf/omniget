@@ -104,7 +104,7 @@ impl TelegramState {
 
 pub fn session_file_path() -> anyhow::Result<PathBuf> {
     super::migrate_legacy_data();
-    Ok(crate::core::telegram::host::data_dir().join("telegram.session"))
+    Ok(crate::core::telegram::host::session_dir()?.join("telegram.session"))
 }
 
 fn open_session() -> anyhow::Result<Arc<SqliteSession>> {

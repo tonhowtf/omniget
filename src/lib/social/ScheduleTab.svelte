@@ -6,7 +6,7 @@
   import { open as shellOpen } from "@tauri-apps/plugin-shell";
   import { t, locale } from "$lib/i18n";
   import SocialIcon from "./SocialIcon.svelte";
-  import { social, type Platform, type Profile } from "./api";
+  import { NET, social, type Platform, type Profile } from "./api";
   import {
     WEEKDAYS,
     fileName,
@@ -98,7 +98,7 @@
   let feedInterval = $state(60);
   let feedCap = $state(30);
 
-  let supported = $derived(platform === "x");
+  let supported = $derived(platform === NET.shortpost);
   let limit = $derived(textLimit(data?.settings.long_posts ?? "auto", me.verified));
   let weights = $derived(parts.map((p) => weightedLength(p)));
   let filled = $derived(mode === "repost" ? repost.trim().length > 0 : parts.every((p) => p.trim().length > 0) && weights.every((w) => w <= limit));
@@ -274,7 +274,7 @@
     if (dry) {
       report = out;
     } else {
-      notice = $t("social_schedule.import.done", { n: out.scheduled });
+      notice = $t("social_schedule.import.done", { num: out.scheduled });
       report = null;
       csvPath = "";
     }
@@ -319,9 +319,9 @@
       <div class="item-meta">
         <span class="tag">{$t(`social_schedule.kind.${item.kind}`)}</span>
         {#if item.parts_total > 1}
-          <span>{item.parts_sent > 0 && item.status !== "sent" ? $t("social_schedule.list.parts_sent", { sent: item.parts_sent, total: item.parts_total }) : $t("social_schedule.list.parts", { n: item.parts_total })}</span>
+          <span>{item.parts_sent > 0 && item.status !== "sent" ? $t("social_schedule.list.parts_sent", { sent: item.parts_sent, total: item.parts_total }) : $t("social_schedule.list.parts", { num: item.parts_total })}</span>
         {/if}
-        {#if item.media.length}<span>{$t("social_schedule.preview.images", { n: item.media.length })}</span>{/if}
+        {#if item.media.length}<span>{$t("social_schedule.preview.images", { num: item.media.length })}</span>{/if}
         {#if item.created_by.startsWith("feed:")}<span>{$t("social_schedule.list.by_feed")}</span>{/if}
         {#if item.created_by.startsWith("agent:")}<span>{$t("social_schedule.list.by_agent")}</span>{/if}
         {#if section === "history"}<span>{dayTime(item.sent_at ?? item.at)}</span>{/if}
@@ -415,12 +415,12 @@
                   bind:value={parts[i]}
                   rows={i === 0 ? 3 : 2}
                   maxlength="4000"
-                  aria-label={$t("social_schedule.composer.part_placeholder", { n: i + 1 })}
-                  placeholder={i === 0 ? $t("social_schedule.composer.placeholder") : $t("social_schedule.composer.part_placeholder", { n: i + 1 })}
+                  aria-label={$t("social_schedule.composer.part_placeholder", { num: i + 1 })}
+                  placeholder={i === 0 ? $t("social_schedule.composer.placeholder") : $t("social_schedule.composer.part_placeholder", { num: i + 1 })}
                 ></textarea>
                 <div class="part-foot">
                   <span class="count" class:over={weights[i] > limit} aria-live="polite">
-                    {weights[i]}/{limit}{#if weights[i] > limit} · {$t("social_schedule.composer.over", { n: weights[i] - limit })}{/if}
+                    {weights[i]}/{limit}{#if weights[i] > limit} · {$t("social_schedule.composer.over", { num: weights[i] - limit })}{/if}
                   </span>
                   {#if i > 0}
                     <button class="btn btn-ghost btn-sm" onclick={() => (parts = parts.filter((_, k) => k !== i))} aria-label={$t("social_schedule.composer.remove_part")}><SocialIcon name="trash" /></button>
@@ -508,7 +508,7 @@
                     <button class="preview-author" onclick={() => openProfile(me.handle)}><strong>{me.name}</strong> <span>@{me.handle}</span></button>
                     {#if i === 0 && replyTo.trim()}<p class="preview-note">{$t("social_schedule.preview.replying", { target: replyTo.trim() })}</p>{/if}
                     <p class="preview-text">{p}</p>
-                    {#if i === 0 && media.length}<p class="preview-note">{$t("social_schedule.preview.images", { n: media.length })}</p>{/if}
+                    {#if i === 0 && media.length}<p class="preview-note">{$t("social_schedule.preview.images", { num: media.length })}</p>{/if}
                     {#if i === 0 && quote.trim()}<p class="preview-quote">{$t("social_schedule.preview.quoting", { target: quote.trim() })}</p>{/if}
                   </div>
                 </article>
@@ -620,7 +620,7 @@
             <ul class="items">
               {#each report.rejected as r (r.row)}
                 <li class="item">
-                  <div class="item-when"><span class="tag tag-danger">{$t("social_schedule.import.row", { n: r.row })}</span></div>
+                  <div class="item-when"><span class="tag tag-danger">{$t("social_schedule.import.row", { num: r.row })}</span></div>
                   <div class="item-body"><p class="item-error">{message(`${r.code}: ${JSON.stringify({ message: r.reason })}`)}</p></div>
                 </li>
               {/each}
@@ -630,14 +630,14 @@
             <ul class="items">
               {#each report.preview as r (r.row)}
                 <li class="item">
-                  <div class="item-when"><span class="tag">{$t("social_schedule.import.row", { n: r.row })}</span><span class="item-time">{dayTime(r.at)}</span></div>
+                  <div class="item-when"><span class="tag">{$t("social_schedule.import.row", { num: r.row })}</span><span class="item-time">{dayTime(r.at)}</span></div>
                   <div class="item-body"><p class="item-text">{r.repost ? $t("social_schedule.preview.reposting", { target: r.repost }) : r.text}</p></div>
                 </li>
               {/each}
             </ul>
           {/if}
           <div class="composer-row end">
-            <button class="btn btn-primary btn-sm" disabled={busy || report.valid === 0} onclick={() => void runImport(false)}>{$t("social_schedule.import.confirm", { n: report.valid })}</button>
+            <button class="btn btn-primary btn-sm" disabled={busy || report.valid === 0} onclick={() => void runImport(false)}>{$t("social_schedule.import.confirm", { num: report.valid })}</button>
           </div>
         {/if}
       </section>
@@ -654,7 +654,7 @@
                   <div class="item-meta">
                     <span class="tag">{f.template}</span>
                     <span>{$t("social_schedule.feeds.stats", { posted: f.posted_this_month, cap: f.monthly_cap })}</span>
-                    {#if f.skipped_over_cap}<span>{$t("social_schedule.feeds.skipped", { n: f.skipped_over_cap })}</span>{/if}
+                    {#if f.skipped_over_cap}<span>{$t("social_schedule.feeds.skipped", { num: f.skipped_over_cap })}</span>{/if}
                     <span>{f.last_checked_at ? $t("social_schedule.feeds.checked", { when: dayTime(f.last_checked_at) }) : $t("social_schedule.feeds.waiting")}</span>
                   </div>
                   {#if f.last_error}<p class="item-error">{message(f.last_error)}</p>{/if}

@@ -86,7 +86,7 @@
         class:selected={seg.id === selectedId}
         style:left="{pct(seg.start)}%"
         style:width="{Math.max(0.3, pct(seg.end) - pct(seg.start))}%"
-        aria-label={$t("capture.segment_label", { n: i + 1, start: formatTimecode(seg.start), end: formatTimecode(seg.end) })}
+        aria-label={$t("capture.segment_label", { num: i + 1, start: formatTimecode(seg.start), end: formatTimecode(seg.end) })}
         onpointerdown={(e) => e.stopPropagation()}
         onclick={() => onselect(seg.id)}
       >

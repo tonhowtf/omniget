@@ -444,12 +444,6 @@ pub fn after_commit(app: &tauri::AppHandle, commit: &Commit) {
     emit_changed(app);
 }
 
-pub fn settle(ids: &[EffectId]) {
-    if let Some(registry) = registry() {
-        registry.wait_idle(ids, Duration::from_secs(5));
-    }
-}
-
 struct DesktopApplier {
     app: tauri::AppHandle,
     bridge_enabled_at_boot: bool,

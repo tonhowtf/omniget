@@ -96,8 +96,4 @@ impl WaitGraph {
         v.sort_by(|a, b| a.ask_id.cmp(&b.ask_id));
         v.first().map(|e| (*e).clone())
     }
-
-    pub fn edges(&self) -> impl Iterator<Item = &Edge> {
-        self.edges.values()
-    }
 }

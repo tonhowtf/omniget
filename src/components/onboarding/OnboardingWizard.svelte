@@ -6,7 +6,6 @@
   import { completeOnboarding } from "$lib/stores/onboarding-store.svelte";
   import { refreshYtdlpStatus } from "$lib/stores/dependency-store.svelte";
   import Mascot from "$components/mascot/Mascot.svelte";
-  import StepProfile from "./StepProfile.svelte";
   import StepAiTools from "$components/central/onboarding/StepAiTools.svelte";
 
   type DependencyStatus = {
@@ -15,7 +14,7 @@
     version: string | null;
   };
 
-  const TOTAL_STEPS = 6;
+  const TOTAL_STEPS = 4;
   const ENGINE_DEPS = new Set(["yt-dlp", "ffmpeg"]);
 
   const LANGUAGES: [string, string][] = [
@@ -201,32 +200,6 @@
               {$t("onboarding.deps_install_all")}
             </button>
           {/if}
-        </div>
-      {:else if step === 3}
-        <div class="step step-profile-wrap">
-          <StepProfile />
-        </div>
-      {:else if step === 4}
-        <div class="step step-agents">
-          <Mascot emotion="amazed" />
-          <h2>{$t("onboarding.agents_title")}</h2>
-          <p class="step-desc">{$t("onboarding.agents_desc")}</p>
-          <div class="agents-cards">
-            <div class="agents-card">
-              <strong>{$t("nav.world")}</strong>
-              <span>{$t("onboarding.agents_world")}</span>
-            </div>
-          </div>
-        </div>
-      {:else if step === 5}
-        <div class="step step-ai-tools">
-          <StepAiTools />
-        </div>
-      {:else}
-        <div class="step step-done">
-          <Mascot emotion="complete" />
-          <h2>{$t("onboarding.done_title")}</h2>
-          <p class="step-desc">{$t("onboarding.done_desc")}</p>
           {#if settings}
             <div class="folder-row">
               <span class="folder-label">{$t("onboarding.folder_current")}</span>
@@ -236,6 +209,17 @@
               </button>
             </div>
           {/if}
+        </div>
+      {:else if step === 3}
+        <div class="step step-ai-tools">
+          <StepAiTools />
+          <p class="step-note">{$t("onboarding.ai_skip_note")}</p>
+        </div>
+      {:else}
+        <div class="step step-done">
+          <Mascot emotion="complete" />
+          <h2>{$t("onboarding.done_title")}</h2>
+          <p class="step-desc">{$t("onboarding.done_desc")}</p>
           <p class="step-note">{$t("onboarding.more_later")}</p>
         </div>
       {/if}
@@ -396,24 +380,6 @@
     line-height: var(--leading-base);
     max-width: 340px;
     margin: 0;
-  }
-
-  .agents-cards {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 12px;
-    width: 100%;
-  }
-
-  .agents-card {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    padding: 14px;
-    border-radius: 12px;
-    background: var(--surface-2, rgba(127, 127, 127, 0.12));
-    text-align: left;
-    font-size: 13px;
   }
 
   .step-note {

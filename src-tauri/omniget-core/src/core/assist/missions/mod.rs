@@ -1030,21 +1030,6 @@ pub fn append_event(
     db.tx(|tx| append_event_tx(tx, mission_id, ev))
 }
 
-pub fn events(
-    db: &AssistDb,
-    mission_id: &str,
-    after_seq: i64,
-    limit: u32,
-) -> Result<Vec<MissionEvent>, String> {
-    db.with(|c| {
-        let mut st = c.prepare(&format!(
-            "SELECT {EVENT_COLS} FROM missions_events WHERE mission_id = ?1 AND seq > ?2 ORDER BY seq LIMIT ?3"
-        ))?;
-        let rows = st.query_map(params![mission_id, after_seq, limit.clamp(1, 1000)], row_event)?;
-        rows.collect()
-    })
-}
-
 pub fn recent_events(
     db: &AssistDb,
     mission_id: &str,
@@ -1534,18 +1519,6 @@ pub fn pins_compatible(a: &Value, b: &Value) -> bool {
         .all(|k| a.get(*k).and_then(Value::as_str) == b.get(*k).and_then(Value::as_str))
 }
 
-pub fn allow_replay(db: &AssistDb, mission_id: &str) -> Result<Mission, String> {
-    db.tx(|tx| {
-        tx.execute(
-            "UPDATE missions_missions SET allow_replay = 1, revision = revision + 1, updated_ms = ?2 WHERE id = ?1",
-            params![mission_id, now_ms()],
-        )
-        .map_err(e)?;
-        append_event_tx(tx, mission_id, NewEvent::new("replay_allowed", json!({})))?;
-        get_tx(tx, mission_id)
-    })
-}
-
 pub fn book_spend(
     db: &AssistDb,
     mission_id: &str,
@@ -1595,22 +1568,6 @@ pub fn set_result(db: &AssistDb, mission_id: &str, result: &Value) -> Result<(),
     Ok(())
 }
 
-pub fn delete(db: &AssistDb, mission_id: &str) -> Result<(), String> {
-    let m = get(db, mission_id)?;
-    if m.state.is_active() {
-        return Err(format!(
-            "{ERR_MISSION_STATE}: cancel the mission before deleting it"
-        ));
-    }
-    db.with(|c| {
-        c.execute(
-            "DELETE FROM missions_missions WHERE id = ?1",
-            params![mission_id],
-        )
-    })?;
-    Ok(())
-}
-
 pub fn detail(db: &AssistDb, id: &str) -> Result<MissionDetail, String> {
     let mission = get(db, id)?;
     let criteria = criteria(db, id, Some(mission.criteria_version))?;
@@ -1642,18 +1599,6 @@ pub fn tasks(db: &AssistDb, mission_id: &str) -> Result<Vec<MissionTask>, String
         let rows = st.query_map(params![mission_id], row_task)?;
         rows.collect()
     })
-}
-
-pub fn task(db: &AssistDb, task_id: &str) -> Result<MissionTask, String> {
-    db.with(|c| {
-        c.query_row(
-            &format!("SELECT {TASK_COLS} FROM missions_tasks WHERE id = ?1"),
-            params![task_id],
-            row_task,
-        )
-        .optional()
-    })?
-    .ok_or_else(|| format!("{ERR_MISSION_NOT_FOUND}: no task {task_id}"))
 }
 
 fn task_tx(tx: &Transaction, task_id: &str) -> Result<MissionTask, String> {

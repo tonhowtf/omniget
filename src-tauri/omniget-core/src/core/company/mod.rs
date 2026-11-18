@@ -193,10 +193,6 @@ impl CompanyStore {
             .unwrap_or_else(|e| e.into_inner())
             .push(Arc::new(f));
     }
-
-    pub fn path(&self) -> Option<&Path> {
-        self.db.path()
-    }
 }
 
 pub(crate) fn changed(out: &mut Vec<Change>, company_id: &str, entity: &'static str, id: &str) {

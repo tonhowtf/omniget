@@ -276,10 +276,6 @@ impl Driver {
         jobs::get(&self.app)
     }
 
-    pub fn db(&self) -> &Arc<AssistDb> {
-        &self.db
-    }
-
     pub fn emit(&self, id: &str) {
         if let Ok(m) = missions::get(&self.db, id) {
             let _ = self.app.emit(

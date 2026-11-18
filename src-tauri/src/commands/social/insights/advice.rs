@@ -94,7 +94,7 @@ pub fn best_time<Tz: TimeZone>(p: Platform, posts: &[Post], tz: &Tz) -> Rule {
         WEEKDAY_NAMES[weekday as usize]
     );
     let numbers = json!({ "weekday": weekday, "hour": hour, "posts_in_cell": n, "cell_median": cell, "overall_median": overall, "posts": all.len() });
-    Ok(if p == Platform::X {
+    Ok(if p == Platform::ShortPost {
         let mut v = item(
             "best_time",
             message,
@@ -201,7 +201,7 @@ pub fn frequency_drop(p: Platform, posts: &[Post], now: i64) -> Rule {
         ));
     }
     let drop = round2((previous - recent) as f64 / previous as f64 * 100.0);
-    let (tool, args) = if p == Platform::X {
+    let (tool, args) = if p == Platform::ShortPost {
         (
             "social_schedule".to_string(),
             json!({ "platform": "x", "op": "add", "slot": "next" }),
@@ -523,7 +523,7 @@ mod tests {
             .map(|w| post(MONDAY_9 - w * 7 * DAY, 100 + w as u64, false))
             .collect();
         posts.extend((0..8).map(|i| post(MONDAY_9 + DAY + i * 3600 * 5 + i * DAY, 10, false)));
-        let v = best_time(Platform::X, &posts, &Utc).unwrap();
+        let v = best_time(Platform::ShortPost, &posts, &Utc).unwrap();
         assert_eq!(v["id"], "best_time");
         assert_eq!(
             v["numbers"],
@@ -539,24 +539,23 @@ mod tests {
             json!({ "weekday": "mon", "time": "09:00" })
         );
         assert!(v["act_with"]["note"].is_string());
-        let ig = best_time(Platform::Instagram, &posts, &Utc).unwrap();
+        let ig = best_time(Platform::PhotoFeed, &posts, &Utc).unwrap();
         assert_eq!(
             ig["act_with"],
             json!({ "tool": "ig_analytics", "args": { "report": "times" } })
         );
-        assert!(reason(best_time(Platform::X, &posts[..9], &Utc))
+        assert!(reason(best_time(Platform::ShortPost, &posts[..9], &Utc))
             .contains("needs 10 dated posts, the sample has 9"));
         let spread: Vec<Post> = (0..12)
             .map(|i| post(MONDAY_9 + i * DAY + i * 3600, 50, false))
             .collect();
-        assert!(reason(best_time(Platform::X, &spread, &Utc))
+        assert!(reason(best_time(Platform::ShortPost, &spread, &Utc))
             .contains("no weekday and hour has 3 posts"));
         let flat: Vec<Post> = (0..12)
             .map(|i| post(MONDAY_9 - (i % 4) * 7 * DAY, 20, false))
             .collect();
-        assert!(
-            reason(best_time(Platform::X, &flat, &Utc)).contains("not above the overall median")
-        );
+        assert!(reason(best_time(Platform::ShortPost, &flat, &Utc))
+            .contains("not above the overall median"));
         let mut repost = post(MONDAY_9, 9999, false);
         repost.reposted_by = Some(Author::default());
         let undated = Post {
@@ -565,14 +564,14 @@ mod tests {
         };
         let mut noisy = posts[..9].to_vec();
         noisy.extend([repost, undated]);
-        assert!(best_time(Platform::X, &noisy, &Utc).is_err());
+        assert!(best_time(Platform::ShortPost, &noisy, &Utc).is_err());
     }
 
     #[test]
     fn a_media_type_wins_only_with_enough_posts_on_both_sides_and_a_clear_margin() {
         let mut posts: Vec<Post> = (0..4).map(|i| post(i, 40 + i as u64, true)).collect();
         posts.extend((0..6).map(|i| post(100 + i, 10, false)));
-        let v = media_winner(Platform::Tiktok, &posts).unwrap();
+        let v = media_winner(Platform::ClipFeed, &posts).unwrap();
         assert_eq!(
             v["numbers"],
             json!({ "media": "image", "posts": 4, "median": 41.5, "others_median": 10.0, "others_posts": 6, "lift": 4.15 })
@@ -581,22 +580,22 @@ mod tests {
             v["act_with"],
             json!({ "tool": "tt_analytics", "args": { "report": "media" } })
         );
-        assert!(reason(media_winner(Platform::X, &posts[..9])).contains("needs 10 posts"));
+        assert!(reason(media_winner(Platform::ShortPost, &posts[..9])).contains("needs 10 posts"));
         let lonely: Vec<Post> = (0..2)
             .map(|i| post(i, 500, true))
             .chain((0..9).map(|i| post(100 + i, 10, false)))
             .collect();
-        assert!(reason(media_winner(Platform::X, &lonely)).contains("two media types"));
+        assert!(reason(media_winner(Platform::ShortPost, &lonely)).contains("two media types"));
         let close: Vec<Post> = (0..5)
             .map(|i| post(i, 12, true))
             .chain((0..5).map(|i| post(100 + i, 10, false)))
             .collect();
-        assert!(reason(media_winner(Platform::X, &close)).contains("1.25 times"));
+        assert!(reason(media_winner(Platform::ShortPost, &close)).contains("1.25 times"));
         let zero: Vec<Post> = (0..5)
             .map(|i| post(i, 0, true))
             .chain((0..5).map(|i| post(100 + i, 0, false)))
             .collect();
-        assert!(media_winner(Platform::X, &zero).is_err());
+        assert!(media_winner(Platform::ShortPost, &zero).is_err());
     }
 
     #[test]
@@ -607,31 +606,31 @@ mod tests {
             .map(|d| post(days_ago(*d), 1, false))
             .collect();
         posts.extend([2, 5, 9].iter().map(|d| post(days_ago(*d), 1, false)));
-        let v = frequency_drop(Platform::X, &posts, NOW).unwrap();
+        let v = frequency_drop(Platform::ShortPost, &posts, NOW).unwrap();
         assert_eq!(
             v["numbers"],
             json!({ "recent": 3, "previous": 5, "window_days": 14, "drop_pct": 40.0 })
         );
         assert_eq!(v["act_with"]["tool"], "social_schedule");
         assert_eq!(
-            frequency_drop(Platform::Instagram, &posts, NOW).unwrap()["act_with"]["tool"],
+            frequency_drop(Platform::PhotoFeed, &posts, NOW).unwrap()["act_with"]["tool"],
             "ig_analytics"
         );
         posts.push(post(days_ago(1), 1, false));
-        assert!(reason(frequency_drop(Platform::X, &posts, NOW)).contains("is not a drop"));
+        assert!(reason(frequency_drop(Platform::ShortPost, &posts, NOW)).contains("is not a drop"));
         let short: Vec<Post> = [1, 2, 20, 21, 22, 23]
             .iter()
             .map(|d| post(days_ago(*d), 1, false))
             .collect();
-        assert!(reason(frequency_drop(Platform::X, &short, NOW))
+        assert!(reason(frequency_drop(Platform::ShortPost, &short, NOW))
             .contains("does not reach 28 days back"));
         let sparse: Vec<Post> = [1, 20, 21, 60]
             .iter()
             .map(|d| post(days_ago(*d), 1, false))
             .collect();
-        assert!(reason(frequency_drop(Platform::X, &sparse, NOW))
+        assert!(reason(frequency_drop(Platform::ShortPost, &sparse, NOW))
             .contains("needs 4 posts in the previous 14 days, found 2"));
-        assert!(frequency_drop(Platform::X, &[], NOW).is_err());
+        assert!(frequency_drop(Platform::ShortPost, &[], NOW).is_err());
     }
 
     #[test]
@@ -647,7 +646,7 @@ mod tests {
             posts_reason: Some("NOT_LOGGED_IN: sign in".into()),
             ..Default::default()
         };
-        let v = recommend(Platform::X, &f, &Utc);
+        let v = recommend(Platform::ShortPost, &f, &Utc);
         assert_eq!(v["total"], 5);
         let ids: Vec<&str> = v["items"]
             .as_array()
@@ -735,7 +734,7 @@ mod tests {
             monitors: Ok(json!({ "total": 2, "unread": 7 })),
             schedule: Ok(json!({ "supported": true, "counts": { "draft": 2, "scheduled": 9 } })),
         };
-        let f = facts_from(Platform::X, &ready, 1_000);
+        let f = facts_from(Platform::ShortPost, &ready, 1_000);
         assert_eq!(
             (f.not_following_back, f.new_unfollowers, f.last_sync),
             (Some(12), Some(3), Some(900))
@@ -754,23 +753,23 @@ mod tests {
             monitors: Ok(json!({ "total": 0, "unread": 0 })),
             schedule: Ok(json!({ "supported": false, "counts": {} })),
         };
-        let f = facts_from(Platform::Tiktok, &young, 1_000);
+        let f = facts_from(Platform::ClipFeed, &young, 1_000);
         assert_eq!((f.not_following_back, f.new_unfollowers), (None, None));
         assert!(f.audience_reason.unwrap().contains("two complete syncs"));
         assert_eq!(f.unread_hits, None);
         assert!(f.monitor_reason.unwrap().contains("no monitor"));
         assert_eq!(f.drafts, None);
-        assert!(f.schedule_reason.unwrap().contains("TikTok"));
+        assert!(f.schedule_reason.unwrap().contains("Clip Feed"));
         let broken = Sources {
             summary: Ok(json!({ "synced_at": { "followers": null, "following": null } })),
             not_following_back: Ok(json!({})),
             unfollowers: Ok(json!({})),
-            monitors: Err("UNSUPPORTED_PLATFORM: {\"message\":\"not on Reddit\",\"retryable\":false,\"next_step\":\"x\"}".into()),
+            monitors: Err("UNSUPPORTED_PLATFORM: {\"message\":\"not on Forums\",\"retryable\":false,\"next_step\":\"x\"}".into()),
             schedule: Err("STORE_UNAVAILABLE: the social database could not be opened".into()),
         };
-        let f = facts_from(Platform::Instagram, &broken, 1_000);
+        let f = facts_from(Platform::PhotoFeed, &broken, 1_000);
         assert!(f.audience_reason.unwrap().contains("ig_audience_sync"));
-        assert_eq!(f.monitor_reason.as_deref(), Some("not on Reddit"));
+        assert_eq!(f.monitor_reason.as_deref(), Some("not on Forums"));
         assert!(f.schedule_reason.unwrap().starts_with("STORE_UNAVAILABLE"));
     }
 
@@ -783,10 +782,10 @@ mod tests {
             not_following_back: Some(0),
             audience_reason: Some("No audience snapshot yet; call ig_audience_sync.".into()),
             monitor_reason: Some("No monitor saved.".into()),
-            schedule_reason: Some("Scheduling is not built for Instagram.".into()),
+            schedule_reason: Some("Scheduling is not built for Photo Feed.".into()),
             ..Default::default()
         };
-        let v = recommend(Platform::Instagram, &f, &Utc);
+        let v = recommend(Platform::PhotoFeed, &f, &Utc);
         assert_eq!(v["total"], 0);
         assert_eq!(v["items"], json!([]));
         assert!(v["empty_reason"].is_string());

@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::net::{IpAddr, Ipv6Addr, SocketAddr};
 use std::str::FromStr;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::{Arc, RwLock};
@@ -6,7 +7,7 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use axum::body::Bytes;
 use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
-use axum::extract::State;
+use axum::extract::{ConnectInfo, State};
 use axum::response::IntoResponse;
 use axum::routing::get;
 use axum::{Json, Router};
@@ -26,7 +27,8 @@ const OP_CHAT: u8 = 43;
 
 const MAX_FRAME: usize = 512 * 1024;
 const MAX_HELLO: usize = 4096;
-const QUEUE: usize = 256;
+const MAX_VISITOR_FRAME: usize = 4096;
+const QUEUE: usize = 32;
 const HELLO_TIMEOUT: Duration = Duration::from_secs(10);
 const PING_EVERY: Duration = Duration::from_secs(30);
 const SILENCE_LIMIT: Duration = Duration::from_secs(90);
@@ -41,6 +43,7 @@ const CROCKFORD: &[u8; 32] = b"0123456789ABCDEFGHJKMNPQRSTVWXYZ";
 struct Config {
     max_visitors: usize,
     max_rooms: usize,
+    max_rooms_per_ip: usize,
     ttl_s: u64,
 }
 
@@ -68,6 +71,7 @@ struct Room {
     host_name: String,
     house: String,
     host_tx: mpsc::Sender<Message>,
+    ip: IpAddr,
     inner: RwLock<RoomInner>,
     next_id: AtomicU32,
     expires: Instant,
@@ -190,6 +194,24 @@ fn parse_code(raw: &str) -> Option<String> {
         s.push(c);
     }
     (s.len() == 9).then_some(s)
+}
+
+fn ip_key(ip: IpAddr) -> IpAddr {
+    match ip.to_canonical() {
+        IpAddr::V6(v6) => {
+            let s = v6.segments();
+            IpAddr::V6(Ipv6Addr::new(s[0], s[1], s[2], s[3], 0, 0, 0, 0))
+        }
+        v4 => v4,
+    }
+}
+
+fn frame_limit(is_host: bool) -> usize {
+    if is_host {
+        MAX_FRAME
+    } else {
+        MAX_VISITOR_FRAME
+    }
 }
 
 fn verify(pubkey_hex: &str, sig_hex: &str, ts: u64, signed: &str) -> Result<String, Reject> {
@@ -333,6 +355,7 @@ impl Room {
 impl AppState {
     fn open_room(
         &self,
+        ip: IpAddr,
         host_name: String,
         house: String,
         host_tx: mpsc::Sender<Message>,
@@ -342,6 +365,12 @@ impl AppState {
             return Err(Reject(
                 "ERR_ROOM_SERVER_FULL",
                 "the server is at its room limit",
+            ));
+        }
+        if rooms.values().filter(|r| r.ip == ip).count() >= self.cfg.max_rooms_per_ip {
+            return Err(Reject(
+                "ERR_ROOM_TOO_MANY",
+                "this address already has the maximum number of open rooms",
             ));
         }
         let mut code = new_code();
@@ -359,6 +388,7 @@ impl AppState {
             host_name,
             house,
             host_tx,
+            ip,
             inner: RwLock::new(RoomInner::default()),
             next_id: AtomicU32::new(1),
             expires: Instant::now() + Duration::from_secs(self.cfg.ttl_s),
@@ -437,7 +467,7 @@ async fn writer(mut sink: SplitSink<WebSocket, Message>, mut rx: mpsc::Receiver<
     }
 }
 
-async fn handle_socket(socket: WebSocket, state: AppState) {
+async fn handle_socket(socket: WebSocket, state: AppState, ip: IpAddr) {
     let (mut sink, mut stream) = socket.split();
     let hello = match tokio::time::timeout(HELLO_TIMEOUT, first_text(&mut stream)).await {
         Ok(Some(Ok(t))) => t,
@@ -470,7 +500,7 @@ async fn handle_socket(socket: WebSocket, state: AppState) {
                 house
             };
             let name = clean_name(&name);
-            let room = state.open_room(name.clone(), house, tx.clone())?;
+            let room = state.open_room(ip, name.clone(), house, tx.clone())?;
             Ok((room, Role::Host, name))
         }),
         Hello::Join {
@@ -532,12 +562,12 @@ async fn handle_socket(socket: WebSocket, state: AppState) {
         };
         let data = match frame {
             Ok(Some(Ok(Message::Binary(b)))) => b,
-            Ok(Some(Ok(Message::Text(t)))) if t.len() > MAX_FRAME => break,
+            Ok(Some(Ok(Message::Text(t)))) if t.len() > frame_limit(is_host) => break,
             Ok(Some(Ok(Message::Close(_)))) => break,
             Ok(Some(Ok(_))) => continue,
             Ok(Some(Err(_))) | Ok(None) | Err(_) => break,
         };
-        if data.len() > MAX_FRAME {
+        if data.len() > frame_limit(is_host) {
             break;
         }
         let Some(&op) = data.first() else { continue };
@@ -589,10 +619,15 @@ async fn handle_socket(socket: WebSocket, state: AppState) {
     }
 }
 
-async fn room_endpoint(ws: WebSocketUpgrade, State(state): State<AppState>) -> impl IntoResponse {
+async fn room_endpoint(
+    ws: WebSocketUpgrade,
+    ConnectInfo(addr): ConnectInfo<SocketAddr>,
+    State(state): State<AppState>,
+) -> impl IntoResponse {
+    let ip = ip_key(addr.ip());
     ws.max_message_size(MAX_FRAME)
         .max_frame_size(MAX_FRAME)
-        .on_upgrade(move |socket| handle_socket(socket, state))
+        .on_upgrade(move |socket| handle_socket(socket, state, ip))
 }
 
 async fn stats(State(state): State<AppState>) -> Json<serde_json::Value> {
@@ -642,6 +677,7 @@ async fn main() {
     let cfg = Config {
         max_visitors: env_or("OMNIWORLD_MAX_VISITORS", 8),
         max_rooms: env_or("OMNIWORLD_MAX_ROOMS", 200),
+        max_rooms_per_ip: env_or("OMNIWORLD_MAX_ROOMS_PER_IP", 3),
         ttl_s: env_or("OMNIWORLD_TTL_S", 21_600),
     };
     let bind: String = env_or("OMNIWORLD_BIND", "0.0.0.0:7878".to_string());
@@ -664,14 +700,92 @@ async fn main() {
             std::process::exit(1);
         }
     };
-    info!(%bind, max_visitors = cfg.max_visitors, max_rooms = cfg.max_rooms, ttl_s = cfg.ttl_s, "omniworld-server listening");
+    info!(%bind, max_visitors = cfg.max_visitors, max_rooms = cfg.max_rooms, max_rooms_per_ip = cfg.max_rooms_per_ip, ttl_s = cfg.ttl_s, "omniworld-server listening");
 
     tokio::select! {
-        r = axum::serve(listener, app) => {
+        r = axum::serve(listener, app.into_make_service_with_connect_info::<SocketAddr>()) => {
             if let Err(e) = r {
                 tracing::error!(error = %e, "server stopped");
             }
         }
         _ = shutdown_signal() => info!("shutting down"),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn state(max_rooms: usize, max_rooms_per_ip: usize) -> AppState {
+        AppState {
+            rooms: Arc::default(),
+            cfg: Config {
+                max_visitors: 8,
+                max_rooms,
+                max_rooms_per_ip,
+                ttl_s: 60,
+            },
+            started: Instant::now(),
+        }
+    }
+
+    fn open(state: &AppState, ip: &str) -> Result<Arc<Room>, Reject> {
+        let (tx, _rx) = mpsc::channel(QUEUE);
+        let ip = ip_key(ip.parse().expect("test ip"));
+        state.open_room(ip, "host".to_string(), "casa-v1".to_string(), tx)
+    }
+
+    #[test]
+    fn one_address_cannot_open_more_than_its_share_of_rooms() {
+        let state = state(200, 2);
+        assert!(open(&state, "203.0.113.7").is_ok());
+        assert!(open(&state, "203.0.113.7").is_ok());
+        assert!(matches!(
+            open(&state, "203.0.113.7"),
+            Err(Reject("ERR_ROOM_TOO_MANY", _))
+        ));
+        assert!(open(&state, "203.0.113.8").is_ok());
+        assert_eq!(state.rooms.read().unwrap().len(), 3);
+    }
+
+    #[test]
+    fn closing_a_room_frees_the_slot_of_its_address() {
+        let state = state(200, 1);
+        let Ok(room) = open(&state, "203.0.113.7") else {
+            panic!("first room must open");
+        };
+        assert!(open(&state, "203.0.113.7").is_err());
+        state.close_room(&room, "host_left");
+        assert!(open(&state, "203.0.113.7").is_ok());
+    }
+
+    #[test]
+    fn the_server_room_limit_still_applies_across_addresses() {
+        let state = state(1, 3);
+        assert!(open(&state, "203.0.113.7").is_ok());
+        assert!(matches!(
+            open(&state, "203.0.113.8"),
+            Err(Reject("ERR_ROOM_SERVER_FULL", _))
+        ));
+    }
+
+    #[test]
+    fn ipv6_addresses_of_one_subnet_share_a_slot() {
+        let state = state(200, 1);
+        assert!(open(&state, "2001:db8:1:2::1").is_ok());
+        assert!(open(&state, "2001:db8:1:2:ffff::9").is_err());
+        assert!(open(&state, "2001:db8:1:3::1").is_ok());
+        assert_eq!(
+            ip_key("::ffff:203.0.113.7".parse().expect("test ip")),
+            "203.0.113.7".parse::<IpAddr>().expect("test ip")
+        );
+    }
+
+    #[test]
+    fn visitor_frames_have_a_small_cap_and_host_frames_keep_the_scene_size() {
+        assert_eq!(frame_limit(true), MAX_FRAME);
+        assert_eq!(frame_limit(false), MAX_VISITOR_FRAME);
+        assert!(500 * 4 < frame_limit(false));
+        assert!(400 * 1024 < frame_limit(true));
     }
 }

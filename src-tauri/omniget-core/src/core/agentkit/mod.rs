@@ -5,7 +5,6 @@ pub mod lock;
 pub mod model;
 pub mod parse;
 pub mod plan;
-pub mod plugins;
 pub mod profiles;
 pub mod targets;
 pub mod writer;
@@ -63,14 +62,6 @@ impl Os {
             Os::Windows
         } else {
             Os::Linux
-        }
-    }
-
-    pub fn as_str(self) -> &'static str {
-        match self {
-            Os::Macos => "macos",
-            Os::Linux => "linux",
-            Os::Windows => "windows",
         }
     }
 }

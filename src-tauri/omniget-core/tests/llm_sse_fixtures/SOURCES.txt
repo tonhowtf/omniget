@@ -1,5 +1,5 @@
 SSE fixtures for core/llm/sse.rs and core/llm/providers/*.
-Recorded or written on 2026-09-18 by the f2-llm-providers agent.
+Recorded or written on 2026-09-18.
 No API key, token or account id appears in any file here.
 
 REAL (recorded with curl -N against a live server)

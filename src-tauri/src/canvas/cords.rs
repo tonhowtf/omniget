@@ -173,6 +173,11 @@ struct Inner {
     permission: HashMap<String, String>,
     hook_turn_end_ms: HashMap<String, u64>,
     typing_ms: HashMap<String, u64>,
+    refused: HashSet<String>,
+    tails: HashMap<String, omniget_core::core::canvas::session_tail::Tail>,
+    settling: HashSet<String>,
+    capturing: HashSet<String>,
+    turn_no: HashMap<String, u64>,
 }
 
 pub struct CanvasHost {
@@ -1440,6 +1445,9 @@ impl CanvasHost {
                     g.submitted.insert(me.to_string());
                 } else {
                     self.user_turn_locked(&mut g, me);
+                    if g.capturing.insert(me.to_string()) {
+                        self.checkpoint_turn(me);
+                    }
                 }
             }
             "Stop" | "StopFailure" => {
@@ -1479,6 +1487,96 @@ impl CanvasHost {
         g.inbound
             .insert(node.to_string(), (limits::new_chain_id(), 0));
         g.seen.insert(node.to_string());
+        g.refused.remove(node);
+        *g.turn_no.entry(node.to_string()).or_insert(0) += 1;
+    }
+
+    pub fn node_cwd(&self, node: &str) -> Option<std::path::PathBuf> {
+        let from_node = locate(node)
+            .ok()
+            .and_then(|(_, _, n)| n.data_str("cwd").map(str::to_string));
+        let from_term = || {
+            let tid = self.lock().tracked.get(node)?.terminal.clone()?;
+            term().info(&tid)?.cwd
+        };
+        from_node
+            .or_else(from_term)
+            .map(std::path::PathBuf::from)
+            .filter(|p| p.is_dir())
+    }
+
+    fn checkpoint_turn(&self, node: &str) {
+        let node = node.to_string();
+        tauri::async_runtime::spawn(async move {
+            let is_shell = locate(&node)
+                .ok()
+                .is_some_and(|(_, _, n)| n.data_str("agent") == Some("shell"));
+            if let Some(cwd) = host().node_cwd(&node).filter(|_| !is_shell) {
+                if let Err(e) = super::checkpoints::capture(&node, &cwd).await {
+                    tracing::debug!("[canvas] {node}: no checkpoint for this turn: {e}");
+                }
+            }
+            host().lock().capturing.remove(&node);
+        });
+    }
+
+    fn settle_session(&'static self, node: &str, path: std::path::PathBuf) {
+        use omniget_core::core::canvas::session_tail;
+        let node = node.to_string();
+        let (mut tail, turn) = {
+            let mut g = self.lock();
+            if !g.settling.insert(node.clone()) {
+                return;
+            }
+            let tail = g.tails.remove(&node).unwrap_or_default().for_path(&path);
+            (tail, g.turn_no.get(&node).copied().unwrap_or(0))
+        };
+        let from = tail.offset;
+        tauri::async_runtime::spawn(async move {
+            let read =
+                tauri::async_runtime::spawn_blocking(move || session_tail::read_from(&path, from))
+                    .await;
+            let Ok(Ok((text, next))) = read else {
+                let mut g = self.lock();
+                g.settling.remove(&node);
+                g.tails.insert(node, tail);
+                return;
+            };
+            let refused = session_tail::ended_in_refusal(&text);
+            let fresh = tail.take(&text, "");
+            tail.offset = next;
+            let mut prices = HashMap::new();
+            for entry in &fresh {
+                if entry.cost_usd.is_none() && !prices.contains_key(&entry.model) {
+                    if let Some(p) =
+                        omniget_core::core::tools::pricing::price_for(&entry.model).await
+                    {
+                        prices.insert(entry.model.clone(), p);
+                    }
+                }
+            }
+            for entry in &fresh {
+                tail.add_cost(omniget_core::core::llm::cli_usage::report::cost_of(
+                    entry, &prices,
+                ));
+            }
+            let cost = json!({
+                "id": node, "costUsd": tail.usd, "tokens": tail.tokens, "unpriced": tail.unpriced,
+            });
+            let named = {
+                let mut g = self.lock();
+                g.settling.remove(&node);
+                g.tails.insert(node.clone(), tail);
+                let same_turn = g.turn_no.get(&node).copied().unwrap_or(0) == turn;
+                refused && same_turn && g.refused.insert(node.clone())
+            };
+            if let Some(app) = self.app() {
+                let _ = app.emit("canvas://node-cost", cost);
+            }
+            if named {
+                self.bump();
+            }
+        });
     }
 
     async fn permission(&'static self, me: &str, v: &Value) -> Value {
@@ -1504,7 +1602,7 @@ impl CanvasHost {
         let state = app.state::<crate::AppState>();
         let broker = state.llm.broker();
         let label = if tool_name.is_empty() {
-            format!("{name} ({tool})")
+            format!("{tool} ({name})")
         } else {
             format!("{tool_name} ({name})")
         };
@@ -1519,6 +1617,13 @@ impl CanvasHost {
         let decision = if state.llm.bus().receiver_count() == 0 {
             json!({ "decision": "ask" })
         } else {
+            if let Some(impact) = omniget_core::core::llm::impact::impact_of(
+                &tool_name,
+                &input,
+                v["cwd"].as_str().map(std::path::Path::new),
+            ) {
+                broker.note_impact(&call_id, impact);
+            }
             let ans = tokio::time::timeout(
                 Duration::from_millis(wait_ms),
                 broker.ask_user(&agent, &agent, &call_id, &label, &preview),
@@ -1623,6 +1728,9 @@ impl CanvasHost {
                     }
                 }
             }
+        }
+        if let Some(path) = payload.as_ref().and_then(answer::transcript_path) {
+            self.settle_session(node, path);
         }
         let (turn, tracked) = {
             let mut g = self.lock();
@@ -1885,6 +1993,7 @@ impl CanvasHost {
                         stuck: g.stuck.contains(node),
                         seen: g.seen.contains(node),
                         permission_pending: g.permission.contains_key(node),
+                        refused: g.refused.contains(node),
                     },
                     t as i64,
                 );
@@ -2454,7 +2563,11 @@ impl CanvasHost {
         let tracked = self.lock().tracked.contains_key(node);
         if tracked {
             self.on_exit(node, None);
-            self.lock().tracked.remove(node);
+            let mut g = self.lock();
+            g.tracked.remove(node);
+            g.tails.remove(node);
+            g.refused.remove(node);
+            g.turn_no.remove(node);
         }
         self.revoke(node);
         if let Some(p) = token_file_of(node) {
@@ -2581,7 +2694,7 @@ impl CanvasHost {
                 "stuck"
             } else {
                 match f.state {
-                    NodeState::NeedsYou if g.seen.contains(id) => continue,
+                    NodeState::NeedsYou | NodeState::Done if g.seen.contains(id) => continue,
                     NodeState::NeedsYou => "blocked",
                     NodeState::Done => "review",
                     _ => continue,
@@ -2856,10 +2969,6 @@ pub fn install_skill_root(
             .map_err(|e| format!("{}: {e}", file.display()))?;
     }
     Ok(Some(file))
-}
-
-pub fn agents_md_snippet() -> String {
-    adapters::agents_md_snippet()
 }
 
 fn rpc_err(e: impl std::fmt::Display) -> String {

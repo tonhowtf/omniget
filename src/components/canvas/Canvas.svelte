@@ -17,6 +17,7 @@
   import Toolbar from "./chrome/Toolbar.svelte";
   import ZoomControls from "./chrome/ZoomControls.svelte";
   import AgentUsage from "./chrome/AgentUsage.svelte";
+  import BudgetMeter from "./attention/BudgetMeter.svelte";
   import Minimap from "./chrome/Minimap.svelte";
   import SpawnMenu from "./chrome/SpawnMenu.svelte";
   import ArtifactsPanel from "./artifacts/ArtifactsPanel.svelte";
@@ -797,6 +798,7 @@
           onSwitch={(id) => void switchTo(engine, engine.store.workspaceId, id)}
         />
       {/if}
+      <BudgetMeter />
       <AgentUsage />
       <button
         type="button"
@@ -821,6 +823,23 @@
   {/if}
   {#if noticeText}
     <div class="notice" role="status">{noticeText}</div>
+  {/if}
+  {#if engine.syncMode !== "connecting" && engine.store.nodes.length === 0 && engine.store.drawings.length === 0}
+    <div class="canvas-empty empty-state">
+      <span class="empty-state-title">{$t("canvas.engine.emptyTitle")}</span>
+      <span class="empty-state-hint">{$t("canvas.engine.emptyHint")}</span>
+      <button
+        type="button"
+        class="btn btn-primary"
+        data-canvas-chrome
+        onclick={() => {
+          const c = engine.camera.center();
+          engine.spawnMenu = { sx: engine.camera.vw / 2, sy: engine.camera.vh / 2 + 56, wx: c.x, wy: c.y, free: true };
+        }}
+      >
+        {$t("canvas.engine.emptyAction")}
+      </button>
+    </div>
   {/if}
   <SpawnMenu />
   <ArtifactsPanel />
@@ -1068,6 +1087,17 @@
     color: var(--text-muted);
     background: var(--popup-bg, var(--surface));
     border: 1px solid var(--border);
+  }
+  .canvas-empty {
+    position: absolute;
+    left: calc(50% + var(--sidebar-w, 0px) / 2);
+    top: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 5;
+    pointer-events: none;
+  }
+  .canvas-empty .btn {
+    pointer-events: auto;
   }
   .notice {
     position: absolute;

@@ -1,4 +1,3 @@
-use std::collections::BTreeMap;
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
@@ -1421,5 +1420,3 @@ pub fn main_entry() -> i32 {
     }
     out.exit
 }
-
-pub type Registry = BTreeMap<String, Vec<Value>>;

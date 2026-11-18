@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
+  import ApprovalDialog from "$components/shell/ApprovalDialog.svelte";
   import { invoke } from "@tauri-apps/api/core";
   import { listen } from "@tauri-apps/api/event";
   import { t } from "$lib/i18n";
@@ -46,8 +47,17 @@
 </script>
 
 {#if current}
-  <div class="wmb-ap-backdrop" role="presentation"></div>
-  <div class="wmb-ap" role="alertdialog" aria-modal="true" aria-labelledby="wmb-ap-title">
+  {#key current.approval.id}
+  <ApprovalDialog
+    titleId="wmb-ap-title"
+    {error}
+    {busy}
+    align="center"
+    denyLabel={$t("washmybelly.approval.deny") as string}
+    allowLabel={$t("washmybelly.approval.allow") as string}
+    onDeny={() => answer(false)}
+    onAllow={() => answer(true)}
+  >
     <img src="/washmybelly/worried.webp" alt="" width="72" height="72" />
     <h3 id="wmb-ap-title">
       {isRestore ? $t("washmybelly.approval.title_restore", { client: current.approval.client }) : $t("washmybelly.approval.title", { client: current.approval.client })}
@@ -70,31 +80,20 @@
       </ul>
     {/if}
     <p class="wmb-ap-hint">{$t("washmybelly.approval.hint")}</p>
-    {#if error}<p class="wmb-ap-err">{error}</p>{/if}
-    <div class="wmb-ap-row">
-      <button class="btn btn-secondary" disabled={busy} onclick={() => answer(false)}>{$t("washmybelly.approval.deny")}</button>
-      <button class="btn btn-primary" disabled={busy} onclick={() => answer(true)}>{$t("washmybelly.approval.allow")}</button>
-    </div>
-  </div>
+  </ApprovalDialog>
+  {/key}
 {/if}
 
 <style>
-  .wmb-ap-backdrop { position: fixed; inset: 0; background: rgb(0 0 0 / 0.32); z-index: 1000; }
-  .wmb-ap {
-    position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 1001;
-    width: min(460px, 92vw); padding: 22px 22px 18px; border-radius: 16px; text-align: center;
-    background: var(--bg-elevated, var(--primary)); box-shadow: 0 24px 64px rgb(0 0 0 / 0.35);
-  }
-  h3 { margin: 6px 0 6px; font-size: 16px; }
-  .wmb-ap-sum { margin: 0 0 10px; font-size: 13px; color: var(--text-secondary, var(--gray)); }
-  .wmb-ap-items { list-style: none; margin: 0 0 10px; padding: 0; text-align: left; max-height: 200px; overflow: auto; border-radius: 10px; background: color-mix(in srgb, currentColor 5%, transparent); }
+  img { align-self: center; }
+  h3 { margin: 0; font-size: 16px; }
+  .wmb-ap-sum { margin: 0; font-size: 13px; color: var(--text-muted); }
+  .wmb-ap-items { list-style: none; margin: 0; padding: 0; text-align: left; max-height: 200px; overflow: auto; border-radius: 10px; background: color-mix(in srgb, currentColor 5%, transparent); }
   .wmb-ap-items li { display: flex; justify-content: space-between; gap: 8px; padding: 6px 10px; font-size: 12px; }
-  .wmb-ap-items li + li { border-top: 1px solid var(--separator, var(--button-elevated)); }
-  .wmb-ap-items .sz { color: var(--text-secondary, var(--gray)); font-variant-numeric: tabular-nums; }
+  .wmb-ap-items li + li { border-top: 1px solid var(--border); }
+  .wmb-ap-items .sz { color: var(--text-muted); font-variant-numeric: tabular-nums; }
   .wmb-ap-items .lbl { display: flex; flex-direction: column; min-width: 0; }
-  .wmb-ap-items small { color: var(--text-secondary, var(--gray)); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; direction: rtl; text-align: left; }
-  .wmb-ap-items .more { color: var(--text-secondary, var(--gray)); }
-  .wmb-ap-hint { margin: 0; font-size: 12px; color: var(--text-secondary, var(--gray)); }
-  .wmb-ap-err { color: #ff453a; font-size: 12px; }
-  .wmb-ap-row { display: flex; justify-content: center; gap: 10px; margin-top: 14px; }
+  .wmb-ap-items small { color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; direction: rtl; text-align: left; }
+  .wmb-ap-items .more { color: var(--text-muted); }
+  .wmb-ap-hint { margin: 0; font-size: 12px; color: var(--text-muted); }
 </style>

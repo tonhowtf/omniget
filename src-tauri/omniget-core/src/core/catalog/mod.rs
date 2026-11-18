@@ -1,6 +1,5 @@
 pub mod collections;
 pub mod fetch;
-pub mod frontmatter;
 pub mod index;
 pub mod marketplace;
 pub mod model;
@@ -51,7 +50,6 @@ pub const ERR_PARSE: &str = "CATALOG_PARSE";
 pub const ERR_NOT_FOUND: &str = "CATALOG_NOT_FOUND";
 pub const ERR_HASH: &str = "CATALOG_HASH_MISMATCH";
 pub const ERR_INVALID: &str = "CATALOG_INVALID";
-pub const ERR_DB: &str = "CATALOG_DB";
 pub const ERR_LIMIT: &str = "CATALOG_LIMIT";
 
 pub(crate) fn io_err(what: &str, e: impl std::fmt::Display) -> CatalogError {

@@ -3,7 +3,6 @@ use tauri::{AppHandle, Emitter};
 use omniget_core::core::assist::runs::{self};
 
 pub const EVENT_RUN: &str = "assist://run";
-pub const ERR_ASSIST_RUNS: &str = "ERR_ASSIST_RUNS";
 
 pub fn install(app: &AppHandle) {
     runs::enable();

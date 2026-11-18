@@ -19,10 +19,6 @@ pub fn is_scanning() -> bool {
     SCANNING.load(Ordering::SeqCst)
 }
 
-pub fn cancel() {
-    CANCEL.store(true, Ordering::SeqCst);
-}
-
 fn scan_lock() -> &'static tokio::sync::Mutex<()> {
     static L: std::sync::OnceLock<tokio::sync::Mutex<()>> = std::sync::OnceLock::new();
     L.get_or_init(|| tokio::sync::Mutex::new(()))

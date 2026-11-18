@@ -44,50 +44,60 @@
 
   async function load(tr: Track) {
     loading = true;
+    data = null;
+    searching = false;
     mode = "view";
     offset = 0;
     results = [];
     preview = null;
     qArtist = tr.artist;
     qTitle = tr.title;
+    let loaded: LyricsPayload | null = null;
     try {
-      data = await invoke<LyricsPayload>("music_lyrics_get", { id: tr.id });
-      if (data.source === "none") void search(true);
+      loaded = await invoke<LyricsPayload>("music_lyrics_get", { id: tr.id });
     } catch {
-      data = null;
-    } finally {
-      loading = false;
+      loaded = null;
     }
+    if (player.current?.id !== tr.id) return;
+    data = loaded;
+    loading = false;
+    if (loaded?.source === "none") void search(true);
   }
 
   async function search(auto = false) {
-    if (!track) return;
+    const tr = track;
+    if (!tr) return;
     searching = true;
     try {
-      results = await invoke<LrclibRecord[]>("music_lyrics_search", { id: track.id, artist: qArtist, title: qTitle });
+      const found = await invoke<LrclibRecord[]>("music_lyrics_search", { id: tr.id, artist: qArtist, title: qTitle });
+      if (player.current?.id !== tr.id) return;
+      results = found;
       if (!auto) mode = "search";
       else if (results.length) {
         const best = results[0];
         const exact =
           best.syncedLyrics &&
           best.duration != null &&
-          Math.abs(best.duration - track.duration_ms / 1000) <= 2 &&
-          best.trackName.toLowerCase() === track.title.toLowerCase();
+          Math.abs(best.duration - tr.duration_ms / 1000) <= 2 &&
+          best.trackName.toLowerCase() === tr.title.toLowerCase();
         if (exact) await apply(best);
         else mode = "search";
       }
     } catch (e) {
-      if (!auto) showToast("error", String(e));
+      if (!auto && player.current?.id === tr.id) showToast("error", String(e));
     } finally {
-      searching = false;
+      if (player.current?.id === tr.id) searching = false;
     }
   }
 
   async function saveText(text: string) {
-    if (!track) return;
+    const tr = track;
+    if (!tr) return;
     try {
-      data = await invoke<LyricsPayload>("music_lyrics_save", { id: track.id, text, target });
-      patchTracksLocal([track.id], { has_lyrics: text.trim().length > 0 });
+      const saved = await invoke<LyricsPayload>("music_lyrics_save", { id: tr.id, text, target });
+      patchTracksLocal([tr.id], { has_lyrics: text.trim().length > 0 });
+      if (player.current?.id !== tr.id) return;
+      data = saved;
       mode = "view";
       offset = 0;
       showToast("success", $t(`music.lyrics.saved_${data.source}`) as string);

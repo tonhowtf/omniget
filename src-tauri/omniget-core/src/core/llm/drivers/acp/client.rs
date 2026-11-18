@@ -177,6 +177,30 @@ impl OutputBuf {
     }
 }
 
+pub async fn read_tail(pipe: Option<impl tokio::io::AsyncRead + Unpin>, limit: usize) -> OutputBuf {
+    let mut out = OutputBuf::new(limit);
+    let Some(mut pipe) = pipe else {
+        return out;
+    };
+    let mut buf = vec![0u8; 8192];
+    loop {
+        match pipe.read(&mut buf).await {
+            Ok(0) | Err(_) => break,
+            Ok(n) => out.push(&String::from_utf8_lossy(&buf[..n])),
+        }
+    }
+    out
+}
+
+fn output_limit(params: &Value) -> usize {
+    params
+        .get("outputByteLimit")
+        .and_then(Value::as_u64)
+        .map(|n| n as usize)
+        .unwrap_or(DEFAULT_OUTPUT_LIMIT)
+        .clamp(1, DEFAULT_OUTPUT_LIMIT)
+}
+
 struct Term {
     output: Arc<StdMutex<OutputBuf>>,
     exit: watch::Receiver<Option<ExitStatus>>,
@@ -250,12 +274,7 @@ impl Terminals {
             Some(c) if !c.is_empty() => contained(&self.root, c)?,
             _ => self.root.clone(),
         };
-        let limit = params
-            .get("outputByteLimit")
-            .and_then(Value::as_u64)
-            .map(|n| n as usize)
-            .unwrap_or(DEFAULT_OUTPUT_LIMIT)
-            .max(1);
+        let limit = output_limit(params);
         let (program, argv) = argv(command, &args);
         let mut env = self.env.clone();
         env.extend(env_list(params));
@@ -424,4 +443,36 @@ fn signal_of(st: &std::process::ExitStatus) -> Option<String> {
 #[cfg(not(unix))]
 fn signal_of(_: &std::process::ExitStatus) -> Option<String> {
     None
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_agent_cannot_raise_the_output_limit() {
+        assert_eq!(
+            output_limit(&json!({ "outputByteLimit": u64::MAX })),
+            DEFAULT_OUTPUT_LIMIT
+        );
+        assert_eq!(output_limit(&json!({ "outputByteLimit": 10 })), 10);
+        assert_eq!(output_limit(&json!({ "outputByteLimit": 0 })), 1);
+        assert_eq!(output_limit(&json!({})), DEFAULT_OUTPUT_LIMIT);
+    }
+
+    #[tokio::test]
+    async fn read_tail_keeps_only_the_last_bytes() {
+        let data = [vec![b'a'; 100_000], vec![b'z'; 10]].concat();
+        let out = read_tail(Some(data.as_slice()), 64).await;
+        assert_eq!(out.text().len(), 64);
+        assert!(out.text().ends_with("zzzzzzzzzz"));
+        assert!(out.truncated());
+    }
+
+    #[tokio::test]
+    async fn read_tail_of_a_missing_pipe_is_empty() {
+        let out = read_tail(None::<&[u8]>, 64).await;
+        assert_eq!(out.text(), "");
+        assert!(!out.truncated());
+    }
 }

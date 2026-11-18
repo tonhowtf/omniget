@@ -134,10 +134,6 @@ impl McpClient {
         })
     }
 
-    pub fn id(&self) -> &str {
-        &self.id
-    }
-
     pub fn name(&self) -> &str {
         &self.name
     }

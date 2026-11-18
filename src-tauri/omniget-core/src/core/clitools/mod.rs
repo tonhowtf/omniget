@@ -1,7 +1,5 @@
 pub mod acp_registry;
-pub mod config_files;
 pub mod detect;
-pub mod doctor;
 pub mod exec;
 pub mod latest;
 pub mod owner;
@@ -9,14 +7,10 @@ pub mod plan;
 pub mod run;
 pub mod table;
 pub mod terminal;
-pub mod updates;
 
 use serde::Serialize;
 
 pub const ERR_NOT_FOUND: &str = "CLITOOLS_NOT_FOUND";
-pub const ERR_NOT_RUNNABLE: &str = "CLITOOLS_NOT_RUNNABLE";
-pub const ERR_BUSY: &str = "CLITOOLS_BUSY";
-pub const ERR_STALE: &str = "CLITOOLS_STALE";
 pub const ERR_FAILED: &str = "CLITOOLS_FAILED";
 pub const ERR_ACP: &str = "CLITOOLS_ACP";
 pub const ERR_UNVERIFIED: &str = "CLITOOLS_UNVERIFIED";
@@ -40,34 +34,4 @@ pub fn list() -> Vec<ToolRow> {
             last_run: run::last_run(&t.id),
         })
         .collect()
-}
-
-pub fn tool(id: &str) -> Result<&'static table::CliTool, String> {
-    table::get(id).ok_or_else(|| format!("{ERR_NOT_FOUND}: tool {id}"))
-}
-
-pub async fn plans(id: &str, action: plan::Action) -> Result<Vec<plan::Plan>, String> {
-    let t = tool(id)?;
-    match action {
-        plan::Action::Install => {
-            let probes = owner::Probes::default();
-            Ok(plan::install_plans(t, &probes).await)
-        }
-        plan::Action::Update => {
-            let det = detect::detect_one(t).await;
-            Ok(vec![plan::update_plan(t, &det)])
-        }
-    }
-}
-
-pub async fn latest(id: &str, force: bool) -> Result<latest::Latest, String> {
-    let t = tool(id)?;
-    let det = match detect::cached_one(id) {
-        Some(d) if !force => d,
-        _ => detect::detect_one(t).await,
-    };
-    let brew = (det.owner.method == owner::OwnerMethod::Brew && det.owner.proven)
-        .then(|| t.brew.as_ref().map(|b| (b.name.clone(), b.cask)))
-        .flatten();
-    Ok(latest::for_tool(t, det.version.clone(), brew, force).await)
 }

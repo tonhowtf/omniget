@@ -9,6 +9,7 @@
   import { translateBackendError } from "$lib/error-translate";
   import NavIcon from "$components/shell/NavIcon.svelte";
   import ConnectorMarket from "$components/global/ConnectorMarket.svelte";
+  import ConnectorHint from "$components/home/ConnectorHint.svelte";
   import { authProblem, type MarketEntry, type UrlLookup } from "$lib/global/connector-market";
 
   type Tab = { id: string; url: string; title: string };
@@ -71,6 +72,7 @@
   let handledParam = "";
 
   let marketKey = $state(0);
+  let focusHelper = $derived(page.url.searchParams.get("helper") ?? "");
 
   let visibleSniffed = $derived(sniffTab ? sniffed.filter((s) => s.tab_id === sniffTab) : sniffed);
   let windowVisible = $derived(browserOpen && browserMode === "window");
@@ -118,7 +120,8 @@
     resolved = r;
     resolvedUrl = url;
     selected = new Set(leafIds(r.tree));
-    collapsed = new Set();
+    const top = (r.tree.children ?? []).filter((c) => c.children?.length);
+    collapsed = new Set(top.length > 1 && leafIds(r.tree).length > 40 ? top.map((c) => c.id) : []);
     showLogs = false;
   }
 
@@ -212,10 +215,23 @@
   }
 
   async function openFromMarket(entry: MarketEntry) {
-    if (entry.login?.url) {
-      await openLogin(entry.login.url);
+    const login = entry.login?.url;
+    if (login && (await listsFrom(entry.id, login))) {
+      urlInput = login;
+      await find();
+    } else if (login) {
+      await openLogin(login);
     } else {
       urlField?.focus();
+    }
+  }
+
+  async function listsFrom(id: string, url: string): Promise<boolean> {
+    try {
+      const hit = await invoke<UrlLookup>("gd_connector_for_url", { url });
+      return hit.installed?.id === id;
+    } catch {
+      return false;
     }
   }
 
@@ -450,6 +466,7 @@
     handledParam = param;
     untrack(() => {
       urlInput = param;
+      marketKey++;
       find();
     });
   });
@@ -507,6 +524,11 @@
         <span class="node-title">{nodeTitle(n)}</span>
       </label>
       {#if n.drm}<span class="badge badge-warn" title={$t("global_dl.drm_tooltip")}>{$t("global_dl.drm")}</span>{/if}
+      {#if folder && depth === 0 && resolved && leafIds(n).length}
+        <button class="btn btn-secondary btn-sm" onclick={() => startJob(resolved!.tree, leafIds(n), outDir, maxHeight)} disabled={busy === "download"}>
+          {$t("global_dl.download")}
+        </button>
+      {/if}
       {#if n.source?.format === "ytdlp"}
         <span class="note">{$t("global_dl.note_handoff")}</span>
       {:else if n.note}
@@ -587,6 +609,10 @@
       <p class="hint">{$t("global_dl.no_browser_hint")}</p>
     {/if}
   </form>
+
+  {#if !resolved && busy !== "find"}
+    <ConnectorHint url={urlInput} offerOnly />
+  {/if}
 
   {#if loginOpen}
     <section class="card callout" aria-live="polite">
@@ -798,7 +824,7 @@
   {/if}
 
   {#key marketKey}
-    <ConnectorMarket onOpen={openFromMarket} />
+    <ConnectorMarket onOpen={openFromMarket} focusId={focusHelper} />
   {/key}
 
   <details class="advanced card">

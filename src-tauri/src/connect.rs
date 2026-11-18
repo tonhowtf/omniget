@@ -214,7 +214,7 @@ pub fn instructions_for(port: u16, id: &str, name: &str) -> String {
 OmniGet is open on this computer. Connecting gives {name} OmniGet's MCP tools: downloads,
 the person's AI agents as background jobs, missions and companies of agents, and, when the
 person ticks it, the Global Downloader (its browser, site connectors and whole-site downloads).
-OmniGet connects you by itself, unless the person turned on asking first. Any access token goes from OmniGet straight into {name}'s
+The person allows the connection in the OmniGet window. Any access token goes from OmniGet straight into {name}'s
 own config file and never through this chat, so do not look for it.
 
 1. Ask for access. Run this from the folder the person is working in (their agents may work there):
@@ -334,18 +334,10 @@ fn request(
         req
     };
     changed().notify_waiters();
-    let ask_first = crate::mcp::access::get().ask_first;
-    if ask_first {
-        let _ = app.emit("connect-request", &req);
-        crate::tray::show_window(app);
-        if let Some(w) = app.get_webview_window("main") {
-            let _ = w.request_user_attention(Some(tauri::UserAttentionType::Critical));
-        }
-    } else {
-        let (a, id) = (app.clone(), req.id.clone());
-        tauri::async_runtime::spawn(async move {
-            let _ = connect_answer(a, id, true, true, true, Some(true)).await;
-        });
+    let _ = app.emit("connect-request", &req);
+    crate::tray::show_window(app);
+    if let Some(w) = app.get_webview_window("main") {
+        let _ = w.request_user_attention(Some(tauri::UserAttentionType::Critical));
     }
     let port = port(app);
     (
@@ -357,7 +349,7 @@ fn request(
             "client": req.client,
             "workspace": req.workspace,
             "wait_url": format!("http://127.0.0.1:{port}/v1/connect/{}?wait={MAX_WAIT_S}", req.id),
-            "message": if ask_first { format!("Tell the person to click Allow in the OmniGet window, which shows the code {}. Then poll wait_url while status is pending.", req.code) } else { "Connecting now. Poll wait_url until status is approved.".to_string() },
+            "message": format!("Tell the person to click Allow in the OmniGet window, which shows the code {}. Then poll wait_url while status is pending.", req.code),
         })),
     )
         .into_response()

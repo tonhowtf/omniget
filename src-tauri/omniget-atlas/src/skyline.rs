@@ -31,10 +31,6 @@ impl Skyline {
         self.width
     }
 
-    pub fn height(&self) -> u32 {
-        self.height
-    }
-
     pub fn used_area(&self) -> u64 {
         self.used
     }

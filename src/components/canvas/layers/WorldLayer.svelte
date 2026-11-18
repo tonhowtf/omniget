@@ -4,7 +4,7 @@
   import { useEngine } from "$lib/canvas/engine.svelte";
   import { isTerminalKind, type CanvasNode } from "$lib/canvas/model/types";
   import { nodeKind } from "$lib/canvas/nodes/registry";
-  import { agentStates, stateCss } from "$lib/canvas/state/agents.svelte";
+  import { agentStates, stateVar } from "$lib/canvas/state/agents.svelte";
   import Icon from "../chrome/Icon.svelte";
   import BlurCover from "../chrome/BlurCover.svelte";
   import DrawingTexts from "./DrawingTexts.svelte";
@@ -158,7 +158,7 @@
       {#if !bare}
         <div class="header" data-node-header>
           {#if isTerminalKind(node.kind)}
-            <span class="dot" style:background={stateCss(agentStates.stateOf(node))}></span>
+            <span class="dot" style:background={stateVar(agentStates.stateOf(node))}></span>
           {:else if def}
             <span class="icon"><Icon d={def.icon} size={14} /></span>
           {/if}
@@ -222,7 +222,7 @@
         ondblclick={() => (item.lifted ? panels.lift(null) : panels.dock(node.id, "none"))}
       >
         {#if own}
-          <span class="dot" style:background={stateCss(agentStates.stateOf(node))}></span>
+          <span class="dot" style:background={stateVar(agentStates.stateOf(node))}></span>
         {:else if def}
           <span class="icon"><Icon d={def.icon} size={14} /></span>
         {/if}

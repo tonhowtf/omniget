@@ -5,12 +5,12 @@ use serde_json::{json, Value};
 
 use super::super::model::Platform;
 use super::super::page as web;
-use super::super::x;
+use super::super::shortpost;
 use super::rules;
 
 const UPLOAD: &str = "https://upload.x.com/i/media/upload.json";
 const SEGMENT: usize = 1024 * 1024;
-const P: Platform = Platform::X;
+const P: Platform = Platform::ShortPost;
 
 pub fn init_url(bytes: usize, mime: &str) -> String {
     format!(
@@ -37,7 +37,9 @@ pub fn media_id(v: &Value) -> Result<String, String> {
         .map(String::from)
         .or_else(|| v["media_id"].as_u64().map(|n| n.to_string()))
         .filter(|s| !s.is_empty() && s.bytes().all(|b| b.is_ascii_digit()))
-        .ok_or_else(|| "UPSTREAM_CHANGED: X did not return a media id for the upload".to_string())
+        .ok_or_else(|| {
+            "UPSTREAM_CHANGED: Short Posts did not return a media id for the upload".to_string()
+        })
 }
 
 #[derive(Debug, PartialEq)]
@@ -54,7 +56,7 @@ pub fn processing(v: &Value) -> Result<Processing, String> {
             info["check_after_secs"].as_u64().unwrap_or(1).clamp(1, 10),
         )),
         Some("failed") => Err(format!(
-            "REJECTED: X could not process the image: {}",
+            "REJECTED: Short Posts could not process the image: {}",
             info["error"]["message"]
                 .as_str()
                 .unwrap_or("no reason given")
@@ -71,17 +73,19 @@ pub fn reply(v: &Value) -> Result<Value, String> {
     match status {
         200..=299 if body.trim().is_empty() => Ok(Value::Null),
         200..=299 => serde_json::from_str(body).map_err(|_| {
-            "UPSTREAM_CHANGED: the X upload answered something that is not JSON".to_string()
+            "UPSTREAM_CHANGED: the Short Posts upload answered something that is not JSON"
+                .to_string()
         }),
-        401 | 403 => {
-            Err("NOT_LOGGED_IN: X rejected the session for the upload; sign in again".into())
-        }
-        429 => {
-            Err("RATE_LIMITED: X is limiting uploads from this account; wait a few minutes".into())
-        }
-        0 => Err("NETWORK: could not reach the X upload server".into()),
+        401 | 403 => Err(
+            "NOT_LOGGED_IN: Short Posts rejected the session for the upload; sign in again".into(),
+        ),
+        429 => Err(
+            "RATE_LIMITED: Short Posts is limiting uploads from this account; wait a few minutes"
+                .into(),
+        ),
+        0 => Err("NETWORK: could not reach the Short Posts upload server".into()),
         _ => Err(format!(
-            "UPSTREAM_{status}: the X upload answered {status}: {}",
+            "UPSTREAM_{status}: the Short Posts upload answered {status}: {}",
             body.chars().take(200).collect::<String>().trim()
         )),
     }
@@ -119,7 +123,7 @@ pub async fn upload(path: &str) -> Result<String, String> {
         .await
         .map_err(|_| format!("MEDIA_NOT_FOUND: {path} is no longer on this computer"))?;
     let mime = rules::image_type(path, bytes.len() as u64).map_err(|r| r.wire())?;
-    let mut headers = x::base_headers().await?;
+    let mut headers = shortpost::base_headers().await?;
     headers.remove("content-type");
     let headers = Value::Object(headers);
     let id = media_id(&request("POST", &init_url(bytes.len(), mime), &headers, None).await?)?;
@@ -135,7 +139,7 @@ pub async fn upload(path: &str) -> Result<String, String> {
         tokio::time::sleep(Duration::from_secs(secs)).await;
         state = processing(&request("GET", &status_url(&id), &headers, None).await?)?;
     }
-    Err("UPSTREAM_CHANGED: X did not finish processing the image".into())
+    Err("UPSTREAM_CHANGED: Short Posts did not finish processing the image".into())
 }
 
 #[cfg(test)]

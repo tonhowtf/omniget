@@ -216,18 +216,6 @@ pub fn truncate_chars(s: &str, max: usize) -> String {
     }
 }
 
-pub fn fold(s: &str) -> String {
-    let stripped: String = s
-        .nfd()
-        .filter(|c| !('\u{0300}'..='\u{036F}').contains(c))
-        .collect::<String>()
-        .to_lowercase();
-    RE_SPACES
-        .replace_all(&stripped.replace(['\n', '\r'], " "), " ")
-        .trim()
-        .to_string()
-}
-
 pub fn suspicious(text: &str) -> Vec<(String, String)> {
     let mut out = Vec::new();
     for (kind, re) in INJECTION_PATTERNS.iter() {
@@ -245,5 +233,3 @@ pub fn neutralise(s: &str) -> String {
 pub fn wrap_untrusted(text: &str) -> String {
     format!("{OPEN_MARK}\n{}\n{CLOSE_MARK}", neutralise(text))
 }
-
-pub const REDACTED: &str = "[trecho omitido: pode revelar a leitura adiante]";

@@ -72,10 +72,6 @@ impl ToolEntry {
         }
     }
 
-    pub fn needs_host(&self) -> bool {
-        matches!(self.call, ToolImpl::Host)
-    }
-
     pub fn available(&self) -> bool {
         (self.platforms.is_empty()
             || self

@@ -67,22 +67,6 @@ impl Rules {
     }
 }
 
-pub fn should_record(pos_ms: u64, dur_ms: u64) -> bool {
-    Rules::default().should_record(pos_ms, dur_ms)
-}
-
-pub fn is_watched(pos_ms: u64, dur_ms: u64) -> bool {
-    Rules::default().is_watched(pos_ms, dur_ms)
-}
-
-pub fn resume_point(pos_ms: u64, dur_ms: u64) -> Option<u64> {
-    Rules::default().resume_point(pos_ms, dur_ms)
-}
-
-pub fn lesson_complete(ratio: f64) -> bool {
-    Rules::default().lesson_complete(ratio)
-}
-
 pub const SEEN_MAX_SECONDS: u64 = 200_000;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -92,10 +76,6 @@ pub struct SeenBits {
 }
 
 impl SeenBits {
-    pub fn new() -> Self {
-        Self::default()
-    }
-
     pub fn from_bytes(mut bytes: Vec<u8>) -> Self {
         bytes.truncate((SEEN_MAX_SECONDS as usize).div_ceil(8));
         SeenBits { bits: bytes }
@@ -103,10 +83,6 @@ impl SeenBits {
 
     pub fn as_bytes(&self) -> &[u8] {
         &self.bits
-    }
-
-    pub fn into_bytes(self) -> Vec<u8> {
-        self.bits
     }
 
     pub fn mark(&mut self, from_s: u64, to_s: u64) {
@@ -127,10 +103,6 @@ impl SeenBits {
         self.bits
             .get((s / 8) as usize)
             .is_some_and(|b| b & (1 << (s % 8)) != 0)
-    }
-
-    pub fn count(&self) -> u64 {
-        self.bits.iter().map(|b| b.count_ones() as u64).sum()
     }
 
     pub fn ratio(&self, dur_s: u64) -> f64 {

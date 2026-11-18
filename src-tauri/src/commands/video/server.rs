@@ -82,10 +82,6 @@ pub async fn ensure(_app: &AppHandle) -> Result<ServerInfo, String> {
         .cloned()
 }
 
-pub fn info() -> Option<ServerInfo> {
-    SERVER.get().cloned()
-}
-
 pub fn base(info: &ServerInfo) -> String {
     format!("http://127.0.0.1:{}", info.port)
 }

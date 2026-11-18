@@ -35,6 +35,7 @@ import {
   mergeBlocklists,
   isUrlHostBlocked,
 } from "./blocked-hosts.js";
+import { isStoreExcludedUrl } from "./store-policy.js";
 
 let activeBlocklist = mergeBlocklists(DEFAULT_BLOCKED_HOSTS, []);
 
@@ -123,7 +124,7 @@ export function getMediaCountForPage(pageKey) {
 }
 
 function isBlockedHost(url) {
-  return isUrlHostBlocked(url, activeBlocklist);
+  return isStoreExcludedUrl(url) || isUrlHostBlocked(url, activeBlocklist);
 }
 
 function isBlockedPath(url) {

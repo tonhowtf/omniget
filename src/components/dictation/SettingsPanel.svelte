@@ -53,7 +53,7 @@
   let percent = $derived(modelProgress ? Math.round(modelProgress.fraction * 100) : 0);
 
   function limitLabel(s: number): string {
-    return s < 60 ? ($t("dictation.limit_seconds", { n: s }) as string) : ($t("dictation.limit_minutes", { n: s / 60 }) as string);
+    return s < 60 ? ($t("dictation.limit_seconds", { num: s }) as string) : ($t("dictation.limit_minutes", { num: s / 60 }) as string);
   }
 
   function value(e: Event): string {

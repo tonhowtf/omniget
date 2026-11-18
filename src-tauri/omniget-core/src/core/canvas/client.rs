@@ -423,7 +423,7 @@ pub const HELP: &str = "Usage: omniget canvas <command> [--json]
   recall [--turns N]                     the chat thread so far
   note create|read|write|edit|stack|unstack|delete ...
   portal <verb> ...                      drive a connected browser portal
-  recruit|connect|dismiss|notify ...     Maestro only (--name, --agent, --from, --to)
+  recruit|connect|dismiss|notify ...     Lead only (--name, --agent, --from, --to)
   floor|routine|role|partitura <verb>    e.g. routine create --every 30m --prompt ...
   debug                                  transport, node and token check
 
@@ -514,8 +514,8 @@ pub fn run_cli(args: &[String]) -> i32 {
         "debug" => debug(Some(&conn), &a, None),
         "recruit" | "dismiss" | "connect" | "disconnect" | "notify" | "preset" => {
             let method = match (cmd, a.pos.first().map(String::as_str)) {
-                ("preset", Some(v)) => format!("maestro.preset_{v}"),
-                _ => format!("maestro.{cmd}"),
+                ("preset", Some(v)) => format!("lead.preset_{v}"),
+                _ => format!("lead.{cmd}"),
             };
             let rest = if cmd == "preset" {
                 &a.pos[a.pos.len().min(1)..]
@@ -773,18 +773,18 @@ fn wants_help(args: &[String]) -> bool {
 
 fn method_of(cmd: &str, verb: &str) -> String {
     match (cmd, verb) {
-        ("workspace", "create") => "maestro.workspace.create".into(),
+        ("workspace", "create") => "lead.workspace.create".into(),
         (c, v) => format!("{c}.{v}"),
     }
 }
 
 fn positional_names(method: &str) -> &'static [&'static str] {
     match method {
-        "maestro.recruit" | "maestro.dismiss" => &["name"],
-        "maestro.connect" | "maestro.disconnect" => &["from", "to"],
-        "maestro.swap_role" => &["name", "role"],
-        "maestro.swap_agent" => &["name", "agent"],
-        "maestro.workspace.create" => &["name"],
+        "lead.recruit" | "lead.dismiss" => &["name"],
+        "lead.connect" | "lead.disconnect" => &["from", "to"],
+        "lead.swap_role" => &["name", "role"],
+        "lead.swap_agent" => &["name", "agent"],
+        "lead.workspace.create" => &["name"],
         "role.get" | "role.show" | "role.delete" => &["name"],
         "role.create" | "role.write" => &["name", "prompt"],
         "role.edit" => &["name", "old", "new"],
@@ -804,7 +804,7 @@ fn forward_args(method: &str, pos: &[String], a: &Args) -> Value {
     let Some(m) = v.as_object_mut() else {
         return v;
     };
-    if method == "maestro.notify" {
+    if method == "lead.notify" {
         if !m.contains_key("message") && !pos.is_empty() {
             m.insert("message".into(), json!(pos.join(" ")));
         }
@@ -838,11 +838,11 @@ fn command_help(cmd: &str, verb: Option<&str>) -> String {
         ("recall", _) => "omniget canvas recall [thread] [--turns N | --last day|week|month | --from DATE [--to DATE] | --all] [--json]\n  The chat thread so far.",
         ("note", _) => "omniget canvas note create [\"text\"] [--name \"Name\"] [--stack [\"Fichario\"]]\nomniget canvas note read \"Note\" [offset] [limit]\nomniget canvas note write \"Note\" \"text\"\nomniget canvas note edit \"Note\" \"old\" \"new\"\nomniget canvas note stack \"Note\" [\"Fichario\"] | unstack \"Note\" | delete \"Note\"",
         ("portal", _) => "omniget canvas portal <verb> \"Portal\" [args]\n  verbs: list, create URL [Name] [--size WxH], snapshot, click @eN|x,y, fill @eN text, type text, key K, scroll [@eN] [up|down|top|bottom|PX], hover @eN, select @eN value, check @eN, uncheck @eN, text [@eN], html [@eN], evaluate JS, logs-start, logs, screenshot, navigate URL|back|forward|reload, wait @eN|MS|text, resize W H, ua [UA], upload [@eN] FILE...\n  upload puts files into the page: target the file input, the button that opens one, or a drop zone\n  (without @eN, the page's only file input). Never click a file input to upload: that opens a picker you cannot fill.\n  Relative paths are read from your folder; at most 50 MB in all.\n  The portal name can be left out when only one portal is connected to you",
-        ("recruit", _) => "omniget canvas recruit \"Name\" [--agent claude|codex|gemini|opencode|ollama|shell|<preset>] [--role Role] [--command CMD] [--dir PATH] [--floor Floor] [--workspace Workspace] [--replace \"Old\"]\n  Maestro only. Creates a connected teammate under you; --role applies a role (id or name) at spawn;\n  --replace swaps an existing teammate keeping its cords and position.\n  Example: omniget canvas recruit \"Rev\" --agent claude --role reviewer",
-        ("dismiss", _) => "omniget canvas dismiss \"Name\"\n  Maestro only. Stops a teammate and removes its node.",
-        ("connect", _) | ("disconnect", _) => "omniget canvas connect|disconnect \"From\" \"To\"\n  Maestro only, inside your team tree.",
-        ("notify", _) => "omniget canvas notify \"message\"\n  Maestro only. A system notification (up to 500 characters).",
-        ("role", Some("assign")) => "omniget canvas role assign \"Agent\" \"Role\" | --none\n  Maestro only. Role by id or name (case-insensitive); the agent restarts with it, cords and position stay.",
+        ("recruit", _) => "omniget canvas recruit \"Name\" [--agent claude|codex|gemini|opencode|ollama|shell|<preset>] [--role Role] [--command CMD] [--dir PATH] [--floor Floor] [--workspace Workspace] [--replace \"Old\"]\n  Lead only. Creates a connected teammate under you; --role applies a role (id or name) at spawn;\n  --replace swaps an existing teammate keeping its cords and position.\n  Example: omniget canvas recruit \"Rev\" --agent claude --role reviewer",
+        ("dismiss", _) => "omniget canvas dismiss \"Name\"\n  Lead only. Stops a teammate and removes its node.",
+        ("connect", _) | ("disconnect", _) => "omniget canvas connect|disconnect \"From\" \"To\"\n  Lead only, inside your team tree.",
+        ("notify", _) => "omniget canvas notify \"message\"\n  Lead only. A system notification (up to 500 characters).",
+        ("role", Some("assign")) => "omniget canvas role assign \"Agent\" \"Role\" | --none\n  Lead only. Role by id or name (case-insensitive); the agent restarts with it, cords and position stay.",
         ("role", Some("create")) => "omniget canvas role create \"Name\" \"Prompt\" [--scope current|global] [--icon I] [--color #RRGGBB] [--agent A]",
         ("role", Some("edit")) => "omniget canvas role edit \"Name\" \"old text\" \"new text\"",
         ("role", Some("write")) => "omniget canvas role write \"Name\" \"Prompt\"",
@@ -850,9 +850,9 @@ fn command_help(cmd: &str, verb: Option<&str>) -> String {
         ("role", _) => "omniget canvas role list | show \"Name\" | create \"Name\" \"Prompt\" [--scope current|global] | write \"Name\" \"Prompt\" | edit \"Name\" \"old\" \"new\" | assign \"Agent\" \"Role\"|--none | delete \"Name\" [--force]",
         ("routine", _) => "omniget canvas routine list | show \"Name\" | create \"Name\" --prompt P [--target \"Agent\"] [--every 30m | --daily 09:00 | --at RFC3339] [--pre-run CMD] | edit \"Name\" ... | enable|disable|run|delete \"Name\"",
         ("floor", _) => "omniget canvas floor list | create \"Name\" [--branch B] [--existing-branch] [--no-git] [--copy-ground] | land \"Name\" [--into B] [--delete-branch] [--keep-floor] | delete \"Name\" [--keep-branch] [--force] | run \"Name\"",
-        ("workspace", _) => "omniget canvas workspace create \"Name\" --dir PATH [--from Origin] [--group G] [--folder F]\n  Maestro only.",
+        ("workspace", _) => "omniget canvas workspace create \"Name\" --dir PATH [--from Origin] [--group G] [--folder F]\n  Lead only.",
         ("partitura", _) => "omniget canvas partitura list [query] | stamp \"Name\"",
-        ("env", _) => "omniget canvas env get | test | providers | set docker:NAME|ssh:HOST|local|workspace [--dir D] [--terminal \"Name\"|self]\n  Where your workspace's terminals run. set is Maestro only; --terminal sets one terminal's override (it restarts).",
+        ("env", _) => "omniget canvas env get | test | providers | set docker:NAME|ssh:HOST|local|workspace [--dir D] [--terminal \"Name\"|self]\n  Where your workspace's terminals run. set is Lead only; --terminal sets one terminal's override (it restarts).",
         ("debug", _) => "omniget canvas debug\n  Transport, node id, token and whether the app answers.",
         _ => return HELP.to_string(),
     };

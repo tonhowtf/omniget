@@ -240,15 +240,15 @@ where
             "feeds": feeds,
             "settings": self.settings(c, p),
             "limits": { "text": self.limit, "thread_parts": rules::MAX_PARTS, "images": rules::MAX_MEDIA },
-            "supported": p == Platform::X,
+            "supported": p == Platform::ShortPost,
             "now": self.iso(self.now_ms()),
             "publishing": OPEN_ONLY,
         });
         if total == 0 {
-            out["empty_reason"] = json!(if p == Platform::X {
+            out["empty_reason"] = json!(if p == Platform::ShortPost {
                 "nothing matches this filter; add a post with social_schedule op=add or op=draft"
             } else {
-                "scheduling is built for X only; see docs/social/schedule.md for what is missing on this network"
+                "scheduling is built for Short Posts only; see docs/social/schedule.md for what is missing on this network"
             });
         }
         Ok(out)
@@ -857,7 +857,7 @@ mod tests {
     use crate::commands::social::store;
     use chrono::{FixedOffset, NaiveDateTime};
 
-    const X: Platform = Platform::X;
+    const NET: Platform = Platform::ShortPost;
 
     fn ctx_at(when: &str) -> Ctx<FixedOffset> {
         let tz = FixedOffset::west_opt(3 * 3600).unwrap();
@@ -894,7 +894,7 @@ mod tests {
     fn schedule_tool_end_to_end() {
         let mut c = store::memory(db::SCHEMA);
         let cx = ctx();
-        let empty = cx.list(&c, X, &json!({})).unwrap();
+        let empty = cx.list(&c, NET, &json!({})).unwrap();
         assert_eq!(
             (empty["total"].as_u64(), empty["truncated"].as_bool()),
             (Some(0), Some(false))
@@ -909,7 +909,7 @@ mod tests {
             code(
                 cx.write(
                     &mut c,
-                    X,
+                    NET,
                     &json!({ "op": "add", "text": "a", "slot": "next" })
                 )
                 .unwrap_err()
@@ -917,7 +917,7 @@ mod tests {
             "NO_SLOTS"
         );
         let slots = cx
-            .write(&mut c, X, &json!({ "op": "set_slots", "slots": [{ "weekday": "wed", "time": "18:00" }, { "weekday": "thu", "time": "09:00" }], "grace_minutes": 30 }))
+            .write(&mut c, NET, &json!({ "op": "set_slots", "slots": [{ "weekday": "wed", "time": "18:00" }, { "weekday": "thu", "time": "09:00" }], "grace_minutes": 30 }))
             .unwrap();
         assert_eq!(slots["next_slot"], "2026-11-11T18:00:00-03:00");
         assert_eq!(slots["settings"]["grace_minutes"], 30);
@@ -925,7 +925,7 @@ mod tests {
         let a = cx
             .write(
                 &mut c,
-                X,
+                NET,
                 &json!({ "op": "add", "text": "first", "slot": "next" }),
             )
             .unwrap();
@@ -941,7 +941,7 @@ mod tests {
         let b = cx
             .write(
                 &mut c,
-                X,
+                NET,
                 &json!({ "op": "add", "text": "one", "thread": ["two"], "slot": "next" }),
             )
             .unwrap();
@@ -950,27 +950,27 @@ mod tests {
             (Some("2026-11-12T09:00:00-03:00"), Some("thread"))
         );
         let r = cx
-            .write(&mut c, X, &json!({ "op": "add", "repost": "https://x.com/a/status/42", "at": "2026-11-11T12:00:00-03:00" }))
+            .write(&mut c, NET, &json!({ "op": "add", "repost": "https://x.com/a/status/42", "at": "2026-11-11T12:00:00-03:00" }))
             .unwrap();
         assert_eq!(
             (r["item"]["kind"].as_str(), r["item"]["repost"].as_str()),
             (Some("repost"), Some("42"))
         );
 
-        let listed = cx.list(&c, X, &json!({ "status": "scheduled" })).unwrap();
+        let listed = cx.list(&c, NET, &json!({ "status": "scheduled" })).unwrap();
         assert_eq!(ids(&listed), vec![3, 1, 2]);
         assert_eq!(listed["next_slot"], "2026-11-18T18:00:00-03:00");
         assert_eq!(listed["counts"]["scheduled"], 3);
         let ranged = cx
             .list(
                 &c,
-                X,
+                NET,
                 &json!({ "from": "2026-11-12T00:00:00-03:00", "to": "2026-11-13T00:00:00-03:00" }),
             )
             .unwrap();
         assert_eq!(ids(&ranged), vec![2]);
         let page = cx
-            .list(&c, X, &json!({ "limit": 1, "order": "desc" }))
+            .list(&c, NET, &json!({ "limit": 1, "order": "desc" }))
             .unwrap();
         assert_eq!(
             (
@@ -982,26 +982,26 @@ mod tests {
         );
 
         let moved = cx
-            .write(&mut c, X, &json!({ "op": "update", "id": 1, "text": "first, edited", "at": "2026-11-13T08:00:00-03:00" }))
+            .write(&mut c, NET, &json!({ "op": "update", "id": 1, "text": "first, edited", "at": "2026-11-13T08:00:00-03:00" }))
             .unwrap();
         assert_eq!(
             (moved["item"]["text"].as_str(), moved["item"]["at"].as_str()),
             (Some("first, edited"), Some("2026-11-13T08:00:00-03:00"))
         );
         let gone = cx
-            .write(&mut c, X, &json!({ "op": "cancel", "id": 3 }))
+            .write(&mut c, NET, &json!({ "op": "cancel", "id": 3 }))
             .unwrap();
         assert_eq!(gone["item"]["status"], "cancelled");
         assert_eq!(
             code(
-                cx.write(&mut c, X, &json!({ "op": "cancel", "id": 3 }))
+                cx.write(&mut c, NET, &json!({ "op": "cancel", "id": 3 }))
                     .unwrap_err()
             ),
             "NOT_EDITABLE"
         );
         assert_eq!(
             code(
-                cx.write(&mut c, X, &json!({ "op": "cancel", "id": 99 }))
+                cx.write(&mut c, NET, &json!({ "op": "cancel", "id": 99 }))
                     .unwrap_err()
             ),
             "NOT_FOUND"
@@ -1010,21 +1010,21 @@ mod tests {
             code(
                 cx.write(
                     &mut c,
-                    Platform::Instagram,
+                    Platform::PhotoFeed,
                     &json!({ "op": "cancel", "id": 1 })
                 )
                 .unwrap_err()
             ),
             "NOT_FOUND"
         );
-        assert_eq!(ids(&cx.list(&c, X, &json!({})).unwrap()), vec![2, 1]);
+        assert_eq!(ids(&cx.list(&c, NET, &json!({})).unwrap()), vec![2, 1]);
     }
 
     #[test]
     fn rejects_bad_schedules() {
         let mut c = store::memory(db::SCHEMA);
         let cx = ctx();
-        let mut add = |a: Value| cx.write(&mut c, X, &a).map_err(code);
+        let mut add = |a: Value| cx.write(&mut c, NET, &a).map_err(code);
         assert_eq!(
             add(json!({ "op": "add", "text": "a" })).unwrap_err(),
             "TIME_REQUIRED"
@@ -1089,7 +1089,7 @@ mod tests {
         assert!(cx
             .write(
                 &mut c,
-                X,
+                NET,
                 &json!({ "op": "add", "text": long, "at": "2026-11-12T09:00:00Z" })
             )
             .is_ok());
@@ -1102,7 +1102,7 @@ mod tests {
         let d = cx
             .write(
                 &mut c,
-                X,
+                NET,
                 &json!({ "op": "draft", "text": "one", "thread": ["two", "three"] }),
             )
             .unwrap();
@@ -1112,7 +1112,7 @@ mod tests {
         );
         assert!(db::next_due(&c).unwrap().is_none());
         let s = cx
-            .write(&mut c, X, &json!({ "op": "send_now", "id": 1 }))
+            .write(&mut c, NET, &json!({ "op": "send_now", "id": 1 }))
             .unwrap();
         assert_eq!(
             (s["queued"].as_bool(), s["item"]["status"].as_str()),
@@ -1124,7 +1124,7 @@ mod tests {
         assert!(!db::claim(&c, 1, cx.now_ms()).unwrap());
         assert_eq!(
             code(
-                cx.write(&mut c, X, &json!({ "op": "cancel", "id": 1 }))
+                cx.write(&mut c, NET, &json!({ "op": "cancel", "id": 1 }))
                     .unwrap_err()
             ),
             "NOT_EDITABLE"
@@ -1134,7 +1134,7 @@ mod tests {
             record(&c, 1, &parts, Some("REJECTED: nope"), cx.now_ms()).unwrap(),
             "failed"
         );
-        let failed = cx.list(&c, X, &json!({ "id": 1 })).unwrap()["items"][0].clone();
+        let failed = cx.list(&c, NET, &json!({ "id": 1 })).unwrap()["items"][0].clone();
         assert_eq!(
             (
                 failed["status"].as_str(),
@@ -1148,14 +1148,14 @@ mod tests {
             code(
                 cx.write(
                     &mut c,
-                    X,
+                    NET,
                     &json!({ "op": "update", "id": 1, "text": "changed" })
                 )
                 .unwrap_err()
             ),
             "PARTIALLY_SENT"
         );
-        cx.write(&mut c, X, &json!({ "op": "send_now", "id": 1 }))
+        cx.write(&mut c, NET, &json!({ "op": "send_now", "id": 1 }))
             .unwrap();
         let again = db::next_due(&c).unwrap().unwrap();
         assert_eq!(
@@ -1169,7 +1169,7 @@ mod tests {
             json!({ "id": "102", "url": "u" }),
         ];
         assert_eq!(record(&c, 1, &all, None, cx.now_ms()).unwrap(), "sent");
-        let sent = cx.list(&c, X, &json!({ "status": ["sent"] })).unwrap()["items"][0].clone();
+        let sent = cx.list(&c, NET, &json!({ "status": ["sent"] })).unwrap()["items"][0].clone();
         assert_eq!(
             (
                 sent["post_id"].as_str(),
@@ -1186,7 +1186,7 @@ mod tests {
         let cx = ctx();
         cx.write(
             &mut c,
-            X,
+            NET,
             &json!({ "op": "add", "text": "a", "at": "2026-11-11T10:01:00-03:00" }),
         )
         .unwrap();
@@ -1204,7 +1204,7 @@ mod tests {
         let cx = ctx();
         cx.write(
             &mut c,
-            X,
+            NET,
             &json!({ "op": "set_slots", "slots": [{ "weekday": "thu", "time": "09:00" }] }),
         )
         .unwrap();
@@ -1212,7 +1212,7 @@ mod tests {
             "time,text,thread,repost\n2026-11-12 08:00,hello,,\nnext,with thread,two ||| three,\nnext,second slot,,\n2020-01-01 08:00,old,,\nsoon,bad time,,\n2026-11-12 10:00,hello,,\n2026-11-12 11:00,,,https://x.com/a/status/7\n2026-11-12 12:00,,,\n",
         )
         .unwrap();
-        let dry = cx.import(&mut c, X, &rows, true).unwrap();
+        let dry = cx.import(&mut c, NET, &rows, true).unwrap();
         assert_eq!(
             (
                 dry["rows"].as_u64(),
@@ -1239,9 +1239,9 @@ mod tests {
         );
         assert_eq!(dry["preview"][1]["at"], "2026-11-12T09:00:00-03:00");
         assert_eq!(dry["preview"][2]["at"], "2026-11-19T09:00:00-03:00");
-        assert_eq!(cx.list(&c, X, &json!({})).unwrap()["total"], 0);
+        assert_eq!(cx.list(&c, NET, &json!({})).unwrap()["total"], 0);
 
-        let real = cx.import(&mut c, X, &rows, false).unwrap();
+        let real = cx.import(&mut c, NET, &rows, false).unwrap();
         assert_eq!(
             (
                 real["scheduled"].as_u64(),
@@ -1249,11 +1249,11 @@ mod tests {
             ),
             (Some(4), Some(4))
         );
-        let listed = cx.list(&c, X, &json!({})).unwrap();
+        let listed = cx.list(&c, NET, &json!({})).unwrap();
         assert_eq!(listed["total"], 4);
         assert_eq!(listed["items"][1]["thread"], json!(["two", "three"]));
         assert_eq!(listed["items"][2]["kind"], "repost");
-        let twice = cx.import(&mut c, X, &rows, false).unwrap();
+        let twice = cx.import(&mut c, NET, &rows, false).unwrap();
         assert_eq!(
             (
                 twice["scheduled"].as_u64(),
@@ -1273,7 +1273,7 @@ mod tests {
         let out = cx
             .write(
                 &mut c,
-                X,
+                NET,
                 &json!({ "op": "import_csv", "path": path.to_string_lossy(), "dry_run": true }),
             )
             .unwrap();
@@ -1285,7 +1285,7 @@ mod tests {
             code(
                 cx.write(
                     &mut c,
-                    X,
+                    NET,
                     &json!({ "op": "import_csv", "path": "/nope/x.csv" })
                 )
                 .unwrap_err()
@@ -1302,25 +1302,29 @@ mod tests {
         cx.export_dir = dir.path().join("exports");
         assert_eq!(
             code(
-                cx.write(&mut c, X, &json!({ "op": "export_ics" }))
+                cx.write(&mut c, NET, &json!({ "op": "export_ics" }))
                     .unwrap_err()
             ),
             "NOTHING_TO_EXPORT"
         );
         cx.write(
             &mut c,
-            X,
+            NET,
             &json!({ "op": "add", "text": "calendar post", "at": "2026-11-12T09:00:00-03:00" }),
         )
         .unwrap();
         cx.write(
             &mut c,
-            X,
+            NET,
             &json!({ "op": "draft", "text": "not in the calendar" }),
         )
         .unwrap();
-        let one = cx.write(&mut c, X, &json!({ "op": "export_ics" })).unwrap();
-        let two = cx.write(&mut c, X, &json!({ "op": "export_ics" })).unwrap();
+        let one = cx
+            .write(&mut c, NET, &json!({ "op": "export_ics" }))
+            .unwrap();
+        let two = cx
+            .write(&mut c, NET, &json!({ "op": "export_ics" }))
+            .unwrap();
         assert_ne!(one["path"], two["path"]);
         assert_eq!(
             (
@@ -1332,7 +1336,7 @@ mod tests {
         );
         let body = std::fs::read_to_string(one["path"].as_str().unwrap()).unwrap();
         assert!(body.contains("DTSTART:20261112T120000Z"));
-        assert!(body.contains("SUMMARY:X: calendar post"));
+        assert!(body.contains("SUMMARY:Short Posts: calendar post"));
         assert!(!body.contains("not in the calendar"));
     }
 
@@ -1352,7 +1356,7 @@ mod tests {
             code(
                 cx.feeds(
                     &c,
-                    X,
+                    NET,
                     &json!({ "op": "add", "url": "http://localhost/feed" })
                 )
                 .unwrap_err()
@@ -1363,7 +1367,7 @@ mod tests {
             code(
                 cx.feeds(
                     &c,
-                    X,
+                    NET,
                     &json!({ "op": "add", "url": "https://b.log/feed", "template": "hello" })
                 )
                 .unwrap_err()
@@ -1374,7 +1378,7 @@ mod tests {
             code(
                 cx.feeds(
                     &c,
-                    X,
+                    NET,
                     &json!({ "op": "add", "url": "https://b.log/feed", "interval_minutes": 1 })
                 )
                 .unwrap_err()
@@ -1382,7 +1386,7 @@ mod tests {
             "INVALID_ARGUMENTS"
         );
         let added = cx
-            .feeds(&c, X, &json!({ "op": "add", "url": "https://b.log/feed", "template": "New: {title} {link}", "monthly_cap": 3 }))
+            .feeds(&c, NET, &json!({ "op": "add", "url": "https://b.log/feed", "template": "New: {title} {link}", "monthly_cap": 3 }))
             .unwrap();
         assert_eq!(
             (
@@ -1394,8 +1398,12 @@ mod tests {
         );
         assert_eq!(
             code(
-                cx.feeds(&c, X, &json!({ "op": "add", "url": "https://b.log/feed" }))
-                    .unwrap_err()
+                cx.feeds(
+                    &c,
+                    NET,
+                    &json!({ "op": "add", "url": "https://b.log/feed" })
+                )
+                .unwrap_err()
             ),
             "DUPLICATE"
         );
@@ -1405,7 +1413,7 @@ mod tests {
                 .unwrap(),
             0
         );
-        let down = cx.feeds(&c, X, &json!({ "op": "list" })).unwrap();
+        let down = cx.feeds(&c, NET, &json!({ "op": "list" })).unwrap();
         assert_eq!(
             (
                 down["feeds"][0]["primed"].as_bool(),
@@ -1418,7 +1426,7 @@ mod tests {
             cx.apply_feed(&c, 1, Ok(vec![entry(2), entry(1)])).unwrap(),
             0
         );
-        assert_eq!(cx.list(&c, X, &json!({})).unwrap()["total"], 0);
+        assert_eq!(cx.list(&c, NET, &json!({})).unwrap()["total"], 0);
         assert_eq!(
             cx.apply_feed(&c, 1, Ok(vec![entry(2), entry(1)])).unwrap(),
             0
@@ -1435,7 +1443,7 @@ mod tests {
             entry(1),
         ];
         assert_eq!(later.apply_feed(&c, 1, Ok(fresh.clone())).unwrap(), 3);
-        let queued = later.list(&c, X, &json!({})).unwrap();
+        let queued = later.list(&c, NET, &json!({})).unwrap();
         assert_eq!(queued["total"], 3);
         assert_eq!(queued["items"][0]["text"], "New: Post 3 https://b.log/3");
         assert_eq!(queued["items"][0]["created_by"], "feed:1");
@@ -1455,7 +1463,7 @@ mod tests {
         let mut next = fresh;
         next.insert(0, entry(8));
         assert_eq!(december.apply_feed(&c, 1, Ok(next)).unwrap(), 1);
-        let listed = december.feeds(&c, X, &json!({ "op": "list" })).unwrap();
+        let listed = december.feeds(&c, NET, &json!({ "op": "list" })).unwrap();
         assert_eq!(
             (
                 listed["feeds"][0]["posted_this_month"].as_u64(),
@@ -1466,20 +1474,20 @@ mod tests {
 
         assert_eq!(
             december
-                .feeds(&c, X, &json!({ "op": "remove", "id": 1 }))
+                .feeds(&c, NET, &json!({ "op": "remove", "id": 1 }))
                 .unwrap()["ok"],
             true
         );
         assert_eq!(
             code(
                 december
-                    .feeds(&c, X, &json!({ "op": "remove", "id": 1 }))
+                    .feeds(&c, NET, &json!({ "op": "remove", "id": 1 }))
                     .unwrap_err()
             ),
             "NOT_FOUND"
         );
         assert_eq!(
-            december.feeds(&c, X, &json!({ "op": "list" })).unwrap()["total"],
+            december.feeds(&c, NET, &json!({ "op": "list" })).unwrap()["total"],
             0
         );
     }

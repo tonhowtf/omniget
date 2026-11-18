@@ -255,7 +255,7 @@ pub fn apply_preset(n: &mut CanvasNode, name: &str, p: &AgentPreset) {
     if let Some(cwd) = p.cwd.as_deref().filter(|c| !c.trim().is_empty()) {
         n.data["cwd"] = json!(cwd);
     }
-    if p.maestro {
+    if p.lead {
         n.data["isManager"] = json!(true);
     }
     if p.start_in_chat_mode {

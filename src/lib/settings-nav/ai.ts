@@ -28,7 +28,7 @@ export const aiNav: SettingsNavPart = {
     "canvas.settings.notifyAttention": { tab: "ai", section: "agents-canvas" },
     "canvas.settings.agentPlacement": { tab: "ai", section: "agents-canvas" },
     "canvas.settings.portalPlacement": { tab: "ai", section: "agents-canvas" },
-    "canvas.settings.badgesNonMaestro": { tab: "ai", section: "agents-canvas" },
+    "canvas.settings.badgesNonLead": { tab: "ai", section: "agents-canvas" },
     "canvas.settings.memoryLimit": { tab: "ai", section: "agents-canvas" },
     "canvas.settings.presetsTitle": { tab: "ai", section: "presets" },
     "settings.agents.connect_title": { tab: "ai", section: "connect" },

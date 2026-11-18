@@ -111,10 +111,6 @@ impl PtyManager {
         }
     }
 
-    pub fn set_history_cap(&self, bytes: usize) {
-        term().set_history_cap(bytes);
-    }
-
     pub fn open(&self, req: OpenRequest) -> Result<SessionInfo, String> {
         term().open(req)
     }
@@ -127,14 +123,6 @@ impl PtyManager {
         term().resize(id, cols, rows)
     }
 
-    pub fn close(&self, id: &str, delete_history: bool) -> Result<(), String> {
-        term().close(id, delete_history)
-    }
-
-    pub fn list(&self) -> Vec<SessionInfo> {
-        term().list()
-    }
-
     pub fn attach(&self, id: &str) -> Result<Attached, String> {
         term().attach(id)
     }
@@ -145,10 +133,6 @@ impl PtyManager {
 
     pub fn ack(&self, id: &str, seq: u64) -> Result<(), String> {
         term().ack(id, seq)
-    }
-
-    pub fn clear(&self, id: &str) -> Result<u64, String> {
-        term().clear(id)
     }
 
     pub fn shutdown_all(&self) {

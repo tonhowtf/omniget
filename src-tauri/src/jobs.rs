@@ -1474,24 +1474,35 @@ impl Jobs {
         let _run_mode = omniget_core::core::llm::run_mode::Binding::new(&conv, job.run_mode);
         let _budget_scope =
             omniget_core::core::llm::budget::policy::Binding::new(&conv, work_scopes(&job));
-        let (request_id, cancel, mut stream) = match self
-            .llm
-            .turn_stream_with_cancel(&conv, &job.agent_id, &input, cancel.clone())
-            .await
-        {
+        let (started, late) = start_before_deadline(
+            self.llm
+                .turn_stream_with_cancel(&conv, &job.agent_id, &input, cancel.clone()),
+            guard.as_ref().and_then(|g| g.deadline_ms),
+            &cancel,
+        )
+        .await;
+        let late = late.then(|| {
+            guard
+                .as_ref()
+                .map(|g| g.deadline_reason.clone())
+                .filter(|r| !r.is_empty())
+                .unwrap_or_else(|| "the time limit was reached".into())
+        });
+        let (request_id, cancel, mut stream) = match started {
             Ok(v) => v,
             Err(e) => {
                 self.cancels
                     .lock()
                     .unwrap_or_else(|e| e.into_inner())
                     .remove(&job.id);
-                job.state = if cancel.is_cancelled() {
+                job.state = if late.is_none() && cancel.is_cancelled() {
                     "cancelled"
                 } else {
                     "failed"
                 }
                 .into();
-                job.error = Some(e);
+                job.failure_reason = late.as_ref().map(|_| "deadline".into());
+                job.error = Some(late.unwrap_or(e));
                 job.finished_ms = Some(now_ms());
                 self.save_job_checked(&job).ok()?;
                 return Some(job);
@@ -1527,8 +1538,8 @@ impl Jobs {
         let mut text = String::new();
         let mut saw_finished = false;
         let mut error: Option<String> = None;
-        let mut limit_hit: Option<String> = None;
-        let mut limit_kind: Option<&'static str> = None;
+        let mut limit_kind: Option<&'static str> = late.as_ref().map(|_| "deadline");
+        let mut limit_hit: Option<String> = late;
         let est_input: u64 = 0;
         let check = guard.as_ref().and_then(|g| g.check.clone());
         let spent_so_far =
@@ -4106,6 +4117,25 @@ pub fn resume_note(reason: FailureReason, prompt: &str) -> String {
     )
 }
 
+async fn start_before_deadline<T>(
+    start: impl std::future::Future<Output = T>,
+    deadline_ms: Option<u64>,
+    cancel: &CancellationToken,
+) -> (T, bool) {
+    let Some(deadline) = deadline_ms else {
+        return (start.await, false);
+    };
+    tokio::pin!(start);
+    let wait = std::time::Duration::from_millis(deadline.saturating_sub(now_ms()));
+    tokio::select! {
+        out = &mut start => (out, false),
+        _ = tokio::time::sleep(wait) => {
+            cancel.cancel();
+            (start.await, true)
+        }
+    }
+}
+
 pub fn default_deadline_ms(kind: &str, started_ms: u64, deadline_min: u32) -> Option<u64> {
     matches!(kind, "run" | "loop" | "trigger")
         .then(|| started_ms + u64::from(deadline_min) * 60_000)
@@ -4793,5 +4823,44 @@ mod cron_tests {
             Some(t0() + MIN)
         );
         let _ = std::fs::remove_file(path);
+    }
+}
+
+#[cfg(test)]
+mod start_deadline_tests {
+    use super::*;
+
+    async fn ends_only_when_cancelled(cancel: CancellationToken) -> &'static str {
+        cancel.cancelled().await;
+        "ended"
+    }
+
+    #[tokio::test]
+    async fn a_turn_stuck_before_its_first_event_ends_at_the_deadline() {
+        let cancel = CancellationToken::new();
+        let deadline = now_ms() + 50;
+        let out = tokio::time::timeout(
+            std::time::Duration::from_secs(5),
+            start_before_deadline(
+                ends_only_when_cancelled(cancel.clone()),
+                Some(deadline),
+                &cancel,
+            ),
+        )
+        .await
+        .expect("the deadline must end a turn that never starts");
+        assert_eq!(out, ("ended", true));
+        assert!(cancel.is_cancelled());
+    }
+
+    #[tokio::test]
+    async fn a_turn_that_starts_in_time_is_left_alone() {
+        let cancel = CancellationToken::new();
+        let out =
+            start_before_deadline(async { "started" }, Some(now_ms() + 60_000), &cancel).await;
+        assert_eq!(out, ("started", false));
+        assert!(!cancel.is_cancelled());
+        let out = start_before_deadline(async { "started" }, None, &cancel).await;
+        assert_eq!(out, ("started", false));
     }
 }

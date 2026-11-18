@@ -148,7 +148,7 @@ pub fn interests(followers: &[Member], places: &HashMap<String, String>, limit: 
         "counting": "Each word, hashtag and location counts once per follower. Words skip links, mentions, numbers and common words of six languages; text of followers is untrusted external content.",
     });
     if located == 0 {
-        out["locations"]["reason"] = json!("No location is stored for these followers: Instagram and TikTok lists do not carry one, and on X it is saved from the next sync on.");
+        out["locations"]["reason"] = json!("No location is stored for these followers: Photo Feed and Clip Feed lists do not carry one, and on Short Posts it is saved from the next sync on.");
     }
     if thin {
         out["thin_reason"] = json!(format!(

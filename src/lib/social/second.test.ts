@@ -1,9 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { drawArgs, hasExtras, isoDay, lastDays, periodArgs, recParams, savable, seriesPath, signed, weighted, type SeriesPoint } from "./second";
+import { NET } from "./api";
 
 describe("second wave helpers", () => {
   it("offers the extras only where the engines exist", () => {
-    expect(["x", "instagram", "tiktok", "reddit", "pinterest", "github"].filter((p) => hasExtras(p as never))).toEqual(["x", "instagram", "tiktok"]);
+    expect(Object.values(NET).filter((p) => hasExtras(p))).toEqual([NET.shortpost, NET.photofeed, NET.clipfeed]);
   });
 
   it("sizes words by how many followers use them", () => {
@@ -59,9 +60,9 @@ describe("second wave helpers", () => {
 
   it("builds the draw call from the form", () => {
     const form = { post: "123", source: "reposts" as const, winners: 2, runnerUps: 1, mustFollow: true, mustRepost: false, exclude: "@ana, bob\n  carl", seed: " launch " };
-    expect(drawArgs(form)).toEqual({ platform: "x", post: "123", source: "reposts", winners: 2, runner_ups: 1, must_follow: true, exclude: ["ana", "bob", "carl"], seed: "launch" });
+    expect(drawArgs(form)).toEqual({ platform: NET.shortpost, post: "123", source: "reposts", winners: 2, runner_ups: 1, must_follow: true, exclude: ["ana", "bob", "carl"], seed: "launch" });
     const bare = drawArgs({ ...form, winners: 0, runnerUps: -4, mustFollow: false, exclude: "", seed: "" }, { export: true });
-    expect(bare).toEqual({ platform: "x", post: "123", source: "reposts", winners: 1, runner_ups: 0, export: true });
+    expect(bare).toEqual({ platform: NET.shortpost, post: "123", source: "reposts", winners: 1, runner_ups: 0, export: true });
     expect(drawArgs({ ...form, winners: 500 }).winners).toBe(100);
   });
 

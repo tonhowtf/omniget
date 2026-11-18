@@ -285,10 +285,10 @@ mod tests {
 
     const LSOF: &str = "\
 COMMAND     PID  USER   FD   TYPE             DEVICE SIZE/OFF NODE NAME
-Code\\x20H  3308 tonho   49u  IPv4 0x5053034a198b268e      0t0  TCP 127.0.0.1:32882 (LISTEN)
-OrbStack  30717 tonho   86u  IPv4 0x4e44684a0c6e0fd6      0t0  TCP 127.0.0.1:32222 (LISTEN)
-OrbStack  30717 tonho   87u  IPv6 0xe8cb09874004b5bd      0t0  TCP [::1]:32222 (LISTEN)
-OrbStack  30717 tonho  127u  IPv4 0x67fd8aa2aebc6817      0t0  TCP 127.0.0.1:8090 (LISTEN)
+Code\\x20H  3308 admin   49u  IPv4 0x5053034a198b268e      0t0  TCP 127.0.0.1:32882 (LISTEN)
+OrbStack  30717 admin   86u  IPv4 0x4e44684a0c6e0fd6      0t0  TCP 127.0.0.1:32222 (LISTEN)
+OrbStack  30717 admin   87u  IPv6 0xe8cb09874004b5bd      0t0  TCP [::1]:32222 (LISTEN)
+OrbStack  30717 admin  127u  IPv4 0x67fd8aa2aebc6817      0t0  TCP 127.0.0.1:8090 (LISTEN)
 node      41200 root    23u  IPv6 0xbbac279ab2bd9b38      0t0  TCP *:5173 (LISTEN)
 ";
 

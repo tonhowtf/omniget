@@ -30,6 +30,87 @@ pub struct Policy {
     pub lifetime: Duration,
     pub connect_timeout: Duration,
     pub header_timeout: Duration,
+    pub upstream: Option<Upstream>,
+}
+
+#[derive(Clone)]
+pub struct Upstream {
+    proxy: String,
+    route: Option<crate::core::telegram::net::route::Route>,
+}
+impl std::fmt::Debug for Upstream {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&crate::core::proxy_pool::redact(&self.proxy))
+    }
+}
+impl Upstream {
+    pub fn new(proxy: &str) -> Self {
+        use crate::core::telegram::net::route::{Route, RouteKind, RouteSource};
+        let route = url::Url::parse(proxy).ok().and_then(|url| {
+            let kind = match url.scheme() {
+                "http" => RouteKind::Http,
+                "socks5" | "socks5h" => RouteKind::Socks5,
+                _ => return None,
+            };
+            let host = url.host_str()?.trim_matches(['[', ']']).to_owned();
+            let mut route = Route::new(kind, host, url.port()?, RouteSource::Manual);
+            let decoded = |text: &str| {
+                urlencoding::decode(text).map_or_else(|_| text.to_owned(), |t| t.into_owned())
+            };
+            if !url.username().is_empty() {
+                route.username = Some(decoded(url.username()));
+                route.password = url.password().map(decoded);
+            }
+            Some(route)
+        });
+        Self {
+            proxy: proxy.to_owned(),
+            route,
+        }
+    }
+    pub fn from_settings() -> Option<Self> {
+        crate::core::http_client::proxy_url().map(|proxy| Self::new(&proxy))
+    }
+    async fn resolve(&self, host: &str, port: u16) -> io::Result<Vec<SocketAddr>> {
+        if self.route.is_some() {
+            if let Ok(found) =
+                crate::core::telegram::net::dns::resolve_doh_through(host, &self.proxy).await
+            {
+                return Ok(found
+                    .into_iter()
+                    .map(|ip| SocketAddr::new(ip, port))
+                    .collect());
+            }
+        }
+        Ok(tokio::net::lookup_host((host, port)).await?.collect())
+    }
+    async fn connect(&self, target: SocketAddr) -> io::Result<TcpStream> {
+        use crate::core::telegram::net::{
+            route::RouteKind,
+            tunnel::{self, Target},
+        };
+        let Some(route) = &self.route else {
+            return Err(io::Error::new(
+                io::ErrorKind::Unsupported,
+                "EGRESS_UPSTREAM_UNSUPPORTED",
+            ));
+        };
+        let stream = match TcpStream::connect((route.host.as_str(), route.port)).await {
+            Ok(stream) => stream,
+            Err(e) => {
+                crate::core::proxy_pool::report(&self.proxy, false);
+                return Err(e);
+            }
+        };
+        let target = Target::Ip(target);
+        let tunnelled = match route.kind {
+            RouteKind::Socks5 => tunnel::socks5_connect(stream, route, &target).await,
+            _ => tunnel::http_connect(stream, route, &target).await,
+        };
+        tunnelled.map_err(|_| {
+            io::Error::new(io::ErrorKind::ConnectionRefused, "EGRESS_UPSTREAM_REFUSED")
+        })
+    }
 }
 impl Default for Policy {
     fn default() -> Self {
@@ -43,6 +124,7 @@ impl Default for Policy {
             lifetime: Duration::from_secs(900),
             connect_timeout: Duration::from_secs(15),
             header_timeout: Duration::from_secs(5),
+            upstream: None,
         }
     }
 }
@@ -575,15 +657,20 @@ async fn serve(
         return Err(denied());
     }
     let (host, port) = (request.host.clone(), request.port);
+    let route = policy.clone();
+    let names = policy.clone();
     let connection = tokio::time::timeout(
         policy.connect_timeout,
         connect_upstream(
             &policy,
             move || {
                 let host = host.clone();
+                let names = names.clone();
                 async move {
                     Ok(if let Ok(ip) = host.parse::<IpAddr>() {
                         vec![SocketAddr::new(ip, port)]
+                    } else if let Some(upstream) = &names.upstream {
+                        upstream.resolve(&host, port).await?
                     } else {
                         tokio::net::lookup_host((host.as_str(), port))
                             .await?
@@ -591,7 +678,17 @@ async fn serve(
                     })
                 }
             },
-            TcpStream::connect,
+            move |address: SocketAddr| {
+                let route = route.clone();
+                async move {
+                    match &route.upstream {
+                        Some(upstream) if !route.local_allowances.contains(&address) => {
+                            upstream.connect(address).await
+                        }
+                        _ => TcpStream::connect(address).await,
+                    }
+                }
+            },
         ),
     )
     .await
@@ -732,5 +829,175 @@ async fn copy_limited<R: AsyncRead + Unpin, W: AsyncWrite + Unpin>(
         }
         charge(counter, n as u64, max, stop, limit)?;
         w.write_all(&buffer[..n]).await?;
+    }
+}
+
+#[cfg(test)]
+mod upstream_tests {
+    use super::*;
+
+    async fn fake_proxy() -> (SocketAddr, tokio::sync::mpsc::Receiver<String>) {
+        let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let (seen, heads) = tokio::sync::mpsc::channel(4);
+        tokio::spawn(async move {
+            while let Ok((mut stream, _)) = listener.accept().await {
+                let mut head = Vec::new();
+                let mut byte = [0u8; 1];
+                while !head.ends_with(b"\r\n\r\n") && head.len() < 4096 {
+                    if stream.read(&mut byte).await.unwrap_or(0) == 0 {
+                        break;
+                    }
+                    head.push(byte[0]);
+                }
+                let _ = seen.send(String::from_utf8_lossy(&head).into_owned()).await;
+                let _ = stream
+                    .write_all(b"HTTP/1.1 200 Connection Established\r\n\r\nhello")
+                    .await;
+            }
+        });
+        (address, heads)
+    }
+
+    async fn through(broker: &Broker, target: &str) -> String {
+        let url = url::Url::parse(&broker.proxy_url()).unwrap();
+        let auth = base64::engine::general_purpose::STANDARD
+            .encode(format!("omniget:{}", url.password().unwrap()));
+        let mut client = TcpStream::connect(broker.address).await.unwrap();
+        client
+            .write_all(
+                format!(
+                    "CONNECT {target} HTTP/1.1\r\nHost: {target}\r\nProxy-Authorization: Basic {auth}\r\n\r\n"
+                )
+                .as_bytes(),
+            )
+            .await
+            .unwrap();
+        let mut answer = vec![0u8; 256];
+        let mut filled = 0;
+        while filled < answer.len() {
+            match tokio::time::timeout(Duration::from_secs(5), client.read(&mut answer[filled..]))
+                .await
+            {
+                Ok(Ok(n)) if n > 0 => filled += n,
+                _ => break,
+            }
+            let got = &answer[..filled];
+            let refused = got.ends_with(b"\r\n\r\n") && !got.starts_with(b"HTTP/1.1 200");
+            if got.ends_with(b"hello") || refused {
+                break;
+            }
+        }
+        String::from_utf8_lossy(&answer[..filled]).into_owned()
+    }
+
+    #[tokio::test]
+    async fn an_allowed_address_goes_out_through_the_upstream_proxy() {
+        let (proxy, mut heads) = fake_proxy().await;
+        let policy = Policy {
+            upstream: Some(Upstream::new(&format!("http://bob:p%40ss@{proxy}"))),
+            ..Policy::default()
+        };
+        let broker = Broker::start(policy, CancellationToken::new())
+            .await
+            .unwrap();
+        let answer = through(&broker, "93.184.216.34:443").await;
+        assert!(answer.starts_with("HTTP/1.1 200"), "{answer}");
+        assert!(answer.ends_with("hello"), "{answer}");
+        let head = heads.recv().await.unwrap();
+        assert!(head.starts_with("CONNECT 93.184.216.34:443 "), "{head}");
+        let expected = base64::engine::general_purpose::STANDARD.encode("bob:p@ss");
+        assert!(
+            head.contains(&format!("Proxy-Authorization: Basic {expected}")),
+            "{head}"
+        );
+        broker.shutdown().await;
+    }
+
+    #[tokio::test]
+    async fn the_policy_still_refuses_a_private_address_before_the_upstream_sees_it() {
+        let (proxy, mut heads) = fake_proxy().await;
+        let policy = Policy {
+            upstream: Some(Upstream::new(&format!("http://{proxy}"))),
+            ..Policy::default()
+        };
+        let broker = Broker::start(policy, CancellationToken::new())
+            .await
+            .unwrap();
+        for target in [
+            "127.0.0.1:443",
+            "10.0.0.5:443",
+            "169.254.169.254:443",
+            "93.184.216.34:22",
+        ] {
+            let answer = through(&broker, target).await;
+            assert!(answer.starts_with("HTTP/1.1 403"), "{target}: {answer}");
+        }
+        assert_eq!(broker.policy_denials(), 4);
+        assert!(heads.try_recv().is_err());
+        broker.shutdown().await;
+    }
+
+    #[tokio::test]
+    async fn a_proxy_the_broker_cannot_speak_never_becomes_a_direct_connection() {
+        let policy = Policy {
+            upstream: Some(Upstream::new("https://bob:hunter2@proxy.example:443")),
+            ..Policy::default()
+        };
+        assert!(!format!("{policy:?}").contains("hunter2"));
+        let broker = Broker::start(policy, CancellationToken::new())
+            .await
+            .unwrap();
+        let answer = through(&broker, "93.184.216.34:443").await;
+        assert!(answer.starts_with("HTTP/1.1 502"), "{answer}");
+        broker.shutdown().await;
+    }
+
+    #[tokio::test]
+    #[ignore = "network: run by hand with --ignored"]
+    async fn a_name_is_resolved_through_the_proxy_and_still_checked_by_the_policy() {
+        let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).await.unwrap();
+        let proxy = listener.local_addr().unwrap();
+        let (seen, mut heads) = tokio::sync::mpsc::channel(64);
+        tokio::spawn(async move {
+            while let Ok((mut client, _)) = listener.accept().await {
+                let seen = seen.clone();
+                tokio::spawn(async move {
+                    let mut head = Vec::new();
+                    let mut byte = [0u8; 1];
+                    while !head.ends_with(b"\r\n\r\n") && head.len() < 4096 {
+                        if client.read(&mut byte).await.unwrap_or(0) == 0 {
+                            return;
+                        }
+                        head.push(byte[0]);
+                    }
+                    let head = String::from_utf8_lossy(&head).into_owned();
+                    let target = head.split(' ').nth(1).unwrap_or_default().to_owned();
+                    let _ = seen.send(target.clone()).await;
+                    let Ok(mut remote) = TcpStream::connect(target.as_str()).await else {
+                        return;
+                    };
+                    let _ = client
+                        .write_all(b"HTTP/1.1 200 Connection Established\r\n\r\n")
+                        .await;
+                    let _ = tokio::io::copy_bidirectional(&mut client, &mut remote).await;
+                });
+            }
+        });
+        let upstream = Upstream::new(&format!("http://{proxy}"));
+        let found = upstream.resolve("example.com", 443).await.unwrap();
+        assert!(!found.is_empty());
+        assert!(found.iter().all(|a| is_public(a.ip())), "{found:?}");
+        let mut asked = Vec::new();
+        while let Ok(target) = heads.try_recv() {
+            asked.push(target);
+        }
+        assert!(
+            asked.iter().any(|t| t.contains("cloudflare-dns.com")
+                || t.contains("dns.google")
+                || t.contains("dns.quad9.net")),
+            "{asked:?}"
+        );
+        assert!(Policy::default().validate_addresses(found).is_ok());
     }
 }

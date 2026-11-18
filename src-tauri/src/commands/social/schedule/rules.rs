@@ -4,7 +4,7 @@ use chrono::{DateTime, Datelike, Duration, NaiveDateTime, TimeZone, Utc};
 use serde_json::{json, Value};
 use unicode_normalization::UnicodeNormalization;
 
-use super::super::x::tweet_id;
+use super::super::shortpost::tweet_id;
 
 pub const SHORT_LIMIT: usize = 280;
 pub const LONG_LIMIT: usize = 4000;
@@ -278,11 +278,11 @@ pub fn content(raw: Raw, limit: usize) -> Result<Content, Reject> {
             return Err(Reject::new(
                 "TOO_LONG",
                 format!(
-                    "part {} counts {w} of {limit} on X (links count 23, emoji and CJK count 2)",
+                    "part {} counts {w} of {limit} on Short Posts (links count 23, emoji and CJK count 2)",
                     i + 1
                 ),
                 if limit < LONG_LIMIT {
-                    "shorten it, split it into thread parts, or if the account has X Premium set long_posts=on with op=set_slots"
+                    "shorten it, split it into thread parts, or if the account has Short Posts Premium set long_posts=on with op=set_slots"
                 } else {
                     "shorten it or split it into thread parts"
                 },
@@ -324,7 +324,7 @@ pub fn image_type(path: &str, bytes: u64) -> Result<&'static str, Reject> {
             return Err(Reject::new(
                 "UNSUPPORTED",
                 format!("{path}: only JPEG, PNG and WebP images can be attached; GIF and video upload are not built"),
-                "attach a still image, or publish the video by hand on X",
+                "attach a still image, or publish the video by hand on Short Posts",
             ))
         }
     };
@@ -1092,7 +1092,7 @@ mod tests {
     #[test]
     fn ics_escapes_and_folds() {
         let out = ics(
-            "X",
+            "Short Posts",
             &[IcsEvent {
                 uid: "social-1@omniget".into(),
                 at_ms: Utc

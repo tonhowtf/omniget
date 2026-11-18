@@ -29,6 +29,34 @@ const SPEED_TOOLTIP_MIN_INTERVAL_MS: u64 = 2000;
 static BADGE_CACHE: OnceLock<Mutex<BadgeCache>> = OnceLock::new();
 static QUIT_ITEM: OnceLock<MenuItem<Wry>> = OnceLock::new();
 static USAGE_TOGGLE: OnceLock<CheckMenuItem<Wry>> = OnceLock::new();
+#[cfg(target_os = "linux")]
+static QUICK_ITEM: OnceLock<MenuItem<Wry>> = OnceLock::new();
+static AWAKE: Mutex<Option<Option<u64>>> = Mutex::new(None);
+
+pub fn set_awake(app: &AppHandle, awake: Option<Option<u64>>) {
+    *AWAKE.lock().unwrap_or_else(|e| e.into_inner()) = awake;
+    refresh_tooltip(app);
+}
+
+fn with_awake(tooltip: String) -> String {
+    let awake = *AWAKE.lock().unwrap_or_else(|e| e.into_inner());
+    let strings = tray_strings().read().expect("tray strings poisoned");
+    let note = match awake {
+        None => return tooltip,
+        Some(None) => strings.awake_on.clone(),
+        Some(Some(until_ms)) => match chrono::DateTime::from_timestamp_millis(until_ms as i64) {
+            Some(at) => fill(
+                &strings.awake_until,
+                &[(
+                    "time",
+                    at.with_timezone(&chrono::Local).format("%H:%M").to_string(),
+                )],
+            ),
+            None => strings.awake_on.clone(),
+        },
+    };
+    format!("{tooltip} · {note}")
+}
 
 pub fn set_usage_toggle(on: bool) {
     if let Some(item) = USAGE_TOGGLE.get() {
@@ -44,7 +72,8 @@ pub fn set_usage_toggle_text(text: &str) {
 
 static TRAY_STRINGS: OnceLock<RwLock<TrayStrings>> = OnceLock::new();
 
-#[derive(Clone)]
+#[derive(Clone, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct TrayStrings {
     pub quit: String,
     pub channels: String,
@@ -52,6 +81,9 @@ pub struct TrayStrings {
     pub downloads_active: String,
     pub tooltip_active: String,
     pub tooltip_speed: String,
+    pub quick_tools: String,
+    pub awake_on: String,
+    pub awake_until: String,
 }
 
 impl Default for TrayStrings {
@@ -63,6 +95,9 @@ impl Default for TrayStrings {
             downloads_active: "Downloads: {{count}} active".into(),
             tooltip_active: "OmniGet — {{count}} active".into(),
             tooltip_speed: "OmniGet — {{count}} active · {{speed}}".into(),
+            quick_tools: "Quick tools".into(),
+            awake_on: "Keeping awake".into(),
+            awake_until: "Awake until {{time}}".into(),
         }
     }
 }
@@ -137,8 +172,16 @@ pub fn setup(app: &AppHandle) -> tauri::Result<()> {
     channels_submenu.set_enabled(false).ok();
     CHANNELS_SUBMENU.set(channels_submenu.clone()).ok();
 
-    let menu = MenuBuilder::new(app)
-        .item(&open_item)
+    let menu = MenuBuilder::new(app).item(&open_item);
+    // WHY: many Linux trays deliver no click event, so the panel also needs a menu entry.
+    #[cfg(target_os = "linux")]
+    let menu = {
+        let quick_item =
+            MenuItemBuilder::with_id("quick-tools", strings.quick_tools.clone()).build(app)?;
+        QUICK_ITEM.set(quick_item.clone()).ok();
+        menu.item(&quick_item)
+    };
+    let menu = menu
         .separator()
         .item(&downloads_item)
         .item(&channels_submenu)
@@ -160,8 +203,10 @@ pub fn setup(app: &AppHandle) -> tauri::Result<()> {
         .icon(icon)
         .tooltip("OmniGet")
         .menu(&menu)
+        .show_menu_on_left_click(false)
         .on_menu_event(|app, event| match event.id().as_ref() {
             "open" => show_window(app),
+            "quick-tools" => crate::quick_panel::show(app, None),
             "quit" => {
                 request_quit(app);
             }
@@ -182,10 +227,11 @@ pub fn setup(app: &AppHandle) -> tauri::Result<()> {
             if let tauri::tray::TrayIconEvent::Click {
                 button: tauri::tray::MouseButton::Left,
                 button_state: tauri::tray::MouseButtonState::Up,
+                rect,
                 ..
             } = event
             {
-                show_window(tray.app_handle());
+                crate::quick_panel::toggle(tray.app_handle(), Some(rect));
             }
         })
         .build(app)?;
@@ -234,7 +280,7 @@ pub fn update_active_count(app: &AppHandle, count: u32) {
         } else {
             "OmniGet".into()
         };
-        let _ = tray.set_tooltip(Some(&tooltip));
+        let _ = tray.set_tooltip(Some(&with_awake(tooltip)));
 
         if let Some((base, w, h)) = BASE_ICON.get() {
             let rgba = if count > 0 {
@@ -300,7 +346,8 @@ pub fn update_speed_tooltip(app: &AppHandle, count: u32, total_speed_bps: f64) {
         } else {
             fill(&strings.tooltip_active, &[("count", count.to_string())])
         };
-        let _ = tray.set_tooltip(Some(&tooltip));
+        drop(strings);
+        let _ = tray.set_tooltip(Some(&with_awake(tooltip)));
     }
 }
 
@@ -326,7 +373,7 @@ fn refresh_tooltip(app: &AppHandle) {
             fill(&strings.tooltip_active, &[("count", count.to_string())])
         }
     };
-    let _ = tray.set_tooltip(Some(&tooltip));
+    let _ = tray.set_tooltip(Some(&with_awake(tooltip)));
 }
 
 pub fn compute_total_active(app: &AppHandle) -> u32 {
@@ -367,6 +414,15 @@ pub fn apply_strings(app: &AppHandle, strings: TrayStrings) -> tauri::Result<()>
     }
     if let Some(submenu) = CHANNELS_SUBMENU.get() {
         submenu.set_text(channels)?;
+    }
+    #[cfg(target_os = "linux")]
+    if let Some(item) = QUICK_ITEM.get() {
+        let text = tray_strings()
+            .read()
+            .expect("tray strings poisoned")
+            .quick_tools
+            .clone();
+        item.set_text(text)?;
     }
     if let Some(item) = DOWNLOADS_ITEM.get() {
         item.set_text(active_label(LAST_ACTIVE.load(Ordering::Relaxed)))?;

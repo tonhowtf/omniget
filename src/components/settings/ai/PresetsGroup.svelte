@@ -9,8 +9,8 @@
   import { canvasSaving, saveCanvas } from "./canvas-save.svelte";
   import { isBuiltinAgent } from "./ai-settings";
 
-  type Draft = { name: string; command: string; args: string; env: string; icon: string; color: string; maestro: boolean; chat: boolean; cwd: string };
-  const EMPTY: Draft = { name: "", command: "", args: "", env: "", icon: "", color: "", maestro: false, chat: false, cwd: "" };
+  type Draft = { name: string; command: string; args: string; env: string; icon: string; color: string; lead: boolean; chat: boolean; cwd: string };
+  const EMPTY: Draft = { name: "", command: "", args: "", env: "", icon: "", color: "", lead: false, chat: false, cwd: "" };
 
   const prefs = $derived(canvasPrefs());
   const busy = $derived(canvasSaving.busy);
@@ -36,7 +36,7 @@
           env: Object.entries(p.env ?? {}).map(([k, v]) => `${k}=${v}`).join("\n"),
           icon: p.icon ?? "",
           color: p.color ?? "",
-          maestro: !!p.maestro,
+          lead: !!p.lead,
           chat: !!p.start_in_chat_mode,
           cwd: p.cwd ?? "",
         }
@@ -82,7 +82,7 @@
       env: parseEnv(d.env),
       icon: d.icon.trim() || null,
       color: d.color.trim() || null,
-      maestro: d.maestro,
+      lead: d.lead,
       start_in_chat_mode: d.chat,
       cwd: d.cwd.trim() || null,
     };
@@ -153,7 +153,7 @@
             <label>{$t("canvas.settings.presetIcon")}<input class="input-text" bind:value={draft.icon} placeholder="hammer" /></label>
             <label>{$t("canvas.settings.presetColor")}<input class="input-text" bind:value={draft.color} placeholder="#FF8800" /></label>
           </div>
-          <label class="check"><input type="checkbox" bind:checked={draft.maestro} />{$t("canvas.settings.presetMaestro")}</label>
+          <label class="check"><input type="checkbox" bind:checked={draft.lead} />{$t("canvas.settings.presetLead")}</label>
           <label class="check"><input type="checkbox" bind:checked={draft.chat} />{$t("canvas.settings.presetChat")}</label>
         </div>
       </AdvancedDisclosure>

@@ -9,17 +9,19 @@ import { captureDialog, captureFixtures } from "./capture";
 import { studioDialog, studioFixtures, studioSaveDialog } from "./studio";
 import { dictationDialog, dictationFixtures } from "./dictation";
 import { componentsDialog, componentsFixtures } from "./components";
-import { whatsappDialog, whatsappFixtures, whatsappSaveDialog } from "./whatsapp";
+import { phonechatDialog, phonechatFixtures, phonechatSaveDialog } from "./phonechat";
 import { marketFixtures } from "./connector-market";
-import { discordFixtures } from "./discord";
+import { guildchatFixtures } from "./guildchat";
 import { socialFixtures } from "./social";
 import { pdfDialog, pdfFixtures, pdfSaveDialog } from "./pdf";
 import { photosDialog, photosFixtures } from "./photos";
 import { cutoutDialog, cutoutFixtures } from "./cutout";
 import { stemsFixtures } from "./stems";
 import { devtoolsFixtures } from "./devtools";
+import { proxyPoolFixtures } from "./proxy-pool";
 import { transferFixtures } from "./transfer";
 import { researchFixtures } from "./research";
+import { quickPanelFixtures } from "./quick-panel";
 
 type Args = Record<string, unknown>;
 type Fixture = (args: Args) => unknown;
@@ -84,6 +86,57 @@ const PREVIEW_WORKSPACE = {
   activeFloorId: "main",
   floors: [{ id: "main", name: "Main" }],
 };
+
+const CANVAS_DEMO_KEY = "omniget.preview.canvasDemo";
+
+function canvasDemo(): string | null {
+  return localStorage.getItem(CANVAS_DEMO_KEY);
+}
+
+function approvalsDemo(): string | null {
+  return localStorage.getItem("omniget.preview.approvals");
+}
+
+const DEMO_NODES = [
+  { id: "demo-a", kind: "terminal", x: 80, y: 80, w: 460, h: 300, z: 1, title: "Reviewer", data: { agent: "claude" } },
+  { id: "demo-b", kind: "terminal", x: 580, y: 80, w: 640, h: 300, z: 2, title: "Builder", data: { agent: "claude", command: "claude --dangerously-skip-permissions" } },
+  { id: "demo-c", kind: "terminal", x: 80, y: 420, w: 460, h: 300, z: 3, title: "Docs", data: { agent: "codex", command: "codex --full-auto" } },
+];
+
+function demoInbox() {
+  const now = Date.now();
+  const row = (nodeId: string, name: string, reason: string, minutes: number) => ({
+    nodeId,
+    name,
+    workspaceId: "preview",
+    floorId: "main",
+    reason,
+    sinceMs: now - minutes * 60000,
+  });
+  return [row("demo-c", "Docs", "review", 14), row("demo-a", "Reviewer", "permission", 2), row("demo-b", "Builder", "stuck", 9)];
+}
+
+function demoBudget() {
+  const paused = canvasDemo() === "paused";
+  return {
+    policies: [
+      {
+        id: "bp_demo",
+        scope: "global",
+        metric: "usd",
+        window: "day",
+        amount: 5,
+        warn_pct: 80,
+        hard_stop: true,
+        enabled: true,
+        observed: paused ? 5.02 : 4.3,
+        source: "ledger",
+        incident: paused ? { id: "bi_demo", state: "paused", observed: 5.02, limit: 5 } : null,
+      },
+    ],
+    incidents: [],
+  };
+}
 
 export const fixtures: Record<string, Fixture> = {
   settings_get_v3: snapshot,
@@ -187,7 +240,32 @@ export const fixtures: Record<string, Fixture> = {
   }),
   canvas_companion_history: () => [],
   canvas_workspaces: () => [PREVIEW_WORKSPACE],
-  canvas_load: () => ({ seq: 0, nodes: [], connections: [], groups: [], drawings: [] }),
+  canvas_load: () => ({ seq: 0, nodes: canvasDemo() ? DEMO_NODES : [], connections: [], groups: [], drawings: [] }),
+  canvas_inbox: () => (canvasDemo() ? demoInbox() : []),
+  canvas_checkpoints: () =>
+    canvasDemo()
+      ? { repository: true, items: [{ turn: 7, atMs: Date.now() - 180000 }, { turn: 6, atMs: Date.now() - 1080000 }] }
+      : { repository: false, items: [] },
+  canvas_checkpoint_changes: ({ turn }) => ({ turn, total: 9, files: ["src/lib/a.ts", "src/lib/b.ts", "src/routes/+page.svelte", "README.md", "package.json", "src/app.css", "src/x.ts"], truncated: false }),
+  canvas_checkpoint_restore: () => ({ turn: 7, files: ["a", "b", "c", "d"], dropped_later: 0 }),
+  canvas_checkpoint_undo: () => ({ turn: 1, files: ["a", "b", "c", "d"], dropped_later: 0 }),
+  tool_mcp_auth_requests: () =>
+    approvalsDemo() === "corner"
+      ? [{ id: "auth-demo", client: "Claude Code", platform: "youtube", host: null, reason: "The video is age-restricted", created_at: Date.now() / 1000, expires_at: Date.now() / 1000 + 600 }]
+      : [],
+  llm_tool_asks_pending: () =>
+    approvalsDemo() === "corner"
+      ? [{ request_id: "req-demo", tool_call_id: "call-demo", tool: "fs_apply_patch", agent: "Reviewer", kind: "file_change", asked_ms: Date.now() - 20000, deadline_ms: null, can_always: true, preview: "src/lib/a.ts", impact: { files: 3, added: 42, removed: 7, outside: true } }]
+      : [],
+  connect_pending: () =>
+    approvalsDemo() === "dialog"
+      ? [{ id: "connect-demo", client: "claude-code", client_name: "Claude Code", workspace: "/preview/project", browser: false, code: "4821", created_ms: Date.now() }]
+      : [],
+  llm_budget_state: () => (canvasDemo() ? demoBudget() : { policies: [], incidents: [] }),
+  llm_budget_resolve: () => {
+    localStorage.setItem(CANVAS_DEMO_KEY, "1");
+    return { incident: { state: "resolved" }, resumed_loops: [] };
+  },
   canvas_apply: ({ baseRev }) => ({ rev: Number(baseRev ?? 0) + 1 }),
   canvas_session_mark: empty,
   "plugin:path|resolve_directory": () => "/preview",
@@ -214,7 +292,7 @@ export const fixtures: Record<string, Fixture> = {
   "plugin:window|available_monitors": () => [],
   "plugin:dialog|open": ({ options }) => {
     const o = options as Record<string, unknown> | undefined;
-    for (const dialog of [converterDialog, paletteDialog, fontsDialog, iconsDialog, motionDialog, boardDialog, captureDialog, studioDialog, dictationDialog, componentsDialog, whatsappDialog, pdfDialog, photosDialog, cutoutDialog]) {
+    for (const dialog of [converterDialog, paletteDialog, fontsDialog, iconsDialog, motionDialog, boardDialog, captureDialog, studioDialog, dictationDialog, componentsDialog, phonechatDialog, pdfDialog, photosDialog, cutoutDialog]) {
       const picked = dialog(o);
       if (picked !== undefined) return picked;
     }
@@ -222,7 +300,7 @@ export const fixtures: Record<string, Fixture> = {
   },
   "plugin:dialog|save": ({ options }) => {
     const o = options as Record<string, unknown> | undefined;
-    for (const dialog of [motionSaveDialog, studioSaveDialog, whatsappSaveDialog, pdfSaveDialog]) {
+    for (const dialog of [motionSaveDialog, studioSaveDialog, phonechatSaveDialog, pdfSaveDialog]) {
       const picked = dialog(o);
       if (picked !== undefined) return picked;
     }
@@ -247,14 +325,16 @@ export const fixtures: Record<string, Fixture> = {
   ...studioFixtures,
   ...dictationFixtures,
   ...componentsFixtures,
-  ...whatsappFixtures,
-  ...discordFixtures,
+  ...phonechatFixtures,
+  ...guildchatFixtures,
   ...socialFixtures,
   ...pdfFixtures,
   ...photosFixtures,
   ...cutoutFixtures,
   ...stemsFixtures,
   ...devtoolsFixtures,
+  ...proxyPoolFixtures,
   ...transferFixtures,
   ...researchFixtures,
+  ...quickPanelFixtures,
 };

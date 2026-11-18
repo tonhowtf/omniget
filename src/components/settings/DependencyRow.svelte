@@ -351,7 +351,7 @@
   .menu-label {
     padding: 4px 10px;
     font-size: var(--text-xs, 0.75rem);
-    color: var(--text-muted, var(--text-secondary));
+    color: var(--text-muted);
   }
   .menu-btn {
     padding: 5px 10px;

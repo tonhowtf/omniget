@@ -391,14 +391,6 @@ impl Translator {
         }
     }
 
-    pub fn thread_id(&self) -> &str {
-        &self.thread_id
-    }
-
-    pub fn provider_thread(&self) -> Option<&str> {
-        self.provider_thread.as_deref()
-    }
-
     pub fn set_provider_thread(&mut self, id: &str) {
         self.provider_thread = Some(id.to_string());
     }
@@ -428,10 +420,6 @@ impl Translator {
             .iter()
             .map(|(a, b)| (a.clone(), b.clone()))
             .collect()
-    }
-
-    pub fn has_pending(&self, request_id: &str) -> bool {
-        self.pending.contains_key(request_id)
     }
 
     fn ev(&self, turn: Option<&str>, kind: RuntimeEventKind) -> RuntimeEvent {

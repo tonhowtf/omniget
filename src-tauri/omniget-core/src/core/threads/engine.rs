@@ -305,10 +305,6 @@ impl ThreadsEngine {
         }))
     }
 
-    pub fn path(&self) -> &Path {
-        &self.path
-    }
-
     pub fn subscribe(&self) -> broadcast::Receiver<StoredEvent> {
         self.events.subscribe()
     }

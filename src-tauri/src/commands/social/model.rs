@@ -1,82 +1,87 @@
-use serde::Serialize;
+use serde::{Serialize, Serializer};
 use serde_json::Value;
 
-#[derive(Serialize, Clone, Copy, Debug, PartialEq, Eq, Hash)]
-#[serde(rename_all = "lowercase")]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Platform {
-    X,
-    Instagram,
-    Tiktok,
-    Reddit,
-    Pinterest,
-    Github,
+    ShortPost,
+    PhotoFeed,
+    ClipFeed,
+    Forums,
+    PinBoard,
+    CodeHub,
+}
+
+impl Serialize for Platform {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.serialize_str(self.id())
+    }
 }
 
 impl Platform {
     pub fn parse(s: &str) -> Option<Self> {
         match s.trim().to_ascii_lowercase().as_str() {
-            "x" | "twitter" => Some(Self::X),
-            "instagram" | "ig" => Some(Self::Instagram),
-            "tiktok" | "tt" => Some(Self::Tiktok),
-            "reddit" | "rd" => Some(Self::Reddit),
-            "pinterest" | "pin" => Some(Self::Pinterest),
-            "github" | "gh" => Some(Self::Github),
+            "x" | "twitter" | "shortpost" => Some(Self::ShortPost),
+            "instagram" | "ig" | "photofeed" => Some(Self::PhotoFeed),
+            "tiktok" | "tt" | "clipfeed" => Some(Self::ClipFeed),
+            "reddit" | "rd" | "forums" => Some(Self::Forums),
+            "pinterest" | "pin" | "pinboard" => Some(Self::PinBoard),
+            "github" | "gh" | "codehub" => Some(Self::CodeHub),
             _ => None,
         }
     }
 
     pub fn id(self) -> &'static str {
         match self {
-            Self::X => "x",
-            Self::Instagram => "instagram",
-            Self::Tiktok => "tiktok",
-            Self::Reddit => "reddit",
-            Self::Pinterest => "pinterest",
-            Self::Github => "github",
+            Self::ShortPost => "x",
+            Self::PhotoFeed => "instagram",
+            Self::ClipFeed => "tiktok",
+            Self::Forums => "reddit",
+            Self::PinBoard => "pinterest",
+            Self::CodeHub => "github",
         }
     }
 
     pub fn label(self) -> &'static str {
         match self {
-            Self::X => "X",
-            Self::Instagram => "Instagram",
-            Self::Tiktok => "TikTok",
-            Self::Reddit => "Reddit",
-            Self::Pinterest => "Pinterest",
-            Self::Github => "GitHub",
+            Self::ShortPost => "Short Posts",
+            Self::PhotoFeed => "Photo Feed",
+            Self::ClipFeed => "Clip Feed",
+            Self::Forums => "Forums",
+            Self::PinBoard => "Pin Boards",
+            Self::CodeHub => "Code Hub",
         }
     }
 
     pub fn origin(self) -> &'static str {
         match self {
-            Self::X => "https://x.com",
-            Self::Instagram => "https://www.instagram.com",
-            Self::Tiktok => "https://www.tiktok.com",
-            Self::Reddit => "https://www.reddit.com",
-            Self::Pinterest => "https://www.pinterest.com",
-            Self::Github => "https://github.com",
+            Self::ShortPost => "https://x.com",
+            Self::PhotoFeed => "https://www.instagram.com",
+            Self::ClipFeed => "https://www.tiktok.com",
+            Self::Forums => "https://www.reddit.com",
+            Self::PinBoard => "https://www.pinterest.com",
+            Self::CodeHub => "https://github.com",
         }
     }
 
     pub fn login_url(self) -> &'static str {
         match self {
-            Self::X => "https://x.com/i/flow/login",
-            Self::Instagram => "https://www.instagram.com/accounts/login/",
-            Self::Tiktok => "https://www.tiktok.com/login",
-            Self::Reddit => "https://www.reddit.com/login/",
-            Self::Pinterest => "https://www.pinterest.com/login/",
-            Self::Github => "https://github.com/login",
+            Self::ShortPost => "https://x.com/i/flow/login",
+            Self::PhotoFeed => "https://www.instagram.com/accounts/login/",
+            Self::ClipFeed => "https://www.tiktok.com/login",
+            Self::Forums => "https://www.reddit.com/login/",
+            Self::PinBoard => "https://www.pinterest.com/login/",
+            Self::CodeHub => "https://github.com/login",
         }
     }
 
     pub fn prefix(self) -> &'static str {
         match self {
-            Self::X => "x_",
-            Self::Instagram => "ig_",
-            Self::Tiktok => "tt_",
-            Self::Reddit => "rd_",
-            Self::Pinterest => "pin_",
-            Self::Github => "gh_",
+            Self::ShortPost => "x_",
+            Self::PhotoFeed => "ig_",
+            Self::ClipFeed => "tt_",
+            Self::Forums => "rd_",
+            Self::PinBoard => "pin_",
+            Self::CodeHub => "gh_",
         }
     }
 }

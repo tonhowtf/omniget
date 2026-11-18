@@ -153,16 +153,6 @@ pub async fn list(
     closing(session, result).await
 }
 
-pub async fn size_of(connection: &Connection, path: &str) -> Result<Option<u64>, TransferError> {
-    let mut session = Session::open(connection).await?;
-    let result = async {
-        let path = resolve(&mut session, Some(path)).await?;
-        Ok(session.stat(&path).await?.and_then(|entry| entry.size))
-    }
-    .await;
-    closing(session, result).await
-}
-
 pub async fn get(
     connection: &Connection,
     remote: &str,

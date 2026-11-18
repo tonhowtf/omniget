@@ -68,7 +68,7 @@ export function drawMinimap(
     const r = map(n);
     if (isTerminalKind(n.kind)) {
       const state = agentStates.stateOf(n);
-      ctx.fillStyle = state === 'blocked' ? '#e5484d' : stateCss(state);
+      ctx.fillStyle = stateCss(state);
     } else {
       ctx.fillStyle = KIND_FILL[n.kind] ?? '#8a8a8a';
     }

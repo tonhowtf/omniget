@@ -1,3 +1,5 @@
+import { STORE_BUILD } from "./store-policy.js";
+
 const STORAGE_KEY = "omniget_h264_enabled";
 const STORAGE_60 = "omniget_h264_block60";
 const SCRIPT_ID = "omniget-h264ify";
@@ -8,7 +10,7 @@ let block60 = false;
 
 export async function loadH264State() {
   const r = await chrome.storage.local.get([STORAGE_KEY, STORAGE_60]);
-  enabled = r[STORAGE_KEY] === true;
+  enabled = !STORE_BUILD && r[STORAGE_KEY] === true;
   block60 = r[STORAGE_60] === true;
   await reconcile();
   return { enabled, block60 };
@@ -50,7 +52,7 @@ async function reconcile() {
 }
 
 export async function setH264(value, block60Value) {
-  enabled = Boolean(value);
+  enabled = !STORE_BUILD && Boolean(value);
   if (typeof block60Value === "boolean") block60 = block60Value;
   await chrome.storage.local.set({ [STORAGE_KEY]: enabled, [STORAGE_60]: block60 });
   await reconcile();

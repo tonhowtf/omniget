@@ -158,6 +158,7 @@ impl WorkerDownloader {
         let runtime = RuntimeDir::create()?;
         let policy = Policy {
             local_allowances: self.allowed_sockets.clone(),
+            upstream: omniget_core::core::egress::Upstream::from_settings(),
             ..Policy::default()
         };
         let broker = Broker::start(policy, cancel.clone())

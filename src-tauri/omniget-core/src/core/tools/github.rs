@@ -1,4 +1,4 @@
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use anyhow::anyhow;
 
@@ -102,65 +102,6 @@ pub async fn download(
     Ok(bytes)
 }
 
-pub fn unpack(data: &[u8], name: &str, dest: &Path) -> anyhow::Result<()> {
-    std::fs::create_dir_all(dest)?;
-    if name.ends_with(".zip") {
-        let mut archive = zip::ZipArchive::new(std::io::Cursor::new(data))
-            .map_err(|e| anyhow!("invalid zip: {}", e))?;
-        for i in 0..archive.len() {
-            let mut file = archive.by_index(i)?;
-            let Some(rel) = file.enclosed_name() else {
-                continue;
-            };
-            let out = dest.join(rel);
-            if file.is_dir() {
-                std::fs::create_dir_all(&out)?;
-                continue;
-            }
-            if let Some(parent) = out.parent() {
-                std::fs::create_dir_all(parent)?;
-            }
-            let mut w = std::fs::File::create(&out)?;
-            std::io::copy(&mut file, &mut w)?;
-        }
-        Ok(())
-    } else if name.ends_with(".tar.gz") || name.ends_with(".tgz") {
-        let decoder = flate2::read::GzDecoder::new(std::io::Cursor::new(data));
-        let mut archive = tar::Archive::new(decoder);
-        archive.set_preserve_permissions(true);
-        archive
-            .unpack(dest)
-            .map_err(|e| anyhow!("invalid tar.gz: {}", e))
-    } else if name.ends_with(".tar.xz") {
-        let decoder = xz2::read::XzDecoder::new(std::io::Cursor::new(data));
-        let mut archive = tar::Archive::new(decoder);
-        archive.set_preserve_permissions(true);
-        archive
-            .unpack(dest)
-            .map_err(|e| anyhow!("invalid tar.xz: {}", e))
-    } else {
-        Err(anyhow!("unknown package format: {}", name))
-    }
-}
-
-pub fn find_file(root: &Path, file_name: &str) -> Option<PathBuf> {
-    let mut stack = vec![root.to_path_buf()];
-    while let Some(dir) = stack.pop() {
-        let Ok(rd) = std::fs::read_dir(&dir) else {
-            continue;
-        };
-        for entry in rd.flatten() {
-            let p = entry.path();
-            if p.is_dir() {
-                stack.push(p);
-            } else if p.file_name().map(|n| n == file_name).unwrap_or(false) {
-                return Some(p);
-            }
-        }
-    }
-    None
-}
-
 #[cfg(unix)]
 pub fn make_executable(path: &Path) {
     use std::os::unix::fs::PermissionsExt;
@@ -169,22 +110,6 @@ pub fn make_executable(path: &Path) {
 
 #[cfg(not(unix))]
 pub fn make_executable(_path: &Path) {}
-
-pub fn swap_dir(staging: &Path, dir: &Path) -> anyhow::Result<()> {
-    let old = dir.with_extension("old");
-    let _ = std::fs::remove_dir_all(&old);
-    if dir.exists() {
-        std::fs::rename(dir, &old)?;
-    }
-    if let Err(e) = std::fs::rename(staging, dir) {
-        if old.exists() {
-            let _ = std::fs::rename(&old, dir);
-        }
-        return Err(anyhow!("could not move the installation into place: {}", e));
-    }
-    let _ = std::fs::remove_dir_all(&old);
-    Ok(())
-}
 
 #[cfg(target_os = "macos")]
 pub async fn strip_quarantine(dir: &Path) {

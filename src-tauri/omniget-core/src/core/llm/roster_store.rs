@@ -1,10 +1,10 @@
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::sync::{Arc, Mutex, OnceLock, RwLock};
 
 use super::agent::{
     AgentDef, AgentRole, Budget, GrantMode, ModelPolicy, RuntimeKind, ToolGrant, ToolSource,
 };
-use super::types::{ModelRef, ProviderId};
+use super::types::ProviderId;
 
 pub const ERR_ROSTER_DUP: &str = "ERR_LLM_ROSTER_DUP";
 pub const ERR_ROSTER_MISSING: &str = "ERR_LLM_ROSTER_MISSING";
@@ -38,10 +38,6 @@ pub type Result<T> = std::result::Result<T, RosterError>;
 
 pub fn llm_dir() -> Option<PathBuf> {
     crate::core::paths::app_data_dir().map(|d| d.join("llm"))
-}
-
-pub fn default_path() -> Option<PathBuf> {
-    llm_dir().map(|d| d.join("roster.json"))
 }
 
 pub fn valid_id(id: &str) -> bool {
@@ -218,65 +214,6 @@ fn roster_with_prompts(prompts: &PromptDefaults) -> Vec<AgentDef> {
     ]
 }
 
-pub fn template(name: &str) -> Option<Vec<AgentDef>> {
-    let prompts = prompt_defaults();
-    let base = |id: &str, agent_name: &str, role: AgentRole, prompt: &str| AgentDef {
-        id: id.into(),
-        name: agent_name.into(),
-        role,
-        system_prompt: prompt.into(),
-        model: ModelPolicy::Fixed {
-            model: ModelRef {
-                provider: ProviderId::new("openai"),
-                model: "gpt-4o-mini".into(),
-            },
-        },
-        tools: Vec::new(),
-        skills: Vec::new(),
-        budget: Budget::default(),
-        runtime: RuntimeKind::Native,
-        skin: None,
-    };
-    match name {
-        "solo" => Some(default_roster().into_iter().take(1).collect()),
-        "chief_of_staff" => Some(vec![
-            base(
-                "chief",
-                "Chief of Staff",
-                AgentRole::Coordinator,
-                &prompts.template_chief,
-            ),
-            base(
-                "researcher",
-                "Researcher",
-                AgentRole::Worker,
-                &prompts.template_researcher,
-            ),
-            base(
-                "writer",
-                "Writer",
-                AgentRole::Worker,
-                &prompts.template_writer,
-            ),
-        ]),
-        "engineering_manager" => Some(vec![
-            base(
-                "em",
-                "Engineering Manager",
-                AgentRole::Coordinator,
-                &prompts.template_em,
-            ),
-            base(
-                "reviewer",
-                "Reviewer",
-                AgentRole::Advisor,
-                &prompts.template_reviewer,
-            ),
-        ]),
-        _ => None,
-    }
-}
-
 pub struct RosterStore {
     path: PathBuf,
     mutation: Mutex<()>,
@@ -290,14 +227,6 @@ impl RosterStore {
             mutation: Mutex::new(()),
             cache: RwLock::new(None),
         }
-    }
-
-    pub fn default_store() -> Option<Self> {
-        default_path().map(Self::at)
-    }
-
-    pub fn path(&self) -> &Path {
-        &self.path
     }
 
     pub fn list(&self) -> Arc<Vec<AgentDef>> {
@@ -400,26 +329,6 @@ impl RosterStore {
         }
         self.save(all)?;
         Ok(agent)
-    }
-
-    pub fn delete(&self, id: &str) -> Result<()> {
-        let _guard = self.mutation.lock().unwrap_or_else(|e| e.into_inner());
-        let mut all = (*self.list()).clone();
-        let before = all.len();
-        all.retain(|a| a.id != id);
-        if all.len() == before {
-            return Err(RosterError::new(
-                ERR_ROSTER_MISSING,
-                format!("no agent {id}"),
-            ));
-        }
-        self.save(all)
-    }
-
-    pub fn replace_all(&self, agents: Vec<AgentDef>) -> Result<Arc<Vec<AgentDef>>> {
-        let _guard = self.mutation.lock().unwrap_or_else(|e| e.into_inner());
-        self.save(agents)?;
-        Ok(self.list())
     }
 
     fn read_from_disk(&self) -> Vec<AgentDef> {

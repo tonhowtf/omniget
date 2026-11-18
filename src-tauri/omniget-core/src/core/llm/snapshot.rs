@@ -7,9 +7,6 @@ use sha2::{Digest, Sha256};
 use super::folder_key::FolderKey;
 
 pub const ERR_SNAPSHOT: &str = "ERR_CODE_SNAPSHOT";
-pub const ERR_NOTHING_TO_UNDO: &str = "ERR_CODE_NOTHING_TO_UNDO";
-pub const ERR_UNDO_SHARED: &str = "ERR_UNDO_SHARED";
-pub const ERR_UNDO_CONFLICT: &str = "ERR_UNDO_CONFLICT";
 pub const ERR_DIFF_UNAVAILABLE: &str = "ERR_DIFF_UNAVAILABLE";
 
 static ROOT: RwLock<Option<PathBuf>> = RwLock::new(None);
@@ -37,14 +34,6 @@ pub struct FileChange {
     pub deletions: Option<u64>,
     #[serde(default)]
     pub binary: bool,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct TurnDiff {
-    pub files: Vec<FileChange>,
-    pub patch: String,
-    pub clipped: bool,
-    pub complete: bool,
 }
 
 pub const DIFF_MAX_BYTES: usize = 256 * 1024;
@@ -99,32 +88,6 @@ fn note_failure(workspace: &Path, error: Option<&str>) {
             map.remove(workspace);
         }
     }
-}
-
-pub fn git_available() -> bool {
-    let exe = if cfg!(windows) { "git.exe" } else { "git" };
-    std::env::var_os("PATH")
-        .map(|p| std::env::split_paths(&p).any(|d| d.join(exe).is_file()))
-        .unwrap_or(false)
-}
-
-pub fn problem(workspace: &Path) -> Option<String> {
-    if !git_available() {
-        return Some(format!(
-            "{ERR_SNAPSHOT}: git was not found on the PATH, so turns cannot be undone"
-        ));
-    }
-    FAILURES
-        .read()
-        .unwrap_or_else(|e| e.into_inner())
-        .as_ref()
-        .and_then(|m| m.get(workspace).cloned())
-}
-
-#[derive(Debug, Clone, Serialize)]
-pub struct Undone {
-    pub files: Vec<String>,
-    pub messages_before: Option<usize>,
 }
 
 fn git_dir(workspace: &Path) -> Result<PathBuf, String> {
@@ -543,147 +506,9 @@ pub async fn live_diff(workspace: &Path, base: &str) -> Result<JobDiff, String> 
     diff_trees(&dir, workspace, base, &tip).await
 }
 
-pub fn depth(workspace: &Path, conversation: &str) -> usize {
-    git_dir(workspace)
-        .map(|d| load(&d, conversation).len())
-        .unwrap_or(0)
-}
-
 pub fn shared_with(workspace: &Path, live: &[PathBuf]) -> Option<PathBuf> {
     let key = FolderKey::of(workspace);
     live.iter()
         .find(|p| FolderKey::of(p).overlaps(&key))
         .cloned()
-}
-
-pub async fn undo(
-    workspace: &Path,
-    conversation: &str,
-    live: &[PathBuf],
-) -> Result<Undone, String> {
-    if let Some(other) = shared_with(workspace, live) {
-        return Err(format!(
-            "{ERR_UNDO_SHARED}: another conversation or job is working in {} right now, which shares files with this folder; restoring them could erase its work. Revert the conversation only, or undo when it ends",
-            other.display()
-        ));
-    }
-    let dir = ensure(workspace).await?;
-    let mut stack = load(&dir, conversation);
-    let entry = stack.last().cloned().ok_or_else(|| {
-        format!("{ERR_NOTHING_TO_UNDO}: no turn of this conversation wrote files")
-    })?;
-    let now = stage_tree(&dir, workspace).await?;
-    let changed = match &entry.after {
-        Some(after) => {
-            let own = changed_paths(&dir, workspace, &entry.tree, after).await?;
-            let since = changed_paths(&dir, workspace, after, &now).await?;
-            let clash: Vec<&str> = own
-                .iter()
-                .filter(|p| since.contains(p))
-                .map(String::as_str)
-                .collect();
-            if !clash.is_empty() {
-                return Err(format!(
-                    "{ERR_UNDO_CONFLICT}: changed again after this turn, so undoing would overwrite that: {}",
-                    clash.join(", ")
-                ));
-            }
-            if !own.is_empty() {
-                let target = graft(&dir, workspace, &now, &entry.tree, &own).await?;
-                git(&dir, workspace, &["read-tree", "--reset", "-u", &target]).await?;
-            }
-            own
-        }
-        None => {
-            let changed = changed_paths(&dir, workspace, &entry.tree, &now).await?;
-            git(
-                &dir,
-                workspace,
-                &["read-tree", "--reset", "-u", &entry.tree],
-            )
-            .await?;
-            changed
-        }
-    };
-    stack.pop();
-    store(&dir, conversation, &stack);
-    Ok(Undone {
-        files: changed,
-        messages_before: entry.messages_before,
-    })
-}
-
-async fn changed_paths(
-    dir: &Path,
-    workspace: &Path,
-    from: &str,
-    to: &str,
-) -> Result<Vec<String>, String> {
-    let out = git_io(
-        dir,
-        workspace,
-        &["diff", "--name-only", "-z", "--no-renames", from, to],
-        None,
-        None,
-    )
-    .await?;
-    Ok(out
-        .split(|b| *b == 0)
-        .filter(|p| !p.is_empty())
-        .map(|p| String::from_utf8_lossy(p).to_string())
-        .collect())
-}
-
-async fn graft(
-    dir: &Path,
-    workspace: &Path,
-    now: &str,
-    from: &str,
-    paths: &[String],
-) -> Result<String, String> {
-    let index = dir.join(format!(
-        "omniget-undo-{}.index",
-        uuid::Uuid::new_v4().simple()
-    ));
-    let out = async {
-        git_io(dir, workspace, &["read-tree", now], None, Some(&index)).await?;
-        let listing = git_io(
-            dir,
-            workspace,
-            &["ls-tree", "-r", "-z", "--full-tree", from],
-            None,
-            None,
-        )
-        .await?;
-        let wanted: std::collections::HashSet<&str> = paths.iter().map(String::as_str).collect();
-        let mut info: Vec<u8> = Vec::new();
-        let mut present = std::collections::HashSet::new();
-        for rec in listing.split(|b| *b == 0).filter(|r| !r.is_empty()) {
-            let rec = String::from_utf8_lossy(rec);
-            if let Some((meta, path)) = rec.split_once('\t') {
-                if wanted.contains(path) {
-                    info.extend_from_slice(format!("{meta}\t{path}\0").as_bytes());
-                    present.insert(path.to_string());
-                }
-            }
-        }
-        for path in paths.iter().filter(|p| !present.contains(*p)) {
-            info.extend_from_slice(
-                format!("0 0000000000000000000000000000000000000000\t{path}\0").as_bytes(),
-            );
-        }
-        git_io(
-            dir,
-            workspace,
-            &["update-index", "-z", "--index-info"],
-            Some(&info),
-            Some(&index),
-        )
-        .await?;
-        let tree = git_io(dir, workspace, &["write-tree"], None, Some(&index)).await?;
-        Ok::<String, String>(String::from_utf8_lossy(&tree).trim().to_string())
-    }
-    .await;
-    let _ = std::fs::remove_file(&index);
-    out
 }

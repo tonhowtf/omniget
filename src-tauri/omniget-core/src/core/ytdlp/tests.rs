@@ -1230,3 +1230,36 @@ fn step_failures_are_not_reworded_by_the_classifier() {
         "postprocess_failed"
     );
 }
+
+#[test]
+fn a_refused_address_swaps_only_the_proxy_argument() {
+    let mut args: Vec<String> = ["-o", "out", "--proxy", "http://10.0.0.1:80", "--newline"]
+        .iter()
+        .map(|a| a.to_string())
+        .collect();
+    assert!(replace_proxy_arg(
+        &mut args,
+        Some("socks5h://10.0.0.2:1080".into())
+    ));
+    assert_eq!(
+        args,
+        [
+            "-o",
+            "out",
+            "--proxy",
+            "socks5h://10.0.0.2:1080",
+            "--newline"
+        ]
+    );
+    assert!(!replace_proxy_arg(
+        &mut args,
+        Some("socks5h://10.0.0.2:1080".into())
+    ));
+    assert!(!replace_proxy_arg(&mut args, None));
+    let mut none: Vec<String> = vec!["-o".into(), "out".into()];
+    assert!(!replace_proxy_arg(
+        &mut none,
+        Some("http://10.0.0.1:80".into())
+    ));
+    assert_eq!(none, ["-o", "out"]);
+}

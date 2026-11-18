@@ -193,7 +193,7 @@
       <p class="mo-note" role="note">{$t("motion.reduced_note")}</p>
     {/if}
     {#if comparing}
-      <p class="mo-meta">{$t("motion.easing.race", { a: presetLabel(a), b: presetLabel(b) })}</p>
+      <p class="mo-meta">{$t("motion.easing.race", { first: presetLabel(a), second: presetLabel(b) })}</p>
       <button type="button" class="btn btn-ghost btn-sm" onclick={swap}>{$t("motion.easing.swap")}</button>
     {/if}
   </section>

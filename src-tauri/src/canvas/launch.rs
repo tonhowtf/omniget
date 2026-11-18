@@ -88,7 +88,7 @@ pub fn agent_command(n: &CanvasNode) -> Vec<String> {
                 .collect();
         }
         Some(serde_json::Value::String(s)) if !s.trim().is_empty() => {
-            return omniget_core::core::canvas::maestro::split_command(s);
+            return omniget_core::core::canvas::lead::split_command(s);
         }
         _ => {}
     }

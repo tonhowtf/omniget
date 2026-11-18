@@ -88,32 +88,24 @@ pub(super) fn resolve_absolute_path(bin_name: &str) -> PathBuf {
     PathBuf::from(bin_name)
 }
 
+fn live_cached_path(cache: &Option<Option<PathBuf>>) -> Option<PathBuf> {
+    cache.as_ref()?.as_ref().filter(|p| p.exists()).cloned()
+}
+
 pub async fn find_ytdlp_cached() -> Option<PathBuf> {
-    let _timer_start = std::time::Instant::now();
-    if let Ok(cache) = YTDLP_PATH_CACHE.read() {
-        if let Some(ref cached) = *cache {
-            if let Some(ref path) = cached {
-                if path.exists() {
-                    tracing::debug!(
-                        "[perf] find_ytdlp_cached (hit): {:?}",
-                        _timer_start.elapsed()
-                    );
-                    return cached.clone();
-                }
-                tracing::warn!("[ytdlp] cached path no longer exists: {}", path.display());
-            } else {
-                return None;
-            }
-        }
+    let cached = YTDLP_PATH_CACHE
+        .read()
+        .ok()
+        .and_then(|cache| live_cached_path(&cache));
+    if cached.is_some() {
+        return cached;
     }
     let result = find_ytdlp().await;
-    if let Ok(mut cache) = YTDLP_PATH_CACHE.write() {
-        *cache = Some(result.clone());
+    if result.is_some() {
+        if let Ok(mut cache) = YTDLP_PATH_CACHE.write() {
+            *cache = Some(result.clone());
+        }
     }
-    tracing::debug!(
-        "[perf] find_ytdlp_cached (miss): {:?}",
-        _timer_start.elapsed()
-    );
     result
 }
 
@@ -1095,4 +1087,24 @@ pub(super) fn is_standalone_ytdlp_build(path: &Path) -> bool {
         .and_then(|mut f| f.read_exact(&mut head))
         .is_ok()
         && &head != b"#!"
+}
+
+#[cfg(test)]
+mod cached_path_tests {
+    use super::live_cached_path;
+
+    #[test]
+    fn a_remembered_miss_is_looked_up_again() {
+        assert_eq!(live_cached_path(&Some(None)), None);
+        assert_eq!(live_cached_path(&None), None);
+    }
+
+    #[test]
+    fn a_remembered_path_is_used_only_while_the_file_exists() {
+        let dir = tempfile::tempdir().unwrap();
+        let bin = dir.path().join("yt-dlp");
+        assert_eq!(live_cached_path(&Some(Some(bin.clone()))), None);
+        std::fs::write(&bin, b"x").unwrap();
+        assert_eq!(live_cached_path(&Some(Some(bin.clone()))), Some(bin));
+    }
 }

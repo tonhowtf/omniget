@@ -97,11 +97,3 @@ pub fn record_bytes(plugin_data_dir: &Path, n: u64) {
     s.total_used_bytes = s.total_used_bytes.saturating_add(n);
     let _ = save_inner(plugin_data_dir, &s);
 }
-
-pub fn would_exceed(plugin_data_dir: &Path, additional: u64) -> bool {
-    let s = load(plugin_data_dir);
-    if s.quota_bytes == 0 {
-        return false;
-    }
-    s.used_today_bytes.saturating_add(additional) > s.quota_bytes
-}

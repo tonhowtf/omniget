@@ -55,6 +55,10 @@
     </div>
   {:else}
     <p class="lead">{$t("downloads.tools.subtitle")}</p>
+    <p class="more-tools">
+      {$t("downloads.tools.more_hint")}
+      <a href="/superpowers">{$t("downloads.tools.more_link")}</a>
+    </p>
     {#if DOWNLOAD_TOOLS.length === 0}
       <p class="muted">{$t("downloads.tools.empty")}</p>
     {:else}
@@ -83,6 +87,7 @@
     padding: var(--space-3) 0;
   }
   .lead,
+  .more-tools,
   .muted {
     margin: 0;
     color: var(--text-dim);

@@ -497,7 +497,7 @@ pub fn to_xhtml(html: &str) -> String {
 }
 
 pub fn html_chapter(html: &str, fallback_title: &str) -> Chapter {
-    let lower = html.to_lowercase();
+    let lower = html.to_ascii_lowercase();
     let body = match (lower.find("<body"), lower.rfind("</body>")) {
         (Some(a), Some(b)) if b > a => {
             let start = a + lower[a..].find('>').map(|x| x + 1).unwrap_or(0);
@@ -638,6 +638,13 @@ mod tests {
         let c = html_chapter("<body><h1>The <em>Start</em></h1><p>x</p></body>", "f");
         assert_eq!(c.title, "The Start");
         assert_eq!(html_chapter("<p>x</p>", "Fallback").title, "Fallback");
+    }
+
+    #[test]
+    fn html_chapter_keeps_offsets_when_lowercase_changes_byte_length() {
+        let c = html_chapter("<title>İstanbul</title><BODY>çay</BODY>", "f");
+        assert_eq!(c.title, "İstanbul");
+        assert_eq!(c.body, "çay");
     }
 
     #[test]

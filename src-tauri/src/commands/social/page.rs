@@ -26,23 +26,23 @@ impl Reply {
 
 pub fn host(p: Platform) -> &'static str {
     match p {
-        Platform::X => "x.com",
-        Platform::Instagram => "instagram.com",
-        Platform::Tiktok => "tiktok.com",
-        Platform::Reddit => "reddit.com",
-        Platform::Pinterest => "pinterest.com",
-        Platform::Github => "github.com",
+        Platform::ShortPost => "x.com",
+        Platform::PhotoFeed => "instagram.com",
+        Platform::ClipFeed => "tiktok.com",
+        Platform::Forums => "reddit.com",
+        Platform::PinBoard => "pinterest.com",
+        Platform::CodeHub => "github.com",
     }
 }
 
 pub fn session_cookie(p: Platform) -> &'static str {
     match p {
-        Platform::X => "auth_token",
-        Platform::Instagram => "sessionid",
-        Platform::Tiktok => "sessionid",
-        Platform::Reddit => "reddit_session",
-        Platform::Pinterest => "_pinterest_sess",
-        Platform::Github => "user_session",
+        Platform::ShortPost => "auth_token",
+        Platform::PhotoFeed => "sessionid",
+        Platform::ClipFeed => "sessionid",
+        Platform::Forums => "reddit_session",
+        Platform::PinBoard => "_pinterest_sess",
+        Platform::CodeHub => "user_session",
     }
 }
 
@@ -71,9 +71,9 @@ pub async fn logged_in(b: &Browser, p: Platform) -> bool {
         return true;
     }
     match p {
-        Platform::Reddit => cookie(b, p, "token_v2")
+        Platform::Forums => cookie(b, p, "token_v2")
             .await
-            .is_some_and(|t| super::reddit::token_is_user(&t)),
+            .is_some_and(|t| super::forums::token_is_user(&t)),
         _ => false,
     }
 }
@@ -95,7 +95,7 @@ pub fn live_origin(b: &Browser, p: Platform) -> Option<String> {
 
 pub async fn origin(p: Platform) -> String {
     match running().await.and_then(|b| live_origin(&b, p)) {
-        Some(found) if p == Platform::Pinterest => found,
+        Some(found) if p == Platform::PinBoard => found,
         _ => p.origin().to_string(),
     }
 }
@@ -103,7 +103,7 @@ pub async fn origin(p: Platform) -> String {
 pub async fn ensure_tab(b: &Browser, p: Platform) -> Result<(), String> {
     let probe = format!("{}/", p.origin());
     let open = |b: &Browser| match p {
-        Platform::Pinterest => live_origin(b, p).is_some(),
+        Platform::PinBoard => live_origin(b, p).is_some(),
         _ => b.tab_for_origin(&probe).is_some(),
     };
     if open(b) {
@@ -212,18 +212,18 @@ mod origin_tests {
     use super::*;
 
     #[test]
-    fn a_regional_pinterest_tab_gives_the_origin_to_call() {
+    fn a_regional_pinboard_tab_gives_the_origin_to_call() {
         let tabs = vec![
             "about:blank".to_string(),
             "https://x.com/home".to_string(),
             "https://br.pinterest.com/pin/1/".to_string(),
         ];
         assert_eq!(
-            site_origin(&tabs, Platform::Pinterest).as_deref(),
+            site_origin(&tabs, Platform::PinBoard).as_deref(),
             Some("https://br.pinterest.com")
         );
-        assert_eq!(site_origin(&tabs, Platform::Reddit), None);
+        assert_eq!(site_origin(&tabs, Platform::Forums), None);
         let fake = vec!["https://notpinterest.com/".to_string()];
-        assert_eq!(site_origin(&fake, Platform::Pinterest), None);
+        assert_eq!(site_origin(&fake, Platform::PinBoard), None);
     }
 }

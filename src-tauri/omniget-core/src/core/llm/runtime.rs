@@ -46,17 +46,6 @@ impl NativeRuntime {
         let map = self.providers.lock().unwrap_or_else(|e| e.into_inner());
         map.get(provider_id).cloned()
     }
-
-    pub fn len(&self) -> usize {
-        self.providers
-            .lock()
-            .unwrap_or_else(|e| e.into_inner())
-            .len()
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.len() == 0
-    }
 }
 
 #[async_trait]

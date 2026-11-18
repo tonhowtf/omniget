@@ -279,10 +279,31 @@ pub struct CanvasPadding {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(default)]
+#[serde(from = "StoredCanvasNotificationSettings")]
 pub struct CanvasNotificationSettings {
     pub attention: bool,
-    pub badges_for_non_maestro: bool,
+    pub badges_for_non_lead: bool,
+}
+
+#[derive(Deserialize, Default)]
+#[serde(default)]
+struct StoredCanvasNotificationSettings {
+    attention: Option<bool>,
+    badges_for_non_lead: Option<bool>,
+    badges_for_non_maestro: Option<bool>,
+}
+
+impl From<StoredCanvasNotificationSettings> for CanvasNotificationSettings {
+    fn from(s: StoredCanvasNotificationSettings) -> Self {
+        let d = Self::default();
+        Self {
+            attention: s.attention.unwrap_or(d.attention),
+            badges_for_non_lead: s
+                .badges_for_non_lead
+                .or(s.badges_for_non_maestro)
+                .unwrap_or(d.badges_for_non_lead),
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -292,16 +313,45 @@ pub struct CanvasPowerSettings {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
-#[serde(default)]
+#[serde(from = "StoredAgentPreset")]
 pub struct AgentPreset {
     pub command: String,
     pub args: Vec<String>,
     pub env: std::collections::BTreeMap<String, String>,
     pub icon: Option<String>,
     pub color: Option<String>,
-    pub maestro: bool,
+    pub lead: bool,
     pub start_in_chat_mode: bool,
     pub cwd: Option<String>,
+}
+
+#[derive(Deserialize, Default)]
+#[serde(default)]
+struct StoredAgentPreset {
+    command: String,
+    args: Vec<String>,
+    env: std::collections::BTreeMap<String, String>,
+    icon: Option<String>,
+    color: Option<String>,
+    lead: Option<bool>,
+    maestro: Option<bool>,
+    start_in_chat_mode: bool,
+    cwd: Option<String>,
+}
+
+impl From<StoredAgentPreset> for AgentPreset {
+    fn from(s: StoredAgentPreset) -> Self {
+        Self {
+            command: s.command,
+            args: s.args,
+            env: s.env,
+            icon: s.icon,
+            color: s.color,
+            lead: s.lead.or(s.maestro).unwrap_or(false),
+            start_in_chat_mode: s.start_in_chat_mode,
+            cwd: s.cwd,
+        }
+    }
 }
 
 impl Default for CanvasSettings {
@@ -360,7 +410,7 @@ impl Default for CanvasNotificationSettings {
     fn default() -> Self {
         Self {
             attention: true,
-            badges_for_non_maestro: true,
+            badges_for_non_lead: true,
         }
     }
 }
@@ -921,6 +971,8 @@ pub struct AppearanceSettings {
     pub language: String,
     #[serde(default)]
     pub sidebar_collapsed: bool,
+    #[serde(default)]
+    pub downloads_only: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub mode: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -1337,6 +1389,7 @@ impl Default for AppSettings {
                 theme: "system".into(),
                 language: "en".into(),
                 sidebar_collapsed: false,
+                downloads_only: false,
                 mode: None,
                 preset: None,
                 legacy_theme: None,
@@ -1695,5 +1748,30 @@ mod backcompat_tests {
         let back: LlmSettings =
             serde_json::from_value(serde_json::to_value(&llm).unwrap()).expect("round trip");
         assert_eq!(back.jobs_max_parallel, 4);
+    }
+
+    #[test]
+    fn canvas_settings_saved_before_the_lead_rename_still_load() {
+        let old: CanvasNotificationSettings =
+            serde_json::from_value(serde_json::json!({ "badges_for_non_maestro": false }))
+                .expect("loads");
+        assert!(old.attention);
+        assert!(!old.badges_for_non_lead);
+        let both: CanvasNotificationSettings = serde_json::from_value(
+            serde_json::json!({ "badges_for_non_maestro": false, "badges_for_non_lead": true }),
+        )
+        .expect("loads");
+        assert!(both.badges_for_non_lead);
+        let preset: AgentPreset =
+            serde_json::from_value(serde_json::json!({ "command": "claude", "maestro": true }))
+                .expect("loads");
+        assert!(preset.lead);
+        let both: AgentPreset =
+            serde_json::from_value(serde_json::json!({ "maestro": true, "lead": false }))
+                .expect("loads");
+        assert!(!both.lead);
+        let saved = serde_json::to_value(&preset).unwrap();
+        assert_eq!(saved["lead"], true);
+        assert!(saved.get("maestro").is_none());
     }
 }

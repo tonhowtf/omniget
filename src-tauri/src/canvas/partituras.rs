@@ -35,7 +35,7 @@ fn list(ctx: &NodeCtx, args: Value) -> Result<Value, String> {
 }
 
 fn stamp(ctx: &NodeCtx, args: Value) -> Result<Value, String> {
-    let (doc, me) = super::maestro::require_maestro(ctx)?;
+    let (doc, me) = super::lead::require_lead(ctx)?;
     let s = super::doc::host().store().clone();
     let key = args
         .get("name")

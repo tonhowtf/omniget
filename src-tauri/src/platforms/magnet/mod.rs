@@ -1,5 +1,5 @@
 use omniget_core::models::progress::ProgressUpdate;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -22,6 +22,13 @@ impl MagnetDownloader {
             session,
             session_output_dir: Arc::new(tokio::sync::Mutex::new(None)),
         }
+    }
+}
+
+fn folder_for_torrent(session_dir: &Path, listed_dir: &Path, output_dir: &Path) -> PathBuf {
+    match listed_dir.strip_prefix(session_dir) {
+        Ok(sub_folder) if !sub_folder.as_os_str().is_empty() => output_dir.join(sub_folder),
+        _ => output_dir.to_path_buf(),
     }
 }
 
@@ -99,18 +106,17 @@ impl PlatformDownloader for MagnetDownloader {
 
         let output_dir = &opts.output_dir;
 
-        let session = {
+        let (session, session_dir) = {
             let mut guard = self.session.lock().await;
             let mut dir_guard = self.session_output_dir.lock().await;
-            let need_new_session = match (&*guard, &*dir_guard) {
-                (Some(_), Some(prev_dir)) => prev_dir != output_dir,
-                (None, _) => true,
-                _ => true,
+            let existing = match (&*guard, &*dir_guard) {
+                (Some(session), Some(dir)) => Some((session.clone(), dir.clone())),
+                _ => None,
             };
-            if need_new_session {
-                if guard.is_some() {
-                    tracing::info!("[magnet] output dir changed, recreating session");
-                }
+            if let Some(existing) = existing {
+                tracing::info!("[magnet] reusing existing session");
+                existing
+            } else {
                 let listen_port = opts.torrent_listen_port.unwrap_or(6881).min(65525);
                 tracing::info!(
                     "[magnet] creating shared session, port: {}, output: {}",
@@ -157,10 +163,7 @@ impl PlatformDownloader for MagnetDownloader {
                 };
                 *guard = Some(s.clone());
                 *dir_guard = Some(output_dir.clone());
-                s
-            } else {
-                tracing::info!("[magnet] reusing existing session");
-                guard.as_ref().unwrap().clone()
+                (s, output_dir.clone())
             }
         };
 
@@ -195,11 +198,33 @@ impl PlatformDownloader for MagnetDownloader {
         } else {
             None
         };
-        let torrent_opts = AddTorrentOptions {
+        let mut torrent_opts = AddTorrentOptions {
             overwrite: true,
-            only_files,
-            trackers,
+            only_files: only_files.clone(),
+            trackers: trackers.clone(),
             ..Default::default()
+        };
+        let add_torrent = if *output_dir == session_dir {
+            add_torrent
+        } else {
+            let list_opts = AddTorrentOptions {
+                list_only: true,
+                only_files,
+                trackers,
+                ..Default::default()
+            };
+            let listed = match session.add_torrent(add_torrent, Some(list_opts)).await {
+                Ok(librqbit::AddTorrentResponse::ListOnly(listed)) => listed,
+                Ok(_) => anyhow::bail!("Failed to read torrent metadata"),
+                Err(e) => anyhow::bail!("Failed to add torrent: {}", e),
+            };
+            torrent_opts.output_folder = Some(
+                folder_for_torrent(&session_dir, &listed.output_folder, output_dir)
+                    .to_string_lossy()
+                    .into_owned(),
+            );
+            torrent_opts.initial_peers = Some(listed.seen_peers);
+            AddTorrent::from_bytes(listed.torrent_bytes)
         };
 
         tracing::info!("[magnet] adding torrent, output: {}", output_dir.display());
@@ -335,5 +360,34 @@ impl PlatformDownloader for MagnetDownloader {
             duration_seconds: 0.0,
             torrent_id: seeding,
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_single_file_torrent_lands_in_the_folder_the_user_picked() {
+        assert_eq!(
+            folder_for_torrent(
+                Path::new("/first"),
+                Path::new("/first"),
+                Path::new("/second")
+            ),
+            PathBuf::from("/second")
+        );
+    }
+
+    #[test]
+    fn a_multi_file_torrent_keeps_its_own_folder_inside_the_one_picked() {
+        assert_eq!(
+            folder_for_torrent(
+                Path::new("/first"),
+                Path::new("/first/Some Album"),
+                Path::new("/second")
+            ),
+            Path::new("/second").join("Some Album")
+        );
     }
 }

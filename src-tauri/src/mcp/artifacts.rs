@@ -148,28 +148,51 @@ pub fn register(p: &Principal, path: &Path) -> Result<Artifact, String> {
         rows.collect::<Result<Vec<_>, _>>()
             .map_err(|_| "ARTIFACT_STORE_UNAVAILABLE")?
     };
-    for (root_id, root_path, identity) in roots {
-        let Ok(relative) = path.strip_prefix(&root_path) else {
-            continue;
+    let (root_id, relative, root) = first_open(roots, |(_, root_path, identity)| {
+        let relative = path.strip_prefix(root_path).ok()?.to_path_buf();
+        let Ok(identity) = serde_json::from_str::<Identity>(identity) else {
+            return Some(Err("INVALID_ROOT"));
         };
-        let identity: Identity = serde_json::from_str(&identity).map_err(|_| "INVALID_ROOT")?;
-        let root =
-            Root::open(Path::new(&root_path), Some(&identity)).map_err(|_| "ROOT_CHANGED")?;
-        let snap = root
-            .snapshot(relative, MAX_BYTES)
-            .map_err(|_| "ARTIFACT_UNSAFE_OR_CHANGED")?;
-        c.execute_batch("BEGIN IMMEDIATE")
-            .map_err(|_| "ARTIFACT_STORE_BUSY")?;
-        let issued = issue(&c, p, &root_id, relative, &snap);
-        let end = if issued.is_ok() { "COMMIT" } else { "ROLLBACK" };
-        if c.execute_batch(end).is_err() {
-            let _ = c.execute_batch("ROLLBACK");
-            issued?;
-            return Err("ARTIFACT_STORE_UNAVAILABLE".into());
-        }
-        return issued;
+        Some(
+            Root::open(Path::new(root_path), Some(&identity))
+                .map(|root| (relative, root))
+                .map_err(|_| "ROOT_CHANGED"),
+        )
+    })
+    .map(|((root_id, _, _), (relative, root))| (root_id, relative, root))
+    .map_err(|code| match code {
+        "ROOT_CHANGED" => "ROOT_CHANGED: the granted folder was replaced since the grant; ask the person to grant that folder again, then retry".to_string(),
+        other => other.to_string(),
+    })?;
+    let relative = relative.as_path();
+    let snap = root
+        .snapshot(relative, MAX_BYTES)
+        .map_err(|_| "ARTIFACT_UNSAFE_OR_CHANGED")?;
+    c.execute_batch("BEGIN IMMEDIATE")
+        .map_err(|_| "ARTIFACT_STORE_BUSY")?;
+    let issued = issue(&c, p, &root_id, relative, &snap);
+    let end = if issued.is_ok() { "COMMIT" } else { "ROLLBACK" };
+    if c.execute_batch(end).is_err() {
+        let _ = c.execute_batch("ROLLBACK");
+        issued?;
+        return Err("ARTIFACT_STORE_UNAVAILABLE".into());
     }
-    Err("ROOT_NOT_GRANTED".into())
+    issued
+}
+
+fn first_open<R, T>(
+    roots: impl IntoIterator<Item = R>,
+    mut open: impl FnMut(&R) -> Option<Result<T, &'static str>>,
+) -> Result<(R, T), &'static str> {
+    let mut failed = None;
+    for root in roots {
+        match open(&root) {
+            None => {}
+            Some(Ok(opened)) => return Ok((root, opened)),
+            Some(Err(code)) => failed = Some(code),
+        }
+    }
+    Err(failed.unwrap_or("ROOT_NOT_GRANTED"))
 }
 
 fn issue(
@@ -340,4 +363,34 @@ pub fn range(header: Option<&str>, bytes: u64) -> Result<(u64, u64), String> {
         return Err("INVALID_RANGE".into());
     }
     Ok((start, end))
+}
+
+#[cfg(test)]
+mod root_pick_tests {
+    use super::first_open;
+
+    #[test]
+    fn a_stale_grant_does_not_hide_the_live_one_for_the_same_folder() {
+        let roots = ["stale", "live"];
+        let got = first_open(roots, |r| {
+            Some(if *r == "live" {
+                Ok(1)
+            } else {
+                Err("ROOT_CHANGED")
+            })
+        });
+        assert_eq!(got, Ok(("live", 1)));
+    }
+
+    #[test]
+    fn only_stale_grants_report_the_change() {
+        let got = first_open(["stale"], |_| Some(Err::<(), _>("ROOT_CHANGED")));
+        assert_eq!(got, Err("ROOT_CHANGED"));
+    }
+
+    #[test]
+    fn a_folder_outside_every_grant_is_not_granted() {
+        let got = first_open(["other"], |_| None::<Result<(), &'static str>>);
+        assert_eq!(got, Err("ROOT_NOT_GRANTED"));
+    }
 }

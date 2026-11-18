@@ -5,6 +5,7 @@
   import { t } from "$lib/i18n";
   import { showToast } from "$lib/stores/toast-store.svelte";
   import { translateBackendError } from "$lib/error-translate";
+  import { classifyError } from "$lib/home/friendly-error";
 
   type Remedy =
     | "import_cookies"
@@ -22,7 +23,6 @@
 
   let diagnosis = $state<Diagnosis | null>(null);
   let updating = $state(false);
-  let updated = $state(false);
 
   const RETRY_REMEDIES: Remedy[] = ["use_impersonation", "switch_player_client", "wait_and_retry"];
   const POT_GUIDE_URL = "https://github.com/yt-dlp/yt-dlp/wiki/PO-Token-Guide";
@@ -38,10 +38,21 @@
       .catch(() => (diagnosis = null));
   });
 
-  let translated = $derived(translateBackendError(error, $t, $t));
+  let kind = $derived(classifyError(error));
+  let translated = $derived.by(() => {
+    const known = translateBackendError(error, $t, $t);
+    return known !== error || kind === "generic" ? known : ($t(`omnibox.err.${kind}.title`) as string);
+  });
+  const NEEDS_UPDATE = /extraction failed|extractor is broken|update yt-dlp/i;
+  let wantsUpdate = $derived(diagnosis ? diagnosis.remedy === "update_ytdlp" : NEEDS_UPDATE.test(error));
   const BROWSER_HELPS = /unsupported url|login|log in|sign in|cookies|members|private|403|401|forbidden|unable to extract|no video formats/i;
-  let browserUrl = $derived(url && /^https?:\/\//i.test(url) && (BROWSER_HELPS.test(error) || diagnosis?.remedy === "import_cookies") ? url : null);
+  let browserUrl = $derived(
+    url && /^https?:\/\//i.test(url) && (BROWSER_HELPS.test(error) || diagnosis?.remedy === "import_cookies" || diagnosis?.remedy === "use_impersonation") ? url : null,
+  );
   let showRaw = $derived(translated !== error);
+  let wantsLogin = $derived(
+    diagnosis ? diagnosis.remedy === "import_cookies" || diagnosis.remedy === "set_up_pot_provider" : kind === "login" || kind === "age",
+  );
 
   async function openInBuiltinBrowser() {
     try {
@@ -52,58 +63,47 @@
     }
   }
 
-  async function updateYtdlp() {
+  async function updateAndRetry() {
     updating = true;
     try {
       await invoke("install_dependency", { name: "yt-dlp" });
-      updated = true;
-    } catch {}
+      onRetry?.();
+    } catch (e) {
+      showToast("error", $t("settings.dependencies.update_failed", { name: "yt-dlp", msg: String(e) }) as string);
+    }
     updating = false;
   }
 </script>
 
 <div class="root-cause" role="note">
-  {#if diagnosis}
-    <div class="root-cause-row">
-      <span class="root-cause-text">{$t(diagnosis.cause_key)}</span>
-      {#if diagnosis.remedy === "import_cookies"}
-        <button class="btn btn-secondary btn-sm" onclick={() => goto("/settings?tab=cookies")}>
-          {$t("error.remedy.import_cookies")}
-        </button>
-      {:else if diagnosis.remedy === "set_up_pot_provider"}
-        <button class="btn btn-secondary btn-sm" onclick={() => openExternal(POT_GUIDE_URL)}>
-          {$t("error.remedy.pot_guide")}
-        </button>
-      {:else if diagnosis.remedy === "update_ytdlp"}
-        {#if updated}
-          <span class="root-cause-done">{$t("error.remedy.updated")}</span>
-          {#if onRetry}
-            <button class="btn btn-secondary btn-sm" onclick={onRetry}>{$t("error.remedy.retry")}</button>
-          {/if}
-        {:else}
-          <button class="btn btn-secondary btn-sm" class:loading={updating} onclick={updateYtdlp} disabled={updating}>
-            {#if updating}<span class="spinner"></span>{/if}
-            {$t("error.remedy.update_ytdlp")}
-          </button>
-        {/if}
-      {:else if RETRY_REMEDIES.includes(diagnosis.remedy) && onRetry}
-        <button class="btn btn-secondary btn-sm" onclick={onRetry}>{$t("error.remedy.retry")}</button>
-      {/if}
-    </div>
+  <div class="root-cause-row">
+    <span class="root-cause-text" class:root-cause-text--plain={!diagnosis}>{diagnosis ? $t(diagnosis.cause_key) : translated}</span>
+    {#if wantsLogin}
+      <button class="btn btn-secondary btn-sm" onclick={() => goto("/settings?tab=cookies")}>
+        {$t("omnibox.err.login.action")}
+      </button>
+    {/if}
+    {#if wantsUpdate}
+      <button class="btn btn-secondary btn-sm" class:loading={updating} onclick={updateAndRetry} disabled={updating}>
+        {#if updating}<span class="spinner"></span>{/if}
+        {$t("error.remedy.update_ytdlp")}
+      </button>
+    {:else if diagnosis && (RETRY_REMEDIES.includes(diagnosis.remedy) || diagnosis.remedy === "set_up_pot_provider") && onRetry}
+      <button class="btn btn-secondary btn-sm" onclick={onRetry}>{$t("error.remedy.retry")}</button>
+    {/if}
+  </div>
+  {#if diagnosis || showRaw}
     <details class="root-cause-details">
       <summary>{$t("downloads.error_details")}</summary>
       <code>{error}</code>
+      {#if diagnosis?.remedy === "set_up_pot_provider"}
+        <button class="btn btn-ghost btn-sm" onclick={() => openExternal(POT_GUIDE_URL)}>
+          {$t("error.remedy.pot_guide")}
+        </button>
+      {/if}
     </details>
-  {:else}
-    <span class="root-cause-text root-cause-text--plain">{translated}</span>
-    {#if showRaw}
-      <details class="root-cause-details">
-        <summary>{$t("downloads.error_details")}</summary>
-        <code>{error}</code>
-      </details>
-    {/if}
   {/if}
-{#if browserUrl}
+  {#if browserUrl}
     <div class="root-cause-row">
       <span class="root-cause-text">{$t("downloads.try_builtin_browser_hint")}</span>
       <button class="btn btn-secondary btn-sm" onclick={openInBuiltinBrowser}>
@@ -136,12 +136,6 @@
 
   .root-cause-text--plain {
     color: var(--danger);
-  }
-
-  .root-cause-done {
-    font-size: var(--text-sm);
-    font-weight: 500;
-    color: var(--success);
   }
 
   .root-cause-details summary {

@@ -103,7 +103,8 @@ class RemoteFile {
 }
 
 const DROP = new Set(["script", "iframe", "frame", "frameset", "object", "embed", "applet", "base", "portal"]);
-const URL_ATTRS = new Set(["href", "src", "xlink:href", "action", "formaction", "data", "poster", "background", "srcset"]);
+const ANIMATORS = new Set(["set", "animate", "animatetransform"]);
+const URL_ATTRS = new Set(["href", "src", "action", "formaction", "data", "poster", "background", "srcset"]);
 
 function badUrl(v: string) {
   const s = v.replace(/[\u0000- ]/g, "").toLowerCase();
@@ -116,11 +117,12 @@ function clean(root: Element) {
   let n = walker.currentNode as Element | null;
   while (n) {
     const name = n.localName.toLowerCase();
-    if (DROP.has(name) || (name === "meta" && n.hasAttribute("http-equiv"))) {
+    const animated = ANIMATORS.has(name) ? (n.getAttribute("attributeName") ?? "").trim().toLowerCase() : "";
+    if (DROP.has(name) || (name === "meta" && n.hasAttribute("http-equiv")) || animated.endsWith("href")) {
       remove.push(n);
     } else {
       for (const a of Array.from(n.attributes)) {
-        const an = a.name.toLowerCase();
+        const an = a.localName.toLowerCase();
         if (an.startsWith("on") || an === "srcdoc" || (URL_ATTRS.has(an) && badUrl(a.value))) {
           n.removeAttributeNode(a);
         }
@@ -131,16 +133,27 @@ function clean(root: Element) {
   for (const r of remove) r.remove();
 }
 
-function sanitizeMarkup(data: string, type: string): string {
+function lockScripts(doc: Document) {
+  const head = doc.getElementsByTagNameNS("*", "head")[0];
+  if (!head) return;
+  const meta = doc.createElementNS("http://www.w3.org/1999/xhtml", "meta");
+  meta.setAttribute("http-equiv", "Content-Security-Policy");
+  meta.setAttribute("content", "script-src 'none'");
+  head.insertBefore(meta, head.firstChild);
+}
+
+export function sanitizeMarkup(data: string, type: string): string {
   const isXml = /xml|svg/.test(type);
   const parser = new DOMParser();
   let doc = parser.parseFromString(data, (isXml ? type.split(";")[0] : "text/html") as DOMParserSupportedType);
   if (isXml && doc.getElementsByTagName("parsererror").length) {
     doc = parser.parseFromString(data, "text/html");
     clean(doc.documentElement);
+    lockScripts(doc);
     return "<!DOCTYPE html>\n" + doc.documentElement.outerHTML;
   }
   clean(doc.documentElement);
+  lockScripts(doc);
   if (isXml) {
     const s = new XMLSerializer().serializeToString(doc);
     return s.startsWith("<?xml") ? s : `<?xml version="1.0" encoding="UTF-8"?>\n${s}`;

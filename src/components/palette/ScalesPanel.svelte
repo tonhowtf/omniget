@@ -30,7 +30,7 @@
 
   function addPalette() {
     const base = project.palettes[0]?.base ?? workspace.current;
-    const name = $t("palette.scales.untitled", { n: project.palettes.length + 1 }) as string;
+    const name = $t("palette.scales.untitled", { num: project.palettes.length + 1 }) as string;
     const token = uniqueToken("color", project.palettes.map((p) => p.token));
     project.palettes = [...project.palettes, { id: newId("pal"), name, token, base: { ...base, h: (base.h + 60) % 360 }, hueShift: 0 }];
     workspace.touch();

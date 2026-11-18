@@ -125,13 +125,6 @@ impl CursorStore {
         }
     }
 
-    pub fn remove(&self, thread_id: &str) {
-        let snapshot = self.with(|m| m.remove(thread_id).map(|_| m.clone()));
-        if let Some(all) = snapshot {
-            self.write(&all);
-        }
-    }
-
     fn write(&self, all: &BTreeMap<String, ClaudeCursor>) {
         let Some(path) = &self.path else { return };
         if let Some(dir) = path.parent() {
@@ -154,7 +147,7 @@ mod tests {
     use super::*;
     use serde_json::json;
 
-    const SID: &str = "a00fe044-a480-48c4-ac8b-b3d6bdd759ed";
+    const SID: &str = "00000000-0000-4000-8000-000000000002";
 
     fn cursor() -> ClaudeCursor {
         ClaudeCursor {

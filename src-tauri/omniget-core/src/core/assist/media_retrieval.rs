@@ -173,6 +173,7 @@ pub(crate) async fn collect_bytes(raw: &str) -> Result<Collected, String> {
         max_bytes: (MAX_BYTES as u64) + 2 * 1024 * 1024,
         lifetime: Duration::from_secs(60),
         connect_timeout: Duration::from_secs(15),
+        upstream: crate::core::egress::Upstream::from_settings(),
         ..Policy::default()
     };
     let broker = Broker::start(policy, CancellationToken::new())

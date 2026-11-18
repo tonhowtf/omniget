@@ -396,18 +396,6 @@ impl Cli {
         })?;
         Ok(quote)
     }
-    pub async fn submit(
-        &self,
-        db: &AssistDb,
-        principal: &str,
-        mission: &str,
-        key: &str,
-        quote: &str,
-        generation: &Generation,
-    ) -> Result<Intent, String> {
-        self.submit_inner(db, principal, mission, key, quote, generation, None)
-            .await
-    }
     #[allow(clippy::too_many_arguments)]
     pub async fn submit_authorized(
         &self,

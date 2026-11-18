@@ -18,7 +18,7 @@ use super::args::{opt_str, req_str};
 use super::model::Platform;
 use super::store;
 use super::tools::{Route, Spec};
-use super::{github, instagram, pinterest, tiktok, x, Caller};
+use super::{clipfeed, codehub, photofeed, pinboard, shortpost, Caller};
 use db::{Key, Member, Snap, Step, SCHEMA};
 use views::{Data, Query, View};
 
@@ -61,9 +61,9 @@ const GH_EXPORT_PROPS: &str = concat!(
 const IMPORT_SPEC: Spec = Spec {
     name: "ig_audience_import",
     route: Route::Audience,
-    platform: Platform::Instagram,
+    platform: Platform::PhotoFeed,
     write: false,
-    description: "Import the followers and following lists from the official Instagram data export (the ZIP from Accounts Center, Download your information, or its unpacked folder) into the audience snapshots, reading only local files. Use it when the following list read from the site is incomplete: the export's following list is complete, while its followers list can miss accounts.",
+    description: "Import the followers and following lists from the official Photo Feed data export (the ZIP from Accounts Center, Download your information, or its unpacked folder) into the audience snapshots, reading only local files. Use it when the following list read from the site is incomplete: the export's following list is complete, while its followers list can miss accounts.",
     props: r#"{"path":{"type":"string","maxLength":2000,"description":"Absolute path of the export ZIP or of its unpacked folder."},"account":{"type":"string","maxLength":200}}"#,
     required: &["path"],
 };
@@ -112,11 +112,11 @@ macro_rules! specs {
 }
 
 pub const SPECS: &[Spec] = specs!(
-    "x_", X, "X", SYNC_PROPS, VIEW_PROPS, MARK_PROPS, EXPORT_PROPS, "", "";
-    "ig_", Instagram, "Instagram", SYNC_PROPS, VIEW_PROPS, MARK_PROPS, EXPORT_PROPS, "", "";
-    "tt_", Tiktok, "TikTok", SYNC_PROPS, VIEW_PROPS, MARK_PROPS, EXPORT_PROPS, "", "";
-    "pin_", Pinterest, "Pinterest", SYNC_PROPS, VIEW_PROPS, MARK_PROPS, EXPORT_PROPS, "", "";
-    "gh_", Github, "GitHub", GH_SYNC_PROPS, GH_VIEW_PROPS, GH_MARK_PROPS, GH_EXPORT_PROPS, "; pass repo (owner/name) to read the stargazers of one repository instead", "; with repo the views are stargazers, new_stargazers and unstarred for that repository"
+    "x_", ShortPost, "Short Posts", SYNC_PROPS, VIEW_PROPS, MARK_PROPS, EXPORT_PROPS, "", "";
+    "ig_", PhotoFeed, "Photo Feed", SYNC_PROPS, VIEW_PROPS, MARK_PROPS, EXPORT_PROPS, "", "";
+    "tt_", ClipFeed, "Clip Feed", SYNC_PROPS, VIEW_PROPS, MARK_PROPS, EXPORT_PROPS, "", "";
+    "pin_", PinBoard, "Pin Boards", SYNC_PROPS, VIEW_PROPS, MARK_PROPS, EXPORT_PROPS, "", "";
+    "gh_", CodeHub, "Code Hub", GH_SYNC_PROPS, GH_VIEW_PROPS, GH_MARK_PROPS, GH_EXPORT_PROPS, "; pass repo (owner/name) to read the stargazers of one repository instead", "; with repo the views are stargazers, new_stargazers and unstarred for that repository"
 );
 
 fn fail(code: &str, message: &str, retryable: bool, next_step: &str) -> String {
@@ -137,10 +137,10 @@ struct Busy(usize);
 impl Busy {
     fn take(p: Platform) -> Result<Self, String> {
         let i = match p {
-            Platform::X => 0,
-            Platform::Instagram => 1,
-            Platform::Tiktok => 2,
-            Platform::Pinterest => 3,
+            Platform::ShortPost => 0,
+            Platform::PhotoFeed => 1,
+            Platform::ClipFeed => 2,
+            Platform::PinBoard => 3,
             _ => 4,
         };
         if BUSY[i].swap(true, Ordering::SeqCst) {
@@ -164,17 +164,17 @@ impl Drop for Busy {
 async fn client(p: Platform, name: &str, a: Value) -> Result<Value, String> {
     let tool = format!("{}{name}", p.prefix());
     match p {
-        Platform::X => x::call(&tool, &a).await,
-        Platform::Instagram => instagram::call(&tool, &a).await,
-        Platform::Tiktok => tiktok::call(&tool, &a).await,
-        Platform::Pinterest => pinterest::call(&tool, &a).await,
-        Platform::Github => github::call(&tool, &a).await,
+        Platform::ShortPost => shortpost::call(&tool, &a).await,
+        Platform::PhotoFeed => photofeed::call(&tool, &a).await,
+        Platform::ClipFeed => clipfeed::call(&tool, &a).await,
+        Platform::PinBoard => pinboard::call(&tool, &a).await,
+        Platform::CodeHub => codehub::call(&tool, &a).await,
         _ => Err(format!("UNKNOWN_TOOL: {tool}")),
     }
 }
 
 fn who(p: Platform, handle: &str) -> Value {
-    let key = if p == Platform::X {
+    let key = if p == Platform::ShortPost {
         "handle"
     } else {
         "username"
@@ -186,7 +186,7 @@ fn who(p: Platform, handle: &str) -> Value {
 
 fn default_pages(p: Platform) -> u64 {
     match p {
-        Platform::Tiktok => 67,
+        Platform::ClipFeed => 67,
         _ => 40,
     }
 }
@@ -261,9 +261,9 @@ fn sync_result(p: Platform, account: &str, lists: &[Snap], o: &Outcome) -> Value
         continue_with["args"]["repo"] = json!(account);
     }
     let next_step = match o.stopped {
-        "rate_limited" if p == Platform::Instagram => "Instagram stopped answering list requests (a soft block). Wait at least an hour before calling continue_with and do not retry in a loop; what was read is saved. The official export can be imported meanwhile with ig_audience_import.".to_string(),
+        "rate_limited" if p == Platform::PhotoFeed => "Photo Feed stopped answering list requests (a soft block). Wait at least an hour before calling continue_with and do not retry in a loop; what was read is saved. The official export can be imported meanwhile with ig_audience_import.".to_string(),
         "rate_limited" => "The network is limiting requests. Wait retry_after_seconds, then call continue_with; what was read is saved.".to_string(),
-        "sweep_wait" => "Instagram leaves accounts out of the plain following list, so the missing ones are being searched one letter at a time at a slow pace. Wait retry_after_seconds, then call continue_with; or import the official export with ig_audience_import, or pass accept_short=true to use the list as it is.".to_string(),
+        "sweep_wait" => "Photo Feed leaves accounts out of the plain following list, so the missing ones are being searched one letter at a time at a slow pace. Wait retry_after_seconds, then call continue_with; or import the official export with ig_audience_import, or pass accept_short=true to use the list as it is.".to_string(),
         "short" => "The network returned clearly fewer accounts than the profile count, so that list was not used for any comparison. Sync again later, or call continue_with to accept the list as it is.".to_string(),
         "fresh" => "Both lists were read less than 15 minutes ago. Read the views, or pass restart=true to read again now.".to_string(),
         _ if complete && o.first => format!("History starts now. New followers and unfollowers appear after the next complete sync; the other views are ready in {}audience.", p.prefix()),
@@ -357,7 +357,7 @@ async fn sync(p: Platform, a: &Value) -> Result<Value, String> {
     let started = Instant::now();
     let mut short = false;
     'lists: for snap in &plan.open {
-        let sweepable = p == Platform::Instagram && repo.is_none() && snap.kind == "following";
+        let sweepable = p == Platform::PhotoFeed && repo.is_none() && snap.kind == "following";
         let mut cursor = snap.cursor.clone();
         let mut resumed = cursor.is_some();
         loop {
@@ -396,7 +396,7 @@ async fn sync(p: Platform, a: &Value) -> Result<Value, String> {
                 Ok(v) => v,
                 Err(e) if e.starts_with("RATE_LIMITED") => {
                     o.stopped = "rate_limited";
-                    if p == Platform::Instagram {
+                    if p == Platform::PhotoFeed {
                         o.retry_after = Some(sweep::BLOCK_WAIT as u64);
                     }
                     if let Some(s) = &sweeping {
@@ -737,7 +737,7 @@ async fn import(p: Platform, a: &Value) -> Result<Value, String> {
             "ACCOUNT_UNKNOWN",
             "the export does not say which account it belongs to and no account was synced yet",
             false,
-            "pass account with the Instagram handle the export belongs to",
+            "pass account with the Photo Feed handle the export belongs to",
         )
     })?;
     let export = tokio::task::spawn_blocking(move || import::read(&path))
@@ -778,7 +778,7 @@ async fn last_post(p: Platform, handle: &str) -> Result<Option<i64>, String> {
 
 async fn exists(p: Platform, handle: &str) -> Result<bool, String> {
     let tool = match p {
-        Platform::Pinterest | Platform::Github => "user",
+        Platform::PinBoard | Platform::CodeHub => "user",
         _ => "profile",
     };
     match client(p, tool, who(p, handle)).await {
@@ -1163,7 +1163,7 @@ mod tests {
     }
 
     #[test]
-    fn pinterest_and_github_have_the_tools_and_reddit_has_none() {
+    fn pinboard_and_codehub_have_the_tools_and_forums_has_none() {
         for name in [
             "audience_sync",
             "audience",
@@ -1226,7 +1226,7 @@ mod tests {
             stopped: "time",
             ..Default::default()
         };
-        let mut out = sync_result(Platform::Github, "ana/tool", &[list("open")], &o);
+        let mut out = sync_result(Platform::CodeHub, "ana/tool", &[list("open")], &o);
         assert_eq!(out["complete"], false);
         assert_eq!(
             out["continue_with"],
@@ -1241,7 +1241,7 @@ mod tests {
             first: true,
             ..Default::default()
         };
-        let mut done = sync_result(Platform::Github, "ana/tool", &[list("complete")], &o);
+        let mut done = sync_result(Platform::CodeHub, "ana/tool", &[list("complete")], &o);
         assert_eq!(done["complete"], true);
         assert!(done["continue_with"].is_null());
         stars::relabel_sync(&mut done, "ana/tool");
@@ -1270,7 +1270,7 @@ mod tests {
             .unwrap();
         }
         let read_view = |name: &str| {
-            let (base, r) = stars::resolve(Platform::Github, name, Some("Ana/Tool")).unwrap();
+            let (base, r) = stars::resolve(Platform::CodeHub, name, Some("Ana/Tool")).unwrap();
             let mut out = read(
                 &c,
                 repo,
@@ -1395,7 +1395,7 @@ mod tests {
             snap("followers", "open", 60, Some("c")),
             snap("following", "open", 0, None),
         ];
-        let v = sync_result(Platform::X, "me", &partial, &o("page_cap"));
+        let v = sync_result(Platform::ShortPost, "me", &partial, &o("page_cap"));
         assert_eq!(v["complete"], false);
         assert_eq!(v["fetched"], 60);
         assert_eq!(v["total_expected"], 200);
@@ -1403,14 +1403,14 @@ mod tests {
         assert_eq!(v["lists"][0]["state"], "partial");
         assert_eq!(v["lists"][1]["state"], "pending");
         assert_eq!(v["changes"], Value::Null);
-        let v = sync_result(Platform::X, "me", &partial, &o("rate_limited"));
+        let v = sync_result(Platform::ShortPost, "me", &partial, &o("rate_limited"));
         assert_eq!(v["retry_after_seconds"], 900);
         let done = [
             snap("followers", "complete", 100, None),
             snap("following", "complete", 100, None),
         ];
         let v = sync_result(
-            Platform::X,
+            Platform::ShortPost,
             "me",
             &done,
             &Outcome {
@@ -1431,14 +1431,14 @@ mod tests {
             snap("followers", "short", 10, None),
             snap("following", "complete", 100, None),
         ];
-        let v = sync_result(Platform::Tiktok, "me", &short, &o("short"));
+        let v = sync_result(Platform::ClipFeed, "me", &short, &o("short"));
         assert_eq!(v["complete"], false);
         assert_eq!(v["continue_with"]["args"]["accept_short"], true);
         assert_eq!(v["continue_with"]["tool"], "tt_audience_sync");
     }
 
     #[test]
-    fn a_sweep_pause_and_an_instagram_block_say_how_long_to_wait() {
+    fn a_sweep_pause_and_an_photofeed_block_say_how_long_to_wait() {
         let open = [Snap {
             id: 2,
             kind: "following".into(),
@@ -1454,7 +1454,7 @@ mod tests {
             retry_after: Some(300),
             ..Default::default()
         };
-        let v = sync_result(Platform::Instagram, "me", &open, &o);
+        let v = sync_result(Platform::PhotoFeed, "me", &open, &o);
         assert_eq!(v["complete"], false);
         assert_eq!(v["retry_after_seconds"], 300);
         assert_eq!(v["continue_with"]["tool"], "ig_audience_sync");
@@ -1468,7 +1468,7 @@ mod tests {
             retry_after: Some(3600),
             ..Default::default()
         };
-        let v = sync_result(Platform::Instagram, "me", &open, &o);
+        let v = sync_result(Platform::PhotoFeed, "me", &open, &o);
         assert_eq!(v["retry_after_seconds"], 3600);
         assert!(v["next_step"]
             .as_str()

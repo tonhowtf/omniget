@@ -182,6 +182,10 @@ fn migrate_from_json() -> Vec<RecoveryItem> {
     itens
 }
 
+fn needs_rewrite(stale: bool, records: &[crate::core::queue_wal::WalRecord]) -> bool {
+    stale || crate::core::queue_wal::compactable(records)
+}
+
 pub fn init_from_disk() {
     let mut guard = store().lock().unwrap();
     guard.clear();
@@ -199,7 +203,7 @@ pub fn init_from_disk() {
                 scrubbed.url != r.url || scrubbed.referer != r.referer || scrubbed.title != r.title
             });
             let items: Vec<RecoveryItem> = replayed.iter().map(recovered_to_item).collect();
-            if stale {
+            if needs_rewrite(stale, &records) {
                 rewrite(&items);
             }
             for item in items {
@@ -357,6 +361,25 @@ mod migracao_tests {
         assert!(!i.url.contains("SYNTHETIC_SECRET"));
         assert!(!i.title.contains("SYNTHETIC_SECRET"), "N-3: {}", i.title);
         assert!(is_expired(&i));
+    }
+
+    #[test]
+    fn a_log_full_of_finished_items_is_rewritten_on_boot() {
+        let mut records = Vec::new();
+        for id in 0..400u64 {
+            records.extend(json_para_registros(&format!(
+                r#"{{"items":[{{"id":{id},"url":"https://exemplo.com/{id}","title":"t","platform":"youtube","output_dir":"/d"}}]}}"#
+            )));
+            records.push(WalRecord::Removed { id });
+        }
+        assert!(needs_rewrite(false, &records));
+    }
+
+    #[test]
+    fn a_small_clean_log_is_left_alone_unless_stale() {
+        let records = json_para_registros(JSON_0_7_X);
+        assert!(!needs_rewrite(false, &records));
+        assert!(needs_rewrite(true, &records));
     }
 
     #[test]

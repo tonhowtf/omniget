@@ -2,7 +2,7 @@
   import { t } from "$lib/i18n";
   import type { Scene } from "$lib/canvas/visit/api";
   import { cordPaths, sceneBounds, screenTail } from "$lib/canvas/visit/scene";
-  import { normaliseState, stateCss } from "$lib/canvas/state/agents.svelte";
+  import { normaliseState, stateVar } from "$lib/canvas/state/agents.svelte";
 
   interface Props {
     scene: Scene;
@@ -85,7 +85,7 @@
     {#if c.label}<text x={c.mid[0]} y={c.mid[1]} class="cord-label">{c.label}</text>{/if}
   {/each}
   {#each nodes as n (n.id)}
-    {@const color = n.state ? stateCss(normaliseState(n.state)) : "var(--border)"}
+    {@const color = n.state ? stateVar(normaliseState(n.state)) : "var(--border)"}
     <g>
       <rect x={n.x} y={n.y} width={n.w} height={n.h} rx="12" class="card" />
       {#if n.state}<rect x={n.x} y={n.y} width="6" height={n.h} rx="3" fill={color} />{/if}

@@ -32,7 +32,7 @@ pub async fn dispatch(ctx: &NodeCtx, method: &str, args: Value) -> Result<Value,
     if let Some(r) = super::routines::rpc(ctx, method, args.clone()).await {
         return r;
     }
-    if let Some(r) = super::maestro::rpc(ctx, method, args.clone()).await {
+    if let Some(r) = super::lead::rpc(ctx, method, args.clone()).await {
         return r;
     }
     if let Some(r) = super::companion::rpc(ctx, method, args.clone()).await {

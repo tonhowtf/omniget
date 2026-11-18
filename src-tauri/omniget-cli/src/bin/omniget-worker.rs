@@ -304,7 +304,7 @@ fn setup(r: &Request, port: u16) -> Result<(), &'static str> {
             std::env::remove_var(key);
         }
     }
-    http_client::init_proxy(ProxySettings {
+    http_client::pin_proxy(ProxySettings {
         enabled: true,
         proxy_type: "http".into(),
         host: "127.0.0.1".into(),

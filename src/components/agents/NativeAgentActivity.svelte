@@ -29,6 +29,6 @@
   </aside>
 {/if}
 <style>
-  .native-agent-activity { position:fixed;bottom:8px;right:8px;z-index:70;display:flex;align-items:center;gap:8px;padding:6px 10px;border:1px solid var(--border-color);border-radius:8px;background:var(--bg-elevated);color:var(--text-primary);font-size:12px; }
-  button { color:inherit;background:transparent;border:1px solid var(--border-color);border-radius:4px;padding:3px 6px;cursor:pointer; }
+  .native-agent-activity { position:fixed;bottom:8px;right:8px;z-index:70;display:flex;align-items:center;gap:8px;padding:6px 10px;border:1px solid var(--border);border-radius:8px;background:var(--surface-hi);color:var(--text);font-size:12px; }
+  button { color:inherit;background:transparent;border:1px solid var(--border);border-radius:4px;padding:3px 6px;cursor:pointer; }
 </style>

@@ -11,7 +11,7 @@ use tokio::sync::Notify;
 
 use super::super::model::Platform;
 use super::super::store::{self, now_ms};
-use super::super::{approvals, x};
+use super::super::{approvals, shortpost};
 use super::db::{self, Item, SCHEMA};
 use super::rules::{self, Content, Due, Reject};
 use super::{feed, media, ops};
@@ -202,7 +202,7 @@ where
 fn no_id() -> Reject {
     Reject::new(
         "UPSTREAM_CHANGED",
-        "X accepted a part of the thread but did not return its id, so the next part cannot reply to it",
+        "Short Posts accepted a part of the thread but did not return its id, so the next part cannot reply to it",
         "open the account, check what was published and finish the thread by hand",
     )
 }
@@ -230,9 +230,9 @@ async fn publish(item: &Item) -> Outcome {
         done,
         media_ids,
         |tool, args| async move {
-            let r = x::call(tool, &args).await;
+            let r = shortpost::call(tool, &args).await;
             if r.is_ok() {
-                approvals::record(Platform::X);
+                approvals::record(Platform::ShortPost);
             }
             r
         },
@@ -240,7 +240,7 @@ async fn publish(item: &Item) -> Outcome {
             let _ = store::with(SCHEMA, |c| {
                 db::progress(c, id, &json!({ "parts": parts }), now_ms())
             });
-            wait_pace(Platform::X).await
+            wait_pace(Platform::ShortPost).await
         },
     )
     .await
@@ -284,11 +284,11 @@ async fn tick() -> Duration {
         let _ = store::with(SCHEMA, |c| db::mark(c, item.id, status, &error, now));
         emit(&item.platform, Some(item.id), Some(status));
     };
-    if Platform::parse(&item.platform) != Some(Platform::X) {
+    if Platform::parse(&item.platform) != Some(Platform::ShortPost) {
         finish("failed", super::unsupported(&item.platform));
         return Duration::ZERO;
     }
-    let p = Platform::X;
+    let p = Platform::ShortPost;
     let grace_ms = store::with(SCHEMA, |c| Ok(db::grace_min(c, &item.platform)))
         .unwrap_or(db::DEFAULT_GRACE_MIN)
         * 60_000;
@@ -431,7 +431,7 @@ mod tests {
                 let k = *n.borrow();
                 async move {
                     if k == 2 {
-                        Err("REJECTED: X refused the request".to_string())
+                        Err("REJECTED: Short Posts refused the request".to_string())
                     } else {
                         posted("201")
                     }
@@ -442,7 +442,7 @@ mod tests {
         .await;
         assert_eq!(
             out.error.as_deref(),
-            Some("REJECTED: X refused the request")
+            Some("REJECTED: Short Posts refused the request")
         );
         assert_eq!(out.parts.len(), 1);
         assert_eq!(n.into_inner(), 2);
@@ -537,8 +537,8 @@ mod tests {
     #[test]
     fn notification_text_is_readable() {
         assert_eq!(
-            human("REJECTED: X refused the request: duplicate (code 187)"),
-            "X refused the request: duplicate (code 187)"
+            human("REJECTED: Short Posts refused the request: duplicate (code 187)"),
+            "Short Posts refused the request: duplicate (code 187)"
         );
         assert_eq!(
             human(&Reject::new("MISSED", "too late", "send it").wire()),
@@ -546,7 +546,7 @@ mod tests {
         );
         assert_eq!(human("plain words"), "plain words");
         assert_eq!(
-            pace_wait("RATE_LIMITED: wait a few seconds between actions on X"),
+            pace_wait("RATE_LIMITED: wait a few seconds between actions on Short Posts"),
             Duration::from_secs(2)
         );
         assert_eq!(

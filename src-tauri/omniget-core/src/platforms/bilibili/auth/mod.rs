@@ -6,7 +6,6 @@ use super::{runtime_persist_account, BilibiliAuthCookie};
 
 pub mod qr;
 const NAV_URL: &str = "https://api.bilibili.com/x/web-interface/nav";
-const LOGOUT_URL: &str = "https://passport.bilibili.com/login/exit/v2";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AccountInfo {
@@ -52,12 +51,6 @@ pub async fn fetch_account_info(client: &ApiClient) -> Result<AccountInfo> {
         is_vip: vip_status == 1,
         vip_due_secs: vip_due_ms.map(|ms| ms / 1000),
     })
-}
-
-pub async fn logout(client: &ApiClient, csrf: &str) -> Result<()> {
-    let url = format!("{}?biliCSRF={}", LOGOUT_URL, urlencoding::encode(csrf));
-    let _ = client.post_form(&url, &[("biliCSRF", csrf)]).await?;
-    Ok(())
 }
 
 pub fn slug_from_uname(uname: &str) -> String {

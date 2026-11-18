@@ -757,16 +757,6 @@ const SKIP_KEYS: &[&str] = &[
     "header",
 ];
 
-pub fn item(v: &Value) -> Option<Item> {
-    let o = v.as_object()?;
-    o.iter().find_map(|(k, inner)| {
-        if k == "richItemRenderer" {
-            return inner.get("content").and_then(item);
-        }
-        item_from(k, inner)
-    })
-}
-
 fn item_from(k: &str, r: &Value) -> Option<Item> {
     match k {
         "videoRenderer"
@@ -2195,12 +2185,7 @@ pub(crate) mod testutil {
     }
 
     pub fn external(rel: &str) -> Option<Value> {
-        let base = std::env::var("OMNITUBE_STUDIES")
-            .map(PathBuf::from)
-            .unwrap_or_else(|_| {
-                PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-                    .join("../../../omniget/estudos/102-youtube/repos")
-            });
+        let base = PathBuf::from(std::env::var("OMNITUBE_STUDIES").ok()?);
         let path = base.join(rel);
         let text = std::fs::read_to_string(&path).ok()?;
         serde_json::from_str(&text).ok()

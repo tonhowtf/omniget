@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::sync::Mutex;
 
 use chrono::{DateTime, Utc};
@@ -79,10 +79,6 @@ pub fn utc_day(now: DateTime<Utc>) -> String {
     now.format("%Y-%m-%d").to_string()
 }
 
-pub fn default_path() -> Option<PathBuf> {
-    crate::core::paths::app_data_dir().map(|d| d.join("llm").join("budget.json"))
-}
-
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct Estimate {
     pub usd: Option<f64>,
@@ -129,13 +125,6 @@ impl Default for BudgetStore {
 }
 
 impl BudgetStore {
-    pub fn open() -> Self {
-        match default_path() {
-            Some(p) => Self::at(p),
-            None => Self::memory(),
-        }
-    }
-
     pub fn at(path: impl Into<PathBuf>) -> Self {
         let path = path.into();
         let state = std::fs::read_to_string(&path)
@@ -155,10 +144,6 @@ impl BudgetStore {
             state: Mutex::new(BudgetState::default()),
             inflight: Mutex::new(HashMap::new()),
         }
-    }
-
-    pub fn path(&self) -> Option<&Path> {
-        self.path.as_deref()
     }
 
     pub fn snapshot(&self) -> BudgetState {
@@ -382,15 +367,6 @@ impl BudgetStore {
             .unwrap_or_else(|e| e.into_inner())
             .remove(reservation)
             .is_some()
-    }
-
-    pub fn in_flight(&self) -> Vec<InFlight> {
-        self.inflight
-            .lock()
-            .unwrap_or_else(|e| e.into_inner())
-            .values()
-            .cloned()
-            .collect()
     }
 
     pub fn pool(&self, pool: &str) -> PoolView {

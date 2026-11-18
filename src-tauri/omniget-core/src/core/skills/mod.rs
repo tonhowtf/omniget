@@ -12,8 +12,8 @@ pub mod scan;
 
 pub use deps::{dependencies, DepKind, Dependency};
 pub use hash::dir_hash;
-pub use inject::{exposed_tool_name, index_prompt_named, open};
-pub use install::{install_from_zip, list, remove, skills_dir, InstallOutcome};
+pub use inject::{exposed_tool_name, index_prompt_named};
+pub use install::{skills_dir, InstallOutcome};
 pub use manifest::{parse, SkillManifest};
 pub use scan::{ScanStatus, RISK_THRESHOLD};
 
@@ -22,7 +22,6 @@ pub const ERR_SKILL_NAME: &str = "ERR_SKILL_NAME";
 pub const ERR_SKILL_DESCRIPTION: &str = "ERR_SKILL_DESCRIPTION";
 pub const ERR_SKILL_IO: &str = "ERR_SKILL_IO";
 pub const ERR_SKILL_NOT_FOUND: &str = "ERR_SKILL_NOT_FOUND";
-pub const ERR_SKILL_ZIP: &str = "ERR_SKILL_ZIP";
 pub const ERR_SKILL_GIT: &str = "ERR_SKILL_GIT";
 pub const ERR_SKILL_TOO_BIG: &str = "ERR_SKILL_TOO_BIG";
 pub const ERR_SKILL_CHANGED: &str = "ERR_SKILL_CHANGED";

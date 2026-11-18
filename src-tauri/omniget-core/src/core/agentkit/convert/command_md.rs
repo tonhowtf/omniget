@@ -9,22 +9,6 @@ use crate::core::agentkit::parse;
 use crate::core::agentkit::targets::TargetAdapter;
 use crate::core::agentkit::{Result, Scope};
 
-pub const FORMATS: &[&str] = &[
-    "qwen_md",
-    "opencode_md",
-    "cursor_md",
-    "copilot_prompt",
-    "cline_workflow",
-    "devin_workflow",
-    "antigravity_workflow",
-    "crush_md",
-    "kiro_prompt",
-    "pi_prompt",
-    "continue_prompt",
-    "junie",
-    "roo",
-];
-
 pub struct MdCommandConverter {
     pub format: &'static str,
 }

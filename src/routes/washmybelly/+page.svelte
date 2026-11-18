@@ -147,7 +147,7 @@
             </span>
           {/if}
           <span class="wmb-brand-text">
-            <span class="wmb-brand-name">washmybelly</span>
+            <span class="wmb-brand-name">{$t("washmybelly.nav")}</span>
             {#if loaded}
               <span class="wmb-brand-sub" title={systemLine}>{systemLine}</span>
             {:else}

@@ -640,9 +640,6 @@ impl LegacyLog {
     pub fn last(&self) -> Option<LegacyUse> {
         self.last.lock().unwrap_or_else(|e| e.into_inner()).clone()
     }
-    pub fn count(&self) -> u64 {
-        self.count.load(Ordering::Relaxed)
-    }
 }
 
 pub fn legacy_flag() -> Arc<AtomicBool> {
@@ -674,8 +671,9 @@ pub async fn guard(State(g): State<Guard>, mut req: Request, next: Next) -> Resp
         return Denied::Forbidden(format!("no scope is defined for {path}")).into_response();
     };
     let checked = {
+        let live = crate::local_bridge::live_token(&g.extension);
         let ctx = AuthCtx {
-            extension: g.extension.as_str(),
+            extension: live.as_str(),
             legacy_allowed: g.legacy_allowed.load(Ordering::Relaxed),
             lookup: g.lookup.as_ref(),
         };

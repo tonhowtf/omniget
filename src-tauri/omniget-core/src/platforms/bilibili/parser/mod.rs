@@ -74,17 +74,6 @@ pub struct ParsedContent {
     pub pagination: Option<PaginationInfo>,
 }
 
-impl ParsedContent {
-    pub fn single(title: String, item: EpisodeItem) -> Self {
-        Self {
-            title,
-            items: vec![item],
-            metadata: ContentMetadata::default(),
-            pagination: None,
-        }
-    }
-}
-
 pub async fn parse(client: &ApiClient, kind: &UrlKind) -> Result<ParsedContent> {
     match kind {
         UrlKind::Video { bvid_or_av, page } => video::parse(client, bvid_or_av, *page).await,

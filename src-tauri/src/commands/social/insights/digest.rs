@@ -332,13 +332,13 @@ mod tests {
             post("undated", None, 800),
             repost,
         ];
-        let (n, best) = top_post(&posts, 900, Platform::X);
+        let (n, best) = top_post(&posts, 900, Platform::ShortPost);
         assert_eq!(n, 3);
         let best = best.unwrap();
         assert_eq!(best["id"], "c");
         assert_eq!(best["engagement"], 70);
         assert_eq!(best["type"], "post");
-        assert_eq!(top_post(&posts, 5_000, Platform::X), (0, None));
+        assert_eq!(top_post(&posts, 5_000, Platform::ShortPost), (0, None));
     }
 
     #[test]
@@ -352,7 +352,7 @@ mod tests {
         let gained = Ok(json!({ "total": 8, "items": many }));
         let lost =
             Ok(json!({ "total": 1, "items": [{ "handle": "bye", "name": "", "url": "u" }] }));
-        let v = followers_block(Platform::X, &summary, &gained, &lost);
+        let v = followers_block(Platform::ShortPost, &summary, &gained, &lost);
         assert_eq!(v["available"], true);
         assert_eq!(v["current"], 1200);
         assert_eq!(v["delta"], 7);
@@ -363,7 +363,7 @@ mod tests {
         assert_eq!(v["lost"]["items"][0]["handle"], "bye");
         assert_eq!(v["lost"]["truncated"], false);
         let never = followers_block(
-            Platform::Instagram,
+            Platform::PhotoFeed,
             &Ok(json!({ "synced_at": {} })),
             &gained,
             &lost,
@@ -374,7 +374,7 @@ mod tests {
             .unwrap()
             .contains("ig_audience_sync"));
         let young = followers_block(
-            Platform::X,
+            Platform::ShortPost,
             &Ok(
                 json!({ "synced_at": { "followers": 950 }, "counts": { "followers": 10 }, "history": { "too_short": true } }),
             ),
@@ -388,7 +388,7 @@ mod tests {
             .unwrap()
             .contains("two complete syncs"));
         let broken = followers_block(
-            Platform::X,
+            Platform::ShortPost,
             &summary,
             &Err("STORE_FAILED: locked".into()),
             &lost,
@@ -408,7 +408,7 @@ mod tests {
         assert_eq!(m["monitors"].as_array().unwrap().len(), 2);
         assert!(m["monitors"][0].get("query").is_none());
         assert_eq!(
-            monitors_block(&Err("X: {\"message\":\"no\"}".into()))["reason"],
+            monitors_block(&Err("Short Posts: {\"message\":\"no\"}".into()))["reason"],
             "no"
         );
         let s = scheduled_block(&Ok(
@@ -446,7 +446,7 @@ mod tests {
     #[test]
     fn the_digest_is_assembled_and_says_when_nothing_changed() {
         let busy = assemble(
-            Platform::X,
+            Platform::ShortPost,
             parts(
                 json!({ "available": true, "delta": -2, "gained": { "total": 0 } }),
                 3,
@@ -481,7 +481,7 @@ mod tests {
         );
         still.first = true;
         still.marked = false;
-        let v = assemble(Platform::Tiktok, still);
+        let v = assemble(Platform::ClipFeed, still);
         assert_eq!(v["quiet"], true);
         assert!(v["empty_reason"].is_string());
         assert!(v["first_note"].as_str().unwrap().contains("7 days"));
@@ -491,7 +491,7 @@ mod tests {
         );
         assert_eq!(v["marked"], false);
         let balanced = assemble(
-            Platform::X,
+            Platform::ShortPost,
             parts(
                 json!({ "available": true, "delta": 0, "gained": { "total": 4 } }),
                 0,

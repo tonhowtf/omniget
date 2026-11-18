@@ -39,7 +39,7 @@ let items: Item[] = [
   item(3, "scheduled", "New on the blog: Notes on small tools https://example.com/notes", 27, { created_by: "feed:1" }),
   item(4, "draft", "Idea: a weekly post with the three best reference videos.", null),
   item(5, "sent", "Morning light at the studio", -20, { post_id: "1800000001", post_url: "https://x.com/preview.me/status/1800000001" }),
-  item(6, "failed", "Launch day checklist, part one.", -6, { kind: "thread", thread: ["Part two."], parts_total: 2, parts_sent: 1, error: 'REJECTED: X refused the request: duplicate (code 187)' }),
+  item(6, "failed", "Launch day checklist, part one.", -6, { kind: "thread", thread: ["Part two."], parts_total: 2, parts_sent: 1, error: 'REJECTED: Short Posts refused the request: duplicate (code 187)' }),
   item(7, "missed", "Good morning!", -30, { error: 'MISSED: {"message":"it came due while OmniGet was closed","retryable":false,"next_step":"use send_now"}' }),
 ];
 let slots = [
@@ -171,7 +171,7 @@ function write(a: Args) {
         rejected_count: 2,
         rejected: [
           { row: 3, code: "PAST_TIME", reason: "the time is in the past" },
-          { row: 5, code: "TOO_LONG", reason: "part 1 counts 301 of 280 on X" },
+          { row: 5, code: "TOO_LONG", reason: "part 1 counts 301 of 280 on Short Posts" },
         ],
         preview: [
           { row: 2, at: iso(base + 30 * HOUR), kind: "post", text: "First imported post", repost: null },

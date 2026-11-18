@@ -1,6 +1,6 @@
 use serde_json::{json, Value};
 
-use super::super::github;
+use super::super::codehub;
 use super::super::model::Platform;
 
 pub const VIEWS: [(&str, &str); 3] = [
@@ -16,11 +16,11 @@ pub fn base_view(name: &str) -> Option<&'static str> {
 }
 
 pub fn repo_key(raw: &str) -> Option<String> {
-    github::repo_of(raw.trim()).map(|r| r.to_lowercase())
+    codehub::repo_of(raw.trim()).map(|r| r.to_lowercase())
 }
 
 pub fn supports(p: Platform) -> bool {
-    p == Platform::Github
+    p == Platform::CodeHub
 }
 
 pub fn resolve(
@@ -31,7 +31,7 @@ pub fn resolve(
     let repo = match repo {
         Some(_) if !supports(p) => {
             return Err(format!(
-                "INVALID_ARGUMENTS: repo is a GitHub argument; {} has no repositories",
+                "INVALID_ARGUMENTS: repo is a Code Hub argument; {} has no repositories",
                 p.label()
             ))
         }
@@ -155,33 +155,33 @@ mod tests {
     use super::*;
 
     #[test]
-    fn stargazer_views_need_a_repository_and_only_exist_on_github() {
+    fn stargazer_views_need_a_repository_and_only_exist_on_codehub() {
         assert_eq!(
             resolve(
-                Platform::Github,
+                Platform::CodeHub,
                 "unstarred",
                 Some("https://github.com/Ana/Tool")
             ),
             Ok(("unfollowers".into(), Some("ana/tool".into())))
         );
         assert_eq!(
-            resolve(Platform::Github, "summary", Some("ana/tool")),
+            resolve(Platform::CodeHub, "summary", Some("ana/tool")),
             Ok(("summary".into(), Some("ana/tool".into())))
         );
         assert_eq!(
-            resolve(Platform::Github, "fans", None),
+            resolve(Platform::CodeHub, "fans", None),
             Ok(("fans".into(), None))
         );
         for bad in [
-            resolve(Platform::Github, "stargazers", None),
-            resolve(Platform::Github, "fans", Some("ana/tool")),
-            resolve(Platform::Github, "stargazers", Some("not a repo")),
-            resolve(Platform::Pinterest, "followers", Some("ana/tool")),
+            resolve(Platform::CodeHub, "stargazers", None),
+            resolve(Platform::CodeHub, "fans", Some("ana/tool")),
+            resolve(Platform::CodeHub, "stargazers", Some("not a repo")),
+            resolve(Platform::PinBoard, "followers", Some("ana/tool")),
         ] {
             assert!(bad.unwrap_err().starts_with("INVALID_ARGUMENTS"));
         }
         assert_eq!(
-            resolve(Platform::Pinterest, "stargazers", None),
+            resolve(Platform::PinBoard, "stargazers", None),
             Ok(("stargazers".into(), None))
         );
     }

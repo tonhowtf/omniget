@@ -18,7 +18,7 @@ use serde_json::{json, Value};
 use super::args::opt_str;
 use super::model::{Platform, Post};
 use super::tools::{Route, Spec};
-use super::{github, instagram, pinterest, reddit, store, tiktok, x, Caller};
+use super::{clipfeed, codehub, forums, photofeed, pinboard, shortpost, store, Caller};
 
 const PACE: Duration = Duration::from_millis(1200);
 const CACHE_TTL: Duration = Duration::from_secs(600);
@@ -46,7 +46,7 @@ macro_rules! analytics_props {
         concat!(
             r#"{""#,
             $who,
-            r#"":{"type":"string","maxLength":200,"description":"Account to analyze; default is the signed-in account."},"report":{"type":"string","enum":["summary","posts","times","media","hashtags","words","trend","outliers","compare","recommendations","compare_periods","post_history"],"description":"Default summary. recommendations (signed-in account only) are rule-based suggestions with the numbers behind each; post_history is the stored metric series of one of your posts."},"from":{"type":"string","maxLength":40,"description":"report=compare_periods: first day of period A (2026-11-01) or a time with offset."},"to":{"type":"string","maxLength":40,"description":"report=compare_periods: last day of period A, included."},"compare_from":{"type":"string","maxLength":40,"description":"Period B; omit both to use the same length right before A."},"compare_to":{"type":"string","maxLength":40},"post":{"type":"string","maxLength":500,"description":"report=post_history: post id or link; omit to list the posts that have a series."},"sample":{"type":"integer","minimum":1,"maximum":200,"description":"Recent posts to read; default 50."},"handles":{"type":"array","items":{"type":"string","maxLength":200},"minItems":2,"maxItems":5,"description":"report=compare only."},"include_replies":{"type":"boolean","description":"X only: also read replies."},"sort":{"type":"string","enum":["created_at","likes","replies","reposts","saves","views","engagement","lift"]},"order":{"type":"string","enum":["asc","desc"]},"limit":{"type":"integer","minimum":1,"maximum":200},"offset":{"type":"integer","minimum":0},"unit":{"type":"string","enum":["day","week"],"description":"report=trend only; default day."},"utc_offset_minutes":{"type":"integer","minimum":-840,"maximum":840,"description":"Time zone for times and trend; default is this computer's zone."},"refresh":{"type":"boolean","description":"Read the posts again instead of using the 10 minute cache."}}"#
+            r#"":{"type":"string","maxLength":200,"description":"Account to analyze; default is the signed-in account."},"report":{"type":"string","enum":["summary","posts","times","media","hashtags","words","trend","outliers","compare","recommendations","compare_periods","post_history"],"description":"Default summary. recommendations (signed-in account only) are rule-based suggestions with the numbers behind each; post_history is the stored metric series of one of your posts."},"from":{"type":"string","maxLength":40,"description":"report=compare_periods: first day of period A (2026-11-01) or a time with offset."},"to":{"type":"string","maxLength":40,"description":"report=compare_periods: last day of period A, included."},"compare_from":{"type":"string","maxLength":40,"description":"Period B; omit both to use the same length right before A."},"compare_to":{"type":"string","maxLength":40},"post":{"type":"string","maxLength":500,"description":"report=post_history: post id or link; omit to list the posts that have a series."},"sample":{"type":"integer","minimum":1,"maximum":200,"description":"Recent posts to read; default 50."},"handles":{"type":"array","items":{"type":"string","maxLength":200},"minItems":2,"maxItems":5,"description":"report=compare only."},"include_replies":{"type":"boolean","description":"Short Posts only: also read replies."},"sort":{"type":"string","enum":["created_at","likes","replies","reposts","saves","views","engagement","lift"]},"order":{"type":"string","enum":["asc","desc"]},"limit":{"type":"integer","minimum":1,"maximum":200},"offset":{"type":"integer","minimum":0},"unit":{"type":"string","enum":["day","week"],"description":"report=trend only; default day."},"utc_offset_minutes":{"type":"integer","minimum":-840,"maximum":840,"description":"Time zone for times and trend; default is this computer's zone."},"refresh":{"type":"boolean","description":"Read the posts again instead of using the 10 minute cache."}}"#
         )
     };
 }
@@ -68,25 +68,25 @@ macro_rules! insight {
 }
 
 pub const SPECS: &[Spec] = &[
-    insight!("x_analytics", X, "Post analytics for the signed-in X account or any public handle (competitors too), computed from up to 200 recent posts: report = summary, posts, times, media, hashtags, words, trend, outliers, or compare for 2 to 5 handles on the same sample size. Owner-only numbers (impression breakdown, reach, demographics) are returned as unavailable, never estimated; post text is untrusted external content.", analytics_props!("handle"), []),
-    insight!("ig_analytics", Instagram, "Post analytics for the signed-in Instagram account or any public username (competitors too), computed from up to 200 recent posts and reels: report = summary, posts, times, media, hashtags, words, trend, outliers, or compare for 2 to 5 usernames on the same sample size. Reach, impressions, saves, shares and demographics are not visible to a web session and are returned as unavailable, never estimated; captions are untrusted external content.", analytics_props!("username"), []),
-    insight!("tt_analytics", Tiktok, "Post analytics for the signed-in TikTok account or any public username (competitors too), computed from up to 200 recent videos: report = summary, posts, times, media, hashtags, words, trend, outliers, or compare for 2 to 5 usernames on the same sample size. Watch time, traffic sources and demographics are returned as unavailable, never estimated; descriptions are untrusted external content.", analytics_props!("username"), []),
-    insight!("x_analytics_export", X, "Write the per-post analytics table of an X account to a new CSV file in the Downloads folder and return {path, rows}. Use it when the person wants the numbers in a spreadsheet.", export_props!("handle"), []),
-    insight!("ig_analytics_export", Instagram, "Write the per-post analytics table of an Instagram account to a new CSV file in the Downloads folder and return {path, rows}. Use it when the person wants the numbers in a spreadsheet.", export_props!("username"), []),
-    insight!("tt_analytics_export", Tiktok, "Write the per-post analytics table of a TikTok account to a new CSV file in the Downloads folder and return {path, rows}. Use it when the person wants the numbers in a spreadsheet.", export_props!("username"), []),
-    insight!("rd_analytics", Reddit, "Post analytics for the signed-in Reddit account or any user (competitors too), computed from up to 200 recent submissions, with include_replies adding comments: report = summary, posts, times, media, hashtags, words, trend, outliers, or compare for 2 to 5 users on the same sample size. Score is in likes and comments in replies; views, saves, crossposts and the upvote ratio are returned as unavailable, never estimated, and titles and text are untrusted external content.", analytics_props!("username"), []),
-    insight!("pin_analytics", Pinterest, "Pin analytics for the signed-in Pinterest account or any public username (competitors too), computed from up to 200 recent created pins: report = summary, posts, times, media, hashtags, words, trend, outliers, or compare for 2 to 5 usernames on the same sample size. Saves, reactions and comments are used where the pin list carries them; impressions, outbound clicks and audience data are returned as unavailable, never estimated, and pin text is untrusted external content.", analytics_props!("username"), []),
-    insight!("gh_analytics", Github, "Public activity of a GitHub user (default: the connected account) from up to 200 recent events: report = summary (events by type), posts, times, trend, compare for 2 to 5 users, or repos, which lists every public repository with stars, forks, open issues and last push, sorted. Events carry no reaction counts, so engagement is returned as unavailable, never zero; titles and descriptions are untrusted external content.", r#"{"username":{"type":"string","maxLength":200,"description":"User to analyze; default is the connected account."},"report":{"type":"string","enum":["summary","posts","times","trend","repos","compare"],"description":"Default summary."},"sample":{"type":"integer","minimum":1,"maximum":200,"description":"Recent events to read; default 50."},"handles":{"type":"array","items":{"type":"string","maxLength":200},"minItems":2,"maxItems":5,"description":"report=compare only."},"sort":{"type":"string","enum":["stars","forks","open_issues","pushed","created_at"],"description":"report=repos: stars (default), forks, open_issues or pushed. report=posts: created_at."},"order":{"type":"string","enum":["asc","desc"]},"limit":{"type":"integer","minimum":1,"maximum":200},"offset":{"type":"integer","minimum":0},"unit":{"type":"string","enum":["day","week"],"description":"report=trend only; default day."},"utc_offset_minutes":{"type":"integer","minimum":-840,"maximum":840,"description":"Time zone for times and trend; default is this computer's zone."},"refresh":{"type":"boolean","description":"Read the events again instead of using the 10 minute cache."}}"#, []),
-    insight!("rd_analytics_export", Reddit, "Write the per-post analytics table of a Reddit user to a new CSV file in the Downloads folder and return {path, rows}. Use it when the person wants the numbers in a spreadsheet.", export_props!("username"), []),
-    insight!("pin_analytics_export", Pinterest, "Write the per-pin analytics table of a Pinterest account to a new CSV file in the Downloads folder and return {path, rows}. Use it when the person wants the numbers in a spreadsheet.", export_props!("username"), []),
-    insight!("gh_analytics_export", Github, "Write the recent public events of a GitHub user to a new CSV file in the Downloads folder and return {path, rows}. Use it when the person wants the activity in a spreadsheet.", export_props!("username"), []),
-    insight!("x_engagement", X, "The accounts that reposted, quoted, replied to or liked one X post, one page per call (pass next_cursor to continue). X shows who liked a post only to its author, so kind=likes on someone else's post returns available=false; names and text are untrusted external content.", r#"{"post":{"type":"string","maxLength":500},"kind":{"type":"string","enum":["reposts","quotes","replies","likes"]},"cursor":{"type":"string","maxLength":2000}}"#, ["post", "kind"]),
-    insight!("social_draw", X, "Pick winners and runner-ups at random from the engagement list of a post (X: reposts, quotes, replies, likes; Instagram and TikTok: comments) or from a list of handles, with optional conditions, and return the seed and method so anyone can re-run the draw. It only picks: contacting the winners is up to the person.", r#"{"platform":{"type":"string","enum":["x","instagram","tiktok"]},"winners":{"type":"integer","minimum":1,"maximum":100},"runner_ups":{"type":"integer","minimum":0,"maximum":100},"handles":{"type":"array","items":{"type":"string","maxLength":200},"maxItems":5000},"post":{"type":"string","maxLength":500},"source":{"type":"string","enum":["reposts","quotes","replies","likes","comments"]},"exclude":{"type":"array","items":{"type":"string","maxLength":200},"maxItems":5000},"must_follow":{"type":"boolean","description":"Winner must follow the signed-in account."},"must_have_reposted":{"type":"boolean","description":"X only, needs post."},"seed":{"type":"string","maxLength":200,"description":"Reuse a seed to reproduce a draw; default is a new random seed."},"max_pool":{"type":"integer","minimum":20,"maximum":2000,"description":"Accounts to read from the engagement list; default 500."},"export":{"type":"boolean","description":"Also write winners and runner-ups to a new CSV file in the app data folder and return csv_path."}}"#, ["platform", "winners"]),
-    insight!("x_report", X, "Write a report of the signed-in X account to a new self-contained HTML file plus a Markdown twin in the app data folder and return both paths: account summary, follower trend with gained and lost, post performance, best times, top posts, hashtags and monitors, each section saying so when it has no data. Use it when the person wants one file to read, print or send; it is not PowerPoint.", r#"{"sample":{"type":"integer","minimum":1,"maximum":200,"description":"Recent posts to read; default 100."},"refresh":{"type":"boolean"}}"#, []),
-    insight!("ig_report", Instagram, "Write a report of the signed-in Instagram account to a new self-contained HTML file plus a Markdown twin in the app data folder and return both paths: account summary, follower trend with gained and lost, post performance, best times, top posts, hashtags and monitors, each section saying so when it has no data. Use it when the person wants one file to read, print or send; it is not PowerPoint.", r#"{"sample":{"type":"integer","minimum":1,"maximum":200,"description":"Recent posts to read; default 100."},"refresh":{"type":"boolean"}}"#, []),
-    insight!("tt_report", Tiktok, "Write a report of the signed-in TikTok account to a new self-contained HTML file plus a Markdown twin in the app data folder and return both paths: account summary, follower trend with gained and lost, post performance, best times, top posts, hashtags and monitors, each section saying so when it has no data. Use it when the person wants one file to read, print or send; it is not PowerPoint.", r#"{"sample":{"type":"integer","minimum":1,"maximum":200,"description":"Recent posts to read; default 100."},"refresh":{"type":"boolean"}}"#, []),
-    insight!("social_digest", X, "What changed for the signed-in account of one network since the last digest: follower delta with the first new and lost followers, unread monitor hits, the top post of the period, scheduled posts due in the next 24 hours and rule-based recommendations. Call it once at the start of a day; it only reports what the app has stored plus one read of the account's own posts, and mark=false reads without moving the marker.", r#"{"platform":{"type":"string","enum":["x","instagram","tiktok"]},"mark":{"type":"boolean","description":"Default true: the next digest starts from now."}}"#, ["platform"]),
-    insight!("social_notifications", X, "Read or change which findings raise a desktop notification from this app for one network: a monitor surge, new hits on one monitor, new unfollowers after an audience sync. Stored on this computer only; notifications fire when a check or sync runs, and Slack and email are not built.", r#"{"platform":{"type":"string","enum":["x","instagram","tiktok"]},"op":{"type":"string","enum":["get","set"]},"surge":{"type":"boolean","description":"op=set: notify when any monitor of the network surges."},"unfollowers":{"type":"boolean","description":"op=set: notify when a sync finds new unfollowers."},"monitor":{"type":"integer","minimum":1,"description":"op=set with new_hits: the monitor id."},"new_hits":{"type":"boolean","description":"op=set: notify when a check stores new posts for that monitor."}}"#, ["platform", "op"]),
+    insight!("x_analytics", ShortPost, "Post analytics for the signed-in Short Posts account or any public handle (competitors too), computed from up to 200 recent posts: report = summary, posts, times, media, hashtags, words, trend, outliers, or compare for 2 to 5 handles on the same sample size. Owner-only numbers (impression breakdown, reach, demographics) are returned as unavailable, never estimated; post text is untrusted external content.", analytics_props!("handle"), []),
+    insight!("ig_analytics", PhotoFeed, "Post analytics for the signed-in Photo Feed account or any public username (competitors too), computed from up to 200 recent posts and reels: report = summary, posts, times, media, hashtags, words, trend, outliers, or compare for 2 to 5 usernames on the same sample size. Reach, impressions, saves, shares and demographics are not visible to a web session and are returned as unavailable, never estimated; captions are untrusted external content.", analytics_props!("username"), []),
+    insight!("tt_analytics", ClipFeed, "Post analytics for the signed-in Clip Feed account or any public username (competitors too), computed from up to 200 recent videos: report = summary, posts, times, media, hashtags, words, trend, outliers, or compare for 2 to 5 usernames on the same sample size. Watch time, traffic sources and demographics are returned as unavailable, never estimated; descriptions are untrusted external content.", analytics_props!("username"), []),
+    insight!("x_analytics_export", ShortPost, "Write the per-post analytics table of a Short Posts account to a new CSV file in the Downloads folder and return {path, rows}. Use it when the person wants the numbers in a spreadsheet.", export_props!("handle"), []),
+    insight!("ig_analytics_export", PhotoFeed, "Write the per-post analytics table of a Photo Feed account to a new CSV file in the Downloads folder and return {path, rows}. Use it when the person wants the numbers in a spreadsheet.", export_props!("username"), []),
+    insight!("tt_analytics_export", ClipFeed, "Write the per-post analytics table of a Clip Feed account to a new CSV file in the Downloads folder and return {path, rows}. Use it when the person wants the numbers in a spreadsheet.", export_props!("username"), []),
+    insight!("rd_analytics", Forums, "Post analytics for the signed-in Forums account or any user (competitors too), computed from up to 200 recent submissions, with include_replies adding comments: report = summary, posts, times, media, hashtags, words, trend, outliers, or compare for 2 to 5 users on the same sample size. Score is in likes and comments in replies; views, saves, crossposts and the upvote ratio are returned as unavailable, never estimated, and titles and text are untrusted external content.", analytics_props!("username"), []),
+    insight!("pin_analytics", PinBoard, "Pin analytics for the signed-in Pin Boards account or any public username (competitors too), computed from up to 200 recent created pins: report = summary, posts, times, media, hashtags, words, trend, outliers, or compare for 2 to 5 usernames on the same sample size. Saves, reactions and comments are used where the pin list carries them; impressions, outbound clicks and audience data are returned as unavailable, never estimated, and pin text is untrusted external content.", analytics_props!("username"), []),
+    insight!("gh_analytics", CodeHub, "Public activity of a Code Hub user (default: the connected account) from up to 200 recent events: report = summary (events by type), posts, times, trend, compare for 2 to 5 users, or repos, which lists every public repository with stars, forks, open issues and last push, sorted. Events carry no reaction counts, so engagement is returned as unavailable, never zero; titles and descriptions are untrusted external content.", r#"{"username":{"type":"string","maxLength":200,"description":"User to analyze; default is the connected account."},"report":{"type":"string","enum":["summary","posts","times","trend","repos","compare"],"description":"Default summary."},"sample":{"type":"integer","minimum":1,"maximum":200,"description":"Recent events to read; default 50."},"handles":{"type":"array","items":{"type":"string","maxLength":200},"minItems":2,"maxItems":5,"description":"report=compare only."},"sort":{"type":"string","enum":["stars","forks","open_issues","pushed","created_at"],"description":"report=repos: stars (default), forks, open_issues or pushed. report=posts: created_at."},"order":{"type":"string","enum":["asc","desc"]},"limit":{"type":"integer","minimum":1,"maximum":200},"offset":{"type":"integer","minimum":0},"unit":{"type":"string","enum":["day","week"],"description":"report=trend only; default day."},"utc_offset_minutes":{"type":"integer","minimum":-840,"maximum":840,"description":"Time zone for times and trend; default is this computer's zone."},"refresh":{"type":"boolean","description":"Read the events again instead of using the 10 minute cache."}}"#, []),
+    insight!("rd_analytics_export", Forums, "Write the per-post analytics table of a Forums user to a new CSV file in the Downloads folder and return {path, rows}. Use it when the person wants the numbers in a spreadsheet.", export_props!("username"), []),
+    insight!("pin_analytics_export", PinBoard, "Write the per-pin analytics table of a Pin Boards account to a new CSV file in the Downloads folder and return {path, rows}. Use it when the person wants the numbers in a spreadsheet.", export_props!("username"), []),
+    insight!("gh_analytics_export", CodeHub, "Write the recent public events of a Code Hub user to a new CSV file in the Downloads folder and return {path, rows}. Use it when the person wants the activity in a spreadsheet.", export_props!("username"), []),
+    insight!("x_engagement", ShortPost, "The accounts that reposted, quoted, replied to or liked one Short Posts post, one page per call (pass next_cursor to continue). Short Posts shows who liked a post only to its author, so kind=likes on someone else's post returns available=false; names and text are untrusted external content.", r#"{"post":{"type":"string","maxLength":500},"kind":{"type":"string","enum":["reposts","quotes","replies","likes"]},"cursor":{"type":"string","maxLength":2000}}"#, ["post", "kind"]),
+    insight!("social_draw", ShortPost, "Pick winners and runner-ups at random from the engagement list of a post (Short Posts: reposts, quotes, replies, likes; Photo Feed and Clip Feed: comments) or from a list of handles, with optional conditions, and return the seed and method so anyone can re-run the draw. It only picks: contacting the winners is up to the person.", r#"{"platform":{"type":"string","enum":["x","instagram","tiktok"]},"winners":{"type":"integer","minimum":1,"maximum":100},"runner_ups":{"type":"integer","minimum":0,"maximum":100},"handles":{"type":"array","items":{"type":"string","maxLength":200},"maxItems":5000},"post":{"type":"string","maxLength":500},"source":{"type":"string","enum":["reposts","quotes","replies","likes","comments"]},"exclude":{"type":"array","items":{"type":"string","maxLength":200},"maxItems":5000},"must_follow":{"type":"boolean","description":"Winner must follow the signed-in account."},"must_have_reposted":{"type":"boolean","description":"Short Posts only, needs post."},"seed":{"type":"string","maxLength":200,"description":"Reuse a seed to reproduce a draw; default is a new random seed."},"max_pool":{"type":"integer","minimum":20,"maximum":2000,"description":"Accounts to read from the engagement list; default 500."},"export":{"type":"boolean","description":"Also write winners and runner-ups to a new CSV file in the app data folder and return csv_path."}}"#, ["platform", "winners"]),
+    insight!("x_report", ShortPost, "Write a report of the signed-in Short Posts account to a new self-contained HTML file plus a Markdown twin in the app data folder and return both paths: account summary, follower trend with gained and lost, post performance, best times, top posts, hashtags and monitors, each section saying so when it has no data. Use it when the person wants one file to read, print or send; it is not PowerPoint.", r#"{"sample":{"type":"integer","minimum":1,"maximum":200,"description":"Recent posts to read; default 100."},"refresh":{"type":"boolean"}}"#, []),
+    insight!("ig_report", PhotoFeed, "Write a report of the signed-in Photo Feed account to a new self-contained HTML file plus a Markdown twin in the app data folder and return both paths: account summary, follower trend with gained and lost, post performance, best times, top posts, hashtags and monitors, each section saying so when it has no data. Use it when the person wants one file to read, print or send; it is not PowerPoint.", r#"{"sample":{"type":"integer","minimum":1,"maximum":200,"description":"Recent posts to read; default 100."},"refresh":{"type":"boolean"}}"#, []),
+    insight!("tt_report", ClipFeed, "Write a report of the signed-in Clip Feed account to a new self-contained HTML file plus a Markdown twin in the app data folder and return both paths: account summary, follower trend with gained and lost, post performance, best times, top posts, hashtags and monitors, each section saying so when it has no data. Use it when the person wants one file to read, print or send; it is not PowerPoint.", r#"{"sample":{"type":"integer","minimum":1,"maximum":200,"description":"Recent posts to read; default 100."},"refresh":{"type":"boolean"}}"#, []),
+    insight!("social_digest", ShortPost, "What changed for the signed-in account of one network since the last digest: follower delta with the first new and lost followers, unread monitor hits, the top post of the period, scheduled posts due in the next 24 hours and rule-based recommendations. Call it once at the start of a day; it only reports what the app has stored plus one read of the account's own posts, and mark=false reads without moving the marker.", r#"{"platform":{"type":"string","enum":["x","instagram","tiktok"]},"mark":{"type":"boolean","description":"Default true: the next digest starts from now."}}"#, ["platform"]),
+    insight!("social_notifications", ShortPost, "Read or change which findings raise a desktop notification from this app for one network: a monitor surge, new hits on one monitor, new unfollowers after an audience sync. Stored on this computer only; notifications fire when a check or sync runs, and Slack and email are not built.", r#"{"platform":{"type":"string","enum":["x","instagram","tiktok"]},"op":{"type":"string","enum":["get","set"]},"surge":{"type":"boolean","description":"op=set: notify when any monitor of the network surges."},"unfollowers":{"type":"boolean","description":"op=set: notify when a sync finds new unfollowers."},"monitor":{"type":"integer","minimum":1,"description":"op=set with new_hits: the monitor id."},"new_hits":{"type":"boolean","description":"op=set: notify when a check stores new posts for that monitor."}}"#, ["platform", "op"]),
 ];
 
 pub(super) fn fail(
@@ -141,12 +141,12 @@ pub(super) fn strings(a: &Value, key: &str) -> Result<Vec<String>, String> {
 pub(super) async fn net(p: Platform, verb: &str, a: Value) -> Result<Value, String> {
     let tool = format!("{}{verb}", p.prefix());
     match p {
-        Platform::X => x::call(&tool, &a).await,
-        Platform::Instagram => instagram::call(&tool, &a).await,
-        Platform::Tiktok => tiktok::call(&tool, &a).await,
-        Platform::Reddit => reddit::call(&tool, &a).await,
-        Platform::Pinterest => pinterest::call(&tool, &a).await,
-        Platform::Github => github::call(&tool, &a).await,
+        Platform::ShortPost => shortpost::call(&tool, &a).await,
+        Platform::PhotoFeed => photofeed::call(&tool, &a).await,
+        Platform::ClipFeed => clipfeed::call(&tool, &a).await,
+        Platform::Forums => forums::call(&tool, &a).await,
+        Platform::PinBoard => pinboard::call(&tool, &a).await,
+        Platform::CodeHub => codehub::call(&tool, &a).await,
     }
 }
 
@@ -154,7 +154,7 @@ pub(super) fn unsupported(p: Platform) -> String {
     fail(
         "UNSUPPORTED_PLATFORM",
         format!(
-            "this tool works on X, Instagram and TikTok, not on {}",
+            "this tool works on Short Posts, Photo Feed and Clip Feed, not on {}",
             p.label()
         ),
         false,
@@ -167,23 +167,23 @@ pub(super) fn platform_arg(a: &Value) -> Result<Platform, String> {
         .and_then(|p| Platform::parse(&p))
         .ok_or_else(|| invalid("platform must be x, instagram or tiktok"))?;
     match p {
-        Platform::X | Platform::Instagram | Platform::Tiktok => Ok(p),
+        Platform::ShortPost | Platform::PhotoFeed | Platform::ClipFeed => Ok(p),
         _ => Err(unsupported(p)),
     }
 }
 
 pub(super) fn who_key(p: Platform) -> &'static str {
     match p {
-        Platform::X => "handle",
+        Platform::ShortPost => "handle",
         _ => "username",
     }
 }
 
 pub(super) fn clean_handle(p: Platform, raw: &str) -> String {
     match p {
-        Platform::X => x::handle_of(raw),
-        Platform::Instagram => instagram::username_of(raw),
-        Platform::Tiktok => tiktok::username_of(raw),
+        Platform::ShortPost => shortpost::handle_of(raw),
+        Platform::PhotoFeed => photofeed::username_of(raw),
+        Platform::ClipFeed => clipfeed::username_of(raw),
         _ => raw.trim().trim_start_matches('@').to_string(),
     }
 }
@@ -220,7 +220,7 @@ fn cache() -> &'static Mutex<HashMap<String, (Instant, Fetched)>> {
 }
 
 pub fn belongs(p: Platform, handle: &str, post: &Post) -> bool {
-    p != Platform::X
+    p != Platform::ShortPost
         || post.reposted_by.is_some()
         || post.author.handle.eq_ignore_ascii_case(handle)
 }
@@ -241,7 +241,7 @@ async fn fetch_posts(
             tokio::time::sleep(PACE).await;
         }
         let mut args = json!({ who_key(p): handle });
-        if replies && p == Platform::X {
+        if replies && p == Platform::ShortPost {
             args["include_replies"] = json!(true);
         }
         networks::posts_args(p, &mut args, replies);
@@ -756,7 +756,7 @@ async fn repos(p: Platform, a: &Value) -> Result<Value, String> {
     result["totals"] = totals;
     result["sort"] = json!(key);
     result["order"] = json!(if ascending { "asc" } else { "desc" });
-    result["note"] = json!("open_issues is GitHub's open_issues_count, which also counts open pull requests; pushed is the last push in unix seconds.");
+    result["note"] = json!("open_issues is Code Hub's open_issues_count, which also counts open pull requests; pushed is the last push in unix seconds.");
     let mut out = json!({
         "platform": p.id(),
         "handle": handle,
@@ -905,7 +905,7 @@ async fn engagement_page(
             )
         })
     };
-    if p != Platform::X {
+    if p != Platform::ShortPost {
         let mut args = json!({ "post": post });
         let first = cursor.is_none();
         if let Some(c) = cursor {
@@ -918,15 +918,15 @@ async fn engagement_page(
             opt_str(page, "next_cursor"),
         ));
     }
-    let id = x::tweet_id(post)
+    let id = shortpost::tweet_id(post)
         .ok_or_else(|| invalid("post must be a post id or an x.com/.../status/... link"))?;
     match kind {
         "likes" | "reposts" => {
-            let (users, next) = x::engagement_users(kind == "likes", &id, cursor).await?;
+            let (users, next) = shortpost::engagement_users(kind == "likes", &id, cursor).await?;
             Ok((users.into_iter().map(|u| json!(u)).collect(), next))
         }
         "quotes" => {
-            let mut args = json!({ "query": x::quotes_query(&id), "mode": "latest" });
+            let mut args = json!({ "query": shortpost::quotes_query(&id), "mode": "latest" });
             if let Some(c) = cursor {
                 args["cursor"] = json!(c);
             }
@@ -950,7 +950,7 @@ async fn engagement_page(
     }
 }
 
-const LIKES_HIDDEN: &str = "X shows who liked a post only to the post's author (likes became private in 2024). The like count is still public in the post itself.";
+const LIKES_HIDDEN: &str = "Short Posts shows who liked a post only to the post's author (likes became private in 2024). The like count is still public in the post itself.";
 
 async fn x_engagement(a: &Value) -> Result<Value, String> {
     let post = super::args::req_str(a, "post").map_err(|_| invalid("post is required"))?;
@@ -964,18 +964,19 @@ async fn x_engagement(a: &Value) -> Result<Value, String> {
     let hidden = |reason: &str| json!({ "post": post, "kind": kind, "available": false, "count": 0, "items": [], "next_cursor": Value::Null, "reason": reason });
     if kind == "likes" {
         if let Some(owner) = owner_in_link(&post) {
-            if !owner.eq_ignore_ascii_case(&x::me_handle().await?) {
+            if !owner.eq_ignore_ascii_case(&shortpost::me_handle().await?) {
                 return Ok(hidden(LIKES_HIDDEN));
             }
         }
     }
-    let (items, next) = engagement_page(Platform::X, &post, &kind, opt_str(a, "cursor")).await?;
+    let (items, next) =
+        engagement_page(Platform::ShortPost, &post, &kind, opt_str(a, "cursor")).await?;
     let mut out = json!({ "post": post, "kind": kind, "available": true, "count": items.len(), "items": items, "next_cursor": next });
     if items.is_empty() && opt_str(a, "cursor").is_none() {
         out["empty_reason"] = json!(if kind == "likes" {
             LIKES_HIDDEN
         } else {
-            "Nobody did this to the post yet, or X no longer lists it."
+            "Nobody did this to the post yet, or Short Posts no longer lists it."
         });
     }
     Ok(out)
@@ -1025,16 +1026,18 @@ async fn social_draw(p: Platform, a: &Value) -> Result<Value, String> {
     let post = opt_str(a, "post");
     let given = strings(a, "handles")?;
     let exclude = strings(a, "exclude")?;
-    if must_follow && p == Platform::Tiktok {
+    if must_follow && p == Platform::ClipFeed {
         return Err(fail(
             "CONDITION_UNAVAILABLE",
-            "TikTok does not tell a web session whether another account follows you",
+            "Clip Feed does not tell a web session whether another account follows you",
             false,
             "Run the draw without must_follow, or check the winners' follow by hand.",
         ));
     }
-    if must_repost && (p != Platform::X || post.is_none()) {
-        return Err(invalid("must_have_reposted works on X only and needs post"));
+    if must_repost && (p != Platform::ShortPost || post.is_none()) {
+        return Err(invalid(
+            "must_have_reposted works on Short Posts only and needs post",
+        ));
     }
     let mut follows: HashMap<String, bool> = HashMap::new();
     let mut note_follow = |items: &[Value]| {
@@ -1054,22 +1057,22 @@ async fn social_draw(p: Platform, a: &Value) -> Result<Value, String> {
         let post = post
             .as_deref()
             .ok_or_else(|| invalid("pass handles, or post with source"))?;
-        let default = if p == Platform::X {
+        let default = if p == Platform::ShortPost {
             "reposts"
         } else {
             "comments"
         };
         let source = opt_str(a, "source").unwrap_or_else(|| default.into());
-        let allowed = if p == Platform::X {
+        let allowed = if p == Platform::ShortPost {
             X_KINDS.contains(&source.as_str())
         } else {
             source == "comments"
         };
         if !allowed {
-            return Err(invalid(if p == Platform::X {
-                "on X source must be reposts, quotes, replies or likes"
+            return Err(invalid(if p == Platform::ShortPost {
+                "on Short Posts source must be reposts, quotes, replies or likes"
             } else {
-                "on Instagram and TikTok the only source is comments"
+                "on Photo Feed and Clip Feed the only source is comments"
             }));
         }
         let (items, truncated) = collect(p, post, &source, cap).await?;
@@ -1310,7 +1313,7 @@ mod tests {
     }
 
     #[test]
-    fn every_network_has_analytics_and_export_and_github_has_repos() {
+    fn every_network_has_analytics_and_export_and_codehub_has_repos() {
         for prefix in ["x_", "ig_", "tt_", "rd_", "pin_", "gh_"] {
             for name in ["analytics", "analytics_export"] {
                 let spec = tools::find(&format!("{prefix}{name}")).expect(name);
@@ -1325,7 +1328,7 @@ mod tests {
             .iter()
             .filter_map(|v| v.as_str())
             .collect();
-        assert_eq!(reports, networks::reports(Platform::Github).unwrap());
+        assert_eq!(reports, networks::reports(Platform::CodeHub).unwrap());
         for key in networks::REPO_SORTS {
             assert!(gh["properties"]["sort"]["enum"]
                 .as_array()
@@ -1342,7 +1345,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn github_rejects_reports_it_cannot_answer_before_the_network() {
+    async fn codehub_rejects_reports_it_cannot_answer_before_the_network() {
         let caller = Caller::Screen;
         for bad in [
             json!({ "report": "outliers" }),
@@ -1389,7 +1392,7 @@ mod tests {
             .map(|i| post(&i.to_string(), i * 10, 1_700_000_000 + i as i64))
             .collect();
         let v = report(
-            Platform::X,
+            Platform::ShortPost,
             "posts",
             &posts,
             &json!({ "sort": "likes", "limit": 2, "offset": 1 }),
@@ -1400,7 +1403,7 @@ mod tests {
         assert_eq!(v["truncated"], true);
         assert_eq!(v["items"][0]["id"], "3");
         let last = report(
-            Platform::X,
+            Platform::ShortPost,
             "posts",
             &posts,
             &json!({ "sort": "likes", "order": "asc", "offset": 3 }),
@@ -1408,14 +1411,17 @@ mod tests {
         .unwrap();
         assert_eq!(last["truncated"], false);
         assert_eq!(last["items"][1]["id"], "4");
-        assert!(
-            report(Platform::X, "posts", &posts, &json!({ "sort": "nope" }))
-                .unwrap_err()
-                .starts_with("INVALID_ARGUMENTS")
-        );
-        assert!(report(Platform::X, "nope", &posts, &json!({})).is_err());
+        assert!(report(
+            Platform::ShortPost,
+            "posts",
+            &posts,
+            &json!({ "sort": "nope" })
+        )
+        .unwrap_err()
+        .starts_with("INVALID_ARGUMENTS"));
+        assert!(report(Platform::ShortPost, "nope", &posts, &json!({})).is_err());
         let t = report(
-            Platform::X,
+            Platform::ShortPost,
             "times",
             &posts,
             &json!({ "utc_offset_minutes": -180 }),
@@ -1424,7 +1430,7 @@ mod tests {
         assert_eq!(t["timezone"], "-03:00");
         assert_eq!(
             report(
-                Platform::X,
+                Platform::ShortPost,
                 "trend",
                 &posts,
                 &json!({ "unit": "week", "utc_offset_minutes": 0 })
@@ -1433,7 +1439,7 @@ mod tests {
             "week"
         );
         assert!(report(
-            Platform::X,
+            Platform::ShortPost,
             "times",
             &posts,
             &json!({ "utc_offset_minutes": 9000 })
@@ -1450,7 +1456,7 @@ mod tests {
             stopped: Some("RATE_LIMITED: wait".into()),
             kinds: Default::default(),
         };
-        let v = envelope(Platform::Instagram, "ana", "summary", &f, false, json!({}));
+        let v = envelope(Platform::PhotoFeed, "ana", "summary", &f, false, json!({}));
         assert_eq!(v["sample"], 0);
         assert!(v["empty_reason"].is_string());
         assert!(v["partial_reason"]
@@ -1466,14 +1472,14 @@ mod tests {
             handle: "Bob".into(),
             ..Default::default()
         };
-        assert!(!belongs(Platform::X, "ana", &theirs));
-        assert!(belongs(Platform::X, "bob", &theirs));
+        assert!(!belongs(Platform::ShortPost, "ana", &theirs));
+        assert!(belongs(Platform::ShortPost, "bob", &theirs));
         theirs.reposted_by = Some(Author {
             handle: "ana".into(),
             ..Default::default()
         });
-        assert!(belongs(Platform::X, "ana", &theirs));
-        assert!(belongs(Platform::Instagram, "ana", &post("2", 1, 0)));
+        assert!(belongs(Platform::ShortPost, "ana", &theirs));
+        assert!(belongs(Platform::PhotoFeed, "ana", &post("2", 1, 0)));
     }
 
     #[test]
@@ -1511,7 +1517,7 @@ mod tests {
     #[test]
     fn export_file_names_are_safe() {
         assert_eq!(
-            export_name(Platform::Instagram, "ana.dev/../x", "20261111-101500"),
+            export_name(Platform::PhotoFeed, "ana.dev/../x", "20261111-101500"),
             "omniget-instagram-ana.dev_.._x-posts-20261111-101500.csv"
         );
     }
@@ -1595,7 +1601,7 @@ mod tests {
             .unwrap_err()
             .starts_with("INVALID_ARGUMENTS"));
         assert_eq!(
-            report_name(Platform::Tiktok, "ana/../x", "20261111-101500", ".html"),
+            report_name(Platform::ClipFeed, "ana/../x", "20261111-101500", ".html"),
             "omniget-tiktok-ana_.._x-report-20261111-101500.html"
         );
         for name in [

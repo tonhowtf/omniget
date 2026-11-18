@@ -1,11 +1,9 @@
-use std::path::PathBuf;
 use std::sync::{Mutex, OnceLock};
 use std::time::{Duration, Instant};
 
-use super::minilm::{fetch_asset, has_asset, model_dir, pool_and_normalize, Asset};
+use super::minilm::{has_asset, model_dir, pool_and_normalize, Asset};
 use super::unigram::{pad, Unigram};
 use super::{EmbedError, ERR_EMBED_INFER, ERR_EMBED_MODEL, ERR_EMBED_SHAPE, ERR_EMBED_VOCAB};
-use crate::core::tools::ProgressFn;
 
 pub const DIM: usize = 384;
 pub const IDLE_TTL: Duration = Duration::from_secs(600);
@@ -59,11 +57,6 @@ impl Model {
 
 pub fn is_ready(m: Model) -> bool {
     has_asset(&TOKENIZER) && has_asset(&m.asset()) && crate::core::onnxrt::is_installed()
-}
-
-pub async fn ensure(m: Model, progress: &ProgressFn) -> Result<PathBuf, EmbedError> {
-    fetch_asset(&TOKENIZER, progress).await?;
-    fetch_asset(&m.asset(), progress).await
 }
 
 struct Loaded {
@@ -159,14 +152,6 @@ fn start_reaper() {
                 }
             });
     });
-}
-
-pub fn release_now() {
-    for m in [Model::E5, Model::Reranker] {
-        if let Ok(mut g) = cell(m).lock() {
-            *g = None;
-        }
-    }
 }
 
 type Outputs = (Vec<i64>, Vec<f32>);

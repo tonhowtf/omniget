@@ -98,27 +98,6 @@ pub fn diff(id: &str) -> Result<Vec<tree::Change>, String> {
     tree::changes(&r.project, &r.work, &base)
 }
 
-pub fn apply(id: &str, paths: &[String]) -> Result<(Vec<String>, Vec<String>), String> {
-    let (mut r, base) = load_record(id)?;
-    if r.bind_original {
-        return Err(format!(
-            "{ERR_SANDBOX}: this run worked on the project itself; nothing to apply"
-        ));
-    }
-    let (done, skipped) = tree::apply(&r.project, &r.work, &base, paths)?;
-    r.applied.extend(done.iter().cloned());
-    save_record(&run_dir(id)?, &r, None)?;
-    Ok((done, skipped))
-}
-
-pub fn discard(id: &str) -> Result<(), String> {
-    let dir = run_dir(id)?;
-    if dir.exists() {
-        std::fs::remove_dir_all(&dir).map_err(|e| format!("{ERR_SANDBOX}: {e}"))?;
-    }
-    Ok(())
-}
-
 pub fn key_env(tool: &str, key_id: Option<&str>) -> Result<Vec<(String, String)>, String> {
     let Some(id) = key_id.filter(|k| !k.is_empty()) else {
         return Ok(vec![]);
@@ -156,24 +135,6 @@ pub fn key_env(tool: &str, key_id: Option<&str>) -> Result<Vec<(String, String)>
         out.push(("ANTHROPIC_BASE_URL".into(), entry.base_url.clone()));
     }
     Ok(out)
-}
-
-pub async fn status() -> serde_json::Value {
-    let d = docker::probe().await;
-    let keys: Vec<serde_json::Value> = crate::core::tools::ai_keys::list()
-        .into_iter()
-        .map(|k| {
-            serde_json::json!({
-                "id": k.id, "name": k.name, "kind": k.kind, "has_key": k.has_key,
-                "e2b": k.name.to_ascii_lowercase().contains("e2b") || k.base_url.contains("e2b"),
-            })
-        })
-        .collect();
-    serde_json::json!({
-        "docker": d,
-        "tools": docker::SUPPORTED.iter().map(|(t, p)| serde_json::json!({"tool": t, "package": p})).collect::<Vec<_>>(),
-        "keys": keys,
-    })
 }
 
 pub async fn run(

@@ -359,18 +359,6 @@ impl Recorder {
     pub fn dump(&self) -> Vec<String> {
         self.events.iter().cloned().collect()
     }
-
-    pub fn clear(&mut self) {
-        self.events.clear();
-    }
-
-    pub fn len(&self) -> usize {
-        self.events.len()
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.events.is_empty()
-    }
 }
 
 static BUFFER: OnceLock<Mutex<Recorder>> = OnceLock::new();
@@ -387,10 +375,4 @@ pub fn record(event: &str) {
 
 pub fn dump() -> Vec<String> {
     buffer().lock().map(|b| b.dump()).unwrap_or_default()
-}
-
-pub fn clear() {
-    if let Ok(mut buf) = buffer().lock() {
-        buf.clear();
-    }
 }

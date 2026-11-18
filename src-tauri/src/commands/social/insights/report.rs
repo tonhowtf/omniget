@@ -639,7 +639,7 @@ mod tests {
 
     fn full() -> Value {
         json!({
-            "platform": "X",
+            "platform": "Short Posts",
             "handle": "ana",
             "generated": "2026-11-11 10:15 -03:00",
             "profile": { "name": EVIL, "followers": 1200, "following": 300, "posts": 4521 },
@@ -716,7 +716,8 @@ mod tests {
         assert!(!page.contains("javascript:"));
         assert!(page.contains("(no text)"));
         assert_eq!(esc("a<b>&\"'"), "a&lt;b&gt;&amp;&quot;&#39;");
-        let evil_handle = html(&json!({ "platform": "X", "handle": "\"><script>x</script>" }));
+        let evil_handle =
+            html(&json!({ "platform": "Short Posts", "handle": "\"><script>x</script>" }));
         assert!(!evil_handle.contains("<script>"));
         let md = markdown(&full());
         assert!(!md.contains("<script>"));
@@ -732,21 +733,21 @@ mod tests {
     #[test]
     fn sections_without_data_say_so_in_both_files() {
         let d = json!({
-            "platform": "Instagram", "handle": "ana", "generated": "now",
-            "posts_reason": "NOT_LOGGED_IN: sign in to Instagram",
+            "platform": "Photo Feed", "handle": "ana", "generated": "now",
+            "posts_reason": "NOT_LOGGED_IN: sign in to Photo Feed",
             "audience_reason": "No audience snapshot yet.",
             "monitors_reason": "No monitor saved.",
         });
         let page = html(&d);
         assert_eq!(page.matches("No data:").count(), 7);
-        assert!(page.contains("No data: NOT_LOGGED_IN: sign in to Instagram"));
+        assert!(page.contains("No data: NOT_LOGGED_IN: sign in to Photo Feed"));
         assert!(page.contains("No data: No audience snapshot yet."));
         assert!(page.contains("No data: No monitor saved."));
         assert!(!page.contains("<svg") && !page.contains("<table"));
         let md = markdown(&d);
         assert_eq!(md.matches("No data:").count(), 7);
-        assert!(md.starts_with("# Instagram report for @ana"));
-        let one_day = json!({ "platform": "X", "handle": "a", "audience": { "days": [{ "day": "2026-11-01", "followers": 10, "gained": 0, "lost": 0 }] } });
+        assert!(md.starts_with("# Photo Feed report for @ana"));
+        let one_day = json!({ "platform": "Short Posts", "handle": "a", "audience": { "days": [{ "day": "2026-11-01", "followers": 10, "gained": 0, "lost": 0 }] } });
         let page = html(&one_day);
         assert!(page.contains("The trend line needs two days"));
         assert!(page.contains("No follower was gained or lost"));

@@ -1,11 +1,21 @@
 import { describe, expect, it } from "vitest";
-import { MAX_RAIL_PINS, pinnedNavItems, togglePin } from "./pins";
+import { MAX_RAIL_PINS, currentPins, pinnedNavItems, togglePin } from "./pins";
 
 const catalog = [
   { id: "music", icon: "music", titleKey: "music.title", href: "/music" },
   { id: "league", icon: "league", title: "League of Legends", href: "/league" },
   { id: "scrape", icon: "scraper", titleKey: "scrape.title", href: "/scrape" },
 ];
+
+describe("currentPins", () => {
+  it("reads pins saved under the ids used before the rename", () => {
+    expect(currentPins(["whatsapp", "music", "x", "github"])).toEqual(["phonechat", "music", "shortpost", "codehub"]);
+  });
+
+  it("keeps current ids as they are", () => {
+    expect(currentPins(["phonechat", "scrape"])).toEqual(["phonechat", "scrape"]);
+  });
+});
 
 describe("togglePin", () => {
   it("adds a new id at the end", () => {

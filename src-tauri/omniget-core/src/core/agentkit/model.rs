@@ -26,24 +26,6 @@ pub enum ComponentKind {
 }
 
 impl ComponentKind {
-    pub const ALL: [ComponentKind; 15] = [
-        ComponentKind::Rule,
-        ComponentKind::Agent,
-        ComponentKind::Command,
-        ComponentKind::Skill,
-        ComponentKind::Mcp,
-        ComponentKind::Hook,
-        ComponentKind::Setting,
-        ComponentKind::Statusline,
-        ComponentKind::Loop,
-        ComponentKind::Workflow,
-        ComponentKind::Mod,
-        ComponentKind::Plugin,
-        ComponentKind::ProjectTemplate,
-        ComponentKind::SandboxRecipe,
-        ComponentKind::Stack,
-    ];
-
     pub fn as_str(self) -> &'static str {
         match self {
             ComponentKind::Rule => "rule",

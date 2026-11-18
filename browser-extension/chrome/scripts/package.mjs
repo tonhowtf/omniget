@@ -26,10 +26,36 @@ function parseArgs() {
 
   if (!output) {
     const manifest = JSON.parse(readFileSync(join(EXTENSION_DIR, "manifest.json"), "utf8"));
-    output = resolve(`omniget-chrome-extension-v${version || manifest.version}.zip`);
+    output = resolve(`omniget-chrome-extension-v${version || manifest.version}${args.includes("--store") ? "-store" : ""}.zip`);
   }
 
-  return { output, version };
+  return { output, version, store: args.includes("--store") };
+}
+
+const STORE_EXCLUDED_HOSTS = /(^|[./])(youtube\.com|youtube-nocookie\.com|youtu\.be|googlevideo\.com|ytimg\.com)\//;
+
+function applyStorePolicy(dir) {
+  const manifestPath = join(dir, "manifest.json");
+  const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+  manifest.host_permissions = manifest.host_permissions.filter((pattern) => !STORE_EXCLUDED_HOSTS.test(pattern));
+  // WHY: the code only clears a legacy alarm through optional chaining, and the store rejects unused permissions.
+  manifest.permissions = manifest.permissions.filter((name) => name !== "alarms");
+  writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + "\n");
+
+  const flagPath = join(dir, "src", "store-policy.js");
+  const flag = readFileSync(flagPath, "utf8");
+  const patched = flag.replace("export const STORE_BUILD = false;", "export const STORE_BUILD = true;");
+  if (patched === flag) throw new Error("store-policy.js: STORE_BUILD flag not found");
+  writeFileSync(flagPath, patched);
+
+  const popupPath = join(dir, "popup", "popup.html");
+  const popup = readFileSync(popupPath, "utf8");
+  const start = popup.indexOf('<label class="toggle-group" title="Force H.264 on YouTube">');
+  const end = start === -1 ? -1 : popup.indexOf("</label>", start);
+  if (end === -1) throw new Error("popup.html: H.264 toggle not found");
+  writeFileSync(popupPath, popup.slice(0, start).trimEnd() + "\n" + popup.slice(end + "</label>".length).replace(/^\n/, ""));
+
+  for (const name of ["h264ify.js", "h264ify-60.js"]) rmSync(join(dir, "src", name), { force: true });
 }
 
 function patchManifest(dir, version) {
@@ -155,7 +181,7 @@ function crc32(buf) {
   return (crc ^ 0xffffffff) >>> 0;
 }
 
-const { output, version } = parseArgs();
+const { output, version, store } = parseArgs();
 
 const tempDir = mkdtempSync(join(tmpdir(), "omniget-chrome-ext-"));
 const stageDir = join(tempDir, "chrome");
@@ -166,6 +192,11 @@ try {
 
   console.log("Patching manifest...");
   patchManifest(stageDir, version);
+
+  if (store) {
+    console.log("Applying Chrome Web Store policy...");
+    applyStorePolicy(stageDir);
+  }
 
   console.log("Removing dev-only files...");
   removeDevFiles(stageDir);

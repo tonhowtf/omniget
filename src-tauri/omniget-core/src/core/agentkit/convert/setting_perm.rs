@@ -177,13 +177,6 @@ impl PermissionSet {
         self.rules.is_empty() && self.mode.is_none() && self.additional_dirs.is_empty()
     }
 
-    pub fn of(&self, d: Decision) -> impl Iterator<Item = &Rule> {
-        self.rules
-            .iter()
-            .filter(move |(x, _)| *x == d)
-            .map(|(_, r)| r)
-    }
-
     pub fn bare(&self, f: Family) -> Option<Decision> {
         self.rules
             .iter()

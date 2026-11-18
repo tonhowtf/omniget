@@ -4,7 +4,7 @@
   import TerminalView from "$components/central/terminal/TerminalView.svelte";
   import type { CanvasNode } from "$lib/canvas/model/types";
   import type { Lod } from "$lib/canvas/lod";
-  import { agentStates, normaliseState, stateCss } from "$lib/canvas/state/agents.svelte";
+  import { agentStates, normaliseState, stateVar } from "$lib/canvas/state/agents.svelte";
   import { terminalIdOf } from "$lib/canvas/term/gl-types";
   import { termLive, type AgentStateName } from "$lib/canvas/term/state.svelte";
   import { gridSizeFor, TERM_FOOTER_H, TERM_HEADER_H, termFontScale, termPadding, TERM_FONT_SIZE } from "$lib/canvas/term/metrics";
@@ -30,7 +30,9 @@
   import { roles } from "$lib/canvas/roles/store.svelte";
   import { chats } from "$lib/canvas/chat/store.svelte";
   import RoleBadge from "$components/canvas/roles/RoleBadge.svelte";
-  import MaestroBadge from "$components/canvas/maestro/MaestroBadge.svelte";
+  import LeadBadge from "$components/canvas/lead/LeadBadge.svelte";
+  import AutonomyChip from "$components/canvas/attention/AutonomyChip.svelte";
+  import CheckpointMenu from "$components/canvas/attention/CheckpointMenu.svelte";
   import ChatFace from "$components/canvas/chat/ChatFace.svelte";
   import AccountBadge from "$components/canvas/accounts/AccountBadge.svelte";
   import { ACCOUNT_AGENTS, canvasAccounts, cliOfAgent } from "$lib/canvas/accounts/store.svelte";
@@ -208,12 +210,12 @@
     return live.agent;
   });
   const quietAttention = $derived(
-    !canvasPrefs().notifications.badges_for_non_maestro &&
+    !canvasPrefs().notifications.badges_for_non_lead &&
       !isManager &&
-      (agentState === "success" || agentState === "failed" || agentState === "blocked"),
+      (agentState === "success" || agentState === "failed" || agentState === "limit" || agentState === "refused" || agentState === "blocked"),
   );
   const badgeState = $derived<AgentStateName>(quietAttention ? "idle" : agentState);
-  const stateColor = $derived(stateCss(normaliseState(badgeState)));
+  const stateColor = $derived(stateVar(normaliseState(badgeState)));
   const title = $derived(node.title || live.title || $t(`canvas.term.agent.${agent}`));
   const card = $derived(lod === "far" || live.lod === "card");
 
@@ -228,6 +230,8 @@
     compacting: "⇊",
     looping: "↻",
     unknown: "?",
+    limit: "⏸",
+    refused: "⊘",
   };
 
   function canvasEnv(): Record<string, string> {
@@ -445,7 +449,8 @@
     {#if showAccount}
       <AccountBadge badge={accountBadge} options={accountOptions} compact={zoom < 0.35} onpick={pickAccount} />
     {/if}
-    <MaestroBadge {workspaceId} floorId={engine.store.floorId} nodeId={node.id} on={isManager} compact={zoom < 0.35} />
+    <LeadBadge {workspaceId} floorId={engine.store.floorId} nodeId={node.id} on={isManager} compact={zoom < 0.35} />
+    <AutonomyChip {command} compact={zoom < 0.35 || node.w < 560} />
     {#if live.exited}
       <span class="exit-tag">
         {live.exited.signal
@@ -475,6 +480,7 @@
             {#if chatUnread}<span class="chat-unread">{chatUnread}</span>{/if}
           </button>
         {/if}
+        {#if agent !== "shell"}<CheckpointMenu nodeId={node.id} working={agentState === "working" || agentState === "thinking"} />{/if}
         <button type="button" class="act" title={$t("canvas.term.action.focus")} aria-label={$t("canvas.term.action.focus")} onclick={focusInput}>
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5 M15 4h5v5 M20 15v5h-5 M9 20H4v-5" /></svg>
         </button>

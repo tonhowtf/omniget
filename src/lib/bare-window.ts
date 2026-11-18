@@ -1,4 +1,4 @@
-const BARE_WINDOW_ROUTES = ["/pet", "/limits-strip", "/usage-panel", "/omni"] as const;
+const BARE_WINDOW_ROUTES = ["/pet", "/limits-strip", "/usage-panel", "/quick-panel", "/omni"] as const;
 
 export function isBareWindow(pathname: string): boolean {
   const path = pathname.length > 1 ? pathname.replace(/\/+$/, "") : pathname;

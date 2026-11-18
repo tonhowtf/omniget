@@ -9,7 +9,6 @@ use super::ctx::AssistCtx;
 use super::db::{AssistDb, Migration};
 
 pub const ERR_RUNS: &str = "ERR_RUNS";
-pub const ERR_RUNS_FINGERPRINT: &str = "ERR_RUNS_FINGERPRINT";
 pub const ERR_RUNS_STATE: &str = "ERR_RUNS_STATE";
 pub const ERR_RUNS_NOT_FOUND: &str = "ERR_RUNS_NOT_FOUND";
 pub const ERR_PERMISSION_EXPIRED: &str = "ERR_PERMISSION_EXPIRED";
@@ -175,13 +174,6 @@ impl RunState {
         )
     }
 
-    pub fn is_live(self) -> bool {
-        matches!(
-            self,
-            RunState::Queued | RunState::Preparing | RunState::Running | RunState::WaitingUser
-        )
-    }
-
     pub fn can_go(self, to: RunState) -> bool {
         use RunState::*;
         if self == to {
@@ -317,17 +309,6 @@ pub struct Receipt {
 pub enum Admission {
     New(Receipt),
     Existing(Receipt),
-}
-
-impl Admission {
-    pub fn receipt(&self) -> &Receipt {
-        match self {
-            Admission::New(r) | Admission::Existing(r) => r,
-        }
-    }
-    pub fn is_new(&self) -> bool {
-        matches!(self, Admission::New(_))
-    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -518,13 +499,6 @@ fn event_id(run_id: &str, provider_id: &str) -> String {
     format!("ev-{}", &hex::encode(h.finalize())[..32])
 }
 
-pub fn fingerprint(v: &Value) -> String {
-    use sha2::{Digest, Sha256};
-    let mut h = Sha256::new();
-    h.update(v.to_string().as_bytes());
-    hex::encode(h.finalize())
-}
-
 const RUN_COLS: &str = "id, session_id, conversation_id, bot_id, parent_run_id, state, resume_kind, runtime, cwd, instance_id, launch_id, pid, input_preview, summary, error, resolution, tokens_in, tokens_out, cost_usd, events_dropped, created_ms, started_ms, ended_ms, updated_ms";
 
 fn row_run(r: &rusqlite::Row<'_>) -> rusqlite::Result<RunRecord> {
@@ -609,22 +583,6 @@ fn row_perm(r: &rusqlite::Row<'_>) -> rusqlite::Result<PermissionRequest> {
         note: r.get(18)?,
     })
 }
-
-fn row_receipt(r: &rusqlite::Row<'_>) -> rusqlite::Result<Receipt> {
-    Ok(Receipt {
-        operation_id: r.get(0)?,
-        run_id: r.get(1)?,
-        fingerprint: r.get(2)?,
-        state: r.get(3)?,
-        result: r.get(4)?,
-        error: r.get(5)?,
-        created_ms: r.get(6)?,
-        updated_ms: r.get(7)?,
-    })
-}
-
-const RECEIPT_COLS: &str =
-    "operation_id, run_id, fingerprint, state, result, error, created_ms, updated_ms";
 
 #[derive(Debug, Clone, Default)]
 pub struct NewRun {
@@ -1058,86 +1016,6 @@ impl Registry {
             .map_err(err)?;
             Ok(Some(seq))
         })
-    }
-
-    pub fn events(&self, run_id: &str) -> Vec<RunEvent> {
-        self.db
-            .with(|c| {
-                let mut stmt = c.prepare(
-                    "SELECT id, run_id, seq, kind, provider_id, payload, ts_ms FROM runs_events WHERE run_id=?1 ORDER BY seq",
-                )?;
-                let rows = stmt.query_map(params![run_id], |r| {
-                    let payload: String = r.get(5)?;
-                    Ok(RunEvent {
-                        id: r.get(0)?,
-                        run_id: r.get(1)?,
-                        seq: r.get(2)?,
-                        kind: r.get(3)?,
-                        provider_id: r.get(4)?,
-                        payload: serde_json::from_str(&payload).unwrap_or(Value::Null),
-                        ts_ms: r.get(6)?,
-                    })
-                })?;
-                rows.collect()
-            })
-            .unwrap_or_default()
-    }
-
-    pub fn admit(
-        &self,
-        operation_id: &str,
-        run_id: Option<&str>,
-        fingerprint: &str,
-    ) -> Result<Admission, String> {
-        if operation_id.trim().is_empty() {
-            return Err(format!("{ERR_RUNS}: empty operation id"));
-        }
-        let now = super::now_ms();
-        self.db.tx(|tx| {
-            let found = tx
-                .query_row(
-                    &format!("SELECT {RECEIPT_COLS} FROM runs_receipts WHERE operation_id=?1"),
-                    params![operation_id],
-                    row_receipt,
-                )
-                .optional()
-                .map_err(err)?;
-            if let Some(r) = found {
-                if r.fingerprint != fingerprint {
-                    return Err(format!(
-                        "{ERR_RUNS_FINGERPRINT}: operation {operation_id} was admitted with other content"
-                    ));
-                }
-                return Ok(Admission::Existing(r));
-            }
-            tx.execute(
-                "INSERT INTO runs_receipts (operation_id, run_id, fingerprint, state, created_ms, updated_ms) VALUES (?1,?2,?3,'admitted',?4,?4)",
-                params![operation_id, run_id, fingerprint, now],
-            )
-            .map_err(err)?;
-            let r = tx
-                .query_row(
-                    &format!("SELECT {RECEIPT_COLS} FROM runs_receipts WHERE operation_id=?1"),
-                    params![operation_id],
-                    row_receipt,
-                )
-                .map_err(err)?;
-            Ok(Admission::New(r))
-        })
-    }
-
-    pub fn receipt(&self, operation_id: &str) -> Option<Receipt> {
-        self.db
-            .with(|c| {
-                c.query_row(
-                    &format!("SELECT {RECEIPT_COLS} FROM runs_receipts WHERE operation_id=?1"),
-                    params![operation_id],
-                    row_receipt,
-                )
-                .optional()
-            })
-            .ok()
-            .flatten()
     }
 
     pub fn open_ask(&self, ask: NewAsk) -> Result<PermissionRequest, String> {

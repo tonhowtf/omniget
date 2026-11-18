@@ -67,10 +67,11 @@ cmd_set() {
 }
 
 # http_status URL [header] — GET, print the numeric HTTP status (000 on network failure).
+# The header goes to curl on stdin (never argv) so a key in it stays out of ps.
 _http_status() {
   local url="$1" header="${2:-}"
   if [ -n "$header" ]; then
-    curl -s -o /dev/null -w '%{http_code}' -m 20 -H "$header" "$url" 2>/dev/null || echo 000
+    printf '%s\n' "$header" | curl -s -o /dev/null -w '%{http_code}' -m 20 -H @- "$url" 2>/dev/null || echo 000
   else
     curl -s -o /dev/null -w '%{http_code}' -m 20 "$url" 2>/dev/null || echo 000
   fi
@@ -97,7 +98,7 @@ cmd_check() {
 
   if [ -n "${GEMINI_API_KEY:-}" ]; then
     any=true
-    case "$(_http_status "https://generativelanguage.googleapis.com/v1beta/models?key=$GEMINI_API_KEY")" in
+    case "$(_http_status https://generativelanguage.googleapis.com/v1beta/models "x-goog-api-key: $GEMINI_API_KEY")" in
       200) _report Gemini "working" ;;
       400|401|403) _report Gemini "BAD KEY (rejected)" ;;
       000) _report Gemini "no network / timeout" ;;

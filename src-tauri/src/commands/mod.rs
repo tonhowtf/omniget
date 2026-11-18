@@ -40,7 +40,9 @@ pub mod post_text;
 pub mod profile;
 pub mod profile_sync;
 pub mod proxy_check;
+pub mod proxy_pool;
 pub mod quick_action;
+pub mod quicktools;
 pub mod read;
 pub mod reencode;
 pub mod research;
@@ -65,11 +67,12 @@ pub mod components;
 pub mod dependencies;
 pub mod devtools;
 pub mod dictation;
-pub mod discord;
 pub mod fonts;
+pub mod guildchat;
 pub mod icons;
 pub mod motion;
 pub mod palette;
+pub mod phonechat;
 #[cfg(not(target_os = "android"))]
 pub mod search;
 #[cfg(not(target_os = "android"))]
@@ -77,4 +80,3 @@ pub mod search_sites;
 pub mod social;
 pub mod studio;
 pub mod transfer;
-pub mod whatsapp;

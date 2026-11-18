@@ -35,23 +35,6 @@ pub fn typed_url(base_url: &str, format: CoverFormat) -> String {
     format!("{}@.{}", stripped, format.extension())
 }
 
-pub async fn download(
-    client: &ApiClient,
-    cover_url: &str,
-    output_dir: &Path,
-    filename: &str,
-    format: CoverFormat,
-) -> Result<PathBuf> {
-    let typed = typed_url(cover_url, format);
-    let bytes = client.get_bytes(&typed).await?;
-    let path = output_dir.join(format!("{}.{}", filename, format.extension()));
-    if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent).ok();
-    }
-    std::fs::write(&path, bytes).map_err(|_| BilibiliError::ContentUnavailable)?;
-    Ok(path)
-}
-
 pub async fn download_to(
     client: &ApiClient,
     cover_url: &str,

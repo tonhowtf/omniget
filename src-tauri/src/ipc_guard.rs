@@ -5,7 +5,7 @@ const PREVIEW_COMMANDS: &[&str] = &["preview_report", "debug_report"];
 
 pub fn allowed(label: &str, command: &str) -> bool {
     match label {
-        "main" | "pet" | "limits-strip" | "usage-panel" | "omni" => true,
+        "main" | "pet" | "limits-strip" | "usage-panel" | "quick-panel" | "omni" => true,
         l if l.starts_with("preview-") => PREVIEW_COMMANDS.contains(&command),
         l if l.starts_with("portal-") => {
             command == "canvas_portal_report" || command == "debug_report"
@@ -59,6 +59,7 @@ mod tests {
             crate::commands::pet::WINDOW_LABEL,
             crate::limits_strip::commands::WINDOW_LABEL,
             crate::usage_tray::PANEL_LABEL,
+            crate::quick_panel::PANEL_LABEL,
             crate::canvas::companion::OMNI_WINDOW,
         ] {
             assert!(allowed(l, "usage_tray_view"), "{l}");

@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { agentActions } from "$lib/native-agent/actions";
+  import ApprovalCard from "$components/shell/ApprovalCard.svelte";
   import { invoke } from "@tauri-apps/api/core";
   import { listen } from "@tauri-apps/api/event";
   import { goto } from "$app/navigation";
@@ -47,8 +49,7 @@
 {#if requests.length}
   <aside class="mcp-auth" aria-live="polite" aria-label={$t("mcp_auth.title")}>
     {#each requests as r (r.id)}
-      <div class="card" role="alertdialog" aria-labelledby={`mcp-auth-${r.id}`}>
-        <h4 id={`mcp-auth-${r.id}`}>{$t("mcp_auth.title")}</h4>
+      <ApprovalCard titleId={`mcp-auth-${r.id}`} title={$t("mcp_auth.title") as string}>
         <p>{$t("mcp_auth.body", { client: r.client, target: target(r) })}</p>
         {#if r.reason}
           <p class="reason"><span>{$t("mcp_auth.reason_label")}</span> {r.reason}</p>
@@ -57,38 +58,22 @@
         <p class="note">{$t("mcp_auth.expires", { time: time(r.expires_at) })}</p>
         <div class="actions">
           <button class="btn btn-secondary btn-sm" type="button" onclick={openSettings}>{$t("mcp_auth.open_settings")}</button>
-          <button class="btn btn-secondary btn-sm" type="button" disabled={busy === r.id} onclick={() => answer(r.id, "resolved")}>{$t("mcp_auth.done")}</button>
-          <button class="btn btn-ghost btn-sm" type="button" disabled={busy === r.id} onclick={() => answer(r.id, "denied")}>{$t("mcp_auth.deny")}</button>
+          <button use:agentActions={[]} class="btn btn-secondary btn-sm" type="button" disabled={busy === r.id} onclick={() => answer(r.id, "resolved")}>{$t("mcp_auth.done")}</button>
+          <button use:agentActions={[]} class="btn btn-ghost btn-sm" type="button" disabled={busy === r.id} onclick={() => answer(r.id, "denied")}>{$t("mcp_auth.deny")}</button>
         </div>
-      </div>
+      </ApprovalCard>
     {/each}
-    {#if error}<p role="status" class="note">{error}</p>{/if}
+    {#if error}<p role="alert" class="note">{error}</p>{/if}
   </aside>
 {/if}
 
 <style>
   .mcp-auth {
-    position: fixed;
-    bottom: calc(var(--space-3) + 28px);
-    right: calc(var(--pane-inset, 8px) + var(--space-2));
-    z-index: 9998;
     display: grid;
     gap: var(--space-2);
-    max-width: min(380px, calc(100vw - 2 * var(--space-3)));
+    width: min(400px, calc(100vw - 32px));
   }
-  .card {
-    display: grid;
-    gap: var(--space-2);
-    padding: var(--space-3);
-    background: var(--material-thick);
-    backdrop-filter: var(--material-blur);
-    -webkit-backdrop-filter: var(--material-blur);
-    border-radius: var(--radius-lg);
-    box-shadow: var(--elev-2);
-    color: var(--text);
-  }
-  h4, p { margin: 0; }
-  h4 { font-size: var(--text-sm); }
+  p { margin: 0; }
   p { font-size: var(--text-sm); overflow-wrap: anywhere; }
   .reason span, .note { color: var(--text-muted); }
   .note { font-size: var(--text-xs); }

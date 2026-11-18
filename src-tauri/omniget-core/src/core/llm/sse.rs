@@ -14,10 +14,6 @@ pub struct LineSplitter {
 }
 
 impl LineSplitter {
-    pub fn new() -> Self {
-        Self::default()
-    }
-
     pub fn take_overflow(&mut self) -> bool {
         std::mem::take(&mut self.overflowed)
     }
@@ -241,11 +237,5 @@ impl SseParser {
             ));
         }
         None
-    }
-
-    pub fn feed(&mut self, bytes: &[u8]) -> Vec<SseEvent> {
-        let mut out = Vec::new();
-        self.push(bytes, &mut out);
-        out
     }
 }

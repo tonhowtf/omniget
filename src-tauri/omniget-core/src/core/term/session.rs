@@ -359,10 +359,6 @@ pub struct TermManager {
 
 static GLOBAL: OnceLock<Arc<TermManager>> = OnceLock::new();
 
-pub fn global() -> Option<Arc<TermManager>> {
-    GLOBAL.get().cloned()
-}
-
 pub fn install_global(m: Arc<TermManager>) -> Arc<TermManager> {
     GLOBAL.get_or_init(|| m).clone()
 }

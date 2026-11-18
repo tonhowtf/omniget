@@ -1,16 +1,16 @@
 [workspace]
-members = [".", "omniget-core", "omniget-cli", "omniget-atlas", "omniworld-server", "omniget-whatsapp"]
+members = [".", "omniget-core", "omniget-cli", "omniget-atlas", "omniworld-server", "omniget-phonechat"]
 resolver = "2"
 
 [package]
 name = "omniget"
 version = "1.0.1"
-description = "Desktop downloader for YouTube, Instagram, TikTok, X, torrents and the sites yt-dlp supports, with an MCP server for coding agents and a Canvas to run AI agent terminals (Claude Code, Codex, Gemini CLI, Ollama), plus a system cleaner and uninstaller (washmybelly)"
+description = "Desktop app with a local MCP server that gives coding agents a toolbox for downloads, media, files, chats and system cleanup, plus a downloader for YouTube, Instagram, TikTok, X, torrents and the sites yt-dlp supports, and a Canvas for agent terminals"
 authors = ["tonhowtf"]
 license = "GPL-3.0"
 repository = "https://github.com/tonhowtf/omniget"
 homepage = "https://getomniget.com"
-keywords = ["downloader", "yt-dlp", "ai-agents", "mcp", "system-cleaner"]
+keywords = ["mcp", "ai-agents", "downloader", "yt-dlp", "system-cleaner"]
 categories = ["multimedia", "development-tools", "gui"]
 edition = "2021"
 
@@ -78,7 +78,7 @@ tar = "0.4"
 portable-pty = "0.9"
 omniget-core = { path = "omniget-core" }
 sysinfo = "0.39.6"
-omniget-whatsapp = { path = "omniget-whatsapp" }
+omniget-phonechat = { path = "omniget-phonechat" }
 which = "7"
 walkdir = "2"
 bytes = "1"

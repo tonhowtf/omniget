@@ -214,12 +214,6 @@ impl AgentTracker {
         self.kind
     }
 
-    pub fn set_kind(&mut self, kind: AgentKind) {
-        if kind != AgentKind::Unknown {
-            self.kind = kind;
-        }
-    }
-
     pub fn signal(&self) -> &AgentSignal {
         &self.signal
     }
@@ -630,7 +624,8 @@ impl AgentTracker {
                     if state == AgentState::Blocked {
                         self.blocked_line = Some(last);
                     }
-                    return self.propose(state, SignalSource::Heuristic, None, now);
+                    let why = (state == AgentState::Failed).then(|| "usage_limit".to_string());
+                    return self.propose(state, SignalSource::Heuristic, why, now);
                 }
             }
         }

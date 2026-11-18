@@ -621,7 +621,7 @@ mod tests {
             vec!["com.apple.wifi.managed", "com.apple.vpn.managed"]
         );
         assert_eq!(v[0].verification.as_deref(), Some("verified"));
-        assert_eq!(v[1].scope, "tonho");
+        assert_eq!(v[1].scope, "user");
         assert_eq!(v[1].verification.as_deref(), Some("unsigned"));
         assert!(parse_profiles(&fx("profiles_none.txt")).is_empty());
         assert_eq!(

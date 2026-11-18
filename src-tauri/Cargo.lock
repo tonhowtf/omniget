@@ -6816,7 +6816,7 @@ dependencies = [
  "objc2-foundation",
  "objc2-web-kit",
  "omniget-core",
- "omniget-whatsapp",
+ "omniget-phonechat",
  "once_cell",
  "portable-pty",
  "qrcode",
@@ -6952,6 +6952,7 @@ dependencies = [
  "minisign-verify",
  "murmur3",
  "num-bigint 0.4.8",
+ "objc2",
  "once_cell",
  "ort",
  "os_info",
@@ -7009,6 +7010,7 @@ dependencies = [
  "visioncortex",
  "walkdir",
  "webpki-roots",
+ "windows 0.61.3",
  "windows-sys 0.61.2",
  "xxhash-rust",
  "xz2",
@@ -7018,7 +7020,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "omniget-whatsapp"
+name = "omniget-phonechat"
 version = "0.1.0"
 dependencies = [
  "anyhow",

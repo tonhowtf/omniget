@@ -57,11 +57,6 @@ impl AnthropicProvider {
         self
     }
 
-    pub fn with_header(mut self, name: impl Into<String>, value: impl Into<String>) -> Self {
-        self.extra_headers.push((name.into(), value.into()));
-        self
-    }
-
     pub fn with_max_attempts(mut self, n: u32) -> Self {
         self.max_attempts = n.max(1);
         self

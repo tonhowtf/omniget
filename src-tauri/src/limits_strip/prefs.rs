@@ -27,16 +27,6 @@ impl Edge {
         }
     }
 
-    pub fn parse(raw: &str) -> Option<Edge> {
-        match raw {
-            "top" => Some(Edge::Top),
-            "bottom" => Some(Edge::Bottom),
-            "left" => Some(Edge::Left),
-            "right" => Some(Edge::Right),
-            _ => None,
-        }
-    }
-
     pub fn is_vertical(self) -> bool {
         matches!(self, Edge::Left | Edge::Right)
     }

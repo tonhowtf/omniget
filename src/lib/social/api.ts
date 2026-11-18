@@ -1,6 +1,16 @@
 import { invoke } from "@tauri-apps/api/core";
 
-export type Platform = "x" | "instagram" | "tiktok" | "reddit" | "pinterest" | "github";
+export const NET = { shortpost: "x", photofeed: "instagram", clipfeed: "tiktok", forums: "reddit", pinboard: "pinterest", codehub: "github" } as const;
+export type Platform = (typeof NET)[keyof typeof NET];
+export const SLUG = Object.fromEntries(Object.entries(NET).map(([slug, id]) => [id, slug])) as Record<Platform, keyof typeof NET>;
+export const TITLE_KEY: Record<Platform, string> = {
+  [NET.shortpost]: "social.shortpost.title",
+  [NET.photofeed]: "social.photofeed.title",
+  [NET.clipfeed]: "social.clipfeed.title",
+  [NET.forums]: "social.forums.title",
+  [NET.pinboard]: "social.pinboard.title",
+  [NET.codehub]: "social.codehub.title",
+};
 export type Extra = Record<string, unknown>;
 
 export type Author = { id: string; handle: string; name: string; avatar?: string; verified: boolean };
@@ -46,7 +56,7 @@ export type Comment = { id: string; author: Author; text: string; created_at?: n
 export type Page<T> = { count: number; items: T[]; next_cursor: string | null };
 export type PostDetail = { post: Post | null; replies?: Page<Post>; comments?: Page<Comment> };
 export type PlatformStatus = { platform: Platform; browser: boolean; logged_in: boolean | null; auth?: "token" | "username" | "none" };
-export type GithubAuth = { has_token: boolean; username: string | null };
+export type CodehubAuth = { has_token: boolean; username: string | null };
 
 export type ApprovalRequest = {
   id: string;
@@ -59,7 +69,7 @@ export type ApprovalRequest = {
   expires_at: number;
 };
 
-export const PREFIX: Record<Platform, string> = { x: "x_", instagram: "ig_", tiktok: "tt_", reddit: "rd_", pinterest: "pin_", github: "gh_" };
+export const PREFIX: Record<Platform, string> = { [NET.shortpost]: "x_", [NET.photofeed]: "ig_", [NET.clipfeed]: "tt_", [NET.forums]: "rd_", [NET.pinboard]: "pin_", [NET.codehub]: "gh_" };
 
 export function tool(p: Platform, name: string): string {
   return `${PREFIX[p]}${name}`;
@@ -69,8 +79,8 @@ export const social = {
   status: () => invoke<{ platforms: PlatformStatus[] }>("social_status"),
   login: (platform: Platform) => invoke("social_login", { platform }),
   call: <T>(name: string, args: Record<string, unknown> = {}) => invoke<T>("social_call", { tool: name, args }),
-  githubState: () => invoke<GithubAuth>("social_github_state"),
-  githubConnect: (auth: { token?: string; username?: string }) => invoke<GithubAuth>("social_github_connect", auth),
+  codehubState: () => invoke<CodehubAuth>("social_codehub_state"),
+  codehubConnect: (auth: { token?: string; username?: string }) => invoke<CodehubAuth>("social_codehub_connect", auth),
   approvalList: () => invoke<ApprovalRequest[]>("social_approval_list"),
   approvalAnswer: (id: string, approve: boolean) => invoke("social_approval_answer", { id, approve }),
 };

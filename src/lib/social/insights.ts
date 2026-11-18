@@ -1,4 +1,4 @@
-import type { Platform, Post } from "./api";
+import { NET, type Platform, type Post } from "./api";
 
 export type Report = "summary" | "posts" | "times" | "media" | "hashtags" | "words" | "trend" | "outliers" | "compare" | "repos";
 export const REPORTS: Report[] = ["summary", "posts", "times", "media", "hashtags", "words", "trend", "outliers", "compare"];
@@ -8,11 +8,11 @@ export type RepoRow = { repo: string; url: string; description: string; stars: n
 export type RepoTotals = { repos: number; stars: number; forks: number; open_issues: number; forked_from_others: number; archived: number };
 
 export function reportsFor(p: Platform): Report[] {
-  return p === "github" ? ["summary", "posts", "times", "trend", "repos", "compare"] : REPORTS;
+  return p === NET.codehub ? ["summary", "posts", "times", "trend", "repos", "compare"] : REPORTS;
 }
 
 export function hasReplies(p: Platform): boolean {
-  return p === "x" || p === "reddit";
+  return p === NET.shortpost || p === NET.forums;
 }
 
 export type Metric = { available: boolean; posts?: number; total?: number; mean?: number; median?: number };
@@ -85,10 +85,10 @@ export type MonitorOptions = {
   subreddit?: string;
 };
 
-export const REDDIT_SORTS = ["new", "relevance", "hot", "top", "comments"] as const;
-export const REDDIT_TIMES = ["hour", "day", "week", "month", "year", "all"] as const;
+export const FORUMS_SORTS = ["new", "relevance", "hot", "top", "comments"] as const;
+export const FORUMS_TIMES = ["hour", "day", "week", "month", "year", "all"] as const;
 
-export function redditOptions(form: { sort: string; time: string; subreddit: string }): MonitorOptions {
+export function forumsOptions(form: { sort: string; time: string; subreddit: string }): MonitorOptions {
   const out: MonitorOptions = {};
   if (form.sort && form.sort !== "new") out.sort = form.sort;
   if (form.time) out.time = form.time;
@@ -97,11 +97,11 @@ export function redditOptions(form: { sort: string; time: string; subreddit: str
 }
 
 export function monitorQueryKey(p: Platform, kind: string): string {
-  if (p === "x") return "query_x";
-  if (p === "instagram") return kind === "profile" ? "query_profile" : "query_hashtag";
-  if (p === "reddit" && kind === "subreddit") return "query_subreddit";
-  if (p === "github") return kind === "repositories" ? "query_gh_repositories" : kind === "issues" ? "query_gh_issues" : "query_repo";
-  return "query_tiktok";
+  if (p === NET.shortpost) return "query_shortpost";
+  if (p === NET.photofeed) return kind === "profile" ? "query_profile" : "query_hashtag";
+  if (p === NET.forums && kind === "subreddit") return "query_community";
+  if (p === NET.codehub) return kind === "repositories" ? "query_gh_repositories" : kind === "issues" ? "query_gh_issues" : "query_repo";
+  return "query_clipfeed";
 }
 export type Monitor = {
   id: number;
@@ -158,7 +158,7 @@ export function toolError(e: unknown): ToolError {
 }
 
 export function whoKey(p: Platform): "handle" | "username" {
-  return p === "x" ? "handle" : "username";
+  return p === NET.shortpost ? "handle" : "username";
 }
 
 export function cleanHandle(raw: string): string {

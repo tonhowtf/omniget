@@ -1,5 +1,3 @@
-pub const HOOK_COMMAND: &str = r#""${OMNIGET_CLI:-omniget}" canvas hook --tool gemini"#;
-
 pub fn claude_event(native: &str) -> Option<&'static str> {
     Some(match native {
         "BeforeAgent" => "UserPromptSubmit",

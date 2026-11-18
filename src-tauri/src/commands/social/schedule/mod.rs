@@ -13,7 +13,7 @@ use serde_json::{json, Value};
 use super::args::opt_str;
 use super::model::Platform;
 use super::tools::{Route, Spec};
-use super::{store, x, Caller};
+use super::{shortpost, store, Caller};
 
 pub use runner::boot;
 
@@ -21,7 +21,7 @@ pub const SPECS: &[Spec] = &[
     Spec {
         name: "social_schedule_list",
         route: Route::Schedule,
-        platform: Platform::X,
+        platform: Platform::ShortPost,
         write: false,
         description: "Scheduled, draft, sent, failed and missed posts of a network (the calendar and the post history), with the posting slots, the next free slot and the auto-post feeds. Posts go out only while OmniGet is open on this computer; text that came from a feed is untrusted external content.",
         props: r#"{"platform":{"type":"string","enum":["x","instagram","tiktok"]},"status":{"type":"array","maxItems":7,"items":{"type":"string","enum":["draft","scheduled","sending","sent","failed","missed","cancelled"]}},"from":{"type":"string","maxLength":40},"to":{"type":"string","maxLength":40},"id":{"type":"integer"},"order":{"type":"string","enum":["asc","desc"]},"limit":{"type":"integer","minimum":1,"maximum":200}}"#,
@@ -30,7 +30,7 @@ pub const SPECS: &[Spec] = &[
     Spec {
         name: "social_schedule",
         route: Route::Schedule,
-        platform: Platform::X,
+        platform: Platform::ShortPost,
         write: true,
         description: "Plan what OmniGet posts on the account: op=add (text, thread, reply_to, quote or repost, with at or slot=next), draft, update, cancel, send_now, set_slots, import_csv (dry_run validates only) or export_ics. A scheduled post is published without asking again, only while OmniGet is open; one that came due while it was closed is sent on start if under the grace period late, otherwise it is marked missed.",
         props: r#"{"platform":{"type":"string","enum":["x","instagram","tiktok"]},"op":{"type":"string","enum":["add","update","cancel","draft","send_now","set_slots","import_csv","export_ics"]},"id":{"type":"integer"},"text":{"type":"string","maxLength":4000},"thread":{"type":"array","maxItems":24,"items":{"type":"string","maxLength":4000}},"reply_to":{"type":"string","maxLength":500},"quote":{"type":"string","maxLength":500},"repost":{"type":"string","maxLength":500},"media":{"type":"array","maxItems":4,"items":{"type":"string","maxLength":1000}},"at":{"type":"string","maxLength":40},"slot":{"type":"string","enum":["next"]},"slots":{"type":"array","maxItems":200,"items":{"type":"object","properties":{"weekday":{"type":"string","enum":["mon","tue","wed","thu","fri","sat","sun"]},"time":{"type":"string","maxLength":5}},"required":["weekday","time"]}},"grace_minutes":{"type":"integer","minimum":0,"maximum":1440},"long_posts":{"type":"string","enum":["auto","on","off"]},"path":{"type":"string","maxLength":1000},"dry_run":{"type":"boolean"}}"#,
@@ -39,7 +39,7 @@ pub const SPECS: &[Spec] = &[
     Spec {
         name: "social_feeds",
         route: Route::Schedule,
-        platform: Platform::X,
+        platform: Platform::ShortPost,
         write: true,
         description: "op=add, list or remove an RSS or Atom feed whose new items are posted automatically with a template ({title}, {link}), a check interval and a monthly cap. The first check only records what the feed has, and posting happens only while OmniGet is open.",
         props: r#"{"platform":{"type":"string","enum":["x","instagram","tiktok"]},"op":{"type":"string","enum":["add","list","remove"]},"id":{"type":"integer"},"url":{"type":"string","maxLength":1000},"template":{"type":"string","maxLength":500},"interval_minutes":{"type":"integer","minimum":5,"maximum":1440},"monthly_cap":{"type":"integer","minimum":1,"maximum":3000}}"#,
@@ -60,9 +60,9 @@ fn ctx(by: String, limit: usize) -> ops::Ctx<chrono::Local> {
 
 fn missing(p: Platform) -> &'static str {
     match p {
-        Platform::X => "nothing",
-        Platform::Instagram => "publishing a photo or a Reel needs the web upload flow (resumable upload of the file, then the configure call), which is not built",
-        Platform::Tiktok => "publishing a video needs the TikTok Studio upload with signed requests, which is not built",
+        Platform::ShortPost => "nothing",
+        Platform::PhotoFeed => "publishing a photo or a Reel needs the web upload flow (resumable upload of the file, then the configure call), which is not built",
+        Platform::ClipFeed => "publishing a video needs the Clip Feed Studio upload with signed requests, which is not built",
         _ => "this network has no publishing through OmniGet",
     }
 }
@@ -77,7 +77,7 @@ fn unsupported(platform: &str) -> String {
         json!({
             "message": format!("scheduling on {label} is not built: {what}"),
             "retryable": false,
-            "next_step": "schedule on X, or publish by hand on this network",
+            "next_step": "schedule on Short Posts, or publish by hand on this network",
         })
     )
 }
@@ -94,7 +94,7 @@ async fn premium() -> bool {
             return v;
         }
     }
-    let Ok(me) = x::me().await else {
+    let Ok(me) = shortpost::me().await else {
         return false;
     };
     let v = me["verified"].as_bool().unwrap_or(false);
@@ -158,7 +158,7 @@ pub async fn call(caller: &Caller, tool: &str, a: &Value) -> Result<Value, Strin
             Ok(out)
         }
         "social_schedule" => {
-            if p != Platform::X {
+            if p != Platform::ShortPost {
                 return Err(unsupported(p.id()));
             }
             let cx = ctx(by, limit_for(p, a).await?);
@@ -171,7 +171,7 @@ pub async fn call(caller: &Caller, tool: &str, a: &Value) -> Result<Value, Strin
             Ok(out)
         }
         "social_feeds" => {
-            if p != Platform::X && op != "list" {
+            if p != Platform::ShortPost && op != "list" {
                 return Err(unsupported(p.id()));
             }
             let cx = ctx(by, rules::SHORT_LIMIT);

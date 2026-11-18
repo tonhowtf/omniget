@@ -297,15 +297,28 @@ fn prompt_for(req: &TurnRequest, fresh: bool) -> String {
 }
 
 fn inside(cwd: &std::path::Path, raw: &str) -> Result<PathBuf, String> {
-    let p = PathBuf::from(raw);
-    let p = if p.is_absolute() { p } else { cwd.join(p) };
-    if p.components()
-        .any(|c| matches!(c, std::path::Component::ParentDir))
-        || !p.starts_with(cwd)
-    {
-        return Err(format!("{}: {raw}", super::code_tools::ERR_OUTSIDE));
+    super::drivers::acp::client::contained(cwd, raw)
+        .map_err(|_| format!("{}: {raw}", super::code_tools::ERR_OUTSIDE))
+}
+
+fn permission_tool(kind: &str) -> String {
+    if kind == "execute" {
+        "shell_exec".into()
+    } else {
+        format!("acp:{kind}")
     }
-    Ok(p)
+}
+
+fn always_rule(kind: &str, subject: &Value) -> super::perm::Rule {
+    if kind == "execute" {
+        super::perm::always_rule("shell_exec", subject)
+    } else {
+        super::perm::Rule {
+            tool: permission_tool(kind),
+            pattern: "*".into(),
+            action: super::perm::Action::Allow,
+        }
+    }
 }
 
 #[async_trait]
@@ -633,7 +646,7 @@ async fn handle_inbound(
             let preallowed = super::run_mode::of(conversation)
                 .and_then(|m| super::run_mode::acp_preallowed(m, kind))
                 .unwrap_or(false);
-            let answer = match super::perm::decide(agent_id, &label, &subject) {
+            let answer = match super::perm::decide(agent_id, &permission_tool(kind), &subject) {
                 Some(super::perm::Action::Allow) => Answer::Once,
                 Some(super::perm::Action::Deny) => Answer::Deny,
                 _ if preallowed => Answer::Once,
@@ -644,14 +657,7 @@ async fn handle_inbound(
                 }
             };
             if matches!(answer, Answer::Always) {
-                super::perm::add_rule(
-                    agent_id,
-                    super::perm::Rule {
-                        tool: label.clone(),
-                        pattern: "*".into(),
-                        action: super::perm::Action::Allow,
-                    },
-                );
+                super::perm::add_rule(agent_id, always_rule(kind, &subject));
             }
             let want: &[&str] = match answer {
                 Answer::Always => &["allow_always", "allow_once"],
@@ -668,21 +674,7 @@ async fn handle_inbound(
             }))
         }
         "fs/read_text_file" => Some(
-            inside(&session.cwd, p["path"].as_str().unwrap_or("")).and_then(|path| {
-                let text = std::fs::read_to_string(&path).map_err(|e| e.to_string())?;
-                let from = p["line"].as_u64().unwrap_or(1).max(1) as usize - 1;
-                let content = match p["limit"].as_u64() {
-                    Some(n) => text
-                        .lines()
-                        .skip(from)
-                        .take(n as usize)
-                        .collect::<Vec<_>>()
-                        .join("\n"),
-                    None if from > 0 => text.lines().skip(from).collect::<Vec<_>>().join("\n"),
-                    None => text,
-                };
-                Ok(json!({ "content": content }))
-            }),
+            super::drivers::acp::client::read_text_file(&session.cwd, p).map_err(|e| e.message),
         ),
         "fs/write_text_file" => {
             let path = match inside(&session.cwd, p["path"].as_str().unwrap_or("")) {
@@ -707,39 +699,61 @@ async fn handle_inbound(
     }
 }
 
-pub const KNOWN: &[(&str, &str, &str, &[&str])] = &[
-    ("gemini", "Gemini CLI", "gemini", &["--experimental-acp"]),
-    (
-        "claude-code-acp",
-        "Claude Code (ACP)",
-        "claude-code-acp",
-        &[],
-    ),
-    ("codex-acp", "Codex (ACP)", "codex-acp", &[]),
-    ("goose", "Goose", "goose", &["acp"]),
-    ("opencode", "opencode", "opencode", &["acp"]),
-];
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-pub async fn detect() -> Vec<Value> {
-    let mut out = Vec::new();
-    for (id, name, bin, args) in KNOWN {
-        let probe = if cfg!(windows) { "where" } else { "which" };
-        let found = crate::core::process::command(probe)
-            .arg(bin)
-            .output()
-            .await
-            .ok()
-            .filter(|o| o.status.success())
-            .map(|o| {
-                String::from_utf8_lossy(&o.stdout)
-                    .lines()
-                    .next()
-                    .unwrap_or("")
-                    .trim()
-                    .to_string()
-            })
-            .filter(|p| !p.is_empty());
-        out.push(json!({ "id": id, "name": name, "command": bin, "args": args, "path": found, "installed": found.is_some() }));
+    #[test]
+    fn always_on_an_execute_permission_only_covers_that_command() {
+        let rule = always_rule("execute", &json!({ "command": "git status" }));
+        assert_eq!(rule.tool, "shell_exec");
+        assert_eq!(rule.pattern, "git status *");
+        let rules = [rule];
+        let decide = |command: &str| {
+            super::super::perm::decide_in(
+                &rules,
+                &permission_tool("execute"),
+                &json!({ "command": command }),
+            )
+        };
+        assert_eq!(
+            decide("git status --short"),
+            Some(super::super::perm::Action::Allow)
+        );
+        assert_eq!(decide("rm -rf /"), None);
     }
-    out
+
+    #[test]
+    fn an_old_blanket_execute_rule_no_longer_applies() {
+        let rules = [super::super::perm::Rule {
+            tool: "acp:execute".into(),
+            pattern: "*".into(),
+            action: super::super::perm::Action::Allow,
+        }];
+        assert_eq!(
+            super::super::perm::decide_in(
+                &rules,
+                &permission_tool("execute"),
+                &json!({ "command": "rm -rf /" }),
+            ),
+            None
+        );
+    }
+
+    #[test]
+    fn always_on_other_kinds_keeps_the_kind_wide_rule() {
+        let rule = always_rule("edit", &json!({ "command": "Edit a.rs" }));
+        assert_eq!(rule.tool, "acp:edit");
+        assert_eq!(rule.pattern, "*");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_symlink_out_of_the_workspace_is_outside() {
+        let root = tempfile::tempdir().unwrap();
+        let other = tempfile::tempdir().unwrap();
+        std::os::unix::fs::symlink(other.path(), root.path().join("link")).unwrap();
+        assert!(inside(root.path(), "link/escaped.txt").is_err());
+        assert!(inside(root.path(), "plain/new.txt").is_ok());
+    }
 }

@@ -289,6 +289,7 @@ impl Coordinator {
         &self,
         engine: &super::budget::policy::Engine,
         ctx: &super::budget::policy::TurnCtx,
+        cancel: &CancellationToken,
     ) -> Result<(), LlmError> {
         use super::budget::policy::Verdict;
         match engine.gate(ctx).await {
@@ -300,16 +301,26 @@ impl Coordinator {
                         "budget-{}",
                         &uuid::Uuid::new_v4().simple().to_string()[..12]
                     );
-                    let end = self
-                        .broker
-                        .ask_user_ended(
-                            &ctx.agent_id,
-                            &ctx.request_id,
-                            &call,
-                            need.action(),
-                            &need.message,
-                        )
-                        .await;
+                    let ask = self.broker.ask_user_ended(
+                        &ctx.agent_id,
+                        &ctx.request_id,
+                        &call,
+                        need.action(),
+                        &need.message,
+                    );
+                    tokio::pin!(ask);
+                    let end = tokio::select! {
+                        biased;
+                        end = &mut ask => end,
+                        _ = cancel.cancelled() => {
+                            self.broker.cancel_request(&ctx.request_id);
+                            ask.await;
+                            return Err(LlmError::new(
+                                super::error::ERR_LLM_CANCELLED,
+                                "the turn was cancelled while waiting for a budget answer",
+                            ));
+                        }
+                    };
                     let allow = !matches!(end.answer(), super::broker::Answer::Deny);
                     if let Some(block) = engine.answer(&need, allow, Some(&ctx.agent_id)) {
                         return Err(block.error());
@@ -318,10 +329,6 @@ impl Coordinator {
                 Ok(())
             }
         }
-    }
-
-    pub fn budget(&self) -> &Arc<BudgetStore> {
-        &self.budget
     }
 
     pub fn with_router(mut self, router: Arc<Router>) -> Self {
@@ -372,18 +379,6 @@ impl Coordinator {
             }
         }
         (agent, extra)
-    }
-
-    pub fn bus(&self) -> &Arc<Bus> {
-        &self.bus
-    }
-
-    pub fn broker(&self) -> &Arc<ToolBroker> {
-        &self.broker
-    }
-
-    pub fn router(&self) -> &Arc<Router> {
-        &self.router
     }
 
     pub fn dir(&self) -> Option<&Path> {
@@ -566,6 +561,9 @@ impl Coordinator {
                 request_id: request_id.clone(),
                 agent_id: agent.id.clone(),
                 account: account_of(&agent, model.as_ref()),
+                local: model
+                    .as_ref()
+                    .is_some_and(|m| super::budget::policy::provider_is_local(m.provider.as_str())),
                 model: model.map(|m| m.model).unwrap_or_default(),
                 conversation_id: conversation_id.clone(),
                 estimate_tokens: estimate as u64,
@@ -575,7 +573,7 @@ impl Coordinator {
         let reservation = match reservation {
             Ok(id) => match &policy_turn {
                 Some((engine, ctx)) if engine.has_policies() => {
-                    match self.policy_gate(engine, ctx).await {
+                    match self.policy_gate(engine, ctx, &cancel).await {
                         Ok(()) => Ok(id),
                         Err(err) => {
                             self.budget.release(&id);
@@ -1157,6 +1155,7 @@ impl Coordinator {
                 if let Some(m) = &last_model {
                     ctx.account = account_of(&agent, Some(m)).or(ctx.account);
                     ctx.model = m.model.clone();
+                    ctx.local = super::budget::policy::provider_is_local(m.provider.as_str());
                 }
                 let crossings = engine
                     .charge(
@@ -1293,5 +1292,115 @@ impl Coordinator {
             why: err.code.to_string(),
         });
         true
+    }
+}
+
+#[cfg(test)]
+mod policy_gate_tests {
+    use super::*;
+    use crate::core::llm::audit::Actor;
+    use crate::core::llm::budget::policy::{BudgetPolicy, Engine, Metric, Scope, TurnCtx, Window};
+
+    struct Nop;
+
+    #[async_trait::async_trait]
+    impl super::super::broker::ToolExecutor for Nop {
+        async fn execute(&self, _name: &str, _input: Value) -> Result<String, LlmError> {
+            Ok(String::new())
+        }
+    }
+
+    #[tokio::test]
+    async fn a_turn_cancelled_before_the_question_does_not_wait() {
+        let dir = tempfile::tempdir().unwrap();
+        let engine = Engine::open(&dir.path().join("budget.sqlite")).unwrap();
+        engine.upsert(usd_policy(), Actor::system("test")).unwrap();
+        let bus = Arc::new(Bus::new());
+        let broker = Arc::new(ToolBroker::new(Vec::new(), Arc::new(Nop), bus.clone()));
+        let coordinator = Coordinator::new(
+            Arc::new(super::super::runtime::NativeRuntime::new()),
+            broker.clone(),
+            Arc::new(BudgetStore::at(dir.path().join("pool.json"))),
+            bus,
+        );
+        let cancel = CancellationToken::new();
+        cancel.cancel();
+        let out = tokio::time::timeout(
+            std::time::Duration::from_secs(5),
+            coordinator.policy_gate(&engine, &ctx(), &cancel),
+        )
+        .await
+        .expect("an already cancelled turn must not wait for an answer");
+        assert_eq!(
+            out.unwrap_err().code,
+            super::super::error::ERR_LLM_CANCELLED
+        );
+        assert!(!broker.has_pending("r-gate"));
+    }
+
+    fn usd_policy() -> BudgetPolicy {
+        BudgetPolicy {
+            id: String::new(),
+            scope: Scope::Global,
+            metric: Metric::Usd,
+            window: Window::Day,
+            amount: 5.0,
+            warn_pct: None,
+            hard_stop: true,
+            enabled: true,
+            created_ms: 0,
+            updated_ms: 0,
+        }
+    }
+
+    fn ctx() -> TurnCtx {
+        TurnCtx {
+            request_id: "r-gate".into(),
+            agent_id: "omni".into(),
+            account: None,
+            model: "a-model-with-no-price".into(),
+            conversation_id: "job-test".into(),
+            estimate_tokens: 10,
+            local: false,
+        }
+    }
+
+    #[tokio::test]
+    async fn a_cancelled_turn_stops_waiting_for_a_budget_answer() {
+        let dir = tempfile::tempdir().unwrap();
+        let engine = Engine::open(&dir.path().join("budget.sqlite")).unwrap();
+        engine.upsert(usd_policy(), Actor::system("test")).unwrap();
+        let bus = Arc::new(Bus::new());
+        let broker = Arc::new(ToolBroker::new(Vec::new(), Arc::new(Nop), bus.clone()));
+        let mut events = bus.subscribe();
+        let coordinator = Coordinator::new(
+            Arc::new(super::super::runtime::NativeRuntime::new()),
+            broker.clone(),
+            Arc::new(BudgetStore::at(dir.path().join("pool.json"))),
+            bus,
+        );
+        let ctx = ctx();
+        let cancel = CancellationToken::new();
+        let stop = cancel.clone();
+        tokio::spawn(async move {
+            tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+            stop.cancel();
+        });
+        let out = tokio::time::timeout(
+            std::time::Duration::from_secs(5),
+            coordinator.policy_gate(&engine, &ctx, &cancel),
+        )
+        .await
+        .expect("the budget question must end when the turn is cancelled");
+        assert_eq!(
+            out.unwrap_err().code,
+            super::super::error::ERR_LLM_CANCELLED
+        );
+        assert!(!broker.has_pending(&ctx.request_id));
+        let mut resolved = false;
+        while let Ok(e) = events.try_recv() {
+            resolved |= matches!(e, BusEvent::ToolAskResolved { ref request_id, .. } if request_id == "r-gate");
+        }
+        assert!(resolved, "the window must be told the question is gone");
     }
 }

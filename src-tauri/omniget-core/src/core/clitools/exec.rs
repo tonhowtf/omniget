@@ -1,4 +1,3 @@
-use std::cmp::Ordering;
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
@@ -210,35 +209,6 @@ pub fn parse_version(text: &str) -> Option<String> {
         regex::Regex::new(r"v?(\d+\.\d+(?:\.\d+)?(?:[-+][0-9A-Za-z.\-]+)?)").expect("regex")
     });
     re.captures(text).map(|c| c[1].to_string())
-}
-
-pub fn compare_versions(a: &str, b: &str) -> Ordering {
-    fn split(v: &str) -> (Vec<u64>, bool) {
-        let v = v.trim().trim_start_matches('v');
-        let (core, pre) = match v.find(['-', '+']) {
-            Some(i) => (&v[..i], v[i..].starts_with('-')),
-            None => (v, false),
-        };
-        (
-            core.split('.')
-                .map(|n| n.parse::<u64>().unwrap_or(0))
-                .collect(),
-            pre,
-        )
-    }
-    let (mut x, xp) = split(a);
-    let (mut y, yp) = split(b);
-    let n = x.len().max(y.len());
-    x.resize(n, 0);
-    y.resize(n, 0);
-    match x.cmp(&y) {
-        Ordering::Equal => match (xp, yp) {
-            (true, false) => Ordering::Less,
-            (false, true) => Ordering::Greater,
-            _ => Ordering::Equal,
-        },
-        o => o,
-    }
 }
 
 pub fn shell_quote(arg: &str) -> String {

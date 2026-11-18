@@ -202,18 +202,6 @@ pub fn list(db: &AssistDb, principal: &str) -> Result<Vec<Ceiling>, String> {
         .map(|b| serde_json::from_str(&b).map_err(|_| "INVALID_EXECUTION_GRANT".into()))
         .collect()
 }
-pub fn bind(db: &AssistDb, ceiling: &Ceiling, mission: &str, bot: &str) -> Result<String, String> {
-    let actual = get(db, &ceiling.id, &ceiling.principal)?;
-    for_bot(db, &actual, bot)?;
-    let conversation = format!("{PREFIX}{}", super::new_id());
-    db.with(|c| {
-        c.execute(
-            "INSERT INTO external_executions VALUES(?1,?2,?3,?4)",
-            params![conversation, actual.id, mission, bot],
-        )
-    })?;
-    Ok(conversation)
-}
 pub fn resolve(db: &AssistDb, conversation: &str, bot: &str) -> Result<Ceiling, String> {
     resolve_with(
         db,

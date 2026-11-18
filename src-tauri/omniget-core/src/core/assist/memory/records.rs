@@ -577,20 +577,6 @@ pub fn forget(db: &AssistDb, ctx: &AssistCtx, id: &str, now: i64) -> Result<usiz
     Ok(removed)
 }
 
-pub fn history(db: &AssistDb, ctx: &AssistCtx, id: &str) -> Result<Vec<MemoryRecord>, String> {
-    let rec = get(db, ctx, id)?;
-    let (filter, mut p) = scope_filter(ctx, "r.scope");
-    let mut params: Vec<SqlValue> = vec![ctx.principal.clone().into(), rec.chain.into()];
-    params.append(&mut p);
-    db.with(|c| {
-        query_records(
-            c,
-            &format!("SELECT {COLS} FROM memory_records r WHERE r.principal = ? AND r.chain = ? AND {filter} ORDER BY r.version"),
-            params,
-        )
-    })
-}
-
 pub fn expire_due(db: &AssistDb, now: i64) -> Result<usize, String> {
     db.tx(|tx| {
         let ids: Vec<String> = {
@@ -608,34 +594,6 @@ pub fn expire_due(db: &AssistDb, now: i64) -> Result<usize, String> {
         }
         Ok(ids.len())
     })
-}
-
-pub fn list(
-    db: &AssistDb,
-    ctx: &AssistCtx,
-    scope: Option<&Scope>,
-    include_inactive: bool,
-    now: i64,
-) -> Result<Vec<MemoryRecord>, String> {
-    expire_due(db, now)?;
-    if let Some(s) = scope {
-        if !ctx.can_read(s) {
-            return Ok(Vec::new());
-        }
-    }
-    let (filter, mut p) = scope_filter(ctx, "r.scope");
-    let mut params: Vec<SqlValue> = vec![ctx.principal.clone().into()];
-    let mut sql = format!("SELECT {COLS} FROM memory_records r WHERE r.principal = ? AND {filter}");
-    params.append(&mut p);
-    if let Some(s) = scope {
-        sql.push_str(" AND r.scope = ?");
-        params.push(s.key().into());
-    }
-    if !include_inactive {
-        sql.push_str(" AND r.status = 'active'");
-    }
-    sql.push_str(" ORDER BY (r.status <> 'active'), r.category, r.updated_ms DESC LIMIT 2000");
-    db.with(|c| query_records(c, &sql, params))
 }
 
 fn fold_title(text: &str) -> String {

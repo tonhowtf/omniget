@@ -4,6 +4,8 @@ use serde_json::{json, Value};
 
 use super::heartbeat::{Claim, RunOutcome};
 
+const OUT_MAX: usize = 1024 * 1024;
+
 pub fn heartbeat_json(claim: &Claim, prompt: &str) -> Value {
     json!({
         "run_id": claim.run.id,
@@ -24,7 +26,6 @@ pub async fn run_process(
     timeout_sec: Option<u64>,
     env: &[(String, String)],
 ) -> RunOutcome {
-    use tokio::io::AsyncWriteExt;
     let mut cmd = tokio::process::Command::new(command);
     cmd.args(args)
         .env("OMNIGET_COMPANY_ID", &claim.staff.company_id)
@@ -44,37 +45,71 @@ pub async fn run_process(
     if let Some(ws) = workspace {
         cmd.current_dir(ws);
     }
+    let limit = Duration::from_secs(timeout_sec.unwrap_or(600).clamp(1, 24 * 3600));
+    run_bounded(cmd, command, body.to_string(), limit).await
+}
+
+async fn run_bounded(
+    mut cmd: tokio::process::Command,
+    command: &str,
+    payload: String,
+    limit: Duration,
+) -> RunOutcome {
+    use crate::core::llm::drivers::acp::client::read_tail;
+    use tokio::io::AsyncWriteExt;
+    let spawn_failed = |e: std::io::Error| RunOutcome {
+        state: "failed".into(),
+        failure_class: Some("spawn".into()),
+        error: Some(format!("{command}: {e}")),
+        ..Default::default()
+    };
+    #[cfg(unix)]
+    cmd.process_group(0);
+    crate::core::process::suspend_on_spawn(&mut cmd);
     let mut child = match cmd.spawn() {
         Ok(c) => c,
-        Err(e) => {
-            return RunOutcome {
-                state: "failed".into(),
-                failure_class: Some("spawn".into()),
-                error: Some(format!("{command}: {e}")),
+        Err(e) => return spawn_failed(e),
+    };
+    let mut tree = match crate::core::process::ProcessTreeGuard::new(&child) {
+        Ok(t) => t,
+        Err(e) => return spawn_failed(e),
+    };
+    let stdin = child.stdin.take();
+    let stdout = child.stdout.take();
+    let stderr = child.stderr.take();
+    let waited = tokio::time::timeout(limit, async {
+        let feed = async {
+            if let Some(mut stdin) = stdin {
+                let _ = stdin.write_all(payload.as_bytes()).await;
+            }
+        };
+        let (_, out, err, status) = tokio::join!(
+            feed,
+            read_tail(stdout, OUT_MAX),
+            read_tail(stderr, OUT_MAX),
+            child.wait()
+        );
+        (out, err, status)
+    })
+    .await;
+    match waited {
+        Err(_) => {
+            tree.terminate();
+            RunOutcome {
+                state: "timed_out".into(),
+                failure_class: Some("deadline".into()),
+                error: Some("the command ran past its timeout".into()),
                 ..Default::default()
             }
         }
-    };
-    if let Some(mut stdin) = child.stdin.take() {
-        let _ = stdin.write_all(body.to_string().as_bytes()).await;
-    }
-    let limit = Duration::from_secs(timeout_sec.unwrap_or(600).clamp(1, 24 * 3600));
-    match tokio::time::timeout(limit, child.wait_with_output()).await {
-        Err(_) => RunOutcome {
-            state: "timed_out".into(),
-            failure_class: Some("deadline".into()),
-            error: Some("the command ran past its timeout".into()),
-            ..Default::default()
-        },
-        Ok(Err(e)) => RunOutcome {
-            state: "failed".into(),
-            failure_class: Some("spawn".into()),
-            error: Some(format!("{command}: {e}")),
-            ..Default::default()
-        },
-        Ok(Ok(out)) => {
-            let stdout = String::from_utf8_lossy(&out.stdout).to_string();
-            if out.status.success() {
+        Ok((_, _, Err(e))) => {
+            tree.terminate();
+            spawn_failed(e)
+        }
+        Ok((out, err, Ok(status))) => {
+            tree.release();
+            let stdout = out.text().to_string();
+            if status.success() {
                 RunOutcome {
                     state: "succeeded".into(),
                     summary: Some(stdout),
@@ -86,11 +121,8 @@ pub async fn run_process(
                     failure_class: Some("agent_error".into()),
                     error: Some(format!(
                         "exit {}: {}",
-                        out.status.code().unwrap_or(-1),
-                        String::from_utf8_lossy(&out.stderr)
-                            .chars()
-                            .take(2000)
-                            .collect::<String>()
+                        status.code().unwrap_or(-1),
+                        err.text().chars().take(2000).collect::<String>()
                     )),
                     summary: Some(stdout),
                     ..Default::default()
@@ -152,5 +184,72 @@ pub async fn run_http(body: &Value, url: &str, timeout_sec: Option<u64>) -> RunO
                 }
             }
         }
+    }
+}
+
+#[cfg(all(test, unix))]
+mod tests {
+    use super::*;
+
+    fn sh(script: &str) -> tokio::process::Command {
+        let mut c = tokio::process::Command::new("/bin/sh");
+        c.arg("-c")
+            .arg(script)
+            .stdin(std::process::Stdio::piped())
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::piped())
+            .kill_on_drop(true);
+        c
+    }
+
+    #[tokio::test]
+    async fn the_body_reaches_stdin_and_stdout_is_the_summary() {
+        let out = run_bounded(sh("cat"), "sh", "hello".into(), Duration::from_secs(20)).await;
+        assert_eq!(out.state, "succeeded");
+        assert_eq!(out.summary.as_deref(), Some("hello"));
+    }
+
+    #[tokio::test]
+    async fn the_summary_keeps_only_the_tail() {
+        let out = run_bounded(
+            sh("head -c 3000000 /dev/zero | tr '\\0' 'a'; printf END"),
+            "sh",
+            String::new(),
+            Duration::from_secs(30),
+        )
+        .await;
+        let summary = out.summary.unwrap_or_default();
+        assert_eq!(summary.len(), OUT_MAX);
+        assert!(summary.ends_with("END"));
+    }
+
+    #[tokio::test]
+    async fn a_timeout_kills_the_children_of_the_command() {
+        let dir = tempfile::tempdir().unwrap();
+        let mark = dir.path().join("pid");
+        let script = format!("sleep 60 & echo $! > '{}'; wait", mark.display());
+        let out = run_bounded(
+            sh(&script),
+            "sh",
+            String::new(),
+            Duration::from_millis(1500),
+        )
+        .await;
+        assert_eq!(out.state, "timed_out");
+        let pid: i32 = std::fs::read_to_string(&mark)
+            .unwrap()
+            .trim()
+            .parse()
+            .unwrap();
+        let mut alive = true;
+        for _ in 0..50 {
+            // SAFETY: signal 0 only probes whether the pid exists.
+            alive = unsafe { libc::kill(pid, 0) } == 0;
+            if !alive {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(40)).await;
+        }
+        assert!(!alive);
     }
 }

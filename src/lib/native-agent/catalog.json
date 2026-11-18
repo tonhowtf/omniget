@@ -394,8 +394,8 @@
     }
   },
   {
-    "screenId": "/discord",
-    "route": "/discord",
+    "screenId": "/guildchat",
+    "route": "/guildchat",
     "windowId": "main",
     "sensitive": false,
     "kind": "page",
@@ -409,8 +409,8 @@
     }
   },
   {
-    "screenId": "/x",
-    "route": "/x",
+    "screenId": "/shortpost",
+    "route": "/shortpost",
     "windowId": "main",
     "sensitive": false,
     "kind": "page",
@@ -424,8 +424,8 @@
     }
   },
   {
-    "screenId": "/instagram",
-    "route": "/instagram",
+    "screenId": "/photofeed",
+    "route": "/photofeed",
     "windowId": "main",
     "sensitive": false,
     "kind": "page",
@@ -439,8 +439,8 @@
     }
   },
   {
-    "screenId": "/tiktok",
-    "route": "/tiktok",
+    "screenId": "/clipfeed",
+    "route": "/clipfeed",
     "windowId": "main",
     "sensitive": false,
     "kind": "page",
@@ -454,8 +454,8 @@
     }
   },
   {
-    "screenId": "/reddit",
-    "route": "/reddit",
+    "screenId": "/forums",
+    "route": "/forums",
     "windowId": "main",
     "sensitive": false,
     "kind": "page",
@@ -469,8 +469,8 @@
     }
   },
   {
-    "screenId": "/pinterest",
-    "route": "/pinterest",
+    "screenId": "/pinboard",
+    "route": "/pinboard",
     "windowId": "main",
     "sensitive": false,
     "kind": "page",
@@ -484,8 +484,8 @@
     }
   },
   {
-    "screenId": "/github",
-    "route": "/github",
+    "screenId": "/codehub",
+    "route": "/codehub",
     "windowId": "main",
     "sensitive": false,
     "kind": "page",
@@ -499,8 +499,8 @@
     }
   },
   {
-    "screenId": "/whatsapp",
-    "route": "/whatsapp",
+    "screenId": "/phonechat",
+    "route": "/phonechat",
     "windowId": "main",
     "sensitive": false,
     "kind": "page",

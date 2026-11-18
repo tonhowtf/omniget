@@ -1,7 +1,7 @@
 <script lang="ts">
   import { t, locale } from "$lib/i18n";
   import SocialIcon from "./SocialIcon.svelte";
-  import { ago, compact, type Platform, type Post } from "./api";
+  import { ago, compact, NET, type Platform, type Post } from "./api";
   import Self from "./PostCard.svelte";
 
   let {
@@ -28,24 +28,24 @@
     onExternal?: (url: string) => void;
   } = $props();
 
-  let playable = $derived(platform !== "tiktok");
+  let playable = $derived(platform !== NET.clipfeed);
   let extra = $derived(post.extra ?? {});
   let kind = $derived(String(extra.kind ?? ""));
   let title = $derived(typeof extra.title === "string" ? extra.title : "");
-  let handle = $derived(platform === "reddit" ? `u/${post.author.handle}` : `@${post.author.handle}`);
-  let likeable = $derived(platform !== "pinterest" && (platform !== "github" || kind === "repo"));
-  let likeIcon = $derived(platform === "github" ? "star" : platform === "reddit" ? "up" : "heart");
+  let handle = $derived(platform === NET.forums ? `u/${post.author.handle}` : `@${post.author.handle}`);
+  let likeable = $derived(platform !== NET.pinboard && (platform !== NET.codehub || kind === "repo"));
+  let likeIcon = $derived(platform === NET.codehub ? "star" : platform === NET.forums ? "up" : "heart");
   let chips = $derived(
     [
-      platform === "reddit" && extra.subreddit ? `r/${extra.subreddit}` : "",
-      platform === "reddit" ? extra.flair : "",
-      platform === "reddit" && extra.link ? extra.domain : "",
-      platform === "pinterest" ? (extra.board as { name?: string } | undefined)?.name : "",
-      platform === "pinterest" ? extra.domain : "",
-      platform === "github" && kind !== "repo" ? extra.repo : "",
-      platform === "github" ? extra.language : "",
-      platform === "github" ? extra.state : "",
-      platform === "github" && extra.stars_gained ? `+${extra.stars_gained} ★` : "",
+      platform === NET.forums && extra.subreddit ? `r/${extra.subreddit}` : "",
+      platform === NET.forums ? extra.flair : "",
+      platform === NET.forums && extra.link ? extra.domain : "",
+      platform === NET.pinboard ? (extra.board as { name?: string } | undefined)?.name : "",
+      platform === NET.pinboard ? extra.domain : "",
+      platform === NET.codehub && kind !== "repo" ? extra.repo : "",
+      platform === NET.codehub ? extra.language : "",
+      platform === NET.codehub ? extra.state : "",
+      platform === NET.codehub && extra.stars_gained ? `+${extra.stars_gained} ★` : "",
     ].filter((c): c is string => typeof c === "string" && c !== ""),
   );
   let grid = $derived(post.media.length > 1 ? "multi" : "single");
@@ -116,15 +116,15 @@
       <button class="act" onclick={() => onOpen?.(post)} title={$t("social.post.comments")}>
         <SocialIcon name="comment" /> <span>{compact(post.stats.replies, $locale)}</span>
       </button>
-      {#if platform === "x"}
+      {#if platform === NET.shortpost}
         <button class="act" class:on={post.reposted} disabled={busy || !onRepost} onclick={() => onRepost?.(post)} aria-pressed={!!post.reposted} title={$t(post.reposted ? "social.post.unrepost" : "social.post.repost")}>
           <SocialIcon name="repost" /> <span>{compact(post.stats.reposts, $locale)}</span>
         </button>
       {/if}
-      {#if platform === "github" && post.stats.reposts != null}
+      {#if platform === NET.codehub && post.stats.reposts != null}
         <span class="act static"><SocialIcon name="repost" /> <span>{compact(post.stats.reposts, $locale)}</span></span>
       {/if}
-      {#if platform === "pinterest" && post.stats.saves != null}
+      {#if platform === NET.pinboard && post.stats.saves != null}
         <span class="act static"><SocialIcon name="bookmark" /> <span>{compact(post.stats.saves, $locale)}</span></span>
       {/if}
       {#if post.stats.views}

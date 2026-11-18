@@ -55,7 +55,7 @@
 <ol class="sl" aria-label={$t("capture.segments")}>
   {#each segments as seg, i (seg.id)}
     <li class="sl-row" class:selected={seg.id === selectedId}>
-      <button type="button" class="sl-n" aria-label={$t("capture.go_to_segment", { n: i + 1 })} onclick={() => onselect(seg)}>{i + 1}</button>
+      <button type="button" class="sl-n" aria-label={$t("capture.go_to_segment", { num: i + 1 })} onclick={() => onselect(seg)}>{i + 1}</button>
       {#each ["start", "end"] as const as field (field)}
         <label class="sl-time">
           <span class="sl-time-label">{$t(field === "start" ? "capture.seg_start" : "capture.seg_end")}</span>
@@ -74,13 +74,13 @@
       {/each}
       <span class="sl-len" title={$t("capture.seg_length")}>{formatTimecode(length(seg))}</span>
       <span class="sl-actions">
-        <button type="button" class="btn btn-ghost btn-sm btn-icon" disabled={disabled || i === 0} aria-label={$t("capture.move_up", { n: i + 1 })} onclick={() => onmove(i, i - 1)}>
+        <button type="button" class="btn btn-ghost btn-sm btn-icon" disabled={disabled || i === 0} aria-label={$t("capture.move_up", { num: i + 1 })} onclick={() => onmove(i, i - 1)}>
           <svg viewBox="0 0 12 12" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7.5 6 4.5l3 3" /></svg>
         </button>
-        <button type="button" class="btn btn-ghost btn-sm btn-icon" disabled={disabled || i === segments.length - 1} aria-label={$t("capture.move_down", { n: i + 1 })} onclick={() => onmove(i, i + 1)}>
+        <button type="button" class="btn btn-ghost btn-sm btn-icon" disabled={disabled || i === segments.length - 1} aria-label={$t("capture.move_down", { num: i + 1 })} onclick={() => onmove(i, i + 1)}>
           <svg viewBox="0 0 12 12" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 4.5 6 7.5l3-3" /></svg>
         </button>
-        <button type="button" class="btn btn-ghost btn-sm btn-icon" {disabled} aria-label={$t("capture.remove_segment", { n: i + 1 })} onclick={() => onremove(seg.id)}>
+        <button type="button" class="btn btn-ghost btn-sm btn-icon" {disabled} aria-label={$t("capture.remove_segment", { num: i + 1 })} onclick={() => onremove(seg.id)}>
           <svg viewBox="0 0 12 12" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="m3.5 3.5 5 5m0-5-5 5" /></svg>
         </button>
       </span>

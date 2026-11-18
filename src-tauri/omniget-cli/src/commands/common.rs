@@ -21,7 +21,7 @@ pub fn init_cli_runtime(proxy: Option<&str>) -> Result<()> {
     init_cookie_provider();
 
     if let Some(proxy_url) = proxy {
-        http_client::init_proxy(parse_proxy(proxy_url)?);
+        http_client::pin_proxy(parse_proxy(proxy_url)?);
     } else {
         http_client::init_proxy(ProxySettings::default());
     }

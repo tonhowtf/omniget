@@ -8,7 +8,7 @@
   import { isTerminalKind, terminalIdOf, type CanvasNode } from "$lib/canvas/model/types";
   import { ICONS } from "$lib/canvas/nodes/registry";
   import { TOOL_ICONS } from "$lib/canvas/icons";
-  import { stateCss } from "$lib/canvas/state/agents.svelte";
+  import { stateVar } from "$lib/canvas/state/agents.svelte";
   import { highlightRuns } from "$lib/canvas/palette/fuzzy";
   import {
     PaletteIndex,
@@ -753,7 +753,7 @@
   >
     {#if (mode === "ask" || mode === "check") && target}
       <div class="head">
-        <span class="dot" style:background={stateCss(undefined)}></span>
+        <span class="dot" style:background={stateVar(undefined)}></span>
         <span class="who">
           {mode === "ask" ? tr("canvas.palette.askTitle", "Ask {{name}}", { name: target.node.title ?? "" }) : tr("canvas.palette.checkTitle", "Check {{name}}", { name: target.node.title ?? "" })}
         </span>
@@ -861,7 +861,7 @@
             >
               <span class="icon">
                 {#if r.item.state}
-                  <span class="state" style:background={stateCss(r.item.state)}></span>
+                  <span class="state" style:background={stateVar(r.item.state)}></span>
                 {/if}
                 <Icon d={iconOf(r.item)} size={15} />
               </span>

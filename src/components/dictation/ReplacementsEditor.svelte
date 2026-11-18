@@ -51,7 +51,7 @@
             value={rule.find}
             {disabled}
             placeholder={$t("dictation.rep_find_ph") as string}
-            aria-label={$t("dictation.rep_find_label", { n: i + 1 }) as string}
+            aria-label={$t("dictation.rep_find_label", { num: i + 1 }) as string}
             oninput={(e) => update(i, { find: (e.currentTarget as HTMLInputElement).value })}
           />
           <span class="dc-rep-arrow" aria-hidden="true">→</span>
@@ -61,10 +61,10 @@
             value={rule.replace}
             {disabled}
             placeholder={$t("dictation.rep_replace_ph") as string}
-            aria-label={$t("dictation.rep_replace_label", { n: i + 1 }) as string}
+            aria-label={$t("dictation.rep_replace_label", { num: i + 1 }) as string}
             oninput={(e) => update(i, { replace: (e.currentTarget as HTMLInputElement).value })}
           />
-          <button type="button" class="btn btn-ghost btn-sm btn-icon" {disabled} onclick={() => remove(i)} aria-label={$t("dictation.rep_remove", { n: i + 1 }) as string}>
+          <button type="button" class="btn btn-ghost btn-sm btn-icon" {disabled} onclick={() => remove(i)} aria-label={$t("dictation.rep_remove", { num: i + 1 }) as string}>
             <Icon name="close" size={12} />
           </button>
         </li>

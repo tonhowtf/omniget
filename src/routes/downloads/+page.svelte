@@ -368,6 +368,15 @@
     }
   }
 
+  async function openFile(path: string) {
+    try {
+      await invoke("open_path_default", { path });
+    } catch (e: any) {
+      const msg = typeof e === "string" ? e : e.message ?? $t("common.error");
+      showToast("error", msg);
+    }
+  }
+
   let reencodePath = $state<string | null>(null);
 
   function openReencode(path: string) {
@@ -802,15 +811,6 @@
     {#if dlStats.totalDownloads > 0}
       <p class="empty-value">{$t(dlStats.totalDownloads === 1 ? 'downloads.stats_line_one' : 'downloads.stats_line', { count: String(dlStats.totalDownloads), size: formatBytes(dlStats.totalBytes) })}</p>
     {/if}
-    <div class="empty-links">
-      <button class="history-link" onclick={toggleHistoryView}>
-        <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <circle cx="12" cy="12" r="9" />
-          <polyline points="12 7 12 12 15 14" />
-        </svg>
-        {$t('downloads.history_view_link')}
-      </button>
-    </div>
   </div>
 {/if}
 
@@ -821,7 +821,8 @@
 {/if}
 
 {#snippet genericItem(item: GenericDownloadItem)}
-  <div class="download-item" data-status={item.status} data-phase={item.phase}>
+  <!-- svelte-ignore a11y_no_static_element_interactions -->
+  <div class="download-item" data-status={item.status} data-phase={item.phase} ondblclick={() => item.status === "complete" && item.filePath && openFile(item.filePath)}>
     <div class="item-row">
       <DownloadPoster
         src={item.thumbnail_url}
@@ -939,6 +940,9 @@
                 {/if}
               </button>
             {:else if item.status === "complete" && item.filePath}
+              <button class="action-icon-btn reveal-action open-action" onclick={() => openFile(item.filePath!)}>
+                <span>{$t('downloads.open_file')}</span>
+              </button>
               <button
                 class="action-icon-btn reveal-action"
                 onclick={() => revealFile(item.filePath!)}
@@ -1240,34 +1244,6 @@
     font-variant-numeric: tabular-nums;
   }
 
-  .empty-links {
-    display: flex;
-    gap: var(--space-2);
-    margin-top: var(--space-2);
-  }
-
-  .history-link {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    height: 26px;
-    padding: 0 var(--space-3);
-    border: none;
-    border-radius: var(--radius-full);
-    background: transparent;
-    color: var(--text-muted);
-    font-size: var(--text-sm);
-    font-weight: 500;
-    cursor: pointer;
-  }
-
-  @media (hover: hover) {
-    .history-link:hover {
-      background: var(--fill-1);
-      color: var(--text);
-    }
-  }
-
   .downloads-page {
     display: flex;
     flex-direction: column;
@@ -1496,6 +1472,8 @@
   }
 
   .action-icon-btn.reveal-action { width: auto; padding: 0 8px; gap: 6px; color: var(--text); font: inherit; font-size: var(--text-sm); }
+  .action-icon-btn.open-action { background: var(--cta); color: var(--on-cta); font-weight: 600; }
+  @media (hover: hover) { .action-icon-btn.open-action:hover { background: var(--cta-hover); color: var(--on-cta); } }
 
   .action-icon-btn svg {
     pointer-events: none;

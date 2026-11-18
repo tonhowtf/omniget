@@ -9,7 +9,6 @@ pub const ERR_LLM_CANCELLED: &str = "ERR_LLM_CANCELLED";
 pub const ERR_LLM_MODEL: &str = "ERR_LLM_MODEL";
 pub const ERR_LLM_PARSE: &str = "ERR_LLM_PARSE";
 pub const ERR_LLM_BUDGET: &str = "ERR_LLM_BUDGET";
-pub const ERR_LLM_STUB: &str = "ERR_LLM_STUB";
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct LlmError {
@@ -27,10 +26,6 @@ impl LlmError {
             retryable: false,
             retry_after_ms: None,
         }
-    }
-
-    pub fn stub() -> Self {
-        Self::new(ERR_LLM_STUB, "not implemented yet")
     }
 }
 

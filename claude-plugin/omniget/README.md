@@ -77,18 +77,18 @@ bash claude-plugin/omniget/scripts/keys.sh check
 | `/omniget:research <url> [--backend B]` | Caption + transcript distilled into a Markdown note with `[mm:ss]` references |
 | `/omniget:setup` | Install missing tools + `omniget-cli` (confirm once), check API keys; `--update` refreshes them |
 | `/omniget:doctor` | Report available tools, models, and keys, plus how to add the missing ones |
-| `/omniget:connect` | Connect Claude Code to the OmniGet desktop app: you click Allow in OmniGet and it adds the `omniget` MCP server for you (tick the Global Downloader to download whole courses and sites) |
+| `/omniget:connect` | Connect Claude Code to the OmniGet desktop app: you click Allow in OmniGet and it adds the `omniget` MCP server for you (tick the Built-in Browser to download whole courses and sites) |
 
 The two skills (`omniget-fetch`, `omniget-transcribe`) trigger on their own when a
 media URL is pasted with a request, so the slash commands are optional. The
 `omniget-connect` skill does the same when you ask Claude to connect to or set up OmniGet.
 
 With the desktop app connected, the `omniget-global-downloader` skill downloads whole
-courses, members areas and other sites behind a login: you log in once in the Global
-Downloader window, Claude previews what the page yields (modules, lessons, files) and
+courses, members areas and other sites behind a login: you log in once in the Built-in
+Browser window, Claude previews what the page yields (modules, lessons, files) and
 downloads it all through OmniGet. When a site has no connector yet, the same skill writes
 one with you: it reads the site's API calls in that window, writes `connector.js`, dry-runs
-it until the tree is right and installs it. Allow the Global Downloader when you connect
+it until the tree is right and installs it. Allow the Built-in Browser when you connect
 (`/omniget:connect`, then tick it in OmniGet).
 
 A third skill, `omniget-agents`, only acts when you explicitly ask Claude to hand a

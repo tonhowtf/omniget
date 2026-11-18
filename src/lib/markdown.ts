@@ -146,6 +146,7 @@ export function renderSafeMarkdownSync(
   if (hit !== undefined) return hit;
   void renderSafeMarkdown(text, opts).then((html) => {
     cache.set(text, html);
+    if (cache.size > 8) cache.delete(cache.keys().next().value as string);
     onReady?.();
   });
   return `<p>${escapeHtml(text).replace(/\n/g, "<br>")}</p>`;

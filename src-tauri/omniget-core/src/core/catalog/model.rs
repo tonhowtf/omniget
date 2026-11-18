@@ -164,26 +164,6 @@ impl From<&CatalogItem> for SearchHit {
     }
 }
 
-pub fn kind_plural(kind: &str) -> &'static str {
-    match kind {
-        "agent" => "agents",
-        "command" => "commands",
-        "skill" => "skills",
-        "mcp" => "mcps",
-        "hook" => "hooks",
-        "setting" => "settings",
-        "statusline" => "statuslines",
-        "loop" => "loops",
-        "workflow" => "workflows",
-        "mod" => "mods",
-        "plugin" => "plugins",
-        "rule" => "rules",
-        "template" => "templates",
-        "sandbox" => "sandbox",
-        _ => "items",
-    }
-}
-
 pub fn content_hash(item: &CatalogItem) -> Option<String> {
     if item.files.is_empty() {
         return None;

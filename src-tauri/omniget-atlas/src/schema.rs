@@ -94,19 +94,6 @@ pub struct Dirs {
 }
 
 impl Dirs {
-    pub fn iter(&self) -> [(&'static str, &DirEntry); 8] {
-        [
-            ("S", &self.s),
-            ("SW", &self.sw),
-            ("W", &self.w),
-            ("NW", &self.nw),
-            ("N", &self.n),
-            ("SE", &self.se),
-            ("E", &self.e),
-            ("NE", &self.ne),
-        ]
-    }
-
     pub fn from_unique(
         s: Vec<String>,
         sw: Vec<String>,

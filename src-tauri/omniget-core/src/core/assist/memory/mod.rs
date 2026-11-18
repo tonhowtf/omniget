@@ -15,9 +15,7 @@ use super::ctx::Scope;
 use super::db::Migration;
 
 pub use graph::{Entity, EntityRef};
-pub use records::{
-    correct, expire_due, forget, get, history, list, remember, retract, Correction, Written,
-};
+pub use records::{correct, expire_due, forget, get, remember, retract, Correction, Written};
 pub use reflect::Reflection;
 pub use retain::{RetainInput, RetainReport};
 pub use retrieve::{Hit, Probe, Why};
@@ -263,18 +261,6 @@ pub struct Source {
     pub at_ms: i64,
 }
 
-impl Source {
-    pub fn user(now: i64) -> Self {
-        Self {
-            kind: "user".into(),
-            id: None,
-            conversation: None,
-            author: "user".into(),
-            at_ms: now,
-        }
-    }
-}
-
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct MemoryRecord {
     pub id: String,
@@ -326,27 +312,6 @@ impl NewMemory {
             evidence: None,
             valid_until: None,
         }
-    }
-
-    pub fn subject(mut self, s: &str) -> Self {
-        self.subject = Some(s.to_string());
-        self
-    }
-
-    pub fn valid_until(mut self, ms: i64) -> Self {
-        self.valid_until = Some(ms);
-        self
-    }
-
-    pub fn evidence(mut self, e: &str, confidence: f64) -> Self {
-        self.evidence = Some(e.to_string());
-        self.confidence = Some(confidence);
-        self
-    }
-
-    pub fn data(mut self, v: Value) -> Self {
-        self.data = Some(v);
-        self
     }
 }
 
@@ -418,52 +383,6 @@ pub struct Stats {
     pub semantic_ready: bool,
     pub auto_retain: bool,
     pub consolidate: bool,
-}
-
-pub fn stats(db: &AssistDb, now: i64) -> Result<Stats, String> {
-    let mut s = db.with(|c| {
-        let n = |sql: &str| c.query_row(sql, [], |r| r.get::<_, i64>(0));
-        let day = now - 86_400_000;
-        let (retains, facts): (i64, i64) = c.query_row(
-            "SELECT COUNT(*), COALESCE(SUM(facts), 0) FROM memory_retain_log WHERE at_ms >= ?1",
-            [day],
-            |r| Ok((r.get(0)?, r.get(1)?)),
-        )?;
-        let last: Option<(i64, String, Option<String>)> = {
-            use rusqlite::OptionalExtension;
-            c.query_row(
-                "SELECT at_ms, status, detail FROM memory_retain_log ORDER BY at_ms DESC LIMIT 1",
-                [],
-                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
-            )
-            .optional()?
-        };
-        Ok(Stats {
-            active: n("SELECT COUNT(*) FROM memory_records WHERE status = 'active'")?,
-            with_vector: c.query_row(
-                "SELECT COUNT(*) FROM memory_vectors v JOIN memory_records r ON r.id = v.record_id WHERE r.status = 'active' AND v.source = ?1",
-                [retrieve::vector_source().unwrap_or("")],
-                |r| r.get(0),
-            )?,
-            entities: n("SELECT COUNT(*) FROM memory_entities")?,
-            notes: n("SELECT COUNT(*) FROM memory_entity_notes")?,
-            links: n("SELECT COUNT(*) FROM memory_links")?,
-            retains_today: retains,
-            facts_today: facts,
-            last_retain_ms: last.as_ref().map(|l| l.0),
-            last_retain_error: last.filter(|l| l.1 == "failed").and_then(|l| l.2),
-            ..Default::default()
-        })
-    })?;
-    s.semantic_ready = retrieve::vector_source() == Some("e5");
-    s.auto_retain = retain::setting(db, "auto_retain");
-    s.consolidate = retain::setting(db, "consolidate");
-    Ok(s)
-}
-
-pub fn entities(db: &AssistDb, ctx: &AssistCtx, limit: usize) -> Result<Vec<Entity>, String> {
-    let keys = (!ctx.is_user_ui()).then(|| ctx.readable_keys());
-    db.with(|c| graph::list_entities(c, &ctx.principal, keys.as_deref(), limit.clamp(1, 500)))
 }
 
 pub fn search_explained(

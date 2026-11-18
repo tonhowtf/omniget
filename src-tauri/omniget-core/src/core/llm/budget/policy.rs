@@ -45,28 +45,6 @@ impl Scope {
         }
     }
 
-    pub fn kind(&self) -> &'static str {
-        match self {
-            Scope::Global => "global",
-            Scope::Agent(_) => "agent",
-            Scope::Job(_) => "job",
-            Scope::Loop(_) => "loop",
-            Scope::Mission(_) => "mission",
-            Scope::Account(_) => "account",
-        }
-    }
-
-    pub fn id(&self) -> &str {
-        match self {
-            Scope::Global => "",
-            Scope::Agent(id)
-            | Scope::Job(id)
-            | Scope::Loop(id)
-            | Scope::Mission(id)
-            | Scope::Account(id) => id,
-        }
-    }
-
     pub fn parse(raw: &str) -> Result<Scope, String> {
         let raw = raw.trim();
         if raw == "global" {
@@ -388,6 +366,7 @@ pub struct TurnCtx {
     pub model: String,
     pub conversation_id: String,
     pub estimate_tokens: u64,
+    pub local: bool,
 }
 
 impl TurnCtx {
@@ -548,6 +527,7 @@ pub fn conversations_in(scope: &Scope) -> Vec<String> {
 static ENGINE: OnceLock<Arc<Engine>> = OnceLock::new();
 static QUOTA: RwLock<Option<QuotaFn>> = RwLock::new(None);
 static PRICE: RwLock<Option<PriceFn>> = RwLock::new(None);
+static ENDPOINT: RwLock<Option<EndpointFn>> = RwLock::new(None);
 static LISTENER: RwLock<Option<Listener>> = RwLock::new(None);
 
 pub fn init(path: &Path) -> Result<Arc<Engine>, String> {
@@ -590,6 +570,30 @@ pub fn set_price_source(f: PriceFn) {
     *PRICE.write().unwrap_or_else(|e| e.into_inner()) = Some(f);
 }
 
+pub type EndpointFn = Arc<dyn Fn(&str) -> Option<String> + Send + Sync>;
+
+pub fn set_endpoint_source(f: EndpointFn) {
+    *ENDPOINT.write().unwrap_or_else(|e| e.into_inner()) = Some(f);
+}
+
+pub fn provider_is_local(provider: &str) -> bool {
+    let f = ENDPOINT.read().unwrap_or_else(|e| e.into_inner()).clone();
+    f.and_then(|f| f(provider))
+        .is_some_and(|url| is_local_endpoint(&url))
+}
+
+pub fn is_local_endpoint(url: &str) -> bool {
+    match url::Url::parse(url)
+        .ok()
+        .and_then(|u| u.host().map(|h| h.to_owned()))
+    {
+        Some(url::Host::Domain(d)) => d.eq_ignore_ascii_case("localhost"),
+        Some(url::Host::Ipv4(ip)) => ip.is_loopback(),
+        Some(url::Host::Ipv6(ip)) => ip.is_loopback(),
+        None => false,
+    }
+}
+
 pub fn set_listener(f: Listener) {
     *LISTENER.write().unwrap_or_else(|e| e.into_inner()) = Some(f);
 }
@@ -623,10 +627,6 @@ impl Engine {
             std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
         }
         Self::with(Connection::open(path).map_err(|e| e.to_string())?)
-    }
-
-    pub fn memory() -> Self {
-        Self::with(Connection::open_in_memory().expect("in-memory sqlite")).expect("schema")
     }
 
     fn with(db: Connection) -> Result<Self, String> {
@@ -709,10 +709,6 @@ impl Engine {
                 .collect()
         };
         *self.policies.write().unwrap_or_else(|e| e.into_inner()) = list;
-    }
-
-    pub fn set_listener(&self, f: Listener) {
-        *self.listener.write().unwrap_or_else(|e| e.into_inner()) = Some(f);
     }
 
     fn quota_of(&self, account: &str) -> Option<QuotaReading> {
@@ -813,34 +809,6 @@ impl Engine {
             observed: None,
         });
         Ok(p)
-    }
-
-    pub fn delete(&self, id: &str, actor: Actor) -> Result<bool, String> {
-        let n = self
-            .db()
-            .execute("DELETE FROM budget_policies WHERE id=?1", params![id])
-            .map_err(|e| e.to_string())?;
-        self.reload();
-        if n > 0 {
-            for inc in self.incidents(true) {
-                if inc.policy_id == id {
-                    self.settle_incident(inc, "resolved", "policy_removed");
-                }
-            }
-            audit::log(
-                actor,
-                "budget.policy_removed",
-                Entity::budget(id),
-                json!({}),
-            );
-            self.tell(BudgetEvent {
-                kind: "policy_removed",
-                incident: None,
-                policy: None,
-                observed: None,
-            });
-        }
-        Ok(n > 0)
     }
 
     pub fn incidents(&self, blocking_only: bool) -> Vec<Incident> {
@@ -1285,7 +1253,7 @@ impl Engine {
                     }
                 }
             }
-            if p.metric == Metric::Usd && !ctx.model.is_empty() {
+            if p.metric == Metric::Usd && !ctx.model.is_empty() && !ctx.local {
                 let key = format!("unpriced:{}:{}", p.id, ctx.model);
                 match self.acked(&key) {
                     Some(true) => {}
@@ -1378,6 +1346,7 @@ impl Engine {
             Vec::new()
         };
         let (usd, source) = match used.usd {
+            _ if ctx.local => (Some(0.0), "local"),
             Some(v) => (Some(v), "reported"),
             None if policies.iter().any(|p| p.metric == Metric::Usd) => {
                 match self.price_of(&ctx.model).await {
@@ -1488,6 +1457,14 @@ impl Engine {
                 }
             }
         }
+        if out.is_empty() && !policies.is_empty() {
+            self.tell(BudgetEvent {
+                kind: "charged",
+                incident: None,
+                policy: None,
+                observed: None,
+            });
+        }
         out
     }
 
@@ -1520,5 +1497,179 @@ impl Engine {
             "policies": self.status(),
             "incidents": self.incidents(false),
         })
+    }
+}
+
+#[cfg(test)]
+mod charge_event_tests {
+    use super::*;
+
+    fn turn() -> TurnCtx {
+        TurnCtx {
+            request_id: "r1".into(),
+            agent_id: "a1".into(),
+            account: None,
+            model: "m".into(),
+            conversation_id: "c1".into(),
+            estimate_tokens: 0,
+            local: false,
+        }
+    }
+
+    fn spend() -> TurnUse {
+        TurnUse {
+            usd: Some(0.5),
+            input_tokens: 10,
+            output_tokens: 10,
+        }
+    }
+
+    fn engine_with_events() -> (tempfile::TempDir, Engine, Arc<Mutex<Vec<&'static str>>>) {
+        let dir = tempfile::tempdir().unwrap();
+        let engine = Engine::open(&dir.path().join("budget.sqlite")).unwrap();
+        let seen = Arc::new(Mutex::new(Vec::new()));
+        let sink = seen.clone();
+        *engine.listener.write().unwrap() = Some(Arc::new(move |e: &BudgetEvent| {
+            sink.lock().unwrap().push(e.kind)
+        }));
+        (dir, engine, seen)
+    }
+
+    #[tokio::test]
+    async fn ordinary_spend_under_a_limit_tells_the_screen() {
+        let (_dir, engine, seen) = engine_with_events();
+        engine
+            .upsert(
+                BudgetPolicy {
+                    id: String::new(),
+                    scope: Scope::Global,
+                    metric: Metric::Usd,
+                    window: Window::Day,
+                    amount: 5.0,
+                    warn_pct: None,
+                    hard_stop: true,
+                    enabled: true,
+                    created_ms: 0,
+                    updated_ms: 0,
+                },
+                Actor::system("test"),
+            )
+            .unwrap();
+        seen.lock().unwrap().clear();
+        let crossings = engine.charge(&turn(), spend()).await;
+        assert!(crossings.is_empty());
+        assert_eq!(*seen.lock().unwrap(), vec!["charged"]);
+    }
+
+    #[tokio::test]
+    async fn spend_without_any_limit_stays_silent() {
+        let (_dir, engine, seen) = engine_with_events();
+        engine.charge(&turn(), spend()).await;
+        assert!(seen.lock().unwrap().is_empty());
+    }
+}
+
+#[cfg(test)]
+mod local_model_tests {
+    use super::*;
+
+    fn policy(metric: Metric, amount: f64) -> BudgetPolicy {
+        BudgetPolicy {
+            id: String::new(),
+            scope: Scope::Global,
+            metric,
+            window: Window::Day,
+            amount,
+            warn_pct: None,
+            hard_stop: true,
+            enabled: true,
+            created_ms: 0,
+            updated_ms: 0,
+        }
+    }
+
+    fn turn(local: bool) -> TurnCtx {
+        TurnCtx {
+            request_id: "r1".into(),
+            agent_id: "a1".into(),
+            account: None,
+            model: "a-model-with-no-price".into(),
+            conversation_id: "c1".into(),
+            estimate_tokens: 0,
+            local,
+        }
+    }
+
+    fn engine(policies: &[BudgetPolicy]) -> (tempfile::TempDir, Engine) {
+        let dir = tempfile::tempdir().unwrap();
+        let engine = Engine::open(&dir.path().join("budget.sqlite")).unwrap();
+        for p in policies {
+            engine.upsert(p.clone(), Actor::system("test")).unwrap();
+        }
+        (dir, engine)
+    }
+
+    #[test]
+    fn only_a_loopback_host_is_local() {
+        for url in [
+            "http://127.0.0.1:11434/v1",
+            "http://localhost:1234/v1",
+            "http://LOCALHOST:8080",
+            "http://[::1]:8080/v1",
+            "http://127.0.0.2:9000",
+        ] {
+            assert!(is_local_endpoint(url), "{url}");
+        }
+        for url in [
+            "http://localhost.evil.com/v1",
+            "http://evil-localhost.com",
+            "http://127.0.0.1.nip.io:11434",
+            "https://api.openai.com/v1",
+            "http://10.0.0.5:11434",
+            "not a url",
+            "",
+        ] {
+            assert!(!is_local_endpoint(url), "{url}");
+        }
+    }
+
+    #[tokio::test]
+    async fn a_local_model_does_not_ask_under_a_dollar_limit() {
+        let (_dir, engine) = engine(&[policy(Metric::Usd, 5.0)]);
+        assert!(matches!(engine.gate(&turn(true)).await, Verdict::Allow));
+    }
+
+    #[tokio::test]
+    async fn a_remote_model_without_a_price_still_asks() {
+        let (_dir, engine) = engine(&[policy(Metric::Usd, 5.0)]);
+        assert!(matches!(engine.gate(&turn(false)).await, Verdict::Ask(_)));
+    }
+
+    #[tokio::test]
+    async fn a_local_turn_costs_nothing_but_its_tokens_count() {
+        let (_dir, engine) = engine(&[
+            policy(Metric::Usd, 0.0001),
+            policy(Metric::WeightedTokens, 10.0),
+        ]);
+        let used = TurnUse {
+            usd: None,
+            input_tokens: 400,
+            output_tokens: 88,
+        };
+        let crossings = engine.charge(&turn(true), used).await;
+        let hit: Vec<Metric> = crossings.iter().map(|c| c.policy.metric).collect();
+        assert_eq!(hit, vec![Metric::WeightedTokens]);
+        let usd: f64 = engine
+            .db()
+            .query_row(
+                "SELECT COALESCE(SUM(usd), -1) FROM budget_ledger WHERE scope='global'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(
+            usd, 0.0,
+            "a local turn is recorded as zero dollars, not unknown"
+        );
     }
 }

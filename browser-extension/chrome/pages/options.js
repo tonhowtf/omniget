@@ -4,7 +4,7 @@ import {
   checkBridgeHealth,
   discoverBridgeEndpoint,
   trimEndpoint,
-  autoPair,
+  pairWithEndpoint,
 } from "../src/bridge-client.js";
 import {
   applyRegexRules,
@@ -190,64 +190,18 @@ if (typeof document !== "undefined") {
     discoveryMessage.textContent = message;
   }
 
-  const AUTOPAIR_POLL_MS = 5000;
-  let pairPollTimer = null;
-
-  async function onPairedSuccess() {
-    const { endpoint, token } = await loadBridgeConfig();
-    endpointInput.value = endpoint || "";
-    tokenInput.value = token || "";
-    setDiscovery("found", `Paired with OmniGet at ${endpoint}.`);
-    setStatus("Paired automatically — you're all set.", "ok");
-    stopPairPolling();
+  function describeApp(endpoint, version) {
+    let port = "";
+    try {
+      port = new URL(endpoint).port;
+    } catch {}
+    const versionSuffix = version ? ` v${version}` : "";
+    return `OmniGet${versionSuffix} on port ${port || "?"} (${endpoint})`;
   }
-
-  async function tryAutoPair() {
-    const result = await autoPair().catch(() => ({ ok: false }));
-    if (!result?.ok) return false;
-    if (result.reason === "already-paired") {
-      stopPairPolling();
-      return true;
-    }
-    await onPairedSuccess();
-    return true;
-  }
-
-  function startPairPolling() {
-    if (pairPollTimer !== null) return;
-    pairPollTimer = setInterval(() => {
-      void tryAutoPair();
-    }, AUTOPAIR_POLL_MS);
-  }
-
-  function stopPairPolling() {
-    if (pairPollTimer !== null) {
-      clearInterval(pairPollTimer);
-      pairPollTimer = null;
-    }
-  }
-
-  document.addEventListener("visibilitychange", () => {
-    if (document.hidden) {
-      stopPairPolling();
-      return;
-    }
-    loadBridgeConfig().then(({ token }) => {
-      if (!token) {
-        void tryAutoPair();
-        startPairPolling();
-      }
-    });
-  });
 
   async function init() {
     const { endpoint, token } = await loadBridgeConfig();
     const alreadyPaired = Boolean(token);
-
-    if (!alreadyPaired) {
-      void tryAutoPair();
-      if (!document.hidden) startPairPolling();
-    }
 
     if (alreadyPaired) {
       settingsHeader.hidden = false;
@@ -274,10 +228,9 @@ if (typeof document !== "undefined") {
     const found = await discoverBridgeEndpoint();
     if (found) {
       endpointInput.value = found.endpoint;
-      const versionSuffix = found.version ? ` (v${found.version})` : "";
       setDiscovery(
         "found",
-        `Found OmniGet${versionSuffix} on ${found.endpoint}. Paste the token from OmniGet → Settings → Network → Browser extension to finish.`
+        `Found ${describeApp(found.endpoint, found.version)}. If that is your OmniGet, click "Pair extension" in OmniGet → Settings → Network → Browser extension, then click "Pair now" here.`
       );
       endpointHint.textContent =
         "Auto-detected — change only if your OmniGet runs on a different host.";
@@ -312,14 +265,37 @@ if (typeof document !== "undefined") {
 
   if (pairNowBtn) {
     pairNowBtn.addEventListener("click", async () => {
-      setStatus("Trying to pair automatically…");
-      const paired = await tryAutoPair();
-      if (paired) return;
+      const endpoint = resolvedEndpoint();
+      setStatus("Checking the app…");
+      const health = await checkBridgeHealth(endpoint);
+      if (!health.ok) {
+        const found = await discoverBridgeEndpoint();
+        if (found && found.endpoint !== endpoint) {
+          endpointInput.value = found.endpoint;
+          setDiscovery("found", `Found ${describeApp(found.endpoint, found.version)}.`);
+          setStatus(
+            `Nothing answered at ${endpoint}. Found ${describeApp(found.endpoint, found.version)} instead — click "Pair now" again to pair with it.`,
+            "error"
+          );
+          return;
+        }
+        setStatus(`Could not reach OmniGet at ${endpoint}. Make sure the app is running.`, "error");
+        return;
+      }
+      const app = describeApp(endpoint, health.version);
+      setStatus(`Pairing with ${app}…`);
+      const result = await pairWithEndpoint(endpoint).catch(() => ({ ok: false }));
+      if (result?.ok) {
+        const { token } = await loadBridgeConfig();
+        tokenInput.value = token || "";
+        setDiscovery("found", `Paired with ${app}.`);
+        setStatus("Paired — you're all set.", "ok");
+        return;
+      }
       setStatus(
-        "No open pairing window found. In OmniGet, go to Settings → Network → Browser extension and click \"Pair extension\", then try again (or just wait — this page keeps retrying).",
+        `${app} has no open pairing window. In OmniGet, go to Settings → Network → Browser extension and click "Pair extension", then click "Pair now" again within 2 minutes.`,
         "error"
       );
-      if (!document.hidden) startPairPolling();
     });
   }
 

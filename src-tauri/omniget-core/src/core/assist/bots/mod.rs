@@ -14,7 +14,7 @@ pub mod skills;
 mod tests;
 
 pub use augment::BotsAugment;
-pub use manifest::{report, CapabilityReport};
+pub use manifest::CapabilityReport;
 pub use profile::{BotProfile, Capability, MemoryPolicy};
 pub use skills::{BindingState, BindingStatus, SkillProjection, SKILL_SOURCE};
 

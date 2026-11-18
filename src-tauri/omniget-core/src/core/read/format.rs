@@ -87,27 +87,6 @@ impl BookFormat {
         None
     }
 
-    pub fn ext(self) -> &'static str {
-        match self {
-            Self::Epub => "epub",
-            Self::Kepub => "kepub.epub",
-            Self::Mobi => "mobi",
-            Self::Azw3 => "azw3",
-            Self::Fb2 => "fb2",
-            Self::Fbz => "fbz",
-            Self::Pdf => "pdf",
-            Self::Cbz => "cbz",
-            Self::Cbr => "cbr",
-            Self::Cb7 => "cb7",
-            Self::Cbt => "cbt",
-            Self::Txt => "txt",
-            Self::Md => "md",
-            Self::Html => "html",
-            Self::Djvu => "djvu",
-            Self::Folder => "",
-        }
-    }
-
     pub fn mime(self) -> &'static str {
         match self {
             Self::Epub | Self::Kepub => "application/epub+zip",

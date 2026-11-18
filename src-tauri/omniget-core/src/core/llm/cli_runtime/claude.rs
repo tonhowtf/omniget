@@ -68,15 +68,6 @@ pub fn permission_mode(sandbox: super::accounts::SandboxMode) -> &'static str {
     }
 }
 
-impl ClaudeArgs {
-    pub fn streaming() -> Self {
-        Self {
-            partial_messages: true,
-            ..Self::default()
-        }
-    }
-}
-
 pub fn permission_flags(prompt_tool: Option<&str>, mode: Option<&str>) -> Vec<String> {
     let mut out: Vec<String> = Vec::new();
     match prompt_tool {

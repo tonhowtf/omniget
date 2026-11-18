@@ -9,8 +9,8 @@
   const items: { action: MoreAction; key: string; icon: string }[] = [
     { action: "batch", key: "home.action_batch", icon: "M4 6h16M4 12h16M4 18h10" },
     { action: "torrent", key: "home.action_torrent", icon: "M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8zM14 3v5h5" },
-    { action: "p2p", key: "home.action_p2p", icon: "M22 2 11 13M22 2l-7 20-4-9-9-4z" },
     { action: "advanced", key: "home.action_advanced", icon: "m4 17 6-6-6-6M12 19h8" },
+    { action: "p2p", key: "home.action_p2p", icon: "M22 2 11 13M22 2l-7 20-4-9-9-4z" },
   ];
 
   let open = $state(false);
@@ -89,6 +89,7 @@
     <!-- svelte-ignore a11y_interactive_supports_focus -->
     <div bind:this={menu} id={menuId} class="more-menu" role="menu" aria-label={$t("home.more")} tabindex="-1" onkeydown={onMenuKey}>
       {#each items as item (item.action)}
+        {#if item.action === "p2p"}<div class="more-divider" role="separator"></div>{/if}
         <button type="button" role="menuitem" class="more-item" tabindex="-1" onclick={() => pick(item.action)}>
           <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d={item.icon} /></svg>
           <span>{$t(item.key)}</span>
@@ -172,6 +173,12 @@
     font-size: var(--text-sm);
     text-align: left;
     cursor: pointer;
+  }
+
+  .more-divider {
+    height: var(--hairline);
+    margin: 5px 10px;
+    background: var(--separator);
   }
 
   .more-item svg {

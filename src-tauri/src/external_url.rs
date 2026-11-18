@@ -23,6 +23,7 @@ pub enum ExternalUrlAction {
     Queued,
     Prefill,
     AlreadyQueued,
+    Helper,
 }
 
 impl ExternalUrlAction {
@@ -31,6 +32,7 @@ impl ExternalUrlAction {
             Self::Queued => "queued",
             Self::Prefill => "prefill",
             Self::AlreadyQueued => "already-queued",
+            Self::Helper => "helper",
         }
     }
 }
@@ -51,6 +53,17 @@ pub fn is_external_url(value: &str) -> bool {
     url::Url::parse(target)
         .map(|url| matches!(url.scheme(), "http" | "https"))
         .unwrap_or(false)
+}
+
+pub fn helper_link_id(raw_url: &str) -> Option<&str> {
+    let rest = raw_url.trim().strip_prefix("omniget://helper/")?;
+    let id = rest.split(['?', '#', '/']).next()?;
+    let valid = !id.is_empty()
+        && id.len() <= 64
+        && id
+            .bytes()
+            .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-');
+    valid.then_some(id)
 }
 
 pub fn arrived_via_scheme(raw_url: &str, source: &str) -> bool {
@@ -296,10 +309,16 @@ pub async fn queue_url_with_executor(
             if q.items.iter().any(|i| i.id == download_id) {
                 return Err("DOWNLOAD_ID_CONFLICT".into());
             }
+            if q.has_url(&url) {
+                return Err("URL_ALREADY_MANAGED".into());
+            }
             output_dir = intent.destination.clone();
             crate::mcp::policy::own(principal, download_id)?;
             crate::mcp::download_intents::admitting(download_id)?;
         } else {
+            if q.has_url(&url) {
+                return Ok(QueueUrlOutcome::AlreadyQueued);
+            }
             download_id = q.next_available_id(download_id);
         }
         q.enqueue(
@@ -334,46 +353,18 @@ pub async fn queue_url_with_executor(
             crate::mcp::download_intents::enqueued(download_id)?;
         }
 
-        let next_ids = q.next_queued_ids();
-        for nid in &next_ids {
-            q.mark_active(*nid);
-        }
         let state = q.get_state();
         drop(q);
         emit_queue_state_from_state(app, state);
     }
 
-    let q_clone = download_queue.clone();
-    let app_clone = app.clone();
-    tokio::spawn(async move {
-        let ids_to_start = {
-            let q = q_clone.lock().await;
-            q.items
-                .iter()
-                .filter(|i| i.status == queue::QueueStatus::Active)
-                .filter(|i| i.id == download_id)
-                .map(|i| i.id)
-                .collect::<Vec<_>>()
-        };
-
-        let stagger = {
-            let q = q_clone.lock().await;
-            q.stagger_delay_ms
-        };
-
-        for (i, nid) in ids_to_start.into_iter().enumerate() {
-            if i > 0 && stagger > 0 {
-                tokio::time::sleep(std::time::Duration::from_millis(stagger)).await;
-            }
-            let app_handle = app_clone.clone();
-            let queue_handle = q_clone.clone();
-            tokio::spawn(async move {
-                queue::spawn_download(app_handle, queue_handle, nid).await;
-            });
-        }
-    });
+    tokio::spawn(queue::try_start_next(app.clone(), download_queue.clone()));
 
     Ok(QueueUrlOutcome::Queued)
+}
+
+fn queues_without_confirmation(scheme_arrival: bool, can_queue_directly: bool) -> bool {
+    can_queue_directly && !scheme_arrival
 }
 
 pub async fn handle_external_url(
@@ -381,6 +372,19 @@ pub async fn handle_external_url(
     url: String,
     source: &str,
 ) -> Result<ExternalUrlAction, String> {
+    if let Some(id) = helper_link_id(&url) {
+        crate::tray::show_window(app);
+        push_or_emit_event(
+            app,
+            ExternalUrlEvent {
+                url: id.to_string(),
+                source: source.to_string(),
+                action: ExternalUrlAction::Helper.as_str().to_string(),
+            },
+        )
+        .await;
+        return Ok(ExternalUrlAction::Helper);
+    }
     let scheme_arrival = arrived_via_scheme(&url, source);
     let url = normalize_external_url(&url).unwrap_or(url);
     if !is_external_url(&url) {
@@ -395,9 +399,9 @@ pub async fn handle_external_url(
 
     let open_app_flag = crate::extension_storage::peek_extension_open_app(&url);
 
-    let action = if can_queue_directly {
+    let action = if queues_without_confirmation(scheme_arrival, can_queue_directly) {
         let outcome = queue_url_with_defaults(app, url.clone(), false, None).await?;
-        if open_app_flag == Some(true) || scheme_arrival {
+        if open_app_flag == Some(true) {
             crate::tray::show_window(app);
         }
         match outcome {
@@ -470,6 +474,32 @@ mod tests {
     use super::*;
 
     #[test]
+    fn helper_link_yields_the_connector_id() {
+        assert_eq!(helper_link_id("omniget://helper/hotmart"), Some("hotmart"));
+        assert_eq!(
+            helper_link_id(" omniget://helper/tle-eliminators?from=site"),
+            Some("tle-eliminators")
+        );
+        assert_eq!(helper_link_id("omniget://helper/udemy/"), Some("udemy"));
+    }
+
+    #[test]
+    fn helper_link_refuses_ids_that_are_not_plain_slugs() {
+        assert_eq!(helper_link_id("omniget://helper/"), None);
+        assert_eq!(helper_link_id("omniget://helper/..%2Fetc"), None);
+        assert_eq!(helper_link_id("omniget://helper/Hot mart"), None);
+        assert_eq!(helper_link_id("omniget://helper/a&install=1"), None);
+        assert_eq!(
+            helper_link_id("omniget://www.youtube.com/watch?v=abc"),
+            None
+        );
+        assert_eq!(
+            helper_link_id(&format!("omniget://helper/{}", "a".repeat(65))),
+            None
+        );
+    }
+
+    #[test]
     fn normalize_strips_omniget_prefix_and_adds_https() {
         assert_eq!(
             normalize_external_url("omniget://www.youtube.com/watch?v=abc"),
@@ -526,6 +556,18 @@ mod tests {
             "https://www.youtube.com/watch?v=abc",
             "command-line"
         ));
+    }
+
+    #[test]
+    fn a_scheme_link_never_queues_without_confirmation() {
+        assert!(!queues_without_confirmation(true, true));
+        assert!(!queues_without_confirmation(true, false));
+    }
+
+    #[test]
+    fn a_trusted_source_queues_directly_only_when_settings_allow() {
+        assert!(queues_without_confirmation(false, true));
+        assert!(!queues_without_confirmation(false, false));
     }
 
     #[test]

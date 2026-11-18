@@ -32,8 +32,8 @@
   let multiSource = $derived(tones.size > 1);
 
   function label(item: PageItem, index: number): string {
-    if (item.kind === "blank") return $t("pdf.page_blank_label", { n: index + 1 }) as string;
-    return $t("pdf.page_label", { n: index + 1, page: item.page + 1 }) as string;
+    if (item.kind === "blank") return $t("pdf.page_blank_label", { num: index + 1 }) as string;
+    return $t("pdf.page_label", { num: index + 1, page: item.page + 1 }) as string;
   }
 
   function pick(event: MouseEvent | KeyboardEvent, key: string) {

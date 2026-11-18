@@ -4,7 +4,7 @@
   import { t } from "$lib/i18n";
   import { errorKey, looksLikeUrl, type UrlLookup } from "$lib/global/connector-market";
 
-  let { url }: { url: string } = $props();
+  let { url, offerOnly = false }: { url: string; offerOnly?: boolean } = $props();
 
   let hit = $state<UrlLookup | null>(null);
   let hitFor = $state("");
@@ -58,12 +58,12 @@
   }
 </script>
 
-{#if hit?.installed}
+{#if hit?.installed && !offerOnly}
   <div class="hint" role="status">
     <p>{$t("global_dl.market.hint_installed", { name: installedName })}{needsUpdate ? ` ${$t("global_dl.market.hint_update")}` : ""}</p>
     <button type="button" class="btn btn-primary btn-sm" onclick={openDownloader}>{$t("global_dl.market.hint_open")}</button>
   </div>
-{:else if offer}
+{:else if offer && !hit?.installed}
   <div class="hint" role="status">
     <p>{$t("global_dl.market.hint_available", { name: offer.name })}</p>
     {#if !offer.compatible}

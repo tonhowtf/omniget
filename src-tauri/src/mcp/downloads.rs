@@ -8,17 +8,18 @@ use tauri::{AppHandle, Manager};
 
 pub fn catalog(p: &Principal) -> Vec<Value> {
     tools(p).into_iter().map(|tool| {
-        let writes = matches!(policy::scope(tool.name), Some("enqueue" | "control" | "company_control" | "orchestration_control" | "orchestration_create" | "app_control" | "app_capture" | "system_change" | "telegram_write" | "social_write" | "whatsapp_write" | "approvals_respond" | "agents_run"))
-            || matches!(tool.name, "auth_connection_request" | "diagnostic_bundle_create" | "catalog_install" | "memory_retain" | "omniget_invoke" | "dev_pack" | "dev_http")
-            || (tool.name == "dev_ports" && devtools_write(p))
+        let writes = matches!(policy::scope(tool.name), Some("enqueue" | "control" | "company_control" | "orchestration_control" | "orchestration_create" | "app_control" | "app_capture" | "system_change" | "telegram_write" | "social_write" | "phonechat_write" | "approvals_respond" | "agents_run"))
+            || matches!(tool.name, "auth_connection_request" | "diagnostic_bundle_create" | "catalog_install" | "memory_retain" | "omniget_invoke" | "dev_pack" | "dev_http" | "dev_crawl")
+            || (matches!(tool.name, "dev_ports" | "dev_proxy") && devtools_write(p))
+            || (tool.name == crate::commands::quicktools::TOOL && system_change(p))
             || matches!(tool.name, "transfer_get" | "transfer_put" | "transfer_manage")
             || (tool.name == "transfer_servers" && transfer_write(p))
             || tool.name == "research_meta_ads"
             || super::global_dl::writes(tool.name);
-        let open_world = matches!(tool.name, "download_enqueue" | "downloads_batch_enqueue" | "download_retry" | "download_resume" | "media_inspect" | "media_collection_list" | "dev_http" | "dev_scrape" | "transfer_list" | "transfer_get" | "transfer_put" | "transfer_manage") || super::global_dl::open_world(tool.name) || crate::commands::social::tools::owns(tool.name) || (crate::commands::research::mcp::TOOLS.contains(&tool.name) && tool.name != "research_endpoints");
+        let open_world = matches!(tool.name, "download_enqueue" | "downloads_batch_enqueue" | "download_retry" | "download_resume" | "media_inspect" | "media_collection_list" | "dev_http" | "dev_scrape" | "dev_crawl" | "dev_proxy" | "transfer_list" | "transfer_get" | "transfer_put" | "transfer_manage") || super::global_dl::open_world(tool.name) || crate::commands::social::tools::owns(tool.name) || (crate::commands::research::mcp::TOOLS.contains(&tool.name) && tool.name != "research_endpoints");
         let mut value = serde_json::to_value(&tool).expect("static tool schema serializes");
         let destructive = writes && (matches!(tool.name, "download_cancel" | "download_pause" | "missions_cancel" | "missions_pause" | "wmb_execute" | "job_cancel" | "tg_delete_messages" | "x_delete_post" | "dev_ports" | "transfer_manage") || super::canvas::is_destructive(tool.name));
-        let idempotent = !matches!(tool.name,"transfer_get"|"transfer_put"|"transfer_manage"|"dev_pack"|"dev_http"|"omniget_app_capture"|"omniget_app_export"|"gd_download"|"gd_act"|"gd_cdp") && !(writes && super::canvas::owns(tool.name));
+        let idempotent = !matches!(tool.name,"transfer_get"|"transfer_put"|"transfer_manage"|"dev_pack"|"dev_http"|"dev_crawl"|"dev_proxy"|"omniget_app_capture"|"omniget_app_export"|"gd_download"|"gd_act"|"gd_cdp") && !(writes && super::canvas::owns(tool.name));
         value["annotations"] = json!({"readOnlyHint":!writes,"destructiveHint":destructive,"idempotentHint":idempotent,"openWorldHint":open_world});
         value
     }).collect()
@@ -26,6 +27,10 @@ pub fn catalog(p: &Principal) -> Vec<Value> {
 
 fn devtools_write(p: &Principal) -> bool {
     p.scopes.iter().any(|s| s == "devtools_write")
+}
+
+fn system_change(p: &Principal) -> bool {
+    p.scopes.iter().any(|s| s == "system_change")
 }
 
 fn transfer_write(p: &Principal) -> bool {
@@ -38,7 +43,7 @@ pub fn tools(p: &Principal) -> Vec<ToolDef> {
         .filter(|t| policy::allowed(p, t.name))
         .collect::<Vec<_>>();
     for (name,description,props,required) in [
-        ("omniget_commands","List everything the app can do: without arguments, the areas (music, video, tube, read, discord, whatsapp, pdf, settings...); with area or query, the commands and the arguments omniget_invoke takes.",json!({"area":{"type":"string"},"query":{"type":"string"},"limit":{"type":"integer"},"cursor":{"type":"integer"}}),json!([])),
+        ("omniget_commands","List everything the app can do: without arguments, the areas (music, video, tube, read, guildchat, phonechat, pdf, settings...); with area or query, the commands and the arguments omniget_invoke takes.",json!({"area":{"type":"string"},"query":{"type":"string"},"limit":{"type":"integer"},"cursor":{"type":"integer"}}),json!([])),
         ("omniget_invoke","Call any OmniGet command by name, exactly as the app's own interface does. Find it and its arguments with omniget_commands. The app must be open.",json!({"command":{"type":"string"},"args":{"type":"object"},"timeoutSeconds":{"type":"integer"},"windowId":{"type":"string"}}),json!(["command"])),
         ("omniget_capabilities","Capabilities actually implemented by this server.",json!({}),json!([])),
         ("destinations_list","The output directory already selected locally in OmniGet.",json!({}),json!([])),
@@ -64,12 +69,12 @@ pub fn tools(p: &Principal) -> Vec<ToolDef> {
             input_schema: json!({"type":"object","properties":{},"required":[],"additionalProperties":false}),
         });
     }
-    for spec in super::whatsapp::SPECS {
+    for spec in super::phonechat::SPECS {
         if policy::allowed(p, spec.name) {
             list.push(ToolDef {
                 name: spec.name,
                 description: spec.description,
-                input_schema: super::whatsapp::input_schema(spec),
+                input_schema: super::phonechat::input_schema(spec),
             });
         }
     }
@@ -92,8 +97,16 @@ pub fn tools(p: &Principal) -> Vec<ToolDef> {
             if name == "dev_ports" && !devtools_write(p) {
                 props["op"]["enum"] = json!(["list"]);
             }
+            if name == "dev_proxy" && !devtools_write(p) {
+                props["op"]["enum"] = json!(crate::commands::devtools::mcp::PROXY_READ_OPS);
+            }
             list.push(ToolDef{name,description,input_schema:json!({"type":"object","properties":props,"required":required,"additionalProperties":false})});
         }
+    }
+    if policy::allowed(p, crate::commands::quicktools::TOOL) {
+        let (name, description, props, required) =
+            crate::commands::quicktools::def(system_change(p));
+        list.push(ToolDef{name,description,input_schema:json!({"type":"object","properties":props,"required":required,"additionalProperties":false})});
     }
     for (name, description, props, required) in crate::commands::research::mcp::defs() {
         if policy::allowed(p, name) {
@@ -311,11 +324,11 @@ pub async fn call(app: &AppHandle, p: &Principal, name: &str, a: Value) -> Resul
         }
         return super::telegram::call(p, name, a).await;
     }
-    if super::whatsapp::owns(name) {
+    if super::phonechat::owns(name) {
         if !policy::allowed(p, name) {
             return Err("TOOL_NOT_AUTHORIZED".into());
         }
-        return super::whatsapp::call(app, p, name, a).await;
+        return super::phonechat::call(app, p, name, a).await;
     }
     if crate::commands::social::tools::owns(name) {
         if !policy::allowed(p, name) {
@@ -567,6 +580,14 @@ pub async fn call(app: &AppHandle, p: &Principal, name: &str, a: Value) -> Resul
             }
             crate::commands::research::mcp::call(n, &a).await?
         }
+        crate::commands::quicktools::TOOL => {
+            crate::commands::quicktools::call(
+                &a,
+                system_change(p),
+                crate::quick_panel::visible(app),
+            )
+            .await?
+        }
         "artifact_access" => super::artifact_access::call(app, p, &a).await?,
         "download_history" => {
             let every = super::access::sees_everything(p);
@@ -733,7 +754,7 @@ pub(crate) fn health(negotiated: &str) -> Value {
     json!({
         "app": "running",
         "reachable": true,
-        "machine": super::whatsapp::machine(),
+        "machine": super::phonechat::machine(),
         "queue": "available",
         "remote": "disabled",
         "server": {"name": "OmniGet", "version": env!("CARGO_PKG_VERSION")},
@@ -1221,7 +1242,7 @@ mod tests {
     #[test]
     fn devtools_are_listed_with_output_schemas_and_honest_annotations() {
         let listed = catalog(&principal(&["devtools_read"]));
-        assert_eq!(listed.len(), 5);
+        assert_eq!(listed.len(), 7);
         for name in crate::commands::devtools::mcp::TOOLS {
             let tool = entry(&listed, name);
             assert_eq!(tool["inputSchema"]["additionalProperties"], false, "{name}");
@@ -1241,6 +1262,35 @@ mod tests {
         assert_eq!(hint("dev_http", "idempotentHint"), false);
         assert_eq!(hint("dev_pack", "readOnlyHint"), false);
         assert_eq!(hint("dev_ports", "readOnlyHint"), true);
+        assert_eq!(hint("dev_crawl", "readOnlyHint"), false);
+        assert_eq!(hint("dev_crawl", "openWorldHint"), true);
+        assert_eq!(hint("dev_proxy", "readOnlyHint"), true);
+        assert_eq!(hint("dev_proxy", "openWorldHint"), true);
+    }
+
+    #[test]
+    fn the_proxy_pool_is_only_changed_with_the_write_scope() {
+        let reader = principal(&["devtools_read"]);
+        let proxy = entry(&catalog(&reader), "dev_proxy");
+        assert_eq!(
+            proxy["inputSchema"]["properties"]["op"]["enum"],
+            json!(["status", "detect", "check"])
+        );
+        assert_eq!(
+            validate(
+                &reader,
+                "dev_proxy",
+                &json!({"op": "add", "proxies": ["127.0.0.1:7890"]})
+            ),
+            Err("INVALID_ARGUMENT: op".to_string())
+        );
+        let writer = principal(&["devtools_read", "devtools_write"]);
+        let proxy = entry(&catalog(&writer), "dev_proxy");
+        assert_eq!(proxy["annotations"]["readOnlyHint"], false);
+        assert_eq!(
+            validate(&writer, "dev_proxy", &json!({"op": "rotate"})),
+            Ok(())
+        );
     }
 
     #[test]
@@ -1328,6 +1378,57 @@ mod tests {
             Err("MISSING_ARGUMENT: \"op\"".to_string())
         );
         assert_eq!(catalog(&principal(&["transfer_write"])).len(), 2);
+    }
+
+    #[test]
+    fn quick_tools_setters_exist_only_with_the_change_scope() {
+        let reader = principal(&["system_read"]);
+        let tool = entry(&catalog(&reader), "quick_tools");
+        assert_eq!(
+            tool["inputSchema"]["properties"]["op"]["enum"],
+            json!(crate::commands::quicktools::READ_OPS)
+        );
+        assert_eq!(tool["annotations"]["readOnlyHint"], true);
+        assert!(crate::mcp::output_schemas::for_tool("quick_tools").is_some());
+        assert_eq!(
+            validate(
+                &reader,
+                "quick_tools",
+                &json!({"op": "awake_set", "mode": "1h"})
+            ),
+            Err("INVALID_ARGUMENT: op".to_string())
+        );
+        assert_eq!(
+            validate(&reader, "quick_tools", &json!({"op": "clipboard_list"})),
+            Err("INVALID_ARGUMENT: op".to_string())
+        );
+        let writer = principal(&["system_read", "system_change"]);
+        let tool = entry(&catalog(&writer), "quick_tools");
+        assert_eq!(tool["annotations"]["readOnlyHint"], false);
+        assert_eq!(tool["annotations"]["destructiveHint"], false);
+        assert_eq!(
+            validate(
+                &writer,
+                "quick_tools",
+                &json!({"op": "volume_set", "id": "42", "volume": 30})
+            ),
+            Ok(())
+        );
+        assert_eq!(
+            validate(
+                &writer,
+                "quick_tools",
+                &json!({"op": "volume_set", "id": "42", "volume": 101})
+            ),
+            Err("INVALID_ARGUMENT: volume".to_string())
+        );
+        assert_eq!(
+            validate(&writer, "quick_tools", &json!({"op": "clipboard_list"})),
+            Err("INVALID_ARGUMENT: op".to_string())
+        );
+        assert!(catalog(&principal(&["system_change"]))
+            .iter()
+            .all(|t| t["name"] != "quick_tools"));
     }
 
     #[test]

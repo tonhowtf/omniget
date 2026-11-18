@@ -236,7 +236,7 @@
           {#if notice}
             <span class:chat-error={notice.kind === "error"} role="alert">{notice.text}</span>
           {:else if remaining < 100}
-            {$t("community.chat.remaining", { n: remaining })}
+            {$t("community.chat.remaining", { num: remaining })}
           {:else}
             {$t("community.chat.hint")}
           {/if}

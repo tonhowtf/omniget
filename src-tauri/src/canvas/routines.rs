@@ -3,7 +3,7 @@ use std::sync::{Mutex, OnceLock};
 use std::time::{Duration, Instant};
 
 use omniget_core::core::canvas::floors;
-use omniget_core::core::canvas::maestro as core_maestro;
+use omniget_core::core::canvas::lead as core_lead;
 use omniget_core::core::canvas::routines::{self, End, Routine, RoutineInput, RunRecord, Schedule};
 use omniget_core::core::canvas::store::CanvasStore;
 use omniget_core::core::term::agent::AgentState;
@@ -112,10 +112,6 @@ pub fn notify(
             .body(message)
             .show();
     }
-}
-
-pub fn is_busy(tid: &str) -> bool {
-    busy(tid)
 }
 
 fn busy(tid: &str) -> bool {
@@ -326,7 +322,7 @@ pub async fn run(r: Routine, manual: bool) -> Result<Routine, String> {
         }
     }
     if r.notify {
-        let name = core_maestro::name_of(&node);
+        let name = core_lead::name_of(&node);
         notify(
             &r.workspace_id,
             Some(&r.floor_id),
@@ -449,7 +445,7 @@ fn resolve_routine(s: &CanvasStore, ws: &str, key: &str) -> Result<Routine, Stri
 }
 
 pub async fn rpc_create(ctx: &NodeCtx, args: Value) -> Result<Value, String> {
-    let (doc, me) = super::maestro::require_maestro(ctx)?;
+    let (doc, me) = super::lead::require_lead(ctx)?;
     let a: RoutineArgs = if args.is_null() {
         RoutineArgs::default()
     } else {
@@ -460,8 +456,8 @@ pub async fn rpc_create(ctx: &NodeCtx, args: Value) -> Result<Value, String> {
         None | Some("") => None,
         Some("me") | Some("self") => Some(me.id.clone()),
         Some(t) => {
-            let team = core_maestro::team(&doc, &me.id);
-            Some(core_maestro::find(&doc, t, Some(&team))?.id.clone())
+            let team = core_lead::team(&doc, &me.id);
+            Some(core_lead::find(&doc, t, Some(&team))?.id.clone())
         }
     };
     let schedule = schedule_of(&a)?
@@ -502,7 +498,7 @@ pub async fn rpc(ctx: &NodeCtx, method: &str, args: Value) -> RpcResult {
         "routine.enable" | "routine.disable" => {
             routine_toggle(ctx, args, method == "routine.enable")
         }
-        "routine.run" => match super::maestro::require_maestro(ctx) {
+        "routine.run" => match super::lead::require_lead(ctx) {
             Ok(_) => match routine_key(&args)
                 .and_then(|k| resolve_routine(&store(), &ctx.workspace_id, &k))
             {
@@ -531,7 +527,7 @@ fn routine_history(ctx: &NodeCtx, args: Value) -> Result<Value, String> {
         Err(_) => None,
     };
     if args.get("clear").and_then(Value::as_bool).unwrap_or(false) {
-        super::maestro::require_maestro(ctx)?;
+        super::lead::require_lead(ctx)?;
         let n = routines::clear_history(&s, Some(&ctx.workspace_id), id.as_deref())?;
         return Ok(json!({ "cleared": n }));
     }
@@ -551,7 +547,7 @@ fn routine_key(args: &Value) -> Result<String, String> {
 }
 
 fn routine_toggle(ctx: &NodeCtx, args: Value, on: bool) -> Result<Value, String> {
-    super::maestro::require_maestro(ctx)?;
+    super::lead::require_lead(ctx)?;
     let s = store();
     let r = resolve_routine(&s, &ctx.workspace_id, &routine_key(&args)?)?;
     let r = routines::set_enabled(&s, &r.id, on)?;
@@ -560,7 +556,7 @@ fn routine_toggle(ctx: &NodeCtx, args: Value, on: bool) -> Result<Value, String>
 }
 
 fn routine_delete(ctx: &NodeCtx, args: Value) -> Result<Value, String> {
-    super::maestro::require_maestro(ctx)?;
+    super::lead::require_lead(ctx)?;
     let s = store();
     let r = resolve_routine(&s, &ctx.workspace_id, &routine_key(&args)?)?;
     routines::delete(&s, &r.id)?;
@@ -571,7 +567,7 @@ fn routine_delete(ctx: &NodeCtx, args: Value) -> Result<Value, String> {
 }
 
 async fn routine_edit(ctx: &NodeCtx, args: Value) -> Result<Value, String> {
-    let (doc, me) = super::maestro::require_maestro(ctx)?;
+    let (doc, me) = super::lead::require_lead(ctx)?;
     let s = store();
     let a: RoutineArgs =
         serde_json::from_value(args).map_err(|e| format!("CANVAS_INVALID: {e}"))?;
@@ -584,8 +580,8 @@ async fn routine_edit(ctx: &NodeCtx, args: Value) -> Result<Value, String> {
         None => cur.node_id.clone(),
         Some("") => None,
         Some(t) => {
-            let team = core_maestro::team(&doc, &me.id);
-            Some(core_maestro::find(&doc, t, Some(&team))?.id.clone())
+            let team = core_lead::team(&doc, &me.id);
+            Some(core_lead::find(&doc, t, Some(&team))?.id.clone())
         }
     };
     let r = routines::save(

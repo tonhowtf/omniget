@@ -11,6 +11,8 @@ const AGENT_STATES = [
   'compacting',
   'looping',
   'unknown',
+  'limit',
+  'refused',
 ] as const;
 export type AgentStateName = (typeof AGENT_STATES)[number];
 

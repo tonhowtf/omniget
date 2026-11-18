@@ -80,7 +80,7 @@ impl Default for ReportOptions {
     }
 }
 
-fn cost_of(entry: &CliUsageEntry, prices: &HashMap<String, ModelPrice>) -> Option<f64> {
+pub fn cost_of(entry: &CliUsageEntry, prices: &HashMap<String, ModelPrice>) -> Option<f64> {
     if let Some(c) = entry.cost_usd {
         return Some(c);
     }

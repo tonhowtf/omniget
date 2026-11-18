@@ -350,6 +350,10 @@ fn can_finish_active_item(status: &QueueStatus) -> bool {
     *status == QueueStatus::Active
 }
 
+fn run_was_cancelled(status: &QueueStatus, cancel_token: &CancellationToken) -> bool {
+    can_finish_active_item(status) && cancel_token.is_cancelled()
+}
+
 impl DownloadQueue {
     pub fn new(max_concurrent: u32) -> Self {
         Self {
@@ -767,6 +771,16 @@ impl DownloadQueue {
                 kind: item.kind,
             };
             crate::core::queue_history::record(entry);
+        }
+    }
+
+    pub fn mark_cancelled(&mut self, id: u64) {
+        let cancelled = self
+            .items
+            .iter()
+            .any(|i| i.id == id && run_was_cancelled(&i.status, &i.cancel_token));
+        if cancelled {
+            self.mark_complete(id, false, Some("Download cancelled".into()), None, None);
         }
     }
 
@@ -1444,6 +1458,17 @@ pub fn spawn_download(
     })
 }
 
+async fn host_slot_unless_cancelled(
+    host_key: &str,
+    cancel_token: &CancellationToken,
+) -> Option<crate::core::host_limiter::HostLease> {
+    tokio::select! {
+        biased;
+        _ = cancel_token.cancelled() => None,
+        lease = crate::core::host_limiter::acquire(host_key) => Some(lease),
+    }
+}
+
 async fn spawn_download_inner(
     app: tauri::AppHandle,
     queue: Arc<tokio::sync::Mutex<DownloadQueue>>,
@@ -1466,18 +1491,6 @@ async fn spawn_download_inner(
             ..Default::default()
         },
     );
-
-    let host_key = {
-        let q = queue.lock().await;
-        q.items
-            .iter()
-            .find(|i| i.id == item_id)
-            .map(|i| crate::core::host_limiter::host_key_for_url(&i.url))
-    };
-    let _host_lease = match host_key {
-        Some(key) => Some(crate::core::host_limiter::acquire(&key).await),
-        None => None,
-    };
 
     let (
         url,
@@ -1526,6 +1539,20 @@ async fn spawn_download_inner(
             item.torrent_files.clone(),
             item.ytdlp_argv_override.clone(),
         )
+    };
+
+    let host_key = crate::core::host_limiter::host_key_for_url(&url);
+    let Some(_host_lease) = host_slot_unless_cancelled(&host_key, &cancel_token).await else {
+        if platform_name != "mcp_worker" {
+            let state = {
+                let mut q = queue.lock().await;
+                q.mark_cancelled(item_id);
+                q.get_state()
+            };
+            emit_queue_state_from_state(&app, state);
+            try_start_next(app, queue).await;
+        }
+        return;
     };
 
     let external_intent = if platform_name == "mcp_worker" {
@@ -1677,6 +1704,12 @@ async fn spawn_download_inner(
                 tokio::select! {
                     biased;
                     _ = cancel_token.cancelled() => {
+                        let state = {
+                            let mut q = queue.lock().await;
+                            q.mark_cancelled(item_id);
+                            q.get_state()
+                        };
+                        emit_queue_state_from_state(&app, state);
                         try_start_next(app, queue).await;
                         return;
                     }
@@ -2847,5 +2880,68 @@ mod seeding_tests {
         assert!(queue.pause(1));
         assert!(queue.resume(1));
         assert_eq!(queue.items[0].status, QueueStatus::Active);
+    }
+}
+
+#[cfg(test)]
+mod cancelled_run_tests {
+    use super::*;
+
+    #[test]
+    fn a_run_stopped_while_still_active_is_finished_as_cancelled() {
+        let token = CancellationToken::new();
+        token.cancel();
+        assert!(run_was_cancelled(&QueueStatus::Active, &token));
+    }
+
+    #[test]
+    fn a_retried_item_is_not_finished_by_the_run_that_was_cancelled() {
+        let fresh = CancellationToken::new();
+        assert!(!run_was_cancelled(&QueueStatus::Active, &fresh));
+    }
+
+    #[test]
+    fn an_item_the_user_already_cancelled_or_paused_is_left_alone() {
+        let token = CancellationToken::new();
+        token.cancel();
+        assert!(!run_was_cancelled(&QueueStatus::Paused, &token));
+        assert!(!run_was_cancelled(
+            &QueueStatus::Error {
+                message: "Cancelled".to_string(),
+                retryable: false,
+            },
+            &token
+        ));
+    }
+
+    #[tokio::test]
+    async fn a_cancelled_run_stops_waiting_for_a_busy_host() {
+        let host = "cancelled-run-tests.invalid";
+        let mut held = Vec::new();
+        for _ in 0..4 {
+            held.push(crate::core::host_limiter::acquire(host).await);
+        }
+        let token = CancellationToken::new();
+        let waiter = tokio::spawn({
+            let token = token.clone();
+            async move { host_slot_unless_cancelled(host, &token).await.is_none() }
+        });
+        token.cancel();
+        let gave_up = tokio::time::timeout(std::time::Duration::from_secs(5), waiter)
+            .await
+            .expect("the cancelled run kept waiting for the host slot")
+            .expect("waiter task");
+        assert!(gave_up);
+        drop(held);
+    }
+
+    #[tokio::test]
+    async fn a_live_run_gets_the_host_slot() {
+        let token = CancellationToken::new();
+        assert!(
+            host_slot_unless_cancelled("cancelled-run-free.invalid", &token)
+                .await
+                .is_some()
+        );
     }
 }

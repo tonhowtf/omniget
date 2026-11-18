@@ -161,7 +161,7 @@ mod tests {
 
     #[test]
     fn pace_blocks_bursts() {
-        let p = Platform::Tiktok;
+        let p = Platform::ClipFeed;
         writes().lock().unwrap().remove(&p);
         assert!(pace(p).is_ok());
         record(p);

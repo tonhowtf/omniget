@@ -1203,6 +1203,34 @@ fn proxy_args() -> Vec<String> {
     }
 }
 
+fn replace_proxy_arg(args: &mut [String], next: Option<String>) -> bool {
+    let Some(at) = args.iter().position(|arg| arg == "--proxy") else {
+        return false;
+    };
+    match (args.get_mut(at + 1), next) {
+        (Some(current), Some(next)) if *current != next => {
+            *current = next;
+            true
+        }
+        _ => false,
+    }
+}
+
+fn move_to_next_pool_proxy(args: &mut [String]) -> bool {
+    if !crate::core::http_client::pool_in_use() {
+        return false;
+    }
+    let current = args
+        .iter()
+        .position(|arg| arg == "--proxy")
+        .and_then(|at| args.get(at + 1).cloned());
+    let Some(current) = current else {
+        return false;
+    };
+    crate::core::proxy_pool::report(&current, false);
+    replace_proxy_arg(args, crate::core::proxy_pool::pick())
+}
+
 fn redacted_proxy_url(url: &str) -> String {
     if let Some(at) = url.find('@') {
         if let Some(scheme_end) = url.find("://") {

@@ -17,6 +17,7 @@ export const appearanceNav: SettingsNavPart = {
     "settings.appearance.colors.title": { tab: "appearance", section: "colors" },
     "settings.appearance.more_themes": { tab: "appearance", section: "colors" },
     "settings.appearance.density.label": { tab: "appearance", section: "comfort" },
+    "settings.appearance.downloads_only": { tab: "appearance", section: "comfort" },
     "settings.appearance.reduce_motion": { tab: "appearance", section: "comfort" },
     "settings.appearance.reduce_transparency": { tab: "appearance", section: "comfort" },
     "settings.appearance.fonts.ui": { tab: "appearance", section: "fonts" },

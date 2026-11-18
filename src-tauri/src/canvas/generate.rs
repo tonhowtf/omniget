@@ -23,15 +23,6 @@ const MAX_REFERENCE: u64 = 25 * 1024 * 1024;
 const POLL_EVERY: Duration = Duration::from_secs(3);
 const POLL_FOR: Duration = Duration::from_secs(20 * 60);
 const CACHE_FOR: Duration = Duration::from_secs(10 * 60);
-pub const STATES: &[&str] = &[
-    "draft",
-    "quoted",
-    "awaiting_approval",
-    "running",
-    "done",
-    "uncertain",
-    "failed",
-];
 
 static APP: OnceLock<AppHandle> = OnceLock::new();
 type Cached<T> = LazyLock<Mutex<HashMap<String, (Instant, T)>>>;

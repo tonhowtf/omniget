@@ -307,7 +307,7 @@ pub fn scan_dir(dir: &Path) -> ScanStatus {
     }
 }
 
-fn kill_group(child: &mut std::process::Child) {
+pub(super) fn kill_group(child: &mut std::process::Child) {
     #[cfg(unix)]
     {
         let pgid = child.id() as i32;
@@ -723,7 +723,7 @@ mod tests {
         }
 
         #[test]
-        fn a_scanner_that_crashes_without_a_report_fails_open() {
+        fn a_scanner_that_crashes_without_a_report_is_a_failed_scan() {
             let bin = Bin::new("scan-crash", "echo 'Error: unreadable source' >&2\nexit 2");
             let dir = scratch("scan-crash-dir");
             match scan_dir_with(&bin.bin(), &dir, Duration::from_secs(30)) {

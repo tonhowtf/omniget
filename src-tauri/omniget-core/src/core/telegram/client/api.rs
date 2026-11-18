@@ -468,38 +468,6 @@ pub struct TelegramSelf {
     pub phone: Option<String>,
 }
 
-pub async fn delete_history(
-    handle: &TelegramSessionHandle,
-    chat_id: i64,
-    chat_type: &str,
-    just_clear: bool,
-    revoke: bool,
-) -> anyhow::Result<()> {
-    let guard = handle.lock().await;
-    let client = guard
-        .client
-        .as_ref()
-        .ok_or_else(|| anyhow::anyhow!("Not authenticated"))?
-        .clone();
-    let access_hash = guard.peer_hashes.get(&chat_id).copied().unwrap_or(0);
-    drop(guard);
-
-    let peer = make_input_peer(chat_id, chat_type, access_hash);
-    let req = tl::functions::messages::DeleteHistory {
-        just_clear,
-        revoke,
-        peer,
-        max_id: 0,
-        min_date: None,
-        max_date: None,
-    };
-    client
-        .invoke(&req)
-        .await
-        .map_err(|e| anyhow::anyhow!("messages.deleteHistory: {}", e))?;
-    Ok(())
-}
-
 pub fn extract_channel_from_chats(chats: &[tl::enums::Chat]) -> Option<(i64, i64)> {
     for c in chats {
         if let tl::enums::Chat::Channel(ch) = c {

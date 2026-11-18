@@ -59,9 +59,10 @@
   import { llmNotifyStrings } from "$lib/llm-notify-strings";
   import { focusPayload } from "$lib/ui-focus.svelte";
   import { get } from "svelte/store";
-  import { CORE_NAV_ITEMS } from "$lib/nav-config";
+  import { visibleCoreNav } from "$lib/nav-config";
+  import { paletteNavEntries } from "$lib/command-palette-nav";
   import { SUPERPOWERS } from "$lib/superpowers/catalog";
-  import { pinnedNavItems } from "$lib/superpowers/pins";
+  import { currentPins, pinnedNavItems } from "$lib/superpowers/pins";
   import { isBareWindow } from "$lib/bare-window";
   import type { Snippet } from "svelte";
   import type { Component } from "svelte";
@@ -71,21 +72,21 @@
 
 
   let coreNavItems = $derived(
-    CORE_NAV_ITEMS.filter(
-      (item) =>
-        item.href !== "/world" || (getSettings()?.world?.enabled ?? true),
-    )
+    visibleCoreNav({
+      downloadsOnly: getSettings()?.appearance?.downloads_only ?? false,
+      worldEnabled: getSettings()?.world?.enabled ?? true,
+    }),
   );
 
   const SUPERPOWER_TOGGLES = SUPERPOWERS.filter((entry) => entry.settingsKey);
 
-  let pinnedNav = $derived.by(() => {
-    const current = getSettings();
-    const enabled = Object.fromEntries(
-      SUPERPOWER_TOGGLES.map((entry) => [entry.id, current?.[entry.settingsKey!]?.enabled ?? true]),
-    );
-    return pinnedNavItems(SUPERPOWERS, current?.superpowers?.pinned ?? [], enabled);
-  });
+  let superpowerEnabled = $derived(
+    Object.fromEntries(
+      SUPERPOWER_TOGGLES.map((entry) => [entry.id, getSettings()?.[entry.settingsKey!]?.enabled ?? true]),
+    ),
+  );
+
+  let pinnedNav = $derived(pinnedNavItems(SUPERPOWERS, currentPins(getSettings()?.superpowers?.pinned ?? []), superpowerEnabled));
 
   let allNav = $derived([...coreNavItems, ...pinnedNav].sort((a, b) => (a.order ?? 50) - (b.order ?? 50)));
   let primaryNav = $derived(allNav.filter((item) => item.group === "primary"));
@@ -93,6 +94,24 @@
 
   let ytdlpDismissed = $state(false);
   let ytdlpMissing = $derived(isDepsChecked() && !isYtdlpAvailable());
+  let engineInstalling = $state(false);
+
+  async function installEngine() {
+    engineInstalling = true;
+    let name = "yt-dlp";
+    try {
+      const deps = await invoke<{ name: string; installed: boolean }[]>("check_dependencies");
+      for (const dep of deps) {
+        if (dep.installed || (dep.name !== "yt-dlp" && dep.name !== "ffmpeg")) continue;
+        name = dep.name;
+        await invoke("install_dependency", { name });
+      }
+    } catch (e) {
+      showToast("error", get(t)("settings.dependencies.install_failed_retry", { name, msg: String(e) }) as string);
+    }
+    await refreshYtdlpStatus();
+    engineInstalling = false;
+  }
   let showOnboarding = $derived(needsOnboarding());
 
   let counts = $derived(getCounts());
@@ -101,7 +120,7 @@
 
   $effect(() => {
     const payload = trayStrings($rawTranslations, $locale);
-    invoke("sync_tray_strings", payload).catch(() => {
+    invoke("sync_tray_strings", { strings: payload }).catch(() => {
     });
   });
 
@@ -151,14 +170,14 @@
     page.url.pathname.startsWith("/capture") ||
     page.url.pathname.startsWith("/studio") ||
     page.url.pathname.startsWith("/dictation") ||
-    page.url.pathname.startsWith("/whatsapp") ||
-    page.url.pathname.startsWith("/discord") ||
-    page.url.pathname === "/x" ||
-    page.url.pathname.startsWith("/instagram") ||
-    page.url.pathname.startsWith("/tiktok") ||
-    page.url.pathname.startsWith("/reddit") ||
-    page.url.pathname.startsWith("/pinterest") ||
-    page.url.pathname.startsWith("/github") ||
+    page.url.pathname.startsWith("/phonechat") ||
+    page.url.pathname.startsWith("/guildchat") ||
+    page.url.pathname === "/shortpost" ||
+    page.url.pathname.startsWith("/photofeed") ||
+    page.url.pathname.startsWith("/clipfeed") ||
+    page.url.pathname.startsWith("/forums") ||
+    page.url.pathname.startsWith("/pinboard") ||
+    page.url.pathname.startsWith("/codehub") ||
     page.url.pathname.startsWith("/devtools") ||
     page.url.pathname.startsWith("/pack") ||
     page.url.pathname.startsWith("/scrape") ||
@@ -198,6 +217,11 @@
       if (page.url.pathname !== "/") {
         goto("/");
       }
+      return;
+    }
+
+    if (event.action === "helper") {
+      goto(`/global?helper=${encodeURIComponent(event.url)}`);
       return;
     }
 
@@ -288,292 +312,56 @@
       else unlistenVideoLink = un;
     });
 
+    let unlistenQuickGoto: (() => void) | null = null;
+    listen<string>("quick-panel://goto", (event) => {
+      void goto(event.payload);
+    }).then((un) => {
+      if (disposed) un();
+      else unlistenQuickGoto = un;
+    });
+
     return () => {
       disposed = true;
       stopDownloads?.();
       if (unlistenExternalUrl) unlistenExternalUrl();
       unlistenVideoLink?.();
+      unlistenQuickGoto?.();
     };
   });
 
   function buildCommandPaletteItems() {
+    const tt = get(t);
+    const group = tt("command_palette.group_nav");
+    const everyNav = visibleCoreNav({ worldEnabled: getSettings()?.world?.enabled ?? true });
+    const entries = paletteNavEntries(everyNav, SUPERPOWERS, superpowerEnabled);
+    const musicAt = entries.findIndex((entry) => entry.id === "nav-music");
+    const navItems = entries.map((entry) => ({
+      id: entry.id,
+      label: entry.label ?? tt(entry.labelKey ?? ""),
+      group,
+      keywords: entry.keywords,
+      action: () => goto(entry.href),
+    }));
+    if (musicAt >= 0) {
+      navItems.splice(musicAt + 1, 0, {
+        id: "nav-music-stems",
+        label: tt("music.tools.stems"),
+        group,
+        keywords: "karaoke karaokê separar voz vocal instrumental acapella a capella playback stems faixas remover voz tirar voz cantar letra sincronizada vocal remover voice remover instrumental split stems sing along lyrics",
+        action: () => goto("/music?tool=stems"),
+      });
+    }
     setCommandPaletteItems([
-      {
-        id: "nav-home",
-        label: get(t)("nav.home"),
-        group: get(t)("command_palette.group_nav"),
-        keywords: "index main prefill",
-        action: () => goto("/"),
-      },
-      {
-        id: "nav-downloads",
-        label: get(t)("nav.downloads"),
-        group: get(t)("command_palette.group_nav"),
-        keywords: "queue active history",
-        action: () => goto("/downloads"),
-      },
-      {
-        id: "nav-settings",
-        label: get(t)("nav.settings"),
-        group: get(t)("command_palette.group_nav"),
-        keywords: "preferences options config",
-        action: () => goto("/settings"),
-      },
+      ...navItems,
       ...accountPaletteItems(
         getAccounts().accounts,
         {
-          group: get(t)("command_palette.group_nav"),
-          switchTo: (label) => `${get(t)("agents.accounts.palette_switch")} ${label}`,
-          openTab: get(t)("agents.accounts.title"),
+          group,
+          switchTo: (label) => `${tt("agents.accounts.palette_switch")} ${label}`,
+          openTab: tt("agents.accounts.title"),
         },
         { activate: (id) => void activateAccount(id), open: () => goto("/settings?tab=ai&section=accounts") },
       ),
-      {
-        id: "nav-superpowers",
-        label: get(t)("nav.superpowers"),
-        group: get(t)("command_palette.group_nav"),
-        keywords: "superpowers superpoderes league of legends lol extras",
-        action: () => goto("/superpowers"),
-      },
-      {
-        id: "nav-music",
-        label: get(t)("music.title"),
-        group: get(t)("command_palette.group_nav"),
-        keywords: "music musica player library biblioteca radio lyrics letras playlist",
-        action: () => goto("/music"),
-      },
-      {
-        id: "nav-video",
-        label: get(t)("video.title"),
-        group: get(t)("command_palette.group_nav"),
-        keywords: "video watch assistir player filmes movies series séries cursos courses aulas lessons iptv jellyfin anime legendas subtitles",
-        action: () => goto("/video"),
-      },
-      {
-        id: "nav-tube",
-        label: get(t)("tube.title"),
-        group: get(t)("command_palette.group_nav"),
-        keywords: "youtube omnitube yt music ytmusic videos vídeos inscrições subscriptions shorts sponsorblock dearrow playlist músicas songs",
-        action: () => goto("/youtube"),
-      },
-      {
-        id: "nav-washmybelly",
-        label: get(t)("washmybelly.nav"),
-        group: get(t)("command_palette.group_nav"),
-        keywords: "washmybelly clean limpar cache junk lixo uninstall desinstalar startup inicialização privacy privacidade debloat fps frametime battery bateria disk disco",
-        action: () => goto("/washmybelly"),
-      },
-      {
-        id: "nav-read",
-        label: get(t)("read.title"),
-        group: get(t)("command_palette.group_nav"),
-        keywords: "read ler leitura livros books ebook epub pdf manga mangá comics quadrinhos reader leitor biblioteca opds kindle kobo",
-        action: () => goto("/read"),
-      },
-      {
-        id: "nav-converter",
-        label: get(t)("converter.title"),
-        group: get(t)("command_palette.group_nav"),
-        keywords: "converter conversor convert converta formato format json yaml csv xml markdown html pdf docx png jpg jpeg webp mp3 mp4 gif",
-        action: () => goto("/converter"),
-      },
-      {
-        id: "nav-pdf",
-        label: get(t)("pdf.title"),
-        group: get(t)("command_palette.group_nav"),
-        keywords: "pdf juntar merge combinar unir separar split dividir extrair extract páginas pages girar rotate reordenar reorder apagar delete página em branco blank comprimir compress reduzir tamanho shrink imagens images fotos jpg png scan escanear para pdf to pdf",
-        action: () => goto("/pdf"),
-      },
-      {
-        id: "nav-photos",
-        label: get(t)("photos.title"),
-        group: get(t)("command_palette.group_nav"),
-        keywords: "fotos photos galeria gallery imagens pictures duplicatas duplicates limpar cleanup editar edit recortar crop exportar export heic raw",
-        action: () => goto("/photos"),
-      },
-      {
-        id: "nav-cutout",
-        label: get(t)("cutout.title"),
-        group: get(t)("command_palette.group_nav"),
-        keywords: "recortar recorte cutout remover fundo remove background sem fundo transparente png figurinha sticker",
-        action: () => goto("/cutout"),
-      },
-      {
-        id: "nav-music-stems",
-        label: get(t)("music.tools.stems"),
-        group: get(t)("command_palette.group_nav"),
-        keywords: "karaoke karaokê separar voz vocal instrumental acapella a capella playback stems faixas remover voz tirar voz cantar letra sincronizada vocal remover voice remover instrumental split stems sing along lyrics",
-        action: () => goto("/music?tool=stems"),
-      },
-      {
-        id: "nav-palette",
-        label: get(t)("palette.title"),
-        group: get(t)("command_palette.group_nav"),
-        keywords: "palette paleta cores cor color colors oklch oklab contraste contrast wcag apca gradiente gradient degrade escala scale tokens tailwind css",
-        action: () => goto("/palette"),
-      },
-      {
-        id: "nav-fonts",
-        label: get(t)("fonts.title"),
-        group: get(t)("command_palette.group_nav"),
-        keywords: "type tipografia typography fonte fontes font fonts inter geist jetbrains mono escala scale instalar install fontsource ofl",
-        action: () => goto("/fonts"),
-      },
-      {
-        id: "nav-icons",
-        label: get(t)("icons.title"),
-        group: get(t)("command_palette.group_nav"),
-        keywords: "icons icones ícones icon svg lucide phosphor tabler heroicons iconify material sprite png",
-        action: () => goto("/icons"),
-      },
-      {
-        id: "nav-motion",
-        label: get(t)("motion.title"),
-        group: get(t)("command_palette.group_nav"),
-        keywords: "motion animação animacao animation easing curva curve bezier spring mola timeline keyframes lottie dotlottie css gsap",
-        action: () => goto("/motion"),
-      },
-      {
-        id: "nav-board",
-        label: get(t)("board.title"),
-        group: get(t)("command_palette.group_nav"),
-        keywords: "board quadro quadro-branco lousa whiteboard desenho drawing diagrama diagram rascunho sketch fluxograma flowchart mapa mental mind map excalidraw wireframe",
-        action: () => goto("/board"),
-      },
-      {
-        id: "nav-components",
-        label: get(t)("components.title"),
-        group: get(t)("command_palette.group_nav"),
-        keywords: "components componentes shadcn registry registro ui blocks blocos magic ui react tailwind design tokens dtcg tokens studio figma penpot",
-        action: () => goto("/components"),
-      },
-      {
-        id: "nav-capture",
-        label: get(t)("capture.title"),
-        group: get(t)("command_palette.group_nav"),
-        keywords: "capture captura gravar tela gravação de tela screen recorder screen recording record gravador cortar vídeo cortador cut video trim lossless cut sem perda keyframe segmentos segments snapshot microfone microphone ffmpeg obs losslesscut",
-        action: () => goto("/capture"),
-      },
-      {
-        id: "nav-studio",
-        label: get(t)("studio.title"),
-        group: get(t)("command_palette.group_nav"),
-        keywords: "studio estúdio legendas subtitles captions legenda automática auto captions whisper srt vtt karaoke vertical 9:16 reels shorts tiktok reframe cartela title card vídeo video",
-        action: () => goto("/studio"),
-      },
-      {
-        id: "nav-dictation",
-        label: get(t)("dictation.title"),
-        group: get(t)("command_palette.group_nav"),
-        keywords: "dictation ditado ditar voz voice typing digitar por voz speech to text fala transcrever whisper atalho push to talk microfone microphone handy superwhisper",
-        action: () => goto("/dictation"),
-      },
-      {
-        id: "nav-whatsapp",
-        label: get(t)("whatsapp.title"),
-        group: get(t)("command_palette.group_nav"),
-        keywords: "whatsapp zap zapzap whats mensagens conversas grupos baixar mídias fotos vídeos áudios documentos figurinhas exportar conversa backup qr code messages chats groups download media photos videos audio voice notes documents stickers export chat backup",
-        action: () => goto("/whatsapp"),
-      },
-      {
-        id: "nav-discord",
-        label: get(t)("discord.title"),
-        group: get(t)("command_palette.group_nav"),
-        keywords: "discord servidores servers canais channels mensagens messages dm conversas chats responder reply exportar export historico histórico history baixar download midia mídia media anexos attachments",
-        action: () => goto("/discord"),
-      },
-      {
-        id: "nav-social-x",
-        label: get(t)("social.x.title"),
-        group: get(t)("command_palette.group_nav"),
-        keywords: "x twitter tweets tweet posts timeline feed perfil profile seguir follow curtir like repost retweet responder reply menções mentions bookmarks salvos busca search agente agents mcp",
-        action: () => goto("/x"),
-      },
-      {
-        id: "nav-social-instagram",
-        label: get(t)("social.instagram.title"),
-        group: get(t)("command_palette.group_nav"),
-        keywords: "instagram insta ig feed reels stories posts perfil profile seguir follow curtir like comentar comment direct dm mensagens messages salvos saved busca search hashtags agente agents mcp",
-        action: () => goto("/instagram"),
-      },
-      {
-        id: "nav-social-tiktok",
-        label: get(t)("social.tiktok.title"),
-        group: get(t)("command_palette.group_nav"),
-        keywords: "tiktok tik tok videos vídeos for you fyp perfil profile seguir follow curtir like comentar comment busca search agente agents mcp",
-        action: () => goto("/tiktok"),
-      },
-      {
-        id: "nav-social-reddit",
-        label: get(t)("social.reddit.title"),
-        group: get(t)("command_palette.group_nav"),
-        keywords: "reddit subreddit subreddits comunidades communities posts upvote votar vote karma comentários comments salvos saved busca search front page popular agente agents mcp",
-        action: () => goto("/reddit"),
-      },
-      {
-        id: "nav-social-pinterest",
-        label: get(t)("social.pinterest.title"),
-        group: get(t)("command_palette.group_nav"),
-        keywords: "pinterest pins pin boards pastas quadros ideias ideas inspiração inspiration moodboard salvar save seguir follow busca search agente agents mcp",
-        action: () => goto("/pinterest"),
-      },
-      {
-        id: "nav-social-github",
-        label: get(t)("social.github.title"),
-        group: get(t)("command_palette.group_nav"),
-        keywords: "github git repos repositórios repositories stars estrelas stargazers forks issues pull requests prs releases trending notificações notifications seguidores followers token agente agents mcp",
-        action: () => goto("/github"),
-      },
-      {
-        id: "nav-devtools",
-        label: get(t)("devtools.title"),
-        group: get(t)("command_palette.group_nav"),
-        keywords: "devtools dev tools ferramentas utilities utilitários json format formatar jwt decode hash md5 sha256 base64 regex diff comparar uuid timestamp port porta ports portas inspector localhost",
-        action: () => goto("/devtools"),
-      },
-      {
-        id: "nav-pack",
-        label: get(t)("pack.title"),
-        group: get(t)("command_palette.group_nav"),
-        keywords: "pack empacotar repo repository repositório folder pasta prompt context contexto llm tokens budget secrets segredos scan repomix gitingest codebase",
-        action: () => goto("/pack"),
-      },
-      {
-        id: "nav-scrape",
-        label: get(t)("scrape.title"),
-        group: get(t)("command_palette.group_nav"),
-        keywords: "scrape scraper raspar extrair extract page página site web markdown html selector seletor css elements elementos article artigo",
-        action: () => goto("/scrape"),
-      },
-      {
-        id: "nav-api",
-        label: get(t)("api.title"),
-        group: get(t)("command_palette.group_nav"),
-        keywords: "api http request requisição rest get post put delete headers status timing tempo redirects redirecionamentos curl postman insomnia endpoint",
-        action: () => goto("/api"),
-      },
-      {
-        id: "nav-transfer",
-        label: get(t)("transfer.title"),
-        group: get(t)("command_palette.group_nav"),
-        keywords: "transfer ftp ftps sftp ssh servidor server nas hospedagem hosting console switch arquivos files upload download enviar baixar remoto remote",
-        action: () => goto("/transfer"),
-      },
-      {
-        id: "nav-research",
-        label: get(t)("research.title"),
-        group: get(t)("command_palette.group_nav"),
-        keywords: "research pesquisa scrapecreators api social tiktok instagram reels youtube reddit linkedin facebook meta ads anúncios ad library creators criadores influencers influenciadores transcript transcrição brief briefing concorrentes competitors",
-        action: () => goto("/research"),
-      },
-      { id: "nav-help", label: get(t)("nav.help"), group: get(t)("command_palette.group_nav"), keywords: "help ajuda guias docs assinatura agente monitor", action: () => goto("/help") },
-      {
-        id: "nav-community",
-        label: get(t)("nav.community"),
-        group: get(t)("command_palette.group_nav"),
-        keywords: "community comunidade chat discord info about sobre version changelog project",
-        action: () => goto("/community"),
-      },
       {
         id: "action-paste",
         label: get(t)("command_palette.action_paste"),
@@ -662,7 +450,11 @@
           {$t("ytdlp_missing_banner.text")}
         </span>
         <div class="ytdlp-banner-actions">
-          <a href="/settings#dependencies" class="button ytdlp-banner-link">
+          <button type="button" class="ytdlp-banner-link" onclick={installEngine} disabled={engineInstalling}>
+            {#if engineInstalling}<span class="spinner"></span>{/if}
+            {$t(engineInstalling ? "ytdlp_missing_banner.installing" : "ytdlp_missing_banner.install")}
+          </button>
+          <a href="/settings?tab=advanced&section=dependencies" class="btn btn-ghost btn-sm">
             {$t("ytdlp_missing_banner.open_settings")}
           </a>
           <button
@@ -701,8 +493,10 @@
 {#if settings?.music?.enabled ?? true}<MusicHost />{/if}
 {#if settings?.tube?.enabled ?? true}<TubeHost />{/if}
 {#if settings?.read?.enabled ?? true}<ReadHost />{/if}
-<McpAuthPrompt />
-<ToolAskPrompt />
+<div class="approval-corner">
+  <McpAuthPrompt />
+  <ToolAskPrompt />
+</div>
 <NativeAgentActivity />
 <CommandPalette />
 
@@ -748,6 +542,23 @@
 {/if}
 
 <style>
+  .approval-corner {
+    position: fixed;
+    inset-inline-end: var(--space-5);
+    inset-block-end: var(--space-5);
+    z-index: 900;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: var(--space-2);
+    max-height: calc(100vh - 2 * var(--space-5));
+    overflow-y: auto;
+    pointer-events: none;
+  }
+  .approval-corner > :global(*) {
+    pointer-events: auto;
+  }
+
   .shell {
     display: flex;
     width: 100vw;
@@ -818,7 +629,11 @@
   .ytdlp-banner-link {
     display: inline-flex;
     align-items: center;
+    gap: var(--space-1);
     height: 24px;
+    border: none;
+    font-family: inherit;
+    cursor: pointer;
     font-size: var(--text-sm);
     padding: 0 var(--space-3);
     border-radius: var(--radius-sm);
@@ -837,6 +652,11 @@
 
   .ytdlp-banner-link:active {
     background: var(--cta-press);
+  }
+
+  .ytdlp-banner-link:disabled {
+    opacity: 0.7;
+    cursor: default;
   }
 
   .ytdlp-banner-link:focus-visible {

@@ -1,5 +1,6 @@
-//! What other programs may do through MCP. Everything is on until the person turns it off in
-//! Settings › AI & agents. Web pages stay out regardless: local_bridge refuses any Origin.
+//! What other programs may do through MCP. A program needs the token its connection wrote,
+//! unless the person opens the server in Settings › AI & agents. Web pages stay out regardless:
+//! local_bridge refuses any Origin.
 
 use super::policy::{self, Principal, SCOPES};
 use serde::{Deserialize, Serialize};
@@ -24,7 +25,7 @@ impl Default for Access {
     fn default() -> Self {
         Self {
             enabled: true,
-            open: true,
+            open: false,
             ask_first: false,
             disabled_scopes: Vec::new(),
             disabled_areas: Vec::new(),
@@ -47,10 +48,17 @@ fn file() -> Option<std::path::PathBuf> {
 }
 
 fn read_file() -> Access {
-    file()
+    let mut access: Access = file()
         .and_then(|p| std::fs::read_to_string(p).ok())
         .and_then(|s| serde_json::from_str(&s).ok())
-        .unwrap_or_default()
+        .unwrap_or_default();
+    for scope in &mut access.disabled_scopes {
+        *scope = policy::current_scope(scope).to_string();
+    }
+    for area in &mut access.disabled_areas {
+        *area = policy::current_area(area).to_string();
+    }
+    access
 }
 
 fn current() -> &'static RwLock<Access> {
@@ -134,9 +142,16 @@ mod tests {
     use super::*;
 
     #[test]
+    fn a_program_needs_a_token_by_default() {
+        assert!(!Access::default().open);
+        close_for_test();
+        assert!(resolve(None).is_none());
+    }
+
+    #[test]
     fn everything_is_on_until_turned_off() {
         let a = Access::default();
-        assert!(a.enabled && a.open && !a.ask_first);
+        assert!(a.enabled && !a.open && !a.ask_first);
         assert_eq!(a.scopes().len(), SCOPES.len());
         let off = Access {
             disabled_scopes: vec!["social_write".into()],

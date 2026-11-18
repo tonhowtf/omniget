@@ -9,6 +9,7 @@
   import GeneralChoice from "./rebrand/GeneralChoice.svelte";
   import AdvancedDisclosure from "./advanced/AdvancedDisclosure.svelte";
   import { proxyModeStep, type ProxyMode } from "./advanced/proxy-mode";
+  import ProxyPoolSettings from "./ProxyPoolSettings.svelte";
 
   type ProxyDraft = {
     enabled: boolean;
@@ -154,6 +155,8 @@
     </SettingRow>
   {/if}
 </form>
+
+<ProxyPoolSettings />
 
 {#if settings}
   <AdvancedDisclosure id="settings-connection">

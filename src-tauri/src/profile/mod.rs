@@ -4,8 +4,8 @@ pub mod store;
 use serde::Serialize;
 use std::sync::RwLock;
 
-pub use identity::{fingerprint, verify};
-pub use identity::{ERR_SECRET, ERR_SIGN};
+pub use identity::fingerprint;
+pub use identity::ERR_SECRET;
 pub use store::{ProfileFile, Skin, ERR_NICKNAME, ERR_STORE};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -39,12 +39,6 @@ pub struct ProfileView {
     pub nickname: String,
     pub skin: Skin,
     pub created_at_ms: u64,
-}
-
-#[derive(Clone, Debug, Serialize)]
-pub struct ProfilePublic {
-    pub public_key_b64: String,
-    pub fingerprint: String,
 }
 
 #[derive(Clone)]
@@ -132,13 +126,6 @@ impl ProfileManager {
 
     pub fn sign(&self, msg: &[u8]) -> Result<[u8; 64], String> {
         self.with(|loaded| identity::sign(&loaded.seed, msg))
-    }
-
-    pub fn public(&self) -> Result<ProfilePublic, String> {
-        self.with(|loaded| ProfilePublic {
-            public_key_b64: identity::encode_public_key(&loaded.public_key),
-            fingerprint: identity::fingerprint(&loaded.public_key),
-        })
     }
 }
 

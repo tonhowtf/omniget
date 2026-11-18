@@ -8,4 +8,4 @@ pub mod wire;
 
 pub use agent::{AgentKind, AgentSignal, AgentState, SignalSource};
 pub use screen::ScreenSnapshot;
-pub use session::{global, install_global, FrameSink, TermEvents, TermInfo, TermManager, TermOpen};
+pub use session::{install_global, FrameSink, TermEvents, TermInfo, TermManager, TermOpen};

@@ -127,12 +127,13 @@ fn arg<'a>(args: &'a Value, keys: &[&str]) -> Option<&'a str> {
         .filter(|s| !s.is_empty())
 }
 
-fn is_maestro(s: &CanvasStore, ctx: &NodeCtx) -> bool {
-    if ctx
-        .scopes
-        .iter()
-        .any(|x| x == "maestro" || x == "canvas:maestro")
-    {
+fn is_lead(s: &CanvasStore, ctx: &NodeCtx) -> bool {
+    if ctx.scopes.iter().any(|x| {
+        matches!(
+            x.as_str(),
+            "lead" | "canvas:lead" | "maestro" | "canvas:maestro"
+        )
+    }) {
         return true;
     }
     super::chat::terminal_node(s, &ctx.workspace_id, &ctx.node_id)
@@ -141,11 +142,11 @@ fn is_maestro(s: &CanvasStore, ctx: &NodeCtx) -> bool {
         .unwrap_or(false)
 }
 
-fn need_maestro(s: &CanvasStore, ctx: &NodeCtx) -> Result<(), String> {
-    if is_maestro(s, ctx) {
+fn need_lead(s: &CanvasStore, ctx: &NodeCtx) -> Result<(), String> {
+    if is_lead(s, ctx) {
         Ok(())
     } else {
-        Err("CANVAS_DENIED: This terminal is not the Maestro".into())
+        Err("CANVAS_DENIED: This terminal is not the Lead".into())
     }
 }
 
@@ -247,7 +248,7 @@ fn rpc_sync(ctx: &NodeCtx, method: &str, args: &Value) -> Result<Value, String> 
             Ok(json!({ "role": role, "scope": scope, "text": text }))
         }
         "role.assign" => {
-            need_maestro(&s, ctx)?;
+            need_lead(&s, ctx)?;
             let target = arg(args, &["target", "recruit", "node", "agent"])
                 .ok_or("CANVAS_INVALID: target terminal")?;
             let node = node_by_name(&s, ws, target)?;
@@ -273,7 +274,7 @@ fn rpc_sync(ctx: &NodeCtx, method: &str, args: &Value) -> Result<Value, String> 
             Ok(json!({ "node": node.id, "role": role, "text": text }))
         }
         "role.create" => {
-            need_maestro(&s, ctx)?;
+            need_lead(&s, ctx)?;
             let scope = scope_of(args)?.unwrap_or(Scope::Workspace);
             let input = RoleInput {
                 id: None,
@@ -299,7 +300,7 @@ fn rpc_sync(ctx: &NodeCtx, method: &str, args: &Value) -> Result<Value, String> 
             Ok(json!({ "role": role, "text": text }))
         }
         "role.write" | "role.edit" => {
-            need_maestro(&s, ctx)?;
+            need_lead(&s, ctx)?;
             let name = arg(args, &["name", "role"]).ok_or("CANVAS_INVALID: role name")?;
             let (mut role, scope) = roles::find(&s, ws, name)
                 .ok_or_else(|| format!("CANVAS_NOT_FOUND: role '{name}'"))?;
@@ -346,7 +347,7 @@ fn rpc_sync(ctx: &NodeCtx, method: &str, args: &Value) -> Result<Value, String> 
             Ok(json!({ "role": role, "text": text }))
         }
         "role.delete" => {
-            need_maestro(&s, ctx)?;
+            need_lead(&s, ctx)?;
             let name = arg(args, &["name", "role"]).ok_or("CANVAS_INVALID: role name")?;
             let (role, scope) = roles::find(&s, ws, name)
                 .ok_or_else(|| format!("CANVAS_NOT_FOUND: role '{name}'"))?;
@@ -384,7 +385,7 @@ fn rpc_sync(ctx: &NodeCtx, method: &str, args: &Value) -> Result<Value, String> 
                 }
                 return Ok(json!({ "roles": found, "text": text }));
             }
-            need_maestro(&s, ctx)?;
+            need_lead(&s, ctx)?;
             let mut names: Vec<String> = args
                 .get("names")
                 .and_then(|v| v.as_array())

@@ -472,9 +472,13 @@ pub fn live_token(spawned: &Arc<String>) -> Arc<String> {
         .unwrap_or_else(|| spawned.clone())
 }
 
-fn check_bearer(headers: &HeaderMap, expected: &str) -> bool {
+pub(crate) fn check_bearer(headers: &HeaderMap, expected: &str) -> bool {
     let rotated = ROTATED_TOKEN.read().unwrap().clone();
-    let expected = rotated.as_deref().map_or(expected, String::as_str);
+    bearer_matches(headers, rotated.as_deref().map(String::as_str), expected)
+}
+
+fn bearer_matches(headers: &HeaderMap, rotated: Option<&str>, spawned: &str) -> bool {
+    let expected = rotated.unwrap_or(spawned);
     let header = match headers.get("authorization") {
         Some(v) => v,
         None => return false,
@@ -988,6 +992,19 @@ mod tests {
             h.insert("origin", o.parse().unwrap());
         }
         h
+    }
+
+    #[test]
+    fn the_old_token_is_refused_after_rotation() {
+        let bearer = |token: &str| {
+            let mut h = HeaderMap::new();
+            h.insert("authorization", format!("Bearer {token}").parse().unwrap());
+            h
+        };
+        assert!(bearer_matches(&bearer("old"), None, "old"));
+        assert!(!bearer_matches(&bearer("old"), Some("new"), "old"));
+        assert!(bearer_matches(&bearer("new"), Some("new"), "old"));
+        assert!(!bearer_matches(&HeaderMap::new(), Some("new"), "old"));
     }
 
     #[test]

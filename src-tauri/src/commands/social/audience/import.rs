@@ -11,7 +11,7 @@ use super::fail;
 const DIR: &str = "connections/followers_and_following";
 const FILE_CAP: u64 = 64 * 1024 * 1024;
 const MAX_FILES: usize = 200;
-const WHERE: &str = "In Instagram open Accounts Center, Your information and permissions, Download your information, choose Connections with Followers and following, then pass the ZIP it sends or its unpacked folder as path.";
+const WHERE: &str = "In Photo Feed open Accounts Center, Your information and permissions, Download your information, choose Connections with Followers and following, then pass the ZIP it sends or its unpacked folder as path.";
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Kind {
@@ -152,7 +152,7 @@ pub fn collect(files: Vec<(String, String)>) -> Result<Export, String> {
             parse_json(&text).ok_or_else(|| {
                 fail(
                     "EXPORT_INVALID",
-                    &format!("{name} does not have the shape of an Instagram export list"),
+                    &format!("{name} does not have the shape of a Photo Feed export list"),
                     false,
                     WHERE,
                 )
@@ -189,7 +189,7 @@ fn too_large(name: &str) -> String {
         "EXPORT_TOO_LARGE",
         &format!("{name} is larger than 64 MB"),
         false,
-        "Pass the export as Instagram sent it; a follower list file is far smaller than this.",
+        "Pass the export as Photo Feed sent it; a follower list file is far smaller than this.",
     )
 }
 

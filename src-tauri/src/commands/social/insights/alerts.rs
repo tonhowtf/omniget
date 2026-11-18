@@ -232,29 +232,29 @@ mod tests {
             json!({ "id": 2, "name": "svelte", "new": 3, "surge": { "surge": false } }),
             json!({ "id": 3, "name": "quiet", "new": 0, "surge": { "surge": false } }),
         ];
-        assert!(check_notices("X", &Settings::default(), &monitors).is_empty());
+        assert!(check_notices("Short Posts", &Settings::default(), &monitors).is_empty());
         let surge_only = Settings {
             surge: true,
             ..Default::default()
         };
-        let n = check_notices("X", &surge_only, &monitors);
+        let n = check_notices("Short Posts", &surge_only, &monitors);
         assert_eq!(n.len(), 1);
-        assert_eq!(n[0].0, "Surge on X: rust");
+        assert_eq!(n[0].0, "Surge on Short Posts: rust");
         assert!(n[0].1.contains("30 posts today") && n[0].1.contains("6.5"));
         let marked = Settings {
             monitors: [1, 2, 3].into(),
             ..Default::default()
         };
-        let n = check_notices("X", &marked, &monitors);
+        let n = check_notices("Short Posts", &marked, &monitors);
         assert_eq!(n.len(), 2);
-        assert_eq!(n[0].0, "4 new on X: rust");
-        assert_eq!(n[1].0, "3 new on X: svelte");
+        assert_eq!(n[0].0, "4 new on Short Posts: rust");
+        assert_eq!(n[1].0, "3 new on Short Posts: svelte");
         let both = Settings {
             surge: true,
             monitors: [1].into(),
             ..Default::default()
         };
-        assert_eq!(check_notices("X", &both, &monitors).len(), 1);
+        assert_eq!(check_notices("Short Posts", &both, &monitors).len(), 1);
     }
 
     #[test]
@@ -266,9 +266,9 @@ mod tests {
             monitors: (1..=8).collect(),
             ..Default::default()
         };
-        let n = check_notices("TikTok", &all, &monitors);
+        let n = check_notices("Clip Feed", &all, &monitors);
         assert_eq!(n.len(), MAX_PER_CHECK);
-        assert_eq!(n[4].0, "4 more monitors on TikTok have news");
+        assert_eq!(n[4].0, "4 more monitors on Clip Feed have news");
     }
 
     #[test]
@@ -278,21 +278,21 @@ mod tests {
             ..Default::default()
         };
         let sync = json!({ "account": "ana", "changes": { "gained": 2, "lost": 1 } });
-        assert_eq!(sync_notice("Instagram", &Settings::default(), &sync), None);
-        let (title, body) = sync_notice("Instagram", &on, &sync).unwrap();
-        assert_eq!(title, "1 new unfollower on Instagram");
+        assert_eq!(sync_notice("Photo Feed", &Settings::default(), &sync), None);
+        let (title, body) = sync_notice("Photo Feed", &on, &sync).unwrap();
+        assert_eq!(title, "1 new unfollower on Photo Feed");
         assert!(body.contains("@ana") && body.contains("2 gained, 1 lost"));
         let many = json!({ "account": "ana", "changes": { "gained": 0, "lost": 3 } });
         assert_eq!(
-            sync_notice("X", &on, &many).unwrap().0,
-            "3 new unfollowers on X"
+            sync_notice("Short Posts", &on, &many).unwrap().0,
+            "3 new unfollowers on Short Posts"
         );
         for quiet in [
             json!({ "account": "ana", "changes": { "gained": 5, "lost": 0 } }),
             json!({ "account": "ana", "changes": null }),
             json!({ "account": "ana/tool", "repo": "ana/tool", "changes": { "gained": 0, "lost": 2 } }),
         ] {
-            assert_eq!(sync_notice("X", &on, &quiet), None, "{quiet}");
+            assert_eq!(sync_notice("Short Posts", &on, &quiet), None, "{quiet}");
         }
     }
 
@@ -308,14 +308,14 @@ mod tests {
             json!({ "op": "set", "monitor": 0, "new_hits": true }),
         ] {
             assert!(
-                tool(Platform::X, &bad)
+                tool(Platform::ShortPost, &bad)
                     .unwrap_err()
                     .starts_with("INVALID_ARGUMENTS"),
                 "{bad}"
             );
         }
         let s = state(
-            Platform::X,
+            Platform::ShortPost,
             &Settings {
                 surge: true,
                 monitors: [4].into(),

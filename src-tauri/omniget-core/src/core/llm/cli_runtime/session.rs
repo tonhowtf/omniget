@@ -49,12 +49,6 @@ impl Default for WatchdogConfig {
 }
 
 impl WatchdogConfig {
-    pub const OFF: Self = Self {
-        idle: None,
-        tool_idle: None,
-        start: None,
-    };
-
     pub fn apply(&self, spec: &mut SpawnSpec) {
         spec.idle_timeout = self.idle;
         spec.tool_idle_timeout = self.tool_idle;

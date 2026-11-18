@@ -6,10 +6,21 @@ use crate::models::settings::ProxySettings;
 static GLOBAL_PROXY: LazyLock<RwLock<ProxySettings>> =
     LazyLock::new(|| RwLock::new(ProxySettings::default()));
 
+static PINNED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
 pub fn init_proxy(proxy: ProxySettings) {
     if let Ok(mut guard) = GLOBAL_PROXY.write() {
         *guard = proxy;
     }
+}
+
+pub fn pin_proxy(proxy: ProxySettings) {
+    PINNED.store(true, std::sync::atomic::Ordering::SeqCst);
+    init_proxy(proxy);
+}
+
+pub fn pool_in_use() -> bool {
+    !PINNED.load(std::sync::atomic::Ordering::SeqCst) && crate::core::proxy_pool::active()
 }
 
 pub fn get_proxy_snapshot() -> ProxySettings {
@@ -17,6 +28,11 @@ pub fn get_proxy_snapshot() -> ProxySettings {
 }
 
 pub fn proxy_url() -> Option<String> {
+    if pool_in_use() {
+        if let Some(pooled) = crate::core::proxy_pool::pick() {
+            return Some(pooled);
+        }
+    }
     let proxy = get_proxy_snapshot();
     if !proxy.enabled || proxy.host.is_empty() {
         return None;
@@ -65,8 +81,27 @@ pub fn apply_proxy(
     }
 }
 
+pub fn is_local_target(url: &reqwest::Url) -> bool {
+    match url.host() {
+        Some(url::Host::Domain(name)) => name == "localhost" || name.ends_with(".localhost"),
+        Some(url::Host::Ipv4(ip)) => ip.is_loopback() || ip.is_unspecified(),
+        Some(url::Host::Ipv6(ip)) => ip.is_loopback() || ip.is_unspecified(),
+        None => true,
+    }
+}
+
+fn pool_route(target: &reqwest::Url) -> Option<reqwest::Url> {
+    if is_local_target(target) {
+        return None;
+    }
+    crate::core::proxy_pool::pick().and_then(|proxy| reqwest::Url::parse(&proxy).ok())
+}
+
 pub fn apply_global_proxy(builder: reqwest::ClientBuilder) -> reqwest::ClientBuilder {
     let builder = builder.use_rustls_tls();
+    if pool_in_use() {
+        return builder.proxy(reqwest::Proxy::custom(pool_route));
+    }
     let proxy = get_proxy_snapshot();
     apply_proxy(builder, &proxy)
 }
@@ -113,6 +148,26 @@ mod tests {
         server.abort();
         assert!(!chain.contains("bad certificate format"), "{chain}");
         assert!(chain.to_lowercase().contains("corrupt message"), "{chain}");
+    }
+
+    #[test]
+    fn the_pool_never_routes_requests_to_this_computer() {
+        for local in [
+            "http://127.0.0.1:47720/mcp",
+            "http://localhost:1420/",
+            "http://app.localhost/",
+            "http://[::1]:8080/",
+            "http://0.0.0.0:3000/",
+        ] {
+            assert!(is_local_target(&local.parse().unwrap()), "{local}");
+        }
+        for remote in [
+            "https://example.com/",
+            "http://192.168.0.10/",
+            "http://10.0.0.1/",
+        ] {
+            assert!(!is_local_target(&remote.parse().unwrap()), "{remote}");
+        }
     }
 
     #[test]

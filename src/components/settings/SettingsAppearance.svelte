@@ -148,6 +148,13 @@
       {/if}
       <SettingStatus path="typography.spacing_scale" />
     </div>
+    <SettingRow id="settings-downloads-only" label={$t("settings.appearance.downloads_only")} help={$t("settings.appearance.downloads_only_desc")}
+      settingKey="settings.appearance.downloads_only" status="appearance.downloads_only">
+      {#snippet control({ id, describedBy })}
+        {@render toggle(id, describedBy, settings.appearance?.downloads_only ?? false,
+          () => updateSettings({ appearance: { downloads_only: !settings.appearance?.downloads_only } }))}
+      {/snippet}
+    </SettingRow>
     <SettingRow id="settings-reduce-motion" label={$t("settings.appearance.reduce_motion")} help={$t("settings.appearance.reduce_motion_desc")}
       settingKey="settings.appearance.reduce_motion" status="accessibility.reduce_motion">
       {#snippet control({ id, describedBy })}

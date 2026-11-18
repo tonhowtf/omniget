@@ -418,6 +418,10 @@ pub async fn install(
     Ok(launch)
 }
 
+fn is_safe_agent_id(id: &str) -> bool {
+    !id.is_empty() && id != "." && !id.contains("..") && !id.contains(['/', '\\', ':', '\0'])
+}
+
 async fn install_binary(
     agent: &RegistryAgent,
     allow_unverified: bool,
@@ -437,6 +441,9 @@ async fn install_binary(
             "{ERR_UNVERIFIED}: the registry does not publish a sha256 for {} ({plat}); confirm to install without verification",
             agent.id
         ));
+    }
+    if !is_safe_agent_id(&agent.id) {
+        return Err(format!("{ERR_ACP}: invalid agent id in the registry"));
     }
     let safe_version: String = agent
         .version
@@ -656,4 +663,32 @@ pub fn extract(bytes: &[u8], name: &str, dir: &Path) -> Result<(), String> {
     let out = dir.join(name);
     std::fs::write(&out, bytes).map_err(err)?;
     Ok(())
+}
+
+#[cfg(test)]
+mod agent_id_tests {
+    use super::is_safe_agent_id;
+
+    #[test]
+    fn a_plain_registry_id_is_accepted() {
+        assert!(is_safe_agent_id("claude-code-acp"));
+        assert!(is_safe_agent_id("gemini.cli_2"));
+    }
+
+    #[test]
+    fn an_id_that_escapes_the_agents_folder_is_rejected() {
+        for id in [
+            "",
+            ".",
+            "..",
+            "../../Documents",
+            "a/b",
+            "a\\b",
+            "/etc",
+            "C:evil",
+            "a/../b",
+        ] {
+            assert!(!is_safe_agent_id(id), "{id:?}");
+        }
+    }
 }

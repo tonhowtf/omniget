@@ -1,6 +1,5 @@
 export const STORAGE_KEY_ENDPOINT = "bridge_endpoint";
 export const STORAGE_KEY_TOKEN = "bridge_token";
-export const AUTOPAIR_ALARM_NAME = "omniget-autopair";
 const HEALTH_TIMEOUT_MS = 1500;
 const ENQUEUE_TIMEOUT_MS = 8000;
 const PROTOCOL_VERSION = 1;
@@ -78,15 +77,6 @@ async function handleUnauthorized(storage) {
   try {
     await clearStoredToken({ storage });
   } catch {}
-  try {
-    const alarms = globalThis.chrome?.alarms;
-    if (alarms?.create) {
-      const existing = alarms.get ? await alarms.get(AUTOPAIR_ALARM_NAME) : null;
-      if (!existing) {
-        alarms.create(AUTOPAIR_ALARM_NAME, { periodInMinutes: 1 });
-      }
-    }
-  } catch {}
 }
 
 function withTimeout(promise, ms, controller) {
@@ -160,19 +150,16 @@ export async function checkBridgeHealth(
   }
 }
 
-export async function autoPair({
-  fetchImpl = typeof fetch !== "undefined" ? fetch : null,
-  storage = globalThis.chrome?.storage?.local,
-  timeoutMs = HEALTH_TIMEOUT_MS,
-} = {}) {
+export async function pairWithEndpoint(
+  confirmedEndpoint,
+  {
+    fetchImpl = typeof fetch !== "undefined" ? fetch : null,
+    storage = globalThis.chrome?.storage?.local,
+    timeoutMs = HEALTH_TIMEOUT_MS,
+  } = {}
+) {
   if (!fetchImpl) return { ok: false, reason: "no-fetch" };
-  const current = await loadBridgeConfig({ storage });
-  if (current.token) return { ok: true, reason: "already-paired" };
-
-  let endpoint = current.endpoint;
-  const discovered = await discoverBridgeEndpoint({ fetchImpl, timeoutMs });
-  if (discovered?.endpoint) endpoint = discovered.endpoint;
-  endpoint = trimEndpoint(endpoint);
+  const endpoint = trimEndpoint(confirmedEndpoint);
   if (!endpoint) return { ok: false, reason: "no-endpoint" };
 
   const controller = typeof AbortController !== "undefined" ? new AbortController() : null;

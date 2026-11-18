@@ -458,11 +458,11 @@ mod tests {
             followers: Some(5000),
             ..Default::default()
         })));
-        let (same, applied) = apply(Platform::X, &json!({ "view": "fans" })).unwrap();
+        let (same, applied) = apply(Platform::ShortPost, &json!({ "view": "fans" })).unwrap();
         assert_eq!(same, json!({ "view": "fans" }));
         assert!(applied.is_null());
         let (args, applied) = apply(
-            Platform::X,
+            Platform::ShortPost,
             &json!({ "view": "fans", "filter": "verified" }),
         )
         .unwrap();

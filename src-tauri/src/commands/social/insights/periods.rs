@@ -242,7 +242,7 @@ mod tests {
             post("6", Some(NOV1 - 1), 999, None),
             post("7", None, 999, None),
         ];
-        let v = compare(&posts, Platform::X, a, b, false);
+        let v = compare(&posts, Platform::ShortPost, a, b, false);
         assert_eq!(v["a"]["posts"], 3);
         assert_eq!(v["b"]["posts"], 2);
         assert_eq!(v["a"]["days"], 7.0);
@@ -277,7 +277,7 @@ mod tests {
             to: NOV1 + 7 * DAY,
         };
         let posts = vec![post("1", Some(NOV1 + 9 * DAY), 30, None)];
-        let v = compare(&posts, Platform::Instagram, a, b, false);
+        let v = compare(&posts, Platform::PhotoFeed, a, b, false);
         assert_eq!(v["coverage"]["covers_a"], false);
         assert_eq!(v["coverage"]["covers_b"], false);
         assert!(v["coverage"]["note"]
@@ -287,9 +287,9 @@ mod tests {
         assert_eq!(v["difference"]["posts"]["pct"], Value::Null);
         assert_eq!(v["difference"]["posts"]["diff"], 1.0);
         assert_eq!(v["difference"]["engagement_mean"]["diff"], Value::Null);
-        let whole = compare(&posts, Platform::Instagram, a, b, true);
+        let whole = compare(&posts, Platform::PhotoFeed, a, b, true);
         assert_eq!(whole["coverage"]["covers_b"], true);
-        let none = compare(&[], Platform::X, a, b, true);
+        let none = compare(&[], Platform::ShortPost, a, b, true);
         assert!(none["empty_reason"].is_string());
     }
 }

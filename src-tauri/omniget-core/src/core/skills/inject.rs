@@ -71,16 +71,6 @@ fn push_one_line(out: &mut String, text: &str) {
     }
 }
 
-pub fn tool_name(name: &str) -> String {
-    let full = format!("{SKILL_TOOL_PREFIX}{name}");
-    if full.len() <= MAX_TOOL_NAME {
-        return full;
-    }
-    let tag = super::catalog::sha256_hex(name.as_bytes());
-    let keep = MAX_TOOL_NAME - SKILL_TOOL_PREFIX.len() - 9;
-    format!("{SKILL_TOOL_PREFIX}{}_{}", &name[..keep], &tag[..8])
-}
-
 pub fn exposed_tool_name(name: &str, hash: &str) -> String {
     let h8 = super::hash::short(hash, 8);
     let full = format!("{SKILL_TOOL_PREFIX}{name}_{h8}");
@@ -158,10 +148,6 @@ fn collect_files(root: &Path, dir: &Path, depth: usize, out: &mut Vec<String>) {
             }
         }
     }
-}
-
-pub fn open(name: &str) -> Result<String, SkillError> {
-    open_in(&install::skills_dir()?, name)
 }
 
 pub fn open_in(root: &Path, name: &str) -> Result<String, SkillError> {

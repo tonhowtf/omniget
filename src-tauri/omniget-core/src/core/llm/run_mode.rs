@@ -25,13 +25,6 @@ pub enum RunMode {
     FullAccess,
 }
 
-pub const ALL: [RunMode; 4] = [
-    RunMode::ApprovalRequired,
-    RunMode::AutoEdits,
-    RunMode::Auto,
-    RunMode::FullAccess,
-];
-
 impl RunMode {
     pub fn as_str(self) -> &'static str {
         match self {
@@ -100,15 +93,6 @@ impl From<AccessMode> for RunMode {
 pub enum Effective {
     ReadOnly,
     Mode(RunMode),
-}
-
-impl Effective {
-    pub fn label(self) -> &'static str {
-        match self {
-            Effective::ReadOnly => "read_only",
-            Effective::Mode(m) => m.as_str(),
-        }
-    }
 }
 
 static BOUND: RwLock<Option<HashMap<String, RunMode>>> = RwLock::new(None);

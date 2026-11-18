@@ -23,16 +23,6 @@ pub enum EnvKind {
 }
 
 impl EnvKind {
-    pub const ALL: [EnvKind; 7] = [
-        EnvKind::Local,
-        EnvKind::Tmux,
-        EnvKind::Ssh,
-        EnvKind::Docker,
-        EnvKind::Sandbox,
-        EnvKind::Custom,
-        EnvKind::Wsl,
-    ];
-
     pub fn as_str(&self) -> &'static str {
         match self {
             Self::Local => "local",
@@ -856,10 +846,6 @@ fn parse_probe(text: &str) -> Vec<EnvCheck> {
             })
         })
         .collect()
-}
-
-pub async fn test(rec: &EnvRecord) -> EnvTest {
-    test_bridge(rec, None).await
 }
 
 fn bridge_probe(url: &str) -> String {

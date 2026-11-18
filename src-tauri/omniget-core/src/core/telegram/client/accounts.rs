@@ -184,30 +184,3 @@ pub fn rename_profile(
     save_manifest(plugin_data_dir, &m)?;
     Ok(cloned)
 }
-
-pub fn list_backups(plugin_data_dir: &Path) -> Vec<(String, i64)> {
-    let bk_dir = plugin_data_dir.join("backups");
-    let mut out = Vec::new();
-    if let Ok(it) = std::fs::read_dir(&bk_dir) {
-        for entry in it.flatten() {
-            let path = entry.path();
-            if path.is_file() {
-                let name = path
-                    .file_name()
-                    .and_then(|s| s.to_str())
-                    .unwrap_or("")
-                    .to_string();
-                let mtime = entry
-                    .metadata()
-                    .ok()
-                    .and_then(|m| m.modified().ok())
-                    .and_then(|t| t.duration_since(UNIX_EPOCH).ok())
-                    .map(|d| d.as_secs() as i64)
-                    .unwrap_or(0);
-                out.push((name, mtime));
-            }
-        }
-    }
-    out.sort_by_key(|x| std::cmp::Reverse(x.1));
-    out
-}

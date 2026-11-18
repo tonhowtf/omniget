@@ -8,7 +8,6 @@ use super::parse::{codex_tool_name, CliKind, CliUsageEntry, FileParser, Parsed, 
 
 const CHUNK: usize = 4 * 1024 * 1024;
 
-pub const ERR_CLI_USAGE_IO: &str = "ERR_CLI_USAGE_IO";
 pub const ERR_CLI_USAGE_STATE: &str = "ERR_CLI_USAGE_STATE";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -68,10 +67,6 @@ impl ScanState {
 
     pub fn is_empty(&self) -> bool {
         self.offsets.is_empty()
-    }
-
-    pub fn clear(&mut self) {
-        self.offsets.clear();
     }
 
     pub fn prune_missing(&mut self) {

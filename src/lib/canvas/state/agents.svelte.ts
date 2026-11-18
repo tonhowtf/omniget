@@ -1,16 +1,7 @@
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
+import { STATE_COLORS, stateCss, stateVar, type AgentState } from './colors';
 
-export type AgentState =
-  | 'idle'
-  | 'thinking'
-  | 'working'
-  | 'waitingPeer'
-  | 'blocked'
-  | 'success'
-  | 'failed'
-  | 'compacting'
-  | 'looping'
-  | 'unknown';
+export { STATE_COLORS, stateCss, stateVar, type AgentState };
 
 interface AgentSignal {
   state: AgentState;
@@ -25,23 +16,13 @@ interface AgentSignal {
 
 const TERM_STATE_EVENT = 'term://state';
 const NODE_STATE_EVENT = 'canvas://node-state';
+const NODE_COST_EVENT = 'canvas://node-cost';
+const OUTCOMES = new Set(['failed', 'limit', 'refused']);
 
-export const STATE_COLORS: Record<AgentState, number> = {
-  idle: 0xa199ab,
-  thinking: 0x4f9faf,
-  working: 0xdcab3c,
-  waitingPeer: 0x7f8fc9,
-  blocked: 0xd96a62,
-  success: 0x5ca97a,
-  failed: 0xc0504d,
-  compacting: 0xb48ee0,
-  looping: 0xe8a33c,
-  unknown: 0x8a8a8a,
-};
-
-export function stateCss(state: AgentState | undefined): string {
-  const c = STATE_COLORS[state ?? 'unknown'] ?? STATE_COLORS.unknown;
-  return `#${c.toString(16).padStart(6, '0')}`;
+export interface NodeCost {
+  usd: number;
+  tokens: number;
+  unpriced: boolean;
 }
 
 export function normaliseState(raw: unknown): AgentState {
@@ -72,6 +53,10 @@ export function normaliseState(raw: unknown): AgentState {
       return 'compacting';
     case 'looping':
       return 'looping';
+    case 'limit':
+      return 'limit';
+    case 'refused':
+      return 'refused';
     default:
       return 'unknown';
   }
@@ -89,11 +74,13 @@ interface RawStateEvent {
 class AgentStates {
   byTerminal = $state.raw<Record<string, AgentSignal>>({});
   byNode = $state.raw<Record<string, AgentSignal>>({});
+  costs = $state.raw<Record<string, NodeCost>>({});
   private unlisten: UnlistenFn[] = [];
   private refs = 0;
 
   private toSignal(p: RawStateEvent): AgentSignal {
-    const state = p.detail === 'failed' ? 'failed' : normaliseState(p.state);
+    const plain = normaliseState(p.state);
+    const state = plain === 'success' && OUTCOMES.has(String(p.detail)) ? (p.detail as AgentState) : plain;
     return {
       state,
       source: p.source,
@@ -120,6 +107,13 @@ class AgentStates {
         await listen<RawStateEvent>(NODE_STATE_EVENT, (e) => {
           if (!e.payload?.id) return;
           this.byNode = { ...this.byNode, [e.payload.id]: this.toSignal(e.payload) };
+        }),
+      );
+      this.unlisten.push(
+        await listen<{ id?: string; costUsd?: number; tokens?: number; unpriced?: boolean }>(NODE_COST_EVENT, (e) => {
+          const p = e.payload;
+          if (!p?.id) return;
+          this.costs = { ...this.costs, [p.id]: { usd: Number(p.costUsd) || 0, tokens: Number(p.tokens) || 0, unpriced: p.unpriced === true } };
         }),
       );
     } catch {

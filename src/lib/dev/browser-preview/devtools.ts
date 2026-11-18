@@ -146,6 +146,7 @@ export const devtoolsFixtures: Record<string, (args: Args) => unknown> = {
       structured: [{ kind: "json_ld", id: null, chars: 48, truncated: false, data: { "@type": "WebPage", name: "Example Domain" }, preview: null }],
       hash: "9f86d081884c7d65",
       unchanged: false,
+      attempts: 1,
       untrusted: true,
     };
   },

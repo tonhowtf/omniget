@@ -163,17 +163,6 @@ pub fn entries() -> Vec<ToolEntry> {
         .collect()
 }
 
-pub fn all_names() -> Vec<&'static str> {
-    defs().into_iter().map(|d| d.name).collect()
-}
-
-pub const WRITE_TOOLS: &[&str] = &[
-    "tg_send_message",
-    "tg_send_files",
-    "tg_forward",
-    "tg_delete_messages",
-];
-
 pub async fn call(name: &str, a: Value) -> Result<Value, String> {
     call_as(Caller::Agent, name, a).await
 }

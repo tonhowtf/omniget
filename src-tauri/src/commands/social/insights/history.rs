@@ -148,8 +148,8 @@ pub fn tracked(
 
 pub fn post_id(p: Platform, raw: &str) -> String {
     let raw = raw.trim();
-    if p == Platform::X {
-        if let Some(id) = super::super::x::tweet_id(raw) {
+    if p == Platform::ShortPost {
+        if let Some(id) = super::super::shortpost::tweet_id(raw) {
             return id;
         }
     }
@@ -252,17 +252,17 @@ mod tests {
     #[test]
     fn a_post_is_found_by_id_or_link() {
         assert_eq!(
-            post_id(Platform::X, "https://x.com/ana/status/123?s=20"),
+            post_id(Platform::ShortPost, "https://x.com/ana/status/123?s=20"),
             "123"
         );
-        assert_eq!(post_id(Platform::X, " 123 "), "123");
+        assert_eq!(post_id(Platform::ShortPost, " 123 "), "123");
         assert_eq!(
             post_id(
-                Platform::Tiktok,
+                Platform::ClipFeed,
                 "https://www.tiktok.com/@ana/video/7412?lang=en"
             ),
             "7412"
         );
-        assert_eq!(post_id(Platform::Instagram, "3141_22"), "3141_22");
+        assert_eq!(post_id(Platform::PhotoFeed, "3141_22"), "3141_22");
     }
 }

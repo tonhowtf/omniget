@@ -291,14 +291,6 @@ impl CliRuntime {
         Some(dir)
     }
 
-    pub fn capacity(&self) -> Arc<CliCapacity> {
-        self.capacity.clone()
-    }
-
-    pub fn accounts(&self) -> Arc<AccountStore> {
-        self.accounts.clone()
-    }
-
     pub fn set_binary(&self, cli: CliKind, path: PathBuf) {
         if let Ok(mut map) = self.binaries.write() {
             map.insert(cli, path);
@@ -342,16 +334,6 @@ impl CliRuntime {
             ));
         }
         Ok(account)
-    }
-
-    pub fn plan(
-        &self,
-        account: &CliAccount,
-        binary: PathBuf,
-        req: &TurnRequest,
-        system_prompt: Option<String>,
-    ) -> (SpawnSpec, Arc<dyn LineParser>) {
-        self.plan_with(account, binary, req, system_prompt, None)
     }
 
     pub fn plan_with(

@@ -14,10 +14,10 @@ _computerlevel[1] attribute: containedPayloads:
 _computerlevel[1] payload count = 2
 _computerlevel[1] 	payload[1] payloadType	= com.apple.wifi.managed
 _computerlevel[1] 	payload[2] payloadType	= com.apple.vpn.managed
-tonho[2] attribute: name: Browser Settings
-tonho[2] attribute: installationDate: 2026-08-19 09:01:44 +0000
-tonho[2] attribute: profileIdentifier: com.example.browser
-tonho[2] attribute: profileUUID: 9A8B7C6D-0000-1111-2222-333344445555
-tonho[2] attribute: profileType: Configuration
-tonho[2] attribute: removalDisallowed: FALSE
-tonho[2] attribute: profileVerificationState: unsigned
+user[2] attribute: name: Browser Settings
+user[2] attribute: installationDate: 2026-08-19 09:01:44 +0000
+user[2] attribute: profileIdentifier: com.example.browser
+user[2] attribute: profileUUID: 9A8B7C6D-0000-1111-2222-333344445555
+user[2] attribute: profileType: Configuration
+user[2] attribute: removalDisallowed: FALSE
+user[2] attribute: profileVerificationState: unsigned

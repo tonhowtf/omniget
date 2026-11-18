@@ -223,7 +223,7 @@ fn approval_allow_for_session_then_edit_in_accept_edits() {
     assert!((c2[0].total_cost_usd.unwrap() - (0.0346718 - 0.0267513)).abs() < 1e-9);
 
     let cursor = r.tr.cursor.clone();
-    assert_eq!(cursor.session_id, "a00fe044-a480-48c4-ac8b-b3d6bdd759ed");
+    assert_eq!(cursor.session_id, "00000000-0000-4000-8000-000000000002");
     assert_eq!(cursor.turns.len(), 2);
     assert_eq!(
         cursor.turns[0].last_uuid.as_deref(),
@@ -281,7 +281,7 @@ fn approval_allow_for_session_then_edit_in_accept_edits() {
     );
     assert_eq!(windows[1].id, "seven_day");
 
-    assert!(r.events.iter().any(|e| matches!(&e.kind, K::SessionConfigured(v) if v.value["subscriptionType"] == "Claude Max")));
+    assert!(r.events.iter().any(|e| matches!(&e.kind, K::SessionConfigured(v) if v.value["subscriptionType"] == "Claude Pro")));
     let all = serde_json::to_string(&r.events).unwrap();
     assert!(!all.contains("example.com"));
 }
@@ -387,7 +387,7 @@ fn an_interrupt_ends_the_turn_and_the_process_takes_the_next_prompt() {
 #[test]
 fn resume_at_a_boundary_with_fork_reports_the_new_session() {
     let old = ClaudeCursor {
-        session_id: "a00fe044-a480-48c4-ac8b-b3d6bdd759ed".into(),
+        session_id: "00000000-0000-4000-8000-000000000002".into(),
         turns: vec![TurnMark {
             turn_id: "t1".into(),
             prompt_uuid: "1".into(),
@@ -399,7 +399,7 @@ fn resume_at_a_boundary_with_fork_reports_the_new_session() {
     let mut r = Replay::new(old, &[("t2", "5e0c1a2b-0000-4000-8000-000000000001")]);
     r.run("claude-2.1.280-resume-fork.jsonl", |_, _| None);
     let c = &r.tr.cursor;
-    assert_eq!(c.session_id, "9ac64eb7-f69d-404a-ba76-57883eaaeb9d");
+    assert_eq!(c.session_id, "00000000-0000-4000-8000-000000000006");
     assert_eq!(c.resume_at, None);
     assert!(!c.fork);
     assert_eq!(c.turns.len(), 2);
@@ -641,7 +641,7 @@ mod driver_e2e {
         );
         assert_eq!(
             store.get("thr_e2e").unwrap().session_id,
-            "e67cfc11-6cec-4138-9770-dada33dd2794"
+            "00000000-0000-4000-8000-000000000005"
         );
         let _ = std::fs::remove_dir_all(&dir);
     }

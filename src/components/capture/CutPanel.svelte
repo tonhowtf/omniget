@@ -207,7 +207,7 @@
     segments = result.marks.segments;
     pendingIn = result.marks.pendingIn;
     selectedId = result.added?.id ?? null;
-    notice = { text: $t("capture.segment_added", { n: segments.length }) as string, tone: "info" };
+    notice = { text: $t("capture.segment_added", { num: segments.length }) as string, tone: "info" };
   }
 
   function wholeFile() {

@@ -1193,14 +1193,3 @@ pub fn scan_path(
 fn comps_len_one_hint(k: &str) -> bool {
     Kind::parse(k) != Kind::Other
 }
-
-pub fn scan_paths(
-    paths: &[PathBuf],
-    origin_tool: Option<&str>,
-    opts: &GuardOptions,
-) -> Vec<GuardReport> {
-    paths
-        .iter()
-        .flat_map(|p| scan_path(p, None, origin_tool, opts))
-        .collect()
-}

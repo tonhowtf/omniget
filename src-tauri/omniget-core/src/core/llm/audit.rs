@@ -61,9 +61,6 @@ impl Entity {
     pub fn agent(id: &str) -> Self {
         Self::of("agent", id)
     }
-    pub fn token(id: &str) -> Self {
-        Self::of("token", id)
-    }
     pub fn route(id: &str) -> Self {
         Self::of("route", id)
     }
@@ -75,9 +72,6 @@ impl Entity {
     }
     pub fn budget(id: &str) -> Self {
         Self::of("budget", id)
-    }
-    pub fn setting(id: &str) -> Self {
-        Self::of("setting", id)
     }
     pub fn app(pid: &str) -> Self {
         Self::of("app", pid)
@@ -157,10 +151,6 @@ impl Audit {
 
     fn db(&self) -> std::sync::MutexGuard<'_, Connection> {
         self.db.lock().unwrap_or_else(|e| e.into_inner())
-    }
-
-    pub fn retention_days(&self) -> u32 {
-        (self.retention_ms.load(Ordering::Relaxed) / 86_400_000) as u32
     }
 
     pub fn prune(&self, now: u64) -> usize {

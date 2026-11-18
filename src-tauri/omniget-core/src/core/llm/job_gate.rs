@@ -160,10 +160,6 @@ impl Gate {
         self.inner.lock().unwrap_or_else(|e| e.into_inner())
     }
 
-    pub async fn acquire(self: &Arc<Self>, ticket: Ticket) -> JobLease {
-        self.acquire_placed(ticket, false).await.0
-    }
-
     pub async fn acquire_placed(
         self: &Arc<Self>,
         mut ticket: Ticket,

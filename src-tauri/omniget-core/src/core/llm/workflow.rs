@@ -461,10 +461,6 @@ impl Store {
         Self::with(Connection::open(path).map_err(|e| e.to_string())?)
     }
 
-    pub fn memory() -> Self {
-        Self::with(Connection::open_in_memory().expect("in-memory sqlite")).expect("schema")
-    }
-
     fn with(db: Connection) -> Result<Self, String> {
         db.execute_batch(
             "PRAGMA journal_mode=WAL;

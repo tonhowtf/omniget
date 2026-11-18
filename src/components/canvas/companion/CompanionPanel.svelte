@@ -18,7 +18,7 @@
     type ModelMode,
   } from "$lib/canvas/companion/api";
   import { companionFeed } from "$lib/canvas/companion/store.svelte";
-  import { stateCss } from "$lib/canvas/state/agents.svelte";
+  import { stateVar } from "$lib/canvas/state/agents.svelte";
 
   interface Props {
     workspaceId?: string;
@@ -257,7 +257,7 @@
   {#if sentId}<p class="muted" role="status">{$t("canvas.companion.sent", { default: "Sent to the agent." })}</p>{/if}
 
   {#each entries as e (e.id)}
-    <article class="entry" style="--k: {stateCss(KIND_STATE[e.kind])}">
+    <article class="entry" style="--k: {stateVar(KIND_STATE[e.kind])}">
       <div class="row">
         <button type="button" class="name" onclick={() => onFocusNode?.(e.nodeId)}>{e.name}</button>
         <span class="badge">{kindLabel(e.kind)}</span>

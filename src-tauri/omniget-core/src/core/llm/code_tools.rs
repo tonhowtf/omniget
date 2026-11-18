@@ -332,7 +332,10 @@ fn join_inside(root: &Path, raw: &str) -> Result<PathBuf, String> {
 
 fn writable(root: &Path, path: &Path) -> Result<(), String> {
     let rel = path.strip_prefix(root).unwrap_or(path);
-    if rel.components().any(|c| c.as_os_str() == ".git") {
+    if rel
+        .components()
+        .any(|c| c.as_os_str().eq_ignore_ascii_case(".git"))
+    {
         return Err(format!("{ERR_PROTECTED}: .git is read-only for agents"));
     }
     Ok(())
@@ -992,36 +995,75 @@ pub async fn shell_exec(a: Value) -> Result<Value, String> {
         .stderr(std::process::Stdio::piped())
         .kill_on_drop(true);
     let _write = write_lock(&root).await;
-    let started = std::time::Instant::now();
-    let child = cmd.spawn().map_err(|e| format!("spawn: {e}"))?;
-    let out = match tokio::time::timeout(
-        std::time::Duration::from_millis(timeout),
-        child.wait_with_output(),
-    )
-    .await
-    {
-        Ok(r) => r.map_err(|e| e.to_string())?,
-        Err(_) => return Err(format!("ERR_CODE_SHELL_TIMEOUT: killed after {timeout} ms")),
-    };
-    let tail = |b: &[u8]| {
-        let s = String::from_utf8_lossy(b).to_string();
-        if s.len() > OUT_MAX {
-            let mut cut = s.len() - OUT_MAX;
-            while !s.is_char_boundary(cut) {
-                cut += 1;
-            }
-            format!("[… truncated]\n{}", &s[cut..])
-        } else {
-            s
-        }
-    };
+    let run = run_bounded(cmd, std::time::Duration::from_millis(timeout)).await?;
     Ok(json!({
-        "exit_code": out.status.code(),
-        "stdout": tail(&out.stdout),
-        "stderr": tail(&out.stderr),
-        "ms": started.elapsed().as_millis() as u64,
+        "exit_code": run.exit_code,
+        "stdout": run.stdout,
+        "stderr": run.stderr,
+        "ms": run.ms,
         "sandbox": sandbox_kind(),
     }))
+}
+
+struct ShellRun {
+    exit_code: Option<i32>,
+    stdout: String,
+    stderr: String,
+    ms: u64,
+}
+
+async fn run_bounded(
+    mut cmd: tokio::process::Command,
+    timeout: std::time::Duration,
+) -> Result<ShellRun, String> {
+    use super::drivers::acp::client::{read_tail, OutputBuf};
+    #[cfg(unix)]
+    cmd.process_group(0);
+    crate::core::process::suspend_on_spawn(&mut cmd);
+    let started = std::time::Instant::now();
+    let mut child = cmd.spawn().map_err(|e| format!("spawn: {e}"))?;
+    let mut tree =
+        crate::core::process::ProcessTreeGuard::new(&child).map_err(|e| format!("spawn: {e}"))?;
+    let stdout = child.stdout.take();
+    let stderr = child.stderr.take();
+    let waited = tokio::time::timeout(timeout, async {
+        tokio::join!(
+            read_tail(stdout, OUT_MAX),
+            read_tail(stderr, OUT_MAX),
+            child.wait()
+        )
+    })
+    .await;
+    let (out, err, status) = match waited {
+        Ok((out, err, Ok(status))) => {
+            tree.release();
+            (out, err, status)
+        }
+        Ok((_, _, Err(e))) => {
+            tree.terminate();
+            return Err(e.to_string());
+        }
+        Err(_) => {
+            tree.terminate();
+            return Err(format!(
+                "ERR_CODE_SHELL_TIMEOUT: killed after {} ms",
+                timeout.as_millis()
+            ));
+        }
+    };
+    let text = |b: OutputBuf| {
+        if b.truncated() {
+            format!("[… truncated]\n{}", b.text())
+        } else {
+            b.text().to_string()
+        }
+    };
+    Ok(ShellRun {
+        exit_code: status.code(),
+        stdout: text(out),
+        stderr: text(err),
+        ms: started.elapsed().as_millis() as u64,
+    })
 }
 
 pub fn todo_write(a: &Value) -> Result<Value, String> {
@@ -1051,4 +1093,76 @@ pub fn preview(tool: &str, input: &Value) -> String {
         _ => input.to_string(),
     };
     cap(s, 2000)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn git_dir_is_protected_in_any_letter_case() {
+        let root = Path::new("/ws");
+        for name in [".git", ".GIT", ".Git"] {
+            let path = root.join(name).join("hooks").join("pre-commit");
+            assert!(writable(root, &path).is_err(), "{name}");
+        }
+        assert!(writable(root, &root.join("src").join("main.rs")).is_ok());
+        assert!(writable(root, &root.join(".github").join("ci.yml")).is_ok());
+    }
+
+    #[cfg(unix)]
+    fn sh(script: &str) -> tokio::process::Command {
+        let mut c = tokio::process::Command::new("/bin/sh");
+        c.arg("-c")
+            .arg(script)
+            .stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::piped())
+            .kill_on_drop(true);
+        c
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn shell_output_keeps_only_the_tail() {
+        let run = run_bounded(
+            sh("head -c 300000 /dev/zero | tr '\\0' 'a'; printf END; printf oops 1>&2; exit 3"),
+            std::time::Duration::from_secs(20),
+        )
+        .await
+        .unwrap();
+        assert_eq!(run.exit_code, Some(3));
+        assert!(run.stdout.starts_with("[… truncated]\n"));
+        assert!(run.stdout.ends_with("END"));
+        assert!(run.stdout.len() <= OUT_MAX + 32);
+        assert_eq!(run.stderr, "oops");
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn a_timeout_kills_the_children_of_the_shell() {
+        let dir = tempfile::tempdir().unwrap();
+        let mark = dir.path().join("pid");
+        let script = format!("sleep 60 & echo $! > '{}'; wait", mark.display());
+        let err = run_bounded(sh(&script), std::time::Duration::from_millis(1500))
+            .await
+            .err()
+            .unwrap();
+        assert!(err.starts_with("ERR_CODE_SHELL_TIMEOUT"), "{err}");
+        let pid: i32 = std::fs::read_to_string(&mark)
+            .unwrap()
+            .trim()
+            .parse()
+            .unwrap();
+        let mut alive = true;
+        for _ in 0..50 {
+            // SAFETY: signal 0 only probes whether the pid exists.
+            alive = unsafe { libc::kill(pid, 0) } == 0;
+            if !alive {
+                break;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(40)).await;
+        }
+        assert!(!alive);
+    }
 }

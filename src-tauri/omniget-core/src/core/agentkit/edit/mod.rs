@@ -65,17 +65,6 @@ pub enum DocFormat {
 }
 
 impl DocFormat {
-    pub fn parse(s: &str) -> Option<DocFormat> {
-        match s {
-            "json" => Some(DocFormat::Json),
-            "jsonc" => Some(DocFormat::Jsonc),
-            "toml" => Some(DocFormat::Toml),
-            "yaml" | "yml" => Some(DocFormat::Yaml),
-            "md" | "markdown" | "text" => Some(DocFormat::Markdown),
-            _ => None,
-        }
-    }
-
     pub fn empty_doc(self) -> &'static str {
         match self {
             DocFormat::Json | DocFormat::Jsonc => "{}\n",

@@ -31,13 +31,6 @@ fn cache_path() -> Option<PathBuf> {
     super::tools_dir().map(|d| d.join("pricing").join("litellm.json"))
 }
 
-#[derive(Debug, Clone, Serialize)]
-pub struct PricingInfo {
-    pub models: usize,
-    pub updated_at: Option<String>,
-    pub path: Option<String>,
-}
-
 async fn load(force: bool) -> anyhow::Result<serde_json::Value> {
     let path = cache_path().ok_or_else(|| anyhow!("Could not determine data directory"))?;
     let fresh = std::fs::metadata(&path)
@@ -99,56 +92,6 @@ fn to_price(key: &str, v: &serde_json::Value) -> ModelPrice {
         supports_caching: v["supports_prompt_caching"].as_bool().unwrap_or(false),
         deprecation_date: v["deprecation_date"].as_str().map(|s| s.to_string()),
     }
-}
-
-pub async fn info(force_refresh: bool) -> anyhow::Result<PricingInfo> {
-    let v = load(force_refresh).await?;
-    let path = cache_path();
-    let updated = path
-        .as_ref()
-        .and_then(|p| std::fs::metadata(p).ok())
-        .and_then(|m| m.modified().ok())
-        .map(|t| chrono::DateTime::<chrono::Utc>::from(t).to_rfc3339());
-    Ok(PricingInfo {
-        models: v
-            .as_object()
-            .map(|o| o.len().saturating_sub(1))
-            .unwrap_or(0),
-        updated_at: updated,
-        path: path.map(|p| p.to_string_lossy().to_string()),
-    })
-}
-
-pub async fn search(query: &str, mode: &str, limit: usize) -> anyhow::Result<Vec<ModelPrice>> {
-    let v = load(false).await?;
-    let obj = v
-        .as_object()
-        .ok_or_else(|| anyhow!("invalid price table"))?;
-    let tokens: Vec<String> = query
-        .to_lowercase()
-        .split_whitespace()
-        .map(|s| s.to_string())
-        .collect();
-    let mut out: Vec<ModelPrice> = obj
-        .iter()
-        .filter(|(k, _)| *k != "sample_spec")
-        .filter(|(k, val)| {
-            let hay = format!(
-                "{} {}",
-                k.to_lowercase(),
-                val["litellm_provider"]
-                    .as_str()
-                    .unwrap_or("")
-                    .to_lowercase()
-            );
-            tokens.iter().all(|t| hay.contains(t))
-                && (mode.is_empty() || val["mode"].as_str() == Some(mode))
-        })
-        .map(|(k, val)| to_price(k, val))
-        .collect();
-    out.sort_by(|a, b| a.key.len().cmp(&b.key.len()).then(a.key.cmp(&b.key)));
-    out.truncate(limit.max(1));
-    Ok(out)
 }
 
 pub async fn price_for(model: &str) -> Option<ModelPrice> {

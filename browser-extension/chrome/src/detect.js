@@ -1,3 +1,5 @@
+import { isStoreExcludedUrl } from "./store-policy.js";
+
 const MEDIA_CONTENT_TYPES = new Set([
   "audio",
   "clip",
@@ -23,6 +25,10 @@ export function detectSupportedMediaUrl(rawUrl) {
   try {
     parsed = new URL(rawUrl);
   } catch {
+    return null;
+  }
+
+  if (isStoreExcludedUrl(rawUrl)) {
     return null;
   }
 

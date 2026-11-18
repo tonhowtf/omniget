@@ -57,6 +57,8 @@ pub mod platform_optout;
 pub mod pokemon_names;
 pub mod pot_provider;
 pub mod process;
+pub mod proxy_pool;
+pub mod quicktools;
 pub mod read;
 pub mod redirect;
 pub mod registry;

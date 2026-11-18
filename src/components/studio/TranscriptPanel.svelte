@@ -253,7 +253,7 @@
             <textarea
               class="input tp-text"
               rows="2"
-              aria-label={$t("studio.line_text", { n: i + 1 })}
+              aria-label={$t("studio.line_text", { num: i + 1 })}
               value={seg.text}
               disabled={locked}
               oninput={(e) => {

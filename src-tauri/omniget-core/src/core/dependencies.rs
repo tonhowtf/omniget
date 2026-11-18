@@ -479,6 +479,57 @@ fn staged_ffmpeg(bin_dir: &std::path::Path, name: &str) -> PathBuf {
 }
 
 async fn prepare_staged_binary(path: PathBuf) -> anyhow::Result<()> {
+    check_staged_binary(path, "-version").await
+}
+
+fn github_release_asset(url: &str) -> Option<(String, Option<String>, String)> {
+    let parts: Vec<&str> = url
+        .strip_prefix("https://github.com/")?
+        .split('/')
+        .collect();
+    match parts.as_slice() {
+        [owner, repo, "releases", "latest", "download", asset] => {
+            Some((format!("{owner}/{repo}"), None, asset.to_string()))
+        }
+        [owner, repo, "releases", "download", tag, asset] => Some((
+            format!("{owner}/{repo}"),
+            Some(tag.to_string()),
+            asset.to_string(),
+        )),
+        _ => None,
+    }
+}
+
+async fn download_github_release_asset(url: &str, id: &str) -> anyhow::Result<Vec<u8>> {
+    let (repo, tag, name) =
+        github_release_asset(url).ok_or_else(|| anyhow!("{url} is not a GitHub release asset"))?;
+    let client = crate::core::tools::github::client()?;
+    let asset =
+        crate::core::tools::github::asset(&client, &repo, tag.as_deref(), |n| n == name).await?;
+    crate::core::tools::github::download(
+        &client,
+        &asset,
+        false,
+        &crate::core::tools::noop_progress(),
+        id,
+    )
+    .await
+}
+
+async fn install_staged_binary(
+    staged: PathBuf,
+    target: &std::path::Path,
+    version_arg: &'static str,
+) -> anyhow::Result<()> {
+    let installed = match check_staged_binary(staged.clone(), version_arg).await {
+        Ok(()) => replace_managed_binary(&staged, target),
+        Err(e) => Err(e),
+    };
+    let _ = std::fs::remove_file(&staged);
+    installed
+}
+
+async fn check_staged_binary(path: PathBuf, version_arg: &'static str) -> anyhow::Result<()> {
     tokio::task::spawn_blocking(move || {
         #[cfg(unix)]
         {
@@ -494,7 +545,7 @@ async fn prepare_staged_binary(path: PathBuf) -> anyhow::Result<()> {
                 .output();
         }
         let status = crate::core::process::std_command(&path)
-            .arg("-version")
+            .arg(version_arg)
             .stdout(Stdio::null())
             .stderr(Stdio::null())
             .status()
@@ -555,32 +606,27 @@ async fn stage_ffmpeg(
 
     for (url, archive_type) in ffmpeg_download_urls() {
         tracing::info!("Downloading FFmpeg component from {}", url);
-        let response = client
-            .get(url)
-            .send()
-            .await
-            .map_err(|e| anyhow!("Could not reach {url}: {e}"))?;
-        if !response.status().is_success() {
-            return Err(anyhow!(
-                "Failed to download FFmpeg from {}: HTTP {}",
-                url,
-                response.status()
-            ));
-        }
-        let final_url = response.url().clone();
-        let data = response
-            .bytes()
-            .await
-            .map_err(|e| anyhow!("The download from {url} was cut off: {e}"))?
-            .to_vec();
-        if data.len() < 1_000_000 {
-            return Err(anyhow!(
-                "Downloaded file from {} is too small ({}B) — likely an error page",
-                url,
-                data.len()
-            ));
-        }
-        if cfg!(target_os = "macos") {
+        let data = if github_release_asset(url).is_some() {
+            download_github_release_asset(url, "ffmpeg").await?
+        } else {
+            let response = client
+                .get(url)
+                .send()
+                .await
+                .map_err(|e| anyhow!("Could not reach {url}: {e}"))?;
+            if !response.status().is_success() {
+                return Err(anyhow!(
+                    "Failed to download FFmpeg from {}: HTTP {}",
+                    url,
+                    response.status()
+                ));
+            }
+            let final_url = response.url().clone();
+            let data = response
+                .bytes()
+                .await
+                .map_err(|e| anyhow!("The download from {url} was cut off: {e}"))?
+                .to_vec();
             let asset = final_url
                 .path_segments()
                 .and_then(|mut p| p.next_back())
@@ -591,6 +637,14 @@ async fn stage_ffmpeg(
                 .await
                 .map_err(|e| anyhow!("FFmpeg: could not check the download: {e}"))?;
             integrity::verify_sha256(&data, &expected, "FFmpeg")?;
+            data
+        };
+        if data.len() < 1_000_000 {
+            return Err(anyhow!(
+                "Downloaded file from {} is too small ({}B) — likely an error page",
+                url,
+                data.len()
+            ));
         }
         let temp_clone = temp_path.clone();
         tokio::task::spawn_blocking(move || std::fs::write(&temp_clone, &data))
@@ -823,24 +877,12 @@ async fn download_deno() -> anyhow::Result<PathBuf> {
 
     tracing::info!("Downloading Deno JS runtime from {}", url);
 
-    let client = crate::core::http_client::apply_global_proxy(reqwest::Client::builder())
-        .timeout(std::time::Duration::from_secs(300))
-        .build()?;
-
-    let response = client.get(url).send().await?;
-    if !response.status().is_success() {
-        return Err(anyhow!(
-            "Failed to download Deno: HTTP {}",
-            response.status()
-        ));
-    }
-
-    let bytes = response.bytes().await?;
-    let data = bytes.to_vec();
-    let bin_dir_clone = bin_dir.clone();
+    let data = download_github_release_asset(url, "deno").await?;
+    let staged = bin_dir.join(format!("{}.new", deno_name));
+    let staged_clone = staged.clone();
     let deno_name_clone = deno_name.clone();
 
-    tokio::task::spawn_blocking(move || {
+    let extracted = tokio::task::spawn_blocking(move || -> anyhow::Result<()> {
         let cursor = std::io::Cursor::new(&data);
         let mut archive =
             zip::ZipArchive::new(cursor).map_err(|e| anyhow!("Failed to open Deno zip: {}", e))?;
@@ -852,40 +894,23 @@ async fn download_deno() -> anyhow::Result<PathBuf> {
 
             let name = file.name().to_string();
             if name.ends_with(&deno_name_clone) || name == "deno" || name == "deno.exe" {
-                let dest = bin_dir_clone.join(&deno_name_clone);
-                let mut buf = Vec::new();
-                std::io::Read::read_to_end(&mut file, &mut buf)?;
-                std::fs::write(&dest, &buf)?;
-                break;
+                let mut out = std::fs::File::create(&staged_clone)?;
+                std::io::copy(&mut file, &mut out)?;
+                out.sync_all()?;
+                return Ok(());
             }
         }
 
-        Ok::<(), anyhow::Error>(())
+        Err(anyhow!("Deno binary not found after extraction"))
     })
     .await
-    .map_err(|e| anyhow!("Spawn blocking failed: {}", e))??;
-
-    if !deno_target.exists() {
-        return Err(anyhow!("Deno binary not found after extraction"));
+    .map_err(|e| anyhow!("Spawn blocking failed: {}", e))?;
+    if let Err(e) = extracted {
+        let _ = std::fs::remove_file(&staged);
+        return Err(e);
     }
 
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        let _ = std::fs::set_permissions(&deno_target, std::fs::Permissions::from_mode(0o755));
-    }
-
-    #[cfg(target_os = "macos")]
-    {
-        let deno_mac = deno_target.clone();
-        let _ = tokio::task::spawn_blocking(move || {
-            crate::core::process::std_command("xattr")
-                .args(["-d", "com.apple.quarantine"])
-                .arg(&deno_mac)
-                .output()
-        })
-        .await;
-    }
+    install_staged_binary(staged, &deno_target, "--version").await?;
 
     tracing::info!("Deno installed to {}", deno_target.display());
     Ok(deno_target)
@@ -922,34 +947,24 @@ async fn download_gallerydl() -> anyhow::Result<PathBuf> {
     #[cfg(not(any(target_os = "windows", target_os = "linux", target_os = "macos")))]
     return Err(anyhow!("gallery-dl has no binary for this system"));
 
-    let client = crate::core::http_client::apply_global_proxy(reqwest::Client::builder())
-        .timeout(std::time::Duration::from_secs(180))
-        .build()?;
-
-    let response = client.get(url).send().await?;
-    if !response.status().is_success() {
-        return Err(anyhow!(
-            "Failed to download gallery-dl: HTTP {}",
-            response.status()
-        ));
-    }
-
-    let bytes = response.bytes().await?;
-    let data = bytes.to_vec();
-    let target_clone = target.clone();
-    tokio::task::spawn_blocking(move || -> anyhow::Result<()> {
-        std::fs::write(&target_clone, &data)?;
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::PermissionsExt;
-            let mut perm = std::fs::metadata(&target_clone)?.permissions();
-            perm.set_mode(0o755);
-            std::fs::set_permissions(&target_clone, perm)?;
-        }
+    let data = download_github_release_asset(url, "gallery-dl").await?;
+    let staged = bin_dir.join(format!("{}.new", bin_name("gallery-dl")));
+    let staged_clone = staged.clone();
+    let written = tokio::task::spawn_blocking(move || -> anyhow::Result<()> {
+        use std::io::Write;
+        let mut out = std::fs::File::create(&staged_clone)?;
+        out.write_all(&data)?;
+        out.sync_all()?;
         Ok(())
     })
     .await
-    .map_err(|e| anyhow!("Spawn blocking failed: {}", e))??;
+    .map_err(|e| anyhow!("Spawn blocking failed: {}", e))?;
+    if let Err(e) = written {
+        let _ = std::fs::remove_file(&staged);
+        return Err(e);
+    }
+
+    install_staged_binary(staged, &target, "--version").await?;
 
     if !target.exists() {
         return Err(anyhow!("gallery-dl binary not found after download"));
@@ -1063,6 +1078,69 @@ mod install_tests {
         script(&bad, "exit 3");
         let err = prepare_staged_binary(bad).await.unwrap_err().to_string();
         assert!(err.contains("does not run"), "{err}");
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn a_staged_tool_that_does_not_run_never_replaces_the_installed_one() {
+        let dir = tempfile::tempdir().unwrap();
+        let target = dir.path().join("tool");
+        let staged = dir.path().join("tool.new");
+        std::fs::write(&target, b"old").unwrap();
+        script(&staged, "exit 3");
+        assert!(install_staged_binary(staged.clone(), &target, "--version")
+            .await
+            .is_err());
+        assert_eq!(std::fs::read(&target).unwrap(), b"old");
+        assert!(!staged.exists());
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn a_staged_tool_that_runs_is_moved_into_place() {
+        let dir = tempfile::tempdir().unwrap();
+        let target = dir.path().join("tool");
+        let staged = dir.path().join("tool.new");
+        script(&staged, "exit 0");
+        install_staged_binary(staged.clone(), &target, "--version")
+            .await
+            .unwrap();
+        assert!(target.exists());
+        assert!(!staged.exists());
+    }
+
+    #[test]
+    fn release_urls_are_resolved_to_the_repo_tag_and_asset_to_verify() {
+        assert_eq!(
+            github_release_asset(
+                "https://github.com/denoland/deno/releases/latest/download/deno-aarch64-apple-darwin.zip"
+            ),
+            Some((
+                "denoland/deno".to_string(),
+                None,
+                "deno-aarch64-apple-darwin.zip".to_string()
+            ))
+        );
+        assert_eq!(
+            github_release_asset(
+                "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip"
+            ),
+            Some((
+                "BtbN/FFmpeg-Builds".to_string(),
+                Some("latest".to_string()),
+                "ffmpeg-master-latest-win64-gpl.zip".to_string()
+            ))
+        );
+        assert_eq!(
+            github_release_asset(
+                "https://ffmpeg.martin-riedl.de/redirect/latest/macos/arm64/release/ffmpeg.zip"
+            ),
+            None
+        );
+        assert_eq!(
+            github_release_asset("https://github.com/gdl-org/builds/releases"),
+            None
+        );
     }
 
     #[test]

@@ -142,7 +142,7 @@ cli_triple() {
 # omniget-cli carries OmniGet's native Instagram/X/Bilibili/Threads extractors, which
 # are more reliable than plain yt-dlp for those sites.
 install_omniget_cli() {
-  local triple ext tag ver asset url dest bindir tmp
+  local triple ext tag ver asset url dest bindir tmp expected actual
   triple="$(cli_triple)"
   if [ -z "$triple" ]; then
     echo "  omniget-cli: no prebuilt binary for $OS/$(og_arch) — the skill will use yt-dlp for every site."
@@ -159,6 +159,20 @@ install_omniget_cli() {
   echo "  omniget-cli: downloading $asset ..."
   if ! curl -fSL --progress-bar -o "$tmp/pkg" "$url"; then
     echo "  omniget-cli: download failed ($url)"; rm -rf "$tmp"; return 1
+  fi
+  expected="$(curl -fsSL -m 30 "$OMNIGET_DL/dl/$tag/SHA256SUMS" 2>/dev/null \
+    | awk -v f="$asset" '{ n = $2; sub(/^\*/, "", n); if (n == f) { print $1; exit } }')"
+  if [ -z "$expected" ]; then
+    echo "  omniget-cli: no SHA-256 published for $asset; refusing to install it"; rm -rf "$tmp"; return 1
+  fi
+  if command -v shasum >/dev/null 2>&1; then
+    actual="$(shasum -a 256 "$tmp/pkg" | cut -d' ' -f1)"
+  else
+    actual="$(sha256sum "$tmp/pkg" | cut -d' ' -f1)"
+  fi
+  if [ "$actual" != "$expected" ]; then
+    echo "  omniget-cli: SHA-256 mismatch for $asset (expected $expected, got ${actual:-none}); refusing to install it"
+    rm -rf "$tmp"; return 1
   fi
   ( cd "$tmp" && case "$ext" in tar.gz) tar xzf pkg ;; zip) unzip -oq pkg ;; esac )
   local found; found="$(find "$tmp" -type f \( -name omniget-cli -o -name omniget-cli.exe \) | head -1)"

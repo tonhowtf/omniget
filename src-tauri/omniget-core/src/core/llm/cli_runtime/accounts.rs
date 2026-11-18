@@ -432,10 +432,6 @@ impl AccountStore {
         default_path().map(Self::at)
     }
 
-    pub fn path(&self) -> &Path {
-        &self.path
-    }
-
     pub fn list(&self) -> Arc<Vec<CliAccount>> {
         if let Some(cached) = self.cache.read().ok().and_then(|g| g.clone()) {
             return cached;

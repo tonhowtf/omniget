@@ -1,7 +1,5 @@
 use serde::Serialize;
 
-pub const DEFAULT_BASE_URL: &str = "http://127.0.0.1:4416";
-
 #[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(tag = "state", rename_all = "snake_case")]
 pub enum ProviderHealth {

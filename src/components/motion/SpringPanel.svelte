@@ -172,9 +172,9 @@
         label="Svelte"
         code={`import { Spring } from "svelte/motion";\n\nconst value = ${svelteSpring(params)};`}
         hint={$t(svelte.clamped ? "motion.spring.svelte_clamped" : "motion.spring.svelte_hint", {
-          k: num(params.stiffness, 1),
-          c: num(params.damping, 1),
-          m: num(params.mass, 2),
+          kval: num(params.stiffness, 1),
+          cval: num(params.damping, 1),
+          mval: num(params.mass, 2),
         })}
       />
       <CodeBlock label="SwiftUI" code={swiftSpring(params)} hint={$t("motion.spring.swift_hint", { response: num(swift.response, 3), fraction: num(swift.dampingFraction, 3) })} />

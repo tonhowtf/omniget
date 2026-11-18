@@ -1,3 +1,4 @@
+pub mod crawl;
 pub mod http;
 pub mod pack;
 pub mod ports;

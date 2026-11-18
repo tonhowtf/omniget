@@ -115,6 +115,7 @@ export type SettingsPublicV3 = {
     theme: string;
     language: string;
     sidebar_collapsed?: boolean;
+    downloads_only?: boolean;
     mode: AppearanceMode;
     preset: string;
     legacy_theme: string | null;

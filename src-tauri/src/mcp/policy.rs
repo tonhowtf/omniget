@@ -71,8 +71,8 @@ pub const SCOPES: &[&str] = &[
     "telegram_write",
     "social_read",
     "social_write",
-    "whatsapp_read",
-    "whatsapp_write",
+    "phonechat_read",
+    "phonechat_write",
     "approvals_respond",
     "agents_run",
     "memory_read",
@@ -88,14 +88,35 @@ pub const SCOPES: &[&str] = &[
     "research_read",
 ];
 
+pub fn current_scope(name: &str) -> &str {
+    match name {
+        "whatsapp_read" => "phonechat_read",
+        "whatsapp_write" => "phonechat_write",
+        other => other,
+    }
+}
+
+pub fn current_area(name: &str) -> &str {
+    match name {
+        "whatsapp" => "phonechat",
+        "discord" => "guildchat",
+        other => other,
+    }
+}
+
 fn stored_scopes(raw: &str) -> Vec<String> {
     serde_json::from_str::<Vec<String>>(raw)
         .unwrap_or_default()
         .into_iter()
+        .map(|s| current_scope(&s).to_string())
         .filter(|s| SCOPES.contains(&s.as_str()))
         .collect()
 }
 pub fn create(name: String, scopes: Vec<String>) -> Result<ConnectionGrant, String> {
+    let scopes: Vec<String> = scopes
+        .iter()
+        .map(|s| current_scope(s).to_string())
+        .collect();
     if name.trim().is_empty()
         || name.len() > 80
         || scopes.iter().any(|s| !SCOPES.contains(&s.as_str()))
@@ -272,6 +293,7 @@ pub fn scope(name: &str) -> Option<&'static str> {
         | "wmb_perf_capture_start"
         | "wmb_perf_capture_stop" => "system_change",
         n if n.starts_with("wmb_") => "system_read",
+        "quick_tools" => "system_read",
         "tg_download" | "tg_watch_add" | "tg_watch_update" | "tg_watch_remove" | "tg_watch_run"
         | "tg_send_message" | "tg_send_files" | "tg_forward" | "tg_delete_messages" => {
             "telegram_write"
@@ -284,11 +306,11 @@ pub fn scope(name: &str) -> Option<&'static str> {
                 "social_read"
             }
         }
-        n if super::whatsapp::owns(n) => {
-            if super::whatsapp::find(n).is_some_and(|t| t.write) {
-                "whatsapp_write"
+        n if super::phonechat::owns(n) => {
+            if super::phonechat::find(n).is_some_and(|t| t.write) {
+                "phonechat_write"
             } else {
-                "whatsapp_read"
+                "phonechat_read"
             }
         }
         "read_library_search" | "read_book_get" | "read_book_text" | "read_updates" => "library",
@@ -456,6 +478,17 @@ pub fn finish(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn grants_saved_under_earlier_scope_and_area_names_still_apply() {
+        assert_eq!(
+            stored_scopes(r#"["whatsapp_read","whatsapp_write","discover","gone"]"#),
+            ["phonechat_read", "phonechat_write", "discover"]
+        );
+        assert_eq!(current_area("whatsapp"), "phonechat");
+        assert_eq!(current_area("discord"), "guildchat");
+        assert_eq!(current_area("music"), "music");
+    }
+
     #[test]
     fn deny_by_default_including_direct_calls() {
         let p = Principal {

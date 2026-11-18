@@ -245,11 +245,6 @@ fn validate_thread(thread: &str) -> VcsResult<()> {
     Ok(())
 }
 
-pub async fn list(path: &Path, thread: &str) -> VcsResult<Vec<Checkpoint>> {
-    let ctx = context_for(path).await?;
-    list_in(&ctx, thread).await
-}
-
 pub async fn list_in(ctx: &GitCtx, thread: &str) -> VcsResult<Vec<Checkpoint>> {
     let prefix = thread_prefix(thread);
     let out = ctx
@@ -381,6 +376,46 @@ pub async fn delete_all(path: &Path, thread: &str) -> VcsResult<u32> {
     Ok(n)
 }
 
+pub async fn changed_since(path: &Path, thread: &str, turn: u32) -> VcsResult<Vec<String>> {
+    let ctx = context_for(path).await?;
+    let target = resolve(&ctx, thread, turn).await?;
+    let idx = stage_worktree(&ctx).await?;
+    let now = write_tree(&ctx, &idx).await?;
+    let changed = ctx
+        .git()
+        .args([
+            "diff",
+            "--name-only",
+            "-z",
+            "--no-renames",
+            &now,
+            &target,
+            "--",
+        ])
+        .run()
+        .await?;
+    Ok(changed
+        .stdout
+        .split(|b| *b == 0)
+        .filter(|s| !s.is_empty())
+        .map(|s| String::from_utf8_lossy(s).into_owned())
+        .collect())
+}
+
+pub async fn delete_before(path: &Path, thread: &str, keep: usize) -> VcsResult<u32> {
+    let ctx = context_for(path).await?;
+    let all = list_in(&ctx, thread).await?;
+    let mut n = 0;
+    for c in all.iter().rev().skip(keep) {
+        ctx.git()
+            .args(["update-ref", "-d", &c.ref_name])
+            .run()
+            .await?;
+        n += 1;
+    }
+    Ok(n)
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct RestoreResult {
     pub turn: u32,
@@ -462,4 +497,76 @@ pub async fn restore(
         files,
         dropped_later,
     })
+}
+
+#[cfg(test)]
+mod turn_checkpoint_tests {
+    use super::*;
+
+    fn git(dir: &Path, args: &[&str]) -> bool {
+        std::process::Command::new("git")
+            .current_dir(dir)
+            .args(args)
+            .output()
+            .is_ok_and(|o| o.status.success())
+    }
+
+    fn repo() -> Option<tempfile::TempDir> {
+        let dir = tempfile::tempdir().ok()?;
+        let ok = git(dir.path(), &["init", "-q"])
+            && git(dir.path(), &["config", "user.email", "t@example.com"])
+            && git(dir.path(), &["config", "user.name", "t"]);
+        std::fs::write(dir.path().join("a.txt"), "one\n").ok()?;
+        (ok && git(dir.path(), &["add", "."]) && git(dir.path(), &["commit", "-qm", "init"]))
+            .then_some(dir)
+    }
+
+    #[tokio::test]
+    async fn a_turn_checkpoint_lists_what_changed_and_brings_it_back() {
+        let Some(dir) = repo() else { return };
+        let path = dir.path();
+        capture(path, "canvas:n1", 1).await.unwrap();
+        std::fs::write(path.join("a.txt"), "two\n").unwrap();
+        std::fs::write(path.join("b.txt"), "new\n").unwrap();
+        let mut changed = changed_since(path, "canvas:n1", 1).await.unwrap();
+        changed.sort();
+        assert_eq!(changed, vec!["a.txt", "b.txt"]);
+        assert_eq!(
+            std::fs::read_to_string(path.join("a.txt")).unwrap(),
+            "two\n"
+        );
+        let done = restore(path, "canvas:n1", 1, true, true).await.unwrap();
+        assert_eq!(done.files.len(), 2);
+        assert_eq!(
+            std::fs::read_to_string(path.join("a.txt")).unwrap(),
+            "one\n"
+        );
+        assert!(!path.join("b.txt").exists());
+    }
+
+    #[tokio::test]
+    async fn restoring_without_confirmation_is_refused_in_a_plain_repository() {
+        let Some(dir) = repo() else { return };
+        capture(dir.path(), "canvas:n1", 1).await.unwrap();
+        assert!(restore(dir.path(), "canvas:n1", 1, false, false)
+            .await
+            .is_err());
+    }
+
+    #[tokio::test]
+    async fn only_the_newest_checkpoints_are_kept() {
+        let Some(dir) = repo() else { return };
+        for turn in 1..=4 {
+            capture(dir.path(), "canvas:n1", turn).await.unwrap();
+        }
+        assert_eq!(delete_before(dir.path(), "canvas:n1", 2).await.unwrap(), 2);
+        let ctx = context_for(dir.path()).await.unwrap();
+        let left: Vec<u32> = list_in(&ctx, "canvas:n1")
+            .await
+            .unwrap()
+            .iter()
+            .map(|c| c.turn)
+            .collect();
+        assert_eq!(left, vec![3, 4]);
+    }
 }

@@ -213,38 +213,6 @@ impl CapacitySource for AlwaysAvailable {
     }
 }
 
-#[derive(Debug, Default, Clone)]
-pub struct StaticCapacity {
-    map: HashMap<String, Capacity>,
-    fallback: Option<Capacity>,
-}
-
-impl StaticCapacity {
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    pub fn set(mut self, key: impl Into<String>, cap: Capacity) -> Self {
-        self.map.insert(key.into(), cap);
-        self
-    }
-
-    pub fn fallback(mut self, cap: Capacity) -> Self {
-        self.fallback = Some(cap);
-        self
-    }
-}
-
-impl CapacitySource for StaticCapacity {
-    fn capacity(&self, candidate: &Candidate) -> Capacity {
-        self.map
-            .get(&candidate_key(candidate))
-            .cloned()
-            .or_else(|| self.fallback.clone())
-            .unwrap_or_default()
-    }
-}
-
 pub fn candidate_key(candidate: &Candidate) -> String {
     match &candidate.runtime {
         CandidateRuntime::Native { provider } => {
@@ -364,10 +332,6 @@ impl RouterState {
         self.rotated_away.insert(key.into(), now);
     }
 
-    pub fn clear(&mut self, key: &str) {
-        self.rotated_away.remove(key);
-    }
-
     pub fn rotated_at(&self, key: &str) -> Option<Instant> {
         self.rotated_away.get(key).copied()
     }
@@ -431,17 +395,6 @@ fn reject(
         }
     }
     None
-}
-
-pub fn select(
-    chain: &[Candidate],
-    source: &dyn CapacitySource,
-    state: &RouterState,
-    cfg: &RouterConfig,
-    now: Instant,
-    tried: &[String],
-) -> Result<Route, LlmError> {
-    select_for(chain, source, state, cfg, now, tried, TaskKind::Unspecified)
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -562,19 +515,6 @@ impl Router {
         }
     }
 
-    pub fn with_config(mut self, cfg: RouterConfig) -> Self {
-        self.cfg = cfg;
-        self
-    }
-
-    pub fn config(&self) -> &RouterConfig {
-        &self.cfg
-    }
-
-    pub fn pick(&self, chain: &[Candidate], tried: &[String]) -> Result<Route, LlmError> {
-        self.pick_for(chain, tried, TaskKind::Unspecified)
-    }
-
     pub fn pick_for(
         &self,
         chain: &[Candidate],
@@ -596,15 +536,5 @@ impl Router {
     pub fn rotate_away(&self, key: &str) {
         let mut state = self.state.lock().unwrap_or_else(|e| e.into_inner());
         state.rotate_away(key, Instant::now());
-    }
-
-    pub fn clear(&self, key: &str) {
-        let mut state = self.state.lock().unwrap_or_else(|e| e.into_inner());
-        state.clear(key);
-    }
-
-    pub fn is_cooling(&self, key: &str) -> bool {
-        let state = self.state.lock().unwrap_or_else(|e| e.into_inner());
-        state.is_cooling(key, Instant::now(), self.cfg.cooldown)
     }
 }

@@ -7,7 +7,7 @@
   import InsightsDigest from "./InsightsDigest.svelte";
   import InsightsPanels from "./InsightsPanels.svelte";
   import { hasExtras } from "./second";
-  import { ago, compact, errKey, social, tool, type Platform, type Profile } from "./api";
+  import { ago, compact, errKey, NET, social, TITLE_KEY, tool, type Platform, type Profile } from "./api";
   import {
     REPO_SORTS,
     SAMPLES,
@@ -39,7 +39,6 @@
 
   let { platform, me, openProfile }: { platform: Platform; me: Profile; openProfile: (handle: string) => void } = $props();
 
-  const LABEL: Record<string, string> = { x: "X", instagram: "Instagram", tiktok: "TikTok", reddit: "Reddit", pinterest: "Pinterest", github: "GitHub" };
   const METRICS = ["likes", "replies", "reposts", "saves", "views"] as const;
   const POST_COLUMNS = ["created_at", "likes", "replies", "reposts", "saves", "views", "engagement", "lift"] as const;
   const HOURS = Array.from({ length: 24 }, (_, i) => i);
@@ -67,7 +66,7 @@
   let summary = $derived(shown?.report === "summary" ? (shown.result as Summary) : null);
   let posts = $derived(shown?.report === "posts" ? (shown.result as Listing<PostRow>) : null);
   let times = $derived(shown?.report === "times" ? (shown.result as Times) : null);
-  let grid = $derived(times ? heatGrid(platform === "github" ? times.cells.map((c) => ({ ...c, mean: c.posts })) : times.cells) : null);
+  let grid = $derived(times ? heatGrid(platform === NET.codehub ? times.cells.map((c) => ({ ...c, mean: c.posts })) : times.cells) : null);
   let reports = $derived(reportsFor(platform));
   let repos = $derived(shown?.report === "repos" ? (shown.result as Listing<RepoRow> & { totals: RepoTotals }) : null);
   let repoSort = $state<string>("stars");
@@ -194,7 +193,7 @@
   }
 
   function typeLabel(kind: string): string {
-    return platform === "github" ? kind.replaceAll("_", " ") : ($t(`social_analytics.type.${kind}`) as string);
+    return platform === NET.codehub ? kind.replaceAll("_", " ") : ($t(`social_analytics.type.${kind}`) as string);
   }
 
   function sortTable(key: string) {
@@ -265,7 +264,7 @@
 
   function errorLine(e: ToolError): string {
     const key = errKey(`${e.code}: x`);
-    if (key !== "unknown" && key !== "invalid_arguments") return $t(`social.errors.${key}`, { platform: LABEL[platform] }) as string;
+    if (key !== "unknown" && key !== "invalid_arguments") return $t(`social.errors.${key}`, { platform: $t(TITLE_KEY[platform]) }) as string;
     return e.message;
   }
 </script>
@@ -286,7 +285,7 @@
       </select>
     </label>
     {#if hasReplies(platform)}
-      <label class="an-check"><input type="checkbox" class="checkbox" bind:checked={replies} onchange={() => void load()} /> {$t(platform === "reddit" ? "social_analytics.include_comments" : "social_analytics.include_replies")}</label>
+      <label class="an-check"><input type="checkbox" class="checkbox" bind:checked={replies} onchange={() => void load()} /> {$t(platform === NET.forums ? "social_analytics.include_comments" : "social_analytics.include_replies")}</label>
     {/if}
     <button class="btn btn-primary btn-sm" disabled={loading}>{$t("social_analytics.analyze")}</button>
     <button type="button" class="btn btn-ghost btn-sm" disabled={loading} onclick={() => void load(true)} title={$t("social_analytics.refresh")} aria-label={$t("social_analytics.refresh")}><SocialIcon name="refresh" /></button>
@@ -434,7 +433,7 @@
       <button class="btn btn-ghost an-more" disabled={loading} onclick={() => void load(false, true)}>{$t("social.common.more")}</button>
     {/if}
   {:else if times && grid}
-    <p class="an-hint">{$t(platform === "github" ? "social_analytics.times_hint_activity" : "social_analytics.times_hint", { zone: times.timezone, min: times.thin_below })}</p>
+    <p class="an-hint">{$t(platform === NET.codehub ? "social_analytics.times_hint_activity" : "social_analytics.times_hint", { zone: times.timezone, min: times.thin_below })}</p>
     {#if times.best}
       <p class="an-best"><SocialIcon name="star" size={14} /> {$t("social_analytics.times_best", { day: weekdayName(times.best.weekday, $locale), hour: times.best.hour })}</p>
     {/if}

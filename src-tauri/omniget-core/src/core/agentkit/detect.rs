@@ -154,11 +154,6 @@ fn installed_extensions(env: &Env) -> Vec<String> {
     out
 }
 
-pub fn detect(env: &Env, t: &TargetAdapter, project: Option<&Path>) -> DetectedTarget {
-    let dirs = search_dirs(env);
-    detect_with(env, t, project, &dirs, &installed_extensions(env))
-}
-
 fn detect_with(
     env: &Env,
     t: &TargetAdapter,

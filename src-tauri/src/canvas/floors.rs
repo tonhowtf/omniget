@@ -304,7 +304,7 @@ fn parse<T: for<'de> Deserialize<'de> + Default>(args: Value) -> Result<T, Strin
 }
 
 pub async fn rpc_create(ctx: &NodeCtx, args: Value) -> Result<Value, String> {
-    super::maestro::require_maestro(ctx)?;
+    super::lead::require_lead(ctx)?;
     let a: FloorArgs = parse(args)?;
     let name = a
         .name
@@ -368,7 +368,7 @@ fn from_ground(ctx: &NodeCtx, what: &str) -> Result<(), String> {
 }
 
 async fn floor_land(ctx: &NodeCtx, args: Value) -> Result<Value, String> {
-    super::maestro::require_maestro(ctx)?;
+    super::lead::require_lead(ctx)?;
     from_ground(ctx, "land")?;
     let a: FloorArgs = parse(args)?;
     let s = store();
@@ -392,7 +392,7 @@ async fn floor_land(ctx: &NodeCtx, args: Value) -> Result<Value, String> {
 }
 
 async fn floor_delete(ctx: &NodeCtx, args: Value) -> Result<Value, String> {
-    super::maestro::require_maestro(ctx)?;
+    super::lead::require_lead(ctx)?;
     from_ground(ctx, "delete")?;
     let a: FloorArgs = parse(args)?;
     let s = store();
@@ -414,7 +414,7 @@ async fn floor_delete(ctx: &NodeCtx, args: Value) -> Result<Value, String> {
 }
 
 async fn floor_run(ctx: &NodeCtx, args: Value) -> Result<Value, String> {
-    super::maestro::require_maestro(ctx)?;
+    super::lead::require_lead(ctx)?;
     let a: FloorArgs = parse(args)?;
     let s = store();
     let floor = match a.name.or(a.floor) {

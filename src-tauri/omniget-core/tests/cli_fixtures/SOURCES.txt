@@ -19,7 +19,8 @@ Command, run on macOS 25.5.0 (darwin) on 18/09/2026:
 
 `claude --version` = `2.1.276 (Claude Code)`. `$TMP/cfg` was created empty
 seconds before, so the CLI had nowhere to find a login; exit code 1, stderr
-empty, the three stdout lines are byte-for-byte what the CLI wrote. This is the
+empty, the three stdout lines are what the CLI wrote, with the capture directory
+in `cwd` and `memory_paths` replaced by `/tmp/omniget-fixture`. This is the
 `ERR_CLI_AUTH` fixture: the `assistant` line carries
 `"error":"authentication_failed"` with `is_api_error_message":true`, and the
 `result` line carries `is_error":true` with `terminal_reason":"api_error"`.
@@ -29,10 +30,9 @@ claude-2.1.276-hello.jsonl                  RECONSTRUCTED
 claude-2.1.276-tool-use.jsonl               RECONSTRUCTED
 claude-2.1.276-rate-limit.jsonl             RECONSTRUCTED
 --------------------------------------------------------
-An authenticated stream could only be recorded by logging a real Claude
-subscription into a directory this agent controls, which the round forbids (and
-which would mean generating billed traffic on the owner's account). These three
-were written from the published schemas instead:
+No authenticated stream was recorded: that would need a real Claude
+subscription logged into the capture directory and would generate billed
+traffic. These three were written from the published schemas instead:
 
   * message envelope, `system/init`, `assistant`, `user`, `result`
     (both the `success` arm with `result` and the error arm with `errors[]`):
@@ -47,8 +47,8 @@ were written from the published schemas instead:
     wrapped in the documented `{"type":"stream_event","event":…}` envelope.
   * `rate_limit_event`: the documented `SDKRateLimitEvent` shape is FLAT —
     `rate_limit_info: { status, resetsAt?, utilization?, errorCode? }` — with
-    no per-window breakdown (same URL as above). `estudos/74` §A.2 records a
-    different shape observed live on 2.1.275:
+    no per-window breakdown (same URL as above). A live capture on 2.1.275 shows a
+    different shape:
     `unifiedWindows.{five_hour,seven_day}.{utilization, resetsAt}`.
     The fixture carries BOTH so the parser is tested against both; neither
     source states the range of `utilization`, so the parser decides by value

@@ -235,8 +235,8 @@ export const getEnv = (workspaceId: string) => invoke<EnvRecord>('canvas_env_get
 export const setEnv = (workspaceId: string, env: EnvRecord) => invoke<EnvRecord>('canvas_env_set', { workspaceId, env });
 export const testEnv = (env: EnvRecord) => invoke<EnvTest>('canvas_env_test', { env });
 
-export const setMaestro = (workspaceId: string, floorId: string, nodeId: string, on: boolean) =>
-  invoke<void>('canvas_maestro_set', { workspaceId, floorId, nodeId, on });
+export const setLead = (workspaceId: string, floorId: string, nodeId: string, on: boolean) =>
+  invoke<void>('canvas_lead_set', { workspaceId, floorId, nodeId, on });
 
 export function newHook(command = ''): HookCommand {
   return { id: crypto.randomUUID(), command, enabled: true };

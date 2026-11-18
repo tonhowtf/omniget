@@ -38,6 +38,7 @@ const SHARED = [
   "src/sniffer-filters.js",
   "src/sniffer-storage.js",
   "src/sniffer-toggle.js",
+  "src/store-policy.js",
   "src/synthetic-manifest.js",
   "src/track-pairing.js",
   "popup/popup.js",

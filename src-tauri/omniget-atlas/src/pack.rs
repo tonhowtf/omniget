@@ -64,23 +64,6 @@ pub enum PackError {
     Layout { message: String },
 }
 
-impl PackError {
-    pub fn code(&self) -> &'static str {
-        match self {
-            PackError::Io { .. } => "ERR_ATLAS_SRC_IO",
-            PackError::Image { .. } => "ERR_ATLAS_SRC_IMAGE",
-            PackError::Json { .. } => "ERR_ATLAS_SRC_JSON",
-            PackError::Empty { .. } => "ERR_ATLAS_SRC_EMPTY",
-            PackError::FrameName { .. } => "ERR_ATLAS_SRC_FRAME_NAME",
-            PackError::MirrorSheet { .. } => "ERR_ATLAS_MIRROR_SHEET",
-            PackError::MissingDir { .. } => "ERR_ATLAS_MISSING_DIR",
-            PackError::FrameTooBig { .. } => "ERR_ATLAS_FRAME_TOO_BIG",
-            PackError::DuplicateFrame { .. } => "ERR_ATLAS_DUPLICATE_FRAME",
-            PackError::Layout { .. } => "ERR_ATLAS_SRC_LAYOUT",
-        }
-    }
-}
-
 type Result<T> = std::result::Result<T, PackError>;
 
 #[derive(Debug, Clone)]

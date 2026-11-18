@@ -4,7 +4,7 @@ type Net = "reddit" | "pinterest" | "github";
 const NOW = Math.floor(Date.now() / 1000);
 const NET: Record<string, Net> = { rd: "reddit", pin: "pinterest", gh: "github" };
 const signedIn: Record<Net, boolean> = { reddit: true, pinterest: false, github: true };
-const github = { has_token: false, username: "preview-dev" as string | null };
+const codehub = { has_token: false, username: "preview-dev" as string | null };
 
 const PEOPLE = [
   { id: "21", handle: "marina-dev", name: "Marina" },
@@ -38,7 +38,7 @@ function page<T>(items: T[], next: string | null) {
   return { count: items.length, items, next_cursor: next };
 }
 
-function redditPost(n: number) {
+function forumsPost(n: number) {
   const sub = SUBS[n % SUBS.length];
   const id = (1000 + n).toString(36);
   return {
@@ -134,7 +134,7 @@ function profile(p: Net, handle: string) {
     posts: p === "reddit" ? undefined : 64,
     likes: p === "reddit" ? 15200 : undefined,
     followed_by_me: who.id === "21",
-    extra: { kind: "user", ...(p === "github" && who.handle === ME.handle ? { auth: github.has_token ? "token" : "username" } : {}) },
+    extra: { kind: "user", ...(p === "github" && who.handle === ME.handle ? { auth: codehub.has_token ? "token" : "username" } : {}) },
   };
 }
 
@@ -156,7 +156,7 @@ export function networkFixture(name: string, a: Args): unknown {
   if (!p) return undefined;
   if (!signedIn[p]) throw `NOT_LOGGED_IN: sign in to ${p} in OmniGet first`;
   const verb = name.slice(name.indexOf("_") + 1);
-  const make = p === "reddit" ? redditPost : p === "pinterest" ? pin : event;
+  const make = p === "reddit" ? forumsPost : p === "pinterest" ? pin : event;
   const people = () => page(PEOPLE.map((x) => profile(p, x.handle)), null);
   switch (verb) {
     case "me":
@@ -174,7 +174,7 @@ export function networkFixture(name: string, a: Args): unknown {
     case "subscriptions":
       return page(SUBS.map((x) => profile("reddit", `r/${x}`)), null);
     case "subreddit":
-      return { subreddit: profile("reddit", `r/${String(a.subreddit).replace(/^r\//, "")}`), posts: feed(redditPost, a) };
+      return { subreddit: profile("reddit", `r/${String(a.subreddit).replace(/^r\//, "")}`), posts: feed(forumsPost, a) };
     case "boards":
       return page(["ideas", "posters", "garden"].map((b) => profile("pinterest", `${ME.handle}/${b}`)), null);
     case "board":
@@ -194,7 +194,7 @@ export function networkFixture(name: string, a: Args): unknown {
     case "post":
     case "pin": {
       const n = Number(String(a.post).match(/(\d+)/)?.[1] ?? 0) % 50;
-      return { post: p === "reddit" ? redditPost(n) : pin(n), comments: comments(p === "reddit") };
+      return { post: p === "reddit" ? forumsPost(n) : pin(n), comments: comments(p === "reddit") };
     }
     case "issues":
       return a.post || a.number ? { post: issue(Number(String(a.post ?? a.number).match(/(\d+)\D*$/)?.[1] ?? 100) - 100), comments: comments(false) } : feed(issue, a);
@@ -215,7 +215,7 @@ export function networkFixture(name: string, a: Args): unknown {
     case "star":
     case "watch":
     case "issue_create":
-      if (p === "github" && !github.has_token) throw 'TOKEN_REQUIRED: {"message":"Acting on GitHub needs a GitHub token","retryable":false,"next_step":"Save a token in the GitHub screen"}';
+      if (p === "github" && !codehub.has_token) throw 'TOKEN_REQUIRED: {"message":"Acting on Code Hub needs a Code Hub token","retryable":false,"next_step":"Save a token in the Code Hub screen"}';
       return { ok: true };
     default:
       return undefined;
@@ -227,7 +227,7 @@ export function networkStatus() {
     platform,
     browser: platform !== "github",
     logged_in: signedIn[platform],
-    ...(platform === "github" ? { auth: github.has_token ? "token" : github.username ? "username" : "none" } : {}),
+    ...(platform === "github" ? { auth: codehub.has_token ? "token" : codehub.username ? "username" : "none" } : {}),
   }));
 }
 
@@ -238,11 +238,11 @@ export function networkLogin(platform: string): boolean {
 }
 
 export const networkCommands: Record<string, (args: Args) => unknown> = {
-  social_github_state: () => ({ ...github }),
-  social_github_connect: (args) => {
-    if (typeof args.token === "string") github.has_token = args.token.trim() !== "";
-    if (typeof args.username === "string") github.username = args.username.trim() || null;
-    signedIn.github = github.has_token || github.username !== null;
-    return { ...github };
+  social_codehub_state: () => ({ ...codehub }),
+  social_codehub_connect: (args) => {
+    if (typeof args.token === "string") codehub.has_token = args.token.trim() !== "";
+    if (typeof args.username === "string") codehub.username = args.username.trim() || null;
+    signedIn.github = codehub.has_token || codehub.username !== null;
+    return { ...codehub };
   },
 };

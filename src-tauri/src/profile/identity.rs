@@ -1,6 +1,6 @@
 use base64::Engine;
 use data_encoding::BASE32_NOPAD;
-use ed25519_dalek::{Signature, Signer, SigningKey, Verifier, VerifyingKey};
+use ed25519_dalek::{Signer, SigningKey};
 use sha2::{Digest, Sha256};
 
 use crate::secrets::{self, PROFILE};
@@ -10,7 +10,6 @@ const OMNIDISC_DEVICE_KEY: &str = "device-key";
 const OMNIDISC_DEVICE_IDS: &str = "device-ids.json";
 
 pub const ERR_SECRET: &str = "ERR_PROFILE_SECRET";
-pub const ERR_SIGN: &str = "ERR_PROFILE_SIGN";
 
 fn b64() -> base64::engine::general_purpose::GeneralPurpose {
     base64::engine::general_purpose::STANDARD
@@ -112,13 +111,6 @@ pub fn public_key(seed: &[u8; 32]) -> [u8; 32] {
 
 pub fn sign(seed: &[u8; 32], msg: &[u8]) -> [u8; 64] {
     SigningKey::from_bytes(seed).sign(msg).to_bytes()
-}
-
-pub fn verify(public_key: &[u8; 32], msg: &[u8], sig: &[u8; 64]) -> bool {
-    match VerifyingKey::from_bytes(public_key) {
-        Ok(key) => key.verify(msg, &Signature::from_bytes(sig)).is_ok(),
-        Err(_) => false,
-    }
 }
 
 pub fn fingerprint(public_key: &[u8; 32]) -> String {

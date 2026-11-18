@@ -113,7 +113,7 @@
     const parts: string[] = [];
     if (plan.burnCaptions && captionsUsable(segments)) parts.push($t("studio.sum_captions", { count: cues.length }) as string);
     if (reframe.aspect !== "keep") parts.push($t(reframe.mode === "crop" ? "studio.sum_crop" : "studio.sum_fit", { aspect: reframe.aspect }) as string);
-    if (introUsable(plan.intro)) parts.push($t("studio.sum_intro", { n: intro.seconds }) as string);
+    if (introUsable(plan.intro)) parts.push($t("studio.sum_intro", { num: intro.seconds }) as string);
     if (fadeOut) parts.push($t("studio.sum_fade") as string);
     return parts;
   });

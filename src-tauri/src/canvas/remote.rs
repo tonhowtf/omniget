@@ -978,7 +978,7 @@ async fn api_node_create(
         let src = if body["node"].is_object() { body["node"].clone() } else { body.clone() };
         let kind = src["kind"].as_str().unwrap_or("note").to_string();
         if matches!(kind.as_str(), "terminal" | "agent") {
-            return Err("CANVAS_INVALID: terminals are started from the app or the Maestro".into());
+            return Err("CANVAS_INVALID: terminals are started from the app or the Lead".into());
         }
         let (w, h) = (
             src["w"].as_f64().unwrap_or(320.0).clamp(40.0, 4096.0),
@@ -1047,7 +1047,7 @@ async fn api_mutations(
             return Err("CANVAS_INVALID: 1 to 200 ops".into());
         }
         if ops.iter().any(starts_a_process) {
-            return Err("CANVAS_INVALID: terminals are started from the app or the Maestro".into());
+            return Err("CANVAS_INVALID: terminals are started from the app or the Lead".into());
         }
         let (origin, mid) = mutation_origin(body["mutationId"].as_str());
         let res = s.apply(&ws, &floor, ops, &origin, body["baseRev"].as_u64())?;
@@ -1142,7 +1142,7 @@ pub async fn rpc(ctx: &NodeCtx, method: &str, args: Value) -> RpcResult {
                 .unwrap_or(false);
             if !manager {
                 return Some(Err(
-                    "CANVAS_FORBIDDEN: only the Maestro (or the user) changes environments".into(),
+                    "CANVAS_FORBIDDEN: only the Lead (or the user) changes environments".into(),
                 ));
             }
             let target = args

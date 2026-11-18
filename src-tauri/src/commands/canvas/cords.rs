@@ -1,5 +1,5 @@
 use serde_json::Value;
-use tauri::AppHandle;
+use tauri::{AppHandle, Emitter};
 
 use crate::canvas::cords::host;
 
@@ -29,6 +29,7 @@ pub fn canvas_inbox(app: AppHandle, workspace_id: Option<String>) -> Vec<Value> 
 #[tauri::command]
 pub fn canvas_mark_seen(app: AppHandle, node_id: String) {
     host().bind(&app).mark_seen(&node_id);
+    let _ = app.emit("canvas://inbox", &node_id);
 }
 
 #[tauri::command]

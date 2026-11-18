@@ -139,10 +139,10 @@
     void openExternal(SITES_URL).catch(() => {});
   }
 
-  let success = $state<{ first: boolean } | null>(null);
+  let success = $state<{ first: boolean; folder: string } | null>(null);
   let successTimer: ReturnType<typeof setTimeout> | null = null;
-  function flashSuccess(first: boolean) {
-    success = { first };
+  function flashSuccess(first: boolean, folder: string) {
+    success = { first, folder };
     if (successTimer) clearTimeout(successTimer);
     successTimer = setTimeout(() => { success = null; }, first ? 6000 : 4000);
   }
@@ -766,7 +766,7 @@
       omniState = { kind: "idle" };
       const first = firstRun;
       markStarted();
-      flashSuccess(first);
+      flashSuccess(first, outputDir);
     } catch (e: any) {
       const msg =
         typeof e === "string" ? e : e.message ?? $t("omnibox.error");
@@ -853,7 +853,7 @@
       persistLastDownloadOptions();
       const first = firstRun;
       markStarted();
-      flashSuccess(first);
+      flashSuccess(first, outputDir);
     }
   }
 
@@ -896,7 +896,7 @@
       });
       omniState = { kind: "idle" };
       markStarted();
-      flashSuccess(false);
+      flashSuccess(false, outputDir);
     } catch (e: any) {
       const msg = typeof e === "string" ? e : e.message ?? $t("omnibox.error");
       omniState = { kind: "error", message: msg, originalUrl: currentUrl, platform: "p2p" };
@@ -1228,9 +1228,15 @@
       {/if}
 
       {#if success}
+        {@const folder = success.folder}
         <div class="state-line state-line--success" role="status">
-          <strong>{success.first ? $t("home.success_first") : $t("home.success_title")}</strong>
+          <strong title={folder}>
+            {success.first ? $t("home.success_first") : folder ? $t("home.success_folder", { folder: folder.replace(/[\\/]+$/, "").split(/[\\/]/).pop() ?? folder }) : $t("home.success_title")}
+          </strong>
           <a href="/downloads" class="quiet-link">{$t("home.success_open")}</a>
+          {#if folder}
+            <button type="button" class="quiet-link" onclick={() => invoke("open_path_default", { path: folder }).catch(() => {})}>{$t("home.success_show_folder")}</button>
+          {/if}
         </div>
       {:else if omniState.kind === "idle"}
         {#if firstRun}

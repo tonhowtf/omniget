@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { authProblem, errorKey, looksLikeUrl } from "./connector-market";
+import { authProblem, errorKey, filterEntries, looksLikeUrl, type MarketEntry } from "./connector-market";
 
 describe("errorKey", () => {
   it("names the failed check", () => {
@@ -40,5 +40,30 @@ describe("looksLikeUrl", () => {
     expect(looksLikeUrl("how to cook rice")).toBe(false);
     expect(looksLikeUrl("rice")).toBe(false);
     expect(looksLikeUrl("")).toBe(false);
+  });
+});
+
+describe("filterEntries", () => {
+  const entry = (id: string, state: MarketEntry["state"], extra: Partial<MarketEntry> = {}) =>
+    ({ id, name: id, description: "", domains: [`${id}.com`], state, ...extra }) as MarketEntry;
+  const list = [
+    entry("udemy", "not_installed"),
+    entry("bunkr", "installed", { description: "Whole albums" }),
+    entry("hotmart", "not_installed", { domains: ["hotmart.com", "pandavideo.com.br"] }),
+    entry("branas", "update_available"),
+  ];
+
+  it("puts updates and installed helpers first, then the rest by name", () => {
+    expect(filterEntries(list, "", "").map((e) => e.id)).toEqual(["branas", "bunkr", "hotmart", "udemy"]);
+  });
+
+  it("puts the helper opened from a link first", () => {
+    expect(filterEntries(list, "", "udemy").map((e) => e.id)).toEqual(["udemy", "branas", "bunkr", "hotmart"]);
+  });
+
+  it("searches the name, the sites and the description, ignoring case", () => {
+    expect(filterEntries(list, " PANDA ", "").map((e) => e.id)).toEqual(["hotmart"]);
+    expect(filterEntries(list, "albums", "").map((e) => e.id)).toEqual(["bunkr"]);
+    expect(filterEntries(list, "nothing", "")).toEqual([]);
   });
 });

@@ -80,9 +80,9 @@
 
   function handleLabel(handle: 0 | 1): string {
     return $t("motion.curve.handle", {
-      n: handle + 1,
-      x: num(value[handle * 2], 2),
-      y: num(value[handle * 2 + 1], 2),
+      num: handle + 1,
+      xval: num(value[handle * 2], 2),
+      yval: num(value[handle * 2 + 1], 2),
     }) as string;
   }
 </script>

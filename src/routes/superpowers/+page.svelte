@@ -3,8 +3,9 @@
   import { t } from "$lib/i18n";
   import { getSettings, updateSettings } from "$lib/stores/settings-store.svelte";
   import { CATEGORIES, SUPERPOWERS, TAGS, type Superpower, type SuperpowerCategory } from "$lib/superpowers/catalog";
-  import { MAX_RAIL_PINS, togglePin } from "$lib/superpowers/pins";
+  import { MAX_RAIL_PINS, currentPins, togglePin } from "$lib/superpowers/pins";
   import { searchPowers } from "$lib/superpowers/search";
+  import { powerPatch } from "$components/settings/integrations/superpowers";
   import NavIcon from "$components/shell/NavIcon.svelte";
 
   type Power = Superpower & {
@@ -16,7 +17,7 @@
   };
 
   let settings = $derived(getSettings());
-  let pinned = $derived<string[]>(settings?.superpowers?.pinned ?? []);
+  let pinned = $derived<string[]>(currentPins(settings?.superpowers?.pinned ?? []));
 
   let powers = $derived<Power[]>(
     SUPERPOWERS.map((entry) => ({
@@ -59,6 +60,11 @@
     return `/settings?tab=integrations&section=superpowers&setting=settings.integrations.superpowers.${power.id}`;
   }
 
+  function turnOn(power: Power) {
+    if (!power.settingsKey) return;
+    updateSettings(powerPatch(settings, power.settingsKey, true)).catch(() => {});
+  }
+
   function pin(power: Power) {
     updateSettings({ superpowers: { pinned: togglePin(pinned, power.id) } }).catch(() => {});
   }
@@ -90,7 +96,7 @@
       {#if !power.enabled}
         <p class="power-meta">
           <span class="power-tag power-tag-off">{$t("superpowers.disabled")}</span>
-          <span>{$t("superpowers.disabled_hint")}</span>
+          <button type="button" class="btn btn-secondary btn-sm power-on" onclick={() => turnOn(power)}>{$t("superpowers.turn_on")}</button>
         </p>
       {:else if power.tagLabels.length > 0}
         <p class="power-meta">
@@ -419,6 +425,11 @@
   .power-tag-off {
     background: var(--fill-2);
     font-weight: 600;
+  }
+
+  .power-on {
+    position: relative;
+    z-index: 1;
   }
 
   .power-pin {

@@ -17,10 +17,13 @@
     compact,
     errDetail,
     errKey,
+    NET,
+    SLUG,
     social,
+    TITLE_KEY,
     tool,
     type Comment,
-    type GithubAuth,
+    type CodehubAuth,
     type Page,
     type Platform,
     type Post,
@@ -30,31 +33,30 @@
 
   let { platform }: { platform: Platform } = $props();
 
-  type Tab = "feed" | "mentions" | "saved" | "search" | "grok" | "me" | "audience" | "analytics" | "monitor" | "schedule";
+  type Tab = "feed" | "mentions" | "saved" | "search" | "assistant" | "me" | "audience" | "analytics" | "monitor" | "schedule";
   const ENGINE_TABS: Tab[] = ["audience", "analytics", "monitor", "schedule"];
-  type GrokMessage = { id: string; role: "user" | "grok"; text: string; sources: string[] };
-  type GrokChat = { id: string; title: string; url: string };
+  type AssistantMessage = { id: string; role: "user" | "assistant"; text: string; sources: string[] };
+  type AssistantChat = { id: string; title: string; url: string };
   type View =
     | { kind: "tab" }
     | { kind: "profile"; handle: string }
     | { kind: "post"; post: Post };
 
   const TABS: Record<Platform, Tab[]> = {
-    x: ["feed", "mentions", "saved", "search", "grok", "me", "audience", "analytics", "monitor", "schedule"],
-    instagram: ["feed", "saved", "search", "me", "audience", "analytics", "monitor"],
-    tiktok: ["feed", "search", "me", "audience", "analytics", "monitor"],
-    reddit: ["feed", "saved", "search", "me", "analytics", "monitor"],
-    pinterest: ["feed", "search", "me", "audience", "analytics", "monitor"],
-    github: ["feed", "search", "me", "audience", "analytics", "monitor"],
+    [NET.shortpost]: ["feed", "mentions", "saved", "search", "assistant", "me", "audience", "analytics", "monitor", "schedule"],
+    [NET.photofeed]: ["feed", "saved", "search", "me", "audience", "analytics", "monitor"],
+    [NET.clipfeed]: ["feed", "search", "me", "audience", "analytics", "monitor"],
+    [NET.forums]: ["feed", "saved", "search", "me", "analytics", "monitor"],
+    [NET.pinboard]: ["feed", "search", "me", "audience", "analytics", "monitor"],
+    [NET.codehub]: ["feed", "search", "me", "audience", "analytics", "monitor"],
   };
-  const FEEDS: Partial<Record<Platform, string[]>> = { reddit: ["home", "popular", "all"], github: ["received", "trending"] };
+  const FEEDS: Partial<Record<Platform, string[]>> = { [NET.forums]: ["home", "popular", "all"], [NET.codehub]: ["received", "trending"] };
   const KINDS: Partial<Record<Platform, { id: string; list: "posts" | "users" }[]>> = {
-    reddit: [{ id: "posts", list: "posts" }, { id: "subreddits", list: "users" }, { id: "users", list: "users" }],
-    pinterest: [{ id: "pins", list: "posts" }, { id: "boards", list: "users" }, { id: "users", list: "users" }],
-    github: [{ id: "repositories", list: "posts" }, { id: "issues", list: "posts" }, { id: "users", list: "users" }],
+    [NET.forums]: [{ id: "posts", list: "posts" }, { id: "subreddits", list: "users" }, { id: "users", list: "users" }],
+    [NET.pinboard]: [{ id: "pins", list: "posts" }, { id: "boards", list: "users" }, { id: "users", list: "users" }],
+    [NET.codehub]: [{ id: "repositories", list: "posts" }, { id: "issues", list: "posts" }, { id: "users", list: "users" }],
   };
-  const LABEL: Record<Platform, string> = { x: "X", instagram: "Instagram", tiktok: "TikTok", reddit: "Reddit", pinterest: "Pinterest", github: "GitHub" };
-  const TAB_ICON: Record<Tab, string> = { feed: "home", mentions: "at", saved: "bookmark", search: "search", grok: "spark", me: "user", audience: "users", analytics: "chart", monitor: "radar", schedule: "clock" };
+  const TAB_ICON: Record<Tab, string> = { feed: "home", mentions: "at", saved: "bookmark", search: "search", assistant: "spark", me: "user", audience: "users", analytics: "chart", monitor: "radar", schedule: "clock" };
 
   let loggedIn = $state<boolean | null>(null);
   let checking = $state(true);
@@ -81,11 +83,11 @@
   let hashtags = $state<{ name: string; posts?: number }[]>([]);
 
 
-  let grokMessages = $state<GrokMessage[]>([]);
-  let grokChats = $state<GrokChat[]>([]);
-  let grokConversation = $state<string | null>(null);
-  let grokDraft = $state("");
-  let grokBusy = $state(false);
+  let assistantMessages = $state<AssistantMessage[]>([]);
+  let assistantChats = $state<AssistantChat[]>([]);
+  let assistantConversation = $state<string | null>(null);
+  let assistantDraft = $state("");
+  let assistantBusy = $state(false);
 
   let draft = $state("");
   let replyDraft = $state("");
@@ -95,24 +97,24 @@
 
   let netFeed = $state("");
   let netKind = $state("");
-  let ghAuth = $state<GithubAuth | null>(null);
+  let ghAuth = $state<CodehubAuth | null>(null);
   let ghToken = $state("");
   let ghUser = $state("");
   let ghBusy = $state(false);
 
   let tabs = $derived(TABS[platform]);
-  let label = $derived(LABEL[platform]);
-  let newer = $derived(platform === "reddit" || platform === "pinterest" || platform === "github");
+  let label = $derived($t(TITLE_KEY[platform]) as string);
+  let newer = $derived(platform === NET.forums || platform === NET.pinboard || platform === NET.codehub);
   let feedPick = $derived(netFeed || FEEDS[platform]?.[0] || "");
   let kindPick = $derived(netKind || KINDS[platform]?.[0].id || "");
-  let whoKey = $derived(platform === "x" ? "handle" : "username");
+  let whoKey = $derived(platform === NET.shortpost ? "handle" : "username");
   let profileTool = $derived(tool(platform, newer ? "user" : "profile"));
-  let postTool = $derived(platform === "pinterest" ? "pin_pin" : platform === "github" ? "gh_issues" : tool(platform, "post"));
-  let canReply = $derived(platform !== "pinterest" && (platform !== "github" || me?.extra?.auth === "token"));
+  let postTool = $derived(platform === NET.pinboard ? "pin_pin" : platform === NET.codehub ? "gh_issues" : tool(platform, "post"));
+  let canReply = $derived(platform !== NET.pinboard && (platform !== NET.codehub || me?.extra?.auth === "token"));
 
   function at(handle: string): string {
     if (handle.includes("/")) return handle;
-    return platform === "reddit" ? `u/${handle}` : `@${handle}`;
+    return platform === NET.forums ? `u/${handle}` : `@${handle}`;
   }
 
   function kindOf(p: Post): string {
@@ -121,17 +123,17 @@
 
   function canFollow(p: Profile): boolean {
     if (!me || p.handle.toLowerCase() === me.handle.toLowerCase()) return false;
-    if (platform === "reddit") return p.handle.startsWith("r/");
-    if (platform === "pinterest") return !p.handle.includes("/");
-    if (platform === "github") return me.extra?.auth === "token";
+    if (platform === NET.forums) return p.handle.startsWith("r/");
+    if (platform === NET.pinboard) return !p.handle.includes("/");
+    if (platform === NET.codehub) return me.extra?.auth === "token";
     return true;
   }
 
-  async function saveGithub(auth: { token?: string; username?: string }) {
+  async function saveCodehub(auth: { token?: string; username?: string }) {
     ghBusy = true;
     error = null;
     try {
-      ghAuth = await social.githubConnect(auth);
+      ghAuth = await social.codehubConnect(auth);
       ghToken = "";
       await refreshStatus();
       if (loggedIn) await connect();
@@ -143,10 +145,10 @@
     }
   }
 
-  async function openGithubSetup() {
+  async function openCodehubSetup() {
     error = null;
     try {
-      ghAuth = await social.githubState();
+      ghAuth = await social.codehubState();
       ghUser = ghAuth.username ?? "";
     } catch (e) {
       fail(e);
@@ -157,7 +159,7 @@
   function fail(e: unknown) {
     const key = errKey(e);
     if (key === "not_logged_in") loggedIn = false;
-    error = `${$t(`social.errors.${key}`, { platform: label })}${key === "unknown" || key.startsWith("upstream") || key === "rejected" || (platform === "github" && key !== "network") ? ` (${errDetail(e)})` : ""}`;
+    error = `${$t(`social.errors.${key}`, { platform: label })}${key === "unknown" || key.startsWith("upstream") || key === "rejected" || (platform === NET.codehub && key !== "network") ? ` (${errDetail(e)})` : ""}`;
   }
 
   async function refreshStatus() {
@@ -213,12 +215,12 @@
   function listTool(): [string, Record<string, unknown>] | null {
     switch (tab) {
       case "feed":
-        if (platform === "github" && feedPick === "trending") return ["gh_trending", {}];
-        return [tool(platform, "feed"), platform === "x" ? { mode: feedMode } : platform === "reddit" ? { feed: feedPick } : {}];
+        if (platform === NET.codehub && feedPick === "trending") return ["gh_trending", {}];
+        return [tool(platform, "feed"), platform === NET.shortpost ? { mode: feedMode } : platform === NET.forums ? { feed: feedPick } : {}];
       case "mentions":
         return [tool(platform, "mentions"), {}];
       case "saved":
-        return [platform === "x" ? "x_bookmarks" : tool(platform, "saved"), {}];
+        return [platform === NET.shortpost ? "x_bookmarks" : tool(platform, "saved"), {}];
       case "me":
         return me ? [tool(platform, "user_posts"), { [whoKey]: me.handle }] : null;
       default:
@@ -229,8 +231,8 @@
   async function loadTab(more = false) {
     error = null;
     if (ENGINE_TABS.includes(tab)) return;
-    if (tab === "grok") {
-      if (!more) await loadGrokChats();
+    if (tab === "assistant") {
+      if (!more) await loadAssistantChats();
       return;
     }
     if (tab === "search") {
@@ -262,62 +264,62 @@
     }
   }
 
-  async function loadGrokChats() {
+  async function loadAssistantChats() {
     try {
-      grokChats = (await social.call<Page<GrokChat>>("x_grok_chats", {})).items;
+      assistantChats = (await social.call<Page<AssistantChat>>("x_assistant_chats", {})).items;
     } catch (e) {
       fail(e);
     }
   }
 
-  async function openGrokChat(id: string) {
-    grokConversation = id || null;
-    grokMessages = [];
+  async function openAssistantChat(id: string) {
+    assistantConversation = id || null;
+    assistantMessages = [];
     if (!id) return;
-    grokBusy = true;
+    assistantBusy = true;
     error = null;
     try {
-      grokMessages = (await social.call<Page<GrokMessage>>("x_grok_chat", { conversation: id })).items;
+      assistantMessages = (await social.call<Page<AssistantMessage>>("x_assistant_chat", { conversation: id })).items;
     } catch (e) {
       fail(e);
     } finally {
-      grokBusy = false;
+      assistantBusy = false;
     }
   }
 
-  async function askGrok(text = grokDraft, post?: string) {
+  async function askAssistant(text = assistantDraft, post?: string) {
     const message = text.trim();
-    if (!message || grokBusy) return;
-    grokBusy = true;
+    if (!message || assistantBusy) return;
+    assistantBusy = true;
     error = null;
-    grokDraft = "";
-    grokMessages = [...grokMessages, { id: `local-${Date.now()}`, role: "user", text: message, sources: [] }];
+    assistantDraft = "";
+    assistantMessages = [...assistantMessages, { id: `local-${Date.now()}`, role: "user", text: message, sources: [] }];
     try {
-      const r = await social.call<{ conversation_id: string; text: string; sources: string[] }>("x_grok", {
+      const r = await social.call<{ conversation_id: string; text: string; sources: string[] }>("x_assistant", {
         message,
-        ...(grokConversation ? { conversation: grokConversation } : {}),
+        ...(assistantConversation ? { conversation: assistantConversation } : {}),
         ...(post ? { post } : {}),
       });
-      const fresh = !grokConversation;
-      grokConversation = r.conversation_id;
-      grokMessages = [...grokMessages, { id: `grok-${Date.now()}`, role: "grok", text: r.text, sources: r.sources }];
-      if (fresh) void loadGrokChats();
+      const fresh = !assistantConversation;
+      assistantConversation = r.conversation_id;
+      assistantMessages = [...assistantMessages, { id: `assistant-${Date.now()}`, role: "assistant", text: r.text, sources: r.sources }];
+      if (fresh) void loadAssistantChats();
     } catch (e) {
-      grokDraft = message;
-      grokMessages = grokMessages.slice(0, -1);
+      assistantDraft = message;
+      assistantMessages = assistantMessages.slice(0, -1);
       fail(e);
     } finally {
-      grokBusy = false;
+      assistantBusy = false;
     }
   }
 
-  function askGrokAbout(p: Post) {
-    tab = "grok";
+  function askAssistantAbout(p: Post) {
+    tab = "assistant";
     stack = [];
-    grokConversation = null;
-    grokMessages = [];
-    void loadGrokChats();
-    void askGrok($t("social.grok.explain_post"), p.url || p.id);
+    assistantConversation = null;
+    assistantMessages = [];
+    void loadAssistantChats();
+    void askAssistant($t("social.assistant.explain_post"), p.url || p.id);
   }
 
   function dedupe(list: Post[]): Post[] {
@@ -335,11 +337,11 @@
         if (kind.list === "users") users = more ? [...users, ...(r.items as Profile[])] : (r.items as Profile[]);
         else posts = more ? dedupe([...posts, ...(r.items as Post[])]) : (r.items as Post[]);
         cursor = r.next_cursor;
-      } else if (platform === "instagram") {
+      } else if (platform === NET.photofeed) {
         const r = await social.call<{ users: Profile[]; hashtags: { name: string; posts?: number }[] }>("ig_search", { query });
         users = r.users;
         hashtags = r.hashtags;
-      } else if (platform === "tiktok" && searchKind === "users") {
+      } else if (platform === NET.clipfeed && searchKind === "users") {
         const r = await social.call<Page<Profile>>("tt_search", { query, kind: "users", ...(more && cursor ? { cursor } : {}) });
         users = more ? [...users, ...r.items] : r.items;
         cursor = r.next_cursor;
@@ -397,7 +399,7 @@
   }
 
   async function openPost(p: Post) {
-    if ((platform === "github" && !["issue", "pull"].includes(kindOf(p))) || (platform === "reddit" && kindOf(p) === "comment")) {
+    if ((platform === NET.codehub && !["issue", "pull"].includes(kindOf(p))) || (platform === NET.forums && kindOf(p) === "comment")) {
       external(p.url);
       return;
     }
@@ -426,7 +428,7 @@
     if (!p || !repliesCursor) return;
     loading = true;
     try {
-      if (platform === "x" || platform === "github") {
+      if (platform === NET.shortpost || platform === NET.codehub) {
         const d = await social.call<PostDetail>(postTool, { post: p.id, cursor: repliesCursor });
         const page = d.replies ?? d.comments;
         replies = [...replies, ...(page?.items ?? [])];
@@ -460,8 +462,8 @@
     const undo = !!p.liked;
     patchPost(p.id, { liked: !undo, stats: { ...p.stats, likes: Math.max(0, (p.stats.likes ?? 0) + (undo ? -1 : 1)) } });
     try {
-      if (platform === "reddit") await social.call("rd_vote", { post: p.id.startsWith("t1_") ? p.id : p.url || p.id, direction: undo ? "clear" : "up" });
-      else if (platform === "github") await social.call("gh_star", { repo: p.id, undo });
+      if (platform === NET.forums) await social.call("rd_vote", { post: p.id.startsWith("t1_") ? p.id : p.url || p.id, direction: undo ? "clear" : "up" });
+      else if (platform === NET.codehub) await social.call("gh_star", { repo: p.id, undo });
       else await social.call(tool(platform, "like"), { post: p.url || p.id, undo });
     } catch (e) {
       patchPost(p.id, { liked: undo, stats: p.stats });
@@ -491,7 +493,7 @@
     const undo = !!profile.followed_by_me;
     sending = true;
     try {
-      if (platform === "reddit") await social.call("rd_subscribe", { subreddit: profile.handle, undo });
+      if (platform === NET.forums) await social.call("rd_subscribe", { subreddit: profile.handle, undo });
       else await social.call(tool(platform, "follow"), { [whoKey]: profile.handle, undo });
       profile = { ...profile, followed_by_me: !undo };
     } catch (e) {
@@ -524,7 +526,7 @@
     try {
       if (detail?.post) {
         const p = detail.post;
-        if (platform === "x") {
+        if (platform === NET.shortpost) {
           const r = await social.call<{ post: Post | null }>("x_create_post", { text, reply_to: p.id });
           if (r.post) replies = [r.post, ...replies];
         } else {
@@ -564,7 +566,7 @@
 
   onMount(async () => {
     await refreshStatus();
-    if (platform === "github") ghAuth = await social.githubState().catch(() => null);
+    if (platform === NET.codehub) ghAuth = await social.codehubState().catch(() => null);
     if (loggedIn) await connect();
   });
 
@@ -575,47 +577,47 @@
 
 <section class="so">
   <header class="so-head">
-    <NavIcon icon={platform} size={40} />
+    <NavIcon icon={SLUG[platform]} size={40} />
     <div class="so-title">
       <h1>{label}</h1>
-      <p>{$t(`social.${platform}.subtitle`)}</p>
+      <p>{$t(`social.${SLUG[platform]}.subtitle`)}</p>
     </div>
     {#if me}
       <button class="me-chip" onclick={() => openProfile(me?.handle ?? "")} title={$t("social.tabs.me")}>
         {#if me.avatar}<img src={me.avatar} alt="" width="24" height="24" referrerpolicy="no-referrer" />{/if}
         <span>{at(me.handle)}</span>
       </button>
-      {#if platform === "github"}
-        <button class="btn btn-ghost btn-sm" onclick={() => void openGithubSetup()}>{$t("social.github.setup_open")}</button>
+      {#if platform === NET.codehub}
+        <button class="btn btn-ghost btn-sm" onclick={() => void openCodehubSetup()}>{$t("social.codehub.setup_open")}</button>
       {/if}
     {/if}
   </header>
 
   {#if checking && loggedIn === null}
     <div class="boot"><span class="spinner"></span><span>{$t("social.boot")}</span></div>
-  {:else if platform === "github" && (!loggedIn || !me)}
+  {:else if platform === NET.codehub && (!loggedIn || !me)}
     <div class="signin">
-      <NavIcon icon="github" size={56} />
-      <h2>{$t("social.github.setup_title")}</h2>
-      <p>{$t("social.github.setup_hint")}</p>
-      <form class="gh-form" onsubmit={(e) => { e.preventDefault(); void saveGithub({ token: ghToken }); }}>
-        <label for="gh-token">{$t("social.github.token_label")}</label>
+      <NavIcon icon="codehub" size={56} />
+      <h2>{$t("social.codehub.setup_title")}</h2>
+      <p>{$t("social.codehub.setup_hint")}</p>
+      <form class="gh-form" onsubmit={(e) => { e.preventDefault(); void saveCodehub({ token: ghToken }); }}>
+        <label for="gh-token">{$t("social.codehub.token_label")}</label>
         <div class="gh-row">
-          <input id="gh-token" type="password" autocomplete="off" spellcheck="false" bind:value={ghToken} placeholder={$t("social.github.token_placeholder")} />
-          <button class="btn btn-primary btn-sm" disabled={ghBusy || !ghToken.trim()}>{$t("social.github.token_save")}</button>
+          <input id="gh-token" type="password" autocomplete="off" spellcheck="false" bind:value={ghToken} placeholder={$t("social.codehub.token_placeholder")} />
+          <button class="btn btn-primary btn-sm" disabled={ghBusy || !ghToken.trim()}>{$t("social.codehub.token_save")}</button>
         </div>
         <span class="gh-note">
-          {$t(ghAuth?.has_token ? "social.github.token_saved" : "social.github.token_note")}
-          <button type="button" class="gh-link" onclick={() => external("https://github.com/settings/personal-access-tokens/new")}>{$t("social.github.token_create")}</button>
+          {$t(ghAuth?.has_token ? "social.codehub.token_saved" : "social.codehub.token_note")}
+          <button type="button" class="gh-link" onclick={() => external("https://github.com/settings/personal-access-tokens/new")}>{$t("social.codehub.token_create")}</button>
         </span>
       </form>
-      <form class="gh-form" onsubmit={(e) => { e.preventDefault(); void saveGithub({ username: ghUser }); }}>
-        <label for="gh-user">{$t("social.github.username_label")}</label>
+      <form class="gh-form" onsubmit={(e) => { e.preventDefault(); void saveCodehub({ username: ghUser }); }}>
+        <label for="gh-user">{$t("social.codehub.username_label")}</label>
         <div class="gh-row">
           <input id="gh-user" bind:value={ghUser} maxlength="39" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="octocat" />
-          <button class="btn btn-secondary btn-sm" disabled={ghBusy || !ghUser.trim()}>{$t("social.github.username_save")}</button>
+          <button class="btn btn-secondary btn-sm" disabled={ghBusy || !ghUser.trim()}>{$t("social.codehub.username_save")}</button>
         </div>
-        <span class="gh-note">{$t("social.github.username_note")}</span>
+        <span class="gh-note">{$t("social.codehub.username_note")}</span>
       </form>
       {#if error}<p class="err" role="alert">{error}</p>{/if}
       <div class="btn-row">
@@ -625,13 +627,13 @@
           </button>
         {/if}
         {#if ghAuth?.has_token}
-          <button class="btn btn-ghost" disabled={ghBusy} onclick={() => void saveGithub({ token: "" })}>{$t("social.github.token_remove")}</button>
+          <button class="btn btn-ghost" disabled={ghBusy} onclick={() => void saveCodehub({ token: "" })}>{$t("social.codehub.token_remove")}</button>
         {/if}
       </div>
     </div>
   {:else if !loggedIn || !me}
     <div class="signin">
-      <NavIcon icon={platform} size={56} />
+      <NavIcon icon={SLUG[platform]} size={56} />
       <h2>{$t("social.signin.title", { platform: label })}</h2>
       <p>{$t("social.signin.hint", { platform: label })}</p>
       <ul>
@@ -658,7 +660,7 @@
         {#each tabs as k (k)}
           <button class="rail-btn" class:active={tab === k && view.kind === "tab"} onclick={() => pickTab(k)}>
             <SocialIcon name={TAB_ICON[k]} size={18} />
-            <span>{$t(`social.tabs.${k === "saved" && platform === "x" ? "bookmarks" : k}`)}</span>
+            <span>{$t(`social.tabs.${k === "saved" && platform === NET.shortpost ? "bookmarks" : k}`)}</span>
           </button>
         {/each}
       </nav>
@@ -685,47 +687,47 @@
           <MonitorTab {platform} {me} {openProfile} />
         {:else if view.kind === "tab" && tab === "schedule" && me}
           <ScheduleTab {platform} {me} {openProfile} />
-        {:else if view.kind === "tab" && tab === "grok"}
-          <div class="grok-bar">
-            <select class="grok-pick" value={grokConversation ?? ""} onchange={(e) => void openGrokChat(e.currentTarget.value)} aria-label={$t("social.grok.history")}>
-              <option value="">{$t("social.grok.new_chat")}</option>
-              {#each grokChats as c (c.id)}
+        {:else if view.kind === "tab" && tab === "assistant"}
+          <div class="assistant-bar">
+            <select class="assistant-pick" value={assistantConversation ?? ""} onchange={(e) => void openAssistantChat(e.currentTarget.value)} aria-label={$t("social.assistant.history")}>
+              <option value="">{$t("social.assistant.new_chat")}</option>
+              {#each assistantChats as c (c.id)}
                 <option value={c.id}>{c.title || c.id}</option>
               {/each}
             </select>
-            {#if grokConversation}
-              <button class="btn btn-ghost btn-sm" onclick={() => external(`https://x.com/i/grok?conversation=${grokConversation}`)} title={$t("social.grok.open_on_x")}><SocialIcon name="external" /></button>
+            {#if assistantConversation}
+              <button class="btn btn-ghost btn-sm" onclick={() => external(`https://x.com/i/grok?conversation=${assistantConversation}`)} title={$t("social.assistant.open_original")}><SocialIcon name="external" /></button>
             {/if}
           </div>
-          <div class="list grok-list">
-            {#each grokMessages as m (m.id)}
-              <div class="grok-msg" class:mine={m.role === "user"}>
+          <div class="list assistant-list">
+            {#each assistantMessages as m (m.id)}
+              <div class="assistant-msg" class:mine={m.role === "user"}>
                 <p>{m.text}</p>
                 {#if m.sources.length}
-                  <ol class="grok-sources">
+                  <ol class="assistant-sources">
                     {#each m.sources as url (url)}
-                      <li><button class="grok-link" onclick={() => external(url)}>{url.replace(/^https?:\/\/(www\.)?/, "")}</button></li>
+                      <li><button class="assistant-link" onclick={() => external(url)}>{url.replace(/^https?:\/\/(www\.)?/, "")}</button></li>
                     {/each}
                   </ol>
                 {/if}
               </div>
             {:else}
-              {#if !grokBusy}<div class="empty">{$t("social.grok.empty")}</div>{/if}
+              {#if !assistantBusy}<div class="empty">{$t("social.assistant.empty")}</div>{/if}
             {/each}
-            {#if grokBusy}<div class="boot"><span class="spinner"></span><span>{$t("social.grok.thinking")}</span></div>{/if}
+            {#if assistantBusy}<div class="boot"><span class="spinner"></span><span>{$t("social.assistant.thinking")}</span></div>{/if}
           </div>
-          <form class="reply" onsubmit={(e) => { e.preventDefault(); void askGrok(); }}>
-            <input bind:value={grokDraft} maxlength="20000" placeholder={$t("social.grok.placeholder")} />
-            <button class="btn btn-primary btn-sm" disabled={grokBusy || !grokDraft.trim()} aria-label={$t("social.grok.send")}><SocialIcon name="send" /></button>
+          <form class="reply" onsubmit={(e) => { e.preventDefault(); void askAssistant(); }}>
+            <input bind:value={assistantDraft} maxlength="20000" placeholder={$t("social.assistant.placeholder")} />
+            <button class="btn btn-primary btn-sm" disabled={assistantBusy || !assistantDraft.trim()} aria-label={$t("social.assistant.send")}><SocialIcon name="send" /></button>
           </form>
         {:else if view.kind === "tab"}
-          {#if tab === "feed" && platform === "x"}
+          {#if tab === "feed" && platform === NET.shortpost}
             <div class="compose">
               <textarea bind:value={draft} rows="2" maxlength="4000" placeholder={$t("social.compose.placeholder")}></textarea>
               <div class="compose-row">
                 <div class="segmented" role="tablist">
-                  <button class="segmented-btn" role="tab" aria-selected={feedMode === "for_you"} onclick={() => { feedMode = "for_you"; void loadTab(); }}>{$t("social.x.for_you")}</button>
-                  <button class="segmented-btn" role="tab" aria-selected={feedMode === "following"} onclick={() => { feedMode = "following"; void loadTab(); }}>{$t("social.x.following")}</button>
+                  <button class="segmented-btn" role="tab" aria-selected={feedMode === "for_you"} onclick={() => { feedMode = "for_you"; void loadTab(); }}>{$t("social.shortpost.for_you")}</button>
+                  <button class="segmented-btn" role="tab" aria-selected={feedMode === "following"} onclick={() => { feedMode = "following"; void loadTab(); }}>{$t("social.shortpost.following")}</button>
                 </div>
                 <span class="grow"></span>
                 <span class="count">{draft.length ? `${draft.length}/280` : ""}</span>
@@ -737,22 +739,22 @@
           {#if tab === "feed" && FEEDS[platform]}
             <div class="segmented net-feed" role="tablist">
               {#each FEEDS[platform] ?? [] as f (f)}
-                <button class="segmented-btn" role="tab" aria-selected={feedPick === f} onclick={() => { netFeed = f; void loadTab(); }}>{$t(`social.${platform}.feed_${f}`)}</button>
+                <button class="segmented-btn" role="tab" aria-selected={feedPick === f} onclick={() => { netFeed = f; void loadTab(); }}>{$t(`social.${SLUG[platform]}.feed_${f}`)}</button>
               {/each}
             </div>
           {/if}
 
           {#if tab === "search"}
             <form class="search" onsubmit={(e) => { e.preventDefault(); void loadTab(); }}>
-              <input type="search" bind:value={query} placeholder={$t(newer ? `social.${platform}.search_placeholder` : `social.search.placeholder_${platform}`)} />
+              <input type="search" bind:value={query} placeholder={$t(newer ? `social.${SLUG[platform]}.search_placeholder` : `social.search.placeholder_${SLUG[platform]}`)} />
               {#if KINDS[platform]}
                 <div class="segmented" role="tablist">
                   {#each KINDS[platform] ?? [] as k (k.id)}
-                    <button type="button" class="segmented-btn" role="tab" aria-selected={kindPick === k.id} onclick={() => (netKind = k.id)}>{$t(`social.${platform}.kind_${k.id}`)}</button>
+                    <button type="button" class="segmented-btn" role="tab" aria-selected={kindPick === k.id} onclick={() => (netKind = k.id)}>{$t(`social.${SLUG[platform]}.kind_${k.id}`)}</button>
                   {/each}
                 </div>
               {/if}
-              {#if platform === "tiktok"}
+              {#if platform === NET.clipfeed}
                 <div class="segmented" role="tablist">
                   <button type="button" class="segmented-btn" role="tab" aria-selected={searchKind === "posts"} onclick={() => (searchKind = "posts")}>{$t("social.search.videos")}</button>
                   <button type="button" class="segmented-btn" role="tab" aria-selected={searchKind === "users"} onclick={() => (searchKind = "users")}>{$t("social.search.users")}</button>
@@ -800,15 +802,15 @@
                 <div class="pf-stats">
                   {#if profile.followers != null}<span>{$t("social.profile.followers", { count: compact(profile.followers, $locale) })}</span>{/if}
                   {#if profile.following != null}<span>{$t("social.profile.following", { count: compact(profile.following, $locale) })}</span>{/if}
-                  {#if profile.posts != null}<span>{$t(platform === "github" ? "social.github.repos" : "social.profile.posts", { count: compact(profile.posts, $locale) })}</span>{/if}
-                  {#if profile.likes != null && platform === "reddit"}<span>{$t("social.reddit.karma", { count: compact(profile.likes, $locale) })}</span>{/if}
-                  {#if profile.likes != null && platform === "tiktok"}<span>{$t("social.profile.likes", { count: compact(profile.likes, $locale) })}</span>{/if}
+                  {#if profile.posts != null}<span>{$t(platform === NET.codehub ? "social.codehub.repos" : "social.profile.posts", { count: compact(profile.posts, $locale) })}</span>{/if}
+                  {#if profile.likes != null && platform === NET.forums}<span>{$t("social.forums.karma", { count: compact(profile.likes, $locale) })}</span>{/if}
+                  {#if profile.likes != null && platform === NET.clipfeed}<span>{$t("social.profile.likes", { count: compact(profile.likes, $locale) })}</span>{/if}
                 </div>
               </div>
               <div class="pf-actions">
                 {#if canFollow(profile)}
                   <button class="btn btn-sm {profile.followed_by_me ? 'btn-secondary' : 'btn-primary'}" disabled={sending} onclick={() => void follow()}>
-                    {$t(platform === "reddit" ? (profile.followed_by_me ? "social.reddit.leave" : "social.reddit.join") : profile.followed_by_me ? "social.profile.unfollow" : "social.profile.follow")}
+                    {$t(platform === NET.forums ? (profile.followed_by_me ? "social.forums.leave" : "social.forums.join") : profile.followed_by_me ? "social.profile.unfollow" : "social.profile.follow")}
                   </button>
                 {/if}
                 <button class="btn btn-ghost btn-sm" onclick={() => external(profile?.url ?? "")}><SocialIcon name="external" /></button>
@@ -829,14 +831,14 @@
           <PostCard post={detail.post} {platform} busy={!!acting[detail.post.id]} onAuthor={openProfile} onLike={like} onRepost={repost} onDownload={download} onExternal={external} />
           {#if canReply}
             <form class="reply" onsubmit={(e) => { e.preventDefault(); void sendReply(); }}>
-              <input bind:value={replyDraft} maxlength={platform === "tiktok" ? 150 : platform === "x" ? 4000 : 2200} placeholder={$t(platform === "x" ? "social.compose.reply" : "social.compose.comment")} />
+              <input bind:value={replyDraft} maxlength={platform === NET.clipfeed ? 150 : platform === NET.shortpost ? 4000 : 2200} placeholder={$t(platform === NET.shortpost ? "social.compose.reply" : "social.compose.comment")} />
               <button class="btn btn-primary btn-sm" disabled={sending || !replyDraft.trim()}><SocialIcon name="send" /></button>
             </form>
           {/if}
-          {#if platform === "x"}
-            <button class="btn btn-ghost btn-sm grok-ask" onclick={() => detail?.post && askGrokAbout(detail.post)}><SocialIcon name="spark" /> {$t("social.grok.ask_about_post")}</button>
+          {#if platform === NET.shortpost}
+            <button class="btn btn-ghost btn-sm assistant-ask" onclick={() => detail?.post && askAssistantAbout(detail.post)}><SocialIcon name="spark" /> {$t("social.assistant.ask_about_post")}</button>
           {/if}
-          <h3 class="section">{$t(platform === "x" ? "social.post.replies" : "social.post.comments")}</h3>
+          <h3 class="section">{$t(platform === NET.shortpost ? "social.post.replies" : "social.post.comments")}</h3>
           <div class="list">
             {#each replies as r (r.id)}
               {#if isPost(r)}
@@ -1251,22 +1253,22 @@
     font-size: var(--text-sm);
   }
 
-  .grok-bar {
+  .assistant-bar {
     display: flex;
     align-items: center;
     gap: var(--space-2);
   }
 
-  .grok-pick {
+  .assistant-pick {
     flex: 1;
     min-width: 0;
   }
 
-  .grok-list {
+  .assistant-list {
     flex: 1;
   }
 
-  .grok-msg {
+  .assistant-msg {
     align-self: flex-start;
     max-width: 88%;
     padding: var(--space-3);
@@ -1275,13 +1277,13 @@
     box-shadow: inset 0 0 0 var(--hairline) var(--content-border);
   }
 
-  .grok-msg.mine {
+  .assistant-msg.mine {
     align-self: flex-end;
     background: var(--fill-1);
     box-shadow: none;
   }
 
-  .grok-msg p {
+  .assistant-msg p {
     margin: 0;
     font-size: var(--text-sm);
     line-height: 1.55;
@@ -1289,14 +1291,14 @@
     overflow-wrap: anywhere;
   }
 
-  .grok-sources {
+  .assistant-sources {
     margin: var(--space-2) 0 0;
     padding-inline-start: var(--space-5);
     font-size: var(--text-xs);
     color: var(--text-dim);
   }
 
-  .grok-link {
+  .assistant-link {
     padding: 0;
     border: 0;
     background: none;
@@ -1307,7 +1309,7 @@
     overflow-wrap: anywhere;
   }
 
-  .grok-ask {
+  .assistant-ask {
     align-self: flex-start;
   }
 

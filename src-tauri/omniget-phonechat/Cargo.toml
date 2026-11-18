@@ -1,0 +1,24 @@
+[package]
+name = "omniget-phonechat"
+version = "0.1.0"
+edition = "2021"
+license = "GPL-3.0"
+publish = false
+
+[lib]
+name = "omniget_phonechat"
+doctest = false
+
+[dependencies]
+whatsapp-rust = { git = "https://github.com/oxidezap/whatsapp-rust", rev = "f7468ae2920a2b0aedbd0848cf121de56a07f93c", default-features = false, features = ["sqlite-storage", "sqlite-storage-bundled", "tokio-transport", "tokio-runtime", "ureq-client", "tokio-native"] }
+tokio = { version = "1", features = ["full"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+anyhow = "1"
+rusqlite = { version = "0.40", features = ["bundled"] }
+qrcode = { version = "0.14", default-features = false, features = ["svg"] }
+chrono = "0.4"
+base64 = "0.22.1"
+
+[dev-dependencies]
+tempfile = "=3.25.0"

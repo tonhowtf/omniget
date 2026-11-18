@@ -1,4 +1,4 @@
-use std::path::{Component, Path, PathBuf};
+use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
@@ -6,7 +6,7 @@ use super::manifest::{self, SkillManifest, SKILL_FILE};
 use super::scan::ScanStatus;
 use super::{
     SkillError, SkillSource, ERR_SKILL_GIT, ERR_SKILL_NOT_FOUND, ERR_SKILL_PARSE, ERR_SKILL_PATH,
-    ERR_SKILL_TOO_BIG, ERR_SKILL_ZIP,
+    ERR_SKILL_TOO_BIG,
 };
 
 pub const SIDECAR: &str = ".omniget-skill.json";
@@ -14,6 +14,9 @@ pub const MAX_FILES: usize = 2_000;
 pub const MAX_TOTAL_BYTES: u64 = 32 * 1024 * 1024;
 pub const MAX_SEARCH_DEPTH: usize = 3;
 pub const PENDING_PREFIX: &str = ".pending-";
+const GIT_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(300);
+const GIT_POLL: std::time::Duration = std::time::Duration::from_millis(25);
+const GIT_STDERR_MAX: u64 = 64 * 1024;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Sidecar {
@@ -78,38 +81,6 @@ pub fn install_from_dir_in_with(
     install_copy(root, src, source, scan)
 }
 
-pub fn install_from_zip(archive: &Path) -> Result<InstallOutcome, SkillError> {
-    install_from_zip_in(&skills_dir()?, archive)
-}
-
-pub fn install_from_zip_in(root: &Path, archive: &Path) -> Result<InstallOutcome, SkillError> {
-    install_from_zip_in_with(root, archive, &default_scan)
-}
-
-pub fn install_from_zip_in_with(
-    root: &Path,
-    archive: &Path,
-    scan: &ScanFn<'_>,
-) -> Result<InstallOutcome, SkillError> {
-    ensure_root(root)?;
-    let staging = TempDir::new(root, "staging-zip")?;
-    extract_zip(archive, staging.path())?;
-    let dir = find_skill_dir(staging.path())?;
-    let source = SkillSource::Zip {
-        from: archive.display().to_string(),
-    };
-    install_copy(root, &dir, source, scan)
-}
-
-pub fn install_from_git_in(
-    root: &Path,
-    url: &str,
-    rev: Option<&str>,
-    subdir: Option<&str>,
-) -> Result<InstallOutcome, SkillError> {
-    install_from_git_with(root, "git", url, rev, subdir)
-}
-
 pub fn install_from_git_with(
     root: &Path,
     program: &str,
@@ -142,6 +113,7 @@ pub fn install_from_git_with_scan(
         "1".into(),
         "--single-branch".into(),
         "--no-tags".into(),
+        "--filter=blob:limit=32m".into(),
     ];
     if let Some(rev) = rev {
         if !is_full_sha(rev) {
@@ -198,14 +170,6 @@ pub fn install_from_git_with_scan(
     install_copy(root, &src, source, scan)
 }
 
-pub fn list() -> Vec<SkillManifest> {
-    skills_dir().map(|root| list_in(&root)).unwrap_or_default()
-}
-
-pub fn list_in(root: &Path) -> Vec<SkillManifest> {
-    list_with_errors_in(root).0
-}
-
 pub fn list_with_errors_in(root: &Path) -> (Vec<SkillManifest>, Vec<(String, SkillError)>) {
     let mut ok: Vec<SkillManifest> = Vec::new();
     let mut bad: Vec<(String, SkillError)> = Vec::new();
@@ -228,23 +192,6 @@ pub fn list_with_errors_in(root: &Path) -> (Vec<SkillManifest>, Vec<(String, Ski
     ok.sort_by(|a, b| a.name.cmp(&b.name));
     bad.sort_by(|a, b| a.0.cmp(&b.0));
     (ok, bad)
-}
-
-pub fn remove(name: &str) -> Result<(), SkillError> {
-    remove_in(&skills_dir()?, name)
-}
-
-pub fn remove_in(root: &Path, name: &str) -> Result<(), SkillError> {
-    let name = manifest::validate_name(name)?;
-    let dir = root.join(&name);
-    if !dir.is_dir() {
-        return Err(SkillError::new(
-            ERR_SKILL_NOT_FOUND,
-            format!("no skill named `{name}` is installed"),
-        ));
-    }
-    std::fs::remove_dir_all(&dir)
-        .map_err(|e| SkillError::io(&format!("removing {}", dir.display()), &e))
 }
 
 pub fn skill_path(root: &Path, name: &str) -> Result<PathBuf, SkillError> {
@@ -282,7 +229,7 @@ fn install_copy(
     std::fs::write(staging.path().join(SIDECAR), json)
         .map_err(|e| SkillError::io("writing the install sidecar", &e))?;
 
-    if verdict.is_high_risk() {
+    if verdict.is_high_risk() || matches!(verdict, ScanStatus::Failed { .. }) {
         let token = format!("{PENDING_PREFIX}{}", uuid::Uuid::new_v4());
         let parked = root.join(&token);
         std::fs::rename(staging.path(), &parked).map_err(|e| {
@@ -416,94 +363,6 @@ fn find_skill_dir(root: &Path) -> Result<PathBuf, SkillError> {
     ))
 }
 
-fn extract_zip(archive: &Path, dst: &Path) -> Result<(), SkillError> {
-    let file = std::fs::File::open(archive)
-        .map_err(|e| SkillError::io(&format!("opening {}", archive.display()), &e))?;
-    let mut zip = zip::ZipArchive::new(std::io::BufReader::new(file))
-        .map_err(|e| SkillError::new(ERR_SKILL_ZIP, format!("unreadable zip: {e}")))?;
-    let mut budget = Budget::default();
-    for i in 0..zip.len() {
-        let mut entry = zip
-            .by_index(i)
-            .map_err(|e| SkillError::new(ERR_SKILL_ZIP, format!("entry {i}: {e}")))?;
-        let raw = entry.name().to_string();
-        let rel = safe_zip_path(&raw)?;
-        let out = dst.join(&rel);
-        if entry.is_dir() {
-            std::fs::create_dir_all(&out)
-                .map_err(|e| SkillError::io(&format!("creating {}", out.display()), &e))?;
-            continue;
-        }
-        if budget.bytes.saturating_add(entry.size()) > MAX_TOTAL_BYTES {
-            return Err(too_many_bytes());
-        }
-        if let Some(parent) = out.parent() {
-            std::fs::create_dir_all(parent)
-                .map_err(|e| SkillError::io(&format!("creating {}", parent.display()), &e))?;
-        }
-        let mut sink = std::fs::File::create(&out)
-            .map_err(|e| SkillError::io(&format!("writing {}", out.display()), &e))?;
-        copy_within(&mut entry, &mut sink, &mut budget, &out)?;
-    }
-    Ok(())
-}
-
-fn copy_within(
-    reader: &mut dyn std::io::Read,
-    sink: &mut dyn std::io::Write,
-    budget: &mut Budget,
-    out: &Path,
-) -> Result<(), SkillError> {
-    use std::io::Read as _;
-    let left = MAX_TOTAL_BYTES.saturating_sub(budget.bytes);
-    let mut capped = reader.take(left.saturating_add(1));
-    let wrote = std::io::copy(&mut capped, sink)
-        .map_err(|e| SkillError::io(&format!("writing {}", out.display()), &e))?;
-    budget.take(wrote)
-}
-
-pub fn safe_zip_path(raw: &str) -> Result<PathBuf, SkillError> {
-    let bad = |why: &str| {
-        SkillError::new(
-            ERR_SKILL_ZIP,
-            format!("zip entry `{raw}` was refused: {why}"),
-        )
-    };
-    if raw.is_empty() {
-        return Err(bad("empty name"));
-    }
-    if raw.contains('\0') {
-        return Err(bad("contains a NUL byte"));
-    }
-    // WHY: Windows separators and drive letters are traversal vectors on Windows.
-    // Windows separators and drive letters never appear in a well-formed zip,
-    // and both are traversal vectors on Windows.
-    if raw.contains('\\') {
-        return Err(bad("contains a backslash"));
-    }
-    if raw.starts_with('/') {
-        return Err(bad("is absolute"));
-    }
-    if raw.len() >= 2 && raw.as_bytes()[1] == b':' {
-        return Err(bad("has a drive letter"));
-    }
-    let mut out = PathBuf::new();
-    for part in raw.split('/') {
-        match part {
-            "" | "." => continue,
-            ".." => return Err(bad("walks up out of the destination")),
-            other => out.push(other),
-        }
-    }
-    if out.as_os_str().is_empty() {
-        return Err(bad("resolves to nothing"));
-    }
-    if out.components().any(|c| !matches!(c, Component::Normal(_))) {
-        return Err(bad("is not a plain relative path"));
-    }
-    Ok(out)
-}
-
 pub fn join_inside(base: &Path, rel: &str) -> Result<PathBuf, SkillError> {
     let rel = rel.trim_matches('/');
     let mut out = base.to_path_buf();
@@ -577,13 +436,25 @@ fn check_git_rev(rev: &str) -> Result<(), SkillError> {
 }
 
 fn run_git(program: &str, args: &[String], cwd: Option<&Path>) -> Result<(), SkillError> {
+    run_git_within(program, args, cwd, GIT_TIMEOUT)
+}
+
+fn run_git_within(
+    program: &str,
+    args: &[String],
+    cwd: Option<&Path>,
+    timeout: std::time::Duration,
+) -> Result<(), SkillError> {
+    use std::io::Read;
     let mut cmd = std::process::Command::new(program);
     cmd.args(args)
         .env("GIT_TERMINAL_PROMPT", "0")
         .env("GIT_ASKPASS", "")
         .env("GIT_CONFIG_NOSYSTEM", "1")
         .env("GCM_INTERACTIVE", "never")
-        .stdin(std::process::Stdio::null());
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::piped());
     if let Some(dir) = cwd {
         cmd.current_dir(dir);
     }
@@ -593,16 +464,55 @@ fn run_git(program: &str, args: &[String], cwd: Option<&Path>) -> Result<(), Ski
         const CREATE_NO_WINDOW: u32 = 0x0800_0000;
         cmd.creation_flags(CREATE_NO_WINDOW);
     }
-    let out = cmd.output().map_err(|e| {
+    #[cfg(unix)]
+    {
+        use std::os::unix::process::CommandExt;
+        cmd.process_group(0);
+    }
+    let mut child = crate::core::process::spawn_retrying_busy(|| cmd.spawn()).map_err(|e| {
         SkillError::new(
             ERR_SKILL_GIT,
             format!("could not run `{program}`: {e}. Install git and try again."),
         )
     })?;
-    if out.status.success() {
+    let err_thread = child.stderr.take().map(|mut pipe| {
+        std::thread::spawn(move || {
+            let mut kept = Vec::new();
+            let _ = (&mut pipe).take(GIT_STDERR_MAX).read_to_end(&mut kept);
+            let _ = std::io::copy(&mut pipe, &mut std::io::sink());
+            kept
+        })
+    });
+    let deadline = std::time::Instant::now() + timeout;
+    let status = loop {
+        match child.try_wait() {
+            Ok(Some(status)) => break status,
+            Ok(None) if std::time::Instant::now() >= deadline => {
+                super::scan::kill_group(&mut child);
+                return Err(SkillError::new(
+                    ERR_SKILL_GIT,
+                    format!(
+                        "`{program} {}` did not finish within {}s",
+                        args.join(" "),
+                        timeout.as_secs()
+                    ),
+                ));
+            }
+            Ok(None) => std::thread::sleep(GIT_POLL),
+            Err(e) => {
+                super::scan::kill_group(&mut child);
+                return Err(SkillError::new(
+                    ERR_SKILL_GIT,
+                    format!("waiting for `{program}` failed: {e}"),
+                ));
+            }
+        }
+    };
+    if status.success() {
         return Ok(());
     }
-    let stderr = String::from_utf8_lossy(&out.stderr);
+    let stderr = err_thread.and_then(|t| t.join().ok()).unwrap_or_default();
+    let stderr = String::from_utf8_lossy(&stderr);
     let tail: String = stderr.lines().rev().take(3).collect::<Vec<_>>().join(" / ");
     Err(SkillError::new(
         ERR_SKILL_GIT,
@@ -649,5 +559,92 @@ pub(crate) mod tests_support {
             std::env::temp_dir().join(format!("omniget-skills-{tag}-{}", uuid::Uuid::new_v4()));
         let _ = std::fs::create_dir_all(&dir);
         dir
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn skill_src(base: &Path) -> PathBuf {
+        let src = base.join("src").join("next-book");
+        std::fs::create_dir_all(&src).unwrap();
+        std::fs::write(
+            src.join(SKILL_FILE),
+            "---\nname: next-book\ndescription: Picks the next book for the reader.\n---\n\nBody\n",
+        )
+        .unwrap();
+        src
+    }
+
+    #[test]
+    fn a_failed_scan_parks_the_skill_for_confirmation() {
+        let base = tests_support::temp_dir("install-scan-failed");
+        let root = base.join("skills");
+        let src = skill_src(&base);
+        let outcome = install_from_dir_in_with(&root, &src, &|_| ScanStatus::Failed {
+            reason: "the scanner did not finish within 120s".into(),
+        })
+        .unwrap();
+        assert!(outcome.is_pending());
+        assert!(!root.join("next-book").exists());
+        let token = outcome.needs_confirm.unwrap();
+        assert!(token.starts_with(PENDING_PREFIX));
+        assert!(root.join(&token).join(SKILL_FILE).is_file());
+        let _ = std::fs::remove_dir_all(&base);
+    }
+
+    #[test]
+    fn a_skill_that_was_not_scanned_installs_directly() {
+        let base = tests_support::temp_dir("install-not-scanned");
+        let root = base.join("skills");
+        let src = skill_src(&base);
+        let outcome = install_from_dir_in_with(&root, &src, &|_| ScanStatus::NotScanned).unwrap();
+        assert!(!outcome.is_pending());
+        assert!(root.join("next-book").join(SKILL_FILE).is_file());
+        let _ = std::fs::remove_dir_all(&base);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_git_that_hangs_is_killed_at_the_deadline() {
+        let base = tests_support::temp_dir("install-git-hang");
+        let git = base.join("git");
+        crate::core::process::test_exec::script(&git, "sleep 30\n");
+        let started = std::time::Instant::now();
+        let err = run_git_within(
+            &git.display().to_string(),
+            &["clone".to_string()],
+            None,
+            std::time::Duration::from_millis(300),
+        )
+        .unwrap_err();
+        assert_eq!(err.code(), ERR_SKILL_GIT);
+        assert!(err.message.contains("did not finish"), "{err}");
+        assert!(started.elapsed() < std::time::Duration::from_secs(10));
+        let _ = std::fs::remove_dir_all(&base);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn the_clone_limits_the_blob_size() {
+        let base = tests_support::temp_dir("install-git-filter");
+        let git = base.join("git");
+        crate::core::process::test_exec::script(
+            &git,
+            "echo \"$@\" > \"$0.args\"\necho refused >&2\nexit 1\n",
+        );
+        let err = install_from_git_with(
+            &base.join("skills"),
+            &git.display().to_string(),
+            "https://example.com/owner/skill.git",
+            None,
+            None,
+        )
+        .unwrap_err();
+        assert!(err.message.contains("refused"), "{err}");
+        let args = std::fs::read_to_string(base.join("git.body.args")).unwrap();
+        assert!(args.contains("--filter=blob:limit=32m"), "{args}");
+        let _ = std::fs::remove_dir_all(&base);
     }
 }

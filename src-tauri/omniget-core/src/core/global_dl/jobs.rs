@@ -303,7 +303,7 @@ fn file_name(number: usize, title: &str, node: &Node, src: &Source) -> String {
     name
 }
 
-fn numbered(path: &Path, n: usize) -> PathBuf {
+pub(crate) fn numbered(path: &Path, n: usize) -> PathBuf {
     let name = path
         .file_name()
         .map(|f| f.to_string_lossy().into_owned())

@@ -22,6 +22,16 @@ impl DirectFileDownloader {
     }
 }
 
+fn free_output_path(wanted: std::path::PathBuf) -> std::path::PathBuf {
+    let mut candidate = wanted.clone();
+    let mut n = 2;
+    while candidate.exists() {
+        candidate = crate::core::global_dl::jobs::numbered(&wanted, n);
+        n += 1;
+    }
+    candidate
+}
+
 fn filename_from_url(url: &str) -> String {
     url::Url::parse(url)
         .ok()
@@ -208,7 +218,7 @@ impl PlatformDownloader for DirectFileDownloader {
         } else {
             filename
         };
-        let output_path = opts.output_dir.join(&filename);
+        let output_path = free_output_path(opts.output_dir.join(&filename));
 
         let mut builder = http_client::apply_global_proxy(reqwest::Client::builder())
             .connect_timeout(std::time::Duration::from_secs(30));
@@ -271,6 +281,20 @@ impl PlatformDownloader for DirectFileDownloader {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_finished_file_with_the_same_name_is_never_overwritten() {
+        let dir = tempfile::tempdir().unwrap();
+        let wanted = dir.path().join("report.pdf");
+        assert_eq!(free_output_path(wanted.clone()), wanted);
+
+        std::fs::write(&wanted, b"first").unwrap();
+        let second = dir.path().join("report (2).pdf");
+        assert_eq!(free_output_path(wanted.clone()), second);
+
+        std::fs::write(&second, b"second").unwrap();
+        assert_eq!(free_output_path(wanted), dir.path().join("report (3).pdf"));
+    }
 
     #[test]
     fn unknown_extension_is_the_only_case_worth_probing() {

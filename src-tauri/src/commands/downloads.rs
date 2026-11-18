@@ -528,6 +528,10 @@ pub async fn download_from_url_with_args(
 
     let state_to_emit = {
         let mut q = download_queue.lock().await;
+        if q.has_url(&url) {
+            tracing::debug!("[perf] download_from_url took {:?}", _timer_start.elapsed());
+            return Err("Download already in progress for this URL".to_string());
+        }
         q.enqueue(
             download_id,
             url,
@@ -553,44 +557,11 @@ pub async fn download_from_url_with_args(
             scheduled_at,
             stop_at,
         );
-
-        let next_ids = q.next_queued_ids();
-        for nid in &next_ids {
-            q.mark_active(*nid);
-        }
         q.get_state()
     };
     emit_queue_state_from_state(&app, state_to_emit);
 
-    let q_clone = download_queue.clone();
-    let app_clone = app.clone();
-    tokio::spawn(async move {
-        let ids_to_start = {
-            let q = q_clone.lock().await;
-            q.items
-                .iter()
-                .filter(|i| i.status == queue::QueueStatus::Active)
-                .filter(|i| i.id == download_id)
-                .map(|i| i.id)
-                .collect::<Vec<_>>()
-        };
-
-        let stagger = {
-            let q = q_clone.lock().await;
-            q.stagger_delay_ms
-        };
-
-        for (i, nid) in ids_to_start.into_iter().enumerate() {
-            if i > 0 && stagger > 0 {
-                tokio::time::sleep(std::time::Duration::from_millis(stagger)).await;
-            }
-            let a = app_clone.clone();
-            let qc = q_clone.clone();
-            tokio::spawn(async move {
-                queue::spawn_download(a, qc, nid).await;
-            });
-        }
-    });
+    tokio::spawn(queue::try_start_next(app.clone(), download_queue.clone()));
 
     tracing::debug!("[perf] download_from_url took {:?}", _timer_start.elapsed());
     Ok(DownloadStarted {
@@ -644,6 +615,9 @@ pub async fn download_with_custom_args(
 
     let state_to_emit = {
         let mut q = download_queue.lock().await;
+        if q.has_url(&url) {
+            return Err("Download already in progress for this URL".to_string());
+        }
         q.enqueue(
             download_id,
             url,
@@ -669,34 +643,11 @@ pub async fn download_with_custom_args(
             None,
             None,
         );
-        let next_ids = q.next_queued_ids();
-        for nid in &next_ids {
-            q.mark_active(*nid);
-        }
         q.get_state()
     };
     emit_queue_state_from_state(&app, state_to_emit);
 
-    let q_clone = download_queue.clone();
-    let app_clone = app.clone();
-    tokio::spawn(async move {
-        let ids_to_start = {
-            let q = q_clone.lock().await;
-            q.items
-                .iter()
-                .filter(|i| i.status == queue::QueueStatus::Active)
-                .filter(|i| i.id == download_id)
-                .map(|i| i.id)
-                .collect::<Vec<_>>()
-        };
-        for nid in ids_to_start {
-            let a = app_clone.clone();
-            let qc = q_clone.clone();
-            tokio::spawn(async move {
-                queue::spawn_download(a, qc, nid).await;
-            });
-        }
-    });
+    tokio::spawn(queue::try_start_next(app.clone(), download_queue.clone()));
 
     Ok(DownloadStarted {
         id: download_id,

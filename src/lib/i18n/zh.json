@@ -1,19 +1,17 @@
 {
   "error": {
     "cause": {
-      "po_token_required": "YouTube 在提供此视频之前要求提供来源证明（PO）令牌。",
+      "po_token_required": "YouTube 目前正在阻止此下载。",
       "sabr_only": "YouTube 只提供了此播放器暂时无法保存的流。",
       "rate_limited": "网站正在限制来自你网络的下载速率。",
       "disk_full": "下载磁盘已没有剩余空间。",
-      "needs_login": "网站要求登录才能访问此内容。",
-      "tls_fingerprint": "网站在发送任何内容之前就阻止了连接。",
-      "extractor_outdated": "yt-dlp 需要更新才能适配此网站。"
+      "needs_login": "这个需要登录。",
+      "tls_fingerprint": "网站拒绝了连接。请试试内置浏览器。",
+      "extractor_outdated": "该网站有变动，下载器需要更新。"
     },
     "remedy": {
-      "import_cookies": "导入 Cookie",
       "retry": "重试",
-      "update_ytdlp": "更新 yt-dlp",
-      "updated": "yt-dlp 已更新",
+      "update_ytdlp": "更新并重试",
       "pot_guide": "打开 PO 令牌指南"
     }
   },
@@ -858,7 +856,7 @@
       "lyrics": "Lyrics",
       "duplicates": "Duplicates",
       "quality": "Quality",
-      "no_ffmpeg": "尚未安装 ffmpeg。请在 设置 › 依赖项 中安装后使用此工具。",
+      "no_ffmpeg": "尚未安装 ffmpeg。请在 设置 › 下载引擎 中安装后使用此工具。",
       "analyze_lead": "分析会测量每首歌曲的响度（用于音量均衡）、节拍、调性、波形、静音以及真实的频率范围。在后台运行。",
       "analyzed": "analyzed",
       "pending": "未分析",
@@ -1132,13 +1130,13 @@
     "world": "Canvas",
     "help": "Help",
     "profile_appearance": "个人资料和外观",
-    "superpowers": "超能力",
+    "superpowers": "工具",
     "collapse_sidebar": "收起侧边栏",
     "expand_sidebar": "展开侧边栏",
-    "community": "社区"
+    "community": "关于与社区"
   },
   "command_palette": {
-    "open": "搜索",
+    "open": "前往…",
     "placeholder": "跳转到页面或执行操作…",
     "empty": "无结果",
     "navigate": "导航",
@@ -1164,13 +1162,15 @@
     "drop_unsupported": "OmniGet 无法打开此文件。试试链接、torrent 或 .txt 列表。",
     "action_batch": "粘贴多个链接…",
     "action_torrent": "打开 torrent 文件…",
-    "action_p2p": "用代码发送文件…",
-    "action_advanced": "yt-dlp 命令…",
+    "action_p2p": "分享文件…",
+    "action_advanced": "高级：自定义 yt-dlp 命令…",
     "action_simple": "返回",
     "adv_title": "yt-dlp 命令",
     "success_title": "已添加到下载",
     "success_first": "你的第一个下载！",
-    "success_open": "打开下载"
+    "success_open": "打开下载",
+    "success_folder": "正在下载到 {{folder}}",
+    "success_show_folder": "显示文件夹"
   },
   "downloads": {
     "phase_downloading": "下载中",
@@ -1236,7 +1236,6 @@
     "pause_all": "全部暂停",
     "resume_all": "全部恢复",
     "reorder_hint": "拖动以重新排序",
-    "history_view_link": "查看下载历史",
     "history_loading": "正在加载历史…",
     "history_empty": "暂无已完成的下载。",
     "history_clear": "清除历史",
@@ -1299,9 +1298,9 @@
     "empty_cta": "粘贴链接",
     "speed_unlimited": "不限速",
     "error_details": "技术详情",
-    "view_queue": "Downloads",
+    "view_queue": "队列",
     "view_history": "History",
-    "view_tools": "Tools",
+    "view_tools": "下载工具",
     "tools": {
       "subtitle": "处理你下载的链接、流和文件的额外工具。",
       "back": "所有工具",
@@ -1341,7 +1340,7 @@
         "waiting": "Waiting…",
         "show": "Show",
         "file_failed": "无法调整此文件",
-        "no_ffmpeg": "此功能需要 FFmpeg。请在 设置 › 依赖项 中安装。",
+        "no_ffmpeg": "此功能需要 FFmpeg。请在 设置 › 下载引擎 中安装。",
         "failed": "无法调整这些文件。"
       },
       "import_subscriptions": {
@@ -1866,7 +1865,9 @@
         "unmeasurable": "已存储 {{objects}} 个文件。此系统无法计算节省量。",
         "empty": "还没有存储任何内容。请在常用的下载文件夹上运行。",
         "stats_failed": "无法读取磁盘统计信息。"
-      }
+      },
+      "more_hint": "想找转换、剪切或录制？",
+      "more_link": "所有工具"
     },
     "status_bar": {
       "region_label": "下载进度",
@@ -1895,7 +1896,8 @@
     "archive_export_title": "将历史记录保存为 yt-dlp 存档",
     "archive_imported": "在 {{read}} 条记录中导入了 {{added}} 条新记录",
     "archive_exported": "已导出 {{written}} 条记录，{{skipped}} 条因 ID 未知而未包含",
-    "archive_count": "已从 yt-dlp 存档导入 {{count}} 条记录"
+    "archive_count": "已从 yt-dlp 存档导入 {{count}} 条记录",
+    "open_file": "打开"
   },
   "toast": {
     "download_complete": "完成！{{name}} 已保存到你的文件夹",
@@ -2030,7 +2032,9 @@
         "name": "字体名称",
         "name_hint": "按电脑上显示的名称输入,例如 Inter。如果未安装,将使用系统字体。",
         "split_note": "目前标题和正文使用不同的字体。在此保存会让两者使用同一种字体。"
-      }
+      },
+      "downloads_only": "仅下载",
+      "downloads_only_desc": "在侧边栏隐藏“工具”和 Canvas。搜索（⌘K）仍可打开所有内容。"
     },
     "download": {
       "default_output_dir": "默认文件夹",
@@ -2192,7 +2196,7 @@
       "portable_macos_notice": "在 macOS 上，WebView 仍会把会话数据存储在 ~/Library 下，便携模式无法重定向它。这里只有 OmniGet 自己的数据是便携的 — 参见 github.com/tonhowtf/omniget/issues/227。"
     },
     "dependencies": {
-      "title": "依赖项",
+      "title": "下载引擎 (yt-dlp, FFmpeg)",
       "col_name": "Name",
       "col_status": "Status",
       "col_action": "Action",
@@ -2233,6 +2237,37 @@
       "port": "端口",
       "username": "用户名",
       "password": "密码"
+    },
+    "proxy_pool": {
+      "title": "代理池",
+      "desc": "保存多个代理。OmniGet 固定使用其中一个，失效后自动换到下一个。",
+      "enable": "使用代理池",
+      "enable_desc": "开启后，下载、网页抓取和 HTTP 工具都经由代理池出站，不会直接连接互联网。",
+      "rotation": "切换方式",
+      "rotation_desc": "何时换用另一个代理。",
+      "rotation_sticky": "仅在失效时",
+      "rotation_round_robin": "每次请求",
+      "add_label": "添加代理",
+      "add_desc": "每行一个，例如 socks5://127.0.0.1:7890 或 主机:端口:用户名:密码。",
+      "add_action": "添加",
+      "detect_action": "查找这台电脑上的代理应用",
+      "detect_none": "这台电脑上没有代理应用响应。请启动 Clash、v2rayN 或类似应用后重试。",
+      "detect_known": "找到的代理应用已经在代理池中。",
+      "detect_added": "已找到并添加 {{count}} 个。",
+      "test_all": "全部测试",
+      "testing": "正在测试…",
+      "remove_failing": "移除失败的代理",
+      "remove": "移除",
+      "empty": "还没有代理。在上方添加，或查找这台电脑上正在运行的代理应用。",
+      "status_current": "使用中",
+      "status_ok": "可用",
+      "status_failed": "失败",
+      "status_resting": "休息 {{secs}} 秒",
+      "status_untested": "未测试",
+      "rejected": "有 {{count}} 行无法识别。",
+      "added": "已添加 {{count}} 个。",
+      "all_resting": "所有代理刚刚都失败了。仍在使用休息时间最短的那个。",
+      "show_more": "显示更多"
     },
     "advanced": {
       "max_concurrent_downloads": "同时下载数",
@@ -2279,7 +2314,7 @@
       "parallel_more": "增加同时下载",
       "torrent_title": "种子",
       "torrent_desc": "磁力链接和 .torrent 文件。",
-      "components_title": "组件",
+      "components_title": "下载引擎 (yt-dlp, FFmpeg)",
       "components_desc": "OmniGet 用来下载和转换的程序，例如 yt-dlp 和 FFmpeg。",
       "troubleshooting_title": "故障排除",
       "troubleshooting_desc": "出问题时使用。",
@@ -2366,10 +2401,10 @@
       "load_failed": "无法加载 AI 设置。编辑前请重试。",
       "save_failed": "无法保存 AI 设置。你的更改仍在这里；请再次尝试保存。",
       "accounts_desc": "你的智能体使用的 Claude 和 Codex 登录。",
-      "app_title": "应用 AI",
+      "app_title": "用于摘要和转录的 AI",
       "app_desc": "用于摘要、阅读、教练和转写。智能体不使用它,它们运行在上面的账号上。",
       "model_required": "输入此提供商要求的模型名称。没有它,应用的 AI 功能无法使用。",
-      "limits_title": "屏幕上的用量",
+      "limits_title": "用量计",
       "tray_menu_hint": "图标显示什么、颜色以及何时提醒,都在图标自己的菜单里设置。",
       "connect_off": "已关闭。打开后才能连接其他应用。",
       "agents_canvas_title": "画布上的智能体",
@@ -2604,7 +2639,7 @@
       "add_action": "添加并登录",
       "not_installed": "未安装",
       "resets_in": "{{time}}后重置",
-      "limits_title": "屏幕上的限额",
+      "limits_title": "用量计",
       "limits_desc": "无需打开任何内容即可查看剩余用量。",
       "strip_label": "屏幕边缘的条",
       "strip_help": "浮在其他窗口之上的细条。",
@@ -2612,7 +2647,7 @@
       "tray_help": "在系统托盘显示用量；点击查看详情。",
       "connect_title": "连接到其他应用",
       "connect_desc": "让 Claude Code、Codex 等工具使用 OmniGet 的下载和 Canvas。",
-      "mcp_title": "额外工具",
+      "mcp_title": "MCP 服务器（智能体的额外工具）",
       "mcp_desc": "让智能体可以访问 GitHub、浏览器、你的文件等。",
       "mcp_ready": "就绪 · {{count}} 个工具",
       "mcp_idle": "尚未测试",
@@ -2701,24 +2736,24 @@
         "desc": "关掉不用的功能：会从菜单中消失并停止运行。",
         "music": "音乐",
         "music_desc": "音乐库、电台和迷你播放器。",
-        "video": "Watch",
+        "video": "视频播放器",
         "video_desc": "电影、剧集、课程和直播电视。",
-        "tube": "OmniTube",
+        "tube": "Tube Player",
         "tube_desc": "YouTube 和 YouTube Music。关闭后也会停止后台检查。",
         "read": "阅读",
         "read_desc": "阅读库和阅读器。关闭后也会停止阅读库服务器。",
         "telegram": "Telegram",
         "telegram_desc": "打开之前不会连接。",
-        "washmybelly": "washmybelly",
+        "washmybelly": "系统清理",
         "washmybelly_desc": "清理和系统维护。关闭后智能体也看不到它的工具。",
         "league": "League of Legends",
         "league_desc": "客户端工具。需要打开 League 客户端。"
       },
       "pet": {
-        "title": "桌面上的 Omni",
-        "desc": "Omni 可以待在屏幕一角，在 OmniGet 窗口之外。",
-        "corner_off": "打开 Omni 后才能选择角落。",
-        "click_through_desc": "点击会穿过 Omni 落到后面的窗口。",
+        "title": "桌面上的 Loop",
+        "desc": "Loop 可以待在屏幕一角，在 OmniGet 窗口之外。",
+        "corner_off": "打开 Loop 后才能选择角落。",
+        "click_through_desc": "点击会穿过 Loop 落到后面的窗口。",
         "click_through_unsupported": "你的桌面不支持此功能。"
       },
       "rpc": {
@@ -2731,7 +2766,7 @@
     }
   },
   "omnibox": {
-    "placeholder": "粘贴链接或搜索",
+    "placeholder": "粘贴链接，或输入以搜索视频",
     "searching": "搜索中…",
     "search_empty": "没有找到“{{query}}”的结果。",
     "unsupported": "OmniGet 暂时还打不开这个网站。",
@@ -2962,8 +2997,8 @@
     "credit": "由 tonho.wtf 用心打造",
     "technical_details": "技术详情",
     "feature_i18n_count": "支持 {{count}} 种语言",
-    "wmb_credits_title": "washmybelly 鸣谢",
-    "wmb_credits_body": "washmybelly 使用了以下开源项目提供的数据和思路。它们的许可证及具体文件列在 THIRD_PARTY.md 中。privacy.sexy 的源代码（AGPL-3.0）见下方链接。",
+    "wmb_credits_title": "系统清理 鸣谢",
+    "wmb_credits_body": "系统清理 使用了以下开源项目提供的数据和思路。它们的许可证及具体文件列在 THIRD_PARTY.md 中。privacy.sexy 的源代码（AGPL-3.0）见下方链接。",
     "wmb_credit_data": "数据",
     "wmb_credit_design": "设计参考",
     "wmb_credit_tool": "调用的工具"
@@ -2994,18 +3029,8 @@
     "folder_current": "当前文件夹：",
     "folder_change": "更改文件夹",
     "folder_title": "下载保存到哪里？",
-    "agents_title": "认识你的智能体",
-    "agents_desc": "OmniGet 现在有一支 AI 智能体团队，以及一块供它们并肩工作的画布。一开始有三个——Omni 负责协调，Builder 编写代码，Scout 阅读和调研——都优先在本地运行，你可以在 AI › 成员 中编辑、替换或删除其中任何一个。",
-    "agents_world": "你的智能体并肩工作、彼此交谈并接待访客的画布。",
     "more_later": "全局快捷键、浏览器扩展和 Discord 状态都在设置中，随时可以开启。",
-    "profile": {
-      "title": "选择昵称",
-      "desc": "它只保存在这台电脑上，在你分享内容时显示。可以跳过此步骤。",
-      "nickname_label": "Nickname",
-      "placeholder": "你的昵称",
-      "note": "你可以稍后在 设置 → 个人资料 中修改。",
-      "unavailable": "此版本暂不支持个人资料 — 你可以跳过此步骤。"
-    }
+    "ai_skip_note": "可选。你可以跳过，稍后在 设置 › AI 与智能体 中完成。"
   },
   "hints": {
     "hotkey": "全局快捷键：自动下载当前剪贴板中的链接。",
@@ -3092,10 +3117,10 @@
       "cookie_missing": "缺少 Bilibili Cookies",
       "cancelled": "已取消"
     },
-    "login_required": "需要登录 — 请使用浏览器 Cookie 或尝试其他链接",
+    "login_required": "这个需要登录。",
     "rate_limited": "请求过多 (429) — 请稍后再试",
     "access_denied": "访问被拒绝 (403) — 视频可能是私密的或受地区限制",
-    "extraction_failed": "提取失败 — 请更新 yt-dlp 或重试",
+    "extraction_failed": "该网站有变动，下载器需要更新。",
     "format_unavailable": "所请求的格式不可用",
     "video_unavailable": "视频不可用或已删除",
     "video_private": "该视频是私密的",
@@ -3112,8 +3137,8 @@
     "size_mismatch": "下载的文件大小不匹配。请重试。",
     "disk_full": "写入错误 — 您的磁盘可能已满。",
     "path_too_long": "下载文件夹路径过长 ({{current}}/{{limit}} 字符)。请选择更短的文件夹。",
-    "console_encoding": "控制台编码问题（非 UTF-8 区域设置）。请在 设置 → 依赖项 中更新 yt-dlp，或在终端中运行“chcp 65001”后重新打开应用。",
-    "extractor_broken": "网站提取器已失效。请在 设置 → 依赖项 中更新 yt-dlp，然后重试。",
+    "console_encoding": "控制台编码问题（非 UTF-8 区域设置）。请在 设置 → 下载引擎 中更新 yt-dlp，或在终端中运行“chcp 65001”后重新打开应用。",
+    "extractor_broken": "网站提取器已失效。请在 设置 → 下载引擎 中更新 yt-dlp，然后重试。",
     "drm_protected": "下载的流受 DRM 保护，无法合并。不支持此内容。",
     "output_missing": "下载已完成，但文件夹中没有出现文件（或文件为空）。请检查磁盘空间和杀毒软件设置后重试。",
     "platform_opted_out": "该网站的所有者要求 OmniGet 不支持该网站。",
@@ -3136,7 +3161,7 @@
     },
     "postprocess_advice": {
       "open_input": "请选择更短的输出文件夹或文件名模板，或更低的画质，然后重试。",
-      "generic": "请重试；如果反复出现，请在 设置 → 依赖项 中更新 FFmpeg，或选择其他格式。"
+      "generic": "请重试；如果反复出现，请在 设置 → 下载引擎 中更新 FFmpeg，或选择其他格式。"
     },
     "facebook_login": "Facebook 未登录时不显示此帖子。请在 设置 → Cookie 中为此网站导入 Cookie，然后重试。",
     "no_thumbnail_direct_file": "此链接是直接文件，没有可保存的缩略图。",
@@ -3182,9 +3207,11 @@
     "searching_hint": "正在连接中继服务器..."
   },
   "ytdlp_missing_banner": {
-    "text": "缺少 yt-dlp，无法开始下载。请在设置中安装。",
+    "text": "缺少下载引擎。",
     "open_settings": "打开设置",
-    "dismiss": "Dismiss"
+    "dismiss": "Dismiss",
+    "install": "立即安装",
+    "installing": "正在安装…"
   },
   "profile": {
     "title": "本地个人资料",
@@ -3224,7 +3251,7 @@
     "settings": {
       "title": "Canvas",
       "enabled": "显示画布",
-      "enabled_desc": "把 /world 加到侧边栏。关闭时，画布的任何内容都不会加载或运行。"
+      "enabled_desc": "把 Canvas 加到侧边栏。关闭时，画布的任何内容都不会加载或运行。"
     },
     "disabled": "画布已关闭。在 设置 › Canvas 中打开。"
   },
@@ -3232,18 +3259,18 @@
     "sidebar_profile": "你的个人资料"
   },
   "pet": {
-    "loading": "正在加载 Omni…",
+    "loading": "正在加载 Loop…",
     "error": {
-      "art": "无法加载 Omni 的形象。"
+      "art": "无法加载 Loop 的形象。"
     },
     "a11y": {
-      "canvas": "Omni，你的桌面伙伴"
+      "canvas": "Loop，你的桌面伙伴"
     },
     "menu": {
       "wave": "Say hi",
       "open_llm": "打开中心",
       "corner": "Corner",
-      "hide": "隐藏 Omni"
+      "hide": "隐藏 Loop"
     },
     "corner": {
       "top-left": "左上角",
@@ -3251,15 +3278,15 @@
       "bottom-left": "左下角",
       "bottom-right": "右下角"
     },
-    "enable": "在桌面上显示 Omni",
-    "click_through": "让点击穿过 Omni",
-    "unsupported": "你的桌面无法显示透明窗口，因此 Omni 留在 OmniGet 内部。",
+    "enable": "在桌面上显示 Loop",
+    "click_through": "让点击穿过 Loop",
+    "unsupported": "你的桌面无法显示透明窗口，因此 Loop 留在 OmniGet 内部。",
     "ask": {
       "title": "允许此工具？",
       "allow": "Allow",
       "always": "Always",
       "deny": "Deny",
-      "hint": "点击 Omni 进行选择"
+      "hint": "点击 Loop 进行选择"
     }
   },
   "tray": {
@@ -3267,7 +3294,10 @@
     "downloads_none": "没有进行中的下载",
     "downloads_active": "下载：{{count}} 个进行中",
     "tooltip_active": "OmniGet — {{count}} 个进行中",
-    "tooltip_speed": "OmniGet — {{count}} 个进行中 · {{speed}}"
+    "tooltip_speed": "OmniGet — {{count}} 个进行中 · {{speed}}",
+    "quick_tools": "快捷工具",
+    "awake_on": "保持唤醒",
+    "awake_until": "保持唤醒至 {{time}}"
   },
   "mission": {
     "task_state": {
@@ -3386,10 +3416,10 @@
     "native_active": "原生访问",
     "native_revoke": "撤销访问",
     "library": "读取你的书库（书名、标注和正文）",
-    "global_downloader": "操作 Global Downloader：它的浏览器（你已登录的页面）、网站连接器和整站下载",
-    "global_downloader_read": "仅读取 Global Downloader：其浏览器中打开的页面、网络流量、已安装的连接器和市场，不能点击、输入、下载或安装",
-    "system_read": "读取本机状态、扫描结果和方案（washmybelly）",
-    "system_change": "准备清理方案，保持性能供电、游戏模式和 FPS 采集（washmybelly）",
+    "global_downloader": "操作 内置浏览器：它的浏览器（你已登录的页面）、网站连接器和整站下载",
+    "global_downloader_read": "仅读取 内置浏览器：其浏览器中打开的页面、网络流量、已安装的连接器和市场，不能点击、输入、下载或安装",
+    "system_read": "读取本机状态、扫描结果和方案（系统清理）",
+    "system_change": "准备清理方案，保持性能供电、游戏模式和 FPS 采集（系统清理）",
     "telegram_read": "读取 Telegram 的聊天、消息和文件，并生成摘要（/telegram）",
     "telegram_write": "从 Telegram 下载、管理自动保存规则，并在你逐条批准后发送、转发或删除消息（/telegram）",
     "memory_read": "检索并回顾 OmniGet 记住的关于你的内容",
@@ -3398,12 +3428,12 @@
     "approvals_respond_help": "授予后，客户端可以批准其自身任务的工具调用（包括 shell 命令），就像你在这里点了“允许”。只授予你像信任自己一样信任的客户端。它永远不能创建“始终允许”规则，代理也永远不能回答自己的问题。",
     "agents_run": "将你的智能体作为后台任务运行",
     "agents_run_help": "开启后，客户端可以让你列表中的任意智能体在它指定的文件夹里于后台执行任务，与 `omniget agent run` 相同。它只能查看和停止自己启动的任务。智能体的权限请求仍会等待你来回答，除非你也允许此客户端回答。",
-    "social_read": "读取你在 X、Instagram、TikTok、Reddit、Pinterest 和 GitHub 上的动态、主页、帖子和评论 (/x, /instagram, /tiktok, /reddit, /pinterest, /github)",
-    "social_write": "在你逐一批准后，在你的 X、Instagram、TikTok、Reddit、Pinterest 和 GitHub 账号上发帖、点赞、转发、评论、关注、投票、保存和加星标 (/x, /instagram, /tiktok, /reddit, /pinterest, /github)",
-    "whatsapp_read": "读取你的 WhatsApp 聊天和消息，并实时跟进新消息 (/whatsapp)",
-    "whatsapp_write": "以你的名义发送和定时发送 WhatsApp 消息，标记已读并显示正在输入 (/whatsapp)",
-    "devtools_read": "把文件夹打包成提示词、读取网页、发送 HTTP 请求、列出开放端口并使用离线工具（/devtools、/pack、/scrape、/api）",
-    "devtools_write": "在试运行之后，停止监听某个端口的进程（/devtools）",
+    "social_read": "读取你在 短帖、照片动态、短视频动态、论坛、图钉板 和 代码中心 上的动态、主页、帖子和评论 (/shortpost, /photofeed, /clipfeed, /forums, /pinboard, /codehub)",
+    "social_write": "在你逐一批准后，在你的 短帖、照片动态、短视频动态、论坛、图钉板 和 代码中心 账号上发帖、点赞、转发、评论、关注、投票、保存和加星标 (/shortpost, /photofeed, /clipfeed, /forums, /pinboard, /codehub)",
+    "phonechat_read": "读取你的 手机聊天 聊天和消息，并实时跟进新消息 (/phonechat)",
+    "phonechat_write": "以你的名义发送和定时发送 手机聊天 消息，标记已读并显示正在输入 (/phonechat)",
+    "devtools_read": "把文件夹打包成提示词、读取并爬取网页、发送 HTTP 请求、查看并测试代理池、列出开放端口并使用离线工具（/devtools、/pack、/scrape、/api）",
+    "devtools_write": "在试运行之后停止监听某个端口的进程，并修改代理池（/devtools）",
     "transfer_read": "列出并下载已保存的 FTP、FTPS 和 SFTP 服务器以及无需密码的服务器上的文件（/transfer）",
     "transfer_write": "在这些服务器上上传文件、新建文件夹、重命名和删除，并保存或移除服务器；删除前必须先试运行（/transfer）",
     "research_read": "用你保存的 API 密钥通过 ScrapeCreators 读取公开社交数据：所有平台接口以及创作者、内容简报、广告监测和 Reels 流程。每次调用都会消耗你的 ScrapeCreators 额度（/research）"
@@ -3419,7 +3449,7 @@
     "deny": "拒绝"
   },
   "superpowers": {
-    "subtitle": "需要时再开启的额外能力。",
+    "subtitle": "OmniGet 的其他功能：播放、转换、录制、清理。",
     "league_desc": "英雄联盟对局助手：敌方冷却、金币与侦察。",
     "disabled": "已关闭",
     "disabled_hint": "已在 设置 › 集成 中关闭。",
@@ -3430,8 +3460,8 @@
     "video_desc": "电影、剧集、课程和直播电视，尽在一个播放器。带编号的课程支持进度、笔记、字幕文稿和闪卡；可接入 Jellyfin、IPTV 和附加组件作为来源。",
     "tube_desc": "YouTube 和 YouTube Music 集于一处，使用你自己的账号：无广告、SponsorBlock、可选择不看 Shorts、在同一画质菜单中下载，无需账号也能订阅。",
     "telegram_desc": "下载 Telegram 聊天和频道里的媒体。连接会自己绕过封锁、找到可用的代理。",
-    "global_desc": "登录、浏览并从任何网站下载：一个由 OmniGet 控制的浏览器、每个标签页上的媒体嗅探器，以及获取整个合集的连接器。",
-    "search": "搜索超能力",
+    "global_desc": "OmniGet 内置的浏览器：登录、浏览并从任何网站下载。",
+    "search": "搜索工具",
     "no_results": "没有与“{{query}}”匹配的内容。",
     "converter_desc": "在这台电脑上转换数据、文档、图片、图纸、音频和视频的格式。能打开 iPhone 照片（HEIC）、Photoshop 文件和相机 RAW，还能把图片转成 SVG。已安装 ffmpeg、Pandoc、ImageMagick 或 LibreOffice 时会使用它们。",
     "palette_desc": "配色工作台：OKLCH 取色器、均匀色阶、对比度检查、渐变和设计令牌。",
@@ -3443,19 +3473,19 @@
     "capture_desc": "录制屏幕，瞬间剪辑视频，画质不受损。",
     "studio_desc": "在本地为视频加字幕、重构图和片头，渲染出成品 MP4。",
     "dictation_desc": "按住快捷键说话，就能在任意应用中输入文字，转写在你的电脑上完成。",
-    "whatsapp_desc": "关联 WhatsApp，从任意对话下载照片、视频、音频和文档，或导出整个对话。",
-    "discord_desc": "阅读并回复 Discord 服务器和私信,下载频道中的媒体,或将聊天记录导出为 HTML、JSON 或文本。",
+    "phonechat_desc": "关联 手机聊天，从任意对话下载照片、视频、音频和文档，或导出整个对话。",
+    "guildchat_desc": "阅读并回复 服务器聊天 服务器和私信,下载频道中的媒体,或将聊天记录导出为 HTML、JSON 或文本。",
     "pdf_desc": "合并、拆分、重新排序、旋转和压缩 PDF，或把图片转成 PDF。一切都在这台电脑上完成。",
     "cutout_desc": "去掉照片和视频画面的背景，得到透明 PNG。在这台电脑上运行。",
     "photos_desc": "快速浏览这台电脑上的图片，包括 iPhone 照片（HEIC）、相机 RAW 和 Photoshop 文件。找出重复和相似的照片，在不改动原图的情况下快速调整，一张或多张一起导出。",
-    "x_desc": "阅读你的 X 时间线、个人资料和回复，并发帖、点赞、转帖或关注。你的智能体通过 MCP 获得同样的工具。",
-    "instagram_desc": "阅读你的 Instagram 动态、主页、帖子和评论，并点赞、评论或关注。你的智能体通过 MCP 获得同样的工具。",
-    "tiktok_desc": "浏览你的 TikTok 推荐动态、个人资料、视频和评论，并点赞、评论或关注。你的智能体通过 MCP 获得同样的工具。",
+    "shortpost_desc": "阅读你的 短帖 时间线、个人资料和回复，并发帖、点赞、转帖或关注。",
+    "photofeed_desc": "阅读你的 照片动态 动态、主页、帖子和评论，并点赞、评论或关注。",
+    "clipfeed_desc": "浏览你的 短视频动态 推荐动态、个人资料、视频和评论，并点赞、评论或关注。",
     "devtools_desc": "离线工具：JSON、JWT、哈希、正则和差异对比，另有端口检查器。",
     "pack_desc": "把文件夹或仓库打包成一个可直接用于提示词的文件，带令牌预算和密钥扫描。",
     "scrape_desc": "把任意网页转成干净的 Markdown，或按选择器提取元素。",
     "api_desc": "发送 HTTP 请求并查看状态、耗时和重定向。无需账号。",
-    "transfer_desc": "浏览、下载和上传 FTP、FTPS 和 SFTP 服务器上的文件，例如 NAS、网站主机或游戏机。你的智能体可通过 MCP 使用同样的工具。",
+    "transfer_desc": "浏览、下载和上传 FTP、FTPS 和 SFTP 服务器上的文件，例如 NAS、网站主机或游戏机。",
     "cat_all": "全部",
     "cat_media": "媒体",
     "cat_download": "下载",
@@ -3474,10 +3504,12 @@
     "tag_local": "本地",
     "tag_account": "登录",
     "clear": "清除搜索和筛选",
-    "reddit_desc": "浏览 Reddit 首页、社区、帖子和评论树，并投票、评论、发帖或保存。你的智能体通过 MCP 获得同样的工具。",
-    "pinterest_desc": "浏览 Pinterest 首页、图板和 Pin 图，搜索灵感，并保存 Pin 图或关注用户。你的智能体通过 MCP 获得同样的工具。",
-    "github_desc": "关注 GitHub 上的仓库、发布、议题、加星标的人和趋势项目，并用自己的令牌加星标、关注或评论。你的智能体通过 MCP 获得同样的工具。",
-    "research_desc": "用你的 ScrapeCreators 密钥获取 TikTok、Instagram、YouTube、Reddit、广告资料库等公开数据，并做创作者、内容简报、广告和 Reels 调研。你的智能体也能通过 MCP 使用同样的工具。"
+    "forums_desc": "浏览 论坛 首页、社区、帖子和评论树，并投票、评论、发帖或保存。",
+    "pinboard_desc": "浏览 图钉板 首页、图板和 Pin 图，搜索灵感，并保存 Pin 图或关注用户。",
+    "codehub_desc": "关注 代码中心 上的仓库、发布、议题、加星标的人和趋势项目，并用自己的令牌加星标、关注或评论。",
+    "research_desc": "用你的 ScrapeCreators 密钥获取 TikTok、Instagram、YouTube、Reddit、广告资料库等公开数据，并做创作者、内容简报、广告和 Reels 调研。",
+    "turn_on": "开启",
+    "tag_mcp": "支持智能体"
   },
   "devtools": {
     "title": "DevTools",
@@ -3533,7 +3565,7 @@
     }
   },
   "pack": {
-    "title": "Pack",
+    "title": "仓库转提示词",
     "subtitle": "把文件夹变成一个可直接用于提示词的文件。看清哪些被包含、哪些被排除以及原因。",
     "folder": "文件夹",
     "folder_hint": "粘贴路径，或把文件夹拖到此窗口",
@@ -3584,7 +3616,7 @@
     "max_tokens": "令牌上限",
     "selector": "CSS 选择器",
     "attr": "属性（可选）",
-    "open_browser": "在 Global Downloader 浏览器中打开",
+    "open_browser": "在 内置浏览器 浏览器中打开",
     "candidates": "页面中存在这些：",
     "copy": "复制结果",
     "truncated": "在 {{total}} 个令牌中的第 {{tokens}} 个处截断。提高令牌上限即可获取其余内容。",
@@ -4391,15 +4423,15 @@
     }
   },
   "washmybelly": {
-    "nav": "washmybelly",
-    "settings_enable": "显示 washmybelly",
+    "nav": "系统清理",
+    "settings_enable": "显示 系统清理",
     "settings_enable_desc": "不会自行运行：只有在你打开这个页面或智能体请求时才会开始扫描。关闭后也会对智能体隐藏它的工具。",
     "settings_quarantine_days": "隔离文件保留",
-    "settings_quarantine_days_desc": "washmybelly 隔离区中的项目被永久删除前保留的天数。",
+    "settings_quarantine_days_desc": "系统清理 隔离区中的项目被永久删除前保留的天数。",
     "settings_auto_hold": "忙碌时保持高性能电源",
     "settings_auto_hold_desc": "在大型下载和智能体运行期间保持高性能模式，结束后自动恢复。",
-    "disabled_title": "washmybelly 已关闭",
-    "disabled_body": "在 设置 › 高级 › washmybelly 中开启。",
+    "disabled_title": "系统清理 已关闭",
+    "disabled_body": "在 设置 › 高级 › 系统清理 中开启。",
     "open_settings": "打开设置",
     "loading": "正在检查这台电脑…",
     "error_title": "出了点问题",
@@ -4893,7 +4925,7 @@
       "selected_only": "已选择 {{count}} 项"
     },
     "receipts": {
-      "subtitle": "washmybelly 做过的所有更改，以及如何恢复。",
+      "subtitle": "系统清理 做过的所有更改，以及如何恢复。",
       "refresh": "刷新",
       "today": "今天",
       "yesterday": "昨天",
@@ -5867,10 +5899,10 @@
     }
   },
   "video": {
-    "title": "Watch",
+    "title": "视频播放器",
     "addons": {
       "catalog_failed": "{{name}} 没有响应：",
-      "empty_body": "在“来源”中粘贴你信任的附加组件的 manifest 链接。Watch 只播放附加组件提供的 http 直链和 YouTube。",
+      "empty_body": "在“来源”中粘贴你信任的附加组件的 manifest 链接。视频播放器 只播放附加组件提供的 http 直链和 YouTube。",
       "empty_title": "未安装附加组件",
       "external_reason": "此附加组件要求在网站中打开。",
       "install": "安装附加组件",
@@ -5879,11 +5911,11 @@
       "no_catalogs_body": "有些附加组件只提供流或字幕。从其他目录打开影片时，它们才会出现。",
       "no_streams": "未找到流",
       "no_streams_body": "你的附加组件都没有返回此影片的链接。",
-      "none_playable": "这些流都无法在 Watch 中播放。原因显示在每条流下方。",
+      "none_playable": "这些流都无法在 视频播放器 中播放。原因显示在每条流下方。",
       "open_browser": "在浏览器中打开",
       "pick_episode": "选择一集以查看其流。",
       "refused_count": "{{count}} 条被拒绝的流",
-      "refused_reason": "已拒绝：Watch 只播放 http 直链和 YouTube。不会播放 Torrent、magnet、usenet 和 P2P 链接。",
+      "refused_reason": "已拒绝：视频播放器 只播放 http 直链和 YouTube。不会播放 Torrent、magnet、usenet 和 P2P 链接。",
       "search": "搜索附加组件目录",
       "streams": "流",
       "title": "附加组件"
@@ -5934,7 +5966,7 @@
       "back10": "后退 10 秒",
       "connected": "已连接",
       "devices": "设备",
-      "lan_note": "投屏时，Watch 会打开一个带一次性密钥的本地链接，只有电视能访问。停止后会关闭。",
+      "lan_note": "投屏时，视频播放器 会打开一个带一次性密钥的本地链接，只有电视能访问。停止后会关闭。",
       "mute": "静音",
       "none_body": "请确认电视已开机，并与这台电脑连接同一个 Wi-Fi，然后重新搜索。",
       "none_title": "未找到 Chromecast",
@@ -5993,9 +6025,9 @@
       "materials": "课程资料",
       "progress": "已完成 {{percent}}%",
       "remove": "移除课程",
-      "remove_body": "课程及其进度会从 Watch 中移除。文件仍保留在你的磁盘上。",
+      "remove_body": "课程及其进度会从 视频播放器 中移除。文件仍保留在你的磁盘上。",
       "remove_title": "移除 {{title}}？",
-      "removed": "已从 Watch 中移除 {{title}}",
+      "removed": "已从 视频播放器 中移除 {{title}}",
       "review": "重看",
       "select": "选择",
       "select_all": "全选",
@@ -6007,7 +6039,7 @@
       "title": "课程",
       "unmark_module": "将章节标记为未看"
     },
-    "disabled_title": "Watch 已关闭",
+    "disabled_title": "视频播放器 已关闭",
     "done": "完成",
     "drop": {
       "added": "已添加 {{name}}，正在扫描。",
@@ -6026,7 +6058,7 @@
     },
     "folders": {
       "collapse": "收起",
-      "empty_body": "添加一个包含视频的文件夹。Watch 只会读取它：不会重命名或移动任何内容。",
+      "empty_body": "添加一个包含视频的文件夹。视频播放器 只会读取它：不会重命名或移动任何内容。",
       "empty_title": "还没有文件夹",
       "expand": "展开",
       "kind_course": "课程",
@@ -6035,10 +6067,10 @@
       "offline_notice": "此文件夹目前无法读取（磁盘未连接，或网络共享已断开）。没有任何内容被移除：重新可访问后，你的进度和笔记会恢复。",
       "pick": "请在左侧选择一个文件夹",
       "play_folder": "播放文件夹",
-      "remove_confirm_body": "Watch 将不再显示此文件夹。不会删除磁盘上的任何文件，重新添加该文件夹后会恢复你的进度。",
+      "remove_confirm_body": "视频播放器 将不再显示此文件夹。不会删除磁盘上的任何文件，重新添加该文件夹后会恢复你的进度。",
       "remove_confirm_title": "从资料库中移除“{{name}}”？",
       "remove_from_library": "从资料库中移除",
-      "remove_hint": "只会把文件夹从 Watch 中移除。你的文件仍保留在磁盘上。",
+      "remove_hint": "只会把文件夹从 视频播放器 中移除。你的文件仍保留在磁盘上。",
       "removed": "已从资料库中移除“{{name}}”。你的文件未受影响。",
       "rescan": "重新扫描",
       "rescan_started": "正在扫描你的文件夹…",
@@ -6063,7 +6095,7 @@
       "continue_course": "继续",
       "customize": "自定义",
       "done": "完成",
-      "empty_body": "Watch 会读取你已有的视频。不会重命名、移动或上传任何内容。你也可以导入课程文件夹，或连接你自己的服务器。",
+      "empty_body": "视频播放器 会读取你已有的视频。不会重命名、移动或上传任何内容。你也可以导入课程文件夹，或连接你自己的服务器。",
       "empty_title": "选择一个文件夹开始",
       "import_course": "导入课程文件夹",
       "lessons_done": "{{done}}/{{total}} 课时",
@@ -6156,7 +6188,7 @@
       "open_file": "打开视频文件"
     },
     "link": {
-      "hint": "支持 YouTube 和大多数视频网站。你也可以在 Watch 的任何位置粘贴链接。",
+      "hint": "支持 YouTube 和大多数视频网站。你也可以在 视频播放器 的任何位置粘贴链接。",
       "invalid": "这看起来不是网页链接",
       "open": "打开链接",
       "play": "播放"
@@ -6168,7 +6200,7 @@
       "all_off_title": "你的电视列表已全部关闭",
       "channel": "频道",
       "channels": "频道",
-      "empty_body": "在“来源”中添加你自己的 M3U 列表或 Xtream 登录信息。Watch 不自带任何频道。",
+      "empty_body": "在“来源”中添加你自己的 M3U 列表或 Xtream 登录信息。视频播放器 不自带任何频道。",
       "empty_title": "还没有电视列表",
       "favorite": "添加到收藏",
       "favorites": "收藏",
@@ -6218,12 +6250,12 @@
       "incognito": "隐私模式",
       "incognito_hint": "开启后，你观看的内容不会保存到历史记录或进度中",
       "incognito_on": "隐私模式已开启",
-      "label": "Watch 分区",
+      "label": "视频播放器 分区",
       "learn": "学习",
       "live": "直播电视",
       "movies": "电影",
       "online": "在线",
-      "settings": "Watch 设置",
+      "settings": "视频播放器 设置",
       "shows": "剧集",
       "sources": "来源",
       "status_disabled": "已关闭",
@@ -6384,8 +6416,8 @@
       "player": "播放器",
       "privacy": "隐私",
       "remove_folder": "移除文件夹",
-      "remove_folder_hint": "将其从 Watch 中移除。不会删除磁盘上的任何内容。",
-      "title": "Watch 设置"
+      "remove_folder_hint": "将其从 视频播放器 中移除。不会删除磁盘上的任何内容。",
+      "title": "视频播放器 设置"
     },
     "show": {
       "empty": "此剧集在磁盘上没有任何剧集文件",
@@ -6425,7 +6457,7 @@
       "add": "添加",
       "addon_added": "附加组件已安装",
       "addon_body": "来自使用开放 Stremio 协议的附加组件的目录和链接，通过其 manifest 链接安装。",
-      "addon_policy_body": "Watch 播放附加组件提供的 http(s) 直链和 YouTube 视频。Torrent、magnet 和 P2P 附加组件会被拒绝，其链接会显示为已拒绝。",
+      "addon_policy_body": "视频播放器 播放附加组件提供的 http(s) 直链和 YouTube 视频。Torrent、magnet 和 P2P 附加组件会被拒绝，其链接会显示为已拒绝。",
       "addon_policy_title": "只播放 http 链接和 YouTube",
       "addon_sends": "会向附加组件请求你所打开内容的目录和链接。",
       "addon_title": "附加组件",
@@ -6440,7 +6472,7 @@
       "ani_step2": "复制令牌并粘贴到下方。它只保存在这台电脑上。",
       "ani_title": "AniList",
       "ani_token": "访问令牌",
-      "bring_your_own_body": "Watch 只使用你自己添加的来源。每个来源都会说明它发送什么，你可以随时关闭或移除它。",
+      "bring_your_own_body": "视频播放器 只使用你自己添加的来源。每个来源都会说明它发送什么，你可以随时关闭或移除它。",
       "bring_your_own_title": "没有任何预装内容",
       "channels": "{{count}} 个频道",
       "choose_file": "选择文件",
@@ -6557,11 +6589,11 @@
       "searching": "搜索中…"
     },
     "welcome": {
-      "body": "Watch 播放你电脑上已有的视频。不会重命名或移动任何内容。",
+      "body": "视频播放器 播放你电脑上已有的视频。不会重命名或移动任何内容。",
       "connect_server": "连接 Jellyfin、IPTV 或附加组件",
       "drop_hint": "你也可以把文件夹、文件或链接拖到此窗口上。",
       "link_placeholder": "或粘贴视频链接",
-      "no_ffmpeg": "未找到 ffmpeg，因此 webview 无法直接播放的文件（MKV、AVI、HEVC）将无法打开。请在“设置 → 依赖项”中安装。",
+      "no_ffmpeg": "未找到 ffmpeg，因此 webview 无法直接播放的文件（MKV、AVI、HEVC）将无法打开。请在“设置 → 下载引擎”中安装。",
       "pick_course": "导入课程",
       "pick_folder": "选择视频文件夹",
       "skip": "暂时跳过",
@@ -6614,6 +6646,9 @@
       "lock": "Lock",
       "locked": "Locked",
       "memoryMode": "未保存：仅在内存中工作",
+      "emptyTitle": "此画布上还没有智能体",
+      "emptyHint": "添加一个运行 Claude Code 或 Codex 的终端。用连线连接两个终端，其中一个就能向另一个提问。",
+      "emptyAction": "添加智能体",
       "menu": {
         "add": "Add",
         "connectNew": "新建并连接…",
@@ -6652,7 +6687,9 @@
         "thinking": "Thinking",
         "unknown": "No signal",
         "waitingPeer": "正在等待某个智能体",
-        "working": "Working"
+        "working": "Working",
+        "limit": "已达上限",
+        "refused": "已拒绝"
       },
       "strokeWidth": "描边宽度",
       "terminalFailed": "无法启动终端",
@@ -6705,7 +6742,9 @@
       "textFamily": "Font",
       "textThemeColor": "主题色",
       "attach": "附加文件",
-      "deviceLock": "锁定屏幕"
+      "deviceLock": "锁定屏幕",
+      "costEstimated": "本次会话约 {{amount}}",
+      "costHint": "按模型公开价格估算的此终端会话费用。"
     },
     "term": {
       "action": {
@@ -6738,7 +6777,9 @@
         "failed": "Failed",
         "compacting": "Compacting",
         "looping": "Looping",
-        "unknown": "No signal"
+        "unknown": "No signal",
+        "limit": "已达上限",
+        "refused": "已拒绝"
       },
       "find": {
         "placeholder": "在终端中查找",
@@ -6850,10 +6891,10 @@
         "here": "你在这里"
       }
     },
-    "maestro": {
-      "label": "Maestro",
-      "off": "开启 Maestro 模式",
-      "on": "Maestro：可以招募、连接和创建楼层。点击关闭。"
+    "lead": {
+      "label": "Lead",
+      "off": "开启 Lead 模式",
+      "on": "Lead：可以招募、连接和创建楼层。点击关闭。"
     },
     "partituras": {
       "addToCanvas": "添加到画布",
@@ -7664,7 +7705,7 @@
       "memoryLimitHint": "超过上限的程序会被停止；shell 保留。0 = 关闭",
       "optionAsMeta": "Option 键发送 Meta（而不是输入字符）",
       "notifyAttention": "智能体需要关注时通知",
-      "badgesNonMaestro": "在非 Maestro 的终端上显示提醒标记",
+      "badgesNonLead": "在非 Lead 的终端上显示提醒标记",
       "preventSleep": "防止电脑休眠",
       "sleepWorking": "智能体工作期间",
       "sleepAlways": "Always",
@@ -7679,7 +7720,7 @@
       "presetCwd": "文件夹（留空 = 工作区的文件夹）",
       "presetIcon": "Icon",
       "presetColor": "Color",
-      "presetMaestro": "Maestro（可以招募和管理其他智能体）",
+      "presetLead": "Lead（可以招募和管理其他智能体）",
       "presetChat": "以聊天模式启动",
       "cancel": "Cancel",
       "savePreset": "保存预设",
@@ -8096,22 +8137,82 @@
         "done": "转录已完成",
         "failed": "Failed"
       }
+    },
+    "needsYou": {
+      "title": "需要你处理",
+      "count": "需要你的智能体：{{count}}",
+      "next": "前往下一个需要你的智能体",
+      "agent": "智能体",
+      "more": "还有 {{count}} 个",
+      "reason": {
+        "permission": "请求权限",
+        "blocked": "等待你的回答",
+        "stuck": "停滞不前",
+        "trust": "询问是否信任此文件夹",
+        "chrome_prompt": "等待浏览器相关问题",
+        "login": "需要你登录",
+        "review": "已完成，待检查",
+        "other": "需要关注"
+      }
+    },
+    "autonomy": {
+      "auto_edits": "自行编辑",
+      "full": "从不询问",
+      "plan": "仅规划",
+      "hint": "由该智能体启动命令中的 {{flag}} 设定"
+    },
+    "budget": {
+      "label": "支出上限",
+      "usage": "{{spent}} / {{limit}}",
+      "tokens": "{{count}} 个令牌",
+      "w_turn": "本轮",
+      "w_day": "今天",
+      "w_week": "本周",
+      "w_5h": "最近 5 小时",
+      "w_7d": "最近 7 天",
+      "w_run": "本次运行",
+      "paused_short": "已达上限，已暂停",
+      "paused_title": "已暂停：已达到 {{limit}} 的上限",
+      "paused_body": "应用暂停了此上限涵盖的智能体。它们没有做错什么。",
+      "near": "接近上限。",
+      "keep": "保持暂停",
+      "raise": "将上限提高到 {{limit}}",
+      "failed": "回答未送达，请重试。"
+    },
+    "checkpoint": {
+      "open": "返回点",
+      "title": "返回点",
+      "before_turn": "第 {{turn}} 轮之前",
+      "restore": "回到这里",
+      "none_repo": "此终端的文件夹不是 git 仓库，因此没有可返回的位置。",
+      "none_yet": "这里还没有开始任何一轮。每开始一轮都会保存一个返回点。",
+      "confirm_title": "要把文件恢复到第 {{turn}} 轮之前的状态吗？",
+      "confirm_files": "将更改的文件数：{{count}}",
+      "confirm_nothing": "此后没有任何更改。",
+      "confirm_note": "这会把仓库中的所有文件恢复到那个时间点：包括该智能体的更改、其他智能体在其中的更改以及你此后自己的编辑，并删除之后创建的文件。当前状态会保留一份副本，因此可以撤销一次。已运行的命令、仓库之外的文件和已发送的消息不会被撤销。智能体仍然记得它做过什么。",
+      "confirm": "恢复文件",
+      "cancel": "取消",
+      "done": "已恢复的文件数：{{count}}",
+      "failed": "未成功，请重试。",
+      "undo": "撤销这次恢复",
+      "undone": "已恢复原状的文件数：{{count}}",
+      "wait_turn": "智能体正在执行一轮。请等它结束后再恢复。"
     }
   },
   "tube": {
-    "title": "OmniTube",
+    "title": "Tube Player",
     "library": {
       "history": "历史记录",
       "watch_later": "稍后观看",
       "local_subs": "此设备上的订阅"
     },
     "app": {
-      "disabled_title": "OmniTube 已关闭"
+      "disabled_title": "Tube Player 已关闭"
     },
     "shell": {
       "guide": "导航",
       "back": "返回",
-      "home": "OmniTube 首页",
+      "home": "Tube Player 首页",
       "face": "视频或音乐",
       "videos": "视频",
       "music": "音乐",
@@ -8851,7 +8952,7 @@
       "storage_of": "{{used}} / {{cap}}",
       "storage_used": "自动下载占用的磁盘空间",
       "storage_used_nocap": "已使用 {{used}}，无上限",
-      "title": "OmniTube 设置",
+      "title": "Tube Player 设置",
       "tools": "辅助工具",
       "tools_desc": "用作播放和下载的备用方案。",
       "unblock": "取消屏蔽",
@@ -9400,13 +9501,13 @@
       "batch_toast": "{{chat}} 中有 {{count}} 个文件已保存过，没有再次下载"
     },
     "watch_lib": {
-      "rule_option": "添加到 Watch",
-      "rule_option_hint": "每个保存的文件也会出现在你的 Watch 媒体库中。",
-      "rule_on": "添加到 Watch",
-      "add_folder": "将此规则的文件夹添加到 Watch",
-      "add_this_folder": "将此文件夹添加到 Watch",
-      "added": "已将 {{count}} 个文件添加到 Watch",
-      "added_folder": "文件夹已添加到 Watch"
+      "rule_option": "添加到 视频播放器",
+      "rule_option_hint": "每个保存的文件也会出现在你的 视频播放器 媒体库中。",
+      "rule_on": "添加到 视频播放器",
+      "add_folder": "将此规则的文件夹添加到 视频播放器",
+      "add_this_folder": "将此文件夹添加到 视频播放器",
+      "added": "已将 {{count}} 个文件添加到 视频播放器",
+      "added_folder": "文件夹已添加到 视频播放器"
     },
     "search": {
       "filters": "筛选",
@@ -9485,7 +9586,7 @@
     "template_sample_caption": "第03课：模块简介"
   },
   "global_dl": {
-    "title": "Global Downloader",
+    "title": "内置浏览器",
     "subtitle": "从几乎任何网站下载视频和文件，包括需要登录的网站。",
     "hero_label": "粘贴你要下载内容的页面链接",
     "url_placeholder": "例如：https://example.com/course/lesson-1",
@@ -9642,8 +9743,11 @@
       "hint_installing": "正在安装助手",
       "hint_installed": "{{name}} 助手可以下载此链接。",
       "hint_update": "有可用更新。",
-      "hint_open": "在 Global Downloader 中打开",
+      "hint_open": "在 内置浏览器 中打开",
       "login_paste": "在那个窗口中打开一门课程后再按一次按钮，或在上方粘贴它的链接。",
+      "search": "搜索助手",
+      "no_match": "没有与“{{query}}”匹配的助手。",
+      "wanted": "你是通过链接打开这个助手的。点击“安装”即可添加。",
       "err": {
         "signature": "助手列表的签名校验失败，已被拒绝。",
         "hash": "助手包与列表不符，已被拒绝。",
@@ -9667,7 +9771,7 @@
     "scope_agents": "在此文件夹中以后台任务运行你的 AI 智能体",
     "scope_approvals": "替你回答这些智能体的权限请求",
     "scope_approvals_hint": "关闭时：OmniGet 每次都会询问你。",
-    "scope_browser": "Global Downloader：打开它的浏览器、编写网站连接器，并下载整个网站和课程",
+    "scope_browser": "内置浏览器：打开它的浏览器、编写网站连接器，并下载整个网站和课程",
     "scope_browser_hint": "会使用你在其中已登录的页面。关闭时：只有普通下载。",
     "request_hint": "只有在你刚刚让 {{client}} 连接时才允许。",
     "deny": "不允许",
@@ -9712,7 +9816,7 @@
       "where_cloud_hint": "ChatGPT、网页版 Claude、Grok 等互联网上的 AI",
       "preset": "它能做什么",
       "preset_all": "全部",
-      "preset_messages": "WhatsApp 和消息",
+      "preset_messages": "手机聊天 和消息",
       "preset_read": "只读",
       "expires": "有效期",
       "days_1": "1 天",
@@ -9775,7 +9879,7 @@
       "reported_short": "已举报",
       "placeholder": "输入消息",
       "hint": "Enter 发送，Shift+Enter 换行。",
-      "remaining": "还可输入 {{n}} 个字符",
+      "remaining": "还可输入 {{num}} 个字符",
       "send": "发送",
       "sending": "正在发送…",
       "state_slow": "请等几秒再发下一条。",
@@ -10077,7 +10181,7 @@
         "exited": "[进程已退出：{{code}}]"
       },
       "onboarding": {
-        "title": "你的 AI 工具",
+        "title": "连接你的 AI 工具",
         "desc": "OmniGet 在这台电脑上找到了这些编程 CLI。把它们的会话导入为对话线程，并从一套实用的小配置开始。",
         "detecting": "正在查找 AI 工具…",
         "none": "未找到编程 CLI。你可以稍后安装。",
@@ -10261,7 +10365,7 @@
       "deleted": "已删除“{{name}}”。",
       "copy_name": "{{name}} 副本",
       "first_name": "我的调色板",
-      "nth_name": "调色板 {{n}}"
+      "nth_name": "调色板 {{num}}"
     },
     "save": {
       "saving": "正在保存…",
@@ -10303,7 +10407,7 @@
       "empty_title": "此项目中没有调色板",
       "empty_body": "添加调色板，从一个基色生成色阶。",
       "add": "添加调色板",
-      "untitled": "调色板 {{n}}",
+      "untitled": "调色板 {{num}}",
       "name": "调色板名称",
       "token": "令牌名称",
       "token_hint": "用于导出，如 --brand-500。字母、数字和连字符。",
@@ -10381,9 +10485,9 @@
       "compare_hint": "同样的色标和缓动在三个空间中对比。sRGB 中间常发灰或变暗；OKLCH 保持颜色。点击一行即可使用。",
       "stops": "色标",
       "from_palettes": "使用前两个调色板",
-      "stop_color": "色标 {{n}} 的颜色",
-      "stop_pos": "色标 {{n}} 的位置",
-      "remove_stop": "移除色标 {{n}}",
+      "stop_color": "色标 {{num}} 的颜色",
+      "stop_pos": "色标 {{num}} 的位置",
+      "remove_stop": "移除色标 {{num}}",
       "min_stops": "渐变至少需要两个色标",
       "stop_removed": "已移除一个色标。",
       "add_stop": "添加色标",
@@ -10423,7 +10527,7 @@
       "share": "占图片的 {{percent}}%",
       "make_palettes": "添加 {{count}} 个调色板",
       "make_gradient": "生成渐变",
-      "color_name": "{{name}} {{n}}",
+      "color_name": "{{name}} {{num}}",
       "added": "已从图片添加 {{count}} 个调色板。",
       "gradient_set": "渐变现在使用图片的颜色，从亮到暗。"
     },
@@ -10918,7 +11022,7 @@
       "color": "颜色"
     },
     "curve": {
-      "handle": "控制柄 {{n}}:x {{x}},y {{y}}",
+      "handle": "控制柄 {{num}}:x {{xval}},y {{yval}}",
       "keys_hint": "拖动控制柄,或选中后用方向键移动(Shift 大步,Alt 微调)。"
     },
     "easing": {
@@ -10937,7 +11041,7 @@
       "group_apple": "Apple 风格",
       "group_expressive": "富有表现力",
       "property": "动画属性",
-      "race": "A:{{a}} · B:{{b}}。两者同时出发,领先的那条在该时刻更快。",
+      "race": "A:{{first}} · B:{{second}}。两者同时出发,领先的那条在该时刻更快。",
       "swap": "交换 A 和 B",
       "use_in_timeline": "用于选中的关键帧",
       "used": "已发送到时间轴",
@@ -10975,8 +11079,8 @@
       "points": "{{ms}} ms 内 {{count}} 个点。容差越小越精确,但代码越长。",
       "linear_hint": "所有现代浏览器都支持。时长即稳定时间。",
       "motion_hint": "使用相同的刚度、阻尼和质量,因此从静止开始的运动会像曲线图一样稳定下来。",
-      "svelte_hint": "Svelte 以 60 fps 每帧推进一次弹簧,所以 stiffness = k ÷ m ÷ 3600,damping = c ÷ m ÷ 60(k {{k}},c {{c}},m {{m}})。两者都必须在 0 到 1 之间。",
-      "svelte_clamped": "这个弹簧对 Svelte 来说太硬或阻尼太大:stiffness = k ÷ m ÷ 3600 与 damping = c ÷ m ÷ 60(k {{k}},c {{c}},m {{m}})超过 1 被截断,效果会不同。请降低刚度或阻尼。",
+      "svelte_hint": "Svelte 以 60 fps 每帧推进一次弹簧,所以 stiffness = k ÷ m ÷ 3600,damping = c ÷ m ÷ 60(k {{kval}},c {{cval}},m {{mval}})。两者都必须在 0 到 1 之间。",
+      "svelte_clamped": "这个弹簧对 Svelte 来说太硬或阻尼太大:stiffness = k ÷ m ÷ 3600 与 damping = c ÷ m ÷ 60(k {{kval}},c {{cval}},m {{mval}})超过 1 被截断,效果会不同。请降低刚度或阻尼。",
       "swift_hint": "response = 2π ÷ √(k ÷ m) = {{response}} 秒,dampingFraction = c ÷ (2√(k·m)) = {{fraction}}。",
       "lane": "弹",
       "motion_hint_velocity": "未包含初速度:这里它是每秒占距离的比例,而 Motion 按数值本身的单位读取。请将它乘以距离(终点 − 起点)后作为 velocity 添加。"
@@ -11476,22 +11580,22 @@
     "snapshot_saved": "帧已保存为 {{name}}。",
     "snapshot_failed": "无法保存帧：{{error}}",
     "timeline": "时间轴",
-    "segment_label": "片段 {{n}}，{{start}} 至 {{end}}",
+    "segment_label": "片段 {{num}}，{{start}} 至 {{end}}",
     "keys_hint": "I 起点 · O 终点 · 空格 播放 · ←/→ 一帧 · Shift+←/→ 下一个关键帧 · Delete 删除选中的片段",
     "in_set": "起点已设在 {{time}}。移到终点后按 O。",
     "out_before_in": "终点必须在起点之后。向后移动后再按一次 O。",
     "out_too_short": "这个片段太短了。再往后移动一些，然后再按一次 O。",
-    "segment_added": "已添加片段 {{n}}。",
+    "segment_added": "已添加片段 {{num}}。",
     "segments": "片段",
     "kept_total": "保留 {{time}}",
     "no_segments": "还没有片段。在想保留部分的开头按 I，在结尾按 O。",
     "seg_start": "起点",
     "seg_end": "终点",
     "seg_length": "长度",
-    "go_to_segment": "跳到片段 {{n}}",
-    "move_up": "上移片段 {{n}}",
-    "move_down": "下移片段 {{n}}",
-    "remove_segment": "删除片段 {{n}}",
+    "go_to_segment": "跳到片段 {{num}}",
+    "move_up": "上移片段 {{num}}",
+    "move_down": "下移片段 {{num}}",
+    "remove_segment": "删除片段 {{num}}",
     "overlap_warning": "有些片段相互重叠，这些部分会出现两次。",
     "merge_overlaps": "合并重叠的片段",
     "export_as": "导出为",
@@ -11544,7 +11648,7 @@
     "remove_from_list_named": "从列表中移除 {{name}}",
     "remove_from_list_hint": "只从这个列表移除，文件仍保留在磁盘上。",
     "err_no_ffmpeg_title": "缺少 FFmpeg",
-    "err_no_ffmpeg_body": "录制使用 FFmpeg 来录制和剪辑。请在 设置 › 依赖项 中安装，然后重新检查。",
+    "err_no_ffmpeg_body": "录制使用 FFmpeg 来录制和剪辑。请在 设置 › 下载引擎 中安装，然后重新检查。",
     "err_no_screens_title": "没有可录制的屏幕",
     "err_no_screens_body": "FFmpeg 没有列出任何屏幕。在 macOS 上，这通常表示 OmniGet 的录屏权限已关闭。",
     "err_no_display_title": "未找到显示器",
@@ -11602,7 +11706,7 @@
     "has_audio": "有声音",
     "no_audio": "无声音",
     "ffmpeg_missing_title": "缺少 FFmpeg。",
-    "ffmpeg_missing_body": "Studio 需要它来读取和渲染视频。请在 设置 > 依赖项 中安装后再回来。",
+    "ffmpeg_missing_body": "Studio 需要它来读取和渲染视频。请在 设置 > 下载引擎 中安装后再回来。",
     "open_settings": "打开设置",
     "dismiss": "关闭提示",
     "show_in_folder": "在文件夹中显示",
@@ -11650,7 +11754,7 @@
     "exported": "已保存 {{name}}。",
     "export_failed": "无法保存文件：{{error}}",
     "burn_captions": "将字幕烧录到视频中",
-    "burn_unavailable": "此 FFmpeg 无法绘制字幕（缺少 libass）。请在 设置 > 依赖项 中安装 OmniGet 管理的 FFmpeg；仍可导出 .srt 和 .vtt。",
+    "burn_unavailable": "此 FFmpeg 无法绘制字幕（缺少 libass）。请在 设置 > 下载引擎 中安装 OmniGet 管理的 FFmpeg；仍可导出 .srt 和 .vtt。",
     "words_estimated": "每个词的时间是根据整行估算的，高亮可能略早或略晚。",
     "shift_all": "整体平移",
     "minus_tenth": "−0.1 秒",
@@ -11660,7 +11764,7 @@
     "jump_to": "从 {{time}} 播放",
     "start_time": "开始时间",
     "end_time": "结束时间",
-    "line_text": "第 {{n}} 行文字",
+    "line_text": "第 {{num}} 行文字",
     "split": "在光标处拆分",
     "split_needs_words": "至少要有两个词才能拆分",
     "merge_next": "与下一行合并",
@@ -11719,14 +11823,14 @@
     "fade_out_end": "结尾淡出到黑场",
     "intro_title": "片头卡",
     "intro_enable": "添加片头卡",
-    "intro_unavailable": "此 FFmpeg 无法绘制文字（缺少 drawtext）。请在 设置 > 依赖项 中安装 OmniGet 管理的 FFmpeg。",
+    "intro_unavailable": "此 FFmpeg 无法绘制文字（缺少 drawtext）。请在 设置 > 下载引擎 中安装 OmniGet 管理的 FFmpeg。",
     "intro_heading": "标题",
     "intro_heading_ph": "我们是怎么做的",
     "intro_sub": "副标题",
     "intro_sub_ph": "第 3 期 · 2026 年 11 月",
     "intro_needs_text": "请填写标题或副标题；空白的片头卡不会加入。",
     "intro_seconds": "时长",
-    "seconds": "{{n}} 秒",
+    "seconds": "{{num}} 秒",
     "intro_bg": "背景",
     "intro_color": "文字",
     "intro_fade": "淡入淡出",
@@ -11753,7 +11857,7 @@
     "sum_captions": "{{count}} 条字幕",
     "sum_crop": "{{aspect}} 裁切",
     "sum_fit": "{{aspect}} 适配",
-    "sum_intro": "{{n}} 秒片头",
+    "sum_intro": "{{num}} 秒片头",
     "sum_fade": "结尾淡出",
     "render_done": "视频已渲染",
     "render_done_body": "已保存 {{name}}（{{width}} × {{height}}，{{size}}）。原视频未改动。",
@@ -11821,7 +11925,7 @@
     "err_model_download_failed_title": "语音模型下载失败",
     "err_model_download_failed_body": "下载被中断。请检查网络连接后重试。",
     "err_ffmpeg_missing_title": "缺少录音工具",
-    "err_ffmpeg_missing_body": "OmniGet 需要 ffmpeg 来录制麦克风。请在 设置 › 依赖项 中安装后再回来。",
+    "err_ffmpeg_missing_body": "OmniGet 需要 ffmpeg 来录制麦克风。请在 设置 › 下载引擎 中安装后再回来。",
     "err_no_microphone_title": "找不到麦克风",
     "err_no_microphone_body": "请连接麦克风，或在系统设置中允许 OmniGet 使用它，然后刷新列表。",
     "err_mic_failed_title": "麦克风无法启动",
@@ -11915,9 +12019,9 @@
     "rep_replace": "写成",
     "rep_find_ph": "omniget",
     "rep_replace_ph": "OmniGet",
-    "rep_find_label": "替换 {{n}}：要查找的词",
-    "rep_replace_label": "替换 {{n}}：要写入的文字",
-    "rep_remove": "删除替换 {{n}}",
+    "rep_find_label": "替换 {{num}}：要查找的词",
+    "rep_replace_label": "替换 {{num}}：要写入的文字",
+    "rep_remove": "删除替换 {{num}}",
     "rep_add": "添加替换",
     "rep_duplicate": "有两条替换在找同一个词，只有第一条生效。",
     "preview": "试试整理规则",
@@ -11926,8 +12030,8 @@
     "set_limits": "时长与历史",
     "max_length": "最长录音",
     "max_length_hint": "超过这个时长会自动停止录音并转写。",
-    "limit_seconds": "{{n}} 秒",
-    "limit_minutes": "{{n}} 分钟",
+    "limit_seconds": "{{num}} 秒",
+    "limit_minutes": "{{num}} 分钟",
     "save_history": "保留历史记录",
     "save_history_hint": "在这台电脑上保存最近 200 条语音输入。",
     "test_title": "测试区",
@@ -11950,11 +12054,11 @@
     "clear_yes": "全部删除",
     "keep": "保留"
   },
-  "whatsapp": {
-    "title": "WhatsApp",
+  "phonechat": {
+    "title": "手机聊天",
     "subtitle": "关联你的账号，把照片、视频、音频、文档和整个对话保存到电脑上。",
-    "boot": "正在检查 WhatsApp…",
-    "boot_error": "无法加载 WhatsApp",
+    "boot": "正在检查 手机聊天…",
+    "boot_error": "无法加载 手机聊天",
     "retry": "重试",
     "cancel": "取消",
     "close": "关闭",
@@ -11965,7 +12069,7 @@
     "logged_out_title": "这台电脑已取消关联",
     "logged_out_hint": "会话和对话的本地副本已删除。重新关联即可继续。",
     "offline_hint": "已离线。OmniGet 会继续尝试重新连接，已保存的内容仍可使用。",
-    "connecting_hint": "正在连接 WhatsApp…",
+    "connecting_hint": "正在连接 手机聊天…",
     "syncing": "正在从手机同步历史记录：{{progress}}%（目前 {{messages}} 条消息）",
     "pick_title": "选择一个对话",
     "pick_hint": "打开对话即可查看消息、下载媒体或导出。",
@@ -11978,18 +12082,18 @@
       "logged_out": "已退出登录"
     },
     "link": {
-      "title": "关联你的 WhatsApp",
-      "hint": "OmniGet 作为已关联的设备运行，和 WhatsApp Web 一样。手机仍是主设备。",
+      "title": "关联你的 手机聊天",
+      "hint": "OmniGet 作为已关联的设备运行，和 手机聊天 一样。手机仍是主设备。",
       "mode_qr": "二维码",
       "mode_phone": "电话号码",
-      "step_open": "在手机上打开 WhatsApp。",
+      "step_open": "在手机上打开 手机聊天。",
       "step_devices": "前往 设置 › 已关联的设备 › 关联新设备。",
       "step_scan": "将摄像头对准此二维码。",
       "start": "显示二维码",
       "new_qr": "获取新的二维码",
       "preparing": "正在准备二维码…",
       "cancel": "取消",
-      "qr_alt": "用于关联 WhatsApp 的二维码",
+      "qr_alt": "用于关联 手机聊天 的二维码",
       "phone_label": "你的电话号码",
       "phone_hint": "请包含国家代码，例如 +55 11 91234-5678。",
       "get_code": "获取关联码",
@@ -12003,7 +12107,11 @@
       "no_match": "没有符合搜索条件的对话。",
       "empty_title": "正在等待你的对话",
       "empty_hint": "关联完成后，手机会发送最近的历史记录。手机在线时可能需要几分钟。",
-      "unread": "{{count}} 条未读"
+      "unread": "{{count}} 条未读",
+      "tag_all": "全部对话",
+      "tag_filter": "按标签筛选",
+      "export_contacts": "导出联系人",
+      "exported": "已保存 {{count}} 个联系人"
     },
     "chat": {
       "group": "群组",
@@ -12024,7 +12132,25 @@
       "schedule": "定时",
       "schedule_at": "发送时间",
       "scheduled_title": "定时消息",
-      "scheduled_cancel": "取消定时消息"
+      "scheduled_cancel": "取消定时消息",
+      "reply": "回复",
+      "reply_cancel": "取消回复",
+      "replying_to": "正在回复 {{name}}",
+      "react": "回应",
+      "reaction_remove": "取消你的回应",
+      "quoted": "较早的消息",
+      "sending": "发送中…",
+      "send_failed": "未发送",
+      "send_retry": "重试",
+      "send_discard": "丢弃",
+      "attach": "发送文件",
+      "tag_add": "添加标签",
+      "tag_remove": "移除标签 {{tag}}",
+      "field_hint": "输入 名称=值 可保存一项信息",
+      "field_remove": "移除 {{key}}",
+      "draft_title": "建议的回复",
+      "draft_use": "使用",
+      "draft_dismiss": "忽略"
     },
     "kind": {
       "text": "消息",
@@ -12050,8 +12176,8 @@
       },
       "folder": "保存到",
       "choose_folder": "选择文件夹",
-      "folder_hint": "会在其中创建 WhatsApp/<对话名称> 文件夹。已保存的文件会被跳过。",
-      "expired_hint": "WhatsApp 只会在服务器上保存媒体一段时间。对于旧文件，OmniGet 会请求手机重新发送；手机上已没有的文件无法恢复。",
+      "folder_hint": "会在其中创建 Phone Chats/<对话名称> 文件夹。已保存的文件会被跳过。",
+      "expired_hint": "手机聊天 只会在服务器上保存媒体一段时间。对于旧文件，OmniGet 会请求手机重新发送；手机上已没有的文件无法恢复。",
       "start": "下载",
       "cancel": "停止",
       "progress": "正在下载第 {{index}} 个，共 {{total}} 个",
@@ -12065,14 +12191,14 @@
       "open": "打开",
       "reveal": "在文件夹中显示",
       "retrying": "正在请求手机重新发送此文件…",
-      "retrying_hint": "此文件已不在 WhatsApp 服务器上。最多等待 45 秒让手机重新发送；请保持手机在线。"
+      "retrying_hint": "此文件已不在 手机聊天 服务器上。最多等待 45 秒让手机重新发送；请保持手机在线。"
     },
     "export": {
       "title": "导出对话",
       "format": "格式",
       "formats": {
         "txt": "文本 (.txt)",
-        "txt_hint": "与 WhatsApp 自带导出的格式相同，随处可打开。",
+        "txt_hint": "与 手机聊天 自带导出的格式相同，随处可打开。",
         "html": "网页 (.html)",
         "html_hint": "以聊天气泡显示，已下载的照片会直接显示在对话中。",
         "json": "数据 (.json)",
@@ -12089,14 +12215,14 @@
       "edited": "<此消息已编辑>"
     },
     "errors": {
-      "offline": "WhatsApp 已离线。请连接后重试。",
-      "not_running": "WhatsApp 尚未连接。",
+      "offline": "手机聊天 已离线。请连接后重试。",
+      "not_running": "手机聊天 尚未连接。",
       "invalid_phone": "请输入包含国家代码的完整号码。",
       "qr_expired": "二维码已过期。请获取新的二维码后重试。",
       "stream_replaced": "另一个 OmniGet 窗口或设备接管了此会话。",
-      "temporary_ban": "WhatsApp 暂时封禁了此账号。请稍后再试。",
-      "client_outdated": "WhatsApp 提示此版本已过时。请更新 OmniGet。",
-      "media_expired": "此文件已不在 WhatsApp 的服务器上。",
+      "temporary_ban": "手机聊天 暂时封禁了此账号。请稍后再试。",
+      "client_outdated": "手机聊天 提示此版本已过时。请更新 OmniGet。",
+      "media_expired": "此文件已不在 手机聊天 的服务器上。",
       "no_media": "此消息没有可下载的文件。",
       "no_anchor": "还没有可作为起点的消息。",
       "empty_filter": "请至少选择一种媒体类型。",
@@ -12104,38 +12230,133 @@
       "media_gone": "手机上已没有此文件，无法恢复。",
       "retry_timeout": "手机未及时响应。请确认手机在线后重试。",
       "media_retry_failed": "手机无法重新发送此文件。",
-      "not_linked": "请先关联你的 WhatsApp",
+      "not_linked": "请先关联你的 手机聊天",
       "time_in_past": "请选择未来的时间",
       "chat_not_found": "未找到聊天",
-      "reply_not_found": "要回复的消息未保存在这里"
+      "reply_not_found": "要回复的消息未保存在这里",
+      "message_not_found": "这条消息没有保存在这里",
+      "invalid_reaction": "请只选一个表情",
+      "invalid_rule_name": "请给规则起个名字",
+      "invalid_rule_words": "请至少添加一个词",
+      "invalid_rule_text": "请填写回复内容",
+      "rule_not_found": "该规则已不存在",
+      "file_too_large": "文件最大 64 MB",
+      "file_not_found": "找不到这个文件了",
+      "upload_failed": "文件没有上传成功，请重试。",
+      "invalid_tag": "标签最多 30 个字符",
+      "invalid_rule_follow_ups": "一条规则最多 5 条稍后的消息",
+      "invalid_field": "请使用由字母和数字组成的短名称",
+      "invalid_rule_hours": "请选择不同的开始和结束时间"
+    },
+    "rules": {
+      "title": "自动回复",
+      "subtitle": "OmniGet 打开时，规则会替你回复。",
+      "open": "自动化",
+      "switch": "自动回复消息",
+      "risk": "此账号以非官方方式关联，自动回复会增加被封的风险。规则只回复先发消息的人，并遵守下面的上限。",
+      "sent": "本小时 {{hour}}/{{cap}} · 今天 {{day}}",
+      "empty_title": "还没有规则",
+      "empty_hint": "消息里有你选的词时，规则就会回复。先从最常收到的问题开始。",
+      "add": "新建规则",
+      "edit": "编辑",
+      "delete": "删除",
+      "save": "保存规则",
+      "name": "名称",
+      "trigger": "当消息",
+      "trigger_keyword": "包含这些词之一",
+      "trigger_first": "是联系人的第一条",
+      "trigger_any": "到达（任何消息）",
+      "mode_contains": "包含",
+      "mode_exact": "完全等于",
+      "mode_starts_with": "开头是",
+      "words": "词语，用逗号分隔",
+      "action": "回复方式",
+      "action_reply": "文字",
+      "action_react": "表情回应",
+      "action_ai": "AI（根据你的说明）",
+      "text": "回复内容",
+      "text_hint": "会变成联系人的名字。只含 --- 的一行用来分隔不同版本。",
+      "instructions": "AI 需要知道的内容和回答方式",
+      "ai_hint": "有本地模型在运行时用它，否则用你的第一个智能体。说明里没有的问题不会回复。",
+      "fallback": "AI 失败时的回复（可选）",
+      "emoji": "表情",
+      "cooldown": "再次回复同一联系人前等待的分钟数",
+      "limits": "上限",
+      "per_hour": "每小时回复数",
+      "per_day": "每天回复数",
+      "pause": "你手动回复后保持安静的分钟数",
+      "test": "试一条消息",
+      "test_placeholder": "输入联系人可能发来的内容",
+      "test_none": "没有规则会回复这条。",
+      "test_hit": "{{rule}} 会回复：",
+      "test_ai": "{{rule}} 会交给 AI 回答。",
+      "test_optout": "该联系人将不再收到自动回复。",
+      "log": "最近活动",
+      "log_empty": "暂无记录。",
+      "optouts": "要求停止的人",
+      "optout_remove": "重新允许",
+      "tag": "规则回复时给联系人加的标签（可选）",
+      "follow_ups": "稍后再发送",
+      "follow_after": "几分钟后",
+      "follow_text": "稍后的消息",
+      "follow_add": "添加稍后的消息",
+      "follow_remove": "移除这条稍后的消息",
+      "trigger_hours": "在营业时间外到达",
+      "hours_open": "开始时间",
+      "hours_close": "结束时间",
+      "needs_tag": "仅限带此标签的联系人（可选）",
+      "ask": "然后提一个问题（可选）",
+      "ask_field": "把回答保存为",
+      "ai_draft": "把回复留作草稿，由我发送",
+      "flow": "对话步骤",
+      "copy_link": "复制带该词打开对话的链接",
+      "copied": "链接已复制",
+      "copy_failed": "无法复制链接",
+      "outcome": {
+        "sent": "已回复",
+        "queued": "回复中",
+        "failed": "失败",
+        "skipped": "已暂缓"
+      },
+      "reason": {
+        "cooldown": "刚回复过该联系人",
+        "human_active": "你正在回复",
+        "hour_cap": "已达每小时上限",
+        "day_cap": "已达每日上限",
+        "ai_silent": "说明里没有答案",
+        "ai_failed": "AI 没有响应",
+        "follow_up": "稍后的消息",
+        "captured": "已保存回答",
+        "draft": "草稿等你发送"
+      }
     }
   },
-  "discord": {
-    "title": "Discord",
+  "guildchat": {
+    "title": "服务器聊天",
     "subtitle": "阅读并回复你的服务器和私信,保存其中的媒体和聊天记录。",
-    "boot": "正在检查你的 Discord 账号…",
+    "boot": "正在检查你的 服务器聊天 账号…",
     "tos": {
       "title": "请在这里使用小号",
-      "body": "Discord 的服务条款不允许第三方客户端,因此在 OmniGet 中使用的账号可能会被 Discord 锁定或停用。浏览和下载不太引人注意,但无法保证。",
+      "body": "服务器聊天 的服务条款不允许第三方客户端,因此在 OmniGet 中使用的账号可能会被 服务器聊天 锁定或停用。浏览和下载不太引人注意,但无法保证。",
       "tip_secondary": "尽量使用小号,而不是主账号。",
       "tip_servers": "避免在这里加入或退出服务器。",
       "tip_dms": "避免在这里开启大量新私信。",
       "ok": "知道了"
     },
     "signin": {
-      "title": "登录 Discord",
-      "subtitle": "用手机上的 Discord 应用扫描二维码,或粘贴令牌。",
+      "title": "登录 服务器聊天",
+      "subtitle": "用手机上的 服务器聊天 应用扫描二维码,或粘贴令牌。",
       "method_qr": "二维码",
       "method_token": "令牌",
       "method_browser": "浏览器",
       "browser_title": "通过 OmniGet 浏览器登录",
-      "browser_hint": "OmniGet 会在自己的浏览器窗口中打开 Discord。像平常一样在那里登录；Discord 加载完成后，OmniGet 会自动获取会话。",
-      "browser_waiting": "正在等待你在浏览器窗口中登录 Discord…",
-      "browser_open": "打开 Discord",
+      "browser_hint": "OmniGet 会在自己的浏览器窗口中打开 服务器聊天。像平常一样在那里登录；服务器聊天 加载完成后，OmniGet 会自动获取会话。",
+      "browser_waiting": "正在等待你在浏览器窗口中登录 服务器聊天…",
+      "browser_open": "打开 服务器聊天",
       "browser_reopen": "重新打开窗口",
-      "qr_alt": "用于登录 Discord 的二维码",
+      "qr_alt": "用于登录 服务器聊天 的二维码",
       "qr_title": "用手机扫描",
-      "qr_step1": "在手机上打开 Discord。",
+      "qr_step1": "在手机上打开 服务器聊天。",
       "qr_step2": "进入 设置 › 扫描二维码。",
       "qr_step3": "将相机对准此二维码并确认。",
       "scanned_title": "已扫描:{{name}}",
@@ -12147,7 +12368,7 @@
       "new_code": "新二维码",
       "qr_failed": "无法通过二维码登录",
       "token_label": "账号令牌",
-      "token_where": "在网页版 Discord 中打开开发者工具,进入“网络”,选择任意发往 discord.com/api 的请求,复制 Authorization 请求头。",
+      "token_where": "在网页版 服务器聊天 中打开开发者工具,进入“网络”,选择任意发往 discord.com/api 的请求,复制 Authorization 请求头。",
       "token_storage": "令牌保存在这台电脑的系统钥匙串中(钥匙串、凭据管理器或 Secret Service)。如果没有钥匙串,则保存到只有你的用户能读取的文件中。",
       "sign_in": "登录"
     },
@@ -12160,13 +12381,13 @@
     },
     "conn": {
       "loading": "正在加载你的服务器…",
-      "reconnecting": "正在重新连接 Discord…",
-      "reconnecting_in": "连接已断开,{{s}} 秒后重试…",
-      "offline": "未连接到 Discord。",
+      "reconnecting": "正在重新连接 服务器聊天…",
+      "reconnecting_in": "连接已断开,{{secs}} 秒后重试…",
+      "offline": "未连接到 服务器聊天。",
       "connect": "连接",
-      "expired_title": "Discord 结束了此会话",
+      "expired_title": "服务器聊天 结束了此会话",
       "expired_hint": "令牌已失效。请重新登录以继续。",
-      "failed_title": "Discord 拒绝了连接",
+      "failed_title": "服务器聊天 拒绝了连接",
       "failed_hint": "原因:{{code}}。请稍后再试。"
     },
     "rail": {
@@ -12229,7 +12450,7 @@
       "done": "下载完成",
       "cancelled": "下载已停止",
       "summary": "已保存 {{saved}} 个,已存在 {{skipped}} 个,失败 {{failed}} 个。",
-      "saved_n": "已将 {{n}} 个文件保存到 {{folder}}"
+      "saved_n": "已将 {{num}} 个文件保存到 {{folder}}"
     },
     "export": {
       "title": "导出此对话",
@@ -12240,11 +12461,11 @@
       "include_media": "同时将附件保存在导出文件旁",
       "dates_hint": "日期留空则导出全部记录。",
       "start": "导出",
-      "reading": "正在读取记录:{{n}} 条消息",
+      "reading": "正在读取记录:{{num}} 条消息",
       "media": "正在保存附件:{{done}}/{{found}}",
       "done": "导出完成",
       "cancelled": "导出已停止",
-      "summary": "{{n}} 条消息,{{files}} 个文件。"
+      "summary": "{{num}} 条消息,{{files}} 个文件。"
     },
     "common": {
       "from": "从",
@@ -12259,26 +12480,26 @@
     },
     "errors": {
       "generic": "出了点问题,请重试。",
-      "network": "无法连接 Discord,请检查网络。",
-      "rate_limited": "Discord 要求放慢速度,请稍等。",
-      "rate_limited_s": "Discord 要求放慢速度,请 {{s}} 秒后重试。",
+      "network": "无法连接 服务器聊天,请检查网络。",
+      "rate_limited": "服务器聊天 要求放慢速度,请稍等。",
+      "rate_limited_s": "服务器聊天 要求放慢速度,请 {{secs}} 秒后重试。",
       "forbidden": "你在这里没有执行此操作的权限。",
-      "not_found": "Discord 找不到该内容。",
-      "http": "Discord 返回了错误。",
-      "refused": "Discord 拒绝了连接。",
+      "not_found": "服务器聊天 找不到该内容。",
+      "http": "服务器聊天 返回了错误。",
+      "refused": "服务器聊天 拒绝了连接。",
       "remote_auth": "二维码登录失败,请获取新二维码。",
       "unauthorized": "令牌无效或已过期。",
-      "token_format": "这看起来不像 Discord 令牌。",
+      "token_format": "这看起来不像 服务器聊天 令牌。",
       "bot_token": "这是机器人令牌,请使用用户账号的令牌。",
-      "captcha_required": "Discord 要求此次登录完成验证码。请先在官方应用或网站登录一次,然后重试。",
-      "not_connected": "尚未连接到 Discord。",
+      "captcha_required": "服务器聊天 要求此次登录完成验证码。请先在官方应用或网站登录一次,然后重试。",
+      "not_connected": "尚未连接到 服务器聊天。",
       "no_token": "此账号没有保存的令牌,请重新登录。",
       "no_media": "这条消息没有可保存的媒体。",
       "too_long": "消息最多 2000 个字符。",
       "empty": "消息为空。",
       "unknown_account": "此账号已不再保存在这里。",
       "bad_id": "频道或消息无效。",
-      "unexpected_response": "Discord 返回了意外的响应。"
+      "unexpected_response": "服务器聊天 返回了意外的响应。"
     }
   },
   "pdf": {
@@ -12302,8 +12523,8 @@
     "selected_count_one": "已选 1 页",
     "tools_label": "页面工具",
     "pages_label": "页面",
-    "page_label": "第 {{n}} 页（原文件第 {{page}} 页）",
-    "page_blank_label": "第 {{n}} 页，空白",
+    "page_label": "第 {{num}} 页（原文件第 {{page}} 页）",
+    "page_blank_label": "第 {{num}} 页，空白",
     "blank": "空白",
     "rotate_left": "向左旋转",
     "rotate_right": "向右旋转",
@@ -12356,7 +12577,7 @@
     "preset_light": "轻度",
     "preset_light_body": "画质最好，适合打印。",
     "preset_balanced": "均衡",
-    "preset_balanced_body": "屏幕上看起来不错，体积小很多。适合邮件和 WhatsApp。",
+    "preset_balanced_body": "屏幕上看起来不错，体积小很多。适合邮件和聊天应用。",
     "preset_strong": "最小",
     "preset_strong_body": "文件最小，图片会损失细节。",
     "compress_hint": "只有文字的 PDF 通常本来就很小，可能无法再缩小。",
@@ -12397,7 +12618,7 @@
     "error_io": "无法读取或保存文件。请确认文件夹仍然存在，并且你有写入权限。"
   },
   "cutout": {
-    "title": "抠图",
+    "title": "移除背景",
     "subtitle": "去掉照片和视频画面的背景。一切都在这台电脑上完成。",
     "empty_title": "把照片或视频拖到这里",
     "empty_body": "你会得到一张透明背景的 PNG。对于视频，可以选择想要的瞬间。",
@@ -12614,56 +12835,56 @@
   },
   "social": {
     "boot": "正在检查会话…",
-    "x": {
-      "title": "X",
-      "subtitle": "通过你自己的 X 会话查看时间线、个人资料、回复和帖子。智能体通过 MCP 使用它。",
+    "shortpost": {
+      "title": "短帖",
+      "subtitle": "通过你自己的 短帖 会话查看时间线、个人资料、回复和帖子。智能体通过 MCP 使用它。",
       "for_you": "为你推荐",
       "following": "正在关注"
     },
-    "instagram": {
-      "title": "Instagram",
-      "subtitle": "通过你自己的 Instagram 会话查看动态、主页、帖子和评论。智能体通过 MCP 使用。"
+    "photofeed": {
+      "title": "照片动态",
+      "subtitle": "通过你自己的 照片动态 会话查看动态、主页、帖子和评论。智能体通过 MCP 使用。"
     },
-    "tiktok": {
-      "title": "TikTok",
-      "subtitle": "通过你自己的 TikTok 会话查看推荐动态、个人资料、视频和评论。智能体通过 MCP 使用它。"
+    "clipfeed": {
+      "title": "短视频动态",
+      "subtitle": "通过你自己的 短视频动态 会话查看推荐动态、个人资料、视频和评论。智能体通过 MCP 使用它。"
     },
-    "github": {
-      "title": "GitHub",
-      "subtitle": "通过公开 API 或你自己的令牌查看 GitHub 上的仓库、动态、议题和用户。智能体通过 MCP 使用。",
-      "search_placeholder": "搜索 GitHub (language:rust stars:>100)",
+    "codehub": {
+      "title": "代码中心",
+      "subtitle": "通过公开 API 或你自己的令牌查看 代码中心 上的仓库、动态、议题和用户。智能体通过 MCP 使用。",
+      "search_placeholder": "搜索 代码中心 (language:rust stars:>100)",
       "feed_received": "为你推荐",
       "feed_trending": "趋势",
       "kind_repositories": "仓库",
       "kind_issues": "议题和 PR",
       "kind_users": "用户",
       "repos": "{{count}} 个仓库",
-      "setup_title": "连接 GitHub",
-      "setup_hint": "这里通过 GitHub 的公开 API 而不是浏览器工作。保存个人访问令牌即可以你的账号操作（每小时 5,000 次请求），或只填用户名来读取公开数据（每小时 60 次请求）。",
+      "setup_title": "连接 代码中心",
+      "setup_hint": "这里通过 代码中心 的公开 API 而不是浏览器工作。保存个人访问令牌即可以你的账号操作（每小时 5,000 次请求），或只填用户名来读取公开数据（每小时 60 次请求）。",
       "token_label": "个人访问令牌",
       "token_placeholder": "粘贴令牌",
       "token_save": "保存令牌",
       "token_note": "保存在这台电脑的安全存储中。智能体永远看不到它，也没有任何工具把它当作参数。",
       "token_saved": "这台电脑上已保存令牌。粘贴新的即可替换。",
-      "token_create": "在 GitHub 上创建令牌",
+      "token_create": "在 代码中心 上创建令牌",
       "token_remove": "移除已保存的令牌",
       "username_label": "用户名（只读）",
       "username_save": "使用此用户名",
       "username_note": "没有令牌时可以浏览和搜索，但不能加星标、关注、评论或查看通知。",
       "setup_open": "令牌"
     },
-    "pinterest": {
-      "title": "Pinterest",
-      "subtitle": "通过你自己的 Pinterest 会话查看首页、图板和 Pin 图。智能体通过 MCP 使用。",
-      "search_placeholder": "搜索 Pinterest",
+    "pinboard": {
+      "title": "图钉板",
+      "subtitle": "通过你自己的 图钉板 会话查看首页、图板和 Pin 图。智能体通过 MCP 使用。",
+      "search_placeholder": "搜索 图钉板",
       "kind_pins": "Pin 图",
       "kind_boards": "图板",
       "kind_users": "用户"
     },
-    "reddit": {
-      "title": "Reddit",
-      "subtitle": "通过你自己的 Reddit 会话查看首页、社区、已保存的帖子和评论。智能体通过 MCP 使用。",
-      "search_placeholder": "搜索 Reddit",
+    "forums": {
+      "title": "论坛",
+      "subtitle": "通过你自己的 论坛 会话查看首页、社区、已保存的帖子和评论。智能体通过 MCP 使用。",
+      "search_placeholder": "搜索 论坛",
       "feed_home": "首页",
       "feed_popular": "热门",
       "feed_all": "全部",
@@ -12677,7 +12898,7 @@
     "signin": {
       "title": "登录 {{platform}}",
       "hint": "OmniGet 会在自己的浏览器窗口中打开 {{platform}}。你像平常一样在那里手动登录；OmniGet 永远看不到你的密码。",
-      "point_browser": "会话保存在这台电脑上的 OmniGet 浏览器配置文件中。你也可以在 Global Downloader 中导入常用浏览器的配置文件。",
+      "point_browser": "会话保存在这台电脑上的 OmniGet 浏览器配置文件中。你也可以在 内置浏览器 中导入常用浏览器的配置文件。",
       "point_agents": "有了社交权限，你的智能体可以通过 MCP 读取动态、主页、帖子和评论。每次发帖、点赞、转发、评论或关注都要等你在这里批准。",
       "point_risk": "这会像你本人一样使用 {{platform}} 网站，而不是官方 API。{{platform}} 可能会要求你验证身份、限制账号或阻止自动化使用。请保持正常人的节奏。",
       "continue": "继续",
@@ -12691,22 +12912,22 @@
       "saved": "已保存",
       "bookmarks": "书签",
       "search": "搜索",
-      "grok": "Grok",
+      "assistant": "助手",
       "me": "我的主页",
       "audience": "受众",
       "analytics": "分析",
       "monitor": "监控",
       "schedule": "定时发布"
     },
-    "grok": {
-      "placeholder": "向 Grok 提问",
+    "assistant": {
+      "placeholder": "向 助手 提问",
       "send": "发送",
       "new_chat": "新对话",
-      "history": "Grok 对话",
-      "thinking": "Grok 正在思考…",
-      "empty": "向 Grok 询问帖子、人物或 X 上正在发生的事。它通过你自己的 X 账号回答。",
-      "open_on_x": "在 X 上打开",
-      "ask_about_post": "就这条帖子询问 Grok",
+      "history": "助手 对话",
+      "thinking": "助手 正在思考…",
+      "empty": "向 助手 询问帖子、人物或 短帖 上正在发生的事。它通过你自己的 短帖 账号回答。",
+      "open_original": "在 短帖 上打开",
+      "ask_about_post": "就这条帖子询问 助手",
       "explain_post": "解释这条帖子及其背景。"
     },
     "common": {
@@ -12719,7 +12940,7 @@
       "not_logged_in": "{{platform}} 会话已结束。请重新登录。",
       "rate_limited": "{{platform}} 目前正在限制此账号的请求。请等几分钟。",
       "network": "无法连接 {{platform}}。请检查网络连接。",
-      "browser_unavailable": "OmniGet 浏览器无法启动。请检查 Global Downloader 设置。",
+      "browser_unavailable": "OmniGet 浏览器无法启动。请检查 内置浏览器 设置。",
       "rejected": "{{platform}} 拒绝了此操作。",
       "not_found": "在 {{platform}} 上未找到。",
       "invalid_arguments": "这个链接或名称看起来不正确。",
@@ -12735,9 +12956,9 @@
       "comment": "写评论"
     },
     "search": {
-      "placeholder_x": "搜索帖子（支持 from:、to:、since:）",
-      "placeholder_instagram": "搜索账号和话题标签",
-      "placeholder_tiktok": "搜索视频或账号",
+      "placeholder_shortpost": "搜索帖子（支持 from:、to:、since:）",
+      "placeholder_photofeed": "搜索账号和话题标签",
+      "placeholder_clipfeed": "搜索视频或账号",
       "videos": "视频",
       "users": "账号",
       "go": "搜索"
@@ -12811,8 +13032,8 @@
       "history_short": "历史记录始于 {{date}}。新粉丝和取消关注的人会在下次同步后显示。",
       "incomplete_following": "关注列表不完整：共 {{expected}} 个账号，只读取了 {{fetched}} 个。未回关、互相关注和粉丝的数量暂时不准确。",
       "incomplete_followers": "粉丝列表不完整：共 {{expected}} 个账号，只读取了 {{fetched}} 个。有人可能被误列为未回关。",
-      "followers_from_export": "粉丝来自 Instagram 导出文件，其中可能缺少部分粉丝。请同步以确认谁没有回关。",
-      "sweep_wait": "Instagram 会在关注列表中漏掉一些账号，因此正在慢速搜索缺少的账号。约 {{minutes}} 分钟后点击“继续”，或导入 Instagram 导出文件。"
+      "followers_from_export": "粉丝来自 照片动态 导出文件，其中可能缺少部分粉丝。请同步以确认谁没有回关。",
+      "sweep_wait": "照片动态 会在关注列表中漏掉一些账号，因此正在慢速搜索缺少的账号。约 {{minutes}} 分钟后点击“继续”，或导入 照片动态 导出文件。"
     },
     "views": {
       "label": "受众视图",
@@ -12940,14 +13161,14 @@
       "nothing_to_export": "此列表为空,没有可导出的内容。",
       "file": "无法保存 CSV 文件。",
       "store": "无法打开本地历史记录。",
-      "export_invalid": "此文件不是包含粉丝和关注列表的 Instagram 导出文件。"
+      "export_invalid": "此文件不是包含粉丝和关注列表的 照片动态 导出文件。"
     },
     "stars": {
       "label": "仓库的星标",
       "placeholder": "所有者/名称",
       "open": "打开",
       "close": "返回关注者",
-      "invalid": "请按“所有者/名称”输入仓库，或粘贴其 GitHub 链接。",
+      "invalid": "请按“所有者/名称”输入仓库，或粘贴其 代码中心 链接。",
       "viewing": "正在显示为 {{repo}} 加星标的人。同步会读取此列表，而不是你的关注者。",
       "first_body": "同步会从 {{platform}} 读取谁为此仓库加了星标。列表会立即显示；新增和取消的星标从第二次同步起显示。",
       "changes": "自上次同步以来：新增 {{gained}} 个星标，取消 {{lost}} 个星标。"
@@ -12974,12 +13195,12 @@
       "title": "粉丝兴趣",
       "hint": "粉丝简介中出现最多的词。每位粉丝每个词只计一次。",
       "based_on": "{{followers}} 位粉丝中有 {{bios}} 位写了简介",
-      "thin": "简介太少，难以得出结论。Instagram 的列表不含简介。",
+      "thin": "简介太少，难以得出结论。照片动态 的列表不含简介。",
       "words": "简介中的词",
       "hashtags": "简介中的话题标签",
       "names": "名称中的词",
       "locations": "主要所在地",
-      "no_locations": "尚未保存所在地。X 会从下次同步开始保存；Instagram 和 TikTok 的列表不含所在地。",
+      "no_locations": "尚未保存所在地。短帖 会从下次同步开始保存；照片动态 和 短视频动态 的列表不含所在地。",
       "with_link": "简介含链接",
       "verified": "已认证",
       "empty": "同步受众后即可查看。",
@@ -12989,9 +13210,9 @@
     },
     "notify_unfollowers": "同步发现有人取消关注时通知我",
     "import": {
-      "button": "导入 Instagram 导出文件",
+      "button": "导入 照片动态 导出文件",
       "busy": "正在导入…",
-      "where": "要申请导出文件，请在 Instagram 中打开账户中心，进入“你的信息和权限”，再进入“下载你的信息”，然后选择“联系”（粉丝和关注）。",
+      "where": "要申请导出文件，请在 照片动态 中打开账户中心，进入“你的信息和权限”，再进入“下载你的信息”，然后选择“联系”（粉丝和关注）。",
       "done": "已导入 {{following}} 个关注和 {{followers}} 个粉丝。未回关：{{count}}。",
       "done_lists": "已导入 {{following}} 个关注和 {{followers}} 个粉丝。"
     }
@@ -13222,8 +13443,8 @@
           "replies": "回复者",
           "likes": "点赞者"
         },
-        "empty": "暂无，或 X 已不再列出。",
-        "likes_hidden": "X 只向作者本人显示谁点赞了帖子。",
+        "empty": "暂无，或 短帖 已不再列出。",
+        "likes_hidden": "短帖 只向作者本人显示谁点赞了帖子。",
         "follows_you": "关注了你",
         "need_posts": "没有可选的帖子。请先分析自己的账号。",
         "draw": {
@@ -13291,10 +13512,10 @@
       "kind": "监控内容",
       "kind_hashtag": "话题标签",
       "kind_profile": "主页",
-      "query_x": "查询（支持 X 搜索运算符）",
+      "query_shortpost": "查询（支持 短帖 搜索运算符）",
       "query_hashtag": "话题标签",
       "query_profile": "用户名",
-      "query_tiktok": "搜索短语",
+      "query_clipfeed": "搜索短语",
       "advanced": "更多筛选",
       "phrase": "精确短语",
       "any": "包含任一词语",
@@ -13314,18 +13535,18 @@
       "save": "保存",
       "cancel": "取消",
       "kind_search": "搜索",
-      "kind_subreddit": "版块",
+      "kind_subreddit": "社区",
       "kind_repositories": "仓库搜索",
       "kind_issues": "议题和 PR 搜索",
       "kind_releases": "仓库的发行版",
       "kind_repo_issues": "仓库的议题",
-      "query_subreddit": "版块（r/名称）",
+      "query_community": "社区（r/名称）",
       "query_gh_repositories": "带限定符的搜索，例如 tauri language:rust stars:>100",
       "query_gh_issues": "带限定符的搜索，例如 is:pr is:open repo:所有者/名称",
       "query_repo": "仓库（所有者/名称或链接）",
       "rd_sort_label": "排序",
       "rd_time_label": "时间范围",
-      "rd_subreddit": "仅在此版块内",
+      "rd_community": "仅在此社区内",
       "rd_sort": {
         "new": "最新",
         "relevance": "相关度",
@@ -13344,8 +13565,8 @@
       }
     },
     "notifications": "通知",
-    "mentions_github": "在此页面保存 GitHub 令牌，即可在这里以收件箱形式查看通知。",
-    "mentions_reddit": "这里不读取 Reddit 收件箱。请改为监控对你用户名的搜索。",
+    "mentions_codehub": "在此页面保存 代码中心 令牌，即可在这里以收件箱形式查看通知。",
+    "mentions_forums": "这里不读取 论坛 收件箱。请改为监控对你用户名的搜索。",
     "notify": {
       "title": "通知",
       "surge": "监控出现激增时通知我",
@@ -13357,8 +13578,8 @@
   },
   "social_schedule": {
     "open_only": "只有 OmniGet 在这台电脑上打开时，帖子才会发出。",
-    "late_rule": "应用关闭期间到期的帖子，如果迟到不足 {minutes} 分钟，会在你打开应用时发出。超过这个时间就标记为“已错过”，等你来决定。",
-    "unsupported": "定时发布目前只支持 X。从 OmniGet 向这个平台发布的功能还没有做。",
+    "late_rule": "应用关闭期间到期的帖子，如果迟到不足 {{minutes}} 分钟，会在你打开应用时发出。超过这个时间就标记为“已错过”，等你来决定。",
+    "unsupported": "定时发布目前只支持 短帖。从 OmniGet 向这个平台发布的功能还没有做。",
     "sections": {
       "queue": "队列",
       "drafts": "草稿",
@@ -13371,7 +13592,7 @@
       "title_new": "新帖子",
       "title_edit": "编辑帖子",
       "placeholder": "有什么新鲜事？",
-      "part_placeholder": "第 {n} 条",
+      "part_placeholder": "第 {{num}} 条",
       "add_part": "添加串帖内容",
       "remove_part": "移除这一条",
       "reply_to": "回复（链接或 ID）",
@@ -13388,26 +13609,26 @@
       "save_draft": "保存草稿",
       "save": "保存修改",
       "cancel_edit": "取消编辑",
-      "over": "超出上限 {n}"
+      "over": "超出上限 {{num}}"
     },
     "preview": {
       "title": "预览",
       "desktop": "电脑",
       "mobile": "手机",
       "empty": "写点内容就能看到预览。",
-      "replying": "回复 {target}",
-      "quoting": "引用 {target}",
-      "reposting": "转发 {target}",
-      "images": "图片：{n}"
+      "replying": "回复 {{target}}",
+      "quoting": "引用 {{target}}",
+      "reposting": "转发 {{target}}",
+      "images": "图片：{{num}}"
     },
     "list": {
       "loading": "加载中…",
       "empty_queue": "还没有定时内容。在上面写一条帖子并选个时间。",
       "empty_drafts": "还没有草稿。",
       "empty_history": "还没有发出任何内容。",
-      "more": "显示 {total} 条中的 {returned} 条",
-      "parts": "共 {n} 条",
-      "parts_sent": "已发出 {total} 条中的 {sent} 条",
+      "more": "显示 {{total}} 条中的 {{returned}} 条",
+      "parts": "共 {{num}} 条",
+      "parts_sent": "已发出 {{total}} 条中的 {{sent}} 条",
       "by_feed": "来自订阅源",
       "by_agent": "由智能体添加",
       "open_post": "打开帖子",
@@ -13418,7 +13639,7 @@
       "delete": "删除",
       "confirm": "确认吗？",
       "export": "导出日历",
-      "exported": "日历已保存到 {path}",
+      "exported": "日历已保存到 {{path}}",
       "reveal": "在文件夹中显示"
     },
     "status": {
@@ -13445,7 +13666,7 @@
       "time": "时间",
       "add": "添加时段",
       "remove": "移除时段",
-      "next": "下一个空闲时段：{time}",
+      "next": "下一个空闲时段：{{time}}",
       "grace": "迟到帖子的宽限时间（分钟）",
       "long_posts": "长帖子",
       "long_auto": "自动（已认证账号）",
@@ -13459,11 +13680,11 @@
       "hint": "列：time、text，可选 thread、reply、quote、repost、media。时间按这台电脑的时区写成 2026-11-12 09:30，或写 next 表示下一个空闲时段。串帖的各条之间用 ||| 分隔。",
       "choose": "选择文件",
       "none": "未选择文件",
-      "report": "{rows} 行中有 {valid} 行可以定时。",
+      "report": "{{rows}} 行中有 {{valid}} 行可以定时。",
       "rejected": "被拒绝的行",
-      "row": "第 {n} 行",
-      "confirm": "定时发布 {n} 条帖子",
-      "done": "已定时 {n} 条帖子。"
+      "row": "第 {{num}} 行",
+      "confirm": "定时发布 {{num}} 条帖子",
+      "done": "已定时 {{num}} 条帖子。"
     },
     "feeds": {
       "title": "RSS 自动发帖",
@@ -13475,10 +13696,10 @@
       "cap": "每月帖子数",
       "add": "添加订阅源",
       "remove": "移除订阅源",
-      "stats": "本月 {cap} 条中已发 {posted} 条",
-      "skipped": "超出上限跳过 {n} 条",
+      "stats": "本月 {{cap}} 条中已发 {{posted}} 条",
+      "skipped": "超出上限跳过 {{num}} 条",
       "waiting": "等待第一次检查",
-      "checked": "检查于 {when}"
+      "checked": "检查于 {{when}}"
     },
     "errors": {
       "PAST_TIME": "这个时间已经过去。",
@@ -13494,7 +13715,7 @@
       "CONFLICTING_TARGETS": "转发不能带正文、回复、引用或图片。",
       "MEDIA_NOT_FOUND": "在这台电脑上找不到某个图片文件。",
       "MEDIA_TOO_LARGE": "图片不能超过 5 MB。",
-      "UNSUPPORTED": "不支持：在 X 上只能发文字、串帖、回复、引用、转发和静态图片。",
+      "UNSUPPORTED": "不支持：在 短帖 上只能发文字、串帖、回复、引用、转发和静态图片。",
       "INVALID_CSV": "无法读取 CSV。它需要包含 time 和 text 两列的表头。",
       "FILE_NOT_FOUND": "找不到文件。",
       "NOTHING_TO_EXPORT": "没有可导出的已定时或已发送帖子。",
@@ -13506,7 +13727,7 @@
       "INTERRUPTED": "发送过程中 OmniGet 被关闭。再次发送前请先查看账号。",
       "NOT_LOGGED_IN": "请先在 OmniGet 中登录账号。",
       "RATE_LIMITED": "短时间内操作太多。请稍等再试。",
-      "generic": "无法完成：{detail}"
+      "generic": "无法完成：{{detail}}"
     }
   },
   "research": {
@@ -13673,5 +13894,88 @@
     "ex_saved": "完整响应已保存到",
     "ex_empty": "选择平台和接口，即可调用 ScrapeCreators 的任意操作。",
     "ex_no_params": "此接口不需要参数。"
+  },
+  "quick_panel": {
+    "title": "快捷工具",
+    "paste_link": "粘贴链接",
+    "paste_link_hint": "下载剪贴板中的链接",
+    "tab_system": "系统",
+    "tab_clipboard": "剪贴板",
+    "tab_snippets": "片段",
+    "delete": "删除",
+    "copied": "已复制",
+    "awake": {
+      "title": "保持唤醒",
+      "off": "关闭",
+      "m30": "30 分钟",
+      "h1": "1 小时",
+      "h2": "2 小时",
+      "until_off": "直到手动关闭",
+      "left": "剩余 {{time}}",
+      "on_hint": "开启中，直到你关闭",
+      "off_hint": "电脑照常休眠",
+      "failed": "系统拒绝保持唤醒"
+    },
+    "monitor": {
+      "cpu": "CPU",
+      "memory": "内存",
+      "disk": "磁盘可用",
+      "network": "网络",
+      "processes": "最占用的进程"
+    },
+    "volume": {
+      "apps": "各应用音量",
+      "master": "输出音量",
+      "none": "当前没有播放",
+      "no_control": "此输出没有音量控制",
+      "mute": "静音",
+      "unmute": "取消静音"
+    },
+    "clipboard": {
+      "title": "剪贴板历史",
+      "off_hint": "已关闭。开启后会保留你最近复制的 50 条文本，仅保存在内存中，退出 OmniGet 后清除。",
+      "empty": "复制一段文本，它就会出现在这里。",
+      "pin": "固定",
+      "unpin": "取消固定"
+    },
+    "snippets": {
+      "empty": "保存常用的文本，一键复制。",
+      "add": "新建片段",
+      "name": "名称",
+      "text": "文本",
+      "save": "保存",
+      "edit": "编辑",
+      "invalid": "请填写名称和文本。"
+    },
+    "cleaner": "清理"
+  },
+  "tool_ask": {
+    "title_read": "{{agent}} 想读取文件",
+    "title_command": "{{agent}} 想运行命令",
+    "title_file_change": "{{agent}} 想修改文件",
+    "title_mcp": "{{agent}} 想调用其他服务器",
+    "title_web": "{{agent}} 想使用网络",
+    "title_other": "{{agent}} 想使用工具",
+    "agent_fallback": "某个智能体",
+    "kind_read": "只读",
+    "kind_command": "运行命令",
+    "kind_file_change": "写入文件",
+    "kind_mcp": "其他服务器",
+    "kind_web": "网络",
+    "kind_other": "其他操作",
+    "count": "第 {{index}} 个,共 {{total}} 个",
+    "waiting": "已等待 {{time}}",
+    "expires": "{{time}} 后过期",
+    "once": "允许一次",
+    "session": "本轮允许 {{tool}}",
+    "session_command": "本轮允许 {{tool}} (任何命令)",
+    "deny": "拒绝",
+    "always": "始终允许 {{tool}}",
+    "always_command": "始终允许 {{tool}}(任何命令)",
+    "stop": "拒绝并停止本轮",
+    "note": "只有你的点击才能批准。其他智能体不能替你批准。",
+    "failed": "回复没有送达智能体。请重试。",
+    "impact": "文件：{{files}} · 行：+{{added}} −{{removed}}",
+    "impact_outside": "在工作区之外"
   }
 }

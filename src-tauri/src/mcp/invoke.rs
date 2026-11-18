@@ -11,6 +11,56 @@ const DEFAULT_TIMEOUT_S: u64 = 120;
 const MAX_TIMEOUT_S: u64 = 600;
 /// These carry the bridge itself; calling them through it would cut the line.
 const RESERVED: &[&str] = &["native_agent_register", "native_agent_reply"];
+const DENIED: &[&str] = &[
+    "cookies_read",
+    "cookies_export_to",
+    "get_bridge_info",
+    "rotate_bridge_token",
+    "bridge_open_pairing",
+    "guildchat_login_token",
+    "canvas_term_ensure",
+    "canvas_remote_pair_code",
+    "connect_answer",
+    "connect_tool",
+    "connect_ai_create",
+    "tool_mcp_access_set",
+    "tool_mcp_client_create",
+    "tool_mcp_auth_request_answer",
+    "tool_mcp_execution_grant",
+    "tool_mcp_gateway_grant",
+    "tool_mcp_network_grant",
+    "tool_mcp_root_grant",
+    "washmybelly_call",
+    "washmybelly_approval_answer",
+    "social_approval_answer",
+    "phonechat_send_file",
+    "phonechat_contacts_export",
+    "llm_tool_answer",
+    "llm_budget_resolve",
+    "canvas_checkpoint_restore",
+    "canvas_checkpoint_undo",
+];
+const DENIED_PREFIXES: &[&str] = &["pty_", "term_", "secret", "quicktools_clipboard"];
+/// Screen commands that speak for the person; the tool beside each one asks the owner first.
+const HAS_TOOL: &[(&str, &str)] = &[
+    ("phonechat_send_text", "wa_send"),
+    ("phonechat_schedule", "wa_send"),
+    ("phonechat_react", "wa_react"),
+    ("phonechat_rule_save", "wa_rules"),
+    ("phonechat_rule_enable", "wa_rules"),
+    ("phonechat_rules_limits", "wa_rules"),
+    ("social_call", "social_status"),
+];
+
+fn tool_for(name: &str) -> Option<&'static str> {
+    HAS_TOOL.iter().find(|(c, _)| *c == name).map(|(_, t)| *t)
+}
+
+fn denied(name: &str) -> bool {
+    DENIED.contains(&name)
+        || DENIED_PREFIXES.iter().any(|p| name.starts_with(p))
+        || tool_for(name).is_some()
+}
 
 fn catalog() -> &'static Vec<Value> {
     static CATALOG: OnceLock<Vec<Value>> = OnceLock::new();
@@ -48,6 +98,7 @@ pub fn commands(a: &Value) -> Result<Value, String> {
     let matches: Vec<&Value> = catalog()
         .iter()
         .filter(open)
+        .filter(|c| !c["name"].as_str().is_some_and(denied))
         .filter(|c| area.is_empty() || c["area"] == area)
         .filter(|c| {
             query.is_empty()
@@ -68,6 +119,16 @@ pub fn commands(a: &Value) -> Result<Value, String> {
 
 pub async fn invoke(app: &AppHandle, a: &Value) -> Result<Value, String> {
     let name = a["command"].as_str().unwrap_or("").trim();
+    if let Some(tool) = tool_for(name) {
+        return Err(format!(
+            "COMMAND_HAS_TOOL: `{name}` is the screen's side of a dedicated tool; start from `{tool}` and call the dedicated tools instead"
+        ));
+    }
+    if denied(name) {
+        return Err(format!(
+            "COMMAND_DENIED: `{name}` hands out credentials, answers an approval or drives a terminal, so it is not reachable through MCP; ask the person to do it in the OmniGet window"
+        ));
+    }
     let entry = catalog()
         .iter()
         .find(|c| c["name"] == name)
@@ -141,6 +202,97 @@ mod tests {
             "command_catalog.json is stale, run node scripts/mcp-commands.mjs: {missing:?}"
         );
         assert!(known.len() >= 1000);
+    }
+
+    #[test]
+    fn credentials_approvals_and_terminals_are_denied() {
+        for name in [
+            "cookies_read",
+            "cookies_export_to",
+            "get_bridge_info",
+            "rotate_bridge_token",
+            "guildchat_login_token",
+            "pty_open",
+            "pty_write",
+            "term_text",
+            "secret_get",
+            "secrets_list",
+            "llm_budget_resolve",
+            "canvas_checkpoint_restore",
+            "canvas_checkpoint_undo",
+            "connect_answer",
+            "washmybelly_approval_answer",
+            "tool_mcp_access_set",
+        ] {
+            assert!(denied(name), "{name}");
+        }
+        for name in ["music_status", "cookies_list", "empty", ""] {
+            assert!(!denied(name), "{name}");
+        }
+    }
+
+    #[test]
+    fn the_clipboard_history_cannot_be_read_or_driven_through_invoke() {
+        for name in ["quicktools_clipboard", "quicktools_clipboard_act"] {
+            assert!(denied(name), "{name}");
+            assert!(
+                catalog().iter().any(|c| c["name"] == name),
+                "{name} is not in command_catalog.json"
+            );
+            let found = commands(&json!({"query": name})).unwrap();
+            assert!(found["commands"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .all(|c| c["name"] != name));
+        }
+        assert!(!denied("quicktools_status"));
+    }
+
+    #[test]
+    fn screen_sends_are_not_a_way_around_asking_first() {
+        for (command, tool) in HAS_TOOL {
+            assert!(denied(command), "{command}");
+            assert!(
+                catalog().iter().any(|c| c["name"] == *command),
+                "{command} is not in command_catalog.json"
+            );
+            assert!(
+                crate::mcp::policy::scope(tool).is_some(),
+                "{tool} is not a tool"
+            );
+            let found = commands(&json!({"query": command})).unwrap();
+            assert!(found["commands"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .all(|c| c["name"] != *command));
+        }
+    }
+
+    #[test]
+    fn every_denied_name_is_a_real_command() {
+        for name in DENIED {
+            assert!(
+                catalog().iter().any(|c| c["name"] == *name),
+                "{name} is not in command_catalog.json"
+            );
+        }
+    }
+
+    #[test]
+    fn denied_commands_stay_out_of_the_listing() {
+        for query in ["cookies_read", "pty_open", "rotate_bridge_token"] {
+            let found = commands(&json!({"query": query})).unwrap();
+            let listed = found["commands"].as_array().unwrap();
+            assert!(listed.iter().all(|c| c["name"] != query), "{query}");
+        }
+        let cookies = commands(&json!({"area": "cookies"})).unwrap();
+        assert!(cookies["commands"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|c| c["name"] == "cookies_list"));
     }
 
     #[test]

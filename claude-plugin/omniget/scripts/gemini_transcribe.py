@@ -96,9 +96,10 @@ def upload_file(path, mime, key):
     size = os.path.getsize(path)
     headers, _ = request(
         "POST",
-        "%s/upload/v1beta/files?key=%s" % (API, key),
+        "%s/upload/v1beta/files" % API,
         {"file": {"display_name": os.path.basename(path)}},
         {
+            "x-goog-api-key": key,
             "X-Goog-Upload-Protocol": "resumable",
             "X-Goog-Upload-Command": "start",
             "X-Goog-Upload-Header-Content-Length": str(size),
@@ -125,7 +126,7 @@ def upload_file(path, mime, key):
     name, uri = info["name"], info["uri"]
     while info.get("state") == "PROCESSING":
         time.sleep(3)
-        _, body = request("GET", "%s/v1beta/%s?key=%s" % (API, name, key))
+        _, body = request("GET", "%s/v1beta/%s" % (API, name), headers={"x-goog-api-key": key})
         info = json.loads(body)
     if info.get("state") == "FAILED":
         sys.exit("gemini: file processing failed")
@@ -156,7 +157,12 @@ def main():
         "contents": [{"parts": [{"text": PROMPT.format(lang=lang_hint)}, media]}],
         "generationConfig": {"temperature": 0, "maxOutputTokens": 65536},
     }
-    _, raw = request("POST", "%s/v1beta/models/%s:generateContent?key=%s" % (API, args.model, key), body)
+    _, raw = request(
+        "POST",
+        "%s/v1beta/models/%s:generateContent" % (API, args.model),
+        body,
+        {"x-goog-api-key": key},
+    )
     reply = json.loads(raw)
     candidates = reply.get("candidates") or []
     if not candidates:

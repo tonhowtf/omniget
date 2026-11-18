@@ -331,10 +331,6 @@ impl SettingsRepository {
         repo
     }
 
-    pub fn dir(&self) -> &Path {
-        &self.dir
-    }
-
     pub fn path(&self) -> PathBuf {
         self.dir.join(SETTINGS_FILE)
     }

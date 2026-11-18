@@ -100,13 +100,6 @@ impl Scope {
             other => Err(format!("REMOTE_SCOPE_INVALID: unknown scope {other:?}")),
         }
     }
-
-    pub fn as_str(self) -> &'static str {
-        match self {
-            Scope::Read => "read",
-            Scope::Drive => "drive",
-        }
-    }
 }
 
 pub fn command_allowed(scope: Scope, command: &Command) -> Result<(), &'static str> {
@@ -627,28 +620,6 @@ impl RemoteHub {
         removed
     }
 
-    pub fn rename(&self, id: &str, name: &str) -> bool {
-        let name: String = name.trim().chars().take(60).collect();
-        if name.is_empty() {
-            return false;
-        }
-        let ok = {
-            let mut d = self.devices.lock().unwrap();
-            match d.iter_mut().find(|x| x.id == id) {
-                Some(x) => {
-                    x.name = name;
-                    true
-                }
-                None => false,
-            }
-        };
-        if ok {
-            self.save_devices();
-            self.notify("renamed");
-        }
-        ok
-    }
-
     fn authenticate(&self, token: &str, ip: &str) -> Option<DeviceRecord> {
         let hash = hash_secret(token);
         let (rec, persist) = {
@@ -977,17 +948,6 @@ pub fn render_qr(content: &str) -> Result<String, String> {
         .min_dimensions(240, 240)
         .quiet_zone(true)
         .build())
-}
-
-pub fn normalize_base(base: &str) -> Result<String, String> {
-    let u =
-        url::Url::parse(base.trim()).map_err(|e| format!("REMOTE_BASE_INVALID: {base:?}: {e}"))?;
-    if !matches!(u.scheme(), "http" | "https") || u.host_str().is_none() {
-        return Err(format!(
-            "REMOTE_BASE_INVALID: {base:?} is not an http(s) origin"
-        ));
-    }
-    Ok(u.origin().ascii_serialization())
 }
 
 pub fn base_for(ip: IpAddr, port: u16) -> String {

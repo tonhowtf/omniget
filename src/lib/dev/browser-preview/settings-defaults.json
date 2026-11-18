@@ -4,6 +4,7 @@
     "theme": "system",
     "language": "en",
     "sidebar_collapsed": false,
+    "downloads_only": false,
     "mode": "system",
     "preset": "omniget-desktop",
     "migration_version": 1

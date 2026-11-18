@@ -38,7 +38,6 @@ pub mod llm_budget;
 pub mod llm_manager;
 pub mod local_bridge;
 pub mod local_bridge_agentkit;
-pub mod local_bridge_auth;
 pub mod local_bridge_canvas;
 pub mod local_bridge_company;
 pub mod local_bridge_debug;
@@ -61,6 +60,7 @@ pub mod portal;
 pub mod preview;
 pub mod profile;
 pub mod pty;
+pub mod quick_panel;
 pub mod secrets;
 pub mod storage;
 pub mod threads_host;
@@ -381,7 +381,7 @@ pub fn run() {
             crate::canvas::chat::bind(app.handle());
             crate::portal::bind(app.handle());
             crate::canvas::routines::start(app.handle());
-            crate::commands::whatsapp::boot(app.handle().clone());
+            crate::commands::phonechat::boot(app.handle().clone());
             crate::commands::social::schedule::boot(app.handle().clone());
             crate::canvas::companion::start(app.handle());
             crate::canvas::power::start(app.handle());
@@ -703,34 +703,6 @@ pub fn run() {
                     for url in event.urls() {
                         let raw = url.to_string();
                         let handle = app_handle.clone();
-                        if raw.starts_with("omniget://openrouter-auth") {
-                            let code = url
-                                .query_pairs()
-                                .find(|(k, _)| k == "code")
-                                .map(|(_, v)| v.into_owned())
-                                .unwrap_or_default();
-                            let state = url
-                                .query_pairs()
-                                .find(|(k, _)| k == "state")
-                                .map(|(_, v)| v.into_owned());
-                            tauri::async_runtime::spawn(async move {
-                                use tauri::Emitter;
-                                let payload = match omniget_core::core::tools::ai_keys::pkce_finish(
-                                    &code,
-                                    state.as_deref(),
-                                )
-                                .await
-                                {
-                                    Ok(key) => serde_json::json!({ "ok": true, "key": key }),
-                                    Err(error) => {
-                                        tracing::warn!("OpenRouter PKCE exchange failed: {error}");
-                                        serde_json::json!({ "ok": false, "error": error.to_string() })
-                                    }
-                                };
-                                let _ = handle.emit("llm://openrouter-auth", payload);
-                            });
-                            continue;
-                        }
                         if crate::canvas::spotlight::open_link(&handle, &raw) {
                             continue;
                         }
@@ -766,6 +738,7 @@ pub fn run() {
             }
             tray::setup(app.handle())?;
             usage_tray::setup(app.handle());
+            quick_panel::setup(app.handle());
             hotkey::register_from_settings(app.handle());
             commands::dictation::init(app.handle());
             storage::settings_effects::install(app.handle().clone());

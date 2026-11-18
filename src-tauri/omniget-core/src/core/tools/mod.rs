@@ -1,6 +1,5 @@
 pub mod ai_keys;
 pub mod github;
-pub mod ollama;
 pub mod onnx;
 pub mod pricing;
 pub mod usage;

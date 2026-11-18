@@ -1,0 +1,10 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "quick-panel",
+  "description": "Capability for the Quick tools panel (the popover of the main tray icon: undecorated, hides on blur). It listens on the `quick-panel://` events; everything else goes through the quicktools_* commands. `core:event:default` is spelled out because the event listener is gated by capabilities.",
+  "windows": ["quick-panel"],
+  "permissions": [
+    "core:default",
+    "core:event:default"
+  ]
+}

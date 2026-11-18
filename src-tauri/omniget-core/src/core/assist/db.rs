@@ -388,10 +388,6 @@ impl AssistDb {
         Ok(db)
     }
 
-    pub fn path(&self) -> Option<&Path> {
-        self.path.as_deref()
-    }
-
     fn pragmas(&self) -> Result<(), String> {
         self.with(|c| {
             c.execute_batch(

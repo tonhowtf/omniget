@@ -30,6 +30,8 @@ pub struct FetchRequest {
     pub max_tokens: Option<usize>,
     pub raw: bool,
     pub if_hash: Option<String>,
+    pub selector: Option<String>,
+    pub proxy: Option<String>,
 }
 
 pub const MAX_URLS: usize = 10;
@@ -59,6 +61,8 @@ pub struct SelectRequest {
     pub attr: Option<String>,
     pub limit: Option<usize>,
     pub remember: Option<String>,
+    pub text: Option<String>,
+    pub proxy: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -97,6 +101,9 @@ pub struct Page {
     pub structured: Vec<Structured>,
     pub hash: String,
     pub unchanged: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub proxy: Option<String>,
+    pub attempts: u32,
     pub untrusted: bool,
 }
 
@@ -137,7 +144,45 @@ const VOID: &[&str] = &[
     "area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "source", "track",
     "wbr",
 ];
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct Found {
+    pub text: String,
+    pub selector: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Finds {
+    pub found: Vec<Found>,
+    pub total: usize,
+    pub truncated: bool,
+    pub untrusted: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Similar {
+    pub selector: String,
+    pub selector_matches: usize,
+    pub matches: Vec<String>,
+    pub total: usize,
+    pub truncated: bool,
+    pub untrusted: bool,
+}
+
+pub(super) struct Fetched {
+    pub status: u16,
+    pub final_url: String,
+    pub body: String,
+    pub html: bool,
+    pub proxy: Option<String>,
+    pub attempts: u32,
+}
+
 const MATCH_CHARS: usize = 500;
+const ATTEMPTS: u32 = 3;
+const RETRY_PAUSE: Duration = Duration::from_millis(600);
+const SIMILAR_CLASSES: f64 = 0.3;
 const MAX_PAGE_BYTES: usize = 5 * 1024 * 1024;
 const FETCH_TIMEOUT: Duration = Duration::from_secs(20);
 
@@ -558,6 +603,53 @@ pub fn extract(html: &str, base: Option<&url::Url>, format: Format, raw: bool) -
     }
 }
 
+pub fn extract_scoped(
+    html: &str,
+    base: Option<&url::Url>,
+    format: Format,
+    selector: &str,
+) -> Result<Extracted, DevError> {
+    let parsed = Selector::parse(selector)
+        .map_err(|e| DevError::InvalidInput(format!("invalid selector \"{selector}\": {e}")))?;
+    let doc = Html::parse_document(html);
+    let renderer = Renderer {
+        base,
+        markdown: format == Format::Markdown,
+        raw: true,
+    };
+    let mut parts = Vec::new();
+    for el in doc.select(&parsed) {
+        let part = match format {
+            Format::Html => {
+                let mut out = String::new();
+                renderer.html(el, &mut out);
+                out
+            }
+            Format::Markdown | Format::Text => finish(&renderer.element(el)),
+        };
+        if !part.is_empty() {
+            parts.push(part);
+        }
+    }
+    if parts.is_empty() {
+        return Err(DevError::NoMatch {
+            what: format!("selector {selector}"),
+            candidates: candidates(&doc, selector),
+        });
+    }
+    let title = Selector::parse("title")
+        .ok()
+        .and_then(|s| doc.select(&s).next())
+        .map(|t| collapse(&t.text().collect::<String>()).trim().to_string())
+        .filter(|t| !t.is_empty());
+    Ok(Extracted {
+        title,
+        content: parts.join("\n\n"),
+        removed: BTreeMap::new(),
+        structured: structured(&doc),
+    })
+}
+
 pub fn block_reason(status: u16, body: &str) -> Option<&'static str> {
     let has = |marks: &[&str]| marks.iter().any(|m| body.contains(m));
     let challenge = has(&["_cf_chl_opt"])
@@ -681,6 +773,195 @@ pub fn select(
         relocated: None,
         untrusted: true,
     })
+}
+
+fn valid_name(name: &str) -> bool {
+    let mut chars = name.chars();
+    chars
+        .next()
+        .is_some_and(|c| c.is_ascii_alphabetic() || c == '_')
+        && chars.all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
+}
+
+fn path_selector(el: ElementRef) -> String {
+    let mut steps = Vec::new();
+    let mut current = Some(el);
+    while let Some(node) = current {
+        let e = node.value();
+        if let Some(id) = e.id().filter(|id| valid_name(id)) {
+            steps.push(format!("#{id}"));
+            break;
+        }
+        let parent = node.parent().and_then(ElementRef::wrap);
+        let Some(parent) = parent else {
+            steps.push(e.name().to_string());
+            break;
+        };
+        let position = parent
+            .children()
+            .filter_map(ElementRef::wrap)
+            .filter(|sibling| sibling.value().name() == e.name())
+            .position(|sibling| sibling == node)
+            .map_or(1, |index| index + 1);
+        steps.push(format!("{}:nth-of-type({position})", e.name()));
+        current = Some(parent);
+    }
+    steps.reverse();
+    steps.join(" > ")
+}
+
+fn own_text(el: ElementRef) -> String {
+    let mut out = String::new();
+    for child in el.children() {
+        if let Node::Text(text) = child.value() {
+            out.push_str(&text.text);
+        }
+    }
+    collapse(&out).trim().to_string()
+}
+
+pub fn find_text(html: &str, text: &str, limit: usize) -> Result<Finds, DevError> {
+    let needle = text.trim().to_lowercase();
+    if needle.is_empty() {
+        return Err(DevError::InvalidInput("text is empty".into()));
+    }
+    let doc = Html::parse_document(html);
+    let hits: Vec<ElementRef> = doc
+        .root_element()
+        .descendants()
+        .filter_map(ElementRef::wrap)
+        .filter(|el| !is_code(el.value().name()) && el.value().name() != "title")
+        .filter(|el| own_text(*el).to_lowercase().contains(&needle))
+        .collect();
+    if hits.is_empty() {
+        return Err(DevError::NoMatch {
+            what: format!("text \"{}\"", cap_chars(text.trim(), 80).0),
+            candidates: Vec::new(),
+        });
+    }
+    let total = hits.len();
+    Ok(Finds {
+        found: hits
+            .into_iter()
+            .take(limit)
+            .map(|el| Found {
+                text: cap_chars(&own_text(el), MATCH_CHARS).0,
+                selector: path_selector(el),
+            })
+            .collect(),
+        total,
+        truncated: total > limit,
+        untrusted: true,
+    })
+}
+
+fn tag_chain(el: ElementRef<'_>) -> Vec<&str> {
+    el.ancestors()
+        .filter_map(ElementRef::wrap)
+        .map(|a| a.value().name())
+        .collect()
+}
+
+fn class_overlap(a: ElementRef, b: ElementRef) -> f64 {
+    let a: std::collections::BTreeSet<&str> = a.value().classes().collect();
+    let b: std::collections::BTreeSet<&str> = b.value().classes().collect();
+    if a.is_empty() && b.is_empty() {
+        return 1.0;
+    }
+    a.intersection(&b).count() as f64 / a.union(&b).count() as f64
+}
+
+pub fn similar(
+    html: &str,
+    selector: &str,
+    attr: Option<&str>,
+    limit: usize,
+) -> Result<Similar, DevError> {
+    let parsed = Selector::parse(selector)
+        .map_err(|e| DevError::InvalidInput(format!("invalid selector \"{selector}\": {e}")))?;
+    let doc = Html::parse_document(html);
+    let Some(seed) = doc.select(&parsed).next() else {
+        return Err(DevError::NoMatch {
+            what: format!("selector {selector}"),
+            candidates: candidates(&doc, selector),
+        });
+    };
+    let chain = tag_chain(seed);
+    let alike: Vec<ElementRef> = doc
+        .root_element()
+        .descendants()
+        .filter_map(ElementRef::wrap)
+        .filter(|el| el.value().name() == seed.value().name())
+        .filter(|el| tag_chain(*el) == chain)
+        .filter(|el| class_overlap(seed, *el) >= SIMILAR_CLASSES)
+        .collect();
+    let shared: Vec<&str> = seed
+        .value()
+        .classes()
+        .filter(|class| valid_name(class))
+        .filter(|class| {
+            alike
+                .iter()
+                .all(|el| el.value().classes().any(|c| c == *class))
+        })
+        .collect();
+    let mut general: Vec<String> = chain
+        .iter()
+        .take(2)
+        .rev()
+        .map(|tag| tag.to_string())
+        .collect();
+    general.push(
+        shared
+            .iter()
+            .fold(seed.value().name().to_string(), |out, class| {
+                format!("{out}.{class}")
+            }),
+    );
+    let general = general.join(" > ");
+    let selector_matches = Selector::parse(&general)
+        .map(|parsed| doc.select(&parsed).count())
+        .unwrap_or(0);
+    let values: Vec<String> = alike
+        .iter()
+        .filter_map(|el| match attr {
+            Some(name) => el.value().attr(name).map(str::to_string),
+            None => Some(collapse(&el.text().collect::<String>()).trim().to_string()),
+        })
+        .map(|text| cap_chars(&text, MATCH_CHARS).0)
+        .collect();
+    let total = values.len();
+    Ok(Similar {
+        selector: general,
+        selector_matches,
+        matches: values.into_iter().take(limit).collect(),
+        total,
+        truncated: total > limit,
+        untrusted: true,
+    })
+}
+
+pub fn links(html: &str, base: &url::Url) -> Vec<url::Url> {
+    let Ok(anchors) = Selector::parse("a[href]") else {
+        return Vec::new();
+    };
+    let doc = Html::parse_document(html);
+    let mut seen = std::collections::BTreeSet::new();
+    doc.select(&anchors)
+        .filter(|a| {
+            a.value()
+                .attr("rel")
+                .is_none_or(|rel| !rel.contains("nofollow"))
+        })
+        .filter_map(|a| a.value().attr("href"))
+        .filter_map(|href| base.join(href.trim()).ok())
+        .filter(|url| matches!(url.scheme(), "http" | "https"))
+        .map(|mut url| {
+            url.set_fragment(None);
+            url
+        })
+        .filter(|url| seen.insert(url.to_string()))
+        .collect()
 }
 
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
@@ -865,23 +1146,67 @@ pub fn checked_urls(urls: &[String]) -> Result<&[String], DevError> {
     Ok(urls)
 }
 
-async fn get(raw: &str) -> Result<(u16, String, String), DevError> {
-    let url = http::checked_url(raw)?;
-    let client = reqwest::Client::builder()
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum Move {
+    Stop,
+    Again,
+    OtherProxy,
+}
+
+pub fn switches_route(error: &DevError) -> bool {
+    match error {
+        DevError::Network { .. } => true,
+        DevError::Blocked { reason, .. } => !matches!(*reason, "rate_limited" | "login_required"),
+        _ => false,
+    }
+}
+
+pub fn next_move(error: &DevError, attempt: u32, pooled: bool) -> Move {
+    if attempt >= ATTEMPTS {
+        return Move::Stop;
+    }
+    match error {
+        _ if pooled && switches_route(error) => Move::OtherProxy,
+        DevError::Network { .. } => Move::Again,
+        DevError::HttpStatus(status) if *status >= 500 => Move::Again,
+        _ => Move::Stop,
+    }
+}
+
+async fn get_once(url: &url::Url, route: &http::Route) -> Result<Fetched, DevError> {
+    let client = route
+        .apply(reqwest::Client::builder())?
         .timeout(FETCH_TIMEOUT)
         .user_agent(http::USER_AGENT)
         .build()
         .map_err(http::network_error)?;
-    let mut response = client.get(url).send().await.map_err(http::network_error)?;
+    let mut response = client
+        .get(url.clone())
+        .header(
+            reqwest::header::ACCEPT,
+            "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        )
+        .header(reqwest::header::ACCEPT_LANGUAGE, "en-US,en;q=0.9")
+        .send()
+        .await
+        .map_err(http::network_error)?;
     let status = response.status().as_u16();
     let final_url = response.url().to_string();
-    let retry_after = retry_after_seconds(
+    let header = |name: reqwest::header::HeaderName| {
         response
             .headers()
-            .get(reqwest::header::RETRY_AFTER)
-            .and_then(|v| v.to_str().ok()),
+            .get(name)
+            .and_then(|v| v.to_str().ok())
+            .map(str::to_string)
+    };
+    let retry_after = retry_after_seconds(
+        header(reqwest::header::RETRY_AFTER).as_deref(),
         chrono::Utc::now(),
     );
+    let html = header(reqwest::header::CONTENT_TYPE).is_none_or(|kind| {
+        let kind = kind.to_ascii_lowercase();
+        kind.contains("html") || kind.starts_with("text/plain")
+    });
     let (bytes, _) = http::read_capped(&mut response, MAX_PAGE_BYTES).await?;
     let body = String::from_utf8_lossy(&bytes).into_owned();
     if let Some(reason) = block_reason(status, &body) {
@@ -894,7 +1219,38 @@ async fn get(raw: &str) -> Result<(u16, String, String), DevError> {
     if status >= 400 {
         return Err(DevError::HttpStatus(status));
     }
-    Ok((status, final_url, body))
+    Ok(Fetched {
+        status,
+        final_url,
+        body,
+        html,
+        proxy: route.label(),
+        attempts: 1,
+    })
+}
+
+pub(super) async fn get(raw: &str, proxy: Option<&str>) -> Result<Fetched, DevError> {
+    let url = http::checked_url(raw)?;
+    let mut attempt = 1;
+    loop {
+        let route = http::route(proxy, &url)?;
+        let result = get_once(&url, &route).await;
+        route.report(!matches!(&result, Err(e) if switches_route(e)));
+        let error = match result {
+            Ok(mut fetched) => {
+                fetched.attempts = attempt;
+                return Ok(fetched);
+            }
+            Err(error) => error,
+        };
+        let automatic = proxy.is_none_or(|choice| choice.trim() == "auto");
+        match next_move(&error, attempt, route.pooled && automatic) {
+            Move::Stop => return Err(error),
+            Move::Again => tokio::time::sleep(RETRY_PAUSE * attempt).await,
+            Move::OtherProxy => {}
+        }
+        attempt += 1;
+    }
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -910,6 +1266,20 @@ pub fn finish_page(
 ) -> Page {
     let base = url::Url::parse(final_url).ok();
     let extracted = extract(html, base.as_ref(), format, raw);
+    build_page(
+        url, final_url, status, extracted, format, max_tokens, if_hash,
+    )
+}
+
+fn build_page(
+    url: &str,
+    final_url: &str,
+    status: u16,
+    extracted: Extracted,
+    format: Format,
+    max_tokens: Option<usize>,
+    if_hash: Option<&str>,
+) -> Page {
     let hash = content_hash(&extracted.content);
     let unchanged = if_hash == Some(hash.as_str());
     let max_chars = max_tokens.unwrap_or(DEFAULT_MAX_TOKENS) * 4;
@@ -941,22 +1311,42 @@ pub fn finish_page(
         },
         hash,
         unchanged,
+        proxy: None,
+        attempts: 1,
         untrusted: true,
     }
 }
 
 pub async fn fetch(request: FetchRequest) -> Result<Page, DevError> {
-    let (status, final_url, html) = get(&request.url).await?;
-    Ok(finish_page(
-        &request.url,
-        &final_url,
-        status,
-        &html,
-        request.format,
-        request.raw,
-        request.max_tokens,
-        request.if_hash.as_deref(),
-    ))
+    let fetched = get(&request.url, request.proxy.as_deref()).await?;
+    let mut page = match request.selector.as_deref().filter(|s| !s.trim().is_empty()) {
+        Some(selector) => {
+            let base = url::Url::parse(&fetched.final_url).ok();
+            let extracted = extract_scoped(&fetched.body, base.as_ref(), request.format, selector)?;
+            build_page(
+                &request.url,
+                &fetched.final_url,
+                fetched.status,
+                extracted,
+                request.format,
+                request.max_tokens,
+                request.if_hash.as_deref(),
+            )
+        }
+        None => finish_page(
+            &request.url,
+            &fetched.final_url,
+            fetched.status,
+            &fetched.body,
+            request.format,
+            request.raw,
+            request.max_tokens,
+            request.if_hash.as_deref(),
+        ),
+    };
+    page.proxy = fetched.proxy;
+    page.attempts = fetched.attempts;
+    Ok(page)
 }
 
 pub async fn fetch_many(request: FetchRequest) -> Result<Pages, DevError> {
@@ -997,12 +1387,35 @@ pub async fn fetch_many(request: FetchRequest) -> Result<Pages, DevError> {
     })
 }
 
+async fn markup(request: &SelectRequest) -> Result<String, DevError> {
+    match (&request.html, &request.url) {
+        (Some(html), _) => Ok(html.clone()),
+        (None, Some(url)) => Ok(get(url, request.proxy.as_deref()).await?.body),
+        (None, None) => Err(DevError::InvalidInput("pass url or html".into())),
+    }
+}
+
+pub async fn find_from(request: SelectRequest) -> Result<Finds, DevError> {
+    let html = markup(&request).await?;
+    find_text(
+        &html,
+        request.text.as_deref().unwrap_or_default(),
+        request.limit.unwrap_or(DEFAULT_SELECT_LIMIT),
+    )
+}
+
+pub async fn similar_from(request: SelectRequest) -> Result<Similar, DevError> {
+    let html = markup(&request).await?;
+    similar(
+        &html,
+        &request.selector,
+        request.attr.as_deref(),
+        request.limit.unwrap_or(DEFAULT_SELECT_LIMIT),
+    )
+}
+
 pub async fn select_from(request: SelectRequest) -> Result<Selection, DevError> {
-    let html = match (&request.html, &request.url) {
-        (Some(html), _) => html.clone(),
-        (None, Some(url)) => get(url).await?.2,
-        (None, None) => return Err(DevError::InvalidInput("pass url or html".into())),
-    };
+    let html = markup(&request).await?;
     let limit = request.limit.unwrap_or(DEFAULT_SELECT_LIMIT);
     let attr = request.attr.as_deref();
     let Some(name) = request.remember.as_deref().filter(|n| !n.is_empty()) else {
@@ -1391,5 +1804,119 @@ let y = 2;</code></pre>
         assert!(page.content.contains("documentation examples"));
         assert_eq!(page.removed.get("script"), Some(&1));
         assert!(page.untrusted && !page.truncated);
+    }
+
+    #[test]
+    fn a_selector_narrows_the_page_to_the_elements_it_matches() {
+        let html = r#"<html><head><title>Shop</title></head><body><nav>menu</nav>
+            <div class="card"><h2>One</h2><a href="/one">open</a></div>
+            <div class="card"><h2>Two</h2></div><footer>bye</footer></body></html>"#;
+        let base = url::Url::parse("https://shop.example/list").unwrap();
+        let out = extract_scoped(html, Some(&base), Format::Markdown, ".card").unwrap();
+        assert_eq!(out.title.as_deref(), Some("Shop"));
+        assert_eq!(
+            out.content,
+            "## One\n\n[open](https://shop.example/one)\n\n## Two"
+        );
+        let error = extract_scoped(html, None, Format::Text, ".cards").unwrap_err();
+        assert!(
+            matches!(&error, DevError::NoMatch { candidates, .. } if candidates == &[".card".to_string()]),
+            "{error:?}"
+        );
+        assert!(matches!(
+            extract_scoped(html, None, Format::Text, "div[").unwrap_err(),
+            DevError::InvalidInput(_)
+        ));
+    }
+
+    const LISTING: &str = r#"<html><body><main><ul id="items">
+        <li class="item featured"><a href="/a">Alpha</a></li>
+        <li class="item"><a href="/b">Beta</a></li>
+        <li class="item sale"><a href="/c">Gamma</a></li>
+        </ul><ul class="other"><li class="ad-row promo">Buy now</li></ul>
+        <p>Alpha is also mentioned here.</p></main></body></html>"#;
+
+    #[test]
+    fn one_element_finds_its_siblings_of_the_same_shape() {
+        let out = similar(LISTING, "li.featured", None, 10).unwrap();
+        assert_eq!(out.matches, ["Alpha", "Beta", "Gamma"]);
+        assert_eq!(out.selector, "main > ul > li.item");
+        assert_eq!(out.selector_matches, 3);
+        let links = similar(LISTING, "li.featured a", Some("href"), 2).unwrap();
+        assert_eq!(links.matches, ["/a", "/b"]);
+        assert_eq!((links.total, links.truncated), (3, true));
+        assert!(matches!(
+            similar(LISTING, ".missing", None, 10).unwrap_err(),
+            DevError::NoMatch { .. }
+        ));
+    }
+
+    #[test]
+    fn text_is_found_in_the_element_that_holds_it_with_a_selector_that_works() {
+        let out = find_text(LISTING, "alpha", 10).unwrap();
+        assert_eq!(out.total, 2);
+        assert_eq!(out.found[0].text, "Alpha");
+        assert_eq!(
+            out.found[0].selector,
+            "#items > li:nth-of-type(1) > a:nth-of-type(1)"
+        );
+        for found in &out.found {
+            let again = select(LISTING, &found.selector, None, 5).unwrap();
+            assert_eq!(again.total, 1, "{}", found.selector);
+            assert!(again.matches[0].contains("Alpha"));
+        }
+        assert!(matches!(
+            find_text(LISTING, "zeta", 10).unwrap_err(),
+            DevError::NoMatch { .. }
+        ));
+        assert!(matches!(
+            find_text(LISTING, "  ", 10).unwrap_err(),
+            DevError::InvalidInput(_)
+        ));
+    }
+
+    #[test]
+    fn links_are_absolute_unique_and_skip_nofollow_and_other_schemes() {
+        let html = r##"<a href="/a#top">a</a><a href="/a">again</a><a href="b?x=1">b</a>
+            <a href="mailto:x@example.com">mail</a><a rel="nofollow" href="/no">no</a>
+            <a href="javascript:void(0)">js</a><a href="https://other.example/">out</a>"##;
+        let base = url::Url::parse("https://site.example/docs/").unwrap();
+        let found: Vec<String> = links(html, &base).iter().map(|u| u.to_string()).collect();
+        assert_eq!(
+            found,
+            [
+                "https://site.example/a",
+                "https://site.example/docs/b?x=1",
+                "https://other.example/"
+            ]
+        );
+    }
+
+    #[test]
+    fn a_block_moves_to_another_proxy_but_a_rate_limit_or_login_never_does() {
+        let blocked = |reason| DevError::Blocked {
+            reason,
+            status: 403,
+            retry_after: None,
+        };
+        let network = DevError::Network {
+            message: "reset".into(),
+            timeout: false,
+        };
+        assert_eq!(next_move(&blocked("http_403"), 1, true), Move::OtherProxy);
+        assert_eq!(
+            next_move(&blocked("cloudflare_challenge"), 2, true),
+            Move::OtherProxy
+        );
+        assert_eq!(next_move(&network, 1, true), Move::OtherProxy);
+        assert_eq!(next_move(&blocked("rate_limited"), 1, true), Move::Stop);
+        assert_eq!(next_move(&blocked("login_required"), 1, true), Move::Stop);
+        assert_eq!(next_move(&blocked("http_403"), 1, false), Move::Stop);
+        assert_eq!(next_move(&network, 1, false), Move::Again);
+        assert_eq!(next_move(&DevError::HttpStatus(503), 1, false), Move::Again);
+        assert_eq!(next_move(&DevError::HttpStatus(404), 1, true), Move::Stop);
+        assert_eq!(next_move(&network, ATTEMPTS, true), Move::Stop);
+        assert!(!switches_route(&blocked("rate_limited")));
+        assert!(!switches_route(&DevError::HttpStatus(503)));
     }
 }

@@ -8,7 +8,7 @@
   import AudienceInterests from "./AudienceInterests.svelte";
   import NotifySettings from "./NotifySettings.svelte";
   import { hasExtras } from "./second";
-  import { ago, compact, errKey, social, tool, type Platform, type Profile } from "./api";
+  import { ago, compact, errKey, NET, social, TITLE_KEY, tool, type Platform, type Profile } from "./api";
   import {
     EMPTY_FILTERS,
     LIST_VIEWS,
@@ -39,8 +39,7 @@
 
   let { platform, me, openProfile }: { platform: Platform; me: Profile; openProfile: (handle: string) => void } = $props();
 
-  const LABELS: Partial<Record<Platform, string>> = { x: "X", instagram: "Instagram", tiktok: "TikTok", pinterest: "Pinterest", github: "GitHub" };
-  const PAGE_CAP: Partial<Record<Platform, number>> = { x: 40, instagram: 40, tiktok: 67 };
+  const PAGE_CAP: Partial<Record<Platform, number>> = { [NET.shortpost]: 40, [NET.photofeed]: 40, [NET.clipfeed]: 67 };
   const REPO_KEY = "omniget.social.audience.repo";
   const PAGE = 50;
   const CHART_W = 560;
@@ -61,7 +60,7 @@
   };
   const FLAG_FILTERS = ["verified", "private", "has_avatar", "has_bio", "has_link"] as const;
 
-  let label = $derived(LABELS[platform] ?? platform);
+  let label = $derived($t(TITLE_KEY[platform]) as string);
   let summary = $state<Summary | null>(null);
   let view = $state<ViewId | "trend">("not_following_back");
   let list = $state<ListResult | null>(null);
@@ -97,7 +96,7 @@
   let followersFromExport = $derived(!repo && summary?.completeness?.followers?.source === "export");
   let reading = $derived(progress(lists.filter((l) => l.state === "partial" || l.state === "pending" || syncing)));
   let filterCount = $derived(activeFilters(filters));
-  let userKey = $derived(platform === "x" ? "handle" : "username");
+  let userKey = $derived(platform === NET.shortpost ? "handle" : "username");
   let followersLine = $derived(trend ? linePath(trend.days.map((d) => d.followers), CHART_W, LINE_H) : "");
   let followingLine = $derived(trend ? linePath(trend.days.map((d) => d.following), CHART_W, LINE_H) : "");
   let bars = $derived(trend ? changeBars(trend.days, CHART_W, BAR_H) : []);
@@ -341,7 +340,7 @@
 
   onMount(() => {
     try {
-      repoDraft = platform === "github" ? (localStorage.getItem(REPO_KEY) ?? "") : "";
+      repoDraft = platform === NET.codehub ? (localStorage.getItem(REPO_KEY) ?? "") : "";
     } catch {
       repoDraft = "";
     }
@@ -376,7 +375,7 @@
           <SocialIcon name="download" /> {$t("social_audience.export.button")}
         </button>
       {/if}
-      {#if platform === "instagram"}
+      {#if platform === NET.photofeed}
         <button class="btn btn-ghost btn-sm" disabled={importing || syncing} title={$t("social_audience.import.where")} onclick={() => void importExport()}>
           {#if importing}<span class="spinner"></span>{:else}<SocialIcon name="download" />{/if} {importing ? $t("social_audience.import.busy") : $t("social_audience.import.button")}
         </button>
@@ -391,7 +390,7 @@
     </div>
   </div>
 
-  {#if platform === "github"}
+  {#if platform === NET.codehub}
     <form class="repo-bar" onsubmit={(e) => { e.preventDefault(); openRepo(); }}>
       <label class="repo-field">
         <span>{$t("social_audience.stars.label")}</span>
@@ -444,7 +443,7 @@
         {#if followersFromExport}
           <div class="notice-text">{$t("social_audience.notice.followers_from_export")}</div>
         {/if}
-        {#if platform === "instagram" && missing.length}
+        {#if platform === NET.photofeed && missing.length}
           <div class="notice-text">{$t("social_audience.import.where")}</div>
         {/if}
       </div>

@@ -16,24 +16,6 @@ pub enum Capability {
 }
 
 impl Capability {
-    pub const ALL: [Capability; 5] = [
-        Capability::Memory,
-        Capability::Web,
-        Capability::Reading,
-        Capability::ProjectCode,
-        Capability::Delegate,
-    ];
-
-    pub fn id(self) -> &'static str {
-        match self {
-            Capability::Memory => "memory",
-            Capability::Web => "web",
-            Capability::Reading => "reading",
-            Capability::ProjectCode => "project_code",
-            Capability::Delegate => "delegate",
-        }
-    }
-
     pub fn tool_names(self) -> Vec<&'static str> {
         use crate::core::assist::{groups, memory, web};
         use crate::core::llm::code_tools::{READ_TOOLS, WRITE_TOOLS};
@@ -195,17 +177,6 @@ pub fn get(db: &AssistDb, bot: &str) -> Result<Option<BotProfile>, String> {
     })
 }
 
-pub fn list(db: &AssistDb) -> Result<Vec<BotProfile>, String> {
-    db.with(|c| {
-        let mut st = c.prepare(
-            "SELECT bot_id, purpose, instructions, capabilities, memory_policy, default_connection, created_at, updated_at \
-             FROM bots_profiles ORDER BY bot_id",
-        )?;
-        let rows = st.query_map([], row_to_profile)?;
-        rows.collect()
-    })
-}
-
 pub fn put(db: &AssistDb, profile: &BotProfile) -> Result<BotProfile, String> {
     if profile.bot_id.trim().is_empty() {
         return Err(format!("{ERR_BOT}: a bot id is required"));
@@ -233,19 +204,6 @@ pub fn put(db: &AssistDb, profile: &BotProfile) -> Result<BotProfile, String> {
         )
     })?;
     get(db, &profile.bot_id)?.ok_or_else(|| format!("{ERR_BOT}: profile not saved"))
-}
-
-pub fn delete(db: &AssistDb, bot: &str) -> Result<(), String> {
-    db.tx(|tx| {
-        tx.execute("DELETE FROM bots_profiles WHERE bot_id = ?1", params![bot])
-            .map_err(|e| e.to_string())?;
-        tx.execute(
-            "DELETE FROM bots_skill_bindings WHERE bot_id = ?1",
-            params![bot],
-        )
-        .map_err(|e| e.to_string())?;
-        Ok(())
-    })
 }
 
 pub(crate) fn create_scoped_tx(tx: &rusqlite::Transaction, p: &BotProfile) -> Result<(), String> {

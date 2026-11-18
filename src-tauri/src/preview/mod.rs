@@ -147,19 +147,6 @@ impl PreviewManager {
         }
     }
 
-    pub fn states(&self) -> Vec<PreviewState> {
-        let labels: Vec<String> = self
-            .sessions
-            .lock()
-            .map(|s| s.keys().cloned().collect())
-            .unwrap_or_default();
-        labels.iter().filter_map(|l| self.state_of(l)).collect()
-    }
-
-    pub fn state(&self, thread_id: &str) -> Option<PreviewState> {
-        self.state_of(&label_for(thread_id))
-    }
-
     pub fn resolve_label(&self, thread_id: Option<&str>) -> Option<String> {
         if let Some(t) = thread_id.filter(|t| !t.is_empty()) {
             let l = label_for(t);
@@ -405,50 +392,6 @@ fn show_at(app: &AppHandle, ww: &WebviewWindow, label: &str, rect: Rect) -> Resu
         s.visible = true;
         s.rect = Some(rect);
     });
-    Ok(())
-}
-
-pub fn set_bounds(app: &AppHandle, thread_id: &str, rect: Rect) -> Result<(), String> {
-    let label = label_for(thread_id);
-    let ww = window(app, &label)?;
-    show_at(app, &ww, &label, rect)?;
-    manager().emit(app, &label);
-    Ok(())
-}
-
-pub fn hide(app: &AppHandle, thread_id: &str) -> Result<(), String> {
-    let label = label_for(thread_id);
-    if let Some(ww) = app.get_webview_window(&label) {
-        let _ = ww.hide();
-    }
-    manager().set(&label, |s| s.visible = false);
-    manager().emit(app, &label);
-    Ok(())
-}
-
-pub fn hide_all(app: &AppHandle) {
-    let labels: Vec<String> = manager()
-        .sessions
-        .lock()
-        .map(|s| s.keys().cloned().collect())
-        .unwrap_or_default();
-    for l in labels {
-        if let Some(ww) = app.get_webview_window(&l) {
-            let _ = ww.hide();
-        }
-        manager().set(&l, |s| s.visible = false);
-        manager().emit(app, &l);
-    }
-}
-
-pub fn close(app: &AppHandle, thread_id: &str) -> Result<(), String> {
-    let label = label_for(thread_id);
-    if let Some(ww) = app.get_webview_window(&label) {
-        ww.destroy().map_err(|e| format!("PREVIEW_CLOSE: {e}"))?;
-    }
-    if let Ok(mut s) = manager().sessions.lock() {
-        s.remove(&label);
-    }
     Ok(())
 }
 

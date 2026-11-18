@@ -66,16 +66,8 @@ const CATALOG: &[ModelSpec] = &[
     },
 ];
 
-pub fn catalog() -> &'static [ModelSpec] {
-    CATALOG
-}
-
 pub fn find(id: &str) -> Option<&'static ModelSpec> {
     CATALOG.iter().find(|m| m.id == id)
-}
-
-pub fn family(name: &str) -> Vec<&'static ModelSpec> {
-    CATALOG.iter().filter(|m| m.family == name).collect()
 }
 
 pub fn models_dir() -> Option<PathBuf> {
@@ -106,45 +98,6 @@ pub struct ModelStatus {
     pub recommended: bool,
     pub downloaded: bool,
     pub path: Option<String>,
-}
-
-fn status_of(spec: &ModelSpec) -> ModelStatus {
-    let downloaded = is_downloaded(spec.id);
-    ModelStatus {
-        id: spec.id.to_string(),
-        name: spec.name.to_string(),
-        family: spec.family.to_string(),
-        bytes: spec.bytes,
-        license: spec.license.to_string(),
-        source: spec.source.to_string(),
-        recommended: spec.recommended,
-        downloaded,
-        path: if downloaded {
-            model_path(spec.id).map(|p| p.to_string_lossy().to_string())
-        } else {
-            None
-        },
-    }
-}
-
-#[derive(Debug, Clone, Serialize)]
-pub struct OnnxStatus {
-    pub runtime: crate::core::onnxrt::RuntimeStatus,
-    pub models: Vec<ModelStatus>,
-    pub models_dir: Option<String>,
-}
-
-pub fn status(family_filter: Option<&str>) -> OnnxStatus {
-    let models = CATALOG
-        .iter()
-        .filter(|m| family_filter.map(|f| m.family == f).unwrap_or(true))
-        .map(status_of)
-        .collect();
-    OnnxStatus {
-        runtime: crate::core::onnxrt::status(),
-        models,
-        models_dir: models_dir().map(|p| p.to_string_lossy().to_string()),
-    }
 }
 
 fn sha256_of(path: &std::path::Path) -> anyhow::Result<String> {
@@ -205,14 +158,6 @@ pub async fn ensure_model(id: &str, progress: &ProgressFn) -> anyhow::Result<Pat
 
     super::report(progress, &pid, "done", 1, Some(1), None);
     Ok(dest)
-}
-
-pub fn remove_model(id: &str) -> anyhow::Result<()> {
-    let path = model_path(id).ok_or_else(|| anyhow!("could not find the app data folder"))?;
-    if path.is_file() {
-        std::fs::remove_file(&path).with_context(|| format!("deleting {}", path.display()))?;
-    }
-    Ok(())
 }
 
 fn intra_threads() -> usize {

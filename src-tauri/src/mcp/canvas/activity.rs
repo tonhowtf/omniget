@@ -96,5 +96,33 @@ pub(super) async fn call(app: &AppHandle, _name: &str, a: &Value) -> Result<Valu
         entries.push(v);
     }
     entries.reverse();
-    Ok(json!({ "workspaceId": ws, "entries": entries, "cursor": cursor, "truncated": truncated }))
+    let mut answer =
+        json!({ "workspaceId": ws, "entries": entries, "cursor": cursor, "truncated": truncated });
+    if answer["entries"].as_array().is_some_and(Vec::is_empty) {
+        answer["empty_reason"] = json!(empty_reason(
+            since.is_some(),
+            mine || no_user || only.is_some() || scoped
+        ));
+    }
+    Ok(answer)
+}
+
+fn empty_reason(since: bool, filtered: bool) -> &'static str {
+    match (since, filtered) {
+        (true, _) => "nothing was written after this cursor",
+        (false, true) => "no write matches these filters; drop floorId, origin, mine or excludeUser to see the rest",
+        (false, false) => "nothing was written on this workspace since the app started tracking it",
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::empty_reason;
+
+    #[test]
+    fn empty_answer_says_why() {
+        assert!(empty_reason(true, true).contains("cursor"));
+        assert!(empty_reason(false, true).contains("filters"));
+        assert!(empty_reason(false, false).contains("workspace"));
+    }
 }

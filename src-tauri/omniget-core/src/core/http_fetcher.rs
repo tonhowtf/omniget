@@ -193,10 +193,6 @@ impl HttpFetcher {
         self
     }
 
-    pub fn output_path(&self) -> &Path {
-        &self.output_path
-    }
-
     pub async fn download(
         &self,
         progress_tx: mpsc::Sender<ProgressUpdate>,

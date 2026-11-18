@@ -1470,38 +1470,6 @@ impl AcpDriver {
             )
         })
     }
-
-    pub async fn probe(instance: &DriverInstance) -> Result<Value, String> {
-        let launch = agents::launch_for(instance)
-            .ok_or_else(|| format!("{ERR_DRIVER_UNAVAILABLE}: no command for {}", instance.id))?;
-        let (tx, _rx) = mpsc::unbounded_channel();
-        let spec = proc::Spawn {
-            command: launch.command.clone(),
-            args: launch.args.clone(),
-            env: launch.env.clone(),
-            env_remove: Vec::new(),
-            cwd: dirs::home_dir(),
-        };
-        let conn = Connection::spawn(&spec, tx, false)?;
-        let r = conn
-            .request(
-                "initialize",
-                json!({
-                    "protocolVersion": PROTOCOL_VERSION,
-                    "clientCapabilities": { "fs": { "readTextFile": false, "writeTextFile": false }, "terminal": false },
-                    "clientInfo": { "name": "omniget", "version": env!("CARGO_PKG_VERSION") },
-                }),
-                Some(INIT_TIMEOUT),
-            )
-            .await;
-        conn.shutdown().await;
-        r.map(|mut v| {
-            v["launch"] =
-                json!({ "command": launch.command, "args": launch.args, "source": launch.source });
-            v
-        })
-        .map_err(|e| format!("{ERR_ACP}: {e}"))
-    }
 }
 
 #[async_trait]

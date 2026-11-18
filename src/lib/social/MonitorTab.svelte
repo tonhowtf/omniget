@@ -6,13 +6,13 @@
   import PostCard from "./PostCard.svelte";
   import SocialIcon from "./SocialIcon.svelte";
   import NotifySettings from "./NotifySettings.svelte";
-  import { ago, errKey, social, tool, type Platform, type Post, type Profile } from "./api";
+  import { ago, errKey, NET, social, TITLE_KEY, tool, type Platform, type Post, type Profile } from "./api";
   import {
-    REDDIT_SORTS,
-    REDDIT_TIMES,
+    FORUMS_SORTS,
+    FORUMS_TIMES,
     buildOptions,
     monitorQueryKey,
-    redditOptions,
+    forumsOptions,
     sparkPoints,
     toolError,
     type CheckResult,
@@ -24,7 +24,6 @@
 
   let { platform, me, openProfile }: { platform: Platform; me: Profile; openProfile: (handle: string) => void } = $props();
 
-  const LABEL: Record<string, string> = { x: "X", instagram: "Instagram", tiktok: "TikTok", reddit: "Reddit", pinterest: "Pinterest", github: "GitHub" };
   const RD_BLANK = { sort: "new", time: "", subreddit: "" };
   const INTERVALS = [0, 5, 15, 30, 60];
   const BLANK = { phrase: "", any: "", exclude: "", hashtags: "", from: "", to: "", mentions: "", lang: "", minLikes: "", minReposts: "", excludeReplies: false, excludeReposts: false };
@@ -49,8 +48,8 @@
   let advanced = $state(false);
   let filters = $state({ ...BLANK });
   let rd = $state({ ...RD_BLANK });
-  let canAct = $derived(platform === "x" || platform === "instagram" || platform === "tiktok");
-  let redditSearch = $derived(platform === "reddit" && kind === "search");
+  let canAct = $derived(platform === NET.shortpost || platform === NET.photofeed || platform === NET.clipfeed);
+  let forumsSearch = $derived(platform === NET.forums && kind === "search");
   let preview = $state<string | null>(null);
   let previewError = $state<string | null>(null);
   let saving = $state(false);
@@ -84,7 +83,7 @@
 
   function errorLine(e: ToolError): string {
     const key = errKey(`${e.code}: x`);
-    if (key !== "unknown" && key !== "invalid_arguments") return $t(`social.errors.${key}`, { platform: LABEL[platform] }) as string;
+    if (key !== "unknown" && key !== "invalid_arguments") return $t(`social.errors.${key}`, { platform: $t(TITLE_KEY[platform]) }) as string;
     return e.message;
   }
 
@@ -197,15 +196,15 @@
       excludeReposts: !!o.exclude_reposts,
     };
     rd = { sort: o.sort ?? "new", time: o.time ?? "", subreddit: o.subreddit ?? "" };
-    advanced = platform === "x" && Object.keys(o).length > 0;
+    advanced = platform === NET.shortpost && Object.keys(o).length > 0;
     formOpen = true;
     schedulePreview();
   }
 
   function formArgs(op: string): Record<string, unknown> {
     const args: Record<string, unknown> = { platform, op, kind, query };
-    if (platform === "x") args.options = buildOptions(filters);
-    if (platform === "reddit") args.options = redditSearch ? redditOptions(rd) : {};
+    if (platform === NET.shortpost) args.options = buildOptions(filters);
+    if (platform === NET.forums) args.options = forumsSearch ? forumsOptions(rd) : {};
     if (name.trim()) args.name = name.trim();
     if (editing) args.id = editing.id;
     return args;
@@ -305,7 +304,7 @@
   }
 
   function title(m: Monitor): string {
-    return m.builtin ? ($t(platform === "github" ? "social_monitor.notifications" : "social_monitor.mentions") as string) : m.name;
+    return m.builtin ? ($t(platform === NET.codehub ? "social_monitor.notifications" : "social_monitor.mentions") as string) : m.name;
   }
 
   function queryLabel(): string {
@@ -342,25 +341,25 @@
         <span class="field-label">{queryLabel()}</span>
         <input class="input" bind:value={query} maxlength="500" autocomplete="off" spellcheck="false" />
       </label>
-      {#if redditSearch}
+      {#if forumsSearch}
         <div class="mo-grid">
           <label class="field">
             <span class="field-label">{$t("social_monitor.form.rd_sort_label")}</span>
             <select class="input" bind:value={rd.sort}>
-              {#each REDDIT_SORTS as s (s)}<option value={s}>{$t(`social_monitor.form.rd_sort.${s}`)}</option>{/each}
+              {#each FORUMS_SORTS as s (s)}<option value={s}>{$t(`social_monitor.form.rd_sort.${s}`)}</option>{/each}
             </select>
           </label>
           <label class="field">
             <span class="field-label">{$t("social_monitor.form.rd_time_label")}</span>
             <select class="input" bind:value={rd.time}>
               <option value="">{$t("social_monitor.form.rd_time.any")}</option>
-              {#each REDDIT_TIMES as s (s)}<option value={s}>{$t(`social_monitor.form.rd_time.${s}`)}</option>{/each}
+              {#each FORUMS_TIMES as s (s)}<option value={s}>{$t(`social_monitor.form.rd_time.${s}`)}</option>{/each}
             </select>
           </label>
-          <label class="field"><span class="field-label">{$t("social_monitor.form.rd_subreddit")}</span><input class="input" bind:value={rd.subreddit} maxlength="200" placeholder="r/rust" autocomplete="off" spellcheck="false" /></label>
+          <label class="field"><span class="field-label">{$t("social_monitor.form.rd_community")}</span><input class="input" bind:value={rd.subreddit} maxlength="200" placeholder="r/rust" autocomplete="off" spellcheck="false" /></label>
         </div>
       {/if}
-      {#if platform === "x"}
+      {#if platform === NET.shortpost}
         <button type="button" class="btn btn-ghost btn-sm mo-adv" aria-expanded={advanced} onclick={() => (advanced = !advanced)}><SocialIcon name="filter" /> {$t("social_monitor.form.advanced")}</button>
         {#if advanced}
           <div class="mo-grid">
@@ -418,7 +417,7 @@
       </div>
     {/if}
     {#if list && !list.mentions_inbox.available}
-      <p class="mo-hint">{$t(platform === "github" ? "social_monitor.mentions_github" : platform === "reddit" ? "social_monitor.mentions_reddit" : "social_monitor.mentions_unavailable", { platform: LABEL[platform] })}</p>
+      <p class="mo-hint">{$t(platform === NET.codehub ? "social_monitor.mentions_codehub" : platform === NET.forums ? "social_monitor.mentions_forums" : "social_monitor.mentions_unavailable", { platform: $t(TITLE_KEY[platform]) })}</p>
     {/if}
     {#if loading && !list}
       <div class="mo-state"><span class="spinner"></span></div>

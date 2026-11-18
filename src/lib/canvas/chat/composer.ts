@@ -136,11 +136,11 @@ export function mentionTargets(
   const out = connectedTargets(nodeId, nodes, connections);
   out.push({ id: 'special:file', name: 'File…', kind: 'action', detail: '#', special: 'file' });
   out.push({
-    id: 'special:maestro',
-    name: 'Maestro',
+    id: 'special:lead',
+    name: 'Lead',
     kind: 'action',
     detail: 'recruit, connect, notify',
-    tag: hintTag('maestro', 'Maestro', 'omniget canvas recruit|dismiss|connect|disconnect|notify'),
+    tag: hintTag('lead', 'Lead', 'omniget canvas recruit|dismiss|connect|disconnect|notify'),
   });
   out.push({
     id: 'special:new-note',

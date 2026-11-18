@@ -175,7 +175,43 @@ pub async fn download_direct_with_headers(
     Err(last_err.unwrap_or_else(|| anyhow!("Download failed after {} attempts", MAX_RETRIES)))
 }
 
+fn etag_path_for(part_path: &Path) -> PathBuf {
+    let mut etag = part_path.as_os_str().to_owned();
+    etag.push(".etag");
+    PathBuf::from(etag)
+}
+
+fn saved_etag(part_path: &Path) -> Option<String> {
+    std::fs::read_to_string(etag_path_for(part_path))
+        .ok()
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+}
+
+fn strong_etag(headers: &reqwest::header::HeaderMap) -> Option<&str> {
+    headers
+        .get(reqwest::header::ETAG)?
+        .to_str()
+        .ok()
+        .map(str::trim)
+        .filter(|v| !v.is_empty() && !v.starts_with("W/"))
+}
+
+fn remember_etag(part_path: &Path, headers: &reqwest::header::HeaderMap) {
+    let path = etag_path_for(part_path);
+    let saved = match strong_etag(headers) {
+        Some(etag) => std::fs::write(&path, etag),
+        None => std::fs::remove_file(&path),
+    };
+    if let Err(e) = saved {
+        if e.kind() != std::io::ErrorKind::NotFound {
+            tracing::warn!("[direct] could not update the resume ETag: {}", e);
+        }
+    }
+}
+
 fn discard_part(part_path: &Path) -> std::io::Result<()> {
+    let _ = std::fs::remove_file(etag_path_for(part_path));
     let sidecar = sidecar_path_for(part_path);
     let mut tmp = sidecar.as_os_str().to_owned();
     tmp.push(".tmp");
@@ -318,6 +354,7 @@ async fn download_attempt(
     let use_chunked = probe.accept_ranges && probe.content_length.is_some_and(|s| s > threshold);
 
     if use_chunked {
+        let _ = std::fs::remove_file(etag_path_for(&part_path));
         let max_segments = worker.then_some(WORKER_MAX_SEGMENTS);
         match run_http_fetcher(
             client,
@@ -370,7 +407,9 @@ async fn download_attempt(
         }
     } else {
         let existing = match std::fs::metadata(&part_path) {
-            Ok(m) if m.len() > 0 && probe.accept_ranges => m.len(),
+            Ok(m) if m.len() > 0 && probe.accept_ranges && saved_etag(&part_path).is_some() => {
+                m.len()
+            }
             _ => 0,
         };
         download_single_stream(
@@ -406,6 +445,7 @@ async fn download_attempt(
     }
 
     std::fs::rename(&part_path, output)?;
+    let _ = std::fs::remove_file(etag_path_for(&part_path));
     let _ = progress_tx.send(ProgressUpdate::percent(100.0)).await;
 
     let size = std::fs::metadata(output)?.len();
@@ -627,6 +667,9 @@ async fn stream_once(
             }
         }
         request = request.header("Range", format!("bytes={}-", existing_bytes));
+        if let Some(etag) = saved_etag(part_path) {
+            request = request.header(reqwest::header::IF_RANGE, etag);
+        }
     }
 
     let response = if worker {
@@ -721,6 +764,10 @@ async fn stream_once(
                 ));
             }
         }
+    }
+
+    if offset == 0 {
+        remember_etag(part_path, response.headers());
     }
 
     state.resumable = response.status() == reqwest::StatusCode::PARTIAL_CONTENT
@@ -1230,6 +1277,115 @@ mod tests {
             test_server::serve_bytes(&body, req)
         })
         .await
+    }
+
+    async fn etag_server(body: Vec<u8>, etag: &'static str) -> (String, test_server::Log) {
+        test_server::spawn(move |_, req| {
+            let fresh = req.header("if-range").is_some_and(|sent| sent != etag);
+            if fresh {
+                return test_server::Reply::new(200, body.clone())
+                    .header("Accept-Ranges", "bytes")
+                    .header("ETag", etag);
+            }
+            test_server::serve_bytes(&body, req).header("ETag", etag)
+        })
+        .await
+    }
+
+    #[tokio::test]
+    async fn a_part_left_without_an_etag_is_not_resumed() {
+        let body = payload(50_000);
+        let (base, log) = etag_server(body.clone(), "\"v1\"").await;
+        let out = scratch("other-url.bin");
+        std::fs::write(part_path_for(&out), vec![9u8; 20_000]).unwrap();
+        let client = build_worker_client().unwrap();
+        let got = download_attempt(
+            &client,
+            &format!("{base}/other-url.bin"),
+            &out,
+            &sink(),
+            None,
+            None,
+            true,
+            &FAST,
+        )
+        .await;
+        assert!(got.is_ok(), "{got:?}");
+        assert_eq!(std::fs::read(&out).unwrap(), body);
+        let reqs = log.lock().unwrap().clone();
+        assert!(
+            reqs.iter()
+                .filter(|r| r.method == "GET")
+                .all(|r| r.range().is_none()),
+            "a part of unknown origin must restart from zero: {reqs:?}"
+        );
+        assert!(!etag_path_for(&part_path_for(&out)).exists());
+    }
+
+    #[tokio::test]
+    async fn a_part_with_the_same_etag_is_resumed_with_if_range() {
+        let body = payload(50_000);
+        let (base, log) = etag_server(body.clone(), "\"v1\"").await;
+        let out = scratch("same.bin");
+        let part = part_path_for(&out);
+        std::fs::write(&part, &body[..20_000]).unwrap();
+        std::fs::write(etag_path_for(&part), "\"v1\"").unwrap();
+        let client = build_worker_client().unwrap();
+        let got = download_attempt(
+            &client,
+            &format!("{base}/same.bin"),
+            &out,
+            &sink(),
+            None,
+            None,
+            true,
+            &FAST,
+        )
+        .await;
+        assert!(got.is_ok(), "{got:?}");
+        assert_eq!(std::fs::read(&out).unwrap(), body);
+        let reqs = log.lock().unwrap().clone();
+        assert!(
+            reqs.iter().any(|r| r.method == "GET"
+                && r.range() == Some((20_000, None))
+                && r.header("if-range") == Some("\"v1\"")),
+            "resume must send Range with If-Range: {reqs:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn a_part_from_a_changed_file_restarts_instead_of_mixing_bytes() {
+        let body = payload(50_000);
+        let (base, _log) = etag_server(body.clone(), "\"v2\"").await;
+        let out = scratch("changed.bin");
+        let part = part_path_for(&out);
+        std::fs::write(&part, vec![9u8; 20_000]).unwrap();
+        std::fs::write(etag_path_for(&part), "\"v1\"").unwrap();
+        let client = build_worker_client().unwrap();
+        let got = download_attempt(
+            &client,
+            &format!("{base}/changed.bin"),
+            &out,
+            &sink(),
+            None,
+            None,
+            true,
+            &FAST,
+        )
+        .await;
+        assert!(got.is_ok(), "{got:?}");
+        assert_eq!(std::fs::read(&out).unwrap(), body);
+    }
+
+    #[test]
+    fn only_a_strong_etag_is_kept_for_resume() {
+        use reqwest::header::{HeaderMap, HeaderValue, ETAG};
+        let mut h = HeaderMap::new();
+        assert_eq!(strong_etag(&h), None);
+        h.insert(ETAG, HeaderValue::from_static("W/\"weak\""));
+        assert_eq!(strong_etag(&h), None);
+        h.insert(ETAG, HeaderValue::from_static("\"abc\""));
+        assert_eq!(strong_etag(&h), Some("\"abc\""));
     }
 
     #[tokio::test]

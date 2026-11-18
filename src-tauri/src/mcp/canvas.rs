@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 use std::sync::{Arc, OnceLock};
 
-use omniget_core::core::canvas::maestro::{recruit_node, unique_name, RecruitSpec};
+use omniget_core::core::canvas::lead::{recruit_node, unique_name, RecruitSpec};
 use omniget_core::core::canvas::model::{
     default_size, new_id, AgentKind, CanvasNode, Connection, ConnectionKind, Drawing, FloorDoc,
     Group, NodeKind, Point, DEFAULT_WORKSPACE_ID,
@@ -278,10 +278,10 @@ fn build_defs() -> Vec<Def> {
         def("canvas_apply", "Apply raw document ops atomically (add_node, update_node {id, patch}, remove_node, add_connection, update_connection, remove_connection, add_drawing, update_drawing, remove_drawing, set_group, set_cable_tie, set_camera), the same ops the canvas writes. Returns the effective ops. Terminals added this way are not started: call canvas_terminal_ensure.", true, json!({
             "workspaceId": ws(), "floorId": floor(), "ops": json!({"type": "array", "items": {"type": "object", "properties": {"op": e(&["add_node", "update_node", "remove_node", "add_connection", "update_connection", "remove_connection", "add_drawing", "update_drawing", "remove_drawing", "set_group", "set_cable_tie", "set_camera"], "Op"), "id": s("Target id (update/remove)"), "patch": schemas::free("Fields (update ops)"), "node": schemas::free("Node (add_node)"), "connection": schemas::free("Cord (add_connection)"), "drawing": schemas::free("Drawing (add_drawing)")}, "required": ["op"], "additionalProperties": true}, "description": "Ops, e.g. [{\"op\": \"update_node\", \"id\": \"n1\", \"patch\": {\"x\": 40}}]"}), "baseRev": json!({"type": "integer", "minimum": 0, "description": "Revision the ops were computed against"})
         }), &["ops"], apply_out.clone()),
-        def("canvas_node_spawn", "Put a node on the canvas the way the canvas does. kind terminal = a terminal running `agent` (claude, codex, gemini, opencode, ollama, shell, native) with optional role, cwd, command, a first prompt and the Maestro flag, started right away; note (text), text, file (path; a .md/.markdown/.txt becomes an external note showing the formatted text), filetree (path), link/portal (url), shape (shape, text), image (asset from the library, path or url; files and links are copied into the workspace library), stack, connector. Without x/y it goes to the nearest free spot. connectFrom cords it to an existing node.", true, json!({
+        def("canvas_node_spawn", "Put a node on the canvas the way the canvas does. kind terminal = a terminal running `agent` (claude, codex, gemini, opencode, ollama, shell, native) with optional role, cwd, command, a first prompt and the Lead flag, started right away; note (text), text, file (path; a .md/.markdown/.txt becomes an external note showing the formatted text), filetree (path), link/portal (url), shape (shape, text), image (asset from the library, path or url; files and links are copied into the workspace library), stack, connector. Without x/y it goes to the nearest free spot. connectFrom cords it to an existing node.", true, json!({
             "workspaceId": ws(), "floorId": floor(), "kind": e(NODE_KINDS, "Node kind"), "agent": e(AGENTS, "Agent of a terminal (default shell)"),
             "title": s("Title"), "name": s("Same as title"), "preset": s("Same as agent"), "fontSize": n("Font size of a text node (8 to 200)"), "fontWeight": e(TEXT_WEIGHTS, "Weight of a text node"), "fontFamily": e(TEXT_FAMILIES, "Family of a text node"), "roleId": s("Role id or name (see role_list)"), "cwd": s("Working folder of a terminal"), "command": s("Own command line of a terminal (overrides the agent preset)"),
-            "model": s("Ollama model"), "prompt": s("First message for the agent of a terminal, sent when it is ready for input (after a folder trust question or a login)"), "maestro": b("Make the terminal the Maestro"), "start": b("Start a terminal now (default true)"), "trust": b(TRUST_DESC),
+            "model": s("Ollama model"), "prompt": s("First message for the agent of a terminal, sent when it is ready for input (after a folder trust question or a login)"), "lead": b("Make the terminal the Lead"), "start": b("Start a terminal now (default true)"), "trust": b(TRUST_DESC),
             "text": s("Text of a note, text or shape"), "url": s("URL of a portal, link or image"), "path": s("Path of a file, file tree or image"), "asset": s("Library asset id of an image (see canvas_asset_list)"), "shape": s("Shape: rectangle, ellipse, diamond..."),
             "storageScope": e(&["isolated", "workspace", "global"], "Cookie jar of a portal (default isolated)"),
             "x": n("Left (world units)"), "y": n("Top (world units)"), "w": n("Width"), "h": n("Height"), "color": s("Color"),
@@ -343,8 +343,8 @@ fn build_defs() -> Vec<Def> {
             "asNode": as_node(), "text": s("Answer"), "askId": s("Ask id"), "file": s("File path attached to the answer")
         }), &["asNode", "text"], out(json!({"resolved": ty("string")}), &["resolved"])),
         def("canvas_agent_peers", "What a node is corded to (agents with their state and perms, notes, stacks, portals), as `omniget canvas list` shows it.", false, json!({"asNode": as_node()}), &["asNode"], out(json!({"you": ty("object"), "peers": arr(ty("object"))}), &["peers"])),
-        def("canvas_rpc", "Call any canvas method on behalf of a terminal node, exactly as its `omniget canvas <cmd>` would (method names like note.write, chat.say, portal.snapshot, floor.list, role.assign, routine.create, maestro.recruit, companion.*, remote.*). The node's cords and Maestro flag gate it.", true, json!({
-            "asNode": as_node(), "method": s("Method, e.g. maestro.recruit"), "args": schemas::free("Arguments of the method, e.g. {\"name\": \"Spec\", \"text\": \"...\"} for note.write")
+        def("canvas_rpc", "Call any canvas method on behalf of a terminal node, exactly as its `omniget canvas <cmd>` would (method names like note.write, chat.say, portal.snapshot, floor.list, role.assign, routine.create, lead.recruit, companion.*, remote.*). The node's cords and Lead flag gate it.", true, json!({
+            "asNode": as_node(), "method": s("Method, e.g. lead.recruit"), "args": schemas::free("Arguments of the method, e.g. {\"name\": \"Spec\", \"text\": \"...\"} for note.write")
         }), &["asNode", "method"], out(json!({"result": any()}), &["result"])),
         def("canvas_chat_send", "Send the person's chat message to a terminal agent (the chat face; threads 0-6 = blue, purple, pink, red, orange, yellow, green): recorded in the transcript and delivered into the agent. The agent's replies land on this thread.", true, json!({
             "nodeId": node(), "text": s("Message"), "thread": i("Thread 0-6 (default: the active thread)", 0, 6), "attachments": strs("File paths to attach")
@@ -418,7 +418,7 @@ fn build_defs() -> Vec<Def> {
         def("routine_history", "Runs of a routine, or of every routine of a workspace (finished once routines included), newest first. Each has status (fired, skipped, reminded, failed), code (sentToTerminal, terminalNotRunning, reminder, skippedByScript, skippedWhileBusy, failed) and lateSecs when it ran late. clear=true empties the history and leaves the routines as they are.", true, json!({"id": s("Routine id (default: every routine of the workspace)"), "workspaceId": ws(), "clear": b("Clear the history instead")}), &[], out(json!({"id": ty("string"), "history": arr(ty("object")), "cleared": ty("integer")}), &[])),
         def("routine_run", "Fire a routine now.", true, json!({"id": s("Routine id")}), &["id"], obj_out("routine")),
         destructive(def("routine_delete", "Delete a routine.", true, json!({"id": s("Routine id")}), &["id"], out(json!({"deleted": ty("string")}), &["deleted"]))),
-        def("canvas_maestro_set", "Turn Maestro Mode on or off for a terminal node (a Maestro may recruit, connect, swap, dismiss and notify).", true, json!({"nodeId": node(), "on": b("Maestro on")}), &["nodeId", "on"], out(json!({"nodeId": ty("string"), "maestro": ty("boolean")}), &["nodeId", "maestro"])),
+        def("canvas_lead_set", "Turn Lead Mode on or off for a terminal node (a Lead may recruit, connect, swap, dismiss and notify).", true, json!({"nodeId": node(), "on": b("Lead on")}), &["nodeId", "on"], out(json!({"nodeId": ty("string"), "lead": ty("boolean")}), &["nodeId", "lead"])),
         def("canvas_start", "Start here: who you are on the canvas (client, the origin your edits are signed with, scopes), the workspaces (folder, nodes, terminals), which one the window shows, and the dozen calls most canvas tasks need, with argument examples. One short answer instead of reading the whole catalog.", false, json!({}), &[], out(json!({"you": ty("object"), "workspaces": arr(ty("object")), "window": any(), "recipes": arr(ty("object")), "tips": arr(ty("string"))}), &["workspaces", "recipes"])),
         def("canvas_media_to_audio", "Turn a video (or any media file) into an audio file with FFmpeg: m4a (default), mp3 or wav (16 kHz mono, for speech tools). Written next to the source unless outDir; with workspaceId the audio is also placed on the canvas.", true, json!({
             "path": s("Absolute path of the video or audio file"), "format": e(&["m4a", "mp3", "wav"], "Audio format (default m4a)"), "outDir": s("Folder for the audio (default: next to the source)"),
@@ -433,7 +433,7 @@ fn build_defs() -> Vec<Def> {
         def("canvas_transcribe_status", "Stage of a transcription (placing, model, audio, transcribing with progress, writing, summarizing, done, failed), its files, nodes, and whether contexto.md is ready.", false, json!({
             "jobId": s("jobId from canvas_transcribe")
         }), &["jobId"], out(json!({"jobId": ty("string"), "stage": ty("string"), "progress": ty("number"), "done": ty("boolean"), "contextReady": ty("boolean"), "error": any(), "files": any(), "nodes": any(), "elapsedMs": ty("integer")}), &["jobId", "stage"])),
-        def("canvas_council", "Several agents decide one question together on the board (needs a workspace folder). Lays out three notes (Question, Board = shared board, Decision), the members and a chair (Maestro) corded to them; the chair runs the method by itself and writes the decision. method: brainstorm (approaches + cross-critique + one recommendation for the person to approve), dialectic (thesis, antithesis, rebuttal, synthesis), arena (independent answers, anonymous ranking, best answer with grafts), simulation (MiroFish-style personas reacting on the board in rounds). members: [{name, agent, perspective}] (default 2-3 per method). Follow it with canvas_council_status.", true, json!({
+        def("canvas_council", "Several agents decide one question together on the board (needs a workspace folder). Lays out three notes (Question, Board = shared board, Decision), the members and a chair (Lead) corded to them; the chair runs the method by itself and writes the decision. method: brainstorm (approaches + cross-critique + one recommendation for the person to approve), dialectic (thesis, antithesis, rebuttal, synthesis), arena (independent answers, anonymous ranking, best answer with grafts), simulation (MiroFish-style personas reacting on the board in rounds). members: [{name, agent, perspective}] (default 2-3 per method). Follow it with canvas_council_status.", true, json!({
             "workspaceId": ws(), "floorId": floor(), "question": s("What to decide"), "method": e(council::METHODS, "Method (default brainstorm)"),
             "members": json!({"type": "array", "maxItems": 6, "description": "Members (default by method)", "items": {"type": "object", "additionalProperties": false, "properties": {"name": {"type": "string"}, "agent": {"type": "string", "enum": AGENTS}, "perspective": {"type": "string"}}}}),
             "agent": e(AGENTS, "Default agent of members and chair (default claude)"), "chairAgent": e(AGENTS, "Agent of the chair"), "chairName": s("Chair title (default Chair)"),
@@ -442,7 +442,7 @@ fn build_defs() -> Vec<Def> {
         def("canvas_council_status", "State of a council: each agent's state, rounds logged on the board, the tail of the board and, once written, the decision.", false, json!({
             "workspaceId": ws(), "floorId": floor(), "councilId": s("council.id from canvas_council")
         }), &["councilId"], out(json!({"councilId": ty("string"), "decided": ty("boolean"), "roundsLogged": ty("integer"), "agents": arr(ty("object")), "decision": any(), "boardTail": ty("string")}), &["councilId", "decided"])),
-        def("canvas_maestro", "Act as a Maestro node: recruit {name?, agent?, preset?, command?, role?, floor?, workspace?, dir?, replace?}, connect/disconnect {from, to}, swap_role {name, role}, swap_agent {name, agent, command?}, dismiss {name}, notify {message}, status.", true, json!({
+        def("canvas_lead", "Act as a Lead node: recruit {name?, agent?, preset?, command?, role?, floor?, workspace?, dir?, replace?}, connect/disconnect {from, to}, swap_role {name, role}, swap_agent {name, agent, command?}, dismiss {name}, notify {message}, status.", true, json!({
             "asNode": as_node(), "action": e(&["recruit", "connect", "disconnect", "swap_role", "swap_agent", "dismiss", "notify", "status"], "Action"), "args": schemas::free("Arguments of the action (see the description)")
         }), &["asNode", "action"], out(json!({"result": any()}), &["result"])),
         def("omni_settings_get", "Omni's settings (when it speaks up, which model it uses).", false, json!({}), &[], obj_out("settings")),
@@ -467,7 +467,7 @@ fn build_defs() -> Vec<Def> {
         }), &["action"], out(json!({"at": any(), "hit": any(), "drag": any(), "target": any()}), &[])),
         def("app_menu", "List or run the canvas menus (the right-click Node and Add menus, View, Workspace). Without `path` (or with list=true) returns the menu tree in context; with a path like \"View > Tidy\", \"Add > Terminal > Claude Code\", \"Node > Lift element\" or \"Workspace > Copy Path\" runs that entry. `nodeId` = the node the Node menu is about; `at` = canvas point for Add.", true, json!({"path": s("Menu path, segments separated by '>' (labels or ids, case-insensitive)"), "list": b("List the entries under `path` instead of running it"), "nodeId": node(), "at": schemas::point("Canvas point {x, y} for Add entries (default: centre of the view)")}), &[], out(json!({"menus": any(), "invoked": ty("string"), "id": ty("string"), "label": ty("string"), "result": any(), "path": any(), "selection": any(), "lifted": any(), "docked": any()}), &[])),
         def("app_settings_get", "OmniGet settings (all, or one dotted key). Credentials are redacted. describe=true answers in the words of the Settings screen: a list of {key, label, help, values, value} for the canvas settings (canvas.images.*, canvas.performance.*, zoom and pointer options); key then filters by prefix.", false, json!({"key": s("Dotted key (with describe: a prefix such as canvas.images)"), "describe": b("Labels, help and allowed values as the Settings screen shows them")}), &[], out(json!({"settings": any(), "key": any(), "value": any()}), &[])),
-        def("app_settings_set", "Change one OmniGet setting by dotted key, through the same merge the settings screen uses. Canvas keys may use the Maestri shape (canvas.zoom_step, defaults.note.size, terminal.theme, power.prevent_sleep, agent.presets.<name> = {command, args, env, icon, color, maestro, startInChatMode}; null removes a preset). Unknown keys fail; the bridge, MCP and credentials are protected.", true, json!({"key": s("Dotted key"), "value": any()}), &["key", "value"], out(json!({"key": ty("string"), "value": any(), "applied": ty("boolean")}), &["key"])),
+        def("app_settings_set", "Change one OmniGet setting by dotted key, through the same merge the settings screen uses. Canvas keys may use the Maestri shape (canvas.zoom_step, defaults.note.size, terminal.theme, power.prevent_sleep, agent.presets.<name> = {command, args, env, icon, color, lead, startInChatMode}; null removes a preset). Unknown keys fail; the bridge, MCP and credentials are protected.", true, json!({"key": s("Dotted key"), "value": any()}), &["key", "value"], out(json!({"key": ty("string"), "value": any(), "applied": ty("boolean")}), &["key"])),
         def("app_restart", "Quit and relaunch the app (the answer comes before the restart).", true, json!({}), &[], out(json!({"restarting": ty("boolean")}), &["restarting"])),
         def("app_notifications_list", "Notifications the canvas raised (system notifications and in-canvas notices), newest first.", false, json!({"limit": i("Items", 1, 200), "clear": b("Clear after reading")}), &[], list_out("notifications")),
         def("app_window_title", "Title of the main window.", false, json!({}), &[], out(json!({"title": ty("string")}), &["title"])),
@@ -502,10 +502,10 @@ fn build_defs() -> Vec<Def> {
         def("canvas_terminal_wait", "Wait until a terminal's screen matches a regex and/or its state becomes one of the given (idle, working, attention, waiting, blocked, exited, unloaded; ready = idle, needs_you = blocked, done = attention), up to timeoutMs. An unknown state is refused at once.", false, json!({
             "nodeId": node(), "pattern": s("Regex over the last lines (use (?m) for ^/$ per line)"), "state": json!({"type": ["string", "array"], "description": "State or states"}), "lines": i("Lines searched (default 200)", 1, 2000), "timeoutMs": i("Limit (default 30000)", 100, 300000), "stopOnBlocked": b("Return early when the agent asks the person something (default: true without pattern; with pattern only when the question is certain, not guessed from an old line on screen)")
         }), &["nodeId"], out(json!({"matched": ty("boolean"), "state": ty("string"), "match": any(), "text": ty("string"), "waitedMs": ty("integer")}), &["matched"])),
-        def("canvas_terminal_settings_get", "A terminal node's own settings: agent, command, cwd, role, maestro, env, appearance, chat mode, activity monitor, preset.", false, json!({"nodeId": node()}), &["nodeId"], obj_out("settings")),
-        def("canvas_terminal_settings_set", "Change a terminal node's own settings (agent, command, cwd, roleId, maestro, env, environment, appearance, prefersChatMode, monitorActivity). A new agent/command/cwd/env applies on the next restart; env cannot set PATH, HOME or OMNIGET_*; a new environment restarts it.", true, json!({
+        def("canvas_terminal_settings_get", "A terminal node's own settings: agent, command, cwd, role, lead, env, appearance, chat mode, activity monitor, preset.", false, json!({"nodeId": node()}), &["nodeId"], obj_out("settings")),
+        def("canvas_terminal_settings_set", "Change a terminal node's own settings (agent, command, cwd, roleId, lead, env, environment, appearance, prefersChatMode, monitorActivity). A new agent/command/cwd/env applies on the next restart; env cannot set PATH, HOME or OMNIGET_*; a new environment restarts it.", true, json!({
             "nodeId": node(), "agent": e(AGENTS, "Agent"), "command": json!({"type": ["string", "null"]}), "cwd": json!({"type": ["string", "null"]}), "roleId": json!({"type": ["string", "null"]}),
-            "maestro": b("Maestro"), "env": json!({"type": ["object", "null"], "additionalProperties": {"type": "string"}, "description": "Extra environment {KEY: value} (null clears)"}), "appearance": schemas::appearance(), "prefersChatMode": b("Chat face by default"),
+            "lead": b("Lead"), "env": json!({"type": ["object", "null"], "additionalProperties": {"type": "string"}, "description": "Extra environment {KEY: value} (null clears)"}), "appearance": schemas::appearance(), "prefersChatMode": b("Chat face by default"),
             "monitorActivity": b("Watch activity"), "color": s("Node color"), "restart": b("Restart now"),
             "environment": env_record_schema("Where this terminal runs: \"workspace\" (default), \"local\", \"docker:name\" or a record; restarts a running terminal")
         }), &["nodeId"], obj_out("settings")),
@@ -519,7 +519,7 @@ fn build_defs() -> Vec<Def> {
         def("canvas_chat_delete_entry", "Delete one chat message (Delete Message) and its attachment files when no other message uses them. `entryId` is the id from canvas_chat_read (a unique prefix of 6+ chars works).", true, json!({"nodeId": node(), "entryId": s("Entry id"), "thread": i("Thread (narrows the lookup)", 0, 6)}), &["nodeId", "entryId"], out(json!({"deleted": ty("boolean"), "removed": arr(ty("string")), "attachmentsRemoved": ty("integer"), "remaining": ty("integer")}), &["deleted", "removed", "remaining"])),
         def("canvas_composer_open", "Open the Prompt Composer on a terminal (focuses it).", true, json!({"nodeId": node()}), &[], out(json!({"open": ty("boolean")}), &["open"])),
         def("canvas_composer_type", "Type into the open composer (append, or replace=true); returns the text and the open menu (@ mentions, or the # file picker's relative paths).", true, json!({"text": s("Text"), "replace": b("Replace the text")}), &["text"], out(json!({"text": ty("string"), "mentions": arr(ty("string"))}), &["text"])),
-        def("canvas_composer_mentions", "What @ can mention from a terminal: its corded agents (\"Name @ Workspace\" for cords to other workspaces), notes, portals and files, then File…, Maestro, New Note, New Portal, Notifications, Routines, the other floors and workspaces.", false, json!({"nodeId": node()}), &[], list_out("targets")),
+        def("canvas_composer_mentions", "What @ can mention from a terminal: its corded agents (\"Name @ Workspace\" for cords to other workspaces), notes, portals and files, then File…, Lead, New Note, New Portal, Notifications, Routines, the other floors and workspaces.", false, json!({"nodeId": node()}), &[], list_out("targets")),
         def("canvas_composer_paste", "Paste text into the open composer through the paste path: over 800 characters or 3+ lines becomes a \"[Pasted text #n · N lines]\" pill.", true, json!({"text": s("Pasted text")}), &["text"], out(json!({"text": ty("string"), "pastes": arr(ty("object"))}), &["text"])),
         def("canvas_composer_attach", "Attach a file path to the open composer.", true, json!({"path": s("File path")}), &["path"], out(json!({"text": ty("string")}), &["text"])),
         def("canvas_composer_send", "Send the open composer's text to its terminal.", true, json!({}), &[], out(json!({"sent": ty("string")}), &["sent"])),
@@ -2116,10 +2116,10 @@ async fn dispatch(app: &AppHandle, name: &str, a: Value) -> Result<Value, String
             let r = crate::canvas::rpc::dispatch(&ctx, &need(&a, "method")?, args).await?;
             Ok(json!({ "result": r }))
         }
-        "canvas_maestro" => {
+        "canvas_lead" => {
             let ctx = node_ctx(&s, &a)?;
             let args = a.get("args").cloned().unwrap_or_else(|| json!({}));
-            let method = format!("maestro.{}", need(&a, "action")?);
+            let method = format!("lead.{}", need(&a, "action")?);
             let r = crate::canvas::rpc::dispatch(&ctx, &method, args).await?;
             Ok(json!({ "result": r }))
         }
@@ -2525,11 +2525,11 @@ async fn dispatch(app: &AppHandle, name: &str, a: Value) -> Result<Value, String
             cmd::routines::canvas_routine_delete(app, id.clone()).await?;
             Ok(json!({ "deleted": id }))
         }
-        "canvas_maestro_set" => {
+        "canvas_lead_set" => {
             let (ws, floor, n) = locate_arg(&s, &a, "nodeId")?;
             let on = flag(&a, "on").unwrap_or(true);
-            cmd::maestro::canvas_maestro_set(app, ws, floor, n.id.clone(), on).await?;
-            Ok(json!({ "nodeId": n.id, "maestro": on }))
+            cmd::lead::canvas_lead_set(app, ws, floor, n.id.clone(), on).await?;
+            Ok(json!({ "nodeId": n.id, "lead": on }))
         }
         "omni_settings_get" => wrap(
             "settings",
@@ -2581,9 +2581,15 @@ async fn dispatch(app: &AppHandle, name: &str, a: Value) -> Result<Value, String
         "omni_dismiss" => Ok(json!({
             "dismissed": cmd::companion::canvas_companion_dismiss(app, need(&a, "id")?).await?
         })),
-        "canvas_inbox" => Ok(
-            json!({ "items": cmd::cords::canvas_inbox(app, st(&a, "workspaceId").map(|_| ws_of(&a))) }),
-        ),
+        "canvas_inbox" => {
+            let items = cmd::cords::canvas_inbox(app, st(&a, "workspaceId").map(|_| ws_of(&a)));
+            let empty = items.is_empty();
+            let mut out = json!({ "items": items });
+            if empty {
+                out["empty_reason"] = json!("no running agent is blocked, asking permission, stuck or finished and unreviewed; canvas_snapshot lists every node");
+            }
+            Ok(out)
+        }
         "canvas_asks_list" => Ok(
             json!({ "asks": cmd::cords::canvas_asks_list(app, st(&a, "workspaceId").map(|_| ws_of(&a))) }),
         ),
@@ -3342,7 +3348,7 @@ fn terminals_list(s: &CanvasStore, a: &Value) -> Result<Value, String> {
                 "floorId": f.id,
                 "agent": crate::canvas::launch::agent_of(&n),
                 "roleId": n.data_str("roleId"),
-                "maestro": omniget_core::core::canvas::maestro::is_maestro(&n),
+                "lead": omniget_core::core::canvas::lead::is_lead(&n),
                 "terminalId": tid,
                 "running": info.is_some(),
                 "alive": info.as_ref().is_some_and(|i| i.alive),
@@ -3461,7 +3467,7 @@ async fn spawn(app: &AppHandle, s: &Arc<CanvasStore>, a: &Value) -> Result<Value
         if let Some(m) = st(a, "model") {
             n.data["model"] = json!(m);
         }
-        if flag(a, "maestro") == Some(true) {
+        if flag(a, "lead") == Some(true) {
             n.data["isManager"] = json!(true);
         }
         if let Some(p) = st(a, "prompt").filter(|p| !p.trim().is_empty()) {
@@ -4345,7 +4351,7 @@ fn terminal_settings(n: &CanvasNode) -> Value {
         "command": d.get("command"),
         "cwd": d.get("cwd"),
         "roleId": d.get("roleId"),
-        "maestro": omniget_core::core::canvas::maestro::is_maestro(n),
+        "lead": omniget_core::core::canvas::lead::is_lead(n),
         "env": d.get("env"),
         "appearance": d.get("appearance"),
         "prefersChatMode": d.get("prefersChatMode"),
@@ -4383,10 +4389,8 @@ async fn terminal_settings_set(
         }
     }
     if let Some(ag) = st(a, "agent") {
-        let patch = omniget_core::core::canvas::maestro::swap_agent_patch(
-            &ag,
-            st(a, "command").as_deref(),
-        )?;
+        let patch =
+            omniget_core::core::canvas::lead::swap_agent_patch(&ag, st(a, "command").as_deref())?;
         if let Some(o) = patch.get("data").and_then(Value::as_object) {
             for (k, v) in o {
                 data.insert(k.clone(), v.clone());
@@ -4396,7 +4400,7 @@ async fn terminal_settings_set(
             top.insert("kind".into(), k.clone());
         }
     }
-    if let Some(m) = flag(a, "maestro") {
+    if let Some(m) = flag(a, "lead") {
         data.insert(
             "isManager".into(),
             if m { json!(true) } else { Value::Null },

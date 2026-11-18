@@ -10,7 +10,7 @@ use serde_json::{json, Value};
 use tauri::{AppHandle, Manager};
 use tokio::sync::oneshot;
 
-use crate::local_bridge_auth::check_bearer;
+use crate::local_bridge::check_bearer;
 
 type PendingReplies = HashMap<String, (String, oneshot::Sender<Value>)>;
 static PENDING: OnceLock<Mutex<PendingReplies>> = OnceLock::new();

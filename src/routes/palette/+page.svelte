@@ -23,7 +23,7 @@
   let firstError = $state<string | null>(null);
 
   function untitledPalette(n: number): string {
-    return $t("palette.scales.untitled", { n }) as string;
+    return $t("palette.scales.untitled", { num: n }) as string;
   }
 
   async function firstImport(e: Event) {
@@ -49,7 +49,7 @@
 
   function newProject(): string {
     const n = workspace.file.projects.length + 1;
-    const name = n === 1 ? ($t("palette.project.first_name") as string) : ($t("palette.project.nth_name", { n }) as string);
+    const name = n === 1 ? ($t("palette.project.first_name") as string) : ($t("palette.project.nth_name", { num: n }) as string);
     workspace.createProject(name, seedName);
     return name;
   }

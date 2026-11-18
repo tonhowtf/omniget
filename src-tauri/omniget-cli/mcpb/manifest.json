@@ -3,8 +3,8 @@
   "name": "omniget-mcp",
   "display_name": "OmniGet",
   "version": "1.0.1",
-  "description": "Queue, track and diagnose media downloads (yt-dlp sites, torrents) in the OmniGet app",
-  "long_description": "Lets the assistant add links to the OmniGet download queue, follow them to the end, read why one failed and retry it, and see what your OmniGet agents are working on. Downloads run in the OmniGet desktop app on your computer: install it from https://getomniget.com, open **LLM → MCP → Your endpoint**, turn the server on and create a connection. Paste its token below. Without the app running, or without a token, the tools are listed but every call explains what is missing. Linux builds are x86_64 only.",
+  "description": "Desktop toolbox for coding agents: downloads, files, pages, ports, chats and cleanup, in OmniGet",
+  "long_description": "Gives the assistant OmniGet's desktop toolbox: queue downloads, follow them to the end and read why one failed, drive the built-in browser, convert files, pack a folder into one prompt-ready file, and see what your OmniGet agents are working on. Everything runs in the OmniGet desktop app on your computer: install it from https://getomniget.com, open **Settings → AI & agents → Connect to other apps → More options** and create a connection. Paste its token below. Without the app running, or without a token, every call explains what is missing. Linux builds are x86_64 only.",
   "author": {
     "name": "OmniGet (tonhowtf)",
     "url": "https://github.com/tonhowtf"
@@ -18,6 +18,8 @@
   "icon": "icon.png",
   "license": "GPL-3.0",
   "keywords": [
+    "mcp",
+    "coding-agent",
     "downloader",
     "yt-dlp",
     "torrent",
@@ -57,14 +59,14 @@
     "token": {
       "type": "string",
       "title": "Connection token",
-      "description": "From OmniGet → LLM → MCP → Your endpoint. Tool calls return TOKEN_MISSING until it is set.",
+      "description": "From a connection created in OmniGet under Settings → AI & agents → Connect to other apps → More options. Tool calls return TOKEN_MISSING until it is set.",
       "sensitive": true,
       "required": false
     },
     "url": {
       "type": "string",
       "title": "Local endpoint",
-      "description": "The address shown in OmniGet → LLM → MCP → Your endpoint.",
+      "description": "The address shown in OmniGet under Settings → AI & agents.",
       "default": "http://127.0.0.1:47720/mcp",
       "required": false
     }

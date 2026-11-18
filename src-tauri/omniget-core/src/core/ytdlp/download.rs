@@ -951,6 +951,14 @@ pub async fn download_video(
                 }
             }
 
+            let address_refused =
+                (last_was_429 && attempt >= 1) || stderr_lower.contains("sign in to confirm you");
+            if address_refused && move_to_next_pool_proxy(&mut base_args) {
+                tracing::warn!(
+                    "[yt-dlp] this address was refused, moving to the next proxy in the pool"
+                );
+            }
+
             if stderr_lower.contains("nsig") && is_youtube {
                 let client = if attempt == 0 { "ios" } else { "mweb" };
                 yt_args.set_client_from_flag(client);

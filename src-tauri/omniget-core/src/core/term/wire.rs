@@ -299,18 +299,6 @@ impl WireSubscriber {
         out
     }
 
-    pub fn slots(&self) -> Vec<SlotInfo> {
-        self.order
-            .iter()
-            .filter_map(|id| {
-                self.slots.get(id).map(|s| SlotInfo {
-                    id: id.clone(),
-                    slot: s.slot,
-                })
-            })
-            .collect()
-    }
-
     pub fn frame_done(&mut self, seq: u32) {
         while let Some(&(q, _)) = self.inflight.front() {
             if q > seq {

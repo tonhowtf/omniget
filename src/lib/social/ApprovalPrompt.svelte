@@ -2,17 +2,16 @@
   import { onMount } from "svelte";
   import { listen } from "@tauri-apps/api/event";
   import { t } from "$lib/i18n";
+  import ApprovalDialog from "$components/shell/ApprovalDialog.svelte";
   import NavIcon from "$components/shell/NavIcon.svelte";
-  import { social, errText, type ApprovalRequest } from "./api";
+  import { social, errText, SLUG, TITLE_KEY, type ApprovalRequest } from "./api";
 
-  const LABEL: Record<string, string> = { x: "X", instagram: "Instagram", tiktok: "TikTok" };
   const FIELDS = ["post", "text", "handle", "username", "reply_to", "quote", "undo"];
 
   let queue = $state<ApprovalRequest[]>([]);
   let busy = $state(false);
   let error = $state<string | null>(null);
   let now = $state(Date.now());
-  let denyBtn: HTMLButtonElement | undefined = $state();
   let current = $derived(queue[0] ?? null);
   let details = $derived(current ? detailRows(current.details) : []);
   let left = $derived(current ? Math.max(0, Math.round(current.expires_at - now / 1000)) : null);
@@ -59,15 +58,6 @@
     return `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, "0")}`;
   }
 
-  let focusedId = "";
-  $effect(() => {
-    const id = current?.id ?? "";
-    if (id && denyBtn && id !== focusedId) {
-      focusedId = id;
-      denyBtn.focus();
-    }
-  });
-
   onMount(() => {
     void refresh();
     const uns: (() => void)[] = [];
@@ -101,13 +91,23 @@
 </script>
 
 {#if current}
-  <div class="so-ap-backdrop" role="presentation"></div>
-  <div class="so-ap" role="alertdialog" aria-modal="true" aria-labelledby="so-ap-title" aria-describedby="so-ap-sum">
+  {#key current.id}
+  <ApprovalDialog
+    titleId="so-ap-title"
+    describedBy="so-ap-sum"
+    {error}
+    {busy}
+    width="lg"
+    denyLabel={$t("social.approval.deny") as string}
+    allowLabel={$t("social.approval.approve") as string}
+    onDeny={() => answer(false)}
+    onAllow={() => answer(true)}
+  >
     <header class="so-ap-head">
-      <NavIcon icon={current.platform} size={40} />
+      <NavIcon icon={SLUG[current.platform]} size={40} />
       <div class="so-ap-titles">
         <h3 id="so-ap-title">
-          {clientName ? $t("social.approval.title_client", { client: clientName, platform: LABEL[current.platform] }) : $t("social.approval.title", { platform: LABEL[current.platform] })}
+          {clientName ? $t("social.approval.title_client", { client: clientName, platform: $t(TITLE_KEY[current.platform]) }) : $t("social.approval.title", { platform: $t(TITLE_KEY[current.platform]) })}
         </h3>
         <span class="so-ap-tool">{current.tool}</span>
       </div>
@@ -128,61 +128,14 @@
     {/if}
 
     <p class="so-ap-hint">
-      {$t("social.approval.hint", { platform: LABEL[current.platform] })}
+      {$t("social.approval.hint", { platform: $t(TITLE_KEY[current.platform]) })}
       {#if left !== null}<span class="so-ap-left">{$t("social.approval.expires", { time: clock(left) })}</span>{/if}
     </p>
-    {#if error}<p class="so-ap-err">{error}</p>{/if}
-
-    <div class="so-ap-row">
-      <button class="btn btn-secondary" bind:this={denyBtn} disabled={busy} onclick={() => answer(false)}>{$t("social.approval.deny")}</button>
-      <button class="btn btn-primary" disabled={busy} onclick={() => answer(true)}>
-        {#if busy}<span class="spinner"></span>{/if}
-        {$t("social.approval.approve")}
-      </button>
-    </div>
-  </div>
+  </ApprovalDialog>
+  {/key}
 {/if}
 
 <style>
-  .so-ap-backdrop {
-    position: fixed;
-    inset: 0;
-    z-index: 1000;
-    background: rgb(0 0 0 / 0.32);
-  }
-
-  .so-ap {
-    position: fixed;
-    left: 50%;
-    top: 50%;
-    z-index: 1001;
-    transform: translate(-50%, -50%);
-    width: min(500px, calc(100vw - 32px));
-    max-height: calc(100vh - 48px);
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-3);
-    padding: var(--space-5);
-    border-radius: var(--radius-xl, 16px);
-    background: var(--surface-hi, var(--surface));
-    box-shadow: 0 24px 64px rgb(0 0 0 / 0.35), inset 0 0 0 var(--hairline, 1px) var(--content-border, transparent);
-    color: var(--text);
-    animation: so-ap-in 160ms var(--ease-out, ease-out);
-  }
-
-  @keyframes so-ap-in {
-    from {
-      opacity: 0;
-      transform: translate(-50%, -48%) scale(0.98);
-    }
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    .so-ap {
-      animation: none;
-    }
-  }
-
   .so-ap-head {
     display: flex;
     align-items: center;
@@ -263,17 +216,5 @@
   .so-ap-left {
     margin-left: 4px;
     font-variant-numeric: tabular-nums;
-  }
-
-  .so-ap-err {
-    margin: 0;
-    font-size: var(--text-xs);
-    color: var(--danger);
-  }
-
-  .so-ap-row {
-    display: flex;
-    justify-content: flex-end;
-    gap: var(--space-2);
   }
 </style>

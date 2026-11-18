@@ -55,20 +55,7 @@ pub fn sync_channels_tray(
 #[tauri::command]
 pub fn sync_tray_strings(
     app: tauri::AppHandle,
-    quit: String,
-    downloads_none: String,
-    downloads_active: String,
-    channels: String,
-    tooltip_active: String,
-    tooltip_speed: String,
+    strings: crate::tray::TrayStrings,
 ) -> Result<(), String> {
-    let strings = crate::tray::TrayStrings {
-        quit,
-        downloads_none,
-        downloads_active,
-        channels,
-        tooltip_active,
-        tooltip_speed,
-    };
     crate::tray::apply_strings(&app, strings).map_err(|e| e.to_string())
 }

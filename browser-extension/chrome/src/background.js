@@ -12,70 +12,21 @@ import {
   shouldSkipDeepSearch,
 } from "./deep-search-toggle.js";
 import { loadH264State, isH264Enabled, isBlock60, setH264 } from "./h264-toggle.js";
+import { STORE_BUILD, isStoreExcludedPlatform, isStoreExcludedUrl } from "./store-policy.js";
 import { registerContextMenu, isContextMenuId, urlsForMenuClick } from "./context-menu.js";
 import { openOmnigetScheme } from "./send-via-scheme.js";
 import { isSyntheticManifestUrl } from "./synthetic-manifest.js";
 import {
   sendViaBridge,
   sendCookiesViaBridge,
-  autoPair,
-  loadBridgeConfig,
-  AUTOPAIR_ALARM_NAME,
-  STORAGE_KEY_TOKEN,
 } from "./bridge-client.js";
 
-const AUTOPAIR_ALARM = AUTOPAIR_ALARM_NAME;
+const LEGACY_AUTOPAIR_ALARM = "omniget-autopair";
 
-async function isPaired() {
+function clearLegacyAutoPairAlarm() {
   try {
-    const cfg = await loadBridgeConfig();
-    return Boolean(cfg.token);
-  } catch {
-    return false;
-  }
-}
-
-async function runAutoPairTick() {
-  if (await isPaired()) {
-    try {
-      await chrome.alarms.clear(AUTOPAIR_ALARM);
-    } catch {}
-    return true;
-  }
-  const result = await autoPair().catch(() => ({ ok: false }));
-  if (result?.ok) {
-    try {
-      await chrome.alarms.clear(AUTOPAIR_ALARM);
-    } catch {}
-    refreshActiveTab().catch(() => {});
-    return true;
-  }
-  return false;
-}
-
-async function ensureAutoPairAlarm() {
-  if (await isPaired()) return;
-  try {
-    if (!(await chrome.alarms.get(AUTOPAIR_ALARM))) {
-      chrome.alarms.create(AUTOPAIR_ALARM, { periodInMinutes: 1 });
-    }
+    Promise.resolve(chrome.alarms?.clear?.(LEGACY_AUTOPAIR_ALARM)).catch(() => {});
   } catch {}
-}
-
-if (chrome.alarms?.onAlarm) {
-  chrome.alarms.onAlarm.addListener((alarm) => {
-    if (alarm?.name === AUTOPAIR_ALARM) void runAutoPairTick();
-  });
-}
-
-if (chrome.storage?.onChanged) {
-  chrome.storage.onChanged.addListener((changes, areaName) => {
-    if (areaName !== "local") return;
-    const change = changes?.[STORAGE_KEY_TOKEN];
-    if (!change) return;
-    const newToken = typeof change.newValue === "string" ? change.newValue.trim() : "";
-    if (!newToken) void ensureAutoPairAlarm();
-  });
 }
 
 const INSTALL_URL = "https://getomniget.com/download";
@@ -117,6 +68,7 @@ loadH264State().catch(() => {});
 restoreMedia().catch(() => {});
 
 chrome.runtime.onInstalled.addListener(async (details) => {
+  clearLegacyAutoPairAlarm();
   registerContextMenu();
   refreshActiveTab().catch(() => {});
   if (typeof chrome.runtime.openOptionsPage !== "function") return;
@@ -124,11 +76,7 @@ chrome.runtime.onInstalled.addListener(async (details) => {
     const stored = await chrome.storage.local.get("bridge_token");
     const token = typeof stored?.bridge_token === "string" ? stored.bridge_token.trim() : "";
     if (!token) {
-      const paired = await runAutoPairTick();
-      if (!paired) {
-        await ensureAutoPairAlarm();
-        chrome.runtime.openOptionsPage().catch(() => {});
-      }
+      chrome.runtime.openOptionsPage().catch(() => {});
     }
   } catch {
     if (details?.reason === "install") {
@@ -162,9 +110,8 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
 });
 
 chrome.runtime.onStartup.addListener(() => {
+  clearLegacyAutoPairAlarm();
   refreshActiveTab().catch(() => {});
-  void runAutoPairTick();
-  void ensureAutoPairAlarm();
 });
 
 if (chrome.commands && chrome.commands.onCommand) {
@@ -242,7 +189,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   }
 
   if (msg.type === "getH264") {
-    sendResponse({ enabled: isH264Enabled(), block60: isBlock60() });
+    sendResponse({ enabled: isH264Enabled(), block60: isBlock60(), available: !STORE_BUILD });
     return false;
   }
 
@@ -351,6 +298,10 @@ function updateBadge(tabId) {
 async function handleSendToApp(msg) {
   const url = msg.url;
   const platform = msg.platform || "generic";
+
+  if (isStoreExcludedUrl(url) || isStoreExcludedPlatform(platform)) {
+    return { ok: false, reason: "store_excluded", error: "This site is not available in the Chrome Web Store version" };
+  }
 
   let pageTitle = "";
   let pageThumbnail = "";
@@ -665,6 +616,7 @@ async function scanAllPlatformsForCookies() {
     "telegram",
   ];
   for (const platform of allPlatforms) {
+    if (isStoreExcludedPlatform(platform)) continue;
     try {
       void capturePlatformCookies(platform, true);
     } catch (e) {

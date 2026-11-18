@@ -54,29 +54,6 @@ impl Meter {
             gain_db: gain_for(integrated),
         })
     }
-
-    pub fn state(&self) -> &EbuR128 {
-        &self.inner
-    }
-}
-
-pub fn album(meters: &[&Meter]) -> Option<Loudness> {
-    let states: Vec<&EbuR128> = meters.iter().map(|m| m.state()).collect();
-    let integrated = EbuR128::loudness_global_multiple(states.iter().copied()).ok()?;
-    if !integrated.is_finite() {
-        return None;
-    }
-    let range = EbuR128::loudness_range_multiple(states.iter().copied()).unwrap_or(0.0);
-    let peak = meters
-        .iter()
-        .filter_map(|m| m.result().map(|r| r.peak))
-        .fold(0f64, f64::max);
-    Some(Loudness {
-        integrated_lufs: (integrated * 100.0).round() / 100.0,
-        range_lu: (range * 100.0).round() / 100.0,
-        peak,
-        gain_db: gain_for(integrated),
-    })
 }
 
 pub fn album_from_tracks(tracks: &[(f64, f64, f64)]) -> Option<Loudness> {

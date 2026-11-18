@@ -452,6 +452,37 @@ fn plain(text: &str, fallback: &Summary) -> Option<Summary> {
     })
 }
 
+pub async fn generate_text(app: &AppHandle, system: &str, user: &str) -> Result<String, String> {
+    let cfg = settings();
+    let model = match cfg.ollama_model.clone() {
+        Some(pinned) => Some(pinned),
+        None => core::ollama_models(&cfg.ollama_url)
+            .await
+            .ok()
+            .and_then(|models| models.into_iter().max_by_key(|(_, size)| *size))
+            .map(|(name, _)| name),
+    };
+    let local = core::ollama_generate(&cfg.ollama_url, model.as_deref(), system, user)
+        .await
+        .map(|(_, text)| text);
+    let Err(local_error) = local else {
+        return local;
+    };
+    let agent = cfg.cheap_agent_id.clone().or_else(|| {
+        app.state::<crate::AppState>()
+            .llm
+            .roster()
+            .first()
+            .map(|a| a.id.clone())
+    });
+    match agent {
+        Some(id) => side_call(app, &id, system, user)
+            .await
+            .map(|(_, text)| text),
+        None => Err(local_error),
+    }
+}
+
 async fn side_call(
     app: &AppHandle,
     agent_id: &str,

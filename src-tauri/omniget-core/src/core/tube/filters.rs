@@ -258,15 +258,6 @@ fn passes_with(
     true
 }
 
-pub fn passes(
-    item: &Item,
-    p: &FilterPrefs,
-    ctx: FilterCtx,
-    watched: &dyn Fn(&str) -> Option<u8>,
-) -> bool {
-    passes_with(item, p, ctx, watched, Exempt::default())
-}
-
 pub fn apply_items(
     items: &mut Vec<Item>,
     p: &FilterPrefs,

@@ -1263,22 +1263,6 @@ impl Browser {
         }
     }
 
-    pub async fn can_go(&self, tab_id: &str) -> (bool, bool) {
-        let Ok(s) = self.session_for(tab_id).await else {
-            return (false, false);
-        };
-        let Ok(h) = self
-            .cdp
-            .call("Page.getNavigationHistory", json!({}), Some(&s))
-            .await
-        else {
-            return (false, false);
-        };
-        let cur = h["currentIndex"].as_i64().unwrap_or(0);
-        let n = h["entries"].as_array().map(|e| e.len() as i64).unwrap_or(0);
-        (cur > 0, cur + 1 < n)
-    }
-
     pub async fn screenshot(&self, tab_id: &str) -> Result<Vec<u8>, String> {
         use base64::Engine;
         let s = self.session_for(tab_id).await?;

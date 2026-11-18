@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { agentActions } from "$lib/native-agent/actions";
   import { onMount } from "svelte";
   import { registerSemantic } from "$lib/native-agent/semantic";
   import { invoke } from "@tauri-apps/api/core";
@@ -389,13 +390,15 @@
       {/if}
       {#if askOpen}
         <div class="ask-actions">
-          <button type="button" class="allow" onclick={() => void answerAsk(ask!, true)}>
+          <button use:agentActions={[]} type="button" class="allow" onclick={() => void answerAsk(ask!, true)}>
             {$t("pet.ask.allow")}
           </button>
-          <button type="button" class="deny" onclick={() => void answerAsk(ask!, true, true)}>
-            {$t("pet.ask.always")}
-          </button>
-          <button type="button" class="deny" onclick={() => void answerAsk(ask!, false)}>
+          {#if ask.canAlways}
+            <button use:agentActions={[]} type="button" class="deny" onclick={() => void answerAsk(ask!, true, true)}>
+              {$t("pet.ask.always")}
+            </button>
+          {/if}
+          <button use:agentActions={[]} type="button" class="deny" onclick={() => void answerAsk(ask!, false)}>
             {$t("pet.ask.deny")}
           </button>
         </div>

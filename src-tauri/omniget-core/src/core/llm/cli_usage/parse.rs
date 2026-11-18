@@ -76,10 +76,6 @@ impl FileParser {
         }
     }
 
-    pub fn cli(&self) -> CliKind {
-        self.cli
-    }
-
     pub fn feed(&mut self, line: &str) -> Parsed {
         let line = line.trim();
         if line.len() < 2 || !may_carry_usage(self.cli, line.as_bytes()) {

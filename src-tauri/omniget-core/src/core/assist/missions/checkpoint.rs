@@ -232,14 +232,6 @@ pub fn latest(db: &AssistDb, mission_id: &str) -> Result<Option<Checkpoint>, Str
     })
 }
 
-pub fn list(db: &AssistDb, mission_id: &str) -> Result<Vec<Checkpoint>, String> {
-    db.with(|c| {
-        let mut st = c.prepare("SELECT id, mission_id, seq, reason, state, created_ms FROM missions_checkpoints WHERE mission_id = ?1 ORDER BY seq DESC LIMIT 50")?;
-        let rows = st.query_map(params![mission_id], row)?;
-        rows.collect()
-    })
-}
-
 pub fn rebuild_context(cp: &Checkpoint, max_chars: usize) -> String {
     let s = &cp.state;
     let mut sections: Vec<(String, Vec<String>)> = Vec::new();

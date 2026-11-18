@@ -556,10 +556,14 @@ fn place(window: &tauri::WebviewWindow, height: f64) {
     let Some(rect) = state().anchor else {
         return;
     };
+    place_near(window, rect, PANEL_W, height);
+}
+
+pub(crate) fn place_near(window: &tauri::WebviewWindow, rect: Rect, width: f64, height: f64) {
     let scale = window.scale_factor().unwrap_or(1.0);
     let pos = rect.position.to_physical::<f64>(scale);
     let size = rect.size.to_physical::<f64>(scale);
-    let (w, h) = (PANEL_W * scale, height * scale);
+    let (w, h) = (width * scale, height * scale);
     let gap = 6.0 * scale;
     let mut x = pos.x + size.width / 2.0 - w / 2.0;
     let mut y = pos.y + size.height + gap;
@@ -590,22 +594,20 @@ fn close_panel(app: &AppHandle) {
     }
 }
 
-fn sh_quote(s: &str) -> String {
-    format!("'{}'", s.replace('\'', r"'\''"))
-}
-
-pub fn launch_line(ring: Option<&str>, add: bool) -> String {
+pub fn launch_line(ring: Option<&str>, add: bool) -> Result<String, String> {
+    use omniget_core::core::llm::cli_runtime::accounts::valid_id;
     if add {
-        return "omniget claude --add".to_string();
+        return Ok("omniget claude --add".to_string());
     }
     match ring.and_then(|r| r.strip_prefix("claude:")) {
-        Some(acct) => format!("omniget claude {}", sh_quote(acct)),
-        None => "claude".to_string(),
+        Some(acct) if valid_id(acct) => Ok(format!("omniget claude {acct}")),
+        Some(acct) => Err(format!("invalid account id: {acct:?}")),
+        None => Ok("claude".to_string()),
     }
 }
 
 fn open_terminal(ring: Option<&str>, add: bool) -> Result<(), String> {
-    let line = launch_line(ring, add);
+    let line = launch_line(ring, add)?;
     #[cfg(windows)]
     {
         crate::core::process::std_command("cmd")
@@ -768,4 +770,39 @@ pub async fn usage_tray_sync_strings(
     rebuild_menu(&app);
     republish(&app);
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::launch_line;
+
+    #[test]
+    fn a_known_account_id_goes_on_the_command_line_unquoted() {
+        assert_eq!(
+            launch_line(Some("claude:work-2"), false).as_deref(),
+            Ok("omniget claude work-2")
+        );
+        assert_eq!(launch_line(None, false).as_deref(), Ok("claude"));
+        assert_eq!(
+            launch_line(Some("claude:x"), true).as_deref(),
+            Ok("omniget claude --add")
+        );
+    }
+
+    #[test]
+    fn an_account_id_with_shell_characters_is_refused() {
+        for id in [
+            "claude:a&calc",
+            "claude:a|b",
+            "claude:a\"b",
+            "claude:a'b",
+            "claude:a b",
+            "claude:%PATH%",
+            "claude:a;b",
+            "claude:$(id)",
+            "claude:",
+        ] {
+            assert!(launch_line(Some(id), false).is_err(), "{id}");
+        }
+    }
 }

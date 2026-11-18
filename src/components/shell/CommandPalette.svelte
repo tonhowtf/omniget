@@ -117,11 +117,11 @@
     if (id.startsWith("nav-capture")) return "M12 16a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z";
     if (id.startsWith("nav-studio")) return "M4 5h16v14H4zM8 5v14M16 5v14M4 9h4M4 15h4M16 9h4M16 15h4";
     if (id.startsWith("nav-dictation")) return "M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3zM5 11a7 7 0 0 0 14 0M12 18v3";
-    if (id.startsWith("nav-whatsapp")) return "M12 3a9 9 0 0 0-7.8 13.5L3 21l4.6-1.2A9 9 0 1 0 12 3z";
-    if (id.startsWith("nav-discord")) return "M8 4c-2 .4-3.5 1-4.5 1.8C2 9 1.5 12.5 2 16c1.3 1.3 3 2.2 4.8 2.7l1-1.7M16 4c2 .4 3.5 1 4.5 1.8 1.5 3.2 2 6.7 1.5 10.2-1.3 1.3-3 2.2-4.8 2.7l-1-1.7M7 16.5c3.3 1.3 6.7 1.3 10 0M9 12h.01M15 12h.01";
-    if (id.startsWith("nav-social-x")) return "M4 4l16 16M20 4 4 20";
-    if (id.startsWith("nav-social-instagram")) return "M7 3h10a4 4 0 0 1 4 4v10a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4V7a4 4 0 0 1 4-4zM12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8zM17.5 6.5h.01";
-    if (id.startsWith("nav-social-tiktok")) return "M14 3v11.5a3.5 3.5 0 1 1-3.5-3.5M14 3c.4 2.6 2.4 4.6 5 5";
+    if (id.startsWith("nav-phonechat")) return "M12 3a9 9 0 0 0-7.8 13.5L3 21l4.6-1.2A9 9 0 1 0 12 3z";
+    if (id.startsWith("nav-guildchat")) return "M8 4c-2 .4-3.5 1-4.5 1.8C2 9 1.5 12.5 2 16c1.3 1.3 3 2.2 4.8 2.7l1-1.7M16 4c2 .4 3.5 1 4.5 1.8 1.5 3.2 2 6.7 1.5 10.2-1.3 1.3-3 2.2-4.8 2.7l-1-1.7M7 16.5c3.3 1.3 6.7 1.3 10 0M9 12h.01M15 12h.01";
+    if (id.startsWith("nav-social-shortpost")) return "M4 4l16 16M20 4 4 20";
+    if (id.startsWith("nav-social-photofeed")) return "M7 3h10a4 4 0 0 1 4 4v10a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4V7a4 4 0 0 1 4-4zM12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8zM17.5 6.5h.01";
+    if (id.startsWith("nav-social-clipfeed")) return "M14 3v11.5a3.5 3.5 0 1 1-3.5-3.5M14 3c.4 2.6 2.4 4.6 5 5";
     if (id.startsWith("nav-about")) return "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zm0-13v.01M12 11v6";
     if (id.startsWith("action-paste")) return "M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2M9 5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2M9 5a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2";
     return "M6 12h12M12 6v12";

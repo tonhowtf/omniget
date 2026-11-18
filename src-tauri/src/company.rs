@@ -31,10 +31,6 @@ pub fn get() -> Option<Arc<Engine>> {
     ENGINE.get().cloned()
 }
 
-pub fn store() -> Result<Arc<CompanyStore>, String> {
-    co::store()
-}
-
 pub fn boot(app: &AppHandle) {
     let app = app.clone();
     tauri::async_runtime::spawn(async move {

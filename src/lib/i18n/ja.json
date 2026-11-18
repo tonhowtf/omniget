@@ -1,19 +1,17 @@
 {
   "error": {
     "cause": {
-      "po_token_required": "YouTube がこの動画の配信前に PO トークン（proof-of-origin）を求めました。",
+      "po_token_required": "YouTube が現在このダウンロードをブロックしています。",
       "sabr_only": "YouTube が、このプレーヤーではまだ保存できないストリームのみを提供しました。",
       "rate_limited": "サイトがあなたの接続からのダウンロードを制限しています。",
       "disk_full": "ダウンロード先のディスクに空きがありません。",
-      "needs_login": "このコンテンツにアクセスするには、サイトへのログインが必要です。",
-      "tls_fingerprint": "サイトがコンテンツを送る前に接続をブロックしました。",
-      "extractor_outdated": "このサイトに対応するには yt-dlp の更新が必要です。"
+      "needs_login": "ログインが必要です。",
+      "tls_fingerprint": "サイトが接続を拒否しました。内蔵ブラウザをお試しください。",
+      "extractor_outdated": "このサイトの仕様が変わったため、ダウンローダーの更新が必要です。"
     },
     "remedy": {
-      "import_cookies": "Cookie をインポート",
       "retry": "再試行",
-      "update_ytdlp": "yt-dlp を更新",
-      "updated": "yt-dlp を更新しました",
+      "update_ytdlp": "更新して再試行",
       "pot_guide": "PO トークンのガイドを開く"
     }
   },
@@ -858,7 +856,7 @@
       "lyrics": "Lyrics",
       "duplicates": "Duplicates",
       "quality": "Quality",
-      "no_ffmpeg": "ffmpeg がまだインストールされていません。このツールを使うには 設定 › 依存関係 でインストールしてください。",
+      "no_ffmpeg": "ffmpeg がまだインストールされていません。このツールを使うには 設定 › ダウンロードエンジン でインストールしてください。",
       "analyze_lead": "解析では、各曲のラウドネス（音量の均一化用）、テンポ、キー、波形、無音、実際の周波数範囲を測定します。バックグラウンドで実行されます。",
       "analyzed": "analyzed",
       "pending": "未解析",
@@ -1132,13 +1130,13 @@
     "world": "Canvas",
     "help": "Help",
     "profile_appearance": "プロフィールと外観",
-    "superpowers": "スーパーパワー",
+    "superpowers": "ツール",
     "collapse_sidebar": "サイドバーを折りたたむ",
     "expand_sidebar": "サイドバーを展開",
-    "community": "コミュニティ"
+    "community": "情報とコミュニティ"
   },
   "command_palette": {
-    "open": "Search",
+    "open": "移動…",
     "placeholder": "ページへ移動、または操作を実行…",
     "empty": "No results",
     "navigate": "navigate",
@@ -1164,13 +1162,15 @@
     "drop_unsupported": "OmniGet ではこのファイルを開けません。リンク、torrent、または .txt リストをお試しください。",
     "action_batch": "複数のリンクを貼り付け…",
     "action_torrent": "torrent ファイルを開く…",
-    "action_p2p": "コードでファイルを送る…",
-    "action_advanced": "yt-dlp コマンド…",
+    "action_p2p": "ファイルを共有…",
+    "action_advanced": "上級: カスタム yt-dlp コマンド…",
     "action_simple": "戻る",
     "adv_title": "yt-dlp コマンド",
     "success_title": "ダウンロードに追加しました",
     "success_first": "はじめてのダウンロード！",
-    "success_open": "ダウンロードを開く"
+    "success_open": "ダウンロードを開く",
+    "success_folder": "{{folder}} にダウンロード中",
+    "success_show_folder": "フォルダーを表示"
   },
   "downloads": {
     "phase_downloading": "ダウンロード中",
@@ -1236,7 +1236,6 @@
     "pause_all": "すべて一時停止",
     "resume_all": "すべて再開",
     "reorder_hint": "ドラッグして並べ替え",
-    "history_view_link": "ダウンロード履歴を見る",
     "history_loading": "履歴を読み込み中…",
     "history_empty": "完了したダウンロードはまだありません。",
     "history_clear": "履歴をクリア",
@@ -1299,9 +1298,9 @@
     "empty_cta": "リンクを貼り付け",
     "speed_unlimited": "速度制限なし",
     "error_details": "技術的な詳細",
-    "view_queue": "Downloads",
+    "view_queue": "キュー",
     "view_history": "History",
-    "view_tools": "Tools",
+    "view_tools": "ダウンロードツール",
     "tools": {
       "subtitle": "ダウンロードするリンク、ストリーム、ファイルのための追加ツール。",
       "back": "すべてのツール",
@@ -1341,7 +1340,7 @@
         "waiting": "Waiting…",
         "show": "Show",
         "file_failed": "このファイルを調整できませんでした",
-        "no_ffmpeg": "これには FFmpeg が必要です。設定 › 依存関係 でインストールしてください。",
+        "no_ffmpeg": "これには FFmpeg が必要です。設定 › ダウンロードエンジン でインストールしてください。",
         "failed": "これらのファイルを調整できませんでした。"
       },
       "import_subscriptions": {
@@ -1866,7 +1865,9 @@
         "unmeasurable": "{{objects}} 個のファイルを保存。このシステムでは節約量を測れません。",
         "empty": "まだ何も保存されていません。よくダウンロードするフォルダーで実行してください。",
         "stats_failed": "ディスクの統計を読み込めませんでした。"
-      }
+      },
+      "more_hint": "変換・カット・録画をお探しですか？",
+      "more_link": "すべてのツール"
     },
     "status_bar": {
       "region_label": "ダウンロードの進行状況",
@@ -1895,7 +1896,8 @@
     "archive_export_title": "履歴を yt-dlp アーカイブとして保存",
     "archive_imported": "{{read}} 件中 {{added}} 件を新たにインポートしました",
     "archive_exported": "{{written}} 件を書き出しました。ID 不明の {{skipped}} 件は除外しました",
-    "archive_count": "yt-dlp アーカイブから {{count}} 件をインポートしました"
+    "archive_count": "yt-dlp アーカイブから {{count}} 件をインポートしました",
+    "open_file": "開く"
   },
   "toast": {
     "download_complete": "完了！{{name}} はフォルダに保存されました",
@@ -2030,7 +2032,9 @@
         "name": "フォント名",
         "name_hint": "コンピューターに表示される名前のとおりに入力します(例: Inter)。インストールされていない場合はシステムフォントが使われます。",
         "split_note": "現在、見出しと本文で別のフォントを使っています。ここで保存すると両方が同じフォントになります。"
-      }
+      },
+      "downloads_only": "ダウンロードのみ",
+      "downloads_only_desc": "サイドバーからツールと Canvas を隠します。検索 (⌘K) からは引き続きすべて開けます。"
     },
     "download": {
       "default_output_dir": "既定のフォルダ",
@@ -2192,7 +2196,7 @@
       "portable_macos_notice": "macOS では WebView がセッションデータを ~/Library に保存し続け、ポータブルモードではリダイレクトできません。ここでポータブルになるのは OmniGet 自身のデータだけです — github.com/tonhowtf/omniget/issues/227 を参照してください。"
     },
     "dependencies": {
-      "title": "依存関係",
+      "title": "ダウンロードエンジン (yt-dlp, FFmpeg)",
       "col_name": "Name",
       "col_status": "Status",
       "col_action": "Action",
@@ -2233,6 +2237,37 @@
       "port": "ポート",
       "username": "ユーザー名",
       "password": "パスワード"
+    },
+    "proxy_pool": {
+      "title": "プロキシプール",
+      "desc": "複数のプロキシを登録できます。OmniGet は 1 つを使い続け、動かなくなったら次に切り替えます。",
+      "enable": "プールを使う",
+      "enable_desc": "オンにすると、ダウンロード、スクレイパー、HTTP ツールはプール経由で通信し、インターネットに直接は出ません。",
+      "rotation": "切り替え",
+      "rotation_desc": "別のプロキシに切り替えるタイミング。",
+      "rotation_sticky": "失敗したときだけ",
+      "rotation_round_robin": "リクエストごと",
+      "add_label": "プロキシを追加",
+      "add_desc": "1 行に 1 つ。例: socks5://127.0.0.1:7890 または ホスト:ポート:ユーザー:パスワード。",
+      "add_action": "追加",
+      "detect_action": "このコンピューターのプロキシアプリを探す",
+      "detect_none": "このコンピューターで応答するプロキシアプリがありません。Clash や v2rayN などを起動して、もう一度試してください。",
+      "detect_known": "見つかったプロキシアプリはすでにプールにあります。",
+      "detect_added": "{{count}} 件見つけて追加しました。",
+      "test_all": "すべてテスト",
+      "testing": "テスト中…",
+      "remove_failing": "失敗したものを削除",
+      "remove": "削除",
+      "empty": "プロキシはまだありません。上で追加するか、このコンピューターで動いているプロキシアプリを探してください。",
+      "status_current": "使用中",
+      "status_ok": "動作中",
+      "status_failed": "失敗",
+      "status_resting": "{{secs}} 秒休止中",
+      "status_untested": "未テスト",
+      "rejected": "{{count}} 行を読み取れませんでした。",
+      "added": "{{count}} 件追加しました。",
+      "all_resting": "すべてのプロキシが直前に失敗しました。休止時間が最も短いものを引き続き使います。",
+      "show_more": "さらに表示"
     },
     "advanced": {
       "max_concurrent_downloads": "同時ダウンロード数",
@@ -2279,7 +2314,7 @@
       "parallel_more": "同時数を増やす",
       "torrent_title": "トレント",
       "torrent_desc": "マグネットリンクと .torrent ファイル。",
-      "components_title": "コンポーネント",
+      "components_title": "ダウンロードエンジン (yt-dlp, FFmpeg)",
       "components_desc": "OmniGet がダウンロードと変換に使うプログラム（yt-dlp や FFmpeg など）。",
       "troubleshooting_title": "トラブルシューティング",
       "troubleshooting_desc": "うまく動かないときに。",
@@ -2366,10 +2401,10 @@
       "load_failed": "AI 設定を読み込めませんでした。編集する前に再試行してください。",
       "save_failed": "AI 設定を保存できませんでした。変更はまだ残っているので、もう一度保存してください。",
       "accounts_desc": "エージェントが使う Claude と Codex のログイン。",
-      "app_title": "アプリの AI",
+      "app_title": "要約と文字起こし用のAI",
       "app_desc": "要約、Read、Coach、文字起こしに使います。エージェントはこれを使わず、上のアカウントで動きます。",
       "model_required": "このプロバイダーが求めるモデル名を入力してください。ないとアプリの AI 機能は動きません。",
-      "limits_title": "画面上の使用量",
+      "limits_title": "使用量メーター",
       "tray_menu_hint": "アイコンに表示する内容、色、警告のタイミングはアイコン自身のメニューで設定します。",
       "connect_off": "オフです。ほかのアプリをつなぐにはオンにしてください。",
       "agents_canvas_title": "Canvas のエージェント",
@@ -2604,7 +2639,7 @@
       "add_action": "追加してサインイン",
       "not_installed": "未インストール",
       "resets_in": "{{time}}後にリセット",
-      "limits_title": "画面上の制限",
+      "limits_title": "使用量メーター",
       "limits_desc": "何も開かずに残りの利用量を確認できます。",
       "strip_label": "画面端のバー",
       "strip_help": "他のウィンドウの上に常に見える細いバーです。",
@@ -2612,7 +2647,7 @@
       "tray_help": "システムトレイに利用量を表示します。クリックで詳細を表示します。",
       "connect_title": "他のアプリと接続",
       "connect_desc": "Claude Code、Codex などのツールが OmniGet のダウンロードと Canvas を使えるようにします。",
-      "mcp_title": "追加ツール",
+      "mcp_title": "MCPサーバー（エージェント用の追加ツール）",
       "mcp_desc": "エージェントに GitHub、ブラウザ、ファイルなどへのアクセスを与えます。",
       "mcp_ready": "準備完了 · {{count}} 個のツール",
       "mcp_idle": "未テスト",
@@ -2701,24 +2736,24 @@
         "desc": "使わないものはオフに。メニューから消え、動作も止まります。",
         "music": "ミュージック",
         "music_desc": "ライブラリ、ラジオ、ミニプレーヤー。",
-        "video": "Watch",
+        "video": "ビデオプレーヤー",
         "video_desc": "映画、ドラマ、講座、ライブ TV。",
-        "tube": "OmniTube",
+        "tube": "Tube Player",
         "tube_desc": "YouTube と YouTube Music。オフにするとバックグラウンドの確認も止まります。",
         "read": "読む",
         "read_desc": "ライブラリとリーダー。オフにするとライブラリのサーバーも止まります。",
         "telegram": "Telegram",
         "telegram_desc": "開くまで何も接続しません。",
-        "washmybelly": "washmybelly",
+        "washmybelly": "システムクリーナー",
         "washmybelly_desc": "クリーンアップとシステムのお手入れ。オフにするとエージェントからもツールが隠れます。",
         "league": "League of Legends",
         "league_desc": "クライアント用ツール。League クライアントを開いておく必要があります。"
       },
       "pet": {
-        "title": "デスクトップの Omni",
-        "desc": "Omni を OmniGet のウィンドウの外、画面の隅に置けます。",
-        "corner_off": "隅を選ぶには Omni をオンにしてください。",
-        "click_through_desc": "クリックが Omni の後ろのウィンドウに届きます。",
+        "title": "デスクトップの Loop",
+        "desc": "Loop を OmniGet のウィンドウの外、画面の隅に置けます。",
+        "corner_off": "隅を選ぶには Loop をオンにしてください。",
+        "click_through_desc": "クリックが Loop の後ろのウィンドウに届きます。",
         "click_through_unsupported": "お使いのデスクトップでは使えません。"
       },
       "rpc": {
@@ -2731,7 +2766,7 @@
     }
   },
   "omnibox": {
-    "placeholder": "リンクを貼り付けるか検索",
+    "placeholder": "リンクを貼り付けるか、入力して動画を検索",
     "searching": "検索中…",
     "search_empty": "「{{query}}」に一致する結果はありません。",
     "unsupported": "このサイトはまだ OmniGet で開けません。",
@@ -2962,8 +2997,8 @@
     "credit": "tonho.wtf が愛を込めて作りました",
     "technical_details": "技術的な詳細",
     "feature_i18n_count": "{{count}} 言語に対応",
-    "wmb_credits_title": "washmybellyのクレジット",
-    "wmb_credits_body": "washmybellyは、これらのオープンソースプロジェクトのデータやアイデアを取り込んでいます。ライセンスと該当ファイルの詳細はTHIRD_PARTY.mdに記載されています。privacy.sexyのソース（AGPL-3.0）は下のリンクから確認できます。",
+    "wmb_credits_title": "システムクリーナーのクレジット",
+    "wmb_credits_body": "システムクリーナーは、これらのオープンソースプロジェクトのデータやアイデアを取り込んでいます。ライセンスと該当ファイルの詳細はTHIRD_PARTY.mdに記載されています。privacy.sexyのソース（AGPL-3.0）は下のリンクから確認できます。",
     "wmb_credit_data": "データ",
     "wmb_credit_design": "デザインを移植",
     "wmb_credit_tool": "実行するツール"
@@ -2994,18 +3029,8 @@
     "folder_current": "現在のフォルダ：",
     "folder_change": "フォルダを変更",
     "folder_title": "ダウンロードの保存先は？",
-    "agents_title": "エージェントを紹介します",
-    "agents_desc": "OmniGet には AI エージェントのチームと、彼らが並んで作業するキャンバスがあります。最初は 3 人 — まとめ役の Omni、コードを書く Builder、読んで調べる Scout — で、すべてローカル優先です。AI › メンバー でいつでも編集、置き換え、削除できます。",
-    "agents_world": "エージェントが並んで作業し、互いに話し、訪問者を迎えるキャンバス。",
     "more_later": "グローバルホットキー、ブラウザ拡張機能、Discord のステータス表示は、必要なときに設定から使えます。",
-    "profile": {
-      "title": "ニックネームを選ぶ",
-      "desc": "このコンピューターに保存され、何かを共有するときに表示されます。スキップしてもかまいません。",
-      "nickname_label": "Nickname",
-      "placeholder": "ニックネーム",
-      "note": "後で 設定 → プロフィール で変更できます。",
-      "unavailable": "このビルドではまだプロフィールを利用できません — このステップはスキップできます。"
-    }
+    "ai_skip_note": "任意です。スキップして、後で 設定 › AI とエージェント から設定できます。"
   },
   "hints": {
     "hotkey": "グローバルホットキー：クリップボードにあるURLを自動的にダウンロードします。",
@@ -3092,10 +3117,10 @@
       "cookie_missing": "BilibiliのCookieがありません",
       "cancelled": "キャンセルされました"
     },
-    "login_required": "ログインが必要です — ブラウザのCookieを使用するか別のURLをお試しください",
+    "login_required": "ログインが必要です。",
     "rate_limited": "リクエストが多すぎます (429) — しばらく後でお試しください",
     "access_denied": "アクセス拒否 (403) — 動画が非公開か地域制限されている可能性があります",
-    "extraction_failed": "抽出に失敗しました — yt-dlpを更新するか再試行してください",
+    "extraction_failed": "このサイトの仕様が変わったため、ダウンローダーの更新が必要です。",
     "format_unavailable": "要求したフォーマットは利用できません",
     "video_unavailable": "動画は利用できないか削除されています",
     "video_private": "この動画は非公開です",
@@ -3112,8 +3137,8 @@
     "size_mismatch": "ダウンロードしたファイルのサイズが一致しません。もう一度お試しください。",
     "disk_full": "書き込みエラー — ディスクが満杯の可能性があります。",
     "path_too_long": "ダウンロードフォルダのパスが長すぎます ({{current}}/{{limit}} 文字)。より短いフォルダを選択してください。",
-    "console_encoding": "コンソールのエンコーディングの問題（UTF-8 以外のロケール）。設定 → 依存関係 で yt-dlp を更新するか、ターミナルで「chcp 65001」を実行してアプリを開き直してください。",
-    "extractor_broken": "サイトの抽出機能が壊れています。設定 → 依存関係 で yt-dlp を更新してから再試行してください。",
+    "console_encoding": "コンソールのエンコーディングの問題（UTF-8 以外のロケール）。設定 → ダウンロードエンジン で yt-dlp を更新するか、ターミナルで「chcp 65001」を実行してアプリを開き直してください。",
+    "extractor_broken": "サイトの抽出機能が壊れています。設定 → ダウンロードエンジン で yt-dlp を更新してから再試行してください。",
     "drm_protected": "ダウンロードしたストリームはDRMで保護されているため結合できません。このコンテンツはサポートされていません。",
     "output_missing": "ダウンロードは完了しましたが、フォルダにファイルが見つからないか空です。ディスク容量とウイルス対策ソフトの設定を確認して、もう一度お試しください。",
     "platform_opted_out": "このサイトの運営者から、OmniGet で対応しないよう依頼がありました。",
@@ -3136,7 +3161,7 @@
     },
     "postprocess_advice": {
       "open_input": "出力フォルダやファイル名テンプレートを短くするか、画質を下げてから再試行してください。",
-      "generic": "再試行してください。繰り返す場合は 設定 → 依存関係 で FFmpeg を更新するか、別の形式を選んでください。"
+      "generic": "再試行してください。繰り返す場合は 設定 → ダウンロードエンジン で FFmpeg を更新するか、別の形式を選んでください。"
     },
     "facebook_login": "Facebook はログインなしではこの投稿を表示しませんでした。設定 → Cookie でこのサイトの Cookie をインポートしてから再試行してください。",
     "no_thumbnail_direct_file": "このリンクは直接ファイルで、保存できるサムネイルがありません。",
@@ -3182,9 +3207,11 @@
     "searching_hint": "リレーサーバーに接続中..."
   },
   "ytdlp_missing_banner": {
-    "text": "yt-dlp がないため、ダウンロードを開始できません。設定からインストールしてください。",
+    "text": "ダウンロードエンジンがありません。",
     "open_settings": "設定を開く",
-    "dismiss": "Dismiss"
+    "dismiss": "Dismiss",
+    "install": "今すぐインストール",
+    "installing": "インストール中…"
   },
   "profile": {
     "title": "ローカルプロフィール",
@@ -3224,7 +3251,7 @@
     "settings": {
       "title": "Canvas",
       "enabled": "キャンバスを表示",
-      "enabled_desc": "/world をサイドバーに追加します。オフのときはキャンバスの何も読み込まれず実行されません。"
+      "enabled_desc": "Canvas をサイドバーに追加します。オフのときはキャンバスの何も読み込まれず実行されません。"
     },
     "disabled": "キャンバスはオフです。設定 › Canvas でオンにしてください。"
   },
@@ -3232,18 +3259,18 @@
     "sidebar_profile": "あなたのプロフィール"
   },
   "pet": {
-    "loading": "Omni を読み込み中…",
+    "loading": "Loop を読み込み中…",
     "error": {
-      "art": "Omni の画像を読み込めませんでした。"
+      "art": "Loop の画像を読み込めませんでした。"
     },
     "a11y": {
-      "canvas": "デスクトップの相棒、Omni"
+      "canvas": "デスクトップの相棒、Loop"
     },
     "menu": {
       "wave": "Say hi",
       "open_llm": "ハブを開く",
       "corner": "Corner",
-      "hide": "Omni を隠す"
+      "hide": "Loop を隠す"
     },
     "corner": {
       "top-left": "左上",
@@ -3251,15 +3278,15 @@
       "bottom-left": "左下",
       "bottom-right": "右下"
     },
-    "enable": "デスクトップに Omni を表示",
-    "click_through": "Omni の上でクリックを通す",
-    "unsupported": "お使いのデスクトップは透明なウィンドウを表示できないため、Omni は OmniGet 内に表示されます。",
+    "enable": "デスクトップに Loop を表示",
+    "click_through": "Loop の上でクリックを通す",
+    "unsupported": "お使いのデスクトップは透明なウィンドウを表示できないため、Loop は OmniGet 内に表示されます。",
     "ask": {
       "title": "このツールを許可しますか？",
       "allow": "Allow",
       "always": "Always",
       "deny": "Deny",
-      "hint": "Omni をクリックして選択"
+      "hint": "Loop をクリックして選択"
     }
   },
   "tray": {
@@ -3267,7 +3294,10 @@
     "downloads_none": "実行中のダウンロードはありません",
     "downloads_active": "ダウンロード: {{count}} 件実行中",
     "tooltip_active": "OmniGet — {{count}} 件実行中",
-    "tooltip_speed": "OmniGet — {{count}} 件実行中 · {{speed}}"
+    "tooltip_speed": "OmniGet — {{count}} 件実行中 · {{speed}}",
+    "quick_tools": "クイックツール",
+    "awake_on": "スリープ防止中",
+    "awake_until": "{{time}} までスリープ防止"
   },
   "mission": {
     "task_state": {
@@ -3386,10 +3416,10 @@
     "native_active": "ネイティブアクセス",
     "native_revoke": "アクセスを取り消す",
     "library": "書籍ライブラリを読む（タイトル、ハイライト、本文）",
-    "global_downloader": "Global Downloader を操作：専用ブラウザ（ログイン済みのページ）、サイト用コネクタ、サイト全体のダウンロード",
-    "global_downloader_read": "Global Downloader を読むだけ: ブラウザーで開いているページ、その通信、インストール済みコネクターとマーケットプレイスを見られますが、クリック、入力、ダウンロード、インストールはできません",
-    "system_read": "このコンピューターの状態、スキャン結果、計画を読み取る（washmybelly）",
-    "system_change": "クリーンアップ計画の作成、電源保持、ゲームモード、FPS計測を実行する（washmybelly）",
+    "global_downloader": "内蔵ブラウザ を操作：専用ブラウザ（ログイン済みのページ）、サイト用コネクタ、サイト全体のダウンロード",
+    "global_downloader_read": "内蔵ブラウザ を読むだけ: ブラウザーで開いているページ、その通信、インストール済みコネクターとマーケットプレイスを見られますが、クリック、入力、ダウンロード、インストールはできません",
+    "system_read": "このコンピューターの状態、スキャン結果、計画を読み取る（システムクリーナー）",
+    "system_change": "クリーンアップ計画の作成、電源保持、ゲームモード、FPS計測を実行する（システムクリーナー）",
     "telegram_read": "Telegram のチャット、メッセージ、ファイルを読み、ダイジェストを作成（/telegram）",
     "telegram_write": "Telegram からダウンロード、自動保存ルールの管理、承認ごとのメッセージの送信・転送・削除（/telegram）",
     "memory_read": "OmniGet があなたについて覚えていることを検索・振り返る",
@@ -3398,12 +3428,12 @@
     "approvals_respond_help": "これを許可すると、クライアントは自分のミッションのツール呼び出し（シェルコマンドを含む）を、ここで「許可」を押したのと同じように許可できます。自分と同じくらい信頼できるクライアントにだけ与えてください。「常に許可」のルールは作れず、エージェントが自分の質問に答えることもできません。",
     "agents_run": "エージェントをバックグラウンドのジョブとして実行する",
     "agents_run_help": "これを許可すると、クライアントは一覧の任意のエージェントに、指定したフォルダーでタスクをバックグラウンドで実行させられます（`omniget agent run` と同じ）。見たり止めたりできるのは自分が開始したジョブだけです。エージェントの許可の質問は、このクライアントに回答も許可しない限り、引き続きあなたを待ちます。",
-    "social_read": "X、Instagram、TikTok、Reddit、Pinterest、GitHub のフィード、プロフィール、投稿、コメントを読む (/x, /instagram, /tiktok, /reddit, /pinterest, /github)",
-    "social_write": "X、Instagram、TikTok、Reddit、Pinterest、GitHub のアカウントで、承認のたびに投稿、いいね、リポスト、コメント、フォロー、投票、保存、スターを行う (/x, /instagram, /tiktok, /reddit, /pinterest, /github)",
-    "whatsapp_read": "WhatsApp のチャットとメッセージを読み、新着をリアルタイムで追う (/whatsapp)",
-    "whatsapp_write": "あなたの名前で WhatsApp メッセージを送信・予約し、既読にし、入力中を表示する (/whatsapp)",
-    "devtools_read": "フォルダーをプロンプトにまとめ、ウェブページを読み、HTTP リクエストを送り、開いているポートを一覧し、オフラインのユーティリティを使う（/devtools、/pack、/scrape、/api）",
-    "devtools_write": "予行のあとで、ポートを待ち受けているプロセスを停止する（/devtools）",
+    "social_read": "ショート投稿、フォトフィード、クリップフィード、フォーラム、ピンボード、コードハブ のフィード、プロフィール、投稿、コメントを読む (/shortpost, /photofeed, /clipfeed, /forums, /pinboard, /codehub)",
+    "social_write": "ショート投稿、フォトフィード、クリップフィード、フォーラム、ピンボード、コードハブ のアカウントで、承認のたびに投稿、いいね、リポスト、コメント、フォロー、投票、保存、スターを行う (/shortpost, /photofeed, /clipfeed, /forums, /pinboard, /codehub)",
+    "phonechat_read": "電話チャット のチャットとメッセージを読み、新着をリアルタイムで追う (/phonechat)",
+    "phonechat_write": "あなたの名前で 電話チャット メッセージを送信・予約し、既読にし、入力中を表示する (/phonechat)",
+    "devtools_read": "フォルダーをプロンプトにまとめ、ウェブページを読んで巡回し、HTTP リクエストを送り、プロキシプールを確認してテストし、開いているポートを一覧し、オフラインのユーティリティを使う（/devtools、/pack、/scrape、/api）",
+    "devtools_write": "予行のあとでポートを待ち受けているプロセスを停止し、プロキシプールを変更する（/devtools）",
     "transfer_read": "保存済みの FTP・FTPS・SFTP サーバーと、パスワード不要のサーバーのファイルを一覧表示してダウンロードする（/transfer）",
     "transfer_write": "それらのサーバーへのファイルのアップロード、フォルダー作成、名前変更、削除と、サーバーの保存・削除。削除は必ず予行のあとに行う（/transfer）",
     "research_read": "保存した API キーで ScrapeCreators から公開 SNS データを読む：全プラットフォームのエンドポイントと、クリエイター調査・コンテンツ概要・広告監視・リール比較のワークフロー。呼び出すたびに ScrapeCreators のクレジットを消費します（/research）"
@@ -3419,7 +3449,7 @@
     "deny": "拒否"
   },
   "superpowers": {
-    "subtitle": "必要なときにオンにできる追加機能。",
+    "subtitle": "OmniGet にできるその他すべて：再生、変換、録画、クリーンアップ。",
     "league_desc": "League of Legends の試合中サポート：敵のクールダウン、ゴールド、偵察。",
     "disabled": "オフ",
     "disabled_hint": "設定 › 連携 でオフになっています。",
@@ -3430,8 +3460,8 @@
     "video_desc": "映画、番組、コース、ライブTVをひとつのプレーヤーで。進捗、メモ、文字起こし、フラッシュカードに対応した番号付きレッスン。ソースとしてJellyfin、IPTV、アドオンを使えます。",
     "tube_desc": "YouTube と YouTube Music を 1 か所で、自分のアカウントのまま：広告なし、SponsorBlock、お好みで Shorts なし、同じ画質メニューからダウンロード、アカウントなしでもチャンネル登録。",
     "telegram_desc": "Telegram のチャットやチャンネルからメディアをダウンロード。ブロックやプロキシを自力で回避する接続付き。",
-    "global_desc": "どのサイトでもログイン、閲覧、ダウンロード: OmniGet が操作するブラウザ、すべてのタブのメディア検出、コレクション丸ごとのためのコネクタ。",
-    "search": "スーパーパワーを検索",
+    "global_desc": "OmniGet 内のブラウザ：ログインして閲覧し、どのサイトからでもダウンロードできます。",
+    "search": "ツールを検索",
     "no_results": "「{{query}}」に一致するものはありません。",
     "converter_desc": "データ、文書、画像、図面、音声、動画の形式をこのコンピューターで変換します。iPhone の写真（HEIC）、Photoshop ファイル、カメラの RAW を開き、画像を SVG にすることもできます。ffmpeg、Pandoc、ImageMagick、LibreOffice がインストールされていれば利用します。",
     "palette_desc": "カラー工房: OKLCH ピッカー、均等なスケール、コントラスト確認、グラデーション、デザイントークン。",
@@ -3443,19 +3473,19 @@
     "capture_desc": "画面を録画して、画質を落とさずに動画を一瞬でカット。",
     "studio_desc": "動画に字幕・リフレーム・タイトルをローカルで付け、完成した MP4 を書き出します。",
     "dictation_desc": "ショートカットを押して話すだけで、どのアプリにも入力できます。文字起こしはこのコンピューターで行います。",
-    "whatsapp_desc": "WhatsAppをリンクして、どのチャットからでも写真、動画、音声、ドキュメントをダウンロードしたり、会話全体をエクスポートしたりできます。",
-    "discord_desc": "Discord のサーバーと DM を読んで返信し、チャンネルのメディアをダウンロードしたり、履歴を HTML、JSON、テキストでエクスポートしたりできます。",
+    "phonechat_desc": "電話チャットをリンクして、どのチャットからでも写真、動画、音声、ドキュメントをダウンロードしたり、会話全体をエクスポートしたりできます。",
+    "guildchat_desc": "サーバーチャット のサーバーと DM を読んで返信し、チャンネルのメディアをダウンロードしたり、履歴を HTML、JSON、テキストでエクスポートしたりできます。",
     "pdf_desc": "PDF の結合、分割、並べ替え、回転、圧縮ができます。画像を PDF にすることも。すべてこのコンピューターの中で行われます。",
     "cutout_desc": "写真や動画のフレームから背景を消して、透明な PNG にします。このコンピューターで動きます。",
     "photos_desc": "このコンピューターにある画像を素早く見られるギャラリーです。iPhone の写真（HEIC）、カメラの RAW、Photoshop ファイルにも対応。重複や似た写真を探し、元のファイルに触れずにさっと補正して、1 枚でもまとめてでも書き出せます。",
-    "x_desc": "X のタイムライン、プロフィール、返信を読み、投稿、いいね、リポスト、フォローができます。エージェントも MCP 経由で同じツールを使えます。",
-    "instagram_desc": "Instagram のフィード、プロフィール、投稿、コメントを読み、いいね・コメント・フォローができます。エージェントも MCP で同じツールを使えます。",
-    "tiktok_desc": "TikTok のおすすめフィード、プロフィール、動画、コメントを閲覧し、いいね、コメント、フォローができます。エージェントも MCP 経由で同じツールを使えます。",
+    "shortpost_desc": "ショート投稿 のタイムライン、プロフィール、返信を読み、投稿、いいね、リポスト、フォローができます。",
+    "photofeed_desc": "フォトフィード のフィード、プロフィール、投稿、コメントを読み、いいね・コメント・フォローができます。",
+    "clipfeed_desc": "クリップフィード のおすすめフィード、プロフィール、動画、コメントを閲覧し、いいね、コメント、フォローができます。",
     "devtools_desc": "JSON、JWT、ハッシュ、正規表現、差分のオフラインツールと、ポートインスペクター。",
     "pack_desc": "フォルダやリポジトリを、プロンプトにそのまま使える1つのファイルにまとめます。トークン上限とシークレット検出つき。",
     "scrape_desc": "どんなページもきれいな Markdown に変換。セレクターで要素を選ぶこともできます。",
     "api_desc": "HTTP リクエストを送り、ステータス、所要時間、リダイレクトを確認。アカウント不要。",
-    "transfer_desc": "NAS、ウェブホスティング、ゲーム機などの FTP・FTPS・SFTP サーバーでファイルを閲覧、ダウンロード、アップロードします。エージェントも MCP で同じツールを使えます。",
+    "transfer_desc": "NAS、ウェブホスティング、ゲーム機などの FTP・FTPS・SFTP サーバーでファイルを閲覧、ダウンロード、アップロードします。",
     "cat_all": "すべて",
     "cat_media": "メディア",
     "cat_download": "ダウンロード",
@@ -3474,10 +3504,12 @@
     "tag_local": "ローカル",
     "tag_account": "ログイン",
     "clear": "検索と絞り込みをクリア",
-    "reddit_desc": "Reddit のホーム、コミュニティ、投稿、コメントツリーを見て、投票、コメント、投稿、保存ができます。エージェントも MCP 経由で同じツールを使えます。",
-    "pinterest_desc": "Pinterest のホームフィード、ボード、ピンを見てアイデアを検索し、ピンの保存やフォローができます。エージェントも MCP 経由で同じツールを使えます。",
-    "github_desc": "GitHub のリポジトリ、リリース、Issue、スターを付けた人、トレンドを追い、自分のトークンでスター、フォロー、コメントができます。エージェントも MCP 経由で同じツールを使えます。",
-    "research_desc": "自分の ScrapeCreators キーで TikTok、Instagram、YouTube、Reddit、広告ライブラリなどの公開データを取得し、クリエイター・コンテンツ概要・広告・リールを調べます。エージェントも MCP で同じツールを使えます。"
+    "forums_desc": "フォーラム のホーム、コミュニティ、投稿、コメントツリーを見て、投票、コメント、投稿、保存ができます。",
+    "pinboard_desc": "ピンボード のホームフィード、ボード、ピンを見てアイデアを検索し、ピンの保存やフォローができます。",
+    "codehub_desc": "コードハブ のリポジトリ、リリース、Issue、スターを付けた人、トレンドを追い、自分のトークンでスター、フォロー、コメントができます。",
+    "research_desc": "自分の ScrapeCreators キーで TikTok、Instagram、YouTube、Reddit、広告ライブラリなどの公開データを取得し、クリエイター・コンテンツ概要・広告・リールを調べます。",
+    "turn_on": "オンにする",
+    "tag_mcp": "エージェント対応"
   },
   "devtools": {
     "title": "DevTools",
@@ -3533,7 +3565,7 @@
     }
   },
   "pack": {
-    "title": "Pack",
+    "title": "リポジトリをプロンプトに",
     "subtitle": "フォルダーをプロンプトにそのまま使える 1 つのファイルにします。何が入り、何が外れ、その理由がわかります。",
     "folder": "フォルダー",
     "folder_hint": "パスを貼り付けるか、フォルダーをこのウィンドウにドロップ",
@@ -3584,7 +3616,7 @@
     "max_tokens": "トークン上限",
     "selector": "CSS セレクター",
     "attr": "属性（任意）",
-    "open_browser": "Global Downloader のブラウザーで開く",
+    "open_browser": "内蔵ブラウザ のブラウザーで開く",
     "candidates": "ページにはこれらがあります:",
     "copy": "結果をコピー",
     "truncated": "{{total}} トークン中 {{tokens}} で切りました。残りを読むにはトークン上限を上げてください。",
@@ -4391,15 +4423,15 @@
     }
   },
   "washmybelly": {
-    "nav": "washmybelly",
-    "settings_enable": "washmybelly を表示",
+    "nav": "システムクリーナー",
+    "settings_enable": "システムクリーナー を表示",
     "settings_enable_desc": "勝手に動くものはありません。スキャンは画面を開いたときか、エージェントが頼んだときだけ始まります。オフにすると、エージェントからもツールが見えなくなります。",
     "settings_quarantine_days": "隔離したファイルの保管期間",
-    "settings_quarantine_days_desc": "washmybelly の隔離フォルダ内の項目が完全に削除されるまでの日数です。",
+    "settings_quarantine_days_desc": "システムクリーナー の隔離フォルダ内の項目が完全に削除されるまでの日数です。",
     "settings_auto_hold": "作業中は高パフォーマンス電源を維持",
     "settings_auto_hold_desc": "大きなダウンロードやエージェントの実行中は高パフォーマンスのプロファイルを維持し、終わったら解除します。",
-    "disabled_title": "washmybelly はオフです",
-    "disabled_body": "設定 › 詳細 › washmybelly でオンにしてください。",
+    "disabled_title": "システムクリーナー はオフです",
+    "disabled_body": "設定 › 詳細 › システムクリーナー でオンにしてください。",
     "open_settings": "設定を開く",
     "loading": "このコンピュータを確認中…",
     "error_title": "問題が発生しました",
@@ -4893,7 +4925,7 @@
       "selected_only": "{{count}} 件選択"
     },
     "receipts": {
-      "subtitle": "washmybelly が変更したすべてのものと、その戻し方。",
+      "subtitle": "システムクリーナー が変更したすべてのものと、その戻し方。",
       "refresh": "更新",
       "today": "今日",
       "yesterday": "昨日",
@@ -5867,10 +5899,10 @@
     }
   },
   "video": {
-    "title": "Watch",
+    "title": "ビデオプレーヤー",
     "addons": {
       "catalog_failed": "{{name}}から応答がありませんでした:",
-      "empty_body": "信頼できるアドオンのマニフェストURLを「ソース」に貼り付けてください。Watchはアドオンの直接のhttpリンクとYouTubeのみ再生します。",
+      "empty_body": "信頼できるアドオンのマニフェストURLを「ソース」に貼り付けてください。ビデオプレーヤーはアドオンの直接のhttpリンクとYouTubeのみ再生します。",
       "empty_title": "アドオンはインストールされていません",
       "external_reason": "このアドオンはWebサイトで開くことを求めています。",
       "install": "アドオンをインストール",
@@ -5879,11 +5911,11 @@
       "no_catalogs_body": "一部のアドオンはストリームや字幕のみを提供します。別のカタログからタイトルを開くと表示されます。",
       "no_streams": "ストリームが見つかりません",
       "no_streams_body": "このタイトルのリンクを返したアドオンはありませんでした。",
-      "none_playable": "これらのストリームはWatch内では再生できません。理由は各項目の下に表示されます。",
+      "none_playable": "これらのストリームはビデオプレーヤー内では再生できません。理由は各項目の下に表示されます。",
       "open_browser": "ブラウザで開く",
       "pick_episode": "エピソードを選ぶとストリームが表示されます。",
       "refused_count": "拒否されたストリーム {{count}} 件",
-      "refused_reason": "拒否: Watchは直接のhttpリンクとYouTubeのみ再生します。Torrent、magnet、usenet、P2Pのリンクは再生されません。",
+      "refused_reason": "拒否: ビデオプレーヤーは直接のhttpリンクとYouTubeのみ再生します。Torrent、magnet、usenet、P2Pのリンクは再生されません。",
       "search": "アドオンのカタログを検索",
       "streams": "ストリーム",
       "title": "アドオン"
@@ -5934,7 +5966,7 @@
       "back10": "10秒戻る",
       "connected": "接続済み",
       "devices": "デバイス",
-      "lan_note": "キャスト中、Watchはワンタイムキー付きのローカルリンクを開き、テレビだけがアクセスできるようにします。停止すると閉じます。",
+      "lan_note": "キャスト中、ビデオプレーヤーはワンタイムキー付きのローカルリンクを開き、テレビだけがアクセスできるようにします。停止すると閉じます。",
       "mute": "ミュート",
       "none_body": "テレビの電源が入っていて、このコンピュータと同じWi-Fiに接続されているか確認してから、もう一度検索してください。",
       "none_title": "Chromecastが見つかりません",
@@ -5993,9 +6025,9 @@
       "materials": "コース資料",
       "progress": "{{percent}}%完了",
       "remove": "コースを削除",
-      "remove_body": "Watchから進捗とともに削除されます。ファイルはディスクに残ります。",
+      "remove_body": "ビデオプレーヤーから進捗とともに削除されます。ファイルはディスクに残ります。",
       "remove_title": "{{title}}を削除しますか?",
-      "removed": "{{title}}をWatchから削除しました",
+      "removed": "{{title}}をビデオプレーヤーから削除しました",
       "review": "もう一度観る",
       "select": "選択",
       "select_all": "すべて",
@@ -6007,7 +6039,7 @@
       "title": "コース",
       "unmark_module": "モジュールを未視聴にする"
     },
-    "disabled_title": "Watchはオフです",
+    "disabled_title": "ビデオプレーヤーはオフです",
     "done": "完了",
     "drop": {
       "added": "{{name}}を追加しました。スキャンしています。",
@@ -6026,7 +6058,7 @@
     },
     "folders": {
       "collapse": "折りたたむ",
-      "empty_body": "ビデオのあるフォルダを追加してください。Watchは読み取りのみで、名前の変更や移動は行いません。",
+      "empty_body": "ビデオのあるフォルダを追加してください。ビデオプレーヤーは読み取りのみで、名前の変更や移動は行いません。",
       "empty_title": "フォルダはまだありません",
       "expand": "展開",
       "kind_course": "コース",
@@ -6035,10 +6067,10 @@
       "offline_notice": "現在このフォルダを読み取れません(接続されていないドライブ、または停止中のネットワーク共有)。何も削除されていません。再びアクセスできるようになると、進捗とメモが戻ります。",
       "pick": "左側でフォルダを選択",
       "play_folder": "フォルダを再生",
-      "remove_confirm_body": "Watchはこのフォルダを表示しなくなります。ディスクからファイルは削除されず、フォルダを再度追加すると進捗が戻ります。",
+      "remove_confirm_body": "ビデオプレーヤーはこのフォルダを表示しなくなります。ディスクからファイルは削除されず、フォルダを再度追加すると進捗が戻ります。",
       "remove_confirm_title": "「{{name}}」をライブラリから削除しますか?",
       "remove_from_library": "ライブラリから削除",
-      "remove_hint": "Watchからフォルダを外すだけです。ファイルはディスクに残ります。",
+      "remove_hint": "ビデオプレーヤーからフォルダを外すだけです。ファイルはディスクに残ります。",
       "removed": "「{{name}}」をライブラリから削除しました。ファイルには手を加えていません。",
       "rescan": "再スキャン",
       "rescan_started": "フォルダをスキャンしています…",
@@ -6063,7 +6095,7 @@
       "continue_course": "続ける",
       "customize": "カスタマイズ",
       "done": "完了",
-      "empty_body": "Watchは、すでにあるビデオを読み込みます。名前の変更、移動、アップロードは行いません。コースフォルダの読み込みや、お持ちのサーバへの接続もできます。",
+      "empty_body": "ビデオプレーヤーは、すでにあるビデオを読み込みます。名前の変更、移動、アップロードは行いません。コースフォルダの読み込みや、お持ちのサーバへの接続もできます。",
       "empty_title": "フォルダを選んで開始",
       "import_course": "コースフォルダを読み込む",
       "lessons_done": "{{total}}レッスン中{{done}}完了",
@@ -6156,7 +6188,7 @@
       "open_file": "ビデオファイルを開く"
     },
     "link": {
-      "hint": "YouTubeとほとんどの動画サイトに対応しています。Watch内のどこにでもリンクを貼り付けられます。",
+      "hint": "YouTubeとほとんどの動画サイトに対応しています。ビデオプレーヤー内のどこにでもリンクを貼り付けられます。",
       "invalid": "Webリンクではないようです",
       "open": "リンクを開く",
       "play": "再生"
@@ -6168,7 +6200,7 @@
       "all_off_title": "TVリストはオフです",
       "channel": "チャンネル",
       "channels": "チャンネル",
-      "empty_body": "「ソース」に、ご自身のM3UリストまたはXtreamログインを追加してください。Watchにチャンネルは付属していません。",
+      "empty_body": "「ソース」に、ご自身のM3UリストまたはXtreamログインを追加してください。ビデオプレーヤーにチャンネルは付属していません。",
       "empty_title": "TVリストはまだありません",
       "favorite": "お気に入りに追加",
       "favorites": "お気に入り",
@@ -6218,12 +6250,12 @@
       "incognito": "プライベートモード",
       "incognito_hint": "オンのあいだ、視聴した内容は履歴にも進捗にも保存されません",
       "incognito_on": "プライベートモード オン",
-      "label": "Watchのセクション",
+      "label": "ビデオプレーヤーのセクション",
       "learn": "学習",
       "live": "ライブTV",
       "movies": "映画",
       "online": "オンライン",
-      "settings": "Watchの設定",
+      "settings": "ビデオプレーヤーの設定",
       "shows": "番組",
       "sources": "ソース",
       "status_disabled": "オフ",
@@ -6384,8 +6416,8 @@
       "player": "プレーヤー",
       "privacy": "プライバシー",
       "remove_folder": "フォルダを削除",
-      "remove_folder_hint": "Watchから削除します。ディスクからは何も削除されません。",
-      "title": "Watchの設定"
+      "remove_folder_hint": "ビデオプレーヤーから削除します。ディスクからは何も削除されません。",
+      "title": "ビデオプレーヤーの設定"
     },
     "show": {
       "empty": "この番組にはディスク上のエピソードがありません",
@@ -6425,7 +6457,7 @@
       "add": "追加",
       "addon_added": "アドオンをインストールしました",
       "addon_body": "オープンなStremioプロトコルを使うアドオンのカタログとリンクを、マニフェストURLからインストールします。",
-      "addon_policy_body": "Watchは、アドオンの直接のhttp(s)リンクとYouTubeビデオを再生します。Torrent、magnet、P2Pのアドオンは拒否され、そのリンクは拒否済みと表示されます。",
+      "addon_policy_body": "ビデオプレーヤーは、アドオンの直接のhttp(s)リンクとYouTubeビデオを再生します。Torrent、magnet、P2Pのアドオンは拒否され、そのリンクは拒否済みと表示されます。",
       "addon_policy_title": "再生できるのはhttpリンクとYouTubeのみ",
       "addon_sends": "開いた内容のカタログとリンクをアドオンに問い合わせます。",
       "addon_title": "アドオン",
@@ -6440,7 +6472,7 @@
       "ani_step2": "トークンをコピーして、下に貼り付けてください。このコンピュータにのみ保存されます。",
       "ani_title": "AniList",
       "ani_token": "アクセストークン",
-      "bring_your_own_body": "Watchは、ご自身で追加したソースのみを使用します。各ソースが送信する内容が表示され、いつでもオフにしたり削除したりできます。",
+      "bring_your_own_body": "ビデオプレーヤーは、ご自身で追加したソースのみを使用します。各ソースが送信する内容が表示され、いつでもオフにしたり削除したりできます。",
       "bring_your_own_title": "プリインストールされているものはありません",
       "channels": "{{count}}チャンネル",
       "choose_file": "ファイルを選択",
@@ -6557,11 +6589,11 @@
       "searching": "検索中…"
     },
     "welcome": {
-      "body": "Watchは、コンピュータにすでにあるビデオを再生します。名前の変更や移動は行いません。",
+      "body": "ビデオプレーヤーは、コンピュータにすでにあるビデオを再生します。名前の変更や移動は行いません。",
       "connect_server": "Jellyfin、IPTV、アドオンに接続",
       "drop_hint": "フォルダ、ファイル、リンクをこのウィンドウにドロップすることもできます。",
       "link_placeholder": "またはビデオのリンクを貼り付け",
-      "no_ffmpeg": "ffmpegが見つからないため、WebViewで直接再生できないファイル(MKV、AVI、HEVC)は開けません。「設定 → 依存関係」でインストールしてください。",
+      "no_ffmpeg": "ffmpegが見つからないため、WebViewで直接再生できないファイル(MKV、AVI、HEVC)は開けません。「設定 → ダウンロードエンジン」でインストールしてください。",
       "pick_course": "コースを読み込む",
       "pick_folder": "ビデオフォルダを選択",
       "skip": "今はスキップ",
@@ -6614,6 +6646,9 @@
       "lock": "Lock",
       "locked": "Locked",
       "memoryMode": "未保存: メモリ上で作業中",
+      "emptyTitle": "このキャンバスにはまだエージェントがいません",
+      "emptyHint": "Claude Code または Codex のターミナルを追加します。2 つをコードでつなぐと、一方がもう一方に質問できます。",
+      "emptyAction": "エージェントを追加",
       "menu": {
         "add": "Add",
         "connectNew": "新規作成して接続…",
@@ -6652,7 +6687,9 @@
         "thinking": "Thinking",
         "unknown": "No signal",
         "waitingPeer": "エージェントを待機中",
-        "working": "Working"
+        "working": "Working",
+        "limit": "上限に到達",
+        "refused": "拒否しました"
       },
       "strokeWidth": "線の太さ",
       "terminalFailed": "ターミナルを起動できませんでした",
@@ -6705,7 +6742,9 @@
       "textFamily": "Font",
       "textThemeColor": "テーマカラー",
       "attach": "ファイルを添付",
-      "deviceLock": "画面をロック"
+      "deviceLock": "画面をロック",
+      "costEstimated": "このセッションで約 {{amount}}",
+      "costHint": "モデルの公開価格に基づく、このターミナルのセッションの概算です。"
     },
     "term": {
       "action": {
@@ -6738,7 +6777,9 @@
         "failed": "Failed",
         "compacting": "Compacting",
         "looping": "Looping",
-        "unknown": "No signal"
+        "unknown": "No signal",
+        "limit": "上限に到達",
+        "refused": "拒否しました"
       },
       "find": {
         "placeholder": "ターミナル内を検索",
@@ -6850,10 +6891,10 @@
         "here": "現在地"
       }
     },
-    "maestro": {
-      "label": "Maestro",
-      "off": "Maestro モードをオンにする",
-      "on": "Maestro: 招集、接続、フロアの作成ができます。クリックでオフ。"
+    "lead": {
+      "label": "Lead",
+      "off": "Lead モードをオンにする",
+      "on": "Lead: 招集、接続、フロアの作成ができます。クリックでオフ。"
     },
     "partituras": {
       "addToCanvas": "キャンバスに追加",
@@ -7664,7 +7705,7 @@
       "memoryLimitHint": "超えたプログラムは停止されます。シェルは残ります。0 = オフ",
       "optionAsMeta": "Option キーで Meta を送る（文字入力の代わりに）",
       "notifyAttention": "エージェントが対応を必要としたら通知",
-      "badgesNonMaestro": "Maestro 以外のターミナルに注意バッジを表示",
+      "badgesNonLead": "Lead 以外のターミナルに注意バッジを表示",
       "preventSleep": "コンピューターをスリープさせない",
       "sleepWorking": "エージェントの作業中",
       "sleepAlways": "Always",
@@ -7679,7 +7720,7 @@
       "presetCwd": "フォルダ（空 = ワークスペースのフォルダ）",
       "presetIcon": "Icon",
       "presetColor": "Color",
-      "presetMaestro": "Maestro（他のエージェントを招集・管理できます）",
+      "presetLead": "Lead（他のエージェントを招集・管理できます）",
       "presetChat": "チャットモードで開始",
       "cancel": "Cancel",
       "savePreset": "プリセットを保存",
@@ -8096,22 +8137,82 @@
         "done": "文字起こしの準備完了",
         "failed": "Failed"
       }
+    },
+    "needsYou": {
+      "title": "対応が必要",
+      "count": "対応を待つエージェント: {{count}}",
+      "next": "対応が必要な次のエージェントへ移動",
+      "agent": "エージェント",
+      "more": "ほか {{count}} 件",
+      "reason": {
+        "permission": "許可を求めています",
+        "blocked": "あなたの回答を待っています",
+        "stuck": "進行が止まっています",
+        "trust": "フォルダーを信頼するか尋ねています",
+        "chrome_prompt": "ブラウザーに関する質問を待っています",
+        "login": "サインインが必要です",
+        "review": "完了、未確認",
+        "other": "注意が必要"
+      }
+    },
+    "autonomy": {
+      "auto_edits": "自動で編集",
+      "full": "確認なしで実行",
+      "plan": "計画のみ",
+      "hint": "このエージェントの起動コマンドの {{flag}} による設定"
+    },
+    "budget": {
+      "label": "支出の上限",
+      "usage": "{{spent}} / {{limit}}",
+      "tokens": "{{count}} トークン",
+      "w_turn": "このターン",
+      "w_day": "今日",
+      "w_week": "今週",
+      "w_5h": "直近 5 時間",
+      "w_7d": "直近 7 日間",
+      "w_run": "この実行",
+      "paused_short": "上限に達して一時停止中",
+      "paused_title": "一時停止中: 上限 {{limit}} に達しました",
+      "paused_body": "この上限の対象エージェントをアプリが一時停止しました。エージェントに問題はありません。",
+      "near": "上限に近づいています。",
+      "keep": "一時停止のままにする",
+      "raise": "上限を {{limit}} に引き上げる",
+      "failed": "回答が届きませんでした。もう一度お試しください。"
+    },
+    "checkpoint": {
+      "open": "復元ポイント",
+      "title": "復元ポイント",
+      "before_turn": "ターン {{turn}} の前",
+      "restore": "ここに戻す",
+      "none_repo": "このターミナルのフォルダーは git リポジトリではないため、戻せる地点がありません。",
+      "none_yet": "ここではまだターンが始まっていません。ターンが始まるたびに復元ポイントが保存されます。",
+      "confirm_title": "ファイルをターン {{turn}} の前の状態に戻しますか？",
+      "confirm_files": "変更されるファイル数: {{count}}",
+      "confirm_nothing": "それ以降の変更はありません。",
+      "confirm_note": "リポジトリ内のすべてのファイルがその時点に戻ります。このエージェントの変更、ほかのエージェントがそこで行った変更、それ以降のあなた自身の編集も含まれ、その後に作成されたファイルは削除されます。現在の状態のコピーが保存されるため、1 回だけ元に戻せます。実行済みのコマンド、リポジトリ外のファイル、送信済みのメッセージは取り消されません。エージェントは自分が行ったことを覚えたままです。",
+      "confirm": "ファイルを戻す",
+      "cancel": "キャンセル",
+      "done": "戻したファイル数: {{count}}",
+      "failed": "うまくいきませんでした。もう一度お試しください。",
+      "undo": "戻す操作を取り消す",
+      "undone": "元の状態に戻したファイル数: {{count}}",
+      "wait_turn": "エージェントはターンの途中です。終わるまで待ってから戻してください。"
     }
   },
   "tube": {
-    "title": "OmniTube",
+    "title": "Tube Player",
     "library": {
       "history": "履歴",
       "watch_later": "後で見る",
       "local_subs": "このデバイスの登録チャンネル"
     },
     "app": {
-      "disabled_title": "OmniTube はオフになっています"
+      "disabled_title": "Tube Player はオフになっています"
     },
     "shell": {
       "guide": "ガイド",
       "back": "戻る",
-      "home": "OmniTube ホーム",
+      "home": "Tube Player ホーム",
       "face": "動画または音楽",
       "videos": "動画",
       "music": "音楽",
@@ -8851,7 +8952,7 @@
       "storage_of": "{{used}} / {{cap}}",
       "storage_used": "自動ダウンロードの使用容量",
       "storage_used_nocap": "{{used}} 使用、上限なし",
-      "title": "OmniTube の設定",
+      "title": "Tube Player の設定",
       "tools": "ヘルパー",
       "tools_desc": "再生とダウンロードの代替手段として使用します。",
       "unblock": "ブロックを解除",
@@ -9400,13 +9501,13 @@
       "batch_toast": "{{chat}} の {{count}} 個のファイルは保存済みのため、再ダウンロードしませんでした"
     },
     "watch_lib": {
-      "rule_option": "Watch に追加",
-      "rule_option_hint": "保存した各ファイルは Watch ライブラリにも表示されます。",
-      "rule_on": "Watch に追加",
-      "add_folder": "このルールのフォルダを Watch に追加",
-      "add_this_folder": "このフォルダを Watch に追加",
-      "added": "{{count}} 個のファイルを Watch に追加しました",
-      "added_folder": "フォルダを Watch に追加しました"
+      "rule_option": "ビデオプレーヤー に追加",
+      "rule_option_hint": "保存した各ファイルは ビデオプレーヤー ライブラリにも表示されます。",
+      "rule_on": "ビデオプレーヤー に追加",
+      "add_folder": "このルールのフォルダを ビデオプレーヤー に追加",
+      "add_this_folder": "このフォルダを ビデオプレーヤー に追加",
+      "added": "{{count}} 個のファイルを ビデオプレーヤー に追加しました",
+      "added_folder": "フォルダを ビデオプレーヤー に追加しました"
     },
     "search": {
       "filters": "Filters",
@@ -9485,7 +9586,7 @@
     "template_sample_caption": "第03回: モジュールの紹介"
   },
   "global_dl": {
-    "title": "Global Downloader",
+    "title": "内蔵ブラウザ",
     "subtitle": "ログインが必要なサイトも含め、ほぼすべての Web サイトから動画やファイルをダウンロードできます。",
     "hero_label": "ダウンロードしたいページのリンクを貼り付けてください",
     "url_placeholder": "例: https://example.com/course/lesson-1",
@@ -9642,8 +9743,11 @@
       "hint_installing": "ヘルパーをインストール中",
       "hint_installed": "{{name}} ヘルパーでこのリンクをダウンロードできます。",
       "hint_update": "アップデートがあります。",
-      "hint_open": "Global Downloader で開く",
+      "hint_open": "内蔵ブラウザ で開く",
       "login_paste": "そのウィンドウで講座を開いてもう一度ボタンを押すか、上にリンクを貼り付けてください。",
+      "search": "ヘルパーを検索",
+      "no_match": "「{{query}}」に一致するヘルパーはありません。",
+      "wanted": "リンクからこのヘルパーを開きました。「インストール」を押すと追加されます。",
       "err": {
         "signature": "ヘルパーの一覧が署名チェックに失敗したため、拒否しました。",
         "hash": "ヘルパーのパッケージが一覧と一致しないため、拒否しました。",
@@ -9667,7 +9771,7 @@
     "scope_agents": "このフォルダでAIエージェントをバックグラウンドで実行する",
     "scope_approvals": "それらのエージェントの権限確認にあなたの代わりに答える",
     "scope_approvals_hint": "オフ：OmniGet が毎回あなたに確認します。",
-    "scope_browser": "Global Downloader：専用ブラウザを開き、サイト用コネクタを作成し、サイトや講座をまるごとダウンロード",
+    "scope_browser": "内蔵ブラウザ：専用ブラウザを開き、サイト用コネクタを作成し、サイトや講座をまるごとダウンロード",
     "scope_browser_hint": "そのブラウザでログイン済みのページを使います。オフ：通常のダウンロードのみ。",
     "request_hint": "{{client}} に接続を頼んだ直後の場合だけ許可してください。",
     "deny": "許可しない",
@@ -9712,7 +9816,7 @@
       "where_cloud_hint": "ChatGPT、Web 版 Claude、Grok などインターネット上の AI",
       "preset": "できること",
       "preset_all": "すべて",
-      "preset_messages": "WhatsApp とメッセージ",
+      "preset_messages": "電話チャット とメッセージ",
       "preset_read": "読み取りのみ",
       "expires": "有効期間",
       "days_1": "1 日",
@@ -9775,7 +9879,7 @@
       "reported_short": "報告済み",
       "placeholder": "メッセージを入力",
       "hint": "Enter で送信、Shift+Enter で改行。",
-      "remaining": "残り {{n}} 文字",
+      "remaining": "残り {{num}} 文字",
       "send": "送信",
       "sending": "送信中…",
       "state_slow": "次のメッセージまで数秒お待ちください。",
@@ -10077,7 +10181,7 @@
         "exited": "[プロセス終了: {{code}}]"
       },
       "onboarding": {
-        "title": "あなたの AI ツール",
+        "title": "AIツールを接続",
         "desc": "このマシンで次のコーディング CLI が見つかりました。セッションをスレッドとして取り込み、小さく便利な初期設定から始めましょう。",
         "detecting": "AI ツールを探しています…",
         "none": "コーディング CLI が見つかりません。後からインストールできます。",
@@ -10261,7 +10365,7 @@
       "deleted": "「{{name}}」を削除しました。",
       "copy_name": "{{name}} のコピー",
       "first_name": "マイパレット",
-      "nth_name": "パレット {{n}}"
+      "nth_name": "パレット {{num}}"
     },
     "save": {
       "saving": "保存中…",
@@ -10303,7 +10407,7 @@
       "empty_title": "このプロジェクトにはパレットがありません",
       "empty_body": "パレットを追加すると、1つのベース色からスケールを作れます。",
       "add": "パレットを追加",
-      "untitled": "パレット {{n}}",
+      "untitled": "パレット {{num}}",
       "name": "パレット名",
       "token": "トークン名",
       "token_hint": "書き出しで使われます（例: --brand-500）。英数字とハイフン。",
@@ -10381,9 +10485,9 @@
       "compare_hint": "同じストップとイージングを3つの色空間で比較。sRGB は中間が灰色や暗くなりがちですが、OKLCH は色を保ちます。行をクリックして使います。",
       "stops": "ストップ",
       "from_palettes": "最初の2つのパレットを使う",
-      "stop_color": "ストップ {{n}} の色",
-      "stop_pos": "ストップ {{n}} の位置",
-      "remove_stop": "ストップ {{n}} を削除",
+      "stop_color": "ストップ {{num}} の色",
+      "stop_pos": "ストップ {{num}} の位置",
+      "remove_stop": "ストップ {{num}} を削除",
       "min_stops": "グラデーションには2つ以上のストップが必要です",
       "stop_removed": "ストップを削除しました。",
       "add_stop": "ストップを追加",
@@ -10423,7 +10527,7 @@
       "share": "画像の {{percent}}%",
       "make_palettes": "パレットを {{count}} 件追加",
       "make_gradient": "グラデーションを作る",
-      "color_name": "{{name}} {{n}}",
+      "color_name": "{{name}} {{num}}",
       "added": "画像からパレットを {{count}} 件追加しました。",
       "gradient_set": "グラデーションに画像の色を明るい順に使いました。"
     },
@@ -10463,7 +10567,7 @@
     "drop_created_project": "この画像用にプロジェクト {{name}} を作成しました。"
   },
   "fonts": {
-    "title": "タイポグラフィ",
+    "title": "フォント",
     "subtitle": "オープンなフォントを探し、自分の文章で試し、比較・組み合わせて、タイプスケールを作れます。",
     "views_label": "タイポグラフィのセクション",
     "view_fonts": "フォント",
@@ -10918,7 +11022,7 @@
       "color": "色"
     },
     "curve": {
-      "handle": "ハンドル {{n}}: x {{x}}, y {{y}}",
+      "handle": "ハンドル {{num}}: x {{xval}}, y {{yval}}",
       "keys_hint": "ハンドルをドラッグするか、選択して矢印キーで動かします(Shift で大きく、Alt で細かく)。"
     },
     "easing": {
@@ -10937,7 +11041,7 @@
       "group_apple": "Apple 風",
       "group_expressive": "表情豊か",
       "property": "動かすプロパティ",
-      "race": "A: {{a}} · B: {{b}}。同時にスタートし、前にいる方がその瞬間は速いカーブです。",
+      "race": "A: {{first}} · B: {{second}}。同時にスタートし、前にいる方がその瞬間は速いカーブです。",
       "swap": "A と B を入れ替える",
       "use_in_timeline": "選択中のキーフレームに使う",
       "used": "タイムラインに送りました",
@@ -10975,8 +11079,8 @@
       "points": "{{ms}} ms で {{count}} 点。許容誤差を小さくすると正確ですが長くなります。",
       "linear_hint": "現行のすべてのブラウザで動きます。長さは収束時間です。",
       "motion_hint": "剛性・減衰・質量は同じなので、静止状態から始まる動きはグラフどおりに収まります。",
-      "svelte_hint": "Svelte は 60 fps で 1 フレームごとにスプリングを進めるので、stiffness = k ÷ m ÷ 3600、damping = c ÷ m ÷ 60 です(k {{k}}, c {{c}}, m {{m}})。どちらも 0〜1 に収める必要があります。",
-      "svelte_clamped": "このスプリングは Svelte には硬すぎるか減衰が強すぎます。stiffness = k ÷ m ÷ 3600 と damping = c ÷ m ÷ 60(k {{k}}, c {{c}}, m {{m}})が 1 を超えたため切り詰めたので、動きが変わります。剛性か減衰を下げてください。",
+      "svelte_hint": "Svelte は 60 fps で 1 フレームごとにスプリングを進めるので、stiffness = k ÷ m ÷ 3600、damping = c ÷ m ÷ 60 です(k {{kval}}, c {{cval}}, m {{mval}})。どちらも 0〜1 に収める必要があります。",
+      "svelte_clamped": "このスプリングは Svelte には硬すぎるか減衰が強すぎます。stiffness = k ÷ m ÷ 3600 と damping = c ÷ m ÷ 60(k {{kval}}, c {{cval}}, m {{mval}})が 1 を超えたため切り詰めたので、動きが変わります。剛性か減衰を下げてください。",
       "swift_hint": "response = 2π ÷ √(k ÷ m) = {{response}} 秒、dampingFraction = c ÷ (2√(k·m)) = {{fraction}}。",
       "lane": "S",
       "motion_hint_velocity": "初速は含めていません。ここでは距離に対する毎秒の割合ですが、Motion は値そのものの単位で読みます。距離（終点 − 始点）を掛けて velocity として追加してください。"
@@ -11476,22 +11580,22 @@
     "snapshot_saved": "フレームを {{name}} として保存しました。",
     "snapshot_failed": "フレームを保存できませんでした: {{error}}",
     "timeline": "タイムライン",
-    "segment_label": "区間 {{n}}、{{start}} から {{end}}",
+    "segment_label": "区間 {{num}}、{{start}} から {{end}}",
     "keys_hint": "I 開始 · O 終了 · Space 再生 · ←/→ 1フレーム · Shift+←/→ 次のキーフレーム · Delete 選択中の区間を削除",
     "in_set": "開始点を {{time}} に設定しました。終了位置まで進めて O を押してください。",
     "out_before_in": "終了点は開始点より後にしてください。先に進めてもう一度 O を押します。",
     "out_too_short": "区間が短すぎます。もっと進めてもう一度 O を押してください。",
-    "segment_added": "区間 {{n}} を追加しました。",
+    "segment_added": "区間 {{num}} を追加しました。",
     "segments": "区間",
     "kept_total": "残す長さ {{time}}",
     "no_segments": "まだ区間がありません。残したい部分の最初で I、最後で O を押してください。",
     "seg_start": "開始",
     "seg_end": "終了",
     "seg_length": "長さ",
-    "go_to_segment": "区間 {{n}} へ移動",
-    "move_up": "区間 {{n}} を上へ",
-    "move_down": "区間 {{n}} を下へ",
-    "remove_segment": "区間 {{n}} を削除",
+    "go_to_segment": "区間 {{num}} へ移動",
+    "move_up": "区間 {{num}} を上へ",
+    "move_down": "区間 {{num}} を下へ",
+    "remove_segment": "区間 {{num}} を削除",
     "overlap_warning": "重なっている区間があるため、その部分は2回含まれます。",
     "merge_overlaps": "重なった区間を結合",
     "export_as": "書き出し方法",
@@ -11544,7 +11648,7 @@
     "remove_from_list_named": "{{name}} を一覧から外す",
     "remove_from_list_hint": "この一覧から外すだけです。ファイルはディスクに残ります。",
     "err_no_ffmpeg_title": "FFmpeg がありません",
-    "err_no_ffmpeg_body": "キャプチャは録画とカットに FFmpeg を使います。設定 › 依存関係 でインストールしてから、もう一度確認してください。",
+    "err_no_ffmpeg_body": "キャプチャは録画とカットに FFmpeg を使います。設定 › ダウンロードエンジン でインストールしてから、もう一度確認してください。",
     "err_no_screens_title": "録画できる画面がありません",
     "err_no_screens_body": "FFmpeg が画面を1つも検出しませんでした。macOS では、OmniGet の画面収録の許可がオフになっていることがほとんどです。",
     "err_no_display_title": "ディスプレイが見つかりません",
@@ -11602,7 +11706,7 @@
     "has_audio": "音声あり",
     "no_audio": "音声なし",
     "ffmpeg_missing_title": "FFmpeg がありません。",
-    "ffmpeg_missing_body": "Studio が動画を読み込み、書き出すのに必要です。設定 > 依存関係でインストールしてから戻ってください。",
+    "ffmpeg_missing_body": "Studio が動画を読み込み、書き出すのに必要です。設定 > ダウンロードエンジンでインストールしてから戻ってください。",
     "open_settings": "設定を開く",
     "dismiss": "通知を閉じる",
     "show_in_folder": "フォルダーで表示",
@@ -11650,7 +11754,7 @@
     "exported": "{{name}} を保存しました。",
     "export_failed": "ファイルを保存できませんでした: {{error}}",
     "burn_captions": "字幕を動画に焼き込む",
-    "burn_unavailable": "この FFmpeg は字幕を描画できません（libass がありません）。設定 > 依存関係で OmniGet が管理する FFmpeg をインストールしてください。.srt と .vtt の書き出しは可能です。",
+    "burn_unavailable": "この FFmpeg は字幕を描画できません（libass がありません）。設定 > ダウンロードエンジンで OmniGet が管理する FFmpeg をインストールしてください。.srt と .vtt の書き出しは可能です。",
     "words_estimated": "単語ごとのタイミングは行から推定しているため、ハイライトが少し早い・遅いことがあります。",
     "shift_all": "全体をずらす",
     "minus_tenth": "−0.1秒",
@@ -11660,7 +11764,7 @@
     "jump_to": "{{time}} から再生",
     "start_time": "開始",
     "end_time": "終了",
-    "line_text": "{{n}} 行目のテキスト",
+    "line_text": "{{num}} 行目のテキスト",
     "split": "カーソル位置で分割",
     "split_needs_words": "分割するには2語以上必要です",
     "merge_next": "次の行と結合",
@@ -11719,14 +11823,14 @@
     "fade_out_end": "最後に黒へフェード",
     "intro_title": "オープニングカード",
     "intro_enable": "オープニングカードを追加",
-    "intro_unavailable": "この FFmpeg は文字を描画できません（drawtext がありません）。設定 > 依存関係で OmniGet が管理する FFmpeg をインストールしてください。",
+    "intro_unavailable": "この FFmpeg は文字を描画できません（drawtext がありません）。設定 > ダウンロードエンジンで OmniGet が管理する FFmpeg をインストールしてください。",
     "intro_heading": "タイトル",
     "intro_heading_ph": "こうやって作りました",
     "intro_sub": "サブタイトル",
     "intro_sub_ph": "第3回 · 2026年11月",
     "intro_needs_text": "タイトルかサブタイトルを入力してください。空のカードは入りません。",
     "intro_seconds": "長さ",
-    "seconds": "{{n}}秒",
+    "seconds": "{{num}}秒",
     "intro_bg": "背景",
     "intro_color": "文字",
     "intro_fade": "フェードイン・アウト",
@@ -11753,7 +11857,7 @@
     "sum_captions": "字幕 {{count}} 行",
     "sum_crop": "{{aspect}} 切り抜き",
     "sum_fit": "{{aspect}} ぼかし",
-    "sum_intro": "オープニング {{n}}秒",
+    "sum_intro": "オープニング {{num}}秒",
     "sum_fade": "フェードアウト",
     "render_done": "書き出しました",
     "render_done_body": "{{name}} を保存しました（{{width}} × {{height}}、{{size}}）。元の動画は変更していません。",
@@ -11821,7 +11925,7 @@
     "err_model_download_failed_title": "音声モデルをダウンロードできませんでした",
     "err_model_download_failed_body": "ダウンロードが中断されました。インターネット接続を確認して、もう一度お試しください。",
     "err_ffmpeg_missing_title": "録音ツールがありません",
-    "err_ffmpeg_missing_body": "マイクの録音には ffmpeg が必要です。設定 › 依存関係 からインストールして戻ってきてください。",
+    "err_ffmpeg_missing_body": "マイクの録音には ffmpeg が必要です。設定 › ダウンロードエンジン からインストールして戻ってきてください。",
     "err_no_microphone_title": "マイクが見つかりません",
     "err_no_microphone_body": "マイクを接続するか、システム設定で OmniGet の使用を許可してから一覧を更新してください。",
     "err_mic_failed_title": "マイクを開始できませんでした",
@@ -11915,9 +12019,9 @@
     "rep_replace": "書く言葉",
     "rep_find_ph": "omniget",
     "rep_replace_ph": "OmniGet",
-    "rep_find_label": "置き換え {{n}}：探す言葉",
-    "rep_replace_label": "置き換え {{n}}：書く言葉",
-    "rep_remove": "置き換え {{n}} を削除",
+    "rep_find_label": "置き換え {{num}}：探す言葉",
+    "rep_replace_label": "置き換え {{num}}：書く言葉",
+    "rep_remove": "置き換え {{num}} を削除",
     "rep_add": "置き換えを追加",
     "rep_duplicate": "2 つの置き換えが同じ言葉を探しています。最初のものだけが使われます。",
     "preview": "整え方を試す",
@@ -11926,8 +12030,8 @@
     "set_limits": "長さと履歴",
     "max_length": "最大の録音時間",
     "max_length_hint": "この時間を過ぎると録音は自動で止まり、文字にします。",
-    "limit_seconds": "{{n}} 秒",
-    "limit_minutes": "{{n}} 分",
+    "limit_seconds": "{{num}} 秒",
+    "limit_minutes": "{{num}} 分",
     "save_history": "履歴を残す",
     "save_history_hint": "直近 200 件の音声入力をこのコンピューターに保存します。",
     "test_title": "テスト欄",
@@ -11950,11 +12054,11 @@
     "clear_yes": "すべて削除",
     "keep": "残す"
   },
-  "whatsapp": {
-    "title": "WhatsApp",
+  "phonechat": {
+    "title": "電話チャット",
     "subtitle": "アカウントをリンクして、写真、動画、音声、ドキュメント、チャット全体をパソコンに保存します。",
-    "boot": "WhatsAppを確認しています…",
-    "boot_error": "WhatsAppを読み込めませんでした",
+    "boot": "電話チャットを確認しています…",
+    "boot_error": "電話チャットを読み込めませんでした",
     "retry": "再試行",
     "cancel": "キャンセル",
     "close": "閉じる",
@@ -11965,7 +12069,7 @@
     "logged_out_title": "このパソコンのリンクが解除されました",
     "logged_out_hint": "セッションとチャットのローカルコピーは削除されました。続けるにはもう一度リンクしてください。",
     "offline_hint": "オフラインです。OmniGetは再接続を試み続けています。保存済みのものは引き続き利用できます。",
-    "connecting_hint": "WhatsAppに接続しています…",
+    "connecting_hint": "電話チャットに接続しています…",
     "syncing": "スマートフォンから履歴を同期中: {{progress}}%（これまでに{{messages}}件のメッセージ）",
     "pick_title": "チャットを選択",
     "pick_hint": "チャットを開くと、メッセージの表示、メディアのダウンロード、エクスポートができます。",
@@ -11978,18 +12082,18 @@
       "logged_out": "ログアウト済み"
     },
     "link": {
-      "title": "WhatsAppをリンク",
-      "hint": "OmniGetはWhatsApp Webと同じくリンク済みデバイスとして動作します。メインのデバイスはスマートフォンのままです。",
+      "title": "電話チャットをリンク",
+      "hint": "OmniGetは電話チャットと同じくリンク済みデバイスとして動作します。メインのデバイスはスマートフォンのままです。",
       "mode_qr": "QRコード",
       "mode_phone": "電話番号",
-      "step_open": "スマートフォンでWhatsAppを開きます。",
+      "step_open": "スマートフォンで電話チャットを開きます。",
       "step_devices": "設定 › リンク済みデバイス › デバイスをリンク に進みます。",
       "step_scan": "このコードにカメラを向けます。",
       "start": "QRコードを表示",
       "new_qr": "新しいQRコードを取得",
       "preparing": "コードを準備しています…",
       "cancel": "キャンセル",
-      "qr_alt": "WhatsAppをリンクするためのQRコード",
+      "qr_alt": "電話チャットをリンクするためのQRコード",
       "phone_label": "あなたの電話番号",
       "phone_hint": "国番号を含めて入力してください。例: +55 11 91234-5678",
       "get_code": "リンクコードを取得",
@@ -12003,7 +12107,11 @@
       "no_match": "検索に一致するチャットはありません。",
       "empty_title": "チャットを待っています",
       "empty_hint": "リンク直後に、スマートフォンから最近の履歴が送られます。スマートフォンがオンラインの状態で数分かかることがあります。",
-      "unread": "未読 {{count}}件"
+      "unread": "未読 {{count}}件",
+      "tag_all": "すべてのチャット",
+      "tag_filter": "タグで絞り込む",
+      "export_contacts": "連絡先を書き出す",
+      "exported": "{{count}} 件の連絡先を保存しました"
     },
     "chat": {
       "group": "グループ",
@@ -12024,7 +12132,25 @@
       "schedule": "予約",
       "schedule_at": "送信日時",
       "scheduled_title": "予約メッセージ",
-      "scheduled_cancel": "予約メッセージを取り消す"
+      "scheduled_cancel": "予約メッセージを取り消す",
+      "reply": "返信",
+      "reply_cancel": "返信をキャンセル",
+      "replying_to": "{{name}} に返信中",
+      "react": "リアクション",
+      "reaction_remove": "リアクションを取り消す",
+      "quoted": "以前のメッセージ",
+      "sending": "送信中…",
+      "send_failed": "未送信",
+      "send_retry": "再試行",
+      "send_discard": "破棄",
+      "attach": "ファイルを送信",
+      "tag_add": "タグを追加",
+      "tag_remove": "タグ {{tag}} を外す",
+      "field_hint": "名前=値 と入力すると情報を保存できます",
+      "field_remove": "{{key}} を削除",
+      "draft_title": "返信の提案",
+      "draft_use": "使う",
+      "draft_dismiss": "閉じる"
     },
     "kind": {
       "text": "メッセージ",
@@ -12050,8 +12176,8 @@
       },
       "folder": "保存先",
       "choose_folder": "フォルダを選択",
-      "folder_hint": "その中に WhatsApp/<チャット名> フォルダが作成されます。保存済みのファイルはスキップされます。",
-      "expired_hint": "WhatsAppはメディアを一定期間しかサーバーに保存しません。古いファイルはOmniGetがスマートフォンに再送信を依頼します。スマートフォンにないファイルは復元できません。",
+      "folder_hint": "その中に Phone Chats/<チャット名> フォルダが作成されます。保存済みのファイルはスキップされます。",
+      "expired_hint": "電話チャットはメディアを一定期間しかサーバーに保存しません。古いファイルはOmniGetがスマートフォンに再送信を依頼します。スマートフォンにないファイルは復元できません。",
       "start": "ダウンロード",
       "cancel": "停止",
       "progress": "{{total}}件中{{index}}件目をダウンロード中",
@@ -12065,14 +12191,14 @@
       "open": "開く",
       "reveal": "フォルダで表示",
       "retrying": "スマートフォンにファイルの再送信を依頼しています…",
-      "retrying_hint": "このファイルはWhatsAppのサーバーから削除されています。スマートフォンからの再送信を最大45秒待ちます。スマートフォンをオンラインにしておいてください。"
+      "retrying_hint": "このファイルは電話チャットのサーバーから削除されています。スマートフォンからの再送信を最大45秒待ちます。スマートフォンをオンラインにしておいてください。"
     },
     "export": {
       "title": "チャットをエクスポート",
       "format": "形式",
       "formats": {
         "txt": "テキスト (.txt)",
-        "txt_hint": "WhatsApp本体のエクスポートと同じレイアウトです。どこでも開けます。",
+        "txt_hint": "電話チャット本体のエクスポートと同じレイアウトです。どこでも開けます。",
         "html": "ウェブページ (.html)",
         "html_hint": "吹き出し形式で、ダウンロード済みの写真もトーク内に表示されます。",
         "json": "データ (.json)",
@@ -12089,14 +12215,14 @@
       "edited": "<このメッセージは編集されました>"
     },
     "errors": {
-      "offline": "WhatsAppはオフラインです。接続してからもう一度お試しください。",
-      "not_running": "WhatsAppはまだ接続されていません。",
+      "offline": "電話チャットはオフラインです。接続してからもう一度お試しください。",
+      "not_running": "電話チャットはまだ接続されていません。",
       "invalid_phone": "国番号を含めた完全な番号を入力してください。",
       "qr_expired": "QRコードの有効期限が切れました。新しいコードを取得してもう一度お試しください。",
       "stream_replaced": "別のOmniGetウィンドウまたはデバイスがこのセッションを引き継ぎました。",
-      "temporary_ban": "WhatsAppがこのアカウントを一時的にブロックしました。しばらく待ってからお試しください。",
-      "client_outdated": "WhatsAppによると、このバージョンは古くなっています。OmniGetを更新してください。",
-      "media_expired": "このファイルはWhatsAppのサーバーにもうありません。",
+      "temporary_ban": "電話チャットがこのアカウントを一時的にブロックしました。しばらく待ってからお試しください。",
+      "client_outdated": "電話チャットによると、このバージョンは古くなっています。OmniGetを更新してください。",
+      "media_expired": "このファイルは電話チャットのサーバーにもうありません。",
       "no_media": "このメッセージにはダウンロードできるファイルがありません。",
       "no_anchor": "起点となるメッセージがまだありません。",
       "empty_filter": "メディアの種類を1つ以上選んでください。",
@@ -12104,38 +12230,133 @@
       "media_gone": "スマートフォンにこのファイルが残っていないため、復元できません。",
       "retry_timeout": "スマートフォンが時間内に応答しませんでした。オンラインか確認して、もう一度お試しください。",
       "media_retry_failed": "スマートフォンがこのファイルを再送信できませんでした。",
-      "not_linked": "先に WhatsApp をリンクしてください",
+      "not_linked": "先に 電話チャット をリンクしてください",
       "time_in_past": "未来の時刻を選んでください",
       "chat_not_found": "チャットが見つかりません",
-      "reply_not_found": "返信先のメッセージはここに保存されていません"
+      "reply_not_found": "返信先のメッセージはここに保存されていません",
+      "message_not_found": "このメッセージはここに保存されていません",
+      "invalid_reaction": "絵文字を1つ選んでください",
+      "invalid_rule_name": "ルールに名前を付けてください",
+      "invalid_rule_words": "言葉を1つ以上入れてください",
+      "invalid_rule_text": "返信文を書いてください",
+      "rule_not_found": "このルールはもうありません",
+      "file_too_large": "ファイルは 64 MB までです",
+      "file_not_found": "このファイルはもうありません",
+      "upload_failed": "ファイルを送れませんでした。もう一度お試しください。",
+      "invalid_tag": "タグは30文字までです",
+      "invalid_rule_follow_ups": "後続メッセージは5件までです",
+      "invalid_field": "文字と数字の短い名前にしてください",
+      "invalid_rule_hours": "開始と終了に別の時刻を選んでください"
+    },
+    "rules": {
+      "title": "自動返信",
+      "subtitle": "OmniGet を開いている間、ルールが代わりに返信します。",
+      "open": "自動化",
+      "switch": "自動で返信する",
+      "risk": "このアカウントは非公式に連携されており、自動返信はブロックの危険を高めます。ルールは先に送ってきた相手にだけ、下の上限内で返信します。",
+      "sent": "この1時間 {{hour}}/{{cap}} · 今日 {{day}}",
+      "empty_title": "ルールはまだありません",
+      "empty_hint": "選んだ言葉がメッセージに含まれると返信します。よく来る質問から始めましょう。",
+      "add": "新しいルール",
+      "edit": "編集",
+      "delete": "削除",
+      "save": "ルールを保存",
+      "name": "名前",
+      "trigger": "メッセージが",
+      "trigger_keyword": "次の言葉を含む",
+      "trigger_first": "相手からの最初のメッセージ",
+      "trigger_any": "届いたとき（すべて）",
+      "mode_contains": "含む",
+      "mode_exact": "完全一致",
+      "mode_starts_with": "で始まる",
+      "words": "言葉（カンマ区切り）",
+      "action": "返信の内容",
+      "action_reply": "テキスト",
+      "action_react": "リアクション",
+      "action_ai": "AI（あなたのメモから）",
+      "text": "返信文",
+      "text_hint": "は相手の名前になります。--- だけの行で文面を分けられます。",
+      "instructions": "AI が知るべきことと答え方",
+      "ai_hint": "ローカルモデルが動いていればそれを、なければ最初のエージェントを使います。メモにない質問には返信しません。",
+      "fallback": "AI が失敗したときの返信（任意）",
+      "emoji": "絵文字",
+      "cooldown": "同じ相手に再び返信するまでの分数",
+      "limits": "上限",
+      "per_hour": "1時間あたりの返信数",
+      "per_day": "1日あたりの返信数",
+      "pause": "自分で返信した後に黙る分数",
+      "test": "メッセージを試す",
+      "test_placeholder": "相手が送りそうな文を入力",
+      "test_none": "これに返信するルールはありません。",
+      "test_hit": "{{rule}} の返信:",
+      "test_ai": "{{rule}} が AI に尋ねます。",
+      "test_optout": "この相手には自動返信しなくなります。",
+      "log": "最近の動き",
+      "log_empty": "まだありません。",
+      "optouts": "停止を希望した相手",
+      "optout_remove": "再び許可",
+      "tag": "ルールが返信したとき相手に付けるタグ（任意）",
+      "follow_ups": "その後に送るメッセージ",
+      "follow_after": "何分後",
+      "follow_text": "後で送るメッセージ",
+      "follow_add": "後で送るメッセージを追加",
+      "follow_remove": "このメッセージを削除",
+      "trigger_hours": "営業時間外に届いた",
+      "hours_open": "開始時刻",
+      "hours_close": "終了時刻",
+      "needs_tag": "このタグが付いた相手だけ（任意）",
+      "ask": "その後に質問する（任意）",
+      "ask_field": "回答の保存先の名前",
+      "ai_draft": "返信を下書きにして自分で送る",
+      "flow": "会話のステップ",
+      "copy_link": "この言葉でチャットを開くリンクをコピー",
+      "copied": "リンクをコピーしました",
+      "copy_failed": "リンクをコピーできませんでした",
+      "outcome": {
+        "sent": "返信済み",
+        "queued": "返信中",
+        "failed": "失敗",
+        "skipped": "保留"
+      },
+      "reason": {
+        "cooldown": "最近この相手に返信済み",
+        "human_active": "あなたが返信中",
+        "hour_cap": "1時間の上限に到達",
+        "day_cap": "1日の上限に到達",
+        "ai_silent": "メモに答えがありませんでした",
+        "ai_failed": "AI が応答しませんでした",
+        "follow_up": "後続メッセージ",
+        "captured": "回答を保存しました",
+        "draft": "下書きがあります"
+      }
     }
   },
-  "discord": {
-    "title": "Discord",
+  "guildchat": {
+    "title": "サーバーチャット",
     "subtitle": "サーバーと DM を読んで返信し、メディアと履歴を保存できます。",
-    "boot": "Discord アカウントを確認しています…",
+    "boot": "サーバーチャット アカウントを確認しています…",
     "tos": {
       "title": "ここではサブアカウントを使ってください",
-      "body": "Discord の規約ではサードパーティ製クライアントが認められていないため、OmniGet から使ったアカウントがロックまたは無効化される可能性があります。閲覧やダウンロードは目立ちにくいものの、保証はありません。",
+      "body": "サーバーチャット の規約ではサードパーティ製クライアントが認められていないため、OmniGet から使ったアカウントがロックまたは無効化される可能性があります。閲覧やダウンロードは目立ちにくいものの、保証はありません。",
       "tip_secondary": "メインではなくサブアカウントを使いましょう。",
       "tip_servers": "ここからサーバーへの参加や退出は避けてください。",
       "tip_dms": "ここから新しい DM をたくさん開くのは避けてください。",
       "ok": "了解"
     },
     "signin": {
-      "title": "Discord にログイン",
-      "subtitle": "スマートフォンの Discord アプリでコードを読み取るか、トークンを貼り付けてください。",
+      "title": "サーバーチャット にログイン",
+      "subtitle": "スマートフォンの サーバーチャット アプリでコードを読み取るか、トークンを貼り付けてください。",
       "method_qr": "QR コード",
       "method_token": "トークン",
       "method_browser": "ブラウザ",
       "browser_title": "OmniGet のブラウザでサインイン",
-      "browser_hint": "OmniGet が専用のブラウザウィンドウで Discord を開きます。いつもどおりサインインしてください。Discord の読み込みが終わると、OmniGet が自動でセッションを取得します。",
-      "browser_waiting": "ブラウザウィンドウで Discord へのサインインを待っています…",
-      "browser_open": "Discord を開く",
+      "browser_hint": "OmniGet が専用のブラウザウィンドウで サーバーチャット を開きます。いつもどおりサインインしてください。サーバーチャット の読み込みが終わると、OmniGet が自動でセッションを取得します。",
+      "browser_waiting": "ブラウザウィンドウで サーバーチャット へのサインインを待っています…",
+      "browser_open": "サーバーチャット を開く",
       "browser_reopen": "ウィンドウをもう一度開く",
-      "qr_alt": "Discord ログイン用 QR コード",
+      "qr_alt": "サーバーチャット ログイン用 QR コード",
       "qr_title": "スマートフォンで読み取る",
-      "qr_step1": "スマートフォンで Discord を開きます。",
+      "qr_step1": "スマートフォンで サーバーチャット を開きます。",
       "qr_step2": "設定 › QR コードをスキャン を開きます。",
       "qr_step3": "このコードにカメラを向けて承認します。",
       "scanned_title": "{{name}} として読み取りました",
@@ -12147,7 +12368,7 @@
       "new_code": "新しいコード",
       "qr_failed": "コードでログインできませんでした",
       "token_label": "アカウントのトークン",
-      "token_where": "ブラウザ版 Discord で開発者ツールを開き、ネットワークで discord.com/api へのリクエストを選び、Authorization ヘッダーをコピーします。",
+      "token_where": "ブラウザ版 サーバーチャット で開発者ツールを開き、ネットワークで discord.com/api へのリクエストを選び、Authorization ヘッダーをコピーします。",
       "token_storage": "トークンはこのコンピューターのシステムキーチェーン(キーチェーン、資格情報マネージャー、Secret Service)に保存されます。キーチェーンがない場合は、あなたのユーザーだけが読めるファイルに保存されます。",
       "sign_in": "ログイン"
     },
@@ -12160,13 +12381,13 @@
     },
     "conn": {
       "loading": "サーバーを読み込んでいます…",
-      "reconnecting": "Discord に再接続しています…",
-      "reconnecting_in": "接続が切れました。{{s}} 秒後に再試行します…",
-      "offline": "Discord に接続していません。",
+      "reconnecting": "サーバーチャット に再接続しています…",
+      "reconnecting_in": "接続が切れました。{{secs}} 秒後に再試行します…",
+      "offline": "サーバーチャット に接続していません。",
       "connect": "接続",
-      "expired_title": "Discord がこのセッションを終了しました",
+      "expired_title": "サーバーチャット がこのセッションを終了しました",
       "expired_hint": "トークンが無効になりました。続けるには再度ログインしてください。",
-      "failed_title": "Discord が接続を拒否しました",
+      "failed_title": "サーバーチャット が接続を拒否しました",
       "failed_hint": "理由: {{code}}。しばらくしてから再試行してください。"
     },
     "rail": {
@@ -12229,7 +12450,7 @@
       "done": "ダウンロード完了",
       "cancelled": "ダウンロードを停止しました",
       "summary": "保存 {{saved}} 件、既存 {{skipped}} 件、失敗 {{failed}} 件。",
-      "saved_n": "{{n}} 件のファイルを {{folder}} に保存しました"
+      "saved_n": "{{num}} 件のファイルを {{folder}} に保存しました"
     },
     "export": {
       "title": "この会話をエクスポート",
@@ -12240,11 +12461,11 @@
       "include_media": "添付ファイルもエクスポートと一緒に保存",
       "dates_hint": "日付を空にすると履歴全体をエクスポートします。",
       "start": "エクスポート",
-      "reading": "履歴を読み込み中: {{n}} 件のメッセージ",
+      "reading": "履歴を読み込み中: {{num}} 件のメッセージ",
       "media": "添付ファイルを保存中: {{found}} 件中 {{done}} 件",
       "done": "エクスポート完了",
       "cancelled": "エクスポートを停止しました",
-      "summary": "{{n}} 件のメッセージ、{{files}} 個のファイル。"
+      "summary": "{{num}} 件のメッセージ、{{files}} 個のファイル。"
     },
     "common": {
       "from": "開始日",
@@ -12259,26 +12480,26 @@
     },
     "errors": {
       "generic": "問題が発生しました。もう一度お試しください。",
-      "network": "Discord に接続できません。接続を確認してください。",
-      "rate_limited": "Discord から速度制限がかかりました。少し待ってください。",
-      "rate_limited_s": "Discord から速度制限がかかりました。{{s}} 秒後に再試行してください。",
+      "network": "サーバーチャット に接続できません。接続を確認してください。",
+      "rate_limited": "サーバーチャット から速度制限がかかりました。少し待ってください。",
+      "rate_limited_s": "サーバーチャット から速度制限がかかりました。{{secs}} 秒後に再試行してください。",
       "forbidden": "ここでその操作をする権限がありません。",
-      "not_found": "Discord で見つかりませんでした。",
-      "http": "Discord がエラーを返しました。",
-      "refused": "Discord が接続を拒否しました。",
+      "not_found": "サーバーチャット で見つかりませんでした。",
+      "http": "サーバーチャット がエラーを返しました。",
+      "refused": "サーバーチャット が接続を拒否しました。",
       "remote_auth": "QR ログインに失敗しました。新しいコードを取得してください。",
       "unauthorized": "トークンが無効か期限切れです。",
-      "token_format": "Discord のトークンではないようです。",
+      "token_format": "サーバーチャット のトークンではないようです。",
       "bot_token": "これは Bot のトークンです。ユーザーアカウントのトークンを使ってください。",
       "captcha_required": "このログインには CAPTCHA が必要です。公式アプリかサイトで一度ログインしてから再試行してください。",
-      "not_connected": "まだ Discord に接続していません。",
+      "not_connected": "まだ サーバーチャット に接続していません。",
       "no_token": "このアカウントの保存済みトークンがありません。再度ログインしてください。",
       "no_media": "このメッセージには保存できるメディアがありません。",
       "too_long": "メッセージは 2000 文字までです。",
       "empty": "メッセージが空です。",
       "unknown_account": "このアカウントはもう保存されていません。",
       "bad_id": "チャンネルまたはメッセージが無効です。",
-      "unexpected_response": "Discord から予期しない応答がありました。"
+      "unexpected_response": "サーバーチャット から予期しない応答がありました。"
     }
   },
   "pdf": {
@@ -12302,8 +12523,8 @@
     "selected_count_one": "1 件選択中",
     "tools_label": "ページツール",
     "pages_label": "ページ",
-    "page_label": "{{n}} ページ目（元ファイルの {{page}} ページ）",
-    "page_blank_label": "{{n}} ページ目（白紙）",
+    "page_label": "{{num}} ページ目（元ファイルの {{page}} ページ）",
+    "page_blank_label": "{{num}} ページ目（白紙）",
     "blank": "白紙",
     "rotate_left": "左に回転",
     "rotate_right": "右に回転",
@@ -12356,7 +12577,7 @@
     "preset_light": "軽め",
     "preset_light_body": "最高の画質。印刷向き。",
     "preset_balanced": "バランス",
-    "preset_balanced_body": "画面ではきれいで、かなり小さくなります。メールや WhatsApp 向き。",
+    "preset_balanced_body": "画面ではきれいで、かなり小さくなります。メールやメッセージアプリ向き。",
     "preset_strong": "最小",
     "preset_strong_body": "いちばん小さいファイル。画像の細部は失われます。",
     "compress_hint": "文字だけの PDF はもともと小さいことが多く、あまり小さくならない場合があります。",
@@ -12397,7 +12618,7 @@
     "error_io": "ファイルを読み込めないか、保存できませんでした。フォルダーがまだあり、書き込めるか確認してください。"
   },
   "cutout": {
-    "title": "切り抜き",
+    "title": "背景を削除",
     "subtitle": "写真や動画のフレームから背景を消します。すべてこのコンピューターの中で行われます。",
     "empty_title": "写真や動画をここにドロップ",
     "empty_body": "背景が透明な PNG ができます。動画の場合は、使いたい瞬間を選べます。",
@@ -12614,56 +12835,56 @@
   },
   "social": {
     "boot": "セッションを確認しています…",
-    "x": {
-      "title": "X",
-      "subtitle": "あなた自身の X セッションで、タイムライン、プロフィール、返信、ポストを表示します。エージェントは MCP 経由で利用します。",
+    "shortpost": {
+      "title": "ショート投稿",
+      "subtitle": "あなた自身の ショート投稿 セッションで、タイムライン、プロフィール、返信、ポストを表示します。エージェントは MCP 経由で利用します。",
       "for_you": "おすすめ",
       "following": "フォロー中"
     },
-    "instagram": {
-      "title": "Instagram",
-      "subtitle": "自分の Instagram セッションで、フィード・プロフィール・投稿・コメントを表示します。エージェントは MCP で利用できます。"
+    "photofeed": {
+      "title": "フォトフィード",
+      "subtitle": "自分の フォトフィード セッションで、フィード・プロフィール・投稿・コメントを表示します。エージェントは MCP で利用できます。"
     },
-    "tiktok": {
-      "title": "TikTok",
-      "subtitle": "あなた自身の TikTok セッションで、おすすめフィード、プロフィール、動画、コメントを表示します。エージェントは MCP 経由で利用します。"
+    "clipfeed": {
+      "title": "クリップフィード",
+      "subtitle": "あなた自身の クリップフィード セッションで、おすすめフィード、プロフィール、動画、コメントを表示します。エージェントは MCP 経由で利用します。"
     },
-    "github": {
-      "title": "GitHub",
-      "subtitle": "GitHub のリポジトリ、アクティビティ、Issue、ユーザーを、公開 API または自分のトークンで。エージェントは MCP 経由で使います。",
-      "search_placeholder": "GitHub を検索 (language:rust stars:>100)",
+    "codehub": {
+      "title": "コードハブ",
+      "subtitle": "コードハブ のリポジトリ、アクティビティ、Issue、ユーザーを、公開 API または自分のトークンで。エージェントは MCP 経由で使います。",
+      "search_placeholder": "コードハブ を検索 (language:rust stars:>100)",
       "feed_received": "おすすめ",
       "feed_trending": "トレンド",
       "kind_repositories": "リポジトリ",
       "kind_issues": "Issue と PR",
       "kind_users": "ユーザー",
       "repos": "リポジトリ {{count}} 件",
-      "setup_title": "GitHub に接続",
-      "setup_hint": "ここでは GitHub をブラウザーではなく公開 API で使います。個人アクセストークンを保存すると自分のアカウントとして操作でき（1 時間に 5,000 リクエスト）、ユーザー名だけなら公開データを読めます（1 時間に 60 リクエスト）。",
+      "setup_title": "コードハブ に接続",
+      "setup_hint": "ここでは コードハブ をブラウザーではなく公開 API で使います。個人アクセストークンを保存すると自分のアカウントとして操作でき（1 時間に 5,000 リクエスト）、ユーザー名だけなら公開データを読めます（1 時間に 60 リクエスト）。",
       "token_label": "個人アクセストークン",
       "token_placeholder": "トークンを貼り付け",
       "token_save": "トークンを保存",
       "token_note": "このコンピューターの安全なストレージに保管されます。エージェントには見えず、どのツールも引数として受け取りません。",
       "token_saved": "このコンピューターにはトークンが保存されています。置き換えるには新しいものを貼り付けてください。",
-      "token_create": "GitHub でトークンを作成",
+      "token_create": "コードハブ でトークンを作成",
       "token_remove": "保存したトークンを削除",
       "username_label": "ユーザー名（読み取り専用）",
       "username_save": "このユーザー名を使う",
       "username_note": "トークンがなくても閲覧と検索はできますが、スター、フォロー、コメント、通知の閲覧はできません。",
       "setup_open": "トークン"
     },
-    "pinterest": {
-      "title": "Pinterest",
-      "subtitle": "ホームフィード、ボード、ピンを、自分の Pinterest セッションで。エージェントは MCP 経由で使います。",
-      "search_placeholder": "Pinterest を検索",
+    "pinboard": {
+      "title": "ピンボード",
+      "subtitle": "ホームフィード、ボード、ピンを、自分の ピンボード セッションで。エージェントは MCP 経由で使います。",
+      "search_placeholder": "ピンボード を検索",
       "kind_pins": "ピン",
       "kind_boards": "ボード",
       "kind_users": "ユーザー"
     },
-    "reddit": {
-      "title": "Reddit",
-      "subtitle": "ホーム、コミュニティ、保存した投稿とコメントを、自分の Reddit セッションで。エージェントは MCP 経由で使います。",
-      "search_placeholder": "Reddit を検索",
+    "forums": {
+      "title": "フォーラム",
+      "subtitle": "ホーム、コミュニティ、保存した投稿とコメントを、自分の フォーラム セッションで。エージェントは MCP 経由で使います。",
+      "search_placeholder": "フォーラム を検索",
       "feed_home": "ホーム",
       "feed_popular": "人気",
       "feed_all": "すべて",
@@ -12677,7 +12898,7 @@
     "signin": {
       "title": "{{platform}} にログイン",
       "hint": "OmniGet は専用のブラウザウィンドウで {{platform}} を開きます。いつもどおり手動でログインしてください。OmniGet がパスワードを見ることはありません。",
-      "point_browser": "セッションはこのコンピューター上の OmniGet ブラウザプロファイルに保存されます。Global Downloader で普段のブラウザプロファイルを読み込むこともできます。",
+      "point_browser": "セッションはこのコンピューター上の OmniGet ブラウザプロファイルに保存されます。内蔵ブラウザ で普段のブラウザプロファイルを読み込むこともできます。",
       "point_agents": "ソーシャルのスコープがあれば、エージェントは MCP でフィード・プロフィール・投稿・コメントを読めます。投稿・いいね・リポスト・コメント・フォローは、すべてここであなたの承認を待ちます。",
       "point_risk": "公式 API ではなく、あなたと同じように {{platform}} のウェブサイトを使います。{{platform}} から本人確認を求められたり、アカウントが制限されたり、自動利用がブロックされたりすることがあります。人間らしいペースを保ってください。",
       "continue": "続ける",
@@ -12691,22 +12912,22 @@
       "saved": "保存済み",
       "bookmarks": "ブックマーク",
       "search": "検索",
-      "grok": "Grok",
+      "assistant": "アシスタント",
       "me": "マイプロフィール",
       "audience": "オーディエンス",
       "analytics": "分析",
       "monitor": "モニター",
       "schedule": "予約投稿"
     },
-    "grok": {
-      "placeholder": "Grokに何でも質問",
+    "assistant": {
+      "placeholder": "アシスタントに何でも質問",
       "send": "送信",
       "new_chat": "新しいチャット",
-      "history": "Grokとのチャット",
-      "thinking": "Grokが考えています…",
-      "empty": "ポスト、人物、Xで起きていることをGrokに質問できます。あなた自身のXアカウントを通して回答します。",
-      "open_on_x": "Xで開く",
-      "ask_about_post": "このポストについてGrokに質問",
+      "history": "アシスタントとのチャット",
+      "thinking": "アシスタントが考えています…",
+      "empty": "ポスト、人物、ショート投稿で起きていることをアシスタントに質問できます。あなた自身のショート投稿アカウントを通して回答します。",
+      "open_original": "ショート投稿で開く",
+      "ask_about_post": "このポストについてアシスタントに質問",
       "explain_post": "このポストとその背景を説明して。"
     },
     "common": {
@@ -12719,7 +12940,7 @@
       "not_logged_in": "{{platform}} のセッションが切れました。再度ログインしてください。",
       "rate_limited": "{{platform}} が現在このアカウントからのリクエストを制限しています。数分待ってください。",
       "network": "{{platform}} に接続できませんでした。接続を確認してください。",
-      "browser_unavailable": "OmniGet ブラウザを起動できませんでした。Global Downloader の設定を確認してください。",
+      "browser_unavailable": "OmniGet ブラウザを起動できませんでした。内蔵ブラウザ の設定を確認してください。",
       "rejected": "{{platform}} がこの操作を拒否しました。",
       "not_found": "{{platform}} で見つかりません。",
       "invalid_arguments": "そのリンクまたは名前は正しくないようです。",
@@ -12735,9 +12956,9 @@
       "comment": "コメントを入力"
     },
     "search": {
-      "placeholder_x": "ポストを検索（from:、to:、since: が使えます）",
-      "placeholder_instagram": "アカウントとハッシュタグを検索",
-      "placeholder_tiktok": "動画またはアカウントを検索",
+      "placeholder_shortpost": "ポストを検索（from:、to:、since: が使えます）",
+      "placeholder_photofeed": "アカウントとハッシュタグを検索",
+      "placeholder_clipfeed": "動画またはアカウントを検索",
       "videos": "動画",
       "users": "アカウント",
       "go": "検索"
@@ -12811,8 +13032,8 @@
       "history_short": "履歴は {{date}} に始まりました。新しいフォロワーとフォロー解除は次回の同期後に表示されます。",
       "incomplete_following": "フォロー中のリストが不完全です: {{expected}} 件中 {{fetched}} 件を読み取りました。フォローバックなし、相互、ファンの数はまだ正確ではありません。",
       "incomplete_followers": "フォロワーのリストが不完全です: {{expected}} 件中 {{fetched}} 件を読み取りました。誤ってフォローバックなしと表示されるアカウントがあるかもしれません。",
-      "followers_from_export": "フォロワーは Instagram のエクスポートから取得しており、一部が抜けていることがあります。同期して、フォローバックしていない人を確認してください。",
-      "sweep_wait": "Instagram はフォロー中のリストから一部のアカウントを省くため、不足分をゆっくり検索しています。約 {{minutes}} 分後に「続ける」を押すか、Instagram のエクスポートを読み込んでください。"
+      "followers_from_export": "フォロワーは フォトフィード のエクスポートから取得しており、一部が抜けていることがあります。同期して、フォローバックしていない人を確認してください。",
+      "sweep_wait": "フォトフィード はフォロー中のリストから一部のアカウントを省くため、不足分をゆっくり検索しています。約 {{minutes}} 分後に「続ける」を押すか、フォトフィード のエクスポートを読み込んでください。"
     },
     "views": {
       "label": "オーディエンスの表示",
@@ -12940,14 +13161,14 @@
       "nothing_to_export": "このリストは空のため、書き出すものがありません。",
       "file": "CSV ファイルを保存できませんでした。",
       "store": "ローカルの履歴を開けませんでした。",
-      "export_invalid": "このファイルは、フォロワーとフォロー中のリストを含む Instagram のエクスポートではありません。"
+      "export_invalid": "このファイルは、フォロワーとフォロー中のリストを含む フォトフィード のエクスポートではありません。"
     },
     "stars": {
       "label": "リポジトリのスター",
       "placeholder": "オーナー/名前",
       "open": "開く",
       "close": "フォロワーに戻る",
-      "invalid": "リポジトリを「オーナー/名前」の形で入力するか、GitHubのリンクを貼り付けてください。",
+      "invalid": "リポジトリを「オーナー/名前」の形で入力するか、コードハブのリンクを貼り付けてください。",
       "viewing": "{{repo}} にスターした人を表示中です。同期はフォロワーの代わりにこのリストを読み込みます。",
       "first_body": "同期は {{platform}} からこのリポジトリにスターした人を読み込みます。リストはすぐに表示され、新しいスターと外されたスターは2回目の同期から表示されます。",
       "changes": "前回の同期以降：新しいスター {{gained}} 件、外されたスター {{lost}} 件。"
@@ -12974,12 +13195,12 @@
       "title": "フォロワーの関心",
       "hint": "フォロワーの自己紹介に最も多く出てくる単語です。1人につき1単語1回だけ数えます。",
       "based_on": "フォロワー{{followers}}人中{{bios}}人に自己紹介あり",
-      "thin": "自己紹介が少なすぎて傾向は読み取れません。Instagramのリストには自己紹介が含まれません。",
+      "thin": "自己紹介が少なすぎて傾向は読み取れません。フォトフィードのリストには自己紹介が含まれません。",
       "words": "自己紹介の単語",
       "hashtags": "自己紹介のハッシュタグ",
       "names": "名前の単語",
       "locations": "主な場所",
-      "no_locations": "場所は保存されていません。Xでは次回の同期から保存されます。InstagramとTikTokのリストには場所が含まれません。",
+      "no_locations": "場所は保存されていません。ショート投稿では次回の同期から保存されます。フォトフィードとクリップフィードのリストには場所が含まれません。",
       "with_link": "自己紹介にリンクあり",
       "verified": "認証済み",
       "empty": "表示するにはオーディエンスを同期してください。",
@@ -12989,9 +13210,9 @@
     },
     "notify_unfollowers": "同期で新しいフォロー解除が見つかったら通知する",
     "import": {
-      "button": "Instagram のエクスポートを読み込む",
+      "button": "フォトフィード のエクスポートを読み込む",
       "busy": "読み込み中…",
-      "where": "エクスポートを請求するには、Instagram でアカウントセンターを開き、「あなたの情報とアクセス許可」から「個人データをダウンロード」を選び、「つながり」(フォロワーとフォロー中)を選択します。",
+      "where": "エクスポートを請求するには、フォトフィード でアカウントセンターを開き、「あなたの情報とアクセス許可」から「個人データをダウンロード」を選び、「つながり」(フォロワーとフォロー中)を選択します。",
       "done": "フォロー中 {{following}} 件とフォロワー {{followers}} 件を読み込みました。フォローバックなし: {{count}} 件。",
       "done_lists": "フォロー中 {{following}} 件とフォロワー {{followers}} 件を読み込みました。"
     }
@@ -13222,8 +13443,8 @@
           "replies": "返信した人",
           "likes": "いいねした人"
         },
-        "empty": "まだ誰もいないか、Xが一覧を表示しなくなりました。",
-        "likes_hidden": "Xでは、誰がいいねしたかは投稿者本人にしか表示されません。",
+        "empty": "まだ誰もいないか、ショート投稿が一覧を表示しなくなりました。",
+        "likes_hidden": "ショート投稿では、誰がいいねしたかは投稿者本人にしか表示されません。",
         "follows_you": "フォローされています",
         "need_posts": "選べる投稿がありません。先に自分のアカウントを分析してください。",
         "draw": {
@@ -13291,10 +13512,10 @@
       "kind": "監視する対象",
       "kind_hashtag": "ハッシュタグ",
       "kind_profile": "プロフィール",
-      "query_x": "クエリ（Xの検索演算子が使えます）",
+      "query_shortpost": "クエリ（ショート投稿の検索演算子が使えます）",
       "query_hashtag": "ハッシュタグ",
       "query_profile": "ユーザー名",
-      "query_tiktok": "検索フレーズ",
+      "query_clipfeed": "検索フレーズ",
       "advanced": "その他のフィルター",
       "phrase": "完全一致フレーズ",
       "any": "いずれかの語を含む",
@@ -13314,18 +13535,18 @@
       "save": "保存",
       "cancel": "キャンセル",
       "kind_search": "検索",
-      "kind_subreddit": "サブレディット",
+      "kind_subreddit": "コミュニティ",
       "kind_repositories": "リポジトリ検索",
       "kind_issues": "IssueとPRの検索",
       "kind_releases": "リポジトリのリリース",
       "kind_repo_issues": "リポジトリのIssue",
-      "query_subreddit": "サブレディット（r/名前）",
+      "query_community": "コミュニティ（r/名前）",
       "query_gh_repositories": "修飾子付きの検索（例：tauri language:rust stars:>100）",
       "query_gh_issues": "修飾子付きの検索（例：is:pr is:open repo:オーナー/名前）",
       "query_repo": "リポジトリ（オーナー/名前またはリンク）",
       "rd_sort_label": "並び順",
       "rd_time_label": "期間",
-      "rd_subreddit": "このサブレディット内のみ",
+      "rd_community": "このコミュニティ内のみ",
       "rd_sort": {
         "new": "新着",
         "relevance": "関連度",
@@ -13344,8 +13565,8 @@
       }
     },
     "notifications": "通知",
-    "mentions_github": "この画面でGitHubトークンを保存すると、通知が受信トレイとしてここに届きます。",
-    "mentions_reddit": "Redditの受信トレイはここでは読み込みません。代わりにユーザー名の検索をモニターしてください。",
+    "mentions_codehub": "この画面でコードハブトークンを保存すると、通知が受信トレイとしてここに届きます。",
+    "mentions_forums": "フォーラムの受信トレイはここでは読み込みません。代わりにユーザー名の検索をモニターしてください。",
     "notify": {
       "title": "通知",
       "surge": "モニターで急増があったら通知する",
@@ -13357,8 +13578,8 @@
   },
   "social_schedule": {
     "open_only": "投稿は、このコンピューターで OmniGet を開いている間だけ送信されます。",
-    "late_rule": "閉じている間に時刻が来た投稿は、遅れが {minutes} 分未満なら次に開いたときに送信されます。それを超えると「未送信」になり、あなたの判断を待ちます。",
-    "unsupported": "予約投稿は X のみ対応しています。このネットワークへの OmniGet からの投稿はまだ作られていません。",
+    "late_rule": "閉じている間に時刻が来た投稿は、遅れが {{minutes}} 分未満なら次に開いたときに送信されます。それを超えると「未送信」になり、あなたの判断を待ちます。",
+    "unsupported": "予約投稿は ショート投稿 のみ対応しています。このネットワークへの OmniGet からの投稿はまだ作られていません。",
     "sections": {
       "queue": "キュー",
       "drafts": "下書き",
@@ -13371,7 +13592,7 @@
       "title_new": "新しい投稿",
       "title_edit": "投稿を編集",
       "placeholder": "いまどうしてる？",
-      "part_placeholder": "パート {n}",
+      "part_placeholder": "パート {{num}}",
       "add_part": "スレッドにパートを追加",
       "remove_part": "パートを削除",
       "reply_to": "返信先（リンクまたは ID）",
@@ -13388,26 +13609,26 @@
       "save_draft": "下書きを保存",
       "save": "変更を保存",
       "cancel_edit": "編集をやめる",
-      "over": "上限を {n} 超えています"
+      "over": "上限を {{num}} 超えています"
     },
     "preview": {
       "title": "プレビュー",
       "desktop": "パソコン",
       "mobile": "スマートフォン",
       "empty": "何か書くとプレビューが表示されます。",
-      "replying": "{target} に返信",
-      "quoting": "{target} を引用",
-      "reposting": "{target} をリポスト",
-      "images": "画像: {n}"
+      "replying": "{{target}} に返信",
+      "quoting": "{{target}} を引用",
+      "reposting": "{{target}} をリポスト",
+      "images": "画像: {{num}}"
     },
     "list": {
       "loading": "読み込み中…",
       "empty_queue": "予約はありません。上で投稿を書いて時刻を選んでください。",
       "empty_drafts": "下書きはまだありません。",
       "empty_history": "まだ何も送信されていません。",
-      "more": "{total} 件中 {returned} 件を表示",
-      "parts": "{n} パート",
-      "parts_sent": "{total} パート中 {sent} パート送信済み",
+      "more": "{{total}} 件中 {{returned}} 件を表示",
+      "parts": "{{num}} パート",
+      "parts_sent": "{{total}} パート中 {{sent}} パート送信済み",
       "by_feed": "フィードから",
       "by_agent": "エージェントが追加",
       "open_post": "投稿を開く",
@@ -13418,7 +13639,7 @@
       "delete": "削除",
       "confirm": "よろしいですか？",
       "export": "カレンダーを書き出す",
-      "exported": "カレンダーを {path} に保存しました",
+      "exported": "カレンダーを {{path}} に保存しました",
       "reveal": "フォルダーで表示"
     },
     "status": {
@@ -13445,7 +13666,7 @@
       "time": "時刻",
       "add": "枠を追加",
       "remove": "枠を削除",
-      "next": "次の空き枠: {time}",
+      "next": "次の空き枠: {{time}}",
       "grace": "遅れた投稿の猶予（分）",
       "long_posts": "長文投稿",
       "long_auto": "自動（認証済みアカウント）",
@@ -13459,11 +13680,11 @@
       "hint": "列: time、text、必要なら thread、reply、quote、repost、media。時刻はこのコンピューターのタイムゾーンで 2026-11-12 09:30 のように書くか、次の空き枠を使うなら next と書きます。スレッドのパートは ||| で区切ります。",
       "choose": "ファイルを選ぶ",
       "none": "ファイルが選ばれていません",
-      "report": "{rows} 行のうち {valid} 行を予約できます。",
+      "report": "{{rows}} 行のうち {{valid}} 行を予約できます。",
       "rejected": "受け付けられなかった行",
-      "row": "{n} 行目",
-      "confirm": "{n} 件の投稿を予約",
-      "done": "{n} 件の投稿を予約しました。"
+      "row": "{{num}} 行目",
+      "confirm": "{{num}} 件の投稿を予約",
+      "done": "{{num}} 件の投稿を予約しました。"
     },
     "feeds": {
       "title": "RSS 自動投稿",
@@ -13475,10 +13696,10 @@
       "cap": "1 か月の投稿数",
       "add": "フィードを追加",
       "remove": "フィードを削除",
-      "stats": "今月 {cap} 件中 {posted} 件",
-      "skipped": "上限を超えた {n} 件をスキップ",
+      "stats": "今月 {{cap}} 件中 {{posted}} 件",
+      "skipped": "上限を超えた {{num}} 件をスキップ",
       "waiting": "最初の確認を待っています",
-      "checked": "{when} に確認"
+      "checked": "{{when}} に確認"
     },
     "errors": {
       "PAST_TIME": "その時刻は過ぎています。",
@@ -13494,7 +13715,7 @@
       "CONFLICTING_TARGETS": "リポストには本文、返信、引用、画像を付けられません。",
       "MEDIA_NOT_FOUND": "画像ファイルがこのコンピューターに見つかりません。",
       "MEDIA_TOO_LARGE": "画像は 5 MB 以下にしてください。",
-      "UNSUPPORTED": "対応していません。X で使えるのはテキスト、スレッド、返信、引用、リポスト、静止画像だけです。",
+      "UNSUPPORTED": "対応していません。ショート投稿 で使えるのはテキスト、スレッド、返信、引用、リポスト、静止画像だけです。",
       "INVALID_CSV": "CSV を読み取れませんでした。time と text の列を持つ見出し行が必要です。",
       "FILE_NOT_FOUND": "ファイルが見つかりません。",
       "NOTHING_TO_EXPORT": "書き出せる予約済みまたは送信済みの投稿がありません。",
@@ -13506,7 +13727,7 @@
       "INTERRUPTED": "送信中に OmniGet が閉じました。もう一度送信する前にアカウントを確認してください。",
       "NOT_LOGGED_IN": "先に OmniGet でアカウントにログインしてください。",
       "RATE_LIMITED": "短時間に操作が多すぎます。少し待ってからやり直してください。",
-      "generic": "実行できませんでした: {detail}"
+      "generic": "実行できませんでした: {{detail}}"
     }
   },
   "research": {
@@ -13673,5 +13894,88 @@
     "ex_saved": "全文の保存先",
     "ex_empty": "プラットフォームとエンドポイントを選ぶと、ScrapeCreators のどの操作でも呼び出せます。",
     "ex_no_params": "このエンドポイントにパラメーターはありません。"
+  },
+  "quick_panel": {
+    "title": "クイックツール",
+    "paste_link": "リンク",
+    "paste_link_hint": "クリップボードのリンクをダウンロード",
+    "tab_system": "システム",
+    "tab_clipboard": "クリップボード",
+    "tab_snippets": "スニペット",
+    "delete": "削除",
+    "copied": "コピーしました",
+    "awake": {
+      "title": "スリープ防止",
+      "off": "オフ",
+      "m30": "30分",
+      "h1": "1時間",
+      "h2": "2時間",
+      "until_off": "オフにするまで",
+      "left": "残り {{time}}",
+      "on_hint": "オフにするまで有効",
+      "off_hint": "通常どおりスリープします",
+      "failed": "システムがスリープ防止を拒否しました"
+    },
+    "monitor": {
+      "cpu": "CPU",
+      "memory": "メモリ",
+      "disk": "ディスク空き",
+      "network": "ネットワーク",
+      "processes": "負荷の高いプロセス"
+    },
+    "volume": {
+      "apps": "アプリごとの音量",
+      "master": "出力音量",
+      "none": "再生中のアプリはありません",
+      "no_control": "この出力は音量を調整できません",
+      "mute": "ミュート",
+      "unmute": "ミュート解除"
+    },
+    "clipboard": {
+      "title": "クリップボード履歴",
+      "off_hint": "オフです。オンにすると、コピーした直近 50 件のテキストを保持します。メモリ内のみに保存され、OmniGet を終了すると消えます。",
+      "empty": "テキストをコピーするとここに表示されます。",
+      "pin": "ピン留め",
+      "unpin": "ピン留めを外す"
+    },
+    "snippets": {
+      "empty": "よく入力するテキストを保存して、ワンクリックでコピーできます。",
+      "add": "新しいスニペット",
+      "name": "名前",
+      "text": "テキスト",
+      "save": "保存",
+      "edit": "編集",
+      "invalid": "名前とテキストを入力してください。"
+    },
+    "cleaner": "クリーナー"
+  },
+  "tool_ask": {
+    "title_read": "{{agent}} がファイルを読もうとしています",
+    "title_command": "{{agent}} がコマンドを実行しようとしています",
+    "title_file_change": "{{agent}} がファイルを変更しようとしています",
+    "title_mcp": "{{agent}} が別のサーバーを呼び出そうとしています",
+    "title_web": "{{agent}} がウェブを使おうとしています",
+    "title_other": "{{agent}} がツールを使おうとしています",
+    "agent_fallback": "エージェント",
+    "kind_read": "読み取りのみ",
+    "kind_command": "コマンドを実行",
+    "kind_file_change": "ファイルに書き込み",
+    "kind_mcp": "別のサーバー",
+    "kind_web": "ウェブ",
+    "kind_other": "その他の操作",
+    "count": "{{index}} / {{total}}",
+    "waiting": "{{time}} 待機中",
+    "expires": "あと {{time}} で期限切れ",
+    "once": "今回だけ許可",
+    "session": "このターン中は {{tool}} を許可",
+    "session_command": "このターン中は {{tool}} を許可 (すべてのコマンド)",
+    "deny": "拒否",
+    "always": "{{tool}} を常に許可",
+    "always_command": "{{tool}} を常に許可(すべてのコマンド)",
+    "stop": "拒否してターンを止める",
+    "note": "承認できるのはあなたのクリックだけです。別のエージェントが代わりに承認することはできません。",
+    "failed": "応答がエージェントに届きませんでした。もう一度お試しください。",
+    "impact": "ファイル: {{files}} · 行: +{{added}} −{{removed}}",
+    "impact_outside": "ワークスペースの外"
   }
 }

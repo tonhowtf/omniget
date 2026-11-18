@@ -49,10 +49,6 @@ impl WireCapture {
         g.raw_response
             .push_str(&String::from_utf8_lossy(&bytes[..take]));
     }
-
-    pub fn snapshot(&self) -> WireCaptureInner {
-        self.inner.lock().unwrap_or_else(|e| e.into_inner()).clone()
-    }
 }
 
 #[async_trait]

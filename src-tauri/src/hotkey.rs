@@ -125,7 +125,7 @@ fn emit_hotkey_result(app: &tauri::AppHandle, outcome: &str, url: Option<&str>) 
     );
 }
 
-fn handle_download_clipboard(app: &tauri::AppHandle) {
+pub(crate) fn handle_download_clipboard(app: &tauri::AppHandle) {
     let text = match app.clipboard().read_text() {
         Ok(t) => t,
         Err(e) => {

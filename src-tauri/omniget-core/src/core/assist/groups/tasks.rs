@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 
 use super::super::db::AssistDb;
 use super::super::{new_id, now_ms};
-use super::store::{self, AuthorKind, MentionPolicy, NewMessage, Room, RoomMessage};
+use super::store::{self, AuthorKind, NewMessage, Room, RoomMessage};
 use super::{ERR_GROUP, ERR_GROUP_BUSY, ERR_GROUP_CLAIMED, ERR_GROUP_LIMIT, ERR_GROUP_NOT_FOUND};
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -83,27 +83,6 @@ fn run_from_row(r: &Row) -> rusqlite::Result<RoomRun> {
 
 const RUN_COLS: &str =
     "run_id, room, bot, task_id, reply_to, round, state, tokens, started_ms, finished_ms";
-
-pub fn runs(db: &AssistDb, room: &str) -> Result<Vec<RoomRun>, String> {
-    db.with(|c| {
-        let mut st = c.prepare(&format!(
-            "SELECT {RUN_COLS} FROM groups_runs WHERE room = ?1 ORDER BY started_ms"
-        ))?;
-        let rows = st.query_map([room], run_from_row)?;
-        rows.collect()
-    })
-}
-
-pub fn run(db: &AssistDb, run_id: &str) -> Result<Option<RoomRun>, String> {
-    db.with(|c| {
-        c.query_row(
-            &format!("SELECT {RUN_COLS} FROM groups_runs WHERE run_id = ?1"),
-            [run_id],
-            run_from_row,
-        )
-        .optional()
-    })
-}
 
 struct RoundUse {
     turns: i64,
@@ -232,87 +211,6 @@ pub fn handle_of(name: &str) -> String {
     out.trim_matches('-').to_string()
 }
 
-fn fold_char(c: char) -> char {
-    use unicode_normalization::UnicodeNormalization;
-    let base = std::iter::once(c).nfd().next().unwrap_or(c);
-    base.to_lowercase().next().unwrap_or(base)
-}
-
-fn match_at(chars: &[char], start: usize, candidate: &str) -> Option<usize> {
-    let cand: Vec<char> = candidate.chars().map(fold_char).collect();
-    if cand.is_empty() || start + cand.len() > chars.len() {
-        return None;
-    }
-    for (k, c) in cand.iter().enumerate() {
-        if fold_char(chars[start + k]) != *c {
-            return None;
-        }
-    }
-    let end = start + cand.len();
-    let boundary = end == chars.len()
-        || !(chars[end].is_alphanumeric() || chars[end] == '_' || chars[end] == '-');
-    boundary.then_some(cand.len())
-}
-
-pub fn mentions(text: &str, members: &[(String, String)]) -> Vec<String> {
-    let mut out: Vec<String> = Vec::new();
-    let chars: Vec<char> = text.chars().collect();
-    let mut i = 0;
-    while i < chars.len() {
-        if chars[i] == '@' && (i == 0 || !chars[i - 1].is_alphanumeric()) {
-            let start = i + 1;
-            let mut best: Option<(usize, &String)> = None;
-            for (id, name) in members {
-                for cand in [id.as_str(), handle_of(name).as_str(), name.trim()] {
-                    if let Some(len) = match_at(&chars, start, cand) {
-                        if best.map(|(l, _)| len > l).unwrap_or(true) {
-                            best = Some((len, id));
-                        }
-                    }
-                }
-            }
-            match best {
-                Some((len, id)) => {
-                    if !out.contains(id) {
-                        out.push(id.clone());
-                    }
-                    i = start + len;
-                }
-                None => i = start,
-            }
-        } else {
-            i += 1;
-        }
-    }
-    out
-}
-
-pub fn route(room: &Room, text: &str, names: &HashMap<String, String>) -> Vec<String> {
-    let members: Vec<(String, String)> = room
-        .members
-        .iter()
-        .map(|m| {
-            (
-                m.bot.clone(),
-                names.get(&m.bot).cloned().unwrap_or_default(),
-            )
-        })
-        .collect();
-    let mentioned = mentions(text, &members);
-    if !mentioned.is_empty() {
-        return mentioned;
-    }
-    if room.mention_policy == MentionPolicy::MentionsOnly {
-        return Vec::new();
-    }
-    room.coordinator
-        .clone()
-        .or_else(|| room.default_bot.clone())
-        .or_else(|| room.members.first().map(|m| m.bot.clone()))
-        .into_iter()
-        .collect()
-}
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Started {
     pub bot: String,
@@ -323,14 +221,6 @@ pub struct Started {
 pub struct Skipped {
     pub bot: String,
     pub reason: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SendOutcome {
-    pub message: RoomMessage,
-    pub round: i64,
-    pub started: Vec<Started>,
-    pub skipped: Vec<Skipped>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -395,16 +285,6 @@ pub fn task(db: &AssistDb, id: &str) -> Result<Task, String> {
         .optional()
     })?
     .ok_or_else(|| format!("{ERR_GROUP_NOT_FOUND}: no task {id}"))
-}
-
-pub fn tasks(db: &AssistDb, room: &str) -> Result<Vec<Task>, String> {
-    db.with(|c| {
-        let mut st = c.prepare(&format!(
-            "SELECT {TASK_COLS} FROM groups_tasks WHERE room = ?1 ORDER BY created_ms"
-        ))?;
-        let rows = st.query_map([room], task_from_row)?;
-        rows.collect()
-    })
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]

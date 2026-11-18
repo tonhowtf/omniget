@@ -8,7 +8,6 @@ use serde_json::{json, Value};
 
 use super::ctx::{AssistCtx, Scope};
 use super::db::{AssistDb, Migration};
-use super::tools::{AssistToolset, EmptyToolset};
 use crate::core::llm::agent::GrantMode;
 use crate::core::llm::broker::{Answer, AskEnd, ToolBroker};
 use crate::core::llm::types::ToolSpec;
@@ -41,10 +40,6 @@ CREATE TABLE projection_tokens (
 CREATE INDEX projection_tokens_expiry ON projection_tokens(expires_ms);
 ",
 }];
-
-pub fn toolset() -> Arc<dyn AssistToolset> {
-    Arc::new(EmptyToolset("projection"))
-}
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Grant {

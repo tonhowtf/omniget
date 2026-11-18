@@ -69,3 +69,12 @@ export function looksLikeUrl(text: string): boolean {
   if (/^https?:\/\//i.test(v)) return true;
   return /^[a-z0-9-]+(\.[a-z0-9-]+)+(\/\S*)?$/i.test(v);
 }
+
+const STATE_ORDER = { update_available: 0, installed: 1, not_installed: 2 };
+
+export function filterEntries(entries: MarketEntry[], query: string, focusId: string): MarketEntry[] {
+  const q = query.trim().toLowerCase();
+  const hit = (e: MarketEntry) => [e.name, e.id, e.description, ...e.domains].some((v) => v.toLowerCase().includes(q));
+  const rank = (e: MarketEntry) => (e.id === focusId ? -1 : STATE_ORDER[e.state]);
+  return entries.filter((e) => !q || hit(e)).sort((a, b) => rank(a) - rank(b) || a.name.localeCompare(b.name));
+}

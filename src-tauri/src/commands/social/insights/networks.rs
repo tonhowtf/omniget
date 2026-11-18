@@ -9,7 +9,7 @@ pub const REPO_SORTS: &[&str] = &["stars", "forks", "open_issues", "pushed"];
 
 pub fn reports(p: Platform) -> Option<&'static [&'static str]> {
     match p {
-        Platform::Github => Some(&["summary", "posts", "times", "trend", "repos", "compare"]),
+        Platform::CodeHub => Some(&["summary", "posts", "times", "trend", "repos", "compare"]),
         _ => None,
     }
 }
@@ -17,12 +17,12 @@ pub fn reports(p: Platform) -> Option<&'static [&'static str]> {
 pub fn kind_of(p: Platform, item: &Value) -> Option<String> {
     let extra = &item["extra"];
     match p {
-        Platform::Github => extra["event"].as_str().map(event_name),
-        Platform::Reddit => match extra["kind"].as_str()? {
+        Platform::CodeHub => extra["event"].as_str().map(event_name),
+        Platform::Forums => match extra["kind"].as_str()? {
             "comment" => Some("comment".into()),
             _ => Some("post".into()),
         },
-        Platform::Pinterest => Some("pin".into()),
+        Platform::PinBoard => Some("pin".into()),
         _ => None,
     }
 }
@@ -40,13 +40,13 @@ fn event_name(event: &str) -> String {
 }
 
 pub fn posts_args(p: Platform, args: &mut Value, replies: bool) {
-    if replies && p == Platform::Reddit {
+    if replies && p == Platform::Forums {
         args["kind"] = json!("all");
     }
 }
 
 fn no_counts() -> Value {
-    json!({ "available": false, "reason": "GitHub activity events carry no reaction or reply counts." })
+    json!({ "available": false, "reason": "Code Hub activity events carry no reaction or reply counts." })
 }
 
 pub fn adjust(p: Platform, report: &str, result: &mut Value, kinds: &HashMap<String, String>) {
@@ -60,7 +60,7 @@ pub fn adjust(p: Platform, report: &str, result: &mut Value, kinds: &HashMap<Str
                 *types.entry(k.as_str()).or_default() += 1;
             }
             result["types"] = json!(types);
-            if p == Platform::Github {
+            if p == Platform::CodeHub {
                 result["engagement"] = no_counts();
             }
         }
@@ -70,13 +70,13 @@ pub fn adjust(p: Platform, report: &str, result: &mut Value, kinds: &HashMap<Str
                     if let Some(k) = row["id"].as_str().and_then(|id| kinds.get(id)) {
                         row["type"] = json!(k);
                     }
-                    if p == Platform::Github {
+                    if p == Platform::CodeHub {
                         row["engagement"] = Value::Null;
                     }
                 }
             }
         }
-        "times" | "trend" if p == Platform::Github => {
+        "times" | "trend" if p == Platform::CodeHub => {
             let key = if report == "times" { "cells" } else { "items" };
             if let Some(cells) = result[key].as_array_mut() {
                 for c in cells {
@@ -87,7 +87,7 @@ pub fn adjust(p: Platform, report: &str, result: &mut Value, kinds: &HashMap<Str
             if report == "times" {
                 result["best"] = Value::Null;
                 result["note"] = json!(
-                    "GitHub events have no engagement; the grid shows when the account is active."
+                    "Code Hub events have no engagement; the grid shows when the account is active."
                 );
             }
         }
@@ -96,7 +96,7 @@ pub fn adjust(p: Platform, report: &str, result: &mut Value, kinds: &HashMap<Str
 }
 
 pub fn adjust_compare(p: Platform, result: &mut Value) {
-    if p != Platform::Github {
+    if p != Platform::CodeHub {
         return;
     }
     if let Some(accounts) = result["accounts"].as_array_mut() {
@@ -160,61 +160,61 @@ mod tests {
     use super::*;
 
     #[test]
-    fn github_events_are_typed_by_their_event_name() {
+    fn codehub_events_are_typed_by_their_event_name() {
         let item =
             json!({ "id": "1", "extra": { "kind": "event", "event": "PullRequestReviewEvent" } });
         assert_eq!(
-            kind_of(Platform::Github, &item).as_deref(),
+            kind_of(Platform::CodeHub, &item).as_deref(),
             Some("pull_request_review")
         );
         let push = json!({ "id": "2", "extra": { "event": "PushEvent" } });
-        assert_eq!(kind_of(Platform::Github, &push).as_deref(), Some("push"));
-        assert_eq!(kind_of(Platform::Github, &json!({ "id": "3" })), None);
+        assert_eq!(kind_of(Platform::CodeHub, &push).as_deref(), Some("push"));
+        assert_eq!(kind_of(Platform::CodeHub, &json!({ "id": "3" })), None);
     }
 
     #[test]
-    fn reddit_tells_posts_from_comments_and_pinterest_has_pins() {
+    fn forums_tells_posts_from_comments_and_pinboard_has_pins() {
         let link = json!({ "id": "t3_1", "extra": { "kind": "link" } });
         let comment = json!({ "id": "t1_1", "extra": { "kind": "comment" } });
-        assert_eq!(kind_of(Platform::Reddit, &link).as_deref(), Some("post"));
+        assert_eq!(kind_of(Platform::Forums, &link).as_deref(), Some("post"));
         assert_eq!(
-            kind_of(Platform::Reddit, &comment).as_deref(),
+            kind_of(Platform::Forums, &comment).as_deref(),
             Some("comment")
         );
         assert_eq!(
-            kind_of(Platform::Pinterest, &json!({ "id": "9" })).as_deref(),
+            kind_of(Platform::PinBoard, &json!({ "id": "9" })).as_deref(),
             Some("pin")
         );
-        assert_eq!(kind_of(Platform::X, &link), None);
+        assert_eq!(kind_of(Platform::ShortPost, &link), None);
         let mut args = json!({ "username": "ana" });
-        posts_args(Platform::Reddit, &mut args, true);
+        posts_args(Platform::Forums, &mut args, true);
         assert_eq!(args["kind"], "all");
         let mut args = json!({ "username": "ana" });
-        posts_args(Platform::Pinterest, &mut args, true);
+        posts_args(Platform::PinBoard, &mut args, true);
         assert!(args.get("kind").is_none());
     }
 
     #[test]
-    fn github_reports_say_engagement_is_unavailable_instead_of_zero() {
+    fn codehub_reports_say_engagement_is_unavailable_instead_of_zero() {
         let kinds: HashMap<String, String> = [("1", "push"), ("2", "push"), ("3", "watch")]
             .into_iter()
             .map(|(a, b)| (a.to_string(), b.to_string()))
             .collect();
         let mut summary = json!({ "types": { "post": 3 }, "engagement": { "available": true, "total": 0, "mean": 0.0 } });
-        adjust(Platform::Github, "summary", &mut summary, &kinds);
+        adjust(Platform::CodeHub, "summary", &mut summary, &kinds);
         assert_eq!(summary["types"], json!({ "push": 2, "watch": 1 }));
         assert_eq!(summary["engagement"]["available"], false);
         let mut posts = json!({ "items": [{ "id": "3", "type": "post", "engagement": 0 }] });
-        adjust(Platform::Github, "posts", &mut posts, &kinds);
+        adjust(Platform::CodeHub, "posts", &mut posts, &kinds);
         assert_eq!(posts["items"][0]["type"], "watch");
         assert!(posts["items"][0]["engagement"].is_null());
         let mut times = json!({ "cells": [{ "weekday": 0, "hour": 9, "posts": 2, "engagement": 0, "mean": 0.0 }], "best": { "weekday": 0 } });
-        adjust(Platform::Github, "times", &mut times, &kinds);
+        adjust(Platform::CodeHub, "times", &mut times, &kinds);
         assert!(times["cells"][0]["mean"].is_null());
         assert_eq!(times["cells"][0]["posts"], 2);
         assert!(times["best"].is_null());
         let mut compare = json!({ "accounts": [{ "handle": "ana", "summary": { "engagement": { "available": true, "mean": 0.0 } } }] });
-        adjust_compare(Platform::Github, &mut compare);
+        adjust_compare(Platform::CodeHub, &mut compare);
         assert_eq!(
             compare["accounts"][0]["summary"]["engagement"]["available"],
             false
@@ -222,18 +222,23 @@ mod tests {
     }
 
     #[test]
-    fn reddit_keeps_its_engagement_and_gets_its_types() {
+    fn forums_keeps_its_engagement_and_gets_its_types() {
         let kinds: HashMap<String, String> = [("a", "post"), ("b", "comment")]
             .into_iter()
             .map(|(a, b)| (a.to_string(), b.to_string()))
             .collect();
         let mut summary =
             json!({ "types": { "post": 2 }, "engagement": { "available": true, "mean": 4.0 } });
-        adjust(Platform::Reddit, "summary", &mut summary, &kinds);
+        adjust(Platform::Forums, "summary", &mut summary, &kinds);
         assert_eq!(summary["types"], json!({ "post": 1, "comment": 1 }));
         assert_eq!(summary["engagement"]["available"], true);
         let mut untouched = json!({ "types": { "post": 2 } });
-        adjust(Platform::X, "summary", &mut untouched, &HashMap::new());
+        adjust(
+            Platform::ShortPost,
+            "summary",
+            &mut untouched,
+            &HashMap::new(),
+        );
         assert_eq!(untouched["types"], json!({ "post": 2 }));
     }
 
@@ -293,10 +298,10 @@ mod tests {
 
     #[test]
     fn each_network_lists_only_the_reports_it_can_answer() {
-        let gh = reports(Platform::Github).unwrap();
+        let gh = reports(Platform::CodeHub).unwrap();
         assert!(gh.contains(&"repos"));
         assert!(!gh.contains(&"outliers"));
-        assert!(reports(Platform::Reddit).is_none());
-        assert!(reports(Platform::X).is_none());
+        assert!(reports(Platform::Forums).is_none());
+        assert!(reports(Platform::ShortPost).is_none());
     }
 }

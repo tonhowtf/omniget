@@ -9,6 +9,7 @@ here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 . "$here/resolve-tools.sh"
 
 url="${1:?usage: research.sh <url>}"
+og_is_url "$url" || { echo "research: not a URL" >&2; exit 2; }
 ytdlp="$(og_tool_path yt-dlp)" || { echo "research: yt-dlp not found; run doctor.sh" >&2; exit 1; }
 args=(-J --no-warnings --no-playlist)
 

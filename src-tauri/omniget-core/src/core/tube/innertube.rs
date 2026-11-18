@@ -18,13 +18,6 @@ pub enum Host {
 }
 
 impl Host {
-    pub fn domain(self) -> &'static str {
-        match self {
-            Host::Www => "www.youtube.com",
-            Host::Music => "music.youtube.com",
-        }
-    }
-
     pub fn origin(self) -> &'static str {
         match self {
             Host::Www => "https://www.youtube.com",

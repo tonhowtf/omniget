@@ -66,10 +66,6 @@ impl Cache {
         icons_dir().map(|d| Self::new(d.join("cache")))
     }
 
-    pub fn root(&self) -> &Path {
-        &self.root
-    }
-
     pub fn response_path(&self, url: &str) -> PathBuf {
         self.root
             .join("http")

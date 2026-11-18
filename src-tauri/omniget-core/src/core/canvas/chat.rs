@@ -253,17 +253,6 @@ pub fn threads_of(entries: &[ChatEntry]) -> Vec<ThreadInfo> {
         .collect()
 }
 
-pub fn history(
-    store: &CanvasStore,
-    ws: &str,
-    node: &str,
-    thread: Option<u8>,
-    before: Option<&str>,
-    limit: Option<usize>,
-) -> Result<HistoryPage, String> {
-    history_opts(store, ws, node, thread, before, limit, false)
-}
-
 pub fn history_opts(
     store: &CanvasStore,
     ws: &str,

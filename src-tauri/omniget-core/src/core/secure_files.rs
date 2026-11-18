@@ -739,29 +739,6 @@ impl Root {
     }
 }
 impl Root {
-    pub fn files(
-        &self,
-        relative: &Path,
-        max_entries: usize,
-    ) -> std::io::Result<Vec<std::path::PathBuf>> {
-        #[cfg(unix)]
-        {
-            Ok(
-                manifest_files::entries(&self.directory, relative, max_entries)?
-                    .into_iter()
-                    .filter_map(|(path, directory)| if directory { None } else { Some(path) })
-                    .collect(),
-            )
-        }
-        #[cfg(not(unix))]
-        {
-            let _ = (relative, max_entries);
-            Err(denied())
-        }
-    }
-}
-
-impl Root {
     pub fn entries(
         &self,
         relative: &Path,

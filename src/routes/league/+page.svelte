@@ -883,13 +883,13 @@
     padding: 8px 10px;
     border: none;
     border-radius: var(--border-radius);
-    background: var(--surface-hover);
+    background: var(--surface-hi);
     }
 
   .league-page :global(.scout-notice) {
     margin: 0;
     font-size: 12.5px;
-    color: var(--text-secondary);
+    color: var(--text-muted);
     }
 
   .league-page :global(.reroll-actions) {
@@ -910,13 +910,13 @@
     border: none;
     border-radius: 999px;
     background: transparent;
-    color: var(--text-secondary);
+    color: var(--text-muted);
     font-size: 12px;
     cursor: pointer;
     }
 
   .league-page :global(.queue-chip:hover) {
-    background: var(--surface-hover);
+    background: var(--surface-hi);
     }
 
   .league-page :global(.queue-chip.on) {
@@ -926,7 +926,7 @@
 
   .league-page :global(.history-summary) {
     font-size: 12.5px;
-    color: var(--text-secondary);
+    color: var(--text-muted);
     margin: 0 0 10px;
     }
 
@@ -1981,13 +1981,13 @@
     }
 
   .league-page :global(.button.subtle) {
-    color: var(--text-secondary);
+    color: var(--text-muted);
     background: transparent;
     }
 
   .league-page :global(.button.subtle:hover) {
     color: var(--text);
-    background: var(--surface-hover);
+    background: var(--surface-hi);
     }
 
   .league-page :global(.scoreboard-row.full) {
@@ -2103,7 +2103,7 @@
   .league-page :global(.profile-tools summary) {
     cursor: pointer;
     font-size: 12.5px;
-    color: var(--text-secondary);
+    color: var(--text-muted);
     padding: 4px 0;
     }
 
@@ -2147,7 +2147,7 @@
     border: none;
     border-radius: 4px;
     font-size: 10.5px;
-    color: var(--text-secondary);
+    color: var(--text-muted);
     }
 
   .league-page :global(.skill-step.ult) {
@@ -2164,7 +2164,7 @@
 
   .league-page :global(.scout-score) {
     font-size: 11.5px;
-    color: var(--text-secondary);
+    color: var(--text-muted);
     font-variant-numeric: tabular-nums;
     }
 
@@ -2173,7 +2173,7 @@
     gap: 12px;
     flex-wrap: wrap;
     font-size: 11.5px;
-    color: var(--text-secondary);
+    color: var(--text-muted);
     margin: 4px 0;
     }
 
@@ -2197,7 +2197,7 @@
 
   .league-page :global(.repair-note) {
     font-size: 12px;
-    color: var(--text-secondary);
+    color: var(--text-muted);
     }
 
   .league-page :global(.button.subtle-danger) {

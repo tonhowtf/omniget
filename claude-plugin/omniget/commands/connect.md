@@ -1,5 +1,5 @@
 ---
-description: Connect Claude Code to the OmniGet desktop app on this computer (downloads, the Global Downloader for courses and sites, your AI agents as background jobs, missions) with one click in OmniGet
+description: Connect Claude Code to the OmniGet desktop app on this computer (downloads, the Built-in Browser for courses and sites, your AI agents as background jobs, missions) with one click in OmniGet
 allowed-tools: ["Bash"]
 ---
 
@@ -15,5 +15,5 @@ Connect this Claude Code to OmniGet's local MCP server.
    person to open or update it (https://getomniget.com/download) and try again.
 2. Follow the steps it returns. If the user wants to download courses or sites behind a
    login, or to write a connector, add `--data-urlencode "browser=1"` to the request so the
-   Allow also offers the Global Downloader. The user clicks Allow in the OmniGet window; OmniGet
+   Allow also offers the Built-in Browser. The user clicks Allow in the OmniGet window; OmniGet
    writes the `omniget` server into Claude Code's config itself, so never ask for a token.

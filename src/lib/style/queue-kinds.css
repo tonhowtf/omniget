@@ -7,6 +7,7 @@
   --queue-kind-image-fg: #15803d;
   --queue-kind-pdf-bg: color-mix(in oklab, #dc2626 18%, transparent);
   --queue-kind-pdf-fg: #b91c1c;
+  --queue-kind-book-bg: color-mix(in oklab, #d97706 20%, transparent);
   --queue-kind-webpage-bg: color-mix(in oklab, var(--accent) 14%, transparent);
   --queue-kind-webpage-fg: color-mix(in oklab, var(--accent) 80%, var(--secondary));
   --queue-kind-generic-bg: color-mix(in oklab, var(--secondary) 12%, transparent);

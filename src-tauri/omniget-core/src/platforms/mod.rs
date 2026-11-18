@@ -187,21 +187,4 @@ impl Platform {
             None
         }
     }
-
-    pub fn all() -> &'static [Platform] {
-        &[
-            Platform::YouTube,
-            Platform::Instagram,
-            Platform::Threads,
-            Platform::TikTok,
-            Platform::Twitter,
-            Platform::Reddit,
-            Platform::Twitch,
-            Platform::Pinterest,
-            Platform::Bluesky,
-            Platform::Telegram,
-            Platform::Vimeo,
-            Platform::Bilibili,
-        ]
-    }
 }

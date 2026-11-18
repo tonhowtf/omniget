@@ -7,8 +7,7 @@ pub mod windows;
 pub use parse::{CliKind, CliUsageEntry, FileParser, Parsed, RateLimitSample};
 pub use report::{CliUsageReport, ReportOptions, SessionSummary, ToolHeat, Totals};
 pub use scan::{
-    scan, scan_roots, walk_jsonl, ScanOutcome, ScanRoot, ScanState, ScanStats, ERR_CLI_USAGE_IO,
-    ERR_CLI_USAGE_STATE,
+    scan, scan_roots, walk_jsonl, ScanOutcome, ScanRoot, ScanState, ScanStats, ERR_CLI_USAGE_STATE,
 };
 pub use windows::{
     merge_windows, CapacityRecord, CapacityWindow, PlanLimits, UsageWindow, WindowKind,

@@ -1,4 +1,5 @@
 import { sendCookiesViaBridge } from "./bridge-client.js";
+import { isStoreExcludedHost } from "./store-policy.js";
 
 const TRACKED_PLATFORMS = {
   "youtube.com": "youtube",
@@ -80,6 +81,9 @@ export async function captureCookiesForTab(tab, {
   }
   if (!cookiesApi?.getAll) {
     return { ok: false, reason: "no-cookies-api" };
+  }
+  if (isStoreExcludedHost(parsed.hostname)) {
+    return { ok: false, reason: "store-excluded" };
   }
 
   const root = rootDomainOf(parsed.hostname);

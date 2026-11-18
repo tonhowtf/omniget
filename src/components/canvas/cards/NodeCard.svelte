@@ -1,7 +1,7 @@
 <script lang="ts">
-  import { t } from "$lib/i18n";
+  import { locale, t } from "$lib/i18n";
   import { isTerminalKind, type CanvasNode } from "$lib/canvas/model/types";
-  import { agentStates, stateCss, type AgentState } from "$lib/canvas/state/agents.svelte";
+  import { agentStates, stateVar, type AgentState } from "$lib/canvas/state/agents.svelte";
   import { useEngine } from "$lib/canvas/engine.svelte";
   import { noteRead } from "$lib/canvas/notes/api";
   import { ACCOUNT_AGENTS, canvasAccounts } from "$lib/canvas/accounts/store.svelte";
@@ -57,7 +57,19 @@
     if (!used || !limit) return null;
     return Math.max(0, Math.min(8, Math.round((used / limit) * 8)));
   });
-  const cost = $derived(signal?.costUsd);
+  const cost = $derived.by(() => {
+    const c = agentStates.costs[node.id];
+    if (!c || (!c.usd && !c.tokens)) return "";
+    try {
+      if (c.usd > 0) {
+        const amount = new Intl.NumberFormat($locale, { style: "currency", currency: "USD" }).format(c.usd);
+        return $t("canvas.engine.costEstimated", { amount }) as string;
+      }
+      return $t("canvas.budget.tokens", { count: new Intl.NumberFormat($locale, { notation: "compact", maximumFractionDigits: 1 }).format(c.tokens) }) as string;
+    } catch {
+      return "";
+    }
+  });
 
   const STATE_KEYS: Record<AgentState, [string, string]> = {
     idle: ["canvas.engine.state.idle", "Idle"],
@@ -69,13 +81,15 @@
     failed: ["canvas.engine.state.failed", "Failed"],
     compacting: ["canvas.engine.state.compacting", "Compacting"],
     looping: ["canvas.engine.state.looping", "Looping"],
+    limit: ["canvas.engine.state.limit", "At the limit"],
+    refused: ["canvas.engine.state.refused", "Refused"],
     unknown: ["canvas.engine.state.unknown", "No signal"],
   };
 </script>
 
 <div class="card" class:selected class:blocked={agentState === "blocked"} class:agent>
   <div class="head">
-    {#if agent}<span class="dot" style:background={stateCss(agentState)}></span>{/if}
+    {#if agent}<span class="dot" style:background={stateVar(agentState)}></span>{/if}
     <span class="title">{node.title || node.kind}</span>
     {#if accountBadge}
       <AccountBadge badge={accountBadge} readonly />
@@ -84,9 +98,9 @@
   </div>
   {#if agent}
     <div class="meta">
-      <span class="state" style:color={stateCss(agentState)}>{$t(STATE_KEYS[agentState][0], { default: STATE_KEYS[agentState][1] })}</span>
+      <span class="state" style:color={stateVar(agentState)}>{$t(STATE_KEYS[agentState][0], { default: STATE_KEYS[agentState][1] })}</span>
       {#if role}<span class="role">{role}</span>{/if}
-      {#if cost !== undefined}<span class="cost">${cost.toFixed(2)}</span>{/if}
+      {#if cost}<span class="cost" title={$t("canvas.engine.costHint") as string}>{cost}</span>{/if}
     </div>
     {#if lastLine}<div class="line">{lastLine}</div>{/if}
     {#if segments !== null}
@@ -128,7 +142,7 @@
     box-shadow: 0 0 0 1px var(--accent);
   }
   .card.blocked {
-    border-color: #d96a62;
+    border-color: var(--agent-blocked);
   }
   .head {
     display: flex;
@@ -195,9 +209,9 @@
     background: var(--accent);
   }
   .seg.amber {
-    background: #dcab3c;
+    background: var(--agent-working);
   }
   .seg.coral {
-    background: #d96a62;
+    background: var(--agent-blocked);
   }
 </style>

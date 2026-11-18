@@ -58,7 +58,7 @@
     input.value = "";
     if (!file) return;
     importMsg = null;
-    const res = await importFile(file, $t("palette.untitled_project") as string, (n) => $t("palette.scales.untitled", { n }) as string);
+    const res = await importFile(file, $t("palette.untitled_project") as string, (n) => $t("palette.scales.untitled", { num: n }) as string);
     if (!res.ok) {
       importMsg = { ok: false, text: $t(`palette.export.import_${res.reason}`) as string };
       return;

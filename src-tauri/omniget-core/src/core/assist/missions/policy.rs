@@ -259,10 +259,6 @@ impl Engine {
         }
     }
 
-    pub fn policies(&self) -> &[Policy] {
-        &self.policies
-    }
-
     pub async fn dispatch(&self, env: Envelope, runner: &dyn EffectRunner) -> Dispatch {
         let mut out = Dispatch::default();
         let mut queue = vec![env];

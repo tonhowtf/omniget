@@ -228,62 +228,6 @@ pub fn items_gold(prices: &[(u32, u32)]) -> u32 {
     prices.iter().map(|(price, count)| price * count).sum()
 }
 
-#[derive(Debug, Clone, Copy)]
-pub struct RoleTargets {
-    pub cs_per_min: f64,
-    pub gold_per_min: f64,
-    pub kda: f64,
-    pub vision_per_min: f64,
-    pub damage_share: f64,
-}
-
-pub fn default_targets(position: &str) -> RoleTargets {
-    match position.to_ascii_uppercase().as_str() {
-        "TOP" => RoleTargets {
-            cs_per_min: 7.0,
-            gold_per_min: 380.0,
-            kda: 2.5,
-            vision_per_min: 0.6,
-            damage_share: 0.22,
-        },
-        "JUNGLE" => RoleTargets {
-            cs_per_min: 5.5,
-            gold_per_min: 360.0,
-            kda: 3.0,
-            vision_per_min: 1.0,
-            damage_share: 0.18,
-        },
-        "MIDDLE" | "MID" => RoleTargets {
-            cs_per_min: 7.5,
-            gold_per_min: 400.0,
-            kda: 3.0,
-            vision_per_min: 0.7,
-            damage_share: 0.27,
-        },
-        "BOTTOM" | "ADC" => RoleTargets {
-            cs_per_min: 8.0,
-            gold_per_min: 420.0,
-            kda: 3.0,
-            vision_per_min: 0.6,
-            damage_share: 0.28,
-        },
-        "UTILITY" | "SUPPORT" => RoleTargets {
-            cs_per_min: 1.5,
-            gold_per_min: 260.0,
-            kda: 3.0,
-            vision_per_min: 2.0,
-            damage_share: 0.10,
-        },
-        _ => RoleTargets {
-            cs_per_min: 6.0,
-            gold_per_min: 360.0,
-            kda: 2.5,
-            vision_per_min: 0.8,
-            damage_share: 0.20,
-        },
-    }
-}
-
 pub fn contribution_ratio(value: f64, team_total: f64, team_size: usize) -> f64 {
     if team_total <= 0.0 || team_size == 0 {
         return 0.0;

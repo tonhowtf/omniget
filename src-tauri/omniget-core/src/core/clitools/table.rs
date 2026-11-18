@@ -144,29 +144,6 @@ fn default_version_args() -> Vec<String> {
     vec!["--version".into()]
 }
 
-impl CliTool {
-    pub fn latest_source(&self) -> LatestSource {
-        if let Some(p) = &self.npm {
-            LatestSource::Npm(p.clone())
-        } else if let Some(p) = &self.pip {
-            LatestSource::Pypi(p.clone())
-        } else if let Some(r) = &self.repo {
-            LatestSource::Github(r.clone())
-        } else {
-            LatestSource::None
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
-#[serde(tag = "kind", content = "key", rename_all = "snake_case")]
-pub enum LatestSource {
-    Npm(String),
-    Pypi(String),
-    Github(String),
-    None,
-}
-
 #[derive(Deserialize)]
 struct TableFile {
     tools: Vec<CliTool>,

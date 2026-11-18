@@ -2,7 +2,7 @@
   import { untrack } from "svelte";
   import { t, locale } from "$lib/i18n";
   import EngagementDraw from "./EngagementDraw.svelte";
-  import { compact, social, tool, type Platform } from "./api";
+  import { compact, NET, social, tool, type Platform } from "./api";
   import { toolError, type Envelope, type Listing, type PostRow, type ToolError } from "./insights";
   import { PERIOD_ROWS, SERIES_KEYS, lastDays, periodArgs, seriesPath, signed, type Periods, type Series } from "./second";
 
@@ -13,7 +13,7 @@
   const H = 90;
 
   let panel = $state<Panel | null>(null);
-  let panels = $derived<Panel[]>(platform === "x" ? ["periods", "history", "engagement"] : ["periods", "history"]);
+  let panels = $derived<Panel[]>(platform === NET.shortpost ? ["periods", "history", "engagement"] : ["periods", "history"]);
 
   let mine = $state<PostRow[]>([]);
   let mineLoading = $state(false);

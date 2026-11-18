@@ -67,7 +67,10 @@ async function init() {
   initCookieCapture(activeTab);
 
   const h264Toggle = document.getElementById("h264-toggle");
-  chrome.runtime.sendMessage({ type: "getH264" }, (r) => { if (r && h264Toggle) h264Toggle.checked = r.enabled; });
+  chrome.runtime.sendMessage({ type: "getH264" }, (r) => {
+    if (r?.available === false) { h264Toggle?.closest(".toggle-group")?.remove(); return; }
+    if (r && h264Toggle) h264Toggle.checked = r.enabled;
+  });
   h264Toggle?.addEventListener("change", () => {
     chrome.runtime.sendMessage({ type: "toggleH264", enabled: h264Toggle.checked }, (r) => { if (r && h264Toggle.checked !== r.enabled) h264Toggle.checked = r.enabled; });
   });

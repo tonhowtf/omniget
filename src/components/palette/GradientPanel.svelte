@@ -103,10 +103,10 @@
       <ol class="pl-stops">
         {#each g.stops as stop, i (i)}
           <li>
-            <ColorField color={stop.color} label={$t("palette.gradient.stop_color", { n: i + 1 })} onchange={(c) => setStop(i, c)} />
-            <input type="range" min="0" max="1" step="0.01" value={stop.pos} aria-label={$t("palette.gradient.stop_pos", { n: i + 1 })} oninput={(e) => setPos(i, Number(e.currentTarget.value))} />
+            <ColorField color={stop.color} label={$t("palette.gradient.stop_color", { num: i + 1 })} onchange={(c) => setStop(i, c)} />
+            <input type="range" min="0" max="1" step="0.01" value={stop.pos} aria-label={$t("palette.gradient.stop_pos", { num: i + 1 })} oninput={(e) => setPos(i, Number(e.currentTarget.value))} />
             <output class="pl-num">{Math.round(stop.pos * 100)}%</output>
-            <button type="button" class="btn btn-ghost btn-sm pl-icon-btn" disabled={g.stops.length <= 2} title={g.stops.length <= 2 ? $t("palette.gradient.min_stops") : $t("palette.gradient.remove_stop", { n: i + 1 })} aria-label={$t("palette.gradient.remove_stop", { n: i + 1 })} onclick={() => removeStop(i)}>
+            <button type="button" class="btn btn-ghost btn-sm pl-icon-btn" disabled={g.stops.length <= 2} title={g.stops.length <= 2 ? $t("palette.gradient.min_stops") : $t("palette.gradient.remove_stop", { num: i + 1 })} aria-label={$t("palette.gradient.remove_stop", { num: i + 1 })} onclick={() => removeStop(i)}>
               <svg viewBox="0 0 12 12" width="11" height="11" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="m3 3 6 6M9 3 3 9" /></svg>
             </button>
           </li>

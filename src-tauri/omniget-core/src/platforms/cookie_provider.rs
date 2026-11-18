@@ -109,38 +109,6 @@ pub fn cookie_header_from_netscape_for_domain(content: &str, domain: &str) -> Op
     }
 }
 
-pub fn cookie_header_from_netscape(content: &str) -> Option<String> {
-    let pairs: Vec<String> = content
-        .lines()
-        .filter_map(|line| {
-            let trimmed = line.trim();
-            if trimmed.is_empty() || trimmed.starts_with("# Netscape") {
-                return None;
-            }
-            let normalized = trimmed.strip_prefix("#HttpOnly_").unwrap_or(trimmed);
-            if normalized.starts_with('#') {
-                return None;
-            }
-            let parts: Vec<&str> = normalized.split('\t').collect();
-            if parts.len() < 7 {
-                return None;
-            }
-            let name = parts[5].trim();
-            let value = parts[6].trim();
-            if name.is_empty() {
-                return None;
-            }
-            Some(format!("{}={}", name, value))
-        })
-        .collect();
-
-    if pairs.is_empty() {
-        None
-    } else {
-        Some(pairs.join("; "))
-    }
-}
-
 pub fn cookie_header_for_domains(domains: &[&str]) -> Option<String> {
     for domain in domains {
         let Some(path) = cookie_path_for(domain) else {

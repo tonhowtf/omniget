@@ -16,15 +16,25 @@ pub async fn llm_tool_answer(
     state: State<'_, AppState>,
     request_id: String,
     tool_call_id: String,
-    allow: bool,
+    decision: Option<String>,
+    allow: Option<bool>,
     always: Option<bool>,
 ) -> Result<Value, String> {
-    state
-        .llm
-        .answer_tool(&request_id, &tool_call_id, allow, always.unwrap_or(false))?;
+    use omniget_core::core::llm::broker::{resolve_decision, Answer, Decision};
+    let decision = resolve_decision(decision.as_deref(), allow, always.unwrap_or(false))?;
+    let answered = state.llm.answer_tool_with(&tool_call_id, decision);
+    if decision == Decision::Cancel {
+        let stopped = state.llm.cancel(&request_id);
+        if answered.is_err() {
+            stopped?;
+        }
+    } else {
+        answered?;
+    }
+    let allow = !matches!(decision.answer(), Answer::Deny);
     let _ = app.emit(
         "omni://tool-resolved",
-        json!({ "request_id": request_id, "tool_call_id": tool_call_id, "allow": allow }),
+        json!({ "request_id": request_id, "tool_call_id": tool_call_id, "allow": allow, "decision": decision.as_str() }),
     );
     Ok(json!({ "ok": true }))
 }

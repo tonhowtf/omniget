@@ -1,33 +1,34 @@
 import { describe, expect, it } from "vitest";
-import { buildOptions, cleanHandle, hasReplies, heatGrid, heatLevel, monitorQueryKey, redditOptions, reportsFor, sortRows, sparkPoints, splitList, toolError, whoKey, type Cell } from "./insights";
+import { buildOptions, cleanHandle, hasReplies, heatGrid, heatLevel, monitorQueryKey, forumsOptions, reportsFor, sortRows, sparkPoints, splitList, toolError, whoKey, type Cell } from "./insights";
+import { NET } from "./api";
 
 const cell = (weekday: number, hour: number, mean: number, posts = 3): Cell => ({ weekday, hour, mean, posts, engagement: mean * posts, thin: posts < 3 });
 
 describe("networks", () => {
   it("offers each network the reports it can answer", () => {
-    expect(reportsFor("github")).toEqual(["summary", "posts", "times", "trend", "repos", "compare"]);
-    expect(reportsFor("reddit")).not.toContain("repos");
-    expect(reportsFor("x")).toHaveLength(9);
-    expect(hasReplies("reddit")).toBe(true);
-    expect(hasReplies("pinterest")).toBe(false);
-    expect(whoKey("github")).toBe("username");
+    expect(reportsFor(NET.codehub)).toEqual(["summary", "posts", "times", "trend", "repos", "compare"]);
+    expect(reportsFor(NET.forums)).not.toContain("repos");
+    expect(reportsFor(NET.shortpost)).toHaveLength(9);
+    expect(hasReplies(NET.forums)).toBe(true);
+    expect(hasReplies(NET.pinboard)).toBe(false);
+    expect(whoKey(NET.codehub)).toBe("username");
   });
 
-  it("builds Reddit search options without defaults", () => {
-    expect(redditOptions({ sort: "new", time: "", subreddit: " " })).toEqual({});
-    expect(redditOptions({ sort: "top", time: "week", subreddit: " r/rust " })).toEqual({ sort: "top", time: "week", subreddit: "r/rust" });
+  it("builds Forums search options without defaults", () => {
+    expect(forumsOptions({ sort: "new", time: "", subreddit: " " })).toEqual({});
+    expect(forumsOptions({ sort: "top", time: "week", subreddit: " r/rust " })).toEqual({ sort: "top", time: "week", subreddit: "r/rust" });
   });
 
   it("labels the query field by network and kind", () => {
-    expect(monitorQueryKey("x", "search")).toBe("query_x");
-    expect(monitorQueryKey("instagram", "profile")).toBe("query_profile");
-    expect(monitorQueryKey("reddit", "search")).toBe("query_tiktok");
-    expect(monitorQueryKey("reddit", "subreddit")).toBe("query_subreddit");
-    expect(monitorQueryKey("pinterest", "search")).toBe("query_tiktok");
-    expect(monitorQueryKey("github", "repositories")).toBe("query_gh_repositories");
-    expect(monitorQueryKey("github", "issues")).toBe("query_gh_issues");
-    expect(monitorQueryKey("github", "releases")).toBe("query_repo");
-    expect(monitorQueryKey("github", "repo_issues")).toBe("query_repo");
+    expect(monitorQueryKey(NET.shortpost, "search")).toBe("query_shortpost");
+    expect(monitorQueryKey(NET.photofeed, "profile")).toBe("query_profile");
+    expect(monitorQueryKey(NET.forums, "search")).toBe("query_clipfeed");
+    expect(monitorQueryKey(NET.forums, "subreddit")).toBe("query_community");
+    expect(monitorQueryKey(NET.pinboard, "search")).toBe("query_clipfeed");
+    expect(monitorQueryKey(NET.codehub, "repositories")).toBe("query_gh_repositories");
+    expect(monitorQueryKey(NET.codehub, "issues")).toBe("query_gh_issues");
+    expect(monitorQueryKey(NET.codehub, "releases")).toBe("query_repo");
+    expect(monitorQueryKey(NET.codehub, "repo_issues")).toBe("query_repo");
   });
 });
 
@@ -50,8 +51,8 @@ describe("toolError", () => {
 
 describe("handles and lists", () => {
   it("uses the argument name of each network", () => {
-    expect(whoKey("x")).toBe("handle");
-    expect(whoKey("instagram")).toBe("username");
+    expect(whoKey(NET.shortpost)).toBe("handle");
+    expect(whoKey(NET.photofeed)).toBe("username");
   });
 
   it("cleans @ and profile links", () => {

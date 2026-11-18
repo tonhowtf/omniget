@@ -86,10 +86,6 @@ fn lock() -> std::sync::MutexGuard<'static, Option<Slot>> {
     }
 }
 
-pub fn release() -> bool {
-    lock().take().is_some()
-}
-
 fn schedule_release() {
     std::thread::spawn(|| {
         std::thread::sleep(IDLE_TTL + Duration::from_secs(1));

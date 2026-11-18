@@ -290,22 +290,6 @@ pub fn open_reader(path: &Path) -> Result<Connection, String> {
     Ok(conn)
 }
 
-pub fn meta_get(conn: &Connection, key: &str) -> Option<String> {
-    conn.query_row("SELECT value FROM meta WHERE key = ?1", [key], |r| r.get(0))
-        .optional()
-        .ok()
-        .flatten()
-}
-
-pub fn meta_set(conn: &Connection, key: &str, value: &str) -> Result<(), String> {
-    conn.execute(
-        "INSERT INTO meta(key, value) VALUES (?1, ?2) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
-        params![key, value],
-    )
-    .map(|_| ())
-    .map_err(db_err)
-}
-
 #[derive(Debug, Clone)]
 pub struct Planned {
     pub event: DomainEvent,
@@ -1775,24 +1759,6 @@ pub fn turn_at(
         &format!("SELECT {TURN_COLS} FROM turns WHERE thread_id = ?1 AND ordinal = ?2"),
         params![thread_id, ordinal],
         row_turn,
-    )
-    .optional()
-    .map_err(db_err)
-}
-
-pub fn turn_prompt(conn: &Connection, turn: &TurnRow) -> Result<Option<(String, Value)>, String> {
-    let Some(mid) = &turn.message_id else {
-        return Ok(None);
-    };
-    conn.query_row(
-        "SELECT text, attachments_json FROM messages WHERE message_id = ?1",
-        [mid],
-        |r| {
-            Ok((
-                r.get::<_, String>(0)?,
-                json_or(r.get(1)?, Value::Array(vec![])),
-            ))
-        },
     )
     .optional()
     .map_err(db_err)

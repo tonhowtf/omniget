@@ -22,6 +22,7 @@
   "appearance": {
     "language": "en",
     "sidebar_collapsed": false,
+    "downloads_only": false,
     "theme": "system"
   },
   "bridge": {
@@ -64,7 +65,7 @@
     "node_material": "opaque",
     "notifications": {
       "attention": true,
-      "badges_for_non_maestro": true
+      "badges_for_non_lead": true
     },
     "performance": {
       "force_canvas2d": false,

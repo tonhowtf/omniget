@@ -7,6 +7,7 @@
   import { escapeHtml } from "$lib/markdown";
   import { showToast } from "$lib/stores/toast-store.svelte";
   import { bookUrl, ensureStatus, patchBookLocal } from "$lib/read/library-store.svelte";
+  import { definitionsHtml, plainDefinitionHtml } from "$lib/read/dictionary";
   import { applyBionic, isDarkTheme, loadFoliate, openBookFile, readerCss, THEMES } from "$lib/read/foliate";
   import { prefs, savePrefs } from "$lib/read/prefs.svelte";
   import { reader, resetReader } from "$lib/read/reader-state.svelte";
@@ -335,10 +336,7 @@
       if (r.ok) {
         const j = await r.json();
         const entries = (j[lang] ?? j.en ?? Object.values(j)[0] ?? []) as any[];
-        dict.html = entries
-          .slice(0, 4)
-          .map((en) => `<p><i>${en.partOfSpeech}</i></p><ol>${(en.definitions ?? []).slice(0, 4).map((d: any) => `<li>${d.definition}</li>`).join("")}</ol>`)
-          .join("");
+        dict.html = definitionsHtml(Array.isArray(entries) ? entries : []);
       }
     } catch {
     }
@@ -358,7 +356,7 @@
       }
     }
     dict.loading = false;
-    dict.html = dict.html.replace(/<(?!\/?(p|i|b|ol|ul|li|em|strong)\b)[^>]*>/gi, "");
+    dict.html = plainDefinitionHtml(dict.html);
   }
 
   async function saveWord() {

@@ -141,6 +141,42 @@ impl Decision {
     }
 }
 
+pub fn ask_kind(tool: &str) -> &'static str {
+    let lower = super::impact::tool_base(tool).to_ascii_lowercase();
+    if lower.starts_with("mcp:") || lower.starts_with("mcp__") {
+        return "mcp";
+    }
+    match lower.as_str() {
+        "read" | "grep" | "glob" | "ls" | "view" | "notebookread" | "fs_read" | "fs_list"
+        | "fs_grep" | "fs_glob" => "read",
+        "bash" | "bashoutput" | "killshell" | "powershell" | "shell" | "terminal"
+        | "shell_exec" => "command",
+        "edit" | "write" | "multiedit" | "notebookedit" | "apply_patch" | "fs_edit"
+        | "fs_write" | "fs_apply_patch" => "file_change",
+        "websearch" | "webfetch" => "web",
+        _ => "other",
+    }
+}
+
+pub fn ask_can_always(tool: &str) -> bool {
+    let tool = super::impact::tool_base(tool);
+    tool != "external_directory" && !super::tool_table::always_asks(tool)
+}
+
+pub fn resolve_decision(
+    decision: Option<&str>,
+    allow: Option<bool>,
+    always: bool,
+) -> Result<Decision, &'static str> {
+    match (decision, allow) {
+        (Some(word), _) => Decision::parse(word).ok_or("INVALID_DECISION"),
+        (None, Some(false)) => Ok(Decision::Decline),
+        (None, Some(true)) if always => Ok(Decision::AcceptAlways),
+        (None, Some(true)) => Ok(Decision::Accept),
+        (None, None) => Err("DECISION_REQUIRED"),
+    }
+}
+
 pub fn elicitation(agent_id: &str, action: &str, preview: &str) -> Value {
     serde_json::json!({
         "method": "elicitation/create",
@@ -185,6 +221,7 @@ struct PendingAsk {
     tool: String,
     permission: Option<(crate::core::assist::runs::Registry, String)>,
     agent: String,
+    impact: Option<super::impact::Impact>,
 }
 
 fn ask_entity(
@@ -211,6 +248,7 @@ pub struct ToolBroker {
     sources: RwLock<Vec<Source>>,
     bus: Arc<Bus>,
     pending: Mutex<HashMap<String, PendingAsk>>,
+    noted_impact: Mutex<HashMap<String, super::impact::Impact>>,
     ask_timeout: RwLock<Duration>,
     ask_timeout_resolver: RwLock<Option<AskTimeoutResolver>>,
     last_registry: Mutex<Option<crate::core::assist::runs::Registry>>,
@@ -239,6 +277,7 @@ impl ToolBroker {
             sources: RwLock::new(Vec::new()),
             bus,
             pending: Mutex::new(HashMap::new()),
+            noted_impact: Mutex::new(HashMap::new()),
             ask_timeout: RwLock::new(DEFAULT_ASK_TIMEOUT),
             ask_timeout_resolver: RwLock::new(None),
             last_registry: Mutex::new(None),
@@ -294,15 +333,6 @@ impl ToolBroker {
 
     pub fn unregister_skills(&self) -> usize {
         self.unregister(SKILL_PREFIX)
-    }
-
-    pub fn sources(&self) -> Vec<String> {
-        self.sources
-            .read()
-            .unwrap_or_else(|e| e.into_inner())
-            .iter()
-            .map(|s| s.prefix.clone())
-            .collect()
     }
 
     fn register(
@@ -390,14 +420,6 @@ impl ToolBroker {
 
     pub fn answer_with(&self, tool_call_id: &str, answer: Answer) -> bool {
         self.deliver(tool_call_id, answer).is_ok()
-    }
-    pub fn respond(
-        &self,
-        permission_id: &str,
-        decision: Decision,
-        actor: &crate::core::assist::runs::Actor,
-    ) -> Result<(), AnswerRefused> {
-        self.respond_in(None, permission_id, decision, actor)
     }
 
     pub fn respond_in(
@@ -581,6 +603,22 @@ impl ToolBroker {
             .unwrap_or_else(|e| e.into_inner())
             .values()
             .any(|p| p.request_id == request_id)
+    }
+
+    pub fn note_impact(&self, tool_call_id: &str, impact: super::impact::Impact) {
+        let mut noted = self.noted_impact.lock().unwrap_or_else(|e| e.into_inner());
+        if noted.len() >= 64 {
+            noted.clear();
+        }
+        noted.insert(tool_call_id.to_string(), impact);
+    }
+
+    pub fn pending_impact(&self, tool_call_id: &str) -> Option<super::impact::Impact> {
+        self.pending
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .get(tool_call_id)
+            .and_then(|p| p.impact)
     }
 
     pub fn has_pending_call(&self, tool_call_id: &str) -> bool {
@@ -837,6 +875,14 @@ impl ToolBroker {
             Value::String(s) => s.clone(),
             _ => super::code_tools::preview(name, input),
         };
+        let noted = self
+            .noted_impact
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .remove(tool_call_id);
+        let impact = noted.or_else(|| {
+            super::impact::impact_of(name, input, super::code_tools::workspace().as_deref())
+        });
         let durable = super::code_tools::current_turn()
             .map(|ctx| super::drivers::is_durable_conversation(&ctx.conversation))
             .unwrap_or(false);
@@ -874,6 +920,7 @@ impl ToolBroker {
                     tool: name.to_string(),
                     permission: permission.clone(),
                     agent: agent_id.to_string(),
+                    impact,
                 },
             );
         }
@@ -889,6 +936,7 @@ impl ToolBroker {
             tool_call_id: tool_call_id.to_string(),
             tool: name.to_string(),
             preview: preview_text,
+            impact,
         });
         let end = if durable {
             match rx.await {
@@ -942,5 +990,83 @@ impl ToolBroker {
             waited_ms: asked_at.elapsed().as_millis().min(u64::MAX as u128) as u64,
         });
         end
+    }
+}
+
+#[cfg(test)]
+mod ask_answer_tests {
+    use super::*;
+
+    #[test]
+    fn ask_kind_names_what_the_tool_does() {
+        assert_eq!(ask_kind("Bash"), "command");
+        assert_eq!(ask_kind("Grep"), "read");
+        assert_eq!(ask_kind("Read"), "read");
+        assert_eq!(ask_kind("Edit"), "file_change");
+        assert_eq!(ask_kind("NotebookEdit"), "file_change");
+        assert_eq!(ask_kind("WebFetch"), "web");
+        assert_eq!(ask_kind("mcp:github:create_issue"), "mcp");
+        assert_eq!(ask_kind("mcp__github__create_issue"), "mcp");
+    }
+
+    #[test]
+    fn ask_kind_knows_the_native_tools() {
+        assert_eq!(ask_kind("shell_exec"), "command");
+        assert_eq!(ask_kind("fs_write"), "file_change");
+        assert_eq!(ask_kind("fs_edit"), "file_change");
+        assert_eq!(ask_kind("fs_apply_patch"), "file_change");
+        assert_eq!(ask_kind("fs_read"), "read");
+        assert_eq!(ask_kind("fs_grep"), "read");
+    }
+
+    #[test]
+    fn always_is_not_offered_where_it_would_not_stick() {
+        assert!(!ask_can_always("external_directory"));
+        assert!(ask_can_always("Grep"));
+    }
+
+    #[test]
+    fn ask_kind_does_not_guess_from_substrings() {
+        assert_eq!(ask_kind("TodoWrite"), "other");
+        assert_eq!(ask_kind("skill:read-the-docs"), "other");
+        assert_eq!(ask_kind(""), "other");
+    }
+
+    #[test]
+    fn resolve_decision_accepts_the_five_words() {
+        for word in Decision::ALL {
+            assert_eq!(
+                resolve_decision(Some(word), None, false).map(Decision::as_str),
+                Ok(word)
+            );
+        }
+    }
+
+    #[test]
+    fn resolve_decision_refuses_an_unknown_word() {
+        assert_eq!(
+            resolve_decision(Some("approve_everything"), Some(true), true),
+            Err("INVALID_DECISION")
+        );
+        assert_eq!(
+            resolve_decision(None, None, false),
+            Err("DECISION_REQUIRED")
+        );
+    }
+
+    #[test]
+    fn resolve_decision_keeps_the_old_allow_and_always_pair() {
+        assert_eq!(
+            resolve_decision(None, Some(false), true),
+            Ok(Decision::Decline)
+        );
+        assert_eq!(
+            resolve_decision(None, Some(true), false),
+            Ok(Decision::Accept)
+        );
+        assert_eq!(
+            resolve_decision(None, Some(true), true),
+            Ok(Decision::AcceptAlways)
+        );
     }
 }

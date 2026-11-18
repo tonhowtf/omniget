@@ -44,29 +44,12 @@ pub fn cached() -> Option<Arc<Vec<Detection>>> {
     last().lock().ok().and_then(|g| g.clone())
 }
 
-pub fn cached_one(id: &str) -> Option<Detection> {
-    cached().and_then(|v| v.iter().find(|d| d.id == id).cloned())
-}
-
 fn store(list: Vec<Detection>) -> Arc<Vec<Detection>> {
     let arc = Arc::new(list);
     if let Ok(mut g) = last().lock() {
         *g = Some(arc.clone());
     }
     arc
-}
-
-fn replace_one(det: Detection) {
-    if let Ok(mut g) = last().lock() {
-        if let Some(cur) = g.as_ref() {
-            let mut v: Vec<Detection> = cur.iter().cloned().collect();
-            match v.iter_mut().find(|d| d.id == det.id) {
-                Some(slot) => *slot = det,
-                None => v.push(det),
-            }
-            *g = Some(Arc::new(v));
-        }
-    }
 }
 
 pub async fn detect_all(force: bool) -> Arc<Vec<Detection>> {
@@ -94,14 +77,6 @@ pub async fn detect_all(force: bool) -> Arc<Vec<Detection>> {
         .collect();
     found.sort_by_key(|d| order.get(d.id.as_str()).copied().unwrap_or(usize::MAX));
     store(found)
-}
-
-pub async fn detect_one(tool: &CliTool) -> Detection {
-    let probes = Probes::default();
-    let extra = extra_dirs(&probes).await;
-    let det = detect_with(tool, &probes, &extra).await;
-    replace_one(det.clone());
-    det
 }
 
 async fn extra_dirs(probes: &Probes) -> Vec<PathBuf> {

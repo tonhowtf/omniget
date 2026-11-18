@@ -36,8 +36,9 @@ trap 'rm -rf "$tmp"' EXIT
 transcribe_one() {
   local part="$1" dest="$2" attempt
   for attempt in 1 2 3; do
-    if curl -sS --fail --max-time 900 https://api.openai.com/v1/audio/transcriptions \
-        -H "Authorization: Bearer $OPENAI_API_KEY" \
+    if printf 'Authorization: Bearer %s\n' "$OPENAI_API_KEY" \
+      | curl -sS --fail --max-time 900 https://api.openai.com/v1/audio/transcriptions \
+        -H @- \
         -F "file=@$part" -F "model=$model" -F "response_format=$fmt" \
         ${lang:+-F "language=$lang"} -o "$dest"; then
       return 0

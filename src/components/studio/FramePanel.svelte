@@ -133,7 +133,7 @@
         <p class="field-hint">{$t("studio.intro_needs_text")}</p>
       {/if}
       <label class="field">
-        <span class="field-label">{$t("studio.intro_seconds")} <output class="fp-num">{$t("studio.seconds", { n: intro.seconds })}</output></span>
+        <span class="field-label">{$t("studio.intro_seconds")} <output class="fp-num">{$t("studio.seconds", { num: intro.seconds })}</output></span>
         <input type="range" min="1" max="10" step="0.5" bind:value={intro.seconds} />
       </label>
       <ColorField label={$t("studio.intro_bg") as string} bind:value={intro.background} {swatches} {disabled} />

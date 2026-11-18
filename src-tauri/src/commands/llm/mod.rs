@@ -1,4 +1,5 @@
 pub mod accounts;
+pub mod budget;
 pub mod chat;
 pub mod jobs;
 pub mod keys;
@@ -122,6 +123,7 @@ pub fn tauri_event_for(event: &BusEvent) -> Option<(&'static str, serde_json::Va
             tool_call_id,
             tool,
             preview,
+            impact,
         } => Some((
             EVENT_TOOL_ASK,
             serde_json::json!({
@@ -129,7 +131,10 @@ pub fn tauri_event_for(event: &BusEvent) -> Option<(&'static str, serde_json::Va
                 "request_id": request_id,
                 "tool_call_id": tool_call_id,
                 "tool": tool,
+                "kind": omniget_core::core::llm::broker::ask_kind(tool),
+                "can_always": omniget_core::core::llm::broker::ask_can_always(tool),
                 "preview": preview,
+                "impact": impact,
             }),
         )),
         BusEvent::ToolAskResolved {

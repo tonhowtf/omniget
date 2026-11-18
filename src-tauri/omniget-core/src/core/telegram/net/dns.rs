@@ -41,14 +41,27 @@ fn is_bogus(ip: &IpAddr) -> bool {
     }
 }
 
+const OUTSIDE_SERVERS: &[&str] = &["cloudflare-dns.com", "dns.google", "dns.quad9.net"];
+
 pub async fn resolve_doh(host: &str) -> anyhow::Result<Vec<IpAddr>> {
+    resolve_doh_with(host, None).await
+}
+
+pub async fn resolve_doh_through(host: &str, proxy: &str) -> anyhow::Result<Vec<IpAddr>> {
+    resolve_doh_with(host, Some(proxy)).await
+}
+
+async fn resolve_doh_with(host: &str, proxy: Option<&str>) -> anyhow::Result<Vec<IpAddr>> {
     let host = host.to_string();
     let mut tasks = Vec::new();
     for (name, ip, path) in DOH_SERVERS {
+        if proxy.is_some() && !OUTSIDE_SERVERS.contains(name) {
+            continue;
+        }
         for qtype in [1u16, 28u16] {
             let host = host.clone();
             tasks.push(Box::pin(async move {
-                doh_query(name, ip, path, &host, qtype).await
+                doh_query(name, ip, path, &host, qtype, proxy).await
             }));
         }
     }
@@ -84,14 +97,18 @@ async fn doh_query(
     path: &str,
     host: &str,
     qtype: u16,
+    proxy: Option<&str>,
 ) -> anyhow::Result<Vec<IpAddr>> {
     let addr: std::net::SocketAddr = format!("{ip}:443").parse()?;
-    let client = reqwest::Client::builder()
+    let builder = reqwest::Client::builder()
         .use_rustls_tls()
         .resolve(name, addr)
-        .timeout(DOH_TIMEOUT)
-        .no_proxy()
-        .build()?;
+        .timeout(DOH_TIMEOUT);
+    let client = match proxy {
+        Some(proxy) => builder.proxy(reqwest::Proxy::all(proxy)?),
+        None => builder.no_proxy(),
+    }
+    .build()?;
     let query = build_query(host, qtype);
     let b64 = base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(&query);
     let url = format!("https://{name}{path}?dns={b64}");

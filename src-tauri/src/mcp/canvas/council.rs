@@ -277,7 +277,7 @@ async fn start(app: &AppHandle, a: &Value) -> Result<Value, String> {
     }
     let chair = sub(app, "canvas_node_spawn", json!({
         "workspaceId": wsv, "kind": "terminal", "agent": chair_agent, "title": chair_name, "cwd": dir,
-        "maestro": true, "start": false,
+        "lead": true, "start": false,
         "x": x0, "y": y0 + 500.0, "w": 1580, "h": 480
     })).await?;
     let chair_id = node_id(&chair)?;

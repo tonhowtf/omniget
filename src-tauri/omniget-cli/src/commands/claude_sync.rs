@@ -115,8 +115,7 @@ fn read_json(path: &Path) -> Option<Map<String, Value>> {
     }
 }
 
-fn write_json(path: &Path, map: &Map<String, Value>) -> anyhow::Result<()> {
-    let text = serde_json::to_string_pretty(map)?;
+fn write_private(path: &Path, text: &str) -> anyhow::Result<()> {
     let tmp = path.with_extension("json.omniget-tmp");
     std::fs::write(&tmp, text)?;
     #[cfg(unix)]
@@ -126,6 +125,10 @@ fn write_json(path: &Path, map: &Map<String, Value>) -> anyhow::Result<()> {
     }
     std::fs::rename(&tmp, path)?;
     Ok(())
+}
+
+fn write_json(path: &Path, map: &Map<String, Value>) -> anyhow::Result<()> {
+    write_private(path, &serde_json::to_string_pretty(map)?)
 }
 
 pub fn merge3(
@@ -281,13 +284,7 @@ fn read_creds(config_dir: &Path) -> Option<String> {
 #[cfg(not(target_os = "macos"))]
 fn write_creds(config_dir: &Path, secret: &str) -> anyhow::Result<()> {
     let path = creds_file(config_dir).ok_or_else(|| anyhow!("HOME is not set"))?;
-    std::fs::write(&path, secret)?;
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        let _ = std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600));
-    }
-    Ok(())
+    write_private(&path, secret)
 }
 
 fn copy_keychain(from: &Path, to: &Path) -> anyhow::Result<()> {
@@ -678,6 +675,27 @@ mod tests {
         );
         assert_eq!(keep, vec!["a|1".to_string(), "d|1".to_string()]);
         assert_eq!(drop, vec!["b|1".to_string(), "c|1".to_string()]);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn private_files_replace_the_target_with_owner_only_permissions() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = std::env::temp_dir().join(format!("omniget-claude-sync-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join(".credentials.json");
+        std::fs::write(&path, "old").unwrap();
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o644)).unwrap();
+        write_private(&path, "{\"x\":1}").unwrap();
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), "{\"x\":1}");
+        let mode = std::fs::metadata(&path).unwrap().permissions().mode() & 0o777;
+        assert_eq!(mode, 0o600);
+        let left: Vec<_> = std::fs::read_dir(&dir)
+            .unwrap()
+            .filter_map(|e| e.ok().map(|e| e.file_name()))
+            .collect();
+        assert_eq!(left, vec![std::ffi::OsString::from(".credentials.json")]);
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[cfg(target_os = "macos")]

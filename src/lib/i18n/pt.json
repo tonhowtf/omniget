@@ -1,19 +1,17 @@
 {
   "error": {
     "cause": {
-      "po_token_required": "O YouTube pediu um token de origem (PO token) antes de liberar este vídeo.",
+      "po_token_required": "O YouTube está bloqueando este download agora.",
       "sabr_only": "O YouTube só ofereceu streams que este player ainda não consegue salvar.",
       "rate_limited": "O site está limitando os downloads da sua conexão.",
       "disk_full": "Não há mais espaço no disco de download.",
-      "needs_login": "O site pediu login para acessar este conteúdo.",
-      "tls_fingerprint": "O site bloqueou a conexão antes de enviar qualquer conteúdo.",
-      "extractor_outdated": "O yt-dlp precisa de uma atualização para acompanhar este site."
+      "needs_login": "Este precisa do seu login.",
+      "tls_fingerprint": "O site recusou a conexão. Tente o navegador embutido.",
+      "extractor_outdated": "Este site mudou e o downloader precisa de uma atualização."
     },
     "remedy": {
-      "import_cookies": "Importar cookies",
       "retry": "Tentar de novo",
-      "update_ytdlp": "Atualizar o yt-dlp",
-      "updated": "yt-dlp atualizado",
+      "update_ytdlp": "Atualizar e tentar de novo",
       "pot_guide": "Abrir o guia do PO token"
     }
   },
@@ -858,7 +856,7 @@
       "lyrics": "Letras",
       "duplicates": "Duplicadas",
       "quality": "Qualidade",
-      "no_ffmpeg": "O ffmpeg ainda não está instalado. Instale em Configurações › Dependências para usar esta ferramenta.",
+      "no_ffmpeg": "O ffmpeg ainda não está instalado. Instale em Configurações › Avançado › Motor de download para usar esta ferramenta.",
       "analyze_lead": "A análise mede o volume (para o nivelamento), o andamento, o tom, a forma de onda, o silêncio e a faixa de frequência real de cada música. Ela roda em segundo plano.",
       "analyzed": "analisadas",
       "pending": "não analisadas",
@@ -1130,15 +1128,15 @@
     "section_primary": "Main",
     "section_app": "App",
     "world": "Canvas",
-    "help": "Help",
+    "help": "Ajuda",
     "profile_appearance": "Perfil e aparência",
-    "superpowers": "Superpoderes",
+    "superpowers": "Ferramentas",
     "collapse_sidebar": "Recolher barra lateral",
     "expand_sidebar": "Expandir barra lateral",
-    "community": "Comunidade"
+    "community": "Sobre e comunidade"
   },
   "command_palette": {
-    "open": "Search",
+    "open": "Ir para…",
     "placeholder": "Ir para uma página ou executar uma ação…",
     "empty": "No results",
     "navigate": "navigate",
@@ -1164,13 +1162,15 @@
     "drop_unsupported": "O OmniGet não consegue abrir este arquivo. Tente um link, um torrent ou uma lista .txt.",
     "action_batch": "Colar vários links…",
     "action_torrent": "Abrir um arquivo torrent…",
-    "action_p2p": "Enviar um arquivo com um código…",
-    "action_advanced": "Comando do yt-dlp…",
+    "action_p2p": "Compartilhar um arquivo…",
+    "action_advanced": "Avançado: comando personalizado do yt-dlp…",
     "action_simple": "Voltar",
     "adv_title": "Comando do yt-dlp",
     "success_title": "Adicionado aos Downloads",
     "success_first": "Seu primeiro download!",
-    "success_open": "Abrir Downloads"
+    "success_open": "Abrir Downloads",
+    "success_folder": "Baixando em {{folder}}",
+    "success_show_folder": "Mostrar pasta"
   },
   "downloads": {
     "phase_downloading": "Baixando",
@@ -1236,7 +1236,6 @@
     "pause_all": "Pausar todos",
     "resume_all": "Retomar todos",
     "reorder_hint": "arraste pra reordenar",
-    "history_view_link": "Ver histórico de downloads",
     "history_loading": "Carregando histórico…",
     "history_empty": "Nenhum download finalizado ainda.",
     "history_clear": "Limpar histórico",
@@ -1245,7 +1244,7 @@
     "history_requeued": "Adicionado à fila de novo",
     "history_link_expired": "Este link expirou ou teve a chave de acesso removida por privacidade. Cole o link original de novo.",
     "show_more": "Mostrar mais {{count}}",
-    "open_folder": "Abrir pasta",
+    "open_folder": "Mostrar na pasta",
     "stop": "Parar",
     "confirm_remove": "Remover este download?",
     "delete_file": "Excluir arquivo do disco",
@@ -1299,9 +1298,9 @@
     "empty_cta": "Colar um link",
     "speed_unlimited": "Sem limite de velocidade",
     "error_details": "Detalhes técnicos",
-    "view_queue": "Downloads",
+    "view_queue": "Fila",
     "view_history": "Histórico",
-    "view_tools": "Tools",
+    "view_tools": "Ferramentas de download",
     "tools": {
       "subtitle": "Ferramentas extras para os links, streams e arquivos que você baixa.",
       "back": "Todas as ferramentas",
@@ -1341,7 +1340,7 @@
         "waiting": "Waiting…",
         "show": "Show",
         "file_failed": "Não foi possível ajustar este arquivo",
-        "no_ffmpeg": "É preciso o FFmpeg para isso. Instale em Configurações › Dependências.",
+        "no_ffmpeg": "É preciso o FFmpeg para isso. Instale em Configurações › Avançado › Motor de download.",
         "failed": "Não foi possível ajustar estes arquivos."
       },
       "import_subscriptions": {
@@ -1866,7 +1865,9 @@
         "unmeasurable": "{{objects}} arquivos guardados. A economia não pode ser medida neste sistema.",
         "empty": "Nada guardado ainda. Use numa pasta para onde você baixa com frequência.",
         "stats_failed": "Não foi possível ler as estatísticas do disco."
-      }
+      },
+      "more_hint": "Procurando converter, cortar ou gravar?",
+      "more_link": "Todas as ferramentas"
     },
     "status_bar": {
       "region_label": "Progresso dos downloads",
@@ -1895,7 +1896,8 @@
     "archive_export_title": "Salvar o histórico como arquivo do yt-dlp",
     "archive_imported": "{{added}} novas de {{read}} entradas importadas",
     "archive_exported": "{{written}} entradas exportadas, {{skipped}} sem id conhecido ficaram de fora",
-    "archive_count": "{{count}} entradas importadas de um arquivo do yt-dlp"
+    "archive_count": "{{count}} entradas importadas de um arquivo do yt-dlp",
+    "open_file": "Abrir"
   },
   "toast": {
     "download_complete": "Pronto! {{name}} está na sua pasta",
@@ -2030,7 +2032,9 @@
         "name": "Nome da fonte",
         "name_hint": "Digite o nome como aparece no computador, por exemplo Inter. Se ela não estiver instalada, o app usa a fonte do sistema.",
         "split_note": "Hoje os títulos e o texto usam fontes diferentes. Salvar aqui deixa os dois com a mesma fonte."
-      }
+      },
+      "downloads_only": "Só downloads",
+      "downloads_only_desc": "Esconde Ferramentas e Canvas da barra lateral. A busca (⌘K) continua abrindo tudo."
     },
     "download": {
       "default_output_dir": "Pasta padrão",
@@ -2039,7 +2043,7 @@
       "remove_saved_dir": "Remove",
       "always_ask_path": "Sempre perguntar onde salvar",
       "video_quality": "Qualidade de vídeo",
-      "video_quality_desc": "Qualidade padrão quando você não escolhe uma na omnibox.",
+      "video_quality_desc": "Qualidade padrão quando você não escolhe uma na barra de links.",
       "speed_limit": "Limite de velocidade",
       "speed_limit_desc": "Limita a taxa de download. Deixe vazio para sem limite.",
       "speed_limit_unlimited": "Sem limite",
@@ -2192,7 +2196,7 @@
       "portable_macos_notice": "No macOS, o WebView continua guardando os dados de sessão em ~/Library, e o modo portátil não consegue redirecionar isso. Só os dados do próprio OmniGet são portáteis aqui. Veja github.com/tonhowtf/omniget/issues/227."
     },
     "dependencies": {
-      "title": "Dependências",
+      "title": "Motor de download (yt-dlp, FFmpeg)",
       "col_name": "Name",
       "col_status": "Status",
       "col_action": "Action",
@@ -2233,6 +2237,37 @@
       "port": "Porta",
       "username": "Usuário",
       "password": "Senha"
+    },
+    "proxy_pool": {
+      "title": "Pool de proxies",
+      "desc": "Guarde vários proxies. O OmniGet fica em um e passa para o próximo quando ele para de funcionar.",
+      "enable": "Usar o pool",
+      "enable_desc": "Ligado, os downloads, o scraper e a ferramenta HTTP saem pelo pool e nunca direto para a internet.",
+      "rotation": "Troca",
+      "rotation_desc": "Quando mudar para outro proxy.",
+      "rotation_sticky": "Só quando um falha",
+      "rotation_round_robin": "A cada requisição",
+      "add_label": "Adicionar proxies",
+      "add_desc": "Um por linha, como socks5://127.0.0.1:7890 ou host:porta:usuário:senha.",
+      "add_action": "Adicionar",
+      "detect_action": "Procurar apps de proxy neste computador",
+      "detect_none": "Nenhum app de proxy respondeu neste computador. Abra o Clash, o v2rayN ou um app parecido e tente de novo.",
+      "detect_known": "Os apps de proxy encontrados já estão no pool.",
+      "detect_added": "{{count}} encontrados e adicionados.",
+      "test_all": "Testar todos",
+      "testing": "Testando…",
+      "remove_failing": "Remover os que falharam",
+      "remove": "Remover",
+      "empty": "Nenhum proxy ainda. Adicione um acima ou procure um app de proxy aberto neste computador.",
+      "status_current": "Em uso",
+      "status_ok": "Funciona",
+      "status_failed": "Falhou",
+      "status_resting": "Descansando por {{secs}} s",
+      "status_untested": "Não testado",
+      "rejected": "{{count}} linhas não foram entendidas.",
+      "added": "{{count}} adicionados.",
+      "all_resting": "Todos os proxies falharam há pouco. O que descansa menos continua em uso.",
+      "show_more": "Mostrar mais"
     },
     "advanced": {
       "max_concurrent_downloads": "Downloads ao mesmo tempo",
@@ -2279,7 +2314,7 @@
       "parallel_more": "Mais ao mesmo tempo",
       "torrent_title": "Torrents",
       "torrent_desc": "Links magnet e arquivos .torrent.",
-      "components_title": "Componentes",
+      "components_title": "Motor de download (yt-dlp, FFmpeg)",
       "components_desc": "Programas que o OmniGet usa para baixar e converter, como yt-dlp e FFmpeg.",
       "troubleshooting_title": "Solução de problemas",
       "troubleshooting_desc": "Quando algo não está funcionando.",
@@ -2366,10 +2401,10 @@
       "load_failed": "Não foi possível carregar as configurações de IA. Tente novamente antes de editar.",
       "save_failed": "Não foi possível salvar as configurações de IA. Suas alterações foram mantidas; tente salvar novamente.",
       "accounts_desc": "Os logins do Claude e do Codex que seus agentes usam.",
-      "app_title": "IA do app",
+      "app_title": "IA para resumos e transcrição",
       "app_desc": "Faz os resumos, o Ler, o Coach e a transcrição. Os agentes não usam isto; eles rodam nas contas acima.",
-      "model_required": "Digite o nome do modelo que este provedor espera. Sem ele, os recursos de IA do app não funcionam.",
-      "limits_title": "Uso na tela",
+      "model_required": "Digite o nome do modelo que este provedor espera. Sem ele, os resumos e a transcrição não funcionam.",
+      "limits_title": "Medidor de uso",
       "tray_menu_hint": "O que o ícone mostra, as cores e quando ele avisa ficam no menu do próprio ícone.",
       "connect_off": "Desligado. Ligue para conectar outros apps.",
       "agents_canvas_title": "Agentes no Canvas",
@@ -2604,7 +2639,7 @@
       "add_action": "Adicionar e entrar",
       "not_installed": "Não instalado",
       "resets_in": "Volta em {{time}}",
-      "limits_title": "Limites na tela",
+      "limits_title": "Medidor de uso",
       "limits_desc": "Veja quanto de uso ainda resta sem abrir nada.",
       "strip_label": "Barra na borda da tela",
       "strip_help": "Uma barra fina que fica visível sobre as outras janelas.",
@@ -2612,7 +2647,7 @@
       "tray_help": "Mostra o uso na bandeja do sistema; clique para ver detalhes.",
       "connect_title": "Conectar a outros apps",
       "connect_desc": "Deixa Claude Code, Codex e outras ferramentas usarem os downloads e o Canvas do OmniGet.",
-      "mcp_title": "Ferramentas extras",
+      "mcp_title": "Servidores MCP (ferramentas extras para agentes)",
       "mcp_desc": "Dê aos agentes acesso ao GitHub, a um navegador, aos seus arquivos e mais.",
       "mcp_ready": "Pronto · {{count}} ferramentas",
       "mcp_idle": "Ainda não testado",
@@ -2701,24 +2736,24 @@
         "desc": "Desligue o que você não usa: some do menu e para de rodar.",
         "music": "Música",
         "music_desc": "Biblioteca, rádio e o mini player.",
-        "video": "Watch",
+        "video": "Player de Vídeo",
         "video_desc": "Filmes, séries, cursos e TV ao vivo.",
-        "tube": "OmniTube",
+        "tube": "Tube Player",
         "tube_desc": "YouTube e YouTube Music. Desligado, também para as verificações em segundo plano.",
         "read": "Ler",
         "read_desc": "Biblioteca e leitor. Desligado, também para o servidor da biblioteca.",
         "telegram": "Telegram",
         "telegram_desc": "Nada conecta até você abrir.",
-        "washmybelly": "washmybelly",
+        "washmybelly": "Limpador do Sistema",
         "washmybelly_desc": "Limpeza e cuidado do sistema. Desligado, também esconde as ferramentas dele dos agentes.",
         "league": "League of Legends",
         "league_desc": "Ferramentas do cliente. Precisa do cliente do League aberto."
       },
       "pet": {
-        "title": "Omni na área de trabalho",
-        "desc": "O Omni pode ficar num canto da tela, fora da janela do OmniGet.",
-        "corner_off": "Ligue o Omni para escolher o canto.",
-        "click_through_desc": "Os cliques vão para a janela atrás do Omni.",
+        "title": "Loop na área de trabalho",
+        "desc": "O Loop pode ficar num canto da tela, fora da janela do OmniGet.",
+        "corner_off": "Ligue o Loop para escolher o canto.",
+        "click_through_desc": "Os cliques vão para a janela atrás do Loop.",
         "click_through_unsupported": "Sua área de trabalho não permite isso."
       },
       "rpc": {
@@ -2731,7 +2766,7 @@
     }
   },
   "omnibox": {
-    "placeholder": "Cole um link ou pesquise",
+    "placeholder": "Cole um link ou digite para buscar vídeos",
     "searching": "Pesquisando…",
     "search_empty": "Nada encontrado para “{{query}}”.",
     "unsupported": "O OmniGet ainda não abre este site.",
@@ -2962,8 +2997,8 @@
     "credit": "Feito com amor por tonho.wtf",
     "technical_details": "Detalhes técnicos",
     "feature_i18n_count": "Disponível em {{count}} idiomas",
-    "wmb_credits_title": "Créditos do washmybelly",
-    "wmb_credits_body": "O washmybelly usa dados e ideias destes projetos de código aberto. As licenças e os arquivos exatos estão listados em THIRD_PARTY.md. O código-fonte do privacy.sexy (AGPL-3.0) está no link abaixo.",
+    "wmb_credits_title": "Créditos do Limpador do Sistema",
+    "wmb_credits_body": "O Limpador do Sistema usa dados e ideias destes projetos de código aberto. As licenças e os arquivos exatos estão listados em THIRD_PARTY.md. O código-fonte do privacy.sexy (AGPL-3.0) está no link abaixo.",
     "wmb_credit_data": "dados",
     "wmb_credit_design": "design adaptado",
     "wmb_credit_tool": "ferramenta que ele usa"
@@ -2974,7 +3009,7 @@
   },
   "onboarding": {
     "welcome_title": "Bem-vindo ao OmniGet!",
-    "welcome_desc": "Vou te ajudar a baixar qualquer vídeo da internet. É simples, rápido e gratuito.",
+    "welcome_desc": "O OmniGet baixa vídeo, áudio, imagens e torrents do YouTube, Instagram, TikTok e de muitos outros sites. Alguns passos rápidos e você já cola o primeiro link.",
     "next": "Próximo",
     "skip": "Pular",
     "back": "Voltar",
@@ -2985,31 +3020,21 @@
     "theme_system": "Sistema",
     "theme_light": "Claro",
     "theme_dark": "Escuro",
-    "deps_title": "Ferramentas Necessárias",
-    "deps_desc": "Preciso de algumas ferramentas para funcionar direitinho. Posso instalar tudo automaticamente!",
+    "deps_title": "Instale o motor de download",
+    "deps_desc": "O yt-dlp busca a mídia e o FFmpeg junta tudo. Um clique instala os dois. Abaixo, escolha onde seus downloads são salvos.",
     "deps_install_all": "Instalar tudo",
     "deps_ready": "Tudo instalado. Você já pode baixar.",
     "done_title": "Tudo pronto!",
-    "done_desc": "Cole uma URL na barra de pesquisa e veja a mágica acontecer.",
+    "done_desc": "Copie o link de qualquer vídeo, cole na tela inicial e o Loop cuida do resto.",
     "folder_current": "Pasta atual:",
     "folder_change": "Alterar pasta",
     "folder_title": "Onde guardar seus downloads?",
-    "agents_title": "Conheça seus agentes",
-    "agents_desc": "O OmniGet agora tem uma equipe de agentes de IA e um canvas onde eles trabalham lado a lado. Começa com três — Omni coordena, Builder escreve código, Scout lê e pesquisa — todos local primeiro, e você pode editar, trocar ou apagar qualquer um em IA › Elenco.",
-    "agents_world": "O canvas onde seus agentes trabalham lado a lado, conversam entre si e recebem visitas.",
     "more_later": "O atalho global, a extensão do navegador e o status no Discord ficam em Configurações quando você quiser.",
-    "profile": {
-      "title": "Escolha um apelido",
-      "desc": "Fica neste computador e aparece quando você compartilha alguma coisa. Pode pular.",
-      "nickname_label": "Apelido",
-      "placeholder": "Seu apelido",
-      "note": "Dá para mudar depois em Ajustes → Perfil.",
-      "unavailable": "Perfis ainda não estão disponíveis nesta versão — pode pular este passo."
-    }
+    "ai_skip_note": "Opcional. Você pode pular e fazer isso depois em Configurações › IA e agentes."
   },
   "hints": {
     "hotkey": "Atalho global: baixa automaticamente a URL que está no seu clipboard.",
-    "clipboard": "Detecta URLs automaticamente quando você copia um link e preenche a omnibox."
+    "clipboard": "Detecta URLs automaticamente quando você copia um link e preenche a barra de links."
   },
   "common": {
     "cancel": "Cancelar",
@@ -3092,17 +3117,17 @@
       "cookie_missing": "Cookies do Bilibili ausentes",
       "cancelled": "Cancelado"
     },
-    "login_required": "Login necessário — use cookies do navegador ou tente outro URL",
+    "login_required": "Este precisa do seu login.",
     "rate_limited": "Muitas solicitações (429) — tente novamente mais tarde",
     "access_denied": "Acesso negado (403) — o vídeo pode ser privado ou bloqueado por região",
-    "extraction_failed": "Extração falhou — atualize o yt-dlp ou tente novamente",
+    "extraction_failed": "Este site mudou e o downloader precisa de uma atualização.",
     "format_unavailable": "Formato solicitado indisponível",
     "video_unavailable": "Vídeo indisponível ou removido",
     "video_private": "Este vídeo é privado",
     "copyright_blocked": "Bloqueado por direitos autorais",
     "geo_restricted": "Não disponível na sua região",
     "connection_timeout": "Conexão expirou — verifique sua internet",
-    "ffmpeg_missing": "FFmpeg não encontrado — instale nas Configurações",
+    "ffmpeg_missing": "FFmpeg não encontrado — instale em Configurações › Avançado › Motor de download",
     "unsupported_url": "URL não suportado — verifique o link",
     "page_access_failed": "Não foi possível acessar a página — verifique o link e a conexão",
     "no_formats": "Nenhum formato de vídeo encontrado para este link",
@@ -3112,8 +3137,8 @@
     "size_mismatch": "Tamanho do arquivo não confere. Tente novamente.",
     "disk_full": "Erro de escrita — seu disco pode estar cheio.",
     "path_too_long": "Caminho da pasta é muito longo ({{current}}/{{limit}} caracteres). Escolha uma pasta mais curta.",
-    "console_encoding": "Problema de codificação do console (locale não UTF-8). Atualize o yt-dlp em Configurações → Dependências ou rode \"chcp 65001\" num terminal e abra o app de novo.",
-    "extractor_broken": "O extrator do site está quebrado. Atualize o yt-dlp em Configurações → Dependências e tente de novo.",
+    "console_encoding": "Problema de codificação do console (locale não UTF-8). Atualize o yt-dlp em Configurações › Avançado › Motor de download ou rode \"chcp 65001\" num terminal e abra o app de novo.",
+    "extractor_broken": "O extrator do site está quebrado. Atualize o yt-dlp em Configurações › Avançado › Motor de download e tente de novo.",
     "drm_protected": "Os streams baixados são protegidos por DRM e não podem ser mesclados. Este conteúdo não é suportado.",
     "output_missing": "O download terminou, mas nenhum arquivo apareceu na pasta (ou está vazio). Verifique o espaço em disco e o antivírus e tente novamente.",
     "platform_opted_out": "O dono deste site pediu que o OmniGet não oferecesse suporte a ele.",
@@ -3136,7 +3161,7 @@
     },
     "postprocess_advice": {
       "open_input": "Escolha uma pasta de saída ou um modelo de nome mais curto, ou uma qualidade menor, e tente de novo.",
-      "generic": "Tente de novo; se repetir, atualize o FFmpeg em Configurações → Dependências ou escolha outro formato."
+      "generic": "Tente de novo; se repetir, atualize o FFmpeg em Configurações › Avançado › Motor de download ou escolha outro formato."
     },
     "facebook_login": "O Facebook não mostrou esta publicação sem login. Importe os cookies deste site em Configurações → Cookies e tente de novo.",
     "no_thumbnail_direct_file": "Este link é um arquivo direto e não tem miniatura para salvar.",
@@ -3161,7 +3186,7 @@
   },
   "p2p": {
     "send_title": "Enviar Arquivo via P2P",
-    "send_description": "Envie qualquer arquivo para outro usuário do OmniGet. Um código será gerado — o receptor cola no omnibox para baixar.",
+    "send_description": "Envie qualquer arquivo para outro usuário do OmniGet. Um código será gerado — quem recebe cola na barra de links para baixar.",
     "select_file": "Selecionar Arquivo",
     "share_code": "Código de Compartilhamento",
     "click_to_copy": "Clique para copiar",
@@ -3182,9 +3207,11 @@
     "searching_hint": "Conectando ao servidor relay..."
   },
   "ytdlp_missing_banner": {
-    "text": "O yt-dlp não está instalado, então os downloads não começam. Instale em Configurações.",
+    "text": "O motor de download não está instalado.",
     "open_settings": "Abrir Configurações",
-    "dismiss": "Dispensar"
+    "dismiss": "Dispensar",
+    "install": "Instalar agora",
+    "installing": "Instalando…"
   },
   "profile": {
     "title": "Perfil local",
@@ -3224,7 +3251,7 @@
     "settings": {
       "title": "Canvas",
       "enabled": "Mostrar o canvas",
-      "enabled_desc": "Adiciona /world à barra lateral. Desligado, nada do canvas é carregado ou executado."
+      "enabled_desc": "Mostra o Canvas na barra lateral. Desligado, nada do canvas é carregado ou executado."
     },
     "disabled": "O canvas está desligado. Ligue em Ajustes › Canvas."
   },
@@ -3232,18 +3259,18 @@
     "sidebar_profile": "Seu perfil"
   },
   "pet": {
-    "loading": "Carregando o Omni…",
+    "loading": "Carregando o Loop…",
     "error": {
-      "art": "Não foi possível carregar a arte do Omni."
+      "art": "Não foi possível carregar a arte do Loop."
     },
     "a11y": {
-      "canvas": "Omni, seu companheiro de área de trabalho"
+      "canvas": "Loop, seu companheiro de área de trabalho"
     },
     "menu": {
       "wave": "Dar oi",
       "open_llm": "Abrir o hub",
       "corner": "Canto",
-      "hide": "Esconder o Omni"
+      "hide": "Esconder o Loop"
     },
     "corner": {
       "top-left": "Canto superior esquerdo",
@@ -3251,15 +3278,15 @@
       "bottom-left": "Canto inferior esquerdo",
       "bottom-right": "Canto inferior direito"
     },
-    "enable": "Mostrar o Omni na área de trabalho",
-    "click_through": "Deixar o clique passar pelo Omni",
-    "unsupported": "Sua área de trabalho não mostra janela transparente, então o Omni fica dentro do OmniGet.",
+    "enable": "Mostrar o Loop na área de trabalho",
+    "click_through": "Deixar o clique passar pelo Loop",
+    "unsupported": "Sua área de trabalho não mostra janela transparente, então o Loop fica dentro do OmniGet.",
     "ask": {
       "title": "Permitir esta ferramenta?",
       "allow": "Permitir",
       "always": "Sempre",
       "deny": "Negar",
-      "hint": "Clique no Omni para escolher"
+      "hint": "Clique no Loop para escolher"
     }
   },
   "tray": {
@@ -3267,7 +3294,10 @@
     "downloads_none": "Nenhum download ativo",
     "downloads_active": "Downloads: {{count}} ativos",
     "tooltip_active": "OmniGet: {{count}} ativos",
-    "tooltip_speed": "OmniGet: {{count}} ativos · {{speed}}"
+    "tooltip_speed": "OmniGet: {{count}} ativos · {{speed}}",
+    "quick_tools": "Ferramentas rápidas",
+    "awake_on": "Mantendo acordado",
+    "awake_until": "Acordado até {{time}}"
   },
   "mission": {
     "task_state": {
@@ -3386,10 +3416,10 @@
     "native_active": "Acesso nativo",
     "native_revoke": "Revogar acesso",
     "library": "Ler sua biblioteca de livros (títulos, destaques e texto)",
-    "global_downloader": "Controlar o Global Downloader: o navegador dele (páginas em que você está logado), conectores de sites e downloads de sites inteiros",
-    "global_downloader_read": "Só ler o Global Downloader: páginas abertas no navegador dele, o tráfego de rede, os conectores instalados e o marketplace, sem clicar, digitar, baixar nem instalar",
-    "system_read": "Ler o status, as varreduras e os planos deste computador (washmybelly)",
-    "system_change": "Preparar planos de limpeza, manter o desempenho, modo jogo e capturas de FPS (washmybelly)",
+    "global_downloader": "Controlar o Navegador embutido (páginas em que você está logado), os conectores de sites dele e downloads de sites inteiros",
+    "global_downloader_read": "Só ler o Navegador embutido: as páginas abertas, o tráfego de rede, os conectores instalados e o marketplace, sem clicar, digitar, baixar nem instalar",
+    "system_read": "Ler o status, as varreduras e os planos deste computador (Limpador do Sistema) e a carga, o volume e o estado de manter acordado (Ferramentas rápidas)",
+    "system_change": "Preparar planos de limpeza, manter o desempenho, modo jogo e capturas de FPS (Limpador do Sistema); manter o computador acordado, ajustar o volume e salvar trechos (Ferramentas rápidas)",
     "memory_read": "Buscar e refletir sobre o que o OmniGet lembra de você",
     "memory_write": "Ensinar fatos sobre você ao OmniGet",
     "approvals_respond": "Responder às perguntas de permissão das missões dele",
@@ -3398,12 +3428,12 @@
     "agents_run_help": "Com isso, o cliente pode pôr qualquer agente da sua lista para trabalhar numa tarefa, na pasta que ele indicar, em segundo plano, como o `omniget agent run`. Ele só vê e para as tarefas que ele mesmo iniciou. As perguntas de permissão dos agentes continuam esperando por você, a não ser que você também deixe este cliente respondê-las.",
     "telegram_read": "Ler chats, mensagens e arquivos do Telegram, e fazer resumos (/telegram)",
     "telegram_write": "Baixar do Telegram, gerenciar regras de salvar novos, e enviar, encaminhar ou apagar mensagens depois que você aprovar cada uma (/telegram)",
-    "social_read": "Ler seus feeds, perfis, posts e comentários do X, Instagram, TikTok, Reddit, Pinterest e GitHub (/x, /instagram, /tiktok, /reddit, /pinterest, /github)",
-    "social_write": "Postar, curtir, repostar, comentar, seguir, votar, salvar e dar estrela nas suas contas do X, Instagram, TikTok, Reddit, Pinterest e GitHub, depois que você aprovar cada ação (/x, /instagram, /tiktok, /reddit, /pinterest, /github)",
-    "whatsapp_read": "Ler suas conversas e mensagens do WhatsApp e acompanhar as novas ao vivo (/whatsapp)",
-    "whatsapp_write": "Enviar e agendar mensagens do WhatsApp com o seu nome, marcar conversas como lidas e mostrar digitando (/whatsapp)",
-    "devtools_read": "Empacotar pastas em prompts, ler páginas da web, enviar requisições HTTP, listar portas abertas e usar os utilitários offline (/devtools, /pack, /scrape, /api)",
-    "devtools_write": "Parar o processo que escuta em uma porta, depois de um ensaio (/devtools)",
+    "social_read": "Ler seus feeds, perfis, posts e comentários dos Posts curtos, Feed de fotos, Feed de clipes, Fóruns, Murais de pins e Hub de código (/shortpost, /photofeed, /clipfeed, /forums, /pinboard, /codehub)",
+    "social_write": "Postar, curtir, repostar, comentar, seguir, votar, salvar e dar estrela nas suas contas dos Posts curtos, Feed de fotos, Feed de clipes, Fóruns, Murais de pins e Hub de código, depois que você aprovar cada ação (/shortpost, /photofeed, /clipfeed, /forums, /pinboard, /codehub)",
+    "phonechat_read": "Ler suas conversas e mensagens do celular e acompanhar as novas ao vivo (/phonechat)",
+    "phonechat_write": "Enviar e agendar mensagens do celular com o seu nome, marcar conversas como lidas e mostrar digitando (/phonechat)",
+    "devtools_read": "Empacotar pastas em prompts, ler e percorrer páginas da web, enviar requisições HTTP, ver e testar o pool de proxies, listar portas abertas e usar os utilitários offline (/devtools, /pack, /scrape, /api)",
+    "devtools_write": "Parar o processo que escuta em uma porta, depois de um ensaio, e alterar o pool de proxies (/devtools)",
     "transfer_read": "Listar e baixar arquivos dos seus servidores FTP, FTPS e SFTP salvos, e de servidores que não pedem senha (/transfer)",
     "transfer_write": "Enviar arquivos, criar pastas, renomear e apagar nesses servidores, e salvar ou remover servidores; apagar exige um ensaio antes (/transfer)",
     "research_read": "Ler dados públicos das redes pelo ScrapeCreators com a sua chave salva: todos os endpoints e os fluxos de criadores, briefing de conteúdo, monitor de anúncios e Reels. Cada chamada gasta seus créditos do ScrapeCreators (/research)"
@@ -3419,7 +3449,7 @@
     "deny": "Recusar"
   },
   "superpowers": {
-    "subtitle": "Habilidades extras para ligar quando você precisar.",
+    "subtitle": "Tudo o mais que o OmniGet faz: reproduzir, converter, gravar, limpar.",
     "league_desc": "Ajuda na partida ao vivo: recargas dos inimigos, ouro e scout no League of Legends.",
     "disabled": "Desligado",
     "disabled_hint": "Desligado em Configurações › Integrações.",
@@ -3430,8 +3460,8 @@
     "video_desc": "Filmes, séries, cursos e TV ao vivo em um só player. Aulas numeradas com progresso, notas, transcrições e flashcards; Jellyfin, IPTV e add-ons como fontes.",
     "tube_desc": "YouTube e YouTube Music em um só lugar, com a sua própria conta: sem anúncios, com SponsorBlock, sem Shorts se você quiser, downloads no mesmo menu de qualidade e inscrições sem conta.",
     "telegram_desc": "Baixe mídia dos seus chats e canais do Telegram, com uma conexão que acha sozinha o caminho por bloqueios e proxies.",
-    "global_desc": "Entre, navegue e baixe de qualquer site: um navegador que o OmniGet controla, detecção de mídia em cada aba e conectores para coleções inteiras.",
-    "search": "Buscar superpoderes",
+    "global_desc": "Um navegador dentro do OmniGet: entre, navegue e baixe de qualquer site.",
+    "search": "Buscar ferramentas",
     "no_results": "Nada encontrado para “{{query}}”.",
     "converter_desc": "Converta dados, documentos, imagens, desenhos, áudio e vídeo neste computador. Abre fotos de iPhone (HEIC), arquivos do Photoshop e RAW de câmera, e transforma imagens em SVG. Usa ffmpeg, Pandoc, ImageMagick ou LibreOffice quando estão instalados.",
     "palette_desc": "Oficina de cores: seletor OKLCH, escalas uniformes, contraste, degradês e design tokens.",
@@ -3443,19 +3473,19 @@
     "capture_desc": "Grave a tela e corte vídeos na hora, sem perder qualidade.",
     "studio_desc": "Legende, reenquadre e ponha abertura nos seus vídeos localmente, e renderize um MP4 pronto.",
     "dictation_desc": "Segure um atalho e fale para digitar em qualquer app, com transcrição no seu computador.",
-    "whatsapp_desc": "Conecte o WhatsApp e baixe fotos, vídeos, áudios e documentos de qualquer conversa, ou exporte conversas inteiras.",
-    "discord_desc": "Leia e responda seus servidores e DMs do Discord, baixe a mídia de um canal ou exporte o histórico em HTML, JSON ou texto.",
+    "phonechat_desc": "Conecte o celular com um QR code, leia suas conversas e baixe fotos, vídeos, áudios e documentos de qualquer conversa, ou exporte conversas inteiras.",
+    "guildchat_desc": "Leia e responda seus servidores e DMs, baixe a mídia de um canal ou exporte o histórico em HTML, JSON ou texto.",
     "pdf_desc": "Junte, separe, reordene, gire e reduza PDFs, ou transforme imagens em PDF. Tudo acontece neste computador.",
     "cutout_desc": "Tire o fundo de fotos e de frames de vídeo e receba um PNG transparente. Roda neste computador.",
     "photos_desc": "Uma galeria rápida das imagens deste computador, inclusive fotos de iPhone (HEIC), RAW de câmera e arquivos do Photoshop. Ache duplicatas e fotos parecidas, faça ajustes rápidos sem mexer no original e exporte uma ou várias de uma vez.",
-    "x_desc": "Leia sua timeline do X, perfis e respostas, e poste, curta, reposte ou siga. Seus agentes ganham as mesmas ferramentas pelo MCP.",
-    "instagram_desc": "Leia seu feed do Instagram, perfis, posts e comentários, e curta, comente ou siga. Seus agentes ganham as mesmas ferramentas pelo MCP.",
-    "tiktok_desc": "Navegue pelo Para Você do TikTok, perfis, vídeos e comentários, e curta, comente ou siga. Seus agentes ganham as mesmas ferramentas pelo MCP.",
+    "shortpost_desc": "Leia sua timeline dos Posts curtos, perfis e respostas, e poste, curta, reposte ou siga.",
+    "photofeed_desc": "Leia seu Feed de fotos, perfis, posts e comentários, e curta, comente ou siga.",
+    "clipfeed_desc": "Navegue pelo Para Você do Feed de clipes, perfis, vídeos e comentários, e curta, comente ou siga.",
     "devtools_desc": "Utilitários offline para JSON, JWT, hashes, regex e diff, e um inspetor de portas.",
     "pack_desc": "Transforma uma pasta ou repositório em um arquivo pronto para o prompt, com limite de tokens e busca por segredos.",
     "scrape_desc": "Transforma qualquer página em Markdown limpo, ou escolhe elementos por seletor.",
     "api_desc": "Envia requisições HTTP e mostra status, tempo e redirecionamentos. Sem conta.",
-    "transfer_desc": "Navegue, baixe e envie arquivos em servidores FTP, FTPS e SFTP, como um NAS, uma hospedagem ou um console. Seus agentes ganham as mesmas ferramentas por MCP.",
+    "transfer_desc": "Navegue, baixe e envie arquivos em servidores FTP, FTPS e SFTP, como um NAS, uma hospedagem ou um console.",
     "cat_all": "Todos",
     "cat_media": "Mídia",
     "cat_download": "Baixar",
@@ -3474,10 +3504,12 @@
     "tag_local": "Local",
     "tag_account": "Login",
     "clear": "Limpar busca e filtro",
-    "reddit_desc": "Navegue pela página inicial do Reddit, comunidades, posts e árvores de comentários, e vote, comente, poste ou salve. Seus agentes ganham as mesmas ferramentas pelo MCP.",
-    "pinterest_desc": "Navegue pelo feed inicial do Pinterest, pastas e pins, busque ideias, e salve pins ou siga pessoas. Seus agentes ganham as mesmas ferramentas pelo MCP.",
-    "github_desc": "Acompanhe repositórios, releases, issues, quem deu estrela e projetos em alta no GitHub, e dê estrela, siga ou comente com o seu próprio token. Seus agentes ganham as mesmas ferramentas pelo MCP.",
-    "research_desc": "Dados públicos do TikTok, Instagram, YouTube, Reddit, bibliotecas de anúncios e mais com a sua chave do ScrapeCreators, além de pesquisa de criadores, briefing de conteúdo, anúncios e Reels. Seus agentes usam as mesmas ferramentas por MCP."
+    "forums_desc": "Navegue pela página inicial dos Fóruns, comunidades, posts e árvores de comentários, e vote, comente, poste ou salve.",
+    "pinboard_desc": "Navegue pelo feed inicial dos Murais de pins, pastas e pins, busque ideias, e salve pins ou siga pessoas.",
+    "codehub_desc": "Acompanhe repositórios, releases, issues, quem deu estrela e projetos em alta no Hub de código, e dê estrela, siga ou comente com o seu próprio token.",
+    "research_desc": "Dados públicos do TikTok, Instagram, YouTube, Reddit, bibliotecas de anúncios e mais com a sua chave do ScrapeCreators, além de pesquisa de criadores, briefing de conteúdo, anúncios e Reels.",
+    "turn_on": "Ligar",
+    "tag_mcp": "Funciona com agentes"
   },
   "devtools": {
     "title": "DevTools",
@@ -3533,7 +3565,7 @@
     }
   },
   "pack": {
-    "title": "Pack",
+    "title": "Repo para Prompt",
     "subtitle": "Transforme uma pasta em um arquivo pronto para o prompt. Veja o que entra, o que fica de fora e por quê.",
     "folder": "Pasta",
     "folder_hint": "Cole um caminho ou solte uma pasta nesta janela",
@@ -3584,7 +3616,7 @@
     "max_tokens": "Limite de tokens",
     "selector": "Seletor CSS",
     "attr": "Atributo (opcional)",
-    "open_browser": "Abrir no navegador do Global Downloader",
+    "open_browser": "Abrir no Navegador embutido",
     "candidates": "Estes existem na página:",
     "copy": "Copiar resultado",
     "truncated": "Cortado em {{tokens}} de {{total}} tokens. Aumente o limite de tokens para ver o resto.",
@@ -4391,15 +4423,15 @@
     }
   },
   "washmybelly": {
-    "nav": "washmybelly",
-    "settings_enable": "Mostrar washmybelly",
+    "nav": "Limpador do Sistema",
+    "settings_enable": "Mostrar Limpador do Sistema",
     "settings_enable_desc": "Nada roda sozinho: as varreduras só começam quando você abre a tela ou um agente pede. Desligar também esconde as ferramentas dele dos agentes.",
     "settings_quarantine_days": "Manter arquivos em quarentena por",
-    "settings_quarantine_days_desc": "Dias até os itens na quarentena do washmybelly serem apagados de vez.",
+    "settings_quarantine_days_desc": "Dias até os itens na quarentena do Limpador do Sistema serem apagados de vez.",
     "settings_auto_hold": "Manter energia em desempenho enquanto ocupado",
     "settings_auto_hold_desc": "Mantém o perfil de desempenho durante downloads grandes e execuções de agentes, e o libera no fim.",
-    "disabled_title": "O washmybelly está desligado",
-    "disabled_body": "Ative em Configurações › Avançado › washmybelly.",
+    "disabled_title": "O Limpador do Sistema está desligado",
+    "disabled_body": "Ative em Configurações › Integrações › Ferramentas.",
     "open_settings": "Abrir Configurações",
     "loading": "Verificando este computador…",
     "error_title": "Algo deu errado",
@@ -4893,7 +4925,7 @@
       "selected_only": "{{count}} selecionados"
     },
     "receipts": {
-      "subtitle": "Tudo o que o washmybelly mudou, e como desfazer.",
+      "subtitle": "Tudo o que o Limpador do Sistema mudou, e como desfazer.",
       "refresh": "Atualizar",
       "today": "Hoje",
       "yesterday": "Ontem",
@@ -5867,10 +5899,10 @@
     }
   },
   "video": {
-    "title": "Watch",
+    "title": "Player de Vídeo",
     "addons": {
       "catalog_failed": "{{name}} não respondeu:",
-      "empty_body": "Cole em Fontes a URL do manifesto de um add-on em que você confia. O Watch reproduz apenas links http diretos e YouTube de add-ons.",
+      "empty_body": "Cole em Fontes a URL do manifesto de um add-on em que você confia. O Player de Vídeo reproduz apenas links http diretos e YouTube de add-ons.",
       "empty_title": "Nenhum add-on instalado",
       "external_reason": "Este add-on quer que seja aberto em um site.",
       "install": "Instalar um add-on",
@@ -5879,11 +5911,11 @@
       "no_catalogs_body": "Alguns add-ons só fornecem streams ou legendas. Eles aparecem quando você abre um título de outro catálogo.",
       "no_streams": "Nenhum stream encontrado",
       "no_streams_body": "Nenhum dos seus add-ons retornou um link para este título.",
-      "none_playable": "Nenhum destes streams pode ser reproduzido no Watch. O motivo aparece embaixo de cada um.",
+      "none_playable": "Nenhum destes streams pode ser reproduzido no Player de Vídeo. O motivo aparece embaixo de cada um.",
       "open_browser": "Abrir no navegador",
       "pick_episode": "Escolha um episódio para ver os streams.",
       "refused_count": "{{count}} stream(s) recusado(s)",
-      "refused_reason": "Recusado: o Watch reproduz apenas links http diretos e YouTube. Links de torrent, magnet, usenet e P2P não são reproduzidos.",
+      "refused_reason": "Recusado: o Player de Vídeo reproduz apenas links http diretos e YouTube. Links de torrent, magnet, usenet e P2P não são reproduzidos.",
       "search": "Buscar nos catálogos dos add-ons",
       "streams": "Streams",
       "title": "Add-ons"
@@ -5934,7 +5966,7 @@
       "back10": "Voltar 10 segundos",
       "connected": "Conectado",
       "devices": "Dispositivos",
-      "lan_note": "Durante a transmissão, o Watch abre um link local com uma chave de uso único, para que só a TV consiga acessá-lo. Ele fecha quando você para.",
+      "lan_note": "Durante a transmissão, o Player de Vídeo abre um link local com uma chave de uso único, para que só a TV consiga acessá-lo. Ele fecha quando você para.",
       "mute": "Silenciar",
       "none_body": "Confira se a TV está ligada e na mesma rede Wi-Fi deste computador e busque de novo.",
       "none_title": "Nenhum Chromecast encontrado",
@@ -5993,9 +6025,9 @@
       "materials": "Materiais do curso",
       "progress": "{{percent}}% concluído",
       "remove": "Remover curso",
-      "remove_body": "Ele sai do Watch junto com o progresso. Os arquivos continuam no seu disco.",
+      "remove_body": "Ele sai do Player de Vídeo junto com o progresso. Os arquivos continuam no seu disco.",
       "remove_title": "Remover {{title}}?",
-      "removed": "{{title}} removido do Watch",
+      "removed": "{{title}} removido do Player de Vídeo",
       "review": "Assistir de novo",
       "select": "Selecionar",
       "select_all": "Todas",
@@ -6007,7 +6039,7 @@
       "title": "Cursos",
       "unmark_module": "Marcar módulo como não assistido"
     },
-    "disabled_title": "O Watch está desativado",
+    "disabled_title": "O Player de Vídeo está desativado",
     "done": "Concluir",
     "drop": {
       "added": "{{name}} adicionado. Escaneando agora.",
@@ -6026,7 +6058,7 @@
     },
     "folders": {
       "collapse": "Recolher",
-      "empty_body": "Adicione uma pasta com vídeos. O Watch só lê: nada é renomeado nem movido.",
+      "empty_body": "Adicione uma pasta com vídeos. O Player de Vídeo só lê: nada é renomeado nem movido.",
       "empty_title": "Nenhuma pasta ainda",
       "expand": "Expandir",
       "kind_course": "Curso",
@@ -6035,10 +6067,10 @@
       "offline_notice": "Não foi possível ler esta pasta agora (um disco desconectado ou um compartilhamento de rede fora do ar). Nada foi removido: seu progresso e suas notas voltam quando ela estiver acessível de novo.",
       "pick": "Escolha uma pasta à esquerda",
       "play_folder": "Reproduzir pasta",
-      "remove_confirm_body": "O Watch deixa de mostrar esta pasta. Nenhum arquivo é apagado do seu disco, e ao adicionar a pasta de novo o seu progresso volta.",
+      "remove_confirm_body": "O Player de Vídeo deixa de mostrar esta pasta. Nenhum arquivo é apagado do seu disco, e ao adicionar a pasta de novo o seu progresso volta.",
       "remove_confirm_title": "Remover \"{{name}}\" da biblioteca?",
       "remove_from_library": "Remover da biblioteca",
-      "remove_hint": "Só tira a pasta do Watch. Seus arquivos continuam no disco.",
+      "remove_hint": "Só tira a pasta do Player de Vídeo. Seus arquivos continuam no disco.",
       "removed": "\"{{name}}\" removida da biblioteca. Seus arquivos não foram tocados.",
       "rescan": "Escanear de novo",
       "rescan_started": "Escaneando suas pastas…",
@@ -6063,7 +6095,7 @@
       "continue_course": "Continuar",
       "customize": "Personalizar",
       "done": "Concluir",
-      "empty_body": "O Watch lê os vídeos que você já tem. Nada é renomeado, movido ou enviado. Você também pode importar uma pasta de curso ou conectar um servidor seu.",
+      "empty_body": "O Player de Vídeo lê os vídeos que você já tem. Nada é renomeado, movido ou enviado. Você também pode importar uma pasta de curso ou conectar um servidor seu.",
       "empty_title": "Escolha uma pasta para começar",
       "import_course": "Importar uma pasta de curso",
       "lessons_done": "{{done}} de {{total}} aulas",
@@ -6156,7 +6188,7 @@
       "open_file": "Abrir um arquivo de vídeo"
     },
     "link": {
-      "hint": "YouTube e a maioria dos sites de vídeo. Você também pode colar um link em qualquer lugar do Watch.",
+      "hint": "YouTube e a maioria dos sites de vídeo. Você também pode colar um link em qualquer lugar do Player de Vídeo.",
       "invalid": "Isso não parece um link da web",
       "open": "Abrir link",
       "play": "Reproduzir"
@@ -6168,7 +6200,7 @@
       "all_off_title": "Suas listas de TV estão desativadas",
       "channel": "Canal",
       "channels": "Canais",
-      "empty_body": "Adicione em Fontes sua própria lista M3U ou login Xtream. O Watch não vem com nenhum canal.",
+      "empty_body": "Adicione em Fontes sua própria lista M3U ou login Xtream. O Player de Vídeo não vem com nenhum canal.",
       "empty_title": "Nenhuma lista de TV ainda",
       "favorite": "Adicionar aos favoritos",
       "favorites": "Favoritos",
@@ -6218,12 +6250,12 @@
       "incognito": "Modo privado",
       "incognito_hint": "Enquanto ativo, nada do que você assiste é salvo no histórico ou no progresso",
       "incognito_on": "Modo privado ativo",
-      "label": "Seções do Watch",
+      "label": "Seções do Player de Vídeo",
       "learn": "Aprender",
       "live": "TV ao vivo",
       "movies": "Filmes",
       "online": "Online",
-      "settings": "Ajustes do Watch",
+      "settings": "Ajustes do Player de Vídeo",
       "shows": "Séries",
       "sources": "Fontes",
       "status_disabled": "Desativado",
@@ -6384,8 +6416,8 @@
       "player": "Player",
       "privacy": "Privacidade",
       "remove_folder": "Remover pasta",
-      "remove_folder_hint": "Remove do Watch. Nada é apagado do seu disco.",
-      "title": "Ajustes do Watch"
+      "remove_folder_hint": "Remove do Player de Vídeo. Nada é apagado do seu disco.",
+      "title": "Ajustes do Player de Vídeo"
     },
     "show": {
       "empty": "Esta série não tem episódios no disco",
@@ -6425,7 +6457,7 @@
       "add": "Adicionar",
       "addon_added": "Add-on instalado",
       "addon_body": "Catálogos e links de um add-on que usa o protocolo aberto Stremio, instalado pela URL do manifesto.",
-      "addon_policy_body": "O Watch reproduz links http(s) diretos e vídeos do YouTube vindos de add-ons. Add-ons de torrent, magnet e P2P são recusados, e os links deles aparecem como recusados.",
+      "addon_policy_body": "O Player de Vídeo reproduz links http(s) diretos e vídeos do YouTube vindos de add-ons. Add-ons de torrent, magnet e P2P são recusados, e os links deles aparecem como recusados.",
       "addon_policy_title": "Só links http e YouTube são reproduzidos",
       "addon_sends": "Pede ao add-on catálogos e links do que você abre.",
       "addon_title": "Add-on",
@@ -6440,7 +6472,7 @@
       "ani_step2": "Copie o token e cole abaixo. Ele fica só neste computador.",
       "ani_title": "AniList",
       "ani_token": "Token de acesso",
-      "bring_your_own_body": "O Watch usa apenas fontes que você mesmo adiciona. Cada uma diz o que envia, e você pode desativá-la ou removê-la quando quiser.",
+      "bring_your_own_body": "O Player de Vídeo usa apenas fontes que você mesmo adiciona. Cada uma diz o que envia, e você pode desativá-la ou removê-la quando quiser.",
       "bring_your_own_title": "Nada vem pré-instalado",
       "channels": "{{count}} canais",
       "choose_file": "Escolher arquivo",
@@ -6557,11 +6589,11 @@
       "searching": "Buscando…"
     },
     "welcome": {
-      "body": "O Watch reproduz os vídeos que já estão no seu computador. Nada é renomeado nem movido.",
+      "body": "O Player de Vídeo reproduz os vídeos que já estão no seu computador. Nada é renomeado nem movido.",
       "connect_server": "Conectar Jellyfin, IPTV ou add-ons",
       "drop_hint": "Você também pode soltar uma pasta, um arquivo ou um link nesta janela.",
       "link_placeholder": "Ou cole um link de vídeo",
-      "no_ffmpeg": "O ffmpeg não foi encontrado, então arquivos que o webview não reproduz direto (MKV, AVI, HEVC) não abrem. Instale em Ajustes → Dependências.",
+      "no_ffmpeg": "O ffmpeg não foi encontrado, então arquivos que o webview não reproduz direto (MKV, AVI, HEVC) não abrem. Instale em Configurações › Avançado › Motor de download.",
       "pick_course": "Importar um curso",
       "pick_folder": "Escolher uma pasta de vídeos",
       "skip": "Pular por agora",
@@ -6614,6 +6646,9 @@
       "lock": "Travar",
       "locked": "Travado",
       "memoryMode": "Não salvo: trabalhando só na memória",
+      "emptyTitle": "Nenhum agente neste canvas ainda",
+      "emptyHint": "Crie um terminal com Claude Code ou Codex. Ligue dois com uma corda para um poder perguntar ao outro.",
+      "emptyAction": "Criar um agente",
       "menu": {
         "add": "Adicionar",
         "connectNew": "Novo conectado…",
@@ -6652,7 +6687,9 @@
         "thinking": "Pensando",
         "unknown": "Sem sinal",
         "waitingPeer": "Esperando outro agente",
-        "working": "Trabalhando"
+        "working": "Trabalhando",
+        "limit": "No limite",
+        "refused": "Recusou"
       },
       "strokeWidth": "Espessura do traço",
       "terminalFailed": "Não foi possível iniciar o terminal",
@@ -6705,7 +6742,9 @@
       "textFamily": "Fonte",
       "textThemeColor": "Cor do tema",
       "attach": "Anexar um arquivo",
-      "deviceLock": "Bloquear tela"
+      "deviceLock": "Bloquear tela",
+      "costEstimated": "cerca de {{amount}} nesta sessão",
+      "costHint": "Estimativa pelos preços públicos dos modelos para a sessão deste terminal."
     },
     "term": {
       "action": {
@@ -6738,7 +6777,9 @@
         "failed": "Falhou",
         "compacting": "Compactando",
         "looping": "Em loop",
-        "unknown": "Sem sinal"
+        "unknown": "Sem sinal",
+        "limit": "No limite",
+        "refused": "Recusou"
       },
       "find": {
         "placeholder": "Buscar no terminal",
@@ -6850,10 +6891,10 @@
         "here": "Você está aqui"
       }
     },
-    "maestro": {
-      "label": "Maestro",
-      "off": "Ligar o Modo Maestro",
-      "on": "Maestro: pode recrutar, conectar e criar andares. Clique para desligar."
+    "lead": {
+      "label": "Lead",
+      "off": "Ligar o Modo Lead",
+      "on": "Lead: pode recrutar, conectar e criar andares. Clique para desligar."
     },
     "partituras": {
       "addToCanvas": "Adicionar ao canvas",
@@ -7664,7 +7705,7 @@
       "memoryLimitHint": "Um programa acima dele é encerrado; o shell continua. 0 = desligado",
       "optionAsMeta": "Option envia Meta (em vez de digitar caracteres)",
       "notifyAttention": "Notificar quando um agente precisar de atenção",
-      "badgesNonMaestro": "Selo de atenção em terminais que não são o Maestro",
+      "badgesNonLead": "Selo de atenção em terminais que não são o Lead",
       "preventSleep": "Manter o computador acordado",
       "sleepWorking": "Enquanto os agentes trabalham",
       "sleepAlways": "Sempre",
@@ -7679,7 +7720,7 @@
       "presetCwd": "Pasta (vazio = a do workspace)",
       "presetIcon": "Ícone",
       "presetColor": "Cor",
-      "presetMaestro": "Maestro (pode recrutar e gerenciar outros agentes)",
+      "presetLead": "Lead (pode recrutar e gerenciar outros agentes)",
       "presetChat": "Começar no modo chat",
       "cancel": "Cancelar",
       "savePreset": "Salvar preset",
@@ -7926,7 +7967,7 @@
       "onlyAgents": "Só terminais do Claude e do Codex recebem servidores MCP.",
       "restartHint": "Vale na próxima vez que este terminal iniciar.",
       "restartNow": "Reiniciar agora",
-      "empty": "Nenhum servidor MCP ainda. Adicione em IA e agentes → Ferramentas extras; eles aparecem aqui para ligar, testar e dar a um terminal.",
+      "empty": "Nenhum servidor MCP ainda. Adicione em IA e agentes → Servidores MCP; eles aparecem aqui para ligar, testar e dar a um terminal.",
       "tools": "{{count}} ferramentas",
       "testOk": "OK: {{count}} ferramentas em {{ms}} ms",
       "testFailed": "O teste falhou",
@@ -8096,22 +8137,82 @@
         "done": "Transcrição pronta",
         "failed": "Falhou"
       }
+    },
+    "needsYou": {
+      "title": "Precisa de você",
+      "count": "Agentes que precisam de você: {{count}}",
+      "next": "Ir para o próximo agente que precisa de você",
+      "agent": "Agente",
+      "more": "+{{count}} a mais",
+      "reason": {
+        "permission": "Pede permissão",
+        "blocked": "Espera a sua resposta",
+        "stuck": "Parou de avançar",
+        "trust": "Pergunta se confia na pasta",
+        "chrome_prompt": "Espera a pergunta do navegador",
+        "login": "Precisa que você entre na conta",
+        "review": "Terminou, falta revisar",
+        "other": "Precisa de atenção"
+      }
+    },
+    "autonomy": {
+      "auto_edits": "Edita sozinho",
+      "full": "Nunca pergunta",
+      "plan": "Só planeja",
+      "hint": "Definido por {{flag}} no comando de início deste agente"
+    },
+    "budget": {
+      "label": "Limite de gasto",
+      "usage": "{{spent}} de {{limit}}",
+      "tokens": "{{count}} tokens",
+      "w_turn": "neste turno",
+      "w_day": "hoje",
+      "w_week": "nesta semana",
+      "w_5h": "últimas 5 horas",
+      "w_7d": "últimos 7 dias",
+      "w_run": "nesta execução",
+      "paused_short": "Pausado no limite",
+      "paused_title": "Pausado: o limite de {{limit}} foi atingido",
+      "paused_body": "O app pausou os agentes cobertos por este limite. Eles não fizeram nada de errado.",
+      "near": "Perto do limite.",
+      "keep": "Manter pausado",
+      "raise": "Aumentar o limite para {{limit}}",
+      "failed": "A resposta não chegou. Tente de novo."
+    },
+    "checkpoint": {
+      "open": "Pontos de retorno",
+      "title": "Pontos de retorno",
+      "before_turn": "Antes do turno {{turn}}",
+      "restore": "Voltar para cá",
+      "none_repo": "A pasta deste terminal não é um repositório git, então não há para onde voltar.",
+      "none_yet": "Nenhum turno começou aqui ainda. Um ponto de retorno é salvo a cada turno que começa.",
+      "confirm_title": "Voltar os arquivos para como estavam antes do turno {{turn}}?",
+      "confirm_files": "Arquivos que vão mudar: {{count}}",
+      "confirm_nothing": "Nada mudou desde então.",
+      "confirm_note": "Isto volta todos os arquivos do repositório para aquele ponto: o que o agente mudou, o que outros agentes mudaram nele e as suas próprias edições desde então, e apaga arquivos criados depois. Uma cópia de como está agora fica guardada, então dá para desfazer uma vez. Não desfaz comandos que já rodaram, arquivos fora do repositório nem mensagens já enviadas. O agente continua lembrando do que fez.",
+      "confirm": "Voltar os arquivos",
+      "cancel": "Cancelar",
+      "done": "Arquivos devolvidos: {{count}}",
+      "failed": "Não funcionou. Tente de novo.",
+      "undo": "Desfazer a volta",
+      "undone": "Arquivos devolvidos ao que eram: {{count}}",
+      "wait_turn": "O agente está no meio de um turno. Espere ele terminar antes de voltar."
     }
   },
   "tube": {
-    "title": "OmniTube",
+    "title": "Tube Player",
     "library": {
       "history": "Histórico",
       "watch_later": "Assistir mais tarde",
       "local_subs": "Inscrições neste dispositivo"
     },
     "app": {
-      "disabled_title": "O OmniTube está desligado"
+      "disabled_title": "O Tube Player está desligado"
     },
     "shell": {
       "guide": "Guia",
       "back": "Voltar",
-      "home": "Início do OmniTube",
+      "home": "Início do Tube Player",
       "face": "Vídeos ou música",
       "videos": "Vídeos",
       "music": "Música",
@@ -8851,7 +8952,7 @@
       "storage_of": "{{used}} de {{cap}}",
       "storage_used": "Disco usado por downloads automáticos",
       "storage_used_nocap": "{{used}} usados, sem limite",
-      "title": "Configurações do OmniTube",
+      "title": "Configurações do Tube Player",
       "tools": "Auxiliares",
       "tools_desc": "Usados como alternativa para reprodução e para downloads.",
       "unblock": "Desbloquear",
@@ -9400,13 +9501,13 @@
       "batch_toast": "{{count}} arquivos de {{chat}} já estavam salvos e não foram baixados de novo"
     },
     "watch_lib": {
-      "rule_option": "Adicionar ao Watch",
-      "rule_option_hint": "Cada arquivo salvo também aparece na sua biblioteca do Watch.",
-      "rule_on": "adiciona ao Watch",
-      "add_folder": "Adicionar a pasta desta regra ao Watch",
-      "add_this_folder": "Adicionar esta pasta ao Watch",
-      "added": "{{count}} arquivos adicionados ao Watch",
-      "added_folder": "Pasta adicionada ao Watch"
+      "rule_option": "Adicionar ao Player de Vídeo",
+      "rule_option_hint": "Cada arquivo salvo também aparece na sua biblioteca do Player de Vídeo.",
+      "rule_on": "adiciona ao Player de Vídeo",
+      "add_folder": "Adicionar a pasta desta regra ao Player de Vídeo",
+      "add_this_folder": "Adicionar esta pasta ao Player de Vídeo",
+      "added": "{{count}} arquivos adicionados ao Player de Vídeo",
+      "added_folder": "Pasta adicionada ao Player de Vídeo"
     },
     "search": {
       "filters": "Filtros",
@@ -9485,7 +9586,7 @@
     "template_sample_caption": "Aula 03: introdução ao módulo"
   },
   "global_dl": {
-    "title": "Downloader global",
+    "title": "Navegador embutido",
     "subtitle": "Baixe vídeos e arquivos de quase qualquer site, inclusive dos que pedem login.",
     "hero_label": "Cole o link da página de onde você quer baixar",
     "url_placeholder": "Por exemplo: https://exemplo.com/curso/aula-1",
@@ -9642,8 +9743,11 @@
       "hint_installing": "Instalando o ajudante",
       "hint_installed": "O ajudante de {{name}} consegue baixar este link.",
       "hint_update": "Há uma atualização disponível.",
-      "hint_open": "Abrir no Global Downloader",
+      "hint_open": "Abrir no Navegador embutido",
       "login_paste": "Abra um curso nessa janela e aperte o botão de novo, ou cole o link dele acima.",
+      "search": "Buscar ajudantes",
+      "no_match": "Nenhum ajudante corresponde a “{{query}}”.",
+      "wanted": "Você abriu este ajudante por um link. Clique em Instalar para adicionar.",
       "err": {
         "signature": "A lista de ajudantes não passou na conferência da assinatura e foi recusada.",
         "hash": "O pacote do ajudante não bate com a lista e foi recusado.",
@@ -9667,7 +9771,7 @@
     "scope_agents": "Rodar seus agentes de IA nesta pasta e deixar que eles controlem o canvas (criar terminais, notas e ligações)",
     "scope_approvals": "Responder por você as perguntas de permissão desses agentes",
     "scope_approvals_hint": "Desligado: o OmniGet pergunta a você a cada vez.",
-    "scope_browser": "Global Downloader: abrir o navegador dele, criar conectores de sites e baixar sites e cursos inteiros",
+    "scope_browser": "Navegador embutido: abrir, criar conectores de sites e baixar sites e cursos inteiros",
     "scope_browser_hint": "Usa as páginas em que você está logado lá. Desligado: só os downloads comuns.",
     "request_hint": "Só permita se você acabou de pedir ao {{client}} para se conectar.",
     "deny": "Não permitir",
@@ -9712,7 +9816,7 @@
       "where_cloud_hint": "ChatGPT, Claude na web, Grok e outras IAs na internet",
       "preset": "O que ela pode fazer",
       "preset_all": "Tudo",
-      "preset_messages": "WhatsApp e mensagens",
+      "preset_messages": "Conversas do celular e mensagens",
       "preset_read": "Só leitura",
       "expires": "Vale por",
       "days_1": "1 dia",
@@ -9775,7 +9879,7 @@
       "reported_short": "Denunciada",
       "placeholder": "Escreva uma mensagem",
       "hint": "Enter envia, Shift+Enter pula linha.",
-      "remaining": "Faltam {{n}} caracteres",
+      "remaining": "Faltam {{num}} caracteres",
       "send": "Enviar",
       "sending": "Enviando…",
       "state_slow": "Espere alguns segundos antes da próxima mensagem.",
@@ -10077,7 +10181,7 @@
         "exited": "[processo terminou: {{code}}]"
       },
       "onboarding": {
-        "title": "Suas ferramentas de IA",
+        "title": "Conecte suas ferramentas de IA",
         "desc": "O OmniGet encontrou estes CLIs de código nesta máquina. Traga as sessões deles como threads e comece com uma configuração pequena e útil.",
         "detecting": "Procurando ferramentas de IA…",
         "none": "Nenhum CLI de código encontrado. Dá para instalar um depois.",
@@ -10261,7 +10365,7 @@
       "deleted": "“{{name}}” foi apagado.",
       "copy_name": "Cópia de {{name}}",
       "first_name": "Minha paleta",
-      "nth_name": "Paleta {{n}}"
+      "nth_name": "Paleta {{num}}"
     },
     "save": {
       "saving": "Salvando…",
@@ -10303,7 +10407,7 @@
       "empty_title": "Nenhuma paleta neste projeto",
       "empty_body": "Adicione uma paleta para montar uma escala a partir de uma cor base.",
       "add": "Adicionar paleta",
-      "untitled": "Paleta {{n}}",
+      "untitled": "Paleta {{num}}",
       "name": "Nome da paleta",
       "token": "Nome do token",
       "token_hint": "Usado nas exportações, como --brand-500. Letras, números e hífens.",
@@ -10381,9 +10485,9 @@
       "compare_hint": "Mesmas paradas e suavização em três espaços. O sRGB costuma ficar cinza ou escuro no meio; o OKLCH mantém a cor. Clique numa linha para usá-la.",
       "stops": "Paradas",
       "from_palettes": "Usar as duas primeiras paletas",
-      "stop_color": "Cor da parada {{n}}",
-      "stop_pos": "Posição da parada {{n}}",
-      "remove_stop": "Remover parada {{n}}",
+      "stop_color": "Cor da parada {{num}}",
+      "stop_pos": "Posição da parada {{num}}",
+      "remove_stop": "Remover parada {{num}}",
       "min_stops": "Um degradê precisa de pelo menos duas paradas",
       "stop_removed": "Parada removida.",
       "add_stop": "Adicionar parada",
@@ -10423,7 +10527,7 @@
       "share": "{{percent}}% da imagem",
       "make_palettes": "Adicionar {{count}} paletas",
       "make_gradient": "Criar um degradê",
-      "color_name": "{{name}} {{n}}",
+      "color_name": "{{name}} {{num}}",
       "added": "{{count}} paletas da imagem adicionadas.",
       "gradient_set": "O degradê agora usa as cores da imagem, do claro ao escuro."
     },
@@ -10463,9 +10567,9 @@
     "drop_created_project": "Criamos o projeto {{name}} para esta imagem."
   },
   "fonts": {
-    "title": "Tipografia",
+    "title": "Fontes",
     "subtitle": "Encontre fontes abertas, teste no seu próprio texto, compare, combine e monte uma escala tipográfica.",
-    "views_label": "Seções de Tipografia",
+    "views_label": "Seções de Fontes",
     "view_fonts": "Fontes",
     "view_compare": "Comparar",
     "view_pairing": "Combinação",
@@ -10918,7 +11022,7 @@
       "color": "Cor"
     },
     "curve": {
-      "handle": "Alça {{n}}: x {{x}}, y {{y}}",
+      "handle": "Alça {{num}}: x {{xval}}, y {{yval}}",
       "keys_hint": "Arraste as alças, ou foque uma e use as setas (Shift para passos maiores, Alt para mais finos)."
     },
     "easing": {
@@ -10937,7 +11041,7 @@
       "group_apple": "Estilo Apple",
       "group_expressive": "Expressivas",
       "property": "Propriedade animada",
-      "race": "A: {{a}} · B: {{b}}. As duas saem juntas; a que está na frente é a mais rápida naquele instante.",
+      "race": "A: {{first}} · B: {{second}}. As duas saem juntas; a que está na frente é a mais rápida naquele instante.",
       "swap": "Trocar A e B",
       "use_in_timeline": "Usar no keyframe selecionado",
       "used": "Enviado para a linha do tempo",
@@ -10975,8 +11079,8 @@
       "points": "{{count}} pontos em {{ms}} ms. Tolerância menor é mais exata, mas mais longa.",
       "linear_hint": "Funciona em todos os navegadores atuais. A duração é o tempo de assentamento.",
       "motion_hint": "Usa a mesma rigidez, amortecimento e massa, então um movimento que parte do repouso se acomoda como no gráfico.",
-      "svelte_hint": "O Svelte avança a mola uma vez por quadro a 60 fps, então stiffness = k ÷ m ÷ 3600 e damping = c ÷ m ÷ 60 (k {{k}}, c {{c}}, m {{m}}). Os dois precisam ficar entre 0 e 1.",
-      "svelte_clamped": "Esta mola é rígida ou amortecida demais para o Svelte: stiffness = k ÷ m ÷ 3600 e damping = c ÷ m ÷ 60 (k {{k}}, c {{c}}, m {{m}}) passaram de 1 e foram cortados, então o movimento vai ser diferente. Baixe a rigidez ou o amortecimento.",
+      "svelte_hint": "O Svelte avança a mola uma vez por quadro a 60 fps, então stiffness = k ÷ m ÷ 3600 e damping = c ÷ m ÷ 60 (k {{kval}}, c {{cval}}, m {{mval}}). Os dois precisam ficar entre 0 e 1.",
+      "svelte_clamped": "Esta mola é rígida ou amortecida demais para o Svelte: stiffness = k ÷ m ÷ 3600 e damping = c ÷ m ÷ 60 (k {{kval}}, c {{cval}}, m {{mval}}) passaram de 1 e foram cortados, então o movimento vai ser diferente. Baixe a rigidez ou o amortecimento.",
       "swift_hint": "response = 2π ÷ √(k ÷ m) = {{response}} s, dampingFraction = c ÷ (2√(k·m)) = {{fraction}}.",
       "lane": "M",
       "motion_hint_velocity": "A velocidade inicial ficou de fora: aqui ela é uma fração da distância por segundo, mas o Motion lê na unidade do próprio valor. Multiplique pela distância (destino − origem) e passe como velocity."
@@ -11476,22 +11580,22 @@
     "snapshot_saved": "Quadro salvo como {{name}}.",
     "snapshot_failed": "Não deu para salvar o quadro: {{error}}",
     "timeline": "Linha do tempo",
-    "segment_label": "Trecho {{n}}, de {{start}} a {{end}}",
+    "segment_label": "Trecho {{num}}, de {{start}} a {{end}}",
     "keys_hint": "I início · O fim · Espaço reproduz · ←/→ um quadro · Shift+←/→ próximo quadro-chave · Delete remove o trecho selecionado",
     "in_set": "Início marcado em {{time}}. Vá até o fim e aperte O.",
     "out_before_in": "O fim precisa vir depois do início. Avance e aperte O de novo.",
     "out_too_short": "Esse trecho é curto demais. Avance mais e aperte O de novo.",
-    "segment_added": "Trecho {{n}} adicionado.",
+    "segment_added": "Trecho {{num}} adicionado.",
     "segments": "Trechos",
     "kept_total": "{{time}} mantidos",
     "no_segments": "Nenhum trecho ainda. Aperte I no começo de uma parte que quer manter e O no fim dela.",
     "seg_start": "Início",
     "seg_end": "Fim",
     "seg_length": "Duração",
-    "go_to_segment": "Ir para o trecho {{n}}",
-    "move_up": "Subir o trecho {{n}}",
-    "move_down": "Descer o trecho {{n}}",
-    "remove_segment": "Remover o trecho {{n}}",
+    "go_to_segment": "Ir para o trecho {{num}}",
+    "move_up": "Subir o trecho {{num}}",
+    "move_down": "Descer o trecho {{num}}",
+    "remove_segment": "Remover o trecho {{num}}",
     "overlap_warning": "Alguns trechos se sobrepõem, então essas partes vão aparecer duas vezes.",
     "merge_overlaps": "Juntar trechos sobrepostos",
     "export_as": "Exportar como",
@@ -11544,7 +11648,7 @@
     "remove_from_list_named": "Remover {{name}} da lista",
     "remove_from_list_hint": "Remove só desta lista. O arquivo continua no disco.",
     "err_no_ffmpeg_title": "Falta o FFmpeg",
-    "err_no_ffmpeg_body": "A Captura usa o FFmpeg para gravar e cortar. Instale em Ajustes › Dependências e verifique de novo.",
+    "err_no_ffmpeg_body": "A Captura usa o FFmpeg para gravar e cortar. Instale em Configurações › Avançado › Motor de download e verifique de novo.",
     "err_no_screens_title": "Nenhuma tela para gravar",
     "err_no_screens_body": "O FFmpeg não listou nenhuma tela. No macOS isso costuma significar que a permissão de Gravação de Tela está desligada para o OmniGet.",
     "err_no_display_title": "Nenhum monitor encontrado",
@@ -11602,7 +11706,7 @@
     "has_audio": "Tem som",
     "no_audio": "Sem som",
     "ffmpeg_missing_title": "Falta o FFmpeg.",
-    "ffmpeg_missing_body": "O Studio precisa dele para ler e renderizar vídeos. Instale em Ajustes > Dependências e volte aqui.",
+    "ffmpeg_missing_body": "O Studio precisa dele para ler e renderizar vídeos. Instale em Configurações › Avançado › Motor de download e volte aqui.",
     "open_settings": "Abrir Ajustes",
     "dismiss": "Fechar aviso",
     "show_in_folder": "Mostrar na pasta",
@@ -11650,7 +11754,7 @@
     "exported": "{{name}} salvo.",
     "export_failed": "Não foi possível salvar o arquivo: {{error}}",
     "burn_captions": "Gravar as legendas no vídeo",
-    "burn_unavailable": "Este FFmpeg não desenha legendas (falta a libass). Instale o FFmpeg gerenciado pelo OmniGet em Ajustes > Dependências; você ainda pode exportar .srt e .vtt.",
+    "burn_unavailable": "Este FFmpeg não desenha legendas (falta a libass). Instale o FFmpeg gerenciado pelo OmniGet em Configurações › Avançado › Motor de download; você ainda pode exportar .srt e .vtt.",
     "words_estimated": "O tempo de cada palavra é estimado pela linha, então o destaque pode adiantar ou atrasar um pouco.",
     "shift_all": "Mover tudo",
     "minus_tenth": "−0,1 s",
@@ -11660,7 +11764,7 @@
     "jump_to": "Tocar a partir de {{time}}",
     "start_time": "Início",
     "end_time": "Fim",
-    "line_text": "Texto da linha {{n}}",
+    "line_text": "Texto da linha {{num}}",
     "split": "Dividir no cursor",
     "split_needs_words": "A linha precisa de duas palavras para dividir",
     "merge_next": "Juntar com a próxima",
@@ -11719,14 +11823,14 @@
     "fade_out_end": "Escurecer no final",
     "intro_title": "Cartela de abertura",
     "intro_enable": "Adicionar cartela de abertura",
-    "intro_unavailable": "Este FFmpeg não desenha texto (falta o drawtext). Instale o FFmpeg gerenciado pelo OmniGet em Ajustes > Dependências.",
+    "intro_unavailable": "Este FFmpeg não desenha texto (falta o drawtext). Instale o FFmpeg gerenciado pelo OmniGet em Configurações › Avançado › Motor de download.",
     "intro_heading": "Título",
     "intro_heading_ph": "Como a gente fez",
     "intro_sub": "Subtítulo",
     "intro_sub_ph": "Episódio 3 · novembro de 2026",
     "intro_needs_text": "Escreva um título ou subtítulo; cartela vazia fica de fora.",
     "intro_seconds": "Duração",
-    "seconds": "{{n}} s",
+    "seconds": "{{num}} s",
     "intro_bg": "Fundo",
     "intro_color": "Texto",
     "intro_fade": "Entrar e sair com fade",
@@ -11753,7 +11857,7 @@
     "sum_captions": "{{count}} legendas",
     "sum_crop": "recorte {{aspect}}",
     "sum_fit": "encaixe {{aspect}}",
-    "sum_intro": "abertura de {{n}} s",
+    "sum_intro": "abertura de {{num}} s",
     "sum_fade": "fade no final",
     "render_done": "Vídeo renderizado",
     "render_done_body": "{{name}} salvo ({{width}} × {{height}}, {{size}}). O original não foi alterado.",
@@ -11821,7 +11925,7 @@
     "err_model_download_failed_title": "O modelo de fala não foi baixado",
     "err_model_download_failed_body": "O download foi interrompido. Confira a conexão com a internet e tente de novo.",
     "err_ffmpeg_missing_title": "Falta o gravador de áudio",
-    "err_ffmpeg_missing_body": "O OmniGet precisa do ffmpeg para gravar o microfone. Instale em Configurações › Dependências e volte aqui.",
+    "err_ffmpeg_missing_body": "O OmniGet precisa do ffmpeg para gravar o microfone. Instale em Configurações › Avançado › Motor de download e volte aqui.",
     "err_no_microphone_title": "Nenhum microfone encontrado",
     "err_no_microphone_body": "Conecte um microfone ou permita que o OmniGet o use nos ajustes do sistema, depois atualize a lista.",
     "err_mic_failed_title": "O microfone não ligou",
@@ -11915,9 +12019,9 @@
     "rep_replace": "Escrever",
     "rep_find_ph": "omniget",
     "rep_replace_ph": "OmniGet",
-    "rep_find_label": "Substituição {{n}}: palavra a procurar",
-    "rep_replace_label": "Substituição {{n}}: texto a escrever",
-    "rep_remove": "Remover substituição {{n}}",
+    "rep_find_label": "Substituição {{num}}: palavra a procurar",
+    "rep_replace_label": "Substituição {{num}}: texto a escrever",
+    "rep_remove": "Remover substituição {{num}}",
     "rep_add": "Adicionar substituição",
     "rep_duplicate": "Duas substituições procuram a mesma palavra. Só a primeira vale.",
     "preview": "Teste suas regras de limpeza",
@@ -11926,8 +12030,8 @@
     "set_limits": "Duração e histórico",
     "max_length": "Gravação mais longa",
     "max_length_hint": "A gravação para sozinha depois desse tempo e o texto é transcrito.",
-    "limit_seconds": "{{n}} segundos",
-    "limit_minutes": "{{n}} min",
+    "limit_seconds": "{{num}} segundos",
+    "limit_minutes": "{{num}} min",
     "save_history": "Guardar histórico",
     "save_history_hint": "Guarda os últimos 200 ditados neste computador.",
     "test_title": "Área de teste",
@@ -11950,11 +12054,11 @@
     "clear_yes": "Apagar tudo",
     "keep": "Manter"
   },
-  "whatsapp": {
-    "title": "WhatsApp",
+  "phonechat": {
+    "title": "Conversas do celular",
     "subtitle": "Conecte sua conta e salve fotos, vídeos, áudios, documentos e conversas inteiras no computador.",
-    "boot": "Verificando o WhatsApp…",
-    "boot_error": "Não deu para carregar o WhatsApp",
+    "boot": "Verificando as Conversas do celular…",
+    "boot_error": "Não deu para carregar as Conversas do celular",
     "retry": "Tentar de novo",
     "cancel": "Cancelar",
     "close": "Fechar",
@@ -11965,7 +12069,7 @@
     "logged_out_title": "Este computador foi desconectado",
     "logged_out_hint": "A sessão e a cópia local das suas conversas foram apagadas. Conecte de novo para continuar.",
     "offline_hint": "Sem conexão. O OmniGet continua tentando reconectar; o que já foi salvo continua aqui.",
-    "connecting_hint": "Conectando ao WhatsApp…",
+    "connecting_hint": "Conectando ao serviço…",
     "syncing": "Trazendo o histórico do celular: {{progress}}% ({{messages}} mensagens até agora)",
     "pick_title": "Escolha uma conversa",
     "pick_hint": "Abra uma conversa para ver as mensagens, baixar as mídias ou exportar.",
@@ -11978,18 +12082,18 @@
       "logged_out": "Desconectado da conta"
     },
     "link": {
-      "title": "Conecte seu WhatsApp",
-      "hint": "O OmniGet funciona como um aparelho conectado, igual ao WhatsApp Web. O celular continua sendo o aparelho principal.",
+      "title": "Conecte seu celular",
+      "hint": "O OmniGet funciona como um aparelho conectado do app de mensagens do celular. O celular continua sendo o aparelho principal.",
       "mode_qr": "QR code",
       "mode_phone": "Número de telefone",
-      "step_open": "Abra o WhatsApp no celular.",
+      "step_open": "Abra o app de mensagens no celular.",
       "step_devices": "Vá em Configurações › Dispositivos conectados › Conectar dispositivo.",
       "step_scan": "Aponte a câmera para este código.",
       "start": "Mostrar QR code",
       "new_qr": "Gerar outro QR code",
       "preparing": "Preparando o código…",
       "cancel": "Cancelar",
-      "qr_alt": "QR code para conectar o WhatsApp",
+      "qr_alt": "QR code para conectar o celular",
       "phone_label": "Seu número de telefone",
       "phone_hint": "Com o código do país, por exemplo +55 11 91234-5678.",
       "get_code": "Gerar código de conexão",
@@ -12003,7 +12107,11 @@
       "no_match": "Nenhuma conversa com esse nome.",
       "empty_title": "Aguardando suas conversas",
       "empty_hint": "Logo depois de conectar, o celular manda o histórico recente. Pode levar alguns minutos com o celular online.",
-      "unread": "{{count}} não lidas"
+      "unread": "{{count}} não lidas",
+      "tag_all": "Todas as conversas",
+      "tag_filter": "Filtrar por etiqueta",
+      "export_contacts": "Exportar contatos",
+      "exported": "{{count}} contatos salvos"
     },
     "chat": {
       "group": "Grupo",
@@ -12024,7 +12132,25 @@
       "schedule": "Agendar",
       "schedule_at": "Enviar em",
       "scheduled_title": "Mensagens agendadas",
-      "scheduled_cancel": "Cancelar mensagem agendada"
+      "scheduled_cancel": "Cancelar mensagem agendada",
+      "reply": "Responder",
+      "reply_cancel": "Cancelar resposta",
+      "replying_to": "Respondendo a {{name}}",
+      "react": "Reagir",
+      "reaction_remove": "Tirar sua reação",
+      "quoted": "Mensagem anterior",
+      "sending": "Enviando…",
+      "send_failed": "Não enviada",
+      "send_retry": "Tentar de novo",
+      "send_discard": "Descartar",
+      "attach": "Enviar arquivo",
+      "tag_add": "Adicionar etiqueta",
+      "tag_remove": "Tirar a etiqueta {{tag}}",
+      "field_hint": "Digite nome=valor para guardar um dado",
+      "field_remove": "Tirar {{key}}",
+      "draft_title": "Resposta sugerida",
+      "draft_use": "Usar",
+      "draft_dismiss": "Dispensar"
     },
     "kind": {
       "text": "Mensagem",
@@ -12050,8 +12176,8 @@
       },
       "folder": "Salvar em",
       "choose_folder": "Escolher pasta",
-      "folder_hint": "Uma pasta WhatsApp/<nome da conversa> é criada dentro dela. Arquivos já salvos são pulados.",
-      "expired_hint": "O WhatsApp só guarda as mídias nos servidores por um tempo. Para arquivos antigos, o OmniGet pede ao celular para mandar de novo; o que o celular não tem mais não dá para recuperar.",
+      "folder_hint": "Uma pasta Phone Chats/<nome da conversa> é criada dentro dela. Arquivos já salvos são pulados.",
+      "expired_hint": "O serviço só guarda as mídias nos servidores por um tempo. Para arquivos antigos, o OmniGet pede ao celular para mandar de novo; o que o celular não tem mais não dá para recuperar.",
       "start": "Baixar",
       "cancel": "Parar",
       "progress": "Baixando {{index}} de {{total}}",
@@ -12065,14 +12191,14 @@
       "open": "Abrir",
       "reveal": "Mostrar na pasta",
       "retrying": "Pedindo ao celular para mandar o arquivo de novo…",
-      "retrying_hint": "Este arquivo saiu dos servidores do WhatsApp. Aguardando até 45 segundos o celular mandar de novo; deixe o celular online."
+      "retrying_hint": "Este arquivo saiu dos servidores do serviço. Aguardando até 45 segundos o celular mandar de novo; deixe o celular online."
     },
     "export": {
       "title": "Exportar conversa",
       "format": "Formato",
       "formats": {
         "txt": "Texto (.txt)",
-        "txt_hint": "Mesmo formato da exportação do próprio WhatsApp. Abre em qualquer lugar.",
+        "txt_hint": "Mesmo formato da exportação do próprio app de mensagens. Abre em qualquer lugar.",
         "html": "Página web (.html)",
         "html_hint": "Balões de conversa, com as fotos que você já baixou aparecendo no meio.",
         "json": "Dados (.json)",
@@ -12089,14 +12215,14 @@
       "edited": "<Mensagem editada>"
     },
     "errors": {
-      "offline": "O WhatsApp está sem conexão. Conecte e tente de novo.",
-      "not_running": "O WhatsApp ainda não está conectado.",
+      "offline": "As Conversas do celular estão sem conexão. Conecte e tente de novo.",
+      "not_running": "As Conversas do celular ainda não estão conectadas.",
       "invalid_phone": "Digite o número completo, com o código do país.",
       "qr_expired": "O QR code expirou. Gere outro para tentar de novo.",
       "stream_replaced": "Outra janela do OmniGet ou outro aparelho assumiu esta sessão.",
-      "temporary_ban": "O WhatsApp bloqueou esta conta temporariamente. Espere antes de tentar de novo.",
-      "client_outdated": "O WhatsApp diz que esta versão está desatualizada. Atualize o OmniGet.",
-      "media_expired": "Este arquivo não está mais nos servidores do WhatsApp.",
+      "temporary_ban": "O serviço bloqueou esta conta temporariamente. Espere antes de tentar de novo.",
+      "client_outdated": "O serviço diz que esta versão está desatualizada. Atualize o OmniGet.",
+      "media_expired": "Este arquivo não está mais nos servidores do serviço.",
       "no_media": "Esta mensagem não tem arquivo para baixar.",
       "no_anchor": "Ainda não há uma mensagem para partir.",
       "empty_filter": "Escolha pelo menos um tipo de mídia.",
@@ -12104,38 +12230,133 @@
       "media_gone": "O celular não tem mais este arquivo, então não dá para recuperar.",
       "retry_timeout": "O celular não respondeu a tempo. Veja se ele está online e tente de novo.",
       "media_retry_failed": "O celular não conseguiu mandar este arquivo de novo.",
-      "not_linked": "Conecte seu WhatsApp primeiro",
+      "not_linked": "Conecte seu celular primeiro",
       "time_in_past": "Escolha um horário no futuro",
       "chat_not_found": "Conversa não encontrada",
-      "reply_not_found": "A mensagem a responder não está salva aqui"
+      "reply_not_found": "A mensagem a responder não está salva aqui",
+      "message_not_found": "Esta mensagem não está salva aqui",
+      "invalid_reaction": "Escolha um único emoji",
+      "invalid_rule_name": "Dê um nome à regra",
+      "invalid_rule_words": "Adicione pelo menos uma palavra",
+      "invalid_rule_text": "Escreva a resposta",
+      "rule_not_found": "Esta regra não existe mais",
+      "file_too_large": "O arquivo pode ter até 64 MB",
+      "file_not_found": "Este arquivo não está mais lá",
+      "upload_failed": "O arquivo não subiu. Tente de novo.",
+      "invalid_tag": "A etiqueta tem até 30 caracteres",
+      "invalid_rule_follow_ups": "Uma regra pode ter até 5 mensagens posteriores",
+      "invalid_field": "Use um nome curto, com letras e números",
+      "invalid_rule_hours": "Escolha horários diferentes para abrir e fechar"
+    },
+    "rules": {
+      "title": "Respostas automáticas",
+      "subtitle": "As regras respondem por você enquanto o OmniGet está aberto.",
+      "open": "Automações",
+      "switch": "Responder automaticamente",
+      "risk": "Esta conta está ligada de forma não oficial, e respostas automáticas aumentam o risco de bloqueio. As regras só respondem a quem escreveu primeiro, dentro dos limites abaixo.",
+      "sent": "{{hour}} de {{cap}} nesta hora · {{day}} hoje",
+      "empty_title": "Nenhuma regra ainda",
+      "empty_hint": "Uma regra responde quando a mensagem tem uma palavra que você escolhe. Comece pela pergunta que mais chega.",
+      "add": "Nova regra",
+      "edit": "Editar",
+      "delete": "Apagar",
+      "save": "Salvar regra",
+      "name": "Nome",
+      "trigger": "Quando uma mensagem",
+      "trigger_keyword": "tem uma destas palavras",
+      "trigger_first": "é a primeira de um contato",
+      "trigger_any": "chega (qualquer mensagem)",
+      "mode_contains": "Contém",
+      "mode_exact": "É exatamente",
+      "mode_starts_with": "Começa com",
+      "words": "Palavras, separadas por vírgula",
+      "action": "Responder com",
+      "action_reply": "Um texto",
+      "action_react": "Uma reação",
+      "action_ai": "IA, a partir das suas notas",
+      "text": "Resposta",
+      "text_hint": "vira o primeiro nome do contato. Uma linha só com --- separa variações.",
+      "instructions": "O que a IA deve saber e como responder",
+      "ai_hint": "Usa o modelo local quando há um rodando; senão, o seu primeiro agente. Fica em silêncio quando as notas não cobrem a pergunta.",
+      "fallback": "Resposta se a IA falhar (opcional)",
+      "emoji": "Emoji de reação",
+      "cooldown": "Minutos antes de responder o mesmo contato de novo",
+      "limits": "Limites",
+      "per_hour": "Respostas por hora",
+      "per_day": "Respostas por dia",
+      "pause": "Minutos em silêncio depois que você responde à mão",
+      "test": "Testar mensagem",
+      "test_placeholder": "Digite o que um contato mandaria",
+      "test_none": "Nenhuma regra responderia a isto.",
+      "test_hit": "{{rule}} responderia:",
+      "test_ai": "{{rule}} perguntaria à IA.",
+      "test_optout": "Este contato deixaria de receber respostas automáticas.",
+      "log": "Atividade recente",
+      "log_empty": "Nada ainda.",
+      "optouts": "Pediram para parar",
+      "optout_remove": "Permitir de novo",
+      "tag": "Etiqueta para pôr no contato quando a regra responde (opcional)",
+      "follow_ups": "Depois, enviar mais tarde",
+      "follow_after": "Minutos depois",
+      "follow_text": "Mensagem posterior",
+      "follow_add": "Adicionar mensagem posterior",
+      "follow_remove": "Tirar esta mensagem posterior",
+      "trigger_hours": "chega fora do horário",
+      "hours_open": "Abre às",
+      "hours_close": "Fecha às",
+      "needs_tag": "Só para contatos com esta etiqueta (opcional)",
+      "ask": "Depois, fazer uma pergunta (opcional)",
+      "ask_field": "Guardar a resposta como",
+      "ai_draft": "Deixar a resposta como rascunho para eu enviar",
+      "flow": "Passos da conversa",
+      "copy_link": "Copiar link que abre a conversa com a palavra",
+      "copied": "Link copiado",
+      "copy_failed": "Não deu para copiar o link",
+      "outcome": {
+        "sent": "Respondida",
+        "queued": "Respondendo",
+        "failed": "Falhou",
+        "skipped": "Segurada"
+      },
+      "reason": {
+        "cooldown": "respondeu este contato há pouco",
+        "human_active": "você estava respondendo",
+        "hour_cap": "limite por hora atingido",
+        "day_cap": "limite por dia atingido",
+        "ai_silent": "a IA não achou resposta nas suas notas",
+        "ai_failed": "a IA não respondeu",
+        "follow_up": "mensagem posterior",
+        "captured": "resposta guardada",
+        "draft": "rascunho esperando você"
+      }
     }
   },
-  "discord": {
-    "title": "Discord",
+  "guildchat": {
+    "title": "Conversas de servidor",
     "subtitle": "Leia e responda seus servidores e DMs, e guarde a mídia e o histórico deles.",
-    "boot": "Verificando suas contas do Discord…",
+    "boot": "Verificando suas contas…",
     "tos": {
       "title": "Use uma conta secundária aqui",
-      "body": "Os Termos do Discord não permitem clientes de terceiros, então o Discord pode bloquear ou desativar uma conta usada pelo OmniGet. Ler e baixar chama pouca atenção, mas não há garantia.",
+      "body": "Os termos do serviço não permitem clientes de terceiros, então ele pode bloquear ou desativar uma conta usada pelo OmniGet. Ler e baixar chama pouca atenção, mas não há garantia.",
       "tip_secondary": "Prefira uma conta secundária em vez da principal.",
       "tip_servers": "Evite entrar ou sair de servidores por aqui.",
       "tip_dms": "Evite abrir muitas DMs novas por aqui.",
       "ok": "Entendi"
     },
     "signin": {
-      "title": "Entrar no Discord",
-      "subtitle": "Escaneie um código com o app do Discord no celular ou cole um token.",
+      "title": "Entrar",
+      "subtitle": "Escaneie um código com o app oficial no celular ou cole um token.",
       "method_qr": "QR code",
       "method_token": "Token",
       "method_browser": "Navegador",
       "browser_title": "Entrar pelo navegador do OmniGet",
-      "browser_hint": "O OmniGet abre o Discord numa janela do navegador dele. Entre lá como sempre; quando o Discord terminar de carregar, o OmniGet pega a sessão sozinho.",
-      "browser_waiting": "Esperando você entrar no Discord na janela do navegador…",
-      "browser_open": "Abrir o Discord",
+      "browser_hint": "O OmniGet abre a página de login numa janela do navegador dele. Entre lá como sempre; quando ela terminar de carregar, o OmniGet pega a sessão sozinho.",
+      "browser_waiting": "Esperando você entrar no serviço na janela do navegador…",
+      "browser_open": "Abrir a página de login",
       "browser_reopen": "Abrir a janela de novo",
-      "qr_alt": "QR code para entrar no Discord",
+      "qr_alt": "QR code para entrar",
       "qr_title": "Escaneie com o celular",
-      "qr_step1": "Abra o Discord no celular.",
+      "qr_step1": "Abra o app oficial no celular.",
       "qr_step2": "Vá em Configurações › Escanear código QR.",
       "qr_step3": "Aponte a câmera para este código e confirme.",
       "scanned_title": "Escaneado como {{name}}",
@@ -12147,7 +12368,7 @@
       "new_code": "Novo código",
       "qr_failed": "Não deu para entrar com o código",
       "token_label": "Token da conta",
-      "token_where": "No Discord pela web, abra as ferramentas de desenvolvedor, vá em Rede, escolha qualquer requisição para discord.com/api e copie o cabeçalho Authorization.",
+      "token_where": "No app pela web, abra as ferramentas de desenvolvedor, vá em Rede, escolha qualquer requisição para discord.com/api e copie o cabeçalho Authorization.",
       "token_storage": "O token fica neste computador, no chaveiro do sistema (Chaves do macOS, Gerenciador de Credenciais ou Secret Service). Se não houver chaveiro, vai para um arquivo que só o seu usuário consegue ler.",
       "sign_in": "Entrar"
     },
@@ -12160,13 +12381,13 @@
     },
     "conn": {
       "loading": "Carregando seus servidores…",
-      "reconnecting": "Reconectando ao Discord…",
-      "reconnecting_in": "A conexão caiu. Tentando de novo em {{s}} s…",
-      "offline": "Sem conexão com o Discord.",
+      "reconnecting": "Reconectando ao serviço…",
+      "reconnecting_in": "A conexão caiu. Tentando de novo em {{secs}} s…",
+      "offline": "Sem conexão com o serviço.",
       "connect": "Conectar",
-      "expired_title": "O Discord encerrou esta sessão",
+      "expired_title": "O serviço encerrou esta sessão",
       "expired_hint": "O token não vale mais. Entre de novo para continuar.",
-      "failed_title": "O Discord recusou a conexão",
+      "failed_title": "O serviço recusou a conexão",
       "failed_hint": "Motivo: {{code}}. Tente de novo daqui a pouco."
     },
     "rail": {
@@ -12229,7 +12450,7 @@
       "done": "Download concluído",
       "cancelled": "Download interrompido",
       "summary": "{{saved}} salvos, {{skipped}} já existiam, {{failed}} falharam.",
-      "saved_n": "{{n}} arquivo(s) salvo(s) em {{folder}}"
+      "saved_n": "{{num}} arquivo(s) salvo(s) em {{folder}}"
     },
     "export": {
       "title": "Exportar esta conversa",
@@ -12240,11 +12461,11 @@
       "include_media": "Salvar também os anexos junto da exportação",
       "dates_hint": "Deixe as datas em branco para exportar todo o histórico.",
       "start": "Exportar",
-      "reading": "Lendo o histórico: {{n}} mensagens",
+      "reading": "Lendo o histórico: {{num}} mensagens",
       "media": "Salvando anexos: {{done}} de {{found}}",
       "done": "Exportação concluída",
       "cancelled": "Exportação interrompida",
-      "summary": "{{n}} mensagens em {{files}} arquivo(s)."
+      "summary": "{{num}} mensagens em {{files}} arquivo(s)."
     },
     "common": {
       "from": "De",
@@ -12259,26 +12480,26 @@
     },
     "errors": {
       "generic": "Algo deu errado. Tente de novo.",
-      "network": "Não deu para falar com o Discord. Confira sua conexão.",
-      "rate_limited": "O Discord pediu para ir mais devagar. Espere um pouco.",
-      "rate_limited_s": "O Discord pediu para ir mais devagar. Tente de novo em {{s}} s.",
+      "network": "Não deu para falar com o serviço. Confira sua conexão.",
+      "rate_limited": "O serviço pediu para ir mais devagar. Espere um pouco.",
+      "rate_limited_s": "O serviço pediu para ir mais devagar. Tente de novo em {{secs}} s.",
       "forbidden": "Você não tem permissão para fazer isso aqui.",
-      "not_found": "O Discord não encontrou isso.",
-      "http": "O Discord devolveu um erro.",
-      "refused": "O Discord recusou a conexão.",
+      "not_found": "O serviço não encontrou isso.",
+      "http": "O serviço devolveu um erro.",
+      "refused": "O serviço recusou a conexão.",
       "remote_auth": "O login por QR falhou. Gere outro código.",
       "unauthorized": "O token é inválido ou expirou.",
-      "token_format": "Isso não parece um token do Discord.",
+      "token_format": "Isso não parece um token válido.",
       "bot_token": "Esse é um token de bot. Use o token de uma conta de usuário.",
-      "captcha_required": "O Discord quer um captcha para este login. Entre uma vez pelo app ou site oficial e tente de novo.",
-      "not_connected": "Ainda sem conexão com o Discord.",
+      "captcha_required": "O serviço quer um captcha para este login. Entre uma vez pelo app ou site oficial e tente de novo.",
+      "not_connected": "Ainda sem conexão com o serviço.",
       "no_token": "Não há token salvo para esta conta. Entre de novo.",
       "no_media": "Esta mensagem não tem mídia para salvar.",
       "too_long": "As mensagens podem ter até 2000 caracteres.",
       "empty": "A mensagem está vazia.",
       "unknown_account": "Essa conta não está mais salva aqui.",
       "bad_id": "Canal ou mensagem inválidos.",
-      "unexpected_response": "O Discord mandou uma resposta inesperada."
+      "unexpected_response": "O serviço mandou uma resposta inesperada."
     }
   },
   "pdf": {
@@ -12302,8 +12523,8 @@
     "selected_count_one": "1 selecionada",
     "tools_label": "Ferramentas de página",
     "pages_label": "Páginas",
-    "page_label": "Página {{n}} (página {{page}} do arquivo)",
-    "page_blank_label": "Página {{n}}, em branco",
+    "page_label": "Página {{num}} (página {{page}} do arquivo)",
+    "page_blank_label": "Página {{num}}, em branco",
     "blank": "Em branco",
     "rotate_left": "Girar para a esquerda",
     "rotate_right": "Girar para a direita",
@@ -12356,7 +12577,7 @@
     "preset_light": "Leve",
     "preset_light_body": "Melhor qualidade. Bom para imprimir.",
     "preset_balanced": "Equilibrado",
-    "preset_balanced_body": "Fica bom na tela e bem menor. Bom para e-mail e WhatsApp.",
+    "preset_balanced_body": "Fica bom na tela e bem menor. Bom para e-mail e apps de mensagem.",
     "preset_strong": "Mínimo",
     "preset_strong_body": "Menor arquivo possível. As imagens perdem detalhe.",
     "compress_hint": "PDFs só com texto já costumam ser pequenos e podem não diminuir.",
@@ -12397,7 +12618,7 @@
     "error_io": "Não foi possível ler ou salvar o arquivo. Confira se a pasta ainda existe e se dá para gravar nela."
   },
   "cutout": {
-    "title": "Recortar",
+    "title": "Remover fundo",
     "subtitle": "Tire o fundo de fotos e de frames de vídeo. Tudo acontece neste computador.",
     "empty_title": "Solte fotos ou vídeos aqui",
     "empty_body": "Você recebe um PNG com fundo transparente. Num vídeo, você escolhe o momento.",
@@ -12614,56 +12835,56 @@
   },
   "social": {
     "boot": "Conferindo a sessão…",
-    "x": {
-      "title": "X",
-      "subtitle": "Sua timeline, perfis, respostas e posts, pela sua própria sessão do X. Os agentes usam pelo MCP.",
+    "shortpost": {
+      "title": "Posts curtos",
+      "subtitle": "Sua timeline, perfis, respostas e posts, pela sua própria sessão dos Posts curtos. Os agentes usam pelo MCP.",
       "for_you": "Para você",
       "following": "Seguindo"
     },
-    "instagram": {
-      "title": "Instagram",
-      "subtitle": "Seu feed, perfis, posts e comentários, pela sua própria sessão do Instagram. Os agentes usam pelo MCP."
+    "photofeed": {
+      "title": "Feed de fotos",
+      "subtitle": "Seu feed, perfis, posts e comentários, pela sua própria sessão do Feed de fotos. Os agentes usam pelo MCP."
     },
-    "tiktok": {
-      "title": "TikTok",
-      "subtitle": "Seu Para Você, perfis, vídeos e comentários, pela sua própria sessão do TikTok. Os agentes usam pelo MCP."
+    "clipfeed": {
+      "title": "Feed de clipes",
+      "subtitle": "Seu Para Você, perfis, vídeos e comentários, pela sua própria sessão do Feed de clipes. Os agentes usam pelo MCP."
     },
-    "github": {
-      "title": "GitHub",
-      "subtitle": "Repositórios, atividade, issues e pessoas no GitHub, pela API pública ou com o seu próprio token. Os agentes usam pelo MCP.",
-      "search_placeholder": "Buscar no GitHub (language:rust stars:>100)",
+    "codehub": {
+      "title": "Hub de código",
+      "subtitle": "Repositórios, atividade, issues e pessoas no Hub de código, pela API pública ou com o seu próprio token. Os agentes usam pelo MCP.",
+      "search_placeholder": "Buscar no Hub de código (language:rust stars:>100)",
       "feed_received": "Para você",
       "feed_trending": "Em alta",
       "kind_repositories": "Repositórios",
       "kind_issues": "Issues e PRs",
       "kind_users": "Pessoas",
       "repos": "{{count}} repositórios",
-      "setup_title": "Conectar o GitHub",
-      "setup_hint": "Aqui o GitHub funciona pela API pública, não pelo navegador. Salve um token de acesso pessoal para agir como a sua conta (5.000 pedidos por hora), ou só um nome de usuário para ler dados públicos (60 pedidos por hora).",
+      "setup_title": "Conectar o Hub de código",
+      "setup_hint": "Aqui o Hub de código funciona pela API pública, não pelo navegador. Salve um token de acesso pessoal para agir como a sua conta (5.000 pedidos por hora), ou só um nome de usuário para ler dados públicos (60 pedidos por hora).",
       "token_label": "Token de acesso pessoal",
       "token_placeholder": "Cole o token",
       "token_save": "Salvar token",
       "token_note": "Fica no armazenamento seguro deste computador. Os agentes nunca veem o token e nenhuma ferramenta o recebe como argumento.",
       "token_saved": "Já existe um token salvo neste computador. Cole outro para trocar.",
-      "token_create": "Criar um token no GitHub",
+      "token_create": "Criar um token no Hub de código",
       "token_remove": "Remover o token salvo",
       "username_label": "Nome de usuário (só leitura)",
       "username_save": "Usar este nome",
       "username_note": "Sem token dá para navegar e buscar, mas não para dar estrela, seguir, comentar ou ler notificações.",
       "setup_open": "Token"
     },
-    "pinterest": {
-      "title": "Pinterest",
-      "subtitle": "Seu feed inicial, pastas e pins, pela sua própria sessão do Pinterest. Os agentes usam pelo MCP.",
-      "search_placeholder": "Buscar no Pinterest",
+    "pinboard": {
+      "title": "Murais de pins",
+      "subtitle": "Seu feed inicial, pastas e pins, pela sua própria sessão dos Murais de pins. Os agentes usam pelo MCP.",
+      "search_placeholder": "Buscar nos Murais de pins",
       "kind_pins": "Pins",
       "kind_boards": "Pastas",
       "kind_users": "Pessoas"
     },
-    "reddit": {
-      "title": "Reddit",
-      "subtitle": "Sua página inicial, comunidades, posts salvos e comentários, pela sua própria sessão do Reddit. Os agentes usam pelo MCP.",
-      "search_placeholder": "Buscar no Reddit",
+    "forums": {
+      "title": "Fóruns",
+      "subtitle": "Sua página inicial, comunidades, posts salvos e comentários, pela sua própria sessão dos Fóruns. Os agentes usam pelo MCP.",
+      "search_placeholder": "Buscar nos Fóruns",
       "feed_home": "Início",
       "feed_popular": "Populares",
       "feed_all": "Tudo",
@@ -12677,7 +12898,7 @@
     "signin": {
       "title": "Entrar no {{platform}}",
       "hint": "O OmniGet abre o {{platform}} numa janela do navegador dele. Você entra lá à mão, como sempre faz; o OmniGet nunca vê sua senha.",
-      "point_browser": "A sessão fica no perfil do navegador do OmniGet, neste computador. Você também pode importar o perfil do seu navegador de sempre no Global Downloader.",
+      "point_browser": "A sessão fica no perfil do navegador do OmniGet, neste computador. Você também pode importar o perfil do seu navegador de sempre no Navegador embutido.",
       "point_agents": "Com os escopos de redes sociais, seus agentes leem feeds, perfis, posts e comentários pelo MCP. Cada post, curtida, repost, comentário ou follow espera você aprovar aqui.",
       "point_risk": "Isso usa o site do {{platform}} como você usaria, não uma API oficial. O {{platform}} pode pedir para confirmar que é você, limitar a conta ou bloquear uso automatizado. Mantenha um ritmo humano.",
       "continue": "Continuar",
@@ -12691,22 +12912,22 @@
       "saved": "Salvos",
       "bookmarks": "Itens salvos",
       "search": "Buscar",
-      "grok": "Grok",
+      "assistant": "Assistente",
       "me": "Meu perfil",
       "audience": "Audiência",
       "analytics": "Análises",
       "monitor": "Monitor",
       "schedule": "Agenda"
     },
-    "grok": {
-      "placeholder": "Pergunte qualquer coisa ao Grok",
+    "assistant": {
+      "placeholder": "Pergunte qualquer coisa ao Assistente",
       "send": "Enviar",
       "new_chat": "Nova conversa",
-      "history": "Conversas com o Grok",
-      "thinking": "O Grok está pensando…",
-      "empty": "Pergunte ao Grok sobre posts, pessoas ou o que está acontecendo no X. Ele responde pela sua própria conta do X.",
-      "open_on_x": "Abrir no X",
-      "ask_about_post": "Perguntar ao Grok sobre este post",
+      "history": "Conversas com o Assistente",
+      "thinking": "O Assistente está pensando…",
+      "empty": "Pergunte ao Assistente sobre posts, pessoas ou o que está acontecendo nos Posts curtos. Ele responde pela sua própria conta dos Posts curtos.",
+      "open_original": "Abrir nos Posts curtos",
+      "ask_about_post": "Perguntar ao Assistente sobre este post",
       "explain_post": "Explique este post e o contexto dele."
     },
     "common": {
@@ -12719,7 +12940,7 @@
       "not_logged_in": "A sessão do {{platform}} acabou. Entre de novo.",
       "rate_limited": "O {{platform}} está limitando os pedidos desta conta por enquanto. Espere alguns minutos.",
       "network": "Não deu para falar com o {{platform}}. Confira a conexão.",
-      "browser_unavailable": "O navegador do OmniGet não abriu. Confira os ajustes do Global Downloader.",
+      "browser_unavailable": "O navegador do OmniGet não abriu. Confira os ajustes do Navegador embutido.",
       "rejected": "O {{platform}} recusou essa ação.",
       "not_found": "Não encontrado no {{platform}}.",
       "invalid_arguments": "Esse link ou nome não parece certo.",
@@ -12735,9 +12956,9 @@
       "comment": "Escreva um comentário"
     },
     "search": {
-      "placeholder_x": "Buscar posts (from:, to:, since: funcionam)",
-      "placeholder_instagram": "Buscar contas e hashtags",
-      "placeholder_tiktok": "Buscar vídeos ou contas",
+      "placeholder_shortpost": "Buscar posts (from:, to:, since: funcionam)",
+      "placeholder_photofeed": "Buscar contas e hashtags",
+      "placeholder_clipfeed": "Buscar vídeos ou contas",
       "videos": "Vídeos",
       "users": "Contas",
       "go": "Buscar"
@@ -12811,8 +13032,8 @@
       "history_short": "O histórico começou em {{date}}. Novos seguidores e quem deixou de seguir aparecem depois da próxima sincronização.",
       "incomplete_following": "A lista de quem você segue está incompleta: {{fetched}} de {{expected}} contas foram lidas. Quem não segue de volta, mútuos e fãs ainda não são exatos.",
       "incomplete_followers": "A lista de seguidores está incompleta: {{fetched}} de {{expected}} contas foram lidas. Alguém pode aparecer como não seguindo de volta por engano.",
-      "followers_from_export": "Os seguidores vêm da exportação do Instagram, que pode deixar seguidores de fora. Sincronize para confirmar quem não segue de volta.",
-      "sweep_wait": "O Instagram deixa contas de fora da lista de quem você segue, então as que faltam estão sendo procuradas devagar. Aperte Continuar em cerca de {{minutes}} minutos, ou importe a exportação do Instagram."
+      "followers_from_export": "Os seguidores vêm da exportação do Feed de fotos, que pode deixar seguidores de fora. Sincronize para confirmar quem não segue de volta.",
+      "sweep_wait": "O Feed de fotos deixa contas de fora da lista de quem você segue, então as que faltam estão sendo procuradas devagar. Aperte Continuar em cerca de {{minutes}} minutos, ou importe a exportação do Feed de fotos."
     },
     "views": {
       "label": "Visões da audiência",
@@ -12940,14 +13161,14 @@
       "nothing_to_export": "Essa lista está vazia, então não há o que exportar.",
       "file": "Não foi possível salvar o arquivo CSV.",
       "store": "Não foi possível abrir o histórico local.",
-      "export_invalid": "Este arquivo não é uma exportação do Instagram com as listas de seguidores e seguindo."
+      "export_invalid": "Este arquivo não é uma exportação do Feed de fotos com as listas de seguidores e seguindo."
     },
     "stars": {
       "label": "Estrelas de um repositório",
       "placeholder": "dono/nome",
       "open": "Abrir",
       "close": "Voltar aos seguidores",
-      "invalid": "Digite o repositório como dono/nome ou cole o link do GitHub.",
+      "invalid": "Digite o repositório como dono/nome ou cole o link do Hub de código.",
       "viewing": "Mostrando quem deu estrela em {{repo}}. A sincronização lê esta lista em vez dos seus seguidores.",
       "first_body": "A sincronização lê no {{platform}} quem deu estrela neste repositório. A lista aparece na hora; estrelas novas e retiradas aparecem a partir da segunda sincronização.",
       "changes": "Desde a sincronização anterior: {{gained}} estrelas novas, {{lost}} estrelas retiradas."
@@ -12974,12 +13195,12 @@
       "title": "Interesses dos seguidores",
       "hint": "As palavras mais frequentes nas bios dos seus seguidores. Cada seguidor conta uma vez por palavra.",
       "based_on": "{{bios}} de {{followers}} seguidores têm bio",
-      "thin": "Poucas bios para concluir algo. As listas do Instagram não trazem bio.",
+      "thin": "Poucas bios para concluir algo. As listas do Feed de fotos não trazem bio.",
       "words": "Palavras nas bios",
       "hashtags": "Hashtags nas bios",
       "names": "Palavras nos nomes",
       "locations": "Principais locais",
-      "no_locations": "Nenhum local guardado. O X passa a guardar a partir da próxima sincronização; as listas do Instagram e do TikTok não trazem local.",
+      "no_locations": "Nenhum local guardado. Os Posts curtos passam a guardar a partir da próxima sincronização; as listas do Feed de fotos e do Feed de clipes não trazem local.",
       "with_link": "Link na bio",
       "verified": "Verificados",
       "empty": "Sincronize a audiência para ver isto.",
@@ -12989,9 +13210,9 @@
     },
     "notify_unfollowers": "Avisar quando uma sincronização encontrar quem deixou de seguir",
     "import": {
-      "button": "Importar exportação do Instagram",
+      "button": "Importar exportação do Feed de fotos",
       "busy": "Importando…",
-      "where": "Para pedir a exportação, abra a Central de Contas no Instagram, entre em Suas informações e permissões, depois em Baixar suas informações, e selecione Conexões (seguidores e seguindo).",
+      "where": "Para pedir a exportação, abra a Central de Contas no Feed de fotos, entre em Suas informações e permissões, depois em Baixar suas informações, e selecione Conexões (seguidores e seguindo).",
       "done": "Importados {{following}} seguindo e {{followers}} seguidores. Não seguem de volta: {{count}}.",
       "done_lists": "Importados {{following}} seguindo e {{followers}} seguidores."
     }
@@ -13222,8 +13443,8 @@
           "replies": "Responderam",
           "likes": "Curtiram"
         },
-        "empty": "Ninguém ainda, ou o X não lista mais.",
-        "likes_hidden": "O X mostra quem curtiu um post só para o autor.",
+        "empty": "Ninguém ainda, ou os Posts curtos não listam mais.",
+        "likes_hidden": "Os Posts curtos mostram quem curtiu um post só para o autor.",
         "follows_you": "Segue você",
         "need_posts": "Nenhum post para escolher. Analise a sua conta primeiro.",
         "draw": {
@@ -13291,10 +13512,10 @@
       "kind": "O que monitorar",
       "kind_hashtag": "Hashtag",
       "kind_profile": "Perfil",
-      "query_x": "Consulta (os operadores de busca do X funcionam)",
+      "query_shortpost": "Consulta (os operadores de busca dos Posts curtos funcionam)",
       "query_hashtag": "Hashtag",
       "query_profile": "Nome de usuário",
-      "query_tiktok": "Frase de busca",
+      "query_clipfeed": "Frase de busca",
       "advanced": "Mais filtros",
       "phrase": "Frase exata",
       "any": "Qualquer uma destas palavras",
@@ -13314,18 +13535,18 @@
       "save": "Salvar",
       "cancel": "Cancelar",
       "kind_search": "Busca",
-      "kind_subreddit": "Subreddit",
+      "kind_subreddit": "Comunidade",
       "kind_repositories": "Busca de repositórios",
       "kind_issues": "Busca de issues e PRs",
       "kind_releases": "Releases de um repositório",
       "kind_repo_issues": "Issues de um repositório",
-      "query_subreddit": "Subreddit (r/nome)",
+      "query_community": "Comunidade (r/nome)",
       "query_gh_repositories": "Busca com qualificadores, como tauri language:rust stars:>100",
       "query_gh_issues": "Busca com qualificadores, como is:pr is:open repo:dono/nome",
       "query_repo": "Repositório (dono/nome ou link)",
       "rd_sort_label": "Ordem",
       "rd_time_label": "Período",
-      "rd_subreddit": "Só neste subreddit",
+      "rd_community": "Só nesta comunidade",
       "rd_sort": {
         "new": "Mais recentes",
         "relevance": "Relevância",
@@ -13344,8 +13565,8 @@
       }
     },
     "notifications": "Notificações",
-    "mentions_github": "Salve um token do GitHub nesta tela para receber suas notificações aqui como caixa de entrada.",
-    "mentions_reddit": "A caixa de entrada do Reddit não é lida aqui. Monitore uma busca pelo seu nome de usuário.",
+    "mentions_codehub": "Salve um token do Hub de código nesta tela para receber suas notificações aqui como caixa de entrada.",
+    "mentions_forums": "A caixa de entrada dos Fóruns não é lida aqui. Monitore uma busca pelo seu nome de usuário.",
     "notify": {
       "title": "Notificações",
       "surge": "Avisar quando um monitor disparar",
@@ -13357,8 +13578,8 @@
   },
   "social_schedule": {
     "open_only": "Os posts só saem enquanto o OmniGet está aberto neste computador.",
-    "late_rule": "Um post que venceu com o app fechado é enviado quando você abrir, se o atraso for menor que {minutes} minutos. Depois disso ele fica como perdido e espera a sua decisão.",
-    "unsupported": "O agendamento só existe para o X. Publicar nesta rede pelo OmniGet ainda não foi feito.",
+    "late_rule": "Um post que venceu com o app fechado é enviado quando você abrir, se o atraso for menor que {{minutes}} minutos. Depois disso ele fica como perdido e espera a sua decisão.",
+    "unsupported": "O agendamento só existe para os Posts curtos. Publicar nesta rede pelo OmniGet ainda não foi feito.",
     "sections": {
       "queue": "Fila",
       "drafts": "Rascunhos",
@@ -13371,7 +13592,7 @@
       "title_new": "Novo post",
       "title_edit": "Editar post",
       "placeholder": "O que está acontecendo?",
-      "part_placeholder": "Parte {n}",
+      "part_placeholder": "Parte {{num}}",
       "add_part": "Adicionar parte ao fio",
       "remove_part": "Remover parte",
       "reply_to": "Responder a (link ou id)",
@@ -13388,26 +13609,26 @@
       "save_draft": "Salvar rascunho",
       "save": "Salvar alterações",
       "cancel_edit": "Cancelar edição",
-      "over": "{n} acima do limite"
+      "over": "{{num}} acima do limite"
     },
     "preview": {
       "title": "Prévia",
       "desktop": "Computador",
       "mobile": "Celular",
       "empty": "Escreva algo para ver a prévia.",
-      "replying": "Respondendo a {target}",
-      "quoting": "Citando {target}",
-      "reposting": "Repostando {target}",
-      "images": "Imagens: {n}"
+      "replying": "Respondendo a {{target}}",
+      "quoting": "Citando {{target}}",
+      "reposting": "Repostando {{target}}",
+      "images": "Imagens: {{num}}"
     },
     "list": {
       "loading": "Carregando…",
       "empty_queue": "Nada agendado. Escreva um post acima e escolha um horário.",
       "empty_drafts": "Nenhum rascunho ainda.",
       "empty_history": "Nada foi enviado ainda.",
-      "more": "Mostrando {returned} de {total}",
-      "parts": "{n} partes",
-      "parts_sent": "{sent} de {total} partes enviadas",
+      "more": "Mostrando {{returned}} de {{total}}",
+      "parts": "{{num}} partes",
+      "parts_sent": "{{sent}} de {{total}} partes enviadas",
       "by_feed": "De um feed",
       "by_agent": "Adicionado por um agente",
       "open_post": "Abrir post",
@@ -13418,7 +13639,7 @@
       "delete": "Excluir",
       "confirm": "Confirmar?",
       "export": "Exportar calendário",
-      "exported": "Calendário salvo em {path}",
+      "exported": "Calendário salvo em {{path}}",
       "reveal": "Mostrar na pasta"
     },
     "status": {
@@ -13445,7 +13666,7 @@
       "time": "Hora",
       "add": "Adicionar horário",
       "remove": "Remover horário",
-      "next": "Próximo horário livre: {time}",
+      "next": "Próximo horário livre: {{time}}",
       "grace": "Tolerância para posts atrasados (minutos)",
       "long_posts": "Posts longos",
       "long_auto": "Automático (contas verificadas)",
@@ -13459,11 +13680,11 @@
       "hint": "Colunas: time, text e, se quiser, thread, reply, quote, repost, media. Escreva a hora como 2026-11-12 09:30 no fuso deste computador, ou a palavra next para o próximo horário livre. Separe as partes do fio com |||.",
       "choose": "Escolher arquivo",
       "none": "Nenhum arquivo escolhido",
-      "report": "{valid} de {rows} linhas podem ser agendadas.",
+      "report": "{{valid}} de {{rows}} linhas podem ser agendadas.",
       "rejected": "Linhas recusadas",
-      "row": "Linha {n}",
-      "confirm": "Agendar {n} posts",
-      "done": "{n} posts agendados."
+      "row": "Linha {{num}}",
+      "confirm": "Agendar {{num}} posts",
+      "done": "{{num}} posts agendados."
     },
     "feeds": {
       "title": "Postagem automática por RSS",
@@ -13475,10 +13696,10 @@
       "cap": "Posts por mês",
       "add": "Adicionar feed",
       "remove": "Remover feed",
-      "stats": "{posted} de {cap} neste mês",
-      "skipped": "{n} ignorados por passar do limite",
+      "stats": "{{posted}} de {{cap}} neste mês",
+      "skipped": "{{num}} ignorados por passar do limite",
       "waiting": "Esperando a primeira checagem",
-      "checked": "Checado em {when}"
+      "checked": "Checado em {{when}}"
     },
     "errors": {
       "PAST_TIME": "Esse horário já passou.",
@@ -13494,7 +13715,7 @@
       "CONFLICTING_TARGETS": "Um repost não leva texto, resposta, citação nem imagem.",
       "MEDIA_NOT_FOUND": "Um arquivo de imagem não foi encontrado neste computador.",
       "MEDIA_TOO_LARGE": "A imagem precisa ter até 5 MB.",
-      "UNSUPPORTED": "Sem suporte: só texto, fios, respostas, citações, reposts e imagens estáticas no X.",
+      "UNSUPPORTED": "Sem suporte: só texto, fios, respostas, citações, reposts e imagens estáticas nos Posts curtos.",
       "INVALID_CSV": "Não foi possível ler o CSV. Ele precisa de um cabeçalho com as colunas time e text.",
       "FILE_NOT_FOUND": "O arquivo não foi encontrado.",
       "NOTHING_TO_EXPORT": "Não há post agendado ou enviado para exportar.",
@@ -13506,7 +13727,7 @@
       "INTERRUPTED": "O OmniGet fechou durante o envio. Confira a conta antes de enviar de novo.",
       "NOT_LOGGED_IN": "Entre na conta pelo OmniGet primeiro.",
       "RATE_LIMITED": "Muitas ações em pouco tempo. Espere um pouco e tente de novo.",
-      "generic": "Não deu certo: {detail}"
+      "generic": "Não deu certo: {{detail}}"
     }
   },
   "research": {
@@ -13673,5 +13894,88 @@
     "ex_saved": "Resposta completa salva em",
     "ex_empty": "Escolha uma plataforma e um endpoint para chamar qualquer operação do ScrapeCreators.",
     "ex_no_params": "Este endpoint não recebe parâmetros."
+  },
+  "quick_panel": {
+    "title": "Ferramentas rápidas",
+    "paste_link": "Colar link",
+    "paste_link_hint": "Baixar o link que está na área de transferência",
+    "tab_system": "Sistema",
+    "tab_clipboard": "Copiados",
+    "tab_snippets": "Trechos",
+    "delete": "Excluir",
+    "copied": "Copiado",
+    "awake": {
+      "title": "Manter acordado",
+      "off": "Desligado",
+      "m30": "30 min",
+      "h1": "1 h",
+      "h2": "2 h",
+      "until_off": "Até desligar",
+      "left": "faltam {{time}}",
+      "on_hint": "Ligado até você desligar",
+      "off_hint": "O computador dorme normalmente",
+      "failed": "O sistema se recusou a ficar acordado"
+    },
+    "monitor": {
+      "cpu": "CPU",
+      "memory": "Memória",
+      "disk": "Disco livre",
+      "network": "Rede",
+      "processes": "Processos que mais usam CPU"
+    },
+    "volume": {
+      "apps": "Volume por app",
+      "master": "Volume de saída",
+      "none": "Nada tocando agora",
+      "no_control": "Esta saída não tem controle de volume",
+      "mute": "Silenciar",
+      "unmute": "Ativar som"
+    },
+    "clipboard": {
+      "title": "Histórico da área de transferência",
+      "off_hint": "Desligado. Ligue para guardar os últimos 50 textos que você copiar. Eles ficam só na memória e somem ao fechar o OmniGet.",
+      "empty": "Copie um texto e ele aparece aqui.",
+      "pin": "Fixar",
+      "unpin": "Desafixar"
+    },
+    "snippets": {
+      "empty": "Guarde textos que você digita sempre e copie com um clique.",
+      "add": "Novo trecho",
+      "name": "Nome",
+      "text": "Texto",
+      "save": "Salvar",
+      "edit": "Editar",
+      "invalid": "Dê um nome e um texto."
+    },
+    "cleaner": "Limpador"
+  },
+  "tool_ask": {
+    "title_read": "{{agent}} quer ler arquivos",
+    "title_command": "{{agent}} quer rodar um comando",
+    "title_file_change": "{{agent}} quer alterar um arquivo",
+    "title_mcp": "{{agent}} quer chamar outro servidor",
+    "title_web": "{{agent}} quer usar a web",
+    "title_other": "{{agent}} quer usar uma ferramenta",
+    "agent_fallback": "Um agente",
+    "kind_read": "Só lê",
+    "kind_command": "Roda comando",
+    "kind_file_change": "Escreve arquivos",
+    "kind_mcp": "Outro servidor",
+    "kind_web": "Web",
+    "kind_other": "Outra ação",
+    "count": "{{index}} de {{total}}",
+    "waiting": "esperando há {{time}}",
+    "expires": "expira em {{time}}",
+    "once": "Permitir uma vez",
+    "session": "Permitir {{tool}} neste turno",
+    "session_command": "Permitir {{tool}} neste turno (qualquer comando)",
+    "deny": "Negar",
+    "always": "Sempre permitir {{tool}}",
+    "always_command": "Sempre permitir {{tool}} (qualquer comando)",
+    "stop": "Negar e parar o turno",
+    "note": "Só o seu clique aprova. Outro agente não aprova por você.",
+    "failed": "A resposta não chegou ao agente. Tente de novo.",
+    "impact": "Arquivos: {{files}} · linhas: +{{added}} −{{removed}}",
+    "impact_outside": "fora do workspace"
   }
 }

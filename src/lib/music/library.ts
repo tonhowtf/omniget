@@ -87,18 +87,19 @@ export function splitArtists(s: string): string[] {
 }
 
 export function genres(tracks: Track[]): { name: string; tracks: Track[] }[] {
-  const m = new Map<string, Track[]>();
+  const m = new Map<string, { name: string; tracks: Track[] }>();
   for (const t of tracks) {
+    const own = new Set<string>();
     for (const g of (t.genre || "").split(/[;,/]/).map((x) => x.trim()).filter(Boolean)) {
       const k = g.toLowerCase();
-      const arr = m.get(k);
-      if (arr) arr.push(t);
-      else m.set(k, [t]);
+      if (own.has(k)) continue;
+      own.add(k);
+      const entry = m.get(k);
+      if (entry) entry.tracks.push(t);
+      else m.set(k, { name: g, tracks: [t] });
     }
   }
-  return [...m.entries()]
-    .map(([, ts]) => ({ name: ts[0].genre.split(/[;,/]/)[0].trim() || ts[0].genre, tracks: ts }))
-    .sort((a, b) => b.tracks.length - a.tracks.length);
+  return [...m.values()].sort((a, b) => b.tracks.length - a.tracks.length);
 }
 
 export function fold(s: string): string {

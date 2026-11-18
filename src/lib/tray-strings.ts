@@ -7,6 +7,9 @@ type TrayStrings = {
   channels: string;
   tooltipActive: string;
   tooltipSpeed: string;
+  quickTools: string;
+  awakeOn: string;
+  awakeUntil: string;
 };
 
 const KEYS: Record<keyof TrayStrings, string> = {
@@ -16,6 +19,9 @@ const KEYS: Record<keyof TrayStrings, string> = {
   channels: "settings.channels.tray_header",
   tooltipActive: "tray.tooltip_active",
   tooltipSpeed: "tray.tooltip_speed",
+  quickTools: "tray.quick_tools",
+  awakeOn: "tray.awake_on",
+  awakeUntil: "tray.awake_until",
 };
 
 export function trayStrings(bag: TranslationBag, locale: string): TrayStrings {
@@ -34,5 +40,8 @@ export function trayStrings(bag: TranslationBag, locale: string): TrayStrings {
     channels: pick(KEYS.channels),
     tooltipActive: pick(KEYS.tooltipActive),
     tooltipSpeed: pick(KEYS.tooltipSpeed),
+    quickTools: pick(KEYS.quickTools),
+    awakeOn: pick(KEYS.awakeOn),
+    awakeUntil: pick(KEYS.awakeUntil),
   };
 }

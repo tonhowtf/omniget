@@ -12,7 +12,7 @@ export interface AgentPreset {
   env: Record<string, string>;
   icon?: string | null;
   color?: string | null;
-  maestro: boolean;
+  lead: boolean;
   start_in_chat_mode: boolean;
   cwd?: string | null;
 }
@@ -47,7 +47,7 @@ export interface CanvasPrefs {
     memory_limit_mb: number;
     shell_fallback: boolean;
   };
-  notifications: { attention: boolean; badges_for_non_maestro: boolean };
+  notifications: { attention: boolean; badges_for_non_lead: boolean };
   power: { prevent_sleep: 'never' | 'always' | 'while_working' };
   agent_presets: Record<string, AgentPreset>;
   shortcuts?: Record<string, string>;
@@ -86,7 +86,7 @@ const CANVAS_PREFS_DEFAULTS: CanvasPrefs = {
     memory_limit_mb: 0,
     shell_fallback: true,
   },
-  notifications: { attention: true, badges_for_non_maestro: true },
+  notifications: { attention: true, badges_for_non_lead: true },
   power: { prevent_sleep: 'while_working' },
   agent_presets: {},
   images: { any_zoom: true, quality: 'balanced', download_web: true },
@@ -171,7 +171,7 @@ export function presetData(name: string, p: AgentPreset): Record<string, unknown
   const data: Record<string, unknown> = { command, agent: presetAgent(p), presetId: name };
   if (p.env && Object.keys(p.env).length) data.env = { ...p.env };
   if (p.cwd?.trim()) data.cwd = p.cwd;
-  if (p.maestro) data.isManager = true;
+  if (p.lead) data.isManager = true;
   if (p.start_in_chat_mode) data.prefersChatMode = true;
   return data;
 }

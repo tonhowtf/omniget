@@ -1,7 +1,6 @@
 use omniget_core::core::ffmpeg_ops;
 use serde::Serialize;
 use std::path::{Path, PathBuf};
-use tauri::Emitter;
 
 #[derive(Clone, Serialize)]
 pub struct VideoOpProposal {
@@ -32,17 +31,10 @@ fn output_for(input: &Path, tag: &str, ext: &str) -> PathBuf {
 }
 
 #[cfg(not(target_os = "android"))]
-async fn run_ffmpeg(
-    app: &tauri::AppHandle,
-    input: &Path,
-    args: &[String],
-    output: &Path,
-) -> Result<(), String> {
+async fn run_ffmpeg(input: &Path, args: &[String], output: &Path) -> Result<(), String> {
     let ffmpeg = omniget_core::core::dependencies::find_tool("ffmpeg")
         .await
         .ok_or_else(|| "ffmpeg unavailable".to_string())?;
-
-    let _ = app.emit("video-op-progress", "running");
 
     let mut cmd = omniget_core::core::process::command(&ffmpeg);
     cmd.arg("-y")
@@ -59,10 +51,8 @@ async fn run_ffmpeg(
         .map_err(|e| format!("ffmpeg failed to start: {}", e))?;
 
     if !status.success() {
-        let _ = app.emit("video-op-progress", "error");
         return Err("ffmpeg processing failed".to_string());
     }
-    let _ = app.emit("video-op-progress", "done");
     Ok(())
 }
 
@@ -115,7 +105,6 @@ pub async fn video_op_silence_estimate(input: String) -> Result<SilenceEstimate,
 #[cfg(not(target_os = "android"))]
 #[tauri::command]
 pub async fn video_op_preset(
-    app: tauri::AppHandle,
     input: String,
     action: String,
     start: Option<String>,
@@ -125,7 +114,7 @@ pub async fn video_op_preset(
     let p = ffmpeg_ops::preset(&action, start.as_deref(), end.as_deref())?;
     ffmpeg_ops::validate_transform_args(&p.args)?;
     let output = output_for(&input_path, &action, p.out_ext);
-    run_ffmpeg(&app, &input_path, &p.args, &output).await?;
+    run_ffmpeg(&input_path, &p.args, &output).await?;
     Ok(VideoOpResult {
         output_path: output.to_string_lossy().to_string(),
     })
@@ -155,7 +144,6 @@ Only use codec/filter/trim options. No shell operators, no extra text, output ON
 #[cfg(not(target_os = "android"))]
 #[tauri::command]
 pub async fn video_op_run(
-    app: tauri::AppHandle,
     input: String,
     args: Vec<String>,
     out_ext: String,
@@ -173,7 +161,7 @@ pub async fn video_op_run(
         ext
     };
     let output = output_for(&input_path, "ai", &ext);
-    run_ffmpeg(&app, &input_path, &args, &output).await?;
+    run_ffmpeg(&input_path, &args, &output).await?;
     Ok(VideoOpResult {
         output_path: output.to_string_lossy().to_string(),
     })

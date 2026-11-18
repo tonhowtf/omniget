@@ -3,10 +3,9 @@ use std::sync::{Mutex, OnceLock};
 use std::time::{Duration, Instant};
 
 use super::{
-    tokenizer::Tokenizer, EmbedError, ERR_EMBED_DOWNLOAD, ERR_EMBED_INFER, ERR_EMBED_MODEL,
-    ERR_EMBED_RUNTIME, ERR_EMBED_SHAPE, ERR_EMBED_VOCAB,
+    tokenizer::Tokenizer, EmbedError, ERR_EMBED_INFER, ERR_EMBED_MODEL, ERR_EMBED_RUNTIME,
+    ERR_EMBED_SHAPE, ERR_EMBED_VOCAB,
 };
-use crate::core::tools::ProgressFn;
 
 pub const DIM: usize = 384;
 
@@ -42,12 +41,6 @@ pub const VOCAB: Asset = Asset {
 
 pub const ASSETS: &[Asset] = &[MODEL, VOCAB];
 
-pub const LICENSE: &str = "Apache-2.0";
-
-pub fn dim() -> usize {
-    DIM
-}
-
 fn resolve_dir(env_value: Option<&str>, fallback: Option<PathBuf>) -> Option<PathBuf> {
     match env_value.map(str::trim).filter(|s| !s.is_empty()) {
         Some(s) => Some(PathBuf::from(s)),
@@ -58,10 +51,6 @@ fn resolve_dir(env_value: Option<&str>, fallback: Option<PathBuf>) -> Option<Pat
 pub fn model_dir() -> Option<PathBuf> {
     let env = std::env::var(DIR_ENV).ok();
     resolve_dir(env.as_deref(), crate::core::tools::onnx::models_dir())
-}
-
-pub fn model_path() -> Option<PathBuf> {
-    model_dir().map(|d| d.join(MODEL.file))
 }
 
 pub(crate) fn asset_path(a: &Asset) -> Option<PathBuf> {
@@ -81,94 +70,6 @@ pub fn is_downloaded() -> bool {
 
 pub fn is_ready() -> bool {
     is_downloaded() && crate::core::onnxrt::is_installed()
-}
-
-pub fn sha256_of(path: &Path) -> Result<String, EmbedError> {
-    use sha2::{Digest, Sha256};
-    use std::io::Read;
-    let mut file = std::fs::File::open(path)
-        .map_err(|e| EmbedError::new(ERR_EMBED_DOWNLOAD, format!("opening {path:?}: {e}")))?;
-    let mut hasher = Sha256::new();
-    let mut buf = vec![0u8; 1 << 20];
-    loop {
-        let n = file
-            .read(&mut buf)
-            .map_err(|e| EmbedError::new(ERR_EMBED_DOWNLOAD, format!("reading {path:?}: {e}")))?;
-        if n == 0 {
-            break;
-        }
-        hasher.update(&buf[..n]);
-    }
-    Ok(hex::encode(hasher.finalize()))
-}
-
-pub(crate) async fn fetch_asset(a: &Asset, progress: &ProgressFn) -> Result<PathBuf, EmbedError> {
-    let dest = asset_path(a).ok_or_else(|| {
-        EmbedError::new(ERR_EMBED_MODEL, "no app data directory to store the model")
-    })?;
-    if has_asset(a) {
-        return Ok(dest);
-    }
-    let dir = dest
-        .parent()
-        .ok_or_else(|| EmbedError::new(ERR_EMBED_MODEL, "model path without a parent"))?
-        .to_path_buf();
-    std::fs::create_dir_all(&dir)
-        .map_err(|e| EmbedError::new(ERR_EMBED_DOWNLOAD, format!("creating {dir:?}: {e}")))?;
-
-    let tmp = dir.join(format!(".{}.download", a.file));
-    let id = format!("embed-model:{}", a.file);
-    let client = crate::core::tools::client()
-        .map_err(|e| EmbedError::new(ERR_EMBED_DOWNLOAD, e.to_string()))?;
-    crate::core::tools::download_to(&client, a.url, &tmp, progress, &id)
-        .await
-        .map_err(|e| EmbedError::new(ERR_EMBED_DOWNLOAD, format!("{}: {e}", a.url)))?;
-
-    let expected = a.sha256;
-    let tmp2 = tmp.clone();
-    let dest2 = dest.clone();
-    let p = progress.clone();
-    let id2 = id.clone();
-    tokio::task::spawn_blocking(move || -> Result<(), EmbedError> {
-        crate::core::tools::report(&p, &id2, "verify", 0, None, Some("checking sha256".into()));
-        let got = sha256_of(&tmp2)?;
-        if got != expected {
-            let _ = std::fs::remove_file(&tmp2);
-            return Err(EmbedError::new(
-                ERR_EMBED_DOWNLOAD,
-                format!("checksum mismatch: expected {expected}, got {got}"),
-            ));
-        }
-        if dest2.exists() {
-            let _ = std::fs::remove_file(&dest2);
-        }
-        std::fs::rename(&tmp2, &dest2)
-            .map_err(|e| EmbedError::new(ERR_EMBED_DOWNLOAD, format!("moving to {dest2:?}: {e}")))
-    })
-    .await
-    .map_err(|e| EmbedError::new(ERR_EMBED_DOWNLOAD, format!("verify task died: {e}")))??;
-
-    crate::core::tools::report(progress, &id, "done", a.bytes, Some(a.bytes), None);
-    Ok(dest)
-}
-
-pub async fn ensure_model(progress: &ProgressFn) -> Result<PathBuf, EmbedError> {
-    fetch_asset(&VOCAB, progress).await?;
-    fetch_asset(&MODEL, progress).await
-}
-
-pub fn remove_model() -> Result<(), EmbedError> {
-    release_now();
-    for a in ASSETS {
-        if let Some(p) = asset_path(a) {
-            if p.is_file() {
-                std::fs::remove_file(&p).map_err(|e| {
-                    EmbedError::new(ERR_EMBED_MODEL, format!("deleting {p:?}: {e}"))
-                })?;
-            }
-        }
-    }
-    Ok(())
 }
 
 struct Loaded {
@@ -192,26 +93,6 @@ fn lock() -> std::sync::MutexGuard<'static, Option<Loaded>> {
             g
         }
     }
-}
-
-pub fn release_if_idle() -> bool {
-    let mut guard = lock();
-    let stale = guard
-        .as_ref()
-        .map(|l| l.last_used.elapsed() >= IDLE_TTL)
-        .unwrap_or(false);
-    if stale {
-        *guard = None;
-    }
-    stale
-}
-
-pub fn release_now() -> bool {
-    lock().take().is_some()
-}
-
-pub fn session_age() -> Option<Duration> {
-    lock().as_ref().map(|l| l.last_used.elapsed())
 }
 
 fn load() -> Result<Loaded, EmbedError> {

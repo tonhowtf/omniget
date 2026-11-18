@@ -7,21 +7,6 @@ use crate::core::agentkit::parse;
 use crate::core::agentkit::targets::TargetAdapter;
 use crate::core::agentkit::{Result, Scope};
 
-pub const FORMATS: &[&str] = &[
-    "gemini_md",
-    "qwen_md",
-    "opencode_md",
-    "cursor_md",
-    "copilot_agent_md",
-    "devin_md",
-    "droid_md",
-    "cline_md",
-    "augment_md",
-    "antigravity",
-    "openhands_md",
-    "rovo",
-];
-
 pub struct MdAgentConverter {
     pub format: &'static str,
 }

@@ -54,26 +54,11 @@ pub struct AssistCtx {
 }
 
 impl AssistCtx {
-    pub fn user() -> Self {
-        Self {
-            principal: LOCAL_USER.into(),
-            bot_id: None,
-            conversation_id: None,
-            run_id: None,
-            readable: Vec::new(),
-            writable: Vec::new(),
-        }
-    }
-
     pub fn is_user_ui(&self) -> bool {
         self.principal == LOCAL_USER
             && self.bot_id.is_none()
             && self.readable.is_empty()
             && self.writable.is_empty()
-    }
-
-    pub fn can_read(&self, scope: &Scope) -> bool {
-        self.is_user_ui() || self.readable.contains(scope)
     }
 
     pub fn can_write(&self, scope: &Scope) -> bool {

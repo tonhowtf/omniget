@@ -1,4 +1,5 @@
 import { bootWorkspace } from './session';
+import { isUrgent } from './attention/needs-you';
 import { getContext, setContext } from 'svelte';
 import { invoke } from '@tauri-apps/api/core';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
@@ -33,6 +34,7 @@ import {
 import { onRegistryChange, sizeFor } from './nodes/registry';
 import { canvasPrefs, faithfulRendering, prefSize, presetAgent, presetData, userPreset } from './prefs.svelte';
 import { GlLayer, onPassesChange, type FrameInfo, type NodeView } from './render/gl-layer';
+import { FrameClock } from './render/frame-clock';
 import { Selection } from './interaction/selection.svelte';
 import { alignGuides, arrange, nearestFreeSpot, snap, type AlignMode, type Guide } from './interaction/snap';
 import { neighborInDirection, type Dir } from './interaction/keyboard';
@@ -170,8 +172,7 @@ export class CanvasEngine {
   restarts = $state.raw<Record<string, number>>({});
   draft: Draft = {};
 
-  private raf = 0;
-  private timer: ReturnType<typeof setTimeout> | null = null;
+  private clock = new FrameClock((t) => this.tick(t));
   private lastTick = 0;
   private lastCameraRev = -1;
   private lastCameraMove = 0;
@@ -277,8 +278,7 @@ export class CanvasEngine {
     this.destroyed = true;
     this.sync.dispose();
     agentStates.stop();
-    if (this.raf) cancelAnimationFrame(this.raf);
-    if (this.timer) clearTimeout(this.timer);
+    this.clock.stop();
     for (const u of this.unlisten) u();
     this.unlisten = [];
     this.layer.destroy();
@@ -295,12 +295,8 @@ export class CanvasEngine {
   }
 
   invalidate(): void {
-    if (this.destroyed || this.raf) return;
-    if (this.timer) {
-      clearTimeout(this.timer);
-      this.timer = null;
-    }
-    this.raf = requestAnimationFrame((t) => this.tick(t));
+    if (this.destroyed) return;
+    this.clock.request();
   }
 
   wantFrames(fps: number): void {
@@ -308,15 +304,11 @@ export class CanvasEngine {
   }
 
   private schedule(delayMs: number): void {
-    if (this.destroyed || this.raf || this.timer) return;
-    this.timer = setTimeout(() => {
-      this.timer = null;
-      this.invalidate();
-    }, delayMs);
+    if (this.destroyed) return;
+    this.clock.later(delayMs);
   }
 
   private tick(now: number): void {
-    this.raf = 0;
     const dt = this.lastTick ? Math.min(100, now - this.lastTick) : 16;
     this.lastTick = now;
     let animating = false;
@@ -995,7 +987,7 @@ export class CanvasEngine {
   async nextAttention(): Promise<void> {
     type Item = { nodeId: string; workspaceId: string; floorId: string; reason: string; sinceMs?: number };
     const inbox = (await tryInvoke<Item[]>('canvas_inbox', { workspaceId: null })) ?? [];
-    const rank = (r: string) => (r === 'permission' || r === 'blocked' || r === 'stuck' ? 0 : 1);
+    const rank = (r: string) => (isUrgent(r) ? 0 : 1);
     const here = this.store.workspaceId;
     const items: Item[] = inbox
       .filter((i) => i && i.nodeId && i.workspaceId)

@@ -104,11 +104,6 @@ impl PreviewDiskCache {
         }
         Ok(())
     }
-
-    pub async fn prune(&self) -> std::io::Result<()> {
-        let _g = self.write_mutex.lock().await;
-        self.prune_locked().await
-    }
 }
 
 async fn bump_mtime(path: &Path) -> std::io::Result<()> {

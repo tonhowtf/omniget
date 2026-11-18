@@ -25,7 +25,7 @@
 
   function addPalettes() {
     const added = colors.map((c, i) => {
-      const name = $t("palette.image.color_name", { n: i + 1, name: src.name }) as string;
+      const name = $t("palette.image.color_name", { num: i + 1, name: src.name }) as string;
       return { id: newId("pal"), name, token: "", base: asOklch(c), hueShift: 0 };
     });
     const list = [...project.palettes];

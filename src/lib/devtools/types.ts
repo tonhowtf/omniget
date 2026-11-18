@@ -96,6 +96,8 @@ export interface ScrapePage {
   structured: ScrapeStructured[];
   hash: string;
   unchanged: boolean;
+  proxy?: string;
+  attempts: number;
   untrusted: true;
 }
 

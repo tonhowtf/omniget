@@ -197,16 +197,8 @@ impl Translator {
         }
     }
 
-    pub fn session_id(&self) -> &str {
-        &self.session_id
-    }
-
     pub fn set_session(&mut self, id: &str) {
         self.session_id = id.to_string();
-    }
-
-    pub fn is_active(&self) -> bool {
-        self.active
     }
 
     pub fn begin_turn(&mut self) {

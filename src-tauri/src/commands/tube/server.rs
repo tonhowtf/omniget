@@ -72,10 +72,6 @@ pub async fn start() -> Result<ServerInfo, String> {
         .cloned()
 }
 
-pub fn info() -> Option<ServerInfo> {
-    SERVER.get().cloned()
-}
-
 pub fn base(info: &ServerInfo) -> String {
     format!("http://127.0.0.1:{}", info.port)
 }
@@ -169,10 +165,6 @@ fn sessions() -> &'static Mutex<Table> {
 
 pub fn new_session_id() -> String {
     uuid::Uuid::new_v4().simple().to_string()[..16].to_string()
-}
-
-pub fn register(set: &StreamSet, formats_with_urls: Vec<Format>, user_agent: String) {
-    register_full(set, formats_with_urls, user_agent, Extras::default());
 }
 
 pub fn register_full(set: &StreamSet, formats: Vec<Format>, user_agent: String, extras: Extras) {

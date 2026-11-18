@@ -12,6 +12,21 @@ export interface Pinnable {
   href: string;
 }
 
+const RENAMED_IDS = new Map([
+  ["whatsapp", "phonechat"],
+  ["discord", "guildchat"],
+  ["x", "shortpost"],
+  ["instagram", "photofeed"],
+  ["tiktok", "clipfeed"],
+  ["reddit", "forums"],
+  ["pinterest", "pinboard"],
+  ["github", "codehub"],
+]);
+
+export function currentPins(pinned: string[]): string[] {
+  return pinned.map((id) => RENAMED_IDS.get(id) ?? id);
+}
+
 export function togglePin(pinned: string[], id: string): string[] {
   return pinned.includes(id) ? pinned.filter((entry) => entry !== id) : [...pinned, id];
 }

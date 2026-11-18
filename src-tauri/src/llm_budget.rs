@@ -22,6 +22,9 @@ pub fn boot(app: &AppHandle) {
     policy::set_price_source(std::sync::Arc::new(|model: String| {
         Box::pin(async move { price_of(&model).await })
     }));
+    policy::set_endpoint_source(std::sync::Arc::new(|provider: &str| {
+        crate::llm_manager::provider_base_url(provider)
+    }));
     let app = app.clone();
     policy::set_listener(std::sync::Arc::new(move |event| {
         let _ = app.emit(EVENT_BUDGET, json!(event));
@@ -141,8 +144,12 @@ fn reply(r: Result<Value, String>) -> Response {
     }
 }
 
+pub fn state() -> Result<Value, String> {
+    engine().map(|e| e.state_view())
+}
+
 pub fn http_state() -> Response {
-    reply(engine().map(|e| e.state_view()))
+    reply(state())
 }
 
 pub fn http_save(body: PolicyBody, actor: Actor) -> Response {

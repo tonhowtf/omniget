@@ -117,12 +117,6 @@ fn drop_dead(h: &mut Hold) {
     }
 }
 
-pub fn holding() -> bool {
-    let mut h = hold().lock().unwrap_or_else(|e| e.into_inner());
-    drop_dead(&mut h);
-    h.assertion.is_some()
-}
-
 fn set_hold(on: bool) {
     let mut h = hold().lock().unwrap_or_else(|e| e.into_inner());
     drop_dead(&mut h);

@@ -59,13 +59,6 @@ pub fn clear_error(label: &str) {
     }
 }
 
-pub fn forget(label: &str) {
-    clear_error(label);
-    if let Ok(mut t) = trusted().lock() {
-        t.remove(label);
-    }
-}
-
 #[cfg(target_os = "macos")]
 fn record_error(label: &str, host: &str) {
     let url = super::host()

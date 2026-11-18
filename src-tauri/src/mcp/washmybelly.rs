@@ -27,14 +27,6 @@ pub async fn call(app: &AppHandle, p: &Principal, name: &str, a: Value) -> Resul
             })
             .await
             .map_err(|e| e.to_string())??;
-            if !super::access::get().ask_first {
-                let id = approval.id.clone();
-                return tauri::async_runtime::spawn_blocking(move || {
-                    approvals::answer(&Ctx::app()?, &id, true)
-                })
-                .await
-                .map_err(|e| e.to_string())?;
-            }
             let _ = app.emit("washmybelly-approval", &approval);
             Ok(json!({
                 "status": "pending_approval",
@@ -133,4 +125,17 @@ pub fn output_schema(name: &str) -> Option<Value> {
         }
         _ => o(json!({})),
     })
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn an_outside_caller_never_answers_its_own_approval() {
+        let served = include_str!("washmybelly.rs")
+            .split("#[cfg(test)]")
+            .next()
+            .unwrap();
+        assert!(!served.contains("approvals::answer"));
+        assert!(served.contains("pending_approval"));
+    }
 }

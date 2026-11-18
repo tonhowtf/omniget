@@ -41,9 +41,6 @@ pub struct StackReport {
 }
 
 impl StackReport {
-    pub fn has_language(&self, id: &str) -> bool {
-        self.languages.iter().any(|l| l.id == id)
-    }
     pub fn has_framework(&self, id: &str) -> bool {
         self.frameworks.iter().any(|l| l.id == id)
     }

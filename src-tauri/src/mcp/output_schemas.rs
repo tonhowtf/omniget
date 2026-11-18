@@ -19,7 +19,7 @@ pub fn for_tool(name: &str) -> Option<Value> {
         .or_else(|| super::catalog_output_schema(name))
         .or_else(|| super::washmybelly::output_schema(name))
         .or_else(|| super::telegram::output_schema(name))
-        .or_else(|| super::whatsapp::output_schema(name))
+        .or_else(|| super::phonechat::output_schema(name))
         .or_else(|| crate::commands::social::tools::output_schema(name))
         .or_else(|| crate::commands::research::mcp::output_schema(name))
         .or_else(|| super::memory::output_schema(name))
@@ -224,9 +224,49 @@ fn own(name: &str) -> Option<Value> {
                 "structured": arr(obj(json!({"kind": ty("string"), "id": nullable("string"), "chars": ty("integer"), "truncated": ty("boolean"), "data": {}, "preview": nullable("string")}), &["kind", "truncated"])),
                 "matches": arr(ty("string")),
                 "relocated": ty("string"),
+                "proxy": ty("string"), "attempts": ty("integer"),
+                "found": arr(obj(json!({"text": ty("string"), "selector": ty("string")}), &["text", "selector"])),
+                "selector": ty("string"), "selectorMatches": ty("integer"),
                 "total": ty("integer"), "truncated": ty("boolean"), "untrusted": ty("boolean"),
             }),
             &["total", "truncated", "untrusted"],
+        ),
+        "dev_crawl" => obj(
+            json!({
+                "output": ty("string"), "start": ty("string"),
+                "pages": arr(obj(json!({"url": ty("string"), "title": nullable("string"), "file": ty("string"), "tokens": ty("integer"), "depth": ty("integer")}), &["url", "file", "tokens", "depth"])),
+                "total": ty("integer"), "truncated": ty("boolean"), "savedNow": ty("integer"),
+                "failed": arr(obj(json!({"url": ty("string"), "code": ty("string")}), &["url", "code"])),
+                "failedTotal": ty("integer"), "duplicates": ty("integer"), "skippedByRobots": ty("integer"),
+                "dropped": ty("integer"), "queued": ty("integer"), "done": ty("boolean"),
+                "stopped": ty("string"), "retryAfterS": ty("integer"), "nextStep": ty("string"), "untrusted": ty("boolean"),
+            }),
+            &[
+                "output",
+                "pages",
+                "total",
+                "truncated",
+                "queued",
+                "done",
+                "nextStep",
+                "untrusted",
+            ],
+        ),
+        "dev_proxy" => obj(
+            json!({
+                "enabled": ty("boolean"), "rotation": ty("string"),
+                "proxies": arr(obj(json!({
+                    "id": ty("string"), "proxy": ty("string"), "current": ty("boolean"), "fails": ty("integer"), "restingSecs": ty("integer"),
+                    "checked": obj(json!({"ok": ty("boolean"), "ms": nullable("integer"), "ip": nullable("string"), "country": nullable("string"), "status": nullable("integer"), "error": nullable("string")}), &["ok"]),
+                }), &["id", "proxy", "current", "fails", "restingSecs"])),
+                "total": ty("integer"), "truncated": ty("boolean"), "available": ty("integer"), "reason": ty("string"),
+                "added": ty("integer"), "duplicates": ty("integer"),
+                "rejected": arr(obj(json!({"input": ty("string"), "reason": ty("string")}), &["input", "reason"])),
+                "removed": ty("integer"), "movedTo": nullable("string"),
+                "checked": ty("integer"), "unchecked": ty("integer"), "next_step": ty("string"),
+                "found": arr(obj(json!({"proxy": ty("string"), "app": ty("string"), "in_pool": ty("boolean")}), &["proxy", "app", "in_pool"])),
+            }),
+            &["total"],
         ),
         "dev_http" => obj(
             json!({
@@ -237,7 +277,7 @@ fn own(name: &str) -> Option<Value> {
                 "body": obj(json!({"preview": ty("string"), "truncated": ty("boolean"), "total": ty("integer"), "json": ty("boolean"), "binary": ty("boolean"), "parseError": ty("string")}), &["preview", "truncated", "total"]),
                 "bodyBytes": ty("integer"), "bodyComplete": ty("boolean"), "bodyPath": nullable("string"),
                 "request": obj(json!({"method": ty("string"), "url": ty("string"), "headers": ty("object")}), &["method", "url", "headers"]),
-                "curl": ty("string"), "untrusted": ty("boolean"),
+                "curl": ty("string"), "proxy": ty("string"), "untrusted": ty("boolean"),
             }),
             &[
                 "status",
@@ -261,6 +301,34 @@ fn own(name: &str) -> Option<Value> {
                     "total": ty("integer"), "truncated": ty("boolean"), "reason": ty("string"),
                     "dryRun": ty("boolean"), "targets": arr(target), "killed": arr(ty("integer")),
                     "failed": arr(obj(json!({"pid": ty("integer"), "reason": ty("string")}), &["pid", "reason"])),
+                }),
+                &[],
+            )
+        }
+        "quick_tools" => {
+            let awake = obj(
+                json!({"mode": ty("string"), "active": ty("boolean"), "until_ms": nullable("integer"), "remaining_secs": nullable("integer")}),
+                &["mode", "active"],
+            );
+            let snippet = obj(
+                json!({"id": ty("integer"), "name": ty("string"), "chars": ty("integer"), "preview": ty("string"), "truncated": ty("boolean")}),
+                &["id", "name"],
+            );
+            obj(
+                json!({
+                    "capabilities": obj(json!({"clipboard_history": ty("boolean"), "volume": ty("string")}), &["volume"]),
+                    "awake": awake,
+                    "snippets": {},
+                    "snippet": obj(json!({"id": ty("integer"), "name": ty("string"), "text": ty("string")}), &["id", "name", "text"]),
+                    "saved": snippet, "deleted": ty("integer"),
+                    "total": ty("integer"), "truncated": ty("boolean"), "reason": ty("string"),
+                    "cpu_percent": nullable("number"), "memory_used": ty("integer"), "memory_total": ty("integer"),
+                    "disk_free": nullable("integer"), "disk_total": nullable("integer"),
+                    "net_down_per_s": ty("integer"), "net_up_per_s": ty("integer"),
+                    "top": arr(obj(json!({"pid": ty("integer"), "name": ty("string"), "cpu_percent": ty("number")}), &["pid", "name", "cpu_percent"])),
+                    "kind": ty("string"),
+                    "targets": arr(obj(json!({"id": ty("string"), "name": ty("string"), "pid": nullable("integer"), "volume": ty("integer"), "muted": ty("boolean")}), &["id", "name", "volume", "muted"])),
+                    "id": ty("string"), "volume": nullable("integer"), "muted": nullable("boolean"), "done": ty("boolean"),
                 }),
                 &[],
             )
