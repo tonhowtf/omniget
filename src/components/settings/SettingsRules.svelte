@@ -9,9 +9,9 @@
   import SettingsEmptyState from "./rebrand/SettingsEmptyState.svelte";
 
   type Condition =
-    | { HostIs: { value: string } }
-    | { UrlContains: { value: string } }
-    | { PlatformIs: { value: string } };
+    | { kind: "host_is"; value: string }
+    | { kind: "url_contains"; value: string }
+    | { kind: "platform_is"; value: string };
 
   type Rule = {
     enabled: boolean;
@@ -52,21 +52,19 @@
   let testResult = $state<string | null>(null);
 
   function kindOf(c: Condition): CondKind {
-    if ("HostIs" in c) return "HostIs";
-    if ("UrlContains" in c) return "UrlContains";
+    if (c.kind === "host_is") return "HostIs";
+    if (c.kind === "url_contains") return "UrlContains";
     return "PlatformIs";
   }
 
   function valueOf(c: Condition): string {
-    if ("HostIs" in c) return c.HostIs.value;
-    if ("UrlContains" in c) return c.UrlContains.value;
-    return c.PlatformIs.value;
+    return c.value;
   }
 
   function buildCondition(kind: CondKind, value: string): Condition {
-    if (kind === "HostIs") return { HostIs: { value } };
-    if (kind === "UrlContains") return { UrlContains: { value } };
-    return { PlatformIs: { value } };
+    if (kind === "HostIs") return { kind: "host_is", value };
+    if (kind === "UrlContains") return { kind: "url_contains", value };
+    return { kind: "platform_is", value };
   }
 
   async function load() {
@@ -114,7 +112,7 @@
       {
         enabled: true,
         name: "",
-        when: { HostIs: { value: "" } },
+        when: { kind: "host_is", value: "" },
         then: {},
       },
     ];
@@ -409,7 +407,7 @@
 
   .rule-label {
     font-size: var(--text-xs, 0.75rem);
-    color: var(--text-secondary);
+    color: var(--text-muted);
     min-width: 5ch;
   }
 
@@ -460,7 +458,7 @@
 
   .test-result {
     font-size: var(--text-sm, 0.875rem);
-    color: var(--text-secondary);
+    color: var(--text-muted);
   }
 
   .visually-hidden {
