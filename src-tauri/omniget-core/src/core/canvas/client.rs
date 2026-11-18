@@ -1580,13 +1580,22 @@ mod tests {
         v
     }
 
-    #[cfg_attr(windows, ignore = "expects Unix absolute paths")]
     #[test]
     fn upload_takes_a_portal_a_target_and_files() {
-        let v = upload(&["Portal", "@e4", "/tmp/a.pdf", "/tmp/b.png"]);
+        let dir = std::env::temp_dir();
+        let a = dir.join("a.pdf");
+        let b = dir.join("b.png");
+        let (a_s, b_s) = (a.to_string_lossy(), b.to_string_lossy());
+        let v = upload(&["Portal", "@e4", &a_s, &b_s]);
         assert_eq!(v["portal"], "Portal");
         assert_eq!(v["selector"], "@e4");
-        assert_eq!(v["paths"], json!(["/tmp/a.pdf", "/tmp/b.png"]));
+        let paths: Vec<PathBuf> = v["paths"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|p| PathBuf::from(p.as_str().unwrap()))
+            .collect();
+        assert_eq!(paths, vec![a, b]);
     }
 
     #[test]

@@ -487,14 +487,15 @@ fn a_background_subagent_becomes_task_events_and_a_loose_reply() {
     assert!(r.tr.cursor.turns[0].last_uuid.is_some());
 }
 
-#[cfg_attr(windows, ignore = "expects Unix path separators")]
 #[test]
 fn an_edit_approval_carries_the_diff_against_the_file_on_disk() {
-    let mut tr = Translator::new("claude", "thr", Some("/w".into()), ClaudeCursor::default());
+    let cwd = std::env::temp_dir().join("w");
+    let file = cwd.join("src/a.rs");
+    let mut tr = Translator::new("claude", "thr", Some(cwd.clone()), ClaudeCursor::default());
     tr.register_prompt("t1", "u1", None);
     let out = tr.on_line(
         r#"{"type":"control_request","request_id":"r2","request":{"subtype":"can_use_tool","tool_name":"Edit","input":{"file_path":"src/a.rs","old_string":"let x = 1;","new_string":"let x = 2;"},"tool_use_id":"toolu_e"}}"#,
-        &|p| (p == Path::new("/w/src/a.rs")).then(|| "fn main() {\n    let x = 1;\n}\n".to_string()),
+        &|p| (p == file).then(|| "fn main() {\n    let x = 1;\n}\n".to_string()),
     );
     let detail = out
         .iter()
@@ -506,7 +507,8 @@ fn an_edit_approval_carries_the_diff_against_the_file_on_disk() {
             _ => None,
         })
         .unwrap();
-    assert_eq!(detail.paths, vec!["/w/src/a.rs".to_string()]);
+    let paths: Vec<&Path> = detail.paths.iter().map(Path::new).collect();
+    assert_eq!(paths, vec![file.as_path()]);
     let diff = detail.diff.unwrap();
     assert!(
         diff.contains("-    let x = 1;\n+    let x = 2;\n"),
