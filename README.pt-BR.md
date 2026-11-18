@@ -351,7 +351,7 @@ Claude Code, Codex, Gemini CLI, Cursor e VS Code se conectam ao servidor MCP por
 
 ### Um agente pode agir no meu computador sem me perguntar?
 
-Não. O servidor escuta só em `127.0.0.1`, cada conexão tem o próprio token com apenas as permissões que você marcou, e conexões novas, limpezas e tudo que publica ou envia esperam o seu clique na janela do OmniGet. Um agente nunca aprova o próprio pedido. Veja [Você continua no controle](#você-continua-no-controle).
+Só dentro das permissões que você marcou para aquela conexão. O servidor escuta só em `127.0.0.1` e cada conexão tem o próprio token. Com **Perguntar antes** ligado nas configurações de conexão, publicações nas suas contas, limpezas do sistema e conexões novas esperam o seu clique na janela do OmniGet; a opção vem desligada, então ligue se quiser esse aviso. Um agente nunca aprova o próprio pedido. Veja [Você continua no controle](#você-continua-no-controle).
 
 ### Preciso instalar yt-dlp, FFmpeg ou Python?
 

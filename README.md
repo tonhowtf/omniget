@@ -351,7 +351,7 @@ Claude Code, Codex, Gemini CLI, Cursor and VS Code connect to the MCP server ove
 
 ### Can an agent act on my computer without asking me?
 
-No. The server listens on `127.0.0.1` only, each connection has its own token with only the permissions you ticked, and new connections, cleanups and anything that posts or sends wait for your click in the OmniGet window. An agent can never approve its own request. See [You stay in control](#you-stay-in-control).
+Only inside the permissions you ticked for that connection. The server listens on `127.0.0.1` only and each connection has its own token. With **Ask me first** on in the connection settings, posts on your accounts, system cleanups and new connections wait for your click in the OmniGet window; it is off by default, so turn it on if you want that prompt. An agent can never approve its own request. See [You stay in control](#you-stay-in-control).
 
 ### Do I need to install yt-dlp, FFmpeg or Python?
 
