@@ -56,7 +56,7 @@ xz2 = { version = "0.1", features = ["static"] }
 walkdir = "2"
 ort = { version = "2.0.0-rc.13", default-features = false, features = ["std", "ndarray", "tracing", "load-dynamic", "api-27"] }
 rusqlite = { version = "0.40", features = ["bundled", "fallible_uint"] }
-tempfile = "=3.25.0"
+tempfile = "=3.27.0"
 zstd = "0.13"
 sha1 = "0.10"
 lofty = "0.25"
