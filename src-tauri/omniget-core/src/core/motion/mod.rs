@@ -520,7 +520,7 @@ mod tests {
         let mut buf = std::io::Cursor::new(Vec::new());
         {
             let mut w = zip::ZipWriter::new(&mut buf);
-            let opts: zip::write::FileOptions<'_, ()> = zip::write::FileOptions::default()
+            let opts: zip::write::SimpleFileOptions = zip::write::SimpleFileOptions::default()
                 .compression_method(zip::CompressionMethod::Deflated);
             if let Some(m) = manifest {
                 w.start_file("manifest.json", opts).unwrap();
@@ -644,7 +644,7 @@ mod tests {
         let mut buf = std::io::Cursor::new(Vec::new());
         {
             let mut w = zip::ZipWriter::new(&mut buf);
-            let opts: zip::write::FileOptions<'_, ()> = zip::write::FileOptions::default();
+            let opts: zip::write::SimpleFileOptions = zip::write::SimpleFileOptions::default();
             w.start_file("manifest.json", opts).unwrap();
             w.write_all(br#"{"animations":[{"id":"stale"}]}"#).unwrap();
             w.start_file("animations/stale.json", opts).unwrap();
@@ -659,7 +659,7 @@ mod tests {
         let mut buf = std::io::Cursor::new(Vec::new());
         {
             let mut w = zip::ZipWriter::new(&mut buf);
-            let opts: zip::write::FileOptions<'_, ()> = zip::write::FileOptions::default();
+            let opts: zip::write::SimpleFileOptions = zip::write::SimpleFileOptions::default();
             w.start_file("animations/only.json", opts).unwrap();
             w.write_all(br#"{"hello":1}"#).unwrap();
             w.finish().unwrap();

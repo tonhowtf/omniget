@@ -535,7 +535,10 @@ pub fn newpipe_db_from_zip(bytes: &[u8]) -> Option<Vec<u8>> {
     let mut zip = zip::ZipArchive::new(Cursor::new(bytes)).ok()?;
     let idx = (0..zip.len()).find(|i| {
         zip.by_index(*i)
-            .map(|e| e.name().to_lowercase().ends_with("newpipe.db"))
+            .map(|e| {
+                e.name()
+                    .is_ok_and(|n| n.to_lowercase().ends_with("newpipe.db"))
+            })
             .unwrap_or(false)
     })?;
     let mut entry = zip.by_index(idx).ok()?;
