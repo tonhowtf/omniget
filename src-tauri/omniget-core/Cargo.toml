@@ -122,12 +122,15 @@ rcgen = { version = "0.14", default-features = false, features = ["ring", "pem"]
 
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.61", features = [
+    "Wdk_Foundation",
+    "Wdk_Storage_FileSystem",
     "Win32_Devices_DeviceAndDriverInstallation",
     "Win32_Foundation",
     "Win32_NetworkManagement_IpHelper",
     "Win32_NetworkManagement_Ndis",
     "Win32_Networking_WinSock",
     "Win32_Security",
+    "Win32_Security_Authorization",
     "Win32_Storage_FileSystem",
     "Win32_System_ApplicationInstallationAndServicing",
     "Win32_System_DataExchange",

@@ -42,6 +42,21 @@ mod os {
             inode: m.ino(),
         })
     }
+    pub struct Stamp {
+        pub bytes: u64,
+        pub written: (i64, i64),
+        pub changed: (i64, i64),
+        pub links: u64,
+    }
+    pub fn stamp(file: &File) -> std::io::Result<Stamp> {
+        let m = file.metadata()?;
+        Ok(Stamp {
+            bytes: m.len(),
+            written: (m.mtime(), m.mtime_nsec()),
+            changed: (m.ctime(), m.ctime_nsec()),
+            links: m.nlink(),
+        })
+    }
     pub fn name(value: &std::ffi::OsStr) -> std::io::Result<CString> {
         CString::new(value.as_bytes()).map_err(|_| denied())
     }
@@ -178,9 +193,446 @@ mod os {
     }
 }
 
+#[cfg(windows)]
+mod os {
+    use super::*;
+    use std::ffi::{c_void, OsStr, OsString};
+    use std::os::windows::ffi::OsStrExt;
+    use std::os::windows::fs::OpenOptionsExt;
+    use std::os::windows::io::{AsRawHandle, FromRawHandle};
+    use std::path::Prefix;
+    use windows_sys::Wdk::Foundation::OBJECT_ATTRIBUTES;
+    use windows_sys::Wdk::Storage::FileSystem::{
+        FileLinkInformation, NtCreateFile, NtSetInformationFile, FILE_CREATE, FILE_DIRECTORY_FILE,
+        FILE_LINK_INFORMATION, FILE_NON_DIRECTORY_FILE, FILE_OPEN, FILE_OPEN_FOR_BACKUP_INTENT,
+        FILE_OPEN_REPARSE_POINT, FILE_SYNCHRONOUS_IO_NONALERT,
+    };
+    use windows_sys::Win32::Foundation::{
+        CloseHandle, LocalFree, RtlNtStatusToDosError, HANDLE, UNICODE_STRING,
+    };
+    use windows_sys::Win32::Security::Authorization::{
+        ConvertSidToStringSidW, ConvertStringSecurityDescriptorToSecurityDescriptorW,
+        SDDL_REVISION_1,
+    };
+    use windows_sys::Win32::Security::{GetTokenInformation, TokenUser, TOKEN_QUERY, TOKEN_USER};
+    use windows_sys::Win32::Storage::FileSystem::{
+        FileBasicInfo, FileDispositionInfo, GetFileInformationByHandle,
+        GetFileInformationByHandleEx, SetFileInformationByHandle, BY_HANDLE_FILE_INFORMATION,
+        DELETE, FILE_ATTRIBUTE_NORMAL, FILE_ATTRIBUTE_REPARSE_POINT, FILE_BASIC_INFO,
+        FILE_DISPOSITION_INFO, FILE_FLAG_BACKUP_SEMANTICS, FILE_FLAG_OPEN_REPARSE_POINT,
+        FILE_GENERIC_READ, FILE_GENERIC_WRITE, FILE_LIST_DIRECTORY, FILE_READ_ATTRIBUTES,
+        FILE_SHARE_DELETE, FILE_SHARE_READ, FILE_SHARE_WRITE, FILE_TRAVERSE, SYNCHRONIZE,
+    };
+    use windows_sys::Win32::System::Threading::{GetCurrentProcess, OpenProcessToken};
+    use windows_sys::Win32::System::IO::IO_STATUS_BLOCK;
+
+    const MAX_NEW_DIRS: usize = 8;
+    const MAX_NAME: usize = 255;
+    const OBJ_CASE_INSENSITIVE: u32 = 0x40;
+    const SHARE_ALL: u32 = FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE;
+    const DIRECTORY_ACCESS: u32 =
+        FILE_LIST_DIRECTORY | FILE_TRAVERSE | FILE_READ_ATTRIBUTES | SYNCHRONIZE;
+    const DIRECTORY_OPTIONS: u32 = FILE_DIRECTORY_FILE | FILE_OPEN_FOR_BACKUP_INTENT;
+    const RESERVED: [&str; 22] = [
+        "CON", "PRN", "AUX", "NUL", "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8",
+        "COM9", "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9",
+    ];
+
+    pub struct Stamp {
+        pub bytes: u64,
+        pub written: i64,
+        pub changed: i64,
+        pub links: u32,
+    }
+
+    struct Descriptor(*mut c_void);
+    impl Drop for Descriptor {
+        fn drop(&mut self) {
+            // SAFETY: the pointer came from ConvertStringSecurityDescriptorToSecurityDescriptorW, which allocates with LocalAlloc, and is freed once.
+            unsafe { LocalFree(self.0) };
+        }
+    }
+
+    fn last() -> std::io::Error {
+        std::io::Error::last_os_error()
+    }
+
+    fn details(file: &File) -> std::io::Result<BY_HANDLE_FILE_INFORMATION> {
+        // SAFETY: BY_HANDLE_FILE_INFORMATION is plain integers, valid when zeroed.
+        let mut info: BY_HANDLE_FILE_INFORMATION = unsafe { std::mem::zeroed() };
+        // SAFETY: the handle is open for the lifetime of `file` and `info` is a valid out pointer.
+        if unsafe { GetFileInformationByHandle(file.as_raw_handle() as HANDLE, &mut info) } == 0 {
+            return Err(last());
+        }
+        Ok(info)
+    }
+
+    pub fn identity(file: &File) -> std::io::Result<Identity> {
+        let info = details(file)?;
+        Ok(Identity {
+            device: u64::from(info.dwVolumeSerialNumber),
+            inode: (u64::from(info.nFileIndexHigh) << 32) | u64::from(info.nFileIndexLow),
+        })
+    }
+
+    pub fn stamp(file: &File) -> std::io::Result<Stamp> {
+        let info = details(file)?;
+        // SAFETY: FILE_BASIC_INFO is plain integers, valid when zeroed.
+        let mut basic: FILE_BASIC_INFO = unsafe { std::mem::zeroed() };
+        // SAFETY: the handle is open and the buffer is exactly one FILE_BASIC_INFO.
+        if unsafe {
+            GetFileInformationByHandleEx(
+                file.as_raw_handle() as HANDLE,
+                FileBasicInfo,
+                (&raw mut basic).cast(),
+                std::mem::size_of::<FILE_BASIC_INFO>() as u32,
+            )
+        } == 0
+        {
+            return Err(last());
+        }
+        Ok(Stamp {
+            bytes: (u64::from(info.nFileSizeHigh) << 32) | u64::from(info.nFileSizeLow),
+            written: basic.LastWriteTime,
+            changed: basic.ChangeTime,
+            links: info.nNumberOfLinks,
+        })
+    }
+
+    pub fn name(value: &OsStr) -> std::io::Result<Vec<u16>> {
+        let wide: Vec<u16> = value.encode_wide().collect();
+        let forbidden = |c: &u16| *c < 0x20 || b"\"*/:<>?\\|".iter().any(|f| u16::from(*f) == *c);
+        let dot = u16::from(b'.');
+        let stem: String = wide
+            .iter()
+            .take_while(|c| **c != dot)
+            .map(|c| char::from_u32(u32::from(*c)).unwrap_or('\u{fffd}'))
+            .collect();
+        if wide.is_empty()
+            || wide.len() > MAX_NAME
+            || wide.iter().any(forbidden)
+            || wide
+                .last()
+                .is_some_and(|c| *c == dot || *c == u16::from(b' '))
+            || RESERVED
+                .iter()
+                .any(|r| r.eq_ignore_ascii_case(stem.trim_end()))
+        {
+            return Err(denied());
+        }
+        Ok(wide)
+    }
+
+    fn open(
+        dir: &File,
+        name: &[u16],
+        access: u32,
+        disposition: u32,
+        options: u32,
+        security: Option<&Descriptor>,
+    ) -> std::io::Result<File> {
+        let bytes = u16::try_from(name.len() * 2).map_err(|_| denied())?;
+        let object = UNICODE_STRING {
+            Length: bytes,
+            MaximumLength: bytes,
+            Buffer: name.as_ptr().cast_mut(),
+        };
+        let attributes = OBJECT_ATTRIBUTES {
+            Length: std::mem::size_of::<OBJECT_ATTRIBUTES>() as u32,
+            RootDirectory: dir.as_raw_handle() as HANDLE,
+            ObjectName: &object,
+            Attributes: OBJ_CASE_INSENSITIVE,
+            SecurityDescriptor: security.map_or(std::ptr::null(), |d| d.0.cast_const().cast()),
+            SecurityQualityOfService: std::ptr::null(),
+        };
+        let mut handle: HANDLE = std::ptr::null_mut();
+        // SAFETY: IO_STATUS_BLOCK is plain data, valid when zeroed.
+        let mut status: IO_STATUS_BLOCK = unsafe { std::mem::zeroed() };
+        // SAFETY: every pointer refers to a live local; the name buffer outlives the call and is only read; the root handle is open for the lifetime of `dir`.
+        let code = unsafe {
+            NtCreateFile(
+                &mut handle,
+                access,
+                &attributes,
+                &mut status,
+                std::ptr::null(),
+                FILE_ATTRIBUTE_NORMAL,
+                SHARE_ALL,
+                disposition,
+                options | FILE_OPEN_REPARSE_POINT | FILE_SYNCHRONOUS_IO_NONALERT,
+                std::ptr::null(),
+                0,
+            )
+        };
+        if code < 0 {
+            // SAFETY: RtlNtStatusToDosError only maps an integer.
+            return Err(std::io::Error::from_raw_os_error(
+                unsafe { RtlNtStatusToDosError(code) } as i32,
+            ));
+        }
+        // SAFETY: NtCreateFile succeeded, so `handle` is a new handle this function owns.
+        let file = unsafe { File::from_raw_handle(handle.cast()) };
+        if details(&file)?.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT != 0 {
+            return Err(denied());
+        }
+        Ok(file)
+    }
+
+    fn directory(dir: &File, n: &OsStr) -> std::io::Result<File> {
+        open(
+            dir,
+            &name(n)?,
+            DIRECTORY_ACCESS,
+            FILE_OPEN,
+            DIRECTORY_OPTIONS,
+            None,
+        )
+    }
+
+    fn private(inherited: bool) -> std::io::Result<Descriptor> {
+        let mut token: HANDLE = std::ptr::null_mut();
+        // SAFETY: the pseudo handle of the current process is always valid and `token` is a valid out pointer.
+        if unsafe { OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &mut token) } == 0 {
+            return Err(last());
+        }
+        let mut user = [0u64; 16];
+        let mut used = 0u32;
+        // SAFETY: the buffer is 128 bytes aligned to 8, enough for TOKEN_USER plus the largest SID, and its size is passed along.
+        let read = unsafe {
+            GetTokenInformation(
+                token,
+                TokenUser,
+                user.as_mut_ptr().cast(),
+                std::mem::size_of_val(&user) as u32,
+                &mut used,
+            )
+        };
+        let failure = last();
+        // SAFETY: `token` was opened above and is closed once.
+        unsafe { CloseHandle(token) };
+        if read == 0 {
+            return Err(failure);
+        }
+        // SAFETY: GetTokenInformation succeeded, so the buffer starts with a TOKEN_USER whose SID pointer points inside the same buffer.
+        let sid = unsafe { (*user.as_ptr().cast::<TOKEN_USER>()).User.Sid };
+        let mut text: *mut u16 = std::ptr::null_mut();
+        // SAFETY: `sid` is valid while `user` lives and `text` is a valid out pointer.
+        if unsafe { ConvertSidToStringSidW(sid, &mut text) } == 0 {
+            return Err(last());
+        }
+        let mut rule: Vec<u16> = if inherited {
+            "D:P(A;OICI;FA;;;"
+        } else {
+            "D:P(A;;FA;;;"
+        }
+        .encode_utf16()
+        .collect();
+        let mut at = text;
+        // SAFETY: ConvertSidToStringSidW returned a NUL-terminated string; the walk stops at the terminator.
+        unsafe {
+            while *at != 0 {
+                rule.push(*at);
+                at = at.add(1);
+            }
+            LocalFree(text.cast());
+        }
+        rule.extend(")\0".encode_utf16());
+        let mut descriptor: *mut c_void = std::ptr::null_mut();
+        // SAFETY: `rule` is NUL-terminated and `descriptor` is a valid out pointer.
+        if unsafe {
+            ConvertStringSecurityDescriptorToSecurityDescriptorW(
+                rule.as_ptr(),
+                SDDL_REVISION_1,
+                &mut descriptor,
+                std::ptr::null_mut(),
+            )
+        } == 0
+        {
+            return Err(last());
+        }
+        Ok(Descriptor(descriptor))
+    }
+
+    pub fn root(path: &Path) -> std::io::Result<File> {
+        let mut parts = path.components();
+        let (Some(Component::Prefix(prefix)), Some(Component::RootDir)) =
+            (parts.next(), parts.next())
+        else {
+            return Err(denied());
+        };
+        if !matches!(
+            prefix.kind(),
+            Prefix::Disk(_) | Prefix::VerbatimDisk(_) | Prefix::UNC(..) | Prefix::VerbatimUNC(..)
+        ) {
+            return Err(denied());
+        }
+        let mut base = prefix.as_os_str().to_os_string();
+        base.push("\\");
+        let mut dir = std::fs::OpenOptions::new()
+            .access_mode(DIRECTORY_ACCESS)
+            .share_mode(SHARE_ALL)
+            .custom_flags(FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT)
+            .open(&base)?;
+        if details(&dir)?.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT != 0 {
+            return Err(denied());
+        }
+        for part in parts {
+            match part {
+                Component::Normal(n) => dir = directory(&dir, n)?,
+                _ => return Err(denied()),
+            }
+        }
+        Ok(dir)
+    }
+
+    fn walk(root: &File, path: &Path, creating: bool) -> std::io::Result<(File, OsString)> {
+        let raw: Vec<u16> = path.as_os_str().encode_wide().collect();
+        let dot = u16::from(b'.');
+        if raw.is_empty()
+            || raw
+                .split(|c| *c == u16::from(b'/') || *c == u16::from(b'\\'))
+                .any(|s| s.is_empty() || s == [dot] || s == [dot, dot])
+        {
+            return Err(denied());
+        }
+        let mut parts = path.components().peekable();
+        let mut dir = root.try_clone()?;
+        let mut created = 0;
+        while let Some(part) = parts.next() {
+            let Component::Normal(n) = part else {
+                return Err(denied());
+            };
+            if parts.peek().is_none() {
+                return Ok((dir, n.to_os_string()));
+            }
+            dir = match directory(&dir, n) {
+                Err(e)
+                    if creating
+                        && e.kind() == std::io::ErrorKind::NotFound
+                        && created < MAX_NEW_DIRS =>
+                {
+                    created += 1;
+                    open(
+                        &dir,
+                        &name(n)?,
+                        DIRECTORY_ACCESS,
+                        FILE_CREATE,
+                        DIRECTORY_OPTIONS,
+                        None,
+                    )?
+                }
+                other => other?,
+            };
+        }
+        Err(denied())
+    }
+
+    pub fn read(root: &File, path: &Path) -> std::io::Result<File> {
+        let (dir, n) = walk(root, path, false)?;
+        let file = open(
+            &dir,
+            &name(&n)?,
+            FILE_GENERIC_READ,
+            FILE_OPEN,
+            FILE_NON_DIRECTORY_FILE,
+            None,
+        )?;
+        if details(&file)?.nNumberOfLinks != 1 {
+            return Err(denied());
+        }
+        Ok(file)
+    }
+
+    pub fn private_directory(dir: &File, n: &OsStr) -> std::io::Result<()> {
+        open(
+            dir,
+            &name(n)?,
+            DIRECTORY_ACCESS,
+            FILE_CREATE,
+            DIRECTORY_OPTIONS,
+            Some(&private(true)?),
+        )
+        .map(drop)
+    }
+
+    fn link(file: &File, dir: &File, leaf: &[u16]) -> std::io::Result<()> {
+        let bytes = leaf.len() * 2;
+        let size = std::mem::offset_of!(FILE_LINK_INFORMATION, FileName) + bytes;
+        let mut buffer = vec![0u64; size.div_ceil(8)];
+        let info = buffer.as_mut_ptr().cast::<FILE_LINK_INFORMATION>();
+        // SAFETY: the buffer is zeroed, aligned to 8 and holds the header plus `bytes` of name; zero leaves ReplaceIfExists off.
+        unsafe {
+            (*info).RootDirectory = dir.as_raw_handle() as HANDLE;
+            (*info).FileNameLength = bytes as u32;
+            std::ptr::copy_nonoverlapping(
+                leaf.as_ptr(),
+                (&raw mut (*info).FileName).cast::<u16>(),
+                leaf.len(),
+            );
+        }
+        // SAFETY: IO_STATUS_BLOCK is plain data, valid when zeroed.
+        let mut status: IO_STATUS_BLOCK = unsafe { std::mem::zeroed() };
+        // SAFETY: both handles are open, and `info` points to `size` initialised bytes that outlive the call.
+        let code = unsafe {
+            NtSetInformationFile(
+                file.as_raw_handle() as HANDLE,
+                &mut status,
+                info.cast(),
+                size as u32,
+                FileLinkInformation,
+            )
+        };
+        if code < 0 {
+            // SAFETY: RtlNtStatusToDosError only maps an integer.
+            return Err(std::io::Error::from_raw_os_error(
+                unsafe { RtlNtStatusToDosError(code) } as i32,
+            ));
+        }
+        Ok(())
+    }
+
+    fn discard(file: &File) -> std::io::Result<()> {
+        let info = FILE_DISPOSITION_INFO { DeleteFile: true };
+        // SAFETY: the handle is open with DELETE access and the buffer is exactly one FILE_DISPOSITION_INFO.
+        if unsafe {
+            SetFileInformationByHandle(
+                file.as_raw_handle() as HANDLE,
+                FileDispositionInfo,
+                (&raw const info).cast(),
+                std::mem::size_of::<FILE_DISPOSITION_INFO>() as u32,
+            )
+        } == 0
+        {
+            return Err(last());
+        }
+        Ok(())
+    }
+
+    pub fn create(root: &File, staging: &File, path: &Path, bytes: &[u8]) -> std::io::Result<()> {
+        let (dir, n) = walk(root, path, true)?;
+        let leaf = name(&n)?;
+        let tmp = format!(".omniget-{}.pending", uuid::Uuid::new_v4());
+        let mut file = open(
+            staging,
+            &name(OsStr::new(&tmp))?,
+            FILE_GENERIC_WRITE | FILE_READ_ATTRIBUTES | DELETE,
+            FILE_CREATE,
+            FILE_NON_DIRECTORY_FILE,
+            Some(&private(false)?),
+        )?;
+        let result = (|| {
+            file.write_all(bytes)?;
+            file.sync_all()?;
+            link(&file, &dir, &leaf)
+        })();
+        discard(&file)?;
+        result
+    }
+}
+
 impl Root {
     pub fn open(path: &Path, expected: Option<&Identity>) -> std::io::Result<Self> {
-        #[cfg(unix)]
+        #[cfg(any(unix, windows))]
         {
             let directory = os::root(path)?;
             let identity = os::identity(&directory)?;
@@ -192,29 +644,23 @@ impl Root {
                 identity,
             })
         }
-        #[cfg(not(unix))]
+        #[cfg(not(any(unix, windows)))]
         {
             let _ = (path, expected);
             Err(denied())
         }
     }
     pub fn create_directory(&self, relative: &Path) -> std::io::Result<()> {
+        let mut parts = relative.components();
+        let (Some(std::path::Component::Normal(name)), None) = (parts.next(), parts.next()) else {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                "single directory name required",
+            ));
+        };
         #[cfg(unix)]
         {
             use std::os::{fd::AsRawFd, unix::ffi::OsStrExt};
-            let mut parts = relative.components();
-            let Some(std::path::Component::Normal(name)) = parts.next() else {
-                return Err(std::io::Error::new(
-                    std::io::ErrorKind::InvalidInput,
-                    "single directory name required",
-                ));
-            };
-            if parts.next().is_some() {
-                return Err(std::io::Error::new(
-                    std::io::ErrorKind::InvalidInput,
-                    "single directory name required",
-                ));
-            }
             let name = std::ffi::CString::new(name.as_bytes())
                 .map_err(|_| std::io::Error::from(std::io::ErrorKind::InvalidInput))?;
             if unsafe { libc::mkdirat(self.directory.as_raw_fd(), name.as_ptr(), 0o700) } != 0 {
@@ -223,9 +669,13 @@ impl Root {
             self.directory.sync_all()?;
             Ok(())
         }
-        #[cfg(not(unix))]
+        #[cfg(windows)]
         {
-            let _ = relative;
+            os::private_directory(&self.directory, name)
+        }
+        #[cfg(not(any(unix, windows)))]
+        {
+            let _ = name;
             Err(std::io::Error::new(
                 std::io::ErrorKind::Unsupported,
                 "descriptor directories unavailable",
@@ -236,11 +686,11 @@ impl Root {
         &self.identity
     }
     pub fn snapshot(&self, relative: &Path, max_bytes: u64) -> std::io::Result<Snapshot> {
-        #[cfg(unix)]
+        #[cfg(any(unix, windows))]
         {
             let mut file = os::read(&self.directory, relative)?;
-            let before = file.metadata()?;
-            if before.len() > max_bytes {
+            let before = os::stamp(&file)?;
+            if before.bytes > max_bytes {
                 return Err(denied());
             }
             let mut hash = Sha256::new();
@@ -259,15 +709,12 @@ impl Root {
                 hash.update(&buf[..n]);
                 frozen.write_all(&buf[..n])?;
             }
-            let after = file.metadata()?;
-            use std::os::unix::fs::MetadataExt;
-            if before.len() != total
-                || after.len() != total
-                || before.mtime_nsec() != after.mtime_nsec()
-                || before.mtime() != after.mtime()
-                || before.ctime() != after.ctime()
-                || before.ctime_nsec() != after.ctime_nsec()
-                || after.nlink() != 1
+            let after = os::stamp(&file)?;
+            if before.bytes != total
+                || after.bytes != total
+                || before.written != after.written
+                || before.changed != after.changed
+                || after.links != 1
             {
                 return Err(denied());
             }
@@ -280,7 +727,7 @@ impl Root {
                 identity,
             })
         }
-        #[cfg(not(unix))]
+        #[cfg(not(any(unix, windows)))]
         {
             let _ = (relative, max_bytes);
             Err(denied())
@@ -290,11 +737,11 @@ impl Root {
         if self.identity == staging.identity || self.identity.device != staging.identity.device {
             return Err(denied());
         }
-        #[cfg(unix)]
+        #[cfg(any(unix, windows))]
         {
             os::create(&self.directory, &staging.directory, relative, bytes)
         }
-        #[cfg(not(unix))]
+        #[cfg(not(any(unix, windows)))]
         {
             let _ = (staging, relative, bytes);
             Err(denied())
@@ -1549,5 +1996,158 @@ mod replace_tests {
             "{err}"
         );
         assert!(root.entries(Path::new("."), 1000).is_err());
+    }
+}
+
+#[cfg(all(test, windows))]
+mod windows_tests {
+    use super::*;
+    use std::path::PathBuf;
+    use std::process::Command;
+
+    fn fixture() -> PathBuf {
+        let p = std::env::temp_dir()
+            .canonicalize()
+            .unwrap()
+            .join(format!("omniget-files-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir(&p).unwrap();
+        p
+    }
+    fn plain(path: &Path) -> String {
+        path.to_str()
+            .unwrap()
+            .trim_start_matches(r"\\?\")
+            .to_owned()
+    }
+    fn junction(link: &Path, target: &Path) {
+        let made = Command::new("cmd")
+            .args(["/C", "mklink", "/J", &plain(link), &plain(target)])
+            .output()
+            .unwrap();
+        assert!(made.status.success(), "{made:?}");
+    }
+    fn grants(path: &Path) -> usize {
+        let listed = Command::new("icacls").arg(plain(path)).output().unwrap();
+        assert!(listed.status.success(), "{listed:?}");
+        String::from_utf8_lossy(&listed.stdout)
+            .lines()
+            .filter(|l| l.contains(":("))
+            .count()
+    }
+
+    #[test]
+    fn files_stay_inside_the_root_and_are_never_overwritten() {
+        let p = fixture();
+        let root = Root::open(&p, None).unwrap();
+        let staging_path = fixture();
+        let staging = Root::open(&staging_path, None).unwrap();
+        root.create_new(&staging, Path::new("valid"), b"verified bytes")
+            .unwrap();
+        assert!(root
+            .create_new(&staging, Path::new("valid"), b"corrupt")
+            .is_err());
+        assert!(std::fs::read_dir(&staging_path).unwrap().next().is_none());
+        for path in [
+            r"..\escape",
+            "../escape",
+            r"C:\Windows\win.ini",
+            r"\Windows\win.ini",
+            r".\valid",
+            r"valid\..\valid",
+            "",
+            "valid:stream",
+            "valid.",
+            "NUL",
+        ] {
+            assert!(root.snapshot(Path::new(path), 100).is_err(), "{path}");
+            assert!(
+                root.create_new(&staging, Path::new(path), b"no").is_err(),
+                "{path}"
+            );
+        }
+        std::fs::hard_link(p.join("valid"), p.join("hard")).unwrap();
+        assert!(root.snapshot(Path::new("valid"), 100).is_err());
+        std::fs::remove_file(p.join("hard")).unwrap();
+        assert!(root.snapshot(Path::new("valid"), 5).is_err());
+        let mut snap = root.snapshot(Path::new("valid"), 100).unwrap();
+        std::fs::write(p.join("valid"), b"changed source").unwrap();
+        let mut data = String::new();
+        snap.file.read_to_string(&mut data).unwrap();
+        assert_eq!(data, "verified bytes");
+        drop(snap);
+        std::fs::remove_dir_all(p).unwrap();
+        std::fs::remove_dir_all(staging_path).unwrap();
+    }
+
+    #[test]
+    fn a_junction_that_points_outside_the_root_is_never_followed() {
+        let p = fixture();
+        let root = Root::open(&p, None).unwrap();
+        let staging_path = fixture();
+        let staging = Root::open(&staging_path, None).unwrap();
+        let outside = fixture();
+        std::fs::write(outside.join("secret"), b"outside").unwrap();
+        junction(&p.join("planted"), &outside);
+        assert_eq!(
+            std::fs::read(p.join("planted").join("secret")).unwrap(),
+            b"outside"
+        );
+        assert!(root.snapshot(Path::new(r"planted\secret"), 100).is_err());
+        assert!(root
+            .create_new(&staging, Path::new(r"planted\file"), b"no")
+            .is_err());
+        assert!(root
+            .create_new(&staging, Path::new(r"planted\new\file"), b"no")
+            .is_err());
+        assert!(Root::open(&p.join("planted"), None).is_err());
+        assert_eq!(std::fs::read_dir(&outside).unwrap().count(), 1);
+        root.create_new(&staging, Path::new(r"piloto\deep\resultado.md"), b"ok")
+            .unwrap();
+        assert_eq!(
+            std::fs::read(p.join("piloto").join("deep").join("resultado.md")).unwrap(),
+            b"ok"
+        );
+        let nine = (0..9)
+            .map(|i| format!("d{i}"))
+            .collect::<Vec<_>>()
+            .join("\\")
+            + "\\f";
+        assert!(root.create_new(&staging, Path::new(&nine), b"no").is_err());
+        std::fs::remove_dir(p.join("planted")).unwrap();
+        for d in [p, staging_path, outside] {
+            std::fs::remove_dir_all(d).unwrap();
+        }
+    }
+
+    #[test]
+    fn a_changed_root_is_denied_and_new_entries_belong_to_the_user_alone() {
+        let p = fixture();
+        let root = Root::open(&p, None).unwrap();
+        let staging_path = fixture();
+        let staging = Root::open(&staging_path, None).unwrap();
+        let wrong = Identity {
+            device: root.identity().device,
+            inode: root.identity().inode + 1,
+        };
+        assert!(Root::open(&p, Some(&wrong)).is_err());
+        assert!(Root::open(&p, Some(root.identity())).is_ok());
+        root.create_directory(Path::new("job")).unwrap();
+        assert_eq!(
+            root.create_directory(Path::new("job")).unwrap_err().kind(),
+            std::io::ErrorKind::AlreadyExists
+        );
+        assert!(root.create_directory(Path::new(r"a\b")).is_err());
+        let job = Root::open(&p.join("job"), None).unwrap();
+        assert_ne!(job.identity(), root.identity());
+        root.create_new(&staging, Path::new("note.txt"), b"mine")
+            .unwrap();
+        assert!(grants(&p) > 1);
+        assert_eq!(grants(&p.join("job")), 1);
+        assert_eq!(grants(&p.join("note.txt")), 1);
+        assert!(root.snapshot(Path::new("note.txt"), 3).is_err());
+        assert_eq!(root.snapshot(Path::new("note.txt"), 4).unwrap().bytes, 4);
+        drop(job);
+        std::fs::remove_dir_all(p).unwrap();
+        std::fs::remove_dir_all(staging_path).unwrap();
     }
 }
