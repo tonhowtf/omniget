@@ -1131,6 +1131,46 @@ fn compatible_pass_runs_only_for_video_files_with_the_setting_on_and_ffmpeg_pres
 }
 
 #[test]
+fn the_converted_file_never_takes_the_name_of_a_video_already_there() {
+    let dir = tempfile::tempdir().unwrap();
+    let source = dir.path().join("clip.mov");
+    let free = crate::core::ytdlp::download::free_compatible_target(&source, "clip");
+    assert_eq!(free, dir.path().join("clip.mp4"));
+
+    std::fs::write(dir.path().join("clip.mp4"), b"kept").unwrap();
+    let taken = crate::core::ytdlp::download::free_compatible_target(&source, "clip");
+    assert_ne!(taken, dir.path().join("clip.mp4"));
+    assert_eq!(taken.extension().and_then(|e| e.to_str()), Some("mp4"));
+
+    let same = dir.path().join("clip.mp4");
+    assert_eq!(
+        crate::core::ytdlp::download::free_compatible_target(&same, "clip"),
+        same
+    );
+}
+
+#[test]
+fn compatible_pass_never_touches_archives_documents_subtitles_or_audio() {
+    use super::compatible_pass_applies as applies;
+    use std::path::Path;
+    for name in [
+        "course.zip",
+        "manual.pdf",
+        "installer.exe",
+        "captions.srt",
+        "captions.vtt",
+        "song.mp3",
+        "voice.opus",
+        "cover.png",
+        "clip.gif",
+        "video.mp4.part",
+        "page.html",
+    ] {
+        assert!(!applies(true, true, Path::new(name)), "{name}");
+    }
+}
+
+#[test]
 fn windows_file_names_leave_room_for_temporary_suffixes_in_a_long_folder() {
     use std::path::Path;
     let short = Path::new("C:\\Videos");

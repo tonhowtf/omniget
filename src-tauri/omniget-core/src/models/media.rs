@@ -78,6 +78,8 @@ pub struct FormatInfo {
     pub has_video: bool,
     pub has_audio: bool,
     pub format_note: Option<String>,
+    #[serde(default)]
+    pub language: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

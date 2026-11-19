@@ -951,6 +951,26 @@ async fn stop_on_cancel<T>(
     }
 }
 
+fn converts_in_place(path: &Path) -> bool {
+    path.extension()
+        .and_then(|e| e.to_str())
+        .is_some_and(|e| e.eq_ignore_ascii_case("mp4"))
+}
+
+async fn settle_video(job: &Arc<Job>, idx: usize, path: &Path, bytes: u64) -> Result<(), String> {
+    let size = if converts_in_place(path) {
+        stop_on_cancel(job, async {
+            Ok(crate::core::ytdlp::finish_direct_video(path.to_path_buf(), bytes, None).await)
+        })
+        .await?
+        .1
+    } else {
+        bytes
+    };
+    job.update(idx, |it| it.bytes = size);
+    Ok(())
+}
+
 async fn fetch(
     job: &Arc<Job>,
     idx: usize,
@@ -1036,7 +1056,7 @@ async fn fetch(
             .await;
             let _ = counter.await;
             let r = r?;
-            job.update(idx, |it| it.bytes = r.file_size);
+            settle_video(job, idx, path, r.file_size).await?;
             Ok("done")
         }
         _ => {
@@ -1075,7 +1095,7 @@ async fn fetch(
                 let _ = std::fs::remove_file(&audio_tmp);
                 joined?;
                 let size = std::fs::metadata(path).map(|m| m.len()).unwrap_or(0);
-                job.update(idx, |it| it.bytes = size);
+                settle_video(job, idx, path, size).await?;
                 return Ok("done");
             }
             let srt = src.convert.as_deref() == Some("srt");
@@ -1090,7 +1110,7 @@ async fn fetch(
                 std::fs::write(path, vtt_to_srt(&vtt)).map_err(|e| e.to_string())?;
                 let _ = std::fs::remove_file(&target);
             }
-            job.update(idx, |it| it.bytes = n);
+            settle_video(job, idx, path, n).await?;
             Ok("done")
         }
     }
@@ -1235,6 +1255,26 @@ mod job_tests {
             bytes: 0,
             started_at: 0,
             items: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn only_a_file_that_keeps_its_name_is_made_compatible() {
+        assert!(converts_in_place(Path::new("/c/01 Lesson.mp4")));
+        assert!(converts_in_place(Path::new("/c/01 Lesson.MP4")));
+        for name in [
+            "lesson.webm",
+            "lesson.mkv",
+            "lesson.mov",
+            "slides.pdf",
+            "files.zip",
+            "captions.srt",
+            "track.m4a",
+            "page.html",
+            "shortcut.url",
+            "no_extension",
+        ] {
+            assert!(!converts_in_place(Path::new(name)), "{name}");
         }
     }
 

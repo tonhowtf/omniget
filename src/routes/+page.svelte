@@ -69,6 +69,7 @@
     has_video: boolean;
     has_audio: boolean;
     format_note: string | null;
+    language?: string | null;
   };
 
 
@@ -93,6 +94,7 @@
   let selectedTorrentFiles = $state<Set<number>>(new Set());
   let torrentLoading = $state(false);
   let selectedFormatId = $state<string | null>(null);
+  let selectedAudioLanguage = $state<string | null>(null);
   let formats = $state<FormatInfo[]>([]);
   let loadingFormats = $state(false);
   let formatError = $state<string | null>(null);
@@ -323,6 +325,7 @@
     downloadMode = savedMode === "audio" || savedMode === "mute" ? savedMode : "auto";
     downloadModeExplicit = false;
     selectedFormatId = null;
+    selectedAudioLanguage = null;
     formats = [];
     loadingFormats = false;
     formatError = null;
@@ -563,6 +566,7 @@
     if (formats.length > 0) {
       formats = [];
       selectedFormatId = null;
+      selectedAudioLanguage = null;
       formatError = null;
       return;
     }
@@ -753,6 +757,7 @@
         downloadMode: ruleDownloadMode,
         quality: ruleQuality,
         formatId: selectedFormatId,
+        audioLanguage: selectedFormatId ? null : selectedAudioLanguage,
         referer: referer.trim() || null,
         cookieSlug: selectedCookieSlug,
         timeRange: buildTimeRange(),
@@ -1448,6 +1453,7 @@
                       isPlaylist={omniState.info.content_type === "playlist"}
                       bind:formats
                       bind:selectedFormatId
+                      bind:selectedAudioLanguage
                       {loadingFormats}
                       {formatError}
                       onLoadFormats={loadFormats}

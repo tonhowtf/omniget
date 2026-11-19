@@ -2807,6 +2807,7 @@
     "preset_custom": "ກຳນົດເອງ",
     "formats_presets_label": "ຮູບແບບສຳເລັດຮູບ",
     "formats_merge_note": "ຮູບແບບວິດີໂອ (V) ຈະຖືກລວມກັບສຽງ (A) ອັດຕະໂນມັດ ຖ້າມີ FFmpeg.",
+    "audio_language": "ພາສາສຽງ",
     "formats_playlist_note": "ການເລືອກຮູບແບບແຍກແຕ່ລະວິດີໂອໃຊ້ບໍ່ໄດ້ກັບເພລລິສ. ຕົວເລືອກຄຸນນະພາບຂ້າງເທິງຈະນຳໃຊ້ກັບທຸກວິດີໂອ.",
     "referer_label": "Referer (ບໍ່ບັງຄັບ)",
     "referer_placeholder": "https://example.com",

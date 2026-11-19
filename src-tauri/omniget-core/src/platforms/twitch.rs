@@ -343,10 +343,13 @@ impl PlatformDownloader for TwitchClipsDownloader {
             &self.client,
             &selected.url,
             &output_path,
-            progress,
+            progress.clone(),
             Some(&opts.cancel_token),
         )
         .await?;
+        let (output_path, total_bytes) =
+            crate::core::ytdlp::finish_direct_video(output_path, total_bytes, Some(&progress))
+                .await;
 
         Ok(DownloadResult {
             file_path: output_path,

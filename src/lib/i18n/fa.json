@@ -2807,6 +2807,7 @@
     "preset_custom": "Custom",
     "formats_presets_label": "پیش‌تنظیم قالب",
     "formats_merge_note": "اگر FFmpeg در دسترس باشد، قالب‌های ویدیو (V) خودکار با صدا (A) ادغام می‌شوند.",
+    "audio_language": "زبان صدا",
     "formats_playlist_note": "انتخابگر قالب برای هر ویدیو روی فهرست‌های پخش اعمال نمی‌شود. گزینهٔ کیفیت بالا روی همهٔ ویدیوها اعمال می‌شود.",
     "referer_label": "ارجاع‌دهنده (اختیاری)",
     "referer_placeholder": "https://example.com",

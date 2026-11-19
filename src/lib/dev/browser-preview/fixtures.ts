@@ -221,6 +221,24 @@ export const fixtures: Record<string, Fixture> = {
       content_type: isList ? "playlist" : youtube ? "video" : null,
     };
   },
+  get_media_formats: () => {
+    const audio = (format_id: string, language: string, format_note: string) => ({
+      format_id, ext: "m4a", resolution: null, width: null, height: null, fps: null,
+      vcodec: "none", acodec: "mp4a.40.2", filesize: 3_400_000, tbr: 129,
+      has_video: false, has_audio: true, format_note, language,
+    });
+    return [
+      audio("140-0", "pt", "Portuguese, medium"),
+      audio("140-1", "ja", "Japanese, medium"),
+      audio("140-2", "ru", "Russian, medium"),
+      audio("140-3", "en-US", "English (US) original (default), medium"),
+      {
+        format_id: "137", ext: "mp4", resolution: "1920x1080", width: 1920, height: 1080, fps: 30,
+        vcodec: "avc1.640028", acodec: "none", filesize: 48_000_000, tbr: 4400,
+        has_video: true, has_audio: false, format_note: "1080p", language: null,
+      },
+    ];
+  },
   playlist_entries: () =>
     Array.from({ length: 60 }, (_, i) => ({
       index: i + 1,

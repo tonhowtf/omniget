@@ -2807,6 +2807,7 @@
     "preset_custom": "Пользовательский",
     "formats_presets_label": "Предустановка формата",
     "formats_merge_note": "Видеоформаты (V) будут автоматически объединены с аудио (A), если доступен FFmpeg.",
+    "audio_language": "Язык аудио",
     "formats_playlist_note": "Выбор формата для каждого видео не применяется к плейлистам. Опция «Качество» выше применяется ко всем видео.",
     "referer_label": "Referer (необязательно)",
     "referer_placeholder": "https://example.com",

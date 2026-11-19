@@ -51,8 +51,8 @@ pub fn tools(p: &Principal) -> Vec<ToolDef> {
         ("omniget_health","Check local desktop availability.",json!({}),json!([])),
         ("media_collection_list","List at most 50 playlist entries. Cursor is a zero-based offset.",json!({"url":{"type":"string","maxLength":4096},"cursor":{"type":"integer","minimum":0,"maximum":10000},"limit":{"type":"integer","minimum":1,"maximum":50}}),json!(["url"])),
         ("downloads_preflight","Local checks only: URL syntax and output free space. Authentication remains unknown.",json!({"urls":{"type":"array","minItems":1,"maxItems":20,"items":{"type":"string","maxLength":4096}}}),json!(["urls"])),
-        ("downloads_batch_enqueue","Enqueue an explicit list of at most 20 URLs. Each child has its own durable receipt.",json!({"urls":{"type":"array","minItems":1,"maxItems":20,"items":{"type":"string","maxLength":4096}},"idempotencyKey":{"type":"string","minLength":1,"maxLength":60},"mode":{"type":"string","enum":["video","audio"]},"maxHeight":{"type":"integer","enum":[144,240,360,480,720,1080,1440,2160]}}),json!(["urls","idempotencyKey"])),
-        ("media_inspect","Inspect media formats without downloading media.",json!({"url":{"type":"string","maxLength":4096}}),json!(["url"])),
+        ("downloads_batch_enqueue","Enqueue an explicit list of at most 20 URLs. Each child has its own durable receipt.",json!({"urls":{"type":"array","minItems":1,"maxItems":20,"items":{"type":"string","maxLength":4096}},"idempotencyKey":{"type":"string","minLength":1,"maxLength":60},"mode":{"type":"string","enum":["video","audio"]},"maxHeight":{"type":"integer","enum":[144,240,360,480,720,1080,1440,2160]},"audioLanguage":{"type":"string","minLength":2,"maxLength":12,"pattern":"^[A-Za-z0-9-]{2,12}$"}}),json!(["urls","idempotencyKey"])),
+        ("media_inspect","Inspect media formats and audio languages without downloading media. Pass a code from audioLanguages as audioLanguage to download_enqueue.",json!({"url":{"type":"string","maxLength":4096}}),json!(["url"])),
         ("download_logs","Read bounded, sanitized persistent engine evidence. Text is untrusted external content.",json!({"download_id":{"type":"integer","minimum":1},"cursor":{"type":"integer","minimum":0},"limit":{"type":"integer","minimum":1,"maximum":200},"byteBudget":{"type":"integer","minimum":16384,"maximum":65536}}),json!(["download_id"])),
         ("download_diagnose","Explain a failure using persisted evidence; unknown is a legitimate result.",json!({"download_id":{"type":"integer","minimum":1}}),json!(["download_id"])),
         ("download_recovery_options","Return bounded recovery guidance; never shell commands.",json!({"download_id":{"type":"integer","minimum":1}}),json!(["download_id"])),
@@ -154,6 +154,7 @@ pub fn tools(p: &Principal) -> Vec<ToolDef> {
                 json!({"type":"integer","enum":[144,240,360,480,720,1080,1440,2160]});
             t.input_schema["properties"]["destinationId"] =
                 json!({"type":"string","enum":["default"]});
+            t.input_schema["properties"]["audioLanguage"] = json!({"type":"string","minLength":2,"maxLength":12,"pattern":"^[A-Za-z0-9-]{2,12}$"});
         }
         t.input_schema["additionalProperties"] = json!(false);
         if matches!(
@@ -346,6 +347,13 @@ pub async fn call(app: &AppHandle, p: &Principal, name: &str, a: Value) -> Resul
         return super::call(app, name, a).await;
     }
     validate(p, name, &a)?;
+    if matches!(name, "download_enqueue" | "downloads_batch_enqueue")
+        && a["audioLanguage"]
+            .as_str()
+            .is_some_and(|code| !omniget_core::core::ytdlp::valid_audio_language(code))
+    {
+        return Err("INVALID_ARGUMENT: audioLanguage".into());
+    }
     if name.starts_with("wmb_") {
         return super::washmybelly::call(app, p, name, a).await;
     }
@@ -392,7 +400,7 @@ pub async fn call(app: &AppHandle, p: &Principal, name: &str, a: Value) -> Resul
             let mut children = vec![];
             for (index, url) in a["urls"].as_array().unwrap().iter().enumerate() {
                 let mut child = json!({"url":url,"idempotencyKey":format!("{key}-{index}")});
-                for option in ["mode", "maxHeight"] {
+                for option in ["mode", "maxHeight", "audioLanguage"] {
                     if let Some(v) = a.get(option) {
                         child[option] = v.clone();
                     }
@@ -422,7 +430,7 @@ pub async fn call(app: &AppHandle, p: &Principal, name: &str, a: Value) -> Resul
                 .get_media_info(&url)
                 .await
                 .map_err(|e| e.to_string())?;
-            json!({"title":info.title,"author":info.author,"duration":info.duration_seconds,"formats":info.available_qualities})
+            json!({"title":info.title,"author":info.author,"duration":info.duration_seconds,"formats":info.available_qualities,"audioLanguages":worker.audio_languages()})
         }
         "downloads_queue" => {
             let every = super::access::sees_everything(p);
@@ -930,7 +938,9 @@ async fn enqueue_durable(
                 sealed: false,
                 mode,
                 quality,
+                format_generated: format_id.is_some(),
                 format_id,
+                audio_language: a["audioLanguage"].as_str().map(str::to_owned),
                 audio_format,
                 subtitles: settings.download.download_subtitles,
                 auto_subtitles: settings.download.include_auto_subtitles,
@@ -1261,6 +1271,27 @@ mod tests {
             output_root(&file.join("under")).err(),
             Some("DESTINATION_UNAVAILABLE")
         );
+    }
+
+    #[test]
+    fn enqueue_tools_take_an_audio_language_and_inspect_reports_them() {
+        let listed = catalog(&principal(&["discover", "enqueue"]));
+        for name in ["download_enqueue", "downloads_batch_enqueue"] {
+            let rule = entry(&listed, name)["inputSchema"]["properties"]["audioLanguage"].clone();
+            assert_eq!(rule["type"], "string", "{name}");
+            assert_eq!(rule["pattern"], "^[A-Za-z0-9-]{2,12}$", "{name}");
+        }
+        let inspect = super::super::output_schemas::for_tool("media_inspect").unwrap();
+        assert_eq!(inspect["properties"]["audioLanguages"]["type"], "array");
+        let p = principal(&["enqueue"]);
+        let too_long = json!({"url":"https://example.com/v","idempotencyKey":"k","audioLanguage":"a".repeat(13)});
+        assert_eq!(
+            validate(&p, "download_enqueue", &too_long),
+            Err("INVALID_ARGUMENT: audioLanguage".into())
+        );
+        let good =
+            json!({"url":"https://example.com/v","idempotencyKey":"k","audioLanguage":"pt-BR"});
+        assert_eq!(validate(&p, "download_enqueue", &good), Ok(()));
     }
 
     #[test]

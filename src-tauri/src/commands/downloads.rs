@@ -386,7 +386,26 @@ pub async fn download_from_url(
     stop_at: Option<u64>,
     subtitle_lang: Option<String>,
     engine: Option<String>,
+    audio_language: Option<String>,
 ) -> Result<DownloadStarted, String> {
+    let format_id = match audio_language.as_deref().filter(|code| !code.is_empty()) {
+        Some(code) => {
+            if !omniget_core::core::ytdlp::valid_audio_language(code) {
+                return Err("Invalid audio language".to_string());
+            }
+            omniget_core::core::ytdlp::audio_language_format(
+                format_id.as_deref(),
+                quality
+                    .as_deref()
+                    .and_then(|q| q.trim_end_matches('p').parse::<u32>().ok()),
+                download_mode.as_deref().unwrap_or("auto"),
+                config::load_settings(&app).download.video_compatibility == "compatible",
+                omniget_core::core::ffmpeg::is_ffmpeg_available().await,
+                code,
+            )
+        }
+        None => format_id,
+    };
     download_from_url_with_args(
         app,
         state,
@@ -1062,6 +1081,7 @@ pub async fn restore_recovery(
             item.quality,
             item.format_id,
             item.referer,
+            None,
             None,
             None,
             None,

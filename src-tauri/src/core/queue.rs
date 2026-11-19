@@ -1900,7 +1900,26 @@ async fn spawn_download_inner(
         opts.output_dir = intent.destination.clone().into();
         opts.quality = intent.options.quality.clone();
         opts.download_mode = intent.options.mode.clone();
-        opts.format_id = intent.options.format_id.clone();
+        let compatible_video = settings.download.video_compatibility == "compatible";
+        opts.format_id = crate::mcp::download_intents::execution_format_id(
+            intent.options.format_id.as_deref(),
+            intent.options.format_generated,
+            compatible_video,
+        );
+        if let Some(code) = intent.options.audio_language.as_deref() {
+            opts.format_id = omniget_core::core::ytdlp::audio_language_format(
+                opts.format_id.as_deref(),
+                intent
+                    .options
+                    .quality
+                    .as_deref()
+                    .and_then(|q| q.trim_end_matches('p').parse::<u32>().ok()),
+                intent.options.mode.as_deref().unwrap_or("video"),
+                compatible_video,
+                omniget_core::core::ffmpeg::is_ffmpeg_available().await,
+                code,
+            );
+        }
         opts.audio_format = intent.options.audio_format.clone();
         opts.download_subtitles = intent.options.subtitles;
         opts.include_auto_subtitles = intent.options.auto_subtitles;
@@ -2288,9 +2307,10 @@ async fn spawn_download_inner(
                 }
             }
 
-            let ceiling = opts
-                .format_id
-                .as_deref()
+            let ceiling = external_intent
+                .as_ref()
+                .and_then(|intent| intent.options.format_id.as_deref())
+                .or(opts.format_id.as_deref())
                 .and_then(|f| f.strip_prefix("bv*[height<="))
                 .and_then(|f| f.split(']').next())
                 .and_then(|h| h.parse::<u64>().ok());

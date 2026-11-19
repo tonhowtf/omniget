@@ -2807,6 +2807,7 @@
     "preset_custom": "Προσαρμογή",
     "formats_presets_label": "Προεπιλογή μορφής",
     "formats_merge_note": "Οι μορφές βίντεο (B) θα συγχωνευθούν αυτόματα με τον ήχο (H) εάν είναι διαθέσιμο το FFmpeg.",
+    "audio_language": "Γλώσσα ήχου",
     "formats_playlist_note": "Η επιλογή μορφής ανά βίντεο δεν ισχύει για λίστες αναπαραγωγής. Η επιλογή Ποιότητα παραπάνω εφαρμόζεται σε κάθε βίντεο.",
     "referer_label": "Παραπομπή (προαιρετικό)",
     "referer_placeholder": "https://example.com",

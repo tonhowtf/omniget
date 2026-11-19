@@ -460,12 +460,18 @@ impl PlatformDownloader for BlueskyDownloader {
                     .await
                     {
                         Ok(bytes) => {
+                            let (output_path, bytes) = crate::core::ytdlp::finish_direct_video(
+                                output_path,
+                                bytes,
+                                Some(&progress),
+                            )
+                            .await;
                             return Ok(DownloadResult {
                                 file_path: output_path,
                                 file_size_bytes: bytes,
                                 duration_seconds: 0.0,
                                 torrent_id: None,
-                            })
+                            });
                         }
                         Err(e) if opts.cancel_token.is_cancelled() => return Err(e),
                         Err(e) => {
@@ -499,11 +505,17 @@ impl PlatformDownloader for BlueskyDownloader {
                     )
                     .await?;
 
+                let (file_path, file_size_bytes) = crate::core::ytdlp::finish_direct_video(
+                    result.path,
+                    result.file_size,
+                    Some(&progress),
+                )
+                .await;
                 let _ = progress.send(ProgressUpdate::percent(100.0)).await;
 
                 Ok(DownloadResult {
-                    file_path: result.path,
-                    file_size_bytes: result.file_size,
+                    file_path,
+                    file_size_bytes,
                     duration_seconds: 0.0,
                     torrent_id: None,
                 })

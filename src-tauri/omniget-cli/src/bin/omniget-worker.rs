@@ -67,6 +67,8 @@ struct Request {
     deno_path: Option<PathBuf>,
     #[serde(default)]
     info_json_dir: Option<PathBuf>,
+    #[serde(default)]
+    compatible_video: bool,
 }
 fn collection_limit() -> u64 {
     20
@@ -145,13 +147,10 @@ fn validate(r: &Request) -> Result<u16, &'static str> {
     }) {
         return Err("INVALID_OPTIONS");
     }
-    if r.format_id.as_ref().is_some_and(|f| {
-        f.is_empty()
-            || f.len() > 256
-            || !f
-                .bytes()
-                .all(|b| b.is_ascii_alphanumeric() || b"_+-/*[].<>=!?,".contains(&b))
-    }) {
+    if r.format_id
+        .as_ref()
+        .is_some_and(|f| !valid_format_selector(f))
+    {
         return Err("INVALID_FORMAT");
     }
     for u in [&r.referer, &r.page_url].into_iter().flatten() {
@@ -197,6 +196,12 @@ fn validate(r: &Request) -> Result<u16, &'static str> {
         }
     }
     Ok(port)
+}
+fn valid_format_selector(f: &str) -> bool {
+    !f.is_empty()
+        && f.len() <= 512
+        && f.bytes()
+            .all(|b| b.is_ascii_alphanumeric() || b"_+-/*[].<>=!?,^".contains(&b))
 }
 fn validate_info(info: &MediaInfo) -> Result<(), &'static str> {
     if info.title.len() > 4096
@@ -326,6 +331,8 @@ fn setup(r: &Request, port: u16) -> Result<(), &'static str> {
     let user_agent = r.user_agent.clone();
     ytdlp::set_user_agent_fn(move || user_agent.clone());
     ytdlp::set_ext_cookie_path_fn(|| PathBuf::from("/dev/null"));
+    let compatible_video = r.compatible_video;
+    ytdlp::set_compatible_video_fn(move || compatible_video);
     ytdlp::set_command_sink(Some(Arc::new(|line: &str| {
         let _ = emit(command_event(line));
     })));
@@ -345,6 +352,21 @@ fn confine_postprocessing() {
     ytdlp::set_split_chapters_fn(|| false);
     ytdlp::set_live_from_start_fn(|| false);
     ytdlp::set_translate_metadata_fn(|| None);
+}
+fn engine_format(
+    format_id: Option<String>,
+    ceiling: Option<u32>,
+    unsized_ytdlp: bool,
+    compatible_video: bool,
+    ffmpeg: bool,
+) -> Option<String> {
+    match (format_id, ceiling) {
+        (Some(f), _) => Some(f),
+        (None, Some(ceiling)) if unsized_ytdlp && !compatible_video => {
+            Some(ceiling_selector(ceiling, ffmpeg))
+        }
+        _ => None,
+    }
 }
 async fn run(r: Request) -> Result<(), &'static str> {
     if matches!(r.operation, Operation::Collection) {
@@ -397,8 +419,10 @@ async fn run(r: Request) -> Result<(), &'static str> {
     }
     validate_info(&info)?;
     if matches!(r.operation, Operation::Inspect) {
+        let mut audio_languages = ytdlp::cached_audio_languages(&r.url);
+        audio_languages.truncate(64);
         return emit(
-            json!({"type":"media_info","version":1,"platform":platform.name(),"media_info":info}),
+            json!({"type":"media_info","version":1,"platform":platform.name(),"media_info":info,"audio_languages":audio_languages}),
         );
     }
     let video = matches!(r.download_mode, Mode::Video);
@@ -411,13 +435,13 @@ async fn run(r: Request) -> Result<(), &'static str> {
         }
         fit_ceiling(&mut info, ceiling);
     }
-    let format_id = match (r.format_id, r.quality.filter(|_| video)) {
-        (Some(f), _) => Some(f),
-        (None, Some(ceiling)) if unsized_ytdlp(&info) => {
-            Some(ceiling_selector(ceiling, r.ffmpeg_path.is_some()))
-        }
-        _ => None,
-    };
+    let format_id = engine_format(
+        r.format_id,
+        r.quality.filter(|_| video),
+        unsized_ytdlp(&info),
+        r.compatible_video,
+        r.ffmpeg_path.is_some(),
+    );
     let opts = DownloadOptions {
         quality: r.quality.map(|q| q.to_string()),
         output_dir: r.output_dir.ok_or("INVALID_OUTPUT")?,
@@ -699,5 +723,89 @@ fn main() {
             let _ = emit(json!({"type":"result","version":1,"success":false,"code":code}));
         }
         std::process::exit(1)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn selectors_the_app_builds_pass_the_allow_list() {
+        for selector in [
+            "bv*[height<=720]+ba/b[height<=720]/bv*[height<=?720]+ba/b[height<=?720]/ba",
+            "bv*+ba[language^=pt]/bv*+ba/b",
+            "137+140",
+            "ba[language^=en-US]/ba/b",
+        ] {
+            assert!(valid_format_selector(selector), "{selector}");
+        }
+        let longest =
+            ytdlp::audio_language_format(None, Some(2160), "auto", true, true, "zh-Hans-desc")
+                .unwrap();
+        assert!(valid_format_selector(&longest), "{longest}");
+    }
+
+    #[test]
+    fn a_selector_that_tries_to_break_out_is_rejected() {
+        for selector in [
+            "",
+            "bv*+ba[language^=pt];id",
+            "bv*+ba[language^=$(id)]",
+            "bv*+ba[language^=`id`]",
+            "bv*+ba --exec id",
+            "bv*+ba[language^='pt']",
+            "bv*+ba[language^=\"pt\"]",
+            "bv*+ba\n--exec",
+            "bv*+ba|sh",
+            "bv*+ba&id",
+            "bv*+ba[title~=(a)]",
+            "bv*+ba{x}",
+            "bv*+ba%(id)s",
+            "bv*+ba\\",
+            "bv*+ba:x",
+            "bv*+ba#x",
+        ] {
+            assert!(!valid_format_selector(selector), "{selector:?}");
+        }
+        assert!(!valid_format_selector(&"b/".repeat(257)));
+    }
+
+    #[test]
+    fn a_chosen_format_is_used_as_is_whatever_the_video_setting() {
+        for compatible in [false, true] {
+            assert_eq!(
+                engine_format(Some("137+140".into()), Some(720), true, compatible, true).as_deref(),
+                Some("137+140")
+            );
+        }
+    }
+
+    #[test]
+    fn the_height_ceiling_becomes_a_selector_only_when_the_setting_is_best_quality() {
+        assert_eq!(
+            engine_format(None, Some(720), true, false, true),
+            Some(ceiling_selector(720, true))
+        );
+        assert_eq!(engine_format(None, Some(720), true, true, true), None);
+    }
+
+    #[test]
+    fn sized_formats_and_no_ceiling_never_get_a_selector() {
+        assert_eq!(engine_format(None, Some(720), false, false, true), None);
+        assert_eq!(engine_format(None, None, true, false, true), None);
+    }
+
+    #[test]
+    fn a_request_without_the_setting_reads_as_best_quality() {
+        let request: Request = serde_json::from_value(json!({
+            "version": 1,
+            "operation": "inspect",
+            "url": "https://example.com/v",
+            "proxy": "http://omniget:x@127.0.0.1:1/",
+            "runtime_dir": "/tmp/runtime",
+        }))
+        .unwrap();
+        assert!(!request.compatible_video);
     }
 }

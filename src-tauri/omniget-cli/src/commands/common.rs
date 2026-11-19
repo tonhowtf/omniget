@@ -19,6 +19,7 @@ use crate::reporter;
 
 pub fn init_cli_runtime(proxy: Option<&str>) -> Result<()> {
     init_cookie_provider();
+    init_video_compatibility();
 
     if let Some(proxy_url) = proxy {
         http_client::pin_proxy(parse_proxy(proxy_url)?);
@@ -33,6 +34,20 @@ fn init_cookie_provider() {
     ytdlp::set_global_cookie_file_fn(|| {
         reporter::default_cookie_path().map(|path| path.to_string_lossy().to_string())
     });
+}
+
+fn init_video_compatibility() {
+    ytdlp::set_compatible_video_fn(|| {
+        omniget_core::core::paths::app_data_dir()
+            .and_then(|dir| std::fs::read_to_string(dir.join("settings.json")).ok())
+            .is_some_and(|raw| compatible_video_setting(&raw))
+    });
+}
+
+fn compatible_video_setting(settings_json: &str) -> bool {
+    serde_json::from_str::<serde_json::Value>(settings_json)
+        .ok()
+        .is_some_and(|v| v["app_settings"]["download"]["video_compatibility"] == "compatible")
 }
 
 fn parse_proxy(raw: &str) -> Result<ProxySettings> {
@@ -167,5 +182,30 @@ pub fn download_options(
         torrent_upnp: false,
         torrent_stop_seeding: false,
         playlist_number_files: false,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::compatible_video_setting;
+
+    #[test]
+    fn the_cli_follows_the_video_format_chosen_in_the_app() {
+        assert!(compatible_video_setting(
+            r#"{"app_settings":{"download":{"video_compatibility":"compatible"}}}"#
+        ));
+        assert!(!compatible_video_setting(
+            r#"{"app_settings":{"download":{"video_compatibility":"best"}}}"#
+        ));
+    }
+
+    #[test]
+    fn missing_or_broken_settings_mean_best_quality() {
+        assert!(!compatible_video_setting(
+            r#"{"app_settings":{"download":{}}}"#
+        ));
+        assert!(!compatible_video_setting("{}"));
+        assert!(!compatible_video_setting("not json"));
+        assert!(!compatible_video_setting(""));
     }
 }

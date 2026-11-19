@@ -555,6 +555,12 @@ impl PlatformDownloader for TikTokDownloader {
 
                     match result {
                         Ok(bytes) => {
+                            let (output, bytes) = crate::core::ytdlp::finish_direct_video(
+                                output,
+                                bytes,
+                                Some(&progress),
+                            )
+                            .await;
                             return Ok(DownloadResult {
                                 file_path: output,
                                 file_size_bytes: bytes,

@@ -464,11 +464,13 @@ impl PlatformDownloader for ThreadsDownloader {
                 &self.client,
                 &quality.url,
                 &output,
-                progress,
+                progress.clone(),
                 headers,
                 Some(&opts.cancel_token),
             )
             .await?;
+            let (output, bytes) =
+                crate::core::ytdlp::finish_direct_video(output, bytes, Some(&progress)).await;
 
             return Ok(DownloadResult {
                 file_path: output,
@@ -504,6 +506,8 @@ impl PlatformDownloader for ThreadsDownloader {
                 Some(&opts.cancel_token),
             )
             .await?;
+            let (output, bytes) =
+                crate::core::ytdlp::finish_direct_video(output, bytes, None).await;
 
             total_bytes += bytes;
             last_path = output;

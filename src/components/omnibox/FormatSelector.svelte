@@ -1,5 +1,6 @@
 <script lang="ts">
   import { t } from "$lib/i18n";
+  import { audioLanguages, pickedAudioLanguage } from "$lib/audio-languages";
 
   type FormatInfo = {
     format_id: string;
@@ -16,7 +17,7 @@
     has_video: boolean;
     has_audio: boolean;
     format_note: string | null;
-    audio_language?: string | null;
+    language?: string | null;
   };
 
   let {
@@ -24,6 +25,7 @@
     isPlaylist = false,
     formats = $bindable([]),
     selectedFormatId = $bindable<string | null>(null),
+    selectedAudioLanguage = $bindable<string | null>(null),
     loadingFormats = false,
     formatError = null as string | null,
     onLoadFormats,
@@ -69,6 +71,9 @@
   let bestVideo = $derived([...formats].reverse().find(f => f.has_video && !f.has_audio) ?? null);
 
   let hasMusicPreset = $derived(bestAudio !== null);
+
+  let languages = $derived(audioLanguages(formats));
+  let originalLanguage = $derived(languages.find(l => l.original)?.code ?? "");
 
   let selectedFormatLabel = $derived.by(() => {
     if (!selectedFormatId) return null;
@@ -197,6 +202,25 @@
         </button>
       </div>
 
+      {#if languages.length > 1}
+        <label class="audio-language">
+          <span class="audio-language-label">{$t('omnibox.audio_language')}</span>
+          <select
+            class="audio-language-select"
+            value={selectedAudioLanguage ?? originalLanguage}
+            disabled={!!selectedFormatId}
+            onchange={(e) => { selectedAudioLanguage = pickedAudioLanguage(languages, e.currentTarget.value); }}
+          >
+            {#if !originalLanguage}
+              <option value="">—</option>
+            {/if}
+            {#each languages as language (language.code)}
+              <option value={language.code}>{formatAudioLanguage(language.code)}</option>
+            {/each}
+          </select>
+        </label>
+      {/if}
+
       {#if selectedFormatId}
         <div class="format-selected">
           <span class="format-selected-label">{selectedFormatLabel}</span>
@@ -248,7 +272,7 @@
               </span>
               <span class="format-vcodec">{formatCodec(fmt.vcodec)}</span>
               <span class="format-acodec">
-                {formatCodec(fmt.acodec)}{#if formatAudioLanguage(fmt.audio_language)}<span class="format-lang"> · {formatAudioLanguage(fmt.audio_language)}</span>{/if}
+                {formatCodec(fmt.acodec)}{#if formatAudioLanguage(fmt.language)}<span class="format-lang"> · {formatAudioLanguage(fmt.language)}</span>{/if}
               </span>
               <span class="format-size">{formatFilesize(fmt.filesize, fmt.filesize_is_estimate)}</span>
               {#if fmt.tbr}
@@ -368,6 +392,44 @@
   }
 
   .preset-pill:focus-visible {
+    outline: 2px solid var(--accent, var(--secondary));
+    outline-offset: 2px;
+  }
+
+  .audio-language {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--padding);
+    min-width: 0;
+  }
+
+  .audio-language-label {
+    font-size: var(--text-sm);
+    font-weight: 500;
+    color: var(--secondary);
+    flex-shrink: 0;
+  }
+
+  .audio-language-select {
+    min-width: 0;
+    max-width: 60%;
+    padding: 6px 10px;
+    font-size: var(--text-sm);
+    font-family: inherit;
+    color: var(--secondary);
+    background: var(--button-elevated);
+    border: none;
+    border-radius: calc(var(--border-radius) - 2px);
+    cursor: pointer;
+  }
+
+  .audio-language-select:disabled {
+    opacity: 0.5;
+    cursor: default;
+  }
+
+  .audio-language-select:focus-visible {
     outline: 2px solid var(--accent, var(--secondary));
     outline-offset: 2px;
   }
