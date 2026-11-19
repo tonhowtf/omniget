@@ -2342,6 +2342,19 @@ async fn spawn_download_inner(
                             Ok(())
                         }
                     }
+                    Err(error)
+                        if super::artifact_validation::check_can_be_skipped(
+                            external_intent.is_some(),
+                            &error,
+                        ) =>
+                    {
+                        append_download_log(
+                            &app,
+                            item_id,
+                            "[omniget] ffprobe was not found, so the saved file was not checked",
+                        );
+                        Ok(())
+                    }
                     Err(error) => Err(error),
                 };
                 if let Err(error) = validation {
