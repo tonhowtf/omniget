@@ -133,9 +133,22 @@ function validIdentity(m, dir) {
   if (m.domains.some(isOptedOut) || m.match.some(mentionsOptedOut)) fail(`${m.id}: this site's owner asked OmniGet not to support it`);
 }
 
+function validTranslations(manifest) {
+  const map = manifest.description_i18n;
+  if (map === undefined) return;
+  if (map === null || typeof map !== "object" || Array.isArray(map)) {
+    fail(`${manifest.id}: description_i18n must be an object of locale strings`);
+  }
+  for (const [locale, text] of Object.entries(map)) {
+    if (!/^[a-z]{2,3}(-[A-Za-z0-9]{2,8})?$/.test(locale)) fail(`${manifest.id}: description_i18n has an invalid locale "${locale}"`);
+    if (typeof text !== "string" || !text.trim()) fail(`${manifest.id}: description_i18n.${locale} must be a non-empty string`);
+  }
+}
+
 function buildOne(dir) {
   const manifest = JSON.parse(readFileSync(join(dir, "manifest.json"), "utf8"));
   validIdentity(manifest, dir);
+  validTranslations(manifest);
   const entry = manifest.entry ?? "connector.js";
   if (entry.includes("/") || entry.includes("\\")) fail(`${manifest.id}: entry must be a file next to the manifest`);
   const names = [...new Set([...PACKAGED, entry])].filter((n) => existsSync(join(dir, n)));
