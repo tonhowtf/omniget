@@ -98,6 +98,14 @@ fn is_audio_part(part: &str) -> bool {
     )
 }
 
+fn is_combined_part(part: &str) -> bool {
+    let name = part.split('[').next().unwrap_or("");
+    matches!(
+        name.split('.').next().unwrap_or(""),
+        "b" | "best" | "bv*" | "bestvideo*" | "w" | "worst" | "wv*" | "worstvideo*"
+    )
+}
+
 pub fn with_audio_language(selector: &str, code: &str) -> Option<String> {
     if !valid_audio_language(code) {
         return None;
@@ -106,19 +114,26 @@ pub fn with_audio_language(selector: &str, code: &str) -> Option<String> {
         .into_iter()
         .filter_map(|alternative| {
             let parts = split_outside_brackets(alternative, '+');
-            parts.iter().any(|part| is_audio_part(part)).then(|| {
+            let carries_audio: fn(&str) -> bool = if parts.iter().any(|part| is_audio_part(part)) {
+                is_audio_part
+            } else if parts.iter().any(|part| is_combined_part(part)) {
+                is_combined_part
+            } else {
+                return None;
+            };
+            Some(
                 parts
                     .iter()
                     .map(|part| {
-                        if is_audio_part(part) {
+                        if carries_audio(part) {
                             format!("{part}[language^={code}]")
                         } else {
                             (*part).to_owned()
                         }
                     })
                     .collect::<Vec<_>>()
-                    .join("+")
-            })
+                    .join("+"),
+            )
         })
         .collect();
     if narrowed.is_empty() {
@@ -267,11 +282,11 @@ mod tests {
     fn every_audio_part_is_narrowed_and_the_plain_selector_stays_as_fallback() {
         assert_eq!(
             with_audio_language("bv*+ba/b", "pt").as_deref(),
-            Some("bv*+ba[language^=pt]/bv*+ba/b")
+            Some("bv*+ba[language^=pt]/b[language^=pt]/bv*+ba/b")
         );
         assert_eq!(
             with_audio_language("ba/b", "en-US").as_deref(),
-            Some("ba[language^=en-US]/ba/b")
+            Some("ba[language^=en-US]/b[language^=en-US]/ba/b")
         );
         assert_eq!(
             with_audio_language(
@@ -279,29 +294,41 @@ mod tests {
                 "pt"
             )
             .as_deref(),
-            Some("bv*[height<=720]+ba[ext=m4a][language^=pt]/bv*[height<=720]+ba[language^=pt]/bv*[height<=720]+ba[ext=m4a]/bv*[height<=720]+ba/b[height<=720]/b")
+            Some("bv*[height<=720]+ba[ext=m4a][language^=pt]/bv*[height<=720]+ba[language^=pt]/b[height<=720][language^=pt]/b[language^=pt]/bv*[height<=720]+ba[ext=m4a]/bv*[height<=720]+ba/b[height<=720]/b")
         );
         assert_eq!(
             with_audio_language("137+bestaudio/best", "ja").as_deref(),
-            Some("137+bestaudio[language^=ja]/137+bestaudio/best")
+            Some("137+bestaudio[language^=ja]/best[language^=ja]/137+bestaudio/best")
         );
     }
 
     #[test]
-    fn a_selector_without_an_audio_part_is_left_alone() {
-        assert_eq!(with_audio_language("b/bv*", "pt").as_deref(), Some("b/bv*"));
+    fn a_selector_of_plain_format_ids_is_left_alone() {
         assert_eq!(
             with_audio_language("137+140", "pt").as_deref(),
             Some("137+140")
         );
-        assert_eq!(with_audio_language("bv*", "pt").as_deref(), Some("bv*"));
+    }
+
+    #[test]
+    fn a_combined_stream_is_narrowed_when_there_is_no_separate_audio() {
+        assert_eq!(
+            with_audio_language("b/bv*", "pt").as_deref(),
+            Some("b[language^=pt]/bv*[language^=pt]/b/bv*")
+        );
+        assert_eq!(
+            with_audio_language("bv*[height<=720]+ba/b", "pt").as_deref(),
+            Some("bv*[height<=720]+ba[language^=pt]/b[language^=pt]/bv*[height<=720]+ba/b")
+        );
     }
 
     #[test]
     fn a_slash_inside_a_filter_does_not_split_the_selector() {
         assert_eq!(
             with_audio_language("bv*[format_note*=a/b]+ba/b", "pt").as_deref(),
-            Some("bv*[format_note*=a/b]+ba[language^=pt]/bv*[format_note*=a/b]+ba/b")
+            Some(
+                "bv*[format_note*=a/b]+ba[language^=pt]/b[language^=pt]/bv*[format_note*=a/b]+ba/b"
+            )
         );
     }
 
@@ -322,7 +349,7 @@ mod tests {
         let best = audio_language_format(None, None, "auto", false, true, "pt").unwrap();
         assert_eq!(
             best,
-            "bv*+ba[ext=m4a][language^=pt]/bv*+ba[language^=pt]/bv*+ba[ext=m4a]/bv*+ba/b"
+            "bv*+ba[ext=m4a][language^=pt]/bv*+ba[language^=pt]/b[language^=pt]/bv*+ba[ext=m4a]/bv*+ba/b"
         );
         let capped = audio_language_format(None, Some(720), "auto", false, true, "pt").unwrap();
         assert!(capped.starts_with("bv*[height<=720]+ba[ext=m4a][language^=pt]/"));
@@ -345,7 +372,7 @@ mod tests {
     fn audio_only_downloads_pick_the_language_too() {
         assert_eq!(
             audio_language_format(None, None, "audio", true, true, "pt").as_deref(),
-            Some("ba[language^=pt]/ba/b")
+            Some("ba[language^=pt]/b[language^=pt]/ba/b")
         );
     }
 
@@ -355,9 +382,9 @@ mod tests {
             audio_language_format(None, Some(720), "mute", false, true, "pt"),
             None
         );
-        assert_eq!(
-            audio_language_format(None, Some(720), "auto", false, false, "pt"),
-            None
+        assert!(
+            audio_language_format(None, Some(720), "auto", false, false, "pt")
+                .is_some_and(|format| format.contains("[language^=pt]"))
         );
         assert_eq!(
             audio_language_format(Some("137+140"), None, "auto", false, true, "pt").as_deref(),

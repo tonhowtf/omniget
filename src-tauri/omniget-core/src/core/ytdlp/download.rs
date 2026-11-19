@@ -49,6 +49,20 @@ impl Drop for Unfinished<'_> {
     }
 }
 
+pub(super) fn free_compatible_target(source: &Path, stem: &str) -> PathBuf {
+    let wanted = source.with_file_name(format!("{stem}.mp4"));
+    if wanted == source {
+        return wanted;
+    }
+    let mut candidate = wanted.clone();
+    let mut n = 2;
+    while candidate.exists() {
+        candidate = crate::core::global_dl::jobs::numbered(&wanted, n);
+        n += 1;
+    }
+    candidate
+}
+
 async fn make_output_compatible(path: &Path, mute: bool) -> anyhow::Result<PathBuf> {
     let probe = crate::core::ffmpeg::probe(path).await?;
     let codec_of = |kind: &str| {
@@ -75,8 +89,8 @@ async fn make_output_compatible(path: &Path, mute: bool) -> anyhow::Result<PathB
         .file_stem()
         .map(|s| s.to_string_lossy().into_owned())
         .unwrap_or_else(|| "video".to_string());
-    let temp = path.with_file_name(format!("{stem}.compat.mp4"));
-    let target = path.with_file_name(format!("{stem}.mp4"));
+    let temp = path.with_file_name(format!("{stem}.{extension}.compat.mp4"));
+    let target = free_compatible_target(path, &stem);
     let (video_args, audio_args): (&[&str], &[&str]) = match plan {
         CompatibleVideoPlan::Keep | CompatibleVideoPlan::Remux => {
             (&["-c:v", "copy"], &["-c:a", "copy"])
