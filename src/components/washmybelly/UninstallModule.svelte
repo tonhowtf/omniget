@@ -41,6 +41,10 @@
   function show(r: AppsList) {
     apps = r.apps ?? [];
     now = Date.now() / 1000;
+    if (r.partial) {
+      if (picked && picked.source !== "removed") picked = apps.find((a) => a.id === picked?.id) ?? picked;
+      return;
+    }
     const have = new Set(apps.map((a) => a.source));
     if ([...sources].some((s) => !have.has(s))) sources = new Set([...sources].filter((s) => have.has(s)));
     if (picked && picked.source !== "removed") picked = apps.find((a) => a.id === picked?.id) ?? null;
