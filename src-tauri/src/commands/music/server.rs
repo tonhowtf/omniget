@@ -331,11 +331,15 @@ async fn radio(State(ctx): State<Ctx>, Query(q): Query<HashMap<String, String>>)
         })
         .unwrap_or("audio/mpeg")
         .to_string();
+    tracing::info!("[music] radio connected: {mime}, metaint {metaint}");
     let app = ctx.app.clone();
     let mut demux = IcyDemuxer::new(metaint);
     let mut last_title = String::new();
     let stream = upstream.bytes_stream().map(move |chunk| {
-        let chunk = chunk.map_err(std::io::Error::other)?;
+        let chunk = chunk.map_err(|e| {
+            tracing::warn!("[music] radio upstream dropped: {e}");
+            std::io::Error::other(e)
+        })?;
         let mut audio = Vec::with_capacity(chunk.len());
         for m in demux.push(&chunk, &mut audio) {
             if let Some(t) = m.stream_title {

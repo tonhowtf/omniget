@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createRadioWatch, nextRadioRetry, RADIO_RETRY_LIMIT, type RadioSample } from "./radio-watch";
+import { createRadioWatch, nextRadioRetry, RADIO_RETRY_LIMIT, radioUsesGraph, type RadioSample } from "./radio-watch";
 
 function sample(over: Partial<RadioSample>): RadioSample {
   return { now: 0, time: 0, paused: false, level: 0.2, routed: true, contextRunning: true, ...over };
@@ -44,6 +44,17 @@ describe("radio watch", () => {
     w.step(sample({ now: 0, time: 1 }));
     expect(w.step(sample({ now: 60_000, time: 1, paused: true }))).toBe("ok");
     expect(w.step(sample({ now: 60_500, time: 1 }))).toBe("ok");
+  });
+});
+
+describe("radio routing", () => {
+  it("keeps the equalizer and the visualizer on radio outside Windows", () => {
+    expect(radioUsesGraph("macos")).toBe(true);
+    expect(radioUsesGraph("linux")).toBe(true);
+  });
+
+  it("plays stations straight from the element on Windows", () => {
+    expect(radioUsesGraph("windows")).toBe(false);
   });
 });
 

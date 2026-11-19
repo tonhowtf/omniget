@@ -2,7 +2,8 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { EQ_FREQS } from "./eq";
 import { shuffled } from "./library";
-import { createRadioWatch, nextRadioRetry } from "./radio-watch";
+import { currentOs } from "$lib/platform";
+import { createRadioWatch, nextRadioRetry, radioUsesGraph } from "./radio-watch";
 import {
   coverUrl,
   ensureStatus,
@@ -468,7 +469,7 @@ function nextIndex(): number | null {
 function onEnded(d: Deck) {
   if (d !== decks[active]) return;
   if (player.radio) {
-    retryOrFailRadio("ended", true);
+    retryOrFailRadio("ended", radioUsesGraph(currentOs()));
     return;
   }
   if (prefs.repeat === "one") {
@@ -956,7 +957,7 @@ export async function playStation(st: Station) {
   }
   radioUnlisten.push(unlisten);
   startTicker();
-  await connectStation(st, session, true);
+  await connectStation(st, session, radioUsesGraph(currentOs()));
   void invoke("music_radio_played", { id: st.id }).catch(() => {});
 }
 
