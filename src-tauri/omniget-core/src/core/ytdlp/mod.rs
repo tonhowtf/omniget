@@ -171,6 +171,18 @@ pub(crate) fn compatible_video_plan(
     }
 }
 
+const COMPATIBLE_PASS_EXTENSIONS: [&str; 5] = ["mp4", "m4v", "mov", "webm", "mkv"];
+
+pub(crate) fn compatible_pass_applies(enabled: bool, ffmpeg_available: bool, path: &Path) -> bool {
+    enabled
+        && ffmpeg_available
+        && path.extension().and_then(|e| e.to_str()).is_some_and(|e| {
+            COMPATIBLE_PASS_EXTENSIONS
+                .iter()
+                .any(|v| e.eq_ignore_ascii_case(v))
+        })
+}
+
 const WINDOWS_MAX_PATH: usize = 259;
 const WINDOWS_TEMP_NAME_RESERVE: usize = 40;
 const WINDOWS_MIN_NAME: usize = 40;
