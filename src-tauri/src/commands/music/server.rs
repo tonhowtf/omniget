@@ -360,6 +360,10 @@ async fn radio(State(ctx): State<Ctx>, Query(q): Query<HashMap<String, String>>)
         }
         Ok::<_, std::io::Error>(axum::body::Bytes::from(audio))
     });
+    let stream = stream.chain(futures::stream::once(async {
+        tracing::info!("[music] radio upstream ended");
+        Ok(axum::body::Bytes::new())
+    }));
     let mut resp = Response::new(Body::from_stream(stream));
     let h = resp.headers_mut();
     if let Ok(v) = HeaderValue::from_str(&mime) {

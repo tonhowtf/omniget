@@ -534,7 +534,16 @@ function onError(d: Deck) {
 
 async function fadeOutAndPause(seconds: number) {
   const d = decks[active];
-  if (ctx && master) {
+  if (d && !d.source) {
+    const from = d.el.volume;
+    const steps = Math.max(1, Math.round(seconds * 10));
+    for (let i = 1; i <= steps; i++) {
+      await new Promise((r) => setTimeout(r, 100));
+      d.el.volume = from * (1 - i / steps);
+    }
+    pause();
+    applyVolume();
+  } else if (ctx && master) {
     const t0 = ctx.currentTime;
     const v = master.gain.value;
     master.gain.setValueAtTime(v, t0);
