@@ -239,6 +239,10 @@ pub fn check_height(probe: &Value, ceiling: u64) -> Result<(), String> {
     Ok(())
 }
 
+pub fn check_can_be_skipped(requested_by_agent: bool, error: &str) -> bool {
+    !requested_by_agent && error == "DEPENDENCY_MISSING"
+}
+
 pub fn check_audio(probe: &Value) -> Result<(), String> {
     let streams = probe["streams"]
         .as_array()
@@ -253,4 +257,24 @@ pub fn check_audio(probe: &Value) -> Result<(), String> {
         );
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod skip_tests {
+    use super::check_can_be_skipped;
+
+    #[test]
+    fn a_desktop_download_is_not_failed_for_a_missing_ffprobe() {
+        assert!(check_can_be_skipped(false, "DEPENDENCY_MISSING"));
+    }
+
+    #[test]
+    fn an_agent_download_and_a_real_defect_are_still_refused() {
+        assert!(!check_can_be_skipped(true, "DEPENDENCY_MISSING"));
+        assert!(!check_can_be_skipped(false, "INTEGRITY_FAILED"));
+        assert!(!check_can_be_skipped(
+            false,
+            "OUTPUT_INVALID: requested audio-only output contains video or no audio"
+        ));
+    }
 }
