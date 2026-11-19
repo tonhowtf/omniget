@@ -954,7 +954,10 @@ mod tests {
             has_options: false,
         })
         .unwrap();
-        assert_eq!(view["description_i18n"]["ru"], "Курсы, на которые вы записаны");
+        assert_eq!(
+            view["description_i18n"]["ru"],
+            "Курсы, на которые вы записаны"
+        );
         assert_eq!(view["description"], "Courses you are enrolled in");
     }
 
