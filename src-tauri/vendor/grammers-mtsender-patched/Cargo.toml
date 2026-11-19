@@ -76,7 +76,7 @@ version = "0.8.0"
 features = ["tl-mtproto"]
 
 [dependencies.hickory-resolver]
-version = "0.25.2"
+version = "0.26.2"
 optional = true
 
 [dependencies.locate-locale]
