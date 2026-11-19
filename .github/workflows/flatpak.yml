@@ -1,0 +1,43 @@
+name: flatpak
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - flatpak/**
+      - package-lock.json
+      - .github/workflows/flatpak.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: flatpak-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 240
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install flatpak-builder
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y flatpak flatpak-builder
+          flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
+
+      - name: Build
+        run: |
+          flatpak-builder --user --install-deps-from=flathub --force-clean \
+            --disable-rofiles-fuse --repo=repo build-dir flatpak/wtf.tonho.omniget.yml
+
+      - name: Bundle
+        run: flatpak build-bundle repo omniget.flatpak wtf.tonho.omniget
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: omniget-flatpak
+          path: omniget.flatpak
+          retention-days: 7
