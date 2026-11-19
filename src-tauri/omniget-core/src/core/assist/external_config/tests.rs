@@ -91,7 +91,6 @@ impl BotRoster for CrashAfterWrite<'_> {
     }
 }
 
-#[cfg_attr(windows, ignore = "secure_files has no Windows implementation yet")]
 #[test]
 fn recovery_uses_exact_hashes_and_never_overwrites_local_edits() {
     let fx = fixture();

@@ -101,8 +101,8 @@ unftp-sbe-fs = "0.4"
 [target.'cfg(windows)'.dependencies]
 winreg = "0.55"
 keyring = { version = "3", features = ["windows-native"] }
-webview2-com = "0.38"
-windows = { version = "0.61", features = ["Win32_Foundation", "Win32_Media_Audio", "Win32_System_Com", "Win32_System_Com_StructuredStorage", "Win32_System_Variant", "Win32_UI_WindowsAndMessaging"] }
+webview2-com = "0.39"
+windows = { version = "0.62", features = ["Win32_Foundation", "Win32_Media_Audio", "Win32_System_Com", "Win32_System_Com_StructuredStorage", "Win32_System_Variant", "Win32_UI_WindowsAndMessaging"] }
 
 # WHY: reads WKWebView's cookie store: document.cookie cannot see HttpOnly cookies (#287).
 [target.'cfg(target_os = "macos")'.dependencies]

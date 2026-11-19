@@ -32,7 +32,28 @@ function walkSingle(node: unknown, path: string, out: string[]) {
   }
 }
 
+function walkBackslash(node: unknown, path: string, out: string[]) {
+  if (typeof node === "string") {
+    if (/\\(?:[\s:;{}]|$)/.test(node.replaceAll("\\\\", ""))) out.push(path);
+    return;
+  }
+  if (node && typeof node === "object") {
+    for (const [k, v] of Object.entries(node)) walkBackslash(v, path ? `${path}.${k}` : k, out);
+  }
+}
+
 describe("i18n placeholders", () => {
+  it("doubles a backslash the parser would otherwise read as an escape", () => {
+    const bad: string[] = [];
+    for (const file of readdirSync(dir).filter((f) => f.endsWith(".json"))) {
+      const found: string[] = [];
+      walkBackslash(JSON.parse(readFileSync(join(dir, file), "utf8")), "", found);
+      bad.push(...found.map((k) => `${file}: ${k}`));
+    }
+    expect(bad).toEqual([]);
+  });
+
+
   it("never uses single braces, which the parser leaves on screen as typed", () => {
     const bad: string[] = [];
     for (const file of readdirSync(dir).filter((f) => f.endsWith(".json"))) {

@@ -3321,7 +3321,7 @@
       }
     },
     "path": {
-      "err_absolute": "請輸入完整路徑，以 / 開頭（Windows 上為 C:\\ 這樣的磁碟機）。",
+      "err_absolute": "請輸入完整路徑，以 / 開頭（Windows 上為 C:\\\\ 這樣的磁碟機）。",
       "folder_placeholder": "/資料夾/路徑"
     },
     "effect_state": {
@@ -11275,7 +11275,7 @@
     "restored": "已還原「{{name}}」。",
     "restore_error": "無法還原白板：{{reason}}",
     "name_empty": "請輸入名稱。",
-    "name_invalid": "名稱不能包含 / \\ : * ? \" < > |，也不能以點開頭或結尾。",
+    "name_invalid": "名稱不能包含 / \\\\ : * ? \" < > |，也不能以點開頭或結尾。",
     "name_too_long": "最多 120 個字元。",
     "name_exists": "已有同名白板，請換一個名稱。",
     "export": "匯出",

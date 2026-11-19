@@ -3321,7 +3321,7 @@
       }
     },
     "path": {
-      "err_absolute": "请输入完整路径，以 / 开头（Windows 上为 C:\\ 这样的盘符）。",
+      "err_absolute": "请输入完整路径，以 / 开头（Windows 上为 C:\\\\ 这样的盘符）。",
       "folder_placeholder": "/文件夹/路径"
     },
     "effect_state": {
@@ -11275,7 +11275,7 @@
     "restored": "已恢复“{{name}}”。",
     "restore_error": "无法恢复白板：{{reason}}",
     "name_empty": "请输入名称。",
-    "name_invalid": "名称不能包含 / \\ : * ? \" < > |，也不能以点开头或结尾。",
+    "name_invalid": "名称不能包含 / \\\\ : * ? \" < > |，也不能以点开头或结尾。",
     "name_too_long": "最多 120 个字符。",
     "name_exists": "已有同名白板，请换一个名称。",
     "export": "导出",

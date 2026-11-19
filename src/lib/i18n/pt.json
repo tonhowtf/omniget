@@ -3321,7 +3321,7 @@
       }
     },
     "path": {
-      "err_absolute": "Digite um caminho completo, começando com / (ou uma unidade como C:\\ no Windows).",
+      "err_absolute": "Digite um caminho completo, começando com / (ou uma unidade como C:\\\\ no Windows).",
       "folder_placeholder": "/caminho/da/pasta"
     },
     "effect_state": {
@@ -11275,7 +11275,7 @@
     "restored": "“{{name}}” restaurado.",
     "restore_error": "Não deu para restaurar o quadro: {{reason}}",
     "name_empty": "Digite um nome.",
-    "name_invalid": "O nome não pode ter / \\ : * ? \" < > | nem começar ou terminar com ponto.",
+    "name_invalid": "O nome não pode ter / \\\\ : * ? \" < > | nem começar ou terminar com ponto.",
     "name_too_long": "Use até 120 caracteres.",
     "name_exists": "Já existe um quadro com esse nome. Escolha outro.",
     "export": "Exportar",
