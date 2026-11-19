@@ -240,7 +240,83 @@ fn host_addresses() -> io::Result<BTreeSet<IpAddr>> {
         Ok(result)
     }
 }
-#[cfg(not(unix))]
+#[cfg(windows)]
+fn host_addresses() -> io::Result<BTreeSet<IpAddr>> {
+    use windows_sys::Win32::{
+        Foundation::{ERROR_BUFFER_OVERFLOW, ERROR_NO_DATA, ERROR_SUCCESS},
+        NetworkManagement::IpHelper::{
+            GetAdaptersAddresses, GAA_FLAG_SKIP_ANYCAST, GAA_FLAG_SKIP_DNS_SERVER,
+            GAA_FLAG_SKIP_FRIENDLY_NAME, GAA_FLAG_SKIP_MULTICAST, IP_ADAPTER_ADDRESSES_LH,
+        },
+        Networking::WinSock::AF_UNSPEC,
+    };
+    let flags = GAA_FLAG_SKIP_ANYCAST
+        | GAA_FLAG_SKIP_MULTICAST
+        | GAA_FLAG_SKIP_DNS_SERVER
+        | GAA_FLAG_SKIP_FRIENDLY_NAME;
+    let mut size: u32 = 16 * 1024;
+    for _ in 0..4 {
+        let mut buffer = vec![0u64; (size as usize).div_ceil(8)];
+        let head = buffer.as_mut_ptr().cast::<IP_ADAPTER_ADDRESSES_LH>();
+        // SAFETY: `head` points to `buffer`, which is 8-byte aligned as IP_ADAPTER_ADDRESSES_LH requires and holds at least `size` writable bytes; `size` is a live u32 the call may update.
+        let status = unsafe {
+            GetAdaptersAddresses(
+                u32::from(AF_UNSPEC),
+                flags,
+                std::ptr::null(),
+                head,
+                &mut size,
+            )
+        };
+        match status {
+            ERROR_SUCCESS => {}
+            ERROR_NO_DATA => return Ok(BTreeSet::new()),
+            ERROR_BUFFER_OVERFLOW => continue,
+            code => return Err(io::Error::from_raw_os_error(code as i32)),
+        }
+        let mut result = BTreeSet::new();
+        let mut adapter = head.cast_const();
+        while !adapter.is_null() {
+            // SAFETY: on ERROR_SUCCESS the adapter list is a null-terminated chain of initialized, aligned nodes stored inside `buffer`, which stays alive and unmodified for the whole walk.
+            let (mut unicast, next) = unsafe { ((*adapter).FirstUnicastAddress, (*adapter).Next) };
+            while !unicast.is_null() {
+                // SAFETY: unicast nodes are initialized, aligned and null-terminated inside the same live `buffer`.
+                let (address, next) = unsafe { ((*unicast).Address, (*unicast).Next) };
+                let length = usize::try_from(address.iSockaddrLength).unwrap_or(0);
+                if !address.lpSockaddr.is_null() && length > 0 {
+                    // SAFETY: `lpSockaddr` points to `iSockaddrLength` initialized bytes inside the live `buffer`, and u8 has no alignment requirement.
+                    let bytes = unsafe {
+                        std::slice::from_raw_parts(address.lpSockaddr.cast::<u8>(), length)
+                    };
+                    result.extend(sockaddr_ip(bytes));
+                }
+                unicast = next;
+            }
+            adapter = next;
+        }
+        return Ok(result);
+    }
+    Err(io::Error::new(
+        io::ErrorKind::OutOfMemory,
+        "EGRESS_HOST_INTERFACES_UNAVAILABLE",
+    ))
+}
+#[cfg(any(windows, test))]
+fn sockaddr_ip(bytes: &[u8]) -> Option<IpAddr> {
+    let family = u16::from_ne_bytes(bytes.get(..2)?.try_into().ok()?);
+    match family {
+        2 => {
+            let octets: [u8; 4] = bytes.get(4..8)?.try_into().ok()?;
+            Some(IpAddr::V4(Ipv4Addr::from(octets)))
+        }
+        23 => {
+            let octets: [u8; 16] = bytes.get(8..24)?.try_into().ok()?;
+            Some(IpAddr::V6(std::net::Ipv6Addr::from(octets)))
+        }
+        _ => None,
+    }
+}
+#[cfg(not(any(unix, windows)))]
 fn host_addresses() -> io::Result<BTreeSet<IpAddr>> {
     Err(io::Error::new(
         io::ErrorKind::Unsupported,
@@ -891,7 +967,6 @@ mod upstream_tests {
         String::from_utf8_lossy(&answer[..filled]).into_owned()
     }
 
-    #[cfg_attr(windows, ignore = "egress cannot list host interfaces on Windows yet")]
     #[tokio::test]
     async fn an_allowed_address_goes_out_through_the_upstream_proxy() {
         let (proxy, mut heads) = fake_proxy().await;
@@ -915,7 +990,6 @@ mod upstream_tests {
         broker.shutdown().await;
     }
 
-    #[cfg_attr(windows, ignore = "egress cannot list host interfaces on Windows yet")]
     #[tokio::test]
     async fn the_policy_still_refuses_a_private_address_before_the_upstream_sees_it() {
         let (proxy, mut heads) = fake_proxy().await;
@@ -940,7 +1014,6 @@ mod upstream_tests {
         broker.shutdown().await;
     }
 
-    #[cfg_attr(windows, ignore = "egress cannot list host interfaces on Windows yet")]
     #[tokio::test]
     async fn a_proxy_the_broker_cannot_speak_never_becomes_a_direct_connection() {
         let policy = Policy {
@@ -1002,5 +1075,44 @@ mod upstream_tests {
             "{asked:?}"
         );
         assert!(Policy::default().validate_addresses(found).is_ok());
+    }
+}
+#[cfg(test)]
+mod host_address_tests {
+    use super::*;
+
+    fn sockaddr(family: u16, length: usize) -> Vec<u8> {
+        let mut bytes = vec![0u8; length];
+        bytes[..2].copy_from_slice(&family.to_ne_bytes());
+        bytes
+    }
+
+    #[test]
+    fn an_ipv4_socket_address_yields_its_address() {
+        let mut bytes = sockaddr(2, 16);
+        bytes[2..4].copy_from_slice(&443u16.to_be_bytes());
+        bytes[4..8].copy_from_slice(&[192, 168, 1, 20]);
+        assert_eq!(
+            sockaddr_ip(&bytes),
+            Some(IpAddr::V4(Ipv4Addr::new(192, 168, 1, 20)))
+        );
+    }
+
+    #[test]
+    fn an_ipv6_socket_address_yields_its_address_without_the_scope() {
+        let address: std::net::Ipv6Addr = "fe80::1c2d:3e4f:5a6b:7c8d".parse().unwrap();
+        let mut bytes = sockaddr(23, 28);
+        bytes[8..24].copy_from_slice(&address.octets());
+        bytes[24..28].copy_from_slice(&7u32.to_ne_bytes());
+        assert_eq!(sockaddr_ip(&bytes), Some(IpAddr::V6(address)));
+    }
+
+    #[test]
+    fn a_truncated_or_foreign_socket_address_yields_nothing() {
+        assert_eq!(sockaddr_ip(&[]), None);
+        assert_eq!(sockaddr_ip(&[2]), None);
+        assert_eq!(sockaddr_ip(&sockaddr(2, 7)), None);
+        assert_eq!(sockaddr_ip(&sockaddr(23, 23)), None);
+        assert_eq!(sockaddr_ip(&sockaddr(17, 28)), None);
     }
 }
