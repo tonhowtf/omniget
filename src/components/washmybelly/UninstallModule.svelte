@@ -35,23 +35,41 @@
   let narrow = $derived(width < 700);
 
   let unlisten: (() => void) | null = null;
+  let filling = $state(false);
+  let loadSeq = 0;
+
+  function show(r: AppsList) {
+    apps = r.apps ?? [];
+    now = Date.now() / 1000;
+    const have = new Set(apps.map((a) => a.source));
+    if ([...sources].some((s) => !have.has(s))) sources = new Set([...sources].filter((s) => have.has(s)));
+    if (picked && picked.source !== "removed") picked = apps.find((a) => a.id === picked?.id) ?? null;
+  }
 
   async function load() {
+    const seq = ++loadSeq;
     error = null;
     loading = true;
+    filling = false;
     progress = null;
     try {
-      const r = await api.call<AppsList>("wmb_apps_list");
-      apps = r.apps ?? [];
-      now = Date.now() / 1000;
-      const have = new Set(apps.map((a) => a.source));
-      if ([...sources].some((s) => !have.has(s))) sources = new Set([...sources].filter((s) => have.has(s)));
-      if (picked && picked.source !== "removed") picked = apps.find((a) => a.id === picked?.id) ?? null;
+      const quick = await api.call<AppsList>("wmb_apps_list", { quick: true });
+      if (seq !== loadSeq) return;
+      show(quick);
+      if (quick.partial) {
+        filling = true;
+        const full = await api.call<AppsList>("wmb_apps_list");
+        if (seq !== loadSeq) return;
+        show(full);
+      }
     } catch (e) {
-      error = errorText(e);
+      if (seq === loadSeq) error = errorText(e);
     } finally {
-      loading = false;
-      progress = null;
+      if (seq === loadSeq) {
+        loading = false;
+        filling = false;
+        progress = null;
+      }
     }
   }
 
@@ -113,6 +131,7 @@
       <section class="list-pane">
         {#if apps.length}
           <UninstallFilters bind:query bind:sources bind:sort {present} {sourceLabel} shown={visible.length} total={apps.length} />
+          {#if filling}<p class="dim" aria-live="polite">{progress?.message || $t("washmybelly.uninstall.loading")}</p>{/if}
           {#if visible.length}
             <div class="group app-list" role="list">
               {#each visible as a (a.id)}

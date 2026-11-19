@@ -62,6 +62,8 @@
     padding: 7px var(--space-3);
     cursor: default;
     position: relative;
+    content-visibility: auto;
+    contain-intrinsic-size: auto 50px;
   }
   .wmb-app-row + :global(.wmb-app-row)::before {
     content: "";
