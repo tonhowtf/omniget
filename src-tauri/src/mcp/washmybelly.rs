@@ -87,7 +87,9 @@ pub fn output_schema(name: &str) -> Option<Value> {
         "wmb_find_duplicates" => o(
             json!({ "groups": t("array"), "total_bytes": t("integer"), "plan_id": {"type": ["string", "null"]} }),
         ),
-        "wmb_apps_list" => o(json!({ "apps": t("array"), "total": t("integer") })),
+        "wmb_apps_list" => {
+            o(json!({ "apps": t("array"), "total": t("integer"), "partial": t("boolean") }))
+        }
         "wmb_startup_list"
         | "wmb_privacy_catalog"
         | "wmb_tweaks_list"

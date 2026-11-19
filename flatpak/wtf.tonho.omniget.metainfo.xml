@@ -82,7 +82,7 @@
   </branding>
   <content_rating type="oars-1.1" />
   <releases>
-    <release version="1.0.1" date="2026-11-11">
+    <release version="1.0.1" date="2026-11-18">
       <description>
         <p>OmniGet 1.0.1 adds new superpowers: clients for Phone Chats, Server Chats, Short Posts, Photo Feed and Clip Feed, where Short Posts, Photo Feed and Clip Feed run through your own session and your agents can use them over MCP with each action approved by you; a PDF editor, a photo gallery with duplicate finding, background removal, a karaoke vocal remover, and a Converter that now handles HEIC, JPEG XL, PSD layers, RAW and DXF/DWG. Design tools join them: Palette, Type, Icons, Motion, an Excalidraw board, shadcn components, screen capture, Studio for subtitles and reframing, and voice dictation. The Global Downloader gains a connector market.</p>
         <p>Short Posts, Photo Feed and Clip Feed gain Audience, Analytics and Monitor tabs: who does not follow you back, who followed and who left, post analytics with best times, and keyword monitors; Short Posts can schedule posts while the app is open. Forums, Pin Boards and Code Hub join as new clients, Research reaches public social data with your own ScrapeCreators key, and developer tools arrive: Pack, Scrape, API, DevTools and an FTP and SFTP client.</p>

@@ -864,6 +864,15 @@ fn unknown_outcome(intent: &super::download_intents::Intent) -> Value {
     view.stage = "unknown".into();
     json!({"download_id":intent.job_id,"attempt":intent.attempt,"outcome":"unknown","recovery":"local_reconciliation_required","item":journal_item(&view),"nextActions":next_actions(intent.job_id,"unknown",None,None,0,"reconcile")})
 }
+fn output_root(
+    dir: &std::path::Path,
+) -> Result<(std::path::PathBuf, omniget_core::core::secure_files::Root), &'static str> {
+    std::fs::create_dir_all(dir).map_err(|_| "DESTINATION_UNAVAILABLE")?;
+    let parent = std::fs::canonicalize(dir).map_err(|_| "DESTINATION_UNAVAILABLE")?;
+    let root = omniget_core::core::secure_files::Root::open(&parent, None)
+        .map_err(|_| "DESTINATION_UNSAFE")?;
+    Ok((parent, root))
+}
 async fn enqueue_durable(
     app: &AppHandle,
     p: &Principal,
@@ -891,10 +900,8 @@ async fn enqueue_durable(
             return Err(format!("URL_OUTCOME_UNKNOWN: download {previous} was interrupted; settle it with download_retry strategyId=reconcile first"));
         }
         let settings = crate::storage::config::load_settings(app);
-        let parent = std::fs::canonicalize(&settings.download.default_output_dir)
-            .map_err(|_| "DESTINATION_UNAVAILABLE")?;
-        let root = omniget_core::core::secure_files::Root::open(&parent, None)
-            .map_err(|_| "DESTINATION_UNSAFE")?;
+        let (parent, root) =
+            output_root(std::path::Path::new(&settings.download.default_output_dir))?;
         let mode = a["mode"].as_str().map(str::to_owned);
         let quality = a["maxHeight"]
             .as_u64()
@@ -1237,6 +1244,23 @@ mod tests {
             .find(|t| t["name"] == name)
             .cloned()
             .unwrap_or_else(|| panic!("{name} is not listed"))
+    }
+
+    #[test]
+    fn the_output_folder_is_created_when_missing_and_opens_as_a_root() {
+        let base = tempfile::tempdir().unwrap();
+        let wanted = base.path().join("OmniGet").join("new");
+        let (parent, root) = output_root(&wanted).unwrap();
+        assert!(wanted.is_dir());
+        assert_eq!(parent, wanted.canonicalize().unwrap());
+        let again = omniget_core::core::secure_files::Root::open(&parent, Some(root.identity()));
+        assert!(again.is_ok());
+        let file = base.path().join("file");
+        std::fs::write(&file, b"x").unwrap();
+        assert_eq!(
+            output_root(&file.join("under")).err(),
+            Some("DESTINATION_UNAVAILABLE")
+        );
     }
 
     #[test]

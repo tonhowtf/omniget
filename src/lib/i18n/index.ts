@@ -1,8 +1,7 @@
-import i18n from "sveltekit-i18n";
-import type { Readable } from "svelte/store";
+import { I18n } from "sveltekit-i18n";
+import stores from "@sveltekit-i18n/extension-stores";
+import { derived, type Readable, type Writable } from "svelte/store";
 import en from "./en.json";
-
-type Payload = [payload?: Record<string, unknown>];
 
 const config = {
   initLocale: "en",
@@ -12,62 +11,62 @@ const config = {
     
     {
       locale: "en",
-      key: "",
+      namespace: "",
       loader: async () => (await import("./en.json")).default,
     },
 	{
       locale: "ru",
-      key: "",
+      namespace: "",
       loader: async () => (await import("./ru.json")).default,
     },
     {
       locale: "el",
-      key: "",
+      namespace: "",
       loader: async () => (await import("./el.json")).default,
     },
     {
       locale: "pt",
-      key: "",
+      namespace: "",
       loader: async () => (await import("./pt.json")).default,
     },
     {
       locale: "zh",
-      key: "",
+      namespace: "",
       loader: async () => (await import("./zh.json")).default,
     },
     {
       locale: "zh-TW",
-      key: "",
+      namespace: "",
       loader: async () => (await import("./zh-TW.json")).default,
     },
     {
       locale: "ja",
-      key: "",
+      namespace: "",
       loader: async () => (await import("./ja.json")).default,
     },
     {
       locale: "it",
-      key: "",
+      namespace: "",
       loader: async () => (await import("./it.json")).default,
     },
     {
       locale: "fr",
-      key: "",
+      namespace: "",
       loader: async () => (await import("./fr.json")).default,
     },
     {
       locale: "es",
-      key: "",
+      namespace: "",
       loader: async () => (await import("./es.json")).default,
     },
     {
       locale: "fa",
-      key: "",
+      namespace: "",
       loader: async () => (await import("./fa.json")).default,
     },
     {
       locale: "lo",
-      key: "",
+      namespace: "",
       loader: async () => (await import("./lo.json")).default,
     },
   ],
@@ -79,9 +78,17 @@ export function isRtlLocale(l: string | null | undefined): boolean {
   return !!l && RTL_LOCALES.includes(l);
 }
 
-const i18nInstance = new i18n<Payload>(config);
+const i18nInstance = stores(new I18n(config));
 
-export const { t, locale, locales, loading, loadTranslations } = i18nInstance;
+export const { locales, loading, loadTranslations } = i18nInstance;
+
+export const t = derived(i18nInstance.t, ($t) => (key: string, vars?: Record<string, unknown>): string => {
+  const text = $t(key, vars);
+  if (text !== key || !vars?.default) return text;
+  return String(vars.default).replace(/\{\{\s*(\w+)\s*\}\}/g, (_, name: string) => String(vars[name] ?? ""));
+});
+
+export const locale = i18nInstance.locale as unknown as Writable<string>;
 
 export const rawTranslations = i18nInstance.translations as unknown as Readable<
   Record<string, Record<string, unknown>>

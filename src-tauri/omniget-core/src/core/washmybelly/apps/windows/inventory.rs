@@ -32,6 +32,18 @@ impl Probe for DiskProbe {
     }
 }
 
+pub struct ListProbe;
+
+impl Probe for ListProbe {
+    fn exists(&self, path: &str) -> bool {
+        Path::new(path).is_file()
+    }
+
+    fn nullsoft(&self, _path: &str) -> bool {
+        false
+    }
+}
+
 pub fn x<'a>(a: &'a App, key: &str) -> Option<&'a str> {
     a.extra
         .get(key)
@@ -585,4 +597,36 @@ pub fn reg_location(a: &App) -> Option<(Root, String)> {
     let root = x(a, "reg_root").and_then(Root::parse)?;
     let key = x(a, "reg_key")?.to_string();
     Some((root, key))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn listing_classifies_an_uninstaller_without_reading_it() {
+        let dir = tempfile::tempdir().unwrap();
+        let exe = dir.path().join("uninstall.exe");
+        std::fs::write(&exe, b"MZ Nullsoft Install System").unwrap();
+        let e = RegEntry {
+            root: Root::Hkcu,
+            key_name: "Demo".into(),
+            values: [
+                ("DisplayName".to_string(), "Demo".to_string()),
+                (
+                    "UninstallString".to_string(),
+                    format!("\"{}\"", exe.display()),
+                ),
+            ]
+            .into_iter()
+            .collect(),
+        };
+        let env = |_: &str| -> Option<String> { None };
+        let listed = entry_to_app(&e, &ListProbe, &env).unwrap();
+        let deep = entry_to_app(&e, &DiskProbe, &env).unwrap();
+        assert_eq!(x(&listed, "installer_kind"), Some("other"));
+        assert_eq!(x(&deep, "installer_kind"), Some("nsis"));
+        assert_eq!(listed.id, deep.id);
+        assert!(listed.removable);
+    }
 }

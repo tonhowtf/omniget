@@ -184,6 +184,18 @@ pub fn bin_name(tool: &str) -> String {
     }
 }
 
+pub fn has_ffmpeg_and_ffprobe(dir: &std::path::Path) -> bool {
+    dir.join(bin_name("ffmpeg")).is_file() && dir.join(bin_name("ffprobe")).is_file()
+}
+
+pub fn ffmpeg_location(candidates: &[PathBuf]) -> Option<&std::path::Path> {
+    candidates
+        .iter()
+        .find(|dir| has_ffmpeg_and_ffprobe(dir))
+        .or_else(|| candidates.first())
+        .map(PathBuf::as_path)
+}
+
 fn override_name(tool: &str) -> &str {
     match tool {
         "ffmpeg" => "FFmpeg",
@@ -449,8 +461,8 @@ pub async fn ensure_ffmpeg() -> anyhow::Result<PathBuf> {
             .ok_or_else(|| anyhow::anyhow!("WORKER_DEPENDENCY_UNAVAILABLE"));
     }
     if !is_flatpak() {
-        let managed = managed_bin_dir().map(|d| d.join(bin_name("ffmpeg")));
-        if managed.as_ref().is_none_or(|p| !p.exists()) {
+        let managed_complete = managed_bin_dir().is_some_and(|d| has_ffmpeg_and_ffprobe(&d));
+        if !managed_complete {
             if let Ok(path) = download_ffmpeg().await {
                 crate::core::ytdlp::reset_ffmpeg_location_cache();
                 return Ok(path);
@@ -669,10 +681,10 @@ async fn stage_ffmpeg(
     }
     prepare_staged_binary(staged_main).await?;
     let staged_probe = staged_ffmpeg(bin_dir, ffprobe_name);
-    if staged_probe.exists() {
-        prepare_staged_binary(staged_probe).await?;
+    if !staged_probe.exists() {
+        return Err(anyhow!("ffprobe binary not found after extraction"));
     }
-    Ok(())
+    prepare_staged_binary(staged_probe).await
 }
 
 enum ArchiveType {
@@ -1087,6 +1099,36 @@ mod install_tests {
         script(&bad, "exit 3");
         let err = prepare_staged_binary(bad).await.unwrap_err().to_string();
         assert!(err.contains("does not run"), "{err}");
+    }
+
+    fn folder_with(root: &std::path::Path, name: &str, tools: &[&str]) -> PathBuf {
+        let dir = root.join(name);
+        std::fs::create_dir_all(&dir).unwrap();
+        for tool in tools {
+            std::fs::write(dir.join(bin_name(tool)), b"x").unwrap();
+        }
+        dir
+    }
+
+    #[test]
+    fn a_folder_with_ffmpeg_but_no_ffprobe_is_passed_over_for_one_that_has_both() {
+        let root = tempfile::tempdir().unwrap();
+        let lone = folder_with(root.path(), "lone", &["ffmpeg"]);
+        let complete = folder_with(root.path(), "complete", &["ffmpeg", "ffprobe"]);
+        assert!(!has_ffmpeg_and_ffprobe(&lone));
+        assert!(has_ffmpeg_and_ffprobe(&complete));
+        let candidates = [lone, complete.clone()];
+        assert_eq!(ffmpeg_location(&candidates), Some(complete.as_path()));
+    }
+
+    #[test]
+    fn the_first_ffmpeg_folder_is_kept_when_none_has_ffprobe() {
+        let root = tempfile::tempdir().unwrap();
+        let first = folder_with(root.path(), "first", &["ffmpeg"]);
+        let second = folder_with(root.path(), "second", &["ffmpeg"]);
+        let candidates = [first.clone(), second];
+        assert_eq!(ffmpeg_location(&candidates), Some(first.as_path()));
+        assert_eq!(ffmpeg_location(&[]), None);
     }
 
     #[cfg(unix)]

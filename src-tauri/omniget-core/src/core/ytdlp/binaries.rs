@@ -875,13 +875,32 @@ pub(super) async fn check_ytdlp_freshness(path: &Path) {
 
 pub(super) async fn find_ffmpeg_location() -> Option<String> {
     let _timer_start = std::time::Instant::now();
-    let result = if let Some(path) = crate::core::dependencies::find_tool("ffmpeg").await {
-        path.parent()
-            .and_then(|dir| dir.to_str())
-            .filter(|s| !s.is_empty())
-            .map(|s| s.to_string())
-    } else {
-        None
+    let result = match crate::core::dependencies::find_tool("ffmpeg").await {
+        Some(ffmpeg) => {
+            let mut candidates: Vec<PathBuf> =
+                ffmpeg.parent().map(Path::to_path_buf).into_iter().collect();
+            let complete = candidates
+                .iter()
+                .any(|dir| crate::core::dependencies::has_ffmpeg_and_ffprobe(dir));
+            if !complete {
+                if let Some(ffprobe) = crate::core::dependencies::find_tool("ffprobe").await {
+                    candidates.extend(ffprobe.parent().map(Path::to_path_buf));
+                }
+            }
+            let chosen = crate::core::dependencies::ffmpeg_location(&candidates);
+            if !complete {
+                tracing::warn!(
+                    "[ffmpeg] no ffprobe next to {}; using {:?} for yt-dlp",
+                    ffmpeg.display(),
+                    chosen
+                );
+            }
+            chosen
+                .and_then(|dir| dir.to_str())
+                .filter(|s| !s.is_empty())
+                .map(|s| s.to_string())
+        }
+        None => None,
     };
     tracing::debug!(
         "[perf] find_ffmpeg_location took {:?}",

@@ -17,7 +17,7 @@ export type App = {
   extra?: Record<string, unknown> | null;
 };
 
-export type AppsList = { apps: App[]; total: number };
+export type AppsList = { apps: App[]; total: number; partial?: boolean };
 
 type Confidence = "high" | "medium" | "low";
 

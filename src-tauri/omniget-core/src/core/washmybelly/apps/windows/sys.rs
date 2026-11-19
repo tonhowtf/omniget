@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 use serde_json::{json, Value};
 
 use super::super::App;
-use super::inventory::{self, DiskProbe};
+use super::inventory::{self, DiskProbe, ListProbe};
 use super::leftovers::{self, Found, Other, Target};
 use super::parse::{self, Root};
 use super::registry;
@@ -25,7 +25,7 @@ pub fn registry_apps() -> Vec<App> {
     let mut apps = Vec::new();
     for root in Root::ALL {
         for e in registry::read_entries(root) {
-            if let Some(a) = inventory::entry_to_app(&e, &DiskProbe, &env) {
+            if let Some(a) = inventory::entry_to_app(&e, &ListProbe, &env) {
                 inventory::merge_into(&mut apps, a);
             }
         }
@@ -193,8 +193,9 @@ fn scoop_roots() -> Vec<(PathBuf, bool)> {
     v
 }
 
-pub fn list() -> Result<Vec<App>, String> {
-    const STEPS: u64 = 7;
+const STEPS: u64 = 7;
+
+fn base_apps() -> Vec<App> {
     progress(
         "apps_list",
         "registry",
@@ -213,20 +214,46 @@ pub fn list() -> Result<Vec<App>, String> {
     for p in msi_products() {
         inventory::merge_into(&mut apps, inventory::msi_to_app(&p));
     }
-    progress("apps_list", "winget", 2, STEPS, "matching winget packages");
-    inventory::attach_winget(&mut apps, &winget_rows());
+    apps
+}
+
+fn merge_local_apps(apps: &mut Vec<App>) {
     progress("apps_list", "steam", 3, STEPS, "reading Steam libraries");
     for a in inventory::steam_apps(&steam_libraries()) {
-        inventory::merge_into(&mut apps, a);
+        inventory::merge_into(apps, a);
     }
     progress("apps_list", "scoop", 4, STEPS, "reading Scoop apps");
     for (root, global) in scoop_roots() {
         for a in inventory::scoop_apps(&root, global) {
-            inventory::merge_into(&mut apps, a);
+            inventory::merge_into(apps, a);
         }
     }
+}
+
+pub fn list_quick() -> Vec<App> {
+    let mut apps = base_apps();
+    merge_local_apps(&mut apps);
+    inventory::finalize(apps)
+}
+
+pub fn list() -> Result<Vec<App>, String> {
+    let mut apps = base_apps();
+    progress(
+        "apps_list",
+        "winget",
+        2,
+        STEPS,
+        "asking winget and the Store",
+    );
+    let (rows, packages) = std::thread::scope(|s| {
+        let winget = s.spawn(winget_rows);
+        let packages = appx_packages();
+        (winget.join().unwrap_or_default(), packages)
+    });
+    inventory::attach_winget(&mut apps, &rows);
+    merge_local_apps(&mut apps);
     progress("apps_list", "appx", 5, STEPS, "reading Store apps");
-    for p in appx_packages() {
+    for p in packages {
         let a = inventory::appx_to_app(&p);
         let listed_by_catalog = a.extra["appx"]["classified_by"] != "signature";
         if p.signature != "System" || listed_by_catalog {

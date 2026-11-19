@@ -74,6 +74,7 @@
   "license": "GPL-3.0",
   "dependencies": {
     "@excalidraw/excalidraw": "0.18.0",
+    "@sveltekit-i18n/extension-stores": "^3.2.1",
     "@tauri-apps/api": "^2",
     "@tauri-apps/plugin-clipboard-manager": "^2.3.2",
     "@tauri-apps/plugin-dialog": "^2.6.0",
@@ -92,7 +93,7 @@
     "pdfjs-dist": "^6.3.289",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
-    "sveltekit-i18n": "^2.4.2",
+    "sveltekit-i18n": "^3.4.1",
     "thinking-orbs": "^0.3.2"
   },
   "devDependencies": {
