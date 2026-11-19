@@ -41,6 +41,14 @@ fn thumbnail_output(path: &Path) -> PathBuf {
     }
 }
 
+struct Unfinished<'a>(&'a Path);
+
+impl Drop for Unfinished<'_> {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_file(self.0);
+    }
+}
+
 async fn make_output_compatible(path: &Path, mute: bool) -> anyhow::Result<PathBuf> {
     let probe = crate::core::ffmpeg::probe(path).await?;
     let codec_of = |kind: &str| {
@@ -75,7 +83,9 @@ async fn make_output_compatible(path: &Path, mute: bool) -> anyhow::Result<PathB
             &["-c:a", "aac", "-b:a", "192k"],
         ),
     };
+    let _unfinished = Unfinished(&temp);
     let status = crate::core::process::command("ffmpeg")
+        .kill_on_drop(true)
         .args(["-y", "-v", "error", "-i"])
         .arg(path)
         .args(["-map", "0:v:0"])
@@ -94,7 +104,6 @@ async fn make_output_compatible(path: &Path, mute: bool) -> anyhow::Result<PathB
         .await
         .map_err(|e| anyhow!("Failed to run ffmpeg: {}", e))?;
     if !status.success() {
-        let _ = std::fs::remove_file(&temp);
         anyhow::bail!("ffmpeg returned {}", status);
     }
     if path != target {
