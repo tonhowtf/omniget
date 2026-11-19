@@ -104,6 +104,41 @@ async fn make_output_compatible(path: &Path, mute: bool) -> anyhow::Result<PathB
     Ok(target)
 }
 
+async fn compatible_or_original(file_path: PathBuf, mute: bool) -> PathBuf {
+    match make_output_compatible(&file_path, mute).await {
+        Ok(converted) => converted,
+        Err(e) => {
+            let line = format!(
+                "[omniget] could not convert to H.264/AAC MP4, keeping the original file: {e}"
+            );
+            tracing::warn!("{}", line);
+            if let Some(id) = log_hook::current_download_id() {
+                log_hook::emit_log(id, &line);
+            }
+            file_path
+        }
+    }
+}
+
+pub async fn make_direct_download_compatible(
+    file_path: PathBuf,
+    progress: Option<&mpsc::Sender<ProgressUpdate>>,
+) -> PathBuf {
+    if !compatible_video_enabled() {
+        return file_path;
+    }
+    let ffmpeg_available = crate::core::ffmpeg::is_ffmpeg_available().await;
+    if !compatible_pass_applies(true, ffmpeg_available, &file_path) {
+        return file_path;
+    }
+    if let Some(progress) = progress {
+        let _ = progress
+            .send(ProgressUpdate::phase("postprocessing", 99.0))
+            .await;
+    }
+    compatible_or_original(file_path, false).await
+}
+
 pub(super) fn adjusted_multi_stream_progress(
     phase: &mut u32,
     last_raw_percent: &mut Option<f64>,
@@ -823,19 +858,7 @@ pub async fn download_video(
                 let _ = progress
                     .send(ProgressUpdate::phase("postprocessing", 99.0))
                     .await;
-                match make_output_compatible(&file_path, mode == "mute").await {
-                    Ok(converted) => converted,
-                    Err(e) => {
-                        let line = format!(
-                            "[omniget] could not convert to H.264/AAC MP4, keeping the original file: {e}"
-                        );
-                        tracing::warn!("{}", line);
-                        if let Some(id) = log_hook::current_download_id() {
-                            log_hook::emit_log(id, &line);
-                        }
-                        file_path
-                    }
-                }
+                compatible_or_original(file_path, mode == "mute").await
             } else {
                 file_path
             };

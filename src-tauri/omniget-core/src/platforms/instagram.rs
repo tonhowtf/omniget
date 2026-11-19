@@ -1083,9 +1083,17 @@ impl PlatformDownloader for InstagramDownloader {
             .await
             {
                 Ok(bytes) => {
+                    let file_path = crate::core::ytdlp::make_direct_download_compatible(
+                        output,
+                        Some(&progress),
+                    )
+                    .await;
+                    let file_size_bytes = std::fs::metadata(&file_path)
+                        .map(|m| m.len())
+                        .unwrap_or(bytes);
                     return Ok(DownloadResult {
-                        file_path: output,
-                        file_size_bytes: bytes,
+                        file_path,
+                        file_size_bytes,
                         duration_seconds: 0.0,
                         torrent_id: None,
                     });
@@ -1133,8 +1141,12 @@ impl PlatformDownloader for InstagramDownloader {
             .await
             {
                 Ok(bytes) => {
-                    total_bytes += bytes;
-                    last_path = output;
+                    let file_path =
+                        crate::core::ytdlp::make_direct_download_compatible(output, None).await;
+                    total_bytes += std::fs::metadata(&file_path)
+                        .map(|m| m.len())
+                        .unwrap_or(bytes);
+                    last_path = file_path;
 
                     let percent = ((i + 1) as f64 / count as f64) * 100.0;
                     let _ = progress.send(ProgressUpdate::percent(percent)).await;

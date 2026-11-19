@@ -1117,6 +1117,20 @@ fn compatible_choice_only_converts_what_common_editors_cannot_open() {
 }
 
 #[test]
+fn compatible_pass_runs_only_for_video_files_with_the_setting_on_and_ffmpeg_present() {
+    use super::compatible_pass_applies as applies;
+    use std::path::Path;
+    assert!(applies(true, true, Path::new("reel.mp4")));
+    assert!(applies(true, true, Path::new("clip.WEBM")));
+    assert!(applies(true, true, Path::new("clip.mov")));
+    assert!(!applies(false, true, Path::new("reel.mp4")));
+    assert!(!applies(true, false, Path::new("reel.mp4")));
+    assert!(!applies(true, true, Path::new("photo.jpg")));
+    assert!(!applies(true, true, Path::new("song.m4a")));
+    assert!(!applies(true, true, Path::new("no_extension")));
+}
+
+#[test]
 fn windows_file_names_leave_room_for_temporary_suffixes_in_a_long_folder() {
     use std::path::Path;
     let short = Path::new("C:\\Videos");
