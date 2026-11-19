@@ -148,6 +148,7 @@ function buildOne(dir) {
     id: manifest.id,
     name: manifest.name,
     description: manifest.description ?? "",
+    description_i18n: manifest.description_i18n ?? {},
     version: manifest.version,
     author: manifest.author ?? "",
     match: manifest.match,

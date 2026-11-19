@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { authProblem, errorKey, filterEntries, looksLikeUrl, type MarketEntry } from "./connector-market";
+import { authProblem, errorKey, filterEntries, localizedDescription, looksLikeUrl, type MarketEntry } from "./connector-market";
 
 describe("errorKey", () => {
   it("names the failed check", () => {
@@ -65,5 +65,51 @@ describe("filterEntries", () => {
     expect(filterEntries(list, " PANDA ", "").map((e) => e.id)).toEqual(["hotmart"]);
     expect(filterEntries(list, "albums", "").map((e) => e.id)).toEqual(["bunkr"]);
     expect(filterEntries(list, "nothing", "")).toEqual([]);
+  });
+});
+
+describe("localizedDescription", () => {
+  const entry = (extra: Partial<MarketEntry> = {}) =>
+    ({ id: "udemy", name: "Udemy", description: "Courses you are enrolled in", domains: [], state: "not_installed", ...extra }) as MarketEntry;
+
+  it("shows the catalog translation for the active locale", () => {
+    const card = entry({ description_i18n: { ru: "Курсы, на которые вы записаны" } });
+    expect(localizedDescription(card, "ru")).toBe("Курсы, на которые вы записаны");
+  });
+
+  it("falls back to the catalog English when the locale has no translation", () => {
+    const card = entry({ description_i18n: { ru: "Курсы" } });
+    expect(localizedDescription(card, "ja")).toBe("Courses you are enrolled in");
+    expect(localizedDescription(card, null)).toBe("Courses you are enrolled in");
+    expect(localizedDescription(entry(), "ru")).toBe("Courses you are enrolled in");
+  });
+
+  it("accepts a regional locale for a base-language entry", () => {
+    const card = entry({ description_i18n: { pt: "Cursos em que você está inscrito" } });
+    expect(localizedDescription(card, "pt-BR")).toBe("Cursos em que você está inscrito");
+  });
+});
+
+describe("filterEntries with the active description", () => {
+  const entry = (id: string, extra: Partial<MarketEntry> = {}) =>
+    ({ id, name: id, description: "", domains: [], state: "not_installed", ...extra }) as MarketEntry;
+  const list = [
+    entry("udemy", { description: "Courses you are enrolled in", description_i18n: { ru: "Курсы, на которые вы записаны" } }),
+    entry("branas", { description: "LaunchLab schools", description_i18n: { ru: "Школы LaunchLab" } }),
+  ];
+  const shown = (e: MarketEntry) => localizedDescription(e, "ru");
+
+  it("matches the text the card shows", () => {
+    expect(filterEntries(list, "курсы", "", shown).map((e) => e.id)).toEqual(["udemy"]);
+  });
+
+  it("keeps matching the English description while the card is translated", () => {
+    expect(filterEntries(list, "enrolled", "", shown).map((e) => e.id)).toEqual(["udemy"]);
+  });
+
+  it("matches the translated text once the locale changes", () => {
+    const ja = (e: MarketEntry) => localizedDescription(e, "ja");
+    expect(filterEntries(list, "курсы", "", ja)).toEqual([]);
+    expect(filterEntries(list, "enrolled", "", ja).map((e) => e.id)).toEqual(["udemy"]);
   });
 });

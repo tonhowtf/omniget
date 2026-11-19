@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::{BTreeMap, HashSet};
 use std::io::{Cursor, Read};
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
@@ -50,6 +50,8 @@ pub struct CatalogEntry {
     pub name: String,
     #[serde(default)]
     pub description: String,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub description_i18n: BTreeMap<String, String>,
     pub version: String,
     #[serde(default)]
     pub author: String,
@@ -391,6 +393,7 @@ pub fn merge(catalog: &[CatalogEntry], installed: &[Connector]) -> Vec<MarketEnt
                 id: m.id.clone(),
                 name: m.name.clone(),
                 description: m.description.clone(),
+                description_i18n: BTreeMap::new(),
                 version: m.version.clone(),
                 author: m.author.clone(),
                 matches: m.matches.clone(),
@@ -768,6 +771,7 @@ mod tests {
             id: id.into(),
             name: id.into(),
             description: String::new(),
+            description_i18n: BTreeMap::new(),
             version: version.into(),
             author: "a".into(),
             matches: vec![format!("https://{host}/**")],
@@ -924,6 +928,34 @@ mod tests {
         assert_eq!(catalog.connectors.len(), 1);
         assert_eq!(catalog.connectors[0].id, "a");
         assert!(rejected[0].contains(OPTED_OUT_ERROR), "{rejected:?}");
+    }
+
+    #[test]
+    fn catalog_carries_translated_descriptions_to_the_app() {
+        let mut entry = entry_for("a", "1.0.0", &["example.com"], b"x");
+        entry.description = "Courses you are enrolled in".into();
+        entry
+            .description_i18n
+            .insert("ru".into(), "Курсы, на которые вы записаны".into());
+        let bytes = serde_json::to_vec(&json!({ "connectors": [entry] })).unwrap();
+        let (catalog, rejected) = parse_catalog(&bytes).unwrap();
+        assert!(rejected.is_empty(), "{rejected:?}");
+        assert_eq!(
+            catalog.connectors[0].description_i18n["ru"],
+            "Курсы, на которые вы записаны"
+        );
+        let view = serde_json::to_value(MarketEntry {
+            entry: catalog.connectors[0].clone(),
+            state: "not_installed",
+            installed_version: None,
+            dev: false,
+            in_catalog: true,
+            compatible: true,
+            has_options: false,
+        })
+        .unwrap();
+        assert_eq!(view["description_i18n"]["ru"], "Курсы, на которые вы записаны");
+        assert_eq!(view["description"], "Courses you are enrolled in");
     }
 
     #[test]

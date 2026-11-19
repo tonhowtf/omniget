@@ -2,6 +2,7 @@ export type MarketEntry = {
   id: string;
   name: string;
   description: string;
+  description_i18n?: Record<string, string>;
   version: string;
   author: string;
   match: string[];
@@ -72,9 +73,29 @@ export function looksLikeUrl(text: string): boolean {
 
 const STATE_ORDER = { update_available: 0, installed: 1, not_installed: 2 };
 
-export function filterEntries(entries: MarketEntry[], query: string, focusId: string): MarketEntry[] {
+/** Text the card shows for the active locale, falling back to the catalog English. */
+export function localizedDescription(entry: MarketEntry, locale: string | null | undefined): string {
+  const fallback = entry.description ?? "";
+  const map = entry.description_i18n;
+  if (!map || !locale) return fallback;
+  const exact = map[locale];
+  if (exact) return exact;
+  const base = locale.split("-")[0];
+  const byBase = base ? map[base] : undefined;
+  return byBase || fallback;
+}
+
+export function filterEntries(
+  entries: MarketEntry[],
+  query: string,
+  focusId: string,
+  descriptionOf: (entry: MarketEntry) => string = (entry) => entry.description ?? "",
+): MarketEntry[] {
   const q = query.trim().toLowerCase();
-  const hit = (e: MarketEntry) => [e.name, e.id, e.description, ...e.domains].some((v) => v.toLowerCase().includes(q));
+  const hit = (e: MarketEntry) => {
+    const shown = descriptionOf(e);
+    return [e.name, e.id, e.description, shown, ...e.domains].some((v) => v.toLowerCase().includes(q));
+  };
   const rank = (e: MarketEntry) => (e.id === focusId ? -1 : STATE_ORDER[e.state]);
   return entries.filter((e) => !q || hit(e)).sort((a, b) => rank(a) - rank(b) || a.name.localeCompare(b.name));
 }
