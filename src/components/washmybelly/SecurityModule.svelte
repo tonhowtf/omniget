@@ -54,7 +54,7 @@
   }
 
   function manage(_it: PersistenceItem) {
-    void goto("/washmybelly?m=startup", { noScroll: true, keepFocus: true, replaceState: true });
+    void goto("/washmybelly?m=startup", { reset: false, replace: true });
   }
 
   async function openLoginItems() {

@@ -81,7 +81,7 @@ export function setFace(face: Face) {
   ui.nav++;
 }
 
-export function routeFromUrl(params: URLSearchParams): Route | null {
+export function routeFromUrl(params: Pick<URLSearchParams, "get">): Route | null {
   const v = params.get("v");
   if (v) {
     const t = Number(params.get("t") ?? "");

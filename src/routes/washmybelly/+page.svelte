@@ -79,7 +79,7 @@
   }
 
   function open(id: string) {
-    void goto(`/washmybelly?m=${id}`, { noScroll: true, keepFocus: true, replaceState: true });
+    void goto(`/washmybelly?m=${id}`, { reset: false, replace: true });
   }
 
   function onSideKey(e: KeyboardEvent) {

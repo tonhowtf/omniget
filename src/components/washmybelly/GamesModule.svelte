@@ -260,7 +260,7 @@
     <p class="group-footer">{$t("washmybelly.games.pick_hint")}</p>
   {/if}
 
-  <button class="gm-perf" type="button" onclick={() => void goto("/washmybelly?m=perf", { noScroll: true, keepFocus: true, replaceState: true })}>
+  <button class="gm-perf" type="button" onclick={() => void goto("/washmybelly?m=perf", { reset: false, replace: true })}>
     <span class="gm-perf-text">
       <span class="gm-perf-title">{$t("washmybelly.games.perf_title")}</span>
       <span class="gm-perf-sub">{$t("washmybelly.games.perf_body")}</span>

@@ -165,7 +165,7 @@ async function start() {
   vite.on('exit',code=>{if(!stopping){save({phase:'failed',error:'VITE_EXITED: '+code});void stop(1);}});
   const changed=()=>{clearTimeout(timer);timer=setTimeout(()=>{if(stopping)return;try{const next=revisions(root);if(next.backendRevision!==state.backendRevision)void build();else if(next.requestedRevision!==state.requestedRevision)save(next);}catch(error){log('watcher',String(error)+'\n');changed();}},200);};
   for(const dir of ['src-tauri','src','static','browser-extension','scripts/dev'])watchers.push(watch(path.join(root,dir),{recursive:true},(_event,file)=>{if(file&&!/(^|\/)(target|binaries)(\/|$)/.test(file)){if(env.CARGO_TARGET_DIR){const target=path.resolve(root,'src-tauri',env.CARGO_TARGET_DIR);const eventPath=path.resolve(root,dir,String(file));if(eventPath===target||eventPath.startsWith(target+path.sep))return;}const rel=path.posix.join(dir,String(file).split(path.sep).join('/'));if(backendInputs.some(input=>rel===input||rel.startsWith(input+'/')))backendGeneration++;changed();}}));
-  watchers.push(watch(root,(_event,file)=>{if(file&&/^(vite.config.js|svelte.config.js|tsconfig.json|package.json|pnpm-lock.yaml|rust-toolchain.toml|LICENSE)$/.test(file)){if(backendInputs.includes(file))backendGeneration++;changed();}}));
+  watchers.push(watch(root,(_event,file)=>{if(file&&/^(vite.config.js|tsconfig.json|package.json|pnpm-lock.yaml|rust-toolchain.toml|LICENSE)$/.test(file)){if(backendInputs.includes(file))backendGeneration++;changed();}}));
   watchers.push(watch(directory,(_event,file)=>{if(file==='prepare-request.json')void build();}));
   save({vitePid:vite.pid});emit({session:directory,supervisorPid:process.pid});await build();
  }catch(e){save({phase:'failed',error:e.message});await stop(1);}

@@ -1,5 +1,7 @@
 import { defineConfig } from "vite";
 import { sveltekit } from "@sveltejs/kit/vite";
+import adapter from "@sveltejs/adapter-static";
+import { vitePreprocess } from "@sveltejs/vite-plugin-svelte";
 import { execSync, spawnSync } from "child_process";
 import { readFileSync, existsSync } from "fs";
 import path from "path";
@@ -75,7 +77,19 @@ export default defineConfig(({ command }) => {
       previewDefaultsPlugin(configDir),
       i18nCheckPlugin({ strict: strictI18n }),
       pdfjsRuntimePlugin(),
-      sveltekit(),
+      sveltekit({
+        preprocess: vitePreprocess(),
+        adapter: adapter({
+          fallback: "index.html",
+        }),
+        alias: {
+          "$lib": "src/lib",
+          "$components": "src/components",
+        },
+        version: {
+          pollInterval: 0,
+        },
+      }),
     ],
 
     define: {

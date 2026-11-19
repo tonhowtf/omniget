@@ -130,7 +130,7 @@ export function fileName(path: string): string {
 
 const TOOL_TABS = ["analyze", "convert", "stems", "rename", "lyrics", "duplicates", "quality"];
 
-export function toolFromParams(params: URLSearchParams): string | null {
+export function toolFromParams(params: Pick<URLSearchParams, "get">): string | null {
   const tool = params.get("tool");
   return tool && TOOL_TABS.includes(tool) ? tool : null;
 }
