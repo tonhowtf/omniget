@@ -8,5 +8,6 @@
   ],
   "project": ["src/**/*.{ts,js,svelte}", "scripts/**/*.{js,mjs}", "browser-extension/chrome/**/*.{js,mjs}"],
   "ignore": ["src/lib/vendor/**"],
-  "ignoreBinaries": ["appstreamcli", "rustc"]
+  "ignoreBinaries": ["appstreamcli", "rustc"],
+  "ignoreDependencies": ["clsx"]
 }
