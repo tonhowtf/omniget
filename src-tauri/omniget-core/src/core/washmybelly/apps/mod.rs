@@ -58,6 +58,13 @@ pub fn list() -> Result<Vec<App>, String> {
     Ok(Vec::new())
 }
 
+pub fn list_quick() -> Result<(Vec<App>, bool), String> {
+    #[cfg(windows)]
+    return windows::list_quick();
+    #[allow(unreachable_code)]
+    Ok((list()?, false))
+}
+
 pub fn uninstall_items(ctx: &Ctx, app: &App) -> Result<(Vec<PlanItem>, Value), String> {
     let _ = ctx;
     #[cfg(target_os = "macos")]
@@ -73,8 +80,13 @@ pub fn uninstall_items(ctx: &Ctx, app: &App) -> Result<(Vec<PlanItem>, Value), S
 pub async fn tool_list(a: Value) -> Result<Value, String> {
     let query = crate::core::llm::tool_table::s(&a, "query").to_lowercase();
     let source = crate::core::llm::tool_table::s(&a, "source");
+    let quick = a.get("quick").and_then(Value::as_bool).unwrap_or(false);
     super::tools::blocking(move || {
-        let mut apps = list()?;
+        let (mut apps, partial) = if quick {
+            list_quick()?
+        } else {
+            (list()?, false)
+        };
         apps.retain(|app| {
             (query.is_empty()
                 || app.name.to_lowercase().contains(&query)
@@ -83,7 +95,7 @@ pub async fn tool_list(a: Value) -> Result<Value, String> {
         });
         apps.sort_by_key(|a| a.name.to_lowercase());
         let total = apps.len();
-        Ok(json!({ "apps": apps, "total": total }))
+        Ok(json!({ "apps": apps, "total": total, "partial": partial }))
     })
     .await
 }

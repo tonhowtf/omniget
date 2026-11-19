@@ -34,7 +34,7 @@ impl Key {
     pub fn subkeys(&self) -> Vec<String> {
         let mut out = Vec::new();
         let mut buf = vec![0u16; 512];
-        for i in 0u32.. {
+        for i in 0u32..100_000 {
             let mut len = buf.len() as u32;
             let rc = unsafe {
                 RegEnumKeyExW(

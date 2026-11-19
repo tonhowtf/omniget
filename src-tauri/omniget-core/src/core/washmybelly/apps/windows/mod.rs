@@ -36,6 +36,10 @@ pub fn list() -> Result<Vec<App>, String> {
         if let Some(apps) = cached() {
             return Ok(apps);
         }
+        let _single = LISTING.lock();
+        if let Some(apps) = cached() {
+            return Ok(apps);
+        }
         let apps = sys::list()?;
         if let Ok(ctx) = Ctx::app() {
             remember(&ctx, &apps);
@@ -47,7 +51,21 @@ pub fn list() -> Result<Vec<App>, String> {
     Ok(Vec::new())
 }
 
+pub fn list_quick() -> Result<(Vec<App>, bool), String> {
+    #[cfg(windows)]
+    {
+        if let Some(apps) = cached() {
+            return Ok((apps, false));
+        }
+        return Ok((sys::list_quick(), true));
+    }
+    #[allow(unreachable_code)]
+    Ok((Vec::new(), false))
+}
+
 const CACHE_SECS: u64 = 90;
+
+static LISTING: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
 static CACHE: std::sync::Mutex<Option<(std::time::Instant, Vec<App>)>> =
     std::sync::Mutex::new(None);

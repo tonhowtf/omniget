@@ -87,7 +87,7 @@ fn defs() -> Vec<Def> {
         d("wmb_dev_artifacts_scan", "Build artifacts of projects (target/, node_modules, .gradle, __pycache__, ...) under the given roots, with age and size, and a plan_id.",
             obj(json!({ "roots": roots.clone(), "older_than_days": { "type": "integer", "minimum": 0 } }), &[]), body!("wmb_dev_artifacts_scan"), Local, EVERY_OS, Read),
         d("wmb_apps_list", "Installed apps and packages with origin (app bundle, Homebrew, MSI, winget, Store, apt, flatpak, snap...), size and version.",
-            obj(json!({ "query": { "type": "string" }, "source": { "type": "string" } }), &[]), body!("wmb_apps_list"), Local, EVERY_OS, Read),
+            obj(json!({ "query": { "type": "string" }, "source": { "type": "string" }, "quick": { "type": "boolean", "description": "Answer at once with what is cheap to list and mark the result partial when slower sources are still missing" } }), &[]), body!("wmb_apps_list"), Local, EVERY_OS, Read),
         d("wmb_app_leftovers", "Leftovers of an installed or already removed app, each with a confidence level, and a plan_id to uninstall with them.",
             obj(json!({ "app_id": { "type": "string" } }), &["app_id"]), body!("wmb_app_leftovers"), Local, EVERY_OS, Read),
         d("wmb_startup_list", "What opens at login or runs in the background: login items, launch agents and daemons, Run keys, scheduled tasks, autostart and user services, with signer and state.",
