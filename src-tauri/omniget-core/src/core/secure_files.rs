@@ -323,7 +323,7 @@ mod os {
         Ok(wide)
     }
 
-    fn open(
+    fn entry(
         dir: &File,
         name: &[u16],
         access: u32,
@@ -371,11 +371,34 @@ mod os {
             ));
         }
         // SAFETY: NtCreateFile succeeded, so `handle` is a new handle this function owns.
-        let file = unsafe { File::from_raw_handle(handle.cast()) };
+        Ok(unsafe { File::from_raw_handle(handle.cast()) })
+    }
+
+    fn open(
+        dir: &File,
+        name: &[u16],
+        access: u32,
+        disposition: u32,
+        options: u32,
+        security: Option<&Descriptor>,
+    ) -> std::io::Result<File> {
+        let file = entry(dir, name, access, disposition, options, security)?;
         if details(&file)?.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT != 0 {
             return Err(denied());
         }
         Ok(file)
+    }
+
+    pub fn identity_at(root: &File, path: &Path) -> std::io::Result<Identity> {
+        let (dir, n) = walk(root, path, false)?;
+        identity(&entry(
+            &dir,
+            &name(&n)?,
+            FILE_READ_ATTRIBUTES | SYNCHRONIZE,
+            FILE_OPEN,
+            FILE_OPEN_FOR_BACKUP_INTENT,
+            None,
+        )?)
     }
 
     fn directory(dir: &File, n: &OsStr) -> std::io::Result<File> {
@@ -1180,7 +1203,11 @@ impl Root {
                 inode: st.st_ino as u64,
             })
         }
-        #[cfg(not(unix))]
+        #[cfg(windows)]
+        {
+            os::identity_at(&self.directory, relative)
+        }
+        #[cfg(not(any(unix, windows)))]
         {
             let _ = relative;
             Err(denied())
@@ -2144,6 +2171,14 @@ mod windows_tests {
         assert!(grants(&p) > 1);
         assert_eq!(grants(&p.join("job")), 1);
         assert_eq!(grants(&p.join("note.txt")), 1);
+        let note = root.identity_of(Path::new("note.txt")).unwrap();
+        assert_eq!(root.identity_of(Path::new("NOTE.TXT")).unwrap(), note);
+        assert_ne!(root.identity_of(Path::new("job")).unwrap(), note);
+        std::fs::hard_link(p.join("note.txt"), p.join("alias")).unwrap();
+        assert_eq!(root.identity_of(Path::new("alias")).unwrap(), note);
+        std::fs::remove_file(p.join("alias")).unwrap();
+        assert!(root.identity_of(Path::new("missing")).is_err());
+        assert!(root.identity_of(Path::new(r"..\note.txt")).is_err());
         assert!(root.snapshot(Path::new("note.txt"), 3).is_err());
         assert_eq!(root.snapshot(Path::new("note.txt"), 4).unwrap().bytes, 4);
         drop(job);
