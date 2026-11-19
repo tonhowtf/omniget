@@ -11,6 +11,9 @@ importers:
       '@excalidraw/excalidraw':
         specifier: 0.18.0
         version: 0.18.0(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
+      '@sveltekit-i18n/extension-stores':
+        specifier: ^3.2.1
+        version: 3.2.1(@sveltekit-i18n/base@3.3.2(svelte@5.51.0))(svelte@5.51.0)
       '@tauri-apps/api':
         specifier: ^2
         version: 2.10.1
@@ -66,8 +69,8 @@ importers:
         specifier: ^19.3.0
         version: 19.3.0(react@19.3.0)
       sveltekit-i18n:
-        specifier: ^2.4.2
-        version: 2.4.2(svelte@5.51.0)
+        specifier: ^3.4.1
+        version: 3.4.1(svelte@5.51.0)
       thinking-orbs:
         specifier: ^0.3.2
         version: 0.3.2(react@19.3.0)
@@ -120,6 +123,10 @@ packages:
 
   '@braintree/sanitize-url@6.0.2':
     resolution: {integrity: sha512-Tbsj02wXCbqGmzdnXNk0SOF19ChhRU70BsroIi4Pm6Ehp56in6vch94mfbdQ17DozxkL3BAVjbZ4Qc1a0HFRAg==}
+
+  '@curly-message/parser@3.1.2':
+    resolution: {integrity: sha512-c10/p5apPCN36S2ydM0C00AkXPh1swssnNFPJKmMYmTn8kq2clKvSXkXiMDepBcMei10/SRHMNWso2Um2+YVJA==}
+    engines: {node: '>=22'}
 
   '@esbuild/aix-ppc64@0.25.12':
     resolution: {integrity: sha512-Hhmwd6CInZ3dwpuGTF8fJG6yoWmsToE+vYgD4nytZVxcu1ulHpUQRAB1UJ8+N1Am3Mz4+xOByoQoSZf4D+CpkA==}
@@ -883,13 +890,24 @@ packages:
       svelte: ^5.0.0
       vite: ^6.3.0 || ^7.0.0
 
-  '@sveltekit-i18n/base@1.3.7':
-    resolution: {integrity: sha512-kg1kql1/ro/lIudwFiWrv949Q07gmweln87tflUZR51MNdXXzK4fiJQv5Mw50K/CdQ5BOk/dJ0WOH2vOtBI6yw==}
+  '@sveltekit-i18n/base@3.3.2':
+    resolution: {integrity: sha512-zapliOCwvSEQDzXL86rolW88kwH1AWmKWZB1v4LYzvIfZ/ZlivFuceCYJGJKTCWYPbqByU08nC0fUukXB2pwmA==}
+    engines: {bun: '>=1.2', deno: '>=2', node: '>=22'}
     peerDependencies:
-      svelte: '>=3.49.0'
+      svelte: '>=5'
 
-  '@sveltekit-i18n/parser-default@1.1.1':
-    resolution: {integrity: sha512-/gtzLlqm/sox7EoPKD56BxGZktK/syGc79EbJAPWY5KVitQD9SM0TP8yJCqDxTVPk7Lk0WJhrBGUE2Nn0f5M1w==}
+  '@sveltekit-i18n/extension-stores@3.2.1':
+    resolution: {integrity: sha512-HHHx1uomtXkv4sLnQZfXFZlw8R7meBUvuZFO1Hk3LaxS4mTkVGNBFnCG6mgjey/EKrA3QoEvJ5VpQ/FK5v1wJQ==}
+    engines: {node: '>=22'}
+    peerDependencies:
+      '@sveltekit-i18n/base': ^3.1.0-next.0
+      svelte: '>=5'
+
+  '@sveltekit-i18n/parser-curly@3.2.2':
+    resolution: {integrity: sha512-E5i/fGo44qo5uFAPs8Dpvg25K8AjePuT2vn5Qb28iiHY2XeXImphkFnno1J/KMA4yIi73L6tLPNWejOJIhilGQ==}
+    engines: {bun: '>=1.2', deno: '>=2', node: '>=22'}
+    peerDependencies:
+      '@sveltekit-i18n/base': ^3.0.0 || ^3.1.0-next.0
 
   '@svta/cml-608@1.0.2':
     resolution: {integrity: sha512-ZEJ68330gcLKfvVv6Qifr1HR7+GldDUxzkjqSbqRK7jHtHSLSV1JAyDwlYe8+C7ABuY1bp8MpgJ4/Gg+jl+pLQ==}
@@ -2021,10 +2039,11 @@ packages:
     resolution: {integrity: sha512-TOtjs5SjPi1iCXJ7aHwQBY+PEyk0koIc1FCKNFyS9kQuN4FBma9nRuxM4f4A0b5SCdej812vf2Rcql2I0s9FZg==}
     engines: {node: '>=18'}
 
-  sveltekit-i18n@2.4.2:
-    resolution: {integrity: sha512-hjRWn4V4DBL8JQKJoJa3MRvn6d32Zo+rWkoSP5bsQ/XIAguPdQUZJ8LMe6Nc1rST8WEVdu9+vZI3aFdKYGR3+Q==}
+  sveltekit-i18n@3.4.1:
+    resolution: {integrity: sha512-XArl1fGAFprabvscDnIhiP90GqYWJqbQXapYseKCUz+llBuUrBk7X7U55mAeRZCHhjuZ7+bWO1qLltnuiMSnBw==}
+    engines: {bun: '>=1.2', deno: '>=2', node: '>=22'}
     peerDependencies:
-      svelte: '>=3.49.0'
+      svelte: '>=5'
 
   thinking-orbs@0.3.2:
     resolution: {integrity: sha512-QZFeBaPEzqhjiZoXy961EvDgaXk2WgXacF3Rbz+Sj5IfzDzBvTC86vdREUHniBffYibJFKSwbfllxLUdI/Xv6g==}
@@ -2304,6 +2323,8 @@ snapshots:
   '@babel/runtime@7.29.13': {}
 
   '@braintree/sanitize-url@6.0.2': {}
+
+  '@curly-message/parser@3.1.2': {}
 
   '@esbuild/aix-ppc64@0.25.12':
     optional: true
@@ -2935,11 +2956,19 @@ snapshots:
       vite: 6.4.6(@types/node@25.6.0)(sass@1.51.0)(yaml@2.8.4)
       vitefu: 1.1.1(vite@6.4.6(@types/node@25.6.0)(sass@1.51.0)(yaml@2.8.4))
 
-  '@sveltekit-i18n/base@1.3.7(svelte@5.51.0)':
+  '@sveltekit-i18n/base@3.3.2(svelte@5.51.0)':
     dependencies:
       svelte: 5.51.0
 
-  '@sveltekit-i18n/parser-default@1.1.1': {}
+  '@sveltekit-i18n/extension-stores@3.2.1(@sveltekit-i18n/base@3.3.2(svelte@5.51.0))(svelte@5.51.0)':
+    dependencies:
+      '@sveltekit-i18n/base': 3.3.2(svelte@5.51.0)
+      svelte: 5.51.0
+
+  '@sveltekit-i18n/parser-curly@3.2.2(@sveltekit-i18n/base@3.3.2(svelte@5.51.0))':
+    dependencies:
+      '@curly-message/parser': 3.1.2
+      '@sveltekit-i18n/base': 3.3.2(svelte@5.51.0)
 
   '@svta/cml-608@1.0.2': {}
 
@@ -4158,10 +4187,10 @@ snapshots:
       magic-string: 0.30.21
       zimmerframe: 1.1.4
 
-  sveltekit-i18n@2.4.2(svelte@5.51.0):
+  sveltekit-i18n@3.4.1(svelte@5.51.0):
     dependencies:
-      '@sveltekit-i18n/base': 1.3.7(svelte@5.51.0)
-      '@sveltekit-i18n/parser-default': 1.1.1
+      '@sveltekit-i18n/base': 3.3.2(svelte@5.51.0)
+      '@sveltekit-i18n/parser-curly': 3.2.2(@sveltekit-i18n/base@3.3.2(svelte@5.51.0))
       svelte: 5.51.0
 
   thinking-orbs@0.3.2(react@19.3.0):

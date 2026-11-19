@@ -3321,7 +3321,7 @@
       }
     },
     "path": {
-      "err_absolute": "Saisissez un chemin complet, commençant par / (ou un lecteur comme C:\\ sous Windows).",
+      "err_absolute": "Saisissez un chemin complet, commençant par / (ou un lecteur comme C:\\\\ sous Windows).",
       "folder_placeholder": "/chemin/du/dossier"
     },
     "effect_state": {
@@ -11275,7 +11275,7 @@
     "restored": "« {{name}} » restauré.",
     "restore_error": "Impossible de restaurer le tableau : {{reason}}",
     "name_empty": "Saisissez un nom.",
-    "name_invalid": "Le nom ne peut pas contenir / \\ : * ? \" < > | ni commencer ou finir par un point.",
+    "name_invalid": "Le nom ne peut pas contenir / \\\\ : * ? \" < > | ni commencer ou finir par un point.",
     "name_too_long": "120 caractères maximum.",
     "name_exists": "Un tableau porte déjà ce nom. Choisissez-en un autre.",
     "export": "Exporter",
