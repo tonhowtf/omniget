@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { authProblem, errorKey, filterEntries, looksLikeUrl, type MarketEntry } from "./connector-market";
+import { authProblem, descriptionFor, errorKey, filterEntries, looksLikeUrl, type MarketEntry } from "./connector-market";
 
 describe("errorKey", () => {
   it("names the failed check", () => {
@@ -65,5 +65,44 @@ describe("filterEntries", () => {
     expect(filterEntries(list, " PANDA ", "").map((e) => e.id)).toEqual(["hotmart"]);
     expect(filterEntries(list, "albums", "").map((e) => e.id)).toEqual(["bunkr"]);
     expect(filterEntries(list, "nothing", "")).toEqual([]);
+  });
+
+  it("searches the shown description and the English one", () => {
+    const translated = [entry("udemy", "not_installed", { description: "Courses you are enrolled in", description_i18n: { ru: "Курсы, на которые вы записаны" } })];
+    const shownIn = (locale: string) => (e: MarketEntry) => descriptionFor(e, locale);
+    expect(filterEntries(translated, "курсы", "", shownIn("ru")).map((e) => e.id)).toEqual(["udemy"]);
+    expect(filterEntries(translated, "enrolled", "", shownIn("ru")).map((e) => e.id)).toEqual(["udemy"]);
+    expect(filterEntries(translated, "курсы", "", shownIn("pt"))).toEqual([]);
+    expect(filterEntries(translated, "курсы", "")).toEqual([]);
+  });
+});
+
+describe("descriptionFor", () => {
+  const entry = (description_i18n?: unknown) => ({ id: "udemy", description: "English text.", description_i18n }) as MarketEntry;
+
+  it("returns the text of the active language", () => {
+    expect(descriptionFor(entry({ ru: "Русский текст.", pt: "Texto." }), "ru")).toBe("Русский текст.");
+    expect(descriptionFor(entry({ "zh-TW": "繁體" }), "zh-TW")).toBe("繁體");
+  });
+
+  it("falls back to the English description", () => {
+    expect(descriptionFor(entry({ ru: "Русский текст." }), "de")).toBe("English text.");
+    expect(descriptionFor(entry(), "ru")).toBe("English text.");
+    expect(descriptionFor(entry(null), "ru")).toBe("English text.");
+    expect(descriptionFor(entry({ ru: "" }), "ru")).toBe("English text.");
+    expect(descriptionFor(entry({ ru: "  " }), "ru")).toBe("English text.");
+  });
+
+  it("does not treat inherited object keys as translations", () => {
+    for (const locale of ["constructor", "toString", "__proto__", "hasOwnProperty"]) {
+      expect(descriptionFor(entry({ ru: "Русский текст." }), locale)).toBe("English text.");
+      expect(descriptionFor(entry({}), locale)).toBe("English text.");
+    }
+  });
+
+  it("ignores values that are not text", () => {
+    expect(descriptionFor(entry({ ru: 7 }), "ru")).toBe("English text.");
+    expect(descriptionFor(entry({ ru: { toString: () => "x" } }), "ru")).toBe("English text.");
+    expect(descriptionFor(entry("ru"), "ru")).toBe("English text.");
   });
 });

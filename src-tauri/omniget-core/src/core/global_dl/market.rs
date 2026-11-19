@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::{BTreeMap, HashSet};
 use std::io::{Cursor, Read};
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
@@ -23,6 +23,9 @@ const MAX_PACKAGE_BYTES: usize = 8 << 20;
 const MAX_PACKAGE_FILES: usize = 32;
 const MAX_FILE_BYTES: u64 = 4 << 20;
 const MAX_TOTAL_BYTES: u64 = 16 << 20;
+const MAX_DESCRIPTION_LOCALES: usize = 32;
+const MAX_DESCRIPTION_CHARS: usize = 1000;
+const MAX_LOCALE_BYTES: usize = 16;
 const CACHE_FRESH: Duration = Duration::from_secs(6 * 60 * 60);
 
 const ERR_SIGNATURE: &str = "signature";
@@ -50,6 +53,12 @@ pub struct CatalogEntry {
     pub name: String,
     #[serde(default)]
     pub description: String,
+    #[serde(
+        default,
+        deserialize_with = "description_i18n",
+        skip_serializing_if = "BTreeMap::is_empty"
+    )]
+    pub description_i18n: BTreeMap<String, String>,
     pub version: String,
     #[serde(default)]
     pub author: String,
@@ -66,6 +75,31 @@ pub struct CatalogEntry {
     pub category: String,
     #[serde(default)]
     pub permissions: Vec<String>,
+}
+
+fn description_i18n<'de, D>(deserializer: D) -> Result<BTreeMap<String, String>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let serde_json::Value::Object(raw) = serde_json::Value::deserialize(deserializer)? else {
+        return Ok(BTreeMap::new());
+    };
+    Ok(raw
+        .into_iter()
+        .filter_map(|(locale, text)| {
+            let serde_json::Value::String(text) = text else {
+                return None;
+            };
+            let locale_ok = !locale.is_empty()
+                && locale.len() <= MAX_LOCALE_BYTES
+                && locale
+                    .bytes()
+                    .all(|b| b.is_ascii_alphanumeric() || b == b'-');
+            let text_ok = !text.trim().is_empty() && text.chars().count() <= MAX_DESCRIPTION_CHARS;
+            (locale_ok && text_ok).then_some((locale, text))
+        })
+        .take(MAX_DESCRIPTION_LOCALES)
+        .collect())
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -391,6 +425,7 @@ pub fn merge(catalog: &[CatalogEntry], installed: &[Connector]) -> Vec<MarketEnt
                 id: m.id.clone(),
                 name: m.name.clone(),
                 description: m.description.clone(),
+                description_i18n: BTreeMap::new(),
                 version: m.version.clone(),
                 author: m.author.clone(),
                 matches: m.matches.clone(),
@@ -719,6 +754,7 @@ pub async fn lookup(url: &str) -> UrlLookup {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serde_json::Value;
     use std::io::Write;
     use zip::write::SimpleFileOptions;
 
@@ -768,6 +804,7 @@ mod tests {
             id: id.into(),
             name: id.into(),
             description: String::new(),
+            description_i18n: BTreeMap::new(),
             version: version.into(),
             author: "a".into(),
             matches: vec![format!("https://{host}/**")],
@@ -924,6 +961,91 @@ mod tests {
         assert_eq!(catalog.connectors.len(), 1);
         assert_eq!(catalog.connectors[0].id, "a");
         assert!(rejected[0].contains(OPTED_OUT_ERROR), "{rejected:?}");
+    }
+
+    fn catalog_with(description_i18n: Option<Value>) -> Vec<u8> {
+        let mut entry = json!({
+            "id": "a",
+            "name": "A",
+            "description": "English text.",
+            "version": "1.0.0",
+            "match": ["https://example.com/**"],
+            "domains": ["example.com"],
+            "sha256": "0".repeat(64),
+            "package": "https://getomniget.com/connectors/a.omniconnector",
+        });
+        if let Some(map) = description_i18n {
+            entry["description_i18n"] = map;
+        }
+        serde_json::to_vec(&json!({ "generated_at": 1, "connectors": [entry] })).unwrap()
+    }
+
+    fn only_entry(bytes: &[u8]) -> CatalogEntry {
+        let (catalog, rejected) = parse_catalog(bytes).unwrap();
+        assert!(rejected.is_empty(), "{rejected:?}");
+        assert_eq!(catalog.connectors.len(), 1);
+        catalog.connectors[0].clone()
+    }
+
+    #[test]
+    fn a_catalog_without_translated_descriptions_still_loads() {
+        let e = only_entry(&catalog_with(None));
+        assert_eq!(e.description, "English text.");
+        assert!(e.description_i18n.is_empty());
+        assert!(json!(e).get("description_i18n").is_none());
+    }
+
+    #[test]
+    fn translated_descriptions_reach_the_market_entry_next_to_the_english_one() {
+        let e = only_entry(&catalog_with(Some(
+            json!({ "ru": "Русский текст.", "zh-TW": "繁體" }),
+        )));
+        assert_eq!(e.description_i18n.len(), 2);
+        let sent = json!(merge(&[e], &[]));
+        assert_eq!(sent[0]["description"], "English text.");
+        assert_eq!(sent[0]["description_i18n"]["ru"], "Русский текст.");
+        assert_eq!(sent[0]["description_i18n"]["zh-TW"], "繁體");
+    }
+
+    #[test]
+    fn translated_descriptions_that_are_not_text_are_dropped() {
+        let e = only_entry(&catalog_with(Some(json!({
+            "ru": 7,
+            "pt": null,
+            "es": ["x"],
+            "fr": { "nested": "x" },
+            "it": "   ",
+            "ja": "ok",
+        }))));
+        assert_eq!(
+            e.description_i18n,
+            BTreeMap::from([("ja".to_string(), "ok".to_string())])
+        );
+        for not_a_map in [json!("ru"), json!(7), json!(null), json!(["ru"])] {
+            let e = only_entry(&catalog_with(Some(not_a_map)));
+            assert_eq!(e.description, "English text.");
+            assert!(e.description_i18n.is_empty());
+        }
+    }
+
+    #[test]
+    fn translated_descriptions_over_the_limits_are_dropped() {
+        let long = "я".repeat(MAX_DESCRIPTION_CHARS + 1);
+        let fits = "я".repeat(MAX_DESCRIPTION_CHARS);
+        let e = only_entry(&catalog_with(Some(json!({
+            "ru": long,
+            "pt": fits,
+            "": "empty locale",
+            "a-locale-code-far-too-long": "x",
+            "../up": "x",
+            "<b>": "x",
+        }))));
+        assert_eq!(e.description_i18n.keys().collect::<Vec<_>>(), vec!["pt"]);
+        let many: serde_json::Map<String, Value> = (0..MAX_DESCRIPTION_LOCALES + 10)
+            .map(|i| (format!("l{i}"), json!("x")))
+            .collect();
+        let e = only_entry(&catalog_with(Some(Value::Object(many))));
+        assert_eq!(e.description_i18n.len(), MAX_DESCRIPTION_LOCALES);
     }
 
     #[test]
