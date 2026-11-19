@@ -63,7 +63,7 @@ tokio-util = { version = "0.7", features = ["rt", "io"] }
 url = "2"
 urlencoding = "2"
 rand = "0.10.0"
-rusqlite = { version = "0.40", features = ["bundled", "fallible_uint"] }
+rusqlite = { version = "0.42", features = ["bundled", "fallible_uint"] }
 base64 = "0.22.1"
 tempfile = "=3.27.0"
 sha2 = "0.10"
