@@ -1,3 +1,5 @@
+import type { Os } from "$lib/platform";
+
 export type RadioVerdict = "ok" | "stalled" | "silent";
 
 export type RadioSample = {
@@ -37,6 +39,10 @@ export function createRadioWatch({ stallMs = 20_000, silenceMs = 8_000 } = {}) {
       return s.now - lastSound >= silenceMs ? "silent" : "ok";
     },
   };
+}
+
+export function radioUsesGraph(os: Os): boolean {
+  return os !== "windows";
 }
 
 export const RADIO_RETRY_LIMIT = 2;
