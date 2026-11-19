@@ -3321,7 +3321,7 @@
       }
     },
     "path": {
-      "err_absolute": "Scrivi un percorso completo, che inizi con / (o un'unità come C:\\ su Windows).",
+      "err_absolute": "Scrivi un percorso completo, che inizi con / (o un'unità come C:\\\\ su Windows).",
       "folder_placeholder": "/percorso/della/cartella"
     },
     "effect_state": {
@@ -11275,7 +11275,7 @@
     "restored": "Ripristinato “{{name}}”.",
     "restore_error": "Impossibile ripristinare la lavagna: {{reason}}",
     "name_empty": "Scrivi un nome.",
-    "name_invalid": "Il nome non può contenere / \\ : * ? \" < > | né iniziare o finire con un punto.",
+    "name_invalid": "Il nome non può contenere / \\\\ : * ? \" < > | né iniziare o finire con un punto.",
     "name_too_long": "Usa al massimo 120 caratteri.",
     "name_exists": "Esiste già una lavagna con questo nome. Scegline un altro.",
     "export": "Esporta",

@@ -3321,7 +3321,7 @@
       }
     },
     "path": {
-      "err_absolute": "Escribe una ruta completa, que empiece por / (o una unidad como C:\\ en Windows).",
+      "err_absolute": "Escribe una ruta completa, que empiece por / (o una unidad como C:\\\\ en Windows).",
       "folder_placeholder": "/ruta/a/la/carpeta"
     },
     "effect_state": {
@@ -11275,7 +11275,7 @@
     "restored": "Se restauró «{{name}}».",
     "restore_error": "No se pudo restaurar la pizarra: {{reason}}",
     "name_empty": "Escribe un nombre.",
-    "name_invalid": "El nombre no puede contener / \\ : * ? \" < > | ni empezar o terminar con punto.",
+    "name_invalid": "El nombre no puede contener / \\\\ : * ? \" < > | ni empezar o terminar con punto.",
     "name_too_long": "Usa 120 caracteres o menos.",
     "name_exists": "Ya existe una pizarra con este nombre. Elige otro.",
     "export": "Exportar",

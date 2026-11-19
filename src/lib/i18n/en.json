@@ -3321,7 +3321,7 @@
       }
     },
     "path": {
-      "err_absolute": "Type a full path, starting with / (or a drive like C:\\ on Windows).",
+      "err_absolute": "Type a full path, starting with / (or a drive like C:\\\\ on Windows).",
       "folder_placeholder": "/path/to/folder"
     },
     "effect_state": {
@@ -11275,7 +11275,7 @@
     "restored": "Restored “{{name}}”.",
     "restore_error": "Couldn't restore the board: {{reason}}",
     "name_empty": "Type a name.",
-    "name_invalid": "Names can't contain / \\ : * ? \" < > | or start or end with a dot.",
+    "name_invalid": "Names can't contain / \\\\ : * ? \" < > | or start or end with a dot.",
     "name_too_long": "Use 120 characters or fewer.",
     "name_exists": "A board with this name already exists. Pick another name.",
     "export": "Export",
