@@ -2807,6 +2807,7 @@
     "preset_custom": "Personalizado",
     "formats_presets_label": "Preset de formato",
     "formats_merge_note": "Los formatos de vídeo (V) se combinarán automáticamente con audio (A) si FFmpeg está disponible.",
+    "audio_language": "Idioma del audio",
     "formats_playlist_note": "El selector de formato por vídeo no se aplica a listas de reproducción. La opción Calidad de arriba se aplica a cada vídeo.",
     "referer_label": "Referer (opcional)",
     "referer_placeholder": "https://example.com",

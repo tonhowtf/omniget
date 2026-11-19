@@ -430,6 +430,10 @@ fn own(name: &str) -> Option<Value> {
                     json!({"label": ty("string"), "width": ty("integer"), "height": ty("integer"), "url": ty("string"), "format": ty("string")}),
                     &["label", "format"],
                 )),
+                "audioLanguages": arr(obj(
+                    json!({"code": ty("string"), "label": ty("string"), "original": ty("boolean")}),
+                    &["code", "label", "original"],
+                )),
             }),
             &["title", "formats"],
         ),

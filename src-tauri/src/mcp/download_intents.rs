@@ -14,6 +14,10 @@ pub struct Options {
     pub mode: Option<String>,
     pub quality: Option<String>,
     pub format_id: Option<String>,
+    #[serde(default)]
+    pub format_generated: bool,
+    #[serde(default)]
+    pub audio_language: Option<String>,
     pub audio_format: Option<String>,
     pub subtitles: bool,
     pub auto_subtitles: bool,
@@ -32,6 +36,17 @@ pub struct Intent {
     pub options: Options,
     #[serde(default)]
     pub attempt: u32,
+}
+pub fn execution_format_id(
+    format_id: Option<&str>,
+    generated: bool,
+    compatible_video: bool,
+) -> Option<String> {
+    if generated && compatible_video {
+        None
+    } else {
+        format_id.map(str::to_owned)
+    }
 }
 pub const WORKER_MAX_FRAGMENTS: u32 = 4;
 pub const MAX_RETRIES: u32 = 2;
@@ -1139,4 +1154,62 @@ pub fn all() -> Result<Vec<Intent>, String> {
         decode(b, s)
     })
     .collect()
+}
+
+#[cfg(test)]
+mod format_tests {
+    use super::*;
+
+    const GENERATED: &str = "bv*[height<=720]+ba/b[height<=720]/ba";
+
+    #[test]
+    fn a_selector_built_from_mode_and_max_height_gives_way_to_the_compatible_setting() {
+        assert_eq!(execution_format_id(Some(GENERATED), true, true), None);
+    }
+
+    #[test]
+    fn a_generated_selector_is_kept_when_the_setting_is_best_quality() {
+        assert_eq!(
+            execution_format_id(Some(GENERATED), true, false).as_deref(),
+            Some(GENERATED)
+        );
+    }
+
+    #[test]
+    fn a_format_the_caller_chose_always_wins_over_the_setting() {
+        assert_eq!(
+            execution_format_id(Some("137+140"), false, true).as_deref(),
+            Some("137+140")
+        );
+        assert_eq!(
+            execution_format_id(Some("137+140"), false, false).as_deref(),
+            Some("137+140")
+        );
+    }
+
+    #[test]
+    fn no_selector_stays_no_selector() {
+        assert_eq!(execution_format_id(None, false, true), None);
+        assert_eq!(execution_format_id(None, true, true), None);
+    }
+
+    #[test]
+    fn an_intent_stored_before_the_flag_existed_reads_as_a_chosen_format() {
+        let stored = serde_json::json!({
+            "url": "https://example.com/v",
+            "mode": null,
+            "quality": "720",
+            "format_id": GENERATED,
+            "audio_format": null,
+            "subtitles": false,
+            "auto_subtitles": false,
+            "fragments": 4,
+            "parent": "/tmp/out",
+            "parent_identity": {"device": 1, "inode": 2},
+        });
+        let options: Options = serde_json::from_value(stored).unwrap();
+        assert!(!options.format_generated);
+        assert_eq!(options.audio_language, None);
+        assert_eq!(options.format_id.as_deref(), Some(GENERATED));
+    }
 }

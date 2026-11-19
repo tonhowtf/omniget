@@ -466,11 +466,16 @@ impl PlatformDownloader for GenericYtdlpDownloader {
                 &client,
                 &selected.url,
                 &output_path,
-                progress,
+                progress.clone(),
                 Some(headers),
                 Some(&opts.cancel_token),
             )
             .await?;
+            let (output_path, bytes) = if selected.format == "direct_video" {
+                ytdlp::finish_direct_video(output_path, bytes, Some(&progress)).await
+            } else {
+                (output_path, bytes)
+            };
 
             return Ok(DownloadResult {
                 file_path: output_path,

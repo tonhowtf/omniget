@@ -3,6 +3,7 @@ use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use omniget_core::{
     core::egress::{Broker, LimitReason, Policy},
+    core::ytdlp::{valid_audio_language, AudioLanguage},
     models::{
         media::{DownloadOptions, DownloadResult, MediaInfo},
         progress::ProgressUpdate,
@@ -69,6 +70,7 @@ pub struct WorkerDownloader {
     helper: PathBuf,
     allowed_sockets: BTreeSet<std::net::SocketAddr>,
     selected_media: Mutex<Option<(String, MediaInfo)>>,
+    audio_languages: Mutex<Vec<AudioLanguage>>,
     dependencies: OnceCell<Value>,
     info_json: std::sync::OnceLock<Option<InfoJsonDir>>,
 }
@@ -102,9 +104,16 @@ impl WorkerDownloader {
             helper,
             allowed_sockets,
             selected_media: Mutex::new(None),
+            audio_languages: Mutex::new(Vec::new()),
             dependencies: OnceCell::new(),
             info_json: std::sync::OnceLock::new(),
         })
+    }
+    pub fn audio_languages(&self) -> Vec<AudioLanguage> {
+        self.audio_languages
+            .lock()
+            .map(|languages| languages.clone())
+            .unwrap_or_default()
     }
     fn check_network_grants(&self) -> Result<()> {
         let current = super::network_grants::allowed(&self.principal)
@@ -366,6 +375,18 @@ impl WorkerDownloader {
         result
     }
 }
+fn reported_audio_languages(response: &Value) -> Vec<AudioLanguage> {
+    serde_json::from_value::<Vec<AudioLanguage>>(response["audio_languages"].clone())
+        .unwrap_or_default()
+        .into_iter()
+        .filter(|language| valid_audio_language(&language.code))
+        .take(64)
+        .map(|mut language| {
+            language.label = language.label.chars().take(64).collect();
+            language
+        })
+        .collect()
+}
 fn progress_from_event(event: &Value) -> ProgressUpdate {
     let phase = match event["phase"].as_str() {
         Some("downloading") => "downloading",
@@ -621,6 +642,10 @@ impl PlatformDownloader for WorkerDownloader {
             .selected_media
             .lock()
             .map_err(|_| anyhow!("WORKER_STATE"))? = Some((platform.to_owned(), info.clone()));
+        *self
+            .audio_languages
+            .lock()
+            .map_err(|_| anyhow!("WORKER_STATE"))? = reported_audio_languages(&response);
         let mut display_info = info;
         display_info.thumbnail_url = None;
         for quality in &mut display_info.available_qualities {
@@ -660,7 +685,7 @@ impl PlatformDownloader for WorkerDownloader {
             Some("audio") => "audio",
             _ => return Err(anyhow!("WORKER_MODE_UNSUPPORTED")),
         };
-        let mut request = json!({"operation":"download","output_dir":opts.output_dir,"quality":quality,"download_mode":mode,"audio_format":opts.audio_format,"format_id":opts.format_id,"referer":opts.referer,"page_url":opts.page_url,"extra_headers":opts.extra_headers,"user_agent":opts.user_agent,"subtitles":opts.download_subtitles,"include_auto_subtitles":opts.include_auto_subtitles,"concurrent_fragments":opts.concurrent_fragments.clamp(1,super::download_intents::WORKER_MAX_FRAGMENTS),"ytdlp_path":opts.ytdlp_path});
+        let mut request = json!({"operation":"download","output_dir":opts.output_dir,"quality":quality,"download_mode":mode,"audio_format":opts.audio_format,"format_id":opts.format_id,"referer":opts.referer,"page_url":opts.page_url,"extra_headers":opts.extra_headers,"user_agent":opts.user_agent,"subtitles":opts.download_subtitles,"include_auto_subtitles":opts.include_auto_subtitles,"concurrent_fragments":opts.concurrent_fragments.clamp(1,super::download_intents::WORKER_MAX_FRAGMENTS),"ytdlp_path":opts.ytdlp_path,"compatible_video":crate::storage::config::load_settings_standalone().download.video_compatibility=="compatible"});
         if let Some((platform, info)) = selected {
             request["platform"] = json!(platform);
             request["media_info"] = serde_json::to_value(info)?;
@@ -669,5 +694,43 @@ impl PlatformDownloader for WorkerDownloader {
             .dispatch(request, opts.cancel_token.clone(), Some(progress))
             .await?;
         serde_json::from_value(response["result"].clone()).map_err(|_| anyhow!("WORKER_RESULT"))
+    }
+}
+
+#[cfg(test)]
+mod audio_language_tests {
+    use super::*;
+
+    #[test]
+    fn languages_reported_by_the_worker_are_kept() {
+        let response = json!({"audio_languages":[
+            {"code":"en-US","label":"English (US)","original":true},
+            {"code":"pt","label":"Portuguese","original":false}
+        ]});
+        let languages = reported_audio_languages(&response);
+        assert_eq!(languages.len(), 2);
+        assert_eq!(languages[0].code, "en-US");
+        assert!(languages[0].original);
+        assert_eq!(languages[1].label, "Portuguese");
+    }
+
+    #[test]
+    fn a_hostile_code_from_the_worker_is_dropped_and_a_long_label_is_cut() {
+        let response = json!({"audio_languages":[
+            {"code":"pt]/b","label":"x","original":false},
+            {"code":"$(id)","label":"x","original":false},
+            {"code":"fr","label":"f".repeat(500),"original":false}
+        ]});
+        let languages = reported_audio_languages(&response);
+        assert_eq!(languages.len(), 1);
+        assert_eq!(languages[0].code, "fr");
+        assert_eq!(languages[0].label.chars().count(), 64);
+    }
+
+    #[test]
+    fn a_missing_or_malformed_list_means_no_languages() {
+        assert!(reported_audio_languages(&json!({})).is_empty());
+        assert!(reported_audio_languages(&json!({"audio_languages":"pt"})).is_empty());
+        assert!(reported_audio_languages(&json!({"audio_languages":[{"code":1}]})).is_empty());
     }
 }

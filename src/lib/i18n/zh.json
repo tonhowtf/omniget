@@ -2807,6 +2807,7 @@
     "preset_custom": "自定义",
     "formats_presets_label": "格式预设",
     "formats_merge_note": "如果 FFmpeg 可用，视频格式 (V) 将自动与音频 (A) 合并。",
+    "audio_language": "音频语言",
     "formats_playlist_note": "单视频格式选择器不适用于播放列表。上方的「质量」选项将应用于每个视频。",
     "referer_label": "Referer（可选）",
     "referer_placeholder": "https://example.com",

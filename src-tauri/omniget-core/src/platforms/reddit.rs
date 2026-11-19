@@ -636,6 +636,12 @@ impl RedditDownloader {
                         let _ = progress.send(ProgressUpdate::percent(100.0)).await;
 
                         let file_size = tokio::fs::metadata(&output).await?.len();
+                        let (output, file_size) = crate::core::ytdlp::finish_direct_video(
+                            output,
+                            file_size,
+                            Some(&progress),
+                        )
+                        .await;
                         Ok(DownloadResult {
                             file_path: output,
                             file_size_bytes: file_size,
@@ -660,6 +666,12 @@ impl RedditDownloader {
                             let _ = tokio::fs::remove_file(&audio_tmp).await;
                         }
 
+                        let (video_final, video_bytes) = crate::core::ytdlp::finish_direct_video(
+                            video_final,
+                            video_bytes,
+                            Some(&progress),
+                        )
+                        .await;
                         let _ = progress.send(ProgressUpdate::percent(100.0)).await;
 
                         Ok(DownloadResult {
@@ -677,10 +689,13 @@ impl RedditDownloader {
                         .download_video_with_fallback(
                             &video_quality.url,
                             &output,
-                            progress,
+                            progress.clone(),
                             Some(&opts.cancel_token),
                         )
                         .await?;
+                    let (output, bytes) =
+                        crate::core::ytdlp::finish_direct_video(output, bytes, Some(&progress))
+                            .await;
 
                     Ok(DownloadResult {
                         file_path: output,

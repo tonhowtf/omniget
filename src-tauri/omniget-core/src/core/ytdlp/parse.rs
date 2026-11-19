@@ -611,6 +611,11 @@ pub fn parse_formats(json: &serde_json::Value) -> Vec<FormatInfo> {
             .get("format_note")
             .and_then(|v| v.as_str())
             .map(|s| s.to_string());
+        let language = f
+            .get("language")
+            .and_then(|v| v.as_str())
+            .filter(|s| !s.is_empty() && *s != "none")
+            .map(|s| s.to_string());
 
         let has_video = vcodec.as_deref().map(|v| v != "none").unwrap_or(false);
         let has_audio = acodec.as_deref().map(|v| v != "none").unwrap_or(false);
@@ -641,6 +646,7 @@ pub fn parse_formats(json: &serde_json::Value) -> Vec<FormatInfo> {
             has_video,
             has_audio,
             format_note,
+            language,
         });
     }
 

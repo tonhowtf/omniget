@@ -263,11 +263,13 @@ impl PlatformDownloader for DirectFileDownloader {
             &client,
             file_url,
             &output_path,
-            progress,
+            progress.clone(),
             Some(headers),
             Some(&opts.cancel_token),
         )
         .await?;
+        let (output_path, bytes) =
+            crate::core::ytdlp::finish_direct_video(output_path, bytes, Some(&progress)).await;
 
         Ok(DownloadResult {
             file_path: output_path,

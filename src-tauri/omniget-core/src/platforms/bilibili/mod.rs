@@ -301,13 +301,17 @@ async fn api_engine_download(
         cdn_prefer_alternatives: settings.download.bilibili_cdn_prefer_alternatives,
     };
 
-    let result = engine::run_parsed_content(&client, &parsed, &kind, &engine_opts, progress)
-        .await
-        .map_err(|e| anyhow!("Engine failed: {}", e.i18n_key()))?;
+    let result =
+        engine::run_parsed_content(&client, &parsed, &kind, &engine_opts, progress.clone())
+            .await
+            .map_err(|e| anyhow!("Engine failed: {}", e.i18n_key()))?;
+    let (file_path, file_size_bytes) =
+        crate::core::ytdlp::finish_direct_video(result.final_path, result.bytes, Some(&progress))
+            .await;
 
     Ok(DownloadResult {
-        file_path: result.final_path,
-        file_size_bytes: result.bytes,
+        file_path,
+        file_size_bytes,
         duration_seconds: parsed
             .items
             .first()

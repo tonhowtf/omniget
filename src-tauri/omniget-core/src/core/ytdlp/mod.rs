@@ -148,6 +148,10 @@ pub(crate) fn compatible_format_selector(
     }
 }
 
+pub(crate) fn prefers_compatible_video(format_id: &str) -> bool {
+    format_id.starts_with("bv*[vcodec^=avc1]")
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum CompatibleVideoPlan {
     Keep,
@@ -1511,6 +1515,7 @@ pub const YOUTUBE_VIDEO_INFO_TOTAL_TIMEOUT_SECS: u64 = 190;
 pub const DEFAULT_VIDEO_INFO_TOTAL_TIMEOUT_SECS: u64 = 110;
 
 pub mod archive;
+mod audio_language;
 mod binaries;
 mod channel_list;
 mod download;
@@ -1519,6 +1524,7 @@ pub mod leftovers;
 mod parse;
 mod size;
 
+pub use audio_language::*;
 pub use binaries::*;
 pub use channel_list::*;
 pub use download::*;

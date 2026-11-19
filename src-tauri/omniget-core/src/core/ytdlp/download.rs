@@ -59,9 +59,15 @@ async fn make_output_compatible(path: &Path, mute: bool) -> anyhow::Result<PathB
             .map(|s| s.codec_name.clone())
     };
     let extension = path.extension().and_then(|e| e.to_str()).unwrap_or("");
-    let video_codec = codec_of("video");
+    let Some(video_codec) = codec_of("video") else {
+        return Ok(path.to_path_buf());
+    };
     let audio_codec = codec_of("audio");
-    let plan = compatible_video_plan(extension, video_codec.as_deref(), audio_codec.as_deref());
+    let plan = compatible_video_plan(
+        extension,
+        Some(video_codec.as_str()),
+        audio_codec.as_deref(),
+    );
     if plan == CompatibleVideoPlan::Keep {
         return Ok(path.to_path_buf());
     }
@@ -148,6 +154,18 @@ pub async fn make_direct_download_compatible(
     compatible_or_original(file_path, false).await
 }
 
+pub async fn finish_direct_video(
+    file_path: PathBuf,
+    downloaded_bytes: u64,
+    progress: Option<&mpsc::Sender<ProgressUpdate>>,
+) -> (PathBuf, u64) {
+    let file_path = make_direct_download_compatible(file_path, progress).await;
+    let size = std::fs::metadata(&file_path)
+        .map(|m| m.len())
+        .unwrap_or(downloaded_bytes);
+    (file_path, size)
+}
+
 pub(super) fn adjusted_multi_stream_progress(
     phase: &mut u32,
     last_raw_percent: &mut Option<f64>,
@@ -227,7 +245,7 @@ pub async fn download_video(
     let compatible_output = !thumbnails_only
         && mode != "audio"
         && compatible_video_enabled()
-        && format_id.is_none_or(|f| matches!(f, "b" | "worst"));
+        && format_id.is_none_or(|f| matches!(f, "b" | "worst") || prefers_compatible_video(f));
     let format_selector = if compatible_output && format_id.is_none() {
         compatible_format_selector(quality_height, mode, ffmpeg_available)
     } else {
