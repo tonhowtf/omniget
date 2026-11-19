@@ -883,7 +883,6 @@ pub(super) async fn find_ffmpeg_location() -> Option<String> {
                 .iter()
                 .any(|dir| crate::core::dependencies::has_ffmpeg_and_ffprobe(dir));
             if !complete {
-                candidates.extend(crate::core::dependencies::managed_bin_dir());
                 if let Some(ffprobe) = crate::core::dependencies::find_tool("ffprobe").await {
                     candidates.extend(ffprobe.parent().map(Path::to_path_buf));
                 }
