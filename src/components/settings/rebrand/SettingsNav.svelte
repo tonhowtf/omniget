@@ -17,7 +17,7 @@
   function onSelect(e: Event) {
     const tab = (e.target as HTMLSelectElement).value as SettingsCategory;
     onNavigate?.();
-    void goto(settingsHref(tab), { noScroll: false, keepFocus: true });
+    void goto(settingsHref(tab), { reset: false }).then(() => scrollTo(0, 0));
   }
 </script>
 

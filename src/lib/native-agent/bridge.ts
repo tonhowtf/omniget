@@ -8,8 +8,7 @@ import { tick } from 'svelte';
 import catalog from './catalog.json';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
-import { get } from 'svelte/store';
-import { page, navigating } from '$app/stores';
+import { page, navigating } from '$app/state';
 
 const SELECTOR = 'button,a[href],input,textarea,select,[role],h1,h2,h3,canvas,[data-agent-region],[data-agent-actions]';
 const SENSITIVE_ROUTES = /^\/(settings|about\/debug)(\/|$)/;
@@ -31,7 +30,7 @@ function nameOf(el: Element): string {
 
 function inspect(args: { cursor?: number; limit?: number; unguarded?: unknown }) {
   const unguarded = args.unguarded === true;
-  const route = get(page).url.pathname;
+  const route = page.url.pathname;
   const blocker = document.querySelector('[data-agent-sensitive], input[type=password], [role=dialog], dialog[open]');
   const sensitive = !unguarded && (SENSITIVE_ROUTES.test(route) || !!blocker);
   const sensitiveReason = !sensitive ? null
@@ -80,7 +79,7 @@ function inspect(args: { cursor?: number; limit?: number; unguarded?: unknown })
   return {
     schemaVersion: 1, route, uiEpoch: epoch, stateRevision: `${epoch}:${revision}`, observedAt: new Date().toISOString(),
     frontendRevision: (globalThis as typeof globalThis & {__omnigetDev?: {frontendRevision: string}}).__omnigetDev?.frontendRevision ?? null,
-    ...surfaceReadiness(sensitive, !!get(navigating), semantics),
+    ...surfaceReadiness(sensitive, navigating.to !== null, semantics),
     source: 'html-aria', sensitive, sensitiveReason, semantics,
     viewport: {width:innerWidth,height:innerHeight,devicePixelRatio,coordinateSpace:'css-pixels'},
     nodes: nodes.slice(cursor, cursor + limit), nextCursor: cursor + limit < nodes.length ? cursor + limit : null,

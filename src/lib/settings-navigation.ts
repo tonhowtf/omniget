@@ -124,12 +124,12 @@ function oneOf<T extends string>(value: string | null, allowed: readonly T[]): T
   return value !== null && (allowed as readonly string[]).includes(value) ? (value as T) : null;
 }
 
-export function parseMusicTarget(params: URLSearchParams): { view: "settings" | null; panel: "eq" | null } {
+export function parseMusicTarget(params: Pick<URLSearchParams, "get">): { view: "settings" | null; panel: "eq" | null } {
   const view = oneOf(params.get("view"), ["settings"] as const);
   return { view, panel: oneOf(params.get("panel"), ["eq"] as const) };
 }
 
-export function parseHomeTarget(params: URLSearchParams): { panel: "download-advanced" | null } {
+export function parseHomeTarget(params: Pick<URLSearchParams, "get">): { panel: "download-advanced" | null } {
   return { panel: oneOf(params.get("panel"), ["download-advanced"] as const) };
 }
 

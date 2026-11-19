@@ -68,7 +68,7 @@
   });
 
   function openModule(id: string) {
-    void goto(`/washmybelly?m=${id}`, { noScroll: true, keepFocus: true, replaceState: true });
+    void goto(`/washmybelly?m=${id}`, { reset: false, replace: true });
   }
 
   let problems = $derived(status ? status.factors.filter((f) => f.penalty > 0) : []);

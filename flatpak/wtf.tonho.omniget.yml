@@ -4,7 +4,7 @@ runtime-version: '49'
 sdk: org.gnome.Sdk
 sdk-extensions:
   - org.freedesktop.Sdk.Extension.rust-stable
-  - org.freedesktop.Sdk.Extension.node20
+  - org.freedesktop.Sdk.Extension.node22
 
 command: omniget
 
@@ -25,10 +25,10 @@ finish-args:
   - --talk-name=org.freedesktop.FileManager1
 
 build-options:
-  append-path: /usr/lib/sdk/rust-stable/bin:/usr/lib/sdk/node20/bin
+  append-path: /usr/lib/sdk/rust-stable/bin:/usr/lib/sdk/node22/bin
   env:
     CARGO_HOME: /run/build/omniget/cargo
-    npm_config_nodedir: /usr/lib/sdk/node20
+    npm_config_nodedir: /usr/lib/sdk/node22
 
 cleanup:
   - /include

@@ -36,13 +36,13 @@
   let updateInfo = $derived(getUpdateInfo());
   let updating = $state(false);
 
-  let location = $derived(resolveSettingsLocation(page.url));
+  let location = $derived(resolveSettingsLocation(new URL(page.url.href)));
   let activeCategory = $derived<SettingsCategory>(location.tab);
 
   $effect(() => {
     const { changed, canonicalHref } = location;
     if (!changed) return;
-    void goto(canonicalHref, { replaceState: true, noScroll: true, keepFocus: true });
+    void goto(canonicalHref, { replace: true, reset: false });
   });
 
   let searchQuery = $state("");
@@ -57,7 +57,7 @@
     cameFromSearch = true;
     focusedHref = "";
     searchQuery = "";
-    await goto(settingsEntryUrl(entry), { noScroll: true, keepFocus: true });
+    await goto(settingsEntryUrl(entry), { reset: false });
   }
 
   function backToSearch() {

@@ -32,7 +32,7 @@
   "type": "module",
   "packageManager": "pnpm@10.29.3",
   "engines": {
-    "node": "^20.0.0 || ^22.0.0 || >=24.0.0"
+    "node": "^22.17.0 || >=24.0.0"
   },
   "scripts": {
     "dev": "vite dev",
@@ -97,18 +97,18 @@
     "thinking-orbs": "^0.3.2"
   },
   "devDependencies": {
-    "@sveltejs/adapter-static": "^3.0.11",
-    "@sveltejs/kit": "^2.70.4",
-    "@sveltejs/vite-plugin-svelte": "^6.2.4",
+    "@sveltejs/adapter-static": "^4.0.1",
+    "@sveltejs/kit": "^3.4.0",
+    "@sveltejs/vite-plugin-svelte": "^7.3.1",
     "@tauri-apps/cli": "^2.11.4",
     "@types/node": "^25.6.0",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "jsdom": "^31.0.1",
-    "svelte": "^5.0.0",
+    "svelte": "^5.58.0",
     "svelte-check": "^4.0.0",
-    "typescript": "~5.9.3",
-    "vite": "^6.4.6",
+    "typescript": "~6.0.3",
+    "vite": "^8.3.8",
     "vitest": "^4.1.4"
   }
 }

@@ -18,7 +18,7 @@ export function digest(root, entries) {
   for(const entry of entries) walk(entry);
   return hash.digest('hex');
 }
-export const frontendInputs=['src','static','vite.config.js','svelte.config.js','tsconfig.json','package.json','pnpm-lock.yaml','scripts/dev/vite-plugin.mjs','scripts/dev/inputs.mjs'];
+export const frontendInputs=['src','static','vite.config.js','tsconfig.json','package.json','pnpm-lock.yaml','scripts/dev/vite-plugin.mjs','scripts/dev/inputs.mjs'];
 export const backendInputs=['src-tauri','rust-toolchain.toml','browser-extension','src/lib/native-agent/catalog.json','src/lib/help/content.json','src/lib/style/workspace-design.css','static/favicon.png','LICENSE'];
 /** @param {string} root */
 export function revisions(root) {
