@@ -133,6 +133,17 @@ function validIdentity(m, dir) {
   if (m.domains.some(isOptedOut) || m.match.some(mentionsOptedOut)) fail(`${m.id}: this site's owner asked OmniGet not to support it`);
 }
 
+function descriptionI18n(m) {
+  const map = m.description_i18n ?? {};
+  if (typeof map !== "object" || Array.isArray(map)) fail(`${m.id}: description_i18n must be an object of locale: text`);
+  for (const [locale, text] of Object.entries(map)) {
+    if (!/^[A-Za-z0-9-]{1,16}$/.test(locale)) fail(`${m.id}: description_i18n has an invalid locale "${locale}"`);
+    if (typeof text !== "string" || !text.trim() || [...text].length > 1000) fail(`${m.id}: description_i18n.${locale} must be text of at most 1000 characters`);
+  }
+  if (Object.keys(map).length > 32) fail(`${m.id}: description_i18n has more than 32 locales`);
+  return map;
+}
+
 function buildOne(dir) {
   const manifest = JSON.parse(readFileSync(join(dir, "manifest.json"), "utf8"));
   validIdentity(manifest, dir);
@@ -159,6 +170,8 @@ function buildOne(dir) {
     permissions: manifest.permissions ?? [],
   };
   if (manifest.login?.url) record.login = { url: manifest.login.url };
+  const translated = descriptionI18n(manifest);
+  if (Object.keys(translated).length) record.description_i18n = translated;
   return record;
 }
 

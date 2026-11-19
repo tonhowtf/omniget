@@ -3,8 +3,8 @@
   import { invoke } from "@tauri-apps/api/core";
   import { listen } from "@tauri-apps/api/event";
   import { open as openDialog } from "@tauri-apps/plugin-dialog";
-  import { t } from "$lib/i18n";
-  import { errorKey, filterEntries, type InstallProgress, type MarketEntry, type MarketView, type PackageSummary } from "$lib/global/connector-market";
+  import { locale, t } from "$lib/i18n";
+  import { descriptionFor, errorKey, filterEntries, type InstallProgress, type MarketEntry, type MarketView, type PackageSummary } from "$lib/global/connector-market";
 
   type OptionDef = { id: string; label?: string; type?: string; default?: unknown; choices?: string[]; help?: string };
   type Failure = { message: string; action: "install" | "update" };
@@ -27,7 +27,7 @@
 
   let query = $state("");
   let entries = $derived(view?.entries ?? []);
-  let shown = $derived(filterEntries(entries, query, focusId));
+  let shown = $derived(filterEntries(entries, query, focusId, (entry) => descriptionFor(entry, $locale)));
   let offline = $derived(!!view && view.source === "cache" && !!view.error);
   let failedEmpty = $derived(!!view && !entries.length && !!view.error);
   let savedAt = $derived(view?.fetched_at ? new Date(view.fetched_at * 1000).toLocaleString() : "");
@@ -257,6 +257,7 @@
         {@const running = progress[entry.id]}
         {@const failure = failures[entry.id]}
         {@const installed = entry.state !== "not_installed"}
+        {@const description = descriptionFor(entry, $locale)}
         <li class="tile" class:tile-focus={entry.id === focusId} use:reveal={entry.id === focusId}>
           <div class="tile-top">
             <span class="avatar" aria-hidden="true">{entry.name.slice(0, 1).toUpperCase()}</span>
@@ -270,7 +271,7 @@
             {/if}
           </div>
           {#if entry.id === focusId && !installed}<p class="wanted">{$t("global_dl.market.wanted")}</p>{/if}
-          {#if entry.description}<p class="desc">{entry.description}</p>{/if}
+          {#if description}<p class="desc">{description}</p>{/if}
           <p class="meta">
             {#if entry.author}<span>{$t("global_dl.market.by", { author: entry.author })}</span>{/if}
             <span title={entry.domains.join(", ")}>{entry.domains.slice(0, 3).join(", ")}{entry.domains.length > 3 ? ` +${entry.domains.length - 3}` : ""}</span>

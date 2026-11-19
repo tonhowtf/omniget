@@ -2,6 +2,7 @@ export type MarketEntry = {
   id: string;
   name: string;
   description: string;
+  description_i18n?: Record<string, string>;
   version: string;
   author: string;
   match: string[];
@@ -72,9 +73,21 @@ export function looksLikeUrl(text: string): boolean {
 
 const STATE_ORDER = { update_available: 0, installed: 1, not_installed: 2 };
 
-export function filterEntries(entries: MarketEntry[], query: string, focusId: string): MarketEntry[] {
+export function descriptionFor(entry: MarketEntry, locale: string): string {
+  const map: unknown = entry.description_i18n;
+  if (!map || typeof map !== "object" || !Object.prototype.hasOwnProperty.call(map, locale)) return entry.description;
+  const text = (map as Record<string, unknown>)[locale];
+  return typeof text === "string" && text.trim() ? text : entry.description;
+}
+
+export function filterEntries(
+  entries: MarketEntry[],
+  query: string,
+  focusId: string,
+  descriptionOf: (entry: MarketEntry) => string = (entry) => entry.description,
+): MarketEntry[] {
   const q = query.trim().toLowerCase();
-  const hit = (e: MarketEntry) => [e.name, e.id, e.description, ...e.domains].some((v) => v.toLowerCase().includes(q));
+  const hit = (e: MarketEntry) => [e.name, e.id, e.description, descriptionOf(e), ...e.domains].some((v) => v.toLowerCase().includes(q));
   const rank = (e: MarketEntry) => (e.id === focusId ? -1 : STATE_ORDER[e.state]);
   return entries.filter((e) => !q || hit(e)).sort((a, b) => rank(a) - rank(b) || a.name.localeCompare(b.name));
 }

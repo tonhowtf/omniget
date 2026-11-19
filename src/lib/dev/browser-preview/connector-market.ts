@@ -32,6 +32,9 @@ let entries: Entry[] = [
     id: "udemy",
     name: "Udemy",
     description: "Courses you are enrolled in: videos, captions, articles, files, attachments, quizzes and practice tests. DRM lectures are listed and skipped.",
+    description_i18n: {
+      ru: "Курсы, на которые вы записаны: видео, субтитры, статьи, файлы, вложения, тесты и практические задания. Лекции с DRM показываются и пропускаются.",
+    },
     version: "0.3.0",
     author: "tonhowtf",
     match: ["https://*.udemy.com/course/**"],
