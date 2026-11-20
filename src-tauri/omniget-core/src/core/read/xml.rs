@@ -10,11 +10,10 @@ pub struct Node {
     pub text: String,
 }
 
-fn split_name(raw: &[u8]) -> (String, String) {
-    let s = String::from_utf8_lossy(raw).to_string();
-    match s.split_once(':') {
+fn split_name(raw: &str) -> (String, String) {
+    match raw.split_once(':') {
         Some((p, l)) => (p.to_string(), l.to_string()),
-        None => (String::new(), s),
+        None => (String::new(), raw.to_string()),
     }
 }
 
@@ -25,8 +24,8 @@ fn node_from(e: &quick_xml::events::BytesStart<'_>) -> Node {
         .with_checks(false)
         .filter_map(|a| a.ok())
         .map(|a| {
-            let key = String::from_utf8_lossy(a.key.as_ref()).to_string();
-            let val = unescape(&String::from_utf8_lossy(&a.value));
+            let key = a.key.as_ref().to_string();
+            let val = unescape(&a.value);
             (key, val)
         })
         .collect();
@@ -63,19 +62,17 @@ pub fn parse(xml: &str) -> Node {
             }
             Ok(Event::Text(t)) => {
                 if let Some(top) = stack.last_mut() {
-                    let raw = String::from_utf8_lossy(t.as_ref()).to_string();
-                    top.text.push_str(&unescape(&raw));
+                    top.text.push_str(&unescape(&t));
                 }
             }
             Ok(Event::GeneralRef(r)) => {
                 if let Some(top) = stack.last_mut() {
-                    let name = String::from_utf8_lossy(r.as_ref()).to_string();
-                    top.text.push_str(&unescape(&format!("&{name};")));
+                    top.text.push_str(&unescape(&format!("&{};", &*r)));
                 }
             }
             Ok(Event::CData(t)) => {
                 if let Some(top) = stack.last_mut() {
-                    top.text.push_str(&String::from_utf8_lossy(t.as_ref()));
+                    top.text.push_str(&t);
                 }
             }
             Ok(Event::Eof) | Err(_) => break,

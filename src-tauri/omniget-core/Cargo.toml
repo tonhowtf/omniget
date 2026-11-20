@@ -50,7 +50,7 @@ minisign-verify = "0.2"
 shell-words = "1"
 tar = "0.4"
 flate2 = "1"
-quick-xml = "0.38"
+quick-xml = "0.42"
 encoding_rs = "0.8"
 xz2 = { version = "0.1", features = ["static"] }
 walkdir = "2"
