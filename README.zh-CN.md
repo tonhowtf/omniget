@@ -81,6 +81,10 @@ OmniGet 会把自己的服务器和一个专属令牌写进该工具自己的配
 按顺序下载这门课程的所有课时，并告诉我哪些被跳过了：<url>
 ```
 
+<p align="center">
+  <img src="assets/readme/agent-download.gif" alt="智能体让 OmniGet 下载 Internet Archive 上的两部影片；下载页面显示它们从排队到完成" width="800" />
+</p>
+
 ---
 
 ## 你的智能体能做什么

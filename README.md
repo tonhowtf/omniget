@@ -81,6 +81,10 @@ Read today's messages in my study group chat and list what I still have to answe
 Download every lesson of this course in order and tell me which ones were skipped: <url>
 ```
 
+<p align="center">
+  <img src="assets/readme/agent-download.gif" alt="An agent asks OmniGet for two films from the Internet Archive; the Downloads screen shows each one go from queued to complete" width="800" />
+</p>
+
 ---
 
 ## What your agent can do

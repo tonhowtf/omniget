@@ -81,6 +81,10 @@ Leia as mensagens de hoje no grupo de estudos e liste o que ainda preciso respon
 Baixe todas as aulas deste curso em ordem e me diga quais foram puladas: <url>
 ```
 
+<p align="center">
+  <img src="assets/readme/agent-download.gif" alt="Um agente pede ao OmniGet dois filmes do Internet Archive; a tela de Downloads mostra cada um indo da fila até concluído" width="800" />
+</p>
+
 ---
 
 ## O que seu agente pode fazer
