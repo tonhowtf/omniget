@@ -2,8 +2,8 @@
     {
         "type": "git",
         "url": "https://github.com/oxidezap/whatsapp-rust",
-        "commit": "f7468ae2920a2b0aedbd0848cf121de56a07f93c",
-        "dest": "flatpak-cargo/git/whatsapp-rust-f7468ae"
+        "commit": "cd2d885891851405648c109c8db9ed78b7ca93c4",
+        "dest": "flatpak-cargo/git/whatsapp-rust-cd2d885"
     },
     {
         "type": "archive",
@@ -1251,6 +1251,19 @@
         "type": "inline",
         "contents": "{\"package\": \"93833e97ac7c46ba97045afcf247238c27057538fcf2f06344662ddd5f567be6\", \"files\": {}}",
         "dest": "cargo/vendor/bon-macros-3.10.3",
+        "dest-filename": ".cargo-checksum.json"
+    },
+    {
+        "type": "archive",
+        "archive-type": "tar-gzip",
+        "url": "https://static.crates.io/crates/borrow-or-share/borrow-or-share-0.2.4.crate",
+        "sha256": "dc0b364ead1874514c8c2855ab558056ebfeb775653e7ae45ff72f28f8f3166c",
+        "dest": "cargo/vendor/borrow-or-share-0.2.4"
+    },
+    {
+        "type": "inline",
+        "contents": "{\"package\": \"dc0b364ead1874514c8c2855ab558056ebfeb775653e7ae45ff72f28f8f3166c\", \"files\": {}}",
+        "dest": "cargo/vendor/borrow-or-share-0.2.4",
         "dest-filename": ".cargo-checksum.json"
     },
     {
@@ -2621,19 +2634,6 @@
     {
         "type": "archive",
         "archive-type": "tar-gzip",
-        "url": "https://static.crates.io/crates/darling/darling-0.21.3.crate",
-        "sha256": "9cdf337090841a411e2a7f3deb9187445851f91b309c0c0a29e05f74a00a48c0",
-        "dest": "cargo/vendor/darling-0.21.3"
-    },
-    {
-        "type": "inline",
-        "contents": "{\"package\": \"9cdf337090841a411e2a7f3deb9187445851f91b309c0c0a29e05f74a00a48c0\", \"files\": {}}",
-        "dest": "cargo/vendor/darling-0.21.3",
-        "dest-filename": ".cargo-checksum.json"
-    },
-    {
-        "type": "archive",
-        "archive-type": "tar-gzip",
         "url": "https://static.crates.io/crates/darling/darling-0.24.1.crate",
         "sha256": "ed17f5901b6630b993ca003def43f2f8ef4014fc13b047b57aad617ff32bc2ec",
         "dest": "cargo/vendor/darling-0.24.1"
@@ -2660,19 +2660,6 @@
     {
         "type": "archive",
         "archive-type": "tar-gzip",
-        "url": "https://static.crates.io/crates/darling_core/darling_core-0.21.3.crate",
-        "sha256": "1247195ecd7e3c85f83c8d2a366e4210d588e802133e1e355180a9870b517ea4",
-        "dest": "cargo/vendor/darling_core-0.21.3"
-    },
-    {
-        "type": "inline",
-        "contents": "{\"package\": \"1247195ecd7e3c85f83c8d2a366e4210d588e802133e1e355180a9870b517ea4\", \"files\": {}}",
-        "dest": "cargo/vendor/darling_core-0.21.3",
-        "dest-filename": ".cargo-checksum.json"
-    },
-    {
-        "type": "archive",
-        "archive-type": "tar-gzip",
         "url": "https://static.crates.io/crates/darling_core/darling_core-0.24.1.crate",
         "sha256": "6837e2cf7485aaae18f86181d2f0e9a7ed297a025e220aeabf63fdebd3a2ddff",
         "dest": "cargo/vendor/darling_core-0.24.1"
@@ -2694,19 +2681,6 @@
         "type": "inline",
         "contents": "{\"package\": \"a4aab4dbc9f7611d8b55048a3a16d2d010c2c8334e46304b40ac1cc14bf3b48e\", \"files\": {}}",
         "dest": "cargo/vendor/darling_macro-0.14.4",
-        "dest-filename": ".cargo-checksum.json"
-    },
-    {
-        "type": "archive",
-        "archive-type": "tar-gzip",
-        "url": "https://static.crates.io/crates/darling_macro/darling_macro-0.21.3.crate",
-        "sha256": "d38308df82d1080de0afee5d069fa14b0326a88c14f15c5ccda35b4a6c414c81",
-        "dest": "cargo/vendor/darling_macro-0.21.3"
-    },
-    {
-        "type": "inline",
-        "contents": "{\"package\": \"d38308df82d1080de0afee5d069fa14b0326a88c14f15c5ccda35b4a6c414c81\", \"files\": {}}",
-        "dest": "cargo/vendor/darling_macro-0.21.3",
         "dest-filename": ".cargo-checksum.json"
     },
     {
@@ -2998,53 +2972,66 @@
     {
         "type": "archive",
         "archive-type": "tar-gzip",
-        "url": "https://static.crates.io/crates/diesel/diesel-2.3.14.crate",
-        "sha256": "ebe9f7eaef33febd60290c5a9f3b0571d03c4c04a24739cd64808ce30e65a5d3",
-        "dest": "cargo/vendor/diesel-2.3.14"
+        "url": "https://static.crates.io/crates/diesel/diesel-2.4.0.crate",
+        "sha256": "9824c36a57a17ece4c8883baed41dc3eb81b2b949364c174750acc462e19b5ec",
+        "dest": "cargo/vendor/diesel-2.4.0"
     },
     {
         "type": "inline",
-        "contents": "{\"package\": \"ebe9f7eaef33febd60290c5a9f3b0571d03c4c04a24739cd64808ce30e65a5d3\", \"files\": {}}",
-        "dest": "cargo/vendor/diesel-2.3.14",
+        "contents": "{\"package\": \"9824c36a57a17ece4c8883baed41dc3eb81b2b949364c174750acc462e19b5ec\", \"files\": {}}",
+        "dest": "cargo/vendor/diesel-2.4.0",
         "dest-filename": ".cargo-checksum.json"
     },
     {
         "type": "archive",
         "archive-type": "tar-gzip",
-        "url": "https://static.crates.io/crates/diesel_derives/diesel_derives-2.3.10.crate",
-        "sha256": "ecbd51fb6c020672543641167efa4e6417ff7ad76849ed556ace3595e72de03a",
-        "dest": "cargo/vendor/diesel_derives-2.3.10"
+        "url": "https://static.crates.io/crates/diesel_attribute_parser/diesel_attribute_parser-0.1.0.crate",
+        "sha256": "de6c008369e0bc4e26f385874b8d1da517112b4ebe2f8e6b1e3331c781039d71",
+        "dest": "cargo/vendor/diesel_attribute_parser-0.1.0"
     },
     {
         "type": "inline",
-        "contents": "{\"package\": \"ecbd51fb6c020672543641167efa4e6417ff7ad76849ed556ace3595e72de03a\", \"files\": {}}",
-        "dest": "cargo/vendor/diesel_derives-2.3.10",
+        "contents": "{\"package\": \"de6c008369e0bc4e26f385874b8d1da517112b4ebe2f8e6b1e3331c781039d71\", \"files\": {}}",
+        "dest": "cargo/vendor/diesel_attribute_parser-0.1.0",
         "dest-filename": ".cargo-checksum.json"
     },
     {
         "type": "archive",
         "archive-type": "tar-gzip",
-        "url": "https://static.crates.io/crates/diesel_migrations/diesel_migrations-2.3.2.crate",
-        "sha256": "28d0f4a98124ba6d4ca75da535f65984badec16a003b6e2f94a01e31a79490b8",
-        "dest": "cargo/vendor/diesel_migrations-2.3.2"
+        "url": "https://static.crates.io/crates/diesel_derives/diesel_derives-2.4.0.crate",
+        "sha256": "90c0b085880f70a6668dd2365040f4dd07aaf6ebe9e6b8626528efcb0553a780",
+        "dest": "cargo/vendor/diesel_derives-2.4.0"
     },
     {
         "type": "inline",
-        "contents": "{\"package\": \"28d0f4a98124ba6d4ca75da535f65984badec16a003b6e2f94a01e31a79490b8\", \"files\": {}}",
-        "dest": "cargo/vendor/diesel_migrations-2.3.2",
+        "contents": "{\"package\": \"90c0b085880f70a6668dd2365040f4dd07aaf6ebe9e6b8626528efcb0553a780\", \"files\": {}}",
+        "dest": "cargo/vendor/diesel_derives-2.4.0",
         "dest-filename": ".cargo-checksum.json"
     },
     {
         "type": "archive",
         "archive-type": "tar-gzip",
-        "url": "https://static.crates.io/crates/diesel_table_macro_syntax/diesel_table_macro_syntax-0.3.0.crate",
-        "sha256": "fe2444076b48641147115697648dc743c2c00b61adade0f01ce67133c7babe8c",
-        "dest": "cargo/vendor/diesel_table_macro_syntax-0.3.0"
+        "url": "https://static.crates.io/crates/diesel_migrations/diesel_migrations-2.4.0.crate",
+        "sha256": "08c9f048650c19d17cbe5918afd81d21a5c1c92f5f37dd9a66846958cd81c3c0",
+        "dest": "cargo/vendor/diesel_migrations-2.4.0"
     },
     {
         "type": "inline",
-        "contents": "{\"package\": \"fe2444076b48641147115697648dc743c2c00b61adade0f01ce67133c7babe8c\", \"files\": {}}",
-        "dest": "cargo/vendor/diesel_table_macro_syntax-0.3.0",
+        "contents": "{\"package\": \"08c9f048650c19d17cbe5918afd81d21a5c1c92f5f37dd9a66846958cd81c3c0\", \"files\": {}}",
+        "dest": "cargo/vendor/diesel_migrations-2.4.0",
+        "dest-filename": ".cargo-checksum.json"
+    },
+    {
+        "type": "archive",
+        "archive-type": "tar-gzip",
+        "url": "https://static.crates.io/crates/diesel_table_macro_syntax/diesel_table_macro_syntax-0.4.0.crate",
+        "sha256": "d05c7977b58892eda3f17d46fd57fb23e865d1e54f59b224a6cc09935013747c",
+        "dest": "cargo/vendor/diesel_table_macro_syntax-0.4.0"
+    },
+    {
+        "type": "inline",
+        "contents": "{\"package\": \"d05c7977b58892eda3f17d46fd57fb23e865d1e54f59b224a6cc09935013747c\", \"files\": {}}",
+        "dest": "cargo/vendor/diesel_table_macro_syntax-0.4.0",
         "dest-filename": ".cargo-checksum.json"
     },
     {
@@ -3284,14 +3271,14 @@
     {
         "type": "archive",
         "archive-type": "tar-gzip",
-        "url": "https://static.crates.io/crates/dsl_auto_type/dsl_auto_type-0.2.0.crate",
-        "sha256": "dd122633e4bef06db27737f21d3738fb89c8f6d5360d6d9d7635dda142a7757e",
-        "dest": "cargo/vendor/dsl_auto_type-0.2.0"
+        "url": "https://static.crates.io/crates/dsl_auto_type/dsl_auto_type-0.3.0.crate",
+        "sha256": "cc51ea5a4c1cfac05a51e51cdbb6a5471bbb88091fcb045a27ff13b38e9a3204",
+        "dest": "cargo/vendor/dsl_auto_type-0.3.0"
     },
     {
         "type": "inline",
-        "contents": "{\"package\": \"dd122633e4bef06db27737f21d3738fb89c8f6d5360d6d9d7635dda142a7757e\", \"files\": {}}",
-        "dest": "cargo/vendor/dsl_auto_type-0.2.0",
+        "contents": "{\"package\": \"cc51ea5a4c1cfac05a51e51cdbb6a5471bbb88091fcb045a27ff13b38e9a3204\", \"files\": {}}",
+        "dest": "cargo/vendor/dsl_auto_type-0.3.0",
         "dest-filename": ".cargo-checksum.json"
     },
     {
@@ -3981,6 +3968,19 @@
         "type": "inline",
         "contents": "{\"package\": \"98de4bbd547a563b716d8dfa9aad1cb19bfab00f4fa09a6a4ed21dbcf44ce9c4\", \"files\": {}}",
         "dest": "cargo/vendor/float-cmp-0.9.0",
+        "dest-filename": ".cargo-checksum.json"
+    },
+    {
+        "type": "archive",
+        "archive-type": "tar-gzip",
+        "url": "https://static.crates.io/crates/fluent-uri/fluent-uri-0.4.1.crate",
+        "sha256": "bc74ac4d8359ae70623506d512209619e5cf8f347124910440dbc221714b328e",
+        "dest": "cargo/vendor/fluent-uri-0.4.1"
+    },
+    {
+        "type": "inline",
+        "contents": "{\"package\": \"bc74ac4d8359ae70623506d512209619e5cf8f347124910440dbc221714b328e\", \"files\": {}}",
+        "dest": "cargo/vendor/fluent-uri-0.4.1",
         "dest-filename": ".cargo-checksum.json"
     },
     {
@@ -6742,14 +6742,14 @@
     {
         "type": "archive",
         "archive-type": "tar-gzip",
-        "url": "https://static.crates.io/crates/libsqlite3-sys/libsqlite3-sys-0.38.2.crate",
-        "sha256": "f1d20bef17f513b9b3004532233187769cd072d790971f4e4da0e346eb6401e8",
-        "dest": "cargo/vendor/libsqlite3-sys-0.38.2"
+        "url": "https://static.crates.io/crates/libsqlite3-sys/libsqlite3-sys-0.40.0.crate",
+        "sha256": "b06e69070b7e12262b0cd90832f0a7396f142a2b330181255562decf9f0c6215",
+        "dest": "cargo/vendor/libsqlite3-sys-0.40.0"
     },
     {
         "type": "inline",
-        "contents": "{\"package\": \"f1d20bef17f513b9b3004532233187769cd072d790971f4e4da0e346eb6401e8\", \"files\": {}}",
-        "dest": "cargo/vendor/libsqlite3-sys-0.38.2",
+        "contents": "{\"package\": \"b06e69070b7e12262b0cd90832f0a7396f142a2b330181255562decf9f0c6215\", \"files\": {}}",
+        "dest": "cargo/vendor/libsqlite3-sys-0.40.0",
         "dest-filename": ".cargo-checksum.json"
     },
     {
@@ -6867,6 +6867,19 @@
         "type": "inline",
         "contents": "{\"package\": \"224399e74b87b5f3557511d98dff8b14089b3dadafcab6bb93eab67d3aace965\", \"files\": {}}",
         "dest": "cargo/vendor/lock_api-0.4.14",
+        "dest-filename": ".cargo-checksum.json"
+    },
+    {
+        "type": "archive",
+        "archive-type": "tar-gzip",
+        "url": "https://static.crates.io/crates/lock_api/lock_api-0.5.0.crate",
+        "sha256": "65d91b22da179613dcf4d6ec8349563f52a363f6849e03b00dd0a185ec4a59af",
+        "dest": "cargo/vendor/lock_api-0.5.0"
+    },
+    {
+        "type": "inline",
+        "contents": "{\"package\": \"65d91b22da179613dcf4d6ec8349563f52a363f6849e03b00dd0a185ec4a59af\", \"files\": {}}",
+        "dest": "cargo/vendor/lock_api-0.5.0",
         "dest-filename": ".cargo-checksum.json"
     },
     {
@@ -7145,27 +7158,27 @@
     {
         "type": "archive",
         "archive-type": "tar-gzip",
-        "url": "https://static.crates.io/crates/migrations_internals/migrations_internals-2.3.0.crate",
-        "sha256": "36c791ecdf977c99f45f23280405d7723727470f6689a5e6dbf513ac547ae10d",
-        "dest": "cargo/vendor/migrations_internals-2.3.0"
+        "url": "https://static.crates.io/crates/migrations_internals/migrations_internals-2.4.0.crate",
+        "sha256": "ec54a4ea92c533f8ed6b8c80dc4bbd60f5b578b173399d92f19bfb5a34bd99a3",
+        "dest": "cargo/vendor/migrations_internals-2.4.0"
     },
     {
         "type": "inline",
-        "contents": "{\"package\": \"36c791ecdf977c99f45f23280405d7723727470f6689a5e6dbf513ac547ae10d\", \"files\": {}}",
-        "dest": "cargo/vendor/migrations_internals-2.3.0",
+        "contents": "{\"package\": \"ec54a4ea92c533f8ed6b8c80dc4bbd60f5b578b173399d92f19bfb5a34bd99a3\", \"files\": {}}",
+        "dest": "cargo/vendor/migrations_internals-2.4.0",
         "dest-filename": ".cargo-checksum.json"
     },
     {
         "type": "archive",
         "archive-type": "tar-gzip",
-        "url": "https://static.crates.io/crates/migrations_macros/migrations_macros-2.3.1.crate",
-        "sha256": "9423d6affd681fb4d25d35885d0d0262c52f8ade16e96f87c064c442e5aa5d47",
-        "dest": "cargo/vendor/migrations_macros-2.3.1"
+        "url": "https://static.crates.io/crates/migrations_macros/migrations_macros-2.4.0.crate",
+        "sha256": "befb6974b8d7e9d8c48865f5f38f170f0db42faacdbc54682846bee108e0ef81",
+        "dest": "cargo/vendor/migrations_macros-2.4.0"
     },
     {
         "type": "inline",
-        "contents": "{\"package\": \"9423d6affd681fb4d25d35885d0d0262c52f8ade16e96f87c064c442e5aa5d47\", \"files\": {}}",
-        "dest": "cargo/vendor/migrations_macros-2.3.1",
+        "contents": "{\"package\": \"befb6974b8d7e9d8c48865f5f38f170f0db42faacdbc54682846bee108e0ef81\", \"files\": {}}",
+        "dest": "cargo/vendor/migrations_macros-2.4.0",
         "dest-filename": ".cargo-checksum.json"
     },
     {
@@ -8575,6 +8588,19 @@
     {
         "type": "archive",
         "archive-type": "tar-gzip",
+        "url": "https://static.crates.io/crates/parking_lot/parking_lot-0.13.0.crate",
+        "sha256": "a9cf937ca4e1d0b7578784559063422fc39ae7c5a00f02471f2614d5486fd226",
+        "dest": "cargo/vendor/parking_lot-0.13.0"
+    },
+    {
+        "type": "inline",
+        "contents": "{\"package\": \"a9cf937ca4e1d0b7578784559063422fc39ae7c5a00f02471f2614d5486fd226\", \"files\": {}}",
+        "dest": "cargo/vendor/parking_lot-0.13.0",
+        "dest-filename": ".cargo-checksum.json"
+    },
+    {
+        "type": "archive",
+        "archive-type": "tar-gzip",
         "url": "https://static.crates.io/crates/parking_lot_core/parking_lot_core-0.9.12.crate",
         "sha256": "2621685985a2ebf1c516881c026032ac7deafcda1a2c9b7850dc81e3dfcb64c1",
         "dest": "cargo/vendor/parking_lot_core-0.9.12"
@@ -8583,6 +8609,19 @@
         "type": "inline",
         "contents": "{\"package\": \"2621685985a2ebf1c516881c026032ac7deafcda1a2c9b7850dc81e3dfcb64c1\", \"files\": {}}",
         "dest": "cargo/vendor/parking_lot_core-0.9.12",
+        "dest-filename": ".cargo-checksum.json"
+    },
+    {
+        "type": "archive",
+        "archive-type": "tar-gzip",
+        "url": "https://static.crates.io/crates/parking_lot_core/parking_lot_core-0.10.0.crate",
+        "sha256": "9cfff060068cc18aa7815010fcaf80c68c7fb9e85fc7f5c0f9bf142c21d19826",
+        "dest": "cargo/vendor/parking_lot_core-0.10.0"
+    },
+    {
+        "type": "inline",
+        "contents": "{\"package\": \"9cfff060068cc18aa7815010fcaf80c68c7fb9e85fc7f5c0f9bf142c21d19826\", \"files\": {}}",
+        "dest": "cargo/vendor/parking_lot_core-0.10.0",
         "dest-filename": ".cargo-checksum.json"
     },
     {
@@ -9914,6 +9953,19 @@
     {
         "type": "archive",
         "archive-type": "tar-gzip",
+        "url": "https://static.crates.io/crates/redox_syscall/redox_syscall-0.9.5.crate",
+        "sha256": "580c875845b41ecb1564ad1ae4703044cef774145e3d7a94dc2b3fa7c97868fd",
+        "dest": "cargo/vendor/redox_syscall-0.9.5"
+    },
+    {
+        "type": "inline",
+        "contents": "{\"package\": \"580c875845b41ecb1564ad1ae4703044cef774145e3d7a94dc2b3fa7c97868fd\", \"files\": {}}",
+        "dest": "cargo/vendor/redox_syscall-0.9.5",
+        "dest-filename": ".cargo-checksum.json"
+    },
+    {
+        "type": "archive",
+        "archive-type": "tar-gzip",
         "url": "https://static.crates.io/crates/redox_users/redox_users-0.5.2.crate",
         "sha256": "a4e608c6638b9c18977b00b475ac1f28d14e84b27d8d42f70e0bf1e3dec127ac",
         "dest": "cargo/vendor/redox_users-0.5.2"
@@ -10239,27 +10291,27 @@
     {
         "type": "archive",
         "archive-type": "tar-gzip",
-        "url": "https://static.crates.io/crates/rsqlite-vfs/rsqlite-vfs-0.1.1.crate",
-        "sha256": "c51c9ae4df8a7fba42103df5c621fa3c37eccf3a3c650879e90fc48b11cc192c",
-        "dest": "cargo/vendor/rsqlite-vfs-0.1.1"
+        "url": "https://static.crates.io/crates/rsqlite-vfs/rsqlite-vfs-0.2.0.crate",
+        "sha256": "353b74f9810d5b085b6c42c9d86a5f0fdb795553235cdd48753b32e3809d18a7",
+        "dest": "cargo/vendor/rsqlite-vfs-0.2.0"
     },
     {
         "type": "inline",
-        "contents": "{\"package\": \"c51c9ae4df8a7fba42103df5c621fa3c37eccf3a3c650879e90fc48b11cc192c\", \"files\": {}}",
-        "dest": "cargo/vendor/rsqlite-vfs-0.1.1",
+        "contents": "{\"package\": \"353b74f9810d5b085b6c42c9d86a5f0fdb795553235cdd48753b32e3809d18a7\", \"files\": {}}",
+        "dest": "cargo/vendor/rsqlite-vfs-0.2.0",
         "dest-filename": ".cargo-checksum.json"
     },
     {
         "type": "archive",
         "archive-type": "tar-gzip",
-        "url": "https://static.crates.io/crates/rusqlite/rusqlite-0.40.2.crate",
-        "sha256": "23f2a97da3e3873c73cb2a2e71b35c40ff95e0b1eefa8d72d8499a6928c3b5b3",
-        "dest": "cargo/vendor/rusqlite-0.40.2"
+        "url": "https://static.crates.io/crates/rusqlite/rusqlite-0.42.0.crate",
+        "sha256": "a4edff0039f148731aee2fd80f76dbfeb12d204ab3d1c544838d34e02151049b",
+        "dest": "cargo/vendor/rusqlite-0.42.0"
     },
     {
         "type": "inline",
-        "contents": "{\"package\": \"23f2a97da3e3873c73cb2a2e71b35c40ff95e0b1eefa8d72d8499a6928c3b5b3\", \"files\": {}}",
-        "dest": "cargo/vendor/rusqlite-0.40.2",
+        "contents": "{\"package\": \"a4edff0039f148731aee2fd80f76dbfeb12d204ab3d1c544838d34e02151049b\", \"files\": {}}",
+        "dest": "cargo/vendor/rusqlite-0.42.0",
         "dest-filename": ".cargo-checksum.json"
     },
     {
@@ -10629,14 +10681,14 @@
     {
         "type": "archive",
         "archive-type": "tar-gzip",
-        "url": "https://static.crates.io/crates/scheduled-thread-pool/scheduled-thread-pool-0.2.7.crate",
-        "sha256": "3cbc66816425a074528352f5789333ecff06ca41b36b0b0efdfbb29edc391a19",
-        "dest": "cargo/vendor/scheduled-thread-pool-0.2.7"
+        "url": "https://static.crates.io/crates/scheduled-thread-pool/scheduled-thread-pool-0.2.8.crate",
+        "sha256": "f304b290c05b371b2aa1e8718242ff0394530f9334ecedcb9ae51330f37fc1ba",
+        "dest": "cargo/vendor/scheduled-thread-pool-0.2.8"
     },
     {
         "type": "inline",
-        "contents": "{\"package\": \"3cbc66816425a074528352f5789333ecff06ca41b36b0b0efdfbb29edc391a19\", \"files\": {}}",
-        "dest": "cargo/vendor/scheduled-thread-pool-0.2.7",
+        "contents": "{\"package\": \"f304b290c05b371b2aa1e8718242ff0394530f9334ecedcb9ae51330f37fc1ba\", \"files\": {}}",
+        "dest": "cargo/vendor/scheduled-thread-pool-0.2.8",
         "dest-filename": ".cargo-checksum.json"
     },
     {
@@ -11513,14 +11565,14 @@
     {
         "type": "archive",
         "archive-type": "tar-gzip",
-        "url": "https://static.crates.io/crates/smallvec/smallvec-1.15.1.crate",
-        "sha256": "67b1b7a3b5fe4f1376887184045fcf45c69e92af734b7aaddc05fb777b6fbd03",
-        "dest": "cargo/vendor/smallvec-1.15.1"
+        "url": "https://static.crates.io/crates/smallvec/smallvec-1.16.6.crate",
+        "sha256": "3244542535d5de959d90ec55d1b5ff0fd2bb7b1310223907d5f11932847f7b59",
+        "dest": "cargo/vendor/smallvec-1.16.6"
     },
     {
         "type": "inline",
-        "contents": "{\"package\": \"67b1b7a3b5fe4f1376887184045fcf45c69e92af734b7aaddc05fb777b6fbd03\", \"files\": {}}",
-        "dest": "cargo/vendor/smallvec-1.15.1",
+        "contents": "{\"package\": \"3244542535d5de959d90ec55d1b5ff0fd2bb7b1310223907d5f11932847f7b59\", \"files\": {}}",
+        "dest": "cargo/vendor/smallvec-1.16.6",
         "dest-filename": ".cargo-checksum.json"
     },
     {
@@ -11682,14 +11734,27 @@
     {
         "type": "archive",
         "archive-type": "tar-gzip",
-        "url": "https://static.crates.io/crates/sqlite-wasm-rs/sqlite-wasm-rs-0.5.5.crate",
-        "sha256": "dc3efc0da82635d7e1ced0053bbbfa8c7ab9645d0bf36ceb4f7127bb85315d75",
-        "dest": "cargo/vendor/sqlite-wasm-rs-0.5.5"
+        "url": "https://static.crates.io/crates/sqlite-wasm-rs/sqlite-wasm-rs-0.6.3.crate",
+        "sha256": "a6cd504cecbfe7eef649988840f9a6cb768d11085efec138f8e99f160632d867",
+        "dest": "cargo/vendor/sqlite-wasm-rs-0.6.3"
     },
     {
         "type": "inline",
-        "contents": "{\"package\": \"dc3efc0da82635d7e1ced0053bbbfa8c7ab9645d0bf36ceb4f7127bb85315d75\", \"files\": {}}",
-        "dest": "cargo/vendor/sqlite-wasm-rs-0.5.5",
+        "contents": "{\"package\": \"a6cd504cecbfe7eef649988840f9a6cb768d11085efec138f8e99f160632d867\", \"files\": {}}",
+        "dest": "cargo/vendor/sqlite-wasm-rs-0.6.3",
+        "dest-filename": ".cargo-checksum.json"
+    },
+    {
+        "type": "archive",
+        "archive-type": "tar-gzip",
+        "url": "https://static.crates.io/crates/sqlstate/sqlstate-0.2.0.crate",
+        "sha256": "858cea190fe7555971c35a5eb336858f1bf962a2bd7ceb8704fb1759b36af2cd",
+        "dest": "cargo/vendor/sqlstate-0.2.0"
+    },
+    {
+        "type": "inline",
+        "contents": "{\"package\": \"858cea190fe7555971c35a5eb336858f1bf962a2bd7ceb8704fb1759b36af2cd\", \"files\": {}}",
+        "dest": "cargo/vendor/sqlstate-0.2.0",
         "dest-filename": ".cargo-checksum.json"
     },
     {
@@ -13736,12 +13801,12 @@
     {
         "type": "shell",
         "commands": [
-            "cp -r --reflink=auto \"flatpak-cargo/git/whatsapp-rust-f7468ae/wacore\" \"cargo/vendor/wacore\""
+            "cp -r --reflink=auto \"flatpak-cargo/git/whatsapp-rust-cd2d885/wacore\" \"cargo/vendor/wacore\""
         ]
     },
     {
         "type": "inline",
-        "contents": "[package]\nname = \"wacore\"\nversion = \"0.7.0\"\nedition = \"2024\"\nrust-version = \"1.94\"\nauthors = [\"Jo\u00e3o Lucas <jlucaso@hotmail.com>\"]\nlicense = \"MIT\"\nrepository = \"https://github.com/jlucaso1/whatsapp-rust\"\ndescription = \"Core WhatsApp protocol implementation without runtime dependencies\"\nautobenches = false\n\n[package.metadata.cargo-machete]\nignored = [\"getrandom\"]\n\n[features]\ndebug-snapshots = []\nlegacy-session-interop = [\"wacore-libsignal/legacy-session-interop\"]\ntest-util = []\ntracing = [\"dep:tracing\"]\nmetrics = [\"dep:metrics\"]\ntracing-pii = [\"wacore-binary/tracing-pii\"]\njs = [\"getrandom/wasm_js\"]\nvoip-control = []\nvoip = [\"voip-control\", \"dep:aes-gcm\", \"dep:zerocopy\"]\nvoip-mlow = [\"voip\"]\ndhat-heap = [\"dep:dhat\"]\nbench-internals = []\n\n[dependencies]\naes = \"0.9.2\"\nasync-trait = \"0.1.91\"\nitoa = \"1\"\nlog = \"0.4\"\nrand = \"0.10\"\nserde-big-array = \"0.5\"\nthiserror = \"2.0.19\"\n\n[dependencies.aes-gcm]\noptional = true\nversion = \"0.11.0\"\ndefault-features = false\nfeatures = [\"aes\", \"alloc\"]\n\n[dependencies.anyhow]\nversion = \"1.0\"\ndefault-features = false\n\n[dependencies.async-channel]\nversion = \"2.5.0\"\ndefault-features = false\nfeatures = [\"std\"]\n\n[dependencies.async-lock]\nversion = \"3\"\ndefault-features = false\n\n[dependencies.base64]\nversion = \"0.23.1\"\ndefault-features = false\nfeatures = [\"alloc\"]\n\n[dependencies.bon]\nversion = \"3.9.3\"\ndefault-features = false\nfeatures = [\"std\"]\n\n[dependencies.buffa]\nversion = \"0.9.2\"\ndefault-features = false\nfeatures = [\"json\"]\n\n[dependencies.bytes]\nversion = \"1.12\"\ndefault-features = false\n\n[dependencies.cbc]\nversion = \"0.2\"\nfeatures = [\"alloc\"]\n\n[dependencies.chrono]\nfeatures = [\"now\", \"serde\"]\nversion = \"0.4\"\ndefault-features = false\n\n[dependencies.compact_str]\nversion = \"0.10\"\ndefault-features = false\n\n[dependencies.ctr]\nversion = \"0.10\"\ndefault-features = false\n\n[dependencies.dhat]\nversion = \"0.3\"\noptional = true\n\n[dependencies.event-listener]\nversion = \"5\"\ndefault-features = false\n\n[dependencies.futures]\nfeatures = [\"std\", \"alloc\", \"async-await\"]\nversion = \"0.3\"\ndefault-features = false\n\n[dependencies.getrandom]\noptional = true\nversion = \"0.4\"\ndefault-features = false\n\n[dependencies.hashbrown]\nversion = \"0.17.1\"\ndefault-features = false\n\n[dependencies.hex]\nversion = \"0.4\"\ndefault-features = false\nfeatures = [\"alloc\"]\n\n[dependencies.hkdf]\nversion = \"0.13.0\"\ndefault-features = false\n\n[dependencies.hmac]\nversion = \"0.13.0\"\ndefault-features = false\n\n[dependencies.metrics]\noptional = true\nversion = \"0.24\"\n\n[dependencies.portable-atomic]\nversion = \"1\"\ndefault-features = false\nfeatures = [\"fallback\"]\n\n[dependencies.serde]\nversion = \"1.0\"\nfeatures = [\"derive\", \"rc\"]\n\n[dependencies.serde_json]\nfeatures = [\"std\"]\nversion = \"1.0\"\ndefault-features = false\n\n[dependencies.sha1]\nversion = \"0.11.0\"\ndefault-features = false\n\n[dependencies.sha2]\nversion = \"0.11.0\"\ndefault-features = false\n\n[dependencies.smallvec]\nfeatures = [\"serde\"]\nversion = \"1.15\"\n\n[dependencies.smoothutf8]\nversion = \"0.2.3\"\ndefault-features = false\n\n[dependencies.subtle]\nversion = \"2.6\"\ndefault-features = false\n\n[dependencies.tracing]\noptional = true\nversion = \"0.1\"\ndefault-features = false\nfeatures = [\"attributes\"]\n\n[dependencies.wacore-appstate]\npath = \"./wacore/appstate\"\ndefault-features = false\nversion = \"0.7.0\"\n\n[dependencies.wacore-binary]\nfeatures = [\"serde\"]\npath = \"./wacore/binary\"\ndefault-features = false\nversion = \"0.7.0\"\n\n[dependencies.zeroize]\nversion = \"1.9\"\ndefault-features = false\nfeatures = [\"alloc\"]\n\n[dependencies.wacore-derive]\npath = \"./wacore/derive\"\nversion = \"0.7.0\"\n\n[dependencies.wacore-libsignal]\npath = \"./wacore/libsignal\"\nversion = \"0.7.0\"\n\n[dependencies.wacore-noise]\npath = \"./wacore/noise\"\nversion = \"0.7.0\"\n\n[dependencies.waproto]\npath = \"./waproto\"\nversion = \"0.7.0\"\n\n[dependencies.zerocopy]\noptional = true\nversion = \"0.8.55\"\ndefault-features = false\nfeatures = [\"derive\"]\n\n[build-dependencies.buffa-build]\nversion = \"0.9.2\"\ndefault-features = false\n\n[build-dependencies.sha2]\nversion = \"0.11.0\"\ndefault-features = false\n\n[dev-dependencies]\nciborium = \"0.2.2\"\nruzstd = \"0.9.0\"\n\n[dev-dependencies.divan]\npackage = \"codspeed-divan-compat\"\nversion = \"5.0.1\"\n\n[dev-dependencies.flate2]\nversion = \"1.1.9\"\ndefault-features = false\nfeatures = [\"zlib-rs\"]\n\n[dev-dependencies.futures]\nfeatures = [\"executor\", \"alloc\", \"async-await\"]\nversion = \"0.3\"\ndefault-features = false\n\n[dev-dependencies.tokio]\nfeatures = [\"macros\", \"rt\", \"rt-multi-thread\", \"time\"]\nversion = \"1.53.1\"\ndefault-features = false\n\n[[bench]]\nname = \"reporting_token_benchmark\"\nharness = false\n\n[[bench]]\nname = \"send_receive_benchmark\"\nharness = false\n\n[[bench]]\nname = \"token_lookup_benchmark\"\nharness = false\n\n[[bench]]\nname = \"signal_address_probe_benchmark\"\nharness = false\n\n[[bench]]\nname = \"history_sync_benchmark\"\nharness = false\n\n[[bench]]\nname = \"sframe_varint_benchmark\"\nharness = false\nrequired-features = [\"voip\"]\n\n[[bench]]\nname = \"message_utils_benchmark\"\nharness = false\n\n[[bench]]\nname = \"appstate_sync_benchmark\"\nharness = false\n\n[[bench]]\nname = \"sender_key_derivation_benchmark\"\nharness = false\n\n[[bench]]\nname = \"prekey_store_benchmark\"\nharness = false\n\n[[bench]]\nname = \"media_benchmark\"\nharness = false\n\n[[bench]]\nname = \"retained_memory_benchmark\"\nharness = false\n\n[[bench]]\nname = \"voip_benchmark\"\nharness = false\nrequired-features = [\"voip-mlow\"]\n\n[[example]]\nname = \"voip_profile\"\nrequired-features = [\"voip-mlow\"]\n\n[lints.clippy]\ndisallowed_methods = \"deny\"\ndisallowed_types = \"deny\"\ndbg_macro = \"deny\"\ntodo = \"deny\"\nprint_stdout = \"warn\"\nprint_stderr = \"warn\"\n\n[lints.rust]\nunused_qualifications = \"warn\"\n\n[lints.rust.unexpected_cfgs]\nlevel = \"warn\"\ncheck-cfg = [\"cfg(docsrs)\"]\n",
+        "contents": "[package]\nname = \"wacore\"\nversion = \"0.7.0\"\nedition = \"2024\"\nrust-version = \"1.95\"\nauthors = [\"Jo\u00e3o Lucas <jlucaso@hotmail.com>\"]\nlicense = \"MIT\"\nrepository = \"https://github.com/oxidezap/whatsapp-rust\"\ndescription = \"Core WhatsApp protocol implementation without runtime dependencies\"\nautobenches = false\n\n[package.metadata.cargo-machete]\nignored = [\"getrandom\"]\n\n[features]\nsignal-operations = []\nmobile = []\ninstance-clock = []\nsession-simulator = []\ndebug-snapshots = []\nlegacy-session-interop = [\"wacore-libsignal/legacy-session-interop\"]\ntest-util = []\ntracing = [\"dep:tracing\"]\nmetrics = [\"dep:metrics\"]\ntracing-pii = [\"wacore-binary/tracing-pii\"]\njs = [\"getrandom/wasm_js\"]\nvoip-control = []\nvoip = [\"voip-control\", \"dep:aes-gcm\", \"dep:zerocopy\"]\nvoip-mlow = [\"voip\"]\ndhat-heap = [\"dep:dhat\"]\nbench-internals = []\n\n[dependencies]\naes = \"0.9.2\"\nasync-trait = \"0.1.91\"\nitoa = \"1\"\nlog = \"0.4\"\nrand = \"0.10\"\nserde-big-array = \"0.5\"\nthiserror = \"2.0.19\"\n\n[dependencies.aes-gcm]\noptional = true\nversion = \"0.11.0\"\ndefault-features = false\nfeatures = [\"aes\", \"alloc\"]\n\n[dependencies.anyhow]\nversion = \"1.0\"\ndefault-features = false\n\n[dependencies.async-channel]\nversion = \"2.5.0\"\ndefault-features = false\nfeatures = [\"std\"]\n\n[dependencies.async-lock]\nversion = \"3\"\ndefault-features = false\n\n[dependencies.base64]\nversion = \"0.23.1\"\ndefault-features = false\nfeatures = [\"alloc\"]\n\n[dependencies.bon]\nversion = \"3.9.3\"\ndefault-features = false\nfeatures = [\"std\"]\n\n[dependencies.buffa]\nversion = \"0.9.2\"\ndefault-features = false\nfeatures = [\"json\"]\n\n[dependencies.bytes]\nversion = \"1.12\"\ndefault-features = false\n\n[dependencies.cbc]\nversion = \"0.2\"\nfeatures = [\"alloc\"]\n\n[dependencies.chrono]\nfeatures = [\"now\", \"serde\"]\nversion = \"0.4\"\ndefault-features = false\n\n[dependencies.compact_str]\nversion = \"0.10\"\ndefault-features = false\n\n[dependencies.ctr]\nversion = \"0.10\"\ndefault-features = false\n\n[dependencies.dhat]\nversion = \"0.3\"\noptional = true\n\n[dependencies.event-listener]\nversion = \"5\"\ndefault-features = false\n\n[dependencies.futures]\nfeatures = [\"std\", \"alloc\", \"async-await\"]\nversion = \"0.3\"\ndefault-features = false\n\n[dependencies.getrandom]\noptional = true\nversion = \"0.4\"\ndefault-features = false\n\n[dependencies.hashbrown]\nversion = \"0.17.1\"\ndefault-features = false\n\n[dependencies.hex]\nversion = \"0.4\"\ndefault-features = false\nfeatures = [\"alloc\"]\n\n[dependencies.hkdf]\nversion = \"0.13.0\"\ndefault-features = false\n\n[dependencies.hmac]\nversion = \"0.13.0\"\ndefault-features = false\n\n[dependencies.metrics]\noptional = true\nversion = \"0.24\"\n\n[dependencies.portable-atomic]\nversion = \"1\"\ndefault-features = false\nfeatures = [\"fallback\"]\n\n[dependencies.serde]\nversion = \"1.0\"\nfeatures = [\"derive\", \"rc\"]\n\n[dependencies.serde_json]\nfeatures = [\"std\"]\nversion = \"1.0\"\ndefault-features = false\n\n[dependencies.sha1]\nversion = \"0.11.0\"\ndefault-features = false\n\n[dependencies.sha2]\nversion = \"0.11.0\"\ndefault-features = false\n\n[dependencies.smallvec]\nfeatures = [\"serde\"]\nversion = \"1.15\"\n\n[dependencies.smoothutf8]\nversion = \"0.2.3\"\ndefault-features = false\n\n[dependencies.subtle]\nversion = \"2.6\"\ndefault-features = false\n\n[dependencies.fluent-uri]\nversion = \"0.4.1\"\ndefault-features = false\nfeatures = [\"alloc\"]\n\n[dependencies.tracing]\noptional = true\nversion = \"0.1\"\ndefault-features = false\nfeatures = [\"attributes\"]\n\n[dependencies.wacore-appstate]\npath = \"./wacore/appstate\"\ndefault-features = false\nversion = \"0.7.0\"\n\n[dependencies.wacore-binary]\nfeatures = [\"serde\"]\npath = \"./wacore/binary\"\ndefault-features = false\nversion = \"0.7.0\"\n\n[dependencies.zeroize]\nversion = \"1.9\"\ndefault-features = false\nfeatures = [\"alloc\"]\n\n[dependencies.wacore-derive]\npath = \"./wacore/derive\"\nversion = \"0.7.0\"\n\n[dependencies.wacore-libsignal]\npath = \"./wacore/libsignal\"\nversion = \"0.7.0\"\n\n[dependencies.wacore-noise]\npath = \"./wacore/noise\"\nversion = \"0.7.0\"\n\n[dependencies.waproto]\npath = \"./waproto\"\nversion = \"0.7.0\"\n\n[dependencies.zerocopy]\noptional = true\nversion = \"0.8.55\"\ndefault-features = false\nfeatures = [\"derive\"]\n\n[build-dependencies.buffa-build]\nversion = \"0.9.2\"\ndefault-features = false\n\n[build-dependencies.sha2]\nversion = \"0.11.0\"\ndefault-features = false\n\n[dev-dependencies]\nciborium = \"0.2.2\"\nruzstd = \"0.9.0\"\n\n[dev-dependencies.aes-gcm]\nversion = \"0.11.0\"\ndefault-features = false\nfeatures = [\"aes\", \"alloc\"]\n\n[dev-dependencies.url]\nversion = \"2.5.8\"\ndefault-features = false\n\n[dev-dependencies.divan]\npackage = \"codspeed-divan-compat\"\nversion = \"=5.0.2\"\n\n[dev-dependencies.flate2]\nversion = \"1.1.9\"\ndefault-features = false\nfeatures = [\"zlib-rs\"]\n\n[dev-dependencies.futures]\nfeatures = [\"executor\", \"alloc\", \"async-await\"]\nversion = \"0.3\"\ndefault-features = false\n\n[dev-dependencies.tokio]\nfeatures = [\"macros\", \"rt\", \"rt-multi-thread\", \"time\"]\nversion = \"1.53.1\"\ndefault-features = false\n\n[target.\"cfg(not(target_arch = \\\"wasm32\\\"))\".dev-dependencies.wacore]\npath = \".\"\ndefault-features = false\nfeatures = [\"bench-internals\"]\n\n[[bench]]\nname = \"reporting_token_benchmark\"\nharness = false\n\n[[bench]]\nname = \"usync_response_benchmark\"\nharness = false\n\n[[bench]]\nname = \"send_receive_benchmark\"\nharness = false\n\n[[bench]]\nname = \"message_metadata_benchmark\"\nharness = false\n\n[[bench]]\nname = \"token_lookup_benchmark\"\nharness = false\n\n[[bench]]\nname = \"signal_address_probe_benchmark\"\nharness = false\n\n[[bench]]\nname = \"history_sync_benchmark\"\nharness = false\n\n[[bench]]\nname = \"sframe_varint_benchmark\"\nharness = false\nrequired-features = [\"voip\"]\n\n[[bench]]\nname = \"message_utils_benchmark\"\nharness = false\n\n[[bench]]\nname = \"sync_recovery_benchmark\"\nharness = false\n\n[[bench]]\nname = \"appstate_sync_benchmark\"\nharness = false\n\n[[bench]]\nname = \"sender_key_derivation_benchmark\"\nharness = false\n\n[[bench]]\nname = \"prekey_store_benchmark\"\nharness = false\n\n[[bench]]\nname = \"media_benchmark\"\nharness = false\n\n[[bench]]\nname = \"retained_memory_benchmark\"\nharness = false\n\n[[bench]]\nname = \"voip_benchmark\"\nharness = false\nrequired-features = [\"voip-mlow\"]\n\n[[bench]]\nname = \"mobile_workflow_benchmark\"\nharness = false\nrequired-features = [\"mobile\"]\n\n[[example]]\nname = \"voip_profile\"\nrequired-features = [\"voip-mlow\"]\n\n[lints.clippy]\ndisallowed_methods = \"deny\"\ndisallowed_types = \"deny\"\ndbg_macro = \"deny\"\ntodo = \"deny\"\nprint_stdout = \"warn\"\nprint_stderr = \"warn\"\n\n[lints.rust]\nunused_qualifications = \"warn\"\n\n[lints.rust.unexpected_cfgs]\nlevel = \"warn\"\ncheck-cfg = [\"cfg(docsrs)\"]\n\n[[test]]\nname = \"signal_store\"\nrequired-features = [\"signal-operations\"]\n",
         "dest": "cargo/vendor/wacore",
         "dest-filename": "Cargo.toml"
     },
@@ -13754,12 +13819,12 @@
     {
         "type": "shell",
         "commands": [
-            "cp -r --reflink=auto \"flatpak-cargo/git/whatsapp-rust-f7468ae/wacore/appstate\" \"cargo/vendor/wacore-appstate\""
+            "cp -r --reflink=auto \"flatpak-cargo/git/whatsapp-rust-cd2d885/wacore/appstate\" \"cargo/vendor/wacore-appstate\""
         ]
     },
     {
         "type": "inline",
-        "contents": "[package]\nname = \"wacore-appstate\"\nversion = \"0.7.0\"\nedition = \"2024\"\nrust-version = \"1.94\"\nauthors = [\"Jo\u00e3o Lucas <jlucaso@hotmail.com>\"]\nlicense = \"MIT\"\nrepository = \"https://github.com/jlucaso1/whatsapp-rust\"\ndescription = \"Appstate for WhatsApp protocol\"\n\n[lib]\ncrate-type = [\"rlib\"]\n\n[dependencies]\nlog = \"0.4\"\nserde-big-array = \"0.5\"\nthiserror = \"2.0.19\"\n\n[dependencies.anyhow]\nversion = \"1.0\"\ndefault-features = false\n\n[dependencies.buffa]\nversion = \"0.9.2\"\ndefault-features = false\nfeatures = [\"json\"]\n\n[dependencies.hex]\nversion = \"0.4\"\ndefault-features = false\nfeatures = [\"alloc\"]\n\n[dependencies.hkdf]\nversion = \"0.13.0\"\ndefault-features = false\n\n[dependencies.hmac]\nversion = \"0.13.0\"\ndefault-features = false\n\n[dependencies.serde]\nversion = \"1.0\"\nfeatures = [\"derive\", \"rc\"]\n\n[dependencies.serde_json]\nfeatures = [\"alloc\"]\nversion = \"1.0\"\ndefault-features = false\n\n[dependencies.sha2]\nversion = \"0.11.0\"\ndefault-features = false\n\n[dependencies.wacore-binary]\ndefault-features = false\npath = \"./wacore/binary\"\nversion = \"0.7.0\"\n\n[dependencies.wacore-libsignal]\npath = \"./wacore/libsignal\"\nversion = \"0.7.0\"\n\n[dependencies.waproto]\npath = \"./waproto\"\nversion = \"0.7.0\"\n\n[dev-dependencies.divan]\npackage = \"codspeed-divan-compat\"\nversion = \"5.0.1\"\n\n[[bench]]\nname = \"appstate_benchmark\"\nharness = false\n\n[lints.clippy]\ndisallowed_methods = \"deny\"\ndisallowed_types = \"deny\"\ndbg_macro = \"deny\"\ntodo = \"deny\"\nprint_stdout = \"warn\"\nprint_stderr = \"warn\"\n\n[lints.rust]\nunused_qualifications = \"warn\"\n\n[lints.rust.unexpected_cfgs]\nlevel = \"warn\"\ncheck-cfg = [\"cfg(docsrs)\"]\n",
+        "contents": "[package]\nname = \"wacore-appstate\"\nversion = \"0.7.0\"\nedition = \"2024\"\nrust-version = \"1.95\"\nauthors = [\"Jo\u00e3o Lucas <jlucaso@hotmail.com>\"]\nlicense = \"MIT\"\nrepository = \"https://github.com/oxidezap/whatsapp-rust\"\ndescription = \"Appstate for WhatsApp protocol\"\n\n[lib]\ncrate-type = [\"rlib\"]\n\n[dependencies]\nlog = \"0.4\"\nserde-big-array = \"0.5\"\nthiserror = \"2.0.19\"\n\n[dependencies.anyhow]\nversion = \"1.0\"\ndefault-features = false\n\n[dependencies.buffa]\nversion = \"0.9.2\"\ndefault-features = false\nfeatures = [\"json\"]\n\n[dependencies.hex]\nversion = \"0.4\"\ndefault-features = false\nfeatures = [\"alloc\"]\n\n[dependencies.hkdf]\nversion = \"0.13.0\"\ndefault-features = false\n\n[dependencies.hmac]\nversion = \"0.13.0\"\ndefault-features = false\n\n[dependencies.serde]\nversion = \"1.0\"\nfeatures = [\"derive\", \"rc\"]\n\n[dependencies.serde_json]\nfeatures = [\"alloc\"]\nversion = \"1.0\"\ndefault-features = false\n\n[dependencies.sha2]\nversion = \"0.11.0\"\ndefault-features = false\n\n[dependencies.subtle]\nversion = \"2.6\"\ndefault-features = false\n\n[dependencies.wacore-binary]\ndefault-features = false\npath = \"./wacore/binary\"\nversion = \"0.7.0\"\n\n[dependencies.wacore-libsignal]\npath = \"./wacore/libsignal\"\nversion = \"0.7.0\"\n\n[dependencies.waproto]\npath = \"./waproto\"\nversion = \"0.7.0\"\n\n[dev-dependencies.divan]\npackage = \"codspeed-divan-compat\"\nversion = \"=5.0.2\"\n\n[[bench]]\nname = \"appstate_benchmark\"\nharness = false\n\n[lints.clippy]\ndisallowed_methods = \"deny\"\ndisallowed_types = \"deny\"\ndbg_macro = \"deny\"\ntodo = \"deny\"\nprint_stdout = \"warn\"\nprint_stderr = \"warn\"\n\n[lints.rust]\nunused_qualifications = \"warn\"\n\n[lints.rust.unexpected_cfgs]\nlevel = \"warn\"\ncheck-cfg = [\"cfg(docsrs)\"]\n",
         "dest": "cargo/vendor/wacore-appstate",
         "dest-filename": "Cargo.toml"
     },
@@ -13772,12 +13837,12 @@
     {
         "type": "shell",
         "commands": [
-            "cp -r --reflink=auto \"flatpak-cargo/git/whatsapp-rust-f7468ae/wacore/binary\" \"cargo/vendor/wacore-binary\""
+            "cp -r --reflink=auto \"flatpak-cargo/git/whatsapp-rust-cd2d885/wacore/binary\" \"cargo/vendor/wacore-binary\""
         ]
     },
     {
         "type": "inline",
-        "contents": "[package]\nname = \"wacore-binary\"\nversion = \"0.7.0\"\nedition = \"2024\"\nrust-version = \"1.94\"\nauthors = [\"Jo\u00e3o Lucas <jlucaso@hotmail.com>\"]\nlicense = \"MIT\"\nrepository = \"https://github.com/jlucaso1/whatsapp-rust\"\ndescription = \"Binary data and constants for WhatsApp protocol\"\n\n[lib]\ncrate-type = [\"rlib\"]\n\n[features]\nserde = [\"dep:serde\", \"compact_str/serde\", \"smallvec/serde\"]\ntracing-pii = []\n\n[dependencies]\nitoa = \"1\"\nsmallvec = \"1.15\"\nstable_deref_trait = \"1.2.1\"\n\n[dependencies.bytes]\nversion = \"1.12\"\ndefault-features = false\n\n[dependencies.compact_str]\nversion = \"0.10\"\ndefault-features = false\n\n[dependencies.serde]\noptional = true\nversion = \"1.0\"\nfeatures = [\"derive\", \"rc\"]\n\n[dependencies.smoothutf8]\nversion = \"0.2.3\"\ndefault-features = false\n\n[dependencies.yoke]\nversion = \"0.8\"\nfeatures = [\"derive\"]\n\n[dependencies.zlib-rs]\nversion = \"0.6.6\"\ndefault-features = false\nfeatures = [\"std\", \"rust-allocator\"]\n\n[build-dependencies.serde]\nfeatures = [\"alloc\", \"derive\", \"rc\"]\nversion = \"1.0\"\n\n[build-dependencies.serde_json]\nfeatures = [\"std\"]\nversion = \"1.0\"\ndefault-features = false\n\n[dev-dependencies]\nproptest = \"1.11.0\"\n\n[dev-dependencies.divan]\npackage = \"codspeed-divan-compat\"\nversion = \"5.0.1\"\n\n[dev-dependencies.flate2]\nversion = \"1.1.9\"\ndefault-features = false\nfeatures = [\"zlib-rs\"]\n\n[dev-dependencies.serde_json]\nfeatures = [\"std\"]\nversion = \"1.0\"\ndefault-features = false\n\n[[bench]]\nname = \"binary_benchmark\"\nharness = false\n\n[[bench]]\nname = \"jid_benchmark\"\nharness = false\n\n[[bench]]\nname = \"group_fanout_benchmark\"\nharness = false\n\n[lints.clippy]\ndisallowed_methods = \"deny\"\ndisallowed_types = \"deny\"\ndbg_macro = \"deny\"\ntodo = \"deny\"\nprint_stdout = \"warn\"\nprint_stderr = \"warn\"\n\n[lints.rust]\nunused_qualifications = \"warn\"\n\n[lints.rust.unexpected_cfgs]\nlevel = \"warn\"\ncheck-cfg = [\"cfg(docsrs)\"]\n",
+        "contents": "[package]\nname = \"wacore-binary\"\nversion = \"0.7.0\"\nedition = \"2024\"\nrust-version = \"1.95\"\nauthors = [\"Jo\u00e3o Lucas <jlucaso@hotmail.com>\"]\nlicense = \"MIT\"\nrepository = \"https://github.com/oxidezap/whatsapp-rust\"\ndescription = \"Binary data and constants for WhatsApp protocol\"\n\n[lib]\ncrate-type = [\"rlib\"]\n\n[features]\nserde = [\"dep:serde\", \"compact_str/serde\", \"smallvec/serde\"]\ntracing-pii = []\n\n[dependencies]\nitoa = \"1\"\nsmallvec = \"1.15\"\nstable_deref_trait = \"1.2.1\"\n\n[dependencies.bytes]\nversion = \"1.12\"\ndefault-features = false\n\n[dependencies.compact_str]\nversion = \"0.10\"\ndefault-features = false\n\n[dependencies.serde]\noptional = true\nversion = \"1.0\"\nfeatures = [\"derive\", \"rc\"]\n\n[dependencies.smoothutf8]\nversion = \"0.2.3\"\ndefault-features = false\n\n[dependencies.yoke]\nversion = \"0.8\"\nfeatures = [\"derive\"]\n\n[dependencies.zlib-rs]\nversion = \"0.6.6\"\ndefault-features = false\nfeatures = [\"std\", \"rust-allocator\"]\n\n[target.\"cfg(all(target_arch = \\\"wasm32\\\", target_os = \\\"unknown\\\"))\".dependencies]\nsiphasher = \"1.0\"\n\n[target.\"cfg(all(target_arch = \\\"wasm32\\\", target_os = \\\"unknown\\\"))\".dependencies.getrandom]\nfeatures = [\"wasm_js\"]\nversion = \"0.4\"\ndefault-features = false\n\n[build-dependencies.serde]\nfeatures = [\"alloc\", \"derive\", \"rc\"]\nversion = \"1.0\"\n\n[build-dependencies.serde_json]\nfeatures = [\"std\"]\nversion = \"1.0\"\ndefault-features = false\n\n[dev-dependencies]\nsiphasher = \"1.0\"\nproptest = \"1.11.0\"\n\n[dev-dependencies.divan]\npackage = \"codspeed-divan-compat\"\nversion = \"=5.0.2\"\n\n[dev-dependencies.flate2]\nversion = \"1.1.9\"\ndefault-features = false\nfeatures = [\"zlib-rs\"]\n\n[dev-dependencies.serde_json]\nfeatures = [\"std\"]\nversion = \"1.0\"\ndefault-features = false\n\n[[bench]]\nname = \"binary_benchmark\"\nharness = false\n\n[[bench]]\nname = \"jid_benchmark\"\nharness = false\n\n[[bench]]\nname = \"group_fanout_benchmark\"\nharness = false\n\n[lints.clippy]\ndisallowed_methods = \"deny\"\ndisallowed_types = \"deny\"\ndbg_macro = \"deny\"\ntodo = \"deny\"\nprint_stdout = \"warn\"\nprint_stderr = \"warn\"\n\n[lints.rust]\nunused_qualifications = \"warn\"\n\n[lints.rust.unexpected_cfgs]\nlevel = \"warn\"\ncheck-cfg = [\"cfg(docsrs)\"]\n",
         "dest": "cargo/vendor/wacore-binary",
         "dest-filename": "Cargo.toml"
     },
@@ -13790,12 +13855,12 @@
     {
         "type": "shell",
         "commands": [
-            "cp -r --reflink=auto \"flatpak-cargo/git/whatsapp-rust-f7468ae/wacore/derive\" \"cargo/vendor/wacore-derive\""
+            "cp -r --reflink=auto \"flatpak-cargo/git/whatsapp-rust-cd2d885/wacore/derive\" \"cargo/vendor/wacore-derive\""
         ]
     },
     {
         "type": "inline",
-        "contents": "[package]\nname = \"wacore-derive\"\nversion = \"0.7.0\"\nedition = \"2024\"\nrust-version = \"1.94\"\nauthors = [\"Jo\u00e3o Lucas <jlucaso@hotmail.com>\"]\nlicense = \"MIT\"\nrepository = \"https://github.com/jlucaso1/whatsapp-rust\"\ndescription = \"Derive macros for wacore protocol types\"\n\n[lib]\nproc-macro = true\n\n[dependencies]\nproc-macro2 = \"1.0\"\nquote = \"1.0\"\n\n[dependencies.syn]\nversion = \"3.0\"\nfeatures = [\"full\"]\n\n[lints.clippy]\ndisallowed_methods = \"deny\"\ndisallowed_types = \"deny\"\ndbg_macro = \"deny\"\ntodo = \"deny\"\nprint_stdout = \"warn\"\nprint_stderr = \"warn\"\n\n[lints.rust]\nunused_qualifications = \"warn\"\n\n[lints.rust.unexpected_cfgs]\nlevel = \"warn\"\ncheck-cfg = [\"cfg(docsrs)\"]\n",
+        "contents": "[package]\nname = \"wacore-derive\"\nversion = \"0.7.0\"\nedition = \"2024\"\nrust-version = \"1.95\"\nauthors = [\"Jo\u00e3o Lucas <jlucaso@hotmail.com>\"]\nlicense = \"MIT\"\nrepository = \"https://github.com/oxidezap/whatsapp-rust\"\ndescription = \"Derive macros for wacore protocol types\"\n\n[lib]\nproc-macro = true\n\n[dependencies]\nproc-macro2 = \"1.0\"\nquote = \"1.0\"\n\n[dependencies.syn]\nversion = \"3.0\"\nfeatures = [\"full\"]\n\n[lints.clippy]\ndisallowed_methods = \"deny\"\ndisallowed_types = \"deny\"\ndbg_macro = \"deny\"\ntodo = \"deny\"\nprint_stdout = \"warn\"\nprint_stderr = \"warn\"\n\n[lints.rust]\nunused_qualifications = \"warn\"\n\n[lints.rust.unexpected_cfgs]\nlevel = \"warn\"\ncheck-cfg = [\"cfg(docsrs)\"]\n",
         "dest": "cargo/vendor/wacore-derive",
         "dest-filename": "Cargo.toml"
     },
@@ -13808,12 +13873,12 @@
     {
         "type": "shell",
         "commands": [
-            "cp -r --reflink=auto \"flatpak-cargo/git/whatsapp-rust-f7468ae/wacore/libsignal\" \"cargo/vendor/wacore-libsignal\""
+            "cp -r --reflink=auto \"flatpak-cargo/git/whatsapp-rust-cd2d885/wacore/libsignal\" \"cargo/vendor/wacore-libsignal\""
         ]
     },
     {
         "type": "inline",
-        "contents": "[package]\nname = \"wacore-libsignal\"\nversion = \"0.7.0\"\nedition = \"2024\"\nrust-version = \"1.94\"\nauthors = [\"Jo\u00e3o Lucas <jlucaso@hotmail.com>\"]\nlicense = \"MIT\"\nrepository = \"https://github.com/jlucaso1/whatsapp-rust\"\ndescription = \"Signal Protocol implementation for the WhatsApp platform\"\n\n[features]\nlegacy-session-interop = []\n\n[dependencies]\naes = \"0.9.2\"\nasync-trait = \"0.1.91\"\ncurve25519-dalek = \"5.0.0\"\nghash = \"0.6.0\"\nlog = \"0.4\"\nrand = \"0.10\"\nthiserror = \"2.0.19\"\n\n[dependencies.async-lock]\nversion = \"3\"\ndefault-features = false\n\n[dependencies.buffa]\nversion = \"0.9.2\"\ndefault-features = false\nfeatures = [\"json\"]\n\n[dependencies.bytes]\nversion = \"1.12\"\ndefault-features = false\n\n[dependencies.cbc]\nversion = \"0.2\"\nfeatures = [\"alloc\"]\n\n[dependencies.chrono]\nfeatures = [\"now\"]\nversion = \"0.4\"\ndefault-features = false\n\n[dependencies.ctr]\nversion = \"0.10\"\ndefault-features = false\n\n[dependencies.hex]\nversion = \"0.4\"\ndefault-features = false\nfeatures = [\"alloc\"]\n\n[dependencies.hkdf]\nversion = \"0.13.0\"\ndefault-features = false\n\n[dependencies.hmac]\nversion = \"0.13.0\"\ndefault-features = false\n\n[dependencies.portable-atomic]\nversion = \"1\"\ndefault-features = false\nfeatures = [\"fallback\"]\n\n[dependencies.serde]\nfeatures = [\"alloc\", \"derive\", \"rc\"]\nversion = \"1.0\"\n\n[dependencies.sha1]\nversion = \"0.11.0\"\ndefault-features = false\n\n[dependencies.sha2]\nversion = \"0.11.0\"\ndefault-features = false\n\n[dependencies.subtle]\nversion = \"2.6\"\ndefault-features = false\n\n[dependencies.wacore-derive]\npath = \"./wacore/derive\"\nversion = \"0.7.0\"\n\n[dependencies.waproto]\npath = \"./waproto\"\nversion = \"0.7.0\"\n\n[dependencies.x25519-dalek]\nversion = \"3.0.0\"\nfeatures = [\"static_secrets\"]\n\n[dev-dependencies.divan]\npackage = \"codspeed-divan-compat\"\nversion = \"5.0.1\"\n\n[dev-dependencies.futures]\nfeatures = [\"executor\", \"alloc\", \"async-await\"]\nversion = \"0.3\"\ndefault-features = false\n\n[[bench]]\nname = \"libsignal_benchmark\"\nharness = false\n\n[lints.clippy]\ndisallowed_methods = \"deny\"\ndisallowed_types = \"deny\"\ndbg_macro = \"deny\"\ntodo = \"deny\"\nprint_stdout = \"warn\"\nprint_stderr = \"warn\"\n\n[lints.rust]\nunused_qualifications = \"warn\"\n\n[lints.rust.unexpected_cfgs]\nlevel = \"warn\"\ncheck-cfg = [\"cfg(docsrs)\"]\n",
+        "contents": "[package]\nname = \"wacore-libsignal\"\nversion = \"0.7.0\"\nedition = \"2024\"\nauthors = [\"Jo\u00e3o Lucas <jlucaso@hotmail.com>\"]\nlicense = \"MIT\"\nrust-version = \"1.95\"\nrepository = \"https://github.com/oxidezap/whatsapp-rust\"\ndescription = \"Storage-compatible Signal protocol with a sans-I/O state engine\"\n\n[features]\nlegacy-session-interop = [\"dep:wacore-derive\"]\nbench-internals = []\n\n[dependencies]\naes = \"0.9.2\"\nrand = \"0.10\"\nthiserror = \"2.0.19\"\nasync-trait = \"0.1.91\"\nitoa = \"1\"\nlog = \"0.4\"\n\n[dependencies.arrayvec]\nversion = \"0.7.8\"\ndefault-features = false\n\n[dependencies.aes-gcm]\nversion = \"0.11.0\"\ndefault-features = false\nfeatures = [\"aes\", \"alloc\"]\n\n[dependencies.cbc]\nfeatures = [\"block-padding\", \"alloc\"]\nversion = \"0.2\"\n\n[dependencies.ctr]\nversion = \"0.10\"\ndefault-features = false\n\n[dependencies.sha2]\nversion = \"0.11.0\"\ndefault-features = false\n\n[dependencies.hmac]\nversion = \"0.13.0\"\ndefault-features = false\n\n[dependencies.hkdf]\nversion = \"0.13.0\"\ndefault-features = false\n\n[dependencies.subtle]\nversion = \"2.6\"\ndefault-features = false\n\n[dependencies.zeroize]\nversion = \"1.9\"\ndefault-features = false\nfeatures = [\"alloc\"]\n\n[dependencies.curve25519-dalek]\nversion = \"5.0.0\"\nfeatures = [\"zeroize\"]\n\n[dependencies.serde]\nversion = \"1.0\"\nfeatures = [\"derive\", \"rc\"]\n\n[dependencies.bytes]\nversion = \"1.12\"\ndefault-features = false\n\n[dependencies.async-lock]\nversion = \"3\"\ndefault-features = false\n\n[dependencies.portable-atomic]\nversion = \"1\"\ndefault-features = false\nfeatures = [\"fallback\"]\n\n[dependencies.chrono]\nfeatures = [\"now\"]\nversion = \"0.4\"\ndefault-features = false\n\n[dependencies.hex]\nversion = \"0.4\"\ndefault-features = false\nfeatures = [\"alloc\"]\n\n[dependencies.wacore-binary]\npath = \"./wacore/binary\"\ndefault-features = false\nversion = \"0.7.0\"\n\n[dependencies.wacore-derive]\noptional = true\npath = \"./wacore/derive\"\nversion = \"0.7.0\"\n\n[dependencies.waproto]\npath = \"./waproto\"\nversion = \"0.7.0\"\n\n[dependencies.buffa]\nversion = \"0.9.2\"\ndefault-features = false\nfeatures = [\"json\"]\n\n[dev-dependencies]\nciborium = \"0.2\"\n\n[dev-dependencies.syn]\nversion = \"3.0\"\nfeatures = [\"full\", \"visit\"]\n\n[dev-dependencies.divan]\npackage = \"codspeed-divan-compat\"\nversion = \"=5.0.2\"\n\n[dev-dependencies.futures]\nfeatures = [\"executor\", \"alloc\", \"async-await\"]\nversion = \"0.3\"\ndefault-features = false\n\n[dev-dependencies.serde_json]\nversion = \"1.0\"\ndefault-features = false\n\n[lints.clippy]\ndisallowed_methods = \"deny\"\ndisallowed_types = \"deny\"\ndbg_macro = \"deny\"\ntodo = \"deny\"\nprint_stdout = \"warn\"\nprint_stderr = \"warn\"\n\n[lints.rust]\nunused_qualifications = \"warn\"\n\n[lints.rust.unexpected_cfgs]\nlevel = \"warn\"\ncheck-cfg = [\"cfg(docsrs)\"]\n\n[[bench]]\nname = \"rewrite_benchmark\"\nharness = false\n\n[[bench]]\nname = \"classic_benchmark\"\nharness = false\n",
         "dest": "cargo/vendor/wacore-libsignal",
         "dest-filename": "Cargo.toml"
     },
@@ -13826,12 +13891,12 @@
     {
         "type": "shell",
         "commands": [
-            "cp -r --reflink=auto \"flatpak-cargo/git/whatsapp-rust-f7468ae/wacore/noise\" \"cargo/vendor/wacore-noise\""
+            "cp -r --reflink=auto \"flatpak-cargo/git/whatsapp-rust-cd2d885/wacore/noise\" \"cargo/vendor/wacore-noise\""
         ]
     },
     {
         "type": "inline",
-        "contents": "[package]\nname = \"wacore-noise\"\nversion = \"0.7.0\"\nedition = \"2024\"\nrust-version = \"1.94\"\nauthors = [\"Jo\u00e3o Lucas <jlucaso@hotmail.com>\"]\nlicense = \"MIT\"\nrepository = \"https://github.com/jlucaso1/whatsapp-rust\"\ndescription = \"Noise Protocol implementation for WhatsApp with AES-256-GCM\"\n\n[lib]\ncrate-type = [\"rlib\"]\n\n[features]\ntest-util = []\n\n[dependencies]\nlog = \"0.4\"\nrand = \"0.10\"\nthiserror = \"2.0.19\"\n\n[dependencies.anyhow]\nversion = \"1.0\"\ndefault-features = false\n\n[dependencies.buffa]\nversion = \"0.9.2\"\ndefault-features = false\nfeatures = [\"json\"]\n\n[dependencies.bytes]\nversion = \"1.12\"\ndefault-features = false\n\n[dependencies.hkdf]\nversion = \"0.13.0\"\ndefault-features = false\n\n[dependencies.sha2]\nversion = \"0.11.0\"\ndefault-features = false\n\n[dependencies.wacore-binary]\npath = \"./wacore/binary\"\ndefault-features = false\nversion = \"0.7.0\"\n\n[dependencies.wacore-libsignal]\npath = \"./wacore/libsignal\"\nversion = \"0.7.0\"\n\n[dependencies.waproto]\npath = \"./waproto\"\nversion = \"0.7.0\"\n\n[dev-dependencies.divan]\npackage = \"codspeed-divan-compat\"\nversion = \"5.0.1\"\n\n[[bench]]\nname = \"noise_benchmark\"\nharness = false\n\n[lints.clippy]\ndisallowed_methods = \"deny\"\ndisallowed_types = \"deny\"\ndbg_macro = \"deny\"\ntodo = \"deny\"\nprint_stdout = \"warn\"\nprint_stderr = \"warn\"\n\n[lints.rust]\nunused_qualifications = \"warn\"\n\n[lints.rust.unexpected_cfgs]\nlevel = \"warn\"\ncheck-cfg = [\"cfg(docsrs)\"]\n",
+        "contents": "[package]\nname = \"wacore-noise\"\nversion = \"0.7.0\"\nedition = \"2024\"\nrust-version = \"1.95\"\nauthors = [\"Jo\u00e3o Lucas <jlucaso@hotmail.com>\"]\nlicense = \"MIT\"\nrepository = \"https://github.com/oxidezap/whatsapp-rust\"\ndescription = \"Noise Protocol implementation for WhatsApp with AES-256-GCM\"\n\n[lib]\ncrate-type = [\"rlib\"]\n\n[features]\ntest-util = []\n\n[dependencies]\nlog = \"0.4\"\nrand = \"0.10\"\nthiserror = \"2.0.19\"\n\n[dependencies.anyhow]\nversion = \"1.0\"\ndefault-features = false\n\n[dependencies.buffa]\nversion = \"0.9.2\"\ndefault-features = false\nfeatures = [\"json\"]\n\n[dependencies.bytes]\nversion = \"1.12\"\ndefault-features = false\n\n[dependencies.hkdf]\nversion = \"0.13.0\"\ndefault-features = false\n\n[dependencies.sha2]\nversion = \"0.11.0\"\ndefault-features = false\n\n[dependencies.wacore-binary]\npath = \"./wacore/binary\"\ndefault-features = false\nversion = \"0.7.0\"\n\n[dependencies.wacore-libsignal]\npath = \"./wacore/libsignal\"\nversion = \"0.7.0\"\n\n[dependencies.waproto]\npath = \"./waproto\"\nversion = \"0.7.0\"\n\n[dev-dependencies.divan]\npackage = \"codspeed-divan-compat\"\nversion = \"=5.0.2\"\n\n[[bench]]\nname = \"noise_benchmark\"\nharness = false\n\n[lints.clippy]\ndisallowed_methods = \"deny\"\ndisallowed_types = \"deny\"\ndbg_macro = \"deny\"\ntodo = \"deny\"\nprint_stdout = \"warn\"\nprint_stderr = \"warn\"\n\n[lints.rust]\nunused_qualifications = \"warn\"\n\n[lints.rust.unexpected_cfgs]\nlevel = \"warn\"\ncheck-cfg = [\"cfg(docsrs)\"]\n",
         "dest": "cargo/vendor/wacore-noise",
         "dest-filename": "Cargo.toml"
     },
@@ -13883,12 +13948,12 @@
     {
         "type": "shell",
         "commands": [
-            "cp -r --reflink=auto \"flatpak-cargo/git/whatsapp-rust-f7468ae/waproto\" \"cargo/vendor/waproto\""
+            "cp -r --reflink=auto \"flatpak-cargo/git/whatsapp-rust-cd2d885/waproto\" \"cargo/vendor/waproto\""
         ]
     },
     {
         "type": "inline",
-        "contents": "[package]\nname = \"waproto\"\nversion = \"0.7.0\"\nedition = \"2024\"\nrust-version = \"1.94\"\nauthors = [\"Jo\u00e3o Lucas <jlucaso@hotmail.com>\"]\nlicense = \"MIT\"\nrepository = \"https://github.com/jlucaso1/whatsapp-rust\"\ndescription = \"Protocol Buffers definitions for WhatsApp\"\n\n[package.metadata.cargo-machete]\nignored = [\"serde\"]\n\n[features]\ndefault = []\nserde-deserialize = []\nserde-snake-case = [\"serde-deserialize\"]\nserde-enum-repr = [\"dep:serde_repr\"]\n\n[dependencies.buffa]\nversion = \"0.9.2\"\ndefault-features = false\nfeatures = [\"json\"]\n\n[dependencies.bytes]\nversion = \"1.12\"\ndefault-features = false\n\n[dependencies.serde]\nversion = \"1.0\"\nfeatures = [\"derive\", \"rc\"]\n\n[dependencies.serde_repr]\nversion = \"0.1\"\noptional = true\n\n[build-dependencies]\nheck = \"0.5\"\n\n[build-dependencies.buffa]\nversion = \"0.9.2\"\ndefault-features = false\nfeatures = [\"json\"]\n\n[build-dependencies.buffa-build]\nversion = \"0.9.2\"\ndefault-features = false\n\n[build-dependencies.buffa-descriptor]\nversion = \"0.9.2\"\ndefault-features = false\n\n[build-dependencies.sha2]\nversion = \"0.11.0\"\ndefault-features = false\n\n[dev-dependencies.serde_json]\nfeatures = [\"std\"]\nversion = \"1.0\"\ndefault-features = false\n\n[lints.clippy]\ndisallowed_methods = \"deny\"\ndisallowed_types = \"deny\"\ndbg_macro = \"deny\"\ntodo = \"deny\"\nprint_stdout = \"warn\"\nprint_stderr = \"warn\"\n\n[lints.rust]\nunused_qualifications = \"warn\"\n\n[lints.rust.unexpected_cfgs]\nlevel = \"warn\"\ncheck-cfg = [\"cfg(docsrs)\"]\n",
+        "contents": "[package]\nname = \"waproto\"\nversion = \"0.7.0\"\nedition = \"2024\"\nrust-version = \"1.95\"\nauthors = [\"Jo\u00e3o Lucas <jlucaso@hotmail.com>\"]\nlicense = \"MIT\"\nrepository = \"https://github.com/oxidezap/whatsapp-rust\"\ndescription = \"Protocol Buffers definitions for WhatsApp\"\n\n[package.metadata.cargo-machete]\nignored = [\"serde_repr\"]\n\n[features]\ndefault = []\nserde-deserialize = []\nserde-snake-case = [\"serde-deserialize\"]\nserde-enum-repr = [\"dep:serde_repr\"]\n\n[dependencies.buffa]\nversion = \"0.9.2\"\ndefault-features = false\nfeatures = [\"json\"]\n\n[dependencies.bytes]\nversion = \"1.12\"\ndefault-features = false\n\n[dependencies.serde]\nversion = \"1.0\"\nfeatures = [\"derive\", \"rc\"]\n\n[dependencies.serde_repr]\nversion = \"0.1\"\noptional = true\n\n[build-dependencies]\nheck = \"0.5\"\nquote = \"1\"\nprettyplease = \"0.3\"\n\n[build-dependencies.buffa]\nversion = \"0.9.2\"\ndefault-features = false\nfeatures = [\"json\"]\n\n[build-dependencies.buffa-build]\nversion = \"0.9.2\"\ndefault-features = false\n\n[build-dependencies.buffa-descriptor]\nversion = \"0.9.2\"\ndefault-features = false\n\n[build-dependencies.sha2]\nversion = \"0.11.0\"\ndefault-features = false\n\n[build-dependencies.syn]\nversion = \"3.0\"\nfeatures = [\"full\", \"visit-mut\"]\n\n[dev-dependencies]\nheck = \"0.5\"\nquote = \"1\"\nprettyplease = \"0.3\"\n\n[dev-dependencies.buffa-build]\nversion = \"0.9.2\"\ndefault-features = false\n\n[dev-dependencies.buffa-descriptor]\nversion = \"0.9.2\"\ndefault-features = false\n\n[dev-dependencies.serde_json]\nfeatures = [\"std\"]\nversion = \"1.0\"\ndefault-features = false\n\n[dev-dependencies.syn]\nversion = \"3.0\"\nfeatures = [\"full\", \"visit-mut\"]\n\n[lints.clippy]\ndisallowed_methods = \"deny\"\ndisallowed_types = \"deny\"\ndbg_macro = \"deny\"\ntodo = \"deny\"\nprint_stdout = \"warn\"\nprint_stderr = \"warn\"\n\n[lints.rust]\nunused_qualifications = \"warn\"\n\n[lints.rust.unexpected_cfgs]\nlevel = \"warn\"\ncheck-cfg = [\"cfg(docsrs)\"]\n",
         "dest": "cargo/vendor/waproto",
         "dest-filename": "Cargo.toml"
     },
@@ -14252,12 +14317,12 @@
     {
         "type": "shell",
         "commands": [
-            "cp -r --reflink=auto \"flatpak-cargo/git/whatsapp-rust-f7468ae/.\" \"cargo/vendor/whatsapp-rust\""
+            "cp -r --reflink=auto \"flatpak-cargo/git/whatsapp-rust-cd2d885/.\" \"cargo/vendor/whatsapp-rust\""
         ]
     },
     {
         "type": "inline",
-        "contents": "[package]\nname = \"whatsapp-rust\"\nversion = \"0.7.0\"\nedition = \"2024\"\nrust-version = \"1.94\"\nauthors = [\"Jo\u00e3o Lucas <jlucaso@hotmail.com>\"]\nlicense = \"MIT\"\nrepository = \"https://github.com/jlucaso1/whatsapp-rust\"\nreadme = \"README.md\"\ndescription = \"Rust client for WhatsApp Web\"\nautobenches = false\n\n[package.metadata.docs.rs]\nfeatures = [\"passkey\", \"plugins\"]\nrustdoc-args = [\"--cfg\", \"docsrs\"]\n\n[workspace]\nmembers = [\".\", \"examples/voip-cli\", \"http_clients/ureq-client\", \"plugins/metrics\", \"plugins/wam\", \"plugins/wam-catalog\", \"storages/sqlite-storage\", \"tests/bench-integration\", \"tests/e2e\", \"tools/whatspec-codegen\", \"tools/oracle-cli\", \"tools/oracle-core\", \"tools/xtask\", \"tools/oracle-task\", \"tools/xtask-support\", \"transports/tokio-transport\", \"wacore\", \"wacore/appstate\", \"wacore/binary\", \"wacore/derive\", \"wacore/libsignal\", \"wacore/noise\", \"waproto\"]\ndefault-members = [\".\", \"http_clients/ureq-client\", \"storages/sqlite-storage\", \"transports/tokio-transport\", \"wacore\", \"wacore/appstate\", \"wacore/binary\", \"wacore/derive\", \"wacore/libsignal\", \"wacore/noise\", \"waproto\"]\n\n[workspace.package]\nedition = \"2024\"\nlicense = \"MIT\"\npublish = false\nrust-version = \"1.94\"\n\n[workspace.lints.clippy]\ndisallowed_methods = \"deny\"\ndisallowed_types = \"deny\"\ndbg_macro = \"deny\"\ntodo = \"deny\"\nprint_stdout = \"warn\"\nprint_stderr = \"warn\"\n\n[workspace.lints.rust]\nunused_qualifications = \"warn\"\n\n[workspace.lints.rust.unexpected_cfgs]\nlevel = \"warn\"\ncheck-cfg = [\"cfg(docsrs)\"]\n\n[workspace.dependencies]\naes = \"0.9.2\"\nasync-trait = \"0.1.91\"\nheck = \"0.5\"\nitoa = \"1\"\nlog = \"0.4\"\nmetrics = \"0.24\"\nrand = \"0.10\"\nserde-big-array = \"0.5\"\nwasm-encoder = \"0.259\"\nsmallvec = \"1.15\"\nthiserror = \"2.0.19\"\n\n[workspace.dependencies.oracle-core]\npath = \"tools/oracle-core\"\n\n[workspace.dependencies.unwasm-core]\ngit = \"https://github.com/oxidezap/unwasm.git\"\nrev = \"8f798470e9f8c22a9ef40780eee302894fe7bdce\"\n\n[workspace.dependencies.wa-store]\ngit = \"https://github.com/oxidezap/whatspec.git\"\nrev = \"10a66fdaab616c9ef6b3f5e6b197bdddfabc142a\"\n\n[workspace.dependencies.xtask-support]\npath = \"tools/xtask-support\"\n\n[workspace.dependencies.aes-gcm]\nversion = \"0.11.0\"\ndefault-features = false\nfeatures = [\"aes\", \"alloc\"]\n\n[workspace.dependencies.anyhow]\nversion = \"1.0\"\ndefault-features = false\n\n[workspace.dependencies.clap]\nversion = \"4\"\nfeatures = [\"derive\"]\n\n[workspace.dependencies.async-channel]\nversion = \"2.5.0\"\ndefault-features = false\nfeatures = [\"std\"]\n\n[workspace.dependencies.async-lock]\nversion = \"3\"\ndefault-features = false\n\n[workspace.dependencies.base64]\nversion = \"0.23.1\"\ndefault-features = false\nfeatures = [\"alloc\"]\n\n[workspace.dependencies.bon]\nversion = \"3.9.3\"\ndefault-features = false\nfeatures = [\"std\"]\n\n[workspace.dependencies.buffa]\nversion = \"0.9.2\"\ndefault-features = false\nfeatures = [\"json\"]\n\n[workspace.dependencies.buffa-build]\nversion = \"0.9.2\"\ndefault-features = false\n\n[workspace.dependencies.buffa-descriptor]\nversion = \"0.9.2\"\ndefault-features = false\n\n[workspace.dependencies.bytes]\nversion = \"1.12\"\ndefault-features = false\n\n[workspace.dependencies.cbc]\nversion = \"0.2\"\nfeatures = [\"alloc\"]\n\n[workspace.dependencies.chrono]\nversion = \"0.4\"\ndefault-features = false\n\n[workspace.dependencies.compact_str]\nversion = \"0.10\"\ndefault-features = false\n\n[workspace.dependencies.ctr]\nversion = \"0.10\"\ndefault-features = false\n\n[workspace.dependencies.diesel]\nversion = \"2.3.11\"\ndefault-features = false\nfeatures = [\"sqlite\", \"r2d2\", \"32-column-tables\"]\n\n[workspace.dependencies.diesel_migrations]\nversion = \"2.3.2\"\ndefault-features = false\nfeatures = [\"sqlite\"]\n\n[workspace.dependencies.divan]\npackage = \"codspeed-divan-compat\"\nversion = \"5.0.1\"\n\n[workspace.dependencies.env_logger]\nversion = \"0.11\"\ndefault-features = false\n\n[workspace.dependencies.event-listener]\nversion = \"5\"\ndefault-features = false\n\n[workspace.dependencies.flate2]\nversion = \"1.1.9\"\ndefault-features = false\nfeatures = [\"zlib-rs\"]\n\n[workspace.dependencies.futures]\nversion = \"0.3\"\ndefault-features = false\nfeatures = [\"alloc\", \"async-await\"]\n\n[workspace.dependencies.getrandom]\nversion = \"0.4\"\ndefault-features = false\n\n[workspace.dependencies.hashbrown]\nversion = \"0.17.1\"\ndefault-features = false\n\n[workspace.dependencies.hex]\nversion = \"0.4\"\ndefault-features = false\nfeatures = [\"alloc\"]\n\n[workspace.dependencies.hkdf]\nversion = \"0.13.0\"\ndefault-features = false\n\n[workspace.dependencies.hmac]\nversion = \"0.13.0\"\ndefault-features = false\n\n[workspace.dependencies.portable-atomic]\nversion = \"1\"\ndefault-features = false\nfeatures = [\"fallback\"]\n\n[workspace.dependencies.serde]\nversion = \"1.0\"\nfeatures = [\"derive\", \"rc\"]\n\n[workspace.dependencies.serde_json]\nversion = \"1.0\"\ndefault-features = false\n\n[workspace.dependencies.sha1]\nversion = \"0.11.0\"\ndefault-features = false\n\n[workspace.dependencies.sha2]\nversion = \"0.11.0\"\ndefault-features = false\n\n[workspace.dependencies.wasmparser]\nversion = \"0.259\"\ndefault-features = false\nfeatures = [\"std\", \"validate\", \"features\"]\n\n[workspace.dependencies.wasmtime]\nversion = \"48.0.1\"\ndefault-features = false\nfeatures = [\"runtime\", \"anyhow\", \"cranelift\", \"std\", \"threads\", \"parallel-compilation\", \"cache\", \"addr2line\", \"demangle\", \"call-hook\"]\n\n[workspace.dependencies.smoothutf8]\nversion = \"0.2.3\"\ndefault-features = false\n\n[workspace.dependencies.subtle]\nversion = \"2.6\"\ndefault-features = false\n\n[workspace.dependencies.tokio]\nversion = \"1.53.1\"\ndefault-features = false\n\n[workspace.dependencies.tracing]\nversion = \"0.1\"\ndefault-features = false\nfeatures = [\"attributes\"]\n\n[workspace.dependencies.uuid]\nversion = \"1\"\ndefault-features = false\n\n[workspace.dependencies.zeroize]\nversion = \"1.9\"\ndefault-features = false\nfeatures = [\"alloc\"]\n\n[workspace.dependencies.wacore]\npath = \"./wacore\"\ndefault-features = false\nversion = \"0.7.0\"\n\n[workspace.dependencies.wacore-appstate]\npath = \"./wacore/appstate\"\ndefault-features = false\nversion = \"0.7.0\"\n\n[workspace.dependencies.wacore-binary]\npath = \"./wacore/binary\"\ndefault-features = false\nversion = \"0.7.0\"\n\n[workspace.dependencies.wacore-derive]\npath = \"./wacore/derive\"\nversion = \"0.7.0\"\n\n[workspace.dependencies.wacore-libsignal]\npath = \"./wacore/libsignal\"\nversion = \"0.7.0\"\n\n[workspace.dependencies.wacore-noise]\npath = \"./wacore/noise\"\nversion = \"0.7.0\"\n\n[workspace.dependencies.waproto]\npath = \"./waproto\"\nversion = \"0.7.0\"\n\n[workspace.dependencies.yoke]\nversion = \"0.8\"\nfeatures = [\"derive\"]\n\n[workspace.dependencies.zerocopy]\nversion = \"0.8.55\"\ndefault-features = false\nfeatures = [\"derive\"]\n\n[workspace.dependencies.zlib-rs]\nversion = \"0.6.6\"\ndefault-features = false\nfeatures = [\"std\", \"rust-allocator\"]\n\n[features]\ndebug-snapshots = [\"wacore/debug-snapshots\"]\nlegacy-session-interop = [\"wacore/legacy-session-interop\"]\nclient-lifecycle = []\nplugins = [\"client-lifecycle\", \"dep:bon\"]\npasskey = []\ntracing = [\"dep:tracing\", \"wacore/tracing\"]\nmetrics = [\"wacore/metrics\"]\ntracing-pii = [\"wacore/tracing-pii\", \"wacore-binary/tracing-pii\"]\nbench-harness = [\"tokio-runtime\", \"tokio/rt-multi-thread\"]\ntest-support = [\"voip-runtime\", \"tokio-runtime\", \"dep:wacore-noise\", \"wacore-noise/test-util\"]\ndanger-skip-tls-verify = [\"whatsapp-rust-tokio-transport?/danger-skip-tls-verify\"]\ndefault = [\"sqlite-storage\", \"sqlite-storage-bundled\", \"tokio-transport\", \"tokio-runtime\", \"ureq-client\", \"tokio-native\", \"signal\"]\nureq-client = [\"dep:whatsapp-rust-ureq-http-client\"]\ntokio-transport = [\"dep:whatsapp-rust-tokio-transport\"]\ntokio-runtime = [\"dep:tokio\"]\nsignal = [\"tokio-runtime\", \"tokio/signal\"]\nsqlite-storage = [\"whatsapp-rust-sqlite-storage\"]\nsqlite-storage-bundled = [\"sqlite-storage\", \"whatsapp-rust-sqlite-storage/bundled-sqlite\"]\ntokio-native = [\"tokio-runtime\", \"tokio/rt-multi-thread\"]\nvoip-runtime = [\"voip-control\", \"voip-engine-wacore\"]\nvoip-control = [\"wacore/voip-control\"]\nvoip-engine-wacore = [\"voip-control\", \"wacore/voip\"]\nvoip-relay-native = [\"voip-runtime\", \"tokio-runtime\", \"tokio/net\", \"dep:rtc-dtls\", \"dep:rtc-sctp\", \"dep:rtc-datachannel\", \"dep:rtc-shared\"]\nvoip = [\"voip-mlow\", \"voip-libopus\", \"voip-relay-native\"]\nvoip-encoded = [\"voip-runtime\"]\nvoip-mlow = [\"voip-runtime\", \"wacore/voip-mlow\"]\nvoip-libopus = [\"voip-encoded\", \"dep:opus\"]\n\n[dependencies]\nasync-trait = \"0.1.91\"\nsmallvec = \"1.15\"\nitoa = \"1\"\nlog = \"0.4\"\nrand = \"0.10\"\nscopeguard = \"1.2\"\nthiserror = \"2.0.19\"\n\n[dependencies.anyhow]\nversion = \"1.0\"\ndefault-features = false\n\n[dependencies.async-channel]\nversion = \"2.5.0\"\ndefault-features = false\nfeatures = [\"std\"]\n\n[dependencies.async-lock]\nversion = \"3\"\ndefault-features = false\n\n[dependencies.base64]\nversion = \"0.23.1\"\ndefault-features = false\nfeatures = [\"alloc\"]\n\n[dependencies.bon]\noptional = true\nversion = \"3.9.3\"\ndefault-features = false\nfeatures = [\"std\"]\n\n[dependencies.buffa]\nversion = \"0.9.2\"\ndefault-features = false\nfeatures = [\"json\"]\n\n[dependencies.bytes]\nversion = \"1.12\"\ndefault-features = false\n\n[dependencies.chrono]\nfeatures = [\"now\"]\nversion = \"0.4\"\ndefault-features = false\n\n[dependencies.event-listener]\nversion = \"5\"\ndefault-features = false\n\n[dependencies.futures]\nfeatures = [\"std\", \"alloc\", \"async-await\"]\nversion = \"0.3\"\ndefault-features = false\n\n[dependencies.hmac]\nversion = \"0.13.0\"\ndefault-features = false\n\n[dependencies.sha2]\nversion = \"0.11.0\"\ndefault-features = false\n\n[dependencies.hashbrown]\nversion = \"0.17.1\"\ndefault-features = false\n\n[dependencies.hex]\nversion = \"0.4\"\ndefault-features = false\nfeatures = [\"alloc\"]\n\n[dependencies.opus]\nversion = \"0.4\"\noptional = true\n\n[dependencies.portable-atomic]\nversion = \"1\"\ndefault-features = false\nfeatures = [\"fallback\"]\n\n[dependencies.rtc-datachannel]\nversion = \"=0.21.0-beta.2\"\noptional = true\n\n[dependencies.rtc-dtls]\nversion = \"=0.21.0-beta.2\"\noptional = true\ndefault-features = false\nfeatures = [\"crypto-ring\"]\n\n[dependencies.rtc-sctp]\nversion = \"=0.21.0-beta.2\"\noptional = true\n\n[dependencies.rtc-shared]\nversion = \"=0.21.0-beta.2\"\noptional = true\ndefault-features = false\n\n[dependencies.serde]\nversion = \"1.0\"\nfeatures = [\"derive\", \"rc\"]\n\n[dependencies.serde_json]\nfeatures = [\"std\"]\nversion = \"1.0\"\ndefault-features = false\n\n[dependencies.tokio]\nfeatures = [\"macros\", \"rt\", \"sync\", \"time\"]\noptional = true\nversion = \"1.53.1\"\ndefault-features = false\n\n[dependencies.tracing]\noptional = true\nversion = \"0.1\"\ndefault-features = false\nfeatures = [\"attributes\"]\n\n[dependencies.wacore]\npath = \"./wacore\"\ndefault-features = false\nversion = \"0.7.0\"\n\n[dependencies.wacore-binary]\npath = \"./wacore/binary\"\ndefault-features = false\nversion = \"0.7.0\"\n\n[dependencies.wacore-noise]\npath = \"./wacore/noise\"\nversion = \"0.7.0\"\noptional = true\n\n[dependencies.waproto]\npath = \"./waproto\"\nversion = \"0.7.0\"\n\n[dependencies.zeroize]\nversion = \"1.9\"\ndefault-features = false\nfeatures = [\"alloc\"]\n\n[dependencies.whatsapp-rust-sqlite-storage]\npath = \"./storages/sqlite-storage\"\nversion = \"0.7.0\"\noptional = true\ndefault-features = false\n\n[dependencies.whatsapp-rust-tokio-transport]\npath = \"./transports/tokio-transport\"\nversion = \"0.7.0\"\noptional = true\n\n[dependencies.whatsapp-rust-ureq-http-client]\npath = \"./http_clients/ureq-client\"\nversion = \"0.7.0\"\noptional = true\n\n[target.\"cfg(all(target_arch = \\\"wasm32\\\", target_os = \\\"unknown\\\"))\".dependencies.getrandom]\nfeatures = [\"wasm_js\"]\nversion = \"0.4\"\ndefault-features = false\n\n[target.\"cfg(target_arch = \\\"wasm32\\\")\".dependencies.send_wrapper]\nversion = \"0.6\"\nfeatures = [\"futures\"]\n\n[dev-dependencies]\naes = \"0.9.2\"\nhttp = \"1\"\nlibc = \"0.2\"\nmetrics-exporter-prometheus = \"0.18\"\n\n[dev-dependencies.cbc]\nfeatures = [\"block-padding\", \"alloc\"]\nversion = \"0.2\"\n\n[dev-dependencies.diesel]\nversion = \"2.3.11\"\ndefault-features = false\nfeatures = [\"sqlite\", \"r2d2\", \"32-column-tables\"]\n\n[dev-dependencies.divan]\npackage = \"codspeed-divan-compat\"\nversion = \"5.0.1\"\n\n[dev-dependencies.env_logger]\nversion = \"0.11\"\ndefault-features = false\n\n[dev-dependencies.event-listener]\nfeatures = [\"std\"]\nversion = \"5\"\ndefault-features = false\n\n[dev-dependencies.flate2]\nversion = \"1.1.9\"\ndefault-features = false\nfeatures = [\"zlib-rs\"]\n\n[dev-dependencies.hkdf]\nversion = \"0.13.0\"\ndefault-features = false\n\n[dev-dependencies.hmac]\nversion = \"0.13.0\"\ndefault-features = false\n\n[dev-dependencies.syn]\nversion = \"3.0\"\nfeatures = [\"full\"]\n\n[dev-dependencies.tokio]\nfeatures = [\"full\", \"test-util\"]\nversion = \"1.53.1\"\ndefault-features = false\n\n[dev-dependencies.tracing-subscriber]\nversion = \"0.3\"\nfeatures = [\"env-filter\"]\n\n[dev-dependencies.uuid]\nfeatures = [\"v4\"]\nversion = \"1\"\ndefault-features = false\n\n[dev-dependencies.wacore]\nfeatures = [\"test-util\"]\npath = \"./wacore\"\ndefault-features = false\nversion = \"0.7.0\"\n\n[dev-dependencies.wacore-noise]\npath = \"./wacore/noise\"\nfeatures = [\"test-util\"]\n\n[lints.clippy]\ndisallowed_methods = \"deny\"\ndisallowed_types = \"deny\"\ndbg_macro = \"deny\"\ntodo = \"deny\"\nprint_stdout = \"warn\"\nprint_stderr = \"warn\"\n\n[lints.rust]\nunused_qualifications = \"warn\"\n\n[lints.rust.unexpected_cfgs]\nlevel = \"warn\"\ncheck-cfg = [\"cfg(docsrs)\"]\n\n[[example]]\nname = \"demo\"\ntest = true\n\n[[example]]\nname = \"benchmark\"\ntest = true\nrequired-features = [\"tokio-runtime\", \"tokio-transport\", \"ureq-client\"]\n\n[[example]]\nname = \"observability\"\nrequired-features = [\"tracing\"]\n\n[[example]]\nname = \"metrics\"\nrequired-features = [\"metrics\"]\n\n[[bench]]\nname = \"client_group_send\"\nharness = false\nrequired-features = [\"bench-harness\"]\n\n[[bench]]\nname = \"client_receive\"\nharness = false\nrequired-features = [\"bench-harness\"]\n\n[[bench]]\nname = \"client_dm_send\"\nharness = false\nrequired-features = [\"bench-harness\"]\n\n[[bench]]\nname = \"client_group_scale\"\nharness = false\nrequired-features = [\"bench-harness\"]\n\n[[bench]]\nname = \"inbound_stanza\"\nharness = false\nrequired-features = [\"bench-harness\"]\n\n[[bench]]\nname = \"jid_keyed_cache\"\nharness = false\n\n[[bench]]\nname = \"client_usync\"\nharness = false\n\n[[bench]]\nname = \"client_identity_cache\"\nharness = false\n\n[[bench]]\nname = \"client_cache_maint\"\nharness = false\n\n[profile.release]\nopt-level = 3\ndebug = false\nlto = \"fat\"\ncodegen-units = 1\npanic = \"abort\"\nstrip = true\nincremental = false\n\n[profile.release.package.diesel]\nopt-level = \"z\"\n\n[profile.release.package.diesel_migrations]\nopt-level = \"z\"\n\n[profile.release.package.r2d2]\nopt-level = \"z\"\n\n[profile.release.package.whatsapp-rust-sqlite-storage]\nopt-level = \"z\"\n\n[profile.release.package.ureq]\nopt-level = \"z\"\n\n[profile.release.package.ureq-proto]\nopt-level = \"z\"\n\n[profile.release.package.whatsapp-rust-ureq-http-client]\nopt-level = \"z\"\n\n[profile.release.package.rustls-webpki]\nopt-level = \"z\"\n\n[profile.release.package.webpki-roots]\nopt-level = \"z\"\n\n[profile.release.package.http]\nopt-level = \"z\"\n\n[profile.release.package.rustls]\nopt-level = \"s\"\n\n[profile.release.package.tokio-websockets]\nopt-level = \"s\"\n\n[profile.release.package.whatsapp-rust-tokio-transport]\nopt-level = \"s\"\n\n[profile.release.package.wacore-appstate]\nopt-level = \"s\"\n\n[profile.release.package.chrono]\nopt-level = \"s\"\n\n[profile.release.package.serde_json]\nopt-level = \"s\"\n\n[profile.release.package.libsqlite3-sys]\nopt-level = \"z\"\n\n[profile.bench]\ninherits = \"release\"\nlto = \"thin\"\ndebug = 1\nstrip = false\n\n[profile.profiling]\ninherits = \"release\"\ndebug = 1\nstrip = false\n",
+        "contents": "[package]\nname = \"whatsapp-rust\"\nversion = \"0.7.0\"\nedition = \"2024\"\nrust-version = \"1.95\"\nauthors = [\"Jo\u00e3o Lucas <jlucaso@hotmail.com>\"]\nlicense = \"MIT\"\nrepository = \"https://github.com/oxidezap/whatsapp-rust\"\nreadme = \"README.md\"\ndescription = \"Rust client for WhatsApp Web\"\nautobenches = false\n\n[package.metadata.docs.rs]\nfeatures = [\"passkey\", \"plugins\"]\nrustdoc-args = [\"--cfg\", \"docsrs\"]\n\n[workspace]\nmembers = [\".\", \"examples/voip-cli\", \"http_clients/ureq-client\", \"plugins/metrics\", \"plugins/wam\", \"plugins/wam-catalog\", \"storages/sqlite-storage\", \"tests/bench-integration\", \"tests/e2e\", \"tools/whatspec-codegen\", \"tools/mobile-oracle\", \"tools/mobile-oracle-android\", \"tools/web-oracle\", \"tools/oracle-cli\", \"tools/oracle-core\", \"tools/xtask\", \"tools/oracle-task\", \"tools/xtask-support\", \"transports/tokio-transport\", \"wacore\", \"wacore/appstate\", \"wacore/binary\", \"wacore/derive\", \"wacore/libsignal\", \"wacore/noise\", \"waproto\"]\nexclude = [\"vendor/wasmtime-internal-cache\"]\ndefault-members = [\".\", \"http_clients/ureq-client\", \"storages/sqlite-storage\", \"transports/tokio-transport\", \"wacore\", \"wacore/appstate\", \"wacore/binary\", \"wacore/derive\", \"wacore/libsignal\", \"wacore/noise\", \"waproto\"]\n\n[workspace.package]\nedition = \"2024\"\nlicense = \"MIT\"\npublish = false\nrust-version = \"1.95\"\n\n[workspace.lints.clippy]\ndisallowed_methods = \"deny\"\ndisallowed_types = \"deny\"\ndbg_macro = \"deny\"\ntodo = \"deny\"\nprint_stdout = \"warn\"\nprint_stderr = \"warn\"\n\n[workspace.lints.rust]\nunused_qualifications = \"warn\"\n\n[workspace.lints.rust.unexpected_cfgs]\nlevel = \"warn\"\ncheck-cfg = [\"cfg(docsrs)\"]\n\n[workspace.dependencies]\naes = \"0.9.2\"\nasync-trait = \"0.1.91\"\nheck = \"0.5\"\nitoa = \"1\"\nlog = \"0.4\"\nmetrics = \"0.24\"\nrand = \"0.10\"\nserde-big-array = \"0.5\"\nwasm-encoder = \"0.263\"\nsmallvec = \"1.15\"\nthiserror = \"2.0.19\"\n\n[workspace.dependencies.oracle-core]\npath = \"tools/oracle-core\"\n\n[workspace.dependencies.unwasm-core]\ngit = \"https://github.com/oxidezap/unwasm.git\"\nrev = \"8f798470e9f8c22a9ef40780eee302894fe7bdce\"\n\n[workspace.dependencies.wa-store]\ndefault-features = false\nfeatures = [\"capture-restore\"]\ngit = \"https://github.com/oxidezap/whatspec.git\"\nrev = \"eb16f595d455d8b0b3f7966a59444f4f9894c127\"\n\n[workspace.dependencies.xtask-support]\npath = \"tools/xtask-support\"\n\n[workspace.dependencies.aes-gcm]\nversion = \"0.11.0\"\ndefault-features = false\nfeatures = [\"aes\", \"alloc\"]\n\n[workspace.dependencies.anyhow]\nversion = \"1.0\"\ndefault-features = false\n\n[workspace.dependencies.clap]\nversion = \"4\"\nfeatures = [\"derive\"]\n\n[workspace.dependencies.async-channel]\nversion = \"2.5.0\"\ndefault-features = false\nfeatures = [\"std\"]\n\n[workspace.dependencies.async-lock]\nversion = \"3\"\ndefault-features = false\n\n[workspace.dependencies.base64]\nversion = \"0.23.1\"\ndefault-features = false\nfeatures = [\"alloc\"]\n\n[workspace.dependencies.bon]\nversion = \"3.9.3\"\ndefault-features = false\nfeatures = [\"std\"]\n\n[workspace.dependencies.buffa]\nversion = \"0.9.2\"\ndefault-features = false\nfeatures = [\"json\"]\n\n[workspace.dependencies.buffa-build]\nversion = \"0.9.2\"\ndefault-features = false\n\n[workspace.dependencies.buffa-descriptor]\nversion = \"0.9.2\"\ndefault-features = false\n\n[workspace.dependencies.bytes]\nversion = \"1.12\"\ndefault-features = false\n\n[workspace.dependencies.cbc]\nversion = \"0.2\"\nfeatures = [\"alloc\"]\n\n[workspace.dependencies.chrono]\nversion = \"0.4\"\ndefault-features = false\n\n[workspace.dependencies.compact_str]\nversion = \"0.10\"\ndefault-features = false\n\n[workspace.dependencies.ctr]\nversion = \"0.10\"\ndefault-features = false\n\n[workspace.dependencies.diesel]\nversion = \"2.4.0\"\ndefault-features = false\nfeatures = [\"sqlite\", \"r2d2\", \"32-column-tables\"]\n\n[workspace.dependencies.diesel_migrations]\nversion = \"2.4.0\"\ndefault-features = false\nfeatures = [\"sqlite\"]\n\n[workspace.dependencies.divan]\npackage = \"codspeed-divan-compat\"\nversion = \"=5.0.2\"\n\n[workspace.dependencies.env_logger]\nversion = \"0.11\"\ndefault-features = false\n\n[workspace.dependencies.event-listener]\nversion = \"5\"\ndefault-features = false\n\n[workspace.dependencies.flate2]\nversion = \"1.1.9\"\ndefault-features = false\nfeatures = [\"zlib-rs\"]\n\n[workspace.dependencies.futures]\nversion = \"0.3\"\ndefault-features = false\nfeatures = [\"alloc\", \"async-await\"]\n\n[workspace.dependencies.getrandom]\nversion = \"0.4\"\ndefault-features = false\n\n[workspace.dependencies.hashbrown]\nversion = \"0.17.1\"\ndefault-features = false\n\n[workspace.dependencies.hex]\nversion = \"0.4\"\ndefault-features = false\nfeatures = [\"alloc\"]\n\n[workspace.dependencies.hkdf]\nversion = \"0.13.0\"\ndefault-features = false\n\n[workspace.dependencies.hmac]\nversion = \"0.13.0\"\ndefault-features = false\n\n[workspace.dependencies.portable-atomic]\nversion = \"1\"\ndefault-features = false\nfeatures = [\"fallback\"]\n\n[workspace.dependencies.serde]\nversion = \"1.0\"\nfeatures = [\"derive\", \"rc\"]\n\n[workspace.dependencies.serde_json]\nversion = \"1.0\"\ndefault-features = false\n\n[workspace.dependencies.sha1]\nversion = \"0.11.0\"\ndefault-features = false\n\n[workspace.dependencies.sha2]\nversion = \"0.11.0\"\ndefault-features = false\n\n[workspace.dependencies.wasmparser]\nversion = \"0.263\"\ndefault-features = false\nfeatures = [\"std\", \"validate\", \"features\"]\n\n[workspace.dependencies.wasmtime]\nversion = \"48.0.8\"\ndefault-features = false\nfeatures = [\"runtime\", \"anyhow\", \"cranelift\", \"std\", \"threads\", \"parallel-compilation\", \"cache\", \"addr2line\", \"demangle\", \"call-hook\"]\n\n[workspace.dependencies.smoothutf8]\nversion = \"0.2.3\"\ndefault-features = false\n\n[workspace.dependencies.subtle]\nversion = \"2.6\"\ndefault-features = false\n\n[workspace.dependencies.tokio]\nversion = \"1.53.1\"\ndefault-features = false\n\n[workspace.dependencies.tracing]\nversion = \"0.1\"\ndefault-features = false\nfeatures = [\"attributes\"]\n\n[workspace.dependencies.uuid]\nversion = \"1\"\ndefault-features = false\n\n[workspace.dependencies.zeroize]\nversion = \"1.9\"\ndefault-features = false\nfeatures = [\"alloc\"]\n\n[workspace.dependencies.wacore]\npath = \"./wacore\"\ndefault-features = false\nversion = \"0.7.0\"\n\n[workspace.dependencies.wacore-appstate]\npath = \"./wacore/appstate\"\ndefault-features = false\nversion = \"0.7.0\"\n\n[workspace.dependencies.wacore-binary]\npath = \"./wacore/binary\"\ndefault-features = false\nversion = \"0.7.0\"\n\n[workspace.dependencies.wacore-derive]\npath = \"./wacore/derive\"\nversion = \"0.7.0\"\n\n[workspace.dependencies.wacore-libsignal]\npath = \"./wacore/libsignal\"\nversion = \"0.7.0\"\n\n[workspace.dependencies.wacore-noise]\npath = \"./wacore/noise\"\nversion = \"0.7.0\"\n\n[workspace.dependencies.waproto]\npath = \"./waproto\"\nversion = \"0.7.0\"\n\n[workspace.dependencies.yoke]\nversion = \"0.8\"\nfeatures = [\"derive\"]\n\n[workspace.dependencies.zerocopy]\nversion = \"0.8.55\"\ndefault-features = false\nfeatures = [\"derive\"]\n\n[workspace.dependencies.zlib-rs]\nversion = \"0.6.6\"\ndefault-features = false\nfeatures = [\"std\", \"rust-allocator\"]\n\n[features]\nmobile-core = [\"wacore/mobile\", \"instance-clock\", \"dep:subtle\", \"whatsapp-rust-sqlite-storage?/mobile\"]\nmobile-transport-native = [\"mobile-core\", \"tokio-transport\", \"whatsapp-rust-tokio-transport/tcp\"]\ninstance-clock = [\"wacore/instance-clock\", \"whatsapp-rust-sqlite-storage?/instance-clock\"]\ngenerated-group-notifications = []\njs = [\"wacore/js\", \"whatsapp-rust-sqlite-storage?/js\"]\ndebug-snapshots = [\"wacore/debug-snapshots\"]\nlegacy-session-interop = [\"wacore/legacy-session-interop\"]\nclient-lifecycle = []\nplugins = [\"client-lifecycle\"]\npasskey = []\ntracing = [\"dep:tracing\", \"wacore/tracing\"]\nmetrics = [\"wacore/metrics\"]\ntracing-pii = [\"wacore/tracing-pii\", \"wacore-binary/tracing-pii\"]\nbench-harness = [\"tokio-runtime\", \"tokio/rt-multi-thread\", \"dep:wacore-noise\", \"wacore-noise/test-util\"]\ntest-support = [\"voip-runtime\", \"tokio-runtime\", \"dep:wacore-noise\", \"wacore-noise/test-util\"]\ndanger-skip-tls-verify = [\"whatsapp-rust-tokio-transport?/danger-skip-tls-verify\"]\ndefault = [\"sqlite-storage\", \"sqlite-storage-bundled\", \"tokio-transport\", \"tokio-runtime\", \"ureq-client\", \"tokio-native\", \"signal\"]\nureq-client = [\"dep:whatsapp-rust-ureq-http-client\"]\ntokio-transport = [\"dep:whatsapp-rust-tokio-transport\"]\ntokio-runtime = [\"dep:tokio\"]\nsignal = [\"tokio-runtime\", \"tokio/signal\"]\nsqlite-storage = [\"whatsapp-rust-sqlite-storage\"]\nsqlite-storage-bundled = [\"sqlite-storage\", \"whatsapp-rust-sqlite-storage/bundled-sqlite\"]\ntokio-native = [\"tokio-runtime\", \"tokio/rt-multi-thread\"]\nvoip-runtime = [\"voip-control\", \"voip-engine-wacore\"]\nvoip-control = [\"wacore/voip-control\"]\nvoip-engine-wacore = [\"voip-control\", \"wacore/voip\"]\nvoip-relay-native = [\"voip-runtime\", \"tokio-runtime\", \"tokio/net\", \"dep:rtc-dtls\", \"dep:rtc-sctp\", \"dep:rtc-datachannel\", \"dep:rtc-shared\"]\nvoip = [\"voip-mlow\", \"voip-libopus\", \"voip-relay-native\"]\nvoip-encoded = [\"voip-runtime\"]\nvoip-mlow = [\"voip-runtime\", \"wacore/voip-mlow\"]\nvoip-libopus = [\"voip-encoded\", \"dep:opus\"]\n\n[dependencies]\nasync-trait = \"0.1.91\"\nitoa = \"1\"\nlog = \"0.4\"\nrand = \"0.10\"\nscopeguard = \"1.2\"\nthiserror = \"2.0.19\"\n\n[dependencies.anyhow]\nversion = \"1.0\"\ndefault-features = false\n\n[dependencies.async-channel]\nversion = \"2.5.0\"\ndefault-features = false\nfeatures = [\"std\"]\n\n[dependencies.async-lock]\nversion = \"3\"\ndefault-features = false\n\n[dependencies.base64]\nversion = \"0.23.1\"\ndefault-features = false\nfeatures = [\"alloc\"]\n\n[dependencies.bon]\nversion = \"3.9.3\"\ndefault-features = false\nfeatures = [\"std\"]\n\n[dependencies.buffa]\nversion = \"0.9.2\"\ndefault-features = false\nfeatures = [\"json\"]\n\n[dependencies.bytes]\nversion = \"1.12\"\ndefault-features = false\n\n[dependencies.chrono]\nfeatures = [\"now\"]\nversion = \"0.4\"\ndefault-features = false\n\n[dependencies.event-listener]\nversion = \"5\"\ndefault-features = false\n\n[dependencies.futures]\nfeatures = [\"std\", \"alloc\", \"async-await\"]\nversion = \"0.3\"\ndefault-features = false\n\n[dependencies.flate2]\nversion = \"1.1.9\"\ndefault-features = false\nfeatures = [\"zlib-rs\"]\n\n[dependencies.hmac]\nversion = \"0.13.0\"\ndefault-features = false\n\n[dependencies.sha2]\nversion = \"0.11.0\"\ndefault-features = false\n\n[dependencies.smallvec]\nfeatures = [\"union\"]\nversion = \"1.15\"\n\n[dependencies.hashbrown]\nversion = \"0.17.1\"\ndefault-features = false\n\n[dependencies.hex]\nversion = \"0.4\"\ndefault-features = false\nfeatures = [\"alloc\"]\n\n[dependencies.opus]\nversion = \"0.4\"\noptional = true\n\n[dependencies.portable-atomic]\nversion = \"1\"\ndefault-features = false\nfeatures = [\"fallback\"]\n\n[dependencies.rtc-datachannel]\nversion = \"=0.21.1\"\noptional = true\n\n[dependencies.rtc-dtls]\nversion = \"=0.21.1\"\noptional = true\ndefault-features = false\nfeatures = [\"crypto-ring\"]\n\n[dependencies.rtc-sctp]\nversion = \"=0.21.1\"\noptional = true\n\n[dependencies.rtc-shared]\nversion = \"=0.21.1\"\noptional = true\ndefault-features = false\n\n[dependencies.serde]\nversion = \"1.0\"\nfeatures = [\"derive\", \"rc\"]\n\n[dependencies.serde_json]\nfeatures = [\"std\"]\nversion = \"1.0\"\ndefault-features = false\n\n[dependencies.tokio]\nfeatures = [\"macros\", \"rt\", \"sync\", \"time\"]\noptional = true\nversion = \"1.53.1\"\ndefault-features = false\n\n[dependencies.tracing]\noptional = true\nversion = \"0.1\"\ndefault-features = false\nfeatures = [\"attributes\"]\n\n[dependencies.wacore]\npath = \"./wacore\"\ndefault-features = false\nversion = \"0.7.0\"\n\n[dependencies.wacore-binary]\npath = \"./wacore/binary\"\ndefault-features = false\nversion = \"0.7.0\"\n\n[dependencies.wacore-noise]\npath = \"./wacore/noise\"\nversion = \"0.7.0\"\noptional = true\n\n[dependencies.waproto]\npath = \"./waproto\"\nversion = \"0.7.0\"\n\n[dependencies.subtle]\noptional = true\nversion = \"2.6\"\ndefault-features = false\n\n[dependencies.zeroize]\nversion = \"1.9\"\ndefault-features = false\nfeatures = [\"alloc\"]\n\n[dependencies.whatsapp-rust-sqlite-storage]\npath = \"./storages/sqlite-storage\"\nversion = \"0.7.0\"\noptional = true\ndefault-features = false\n\n[dependencies.whatsapp-rust-tokio-transport]\npath = \"./transports/tokio-transport\"\nversion = \"0.7.0\"\noptional = true\n\n[dependencies.whatsapp-rust-ureq-http-client]\npath = \"./http_clients/ureq-client\"\nversion = \"0.7.0\"\noptional = true\n\n[target.\"cfg(all(target_arch = \\\"wasm32\\\", target_os = \\\"unknown\\\"))\".dependencies.getrandom]\nfeatures = [\"wasm_js\"]\nversion = \"0.4\"\ndefault-features = false\n\n[target.\"cfg(target_arch = \\\"wasm32\\\")\".dependencies.send_wrapper]\nversion = \"0.6\"\nfeatures = [\"futures\"]\n\n[target.\"cfg(not(target_arch = \\\"wasm32\\\"))\".dev-dependencies]\nparking_lot = \"=0.13.0\"\n\n[target.\"cfg(not(target_arch = \\\"wasm32\\\"))\".dev-dependencies.parking_lot_012]\npackage = \"parking_lot\"\nversion = \"=0.12.5\"\n\n[dev-dependencies]\naes = \"0.9.2\"\ndhat = \"0.3\"\nhttp = \"1\"\nlibc = \"0.2\"\nmetrics-exporter-prometheus = \"0.18\"\n\n[dev-dependencies.cbc]\nfeatures = [\"block-padding\", \"alloc\"]\nversion = \"0.2\"\n\n[dev-dependencies.diesel]\nversion = \"2.4.0\"\ndefault-features = false\nfeatures = [\"sqlite\", \"r2d2\", \"32-column-tables\"]\n\n[dev-dependencies.divan]\npackage = \"codspeed-divan-compat\"\nversion = \"=5.0.2\"\n\n[dev-dependencies.env_logger]\nversion = \"0.11\"\ndefault-features = false\n\n[dev-dependencies.event-listener]\nfeatures = [\"std\"]\nversion = \"5\"\ndefault-features = false\n\n[dev-dependencies.hkdf]\nversion = \"0.13.0\"\ndefault-features = false\n\n[dev-dependencies.hmac]\nversion = \"0.13.0\"\ndefault-features = false\n\n[dev-dependencies.syn]\nversion = \"3.0\"\nfeatures = [\"full\", \"visit\"]\n\n[dev-dependencies.tokio]\nfeatures = [\"full\", \"test-util\"]\nversion = \"1.53.1\"\ndefault-features = false\n\n[dev-dependencies.tracing-subscriber]\nversion = \"0.3\"\nfeatures = [\"env-filter\"]\n\n[dev-dependencies.uuid]\nfeatures = [\"v4\"]\nversion = \"1\"\ndefault-features = false\n\n[dev-dependencies.wacore]\nfeatures = [\"test-util\"]\npath = \"./wacore\"\ndefault-features = false\nversion = \"0.7.0\"\n\n[dev-dependencies.wacore-noise]\npath = \"./wacore/noise\"\nfeatures = [\"test-util\"]\n\n[lints.clippy]\ndisallowed_methods = \"deny\"\ndisallowed_types = \"deny\"\ndbg_macro = \"deny\"\ntodo = \"deny\"\nprint_stdout = \"warn\"\nprint_stderr = \"warn\"\n\n[lints.rust]\nunused_qualifications = \"warn\"\n\n[lints.rust.unexpected_cfgs]\nlevel = \"warn\"\ncheck-cfg = [\"cfg(docsrs)\"]\n\n[[example]]\nname = \"manual_presence\"\ntest = true\nrequired-features = [\"sqlite-storage\", \"tokio-runtime\", \"tokio-transport\", \"ureq-client\", \"signal\"]\n\n[[example]]\nname = \"demo\"\ntest = true\n\n[[example]]\nname = \"benchmark\"\ntest = true\nrequired-features = [\"tokio-runtime\", \"tokio-transport\", \"ureq-client\"]\n\n[[example]]\nname = \"observability\"\nrequired-features = [\"tracing\"]\n\n[[example]]\nname = \"metrics\"\nrequired-features = [\"metrics\"]\n\n[[example]]\nname = \"receive_footprint\"\ntest = false\nrequired-features = [\"bench-harness\"]\n\n[[example]]\nname = \"lid_pn_footprint\"\ntest = false\nrequired-features = [\"bench-harness\"]\n\n[[example]]\nname = \"connected_idle\"\ntest = true\nrequired-features = [\"bench-harness\", \"sqlite-storage\"]\n\n[[bench]]\nname = \"client_group_send\"\nharness = false\nrequired-features = [\"bench-harness\"]\n\n[[bench]]\nname = \"client_receive\"\nharness = false\nrequired-features = [\"bench-harness\"]\n\n[[bench]]\nname = \"connected_idle\"\nharness = false\nrequired-features = [\"bench-harness\", \"sqlite-storage\"]\n\n[[bench]]\nname = \"client_dm_send\"\nharness = false\nrequired-features = [\"bench-harness\"]\n\n[[bench]]\nname = \"appstate_prefetch\"\nharness = false\nrequired-features = [\"bench-harness\"]\n\n[[bench]]\nname = \"client_group_scale\"\nharness = false\nrequired-features = [\"bench-harness\"]\n\n[[bench]]\nname = \"inbound_stanza\"\nharness = false\nrequired-features = [\"bench-harness\"]\n\n[[bench]]\nname = \"jid_keyed_cache\"\nharness = false\nrequired-features = [\"bench-harness\"]\n\n[[bench]]\nname = \"client_usync\"\nharness = false\n\n[[bench]]\nname = \"client_identity_cache\"\nharness = false\nrequired-features = [\"bench-harness\"]\n\n[[bench]]\nname = \"client_cache_maint\"\nharness = false\nrequired-features = [\"bench-harness\"]\n\n[[test]]\nname = \"connected_idle_lifecycle\"\nrequired-features = [\"bench-harness\"]\n\n[[test]]\nname = \"event_delivery_public\"\nrequired-features = [\"bench-harness\"]\n\n[profile.release]\nopt-level = 3\ndebug = false\nlto = \"fat\"\ncodegen-units = 1\npanic = \"abort\"\nstrip = true\nincremental = false\n\n[profile.release.package.diesel]\nopt-level = \"z\"\n\n[profile.release.package.diesel_migrations]\nopt-level = \"z\"\n\n[profile.release.package.r2d2]\nopt-level = \"z\"\n\n[profile.release.package.whatsapp-rust-sqlite-storage]\nopt-level = \"z\"\n\n[profile.release.package.ureq]\nopt-level = \"z\"\n\n[profile.release.package.ureq-proto]\nopt-level = \"z\"\n\n[profile.release.package.whatsapp-rust-ureq-http-client]\nopt-level = \"z\"\n\n[profile.release.package.rustls-webpki]\nopt-level = \"z\"\n\n[profile.release.package.webpki-roots]\nopt-level = \"z\"\n\n[profile.release.package.http]\nopt-level = \"z\"\n\n[profile.release.package.rustls]\nopt-level = \"s\"\n\n[profile.release.package.tokio-websockets]\nopt-level = \"s\"\n\n[profile.release.package.whatsapp-rust-tokio-transport]\nopt-level = \"s\"\n\n[profile.release.package.wacore-appstate]\nopt-level = \"s\"\n\n[profile.release.package.chrono]\nopt-level = \"s\"\n\n[profile.release.package.serde_json]\nopt-level = \"s\"\n\n[profile.release.package.libsqlite3-sys]\nopt-level = \"z\"\n\n[profile.bench]\ninherits = \"release\"\nlto = \"thin\"\ndebug = 1\nstrip = false\n\n[profile.profiling]\ninherits = \"release\"\ndebug = 1\nstrip = false\n\n[patch.crates-io.wasmtime-internal-cache]\npath = \"vendor/wasmtime-internal-cache\"\n",
         "dest": "cargo/vendor/whatsapp-rust",
         "dest-filename": "Cargo.toml"
     },
@@ -14270,12 +14335,12 @@
     {
         "type": "shell",
         "commands": [
-            "cp -r --reflink=auto \"flatpak-cargo/git/whatsapp-rust-f7468ae/storages/sqlite-storage\" \"cargo/vendor/whatsapp-rust-sqlite-storage\""
+            "cp -r --reflink=auto \"flatpak-cargo/git/whatsapp-rust-cd2d885/storages/sqlite-storage\" \"cargo/vendor/whatsapp-rust-sqlite-storage\""
         ]
     },
     {
         "type": "inline",
-        "contents": "[package]\nname = \"whatsapp-rust-sqlite-storage\"\nversion = \"0.7.0\"\nedition = \"2024\"\nrust-version = \"1.94\"\nauthors = [\"Jo\u00e3o Lucas <jlucaso@hotmail.com>\"]\nlicense = \"MIT\"\nrepository = \"https://github.com/jlucaso1/whatsapp-rust\"\ndescription = \"SQLite storage backend for whatsapp-rust\"\n\n[package.metadata.cargo-machete]\nignored = [\"libsqlite3-sys\"]\n\n[features]\ndefault = [\"bundled-sqlite\"]\nbundled-sqlite = [\"libsqlite3-sys/bundled\"]\ntest-util = []\nwasm-test = [\"wacore/js\"]\n\n[dependencies]\nasync-trait = \"0.1.91\"\nlog = \"0.4\"\nscheduled-thread-pool = \"0.2\"\nthiserror = \"2.0.19\"\n\n[dependencies.buffa]\nversion = \"0.9.2\"\ndefault-features = false\nfeatures = [\"json\"]\n\n[dependencies.bytes]\nversion = \"1.12\"\ndefault-features = false\n\n[dependencies.diesel]\nversion = \"2.3.11\"\ndefault-features = false\nfeatures = [\"sqlite\", \"r2d2\", \"32-column-tables\"]\n\n[dependencies.diesel_migrations]\nversion = \"2.3.2\"\ndefault-features = false\nfeatures = [\"sqlite\"]\n\n[dependencies.libsqlite3-sys]\nversion = \"0.38\"\ndefault-features = false\noptional = true\n\n[dependencies.serde_json]\nfeatures = [\"std\"]\nversion = \"1.0\"\ndefault-features = false\n\n[dependencies.tokio]\nfeatures = [\"sync\", \"rt\", \"time\", \"macros\"]\nversion = \"1.53.1\"\ndefault-features = false\n\n[dependencies.wacore]\npath = \"./wacore\"\ndefault-features = false\nversion = \"0.7.0\"\n\n[dependencies.wacore-binary]\npath = \"./wacore/binary\"\ndefault-features = false\nversion = \"0.7.0\"\n\n[build-dependencies.buffa-build]\nversion = \"0.9.2\"\ndefault-features = false\n\n[build-dependencies.sha2]\nversion = \"0.11.0\"\ndefault-features = false\n\n[dev-dependencies]\nrand = \"0.10\"\n\n[dev-dependencies.divan]\npackage = \"codspeed-divan-compat\"\nversion = \"5.0.1\"\n\n[dev-dependencies.portable-atomic]\nversion = \"1\"\ndefault-features = false\nfeatures = [\"fallback\"]\n\n[dev-dependencies.tokio]\nfeatures = [\"rt-multi-thread\", \"macros\"]\nversion = \"1.53.1\"\ndefault-features = false\n\n[target.\"cfg(target_family = \\\"wasm\\\")\".dependencies.gloo-timers]\nversion = \"0.4\"\nfeatures = [\"futures\"]\n\n[[bench]]\nname = \"signal_flush\"\nharness = false\n\n[[bench]]\nname = \"store_shapes\"\nharness = false\n\n[[bench]]\nname = \"store_contention\"\nharness = false\n\n[[bench]]\nname = \"signal_cache_contention\"\nharness = false\n\n[lints.clippy]\ndisallowed_methods = \"deny\"\ndisallowed_types = \"deny\"\ndbg_macro = \"deny\"\ntodo = \"deny\"\nprint_stdout = \"warn\"\nprint_stderr = \"warn\"\n\n[lints.rust]\nunused_qualifications = \"warn\"\n\n[lints.rust.unexpected_cfgs]\nlevel = \"warn\"\ncheck-cfg = [\"cfg(docsrs)\"]\n",
+        "contents": "[package]\nname = \"whatsapp-rust-sqlite-storage\"\nversion = \"0.7.0\"\nedition = \"2024\"\nrust-version = \"1.95\"\nauthors = [\"Jo\u00e3o Lucas <jlucaso@hotmail.com>\"]\nlicense = \"MIT\"\nrepository = \"https://github.com/oxidezap/whatsapp-rust\"\ndescription = \"SQLite storage backend for whatsapp-rust\"\n\n[package.metadata.cargo-machete]\nignored = [\"libsqlite3-sys\", \"sqlite-wasm-rs\"]\n\n[features]\nmobile = [\"wacore/mobile\"]\ninstance-clock = [\"wacore/instance-clock\"]\ndefault = [\"bundled-sqlite\"]\nbundled-sqlite = [\"libsqlite3-sys/bundled\"]\ntest-util = []\njs = [\"wacore/js\", \"dep:sqlite-wasm-rs\"]\nwasm-test = [\"js\"]\n\n[dependencies]\nasync-trait = \"0.1.91\"\nlog = \"0.4\"\nscheduled-thread-pool = \"=0.2.8\"\nthiserror = \"2.0.19\"\n\n[dependencies.buffa]\nversion = \"0.9.2\"\ndefault-features = false\nfeatures = [\"json\"]\n\n[dependencies.bytes]\nversion = \"1.12\"\ndefault-features = false\n\n[dependencies.diesel]\nversion = \"2.4.0\"\ndefault-features = false\nfeatures = [\"sqlite\", \"r2d2\", \"32-column-tables\"]\n\n[dependencies.diesel_migrations]\nversion = \"2.4.0\"\ndefault-features = false\nfeatures = [\"sqlite\"]\n\n[dependencies.libsqlite3-sys]\nversion = \"0.40.0\"\ndefault-features = false\noptional = true\n\n[dependencies.serde_json]\nfeatures = [\"std\"]\nversion = \"1.0\"\ndefault-features = false\n\n[dependencies.tokio]\nfeatures = [\"sync\", \"rt\", \"time\", \"macros\"]\nversion = \"1.53.1\"\ndefault-features = false\n\n[dependencies.wacore]\npath = \"./wacore\"\ndefault-features = false\nversion = \"0.7.0\"\n\n[dependencies.wacore-binary]\npath = \"./wacore/binary\"\ndefault-features = false\nversion = \"0.7.0\"\n\n[build-dependencies.buffa-build]\nversion = \"0.9.2\"\ndefault-features = false\n\n[build-dependencies.sha2]\nversion = \"0.11.0\"\ndefault-features = false\n\n[dev-dependencies]\nrand = \"0.10\"\n\n[dev-dependencies.divan]\npackage = \"codspeed-divan-compat\"\nversion = \"=5.0.2\"\n\n[dev-dependencies.waproto]\npath = \"./waproto\"\nversion = \"0.7.0\"\n\n[dev-dependencies.portable-atomic]\nversion = \"1\"\ndefault-features = false\nfeatures = [\"fallback\"]\n\n[dev-dependencies.tokio]\nfeatures = [\"rt-multi-thread\", \"macros\"]\nversion = \"1.53.1\"\ndefault-features = false\n\n[target.\"cfg(target_family = \\\"wasm\\\")\".dependencies.gloo-timers]\nversion = \"0.4\"\nfeatures = [\"futures\"]\n\n[target.\"cfg(all(target_family = \\\"wasm\\\", target_os = \\\"unknown\\\"))\".dependencies.sqlite-wasm-rs]\nversion = \"0.6.3\"\ndefault-features = false\nfeatures = [\"wasm-bindgen\"]\noptional = true\n\n[[bench]]\nname = \"signal_flush\"\nharness = false\n\n[[bench]]\nname = \"store_shapes\"\nharness = false\n\n[[bench]]\nname = \"store_contention\"\nharness = false\n\n[[bench]]\nname = \"signal_cache_contention\"\nharness = false\n\n[[bench]]\nname = \"prepared_hot_paths\"\nharness = false\n\n[lints.clippy]\ndisallowed_methods = \"deny\"\ndisallowed_types = \"deny\"\ndbg_macro = \"deny\"\ntodo = \"deny\"\nprint_stdout = \"warn\"\nprint_stderr = \"warn\"\n\n[lints.rust]\nunused_qualifications = \"warn\"\n\n[lints.rust.unexpected_cfgs]\nlevel = \"warn\"\ncheck-cfg = [\"cfg(docsrs)\"]\n",
         "dest": "cargo/vendor/whatsapp-rust-sqlite-storage",
         "dest-filename": "Cargo.toml"
     },
@@ -14288,12 +14353,12 @@
     {
         "type": "shell",
         "commands": [
-            "cp -r --reflink=auto \"flatpak-cargo/git/whatsapp-rust-f7468ae/transports/tokio-transport\" \"cargo/vendor/whatsapp-rust-tokio-transport\""
+            "cp -r --reflink=auto \"flatpak-cargo/git/whatsapp-rust-cd2d885/transports/tokio-transport\" \"cargo/vendor/whatsapp-rust-tokio-transport\""
         ]
     },
     {
         "type": "inline",
-        "contents": "[package]\nname = \"whatsapp-rust-tokio-transport\"\nversion = \"0.7.0\"\nedition = \"2024\"\nrust-version = \"1.94\"\nauthors = [\"Jo\u00e3o Lucas <jlucaso@hotmail.com>\"]\nlicense = \"MIT\"\nrepository = \"https://github.com/jlucaso1/whatsapp-rust\"\ndescription = \"Tokio-based WebSocket transport for whatsapp-rust\"\n\n[features]\ndefault = []\ndanger-skip-tls-verify = []\n\n[dependencies]\nasync-trait = \"0.1.91\"\nhttp = \"1.5.0\"\nlog = \"0.4\"\nwebpki-roots = \"1.0.9\"\n\n[dependencies.anyhow]\nversion = \"1.0\"\ndefault-features = false\n\n[dependencies.async-channel]\nversion = \"2.5.0\"\ndefault-features = false\nfeatures = [\"std\"]\n\n[dependencies.bytes]\nversion = \"1.12\"\ndefault-features = false\n\n[dependencies.futures-util]\nversion = \"0.3.33\"\ndefault-features = false\nfeatures = [\"sink\", \"alloc\", \"std\"]\n\n[dependencies.rustls]\nversion = \"0.23\"\ndefault-features = false\nfeatures = [\"ring\"]\n\n[dependencies.tokio]\nfeatures = [\"macros\", \"rt\", \"sync\"]\nversion = \"1.53.1\"\ndefault-features = false\n\n[dependencies.tokio-rustls]\nversion = \"0.26.4\"\ndefault-features = false\nfeatures = [\"ring\"]\n\n[dependencies.tokio-websockets]\nversion = \"0.13.3\"\nfeatures = [\"client\", \"rustls-bring-your-own-connector\", \"rand\", \"ring\"]\n\n[dependencies.wacore]\npath = \"./wacore\"\ndefault-features = false\nversion = \"0.7.0\"\n\n[dev-dependencies.rcgen]\nversion = \"0.14.10\"\ndefault-features = false\nfeatures = [\"crypto\", \"ring\"]\n\n[dev-dependencies.tokio]\nfeatures = [\"io-util\", \"macros\", \"net\", \"rt\", \"time\"]\nversion = \"1.53.1\"\ndefault-features = false\n\n[dev-dependencies.tokio-websockets]\nversion = \"0.13.3\"\nfeatures = [\"server\"]\n\n[lints.clippy]\ndisallowed_methods = \"deny\"\ndisallowed_types = \"deny\"\ndbg_macro = \"deny\"\ntodo = \"deny\"\nprint_stdout = \"warn\"\nprint_stderr = \"warn\"\n\n[lints.rust]\nunused_qualifications = \"warn\"\n\n[lints.rust.unexpected_cfgs]\nlevel = \"warn\"\ncheck-cfg = [\"cfg(docsrs)\"]\n",
+        "contents": "[package]\nname = \"whatsapp-rust-tokio-transport\"\nversion = \"0.7.0\"\nedition = \"2024\"\nrust-version = \"1.95\"\nauthors = [\"Jo\u00e3o Lucas <jlucaso@hotmail.com>\"]\nlicense = \"MIT\"\nrepository = \"https://github.com/oxidezap/whatsapp-rust\"\ndescription = \"Tokio-based WebSocket transport for whatsapp-rust\"\n\n[features]\ndefault = []\ntcp = [\"tokio/net\", \"tokio/io-util\"]\ndanger-skip-tls-verify = []\n\n[dependencies]\nasync-trait = \"0.1.91\"\nhttp = \"1.5.0\"\nlog = \"0.4\"\nwebpki-roots = \"1.0.10\"\n\n[dependencies.anyhow]\nversion = \"1.0\"\ndefault-features = false\n\n[dependencies.async-channel]\nversion = \"2.5.0\"\ndefault-features = false\nfeatures = [\"std\"]\n\n[dependencies.bytes]\nversion = \"1.12\"\ndefault-features = false\n\n[dependencies.futures-util]\nversion = \"0.3.33\"\ndefault-features = false\nfeatures = [\"sink\", \"alloc\", \"std\"]\n\n[dependencies.rustls]\nversion = \"0.23\"\ndefault-features = false\nfeatures = [\"ring\"]\n\n[dependencies.tokio]\nfeatures = [\"macros\", \"rt\", \"sync\"]\nversion = \"1.53.1\"\ndefault-features = false\n\n[dependencies.tokio-rustls]\nversion = \"0.26.4\"\ndefault-features = false\nfeatures = [\"ring\"]\n\n[dependencies.tokio-websockets]\nversion = \"0.13.3\"\nfeatures = [\"client\", \"rustls-bring-your-own-connector\", \"rand\", \"ring\"]\n\n[dependencies.wacore]\npath = \"./wacore\"\ndefault-features = false\nversion = \"0.7.0\"\n\n[dev-dependencies.rcgen]\nversion = \"0.14.10\"\ndefault-features = false\nfeatures = [\"crypto\", \"ring\"]\n\n[dev-dependencies.tokio]\nfeatures = [\"io-util\", \"macros\", \"net\", \"rt\", \"time\"]\nversion = \"1.53.1\"\ndefault-features = false\n\n[dev-dependencies.tokio-websockets]\nversion = \"0.13.3\"\nfeatures = [\"server\"]\n\n[lints.clippy]\ndisallowed_methods = \"deny\"\ndisallowed_types = \"deny\"\ndbg_macro = \"deny\"\ntodo = \"deny\"\nprint_stdout = \"warn\"\nprint_stderr = \"warn\"\n\n[lints.rust]\nunused_qualifications = \"warn\"\n\n[lints.rust.unexpected_cfgs]\nlevel = \"warn\"\ncheck-cfg = [\"cfg(docsrs)\"]\n",
         "dest": "cargo/vendor/whatsapp-rust-tokio-transport",
         "dest-filename": "Cargo.toml"
     },
@@ -14306,12 +14371,12 @@
     {
         "type": "shell",
         "commands": [
-            "cp -r --reflink=auto \"flatpak-cargo/git/whatsapp-rust-f7468ae/http_clients/ureq-client\" \"cargo/vendor/whatsapp-rust-ureq-http-client\""
+            "cp -r --reflink=auto \"flatpak-cargo/git/whatsapp-rust-cd2d885/http_clients/ureq-client\" \"cargo/vendor/whatsapp-rust-ureq-http-client\""
         ]
     },
     {
         "type": "inline",
-        "contents": "[package]\nname = \"whatsapp-rust-ureq-http-client\"\nversion = \"0.7.0\"\nedition = \"2024\"\nrust-version = \"1.94\"\nauthors = [\"Jo\u00e3o Lucas <jlucaso@hotmail.com>\"]\nlicense = \"MIT\"\nrepository = \"https://github.com/jlucaso1/whatsapp-rust\"\ndescription = \"Ureq-based HTTP client implementation for whatsapp-rust\"\n\n[features]\ndefault = []\ndanger-skip-tls-verify = []\n\n[dependencies]\nasync-trait = \"0.1.91\"\n\n[dependencies.anyhow]\nversion = \"1.0\"\ndefault-features = false\n\n[dependencies.tokio]\nfeatures = [\"rt\"]\nversion = \"1.53.1\"\ndefault-features = false\n\n[dependencies.ureq]\nversion = \"3.3.0\"\ndefault-features = false\nfeatures = [\"rustls\"]\n\n[dependencies.wacore]\npath = \"./wacore\"\ndefault-features = false\nversion = \"0.7.0\"\n\n[dev-dependencies.tokio]\nfeatures = [\"rt\", \"macros\"]\nversion = \"1.53.1\"\ndefault-features = false\n\n[lints.clippy]\ndisallowed_methods = \"deny\"\ndisallowed_types = \"deny\"\ndbg_macro = \"deny\"\ntodo = \"deny\"\nprint_stdout = \"warn\"\nprint_stderr = \"warn\"\n\n[lints.rust]\nunused_qualifications = \"warn\"\n\n[lints.rust.unexpected_cfgs]\nlevel = \"warn\"\ncheck-cfg = [\"cfg(docsrs)\"]\n",
+        "contents": "[package]\nname = \"whatsapp-rust-ureq-http-client\"\nversion = \"0.7.0\"\nedition = \"2024\"\nrust-version = \"1.95\"\nauthors = [\"Jo\u00e3o Lucas <jlucaso@hotmail.com>\"]\nlicense = \"MIT\"\nrepository = \"https://github.com/oxidezap/whatsapp-rust\"\ndescription = \"Ureq-based HTTP client implementation for whatsapp-rust\"\n\n[features]\ndefault = []\ndanger-skip-tls-verify = []\n\n[dependencies]\nasync-trait = \"0.1.91\"\n\n[dependencies.anyhow]\nversion = \"1.0\"\ndefault-features = false\n\n[dependencies.tokio]\nfeatures = [\"rt\"]\nversion = \"1.53.1\"\ndefault-features = false\n\n[dependencies.ureq]\nversion = \"3.3.0\"\ndefault-features = false\nfeatures = [\"rustls\"]\n\n[dependencies.wacore]\npath = \"./wacore\"\ndefault-features = false\nversion = \"0.7.0\"\n\n[dev-dependencies.tokio]\nfeatures = [\"rt\", \"macros\"]\nversion = \"1.53.1\"\ndefault-features = false\n\n[lints.clippy]\ndisallowed_methods = \"deny\"\ndisallowed_types = \"deny\"\ndbg_macro = \"deny\"\ntodo = \"deny\"\nprint_stdout = \"warn\"\nprint_stderr = \"warn\"\n\n[lints.rust]\nunused_qualifications = \"warn\"\n\n[lints.rust.unexpected_cfgs]\nlevel = \"warn\"\ncheck-cfg = [\"cfg(docsrs)\"]\n",
         "dest": "cargo/vendor/whatsapp-rust-ureq-http-client",
         "dest-filename": "Cargo.toml"
     },
@@ -15481,19 +15546,6 @@
     {
         "type": "archive",
         "archive-type": "tar-gzip",
-        "url": "https://static.crates.io/crates/x25519-dalek/x25519-dalek-3.0.0.crate",
-        "sha256": "e7e8131a03190127fb2263afc72b322ecadae46b6ff8c6f399ff5d02f5559af6",
-        "dest": "cargo/vendor/x25519-dalek-3.0.0"
-    },
-    {
-        "type": "inline",
-        "contents": "{\"package\": \"e7e8131a03190127fb2263afc72b322ecadae46b6ff8c6f399ff5d02f5559af6\", \"files\": {}}",
-        "dest": "cargo/vendor/x25519-dalek-3.0.0",
-        "dest-filename": ".cargo-checksum.json"
-    },
-    {
-        "type": "archive",
-        "archive-type": "tar-gzip",
         "url": "https://static.crates.io/crates/x509-parser/x509-parser-0.18.1.crate",
         "sha256": "d43b0f71ce057da06bc0851b23ee24f3f86190b07203dd8f567d0b706a185202",
         "dest": "cargo/vendor/x509-parser-0.18.1"
@@ -16156,7 +16208,7 @@
     },
     {
         "type": "inline",
-        "contents": "[source.vendored-sources]\ndirectory = \"cargo/vendor\"\n\n[source.crates-io]\nreplace-with = \"vendored-sources\"\n\n[source.\"https://github.com/oxidezap/whatsapp-rust\"]\ngit = \"https://github.com/oxidezap/whatsapp-rust\"\nreplace-with = \"vendored-sources\"\nrev = \"f7468ae2920a2b0aedbd0848cf121de56a07f93c\"\n",
+        "contents": "[source.vendored-sources]\ndirectory = \"cargo/vendor\"\n\n[source.crates-io]\nreplace-with = \"vendored-sources\"\n\n[source.\"https://github.com/oxidezap/whatsapp-rust\"]\ngit = \"https://github.com/oxidezap/whatsapp-rust\"\nreplace-with = \"vendored-sources\"\nrev = \"cd2d885891851405648c109c8db9ed78b7ca93c4\"\n",
         "dest": "cargo",
         "dest-filename": "config"
     }
