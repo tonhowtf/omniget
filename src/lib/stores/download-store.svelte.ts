@@ -1,3 +1,5 @@
+import { onFrameOrAfter } from "../frame-or-timeout";
+
 export type DownloadStatus = "queued" | "downloading" | "paused" | "complete" | "error" | "seeding";
 
 export type QueueKind =
@@ -187,15 +189,17 @@ export function getAggregateSpeedHistory(): SpeedPoint[] {
   return aggregateSpeedHistory;
 }
 
+const FLUSH_MAX_WAIT_MS = 250;
+
 function scheduleFlush() {
   updateAggregateBatch();
   if (flushScheduled) return;
   flushScheduled = true;
-  requestAnimationFrame(() => {
+  onFrameOrAfter(() => {
     flushScheduled = false;
     sampleAggregateSpeed(Date.now());
     downloads = new Map(downloads);
-  });
+  }, FLUSH_MAX_WAIT_MS);
 }
 
 function flushNow() {
