@@ -502,7 +502,7 @@ pub async fn download_video(
         }
     }
 
-    base_args.extend(["--buffer-size".to_string(), "16M".to_string()]);
+    base_args.extend(["--buffer-size".to_string(), "1M".to_string()]);
     if !is_youtube_url(url) && !crate::core::dependencies::worker_mode() {
         base_args.extend(["--http-chunk-size".to_string(), "10M".to_string()]);
     }
