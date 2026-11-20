@@ -1,7 +1,7 @@
 {
   "name": "omniget",
   "version": "1.0.1",
-  "description": "Desktop app with a local MCP server that gives coding agents (Claude Code, Codex, Gemini CLI, Cursor) a toolbox for downloads, media, files, chats and system cleanup, plus a downloader for YouTube, Instagram, TikTok, X, Reddit, torrents and the sites yt-dlp supports, and a Canvas for agent terminals. Open source for Windows, macOS and Linux.",
+  "description": "Desktop app with a local MCP server that gives coding agents (Claude Code, Codex, Gemini CLI, Cursor) a toolbox for downloads, media, files, chats and system cleanup, plus a downloader for YouTube, Instagram, TikTok, X, Reddit, torrents, the sites yt-dlp supports and the online courses you bought, and a Canvas for agent terminals. Open source for Windows, macOS and Linux.",
   "keywords": [
     "mcp",
     "mcp-server",
@@ -19,6 +19,8 @@
     "instagram-downloader",
     "tiktok-downloader",
     "torrent",
+    "course-downloader",
+    "local-first",
     "desktop-app",
     "system-cleaner",
     "transcription",

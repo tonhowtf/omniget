@@ -11,11 +11,11 @@
   <a href="https://getomniget.com"><img src="assets/readme/loop-mcp-hero.gif" alt="Loop, o mascote do OmniGet, voa montado em um plugue laranja enquanto os cabos chegam a três janelas de terminal" width="820" /></a>
 </p>
 
-<h3 align="center">Um servidor MCP que dá ao seu agente de código uma caixa de ferramentas inteira no desktop.</h3>
+<h3 align="center">Seu agente de código, no seu computador e nas suas contas.</h3>
 
 <p align="center">
-  Downloads, mídia, arquivos, suas conversas e seu computador, atrás de um único servidor local.<br/>
-  Gratuito, de código aberto, e tudo roda na sua máquina.
+  Um servidor MCP local que deixa o Claude Code, o Codex, o Cursor ou o Gemini CLI baixar, converter, ler suas conversas e feeds e arrumar o seu computador.<br/>
+  Também é um downloader de vídeo, música e dos cursos que você comprou. Gratuito, de código aberto, e tudo fica na sua máquina.
 </p>
 
 <p align="center">
@@ -36,7 +36,7 @@
 </p>
 
 <p align="center">
-  <a href="#conecte-em-um-minuto">Conectar</a> · <a href="#o-que-seu-agente-pode-fazer">Ferramentas</a> · <a href="#configure-à-mão">Configuração manual</a> · <a href="#você-continua-no-controle">Segurança</a> · <a href="#o-canvas">Canvas</a> · <a href="#o-downloader">Downloader</a> · <a href="#instalar">Instalar</a> · <a href="#perguntas-frequentes">FAQ</a>
+  <a href="#conecte-em-um-minuto">Conectar</a> · <a href="#o-que-seu-agente-pode-fazer">Ferramentas</a> · <a href="#fique-com-o-que-é-seu">Cursos</a> · <a href="#configure-à-mão">Configuração manual</a> · <a href="#você-continua-no-controle">Segurança</a> · <a href="#o-canvas">Canvas</a> · <a href="#o-downloader">Downloader</a> · <a href="#instalar">Instalar</a> · <a href="#perguntas-frequentes">FAQ</a>
 </p>
 
 ---
@@ -63,6 +63,13 @@ O OmniGet grava o servidor dele e um token privado na configuração da própria
   <img src="assets/readme/mcp-connect.webp" alt="A seção Conectar a outros apps nas Configurações, com um botão que cria o acesso e copia o prompt" width="860" />
 </p>
 
+Só no Claude Code? O plugin entra com dois comandos e já baixa e transcreve links sem o app desktop:
+
+```text
+/plugin marketplace add tonhowtf/omniget
+/plugin install omniget@omniget
+```
+
 Depois é só pedir:
 
 ```text
@@ -70,6 +77,8 @@ Baixe esta playlist como áudio e me avise quando todos os arquivos terminarem: 
 Aqui estão 12 links. Coloque na fila, espere e me diga quais falharam e por quê.
 Transforme esta pasta em um arquivo só que eu possa colar em um prompt, com menos de 50 mil tokens.
 O que está usando a porta 3000? Pare.
+Leia as mensagens de hoje no grupo de estudos e liste o que ainda preciso responder.
+Baixe todas as aulas deste curso em ordem e me diga quais foram puladas: <url>
 ```
 
 ---
@@ -92,6 +101,20 @@ O que está usando a porta 3000? Pare.
 | **Seu computador** | Procurar lixo e montar um plano de limpeza; a execução espera o seu clique |
 
 Os resultados voltam como dados estruturados, os longos são cortados em um limite e salvos em arquivo, e todo erro diz o que fazer em seguida.
+
+---
+
+## Fique com o que é seu
+
+O OmniGet nasceu para guardar os cursos que as pessoas tinham pagado, e continua fazendo isso.
+
+- **Cursos que você comprou.** Abra o curso no navegador embutido, entre com a sua conta e marque as aulas. Elas descem em ordem, com as legendas e os documentos. Rode de novo depois e só o que falta é baixado.
+- **Assista offline.** O Video Player transforma a pasta em curso: subpastas viram módulos, PDFs e código ficam junto da aula, e ele lembra em que aula você parou.
+- **Ou peça ao seu agente.** O mesmo downloader é um conjunto de ferramentas MCP, então `baixe este curso em ordem` é uma frase.
+- **Seus arquivos, seu disco.** Tudo cai numa pasta que você escolhe, em formatos que qualquer player abre. Sem conta, sem cópia na nuvem, nada para renovar.
+- **A sua própria sessão.** O OmniGet abre só o que o seu login já abre. Aulas com proteção contra cópia ficam na lista, marcadas como **Protegido**, e são puladas.
+
+O passo a passo está no [guia do Global Downloader](https://getomniget.com/docs/global-downloader).
 
 ---
 
@@ -341,7 +364,7 @@ O `pnpm tauri dev` usa um perfil próprio, então nunca mexe em um OmniGet insta
 
 ### O que é o OmniGet?
 
-Um app de desktop gratuito e de código aberto para Windows, macOS e Linux. A parte principal é um servidor MCP local, que dá ao seu agente de código uma caixa de ferramentas para downloads, mídia, arquivos, suas conversas e o seu computador. Ele também é um downloader sozinho: cole um link e receba o arquivo.
+Um app de desktop gratuito e de código aberto para Windows, macOS e Linux. A parte principal é um servidor MCP local, que dá ao seu agente de código uma caixa de ferramentas para downloads, mídia, arquivos, suas conversas e o seu computador. Ele também é um downloader sozinho: cole um link e receba o arquivo, ou guarde uma cópia offline de um curso que você comprou.
 
 ### O OmniGet é gratuito?
 
@@ -362,6 +385,10 @@ Não. O OmniGet instala e atualiza o yt-dlp, o FFmpeg e o gallery-dl sozinho, e 
 ### De quais sites o OmniGet baixa?
 
 YouTube, Instagram, TikTok, X, Reddit, Bilibili, Twitch e Vimeo têm extratores próprios, e todo site que o yt-dlp suporta também funciona. Ele ainda baixa galerias pelo gallery-dl, links magnet e arquivos `.torrent`, e links diretos.
+
+### O OmniGet baixa cursos online?
+
+Sim, os que a sua própria conta consegue abrir. Abra o curso no navegador embutido, entre e escolha as aulas; aulas com proteção contra cópia são marcadas como **Protegido** e puladas. Veja [Fique com o que é seu](#fique-com-o-que-é-seu).
 
 ### O OmniGet quebra DRM ou fura paywall?
 
