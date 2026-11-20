@@ -2957,7 +2957,8 @@
       "terms": "利用規約",
       "project": "プロジェクト",
       "changelog": "更新履歴",
-      "debug": "デバッグ情報"
+      "debug": "デバッグ情報",
+      "roadmap": "ロードマップ"
     },
     "debug": {
       "title": "デバッグ情報",
@@ -13978,5 +13979,20 @@
     "failed": "応答がエージェントに届きませんでした。もう一度お試しください。",
     "impact": "ファイル: {{files}} · 行: +{{added}} −{{removed}}",
     "impact_outside": "ワークスペースの外"
+  },
+  "roadmap": {
+    "title": "ロードマップ",
+    "desc": "報告をもとに、いま取り組んでいる内容です。チケットのタイトルは英語です。",
+    "updated": "{{date}} 更新",
+    "col_backlog": "バックログ",
+    "col_todo": "未着手",
+    "col_progress": "進行中",
+    "col_done": "完了",
+    "col_wontfix": "対応しない",
+    "empty": "まだ何もありません。",
+    "failed": "ロードマップを読み込めませんでした: {{msg}}",
+    "retry": "再試行",
+    "open_board": "サイトでボードを開く",
+    "issue": "GitHub の Issue"
   }
 }

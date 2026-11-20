@@ -2957,7 +2957,8 @@
       "terms": "Conditions",
       "project": "Projet",
       "changelog": "Changelog",
-      "debug": "Infos debug"
+      "debug": "Infos debug",
+      "roadmap": "Feuille de route"
     },
     "debug": {
       "title": "Infos de debug",
@@ -13978,5 +13979,20 @@
     "failed": "La réponse n'est pas arrivée à l'agent. Réessayez.",
     "impact": "Fichiers : {{files}} · lignes : +{{added}} −{{removed}}",
     "impact_outside": "hors de l'espace de travail"
+  },
+  "roadmap": {
+    "title": "Feuille de route",
+    "desc": "Ce sur quoi nous travaillons, d'après ce que les gens ont signalé. Les titres des tickets sont en anglais.",
+    "updated": "Mis à jour le {{date}}",
+    "col_backlog": "En attente",
+    "col_todo": "À faire",
+    "col_progress": "En cours",
+    "col_done": "Terminé",
+    "col_wontfix": "Ne sera pas fait",
+    "empty": "Rien ici pour l'instant.",
+    "failed": "Impossible de charger la feuille de route : {{msg}}",
+    "retry": "Réessayer",
+    "open_board": "Ouvrir le tableau sur le site",
+    "issue": "Ticket GitHub"
   }
 }

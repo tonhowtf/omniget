@@ -2957,7 +2957,8 @@
       "terms": "Termini",
       "project": "Progetto",
       "changelog": "Changelog",
-      "debug": "Info di debug"
+      "debug": "Info di debug",
+      "roadmap": "Tabella di marcia"
     },
     "debug": {
       "title": "Info di debug",
@@ -13978,5 +13979,20 @@
     "failed": "La risposta non è arrivata all'agente. Riprova.",
     "impact": "File: {{files}} · righe: +{{added}} −{{removed}}",
     "impact_outside": "fuori dall'area di lavoro"
+  },
+  "roadmap": {
+    "title": "Tabella di marcia",
+    "desc": "A cosa stiamo lavorando, in base a ciò che le persone hanno segnalato. I titoli dei ticket sono in inglese.",
+    "updated": "Aggiornato il {{date}}",
+    "col_backlog": "In attesa",
+    "col_todo": "Da fare",
+    "col_progress": "In corso",
+    "col_done": "Fatto",
+    "col_wontfix": "Non si farà",
+    "empty": "Qui non c'è ancora niente.",
+    "failed": "Impossibile caricare la tabella di marcia: {{msg}}",
+    "retry": "Riprova",
+    "open_board": "Apri la bacheca sul sito",
+    "issue": "Issue su GitHub"
   }
 }

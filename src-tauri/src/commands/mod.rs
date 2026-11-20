@@ -46,6 +46,7 @@ pub mod quicktools;
 pub mod read;
 pub mod reencode;
 pub mod research;
+pub mod roadmap;
 pub mod rpc;
 pub mod rules;
 pub mod settings;
