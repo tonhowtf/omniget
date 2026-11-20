@@ -203,6 +203,19 @@ export const fixtures: Record<string, Fixture> = {
     out_dir: "/preview/Downloads",
   }),
   ...marketFixtures,
+  roadmap_get: () => ({
+    updated: "2026-11-19",
+    next_version: "1.0.1",
+    board: "https://getomniget.com/contact#roadmap",
+    columns: ["backlog", "todo", "progress", "done", "wontfix"],
+    items: [
+      { key: "OMNI-45", title: "Online radio goes silent after two seconds on Windows", status: "progress", type: "bug", priority: "high", area: "all", created: "2026-11-01", updated: "2026-11-19", url: "https://getomniget.com/contact#t-radio_silent", issue: "https://github.com/tonhowtf/omniget/issues/429" },
+      { key: "OMNI-24", title: "Publish on Flathub", status: "progress", type: "feature", priority: "normal", area: "linux", created: "2026-10-10", updated: "2026-11-18", url: "https://getomniget.com/contact#t-flatpak", issue: "https://github.com/tonhowtf/omniget/issues/399" },
+      { key: "OMNI-11", title: "Signed installers on Windows and macOS", status: "progress", type: "task", priority: "high", area: "all", created: "2026-10-02", updated: "2026-11-14", url: "https://getomniget.com/contact#t-signing", issue: null },
+      { key: "OMNI-50", title: "Use OmniGet from a chat assistant", status: "done", type: "feature", priority: "low", area: "all", created: "2026-11-05", updated: "2026-11-05", url: "https://getomniget.com/contact#t-chatgpt", issue: null },
+      { key: "OMNI-7", title: "One suite for everything", status: "wontfix", type: "feature", priority: "low", area: "all", created: "2026-09-28", updated: "2026-10-01", url: "https://getomniget.com/contact#t-suite", issue: null },
+    ],
+  }),
   failed_download_leftovers: () => [
     { path: "/preview/Downloads/Clip [abc].f137.mp4.part", name: "Clip [abc].f137.mp4.part", size_bytes: 52_428_800 },
     { path: "/preview/Downloads/Clip [abc].f137.mp4.ytdl", name: "Clip [abc].f137.mp4.ytdl", size_bytes: 512 },

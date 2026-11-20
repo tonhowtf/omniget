@@ -2957,7 +2957,8 @@
       "terms": "Termos",
       "project": "Projeto",
       "changelog": "Changelog",
-      "debug": "Informações de depuração"
+      "debug": "Informações de depuração",
+      "roadmap": "Roadmap"
     },
     "debug": {
       "title": "Informações de debug",
@@ -13978,5 +13979,20 @@
     "failed": "A resposta não chegou ao agente. Tente de novo.",
     "impact": "Arquivos: {{files}} · linhas: +{{added}} −{{removed}}",
     "impact_outside": "fora do workspace"
+  },
+  "roadmap": {
+    "title": "Roadmap",
+    "desc": "O que está sendo feito, a partir do que as pessoas relataram. Os títulos dos tickets estão em inglês.",
+    "updated": "Atualizado em {{date}}",
+    "col_backlog": "Backlog",
+    "col_todo": "A fazer",
+    "col_progress": "Em andamento",
+    "col_done": "Feito",
+    "col_wontfix": "Não vamos fazer",
+    "empty": "Nada aqui ainda.",
+    "failed": "Não foi possível carregar o roadmap: {{msg}}",
+    "retry": "Tentar de novo",
+    "open_board": "Abrir o quadro no site",
+    "issue": "Issue no GitHub"
   }
 }

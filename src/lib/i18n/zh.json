@@ -2957,7 +2957,8 @@
       "terms": "条款",
       "project": "项目",
       "changelog": "更新日志",
-      "debug": "调试信息"
+      "debug": "调试信息",
+      "roadmap": "路线图"
     },
     "debug": {
       "title": "调试信息",
@@ -13978,5 +13979,20 @@
     "failed": "回复没有送达智能体。请重试。",
     "impact": "文件：{{files}} · 行：+{{added}} −{{removed}}",
     "impact_outside": "在工作区之外"
+  },
+  "roadmap": {
+    "title": "路线图",
+    "desc": "根据大家的反馈，我们正在做的事情。工单标题为英文。",
+    "updated": "更新于 {{date}}",
+    "col_backlog": "待评估",
+    "col_todo": "待办",
+    "col_progress": "进行中",
+    "col_done": "已完成",
+    "col_wontfix": "不会做",
+    "empty": "这里还没有内容。",
+    "failed": "无法加载路线图：{{msg}}",
+    "retry": "重试",
+    "open_board": "在网站上打开看板",
+    "issue": "GitHub Issue"
   }
 }

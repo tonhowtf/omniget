@@ -814,6 +814,7 @@ pub(crate) fn invoke_handler() -> impl Fn(Invoke<Wry>) -> bool + Send + Sync + '
         commands::rules::list_rules,
         commands::rules::save_rules,
         commands::rules::preview_rule_match,
+        commands::roadmap::roadmap_get,
         commands::media_history::check_media_changed,
         commands::media_history::record_media_snapshot,
         commands::dedupe::deduplicate_files,
