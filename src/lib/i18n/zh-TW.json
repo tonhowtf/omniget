@@ -2957,7 +2957,8 @@
       "terms": "使用條款",
       "project": "專案",
       "changelog": "更新紀錄",
-      "debug": "除錯資訊"
+      "debug": "除錯資訊",
+      "roadmap": "路線圖"
     },
     "debug": {
       "title": "除錯資訊",
@@ -13978,5 +13979,20 @@
     "failed": "回覆沒有送達代理。請再試一次。",
     "impact": "檔案：{{files}} · 行：+{{added}} −{{removed}}",
     "impact_outside": "在工作區之外"
+  },
+  "roadmap": {
+    "title": "路線圖",
+    "desc": "根據大家的回報，我們正在進行的工作。工單標題為英文。",
+    "updated": "更新於 {{date}}",
+    "col_backlog": "待評估",
+    "col_todo": "待辦",
+    "col_progress": "進行中",
+    "col_done": "已完成",
+    "col_wontfix": "不會做",
+    "empty": "這裡還沒有內容。",
+    "failed": "無法載入路線圖：{{msg}}",
+    "retry": "重試",
+    "open_board": "在網站上開啟看板",
+    "issue": "GitHub Issue"
   }
 }

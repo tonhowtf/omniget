@@ -2957,7 +2957,8 @@
       "terms": "Términos",
       "project": "Proyecto",
       "changelog": "Changelog",
-      "debug": "Info de depuración"
+      "debug": "Info de depuración",
+      "roadmap": "Hoja de ruta"
     },
     "debug": {
       "title": "Info de depuración",
@@ -13978,5 +13979,20 @@
     "failed": "La respuesta no llegó al agente. Inténtalo de nuevo.",
     "impact": "Archivos: {{files}} · líneas: +{{added}} −{{removed}}",
     "impact_outside": "fuera del espacio de trabajo"
+  },
+  "roadmap": {
+    "title": "Hoja de ruta",
+    "desc": "En qué se está trabajando, a partir de lo que la gente reportó. Los títulos de los tickets están en inglés.",
+    "updated": "Actualizado el {{date}}",
+    "col_backlog": "Pendientes",
+    "col_todo": "Por hacer",
+    "col_progress": "En curso",
+    "col_done": "Hecho",
+    "col_wontfix": "No se hará",
+    "empty": "Todavía no hay nada aquí.",
+    "failed": "No se pudo cargar la hoja de ruta: {{msg}}",
+    "retry": "Reintentar",
+    "open_board": "Abrir el tablero en el sitio",
+    "issue": "Issue en GitHub"
   }
 }

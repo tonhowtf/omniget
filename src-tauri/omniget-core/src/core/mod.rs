@@ -62,6 +62,7 @@ pub mod quicktools;
 pub mod read;
 pub mod redirect;
 pub mod registry;
+pub mod roadmap;
 pub mod secrets;
 pub mod secure_files;
 pub mod sessions;
