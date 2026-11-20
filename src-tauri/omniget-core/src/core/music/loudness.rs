@@ -95,3 +95,67 @@ pub fn parse_gain_tag(s: &str) -> Option<f64> {
 pub fn r128_q78_to_replaygain_db(q78: i32) -> f64 {
     q78 as f64 / 256.0 + 5.0
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // The string fixtures below follow the tag shape loudgain and ffmpeg write
+    // into REPLAYGAIN_GAIN (`-6.50 dB`, two decimals, space, unit) and
+    // REPLAYGAIN_PEAK (`0.987654`, six decimals, no unit).
+
+    #[test]
+    fn parse_gain_tag_reads_negative_replaygain_value_with_db_suffix() {
+        assert_eq!(parse_gain_tag("-6.50 dB"), Some(-6.5));
+    }
+
+    #[test]
+    fn parse_gain_tag_accepts_explicit_plus_sign() {
+        assert_eq!(parse_gain_tag("+3.20 dB"), Some(3.2));
+    }
+
+    #[test]
+    fn parse_gain_tag_reads_value_without_db_suffix() {
+        assert_eq!(parse_gain_tag("-6.50"), Some(-6.5));
+        assert_eq!(parse_gain_tag("0.00"), Some(0.0));
+    }
+
+    #[test]
+    fn parse_gain_tag_ignores_extra_spaces_around_and_inside_the_tag() {
+        assert_eq!(parse_gain_tag("  -6.50 dB  "), Some(-6.5));
+        assert_eq!(parse_gain_tag("-6.50  dB"), Some(-6.5));
+    }
+
+    #[test]
+    fn parse_gain_tag_rejects_text_that_is_not_a_number() {
+        assert_eq!(parse_gain_tag("N/A"), None);
+        assert_eq!(parse_gain_tag("not a tag"), None);
+    }
+
+    #[test]
+    fn parse_gain_tag_rejects_an_empty_or_unit_only_tag() {
+        assert_eq!(parse_gain_tag(""), None);
+        assert_eq!(parse_gain_tag("   dB "), None);
+    }
+
+    #[test]
+    fn format_gain_tag_keeps_the_sign_and_two_decimals() {
+        assert_eq!(format_gain_tag(-6.5), "-6.50 dB");
+        assert_eq!(format_gain_tag(3.2), "+3.20 dB");
+        assert_eq!(format_gain_tag(0.0), "+0.00 dB");
+    }
+
+    #[test]
+    fn format_gain_tag_output_parses_back_to_the_same_value() {
+        for db in [-6.5, 0.0, 3.06, 14.99] {
+            assert_eq!(parse_gain_tag(&format_gain_tag(db)), Some(db));
+        }
+    }
+
+    #[test]
+    fn format_peak_tag_prints_the_bare_number_with_six_decimals() {
+        assert_eq!(format_peak_tag(0.987654), "0.987654");
+        assert_eq!(format_peak_tag(1.0), "1.000000");
+        assert_eq!(format_peak_tag(0.0), "0.000000");
+    }
+}
