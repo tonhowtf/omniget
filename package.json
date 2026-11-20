@@ -73,7 +73,7 @@
   },
   "license": "GPL-3.0",
   "dependencies": {
-    "@excalidraw/excalidraw": "0.18.0",
+    "@excalidraw/excalidraw": "0.18.1",
     "@sveltekit-i18n/extension-stores": "^3.2.1",
     "@tauri-apps/api": "^2",
     "@tauri-apps/plugin-clipboard-manager": "^2.3.2",
@@ -110,6 +110,15 @@
     "svelte-check": "^4.0.0",
     "typescript": "~6.0.3",
     "vite": "^8.3.8",
-    "vitest": "^4.1.11"
+    "vitest": "^4.1.12"
+  },
+  "overrides": {
+    "@excalidraw/excalidraw": {
+      "nanoid": "^3.3.18"
+    },
+    "@excalidraw/mermaid-to-excalidraw": {
+      "nanoid": "^5.1.16"
+    },
+    "lodash-es": "^4.18.0"
   }
 }
