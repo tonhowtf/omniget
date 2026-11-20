@@ -1317,3 +1317,71 @@ fn a_refused_address_swaps_only_the_proxy_argument() {
     ));
     assert_eq!(none, ["-o", "out"]);
 }
+
+#[test]
+fn a_single_planned_format_reports_its_own_percent() {
+    let mut phase = 0u32;
+    let mut last = None;
+    assert_eq!(
+        super::download::overall_progress(1, &mut phase, &mut last, 0.0, 24.7),
+        24.7
+    );
+    assert_eq!(
+        super::download::overall_progress(1, &mut phase, &mut last, 24.7, 78.4),
+        78.4
+    );
+    assert_eq!(phase, 0);
+}
+
+#[test]
+fn two_planned_formats_share_the_bar_in_halves() {
+    let mut phase = 0u32;
+    let mut last = None;
+    assert_eq!(
+        super::download::overall_progress(2, &mut phase, &mut last, 0.0, 60.0),
+        30.0
+    );
+    assert_eq!(
+        super::download::overall_progress(2, &mut phase, &mut last, 30.0, 100.0),
+        50.0
+    );
+    assert_eq!(
+        super::download::overall_progress(2, &mut phase, &mut last, 50.0, 10.0),
+        55.0
+    );
+    assert_eq!(phase, 2);
+}
+
+#[test]
+fn an_unknown_plan_keeps_the_two_stream_scale() {
+    let mut phase = 0u32;
+    let mut last = None;
+    assert_eq!(
+        super::download::overall_progress(0, &mut phase, &mut last, 0.0, 40.0),
+        20.0
+    );
+}
+
+#[test]
+fn a_thumbnail_step_before_the_download_is_not_post_processing() {
+    let line = "[ThumbnailsConvertor] Not converting thumbnail \"/tmp/a.jpg\"; it is already jpg";
+    assert_eq!(
+        super::parse::postprocess_phase_after_download(line, false),
+        None
+    );
+    assert_eq!(
+        super::parse::postprocess_phase_after_download(line, true),
+        Some("postprocessing")
+    );
+}
+
+#[test]
+fn metadata_after_the_download_is_post_processing() {
+    assert_eq!(
+        super::parse::postprocess_phase_after_download(
+            "[Metadata] Adding metadata to \"a.mp4\"",
+            true
+        ),
+        Some("postprocessing")
+    );
+}

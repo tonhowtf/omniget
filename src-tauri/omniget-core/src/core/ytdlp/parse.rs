@@ -393,6 +393,17 @@ pub(super) fn postprocess_phase(line: &str) -> Option<&'static str> {
     None
 }
 
+pub(super) fn postprocess_phase_after_download(
+    line: &str,
+    download_started: bool,
+) -> Option<&'static str> {
+    if download_started {
+        postprocess_phase(line)
+    } else {
+        None
+    }
+}
+
 pub(super) fn postprocess_step_name(line: &str) -> Option<&'static str> {
     let t = line.trim_start();
     const STEPS: &[(&str, &str)] = &[

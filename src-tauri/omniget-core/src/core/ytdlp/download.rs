@@ -180,6 +180,20 @@ pub async fn finish_direct_video(
     (file_path, size)
 }
 
+pub(super) fn overall_progress(
+    planned_count: usize,
+    phase: &mut u32,
+    last_raw_percent: &mut Option<f64>,
+    max_reported: f64,
+    percent: f64,
+) -> f64 {
+    if planned_count == 1 {
+        *last_raw_percent = Some(percent);
+        return percent;
+    }
+    adjusted_multi_stream_progress(phase, last_raw_percent, max_reported, percent)
+}
+
 pub(super) fn adjusted_multi_stream_progress(
     phase: &mut u32,
     last_raw_percent: &mut Option<f64>,
@@ -488,7 +502,7 @@ pub async fn download_video(
         }
     }
 
-    base_args.extend(["--buffer-size".to_string(), "16M".to_string()]);
+    base_args.extend(["--buffer-size".to_string(), "1M".to_string()]);
     if !is_youtube_url(url) && !crate::core::dependencies::worker_mode() {
         base_args.extend(["--http-chunk-size".to_string(), "10M".to_string()]);
     }
@@ -1243,6 +1257,7 @@ pub(super) fn spawn_stdout_reader(
         let mut prev_streams_bytes: u64 = 0;
         let mut current_stream_bytes: u64 = 0;
         let mut planned_count: usize = 0;
+        let mut download_started = false;
         while let Ok(Some(line)) = lines.next_line().await {
             if let Some(slot) = boot_slot.take() {
                 release_boot_slot(&slot);
@@ -1266,7 +1281,7 @@ pub(super) fn spawn_stdout_reader(
                     .await;
                 continue;
             }
-            if let Some(pp) = postprocess_phase(&line) {
+            if let Some(pp) = postprocess_phase_after_download(&line, download_started) {
                 let p = max_reported.clamp(98.0, 99.0);
                 let _ = progress_tx.send(ProgressUpdate::phase(pp, p)).await;
                 max_reported = max_reported.max(p);
@@ -1324,6 +1339,7 @@ pub(super) fn spawn_stdout_reader(
                 continue;
             }
             if let Some(pct) = parse_progress_line(&line) {
+                download_started = true;
                 if !first_progress_logged && pct > 0.0 {
                     first_progress_logged = true;
                     tracing::debug!(
@@ -1370,7 +1386,8 @@ pub(super) fn spawn_stdout_reader(
                         last_send = std::time::Instant::now();
                     }
                 } else {
-                    let adjusted = adjusted_multi_stream_progress(
+                    let adjusted = overall_progress(
+                        planned_count,
                         &mut phase,
                         &mut last_raw_percent,
                         max_reported,
