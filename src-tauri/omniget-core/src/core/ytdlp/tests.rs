@@ -1361,3 +1361,27 @@ fn an_unknown_plan_keeps_the_two_stream_scale() {
         20.0
     );
 }
+
+#[test]
+fn a_thumbnail_step_before_the_download_is_not_post_processing() {
+    let line = "[ThumbnailsConvertor] Not converting thumbnail \"/tmp/a.jpg\"; it is already jpg";
+    assert_eq!(
+        super::parse::postprocess_phase_after_download(line, false),
+        None
+    );
+    assert_eq!(
+        super::parse::postprocess_phase_after_download(line, true),
+        Some("postprocessing")
+    );
+}
+
+#[test]
+fn metadata_after_the_download_is_post_processing() {
+    assert_eq!(
+        super::parse::postprocess_phase_after_download(
+            "[Metadata] Adding metadata to \"a.mp4\"",
+            true
+        ),
+        Some("postprocessing")
+    );
+}

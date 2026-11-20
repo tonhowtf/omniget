@@ -1257,6 +1257,7 @@ pub(super) fn spawn_stdout_reader(
         let mut prev_streams_bytes: u64 = 0;
         let mut current_stream_bytes: u64 = 0;
         let mut planned_count: usize = 0;
+        let mut download_started = false;
         while let Ok(Some(line)) = lines.next_line().await {
             if let Some(slot) = boot_slot.take() {
                 release_boot_slot(&slot);
@@ -1280,7 +1281,7 @@ pub(super) fn spawn_stdout_reader(
                     .await;
                 continue;
             }
-            if let Some(pp) = postprocess_phase(&line) {
+            if let Some(pp) = postprocess_phase_after_download(&line, download_started) {
                 let p = max_reported.clamp(98.0, 99.0);
                 let _ = progress_tx.send(ProgressUpdate::phase(pp, p)).await;
                 max_reported = max_reported.max(p);
@@ -1338,6 +1339,7 @@ pub(super) fn spawn_stdout_reader(
                 continue;
             }
             if let Some(pct) = parse_progress_line(&line) {
+                download_started = true;
                 if !first_progress_logged && pct > 0.0 {
                     first_progress_logged = true;
                     tracing::debug!(
