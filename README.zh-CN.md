@@ -11,11 +11,11 @@
   <a href="https://getomniget.com"><img src="assets/readme/loop-mcp-hero.gif" alt="OmniGet 的吉祥物 Loop 骑着一个橙色插头飞行，线缆连到三个终端窗口" width="820" /></a>
 </p>
 
-<h3 align="center">一个 MCP 服务器，给你的编程智能体一整套桌面工具箱。</h3>
+<h3 align="center">让你的编程智能体用上你自己的电脑和你自己的账号。</h3>
 
 <p align="center">
-  下载、媒体、文件、你的聊天和你的电脑，都在同一个本地服务器后面。<br/>
-  免费、开源，一切都在你的机器上运行。
+  一个本地 MCP 服务器，让 Claude Code、Codex、Cursor 或 Gemini CLI 帮你下载、转换、阅读你的聊天和动态、整理你的电脑。<br/>
+  它也是一个下载器，可以下载视频、音乐和你买过的课程。免费、开源，一切都留在你的机器上。
 </p>
 
 <p align="center">
@@ -36,7 +36,7 @@
 </p>
 
 <p align="center">
-  <a href="#一分钟完成连接">连接</a> · <a href="#你的智能体能做什么">工具</a> · <a href="#手动配置">手动配置</a> · <a href="#控制权在你手里">安全</a> · <a href="#canvas">Canvas</a> · <a href="#下载器">下载器</a> · <a href="#安装">安装</a> · <a href="#常见问题">FAQ</a>
+  <a href="#一分钟完成连接">连接</a> · <a href="#你的智能体能做什么">工具</a> · <a href="#属于你的就留在你手里">课程</a> · <a href="#手动配置">手动配置</a> · <a href="#控制权在你手里">安全</a> · <a href="#canvas">Canvas</a> · <a href="#下载器">下载器</a> · <a href="#安装">安装</a> · <a href="#常见问题">FAQ</a>
 </p>
 
 ---
@@ -63,6 +63,14 @@ OmniGet 会把自己的服务器和一个专属令牌写进该工具自己的配
   <img src="assets/readme/mcp-connect.webp" alt="设置中的“连接其他应用”部分，一个按钮即可创建访问并复制提示词" width="860" />
 </p>
 
+只用 Claude Code？插件三条命令就能装好，不装桌面应用也能下载并转写链接。最后一条会在缺少时安装 yt-dlp 和 FFmpeg：
+
+```text
+/plugin marketplace add tonhowtf/omniget
+/plugin install omniget@omniget
+/omniget:setup
+```
+
 然后直接提要求：
 
 ```text
@@ -70,7 +78,13 @@ OmniGet 会把自己的服务器和一个专属令牌写进该工具自己的配
 这里有 12 个链接。加入队列，等它们下完，告诉我哪些失败了、为什么。
 把这个文件夹合成一个可以粘贴进提示词的文件，不超过 5 万 token。
 谁在占用 3000 端口？把它停掉。
+读一下学习群今天的消息，列出我还需要回复的内容。
+按顺序下载这门课程的所有课时，并告诉我哪些被跳过了：<url>
 ```
+
+<p align="center">
+  <img src="assets/readme/agent-download.gif" alt="智能体让 OmniGet 下载 Internet Archive 上的两部影片；下载页面显示它们从排队到完成" width="800" />
+</p>
 
 ---
 
@@ -92,6 +106,20 @@ OmniGet 会把自己的服务器和一个专属令牌写进该工具自己的配
 | **你的电脑** | 扫描垃圾文件并制定清理计划；执行要等你点击 |
 
 结果以结构化数据返回，过长的会按上限截断并存成文件，每个错误都会说明下一步该做什么。
+
+---
+
+## 属于你的就留在你手里
+
+OmniGet 最初就是为了让大家保存自己付费购买的课程，现在依然如此。
+
+- **你买过的课程。** 在内置浏览器里打开课程，用你自己的账号登录，勾选课时。它们会按顺序下载，连同字幕和文档。以后再运行一次，只会下载缺少的部分。
+- **离线观看。** Video Player 会把文件夹变成一门课程：子文件夹成为章节，PDF 和代码跟随各自的课时，它还会记住你看到哪一课。
+- **或者交给你的智能体。** 同一个下载器就是一组 MCP 工具，所以 `按顺序下载这门课程` 只是一句话。
+- **你的文件，你的硬盘。** 所有内容都存进你选择的文件夹，用任何播放器都能打开。不需要账号，没有云端副本，也不用续费。
+- **你自己的会话。** OmniGet 只打开你的登录本来就能打开的内容。带复制保护的课时会留在列表里，标记为 **Protected**，并被跳过。
+
+详细步骤见 [Global Downloader 指南](https://getomniget.com/docs/global-downloader)。
 
 ---
 
@@ -341,7 +369,7 @@ pnpm tauri dev
 
 ### OmniGet 是什么？
 
-一款免费、开源的桌面应用，支持 Windows、macOS 和 Linux。它的核心是一个本地 MCP 服务器，为你的编程智能体提供下载、媒体、文件、聊天和电脑管理等工具。它本身也是一个下载器：粘贴链接，拿到文件。
+一款免费、开源的桌面应用，支持 Windows、macOS 和 Linux。它的核心是一个本地 MCP 服务器，为你的编程智能体提供下载、媒体、文件、聊天和电脑管理等工具。它本身也是一个下载器：粘贴链接，拿到文件，或者为你买过的课程留一份离线副本。
 
 ### OmniGet 免费吗？
 
@@ -362,6 +390,10 @@ Claude Code、Codex、Gemini CLI、Cursor 和 VS Code 通过 HTTP 连接 MCP 服
 ### OmniGet 可以从哪些网站下载？
 
 YouTube、Instagram、TikTok、X、Reddit、Bilibili、Twitch 和 Vimeo 有专用提取器，yt-dlp 支持的所有网站也都可用。它还能通过 gallery-dl 下载图集，支持磁力链接、`.torrent` 文件和直链。
+
+### OmniGet 能下载在线课程吗？
+
+可以，前提是你自己的账号能打开。在内置浏览器里打开课程，登录并选择课时；带复制保护的课时会标记为 **Protected**并被跳过。参见[属于你的就留在你手里](#属于你的就留在你手里)。
 
 ### OmniGet 会绕过 DRM 或付费墙吗？
 
