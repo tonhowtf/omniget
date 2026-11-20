@@ -125,14 +125,14 @@ modules:
       - install -Dm755 yt-dlp /app/bin/yt-dlp
     sources:
       - type: file
-        url: https://github.com/yt-dlp/yt-dlp/releases/download/2026.02.04/yt-dlp
-        sha256: f244941f771c922ffb63d64e17b8762d364b067f38a3caad60386496b3d226f7
+        url: https://github.com/yt-dlp/yt-dlp/releases/download/2026.10.26/yt-dlp
+        sha256: e51e69e89489f199530f13d32a4342da3ddb2cf34842f364603a066db05afbf3
         dest-filename: yt-dlp
         only-arches:
           - x86_64
       - type: file
-        url: https://github.com/yt-dlp/yt-dlp/releases/download/2026.02.04/yt-dlp_linux_aarch64
-        sha256: 6b83f090768a9d428456b7998a5b8fc1c628895647df2763f54f9552601b732e
+        url: https://github.com/yt-dlp/yt-dlp/releases/download/2026.10.26/yt-dlp_linux_aarch64
+        sha256: e87e9533e89fe5889abaa21f5114dfe7756d6aa6219b83551add04d48b18e483
         dest-filename: yt-dlp
         only-arches:
           - aarch64
@@ -142,6 +142,7 @@ modules:
     build-options:
       env:
         npm_config_cache: /run/build/omniget/flatpak-node/npm-cache
+        npm_config_legacy_peer_deps: 'true'
     build-commands:
       - npm install --offline
       - node browser-extension/sync.mjs
