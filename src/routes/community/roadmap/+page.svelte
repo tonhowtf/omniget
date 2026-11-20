@@ -3,7 +3,7 @@
   import { invoke } from "@tauri-apps/api/core";
   import { open } from "@tauri-apps/plugin-shell";
   import { t } from "$lib/i18n";
-  import { roadmapColumns, roadmapErrorText, type Roadmap } from "$lib/roadmap";
+  import { roadmapColumnKey, roadmapColumns, roadmapErrorText, type Roadmap } from "$lib/roadmap";
 
   let roadmap = $state<Roadmap | null>(null);
   let loading = $state(true);
@@ -63,7 +63,7 @@
     {#each columns as col (col.id)}
       <details class="col" open={col.id !== "done" && col.id !== "wontfix"}>
         <summary>
-          <span class="col-name" data-col={col.id}>{$t(`roadmap.col_${col.id}`)}</span>
+          <span class="col-name" data-col={col.id}>{roadmapColumnKey(col.id) ? $t(roadmapColumnKey(col.id)!) : col.id}</span>
           <span class="col-count">{col.items.length}</span>
         </summary>
         <ul class="tickets">

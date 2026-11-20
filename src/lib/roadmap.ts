@@ -44,3 +44,9 @@ export function roadmapErrorText(e: unknown): string {
   }
   return raw;
 }
+
+const LABELLED = new Set(ORDER);
+
+export function roadmapColumnKey(id: string): string | null {
+  return LABELLED.has(id) ? `roadmap.col_${id}` : null;
+}

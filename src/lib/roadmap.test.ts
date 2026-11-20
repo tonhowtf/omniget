@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { roadmapColumns, roadmapErrorText, type Roadmap, type RoadmapTicket } from "./roadmap";
+import { roadmapColumnKey, roadmapColumns, roadmapErrorText, type Roadmap, type RoadmapTicket } from "./roadmap";
 
 function ticket(key: string, status: string, updated: string): RoadmapTicket {
   return { key, title: key, status, type: "bug", priority: "normal", area: "all", created: updated, updated, url: `https://getomniget.com/contact#t-${key}`, issue: null };
@@ -35,5 +35,15 @@ describe("roadmapErrorText", () => {
 
   it("keeps plain text as it is", () => {
     expect(roadmapErrorText(new Error("offline"))).toBe("offline");
+  });
+});
+
+describe("roadmapColumnKey", () => {
+  it("gives the translation key of a column the app knows", () => {
+    expect(roadmapColumnKey("progress")).toBe("roadmap.col_progress");
+  });
+
+  it("gives nothing for a column the site added later, so its name is shown as it is", () => {
+    expect(roadmapColumnKey("review")).toBeNull();
   });
 });
