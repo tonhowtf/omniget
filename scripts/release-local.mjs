@@ -152,6 +152,39 @@ function buildCli() {
   if (!binExt || process.platform === "win32") run(join(releaseDir, `omniget-cli${binExt}`), ["--version"]);
 }
 
+function notaryCredentials() {
+  if (env.APPLE_API_KEY && env.APPLE_API_ISSUER && env.APPLE_API_KEY_PATH) {
+    return ["--key", env.APPLE_API_KEY_PATH, "--key-id", env.APPLE_API_KEY, "--issuer", env.APPLE_API_ISSUER];
+  }
+  if (env.APPLE_ID && env.APPLE_PASSWORD && env.APPLE_TEAM_ID) {
+    return ["--apple-id", env.APPLE_ID, "--password", env.APPLE_PASSWORD, "--team-id", env.APPLE_TEAM_ID];
+  }
+  return null;
+}
+
+function signMacBinaries(files) {
+  for (const f of files) run("codesign", ["--force", "--options", "runtime", "--timestamp", "--sign", env.APPLE_SIGNING_IDENTITY, f]);
+  const credentials = notaryCredentials();
+  if (!credentials) {
+    console.warn("warning: no notarization credentials (APPLE_API_* or APPLE_ID, APPLE_PASSWORD, APPLE_TEAM_ID); the CLI is signed but not notarized");
+    return;
+  }
+  const zip = join(cargoTarget, `omniget-cli-${version}-notarize.zip`);
+  rmSync(zip, { force: true });
+  run("zip", ["-j", "-q", zip, ...files]);
+  console.log(`$ xcrun notarytool submit ${basename(zip)} --wait`);
+  const r = spawnSync("xcrun", ["notarytool", "submit", zip, "--wait", "--output-format", "json", ...credentials], { cwd: root, encoding: "utf8" });
+  rmSync(zip, { force: true });
+  let status;
+  try {
+    status = JSON.parse(r.stdout).status;
+  } catch {
+    status = undefined;
+  }
+  if (r.status !== 0 || status !== "Accepted") fail(`notarization of the CLI ended as ${status ?? "unknown"}: ${(r.stderr || r.stdout).trim().slice(0, 600)}`);
+  console.log("  notarized: Accepted");
+}
+
 function withBundleType(exe, kind) {
   const at = exe.indexOf(BUNDLE_TOKEN);
   const out = Buffer.from(exe);
@@ -290,6 +323,7 @@ if (has("--cli")) {
     run("zip", ["-j", "-q", join(outDir, archive), ...bins.map((b) => join(binDir, b))]);
     copied.push(archive);
   } else {
+    if (isMac && env.APPLE_SIGNING_IDENTITY && stage === "all") signMacBinaries(bins.map((b) => join(binDir, b)));
     const tarball = `omniget-cli-${version}-${target}.tar.gz`;
     run("tar", ["-czf", join(outDir, tarball), "-C", binDir, ...bins]);
     copied.push(tarball);
