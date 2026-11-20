@@ -230,49 +230,58 @@ mod tests {
         assert!(!skip_chat("5511@s.whatsapp.net"));
     }
 
+    fn key(chat: &str, from_me: bool, id: &str) -> MessageField<wa::MessageKey> {
+        let mut key = wa::MessageKey::default();
+        key.remote_jid = Some(chat.into());
+        key.from_me = Some(from_me);
+        key.id = Some(id.into());
+        MessageField::some(key)
+    }
+
+    fn text(text: &str) -> MessageField<wa::Message> {
+        let mut message = wa::Message::default();
+        message.conversation = Some(text.into());
+        MessageField::some(message)
+    }
+
+    fn synced(info: wa::WebMessageInfo) -> wa::HistorySyncMsg {
+        let mut msg = wa::HistorySyncMsg::default();
+        msg.message = MessageField::some(info);
+        msg
+    }
+
+    fn conversation(id: &str, messages: Vec<wa::HistorySyncMsg>) -> wa::Conversation {
+        let mut conversation = wa::Conversation::default();
+        conversation.id = id.into();
+        conversation.messages = messages;
+        conversation
+    }
+
     #[test]
     fn history_sync_fills_chats_messages_and_names() {
         let store = Store::open_memory().unwrap();
-        let web = |id: &str, ts: u64, text: &str, from_me: bool| wa::HistorySyncMsg {
-            message: MessageField::some(wa::WebMessageInfo {
-                key: MessageField::some(wa::MessageKey {
-                    remote_jid: Some("99@lid".into()),
-                    from_me: Some(from_me),
-                    id: Some(id.into()),
-                    participant: None,
-                }),
-                message: MessageField::some(wa::Message {
-                    conversation: Some(text.into()),
-                    ..Default::default()
-                }),
-                message_timestamp: Some(ts),
-                ..Default::default()
-            }),
-            ..Default::default()
+        let web = |id: &str, ts: u64, body: &str, from_me: bool| {
+            let mut info = wa::WebMessageInfo::default();
+            info.key = key("99@lid", from_me, id);
+            info.message = text(body);
+            info.message_timestamp = Some(ts);
+            synced(info)
         };
-        let hs = wa::HistorySync {
-            conversations: vec![
-                wa::Conversation {
-                    id: "99@lid".into(),
-                    pn_jid: Some("5511988887777@s.whatsapp.net".into()),
-                    unread_count: Some(3),
-                    messages: vec![
-                        web("m1", 100, "oi", false),
-                        web("m2", 160, "tudo bem?", true),
-                    ],
-                    ..Default::default()
-                },
-                wa::Conversation {
-                    id: "status@broadcast".into(),
-                    ..Default::default()
-                },
+        let mut chat = conversation(
+            "99@lid",
+            vec![
+                web("m1", 100, "oi", false),
+                web("m2", 160, "tudo bem?", true),
             ],
-            pushnames: vec![wa::Pushname {
-                id: Some("5511988887777@s.whatsapp.net".into()),
-                pushname: Some("Carla".into()),
-            }],
-            ..Default::default()
-        };
+        );
+        chat.pn_jid = Some("5511988887777@s.whatsapp.net".into());
+        chat.unread_count = Some(3);
+        let mut pushname = wa::Pushname::default();
+        pushname.id = Some("5511988887777@s.whatsapp.net".into());
+        pushname.pushname = Some("Carla".into());
+        let mut hs = wa::HistorySync::default();
+        hs.conversations = vec![chat, conversation("status@broadcast", vec![])];
+        hs.pushnames = vec![pushname];
         let (chats, msgs) = history(&store, &hs).unwrap();
         assert_eq!((chats, msgs), (1, 2));
         let list = store.chats(None).unwrap();
@@ -290,63 +299,30 @@ mod tests {
     fn history_applies_edits_and_revoke_stubs() {
         use wa::message::protocol_message::Type;
         let store = Store::open_memory().unwrap();
-        let key = |id: &str| {
-            MessageField::some(wa::MessageKey {
-                remote_jid: Some("5511@s.whatsapp.net".into()),
-                from_me: Some(false),
-                id: Some(id.into()),
-                participant: None,
-            })
-        };
-        let edit = wa::HistorySyncMsg {
-            message: MessageField::some(wa::WebMessageInfo {
-                key: key("e1"),
-                message: MessageField::some(wa::Message {
-                    protocol_message: MessageField::some(wa::message::ProtocolMessage {
-                        key: key("m1"),
-                        r#type: Some(Type::MESSAGE_EDIT),
-                        edited_message: MessageField::some(wa::Message {
-                            conversation: Some("texto novo".into()),
-                            ..Default::default()
-                        }),
-                        ..Default::default()
-                    }),
-                    ..Default::default()
-                }),
-                message_timestamp: Some(300),
-                ..Default::default()
-            }),
-            ..Default::default()
-        };
-        let stub = wa::HistorySyncMsg {
-            message: MessageField::some(wa::WebMessageInfo {
-                key: key("m2"),
-                message_stub_type: Some(StubType::REVOKE),
-                message_timestamp: Some(250),
-                ..Default::default()
-            }),
-            ..Default::default()
-        };
-        let original = wa::HistorySyncMsg {
-            message: MessageField::some(wa::WebMessageInfo {
-                key: key("m1"),
-                message: MessageField::some(wa::Message {
-                    conversation: Some("texto velho".into()),
-                    ..Default::default()
-                }),
-                message_timestamp: Some(200),
-                ..Default::default()
-            }),
-            ..Default::default()
-        };
-        let hs = wa::HistorySync {
-            conversations: vec![wa::Conversation {
-                id: "5511@s.whatsapp.net".into(),
-                messages: vec![edit, stub, original],
-                ..Default::default()
-            }],
-            ..Default::default()
-        };
+        let chat = "5511@s.whatsapp.net";
+        let mut edited = wa::message::ProtocolMessage::default();
+        edited.key = key(chat, false, "m1");
+        edited.r#type = Some(Type::MESSAGE_EDIT);
+        edited.edited_message = text("texto novo");
+        let mut edit_message = wa::Message::default();
+        edit_message.protocol_message = MessageField::some(edited);
+        let mut edit = wa::WebMessageInfo::default();
+        edit.key = key(chat, false, "e1");
+        edit.message = MessageField::some(edit_message);
+        edit.message_timestamp = Some(300);
+        let mut stub = wa::WebMessageInfo::default();
+        stub.key = key(chat, false, "m2");
+        stub.message_stub_type = Some(StubType::REVOKE);
+        stub.message_timestamp = Some(250);
+        let mut original = wa::WebMessageInfo::default();
+        original.key = key(chat, false, "m1");
+        original.message = text("texto velho");
+        original.message_timestamp = Some(200);
+        let mut hs = wa::HistorySync::default();
+        hs.conversations = vec![conversation(
+            chat,
+            vec![synced(edit), synced(stub), synced(original)],
+        )];
         history(&store, &hs).unwrap();
         let rows = store.messages("5511@s.whatsapp.net", None, 10).unwrap();
         assert_eq!(rows.len(), 2);
@@ -359,41 +335,20 @@ mod tests {
     #[test]
     fn history_keeps_reactions_and_who_reacted() {
         let store = Store::open_memory().unwrap();
-        let reaction = |from_me: bool, emoji: &str| wa::Reaction {
-            key: MessageField::some(wa::MessageKey {
-                remote_jid: Some("5511@s.whatsapp.net".into()),
-                from_me: Some(from_me),
-                id: Some("r".into()),
-                participant: None,
-            }),
-            text: Some(emoji.into()),
-            ..Default::default()
+        let chat = "5511@s.whatsapp.net";
+        let reaction = |from_me: bool, emoji: &str| {
+            let mut reaction = wa::Reaction::default();
+            reaction.key = key(chat, from_me, "r");
+            reaction.text = Some(emoji.into());
+            reaction
         };
-        let hs = wa::HistorySync {
-            conversations: vec![wa::Conversation {
-                id: "5511@s.whatsapp.net".into(),
-                messages: vec![wa::HistorySyncMsg {
-                    message: MessageField::some(wa::WebMessageInfo {
-                        key: MessageField::some(wa::MessageKey {
-                            remote_jid: Some("5511@s.whatsapp.net".into()),
-                            from_me: Some(true),
-                            id: Some("m1".into()),
-                            participant: None,
-                        }),
-                        message: MessageField::some(wa::Message {
-                            conversation: Some("oi".into()),
-                            ..Default::default()
-                        }),
-                        message_timestamp: Some(100),
-                        reactions: vec![reaction(false, "👍"), reaction(true, "❤️")],
-                        ..Default::default()
-                    }),
-                    ..Default::default()
-                }],
-                ..Default::default()
-            }],
-            ..Default::default()
-        };
+        let mut info = wa::WebMessageInfo::default();
+        info.key = key(chat, true, "m1");
+        info.message = text("oi");
+        info.message_timestamp = Some(100);
+        info.reactions = vec![reaction(false, "👍"), reaction(true, "❤️")];
+        let mut hs = wa::HistorySync::default();
+        hs.conversations = vec![conversation(chat, vec![synced(info)])];
         history(&store, &hs).unwrap();
         let rows = store.messages("5511@s.whatsapp.net", None, 10).unwrap();
         let got: Vec<(&str, u32, bool)> = rows[0]

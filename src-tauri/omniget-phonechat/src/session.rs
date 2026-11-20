@@ -3,6 +3,7 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex as StdMutex};
 
+use crate::proto::download::DownloadLimits;
 use crate::proto::pair_code::PairCodeOptions;
 use crate::proto::prelude::*;
 use crate::proto::wacore::download::{Downloadable, MediaType};
@@ -320,7 +321,9 @@ async fn fetch_to(client: &Arc<Client>, msg: &wa::Message, part: &Path) -> Resul
         .read(true)
         .write(true)
         .open(part)?;
-    let f = client.download_to_writer(media, file).await?;
+    let f = client
+        .download_to_writer(media, file, DownloadLimits::default())
+        .await?;
     drop(f);
     Ok(())
 }
@@ -436,7 +439,7 @@ impl PhoneChat {
 
     async fn connected_client(&self) -> Result<Arc<Client>> {
         let client = self.client().await?;
-        if !client.is_connected() || !client.is_logged_in() {
+        if !client.is_socket_connected() || !client.is_logged_in() {
             bail!("offline");
         }
         Ok(client)
@@ -455,7 +458,7 @@ impl PhoneChat {
             i.pair_code = None;
         });
         let path = self.session_path();
-        let backend = match SqliteStore::new(&path.to_string_lossy()).await {
+        let backend = match SqliteStore::open(&path.to_string_lossy()).await {
             Ok(b) => b,
             Err(e) => {
                 let msg = format!("{e}");
@@ -509,7 +512,7 @@ impl PhoneChat {
         let running = self.running.lock().await.take();
         if let Some(mut r) = running {
             if let Some(h) = r.handle.take() {
-                h.shutdown().await;
+                let _ = h.shutdown().await;
             }
         }
         self.update(|i| {
@@ -528,12 +531,12 @@ impl PhoneChat {
         }
         let client = self.client().await?;
         for _ in 0..40 {
-            if client.is_connected() {
+            if client.is_socket_connected() {
                 break;
             }
             tokio::time::sleep(std::time::Duration::from_millis(250)).await;
         }
-        if !client.is_connected() {
+        if !client.is_socket_connected() {
             bail!("offline");
         }
         client.cancel_pair_code().await;
@@ -556,9 +559,9 @@ impl PhoneChat {
         self.logging_out.store(true, Ordering::SeqCst);
         let running = self.running.lock().await.take();
         if let Some(mut r) = running {
-            r.client.logout().await;
+            let _ = r.client.logout().await;
             if let Some(h) = r.handle.take() {
-                h.shutdown().await;
+                let _ = h.shutdown().await;
             }
             drop(r);
         }
@@ -942,10 +945,12 @@ impl PhoneChat {
             }
             *last = Some(std::time::Instant::now());
         }
-        let sent = client
+        let sent_id = client
             .send_message(jid, message)
             .await
-            .map_err(|e| anyhow!("{e}"))?;
+            .map_err(|e| anyhow!("{e}"))?
+            .message_id
+            .into_string();
         let ts = chrono::Utc::now().timestamp();
         let summary = model::Summary {
             kind: Some(MessageKind::Text),
@@ -957,7 +962,7 @@ impl PhoneChat {
             tx.upsert_chat(chat, None, Some(ts), None, None)?;
             tx.insert_message(&NewMessage {
                 chat,
-                id: &sent.message_id,
+                id: &sent_id,
                 from_me: true,
                 sender: None,
                 push_name: None,
@@ -967,14 +972,14 @@ impl PhoneChat {
                 wire_chat: Some(chat),
                 wire_sender: None,
             })?;
-            tx.mark_live(chat, &sent.message_id)
+            tx.mark_live(chat, &sent_id)
         })?;
         let seq = self.store.latest_seq().unwrap_or(0);
         self.live.send_modify(|v| *v = v.wrapping_add(1));
         self.host.emit("phonechat-chats-changed", json!({}));
         self.host.emit("phonechat-message", json!({ "chat": chat }));
         Ok(MessageRow {
-            id: sent.message_id,
+            id: sent_id,
             chat: chat.to_string(),
             from_me: true,
             sender: None,
@@ -1040,38 +1045,30 @@ impl PhoneChat {
             .map(str::to_string);
         let mimetype = Some(mime.to_string());
         let message = match kind {
-            MessageKind::Image => media::image_message(
-                upload,
-                media::ImageOptions {
-                    caption,
-                    mimetype,
-                    ..Default::default()
-                },
-            ),
-            MessageKind::Video => media::video_message(
-                upload,
-                media::VideoOptions {
-                    caption,
-                    mimetype,
-                    ..Default::default()
-                },
-            ),
-            MessageKind::Audio => media::audio_message(
-                upload,
-                media::AudioOptions {
-                    mimetype,
-                    ..Default::default()
-                },
-            ),
-            _ => media::document_message(
-                upload,
-                media::DocumentOptions {
-                    mimetype,
-                    file_name: Some(name),
-                    caption,
-                    ..Default::default()
-                },
-            ),
+            MessageKind::Image => {
+                let mut opts = media::ImageOptions::default();
+                opts.caption = caption;
+                opts.mimetype = mimetype;
+                media::image_message(upload, opts)
+            }
+            MessageKind::Video => {
+                let mut opts = media::VideoOptions::default();
+                opts.caption = caption;
+                opts.mimetype = mimetype;
+                media::video_message(upload, opts)
+            }
+            MessageKind::Audio => {
+                let mut opts = media::AudioOptions::default();
+                opts.mimetype = mimetype;
+                media::audio_message(upload, opts)
+            }
+            _ => {
+                let mut opts = media::DocumentOptions::default();
+                opts.mimetype = mimetype;
+                opts.file_name = Some(name);
+                opts.caption = caption;
+                media::document_message(upload, opts)
+            }
         };
         {
             let mut last = self.last_send.lock().await;
@@ -1085,16 +1082,18 @@ impl PhoneChat {
         }
         let summary = model::summarize(&message).ok_or_else(|| anyhow!("no_media"))?;
         let raw = crate::proto::waproto::codec::message_to_vec(&message);
-        let sent = client
+        let sent_id = client
             .send_message(jid, message)
             .await
-            .map_err(|e| anyhow!("{e}"))?;
+            .map_err(|e| anyhow!("{e}"))?
+            .message_id
+            .into_string();
         let ts = chrono::Utc::now().timestamp();
         self.store.with_tx(|tx| {
             tx.upsert_chat(chat, None, Some(ts), None, None)?;
             tx.insert_message(&NewMessage {
                 chat,
-                id: &sent.message_id,
+                id: &sent_id,
                 from_me: true,
                 sender: None,
                 push_name: None,
@@ -1104,17 +1103,17 @@ impl PhoneChat {
                 wire_chat: Some(chat),
                 wire_sender: None,
             })?;
-            tx.mark_live(chat, &sent.message_id)
+            tx.mark_live(chat, &sent_id)
         })?;
         self.store
-            .set_saved(chat, &sent.message_id, &path.to_string_lossy())?;
+            .set_saved(chat, &sent_id, &path.to_string_lossy())?;
         self.live.send_modify(|v| *v = v.wrapping_add(1));
         self.host.emit("phonechat-chats-changed", json!({}));
         self.host.emit("phonechat-message", json!({ "chat": chat }));
         self.store
             .messages(chat, None, 5)?
             .into_iter()
-            .find(|m| m.id == sent.message_id)
+            .find(|m| m.id == sent_id)
             .ok_or_else(|| anyhow!("message_not_found"))
     }
 
@@ -1138,14 +1137,13 @@ impl PhoneChat {
         } else {
             target.wire_sender.clone().or_else(|| target.sender.clone())
         };
-        let key = wa::MessageKey {
-            remote_jid: Some(chat.to_string()),
-            from_me: Some(target.from_me),
-            id: Some(target.id.clone()),
-            participant,
-        };
+        let mut key = wa::MessageKey::default();
+        key.remote_jid = Some(chat.to_string());
+        key.from_me = Some(target.from_me);
+        key.id = Some(target.id.clone());
+        key.participant = participant;
         client
-            .send_reaction(jid, key, emoji)
+            .send_reaction_raw(jid, key, emoji)
             .await
             .map_err(|e| anyhow!("{e}"))?;
         self.store
@@ -1469,7 +1467,9 @@ impl PhoneChat {
         row: &MediaRow,
         key: &[u8],
     ) -> std::result::Result<String, String> {
-        use crate::proto::{MediaRetryResult, MediaReuploadError, MediaReuploadRequest};
+        use crate::proto::{
+            MediaRetryResult, MediaReuploadError, MediaReuploadRequest, MessageId, MessageRef,
+        };
         let wire = row.wire_chat.as_deref().unwrap_or(chat);
         let chat_jid: Jid = wire.parse().map_err(|_| "media_retry_failed".to_string())?;
         let participant: Option<Jid> = if store::is_group(wire) && !row.from_me {
@@ -1477,17 +1477,17 @@ impl PhoneChat {
         } else {
             None
         };
+        let failed = || "media_retry_failed".to_string();
+        let id = MessageId::new(&row.id).map_err(|_| failed())?;
         let req = MediaReuploadRequest {
-            msg_id: &row.id,
-            chat_jid: &chat_jid,
-            media_key: key,
-            is_from_me: row.from_me,
-            participant: participant.as_ref(),
+            target: MessageRef::new(&chat_jid, id, participant.as_ref(), row.from_me)
+                .map_err(|_| failed())?,
+            media_key: key.try_into().map_err(|_| failed())?,
         };
         let reupload = client.media_reupload();
         let answer = tokio::time::timeout(RETRY_WAIT, reupload.request(&req)).await;
         match answer {
-            Err(_) | Ok(Err(MediaReuploadError::Timeout)) => Err("retry_timeout".into()),
+            Err(_) | Ok(Err(MediaReuploadError::Timeout { .. })) => Err("retry_timeout".into()),
             Ok(Err(MediaReuploadError::NotLoggedIn)) => Err("offline".into()),
             Ok(Err(_)) => Err("media_retry_failed".into()),
             Ok(Ok(MediaRetryResult::Success { direct_path })) => Ok(direct_path),
@@ -1833,19 +1833,15 @@ mod tests {
     #[test]
     fn direct_path_is_rewritten_inside_wrappers() {
         use crate::proto::prelude::MessageField;
-        let mut msg = wa::Message {
-            ephemeral_message: MessageField::some(wa::message::FutureProofMessage {
-                message: MessageField::some(wa::Message {
-                    image_message: MessageField::some(wa::message::ImageMessage {
-                        direct_path: Some("/old".into()),
-                        media_key: Some(vec![1, 2, 3]),
-                        ..Default::default()
-                    }),
-                    ..Default::default()
-                }),
-            }),
-            ..Default::default()
-        };
+        let mut image = wa::message::ImageMessage::default();
+        image.direct_path = Some("/old".into());
+        image.media_key = Some(vec![1, 2, 3]);
+        let mut inner = wa::Message::default();
+        inner.image_message = MessageField::some(image);
+        let mut wrapper = wa::message::FutureProofMessage::default();
+        wrapper.message = MessageField::some(inner);
+        let mut msg = wa::Message::default();
+        msg.ephemeral_message = MessageField::some(wrapper);
         assert_eq!(media_key_of(&msg), Some(vec![1, 2, 3]));
         assert!(set_direct_path(&mut msg, "/new"));
         let base = msg.get_base_message();

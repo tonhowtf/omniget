@@ -55,7 +55,7 @@ encoding_rs = "0.8"
 xz2 = { version = "0.1", features = ["static"] }
 walkdir = "2"
 ort = { version = "2.0.0-rc.13", default-features = false, features = ["std", "ndarray", "tracing", "load-dynamic", "api-27"] }
-rusqlite = { version = "0.40", features = ["bundled", "fallible_uint"] }
+rusqlite = { version = "0.42", features = ["bundled", "fallible_uint"] }
 tempfile = "=3.27.0"
 zstd = "0.13"
 sha1 = "0.10"

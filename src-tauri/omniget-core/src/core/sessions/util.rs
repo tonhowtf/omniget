@@ -421,7 +421,7 @@ pub fn query_json(
     let Ok(mut st) = c.prepare(sql) else {
         return Vec::new();
     };
-    let names: Vec<String> = st.column_names().iter().map(|s| s.to_string()).collect();
+    let names: Vec<String> = st.column_names().map(|s| s.to_string()).collect();
     let rows = st.query_map(params, |r| {
         let mut m = serde_json::Map::new();
         for (i, n) in names.iter().enumerate() {

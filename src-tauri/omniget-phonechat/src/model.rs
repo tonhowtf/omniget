@@ -285,10 +285,8 @@ mod tests {
 
     #[test]
     fn text_message_is_text() {
-        let m = wa::Message {
-            conversation: Some("oi".into()),
-            ..Default::default()
-        };
+        let mut m = wa::Message::default();
+        m.conversation = Some("oi".into());
         let s = summarize(&m).unwrap();
         assert_eq!(s.kind, Some(MessageKind::Text));
         assert_eq!(s.text.as_deref(), Some("oi"));
@@ -301,15 +299,12 @@ mod tests {
 
     #[test]
     fn voice_note_counts_as_audio_media() {
-        let m = wa::Message {
-            audio_message: MessageField::some(wa::message::AudioMessage {
-                ptt: Some(true),
-                seconds: Some(7),
-                file_length: Some(1200),
-                ..Default::default()
-            }),
-            ..Default::default()
-        };
+        let mut audio = wa::message::AudioMessage::default();
+        audio.ptt = Some(true);
+        audio.seconds = Some(7);
+        audio.file_length = Some(1200);
+        let mut m = wa::Message::default();
+        m.audio_message = MessageField::some(audio);
         let s = summarize(&m).unwrap();
         assert_eq!(s.kind, Some(MessageKind::Voice));
         assert_eq!(s.duration, Some(7));
@@ -349,21 +344,18 @@ mod tests {
         t: wa::message::protocol_message::Type,
         edited: Option<wa::Message>,
     ) -> wa::Message {
-        wa::Message {
-            protocol_message: MessageField::some(wa::message::ProtocolMessage {
-                key: MessageField::some(wa::MessageKey {
-                    id: Some("ORIG".into()),
-                    ..Default::default()
-                }),
-                r#type: Some(t),
-                edited_message: match edited {
-                    Some(m) => MessageField::some(m),
-                    None => MessageField::none(),
-                },
-                ..Default::default()
-            }),
-            ..Default::default()
-        }
+        let mut key = wa::MessageKey::default();
+        key.id = Some("ORIG".into());
+        let mut proto = wa::message::ProtocolMessage::default();
+        proto.key = MessageField::some(key);
+        proto.r#type = Some(t);
+        proto.edited_message = match edited {
+            Some(m) => MessageField::some(m),
+            None => MessageField::none(),
+        };
+        let mut m = wa::Message::default();
+        m.protocol_message = MessageField::some(proto);
+        m
     }
 
     #[test]
@@ -373,10 +365,8 @@ mod tests {
             protocol_op(&protocol(Type::REVOKE, None)),
             Some(Op::Revoke { id: "ORIG".into() })
         );
-        let new = wa::Message {
-            conversation: Some("corrigido".into()),
-            ..Default::default()
-        };
+        let mut new = wa::Message::default();
+        new.conversation = Some("corrigido".into());
         let edit = protocol(Type::MESSAGE_EDIT, Some(new));
         assert_eq!(
             protocol_op(&edit),
@@ -391,16 +381,15 @@ mod tests {
 
     #[test]
     fn reaction_targets_a_message_and_empty_removes() {
-        let react = |emoji: &str| wa::Message {
-            reaction_message: MessageField::some(wa::message::ReactionMessage {
-                key: MessageField::some(wa::MessageKey {
-                    id: Some("m1".into()),
-                    ..Default::default()
-                }),
-                text: Some(emoji.into()),
-                ..Default::default()
-            }),
-            ..Default::default()
+        let react = |emoji: &str| {
+            let mut key = wa::MessageKey::default();
+            key.id = Some("m1".into());
+            let mut reaction = wa::message::ReactionMessage::default();
+            reaction.key = MessageField::some(key);
+            reaction.text = Some(emoji.into());
+            let mut m = wa::Message::default();
+            m.reaction_message = MessageField::some(reaction);
+            m
         };
         assert_eq!(reaction_of(&react("👍")), Some(("m1".into(), "👍".into())));
         assert_eq!(reaction_of(&react("")), Some(("m1".into(), String::new())));
@@ -410,22 +399,16 @@ mod tests {
 
     #[test]
     fn reply_keeps_the_quoted_id() {
-        let m = wa::Message {
-            extended_text_message: MessageField::some(wa::message::ExtendedTextMessage {
-                text: Some("resposta".into()),
-                context_info: MessageField::some(wa::ContextInfo {
-                    stanza_id: Some("m1".into()),
-                    ..Default::default()
-                }),
-                ..Default::default()
-            }),
-            ..Default::default()
-        };
+        let mut context = wa::ContextInfo::default();
+        context.stanza_id = Some("m1".into());
+        let mut text = wa::message::ExtendedTextMessage::default();
+        text.text = Some("resposta".into());
+        text.context_info = MessageField::some(context);
+        let mut m = wa::Message::default();
+        m.extended_text_message = MessageField::some(text);
         assert_eq!(summarize(&m).unwrap().quote_id.as_deref(), Some("m1"));
-        let plain = wa::Message {
-            conversation: Some("oi".into()),
-            ..Default::default()
-        };
+        let mut plain = wa::Message::default();
+        plain.conversation = Some("oi".into());
         assert_eq!(summarize(&plain).unwrap().quote_id, None);
     }
 }
