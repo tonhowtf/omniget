@@ -36,6 +36,10 @@
 </p>
 
 <p align="center">
+  这是 OmniGet 原版。官方版本只来自本仓库和 <a href="https://getomniget.com">getomniget.com</a>；<a href="https://getomniget.com/forks">名字相似的分叉</a>是独立的项目。
+</p>
+
+<p align="center">
   <a href="#一分钟完成连接">连接</a> · <a href="#你的智能体能做什么">工具</a> · <a href="#手动配置">手动配置</a> · <a href="#控制权在你手里">安全</a> · <a href="#canvas">Canvas</a> · <a href="#下载器">下载器</a> · <a href="#安装">安装</a> · <a href="#常见问题">FAQ</a>
 </p>
 
