@@ -8,6 +8,16 @@ updates:
       actions:
         patterns: ['*']
 
+  - package-ecosystem: docker
+    directories:
+      - /scripts/release
+      - /scripts/omniworld-server
+    schedule:
+      interval: weekly
+    groups:
+      docker:
+        patterns: ['*']
+
   - package-ecosystem: npm
     directory: /
     schedule:
