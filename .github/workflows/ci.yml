@@ -25,11 +25,58 @@ env:
   CARGO_PROFILE_TEST_DEBUG: 0
 
 jobs:
+  plan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      platforms: ${{ steps.pick.outputs.platforms }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 2
+
+      - name: Pick the platforms
+        id: pick
+        env:
+          EVENT: ${{ github.event_name }}
+          ALL: ${{ inputs.all_platforms }}
+          BEFORE: ${{ github.event.before }}
+        run: |
+          all='["ubuntu-22.04","windows-latest","macos-latest"]'
+          linux='["ubuntu-22.04"]'
+          pattern='(^|/)Cargo\.(toml|lock)$|^package\.json$|^pnpm-lock\.yaml$|^rust-toolchain\.toml$|^src-tauri/(tauri[^/]*\.conf\.json|build\.rs|Entitlements\.plist|Info\.plist|capabilities/)|^\.github/workflows/(ci|release)\.yml$'
+          if [ "$EVENT" = "workflow_dispatch" ]; then
+            [ "$ALL" = "true" ] && pick="$all" || pick="$linux"
+          else
+            base="HEAD^1"
+            known=true
+            if [ "$EVENT" = "push" ] && [ -n "$BEFORE" ]; then
+              if git fetch --quiet --depth=1 origin "$BEFORE" 2>/dev/null; then
+                base="$BEFORE"
+              else
+                known=false
+              fi
+            fi
+            if [ "$known" = "false" ] || ! changed="$(git diff --name-only "$base" HEAD)"; then
+              echo "could not list the changed files, running every platform"
+              pick="$all"
+            elif echo "$changed" | grep -Eq "$pattern"; then
+              echo "build or dependency files changed:"
+              echo "$changed" | grep -E "$pattern"
+              pick="$all"
+            else
+              pick="$linux"
+            fi
+          fi
+          echo "platforms=$pick" >> "$GITHUB_OUTPUT"
+          echo "platforms: $pick"
+
   rust:
+    needs: plan
     strategy:
       fail-fast: false
       matrix:
-        platform: ${{ fromJSON(inputs.all_platforms && '["ubuntu-22.04","windows-latest","macos-latest"]' || '["ubuntu-22.04"]') }}
+        platform: ${{ fromJSON(needs.plan.outputs.platforms) }}
     runs-on: ${{ matrix.platform }}
     timeout-minutes: 150
     steps:
@@ -104,6 +151,9 @@ jobs:
       - name: IPC contract (invoke and listen targets)
         run: pnpm check:ipc
 
+      - name: Tauri crates and npm packages on the same version
+        run: pnpm check:tauri-versions
+
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
@@ -126,10 +176,11 @@ jobs:
         run: pnpm test:plugin
 
   smoke:
+    needs: plan
     strategy:
       fail-fast: false
       matrix:
-        platform: ${{ fromJSON(inputs.all_platforms && '["ubuntu-22.04","windows-latest","macos-latest"]' || '["ubuntu-22.04"]') }}
+        platform: ${{ fromJSON(needs.plan.outputs.platforms) }}
     runs-on: ${{ matrix.platform }}
     timeout-minutes: 90
     steps:
@@ -194,7 +245,7 @@ jobs:
           $RUN node scripts/smoke-test.mjs "$BIN" --portable
 
   ci-ok:
-    needs: [rust, frontend, smoke]
+    needs: [plan, rust, frontend, smoke]
     if: always()
     runs-on: ubuntu-latest
     steps:
