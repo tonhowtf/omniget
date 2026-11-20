@@ -1,0 +1,71 @@
+name: Fuzz
+
+on:
+  pull_request:
+    paths:
+      - 'src-tauri/fuzz/**'
+      - '.github/workflows/fuzz.yml'
+  schedule:
+    - cron: '41 4 * * 3'
+  workflow_dispatch:
+    inputs:
+      seconds:
+        description: 'Seconds per target'
+        default: '300'
+
+concurrency:
+  group: fuzz-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  CARGO_INCREMENTAL: 0
+  CARGO_TERM_COLOR: always
+
+jobs:
+  fuzz:
+    name: cargo-fuzz
+    runs-on: ubuntu-22.04
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Linux system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev libasound2-dev libpipewire-0.3-dev clang libclang-dev
+
+      - name: Nightly toolchain and cargo-fuzz
+        run: |
+          rustup toolchain install nightly --profile minimal
+          cargo +nightly install cargo-fuzz --locked --version 0.13.2
+
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
+        with:
+          workspaces: './src-tauri/fuzz'
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+
+      - name: Run every target
+        working-directory: src-tauri
+        env:
+          SECONDS_PER_TARGET: ${{ github.event_name == 'pull_request' && '60' || inputs.seconds || '300' }}
+        run: |
+          set -euo pipefail
+          cp Cargo.lock fuzz/Cargo.lock
+          for target in $(cargo +nightly fuzz list); do
+            echo "::group::$target"
+            cargo +nightly fuzz run "$target" -- -max_total_time="$SECONDS_PER_TARGET" -max_len=4096
+            echo "::endgroup::"
+          done
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: failure()
+        with:
+          name: fuzz-artifacts
+          path: src-tauri/fuzz/artifacts
+          if-no-files-found: ignore
+          retention-days: 30

@@ -73,7 +73,12 @@ fn parse_stamp(s: &str) -> Option<i64> {
             }
         }
     };
-    Some(((h * 60 + m) * 60 + sec) * 1000 + frac_ms)
+    h.checked_mul(60)?
+        .checked_add(m)?
+        .checked_mul(60)?
+        .checked_add(sec)?
+        .checked_mul(1000)?
+        .checked_add(frac_ms)
 }
 
 fn parse_words(text: &str) -> (String, Vec<LrcWord>) {
@@ -306,6 +311,13 @@ fn strip_tags(s: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_stamp_too_large_for_milliseconds_is_not_a_time() {
+        let l = parse("[88888888088888888:3]text\n[00:02.00]kept\n");
+        assert_eq!(l.lines.len(), 1);
+        assert_eq!(l.lines[0].time_ms, 2000);
+    }
 
     #[test]
     fn parses_basic_and_multi_stamp_lines() {
