@@ -49,10 +49,15 @@ jobs:
             [ "$ALL" = "true" ] && pick="$all" || pick="$linux"
           else
             base="HEAD^1"
-            if [ "$EVENT" = "push" ] && [ -n "$BEFORE" ] && git fetch --quiet --depth=1 origin "$BEFORE" 2>/dev/null; then
-              base="$BEFORE"
+            known=true
+            if [ "$EVENT" = "push" ] && [ -n "$BEFORE" ]; then
+              if git fetch --quiet --depth=1 origin "$BEFORE" 2>/dev/null; then
+                base="$BEFORE"
+              else
+                known=false
+              fi
             fi
-            if ! changed="$(git diff --name-only "$base" HEAD)"; then
+            if [ "$known" = "false" ] || ! changed="$(git diff --name-only "$base" HEAD)"; then
               echo "could not list the changed files, running every platform"
               pick="$all"
             elif echo "$changed" | grep -Eq "$pattern"; then
