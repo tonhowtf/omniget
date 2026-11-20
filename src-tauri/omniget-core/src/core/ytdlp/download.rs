@@ -180,6 +180,20 @@ pub async fn finish_direct_video(
     (file_path, size)
 }
 
+pub(super) fn overall_progress(
+    planned_count: usize,
+    phase: &mut u32,
+    last_raw_percent: &mut Option<f64>,
+    max_reported: f64,
+    percent: f64,
+) -> f64 {
+    if planned_count == 1 {
+        *last_raw_percent = Some(percent);
+        return percent;
+    }
+    adjusted_multi_stream_progress(phase, last_raw_percent, max_reported, percent)
+}
+
 pub(super) fn adjusted_multi_stream_progress(
     phase: &mut u32,
     last_raw_percent: &mut Option<f64>,
@@ -1370,7 +1384,8 @@ pub(super) fn spawn_stdout_reader(
                         last_send = std::time::Instant::now();
                     }
                 } else {
-                    let adjusted = adjusted_multi_stream_progress(
+                    let adjusted = overall_progress(
+                        planned_count,
                         &mut phase,
                         &mut last_raw_percent,
                         max_reported,
