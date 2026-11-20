@@ -63,11 +63,12 @@ OmniGet writes its server and a private token into that tool's own config. Resta
   <img src="assets/readme/mcp-connect.webp" alt="The Connect to other apps section in Settings, with one button that creates an access and copies the prompt" width="860" />
 </p>
 
-Only on Claude Code? The plugin takes two commands and already fetches and transcribes links without the desktop app:
+Only on Claude Code? The plugin takes three commands and fetches and transcribes links without the desktop app. The last one installs yt-dlp and FFmpeg if they are missing:
 
 ```text
 /plugin marketplace add tonhowtf/omniget
 /plugin install omniget@omniget
+/omniget:setup
 ```
 
 Then just ask:

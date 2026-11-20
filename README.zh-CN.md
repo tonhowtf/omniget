@@ -63,11 +63,12 @@ OmniGet 会把自己的服务器和一个专属令牌写进该工具自己的配
   <img src="assets/readme/mcp-connect.webp" alt="设置中的“连接其他应用”部分，一个按钮即可创建访问并复制提示词" width="860" />
 </p>
 
-只用 Claude Code？插件两条命令就能装好，不装桌面应用也能下载并转写链接：
+只用 Claude Code？插件三条命令就能装好，不装桌面应用也能下载并转写链接。最后一条会在缺少时安装 yt-dlp 和 FFmpeg：
 
 ```text
 /plugin marketplace add tonhowtf/omniget
 /plugin install omniget@omniget
+/omniget:setup
 ```
 
 然后直接提要求：
