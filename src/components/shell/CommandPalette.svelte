@@ -15,6 +15,7 @@
 
   let inputEl = $state<HTMLInputElement | null>(null);
   let listEl = $state<HTMLDivElement | null>(null);
+  let returnFocus: HTMLElement | null = null;
 
   let open = $derived(isCommandPaletteOpen());
   let query = $derived(getCommandPaletteQuery());
@@ -43,6 +44,8 @@
 
   $effect(() => {
     if (open && inputEl) {
+      const a = document.activeElement;
+      if (a instanceof HTMLElement && !a.closest(".mac-command-palette")) returnFocus = a;
       inputEl.focus();
       inputEl.select();
     }
@@ -60,11 +63,17 @@
     el?.scrollIntoView({ block: "nearest" });
   });
 
+  function dismiss() {
+    closeCommandPalette();
+    if (returnFocus?.isConnected) returnFocus.focus({ preventScroll: true });
+    returnFocus = null;
+  }
+
   function onKeydown(e: KeyboardEvent) {
     if (!open) return;
     if (e.key === "Escape") {
       e.preventDefault();
-      closeCommandPalette();
+      dismiss();
       return;
     }
     const active = document.activeElement;
@@ -129,10 +138,8 @@
 </script>
 
 {#if open}
-  <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
-  <div class="mac-command-backdrop" role="presentation" onclick={() => closeCommandPalette()}>
-    <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
-    <div class="mac-command-palette" role="dialog" tabindex="-1" aria-label={$t("command_palette.open")} onclick={(e) => e.stopPropagation()}>
+  <div class="mac-command-backdrop" role="presentation" onclick={(e) => e.target === e.currentTarget && dismiss()}>
+    <div class="mac-command-palette" role="dialog" tabindex="-1" aria-label={$t("command_palette.open")}>
       <div class="mac-command-input-row">
         <svg viewBox="0 0 20 20" width="18" height="18" fill="currentColor" aria-hidden="true">
           <path d="M8.5 2.5a6 6 0 1 0 3.67 10.74l3.8 3.79a1 1 0 0 0 1.41-1.41l-3.79-3.8A6 6 0 0 0 8.5 2.5zM4.5 8.5a4 4 0 1 1 8 0 4 4 0 0 1-8 0z" />
