@@ -36,6 +36,10 @@
 </p>
 
 <p align="center">
+  Este é o OmniGet original. As versões oficiais saem só deste repositório e de <a href="https://getomniget.com">getomniget.com</a>; os <a href="https://getomniget.com/forks">forks com nomes parecidos</a> são projetos separados.
+</p>
+
+<p align="center">
   <a href="#conecte-em-um-minuto">Conectar</a> · <a href="#o-que-seu-agente-pode-fazer">Ferramentas</a> · <a href="#fique-com-o-que-é-seu">Cursos</a> · <a href="#configure-à-mão">Configuração manual</a> · <a href="#você-continua-no-controle">Segurança</a> · <a href="#o-canvas">Canvas</a> · <a href="#o-downloader">Downloader</a> · <a href="#instalar">Instalar</a> · <a href="#perguntas-frequentes">FAQ</a>
 </p>
 
