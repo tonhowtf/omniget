@@ -1,5 +1,6 @@
 [workspace]
 members = [".", "omniget-core", "omniget-cli", "omniget-atlas", "omniworld-server", "omniget-phonechat"]
+exclude = ["fuzz"]
 resolver = "2"
 
 [package]

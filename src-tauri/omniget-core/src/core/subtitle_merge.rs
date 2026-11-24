@@ -84,6 +84,14 @@ pub struct Cue {
     pub text: String,
 }
 
+fn to_ms(h: u64, m: u64, sec: u64, frac_ms: u64) -> Option<u64> {
+    h.checked_mul(3600)?
+        .checked_add(m.checked_mul(60)?)?
+        .checked_add(sec)?
+        .checked_mul(1000)?
+        .checked_add(frac_ms)
+}
+
 fn parse_ts(s: &str) -> Option<u64> {
     let s = s.trim();
     let (hms, ms_part) = if let Some((a, b)) = s.split_once(',') {
@@ -115,7 +123,7 @@ fn parse_ts(s: &str) -> Option<u64> {
         ),
         _ => return None,
     };
-    Some(((h * 3600 + m * 60 + sec) * 1000) + ms)
+    to_ms(h, m, sec, ms)
 }
 
 fn fmt_ts(ms: u64) -> String {
@@ -140,7 +148,7 @@ fn parse_ass_ts(s: &str) -> Option<u64> {
         [m, s] => (0, m.trim().parse().ok()?, s.trim().parse().ok()?),
         _ => return None,
     };
-    Some(((h * 3600 + m * 60 + sec) * 1000) + centis * 10)
+    to_ms(h, m, sec, centis * 10)
 }
 
 fn fmt_ass_ts(ms: u64) -> String {
@@ -305,6 +313,23 @@ pub fn cues_to_vtt(cues: &[Cue]) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_time_too_large_for_milliseconds_drops_the_cue() {
+        let srt = "1\n00:44444444444444444444:01,000 --> 00:00:02,000\ngone\n\n\
+                   2\n4444444444444444:44444444444444:01,000 --> 00:00:02,000\ngone\n\n\
+                   3\n00:00:03,000 --> 00:00:04,000\nkept";
+        let cues = parse_cues(srt);
+        assert_eq!(cues.len(), 1);
+        assert_eq!((cues[0].start_ms, cues[0].text.as_str()), (3000, "kept"));
+
+        let ass = "[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n\
+                   Dialogue: 0,4444444444444444:00:01.00,0:00:02.00,Default,,0,0,0,,gone\n\
+                   Dialogue: 0,0:00:03.00,0:00:04.00,Default,,0,0,0,,kept";
+        let cues = parse_cues_ass(ass);
+        assert_eq!(cues.len(), 1);
+        assert_eq!((cues[0].start_ms, cues[0].text.as_str()), (3000, "kept"));
+    }
 
     #[test]
     fn srt_blocks_parsed_index_aligned() {

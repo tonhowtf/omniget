@@ -1,0 +1,60 @@
+[package]
+name = "omniget-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2021"
+license = "GPL-3.0"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+omniget-core = { path = "../omniget-core", default-features = false }
+
+# Not a member of the app workspace: it builds only with `cargo fuzz`, on nightly.
+[workspace]
+
+# The app workspace patches these crates; a separate workspace has to repeat it.
+[patch.crates-io]
+grammers-session = { path = "../vendor/grammers-session-patched" }
+grammers-mtsender = { path = "../vendor/grammers-mtsender-patched" }
+pdfcraft-organize = { path = "../vendor/pdfcraft/organize" }
+pdfcraft-cos = { path = "../vendor/pdfcraft/cos" }
+pdfcraft-filters = { path = "../vendor/pdfcraft/filters" }
+photocraft-psd = { path = "../vendor/photocraft-psd" }
+
+[[bin]]
+name = "cookie_input"
+path = "fuzz_targets/cookie_input.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "subtitle_cues"
+path = "fuzz_targets/subtitle_cues.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "icy_block"
+path = "fuzz_targets/icy_block.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "lyrics_lrc"
+path = "fuzz_targets/lyrics_lrc.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "playlist_file"
+path = "fuzz_targets/playlist_file.rs"
+test = false
+doc = false
+bench = false

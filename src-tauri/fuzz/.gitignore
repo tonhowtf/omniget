@@ -1,0 +1,6 @@
+target/
+corpus/
+artifacts/
+coverage/
+# Copied from the app workspace before a run, so the fuzzed versions are the shipped ones.
+Cargo.lock
