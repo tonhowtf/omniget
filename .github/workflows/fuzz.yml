@@ -56,9 +56,12 @@ jobs:
         run: |
           set -euo pipefail
           cp Cargo.lock fuzz/Cargo.lock
+          # No sanitizer: with AddressSanitizer, compiling omniget-core runs the
+          # runner out of memory. The targets are safe Rust, so what they find
+          # is panics and overflows, which debug assertions already catch.
           for target in $(cargo +nightly fuzz list); do
             echo "::group::$target"
-            cargo +nightly fuzz run "$target" -- -max_total_time="$SECONDS_PER_TARGET" -max_len=4096
+            cargo +nightly fuzz run --sanitizer none "$target" -- -max_total_time="$SECONDS_PER_TARGET" -max_len=4096
             echo "::endgroup::"
           done
 
