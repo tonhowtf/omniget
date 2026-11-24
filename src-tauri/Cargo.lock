@@ -6940,7 +6940,7 @@ dependencies = [
 name = "omniget"
 version = "1.0.1"
 dependencies = [
- "aes 0.8.4",
+ "aes 0.9.4",
  "anyhow",
  "async-trait",
  "axum",
@@ -7064,7 +7064,7 @@ name = "omniget-core"
 version = "0.2.16"
 dependencies = [
  "acadrust",
- "aes 0.8.4",
+ "aes 0.9.4",
  "aes-gcm 0.10.3",
  "alacritty_terminal",
  "anyhow",
