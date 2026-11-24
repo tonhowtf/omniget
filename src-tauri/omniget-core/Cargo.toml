@@ -69,7 +69,7 @@ serde_yaml = "0.9.34"
 xxhash-rust = { version = "0.8.18", features = ["xxh3"] }
 ctr = "0.9"
 aes-gcm = "0.10"
-chacha20poly1305 = "0.10"
+chacha20poly1305 = "0.11"
 hkdf = "0.12"
 blake3 = "1"
 rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12", "logging"] }
