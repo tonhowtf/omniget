@@ -1995,7 +1995,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d045de693cb712d0b22c6a64be5b953f67b3ce00ab5ad3dd5d8b441886ab8e1a"
 dependencies = [
  "quote",
- "syn 3.0.6",
+ "syn 2.0.117",
 ]
 
 [[package]]
@@ -6959,7 +6959,7 @@ dependencies = [
  "futures",
  "h2",
  "hex 0.4.3",
- "hmac 0.12.1",
+ "hmac 0.13.0",
  "http",
  "image",
  "keepawake",
@@ -7096,7 +7096,7 @@ dependencies = [
  "heic-rs",
  "hex 0.4.3",
  "hkdf 0.12.4",
- "hmac 0.12.1",
+ "hmac 0.13.0",
  "ignore",
  "image",
  "jxl-oxide",
