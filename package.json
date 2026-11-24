@@ -76,7 +76,7 @@
   },
   "license": "GPL-3.0",
   "dependencies": {
-    "@excalidraw/excalidraw": "0.18.0",
+    "@excalidraw/excalidraw": "0.18.1",
     "@sveltekit-i18n/extension-stores": "^3.2.1",
     "@tauri-apps/api": "^2.12.5",
     "@tauri-apps/plugin-clipboard-manager": "^2.5.0",
