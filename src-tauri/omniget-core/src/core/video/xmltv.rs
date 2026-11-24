@@ -2,7 +2,7 @@ use flate2::bufread::MultiGzDecoder;
 use quick_xml::events::{BytesStart, Event};
 use quick_xml::Reader;
 use serde::{Deserialize, Serialize};
-use std::io::{BufRead, BufReader};
+use std::io::{self, BufRead, BufReader, Read};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "lowercase")]
@@ -122,11 +122,11 @@ enum Field {
     DisplayName,
 }
 
-fn attr(e: &BytesStart, name: &[u8]) -> Option<String> {
+fn attr(e: &BytesStart, name: &str) -> Option<String> {
     e.attributes().flatten().find_map(|a| {
-        (a.key.local_name().as_ref() == name).then(|| match a.unescape_value() {
+        (a.key.local_name().as_ref() == name).then(|| match quick_xml::escape::unescape(&a.value) {
             Ok(v) => v.into_owned(),
-            Err(_) => String::from_utf8_lossy(&a.value).into_owned(),
+            Err(_) => a.value.to_string(),
         })
     })
 }
@@ -135,6 +135,72 @@ fn set_first(slot: &mut Option<String>, text: &str) {
     let t = text.trim();
     if slot.is_none() && !t.is_empty() {
         *slot = Some(t.to_string());
+    }
+}
+
+struct LossyUtf8<R> {
+    inner: R,
+    out: Vec<u8>,
+    pos: usize,
+    tail: Vec<u8>,
+}
+
+impl<R: BufRead> LossyUtf8<R> {
+    fn new(inner: R) -> Self {
+        Self {
+            inner,
+            out: Vec::new(),
+            pos: 0,
+            tail: Vec::new(),
+        }
+    }
+}
+
+impl<R: BufRead> BufRead for LossyUtf8<R> {
+    fn fill_buf(&mut self) -> io::Result<&[u8]> {
+        while self.pos == self.out.len() {
+            self.out.clear();
+            self.pos = 0;
+            let chunk = self.inner.fill_buf()?;
+            if chunk.is_empty() {
+                if !std::mem::take(&mut self.tail).is_empty() {
+                    self.out.extend_from_slice("\u{FFFD}".as_bytes());
+                }
+                break;
+            }
+            let mut data = std::mem::take(&mut self.tail);
+            data.extend_from_slice(chunk);
+            let read = chunk.len();
+            self.inner.consume(read);
+            let mut parts = data.utf8_chunks().peekable();
+            while let Some(part) = parts.next() {
+                self.out.extend_from_slice(part.valid().as_bytes());
+                if part.invalid().is_empty() {
+                    continue;
+                }
+                if parts.peek().is_none() {
+                    // may be a character cut in half by the chunk boundary
+                    self.tail.extend_from_slice(part.invalid());
+                } else {
+                    self.out.extend_from_slice("\u{FFFD}".as_bytes());
+                }
+            }
+        }
+        Ok(&self.out[self.pos..])
+    }
+
+    fn consume(&mut self, amt: usize) {
+        self.pos = (self.pos + amt).min(self.out.len());
+    }
+}
+
+impl<R: BufRead> Read for LossyUtf8<R> {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        let avail = self.fill_buf()?;
+        let n = avail.len().min(buf.len());
+        buf[..n].copy_from_slice(&avail[..n]);
+        self.consume(n);
+        Ok(n)
     }
 }
 
@@ -156,7 +222,7 @@ pub fn parse<R: BufRead>(mut reader: R, sink: impl FnMut(XmlEvent)) -> XmltvStat
 }
 
 fn parse_plain<R: BufRead>(input: R, mut sink: impl FnMut(XmlEvent)) -> XmltvStats {
-    let mut reader = Reader::from_reader(input);
+    let mut reader = Reader::from_reader(LossyUtf8::new(input));
     {
         let cfg = reader.config_mut();
         cfg.expand_empty_elements = true;
@@ -183,29 +249,29 @@ fn parse_plain<R: BufRead>(input: R, mut sink: impl FnMut(XmlEvent)) -> XmltvSta
             Event::Start(e) => {
                 let name = e.local_name();
                 match name.as_ref() {
-                    b"programme" => {
+                    "programme" => {
                         prog = Some(ProgBuilder {
-                            channel: attr(&e, b"channel").unwrap_or_default(),
-                            start: attr(&e, b"start").and_then(|s| parse_time(&s)),
-                            stop: attr(&e, b"stop").and_then(|s| parse_time(&s)),
+                            channel: attr(&e, "channel").unwrap_or_default(),
+                            start: attr(&e, "start").and_then(|s| parse_time(&s)),
+                            stop: attr(&e, "stop").and_then(|s| parse_time(&s)),
                             ..ProgBuilder::default()
                         });
                         chan = None;
                     }
-                    b"channel" if prog.is_none() => {
+                    "channel" if prog.is_none() => {
                         chan = Some(ChanBuilder {
-                            id: attr(&e, b"id").unwrap_or_default(),
+                            id: attr(&e, "id").unwrap_or_default(),
                             ..ChanBuilder::default()
                         });
                     }
-                    b"title" if prog.is_some() => field = Field::Title,
-                    b"desc" if prog.is_some() => field = Field::Desc,
-                    b"category" if prog.is_some() => field = Field::Category,
-                    b"display-name" if chan.is_some() => field = Field::DisplayName,
-                    b"icon" => {
+                    "title" if prog.is_some() => field = Field::Title,
+                    "desc" if prog.is_some() => field = Field::Desc,
+                    "category" if prog.is_some() => field = Field::Category,
+                    "display-name" if chan.is_some() => field = Field::DisplayName,
+                    "icon" => {
                         if let Some(c) = chan.as_mut() {
                             if c.icon.is_none() {
-                                c.icon = attr(&e, b"src").filter(|s| !s.trim().is_empty());
+                                c.icon = attr(&e, "src").filter(|s| !s.trim().is_empty());
                             }
                         }
                     }
@@ -217,16 +283,15 @@ fn parse_plain<R: BufRead>(input: R, mut sink: impl FnMut(XmlEvent)) -> XmltvSta
             }
             Event::Text(t) => {
                 if field != Field::None {
-                    let raw = String::from_utf8_lossy(&t);
-                    match quick_xml::escape::unescape(&raw) {
+                    match quick_xml::escape::unescape(&t) {
                         Ok(s) => text.push_str(&s),
-                        Err(_) => text.push_str(&raw),
+                        Err(_) => text.push_str(&t),
                     }
                 }
             }
             Event::GeneralRef(r) => {
                 if field != Field::None {
-                    let entity = format!("&{};", String::from_utf8_lossy(&r));
+                    let entity = format!("&{};", &*r);
                     match quick_xml::escape::unescape(&entity) {
                         Ok(s) => text.push_str(&s),
                         Err(_) => text.push_str(&entity),
@@ -235,13 +300,13 @@ fn parse_plain<R: BufRead>(input: R, mut sink: impl FnMut(XmlEvent)) -> XmltvSta
             }
             Event::CData(t) => {
                 if field != Field::None {
-                    text.push_str(&String::from_utf8_lossy(&t));
+                    text.push_str(&t);
                 }
             }
             Event::End(e) => {
                 let name = e.local_name();
                 match name.as_ref() {
-                    b"title" | b"desc" | b"category" | b"display-name" => {
+                    "title" | "desc" | "category" | "display-name" => {
                         match (field, prog.as_mut(), chan.as_mut()) {
                             (Field::Title, Some(p), _) => set_first(&mut p.title, &text),
                             (Field::Desc, Some(p), _) => set_first(&mut p.desc, &text),
@@ -257,7 +322,7 @@ fn parse_plain<R: BufRead>(input: R, mut sink: impl FnMut(XmlEvent)) -> XmltvSta
                         field = Field::None;
                         text.clear();
                     }
-                    b"programme" => {
+                    "programme" => {
                         if let Some(p) = prog.take() {
                             if let (false, Some(start)) = (p.channel.is_empty(), p.start) {
                                 stats.programmes += 1;
@@ -273,7 +338,7 @@ fn parse_plain<R: BufRead>(input: R, mut sink: impl FnMut(XmlEvent)) -> XmltvSta
                         }
                         field = Field::None;
                     }
-                    b"channel" => {
+                    "channel" => {
                         if let Some(c) = chan.take() {
                             if !c.id.is_empty() {
                                 stats.channels += 1;
@@ -385,6 +450,36 @@ mod tests {
         assert!(ev.is_empty());
         let (ev, stats) = collect(b"");
         assert!(ev.is_empty() && stats.error.is_none());
+    }
+
+    #[test]
+    fn invalid_utf8_becomes_replacement_char() {
+        let mut doc = Vec::new();
+        doc.extend_from_slice(
+            b"<tv><channel id=\"tv.br\"><display-name>Canal S\xe3o</display-name></channel>",
+        );
+        doc.extend_from_slice(b"<programme start=\"20240101120000\" channel=\"tv.br\"><title>Not\xedcias</title></programme></tv>");
+        let (ev, stats) = collect(&doc);
+        assert_eq!(stats.error, None);
+        assert_eq!((stats.channels, stats.programmes), (1, 1));
+        match (&ev[0], &ev[1]) {
+            (XmlEvent::Channel { names, .. }, XmlEvent::Programme { title, .. }) => {
+                assert_eq!(names, &["Canal S\u{FFFD}o"]);
+                assert_eq!(title, "Not\u{FFFD}cias");
+            }
+            _ => panic!(),
+        }
+    }
+
+    #[test]
+    fn characters_split_across_reads() {
+        let (whole, _) = collect(DOC.as_bytes());
+        let mut split = Vec::new();
+        let stats = parse(BufReader::with_capacity(1, DOC.as_bytes()), |e| {
+            split.push(e)
+        });
+        assert_eq!(stats.error, None);
+        assert_eq!(split, whole);
     }
 
     #[test]

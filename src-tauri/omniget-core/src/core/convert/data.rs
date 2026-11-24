@@ -545,12 +545,12 @@ fn insert_child(map: &mut Vec<(String, Value)>, key: String, value: Value) {
 }
 
 fn frame_from(e: &BytesStart<'_>) -> Result<Frame, String> {
-    let name = String::from_utf8_lossy(e.name().as_ref()).to_string();
+    let name = e.name().as_ref().to_string();
     let mut map = Vec::new();
     for a in e.attributes() {
         let a = a.map_err(|e| e.to_string())?;
-        let key = format!("@{}", String::from_utf8_lossy(a.key.as_ref()));
-        let val = unescape(&String::from_utf8_lossy(&a.value));
+        let key = format!("@{}", a.key.as_ref());
+        let val = unescape(&a.value);
         Value::insert(&mut map, key, Value::String(val));
     }
     Ok(Frame {
@@ -603,19 +603,17 @@ fn read_xml(text: &str) -> Result<Value, String> {
             }
             Event::Text(t) => {
                 if let Some(top) = stack.last_mut() {
-                    top.text
-                        .push_str(&unescape(&String::from_utf8_lossy(t.as_ref())));
+                    top.text.push_str(&unescape(&t));
                 }
             }
             Event::GeneralRef(r) => {
                 if let Some(top) = stack.last_mut() {
-                    let name = String::from_utf8_lossy(r.as_ref()).to_string();
-                    top.text.push_str(&unescape(&format!("&{name};")));
+                    top.text.push_str(&unescape(&format!("&{};", &*r)));
                 }
             }
             Event::CData(t) => {
                 if let Some(top) = stack.last_mut() {
-                    top.text.push_str(&String::from_utf8_lossy(t.as_ref()));
+                    top.text.push_str(&t);
                 }
             }
             Event::Eof => break,
@@ -840,6 +838,16 @@ mod tests {
         assert_eq!(v["lib"]["empty"], Value::Null);
         let out = write_value(&v, "xml", &opts()).unwrap();
         assert_eq!(read_value(&out, "xml").unwrap(), v);
+    }
+
+    #[test]
+    fn xml_reads_latin1_input() {
+        let v = read_value(
+            b"<?xml version=\"1.0\" encoding=\"ISO-8859-1\"?><a b=\"S\xe3o\">Not\xedcias</a>",
+            "xml",
+        )
+        .unwrap();
+        assert_eq!(v, j(r##"{"a": {"@b": "São", "#text": "Notícias"}}"##));
     }
 
     #[test]
