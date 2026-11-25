@@ -99,7 +99,7 @@ image = { version = "0.25", default-features = false, features = ["png", "jpeg",
 csv = "1"
 toml = { version = "0.8", features = ["preserve_order"] }
 plist = "1"
-heic-rs = { version = "=0.1.4", optional = true }
+heic-rs = { version = "=0.1.5", optional = true }
 jxl-oxide = { version = "0.12.6", features = ["image", "moxcms"] }
 photocraft-psd = "=0.20.1"
 visioncortex = "0.8.10"
