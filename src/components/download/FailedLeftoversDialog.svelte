@@ -1,7 +1,7 @@
 <script lang="ts">
   import { t } from "$lib/i18n";
   import { formatBytes } from "$lib/stores/download-store.svelte";
-  import Sheet from "$components/washmybelly/ui/Sheet.svelte";
+  import Sheet from "#components/washmybelly/ui/Sheet.svelte";
 
   export type LeftoverFile = { path: string; name: string; size_bytes: number };
 

@@ -3,8 +3,8 @@
   import { t } from "$lib/i18n";
   import { showToast } from "$lib/stores/toast-store.svelte";
   import { canvasPrefs, type AgentPreset } from "$lib/canvas/prefs.svelte";
-  import SettingGroup from "$components/settings/rebrand/SettingGroup.svelte";
-  import SettingsEmptyState from "$components/settings/rebrand/SettingsEmptyState.svelte";
+  import SettingGroup from "#components/settings/rebrand/SettingGroup.svelte";
+  import SettingsEmptyState from "#components/settings/rebrand/SettingsEmptyState.svelte";
   import AdvancedDisclosure from "./AdvancedDisclosure.svelte";
   import { canvasSaving, saveCanvas } from "./canvas-save.svelte";
   import { isBuiltinAgent } from "./ai-settings";

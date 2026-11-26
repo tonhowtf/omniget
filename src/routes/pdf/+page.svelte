@@ -3,10 +3,10 @@
   import { page } from "$app/state";
   import { getCurrentWebview } from "@tauri-apps/api/webview";
   import { t } from "$lib/i18n";
-  import NavIcon from "$components/shell/NavIcon.svelte";
-  import OrganizeView from "$components/pdf/OrganizeView.svelte";
-  import CompressView from "$components/pdf/CompressView.svelte";
-  import ImagesView from "$components/pdf/ImagesView.svelte";
+  import NavIcon from "#components/shell/NavIcon.svelte";
+  import OrganizeView from "#components/pdf/OrganizeView.svelte";
+  import CompressView from "#components/pdf/CompressView.svelte";
+  import ImagesView from "#components/pdf/ImagesView.svelte";
 
   type Tab = "organize" | "compress" | "images";
   const TABS: Tab[] = ["organize", "compress", "images"];

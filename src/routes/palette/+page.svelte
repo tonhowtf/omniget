@@ -6,15 +6,15 @@
   import { importFile } from "$lib/palette/importer";
   import { imageSource } from "$lib/palette/image.svelte";
   import { TABS, workspace, type Tab } from "$lib/palette/workspace.svelte";
-  import NavIcon from "$components/shell/NavIcon.svelte";
-  import ProjectBar from "$components/palette/ProjectBar.svelte";
-  import PickerPanel from "$components/palette/PickerPanel.svelte";
-  import ScalesPanel from "$components/palette/ScalesPanel.svelte";
-  import ContrastPanel from "$components/palette/ContrastPanel.svelte";
-  import GradientPanel from "$components/palette/GradientPanel.svelte";
-  import ImagePanel from "$components/palette/ImagePanel.svelte";
-  import ExportPanel from "$components/palette/ExportPanel.svelte";
-  import StatusIcon from "$components/converter/StatusIcon.svelte";
+  import NavIcon from "#components/shell/NavIcon.svelte";
+  import ProjectBar from "#components/palette/ProjectBar.svelte";
+  import PickerPanel from "#components/palette/PickerPanel.svelte";
+  import ScalesPanel from "#components/palette/ScalesPanel.svelte";
+  import ContrastPanel from "#components/palette/ContrastPanel.svelte";
+  import GradientPanel from "#components/palette/GradientPanel.svelte";
+  import ImagePanel from "#components/palette/ImagePanel.svelte";
+  import ExportPanel from "#components/palette/ExportPanel.svelte";
+  import StatusIcon from "#components/converter/StatusIcon.svelte";
 
   let dragging = $state(false);
   let dropNotice = $state<string | null>(null);

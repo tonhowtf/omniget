@@ -1,12 +1,12 @@
 <script lang="ts">
   import { t } from "$lib/i18n";
   import type { ResetScope } from "$lib/stores/settings-v3-types";
-  import SettingGroup from "$components/settings/rebrand/SettingGroup.svelte";
-  import SettingsNetwork from "$components/settings/SettingsNetwork.svelte";
-  import SpeedSettings from "$components/settings/advanced/SpeedSettings.svelte";
-  import TorrentSettings from "$components/settings/advanced/TorrentSettings.svelte";
-  import ComponentsSettings from "$components/settings/advanced/ComponentsSettings.svelte";
-  import TroubleshootingSettings from "$components/settings/advanced/TroubleshootingSettings.svelte";
+  import SettingGroup from "#components/settings/rebrand/SettingGroup.svelte";
+  import SettingsNetwork from "#components/settings/SettingsNetwork.svelte";
+  import SpeedSettings from "#components/settings/advanced/SpeedSettings.svelte";
+  import TorrentSettings from "#components/settings/advanced/TorrentSettings.svelte";
+  import ComponentsSettings from "#components/settings/advanced/ComponentsSettings.svelte";
+  import TroubleshootingSettings from "#components/settings/advanced/TroubleshootingSettings.svelte";
 
   let { askReset }: { askReset: (scope: ResetScope) => void } = $props();
 </script>

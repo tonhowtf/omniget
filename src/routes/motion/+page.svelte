@@ -1,11 +1,11 @@
 <script lang="ts">
   import { t } from "$lib/i18n";
   import type { Bezier } from "$lib/motion/bezier";
-  import NavIcon from "$components/shell/NavIcon.svelte";
-  import EasingPanel from "$components/motion/EasingPanel.svelte";
-  import SpringPanel from "$components/motion/SpringPanel.svelte";
-  import TimelinePanel from "$components/motion/TimelinePanel.svelte";
-  import LottiePanel from "$components/motion/LottiePanel.svelte";
+  import NavIcon from "#components/shell/NavIcon.svelte";
+  import EasingPanel from "#components/motion/EasingPanel.svelte";
+  import SpringPanel from "#components/motion/SpringPanel.svelte";
+  import TimelinePanel from "#components/motion/TimelinePanel.svelte";
+  import LottiePanel from "#components/motion/LottiePanel.svelte";
 
   type Tab = "curves" | "springs" | "timeline" | "lottie";
   const TABS: Tab[] = ["curves", "springs", "timeline", "lottie"];

@@ -3,7 +3,7 @@
   import { invoke } from "@tauri-apps/api/core";
   import { WebviewWindow, getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
   import { t } from "$lib/i18n";
-  import CompanionPanel from "$components/canvas/companion/CompanionPanel.svelte";
+  import CompanionPanel from "#components/canvas/companion/CompanionPanel.svelte";
   import "$lib/canvas/companion/live-language";
 
   interface WorkspaceRow {

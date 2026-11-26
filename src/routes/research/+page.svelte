@@ -1,9 +1,9 @@
 <script lang="ts">
   import { t } from "$lib/i18n";
-  import DevShell from "$components/devtools/DevShell.svelte";
-  import KeyPanel from "$components/research/KeyPanel.svelte";
-  import Workflows from "$components/research/Workflows.svelte";
-  import Explorer from "$components/research/Explorer.svelte";
+  import DevShell from "#components/devtools/DevShell.svelte";
+  import KeyPanel from "#components/research/KeyPanel.svelte";
+  import Workflows from "#components/research/Workflows.svelte";
+  import Explorer from "#components/research/Explorer.svelte";
 
   type Tab = "workflows" | "explorer";
   const TABS: Tab[] = ["workflows", "explorer"];

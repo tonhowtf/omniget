@@ -1,4 +1,4 @@
-import PortalNode from '$components/canvas/nodes/PortalNode.svelte';
+import PortalNode from '#components/canvas/nodes/PortalNode.svelte';
 import { DEFAULT_SIZES, ICONS, MIN_SIZES, registerNodeKind } from '../nodes/registry';
 
 let done = false;

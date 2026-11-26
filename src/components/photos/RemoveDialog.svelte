@@ -1,6 +1,6 @@
 <script lang="ts">
   import { t } from "$lib/i18n";
-  import Modal from "$components/music/Modal.svelte";
+  import Modal from "#components/music/Modal.svelte";
   import { formatBytes } from "$lib/photos/plan";
   import type { RemoveMode } from "$lib/photos/types";
 

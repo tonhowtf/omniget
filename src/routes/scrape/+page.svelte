@@ -3,9 +3,9 @@
   import * as api from "$lib/devtools/api";
   import { removedSummary } from "$lib/devtools/helpers";
   import type { DevtoolsError, ScrapeFormat, ScrapePage, ScrapeSelection } from "$lib/devtools/types";
-  import DevShell from "$components/devtools/DevShell.svelte";
-  import ErrorNotice from "$components/devtools/ErrorNotice.svelte";
-  import CopyButton from "$components/palette/CopyButton.svelte";
+  import DevShell from "#components/devtools/DevShell.svelte";
+  import ErrorNotice from "#components/devtools/ErrorNotice.svelte";
+  import CopyButton from "#components/palette/CopyButton.svelte";
 
   type Mode = "page" | "select";
   const MODES: Mode[] = ["page", "select"];

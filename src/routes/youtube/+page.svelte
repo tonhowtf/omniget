@@ -1,7 +1,7 @@
 <script lang="ts">
   import { t } from "$lib/i18n";
   import { tubePrefs } from "$lib/tube/prefs.svelte";
-  import TubeApp from "$components/tube/TubeApp.svelte";
+  import TubeApp from "#components/tube/TubeApp.svelte";
 
   let enabled = $derived(tubePrefs().enabled);
 </script>

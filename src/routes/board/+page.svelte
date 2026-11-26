@@ -11,12 +11,12 @@
   import { excalidrawLang } from "$lib/board/locale";
   import { checkName, sanitizeName } from "$lib/board/names";
   import type { BoardEntry, BoardFile, ExportKind, ExportOptions } from "$lib/board/types";
-  import NavIcon from "$components/shell/NavIcon.svelte";
-  import LibraryPanel from "$components/board/LibraryPanel.svelte";
-  import ExcalidrawHost from "$components/board/ExcalidrawHost.svelte";
-  import SaveBadge from "$components/board/SaveBadge.svelte";
-  import ExportMenu from "$components/board/ExportMenu.svelte";
-  import BoardIcon from "$components/board/BoardIcon.svelte";
+  import NavIcon from "#components/shell/NavIcon.svelte";
+  import LibraryPanel from "#components/board/LibraryPanel.svelte";
+  import ExcalidrawHost from "#components/board/ExcalidrawHost.svelte";
+  import SaveBadge from "#components/board/SaveBadge.svelte";
+  import ExportMenu from "#components/board/ExportMenu.svelte";
+  import BoardIcon from "#components/board/BoardIcon.svelte";
 
   type NoticeAction = { label: string; run: () => void; danger?: boolean };
   type Notice = { tone: "info" | "success" | "error"; text: string; actions: NoticeAction[] };

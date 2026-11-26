@@ -16,7 +16,7 @@
   import { customSource } from "$lib/components/registry";
   import { errorKey } from "$lib/components/errors";
   import type { RegistrySource } from "$lib/components/types";
-  import StatusIcon from "$components/converter/StatusIcon.svelte";
+  import StatusIcon from "#components/converter/StatusIcon.svelte";
 
   let {
     sources,

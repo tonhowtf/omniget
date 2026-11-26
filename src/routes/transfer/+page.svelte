@@ -22,8 +22,8 @@
   } from "$lib/transfer/helpers";
   import type { RemoteEntry, RemoteListing, TransferServer, TransferSnapshot } from "$lib/transfer/types";
   import type { DevtoolsError } from "$lib/devtools/types";
-  import DevShell from "$components/devtools/DevShell.svelte";
-  import ErrorNotice from "$components/devtools/ErrorNotice.svelte";
+  import DevShell from "#components/devtools/DevShell.svelte";
+  import ErrorNotice from "#components/devtools/ErrorNotice.svelte";
 
   type Job = {
     key: number;

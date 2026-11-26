@@ -3,7 +3,7 @@
   import * as api from "$lib/video/api";
   import { splitCitations } from "$lib/video/format";
   import { player, seek } from "$lib/video/player.svelte";
-  import VIcon from "$components/video/player/VIcon.svelte";
+  import VIcon from "#components/video/player/VIcon.svelte";
 
   type Mode = "ask" | "summary" | "quiz" | "chapters";
   type Turn = { id: number; mode: Mode; question: string; answer: string | null; error: string | null };

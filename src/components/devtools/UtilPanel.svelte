@@ -4,7 +4,7 @@
   import { buildUtilArgs, guessOp, utilFields, utilOutput, type UtilForm } from "$lib/devtools/helpers";
   import type { DevtoolsError, UtilOp } from "$lib/devtools/types";
   import ErrorNotice from "./ErrorNotice.svelte";
-  import CopyButton from "$components/palette/CopyButton.svelte";
+  import CopyButton from "#components/palette/CopyButton.svelte";
 
   const OPS: UtilOp[] = ["json_format", "json_minify", "json_query", "jwt_decode", "base64_encode", "base64_decode", "url_encode", "url_decode", "hash", "uuid", "timestamp", "regex_test", "text_diff"];
   const ALGORITHMS: UtilForm["algorithm"][] = ["sha256", "sha512", "sha1", "md5"];

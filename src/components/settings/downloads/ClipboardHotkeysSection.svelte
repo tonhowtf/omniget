@@ -1,6 +1,6 @@
 <script lang="ts">
   import { t } from "$lib/i18n";
-  import ContextHint from "$components/hints/ContextHint.svelte";
+  import ContextHint from "#components/hints/ContextHint.svelte";
   import { getSettings, toggleBool } from "../settings-helpers";
   import { createSettingsDraft } from "$lib/stores/settings-drafts.svelte";
   import SettingGroup from "../rebrand/SettingGroup.svelte";

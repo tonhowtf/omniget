@@ -20,15 +20,15 @@
   import { MAX_COMPARE, fromCatalog, fromInstalled, toggleCompare, type PreviewFont } from "$lib/fonts/preview";
   import { CODE_SAMPLE, defaultSample, type Sample } from "$lib/fonts/sample";
   import type { CatalogFont, InstalledFamily } from "$lib/fonts/types";
-  import NavIcon from "$components/shell/NavIcon.svelte";
-  import StatusIcon from "$components/converter/StatusIcon.svelte";
-  import FontList, { type ListItem, type Source } from "$components/fonts/FontList.svelte";
-  import FontDetail from "$components/fonts/FontDetail.svelte";
-  import SampleControls from "$components/fonts/SampleControls.svelte";
-  import CompareView from "$components/fonts/CompareView.svelte";
-  import PairingView from "$components/fonts/PairingView.svelte";
-  import ScaleView from "$components/fonts/ScaleView.svelte";
-  import type { PickerGroup } from "$components/fonts/FontPicker.svelte";
+  import NavIcon from "#components/shell/NavIcon.svelte";
+  import StatusIcon from "#components/converter/StatusIcon.svelte";
+  import FontList, { type ListItem, type Source } from "#components/fonts/FontList.svelte";
+  import FontDetail from "#components/fonts/FontDetail.svelte";
+  import SampleControls from "#components/fonts/SampleControls.svelte";
+  import CompareView from "#components/fonts/CompareView.svelte";
+  import PairingView from "#components/fonts/PairingView.svelte";
+  import ScaleView from "#components/fonts/ScaleView.svelte";
+  import type { PickerGroup } from "#components/fonts/FontPicker.svelte";
 
   type View = "fonts" | "compare" | "pairing" | "scale";
   type LoadStatus = "loading" | "ready" | "error";

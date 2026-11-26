@@ -5,7 +5,7 @@
   import { cueAt, fmtTime } from "$lib/video/format";
   import { loadTranscript, openPlayer, player, seek, transcribe } from "$lib/video/player.svelte";
   import type { TranscriptHit } from "$lib/video/types";
-  import VIcon from "$components/video/player/VIcon.svelte";
+  import VIcon from "#components/video/player/VIcon.svelte";
 
   let query = $state("");
   let scope = $state<"video" | "course">("video");

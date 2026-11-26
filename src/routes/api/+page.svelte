@@ -3,9 +3,9 @@
   import * as api from "$lib/devtools/api";
   import { headersToRecord, pushHistory, statusTone } from "$lib/devtools/helpers";
   import type { DevtoolsError, HttpMethod, HttpResponse } from "$lib/devtools/types";
-  import DevShell from "$components/devtools/DevShell.svelte";
-  import ErrorNotice from "$components/devtools/ErrorNotice.svelte";
-  import CopyButton from "$components/palette/CopyButton.svelte";
+  import DevShell from "#components/devtools/DevShell.svelte";
+  import ErrorNotice from "#components/devtools/ErrorNotice.svelte";
+  import CopyButton from "#components/palette/CopyButton.svelte";
 
   type Row = { name: string; value: string };
   type Entry = { id: number; method: HttpMethod; url: string; rows: Row[]; body: string; response: HttpResponse | null; error: DevtoolsError | null };

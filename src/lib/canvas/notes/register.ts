@@ -1,8 +1,8 @@
 import { ICONS, registerNodeKind } from '../nodes/registry';
-import NoteNodeFull from '$components/canvas/nodes/notes/NoteNodeFull.svelte';
-import StackNode from '$components/canvas/nodes/notes/StackNode.svelte';
-import FileTreeNode from '$components/canvas/nodes/files/FileTreeNode.svelte';
-import FileEditorNode from '$components/canvas/nodes/files/FileEditorNode.svelte';
+import NoteNodeFull from '#components/canvas/nodes/notes/NoteNodeFull.svelte';
+import StackNode from '#components/canvas/nodes/notes/StackNode.svelte';
+import FileTreeNode from '#components/canvas/nodes/files/FileTreeNode.svelte';
+import FileEditorNode from '#components/canvas/nodes/files/FileEditorNode.svelte';
 
 const STACK_ICON = 'M6 7h12v13H6z M8 4h10v2 M10 1.5h8';
 const TREE_ICON = 'M3 6h6l2 2h10v11H3z';

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import Confetti from "$components/celebrate/Confetti.svelte";
+  import Confetti from "#components/celebrate/Confetti.svelte";
   import type { HomeArt } from "$lib/home/omnibox-controller";
 
   let {

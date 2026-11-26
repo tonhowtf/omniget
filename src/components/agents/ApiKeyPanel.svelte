@@ -3,10 +3,10 @@
   import { onMount, onDestroy } from "svelte";
   import { t } from "$lib/i18n";
   import { showToast } from "$lib/stores/toast-store.svelte";
-  import SettingGroup from "$components/settings/rebrand/SettingGroup.svelte";
+  import SettingGroup from "#components/settings/rebrand/SettingGroup.svelte";
   import AgentLogo from "./AgentLogo.svelte";
-  import AdvancedDisclosure from "$components/settings/ai/AdvancedDisclosure.svelte";
-  import { endpointNeedsAttention, modelForKind, modelHint, modelNeedsAttention } from "$components/settings/ai/ai-settings";
+  import AdvancedDisclosure from "#components/settings/ai/AdvancedDisclosure.svelte";
+  import { endpointNeedsAttention, modelForKind, modelHint, modelNeedsAttention } from "#components/settings/ai/ai-settings.ts";
 
   import {
     aiConnectionStatus, clearSavedAiSettingsDraft, isAiSettingsDirty, isLoopbackAiEndpoint,

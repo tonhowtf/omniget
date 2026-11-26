@@ -7,9 +7,9 @@
   import { t } from "$lib/i18n";
   import { classifyError, type ErrorKind } from "$lib/home/friendly-error";
   import { translateBackendError } from "$lib/error-translate";
-  import NavIcon from "$components/shell/NavIcon.svelte";
-  import ConnectorMarket from "$components/global/ConnectorMarket.svelte";
-  import ConnectorHint from "$components/home/ConnectorHint.svelte";
+  import NavIcon from "#components/shell/NavIcon.svelte";
+  import ConnectorMarket from "#components/global/ConnectorMarket.svelte";
+  import ConnectorHint from "#components/home/ConnectorHint.svelte";
   import { authProblem, type MarketEntry, type UrlLookup } from "$lib/global/connector-market";
 
   type Tab = { id: string; url: string; title: string };

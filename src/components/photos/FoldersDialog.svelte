@@ -2,7 +2,7 @@
   import { untrack } from "svelte";
   import { open as openDialog } from "@tauri-apps/plugin-dialog";
   import { t } from "$lib/i18n";
-  import Modal from "$components/music/Modal.svelte";
+  import Modal from "#components/music/Modal.svelte";
   import type { Folder } from "$lib/photos/types";
 
   let {

@@ -10,12 +10,12 @@
   import { createSaver } from "$lib/icons/saver";
   import { RECOMMENDED, iconifyId, orderRecommended, relatedQuery, splitId } from "$lib/icons/sets";
   import type { IconData, IconSet, IconsError, Library, SavedIcon } from "$lib/icons/types";
-  import NavIcon from "$components/shell/NavIcon.svelte";
-  import IconGrid from "$components/icons/IconGrid.svelte";
-  import IconDetail, { type CopyKind, type DetailOpts } from "$components/icons/IconDetail.svelte";
-  import SetFilter, { type SetScope } from "$components/icons/SetFilter.svelte";
-  import LibraryView from "$components/icons/LibraryView.svelte";
-  import Glyph from "$components/icons/Glyph.svelte";
+  import NavIcon from "#components/shell/NavIcon.svelte";
+  import IconGrid from "#components/icons/IconGrid.svelte";
+  import IconDetail, { type CopyKind, type DetailOpts } from "#components/icons/IconDetail.svelte";
+  import SetFilter, { type SetScope } from "#components/icons/SetFilter.svelte";
+  import LibraryView from "#components/icons/LibraryView.svelte";
+  import Glyph from "#components/icons/Glyph.svelte";
 
   type Phase = "idle" | "loading" | "results" | "empty" | "error";
   type Tab = "search" | "library";

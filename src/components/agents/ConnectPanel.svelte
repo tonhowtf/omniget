@@ -5,13 +5,13 @@
   import { t } from "$lib/i18n";
   import { maskSnippet } from "$lib/mcp-servers";
   import { showToast } from "$lib/stores/toast-store.svelte";
-  import SettingGroup from "$components/settings/rebrand/SettingGroup.svelte";
+  import SettingGroup from "#components/settings/rebrand/SettingGroup.svelte";
   import AgentLogo from "./AgentLogo.svelte";
   import ServerConnections from "./ServerConnections.svelte";
   import McpAccess from "./McpAccess.svelte";
   import ConnectAnyAi from "./ConnectAnyAi.svelte";
-  import AdvancedDisclosure from "$components/settings/ai/AdvancedDisclosure.svelte";
-  import SettingsEmptyState from "$components/settings/rebrand/SettingsEmptyState.svelte";
+  import AdvancedDisclosure from "#components/settings/ai/AdvancedDisclosure.svelte";
+  import SettingsEmptyState from "#components/settings/rebrand/SettingsEmptyState.svelte";
 
   type Tool = { id: string; name: string; installed: boolean; connected: boolean; skill: boolean };
   type Status = { enabled: boolean; bridge_enabled: boolean; port: number; url: string; token: string; snippets: [string, string][] };

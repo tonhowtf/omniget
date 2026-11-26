@@ -1,5 +1,5 @@
 <script lang="ts">
-  import HomeHero from "$components/home/HomeHero.svelte";
+  import HomeHero from "#components/home/HomeHero.svelte";
   import { t } from "$lib/i18n";
 
   let { visible = false }: { visible?: boolean } = $props();
