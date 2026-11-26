@@ -5,8 +5,8 @@
   import { CATEGORIES, SUPERPOWERS, TAGS, type Superpower, type SuperpowerCategory } from "$lib/superpowers/catalog";
   import { MAX_RAIL_PINS, currentPins, togglePin } from "$lib/superpowers/pins";
   import { searchPowers } from "$lib/superpowers/search";
-  import { powerPatch } from "$components/settings/integrations/superpowers";
-  import NavIcon from "$components/shell/NavIcon.svelte";
+  import { powerPatch } from "#components/settings/integrations/superpowers.ts";
+  import NavIcon from "#components/shell/NavIcon.svelte";
 
   type Power = Superpower & {
     title: string;

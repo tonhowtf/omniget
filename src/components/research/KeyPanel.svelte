@@ -2,7 +2,7 @@
   import { t } from "$lib/i18n";
   import * as api from "$lib/research/api";
   import type { DevtoolsError } from "$lib/devtools/types";
-  import ErrorNotice from "$components/devtools/ErrorNotice.svelte";
+  import ErrorNotice from "#components/devtools/ErrorNotice.svelte";
 
   let { configured = $bindable(null), usageTick = 0 }: { configured?: boolean | null; usageTick?: number } = $props();
 

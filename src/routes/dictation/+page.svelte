@@ -4,11 +4,11 @@
   import * as api from "$lib/dictation/api";
   import { acceptState, errorKey, formatBytes, insertAt, isShortcutError, shortcutErrorKey, splitError, type ErrorAction } from "$lib/dictation/logic";
   import type { Device, Entry, ModelProgress, Settings, StateEvent, Status } from "$lib/dictation/types";
-  import NavIcon from "$components/shell/NavIcon.svelte";
-  import StateCard from "$components/dictation/StateCard.svelte";
-  import HistoryList from "$components/dictation/HistoryList.svelte";
-  import SettingsPanel from "$components/dictation/SettingsPanel.svelte";
-  import Icon from "$components/dictation/Icon.svelte";
+  import NavIcon from "#components/shell/NavIcon.svelte";
+  import StateCard from "#components/dictation/StateCard.svelte";
+  import HistoryList from "#components/dictation/HistoryList.svelte";
+  import SettingsPanel from "#components/dictation/SettingsPanel.svelte";
+  import Icon from "#components/dictation/Icon.svelte";
 
   const BARS = 40;
 

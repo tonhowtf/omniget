@@ -5,7 +5,7 @@
   import type { ReceiptSummary } from "$lib/washmybelly/api";
   import { errorText, formatBytes, formatDay, splitBytes } from "$lib/washmybelly/format";
   import { groupByDay } from "$lib/washmybelly/ui";
-  import { getSettings, saveSettings } from "$components/settings/settings-helpers";
+  import { getSettings, saveSettings } from "#components/settings/settings-helpers.ts";
   import { moduleById, type Caps } from "./registry";
   import ModuleHeader from "./ui/ModuleHeader.svelte";
   import EmptyState from "./ui/EmptyState.svelte";

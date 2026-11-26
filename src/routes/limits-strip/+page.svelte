@@ -5,9 +5,9 @@
   import { getCurrentWindow } from "@tauri-apps/api/window";
   import { t } from "$lib/i18n";
 
-  import LimitRing from "$components/limits-strip/LimitRing.svelte";
-  import { bot } from "$components/limits-strip/bot";
-  import { paceOf, paceSide } from "$components/limits-strip/pace";
+  import LimitRing from "#components/limits-strip/LimitRing.svelte";
+  import { bot } from "#components/limits-strip/bot.ts";
+  import { paceOf, paceSide } from "#components/limits-strip/pace.ts";
   import {
     arcs,
     bodyOf,
@@ -21,7 +21,7 @@
     type LocalModel,
     type Ring,
     type Snapshot,
-  } from "$components/limits-strip/limits";
+  } from "#components/limits-strip/limits.ts";
 
   let snap = $state<Snapshot>({ open: true, edge: "top", look: DEFAULT_LOOK, rings: [] });
   let openId = $state<string | null>(null);

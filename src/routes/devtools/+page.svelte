@@ -1,9 +1,9 @@
 <script lang="ts">
   import { page } from "$app/state";
   import { t } from "$lib/i18n";
-  import DevShell from "$components/devtools/DevShell.svelte";
-  import UtilPanel from "$components/devtools/UtilPanel.svelte";
-  import PortsPanel from "$components/devtools/PortsPanel.svelte";
+  import DevShell from "#components/devtools/DevShell.svelte";
+  import UtilPanel from "#components/devtools/UtilPanel.svelte";
+  import PortsPanel from "#components/devtools/PortsPanel.svelte";
 
   type Tab = "utilities" | "ports";
   const TABS: Tab[] = ["utilities", "ports"];

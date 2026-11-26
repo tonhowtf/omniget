@@ -5,7 +5,7 @@
   import { importFile } from "$lib/palette/importer";
   import { workspace } from "$lib/palette/workspace.svelte";
   import CopyButton from "./CopyButton.svelte";
-  import StatusIcon from "$components/converter/StatusIcon.svelte";
+  import StatusIcon from "#components/converter/StatusIcon.svelte";
 
   let project = $derived(workspace.project!);
   let format = $state<ExportFormat>("css");

@@ -7,7 +7,7 @@
   import { newId, uniqueToken } from "$lib/palette/project";
   import { workspace } from "$lib/palette/workspace.svelte";
   import CopyButton from "./CopyButton.svelte";
-  import StatusIcon from "$components/converter/StatusIcon.svelte";
+  import StatusIcon from "#components/converter/StatusIcon.svelte";
 
   let { dragging = false }: { dragging?: boolean } = $props();
 

@@ -5,8 +5,8 @@
   import { getSettings, updateSettings } from "$lib/stores/settings-store.svelte";
   import { completeOnboarding } from "$lib/stores/onboarding-store.svelte";
   import { refreshYtdlpStatus } from "$lib/stores/dependency-store.svelte";
-  import Mascot from "$components/mascot/Mascot.svelte";
-  import StepAiTools from "$components/central/onboarding/StepAiTools.svelte";
+  import Mascot from "#components/mascot/Mascot.svelte";
+  import StepAiTools from "#components/central/onboarding/StepAiTools.svelte";
 
   type DependencyStatus = {
     name: string;

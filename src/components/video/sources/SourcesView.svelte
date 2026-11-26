@@ -5,7 +5,7 @@
   import * as api from "$lib/video/api";
   import { goRoot } from "$lib/video/ui.svelte";
   import type { AddonInfo, AniViewer, SourceInfo, SourceKind } from "$lib/video/types";
-  import Modal from "$components/music/Modal.svelte";
+  import Modal from "#components/music/Modal.svelte";
   import Head from "../views/parts/Head.svelte";
   import Skel from "../views/parts/Skel.svelte";
   import VIcon from "../views/parts/VIcon.svelte";

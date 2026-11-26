@@ -8,11 +8,11 @@
   import { search, typeCounts } from "$lib/components/search";
   import { buildCommand, detectPackageManager, parseWrittenFiles, stripAnsi } from "$lib/components/command";
   import type { ItemSummary, OutputLine, ProjectInfo, RegistrySource } from "$lib/components/types";
-  import NavIcon from "$components/shell/NavIcon.svelte";
-  import StatusIcon from "$components/converter/StatusIcon.svelte";
-  import RegistryManager, { type SourceStatus } from "$components/registry-ui/RegistryManager.svelte";
-  import ItemDetail, { type DetailState, type RunState } from "$components/registry-ui/ItemDetail.svelte";
-  import TokensPanel from "$components/registry-ui/TokensPanel.svelte";
+  import NavIcon from "#components/shell/NavIcon.svelte";
+  import StatusIcon from "#components/converter/StatusIcon.svelte";
+  import RegistryManager, { type SourceStatus } from "#components/registry-ui/RegistryManager.svelte";
+  import ItemDetail, { type DetailState, type RunState } from "#components/registry-ui/ItemDetail.svelte";
+  import TokensPanel from "#components/registry-ui/TokensPanel.svelte";
 
   type Tab = "browse" | "registries" | "tokens";
 

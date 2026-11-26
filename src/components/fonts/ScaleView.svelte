@@ -6,7 +6,7 @@
   import { RATIOS, buildScale, num, toCssVariables, toTailwindTheme } from "$lib/fonts/scale";
   import type { Theme } from "$lib/fonts/sample";
   import FontPicker, { type PickerGroup } from "./FontPicker.svelte";
-  import StatusIcon from "$components/converter/StatusIcon.svelte";
+  import StatusIcon from "#components/converter/StatusIcon.svelte";
 
   let {
     font,

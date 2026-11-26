@@ -2,7 +2,7 @@
   import { onMount } from "svelte";
   import { t } from "$lib/i18n";
   import { showToast } from "$lib/stores/toast-store.svelte";
-  import SettingGroup from "$components/settings/rebrand/SettingGroup.svelte";
+  import SettingGroup from "#components/settings/rebrand/SettingGroup.svelte";
   import AgentLogo from "./AgentLogo.svelte";
   import {
     activateAccount,

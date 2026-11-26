@@ -28,12 +28,12 @@
     TranscribeProgress,
     Transcript,
   } from "$lib/studio/types";
-  import NavIcon from "$components/shell/NavIcon.svelte";
-  import StatusIcon from "$components/converter/StatusIcon.svelte";
-  import Preview from "$components/studio/Preview.svelte";
-  import TranscriptPanel, { type AsrState } from "$components/studio/TranscriptPanel.svelte";
-  import StylePanel from "$components/studio/StylePanel.svelte";
-  import FramePanel from "$components/studio/FramePanel.svelte";
+  import NavIcon from "#components/shell/NavIcon.svelte";
+  import StatusIcon from "#components/converter/StatusIcon.svelte";
+  import Preview from "#components/studio/Preview.svelte";
+  import TranscriptPanel, { type AsrState } from "#components/studio/TranscriptPanel.svelte";
+  import StylePanel from "#components/studio/StylePanel.svelte";
+  import FramePanel from "#components/studio/FramePanel.svelte";
 
   type Phase = "empty" | "probing" | "error" | "ready";
   type Tab = "captions" | "style" | "frame";

@@ -7,23 +7,23 @@
   import { currentOs } from "$lib/platform";
   import * as api from "$lib/washmybelly/api";
   import { errorText } from "$lib/washmybelly/format";
-  import { GROUP_ORDER, visibleModules, needsBadge, type Caps } from "$components/washmybelly/registry";
-  import EmptyState from "$components/washmybelly/ui/EmptyState.svelte";
-  import Icon from "$components/washmybelly/ui/Icon.svelte";
-  import OverviewModule from "$components/washmybelly/OverviewModule.svelte";
-  import CleanModule from "$components/washmybelly/CleanModule.svelte";
-  import DiskModule from "$components/washmybelly/DiskModule.svelte";
-  import UninstallModule from "$components/washmybelly/UninstallModule.svelte";
-  import StartupModule from "$components/washmybelly/StartupModule.svelte";
-  import PrivacyModule from "$components/washmybelly/PrivacyModule.svelte";
-  import TweaksModule from "$components/washmybelly/TweaksModule.svelte";
-  import PackagesModule from "$components/washmybelly/PackagesModule.svelte";
-  import PowerModule from "$components/washmybelly/PowerModule.svelte";
-  import GamesModule from "$components/washmybelly/GamesModule.svelte";
-  import PerfModule from "$components/washmybelly/PerfModule.svelte";
-  import SecurityModule from "$components/washmybelly/SecurityModule.svelte";
-  import MaintenanceModule from "$components/washmybelly/MaintenanceModule.svelte";
-  import ReceiptsModule from "$components/washmybelly/ReceiptsModule.svelte";
+  import { GROUP_ORDER, visibleModules, needsBadge, type Caps } from "#components/washmybelly/registry.ts";
+  import EmptyState from "#components/washmybelly/ui/EmptyState.svelte";
+  import Icon from "#components/washmybelly/ui/Icon.svelte";
+  import OverviewModule from "#components/washmybelly/OverviewModule.svelte";
+  import CleanModule from "#components/washmybelly/CleanModule.svelte";
+  import DiskModule from "#components/washmybelly/DiskModule.svelte";
+  import UninstallModule from "#components/washmybelly/UninstallModule.svelte";
+  import StartupModule from "#components/washmybelly/StartupModule.svelte";
+  import PrivacyModule from "#components/washmybelly/PrivacyModule.svelte";
+  import TweaksModule from "#components/washmybelly/TweaksModule.svelte";
+  import PackagesModule from "#components/washmybelly/PackagesModule.svelte";
+  import PowerModule from "#components/washmybelly/PowerModule.svelte";
+  import GamesModule from "#components/washmybelly/GamesModule.svelte";
+  import PerfModule from "#components/washmybelly/PerfModule.svelte";
+  import SecurityModule from "#components/washmybelly/SecurityModule.svelte";
+  import MaintenanceModule from "#components/washmybelly/MaintenanceModule.svelte";
+  import ReceiptsModule from "#components/washmybelly/ReceiptsModule.svelte";
 
   const VIEWS = {
     overview: OverviewModule,

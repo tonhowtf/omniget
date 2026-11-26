@@ -5,7 +5,7 @@ import * as api from "$lib/video/api";
 import { openPlayer } from "$lib/video/player.svelte";
 import { go } from "$lib/video/ui.svelte";
 import type { MediaItem, RootKind } from "$lib/video/types";
-import type { MenuItem } from "$components/music/ContextMenu.svelte";
+import type { MenuItem } from "#components/music/ContextMenu.svelte";
 import { errText } from "./util";
 
 const tr = (key: string, vars?: Record<string, unknown>) => get(t)(key, vars) as string;

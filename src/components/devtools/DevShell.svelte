@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { Snippet } from "svelte";
-  import NavIcon from "$components/shell/NavIcon.svelte";
+  import NavIcon from "#components/shell/NavIcon.svelte";
 
   let { icon, title, subtitle, busy = false, children }: { icon: string; title: string; subtitle: string; busy?: boolean; children: Snippet } = $props();
 </script>

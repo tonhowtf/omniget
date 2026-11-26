@@ -4,7 +4,7 @@
   import { convertFileSrc } from "@tauri-apps/api/core";
   import { t } from "$lib/i18n";
   import type { CanvasNode } from "$lib/canvas/model/types";
-  import Markdown from "$components/central/threads/Markdown.svelte";
+  import Markdown from "#components/central/threads/Markdown.svelte";
   import { ENGINE_KEY, type CanvasEngine } from "$lib/canvas/engine.svelte";
   import { linkAt, richMarkdown } from "$lib/canvas/notes/rich";
   import { copyText } from "$lib/canvas/notes/rich/clipboard";

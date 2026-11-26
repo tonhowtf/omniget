@@ -9,7 +9,7 @@
   import { openPlayer } from "$lib/video/player.svelte";
   import type { CourseSummary } from "$lib/video/types";
   import { go } from "$lib/video/ui.svelte";
-  import VIcon from "$components/video/player/VIcon.svelte";
+  import VIcon from "#components/video/player/VIcon.svelte";
   import ProgressRing from "./ProgressRing.svelte";
 
   let list = $state<CourseSummary[]>([]);

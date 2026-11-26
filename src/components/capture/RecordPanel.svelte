@@ -6,7 +6,7 @@
   import { formatBytes, formatElapsed, formatTimecode } from "$lib/capture/timecode";
   import { CONTAINERS, COUNTDOWN_SECONDS, FPS_CHOICES, QUALITIES, buildOptions, fileName, pickDefaultMic, type RegionDraft } from "$lib/capture/record";
   import type { Container, Platform, Quality, RecordOutcome, RecordingInfo, Sources } from "$lib/capture/types";
-  import StatusIcon from "$components/converter/StatusIcon.svelte";
+  import StatusIcon from "#components/converter/StatusIcon.svelte";
   import ErrorNotice from "./ErrorNotice.svelte";
 
   type Phase = "loading" | "ready" | "countdown" | "starting" | "recording" | "stopping" | "done";

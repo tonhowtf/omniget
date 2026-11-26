@@ -3,7 +3,7 @@
   import { showToast } from "$lib/stores/toast-store.svelte";
   import { fmtTime } from "$lib/video/format";
   import { player, saveCard } from "$lib/video/player.svelte";
-  import VIcon from "$components/video/player/VIcon.svelte";
+  import VIcon from "#components/video/player/VIcon.svelte";
 
   let saving = $state(false);
   let frontEl: HTMLTextAreaElement | undefined = $state();

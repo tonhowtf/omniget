@@ -2,7 +2,7 @@
   import type { Snippet } from "svelte";
   import { t } from "$lib/i18n";
   import type { DevtoolsError } from "$lib/devtools/types";
-  import StatusIcon from "$components/converter/StatusIcon.svelte";
+  import StatusIcon from "#components/converter/StatusIcon.svelte";
 
   let { error, children }: { error: DevtoolsError; children?: Snippet } = $props();
 </script>

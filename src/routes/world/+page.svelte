@@ -1,7 +1,7 @@
 <script lang="ts">
   import { t } from "$lib/i18n";
   import { getSettings } from "$lib/stores/settings-store.svelte";
-  import Canvas from "$components/canvas/Canvas.svelte";
+  import Canvas from "#components/canvas/Canvas.svelte";
   import { lastWorkspaceId } from "$lib/canvas/palette/navigate";
 
   let enabled = $derived(getSettings()?.world?.enabled ?? true);

@@ -20,7 +20,7 @@
   import { t } from "$lib/i18n";
   import { errorKey } from "$lib/components/errors";
   import type { BuiltCommand, ItemSummary, RegistrySource } from "$lib/components/types";
-  import StatusIcon from "$components/converter/StatusIcon.svelte";
+  import StatusIcon from "#components/converter/StatusIcon.svelte";
   import CodeViewer from "./CodeViewer.svelte";
   import CopyButton from "./CopyButton.svelte";
 

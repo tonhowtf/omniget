@@ -3,10 +3,10 @@
   import { t } from "$lib/i18n";
   import * as api from "$lib/capture/api";
   import type { HistoryEntry, Platform } from "$lib/capture/types";
-  import NavIcon from "$components/shell/NavIcon.svelte";
-  import RecordPanel from "$components/capture/RecordPanel.svelte";
-  import CutPanel from "$components/capture/CutPanel.svelte";
-  import HistoryPanel from "$components/capture/HistoryPanel.svelte";
+  import NavIcon from "#components/shell/NavIcon.svelte";
+  import RecordPanel from "#components/capture/RecordPanel.svelte";
+  import CutPanel from "#components/capture/CutPanel.svelte";
+  import HistoryPanel from "#components/capture/HistoryPanel.svelte";
 
   type Tab = "record" | "cut";
 

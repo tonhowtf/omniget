@@ -4,7 +4,7 @@
   import * as api from "$lib/video/api";
   import { fmtTime } from "$lib/video/format";
   import type { Card } from "$lib/video/types";
-  import VIcon from "$components/video/player/VIcon.svelte";
+  import VIcon from "#components/video/player/VIcon.svelte";
 
   let tab = $state<"review" | "all">("review");
   let due = $state<Card[]>([]);

@@ -4,8 +4,8 @@
   import { WORKFLOWS, buildArgs, evidenceOnly, initialValues, tablesFor, toMarkdown, visibleFields } from "$lib/research/workflows";
   import type { Result, Table, Workflow, WorkflowId } from "$lib/research/types";
   import type { DevtoolsError } from "$lib/devtools/types";
-  import ErrorNotice from "$components/devtools/ErrorNotice.svelte";
-  import CopyButton from "$components/palette/CopyButton.svelte";
+  import ErrorNotice from "#components/devtools/ErrorNotice.svelte";
+  import CopyButton from "#components/palette/CopyButton.svelte";
   import EvidenceTable from "./EvidenceTable.svelte";
 
   let { ready, onran }: { ready: boolean; onran: () => void } = $props();

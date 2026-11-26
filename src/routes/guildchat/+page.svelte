@@ -3,7 +3,7 @@
   import { t } from "$lib/i18n";
   import { getSettings } from "$lib/stores/settings-store.svelte";
   import { showToast } from "$lib/stores/toast-store.svelte";
-  import NavIcon from "$components/shell/NavIcon.svelte";
+  import NavIcon from "#components/shell/NavIcon.svelte";
   import TgIcon from "$lib/telegram/TgIcon.svelte";
   import SignIn from "$lib/guildchat/SignIn.svelte";
   import TosNotice from "$lib/guildchat/TosNotice.svelte";

@@ -335,7 +335,7 @@ function resolveModule(fromAbs, spec) {
   let base;
   if (spec.startsWith("$lib/")) base = join(ROOT, "src", "lib", spec.slice(5));
   else if (spec === "$lib") base = join(ROOT, "src", "lib");
-  else if (spec.startsWith("$components/")) base = join(ROOT, "src", "components", spec.slice(12));
+  else if (spec.startsWith("#components/")) base = join(ROOT, "src", "components", spec.slice(12));
   else if (spec.startsWith(".")) base = resolve(dirname(fromAbs), spec);
   else return null;
   const cands = [base, `${base}.ts`, `${base}.js`, `${base}.svelte.ts`, `${base}.svelte`, join(base, "index.ts"), join(base, "index.js")];

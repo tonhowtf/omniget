@@ -16,12 +16,12 @@
     type RowStatus,
   } from "$lib/converter/plan";
   import type { ConvertOptions, ConvertOutcome, FormatInfo, InspectResult, ProgressEvent, RunItem, ToolStatus, VectorPreset } from "$lib/converter/types";
-  import NavIcon from "$components/shell/NavIcon.svelte";
-  import FileRow from "$components/converter/FileRow.svelte";
-  import TargetPicker from "$components/converter/TargetPicker.svelte";
-  import OptionsPanel, { type ConverterOpts } from "$components/converter/OptionsPanel.svelte";
-  import StatusIcon from "$components/converter/StatusIcon.svelte";
-  import VectorStyle from "$components/converter/VectorStyle.svelte";
+  import NavIcon from "#components/shell/NavIcon.svelte";
+  import FileRow from "#components/converter/FileRow.svelte";
+  import TargetPicker from "#components/converter/TargetPicker.svelte";
+  import OptionsPanel, { type ConverterOpts } from "#components/converter/OptionsPanel.svelte";
+  import StatusIcon from "#components/converter/StatusIcon.svelte";
+  import VectorStyle from "#components/converter/VectorStyle.svelte";
 
   type Phase = "empty" | "inspecting" | "ready" | "converting" | "done";
 

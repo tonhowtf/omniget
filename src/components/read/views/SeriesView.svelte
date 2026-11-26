@@ -9,7 +9,7 @@
   import Cover from "../Cover.svelte";
   import { agentActions } from "$lib/native-agent/actions";
   import ReadIcon from "../ReadIcon.svelte";
-  import Modal from "$components/music/Modal.svelte";
+  import Modal from "#components/music/Modal.svelte";
 
   let { id }: { id: number } = $props();
 

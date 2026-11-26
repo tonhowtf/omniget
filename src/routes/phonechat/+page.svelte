@@ -2,7 +2,7 @@
   import { onDestroy, onMount } from "svelte";
   import { t } from "$lib/i18n";
   import { getSettings } from "$lib/stores/settings-store.svelte";
-  import NavIcon from "$components/shell/NavIcon.svelte";
+  import NavIcon from "#components/shell/NavIcon.svelte";
   import * as api from "$lib/phonechat/api";
   import type { WaChat } from "$lib/phonechat/api";
   import { attach, detach, refreshStatus, wa } from "$lib/phonechat/session.svelte";
