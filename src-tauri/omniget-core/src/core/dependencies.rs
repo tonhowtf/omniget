@@ -853,6 +853,10 @@ pub async fn ensure_js_runtime() -> Option<PathBuf> {
         }
     }
 
+    if is_flatpak() {
+        return None;
+    }
+
     match download_deno().await {
         Ok(path) => {
             crate::core::ytdlp::reset_js_runtime_cache();
@@ -940,6 +944,9 @@ pub async fn ensure_gallerydl() -> Option<PathBuf> {
     }
     if let Some(path) = find_tool("gallery-dl").await {
         return Some(path);
+    }
+    if is_flatpak() {
+        return None;
     }
 
     match download_gallerydl().await {
