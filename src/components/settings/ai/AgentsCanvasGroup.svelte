@@ -2,10 +2,10 @@
   import { onMount } from "svelte";
   import { t } from "$lib/i18n";
   import { canvasPrefs, watchCanvasPrefs, type CanvasPrefs } from "$lib/canvas/prefs.svelte";
-  import SettingGroup from "$components/settings/rebrand/SettingGroup.svelte";
-  import SettingRow from "$components/settings/rebrand/SettingRow.svelte";
-  import GeneralChoice from "$components/settings/rebrand/GeneralChoice.svelte";
-  import AgentLogo from "$components/agents/AgentLogo.svelte";
+  import SettingGroup from "#components/settings/rebrand/SettingGroup.svelte";
+  import SettingRow from "#components/settings/rebrand/SettingRow.svelte";
+  import GeneralChoice from "#components/settings/rebrand/GeneralChoice.svelte";
+  import AgentLogo from "#components/agents/AgentLogo.svelte";
   import AdvancedDisclosure from "./AdvancedDisclosure.svelte";
   import { agentChoices } from "./ai-settings";
   import { canvasSaving, saveCanvas } from "./canvas-save.svelte";

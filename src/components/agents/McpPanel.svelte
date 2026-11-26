@@ -3,7 +3,7 @@
   import { t } from "$lib/i18n";
   import { MCP_REGISTRY, blankServer, mcpErrorKey, parseClientConfig, templateOf, type McpRegistryEntry, type McpServerConfig, type McpServerRow } from "$lib/mcp-servers";
   import { getErrorKey, getServers, getTestResult, getTestingId, isLoading, loadServers, removeServer, saveServer, testServer } from "$lib/stores/mcp-servers-store.svelte";
-  import SettingGroup from "$components/settings/rebrand/SettingGroup.svelte";
+  import SettingGroup from "#components/settings/rebrand/SettingGroup.svelte";
   import AgentLogo from "./AgentLogo.svelte";
   import ServerForm from "./ServerForm.svelte";
 

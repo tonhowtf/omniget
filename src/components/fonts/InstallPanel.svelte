@@ -7,7 +7,7 @@
   import { hasFullFiles, pickSubset, plannedCount, subsetKey, subsetOptions } from "$lib/fonts/install";
   import { licenseName, licenseUrl } from "$lib/fonts/license";
   import type { CatalogFont, FontDetails, InstallOutcome, InstallProgress } from "$lib/fonts/types";
-  import StatusIcon, { type StatusIconName } from "$components/converter/StatusIcon.svelte";
+  import StatusIcon, { type StatusIconName } from "#components/converter/StatusIcon.svelte";
 
   let {
     font,

@@ -8,9 +8,9 @@
   import { FileConflict, baseName, fileSource, filesDefinition, filesGitDiff, joinPath, relativeTo, type FileText } from "$lib/canvas/files/api";
   import { showInEditor } from "$lib/canvas/files/open";
   import { workspaces } from "$lib/canvas/palette/workspaces.svelte";
-  import { highlightLine, type HlState } from "$components/central/vcs/highlight";
-  import { languageOf } from "$components/central/vcs/diff-model";
-  import DiffViewer from "$components/central/vcs/DiffViewer.svelte";
+  import { highlightLine, type HlState } from "#components/central/vcs/highlight.ts";
+  import { languageOf } from "#components/central/vcs/diff-model.ts";
+  import DiffViewer from "#components/central/vcs/DiffViewer.svelte";
   import type { FileDiff } from "$lib/central/vcs";
   import FileNode from "../FileNode.svelte";
 

@@ -3,7 +3,7 @@
   import { invoke } from "@tauri-apps/api/core";
   import { listen, type UnlistenFn } from "@tauri-apps/api/event";
   import { t } from "$lib/i18n";
-  import { paceSide } from "$components/limits-strip/pace";
+  import { paceSide } from "#components/limits-strip/pace.ts";
 
   type Win = {
     id: string;

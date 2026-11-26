@@ -6,7 +6,7 @@
   import { formatBytes } from "$lib/download-format";
   import { baseName, joinPath, parentDir, pdfName, plural, samePath } from "$lib/pdf/pages";
   import type { PageSize, SavedFile } from "$lib/pdf/types";
-  import StatusIcon from "$components/converter/StatusIcon.svelte";
+  import StatusIcon from "#components/converter/StatusIcon.svelte";
 
   let { onbusy }: { onbusy?: (busy: boolean) => void } = $props();
 

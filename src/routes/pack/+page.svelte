@@ -7,10 +7,10 @@
   import { pluralKey } from "$lib/home/plural";
   import { budgetMeter, excludedRows, parseBudget, parseGlobs } from "$lib/devtools/helpers";
   import type { DevtoolsError, PackBuilt, PackPlan, PackRequest } from "$lib/devtools/types";
-  import DevShell from "$components/devtools/DevShell.svelte";
-  import ErrorNotice from "$components/devtools/ErrorNotice.svelte";
-  import CopyButton from "$components/palette/CopyButton.svelte";
-  import StatusIcon from "$components/converter/StatusIcon.svelte";
+  import DevShell from "#components/devtools/DevShell.svelte";
+  import ErrorNotice from "#components/devtools/ErrorNotice.svelte";
+  import CopyButton from "#components/palette/CopyButton.svelte";
+  import StatusIcon from "#components/converter/StatusIcon.svelte";
 
   let path = $state("");
   let include = $state("");

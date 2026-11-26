@@ -1,8 +1,8 @@
 <script lang="ts">
   import { t } from "$lib/i18n";
-  import { getSettings, saveSettings } from "$components/settings/settings-helpers";
-  import SettingGroup from "$components/settings/rebrand/SettingGroup.svelte";
-  import SettingRow from "$components/settings/rebrand/SettingRow.svelte";
+  import { getSettings, saveSettings } from "#components/settings/settings-helpers.ts";
+  import SettingGroup from "#components/settings/rebrand/SettingGroup.svelte";
+  import SettingRow from "#components/settings/rebrand/SettingRow.svelte";
   import { POWER_IDS, powerEnabled, powerPatch } from "./superpowers";
 
   let settings = $derived(getSettings());

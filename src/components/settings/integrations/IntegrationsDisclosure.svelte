@@ -1,7 +1,7 @@
 <script lang="ts">
   import type { Snippet } from "svelte";
   import { t } from "$lib/i18n";
-  import SettingsIcon from "$components/settings/rebrand/SettingsIcon.svelte";
+  import SettingsIcon from "#components/settings/rebrand/SettingsIcon.svelte";
 
   let { id, children }: { id: string; children: Snippet } = $props();
 

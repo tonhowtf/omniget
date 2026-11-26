@@ -27,7 +27,7 @@
   } from "$lib/pdf/pages";
   import { Thumbs } from "$lib/pdf/thumbs";
   import type { OutputPlan, PdfInfo, SavedFile } from "$lib/pdf/types";
-  import StatusIcon from "$components/converter/StatusIcon.svelte";
+  import StatusIcon from "#components/converter/StatusIcon.svelte";
   import PageGrid from "./PageGrid.svelte";
   import SplitPanel from "./SplitPanel.svelte";
 

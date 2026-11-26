@@ -10,18 +10,18 @@
   import { listen, type UnlistenFn } from "@tauri-apps/api/event";
   import { t } from "$lib/i18n";
   import { getSettings } from "$lib/stores/settings-store.svelte";
-  import OverviewTab from "$components/league/OverviewTab.svelte";
-  import AnalysisTab from "$components/league/AnalysisTab.svelte";
-  import MetaTab from "$components/league/MetaTab.svelte";
-  import SearchTab from "$components/league/SearchTab.svelte";
-  import LiveTab from "$components/league/LiveTab.svelte";
-  import GoalsTab from "$components/league/GoalsTab.svelte";
-  import AutomationTab from "$components/league/AutomationTab.svelte";
-  import HistoryTab from "$components/league/HistoryTab.svelte";
-  import ProfileTab from "$components/league/ProfileTab.svelte";
-  import CoachTab from "$components/league/CoachTab.svelte";
-  import type { Champion, GoalKey, LobbyQueue, RankedEntry, Role, ScoutPlayer } from "$components/league/shared";
-  import type { Platform } from "$components/league/registry";
+  import OverviewTab from "#components/league/OverviewTab.svelte";
+  import AnalysisTab from "#components/league/AnalysisTab.svelte";
+  import MetaTab from "#components/league/MetaTab.svelte";
+  import SearchTab from "#components/league/SearchTab.svelte";
+  import LiveTab from "#components/league/LiveTab.svelte";
+  import GoalsTab from "#components/league/GoalsTab.svelte";
+  import AutomationTab from "#components/league/AutomationTab.svelte";
+  import HistoryTab from "#components/league/HistoryTab.svelte";
+  import ProfileTab from "#components/league/ProfileTab.svelte";
+  import CoachTab from "#components/league/CoachTab.svelte";
+  import type { Champion, GoalKey, LobbyQueue, RankedEntry, Role, ScoutPlayer } from "#components/league/shared.ts";
+  import type { Platform } from "#components/league/registry.ts";
 
   type LeagueStatus = { connected: boolean; port: number | null; region: string | null };
 

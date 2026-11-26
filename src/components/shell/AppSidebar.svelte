@@ -1,8 +1,8 @@
 <script lang="ts">
   import { page } from "$app/state";
   import { t } from "$lib/i18n";
-  import NavIcon from "$components/shell/NavIcon.svelte";
-  import Avatar from "$components/omni/Avatar.svelte";
+  import NavIcon from "#components/shell/NavIcon.svelte";
+  import Avatar from "#components/omni/Avatar.svelte";
   import { getProfile, loadProfile } from "$lib/stores/profile-store.svelte";
   import { activeNavHref, type NavItem } from "$lib/nav-config";
   import { isMac } from "$lib/platform";

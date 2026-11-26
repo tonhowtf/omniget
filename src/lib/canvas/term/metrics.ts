@@ -1,4 +1,4 @@
-import { terminalFont } from '$components/central/terminal/theme';
+import { terminalFont } from '#components/central/terminal/theme.ts';
 import { canvasPrefs } from '../prefs.svelte';
 
 export const TERM_FONT_SIZE = 13;

@@ -5,7 +5,7 @@
   import { scaleOf } from "$lib/palette/project";
   import { workspace } from "$lib/palette/workspace.svelte";
   import ColorField from "./ColorField.svelte";
-  import StatusIcon from "$components/converter/StatusIcon.svelte";
+  import StatusIcon from "#components/converter/StatusIcon.svelte";
 
   let project = $derived(workspace.project!);
   let text = $derived(project.contrast.text);

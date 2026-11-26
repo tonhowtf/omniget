@@ -5,7 +5,7 @@
   import { t, locale } from "$lib/i18n";
   import { getSettings } from "$lib/stores/settings-store.svelte";
   import { showToast } from "$lib/stores/toast-store.svelte";
-  import NavIcon from "$components/shell/NavIcon.svelte";
+  import NavIcon from "#components/shell/NavIcon.svelte";
   import PostCard from "./PostCard.svelte";
   import SocialIcon from "./SocialIcon.svelte";
   import AudienceTab from "./AudienceTab.svelte";

@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onDestroy } from "svelte";
   import { t } from "$lib/i18n";
-  import { getSettings, saveSettings } from "$components/settings/settings-helpers";
+  import { getSettings, saveSettings } from "#components/settings/settings-helpers.ts";
   import { HOLD_CHOICES, formatCountdown, holdProgress, remainingSecs, type HoldState } from "$lib/washmybelly/power";
 
   let {

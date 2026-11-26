@@ -4,7 +4,7 @@
   import { errorKey } from "$lib/components/errors";
   import { applyVars, buildVars, cssSnippet, flattenDtcg, hunks, lineDiff, suggestMapping, type DiffHunk, type FlatToken, type MappingRow } from "$lib/components/tokens";
   import type { ProjectInfo } from "$lib/components/types";
-  import StatusIcon from "$components/converter/StatusIcon.svelte";
+  import StatusIcon from "#components/converter/StatusIcon.svelte";
   import CopyButton from "./CopyButton.svelte";
   import DiffView from "./DiffView.svelte";
 

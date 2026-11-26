@@ -1,9 +1,9 @@
 <script lang="ts">
   import { t } from "$lib/i18n";
   import { player, setPanel, togglePanel, type PanelTab } from "$lib/video/player.svelte";
-  import AskTab from "$components/video/study/AskTab.svelte";
-  import NotesTab from "$components/video/study/NotesTab.svelte";
-  import TranscriptTab from "$components/video/study/TranscriptTab.svelte";
+  import AskTab from "#components/video/study/AskTab.svelte";
+  import NotesTab from "#components/video/study/NotesTab.svelte";
+  import TranscriptTab from "#components/video/study/TranscriptTab.svelte";
   import LessonsTab from "./LessonsTab.svelte";
   import VIcon from "./VIcon.svelte";
 

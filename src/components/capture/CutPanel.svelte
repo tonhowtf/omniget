@@ -24,7 +24,7 @@
     type Segment,
   } from "$lib/capture/segments";
   import type { ExportEvent, ExportMode, Platform, ProbeResult, Span } from "$lib/capture/types";
-  import StatusIcon from "$components/converter/StatusIcon.svelte";
+  import StatusIcon from "#components/converter/StatusIcon.svelte";
   import ErrorNotice from "./ErrorNotice.svelte";
   import Timeline from "./Timeline.svelte";
   import SegmentList from "./SegmentList.svelte";

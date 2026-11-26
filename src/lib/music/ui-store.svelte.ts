@@ -2,7 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { get } from "svelte/store";
 import { t } from "$lib/i18n";
 import { showToast } from "$lib/stores/toast-store.svelte";
-import type { MenuItem } from "$components/music/ContextMenu.svelte";
+import type { MenuItem } from "#components/music/ContextMenu.svelte";
 import { albumKey } from "./library";
 import { patchTracksLocal, removeTracksLocal, trackById } from "./library-store.svelte";
 import { enqueue, playTracks } from "./player-store.svelte";

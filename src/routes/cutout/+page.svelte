@@ -30,8 +30,8 @@
   } from "$lib/cutout/plan";
   import type { Background, Click, Edge, OutputFormat, Preview, ProgressEvent, Status } from "$lib/cutout/types";
   import Compare from "$lib/cutout/Compare.svelte";
-  import NavIcon from "$components/shell/NavIcon.svelte";
-  import StatusIcon from "$components/converter/StatusIcon.svelte";
+  import NavIcon from "#components/shell/NavIcon.svelte";
+  import StatusIcon from "#components/converter/StatusIcon.svelte";
 
   type Phase = "empty" | "inspecting" | "ready" | "cutting" | "done";
   type BgKind = Background["kind"];

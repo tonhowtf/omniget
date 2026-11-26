@@ -5,13 +5,13 @@
   import * as api from "$lib/photos/api";
   import { filterPhotos, formatBytes, groupPhotos, rangeSelect, type GroupBy } from "$lib/photos/plan";
   import type { ExportOptions, ExportProgress, FileReport, Folders, IndexProgress, Photo, RemoveMode } from "$lib/photos/types";
-  import NavIcon from "$components/shell/NavIcon.svelte";
-  import PhotoTile from "$components/photos/PhotoTile.svelte";
-  import Editor from "$components/photos/Editor.svelte";
-  import ExportDialog from "$components/photos/ExportDialog.svelte";
-  import RemoveDialog from "$components/photos/RemoveDialog.svelte";
-  import FoldersDialog from "$components/photos/FoldersDialog.svelte";
-  import Duplicates from "$components/photos/Duplicates.svelte";
+  import NavIcon from "#components/shell/NavIcon.svelte";
+  import PhotoTile from "#components/photos/PhotoTile.svelte";
+  import Editor from "#components/photos/Editor.svelte";
+  import ExportDialog from "#components/photos/ExportDialog.svelte";
+  import RemoveDialog from "#components/photos/RemoveDialog.svelte";
+  import FoldersDialog from "#components/photos/FoldersDialog.svelte";
+  import Duplicates from "#components/photos/Duplicates.svelte";
 
   type Tab = "library" | "duplicates";
   type ExportRun = { batchId: string; total: number; done: number; failed: number; output: string | null; finished: boolean; stopping: boolean };

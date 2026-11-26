@@ -15,6 +15,7 @@
 
   let inputEl = $state<HTMLInputElement | null>(null);
   let listEl = $state<HTMLDivElement | null>(null);
+  let paletteEl = $state<HTMLDivElement | null>(null);
   let returnFocus: HTMLElement | null = null;
 
   let open = $derived(isCommandPaletteOpen());
@@ -78,6 +79,18 @@
     }
     const active = document.activeElement;
     if (active && active !== document.body && !active.closest(".mac-command-palette")) return;
+    if (e.key === "Tab" && paletteEl) {
+      const els = [...paletteEl.querySelectorAll<HTMLElement>("input, button")];
+      const i = els.indexOf(active as HTMLElement);
+      if (e.shiftKey && i <= 0) {
+        e.preventDefault();
+        els[els.length - 1].focus();
+      } else if (!e.shiftKey && (i === -1 || i === els.length - 1)) {
+        e.preventDefault();
+        els[0].focus();
+      }
+      return;
+    }
     if (e.key === "ArrowDown") {
       e.preventDefault();
       moveCommandPaletteSelection(1, filtered.length);
@@ -139,7 +152,7 @@
 
 {#if open}
   <div class="mac-command-backdrop" role="presentation" onclick={(e) => e.target === e.currentTarget && dismiss()}>
-    <div class="mac-command-palette" role="dialog" tabindex="-1" aria-label={$t("command_palette.open")}>
+    <div class="mac-command-palette" role="dialog" tabindex="-1" bind:this={paletteEl} aria-label={$t("command_palette.open")}>
       <div class="mac-command-input-row">
         <svg viewBox="0 0 20 20" width="18" height="18" fill="currentColor" aria-hidden="true">
           <path d="M8.5 2.5a6 6 0 1 0 3.67 10.74l3.8 3.79a1 1 0 0 0 1.41-1.41l-3.79-3.8A6 6 0 0 0 8.5 2.5zM4.5 8.5a4 4 0 1 1 8 0 4 4 0 0 1-8 0z" />

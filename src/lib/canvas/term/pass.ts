@@ -1,4 +1,4 @@
-import { terminalTheme } from '$components/central/terminal/theme';
+import { terminalTheme } from '#components/central/terminal/theme.ts';
 import { canvasPrefs, faithfulRendering } from '../prefs.svelte';
 import { loadUserSchemes, schemeTheme } from './themes';
 import { TermAtlas } from './atlas';

@@ -2,7 +2,7 @@
   import { onMount, onDestroy } from "svelte";
   import { t } from "$lib/i18n";
   import { getSettings } from "$lib/stores/settings-store.svelte";
-  import NavIcon from "$components/shell/NavIcon.svelte";
+  import NavIcon from "#components/shell/NavIcon.svelte";
   import StatusStrip from "$lib/telegram/StatusStrip.svelte";
   import ConnectWizard from "$lib/telegram/ConnectWizard.svelte";
   import ConnectionPanel from "$lib/telegram/ConnectionPanel.svelte";

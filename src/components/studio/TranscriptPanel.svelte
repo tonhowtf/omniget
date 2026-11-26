@@ -19,7 +19,7 @@
     splitAt,
   } from "$lib/studio/subtitles";
   import type { AsrStatus, Segment } from "$lib/studio/types";
-  import StatusIcon from "$components/converter/StatusIcon.svelte";
+  import StatusIcon from "#components/converter/StatusIcon.svelte";
 
   let {
     segments = $bindable(),

@@ -82,15 +82,17 @@ export default defineConfig(({ command }) => {
         adapter: adapter({
           fallback: "index.html",
         }),
-        alias: {
-          "$lib": "src/lib",
-          "$components": "src/components",
-        },
         version: {
           pollInterval: 0,
         },
       }),
     ],
+
+    resolve: {
+      alias: {
+        $lib: path.join(configDir, "src", "lib"),
+      },
+    },
 
     define: {
       __COMMIT_HASH__: JSON.stringify(gitInfo.hash),

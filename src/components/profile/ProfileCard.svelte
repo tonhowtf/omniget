@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onDestroy } from "svelte";
   import { t } from "$lib/i18n";
-  import Avatar from "$components/omni/Avatar.svelte";
+  import Avatar from "#components/omni/Avatar.svelte";
   import { showToast } from "$lib/stores/toast-store.svelte";
   import {
     copyFingerprint,

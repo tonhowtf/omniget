@@ -2,7 +2,7 @@
   import { onMount } from "svelte";
   import { listen } from "@tauri-apps/api/event";
   import { t } from "$lib/i18n";
-  import ApprovalDialog from "$components/shell/ApprovalDialog.svelte";
+  import ApprovalDialog from "#components/shell/ApprovalDialog.svelte";
   import { tg3, errText, formatBytes, type ApprovalRequest } from "./api";
 
   const TOOLS = ["tg_send_message", "tg_send_files", "tg_forward", "tg_delete_messages"];

@@ -34,8 +34,8 @@
     togglePip,
     tryFallback,
   } from "$lib/video/player.svelte";
-  import CardComposer from "$components/video/study/CardComposer.svelte";
-  import CastPicker from "$components/video/views/CastPicker.svelte";
+  import CardComposer from "#components/video/study/CardComposer.svelte";
+  import CastPicker from "#components/video/views/CastPicker.svelte";
   import Controls from "./Controls.svelte";
   import InfoPanel from "./InfoPanel.svelte";
   import NextUp from "./NextUp.svelte";
