@@ -53,6 +53,31 @@
   let info = $derived(sources.find((s) => s.id === current));
   let books = $derived(sources.filter((s) => s.kind === "book"));
   let manga = $derived(sources.filter((s) => s.kind === "manga"));
+  let activeKind = $derived<"book" | "manga">(info?.kind === "manga" ? "manga" : "book");
+  let visibleSources = $derived(activeKind === "manga" ? manga : books);
+
+  function switchKind(kind: "book" | "manga") {
+    const list = kind === "manga" ? manga : books;
+    if (list.length && activeKind !== kind) {
+      pick(list[0].id);
+    }
+  }
+
+  async function jumpFolder(idx: number) {
+    const target = folderStack[idx];
+    if (!target) return;
+    loading = true;
+    try {
+      const p = await invoke<Page>("read_opds_open", { source: current, url: target.url });
+      folderStack = folderStack.slice(0, idx + 1);
+      hits = p.hits;
+      next = p.next;
+    } catch (e) {
+      showToast("error", String(e));
+    } finally {
+      loading = false;
+    }
+  }
 
   const LANGS = ["en", "pt", "pt-br", "es", "fr", "de", "it", "ja", "ko", "zh", "ru", "id", "vi", "th"];
 
@@ -161,14 +186,11 @@
 </div>
 
 <div class="srcs">
-  <span class="lbl">{$t("read.browse.books")}</span>
-  {#each books as s (s.id)}
-    <button class="r-chip" data-agent-actions="click" use:agentActions={["click"]} class:on={current === s.id} onclick={() => pick(s.id)}>{s.name}</button>
-  {/each}
-</div>
-<div class="srcs">
-  <span class="lbl">{$t("read.browse.manga")}</span>
-  {#each manga as s (s.id)}
+  <div class="mac-segmented">
+    <button type="button" class="mac-segmented-btn" class:active={activeKind === "book"} onclick={() => switchKind("book")}>{$t("read.browse.books")}</button>
+    <button type="button" class="mac-segmented-btn" class:active={activeKind === "manga"} onclick={() => switchKind("manga")}>{$t("read.browse.manga")}</button>
+  </div>
+  {#each visibleSources as s (s.id)}
     <button class="r-chip" data-agent-actions="click" use:agentActions={["click"]} class:on={current === s.id} onclick={() => pick(s.id)}>
       {#if s.icon}<img src={s.icon} alt="" width="14" height="14" />{/if}{s.name}{#if s.lang && s.lang !== "all"} <em>{s.lang}</em>{/if}
     </button>
@@ -198,10 +220,10 @@
   <summary>{$t("read.browse.languages")}{langs.length ? `: ${langs.join(", ")}` : ""}</summary>
   <div class="r-line">
     {#each LANGS as l (l)}
-      <button class="r-chip" class:on={langs.includes(l)} onclick={() => (langs = langs.includes(l) ? langs.filter((x) => x !== l) : [...langs, l])}>{l}</button>
+      <button class="r-chip" class:on={langs.includes(l)} onclick={() => { langs = langs.includes(l) ? langs.filter((x) => x !== l) : [...langs, l]; void run(true); }}>{l}</button>
     {/each}
     {#if info?.kind === "manga"}
-      <label class="r-chip"><input type="checkbox" bind:checked={nsfw} /> {$t("read.browse.nsfw")}</label>
+      <label class="r-chip"><input type="checkbox" bind:checked={nsfw} onchange={() => void run(true)} /> {$t("read.browse.nsfw")}</label>
     {/if}
   </div>
 </details>
@@ -212,7 +234,7 @@
 {#if folderStack.length}
   <div class="r-line crumbs">
     <button class="r-chip" onclick={() => run(true)}>{srcName(current)}</button>
-    {#each folderStack as f, i (i)}<ReadIcon name="right" size={12} /><span>{f.title}</span>{/each}
+    {#each folderStack as f, i (i)}<ReadIcon name="right" size={12} /><button class="r-chip" onclick={() => jumpFolder(i)}>{f.title}</button>{/each}
   </div>
 {/if}
 
@@ -264,14 +286,6 @@
     align-items: center;
     gap: 6px;
     margin-bottom: 8px;
-  }
-  .srcs .lbl {
-    width: 64px;
-    font-size: var(--text-xs);
-    font-weight: 650;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    color: var(--text-muted);
   }
   .srcs img {
     border-radius: 3px;

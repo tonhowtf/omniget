@@ -11,6 +11,7 @@
     const path = page.url.pathname;
     if (path === "/") return "";
     if (path.startsWith("/downloads")) return $t("nav.downloads");
+    if (path.startsWith("/global")) return $t("nav.global");
     if (path.startsWith("/superpowers")) return $t("nav.superpowers");
     if (path.startsWith("/settings")) return $t("nav.settings");
     if (path.startsWith("/community")) return $t("nav.community");

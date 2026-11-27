@@ -2,7 +2,7 @@
   "manifest_version": "0.3",
   "name": "omniget-mcp",
   "display_name": "OmniGet",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Desktop toolbox for coding agents: downloads, files, pages, ports, chats and cleanup, in OmniGet",
   "long_description": "Gives the assistant OmniGet's desktop toolbox: queue downloads, follow them to the end and read why one failed, drive the built-in browser, convert files, pack a folder into one prompt-ready file, and see what your OmniGet agents are working on. Everything runs in the OmniGet desktop app on your computer: install it from https://getomniget.com, open **Settings → AI & agents → Connect to other apps → More options** and create a connection. Paste its token below. Without the app running, or without a token, every call explains what is missing. Linux builds are x86_64 only.",
   "author": {

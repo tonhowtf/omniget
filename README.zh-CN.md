@@ -32,10 +32,6 @@
 </p>
 
 <p align="center">
-  在 <a href="https://www.instagram.com/tonhowtf/">Instagram 关注 @tonhowtf</a>，第一时间看到 OmniGet 的新消息和幕后动态。
-</p>
-
-<p align="center">
   这是 OmniGet 原版。官方版本只来自本仓库和 <a href="https://getomniget.com">getomniget.com</a>；<a href="https://getomniget.com/forks">名字相似的分叉</a>是独立的项目。
 </p>
 

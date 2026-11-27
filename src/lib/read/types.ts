@@ -162,7 +162,7 @@ export type SourceInfo = {
 
 export type Catalog = {
   id: number;
-  kind: "opds" | "suwayomi" | "declarative";
+  kind: "opds" | "directory" | "suwayomi" | "declarative";
   title: string;
   url: string;
   username: string;

@@ -171,7 +171,6 @@ pub async fn download_direct_with_headers(
         }
     }
 
-    let _ = discard_part(&part_path_for(output));
     Err(last_err.unwrap_or_else(|| anyhow!("Download failed after {} attempts", MAX_RETRIES)))
 }
 

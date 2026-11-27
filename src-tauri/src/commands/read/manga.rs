@@ -894,14 +894,15 @@ pub fn read_download_queue() -> Vec<QueueItem> {
 
 #[tauri::command]
 pub fn read_download_cancel(clear_finished: Option<bool>) {
-    CANCEL.store(true, Ordering::SeqCst);
     if clear_finished.unwrap_or(false) {
         if let Ok(mut s) = STATUS.lock() {
             if let Some(m) = s.as_mut() {
-                m.retain(|_, i| i.state == "running");
+                m.retain(|_, i| i.state == "running" || i.state == "queued");
             }
         }
+        return;
     }
+    CANCEL.store(true, Ordering::SeqCst);
 }
 
 pub fn chapter_label(ch: &ChapterRow) -> String {
@@ -972,9 +973,14 @@ async fn download_chapter(app: &AppHandle, id: i64) -> Result<(), String> {
     let mut stream = futures::stream::iter(pages.clone().into_iter().enumerate().map(
         move |(i, p)| async move {
             let mut last = String::new();
+            let mut retry_after_ms: Option<u64> = None;
             for attempt in 0..3 {
                 if attempt > 0 {
-                    tokio::time::sleep(std::time::Duration::from_millis(800 * attempt)).await;
+                    let wait = retry_after_ms
+                        .take()
+                        .unwrap_or(800 * (1u64 << (attempt - 1)))
+                        .min(30_000);
+                    tokio::time::sleep(std::time::Duration::from_millis(wait)).await;
                 }
                 let started = std::time::Instant::now();
                 let mut req = client.get(&p.url);
@@ -994,6 +1000,42 @@ async fn download_chapter(app: &AppHandle, id: i64) -> Result<(), String> {
                                 if let Some(k) = &p.xor_key {
                                     super::server::xor_decrypt(&mut data, k);
                                 }
+                                let ext = if data.starts_with(b"\x89PNG\r\n\x1a\n") {
+                                    Some("png")
+                                } else if data.starts_with(&[0xFF, 0xD8, 0xFF]) {
+                                    Some("jpg")
+                                } else if data.len() >= 12
+                                    && data.starts_with(b"RIFF")
+                                    && data.get(8..12) == Some(b"WEBP")
+                                {
+                                    Some("webp")
+                                } else if data.starts_with(b"GIF87a") || data.starts_with(b"GIF89a")
+                                {
+                                    Some("gif")
+                                } else if data.len() >= 12 && data.get(4..8) == Some(b"ftyp") {
+                                    Some("avif")
+                                } else if data.starts_with(b"BM") {
+                                    Some("bmp")
+                                } else {
+                                    None
+                                };
+                                let Some(ext) = ext else {
+                                    report_mangadex(
+                                        client,
+                                        &p.url,
+                                        false,
+                                        data.len(),
+                                        started.elapsed(),
+                                        cached,
+                                    );
+                                    last = if data.is_empty() {
+                                        "empty image response".into()
+                                    } else {
+                                        "invalid image response (not a supported image format)"
+                                            .into()
+                                    };
+                                    continue;
+                                };
                                 report_mangadex(
                                     client,
                                     &p.url,
@@ -1002,23 +1044,26 @@ async fn download_chapter(app: &AppHandle, id: i64) -> Result<(), String> {
                                     started.elapsed(),
                                     cached,
                                 );
-                                let ext = if data.starts_with(b"\x89PNG") {
-                                    "png"
-                                } else if data.get(8..12) == Some(b"WEBP") {
-                                    "webp"
-                                } else if data.starts_with(b"GIF8") {
-                                    "gif"
-                                } else {
-                                    "jpg"
-                                };
                                 return (i, Ok((format!("{i}.{ext}"), data)));
                             }
                             Err(e) => last = e.to_string(),
                         }
                     }
                     Ok(r) => {
+                        let status = r.status();
+                        if status.as_u16() == 429 || status.as_u16() == 503 {
+                            retry_after_ms = r
+                                .headers()
+                                .get(reqwest::header::RETRY_AFTER)
+                                .and_then(|v| v.to_str().ok())
+                                .and_then(|s| s.trim().parse::<u64>().ok())
+                                .map(|secs| secs.saturating_mul(1000));
+                        }
                         report_mangadex(client, &p.url, false, 0, started.elapsed(), false);
-                        last = r.status().to_string();
+                        last = status.to_string();
+                        if matches!(status.as_u16(), 400 | 401 | 403 | 404 | 410) {
+                            break;
+                        }
                     }
                     Err(e) => last = e.to_string(),
                 }

@@ -1128,12 +1128,11 @@
     "section_primary": "Main",
     "section_app": "App",
     "world": "Canvas",
-    "help": "Help",
-    "profile_appearance": "プロフィールと外観",
     "superpowers": "ツール",
     "collapse_sidebar": "サイドバーを折りたたむ",
     "expand_sidebar": "サイドバーを展開",
-    "community": "情報とコミュニティ"
+    "community": "情報とコミュニティ",
+    "global": "コースとサイト"
   },
   "command_palette": {
     "open": "移動…",
@@ -1170,7 +1169,8 @@
     "success_first": "はじめてのダウンロード！",
     "success_open": "ダウンロードを開く",
     "success_folder": "{{folder}} にダウンロード中",
-    "success_show_folder": "フォルダーを表示"
+    "success_show_folder": "フォルダーを表示",
+    "mcp_hint": "Claude Code、Cursor、Codex をお使いですか？[MCP で接続]"
   },
   "downloads": {
     "phase_downloading": "ダウンロード中",
@@ -1848,7 +1848,8 @@
         "copied": "リンクをコピーしました",
         "saved_one": "{{count}} 件のリンクを保存しました",
         "saved_other": "{{count}} 件のリンクを保存しました",
-        "note": "これらのツールにある「リンクごとのエンジン」で同じ .txt を開くと、すべてのリンクをキューに追加できます。"
+        "note": "これらのツールにある「リンクごとのエンジン」で同じ .txt を開くと、すべてのリンクをキューに追加できます。",
+        "pool": "履歴の {{total}} 件から選択しています。"
       },
       "dedupe": {
         "title": "ディスクの空きを増やす",
@@ -1897,7 +1898,8 @@
     "archive_imported": "{{read}} 件中 {{added}} 件を新たにインポートしました",
     "archive_exported": "{{written}} 件を書き出しました。ID 不明の {{skipped}} 件は除外しました",
     "archive_count": "yt-dlp アーカイブから {{count}} 件をインポートしました",
-    "open_file": "開く"
+    "open_file": "開く",
+    "history_summary": "{{total}} 件の保存済みダウンロード（最大 {{limit}} 件保持）"
   },
   "toast": {
     "download_complete": "完了！{{name}} はフォルダに保存されました",
@@ -1950,7 +1952,6 @@
       "more_desc": "ヒントと使用量制限の表示。",
       "autostart_blocked": "Windows のタスク マネージャーのスタートアップ アプリで無効になっています。許可するには、このスイッチをオフにしてからオンにしてください。",
       "autostart_portable": "ポータブル版では利用できません。",
-      "title": "一般",
       "start_with_system": "システム起動時に開始",
       "start_minimized": "トレイのみで起動",
       "exit_on_close": "ウィンドウを閉じたら終了",
@@ -1960,8 +1961,6 @@
       "run_in_background": "エージェントをバックグラウンドで実行",
       "run_in_background_flatpak": "Flatpak：ログイン時の起動とコマンドラインからの起動はまだ検証されていません。",
       "start_with_system_desc": "コンピューターにログインしたときにOmniGetを開きます。",
-      "start_minimized_desc": "ウィンドウを開かず、トレイに隠れた状態で起動します。",
-      "exit_on_close_desc": "ウィンドウを閉じるとトレイに残さずアプリを終了します。",
       "run_in_background_desc": "ウィンドウを閉じてもエージェント、タスク、ルーティンを実行し続けます。",
       "reopen_guide": "ようこそガイド",
       "reopen_guide_desc": "初回起動の手順をもう一度行います。",
@@ -2369,7 +2368,6 @@
     },
     "ai": {
       "provider": "プロバイダー",
-      "provider_desc": "AI リクエストの送信先を選びます。キーはローカルに保存され、ログには記録されません。",
       "provider_none": "オフ",
       "model": "モデル",
       "model_desc": "選択したプロバイダーのモデル識別子。",
@@ -2382,8 +2380,6 @@
       "test_ok": "AI 接続は正常です",
       "test_fail": "AI テスト失敗: {{error}}",
       "saved": "AI 設定を保存しました",
-      "summarize_title": "動画を要約",
-      "history": "AI 履歴",
       "save_test": "保存してテスト",
       "saving": "保存中…",
       "provider_endpoint": "カスタムエンドポイント（ローカルまたはリモート）",
@@ -2763,7 +2759,11 @@
         "fail_custom": "Discord に接続できませんでした。アプリ ID または画像が変更されています。Discord が起動済みなら既定値に戻してください。",
         "reset": "既定値に戻す"
       }
-    }
+    },
+    "update_downloading_pct": "アップデートをダウンロード中… {{percent}}%",
+    "update_failed": "アップデートに失敗しました: {{error}}",
+    "update_manual_hint": "このインストール形式はダウンロードページから新しいパッケージをインストールして更新します。設定やデータはそのまま残ります。",
+    "update_open_download": "ダウンロードページを開く"
   },
   "omnibox": {
     "placeholder": "リンクを貼り付けるか、入力して動画を検索",
@@ -3003,7 +3003,12 @@
     "wmb_credits_body": "システムクリーナーは、これらのオープンソースプロジェクトのデータやアイデアを取り込んでいます。ライセンスと該当ファイルの詳細はTHIRD_PARTY.mdに記載されています。privacy.sexyのソース（AGPL-3.0）は下のリンクから確認できます。",
     "wmb_credit_data": "データ",
     "wmb_credit_design": "デザインを移植",
-    "wmb_credit_tool": "実行するツール"
+    "wmb_credit_tool": "実行するツール",
+    "card_chat_title": "コミュニティチャット",
+    "card_chat_desc": "質問やヒントの共有、作者との直接のやり取りができます。",
+    "card_roadmap_title": "ロードマップと提案",
+    "card_roadmap_desc": "開発予定を確認し、新しい機能を提案できます。",
+    "website_button": "公式サイト"
   },
   "changelog": {
     "title": "新機能",
@@ -3226,7 +3231,6 @@
     "save": "Save",
     "skin_label": "アバターの色",
     "skin_desc": "色を選んでください。クリックするとすぐに保存されます。",
-    "fingerprint_label": "公開鍵のフィンガープリント",
     "copy": "Copy",
     "copied": "Copied",
     "copy_fingerprint": "フィンガープリントをコピー",
@@ -3246,7 +3250,10 @@
       "blue": "Blue",
       "purple": "Purple",
       "pink": "Pink"
-    }
+    },
+    "identity_disclosure": "ルーム識別キー",
+    "used_in_hint": "サイドバーや Canvas ルームを共有したときに表示されます。",
+    "sidebar_sub": "ローカルプロフィール"
   },
   "world": {
     "title": "Canvas",
@@ -3782,8 +3789,6 @@
     "title": "Read",
     "nav_label": "Read のセクション",
     "disabled_title": "Read はオフです",
-    "settings_enable": "Read を表示",
-    "settings_enable_desc": "読書ライブラリとリーダー。オフにすると非表示になり、ライブラリサーバーも停止します。",
     "back": "Back",
     "close": "Close",
     "cancel": "Cancel",
@@ -5890,13 +5895,6 @@
           "title": "SSD をトリム",
           "what": "マウントされたすべての SSD に空きブロックを伝え、書き込みを速く保ちます。ほとんどのシステムは週に 1 回すでに行っていますが、もう一度実行しても害はありません。"
         }
-      }
-    }
-  },
-  "company": {
-    "team": {
-      "form": {
-        "runtime_roster": "名簿のエージェント"
       }
     }
   },
@@ -9588,16 +9586,14 @@
     "template_sample_caption": "第03回: モジュールの紹介"
   },
   "global_dl": {
-    "title": "内蔵ブラウザ",
-    "subtitle": "ログインが必要なサイトも含め、ほぼすべての Web サイトから動画やファイルをダウンロードできます。",
+    "title": "コースとサイト",
+    "subtitle": "各プラットフォームからコース、レッスン、教材をダウンロードします。",
     "hero_label": "ダウンロードしたいページのリンクを貼り付けてください",
     "url_placeholder": "例: https://example.com/course/lesson-1",
     "find": "ダウンロードを探す",
     "find_again": "もう一度ダウンロードを探す",
     "finding": "ページを確認中… 数秒かかることがあります。",
     "steps_title": "使い方",
-    "step_paste": "動画やファイルがあるページのリンクを貼り付けて、「ダウンロードを探す」を押してください。",
-    "step_login": "サイトからログインを求められたら「このサイトにログイン」を押し、開いたウィンドウで一度ログインしてください。",
     "step_pick": "欲しいものを選んで「ダウンロード」を押してください。",
     "login_site": "このサイトにログイン",
     "login_title": "ブラウザウィンドウでログイン",
@@ -9677,7 +9673,6 @@
     "connectors": "サイトヘルパー",
     "connectors_hint": "開発者向け: サイトヘルパーとは、講座のすべてのレッスンなど、サイト上のすべてを一覧にする小さなスクリプトです。",
     "add_connector": "ヘルパーフォルダを追加",
-    "no_connectors": "サイトヘルパーはインストールされていません。ページはそれでも使えます。OmniGet が再生されたものを見つけます。",
     "dev": "developer",
     "options": "Options",
     "remove": "Remove",
@@ -9723,7 +9718,6 @@
       "update_badge": "Update to {{version}}",
       "open": "Open",
       "login_open": "ログインして開く",
-      "by": "by {{author}}",
       "needs_version": "OmniGet {{version}} 以降が必要です",
       "stage_download": "Downloading",
       "stage_verify": "パッケージを確認中",
@@ -9764,7 +9758,16 @@
     "browser_busy_title": "ダウンロードはまだ実行中です",
     "browser_busy_body": "今ブラウザを停止または再起動すると、残りの項目が失敗する可能性があります。それでも実行しますか?",
     "browser_busy_confirm": "それでも実行",
-    "browser_busy_keep": "ダウンロードを続ける"
+    "browser_busy_keep": "ダウンロードを続ける",
+    "modules_count": "{{count}} モジュール",
+    "lessons_button": "レッスン",
+    "back_to_courses": "コース一覧に戻る",
+    "courses_count": "{{count}} コース",
+    "search_courses": "コースを絞り込む…",
+    "download_all": "すべてダウンロード ({{count}})",
+    "step_pick_platform": "プラットフォームを選ぶかコースのリンクを貼り付け",
+    "step_sign_in_short": "非公開コースは一度だけログイン",
+    "step_download_short": "コース全体または選んだレッスンをダウンロード"
   },
   "connect": {
     "request_title": "{{client}} が OmniGet への接続を求めています",
@@ -9855,7 +9858,6 @@
     }
   },
   "community": {
-    "title": "コミュニティ",
     "lead": "getomniget.com のオープンチャットで、OmniGet のユーザーや作者と話せます。",
     "more": "ほかの場所がよければ",
     "tab": {
@@ -9888,13 +9890,17 @@
       "state_limit": "いまはメッセージが多すぎます。あとでもう一度お試しください。",
       "state_frozen": "チャットは一時停止中です。",
       "state_error": "メッセージを送信できませんでした。もう一度お試しください。",
-      "state_offline": "getomniget.com に接続できません。接続を確認してください。"
+      "state_offline": "getomniget.com に接続できません。接続を確認してください。",
+      "live_badge": "公開ライブチャット",
+      "message_count": "{{count}} 件のメッセージ",
+      "fact_anonymous_short": "匿名",
+      "fact_public_short": "公開 · 30日間",
+      "fact_local_short": "参加時のみ接続",
+      "preview_sample_1": "MCP で Claude Code を接続した人はいますか？",
+      "preview_sample_2": "はい、設定でコマンドを貼って許可を押すだけです。"
     }
   },
   "agents": {
-    "roster": {
-      "new": "New agent"
-    },
     "mcp": {
       "loading": "保存済みのサーバーを読み込み中…",
       "disabled": "オフ",
@@ -13993,6 +13999,21 @@
     "failed": "ロードマップを読み込めませんでした: {{msg}}",
     "retry": "再試行",
     "open_board": "サイトでボードを開く",
-    "issue": "GitHub の Issue"
+    "issue": "GitHub の Issue",
+    "filter_all": "すべて",
+    "search_placeholder": "チケットを絞り込み…",
+    "no_matches": "条件に一致するチケットはありません。",
+    "new_issue": "アイデアを提案",
+    "new_issue_title": "アイデアを提案・バグを報告",
+    "new_issue_desc": "getomniget.com の公開ロードマップ受信箱へ直接送信されます。アカウント不要。",
+    "issue_title_label": "タイトル",
+    "issue_title_placeholder": "アイデアやバグの短い要約",
+    "issue_details_label": "詳細（任意）",
+    "issue_details_placeholder": "手順、リンク、期待される動作など",
+    "issue_submit": "ロードマップに送信",
+    "issue_submitting": "送信中…",
+    "issue_sent": "送信しました！コミュニティのキューに追加されました。",
+    "issue_open_github": "または GitHub で開く",
+    "cancel": "キャンセル"
   }
 }

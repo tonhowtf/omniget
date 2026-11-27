@@ -895,7 +895,7 @@ mod tests {
 
     #[test]
     fn every_agent_route_has_a_scope() {
-        let src = include_str!("local_bridge_jobs.rs");
+        let src = include_str!("local_bridge/jobs.rs");
         let served = src.split("#[cfg(test)]").next().unwrap();
         let mut paths = Vec::new();
         let mut rest = served;
@@ -915,7 +915,7 @@ mod tests {
         }
         assert!(!src.contains("check_bearer("));
         assert!(src.contains("route_layer("));
-        let company = include_str!("local_bridge_company.rs");
+        let company = include_str!("local_bridge/company.rs");
         let company = company.split("#[cfg(test)]").next().unwrap();
         assert!(!company.contains("check_bearer("));
         assert_eq!(company.matches(".route(").count(), 1);
@@ -931,18 +931,18 @@ mod tests {
     #[test]
     fn the_guard_layer_comes_after_every_route() {
         for (name, src) in [
-            ("local_bridge_jobs.rs", include_str!("local_bridge_jobs.rs")),
+            ("local_bridge/jobs.rs", include_str!("local_bridge/jobs.rs")),
             (
-                "local_bridge_agentkit.rs",
-                include_str!("local_bridge_agentkit.rs"),
+                "local_bridge/agentkit.rs",
+                include_str!("local_bridge/agentkit.rs"),
             ),
             (
-                "local_bridge_company.rs",
-                include_str!("local_bridge_company.rs"),
+                "local_bridge/company.rs",
+                include_str!("local_bridge/company.rs"),
             ),
             (
-                "local_bridge_canvas.rs",
-                include_str!("local_bridge_canvas.rs"),
+                "local_bridge/canvas.rs",
+                include_str!("local_bridge/canvas.rs"),
             ),
         ] {
             let served = src.split("#[cfg(test)]").next().unwrap();

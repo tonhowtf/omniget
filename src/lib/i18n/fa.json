@@ -1128,12 +1128,11 @@
     "section_primary": "اصلی",
     "section_app": "برنامه",
     "world": "Canvas",
-    "help": "Help",
-    "profile_appearance": "نمایه و ظاهر",
     "superpowers": "ابزارها",
     "collapse_sidebar": "جمع کردن نوار کناری",
     "expand_sidebar": "باز کردن نوار کناری",
-    "community": "درباره و انجمن"
+    "community": "درباره و انجمن",
+    "global": "دوره‌ها و سایت‌ها"
   },
   "command_palette": {
     "open": "برو به…",
@@ -1170,7 +1169,8 @@
     "success_first": "اولین دانلود شما!",
     "success_open": "باز کردن دانلودها",
     "success_folder": "Downloading to {{folder}}",
-    "success_show_folder": "نمایش پوشه"
+    "success_show_folder": "نمایش پوشه",
+    "mcp_hint": "از Claude Code، Cursor یا Codex استفاده می‌کنید؟ [اتصال از طریق MCP]"
   },
   "downloads": {
     "phase_downloading": "در حال دانلود",
@@ -1848,7 +1848,8 @@
         "copied": "پیوندها کپی شدند",
         "saved_one": "{{count}} پیوند ذخیره شد",
         "saved_other": "{{count}} پیوند ذخیره شد",
-        "note": "«مسیریاب پیوند» در همین ابزارها همان .txt را باز می‌کند و همهٔ پیوندها را به صف می‌فرستد."
+        "note": "«مسیریاب پیوند» در همین ابزارها همان .txt را باز می‌کند و همهٔ پیوندها را به صف می‌فرستد.",
+        "pool": "انتخاب از میان {{total}} مورد در تاریخچه."
       },
       "dedupe": {
         "title": "آزاد کردن فضای دیسک",
@@ -1897,7 +1898,8 @@
     "archive_imported": "{{added}} مورد جدید از {{read}} مورد وارد شد",
     "archive_exported": "{{written}} مورد خروجی گرفته شد، {{skipped}} مورد بدون شناسهٔ معلوم کنار گذاشته شد",
     "archive_count": "{{count}} مورد از بایگانی yt-dlp وارد شد",
-    "open_file": "باز کردن"
+    "open_file": "باز کردن",
+    "history_summary": "{{total}} دانلود ذخیره‌شده (تا {{limit}} مورد نگهداری می‌شود)"
   },
   "toast": {
     "download_complete": "تمام شد! {{name}} در پوشه شماست",
@@ -1950,7 +1952,6 @@
       "more_desc": "نکته‌ها و نمایش محدودیت‌های مصرف.",
       "autostart_blocked": "ویندوز این را در Task Manager و بخش برنامه‌های راه‌اندازی غیرفعال کرده است. برای اجازه دادن، این کلید را خاموش و دوباره روشن کنید.",
       "autostart_portable": "در نسخه قابل‌حمل در دسترس نیست.",
-      "title": "General",
       "start_with_system": "شروع همراه با سیستم",
       "start_minimized": "شروع فقط در سینی سیستم",
       "exit_on_close": "خروج هنگام بستن پنجره",
@@ -1960,8 +1961,6 @@
       "run_in_background": "اجرای عامل‌ها در پس‌زمینه",
       "run_in_background_flatpak": "Flatpak: اجرا هنگام ورود و باز شدن از خط فرمان هنوز بررسی نشده‌اند.",
       "start_with_system_desc": "هنگام ورود به رایانه، OmniGet باز می‌شود.",
-      "start_minimized_desc": "بدون باز کردن پنجره، پنهان در سینی سیستم شروع می‌شود.",
-      "exit_on_close_desc": "بستن پنجره به‌جای ماندن در سینی سیستم، برنامه را می‌بندد.",
       "run_in_background_desc": "عامل‌ها، کارها و روال‌ها با پنجرهٔ بسته هم ادامه می‌دهند.",
       "reopen_guide": "راهنمای خوش‌آمد",
       "reopen_guide_desc": "مراحل اجرای نخست را دوباره طی کنید.",
@@ -2369,7 +2368,6 @@
     },
     "ai": {
       "provider": "Provider",
-      "provider_desc": "انتخاب کنید درخواست‌های هوش مصنوعی به کجا بروند. کلید شما محلی ذخیره می‌شود و هرگز ثبت نمی‌شود.",
       "provider_none": "Off",
       "model": "Model",
       "model_desc": "شناسهٔ مدل برای ارائه‌دهندهٔ انتخاب‌شده.",
@@ -2382,8 +2380,6 @@
       "test_ok": "اتصال هوش مصنوعی کار می‌کند",
       "test_fail": "آزمایش هوش مصنوعی ناموفق بود: {{error}}",
       "saved": "تنظیمات هوش مصنوعی ذخیره شد",
-      "summarize_title": "خلاصه‌سازی یک ویدیو",
-      "history": "AI history",
       "save_test": "ذخیره و آزمایش",
       "saving": "Saving…",
       "provider_endpoint": "نقطهٔ پایانی سفارشی (محلی یا دوردست)",
@@ -2763,7 +2759,11 @@
         "fail_custom": "اتصال به دیسکورد ممکن نشد. شناسه برنامه یا تصویر تغییر کرده است؛ اگر دیسکورد باز است، آن‌ها را به پیش‌فرض برگردانید.",
         "reset": "بازگشت به پیش‌فرض"
       }
-    }
+    },
+    "update_downloading_pct": "در حال دانلود به‌روزرسانی… {{percent}}%",
+    "update_failed": "به‌روزرسانی ناموفق بود: {{error}}",
+    "update_manual_hint": "این نصب با نصب بسته جدید از صفحه دانلود به‌روزرسانی می‌شود. تنظیمات و داده‌های شما دست‌نخورده می‌مانند.",
+    "update_open_download": "باز کردن صفحه دانلود"
   },
   "omnibox": {
     "placeholder": "یک لینک جای‌گذاری کنید یا جستجو کنید",
@@ -3003,7 +3003,12 @@
     "wmb_credits_body": "پاک‌کننده سیستم از داده‌ها و ایده‌های این پروژه‌های متن‌باز استفاده می‌کند. مجوزها و فایل‌های دقیق آن‌ها در THIRD_PARTY.md فهرست شده‌اند. کد منبع privacy.sexy (AGPL-3.0) در لینک زیر است.",
     "wmb_credit_data": "داده",
     "wmb_credit_design": "طراحی برگرفته‌شده",
-    "wmb_credit_tool": "ابزاری که اجرا می‌کند"
+    "wmb_credit_tool": "ابزاری که اجرا می‌کند",
+    "card_chat_title": "گفتگوی جامعه",
+    "card_chat_desc": "سؤال بپرسید، نکات را به اشتراک بگذارید یا مستقیم با سازنده گفتگو کنید.",
+    "card_roadmap_title": "نقشه راه و ایده‌ها",
+    "card_roadmap_desc": "ببینید چه ویژگی‌هایی در راه است و ایده جدید پیشنهاد دهید.",
+    "website_button": "وب‌سایت"
   },
   "changelog": {
     "title": "تازه‌ها",
@@ -3226,7 +3231,6 @@
     "save": "Save",
     "skin_label": "رنگ آواتار",
     "skin_desc": "یک رنگ انتخاب کنید. به محض کلیک ذخیره می‌شود.",
-    "fingerprint_label": "اثر انگشت کلید عمومی",
     "copy": "Copy",
     "copied": "Copied",
     "copy_fingerprint": "کپی اثر انگشت",
@@ -3246,7 +3250,10 @@
       "blue": "Blue",
       "purple": "Purple",
       "pink": "Pink"
-    }
+    },
+    "identity_disclosure": "کلید هویت اتاق",
+    "used_in_hint": "در نوار کناری و هنگام اشتراک‌گذاری اتاق Canvas نمایش داده می‌شود.",
+    "sidebar_sub": "نمایه محلی"
   },
   "world": {
     "title": "Canvas",
@@ -3782,8 +3789,6 @@
     "title": "Read",
     "nav_label": "بخش‌های Read",
     "disabled_title": "Read خاموش است",
-    "settings_enable": "نمایش Read",
-    "settings_enable_desc": "کتابخانهٔ مطالعه و کتاب‌خوان. خاموش کردنش آن را پنهان می‌کند و سرور کتابخانه را متوقف می‌کند.",
     "back": "Back",
     "close": "Close",
     "cancel": "Cancel",
@@ -5890,13 +5895,6 @@
           "title": "Trim کردن SSDها",
           "what": "به هر SSD متصل می‌گوید کدام بلوک‌ها آزادند، که نوشتن را سریع نگه می‌دارد. بیشتر سیستم‌ها هفته‌ای یک بار این کار را می‌کنند؛ اجرای دوباره‌اش بی‌ضرر است."
         }
-      }
-    }
-  },
-  "company": {
-    "team": {
-      "form": {
-        "runtime_roster": "عاملی از فهرست شما"
       }
     }
   },
@@ -9588,16 +9586,14 @@
     "template_sample_caption": "درس 03: مقدمهٔ بخش"
   },
   "global_dl": {
-    "title": "مرورگر داخلی",
-    "subtitle": "ویدیوها و فایل‌ها را تقریباً از هر وب‌سایتی دانلود کنید، حتی سایت‌هایی که ورود لازم دارند.",
+    "title": "دوره‌ها و سایت‌ها",
+    "subtitle": "دوره‌ها، درس‌ها و فایل‌های پلتفرم‌های خود را دانلود کنید.",
     "hero_label": "پیوند صفحه‌ای را که می‌خواهید از آن دانلود کنید جای‌گذاری کنید",
     "url_placeholder": "مثلاً: https://example.com/course/lesson-1",
     "find": "یافتن دانلودها",
     "find_again": "یافتن دوبارهٔ دانلودها",
     "finding": "در حال بررسی صفحه… ممکن است چند ثانیه طول بکشد.",
     "steps_title": "چطور کار می‌کند",
-    "step_paste": "پیوند صفحه‌ای را که ویدیو یا فایل‌ها را دارد جای‌گذاری کنید و «یافتن دانلودها» را بزنید.",
-    "step_login": "اگر سایت از شما خواست وارد شوید، «ورود به این سایت» را بزنید و یک بار در پنجره‌ای که باز می‌شود وارد شوید.",
     "step_pick": "آنچه می‌خواهید را انتخاب کنید و «دانلود» را بزنید.",
     "login_site": "ورود به این سایت",
     "login_title": "در پنجرهٔ مرورگر وارد شوید",
@@ -9677,7 +9673,6 @@
     "connectors": "دستیارهای سایت",
     "connectors_hint": "برای توسعه‌دهندگان: دستیار سایت اسکریپت کوچکی است که همه چیز یک سایت را فهرست می‌کند، مثل همهٔ درس‌های یک دوره.",
     "add_connector": "افزودن پوشهٔ دستیار",
-    "no_connectors": "هیچ دستیار سایتی نصب نشده. صفحه‌ها همچنان کار می‌کنند: OmniGet آنچه پخش می‌کنند را پیدا می‌کند.",
     "dev": "developer",
     "options": "Options",
     "remove": "Remove",
@@ -9723,7 +9718,6 @@
       "update_badge": "Update to {{version}}",
       "open": "Open",
       "login_open": "ورود و باز کردن",
-      "by": "by {{author}}",
       "needs_version": "به OmniGet {{version}} یا جدیدتر نیاز دارد",
       "stage_download": "Downloading",
       "stage_verify": "در حال بررسی بسته",
@@ -9764,7 +9758,16 @@
     "browser_busy_title": "دانلودها هنوز در حال اجرا هستند",
     "browser_busy_body": "اگر اکنون مرورگر را متوقف یا دوباره راه‌اندازی کنید، موارد باقی‌مانده ممکن است ناموفق شوند. با این حال انجام شود؟",
     "browser_busy_confirm": "با این حال انجام شود",
-    "browser_busy_keep": "ادامهٔ دانلود"
+    "browser_busy_keep": "ادامهٔ دانلود",
+    "modules_count": "{{count}} فصل",
+    "lessons_button": "درس‌ها",
+    "back_to_courses": "بازگشت به دوره‌ها",
+    "courses_count": "{{count}} دوره",
+    "search_courses": "فیلتر دوره‌ها…",
+    "download_all": "دانلود همه ({{count}})",
+    "step_pick_platform": "پلتفرم را انتخاب کنید یا لینک دوره را بچسبانید",
+    "step_sign_in_short": "اگر دوره خصوصی است یک بار وارد شوید",
+    "step_download_short": "کل دوره را دانلود کنید یا درس‌ها را انتخاب کنید"
   },
   "connect": {
     "request_title": "{{client}} می‌خواهد به OmniGet وصل شود",
@@ -9855,7 +9858,6 @@
     }
   },
   "community": {
-    "title": "انجمن",
     "lead": "در چت باز getomniget.com با دیگر کاربران OmniGet و سازنده‌اش گفتگو کنید.",
     "more": "جای دیگری را ترجیح می‌دهید؟",
     "tab": {
@@ -9888,13 +9890,17 @@
       "state_limit": "فعلاً پیام‌ها زیاد است. بعداً دوباره امتحان کنید.",
       "state_frozen": "چت فعلاً متوقف است.",
       "state_error": "پیام ارسال نشد. دوباره امتحان کنید.",
-      "state_offline": "دسترسی به getomniget.com ممکن نشد. اتصال خود را بررسی کنید."
+      "state_offline": "دسترسی به getomniget.com ممکن نشد. اتصال خود را بررسی کنید.",
+      "live_badge": "گفتگوی زنده عمومی",
+      "message_count": "{{count}} پیام",
+      "fact_anonymous_short": "ناشناس",
+      "fact_public_short": "عمومی · ۳۰ روز",
+      "fact_local_short": "فقط پس از پیوستن متصل می‌شود",
+      "preview_sample_1": "کسی Claude Code را از طریق MCP وصل کرده؟",
+      "preview_sample_2": "بله، دستور را در تنظیمات وارد کنید و اجازه را بزنید."
     }
   },
   "agents": {
-    "roster": {
-      "new": "New agent"
-    },
     "mcp": {
       "loading": "در حال خواندن سرورهای ذخیره‌شده…",
       "disabled": "خاموش",
@@ -13993,6 +13999,21 @@
     "failed": "بارگیری نقشه راه ممکن نشد: {{msg}}",
     "retry": "تلاش دوباره",
     "open_board": "باز کردن تابلو در سایت",
-    "issue": "Issue در GitHub"
+    "issue": "Issue در GitHub",
+    "filter_all": "همه",
+    "search_placeholder": "فیلتر تیکت‌ها…",
+    "no_matches": "هیچ تیکتی با این فیلتر مطابقت ندارد.",
+    "new_issue": "پیشنهاد ایده",
+    "new_issue_title": "پیشنهاد ایده یا گزارش خطا",
+    "new_issue_desc": "مستقیم به صندوق عمومی نقشه راه در getomniget.com ارسال می‌شود. بدون نیاز به حساب.",
+    "issue_title_label": "عنوان",
+    "issue_title_placeholder": "خلاصه کوتاه ایده یا خطا",
+    "issue_details_label": "جزئیات (اختیاری)",
+    "issue_details_placeholder": "مراحل، لینک یا نتیجه مورد انتظار",
+    "issue_submit": "ارسال به نقشه راه",
+    "issue_submitting": "در حال ارسال…",
+    "issue_sent": "ارسال شد! ایده شما اکنون در صف جامعه قرار گرفت.",
+    "issue_open_github": "یا باز کردن در GitHub",
+    "cancel": "انصراف"
   }
 }

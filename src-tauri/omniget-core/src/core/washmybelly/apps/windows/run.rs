@@ -527,7 +527,8 @@ pub mod sys {
             None => p.program.clone(),
         };
         let mut cmd = if program == "winget" {
-            crate::core::process::std_command("winget")
+            let resolved = crate::core::washmybelly::packages::resolve_program("winget");
+            crate::core::process::std_command(resolved)
         } else {
             Command::new(&program)
         };

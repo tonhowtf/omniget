@@ -211,6 +211,22 @@ fn names_arg(args: &Value) -> Vec<String> {
         .unwrap_or_default()
 }
 
+pub fn find_program_in(name: &str, dirs: &[PathBuf], exts: &[&str]) -> Option<PathBuf> {
+    for d in dirs {
+        for e in exts {
+            let p = if e.is_empty() {
+                d.join(name)
+            } else {
+                d.join(format!("{name}.{e}"))
+            };
+            if is_program_file(&p) {
+                return Some(p);
+            }
+        }
+    }
+    None
+}
+
 pub fn find_program(name: &str) -> Option<PathBuf> {
     let mut dirs: Vec<PathBuf> = std::env::var_os("PATH")
         .map(|p| std::env::split_paths(&p).collect())
@@ -226,19 +242,14 @@ pub fn find_program(name: &str) -> Option<PathBuf> {
     } else {
         &[""]
     };
-    for d in dirs {
-        for e in exts {
-            let p = if e.is_empty() {
-                d.join(name)
-            } else {
-                d.join(format!("{name}.{e}"))
-            };
-            if is_program_file(&p) {
-                return Some(p);
-            }
-        }
+    find_program_in(name, &dirs, exts)
+}
+
+pub fn resolve_program(name: &str) -> PathBuf {
+    if name.contains(['/', '\\']) {
+        return PathBuf::from(name);
     }
-    None
+    find_program(name).unwrap_or_else(|| PathBuf::from(name))
 }
 
 // WHY: winget.exe is an App Execution Alias on Windows; following that reparse point fails, so is_file can say no.
@@ -257,7 +268,8 @@ pub fn query(program: &str, args: &[&str]) -> Result<Ran, String> {
 }
 
 pub fn query_env(program: &str, args: &[&str], env: &[(&str, &str)]) -> Result<Ran, String> {
-    let mut cmd = crate::core::process::std_command(program);
+    let resolved = resolve_program(program);
+    let mut cmd = crate::core::process::std_command(&resolved);
     cmd.args(args)
         .env("LC_ALL", "C")
         .env("LANG", "C")
@@ -473,6 +485,19 @@ fn preview_names(names: &[String]) -> String {
     s
 }
 
+fn strip_manager_prefix(manager: &str, err: &str) -> String {
+    let trimmed = err.trim();
+    if let Some(rest) = trimmed.strip_prefix(manager) {
+        if let Some(after) = rest.strip_prefix(':') {
+            let cleaned = after.trim_start();
+            if !cleaned.is_empty() {
+                return cleaned.to_string();
+            }
+        }
+    }
+    trimmed.to_string()
+}
+
 pub fn all_updates() -> (Vec<Update>, Vec<String>, Vec<Value>) {
     let mut updates = Vec::new();
     let mut managers = Vec::new();
@@ -491,7 +516,10 @@ pub fn all_updates() -> (Vec<Update>, Vec<String>, Vec<Value>) {
         managers.push(b.id().to_string());
         match b.updates() {
             Ok(u) => updates.extend(u),
-            Err(e) => errors.push(json!({ "manager": b.id(), "error": e })),
+            Err(e) => errors.push(json!({
+                "manager": b.id(),
+                "error": strip_manager_prefix(b.id(), &e),
+            })),
         }
     }
     super::progress("updates_list", "done", total, total, "");
@@ -631,5 +659,35 @@ mod output_tests {
     #[test]
     fn utf8_output_stays_as_it_is() {
         assert_eq!(decode_output("Versão…".as_bytes()), "Versão…");
+    }
+
+    #[test]
+    fn find_program_in_resolves_alias_only_layout_outside_path() {
+        let dir = tempfile::tempdir().unwrap();
+        let empty_path_dir = dir.path().join("path_dir");
+        let win_apps = dir.path().join("Microsoft").join("WindowsApps");
+        std::fs::create_dir_all(&empty_path_dir).unwrap();
+        std::fs::create_dir_all(&win_apps).unwrap();
+        let alias = win_apps.join("winget.exe");
+        std::fs::write(&alias, b"").unwrap();
+
+        let found = super::find_program_in(
+            "winget",
+            &[empty_path_dir, win_apps],
+            &["exe", "cmd", "bat"],
+        );
+        assert_eq!(found, Some(alias));
+    }
+
+    #[test]
+    fn strip_manager_prefix_avoids_doubled_prefix() {
+        assert_eq!(
+            super::strip_manager_prefix("winget", "winget: program not found"),
+            "program not found"
+        );
+        assert_eq!(
+            super::strip_manager_prefix("winget", "failed with 0x8A15000F"),
+            "failed with 0x8A15000F"
+        );
     }
 }

@@ -1128,12 +1128,11 @@
     "section_primary": "ຫຼັກ",
     "section_app": "ແອັບ",
     "world": "Canvas",
-    "help": "Help",
-    "profile_appearance": "ໂປຣໄຟລ໌ ແລະ ຮູບລັກສະນະ",
     "superpowers": "ເຄື່ອງມື",
     "collapse_sidebar": "ຫຍໍ້ແຖບຂ້າງ",
     "expand_sidebar": "ຂະຫຍາຍແຖບຂ້າງ",
-    "community": "About & community"
+    "community": "About & community",
+    "global": "ຫຼັກສູດ ແລະ ເວັບໄຊ"
   },
   "command_palette": {
     "open": "Go to…",
@@ -1170,7 +1169,8 @@
     "success_first": "ການດາວໂຫຼດຄັ້ງທຳອິດຂອງທ່ານ!",
     "success_open": "ເປີດການດາວໂຫຼດ",
     "success_folder": "Downloading to {{folder}}",
-    "success_show_folder": "ສະແດງໂຟລເດີ"
+    "success_show_folder": "ສະແດງໂຟລເດີ",
+    "mcp_hint": "ກຳລັງໃຊ້ Claude Code, Cursor ຫຼື Codex ບໍ? [ເຊື່ອມຕໍ່ຜ່ານ MCP]"
   },
   "downloads": {
     "phase_downloading": "ກຳລັງດາວໂຫຼດ",
@@ -1848,7 +1848,8 @@
         "copied": "ສຳເນົາລິ້ງແລ້ວ",
         "saved_one": "ບັນທຶກ {{count}} ລິ້ງແລ້ວ",
         "saved_other": "ບັນທຶກ {{count}} ລິ້ງແລ້ວ",
-        "note": "ຕົວກຳນົດເສັ້ນທາງລິ້ງ, ໃນເຄື່ອງມືເຫຼົ່ານີ້, ເປີດ .txt ດຽວກັນຄືນ ແລະ ໃສ່ທຸກລິ້ງເຂົ້າຄິວ."
+        "note": "ຕົວກຳນົດເສັ້ນທາງລິ້ງ, ໃນເຄື່ອງມືເຫຼົ່ານີ້, ເປີດ .txt ດຽວກັນຄືນ ແລະ ໃສ່ທຸກລິ້ງເຂົ້າຄິວ.",
+        "pool": "ກຳລັງເລືອກຈາກ {{total}} ລາຍການໃນປະຫວັດ."
       },
       "dedupe": {
         "title": "ເພີ່ມພື້ນທີ່ດິສກ໌",
@@ -1897,7 +1898,8 @@
     "archive_imported": "ນຳເຂົ້າ {{added}} ລາຍການໃໝ່ຈາກ {{read}} ລາຍການ",
     "archive_exported": "ສົ່ງອອກ {{written}} ລາຍການ, {{skipped}} ລາຍການທີ່ບໍ່ຮູ້ id ຖືກຕັດອອກ",
     "archive_count": "ນຳເຂົ້າ {{count}} ລາຍການຈາກ archive ຂອງ yt-dlp",
-    "open_file": "ເປີດ"
+    "open_file": "ເປີດ",
+    "history_summary": "ດາວໂຫຼດທີ່ບັນທຶກໄວ້ {{total}} ລາຍການ (ເກັບໄວ້ສູງສຸດ {{limit}})"
   },
   "toast": {
     "download_complete": "ສຳເລັດ! {{name}} ຢູ່ໃນໂຟລເດີຂອງທ່ານແລ້ວ",
@@ -1950,7 +1952,6 @@
       "more_desc": "ຄຳແນະນຳ ແລະ ການສະແດງຂີດຈຳກັດການໃຊ້ງານ.",
       "autostart_blocked": "Windows ປິດສິ່ງນີ້ໄວ້ໃນ Task Manager ສ່ວນແອັບເລີ່ມຕົ້ນ. ປິດແລ້ວເປີດສະວິດນີ້ອີກຄັ້ງເພື່ອອະນຸຍາດ.",
       "autostart_portable": "ບໍ່ມີໃນເວີຊັນພົກພາ.",
-      "title": "ທົ່ວໄປ",
       "start_with_system": "ເລີ່ມພ້ອມລະບົບ",
       "start_minimized": "ເລີ່ມໃນຖາດລະບົບເທົ່ານັ້ນ",
       "exit_on_close": "ອອກເມື່ອປິດໜ້າຕ່າງ",
@@ -1960,8 +1961,6 @@
       "run_in_background": "ແລ່ນເອເຈນຢູ່ເບື້ອງຫຼັງ",
       "run_in_background_flatpak": "Flatpak: ການເປີດຕອນເຂົ້າສູ່ລະບົບ ແລະ ການຖືກເປີດຈາກແຖວຄຳສັ່ງ ຍັງບໍ່ໄດ້ກວດສອບ.",
       "start_with_system_desc": "ເປີດ OmniGet ເມື່ອທ່ານເຂົ້າສູ່ລະບົບຄອມພິວເຕີ.",
-      "start_minimized_desc": "ເລີ່ມແບບເຊື່ອງໃນຖາດລະບົບ, ໂດຍບໍ່ເປີດໜ້າຕ່າງ.",
-      "exit_on_close_desc": "ການປິດໜ້າຕ່າງຈະປິດແອັບ ແທນທີ່ຈະເກັບໄວ້ໃນຖາດລະບົບ.",
       "run_in_background_desc": "ເອເຈັນ, ວຽກ ແລະ ກິດຈະວັດ ຍັງເຮັດວຽກຕໍ່ເມື່ອປິດໜ້າຕ່າງ.",
       "reopen_guide": "ຄູ່ມືຍິນດີຕ້ອນຮັບ",
       "reopen_guide_desc": "ເຮັດຂັ້ນຕອນການເປີດຄັ້ງທຳອິດອີກຄັ້ງ.",
@@ -2369,7 +2368,6 @@
     },
     "ai": {
       "provider": "ຜູ້ໃຫ້ບໍລິການ",
-      "provider_desc": "ເລືອກບ່ອນທີ່ຈະສົ່ງຄຳຂໍ AI. ຄີຂອງທ່ານຖືກເກັບໄວ້ໃນເຄື່ອງ ແລະ ບໍ່ຖືກບັນທຶກລົງລັອກ.",
       "provider_none": "ປິດ",
       "model": "ໂມເດວ",
       "model_desc": "ຕົວລະບຸໂມເດວສຳລັບຜູ້ໃຫ້ບໍລິການທີ່ເລືອກ.",
@@ -2382,8 +2380,6 @@
       "test_ok": "ການເຊື່ອມຕໍ່ AI ໃຊ້ໄດ້",
       "test_fail": "ທົດສອບ AI ລົ້ມເຫຼວ: {{error}}",
       "saved": "ບັນທຶກການຕັ້ງຄ່າ AI ແລ້ວ",
-      "summarize_title": "ສະຫຼຸບວິດີໂອ",
-      "history": "ປະຫວັດ AI",
       "save_test": "ບັນທຶກ ແລະ ທົດສອບ",
       "saving": "Saving…",
       "provider_endpoint": "Endpoint ກຳນົດເອງ (ໃນເຄື່ອງ ຫຼື ໄລຍະໄກ)",
@@ -2763,7 +2759,11 @@
         "fail_custom": "ບໍ່ສາມາດເຊື່ອມຕໍ່ Discord ໄດ້. ID ແອັບ ຫຼື ຮູບພາບຖືກປ່ຽນແລ້ວ; ກັບຄືນຄ່າເລີ່ມຕົ້ນຖ້າ Discord ເປີດຢູ່ແລ້ວ.",
         "reset": "ກັບຄືນຄ່າເລີ່ມຕົ້ນ"
       }
-    }
+    },
+    "update_downloading_pct": "ກຳລັງດາວໂຫຼດການອັບເດດ… {{percent}}%",
+    "update_failed": "ອັບເດດບໍ່ສຳເລັດ: {{error}}",
+    "update_manual_hint": "ການຕິດຕັ້ງນີ້ອັບເດດໂດຍການຕິດຕັ້ງແພັກເກັດໃໝ່ຈາກໜ້າດາວໂຫຼດ. ການຕັ້ງຄ່າ ແລະ ຂໍ້ມູນຂອງທ່ານຈະຍັງຄົງຢູ່.",
+    "update_open_download": "ເປີດໜ້າດາວໂຫຼດ"
   },
   "omnibox": {
     "placeholder": "ວາງລິ້ງ ຫຼື ຄົ້ນຫາ",
@@ -3003,7 +3003,12 @@
     "wmb_credits_body": "System Cleaner ນຳໃຊ້ຂໍ້ມູນ ແລະ ແນວຄວາມຄິດຈາກໂຄງການໂອເພັນຊອດ (open-source) ຕໍ່ໄປນີ້. ໃບອະນຸຍາດ ແລະ ໄຟລ໌ຕົ້ນສະບັບແຕ່ລະອັນມີລາຍຊື່ຢູ່ໃນ THIRD_PARTY.md. ຕົ້ນສະບັບຂອງ privacy.sexy (AGPL-3.0) ຢູ່ທີ່ລິ້ງຂ້າງລຸ່ມນີ້.",
     "wmb_credit_data": "ຂໍ້ມູນ",
     "wmb_credit_design": "ອອກແບບທີ່ນຳມາໃຊ້",
-    "wmb_credit_tool": "ເຄື່ອງມືທີ່ໃຊ້ງານ"
+    "wmb_credit_tool": "ເຄື່ອງມືທີ່ໃຊ້ງານ",
+    "card_chat_title": "ແຊັດຊຸມຊົນ",
+    "card_chat_desc": "ຖາມຄຳຖາມ, ແບ່ງປັນຄຳແນະນຳ ຫຼື ລົມໂດຍກົງກັບຜູ້ສ້າງ.",
+    "card_roadmap_title": "ແຜນງານ ແລະ ໄອເດຍ",
+    "card_roadmap_desc": "ເບິ່ງສິ່ງທີ່ກຳລັງພັດທະນາ ແລະ ສະເໜີຄຸນສົມບັດໃໝ່.",
+    "website_button": "ເວັບໄຊ"
   },
   "changelog": {
     "title": "ມີຫຍັງໃໝ່",
@@ -3226,7 +3231,6 @@
     "save": "Save",
     "skin_label": "ສີອະວະຕາ",
     "skin_desc": "ເລືອກສີ. ມັນບັນທຶກທັນທີທີ່ທ່ານຄລິກ.",
-    "fingerprint_label": "ລາຍນິ້ວມືກະແຈສາທາລະນະ",
     "copy": "Copy",
     "copied": "Copied",
     "copy_fingerprint": "ສຳເນົາລາຍນິ້ວມື",
@@ -3246,7 +3250,10 @@
       "blue": "Blue",
       "purple": "Purple",
       "pink": "Pink"
-    }
+    },
+    "identity_disclosure": "ກະແຈຢືນຢັນຫ້ອງ",
+    "used_in_hint": "ສະແດງຢູ່ແຖບຂ້າງ ແລະ ເມື່ອທ່ານແບ່ງປັນຫ້ອງ Canvas.",
+    "sidebar_sub": "ໂປຣໄຟລ໌ໃນເຄື່ອງ"
   },
   "world": {
     "title": "Canvas",
@@ -3782,8 +3789,6 @@
     "title": "Read",
     "nav_label": "ໝວດການອ່ານ",
     "disabled_title": "Read ຖືກປິດຢູ່",
-    "settings_enable": "ສະແດງ Read",
-    "settings_enable_desc": "ຫ້ອງສະໝຸດການອ່ານ ແລະ ຕົວອ່ານ. ການປິດຈະເຊື່ອງມັນ ແລະ ຢຸດເຊີບເວີຫ້ອງສະໝຸດ.",
     "back": "Back",
     "close": "Close",
     "cancel": "Cancel",
@@ -5890,13 +5895,6 @@
           "title": "Trim SSD",
           "what": "ບອກທຸກ SSD ທີ່ເມົ້າຢູ່ວ່າບລັອກໃດວ່າງ, ເຊິ່ງຊ່ວຍໃຫ້ການຂຽນໄວ. ລະບົບສ່ວນຫຼາຍເຮັດອັນນີ້ອາທິດລະຄັ້ງຢູ່ແລ້ວ; ການແລ່ນອີກຄັ້ງບໍ່ເປັນອັນຕະລາຍ."
         }
-      }
-    }
-  },
-  "company": {
-    "team": {
-      "form": {
-        "runtime_roster": "ເອເຈນຈາກລາຍຊື່ຂອງທ່ານ"
       }
     }
   },
@@ -9588,16 +9586,14 @@
     "template_sample_caption": "ບົດທີ 03: ບົດນຳຂອງໂມດູນ"
   },
   "global_dl": {
-    "title": "Built-in Browser",
-    "subtitle": "ດາວໂຫຼດວິດີໂອ ແລະ ໄຟລ໌ຈາກເກືອບທຸກເວັບໄຊ, ລວມທັງເວັບທີ່ຕ້ອງເຂົ້າສູ່ລະບົບ.",
+    "title": "ຫຼັກສູດ ແລະ ເວັບໄຊ",
+    "subtitle": "ດາວໂຫຼດຫຼັກສູດ, ບົດຮຽນ ແລະ ໄຟລ໌ຈາກແພລດຟອມຂອງທ່ານ.",
     "hero_label": "ວາງລິ້ງຂອງໜ້າທີ່ທ່ານຕ້ອງການດາວໂຫຼດ",
     "url_placeholder": "ຕົວຢ່າງ: https://example.com/course/lesson-1",
     "find": "ຊອກຫາການດາວໂຫຼດ",
     "find_again": "ຊອກຫາການດາວໂຫຼດອີກຄັ້ງ",
     "finding": "ກຳລັງເບິ່ງໜ້າ… ອາດໃຊ້ເວລາສອງສາມວິນາທີ.",
     "steps_title": "ມັນເຮັດວຽກແນວໃດ",
-    "step_paste": "ວາງລິ້ງຂອງໜ້າທີ່ມີວິດີໂອ ຫຼື ໄຟລ໌, ແລ້ວກົດ ຊອກຫາການດາວໂຫຼດ.",
-    "step_login": "ຖ້າເວັບຂໍໃຫ້ທ່ານເຂົ້າສູ່ລະບົບ, ກົດ ເຂົ້າສູ່ລະບົບເວັບນີ້ ແລະ ເຂົ້າສູ່ລະບົບເທື່ອດຽວໃນໜ້າຕ່າງທີ່ເປີດຂຶ້ນ.",
     "step_pick": "ເລືອກສິ່ງທີ່ທ່ານຕ້ອງການ ແລະ ກົດ ດາວໂຫຼດ.",
     "login_site": "ເຂົ້າສູ່ລະບົບເວັບນີ້",
     "login_title": "ເຂົ້າສູ່ລະບົບໃນໜ້າຕ່າງບຣາວເຊີ",
@@ -9677,7 +9673,6 @@
     "connectors": "ຕົວຊ່ວຍເວັບ",
     "connectors_hint": "ສຳລັບນັກພັດທະນາ: ຕົວຊ່ວຍເວັບແມ່ນສະຄຣິບນ້ອຍໆທີ່ສະແດງທຸກຢ່າງໃນເວັບ, ເຊັ່ນ ທຸກບົດຮຽນຂອງຫຼັກສູດ.",
     "add_connector": "ເພີ່ມໂຟນເດີຕົວຊ່ວຍ",
-    "no_connectors": "ບໍ່ໄດ້ຕິດຕັ້ງຕົວຊ່ວຍເວັບ. ໜ້າຕ່າງໆຍັງໃຊ້ໄດ້: OmniGet ຊອກຫາສິ່ງທີ່ພວກມັນຫຼິ້ນ.",
     "dev": "developer",
     "options": "Options",
     "remove": "Remove",
@@ -9723,7 +9718,6 @@
       "update_badge": "Update to {{version}}",
       "open": "Open",
       "login_open": "ເຂົ້າສູ່ລະບົບ ແລະ ເປີດ",
-      "by": "by {{author}}",
       "needs_version": "ຕ້ອງໃຊ້ OmniGet {{version}} ຫຼື ໃໝ່ກວ່າ",
       "stage_download": "Downloading",
       "stage_verify": "ກຳລັງກວດແພັກເກດ",
@@ -9764,7 +9758,16 @@
     "browser_busy_title": "ຍັງມີການດາວໂຫຼດກຳລັງດຳເນີນຢູ່",
     "browser_busy_body": "ການຢຸດ ຫຼື ເລີ່ມບຣາວເຊີໃໝ່ຕອນນີ້ອາດເຮັດໃຫ້ລາຍການທີ່ເຫຼືອລົ້ມເຫຼວ. ຍັງຈະເຮັດບໍ່?",
     "browser_busy_confirm": "ເຮັດຕໍ່ໄປ",
-    "browser_busy_keep": "ດາວໂຫຼດຕໍ່"
+    "browser_busy_keep": "ດາວໂຫຼດຕໍ່",
+    "modules_count": "{{count}} ໝວດ",
+    "lessons_button": "ບົດຮຽນ",
+    "back_to_courses": "ກັບໄປຫາຫຼັກສູດ",
+    "courses_count": "{{count}} ຫຼັກສູດ",
+    "search_courses": "ກັ່ນຕອງຫຼັກສູດ…",
+    "download_all": "ດາວໂຫຼດທັງໝົດ ({{count}})",
+    "step_pick_platform": "ເລືອກແພລດຟອມ ຫຼື ວາງລິ້ງຫຼັກສູດ",
+    "step_sign_in_short": "ເຂົ້າສູ່ລະບົບຄັ້ງດຽວຖ້າຫຼັກສູດເປັນສ່ວນຕົວ",
+    "step_download_short": "ດາວໂຫຼດທັງຫຼັກສູດ ຫຼື ເລືອກບົດຮຽນ"
   },
   "connect": {
     "request_title": "{{client}} ຕ້ອງການເຊື່ອມຕໍ່ກັບ OmniGet",
@@ -9855,7 +9858,6 @@
     }
   },
   "community": {
-    "title": "ຊຸມຊົນ",
     "lead": "ລົມກັບຜູ້ໃຊ້ OmniGet ຄົນອື່ນ ແລະ ຜູ້ສ້າງ ໃນແຊັດເປີດຂອງ getomniget.com.",
     "more": "ຢາກໃຊ້ບ່ອນອື່ນບໍ?",
     "tab": {
@@ -9888,13 +9890,17 @@
       "state_limit": "ຂໍ້ຄວາມຫຼາຍເກີນໄປ. ລອງໃໝ່ພາຍຫຼັງ.",
       "state_frozen": "ແຊັດຢຸດຊົ່ວຄາວ.",
       "state_error": "ສົ່ງຂໍ້ຄວາມບໍ່ສຳເລັດ. ລອງໃໝ່.",
-      "state_offline": "ເຊື່ອມຕໍ່ getomniget.com ບໍ່ໄດ້. ກວດການເຊື່ອມຕໍ່ຂອງທ່ານ."
+      "state_offline": "ເຊື່ອມຕໍ່ getomniget.com ບໍ່ໄດ້. ກວດການເຊື່ອມຕໍ່ຂອງທ່ານ.",
+      "live_badge": "ແຊັດສົດສາທາລະນະ",
+      "message_count": "{{count}} ຂໍ້ຄວາມ",
+      "fact_anonymous_short": "ບໍ່ລະບຸຕົວຕົນ",
+      "fact_public_short": "ສາທາລະນະ · 30 ມື້",
+      "fact_local_short": "ເຊື່ອມຕໍ່ເມື່ອທ່ານເຂົ້າຮ່ວມເທົ່ານັ້ນ",
+      "preview_sample_1": "ມີໃຜເຊື່ອມຕໍ່ Claude Code ຜ່ານ MCP ແລ້ວບໍ?",
+      "preview_sample_2": "ແມ່ນແລ້ວ, ວາງຄຳສັ່ງໃນການຕັ້ງຄ່າແລ້ວກົດອະນຸຍາດ."
     }
   },
   "agents": {
-    "roster": {
-      "new": "New agent"
-    },
     "mcp": {
       "loading": "ກຳລັງອ່ານເຊີບເວີທີ່ບັນທຶກໄວ້…",
       "disabled": "ປິດ",
@@ -13993,6 +13999,21 @@
     "failed": "ບໍ່ສາມາດໂຫຼດແຜນງານໄດ້: {{msg}}",
     "retry": "ລອງໃໝ່",
     "open_board": "ເປີດກະດານຢູ່ເວັບໄຊ",
-    "issue": "Issue ໃນ GitHub"
+    "issue": "Issue ໃນ GitHub",
+    "filter_all": "ທັງໝົດ",
+    "search_placeholder": "ກັ່ນຕອງລາຍການ…",
+    "no_matches": "ບໍ່ພົບລາຍການທີ່ກົງກັບຕົວກອງ.",
+    "new_issue": "ສະເໜີໄອເດຍ",
+    "new_issue_title": "ສະເໜີໄອເດຍ ຫຼື ແຈ້ງບັນຫາ",
+    "new_issue_desc": "ສົ່ງກົງໄປທີ່ກ່ອງແຜນງານສາທາລະນະໃນ getomniget.com. ບໍ່ຕ້ອງມີບັນຊີ.",
+    "issue_title_label": "ຫົວຂໍ້",
+    "issue_title_placeholder": "ສະຫຼຸບສັ້ນໆຂອງໄອເດຍ ຫຼື ບັນຫາ",
+    "issue_details_label": "ລາຍລະອຽດ (ທາງເລືອກ)",
+    "issue_details_placeholder": "ຂັ້ນຕອນ, ລິ້ງ ຫຼື ສິ່ງທີ່ທ່ານຄາດຫວັງ",
+    "issue_submit": "ສົ່ງໄປທີ່ແຜນງານ",
+    "issue_submitting": "ກຳລັງສົ່ງ…",
+    "issue_sent": "ສົ່ງແລ້ວ! ໄອເດຍຂອງທ່ານຢູ່ໃນຄິວຊຸມຊົນແລ້ວ.",
+    "issue_open_github": "ຫຼື ເປີດໃນ GitHub",
+    "cancel": "ຍົກເລີກ"
   }
 }

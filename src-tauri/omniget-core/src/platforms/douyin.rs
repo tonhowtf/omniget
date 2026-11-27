@@ -30,12 +30,7 @@ impl DouyinDownloader {
     }
 
     fn extra_flags() -> Vec<String> {
-        vec![
-            "--referer".to_string(),
-            DOUYIN_REFERER.to_string(),
-            "--user-agent".to_string(),
-            DOUYIN_UA.to_string(),
-        ]
+        vec!["--referer".to_string(), DOUYIN_REFERER.to_string()]
     }
 
     fn host_matches(host: &str) -> bool {

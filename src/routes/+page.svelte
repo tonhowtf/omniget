@@ -1259,6 +1259,10 @@
             })}
           </a>
         {/if}
+        {#if !firstRun}
+          {@const mcpHint = splitLink($t("home.mcp_hint") as string)}
+          <p class="first-terms">{mcpHint.before}<a href="/settings?tab=ai&section=connect" class="inline-link">{mcpHint.link}</a>{mcpHint.after}</p>
+        {/if}
       {:else if omniState.kind === "batch"}
         <div class="batch-panel">
           <p class="state-line">{$t(pluralKey("omnibox.batch_detected", omniState.urls.length), { count: omniState.urls.length })}</p>

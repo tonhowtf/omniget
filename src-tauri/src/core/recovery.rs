@@ -1,12 +1,14 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::io::Write;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::{Mutex, OnceLock};
 
 const RECOVERY_FILE: &str = "recovery.json";
+const WAL_FILE: &str = "queue.wal";
+const COMPACT_THRESHOLD: usize = 500;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct RecoveryItem {
     pub id: u64,
     pub url: String,
@@ -29,46 +31,142 @@ struct RecoveryFile {
     items: Vec<RecoveryItem>,
 }
 
-static STORE: OnceLock<Mutex<HashMap<u64, RecoveryItem>>> = OnceLock::new();
-
-fn store() -> &'static Mutex<HashMap<u64, RecoveryItem>> {
-    STORE.get_or_init(|| Mutex::new(HashMap::new()))
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "op", rename_all = "snake_case")]
+enum WalRecord {
+    Enqueued {
+        id: u64,
+        url: String,
+        title: String,
+        platform: String,
+        output_dir: String,
+        #[serde(default)]
+        quality: Option<String>,
+        #[serde(default)]
+        download_mode: Option<String>,
+        #[serde(default)]
+        format_id: Option<String>,
+        #[serde(default)]
+        referer: Option<String>,
+        #[serde(default)]
+        position: u32,
+    },
+    Started {
+        id: u64,
+    },
+    Progress {
+        id: u64,
+        #[serde(default)]
+        percent: f64,
+    },
+    Completed {
+        id: u64,
+    },
+    Failed {
+        id: u64,
+    },
+    Cancelled {
+        id: u64,
+    },
+    Removed {
+        id: u64,
+    },
 }
 
-fn file_path() -> Option<PathBuf> {
-    crate::core::paths::app_data_dir().map(|d| d.join(RECOVERY_FILE))
-}
-
-const WAL_FILE: &str = "queue.wal";
-
-fn wal_path() -> Option<PathBuf> {
-    crate::core::paths::app_data_dir().map(|d| d.join(WAL_FILE))
-}
-
-fn append(record: &crate::core::queue_wal::WalRecord) {
-    let Some(path) = wal_path() else { return };
-    let Some(parent) = path.parent() else { return };
-    if let Err(e) = std::fs::create_dir_all(parent) {
-        tracing::warn!("[recovery] create_dir_all failed: {}", e);
-        return;
+impl WalRecord {
+    fn terminal_id(&self) -> Option<u64> {
+        match self {
+            WalRecord::Completed { id }
+            | WalRecord::Failed { id }
+            | WalRecord::Cancelled { id }
+            | WalRecord::Removed { id } => Some(*id),
+            WalRecord::Enqueued { .. } | WalRecord::Started { .. } | WalRecord::Progress { .. } => {
+                None
+            }
+        }
     }
-    let Some(line) = crate::core::queue_wal::encode(record) else {
-        tracing::warn!("[recovery] encode failed");
-        return;
-    };
-    let result = (|| -> std::io::Result<()> {
-        let mut f = std::fs::OpenOptions::new()
-            .create(true)
-            .append(true)
-            .open(&path)?;
-        f.write_all(line.as_bytes())?;
-        f.write_all(b"\n")?;
-        f.sync_all()?;
-        Ok(())
-    })();
-    if let Err(e) = result {
-        tracing::warn!("[recovery] append failed: {}", e);
+}
+
+pub struct RecoveryLog {
+    wal_path: PathBuf,
+    legacy_json_path: Option<PathBuf>,
+    items: HashMap<u64, RecoveryItem>,
+}
+
+impl RecoveryLog {
+    pub fn open(wal_path: PathBuf, legacy_json_path: Option<PathBuf>) -> Self {
+        let mut log = Self {
+            wal_path,
+            legacy_json_path,
+            items: HashMap::new(),
+        };
+        log.load();
+        log
     }
+
+    fn load(&mut self) {
+        self.items.clear();
+        if let Ok(contents) = std::fs::read_to_string(&self.wal_path) {
+            let (records, dropped) = decode_log(&contents);
+            if dropped > 0 {
+                tracing::warn!("[recovery] {} truncated record(s) discarded", dropped);
+            }
+            let (items, stale) = replay_items(&records);
+            if needs_rewrite(stale, &records, items.len()) {
+                rewrite_wal(&self.wal_path, &items);
+            }
+            for item in items {
+                self.items.insert(item.id, item);
+            }
+            return;
+        }
+        if let Some(json_path) = self.legacy_json_path.as_deref() {
+            for item in migrate_from_json(&self.wal_path, json_path) {
+                self.items.insert(item.id, item);
+            }
+        }
+    }
+
+    pub fn persist(&mut self, item: RecoveryItem) {
+        let item = scrub(item);
+        let position = self.items.len() as u32;
+        append_record(&self.wal_path, &enqueued_record(&item, position));
+        self.items.insert(item.id, item);
+    }
+
+    pub fn remove(&mut self, id: u64) {
+        if self.items.remove(&id).is_some() {
+            append_record(&self.wal_path, &WalRecord::Removed { id });
+        }
+    }
+
+    pub fn list(&self) -> Vec<RecoveryItem> {
+        self.items.values().cloned().collect()
+    }
+
+    pub fn clear_all(&mut self) {
+        self.items.clear();
+        let _ = std::fs::remove_file(&self.wal_path);
+    }
+}
+
+static STORE: OnceLock<Mutex<Option<RecoveryLog>>> = OnceLock::new();
+
+fn store() -> &'static Mutex<Option<RecoveryLog>> {
+    STORE.get_or_init(|| Mutex::new(None))
+}
+
+fn default_paths() -> Option<(PathBuf, PathBuf)> {
+    crate::core::paths::app_data_dir().map(|d| (d.join(WAL_FILE), d.join(RECOVERY_FILE)))
+}
+
+fn with_default_log<R>(f: impl FnOnce(&mut RecoveryLog) -> R) -> Option<R> {
+    let mut guard = store().lock().unwrap();
+    if guard.is_none() {
+        let (wal, legacy) = default_paths()?;
+        *guard = Some(RecoveryLog::open(wal, Some(legacy)));
+    }
+    guard.as_mut().map(f)
 }
 
 fn scrub(mut item: RecoveryItem) -> RecoveryItem {
@@ -83,30 +181,8 @@ pub fn is_expired(item: &RecoveryItem) -> bool {
     crate::core::flight_recorder::is_redacted_url(&item.url)
 }
 
-fn rewrite(items: &[RecoveryItem]) {
-    let Some(path) = wal_path() else { return };
-    let tmp = path.with_extension("wal.tmp");
-    let mut body = String::new();
-    for (pos, item) in items.iter().enumerate() {
-        if let Some(line) = crate::core::queue_wal::encode(&enqueued_record(item, pos as u32)) {
-            body.push_str(&line);
-            body.push('\n');
-        }
-    }
-    let result = (|| -> std::io::Result<()> {
-        let mut f = std::fs::File::create(&tmp)?;
-        f.write_all(body.as_bytes())?;
-        f.sync_all()?;
-        std::fs::rename(&tmp, &path)
-    })();
-    if let Err(e) = result {
-        let _ = std::fs::remove_file(&tmp);
-        tracing::warn!("[recovery] rewrite failed: {}", e);
-    }
-}
-
-fn enqueued_record(item: &RecoveryItem, position: u32) -> crate::core::queue_wal::WalRecord {
-    crate::core::queue_wal::WalRecord::Enqueued {
+fn enqueued_record(item: &RecoveryItem, position: u32) -> WalRecord {
+    WalRecord::Enqueued {
         id: item.id,
         url: item.url.clone(),
         title: item.title.clone(),
@@ -120,139 +196,190 @@ fn enqueued_record(item: &RecoveryItem, position: u32) -> crate::core::queue_wal
     }
 }
 
-fn recovered_to_item(r: &crate::core::queue_wal::RecoveredItem) -> RecoveryItem {
-    scrub(RecoveryItem {
-        id: r.id,
-        url: r.url.clone(),
-        title: r.title.clone(),
-        platform: r.platform.clone(),
-        output_dir: r.output_dir.clone(),
-        download_mode: r.download_mode.clone(),
-        quality: r.quality.clone(),
-        format_id: r.format_id.clone(),
-        referer: r.referer.clone(),
-    })
+fn encode_record(record: &WalRecord) -> Option<String> {
+    serde_json::to_string(record).ok()
 }
 
-fn ordenar_para_migracao(mut itens: Vec<RecoveryItem>) -> Vec<RecoveryItem> {
-    itens.sort_by_key(|i| i.id);
-    itens
+fn decode_log(contents: &str) -> (Vec<WalRecord>, usize) {
+    let mut records = Vec::new();
+    let mut dropped = 0usize;
+    for line in contents.lines() {
+        let line = line.trim();
+        if line.is_empty() {
+            continue;
+        }
+        match serde_json::from_str::<WalRecord>(line) {
+            Ok(r) => records.push(r),
+            Err(_) => dropped += 1,
+        }
+    }
+    (records, dropped)
 }
 
-fn json_para_registros(content: &str) -> Vec<crate::core::queue_wal::WalRecord> {
+fn replay_items(records: &[WalRecord]) -> (Vec<RecoveryItem>, bool) {
+    let mut live: HashMap<u64, (u32, RecoveryItem)> = HashMap::new();
+    let mut stale = false;
+
+    for r in records {
+        match r {
+            WalRecord::Enqueued {
+                id,
+                url,
+                title,
+                platform,
+                output_dir,
+                quality,
+                download_mode,
+                format_id,
+                referer,
+                position,
+            } => {
+                let raw = RecoveryItem {
+                    id: *id,
+                    url: url.clone(),
+                    title: title.clone(),
+                    platform: platform.clone(),
+                    output_dir: output_dir.clone(),
+                    download_mode: download_mode.clone(),
+                    quality: quality.clone(),
+                    format_id: format_id.clone(),
+                    referer: referer.clone(),
+                };
+                let clean = scrub(raw.clone());
+                if clean.url != raw.url || clean.referer != raw.referer || clean.title != raw.title
+                {
+                    stale = true;
+                }
+                live.insert(*id, (*position, clean));
+            }
+            other => {
+                if let Some(id) = other.terminal_id() {
+                    live.remove(&id);
+                }
+            }
+        }
+    }
+
+    let mut ordered: Vec<(u32, RecoveryItem)> = live.into_values().collect();
+    ordered.sort_by_key(|(pos, item)| (*pos, item.id));
+    (ordered.into_iter().map(|(_, item)| item).collect(), stale)
+}
+
+fn needs_rewrite(stale: bool, records: &[WalRecord], live_len: usize) -> bool {
+    stale || (records.len() > COMPACT_THRESHOLD && live_len * 4 < records.len())
+}
+
+fn append_record(path: &Path, record: &WalRecord) {
+    let Some(parent) = path.parent() else { return };
+    if let Err(e) = std::fs::create_dir_all(parent) {
+        tracing::warn!("[recovery] create_dir_all failed: {}", e);
+        return;
+    }
+    let Some(line) = encode_record(record) else {
+        tracing::warn!("[recovery] encode failed");
+        return;
+    };
+    let result = (|| -> std::io::Result<()> {
+        let mut f = std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(path)?;
+        f.write_all(line.as_bytes())?;
+        f.write_all(b"\n")?;
+        f.sync_all()?;
+        Ok(())
+    })();
+    if let Err(e) = result {
+        tracing::warn!("[recovery] append failed: {}", e);
+    }
+}
+
+fn rewrite_wal(path: &Path, items: &[RecoveryItem]) {
+    let tmp = path.with_extension("wal.tmp");
+    let mut body = String::new();
+    for (pos, item) in items.iter().enumerate() {
+        if let Some(line) = encode_record(&enqueued_record(item, pos as u32)) {
+            body.push_str(&line);
+            body.push('\n');
+        }
+    }
+    let result = (|| -> std::io::Result<()> {
+        let mut f = std::fs::File::create(&tmp)?;
+        f.write_all(body.as_bytes())?;
+        f.sync_all()?;
+        std::fs::rename(&tmp, path)
+    })();
+    if let Err(e) = result {
+        let _ = std::fs::remove_file(&tmp);
+        tracing::warn!("[recovery] rewrite failed: {}", e);
+    }
+}
+
+fn json_to_records(content: &str) -> Vec<WalRecord> {
     let parsed: RecoveryFile = match serde_json::from_str(content) {
         Ok(v) => v,
         Err(_) => return Vec::new(),
     };
-    ordenar_para_migracao(parsed.items.into_iter().map(scrub).collect())
+    let mut items: Vec<RecoveryItem> = parsed.items.into_iter().map(scrub).collect();
+    items.sort_by_key(|i| i.id);
+    items
         .iter()
         .enumerate()
         .map(|(pos, item)| enqueued_record(item, pos as u32))
         .collect()
 }
 
-fn migrate_from_json() -> Vec<RecoveryItem> {
-    let Some(json_path) = file_path() else {
+fn migrate_from_json(wal_path: &Path, json_path: &Path) -> Vec<RecoveryItem> {
+    let Ok(content) = std::fs::read_to_string(json_path) else {
         return Vec::new();
     };
-    let Ok(content) = std::fs::read_to_string(&json_path) else {
-        return Vec::new();
-    };
-
-    let registros = json_para_registros(&content);
-    if registros.is_empty() && !content.trim().is_empty() {
+    let records = json_to_records(&content);
+    if records.is_empty() && !content.trim().is_empty() {
         tracing::warn!("[recovery] recovery.json unreadable or empty, nothing migrated");
     }
-    for r in &registros {
-        append(r);
+    for r in &records {
+        append_record(wal_path, r);
     }
-    let itens: Vec<RecoveryItem> = crate::core::queue_wal::replay(&registros)
-        .iter()
-        .map(recovered_to_item)
-        .collect();
-
-    let destino = json_path.with_extension("json.migrated");
-    if let Err(e) = std::fs::rename(&json_path, &destino) {
+    let (items, _) = replay_items(&records);
+    let dest = json_path.with_extension("json.migrated");
+    if let Err(e) = std::fs::rename(json_path, &dest) {
         tracing::warn!("[recovery] could not rename the migrated json: {}", e);
     }
     tracing::info!(
         "[recovery] {} items migrated from recovery.json",
-        itens.len()
+        items.len()
     );
-    itens
-}
-
-fn needs_rewrite(stale: bool, records: &[crate::core::queue_wal::WalRecord]) -> bool {
-    stale || crate::core::queue_wal::compactable(records)
+    items
 }
 
 pub fn init_from_disk() {
     let mut guard = store().lock().unwrap();
-    guard.clear();
-
-    let wal = wal_path().and_then(|p| std::fs::read_to_string(p).ok());
-    match wal {
-        Some(contents) => {
-            let (records, descartados) = crate::core::queue_wal::decode_log(&contents);
-            if descartados > 0 {
-                tracing::warn!("[recovery] {} truncated record(s) discarded", descartados);
-            }
-            let replayed = crate::core::queue_wal::replay(&records);
-            let stale = replayed.iter().any(|r| {
-                let scrubbed = recovered_to_item(r);
-                scrubbed.url != r.url || scrubbed.referer != r.referer || scrubbed.title != r.title
-            });
-            let items: Vec<RecoveryItem> = replayed.iter().map(recovered_to_item).collect();
-            if needs_rewrite(stale, &records) {
-                rewrite(&items);
-            }
-            for item in items {
-                guard.insert(item.id, item);
-            }
-        }
-        None => {
-            drop(guard);
-            let migrados = migrate_from_json();
-            let mut guard = store().lock().unwrap();
-            for item in migrados {
-                guard.insert(item.id, item);
-            }
-        }
+    if let Some((wal, legacy)) = default_paths() {
+        *guard = Some(RecoveryLog::open(wal, Some(legacy)));
+    } else {
+        *guard = None;
     }
 }
 
 pub fn persist(item: RecoveryItem) {
-    let item = scrub(item);
-    let mut guard = store().lock().unwrap();
-    let position = guard.len() as u32;
-    append(&enqueued_record(&item, position));
-    guard.insert(item.id, item);
+    let _ = with_default_log(|log| log.persist(item));
 }
 
 pub fn remove(id: u64) {
-    let mut guard = store().lock().unwrap();
-    if guard.remove(&id).is_some() {
-        append(&crate::core::queue_wal::WalRecord::Removed { id });
-    }
+    let _ = with_default_log(|log| log.remove(id));
 }
 
 pub fn list() -> Vec<RecoveryItem> {
-    let guard = store().lock().unwrap();
-    guard.values().cloned().collect()
+    with_default_log(|log| log.list()).unwrap_or_default()
 }
 
 pub fn clear_all() {
-    let mut guard = store().lock().unwrap();
-    guard.clear();
-    if let Some(path) = wal_path() {
-        let _ = std::fs::remove_file(path);
-    }
+    let _ = with_default_log(|log| log.clear_all());
 }
 
 #[cfg(test)]
-mod migracao_tests {
+mod tests {
     use super::*;
-    use crate::core::queue_wal::{replay, WalRecord};
 
     const JSON_0_7_X: &str = r#"{
       "items": [
@@ -278,116 +405,119 @@ mod migracao_tests {
     }"#;
 
     #[test]
-    fn migracao_preserva_o_referer() {
-        let registros = json_para_registros(JSON_0_7_X);
-        let itens = replay(&registros);
-        let com_referer = itens.iter().find(|i| i.id == 7).expect("item 7");
+    fn migration_preserves_fields_and_order() {
+        let (items, _) = replay_items(&json_to_records(JSON_0_7_X));
+        assert_eq!(items.len(), 2);
+        assert_eq!(items[0].id, 2);
+        assert_eq!(items[1].id, 7);
         assert_eq!(
-            com_referer.referer.as_deref(),
+            items[1].referer.as_deref(),
             Some("https://exemplo.com/pagina")
         );
+        assert_eq!(items[1].download_mode.as_deref(), Some("audio"));
+        assert_eq!(items[1].quality.as_deref(), Some("720p"));
+        assert_eq!(items[1].format_id.as_deref(), Some("140"));
+        assert!(!is_expired(&items[1]));
     }
 
     #[test]
-    fn migracao_preserva_todos_os_campos_do_item() {
-        let itens = replay(&json_para_registros(JSON_0_7_X));
-        let i = itens.iter().find(|i| i.id == 7).expect("item 7");
-        assert_eq!(i.url, "https://exemplo.com/b");
-        assert_eq!(i.title, "Segundo");
-        assert_eq!(i.platform, "youtube");
-        assert_eq!(i.output_dir, "/downloads");
-        assert_eq!(i.download_mode.as_deref(), Some("audio"));
-        assert_eq!(i.quality.as_deref(), Some("720p"));
-        assert_eq!(i.format_id.as_deref(), Some("140"));
+    fn corrupted_json_returns_empty() {
+        assert!(json_to_records("{ invalid").is_empty());
+        assert!(json_to_records("").is_empty());
     }
 
     #[test]
-    fn campos_opcionais_ausentes_nao_quebram_a_migracao() {
-        let itens = replay(&json_para_registros(JSON_0_7_X));
-        let i = itens.iter().find(|i| i.id == 2).expect("item 2");
-        assert_eq!(i.platform, "instagram");
-        assert!(i.quality.is_none());
-        assert!(i.referer.is_none());
-    }
-
-    #[test]
-    fn ordem_da_fila_sobrevive_a_migracao() {
-        let itens = replay(&json_para_registros(JSON_0_7_X));
-        assert_eq!(itens.len(), 2);
-        assert_eq!(itens[0].id, 2, "o menor id vem primeiro");
-        assert_eq!(itens[1].id, 7);
-        assert_eq!(itens[0].position, 0);
-        assert_eq!(itens[1].position, 1);
-    }
-
-    #[test]
-    fn json_corrompido_nao_derruba_o_boot() {
-        assert!(json_para_registros("{ isto nao e json").is_empty());
-        assert!(json_para_registros("").is_empty());
-    }
-
-    #[test]
-    fn url_assinada_nunca_vai_para_o_log() {
-        let item = RecoveryItem {
+    fn signed_url_is_redacted_on_disk_and_marked_expired() {
+        let dir = tempfile::tempdir().unwrap();
+        let wal = dir.path().join("queue.wal");
+        let mut log = RecoveryLog::open(wal.clone(), None);
+        log.persist(RecoveryItem {
             id: 9,
             url: "https://cdn.example.com/v.mp4?X-Amz-Signature=SYNTHETIC_SECRET&token=SYNTHETIC_SECRET".into(),
-            title: "https://cdn.example.com/v.mp4?X-Amz-Signature=SYNTHETIC_SECRET&token=SYNTHETIC_SECRET".into(),
+            title: "https://cdn.example.com/v.mp4?X-Amz-Signature=SYNTHETIC_SECRET".into(),
             platform: "generic".into(),
             output_dir: "/d".into(),
             download_mode: None,
             quality: None,
             format_id: None,
             referer: Some("https://example.com/p?access_token=SYNTHETIC_SECRET".into()),
-        };
-        let line = crate::core::queue_wal::encode(&enqueued_record(&scrub(item), 0)).unwrap();
-        assert!(!line.contains("SYNTHETIC_SECRET"), "{line}");
-        let back = replay(&crate::core::queue_wal::decode_log(&line).0);
-        let restored = recovered_to_item(&back[0]);
-        assert!(is_expired(&restored), "a redacted link cannot be restored");
+        });
+        let raw = std::fs::read_to_string(&wal).unwrap();
+        assert!(!raw.contains("SYNTHETIC_SECRET"), "{raw}");
+
+        let reopened = RecoveryLog::open(wal, None);
+        let items = reopened.list();
+        assert_eq!(items.len(), 1);
+        assert!(is_expired(&items[0]));
     }
 
     #[test]
-    fn link_publico_continua_restauravel() {
-        let itens = replay(&json_para_registros(JSON_0_7_X));
-        let i = recovered_to_item(itens.iter().find(|i| i.id == 7).unwrap());
-        assert_eq!(i.url, "https://exemplo.com/b");
-        assert!(!is_expired(&i));
+    fn persist_remove_and_reopen_roundtrip_on_disk() {
+        let dir = tempfile::tempdir().unwrap();
+        let wal = dir.path().join("queue.wal");
+        {
+            let mut log = RecoveryLog::open(wal.clone(), None);
+            log.persist(RecoveryItem {
+                id: 1,
+                url: "https://example.com/1".into(),
+                title: "One".into(),
+                platform: "youtube".into(),
+                output_dir: "/d".into(),
+                download_mode: None,
+                quality: None,
+                format_id: None,
+                referer: None,
+            });
+            log.persist(RecoveryItem {
+                id: 2,
+                url: "https://example.com/2".into(),
+                title: "Two".into(),
+                platform: "youtube".into(),
+                output_dir: "/d".into(),
+                download_mode: None,
+                quality: None,
+                format_id: None,
+                referer: None,
+            });
+            log.remove(1);
+        }
+        let reopened = RecoveryLog::open(wal, None);
+        let items = reopened.list();
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0].id, 2);
     }
 
     #[test]
-    fn registro_antigo_com_segredo_sai_redigido_no_replay() {
-        let json = r#"{"items":[{"id":1,"url":"https://x.example/v?sig=SYNTHETIC_SECRET","title":"https://x.example/v?sig=SYNTHETIC_SECRET","platform":"generic","output_dir":"/d"}]}"#;
-        let i = recovered_to_item(&replay(&json_para_registros(json))[0]);
-        assert!(!i.url.contains("SYNTHETIC_SECRET"));
-        assert!(!i.title.contains("SYNTHETIC_SECRET"), "N-3: {}", i.title);
-        assert!(is_expired(&i));
+    fn truncated_lines_and_legacy_ops_are_handled_safely() {
+        let raw = concat!(
+            r#"{"op":"enqueued","id":1,"url":"https://example.com/1","title":"A","platform":"yt","output_dir":"/d","position":0}"#,
+            "\n",
+            r#"{"op":"started","id":1}"#,
+            "\n",
+            r#"{"op":"progress","id":1,"percent":50.0}"#,
+            "\n",
+            r#"{"op":"enqueued","id":2,"url":"https://example.com/2","title":"B","platform":"yt","output_dir":"/d","position":1}"#,
+            "\n",
+            r#"{"op":"completed","id":1,"file_path":"/d/a.mp4"}"#,
+            "\n",
+            "{truncated"
+        );
+        let (records, dropped) = decode_log(raw);
+        assert_eq!(dropped, 1);
+        let (items, _) = replay_items(&records);
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0].id, 2);
     }
 
     #[test]
-    fn a_log_full_of_finished_items_is_rewritten_on_boot() {
+    fn bloated_log_triggers_compaction_on_open() {
         let mut records = Vec::new();
         for id in 0..400u64 {
-            records.extend(json_para_registros(&format!(
+            records.extend(json_to_records(&format!(
                 r#"{{"items":[{{"id":{id},"url":"https://exemplo.com/{id}","title":"t","platform":"youtube","output_dir":"/d"}}]}}"#
             )));
             records.push(WalRecord::Removed { id });
         }
-        assert!(needs_rewrite(false, &records));
-    }
-
-    #[test]
-    fn a_small_clean_log_is_left_alone_unless_stale() {
-        let records = json_para_registros(JSON_0_7_X);
-        assert!(!needs_rewrite(false, &records));
-        assert!(needs_rewrite(true, &records));
-    }
-
-    #[test]
-    fn item_removido_some_do_replay() {
-        let mut registros = json_para_registros(JSON_0_7_X);
-        registros.push(WalRecord::Removed { id: 7 });
-        let itens = replay(&registros);
-        assert_eq!(itens.len(), 1);
-        assert_eq!(itens[0].id, 2);
+        assert!(needs_rewrite(false, &records, 0));
     }
 }

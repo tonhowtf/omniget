@@ -7,15 +7,22 @@ use serde::Serialize;
 
 pub const RUNTIME_VERSION: &str = "1.27.1";
 
+const MIRROR_BASE: &str = "https://getomniget.com/dl/onnxruntime";
 const RELEASE_BASE: &str = "https://github.com/microsoft/onnxruntime/releases/download";
 
 struct Asset {
     id: &'static str,
     label: &'static str,
     file: &'static str,
-    sha256: &'static str,
-    bytes: u64,
+    mirror_sha256: &'static str,
+    mirror_bytes: u64,
+    upstream_sha256: &'static str,
     os: &'static str,
+}
+
+struct DownloadSource {
+    url: String,
+    sha256: &'static str,
 }
 
 const ASSETS: &[Asset] = &[
@@ -23,43 +30,61 @@ const ASSETS: &[Asset] = &[
         id: "osx-arm64",
         label: "macOS ARM64 (Apple Silicon)",
         file: "onnxruntime-osx-arm64-1.27.1.tgz",
-        sha256: "e42b77a7281cc6e55141bf44fcfbac2c782b823a491bbb6ac33c781dd991f8a6",
-        bytes: 31_959_937,
+        mirror_sha256: "5b7618eaa445f974c9076df91721af63fbae511bbe406d993421ced15591a37c",
+        mirror_bytes: 10_595_517,
+        upstream_sha256: "e42b77a7281cc6e55141bf44fcfbac2c782b823a491bbb6ac33c781dd991f8a6",
         os: "macos",
     },
     Asset {
         id: "linux-x64",
         label: "Linux x64",
         file: "onnxruntime-linux-x64-1.27.1.tgz",
-        sha256: "25b1ef1fea1acd210d63f8f24dc870ad6e077795ce1f54876252c6d3803c15af",
-        bytes: 8_828_892,
+        mirror_sha256: "8f55fffbde8b432883fa64668a29123d249cfc55506c326c52fbb0bcf8340f16",
+        mirror_bytes: 8_605_381,
+        upstream_sha256: "25b1ef1fea1acd210d63f8f24dc870ad6e077795ce1f54876252c6d3803c15af",
         os: "linux",
     },
     Asset {
         id: "linux-aarch64",
         label: "Linux ARM64",
         file: "onnxruntime-linux-aarch64-1.27.1.tgz",
-        sha256: "33c67e33d1e25b816878366ea276589a024f71f000e7ff955c4b33224d639edd",
-        bytes: 7_812_402,
+        mirror_sha256: "e91f7b10552173fbe603d1a69f40d88d3c44bb66f4db7c0485c019519054e789",
+        mirror_bytes: 7_592_739,
+        upstream_sha256: "33c67e33d1e25b816878366ea276589a024f71f000e7ff955c4b33224d639edd",
         os: "linux",
     },
     Asset {
         id: "win-x64",
         label: "Windows x64",
         file: "onnxruntime-win-x64-1.27.1.zip",
-        sha256: "2e00414a63fdef0914cd5a5ede6c707844878e0c08e1b6693842f0451b2df2a1",
-        bytes: 77_242_362,
+        mirror_sha256: "0e313c04bd0f834f623f82ebdf1b0b261bdbdf69d483ee3d87fc2c39e4232151",
+        mirror_bytes: 5_627_419,
+        upstream_sha256: "2e00414a63fdef0914cd5a5ede6c707844878e0c08e1b6693842f0451b2df2a1",
         os: "windows",
     },
     Asset {
         id: "win-arm64",
         label: "Windows ARM64",
         file: "onnxruntime-win-arm64-1.27.1.zip",
-        sha256: "6e22c2061ba6400b42a59663d700c8694e4e8fe654cf452c4700c24237407ae1",
-        bytes: 78_590_093,
+        mirror_sha256: "4938d3892a6845761e76262ede9be695fd7372fe2131b3c4c47bf3998a773b89",
+        mirror_bytes: 5_543_948,
+        upstream_sha256: "6e22c2061ba6400b42a59663d700c8694e4e8fe654cf452c4700c24237407ae1",
         os: "windows",
     },
 ];
+
+fn sources_for(asset: &Asset) -> [DownloadSource; 2] {
+    [
+        DownloadSource {
+            url: format!("{MIRROR_BASE}/v{RUNTIME_VERSION}/{}", asset.file),
+            sha256: asset.mirror_sha256,
+        },
+        DownloadSource {
+            url: format!("{RELEASE_BASE}/v{RUNTIME_VERSION}/{}", asset.file),
+            sha256: asset.upstream_sha256,
+        },
+    ]
+}
 
 pub fn lib_filename() -> &'static str {
     if cfg!(target_os = "windows") {
@@ -123,7 +148,7 @@ pub fn list_variants() -> Vec<RuntimeVariant> {
         .map(|a| RuntimeVariant {
             id: a.id.to_string(),
             label: a.label.to_string(),
-            bytes: a.bytes,
+            bytes: a.mirror_bytes,
             recommended: Some(a.id) == auto,
         })
         .collect()
@@ -403,13 +428,59 @@ pub async fn install_runtime(
     let dir = target_dir().ok_or_else(|| anyhow!("could not find the app data folder"))?;
     std::fs::create_dir_all(&dir).with_context(|| format!("creating {}", dir.display()))?;
 
-    let url = format!("{}/v{}/{}", RELEASE_BASE, RUNTIME_VERSION, asset.file);
+    let sources = sources_for(asset);
     let tmp = crate::core::tools::temp_dir().join(asset.file);
     let client = crate::core::tools::client()?;
-    crate::core::tools::download_to(&client, &url, &tmp, progress, "onnxruntime").await?;
+    let mut verified_source = None;
+    let mut errors: Vec<String> = Vec::new();
+    for source in &sources {
+        let _ = std::fs::remove_file(&tmp);
+        match crate::core::tools::download_to(&client, &source.url, &tmp, progress, "onnxruntime")
+            .await
+        {
+            Ok(_) => {
+                crate::core::tools::report(
+                    progress,
+                    "onnxruntime",
+                    "verify",
+                    0,
+                    None,
+                    Some("checking sha256".into()),
+                );
+                let tmp_check = tmp.clone();
+                let got = tokio::task::spawn_blocking(move || sha256_of(&tmp_check))
+                    .await
+                    .map_err(|e| anyhow!("verification task failed: {e}"))??;
+                if got == source.sha256 {
+                    verified_source = Some(source.url.clone());
+                    break;
+                }
+                let _ = std::fs::remove_file(&tmp);
+                let msg = format!(
+                    "the downloaded ONNX Runtime package from {} does not match: expected sha256 {}, got {}",
+                    source.url, source.sha256, got
+                );
+                tracing::warn!("[onnxrt] {msg}");
+                errors.push(msg);
+            }
+            Err(e) => {
+                let _ = std::fs::remove_file(&tmp);
+                tracing::warn!("[onnxrt] mirror/source {} failed: {e}", source.url);
+                errors.push(e.to_string());
+            }
+        }
+    }
+    if verified_source.is_none() {
+        return Err(anyhow!(
+            "{}",
+            errors
+                .first()
+                .cloned()
+                .unwrap_or_else(|| "could not download ONNX Runtime".into())
+        ));
+    }
 
     let asset_file = asset.file.to_string();
-    let expected = asset.sha256.to_string();
     let is_zip = asset_file.ends_with(".zip");
     let dir_for_task = dir.clone();
     let tmp_for_task = tmp.clone();
@@ -418,25 +489,10 @@ pub async fn install_runtime(
         crate::core::tools::report(
             &p,
             "onnxruntime",
-            "verify",
-            0,
-            None,
-            Some("checking sha256".into()),
-        );
-        let got = sha256_of(&tmp_for_task)?;
-        if got != expected {
-            let _ = std::fs::remove_file(&tmp_for_task);
-            return Err(anyhow!(
-                "the downloaded ONNX Runtime package does not match: expected sha256 {expected}, got {got}"
-            ));
-        }
-        crate::core::tools::report(
-            &p,
-            "onnxruntime",
             "extract",
             0,
             None,
-            Some("extraindo".into()),
+            Some("extracting".into()),
         );
         let extracted = extract_libs(&tmp_for_task, is_zip, &dir_for_task)?;
         let canonical = make_canonical(&dir_for_task, &extracted)?;
@@ -468,3 +524,81 @@ async fn strip_quarantine(path: &Path) {
 
 #[cfg(not(target_os = "macos"))]
 async fn strip_quarantine(_path: &Path) {}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn sources_try_project_mirror_before_github() {
+        for asset in ASSETS {
+            let sources = sources_for(asset);
+            assert_eq!(
+                sources[0].url,
+                format!(
+                    "https://getomniget.com/dl/onnxruntime/v{RUNTIME_VERSION}/{}",
+                    asset.file
+                )
+            );
+            assert_eq!(sources[0].sha256, asset.mirror_sha256);
+            assert_eq!(sources[0].sha256.len(), 64);
+            assert_eq!(
+                sources[1].url,
+                format!("https://github.com/microsoft/onnxruntime/releases/download/v{RUNTIME_VERSION}/{}", asset.file)
+            );
+            assert_eq!(sources[1].sha256, asset.upstream_sha256);
+            assert_eq!(sources[1].sha256.len(), 64);
+        }
+    }
+
+    #[test]
+    fn extract_libs_reads_tgz_and_zip_lib_layout() {
+        use std::io::Write;
+        let dir = tempfile::tempdir().unwrap();
+        let lib = lib_filename();
+        let out_tgz = dir.path().join("out_tgz");
+        std::fs::create_dir_all(&out_tgz).unwrap();
+        let tgz_path = dir.path().join("ort.tgz");
+        {
+            let f = std::fs::File::create(&tgz_path).unwrap();
+            let enc = flate2::write::GzEncoder::new(f, flate2::Compression::fast());
+            let mut tar = tar::Builder::new(enc);
+            let data = b"fake-onnxruntime-binary";
+            let mut header = tar::Header::new_gnu();
+            header.set_size(data.len() as u64);
+            header.set_mode(0o755);
+            header.set_cksum();
+            tar.append_data(
+                &mut header,
+                format!("onnxruntime-test/lib/{lib}"),
+                &data[..],
+            )
+            .unwrap();
+            tar.finish().unwrap();
+        }
+        let picked = extract_libs(&tgz_path, false, &out_tgz).unwrap();
+        assert_eq!(picked, lib);
+        assert_eq!(
+            std::fs::read(out_tgz.join(lib)).unwrap(),
+            b"fake-onnxruntime-binary"
+        );
+
+        let out_zip = dir.path().join("out_zip");
+        std::fs::create_dir_all(&out_zip).unwrap();
+        let zip_path = dir.path().join("ort.zip");
+        {
+            let mut w = zip::ZipWriter::new(std::fs::File::create(&zip_path).unwrap());
+            let opts = zip::write::SimpleFileOptions::default();
+            w.start_file(format!("onnxruntime-test/lib/{lib}"), opts)
+                .unwrap();
+            w.write_all(b"fake-onnxruntime-zip").unwrap();
+            w.finish().unwrap();
+        }
+        let picked_zip = extract_libs(&zip_path, true, &out_zip).unwrap();
+        assert_eq!(picked_zip, lib);
+        assert_eq!(
+            std::fs::read(out_zip.join(lib)).unwrap(),
+            b"fake-onnxruntime-zip"
+        );
+    }
+}

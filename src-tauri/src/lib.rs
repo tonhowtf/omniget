@@ -28,32 +28,27 @@ pub mod external_url;
 mod handlers;
 pub mod hotkey;
 pub mod ipc_guard;
-pub mod job_commands;
-pub mod job_workflow;
 pub mod jobs;
+pub use jobs::{commands as job_commands, workflow as job_workflow};
 pub mod limits_strip;
-pub mod llm_attention;
-pub mod llm_audit;
-pub mod llm_budget;
-pub mod llm_manager;
+pub mod llm;
+pub use llm::{
+    attention as llm_attention, audit as llm_audit, budget as llm_budget, manager as llm_manager,
+};
 pub mod local_bridge;
-pub mod local_bridge_agentkit;
-pub mod local_bridge_canvas;
-pub mod local_bridge_company;
-pub mod local_bridge_debug;
-pub mod local_bridge_jobs;
-pub mod local_bridge_observe;
-pub mod local_bridge_remote;
-pub mod local_bridge_telegram;
-pub mod local_bridge_tools;
-pub mod local_bridge_wmb;
+pub use local_bridge::{
+    agentkit as local_bridge_agentkit, canvas as local_bridge_canvas,
+    company as local_bridge_company, debug as local_bridge_debug, jobs as local_bridge_jobs,
+    observe as local_bridge_observe, remote as local_bridge_remote,
+    telegram as local_bridge_telegram, tools as local_bridge_tools, wmb as local_bridge_wmb,
+};
 pub mod mcp;
 pub mod missions;
 pub mod models;
 mod native_agent;
-mod native_agent_export;
-mod native_agent_media;
-mod native_agent_record;
+use native_agent::{
+    export as native_agent_export, media as native_agent_media, record as native_agent_record,
+};
 mod native_capture;
 pub mod platforms;
 pub mod portal;

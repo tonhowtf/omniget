@@ -70,7 +70,7 @@ pub fn to_hit(b: Book) -> Hit {
     let mut downloads = Vec::new();
     let order = [
         ("application/epub+zip", "epub", "EPUB"),
-        ("application/x-mobipocket-ebook", "azw3", "Kindle"),
+        ("application/x-mobipocket-ebook", "mobi", "Kindle"),
         ("text/plain; charset=utf-8", "txt", "Text"),
         ("text/plain; charset=us-ascii", "txt", "Text"),
         ("text/plain", "txt", "Text"),
@@ -168,14 +168,24 @@ pub async fn catalog_text(
         if let Some(d) = cache.parent() {
             let _ = std::fs::create_dir_all(d);
         }
-        std::fs::write(cache, &bytes).map_err(|e| e.to_string())?;
+        let tmp = cache.with_extension(format!("gz.tmp.{}", std::process::id()));
+        std::fs::write(&tmp, &bytes).map_err(|e| e.to_string())?;
+        if let Err(e) = std::fs::rename(&tmp, cache) {
+            let _ = std::fs::remove_file(&tmp);
+            return Err(e.to_string());
+        }
     }
-    let gz = std::fs::read(cache).map_err(|e| e.to_string())?;
-    let mut out = String::new();
-    flate2::read::GzDecoder::new(&gz[..])
-        .read_to_string(&mut out)
-        .map_err(|e| e.to_string())?;
-    Ok(out)
+    let cache_path = cache.to_path_buf();
+    tokio::task::spawn_blocking(move || {
+        let gz = std::fs::read(&cache_path).map_err(|e| e.to_string())?;
+        let mut out = String::new();
+        flate2::read::GzDecoder::new(&gz[..])
+            .read_to_string(&mut out)
+            .map_err(|e| e.to_string())?;
+        Ok(out)
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 pub const CATALOG_URL: &str = "https://www.gutenberg.org/cache/epub/feeds/pg_catalog.csv.gz";

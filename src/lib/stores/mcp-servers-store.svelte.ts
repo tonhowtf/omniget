@@ -19,11 +19,6 @@ export function getServers(): McpServerRow[] {
   return rows;
 }
 
-export function getServer(id: string | null | undefined): McpServerRow | null {
-  if (!id) return null;
-  return rows.find((r) => r.config.id === id) ?? null;
-}
-
 export function isLoading(): boolean {
   return loading;
 }

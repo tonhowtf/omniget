@@ -119,10 +119,13 @@ pub fn extract(path: &Path) -> Result<Extracted, String> {
         }
         BookFormat::Mobi | BookFormat::Azw3 => {
             let data = std::fs::read(path).map_err(|e| e.to_string())?;
-            mobi::read(&data).unwrap_or_default()
+            mobi::read(&data).ok_or_else(|| "invalid MOBI/AZW3 file".to_string())?
         }
         BookFormat::Fb2 => {
             let bytes = std::fs::read(path).map_err(|e| e.to_string())?;
+            if bytes.is_empty() {
+                return Err("empty FB2 file".into());
+            }
             fb2::read(&String::from_utf8_lossy(&bytes))
         }
         BookFormat::Fbz => {
@@ -137,7 +140,40 @@ pub fn extract(path: &Path) -> Result<Extracted, String> {
             let bytes = epub::read_entry_bytes(&mut z, &name).ok_or("unreadable fb2")?;
             fb2::read(&String::from_utf8_lossy(&bytes))
         }
-        _ => (BookMeta::default(), None),
+        BookFormat::Pdf => {
+            let mut head = [0u8; 1024];
+            let n = std::fs::File::open(path)
+                .and_then(|mut f| f.read(&mut head))
+                .map_err(|e| e.to_string())?;
+            if !head[..n].windows(5).any(|w| w == b"%PDF-") {
+                return Err("invalid PDF file (missing %PDF- header)".into());
+            }
+            (BookMeta::default(), None)
+        }
+        BookFormat::Cbr | BookFormat::Cb7 | BookFormat::Djvu => {
+            let mut head = [0u8; 16];
+            let n = std::fs::File::open(path)
+                .and_then(|mut f| f.read(&mut head))
+                .map_err(|e| e.to_string())?;
+            let slice = &head[..n];
+            let valid = match format {
+                BookFormat::Cbr => slice.starts_with(b"Rar!"),
+                BookFormat::Cb7 => slice.starts_with(b"7z\xBC\xAF\x27\x1C"),
+                BookFormat::Djvu => slice.starts_with(b"AT&TFORM"),
+                _ => true,
+            };
+            if !valid {
+                return Err(format!("invalid {:?} file header", format));
+            }
+            (BookMeta::default(), None)
+        }
+        _ => {
+            let len = std::fs::metadata(path).map_err(|e| e.to_string())?.len();
+            if len == 0 {
+                return Err("empty book file".into());
+            }
+            (BookMeta::default(), None)
+        }
     };
     if meta.title.trim().is_empty() {
         meta.title = title_from_name(path);

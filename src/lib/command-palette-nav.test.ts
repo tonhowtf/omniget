@@ -7,7 +7,11 @@ describe("paletteNavEntries", () => {
   it("lists every core page and every superpower once", () => {
     const entries = paletteNavEntries(CORE_NAV_ITEMS, SUPERPOWERS, {});
     const hrefs = entries.map((entry) => entry.href);
-    expect(hrefs).toEqual([...CORE_NAV_ITEMS.map((item) => item.href), ...SUPERPOWERS.map((entry) => entry.href)]);
+    const coreHrefs = new Set(CORE_NAV_ITEMS.map((item) => item.href));
+    expect(hrefs).toEqual([
+      ...CORE_NAV_ITEMS.map((item) => item.href),
+      ...SUPERPOWERS.filter((entry) => !coreHrefs.has(entry.href)).map((entry) => entry.href),
+    ]);
     expect(hrefs).toEqual(expect.arrayContaining(["/world", "/telegram", "/global", "/league"]));
     expect(new Set(entries.map((entry) => entry.id)).size).toBe(entries.length);
   });
@@ -20,7 +24,7 @@ describe("paletteNavEntries", () => {
 
   it("only lists the core pages it is given", () => {
     const core = CORE_NAV_ITEMS.filter((item) => item.href !== "/world");
-    expect(paletteNavEntries(core, [], {}).map((entry) => entry.id)).toEqual(["nav-home", "nav-downloads", "nav-superpowers", "nav-settings", "nav-help", "nav-community"]);
+    expect(paletteNavEntries(core, [], {}).map((entry) => entry.id)).toEqual(["nav-home", "nav-downloads", "nav-global", "nav-superpowers", "nav-settings", "nav-community"]);
   });
 
   it("carries the label source and the keywords", () => {

@@ -17,7 +17,7 @@
   } = $props();
 
   const anim = stripAnimationCss(OMNI_STRIP, moodPose("neutral"));
-  let scale = $derived(compact ? size / 72 : size / 40);
+  let scale = $derived(compact ? size / 72 : size / 44);
 </script>
 
 <span
@@ -52,14 +52,12 @@
     overflow: hidden;
     background:
       radial-gradient(
-        circle at 50% 22%,
-        rgba(255, 255, 255, 0.34),
-        rgba(255, 255, 255, 0) 62%
+        circle at 50% 24%,
+        color-mix(in srgb, var(--omni-tint, var(--accent)) 36%, transparent),
+        transparent 72%
       ),
-      var(--omni-tint, #6e8bff);
-    box-shadow:
-      inset 0 0 0 var(--hairline) rgba(0, 0, 0, 0.18),
-      var(--elev-1);
+      color-mix(in srgb, var(--omni-tint, var(--accent)) 18%, var(--surface-hi));
+    box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--omni-tint, var(--accent)) 52%, var(--content-border));
   }
 
   .omni-sprite {

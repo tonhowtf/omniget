@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sha2::{Digest, Sha256};
 
-use super::{Hit, Page, RemoteChapter, RemotePage};
+use super::{Download, Hit, Page, RemoteChapter, RemotePage};
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase", default)]
@@ -16,6 +16,8 @@ pub struct DeclarativeSource {
     pub lang: String,
     pub kind: Option<String>,
     pub base_url: String,
+    #[serde(default)]
+    pub mirrors: Vec<String>,
     pub icon: Option<String>,
     pub nsfw: bool,
     pub template: Option<String>,
@@ -41,14 +43,25 @@ pub struct Request {
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase", default)]
+pub struct DownloadsSpec {
+    pub list: String,
+    pub url: Extractor,
+    pub format: Option<Extractor>,
+    pub label: Option<Extractor>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase", default)]
 pub struct ListSpec {
     #[serde(flatten)]
     pub request: Request,
     pub list: String,
     pub key: Extractor,
     pub title: Extractor,
+    pub authors: Option<Extractor>,
     pub cover: Option<Extractor>,
     pub has_next: Option<Extractor>,
+    pub downloads: Option<DownloadsSpec>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -62,6 +75,7 @@ pub struct DetailsSpec {
     pub genres: Option<Extractor>,
     pub status: Option<Extractor>,
     pub cover: Option<Extractor>,
+    pub downloads: Option<DownloadsSpec>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -103,25 +117,32 @@ pub struct Extractor {
     pub abs: bool,
 }
 
-fn normalize_extractors(v: &mut Value) {
-    const KEYS: &[&str] = &[
-        "key",
-        "title",
-        "cover",
-        "hasNext",
-        "description",
-        "authors",
-        "genres",
-        "status",
-        "number",
-        "date",
-        "scanlator",
-        "image",
-    ];
+const DOWNLOAD_KEYS: &[&str] = &["url", "format", "label"];
+
+const EXTRACTOR_KEYS: &[&str] = &[
+    "key",
+    "title",
+    "cover",
+    "hasNext",
+    "description",
+    "authors",
+    "genres",
+    "status",
+    "number",
+    "date",
+    "scanlator",
+    "image",
+];
+
+fn normalize_keys(v: &mut Value, keys: &[&str]) {
     match v {
         Value::Object(map) => {
             for (k, child) in map.iter_mut() {
-                if KEYS.contains(&k.as_str()) {
+                if k == "downloads" {
+                    normalize_keys(child, DOWNLOAD_KEYS);
+                    continue;
+                }
+                if keys.contains(&k.as_str()) {
                     if let Value::String(s) = child {
                         *child = short_extractor(s);
                         continue;
@@ -131,10 +152,10 @@ fn normalize_extractors(v: &mut Value) {
                             Value::Array(a.split('|').map(|x| Value::String(x.into())).collect());
                     }
                 }
-                normalize_extractors(child);
+                normalize_keys(child, EXTRACTOR_KEYS);
             }
         }
-        Value::Array(a) => a.iter_mut().for_each(normalize_extractors),
+        Value::Array(a) => a.iter_mut().for_each(|x| normalize_keys(x, keys)),
         _ => {}
     }
 }
@@ -234,7 +255,7 @@ pub fn parse_source(v: Value) -> Result<DeclarativeSource, String> {
         merge(&mut base, v.clone());
         v = base;
     }
-    normalize_extractors(&mut v);
+    normalize_keys(&mut v, EXTRACTOR_KEYS);
     let s: DeclarativeSource = serde_json::from_value(v).map_err(|e| format!("bad source: {e}"))?;
     if s.id.is_empty() || s.name.is_empty() || s.base_url.is_empty() {
         return Err("a source needs id, name and baseUrl".into());
@@ -330,12 +351,13 @@ fn fill(template: &str, s: &DeclarativeSource, vars: &[(&str, &str)]) -> String 
     out
 }
 
-async fn fetch(
+async fn fetch_text_once(
     client: &reqwest::Client,
     s: &DeclarativeSource,
     req: &Request,
     url: &str,
-) -> Result<(Doc, String), String> {
+    referer_base: &str,
+) -> Result<(String, String), String> {
     if s.rate_limit_ms > 0 {
         throttle(&s.id, s.rate_limit_ms).await;
     }
@@ -345,7 +367,10 @@ async fn fetch(
     } else {
         client.get(url)
     };
-    r = r.header("Referer", format!("{}/", s.base_url.trim_end_matches('/')));
+    r = r.header(
+        "Referer",
+        format!("{}/", referer_base.trim_end_matches('/')),
+    );
     for (k, v) in &s.headers {
         r = r.header(k.as_str(), fill(v, s, &[]));
     }
@@ -364,6 +389,45 @@ async fn fetch(
         return Err(format!("{status} from {url}{hint}"));
     }
     let text = resp.text().await.map_err(|e| e.to_string())?;
+    Ok((text, final_url))
+}
+
+async fn fetch(
+    client: &reqwest::Client,
+    s: &DeclarativeSource,
+    req: &Request,
+    url: &str,
+) -> Result<(Doc, String), String> {
+    let (text, final_url) = match fetch_text_once(client, s, req, url, &s.base_url).await {
+        Ok(res) => res,
+        Err(first_err) => {
+            let base = s.base_url.trim_end_matches('/');
+            if s.mirrors.is_empty() || base.is_empty() || !url.starts_with(base) {
+                return Err(first_err);
+            }
+            let suffix = &url[base.len()..];
+            let mut last_err = first_err;
+            let mut found = None;
+            for mirror in &s.mirrors {
+                let m = mirror.trim().trim_end_matches('/');
+                if m.is_empty() || m == base {
+                    continue;
+                }
+                let alt_url = format!("{m}{suffix}");
+                match fetch_text_once(client, s, req, &alt_url, m).await {
+                    Ok(res) => {
+                        found = Some(res);
+                        break;
+                    }
+                    Err(e) => last_err = e,
+                }
+            }
+            match found {
+                Some(res) => res,
+                None => return Err(last_err),
+            }
+        }
+    };
     let doc = if req.json {
         Doc::Json(serde_json::from_str(&text).map_err(|e| e.to_string())?)
     } else {
@@ -553,13 +617,111 @@ fn image_abs(v: String, page_url: &str) -> Option<String> {
         .ok()
 }
 
+fn infer_book_format(url: &str, label: &str) -> String {
+    let u = url.to_ascii_lowercase();
+    let l = label.to_ascii_lowercase();
+    for ext in [
+        "epub", "pdf", "mobi", "azw3", "cbz", "cbr", "cb7", "djvu", "fb2", "fbz", "txt",
+    ] {
+        let dot = format!(".{ext}");
+        if u.contains(&dot) || l.contains(ext) {
+            return ext.to_string();
+        }
+    }
+    "file".to_string()
+}
+
+fn extract_downloads_html(
+    spec: &DownloadsSpec,
+    el: ElementRef<'_>,
+    page_url: &str,
+) -> Vec<Download> {
+    let mut out = Vec::new();
+    let mut seen = std::collections::HashSet::new();
+    let nodes: Vec<ElementRef<'_>> = if spec.list.trim().is_empty() {
+        vec![el]
+    } else if let Some(s) = sel(&spec.list) {
+        el.select(&s).collect()
+    } else {
+        vec![]
+    };
+    for node in nodes {
+        let raw_url = one(&spec.url, node, page_url);
+        let url = abs_key(raw_url, page_url);
+        if url.is_empty() || !seen.insert(url.clone()) {
+            continue;
+        }
+        let label = spec
+            .label
+            .as_ref()
+            .map(|x| one(x, node, page_url))
+            .unwrap_or_default();
+        let fmt = spec
+            .format
+            .as_ref()
+            .map(|x| one(x, node, page_url).to_ascii_lowercase())
+            .filter(|f| !f.is_empty())
+            .unwrap_or_else(|| infer_book_format(&url, &label));
+        let final_label = if label.is_empty() {
+            fmt.to_uppercase()
+        } else {
+            label
+        };
+        out.push(Download {
+            url,
+            format: fmt,
+            label: final_label,
+        });
+    }
+    out
+}
+
+fn extract_downloads_json(spec: &DownloadsSpec, v: &Value, page_url: &str) -> Vec<Download> {
+    let mut out = Vec::new();
+    let mut seen = std::collections::HashSet::new();
+    let nodes: Vec<&Value> = if spec.list.trim().is_empty() {
+        vec![v]
+    } else {
+        json_path(v, &spec.list)
+    };
+    for node in nodes {
+        let raw_url = one_json(&spec.url, node, page_url);
+        let url = abs_key(raw_url, page_url);
+        if url.is_empty() || !seen.insert(url.clone()) {
+            continue;
+        }
+        let label = spec
+            .label
+            .as_ref()
+            .map(|x| one_json(x, node, page_url))
+            .unwrap_or_default();
+        let fmt = spec
+            .format
+            .as_ref()
+            .map(|x| one_json(x, node, page_url).to_ascii_lowercase())
+            .filter(|f| !f.is_empty())
+            .unwrap_or_else(|| infer_book_format(&url, &label));
+        let final_label = if label.is_empty() {
+            fmt.to_uppercase()
+        } else {
+            label
+        };
+        out.push(Download {
+            url,
+            format: fmt,
+            label: final_label,
+        });
+    }
+    out
+}
+
 pub async fn browse(
     client: &reqwest::Client,
     s: &DeclarativeSource,
     mode: &str,
     query: &str,
     page: u32,
-    _filters: &Value,
+    filters: &Value,
 ) -> Result<Page, String> {
     let spec = match mode {
         "search" => s.search.as_ref().or(s.popular.as_ref()),
@@ -568,7 +730,20 @@ pub async fn browse(
     }
     .ok_or("this source can't list")?;
     let pg = page.max(1).to_string();
-    let url = fill(&spec.request.url, s, &[("page", &pg), ("query", query)]);
+    let mut filter_owned: Vec<(String, String)> = Vec::new();
+    if let Some(obj) = filters.as_object() {
+        for (k, v) in obj {
+            let s_val = value_str(v);
+            if !s_val.is_empty() {
+                filter_owned.push((format!("filter.{k}"), s_val));
+            }
+        }
+    }
+    let mut vars: Vec<(&str, &str)> = vec![("page", &pg), ("query", query)];
+    for (k, v) in &filter_owned {
+        vars.push((k.as_str(), v.as_str()));
+    }
+    let url = fill(&spec.request.url, s, &vars);
     let (doc, final_url) = fetch(client, s, &spec.request, &url).await?;
     let mut hits = Vec::new();
     let mut has_next = false;
@@ -587,7 +762,16 @@ pub async fn browse(
                         .as_ref()
                         .map(|c| one(c, el, &final_url))
                         .and_then(|c| image_abs(c, &final_url));
-                    hits.push(hit(s, key, title, cover));
+                    let mut h = hit(s, key, title, cover);
+                    if let Some(a) = &spec.authors {
+                        let mut ex = a.clone();
+                        ex.all = true;
+                        h.authors = from_element(&ex, el, &final_url);
+                    }
+                    if let Some(dl) = &spec.downloads {
+                        h.downloads = extract_downloads_html(dl, el, &final_url);
+                    }
+                    hits.push(h);
                 }
             }
             if let Some(n) = &spec.has_next {
@@ -610,7 +794,16 @@ pub async fn browse(
                     .as_ref()
                     .map(|c| one_json(c, item, &final_url))
                     .and_then(|c| image_abs(c, &final_url));
-                hits.push(hit(s, key, title, cover));
+                let mut h = hit(s, key, title, cover);
+                if let Some(a) = &spec.authors {
+                    let mut ex = a.clone();
+                    ex.all = true;
+                    h.authors = from_json(&ex, item, &final_url);
+                }
+                if let Some(dl) = &spec.downloads {
+                    h.downloads = extract_downloads_json(dl, item, &final_url);
+                }
+                hits.push(h);
             }
             if let Some(n) = &spec.has_next {
                 let v = one_json(n, v, &final_url);
@@ -686,6 +879,12 @@ pub async fn details(
         h.authors = get_list(&d.authors);
         h.subjects = get_list(&d.genres);
         h.cover = image_abs(get(&d.cover), &final_url);
+        if let Some(dl) = &d.downloads {
+            h.downloads = match &doc {
+                Doc::Html(x) => extract_downloads_html(dl, x.root_element(), &final_url),
+                Doc::Json(v) => extract_downloads_json(dl, v, &final_url),
+            };
+        }
         h.extra = serde_json::json!({ "status": get(&d.status) });
         let same_page = match &s.chapters {
             Some(c) if c.request.url.is_empty() || c.request.url == "{key}" => {
@@ -981,4 +1180,32 @@ pub async fn health(client: &reqwest::Client, s: &DeclarativeSource) -> HealthRe
     }
     r.ok = true;
     r
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn request_url_stays_a_string_while_download_url_becomes_an_extractor() {
+        let s = parse_source(serde_json::json!({
+            "id": "t",
+            "name": "T",
+            "baseUrl": "https://books.example",
+            "popular": {
+                "url": "{baseUrl}/books",
+                "list": "li",
+                "key": "a@href",
+                "title": "a",
+                "downloads": { "list": "a.dl", "url": "@href", "format": "span.fmt", "label": "span.lbl" }
+            }
+        }))
+        .expect("source parses");
+        let popular = s.popular.expect("popular");
+        assert_eq!(popular.request.url, "{baseUrl}/books");
+        let dl = popular.downloads.expect("downloads");
+        assert_eq!(dl.url.attr, Some(vec!["href".to_string()]));
+        assert_eq!(dl.format.and_then(|f| f.css), Some("span.fmt".to_string()));
+        assert_eq!(dl.label.and_then(|l| l.css), Some("span.lbl".to_string()));
+    }
 }

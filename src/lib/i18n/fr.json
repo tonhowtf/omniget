@@ -1128,12 +1128,11 @@
     "section_primary": "Main",
     "section_app": "App",
     "world": "Canvas",
-    "help": "Help",
-    "profile_appearance": "Profil et apparence",
     "superpowers": "Outils",
     "collapse_sidebar": "Réduire la barre latérale",
     "expand_sidebar": "Développer la barre latérale",
-    "community": "À propos et communauté"
+    "community": "À propos et communauté",
+    "global": "Cours et Sites"
   },
   "command_palette": {
     "open": "Aller à…",
@@ -1170,7 +1169,8 @@
     "success_first": "Votre premier téléchargement !",
     "success_open": "Ouvrir les téléchargements",
     "success_folder": "Téléchargement dans {{folder}}",
-    "success_show_folder": "Afficher le dossier"
+    "success_show_folder": "Afficher le dossier",
+    "mcp_hint": "Vous utilisez Claude Code, Cursor ou Codex ? [Connecter via MCP]"
   },
   "downloads": {
     "phase_downloading": "Téléchargement",
@@ -1848,7 +1848,8 @@
         "copied": "Liens copiés",
         "saved_one": "{{count}} lien enregistré",
         "saved_other": "{{count}} liens enregistrés",
-        "note": "Le routeur de liens, dans ces outils, rouvre ce même .txt et met chaque lien en file."
+        "note": "Le routeur de liens, dans ces outils, rouvre ce même .txt et met chaque lien en file.",
+        "pool": "Sélection parmi {{total}} entrées de l'Historique."
       },
       "dedupe": {
         "title": "Libérer de l'espace disque",
@@ -1897,7 +1898,8 @@
     "archive_imported": "{{added}} nouvelles entrées importées sur {{read}}",
     "archive_exported": "{{written}} entrées exportées, {{skipped}} sans identifiant connu exclues",
     "archive_count": "{{count}} entrées importées depuis une archive yt-dlp",
-    "open_file": "Ouvrir"
+    "open_file": "Ouvrir",
+    "history_summary": "{{total}} téléchargements enregistrés (jusqu'à {{limit}} conservés)"
   },
   "toast": {
     "download_complete": "Fini ! {{name}} est dans votre dossier",
@@ -1950,7 +1952,6 @@
       "more_desc": "Astuces et affichage des limites d'utilisation.",
       "autostart_blocked": "Windows l'a désactivé dans le Gestionnaire des tâches, sous Applications de démarrage. Désactivez puis réactivez cet interrupteur pour l'autoriser.",
       "autostart_portable": "Indisponible dans la version portable.",
-      "title": "Général",
       "start_with_system": "Démarrer avec le système",
       "start_minimized": "Démarrer dans la zone de notification",
       "exit_on_close": "Quitter à la fermeture de la fenêtre",
@@ -1960,8 +1961,6 @@
       "run_in_background": "Exécuter les agents en arrière-plan",
       "run_in_background_flatpak": "Flatpak : le démarrage à l’ouverture de session et le lancement depuis la ligne de commande ne sont pas encore vérifiés.",
       "start_with_system_desc": "Ouvre OmniGet quand vous vous connectez à votre ordinateur.",
-      "start_minimized_desc": "Démarre masqué dans la barre système, sans ouvrir la fenêtre.",
-      "exit_on_close_desc": "Fermer la fenêtre quitte l'app au lieu de la garder dans la barre système.",
       "run_in_background_desc": "Les agents, tâches et routines continuent quand la fenêtre est fermée.",
       "reopen_guide": "Guide de bienvenue",
       "reopen_guide_desc": "Refaire les étapes du premier lancement.",
@@ -2369,7 +2368,6 @@
     },
     "ai": {
       "provider": "Fournisseur",
-      "provider_desc": "Choisissez la destination des requêtes IA. Votre clé est stockée localement et jamais journalisée.",
       "provider_none": "Désactivé",
       "model": "Modèle",
       "model_desc": "L'identifiant du modèle pour le fournisseur choisi.",
@@ -2382,8 +2380,6 @@
       "test_ok": "La connexion IA fonctionne",
       "test_fail": "Échec du test IA : {{error}}",
       "saved": "Paramètres IA enregistrés",
-      "summarize_title": "Résumer une vidéo",
-      "history": "Historique IA",
       "save_test": "Enregistrer et tester",
       "saving": "Enregistrement…",
       "provider_endpoint": "Point d'accès personnalisé (local ou distant)",
@@ -2763,7 +2759,11 @@
         "fail_custom": "Impossible de joindre Discord. L'ID d'application ou l'image a été modifié ; rétablissez les valeurs par défaut si Discord est déjà ouvert.",
         "reset": "Rétablir par défaut"
       }
-    }
+    },
+    "update_downloading_pct": "Téléchargement de la mise à jour… {{percent}}%",
+    "update_failed": "Échec de la mise à jour : {{error}}",
+    "update_manual_hint": "Cette installation se met à jour en installant le nouveau paquet depuis la page de téléchargement. Vos paramètres et données sont conservés.",
+    "update_open_download": "Ouvrir la page de téléchargement"
   },
   "omnibox": {
     "placeholder": "Collez un lien ou tapez pour chercher des vidéos",
@@ -3003,7 +3003,12 @@
     "wmb_credits_body": "Nettoyeur système reprend des données et des idées de ces projets open source. Leurs licences et les fichiers exacts sont listés dans THIRD_PARTY.md. La source de privacy.sexy (AGPL-3.0) se trouve au lien ci-dessous.",
     "wmb_credit_data": "données",
     "wmb_credit_design": "design repris",
-    "wmb_credit_tool": "outil utilisé"
+    "wmb_credit_tool": "outil utilisé",
+    "card_chat_title": "Chat de la communauté",
+    "card_chat_desc": "Posez vos questions, partagez des astuces ou parlez à l'auteur.",
+    "card_roadmap_title": "Feuille de route et idées",
+    "card_roadmap_desc": "Suivez les travaux en cours et proposez des nouveautés.",
+    "website_button": "Site web"
   },
   "changelog": {
     "title": "Nouveautés",
@@ -3226,7 +3231,6 @@
     "save": "Save",
     "skin_label": "Teinte de l'avatar",
     "skin_desc": "Choisissez une couleur. Elle est enregistrée dès que vous cliquez.",
-    "fingerprint_label": "Empreinte de la clé publique",
     "copy": "Copy",
     "copied": "Copied",
     "copy_fingerprint": "Copier l'empreinte",
@@ -3246,7 +3250,10 @@
       "blue": "Blue",
       "purple": "Purple",
       "pink": "Pink"
-    }
+    },
+    "identity_disclosure": "Clé d'identité de salle",
+    "used_in_hint": "Affiché dans la barre latérale et lors du partage d'une salle Canvas.",
+    "sidebar_sub": "Profil local"
   },
   "world": {
     "title": "Canvas",
@@ -3782,8 +3789,6 @@
     "title": "Read",
     "nav_label": "Sections de Lecture",
     "disabled_title": "Lecture est désactivée",
-    "settings_enable": "Afficher Lecture",
-    "settings_enable_desc": "La bibliothèque de lecture et la liseuse. La désactiver la masque et arrête le serveur de bibliothèque.",
     "back": "Back",
     "close": "Close",
     "cancel": "Cancel",
@@ -5890,13 +5895,6 @@
           "title": "Exécuter TRIM sur les SSD",
           "what": "Indique à chaque SSD monté quels blocs sont libres, ce qui garde les écritures rapides. La plupart des systèmes le font déjà une fois par semaine ; le relancer est sans danger."
         }
-      }
-    }
-  },
-  "company": {
-    "team": {
-      "form": {
-        "runtime_roster": "Un agent de votre liste"
       }
     }
   },
@@ -9588,16 +9586,14 @@
     "template_sample_caption": "Leçon 03 : introduction au module"
   },
   "global_dl": {
-    "title": "Navigateur intégré",
-    "subtitle": "Téléchargez des vidéos et des fichiers depuis presque n'importe quel site, y compris ceux qui demandent une connexion.",
+    "title": "Cours et Sites",
+    "subtitle": "Téléchargez vos cours, leçons et fichiers depuis vos plateformes.",
     "hero_label": "Collez le lien de la page depuis laquelle vous voulez télécharger",
     "url_placeholder": "Par exemple : https://example.com/course/lesson-1",
     "find": "Trouver des téléchargements",
     "find_again": "Chercher à nouveau des téléchargements",
     "finding": "Analyse de la page… cela peut prendre quelques secondes.",
     "steps_title": "Comment ça marche",
-    "step_paste": "Collez le lien de la page qui contient la vidéo ou les fichiers, puis appuyez sur Trouver des téléchargements.",
-    "step_login": "Si le site demande de vous connecter, appuyez sur Se connecter à ce site et connectez-vous une fois dans la fenêtre qui s'ouvre.",
     "step_pick": "Choisissez ce que vous voulez et appuyez sur Télécharger.",
     "login_site": "Se connecter à ce site",
     "login_title": "Connectez-vous dans la fenêtre du navigateur",
@@ -9677,7 +9673,6 @@
     "connectors": "Assistants de site",
     "connectors_hint": "Pour les développeurs : un assistant de site est un petit script qui liste tout le contenu d'un site, comme toutes les leçons d'un cours.",
     "add_connector": "Ajouter un dossier d'assistants",
-    "no_connectors": "Aucun assistant de site installé. Les pages fonctionnent quand même : OmniGet trouve ce qu'elles lisent.",
     "dev": "developer",
     "options": "Options",
     "remove": "Remove",
@@ -9723,7 +9718,6 @@
       "update_badge": "Update to {{version}}",
       "open": "Open",
       "login_open": "Se connecter et ouvrir",
-      "by": "by {{author}}",
       "needs_version": "Nécessite OmniGet {{version}} ou plus récent",
       "stage_download": "Downloading",
       "stage_verify": "Vérification du paquet",
@@ -9764,7 +9758,16 @@
     "browser_busy_title": "Des téléchargements sont en cours",
     "browser_busy_body": "Arrêter ou redémarrer le navigateur maintenant peut faire échouer les éléments restants. Continuer quand même ?",
     "browser_busy_confirm": "Continuer quand même",
-    "browser_busy_keep": "Continuer le téléchargement"
+    "browser_busy_keep": "Continuer le téléchargement",
+    "modules_count": "{{count}} modules",
+    "lessons_button": "Leçons",
+    "back_to_courses": "Retour aux cours",
+    "courses_count": "{{count}} cours",
+    "search_courses": "Filtrer les cours…",
+    "download_all": "Tout télécharger ({{count}})",
+    "step_pick_platform": "Choisissez une plateforme ou collez un lien de cours",
+    "step_sign_in_short": "Connectez-vous une fois si le cours est privé",
+    "step_download_short": "Téléchargez tout le cours ou choisissez les leçons"
   },
   "connect": {
     "request_title": "{{client}} veut se connecter à OmniGet",
@@ -9855,7 +9858,6 @@
     }
   },
   "community": {
-    "title": "Communauté",
     "lead": "Discutez avec d’autres utilisateurs d’OmniGet et avec son auteur, dans le chat ouvert de getomniget.com.",
     "more": "Vous préférez un autre endroit ?",
     "tab": {
@@ -9888,13 +9890,17 @@
       "state_limit": "Trop de messages pour le moment. Réessayez plus tard.",
       "state_frozen": "Le chat est en pause pour le moment.",
       "state_error": "Le message n’a pas été envoyé. Réessayez.",
-      "state_offline": "Impossible de joindre getomniget.com. Vérifiez votre connexion."
+      "state_offline": "Impossible de joindre getomniget.com. Vérifiez votre connexion.",
+      "live_badge": "Chat public en direct",
+      "message_count": "{{count}} messages",
+      "fact_anonymous_short": "Anonyme",
+      "fact_public_short": "Public · 30 jours",
+      "fact_local_short": "Connexion uniquement à l'ouverture",
+      "preview_sample_1": "Quelqu'un a déjà connecté Claude Code via MCP ?",
+      "preview_sample_2": "Oui, collez la ligne dans Réglages puis cliquez sur Autoriser."
     }
   },
   "agents": {
-    "roster": {
-      "new": "New agent"
-    },
     "mcp": {
       "loading": "Lecture des serveurs enregistrés…",
       "disabled": "désactivé",
@@ -13993,6 +13999,21 @@
     "failed": "Impossible de charger la feuille de route : {{msg}}",
     "retry": "Réessayer",
     "open_board": "Ouvrir le tableau sur le site",
-    "issue": "Ticket GitHub"
+    "issue": "Ticket GitHub",
+    "filter_all": "Tous",
+    "search_placeholder": "Filtrer les tickets…",
+    "no_matches": "Aucun ticket ne correspond à ce filtre.",
+    "new_issue": "Proposer une idée",
+    "new_issue_title": "Proposer une idée ou signaler un bug",
+    "new_issue_desc": "Envoyé dans la boîte publique de la feuille de route sur getomniget.com. Sans compte.",
+    "issue_title_label": "Titre",
+    "issue_title_placeholder": "Court résumé de votre idée ou bug",
+    "issue_details_label": "Détails (facultatif)",
+    "issue_details_placeholder": "Étapes, lien ou comportement attendu",
+    "issue_submit": "Envoyer à la feuille de route",
+    "issue_submitting": "Envoi…",
+    "issue_sent": "Envoyé ! Votre idée est dans la file de la communauté.",
+    "issue_open_github": "Ou ouvrir sur GitHub",
+    "cancel": "Annuler"
   }
 }

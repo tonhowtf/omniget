@@ -36,7 +36,7 @@ function persist() {
 
 export async function startBookDownload(url: string, title: string, source: string, cover: string | null = null): Promise<ReadDownload> {
   const status = await ensureStatus();
-  const finalUrl = source.startsWith("opds:") ? await invoke<string>("read_opds_download_url", { source, url }) : url;
+  const finalUrl = source.startsWith("opds:") || source.startsWith("dir:") ? await invoke<string>("read_opds_download_url", { source, url }) : url;
   const r = await invoke<{ id: number; title: string }>("download_from_url", {
     url: finalUrl,
     outputDir: status.download_dir,

@@ -82,6 +82,12 @@
   </branding>
   <content_rating type="oars-1.1" />
   <releases>
+    <release version="1.0.2" date="2026-11-27">
+      <description>
+        <p>OmniGet 1.0.2 lets you choose the audio language of a download and gives a compatible H.264 MP4 from every download engine, direct downloads included. A proxy pool serves downloads, Scrape and the HTTP tool, a Downloads only switch hides Tools and the Canvas, and Quick tools in the menu bar or tray paste a link to download, keep the computer awake, show CPU, memory, disk and network, set the volume per app and keep a clipboard history in memory only. Phone Chats can reply, react, send files, tag chats and answer by itself with your rules, the Canvas gains return points before every agent turn, a list of agents waiting for you, a spending limit meter and a lead terminal, and About &amp; community shows the roadmap and takes ideas.</p>
+        <p>Fixes: download progress no longer freezes or shows half on single-file downloads, a finished download is no longer failed when ffprobe is missing, background removal works on fresh installs by fetching ONNX Runtime from getomniget.com, and a 404 or 5xx from a server is no longer blamed on the connection. On Windows, agents can queue downloads again, online radio no longer goes silent after two seconds, Wash My Belly starts winget and lists programs right away, and FFmpeg updates swap ffmpeg and ffprobe together. On Linux, .deb and .rpm installs point to the download page instead of a self-update that never ends. History keeps 10,000 downloads, Russian is complete, the Help section is gone and dependencies with security advisories are updated.</p>
+      </description>
+    </release>
     <release version="1.0.1" date="2026-11-18">
       <description>
         <p>OmniGet 1.0.1 adds new superpowers: clients for Phone Chats, Server Chats, Short Posts, Photo Feed and Clip Feed, where Short Posts, Photo Feed and Clip Feed run through your own session and your agents can use them over MCP with each action approved by you; a PDF editor, a photo gallery with duplicate finding, background removal, a karaoke vocal remover, and a Converter that now handles HEIC, JPEG XL, PSD layers, RAW and DXF/DWG. Design tools join them: Palette, Type, Icons, Motion, an Excalidraw board, shadcn components, screen capture, Studio for subtitles and reframing, and voice dictation. The Global Downloader gains a connector market.</p>
