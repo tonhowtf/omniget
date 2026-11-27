@@ -2,11 +2,11 @@
   import { invoke } from "@tauri-apps/api/core";
   import { onMount } from "svelte";
   import { t } from "$lib/i18n";
-  import SettingGroup from "$components/settings/rebrand/SettingGroup.svelte";
-  import SettingsEmptyState from "$components/settings/rebrand/SettingsEmptyState.svelte";
+  import SettingGroup from "#components/settings/rebrand/SettingGroup.svelte";
+  import SettingsEmptyState from "#components/settings/rebrand/SettingsEmptyState.svelte";
   import { acquireLimitsMonitor, getLimitsMonitor, saveLimitsPrefs } from "$lib/stores/limits-monitor.svelte";
   import LimitsStrip from "./LimitsStrip.svelte";
-  import AdvancedDisclosure from "$components/settings/ai/AdvancedDisclosure.svelte";
+  import AdvancedDisclosure from "#components/settings/ai/AdvancedDisclosure.svelte";
 
   type TrayPrefs = {
     enabled: boolean;

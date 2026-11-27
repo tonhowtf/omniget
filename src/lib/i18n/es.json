@@ -1128,12 +1128,11 @@
     "section_primary": "Main",
     "section_app": "App",
     "world": "Canvas",
-    "help": "Help",
-    "profile_appearance": "Perfil y apariencia",
     "superpowers": "Herramientas",
     "collapse_sidebar": "Contraer barra lateral",
     "expand_sidebar": "Expandir barra lateral",
-    "community": "Acerca de y comunidad"
+    "community": "Acerca de y comunidad",
+    "global": "Cursos y Sitios"
   },
   "command_palette": {
     "open": "Ir a…",
@@ -1170,7 +1169,8 @@
     "success_first": "¡Tu primera descarga!",
     "success_open": "Abrir Descargas",
     "success_folder": "Descargando en {{folder}}",
-    "success_show_folder": "Mostrar carpeta"
+    "success_show_folder": "Mostrar carpeta",
+    "mcp_hint": "¿Usas Claude Code, Cursor o Codex? [Conectar por MCP]"
   },
   "downloads": {
     "phase_downloading": "Descargando",
@@ -1848,7 +1848,8 @@
         "copied": "Enlaces copiados",
         "saved_one": "{{count}} enlace guardado",
         "saved_other": "{{count}} enlaces guardados",
-        "note": "El enrutador de enlaces, en estas herramientas, vuelve a abrir el mismo .txt y pone en cola todos los enlaces."
+        "note": "El enrutador de enlaces, en estas herramientas, vuelve a abrir el mismo .txt y pone en cola todos los enlaces.",
+        "pool": "Eligiendo entre {{total}} entradas del Historial."
       },
       "dedupe": {
         "title": "Liberar espacio en disco",
@@ -1897,7 +1898,8 @@
     "archive_imported": "Se importaron {{added}} nuevas de {{read}} entradas",
     "archive_exported": "{{written}} entradas exportadas, {{skipped}} sin un id conocido quedaron fuera",
     "archive_count": "{{count}} entradas importadas de un archivo de yt-dlp",
-    "open_file": "Abrir"
+    "open_file": "Abrir",
+    "history_summary": "{{total}} descargas guardadas (se conservan hasta {{limit}})"
   },
   "toast": {
     "download_complete": "¡Listo! {{name}} está en tu carpeta",
@@ -1950,7 +1952,6 @@
       "more_desc": "Consejos y la vista de límites de uso.",
       "autostart_blocked": "Windows lo tiene desactivado en el Administrador de tareas, en Aplicaciones de arranque. Apaga y enciende este interruptor para permitirlo.",
       "autostart_portable": "No disponible en la versión portátil.",
-      "title": "General",
       "start_with_system": "Iniciar con el sistema",
       "start_minimized": "Iniciar solo en la bandeja",
       "exit_on_close": "Salir al cerrar la ventana",
@@ -1960,8 +1961,6 @@
       "run_in_background": "Ejecutar agentes en segundo plano",
       "run_in_background_flatpak": "Flatpak: iniciar al iniciar sesión y ser abierto desde la línea de comandos aún no están verificados.",
       "start_with_system_desc": "Abre OmniGet al iniciar sesión en tu ordenador.",
-      "start_minimized_desc": "Empieza oculto en la bandeja, sin abrir la ventana.",
-      "exit_on_close_desc": "Cerrar la ventana cierra la app en lugar de dejarla en la bandeja.",
       "run_in_background_desc": "Los agentes, tareas y rutinas siguen funcionando con la ventana cerrada.",
       "reopen_guide": "Guía de bienvenida",
       "reopen_guide_desc": "Repite los pasos del primer inicio.",
@@ -2369,7 +2368,6 @@
     },
     "ai": {
       "provider": "Proveedor",
-      "provider_desc": "Elige adónde van las solicitudes de IA. Tu clave se guarda localmente y nunca se registra.",
       "provider_none": "Desactivado",
       "model": "Modelo",
       "model_desc": "El identificador del modelo para el proveedor elegido.",
@@ -2382,8 +2380,6 @@
       "test_ok": "La conexión de IA funciona",
       "test_fail": "Prueba de IA fallida: {{error}}",
       "saved": "Configuración de IA guardada",
-      "summarize_title": "Resumir un vídeo",
-      "history": "Historial de IA",
       "save_test": "Guardar y probar",
       "saving": "Guardando…",
       "provider_endpoint": "Endpoint personalizado (local o remoto)",
@@ -2763,7 +2759,11 @@
         "fail_custom": "No se pudo conectar con Discord. El ID de la app o la imagen se cambiaron; restablécelos si Discord ya está abierto.",
         "reset": "Restablecer"
       }
-    }
+    },
+    "update_downloading_pct": "Descargando actualización… {{percent}}%",
+    "update_failed": "Error al actualizar: {{error}}",
+    "update_manual_hint": "Esta instalación se actualiza instalando el nuevo paquete desde la página de descargas. Tu configuración y datos se conservan.",
+    "update_open_download": "Abrir página de descargas"
   },
   "omnibox": {
     "placeholder": "Pega un enlace o escribe para buscar vídeos",
@@ -3003,7 +3003,12 @@
     "wmb_credits_body": "Limpiador del sistema incluye datos e ideas de estos proyectos de código abierto. Sus licencias y los archivos exactos están en THIRD_PARTY.md. El código fuente de privacy.sexy (AGPL-3.0) está en el enlace de abajo.",
     "wmb_credit_data": "datos",
     "wmb_credit_design": "diseño adaptado",
-    "wmb_credit_tool": "herramienta que ejecuta"
+    "wmb_credit_tool": "herramienta que ejecuta",
+    "card_chat_title": "Chat de la comunidad",
+    "card_chat_desc": "Haz preguntas, comparte consejos o habla directo con el autor.",
+    "card_roadmap_title": "Roadmap e ideas",
+    "card_roadmap_desc": "Mira qué viene después y sugiere nuevas funciones.",
+    "website_button": "Sitio web"
   },
   "changelog": {
     "title": "Novedades",
@@ -3226,7 +3231,6 @@
     "save": "Save",
     "skin_label": "Tono del avatar",
     "skin_desc": "Elige un color. Se guarda en cuanto haces clic.",
-    "fingerprint_label": "Huella de la clave pública",
     "copy": "Copy",
     "copied": "Copied",
     "copy_fingerprint": "Copiar huella",
@@ -3246,7 +3250,10 @@
       "blue": "Blue",
       "purple": "Purple",
       "pink": "Pink"
-    }
+    },
+    "identity_disclosure": "Clave de identidad de sala",
+    "used_in_hint": "Se muestra en la barra lateral y al compartir una sala de Canvas.",
+    "sidebar_sub": "Perfil local"
   },
   "world": {
     "title": "Canvas",
@@ -3782,8 +3789,6 @@
     "title": "Read",
     "nav_label": "Secciones de Leer",
     "disabled_title": "Leer está desactivado",
-    "settings_enable": "Mostrar Leer",
-    "settings_enable_desc": "La biblioteca de lectura y el lector. Desactivarlo lo oculta y detiene el servidor de la biblioteca.",
     "back": "Back",
     "close": "Close",
     "cancel": "Cancel",
@@ -5890,13 +5895,6 @@
           "title": "Ejecutar TRIM en los SSD",
           "what": "Indica a cada SSD montado qué bloques están libres, lo que mantiene rápidas las escrituras. La mayoría de los sistemas ya lo hacen una vez por semana; ejecutarlo de nuevo no hace daño."
         }
-      }
-    }
-  },
-  "company": {
-    "team": {
-      "form": {
-        "runtime_roster": "Un agente de tu plantilla"
       }
     }
   },
@@ -9588,16 +9586,14 @@
     "template_sample_caption": "Lección 03: introducción al módulo"
   },
   "global_dl": {
-    "title": "Navegador integrado",
-    "subtitle": "Descarga vídeos y archivos de casi cualquier sitio web, incluidos los que requieren iniciar sesión.",
+    "title": "Cursos y Sitios",
+    "subtitle": "Descarga cursos, clases y materiales de tus plataformas.",
     "hero_label": "Pega el enlace de la página de la que quieres descargar",
     "url_placeholder": "Por ejemplo: https://example.com/course/lesson-1",
     "find": "Buscar descargas",
     "find_again": "Volver a buscar descargas",
     "finding": "Revisando la página… puede tardar unos segundos.",
     "steps_title": "Cómo funciona",
-    "step_paste": "Pega el enlace de la página que tiene el vídeo o los archivos y pulsa Buscar descargas.",
-    "step_login": "Si el sitio te pide iniciar sesión, pulsa Iniciar sesión en este sitio e inicia sesión una vez en la ventana que se abre.",
     "step_pick": "Elige lo que quieras y pulsa Descargar.",
     "login_site": "Iniciar sesión en este sitio",
     "login_title": "Inicia sesión en la ventana del navegador",
@@ -9677,7 +9673,6 @@
     "connectors": "Ayudantes de sitios",
     "connectors_hint": "Para desarrolladores: un ayudante de sitio es un pequeño script que lista todo lo que hay en un sitio, como todas las lecciones de un curso.",
     "add_connector": "Añadir carpeta de ayudantes",
-    "no_connectors": "No hay ayudantes de sitios instalados. Las páginas siguen funcionando: OmniGet encuentra lo que reproducen.",
     "dev": "developer",
     "options": "Options",
     "remove": "Remove",
@@ -9723,7 +9718,6 @@
       "update_badge": "Update to {{version}}",
       "open": "Open",
       "login_open": "Iniciar sesión y abrir",
-      "by": "by {{author}}",
       "needs_version": "Requiere OmniGet {{version}} o posterior",
       "stage_download": "Downloading",
       "stage_verify": "Comprobando el paquete",
@@ -9764,7 +9758,16 @@
     "browser_busy_title": "Todavía hay descargas en curso",
     "browser_busy_body": "Detener o reiniciar el navegador ahora puede hacer que fallen los elementos restantes. ¿Hacerlo de todos modos?",
     "browser_busy_confirm": "Hacerlo de todos modos",
-    "browser_busy_keep": "Seguir descargando"
+    "browser_busy_keep": "Seguir descargando",
+    "modules_count": "{{count}} módulos",
+    "lessons_button": "Clases",
+    "back_to_courses": "Volver a los cursos",
+    "courses_count": "{{count}} cursos",
+    "search_courses": "Filtrar cursos…",
+    "download_all": "Descargar todo ({{count}})",
+    "step_pick_platform": "Elige una plataforma o pega el enlace del curso",
+    "step_sign_in_short": "Inicia sesión una vez si el curso es privado",
+    "step_download_short": "Descarga el curso completo o elige las clases"
   },
   "connect": {
     "request_title": "{{client}} quiere conectarse a OmniGet",
@@ -9855,7 +9858,6 @@
     }
   },
   "community": {
-    "title": "Comunidad",
     "lead": "Habla con otras personas que usan OmniGet y con su autor, en el chat abierto de getomniget.com.",
     "more": "¿Prefieres otro lugar?",
     "tab": {
@@ -9888,13 +9890,17 @@
       "state_limit": "Demasiados mensajes por ahora. Inténtalo más tarde.",
       "state_frozen": "El chat está en pausa por ahora.",
       "state_error": "El mensaje no se envió. Inténtalo de nuevo.",
-      "state_offline": "No se pudo conectar con getomniget.com. Revisa tu conexión."
+      "state_offline": "No se pudo conectar con getomniget.com. Revisa tu conexión.",
+      "live_badge": "Chat público en vivo",
+      "message_count": "{{count}} mensajes",
+      "fact_anonymous_short": "Anónimo",
+      "fact_public_short": "Público · 30 días",
+      "fact_local_short": "Se conecta solo al entrar",
+      "preview_sample_1": "¿Alguien ya conectó Claude Code por MCP?",
+      "preview_sample_2": "Sí, pega la línea en Ajustes y pulsa Permitir."
     }
   },
   "agents": {
-    "roster": {
-      "new": "New agent"
-    },
     "mcp": {
       "loading": "Leyendo los servidores guardados…",
       "disabled": "desactivado",
@@ -13993,6 +13999,21 @@
     "failed": "No se pudo cargar la hoja de ruta: {{msg}}",
     "retry": "Reintentar",
     "open_board": "Abrir el tablero en el sitio",
-    "issue": "Issue en GitHub"
+    "issue": "Issue en GitHub",
+    "filter_all": "Todos",
+    "search_placeholder": "Filtrar tickets…",
+    "no_matches": "Ningún ticket coincide con el filtro.",
+    "new_issue": "Sugerir idea",
+    "new_issue_title": "Sugerir una idea o reportar un error",
+    "new_issue_desc": "Se envía al buzón público del roadmap en getomniget.com. Sin cuenta.",
+    "issue_title_label": "Título",
+    "issue_title_placeholder": "Resumen corto de tu idea o error",
+    "issue_details_label": "Detalles (opcional)",
+    "issue_details_placeholder": "Pasos, enlace o lo que esperabas que pasara",
+    "issue_submit": "Enviar al roadmap",
+    "issue_submitting": "Enviando…",
+    "issue_sent": "¡Enviado! Tu idea ya está en la cola de la comunidad.",
+    "issue_open_github": "O abrir en GitHub",
+    "cancel": "Cancelar"
   }
 }

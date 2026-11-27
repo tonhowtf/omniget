@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import ApprovalDialog from "$components/shell/ApprovalDialog.svelte";
+  import ApprovalDialog from "#components/shell/ApprovalDialog.svelte";
   import { invoke } from "@tauri-apps/api/core";
   import { listen } from "@tauri-apps/api/event";
   import { t } from "$lib/i18n";

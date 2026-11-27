@@ -32,10 +32,6 @@
 </p>
 
 <p align="center">
-  Siga <a href="https://www.instagram.com/tonhowtf/">@tonhowtf no Instagram</a> para novidades e bastidores do OmniGet.
-</p>
-
-<p align="center">
   Este é o OmniGet original. As versões oficiais saem só deste repositório e de <a href="https://getomniget.com">getomniget.com</a>; os <a href="https://getomniget.com/forks">forks com nomes parecidos</a> são projetos separados.
 </p>
 

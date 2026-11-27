@@ -1,6 +1,6 @@
 <script lang="ts">
   import { t } from "$lib/i18n";
-  import DialogContainer from "$components/dialog/DialogContainer.svelte";
+  import DialogContainer from "#components/dialog/DialogContainer.svelte";
   import { resetSettings } from "$lib/stores/settings-store.svelte";
   import type { ResetScope } from "$lib/stores/settings-v3-types";
 

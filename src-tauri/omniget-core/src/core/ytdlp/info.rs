@@ -303,11 +303,16 @@ pub(super) async fn select_available_subtitle_lang(
         manual.clone()
     };
 
-    let selected = requested
-        .iter()
-        .find_map(|lang| matching_subtitle_lang(lang, &available));
-    if selected.is_some() {
-        return Ok(selected);
+    let mut matched: Vec<String> = Vec::new();
+    for lang in &requested {
+        if let Some(m) = matching_subtitle_lang(lang, &available) {
+            if !matched.contains(&m) {
+                matched.push(m);
+            }
+        }
+    }
+    if !matched.is_empty() {
+        return Ok(Some(matched.join(",")));
     }
 
     let requested_label = if requested.is_empty() {
@@ -319,17 +324,17 @@ pub(super) async fn select_available_subtitle_lang(
     let auto_label = format_lang_list(&auto);
     let line = if manual.is_empty() && auto.is_empty() {
         format!(
-            "[subtitles] 没有可下载字幕；继续下载视频，不下载字幕。您选择的字幕语言: {}",
+            "[subtitles] No downloadable subtitles found; continuing without subtitles. Requested: {}",
             requested_label
         )
     } else if manual.is_empty() && !auto.is_empty() && !include_auto {
         format!(
-            "[subtitles] 没有手工字幕；自动字幕可用但未启用。继续下载视频，不下载字幕。您选择: {}; 自动字幕: {}",
+            "[subtitles] No manual subtitles found; auto-generated subtitles are available but disabled. Continuing without subtitles. Requested: {}; auto: {}",
             requested_label, auto_label
         )
     } else {
         format!(
-            "[subtitles] 没有您选择的字幕；继续下载视频，不下载字幕。您选择: {}; 可用手工字幕: {}; 可用自动字幕: {}",
+            "[subtitles] None of the requested subtitles are available; continuing without subtitles. Requested: {}; manual: {}; auto: {}",
             requested_label, manual_label, auto_label
         )
     };

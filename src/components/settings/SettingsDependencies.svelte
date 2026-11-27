@@ -3,7 +3,7 @@
   import { invoke } from "@tauri-apps/api/core";
   import { t } from "$lib/i18n";
   import { showToast } from "$lib/stores/toast-store.svelte";
-  import Modal from "$components/music/Modal.svelte";
+  import Modal from "#components/music/Modal.svelte";
   import SettingRow from "./rebrand/SettingRow.svelte";
   import SettingsEmptyState from "./rebrand/SettingsEmptyState.svelte";
 

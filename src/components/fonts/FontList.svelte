@@ -12,7 +12,7 @@
   import { CATEGORIES, CATEGORY_KEYS } from "$lib/fonts/catalog";
   import { ensureFont } from "$lib/fonts/loader";
   import { fontStack, MAX_COMPARE } from "$lib/fonts/preview";
-  import StatusIcon from "$components/converter/StatusIcon.svelte";
+  import StatusIcon from "#components/converter/StatusIcon.svelte";
 
   let {
     source,

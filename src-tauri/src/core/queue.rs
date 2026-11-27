@@ -1140,10 +1140,7 @@ impl DownloadQueue {
     fn remove_inner(&mut self, id: u64) -> Option<Option<usize>> {
         if let Some(pos) = self.items.iter().position(|i| i.id == id) {
             let item = &self.items[pos];
-            if item.status == QueueStatus::Active {
-                item.cancel_token.cancel();
-            }
-            if item.status == QueueStatus::Paused && item.platform == "magnet" {
+            if item.status == QueueStatus::Active || item.status == QueueStatus::Paused {
                 item.cancel_token.cancel();
             }
             let torrent_id = if item.status == QueueStatus::Seeding
@@ -1179,8 +1176,9 @@ impl DownloadQueue {
     }
 
     pub fn has_url(&self, url: &str) -> bool {
+        let needle = canonicalize_url_for_dedup(url);
         self.items.iter().any(|i| {
-            i.url == url
+            canonicalize_url_for_dedup(&i.url) == needle
                 && matches!(
                     i.status,
                     QueueStatus::Queued
@@ -1189,6 +1187,104 @@ impl DownloadQueue {
                         | QueueStatus::Seeding
                 )
         })
+    }
+}
+
+pub fn canonicalize_url_for_dedup(raw: &str) -> String {
+    let trimmed = raw.trim();
+    let Ok(mut parsed) = url::Url::parse(trimmed) else {
+        return trimmed.to_string();
+    };
+    parsed.set_fragment(None);
+    let host = parsed.host_str().unwrap_or("").to_ascii_lowercase();
+    // Normalize common YouTube URL forms to https://www.youtube.com/watch?v=<id>
+    if host == "youtu.be" {
+        if let Some(id) = parsed.path().trim_matches('/').split('/').next() {
+            if !id.is_empty() {
+                return format!("https://www.youtube.com/watch?v={id}");
+            }
+        }
+    }
+    if matches!(
+        host.as_str(),
+        "youtube.com" | "www.youtube.com" | "m.youtube.com" | "music.youtube.com"
+    ) {
+        let path = parsed.path().trim_end_matches('/');
+        if let Some(id) = path
+            .strip_prefix("/shorts/")
+            .filter(|s| !s.is_empty() && !s.contains('/'))
+        {
+            return format!("https://www.youtube.com/watch?v={id}");
+        }
+        if path == "/watch" {
+            let v = parsed
+                .query_pairs()
+                .find(|(k, _)| k == "v")
+                .map(|(_, v)| v.into_owned());
+            let list = parsed
+                .query_pairs()
+                .find(|(k, _)| k == "list")
+                .map(|(_, v)| v.into_owned());
+            if let Some(vid) = v {
+                return match list {
+                    Some(l) if !l.is_empty() => {
+                        format!("https://www.youtube.com/watch?v={vid}&list={l}")
+                    }
+                    _ => format!("https://www.youtube.com/watch?v={vid}"),
+                };
+            }
+        }
+    }
+    let kept_pairs: Vec<(String, String)> = parsed
+        .query_pairs()
+        .filter(|(k, _)| {
+            let kl = k.to_ascii_lowercase();
+            !(kl.starts_with("utm_")
+                || matches!(
+                    kl.as_str(),
+                    "si" | "fbclid" | "igshid" | "ref" | "feature" | "pp" | "gclid"
+                ))
+        })
+        .map(|(k, v)| (k.into_owned(), v.into_owned()))
+        .collect();
+    if kept_pairs.is_empty() {
+        parsed.set_query(None);
+    } else {
+        let mut qp = parsed.query_pairs_mut();
+        qp.clear();
+        for (k, v) in kept_pairs {
+            qp.append_pair(&k, &v);
+        }
+    }
+    let mut out = parsed.to_string();
+    if out.ends_with('/') && parsed.path().len() > 1 {
+        out.pop();
+    }
+    out
+}
+
+#[cfg(test)]
+mod dedup_tests {
+    use super::canonicalize_url_for_dedup;
+
+    #[test]
+    fn normalizes_youtube_variants_and_strips_tracking_params() {
+        assert_eq!(
+            canonicalize_url_for_dedup("https://youtu.be/dQw4w9WgXcQ?si=abc123"),
+            "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+        );
+        assert_eq!(
+            canonicalize_url_for_dedup("https://m.youtube.com/watch?v=dQw4w9WgXcQ&feature=share"),
+            "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+        );
+        assert_eq!(
+            canonicalize_url_for_dedup("https://www.youtube.com/shorts/dQw4w9WgXcQ?si=xyz"),
+            "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+        );
+        assert_eq!(
+            canonicalize_url_for_dedup("https://example.org/book.epub?utm_source=x&fbclid=1#top"),
+            "https://example.org/book.epub"
+        );
     }
 }
 
@@ -2282,8 +2378,11 @@ async fn spawn_download_inner(
                 .custom_ytdlp_args
                 .as_deref()
                 .is_some_and(|args| args.iter().any(|a| a == "--skip-download"));
+            let ytdlp_already_embedded = omniget_core::core::ytdlp::get_command(item_id)
+                .is_some_and(|rec| rec.args.iter().any(|a| a == "--embed-metadata"));
             if settings.download.embed_metadata
                 && !thumbnails_only
+                && !ytdlp_already_embedded
                 && dl.file_path.is_file()
                 && platform_name != "mcp_worker"
                 && platform_name != "magnet"
@@ -2304,6 +2403,44 @@ async fn spawn_download_inner(
                 .await
                 {
                     tracing::warn!("Metadata embed failed for '{}': {}", info.title, e);
+                }
+            }
+
+            if !is_seeding && dl.file_path.is_file() {
+                if let Some(ext) = dl.file_path.extension().and_then(|e| e.to_str()) {
+                    if matches!(
+                        ext.to_ascii_lowercase().as_str(),
+                        "epub"
+                            | "kepub"
+                            | "pdf"
+                            | "cbz"
+                            | "cbr"
+                            | "cb7"
+                            | "cbt"
+                            | "mobi"
+                            | "azw3"
+                            | "fb2"
+                            | "fbz"
+                            | "djvu"
+                    ) {
+                        let book_path = dl.file_path.clone();
+                        let book_url = url.clone();
+                        let app_read = app.clone();
+                        tokio::spawn(async move {
+                            let res = tokio::task::spawn_blocking(move || {
+                                let opts = crate::commands::read::scan::IndexOpts {
+                                    source: "download".into(),
+                                    source_url: book_url,
+                                    ..Default::default()
+                                };
+                                crate::commands::read::scan::index_file(&book_path, &opts)
+                            })
+                            .await;
+                            if let Ok(Ok(_)) = res {
+                                let _ = app_read.emit("read-library-changed", ());
+                            }
+                        });
+                    }
                 }
             }
 
@@ -2488,6 +2625,7 @@ async fn spawn_download_inner(
                     let mut q = queue.lock().await;
                     if let Some(item) = q.items.iter_mut().find(|i| i.id == item_id) {
                         item.status = QueueStatus::Queued;
+                        item.scheduled_at_ms = Some(now_ms().saturating_add(delay_secs * 1000));
                         item.cancel_token = CancellationToken::new();
                         item.percent = Some(0.0);
                         item.speed_bytes_per_sec = 0.0;

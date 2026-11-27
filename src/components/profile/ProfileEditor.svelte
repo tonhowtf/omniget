@@ -60,7 +60,7 @@
         type="text"
         id={nickId}
         aria-describedby={nickHintId}
-        class="input-text nick-input"
+        class="input nick-input"
         maxlength={NICKNAME_MAX}
         value={value}
         placeholder={$t("profile.nickname_placeholder") as string}
@@ -68,7 +68,7 @@
         oninput={(e) => { draft = (e.target as HTMLInputElement).value; }}
         onkeydown={(e) => { if (e.key === "Enter") save(); }}
       />
-      <button class="button" onclick={save} disabled={!dirty || saving}>
+      <button type="button" class="btn btn-sm" class:btn-primary={dirty} class:btn-secondary={!dirty} onclick={save} disabled={!dirty || saving}>
         {$t("profile.save")}
       </button>
     </div>

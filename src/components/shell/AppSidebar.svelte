@@ -1,8 +1,8 @@
 <script lang="ts">
   import { page } from "$app/state";
   import { t } from "$lib/i18n";
-  import NavIcon from "$components/shell/NavIcon.svelte";
-  import Avatar from "$components/omni/Avatar.svelte";
+  import NavIcon from "#components/shell/NavIcon.svelte";
+  import Avatar from "#components/omni/Avatar.svelte";
   import { getProfile, loadProfile } from "$lib/stores/profile-store.svelte";
   import { activeNavHref, type NavItem } from "$lib/nav-config";
   import { isMac } from "$lib/platform";
@@ -116,7 +116,6 @@
   <a
     href={item.href}
     class="mac-nav-item"
-    class:help-link={item.href === "/help"}
     class:pinned-link={item.pinned}
     class:active
     title={railCollapsed ? undefined : title}
@@ -189,9 +188,9 @@
     <kbd class="mac-sidebar-collapse-kbd">{shortcutLabel}</kbd>
   </button>
   {#if profile}
-    <a class="mac-sidebar-profile" href="/settings?tab=profile" title={$t("omni.sidebar_profile")}>
-      <Avatar tint={profile.skin?.tint} size={32} compact animate="never" />
-      <span class="profile-copy"><span class="mac-sidebar-profile-nick">{profile.nickname}</span><small>{$t("nav.profile_appearance")}</small></span>
+    <a class="mac-sidebar-profile" href="/settings?tab=general&section=profile" title={$t("omni.sidebar_profile")}>
+      <Avatar tint={profile.skin?.tint} size={30} compact animate="never" />
+      <span class="profile-copy"><span class="mac-sidebar-profile-nick">{profile.nickname}</span><small>{$t("profile.sidebar_sub")}</small></span>
     </a>
   {/if}
 </aside>
@@ -270,7 +269,6 @@
   .sidebar-navigation { flex: 1; min-height: 0; overflow-y: auto; scrollbar-width: thin; }
   :global(.mac-source-list) { overflow-y: hidden; }
   @media (max-width: 860px) { .profile-copy { display: none; } .mac-sidebar-profile { padding-inline: 8px; } }
-  .help-link { min-height: 44px; }
   .pinned-link { margin-inline-start: var(--space-3); }
   .collapsed .pinned-link,
   .auto-collapsed .pinned-link { margin-inline-start: 0; }
@@ -283,21 +281,24 @@
     display: flex;
     align-items: center;
     gap: var(--space-2);
-    margin-top: auto;
-    padding: var(--space-2) var(--space-3);
+    margin-top: var(--space-2);
+    padding: var(--space-2) var(--space-2);
+    border-top: var(--hairline) solid var(--separator, var(--content-border));
     border-radius: var(--radius-md);
-    color: var(--text-dim);
+    color: var(--text);
     text-decoration: none;
     min-width: 0;
+    transition: background var(--duration-fast) var(--ease-out);
   }
 
   .mac-sidebar-profile:hover {
-    background: var(--fill-quaternary, rgba(127, 127, 127, 0.12));
+    background: var(--fill-1);
     color: var(--text);
   }
 
   .mac-sidebar-profile-nick {
     font-size: var(--text-sm);
+    font-weight: 500;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;

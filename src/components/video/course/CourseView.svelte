@@ -7,7 +7,7 @@
   import { fmtDuration, fmtTime } from "$lib/video/format";
   import { openPlayer, player } from "$lib/video/player.svelte";
   import type { Attachment, CourseDetail, Lesson } from "$lib/video/types";
-  import VIcon from "$components/video/player/VIcon.svelte";
+  import VIcon from "#components/video/player/VIcon.svelte";
   import ProgressRing from "./ProgressRing.svelte";
 
   let { id }: { id: number } = $props();

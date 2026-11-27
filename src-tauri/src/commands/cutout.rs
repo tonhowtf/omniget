@@ -106,6 +106,18 @@ pub fn cutout_status() -> Status {
     cutout::status()
 }
 
+fn install_error_message(e: &anyhow::Error) -> String {
+    let text = e.to_string();
+    let http_status = text.contains("HTTP 4") || text.contains("HTTP 5");
+    if http_status {
+        format!("Could not download the model: {text}. The download server answered with an error; try again later or update OmniGet.")
+    } else if text.contains("sha256") || text.contains("does not match") {
+        format!("Could not download the model: {text}.")
+    } else {
+        format!("Could not download the model: {text}. Check your connection and try again.")
+    }
+}
+
 #[tauri::command]
 pub async fn cutout_install(app: AppHandle, model: String) -> Result<Status, String> {
     let status = cutout::status();
@@ -128,9 +140,9 @@ pub async fn cutout_install(app: AppHandle, model: String) -> Result<Status, Str
             },
         );
     });
-    cutout::install(&model, &progress).await.map_err(|e| {
-        format!("Could not download the model: {e}. Check your connection and try again.")
-    })?;
+    cutout::install(&model, &progress)
+        .await
+        .map_err(|e| install_error_message(&e))?;
     Ok(cutout::status())
 }
 
@@ -300,4 +312,25 @@ pub fn cutout_cancel(batch_id: String) {
 #[tauri::command]
 pub fn cutout_release() {
     cutout::release();
+}
+
+#[cfg(test)]
+mod tests {
+    use super::install_error_message;
+
+    #[test]
+    fn http_404_error_does_not_blame_user_connection() {
+        let err =
+            anyhow::anyhow!("download of https://example.com/ort.zip failed: HTTP 404 Not Found");
+        let msg = install_error_message(&err);
+        assert!(msg.contains("HTTP 404"), "{msg}");
+        assert!(!msg.contains("Check your connection"), "{msg}");
+    }
+
+    #[test]
+    fn transport_error_suggests_checking_connection() {
+        let err = anyhow::anyhow!("dns error: failed to lookup address");
+        let msg = install_error_message(&err);
+        assert!(msg.contains("Check your connection"), "{msg}");
+    }
 }

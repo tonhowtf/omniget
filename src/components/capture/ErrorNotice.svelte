@@ -2,7 +2,7 @@
   import { t } from "$lib/i18n";
   import { errorKey, parseError } from "$lib/capture/record";
   import type { Platform } from "$lib/capture/types";
-  import StatusIcon from "$components/converter/StatusIcon.svelte";
+  import StatusIcon from "#components/converter/StatusIcon.svelte";
 
   let {
     error,

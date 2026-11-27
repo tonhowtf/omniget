@@ -1,7 +1,7 @@
 <script lang="ts">
   import { t } from "$lib/i18n";
-  import ProfileCard from "$components/profile/ProfileCard.svelte";
-  import ProfileEditor from "$components/profile/ProfileEditor.svelte";
+  import ProfileCard from "#components/profile/ProfileCard.svelte";
+  import ProfileEditor from "#components/profile/ProfileEditor.svelte";
   import SettingsEmptyState from "./rebrand/SettingsEmptyState.svelte";
   import {
     getProfile,

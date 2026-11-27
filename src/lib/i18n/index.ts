@@ -80,7 +80,7 @@ export function isRtlLocale(l: string | null | undefined): boolean {
 
 const i18nInstance = stores(new I18n(config));
 
-export const { locales, loading, loadTranslations } = i18nInstance;
+export const { locales, loadTranslations } = i18nInstance;
 
 export const t = derived(i18nInstance.t, ($t) => (key: string, vars?: Record<string, unknown>): string => {
   const text = $t(key, vars);

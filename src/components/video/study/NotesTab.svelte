@@ -4,7 +4,7 @@
   import * as api from "$lib/video/api";
   import { fmtTime } from "$lib/video/format";
   import { deleteNote, player, saveNote, seek, startNote, updateNote } from "$lib/video/player.svelte";
-  import VIcon from "$components/video/player/VIcon.svelte";
+  import VIcon from "#components/video/player/VIcon.svelte";
 
   let editing = $state<number | null>(null);
   let editText = $state("");

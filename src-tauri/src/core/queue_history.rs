@@ -9,7 +9,7 @@ use crate::core::db;
 use crate::core::queue::QueueKind;
 
 const HISTORY_FILE: &str = "download-history.json";
-const MAX_HISTORY_ENTRIES: usize = 200;
+pub const MAX_HISTORY_ENTRIES: usize = 10_000;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct HistoryEntry {
@@ -368,6 +368,18 @@ mod tests {
         let list = db_list(&c).unwrap();
         assert_eq!(list.len(), 2);
         assert_eq!(list[0].id, 8);
+    }
+
+    #[test]
+    fn history_keeps_more_than_200_entries() {
+        let c = conn();
+        for i in 1..=250u64 {
+            db_upsert(&c, &mk(i, i as i64)).unwrap();
+        }
+        let list = db_list(&c).unwrap();
+        assert_eq!(list.len(), 250);
+        assert_eq!(list[0].id, 250);
+        assert_eq!(list[249].id, 1);
     }
 }
 

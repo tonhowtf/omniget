@@ -1128,12 +1128,11 @@
     "section_primary": "Main",
     "section_app": "App",
     "world": "Canvas",
-    "help": "Ajuda",
-    "profile_appearance": "Perfil e aparência",
     "superpowers": "Ferramentas",
     "collapse_sidebar": "Recolher barra lateral",
     "expand_sidebar": "Expandir barra lateral",
-    "community": "Sobre e comunidade"
+    "community": "Sobre e comunidade",
+    "global": "Cursos e Sites"
   },
   "command_palette": {
     "open": "Ir para…",
@@ -1170,7 +1169,8 @@
     "success_first": "Seu primeiro download!",
     "success_open": "Abrir Downloads",
     "success_folder": "Baixando em {{folder}}",
-    "success_show_folder": "Mostrar pasta"
+    "success_show_folder": "Mostrar pasta",
+    "mcp_hint": "Usando Claude Code, Cursor ou Codex? [Conectar via MCP]"
   },
   "downloads": {
     "phase_downloading": "Baixando",
@@ -1848,7 +1848,8 @@
         "copied": "Links copiados",
         "saved_one": "{{count}} link salvo",
         "saved_other": "{{count}} links salvos",
-        "note": "O Motor por link, nestas ferramentas, abre o mesmo .txt de volta e põe todos os links na fila."
+        "note": "O Motor por link, nestas ferramentas, abre o mesmo .txt de volta e põe todos os links na fila.",
+        "pool": "Escolhendo entre {{total}} registros do Histórico."
       },
       "dedupe": {
         "title": "Liberar espaço em disco",
@@ -1897,7 +1898,8 @@
     "archive_imported": "{{added}} novas de {{read}} entradas importadas",
     "archive_exported": "{{written}} entradas exportadas, {{skipped}} sem id conhecido ficaram de fora",
     "archive_count": "{{count}} entradas importadas de um arquivo do yt-dlp",
-    "open_file": "Abrir"
+    "open_file": "Abrir",
+    "history_summary": "{{total}} downloads salvos (até {{limit}} mantidos)"
   },
   "toast": {
     "download_complete": "Pronto! {{name}} está na sua pasta",
@@ -1950,7 +1952,6 @@
       "more_desc": "Dicas e a exibição dos limites de uso.",
       "autostart_blocked": "O Windows deixou isto desativado no Gerenciador de Tarefas, em Aplicativos de inicialização. Desligue e ligue esta chave para permitir.",
       "autostart_portable": "Não disponível na versão portátil.",
-      "title": "Geral",
       "start_with_system": "Iniciar com o sistema",
       "start_minimized": "Iniciar apenas na bandeja",
       "exit_on_close": "Sair ao fechar a janela",
@@ -1960,8 +1961,6 @@
       "run_in_background": "Rodar agentes em segundo plano",
       "run_in_background_flatpak": "Flatpak: abrir ao entrar no computador e ser aberto pela linha de comando ainda não foram verificados.",
       "start_with_system_desc": "Abre o OmniGet quando você entra no computador.",
-      "start_minimized_desc": "Começa escondido na bandeja, sem abrir a janela.",
-      "exit_on_close_desc": "Fechar a janela encerra o app em vez de deixá-lo na bandeja.",
       "run_in_background_desc": "Agentes, tarefas e rotinas continuam rodando com a janela fechada.",
       "reopen_guide": "Guia de boas-vindas",
       "reopen_guide_desc": "Passe de novo pelos passos da primeira abertura.",
@@ -2369,7 +2368,6 @@
     },
     "ai": {
       "provider": "Provedor",
-      "provider_desc": "Escolha para onde vão os pedidos de IA. Sua chave fica salva localmente e nunca é registrada.",
       "provider_none": "Desligado",
       "model": "Modelo",
       "model_desc": "O identificador do modelo para o provedor escolhido.",
@@ -2382,8 +2380,6 @@
       "test_ok": "Conexão de IA funcionando",
       "test_fail": "Teste de IA falhou: {{error}}",
       "saved": "Configurações de IA salvas",
-      "summarize_title": "Resumir um vídeo",
-      "history": "Histórico de IA",
       "save_test": "Salvar e testar",
       "saving": "Salvando…",
       "provider_endpoint": "Endpoint personalizado (local ou remoto)",
@@ -2763,7 +2759,11 @@
         "fail_custom": "Não foi possível falar com o Discord. O ID do app ou a imagem foram alterados; volte ao padrão se o Discord já estiver aberto.",
         "reset": "Voltar ao padrão"
       }
-    }
+    },
+    "update_downloading_pct": "Baixando atualização… {{percent}}%",
+    "update_failed": "Falha ao atualizar: {{error}}",
+    "update_manual_hint": "Esta instalação é atualizada instalando o novo pacote pela página de downloads. Suas configurações e dados continuam intactos.",
+    "update_open_download": "Abrir página de downloads"
   },
   "omnibox": {
     "placeholder": "Cole um link ou digite para buscar vídeos",
@@ -3003,7 +3003,12 @@
     "wmb_credits_body": "O Limpador do Sistema usa dados e ideias destes projetos de código aberto. As licenças e os arquivos exatos estão listados em THIRD_PARTY.md. O código-fonte do privacy.sexy (AGPL-3.0) está no link abaixo.",
     "wmb_credit_data": "dados",
     "wmb_credit_design": "design adaptado",
-    "wmb_credit_tool": "ferramenta que ele usa"
+    "wmb_credit_tool": "ferramenta que ele usa",
+    "card_chat_title": "Chat da comunidade",
+    "card_chat_desc": "Tire dúvidas, troque dicas ou fale direto com o autor.",
+    "card_roadmap_title": "Roadmap e ideias",
+    "card_roadmap_desc": "Veja o que está sendo feito e sugira recursos novos.",
+    "website_button": "Site oficial"
   },
   "changelog": {
     "title": "Novidades",
@@ -3226,7 +3231,6 @@
     "save": "Salvar",
     "skin_label": "Cor do avatar",
     "skin_desc": "Escolha uma cor. Salva assim que você clica.",
-    "fingerprint_label": "Impressão da chave pública",
     "copy": "Copiar",
     "copied": "Copiado",
     "copy_fingerprint": "Copiar impressão",
@@ -3246,7 +3250,10 @@
       "blue": "Azul",
       "purple": "Roxo",
       "pink": "Rosa"
-    }
+    },
+    "identity_disclosure": "Chave de identidade de sala",
+    "used_in_hint": "Aparece na barra lateral e quando você compartilha uma sala no Canvas.",
+    "sidebar_sub": "Perfil local"
   },
   "world": {
     "title": "Canvas",
@@ -3782,8 +3789,6 @@
     "title": "Ler",
     "nav_label": "Seções do Ler",
     "disabled_title": "O Ler está desligado",
-    "settings_enable": "Mostrar o Ler",
-    "settings_enable_desc": "A biblioteca e o leitor. Desligar esconde o Ler e para o servidor da biblioteca.",
     "back": "Voltar",
     "close": "Fechar",
     "cancel": "Cancelar",
@@ -5890,13 +5895,6 @@
           "title": "Executar TRIM nos SSDs",
           "what": "Avisa cada SSD montado quais blocos estão livres, o que mantém as gravações rápidas. A maioria dos sistemas já faz isso uma vez por semana; rodar de novo não faz mal."
         }
-      }
-    }
-  },
-  "company": {
-    "team": {
-      "form": {
-        "runtime_roster": "Um agente da sua lista"
       }
     }
   },
@@ -9588,16 +9586,14 @@
     "template_sample_caption": "Aula 03: introdução ao módulo"
   },
   "global_dl": {
-    "title": "Navegador embutido",
-    "subtitle": "Baixe vídeos e arquivos de quase qualquer site, inclusive dos que pedem login.",
+    "title": "Cursos e Sites",
+    "subtitle": "Baixe cursos, aulas e materiais das suas plataformas.",
     "hero_label": "Cole o link da página de onde você quer baixar",
     "url_placeholder": "Por exemplo: https://exemplo.com/curso/aula-1",
     "find": "Procurar downloads",
     "find_again": "Procurar downloads de novo",
     "finding": "Olhando a página… isso pode levar alguns segundos.",
     "steps_title": "Como funciona",
-    "step_paste": "Cole o link da página que tem o vídeo ou os arquivos e clique em Procurar downloads.",
-    "step_login": "Se o site pedir login, clique em Entrar neste site e faça login uma vez na janela que abrir.",
     "step_pick": "Escolha o que quer e clique em Baixar.",
     "login_site": "Entrar neste site",
     "login_title": "Faça login na janela do navegador",
@@ -9677,7 +9673,6 @@
     "connectors": "Ajudantes de site",
     "connectors_hint": "Para desenvolvedores: um ajudante de site é um pequeno script que lista tudo de um site, como todas as aulas de um curso.",
     "add_connector": "Adicionar pasta de ajudante",
-    "no_connectors": "Nenhum ajudante de site instalado. As páginas funcionam mesmo assim: o OmniGet acha o que elas tocam.",
     "dev": "desenvolvedor",
     "options": "Opções",
     "remove": "Remover",
@@ -9723,7 +9718,6 @@
       "update_badge": "Atualizar para {{version}}",
       "open": "Abrir",
       "login_open": "Entrar e abrir",
-      "by": "por {{author}}",
       "needs_version": "Precisa do OmniGet {{version}} ou mais novo",
       "stage_download": "Baixando",
       "stage_verify": "Conferindo o pacote",
@@ -9764,7 +9758,16 @@
     "browser_busy_title": "Ainda há downloads em andamento",
     "browser_busy_body": "Parar ou reiniciar o navegador agora pode fazer os itens restantes falharem. Fazer mesmo assim?",
     "browser_busy_confirm": "Fazer mesmo assim",
-    "browser_busy_keep": "Continuar baixando"
+    "browser_busy_keep": "Continuar baixando",
+    "modules_count": "{{count}} módulos",
+    "lessons_button": "Aulas",
+    "back_to_courses": "Voltar aos cursos",
+    "courses_count": "{{count}} cursos",
+    "search_courses": "Filtrar cursos…",
+    "download_all": "Baixar tudo ({{count}})",
+    "step_pick_platform": "Escolha uma plataforma ou cole o link do curso",
+    "step_sign_in_short": "Faça login uma vez se o curso for privado",
+    "step_download_short": "Baixe o curso inteiro ou escolha as aulas"
   },
   "connect": {
     "request_title": "{{client}} quer se conectar ao OmniGet",
@@ -9855,7 +9858,6 @@
     }
   },
   "community": {
-    "title": "Comunidade",
     "lead": "Converse com quem usa o OmniGet e com o autor, no chat aberto do getomniget.com.",
     "more": "Prefere outro lugar?",
     "tab": {
@@ -9888,13 +9890,17 @@
       "state_limit": "Mensagens demais por agora. Tente mais tarde.",
       "state_frozen": "O chat está pausado por enquanto.",
       "state_error": "A mensagem não foi enviada. Tente de novo.",
-      "state_offline": "Não deu para falar com o getomniget.com. Confira a sua conexão."
+      "state_offline": "Não deu para falar com o getomniget.com. Confira a sua conexão.",
+      "live_badge": "Chat público ao vivo",
+      "message_count": "{{count}} mensagens",
+      "fact_anonymous_short": "Anônimo",
+      "fact_public_short": "Público · 30 dias",
+      "fact_local_short": "Conecta só quando você entra",
+      "preview_sample_1": "Alguém já conectou o Claude Code via MCP?",
+      "preview_sample_2": "Sim, cola o comando em Configurações e clica em Permitir."
     }
   },
   "agents": {
-    "roster": {
-      "new": "Criar agente"
-    },
     "mcp": {
       "loading": "Lendo os servidores salvos…",
       "disabled": "desligado",
@@ -13993,6 +13999,21 @@
     "failed": "Não foi possível carregar o roadmap: {{msg}}",
     "retry": "Tentar de novo",
     "open_board": "Abrir o quadro no site",
-    "issue": "Issue no GitHub"
+    "issue": "Issue no GitHub",
+    "filter_all": "Todos",
+    "search_placeholder": "Filtrar tickets…",
+    "no_matches": "Nenhum ticket encontrado para esse filtro.",
+    "new_issue": "Sugerir ideia",
+    "new_issue_title": "Sugerir uma ideia ou relatar um bug",
+    "new_issue_desc": "Enviado direto para a caixa pública do roadmap em getomniget.com. Sem conta.",
+    "issue_title_label": "Título",
+    "issue_title_placeholder": "Resumo curto da sua ideia ou bug",
+    "issue_details_label": "Detalhes (opcional)",
+    "issue_details_placeholder": "Passos, link ou o que você esperava acontecer",
+    "issue_submit": "Enviar pro roadmap",
+    "issue_submitting": "Enviando…",
+    "issue_sent": "Enviado! Sua ideia já está na fila da comunidade.",
+    "issue_open_github": "Ou abrir no GitHub",
+    "cancel": "Cancelar"
   }
 }

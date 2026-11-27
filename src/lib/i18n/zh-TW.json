@@ -1128,12 +1128,11 @@
     "section_primary": "Main",
     "section_app": "App",
     "world": "Canvas",
-    "help": "Help",
-    "profile_appearance": "個人檔案與外觀",
     "superpowers": "工具",
     "collapse_sidebar": "收合側邊欄",
     "expand_sidebar": "展開側邊欄",
-    "community": "關於與社群"
+    "community": "關於與社群",
+    "global": "課程與網站"
   },
   "command_palette": {
     "open": "前往…",
@@ -1170,7 +1169,8 @@
     "success_first": "你的第一個下載！",
     "success_open": "開啟下載",
     "success_folder": "正在下載到 {{folder}}",
-    "success_show_folder": "顯示資料夾"
+    "success_show_folder": "顯示資料夾",
+    "mcp_hint": "正在使用 Claude Code、Cursor 或 Codex？[透過 MCP 連線]"
   },
   "downloads": {
     "phase_downloading": "下載中",
@@ -1848,7 +1848,8 @@
         "copied": "已複製連結",
         "saved_one": "已儲存 {{count}} 個連結",
         "saved_other": "已儲存 {{count}} 個連結",
-        "note": "這些工具中的「每個連結的引擎」可以重新開啟同一份 .txt，並將每個連結排入佇列。"
+        "note": "這些工具中的「每個連結的引擎」可以重新開啟同一份 .txt，並將每個連結排入佇列。",
+        "pool": "從歷史紀錄的 {{total}} 筆項目中篩選。"
       },
       "dedupe": {
         "title": "釋放磁碟空間",
@@ -1897,7 +1898,8 @@
     "archive_imported": "已匯入 {{read}} 筆中的 {{added}} 筆新項目",
     "archive_exported": "已匯出 {{written}} 筆項目，{{skipped}} 筆因沒有已知 ID 而排除",
     "archive_count": "已從 yt-dlp 封存檔匯入 {{count}} 筆項目",
-    "open_file": "開啟"
+    "open_file": "開啟",
+    "history_summary": "已儲存 {{total}} 筆下載紀錄（最多保留 {{limit}} 筆）"
   },
   "toast": {
     "download_complete": "下載完成: {{name}}",
@@ -1950,7 +1952,6 @@
       "more_desc": "提示和用量限制顯示。",
       "autostart_blocked": "Windows 已在工作管理員的啟動應用程式中將其停用。請關閉再開啟此開關以允許。",
       "autostart_portable": "可攜版無法使用。",
-      "title": "一般",
       "start_with_system": "與系統一同啟動",
       "start_minimized": "僅工作列啟動",
       "exit_on_close": "關閉視窗時結束 App",
@@ -1960,8 +1961,6 @@
       "run_in_background": "在背景執行代理",
       "run_in_background_flatpak": "Flatpak：登入時啟動以及從命令列啟動尚未驗證。",
       "start_with_system_desc": "登入電腦時開啟 OmniGet。",
-      "start_minimized_desc": "啟動時隱藏在系統匣中，不開啟視窗。",
-      "exit_on_close_desc": "關閉視窗即結束應用程式，而不是留在系統匣中。",
       "run_in_background_desc": "視窗關閉後，代理、任務和例行工作仍持續執行。",
       "reopen_guide": "歡迎指南",
       "reopen_guide_desc": "重新走一遍首次執行的步驟。",
@@ -2369,7 +2368,6 @@
     },
     "ai": {
       "provider": "提供者",
-      "provider_desc": "選擇 AI 請求的目的地。金鑰僅在本機儲存，絕不記錄。",
       "provider_none": "關閉",
       "model": "模型",
       "model_desc": "所選提供者的模型識別碼。",
@@ -2382,8 +2380,6 @@
       "test_ok": "AI 連線正常",
       "test_fail": "AI 測試失敗：{{error}}",
       "saved": "AI 設定已儲存",
-      "summarize_title": "摘要影片",
-      "history": "AI 紀錄",
       "save_test": "儲存並測試",
       "saving": "正在儲存…",
       "provider_endpoint": "自訂端點（本機或遠端）",
@@ -2763,7 +2759,11 @@
         "fail_custom": "無法連線 Discord。應用程式 ID 或圖片已被變更；如果 Discord 已在執行，請還原預設值。",
         "reset": "還原預設"
       }
-    }
+    },
+    "update_downloading_pct": "正在下載更新… {{percent}}%",
+    "update_failed": "更新失敗：{{error}}",
+    "update_manual_hint": "此安裝方式需從下載頁安裝新套件以完成更新，您的設定與資料將完整保留。",
+    "update_open_download": "開啟下載頁"
   },
   "omnibox": {
     "placeholder": "貼上連結，或輸入以搜尋影片",
@@ -3003,7 +3003,12 @@
     "wmb_credits_body": "系統清理 使用了這些開放原始碼專案提供的資料與構想。它們的授權條款與確切檔案列在 THIRD_PARTY.md 中，privacy.sexy 的原始碼（AGPL-3.0）連結請見下方。",
     "wmb_credit_data": "資料",
     "wmb_credit_design": "移植的設計",
-    "wmb_credit_tool": "執行的工具"
+    "wmb_credit_tool": "執行的工具",
+    "card_chat_title": "社群聊天",
+    "card_chat_desc": "發問、分享技巧或直接與作者交流。",
+    "card_roadmap_title": "路線圖與想法",
+    "card_roadmap_desc": "查看接下來的規劃並建議新功能。",
+    "website_button": "官方網站"
   },
   "changelog": {
     "title": "更新內容",
@@ -3226,7 +3231,6 @@
     "save": "Save",
     "skin_label": "頭像色調",
     "skin_desc": "選一個顏色。按一下就會立即儲存。",
-    "fingerprint_label": "公開金鑰指紋",
     "copy": "Copy",
     "copied": "Copied",
     "copy_fingerprint": "複製指紋",
@@ -3246,7 +3250,10 @@
       "blue": "Blue",
       "purple": "Purple",
       "pink": "Pink"
-    }
+    },
+    "identity_disclosure": "房間身分金鑰",
+    "used_in_hint": "顯示在側邊欄以及你分享 Canvas 房間時。",
+    "sidebar_sub": "本機個人檔案"
   },
   "world": {
     "title": "Canvas",
@@ -3782,8 +3789,6 @@
     "title": "Read",
     "nav_label": "閱讀區塊",
     "disabled_title": "閱讀功能已關閉",
-    "settings_enable": "顯示「閱讀」",
-    "settings_enable_desc": "閱讀書庫與閱讀器。關閉後會隱藏它並停止書庫伺服器。",
     "back": "Back",
     "close": "Close",
     "cancel": "Cancel",
@@ -5890,13 +5895,6 @@
           "title": "修剪 SSD",
           "what": "告訴每個已掛載的 SSD 哪些區塊是空的，讓寫入保持快速。大多數系統每週已會自動執行一次；再執行一次也無害。"
         }
-      }
-    }
-  },
-  "company": {
-    "team": {
-      "form": {
-        "runtime_roster": "你名單中的代理"
       }
     }
   },
@@ -9588,16 +9586,14 @@
     "template_sample_caption": "第03課：模組簡介"
   },
   "global_dl": {
-    "title": "內建瀏覽器",
-    "subtitle": "從幾乎任何網站下載影片與檔案，包括需要登入的網站。",
+    "title": "課程與網站",
+    "subtitle": "從你的平台下載課程、單元與教材檔案。",
     "hero_label": "貼上你要下載的頁面連結",
     "url_placeholder": "例如：https://example.com/course/lesson-1",
     "find": "尋找下載內容",
     "find_again": "重新尋找下載內容",
     "finding": "正在查看頁面…可能需要幾秒鐘。",
     "steps_title": "運作方式",
-    "step_paste": "貼上含有影片或檔案的頁面連結，然後按「尋找下載內容」。",
-    "step_login": "如果網站要求登入，請按「登入此網站」，並在開啟的視窗中登入一次。",
     "step_pick": "挑選你要的內容，然後按「下載」。",
     "login_site": "登入此網站",
     "login_title": "在瀏覽器視窗中登入",
@@ -9677,7 +9673,6 @@
     "connectors": "網站輔助程式",
     "connectors_hint": "給開發人員：網站輔助程式是一個小型腳本，可列出網站上的所有內容，例如課程的所有單元。",
     "add_connector": "新增輔助程式資料夾",
-    "no_connectors": "尚未安裝網站輔助程式。頁面仍可使用：OmniGet 會找出頁面播放的內容。",
     "dev": "developer",
     "options": "Options",
     "remove": "Remove",
@@ -9723,7 +9718,6 @@
       "update_badge": "Update to {{version}}",
       "open": "Open",
       "login_open": "登入並開啟",
-      "by": "by {{author}}",
       "needs_version": "需要 OmniGet {{version}} 或更新版本",
       "stage_download": "Downloading",
       "stage_verify": "正在檢查套件",
@@ -9764,7 +9758,16 @@
     "browser_busy_title": "仍有下載正在進行",
     "browser_busy_body": "現在停止或重新啟動瀏覽器可能導致其餘項目失敗。仍要繼續嗎?",
     "browser_busy_confirm": "仍要繼續",
-    "browser_busy_keep": "繼續下載"
+    "browser_busy_keep": "繼續下載",
+    "modules_count": "{{count}} 個章節",
+    "lessons_button": "單元",
+    "back_to_courses": "返回課程列表",
+    "courses_count": "{{count}} 門課程",
+    "search_courses": "篩選課程…",
+    "download_all": "全部下載 ({{count}})",
+    "step_pick_platform": "選擇平台或貼上課程連結",
+    "step_sign_in_short": "私人課程只需登入一次",
+    "step_download_short": "下載整門課程或自選單元"
   },
   "connect": {
     "request_title": "{{client}} 想要連線到 OmniGet",
@@ -9855,7 +9858,6 @@
     }
   },
   "community": {
-    "title": "社群",
     "lead": "在 getomniget.com 的公開聊天室裡，和其他 OmniGet 使用者以及作者交流。",
     "more": "想去別的地方？",
     "tab": {
@@ -9888,13 +9890,17 @@
       "state_limit": "訊息太多了，請稍後再試。",
       "state_frozen": "聊天暫時關閉。",
       "state_error": "訊息沒有送出，請重試。",
-      "state_offline": "無法連線到 getomniget.com，請檢查網路。"
+      "state_offline": "無法連線到 getomniget.com，請檢查網路。",
+      "live_badge": "公開即時聊天",
+      "message_count": "{{count}} 則訊息",
+      "fact_anonymous_short": "匿名",
+      "fact_public_short": "公開 · 保留 30 天",
+      "fact_local_short": "僅在加入後連線",
+      "preview_sample_1": "有人透過 MCP 連線 Claude Code 了嗎？",
+      "preview_sample_2": "連好了，在設定裡貼上指令點允許就行。"
     }
   },
   "agents": {
-    "roster": {
-      "new": "New agent"
-    },
     "mcp": {
       "loading": "正在讀取已儲存的伺服器…",
       "disabled": "已關閉",
@@ -13993,6 +13999,21 @@
     "failed": "無法載入路線圖：{{msg}}",
     "retry": "重試",
     "open_board": "在網站上開啟看板",
-    "issue": "GitHub Issue"
+    "issue": "GitHub Issue",
+    "filter_all": "全部",
+    "search_placeholder": "篩選項目…",
+    "no_matches": "沒有符合篩選條件的項目。",
+    "new_issue": "提出想法",
+    "new_issue_title": "提出想法或回報問題",
+    "new_issue_desc": "直接傳送到 getomniget.com 的公開路線圖收件匣，無需帳號。",
+    "issue_title_label": "標題",
+    "issue_title_placeholder": "簡短說明你的想法或問題",
+    "issue_details_label": "詳細說明（選填）",
+    "issue_details_placeholder": "步驟、連結或預期結果",
+    "issue_submit": "傳送到路線圖",
+    "issue_submitting": "傳送中…",
+    "issue_sent": "已傳送！你的想法已加入社群佇列。",
+    "issue_open_github": "或在 GitHub 上開啟",
+    "cancel": "取消"
   }
 }

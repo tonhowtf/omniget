@@ -49,6 +49,12 @@ function loadSettings(): Json {
 
 let settings = loadSettings();
 let revision = 1;
+let previewChatLastId = 3;
+const previewChatMessages = [
+  { id: 1, t: "2026-11-26 17:10", name: "amber-kite", text: "Has anyone connected Claude Code over MCP yet?", author: false, idea: false },
+  { id: 2, t: "2026-11-26 17:12", name: "tonhowtf", text: "Yes, open Settings -> AI & agents -> Connect to other apps and paste the one-liner.", author: true, idea: false },
+  { id: 3, t: "2026-11-26 17:15", name: "quiet-owl", text: "Support Bilibili multi-language subtitles\nWould love to pick both zh and en subtitle tracks automatically.", author: false, idea: true },
+];
 
 function merge(target: Json, patch: Json) {
   for (const [key, value] of Object.entries(patch)) {
@@ -204,18 +210,51 @@ export const fixtures: Record<string, Fixture> = {
   }),
   ...marketFixtures,
   roadmap_get: () => ({
-    updated: "2026-11-19",
-    next_version: "1.0.1",
+    updated: "2026-11-26",
+    next_version: "1.0.2",
     board: "https://getomniget.com/contact#roadmap",
     columns: ["backlog", "todo", "progress", "done", "wontfix"],
     items: [
-      { key: "OMNI-45", title: "Online radio goes silent after two seconds on Windows", status: "progress", type: "bug", priority: "high", area: "all", created: "2026-11-01", updated: "2026-11-19", url: "https://getomniget.com/contact#t-radio_silent", issue: "https://github.com/tonhowtf/omniget/issues/429" },
-      { key: "OMNI-24", title: "Publish on Flathub", status: "progress", type: "feature", priority: "normal", area: "linux", created: "2026-10-10", updated: "2026-11-18", url: "https://getomniget.com/contact#t-flatpak", issue: "https://github.com/tonhowtf/omniget/issues/399" },
-      { key: "OMNI-11", title: "Signed installers on Windows and macOS", status: "progress", type: "task", priority: "high", area: "all", created: "2026-10-02", updated: "2026-11-14", url: "https://getomniget.com/contact#t-signing", issue: null },
+      { key: "OMNI-45", title: "Online radio goes silent after two seconds on Windows", status: "progress", type: "bug", priority: "high", area: "windows", created: "2026-11-01", updated: "2026-11-26", url: "https://getomniget.com/contact#t-radio_silent", issue: "https://github.com/tonhowtf/omniget/issues/429" },
+      { key: "OMNI-24", title: "Publish on Flathub", status: "progress", type: "feature", priority: "normal", area: "linux", created: "2026-10-10", updated: "2026-11-24", url: "https://getomniget.com/contact#t-flatpak", issue: "https://github.com/tonhowtf/omniget/issues/399" },
+      { key: "OMNI-11", title: "Signed installers on Windows and macOS", status: "todo", type: "task", priority: "high", area: "macos", created: "2026-10-02", updated: "2026-11-22", url: "https://getomniget.com/contact#t-signing", issue: null },
+      { key: "OMNI-52", title: "Suggest roadmap ideas directly from the app", status: "todo", type: "feature", priority: "normal", area: "all", created: "2026-11-20", updated: "2026-11-26", url: "https://getomniget.com/contact#t-ideas", issue: null },
       { key: "OMNI-50", title: "Use OmniGet from a chat assistant", status: "done", type: "feature", priority: "low", area: "all", created: "2026-11-05", updated: "2026-11-05", url: "https://getomniget.com/contact#t-chatgpt", issue: null },
       { key: "OMNI-7", title: "One suite for everything", status: "wontfix", type: "feature", priority: "low", area: "all", created: "2026-09-28", updated: "2026-10-01", url: "https://getomniget.com/contact#t-suite", issue: null },
     ],
   }),
+  community_chat_messages: async ({ after, wait }) => {
+    const since = Number(after ?? 0);
+    if (wait && since >= previewChatLastId) {
+      await new Promise((r) => setTimeout(r, 6000));
+    }
+    const fresh = previewChatMessages.filter((m) => m.id > since);
+    return {
+      messages: fresh,
+      last: previewChatLastId,
+      frozen: false,
+      gone: [],
+    };
+  },
+  community_chat_send: ({ text, title }) => {
+    previewChatLastId += 1;
+    const isIdea = Boolean(title && String(title).trim());
+    const body = isIdea ? `${String(title).trim()}\n${String(text ?? "").trim()}` : String(text ?? "").trim();
+    previewChatMessages.push({
+      id: previewChatLastId,
+      t: "2026-11-26 17:20",
+      name: "preview-fox",
+      text: body,
+      author: false,
+      idea: isIdea,
+    });
+    return {
+      ok: true,
+      state: isIdea ? "idea" : "sent",
+      id: previewChatLastId,
+    };
+  },
+  community_chat_report: () => ({ ok: true, state: "reported", id: null }),
   failed_download_leftovers: () => [
     { path: "/preview/Downloads/Clip [abc].f137.mp4.part", name: "Clip [abc].f137.mp4.part", size_bytes: 52_428_800 },
     { path: "/preview/Downloads/Clip [abc].f137.mp4.ytdl", name: "Clip [abc].f137.mp4.ytdl", size_bytes: 512 },
@@ -301,16 +340,21 @@ export const fixtures: Record<string, Fixture> = {
   canvas_session_mark: empty,
   "plugin:path|resolve_directory": () => "/preview",
   profile_get: () => ({
-    public_key_b64: "",
-    fingerprint: "",
-    nickname: "Preview",
-    skin: { id: "default", tint: [255, 159, 10] },
+    public_key_b64: "preview-public-key",
+    fingerprint: "UUXLZNQXA6M5T5B3F5472XPWCF4KYRKR",
+    nickname: "omniget",
+    skin: { id: "default", tint: [96, 165, 250] },
   }),
   telegram_call: () => {
     throw new Error("unknown telegram command");
   },
 
   "plugin:app|version": () => "0.0.0-preview",
+  get_install_info: () => ({
+    kind: "app",
+    self_update: true,
+    download_url: "https://getomniget.com/download",
+  }),
   "plugin:app|name": () => "OmniGet",
   "plugin:app|tauri_version": () => "2.0.0",
   "plugin:updater|check": empty,

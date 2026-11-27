@@ -1,6 +1,6 @@
 <script lang="ts">
   import { agentActions } from "$lib/native-agent/actions";
-  import ApprovalCard from "$components/shell/ApprovalCard.svelte";
+  import ApprovalCard from "#components/shell/ApprovalCard.svelte";
   import { invoke } from "@tauri-apps/api/core";
   import { listen } from "@tauri-apps/api/event";
   import { goto } from "$app/navigation";

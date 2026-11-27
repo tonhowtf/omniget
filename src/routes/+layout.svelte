@@ -31,17 +31,17 @@
   import { getCounts } from "$lib/stores/download-store.svelte";
   import { getSettings, getSettingsLoadState, loadSettings, updateSettings, setSettingsLocaleApplier, startSettingsSync } from "$lib/stores/settings-store.svelte";
   import { queueExternalPrefill, type ExternalUrlEvent } from "$lib/stores/external-url-store.svelte";
-  import Toast from "$components/toast/Toast.svelte";
-  import NativeAgentActivity from "$components/agents/NativeAgentActivity.svelte";
-  import ToolAskPrompt from "$components/shell/ToolAskPrompt.svelte";
-  import McpAuthPrompt from "$components/agents/McpAuthPrompt.svelte";
-  import AppSidebar from "$components/shell/AppSidebar.svelte";
-  import AppToolbar from "$components/shell/AppToolbar.svelte";
-  import CommandPalette from "$components/shell/CommandPalette.svelte";
-  import DownloadStatusBar from "$components/download/DownloadStatusBar.svelte";
-  import MusicHost from "$components/music/MusicHost.svelte";
-  import TubeHost from "$components/tube/TubeHost.svelte";
-  import ReadHost from "$components/read/ReadHost.svelte";
+  import Toast from "#components/toast/Toast.svelte";
+  import NativeAgentActivity from "#components/agents/NativeAgentActivity.svelte";
+  import ToolAskPrompt from "#components/shell/ToolAskPrompt.svelte";
+  import McpAuthPrompt from "#components/agents/McpAuthPrompt.svelte";
+  import AppSidebar from "#components/shell/AppSidebar.svelte";
+  import AppToolbar from "#components/shell/AppToolbar.svelte";
+  import CommandPalette from "#components/shell/CommandPalette.svelte";
+  import DownloadStatusBar from "#components/download/DownloadStatusBar.svelte";
+  import MusicHost from "#components/music/MusicHost.svelte";
+  import TubeHost from "#components/tube/TubeHost.svelte";
+  import ReadHost from "#components/read/ReadHost.svelte";
   import { shellLayout } from "$lib/stores/shell-layout.svelte";
   import { setCommandPaletteItems } from "$lib/stores/command-palette-store.svelte";
   import { accountPaletteItems, activateAccount, getAccounts } from "$lib/stores/agent-accounts-store.svelte";
@@ -249,21 +249,21 @@
     }
 
     if (import.meta.env.DEV) {
-      import("$components/debug/DebugPanel.svelte").then((m) => {
+      import("#components/debug/DebugPanel.svelte").then((m) => {
         DebugPanel = m.default;
       });
     }
 
-    import("$components/onboarding/OnboardingWizard.svelte").then((m) => {
+    import("#components/onboarding/OnboardingWizard.svelte").then((m) => {
       OnboardingWizard = m.default;
     });
-    import("$components/dialog/ChangelogDialog.svelte").then((m) => {
+    import("#components/dialog/ChangelogDialog.svelte").then((m) => {
       ChangelogDialog = m.default;
     });
-    import("$components/washmybelly/ApprovalPrompt.svelte").then((m) => {
+    import("#components/washmybelly/ApprovalPrompt.svelte").then((m) => {
       WmbApprovalPrompt = m.default;
     });
-    import("$components/agents/ConnectPrompt.svelte").then((m) => {
+    import("#components/agents/ConnectPrompt.svelte").then((m) => {
       ConnectPrompt = m.default;
     });
     import("$lib/telegram/ApprovalPrompt.svelte").then((m) => {
@@ -272,16 +272,16 @@
     import("$lib/social/ApprovalPrompt.svelte").then((m) => {
       SocialApprovalPrompt = m.default;
     });
-    import("$components/dialog/ConfirmCloseDialog.svelte").then((m) => {
+    import("#components/dialog/ConfirmCloseDialog.svelte").then((m) => {
       ConfirmCloseDialog = m.default;
     });
-    import("$components/dialog/ShortcutsDialog.svelte").then((m) => {
+    import("#components/dialog/ShortcutsDialog.svelte").then((m) => {
       ShortcutsDialog = m.default;
     });
-    import("$components/dialog/LegalDialog.svelte").then((m) => {
+    import("#components/dialog/LegalDialog.svelte").then((m) => {
       LegalDialog = m.default;
     });
-    import("$components/dialog/RecoveryDialog.svelte").then((m) => {
+    import("#components/dialog/RecoveryDialog.svelte").then((m) => {
       RecoveryDialog = m.default;
     });
 

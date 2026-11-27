@@ -17,7 +17,7 @@
   import Track from "./Track.svelte";
   import ChromaPlane from "./ChromaPlane.svelte";
   import CopyButton from "./CopyButton.svelte";
-  import StatusIcon from "$components/converter/StatusIcon.svelte";
+  import StatusIcon from "#components/converter/StatusIcon.svelte";
 
   const FORMAT_LABELS: Record<string, string> = { hex: "HEX", rgb: "RGB", hsl: "HSL", oklch: "OKLCH", oklab: "OKLab" };
 

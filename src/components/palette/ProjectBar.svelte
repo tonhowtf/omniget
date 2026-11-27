@@ -1,7 +1,7 @@
 <script lang="ts">
   import { t } from "$lib/i18n";
   import { workspace } from "$lib/palette/workspace.svelte";
-  import StatusIcon from "$components/converter/StatusIcon.svelte";
+  import StatusIcon from "#components/converter/StatusIcon.svelte";
 
   let { onnew }: { onnew: () => void } = $props();
 

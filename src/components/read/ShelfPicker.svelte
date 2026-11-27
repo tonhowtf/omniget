@@ -3,7 +3,7 @@
   import { t } from "$lib/i18n";
   import { showToast } from "$lib/stores/toast-store.svelte";
   import { library, refreshShelves } from "$lib/read/library-store.svelte";
-  import Modal from "$components/music/Modal.svelte";
+  import Modal from "#components/music/Modal.svelte";
   import ReadIcon from "./ReadIcon.svelte";
 
   let { ids, onclose }: { ids: number[]; onclose: () => void } = $props();

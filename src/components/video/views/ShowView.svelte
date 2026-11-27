@@ -5,7 +5,7 @@
   import { openPlayer } from "$lib/video/player.svelte";
   import { ui } from "$lib/video/ui.svelte";
   import type { MediaItem, ShowDetail } from "$lib/video/types";
-  import ContextMenu, { type MenuItem } from "$components/music/ContextMenu.svelte";
+  import ContextMenu, { type MenuItem } from "#components/music/ContextMenu.svelte";
   import { itemMenu, markWatched } from "./parts/actions";
   import Empty from "./parts/Empty.svelte";
   import Head from "./parts/Head.svelte";

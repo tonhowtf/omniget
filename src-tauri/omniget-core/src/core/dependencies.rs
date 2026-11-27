@@ -575,6 +575,79 @@ async fn check_staged_binary(path: PathBuf, version_arg: &'static str) -> anyhow
     .map_err(|e| anyhow!("spawn_blocking failed: {}", e))?
 }
 
+fn swap_staged_binaries(bin_dir: &std::path::Path, staged: &[PathBuf]) -> anyhow::Result<()> {
+    swap_staged_binaries_with(bin_dir, staged, |from, to| std::fs::rename(from, to))
+}
+
+fn swap_staged_binaries_with<F>(
+    bin_dir: &std::path::Path,
+    staged: &[PathBuf],
+    mut mover: F,
+) -> anyhow::Result<()>
+where
+    F: FnMut(&std::path::Path, &std::path::Path) -> std::io::Result<()>,
+{
+    let mut pairs: Vec<(PathBuf, PathBuf, PathBuf, String)> = Vec::new();
+    for path in staged {
+        if !path.exists() {
+            continue;
+        }
+        let name = path
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .ok_or_else(|| anyhow!("staged file without a name"))?
+            .to_string();
+        let target = bin_dir.join(&name);
+        let backup = target.with_file_name(format!("{name}.old"));
+        pairs.push((path.clone(), target, backup, name));
+    }
+
+    let cleanup_staged = |staged: &[PathBuf]| {
+        for path in staged {
+            let _ = std::fs::remove_file(path);
+        }
+    };
+
+    let mut backed_up: Vec<(PathBuf, PathBuf)> = Vec::new();
+    for (_, target, backup, name) in &pairs {
+        if !target.exists() {
+            continue;
+        }
+        let _ = std::fs::remove_file(backup);
+        if let Err(e) = mover(target, backup) {
+            for (orig, old) in backed_up.iter().rev() {
+                let _ = std::fs::rename(old, orig);
+            }
+            cleanup_staged(staged);
+            return Err(anyhow!(
+                "{name} is in use by another process ({e}). Wait for active downloads to finish or cancel them, then try again."
+            ));
+        }
+        backed_up.push((target.clone(), backup.clone()));
+    }
+
+    let mut swapped: Vec<PathBuf> = Vec::new();
+    for (staged_path, target, _, name) in &pairs {
+        if let Err(e) = mover(staged_path, target) {
+            for done in swapped.iter().rev() {
+                let _ = std::fs::remove_file(done);
+            }
+            for (orig, old) in backed_up.iter().rev() {
+                let _ = std::fs::rename(old, orig);
+            }
+            cleanup_staged(staged);
+            return Err(anyhow!("Failed to replace {name}: {e}"));
+        }
+        swapped.push(target.clone());
+    }
+
+    for (_, old) in &backed_up {
+        let _ = std::fs::remove_file(old);
+    }
+    cleanup_staged(staged);
+    Ok(())
+}
+
 async fn install_ffmpeg_into(bin_dir: &std::path::Path) -> anyhow::Result<PathBuf> {
     std::fs::create_dir_all(bin_dir)?;
     let ffmpeg_name = bin_name("ffmpeg");
@@ -584,22 +657,16 @@ async fn install_ffmpeg_into(bin_dir: &std::path::Path) -> anyhow::Result<PathBu
         .map(|n| staged_ffmpeg(bin_dir, n))
         .collect();
     let result = stage_ffmpeg(bin_dir, &ffmpeg_name, &ffprobe_name).await;
-    if result.is_ok() {
-        for path in &staged {
-            if !path.exists() {
-                continue;
+    let swap = match result {
+        Ok(()) => swap_staged_binaries(bin_dir, &staged),
+        Err(e) => {
+            for path in &staged {
+                let _ = std::fs::remove_file(path);
             }
-            let name = path
-                .file_stem()
-                .map(PathBuf::from)
-                .ok_or_else(|| anyhow!("staged file without a name"))?;
-            replace_managed_binary(path, &bin_dir.join(name))?;
+            Err(e)
         }
-    }
-    for path in &staged {
-        let _ = std::fs::remove_file(path);
-    }
-    result?;
+    };
+    swap?;
     let ffmpeg_target = bin_dir.join(&ffmpeg_name);
     tracing::info!("FFmpeg installed to {}", ffmpeg_target.display());
     Ok(ffmpeg_target)
@@ -1220,6 +1287,76 @@ mod install_tests {
         std::fs::write(&target, b"old").unwrap();
         assert!(replace_managed_binary(&dir.path().join("missing.new"), &target).is_err());
         assert_eq!(std::fs::read(&target).unwrap(), b"old");
+    }
+
+    #[test]
+    fn failed_first_ffmpeg_swap_keeps_originals_and_leaves_no_staged_files() {
+        let dir = tempfile::tempdir().unwrap();
+        let ffmpeg = dir.path().join("ffmpeg.exe");
+        let ffprobe = dir.path().join("ffprobe.exe");
+        let staged_ffmpeg = dir.path().join("ffmpeg.exe.new");
+        let staged_ffprobe = dir.path().join("ffprobe.exe.new");
+        std::fs::write(&ffmpeg, b"old-ffmpeg").unwrap();
+        std::fs::write(&ffprobe, b"old-ffprobe").unwrap();
+        std::fs::write(&staged_ffmpeg, b"new-ffmpeg").unwrap();
+        std::fs::write(&staged_ffprobe, b"new-ffprobe").unwrap();
+
+        let err = swap_staged_binaries_with(
+            dir.path(),
+            &[staged_ffmpeg.clone(), staged_ffprobe.clone()],
+            |from, to| {
+                if from == ffmpeg {
+                    return Err(std::io::Error::new(
+                        std::io::ErrorKind::PermissionDenied,
+                        "file in use",
+                    ));
+                }
+                std::fs::rename(from, to)
+            },
+        )
+        .unwrap_err();
+        assert!(err.to_string().contains("in use"), "{err}");
+        assert_eq!(std::fs::read(&ffmpeg).unwrap(), b"old-ffmpeg");
+        assert_eq!(std::fs::read(&ffprobe).unwrap(), b"old-ffprobe");
+        assert!(!staged_ffmpeg.exists());
+        assert!(!staged_ffprobe.exists());
+        assert!(!dir.path().join("ffmpeg.exe.old").exists());
+        assert!(!dir.path().join("ffprobe.exe.old").exists());
+    }
+
+    #[test]
+    fn failed_second_ffmpeg_swap_rolls_back_first_and_cleans_staged_files() {
+        let dir = tempfile::tempdir().unwrap();
+        let ffmpeg = dir.path().join("ffmpeg.exe");
+        let ffprobe = dir.path().join("ffprobe.exe");
+        let staged_ffmpeg = dir.path().join("ffmpeg.exe.new");
+        let staged_ffprobe = dir.path().join("ffprobe.exe.new");
+        std::fs::write(&ffmpeg, b"old-ffmpeg").unwrap();
+        std::fs::write(&ffprobe, b"old-ffprobe").unwrap();
+        std::fs::write(&staged_ffmpeg, b"new-ffmpeg").unwrap();
+        std::fs::write(&staged_ffprobe, b"new-ffprobe").unwrap();
+
+        let err = swap_staged_binaries_with(
+            dir.path(),
+            &[staged_ffmpeg.clone(), staged_ffprobe.clone()],
+            |from, to| {
+                if from == staged_ffprobe {
+                    return Err(std::io::Error::new(
+                        std::io::ErrorKind::PermissionDenied,
+                        "locked",
+                    ));
+                }
+                std::fs::rename(from, to)
+            },
+        )
+        .unwrap_err();
+        assert!(err.to_string().contains("ffprobe.exe"), "{err}");
+        assert_eq!(std::fs::read(&ffmpeg).unwrap(), b"old-ffmpeg");
+        assert_eq!(std::fs::read(&ffprobe).unwrap(), b"old-ffprobe");
+        assert!(!staged_ffmpeg.exists());
+        assert!(!staged_ffprobe.exists());
+        assert!(!dir.path().join("ffmpeg.exe.old").exists());
+        assert!(!dir.path().join("ffprobe.exe.old").exists());
     }
 
     #[tokio::test]

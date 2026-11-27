@@ -40,9 +40,10 @@ use std::str::FromStr;
 
 const DIRECT_FILE_EXTENSIONS: &[&str] = &[
     "zip", "rar", "7z", "tar", "gz", "tgz", "bz2", "xz", "zst", "exe", "msi", "dmg", "pkg", "deb",
-    "rpm", "appimage", "apk", "iso", "pdf", "epub", "mobi", "doc", "docx", "xls", "xlsx", "ppt",
-    "pptx", "odt", "ods", "odp", "rtf", "txt", "csv", "jpg", "jpeg", "png", "gif", "webp", "bmp",
-    "tiff", "svg", "heic", "avif", "bin", "dat", "img", "jar", "whl", "cab", "tbz", "lz4",
+    "rpm", "appimage", "apk", "iso", "pdf", "epub", "kepub", "mobi", "azw3", "fb2", "fbz", "cbz",
+    "cbr", "cb7", "cbt", "djvu", "doc", "docx", "xls", "xlsx", "ppt", "pptx", "odt", "ods", "odp",
+    "rtf", "txt", "csv", "jpg", "jpeg", "png", "gif", "webp", "bmp", "tiff", "svg", "heic", "avif",
+    "bin", "dat", "img", "jar", "whl", "cab", "tbz", "lz4",
 ];
 
 pub fn is_direct_file_url(url_str: &str) -> bool {

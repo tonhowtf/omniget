@@ -7,11 +7,11 @@
   import { showToast } from "$lib/stores/toast-store.svelte";
   import { settingsHref } from "$lib/settings-navigation";
   import { getSettings, saveSettings } from "./settings-helpers";
-  import CookieBucketCard from "$components/cookies/CookieBucketCard.svelte";
-  import CookieImportMenu from "$components/cookies/CookieImportMenu.svelte";
-  import CookieContentModal from "$components/cookies/CookieContentModal.svelte";
-  import CookiePasteModal from "$components/cookies/CookiePasteModal.svelte";
-  import BilibiliQrLogin from "$components/cookies/BilibiliQrLogin.svelte";
+  import CookieBucketCard from "#components/cookies/CookieBucketCard.svelte";
+  import CookieImportMenu from "#components/cookies/CookieImportMenu.svelte";
+  import CookieContentModal from "#components/cookies/CookieContentModal.svelte";
+  import CookiePasteModal from "#components/cookies/CookiePasteModal.svelte";
+  import BilibiliQrLogin from "#components/cookies/BilibiliQrLogin.svelte";
   import SettingGroup from "./rebrand/SettingGroup.svelte";
   import SettingRow from "./rebrand/SettingRow.svelte";
   import SettingsEmptyState from "./rebrand/SettingsEmptyState.svelte";
@@ -19,7 +19,7 @@
   import MoreOptions from "./downloads/MoreOptions.svelte";
   import Toggle from "./downloads/Toggle.svelte";
   import KeyAnchor from "./downloads/KeyAnchor.svelte";
-  import DialogContainer from "$components/dialog/DialogContainer.svelte";
+  import DialogContainer from "#components/dialog/DialogContainer.svelte";
 
   type Account = {
     slug: string;

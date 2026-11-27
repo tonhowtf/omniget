@@ -330,30 +330,40 @@
   {/if}
 {:else if current === "sources"}
   <div class="r-panel">
-    <h3>{$t("read.sources.builtin")}</h3>
-    <p class="r-muted">{$t("read.sources.builtin_hint")}</p>
-  </div>
-  <div class="r-panel">
     <h3>{$t("read.sources.catalogs")}</h3>
     <p class="r-muted">{$t("read.sources.catalogs_hint")}</p>
     <ul class="r-list">
       {#each catalogs.filter((c) => c.kind !== "declarative") as c (c.id)}
         <li class="r-li">
-          <ReadIcon name={c.kind === "suwayomi" ? "server" : "rss"} size={15} />
+          <ReadIcon name={c.kind === "suwayomi" ? "server" : c.kind === "directory" ? "folder" : "rss"} size={15} />
           <div class="grow"><b>{c.title}</b> <span class="r-badge">{c.kind}</span><br /><span class="r-muted mono">{c.url}</span></div>
           <label class="r-line"><input type="checkbox" checked={c.enabled} onchange={(e) => invoke("read_catalog_toggle", { id: c.id, enabled: (e.target as HTMLInputElement).checked })} /> {$t("read.sources.enabled")}</label>
           <button class="r-icon-btn" onclick={async () => { await invoke("read_catalog_remove", { id: c.id }); catalogs = catalogs.filter((x) => x.id !== c.id); }} aria-label={$t("read.remove") as string}><ReadIcon name="trash" size={14} /></button>
         </li>
       {/each}
     </ul>
+    {#if newCat.kind === "opds"}
+      <div class="r-line">
+        {#each [
+          { title: "Calibre-Web", url: "http://127.0.0.1:8083/opds" },
+          { title: "Kavita", url: "http://127.0.0.1:5000/api/opds/" },
+          { title: "Komga", url: "http://127.0.0.1:25600/opds/v1.2/catalog" },
+          { title: "COPS", url: "http://127.0.0.1/cops/feed.php" },
+          { title: "Ubooquity", url: "http://127.0.0.1:2202/opds-books" },
+        ] as preset (preset.title)}
+          <button type="button" class="r-chip" onclick={() => { newCat.title = preset.title; newCat.url = preset.url; }}>{preset.title}</button>
+        {/each}
+      </div>
+    {/if}
     <form class="r-fields" onsubmit={(e) => { e.preventDefault(); void addCatalog(); }}>
       <label class="r-field">{$t("read.sources.kind")}
         <select class="input" bind:value={newCat.kind}>
-          <option value="opds">OPDS (Calibre-Web, Komga, Kavita, Stump…)</option>
+          <option value="opds">OPDS (Calibre-Web, Komga, Kavita, COPS, Ubooquity…)</option>
+          <option value="directory">Open Directory (HTTP Index of /…)</option>
           <option value="suwayomi">Suwayomi-Server</option>
         </select>
       </label>
-      <label class="r-field">URL<input class="input" bind:value={newCat.url} placeholder={newCat.kind === "suwayomi" ? "http://127.0.0.1:4567" : "https://…/opds"} /></label>
+      <label class="r-field">URL<input class="input" bind:value={newCat.url} placeholder={newCat.kind === "suwayomi" ? "http://127.0.0.1:4567" : newCat.kind === "directory" ? "https://…/books/" : "https://…/opds"} /></label>
       <label class="r-field">{$t("read.sources.title")}<input class="input" bind:value={newCat.title} /></label>
       <label class="r-field">{$t("read.sources.user")}<input class="input" bind:value={newCat.username} autocomplete="off" /></label>
       <label class="r-field">{$t("read.sources.password")}<input class="input" type="password" bind:value={newCat.password} autocomplete="off" /></label>

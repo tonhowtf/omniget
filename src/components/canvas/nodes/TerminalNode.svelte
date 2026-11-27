@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onDestroy, onMount } from "svelte";
   import { t } from "$lib/i18n";
-  import TerminalView from "$components/central/terminal/TerminalView.svelte";
+  import TerminalView from "#components/central/terminal/TerminalView.svelte";
   import type { CanvasNode } from "$lib/canvas/model/types";
   import type { Lod } from "$lib/canvas/lod";
   import { agentStates, normaliseState, stateVar } from "$lib/canvas/state/agents.svelte";
@@ -29,12 +29,12 @@
   import { nodeForPath } from "$lib/canvas/files/open";
   import { roles } from "$lib/canvas/roles/store.svelte";
   import { chats } from "$lib/canvas/chat/store.svelte";
-  import RoleBadge from "$components/canvas/roles/RoleBadge.svelte";
-  import LeadBadge from "$components/canvas/lead/LeadBadge.svelte";
-  import AutonomyChip from "$components/canvas/attention/AutonomyChip.svelte";
-  import CheckpointMenu from "$components/canvas/attention/CheckpointMenu.svelte";
-  import ChatFace from "$components/canvas/chat/ChatFace.svelte";
-  import AccountBadge from "$components/canvas/accounts/AccountBadge.svelte";
+  import RoleBadge from "#components/canvas/roles/RoleBadge.svelte";
+  import LeadBadge from "#components/canvas/lead/LeadBadge.svelte";
+  import AutonomyChip from "#components/canvas/attention/AutonomyChip.svelte";
+  import CheckpointMenu from "#components/canvas/attention/CheckpointMenu.svelte";
+  import ChatFace from "#components/canvas/chat/ChatFace.svelte";
+  import AccountBadge from "#components/canvas/accounts/AccountBadge.svelte";
   import { ACCOUNT_AGENTS, canvasAccounts, cliOfAgent } from "$lib/canvas/accounts/store.svelte";
 
   let {

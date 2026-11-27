@@ -213,7 +213,8 @@ pub async fn search(client: &reqwest::Client, url: &str, lang: &str) -> Result<P
     let r: Collection<Entity<MangaAttrs>> = get_json(client, url).await?;
     let next_off = r.offset + r.limit;
     let next = (next_off < r.total && next_off < 10_000).then(|| {
-        let re = regex::Regex::new(r"offset=\d+").expect("static regex");
+        static OFFSET_RE: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
+        let re = OFFSET_RE.get_or_init(|| regex::Regex::new(r"offset=\d+").expect("static regex"));
         re.replace(url, format!("offset={next_off}").as_str())
             .to_string()
     });

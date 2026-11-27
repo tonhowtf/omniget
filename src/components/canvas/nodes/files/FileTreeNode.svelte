@@ -23,8 +23,8 @@
   import { nodeForPath, openEditorBeside } from "$lib/canvas/files/open";
   import { workspaces } from "$lib/canvas/palette/workspaces.svelte";
   import { vcsLog, type FileDiff, type LogEntry, type RepoStatus } from "$lib/central/vcs";
-  import DiffViewer from "$components/central/vcs/DiffViewer.svelte";
-  import GitActionsButton from "$components/central/vcs/GitActionsButton.svelte";
+  import DiffViewer from "#components/central/vcs/DiffViewer.svelte";
+  import GitActionsButton from "#components/central/vcs/GitActionsButton.svelte";
 
   let {
     node,

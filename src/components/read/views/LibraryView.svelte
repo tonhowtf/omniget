@@ -5,7 +5,7 @@
   import { bookById, library, removeBooksLocal } from "$lib/read/library-store.svelte";
   import { confirm, go, openBook, openMenu, setStatus, toggleFavorite, tr, ui, fmtBytes } from "$lib/read/ui-store.svelte";
   import { isComic, type Book } from "$lib/read/types";
-  import type { MenuItem } from "$components/music/ContextMenu.svelte";
+  import type { MenuItem } from "#components/music/ContextMenu.svelte";
   import BookCard from "../BookCard.svelte";
   import Cover from "../Cover.svelte";
   import ReadIcon from "../ReadIcon.svelte";

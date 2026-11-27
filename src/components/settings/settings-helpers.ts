@@ -73,4 +73,4 @@ export const MORE_THEMES = [
   { id: "eink-night", label: "E-ink Night" },
 ];
 
-export { getSettings, updateSettings };
+export { getSettings };

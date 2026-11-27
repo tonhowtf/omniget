@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { Caps } from "$components/washmybelly/registry";
+import type { Caps } from "#components/washmybelly/registry.ts";
 
 export type Risk = "read" | "reversible" | "destructive" | "extreme";
 

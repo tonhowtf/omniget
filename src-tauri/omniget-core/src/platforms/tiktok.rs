@@ -585,9 +585,15 @@ impl PlatformDownloader for TikTokDownloader {
                         .ok_or_else(|| anyhow!("yt-dlp not found"))?,
                 };
 
+                let fallback_url = if quality.format == "tiktok_direct" {
+                    opts.page_url.as_deref().unwrap_or(&quality.url)
+                } else {
+                    &quality.url
+                };
+
                 crate::core::ytdlp::download_video(
                     &ytdlp_path,
-                    &quality.url,
+                    fallback_url,
                     &opts.output_dir,
                     None,
                     progress,

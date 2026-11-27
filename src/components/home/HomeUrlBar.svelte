@@ -1,6 +1,6 @@
 <script lang="ts">
   import { readText } from "@tauri-apps/plugin-clipboard-manager";
-  import HomeMoreMenu from "$components/home/HomeMoreMenu.svelte";
+  import HomeMoreMenu from "#components/home/HomeMoreMenu.svelte";
   import type { MoreAction } from "$lib/home/omnibox-controller";
   import { isUrl } from "$lib/home/omnibox-controller";
   import { shortcut } from "$lib/platform";

@@ -10,6 +10,7 @@ export interface PaletteNavEntry {
 }
 
 export function paletteNavEntries(core: NavItem[], powers: Superpower[], enabled: Record<string, boolean>): PaletteNavEntry[] {
+  const coreHrefs = new Set(core.map((item) => item.href));
   return [
     ...core.map((item) => ({
       id: `nav-${item.href.slice(1) || "home"}`,
@@ -19,7 +20,7 @@ export function paletteNavEntries(core: NavItem[], powers: Superpower[], enabled
       keywords: item.keywords ?? "",
     })),
     ...powers
-      .filter((entry) => enabled[entry.id] !== false)
+      .filter((entry) => enabled[entry.id] !== false && !coreHrefs.has(entry.href))
       .map((entry) => ({
         id: `nav-${entry.id}`,
         href: entry.href,

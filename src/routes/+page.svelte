@@ -6,22 +6,22 @@
   import { goto, replaceState } from "$app/navigation";
   import { page } from "$app/state";
   import { onMount } from "svelte";
-  import BilibiliPreviewExtras from "$components/omnibox/BilibiliPreviewExtras.svelte";
-  import DownloadModeSelector from "$components/omnibox/DownloadModeSelector.svelte";
-  import QualityPicker from "$components/omnibox/QualityPicker.svelte";
-  import FormatSelector from "$components/omnibox/FormatSelector.svelte";
-  import CookieAccountPicker from "$components/omnibox/CookieAccountPicker.svelte";
-  import OutputLocationPicker from "$components/omnibox/OutputLocationPicker.svelte";
-  import OmniboxAdvanced from "$components/omnibox/OmniboxAdvanced.svelte";
-  import MediaPreview from "$components/omnibox/MediaPreview.svelte";
-  import SearchResults from "$components/omnibox/SearchResults.svelte";
-  import P2pSendDialog from "$components/p2p/P2pSendDialog.svelte";
-  import P2pReceiveDialog from "$components/p2p/P2pReceiveDialog.svelte";
-  import HomeHero from "$components/home/HomeHero.svelte";
-  import HomeUrlBar from "$components/home/HomeUrlBar.svelte";
-  import HomeInspector from "$components/home/HomeInspector.svelte";
-  import HomeDropOverlay from "$components/home/HomeDropOverlay.svelte";
-  import ConnectorHint from "$components/home/ConnectorHint.svelte";
+  import BilibiliPreviewExtras from "#components/omnibox/BilibiliPreviewExtras.svelte";
+  import DownloadModeSelector from "#components/omnibox/DownloadModeSelector.svelte";
+  import QualityPicker from "#components/omnibox/QualityPicker.svelte";
+  import FormatSelector from "#components/omnibox/FormatSelector.svelte";
+  import CookieAccountPicker from "#components/omnibox/CookieAccountPicker.svelte";
+  import OutputLocationPicker from "#components/omnibox/OutputLocationPicker.svelte";
+  import OmniboxAdvanced from "#components/omnibox/OmniboxAdvanced.svelte";
+  import MediaPreview from "#components/omnibox/MediaPreview.svelte";
+  import SearchResults from "#components/omnibox/SearchResults.svelte";
+  import P2pSendDialog from "#components/p2p/P2pSendDialog.svelte";
+  import P2pReceiveDialog from "#components/p2p/P2pReceiveDialog.svelte";
+  import HomeHero from "#components/home/HomeHero.svelte";
+  import HomeUrlBar from "#components/home/HomeUrlBar.svelte";
+  import HomeInspector from "#components/home/HomeInspector.svelte";
+  import HomeDropOverlay from "#components/home/HomeDropOverlay.svelte";
+  import ConnectorHint from "#components/home/ConnectorHint.svelte";
   import {
     type OmniState,
     type PlatformInfo,
@@ -41,7 +41,7 @@
   import { getOmniboxDraftUrl, setOmniboxDraftUrl } from "$lib/stores/omnibox-draft-store.svelte";
   import { linksFromPaste, singleLinkInShareText } from "$lib/home/paste-links";
   import { videoOrListLink } from "$lib/home/video-or-list";
-  import VideoOrListChoice from "$components/omnibox/VideoOrListChoice.svelte";
+  import VideoOrListChoice from "#components/omnibox/VideoOrListChoice.svelte";
   import { t } from "$lib/i18n";
   import { translateBackendError } from "$lib/error-translate";
   import { platformDisplayName } from "$lib/platform-display-names";
@@ -1258,6 +1258,10 @@
               size: formatBytes(dlStats.totalBytes),
             })}
           </a>
+        {/if}
+        {#if !firstRun}
+          {@const mcpHint = splitLink($t("home.mcp_hint") as string)}
+          <p class="first-terms">{mcpHint.before}<a href="/settings?tab=ai&section=connect" class="inline-link">{mcpHint.link}</a>{mcpHint.after}</p>
         {/if}
       {:else if omniState.kind === "batch"}
         <div class="batch-panel">
