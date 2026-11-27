@@ -23,6 +23,10 @@
 </p>
 
 <p align="center">
+  <sub>Gratuito e de código aberto · Sem conta · Roda no seu computador · Build de macOS notarizada pela Apple · SHA-256 de cada arquivo</sub>
+</p>
+
+<p align="center">
   <a href="https://getomniget.com"><img src="https://img.shields.io/badge/website-getomniget.com-F28500?style=flat-square" alt="getomniget.com" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0-2AA845?style=flat-square" alt="Licença GPL-3.0" /></a>
   <a href="https://discord.gg/jgdxyPy7Vn"><img src="https://img.shields.io/badge/chat-community-5865F2?style=flat-square" alt="Chat da comunidade" /></a>
@@ -57,10 +61,10 @@ Conecte ao OmniGet: rode curl -s "http://127.0.0.1:47720/connect" e siga os pass
 
 **3.** O OmniGet vem para a frente com o nome da ferramenta e um código curto. Confira o código e clique em **Permitir**.
 
-O OmniGet grava o servidor dele e um token privado na configuração da própria ferramenta. Reinicie a ferramenta e as ferramentas do OmniGet aparecem. Prefere botões? **Configurações → IA e agentes → Conectar a outros apps** faz o mesmo com um clique por ferramenta.
+O OmniGet grava o servidor dele e um token privado na configuração da própria ferramenta. Reinicie a ferramenta e as ferramentas do OmniGet aparecem. Prefere botões? **Configurações → IA e agentes → Conectar a outros apps** faz o mesmo: dê um nome à IA, escolha o que ela pode fazer e copie o prompt. O mesmo formulário conecta uma IA que roda na nuvem, como o ChatGPT, o Claude na web ou o Grok: escolha **Na nuvem**.
 
 <p align="center">
-  <img src="assets/readme/mcp-connect.webp" alt="A seção Conectar a outros apps nas Configurações, com um botão que cria o acesso e copia o prompt" width="860" />
+  <img src="assets/readme/mcp-connect.webp" alt="A seção Conectar a outros apps nas Configurações: um nome para a IA, Neste computador ou Na nuvem, o que ela pode fazer e um botão que cria o acesso e copia o prompt" width="860" />
 </p>
 
 Só no Claude Code? O plugin entra com três comandos e baixa e transcreve links sem o app desktop. O último instala o yt-dlp e o FFmpeg se faltarem:
@@ -110,6 +114,10 @@ Os resultados voltam como dados estruturados, os longos são cortados em um limi
 ---
 
 ## Fique com o que é seu
+
+<p align="center">
+  <img src="assets/readme/loop-courses.webp" alt="Loop carrega uma pilha de aulas numeradas, livros e um PDF em direção a um notebook com uma pasta na tela" width="820" />
+</p>
 
 O OmniGet nasceu para guardar os cursos que as pessoas tinham pagado, e continua fazendo isso.
 
@@ -237,6 +245,10 @@ O `omniget-mcp` vem em toda release e faz a ponte entre stdio e o app aberto.
 
 Um quadro onde Claude Code, Codex, Gemini CLI, OpenCode ou um modelo local rodam lado a lado em terminais. Puxe uma corda e dois agentes conversam. Ligue o **Modo Lead** e um agente recruta e coordena os outros. Os limites de uso de cada conta ficam na borda da tela.
 
+<p align="center">
+  <img src="assets/readme/canvas.webp" alt="O Canvas com um terminal de agente que corrigiu um teste que falhava, um segundo terminal mostrando o teste passando e uma nota com o plano, ligados por cordas" width="860" />
+</p>
+
 ---
 
 ## O downloader
@@ -248,20 +260,28 @@ Um quadro onde Claude Code, Codex, Gemini CLI, OpenCode ou um modelo local rodam
 Cole um link, escolha a qualidade, aperte Enter.
 
 <p align="center">
-  <img src="assets/readme/home.webp" alt="A tela inicial com a barra de link" width="860" />
+  <img src="assets/readme/paste-link.gif" alt="Um link é colado na tela inicial, o cartão do vídeo aparece, Baixar vídeo é clicado e a tela Downloads mostra o download terminar" width="860" />
 </p>
 
+Ainda sem link? Digite algumas palavras na mesma barra para buscar vídeos.
+
 <p align="center">
-  <img src="assets/readme/downloads.webp" alt="A tela Downloads com dois downloads em andamento mostrando fase, velocidade e tempo restante" width="860" />
+  <img src="assets/readme/link-card.webp" alt="A tela inicial depois de colar um link: o título e a duração do vídeo, o botão Baixar vídeo e a escolha entre Automático, Só áudio e Vídeo sem som" width="860" />
+</p>
+
+**Qualidade e mais** abre o resto: só áudio ou vídeo sem som, o idioma do áudio quando o vídeo tem mais de um, a pasta, só um trecho do vídeo ou um horário para começar depois.
+
+<p align="center">
+  <img src="assets/readme/downloads.webp" alt="A tela Downloads com três downloads concluídos, cada um com Abrir e Mostrar na pasta" width="860" />
 </p>
 
 | | |
 |---|---|
-| **Vídeo e áudio** | Extratores próprios para YouTube, Instagram, TikTok, X, Reddit, Bilibili, Twitch, Vimeo e outros, mais todos os sites que o [yt-dlp](https://github.com/yt-dlp/yt-dlp) suporta. Até 4K, ou áudio em M4A, MP3, Opus, FLAC, WAV |
+| **Vídeo e áudio** | Extratores próprios para YouTube, Instagram, TikTok, X, Reddit, Bilibili, Twitch, Vimeo e outros, mais todos os sites que o [yt-dlp](https://github.com/yt-dlp/yt-dlp) suporta. Até 4K em MP4 que toca em qualquer lugar, ou áudio em M4A, MP3, Opus, FLAC, WAV |
 | **Galerias** | Galerias e perfis inteiros pelo [gallery-dl](https://github.com/mikf/gallery-dl) |
 | **Arquivos** | Links magnet e `.torrent`, links diretos em partes paralelas, streams HLS, gravação de lives |
 | **Telegram** | Mensagens, álbuns, intervalos e conversas inteiras com a sua própria conta |
-| **A fila** | Retoma, tenta de novo com espera crescente, regras por site, canais seguidos, sobrevive a um reinício |
+| **A fila** | Retoma, tenta de novo com espera crescente, regras por site, canais seguidos, limite de velocidade, pool de proxies, sobrevive a um reinício |
 | **Extensão de navegador** | Chrome, Edge, Brave e Firefox: mande uma página ou a mídia dela para o OmniGet com o seu login |
 
 yt-dlp, FFmpeg, aria2 e gallery-dl se instalam e se atualizam sozinhos. Sem Python, sem PATH, sem terminal.
@@ -295,14 +315,22 @@ O Limpador do Sistema procura, mostra um plano e só executa depois que você ap
 ## Ferramentas rápidas
 
 <p align="center">
-  <img src="assets/readme/quick-tools.webp" alt="O painel de ferramentas rápidas com atalhos e manter acordado" width="380" />
+  <img src="assets/readme/loop-quick-tools.webp" alt="Loop pendurado de cabeça para baixo em uma barra de menus segura aberto um painel pequeno com seis botões redondos" width="820" />
 </p>
 
-O Loop fica na barra de menus ou na bandeja. Um clique no ícone abre um painel pequeno: manter o computador acordado, histórico da área de transferência, trechos salvos, monitor do sistema ao vivo, volume por app e atalhos para captura, ditado e limpeza. No Windows, no macOS e no Linux; cada sistema mostra só o que funciona nele. Com o painel fechado, só continua rodando o que você ligou.
+<p align="center">
+  <img src="assets/readme/quick-tools.webp" alt="O painel de ferramentas rápidas: Colar link, Captura, Ditado, Paleta, Portas e Limpador, manter acordado, CPU, memória, disco e rede, os processos mais pesados e o volume de saída" width="380" />
+</p>
+
+O Loop fica na barra de menus ou na bandeja. Um clique no ícone abre um painel pequeno: colar um link para baixar, manter o computador acordado, histórico da área de transferência, trechos salvos, monitor do sistema ao vivo, o volume e atalhos para captura, ditado, seletor de cores, portas e limpeza. No Windows, no macOS e no Linux; cada sistema mostra só o que funciona nele. Com o painel fechado, só continua rodando o que você ligou.
 
 ---
 
 ## Instalar
+
+<p align="center">
+  <img src="assets/readme/loop-install.webp" alt="Loop entrega um pacote laranja com um visto verde, na frente de um desktop, um notebook e um terminal antigo" width="820" />
+</p>
 
 **[Baixe em getomniget.com](https://getomniget.com/download)**. A página lista o SHA-256 de cada arquivo. As atualizações chegam por dentro do app.
 
@@ -317,18 +345,11 @@ No macOS também dá para instalar pelo Homebrew: `brew tap tonhowtf/tap` e depo
 <details>
 <summary>Avisos na primeira abertura e antivírus</summary>
 
-O OmniGet sai sem certificado pago de assinatura de código, então cada sistema pergunta uma vez.
-
-- **Windows:** o SmartScreen mostra uma caixa azul. Clique em **Mais informações** e depois em **Executar assim mesmo**.
-- **macOS:** se o Gatekeeper disser que o app está "danificado", mova para Aplicativos e rode:
-
-  ```bash
-  xattr -cr /Applications/omniget.app
-  codesign --force --deep --sign - /Applications/omniget.app
-  ```
+- **macOS:** o app é assinado com um Developer ID e notarizado pela Apple, então abre como qualquer outro app. Cópias anteriores à 1.0.2 não eram: se o Gatekeeper disser que uma delas está "danificada", instale a versão atual.
+- **Windows:** o instalador ainda não é assinado, então o SmartScreen mostra uma caixa azul uma vez. Clique em **Mais informações** e depois em **Executar assim mesmo**.
 
 - **AppImage no Linux:** se der erro de libfuse, rode `sudo apt install libfuse2` ou use o `.deb`.
-- **Antivírus:** alguns motores marcam builds novas sem assinatura por engano. Compare o SHA-256 do arquivo com o `SHA256SUMS` e reporte o falso positivo ao fabricante. Não desligue o antivírus.
+- **Antivírus:** alguns motores marcam builds novas de Windows sem assinatura por engano. Compare o SHA-256 do arquivo com o `SHA256SUMS` e reporte o falso positivo ao fabricante. Não desligue o antivírus.
 
 </details>
 
@@ -367,6 +388,10 @@ O `pnpm tauri dev` usa um perfil próprio, então nunca mexe em um OmniGet insta
 
 ## Perguntas frequentes
 
+<p align="center">
+  <img src="assets/readme/loop-faq.webp" alt="Loop lê um livro azul sob uma lâmpada enquanto os pontos de interrogação em volta viram vistos" width="820" />
+</p>
+
 ### O que é o OmniGet?
 
 Um app de desktop gratuito e de código aberto para Windows, macOS e Linux. A parte principal é um servidor MCP local, que dá ao seu agente de código uma caixa de ferramentas para downloads, mídia, arquivos, suas conversas e o seu computador. Ele também é um downloader sozinho: cole um link e receba o arquivo, ou guarde uma cópia offline de um curso que você comprou.
@@ -375,9 +400,21 @@ Um app de desktop gratuito e de código aberto para Windows, macOS e Linux. A pa
 
 Sim. A licença é GPL-3.0, não precisa de conta e não há telemetria sobre o que você baixa.
 
+### Preciso de um agente de IA para usar o OmniGet?
+
+Não. Cole um link na tela inicial e o arquivo desce; não precisa configurar mais nada. Se você só quer o downloader, **Configurações → Aparência → Só downloads** esconde as Ferramentas e o Canvas.
+
+### Preciso de chave de API ou de plano pago?
+
+Não. Os downloads, as ferramentas e o servidor MCP funcionam sem chave e sem assinatura. Um agente que você conecta roda na conta dele, a que você já usa no Claude Code, no Codex ou no Cursor. Uma chave só é pedida nas partes opcionais que chamam um modelo ou um serviço pago por conta própria, como os resumos, e você escolhe o provedor.
+
 ### Quais agentes de IA funcionam com o OmniGet?
 
 Claude Code, Codex, Gemini CLI, Cursor e VS Code se conectam ao servidor MCP por HTTP. O Claude Desktop e outros clientes que só falam stdio usam o adaptador `omniget-mcp`, que vem em toda release. Veja [Conecte em um minuto](#conecte-em-um-minuto).
+
+### O ChatGPT, o Claude na web ou o Grok conseguem usar?
+
+Sim. Em **Configurações → IA e agentes → Conectar a outros apps**, escolha **Na nuvem** ao criar o acesso e depois cole o prompt nessa IA.
 
 ### Um agente pode agir no meu computador sem me perguntar?
 
@@ -386,6 +423,14 @@ Só dentro das permissões que você marcou para aquela conexão. O servidor esc
 ### Preciso instalar yt-dlp, FFmpeg ou Python?
 
 Não. O OmniGet instala e atualiza o yt-dlp, o FFmpeg e o gallery-dl sozinho, e confere o hash de cada ferramenta antes de usar.
+
+### Para onde vão os meus arquivos?
+
+Para a pasta definida em **Configurações → Downloads → Onde os arquivos ficam**. Também dá para escolher a pasta a cada download e separar os arquivos em uma pasta por site.
+
+### Dá para baixar só o áudio, ou só um trecho do vídeo?
+
+Sim. Depois de colar um link, **Qualidade e mais** tem só áudio, vídeo sem som, o idioma do áudio quando o vídeo tem mais de um, e um horário de início e de fim para ficar só com um trecho.
 
 ### De quais sites o OmniGet baixa?
 
@@ -399,9 +444,13 @@ Sim, os que a sua própria conta consegue abrir. Abra o curso no navegador embut
 
 Não. Ele baixa o que a sua própria sessão já consegue abrir. Veja [Uso justo](#uso-justo).
 
-### Por que o Windows ou o macOS mostra um aviso na primeira vez?
+### Por que o Windows mostra um aviso na primeira vez?
 
-Cada sistema pergunta uma vez sobre um app que ainda não conhece. [Instalar](#instalar) diz onde clicar, e a [página de download](https://getomniget.com/download) lista o SHA-256 de cada arquivo para você conferir o seu.
+O instalador do Windows ainda não é assinado, então o SmartScreen pergunta uma vez. [Instalar](#instalar) diz onde clicar, e a [página de download](https://getomniget.com/download) lista o SHA-256 de cada arquivo para você conferir o seu. A build de macOS é assinada e notarizada pela Apple e abre sem aviso.
+
+### Como eu atualizo?
+
+As atualizações chegam por dentro do app. Cópias instaladas por `.deb` ou `.rpm` são mandadas para a página de download.
 
 ### Qual OmniGet é o original?
 

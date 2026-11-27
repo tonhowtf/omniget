@@ -23,6 +23,10 @@
 </p>
 
 <p align="center">
+  <sub>免费开源 · 无需账号 · 在你的电脑上运行 · macOS 版本经 Apple 公证 · 每个文件都有 SHA-256</sub>
+</p>
+
+<p align="center">
   <a href="https://getomniget.com"><img src="https://img.shields.io/badge/website-getomniget.com-F28500?style=flat-square" alt="getomniget.com" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0-2AA845?style=flat-square" alt="许可证 GPL-3.0" /></a>
   <a href="https://discord.gg/jgdxyPy7Vn"><img src="https://img.shields.io/badge/chat-community-5865F2?style=flat-square" alt="社区聊天" /></a>
@@ -57,10 +61,10 @@
 
 **3.** OmniGet 会跳到前台，显示该工具的名称和一个短验证码。核对验证码，点击**允许**。
 
-OmniGet 会把自己的服务器和一个专属令牌写进该工具自己的配置。重启该工具，OmniGet 的工具就出现了。更喜欢点按钮？在**设置 → AI 与智能体 → 连接到其他应用**里，每个工具点一下就能完成同样的事。
+OmniGet 会把自己的服务器和一个专属令牌写进该工具自己的配置。重启该工具，OmniGet 的工具就出现了。更喜欢点按钮？在**设置 → AI 与智能体 → 连接到其他应用**里也能完成同样的事：给 AI 起个名字，选择它能做什么，然后复制提示词。同一个表单还能连接运行在云端的 AI，例如 ChatGPT、网页版 Claude 或 Grok：选择**在云端**即可。
 
 <p align="center">
-  <img src="assets/readme/mcp-connect.webp" alt="设置中的“连接其他应用”部分，一个按钮即可创建访问并复制提示词" width="860" />
+  <img src="assets/readme/mcp-connect.webp" alt="设置中的“连接到其他应用”部分：AI 的名称、“在这台电脑上”或“在云端”、它能做什么，以及一个创建访问并复制提示词的按钮" width="860" />
 </p>
 
 只用 Claude Code？插件三条命令就能装好，不装桌面应用也能下载并转写链接。最后一条会在缺少时安装 yt-dlp 和 FFmpeg：
@@ -110,6 +114,10 @@ OmniGet 会把自己的服务器和一个专属令牌写进该工具自己的配
 ---
 
 ## 属于你的就留在你手里
+
+<p align="center">
+  <img src="assets/readme/loop-courses.webp" alt="Loop 抱着一摞带编号的课时、几本书和一份 PDF，走向一台屏幕上显示着文件夹的笔记本电脑" width="820" />
+</p>
 
 OmniGet 最初就是为了让大家保存自己付费购买的课程，现在依然如此。
 
@@ -237,6 +245,10 @@ http_headers = { Authorization = "Bearer YOUR_TOKEN" }
 
 一块面板，Claude Code、Codex、Gemini CLI、OpenCode 或本地模型在各自的终端里并排运行。拉一根连线，两个智能体就能对话。开启 **Lead 模式**，由一个智能体招募并协调其他智能体。每个账号的用量限额显示在屏幕边缘。
 
+<p align="center">
+  <img src="assets/readme/canvas.webp" alt="Canvas 上有一个修好了失败测试的智能体终端、另一个显示测试通过的终端和一张写着计划的便签，它们由连线相连" width="860" />
+</p>
+
 ---
 
 ## 下载器
@@ -248,20 +260,28 @@ http_headers = { Authorization = "Bearer YOUR_TOKEN" }
 粘贴链接，选好画质，按回车。
 
 <p align="center">
-  <img src="assets/readme/home.webp" alt="带链接输入栏的主页" width="860" />
+  <img src="assets/readme/paste-link.gif" alt="在主页粘贴一个链接，视频卡片出现，点击“下载视频”，“下载”页面显示它下载完成" width="860" />
 </p>
 
+还没有链接？在同一个输入栏里输入几个词就能搜索视频。
+
 <p align="center">
-  <img src="assets/readme/downloads.webp" alt="“下载”页面，两个进行中的下载显示着阶段、速度和剩余时间" width="860" />
+  <img src="assets/readme/link-card.webp" alt="粘贴链接后的主页：视频标题和时长、“下载视频”按钮，以及“自动”“仅音频”和“无声视频”三个选项" width="860" />
+</p>
+
+**画质及更多**里是其余选项：仅音频或无声视频、视频有多条音轨时的音频语言、保存文件夹、只下载视频的一段，或者设定稍后开始的时间。
+
+<p align="center">
+  <img src="assets/readme/downloads.webp" alt="“下载”页面，三个已完成的下载，每个都有“打开”和“在文件夹中显示”" width="860" />
 </p>
 
 | | |
 |---|---|
-| **视频和音频** | 为 YouTube、Instagram、TikTok、X、Reddit、Bilibili、Twitch、Vimeo 等网站自研了提取器，另外支持 [yt-dlp](https://github.com/yt-dlp/yt-dlp) 能处理的所有网站。最高 4K，也可以只要音频：M4A、MP3、Opus、FLAC、WAV |
+| **视频和音频** | 为 YouTube、Instagram、TikTok、X、Reddit、Bilibili、Twitch、Vimeo 等网站自研了提取器，另外支持 [yt-dlp](https://github.com/yt-dlp/yt-dlp) 能处理的所有网站。最高 4K，保存为到处都能播放的 MP4，也可以只要音频：M4A、MP3、Opus、FLAC、WAV |
 | **图集** | 通过 [gallery-dl](https://github.com/mikf/gallery-dl) 下载整个图集和主页 |
 | **文件** | 磁力链接和 `.torrent`，直链分块并行下载，HLS 流，直播录制 |
 | **Telegram** | 用你自己的账号下载消息、相册、指定范围和整个聊天 |
-| **队列** | 断点续传，退避重试，按网站设置规则，关注频道，重启后队列还在 |
+| **队列** | 断点续传，退避重试，按网站设置规则，关注频道，限速，代理池，重启后队列还在 |
 | **浏览器扩展** | Chrome、Edge、Brave 和 Firefox：带着你的登录状态，把页面或其中的媒体发给 OmniGet |
 
 yt-dlp、FFmpeg、aria2 和 gallery-dl 会自动安装和更新。不用装 Python，不用配 PATH，不用开终端。
@@ -295,14 +315,22 @@ yt-dlp、FFmpeg、aria2 和 gallery-dl 会自动安装和更新。不用装 Pyth
 ## 快捷工具
 
 <p align="center">
-  <img src="assets/readme/quick-tools.webp" alt="快捷工具面板：快捷入口和保持唤醒" width="380" />
+  <img src="assets/readme/loop-quick-tools.webp" alt="Loop 倒挂在菜单栏上，撑开一个带六个圆形按钮的小面板" width="820" />
 </p>
 
-Loop 常驻菜单栏或系统托盘。点一下图标就会打开一个小面板：保持电脑唤醒、剪贴板历史、常用文本片段、实时系统监视、按应用调节音量，以及截屏录屏、听写和清理的快捷入口。支持 Windows、macOS 和 Linux，每个系统只显示它能用的功能。面板关闭后，只有你开启的功能继续运行。
+<p align="center">
+  <img src="assets/readme/quick-tools.webp" alt="快捷工具面板：粘贴链接、录制、语音输入、调色板、端口和清理，保持唤醒，CPU、内存、磁盘和网络，占用最高的进程，以及输出音量" width="380" />
+</p>
+
+Loop 常驻菜单栏或系统托盘。点一下图标就会打开一个小面板：粘贴链接下载、保持电脑唤醒、剪贴板历史、常用文本片段、实时系统监视、音量，以及截屏录屏、听写、取色器、端口和清理的快捷入口。支持 Windows、macOS 和 Linux，每个系统只显示它能用的功能。面板关闭后，只有你开启的功能继续运行。
 
 ---
 
 ## 安装
+
+<p align="center">
+  <img src="assets/readme/loop-install.webp" alt="Loop 递出一个带绿色对勾的橙色包裹，身后是一台台式机、一台笔记本电脑和一台老式终端" width="820" />
+</p>
 
 **[从 getomniget.com 下载](https://getomniget.com/download)**。页面列出了每个文件的 SHA-256。更新在应用内推送。
 
@@ -317,18 +345,11 @@ Loop 常驻菜单栏或系统托盘。点一下图标就会打开一个小面板
 <details>
 <summary>首次启动的警告和杀毒软件</summary>
 
-OmniGet 没有购买代码签名证书，所以每个系统都会问一次。
-
-- **Windows：** SmartScreen 会弹出蓝色提示框。点击**更多信息**，再点**仍要运行**。
-- **macOS：** 如果 Gatekeeper 提示应用“已损坏”，把它移到“应用程序”文件夹，然后运行：
-
-  ```bash
-  xattr -cr /Applications/omniget.app
-  codesign --force --deep --sign - /Applications/omniget.app
-  ```
+- **macOS：** 应用已用 Developer ID 签名并经 Apple 公证，所以和其他应用一样直接打开。1.0.2 之前的版本没有：如果 Gatekeeper 提示那个版本“已损坏”，请安装当前版本。
+- **Windows：** 安装程序暂时还没有签名，所以 SmartScreen 会弹出一次蓝色提示框。点击**更多信息**，再点**仍要运行**。
 
 - **Linux AppImage：** 遇到 libfuse 报错时，运行 `sudo apt install libfuse2`，或者改用 `.deb`。
-- **杀毒软件：** 少数引擎会误报新的未签名构建。先把文件的 SHA-256 和 `SHA256SUMS` 对比，再向厂商报告误报。不要关闭杀毒软件。
+- **杀毒软件：** 少数引擎会误报新的未签名 Windows 构建。先把文件的 SHA-256 和 `SHA256SUMS` 对比，再向厂商报告误报。不要关闭杀毒软件。
 
 </details>
 
@@ -367,6 +388,10 @@ pnpm tauri dev
 
 ## 常见问题
 
+<p align="center">
+  <img src="assets/readme/loop-faq.webp" alt="Loop 在灯泡下读一本蓝色的书，周围的问号变成了对勾" width="820" />
+</p>
+
 ### OmniGet 是什么？
 
 一款免费、开源的桌面应用，支持 Windows、macOS 和 Linux。它的核心是一个本地 MCP 服务器，为你的编程智能体提供下载、媒体、文件、聊天和电脑管理等工具。它本身也是一个下载器：粘贴链接，拿到文件，或者为你买过的课程留一份离线副本。
@@ -375,9 +400,21 @@ pnpm tauri dev
 
 免费。它采用 GPL-3.0 许可，不需要账号，也不收集你下载内容的遥测数据。
 
+### 使用 OmniGet 需要 AI 智能体吗？
+
+不需要。在主页粘贴链接，文件就会下载下来，不用再设置别的。如果你只想用下载器，**设置 → 外观 → 仅下载**会隐藏“工具”和 Canvas。
+
+### 需要 API 密钥或付费套餐吗？
+
+不需要。下载、工具和 MCP 服务器都不需要密钥，也不需要订阅。你连接的智能体用的是它自己的账号，也就是你已经在 Claude Code、Codex 或 Cursor 里使用的那个。只有那些自己调用模型或付费服务的可选功能（比如摘要）才会要求密钥，提供商由你选择。
+
 ### 哪些 AI 智能体可以配合 OmniGet 使用？
 
 Claude Code、Codex、Gemini CLI、Cursor 和 VS Code 通过 HTTP 连接 MCP 服务器。Claude Desktop 等只支持 stdio 的客户端使用随每个版本发布的 `omniget-mcp` 适配器。参见[一分钟完成连接](#一分钟完成连接)。
+
+### ChatGPT、网页版 Claude 或 Grok 能用吗？
+
+可以。在**设置 → AI 与智能体 → 连接到其他应用**里创建访问时选择**在云端**，然后把提示词粘贴给那个 AI。
 
 ### 智能体会不经我同意就在我的电脑上操作吗？
 
@@ -386,6 +423,14 @@ Claude Code、Codex、Gemini CLI、Cursor 和 VS Code 通过 HTTP 连接 MCP 服
 ### 我需要自己安装 yt-dlp、FFmpeg 或 Python 吗？
 
 不需要。OmniGet 会自行安装并更新 yt-dlp、FFmpeg 和 gallery-dl，并在使用前校验每个工具的哈希值。
+
+### 我的文件保存到哪里？
+
+保存到**设置 → 下载 → 文件保存位置**里设定的文件夹。也可以让它每次下载都询问文件夹，或者按网站把文件分到各自的文件夹。
+
+### 可以只要音频，或者只要视频的一段吗？
+
+可以。粘贴链接后，**画质及更多**里有仅音频、无声视频、视频有多条音轨时的音频语言，以及用来只保留一段的开始和结束时间。
 
 ### OmniGet 可以从哪些网站下载？
 
@@ -399,9 +444,13 @@ YouTube、Instagram、TikTok、X、Reddit、Bilibili、Twitch 和 Vimeo 有专�
 
 不会。它只下载你自己的会话本来就能打开的内容。参见[合理使用](#合理使用)。
 
-### 为什么 Windows 或 macOS 首次启动时会弹出警告？
+### 为什么 Windows 首次启动时会弹出警告？
 
-系统对没见过的应用都会询问一次。[安装](#安装)一节说明了该点哪里，[下载页面](https://getomniget.com/download)列出了每个文件的 SHA-256，方便你核对。
+Windows 安装程序暂时还没有签名，所以 SmartScreen 会询问一次。[安装](#安装)一节说明了该点哪里，[下载页面](https://getomniget.com/download)列出了每个文件的 SHA-256，方便你核对。macOS 版本已签名并经 Apple 公证，打开时没有警告。
+
+### 如何更新？
+
+更新在应用内推送。通过 `.deb` 或 `.rpm` 安装的版本会被引导到下载页面。
 
 ### 哪个 OmniGet 是原版？
 
