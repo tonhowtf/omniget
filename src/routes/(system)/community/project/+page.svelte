@@ -159,8 +159,9 @@
   }
 
   .features-grid li {
-    position: relative;
-    padding-inline-start: 14px;
+    display: flex;
+    align-items: flex-start;
+    gap: 9px;
     font-size: var(--text-base);
     line-height: 1.55;
     color: var(--text-muted);
@@ -168,11 +169,10 @@
 
   .features-grid li::before {
     content: "";
-    position: absolute;
-    inset-inline-start: 0;
-    top: 8px;
+    flex: 0 0 auto;
     width: 5px;
     height: 5px;
+    margin-top: calc(0.775em - 2.5px);
     border-radius: 50%;
     background: var(--accent);
   }
