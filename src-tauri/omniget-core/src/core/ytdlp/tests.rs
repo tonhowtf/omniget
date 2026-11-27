@@ -1401,3 +1401,25 @@ fn metadata_after_the_download_is_post_processing() {
         Some("postprocessing")
     );
 }
+
+#[test]
+fn ffmpeg_steps_get_the_long_stall_limit() {
+    for line in [
+        "[Merger] Merging formats into \"a.mp4\"",
+        "[ExtractAudio] Destination: a.mp3",
+        "[VideoConvertor] Converting video from webm to mp4",
+        "[VideoRemuxer] Remuxing video from mkv to mp4",
+        "[EmbedThumbnail] ffmpeg: Adding thumbnail",
+        "[FixupM3u8] Fixing MPEG-TS in MP4 container",
+    ] {
+        let step = super::postprocess_step_name(line);
+        assert_eq!(super::stall_limit_secs(step), 300, "{line}");
+    }
+    assert_eq!(super::stall_limit_secs(None), 90);
+    assert_eq!(
+        super::stall_limit_secs(super::postprocess_step_name(
+            "[ThumbnailsConvertor] Converting thumbnail"
+        )),
+        90
+    );
+}

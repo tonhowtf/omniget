@@ -577,7 +577,12 @@ pub async fn read_opds_open(source: String, url: String) -> Result<Page, String>
     if let Some(id_str) = source.strip_prefix("dir:") {
         let id: i64 = id_str.parse().map_err(|_| "bad directory id")?;
         let cat = blocking(move || catalog(id)).await?;
-        return directory::browse(http(), &url, &source, "", &cat.username, &cat.password).await;
+        let (user, pass) = if directory::same_origin(&cat.url, &url) {
+            (cat.username.as_str(), cat.password.as_str())
+        } else {
+            ("", "")
+        };
+        return directory::browse(http(), &url, &source, "", user, pass).await;
     }
     let id: i64 = source
         .strip_prefix("opds:")
@@ -592,12 +597,13 @@ pub async fn read_opds_open(source: String, url: String) -> Result<Page, String>
 pub async fn read_opds_download_url(source: String, url: String) -> Result<String, String> {
     let Some(id) = source
         .strip_prefix("opds:")
+        .or_else(|| source.strip_prefix("dir:"))
         .and_then(|s| s.parse::<i64>().ok())
     else {
         return Ok(url);
     };
     let cat = blocking(move || catalog(id)).await?;
-    if cat.username.is_empty() {
+    if cat.username.is_empty() || !directory::same_origin(&cat.url, &url) {
         return Ok(url);
     }
     let mut u = url::Url::parse(&url).map_err(|e| e.to_string())?;

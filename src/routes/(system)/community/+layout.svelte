@@ -11,7 +11,6 @@
     { href: "/community/roadmap", labelKey: "about.tab.roadmap", icon: "roadmap" },
     { href: "/community/about", labelKey: "about.tab.overview", icon: "overview" },
     { href: "/community/changelog", labelKey: "about.tab.changelog", icon: "changelog" },
-    { href: "/community/roadmap", labelKey: "about.tab.roadmap", icon: "roadmap" },
     { href: "/community/project", labelKey: "about.tab.project", icon: "project" },
     { href: "/community/terms", labelKey: "about.tab.terms", icon: "terms" },
     { href: "/community/debug", labelKey: "about.tab.debug", icon: "debug" },

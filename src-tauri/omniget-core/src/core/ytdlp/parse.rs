@@ -404,6 +404,13 @@ pub(super) fn postprocess_phase_after_download(
     }
 }
 
+pub(super) fn stall_limit_secs(step: Option<&str>) -> u64 {
+    match step {
+        None | Some("convert_thumbnail" | "convert_subtitles") => 90,
+        Some(_) => 300,
+    }
+}
+
 pub(super) fn postprocess_step_name(line: &str) -> Option<&'static str> {
     let t = line.trim_start();
     const STEPS: &[(&str, &str)] = &[

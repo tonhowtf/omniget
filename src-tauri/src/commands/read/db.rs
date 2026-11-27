@@ -438,13 +438,23 @@ pub fn upsert_book(b: &NewBook) -> Result<i64, String> {
             if existing_by_path.is_none() {
                 let existing_by_hash: Option<(i64, String)> = c
                     .query_row(
-                        "SELECT id, path FROM books WHERE hash = ?1 LIMIT 1",
-                        [&b.hash],
+                        "SELECT id, path FROM books WHERE hash = ?1 AND size = ?2 LIMIT 1",
+                        params![b.hash, b.size],
                         |r| Ok((r.get(0)?, r.get(1)?)),
                     )
                     .optional()?;
-                if let Some((dup_id, dup_path)) = existing_by_hash {
-                    if std::path::Path::new(&dup_path).exists() {
+                let dup_path_exists = existing_by_hash
+                    .as_ref()
+                    .is_some_and(|(_, p)| std::path::Path::new(p).exists());
+                let same_book = existing_by_hash.as_ref().is_some_and(|(_, p)| {
+                    !dup_path_exists
+                        || omniget_core::core::read::kosync::same_contents(
+                            std::path::Path::new(p),
+                            std::path::Path::new(&b.path),
+                        )
+                });
+                if let Some((dup_id, _)) = existing_by_hash.filter(|_| same_book) {
+                    if dup_path_exists {
                         c.execute(
                             "UPDATE books SET
                                 cover = COALESCE(?1, cover),

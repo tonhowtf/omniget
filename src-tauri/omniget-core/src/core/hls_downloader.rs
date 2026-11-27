@@ -5,6 +5,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use futures::stream::{self, StreamExt};
+use futures::FutureExt;
 use m3u8_rs::{
     parse_master_playlist, parse_media_playlist, AlternativeMedia, AlternativeMediaType,
     MasterPlaylist, VariantStream,
@@ -275,28 +276,38 @@ impl HlsDownloader {
         }
         let video_tmp = format!("{output_path}.video.mp4");
         let audio_tmp = format!("{output_path}.audio.m4a");
+        let tracks_token = cancel_token.child_token();
+        let stop_on_error = |r: anyhow::Result<HlsDownloadResult>| {
+            if r.is_err() {
+                tracks_token.cancel();
+            }
+            r
+        };
         let joined = async {
             let audio_concurrent = (max_concurrent / 2).clamp(2, max_concurrent.max(2));
-            let (video, audio) = tokio::try_join!(
+            let (video, audio) = tokio::join!(
                 self.download_media_playlist(
                     video_url,
                     &video_tmp,
                     referer,
                     bytes_tx.clone(),
-                    cancel_token.clone(),
+                    tracks_token.clone(),
                     max_concurrent,
                     max_retries,
-                ),
+                )
+                .map(stop_on_error),
                 self.download_media_playlist(
                     audio_url,
                     &audio_tmp,
                     referer,
                     bytes_tx.clone(),
-                    cancel_token.clone(),
+                    tracks_token.clone(),
                     audio_concurrent,
                     max_retries,
-                ),
-            )?;
+                )
+                .map(stop_on_error),
+            );
+            let (video, audio) = (video?, audio?);
             let output = PathBuf::from(output_path);
             join_tracks(&video.path, &audio.path, &output).await?;
             let file_size = std::fs::metadata(&output)?.len();
@@ -307,8 +318,10 @@ impl HlsDownloader {
             })
         }
         .await;
-        let _ = std::fs::remove_file(&video_tmp);
-        let _ = std::fs::remove_file(&audio_tmp);
+        for tmp in [&video_tmp, &audio_tmp] {
+            let _ = std::fs::remove_file(tmp);
+            let _ = std::fs::remove_file(format!("{tmp}.part"));
+        }
         joined
     }
 

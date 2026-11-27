@@ -16,6 +16,13 @@ const BOOK_EXTS: &[(&str, &str)] = &[
     ("txt", "TXT"),
 ];
 
+pub fn same_origin(a: &str, b: &str) -> bool {
+    match (url::Url::parse(a), url::Url::parse(b)) {
+        (Ok(a), Ok(b)) => a.origin() == b.origin() && !matches!(a.origin(), url::Origin::Opaque(_)),
+        _ => false,
+    }
+}
+
 pub fn parse_listing(html: &str, base_url: &str, source_id: &str, query: &str) -> Page {
     let Ok(base) = url::Url::parse(base_url) else {
         return Page::default();
@@ -163,6 +170,30 @@ pub async fn browse(
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn credentials_stay_on_the_catalog_origin() {
+        let cat = "https://books.example/library/";
+        assert!(super::same_origin(
+            cat,
+            "https://books.example/library/sci-fi/"
+        ));
+        assert!(super::same_origin(
+            cat,
+            "https://books.example/other/a.epub"
+        ));
+        assert!(!super::same_origin(cat, "https://other.example/books/"));
+        assert!(!super::same_origin(cat, "http://books.example/library/"));
+        assert!(!super::same_origin(
+            cat,
+            "https://books.example:8443/library/"
+        ));
+        assert!(!super::same_origin(
+            cat,
+            "https://books.example.evil.test/library/"
+        ));
+        assert!(!super::same_origin(cat, "not a url"));
+    }
+
     use super::*;
 
     #[test]

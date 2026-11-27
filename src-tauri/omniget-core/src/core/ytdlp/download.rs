@@ -946,10 +946,7 @@ pub async fn download_video(
                         .duration_since(std::time::UNIX_EPOCH)
                         .map(|d| d.as_secs())
                         .unwrap_or(0);
-                    let limit_secs = match watch_step.lock().ok().and_then(|g| *g) {
-                        Some("merging" | "postprocessing") => 300,
-                        _ => 90,
-                    };
+                    let limit_secs = stall_limit_secs(watch_step.lock().ok().and_then(|g| *g));
                     if now.saturating_sub(last) >= limit_secs {
                         break;
                     }
@@ -963,7 +960,7 @@ pub async fn download_video(
                 release_boot_slot(&boot_slot);
                 let _ = line_reader.await;
                 let _ = stderr_reader.await;
-                anyhow::bail!("Download stalled — no output received from yt-dlp for 90s");
+                anyhow::bail!("Download stalled — no output received from yt-dlp");
             }
         };
 

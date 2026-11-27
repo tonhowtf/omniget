@@ -30,6 +30,34 @@ pub fn partial_md5_path(p: &std::path::Path) -> Option<String> {
     partial_md5(&mut f).ok()
 }
 
+pub fn same_contents(a: &std::path::Path, b: &std::path::Path) -> bool {
+    use std::io::Read;
+    let (Ok(ma), Ok(mb)) = (std::fs::metadata(a), std::fs::metadata(b)) else {
+        return false;
+    };
+    if ma.len() != mb.len() {
+        return false;
+    }
+    let (Ok(fa), Ok(fb)) = (std::fs::File::open(a), std::fs::File::open(b)) else {
+        return false;
+    };
+    let mut ra = std::io::BufReader::with_capacity(64 * 1024, fa);
+    let mut rb = std::io::BufReader::with_capacity(64 * 1024, fb);
+    let mut ba = [0u8; 64 * 1024];
+    let mut bb = [0u8; 64 * 1024];
+    loop {
+        let Ok(n) = ra.read(&mut ba) else {
+            return false;
+        };
+        if n == 0 {
+            return true;
+        }
+        if rb.read_exact(&mut bb[..n]).is_err() || ba[..n] != bb[..n] {
+            return false;
+        }
+    }
+}
+
 pub fn user_key(password: &str) -> String {
     hex::encode(Md5::digest(password.as_bytes()))
 }
@@ -136,6 +164,23 @@ impl Client {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn same_contents_needs_every_byte_to_match() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let a = dir.path().join("a.pdf");
+        let b = dir.path().join("b.pdf");
+        let c = dir.path().join("c.pdf");
+        let mut body = vec![7u8; 300_000];
+        std::fs::write(&a, &body).expect("write a");
+        std::fs::write(&b, &body).expect("write b");
+        body[150_000] = 8;
+        std::fs::write(&c, &body).expect("write c");
+        assert_eq!(partial_md5_path(&a), partial_md5_path(&c));
+        assert!(super::same_contents(&a, &b));
+        assert!(!super::same_contents(&a, &c));
+        assert!(!super::same_contents(&a, &dir.path().join("missing.pdf")));
+    }
+
     use super::*;
 
     #[test]

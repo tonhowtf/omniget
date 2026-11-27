@@ -117,28 +117,32 @@ pub struct Extractor {
     pub abs: bool,
 }
 
-fn normalize_extractors(v: &mut Value) {
-    const KEYS: &[&str] = &[
-        "key",
-        "title",
-        "cover",
-        "hasNext",
-        "description",
-        "authors",
-        "genres",
-        "status",
-        "number",
-        "date",
-        "scanlator",
-        "image",
-        "url",
-        "format",
-        "label",
-    ];
+const DOWNLOAD_KEYS: &[&str] = &["url", "format", "label"];
+
+const EXTRACTOR_KEYS: &[&str] = &[
+    "key",
+    "title",
+    "cover",
+    "hasNext",
+    "description",
+    "authors",
+    "genres",
+    "status",
+    "number",
+    "date",
+    "scanlator",
+    "image",
+];
+
+fn normalize_keys(v: &mut Value, keys: &[&str]) {
     match v {
         Value::Object(map) => {
             for (k, child) in map.iter_mut() {
-                if KEYS.contains(&k.as_str()) {
+                if k == "downloads" {
+                    normalize_keys(child, DOWNLOAD_KEYS);
+                    continue;
+                }
+                if keys.contains(&k.as_str()) {
                     if let Value::String(s) = child {
                         *child = short_extractor(s);
                         continue;
@@ -148,10 +152,10 @@ fn normalize_extractors(v: &mut Value) {
                             Value::Array(a.split('|').map(|x| Value::String(x.into())).collect());
                     }
                 }
-                normalize_extractors(child);
+                normalize_keys(child, EXTRACTOR_KEYS);
             }
         }
-        Value::Array(a) => a.iter_mut().for_each(normalize_extractors),
+        Value::Array(a) => a.iter_mut().for_each(|x| normalize_keys(x, keys)),
         _ => {}
     }
 }
@@ -251,7 +255,7 @@ pub fn parse_source(v: Value) -> Result<DeclarativeSource, String> {
         merge(&mut base, v.clone());
         v = base;
     }
-    normalize_extractors(&mut v);
+    normalize_keys(&mut v, EXTRACTOR_KEYS);
     let s: DeclarativeSource = serde_json::from_value(v).map_err(|e| format!("bad source: {e}"))?;
     if s.id.is_empty() || s.name.is_empty() || s.base_url.is_empty() {
         return Err("a source needs id, name and baseUrl".into());
@@ -1176,4 +1180,32 @@ pub async fn health(client: &reqwest::Client, s: &DeclarativeSource) -> HealthRe
     }
     r.ok = true;
     r
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn request_url_stays_a_string_while_download_url_becomes_an_extractor() {
+        let s = parse_source(serde_json::json!({
+            "id": "t",
+            "name": "T",
+            "baseUrl": "https://books.example",
+            "popular": {
+                "url": "{baseUrl}/books",
+                "list": "li",
+                "key": "a@href",
+                "title": "a",
+                "downloads": { "list": "a.dl", "url": "@href", "format": "span.fmt", "label": "span.lbl" }
+            }
+        }))
+        .expect("source parses");
+        let popular = s.popular.expect("popular");
+        assert_eq!(popular.request.url, "{baseUrl}/books");
+        let dl = popular.downloads.expect("downloads");
+        assert_eq!(dl.url.attr, Some(vec!["href".to_string()]));
+        assert_eq!(dl.format.and_then(|f| f.css), Some("span.fmt".to_string()));
+        assert_eq!(dl.label.and_then(|l| l.css), Some("span.lbl".to_string()));
+    }
 }
