@@ -29,4 +29,6 @@ ignore = [
   { id = "RUSTSEC-2023-0071", reason = "rsa has no fixed release. It decrypts the two values of one sign-in with a key made for that sign-in, so there is no stream of decryptions to time" },
   { id = "RUSTSEC-2026-0543", reason = "chrono is unmaintained, not vulnerable. 142 files use it; the move is planned in #452" },
   { id = "RUSTSEC-2026-0192", reason = "ttf-parser is unmaintained, not vulnerable. It reads fonts the person picks; the move to skrifa is #451" },
+  { id = "RUSTSEC-2026-0194", reason = "quick-xml 0.37 comes only through librqbit-upnp, which has no release on a fixed version. It parses UPnP replies from routers on the local network, not files or pages from outside" },
+  { id = "RUSTSEC-2026-0195", reason = "same quick-xml 0.37 under librqbit-upnp as RUSTSEC-2026-0194; the core uses quick-xml 0.42" },
 ]
