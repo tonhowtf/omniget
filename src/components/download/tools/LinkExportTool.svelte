@@ -82,6 +82,9 @@
     </select>
   </div>
   <p class="count">{$t(pluralKey("downloads.tools.link_export.count", chosen.length), { count: chosen.length })}</p>
+  {#if loaded && history.length > 0}
+    <p class="dim small">{$t("downloads.tools.link_export.pool", { total: String(history.length) })}</p>
+  {/if}
   {#if chosen.length}
     <ul class="list">
       {#each chosen.slice(0, 8) as h (h.url)}

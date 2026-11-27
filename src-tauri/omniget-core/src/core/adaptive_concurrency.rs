@@ -47,24 +47,41 @@ pub struct Sample {
     pub throughput_bps: f64,
 }
 
+const MAX_SAMPLES: usize = 32;
+const CLEAN_SUCCESSES_TO_DECAY: u32 = 3;
+
 #[derive(Debug, Clone, Default, Serialize)]
 pub struct HostStats {
     samples: Vec<Sample>,
     rate_limit_hits: u32,
+    clean_successes: u32,
 }
 
 impl HostStats {
-    pub fn record(&mut self, concurrency: u32, throughput_bps: f64) {
+    pub fn record(&mut self, concurrency: u32, throughput_bps: f64) -> bool {
         if throughput_bps.is_finite() && throughput_bps > 0.0 {
+            if self.samples.len() >= MAX_SAMPLES {
+                self.samples.remove(0);
+            }
             self.samples.push(Sample {
                 concurrency,
                 throughput_bps,
             });
+            if self.rate_limit_hits > 0 {
+                self.clean_successes = self.clean_successes.saturating_add(1);
+                if self.clean_successes >= CLEAN_SUCCESSES_TO_DECAY {
+                    self.rate_limit_hits = self.rate_limit_hits.saturating_sub(1);
+                    self.clean_successes = 0;
+                    return true;
+                }
+            }
         }
+        false
     }
 
     pub fn record_rate_limit(&mut self) {
         self.rate_limit_hits = self.rate_limit_hits.saturating_add(1);
+        self.clean_successes = 0;
     }
 
     fn best_at(&self, concurrency: u32) -> Option<f64> {
@@ -154,9 +171,13 @@ impl ConcurrencyTuner {
         let now = unix_now();
         let mut map = load_remembered(path, now);
         let hits = self.hosts.get(host).map_or(0, |s| s.rate_limit_hits);
-        let entry = map.entry(host.to_string()).or_default();
-        entry.rate_limit_hits = entry.rate_limit_hits.max(hits);
-        entry.last_at = now;
+        if hits == 0 {
+            map.remove(host);
+        } else {
+            let entry = map.entry(host.to_string()).or_default();
+            entry.rate_limit_hits = hits;
+            entry.last_at = now;
+        }
         if let Some(dir) = path.parent() {
             let _ = std::fs::create_dir_all(dir);
         }
@@ -169,10 +190,14 @@ impl ConcurrencyTuner {
     }
 
     pub fn record(&mut self, host: &str, concurrency: u32, throughput_bps: f64) {
-        self.hosts
+        let decayed = self
+            .hosts
             .entry(host.to_string())
             .or_default()
             .record(concurrency, throughput_bps);
+        if decayed {
+            self.persist(host);
+        }
     }
 
     pub fn record_rate_limit(&mut self, host: &str) {

@@ -7,6 +7,7 @@ describe("activeNavHref", () => {
   it("matches the home route only exactly", () => {
     expect(activeNavHref(CORE_NAV_ITEMS, "/")).toBe("/");
     expect(activeNavHref(CORE_NAV_ITEMS, "/downloads")).toBe("/downloads");
+    expect(activeNavHref(CORE_NAV_ITEMS, "/global")).toBe("/global");
   });
 
   it("matches nested routes but not routes that only share a prefix", () => {
@@ -36,7 +37,7 @@ describe("visibleCoreNav", () => {
   });
 
   it("downloads only hides the tools and the canvas and nothing else", () => {
-    expect(visibleCoreNav({ downloadsOnly: true }).map((i) => i.href)).toEqual(["/", "/downloads", "/settings", "/help", "/community"]);
+    expect(visibleCoreNav({ downloadsOnly: true }).map((i) => i.href)).toEqual(["/", "/downloads", "/global", "/settings", "/community"]);
   });
 
   it("a disabled canvas stays hidden either way", () => {

@@ -303,7 +303,16 @@ pub async fn embed_metadata(
             "attached_pic".to_string(),
         ]);
     } else {
-        args.extend(["-c".to_string(), "copy".to_string()]);
+        args.extend([
+            "-map".to_string(),
+            "0".to_string(),
+            "-c".to_string(),
+            "copy".to_string(),
+        ]);
+    }
+
+    if matches!(ext.to_lowercase().as_str(), "mp4" | "m4v" | "m4a" | "mov") {
+        args.extend(["-movflags".to_string(), "+faststart".to_string()]);
     }
 
     if let Some(ref v) = metadata.title {

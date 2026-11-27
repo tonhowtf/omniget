@@ -4,7 +4,17 @@
   import { listen } from "@tauri-apps/api/event";
   import { open as openDialog } from "@tauri-apps/plugin-dialog";
   import { locale, t } from "$lib/i18n";
-  import { descriptionFor, errorKey, filterEntries, type InstallProgress, type MarketEntry, type MarketView, type PackageSummary } from "$lib/global/connector-market";
+  import {
+    descriptionFor,
+    errorKey,
+    filterEntries,
+    type InstallProgress,
+    type MarketEntry,
+    type MarketView,
+    type PackageSummary,
+  } from "$lib/global/connector-market";
+  import { platformVisual } from "$lib/global/platform-visuals";
+  import SpotlightCard from "./SpotlightCard.svelte";
 
   type OptionDef = { id: string; label?: string; type?: string; default?: unknown; choices?: string[]; help?: string };
   type Failure = { message: string; action: "install" | "update" };
@@ -172,8 +182,21 @@
       <h2 id="market-title">{$t("global_dl.market.title")}</h2>
       <p>{$t("global_dl.market.subtitle")}</p>
     </div>
-    <button class="btn btn-ghost btn-sm" onclick={pickFile}>{$t("global_dl.market.from_file")}</button>
-    <button class="btn btn-ghost btn-sm" onclick={() => load(true)} disabled={loading}>{$t("global_dl.market.refresh")}</button>
+    <div class="market-controls">
+      {#if entries.length > 4}
+        <input
+          class="search"
+          type="search"
+          bind:value={query}
+          placeholder={$t("global_dl.market.search")}
+          aria-label={$t("global_dl.market.search")}
+          spellcheck="false"
+          autocomplete="off"
+        />
+      {/if}
+      <button type="button" class="btn btn-ghost btn-sm" onclick={pickFile}>{$t("global_dl.market.from_file")}</button>
+      <button type="button" class="btn btn-ghost btn-sm" onclick={() => load(true)} disabled={loading}>{$t("global_dl.market.refresh")}</button>
+    </div>
   </header>
 
   {#if filePath}
@@ -193,18 +216,18 @@
           {/if}
         </dl>
         <div class="row">
-          <button class="btn btn-primary btn-sm" onclick={installFile} disabled={fileBusy}>
+          <button type="button" class="btn btn-primary btn-sm" onclick={installFile} disabled={fileBusy}>
             {#if fileBusy}<span class="spinner" aria-hidden="true"></span>{/if}
             {$t("global_dl.market.install_anyway")}
           </button>
-          <button class="btn btn-ghost btn-sm" onclick={closeFile}>{$t("global_dl.close")}</button>
+          <button type="button" class="btn btn-ghost btn-sm" onclick={closeFile}>{$t("global_dl.close")}</button>
         </div>
       {/if}
       {#if fileError}
         <div class="inline-error" role="alert">
           <p>{$t(errorKey(fileError))}</p>
           {@render detail(fileError)}
-          <button class="btn btn-ghost btn-sm" onclick={closeFile}>{$t("global_dl.close")}</button>
+          <button type="button" class="btn btn-ghost btn-sm" onclick={closeFile}>{$t("global_dl.close")}</button>
         </div>
       {/if}
     </div>
@@ -221,15 +244,15 @@
 
   {#if loading && !view}
     <ul class="grid" aria-busy="true" aria-label={$t("global_dl.market.loading")}>
-      {#each [0, 1, 2] as i (i)}
-        <li class="tile tile-ghost skeleton"></li>
+      {#each [0, 1, 2, 3] as i (i)}
+        <li class="tile-skeleton"></li>
       {/each}
     </ul>
   {:else if failedEmpty}
     <div class="state" role="alert">
       <h3>{$t("global_dl.market.error_title")}</h3>
       <p>{$t(errorKey(view?.error ?? ""))}</p>
-      <button class="btn btn-primary btn-sm" onclick={() => load(true)} disabled={loading}>{$t("global_dl.retry")}</button>
+      <button type="button" class="btn btn-primary btn-sm" onclick={() => load(true)} disabled={loading}>{$t("global_dl.retry")}</button>
       {@render detail(view?.error ?? "")}
     </div>
   {:else if entries.length === 0}
@@ -238,17 +261,6 @@
       <p>{$t("global_dl.market.empty_body")}</p>
     </div>
   {:else}
-    {#if entries.length > 6}
-      <input
-        class="search"
-        type="search"
-        bind:value={query}
-        placeholder={$t("global_dl.market.search")}
-        aria-label={$t("global_dl.market.search")}
-        spellcheck="false"
-        autocomplete="off"
-      />
-    {/if}
     {#if shown.length === 0}
       <p class="banner" role="status">{$t("global_dl.market.no_match", { query: query.trim() })}</p>
     {/if}
@@ -258,92 +270,142 @@
         {@const failure = failures[entry.id]}
         {@const installed = entry.state !== "not_installed"}
         {@const description = descriptionFor(entry, $locale)}
-        <li class="tile" class:tile-focus={entry.id === focusId} use:reveal={entry.id === focusId}>
-          <div class="tile-top">
-            <span class="avatar" aria-hidden="true">{entry.name.slice(0, 1).toUpperCase()}</span>
-            <h3 title={entry.name}>{entry.name}</h3>
-            {#if entry.state === "update_available"}
-              <span class="pill pill-update">{$t("global_dl.market.update_badge", { version: entry.version })}</span>
-            {:else if entry.dev}
-              <span class="pill">{$t("global_dl.dev")}</span>
-            {:else if installed}
-              <span class="pill pill-on">{$t("global_dl.market.installed")}</span>
-            {/if}
-          </div>
-          {#if entry.id === focusId && !installed}<p class="wanted">{$t("global_dl.market.wanted")}</p>{/if}
-          {#if description}<p class="desc">{description}</p>{/if}
-          <p class="meta">
-            {#if entry.author}<span>{$t("global_dl.market.by", { author: entry.author })}</span>{/if}
-            <span title={entry.domains.join(", ")}>{entry.domains.slice(0, 3).join(", ")}{entry.domains.length > 3 ? ` +${entry.domains.length - 3}` : ""}</span>
-          </p>
-          {#if entry.permissions.length}
-            <p class="meta">{entry.permissions.map(permissionLabel).join(" · ")}</p>
-          {/if}
-
-          {#if running}
-            {@const pct = percent(running)}
-            <div class="progress" role="status" aria-live="polite">
-              <progress max="100" value={pct ?? undefined}></progress>
-              <span class="meta">{$t(`global_dl.market.stage_${running.stage === "verify" ? "verify" : "download"}`)}{pct !== null ? ` · ${pct}%` : ""}</span>
-            </div>
-          {:else if confirmRemove === entry.id}
-            <div class="confirm" role="group">
-              <p>{$t("global_dl.market.remove_confirm", { name: entry.name })}</p>
-              <div class="row">
-                <button class="btn btn-destructive btn-sm" onclick={() => remove(entry)} disabled={removing === entry.id}>{$t("global_dl.remove")}</button>
-                <button class="btn btn-ghost btn-sm" onclick={() => (confirmRemove = null)}>{$t("global_dl.cancel")}</button>
+        {@const visual = platformVisual(entry.id)}
+        <li use:reveal={entry.id === focusId}>
+          <SpotlightCard accent={visual.color} highlighted={entry.id === focusId} class="platform-card">
+            <div class="tile-banner" style:background={visual.gradient}>
+              <div class="platform-emblem" style:--brand={visual.color} aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+                  {@html visual.iconPaths}
+                </svg>
+              </div>
+              <div class="tile-status">
+                {#if entry.state === "update_available"}
+                  <span class="pill pill-update">{$t("global_dl.market.update_badge", { version: entry.version })}</span>
+                {:else if entry.dev}
+                  <span class="pill">{$t("global_dl.dev")}</span>
+                {:else if installed}
+                  <span class="pill pill-on">{$t("global_dl.market.installed")}</span>
+                {/if}
               </div>
             </div>
-          {:else}
-            <div class="row actions">
-              {#if !entry.compatible && (!installed || entry.state === "update_available")}
-                <span class="meta">{$t("global_dl.market.needs_version", { version: entry.min_omniget })}</span>
-              {:else if !installed}
-                <button class="btn btn-primary btn-sm" onclick={() => install(entry, "install")}>{$t("global_dl.market.install")}</button>
-              {:else if entry.state === "update_available"}
-                <button class="btn btn-tinted btn-sm" onclick={() => install(entry, "update")}>{$t("global_dl.market.update")}</button>
-              {/if}
-              {#if installed}
-                <button class="btn btn-primary btn-sm" onclick={() => onOpen(entry)}>
-                  {entry.login?.url ? $t("global_dl.market.login_open") : $t("global_dl.market.open")}
-                </button>
-                {#if entry.has_options}
-                  <button class="btn btn-ghost btn-sm" onclick={() => toggleOptions(entry)} aria-expanded={optionsFor === entry.id}>{$t("global_dl.options")}</button>
+
+            <div class="tile-body">
+              <div class="tile-head">
+                <h3 title={entry.name}>{entry.name}</h3>
+                {#if entry.domains[0]}
+                  <span class="domain">{entry.domains[0]}</span>
                 {/if}
-                <button class="btn btn-ghost btn-sm" onclick={() => { confirmRemove = entry.id; }}>{$t("global_dl.remove")}</button>
+              </div>
+
+              {#if entry.id === focusId && !installed}
+                <p class="wanted">{$t("global_dl.market.wanted")}</p>
+              {/if}
+
+              {#if description}
+                <p class="desc" title={description}>{description}</p>
+              {/if}
+
+              {#if running}
+                {@const pct = percent(running)}
+                <div class="progress" role="status" aria-live="polite">
+                  <progress max="100" value={pct ?? undefined}></progress>
+                  <span class="meta">
+                    {$t(`global_dl.market.stage_${running.stage === "verify" ? "verify" : "download"}`)}{pct !== null ? ` · ${pct}%` : ""}
+                  </span>
+                </div>
+              {:else if confirmRemove === entry.id}
+                <div class="confirm" role="group">
+                  <p>{$t("global_dl.market.remove_confirm", { name: entry.name })}</p>
+                  <div class="row">
+                    <button type="button" class="btn btn-destructive btn-sm" onclick={() => remove(entry)} disabled={removing === entry.id}>
+                      {$t("global_dl.remove")}
+                    </button>
+                    <button type="button" class="btn btn-ghost btn-sm" onclick={() => (confirmRemove = null)}>
+                      {$t("global_dl.cancel")}
+                    </button>
+                  </div>
+                </div>
+              {:else}
+                <div class="actions">
+                  {#if !entry.compatible && (!installed || entry.state === "update_available")}
+                    <span class="meta">{$t("global_dl.market.needs_version", { version: entry.min_omniget })}</span>
+                  {:else if !installed}
+                    <button type="button" class="btn btn-primary btn-sm action-fill" onclick={() => install(entry, "install")}>
+                      {$t("global_dl.market.install")}
+                    </button>
+                  {:else}
+                    <button type="button" class="btn btn-primary btn-sm action-fill" onclick={() => onOpen(entry)}>
+                      {entry.login?.url ? $t("global_dl.market.login_open") : $t("global_dl.market.open")}
+                    </button>
+                    {#if entry.state === "update_available"}
+                      <button type="button" class="btn btn-tinted btn-sm" onclick={() => install(entry, "update")}>
+                        {$t("global_dl.market.update")}
+                      </button>
+                    {/if}
+                    {#if entry.has_options}
+                      <button
+                        type="button"
+                        class="btn btn-ghost btn-sm icon-btn"
+                        onclick={() => toggleOptions(entry)}
+                        aria-expanded={optionsFor === entry.id}
+                        aria-label={$t("global_dl.options")}
+                        title={$t("global_dl.options")}
+                      >
+                        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                          <circle cx="8" cy="8" r="2.2" />
+                          <path d="M13.2 8a5.2 5.2 0 0 0-.1-.9l1.4-1.1-1.3-2.2-1.7.7a5 5 0 0 0-1.5-.9L9.7 2H7.1l-.3 1.6a5 5 0 0 0-1.5.9l-1.7-.7-1.3 2.2 1.4 1.1a5.2 5.2 0 0 0 0 1.8l-1.4 1.1 1.3 2.2 1.7-.7a5 5 0 0 0 1.5.9l.3 1.6h2.6l.3-1.6a5 5 0 0 0 1.5-.9l1.7.7 1.3-2.2-1.4-1.1c.1-.3.1-.6.1-.9z" />
+                        </svg>
+                      </button>
+                    {/if}
+                    <button
+                      type="button"
+                      class="btn btn-ghost btn-sm icon-btn"
+                      onclick={() => { confirmRemove = entry.id; }}
+                      aria-label={$t("global_dl.remove")}
+                      title={$t("global_dl.remove")}
+                    >
+                      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <path d="M3 4.5h10M6 4.5V3h4v1.5M5 4.5l.6 8.5h4.8l.6-8.5" />
+                      </svg>
+                    </button>
+                  {/if}
+                </div>
+              {/if}
+
+              {#if failure && !running}
+                <div class="inline-error" role="alert">
+                  <p>{$t(errorKey(failure.message))}</p>
+                  <button type="button" class="btn btn-secondary btn-sm" onclick={() => install(entry, failure.action)}>
+                    {$t("global_dl.retry")}
+                  </button>
+                  {@render detail(failure.message)}
+                </div>
+              {/if}
+
+              {#if optionsFor === entry.id}
+                <div class="options">
+                  {#each optionDefs as o (o.id)}
+                    <label class="option">
+                      <span>{o.label ?? o.id}</span>
+                      {#if o.type === "boolean"}
+                        <input type="checkbox" bind:checked={optionValues[o.id]} />
+                      {:else if o.type === "select"}
+                        <select bind:value={optionValues[o.id]}>
+                          {#each o.choices ?? [] as ch (ch)}
+                            <option value={ch}>{ch}</option>
+                          {/each}
+                        </select>
+                      {:else}
+                        <input type="text" bind:value={optionValues[o.id]} placeholder={o.help ?? ""} />
+                      {/if}
+                    </label>
+                  {/each}
+                  <button type="button" class="btn btn-primary btn-sm" onclick={saveOptions}>{$t("global_dl.save")}</button>
+                </div>
               {/if}
             </div>
-          {/if}
-
-          {#if failure && !running}
-            <div class="inline-error" role="alert">
-              <p>{$t(errorKey(failure.message))}</p>
-              <button class="btn btn-secondary btn-sm" onclick={() => install(entry, failure.action)}>{$t("global_dl.retry")}</button>
-              {@render detail(failure.message)}
-            </div>
-          {/if}
-
-          {#if optionsFor === entry.id}
-            <div class="options">
-              {#each optionDefs as o (o.id)}
-                <label class="option">
-                  <span>{o.label ?? o.id}</span>
-                  {#if o.type === "boolean"}
-                    <input type="checkbox" bind:checked={optionValues[o.id]} />
-                  {:else if o.type === "select"}
-                    <select bind:value={optionValues[o.id]}>
-                      {#each o.choices ?? [] as ch (ch)}
-                        <option value={ch}>{ch}</option>
-                      {/each}
-                    </select>
-                  {:else}
-                    <input type="text" bind:value={optionValues[o.id]} placeholder={o.help ?? ""} />
-                  {/if}
-                </label>
-              {/each}
-              <button class="btn btn-primary btn-sm" onclick={saveOptions}>{$t("global_dl.save")}</button>
-            </div>
-          {/if}
+          </SpotlightCard>
         </li>
       {/each}
     </ul>
@@ -359,7 +421,7 @@
               <strong>{bad.id}</strong>
               <span class="meta">{bad.error}</span>
             </div>
-            <button class="btn btn-ghost btn-sm" onclick={() => removeInvalid(bad.dir)}>{$t("global_dl.remove")}</button>
+            <button type="button" class="btn btn-ghost btn-sm" onclick={() => removeInvalid(bad.dir)}>{$t("global_dl.remove")}</button>
           </li>
         {/each}
       </ul>
@@ -373,263 +435,358 @@
     flex-direction: column;
     gap: var(--space-3);
   }
+
   .market-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2);
+  }
+
+  .market-copy {
+    min-width: 180px;
+  }
+
+  .market-controls {
     display: flex;
     align-items: center;
     gap: var(--space-2);
+    flex-wrap: wrap;
   }
-  .market-copy {
-    flex: 1;
-    min-width: 0;
-  }
+
   h2 {
     font-size: var(--text-md);
+    font-weight: 600;
     margin: 0;
   }
+
   h3 {
     font-size: var(--text-base);
+    font-weight: 600;
     margin: 0;
   }
+
   .market-copy p {
     margin: 2px 0 0;
-    font-size: var(--text-sm);
+    font-size: var(--text-xs);
     color: var(--text-dim);
   }
+
+  .search {
+    width: 190px;
+    height: var(--control-h, 28px);
+    padding: 0 10px;
+    border-radius: var(--radius-sm, 6px);
+    border: 1px solid var(--hairline);
+    background: var(--surface);
+    color: var(--text);
+    font-size: var(--text-xs);
+  }
+
+  .search:focus-visible {
+    outline: var(--focus-ring);
+    outline-offset: var(--focus-ring-offset);
+  }
+
   .grid {
     list-style: none;
     margin: 0;
     padding: 0;
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
     gap: var(--space-3);
   }
-  .tile {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-2);
-    padding: var(--space-3) var(--space-4);
-    background: var(--surface);
+
+  .tile-skeleton {
+    height: 180px;
+    border-radius: var(--radius-lg, 12px);
     border: 1px solid var(--hairline);
-    border-radius: 14px;
-    min-width: 0;
+    background: linear-gradient(90deg, var(--surface) 25%, var(--fill-2) 50%, var(--surface) 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.4s ease-in-out infinite;
   }
-  .tile-focus {
-    border-color: var(--accent);
-    box-shadow: 0 0 0 3px var(--accent-soft);
+
+  @keyframes shimmer {
+    from { background-position: 200% 0; }
+    to { background-position: -200% 0; }
   }
-  .avatar {
-    flex: none;
-    display: grid;
-    place-items: center;
-    width: 28px;
-    height: 28px;
-    border-radius: var(--radius-md);
-    background: var(--fill-2);
-    font-weight: 600;
-    font-size: var(--text-base);
-  }
-  .wanted {
-    margin: 0;
-    font-size: var(--text-sm);
-    color: var(--accent-hi);
-  }
-  .search {
-    max-width: 320px;
-    background: var(--surface);
-    color: var(--text);
-    border: 1px solid var(--hairline);
-    border-radius: var(--radius-md);
-    padding: 6px 10px;
-    font-size: var(--text-sm);
-  }
-  .tile-ghost {
-    height: 148px;
-  }
-  .tile-top {
+
+  .tile-banner {
     display: flex;
     align-items: center;
-    gap: var(--space-2);
+    justify-content: space-between;
+    padding: var(--space-3);
+    border-bottom: 1px solid var(--hairline);
   }
-  .tile-top h3 {
+
+  .platform-emblem {
+    width: 40px;
+    height: 40px;
+    border-radius: 11px;
+    display: grid;
+    place-items: center;
+    color: var(--brand);
+    background: color-mix(in srgb, var(--brand) 16%, var(--surface));
+    border: 1px solid color-mix(in srgb, var(--brand) 36%, transparent);
+    box-shadow: 0 4px 14px color-mix(in srgb, var(--brand) 18%, transparent);
+  }
+
+  .platform-emblem svg {
+    width: 20px;
+    height: 20px;
+  }
+
+  .tile-status {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .tile-body {
+    padding: var(--space-3);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
     flex: 1;
-    min-width: 0;
+  }
+
+  .tile-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
+  .tile-head h3 {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
+
+  .domain {
+    font-size: 11px;
+    color: var(--text-dim);
+    flex-shrink: 0;
+  }
+
   .desc {
     margin: 0;
-    font-size: var(--text-sm);
+    font-size: var(--text-xs);
     color: var(--text-dim);
+    line-height: 1.45;
     display: -webkit-box;
+    line-clamp: 2;
+    -webkit-line-clamp: 2;
     -webkit-box-orient: vertical;
-    -webkit-line-clamp: 3;
-    line-clamp: 3;
     overflow: hidden;
   }
+
+  .wanted {
+    margin: 0;
+    font-size: var(--text-xs);
+    font-weight: 600;
+    color: var(--accent-hi, var(--accent));
+  }
+
+  .actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: auto;
+    padding-top: 4px;
+  }
+
+  .action-fill {
+    flex: 1;
+  }
+
+  .icon-btn {
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    display: grid;
+    place-items: center;
+    flex-shrink: 0;
+  }
+
+  .icon-btn svg {
+    width: 14px;
+    height: 14px;
+  }
+
+  .pill {
+    font-size: 11px;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: var(--radius-full, 9999px);
+    background: var(--fill-2);
+    color: var(--text-dim);
+    white-space: nowrap;
+  }
+
+  .pill-on {
+    background: color-mix(in srgb, #34c759 22%, var(--surface));
+    color: var(--text);
+  }
+
+  .pill-update {
+    background: color-mix(in srgb, var(--accent) 24%, var(--surface));
+    color: var(--text);
+  }
+
   .meta {
     margin: 0;
-    display: flex;
-    flex-wrap: wrap;
-    gap: 2px var(--space-2);
     font-size: var(--text-xs);
     color: var(--text-dim);
   }
+
   .row {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
     gap: var(--space-2);
   }
-  .actions,
-  .progress,
-  .confirm {
-    margin-top: auto;
-  }
+
   .progress {
     display: flex;
     flex-direction: column;
     gap: 4px;
+    margin-top: auto;
   }
+
   progress {
     width: 100%;
     height: 6px;
   }
+
+  .confirm {
+    margin-top: auto;
+    padding: var(--space-2);
+    border-radius: 8px;
+    background: color-mix(in srgb, #ff453a 10%, var(--surface));
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+  }
+
   .confirm p {
-    margin: 0 0 var(--space-2);
-    font-size: var(--text-sm);
-  }
-  .pill {
+    margin: 0;
     font-size: var(--text-xs);
-    padding: 2px 10px;
-    border-radius: var(--radius-full);
-    background: var(--fill-2);
-    color: var(--text-dim);
-    white-space: nowrap;
   }
-  .pill-on {
-    background: color-mix(in srgb, #34c759 22%, transparent);
-    color: var(--text);
-  }
-  .pill-update {
-    background: var(--accent-soft);
-    color: var(--accent-hi);
-  }
-  .banner,
-  .panel,
-  .state {
-    margin: 0;
-    padding: var(--space-3) var(--space-4);
-    border: 1px solid var(--hairline);
-    border-radius: 14px;
-    background: var(--surface);
-    font-size: var(--text-sm);
-  }
-  .banner p,
-  .state p {
-    margin: 0;
-  }
-  .state {
-    display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    gap: var(--space-2);
-    color: var(--text-dim);
-  }
-  .state h3 {
-    color: var(--text);
-  }
-  .panel {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-2);
-  }
-  .warn-text {
-    margin: 0;
-    color: var(--text-dim);
-  }
-  .facts {
-    display: grid;
-    grid-template-columns: max-content 1fr;
-    gap: 2px var(--space-3);
-    margin: 0;
-  }
-  .facts dt {
-    color: var(--text-dim);
-  }
-  .facts dd {
-    margin: 0;
-    overflow-wrap: anywhere;
-  }
-  .inline-error {
-    display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    gap: var(--space-2);
-    padding: var(--space-2) var(--space-3);
-    border-radius: 10px;
-    background: color-mix(in srgb, #ff3b30 10%, var(--surface));
-    font-size: var(--text-sm);
-  }
-  .inline-error p {
-    margin: 0;
-  }
-  .details {
-    font-size: var(--text-xs);
-    color: var(--text-dim);
-  }
-  .details summary {
-    cursor: pointer;
-  }
-  .details code {
-    display: block;
-    margin-top: var(--space-1);
-    white-space: pre-wrap;
-    word-break: break-word;
-  }
+
   .options {
     display: flex;
     flex-direction: column;
     gap: var(--space-2);
-    padding: var(--space-2) var(--space-3);
-    background: var(--fill-2);
-    border-radius: 10px;
+    padding-top: var(--space-2);
+    border-top: 1px solid var(--hairline);
   }
-  .options .btn {
-    align-self: flex-end;
-  }
+
   .option {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: var(--space-3);
-    font-size: var(--text-sm);
+    gap: var(--space-2);
+    font-size: var(--text-xs);
   }
+
   .option input[type="text"],
   .option select {
-    min-width: 120px;
     background: var(--surface);
     color: var(--text);
     border: 1px solid var(--hairline);
-    border-radius: 8px;
-    padding: 4px 8px;
+    border-radius: 6px;
+    padding: 3px 8px;
     font-size: var(--text-xs);
   }
+
+  .panel,
+  .state {
+    background: var(--surface);
+    border: 1px solid var(--hairline);
+    border-radius: var(--radius-lg, 12px);
+    padding: var(--space-3) var(--space-4);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+  }
+
+  .warn-text {
+    margin: 0;
+    font-size: var(--text-xs);
+    color: var(--warning, #ffd60a);
+  }
+
+  .facts {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 4px var(--space-3);
+    margin: 0;
+    font-size: var(--text-xs);
+  }
+
+  .facts dt {
+    color: var(--text-dim);
+  }
+
+  .facts dd {
+    margin: 0;
+  }
+
+  .banner {
+    margin: 0;
+    padding: var(--space-2) var(--space-3);
+    border-radius: 8px;
+    background: var(--fill-2);
+    font-size: var(--text-xs);
+    color: var(--text-dim);
+  }
+
+  .inline-error {
+    padding: var(--space-2);
+    border-radius: 8px;
+    background: color-mix(in srgb, #ff453a 10%, var(--surface));
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    font-size: var(--text-xs);
+  }
+
+  .inline-error p {
+    margin: 0;
+  }
+
+  .details {
+    font-size: 11px;
+    color: var(--text-dim);
+  }
+
+  .details code {
+    display: block;
+    margin-top: 4px;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+
   .invalid {
     list-style: none;
     margin: 0;
     padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
   }
+
   .invalid li {
     display: flex;
     align-items: center;
+    justify-content: space-between;
     gap: var(--space-2);
-    padding: 4px 0;
   }
+
   .invalid-copy {
     display: flex;
     flex-direction: column;
-    flex: 1;
-    min-width: 0;
   }
 </style>

@@ -1128,12 +1128,11 @@
     "section_primary": "主菜单",
     "section_app": "应用",
     "world": "Canvas",
-    "help": "Help",
-    "profile_appearance": "个人资料和外观",
     "superpowers": "工具",
     "collapse_sidebar": "收起侧边栏",
     "expand_sidebar": "展开侧边栏",
-    "community": "关于与社区"
+    "community": "关于与社区",
+    "global": "课程与网站"
   },
   "command_palette": {
     "open": "前往…",
@@ -1170,7 +1169,8 @@
     "success_first": "你的第一个下载！",
     "success_open": "打开下载",
     "success_folder": "正在下载到 {{folder}}",
-    "success_show_folder": "显示文件夹"
+    "success_show_folder": "显示文件夹",
+    "mcp_hint": "正在使用 Claude Code、Cursor 或 Codex？[通过 MCP 连接]"
   },
   "downloads": {
     "phase_downloading": "下载中",
@@ -1848,7 +1848,8 @@
         "copied": "链接已复制",
         "saved_one": "已保存 {{count}} 个链接",
         "saved_other": "已保存 {{count}} 个链接",
-        "note": "这些工具中的“链接分配”可以重新打开这个 .txt，并把每个链接加入队列。"
+        "note": "这些工具中的“链接分配”可以重新打开这个 .txt，并把每个链接加入队列。",
+        "pool": "从历史记录的 {{total}} 条项目中筛选。"
       },
       "dedupe": {
         "title": "释放磁盘空间",
@@ -1897,7 +1898,8 @@
     "archive_imported": "在 {{read}} 条记录中导入了 {{added}} 条新记录",
     "archive_exported": "已导出 {{written}} 条记录，{{skipped}} 条因 ID 未知而未包含",
     "archive_count": "已从 yt-dlp 存档导入 {{count}} 条记录",
-    "open_file": "打开"
+    "open_file": "打开",
+    "history_summary": "已保存 {{total}} 条下载记录（最多保留 {{limit}} 条）"
   },
   "toast": {
     "download_complete": "完成！{{name}} 已保存到你的文件夹",
@@ -1950,7 +1952,6 @@
       "more_desc": "提示和用量限制显示。",
       "autostart_blocked": "Windows 已在任务管理器的启动应用中将其禁用。请关闭再打开此开关以允许。",
       "autostart_portable": "便携版不可用。",
-      "title": "通用",
       "start_with_system": "开机自启",
       "start_minimized": "仅托盘启动",
       "exit_on_close": "关闭窗口时退出",
@@ -1960,8 +1961,6 @@
       "run_in_background": "在后台运行智能体",
       "run_in_background_flatpak": "Flatpak：登录时启动以及从命令行启动尚未验证。",
       "start_with_system_desc": "登录电脑时打开 OmniGet。",
-      "start_minimized_desc": "启动时隐藏在托盘中，不打开窗口。",
-      "exit_on_close_desc": "关闭窗口即退出应用，而不是留在托盘中。",
       "run_in_background_desc": "窗口关闭后，智能体、任务和例程仍继续运行。",
       "reopen_guide": "欢迎指南",
       "reopen_guide_desc": "重新走一遍首次运行的步骤。",
@@ -2369,7 +2368,6 @@
     },
     "ai": {
       "provider": "提供方",
-      "provider_desc": "选择 AI 请求的去向。密钥仅本地保存，绝不记录。",
       "provider_none": "关闭",
       "model": "模型",
       "model_desc": "所选提供方的模型标识符。",
@@ -2382,8 +2380,6 @@
       "test_ok": "AI 连接正常",
       "test_fail": "AI 测试失败：{{error}}",
       "saved": "AI 设置已保存",
-      "summarize_title": "总结视频",
-      "history": "AI 历史",
       "save_test": "儲存並測試",
       "saving": "正在保存…",
       "provider_endpoint": "自定义端点（本地或远程）",
@@ -2763,7 +2759,11 @@
         "fail_custom": "无法连接 Discord。应用 ID 或图片已被修改；如果 Discord 已在运行，请恢复默认值。",
         "reset": "恢复默认"
       }
-    }
+    },
+    "update_downloading_pct": "正在下载更新… {{percent}}%",
+    "update_failed": "更新失败：{{error}}",
+    "update_manual_hint": "此安装方式需从下载页安装新安装包来更新，你的设置和数据会完整保留。",
+    "update_open_download": "打开下载页"
   },
   "omnibox": {
     "placeholder": "粘贴链接，或输入以搜索视频",
@@ -3003,7 +3003,12 @@
     "wmb_credits_body": "系统清理 使用了以下开源项目提供的数据和思路。它们的许可证及具体文件列在 THIRD_PARTY.md 中。privacy.sexy 的源代码（AGPL-3.0）见下方链接。",
     "wmb_credit_data": "数据",
     "wmb_credit_design": "设计参考",
-    "wmb_credit_tool": "调用的工具"
+    "wmb_credit_tool": "调用的工具",
+    "card_chat_title": "社区聊天",
+    "card_chat_desc": "提问、交流技巧或直接与作者沟通。",
+    "card_roadmap_title": "路线图与想法",
+    "card_roadmap_desc": "查看接下来的计划并提交新功能建议。",
+    "website_button": "官方网站"
   },
   "changelog": {
     "title": "更新内容",
@@ -3226,7 +3231,6 @@
     "save": "Save",
     "skin_label": "头像色调",
     "skin_desc": "选择一种颜色。点击后立即保存。",
-    "fingerprint_label": "公钥指纹",
     "copy": "Copy",
     "copied": "Copied",
     "copy_fingerprint": "复制指纹",
@@ -3246,7 +3250,10 @@
       "blue": "Blue",
       "purple": "Purple",
       "pink": "Pink"
-    }
+    },
+    "identity_disclosure": "房间身份密钥",
+    "used_in_hint": "显示在侧边栏以及你共享 Canvas 房间时。",
+    "sidebar_sub": "本地资料"
   },
   "world": {
     "title": "Canvas",
@@ -3782,8 +3789,6 @@
     "title": "Read",
     "nav_label": "阅读分区",
     "disabled_title": "阅读已关闭",
-    "settings_enable": "显示阅读",
-    "settings_enable_desc": "阅读书库和阅读器。关闭后会隐藏它并停止书库服务器。",
     "back": "Back",
     "close": "Close",
     "cancel": "Cancel",
@@ -5890,13 +5895,6 @@
           "title": "Trim 固态硬盘",
           "what": "告诉每块已挂载的 SSD 哪些块是空闲的，从而保持写入速度。大多数系统每周已经会自动执行一次；再次运行也没有坏处。"
         }
-      }
-    }
-  },
-  "company": {
-    "team": {
-      "form": {
-        "runtime_roster": "你名单中的智能体"
       }
     }
   },
@@ -9588,16 +9586,14 @@
     "template_sample_caption": "第03课：模块简介"
   },
   "global_dl": {
-    "title": "内置浏览器",
-    "subtitle": "从几乎任何网站下载视频和文件，包括需要登录的网站。",
+    "title": "课程与网站",
+    "subtitle": "从你的平台下载课程、课时和配套资料。",
     "hero_label": "粘贴你要下载内容的页面链接",
     "url_placeholder": "例如：https://example.com/course/lesson-1",
     "find": "查找下载",
     "find_again": "重新查找下载",
     "finding": "正在查看页面…可能需要几秒钟。",
     "steps_title": "使用方法",
-    "step_paste": "粘贴包含视频或文件的页面链接，然后按“查找下载”。",
-    "step_login": "如果网站要求登录，请按“登录此网站”，在打开的窗口中登录一次。",
     "step_pick": "选择你想要的内容，然后按“下载”。",
     "login_site": "登录此网站",
     "login_title": "在浏览器窗口中登录",
@@ -9677,7 +9673,6 @@
     "connectors": "网站助手",
     "connectors_hint": "面向开发者：网站助手是一个小脚本，用于列出网站上的所有内容，例如某门课程的全部课时。",
     "add_connector": "添加助手文件夹",
-    "no_connectors": "未安装网站助手。页面仍然可用：OmniGet 会找到页面播放的内容。",
     "dev": "developer",
     "options": "Options",
     "remove": "Remove",
@@ -9723,7 +9718,6 @@
       "update_badge": "Update to {{version}}",
       "open": "Open",
       "login_open": "登录并打开",
-      "by": "by {{author}}",
       "needs_version": "需要 OmniGet {{version}} 或更高版本",
       "stage_download": "Downloading",
       "stage_verify": "正在检查安装包",
@@ -9764,7 +9758,16 @@
     "browser_busy_title": "仍有下载正在进行",
     "browser_busy_body": "现在停止或重启浏览器可能导致其余项目失败。仍要继续吗?",
     "browser_busy_confirm": "仍要继续",
-    "browser_busy_keep": "继续下载"
+    "browser_busy_keep": "继续下载",
+    "modules_count": "{{count}} 个模块",
+    "lessons_button": "课时",
+    "back_to_courses": "返回课程列表",
+    "courses_count": "{{count}} 门课程",
+    "search_courses": "筛选课程…",
+    "download_all": "全部下载 ({{count}})",
+    "step_pick_platform": "选择平台或粘贴课程链接",
+    "step_sign_in_short": "私密课程只需登录一次",
+    "step_download_short": "下载整门课程或自选课时"
   },
   "connect": {
     "request_title": "{{client}} 想要连接到 OmniGet",
@@ -9855,7 +9858,6 @@
     }
   },
   "community": {
-    "title": "社区",
     "lead": "在 getomniget.com 的公开聊天室里，和其他 OmniGet 用户以及作者交流。",
     "more": "想去别的地方？",
     "tab": {
@@ -9888,13 +9890,17 @@
       "state_limit": "消息太多了，请稍后再试。",
       "state_frozen": "聊天暂时关闭。",
       "state_error": "消息没有发出，请重试。",
-      "state_offline": "无法连接 getomniget.com，请检查网络。"
+      "state_offline": "无法连接 getomniget.com，请检查网络。",
+      "live_badge": "公开实时聊天",
+      "message_count": "{{count}} 条消息",
+      "fact_anonymous_short": "匿名",
+      "fact_public_short": "公开 · 保留 30 天",
+      "fact_local_short": "仅在加入后连接",
+      "preview_sample_1": "有人通过 MCP 连接 Claude Code 了吗？",
+      "preview_sample_2": "连好了，在设置里粘贴命令点允许就行。"
     }
   },
   "agents": {
-    "roster": {
-      "new": "New agent"
-    },
     "mcp": {
       "loading": "正在读取已保存的服务器…",
       "disabled": "已关闭",
@@ -13993,6 +13999,21 @@
     "failed": "无法加载路线图：{{msg}}",
     "retry": "重试",
     "open_board": "在网站上打开看板",
-    "issue": "GitHub Issue"
+    "issue": "GitHub Issue",
+    "filter_all": "全部",
+    "search_placeholder": "筛选条目…",
+    "no_matches": "没有匹配的条目。",
+    "new_issue": "提交想法",
+    "new_issue_title": "提交想法或报告问题",
+    "new_issue_desc": "直接发送到 getomniget.com 的公开路线图收件箱，无需账号。",
+    "issue_title_label": "标题",
+    "issue_title_placeholder": "简要概括你的想法或问题",
+    "issue_details_label": "详情（可选）",
+    "issue_details_placeholder": "复现步骤、链接或预期效果",
+    "issue_submit": "发送到路线图",
+    "issue_submitting": "发送中…",
+    "issue_sent": "已发送！你的想法已进入社区队列。",
+    "issue_open_github": "或在 GitHub 上打开",
+    "cancel": "取消"
   }
 }

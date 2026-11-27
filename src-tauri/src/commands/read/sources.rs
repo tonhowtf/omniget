@@ -5,8 +5,8 @@ use omniget_core::core::read::opds::{self, OpdsFeed};
 use omniget_core::core::read::sources::declarative::{self, DeclarativeSource};
 use omniget_core::core::read::sources::suwayomi;
 use omniget_core::core::read::sources::{
-    self as src, gutendex, mangadex, mangaplus, openlibrary, standardebooks, Hit, Page,
-    RemoteChapter, RemotePage,
+    self as src, archive_org, directory, gutendex, mangadex, mangaplus, openlibrary,
+    standardebooks, Hit, Page, RemoteChapter, RemotePage,
 };
 
 use super::{blocking, db};
@@ -66,6 +66,13 @@ fn builtin() -> Vec<SourceInfo> {
             "book",
             "https://openlibrary.org",
             false,
+        ),
+        mk(
+            "archiveorg",
+            "Internet Archive",
+            "book",
+            "https://archive.org/details/texts",
+            true,
         ),
         mk(
             "mangadex",
@@ -172,6 +179,19 @@ pub async fn read_sources() -> Result<Vec<SourceInfo>, String> {
                 builtin: false,
                 search: true,
                 latest: true,
+                nsfw: false,
+                url: c.url.clone(),
+                filters: serde_json::json!([]),
+            }),
+            "directory" => out.push(SourceInfo {
+                id: format!("dir:{}", c.id),
+                name: c.title.clone(),
+                kind: "book".into(),
+                lang: "all".into(),
+                icon: String::new(),
+                builtin: false,
+                search: true,
+                latest: false,
                 nsfw: false,
                 url: c.url.clone(),
                 filters: serde_json::json!([]),
@@ -284,6 +304,10 @@ pub async fn read_browse(req: BrowseReq) -> Result<Page, String> {
             openlibrary::search(c, &url, page).await
         }
         "standardebooks" => standardebooks::browse(c, &req.query, req.cursor.as_deref()).await,
+        "archiveorg" => {
+            let lang = req.langs.first().map(|s| s.as_str()).unwrap_or("");
+            archive_org::browse(c, &req.query, mode, lang, page).await
+        }
         "mangadex" => {
             let url = req.cursor.clone().unwrap_or_else(|| {
                 let tags: Vec<String> = req.filters["tags"]
@@ -330,6 +354,20 @@ pub async fn read_browse(req: BrowseReq) -> Result<Page, String> {
             let feed = opds_fetch(&cat, &url).await?;
             Ok(opds_to_page(&feed, &req.source))
         }
+        s if s.starts_with("dir:") => {
+            let id: i64 = s[4..].parse().map_err(|_| "bad catalog id")?;
+            let cat = blocking(move || catalog(id)).await?;
+            let url = req.cursor.as_deref().unwrap_or(&cat.url);
+            directory::browse(
+                c,
+                url,
+                &req.source,
+                &req.query,
+                &cat.username,
+                &cat.password,
+            )
+            .await
+        }
         s if s.starts_with("decl:") => {
             let id: i64 = s[5..].parse().map_err(|_| "bad source id")?;
             let (_, source) = declarative_sources()
@@ -351,6 +389,11 @@ pub async fn read_browse(req: BrowseReq) -> Result<Page, String> {
         }
         other => Err(format!("unknown source {other}")),
     }
+}
+
+#[tauri::command]
+pub async fn read_hit_details(source: String, key: String) -> Result<Hit, String> {
+    details(&source, &key, "", &[]).await.map(|d| d.hit)
 }
 
 #[tauri::command]
@@ -393,14 +436,27 @@ pub async fn read_global_search(
         .collect())
 }
 
-async fn opds_fetch(cat: &Catalog, url: &str) -> Result<OpdsFeed, String> {
-    let mut req = http().get(url).header(
-        "accept",
-        "application/atom+xml, application/opds+json, application/xml;q=0.9, */*;q=0.5",
-    );
-    if !cat.username.is_empty() {
-        req = req.basic_auth(&cat.username, Some(&cat.password));
+fn apply_catalog_auth(req: reqwest::RequestBuilder, cat: &Catalog) -> reqwest::RequestBuilder {
+    let auth_type = cat.config["authType"].as_str().unwrap_or("basic");
+    match auth_type {
+        "bearer" if !cat.password.is_empty() => req.bearer_auth(&cat.password),
+        "apikey" if !cat.password.is_empty() => {
+            let header = cat.config["authHeader"].as_str().unwrap_or("X-API-Key");
+            req.header(header, &cat.password)
+        }
+        _ if !cat.username.is_empty() => req.basic_auth(&cat.username, Some(&cat.password)),
+        _ => req,
     }
+}
+
+async fn opds_fetch(cat: &Catalog, url: &str) -> Result<OpdsFeed, String> {
+    let req = apply_catalog_auth(
+        http().get(url).header(
+            "accept",
+            "application/atom+xml, application/opds+json, application/xml;q=0.9, */*;q=0.5",
+        ),
+        cat,
+    );
     let r = req.send().await.map_err(|e| e.to_string())?;
     if r.status() == reqwest::StatusCode::UNAUTHORIZED {
         return Err("login required".into());
@@ -414,24 +470,35 @@ async fn opds_fetch(cat: &Catalog, url: &str) -> Result<OpdsFeed, String> {
 }
 
 async fn opds_search_url(cat: &Catalog, query: &str) -> Result<String, String> {
+    use std::collections::HashMap;
+    use std::sync::{Mutex, OnceLock};
+    static TEMPLATE_CACHE: OnceLock<Mutex<HashMap<i64, String>>> = OnceLock::new();
+    let cache = TEMPLATE_CACHE.get_or_init(|| Mutex::new(HashMap::new()));
+    if cat.id > 0 {
+        if let Ok(map) = cache.lock() {
+            if let Some(tpl) = map.get(&cat.id) {
+                return Ok(opds::fill_search(tpl, query));
+            }
+        }
+    }
     let root = opds_fetch(cat, &cat.url).await?;
     let link = root.search.ok_or("this catalog has no search")?;
     let template = if link.contains('{') {
         link
     } else {
-        let mut req = http().get(&link);
-        if !cat.username.is_empty() {
-            req = req.basic_auth(&cat.username, Some(&cat.password));
+        let req = apply_catalog_auth(http().get(&link), cat);
+        let resp = req.send().await.map_err(|e| e.to_string())?;
+        if !resp.status().is_success() {
+            return Err(format!("{} from search description", resp.status()));
         }
-        let desc = req
-            .send()
-            .await
-            .map_err(|e| e.to_string())?
-            .text()
-            .await
-            .map_err(|e| e.to_string())?;
+        let desc = resp.text().await.map_err(|e| e.to_string())?;
         opds::opensearch_template(&desc, &link).ok_or("unreadable search description")?
     };
+    if cat.id > 0 {
+        if let Ok(mut map) = cache.lock() {
+            map.insert(cat.id, template.clone());
+        }
+    }
     Ok(opds::fill_search(&template, query))
 }
 
@@ -507,6 +574,11 @@ pub fn mime_to_format(m: &str) -> String {
 
 #[tauri::command]
 pub async fn read_opds_open(source: String, url: String) -> Result<Page, String> {
+    if let Some(id_str) = source.strip_prefix("dir:") {
+        let id: i64 = id_str.parse().map_err(|_| "bad directory id")?;
+        let cat = blocking(move || catalog(id)).await?;
+        return directory::browse(http(), &url, &source, "", &cat.username, &cat.password).await;
+    }
     let id: i64 = source
         .strip_prefix("opds:")
         .and_then(|s| s.parse().ok())
@@ -575,6 +647,15 @@ pub async fn read_catalog_add(
                 } else {
                     feed.title
                 };
+            }
+        }
+        "directory" => {
+            let _ = directory::browse(http(), &url, "dir:probe", "", &username, &password).await?;
+            if title.is_empty() {
+                title = url::Url::parse(&url)
+                    .ok()
+                    .and_then(|u| u.host_str().map(str::to_string))
+                    .unwrap_or_else(|| url.clone());
             }
         }
         "suwayomi" => {
@@ -677,6 +758,13 @@ pub async fn details(
 ) -> Result<SeriesDetails, String> {
     let c = http();
     match source {
+        "archiveorg" => {
+            let hit = archive_org::details(c, key).await?;
+            Ok(SeriesDetails {
+                hit,
+                chapters: Vec::new(),
+            })
+        }
         "mangadex" => {
             let (hit, chapters) = tokio::join!(
                 mangadex::details(c, key, lang),

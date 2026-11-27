@@ -1128,12 +1128,11 @@
     "section_primary": "Main",
     "section_app": "App",
     "world": "Canvas",
-    "help": "Help",
-    "profile_appearance": "Profile and appearance",
     "superpowers": "Tools",
     "collapse_sidebar": "Collapse sidebar",
     "expand_sidebar": "Expand sidebar",
-    "community": "About & community"
+    "community": "About & community",
+    "global": "Courses & Sites"
   },
   "command_palette": {
     "open": "Go to…",
@@ -1170,7 +1169,8 @@
     "success_first": "Your first download!",
     "success_open": "Open Downloads",
     "success_folder": "Downloading to {{folder}}",
-    "success_show_folder": "Show folder"
+    "success_show_folder": "Show folder",
+    "mcp_hint": "Using Claude Code, Cursor or Codex? [Connect via MCP]"
   },
   "downloads": {
     "phase_downloading": "Downloading",
@@ -1848,7 +1848,8 @@
         "copied": "Links copied",
         "saved_one": "{{count}} link saved",
         "saved_other": "{{count}} links saved",
-        "note": "Link router, in these tools, opens the same .txt back and queues every link."
+        "note": "Link router, in these tools, opens the same .txt back and queues every link.",
+        "pool": "Choosing from {{total}} entries in History."
       },
       "dedupe": {
         "title": "Free up disk space",
@@ -1897,7 +1898,8 @@
     "archive_imported": "{{added}} new of {{read}} entries imported",
     "archive_exported": "{{written}} entries exported, {{skipped}} without a known id left out",
     "archive_count": "{{count}} entries imported from a yt-dlp archive",
-    "open_file": "Open"
+    "open_file": "Open",
+    "history_summary": "{{total}} saved downloads (up to {{limit}} kept)"
   },
   "toast": {
     "download_complete": "Done! {{name}} is in your folder",
@@ -1950,7 +1952,6 @@
       "more_desc": "Tips and the usage limits display.",
       "autostart_blocked": "Windows has this turned off in Task Manager, under Startup apps. Turn this switch off and on again to allow it.",
       "autostart_portable": "Not available in the portable version.",
-      "title": "General",
       "start_with_system": "Start with system",
       "start_minimized": "Start in tray only",
       "exit_on_close": "Quit when the window is closed",
@@ -1960,8 +1961,6 @@
       "run_in_background": "Run agents in the background",
       "run_in_background_flatpak": "Flatpak: starting at login and being started from the command line are not verified yet.",
       "start_with_system_desc": "Open OmniGet when you log in to your computer.",
-      "start_minimized_desc": "Start hidden in the tray, without opening the window.",
-      "exit_on_close_desc": "Closing the window quits the app instead of keeping it in the tray.",
       "run_in_background_desc": "Keep agents, tasks and routines running while the window is closed.",
       "reopen_guide": "Welcome guide",
       "reopen_guide_desc": "Go through the first-run steps again.",
@@ -2369,7 +2368,6 @@
     },
     "ai": {
       "provider": "Provider",
-      "provider_desc": "Choose where AI requests go. Your key is stored locally and never logged.",
       "provider_none": "Off",
       "model": "Model",
       "model_desc": "The model identifier for the chosen provider.",
@@ -2382,8 +2380,6 @@
       "test_ok": "AI connection works",
       "test_fail": "AI test failed: {{error}}",
       "saved": "AI settings saved",
-      "summarize_title": "Summarize a video",
-      "history": "AI history",
       "save_test": "Save and test",
       "saving": "Saving…",
       "provider_endpoint": "Custom endpoint (local or remote)",
@@ -2763,7 +2759,11 @@
         "fail_custom": "Could not reach Discord. The app ID or image was changed; reset them to the default if Discord is already running.",
         "reset": "Reset to default"
       }
-    }
+    },
+    "update_downloading_pct": "Downloading update… {{percent}}%",
+    "update_failed": "Update failed: {{error}}",
+    "update_manual_hint": "This install updates by installing the new package from the download page. Your settings and data stay intact.",
+    "update_open_download": "Open download page"
   },
   "omnibox": {
     "placeholder": "Paste a link, or type to search videos",
@@ -3003,7 +3003,12 @@
     "wmb_credits_body": "System Cleaner ships data and ideas from these open-source projects. Their licenses and the exact files are listed in THIRD_PARTY.md. The privacy.sexy source (AGPL-3.0) is at the link below.",
     "wmb_credit_data": "data",
     "wmb_credit_design": "design ported",
-    "wmb_credit_tool": "tool it runs"
+    "wmb_credit_tool": "tool it runs",
+    "card_chat_title": "Community chat",
+    "card_chat_desc": "Ask questions, share tips or talk directly with the author.",
+    "card_roadmap_title": "Roadmap & ideas",
+    "card_roadmap_desc": "See what is being built next and suggest new features.",
+    "website_button": "Website"
   },
   "changelog": {
     "title": "What's New",
@@ -3226,7 +3231,6 @@
     "save": "Save",
     "skin_label": "Avatar tint",
     "skin_desc": "Pick a colour. It saves as soon as you click.",
-    "fingerprint_label": "Public key fingerprint",
     "copy": "Copy",
     "copied": "Copied",
     "copy_fingerprint": "Copy fingerprint",
@@ -3246,7 +3250,10 @@
       "blue": "Blue",
       "purple": "Purple",
       "pink": "Pink"
-    }
+    },
+    "identity_disclosure": "Room identity key",
+    "used_in_hint": "Shown in the sidebar and when you share a Canvas room.",
+    "sidebar_sub": "Local profile"
   },
   "world": {
     "title": "Canvas",
@@ -3782,8 +3789,6 @@
     "title": "Read",
     "nav_label": "Read sections",
     "disabled_title": "Read is turned off",
-    "settings_enable": "Show Read",
-    "settings_enable_desc": "The reading library and reader. Turning it off hides it and stops the library server.",
     "back": "Back",
     "close": "Close",
     "cancel": "Cancel",
@@ -5890,13 +5895,6 @@
           "title": "Trim SSDs",
           "what": "Tells every mounted SSD which blocks are free, which keeps writes fast. Most systems already do this once a week; running it again is harmless."
         }
-      }
-    }
-  },
-  "company": {
-    "team": {
-      "form": {
-        "runtime_roster": "An agent from your roster"
       }
     }
   },
@@ -9588,16 +9586,14 @@
     "template_sample_caption": "Lesson 03: introduction to the module"
   },
   "global_dl": {
-    "title": "Built-in Browser",
-    "subtitle": "Download videos and files from almost any website, including ones you need to log in to.",
+    "title": "Courses & Sites",
+    "subtitle": "Download courses, lessons, and files from your platforms.",
     "hero_label": "Paste the link of the page you want to download from",
     "url_placeholder": "For example: https://example.com/course/lesson-1",
     "find": "Find downloads",
     "find_again": "Find downloads again",
     "finding": "Looking at the page… this can take a few seconds.",
     "steps_title": "How it works",
-    "step_paste": "Paste the link of the page that has the video or files, then press Find downloads.",
-    "step_login": "If the site asks you to log in, press Log in to this site and log in once in the window that opens.",
     "step_pick": "Pick what you want and press Download.",
     "login_site": "Log in to this site",
     "login_title": "Log in in the browser window",
@@ -9677,7 +9673,6 @@
     "connectors": "Site helpers",
     "connectors_hint": "For developers: a site helper is a small script that lists everything on a site, like all lessons of a course.",
     "add_connector": "Add helper folder",
-    "no_connectors": "No site helpers installed. Pages still work: OmniGet finds what they play.",
     "dev": "developer",
     "options": "Options",
     "remove": "Remove",
@@ -9723,7 +9718,6 @@
       "update_badge": "Update to {{version}}",
       "open": "Open",
       "login_open": "Log in and open",
-      "by": "by {{author}}",
       "needs_version": "Needs OmniGet {{version}} or newer",
       "stage_download": "Downloading",
       "stage_verify": "Checking the package",
@@ -9764,7 +9758,16 @@
     "browser_busy_title": "Downloads are still running",
     "browser_busy_body": "Stopping or restarting the browser now can make the remaining items fail. Do it anyway?",
     "browser_busy_confirm": "Do it anyway",
-    "browser_busy_keep": "Keep downloading"
+    "browser_busy_keep": "Keep downloading",
+    "modules_count": "{{count}} modules",
+    "lessons_button": "Lessons",
+    "back_to_courses": "Back to courses",
+    "courses_count": "{{count}} courses",
+    "search_courses": "Filter courses…",
+    "download_all": "Download all ({{count}})",
+    "step_pick_platform": "Pick a platform or paste a course link",
+    "step_sign_in_short": "Sign in once if the course is private",
+    "step_download_short": "Download the whole course or pick lessons"
   },
   "connect": {
     "request_title": "{{client}} wants to connect to OmniGet",
@@ -9855,7 +9858,6 @@
     }
   },
   "community": {
-    "title": "Community",
     "lead": "Talk to other people who use OmniGet and to its author, in the open chat of getomniget.com.",
     "more": "Prefer another place?",
     "tab": {
@@ -9888,13 +9890,17 @@
       "state_limit": "Too many messages for now. Try again later.",
       "state_frozen": "The chat is paused for now.",
       "state_error": "The message was not sent. Try again.",
-      "state_offline": "Could not reach getomniget.com. Check your connection."
+      "state_offline": "Could not reach getomniget.com. Check your connection.",
+      "live_badge": "Public live chat",
+      "message_count": "{{count}} messages",
+      "fact_anonymous_short": "Anonymous",
+      "fact_public_short": "Public · 30 days",
+      "fact_local_short": "Connects only when you join",
+      "preview_sample_1": "Has anyone connected Claude Code over MCP yet?",
+      "preview_sample_2": "Yes, paste the one-liner in Settings and click Allow."
     }
   },
   "agents": {
-    "roster": {
-      "new": "Create agent"
-    },
     "mcp": {
       "loading": "Reading the saved servers…",
       "disabled": "off",
@@ -13993,6 +13999,21 @@
     "failed": "Could not load the roadmap: {{msg}}",
     "retry": "Try again",
     "open_board": "Open the board on the site",
-    "issue": "GitHub issue"
+    "issue": "GitHub issue",
+    "filter_all": "All",
+    "search_placeholder": "Filter tickets…",
+    "no_matches": "No tickets match your filter.",
+    "new_issue": "Suggest an idea",
+    "new_issue_title": "Suggest an idea or report a bug",
+    "new_issue_desc": "Sent to the public roadmap inbox on getomniget.com. No account needed.",
+    "issue_title_label": "Title",
+    "issue_title_placeholder": "Short summary of your idea or bug",
+    "issue_details_label": "Details (optional)",
+    "issue_details_placeholder": "Steps, link or what you expected to happen",
+    "issue_submit": "Send to roadmap",
+    "issue_submitting": "Sending…",
+    "issue_sent": "Sent! Your idea is now in the community queue.",
+    "issue_open_github": "Or open on GitHub",
+    "cancel": "Cancel"
   }
 }

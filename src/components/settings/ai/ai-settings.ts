@@ -1,4 +1,4 @@
-export const MODEL_HINTS: Record<string, string> = {
+const MODEL_HINTS: Record<string, string> = {
   openai: "gpt-4o-mini",
   anthropic: "claude-sonnet-4-5",
   deepseek: "deepseek-chat",
@@ -33,13 +33,13 @@ export function endpointNeedsAttention(kind: string, editable: boolean): boolean
 
 export type EnvKind = "tmux" | "ssh" | "docker" | "sandbox" | "custom" | "wsl";
 
-export const ENV_KINDS: readonly EnvKind[] = ["tmux", "ssh", "docker", "sandbox", "custom", "wsl"];
+const ENV_KINDS: readonly EnvKind[] = ["tmux", "ssh", "docker", "sandbox", "custom", "wsl"];
 
 export function visibleEnvKinds(onWindows: boolean, enabled: Partial<Record<EnvKind, boolean>> | null): EnvKind[] {
   return ENV_KINDS.filter((kind) => kind !== "wsl" || onWindows || !!enabled?.wsl);
 }
 
-export const BUILTIN_AGENTS = ["shell", "claude", "codex", "gemini", "opencode", "ollama"] as const;
+const BUILTIN_AGENTS = ["shell", "claude", "codex", "gemini", "opencode", "ollama"] as const;
 
 export function agentChoices(presets: readonly string[], current: string): string[] {
   const list: string[] = [...new Set<string>([...BUILTIN_AGENTS, ...presets])];

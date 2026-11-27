@@ -91,40 +91,113 @@ async fn make_output_compatible(path: &Path, mute: bool) -> anyhow::Result<PathB
         .unwrap_or_else(|| "video".to_string());
     let temp = path.with_file_name(format!("{stem}.{extension}.compat.mp4"));
     let target = free_compatible_target(path, &stem);
-    let (video_args, audio_args): (&[&str], &[&str]) = match plan {
-        CompatibleVideoPlan::Keep | CompatibleVideoPlan::Remux => {
-            (&["-c:v", "copy"], &["-c:a", "copy"])
+    let sw_video_args: &[&str] = match plan {
+        CompatibleVideoPlan::Keep
+        | CompatibleVideoPlan::Remux
+        | CompatibleVideoPlan::ConvertAudio => &["-c:v", "copy"],
+        CompatibleVideoPlan::ConvertAll => &[
+            "-c:v", "libx264", "-pix_fmt", "yuv420p", "-preset", "medium", "-crf", "18",
+        ],
+    };
+    let audio_args: &[&str] = match plan {
+        CompatibleVideoPlan::Keep | CompatibleVideoPlan::Remux => &["-c:a", "copy"],
+        CompatibleVideoPlan::ConvertAudio | CompatibleVideoPlan::ConvertAll => {
+            &["-c:a", "aac", "-b:a", "192k"]
         }
-        CompatibleVideoPlan::ConvertAudio => (&["-c:v", "copy"], &["-c:a", "aac", "-b:a", "192k"]),
-        CompatibleVideoPlan::ConvertAll => (
-            &[
-                "-c:v", "libx264", "-pix_fmt", "yuv420p", "-preset", "medium", "-crf", "18",
-            ],
-            &["-c:a", "aac", "-b:a", "192k"],
-        ),
+    };
+    let hw_video_args: Option<Vec<&str>> = if matches!(plan, CompatibleVideoPlan::ConvertAll) {
+        let hw = crate::core::hwaccel::detect_hwaccel().await;
+        match hw.recommended_video_encoder.as_deref() {
+            Some("h264_videotoolbox") => Some(vec![
+                "-c:v",
+                "h264_videotoolbox",
+                "-q:v",
+                "65",
+                "-pix_fmt",
+                "yuv420p",
+            ]),
+            Some("h264_nvenc") => Some(vec![
+                "-c:v",
+                "h264_nvenc",
+                "-preset",
+                "p4",
+                "-cq",
+                "20",
+                "-pix_fmt",
+                "yuv420p",
+            ]),
+            Some("h264_qsv") => Some(vec![
+                "-c:v",
+                "h264_qsv",
+                "-global_quality",
+                "20",
+                "-pix_fmt",
+                "yuv420p",
+            ]),
+            Some("h264_amf") => Some(vec![
+                "-c:v", "h264_amf", "-quality", "balanced", "-pix_fmt", "yuv420p",
+            ]),
+            _ => None,
+        }
+    } else {
+        None
     };
     let _unfinished = Unfinished(&temp);
-    let status = crate::core::process::command("ffmpeg")
-        .kill_on_drop(true)
-        .args(["-y", "-v", "error", "-i"])
-        .arg(path)
-        .args(["-map", "0:v:0"])
-        .args(if mute {
-            &[][..]
-        } else {
-            &["-map", "0:a:0?"][..]
-        })
-        .args(video_args)
-        .args(if mute { &["-an"][..] } else { audio_args })
-        .args(["-movflags", "+faststart"])
-        .arg(&temp)
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .status()
-        .await
-        .map_err(|e| anyhow!("Failed to run ffmpeg: {}", e))?;
-    if !status.success() {
-        anyhow::bail!("ffmpeg returned {}", status);
+    let mut succeeded = false;
+    if let Some(ref hw_args) = hw_video_args {
+        if let Ok(st) = crate::core::process::command("ffmpeg")
+            .kill_on_drop(true)
+            .args(["-y", "-v", "error", "-i"])
+            .arg(path)
+            .args(["-map", "0:v:0"])
+            .args(if mute {
+                &[][..]
+            } else {
+                &["-map", "0:a:0?"][..]
+            })
+            .args(hw_args)
+            .args(if mute { &["-an"][..] } else { audio_args })
+            .args(["-movflags", "+faststart"])
+            .arg(&temp)
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status()
+            .await
+        {
+            if st.success() {
+                succeeded = true;
+            } else {
+                tracing::info!(
+                    "[omniget] hardware H.264 encode failed ({}), falling back to libx264",
+                    st
+                );
+                let _ = std::fs::remove_file(&temp);
+            }
+        }
+    }
+    if !succeeded {
+        let status = crate::core::process::command("ffmpeg")
+            .kill_on_drop(true)
+            .args(["-y", "-v", "error", "-i"])
+            .arg(path)
+            .args(["-map", "0:v:0"])
+            .args(if mute {
+                &[][..]
+            } else {
+                &["-map", "0:a:0?"][..]
+            })
+            .args(sw_video_args)
+            .args(if mute { &["-an"][..] } else { audio_args })
+            .args(["-movflags", "+faststart"])
+            .arg(&temp)
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status()
+            .await
+            .map_err(|e| anyhow!("Failed to run ffmpeg: {}", e))?;
+        if !status.success() {
+            anyhow::bail!("ffmpeg returned {}", status);
+        }
     }
     if path != target {
         let _ = std::fs::remove_file(path);
@@ -577,6 +650,10 @@ pub async fn download_video(
         base_args.push("--embed-metadata".to_string());
     }
 
+    if !is_audio_only && !thumbnails_only {
+        base_args.push("--embed-chapters".to_string());
+    }
+
     if embed_thumbnail_enabled() {
         base_args.push("--embed-thumbnail".to_string());
         base_args.push("--convert-thumbnails".to_string());
@@ -648,6 +725,9 @@ pub async fn download_video(
         if !keep_vtt_setting() {
             args.extend(["--convert-subs".to_string(), "srt".to_string()]);
         }
+        if !is_audio_only {
+            args.push("--embed-subs".to_string());
+        }
         args
     } else {
         Vec::new()
@@ -657,7 +737,7 @@ pub async fn download_video(
     let max_attempts: usize = if crate::core::dependencies::worker_mode() {
         1
     } else {
-        3
+        4
     } + usize::from(info_json.is_some());
     let mut extra_args: Vec<String> = Vec::new();
     let mut last_error = String::new();
@@ -695,7 +775,9 @@ pub async fn download_video(
                 last_was_429
             );
             tokio::time::sleep(std::time::Duration::from_secs(wait)).await;
-            cleanup_part_files(output_dir, &destinations).await;
+            if format_already_simplified {
+                cleanup_part_files(output_dir, &destinations).await;
+            }
         }
         if let Ok(mut step) = last_step.lock() {
             *step = None;
@@ -729,6 +811,7 @@ pub async fn download_video(
                     &a2_path.to_string_lossy(),
                     conns,
                     crate::core::http_client::proxy_url().as_deref(),
+                    speed_limit_value().as_deref(),
                 ));
             }
         }
@@ -789,6 +872,13 @@ pub async fn download_video(
         let lines = BufReader::new(stdout).lines();
 
         let captured_path: Arc<Mutex<Option<PathBuf>>> = Arc::new(Mutex::new(None));
+        let now_secs = || {
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_secs())
+                .unwrap_or(0)
+        };
+        let last_activity = Arc::new(std::sync::atomic::AtomicU64::new(now_secs()));
         let line_reader = spawn_stdout_reader(
             lines,
             progress.clone(),
@@ -799,16 +889,25 @@ pub async fn download_video(
             is_audio_only,
             _timer_start,
             Some(boot_slot.clone()),
+            Some(last_activity.clone()),
         );
 
         let stderr_log_id = log_hook::current_download_id();
         let stderr_boot_slot = boot_slot.clone();
+        let stderr_activity = last_activity.clone();
         let stderr_reader = tokio::spawn(async move {
             let mut buf = String::new();
             let stderr_buf = BufReader::new(stderr_pipe);
             let mut stderr_lines = stderr_buf.lines();
             let mut first = true;
             while let Ok(Some(line)) = stderr_lines.next_line().await {
+                stderr_activity.store(
+                    std::time::SystemTime::now()
+                        .duration_since(std::time::UNIX_EPOCH)
+                        .map(|d| d.as_secs())
+                        .unwrap_or(0),
+                    std::sync::atomic::Ordering::Relaxed,
+                );
                 if first {
                     first = false;
                     release_boot_slot(&stderr_boot_slot);
@@ -822,6 +921,8 @@ pub async fn download_video(
             buf
         });
 
+        let watch_activity = last_activity.clone();
+        let watch_step = last_step.clone();
         let status = tokio::select! {
             s = child.wait() => s.map_err(|e| anyhow!("yt-dlp process failed: {}", e))?,
             _ = cancel_token.cancelled() => {
@@ -835,6 +936,34 @@ pub async fn download_video(
                 cleanup_part_files(output_dir, &destinations).await;
                 tracing::debug!("[perf] download_video took {:?}", _timer_start.elapsed());
                 anyhow::bail!("Download cancelled");
+            }
+            _ = async move {
+                let mut tick = tokio::time::interval(std::time::Duration::from_secs(10));
+                loop {
+                    tick.tick().await;
+                    let last = watch_activity.load(std::sync::atomic::Ordering::Relaxed);
+                    let now = std::time::SystemTime::now()
+                        .duration_since(std::time::UNIX_EPOCH)
+                        .map(|d| d.as_secs())
+                        .unwrap_or(0);
+                    let limit_secs = match watch_step.lock().ok().and_then(|g| *g) {
+                        Some("merging" | "postprocessing") => 300,
+                        _ => 90,
+                    };
+                    if now.saturating_sub(last) >= limit_secs {
+                        break;
+                    }
+                }
+            } => {
+                kill_process_group(&child);
+                let _ = child.kill().await;
+                if let Some(download_id) = registered_download_id {
+                    unregister_download_process(download_id);
+                }
+                release_boot_slot(&boot_slot);
+                let _ = line_reader.await;
+                let _ = stderr_reader.await;
+                anyhow::bail!("Download stalled — no output received from yt-dlp for 90s");
             }
         };
 
@@ -1242,6 +1371,7 @@ pub(super) fn spawn_stdout_reader(
     is_audio_only: bool,
     _timer_start: std::time::Instant,
     boot_slot: Option<BootSlot>,
+    last_activity: Option<Arc<std::sync::atomic::AtomicU64>>,
 ) -> tokio::task::JoinHandle<()> {
     tokio::spawn(async move {
         let mut boot_slot = boot_slot;
@@ -1259,6 +1389,15 @@ pub(super) fn spawn_stdout_reader(
         let mut planned_count: usize = 0;
         let mut download_started = false;
         while let Ok(Some(line)) = lines.next_line().await {
+            if let Some(ref act) = last_activity {
+                act.store(
+                    std::time::SystemTime::now()
+                        .duration_since(std::time::UNIX_EPOCH)
+                        .map(|d| d.as_secs())
+                        .unwrap_or(0),
+                    std::sync::atomic::Ordering::Relaxed,
+                );
+            }
             if let Some(slot) = boot_slot.take() {
                 release_boot_slot(&slot);
             }
@@ -1475,6 +1614,7 @@ pub(super) async fn run_override_command(
         is_audio_only,
         timer_start,
         Some(boot_slot.clone()),
+        None,
     );
     let stderr_boot_slot = boot_slot.clone();
     let stderr_reader = tokio::spawn(async move {

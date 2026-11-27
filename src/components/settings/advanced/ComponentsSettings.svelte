@@ -15,6 +15,7 @@
   let loaded = $state(false);
   let failed = $state(false);
   let installing = $state<string | null>(null);
+  let rowErrors = $state<Record<string, string>>({});
   let portable = $state<PortableInfo | null>(null);
 
   async function loadDeps() {
@@ -35,6 +36,11 @@
     if (installing) return;
     const wasInstalled = deps.find((d) => d.name === name)?.installed ?? false;
     installing = name;
+    if (rowErrors[name]) {
+      const next = { ...rowErrors };
+      delete next[name];
+      rowErrors = next;
+    }
     try {
       const version = await invoke<string>("install_dependency", { name, force: wasInstalled });
       await loadDeps();
@@ -44,7 +50,9 @@
       const msg = e instanceof Error ? e.message : String(e);
       const brew = name === "FFmpeg" ? "ffmpeg" : name === "yt-dlp" ? "yt-dlp" : null;
       const key = wasInstalled ? "settings.dependencies.update_failed" : brew ? "settings.dependencies.install_failed" : "settings.dependencies.install_failed_retry";
-      showToast("error", $t(key, { name, msg, brew: brew ?? "" }) as string);
+      const formatted = $t(key, { name, msg, brew: brew ?? "" }) as string;
+      rowErrors = { ...rowErrors, [name]: formatted };
+      showToast("error", formatted);
       await loadDeps();
     } finally {
       installing = null;
@@ -93,6 +101,7 @@
             path={dep.path}
             outdated={dep.outdated}
             busy={installing === dep.name}
+            error={rowErrors[dep.name] ?? null}
             onInstall={() => install(dep.name)}
             onAfterCustomFile={loadDeps}
           />

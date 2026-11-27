@@ -15,10 +15,10 @@ export interface NavItem {
 export const CORE_NAV_ITEMS: NavItem[] = [
   { href: "/", labelKey: "nav.home", icon: "home", group: "primary", order: 10, keywords: "index main start inicio início" },
   { href: "/downloads", labelKey: "nav.downloads", icon: "downloads", group: "primary", badge: "downloads", order: 20, keywords: "queue fila active history histórico" },
+  { href: "/global", labelKey: "nav.global", icon: "global", group: "primary", order: 25, keywords: "courses cursos global downloader hotmart udemy browser navegador" },
   { href: "/superpowers", labelKey: "nav.superpowers", icon: "superpowers", group: "app", order: 30, keywords: "tools ferramentas superpowers superpoderes extras" },
   { href: "/world", labelKey: "nav.world", icon: "world", group: "app", order: 35, keywords: "canvas world agents agentes casa house" },
   { href: "/settings", labelKey: "nav.settings", icon: "settings", group: "app", order: 40, keywords: "preferences options config configurações" },
-  { href: "/help", labelKey: "nav.help", icon: "help", group: "app", order: 45, keywords: "help ajuda guias guides docs" },
   { href: "/community", labelKey: "nav.community", icon: "community", group: "app", order: 50, keywords: "community comunidade chat discord info about sobre version changelog project" },
 ];
 

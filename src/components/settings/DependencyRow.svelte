@@ -13,11 +13,12 @@
     path?: string | null;
     outdated?: boolean;
     busy: boolean;
+    error?: string | null;
     onInstall: () => void | Promise<void>;
     onAfterCustomFile?: () => void | Promise<void>;
   };
 
-  let { name, installed, version, source = "missing", path = null, outdated = false, busy, onInstall, onAfterCustomFile }: Props =
+  let { name, installed, version, source = "missing", path = null, outdated = false, busy, error = null, onInstall, onAfterCustomFile }: Props =
     $props();
 
   let installDir = $state<string | null>(null);
@@ -178,6 +179,9 @@
     <span class="deps-meta" dir="ltr">
       {#if installed && version}v{version}{:else}—{/if}{#if sourceLabel} · <span title={customPath ?? path ?? ""}>{sourceLabel}</span>{/if}
     </span>
+    {#if error}
+      <p class="deps-error" role="alert">{error}</p>
+    {/if}
   </td>
   <td class="deps-cell-status">
     {#if installed && outdated}
@@ -296,6 +300,13 @@
     font-size: var(--text-xs);
     font-family: var(--font-mono, ui-monospace, monospace);
     color: var(--text-muted);
+  }
+  .deps-error {
+    margin: 4px 0 0;
+    font-size: var(--text-xs);
+    line-height: 1.45;
+    color: var(--danger);
+    overflow-wrap: anywhere;
   }
   .deps-status {
     display: inline-flex;

@@ -276,8 +276,9 @@ impl HlsDownloader {
         let video_tmp = format!("{output_path}.video.mp4");
         let audio_tmp = format!("{output_path}.audio.m4a");
         let joined = async {
-            let video = self
-                .download_media_playlist(
+            let audio_concurrent = (max_concurrent / 2).clamp(2, max_concurrent.max(2));
+            let (video, audio) = tokio::try_join!(
+                self.download_media_playlist(
                     video_url,
                     &video_tmp,
                     referer,
@@ -285,19 +286,17 @@ impl HlsDownloader {
                     cancel_token.clone(),
                     max_concurrent,
                     max_retries,
-                )
-                .await?;
-            let audio = self
-                .download_media_playlist(
+                ),
+                self.download_media_playlist(
                     audio_url,
                     &audio_tmp,
                     referer,
                     bytes_tx.clone(),
                     cancel_token.clone(),
-                    max_concurrent,
+                    audio_concurrent,
                     max_retries,
-                )
-                .await?;
+                ),
+            )?;
             let output = PathBuf::from(output_path);
             join_tracks(&video.path, &audio.path, &output).await?;
             let file_size = std::fs::metadata(&output)?.len();

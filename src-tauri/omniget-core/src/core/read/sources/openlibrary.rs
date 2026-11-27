@@ -175,9 +175,11 @@ pub async fn lookup(
         q.append_pair("limit", "8");
     }
     let r: SearchResponse = get_json(client, u.as_str()).await?;
-    let mut out = Vec::new();
-    for d in r.docs {
-        let description = work_description(client, &d.key).await.unwrap_or_default();
+    let descriptions =
+        futures::future::join_all(r.docs.iter().map(|d| work_description(client, &d.key))).await;
+    let mut out = Vec::with_capacity(r.docs.len());
+    for (d, desc) in r.docs.into_iter().zip(descriptions) {
+        let description = desc.unwrap_or_default();
         out.push(MetaCandidate {
             source: "openlibrary".into(),
             title: d.title.clone(),

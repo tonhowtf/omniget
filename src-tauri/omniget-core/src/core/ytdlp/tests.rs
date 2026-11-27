@@ -895,7 +895,7 @@ fn parse_formats_video_only() {
 
 #[test]
 fn aria2c_nunca_recebe_manifesto_fragmentado() {
-    let args = aria2c_downloader_args("/opt/bin/aria2c", 8, None);
+    let args = aria2c_downloader_args("/opt/bin/aria2c", 8, None, None);
     let downloader = &args[1];
     assert!(downloader.starts_with("http,ftp:"), "{downloader}");
     for proto in ["m3u8", "m3u8_native", "m3u8_frag_urls", "dash_frag_urls"] {
@@ -910,24 +910,40 @@ fn aria2c_nunca_recebe_manifesto_fragmentado() {
 
 #[test]
 fn aria2c_downloader_args_rejeita_proxy_com_espaco() {
-    let limpo = aria2c_downloader_args("/bin/aria2c", 2, Some("http://127.0.0.1:8080"));
+    let limpo = aria2c_downloader_args("/bin/aria2c", 2, Some("http://127.0.0.1:8080"), None);
     assert!(
         limpo[3].ends_with("--all-proxy=http://127.0.0.1:8080"),
         "{}",
         limpo[3]
     );
-    let sujo = aria2c_downloader_args("/bin/aria2c", 2, Some("http://h:1 --seed-ratio=0"));
+    let sujo = aria2c_downloader_args("/bin/aria2c", 2, Some("http://h:1 --seed-ratio=0"), None);
     assert!(!sujo[3].contains("--all-proxy"), "{}", sujo[3]);
     assert!(!sujo[3].contains("--seed-ratio"));
 }
 
 #[test]
 fn aria2c_nunca_zera_conexoes() {
-    let args = aria2c_downloader_args("/bin/aria2c", 0, None);
+    let args = aria2c_downloader_args("/bin/aria2c", 0, None, None);
     assert!(
         args[3].contains("-x 1") && args[3].contains("-j 1"),
         "{}",
         args[3]
+    );
+}
+
+#[test]
+fn aria2c_downloader_args_aplica_limite_de_velocidade() {
+    let ok = aria2c_downloader_args("/bin/aria2c", 4, None, Some("2M"));
+    assert!(
+        ok[3].contains("--max-overall-download-limit=2M"),
+        "{}",
+        ok[3]
+    );
+    let sujo = aria2c_downloader_args("/bin/aria2c", 4, None, Some("2M --dir=/tmp"));
+    assert!(
+        !sujo[3].contains("--max-overall-download-limit"),
+        "{}",
+        sujo[3]
     );
 }
 

@@ -10122,14 +10122,14 @@
     {
         "type": "archive",
         "archive-type": "tar-gzip",
-        "url": "https://static.crates.io/crates/rfd/rfd-0.16.0.crate",
-        "sha256": "a15ad77d9e70a92437d8f74c35d99b4e4691128df018833e99f90bcd36152672",
-        "dest": "cargo/vendor/rfd-0.16.0"
+        "url": "https://static.crates.io/crates/rfd/rfd-0.17.2.crate",
+        "sha256": "20dafead71c16a34e1ff357ddefc8afc11e7d51d6d2b9fbd07eaa48e3e540220",
+        "dest": "cargo/vendor/rfd-0.17.2"
     },
     {
         "type": "inline",
-        "contents": "{\"package\": \"a15ad77d9e70a92437d8f74c35d99b4e4691128df018833e99f90bcd36152672\", \"files\": {}}",
-        "dest": "cargo/vendor/rfd-0.16.0",
+        "contents": "{\"package\": \"20dafead71c16a34e1ff357ddefc8afc11e7d51d6d2b9fbd07eaa48e3e540220\", \"files\": {}}",
+        "dest": "cargo/vendor/rfd-0.17.2",
         "dest-filename": ".cargo-checksum.json"
     },
     {
@@ -11331,32 +11331,6 @@
     {
         "type": "archive",
         "archive-type": "tar-gzip",
-        "url": "https://static.crates.io/crates/sigchld/sigchld-0.2.4.crate",
-        "sha256": "47106eded3c154e70176fc83df9737335c94ce22f821c32d17ed1db1f83badb1",
-        "dest": "cargo/vendor/sigchld-0.2.4"
-    },
-    {
-        "type": "inline",
-        "contents": "{\"package\": \"47106eded3c154e70176fc83df9737335c94ce22f821c32d17ed1db1f83badb1\", \"files\": {}}",
-        "dest": "cargo/vendor/sigchld-0.2.4",
-        "dest-filename": ".cargo-checksum.json"
-    },
-    {
-        "type": "archive",
-        "archive-type": "tar-gzip",
-        "url": "https://static.crates.io/crates/signal-hook/signal-hook-0.3.18.crate",
-        "sha256": "d881a16cf4426aa584979d30bd82cb33429027e42122b169753d6ef1085ed6e2",
-        "dest": "cargo/vendor/signal-hook-0.3.18"
-    },
-    {
-        "type": "inline",
-        "contents": "{\"package\": \"d881a16cf4426aa584979d30bd82cb33429027e42122b169753d6ef1085ed6e2\", \"files\": {}}",
-        "dest": "cargo/vendor/signal-hook-0.3.18",
-        "dest-filename": ".cargo-checksum.json"
-    },
-    {
-        "type": "archive",
-        "archive-type": "tar-gzip",
         "url": "https://static.crates.io/crates/signal-hook/signal-hook-0.4.4.crate",
         "sha256": "b2a0c28ca5908dbdbcd52e6fdaa00358ab88637f8ab33e1f188dd510eb44b53d",
         "dest": "cargo/vendor/signal-hook-0.4.4"
@@ -12332,14 +12306,14 @@
     {
         "type": "archive",
         "archive-type": "tar-gzip",
-        "url": "https://static.crates.io/crates/tauri-plugin-dialog/tauri-plugin-dialog-2.7.3.crate",
-        "sha256": "61854a36651aa48381e5e209f69a01273b77f3f9f91f0c430b1b98d33bd47229",
-        "dest": "cargo/vendor/tauri-plugin-dialog-2.7.3"
+        "url": "https://static.crates.io/crates/tauri-plugin-dialog/tauri-plugin-dialog-2.8.4.crate",
+        "sha256": "ce0fb9c2b6d34a9720627ed930ebc8af26f61e648695aecaeb03d5c33c5896f5",
+        "dest": "cargo/vendor/tauri-plugin-dialog-2.8.4"
     },
     {
         "type": "inline",
-        "contents": "{\"package\": \"61854a36651aa48381e5e209f69a01273b77f3f9f91f0c430b1b98d33bd47229\", \"files\": {}}",
-        "dest": "cargo/vendor/tauri-plugin-dialog-2.7.3",
+        "contents": "{\"package\": \"ce0fb9c2b6d34a9720627ed930ebc8af26f61e648695aecaeb03d5c33c5896f5\", \"files\": {}}",
+        "dest": "cargo/vendor/tauri-plugin-dialog-2.8.4",
         "dest-filename": ".cargo-checksum.json"
     },
     {
@@ -12397,14 +12371,14 @@
     {
         "type": "archive",
         "archive-type": "tar-gzip",
-        "url": "https://static.crates.io/crates/tauri-plugin-shell/tauri-plugin-shell-2.3.6.crate",
-        "sha256": "8548af174c5516e4f71f142acea4d02e00316296ea9aafa58798851481003e3c",
-        "dest": "cargo/vendor/tauri-plugin-shell-2.3.6"
+        "url": "https://static.crates.io/crates/tauri-plugin-shell/tauri-plugin-shell-2.6.0.crate",
+        "sha256": "7375b25f72f70f6168f27f1ba3a413e30eaa0a2098cff53a4046ebfe9e2f142d",
+        "dest": "cargo/vendor/tauri-plugin-shell-2.6.0"
     },
     {
         "type": "inline",
-        "contents": "{\"package\": \"8548af174c5516e4f71f142acea4d02e00316296ea9aafa58798851481003e3c\", \"files\": {}}",
-        "dest": "cargo/vendor/tauri-plugin-shell-2.3.6",
+        "contents": "{\"package\": \"7375b25f72f70f6168f27f1ba3a413e30eaa0a2098cff53a4046ebfe9e2f142d\", \"files\": {}}",
+        "dest": "cargo/vendor/tauri-plugin-shell-2.6.0",
         "dest-filename": ".cargo-checksum.json"
     },
     {

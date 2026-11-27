@@ -40,30 +40,48 @@
 </script>
 
 <div class="profile-card">
-  <Avatar tint={profile.skin?.tint} size={64} />
-  <div class="profile-meta">
-    <span class="profile-nick">{profile.nickname}</span>
-    <span class="profile-hint">{$t("profile.fingerprint_label")}</span>
-    <div class="fp-row">
-      <code class="fp">{grouped}</code>
-      <button
-        type="button"
-        class="button fp-copy"
-        onclick={copy}
-        aria-label={$t("profile.copy_fingerprint") as string}
-      >
-        {copied ? $t("profile.copied") : $t("profile.copy")}
-      </button>
+  <div class="profile-header">
+    <Avatar tint={profile.skin?.tint} size={56} />
+    <div class="profile-meta">
+      <span class="profile-nick">{profile.nickname}</span>
+      <span class="profile-hint">{$t("profile.used_in_hint")}</span>
     </div>
   </div>
+
+  {#if grouped}
+    <details class="fp-disclosure">
+      <summary>{$t("profile.identity_disclosure")}</summary>
+      <div class="fp-row">
+        <code class="fp">{grouped}</code>
+        <button
+          type="button"
+          class="btn btn-secondary btn-sm fp-copy"
+          onclick={copy}
+          aria-label={$t("profile.copy_fingerprint") as string}
+        >
+          {copied ? $t("profile.copied") : $t("profile.copy")}
+        </button>
+      </div>
+    </details>
+  {/if}
 </div>
 
 <style>
   .profile-card {
     display: flex;
-    align-items: flex-start;
+    flex-direction: column;
+    gap: var(--space-3);
+    padding: var(--space-3) var(--space-4);
+    border-radius: var(--radius-md);
+    background: color-mix(in srgb, var(--surface-hi) 45%, var(--surface));
+    box-shadow: inset 0 0 0 var(--hairline) var(--content-border);
+    min-width: 0;
+  }
+
+  .profile-header {
+    display: flex;
+    align-items: center;
     gap: var(--space-4);
-    padding: var(--space-3) 0;
     min-width: 0;
   }
 
@@ -87,26 +105,54 @@
 
   .profile-hint {
     font-size: var(--text-sm);
+    color: var(--text-muted);
+    line-height: 1.45;
+  }
+
+  .fp-disclosure {
+    border-top: var(--hairline) solid var(--separator);
+    padding-top: var(--space-2);
+  }
+
+  .fp-disclosure summary {
+    font-size: var(--text-xs);
+    font-weight: 500;
     color: var(--text-dim);
+    cursor: pointer;
+    user-select: none;
+  }
+
+  .fp-disclosure summary:hover {
+    color: var(--text-muted);
+  }
+
+  .fp-disclosure summary:focus-visible {
+    outline: var(--focus-ring);
+    border-radius: var(--radius-xs);
   }
 
   .fp-row {
     display: flex;
     align-items: center;
     gap: var(--space-2);
-    margin-top: var(--space-1);
+    margin-top: var(--space-2);
     min-width: 0;
   }
 
   .fp {
     font-family: var(--font-mono);
-    font-size: var(--text-sm);
+    font-size: var(--text-xs);
     letter-spacing: 0.02em;
-    color: var(--text);
+    color: var(--text-muted);
+    background: var(--surface);
+    padding: 4px 8px;
+    border-radius: var(--radius-xs);
+    box-shadow: inset 0 0 0 var(--hairline) var(--content-border);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
     min-width: 0;
+    flex: 1;
   }
 
   .fp-copy {

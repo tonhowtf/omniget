@@ -287,12 +287,23 @@ pub(crate) fn aria2c_downloader_args(
     aria2c_path: &str,
     connections: u32,
     proxy: Option<&str>,
+    speed_limit: Option<&str>,
 ) -> Vec<String> {
     let conns = connections.max(1);
     let proxy_arg = match proxy.map(str::trim).filter(|p| !p.is_empty()) {
         Some(p) if !p.contains(char::is_whitespace) => format!(" --all-proxy={}", p),
         Some(_) => {
             tracing::warn!("[aria2c] proxy containing a space ignored in --downloader-args");
+            String::new()
+        }
+        None => String::new(),
+    };
+    let limit_arg = match speed_limit.map(str::trim).filter(|s| !s.is_empty()) {
+        Some(s) if !s.contains(char::is_whitespace) => {
+            format!(" --max-overall-download-limit={}", s)
+        }
+        Some(_) => {
+            tracing::warn!("[aria2c] speed limit containing a space ignored in --downloader-args");
             String::new()
         }
         None => String::new(),
@@ -305,7 +316,7 @@ pub(crate) fn aria2c_downloader_args(
             "aria2c:-x {conns} -k 1M -j {conns} --min-split-size=1M \
              --file-allocation=none --optimize-concurrent-downloads=true \
              --auto-file-renaming=false --summary-interval=1 \
-             --console-log-level=notice{proxy_arg}"
+             --console-log-level=notice{proxy_arg}{limit_arg}"
         ),
     ]
 }
@@ -1305,17 +1316,19 @@ fn metadata_cookie_source(url: &str, extra_flags: &[String]) -> MetadataCookieSo
         return MetadataCookieSource::ManualHeader(header);
     }
 
-    if let Some(path) = extension_cookie_file() {
-        return MetadataCookieSource::CookieFile(path);
-    }
-
     if let Some(path) = global_cookie_file().map(PathBuf::from) {
         return MetadataCookieSource::CookieFile(path);
     }
 
-    let browser = cookies_from_browser_setting();
-    if !browser.is_empty() {
-        return MetadataCookieSource::Browser(browser);
+    if let Some(path) = extension_cookie_file() {
+        return MetadataCookieSource::CookieFile(path);
+    }
+
+    if !managed_cookies_only() {
+        let browser = cookies_from_browser_setting();
+        if !browser.is_empty() {
+            return MetadataCookieSource::Browser(browser);
+        }
     }
 
     MetadataCookieSource::None
@@ -1379,7 +1392,11 @@ impl YtRateLimiter {
             let wait_duration = std::time::Duration::from_nanos(wait_ns);
             tokio::time::sleep(wait_duration).await;
         }
-        self.last_request_ns.store(now_ns, Ordering::Relaxed);
+        let after_ns = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_nanos() as u64;
+        self.last_request_ns.store(after_ns, Ordering::Relaxed);
     }
 }
 

@@ -112,19 +112,15 @@ pub fn msi_products() -> Vec<inventory::MsiProduct> {
     out
 }
 
-fn winget_exists() -> bool {
-    env_dir("LOCALAPPDATA")
-        .map(|d| d.join(r"Microsoft\WindowsApps\winget.exe").exists())
-        .unwrap_or(false)
-        || std::env::var_os("PATH")
-            .is_some_and(|p| std::env::split_paths(&p).any(|d| d.join("winget.exe").exists()))
+fn winget_program() -> Option<PathBuf> {
+    crate::core::washmybelly::packages::find_program("winget")
 }
 
 pub fn winget_rows() -> Vec<parse::WingetRow> {
-    if !winget_exists() {
+    let Some(exe) = winget_program() else {
         return Vec::new();
-    }
-    let mut cmd = crate::core::process::std_command("winget");
+    };
+    let mut cmd = crate::core::process::std_command(&exe);
     cmd.args([
         "list",
         "--accept-source-agreements",
@@ -560,7 +556,7 @@ fn uninstall_registered(args: &Value, app_id: &str, label: &str) -> Result<Strin
     let entry = entry_of(args, app_id)?;
     let still_there = || registry::read_entry(entry.root, &entry.key_name).is_some();
     if let Some(id) = run::arg(args, "winget_id").filter(|id| parse::winget_id_ok(id)) {
-        if winget_exists() {
+        if winget_program().is_some() {
             let p = run::winget_uninstall(id)?;
             let m = parse::winget_exit(run_planned(&p, label)?);
             if m.ok && !still_there() {

@@ -1,6 +1,6 @@
-export const QUALITY_CARDS = ["best", "1080p", "720p"] as const;
+const QUALITY_CARDS = ["best", "1080p", "720p"] as const;
 export const LOWER_QUALITIES = ["480p", "360p"] as const;
-export const RULE_QUALITIES = ["best", "1080p", "720p", "480p", "360p"] as const;
+const RULE_QUALITIES = ["best", "1080p", "720p", "480p", "360p"] as const;
 
 export type QualityCard = (typeof QUALITY_CARDS)[number];
 

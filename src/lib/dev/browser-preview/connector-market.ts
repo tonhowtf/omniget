@@ -118,7 +118,82 @@ function lookup(args: Args) {
 export const marketFixtures: Record<string, (args: Args) => unknown> = {
   gd_market_list: list,
   gd_find: (args) => {
-    throw `resolve: Error: Not signed in. Sign in in the browser, then try again. (${String(args.url)})`;
+    const url = String(args.url ?? "");
+    if (scenario() === "auth-error") {
+      throw `resolve: Error: Not signed in. Sign in in the browser, then try again. (${url})`;
+    }
+    const connector = /udemy/i.test(url) ? "udemy" : "hotmart";
+    return {
+      connector,
+      ms: 420,
+      items: 7,
+      drm: 1,
+      logs: [`preview: resolved ${url}`],
+      tree: {
+        id: "library",
+        title: connector === "udemy" ? "Udemy" : "Hotmart Club",
+        kind: "folder",
+        children: [
+          {
+            id: "course-1",
+            title: "Rust & Tauri Desktop Engineering",
+            kind: "folder",
+            children: [
+              {
+                id: "c1-m1",
+                title: "01. Architecture & IPC",
+                kind: "folder",
+                children: [
+                  { id: "c1-l1", title: "01. Project structure & workspace crates", kind: "video", source: { format: "hls", url: "https://example.com/1.m3u8" } },
+                  { id: "c1-l2", title: "02. Tauri commands & event streams", kind: "video", source: { format: "hls", url: "https://example.com/2.m3u8" } },
+                  { id: "c1-l3", title: "Architecture cheatsheet.pdf", kind: "document", source: { format: "direct", url: "https://example.com/cheat.pdf" } },
+                ],
+              },
+              {
+                id: "c1-m2",
+                title: "02. Performance & Packaging",
+                kind: "folder",
+                children: [
+                  { id: "c1-l4", title: "03. Memory profiling & async streams", kind: "video", source: { format: "hls", url: "https://example.com/3.m3u8" } },
+                  { id: "c1-l5", title: "04. Protected bonus session", kind: "video", drm: true },
+                ],
+              },
+            ],
+          },
+          {
+            id: "course-2",
+            title: "Design Systems & Modern Svelte 5",
+            kind: "folder",
+            children: [
+              {
+                id: "c2-m1",
+                title: "01. Runes & Fine-grained Reactivity",
+                kind: "folder",
+                children: [
+                  { id: "c2-l1", title: "01. $state, $derived and $effect", kind: "video", source: { format: "hls", url: "https://example.com/4.m3u8" } },
+                  { id: "c2-l2", title: "02. Building accessible Spotlight Cards", kind: "video", source: { format: "hls", url: "https://example.com/5.m3u8" } },
+                ],
+              },
+            ],
+          },
+          {
+            id: "course-3",
+            title: "Local-First AI Agents with MCP",
+            kind: "folder",
+            children: [
+              {
+                id: "c3-m1",
+                title: "01. Designing Dense Agent Tools",
+                kind: "folder",
+                children: [
+                  { id: "c3-l1", title: "01. Tool schemas & structured outputs", kind: "video", source: { format: "hls", url: "https://example.com/6.m3u8" } },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    };
   },
   gd_market_install: install,
   gd_market_update: install,

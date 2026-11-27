@@ -1,4 +1,6 @@
+pub mod archive_org;
 pub mod declarative;
+pub mod directory;
 pub mod googlebooks;
 pub mod gutendex;
 pub mod mangadex;
@@ -29,12 +31,41 @@ pub async fn get_json<T: serde::de::DeserializeOwned>(
     client: &reqwest::Client,
     url: &str,
 ) -> Result<T, String> {
-    let r = client.get(url).send().await.map_err(|e| e.to_string())?;
-    let status = r.status();
-    if !status.is_success() {
-        return Err(format!("{status} from {url}"));
+    let mut last_err = String::new();
+    let mut retry_after_ms: Option<u64> = None;
+    for attempt in 0..3 {
+        if attempt > 0 {
+            let wait = retry_after_ms
+                .take()
+                .unwrap_or(500 * (1u64 << (attempt - 1)))
+                .min(30_000);
+            tokio::time::sleep(std::time::Duration::from_millis(wait)).await;
+        }
+        match client.get(url).send().await {
+            Ok(r) if r.status().is_success() => {
+                return r.json().await.map_err(|e| e.to_string());
+            }
+            Ok(r) => {
+                let status = r.status();
+                if status.as_u16() == 429 || status.as_u16() == 503 {
+                    retry_after_ms = r
+                        .headers()
+                        .get(reqwest::header::RETRY_AFTER)
+                        .and_then(|v| v.to_str().ok())
+                        .and_then(|s| s.trim().parse::<u64>().ok())
+                        .map(|secs| secs.saturating_mul(1000));
+                }
+                last_err = format!("{status} from {url}");
+                if matches!(status.as_u16(), 400 | 401 | 403 | 404 | 410) {
+                    return Err(last_err);
+                }
+            }
+            Err(e) => {
+                last_err = e.to_string();
+            }
+        }
     }
-    r.json().await.map_err(|e| e.to_string())
+    Err(last_err)
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]

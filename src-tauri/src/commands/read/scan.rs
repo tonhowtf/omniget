@@ -40,13 +40,23 @@ pub fn store_cover(data: &[u8]) -> Option<String> {
     };
     let full = dir.join(format!("{hash}.{ext}"));
     if !full.exists() {
-        std::fs::write(&full, data).ok()?;
+        let tmp = dir.join(format!(".{hash}.{}.{ext}.tmp", std::process::id()));
+        std::fs::write(&tmp, data).ok()?;
+        if std::fs::rename(&tmp, &full).is_err() {
+            let _ = std::fs::remove_file(&tmp);
+            return None;
+        }
     }
     let thumb = dir.join(format!("{hash}-t.jpg"));
     if !thumb.exists() {
         if let Ok(img) = image::load_from_memory(data) {
             let t = img.thumbnail(THUMB_W, THUMB_H).to_rgb8();
-            let _ = t.save_with_format(&thumb, image::ImageFormat::Jpeg);
+            let tmp = dir.join(format!(".{hash}-t.{}.jpg.tmp", std::process::id()));
+            if t.save_with_format(&tmp, image::ImageFormat::Jpeg).is_ok()
+                && std::fs::rename(&tmp, &thumb).is_err()
+            {
+                let _ = std::fs::remove_file(&tmp);
+            }
         }
     }
     Some(hash)
