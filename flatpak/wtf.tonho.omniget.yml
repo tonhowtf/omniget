@@ -1,6 +1,6 @@
 app-id: wtf.tonho.omniget
 runtime: org.gnome.Platform
-runtime-version: '49'
+runtime-version: '51'
 sdk: org.gnome.Sdk
 sdk-extensions:
   - org.freedesktop.Sdk.Extension.rust-stable
@@ -10,18 +10,27 @@ command: omniget
 
 finish-args:
   - --share=ipc
+  # Downloading media from the web is the core feature; the local MCP server
+  # that coding agents connect to also listens on 127.0.0.1 only.
   - --share=network
   - --socket=fallback-x11
   - --socket=wayland
+  # Account cookies and API keys are kept in the Secret Service keyring.
   - --talk-name=org.freedesktop.secrets
+  # Audio and video preview of downloaded media.
   - --socket=pulseaudio
-  - --filesystem=xdg-run/pipewire-0
   - --device=dri
+  # Default output folders for downloads, videos and music. Any other folder
+  # is chosen through the FileChooser portal.
   - --filesystem=xdg-download
   - --filesystem=xdg-videos
   - --filesystem=xdg-music
+  # Notification when a download finishes.
   - --talk-name=org.freedesktop.Notifications
+  # Tray icon: the app keeps running in the background while downloads finish.
   - --talk-name=org.kde.StatusNotifierWatcher
+  # "Show in folder" for a finished download opens the file manager with the
+  # file selected; the OpenURI portal can only open the folder.
   - --talk-name=org.freedesktop.FileManager1
 
 build-options:
@@ -125,15 +134,35 @@ modules:
       - install -Dm755 yt-dlp /app/bin/yt-dlp
     sources:
       - type: file
-        url: https://github.com/yt-dlp/yt-dlp/releases/download/2026.10.26/yt-dlp
-        sha256: e51e69e89489f199530f13d32a4342da3ddb2cf34842f364603a066db05afbf3
+        url: https://github.com/yt-dlp/yt-dlp/releases/download/2026.11.23/yt-dlp
+        sha256: e8665ed64d6b9172773e812f891fb707a0cb1ee8d9ef4fc1acb00cabee4c5256
         dest-filename: yt-dlp
         only-arches:
           - x86_64
       - type: file
-        url: https://github.com/yt-dlp/yt-dlp/releases/download/2026.10.26/yt-dlp_linux_aarch64
-        sha256: e87e9533e89fe5889abaa21f5114dfe7756d6aa6219b83551add04d48b18e483
+        url: https://github.com/yt-dlp/yt-dlp/releases/download/2026.11.23/yt-dlp_linux_aarch64
+        sha256: fb847a2e4a9ddc8cf5fcfb4bb7f42ba8969ecf72068def0278074f9d300bd13c
         dest-filename: yt-dlp
+        only-arches:
+          - aarch64
+
+  # yt-dlp needs a JavaScript runtime for YouTube; the app cannot fetch one
+  # at run time inside the sandbox.
+  - name: deno
+    buildsystem: simple
+    build-commands:
+      - install -Dm755 deno /app/bin/deno
+    sources:
+      - type: archive
+        url: https://github.com/denoland/deno/releases/download/v2.9.8/deno-x86_64-unknown-linux-gnu.zip
+        sha256: e890975bc2549807bbcc0b584ffafda72cc7c93349dd99c80483dd784f6c4609
+        strip-components: 0
+        only-arches:
+          - x86_64
+      - type: archive
+        url: https://github.com/denoland/deno/releases/download/v2.9.8/deno-aarch64-unknown-linux-gnu.zip
+        sha256: d49596c20b9788cf8f5d8ddf644103d4bde56ed239753f0bdb92ba9361d51905
+        strip-components: 0
         only-arches:
           - aarch64
 
