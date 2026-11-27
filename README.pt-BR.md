@@ -277,7 +277,7 @@ Ainda sem link? Digite algumas palavras na mesma barra para buscar vídeos.
 
 | | |
 |---|---|
-| **Vídeo e áudio** | Extratores próprios para YouTube, Instagram, TikTok, X, Reddit, Bilibili, Twitch, Vimeo e outros, mais todos os sites que o [yt-dlp](https://github.com/yt-dlp/yt-dlp) suporta. Até 4K em MP4 que toca em qualquer lugar, ou áudio em M4A, MP3, Opus, FLAC, WAV |
+| **Vídeo e áudio** | Extratores próprios para YouTube, Instagram, TikTok, X, Reddit, Bilibili, Twitch, Vimeo e outros, mais todos os sites que o [yt-dlp](https://github.com/yt-dlp/yt-dlp) suporta. Até 4K, com o formato de vídeo **Mais compatível** nas Configurações para players que não abrem codecs novos, ou áudio em M4A, MP3, Opus, FLAC, WAV |
 | **Galerias** | Galerias e perfis inteiros pelo [gallery-dl](https://github.com/mikf/gallery-dl) |
 | **Arquivos** | Links magnet e `.torrent`, links diretos em partes paralelas, streams HLS, gravação de lives |
 | **Telegram** | Mensagens, álbuns, intervalos e conversas inteiras com a sua própria conta |
@@ -450,7 +450,7 @@ O instalador do Windows ainda não é assinado, então o SmartScreen pergunta um
 
 ### Como eu atualizo?
 
-As atualizações chegam por dentro do app. Cópias instaladas por `.deb` ou `.rpm` são mandadas para a página de download.
+As atualizações chegam por dentro do app. As cópias em `.deb`, `.rpm`, Flatpak e portátil não se atualizam sozinhas: elas mandam você para a página de download.
 
 ### Qual OmniGet é o original?
 

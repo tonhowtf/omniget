@@ -277,7 +277,7 @@ http_headers = { Authorization = "Bearer YOUR_TOKEN" }
 
 | | |
 |---|---|
-| **视频和音频** | 为 YouTube、Instagram、TikTok、X、Reddit、Bilibili、Twitch、Vimeo 等网站自研了提取器，另外支持 [yt-dlp](https://github.com/yt-dlp/yt-dlp) 能处理的所有网站。最高 4K，保存为到处都能播放的 MP4，也可以只要音频：M4A、MP3、Opus、FLAC、WAV |
+| **视频和音频** | 为 YouTube、Instagram、TikTok、X、Reddit、Bilibili、Twitch、Vimeo 等网站自研了提取器，另外支持 [yt-dlp](https://github.com/yt-dlp/yt-dlp) 能处理的所有网站。最高 4K，播放器打不开新编码时可在设置里把视频格式选为**兼容性最佳**，也可以只要音频：M4A、MP3、Opus、FLAC、WAV |
 | **图集** | 通过 [gallery-dl](https://github.com/mikf/gallery-dl) 下载整个图集和主页 |
 | **文件** | 磁力链接和 `.torrent`，直链分块并行下载，HLS 流，直播录制 |
 | **Telegram** | 用你自己的账号下载消息、相册、指定范围和整个聊天 |
@@ -450,7 +450,7 @@ Windows 安装程序暂时还没有签名，所以 SmartScreen 会询问一次�
 
 ### 如何更新？
 
-更新在应用内推送。通过 `.deb` 或 `.rpm` 安装的版本会被引导到下载页面。
+更新在应用内推送。`.deb`、`.rpm`、Flatpak 和便携版不会自行更新，而是引导你前往下载页面。
 
 ### 哪个 OmniGet 是原版？
 

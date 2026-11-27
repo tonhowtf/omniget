@@ -277,7 +277,7 @@ No link yet? Type a few words in the same bar to search videos.
 
 | | |
 |---|---|
-| **Video and audio** | Own extractors for YouTube, Instagram, TikTok, X, Reddit, Bilibili, Twitch, Vimeo and more, plus every site [yt-dlp](https://github.com/yt-dlp/yt-dlp) supports. Up to 4K as an MP4 that plays everywhere, or audio as M4A, MP3, Opus, FLAC, WAV |
+| **Video and audio** | Own extractors for YouTube, Instagram, TikTok, X, Reddit, Bilibili, Twitch, Vimeo and more, plus every site [yt-dlp](https://github.com/yt-dlp/yt-dlp) supports. Up to 4K, with a **Most compatible** video format in Settings for players that cannot open newer codecs, or audio as M4A, MP3, Opus, FLAC, WAV |
 | **Galleries** | Whole galleries and profiles through [gallery-dl](https://github.com/mikf/gallery-dl) |
 | **Files** | Magnet links and `.torrent`, direct links in parallel chunks, HLS streams, live recordings |
 | **Telegram** | Messages, albums, ranges and whole chats with your own account |
@@ -450,7 +450,7 @@ The Windows installer is not signed yet, so SmartScreen asks once. [Install](#in
 
 ### How do I update?
 
-Updates arrive inside the app. Copies installed from a `.deb` or `.rpm` are sent to the download page instead.
+Updates arrive inside the app. The `.deb`, `.rpm`, Flatpak and portable copies do not update themselves: they send you to the download page.
 
 ### Which OmniGet is the original?
 
