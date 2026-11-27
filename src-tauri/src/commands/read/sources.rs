@@ -576,13 +576,12 @@ pub fn mime_to_format(m: &str) -> String {
 pub async fn read_opds_open(source: String, url: String) -> Result<Page, String> {
     if let Some(id_str) = source.strip_prefix("dir:") {
         let id: i64 = id_str.parse().map_err(|_| "bad directory id")?;
-        let cat = blocking(move || catalog(id)).await?;
-        let (user, pass) = if directory::same_origin(&cat.url, &url) {
-            (cat.username.as_str(), cat.password.as_str())
-        } else {
-            ("", "")
-        };
-        return directory::browse(http(), &url, &source, "", user, pass).await;
+        let mut cat = blocking(move || catalog(id)).await?;
+        if !directory::same_origin(&cat.url, &url) {
+            cat.username.clear();
+            cat.password.clear();
+        }
+        return directory::browse(http(), &url, &source, "", &cat.username, &cat.password).await;
     }
     let id: i64 = source
         .strip_prefix("opds:")
